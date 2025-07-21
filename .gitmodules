@@ -1,0 +1,3 @@
+[submodule "2025/Claude/Opus4/Modular/RocketChip_AP/RocketChip_AP/ardupilot"]
+	path = 2025/Claude/Opus4/Modular/RocketChip_AP/RocketChip_AP/ardupilot
+	url = https://github.com/ArduPilot/ardupilot
