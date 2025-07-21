@@ -1,0 +1,96 @@
+# Arduino IDE build artifacts
+*.hex
+*.elf
+*.bin
+*.map
+*.eep
+*.lss
+*.sym
+*.tmp
+*.cpp
+*.o
+*.a
+*.d
+
+# Arduino IDE temporary directories
+build/
+sketch_*/
+*.ino.cpp
+
+# Arduino IDE preferences and cache
+preferences.txt
+.cache/
+
+# PlatformIO (if used)
+.pio/
+.vscode/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Log files
+*.log
+*.txt
+!README.txt
+!LICENSE.txt
+!CHANGELOG.txt
+
+# Data files (often large and not needed in repo)
+*.csv
+*.dat
+*.raw
+*.dump
+
+# Backup files
+*.bak
+*.backup
+*_backup.*
+*_old.*
+
+# Configuration files that might contain sensitive data
+config_local.h
+secrets.h
+credentials.h
+
+# Compiled libraries
+*.so
+*.dll
+*.dylib
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Large data files
+*.bin
+*.img
+*.firmware
+
+# Arduino library cache
+libraries/
+hardware/
+
+# Project-specific exclusions
+# Uncomment if you want to exclude specific project folders
+# OLD-Datalogger/
+# GPT testing/
+
+# Error and debug files
+error.txt
+debug.txt
+serial_dump.txt 
