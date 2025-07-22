@@ -24,15 +24,17 @@ const int CALIBRATION_SAMPLES = 100;
 const int BUFFER_SIZE = 500; // 5 seconds at 100Hz
 const float LAUNCH_ACCEL_THRESHOLD = 2.0 * GRAVITY; // 2g
 const unsigned long LAUNCH_DETECT_DURATION = 500; // 0.5 seconds
+const int MOVING_AVG_WINDOW = 10; // Moving average window size
+const float COMPLEMENTARY_ALPHA = 0.9; // Complementary filter gain
 
 // State enumeration with NeoPixel indicators
 enum SystemState {
-  INITIALIZED,  // Pulsing yellow: System initializing
-  CALIBRATING,  // Solid yellow: Calibration in progress
-  PRE_LAUNCH,   // Slow blinking blue: Armed, waiting for launch
-  ACTIVE,       // Fast blinking green: Logging data
-  STANDBY,      // Solid blue, flashing if data ready: Idle, ready for commands
-  ERROR         // Solid red: Critical error
+  INITIALIZING,  // Pulsing yellow (1 Hz): System initializing, waiting for stillness
+  CALIBRATING,   // Solid yellow: Calibration in progress
+  IDLE,          // Solid blue (no data), Alternating blue/green (0.5 Hz, has data): Idle, ready for commands
+  PREFLIGHT,     // Slow blinking blue (1 Hz): Preflight checks in progress
+  ACTIVE,        // Fast blinking green (5 Hz): Logging data during flight
+  ERROR          // Solid red: Critical error
 };
 
 // Flight phase enumeration
@@ -41,7 +43,8 @@ enum FlightPhase {
   BOOST,
   COAST,
   APOGEE,
-  DESCENT
+  DESCENT,
+  LANDED
 };
 
 // Sensor data structure
@@ -51,6 +54,8 @@ struct SensorData {
   float mag_x, mag_y, mag_z; // uT
   float pressure; // hPa
   float temperature; // C
+  float altitude; // m
+  float velocity; // m/s
 };
 
 // MAVLink message buffer structure
@@ -64,12 +69,17 @@ MAVLinkBuffer pre_launch_buffer[BUFFER_SIZE];
 int buffer_index = 0;
 bool buffer_full = false;
 
+// Moving average filter buffers
+float gyro_x_avg[MOVING_AVG_WINDOW], gyro_y_avg[MOVING_AVG_WINDOW], gyro_z_avg[MOVING_AVG_WINDOW];
+float accel_x_avg[MOVING_AVG_WINDOW], accel_y_avg[MOVING_AVG_WINDOW], accel_z_avg[MOVING_AVG_WINDOW];
+int avg_index = 0;
+
 // Global variables
 Adafruit_ICM20948 icm;
 Adafruit_DPS310 dps;
 Adafruit_Madgwick filter;
 Adafruit_NeoPixel pixel(1, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
-SystemState state = INITIALIZED;
+SystemState state = INITIALIZING;
 FlightPhase current_phase = GROUND;
 SensorData sensor_data;
 float gyro_bias[3] = {0};
@@ -87,35 +97,51 @@ unsigned long launch_detect_start = 0;
 bool verbose_mode = false;
 bool has_data = false;
 
-// Custom function to calculate altitude from pressure
+// Custom altitude calculation
 float pressureToAltitude(float pressure, float seaLevelPressure) {
   return 44330.0 * (1.0 - pow(pressure / seaLevelPressure, 0.1903));
+}
+
+// Moving average filter
+void apply_moving_average(float* data, float new_value, float* output) {
+  data[avg_index] = new_value;
+  float sum = 0;
+  for (int i = 0; i < MOVING_AVG_WINDOW; i++) sum += data[i];
+  *output = sum / MOVING_AVG_WINDOW;
+  avg_index = (avg_index + 1) % MOVING_AVG_WINDOW;
 }
 
 void setup() {
   Serial.begin(115200);
   while (!Serial) delay(10);
 
+  // Initialize moving average buffers
+  for (int i = 0; i < MOVING_AVG_WINDOW; i++) {
+    gyro_x_avg[i] = gyro_y_avg[i] = gyro_z_avg[i] = 0;
+    accel_x_avg[i] = accel_y_avg[i] = accel_z_avg[i] = 0;
+  }
+
   // Prompt for test mode
   Serial.println("Serial connection detected, enter test mode? Y/N");
   unsigned long start = millis();
-  while (millis() - start < 5000) { // 5 seconds timeout
+  while (millis() - start < 5000) {
     if (Serial.available()) {
       char c = Serial.read();
       if (c == 'Y' || c == 'y') {
         test_mode = true;
         Serial.println("Entering test mode. Available commands:");
-        Serial.println("1: Set state to INT");
+        Serial.println("1: Set state to INI");
         Serial.println("2: Set state to CAL");
         Serial.println("3: Set state to PRE");
         Serial.println("4: Set state to ACT");
-        Serial.println("5: Set state to SBY");
+        Serial.println("5: Set state to IDL");
         Serial.println("6: Set state to ERR");
         Serial.println("A: Set phase to GROUND");
         Serial.println("B: Set phase to BOOST");
         Serial.println("C: Set phase to COAST");
         Serial.println("D: Set phase to APOGEE");
         Serial.println("E: Set phase to DESCENT");
+        Serial.println("F: Set phase to LANDED");
         Serial.println("V: Toggle verbose mode");
         Serial.println("M: Trigger magnetometer calibration");
         break;
@@ -184,12 +210,12 @@ void setup() {
   calibrate_gyro();
 
   // Initialize AHRS filter
-  filter.begin(100);
+  filter.begin(1000); // Set to 1000 Hz
 
   // Initialize NeoPixel
   pixel.begin();
   pixel.setBrightness(50);
-  pixel.setPixelColor(0, pixel.Color(255, 255, 0)); // Yellow for initializing
+  pixel.setPixelColor(0, pixel.Color(255, 255, 0)); // Pulsing yellow for initializing
   pixel.show();
 
   // Dynamically allocate log buffer
@@ -209,27 +235,80 @@ void setup() {
     return;
   }
 
-  // Set initial state to INITIALIZED
-  set_state(INITIALIZED);
+  // Set initial state to INITIALIZING
+  set_state(INITIALIZING);
 }
 
+// Setup for Core 1
+void setup1() {
+  // No specific initialization needed for Core 1
+}
+
+// Loop for Core 1: High-frequency tasks (1000 Hz)
+void loop1() {
+  unsigned long start = micros();
+
+  // Read sensors at 1000 Hz
+  sensors_event_t accel, gyro, mag, temp;
+  icm.getEvent(&accel, &gyro, &mag, &temp);
+
+  // Apply biases
+  float raw_gyro_x = gyro.gyro.x - gyro_bias[0];
+  float raw_gyro_y = gyro.gyro.y - gyro_bias[1];
+  float raw_gyro_z = gyro.gyro.z - gyro_bias[2];
+  float raw_accel_x = accel.acceleration.x - accel_offset[0];
+  float raw_accel_y = accel.acceleration.y - accel_offset[1];
+  float raw_accel_z = accel.acceleration.z - accel_offset[2];
+
+  // Apply moving average filter
+  float filtered_gyro_x, filtered_gyro_y, filtered_gyro_z;
+  float filtered_accel_x, filtered_accel_y, filtered_accel_z;
+  apply_moving_average(gyro_x_avg, raw_gyro_x, &filtered_gyro_x);
+  apply_moving_average(gyro_y_avg, raw_gyro_y, &filtered_gyro_y);
+  apply_moving_average(gyro_z_avg, raw_gyro_z, &filtered_gyro_z);
+  apply_moving_average(accel_x_avg, raw_accel_x, &filtered_accel_x);
+  apply_moving_average(accel_y_avg, raw_accel_y, &filtered_accel_y);
+  apply_moving_average(accel_z_avg, raw_accel_z, &filtered_accel_z);
+
+  // Update AHRS (Madgwick filter)
+  filter.update(filtered_gyro_x, filtered_gyro_y, filtered_gyro_z,
+                filtered_accel_x, filtered_accel_y, filtered_accel_z,
+                sensor_data.mag_x, sensor_data.mag_y, sensor_data.mag_z);
+
+  // Update sensor_data
+  sensor_data.gyro_x = filtered_gyro_x;
+  sensor_data.gyro_y = filtered_gyro_y;
+  sensor_data.gyro_z = filtered_gyro_z;
+  sensor_data.accel_x = filtered_accel_x;
+  sensor_data.accel_y = filtered_accel_y;
+  sensor_data.accel_z = filtered_accel_z;
+  sensor_data.mag_x = mag.magnetic.x - mag_offset[0];
+  sensor_data.mag_y = mag.magnetic.y - mag_offset[1];
+  sensor_data.mag_z = mag.magnetic.z - mag_offset[2];
+
+  // Maintain 1000 Hz (1 ms)
+  while (micros() - start < 1000) {}
+}
+
+// Loop for Core 0: Low-frequency tasks (100 Hz)
 void loop() {
   if (test_mode) {
     // Test mode: Handle user commands
     if (Serial.available()) {
       char c = Serial.read();
       switch (c) {
-        case '1': set_state(INITIALIZED); break;
+        case '1': set_state(INITIALIZING); break;
         case '2': set_state(CALIBRATING); break;
-        case '3': set_state(PRE_LAUNCH); break;
+        case '3': set_state(PREFLIGHT); break;
         case '4': set_state(ACTIVE); break;
-        case '5': set_state(STANDBY); break;
+        case '5': set_state(IDLE); break;
         case '6': set_state(ERROR); break;
         case 'A': set_phase(GROUND); break;
         case 'B': set_phase(BOOST); break;
         case 'C': set_phase(COAST); break;
         case 'D': set_phase(APOGEE); break;
         case 'E': set_phase(DESCENT); break;
+        case 'F': set_phase(LANDED); break;
         case 'V': verbose_mode = !verbose_mode; Serial.println(verbose_mode ? "Verbose mode enabled" : "Verbose mode disabled"); break;
         case 'M': mag_cal_needed = true; set_state(CALIBRATING); break;
       }
@@ -243,7 +322,7 @@ void loop() {
       last_update = current_time;
 
       switch (state) {
-        case INITIALIZED:
+        case INITIALIZING:
           if (is_sensor_still()) {
             set_state(CALIBRATING);
           }
@@ -254,12 +333,15 @@ void loop() {
           } else if (mag_cal_needed) {
             calibrate_magnetometer();
           } else {
-            set_state(STANDBY);
+            set_state(IDLE);
           }
           break;
-        case PRE_LAUNCH:
-          read_sensors();
-          update_ahrs();
+        case IDLE:
+          // Idle, waiting for commands
+          break;
+        case PREFLIGHT:
+          read_low_frequency_sensors();
+          update_complementary_filter();
           log_pre_launch_data();
           if (detect_launch()) {
             set_state(ACTIVE);
@@ -274,14 +356,14 @@ void loop() {
           }
           break;
         case ACTIVE:
-          read_sensors();
-          update_ahrs();
+          read_low_frequency_sensors();
+          update_complementary_filter();
           log_data();
           update_flight_phase();
           if (verbose_mode) print_sensor_data();
-          break;
-        case STANDBY:
-          // Idle, waiting for commands
+          if (current_phase == LANDED) {
+            set_state(IDLE);
+          }
           break;
         case ERROR:
           // Error state, no operation
@@ -397,11 +479,11 @@ void set_phase(FlightPhase new_phase) {
 
 String get_state_abbr(SystemState s) {
   switch (s) {
-    case INITIALIZED: return "INT";
+    case INITIALIZING: return "INI";
     case CALIBRATING: return "CAL";
-    case PRE_LAUNCH: return "PRE";
+    case IDLE: return "IDL";
+    case PREFLIGHT: return "PRE";
     case ACTIVE: return "ACT";
-    case STANDBY: return "SBY";
     case ERROR: return "ERR";
     default: return "UNK";
   }
@@ -414,6 +496,7 @@ String get_phase_name(FlightPhase p) {
     case COAST: return "COAST";
     case APOGEE: return "APOGEE";
     case DESCENT: return "DESCENT";
+    case LANDED: return "LANDED";
     default: return "UNKNOWN";
   }
 }
@@ -423,8 +506,8 @@ void handle_serial_commands() {
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
-    if (cmd == "start") set_state(PRE_LAUNCH);
-    else if (cmd == "stop") set_state(STANDBY);
+    if (cmd == "start") set_state(PREFLIGHT);
+    else if (cmd == "stop") set_state(IDLE);
     else if (cmd == "calibrate") set_state(CALIBRATING);
   }
 }
@@ -438,30 +521,19 @@ bool is_sensor_still() {
   return abs(accel_magnitude - GRAVITY) < STILLNESS_THRESHOLD;
 }
 
-void read_sensors() {
-  sensors_event_t accel, gyro, mag, temp;
-  icm.getEvent(&accel, &gyro, &mag, &temp);
-  
+void read_low_frequency_sensors() {
   sensors_event_t temp_event, pressure_event;
   dps.getEvents(&temp_event, &pressure_event);
-
-  sensor_data.gyro_x = gyro.gyro.x - gyro_bias[0];
-  sensor_data.gyro_y = gyro.gyro.y - gyro_bias[1];
-  sensor_data.gyro_z = gyro.gyro.z - gyro_bias[2];
-  sensor_data.accel_x = accel.acceleration.x - accel_offset[0];
-  sensor_data.accel_y = accel.acceleration.y - accel_offset[1];
-  sensor_data.accel_z = accel.acceleration.z - accel_offset[2];
-  sensor_data.mag_x = mag.magnetic.x - mag_offset[0];
-  sensor_data.mag_y = mag.magnetic.y - mag_offset[1];
-  sensor_data.mag_z = mag.magnetic.z - mag_offset[2];
   sensor_data.pressure = pressure_event.pressure;
   sensor_data.temperature = temp_event.temperature;
 }
 
-void update_ahrs() {
-  filter.update(sensor_data.gyro_x, sensor_data.gyro_y, sensor_data.gyro_z,
-                sensor_data.accel_x, sensor_data.accel_y, sensor_data.accel_z,
-                sensor_data.mag_x, sensor_data.mag_y, sensor_data.mag_z);
+void update_complementary_filter() {
+  float h_baro = pressureToAltitude(sensor_data.pressure, ref_pressure);
+  float dt = 0.01; // 100 Hz = 10 ms
+  sensor_data.velocity += sensor_data.accel_z * dt; // Integrate acceleration
+  float h_accel = sensor_data.altitude + sensor_data.velocity * dt;
+  sensor_data.altitude = COMPLEMENTARY_ALPHA * h_baro + (1 - COMPLEMENTARY_ALPHA) * h_accel;
 }
 
 void log_pre_launch_data() {
@@ -502,8 +574,8 @@ void log_data() {
                            (int16_t)(sensor_data.accel_x * 1000), (int16_t)(sensor_data.accel_y * 1000), (int16_t)(sensor_data.accel_z * 1000),
                            (int16_t)(sensor_data.gyro_x * 1000), (int16_t)(sensor_data.gyro_y * 1000), (int16_t)(sensor_data.gyro_z * 1000),
                            (int16_t)(sensor_data.mag_x), (int16_t)(sensor_data.mag_y), (int16_t)(sensor_data.mag_z),
-                           0,  // Sensor ID placeholder
-                           (int16_t)(sensor_data.temperature * 100));  // Temperature in centidegrees
+                           0, // Sensor ID placeholder
+                           (int16_t)(sensor_data.temperature * 100)); // Temperature in centidegrees
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
   if (log_index + len < log_size) {
     memcpy(log_buffer + log_index, buf, len);
@@ -516,7 +588,7 @@ void update_flight_phase() {
   float accel_magnitude = sqrt(sensor_data.accel_x * sensor_data.accel_x +
                                sensor_data.accel_y * sensor_data.accel_y +
                                sensor_data.accel_z * sensor_data.accel_z);
-  float altitude = pressureToAltitude(sensor_data.pressure, ref_pressure);  // Updated to use custom function
+  float altitude = sensor_data.altitude;
 
   switch (current_phase) {
     case GROUND:
@@ -526,13 +598,16 @@ void update_flight_phase() {
       if (accel_magnitude < GRAVITY) set_phase(COAST);
       break;
     case COAST:
-      if (altitude <= 0) set_phase(APOGEE);  // Note: This condition may need adjustment based on actual altitude behavior
+      if (sensor_data.velocity <= 0) set_phase(APOGEE); // Apogee when vertical velocity is zero
       break;
     case APOGEE:
-      if (altitude < 0) set_phase(DESCENT);  // Note: This condition may need adjustment based on actual altitude behavior
+      if (sensor_data.velocity < 0) set_phase(DESCENT); // Descent when falling
       break;
     case DESCENT:
-      if (is_sensor_still()) set_phase(GROUND);
+      if (is_sensor_still() && altitude <= 0) set_phase(LANDED);
+      break;
+    case LANDED:
+      // Remain in LANDED until reset or new command
       break;
   }
 }
@@ -546,6 +621,7 @@ void print_sensor_data() {
   Serial.print(sensor_data.mag_y); Serial.print(", "); Serial.println(sensor_data.mag_z);
   Serial.print("Pressure: "); Serial.println(sensor_data.pressure);
   Serial.print("Temp: "); Serial.println(sensor_data.temperature);
+  Serial.print("Altitude: "); Serial.println(sensor_data.altitude);
 }
 
 void update_neopixel() {
@@ -554,43 +630,43 @@ void update_neopixel() {
   unsigned long now = millis();
 
   switch (state) {
-    case INITIALIZED:
-      // Pulsing yellow
-      pixel.setPixelColor(0, pixel.Color(255, 255, 0));
+    case INITIALIZING:
+      if (now - last_blink >= 500) { // 1 Hz pulsing yellow
+        blink_state = !blink_state;
+        pixel.setPixelColor(0, blink_state ? pixel.Color(255, 255, 0) : pixel.Color(0, 0, 0));
+        last_blink = now;
+      }
       break;
     case CALIBRATING:
-      // Solid yellow
-      pixel.setPixelColor(0, pixel.Color(255, 255, 0));
+      pixel.setPixelColor(0, pixel.Color(255, 255, 0)); // Solid yellow
       break;
-    case PRE_LAUNCH:
-      // Slow blinking blue
-      if (now - last_blink >= 500) {
+    case IDLE:
+      if (has_data) {
+        if (now - last_blink >= 500) { // 0.5 Hz alternating blue/green
+          blink_state = !blink_state;
+          pixel.setPixelColor(0, blink_state ? pixel.Color(0, 0, 255) : pixel.Color(0, 255, 0));
+          last_blink = now;
+        }
+      } else {
+        pixel.setPixelColor(0, pixel.Color(0, 0, 255)); // Solid blue
+      }
+      break;
+    case PREFLIGHT:
+      if (now - last_blink >= 500) { // 1 Hz slow blinking blue
         blink_state = !blink_state;
         pixel.setPixelColor(0, blink_state ? pixel.Color(0, 0, 255) : pixel.Color(0, 0, 0));
         last_blink = now;
       }
       break;
     case ACTIVE:
-      // Fast blinking green
-      if (now - last_blink >= 100) {
+      if (now - last_blink >= 100) { // 5 Hz fast blinking green
         blink_state = !blink_state;
         pixel.setPixelColor(0, blink_state ? pixel.Color(0, 255, 0) : pixel.Color(0, 0, 0));
         last_blink = now;
       }
       break;
-    case STANDBY:
-      // Solid blue, flashing if data ready
-      if (has_data && now - last_blink >= 1000) {
-        blink_state = !blink_state;
-        pixel.setPixelColor(0, blink_state ? pixel.Color(0, 0, 255) : pixel.Color(0, 0, 0));
-        last_blink = now;
-      } else if (!has_data) {
-        pixel.setPixelColor(0, pixel.Color(0, 0, 255));
-      }
-      break;
     case ERROR:
-      // Solid red
-      pixel.setPixelColor(0, pixel.Color(255, 0, 0));
+      pixel.setPixelColor(0, pixel.Color(255, 0, 0)); // Solid red
       break;
   }
   pixel.show();
