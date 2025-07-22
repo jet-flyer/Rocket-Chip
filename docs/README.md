@@ -1,196 +1,127 @@
-Rocket Chip - Arduino Flight Tracking System
-A comprehensive Arduino-based flight tracking and data logging system for rockets and other aerial vehicles. This project includes various implementations for different hardware configurations and use cases.
-🚀 Project Overview
-Rocket Chip is designed to provide real-time flight data logging, attitude tracking, and telemetry for rocket launches and other aerial applications. The system uses high-precision sensors to capture acceleration, orientation, altitude, and other flight parameters.
-📁 Project Structure
-Rocket-Chip/
-├── deprecated/                  # Non-AI/pre-2025 stuff moved here
-│   ├── ahrs_10dof-RocketChip/   # Old attitude tracking
-│   ├── bmp280test/          # Altitude tests
-│   ├── Datalog/                 # Basic logging
-│   ├── Datalogger/              # Variants
-│   └── OLD-Datalogger/          # Older ones
-├── current-dev/                 # Active AI-assisted development
-│   └── ai-assisted/             # Agent subfolders
-│       ├── claude/              # Claude's, with AP modular kept separate
-│       │   └── modular/         # E.g., RocketChip_AP for pro pyro/telemetry restart
-│       ├── grok/                # Consolidated Grok files (PSRAM merged as enhancements)
-│       │   └── main/            # Unified .ino/.h with version notes
-│       └── gemini/              # Gemini's, with preserved folder
-│           └── preserved-gemini/ # Special folder moved here
-├── docs/                        # Documentation
-│   └── README.md                # This file
-├── libraries/                   # Shared libraries if extracted
-└── tools/                       # E.g., debug probe scripts
+Rocket Chip is an open-source, microcontroller-based tracking and telemetry system designed primarily for model rockets, but usfel to track any kind of movement that needs high percision or a live data feed. It enables real-time data logging, sensor monitoring, launch detection, and optional live telemetry transmission. Built on the Adafruit RP2350 HSTX Feather board with 8MB PSRAM, the project emphasizes modularity, high-performance data capture, and ease of use via the Arduino IDE for initial development.
 
-🛠️ Hardware Requirements
-Primary Target Hardware
+The system supports multiple configurations:
+- **Nano Version**: Lightweight, bare-bones setup focused on local data logging with minimal sensors.
+- **Main Version**: Core features including sensors for local logging, with options to add live telemetry modules.
+- **Pro Version**: Advanced capabilities such as high-performance sensors, pyro triggering for parachutes or staging, and enhanced data rates.
 
-Main Board: Adafruit RP2350 Feather with 8MB PSRAM
-Core: Earle Philhower's Pico Core
-Sensors: 
-ICM20948 (9-axis IMU)
-DPS310 (Pressure/Altitude sensor)
+While the initial focus is on Arduino IDE compatibility, future iterations plan to incorporate Real-Time Operating Systems (RTOS) for low-latency operations and more advanced chipsets.
 
+This repository contains deprecated older implementations, current AI-assisted development branches, documentation, libraries, and tools to support building and debugging the system.
 
-Storage: 8MB PSRAM + Flash storage
-Communication: Serial, I2C, SPI
+## Key Features
 
-Alternative Hardware
+- **High-Frequency Sensor Data Capture**: Up to 1kHz sampling rate for IMU (Inertial Measurement Unit) and pressure/altitude sensors.
+- **Launch Detection**: Configurable thresholds for automatic detection of launch events based on acceleration or altitude changes.
+- **Hybrid Storage System**: Utilizes PSRAM for buffering high-speed data and flash storage for persistent logging, with pre-launch data buffering.
+- **Sensor Support**:
+  - 9-axis IMU (e.g., ICM20948 for accelerometer, gyroscope, magnetometer).
+  - Barometric pressure/altitude sensors (e.g., DPS310 or BMP280).
+  - Calibration routines for accurate readings.
+- **Data Output Formats**: Real-time streaming in MAVLink (for integration with ground control stations like QGroundControl), CSV, and binary formats.
+- **Telemetry Integration**: Optional live transmission of telemetry data, with MAVLink protocol support.
+- **Modular Architecture**: Separate modules for data logging, attitude tracking (AHRS - Attitude and Heading Reference System), and advanced features like pyro control.
+- **Debugging Tools**: Serial commands for system management, debug modes, and compatibility with debug probes (e.g., Adafruit's SWD Debug Probe for troubleshooting hardware issues).
+- **AI-Assisted Development**: Current development includes branches enhanced by AI agents (Claude, Grok, Gemini) for optimized code and features.
 
-10-DOF Board: Adafruit 10-DOF sensor board
-Pressure Sensor: BMP280/BMP085
-IMU: LSM303 (accelerometer + magnetometer)
+## Hardware Requirements
 
-📋 Features
-Core Features
+- **Microcontroller**: Adafruit RP2350 HSTX Feather board with 8MB onboard PSRAM (primary target for high-performance buffering).
+- **Sensors**:
+  - ICM20948 (9-DoF IMU).
+  - DPS310 (Precision Pressure Sensor) or BMP280 as alternative.
+- **Storage**: Onboard flash or external SD card for data logging.
+- **Optional Add-ons**:
+  - Telemetry radio modules for live data transmission.
+  - Pyro channels for Pro version (e.g., triggering parachutes or staging).
+  - NeoPixel for status indicators.
+- **Debugging**: Adafruit SWD Debug Probe (Product ID: 5699) recommended for resolving hardware/firmware issues, especially during development.
 
-Real-time Data Logging: High-frequency sensor data capture
-Launch Detection: Automatic launch detection with configurable thresholds
-Attitude Tracking: Roll, pitch, and yaw calculation using AHRS algorithms
-Altitude Monitoring: Barometric pressure-based altitude calculation
-PSRAM Buffer: Efficient memory management for high-speed logging
-MAVLink Integration: Compatible with ArduPilot and ground control stations (selectively included)
+Sourcing: Prioritize Adafruit components for simplicity. If alternatives offer significant cost or performance benefits (e.g., from Digi-Key or Mouser), they can be evaluated.
 
-Advanced Features
+## Project Structure
 
-Hybrid Storage: PSRAM buffering with flash storage
-Pre-launch Buffer: Circular buffer for pre-launch data
-Sensor Calibration: Automatic and manual sensor calibration
-Status LED: Visual status indication with NeoPixel
-Serial Debug: Comprehensive debugging and configuration interface
-Modular Architecture: Configurable for different hardware setups
+- **`deprecated/`**: Older, non-AI implementations including:
+  - `ahrs_10dof-RocketChip/`: Legacy attitude tracking with 10-DoF sensors.
+  - `bmp280test/`: Altitude testing scripts.
+  - `Datalog/`, `Datalogger/`, `OLD-Datalogger/`: Various data logging variants.
+- **`current-dev/`**: Active development with AI-assisted code:
+  - `ai-assisted/claude/`: Modular components, e.g., pro features like pyro and telemetry.
+  - `ai-assisted/grok/`: Consolidated files with PSRAM enhancements.
+  - `ai-assisted/gemini/`: Preserved implementations from Gemini AI.
+- **`docs/`**: Additional documentation and resources.
+- **`libraries/`**: Shared libraries for sensors and protocols (e.g., MAVLink).
+- **`tools/`**: Utility scripts, including debug probe configurations.
+- **`config.h`**: Central configuration file for hardware settings, thresholds, and modes.
 
-🔧 Installation & Setup
-Prerequisites
+## Installation and Setup
 
-Arduino IDE (1.8.x or 2.x)
-Required Libraries:
-Adafruit_ICM20X
-Adafruit_ICM20948
-Adafruit_DPS310
-Adafruit_Sensor
-Adafruit_AHRS
-Adafruit_NeoPixel
-LittleFS
-MAVLink (standalone for telemetry)
+1. **Clone the Repository**:
+   ```
+   git clone https://github.com/jet-flyer/Rocket-Chip.git
+   ```
 
+2. **Arduino IDE Setup**:
+   - Install the Arduino IDE.
+   - Add support for RP2040/RP2350 boards via the Boards Manager (search for "Raspberry Pi Pico/RP2040").
+   - Install required libraries (e.g., Adafruit_ICM20X, Adafruit_DPS310, MAVLink) via the Library Manager.
 
+3. **Hardware Assembly**:
+   - Connect sensors to the RP2350 Feather (refer to pin mappings in `config.h`).
+   - For PSRAM usage, ensure the board has the 8MB variant.
 
-Setup Instructions
+4. **Upload Code**:
+   - Open the desired `.ino` file (e.g., from `current-dev/ai-assisted/grok/main/`).
+   - Configure settings in `config.h`.
+   - Compile and upload via Arduino IDE.
 
-Clone or download this repository
-Open Arduino IDE
-Install required libraries via Library Manager
-Select the appropriate board (Adafruit RP2350 Feather)
-Choose the correct core (Earle Philhower's Pico Core)
-Open the desired sketch from the project folders
-Configure config.h with your specific settings
-Upload to your board
+If using the debug probe:
+- Connect via SWD pins.
+- Use it for stepping through code or inspecting memory during issues like sensor initialization failures.
 
-⚙️ Configuration
-Main Configuration (config.h)
-// Hardware Configuration
-#define SERIAL_BAUD 115200
-#define NEOPIXEL_PIN 16
-#define NEOPIXEL_BRIGHTNESS 50
+## Usage
 
-// Sensor Configuration
-#define LAUNCH_ACCEL_THRESHOLD 2.0  // G's to detect launch
-#define SAMPLE_RATE_HZ 1000         // Data sampling rate
-#define LOG_RATE_HZ 100             // Data logging rate
+- **Basic Operation**:
+  - Power on the board; it will initialize sensors and start logging.
+  - Launch detection triggers high-rate logging.
+  - Data is buffered in PSRAM and flushed to flash.
 
-// Storage Configuration
-#define PSRAM_BUFFER_SIZE (4 * 1024 * 1024)  // 4MB buffer
-#define PRELAUNCH_BUFFER_SECONDS 5           // Pre-launch data retention
+- **Serial Commands** (via USB Serial):
+  - `calibrate`: Run sensor calibration.
+  - `start_log`: Manually start logging.
+  - `stop_log`: Stop and save data.
+  - `telemetry_on`: Enable MAVLink output.
 
-Debug Modes
+- **Data Retrieval**:
+  - Connect to a ground station via telemetry for live views.
+  - Post-flight, download logs from flash storage.
 
-DEBUG_OFF: No serial output
-DEBUG_STATUS: Status messages only
-DEBUG_VERBOSE: Include 10Hz data output
-DEBUG_TEST: Test mode with manual triggers
+For Pro features (in development):
+- Configure pyro pins in `config.h` for event-based triggering.
 
-📊 Data Output
-Serial Commands
+## Configuration
 
-help: Display available commands
-status: Show system status
-calibrate: Start sensor calibration
-test: Enter test mode
-dump: Dump stored data
-reset: Reset system
+Edit `config.h` for customizations:
+- Serial baud rate, NeoPixel pin.
+- Launch thresholds (e.g., acceleration > 2g).
+- Sample rates (IMU: 100-1000Hz, Pressure: 10-100Hz).
+- Storage options (PSRAM buffer size, flash chip select).
+- Debug modes (verbose output).
 
-Data Formats
+## Future Plans
 
-MAVLink: Standard MAVLink 2.0 protocol (for telemetry)
-CSV: Comma-separated values for analysis
-Binary: Compact binary format for storage
+- Integrate RTOS for low-latency, high-data-rate operations.
+- Expand to advanced chipsets beyond RP2350.
+- Add wireless telemetry protocols.
+- Develop a user-friendly GUI for configuration and data visualization.
+- Optimize for broader applications (e.g., drone racing, environmental monitoring).
 
-🚀 Usage
-Basic Operation
+## Contributing
 
-Power on the board
-Wait for initialization (yellow LED pulsing)
-System will calibrate sensors (solid yellow LED)
-Ready for launch (blue LED)
-Launch detection triggers active logging (green LED blinking)
-Data is automatically saved to flash storage
+Contributions are welcome! Fork the repo, create a branch for your feature/bugfix, and submit a pull request. Focus on modular code, Adafruit compatibility, and clear documentation.
 
-Advanced Operation
+## License
 
-Use serial interface for configuration and debugging
-Monitor real-time data via serial output
-Configure launch detection thresholds
-Calibrate sensors for optimal performance
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. (Add a LICENSE file if not present.)
 
-🔍 Troubleshooting
-Common Issues
-
-Sensors not detected: Check I2C connections and addresses
-PSRAM not working: Verify PSRAM initialization; use debug probe to inspect memory registers
-Launch not detected: Adjust LAUNCH_ACCEL_THRESHOLD
-Data corruption: Check flash storage and PSRAM integrity
-
-Debug Tips
-
-Use DEBUG_VERBOSE mode for detailed output
-Monitor serial output for error messages
-Check LED status indicators
-Use Adafruit debug probe (https://www.adafruit.com/product/5699) with OpenOCD for low-level RP2350 debugging
-Verify sensor readings with status command
-
-📈 Performance
-Specifications
-
-Sampling Rate: Up to 1kHz
-Storage Capacity: 4MB PSRAM + Flash
-Launch Detection: < 10ms response time
-Data Retention: Configurable pre-launch buffer
-Battery Life: Depends on logging rate and hardware
-
-🤝 Contributing
-This project welcomes contributions! Please feel free to:
-
-Report bugs and issues
-Suggest new features
-Submit pull requests
-Improve documentation
-
-📄 License
-This project is licensed under the GNU General Public License v3.0 - see the LICENSE file for details.
-Note: This project uses libraries from Adafruit and ArduPilot (MAVLink, AP_Pyro if included) which may have their own licenses (e.g., Apache 2.0 for ArduPilot components). Ensure compliance with all applicable licenses.
-🙏 Acknowledgments
-
-Adafruit for sensor libraries and hardware
-ArduPilot community for MAVLink integration
-Earle Philhower for Pico core development
-Various AI assistants (Claude, Gemini, Grok) for development assistance
-
-📞 Support
-For questions, issues, or contributions:
-
-Check the troubleshooting section above
-Review the configuration options
-Examine the example implementations
-Test with the provided test sketches
+For questions or support, open an issue on GitHub.
