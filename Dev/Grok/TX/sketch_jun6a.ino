@@ -12,6 +12,9 @@
 // Pin definitions
 #define NEOPIXEL_PIN 21 // GPIO 21 for onboard NeoPixel
 
+// Debug macro
+#define DEBUG_PRINTLN(str) if (debug_mode) Serial.println(str)
+
 // Constants
 const float GRAVITY = 9.81; // m/s^2
 const uint8_t SYSTEM_ID = 1;
@@ -58,6 +61,11 @@ struct SensorData {
   float velocity; // m/s
 };
 
+// Shared sensor data (IMU updated by Core 1, barometer by Core 0)
+volatile SensorData shared_sensor_data;
+volatile bool imu_data_ready = false;
+volatile bool i2c_ready = false; // Synchronization flag for I2C
+
 // MAVLink message buffer structure
 struct MAVLinkBuffer {
   uint8_t data[MAVLINK_MAX_PACKET_LEN];
@@ -93,9 +101,18 @@ unsigned long last_update = 0;
 bool accel_cal_needed = true;
 bool mag_cal_needed = true;
 bool test_mode = false;
+bool debug_mode = false; // Debugging mode flag
 unsigned long launch_detect_start = 0;
 bool verbose_mode = false;
 bool has_data = false;
+
+// Calibration status tracking
+bool nose_calibrated = false;
+bool tail_calibrated = false;
+bool right_calibrated = false;
+bool left_calibrated = false;
+bool front_calibrated = false;
+bool back_calibrated = false;
 
 // Custom altitude calculation
 float pressureToAltitude(float pressure, float seaLevelPressure) {
@@ -111,15 +128,70 @@ void apply_moving_average(float* data, float new_value, float* output) {
   avg_index = (avg_index + 1) % MOVING_AVG_WINDOW;
 }
 
+// Wait for user to press enter
+void wait_for_enter() {
+  Serial.println("Press enter when ready.");
+  while (!Serial.available()) {
+    delay(100);
+  }
+  while (Serial.available()) {
+    Serial.read();
+  }
+}
+
+// Collect average acceleration data for a given duration
+void collect_average_accel(float& ax, float& ay, float& az, unsigned long duration) {
+  float sum_x = 0, sum_y = 0, sum_z = 0;
+  int count = 0;
+  unsigned long start = millis();
+  while (millis() - start < duration) {
+    while (!imu_data_ready) {
+      if (millis() - start > 2000) {
+        DEBUG_PRINTLN("Timeout waiting for IMU data in collect_average_accel");
+        return;
+      }
+    }
+    sum_x += shared_sensor_data.accel_x;
+    sum_y += shared_sensor_data.accel_y;
+    sum_z += shared_sensor_data.accel_z;
+    count++;
+    imu_data_ready = false;
+    delay(10);
+  }
+  ax = sum_x / count;
+  ay = sum_y / count;
+  az = sum_z / count;
+}
+
+// List remaining calibration steps
+void list_remaining_calibrations() {
+  Serial.println("Remaining accelerometer calibrations:");
+  if (!nose_calibrated) Serial.println("- Nose up");
+  if (!tail_calibrated) Serial.println("- Tail up");
+  if (!right_calibrated) Serial.println("- Right up");
+  if (!left_calibrated) Serial.println("- Left up");
+  if (!front_calibrated) Serial.println("- Front up");
+  if (!back_calibrated) Serial.println("- Back up");
+  if (nose_calibrated && tail_calibrated && right_calibrated && 
+      left_calibrated && front_calibrated && back_calibrated) {
+    Serial.println("All orientations calibrated.");
+  }
+}
+
 void setup() {
   Serial.begin(115200);
-  while (!Serial) delay(10);
+  while (!Serial) {
+    delay(10);
+    DEBUG_PRINTLN("Waiting for Serial connection...");
+  }
+  DEBUG_PRINTLN("Serial initialized.");
 
   // Initialize moving average buffers
   for (int i = 0; i < MOVING_AVG_WINDOW; i++) {
     gyro_x_avg[i] = gyro_y_avg[i] = gyro_z_avg[i] = 0;
     accel_x_avg[i] = accel_y_avg[i] = accel_z_avg[i] = 0;
   }
+  DEBUG_PRINTLN("Moving average buffers initialized.");
 
   // Prompt for test mode
   Serial.println("Serial connection detected, enter test mode? Y/N");
@@ -144,6 +216,8 @@ void setup() {
         Serial.println("F: Set phase to LANDED");
         Serial.println("V: Toggle verbose mode");
         Serial.println("M: Trigger magnetometer calibration");
+        Serial.println("Z: Clear calibration data");
+        Serial.println("D: Toggle debug mode");
         break;
       } else if (c == 'N' || c == 'n') {
         test_mode = false;
@@ -151,8 +225,11 @@ void setup() {
       }
     }
   }
+  DEBUG_PRINTLN("Test mode prompt completed.");
 
   Wire.begin();
+  DEBUG_PRINTLN("I2C bus initialized.");
+  i2c_ready = true; // Signal I2C is ready
 
   // Initialize LittleFS
   if (!LittleFS.begin()) {
@@ -160,65 +237,83 @@ void setup() {
     set_state(ERROR);
     return;
   }
+  DEBUG_PRINTLN("LittleFS initialized.");
 
-  // Check for existing calibration data
-  accel_cal_needed = !LittleFS.exists("accel_bias.txt");
-  mag_cal_needed = !LittleFS.exists("mag_offset.txt");
-
-  if (accel_cal_needed || mag_cal_needed) {
-    Serial.println("No calibration data detected. Entering calibration wizard.");
-  }
-
-  // Load existing calibration data if present
-  if (!accel_cal_needed) {
-    File accel_file = LittleFS.open("accel_bias.txt", "r");
-    if (accel_file) {
-      for (int i = 0; i < 3; i++) accel_offset[i] = accel_file.readStringUntil('\n').toFloat();
-      accel_file.close();
-      Serial.println("Loaded accelerometer calibration from accel_bias.txt.");
-    }
-  }
-  if (!mag_cal_needed) {
-    File mag_file = LittleFS.open("mag_offset.txt", "r");
-    if (mag_file) {
-      for (int i = 0; i < 3; i++) mag_offset[i] = mag_file.readStringUntil('\n').toFloat();
-      mag_file.close();
-      Serial.println("Loaded magnetometer calibration from mag_offset.txt.");
-    }
-  }
-
-  // Initialize ICM20948 (IMU)
-  if (!icm.begin_I2C()) {
-    Serial.println("Failed to initialize ICM20948");
-    set_state(ERROR);
-    return;
-  }
-  // Initialize DPS310 (barometer)
+  // Initialize DPS310 (barometer) on Core 0
+  DEBUG_PRINTLN("Initializing DPS310...");
   if (!dps.begin_I2C()) {
     Serial.println("Failed to initialize DPS310");
     set_state(ERROR);
     return;
   }
-
-  // Configure sensors
-  icm.setAccelRange(ICM20948_ACCEL_RANGE_16_G);
-  icm.setGyroRange(ICM20948_GYRO_RANGE_2000_DPS);
-  icm.setMagDataRate(AK09916_MAG_DATARATE_100_HZ);
   dps.setMode(DPS310_CONT_PRESSURE);
+  DEBUG_PRINTLN("DPS310 initialized.");
 
-  // Calibrate gyroscope on startup
-  calibrate_gyro();
+  // Check for existing calibration data with debug output
+  Serial.print("Checking for accel_bias.txt: ");
+  if (LittleFS.exists("accel_bias.txt")) {
+    Serial.println("found.");
+    File accel_file = LittleFS.open("accel_bias.txt", "r");
+    if (accel_file) {
+      for (int i = 0; i < 3; i++) {
+        String line = accel_file.readStringUntil('\n');
+        accel_offset[i] = line.toFloat();
+        Serial.print("Loaded accel_offset["); Serial.print(i); Serial.print("]: "); Serial.println(accel_offset[i]);
+      }
+      accel_file.close();
+      DEBUG_PRINTLN("Loaded accelerometer calibration from accel_bias.txt.");
+      nose_calibrated = tail_calibrated = right_calibrated = 
+      left_calibrated = front_calibrated = back_calibrated = true; // Assume complete if file exists
+      accel_cal_needed = false;
+    } else {
+      Serial.println("Failed to open accel_bias.txt for reading.");
+      accel_cal_needed = true;
+    }
+  } else {
+    Serial.println("not found.");
+    accel_cal_needed = true;
+  }
 
-  // Initialize AHRS filter
-  filter.begin(1000); // Set to 1000 Hz
+  Serial.print("Checking for mag_offset.txt: ");
+  if (LittleFS.exists("mag_offset.txt")) {
+    Serial.println("found.");
+    File mag_file = LittleFS.open("mag_offset.txt", "r");
+    if (mag_file) {
+      for (int i = 0; i < 3; i++) {
+        String line = mag_file.readStringUntil('\n');
+        mag_offset[i] = line.toFloat();
+        Serial.print("Loaded mag_offset["); Serial.print(i); Serial.print("]: "); Serial.println(mag_offset[i]);
+      }
+      mag_file.close();
+      DEBUG_PRINTLN("Loaded magnetometer calibration from mag_offset.txt.");
+      mag_cal_needed = false;
+    } else {
+      Serial.println("Failed to open mag_offset.txt for reading.");
+      mag_cal_needed = true;
+    }
+  } else {
+    Serial.println("not found.");
+    mag_cal_needed = true;
+  }
+
+  if (accel_cal_needed && mag_cal_needed) {
+    Serial.println("No calibration data detected. Entering calibration wizard.");
+  } else if (accel_cal_needed) {
+    Serial.println("No accelerometer calibration data detected. Entering calibration wizard.");
+  } else if (mag_cal_needed) {
+    Serial.println("No magnetometer calibration data detected. Entering calibration wizard.");
+  }
 
   // Initialize NeoPixel
+  DEBUG_PRINTLN("Initializing NeoPixel...");
   pixel.begin();
   pixel.setBrightness(50);
   pixel.setPixelColor(0, pixel.Color(255, 255, 0)); // Pulsing yellow for initializing
   pixel.show();
+  DEBUG_PRINTLN("NeoPixel initialized.");
 
   // Dynamically allocate log buffer
+  DEBUG_PRINTLN("Allocating log buffer...");
   size_t target_size = min((size_t)rp2040.getFreePSRAMHeap(), MAX_LOG_SIZE);
   while (target_size >= MIN_LOG_SIZE) {
     log_buffer = (uint8_t*)pmalloc(target_size);
@@ -234,23 +329,66 @@ void setup() {
     set_state(ERROR);
     return;
   }
+  DEBUG_PRINTLN("Log buffer allocated successfully.");
 
   // Set initial state to INITIALIZING
   set_state(INITIALIZING);
+  DEBUG_PRINTLN("Setup completed, entering main loop...");
 }
 
 // Setup for Core 1
 void setup1() {
-  // No specific initialization needed for Core 1
+  DEBUG_PRINTLN("Core 1: Waiting for I2C initialization...");
+  while (!i2c_ready) {
+    delay(10); // Wait for Core 0 to initialize I2C
+  }
+  DEBUG_PRINTLN("Core 1: Setup started");
+  DEBUG_PRINTLN("Core 1: Initializing ICM20948...");
+  if (!icm.begin_I2C()) {
+    Serial.println("Core 1: Failed to initialize ICM20948");
+    pixel.setPixelColor(0, pixel.Color(255, 0, 0)); // Red NeoPixel for error
+    pixel.show();
+    while (1) {
+      DEBUG_PRINTLN("Core 1: ICM20948 init failed, retrying...");
+      delay(1000);
+    }
+  }
+  DEBUG_PRINTLN("Core 1: ICM20948 initialized.");
+
+  // Configure sensors
+  icm.setAccelRange(ICM20948_ACCEL_RANGE_16_G);
+  icm.setGyroRange(ICM20948_GYRO_RANGE_2000_DPS);
+  icm.setMagDataRate(AK09916_MAG_DATARATE_100_HZ);
+  DEBUG_PRINTLN("Core 1: ICM20948 configured.");
+
+  // Initialize AHRS filter
+  filter.begin(1000); // Set to 1000 Hz
+  DEBUG_PRINTLN("Core 1: AHRS filter initialized.");
+  DEBUG_PRINTLN("Core 1: Setup completed.");
 }
 
 // Loop for Core 1: High-frequency tasks (1000 Hz)
 void loop1() {
   unsigned long start = micros();
 
-  // Read sensors at 1000 Hz
+  // Periodic debug to confirm Core 1 is running
+  static unsigned long last_print = 0;
+  if (millis() - last_print > 1000) {
+    DEBUG_PRINTLN("Core 1: loop running");
+    last_print = millis();
+  }
+
+  // Read IMU sensors at 1000 Hz
   sensors_event_t accel, gyro, mag, temp;
-  icm.getEvent(&accel, &gyro, &mag, &temp);
+  if (!icm.getEvent(&accel, &gyro, &mag, &temp)) {
+    // Avoid flooding serial, print error periodically
+    static unsigned long last_error = 0;
+    if (millis() - last_error > 1000) {
+      DEBUG_PRINTLN("Core 1: Failed to read ICM20948 data");
+      last_error = millis();
+    }
+    return;
+  }
 
   // Apply biases
   float raw_gyro_x = gyro.gyro.x - gyro_bias[0];
@@ -273,18 +411,19 @@ void loop1() {
   // Update AHRS (Madgwick filter)
   filter.update(filtered_gyro_x, filtered_gyro_y, filtered_gyro_z,
                 filtered_accel_x, filtered_accel_y, filtered_accel_z,
-                sensor_data.mag_x, sensor_data.mag_y, sensor_data.mag_z);
+                mag.magnetic.x - mag_offset[0], mag.magnetic.y - mag_offset[1], mag.magnetic.z - mag_offset[2]);
 
-  // Update sensor_data
-  sensor_data.gyro_x = filtered_gyro_x;
-  sensor_data.gyro_y = filtered_gyro_y;
-  sensor_data.gyro_z = filtered_gyro_z;
-  sensor_data.accel_x = filtered_accel_x;
-  sensor_data.accel_y = filtered_accel_y;
-  sensor_data.accel_z = filtered_accel_z;
-  sensor_data.mag_x = mag.magnetic.x - mag_offset[0];
-  sensor_data.mag_y = mag.magnetic.y - mag_offset[1];
-  sensor_data.mag_z = mag.magnetic.z - mag_offset[2];
+  // Update shared IMU data
+  shared_sensor_data.gyro_x = filtered_gyro_x;
+  shared_sensor_data.gyro_y = filtered_gyro_y;
+  shared_sensor_data.gyro_z = filtered_gyro_z;
+  shared_sensor_data.accel_x = filtered_accel_x;
+  shared_sensor_data.accel_y = filtered_accel_y;
+  shared_sensor_data.accel_z = filtered_accel_z;
+  shared_sensor_data.mag_x = mag.magnetic.x - mag_offset[0];
+  shared_sensor_data.mag_y = mag.magnetic.y - mag_offset[1];
+  shared_sensor_data.mag_z = mag.magnetic.z - mag_offset[2];
+  imu_data_ready = true;
 
   // Maintain 1000 Hz (1 ms)
   while (micros() - start < 1000) {}
@@ -311,6 +450,26 @@ void loop() {
         case 'F': set_phase(LANDED); break;
         case 'V': verbose_mode = !verbose_mode; Serial.println(verbose_mode ? "Verbose mode enabled" : "Verbose mode disabled"); break;
         case 'M': mag_cal_needed = true; set_state(CALIBRATING); break;
+        case 'Z':
+          if (LittleFS.remove("accel_bias.txt")) {
+            Serial.println("Accelerometer calibration data cleared.");
+            accel_cal_needed = true;
+            nose_calibrated = tail_calibrated = right_calibrated = 
+            left_calibrated = front_calibrated = back_calibrated = false;
+          } else {
+            Serial.println("No accelerometer calibration data to clear.");
+          }
+          if (LittleFS.remove("mag_offset.txt")) {
+            Serial.println("Magnetometer calibration data cleared.");
+            mag_cal_needed = true;
+          } else {
+            Serial.println("No magnetometer calibration data to clear.");
+          }
+          break;
+        case 'D':
+          debug_mode = !debug_mode;
+          Serial.println(debug_mode ? "Debug mode enabled" : "Debug mode disabled");
+          break;
       }
     }
   } else {
@@ -321,9 +480,30 @@ void loop() {
     if (current_time - last_update >= UPDATE_INTERVAL) {
       last_update = current_time;
 
+      // Read barometer at 100 Hz
+      sensors_event_t temp_event, pressure_event;
+      if (!dps.getEvents(&temp_event, &pressure_event)) {
+        DEBUG_PRINTLN("Failed to read DPS310 data");
+        return;
+      }
+      shared_sensor_data.pressure = pressure_event.pressure;
+      shared_sensor_data.temperature = temp_event.temperature;
+      float h_baro = pressureToAltitude(shared_sensor_data.pressure, ref_pressure);
+      float dt = 0.01; // 100 Hz = 10 ms
+      shared_sensor_data.velocity += shared_sensor_data.accel_z * dt; // Integrate acceleration
+      float h_accel = shared_sensor_data.altitude + shared_sensor_data.velocity * dt;
+      shared_sensor_data.altitude = COMPLEMENTARY_ALPHA * h_baro + (1 - COMPLEMENTARY_ALPHA) * h_accel;
+
+      // Use shared sensor data
+      if (imu_data_ready) {
+        sensor_data = const_cast<SensorData&>(shared_sensor_data);
+        imu_data_ready = false;
+      }
+
       switch (state) {
         case INITIALIZING:
           if (is_sensor_still()) {
+            calibrate_gyro();
             set_state(CALIBRATING);
           }
           break;
@@ -340,8 +520,6 @@ void loop() {
           // Idle, waiting for commands
           break;
         case PREFLIGHT:
-          read_low_frequency_sensors();
-          update_complementary_filter();
           log_pre_launch_data();
           if (detect_launch()) {
             set_state(ACTIVE);
@@ -356,8 +534,6 @@ void loop() {
           }
           break;
         case ACTIVE:
-          read_low_frequency_sensors();
-          update_complementary_filter();
           log_data();
           update_flight_phase();
           if (verbose_mode) print_sensor_data();
@@ -376,66 +552,178 @@ void loop() {
 
 // Calibration functions
 void calibrate_gyro() {
+  DEBUG_PRINTLN("Calibrating gyroscope...");
   const int samples = CALIBRATION_SAMPLES;
   float sum_gyro_x = 0, sum_gyro_y = 0, sum_gyro_z = 0;
   for (int i = 0; i < samples; i++) {
-    sensors_event_t accel, gyro, mag, temp;
-    icm.getEvent(&accel, &gyro, &mag, &temp);
-    sum_gyro_x += gyro.gyro.x;
-    sum_gyro_y += gyro.gyro.y;
-    sum_gyro_z += gyro.gyro.z;
+    while (!imu_data_ready) {
+      static unsigned long start = millis();
+      if (millis() - start > 1000) {
+        DEBUG_PRINTLN("Timeout waiting for IMU data in calibrate_gyro");
+        return;
+      }
+    }
+    sum_gyro_x += shared_sensor_data.gyro_x;
+    sum_gyro_y += shared_sensor_data.gyro_y;
+    sum_gyro_z += shared_sensor_data.gyro_z;
+    imu_data_ready = false;
     delay(10);
   }
   gyro_bias[0] = sum_gyro_x / samples;
   gyro_bias[1] = sum_gyro_y / samples;
   gyro_bias[2] = sum_gyro_z / samples;
+  DEBUG_PRINTLN("Gyroscope calibration complete.");
 }
 
 void calibrate_accelerometer() {
-  if (is_sensor_still()) {
-    Serial.println("Calibrating accelerometer. Place the board on a level surface.");
-    const int samples = CALIBRATION_SAMPLES;
-    float sum_accel_x = 0, sum_accel_y = 0, sum_accel_z = 0;
-    for (int i = 0; i < samples; i++) {
-      sensors_event_t accel, gyro, mag, temp;
-      icm.getEvent(&accel, &gyro, &mag, &temp);
-      sum_accel_x += accel.acceleration.x;
-      sum_accel_y += accel.acceleration.y;
-      sum_accel_z += accel.acceleration.z;
-      delay(10);
-    }
-    accel_offset[0] = sum_accel_x / samples;
-    accel_offset[1] = sum_accel_y / samples;
-    accel_offset[2] = sum_accel_z / samples - GRAVITY;
-    Serial.println("Accelerometer calibration complete. Data saved to accel_bias.txt.");
+  Serial.println("Starting accelerometer calibration. Follow the prompts to position the rocket.");
+
+  float ax_nose_up, ay_nose_up, az_nose_up;
+  float ax_tail_up, ay_tail_up, az_tail_up;
+  float ax_right_up, ay_right_up, az_right_up;
+  float ax_left_up, ay_left_up, az_left_up;
+  float ax_front_up, ay_front_up, az_front_up;
+  float ax_back_up, ay_back_up, az_back_up;
+
+  // Nose up
+  if (!nose_calibrated) {
+    Serial.println("Place the rocket upright with the nose pointing upwards.");
+    wait_for_enter();
+    collect_average_accel(ax_nose_up, ay_nose_up, az_nose_up, 2000);
+    nose_calibrated = true;
+    Serial.println("Nose up calibration recorded.");
+    list_remaining_calibrations();
+  }
+
+  // Tail up
+  if (!tail_calibrated) {
+    Serial.println("Place the rocket inverted with the tail pointing upwards.");
+    wait_for_enter();
+    collect_average_accel(ax_tail_up, ay_tail_up, az_tail_up, 2000);
+    tail_calibrated = true;
+    Serial.println("Tail up calibration recorded.");
+    list_remaining_calibrations();
+  }
+
+  // Right up
+  if (!right_calibrated) {
+    Serial.println("Place the rocket on its side with the right side upwards.");
+    wait_for_enter();
+    collect_average_accel(ax_right_up, ay_right_up, az_right_up, 2000);
+    right_calibrated = true;
+    Serial.println("Right up calibration recorded.");
+    list_remaining_calibrations();
+  }
+
+  // Left up
+  if (!left_calibrated) {
+    Serial.println("Place the rocket on its side with the left side upwards.");
+    wait_for_enter();
+    collect_average_accel(ax_left_up, ay_left_up, az_left_up, 2000);
+    left_calibrated = true;
+    Serial.println("Left up calibration recorded.");
+    list_remaining_calibrations();
+  }
+
+  // Front up
+  if (!front_calibrated) {
+    Serial.println("Place the rocket on its side with the front side upwards.");
+    wait_for_enter();
+    collect_average_accel(ax_front_up, ay_front_up, az_front_up, 2000);
+    front_calibrated = true;
+    Serial.println("Front up calibration recorded.");
+    list_remaining_calibrations();
+  }
+
+  // Back up
+  if (!back_calibrated) {
+    Serial.println("Place the rocket on its side with the back side upwards.");
+    wait_for_enter();
+    collect_average_accel(ax_back_up, ay_back_up, az_back_up, 2000);
+    back_calibrated = true;
+    Serial.println("Back up calibration recorded.");
+    list_remaining_calibrations();
+  }
+
+  // Calculate biases only if all positions are calibrated
+  if (nose_calibrated && tail_calibrated && right_calibrated && 
+      left_calibrated && front_calibrated && back_calibrated) {
+    DEBUG_PRINTLN("All positions calibrated. Calculating biases...");
+    accel_offset[0] = (ax_right_up + ax_left_up) / 2; // x-axis
+    accel_offset[1] = (ay_front_up + ay_back_up) / 2; // y-axis
+    accel_offset[2] = (az_nose_up + az_tail_up) / 2;  // z-axis
+    
+    Serial.println("Biases calculated:");
+    Serial.print("X-axis bias: "); Serial.println(accel_offset[0]);
+    Serial.print("Y-axis bias: "); Serial.println(accel_offset[1]);
+    Serial.print("Z-axis bias: "); Serial.println(accel_offset[2]);
+    DEBUG_PRINTLN("Saving biases to accel_bias.txt...");
+
     File accel_file = LittleFS.open("accel_bias.txt", "w");
     if (accel_file) {
-      for (int i = 0; i < 3; i++) accel_file.println(accel_offset[i]);
+      DEBUG_PRINTLN("File opened successfully for writing.");
+      for (int i = 0; i < 3; i++) {
+        accel_file.println(accel_offset[i]);
+        Serial.print("Writing accel_offset["); Serial.print(i); Serial.print("]: "); Serial.println(accel_offset[i]);
+        accel_file.flush(); // Ensure data is written to flash
+      }
       accel_file.close();
+      DEBUG_PRINTLN("File closed successfully.");
+
+      // Verify file existence
+      if (LittleFS.exists("accel_bias.txt")) {
+        DEBUG_PRINTLN("Verified: accel_bias.txt exists after saving.");
+        // Read back and verify contents
+        File verify_file = LittleFS.open("accel_bias.txt", "r");
+        if (verify_file) {
+          DEBUG_PRINTLN("Reading back saved data for verification:");
+          for (int i = 0; i < 3; i++) {
+            String line = verify_file.readStringUntil('\n');
+            float read_value = line.toFloat();
+            Serial.print("Read accel_offset["); Serial.print(i); Serial.print("]: "); Serial.println(read_value);
+          }
+          verify_file.close();
+        } else {
+          Serial.println("Failed to open accel_bias.txt for verification.");
+        }
+      } else {
+        Serial.println("Error: accel_bias.txt does not exist after saving.");
+        set_state(ERROR);
+        return;
+      }
+
       accel_cal_needed = false;
+      Serial.println("Accelerometer calibration complete. Biases saved to accel_bias.txt.");
+      DEBUG_PRINTLN("Calibration data saved successfully. Waiting 2 seconds before proceeding...");
+      delay(2000); // Ensure flash write completes
     } else {
-      Serial.println("Failed to save accelerometer calibration data.");
+      Serial.println("Failed to open accel_bias.txt for writing.");
       set_state(ERROR);
     }
   } else {
-    Serial.println("Please keep the board still for calibration.");
+    Serial.println("Calibration incomplete. Please complete all orientations.");
   }
 }
 
 void calibrate_magnetometer() {
-  Serial.println("Calibrating magnetometer. Rotate the board in a figure-eight pattern for 30 seconds.");
+  Serial.println("Calibrating magnetometer. Rotate the rocket in a figure-eight pattern for 30 seconds.");
   unsigned long start_time = millis();
   float min_mag[3] = {1000, 1000, 1000};
   float max_mag[3] = {-1000, -1000, -1000};
   while (millis() - start_time < 30000) {
-    sensors_event_t accel, gyro, mag, temp;
-    icm.getEvent(&accel, &gyro, &mag, &temp);
-    min_mag[0] = min(min_mag[0], mag.magnetic.x);
-    min_mag[1] = min(min_mag[1], mag.magnetic.y);
-    min_mag[2] = min(min_mag[2], mag.magnetic.z);
-    max_mag[0] = max(max_mag[0], mag.magnetic.x);
-    max_mag[1] = max(max_mag[1], mag.magnetic.y);
-    max_mag[2] = max(max_mag[2], mag.magnetic.z);
+    while (!imu_data_ready) {
+      if (millis() - start_time > 31000) {
+        DEBUG_PRINTLN("Timeout waiting for IMU data in calibrate_magnetometer");
+        return;
+      }
+    }
+    min_mag[0] = min(min_mag[0], shared_sensor_data.mag_x);
+    min_mag[1] = min(min_mag[1], shared_sensor_data.mag_y);
+    min_mag[2] = min(min_mag[2], shared_sensor_data.mag_z);
+    max_mag[0] = max(max_mag[0], shared_sensor_data.mag_x);
+    max_mag[1] = max(max_mag[1], shared_sensor_data.mag_y);
+    max_mag[2] = max(max_mag[2], shared_sensor_data.mag_z);
+    imu_data_ready = false;
     delay(10);
   }
   mag_offset[0] = (min_mag[0] + max_mag[0]) / 2;
@@ -447,9 +735,21 @@ void calibrate_magnetometer() {
   Serial.println(mag_offset[2]);
   File mag_file = LittleFS.open("mag_offset.txt", "w");
   if (mag_file) {
-    for (int i = 0; i < 3; i++) mag_file.println(mag_offset[i]);
+    for (int i = 0; i < 3; i++) {
+      mag_file.println(mag_offset[i]);
+      mag_file.flush(); // Ensure data is written
+    }
     mag_file.close();
+    Serial.println("Magnetometer calibration data saved to mag_offset.txt.");
+    DEBUG_PRINTLN("Verified: mag_offset.txt exists after saving.");
+    if (LittleFS.exists("mag_offset.txt")) {
+      DEBUG_PRINTLN("Verified: mag_offset.txt exists after saving.");
+    } else {
+      Serial.println("Error: mag_offset.txt does not exist after saving.");
+    }
     mag_cal_needed = false;
+    DEBUG_PRINTLN("Calibration data saved successfully. Waiting 2 seconds before proceeding...");
+    delay(2000); // Ensure flash write completes
   } else {
     Serial.println("Failed to save magnetometer calibration data.");
     set_state(ERROR);
@@ -513,27 +813,25 @@ void handle_serial_commands() {
 }
 
 bool is_sensor_still() {
-  sensors_event_t accel, gyro, mag, temp;
-  icm.getEvent(&accel, &gyro, &mag, &temp);
-  float accel_magnitude = sqrt(accel.acceleration.x * accel.acceleration.x +
-                               accel.acceleration.y * accel.acceleration.y +
-                               accel.acceleration.z * accel.acceleration.z);
-  return abs(accel_magnitude - GRAVITY) < STILLNESS_THRESHOLD;
-}
-
-void read_low_frequency_sensors() {
-  sensors_event_t temp_event, pressure_event;
-  dps.getEvents(&temp_event, &pressure_event);
-  sensor_data.pressure = pressure_event.pressure;
-  sensor_data.temperature = temp_event.temperature;
-}
-
-void update_complementary_filter() {
-  float h_baro = pressureToAltitude(sensor_data.pressure, ref_pressure);
-  float dt = 0.01; // 100 Hz = 10 ms
-  sensor_data.velocity += sensor_data.accel_z * dt; // Integrate acceleration
-  float h_accel = sensor_data.altitude + sensor_data.velocity * dt;
-  sensor_data.altitude = COMPLEMENTARY_ALPHA * h_baro + (1 - COMPLEMENTARY_ALPHA) * h_accel;
+  unsigned long start = millis();
+  while (!imu_data_ready) {
+    if (millis() - start > 1000) {
+      DEBUG_PRINTLN("Timeout waiting for IMU data in is_sensor_still");
+      return false;
+    }
+  }
+  float accel_magnitude = sqrt(shared_sensor_data.accel_x * shared_sensor_data.accel_x +
+                               shared_sensor_data.accel_y * shared_sensor_data.accel_y +
+                               shared_sensor_data.accel_z * shared_sensor_data.accel_z);
+  imu_data_ready = false;
+  bool is_still = abs(accel_magnitude - GRAVITY) < STILLNESS_THRESHOLD;
+  if (debug_mode) {
+    Serial.print("is_sensor_still: accel_magnitude = ");
+    Serial.print(accel_magnitude);
+    Serial.print(", still = ");
+    Serial.println(is_still ? "true" : "false");
+  }
+  return is_still;
 }
 
 void log_pre_launch_data() {
