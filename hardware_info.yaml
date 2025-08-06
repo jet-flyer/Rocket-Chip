@@ -1,6 +1,7 @@
 # Rocket Chip Hardware Config
 # Tracks I2C addresses, pins, protocols for coding reference.
 # Arduino pin numbers used; board-specific GPIO in parentheses.
+# For initial MVP: Assume components with has_stemma_qt: true use STEMMA QT (Qwiic compatible) for I2C daisy-chaining. Alternate protocols available for refinement.
 
 main_boards:
   - name: RP2350 HSTX Feather
@@ -34,17 +35,21 @@ main_boards:
       tft: {sck: 12, mosi: 11, dc: 38, cs: 39, rst: 40, backlight: 45, notes: "1.54in 240x240 IPS display via SPI."}
     notes: "Dual Xtensa LX7, 240 MHz, Wi-Fi/BT. Avoid GPIO 6-11 (flash). ADC2 off with Wi-Fi. Debug with Adafruit 5699."
 
-stemma_qt_sensors:
+default_sensors:
   - name: DPS310 Barometer
     product_id: Adafruit 4494
     i2c_address: {default: 0x77, alternate: 0x76}
     connector: STEMMA QT
+    has_stemma_qt: true
+    alternate_protocols: [SPI]
     notes: "Use Adafruit_DPS310 lib. Check address conflicts. Pull-ups on STEMMA QT."
 
   - name: ICM20948 9-DoF
     product_id: Adafruit 4554
     i2c_address: {default: 0x68, alternate: 0x69}
     connector: STEMMA QT
+    has_stemma_qt: true
+    alternate_protocols: [SPI]
     notes: "Use Adafruit_ICM20948 lib. Set ADDR jumper. Calibrate magnetometer."
 
 peripherals:
@@ -54,15 +59,19 @@ peripherals:
     pins: {tx: UART0_TX, rx: UART0_RX}
     connector: STEMMA QT
     protocols: [UART, I2C: 0x10]
+    has_stemma_qt: true
+    alternate_protocols: [I2C: 0x10]  # Can daisy-chain via I2C for MVP
     notes: "Use Adafruit_GPS lib. UART default (9600 baud). Ensure 3.3V, antenna."
 
   - name: Ultimate GPS FeatherWing
     product_id: Adafruit 3133
     interface: UART
     pins: {tx: UART0_TX, rx: UART0_RX}
-    connector: STEMMA QT
+    connector: FeatherWing
     protocols: [UART, I2C: 0x10]
-    notes: "Use Adafruit_GPS lib. UART default. Check UART conflicts."
+    has_stemma_qt: false
+    alternate_protocols: [I2C: 0x10]  # Can use I2C with manual wiring
+    notes: "Use Adafruit_GPS lib. UART default. Check UART conflicts. FeatherWing pins, no STEMMA QT."
 
   - name: RFM69HCW Radio FeatherWing
     product_id: Adafruit 3229
@@ -76,6 +85,7 @@ peripherals:
       miso: SPI0_MISO # RP2350: GPIO16, ESP32-S3: GPIO13
     connector: FeatherWing
     protocols: [SPI]
+    has_stemma_qt: false
     notes: "915MHz. Solder A (CS), B (IRQ), C (RST) per guide. Use RadioHead lib. Verify IRQ pin, SPI pins (D6/SCK overlap on RP2350). Debug with Adafruit 5699."
 
 actuators:
@@ -84,6 +94,7 @@ actuators:
     interface: GPIO
     pins: {trigger: 2} # RP2350: GPIO2, ESP32-S3: GPIO2
     protocols: [Digital, PWM]
+    has_stemma_qt: false
     notes: "SSR with screw terminal for charges. Use digitalWrite(). Add pull-down. RTOS for timing in Pro."
 
 future_sensors:
@@ -92,7 +103,8 @@ future_sensors:
     interface: I2C/SPI
     i2c_address: TBD
     connector: STEMMA QT
-    protocols: [I2C, SPI]
+    has_stemma_qt: true
+    alternate_protocols: [SPI]
     notes: "For Pro, 16-bit. SPI for high data rates."
 
 compatibility_notes:
