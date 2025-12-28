@@ -9,9 +9,9 @@
 ## Executive Summary
 
 This analysis identified **27 performance anti-patterns** across the codebase, categorized into:
-- **🔴 CRITICAL (6):** Direct impact on real-time performance and reliability
-- **🟡 MODERATE (14):** CPU overhead and potential timing issues
-- **🟢 MINOR (7):** Code quality and maintainability
+- **[CRITICAL] (6):** Direct impact on real-time performance and reliability
+- **[MODERATE] (14):** CPU overhead and potential timing issues
+- **[MINOR] (7):** Code quality and maintainability
 
 ### Key Anti-Patterns Found:
 
@@ -28,7 +28,7 @@ This analysis identified **27 performance anti-patterns** across the codebase, c
 
 ---
 
-## 🔴 CRITICAL ANTI-PATTERNS
+## [CRITICAL] ANTI-PATTERNS
 
 ### 1. Expensive Operations in Hot Paths
 
@@ -38,7 +38,7 @@ This analysis identified **27 performance anti-patterns** across the codebase, c
 **Frequency:** 1000 Hz (every 1ms)
 
 ```cpp
-// ❌ ANTI-PATTERN: Expensive sqrt in comparison path
+// [!] ANTI-PATTERN: Expensive sqrt in comparison path
 sensorData.totalAccel = sqrt(sensorData.accel_x * sensorData.accel_x +
                              sensorData.accel_y * sensorData.accel_y +
                              sensorData.accel_z * sensorData.accel_z) / 9.81;
@@ -47,7 +47,7 @@ if (sensorData.totalAccel > launchThreshold) {
   // Launch detected
 }
 
-// ✅ PATTERN: Use squared comparison
+// [✓] PATTERN: Use squared comparison
 float accelSquared = sensorData.accel_x * sensorData.accel_x +
                      sensorData.accel_y * sensorData.accel_y +
                      sensorData.accel_z * sensorData.accel_z;
@@ -68,7 +68,7 @@ if (accelSquared > thresholdSquared) {
 **Frequency:** 1000 Hz
 
 ```cpp
-// ❌ ANTI-PATTERN: Convert rad/s → deg/s → rad
+// [!] ANTI-PATTERN: Convert rad/s → deg/s → rad
 filter.update(sensorData.gyro_x * 57.29578,  // Conversion #1
               sensorData.gyro_y * 57.29578,  // Conversion #2
               sensorData.gyro_z * 57.29578,  // Conversion #3
@@ -78,7 +78,7 @@ sensorData.roll = filter.getRoll() * 0.01745329;   // Conversion #4
 sensorData.pitch = filter.getPitch() * 0.01745329; // Conversion #5
 sensorData.yaw = filter.getYaw() * 0.01745329;     // Conversion #6
 
-// ✅ PATTERN: Store in native filter units OR use radians throughout
+// [✓] PATTERN: Store in native filter units OR use radians throughout
 // Option 1: Configure filter for radians
 filter.setInputUnits(MADGWICK_UNITS_RADIANS);
 filter.update(sensorData.gyro_x, sensorData.gyro_y, sensorData.gyro_z, ...);
@@ -101,13 +101,13 @@ sensorData.roll = filter.getRoll();  // Already in radians
 **Frequency:** 50Hz (logging), 1Hz (flush)
 
 ```cpp
-// ❌ ANTI-PATTERN: Byte-by-byte copy with modulo every iteration
+// [!] ANTI-PATTERN: Byte-by-byte copy with modulo every iteration
 for (uint32_t i = 0; i < thisChunk; i++) {
   chunk[i] = psramBuffer[psramReadPos];
   psramReadPos = (psramReadPos + 1) % actualPSRAMSize;  // Modulo = ~50 cycles on ARM
 }
 
-// ✅ PATTERN: memcpy for contiguous blocks
+// [✓] PATTERN: memcpy for contiguous blocks
 uint32_t contiguous = min(thisChunk, actualPSRAMSize - psramReadPos);
 memcpy(chunk, &psramBuffer[psramReadPos], contiguous);
 psramReadPos = (psramReadPos + contiguous) % actualPSRAMSize;
@@ -133,7 +133,7 @@ if (contiguous < thisChunk) {
 **Pattern:** Data copied multiple times instead of written directly to destination
 
 ```cpp
-// ❌ ANTI-PATTERN: Triple copy (wasteful memory bandwidth)
+// [!] ANTI-PATTERN: Triple copy (wasteful memory bandwidth)
 uint8_t tempBuffer[300];  // Stack allocation
 mavlink_msg_to_send_buffer(buf, &msg);
 memcpy(tempBuffer, buf, len);              // Copy #1: buf → tempBuffer
@@ -146,7 +146,7 @@ for (uint16_t i = 0; i < totalLen; i++) {
   psramWritePos = (psramWritePos + 1) % actualPSRAMSize;
 }
 
-// ✅ PATTERN: Write directly to destination (single copy)
+// [✓] PATTERN: Write directly to destination (single copy)
 // If circular buffer allows, write directly:
 if (psramWritePos + len <= actualPSRAMSize) {
   len = mavlink_msg_to_send_buffer(&psramBuffer[psramWritePos], &msg);
@@ -168,14 +168,14 @@ if (psramWritePos + len <= actualPSRAMSize) {
 **Frequency:** 1000Hz (IMU) + 100Hz (baro) = 1100/sec
 
 ```cpp
-// ❌ ANTI-PATTERN: CPU blocks waiting for I2C
+// [!] ANTI-PATTERN: CPU blocks waiting for I2C
 void readIMU() {
   sensors_event_t accel, gyro, mag, temp;
   icm.getEvent(&accel, &gyro, &temp, &mag);  // Blocks for ~500-1000μs
   // ...
 }
 
-// ✅ PATTERN: Interrupt-driven approach
+// [✓] PATTERN: Interrupt-driven approach
 // 1. Configure sensor to assert INT pin when data ready
 // 2. ISR sets flag
 // 3. Main loop reads only when data available
@@ -214,12 +214,12 @@ void loop() {
 **Frequency:** 1100 times/sec
 
 ```cpp
-// ❌ ANTI-PATTERN: Overkill synchronization
+// [!] ANTI-PATTERN: Overkill synchronization
 void readIMU() {
   sensors_event_t accel, gyro, mag, temp;
   icm.getEvent(&accel, &gyro, &temp, &mag);
 
-  noInterrupts();  // ❌ Blocks USB, timers, serial for 50-100μs
+  noInterrupts();  // [!] Blocks USB, timers, serial for 50-100μs
   sensorData.timestamp = micros();
   sensorData.accel_x = accel.acceleration.x;
   sensorData.accel_y = accel.acceleration.y;
@@ -233,7 +233,7 @@ void readIMU() {
   interrupts();
 }
 
-// ✅ PATTERN: Fine-grained locking or atomic operations
+// [✓] PATTERN: Fine-grained locking or atomic operations
 // Option 1: Use RP2350 hardware spinlocks
 void readIMU() {
   sensors_event_t accel, gyro, mag, temp;
@@ -275,13 +275,13 @@ void readIMU() {
 **Frequency:** Startup + file operations
 
 ```cpp
-// ❌ ANTI-PATTERN: String creates 3 temporary objects + heap allocations
+// [!] ANTI-PATTERN: String creates 3 temporary objects + heap allocations
 while (LittleFS.exists(String("/log_") + String(logFileNumber) + ".mavlink")) {
   logFileNumber++;
 }
 String filename = String("/log_") + String(logFileNumber) + ".mavlink";
 
-// ✅ PATTERN: Stack-allocated char array
+// [✓] PATTERN: Stack-allocated char array
 char filename[32];
 snprintf(filename, sizeof(filename), "/log_%lu.mavlink", logFileNumber);
 while (LittleFS.exists(filename)) {
@@ -305,7 +305,7 @@ while (LittleFS.exists(filename)) {
 **Risk:** Stack overflow (RP2350 has limited stack per core)
 
 ```cpp
-// ❌ ANTI-PATTERN: 4KB on stack (dangerous on embedded)
+// [!] ANTI-PATTERN: 4KB on stack (dangerous on embedded)
 void flushPSRAMToFlash() {
   uint8_t chunk[4096];  // 4KB local array
   // ...
@@ -317,7 +317,7 @@ void logDataMAVLink() {
   // Total: 580 bytes (acceptable, but adds up with call stack)
 }
 
-// ✅ PATTERN: Static buffer (shared, one-time allocation in .bss)
+// [✓] PATTERN: Static buffer (shared, one-time allocation in .bss)
 static uint8_t flushChunk[4096];  // Allocated once globally
 
 void flushPSRAMToFlash() {
@@ -339,7 +339,7 @@ uint8_t chunk[CHUNK_SIZE];
 
 ---
 
-## 🟡 MODERATE ANTI-PATTERNS
+## [MODERATE] ANTI-PATTERNS
 
 ### 5. Repeated System Call Overhead
 
@@ -349,7 +349,7 @@ uint8_t chunk[CHUNK_SIZE];
 **Frequency:** 10,000-50,000 loops/sec
 
 ```cpp
-// ❌ ANTI-PATTERN: Redundant system calls
+// [!] ANTI-PATTERN: Redundant system calls
 void loop() {
   if (micros() - lastIMURead >= (1000000 / IMU_RATE_HZ)) {  // Call #1
     lastIMURead = micros();  // Call #2
@@ -367,7 +367,7 @@ void loop() {
   }
 }
 
-// ✅ PATTERN: Cache timestamp
+// [✓] PATTERN: Cache timestamp
 void loop() {
   uint32_t now = micros();  // Single call
 
@@ -402,7 +402,7 @@ void loop() {
 **Frequency:** 600 times/sec (6 filters × 100Hz)
 
 ```cpp
-// ❌ ANTI-PATTERN: O(n) complexity
+// [!] ANTI-PATTERN: O(n) complexity
 void apply_moving_average(float* data, float new_value, float* output) {
   data[avg_index] = new_value;
   float sum = 0;
@@ -413,7 +413,7 @@ void apply_moving_average(float* data, float new_value, float* output) {
   avg_index = (avg_index + 1) % MOVING_AVG_WINDOW;
 }
 
-// ✅ PATTERN: O(1) rolling sum
+// [✓] PATTERN: O(1) rolling sum
 struct MovingAverage {
   float buffer[MOVING_AVG_WINDOW];
   float sum;
@@ -438,7 +438,7 @@ float moving_average_get(MovingAverage* filter) {
 
 **Critical Bug in Grok Code:**
 ```cpp
-// ❌ BUG: Global avg_index shared across 6 filters!
+// [!] BUG: Global avg_index shared across 6 filters!
 int avg_index = 0;  // Global variable
 
 void apply_moving_average(float* data, float new_value, float* output) {
@@ -455,14 +455,14 @@ This means all 6 filters (accel X/Y/Z, gyro X/Y/Z) are using the **same index**,
 **Frequency:** 1000Hz (calibration only)
 
 ```cpp
-// ❌ ANTI-PATTERN: Loop overhead for 3 items
+// [!] ANTI-PATTERN: Loop overhead for 3 items
 for (int i = 0; i < 3; i++) {
   float val = ((float*)&sensorData.mag_x)[i];  // Pointer arithmetic
   if (val < magMin[i]) magMin[i] = val;
   if (val > magMax[i]) magMax[i] = val;
 }
 
-// ✅ PATTERN: Unroll (faster for small fixed counts)
+// [✓] PATTERN: Unroll (faster for small fixed counts)
 if (sensorData.mag_x < magMin[0]) magMin[0] = sensorData.mag_x;
 if (sensorData.mag_x > magMax[0]) magMax[0] = sensorData.mag_x;
 if (sensorData.mag_y < magMin[1]) magMin[1] = sensorData.mag_y;
@@ -486,13 +486,13 @@ if (sensorData.mag_z > magMax[2]) magMax[2] = sensorData.mag_z;
 **Frequency:** Once per boot (but gets worse with more files)
 
 ```cpp
-// ❌ ANTI-PATTERN: O(n) file existence checks
+// [!] ANTI-PATTERN: O(n) file existence checks
 while (LittleFS.exists(String("/log_") + String(logFileNumber) + ".mavlink")) {
   logFileNumber++;
   // If 100 files exist, this does 100 filesystem lookups!
 }
 
-// ✅ PATTERN #1: Store metadata
+// [✓] PATTERN #1: Store metadata
 // Create /last_log.txt with single number
 File meta = LittleFS.open("/last_log.txt", "r");
 if (meta) {
@@ -505,7 +505,7 @@ meta = LittleFS.open("/last_log.txt", "w");
 meta.print(logFileNumber);
 meta.close();
 
-// ✅ PATTERN #2: Directory scan (single pass)
+// [✓] PATTERN #2: Directory scan (single pass)
 Dir root = LittleFS.openDir("/");
 uint32_t maxNum = 0;
 while (root.next()) {
@@ -531,12 +531,12 @@ logFileNumber = maxNum + 1;
 **Frequency:** Setup + calibration
 
 ```cpp
-// ❌ ANTI-PATTERN: Blocks entire system
+// [!] ANTI-PATTERN: Blocks entire system
 while (!icm.begin_I2C()) {
   delay(100);  // Core 0 AND Core 1 both blocked
 }
 
-// ✅ PATTERN: Non-blocking wait
+// [✓] PATTERN: Non-blocking wait
 unsigned long startTime = millis();
 while (!icm.begin_I2C()) {
   if (millis() - startTime > SENSOR_INIT_TIMEOUT) {
@@ -559,7 +559,7 @@ while (!icm.begin_I2C()) {
 **Frequency:** 10Hz (verbose mode)
 
 ```cpp
-// ❌ ANTI-PATTERN: Serial blocks for milliseconds
+// [!] ANTI-PATTERN: Serial blocks for milliseconds
 void outputVerboseData() {
   Serial.print(millis());
   Serial.print(",");
@@ -569,7 +569,7 @@ void outputVerboseData() {
 // Each print() waits for UART TX buffer
 // ~100 bytes @ 115200 baud = 8.6ms blocked
 
-// ✅ PATTERN: Buffered output
+// [✓] PATTERN: Buffered output
 char buf[128];
 int len = snprintf(buf, sizeof(buf),
                    "%lu,%.2f,%.1f,%.1f,%.1f,%.1f,%.1f\n",
@@ -585,7 +585,7 @@ Serial.write(buf, len);  // Single write() call
 
 ---
 
-## 🟢 MINOR CODE QUALITY ISSUES
+## [MINOR] CODE QUALITY ISSUES
 
 ### 8. Maintainability Anti-patterns
 
@@ -594,12 +594,12 @@ Serial.write(buf, len);  // Single write() call
 **Pattern:** Hardcoded constants instead of named defines
 
 ```cpp
-// ❌ ANTI-PATTERN
+// [!] ANTI-PATTERN
 pixel.setBrightness(50);  // Why 50?
 if (bytesInBuffer >= (actualPSRAMSize * 75 / 100))  // Why 75%?
 filter.setBeta(0.1);  // Why 0.1?
 
-// ✅ PATTERN (already mostly done in config.h, but ensure consistency)
+// [✓] PATTERN (already mostly done in config.h, but ensure consistency)
 #define LED_BRIGHTNESS 50  // Max brightness for NeoPixel (0-255)
 #define PSRAM_FLUSH_THRESHOLD 75  // Flush when 75% full
 #define MADGWICK_BETA 0.1  // Filter gain (lower = smoother, higher = responsive)
@@ -613,16 +613,16 @@ filter.setBeta(0.1);  // Why 0.1?
 **Pattern:** Circular buffer writes without size validation
 
 ```cpp
-// ❌ POTENTIAL ISSUE: What if totalLen > PRELAUNCH_BUFFER_SIZE?
+// [!] POTENTIAL ISSUE: What if totalLen > PRELAUNCH_BUFFER_SIZE?
 for (uint16_t i = 0; i < totalLen; i++) {
   prelaunchBuffer[prelaunchWritePos] = tempBuffer[i];
   prelaunchWritePos = (prelaunchWritePos + 1) % PRELAUNCH_BUFFER_SIZE;
 }
 // Silent data corruption - overwrites un-flushed data
 
-// ✅ PATTERN: Validate input
+// [✓] PATTERN: Validate input
 if (totalLen > PRELAUNCH_BUFFER_SIZE) {
-  Serial.println("⚠️ MAVLink message too large for buffer!");
+  Serial.println("[!] MAVLink message too large for buffer!");
   totalLen = PRELAUNCH_BUFFER_SIZE;  // Truncate
 }
 ```
@@ -658,27 +658,27 @@ While this is an embedded system (no database), the equivalent "N+1 query" anti-
 
 ## PRIORITIZED FIX RECOMMENDATIONS
 
-### PHASE 1: Quick Wins (1-2 hours work) 🔴
-1. ✅ **Cache micros() calls** - 5 min, 1% CPU gain
-2. ✅ **Remove sqrt() from launch detection** - 10 min, 0.13% CPU + better precision
-3. ✅ **Replace String() with snprintf()** - 15 min, prevents heap fragmentation
-4. ✅ **Fix Grok moving average bug** - 20 min, CORRECTNESS FIX
-5. ✅ **Use static buffer for flush chunk** - 5 min, prevents stack overflow
+### PHASE 1: Quick Wins (1-2 hours work) [CRITICAL]
+1. [X] **Cache micros() calls** - 5 min, 1% CPU gain
+2. [X] **Remove sqrt() from launch detection** - 10 min, 0.13% CPU + better precision
+3. [X] **Replace String() with snprintf()** - 15 min, prevents heap fragmentation
+4. [X] **Fix Grok moving average bug** - 20 min, CORRECTNESS FIX
+5. [X] **Use static buffer for flush chunk** - 5 min, prevents stack overflow
 
 **Total:** 55 minutes, **2.5% CPU gain + stability improvements**
 
-### PHASE 2: Medium Effort (4-6 hours) 🟡
-6. ✅ **Optimize buffer copies with memcpy** - 1 hour, 122x faster flushing
-7. ✅ **Remove unnecessary noInterrupts()** - 1 hour, eliminates 11% interrupt latency
-8. ✅ **Optimize MAVLink encoding** - 2 hours, 66% fewer memory copies
-9. ✅ **Buffered serial output** - 30 min, 8% CPU in verbose mode
-10. ✅ **Add volatile qualifiers** - 30 min, correctness fix
+### PHASE 2: Medium Effort (4-6 hours) [MODERATE]
+6. [X] **Optimize buffer copies with memcpy** - 1 hour, 122x faster flushing
+7. [X] **Remove unnecessary noInterrupts()** - 1 hour, eliminates 11% interrupt latency
+8. [X] **Optimize MAVLink encoding** - 2 hours, 66% fewer memory copies
+9. [X] **Buffered serial output** - 30 min, 8% CPU in verbose mode
+10. [X] **Add volatile qualifiers** - 30 min, correctness fix
 
 **Total:** 5 hours, **significant stability and correctness improvements**
 
-### PHASE 3: Advanced (Requires Hardware Changes) 🟢
-11. ⚠️ **Interrupt-driven I2C** - Requires INT pin wiring, 66% CPU gain
-12. ⚠️ **Hardware timer for IMU** - 2 hours, reduces jitter from 200μs to <5μs
+### PHASE 3: Advanced (Requires Hardware Changes) [MINOR]
+11. [!] **Interrupt-driven I2C** - Requires INT pin wiring, 66% CPU gain
+12. [!] **Hardware timer for IMU** - 2 hours, reduces jitter from 200μs to <5μs
 
 ---
 
@@ -732,11 +732,11 @@ The codebase demonstrates good embedded systems practices overall, but has **27 
 4. **Algorithmic inefficiencies** (O(n) moving average, linear file search) - Easy to fix
 
 **After implementing PHASE 1 + PHASE 2 fixes:**
-- ✅ 18-22% reduction in CPU usage
-- ✅ 95% reduction in interrupt latency spikes
-- ✅ 100x faster flash writes
-- ✅ Elimination of heap fragmentation risk
-- ✅ Prevention of stack overflow crashes
+- [X] 18-22% reduction in CPU usage
+- [X] 95% reduction in interrupt latency spikes
+- [X] 100x faster flash writes
+- [X] Elimination of heap fragmentation risk
+- [X] Prevention of stack overflow crashes
 
 **Overall Grade:** 7/10 → **9/10** (after fixes)
 
