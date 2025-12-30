@@ -49,7 +49,7 @@ Don't flag:
 
 ### How to Flag
 
-Add entries to `REVIEW_FLAGS.md` (create if it doesn't exist):
+Add entries to `AGENT_WHITEBOARD.md` (create if it doesn't exist):
 
 ```markdown
 ## Open Flags
@@ -115,7 +115,7 @@ For these, add the flag AND clearly state in your response that you've stopped a
 When adding comments to code another agent wrote:
 
 ```cpp
-// NOTE(Claude): This timeout seems short for cold starts - flagged in REVIEW_FLAGS.md
+// NOTE(Claude): This timeout seems short for cold starts - flagged in AGENT_WHITEBOARD.md
 // Original implementation by Grok, 2025-01-10
 ```
 
@@ -127,7 +127,7 @@ This maintains traceability without cluttering the code.
 
 Nathan (or designated maintainer) resolves flags by:
 
-1. Adding a response in `REVIEW_FLAGS.md`
+1. Adding a response in `AGENT_WHITEBOARD.md`
 2. Moving resolved items to a `## Resolved` section with the decision
 3. Optionally updating code comments with the rationale for future reference
 
@@ -151,7 +151,7 @@ Example resolution:
 | Situation | Action |
 |-----------|--------|
 | Seems odd, found documented reason | Trust it or debate the reasoning |
-| Seems odd, no documented reason | Flag in REVIEW_FLAGS.md, continue working |
+| Seems odd, no documented reason | Flag in AGENT_WHITEBOARD.md, continue working |
 | Blocking issue or safety concern | Flag AND stop, request input |
 | Want to "improve" another agent's code | Flag first, wait for approval |
 | Obvious typo or minor clarification | Fix it, note in commit message |
