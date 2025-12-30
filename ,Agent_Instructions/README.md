@@ -17,6 +17,6 @@ These change often. Check at the start of every session.
 
 ## Key Rules
 - Adafruit components preferred unless notably better alternative exists
-- Log all significant changes in CHANGELOG.yaml
+- Log all significant changes in CHANGELOG.md
 - Never silently modify another agent's work
 - Coding standards are mandatory—no deviations without explicit approval (see exceptions table in STANDARDS.md)
