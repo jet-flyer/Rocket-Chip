@@ -24,7 +24,7 @@ Naming is pivoting from Roman gods to rocket program names or terms strongly ass
 
 | Function | Description |
 |----------|-------------|
-| Telemetry | LoRa radio, antenna connector for live data transmission |
+| Telemetry | RFM69HCW radio (current), antenna connector for live data transmission |
 | Pyro/Servo | Pyro channels for deployment/staging, servo PWM for TVC |
 | Navigation | GPS module, backup barometer for recovery tracking |
 | Power | Solar charging, extended battery for long-duration missions |

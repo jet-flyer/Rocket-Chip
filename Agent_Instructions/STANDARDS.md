@@ -40,7 +40,7 @@ Approved deviations from coding standards. Each exception requires documented ra
 | Protocol | Use Case | Notes |
 |----------|----------|-------|
 | **MAVLink v2** | Primary telemetry | Compatible with QGroundControl, Mission Planner |
-| **LoRa** | Physical layer for long-range | 915MHz ISM band (US), see regulatory section |
+| **RFM69HCW** | Physical layer for long-range | 915MHz ISM band (US), current testing board |
 | **WiFi** | Short-range / ground testing | ESP32 variants only |
 | **Bluetooth/BLE** | Config and data download | ESP32 variants, close-range |
 | **NRF24L01** | Budget short-range option | 2.4GHz, mentioned as alternative |

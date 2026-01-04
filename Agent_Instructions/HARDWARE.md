@@ -11,7 +11,7 @@
 
 ### Booster Packs
 Expansion modules following rocketry-themed naming (specific names TBD when boards are designed):
-- **Telemetry** - LoRa radio, antenna
+- **Telemetry** - RFM69HCW radio, antenna
 - **Pyro/Servo** - Pyro channels, servo PWM for TVC
 - **Navigation** - GPS, backup baro
 - **Power** - Solar charging, extended battery
@@ -58,7 +58,8 @@ Available for testing but not in active prototype:
 ### Telemetry (Booster Pack)
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
-| LoRa Radio FeatherWing (915MHz) | #3179 | US ISM band, see regulatory notes |
+| RFM69HCW Radio FeatherWing (915MHz) | #3229 | Current testing board, US ISM band |
+| LoRa Radio FeatherWing (915MHz) | #3179 | Alternative option, available on hand |
 
 ### Pro Tier Upgrades
 | Part | Adafruit P/N | Notes |
