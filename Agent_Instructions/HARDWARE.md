@@ -48,9 +48,6 @@ Available for testing but not in active prototype:
 | KB2040 | #5302 | RP2040 Pro Micro form factor |
 | Tiny 2350 | #6248 / Pimoroni PIM721 | RP2350, tiny footprint with castellations - evaluating for Core board candidate |
 
-### Vendor Notes
-**Pimoroni** - Excellent source for unique prototyping hardware, especially compact form factors and specialized RP2040/RP2350 boards.
-
 ---
 
 ## Planned / Future Hardware
@@ -153,10 +150,12 @@ Comparable rocket flight computers for feature/positioning reference:
 
 **Preferred:** Adafruit components for consistent availability, documentation, and library support.
 
+**Secondary:** Pimoroni for unique prototyping hardware, especially compact form factors and specialized RP2040/RP2350 boards not available from Adafruit.
+
 **Alternatives considered when:**
 - Notably better performance for the application
 - Significantly lower cost (>30% savings at scale)
-- Adafruit doesn't carry equivalent part
+- Adafruit/Pimoroni don't carry equivalent part
 
 All substitutions require changelog entry with rationale.
 
