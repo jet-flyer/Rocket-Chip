@@ -150,7 +150,7 @@ Comparable rocket flight computers for feature/positioning reference:
 
 **Preferred:** Adafruit components for consistent availability, documentation, and library support.
 
-**Secondary:** Pimoroni for unique prototyping hardware, especially compact form factors and specialized RP2040/RP2350 boards not available from Adafruit.
+**Secondary:** Pimoroni for unique prototyping hardware, especially compact form factors and specialized RP2040/RP2350 boards. Note: Pimoroni products are sourced directly from Pimoroni (some items previously carried by Adafruit are being delisted).
 
 **Alternatives considered when:**
 - Notably better performance for the application

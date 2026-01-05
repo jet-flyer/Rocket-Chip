@@ -9,6 +9,13 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-05-001 | Claude | hardware
+Added on-hand development boards: Pico 2W (#6087), KB2040 (#5302), Tiny 2350 (#6248/Pimoroni PIM721). Tiny 2350 noted as potential Core board candidate due to compact footprint and castellations. Added Pimoroni as secondary vendor in Sourcing Policy.
+
+*Pimoroni products sourced directly; some items previously carried by Adafruit are being delisted.*
+
+(HARDWARE.md)
+
 ### 2026-01-04-001 | Claude | documentation, hardware
 Consolidated hardware documentation and deprecated outdated files. Corrected RFM69HCW vs LoRa radio confusion across all agent instruction files. Updated project status to reflect Phase 0 scaffolding progress.
 
