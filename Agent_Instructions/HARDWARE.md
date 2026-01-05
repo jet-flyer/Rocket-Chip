@@ -44,6 +44,12 @@ Available for testing but not in active prototype:
 |------|--------------|-------|
 | LSM6DSOX + LIS3MDL FeatherWing | #4569 | 9-DoF combo, higher precision option |
 | BNO055 | #2472 | Onboard sensor fusion, 100Hz output |
+| Pico 2W | #6087 | RP2350 + WiFi/BT, wireless dev option |
+| KB2040 | #5302 | RP2040 Pro Micro form factor |
+| Tiny 2350 | #6248 / Pimoroni PIM721 | RP2350, tiny footprint with castellations - evaluating for Core board candidate |
+
+### Vendor Notes
+**Pimoroni** - Excellent source for unique prototyping hardware, especially compact form factors and specialized RP2040/RP2350 boards.
 
 ---
 
