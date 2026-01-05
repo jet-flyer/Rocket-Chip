@@ -44,6 +44,9 @@ Available for testing but not in active prototype:
 |------|--------------|-------|
 | LSM6DSOX + LIS3MDL FeatherWing | #4569 | 9-DoF combo, higher precision option |
 | BNO055 | #2472 | Onboard sensor fusion, 100Hz output |
+| Pico 2W | #6087 | RP2350 + WiFi/BT, wireless dev option |
+| KB2040 | #5302 | RP2040 Pro Micro form factor |
+| Tiny 2350 | #6248 / Pimoroni PIM721 | RP2350, tiny footprint with castellations - evaluating for Core board candidate |
 
 ---
 
@@ -147,10 +150,12 @@ Comparable rocket flight computers for feature/positioning reference:
 
 **Preferred:** Adafruit components for consistent availability, documentation, and library support.
 
+**Secondary:** Pimoroni for unique prototyping hardware, especially compact form factors and specialized RP2040/RP2350 boards. Note: Pimoroni products are sourced directly from Pimoroni (some items previously carried by Adafruit are being delisted).
+
 **Alternatives considered when:**
 - Notably better performance for the application
 - Significantly lower cost (>30% savings at scale)
-- Adafruit doesn't carry equivalent part
+- Adafruit/Pimoroni don't carry equivalent part
 
 All substitutions require changelog entry with rationale.
 
