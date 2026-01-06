@@ -40,6 +40,17 @@ Expansion modules following rocketry-themed naming (specific names TBD when boar
 
 Available for testing but not in active prototype:
 
+### MCUs / Dev Boards
+| Part | Adafruit P/N | Notes |
+|------|--------------|-------|
+| Pico 2W | #6087 | RP2350 + WiFi/BT, wireless dev option |
+| KB2040 | #5302 | RP2040 Pro Micro form factor |
+| Tiny 2350 | #6248 / Pimoroni PIM721 | RP2350, tiny footprint with castellations - evaluating for Core board candidate |
+| ESP32-S3 Reverse TFT Feather | #5691 | Built-in display + WiFi/BT, 4MB flash, 2MB PSRAM |
+| Feather M0 RFM69HCW | #3176 | Older M0 with integrated radio - potential for dedicated GCS/relay tasks |
+| Feather M0 Adalogger | #2796 | Older M0 with SD card - potential for dedicated logging tasks |
+
+### Sensors
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
 | ISM330DHCX + LIS3MDL FeatherWing | #4569 | 9-DoF combo, higher precision option |
@@ -47,12 +58,10 @@ Available for testing but not in active prototype:
 | MPU-6050 | #3886 | 6-DoF accel/gyro, STEMMA QT |
 | BMP280 | #2651 | Barometer, lower precision than DPS310 |
 | VL53L4CD ToF Sensor | #5396 | Time of flight distance sensor, STEMMA QT |
-| Pico 2W | #6087 | RP2350 + WiFi/BT, wireless dev option |
-| KB2040 | #5302 | RP2040 Pro Micro form factor |
-| Tiny 2350 | #6248 / Pimoroni PIM721 | RP2350, tiny footprint with castellations - evaluating for Core board candidate |
-| ESP32-S3 Reverse TFT Feather | #5691 | Built-in display + WiFi/BT, 4MB flash, 2MB PSRAM |
-| Feather M0 RFM69HCW | #3176 | Integrated radio + MCU, but M0 chip is dated - limited utility |
-| Feather M0 Adalogger | #2796 | M0 with SD card slot, dated MCU |
+
+### Accessories
+| Part | Adafruit P/N | Notes |
+|------|--------------|-------|
 | FeatherWing OLED 128x64 | #4650 | Status display option |
 | Proto PiCowBell | #5905 | Prototyping plate for Pico |
 | Li-Ion 150mAh | #1317 | Smaller battery option |
