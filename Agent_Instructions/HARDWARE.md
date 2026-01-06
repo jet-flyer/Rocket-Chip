@@ -54,6 +54,7 @@ Available for testing but not in active prototype:
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
 | ISM330DHCX + LIS3MDL FeatherWing | #4569 | 9-DoF combo, higher precision option |
+| LSM6DSOX + LIS3MDL FeatherWing | #4517 | 9-DoF combo, alternative IMU option |
 | BNO055 | #2472 | Onboard sensor fusion, 100Hz output |
 | MPU-6050 | #3886 | 6-DoF accel/gyro, STEMMA QT |
 | BMP280 | #2651 | Barometer, lower precision than DPS310 |
