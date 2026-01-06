@@ -47,6 +47,7 @@ Available for testing but not in active prototype:
 | Pico 2W | #6087 | RP2350 + WiFi/BT, wireless dev option |
 | KB2040 | #5302 | RP2040 Pro Micro form factor |
 | Tiny 2350 | #6248 / Pimoroni PIM721 | RP2350, tiny footprint with castellations - evaluating for Core board candidate |
+| Feather M0 RFM69HCW | #3176 | Integrated radio + MCU, but M0 chip is dated - limited utility |
 
 ---
 
@@ -61,8 +62,8 @@ Available for testing but not in active prototype:
 ### Telemetry (Booster Pack)
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
-| RFM69HCW Radio FeatherWing (915MHz) | #3229 | Current testing board, US ISM band |
-| LoRa Radio FeatherWing (915MHz) | #3179 | Alternative option, available on hand |
+| LoRa Radio FeatherWing (RFM95W 915MHz) | #3231 | Current testing board, US ISM band |
+| RFM69HCW Radio FeatherWing (915MHz) | #3229 | Alternative, shorter range but cheaper |
 
 ### Pro Tier Upgrades
 | Part | Adafruit P/N | Notes |
@@ -100,9 +101,10 @@ Studied for hardware/software architecture:
 
 ## Ground Station Hardware
 
-| Board | Relevance |
-|-------|-----------|
-| Adafruit Fruit Jam | RP2350 mini computer - candidate for GCS platform. Evaluate white labeling or custom modifications (SMA pads, RFM69 module space). |
+| Part | Adafruit P/N | Notes |
+|------|--------------|-------|
+| RFM95W LoRa Breakout (915MHz) | #3072 | Current GCS receiver, pairs with #3231 FeatherWing |
+| Adafruit Fruit Jam | - | RP2350 mini computer - candidate for GCS platform |
 
 ## Market Benchmarks
 

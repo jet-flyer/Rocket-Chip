@@ -9,6 +9,13 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-05-002 | Claude | hardware
+Corrected telemetry hardware: LoRa FeatherWing RFM95W (#3231) is current testing board, not RFM69HCW. Added GCS receiver (#3072) and Feather M0 RFM69HCW (#3176) to on-hand inventory.
+
+*Previous confusion between RFM69 and LoRa variants resolved. M0-based #3176 retained but noted as limited utility due to dated MCU.*
+
+(HARDWARE.md)
+
 ### 2026-01-05-001 | Claude | hardware
 Added on-hand development boards: Pico 2W (#6087), KB2040 (#5302), Tiny 2350 (#6248/Pimoroni PIM721). Tiny 2350 noted as potential Core board candidate due to compact footprint and castellations. Added Pimoroni as secondary vendor in Sourcing Policy.
 
