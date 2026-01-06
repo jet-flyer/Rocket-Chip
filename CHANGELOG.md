@@ -9,12 +9,12 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
-### 2026-01-06-001 | Claude | hardware
-Comprehensive on-hand hardware inventory update from Adafruit order history. Added sensors (MPU-6050, BMP280, VL53L4CD ToF), dev boards (ESP32-S3 Reverse TFT, Feather M0 Adalogger), accessories (OLED FeatherWing, Proto PiCowBell, 150mAh battery). Corrected IMU from LSM6DSOX to ISM330DHCX (#4569). Marked GPS units as on-hand.
+### 2026-01-06-001 | Claude | hardware, architecture, documentation
+Comprehensive on-hand hardware inventory update from Adafruit order history. Added sensors (MPU-6050, BMP280, VL53L4CD ToF), dev boards (ESP32-S3 Reverse TFT, Feather M0 Adalogger), accessories (OLED FeatherWing, Proto PiCowBell, 150mAh battery). Corrected IMU from LSM6DSOX to ISM330DHCX (#4569). Marked GPS units as on-hand. Reorganized project structure: archived Dev/ and docs/ folders to DEPRECATED/, promoted agent instruction files to root level for better visibility.
 
-*Hardware inventory now reflects actual parts available for prototyping. Excluded ancient MCUs (32u4 Adalogger) and unrelated items (stepper motor).*
+*Hardware inventory now reflects actual parts available for prototyping. Agent instruction files now live at project root. Legacy development code and outdated documentation preserved in DEPRECATED/ for reference.*
 
-(HARDWARE.md)
+(HARDWARE.md, Dev/→DEPRECATED/Dev/, docs/→DEPRECATED/docs/, Agent_Instructions/*→root)
 
 ### 2026-01-05-002 | Claude | hardware
 Corrected telemetry hardware: LoRa FeatherWing RFM95W (#3231) is current testing board, not RFM69HCW. Added GCS receiver (#3072) and Feather M0 RFM69HCW (#3176) to on-hand inventory.
