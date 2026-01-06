@@ -42,12 +42,20 @@ Available for testing but not in active prototype:
 
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
-| LSM6DSOX + LIS3MDL FeatherWing | #4569 | 9-DoF combo, higher precision option |
+| ISM330DHCX + LIS3MDL FeatherWing | #4569 | 9-DoF combo, higher precision option |
 | BNO055 | #2472 | Onboard sensor fusion, 100Hz output |
+| MPU-6050 | #3886 | 6-DoF accel/gyro, STEMMA QT |
+| BMP280 | #2651 | Barometer, lower precision than DPS310 |
+| VL53L4CD ToF Sensor | #5396 | Time of flight distance sensor, STEMMA QT |
 | Pico 2W | #6087 | RP2350 + WiFi/BT, wireless dev option |
 | KB2040 | #5302 | RP2040 Pro Micro form factor |
 | Tiny 2350 | #6248 / Pimoroni PIM721 | RP2350, tiny footprint with castellations - evaluating for Core board candidate |
+| ESP32-S3 Reverse TFT Feather | #5691 | Built-in display + WiFi/BT, 4MB flash, 2MB PSRAM |
 | Feather M0 RFM69HCW | #3176 | Integrated radio + MCU, but M0 chip is dated - limited utility |
+| Feather M0 Adalogger | #2796 | M0 with SD card slot, dated MCU |
+| FeatherWing OLED 128x64 | #4650 | Status display option |
+| Proto PiCowBell | #5905 | Prototyping plate for Pico |
+| Li-Ion 150mAh | #1317 | Smaller battery option |
 
 ---
 
@@ -56,8 +64,8 @@ Available for testing but not in active prototype:
 ### Navigation (Booster Pack)
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
-| PA1010D Mini GPS | #4415 | 10Hz, -165dBm, STEMMA QT |
-| Ultimate GPS FeatherWing | #3133 | Alternative, FeatherWing form factor |
+| PA1010D Mini GPS | #4415 | 10Hz, -165dBm, STEMMA QT - on hand |
+| Ultimate GPS FeatherWing | #3133 | FeatherWing form factor - on hand |
 
 ### Telemetry (Booster Pack)
 | Part | Adafruit P/N | Notes |
@@ -87,7 +95,7 @@ Available for testing but not in active prototype:
 |---------|-------------|-----------|
 | RP2350 HSTX Feather | ESP32-S3 Reverse TFT (#5691) | Built-in display + WiFi/BT, but less PSRAM (2MB vs 8MB) |
 | DPS310 | BMP280 | Cheaper, lower precision |
-| ICM-20948 | LSM6DSOX + LIS3MDL (#4569) | Different precision/range characteristics |
+| ICM-20948 | ISM330DHCX + LIS3MDL (#4569) | Different precision/range characteristics |
 
 ---
 
@@ -139,7 +147,7 @@ Comparable rocket flight computers for feature/positioning reference:
 |---------|--------|-------|
 | 0x68 or 0x69 | ICM-20948 | Current IMU |
 | 0x77 or 0x76 | DPS310 | Barometer |
-| 0x6A or 0x6B | LSM6DSOX | Auxiliary IMU (if used) |
+| 0x6A or 0x6B | ISM330DHCX | Auxiliary IMU (if used) |
 | 0x1C or 0x1E | LIS3MDL | Auxiliary mag (if used) |
 | 0x28 or 0x29 | BNO055 | Auxiliary IMU (if used) |
 
