@@ -9,6 +9,13 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-08-001 | Grok | documentation, refactor
+Updated root .gitignore to remove Arduino IDE-specific ignores (e.g., *.hex, *.elf, *.ino.cpp, build/, sketch_*/) and the erroneous *.cpp ignore entry. Retained PlatformIO/VSCode essentials (e.g., .pio/, .vscode/ temps) for repo hygiene.
+
+*Transitions from Arduino compat to native VSCode+PlatformIO setup, allowing proper commits of C/C++ source files (e.g., firmware/2350/src/main.cpp for FreeRTOS SMP milestone). No impact on existing commits; improves future firmware scaffolding.*
+
+(.gitignore)
+
 ### 2026-01-06-001 | Claude | hardware, architecture, documentation
 Comprehensive on-hand hardware inventory update from Adafruit order history. Added sensors (MPU-6050, BMP280, VL53L4CD ToF), dev boards (ESP32-S3 Reverse TFT, Feather M0 Adalogger), accessories (OLED FeatherWing, Proto PiCowBell, 150mAh battery). Corrected IMU from LSM6DSOX to ISM330DHCX (#4569). Marked GPS units as on-hand. Reorganized project structure: archived Dev/ and docs/ folders to DEPRECATED/, promoted agent instruction files to root level for better visibility.
 
