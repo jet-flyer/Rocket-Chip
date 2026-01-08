@@ -7,7 +7,6 @@
 *.lss
 *.sym
 *.tmp
-*.cpp
 *.o
 *.a
 *.d
