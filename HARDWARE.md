@@ -164,6 +164,10 @@ Comparable rocket flight computers for feature/positioning reference:
 ### Known Conflicts
 - DPS310 and BMP280/BMP580 share 0x77/0x76 - cannot use simultaneously without multiplexer
 
+### Sensor Bus Performance
+
+> **Performance Note:** At 1kHz control loops, I2C @ 400kHz creates ~30% overhead per sensor read. SPI @ 10MHz reduces this to ~1.2%. For Pro tier or any application requiring 1kHz+ IMU sampling, prefer SPI-based sensors.
+
 ---
 
 ## Sourcing Policy

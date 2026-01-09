@@ -20,16 +20,14 @@ The Core board uses a castellated design allowing it to be soldered directly ont
 
 Booster Packs are expansion modules for the main tier board (RocketChip's equivalent of FeatherWings).
 
-Naming is pivoting from Roman gods to rocket program names or terms strongly associated with spaceflight. Categories:
+Naming convention: rocket program names or terms strongly associated with spaceflight.
 
 | Function | Description |
 |----------|-------------|
-| Telemetry | RFM69HCW radio (current), antenna connector for live data transmission |
+| Telemetry | Radio module, antenna connector for live data transmission |
 | Pyro/Servo | Pyro channels for deployment/staging, servo PWM for TVC |
 | Navigation | GPS module, backup barometer for recovery tracking |
 | Power | Solar charging, extended battery for long-duration missions |
-
-Specific names TBD.
 
 ## Target Applications
 
@@ -39,13 +37,13 @@ Specific names TBD.
 - **Vehicle Dynamics** - Track day logging, G-force capture, lap timing
 - **Education/STEM** - Hands-on aerospace concepts, data analysis projects
 
-## Technical Direction
+## Technical Foundation
 
 - **Platform**: RP2350 (Adafruit Feather ecosystem)
-- **Development**: Post-Arduino clean sheet refactor underway
-- **Libraries**: ArduPilot module integration from the start (AP_Math, filters, calibration)
-- **Architecture**: Mission Engine as separate module/library (see Mission Engine documentation)
-- **RTOS**: FreeRTOS for Pro tier, evaluating for lower tiers
+- **RTOS**: FreeRTOS for real-time operations
+- **Libraries**: ArduPilot module integration (AP_Math, filters, calibration) via compatibility shims
+- **Architecture**: Mission Engine for event-condition-action workflows
+- **Development**: PlatformIO + Pico SDK
 
 ## Terminology
 
@@ -57,8 +55,8 @@ Specific names TBD.
 
 ## Related Documentation
 
-- `BOM.md` - Current prototype hardware and pin assignments
-- `Mission Engine Architecture` - Detailed Mission Engine design (separate from agent instructions)
+- `HARDWARE.md` - Current prototype hardware, pin assignments, sourcing
+- `STANDARDS.md` - Coding standards, protocols, safety requirements
 
 ## Repository
 
