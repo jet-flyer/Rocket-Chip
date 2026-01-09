@@ -23,3 +23,4 @@ These change often. Check at the start of every session.
 - Never silently modify another agent's work
 - Coding standards are mandatory—no deviations without explicit approval (see exceptions table in STANDARDS.md)
 - Repository content takes priority over AI memory; flag discrepancies for review
+- If caching or access issues pop up, prefer curl-equivalent methods like direct raw.githubusercontent.com URLs or appending timestamps to query parameters.
