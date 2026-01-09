@@ -12,7 +12,9 @@ Open-source. Modular. Built to be extended.
 |------|------|-------------|
 | Base | **Core** | Bare-bones, lightweight board. Local data logging only. Minimal sensors, maximum hackability. |
 | Main | *TBD* | Full sensor suite with local logging. Optional telemetry and peripherals via Booster Packs. |
-| Advanced | *Nova or Titan (TBD)* | High-performance sensors, pyro channel triggering, RTOS, TVC support. |
+| Advanced | **Titan** | High-performance sensors, pyro channel triggering, RTOS, TVC support. |
+
+*Note: Nova reserved for future product (potentially space-rated hardware).*
 
 The Core board uses a castellated design allowing it to be soldered directly onto carrier boards or used standalone.
 
@@ -55,8 +57,15 @@ Naming convention: rocket program names or terms strongly associated with spacef
 
 ## Related Documentation
 
+- `docs/SAD.md` - Software Architecture Document (system design, modules, interfaces)
+- `docs/SCAFFOLDING.md` - Directory structure and module overview
 - `HARDWARE.md` - Current prototype hardware, pin assignments, sourcing
 - `STANDARDS.md` - Coding standards, protocols, safety requirements
+
+## Future Documentation
+
+- `docs/ICD.md` - Interface Control Document (Booster Pack connector spec) - planned
+- `docs/TEST_PLAN.md` - Test procedures and pass/fail criteria - planned
 
 ## Repository
 

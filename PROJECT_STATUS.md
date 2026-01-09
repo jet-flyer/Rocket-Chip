@@ -3,24 +3,35 @@
 **Last Updated:** 2026-01-09 by Claude
 
 ## Current Phase
-Phase 0 (scaffolding) - starting fresh after scope reset.
+Phase 1 (Foundation) - Architecture defined, scaffolding complete, ready for implementation.
+
+## Completed
+- [x] Software Architecture Document (SAD) created - `docs/SAD.md`
+- [x] Directory structure scaffolding defined - `docs/SCAFFOLDING.md`
+- [x] Header stubs for core modules (HAL, services, Mission Engine)
+- [x] PlatformIO configuration (Core/Main/Titan environments)
+- [x] ArduPilot compatibility shim structure
+- [x] Product naming finalized: Core, Main+Packs, Titan (Nova reserved)
+- [x] Logging format decision: MAVLink binary default, CSV/MATLAB export
 
 ## Active Work
 - [ ] Validate PlatformIO + RP2350 + FreeRTOS toolchain
 - [ ] Hardware verification tests (sensors functional on dev board)
-- [ ] Finalize platformio.ini configurations
+- [ ] Implement HAL drivers (IMU, Baro)
 - [ ] GETTING_STARTED.md for fresh-clone verification
-- [ ] Directory structure scaffolding
 
 ## Blocked On
 Nothing currently.
 
 ## Next Milestone
-Phase 0 complete: Project compiles, uploads, runs FreeRTOS blink task. CI passes. Hardware verified.
+Phase 1 complete: Project compiles, uploads, runs FreeRTOS blink task. Basic sensor reads working. CI passes.
+
+## Architecture Documents
+- `docs/SAD.md` - Software Architecture Document (modules, interfaces, task model)
+- `docs/SCAFFOLDING.md` - Directory structure and implementation status
 
 ## Back Burner
 - Middle tier product name decision
-- Pro tier name decision (Nova vs Titan)
 - Ground station software evaluation
 - Telemetry protocol final selection (CRSF/CCSDS vs raw MAVLink)
 
@@ -31,3 +42,7 @@ Phase 0 complete: Project compiles, uploads, runs FreeRTOS blink task. CI passes
 
 ## Known Issues
 - Legacy Arduino codebase archived in DEPRECATED/ (not carried forward)
+
+## Future Documentation Planned
+- `docs/ICD.md` - Interface Control Document (Booster Pack connector)
+- `docs/TEST_PLAN.md` - Test procedures and criteria
