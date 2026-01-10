@@ -9,6 +9,14 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-09-003 | Claude | documentation, architecture
+
+SAD v1.0 cleanup: fixed section numbering (2.5→2.4, 3.3.4→3.3.2), reordered sections so Open Questions and References are last, marked placeholder sections (Power, Extensibility), added state machine formalism to open questions, created standards/ directory with DEBUG_OUTPUT.md, added phase-to-section cross-reference appendix, marked document approved for Phase 1.
+
+(docs/SAD.md, standards/CODING_STANDARDS.md, standards/DEBUG_OUTPUT.md, README.md, PROJECT_OVERVIEW.md)
+
+*Rationale: Council review identified numbering issues and missing debug output specification. Reorganization improves document navigability for phase-based development.*
+
 ### 2026-01-09-002 | Grok | documentation, tooling
 Finalized SAD v1.0 with watchdog and Graphviz details; added back-burner evaluator note; created state_to_dot.py script.
 

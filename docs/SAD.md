@@ -1,5 +1,6 @@
 # RocketChip Software Architecture Document (SAD) v1.0
 
+**Status:** Approved for Phase 1 Development
 **Last Updated:** 2026-01-09
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
 **Development Environment:** PlatformIO + Pico SDK + FreeRTOS
@@ -167,7 +168,7 @@ This document defines the software architecture for RocketChip, a modular motion
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.5 Fault Handling
+### 2.4 Fault Handling
 - Watchdog: RP2350 HW WDT enabled with 5s timeout via watchdog_enable(5000, 1) in main.cpp.
   Pseudocode:
   ```
@@ -300,7 +301,7 @@ rocketchip/
 - IDLE, ARMED, LAUNCH_DETECTED, ASCENT, APOGEE, DESCENT, LANDED.
 - Visualization: Export to Graphviz DOT via tools/state_to_dot.py.
 
-#### 3.3.4 Condition Evaluator
+#### 3.3.2 Condition Evaluator
 - Deferred: See PROJECT_STATUS.md Back Burner for compliant parser eval.
 
 ---
@@ -888,7 +889,75 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 ---
 
-## 11. Open Questions
+## 11. Tools and Validation
+
+### 11.1 Validation Tools
+- Graphviz: Script tools/state_to_dot.py parses MissionEngine states, generates DOT, outputs SVG via `dot -Tsvg states.dot -o states.svg`.
+  Integrate into Makefile: `make docs` target auto-gens.
+  Pseudocode for state_to_dot():
+  ```
+  def state_to_dot(states):
+      dot = "digraph MissionStates {\n"
+      for state, transitions in states.items():
+          for trans in transitions:
+              dot += f'"{state}" -> "{trans.target}" [label="{trans.condition}"];\n'
+      dot += "}\n"
+      return dot
+  ```
+
+### 11.2 Debug Output
+
+Development builds include serial debug output via USB-CDC for diagnosing timing and state issues.
+
+**Full specification:** `standards/DEBUG_OUTPUT.md`
+
+**Quick reference:**
+- Debug macros compile out in release builds
+- SensorTask/ControlTask: minimal prints (timing-critical)
+- MissionTask: primary debugging target (state transitions, events)
+
+---
+
+## 12. Power and Performance
+
+> **[PLACEHOLDER — To be completed during Phase 5 (Fusion) when power profiling is possible]**
+
+- Budget: 400mAh for 30min — detailed power table TBD after hardware validation
+- WCET: Analyze Sensor/Control tasks during Phase 2 implementation
+- Queue overflow policy: Define per-queue behavior (block/drop oldest/drop newest) — evaluate during RTOS framework implementation
+
+---
+
+## 13. Extensibility
+
+> **[PLACEHOLDER — To be expanded post-MVP when plugin architecture is designed]**
+
+- Mission plugins: User-defined missions loadable at runtime (format TBD)
+- Tier differentiation: Compile-time `#ifdef` for CORE/MAIN/TITAN feature sets
+- Booster Pack API: Hardware abstraction for expansion packs (see Open Questions)
+
+---
+
+## Appendix A: Phase-to-Section Cross-Reference
+
+Quick reference for which SAD sections are critical for each development phase.
+
+| Phase | Weeks | Critical Sections | Reference Sections |
+|-------|-------|-------------------|-------------------|
+| **1: Foundation** | 1-2 | Build Config, Task Priorities, HAL Interfaces | Directory Structure, Fault Handling |
+| **2: Sensors** | 3-4 | Data Structures, HAL Interfaces, Task Architecture | Hardware Specs, Data Flow |
+| **3: Core Logic** | 5-6 | State Machine, Module Responsibilities, Inter-Task Comm | MissionEngine subsections |
+| **4: Storage** | 7-8 | Pre-Launch Buffer, Logging Format, Flash Allocation | Storage Interface |
+| **5: Fusion** | 9-10 | FusedState struct, FusionTask, Power/Performance | RAM Allocation |
+| **6: GPS** | 11 | GPS Interface, Juno Pack specs | Data Flow |
+| **7: Telemetry** | 12-13 | Radio Interface, MAVLink, TelemetryTask | Mercury Pack specs |
+| **8: Polish** | 14 | Extensibility, full document review | All sections |
+
+*Section numbers will be updated once final numbering is established.*
+
+---
+
+## 14. Open Questions
 
 ### Resolved
 
@@ -912,9 +981,11 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 5. **Calibration persistence**: Store in same partition as config, or separate calibration region?
 
+6. **State machine formalism**: Is MissionEngine a Mealy machine (actions on transitions) or Moore machine (actions on state entry)? Section 6.2 suggests Moore ("Actions on Entry"), but 6.3 event-condition-action syntax implies Mealy. Clarify before Phase 3 implementation.
+
 ---
 
-## 12. References
+## 15. References
 
 - [RP2350 Datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)
 - [FreeRTOS Documentation](https://www.freertos.org/Documentation)
@@ -922,35 +993,6 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 - [MAVLink Protocol](https://mavlink.io/en/)
 - RocketChip Architecture v3 (internal)
 - RocketChip Mission Engine Architecture v2 (internal)
-
----
-
-## 13. Tools and Validation
-
-### 13.1 Validation Tools
-- Graphviz: Script tools/state_to_dot.py parses MissionEngine states, generates DOT, outputs SVG via `dot -Tsvg states.dot -o states.svg`.
-  Integrate into Makefile: `make docs` target auto-gens.
-  Pseudocode for state_to_dot():
-  ```
-  def state_to_dot(states):
-      dot = "digraph MissionStates {\n"
-      for state, transitions in states.items():
-          for trans in transitions:
-              dot += f'"{state}" -> "{trans.target}" [label="{trans.condition}"];\n'
-      dot += "}\n"
-      return dot
-  ```
-
----
-
-## 14. Power and Performance
-- Budget: 400mAh for 30min – Table TBD.
-- WCET: Analyze Sensor/Control tasks.
-
----
-
-## 15. Extensibility
-- Plugins for missions; #ifdefs for tiers.
 
 ---
 

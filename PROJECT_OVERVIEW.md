@@ -60,7 +60,8 @@ Naming convention: rocket program names or terms strongly associated with spacef
 - `docs/SAD.md` - Software Architecture Document (system design, modules, interfaces)
 - `docs/SCAFFOLDING.md` - Directory structure and module overview
 - `HARDWARE.md` - Current prototype hardware, pin assignments, sourcing
-- `STANDARDS.md` - Coding standards, protocols, safety requirements
+- `standards/CODING_STANDARDS.md` - Coding standards, protocols, safety requirements
+- `standards/DEBUG_OUTPUT.md` - Debug output conventions
 
 ## Future Documentation
 

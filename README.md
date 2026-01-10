@@ -5,7 +5,8 @@ Read these fully on first session. Re-read only if changelog notes updates.
 
 - **docs/SAD.md** - Software Architecture Document (system design, modules, interfaces, task model)
 - **docs/SCAFFOLDING.md** - Directory structure and implementation status
-- **STANDARDS.md** - Coding standards, communication protocols, data formats, safety requirements
+- **standards/CODING_STANDARDS.md** - Coding standards, communication protocols, data formats, safety requirements
+- **standards/DEBUG_OUTPUT.md** - Debug output conventions and macros
 - **HARDWARE.md** - Prototype hardware, GPIO usage, I2C conflicts, product naming
 - **COUNCIL_PROCESS.md** - How to run panel reviews and persona behavior
 - **CROSS_AGENT_REVIEW.md** - Protocol for flagging concerns in other agents' work
