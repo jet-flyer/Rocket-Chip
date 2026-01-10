@@ -305,38 +305,9 @@ rocketchip/
 
 ---
 
-## 4. Tools and Validation
+## 4. Interface Definitions
 
-### 4.3 Validation Tools
-- Graphviz: Script tools/state_to_dot.py parses MissionEngine states, generates DOT, outputs SVG via `dot -Tsvg states.dot -o states.svg`.
-  Integrate into Makefile: `make docs` target auto-gens.
-  Pseudocode for state_to_dot():
-  ```
-  def state_to_dot(states):
-      dot = "digraph MissionStates {\n"
-      for state, transitions in states.items():
-          for trans in transitions:
-              dot += f'"{state}" -> "{trans.target}" [label="{trans.condition}"];\n'
-      dot += "}\n"
-      return dot
-  ```
-
----
-
-## 5. Power and Performance
-- Budget: 400mAh for 30min – Table TBD.
-- WCET: Analyze Sensor/Control tasks.
-
----
-
-## 6. Extensibility
-- Plugins for missions; #ifdefs for tiers.
-
----
-
-## 7. Interface Definitions
-
-### 7.1 Core Data Structures
+### 4.1 Core Data Structures
 
 ```cpp
 // Shared sensor data (protected by mutex)
@@ -402,7 +373,7 @@ struct MissionState {
 };
 ```
 
-### 7.2 HAL Interfaces
+### 4.2 HAL Interfaces
 
 ```cpp
 // IMU interface - implementations: IMU_ICM20948, IMU_LSM6DSO, etc.
@@ -460,7 +431,7 @@ public:
 };
 ```
 
-### 7.3 Inter-Task Communication
+### 4.3 Inter-Task Communication
 
 ```cpp
 // FreeRTOS primitives
@@ -493,9 +464,9 @@ struct LogMessage {
 
 ---
 
-## 8. Task Architecture
+## 5. Task Architecture
 
-### 8.1 Task Priorities and Rates
+### 5.1 Task Priorities and Rates
 
 | Task | Priority | Rate | Stack | Core | Notes |
 |------|----------|------|-------|------|-------|
@@ -507,7 +478,7 @@ struct LogMessage {
 | TelemetryTask | 2 | 10Hz | 1KB | 1 | MAVLink over LoRa |
 | UITask | 1 (lowest) | 30Hz | 1KB | 1 | Display, LEDs, buttons |
 
-### 8.2 Dual-Core Strategy
+### 5.2 Dual-Core Strategy
 
 The RP2350's dual Cortex-M33 cores enable clean separation:
 
@@ -521,7 +492,7 @@ The RP2350's dual Cortex-M33 cores enable clean separation:
 - All non-timing-critical processing
 - Can tolerate jitter
 
-### 8.3 Task Flow Diagram
+### 5.3 Task Flow Diagram
 
 ```
                     ┌─────────────────────────────────────────┐
@@ -559,9 +530,9 @@ The RP2350's dual Cortex-M33 cores enable clean separation:
 
 ---
 
-## 9. State Machine
+## 6. State Machine
 
-### 9.1 Default States (Rocket Mission)
+### 6.1 Default States (Rocket Mission)
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -589,7 +560,7 @@ The RP2350's dual Cortex-M33 cores enable clean separation:
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 9.2 State Definitions
+### 6.2 State Definitions
 
 | State | Entry Condition | Exit Conditions | Actions on Entry |
 |-------|-----------------|-----------------|------------------|
@@ -600,7 +571,7 @@ The RP2350's dual Cortex-M33 cores enable clean separation:
 | DESCENT | apogee detected | landing (accel ~1g sustained 5s) | Mark APOGEE |
 | LANDED | landing detected | reset_cmd | Stop logging, LED: green, beep x5 |
 
-### 9.3 Event-Condition-Action Examples
+### 6.3 Event-Condition-Action Examples
 
 ```ini
 # Event definitions
@@ -619,9 +590,9 @@ landing = "state:DESCENT AND accel_mag < 1.1 AND sustained:5000ms"
 
 ---
 
-## 10. Build Configuration
+## 7. Build Configuration
 
-### 10.1 Feature Flags
+### 7.1 Feature Flags
 
 ```cpp
 // include/rocketchip/features.h
@@ -670,7 +641,7 @@ landing = "state:DESCENT AND accel_mag < 1.1 AND sustained:5000ms"
 #endif
 ```
 
-### 10.2 PlatformIO Environments
+### 7.2 PlatformIO Environments
 
 ```ini
 ; platformio.ini
@@ -724,9 +695,9 @@ build_flags =
 
 ---
 
-## 11. Data Flow
+## 8. Data Flow
 
-### 11.1 Sensor to Telemetry Pipeline
+### 8.1 Sensor to Telemetry Pipeline
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
@@ -762,7 +733,7 @@ build_flags =
                      └──────────┘  └──────────┘
 ```
 
-### 11.2 Pre-Launch Buffer
+### 8.2 Pre-Launch Buffer
 
 To capture data before launch detection:
 
@@ -779,7 +750,7 @@ On launch detection:
 4. Pre-launch data preserved for analysis
 ```
 
-### 11.3 Logging Format Configuration
+### 8.3 Logging Format Configuration
 
 Logging format is user-configurable via mission settings or runtime command.
 
@@ -824,9 +795,9 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 ---
 
-## 12. Memory Budget
+## 9. Memory Budget
 
-### 12.1 RAM Allocation (520KB SRAM + 8MB PSRAM)
+### 9.1 RAM Allocation (520KB SRAM + 8MB PSRAM)
 
 | Component | SRAM | PSRAM | Notes |
 |-----------|------|-------|-------|
@@ -840,7 +811,7 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 | Flight log buffer | - | 4MB | Before flush to flash |
 | **Available** | ~470KB | ~3.5MB | Headroom |
 
-### 12.2 Flash Allocation (4MB typical)
+### 9.2 Flash Allocation (4MB typical)
 
 | Region | Size | Contents |
 |--------|------|----------|
@@ -854,7 +825,7 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 ---
 
-## 13. Development Phases
+## 10. Development Phases
 
 ### Phase 1: Foundation (Weeks 1-2)
 - [ ] PlatformIO project setup with FreeRTOS
@@ -917,7 +888,7 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 ---
 
-## 14. Open Questions
+## 11. Open Questions
 
 ### Resolved
 
@@ -943,7 +914,7 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 ---
 
-## 15. References
+## 12. References
 
 - [RP2350 Datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)
 - [FreeRTOS Documentation](https://www.freertos.org/Documentation)
@@ -951,6 +922,35 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 - [MAVLink Protocol](https://mavlink.io/en/)
 - RocketChip Architecture v3 (internal)
 - RocketChip Mission Engine Architecture v2 (internal)
+
+---
+
+## 13. Tools and Validation
+
+### 13.1 Validation Tools
+- Graphviz: Script tools/state_to_dot.py parses MissionEngine states, generates DOT, outputs SVG via `dot -Tsvg states.dot -o states.svg`.
+  Integrate into Makefile: `make docs` target auto-gens.
+  Pseudocode for state_to_dot():
+  ```
+  def state_to_dot(states):
+      dot = "digraph MissionStates {\n"
+      for state, transitions in states.items():
+          for trans in transitions:
+              dot += f'"{state}" -> "{trans.target}" [label="{trans.condition}"];\n'
+      dot += "}\n"
+      return dot
+  ```
+
+---
+
+## 14. Power and Performance
+- Budget: 400mAh for 30min – Table TBD.
+- WCET: Analyze Sensor/Control tasks.
+
+---
+
+## 15. Extensibility
+- Plugins for missions; #ifdefs for tiers.
 
 ---
 
