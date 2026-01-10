@@ -62,6 +62,7 @@ Naming convention: rocket program names or terms strongly associated with spacef
 - `HARDWARE.md` - Current prototype hardware, pin assignments, sourcing
 - `standards/CODING_STANDARDS.md` - Coding standards, protocols, safety requirements
 - `standards/DEBUG_OUTPUT.md` - Debug output conventions
+- `standards/GIT_WORKFLOW.md` - Git workflow and branch management practices
 
 ## Future Documentation
 
