@@ -9,6 +9,13 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-09-002 | Grok | documentation, tooling
+Finalized SAD v1.0 with watchdog and Graphviz details; added back-burner evaluator note; created state_to_dot.py script.
+
+(Docs/SAD.md, PROJECT_STATUS.md, tools/state_to_dot.py, Makefile)
+
+*Rationale: Integrates council feedback for Phase 1 readiness.*
+
 ### 2026-01-09-001 | Claude | documentation, refactor
 Streamlined PROJECT_STATUS.md (removed redundant Recently Completed section), made PROJECT_OVERVIEW.md more static/descriptive, added I2C vs SPI performance note to HARDWARE.md, removed legacy lib/ folder and .gitmodules for clean Phase 0 start.
 

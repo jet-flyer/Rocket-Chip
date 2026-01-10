@@ -1,10 +1,8 @@
-# RocketChip Software Architecture Document
-## Version 0.1 - Architectural Scaffolding
+# RocketChip Software Architecture Document (SAD) v1.0
 
-**Document Status:** Draft  
-**Last Updated:** 2026-01-02  
-**Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)  
-**Development Environment:** PlatformIO + Pico SDK + FreeRTOS  
+**Last Updated:** 2026-01-09
+**Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
+**Development Environment:** PlatformIO + Pico SDK + FreeRTOS
 **Hardware Reference:** `Agent_Instructions/HARDWARE.md` (authoritative source)
 
 ---
@@ -169,6 +167,25 @@ This document defines the software architecture for RocketChip, a modular motion
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+### 2.5 Fault Handling
+- Watchdog: RP2350 HW WDT enabled with 5s timeout via watchdog_enable(5000, 1) in main.cpp.
+  Pseudocode:
+  ```
+  // In main.cpp
+  #include <hardware/watchdog.h>
+  watchdog_enable(5000, 1);  // 5s timeout, pause on debug
+
+  // In each task loop
+  watchdog_update();  // Kick the dog
+
+  // On boot: Log reset cause
+  if (watchdog_caused_reboot()) {
+      log_error("WDT reset occurred");
+  }
+  ```
+- Per-task hooks via FreeRTOS (configCHECK_FOR_STACK_OVERFLOW=2).
+- Recovery: Pre-reset flash logging.
+
 ---
 
 ## 3. Module Decomposition
@@ -277,11 +294,49 @@ rocketchip/
 | **TelemetryTask** | Encode MAVLink, transmit via radio | Radio HAL, MAVLink |
 | **UITask** | Update display, handle buttons, drive LED patterns | Display, LED, Buttons HAL |
 
+### 3.3 MissionEngine
+
+#### 3.3.1 States
+- IDLE, ARMED, LAUNCH_DETECTED, ASCENT, APOGEE, DESCENT, LANDED.
+- Visualization: Export to Graphviz DOT via tools/state_to_dot.py.
+
+#### 3.3.4 Condition Evaluator
+- Deferred: See PROJECT_STATUS.md Back Burner for compliant parser eval.
+
 ---
 
-## 4. Interface Definitions
+## 4. Tools and Validation
 
-### 4.1 Core Data Structures
+### 4.3 Validation Tools
+- Graphviz: Script tools/state_to_dot.py parses MissionEngine states, generates DOT, outputs SVG via `dot -Tsvg states.dot -o states.svg`.
+  Integrate into Makefile: `make docs` target auto-gens.
+  Pseudocode for state_to_dot():
+  ```
+  def state_to_dot(states):
+      dot = "digraph MissionStates {\n"
+      for state, transitions in states.items():
+          for trans in transitions:
+              dot += f'"{state}" -> "{trans.target}" [label="{trans.condition}"];\n'
+      dot += "}\n"
+      return dot
+  ```
+
+---
+
+## 5. Power and Performance
+- Budget: 400mAh for 30min – Table TBD.
+- WCET: Analyze Sensor/Control tasks.
+
+---
+
+## 6. Extensibility
+- Plugins for missions; #ifdefs for tiers.
+
+---
+
+## 7. Interface Definitions
+
+### 7.1 Core Data Structures
 
 ```cpp
 // Shared sensor data (protected by mutex)
@@ -347,7 +402,7 @@ struct MissionState {
 };
 ```
 
-### 4.2 HAL Interfaces
+### 7.2 HAL Interfaces
 
 ```cpp
 // IMU interface - implementations: IMU_ICM20948, IMU_LSM6DSO, etc.
@@ -405,7 +460,7 @@ public:
 };
 ```
 
-### 4.3 Inter-Task Communication
+### 7.3 Inter-Task Communication
 
 ```cpp
 // FreeRTOS primitives
@@ -438,9 +493,9 @@ struct LogMessage {
 
 ---
 
-## 5. Task Architecture
+## 8. Task Architecture
 
-### 5.1 Task Priorities and Rates
+### 8.1 Task Priorities and Rates
 
 | Task | Priority | Rate | Stack | Core | Notes |
 |------|----------|------|-------|------|-------|
@@ -452,7 +507,7 @@ struct LogMessage {
 | TelemetryTask | 2 | 10Hz | 1KB | 1 | MAVLink over LoRa |
 | UITask | 1 (lowest) | 30Hz | 1KB | 1 | Display, LEDs, buttons |
 
-### 5.2 Dual-Core Strategy
+### 8.2 Dual-Core Strategy
 
 The RP2350's dual Cortex-M33 cores enable clean separation:
 
@@ -466,7 +521,7 @@ The RP2350's dual Cortex-M33 cores enable clean separation:
 - All non-timing-critical processing
 - Can tolerate jitter
 
-### 5.3 Task Flow Diagram
+### 8.3 Task Flow Diagram
 
 ```
                     ┌─────────────────────────────────────────┐
@@ -504,9 +559,9 @@ The RP2350's dual Cortex-M33 cores enable clean separation:
 
 ---
 
-## 6. State Machine
+## 9. State Machine
 
-### 6.1 Default States (Rocket Mission)
+### 9.1 Default States (Rocket Mission)
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -534,7 +589,7 @@ The RP2350's dual Cortex-M33 cores enable clean separation:
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 6.2 State Definitions
+### 9.2 State Definitions
 
 | State | Entry Condition | Exit Conditions | Actions on Entry |
 |-------|-----------------|-----------------|------------------|
@@ -545,7 +600,7 @@ The RP2350's dual Cortex-M33 cores enable clean separation:
 | DESCENT | apogee detected | landing (accel ~1g sustained 5s) | Mark APOGEE |
 | LANDED | landing detected | reset_cmd | Stop logging, LED: green, beep x5 |
 
-### 6.3 Event-Condition-Action Examples
+### 9.3 Event-Condition-Action Examples
 
 ```ini
 # Event definitions
@@ -564,9 +619,9 @@ landing = "state:DESCENT AND accel_mag < 1.1 AND sustained:5000ms"
 
 ---
 
-## 7. Build Configuration
+## 10. Build Configuration
 
-### 7.1 Feature Flags
+### 10.1 Feature Flags
 
 ```cpp
 // include/rocketchip/features.h
@@ -615,7 +670,7 @@ landing = "state:DESCENT AND accel_mag < 1.1 AND sustained:5000ms"
 #endif
 ```
 
-### 7.2 PlatformIO Environments
+### 10.2 PlatformIO Environments
 
 ```ini
 ; platformio.ini
@@ -669,9 +724,9 @@ build_flags =
 
 ---
 
-## 8. Data Flow
+## 11. Data Flow
 
-### 8.1 Sensor to Telemetry Pipeline
+### 11.1 Sensor to Telemetry Pipeline
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
@@ -707,7 +762,7 @@ build_flags =
                      └──────────┘  └──────────┘
 ```
 
-### 8.2 Pre-Launch Buffer
+### 11.2 Pre-Launch Buffer
 
 To capture data before launch detection:
 
@@ -724,7 +779,7 @@ On launch detection:
 4. Pre-launch data preserved for analysis
 ```
 
-### 8.3 Logging Format Configuration
+### 11.3 Logging Format Configuration
 
 Logging format is user-configurable via mission settings or runtime command.
 
@@ -769,9 +824,9 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 ---
 
-## 9. Memory Budget
+## 12. Memory Budget
 
-### 9.1 RAM Allocation (520KB SRAM + 8MB PSRAM)
+### 12.1 RAM Allocation (520KB SRAM + 8MB PSRAM)
 
 | Component | SRAM | PSRAM | Notes |
 |-----------|------|-------|-------|
@@ -785,7 +840,7 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 | Flight log buffer | - | 4MB | Before flush to flash |
 | **Available** | ~470KB | ~3.5MB | Headroom |
 
-### 9.2 Flash Allocation (4MB typical)
+### 12.2 Flash Allocation (4MB typical)
 
 | Region | Size | Contents |
 |--------|------|----------|
@@ -799,7 +854,7 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 ---
 
-## 10. Development Phases
+## 13. Development Phases
 
 ### Phase 1: Foundation (Weeks 1-2)
 - [ ] PlatformIO project setup with FreeRTOS
@@ -862,7 +917,7 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 ---
 
-## 11. Open Questions
+## 14. Open Questions
 
 ### Resolved
 
@@ -888,7 +943,7 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 ---
 
-## 12. References
+## 15. References
 
 - [RP2350 Datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)
 - [FreeRTOS Documentation](https://www.freertos.org/Documentation)

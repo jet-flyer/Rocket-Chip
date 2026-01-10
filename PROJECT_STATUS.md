@@ -34,6 +34,7 @@ Phase 1 complete: Project compiles, uploads, runs FreeRTOS blink task. Basic sen
 - Middle tier product name decision
 - Ground station software evaluation
 - Telemetry protocol final selection (CRSF/CCSDS vs raw MAVLink)
+- Evaluate compliant stand-in for MissionEngine condition evaluator (custom non-recursive parser per MISRA/JSF; skip if core requirements inherently non-compliant)
 
 ## Side Projects
 - Pegasus flight controller (full FC for drones, glide-back boosters - informed by madflight FC3)
