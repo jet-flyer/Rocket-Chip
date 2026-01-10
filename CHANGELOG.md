@@ -9,6 +9,14 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-10-001 | Claude | tooling, feature, documentation
+
+Implemented FreeRTOS SMP validation for RP2350: Added pico-sdk and FreeRTOS-Kernel as git submodules, created CMakeLists.txt with RP2350 Armv8-M configuration, added FreeRTOSConfig.h with critical SMP settings (dual-core, FPU, TrustZone disabled), implemented validation test firmware with sensor task (Core 1, 1kHz), logger task (Core 1, queue-based), and UI task (Core 0, LED + USB serial status reports). Created comprehensive toolchain validation documentation with expected behavior and failure mode debugging guide. Abandoned PlatformIO approach (requires Arduino framework for RP2350) in favor of pure CMake + Pico SDK as decided by council.
+
+(pico-sdk/, FreeRTOS-Kernel/, pico_sdk_import.cmake, FreeRTOS_Kernel_import.cmake, CMakeLists.txt, FreeRTOSConfig.h, src/main.c, src/hooks.c, docs/TOOLCHAIN_VALIDATION.md, PROJECT_STATUS.md)
+
+*Rationale: First-time validation of FreeRTOS SMP on RP2350 hardware. Pure CMake approach provides direct hardware access without Arduino abstraction layers, aligning with real-time requirements. Validation firmware exercises core affinity, inter-task queues, and priority scheduling.*
+
 ### 2026-01-09-003 | Claude | documentation, architecture
 
 SAD v1.0 cleanup: fixed section numbering (2.5→2.4, 3.3.4→3.3.2), reordered sections so Open Questions and References are last, marked placeholder sections (Power, Extensibility), added state machine formalism to open questions, created standards/ directory with DEBUG_OUTPUT.md, added phase-to-section cross-reference appendix, marked document approved for Phase 1.

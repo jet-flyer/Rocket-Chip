@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-01-09 by Claude
+**Last Updated:** 2026-01-10 by Claude
 
 ## Current Phase
 Phase 1 (Foundation) - Architecture defined, scaffolding complete, ready for implementation.
@@ -13,9 +13,11 @@ Phase 1 (Foundation) - Architecture defined, scaffolding complete, ready for imp
 - [x] ArduPilot compatibility shim structure
 - [x] Product naming finalized: Core, Main+Packs, Titan (Nova reserved)
 - [x] Logging format decision: MAVLink binary default, CSV/MATLAB export
+- [x] Toolchain validation: Pure CMake + Pico SDK + FreeRTOS SMP (PlatformIO requires Arduino framework for RP2350)
 
 ## Active Work
-- [ ] Validate PlatformIO + RP2350 + FreeRTOS toolchain
+- [ ] Test FreeRTOS SMP validation firmware on hardware (Pico 2)
+- [ ] Initialize TinyUSB submodule in pico-sdk (eliminates build warning)
 - [ ] Hardware verification tests (sensors functional on dev board)
 - [ ] Implement HAL drivers (IMU, Baro)
 - [ ] GETTING_STARTED.md for fresh-clone verification
