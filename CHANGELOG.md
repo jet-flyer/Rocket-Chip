@@ -9,6 +9,10 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-11-001 | Claude | documentation
+
+Added GETTING_STARTED.md: toolchain setup, cloning with submodules, building, and flashing instructions for new contributors.
+
 ### 2026-01-10-001 | Claude | tooling, feature, documentation
 
 Implemented FreeRTOS SMP validation for RP2350: Added pico-sdk and FreeRTOS-Kernel as git submodules, created CMakeLists.txt with RP2350 Armv8-M configuration, added FreeRTOSConfig.h with critical SMP settings (dual-core, FPU, TrustZone disabled), implemented validation test firmware with sensor task (Core 1, 1kHz), logger task (Core 1, queue-based), and UI task (Core 0, LED + USB serial status reports). Created build.sh script with ARM toolchain detection and comprehensive toolchain validation documentation with expected behavior and failure mode debugging guide. Updated .gitignore for CMake build artifacts (build/, CMakeCache.txt, etc.). Abandoned PlatformIO approach (requires Arduino framework for RP2350) in favor of pure CMake + Pico SDK as decided by council.
