@@ -37,6 +37,8 @@
 #define configTASK_NOTIFICATION_ARRAY_ENTRIES   3
 
 /* Memory allocation */
+#define configSUPPORT_STATIC_ALLOCATION         1
+#define configSUPPORT_DYNAMIC_ALLOCATION        1
 #define configTOTAL_HEAP_SIZE                   (64 * 1024)
 #define configAPPLICATION_ALLOCATED_HEAP        0
 #define configSTACK_DEPTH_TYPE                  uint32_t
@@ -97,13 +99,9 @@
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY    191
 
 /* Assert configuration */
-#define configASSERT(x) if((x) == 0) { taskDISABLE_INTERRUPTS(); for(;;); }
+#define configASSERT(x) do { if ((x) == 0) { taskDISABLE_INTERRUPTS(); for(;;); } } while(0)
 
 /* RP2350 uses SysTick */
 #define configUSE_NEWLIB_REENTRANT              0
-
-/* Pico SDK integration */
-#include <pico/config.h>
-extern uint32_t SystemCoreClock;
 
 #endif /* FREERTOS_CONFIG_H */

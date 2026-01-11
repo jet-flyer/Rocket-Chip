@@ -5,9 +5,9 @@
  * and memory allocation for system tasks.
  */
 
-#include <stdio.h>
 #include "FreeRTOS.h"
 #include "task.h"
+#include <stdio.h>
 #include "pico/stdlib.h"
 
 /*
