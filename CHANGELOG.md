@@ -9,6 +9,14 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-11-002 | Claude | bugfix
+
+Fixed FreeRTOS build errors: removed problematic pico/config.h include from FreeRTOSConfig.h that caused include order issues, added missing configSUPPORT_STATIC_ALLOCATION required for static task memory hooks in hooks.c, corrected include order in hooks.c (FreeRTOS.h must precede pico headers).
+
+(FreeRTOSConfig.h, src/hooks.c)
+
+*Rationale: Build was failing due to cascading header issues from pico/config.h being included at wrong point in preprocessing, and missing static allocation config that the SMP port requires for idle task memory.*
+
 ### 2026-01-11-001 | Claude | documentation
 
 Added GETTING_STARTED.md: toolchain setup, cloning with submodules, building, and flashing instructions for new contributors.
