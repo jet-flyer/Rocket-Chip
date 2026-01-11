@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-01-10 by Claude
+**Last Updated:** 2026-01-11 by Claude
 
 ## Current Phase
 Phase 1 (Foundation) - Architecture defined, scaffolding complete, ready for implementation.
@@ -14,13 +14,16 @@ Phase 1 (Foundation) - Architecture defined, scaffolding complete, ready for imp
 - [x] Product naming finalized: Core, Main+Packs, Titan (Nova reserved)
 - [x] Logging format decision: MAVLink binary default, CSV/MATLAB export
 - [x] Toolchain validation: Pure CMake + Pico SDK + FreeRTOS SMP (PlatformIO requires Arduino framework for RP2350)
+- [x] GETTING_STARTED.md created
+- [x] Board configuration corrected for Adafruit Feather RP2350 (was configured for standard Pico2)
+- [x] Simple LED blink test validated on hardware
 
 ## Active Work
-- [ ] Test FreeRTOS SMP validation firmware on hardware (Pico 2)
+- [ ] Debug FreeRTOS SMP firmware with Adafruit Debug Probe (CMSIS-DAP) - program reaches main(), USB initializes, but crashes during FreeRTOS task creation. Use OpenOCD + GDB to get stack trace and identify root cause.
+- [ ] Fix FreeRTOS initialization issue and complete hardware validation
 - [ ] Initialize TinyUSB submodule in pico-sdk (eliminates build warning)
 - [ ] Hardware verification tests (sensors functional on dev board)
 - [ ] Implement HAL drivers (IMU, Baro)
-- [ ] GETTING_STARTED.md for fresh-clone verification
 
 ## Blocked On
 Nothing currently.

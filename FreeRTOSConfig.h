@@ -99,7 +99,7 @@
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY    191
 
 /* Assert configuration */
-#define configASSERT(x) do { if ((x) == 0) { taskDISABLE_INTERRUPTS(); for(;;); } } while(0)
+#define configASSERT(x) do { if ((x) == 0) { portDISABLE_INTERRUPTS(); for(;;); } } while(0)
 
 /* RP2350 uses SysTick */
 #define configUSE_NEWLIB_REENTRANT              0

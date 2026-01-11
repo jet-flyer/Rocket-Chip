@@ -122,16 +122,36 @@ static void ui_task(void *pvParameters) {
 }
 
 int main(void) {
+    // Initialize LED for debugging FIRST
+    gpio_init(LED_PIN);
+    gpio_set_dir(LED_PIN, GPIO_OUT);
+
+    // Blink 3 times rapidly to show we reached main()
+    for (int i = 0; i < 3; i++) {
+        gpio_put(LED_PIN, 1);
+        busy_wait_ms(100);
+        gpio_put(LED_PIN, 0);
+        busy_wait_ms(100);
+    }
+
     // Initialize stdio (USB serial)
     stdio_init_all();
 
-    // Wait for USB enumeration (~2 seconds)
+    // Wait for USB enumeration
     sleep_ms(2000);
+
+    // Blink 2 times slowly = USB init done
+    for (int i = 0; i < 2; i++) {
+        gpio_put(LED_PIN, 1);
+        sleep_ms(250);
+        gpio_put(LED_PIN, 0);
+        sleep_ms(250);
+    }
 
     printf("\n\n");
     printf("========================================\n");
     printf("RocketChip FreeRTOS SMP Validation\n");
-    printf("Target: RP2350 (Pico 2)\n");
+    printf("Target: Adafruit Feather RP2350\n");
     printf("FreeRTOS: Dual-core SMP\n");
     printf("========================================\n\n");
 
@@ -139,12 +159,25 @@ int main(void) {
     sensor_queue = xQueueCreate(QUEUE_LENGTH, sizeof(uint32_t));
     if (sensor_queue == NULL) {
         printf("ERROR: Failed to create sensor queue\n");
-        return 1;
+        // Blink rapidly forever = queue creation failed
+        while(1) {
+            gpio_put(LED_PIN, 1);
+            busy_wait_ms(50);
+            gpio_put(LED_PIN, 0);
+            busy_wait_ms(50);
+        }
     }
 
     printf("Starting tasks...\n");
 
+    // One long blink = About to create tasks
+    gpio_put(LED_PIN, 1);
+    sleep_ms(500);
+    gpio_put(LED_PIN, 0);
+    sleep_ms(500);
+
     // Create sensor task (Core 1, priority 5)
+    gpio_put(LED_PIN, 1); // LED ON while creating
     TaskHandle_t sensor_handle;
     BaseType_t result = xTaskCreate(
         sensor_task,
@@ -154,12 +187,32 @@ int main(void) {
         SENSOR_TASK_PRIORITY,
         &sensor_handle
     );
+    gpio_put(LED_PIN, 0); // LED OFF after create
+    sleep_ms(200);
 
     if (result != pdPASS) {
         printf("ERROR: Failed to create sensor task\n");
-        return 1;
+        while(1) {
+            gpio_put(LED_PIN, 1);
+            busy_wait_ms(200);
+            gpio_put(LED_PIN, 0);
+            busy_wait_ms(800);
+        }
     }
+
+    // Quick blink = sensor task created OK
+    gpio_put(LED_PIN, 1);
+    sleep_ms(100);
+    gpio_put(LED_PIN, 0);
+    sleep_ms(200);
+
     vTaskCoreAffinitySet(sensor_handle, (1 << 1)); // Pin to Core 1
+
+    // Quick blink = affinity set OK
+    gpio_put(LED_PIN, 1);
+    sleep_ms(100);
+    gpio_put(LED_PIN, 0);
+    sleep_ms(500);
 
     // Create logger task (Core 1, priority 3)
     TaskHandle_t logger_handle;
@@ -174,7 +227,12 @@ int main(void) {
 
     if (result != pdPASS) {
         printf("ERROR: Failed to create logger task\n");
-        return 1;
+        while(1) {
+            gpio_put(LED_PIN, 1);
+            busy_wait_ms(200);
+            gpio_put(LED_PIN, 0);
+            busy_wait_ms(600);
+        }
     }
     vTaskCoreAffinitySet(logger_handle, (1 << 1)); // Pin to Core 1
 
@@ -191,11 +249,24 @@ int main(void) {
 
     if (result != pdPASS) {
         printf("ERROR: Failed to create UI task\n");
-        return 1;
+        while(1) {
+            gpio_put(LED_PIN, 1);
+            busy_wait_ms(200);
+            gpio_put(LED_PIN, 0);
+            busy_wait_ms(400);
+        }
     }
     vTaskCoreAffinitySet(ui_handle, (1 << 0)); // Pin to Core 0
 
     printf("Tasks created. Starting scheduler...\n\n");
+
+    // Two long blinks = About to start scheduler
+    for (int i = 0; i < 2; i++) {
+        gpio_put(LED_PIN, 1);
+        sleep_ms(500);
+        gpio_put(LED_PIN, 0);
+        sleep_ms(500);
+    }
 
     // Start the scheduler
     vTaskStartScheduler();

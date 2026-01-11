@@ -9,6 +9,14 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-11-003 | Claude | bugfix, hardware, tooling
+
+Fixed board configuration for Adafruit Feather RP2350 (was incorrectly set to standard Pico2), corrected `taskDISABLE_INTERRUPTS()` to `portDISABLE_INTERRUPTS()` in FreeRTOSConfig.h and hooks.c, added VS Code Extension configuration to CMakeLists.txt, created simple_test.c for hardware validation. Simple LED test passes on hardware (LED pin 7, COM7 USB serial), but FreeRTOS SMP firmware crashes during task creation after USB initialization. Next step: use Adafruit Debug Probe with OpenOCD + GDB to identify crash location.
+
+(CMakeLists.txt, FreeRTOSConfig.h, src/hooks.c, src/simple_test.c, openocd_cmsis_dap.cfg, PROJECT_STATUS.md)
+
+*Rationale: Wrong board configuration (pico2 vs adafruit_feather_rp2350) caused LED and platform issues. The taskDISABLE_INTERRUPTS vs portDISABLE_INTERRUPTS bug would have caused silent crashes in error handlers. Simple test confirms hardware works, isolating the issue to FreeRTOS initialization. Debug probe setup prepared for next session.*
+
 ### 2026-01-11-002 | Claude | bugfix
 
 Fixed FreeRTOS build errors: removed problematic pico/config.h include from FreeRTOSConfig.h that caused include order issues, added missing configSUPPORT_STATIC_ALLOCATION required for static task memory hooks in hooks.c, corrected include order in hooks.c (FreeRTOS.h must precede pico headers).

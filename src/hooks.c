@@ -22,7 +22,7 @@ void vApplicationMallocFailedHook(void) {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-    taskDISABLE_INTERRUPTS();
+    portDISABLE_INTERRUPTS();
     while (1) {
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
         busy_wait_us(100000); // 100ms
@@ -46,7 +46,7 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-    taskDISABLE_INTERRUPTS();
+    portDISABLE_INTERRUPTS();
     while (1) {
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
         busy_wait_us(500000); // 500ms

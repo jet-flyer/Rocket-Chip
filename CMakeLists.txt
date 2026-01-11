@@ -15,8 +15,8 @@ endif()
 cmake_minimum_required(VERSION 3.13)
 
 # Set board and platform BEFORE including pico_sdk_import.cmake
-set(PICO_BOARD "pico2")
-set(PICO_PLATFORM "rp2350-arm-s")
+set(PICO_BOARD "adafruit_feather_rp2350")
+set(PICO_PLATFORM "rp2350")
 
 # Include the Pico SDK import
 include(pico_sdk_import.cmake)
@@ -60,3 +60,17 @@ pico_enable_stdio_uart(freertos_validation 0)
 
 # Create map/bin/hex/uf2 files
 pico_add_extra_outputs(freertos_validation)
+
+# Simple test executable (no FreeRTOS)
+add_executable(simple_test
+    src/simple_test.c
+)
+
+target_link_libraries(simple_test
+    pico_stdlib
+)
+
+pico_enable_stdio_usb(simple_test 1)
+pico_enable_stdio_uart(simple_test 0)
+
+pico_add_extra_outputs(simple_test)
