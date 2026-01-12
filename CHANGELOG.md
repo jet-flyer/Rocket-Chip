@@ -9,6 +9,14 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-12-001 | Claude Code CLI | bugfix, hardware, tooling
+
+FreeRTOS SMP validation complete on Adafruit Feather RP2350 using Raspberry Pi Debug Probe with hardware debugging via OpenOCD + GDB. Identified and fixed two critical FreeRTOS configuration bugs: (1) configMAX_PRIORITIES set to 5 but code used priority 5 (valid range is 0 to MAX-1), increased to 8; (2) configMAX_SYSCALL_INTERRUPT_PRIORITY set to 191 but RP2350 Cortex-M33 requires multiple of 16 per FreeRTOS port spec, changed to 16. Debugged wrong Debug Probe firmware issue - was flashing debugprobe_on_pico.uf2 (for DIY Pico-based probe with different GPIO mapping) instead of debugprobe.uf2 (for official Debug Probe hardware), causing LED to stay off and OpenOCD connection failures. With correct firmware v2.2.3, Debug Probe operates at full performance. VS Code debugging integration validated. FreeRTOS now running: dual-core SMP scheduler operational, sensor task (1kHz Core 1), logger task (queue-based Core 1), UI task (LED + USB serial Core 0), all tasks executing with correct priority and core affinity. USB serial output confirmed with 5-second status reports showing sensor samples, logger processed count, queue depth, and free heap.
+
+(FreeRTOSConfig.h, .vscode/launch.json, PROJECT_STATUS.md)
+
+*Rationale: Hardware debugging with direct connection via Debug Probe enabled precise identification of configuration bugs through GDB backtraces showing exact assertion failures. The debugprobe.uf2 vs debugprobe_on_pico.uf2 distinction is critical - wrong firmware has incompatible GPIO pin assignments for official Debug Probe hardware. Both configASSERT() catches prevented silent failures and led directly to root causes. This validates the entire FreeRTOS SMP toolchain and establishes hardware debugging workflow for Phase 1 sensor integration.*
+
 ### 2026-01-11-003 | Claude | bugfix, hardware, tooling
 
 Fixed board configuration for Adafruit Feather RP2350 (was incorrectly set to standard Pico2), corrected `taskDISABLE_INTERRUPTS()` to `portDISABLE_INTERRUPTS()` in FreeRTOSConfig.h and hooks.c, added VS Code Extension configuration to CMakeLists.txt, created simple_test.c for hardware validation. Simple LED test passes on hardware (LED pin 7, COM7 USB serial), but FreeRTOS SMP firmware crashes during task creation after USB initialization. Next step: use Adafruit Debug Probe with OpenOCD + GDB to identify crash location.

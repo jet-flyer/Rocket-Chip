@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-01-11 by Claude
+**Last Updated:** 2026-01-12 by Claude Code CLI
 
 ## Current Phase
 Phase 1 (Foundation) - Architecture defined, scaffolding complete, ready for implementation.
@@ -17,10 +17,11 @@ Phase 1 (Foundation) - Architecture defined, scaffolding complete, ready for imp
 - [x] GETTING_STARTED.md created
 - [x] Board configuration corrected for Adafruit Feather RP2350 (was configured for standard Pico2)
 - [x] Simple LED blink test validated on hardware
+- [x] Raspberry Pi Debug Probe configured with correct firmware (debugprobe.uf2) and OpenOCD
+- [x] FreeRTOS SMP validation complete: dual-core scheduler running, tasks executing on both cores with proper priority and affinity, inter-task queues operational, USB serial output working
+- [x] Hardware debugging workflow established: OpenOCD + GDB + VS Code integration functional
 
 ## Active Work
-- [ ] Debug FreeRTOS SMP firmware with Adafruit Debug Probe (CMSIS-DAP) - program reaches main(), USB initializes, but crashes during FreeRTOS task creation. Use OpenOCD + GDB to get stack trace and identify root cause.
-- [ ] Fix FreeRTOS initialization issue and complete hardware validation
 - [ ] Initialize TinyUSB submodule in pico-sdk (eliminates build warning)
 - [ ] Hardware verification tests (sensors functional on dev board)
 - [ ] Implement HAL drivers (IMU, Baro)
@@ -29,7 +30,12 @@ Phase 1 (Foundation) - Architecture defined, scaffolding complete, ready for imp
 Nothing currently.
 
 ## Next Milestone
-Phase 1 complete: Project compiles, uploads, runs FreeRTOS blink task. Basic sensor reads working. CI passes.
+Phase 1 FreeRTOS validation: ✅ COMPLETE
+- Project compiles, uploads, runs FreeRTOS SMP scheduler with multiple tasks
+- Dual-core operation validated (Core 0: UI task, Core 1: Sensor + Logger tasks)
+- Hardware debugging functional (Debug Probe + OpenOCD + GDB)
+
+Next: Sensor integration (IMU, Barometer) and HAL driver implementation
 
 ## Architecture Documents
 - `docs/SAD.md` - Software Architecture Document (modules, interfaces, task model)
