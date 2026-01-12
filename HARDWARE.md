@@ -170,18 +170,15 @@ Comparable rocket flight computers for feature/positioning reference:
 
 ---
 
-## Sourcing Policy
+## Sourcing Guidelines
 
-**Preferred:** Adafruit components for consistent availability, documentation, and library support.
-
-**Secondary:** Pimoroni for unique prototyping hardware, especially compact form factors and specialized RP2040/RP2350 boards. Note: Pimoroni products are sourced directly from Pimoroni (some items previously carried by Adafruit are being delisted).
-
-**Alternatives considered when:**
-- Notably better performance for the application
-- Significantly lower cost (>30% savings at scale)
-- Adafruit/Pimoroni don't carry equivalent part
-
-All substitutions require changelog entry with rationale.
+| Vendor | Role | Notes |
+|--------|------|-------|
+| **Adafruit** | Default | Feather ecosystem, excellent docs and libraries |
+| **SparkFun** | Secondary | Unique breakouts, Qwiic/STEMMA QT compatible |
+| **Pololu** | Niche | Compact designs, voltage regulators, motor controllers |
+| **Tindie** | Niche | Indie marketplace for specialty boards (e.g., FPGA breakouts) |
+| **DigiKey/Mouser** | Components | Discrete parts and production quantities |
 
 ---
 
