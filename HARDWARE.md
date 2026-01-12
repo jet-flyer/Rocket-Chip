@@ -170,19 +170,15 @@ Comparable rocket flight computers for feature/positioning reference:
 
 ---
 
-## Sourcing Policy
+## Sourcing Guidelines
 
-Hardware sources in preference order:
-
-1. **Adafruit** - Default for Feather ecosystem compatibility, consistent availability, documentation, and library support.
-
-2. **SparkFun** - When they offer unique or better options (e.g., breakout boards for sensors not available elsewhere, Qwiic ecosystem parts).
-
-3. **Other vendors** - Case-by-case with justification:
-   - **Pimoroni** - Unique prototyping hardware, compact form factors, specialized RP2040/RP2350 boards
-   - Other sources when notably better performance, significantly lower cost (>30% savings at scale), or no equivalent part from preferred vendors
-
-All substitutions require changelog entry with rationale.
+| Vendor | Role | Notes |
+|--------|------|-------|
+| **Adafruit** | Default | Feather ecosystem, excellent docs and libraries |
+| **SparkFun** | Secondary | Unique breakouts, Qwiic/STEMMA QT compatible |
+| **Pololu** | Niche | Compact designs, voltage regulators, motor controllers |
+| **Tindie** | Niche | Indie marketplace for specialty boards (e.g., FPGA breakouts) |
+| **DigiKey/Mouser** | Components | Discrete parts and production quantities |
 
 ---
 
