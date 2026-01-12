@@ -20,9 +20,10 @@ Phase 1 (Foundation) - Architecture defined, scaffolding complete, ready for imp
 - [x] Raspberry Pi Debug Probe configured with correct firmware (debugprobe.uf2) and OpenOCD
 - [x] FreeRTOS SMP validation complete: dual-core scheduler running, tasks executing on both cores with proper priority and affinity, inter-task queues operational, USB serial output working
 - [x] Hardware debugging workflow established: OpenOCD + GDB + VS Code integration functional
+- [x] TinyUSB initialized and functional: stdio_init_all() properly initializes TinyUSB stack, USB-CDC serial working correctly
 
 ## Active Work
-- [ ] Initialize TinyUSB submodule in pico-sdk (eliminates build warning)
+- [ ] Initialize TinyUSB git submodule in pico-sdk (eliminates harmless build warning; TinyUSB is functionally initialized and working)
 - [ ] Hardware verification tests (sensors functional on dev board)
 - [ ] Implement HAL drivers (IMU, Baro)
 

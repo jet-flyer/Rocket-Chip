@@ -134,7 +134,8 @@ int main(void) {
         busy_wait_ms(100);
     }
 
-    // Initialize stdio (USB serial)
+    // Initialize stdio (USB serial via TinyUSB)
+    // This initializes the TinyUSB stack for USB-CDC serial communication
     stdio_init_all();
 
     // Wait for USB enumeration

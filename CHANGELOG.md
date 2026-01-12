@@ -9,6 +9,14 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-12-002 | Claude Code CLI | documentation
+
+Clarified TinyUSB initialization status in documentation. TinyUSB is functionally initialized and working via stdio_init_all() in main.c (which calls tusb_init() internally when pico_enable_stdio_usb is enabled in CMakeLists.txt). USB-CDC serial communication is operational. Updated PROJECT_STATUS.md to explicitly state TinyUSB is initialized and working, and clarified that the "Initialize TinyUSB submodule" task refers only to the git submodule initialization in pico-sdk to eliminate a harmless build warning. Enhanced code comments in main.c to explicitly mention TinyUSB stack initialization.
+
+(PROJECT_STATUS.md, src/main.c)
+
+*Rationale: Documentation previously listed "Initialize TinyUSB submodule" under Active Work, which could be misinterpreted as TinyUSB not being initialized. In reality, TinyUSB is fully initialized at runtime and USB is working correctly. The submodule initialization is purely to eliminate a harmless build warning and is optional. This clarification prevents confusion about the functional status of USB communication.*
+
 ### 2026-01-12-001 | Claude Code CLI | bugfix, hardware, tooling
 
 FreeRTOS SMP validation complete on Adafruit Feather RP2350 using Raspberry Pi Debug Probe with hardware debugging via OpenOCD + GDB. Identified and fixed two critical FreeRTOS configuration bugs: (1) configMAX_PRIORITIES set to 5 but code used priority 5 (valid range is 0 to MAX-1), increased to 8; (2) configMAX_SYSCALL_INTERRUPT_PRIORITY set to 191 but RP2350 Cortex-M33 requires multiple of 16 per FreeRTOS port spec, changed to 16. Debugged wrong Debug Probe firmware issue - was flashing debugprobe_on_pico.uf2 (for DIY Pico-based probe with different GPIO mapping) instead of debugprobe.uf2 (for official Debug Probe hardware), causing LED to stay off and OpenOCD connection failures. With correct firmware v2.2.3, Debug Probe operates at full performance. VS Code debugging integration validated. FreeRTOS now running: dual-core SMP scheduler operational, sensor task (1kHz Core 1), logger task (queue-based Core 1), UI task (LED + USB serial Core 0), all tasks executing with correct priority and core affinity. USB serial output confirmed with 5-second status reports showing sensor samples, logger processed count, queue depth, and free heap.
