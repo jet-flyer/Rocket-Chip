@@ -7,15 +7,15 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Frequency:** Typically one entry per session, not per individual change. Log when a task is completed or work transitions to a new focus. However, if multiple *significant* changes occur in one session (e.g., refactoring logging system AND redesigning state engine), create separate entries for each.
 
+**Conciseness:** Keep entries brief. Minor changes (doc clarifications, small fixes, typos) should be 1-2 sentences. Save detail for significant technical work. Rationale section is only needed when the "why" is non-obvious or involves important architectural decisions. Straightforward changes don't need rationale.
+
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
 ### 2026-01-12-002 | Claude Code CLI | documentation
 
-Clarified TinyUSB initialization status in documentation. TinyUSB is functionally initialized and working via stdio_init_all() in main.c (which calls tusb_init() internally when pico_enable_stdio_usb is enabled in CMakeLists.txt). USB-CDC serial communication is operational. Updated PROJECT_STATUS.md to explicitly state TinyUSB is initialized and working, and clarified that the "Initialize TinyUSB submodule" task refers only to the git submodule initialization in pico-sdk to eliminate a harmless build warning. Enhanced code comments in main.c to explicitly mention TinyUSB stack initialization.
+Clarified TinyUSB is initialized at runtime via stdio_init_all(). Submodule init is optional (eliminates build warning only).
 
-(PROJECT_STATUS.md, src/main.c)
-
-*Rationale: Documentation previously listed "Initialize TinyUSB submodule" under Active Work, which could be misinterpreted as TinyUSB not being initialized. In reality, TinyUSB is fully initialized at runtime and USB is working correctly. The submodule initialization is purely to eliminate a harmless build warning and is optional. This clarification prevents confusion about the functional status of USB communication.*
+(PROJECT_STATUS.md, src/main.c, CHANGELOG.md)
 
 ### 2026-01-12-001 | Claude Code CLI | bugfix, hardware, tooling
 
