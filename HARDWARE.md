@@ -172,14 +172,15 @@ Comparable rocket flight computers for feature/positioning reference:
 
 ## Sourcing Policy
 
-**Preferred:** Adafruit components for consistent availability, documentation, and library support.
+Hardware sources in preference order:
 
-**Secondary:** Pimoroni for unique prototyping hardware, especially compact form factors and specialized RP2040/RP2350 boards. Note: Pimoroni products are sourced directly from Pimoroni (some items previously carried by Adafruit are being delisted).
+1. **Adafruit** - Default for Feather ecosystem compatibility, consistent availability, documentation, and library support.
 
-**Alternatives considered when:**
-- Notably better performance for the application
-- Significantly lower cost (>30% savings at scale)
-- Adafruit/Pimoroni don't carry equivalent part
+2. **SparkFun** - When they offer unique or better options (e.g., breakout boards for sensors not available elsewhere, Qwiic ecosystem parts).
+
+3. **Other vendors** - Case-by-case with justification:
+   - **Pimoroni** - Unique prototyping hardware, compact form factors, specialized RP2040/RP2350 boards
+   - Other sources when notably better performance, significantly lower cost (>30% savings at scale), or no equivalent part from preferred vendors
 
 All substitutions require changelog entry with rationale.
 
