@@ -74,3 +74,22 @@ pico_enable_stdio_usb(simple_test 1)
 pico_enable_stdio_uart(simple_test 0)
 
 pico_add_extra_outputs(simple_test)
+
+# ============================================================================
+# Smoke Tests
+# ============================================================================
+
+# IMU Qwiic Port Test - verifies ISM330DHCX + LIS3MDL FeatherWing connectivity
+add_executable(smoke_imu_qwiic
+    tests/smoke_tests/imu_qwiic_test.c
+)
+
+target_link_libraries(smoke_imu_qwiic
+    pico_stdlib
+    hardware_i2c
+)
+
+pico_enable_stdio_usb(smoke_imu_qwiic 1)
+pico_enable_stdio_uart(smoke_imu_qwiic 0)
+
+pico_add_extra_outputs(smoke_imu_qwiic)
