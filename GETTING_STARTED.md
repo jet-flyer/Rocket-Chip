@@ -12,7 +12,7 @@ RocketChip is a modular flight computer platform for RP2350-based boards (Raspbe
 
 - **Development Board**: Raspberry Pi Pico 2 or Adafruit Feather RP2350 HSTX
 - **USB Cable**: USB-C or Micro-USB (depending on board)
-- **Optional Sensors**: ICM-20948 IMU, DPS310 Barometer (see [HARDWARE.md](HARDWARE.md))
+- **Optional Sensors**: ICM-20948 IMU, DPS310 Barometer (see [docs/HARDWARE.md](docs/HARDWARE.md))
 
 ### Software
 
@@ -252,7 +252,7 @@ Rocket-Chip/
 Once you have a working build:
 
 1. **Read the Architecture**: [docs/SAD.md](docs/SAD.md) explains the system design
-2. **Understand the Hardware**: [HARDWARE.md](HARDWARE.md) lists sensors and pin assignments
+2. **Understand the Hardware**: [docs/HARDWARE.md](docs/HARDWARE.md) lists sensors and pin assignments
 3. **Review Coding Standards**: [standards/CODING_STANDARDS.md](standards/CODING_STANDARDS.md)
 4. **Check Project Status**: [PROJECT_STATUS.md](PROJECT_STATUS.md) for current work
 
@@ -268,7 +268,7 @@ Once you have a working build:
 | Document | Description |
 |----------|-------------|
 | [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | Project vision and product tiers |
-| [HARDWARE.md](HARDWARE.md) | Hardware specs, I2C addresses, GPIO pins |
+| [docs/HARDWARE.md](docs/HARDWARE.md) | Hardware specs, I2C addresses, GPIO pins |
 | [docs/TOOLCHAIN_VALIDATION.md](docs/TOOLCHAIN_VALIDATION.md) | Detailed build/flash guide |
 | [docs/SAD.md](docs/SAD.md) | Software Architecture Document |
 | [CHANGELOG.md](CHANGELOG.md) | Project history and changes |

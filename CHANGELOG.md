@@ -22,6 +22,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-14-002 | Claude Code CLI | refactor, documentation
+
+Repo cleanup: moved HARDWARE.md to docs/, simple_test.c to tests/smoke_tests/. Updated SCAFFOLDING.md to reflect actual structure. Slimmed PROJECT_STATUS.md to rotating checklist format.
+
+---
+
 ### 2026-01-14-001 | Claude Code CLI | feature, architecture, hardware, documentation
 
 Implemented complete Hardware Abstraction Layer (HAL) for RP2350/Pico SDK with FreeRTOS integration. Modules cover Bus (I2C/SPI), GPIO, ADC, PWM, Timing, PIO (NeoPixel), and UART. See `src/hal/README.md` for module details.

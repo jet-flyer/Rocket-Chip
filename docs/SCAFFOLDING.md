@@ -2,18 +2,45 @@
 
 This document defines the target directory structure for the RocketChip firmware.
 Created: 2026-01-09
+Updated: 2026-01-14
+
+## Build System
+
+Pure CMake + Pico SDK + FreeRTOS SMP (PlatformIO abandoned - requires Arduino framework for RP2350)
 
 ## Directory Tree
 
 ```
 rocketchip/
-├── platformio.ini                 # PlatformIO build configuration
+├── CMakeLists.txt                 # CMake build configuration
+├── FreeRTOSConfig.h               # FreeRTOS SMP configuration
+├── pico_sdk_import.cmake          # Pico SDK integration
+├── FreeRTOS_Kernel_import.cmake   # FreeRTOS integration
+├── build.sh                       # Build script
+├── openocd_cmsis_dap.cfg          # Debug probe config
 ├── README.md                      # Project overview
+├── CHANGELOG.md                   # Development history
+├── PROJECT_STATUS.md              # Current phase and active work
+├── PROJECT_OVERVIEW.md            # High-level project description
+├── GETTING_STARTED.md             # Setup guide for new contributors
+├── AGENT_WHITEBOARD.md            # Multi-agent review flags
+├── COUNCIL_PROCESS.md             # Council review protocol
+├── CROSS_AGENT_REVIEW.md          # Cross-agent collaboration
 │
 ├── docs/
 │   ├── SAD.md                     # Software Architecture Document
 │   ├── SCAFFOLDING.md             # This file
+│   ├── HARDWARE.md                # Hardware specs, pin assignments, I2C addresses
+│   ├── TOOLCHAIN_VALIDATION.md    # Build/debug setup guide
 │   └── Missions.md                # Mission format specification (TBD)
+│
+├── standards/
+│   ├── CODING_STANDARDS.md        # Code style and safety rules
+│   ├── DEBUG_OUTPUT.md            # USB CDC output format
+│   └── GIT_WORKFLOW.md            # Git conventions
+│
+├── tools/
+│   └── state_to_dot.py            # State machine visualization
 │
 ├── include/
 │   └── rocketchip/
@@ -23,7 +50,8 @@ rocketchip/
 │       └── features.h             # Feature detection macros
 │
 ├── src/
-│   ├── main.cpp                   # Entry point, task creation
+│   ├── main.c                     # Entry point, FreeRTOS task creation
+│   ├── hooks.c                    # FreeRTOS hooks (idle, malloc, stack overflow)
 │   │
 │   ├── core/                      # Mission Engine
 │   │   ├── MissionEngine.h/.cpp   # Top-level orchestrator
@@ -35,10 +63,18 @@ rocketchip/
 │   │   └── MissionLoader.h/.cpp   # Mission loading & validation
 │   │
 │   ├── hal/                       # Hardware Abstraction Layer
-│   │   ├── HAL.h                  # Abstract interfaces
+│   │   ├── HAL.h/.cpp             # Top-level HAL init
+│   │   ├── Bus.h/.cpp             # I2C/SPI bus abstraction
+│   │   ├── GPIO.h/.cpp            # Digital I/O
+│   │   ├── ADC.h/.cpp             # Analog input
+│   │   ├── PWM.h/.cpp             # PWM output
+│   │   ├── PIO.h/.cpp             # PIO (NeoPixel driver)
+│   │   ├── Timing.h/.cpp          # Delays, timestamps
+│   │   ├── UART.h/.cpp            # Serial communication
 │   │   ├── BoardDetect.h/.cpp     # Runtime board/pack detection
 │   │   ├── IMU.h                  # IMU interface
-│   │   ├── IMU_ICM20948.cpp       # ICM20948 driver
+│   │   ├── IMU_ISM330DHCX.cpp     # ISM330DHCX 6-DOF driver
+│   │   ├── Mag_LIS3MDL.cpp        # LIS3MDL magnetometer driver
 │   │   ├── Baro.h                 # Barometer interface
 │   │   ├── Baro_DPS310.cpp        # DPS310 driver
 │   │   ├── GPS.h/.cpp             # GPS interface + driver
@@ -86,10 +122,19 @@ rocketchip/
 │   ├── Filter/                    # ArduPilot filters (submodule)
 │   └── mavlink/                   # MAVLink headers
 │
-└── test/                          # Unit tests
-    ├── test_state_machine.cpp
-    ├── test_condition.cpp
-    └── test_event_engine.cpp
+├── tests/
+│   └── smoke_tests/
+│       ├── hal_validation.cpp     # HAL hardware smoke test
+│       ├── simple_test.c          # Basic LED blink test
+│       └── imu_qwiic_test.c       # IMU QWIIC test
+│
+├── test/                          # Unit tests
+│   ├── test_state_machine.cpp
+│   ├── test_condition.cpp
+│   └── test_event_engine.cpp
+│
+├── pico-sdk/                      # Git submodule
+└── FreeRTOS-Kernel/               # Git submodule
 ```
 
 ## Module Responsibilities
@@ -119,39 +164,52 @@ rocketchip/
 | TelemetryTask | 2 | 10Hz | 1KB | 1 | MAVLink over LoRa |
 | UITask | 1 (lowest) | 30Hz | 1KB | 1 | Display, LEDs, buttons |
 
-## PlatformIO Environments
+## CMake Build Targets
 
-| Environment | Tier | Features |
-|-------------|------|----------|
-| `core` | Core | Minimal - local logging only |
-| `main` | Main | GPS, telemetry capable |
-| `titan` | Titan | Full features - pyro, TVC, high-G |
-| `dev` | Main+Debug | Debug symbols, verbose logging |
-| `test` | Native | Unit tests on host |
+| Target | Tier | Description |
+|--------|------|-------------|
+| `freertos_smp_validation` | Dev | FreeRTOS dual-core validation firmware |
+| `smoke_hal_validation` | Dev | HAL hardware smoke test |
+| `simple_test` | Dev | Basic LED blink test |
+| `rocketchip_core` | Core | Minimal - local logging only (planned) |
+| `rocketchip_main` | Main | GPS, telemetry capable (planned) |
+| `rocketchip_titan` | Titan | Full features - pyro, TVC, high-G (planned) |
 
 ## Implementation Status
 
-Header stubs created for:
-- [x] config.h, pins.h
-- [x] HAL.h, BoardDetect.h, IMU.h, Baro.h
-- [x] StateMachine.h, EventEngine.h, ActionExecutor.h, MissionEngine.h
-- [x] SensorTask.h, FusionTask.h, MissionTask.h, LoggerTask.h, UITask.h
-- [x] TelemetryTask.h, ControlTask.h
-- [x] AP_HAL_Compat.h
-- [x] main.cpp (entry point)
-- [x] platformio.ini
+**Implemented:**
+- [x] CMakeLists.txt, build.sh, pico_sdk_import.cmake, FreeRTOS_Kernel_import.cmake
+- [x] FreeRTOSConfig.h (SMP dual-core config)
+- [x] main.c, hooks.c (FreeRTOS entry point)
+- [x] hal/HAL.h/.cpp (top-level init)
+- [x] hal/Bus.h/.cpp (I2C/SPI)
+- [x] hal/GPIO.h/.cpp, ADC.h/.cpp, PWM.h/.cpp
+- [x] hal/PIO.h/.cpp (NeoPixel), Timing.h/.cpp, UART.h/.cpp
+- [x] tests/smoke_tests/hal_validation.cpp, simple_test.c, imu_qwiic_test.c
+- [x] docs/ (SAD, SCAFFOLDING, HARDWARE, TOOLCHAIN_VALIDATION)
+- [x] standards/ (CODING_STANDARDS, DEBUG_OUTPUT, GIT_WORKFLOW)
+- [x] tools/state_to_dot.py
 
-Implementation needed for:
-- [ ] All .cpp files
-- [ ] GPS.h, Radio.h, Storage.h, Display.h, LED.h, Buttons.h
-- [ ] Pyro.h, Servo.h (Titan)
-- [ ] protocol/ modules
+**Phase 2 - In Progress:**
+- [ ] hal/IMU_ISM330DHCX.cpp (sensor driver)
+- [ ] hal/Mag_LIS3MDL.cpp (magnetometer driver)
+- [ ] hal/Baro_DPS310.cpp (barometer driver)
+
+**Phase 3+ - Planned:**
+- [ ] include/rocketchip/ headers (config.h, pins.h, etc.)
+- [ ] core/ modules (MissionEngine, StateMachine, EventEngine, etc.)
+- [ ] services/ tasks (SensorTask, FusionTask, LoggerTask, etc.)
+- [ ] hal/ peripherals (GPS, Radio, Storage, Display, LED, Buttons)
+- [ ] hal/ Titan features (Pyro, Servo)
+- [ ] protocol/ modules (MAVLink, CommandHandler)
 - [ ] missions/ definitions
 - [ ] utils/ helpers
+- [ ] lib/ external libraries (ap_compat, mavlink)
 - [ ] test/ unit tests
 
 ## Related Documents
 
-- **SAD.md** - Software Architecture Document (full architecture details)
-- **HARDWARE.md** - Hardware specifications, pin assignments, I2C addresses
-- **STANDARDS.md** - Coding standards, safety requirements
+- **docs/SAD.md** - Software Architecture Document (full architecture details)
+- **docs/HARDWARE.md** - Hardware specifications, pin assignments, I2C addresses
+- **docs/TOOLCHAIN_VALIDATION.md** - Build and debug setup guide
+- **standards/CODING_STANDARDS.md** - Code style and safety rules

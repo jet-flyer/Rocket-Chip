@@ -15,7 +15,7 @@
  * - PIO peripherals (WS2812, etc.)
  * 
  * @note Part of RocketChip - Modular Motion Tracking Platform
- * @see HARDWARE.md for hardware specifications and interface details
+ * @see docs/HARDWARE.md for hardware specifications and interface details
  * @see docs/SAD.md for architectural context
  */
 

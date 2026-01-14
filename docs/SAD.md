@@ -4,7 +4,7 @@
 **Last Updated:** 2026-01-09
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
 **Development Environment:** PlatformIO + Pico SDK + FreeRTOS
-**Hardware Reference:** `Agent_Instructions/HARDWARE.md` (authoritative source)
+**Hardware Reference:** `docs/HARDWARE.md` (authoritative source)
 
 ---
 

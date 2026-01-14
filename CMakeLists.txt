@@ -102,7 +102,7 @@ pico_add_extra_outputs(freertos_validation)
 
 # Simple test executable (no FreeRTOS)
 add_executable(simple_test
-    src/simple_test.c
+    tests/smoke_tests/simple_test.c
 )
 
 target_link_libraries(simple_test

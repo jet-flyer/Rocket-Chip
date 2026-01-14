@@ -53,9 +53,9 @@ constexpr uint8_t DPS310_PRODUCT_ID_VAL = 0x10;  // Revision ID may vary
 
 // PA1010D doesn't have a WHO_AM_I, we just probe and try to read NMEA
 
-// Onboard peripherals
-constexpr uint8_t PIN_LED      = 13;  // Red LED
-constexpr uint8_t PIN_BUTTON   = 7;   // Boot button
+// Onboard peripherals (Feather RP2350)
+// Note: PICO_DEFAULT_LED_PIN = 7 for this board
+constexpr uint8_t PIN_LED      = PICO_DEFAULT_LED_PIN;  // GPIO 7
 constexpr uint8_t PIN_NEOPIXEL = 21;  // NeoPixel
 
 // ============================================================================
@@ -157,19 +157,12 @@ bool testTiming() {
 bool testGPIO() {
     printf("\n=== GPIO Tests ===\n");
 
-    // Test LED output
+    // Test LED output using HAL OutputPin class
     OutputPin led(PIN_LED, PinState::LOW);
     led.set();
     Timing::delayMicros(100);
     led.clear();
     printResult("GPIO LED output", true);  // No way to verify without reading back
-
-    // Test button input (with pull-up, button pulls to ground when pressed)
-    InputPin button(PIN_BUTTON, PinMode::INPUT_PULLUP);
-    PinState btn_state = button.read();
-    printf("  Button state: %s (should be HIGH if not pressed)\n",
-           btn_state == PinState::HIGH ? "HIGH" : "LOW");
-    printResult("GPIO Button input", true);  // Just verify no crash
 
     // Blink LED to show we're working
     for (int i = 0; i < 3; i++) {
@@ -239,6 +232,10 @@ bool testI2CBus() {
     }
     lis3mdl.begin();  // Safe to call - I2C hw already init'd
     dps310.begin();
+
+    // Small delay for sensors to be ready after I2C init
+    Timing::delayMicros(10000);  // 10ms
+
     printResult("I2C Bus init", true);
 
     // Test each sensor
@@ -368,16 +365,17 @@ int main() {
     printf("%s\n", all_passed ? "*** ALL TESTS PASSED ***" : "!!! SOME TESTS FAILED !!!");
 
     // Main loop - blink LED, print status periodically
+    const uint32_t blink_delay = all_passed ? 500 : 100;
     int cycle = 0;
     while (true) {
         gpio_put(PIN_LED, 1);
-        sleep_ms(all_passed ? 500 : 100);
+        sleep_ms(blink_delay);
         gpio_put(PIN_LED, 0);
-        sleep_ms(all_passed ? 500 : 100);
+        sleep_ms(blink_delay);
 
         // Print status every 5 seconds for late-connecting terminals
         cycle++;
-        if (cycle >= 5) {
+        if (cycle >= (all_passed ? 5 : 25)) {  // ~5 seconds either way
             cycle = 0;
             printf("[%s] Passed: %u, Failed: %u\n",
                    all_passed ? "PASS" : "FAIL", results.passed, results.failed);

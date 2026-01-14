@@ -4,8 +4,8 @@
 
 This document describes the toolchain validation for RocketChip on RP2350 hardware using FreeRTOS SMP.
 
-**Status**: ✅ Build validated, hardware testing pending
-**Date**: 2026-01-10
+**Status**: ✅ Fully validated on hardware
+**Date**: 2026-01-14 (Updated)
 **Toolchain**: Pure CMake + Pico SDK 2.1.0 + FreeRTOS SMP
 
 ## Background
@@ -216,33 +216,28 @@ Time | Event
 - **LED Pin**: GPIO 25 (PICO_DEFAULT_LED_PIN)
 - **USB**: Micro-USB connector
 
-### Adafruit Feather RP2350 HSTX
+### Adafruit Feather RP2350
 
-- **Board**: `PICO_BOARD = "adafruit_feather_rp2350_hstx"` (custom)
-- **LED Pin**: GPIO 13 (verify in schematic!)
+- **Board**: `PICO_BOARD = "adafruit_feather_rp2350"`
+- **LED Pin**: GPIO 7 (PICO_DEFAULT_LED_PIN)
 - **USB**: USB-C connector
-- **Note**: May need custom board definition in Pico SDK
+- **I2C**: STEMMA QT on i2c1 (GPIO 2/3)
 
-## Next Steps
+## Validation Complete
 
-1. **Hardware Test**
-   - Flash firmware to Pico 2
-   - Verify LED blinking and serial output
-   - Monitor for 10+ minutes to check stability
+The following have been validated on Adafruit Feather RP2350:
 
-2. **Peripheral Integration**
-   - Add I2C sensor read (replace simulated data)
-   - Test SPI flash logging
-   - Verify DMA transfers don't interfere with scheduler
+- ✅ FreeRTOS SMP dual-core scheduler running
+- ✅ I2C sensor communication (ISM330DHCX, LIS3MDL, DPS310)
+- ✅ HAL layer (Bus, GPIO, ADC, PWM, Timing, PIO, UART)
+- ✅ USB CDC serial output
+- ✅ Hardware debugging (Debug Probe + OpenOCD + GDB)
 
-3. **Performance Validation**
-   - Measure actual sensor sampling jitter
-   - Profile task execution times
-   - Verify Core 1 can sustain 1kHz with real I2C reads
+## Future Work
 
-4. **TinyUSB Submodule**
-   - Run `git submodule update --init --recursive` in pico-sdk
-   - Eliminates build warning (optional)
+- SPI flash logging
+- DMA transfer integration
+- Performance profiling (jitter measurement)
 
 ## Known Limitations
 

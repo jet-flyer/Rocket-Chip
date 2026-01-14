@@ -6,7 +6,7 @@
  * to be bus-agnostic. Implementations handle platform-specific details.
  * 
  * @note Part of RocketChip HAL - Hardware Abstraction Layer
- * @see HARDWARE.md for bus performance characteristics
+ * @see docs/HARDWARE.md for bus performance characteristics
  */
 
 #ifndef ROCKETCHIP_HAL_BUS_H
