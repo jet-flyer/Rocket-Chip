@@ -224,9 +224,10 @@ bool testI2CBus() {
     printf("\n=== I2C Bus Tests ===\n");
 
     // Create I2C buses for each sensor
-    I2CBus ism330(i2c0, ADDR_ISM330DHCX, I2C_SDA, I2C_SCL, 400000);
-    I2CBus lis3mdl(i2c0, ADDR_LIS3MDL, I2C_SDA, I2C_SCL, 400000);
-    I2CBus dps310(i2c0, ADDR_DPS310, I2C_SDA, I2C_SCL, 400000);
+    // Note: GPIO 2/3 (STEMMA QT) are on i2c1, not i2c0
+    I2CBus ism330(i2c1, ADDR_ISM330DHCX, I2C_SDA, I2C_SCL, 400000);
+    I2CBus lis3mdl(i2c1, ADDR_LIS3MDL, I2C_SDA, I2C_SCL, 400000);
+    I2CBus dps310(i2c1, ADDR_DPS310, I2C_SDA, I2C_SCL, 400000);
 
     // Initialize bus (only need to do once since they share the same I2C peripheral)
     if (!ism330.begin()) {
@@ -300,15 +301,23 @@ void showFinalStatus(bool all_passed) {
 // ============================================================================
 
 int main() {
+    // Initialize LED first to show board is alive
+    gpio_init(PIN_LED);
+    gpio_set_dir(PIN_LED, GPIO_OUT);
+
+    // 3 rapid blinks = board is alive
+    for (int i = 0; i < 3; i++) {
+        gpio_put(PIN_LED, 1);
+        busy_wait_ms(100);
+        gpio_put(PIN_LED, 0);
+        busy_wait_ms(100);
+    }
+
     // Initialize stdio for USB serial output
     stdio_init_all();
 
-    // Wait for USB connection (with timeout)
-    for (int i = 0; i < 50; i++) {  // 5 second timeout
-        if (stdio_usb_connected()) break;
-        sleep_ms(100);
-    }
-    sleep_ms(500);  // Extra delay for terminal to connect
+    // Fixed delay for USB enumeration (matches working imu_qwiic_test)
+    sleep_ms(2000);
 
     printf("\n");
     printf("========================================\n");
@@ -356,11 +365,20 @@ int main() {
     // Show final status on NeoPixel
     showFinalStatus(all_passed);
 
-    // Keep running - blink LED to show we're alive
+    // Keep running - blink LED and print status periodically
     OutputPin led(PIN_LED, PinState::LOW);
+    int cycle = 0;
     while (true) {
         led.toggle();
-        sleep_ms(all_passed ? 1000 : 250);  // Slow blink = pass, fast = fail
+        sleep_ms(all_passed ? 500 : 125);  // Slow blink = pass, fast = fail
+
+        // Print status every ~5 seconds for late-connecting terminals
+        cycle++;
+        if (cycle >= (all_passed ? 10 : 40)) {
+            cycle = 0;
+            printf("[%s] Passed: %u, Failed: %u\n",
+                   all_passed ? "PASS" : "FAIL", results.passed, results.failed);
+        }
     }
 
     return 0;
