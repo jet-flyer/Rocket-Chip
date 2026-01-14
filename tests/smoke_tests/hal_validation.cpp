@@ -78,13 +78,16 @@ struct TestResults {
 
 static TestResults results = {0};
 
+// Flag to control whether printResult actually prints
+static bool g_print_enabled = false;
+
 void printResult(const char* name, bool passed) {
     if (passed) {
-        printf("  [PASS] %s\n", name);
         results.passed++;
+        if (g_print_enabled) printf("  [PASS] %s\n", name);
     } else {
-        printf("  [FAIL] %s\n", name);
         results.failed++;
+        if (g_print_enabled) printf("  [FAIL] %s\n", name);
     }
 }
 
@@ -315,16 +318,14 @@ int main() {
         busy_wait_ms(100);
     }
 
-    // Initialize stdio for USB serial output
-    stdio_init_all();
-
-    // Run all tests immediately (no waiting for serial)
+    // Run all tests BEFORE stdio init (no USB buffer to block on)
+    g_print_enabled = false;
     results.hal_init   = testHALInit();
     results.timing     = testTiming();
     results.gpio_led   = testGPIO();
     results.gpio_button = true;  // Verified in testGPIO
     results.adc_temp   = testADC();
-    bool i2c_all       = testI2CBus();
+    testI2CBus();
     results.neopixel   = testNeoPixel();
 
     bool all_passed = (results.failed == 0);
@@ -332,30 +333,28 @@ int main() {
     // Show final status on NeoPixel immediately
     showFinalStatus(all_passed);
 
-    // Now wait for USB CDC connection before printing results
+    // Init stdio and wait for connection (like Arduino's while(!Serial))
+    stdio_init_all();
+
+    // Re-init LED for waiting indicator
+    gpio_init(PIN_LED);
+    gpio_set_dir(PIN_LED, GPIO_OUT);
+
+    // Blink LED while waiting for USB serial connection
     while (!stdio_usb_connected()) {
         gpio_put(PIN_LED, 1);
         sleep_ms(100);
         gpio_put(PIN_LED, 0);
         sleep_ms(100);
     }
-    sleep_ms(500);  // Brief settle time after connection
+    sleep_ms(500);  // Settle time after connection
 
-    // Print full test report
+    // Print full report
     printf("\n");
     printf("========================================\n");
     printf("  RocketChip HAL Validation Test\n");
     printf("========================================\n");
-    printf("Hardware:\n");
-    printf("  - Feather RP2350 HSTX (#6130)\n");
-    printf("  - ISM330DHCX+LIS3MDL FeatherWing (#4569)\n");
-    printf("  - DPS310 Barometer (#4494)\n");
-    printf("========================================\n");
-    printf("\n");
-    printf("  TEST SUMMARY\n");
-    printf("========================================\n");
-    printf("  Passed: %u\n", results.passed);
-    printf("  Failed: %u\n", results.failed);
+    printf("  Passed: %u  |  Failed: %u\n", results.passed, results.failed);
     printf("\n");
     printf("  HAL Init:    %s\n", results.hal_init ? "PASS" : "FAIL");
     printf("  Timing:      %s\n", results.timing ? "PASS" : "FAIL");
@@ -366,46 +365,23 @@ int main() {
     printf("  I2C DPS310:  %s\n", results.i2c_dps310 ? "PASS" : "FAIL");
     printf("  NeoPixel:    %s\n", results.neopixel ? "PASS" : "FAIL");
     printf("========================================\n");
+    printf("%s\n", all_passed ? "*** ALL TESTS PASSED ***" : "!!! SOME TESTS FAILED !!!");
 
-    if (all_passed) {
-        printf("\n  *** ALL TESTS PASSED ***\n\n");
-    } else {
-        printf("\n  !!! SOME TESTS FAILED !!!\n\n");
-    }
-
-    // Keep running - blink LED, check boot button for reprint
-    OutputPin led(PIN_LED, PinState::LOW);
-    InputPin button(PIN_BUTTON, PinMode::INPUT_PULLUP);
-    bool last_button = true;  // Button is active low
-
-    printf("\n>>> Press BOOT button to reprint results <<<\n\n");
-
+    // Main loop - blink LED, print status periodically
+    int cycle = 0;
     while (true) {
-        led.toggle();
-        sleep_ms(all_passed ? 500 : 125);  // Slow blink = pass, fast = fail
+        gpio_put(PIN_LED, 1);
+        sleep_ms(all_passed ? 500 : 100);
+        gpio_put(PIN_LED, 0);
+        sleep_ms(all_passed ? 500 : 100);
 
-        // Check boot button (active low - pressed = LOW)
-        bool btn_now = (button.read() == PinState::HIGH);
-        if (!btn_now && last_button) {
-            // Button just pressed - reprint full summary
-            printf("\n========================================\n");
-            printf("  TEST SUMMARY (button reprint)\n");
-            printf("========================================\n");
-            printf("  Passed: %u\n", results.passed);
-            printf("  Failed: %u\n", results.failed);
-            printf("\n");
-            printf("  HAL Init:    %s\n", results.hal_init ? "PASS" : "FAIL");
-            printf("  Timing:      %s\n", results.timing ? "PASS" : "FAIL");
-            printf("  GPIO:        %s\n", results.gpio_led ? "PASS" : "FAIL");
-            printf("  ADC:         %s\n", results.adc_temp ? "PASS" : "FAIL");
-            printf("  I2C ISM330:  %s\n", results.i2c_ism330 ? "PASS" : "FAIL");
-            printf("  I2C LIS3MDL: %s\n", results.i2c_lis3mdl ? "PASS" : "FAIL");
-            printf("  I2C DPS310:  %s\n", results.i2c_dps310 ? "PASS" : "FAIL");
-            printf("  NeoPixel:    %s\n", results.neopixel ? "PASS" : "FAIL");
-            printf("========================================\n");
-            printf("\n>>> Press BOOT button to reprint <<<\n\n");
+        // Print status every 5 seconds for late-connecting terminals
+        cycle++;
+        if (cycle >= 5) {
+            cycle = 0;
+            printf("[%s] Passed: %u, Failed: %u\n",
+                   all_passed ? "PASS" : "FAIL", results.passed, results.failed);
         }
-        last_button = btn_now;
     }
 
     return 0;

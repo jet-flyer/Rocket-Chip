@@ -1,9 +1,9 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-01-12 by Claude Code CLI
+**Last Updated:** 2026-01-14 by Claude Code CLI
 
 ## Current Phase
-Phase 1 (Foundation) - Architecture defined, scaffolding complete, ready for implementation.
+Phase 1 (Foundation) - HAL implemented, validation tests passing.
 
 ## Completed
 - [x] Software Architecture Document (SAD) created - `docs/SAD.md`
@@ -21,11 +21,15 @@ Phase 1 (Foundation) - Architecture defined, scaffolding complete, ready for imp
 - [x] FreeRTOS SMP validation complete: dual-core scheduler running, tasks executing on both cores with proper priority and affinity, inter-task queues operational, USB serial output working
 - [x] Hardware debugging workflow established: OpenOCD + GDB + VS Code integration functional
 - [x] TinyUSB initialized and functional: stdio_init_all() properly initializes TinyUSB stack, USB-CDC serial working correctly
+- [x] HAL implemented: Bus (I2C/SPI), GPIO, ADC, PWM, Timing, PIO (NeoPixel), UART - see `src/hal/README.md`
+- [x] HAL validation smoke test (`smoke_hal_validation`) - all tests passing (HAL init, timing, GPIO, ADC, I2C sensors, NeoPixel)
+- [x] I2C sensors verified: ISM330DHCX (0x6A), LIS3MDL (0x1C), DPS310 (0x77) all responding correctly
+- [x] USB CDC serial output pattern documented in `standards/DEBUG_OUTPUT.md`
 
 ## Active Work
-- [ ] Initialize TinyUSB git submodule in pico-sdk (eliminates harmless build warning; TinyUSB is functionally initialized and working)
-- [ ] Hardware verification tests (sensors functional on dev board)
-- [ ] Implement HAL drivers (IMU, Baro)
+- [ ] Fix LED blinking in hal_validation smoke test (see Known Issues)
+- [ ] Initialize TinyUSB git submodule in pico-sdk (eliminates harmless build warning)
+- [ ] Sensor driver implementation (IMU, Baro) using HAL
 
 ## Blocked On
 Nothing currently.
@@ -55,6 +59,7 @@ Next: Sensor integration (IMU, Barometer) and HAL driver implementation
 
 ## Known Issues
 - Legacy Arduino codebase archived in DEPRECATED/ (not carried forward)
+- **hal_validation LED not blinking**: In `smoke_hal_validation`, the red LED (GPIO 13) does not blink in the main loop or while waiting for serial connection, despite `gpio_init()`, `gpio_set_dir()`, and `gpio_put()` being called correctly. NeoPixel works fine. The imu_qwiic_test uses identical LED code and works. Suspect interaction between HAL GPIO class usage during tests and subsequent raw gpio_put() calls, or a pin conflict. Serial output works correctly. Debug probe recommended to investigate.
 
 ## Future Documentation Planned
 - `docs/ICD.md` - Interface Control Document (Booster Pack connector)
