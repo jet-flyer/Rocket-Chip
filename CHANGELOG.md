@@ -41,9 +41,7 @@ Implemented complete Hardware Abstraction Layer (HAL) for RP2350/Pico SDK with F
 - Visual pass/fail indication via NeoPixel (green=pass, red=fail) and LED blink rate
 - USB serial output with detailed test results
 
-(src/hal/*.h, src/hal/*.cpp, CMakeLists.txt, HARDWARE.md, tests/smoke_tests/hal_validation.cpp)
-
-*Rationale: The HAL establishes the foundation for all sensor and actuator integration in subsequent phases. PIO-based PWM ensures consistent servo timing even under heavy CPU load - critical for TVC. Abstracting hardware access allows future portability and simplifies driver development. The validation test provides immediate hardware verification before building higher-level functionality. Conditional USBSerial compilation avoids TinyUSB configuration complexity for projects not using USB CDC.*
+(src/hal/*.h, src/hal/*.cpp, src/hal/README.md, CMakeLists.txt, HARDWARE.md, tests/smoke_tests/hal_validation.cpp)
 
 ### 2026-01-12-002 | Claude Code CLI | documentation
 
