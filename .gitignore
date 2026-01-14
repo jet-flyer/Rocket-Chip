@@ -50,3 +50,4 @@ credentials.h
 *.uf2
 *.elf
 *.bin
+tmpclaude-*
