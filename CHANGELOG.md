@@ -9,12 +9,12 @@ Files affected in parentheses if relevant.
 
 **Conciseness is the default.** Most entries should be 1-3 sentences. The entry itself should state *what* changed. If additional context is needed, a brief parenthetical or second sentence suffices.
 
-**Rationale sections are rare.** Only add an italicized rationale block when ALL of these apply:
-- Extensive implementation work (multi-day effort or 500+ lines of new code)
-- Non-obvious architectural decision that future contributors must understand
-- The "why" cannot be conveyed in the entry itself
+**Rationale sections are rare.** Only add an italicized rationale block when:
+- An unconventional approach was chosen (e.g., experimental driver, workaround for a known issue)
+- A decision would appear wrong without context (e.g., why we avoided the "obvious" solution)
+- Architectural trade-offs need to be preserved for future contributors
 
-Bugfixes, documentation updates, configuration changes, hardware inventory corrections, and routine features do NOT warrant rationale sections regardless of complexity. When in doubt, omit the rationale.
+Routine work—even if complex—does not warrant rationale. Bugfixes, documentation updates, configuration changes, and hardware corrections rarely need explanation. When in doubt, omit the rationale.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
