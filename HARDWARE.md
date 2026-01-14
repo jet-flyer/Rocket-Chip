@@ -24,7 +24,7 @@ Expansion modules following rocketry-themed naming (specific names TBD when boar
 | Function | Part | Adafruit P/N | Specs | Notes |
 |----------|------|--------------|-------|-------|
 | MCU | Feather RP2350 HSTX | #6130 | Dual M33 @ 150MHz, 520KB SRAM, 8MB PSRAM | Primary dev board |
-| IMU | ICM-20948 | #4554 | 9-DoF, ±16g accel, ±2000dps gyro | STEMMA QT/I2C |
+| IMU | ISM330DHCX + LIS3MDL FeatherWing | #4569 | 9-DoF, ISM330DHCX accel/gyro + LIS3MDL mag | FeatherWing, I2C |
 | Barometer | DPS310 | #4494 | ±1Pa precision | STEMMA QT/I2C |
 | Battery | Li-Ion 400mAh | #3898 | 3.7V, fits between Feather headers | |
 | Debug | SWD Debug Probe | #5699 | RP2040/RP2350 compatible | For crash debugging, timing analysis |
@@ -138,6 +138,86 @@ Comparable rocket flight computers for feature/positioning reference:
 
 ---
 
+## Peripheral Interfaces
+
+### Interface Summary by Tier
+
+| Interface | Core | Mid | Pro/Titan | Primary Use Cases |
+|-----------|:----:|:---:|:---------:|-------------------|
+| **SPI** | ✓ | ✓ | ✓ | Sensors (high-rate), radio, flash, SD card |
+| **I2C** | ✓ | ✓ | ✓ | GPS, Qwiic expansion, low-rate sensors |
+| **UART** | ✓ | ✓ | ✓ | Debug console, GPS (alt), some radios |
+| **PIO** | ✓ | ✓ | ✓ | PWM output, WS2812 LEDs, custom protocols |
+| **GPIO** | ✓ | ✓ | ✓ | Arm switch, LEDs, pyro fire, continuity sense |
+| **ADC** | ✓ | ✓ | ✓ | Battery voltage, pyro continuity |
+| **CAN** | - | - | ✓ | Multi-board communication, Titan tier |
+| **HSTX** | - | - | ✓ | High-speed video/data output, Titan tier |
+
+### Interface Details
+
+#### SPI
+Primary high-speed bus for performance-critical peripherals.
+- **Clock**: Up to 50MHz for sensors, 10MHz typical
+- **Use**: IMU (ISM330DHCX), high-G accel (ADXL375), baro, radio (RFM9x/SX126x), flash, SD card
+- **Note**: Preferred over I2C for sensors at >200Hz sample rates
+
+#### I2C
+Secondary bus for expansion and lower-rate peripherals.
+- **Clock**: 400kHz (Fast Mode), 1MHz (Fast Mode Plus) where supported
+- **Use**: GPS modules, Qwiic/STEMMA QT expansion, displays, bench testing
+- **Note**: Qwiic connector retained for expandability even as primary sensors move to SPI
+
+#### UART
+Serial communication for debug and select peripherals.
+- **Baud**: 115200 typical (debug), up to 921600 for GPS
+- **Use**: Debug console, GPS (alternative to I2C), some radio modules
+- **Note**: USB CDC available for development, hardware UART for flight
+
+#### PIO (Programmable I/O)
+RP2350's programmable state machines for timing-critical I/O.
+- **Use Cases**:
+  - **PWM Output**: TVC servos, deployment servos, ESCs - offloads timing from CPU
+  - **WS2812/NeoPixel**: Status LEDs without CPU overhead
+  - **Custom Protocols**: Bit-banged interfaces, signal capture
+- **Note**: Preferred over hardware PWM for servo control due to flexibility and core offloading
+
+#### GPIO
+General-purpose digital I/O for discrete signals.
+- **Outputs**: Pyro fire channels (via MOSFET), status LEDs, enable signals
+- **Inputs**: Arm switch (debounced), continuity sense (with pull-ups), limit switches
+- **Note**: Pyro channels require hardware interlocks - see Safety section
+
+#### ADC
+Analog input for voltage monitoring.
+- **Resolution**: 12-bit
+- **Use**: Battery voltage (via divider), pyro continuity check, analog sensors
+- **Note**: RP2350 ADC is adequate for monitoring; not intended for high-precision analog sensing
+
+#### CAN (Titan Tier)
+Controller Area Network for robust multi-board communication.
+- **Use**: Distributed avionics, sensor pods, redundant systems
+- **Status**: Future - requires CAN transceiver hardware
+- **Note**: Overkill for single-board designs; reserved for complex Titan configurations
+
+#### HSTX (Titan Tier)
+High-Speed Transmit interface on RP2350.
+- **Use**: DVI/HDMI video output, high-bandwidth data streaming
+- **Status**: Future - exploring use cases (ground station display, debug visualization)
+- **Note**: Available on HSTX Feather; potential for real-time telemetry visualization
+
+### Bus Performance Comparison
+
+| Bus | Speed | Overhead @ 1kHz | Best For |
+|-----|-------|-----------------|----------|
+| SPI @ 10MHz | 10 Mbps | ~1.2% | High-rate sensors, radio |
+| I2C @ 400kHz | 400 Kbps | ~30% | Expansion, low-rate sensors |
+| I2C @ 1MHz | 1 Mbps | ~12% | GPS, displays |
+| UART @ 921600 | ~1 Mbps | N/A | GPS, debug |
+
+> **Design Principle**: SPI for flight-critical, high-rate data. I2C for expansion and bench convenience. PIO for timing-critical outputs.
+
+---
+
 ## GPIO Assignments
 
 *To be updated as pin assignments are finalized for new codebase.*
@@ -146,8 +226,15 @@ Comparable rocket flight computers for feature/positioning reference:
 |------|----------|-------|
 | - | I2C SDA | STEMMA QT sensors |
 | - | I2C SCL | STEMMA QT sensors |
-| - | SPI (if used) | SD card, high-speed sensors |
-| - | NeoPixel | Status LED |
+| - | SPI MOSI | High-speed sensors, radio |
+| - | SPI MISO | High-speed sensors, radio |
+| - | SPI SCK | High-speed sensors, radio |
+| - | SPI CS (multiple) | Per-device chip selects |
+| - | PIO PWM | TVC/deployment servos |
+| - | NeoPixel | Status LED (PIO-driven) |
+| - | Arm Switch | Input with debounce |
+| - | Pyro Fire | Output via MOSFET |
+| - | Battery ADC | Voltage monitoring |
 
 ---
 
@@ -155,10 +242,10 @@ Comparable rocket flight computers for feature/positioning reference:
 
 | Address | Device | Notes |
 |---------|--------|-------|
-| 0x68 or 0x69 | ICM-20948 | Current IMU |
+| 0x6A or 0x6B | ISM330DHCX | Primary IMU accel/gyro (FeatherWing #4569) |
+| 0x1C or 0x1E | LIS3MDL | Primary magnetometer (FeatherWing #4569) |
 | 0x77 or 0x76 | DPS310 | Barometer |
-| 0x6A or 0x6B | ISM330DHCX | Auxiliary IMU (if used) |
-| 0x1C or 0x1E | LIS3MDL | Auxiliary mag (if used) |
+| 0x68 or 0x69 | ICM-20948 | Auxiliary IMU (if used) |
 | 0x28 or 0x29 | BNO055 | Auxiliary IMU (if used) |
 
 ### Known Conflicts

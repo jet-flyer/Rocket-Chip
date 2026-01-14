@@ -35,6 +35,45 @@ set(FREERTOS_CONFIG_FILE_DIRECTORY "${CMAKE_SOURCE_DIR}" CACHE STRING "" FORCE)
 # Include FreeRTOS Kernel
 include(FreeRTOS_Kernel_import.cmake)
 
+# ============================================================================
+# HAL Library
+# ============================================================================
+
+add_library(hal STATIC
+    src/hal/Bus.cpp
+    src/hal/GPIO.cpp
+    src/hal/ADC.cpp
+    src/hal/PWM.cpp
+    src/hal/UART.cpp
+    src/hal/Timing.cpp
+    src/hal/PIO.cpp
+    src/hal/HAL.cpp
+)
+
+target_include_directories(hal PUBLIC
+    ${CMAKE_SOURCE_DIR}/src/hal
+)
+
+target_link_libraries(hal PUBLIC
+    pico_stdlib
+    hardware_i2c
+    hardware_spi
+    hardware_gpio
+    hardware_adc
+    hardware_uart
+    hardware_timer
+    hardware_pio
+    hardware_pwm
+    hardware_watchdog
+    hardware_clocks
+    FreeRTOS-Kernel
+)
+
+# Note: USBSerial support requires project to link tinyusb_device
+# and provide tusb_config.h. Enable with pico_enable_stdio_usb().
+
+# ============================================================================
+
 # Main executable
 add_executable(freertos_validation
     src/main.c
@@ -93,3 +132,21 @@ pico_enable_stdio_usb(smoke_imu_qwiic 1)
 pico_enable_stdio_uart(smoke_imu_qwiic 0)
 
 pico_add_extra_outputs(smoke_imu_qwiic)
+
+# HAL Validation Test - comprehensive HAL smoke test
+add_executable(smoke_hal_validation
+    tests/smoke_tests/hal_validation.cpp
+)
+
+target_link_libraries(smoke_hal_validation
+    hal
+    pico_stdlib
+    hardware_i2c
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(smoke_hal_validation 1)
+pico_enable_stdio_uart(smoke_hal_validation 0)
+
+pico_add_extra_outputs(smoke_hal_validation)
