@@ -3,13 +3,24 @@
 ## Format
 `### YYYY-MM-DD-NNN | Author | tags`
 
-Optional rationale in italics below. Files affected in parentheses if relevant.
+Files affected in parentheses if relevant.
 
 **Frequency:** Typically one entry per session, not per individual change. Log when a task is completed or work transitions to a new focus. However, if multiple *significant* changes occur in one session (e.g., refactoring logging system AND redesigning state engine), create separate entries for each.
 
-**Conciseness:** Keep entries brief. Minor changes (doc clarifications, small fixes, typos) should be 1-2 sentences. Save detail for significant technical work. Rationale section is only needed when the "why" is non-obvious or involves important architectural decisions. Straightforward changes don't need rationale.
+**Conciseness is the default.** Most entries should be 1-3 sentences. The entry itself should state *what* changed. If additional context is needed, a brief parenthetical or second sentence suffices.
+
+**Rationale sections are rare.** Only add an italicized rationale block when:
+- An unconventional approach was chosen (e.g., experimental driver, workaround for a known issue)
+- A decision would appear wrong without context (e.g., why we avoided the "obvious" solution)
+- Architectural trade-offs need to be preserved for future contributors
+
+Routine work—even if complex—does not warrant rationale. Bugfixes, documentation updates, configuration changes, and hardware corrections rarely need explanation. When in doubt, omit the rationale.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
+
+*Guidelines updated 2026-01-14. Earlier entries may be more verbose.*
+
+---
 
 ### 2026-01-14-001 | Claude Code CLI | feature, architecture, hardware, documentation
 
