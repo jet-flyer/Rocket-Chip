@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "pico/stdlib.h"
+#include "pico/time.h"
 #include "hardware/i2c.h"
 
 /* I2C Configuration for Feather RP2350 STEMMA QT connector */
@@ -235,11 +236,31 @@ static void print_summary(void) {
 }
 
 int main(void) {
-    /* Initialize stdio (USB serial) */
+    /* Initialize LED first (before stdio) to show board is alive */
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+
+    /* 3 rapid blinks = board is alive (uses busy_wait before stdio is ready) */
+    for (int i = 0; i < 3; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        busy_wait_ms(100);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        busy_wait_ms(100);
+    }
+
+    /* Initialize stdio (USB serial via TinyUSB) */
     stdio_init_all();
 
-    /* Fixed delay for USB CDC to enumerate - matches main.c pattern */
+    /* Wait for USB enumeration */
     sleep_ms(2000);
+
+    /* 2 slow blinks = USB init done */
+    for (int i = 0; i < 2; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        sleep_ms(250);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        sleep_ms(250);
+    }
 
     /* Print header */
     printf("\n\n");
@@ -279,10 +300,6 @@ int main(void) {
 
     /* Print summary */
     print_summary();
-
-    /* Blink LED to indicate test complete */
-    gpio_init(PICO_DEFAULT_LED_PIN);
-    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
     printf("\nTest complete. LED blinking.\n");
 
