@@ -292,6 +292,7 @@ int main(void) {
 
     printf("\nTest complete. LED blinking.\n");
 
+    int cycle = 0;
     while (1) {
         /* Blink pattern indicates result */
         if (results.ism330dhcx_found && results.lis3mdl_found) {
@@ -310,6 +311,20 @@ int main(void) {
             sleep_ms(100);
             gpio_put(PICO_DEFAULT_LED_PIN, 0);
             sleep_ms(700);
+        }
+
+        /* Print status every 5 seconds so late-connecting terminals see result */
+        cycle++;
+        if (cycle >= 5) {
+            cycle = 0;
+            if (results.ism330dhcx_found && results.lis3mdl_found) {
+                printf("[PASS] ISM330DHCX @ 0x%02X, LIS3MDL @ 0x%02X - Qwiic port works!\n",
+                       results.ism330dhcx_addr, results.lis3mdl_addr);
+            } else {
+                printf("[FAIL] ISM330DHCX: %s, LIS3MDL: %s\n",
+                       results.ism330dhcx_found ? "OK" : "NOT FOUND",
+                       results.lis3mdl_found ? "OK" : "NOT FOUND");
+            }
         }
     }
 
