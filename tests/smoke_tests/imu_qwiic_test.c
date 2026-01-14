@@ -238,14 +238,8 @@ int main(void) {
     /* Initialize stdio (USB serial) */
     stdio_init_all();
 
-    /* Wait for USB connection (with timeout) */
-    for (int i = 0; i < 50; i++) {
-        if (stdio_usb_connected()) {
-            break;
-        }
-        sleep_ms(100);
-    }
-    sleep_ms(500);  /* Extra delay for terminal to settle */
+    /* Fixed delay for USB CDC to enumerate - matches main.c pattern */
+    sleep_ms(2000);
 
     /* Print header */
     printf("\n\n");
