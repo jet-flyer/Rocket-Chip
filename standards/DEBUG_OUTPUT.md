@@ -38,6 +38,40 @@ Serial debug output is essential during development for diagnosing timing issues
 - **Baud rate:** 115200 (ignored for USB-CDC but set for compatibility)
 - **Format:** `[timestamp_us] message`
 
+### USB CDC Connection Handling
+
+USB CDC serial disconnects when the device resets, causing most terminal programs to freeze or lose data. To ensure reliable output:
+
+**Pattern:** Run program logic immediately, wait for connection before printing results.
+
+```cpp
+// Initialize stdio
+stdio_init_all();
+
+// Run tests/logic immediately (don't block on serial)
+runTests();
+showStatusLED(passed);  // Visual feedback works without serial
+
+// Wait for USB CDC connection before printing
+while (!stdio_usb_connected()) {
+    gpio_put(LED_PIN, 1);
+    sleep_ms(100);
+    gpio_put(LED_PIN, 0);
+    sleep_ms(100);
+}
+sleep_ms(500);  // Brief settle time
+
+// Now print results
+printf("Test results: ...\n");
+```
+
+**Key principles:**
+- Never block program execution waiting for serial connection
+- Visual indicators (LEDs, NeoPixel) provide immediate feedback without serial
+- Startup/diagnostic output waits for connection so terminals receive complete data
+- LED blink while waiting indicates "connect terminal now"
+- Boot button can trigger result reprint for late-connecting terminals
+
 ---
 
 ## Per-Task Guidelines

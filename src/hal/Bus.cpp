@@ -81,9 +81,10 @@ BusResult I2CBus::readRegisters(uint8_t reg, uint8_t* buffer, size_t length) {
     }
 
     i2c_inst_t* i2c = static_cast<i2c_inst_t*>(m_i2c);
+    constexpr uint32_t TIMEOUT_US = 10000;
 
     // Write register address
-    int result = i2c_write_blocking(i2c, m_address, &reg, 1, true);
+    int result = i2c_write_timeout_us(i2c, m_address, &reg, 1, true, TIMEOUT_US);
     if (result == PICO_ERROR_GENERIC) {
         return BusResult::ERR_NACK;
     }
@@ -92,7 +93,7 @@ BusResult I2CBus::readRegisters(uint8_t reg, uint8_t* buffer, size_t length) {
     }
 
     // Read data
-    result = i2c_read_blocking(i2c, m_address, buffer, length, false);
+    result = i2c_read_timeout_us(i2c, m_address, buffer, length, false, TIMEOUT_US);
     if (result == PICO_ERROR_GENERIC) {
         return BusResult::ERR_NACK;
     }
@@ -117,6 +118,7 @@ BusResult I2CBus::writeRegisters(uint8_t reg, const uint8_t* buffer, size_t leng
     }
 
     i2c_inst_t* i2c = static_cast<i2c_inst_t*>(m_i2c);
+    constexpr uint32_t TIMEOUT_US = 10000;
 
     // Prepare combined buffer (register + data)
     // Using a reasonable max size to avoid dynamic allocation
@@ -130,7 +132,7 @@ BusResult I2CBus::writeRegisters(uint8_t reg, const uint8_t* buffer, size_t leng
     memcpy(&write_buf[1], buffer, length);
 
     // Write register address and data
-    int result = i2c_write_blocking(i2c, m_address, write_buf, length + 1, false);
+    int result = i2c_write_timeout_us(i2c, m_address, write_buf, length + 1, false, TIMEOUT_US);
     if (result == PICO_ERROR_GENERIC) {
         return BusResult::ERR_NACK;
     }
@@ -147,10 +149,11 @@ bool I2CBus::probe() {
     }
 
     i2c_inst_t* i2c = static_cast<i2c_inst_t*>(m_i2c);
+    constexpr uint32_t TIMEOUT_US = 10000;
 
     // Try to read a byte from the device
     uint8_t dummy;
-    int result = i2c_read_blocking(i2c, m_address, &dummy, 1, false);
+    int result = i2c_read_timeout_us(i2c, m_address, &dummy, 1, false, TIMEOUT_US);
 
     return result >= 0;
 }
