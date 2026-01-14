@@ -11,6 +11,40 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+### 2026-01-14-001 | Claude Code CLI | feature, architecture, hardware, documentation
+
+Implemented complete Hardware Abstraction Layer (HAL) for RP2350/Pico SDK with FreeRTOS integration. The HAL provides platform-independent interfaces for all peripheral access, following JSF AV C++ coding standards.
+
+**HAL Modules (src/hal/):**
+- **Bus.h/cpp**: I2C and SPI bus abstractions with SensorBus base class, probe/read/write operations, register access helpers. Supports 400kHz/1MHz I2C and configurable SPI clock speeds.
+- **GPIO.h/cpp**: Digital I/O with OutputPin, InputPin, InterruptPin classes. Includes hardware debouncing, pull-up/down configuration, and GPIO interrupt handling with callbacks.
+- **ADC.h/cpp**: 12-bit ADC interface with raw/voltage readings, averaging, internal temperature sensor. Includes BatteryMonitor (voltage divider support, SOC estimation) and PyroContinuity checker classes.
+- **PWM.h/cpp**: PIO-based PWM for timing-critical outputs. PwmManager handles state machine allocation. Servo class with angle/position control, ESC class with arm/disarm safety. Presets for standard/digital servos and various ESC protocols (50Hz, 400Hz, OneShot125).
+- **Timing.h/cpp**: Microsecond/millisecond timing via hardware timer. IntervalTimer for periodic tasks, StopWatch for execution measurement, RateStats for sample rate tracking, ScopedTimer for RAII profiling.
+- **PIO.h/cpp**: WS2812/NeoPixel driver using PIO state machine (CPU-offloaded timing). RGB struct with color utilities, StatusLED class with predefined patterns (idle, armed, flight, error, low battery). PIOManager coordinates state machine allocation across modules.
+- **UART.h/cpp**: Hardware UART wrapper with configurable baud/parity/stop bits, buffered I/O. USBSerial class for TinyUSB CDC (conditional compilation when pico_stdio_usb enabled). Presets for debug console, GPS, MAVLink.
+- **HAL.h/cpp**: Master header and initialization. initHAL() bootstraps all subsystems, getPlatformInfo() returns chip/board/clock info, reset reason tracking with human-readable strings.
+
+**Documentation Updates (HARDWARE.md):**
+- Added comprehensive Peripheral Interfaces section covering SPI, I2C, UART, PIO, GPIO, ADC, CAN, HSTX with tier availability matrix
+- Bus performance comparison table (SPI vs I2C overhead at 1kHz)
+- Updated GPIO Assignments table with SPI, PIO PWM, pyro, battery ADC pins
+- Corrected IMU reference from ICM-20948 to ISM330DHCX+LIS3MDL FeatherWing (#4569)
+- Updated I2C Address Map with correct sensor addresses
+
+**Build System (CMakeLists.txt):**
+- Added `hal` static library target linking Pico SDK hardware libraries and FreeRTOS
+- Added `smoke_hal_validation` test target
+
+**Validation (tests/smoke_tests/hal_validation.cpp):**
+- Comprehensive smoke test covering: HAL init, timing accuracy, GPIO LED/button, ADC temperature, I2C sensor probing (ISM330DHCX, LIS3MDL, DPS310 WHO_AM_I verification), NeoPixel color cycle
+- Visual pass/fail indication via NeoPixel (green=pass, red=fail) and LED blink rate
+- USB serial output with detailed test results
+
+(src/hal/*.h, src/hal/*.cpp, CMakeLists.txt, HARDWARE.md, tests/smoke_tests/hal_validation.cpp)
+
+*Rationale: The HAL establishes the foundation for all sensor and actuator integration in subsequent phases. PIO-based PWM ensures consistent servo timing even under heavy CPU load - critical for TVC. Abstracting hardware access allows future portability and simplifies driver development. The validation test provides immediate hardware verification before building higher-level functionality. Conditional USBSerial compilation avoids TinyUSB configuration complexity for projects not using USB CDC.*
+
 ### 2026-01-12-002 | Claude Code CLI | documentation
 
 Clarified TinyUSB is initialized at runtime via stdio_init_all(). Submodule init is optional (eliminates build warning only).
