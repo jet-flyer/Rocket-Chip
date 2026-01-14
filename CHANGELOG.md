@@ -15,7 +15,21 @@ Optional rationale in italics below. Files affected in parentheses if relevant.
 
 Implemented complete Hardware Abstraction Layer (HAL) for RP2350/Pico SDK with FreeRTOS integration. Modules cover Bus (I2C/SPI), GPIO, ADC, PWM, Timing, PIO (NeoPixel), and UART. See `src/hal/README.md` for module details.
 
-Also updated HARDWARE.md with Peripheral Interfaces section and corrected IMU to ISM330DHCX+LIS3MDL (#4569). Added `smoke_hal_validation` test for hardware verification.
+**Documentation Updates (HARDWARE.md):**
+- Added comprehensive Peripheral Interfaces section covering SPI, I2C, UART, PIO, GPIO, ADC, CAN, HSTX with tier availability matrix
+- Bus performance comparison table (SPI vs I2C overhead at 1kHz)
+- Updated GPIO Assignments table with SPI, PIO PWM, pyro, battery ADC pins
+- Corrected IMU reference from ICM-20948 to ISM330DHCX+LIS3MDL FeatherWing (#4569)
+- Updated I2C Address Map with correct sensor addresses
+
+**Build System (CMakeLists.txt):**
+- Added `hal` static library target linking Pico SDK hardware libraries and FreeRTOS
+- Added `smoke_hal_validation` test target
+
+**Validation (tests/smoke_tests/hal_validation.cpp):**
+- Comprehensive smoke test covering: HAL init, timing accuracy, GPIO LED/button, ADC temperature, I2C sensor probing (ISM330DHCX, LIS3MDL, DPS310 WHO_AM_I verification), NeoPixel color cycle
+- Visual pass/fail indication via NeoPixel (green=pass, red=fail) and LED blink rate
+- USB serial output with detailed test results
 
 (src/hal/*, CMakeLists.txt, HARDWARE.md, tests/smoke_tests/hal_validation.cpp)
 
