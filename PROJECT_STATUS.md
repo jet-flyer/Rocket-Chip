@@ -14,7 +14,7 @@ Phase 2 (Sensor Integration) - Foundation complete, building sensor drivers.
 ## Active Work
 - [ ] Sensor driver implementation (IMU, Baro) using HAL
 - [x] LED blinking fixed in hal_validation smoke test (was using wrong GPIO)
-- [ ] Initialize TinyUSB git submodule in pico-sdk (optional)
+- [x] TinyUSB git submodule initialized in pico-sdk
 
 ## Blocked On
 Nothing currently.
