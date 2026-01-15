@@ -73,6 +73,58 @@ target_link_libraries(hal PUBLIC
 # and provide tusb_config.h. Enable with pico_enable_stdio_usb().
 
 # ============================================================================
+# ST Platform-Independent Sensor Drivers
+# ============================================================================
+
+# ISM330DHCX IMU driver (STMicroelectronics)
+add_library(st_ism330dhcx INTERFACE)
+target_include_directories(st_ism330dhcx INTERFACE
+    ${CMAKE_SOURCE_DIR}/lib/st_drivers/ism330dhcx-pid
+)
+target_sources(st_ism330dhcx INTERFACE
+    ${CMAKE_SOURCE_DIR}/lib/st_drivers/ism330dhcx-pid/ism330dhcx_reg.c
+)
+
+# LIS3MDL Magnetometer driver (STMicroelectronics)
+add_library(st_lis3mdl INTERFACE)
+target_include_directories(st_lis3mdl INTERFACE
+    ${CMAKE_SOURCE_DIR}/lib/st_drivers/lis3mdl-pid
+)
+target_sources(st_lis3mdl INTERFACE
+    ${CMAKE_SOURCE_DIR}/lib/st_drivers/lis3mdl-pid/lis3mdl_reg.c
+)
+
+# DPS310 Barometer driver (Ruuvi) - source files are in src/ subdirectory
+add_library(ruuvi_dps310 INTERFACE)
+target_include_directories(ruuvi_dps310 INTERFACE
+    ${CMAKE_SOURCE_DIR}/lib/st_drivers/ruuvi-dps310/src
+)
+target_sources(ruuvi_dps310 INTERFACE
+    ${CMAKE_SOURCE_DIR}/lib/st_drivers/ruuvi-dps310/src/dps310.c
+)
+
+# ============================================================================
+# HAL Sensors Library (C++ wrappers around ST drivers)
+# ============================================================================
+
+add_library(hal_sensors STATIC
+    src/hal/IMU_ISM330DHCX.cpp
+    src/hal/Mag_LIS3MDL.cpp
+    src/hal/Baro_DPS310.cpp
+)
+
+target_include_directories(hal_sensors PUBLIC
+    ${CMAKE_SOURCE_DIR}/src/hal
+)
+
+target_link_libraries(hal_sensors PUBLIC
+    hal
+    st_ism330dhcx
+    st_lis3mdl
+    ruuvi_dps310
+)
+
+# ============================================================================
 
 # Main executable
 add_executable(freertos_validation
@@ -150,3 +202,21 @@ pico_enable_stdio_usb(smoke_hal_validation 1)
 pico_enable_stdio_uart(smoke_hal_validation 0)
 
 pico_add_extra_outputs(smoke_hal_validation)
+
+# ST Driver Sensor Test - validates all three ST driver wrappers
+add_executable(smoke_st_sensors
+    tests/smoke_tests/st_sensors_test.cpp
+)
+
+target_link_libraries(smoke_st_sensors
+    hal_sensors
+    pico_stdlib
+    hardware_i2c
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(smoke_st_sensors 1)
+pico_enable_stdio_uart(smoke_st_sensors 0)
+
+pico_add_extra_outputs(smoke_st_sensors)

@@ -22,6 +22,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-15-001 | Claude Code CLI | feature, architecture
+
+Integrated ST platform-independent sensor drivers per council approval. Added git submodules for ISM330DHCX (IMU), LIS3MDL (magnetometer), and ruuvi DPS310 (barometer). Created C++ wrappers in `src/hal/` using callback bridge pattern to connect vendor drivers to RocketChip SensorBus abstraction. Updated CMakeLists.txt with `hal_sensors` library linking ST/ruuvi drivers. Added `smoke_st_sensors` test target for hardware validation.
+
+(src/hal/IMU_ISM330DHCX.*, src/hal/Mag_LIS3MDL.*, src/hal/Baro_DPS310.*, tests/smoke_tests/st_sensors_test.cpp, CMakeLists.txt, .gitmodules)
+
+*Rationale: Council approved leveraging vendor-tested, MISRA-compliant drivers rather than writing register access from scratch. Wrappers call driver functions (e.g., `ism330dhcx_device_id_get()`, `dps310_init()`) through platform callbacks that bridge to SensorBus.*
+
+---
+
 ### 2026-01-14-002 | Claude Code CLI | refactor, documentation
 
 Repo cleanup: moved HARDWARE.md to docs/, simple_test.c to tests/smoke_tests/. Updated SCAFFOLDING.md to reflect actual structure. Slimmed PROJECT_STATUS.md to rotating checklist format.
