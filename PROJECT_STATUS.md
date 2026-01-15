@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-01-14 by Claude Code CLI
+**Last Updated:** 2026-01-15 by Claude Code CLI
 
 ## Current Phase
 Phase 2 (Sensor Integration) - Foundation complete, building sensor drivers.
@@ -13,7 +13,7 @@ Phase 2 (Sensor Integration) - Foundation complete, building sensor drivers.
 
 ## Active Work
 - [ ] Sensor driver implementation (IMU, Baro) using HAL
-- [ ] Fix LED blinking in hal_validation smoke test (see Known Issues)
+- [x] LED blinking fixed in hal_validation smoke test (was using wrong GPIO)
 - [ ] Initialize TinyUSB git submodule in pico-sdk (optional)
 
 ## Blocked On
@@ -35,7 +35,6 @@ Nothing currently.
 
 ## Known Issues
 - Legacy Arduino codebase archived in DEPRECATED/ (not carried forward)
-- **hal_validation LED not blinking**: Red LED (GPIO 13) doesn't blink despite correct gpio calls. NeoPixel works. Suspect HAL GPIO class interaction. Debug probe recommended.
 
 ## Future Documentation Planned
 - `docs/ICD.md` - Interface Control Document (Booster Pack connector)
