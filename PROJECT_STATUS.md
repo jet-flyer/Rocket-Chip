@@ -10,11 +10,11 @@ Phase 2 (Sensor Integration) - Foundation complete, building sensor drivers.
 - [x] I2C sensors responding: ISM330DHCX, LIS3MDL, DPS310
 - [x] FreeRTOS SMP dual-core operation validated
 - [x] Hardware debugging workflow (Debug Probe + OpenOCD + GDB)
+- [x] LED blinking fixed in hal_validation smoke test
+- [x] TinyUSB git submodule initialized in pico-sdk
 
 ## Active Work
 - [ ] Sensor driver implementation (IMU, Baro) using HAL
-- [x] LED blinking fixed in hal_validation smoke test (was using wrong GPIO)
-- [x] TinyUSB git submodule initialized in pico-sdk
 
 ## Blocked On
 Nothing currently.
