@@ -3,18 +3,20 @@
 **Last Updated:** 2026-01-15 by Claude Code CLI
 
 ## Current Phase
-Phase 2 (Sensor Integration) - Foundation complete, building sensor drivers.
+Phase 2 (Sensor Integration) - Sensor drivers complete, ready for fusion.
 
 ## Recently Completed
+- [x] ST platform-independent driver integration (council-approved)
+  - ISM330DHCX IMU wrapper (accel + gyro)
+  - LIS3MDL magnetometer wrapper
+  - DPS310 barometer wrapper (ruuvi driver)
+- [x] smoke_st_sensors test validated on hardware - all three sensors reading correctly
 - [x] HAL implemented and validated (Bus, GPIO, ADC, PWM, Timing, PIO, UART)
-- [x] I2C sensors responding: ISM330DHCX, LIS3MDL, DPS310
 - [x] FreeRTOS SMP dual-core operation validated
 - [x] Hardware debugging workflow (Debug Probe + OpenOCD + GDB)
-- [x] LED blinking fixed in hal_validation smoke test
-- [x] TinyUSB git submodule initialized in pico-sdk
 
 ## Active Work
-- [ ] Sensor driver implementation (IMU, Baro) using HAL
+- [ ] Sensor fusion implementation (orientation from IMU+Mag, altitude from Baro)
 
 ## Blocked On
 Nothing currently.
