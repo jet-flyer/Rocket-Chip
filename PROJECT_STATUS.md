@@ -1,11 +1,12 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-01-15 by Claude Code CLI
+**Last Updated:** 2026-01-16 by Claude Code CLI
 
 ## Current Phase
-Phase 2 (Sensor Integration) - Sensor drivers complete, ready for fusion.
+Phase 2 (Sensor Integration) - GPS driver next, then EKF3 fusion.
 
 ## Recently Completed
+- [x] Council review: EKF3 sensor fusion architecture approved
 - [x] ST platform-independent driver integration (council-approved)
   - ISM330DHCX IMU wrapper (accel + gyro)
   - LIS3MDL magnetometer wrapper
@@ -16,7 +17,8 @@ Phase 2 (Sensor Integration) - Sensor drivers complete, ready for fusion.
 - [x] Hardware debugging workflow (Debug Probe + OpenOCD + GDB)
 
 ## Active Work
-- [ ] Sensor fusion implementation (orientation from IMU+Mag, altitude from Baro)
+- [ ] GPS driver implementation (PA1010D)
+- [ ] Sensor fusion (EKF3-derived) - decision complete, implementation pending GPS
 
 ## Blocked On
 Nothing currently.

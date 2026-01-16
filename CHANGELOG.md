@@ -22,6 +22,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-16-001 | Claude Code CLI | council
+
+EKF3-derived architecture approved for all tiers. 22-state filter (EKF3 minus wind states) plus GSF yaw estimator. Single IMU for Core/Main, dual IMU option for Titan. Implementation after GPS driver complete.
+
+---
+
 ### 2026-01-15-001 | Claude Code CLI | feature, architecture
 
 Integrated ST platform-independent sensor drivers per council approval. Added git submodules for ISM330DHCX (IMU), LIS3MDL (magnetometer), and ruuvi DPS310 (barometer). Created C++ wrappers in `src/hal/` using callback bridge pattern to connect vendor drivers to RocketChip SensorBus abstraction. Updated CMakeLists.txt with `hal_sensors` library linking ST/ruuvi drivers. Added `smoke_st_sensors` test target for hardware validation.
