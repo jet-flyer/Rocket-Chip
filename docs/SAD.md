@@ -874,12 +874,12 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 - [ ] Pre-launch ring buffer
 - [ ] USB data download
 
+**=== MVP CHECKPOINT: Internal logging + state detection ===**
+
 ### Phase 5: GPS (Week 9)
 - [ ] GPS driver (PA1010D)
 - [ ] Position logging
 - [ ] Juno pack detection
-
-**=== MVP CHECKPOINT: Internal logging + state detection ===**
 
 ### Phase 6: Fusion (Weeks 10-11)
 - [ ] AP_Math integration
