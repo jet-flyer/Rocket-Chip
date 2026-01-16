@@ -19,6 +19,10 @@
 #include <string.h>
 #include <cmath>
 
+// Pico SDK includes
+#include "pico/stdlib.h"
+#include "hardware/i2c.h"
+
 // HAL includes
 #include "HAL.h"
 #include "IMU_ISM330DHCX.h"
@@ -27,6 +31,10 @@
 #include "GPS_PA1010D.h"
 
 using namespace rocketchip::hal;
+
+// Type aliases to avoid conflicts
+using HalVector3f = rocketchip::hal::Vector3f;
+using HalGPSData = rocketchip::hal::GPSData;
 
 // Global shared sensor data (protected by mutex)
 SensorData g_sensorData;
@@ -66,7 +74,7 @@ static bool initializeSensors() {
                            FeatherRP2350::I2C_SDA, FeatherRP2350::I2C_SCL,
                            400000);
 
-    static I2CBus gps_bus(i2c0, GPS_PA1010D::I2C_ADDR_DEFAULT,
+    static I2CBus gps_bus(i2c0, GPS_PA1010D::I2C_ADDR,
                           FeatherRP2350::I2C_SDA, FeatherRP2350::I2C_SCL,
                           400000);
 
@@ -145,10 +153,10 @@ void SensorTask_Run(void* pvParameters) {
         uint32_t timestamp_us = to_us_since_boot(get_absolute_time());
 
         // Read IMU every cycle (1kHz)
-        Vector3f accel, gyro;
+        HalVector3f accel, gyro;
         if (s_imu->read(accel, gyro)) {
             // Convert HAL Vector3f to DataStructures Vector3f
-            Vector3f mag_reading;
+            HalVector3f mag_reading;
             if (s_mag && s_mag->read(mag_reading)) {
                 // Lock mutex and update shared data
                 if (xSemaphoreTake(g_sensorDataMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
@@ -196,12 +204,21 @@ void SensorTask_Run(void* pvParameters) {
 
         // Read GPS every 100 cycles (10Hz)
         if (s_gps && (cycle_count % 100) == 0) {
-            GPSData gps_data_temp;
-            if (s_gps->read(gps_data_temp)) {
-                if (xSemaphoreTake(g_sensorDataMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
-                    // Copy GPS data to shared structure
-                    memcpy(&g_sensorData.gps, &gps_data_temp, sizeof(GPSData));
-                    xSemaphoreGive(g_sensorDataMutex);
+            if (s_gps->update()) {
+                if (s_gps->hasNewData()) {
+                    HalGPSData gps_data_temp = s_gps->getData();
+                    if (xSemaphoreTake(g_sensorDataMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+                        // Copy GPS data to shared structure
+                        g_sensorData.gps.valid = gps_data_temp.position_valid && gps_data_temp.velocity_valid;
+                        g_sensorData.gps.latitude_deg = gps_data_temp.latitude;
+                        g_sensorData.gps.longitude_deg = gps_data_temp.longitude;
+                        g_sensorData.gps.altitude_msl_m = gps_data_temp.altitude_msl;
+                        g_sensorData.gps.ground_speed_mps = gps_data_temp.speed_mps;
+                        g_sensorData.gps.course_deg = gps_data_temp.course_deg;
+                        g_sensorData.gps.satellites = gps_data_temp.satellites;
+                        g_sensorData.gps.timestamp_us = timestamp_us;
+                        xSemaphoreGive(g_sensorDataMutex);
+                    }
                 }
             } else {
                 s_gps_errors++;
@@ -248,8 +265,11 @@ void SensorTask_Run(void* pvParameters) {
  * @brief Create and start the sensor task
  */
 TaskHandle_t SensorTask_Create(void) {
-    // Create mutex for shared sensor data
-    g_sensorDataMutex = xSemaphoreCreateMutex();
+    // Create binary semaphore for shared sensor data (acts as mutex)
+    g_sensorDataMutex = xSemaphoreCreateBinary();
+    if (g_sensorDataMutex != nullptr) {
+        xSemaphoreGive(g_sensorDataMutex); // Initialize to "available"
+    }
     if (g_sensorDataMutex == nullptr) {
         printf("[SensorTask] ERROR: Failed to create mutex\n");
         return nullptr;
