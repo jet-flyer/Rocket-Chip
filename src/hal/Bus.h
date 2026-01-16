@@ -165,6 +165,22 @@ public:
      */
     uint8_t getAddress() const { return m_address; }
 
+    /**
+     * @brief Raw read without register address (for stream devices like GPS)
+     * @param buffer Output buffer
+     * @param length Number of bytes to read
+     * @return BusResult::OK on success
+     */
+    BusResult read(uint8_t* buffer, size_t length);
+
+    /**
+     * @brief Raw write without register address (for stream devices like GPS)
+     * @param buffer Data to write
+     * @param length Number of bytes to write
+     * @return BusResult::OK on success
+     */
+    BusResult write(const uint8_t* buffer, size_t length);
+
 private:
     void* m_i2c;
     uint8_t m_address;

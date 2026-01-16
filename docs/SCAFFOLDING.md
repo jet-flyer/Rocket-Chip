@@ -125,8 +125,10 @@ rocketchip/
 ├── tests/
 │   └── smoke_tests/
 │       ├── hal_validation.cpp     # HAL hardware smoke test
+│       ├── st_sensors_test.cpp    # ST driver sensors (IMU, Mag, Baro)
+│       ├── gps_test.cpp           # GPS module test
 │       ├── simple_test.c          # Basic LED blink test
-│       └── imu_qwiic_test.c       # IMU QWIIC test
+│       └── imu_qwiic_test.c       # IMU QWIIC connectivity test
 │
 ├── test/                          # Unit tests
 │   ├── test_state_machine.cpp
@@ -170,10 +172,25 @@ rocketchip/
 |--------|------|-------------|
 | `freertos_smp_validation` | Dev | FreeRTOS dual-core validation firmware |
 | `smoke_hal_validation` | Dev | HAL hardware smoke test |
+| `smoke_st_sensors` | Dev | ST driver sensor validation (IMU, Mag, Baro) |
+| `smoke_gps` | Dev | GPS module validation |
 | `simple_test` | Dev | Basic LED blink test |
 | `rocketchip_core` | Core | Minimal - local logging only (planned) |
 | `rocketchip_main` | Main | GPS, telemetry capable (planned) |
 | `rocketchip_titan` | Titan | Full features - pyro, TVC, high-G (planned) |
+
+## Testing Workflow
+
+CMake places all build artifacts in `build/`. After verifying a smoke test works on hardware:
+
+1. Copy the verified UF2 to `tests/smoke_tests/` for archival:
+   ```
+   cp build/smoke_*.uf2 tests/smoke_tests/
+   ```
+
+2. Add to `.gitignore` if UF2s shouldn't be tracked, or commit them for quick re-flashing without rebuilding.
+
+This keeps verified binaries organized with their source files while keeping the build directory disposable.
 
 ## Implementation Status
 
@@ -191,9 +208,11 @@ rocketchip/
 - [x] tools/state_to_dot.py
 
 **Phase 2 - In Progress:**
-- [ ] hal/IMU_ISM330DHCX.cpp (sensor driver)
-- [ ] hal/Mag_LIS3MDL.cpp (magnetometer driver)
-- [ ] hal/Baro_DPS310.cpp (barometer driver)
+- [x] hal/IMU_ISM330DHCX.cpp (ISM330DHCX 6-DOF driver via ST PID)
+- [x] hal/Mag_LIS3MDL.cpp (LIS3MDL magnetometer via ST PID)
+- [x] hal/Baro_DPS310.cpp (DPS310 barometer via ruuvi driver)
+- [x] hal/GPS_PA1010D.cpp (PA1010D GPS with NMEA parsing)
+- [ ] services/FusionTask (EKF3-derived sensor fusion)
 
 **Phase 3+ - Planned:**
 - [ ] include/rocketchip/ headers (config.h, pins.h, etc.)

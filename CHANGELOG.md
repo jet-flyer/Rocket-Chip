@@ -22,6 +22,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-16-002 | Claude Code CLI | feature
+
+GPS driver (PA1010D) and LoRa radio driver (RFM95W) implemented. GPS validated on hardware - I2C connectivity and NMEA parsing working. Radio driver is a minimal wireless serial bridge for debugging only (not full MAVLink telemetry - that comes later). Includes TX smoke test and ground station RX firmware in `ground_station/`. Added raw I2C read/write to Bus for stream devices. Radio hardware test pending.
+
+(src/hal/GPS_PA1010D.*, src/hal/Radio_RFM95W.*, src/hal/Bus.*, tests/smoke_tests/gps_test.cpp, tests/smoke_tests/radio_tx_test.cpp, ground_station/radio_rx.cpp, CMakeLists.txt)
+
+---
+
 ### 2026-01-16-001 | Claude Code CLI | council
 
 EKF3-derived architecture approved for all tiers. 22-state filter (EKF3 minus wind states) plus GSF yaw estimator. Single IMU for Core/Main, dual IMU option for Titan. Implementation after GPS driver complete.

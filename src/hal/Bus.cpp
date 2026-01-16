@@ -169,6 +169,54 @@ void I2CBus::setAddress(uint8_t address) {
              (m_i2c == i2c0) ? 0 : 1, address);
 }
 
+BusResult I2CBus::read(uint8_t* buffer, size_t length) {
+    if (!m_initialized) {
+        return BusResult::ERR_NOT_INITIALIZED;
+    }
+
+    if (buffer == nullptr || length == 0) {
+        return BusResult::ERR_INVALID_PARAM;
+    }
+
+    i2c_inst_t* i2c = static_cast<i2c_inst_t*>(m_i2c);
+    constexpr uint32_t TIMEOUT_US = 10000;
+
+    // Raw read without register address (for stream devices like GPS)
+    int result = i2c_read_timeout_us(i2c, m_address, buffer, length, false, TIMEOUT_US);
+    if (result == PICO_ERROR_GENERIC) {
+        return BusResult::ERR_NACK;
+    }
+    if (result == PICO_ERROR_TIMEOUT) {
+        return BusResult::ERR_TIMEOUT;
+    }
+
+    return BusResult::OK;
+}
+
+BusResult I2CBus::write(const uint8_t* buffer, size_t length) {
+    if (!m_initialized) {
+        return BusResult::ERR_NOT_INITIALIZED;
+    }
+
+    if (buffer == nullptr || length == 0) {
+        return BusResult::ERR_INVALID_PARAM;
+    }
+
+    i2c_inst_t* i2c = static_cast<i2c_inst_t*>(m_i2c);
+    constexpr uint32_t TIMEOUT_US = 10000;
+
+    // Raw write without register address (for stream devices like GPS)
+    int result = i2c_write_timeout_us(i2c, m_address, buffer, length, false, TIMEOUT_US);
+    if (result == PICO_ERROR_GENERIC) {
+        return BusResult::ERR_NACK;
+    }
+    if (result == PICO_ERROR_TIMEOUT) {
+        return BusResult::ERR_TIMEOUT;
+    }
+
+    return BusResult::OK;
+}
+
 // ============================================================================
 // SPIBus class implementation
 // ============================================================================

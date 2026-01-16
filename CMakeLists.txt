@@ -48,6 +48,7 @@ add_library(hal STATIC
     src/hal/Timing.cpp
     src/hal/PIO.cpp
     src/hal/HAL.cpp
+    src/hal/Radio_RFM95W.cpp
 )
 
 target_include_directories(hal PUBLIC
@@ -111,6 +112,7 @@ add_library(hal_sensors STATIC
     src/hal/IMU_ISM330DHCX.cpp
     src/hal/Mag_LIS3MDL.cpp
     src/hal/Baro_DPS310.cpp
+    src/hal/GPS_PA1010D.cpp
 )
 
 target_include_directories(hal_sensors PUBLIC
@@ -220,3 +222,80 @@ pico_enable_stdio_usb(smoke_st_sensors 1)
 pico_enable_stdio_uart(smoke_st_sensors 0)
 
 pico_add_extra_outputs(smoke_st_sensors)
+
+# GPS Module Test - validates PA1010D GPS driver
+add_executable(smoke_gps
+    tests/smoke_tests/gps_test.cpp
+)
+
+target_link_libraries(smoke_gps
+    hal_sensors
+    pico_stdlib
+    hardware_i2c
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(smoke_gps 1)
+pico_enable_stdio_uart(smoke_gps 0)
+
+pico_add_extra_outputs(smoke_gps)
+
+# I2C Bus Scanner - debug tool to find devices
+add_executable(i2c_scan
+    tests/smoke_tests/i2c_scan.c
+)
+
+target_link_libraries(i2c_scan
+    pico_stdlib
+    hardware_i2c
+)
+
+pico_enable_stdio_usb(i2c_scan 1)
+pico_enable_stdio_uart(i2c_scan 0)
+
+pico_add_extra_outputs(i2c_scan)
+
+# ============================================================================
+# Radio Tests
+# ============================================================================
+
+# Radio TX Test - transmits debug packets
+add_executable(smoke_radio_tx
+    tests/smoke_tests/radio_tx_test.cpp
+)
+
+target_link_libraries(smoke_radio_tx
+    hal
+    pico_stdlib
+    hardware_spi
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(smoke_radio_tx 1)
+pico_enable_stdio_uart(smoke_radio_tx 0)
+
+pico_add_extra_outputs(smoke_radio_tx)
+
+# ============================================================================
+# Ground Station
+# ============================================================================
+
+# Radio RX - Ground station receiver
+add_executable(radio_rx
+    ground_station/radio_rx.cpp
+)
+
+target_link_libraries(radio_rx
+    hal
+    pico_stdlib
+    hardware_spi
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(radio_rx 1)
+pico_enable_stdio_uart(radio_rx 0)
+
+pico_add_extra_outputs(radio_rx)

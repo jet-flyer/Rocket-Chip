@@ -3,9 +3,12 @@
 **Last Updated:** 2026-01-16 by Claude Code CLI
 
 ## Current Phase
-Phase 2 (Sensor Integration) - GPS driver next, then EKF3 fusion.
+Phase 2 (Sensor Integration) - All sensors complete. Radio telemetry pending test, then EKF3 fusion.
 
 ## Recently Completed
+- [x] GPS driver (PA1010D) - NMEA parsing validated on hardware
+- [x] Radio driver (RFM95W) - LoRa TX/RX for wireless debugging (pending hardware test)
+- [x] Ground station receiver firmware created (ground_station/)
 - [x] Council review: EKF3 sensor fusion architecture approved
 - [x] ST platform-independent driver integration (council-approved)
   - ISM330DHCX IMU wrapper (accel + gyro)
@@ -17,8 +20,8 @@ Phase 2 (Sensor Integration) - GPS driver next, then EKF3 fusion.
 - [x] Hardware debugging workflow (Debug Probe + OpenOCD + GDB)
 
 ## Active Work
-- [ ] GPS driver implementation (PA1010D)
-- [ ] Sensor fusion (EKF3-derived) - decision complete, implementation pending GPS
+- [ ] Radio link hardware validation (two Feather RP2350 + RFM95W FeatherWings)
+- [ ] Sensor fusion (EKF3-derived) - all sensors ready, implementation next
 
 ## Blocked On
 Nothing currently.
