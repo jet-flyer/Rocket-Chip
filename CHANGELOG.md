@@ -22,9 +22,9 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
-### 2026-01-16-001 | Claude Code CLI | council, architecture
+### 2026-01-16-001 | Claude Code CLI | council
 
-Council approved EKF3-derived sensor fusion architecture. 22-state filter (EKF3 minus wind states) plus GSF yaw estimator for backup. Single IMU for Core/Main, dual IMU option for Titan. Implementation deferred until GPS driver complete.
+EKF3-derived architecture approved for all tiers. 22-state filter (EKF3 minus wind states) plus GSF yaw estimator. Single IMU for Core/Main, dual IMU option for Titan. Implementation after GPS driver complete.
 
 ---
 
