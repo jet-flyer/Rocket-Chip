@@ -127,14 +127,67 @@ target_link_libraries(hal_sensors PUBLIC
 )
 
 # ============================================================================
+# Services Library (production FreeRTOS tasks)
+# ============================================================================
 
-# Main executable
-add_executable(freertos_validation
-    src/main.c
-    src/hooks.c
+add_library(services STATIC
+    src/services/SensorTask.cpp
 )
 
-# Link libraries
+target_include_directories(services PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(services PUBLIC
+    hal
+    hal_sensors
+    FreeRTOS-Kernel
+)
+
+# ============================================================================
+# Production Firmware - RocketChip
+# ============================================================================
+
+add_executable(rocketchip
+    src/main.cpp
+    src/hooks.cpp
+)
+
+target_include_directories(rocketchip PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(rocketchip
+    pico_stdlib
+    pico_multicore
+    hardware_i2c
+    hardware_spi
+    hardware_dma
+    hardware_timer
+    hardware_clocks
+    hardware_watchdog
+    hal
+    hal_sensors
+    services
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(rocketchip 1)
+pico_enable_stdio_uart(rocketchip 0)
+
+pico_add_extra_outputs(rocketchip)
+
+# ============================================================================
+# Validation Tests
+# ============================================================================
+
+# FreeRTOS Validation Test (moved from src/ to tests/validation/)
+add_executable(freertos_validation
+    tests/validation/freertos_validation/main.c
+    tests/validation/freertos_validation/hooks.c
+)
+
 target_link_libraries(freertos_validation
     pico_stdlib
     pico_multicore
@@ -147,11 +200,9 @@ target_link_libraries(freertos_validation
     FreeRTOS-Kernel-Heap4
 )
 
-# Enable USB serial output, disable UART
 pico_enable_stdio_usb(freertos_validation 1)
 pico_enable_stdio_uart(freertos_validation 0)
 
-# Create map/bin/hex/uf2 files
 pico_add_extra_outputs(freertos_validation)
 
 # Simple test executable (no FreeRTOS)
