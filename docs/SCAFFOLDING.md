@@ -123,14 +123,19 @@ rocketchip/
 │   └── mavlink/                   # MAVLink headers
 │
 ├── tests/
-│   └── smoke_tests/
+│   └── smoke_tests/               # Hardware validation tests
 │       ├── hal_validation.cpp     # HAL hardware smoke test
 │       ├── st_sensors_test.cpp    # ST driver sensors (IMU, Mag, Baro)
 │       ├── gps_test.cpp           # GPS module test
+│       ├── radio_tx_test.cpp      # Radio transmit test
+│       ├── i2c_scan.c             # I2C device scanner
 │       ├── simple_test.c          # Basic LED blink test
 │       └── imu_qwiic_test.c       # IMU QWIIC connectivity test
 │
-├── test/                          # Unit tests
+├── ground_station/                # Ground station receiver
+│   └── radio_rx.cpp               # RX bridge (RFM95W breakout on Feather M0)
+│
+├── test/                          # Unit tests (future)
 │   ├── test_state_machine.cpp
 │   ├── test_condition.cpp
 │   └── test_event_engine.cpp
@@ -168,16 +173,20 @@ rocketchip/
 
 ## CMake Build Targets
 
-| Target | Tier | Description |
+| Target | Type | Description |
 |--------|------|-------------|
-| `freertos_smp_validation` | Dev | FreeRTOS dual-core validation firmware |
+| `freertos_validation` | Dev | Main FreeRTOS + HAL validation firmware |
 | `smoke_hal_validation` | Dev | HAL hardware smoke test |
 | `smoke_st_sensors` | Dev | ST driver sensor validation (IMU, Mag, Baro) |
 | `smoke_gps` | Dev | GPS module validation |
+| `smoke_radio_tx` | Dev | Radio transmit test |
+| `smoke_imu_qwiic` | Dev | IMU QWIIC connectivity test |
+| `i2c_scan` | Dev | I2C device scanner utility |
 | `simple_test` | Dev | Basic LED blink test |
-| `rocketchip_core` | Core | Minimal - local logging only (planned) |
-| `rocketchip_main` | Main | GPS, telemetry capable (planned) |
-| `rocketchip_titan` | Titan | Full features - pyro, TVC, high-G (planned) |
+| `radio_rx` | GCS | Ground station receiver bridge (for Feather M0) |
+| `rocketchip_core` | Core | Minimal - local logging only (future) |
+| `rocketchip_main` | Main | GPS, telemetry capable (future) |
+| `rocketchip_titan` | Titan | Full features - pyro, TVC, high-G (future) |
 
 ## Testing Workflow
 
@@ -194,37 +203,36 @@ This keeps verified binaries organized with their source files while keeping the
 
 ## Implementation Status
 
-**Implemented:**
-- [x] CMakeLists.txt, build.sh, pico_sdk_import.cmake, FreeRTOS_Kernel_import.cmake
-- [x] FreeRTOSConfig.h (SMP dual-core config)
-- [x] main.c, hooks.c (FreeRTOS entry point)
-- [x] hal/HAL.h/.cpp (top-level init)
-- [x] hal/Bus.h/.cpp (I2C/SPI)
-- [x] hal/GPIO.h/.cpp, ADC.h/.cpp, PWM.h/.cpp
-- [x] hal/PIO.h/.cpp (NeoPixel), Timing.h/.cpp, UART.h/.cpp
-- [x] tests/smoke_tests/hal_validation.cpp, simple_test.c, imu_qwiic_test.c
-- [x] docs/ (SAD, SCAFFOLDING, HARDWARE, TOOLCHAIN_VALIDATION)
-- [x] standards/ (CODING_STANDARDS, DEBUG_OUTPUT, GIT_WORKFLOW)
-- [x] tools/state_to_dot.py
+**📋 For the complete development roadmap and detailed phase tracking, see `docs/SAD.md` Section 10.**
 
-**Phase 2 - In Progress:**
-- [x] hal/IMU_ISM330DHCX.cpp (ISM330DHCX 6-DOF driver via ST PID)
-- [x] hal/Mag_LIS3MDL.cpp (LIS3MDL magnetometer via ST PID)
-- [x] hal/Baro_DPS310.cpp (DPS310 barometer via ruuvi driver)
-- [x] hal/GPS_PA1010D.cpp (PA1010D GPS with NMEA parsing)
-- [ ] services/FusionTask (EKF3-derived sensor fusion)
+This section provides a high-level snapshot:
 
-**Phase 3+ - Planned:**
-- [ ] include/rocketchip/ headers (config.h, pins.h, etc.)
-- [ ] core/ modules (MissionEngine, StateMachine, EventEngine, etc.)
-- [ ] services/ tasks (SensorTask, FusionTask, LoggerTask, etc.)
-- [ ] hal/ peripherals (GPS, Radio, Storage, Display, LED, Buttons)
-- [ ] hal/ Titan features (Pyro, Servo)
-- [ ] protocol/ modules (MAVLink, CommandHandler)
-- [ ] missions/ definitions
-- [ ] utils/ helpers
-- [ ] lib/ external libraries (ap_compat, mavlink)
-- [ ] test/ unit tests
+**Phase 1: Foundation** - ✅ **COMPLETE**
+- CMake build system, FreeRTOS SMP, core HAL (Bus, GPIO, ADC, PWM, PIO, UART, Timing)
+- Smoke tests, documentation, build scripts
+- See SAD.md Section 10 for full checklist
+
+**Phase 2: Sensors** - ⚙️ **IN PROGRESS**
+- ✅ Hardware drivers complete: ISM330DHCX, LIS3MDL, DPS310, PA1010D GPS, RFM95W radio
+- ✅ Smoke tests validated on hardware
+- ✅ Ground station RX bridge implemented
+- ❌ FreeRTOS SensorTask (high-rate sampling) - pending
+- ❌ Data logging to flash - pending
+- See SAD.md Section 10 for full checklist
+
+**Phases 3-9: Mission Engine, Fusion, Storage, Telemetry, UI** - 📋 **PLANNED**
+- State machine, EKF3 sensor fusion, MAVLink telemetry, flash logging
+- See SAD.md Section 10 for full roadmap
+
+**File-Level Details:**
+
+Implemented files:
+- Build: CMakeLists.txt, build.sh, FreeRTOSConfig.h
+- HAL: HAL, Bus, GPIO, ADC, PWM, PIO, UART, Timing
+- Sensors: IMU_ISM330DHCX, Mag_LIS3MDL, Baro_DPS310, GPS_PA1010D, Radio_RFM95W
+- Tests: Multiple smoke tests (see `tests/smoke_tests/`)
+- Ground station: radio_rx.cpp
+- Docs: SAD, SCAFFOLDING, HARDWARE, standards
 
 ## Related Documents
 

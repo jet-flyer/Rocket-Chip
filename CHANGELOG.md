@@ -22,6 +22,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-16-003 | Claude Code CLI | documentation
+
+Synced SAD and SCAFFOLDING with actual implementation. Updated hardware references (ICM-20948 → ISM330DHCX + LIS3MDL, LoRa part #3179 → #3231), replaced PlatformIO references with CMake build system, updated I2C address map, removed Roman god naming from booster packs (Mercury/Juno/Vulcan → generic Telemetry/GPS/Pyro packs), added ground_station/ directory documentation, clarified radio driver status (debug bridge now, full MAVLink in Phase 7). Consolidated development checklists: SAD.md Section 10 is now single source of truth with Phase 1 marked complete and Phase 2 in progress. SCAFFOLDING references SAD for detailed roadmap.
+
+(docs/SAD.md, docs/SCAFFOLDING.md)
+
+---
+
 ### 2026-01-16-002 | Claude Code CLI | feature
 
 GPS driver (PA1010D) and LoRa radio driver (RFM95W) implemented. GPS validated on hardware - I2C connectivity and NMEA parsing working. Radio driver is a minimal wireless serial bridge for debugging only (not full MAVLink telemetry - that comes later). Includes TX smoke test and ground station RX firmware in `ground_station/`. Added raw I2C read/write to Bus for stream devices. Radio hardware test pending.
