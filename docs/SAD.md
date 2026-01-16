@@ -881,7 +881,10 @@ Hardware drivers for IMU, magnetometer, barometer, and GPS.
 - [x] Radio driver (RFM95W debug serial bridge)
 - [x] Radio smoke test (radio_tx_test)
 - [x] Ground station RX bridge (ground_station/radio_rx.cpp)
-- [ ] SensorTask (FreeRTOS task for high-rate sensor sampling)
+- [ ] **MIGRATION NEEDED:** Refactor main.c → main.cpp production entry point
+- [ ] **MIGRATION NEEDED:** Move validation main.c to tests/validation/freertos_validation/
+- [ ] SensorTask (FreeRTOS task for high-rate sensor sampling with real HAL)
+- [ ] Create src/services/ directory
 - [ ] Basic sensor data logging to flash
 
 ### Phase 3: GPS Navigation 📡 **PLANNED**
