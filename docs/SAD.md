@@ -874,18 +874,18 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 - [ ] Pre-launch ring buffer
 - [ ] USB data download
 
-### Phase 5: Fusion (Weeks 9-10)
-- [ ] AP_Math integration
-- [ ] Altitude estimation
-- [ ] Velocity integration
-- [ ] FusionTask implementation
+### Phase 5: GPS (Week 9)
+- [ ] GPS driver (PA1010D)
+- [ ] Position logging
+- [ ] Juno pack detection
 
 **=== MVP CHECKPOINT: Internal logging + state detection ===**
 
-### Phase 6: GPS (Week 11)
-- [ ] GPS driver
-- [ ] Position logging
-- [ ] Juno pack detection
+### Phase 6: Fusion (Weeks 10-11)
+- [ ] AP_Math integration
+- [ ] EKF3 core (22-state filter)
+- [ ] GSF yaw estimator
+- [ ] FusionTask implementation
 
 ### Phase 7: Telemetry (Weeks 12-13)
 - [ ] MAVLink encoder
@@ -940,7 +940,7 @@ Development builds include serial debug output via USB-CDC for diagnosing timing
 
 ## 12. Power and Performance
 
-> **[PLACEHOLDER — To be completed during Phase 5 (Fusion) when power profiling is possible]**
+> **[PLACEHOLDER — To be completed during Phase 6 (Fusion) when power profiling is possible]**
 
 - Budget: 400mAh for 30min — detailed power table TBD after hardware validation
 - WCET: Analyze Sensor/Control tasks during Phase 2 implementation
@@ -968,8 +968,8 @@ Quick reference for which SAD sections are critical for each development phase.
 | **2: Sensors** | 3-4 | Data Structures, HAL Interfaces, Task Architecture | Hardware Specs, Data Flow |
 | **3: Core Logic** | 5-6 | State Machine, Module Responsibilities, Inter-Task Comm | MissionEngine subsections |
 | **4: Storage** | 7-8 | Pre-Launch Buffer, Logging Format, Flash Allocation | Storage Interface |
-| **5: Fusion** | 9-10 | FusedState struct, FusionTask, Power/Performance | RAM Allocation |
-| **6: GPS** | 11 | GPS Interface, Juno Pack specs | Data Flow |
+| **5: GPS** | 9 | GPS Interface, Juno Pack specs | Data Flow |
+| **6: Fusion** | 10-11 | FusedState struct, FusionTask, EKF3, GSF | RAM Allocation |
 | **7: Telemetry** | 12-13 | Radio Interface, MAVLink, TelemetryTask | Mercury Pack specs |
 | **8: Polish** | 14 | Extensibility, full document review | All sections |
 
