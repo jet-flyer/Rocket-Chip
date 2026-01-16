@@ -529,6 +529,26 @@ The RP2350's dual Cortex-M33 cores enable clean separation:
                     └───────────────────────────────────────────┘
 ```
 
+### 5.4 Sensor Fusion
+
+RocketChip uses an EKF3-derived Extended Kalman Filter (22 states, wind removed) plus GSF yaw backup.
+
+| State Group | Count | Description |
+|-------------|-------|-------------|
+| Attitude | 4 | Quaternion (NED to body) |
+| Velocity | 3 | NED frame (m/s) |
+| Position | 3 | NED frame (m) |
+| Gyro bias | 3 | rad/s |
+| Accel bias | 3 | m/s² (full 3-axis, key EKF3 feature) |
+| Mag earth | 3 | Earth field NED (gauss) |
+| Mag body | 3 | Body field (gauss) |
+
+GSF (Gaussian Sum Filter) runs in parallel for emergency yaw recovery from GPS velocity when mag is unreliable.
+
+**Tier differences:** Core/Main uses single IMU at 200Hz. Titan adds second IMU with chi-squared cross-checking at 400Hz.
+
+Reference: ArduPilot AP_NavEKF3
+
 ---
 
 ## 6. State Machine
