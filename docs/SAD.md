@@ -170,10 +170,10 @@ This document defines the software architecture for RocketChip, a modular motion
 ```
 
 ### 2.4 Fault Handling
-- Watchdog: RP2350 HW WDT enabled with 5s timeout via watchdog_enable(5000, 1) in main.cpp.
-  Pseudocode:
+- Watchdog: RP2350 HW WDT enabled with 5s timeout via watchdog_enable(5000, 1) in production main.
+  Pseudocode (to be implemented in production):
   ```
-  // In main.cpp
+  // In production main
   #include <hardware/watchdog.h>
   watchdog_enable(5000, 1);  // 5s timeout, pause on debug
 
@@ -194,6 +194,8 @@ This document defines the software architecture for RocketChip, a modular motion
 
 ### 3.1 Directory Structure
 
+**Current status:** Phase 2 (Sensors) - only `hal/` and validation programs exist. The structure below shows the planned production architecture.
+
 ```
 rocketchip/
 ├── CMakeLists.txt                 # Primary build system
@@ -203,10 +205,11 @@ rocketchip/
 │   └── rocketchip/                # (Future: config.h, pins.h, features.h)
 │
 ├── src/
-│   ├── main.c                     # Entry point, task creation
-│   ├── hooks.c                    # FreeRTOS hooks
+│   ├── main.c                     # (Currently: freertos_validation test program)
+│   ├── hooks.c                    # (Currently: FreeRTOS hooks for validation)
+│   │                              # (Future: Production main entry point TBD)
 │   │
-│   ├── core/                      # Mission Engine
+│   ├── core/                      # Mission Engine (PLANNED - Phase 5+)
 │   │   ├── MissionEngine.h/.cpp   # Top-level orchestrator
 │   │   ├── StateMachine.h/.cpp    # State management
 │   │   ├── EventEngine.h/.cpp     # Event detection & dispatch
@@ -215,7 +218,7 @@ rocketchip/
 │   │   ├── ControlLoop.h/.cpp     # PID control (Titan/TVC)
 │   │   └── MissionLoader.h/.cpp   # Mission loading & validation
 │   │
-│   ├── hal/                       # Hardware Abstraction
+│   ├── hal/                       # Hardware Abstraction [EXISTS - Phase 1-2]
 │   │   ├── HAL.h/.cpp             # Top-level HAL initialization
 │   │   ├── Bus.h/.cpp             # I2C/SPI bus abstraction
 │   │   ├── GPIO.h/.cpp            # GPIO operations
@@ -229,14 +232,14 @@ rocketchip/
 │   │   ├── Baro_DPS310.h/.cpp     # DPS310 barometer driver
 │   │   ├── GPS_PA1010D.h/.cpp     # PA1010D GPS driver (NMEA)
 │   │   ├── Radio_RFM95W.h/.cpp    # RFM95W LoRa driver (debug serial bridge)
-│   │   ├── Storage.h/.cpp         # Flash storage (future)
-│   │   ├── Display.h/.cpp         # OLED driver (future)
-│   │   ├── LED.h/.cpp             # NeoPixel driver (future, using PIO for now)
-│   │   ├── Buttons.h/.cpp         # Button handling (future)
-│   │   ├── Pyro.h/.cpp            # Pyro channels (Titan, future)
-│   │   └── Servo.h/.cpp           # Servo PWM (Titan, future)
+│   │   ├── Storage.h/.cpp         # Flash storage (PLANNED)
+│   │   ├── Display.h/.cpp         # OLED driver (PLANNED)
+│   │   ├── LED.h/.cpp             # NeoPixel driver (PLANNED)
+│   │   ├── Buttons.h/.cpp         # Button handling (PLANNED)
+│   │   ├── Pyro.h/.cpp            # Pyro channels (PLANNED - Titan tier)
+│   │   └── Servo.h/.cpp           # Servo PWM (PLANNED - Titan tier)
 │   │
-│   ├── services/                  # FreeRTOS Tasks
+│   ├── services/                  # FreeRTOS Tasks (PLANNED - Phase 3+)
 │   │   ├── SensorTask.h/.cpp      # High-rate sensor sampling
 │   │   ├── FusionTask.h/.cpp      # AHRS, altitude, velocity
 │   │   ├── MissionTask.h/.cpp     # Event/state processing
@@ -245,11 +248,11 @@ rocketchip/
 │   │   ├── UITask.h/.cpp          # Display, LED, buttons
 │   │   └── ControlTask.h/.cpp     # TVC control loop (Titan)
 │   │
-│   ├── protocol/                  # Communication protocols
+│   ├── protocol/                  # Communication protocols (PLANNED - Phase 7)
 │   │   ├── MAVLink.h/.cpp         # MAVLink encoding/decoding
 │   │   └── CommandHandler.h/.cpp  # USB/Serial command interface
 │   │
-│   ├── missions/                  # Built-in mission definitions
+│   ├── missions/                  # Built-in mission definitions (PLANNED - Phase 5+)
 │   │   ├── Missions.h             # Mission registry
 │   │   ├── Mission_Rocket.cpp     # Basic model rocket
 │   │   ├── Mission_HPR.cpp        # High-power dual deploy
@@ -257,13 +260,13 @@ rocketchip/
 │   │   ├── Mission_HAB.cpp        # High-altitude balloon
 │   │   └── Mission_Freeform.cpp   # Just log everything
 │   │
-│   └── utils/                     # Utilities
+│   └── utils/                     # Utilities (PLANNED - Phase 3+)
 │       ├── RingBuffer.h           # Lock-free ring buffer
 │       ├── MovingAverage.h        # Signal smoothing
 │       ├── PID.h                  # PID controller
 │       └── CRC.h                  # CRC calculations
 │
-├── lib/                           # External libraries
+├── lib/                           # External libraries (PLANNED - Phase 4+)
 │   ├── ap_compat/                 # ArduPilot compatibility shim
 │   │   ├── AP_HAL_Compat.h        # HAL function stubs
 │   │   └── AP_HAL_Compat.cpp
@@ -271,7 +274,7 @@ rocketchip/
 │   ├── Filter/                    # ArduPilot filters (submodule)
 │   └── mavlink/                   # MAVLink headers
 │
-├── tests/                         # Tests
+├── tests/                         # Tests [EXISTS - Phase 1-2]
 │   └── smoke_tests/               # Hardware validation tests
 │       ├── hal_validation.cpp     # Comprehensive HAL test
 │       ├── st_sensors_test.cpp    # ST driver sensor test
@@ -281,10 +284,10 @@ rocketchip/
 │       ├── imu_qwiic_test.c       # IMU connectivity test
 │       └── i2c_scan.c             # I2C device scanner
 │
-├── ground_station/                # Ground station receiver
+├── ground_station/                # Ground station receiver [EXISTS - Phase 2]
 │   └── radio_rx.cpp               # RX bridge (RFM95W breakout on Feather M0)
 │
-└── docs/                          # Documentation
+└── docs/                          # Documentation [EXISTS - Phase 1]
     ├── SAD.md                     # This document
     ├── SCAFFOLDING.md             # Implementation status
     ├── HARDWARE.md                # Hardware reference
@@ -854,7 +857,7 @@ Build system, FreeRTOS, and core HAL primitives.
 
 - [x] CMake build system with Pico SDK
 - [x] FreeRTOS SMP configuration (dual-core)
-- [x] Main entry point and hooks (main.c, hooks.c)
+- [x] FreeRTOS validation program (main.c, hooks.c for freertos_validation)
 - [x] HAL initialization (HAL.h/.cpp)
 - [x] Bus abstraction (Bus.h/.cpp for I2C/SPI)
 - [x] GPIO, ADC, PWM, UART, PIO, Timing utilities
@@ -863,6 +866,7 @@ Build system, FreeRTOS, and core HAL primitives.
 - [x] Build script (build.sh)
 - [x] State visualization tool (tools/state_to_dot.py)
 - [x] Serial debug output via USB CDC
+- [ ] Production main entry point (deferred to Phase 5+)
 - [ ] LED driver (using PIO for now, dedicated driver future)
 - [ ] Button handling with debounce (future)
 
