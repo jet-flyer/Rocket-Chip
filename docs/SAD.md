@@ -677,10 +677,6 @@ landing = "state:DESCENT AND accel_mag < 1.1 AND sustained:5000ms"
 
 The project uses CMake with the Pico SDK and FreeRTOS-Kernel.
 
-**Main executable:** `freertos_validation` - FreeRTOS validation with HAL
-**Smoke tests:** Multiple hardware validation targets (see tests/smoke_tests/)
-**Ground station:** `radio_rx` - Ground station receiver bridge
-
 **Build commands:**
 ```bash
 mkdir build && cd build
@@ -688,15 +684,23 @@ cmake ..
 make -j$(nproc)
 ```
 
-**Available targets:**
-- `freertos_validation` - Main FreeRTOS + HAL test
-- `smoke_hal_validation` - HAL validation test
+**Current status:** Phase 2 (Sensors) - all current targets are development/validation programs. The production application will be added in later phases.
+
+**Development/validation targets:**
+- `freertos_validation` - FreeRTOS SMP + basic HAL validation
+- `smoke_hal_validation` - Comprehensive HAL smoke test
 - `smoke_st_sensors` - ST driver sensor test (IMU, mag, baro)
-- `smoke_gps` - GPS driver test
-- `smoke_radio_tx` - Radio transmit test
-- `smoke_imu_qwiic` - IMU connectivity test
-- `i2c_scan` - I2C device scanner
-- `radio_rx` - Ground station receiver (for Feather M0)
+- `smoke_gps` - GPS driver test (PA1010D)
+- `smoke_radio_tx` - Radio transmit test (RFM95W)
+- `smoke_imu_qwiic` - IMU connectivity verification
+- `simple_test` - Minimal hardware validation
+- `i2c_scan` - I2C bus scanner utility
+
+**Ground station tools:**
+- `radio_rx` - Ground station receiver bridge (for Feather M0)
+
+**Future production target** (Phase 5+):
+- `rocketchip` - Main application with Mission Engine (not yet implemented)
 
 **Feature flags** (future - not yet implemented):
 ```cmake
