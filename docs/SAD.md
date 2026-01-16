@@ -861,31 +861,29 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 - [ ] SensorTask implementation
 - [ ] Basic sensor data logging to serial
 
-### Phase 3: Core Logic (Weeks 5-6)
+### Phase 3: GPS (Week 5)
+- [ ] GPS driver (PA1010D)
+- [ ] Position logging
+- [ ] Juno pack detection
+
+### Phase 4: Fusion (Weeks 6-7)
+- [ ] AP_Math integration
+- [ ] EKF3 core (22-state filter)
+- [ ] GSF yaw estimator
+- [ ] FusionTask implementation
+
+### Phase 5: Core Logic (Weeks 8-9)
 - [ ] StateMachine implementation
 - [ ] Condition parser/evaluator
 - [ ] EventEngine
 - [ ] ActionExecutor (LED, beep)
 - [ ] Basic rocket mission
 
-### Phase 4: Storage (Weeks 7-8)
+### Phase 6: Storage (Weeks 10-11)
 - [ ] Flash filesystem (LittleFS)
 - [ ] LoggerTask implementation
 - [ ] Pre-launch ring buffer
 - [ ] USB data download
-
-**=== MVP CHECKPOINT: Internal logging + state detection ===**
-
-### Phase 5: GPS (Week 9)
-- [ ] GPS driver (PA1010D)
-- [ ] Position logging
-- [ ] Juno pack detection
-
-### Phase 6: Fusion (Weeks 10-11)
-- [ ] AP_Math integration
-- [ ] EKF3 core (22-state filter)
-- [ ] GSF yaw estimator
-- [ ] FusionTask implementation
 
 ### Phase 7: Telemetry (Weeks 12-13)
 - [ ] MAVLink encoder
@@ -898,8 +896,6 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 - [ ] Menu system
 - [ ] Calibration workflow
 - [ ] Documentation
-
-**=== MVP+ CHECKPOINT: GPS + Telemetry demo-ready ===**
 
 ### Future (Titan):
 - [ ] ControlTask (PID)
@@ -940,7 +936,7 @@ Development builds include serial debug output via USB-CDC for diagnosing timing
 
 ## 12. Power and Performance
 
-> **[PLACEHOLDER — To be completed during Phase 6 (Fusion) when power profiling is possible]**
+> **[PLACEHOLDER — To be completed during Phase 4 (Fusion) when power profiling is possible]**
 
 - Budget: 400mAh for 30min — detailed power table TBD after hardware validation
 - WCET: Analyze Sensor/Control tasks during Phase 2 implementation
@@ -966,10 +962,10 @@ Quick reference for which SAD sections are critical for each development phase.
 |-------|-------|-------------------|-------------------|
 | **1: Foundation** | 1-2 | Build Config, Task Priorities, HAL Interfaces | Directory Structure, Fault Handling |
 | **2: Sensors** | 3-4 | Data Structures, HAL Interfaces, Task Architecture | Hardware Specs, Data Flow |
-| **3: Core Logic** | 5-6 | State Machine, Module Responsibilities, Inter-Task Comm | MissionEngine subsections |
-| **4: Storage** | 7-8 | Pre-Launch Buffer, Logging Format, Flash Allocation | Storage Interface |
-| **5: GPS** | 9 | GPS Interface, Juno Pack specs | Data Flow |
-| **6: Fusion** | 10-11 | FusedState struct, FusionTask, EKF3, GSF | RAM Allocation |
+| **3: GPS** | 5 | GPS Interface, Juno Pack specs | Data Flow |
+| **4: Fusion** | 6-7 | FusedState struct, FusionTask, EKF3, GSF | RAM Allocation |
+| **5: Core Logic** | 8-9 | State Machine, Module Responsibilities, Inter-Task Comm | MissionEngine subsections |
+| **6: Storage** | 10-11 | Pre-Launch Buffer, Logging Format, Flash Allocation | Storage Interface |
 | **7: Telemetry** | 12-13 | Radio Interface, MAVLink, TelemetryTask | Mercury Pack specs |
 | **8: Polish** | 14 | Extensibility, full document review | All sections |
 
