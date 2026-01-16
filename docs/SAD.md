@@ -1,9 +1,9 @@
 # RocketChip Software Architecture Document (SAD) v1.0
 
 **Status:** Approved for Phase 1 Development
-**Last Updated:** 2026-01-09
+**Last Updated:** 2026-01-16
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
-**Development Environment:** PlatformIO + Pico SDK + FreeRTOS
+**Development Environment:** CMake + Pico SDK + FreeRTOS
 **Hardware Reference:** `docs/HARDWARE.md` (authoritative source)
 
 ---
@@ -41,9 +41,9 @@ This document defines the software architecture for RocketChip, a modular motion
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           CORE BOARD                                │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌───────────┐  │
-│  │   RP2350    │  │  ICM20948   │  │   DPS310    │  │  Flash    │  │
-│  │  Dual M33   │◄─┤  9-DoF IMU  │  │  Barometer  │  │  Storage  │  │
-│  │  + 8MB PSRAM│  │  (I2C/SPI)  │  │   (I2C)     │  │  (QSPI)   │  │
+│  │   RP2350    │  │ ISM330DHCX  │  │   DPS310    │  │  Flash    │  │
+│  │  Dual M33   │◄─┤ + LIS3MDL   │  │  Barometer  │  │  Storage  │  │
+│  │  + 8MB PSRAM│  │  9-DoF IMU  │  │   (I2C)     │  │  (QSPI)   │  │
 │  └──────┬──────┘  └─────────────┘  └─────────────┘  └───────────┘  │
 │         │                                                           │
 │    ┌────┴────┐   ┌─────────────┐   ┌─────────────┐                 │
@@ -60,10 +60,10 @@ This document defines the software architecture for RocketChip, a modular motion
         ┌─────────────────────┼─────────────────────┐
         ▼                     ▼                     ▼
 ┌───────────────┐    ┌───────────────┐    ┌───────────────┐
-│ MERCURY PACK  │    │  JUNO PACK    │    │ VULCAN PACK   │
-│  (Telemetry)  │    │    (GPS)      │    │  (Pyro/TVC)   │
+│ TELEMETRY     │    │  GPS PACK     │    │  PYRO/TVC     │
+│     PACK      │    │               │    │     PACK      │
 ├───────────────┤    ├───────────────┤    ├───────────────┤
-│  RFM95/96     │    │  PA1010D or   │    │  Pyro Ch x2   │
+│  RFM95W       │    │  PA1010D or   │    │  Pyro Ch x2   │
 │  LoRa Radio   │    │  similar GPS  │    │  Servo x2     │
 │  915MHz/868MHz│    │  + Backup Baro│    │  Arm Switch   │
 └───────────────┘    └───────────────┘    └───────────────┘
@@ -78,7 +78,7 @@ This document defines the software architecture for RocketChip, a modular motion
 | Function | Part | Adafruit P/N | Specs | Interface |
 |----------|------|--------------|-------|-----------|
 | MCU | Feather RP2350 HSTX | #6130 | Dual M33 @ 150MHz, 520KB SRAM, 8MB PSRAM | - |
-| IMU | ICM-20948 | #4554 | 9-DoF, ±16g accel, ±2000°/s gyro, mag | I2C (0x68/0x69) |
+| IMU | ISM330DHCX + LIS3MDL FeatherWing | #4569 | 9-DoF, ISM330DHCX accel/gyro + LIS3MDL mag | I2C (0x6A/0x6B, 0x1C/0x1E) |
 | Barometer | DPS310 | #4494 | ±1Pa precision, temperature | I2C (0x77/0x76) |
 | Battery | Li-Ion 400mAh | #3898 | 3.7V nominal | JST-PH |
 
@@ -86,8 +86,8 @@ This document defines the software architecture for RocketChip, a modular motion
 
 | Pack | Part | Adafruit P/N | Specs | Interface |
 |------|------|--------------|-------|-----------|
-| Juno (GPS) | PA1010D Mini GPS | #4415 | 10Hz, -165dBm sensitivity | I2C (0x10) |
-| Mercury (Telemetry) | LoRa FeatherWing 915MHz | #3179 | 915MHz ISM, ~2km range | SPI |
+| GPS | PA1010D Mini GPS | #4415 | 10Hz, -165dBm sensitivity | I2C (0x10) |
+| Telemetry | RFM95W LoRa FeatherWing 915MHz | #3231 | 915MHz ISM, ~2km range | SPI |
 
 #### Titan Tier Upgrades (Future)
 
@@ -100,11 +100,12 @@ This document defines the software architecture for RocketChip, a modular motion
 
 | Address | Device | Notes |
 |---------|--------|-------|
-| 0x68/0x69 | ICM-20948 | Primary IMU |
+| 0x6A/0x6B | ISM330DHCX | Primary IMU accel/gyro |
+| 0x1C/0x1E | LIS3MDL | Primary magnetometer |
 | 0x77/0x76 | DPS310 | Barometer |
-| 0x10 | PA1010D | GPS (Juno pack) |
+| 0x10 | PA1010D | GPS (GPS pack) |
+| 0x68/0x69 | ICM-20948 | Auxiliary IMU (if used) |
 | 0x6A/0x6B | LSM6DSOX | Auxiliary IMU (if used) |
-| 0x1C/0x1E | LIS3MDL | Auxiliary mag (if used) |
 
 **Known Conflicts:** DPS310 and BMP280/BMP580 share 0x77/0x76 - cannot use simultaneously without multiplexer.
 
@@ -196,17 +197,14 @@ This document defines the software architecture for RocketChip, a modular motion
 ```
 rocketchip/
 ├── CMakeLists.txt                 # Primary build system
-├── platformio.ini                 # PlatformIO configuration
+├── FreeRTOSConfig.h               # FreeRTOS configuration
 │
 ├── include/
-│   └── rocketchip/
-│       ├── config.h               # Build configuration, feature flags
-│       ├── version.h              # Version info
-│       ├── pins.h                 # Pin definitions per board variant
-│       └── features.h             # Feature detection macros
+│   └── rocketchip/                # (Future: config.h, pins.h, features.h)
 │
 ├── src/
-│   ├── main.cpp                   # Entry point, task creation
+│   ├── main.c                     # Entry point, task creation
+│   ├── hooks.c                    # FreeRTOS hooks
 │   │
 │   ├── core/                      # Mission Engine
 │   │   ├── MissionEngine.h/.cpp   # Top-level orchestrator
@@ -218,21 +216,25 @@ rocketchip/
 │   │   └── MissionLoader.h/.cpp   # Mission loading & validation
 │   │
 │   ├── hal/                       # Hardware Abstraction
-│   │   ├── HAL.h                  # Abstract interfaces
-│   │   ├── BoardDetect.h/.cpp     # Runtime board/pack detection
-│   │   ├── IMU.h                  # IMU interface
-│   │   ├── IMU_ICM20948.cpp       # ICM20948 driver
-│   │   ├── Baro.h                 # Barometer interface
-│   │   ├── Baro_DPS310.cpp        # DPS310 driver
-│   │   ├── GPS.h/.cpp             # GPS interface + driver
-│   │   ├── Radio.h                # Radio interface
-│   │   ├── Radio_RFM95.cpp        # LoRa driver
-│   │   ├── Storage.h/.cpp         # Flash storage abstraction
-│   │   ├── Display.h/.cpp         # OLED driver (optional)
-│   │   ├── LED.h/.cpp             # NeoPixel driver
-│   │   ├── Buttons.h/.cpp         # Button handling
-│   │   ├── Pyro.h/.cpp            # Pyro channels (Titan)
-│   │   └── Servo.h/.cpp           # Servo PWM (Titan)
+│   │   ├── HAL.h/.cpp             # Top-level HAL initialization
+│   │   ├── Bus.h/.cpp             # I2C/SPI bus abstraction
+│   │   ├── GPIO.h/.cpp            # GPIO operations
+│   │   ├── ADC.h/.cpp             # Analog input
+│   │   ├── PWM.h/.cpp             # PWM output
+│   │   ├── PIO.h/.cpp             # PIO operations (NeoPixel, etc.)
+│   │   ├── UART.h/.cpp            # UART operations
+│   │   ├── Timing.h/.cpp          # Timing utilities
+│   │   ├── IMU_ISM330DHCX.h/.cpp  # ISM330DHCX accel/gyro driver
+│   │   ├── Mag_LIS3MDL.h/.cpp     # LIS3MDL magnetometer driver
+│   │   ├── Baro_DPS310.h/.cpp     # DPS310 barometer driver
+│   │   ├── GPS_PA1010D.h/.cpp     # PA1010D GPS driver (NMEA)
+│   │   ├── Radio_RFM95W.h/.cpp    # RFM95W LoRa driver (debug serial bridge)
+│   │   ├── Storage.h/.cpp         # Flash storage (future)
+│   │   ├── Display.h/.cpp         # OLED driver (future)
+│   │   ├── LED.h/.cpp             # NeoPixel driver (future, using PIO for now)
+│   │   ├── Buttons.h/.cpp         # Button handling (future)
+│   │   ├── Pyro.h/.cpp            # Pyro channels (Titan, future)
+│   │   └── Servo.h/.cpp           # Servo PWM (Titan, future)
 │   │
 │   ├── services/                  # FreeRTOS Tasks
 │   │   ├── SensorTask.h/.cpp      # High-rate sensor sampling
@@ -269,15 +271,24 @@ rocketchip/
 │   ├── Filter/                    # ArduPilot filters (submodule)
 │   └── mavlink/                   # MAVLink headers
 │
-├── test/                          # Unit tests
-│   ├── test_state_machine.cpp
-│   ├── test_condition.cpp
-│   └── test_event_engine.cpp
+├── tests/                         # Tests
+│   └── smoke_tests/               # Hardware validation tests
+│       ├── hal_validation.cpp     # Comprehensive HAL test
+│       ├── st_sensors_test.cpp    # ST driver sensor test
+│       ├── gps_test.cpp           # GPS driver test
+│       ├── radio_tx_test.cpp      # Radio transmit test
+│       ├── simple_test.c          # Basic validation
+│       ├── imu_qwiic_test.c       # IMU connectivity test
+│       └── i2c_scan.c             # I2C device scanner
+│
+├── ground_station/                # Ground station receiver
+│   └── radio_rx.cpp               # RX bridge (RFM95W breakout on Feather M0)
 │
 └── docs/                          # Documentation
     ├── SAD.md                     # This document
-    ├── API.md                     # API reference
-    └── Missions.md                # Mission format specification
+    ├── SCAFFOLDING.md             # Implementation status
+    ├── HARDWARE.md                # Hardware reference
+    └── standards/                 # Coding standards
 ```
 
 ### 3.2 Module Responsibilities
@@ -377,7 +388,7 @@ struct MissionState {
 ### 4.2 HAL Interfaces
 
 ```cpp
-// IMU interface - implementations: IMU_ICM20948, IMU_LSM6DSO, etc.
+// IMU interface - implementations: IMU_ISM330DHCX, IMU_ICM20948, IMU_LSM6DSO, etc.
 class IMU {
 public:
     virtual bool begin() = 0;
@@ -662,56 +673,39 @@ landing = "state:DESCENT AND accel_mag < 1.1 AND sustained:5000ms"
 #endif
 ```
 
-### 7.2 PlatformIO Environments
+### 7.2 CMake Build System
 
-```ini
-; platformio.ini
+The project uses CMake with the Pico SDK and FreeRTOS-Kernel.
 
-[env]
-platform = https://github.com/maxgerhardt/platform-raspberrypi.git
-framework = 
-board = pico2
-board_build.core = earlephilhower
+**Main executable:** `freertos_validation` - FreeRTOS validation with HAL
+**Smoke tests:** Multiple hardware validation targets (see tests/smoke_tests/)
+**Ground station:** `radio_rx` - Ground station receiver bridge
 
-build_flags = 
-    -std=c++17
-    -DPICO_BOARD=pico2
-    -DUSE_FREERTOS=1
+**Build commands:**
+```bash
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+```
 
-lib_deps = 
-    freertos/FreeRTOS-Kernel
+**Available targets:**
+- `freertos_validation` - Main FreeRTOS + HAL test
+- `smoke_hal_validation` - HAL validation test
+- `smoke_st_sensors` - ST driver sensor test (IMU, mag, baro)
+- `smoke_gps` - GPS driver test
+- `smoke_radio_tx` - Radio transmit test
+- `smoke_imu_qwiic` - IMU connectivity test
+- `i2c_scan` - I2C device scanner
+- `radio_rx` - Ground station receiver (for Feather M0)
 
-; === CORE (minimal) ===
-[env:core]
-build_flags = 
-    ${env.build_flags}
-    -DROCKETCHIP_TIER=1
-    -DENABLE_TELEMETRY=0
-    -DENABLE_DISPLAY=0
-
-; === MAIN (standard) ===
-[env:main]
-build_flags = 
-    ${env.build_flags}
-    -DROCKETCHIP_TIER=2
-
-; === TITAN (full features) ===
-[env:titan]
-build_flags = 
-    ${env.build_flags}
-    -DROCKETCHIP_TIER=3
-    -DHAS_PYRO=1
-    -DHAS_TVC=1
-    -DENABLE_CONTROL_LOOP=1
-
-; === Development/Debug ===
-[env:dev]
-extends = env:main
-build_type = debug
-build_flags = 
-    ${env:main.build_flags}
-    -DDEBUG=1
-    -DLOG_LEVEL=4
+**Feature flags** (future - not yet implemented):
+```cmake
+# To be added when tier system is implemented
+add_compile_definitions(
+    ROCKETCHIP_TIER=2
+    ENABLE_TELEMETRY=1
+    ENABLE_MAVLINK=1
+)
 ```
 
 ---
@@ -723,7 +717,8 @@ build_flags =
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │    IMU      │     │    Baro     │     │    GPS      │
-│  ICM20948   │     │   DPS310    │     │  PA1010D    │
+│ ISM330DHCX  │     │   DPS310    │     │  PA1010D    │
+│ + LIS3MDL   │     │             │     │             │
 └──────┬──────┘     └──────┬──────┘     └──────┬──────┘
        │ 1kHz              │ 50Hz              │ 10Hz
        └───────────────────┴───────────────────┘
@@ -848,60 +843,115 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 ## 10. Development Phases
 
-### Phase 1: Foundation (Weeks 1-2)
-- [ ] PlatformIO project setup with FreeRTOS
-- [ ] Basic HAL: GPIO, I2C, SPI initialization
-- [ ] LED driver (NeoPixel)
-- [ ] Button handling with debounce
-- [ ] Serial debug output
+This section tracks the implementation roadmap. See `docs/SCAFFOLDING.md` for detailed file-level status.
 
-### Phase 2: Sensors (Weeks 3-4)
-- [ ] IMU driver (ICM20948)
-- [ ] Barometer driver (DPS310)
-- [ ] SensorTask implementation
-- [ ] Basic sensor data logging to serial
+### Phase 1: Foundation ✅ **COMPLETE**
+Build system, FreeRTOS, and core HAL primitives.
 
-### Phase 3: GPS (Week 5)
-- [ ] GPS driver (PA1010D)
+- [x] CMake build system with Pico SDK
+- [x] FreeRTOS SMP configuration (dual-core)
+- [x] Main entry point and hooks (main.c, hooks.c)
+- [x] HAL initialization (HAL.h/.cpp)
+- [x] Bus abstraction (Bus.h/.cpp for I2C/SPI)
+- [x] GPIO, ADC, PWM, UART, PIO, Timing utilities
+- [x] Smoke tests (hal_validation, simple_test, i2c_scan, imu_qwiic_test)
+- [x] Documentation (SAD, SCAFFOLDING, HARDWARE, standards)
+- [x] Build script (build.sh)
+- [x] State visualization tool (tools/state_to_dot.py)
+- [x] Serial debug output via USB CDC
+- [ ] LED driver (using PIO for now, dedicated driver future)
+- [ ] Button handling with debounce (future)
+
+### Phase 2: Sensors ⚙️ **IN PROGRESS**
+Hardware drivers for IMU, magnetometer, barometer, and GPS.
+
+- [x] ISM330DHCX 6-DoF IMU driver (I2C via ST driver)
+- [x] LIS3MDL magnetometer driver (I2C via ST driver)
+- [x] DPS310 barometer driver (I2C via ruuvi driver)
+- [x] PA1010D GPS driver (I2C with NMEA parsing)
+- [x] ST sensor smoke tests (st_sensors_test, gps_test)
+- [x] Radio driver (RFM95W debug serial bridge)
+- [x] Radio smoke test (radio_tx_test)
+- [x] Ground station RX bridge (ground_station/radio_rx.cpp)
+- [ ] SensorTask (FreeRTOS task for high-rate sensor sampling)
+- [ ] Basic sensor data logging to flash
+
+### Phase 3: GPS Navigation 📡 **PLANNED**
+GPS integration and sensor fusion preparation.
+
 - [ ] Position logging
-- [ ] Juno pack detection
+- [ ] GPS pack runtime detection
+- [ ] GPS + barometer fusion for altitude
 
-### Phase 4: Fusion (Weeks 6-7)
+### Phase 4: Sensor Fusion 🧭 **PLANNED**
+AHRS and state estimation.
+
 - [ ] AP_Math integration
-- [ ] EKF3 core (22-state filter)
-- [ ] GSF yaw estimator
-- [ ] FusionTask implementation
+- [ ] EKF3 core (22-state filter, wind removed)
+- [ ] GSF yaw estimator (backup for mag failures)
+- [ ] FusionTask (200Hz AHRS, altitude, velocity)
+- [ ] FusedState data structure
 
-### Phase 5: Core Logic (Weeks 8-9)
+### Phase 5: Mission Engine 🚀 **PLANNED**
+Core flight logic and state machine.
+
 - [ ] StateMachine implementation
 - [ ] Condition parser/evaluator
 - [ ] EventEngine
-- [ ] ActionExecutor (LED, beep)
-- [ ] Basic rocket mission
+- [ ] ActionExecutor (LED, beep, logging triggers)
+- [ ] MissionTask (100Hz event processing)
+- [ ] Basic rocket mission definition
+- [ ] State transition validation
 
-### Phase 6: Storage (Weeks 10-11)
+### Phase 6: Data Logging 💾 **PLANNED**
+Persistent storage and pre-launch buffering.
+
 - [ ] Flash filesystem (LittleFS)
-- [ ] LoggerTask implementation
-- [ ] Pre-launch ring buffer
-- [ ] USB data download
+- [ ] LoggerTask implementation (50Hz buffered writes)
+- [ ] Pre-launch ring buffer (PSRAM)
+- [ ] USB data download interface
+- [ ] Log format configuration (MAVLink binary, CSV, MATLAB)
 
-### Phase 7: Telemetry (Weeks 12-13)
-- [ ] MAVLink encoder
-- [ ] LoRa driver (RFM95)
-- [ ] TelemetryTask
-- [ ] QGroundControl testing
+### Phase 7: Telemetry 📶 **PLANNED**
+Full MAVLink telemetry and ground station integration.
 
-### Phase 8: Polish (Week 14)
-- [ ] Display driver (optional OLED)
-- [ ] Menu system
-- [ ] Calibration workflow
-- [ ] Documentation
+- [ ] MAVLink message encoder/decoder
+- [ ] Radio driver enhancement (full MAVLink packets)
+- [ ] TelemetryTask (10Hz downlink)
+- [ ] QGroundControl integration testing
+- [ ] Mission Planner compatibility
+- [ ] Ground station GUI (optional)
 
-### Future (Titan):
-- [ ] ControlTask (PID)
-- [ ] Servo driver
-- [ ] Pyro driver + safety interlocks
+### Phase 8: User Interface 🖥️ **PLANNED**
+Display, menus, and calibration.
+
+- [ ] Display driver (optional OLED via I2C)
+- [ ] UITask (30Hz display/LED/button update)
+- [ ] Menu system (mission select, calibration, settings)
+- [ ] Calibration workflow (IMU, mag, baro)
+- [ ] LED status patterns
+- [ ] Button handling (arm, disarm, menu navigation)
+
+### Phase 9: Polish & Documentation 📚 **PLANNED**
+Final integration and documentation.
+
+- [ ] Full system integration testing
+- [ ] Bench test procedures
+- [ ] Flight test procedures
+- [ ] User manual
+- [ ] API documentation
+- [ ] Tutorial videos
+
+### Future: Titan Tier Features 🔥 **DEFERRED**
+Advanced control and high-power rocketry features.
+
+- [ ] ControlTask (500Hz PID for TVC)
+- [ ] Servo driver (PIO-based PWM)
+- [ ] Pyro driver with safety interlocks
+- [ ] High-G accelerometer (ADXL375)
+- [ ] Dual IMU cross-checking
 - [ ] AP_AHRS_DCM integration
+- [ ] CAN bus for distributed avionics
 
 ---
 
@@ -962,11 +1012,11 @@ Quick reference for which SAD sections are critical for each development phase.
 |-------|-------|-------------------|-------------------|
 | **1: Foundation** | 1-2 | Build Config, Task Priorities, HAL Interfaces | Directory Structure, Fault Handling |
 | **2: Sensors** | 3-4 | Data Structures, HAL Interfaces, Task Architecture | Hardware Specs, Data Flow |
-| **3: GPS** | 5 | GPS Interface, Juno Pack specs | Data Flow |
+| **3: GPS** | 5 | GPS Interface, GPS Pack specs | Data Flow |
 | **4: Fusion** | 6-7 | FusedState struct, FusionTask, EKF3, GSF | RAM Allocation |
 | **5: Core Logic** | 8-9 | State Machine, Module Responsibilities, Inter-Task Comm | MissionEngine subsections |
 | **6: Storage** | 10-11 | Pre-Launch Buffer, Logging Format, Flash Allocation | Storage Interface |
-| **7: Telemetry** | 12-13 | Radio Interface, MAVLink, TelemetryTask | Mercury Pack specs |
+| **7: Telemetry** | 12-13 | Radio Interface, MAVLink, TelemetryTask | Telemetry Pack specs |
 | **8: Polish** | 14 | Extensibility, full document review | All sections |
 
 *Section numbers will be updated once final numbering is established.*
