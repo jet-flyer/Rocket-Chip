@@ -6,8 +6,9 @@
 Phase 2 (Sensor Integration) - All sensors complete. Radio telemetry pending test, then EKF3 fusion.
 
 ## Recently Completed
+- [x] Production architecture migration (src/main.cpp + src/services/SensorTask) - **hardware verification pending**
 - [x] GPS driver (PA1010D) - NMEA parsing validated on hardware
-- [x] Radio driver (RFM95W) - LoRa TX/RX for wireless debugging (pending hardware test)
+- [x] Radio driver (RFM95W) - LoRa TX/RX for wireless debugging - **hardware verification pending**
 - [x] Ground station receiver firmware created (ground_station/)
 - [x] Council review: EKF3 sensor fusion architecture approved
 - [x] ST platform-independent driver integration (council-approved)
@@ -20,8 +21,9 @@ Phase 2 (Sensor Integration) - All sensors complete. Radio telemetry pending tes
 - [x] Hardware debugging workflow (Debug Probe + OpenOCD + GDB)
 
 ## Active Work
-- [ ] Radio link hardware validation (two Feather RP2350 + RFM95W FeatherWings)
-- [ ] Sensor fusion (EKF3-derived) - all sensors ready, implementation next
+- [ ] Hardware verification: rocketchip firmware (production main.cpp + SensorTask)
+- [ ] Hardware verification: radio link (two Feather RP2350 + RFM95W FeatherWings)
+- [ ] Sensor fusion (EKF3-derived) - all sensors ready, implementation after hw verification
 
 ## Blocked On
 Nothing currently.

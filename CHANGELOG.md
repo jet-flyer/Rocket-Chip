@@ -22,6 +22,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-16-004 | Claude Code CLI | architecture, refactor
+
+Migrated from validation scaffolding to production architecture. Moved FreeRTOS validation code (main.c, hooks.c) to `tests/validation/freertos_validation/` as reference. Created production entry point `src/main.cpp` with HAL initialization and FreeRTOS task creation. Implemented `SensorTask` in `src/services/` using real HAL drivers (ISM330DHCX, LIS3MDL, DPS310) at 1kHz/100Hz/50Hz rates respectively, with thread-safe shared `SensorData` struct. Added `services` library and `rocketchip` target to CMakeLists.txt. Enabled mutex support in FreeRTOSConfig.h. Both targets build: rocketchip (70KB) and freertos_validation (52KB).
+
+(src/main.cpp, src/services/SensorTask.*, tests/validation/freertos_validation/, CMakeLists.txt, FreeRTOSConfig.h)
+
+*Note: Re-implemented after previous Claude session error caused work loss. Review for any discrepancies from original intent.*
+
+---
+
 ### 2026-01-16-003 | Claude Code CLI | documentation
 
 Synced SAD and SCAFFOLDING with actual implementation. Updated hardware references (ICM-20948 → ISM330DHCX + LIS3MDL, LoRa part #3179 → #3231), replaced PlatformIO references with CMake build system, updated I2C address map, removed Roman god naming from booster packs (Mercury/Juno/Vulcan → generic Telemetry/GPS/Pyro packs), added ground_station/ directory documentation, clarified radio driver status (debug bridge now, full MAVLink in Phase 7). Consolidated development checklists: SAD.md Section 10 is now single source of truth with Phase 1 marked complete and Phase 2 in progress. SCAFFOLDING references SAD for detailed roadmap.

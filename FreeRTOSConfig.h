@@ -55,6 +55,12 @@
 #define configUSE_CO_ROUTINES                   0
 #define configMAX_CO_ROUTINE_PRIORITIES         2
 
+/* Synchronization primitives */
+#define configUSE_MUTEXES                       1
+#define configUSE_RECURSIVE_MUTEXES             1
+#define configUSE_COUNTING_SEMAPHORES           1
+#define configUSE_QUEUE_SETS                    0
+
 /* Software timer configuration */
 #define configUSE_TIMERS                        1
 #define configTIMER_TASK_PRIORITY               3
