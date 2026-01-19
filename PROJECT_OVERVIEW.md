@@ -18,9 +18,11 @@ Open-source. Modular. Built to be extended.
 
 The Core board uses a castellated design allowing it to be soldered directly onto carrier boards or used standalone.
 
-### Gemini Configuration
+### Gemini Configuration (Stretch Goal)
 
 **Gemini** is a carrier board that mounts two identical Core modules to create a fault-tolerant redundant flight computer. Named for "twins" (Latin) and NASA heritage, Gemini is independent of the tier system—it's specifically for pairing Core modules.
+
+> **Roadmap:** Gemini is a **post-crowdfunding stretch goal**. Nearer-term stretch goals include Betaflight port and additional Booster Packs. Gemini development begins after successful delivery of Core/Main tiers.
 
 | Feature | Description |
 |---------|-------------|

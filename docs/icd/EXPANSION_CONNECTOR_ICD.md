@@ -153,6 +153,12 @@ For Gemini carrier board inter-MCU communication:
 
 **Note:** In GPIO prototype mode, these are direct connections. In production Gemini boards, LVDS transceivers are interposed on SW_* signals.
 
+> **Configuration Note:** Gemini pin allocations (D5, D6, D9-D12) overlap with some Booster Pack allocations. This is intentional - Gemini is a **carrier board configuration**, not a Booster Pack. When using Gemini:
+> - Each Core module retains its own radio/sensor interfaces
+> - Inter-MCU pins are dedicated to the carrier board's SpaceWire link
+> - Pyro control routes through Gemini's hardware voting logic
+> - Booster Packs requiring these pins (Telemetry, Pyro/Servo) are not used directly; their functions are handled by the carrier board or individual Core modules
+
 ---
 
 ## 4. Electrical Specifications

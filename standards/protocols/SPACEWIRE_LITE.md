@@ -4,6 +4,7 @@
 **Version:** 0.1 Draft
 **Last Updated:** 2026-01-19
 **Reference Standard:** ECSS-E-ST-50-12C (SpaceWire Links, Nodes, Routers and Networks)
+**Roadmap Position:** Post-crowdfunding stretch goal (part of Gemini carrier board)
 
 ---
 

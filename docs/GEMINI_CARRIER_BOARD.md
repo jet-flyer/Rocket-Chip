@@ -3,12 +3,15 @@
 **Version:** 1.0 Draft
 **Last Updated:** 2026-01-19
 **Status:** Preliminary Design
+**Roadmap Position:** Post-crowdfunding stretch goal
 
 ---
 
 ## 1. Overview
 
 Gemini is a carrier board that mounts two identical RocketChip Core modules to create a fault-tolerant redundant flight computer. The name "Gemini" references both the Latin word for "twins" and NASA's Gemini program heritage.
+
+> **Note:** Gemini is planned as a **crowdfunding stretch goal**, not part of the initial MVP. Development will begin after successful funding and delivery of Core/Main tiers. Closer stretch goals include features like Betaflight port and additional Booster Packs.
 
 **Key Features:**
 - Dual RP2350 MCUs for redundancy
