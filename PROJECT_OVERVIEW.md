@@ -18,6 +18,23 @@ Open-source. Modular. Built to be extended.
 
 The Core board uses a castellated design allowing it to be soldered directly onto carrier boards or used standalone.
 
+### Gemini Carrier Board (Stretch Goal)
+
+**Gemini** is a **separate carrier board PCB** that mounts two identical Core modules to create a fault-tolerant redundant flight computer. Named for "twins" (Latin) and NASA heritage, Gemini is independent of the tier system—it's specifically for pairing Core modules.
+
+Unlike Booster Packs (which stack on a single Core/Main board), Gemini is its own board with Core modules soldered or socketed onto it. Standard FeatherWing compatibility does not apply to Gemini—it repurposes GPIO for inter-MCU communication.
+
+> **Roadmap:** Gemini is a **post-crowdfunding stretch goal**. Nearer-term stretch goals include Betaflight port and additional Booster Packs. Gemini development begins after successful delivery of Core/Main tiers.
+
+| Feature | Description |
+|---------|-------------|
+| Redundancy | Dual RP2350 MCUs with automatic failover |
+| Communication | SpaceWire-Lite inter-MCU link |
+| Pyro Safety | Hardware voting logic (AND to ARM, OR to FIRE) |
+| Power | Independent regulation per module with isolation |
+
+See `docs/GEMINI_CARRIER_BOARD.md` for detailed design documentation.
+
 ## Booster Packs
 
 Booster Packs are expansion modules for the main tier board (RocketChip's equivalent of FeatherWings).
@@ -42,10 +59,12 @@ Naming convention: rocket program names or terms strongly associated with spacef
 ## Technical Foundation
 
 - **Platform**: RP2350 (Adafruit Feather ecosystem)
+- **Feather Compatibility**: Core/Main boards maintain standard Feather pinout for 3rd-party FeatherWing compatibility
 - **RTOS**: FreeRTOS for real-time operations
 - **Libraries**: ArduPilot module integration (AP_Math, filters, calibration) via compatibility shims
 - **Architecture**: Mission Engine for event-condition-action workflows
-- **Development**: PlatformIO + Pico SDK
+- **Development**: CMake + Pico SDK
+- **Communication**: SpaceWire-Lite for Gemini inter-MCU (aspirational standard, design-for-certifiability)
 
 ## Terminology
 
@@ -60,13 +79,16 @@ Naming convention: rocket program names or terms strongly associated with spacef
 - `docs/SAD.md` - Software Architecture Document (system design, modules, interfaces)
 - `docs/SCAFFOLDING.md` - Directory structure and module overview
 - `docs/HARDWARE.md` - Current prototype hardware, pin assignments, sourcing
+- `docs/GEMINI_CARRIER_BOARD.md` - Gemini redundant flight computer design
+- `docs/icd/EXPANSION_CONNECTOR_ICD.md` - Feather-based expansion connector specification
+- `docs/icd/GEMINI_PROTOCOL_ICD.md` - Gemini inter-MCU protocol specification
 - `standards/CODING_STANDARDS.md` - Coding standards, protocols, safety requirements
 - `standards/DEBUG_OUTPUT.md` - Debug output conventions
 - `standards/GIT_WORKFLOW.md` - Git workflow and branch management practices
+- `standards/protocols/SPACEWIRE_LITE.md` - SpaceWire-Lite communication protocol (aspirational)
 
 ## Future Documentation
 
-- `docs/ICD.md` - Interface Control Document (Booster Pack connector spec) - planned
 - `docs/TEST_PLAN.md` - Test procedures and pass/fail criteria - planned
 
 ## Repository

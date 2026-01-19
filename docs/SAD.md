@@ -1015,6 +1015,76 @@ Development builds include serial debug output via USB-CDC for diagnosing timing
 
 ---
 
+## 14. Gemini Redundant Architecture
+
+Gemini is a carrier board configuration that pairs two Core modules for fault-tolerant operation. This section summarizes the software architecture; see `docs/GEMINI_CARRIER_BOARD.md` for full design documentation.
+
+### 14.1 Overview
+
+```
+┌─────────────────┐         SpaceWire-Lite         ┌─────────────────┐
+│    CORE A       │◄────────────────────────────▶│    CORE B       │
+│   (Primary)     │         (10 Mbps LVDS)        │   (Secondary)   │
+│                 │                                │                 │
+│  Full Mission   │  ◄── State Sync ──────────▶  │  Hot Standby    │
+│  Control        │       Heartbeat (10 Hz)       │  Monitoring     │
+└────────┬────────┘                                └────────┬────────┘
+         │                                                  │
+         │ ARM_A                                    ARM_B   │
+         │ FIRE_A                                   FIRE_B  │
+         ▼                                                  ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    HARDWARE VOTING LOGIC                            │
+│   ARM_OUT = ARM_A AND ARM_B     FIRE_OUT = (FIRE_A OR FIRE_B)      │
+│                                  AND ARM_OUT                        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 14.2 Software Components
+
+| Component | Location | Function |
+|-----------|----------|----------|
+| GeminiTask | `src/services/GeminiTask.*` | Inter-MCU communication (future) |
+| SpaceWireDriver | `src/hal/SpaceWire.*` | PIO-based DS encoding (future) |
+| FailoverManager | `src/core/FailoverManager.*` | Role arbitration (future) |
+
+### 14.3 Communication Protocol
+
+Gemini uses SpaceWire-Lite, a subset of ECSS-E-ST-50-12C:
+
+| Layer | Implementation | Notes |
+|-------|----------------|-------|
+| Physical | LVDS via SN65LVDS049 | GPIO for prototype |
+| Data-Link | Data-Strobe encoding via PIO | Clock recovery = XOR |
+| Network | **Not implemented** | Point-to-point only |
+
+Protocol specification: `standards/protocols/SPACEWIRE_LITE.md`
+
+### 14.4 Failover Behavior
+
+| Event | Detection | Response | Timing |
+|-------|-----------|----------|--------|
+| Primary failure | 5 missed heartbeats | Secondary takes over | 1.5 s |
+| Communication loss | No messages | Both continue independently | 500 ms |
+| Sensor failure | Health flags | Cross-validate with partner | Immediate |
+
+### 14.5 Pyro Safety
+
+Hardware voting ensures safety independent of firmware state:
+
+- **ARM requires consensus**: Both MCUs must assert ARM
+- **FIRE allows either**: Once armed, either MCU can fire
+- **Fail-safe**: Discrete logic operates even if both MCUs hang
+
+### 14.6 Related Documents
+
+- `docs/GEMINI_CARRIER_BOARD.md` - Full design documentation
+- `docs/icd/EXPANSION_CONNECTOR_ICD.md` - Connector interface
+- `docs/icd/GEMINI_PROTOCOL_ICD.md` - Message protocol
+- `standards/protocols/SPACEWIRE_LITE.md` - Communication standard (aspirational)
+
+---
+
 ## Appendix A: Phase-to-Section Cross-Reference
 
 Quick reference for which SAD sections are critical for each development phase.

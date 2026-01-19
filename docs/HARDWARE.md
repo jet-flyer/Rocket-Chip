@@ -245,21 +245,48 @@ High-Speed Transmit interface on RP2350.
 
 ## GPIO Assignments
 
-*To be updated as pin assignments are finalized for new codebase.*
+### Feather Ecosystem Compatibility (Design Constraint)
+
+**For Core and Main tier boards, Feather ecosystem compatibility is a design goal:**
+
+- Standard Feather pinout must be maintained for 3rd-party FeatherWing compatibility
+- Pin functions (SPI, I2C, UART, ADC) must match Adafruit Feather RP2350 assignments
+- Booster Packs should use pins that don't conflict with common FeatherWings
+- Only break compatibility if a critical technical requirement demands it
+
+This ensures users can stack standard FeatherWings (displays, sensors, storage) with RocketChip boards.
+
+**Exception:** Gemini is a separate carrier board with its own PCB - it repurposes some GPIO for inter-MCU communication and is not expected to be FeatherWing-compatible.
+
+### Standard Feather RP2350 Pinout (Reference)
+
+| Function | GPIO | Feather Pin | Notes |
+|----------|------|-------------|-------|
+| UART TX | GPIO0 | TX | Standard UART |
+| UART RX | GPIO1 | RX | Standard UART |
+| I2C SDA | GPIO2 | SDA | Qwiic/STEMMA QT |
+| I2C SCL | GPIO3 | SCL | Qwiic/STEMMA QT |
+| SPI RX | GPIO16 | MISO | Standard SPI |
+| SPI SCK | GPIO18 | SCK | Standard SPI |
+| SPI TX | GPIO19 | MOSI | Standard SPI |
+| ADC0 | GPIO26 | A0 | Analog input |
+| ADC1 | GPIO27 | A1 | Analog input |
+| ADC2 | GPIO28 | A2 | Analog input |
+| ADC3 | GPIO29 | A3 | Analog input |
+
+### RocketChip-Specific Assignments
+
+*To be finalized - must not conflict with standard Feather functions above.*
 
 | GPIO | Function | Notes |
 |------|----------|-------|
-| - | I2C SDA | STEMMA QT sensors |
-| - | I2C SCL | STEMMA QT sensors |
-| - | SPI MOSI | High-speed sensors, radio |
-| - | SPI MISO | High-speed sensors, radio |
-| - | SPI SCK | High-speed sensors, radio |
-| - | SPI CS (multiple) | Per-device chip selects |
-| - | PIO PWM | TVC/deployment servos |
-| - | NeoPixel | Status LED (PIO-driven) |
-| - | Arm Switch | Input with debounce |
-| - | Pyro Fire | Output via MOSFET |
-| - | Battery ADC | Voltage monitoring |
+| GPIO7 | LED | Feather onboard LED |
+| TBD | NeoPixel | Status LED (PIO-driven) |
+| TBD | Arm Switch | Input with debounce |
+| TBD | Pyro Fire | Output via MOSFET (Titan only) |
+| TBD | Battery ADC | Voltage monitoring (if not using A0-A3) |
+| TBD | Radio CS | SPI chip select for RFM9x |
+| TBD | Radio IRQ | Interrupt from radio module |
 
 ---
 
@@ -306,3 +333,66 @@ High-Speed Transmit interface on RP2350.
 - Safety interlocks required in firmware
 - Physical arm switch recommended for Pro tier
 - Follow NAR/TRA safety codes for high-power rocketry
+
+---
+
+## Gemini Carrier Board Hardware
+
+The Gemini carrier board mounts two Core modules for redundant flight computer operation. See `docs/GEMINI_CARRIER_BOARD.md` for full design documentation.
+
+### Gemini-Specific Components
+
+| Component | Part Number | Qty | Function |
+|-----------|-------------|-----|----------|
+| LVDS Transceiver | SN65LVDS049 | 2 | SpaceWire-Lite electrical interface |
+| AND Gate | 74LVC1G08 | 1 | ARM voting logic (both MCUs must agree) |
+| OR Gate | 74LVC1G32 | 1 | FIRE voting logic (either MCU can fire) |
+| Digital Isolator | Si8620 | 2 | Inter-module isolation |
+| LDO Regulator | AP2112K-3.3 | 2 | Independent 3.3V per module |
+| Ideal Diode Controller | LTC4357 | 2 | Battery OR-ing |
+| MOSFET (Pyro Driver) | Si2302 | 4 | Pyro channel switches |
+
+### Hardware Voting Logic
+
+Pyro safety is implemented in discrete logic, not firmware:
+
+```
+ARM_OUT  = ARM_A AND ARM_B        (74LVC1G08)
+FIRE_OUT = ARM_OUT AND (FIRE_A OR FIRE_B)  (74LVC1G32 + gate)
+```
+
+| Safety Feature | Implementation |
+|----------------|----------------|
+| Both agree to ARM | AND gate requires both MCU ARM signals |
+| Either can FIRE | OR gate allows single MCU to fire once armed |
+| Fail-safe on hang | If MCU hangs with ARM low, pyros stay safe |
+| Works without firmware | Discrete logic operates even if both CPUs crash |
+
+### Inter-MCU Communication
+
+| Parameter | GPIO Prototype | LVDS Production |
+|-----------|----------------|-----------------|
+| Data Rate | 1 Mbps | 10 Mbps |
+| Max Distance | 10 cm | 1 m |
+| Noise Immunity | Low | High |
+| Transceiver | None (direct GPIO) | SN65LVDS049 |
+
+Protocol: SpaceWire-Lite (see `standards/protocols/SPACEWIRE_LITE.md`)
+
+### Power Architecture
+
+Each Core module has independent power regulation:
+
+| Feature | Specification |
+|---------|---------------|
+| Input | Shared VBAT with ideal diode OR-ing |
+| Regulation | Dedicated LDO per module |
+| Isolation | Digital isolators on control signals |
+| Failure Mode | Either module operates if other fails |
+
+### Related Documents
+
+- `docs/GEMINI_CARRIER_BOARD.md` - Design overview
+- `docs/icd/EXPANSION_CONNECTOR_ICD.md` - Connector pinout
+- `docs/icd/GEMINI_PROTOCOL_ICD.md` - Inter-MCU protocol
+- `standards/protocols/SPACEWIRE_LITE.md` - Communication protocol
