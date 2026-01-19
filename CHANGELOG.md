@@ -22,6 +22,24 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-19-001 | Claude Code CLI | documentation, architecture
+
+Added Gemini carrier board documentation for dual-Core redundant flight computer configuration. Created Interface Control Documents (ICDs) following NASA-style templates and SpaceWire-Lite protocol specification as aspirational standard (ECSS-E-ST-50-12C subset). Gemini features dual RP2350 MCUs with hardware voting logic for pyro safety (AND to ARM, OR to FIRE), SpaceWire-derived inter-MCU communication via LVDS transceivers, and independent power regulation with isolation.
+
+**New files:**
+- `docs/GEMINI_CARRIER_BOARD.md` - Master design document
+- `docs/icd/EXPANSION_CONNECTOR_ICD.md` - Feather-based expansion connector ICD
+- `docs/icd/GEMINI_PROTOCOL_ICD.md` - Inter-MCU protocol (heartbeat, failover, pyro coordination)
+- `standards/protocols/SPACEWIRE_LITE.md` - SpaceWire-Lite physical/data-link layer specification
+
+**Updated files:**
+- `PROJECT_OVERVIEW.md` - Added Gemini configuration and related documentation
+- `docs/HARDWARE.md` - Added Gemini hardware section (voting logic, LVDS, components)
+- `docs/SAD.md` - Added Section 14 for Gemini redundant architecture
+- `docs/SCAFFOLDING.md` - Updated directory structure with icd/ and protocols/ directories
+
+---
+
 ### 2026-01-16-004 | Claude Code CLI | architecture, refactor
 
 Migrated from validation scaffolding to production architecture. Moved FreeRTOS validation code (main.c, hooks.c) to `tests/validation/freertos_validation/` as reference. Created production entry point `src/main.cpp` with HAL initialization and FreeRTOS task creation. Implemented `SensorTask` in `src/services/` using real HAL drivers (ISM330DHCX, LIS3MDL, DPS310) at 1kHz/100Hz/50Hz rates respectively, with thread-safe shared `SensorData` struct. Added `services` library and `rocketchip` target to CMakeLists.txt. Enabled mutex support in FreeRTOSConfig.h. Both targets build: rocketchip (70KB) and freertos_validation (52KB).

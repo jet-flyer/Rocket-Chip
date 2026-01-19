@@ -32,12 +32,20 @@ rocketchip/
 │   ├── SCAFFOLDING.md             # This file
 │   ├── HARDWARE.md                # Hardware specs, pin assignments, I2C addresses
 │   ├── TOOLCHAIN_VALIDATION.md    # Build/debug setup guide
-│   └── Missions.md                # Mission format specification (TBD)
+│   ├── GEMINI_CARRIER_BOARD.md    # Gemini redundant flight computer design
+│   ├── Missions.md                # Mission format specification (TBD)
+│   │
+│   └── icd/                       # Interface Control Documents
+│       ├── EXPANSION_CONNECTOR_ICD.md  # Feather-based expansion connector
+│       └── GEMINI_PROTOCOL_ICD.md      # Gemini inter-MCU protocol
 │
 ├── standards/
 │   ├── CODING_STANDARDS.md        # Code style and safety rules
 │   ├── DEBUG_OUTPUT.md            # USB CDC output format
-│   └── GIT_WORKFLOW.md            # Git conventions
+│   ├── GIT_WORKFLOW.md            # Git conventions
+│   │
+│   └── protocols/                 # Communication protocol standards
+│       └── SPACEWIRE_LITE.md      # SpaceWire-Lite (aspirational standard)
 │
 ├── tools/
 │   └── state_to_dot.py            # State machine visualization
@@ -239,4 +247,8 @@ Implemented files:
 - **docs/SAD.md** - Software Architecture Document (full architecture details)
 - **docs/HARDWARE.md** - Hardware specifications, pin assignments, I2C addresses
 - **docs/TOOLCHAIN_VALIDATION.md** - Build and debug setup guide
+- **docs/GEMINI_CARRIER_BOARD.md** - Gemini redundant flight computer design
+- **docs/icd/EXPANSION_CONNECTOR_ICD.md** - Feather-based expansion connector ICD
+- **docs/icd/GEMINI_PROTOCOL_ICD.md** - Gemini inter-MCU protocol ICD
 - **standards/CODING_STANDARDS.md** - Code style and safety rules
+- **standards/protocols/SPACEWIRE_LITE.md** - SpaceWire-Lite communication protocol
