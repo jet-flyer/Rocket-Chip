@@ -22,6 +22,21 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-21-003 | Claude Code CLI | [STANDARDS]
+
+**Resolve Grok-identified deviations**
+
+- Introduced compile-time guarded DBG_PRINT/DBG_ERROR macros in new include/debug.h; replaced all diagnostic printf in src/main.cpp and services/ with macros to enable clean release builds (resolves raw printf deviation).
+- Standardized constant naming with 'k' prefix across src/ (e.g., kLedPin, kUiTaskPriority) for consistency with test code conventions (resolves naming drift deviation).
+
+Additional council-approved resolutions included in this commit:
+- Full ArduPilot AP_InternalError integration via shim for production error reporting.
+- Cleanup of STANDARDS_DEVIATIONS.md: closed low-severity test items and error handling; retained only external ArduPilot lib deviations.
+
+(include/debug.h, src/main.cpp, src/services/SensorTask.cpp, lib/ap_compat/AP_InternalError/AP_InternalError.h, lib/ap_compat/AP_HAL_Compat.cpp, standards/STANDARDS_DEVIATIONS.md, CMakeLists.txt)
+
+---
+
 ### 2026-01-21-002 | Claude Code CLI | documentation, refactor
 
 **Standards Compliance and Verification Process**

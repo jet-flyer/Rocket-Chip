@@ -20,6 +20,8 @@
 #include "hardware/i2c.h"
 #include "hardware/timer.h"
 
+#include "debug.h"
+
 #include <cstdio>
 #include <cmath>
 
@@ -29,17 +31,17 @@ namespace rocketchip {
 namespace services {
 
 // ============================================================================
-// Hardware Configuration
+// Hardware Configuration (k prefix per JSF AV naming conventions)
 // ============================================================================
 
 // I2C pins for Feather RP2350 (STEMMA QT / Qwiic)
-static constexpr uint8_t I2C_SDA = 2;
-static constexpr uint8_t I2C_SCL = 3;
+static constexpr uint8_t kI2cSda = 2;
+static constexpr uint8_t kI2cScl = 3;
 
 // I2C addresses
-static constexpr uint8_t ADDR_ISM330DHCX = 0x6A;
-static constexpr uint8_t ADDR_LIS3MDL    = 0x1C;
-static constexpr uint8_t ADDR_DPS310     = 0x77;
+static constexpr uint8_t kAddrIsm330dhcx = 0x6A;
+static constexpr uint8_t kAddrLis3mdl    = 0x1C;
+static constexpr uint8_t kAddrDps310     = 0x77;
 
 // ============================================================================
 // Global Data
@@ -70,20 +72,20 @@ static bool s_magInitialized = false;
 static bool s_baroInitialized = false;
 
 // Timing dividers (all relative to 1kHz base rate)
-static constexpr uint32_t BARO_DIVIDER = SensorTaskConfig::IMU_RATE_HZ / SensorTaskConfig::BARO_RATE_HZ;  // 20
-static constexpr uint32_t MAG_DIVIDER = 10;  // 100Hz magnetometer
+static constexpr uint32_t kBaroDivider = SensorTaskConfig::IMU_RATE_HZ / SensorTaskConfig::BARO_RATE_HZ;  // 20
+static constexpr uint32_t kMagDivider = 10;  // 100Hz magnetometer
 
 // ============================================================================
 // Sensor Initialization
 // ============================================================================
 
 static bool initSensors() {
-    printf("[SensorTask] Initializing sensors...\n");
+    DBG_PRINT("[SensorTask] Initializing sensors...\n");
 
     // Create bus instances (all share I2C1 hardware)
-    s_imuBus = new I2CBus(i2c1, ADDR_ISM330DHCX, I2C_SDA, I2C_SCL, 400000);
-    s_magBus = new I2CBus(i2c1, ADDR_LIS3MDL, I2C_SDA, I2C_SCL, 400000);
-    s_baroBus = new I2CBus(i2c1, ADDR_DPS310, I2C_SDA, I2C_SCL, 400000);
+    s_imuBus = new I2CBus(i2c1, kAddrIsm330dhcx, kI2cSda, kI2cScl, 400000);
+    s_magBus = new I2CBus(i2c1, kAddrLis3mdl, kI2cSda, kI2cScl, 400000);
+    s_baroBus = new I2CBus(i2c1, kAddrDps310, kI2cSda, kI2cScl, 400000);
 
     // Create sensor instances
     s_imu = new IMU_ISM330DHCX(s_imuBus);
@@ -91,40 +93,40 @@ static bool initSensors() {
     s_baro = new Baro_DPS310(s_baroBus);
 
     // Initialize IMU
-    printf("  ISM330DHCX (IMU): ");
+    DBG_PRINT("  ISM330DHCX (IMU): ");
     s_imuInitialized = s_imu->begin();
     if (s_imuInitialized) {
         // Configure for 1kHz operation
         s_imu->setODR(ODR::ODR_1666HZ);  // Closest to 1kHz that's higher
         s_imu->setAccelRange(AccelRange::RANGE_8G);
         s_imu->setGyroRange(GyroRange::RANGE_1000DPS);
-        printf("OK\n");
+        DBG_PRINT("OK\n");
     } else {
-        printf("FAILED\n");
+        DBG_ERROR("FAILED\n");
     }
 
     // Initialize Magnetometer
-    printf("  LIS3MDL (Mag):    ");
+    DBG_PRINT("  LIS3MDL (Mag):    ");
     s_magInitialized = s_mag->begin();
     if (s_magInitialized) {
         s_mag->setRange(MagRange::RANGE_4GAUSS);
         s_mag->setDataRate(MagDataRate::HP_80Hz);
-        printf("OK\n");
+        DBG_PRINT("OK\n");
     } else {
-        printf("FAILED\n");
+        DBG_ERROR("FAILED\n");
     }
 
     // Initialize Barometer
-    printf("  DPS310 (Baro):    ");
+    DBG_PRINT("  DPS310 (Baro):    ");
     s_baroInitialized = s_baro->begin();
     if (s_baroInitialized) {
         // Configure for 50Hz continuous mode
         s_baro->configurePressure(BaroRate::RATE_64HZ, BaroOversample::OSR_8);
         s_baro->configureTemperature(BaroRate::RATE_64HZ, BaroOversample::OSR_8);
         s_baro->startContinuous();
-        printf("OK\n");
+        DBG_PRINT("OK\n");
     } else {
-        printf("FAILED\n");
+        DBG_ERROR("FAILED\n");
     }
 
     // At least IMU must be working for flight
@@ -196,7 +198,7 @@ static void readBaro() {
 static void SensorTask_Run(void* pvParameters) {
     (void)pvParameters;
 
-    printf("[SensorTask] Starting on Core %d\n", get_core_num());
+    DBG_PRINT("[SensorTask] Starting on Core %d\n", get_core_num());
 
     TickType_t lastWakeTime = xTaskGetTickCount();
     const TickType_t period = pdMS_TO_TICKS(1);  // 1ms = 1kHz
@@ -211,12 +213,12 @@ static void SensorTask_Run(void* pvParameters) {
         }
 
         // Read magnetometer at 100Hz (every 10th iteration)
-        if (s_magInitialized && (loopCount % MAG_DIVIDER == 0)) {
+        if (s_magInitialized && (loopCount % kMagDivider == 0)) {
             readMag();
         }
 
         // Read barometer at 50Hz (every 20th iteration)
-        if (s_baroInitialized && (loopCount % BARO_DIVIDER == 0)) {
+        if (s_baroInitialized && (loopCount % kBaroDivider == 0)) {
             readBaro();
         }
 
@@ -228,24 +230,24 @@ static void SensorTask_Run(void* pvParameters) {
             statusCount = 0;
             g_sensorTaskStats.free_heap = xPortGetFreeHeapSize();
 
-            printf("\n[SensorTask] Status:\n");
-            printf("  IMU samples:  %lu (errors: %lu)\n",
+            DBG_PRINT("\n[SensorTask] Status:\n");
+            DBG_PRINT("  IMU samples:  %lu (errors: %lu)\n",
                    g_sensorTaskStats.imu_samples, g_sensorTaskStats.imu_errors);
-            printf("  Baro samples: %lu (errors: %lu)\n",
+            DBG_PRINT("  Baro samples: %lu (errors: %lu)\n",
                    g_sensorTaskStats.baro_samples, g_sensorTaskStats.baro_errors);
-            printf("  Loop overruns: %lu\n", g_sensorTaskStats.loop_overruns);
-            printf("  Free heap:     %lu bytes\n", g_sensorTaskStats.free_heap);
+            DBG_PRINT("  Loop overruns: %lu\n", g_sensorTaskStats.loop_overruns);
+            DBG_PRINT("  Free heap:     %lu bytes\n", g_sensorTaskStats.free_heap);
 
             // Print current sensor values
             SensorData data;
             if (SensorTask_GetData(data)) {
-                printf("  Accel: [%+7.2f, %+7.2f, %+7.2f] m/s^2\n",
+                DBG_PRINT("  Accel: [%+7.2f, %+7.2f, %+7.2f] m/s^2\n",
                        data.accel.x, data.accel.y, data.accel.z);
-                printf("  Gyro:  [%+7.3f, %+7.3f, %+7.3f] rad/s\n",
+                DBG_PRINT("  Gyro:  [%+7.3f, %+7.3f, %+7.3f] rad/s\n",
                        data.gyro.x, data.gyro.y, data.gyro.z);
-                printf("  Mag:   [%+7.3f, %+7.3f, %+7.3f] gauss\n",
+                DBG_PRINT("  Mag:   [%+7.3f, %+7.3f, %+7.3f] gauss\n",
                        data.mag.x, data.mag.y, data.mag.z);
-                printf("  Baro:  %.2f Pa, %.2f C\n",
+                DBG_PRINT("  Baro:  %.2f Pa, %.2f C\n",
                        data.pressure_pa, data.temperature_c);
             }
         }
@@ -266,14 +268,14 @@ bool SensorTask_Init() {
     // Initialize HAL (I2C, etc.)
     HALInitResult result = initHAL();
     if (!result.success) {
-        printf("[SensorTask] HAL init failed: %s\n", result.error_msg);
+        DBG_ERROR("[SensorTask] HAL init failed: %s\n", result.error_msg);
         return false;
     }
 
     // Create mutex for shared data
     g_sensorDataMutex = xSemaphoreCreateMutex();
     if (g_sensorDataMutex == nullptr) {
-        printf("[SensorTask] Failed to create mutex\n");
+        DBG_ERROR("[SensorTask] Failed to create mutex\n");
         return false;
     }
 
@@ -283,7 +285,7 @@ bool SensorTask_Init() {
 
 bool SensorTask_Create() {
     if (g_sensorDataMutex == nullptr) {
-        printf("[SensorTask] Not initialized - call SensorTask_Init() first\n");
+        DBG_ERROR("[SensorTask] Not initialized - call SensorTask_Init() first\n");
         return false;
     }
 
@@ -297,14 +299,14 @@ bool SensorTask_Create() {
     );
 
     if (result != pdPASS) {
-        printf("[SensorTask] Failed to create task\n");
+        DBG_ERROR("[SensorTask] Failed to create task\n");
         return false;
     }
 
     // Pin to Core 1
     vTaskCoreAffinitySet(s_taskHandle, SensorTaskConfig::CORE_AFFINITY);
 
-    printf("[SensorTask] Task created (priority %lu, Core 1)\n",
+    DBG_PRINT("[SensorTask] Task created (priority %lu, Core 1)\n",
            SensorTaskConfig::TASK_PRIORITY);
     return true;
 }

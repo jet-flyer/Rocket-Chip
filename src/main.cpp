@@ -18,18 +18,20 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+#include "debug.h"
 #include "services/SensorTask.h"
+#include "AP_InternalError/AP_InternalError.h"
 
 using namespace rocketchip::services;
 
 // ============================================================================
-// Configuration
+// Configuration Constants (k prefix per JSF AV naming conventions)
 // ============================================================================
 
-static constexpr uint8_t LED_PIN = PICO_DEFAULT_LED_PIN;
+static constexpr uint8_t kLedPin = PICO_DEFAULT_LED_PIN;
 
-static constexpr uint32_t UI_TASK_PRIORITY = 1;
-static constexpr uint32_t UI_STACK_SIZE = configMINIMAL_STACK_SIZE * 4;
+static constexpr uint32_t kUiTaskPriority = 1;
+static constexpr uint32_t kUiStackSize = configMINIMAL_STACK_SIZE * 4;
 
 // ============================================================================
 // UI Task - LED blinking and status
@@ -38,15 +40,15 @@ static constexpr uint32_t UI_STACK_SIZE = configMINIMAL_STACK_SIZE * 4;
 static void UITask(void* pvParameters) {
     (void)pvParameters;
 
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
+    gpio_init(kLedPin);
+    gpio_set_dir(kLedPin, GPIO_OUT);
 
     bool ledState = false;
 
     while (true) {
         // Toggle LED every 500ms (1Hz blink = system running)
         ledState = !ledState;
-        gpio_put(LED_PIN, ledState);
+        gpio_put(kLedPin, ledState);
 
         vTaskDelay(pdMS_TO_TICKS(500));
     }
@@ -59,33 +61,45 @@ static void UITask(void* pvParameters) {
 extern "C" {
 
 void vApplicationMallocFailedHook(void) {
+    // Report to ArduPilot error tracking system
+    AP_InternalError::error(AP_InternalError::error_t::mem_guard);
+
+    // Fatal errors retain minimal printf for post-mortem debugging
+    // LED blink codes are primary indication in production
     printf("\n!!! FATAL: Malloc failed - heap exhausted !!!\n");
     printf("Free heap: %u bytes\n", xPortGetFreeHeapSize());
 
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
+    gpio_init(kLedPin);
+    gpio_set_dir(kLedPin, GPIO_OUT);
 
+    // Fast blink = malloc failure
     portDISABLE_INTERRUPTS();
     while (true) {
-        gpio_put(LED_PIN, 1);
+        gpio_put(kLedPin, 1);
         busy_wait_us(100000);
-        gpio_put(LED_PIN, 0);
+        gpio_put(kLedPin, 0);
         busy_wait_us(100000);
     }
 }
 
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName) {
     (void)xTask;
+
+    // Report to ArduPilot error tracking system
+    AP_InternalError::error(AP_InternalError::error_t::stack_overflow);
+
+    // Fatal errors retain minimal printf for post-mortem debugging
     printf("\n!!! FATAL: Stack overflow in task: %s !!!\n", pcTaskName);
 
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
+    gpio_init(kLedPin);
+    gpio_set_dir(kLedPin, GPIO_OUT);
 
+    // Slow blink = stack overflow
     portDISABLE_INTERRUPTS();
     while (true) {
-        gpio_put(LED_PIN, 1);
+        gpio_put(kLedPin, 1);
         busy_wait_us(500000);
-        gpio_put(LED_PIN, 0);
+        gpio_put(kLedPin, 0);
         busy_wait_us(500000);
     }
 }
@@ -136,14 +150,14 @@ void vApplicationGetPassiveIdleTaskMemory(StaticTask_t** ppxIdleTaskTCBBuffer,
 
 int main() {
     // Initialize LED for early debugging
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
+    gpio_init(kLedPin);
+    gpio_set_dir(kLedPin, GPIO_OUT);
 
     // Blink 3 times rapidly to show we reached main()
     for (int i = 0; i < 3; i++) {
-        gpio_put(LED_PIN, 1);
+        gpio_put(kLedPin, 1);
         busy_wait_ms(100);
-        gpio_put(LED_PIN, 0);
+        gpio_put(kLedPin, 0);
         busy_wait_ms(100);
     }
 
@@ -153,31 +167,31 @@ int main() {
 
     // Blink 2 times slowly = USB init done
     for (int i = 0; i < 2; i++) {
-        gpio_put(LED_PIN, 1);
+        gpio_put(kLedPin, 1);
         sleep_ms(250);
-        gpio_put(LED_PIN, 0);
+        gpio_put(kLedPin, 0);
         sleep_ms(250);
     }
 
-    printf("\n\n");
-    printf("========================================\n");
-    printf("  RocketChip Production Firmware\n");
-    printf("  Target: Adafruit Feather RP2350\n");
-    printf("  Phase: 2 (Sensors)\n");
-    printf("========================================\n\n");
+    DBG_PRINT("\n\n");
+    DBG_PRINT("========================================\n");
+    DBG_PRINT("  RocketChip Production Firmware\n");
+    DBG_PRINT("  Target: Adafruit Feather RP2350\n");
+    DBG_PRINT("  Phase: 2 (Sensors)\n");
+    DBG_PRINT("========================================\n\n");
 
     // Initialize SensorTask (HAL + sensors)
-    printf("[Main] Initializing SensorTask...\n");
+    DBG_PRINT("[Main] Initializing SensorTask...\n");
     if (!SensorTask_Init()) {
-        printf("[Main] SensorTask init FAILED - continuing anyway\n");
+        DBG_ERROR("[Main] SensorTask init FAILED - continuing anyway\n");
         // Don't fail completely - let the system run for debugging
     }
 
-    printf("[Main] Creating tasks...\n");
+    DBG_PRINT("[Main] Creating tasks...\n");
 
     // Create SensorTask
     if (!SensorTask_Create()) {
-        printf("[Main] ERROR: Failed to create SensorTask\n");
+        DBG_ERROR("[Main] ERROR: Failed to create SensorTask\n");
     }
 
     // Create UI task (LED blink)
@@ -185,36 +199,37 @@ int main() {
     BaseType_t result = xTaskCreate(
         UITask,
         "UI",
-        UI_STACK_SIZE,
+        kUiStackSize,
         nullptr,
-        UI_TASK_PRIORITY,
+        kUiTaskPriority,
         &uiHandle
     );
 
     if (result != pdPASS) {
-        printf("[Main] ERROR: Failed to create UITask\n");
+        DBG_ERROR("[Main] ERROR: Failed to create UITask\n");
     } else {
         vTaskCoreAffinitySet(uiHandle, (1 << 0));  // Pin to Core 0
     }
 
-    printf("[Main] Starting scheduler...\n\n");
+    DBG_PRINT("[Main] Starting scheduler...\n\n");
 
     // One long blink before scheduler starts
-    gpio_put(LED_PIN, 1);
+    gpio_put(kLedPin, 1);
     sleep_ms(500);
-    gpio_put(LED_PIN, 0);
+    gpio_put(kLedPin, 0);
     sleep_ms(500);
 
     // Start the scheduler - should never return
     vTaskStartScheduler();
 
-    // If we get here, something went wrong
-    printf("ERROR: Scheduler returned!\n");
+    // If we get here, something went wrong - this is a fatal error
+    AP_InternalError::error(AP_InternalError::error_t::flow_of_control);
+    DBG_ERROR("ERROR: Scheduler returned!\n");
 
     while (true) {
-        gpio_put(LED_PIN, 1);
+        gpio_put(kLedPin, 1);
         busy_wait_ms(50);
-        gpio_put(LED_PIN, 0);
+        gpio_put(kLedPin, 0);
         busy_wait_ms(50);
     }
 
