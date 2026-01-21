@@ -13,3 +13,7 @@
 [submodule "lib/st_drivers/ruuvi-dps310"]
 	path = lib/st_drivers/ruuvi-dps310
 	url = https://github.com/ruuvi/ruuvi.dps310.c.git
+[submodule "lib/ardupilot"]
+	path = lib/ardupilot
+	url = https://github.com/ArduPilot/ardupilot.git
+	shallow = true

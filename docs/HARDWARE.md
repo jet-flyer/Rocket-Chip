@@ -258,6 +258,22 @@ This ensures users can stack standard FeatherWings (displays, sensors, storage) 
 
 **Exception:** Gemini is a separate carrier board with its own PCB - it repurposes some GPIO for inter-MCU communication and is not expected to be FeatherWing-compatible.
 
+### Feather RP2350 HSTX Built-in Hardware
+
+| GPIO | Function | Notes |
+|------|----------|-------|
+| 0 | UART0 TX | Serial1 default TX |
+| 1 | UART0 RX | Serial1 default RX |
+| 2 | I2C1 SDA | STEMMA QT connector, Wire default |
+| 3 | I2C1 SCL | STEMMA QT connector, Wire default |
+| 7 | Red LED | Built-in general purpose LED |
+| 8 | PSRAM CS | **DO NOT USE** if PSRAM onboard |
+| 12-19 | HSTX | HSTX peripheral pins (also on back connector) |
+| 20 | SPI0 MISO | Default SPI MISO |
+| 21 | NeoPixel | Built-in RGB status LED (PIO-driven) |
+| 22 | SPI0 SCK | Default SPI SCK |
+| 23 | SPI0 MOSI | Default SPI MOSI |
+
 ### Standard Feather RP2350 Pinout (Reference)
 
 | Function | GPIO | Feather Pin | Notes |
@@ -274,19 +290,37 @@ This ensures users can stack standard FeatherWings (displays, sensors, storage) 
 | ADC2 | GPIO28 | A2 | Analog input |
 | ADC3 | GPIO29 | A3 | Analog input |
 
-### RocketChip-Specific Assignments
-
-*To be finalized - must not conflict with standard Feather functions above.*
+### RocketChip Pin Assignments
 
 | GPIO | Function | Notes |
 |------|----------|-------|
-| GPIO7 | LED | Feather onboard LED |
-| TBD | NeoPixel | Status LED (PIO-driven) |
-| TBD | Arm Switch | Input with debounce |
-| TBD | Pyro Fire | Output via MOSFET (Titan only) |
-| TBD | Battery ADC | Voltage monitoring (if not using A0-A3) |
-| TBD | Radio CS | SPI chip select for RFM9x |
-| TBD | Radio IRQ | Interrupt from radio module |
+| 2 | I2C1 SDA | IMU/Mag FeatherWing, DPS310 baro, GPS |
+| 3 | I2C1 SCL | IMU/Mag FeatherWing, DPS310 baro, GPS |
+| 7 | Red LED | Heartbeat/debug indicator |
+| 21 | NeoPixel | Status LED (states defined per application) |
+| 20 | SPI0 MISO | (Reserved for SPI sensors) |
+| 22 | SPI0 SCK | (Reserved for SPI sensors) |
+| 23 | SPI0 MOSI | (Reserved for SPI sensors) |
+| - | SPI CS (multiple) | Per-device chip selects TBD |
+| - | PIO PWM | TVC/deployment servos TBD |
+| - | Arm Switch | Input with debounce TBD |
+| - | Pyro Fire | Output via MOSFET TBD |
+| - | Battery ADC | Voltage monitoring TBD |
+
+### HSTX Connector (Back of Board)
+
+The 22-pin HSTX connector on the back provides:
+- GPIO 12-19 (8 consecutive pins for HSTX peripheral or general GPIO)
+- Additional GPIO
+- 3.3V power
+- GND
+
+**Note**: HSTX peripheral enables DVI output without overclocking or PIO. Future use for debug visualization or ground station display.
+
+### Important Notes
+
+1. **PSRAM (GPIO 8)**: If board has 8MB PSRAM installed, GPIO 8 is reserved for PSRAM CS. Do not use as general GPIO.
+2. **E9 Erratum (A2 silicon)**: Affects high-impedance inputs and internal pulldowns. Use 8.2K or smaller external pull-down resistors where needed.
 
 ---
 

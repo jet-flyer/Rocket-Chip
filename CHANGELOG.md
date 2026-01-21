@@ -22,6 +22,61 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-21-001 | Claude Code CLI | feature, architecture
+
+**ArduPilot Calibration Library Integration**
+
+Integrated ArduPilot's AP_Math and AccelCalibrator libraries via compatibility shim layer, enabling sensor calibration infrastructure before EKF3 fusion implementation.
+
+**ArduPilot Submodule (lib/ardupilot/)**
+- Added ArduPilot repository as sparse checkout containing only needed libraries: AP_Math, Filter, AP_AccelCal, AP_Compass, AP_HAL, AP_Common, AP_InternalError
+- Sparse checkout minimizes repo size while providing battle-tested math and calibration code
+
+**Compatibility Shim Layer (lib/ap_compat/)**
+- `AP_HAL_Compat.h`: Maps ArduPilot HAL timing functions to RocketChip HAL (AP_HAL::millis() → Timing::millis32(), etc.), provides HAL_Semaphore stub for single-threaded operation, defines utility macros (ARRAY_SIZE, PACKED, MIN/MAX, etc.)
+- `AP_HAL/AP_HAL.h`, `AP_HAL/AP_HAL_Namespace.h`, `AP_HAL/AP_HAL_Boards.h`, `AP_HAL/Semaphores.h`: Stub headers to satisfy ArduPilot include paths
+- `AP_InternalError/AP_InternalError.h`: Error reporting stub with full error_t bitmask enum matching ArduPilot's structure; includes TODO for error handling strategy decision before EKF3 integration
+- `AP_Vehicle/AP_Vehicle_Type.h`: Vehicle type definitions stub
+- `AP_CustomRotations/AP_CustomRotations.h`: Custom rotations disabled stub
+- `AP_Logger/AP_Logger_config.h`: Logging disabled stub
+
+**CMakeLists.txt Updates**
+- Added `ap_compat` library (shim layer)
+- Added `ap_math` library: AP_Math.cpp, vector2/3.cpp, matrix3.cpp, matrixN.cpp, matrix_alg.cpp, quaternion.cpp, location.cpp, polygon.cpp, crc.cpp
+- Added `ap_filter` library: LowPassFilter.cpp, LowPassFilter2p.cpp, NotchFilter.cpp, DerivativeFilter.cpp, ModeFilter.cpp, SlewLimiter.cpp
+- Added `ap_calibrators` library: AccelCalibrator.cpp
+- Added `smoke_calibration` executable target
+
+**Calibration Smoke Test (tests/smoke_tests/calibration_test.cpp)**
+- Interactive 6-position accelerometer calibration using ArduPilot's Gauss-Newton solver
+- NeoPixel status LED colors per deprecated codebase patterns:
+  - Magenta blink: Waiting for USB connection
+  - Yellow pulsing: Initializing
+  - Blue slow blink (500ms): Waiting for user orientation input
+  - Blue solid: Collecting samples
+  - Green fast blink (100ms): Calibration successful
+  - Red solid: Error
+- USB CDC connection handling per DEBUG_OUTPUT.md: visual feedback during wait, 500ms settle time
+- Outputs calibration constants (offsets, scale factors, cross-axis) ready to copy into configuration
+- Converts between RocketChip Vector3f and ArduPilot Vector3f types
+
+**HARDWARE.md Updates**
+- Added complete Feather RP2350 HSTX built-in hardware GPIO table: UART0 (GPIO 0/1), I2C1/STEMMA QT (GPIO 2/3), Red LED (GPIO 7), PSRAM CS (GPIO 8), HSTX (GPIO 12-19), SPI0 (GPIO 20/22/23), NeoPixel (GPIO 21)
+- Added RocketChip pin assignments table with current and TBD assignments
+- Added HSTX connector documentation (22-pin back connector with GPIO 12-19)
+- Added important notes: PSRAM GPIO 8 restriction, E9 erratum workaround for pull-downs
+
+**Standards Compliance Review**
+- Reviewed against JSF AV C++ standards, DEBUG_OUTPUT.md, CODING_STANDARDS.md, SAD.md, HARDWARE.md
+- Identified JSF violations in smoke test (dynamic allocation, primitive types, naming conventions) - acceptable for test code, documented for future cleanup
+- Confirmed architecture alignment: ArduPilot via shim layer per CODING_STANDARDS.md section "ArduPilot Library Integration"
+
+(lib/ardupilot/, lib/ap_compat/*, tests/smoke_tests/calibration_test.cpp, CMakeLists.txt, docs/HARDWARE.md)
+
+*Rationale: EKF3 expects calibrated sensor inputs. ArduPilot's AccelCalibrator provides proven 6-position calibration with ellipsoid fitting. Shim layer approach avoids full ChibiOS HAL port while leveraging ArduPilot's battle-tested math. Error handling strategy (Option A: full AP_InternalError vs Option B: RocketChip-specific) deferred to pre-fusion decision point.*
+
+---
+
 ### 2026-01-19-001 | Claude Code CLI | documentation, architecture
 
 Added Gemini carrier board documentation for dual-Core redundant flight computer configuration. Created Interface Control Documents (ICDs) following NASA-style templates and SpaceWire-Lite protocol specification as aspirational standard (ECSS-E-ST-50-12C subset). Gemini features dual RP2350 MCUs with hardware voting logic for pyro safety (AND to ARM, OR to FIRE), SpaceWire-derived inter-MCU communication via LVDS transceivers, and independent power regulation with isolation.

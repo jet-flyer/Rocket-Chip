@@ -127,6 +127,94 @@ target_link_libraries(hal_sensors PUBLIC
 )
 
 # ============================================================================
+# ArduPilot Compatibility Shim
+# ============================================================================
+
+add_library(ap_compat STATIC
+    lib/ap_compat/AP_HAL_Compat.cpp
+)
+
+target_include_directories(ap_compat PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/src/hal
+)
+
+target_link_libraries(ap_compat PUBLIC
+    hal
+)
+
+# ============================================================================
+# ArduPilot Math Library (AP_Math)
+# ============================================================================
+
+add_library(ap_math STATIC
+    lib/ardupilot/libraries/AP_Math/AP_Math.cpp
+    lib/ardupilot/libraries/AP_Math/vector2.cpp
+    lib/ardupilot/libraries/AP_Math/vector3.cpp
+    lib/ardupilot/libraries/AP_Math/matrix3.cpp
+    lib/ardupilot/libraries/AP_Math/matrixN.cpp
+    lib/ardupilot/libraries/AP_Math/matrix_alg.cpp
+    lib/ardupilot/libraries/AP_Math/quaternion.cpp
+    lib/ardupilot/libraries/AP_Math/location.cpp
+    lib/ardupilot/libraries/AP_Math/polygon.cpp
+    lib/ardupilot/libraries/AP_Math/crc.cpp
+)
+
+target_include_directories(ap_math PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+)
+
+target_link_libraries(ap_math PUBLIC
+    ap_compat
+)
+
+target_compile_definitions(ap_math PUBLIC
+    AP_PARAM_ENABLED=0
+    HAL_GCS_ENABLED=0
+    HAL_WITH_EKF_DOUBLE=0
+)
+
+# ============================================================================
+# ArduPilot Filter Library
+# ============================================================================
+
+add_library(ap_filter STATIC
+    lib/ardupilot/libraries/Filter/LowPassFilter.cpp
+    lib/ardupilot/libraries/Filter/LowPassFilter2p.cpp
+    lib/ardupilot/libraries/Filter/NotchFilter.cpp
+    lib/ardupilot/libraries/Filter/DerivativeFilter.cpp
+    lib/ardupilot/libraries/Filter/ModeFilter.cpp
+    lib/ardupilot/libraries/Filter/SlewLimiter.cpp
+)
+
+target_include_directories(ap_filter PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+)
+
+target_link_libraries(ap_filter PUBLIC
+    ap_math
+)
+
+# ============================================================================
+# ArduPilot Accelerometer Calibrator
+# ============================================================================
+
+add_library(ap_calibrators STATIC
+    lib/ardupilot/libraries/AP_AccelCal/AccelCalibrator.cpp
+)
+
+target_include_directories(ap_calibrators PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+)
+
+target_link_libraries(ap_calibrators PUBLIC
+    ap_math
+)
+
+# ============================================================================
 # Services Library (FreeRTOS Tasks)
 # ============================================================================
 
@@ -348,3 +436,26 @@ pico_enable_stdio_usb(radio_rx 1)
 pico_enable_stdio_uart(radio_rx 0)
 
 pico_add_extra_outputs(radio_rx)
+
+# ============================================================================
+# Calibration Smoke Test
+# ============================================================================
+
+add_executable(smoke_calibration
+    tests/smoke_tests/calibration_test.cpp
+)
+
+target_link_libraries(smoke_calibration
+    hal_sensors
+    ap_calibrators
+    ap_math
+    pico_stdlib
+    hardware_i2c
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(smoke_calibration 1)
+pico_enable_stdio_uart(smoke_calibration 0)
+
+pico_add_extra_outputs(smoke_calibration)
