@@ -22,6 +22,6 @@ These change often. Check at the start of every session.
 - Adafruit components preferred unless notably better alternative exists
 - Log all significant changes in CHANGELOG.md
 - Never silently modify another agent's work
-- Coding standards are mandatory—no deviations without explicit approval (see exceptions table in STANDARDS.md)
+- Coding standards are mandatory—no deviations without explicit approval (see exceptions table in standards/STANDARDS_DEVIATIONS.md)
 - Repository content takes priority over AI memory; flag discrepancies for review
 - If caching or access issues pop up, prefer curl-equivalent methods like direct raw.githubusercontent.com URLs or appending timestamps to query parameters.
