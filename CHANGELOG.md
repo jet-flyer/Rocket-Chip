@@ -22,6 +22,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-21-002 | Claude Code CLI | documentation, refactor
+
+**Standards Compliance and Verification Process**
+
+Fixed JSF AV C++ standards compliance in calibration smoke test: added named constants for all magic numbers (`kI2cSpeedHz`, `kBlinkSlowPeriodMs`, etc.), applied `g_` prefix to globals, `k` prefix to constants. Created `standards/STANDARDS_DEVIATIONS.md` to track deviations with severity, difficulty, and remediation status. Added "Code Verification Process" section to `CODING_STANDARDS.md` with pre-commit checklist for standards compliance.
+
+(tests/smoke_tests/calibration_test.cpp, standards/STANDARDS_DEVIATIONS.md, standards/CODING_STANDARDS.md)
+
+**Next Steps**: Hardware validate calibration on sensors, resolve error handling strategy before EKF3 integration (Medium severity deviation pending council decision).
+
+---
+
 ### 2026-01-21-001 | Claude Code CLI | feature, architecture
 
 **ArduPilot Calibration Library Integration**
