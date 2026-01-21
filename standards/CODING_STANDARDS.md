@@ -160,3 +160,55 @@ Using ArduPilot libraries via compatibility shim (not full ArduPilot firmware):
 - **AP_AccelCal / AP_Compass** - Calibration routines
 
 Full ArduPilot port (ArduRocket) is a stretch goal requiring ChibiOS HAL.
+
+---
+
+## Code Verification Process
+
+All code changes must pass the verification checklist before merge to main.
+
+### Pre-Commit Checklist
+
+1. **Build Verification**
+   - [ ] Code compiles without errors
+   - [ ] Code compiles without warnings (`-Wall -Wextra`)
+   - [ ] All affected targets build successfully
+
+2. **Standards Compliance**
+   - [ ] Naming conventions followed (JSF AV Rule 50-53):
+     - Constants use `k` prefix: `kSampleRate`, `kMaxRetries`
+     - Global variables use `g_` prefix: `g_sensorData`, `g_calibrationState`
+     - Pointers use `p_` suffix in name: `p_buffer`, or `g_p_` for global pointers
+   - [ ] No magic numbers (JSF AV Rule 151) - use named constants
+   - [ ] No dynamic allocation after initialization (JSF AV Rule 206) for production code
+   - [ ] Fixed-width types used (JSF AV Rule 209): `uint32_t`, `int16_t`, not `int`, `long`
+   - [ ] No exceptions, RTTI disabled for embedded targets
+   - [ ] If deviation required, documented in `standards/STANDARDS_DEVIATIONS.md`
+
+3. **DEBUG_OUTPUT.md Compliance** (for code with serial output)
+   - [ ] USB CDC wait pattern followed (visual feedback, settle time)
+   - [ ] Debug macros used (`DBG_PRINT`, `DBG_ERROR`) not raw `printf` in production
+   - [ ] NeoPixel/LED status patterns match documented conventions
+
+4. **Documentation**
+   - [ ] CHANGELOG.md updated for significant changes
+   - [ ] Code comments explain "why", not "what"
+   - [ ] New modules have header file documentation
+
+### Pre-Merge Review
+
+- [ ] Self-review completed using checklist above
+- [ ] Any new standards deviations logged with severity assessment
+- [ ] Safety-critical code (pyro, state machine) requires council review
+
+### Deviations Tracking
+
+All standards deviations must be logged in `standards/STANDARDS_DEVIATIONS.md` with:
+- Location (file:line)
+- Standard violated
+- Severity level (Critical/High/Medium/Low/Accepted)
+- Difficulty to fix (Trivial/Easy/Moderate/Hard)
+- Rationale for deviation
+- Remediation plan (if applicable)
+
+See `standards/STANDARDS_DEVIATIONS.md` for current deviation log and review schedule.
