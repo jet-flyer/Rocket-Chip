@@ -46,5 +46,5 @@ Nothing currently.
 - Legacy Arduino codebase archived in DEPRECATED/ (not carried forward)
 
 ## Future Documentation Planned
-- `docs/ICD.md` - Interface Control Document (Booster Pack connector)
+- `docs/icd/` - Interface Control Documents (expansion connector, protocols)
 - `docs/TEST_PLAN.md` - Test procedures and criteria

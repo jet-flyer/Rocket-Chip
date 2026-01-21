@@ -58,8 +58,8 @@ rocketchip/
 │       └── features.h             # Feature detection macros
 │
 ├── src/
-│   ├── main.c                     # Entry point, FreeRTOS task creation
-│   ├── hooks.c                    # FreeRTOS hooks (idle, malloc, stack overflow)
+│   ├── main.cpp                   # Entry point, FreeRTOS task creation
+│   ├── hooks.cpp                  # FreeRTOS hooks (idle, malloc, stack overflow)
 │   │
 │   ├── core/                      # Mission Engine
 │   │   ├── MissionEngine.h/.cpp   # Top-level orchestrator

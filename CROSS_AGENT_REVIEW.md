@@ -17,7 +17,7 @@ When multiple AI agents (Claude, Grok, Gemini, etc.) work on the same codebase, 
 
 When you encounter something that seems odd but not obviously wrong, check these sources first:
 
-- `CHANGELOG.yaml` or similar decision logs
+- `CHANGELOG.md` or similar decision logs
 - Code comments explaining "why" (not just "what")
 - Architecture documents in `/docs` or project files
 - Recent commit messages
