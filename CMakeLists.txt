@@ -272,6 +272,7 @@ target_link_libraries(rocketchip
     services
     hal
     hal_sensors
+    ap_compat
     pico_stdlib
     pico_multicore
     hardware_i2c
