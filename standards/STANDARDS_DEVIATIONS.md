@@ -2,7 +2,7 @@
 
 **Purpose**: Track deviations from project coding standards (JSF AV C++, DEBUG_OUTPUT.md, CODING_STANDARDS.md) with severity, remediation difficulty, and rationale.
 
-**Last Updated**: 2026-01-21 (Revision 2 - Post-remediation)
+**Last Updated**: 2026-01-21 (Revision 3 - Council-approved full resolution)
 
 ---
 
@@ -29,7 +29,26 @@
 
 ## Active Deviations
 
-### 1. Dynamic Memory Allocation in Test Code
+### 1. ArduPilot Library Deviations
+
+**Location**: `lib/ardupilot/` (external code)
+
+**Standard Violated**: Multiple JSF rules
+
+**Severity**: Accepted
+**Difficulty**: N/A
+**Status**: Permanently Accepted
+
+**Rationale**: ArduPilot is external, battle-tested code. Per `CODING_STANDARDS.md` "ArduPilot Library Integration" section, we accept ArduPilot's coding style within their libraries and use the shim layer (`lib/ap_compat/`) to bridge to RocketChip conventions.
+
+**Policy**:
+- No modifications to ArduPilot source files
+- Shim layer follows RocketChip standards
+- ArduPilot deviations are not tracked individually
+
+---
+
+### 2. Dynamic Memory Allocation in Test Code
 
 **Location**: [calibration_test.cpp:155](tests/smoke_tests/calibration_test.cpp#L155)
 ```cpp
@@ -40,7 +59,7 @@ statusLed = new WS2812(NEOPIXEL_PIN, 1);
 
 **Severity**: Low
 **Difficulty**: Easy
-**Status**: Deferred
+**Status**: Accepted for test code
 
 **Rationale**: This is test/smoke code, not flight code. Dynamic allocation at startup is acceptable for interactive test utilities. Production code in `src/` uses static allocation.
 
@@ -52,7 +71,7 @@ WS2812* statusLed = &statusLedInstance;
 
 ---
 
-### 2. Use of Primitive Types Instead of Fixed-Width Types
+### 3. Use of Primitive Types in Test Code
 
 **Location**: [calibration_test.cpp](tests/smoke_tests/calibration_test.cpp) (multiple)
 ```cpp
@@ -80,94 +99,6 @@ typedef double float64_t;
 
 ---
 
-### 3. Naming Convention Deviations
-
-**Location**: [calibration_test.cpp](tests/smoke_tests/calibration_test.cpp) (multiple)
-
-**Standard Violated**: JSF AV Rule 50-53 (naming conventions)
-
-**Severity**: Low
-**Difficulty**: Trivial
-**Status**: FIXED (2026-01-21)
-
-**Resolution**: Updated all identifiers to follow naming conventions:
-- Constants now use `k` prefix: `kNeoPixelPin`, `kOrientationNames`, `kI2cSpeedHz`, etc.
-- Global variables now use `g_` prefix: `g_statusLed`, `g_lastAnimUpdate`, `g_pulsePhase`, etc.
-- Module state clearly sectioned with comments
-
----
-
-### 4. Magic Numbers
-
-**Location**: [calibration_test.cpp](tests/smoke_tests/calibration_test.cpp) (multiple)
-
-**Standard Violated**: JSF AV Rule 151 - "Magic numbers shall not be used"
-
-**Severity**: Low
-**Difficulty**: Easy
-**Status**: FIXED (2026-01-21)
-
-**Resolution**: Added configuration constants section at top of file:
-```cpp
-// Timing constants (in milliseconds)
-static constexpr uint32_t kUsbWaitBlinkMs = 200;
-static constexpr uint32_t kUsbSettleTimeMs = 500;
-static constexpr uint32_t kBlinkSlowPeriodMs = 500;
-static constexpr uint32_t kBlinkFastPeriodMs = 100;
-static constexpr uint32_t kAnimUpdatePeriodMs = 20;
-static constexpr uint32_t kProgressIndicatorMs = 200;
-
-// I2C configuration
-static constexpr uint32_t kI2cSpeedHz = 400000;
-
-// LED brightness
-static constexpr uint8_t kLedBrightnessPercent = 50;
-
-// Calibration parameters
-static constexpr uint8_t kNumOrientations = 6;
-static constexpr float kSampleDurationSec = 2.0f;
-```
-All magic numbers throughout the code now reference these constants.
-
----
-
-### 5. ArduPilot Library Deviations
-
-**Location**: `lib/ardupilot/` (external code)
-
-**Standard Violated**: Multiple JSF rules
-
-**Severity**: Accepted
-**Difficulty**: N/A
-**Status**: Accepted
-
-**Rationale**: ArduPilot is external, battle-tested code. Per `CODING_STANDARDS.md` "ArduPilot Library Integration" section, we accept ArduPilot's coding style within their libraries and use the shim layer (`lib/ap_compat/`) to bridge to RocketChip conventions.
-
-**Policy**:
-- No modifications to ArduPilot source files
-- Shim layer follows RocketChip standards
-- ArduPilot deviations are not tracked individually
-
----
-
-### 6. Error Handling Strategy Undefined
-
-**Location**: [AP_InternalError.h](lib/ap_compat/AP_InternalError/AP_InternalError.h)
-
-**Standard Violated**: CODING_STANDARDS.md "Error Handling" section (implicit)
-
-**Severity**: Medium
-**Difficulty**: Moderate
-**Status**: Pending Decision
-
-**Rationale**: Current stub just prints errors. Before EKF3/fusion integration, must decide:
-- **Option A**: Full ArduPilot error accumulation/reporting
-- **Option B**: RocketChip-specific error system aligned with state machine
-
-**Remediation**: Council decision required. Documented in code as TODO.
-
----
-
 ## Resolved Deviations
 
 ### R1. USB CDC Wait Pattern (FIXED 2026-01-21)
@@ -183,21 +114,92 @@ All magic numbers throughout the code now reference these constants.
 
 ---
 
+### R2. Naming Convention Deviations (FIXED 2026-01-21)
+
+**Location**: [calibration_test.cpp](tests/smoke_tests/calibration_test.cpp), `src/main.cpp`, `src/services/SensorTask.cpp`
+
+**Standard Violated**: JSF AV Rule 50-53 (naming conventions)
+
+**Resolution**: Updated all identifiers to follow naming conventions:
+- Constants now use `k` prefix: `kNeoPixelPin`, `kLedPin`, `kUiTaskPriority`, `kI2cSda`, etc.
+- Global variables use `g_` prefix: `g_statusLed`, `g_sensorData`, `g_sensorDataMutex`, etc.
+- Module state clearly sectioned with comments
+
+---
+
+### R3. Magic Numbers (FIXED 2026-01-21)
+
+**Location**: [calibration_test.cpp](tests/smoke_tests/calibration_test.cpp) (multiple)
+
+**Standard Violated**: JSF AV Rule 151 - "Magic numbers shall not be used"
+
+**Resolution**: Added configuration constants section at top of file:
+```cpp
+// Timing constants (in milliseconds)
+static constexpr uint32_t kUsbWaitBlinkMs = 200;
+static constexpr uint32_t kUsbSettleTimeMs = 500;
+// ... etc.
+```
+All magic numbers throughout the code now reference these constants.
+
+---
+
+### R4. Raw printf Usage (FIXED 2026-01-21)
+
+**Location**: `src/main.cpp`, `src/services/SensorTask.cpp`
+
+**Standard Violated**: DEBUG_OUTPUT.md - diagnostic output should be compile-time guardable
+
+**Resolution**: Introduced compile-time guarded debug macros in `include/debug.h`:
+```cpp
+#ifdef CONFIG_DEBUG
+#define DBG_PRINT(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#define DBG_ERROR(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#else
+#define DBG_PRINT(fmt, ...) do {} while(0)
+#define DBG_ERROR(fmt, ...) do {} while(0)
+#endif
+```
+All diagnostic printf in production src/ code replaced with DBG_PRINT/DBG_ERROR.
+Fatal hooks (malloc/stack failure) retain minimal printf for post-mortem debugging plus LED blink codes.
+
+---
+
+### R5. Error Handling Strategy Undefined (FIXED 2026-01-21)
+
+**Location**: [AP_InternalError.h](lib/ap_compat/AP_InternalError/AP_InternalError.h)
+
+**Standard Violated**: CODING_STANDARDS.md "Error Handling" section (implicit)
+
+**Previous Status**: Pending council decision
+
+**Council Decision (2026-01-21)**: Approved Option A - Full ArduPilot AP_InternalError integration
+
+**Resolution**: Implemented full AP_InternalError with:
+- Error accumulation bitmask (`AP_InternalError::errors()`)
+- Error count tracking (`AP_InternalError::count()`)
+- Integration with DBG_ERROR debug macro
+- Fatal paths (malloc/stack hooks, scheduler return) routed to `AP_InternalError::error()` with appropriate enum values
+- Placeholder for MAVLink STATUS_TEXT integration when telemetry available
+
+---
+
 ## Deviations by File
 
 | File | Critical | High | Medium | Low | Accepted | Fixed |
 |------|:--------:|:----:|:------:|:---:|:--------:|:-----:|
-| `tests/smoke_tests/calibration_test.cpp` | 0 | 0 | 0 | 2 | 0 | 2 |
-| `lib/ap_compat/*` | 0 | 0 | 1 | 0 | 0 | 0 |
+| `src/main.cpp` | 0 | 0 | 0 | 0 | 0 | 2 |
+| `src/services/SensorTask.cpp` | 0 | 0 | 0 | 0 | 0 | 2 |
+| `tests/smoke_tests/calibration_test.cpp` | 0 | 0 | 0 | 2 | 0 | 3 |
+| `lib/ap_compat/*` | 0 | 0 | 0 | 0 | 0 | 1 |
 | `lib/ardupilot/*` | 0 | 0 | 0 | 0 | 1 | 0 |
 
-**Summary**: 2 deviations fixed, 2 remaining (1 accepted for test code, 1 pending decision), 1 accepted (external library).
+**Summary**: 8 deviations resolved, 3 remaining (2 accepted for test code, 1 permanently accepted for external library).
 
 ---
 
 ## Review Schedule
 
-- **Before Phase 3 (EKF3)**: Resolve error handling strategy (Medium #6)
 - **Before Flight Code**: Review all Low severity items in production paths
 - **Quarterly**: Audit new code for standards compliance
 
@@ -209,3 +211,4 @@ All magic numbers throughout the code now reference these constants.
 2. Production code (`src/`) must strictly follow all standards
 3. External libraries are accepted as-is with shim layer bridging
 4. New deviations should be logged here before merging to main
+5. Debug output can be disabled for release builds via `-DCONFIG_DEBUG=OFF`

@@ -92,9 +92,21 @@ git submodule update --init --recursive
 
 ### Submodule Structure
 
-The project uses two submodules:
-- **pico-sdk/**: Raspberry Pi Pico SDK (hardware abstraction, USB, GPIO)
-- **FreeRTOS-Kernel/**: FreeRTOS SMP branch for dual-core support
+The project uses several git submodules:
+
+| Submodule | Purpose |
+|-----------|---------|
+| `pico-sdk/` | Raspberry Pi Pico SDK (hardware abstraction, USB, GPIO) |
+| `FreeRTOS-Kernel/` | FreeRTOS SMP branch for dual-core support |
+| `lib/st_drivers/` | ST platform-independent sensor drivers (ISM330DHCX, LIS3MDL, DPS310) |
+| `lib/ardupilot/` | ArduPilot libraries (AP_Math, calibration, filters) |
+
+**For CI/Test Environments**: If submodules weren't initialized at clone time, run:
+```bash
+git submodule update --init --recursive
+```
+
+**Note**: The pico-sdk submodule contains its own nested submodules (tinyusb, btstack, etc.) which are initialized automatically with `--recursive`.
 
 ## Building the Firmware
 

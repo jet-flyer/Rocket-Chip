@@ -36,6 +36,17 @@ set(FREERTOS_CONFIG_FILE_DIRECTORY "${CMAKE_SOURCE_DIR}" CACHE STRING "" FORCE)
 include(FreeRTOS_Kernel_import.cmake)
 
 # ============================================================================
+# Common Include Directory and Debug Configuration
+# ============================================================================
+
+# Add common include path for debug.h and other shared headers
+set(ROCKETCHIP_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
+
+# Enable debug output by default (disable for release builds)
+# To disable: cmake -DCONFIG_DEBUG=OFF ..
+option(CONFIG_DEBUG "Enable debug output macros" ON)
+
+# ============================================================================
 # HAL Library
 # ============================================================================
 
@@ -53,7 +64,12 @@ add_library(hal STATIC
 
 target_include_directories(hal PUBLIC
     ${CMAKE_SOURCE_DIR}/src/hal
+    ${ROCKETCHIP_INCLUDE_DIR}
 )
+
+if(CONFIG_DEBUG)
+    target_compile_definitions(hal PUBLIC CONFIG_DEBUG)
+endif()
 
 target_link_libraries(hal PUBLIC
     pico_stdlib
@@ -137,7 +153,12 @@ add_library(ap_compat STATIC
 target_include_directories(ap_compat PUBLIC
     ${CMAKE_SOURCE_DIR}/lib/ap_compat
     ${CMAKE_SOURCE_DIR}/src/hal
+    ${ROCKETCHIP_INCLUDE_DIR}
 )
+
+if(CONFIG_DEBUG)
+    target_compile_definitions(ap_compat PUBLIC CONFIG_DEBUG)
+endif()
 
 target_link_libraries(ap_compat PUBLIC
     hal
@@ -225,6 +246,7 @@ add_library(services STATIC
 target_include_directories(services PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/services
+    ${ROCKETCHIP_INCLUDE_DIR}
 )
 
 target_link_libraries(services PUBLIC
@@ -243,12 +265,14 @@ add_executable(rocketchip
 
 target_include_directories(rocketchip PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${ROCKETCHIP_INCLUDE_DIR}
 )
 
 target_link_libraries(rocketchip
     services
     hal
     hal_sensors
+    ap_compat
     pico_stdlib
     pico_multicore
     hardware_i2c

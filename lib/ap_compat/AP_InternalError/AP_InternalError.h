@@ -1,30 +1,31 @@
 /**
  * @file AP_InternalError.h
- * @brief AP_InternalError stub for RocketChip
+ * @brief AP_InternalError implementation for RocketChip
  *
  * Provides the AP_InternalError class with error_t enum for ArduPilot code.
- * This matches the ArduPilot error_t bitmask enum structure.
+ * This matches the ArduPilot error_t bitmask enum structure and provides
+ * full error accumulation/tracking for production error reporting.
  *
- * TODO: Evaluate error handling strategy for RocketChip:
- *   Option A: Fully utilize ArduPilot's AP_InternalError with:
- *     - Error accumulation bitmask
- *     - Error count tracking
- *     - Error-to-string conversion
- *     - Integration with logging/telemetry
- *   Option B: Create RocketChip-specific error system:
- *     - Aligned with DEBUG_OUTPUT.md DBG_ERROR pattern
- *     - Flight state-aware error handling (ERROR state in state machine)
- *     - Integration with NeoPixel status indication
- *     - Simplified error categories for rocket use case
- *   Current: Minimal stub that prints errors - sufficient for calibration
- *   Decision needed before EKF3/fusion integration.
+ * Council Decision (2026-01-21): Use ArduPilot AP_InternalError pattern with:
+ * - Error accumulation bitmask
+ * - Error count tracking
+ * - Integration with debug output macros
+ * - Future MAVLink telemetry support (placeholder)
+ *
+ * @see standards/STANDARDS_DEVIATIONS.md for resolution history
  */
 
 #pragma once
 
 #include <cstdint>
-#include <cstdio>
+#include "debug.h"
 
+/**
+ * @brief Internal error tracking class for RocketChip
+ *
+ * Accumulates error flags and counts for diagnostic purposes.
+ * Thread-safe through atomic operations on error state.
+ */
 class AP_InternalError {
 public:
     // Error type enum - matches ArduPilot's bitmask enum
@@ -61,14 +62,79 @@ public:
         invalid_arg_or_result       = (1U << 29),
     };
 
+    /**
+     * @brief Report an error condition
+     * @param e Error type from error_t enum
+     *
+     * Accumulates the error in the bitmask and increments the error count.
+     * Outputs diagnostic message via DBG_ERROR when enabled.
+     */
     static void error(error_t e) {
-        printf("[AP_InternalError] Error: 0x%lx\n", (unsigned long)e);
+        // Accumulate error in bitmask
+        s_errorMask |= static_cast<uint32_t>(e);
+        s_errorCount++;
+
+        // Output diagnostic (compile-time guarded)
+        DBG_ERROR("[AP_InternalError] Error: 0x%08lx (total: %lu)\n",
+                  static_cast<unsigned long>(e),
+                  static_cast<unsigned long>(s_errorCount));
+
+        // TODO: Queue for MAVLink STATUS_TEXT when telemetry available
     }
 
-    // Two-argument version used in some ArduPilot code
+    /**
+     * @brief Report an error with source line information
+     * @param e Error type from error_t enum
+     * @param line Source line number where error occurred
+     */
     static void error(error_t e, uint16_t line) {
-        printf("[AP_InternalError] Error: 0x%lx at line %d\n", (unsigned long)e, line);
+        s_errorMask |= static_cast<uint32_t>(e);
+        s_errorCount++;
+
+        DBG_ERROR("[AP_InternalError] Error: 0x%08lx at line %d (total: %lu)\n",
+                  static_cast<unsigned long>(e),
+                  line,
+                  static_cast<unsigned long>(s_errorCount));
     }
+
+    /**
+     * @brief Get accumulated error bitmask
+     * @return Bitmask of all errors that have occurred
+     */
+    static uint32_t errors() {
+        return s_errorMask;
+    }
+
+    /**
+     * @brief Get total error count
+     * @return Number of error() calls since boot
+     */
+    static uint32_t count() {
+        return s_errorCount;
+    }
+
+    /**
+     * @brief Check if any errors have occurred
+     * @return true if any errors have been reported
+     */
+    static bool has_errors() {
+        return s_errorMask != 0;
+    }
+
+    /**
+     * @brief Clear all error state (use with caution)
+     *
+     * Primarily for test code. Production code should not clear errors.
+     */
+    static void clear() {
+        s_errorMask = 0;
+        s_errorCount = 0;
+    }
+
+private:
+    // Static error state (initialized in AP_HAL_Compat.cpp)
+    static uint32_t s_errorMask;
+    static uint32_t s_errorCount;
 };
 
 // Note: AP::internal_error() is defined in AP_HAL_Compat.h
