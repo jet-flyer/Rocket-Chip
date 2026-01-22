@@ -16,59 +16,41 @@ ArduPilot Libraries (unchanged) → AP_HAL Interface → AP_HAL_RP2350 (our impl
 
 | Phase | Component | Status | Notes |
 |-------|-----------|--------|-------|
-| 1 | Scheduler | NOT STARTED | FreeRTOS task/timer mapping |
-| 1 | Semaphores | PARTIAL | Stub exists in ap_compat |
-| 1 | Util | NOT STARTED | Memory info, panic handler |
-| 1 | Storage | NOT STARTED | Flash persistence |
+| 1 | Scheduler | **COMPLETE** | FreeRTOS task/timer mapping, callbacks |
+| 1 | Semaphores | **COMPLETE** | Mutex + BinarySemaphore wrappers |
+| 1 | Util | **COMPLETE** | Memory info, system ID |
+| 1 | HAL Singleton | **COMPLETE** | HAL_RP2350 class, global `hal` instance |
+| 1 | Storage | NOT STARTED | Flash persistence via AP_FlashStorage |
 | 1 | CalibrationStore | NOT STARTED | Depends on Storage |
-| 2 | I2CDevice | NOT STARTED | Wrap existing Bus::I2C |
-| 2 | SPIDevice | NOT STARTED | Wrap existing Bus::SPI |
-| 2 | UARTDriver | NOT STARTED | Wrap existing UART.h |
-| 2 | GPIO | NOT STARTED | Wrap existing GPIO.h |
-| 2 | AnalogIn | NOT STARTED | Wrap existing ADC.h |
-| 2 | RCOutput | NOT STARTED | Wrap existing PWM.h |
+| 2 | I2CDevice | NOT STARTED | Full rewrite (replaces Bus::I2C) |
+| 2 | SPIDevice | NOT STARTED | Full rewrite (replaces Bus::SPI) |
+| 2 | UARTDriver | NOT STARTED | USB CDC + hardware UARTs |
+| 2 | GPIO | NOT STARTED | Digital I/O |
+| 2 | AnalogIn | NOT STARTED | ADC channels |
+| 2 | RCOutput | NOT STARTED | PWM output |
 | 3 | AP_Notify | NOT STARTED | NeoPixel backend |
 
-## Critical Questions (Pending Clarification)
+## Decisions (Resolved 2026-01-22)
 
-### Q1: Migration Strategy for `ap_compat`
+### D1: Migration Strategy for `ap_compat`
 
-**Current state:** `lib/ap_compat/` provides minimal AP_HAL compatibility shim with:
-- `AP_HAL::millis()`, `micros()`, `panic()`
-- `HAL_Semaphore` stub (no-op)
-- Board definitions, feature flags
+**Decision:** **(A) Replace** - Delete `ap_compat` entirely, create fresh `lib/AP_HAL_RP2350/`
 
-**Options:**
-- (A) **Replace**: Delete `ap_compat`, create fresh `lib/AP_HAL_RP2350/`
-- (B) **Evolve**: Rename/refactor `ap_compat` into `AP_HAL_RP2350`
-- (C) **Coexist**: Keep `ap_compat` for feature flags, add `AP_HAL_RP2350` for implementations
+No temporary fixes, no parallel abstractions. The old shim layer will be removed once AP_HAL_RP2350 is functional.
 
-**Decision:** PENDING
+### D2: Sensor Driver Conversion Scope
 
-### Q2: Sensor Driver Conversion Scope
+**Decision:** **(A) Convert all** - Rewrite all sensor drivers to use `AP_HAL::I2CDevice`/`AP_HAL::SPIDevice`
 
-**Current state:** Sensor drivers use `Bus::I2C`/`Bus::SPI`:
-- `IMU_ISM330DHCX`, `Mag_LIS3MDL`, `Baro_DPS310` - all working on hardware
-- `GPS_PA1010D`, `Radio_RFM95W`
+Per the plan: "Don't keep parallel abstractions (old `Bus` AND new `I2CDevice`)". The existing `Bus::I2C` and `Bus::SPI` classes will be deleted once conversion is complete.
 
-**Options:**
-- (A) **Convert all**: Rewrite sensor drivers to use `AP_HAL::I2CDevice`
-- (B) **Selective**: Keep existing drivers, only use AP_HAL::I2CDevice for new ArduPilot libraries (AP_InertialSensor, etc.)
-- (C) **Dual path**: Implement `AP_HAL::I2CDevice` using `Bus::I2C` internally, no sensor rewrites
+### D3: ArduPilot Library Scope
 
-**Decision:** PENDING
+**Decision:** Follow the plan's library list. Investigate dependencies as encountered.
 
-### Q3: ArduPilot Library Scope
-
-**Already integrated:** AP_Math, Filter, AP_AccelCal
-
-**Proposed for this plan:** AP_FlashStorage, StorageManager, AP_Notify
-
-**Future consideration:** EKF3, AP_InertialSensor (significant dependency chains)
-
-**Question:** Should we investigate dependency trees before committing to specific libraries?
-
-**Decision:** PENDING
+**Phase 1:** AP_FlashStorage, StorageManager
+**Phase 3:** AP_Notify
+**Future:** EKF3, AP_InertialSensor (address dependencies when we get there)
 
 ---
 
@@ -390,17 +372,42 @@ libraries/AP_Notify/* (subset TBD)
 **Actions:**
 - Created this tracking document
 - Explored codebase structure
-- Identified existing `ap_compat` layer and its relationship to planned work
+- Identified existing `ap_compat` layer
+- **Resolved all pending decisions** (see Decisions section above)
+- Fetched AP_HAL interface specifications (Scheduler, Semaphores, Util)
+- Implemented Phase 1 core components:
+  - `Scheduler.h/.cpp` - FreeRTOS task/timer mapping, 1kHz callbacks
+  - `Semaphores.h/.cpp` - Mutex + BinarySemaphore with FreeRTOS
+  - `Util.h/.cpp` - Memory info, system ID, arming state
+  - `HAL_RP2350_Class.h/.cpp` - HAL singleton
+  - `hwdef.h` - Board definitions and feature flags
+  - `AP_HAL_RP2350.h` - Main include header
+- Created `smoke_ap_hal` test target
+- **Build verified:** `smoke_ap_hal.uf2` (109KB) compiles successfully
 
-**Pending decisions:**
-- Q1: Migration strategy for `ap_compat`
-- Q2: Sensor driver conversion scope
-- Q3: ArduPilot library scope
+**Files created:**
+```
+lib/AP_HAL_RP2350/
+├── AP_HAL_RP2350.h
+├── HAL_RP2350_Class.h/.cpp
+├── Scheduler.h/.cpp
+├── Semaphores.h/.cpp
+├── Util.h/.cpp
+└── hwdef.h
+
+tests/smoke_tests/
+└── ap_hal_test.cpp
+```
+
+**Build output:**
+- Code: 58KB
+- BSS: 88KB (FreeRTOS stacks)
+- Total flash: ~109KB
 
 **Next session should:**
-1. Get answers to pending questions
-2. Begin Phase 1.1 (Scheduler) OR
-3. Investigate AP_FlashStorage dependencies first
+1. Implement Storage (AP_FlashStorage integration)
+2. Implement CalibrationStore
+3. Hardware validation of smoke_ap_hal on actual RP2350
 
 ---
 
