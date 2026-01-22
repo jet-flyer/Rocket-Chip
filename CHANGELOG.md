@@ -22,6 +22,47 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-22-001 | Claude Code CLI | feature, architecture
+
+**AP_HAL_RP2350 Phase 1: Scheduler, Semaphores, Util**
+
+Implemented core ArduPilot HAL components for RocketChip RP2350, enabling direct ArduPilot library usage without the full ChibiOS port.
+
+**Scheduler (Scheduler.h/.cpp):**
+- FreeRTOS task/timer mapping for ArduPilot's callback system
+- millis/micros timing via hardware timer
+- 1kHz timer callbacks, 100Hz I/O callbacks
+- delay() with RTOS yield, delay_microseconds() busy-wait
+- Thread creation and priority management
+
+**Semaphores (Semaphores.h/.cpp):**
+- HAL_Semaphore as recursive mutex with FreeRTOS primitives
+- BinarySemaphore for thread signaling
+- ISR-safe signal_ISR() method
+- WithSemaphore RAII helper for automatic lock management
+
+**Util (Util.h/.cpp):**
+- Memory info via FreeRTOS heap APIs
+- System ID from RP2350 unique flash ID
+- Soft arming state tracking
+
+**HAL Singleton (HAL_RP2350_Class.h/.cpp):**
+- Global `hal` instance matching ArduPilot's AP_HAL pattern
+- Subsystem initialization and accessor methods
+
+**hwdef.h:**
+- Board definitions (GPIO pins, I2C addresses, SPI config)
+- Feature flags for ArduPilot compatibility
+- FreeRTOS task priorities and stack sizes
+
+**Validation:**
+- Smoke test (ap_hal_test.cpp) exercises all components
+- Build verified: smoke_ap_hal.uf2 compiles (58KB code, 88KB BSS)
+
+(lib/AP_HAL_RP2350/*, tests/smoke_tests/ap_hal_test.cpp, CMakeLists.txt, docs/AP_HAL_RP2350_PLAN.md)
+
+---
+
 ### 2026-01-21-003 | Claude Code CLI | [STANDARDS]
 
 **Resolve Grok-identified deviations**
