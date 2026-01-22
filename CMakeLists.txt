@@ -143,7 +143,37 @@ target_link_libraries(hal_sensors PUBLIC
 )
 
 # ============================================================================
-# ArduPilot Compatibility Shim
+# AP_HAL_RP2350 - ArduPilot HAL Implementation for RP2350
+# ============================================================================
+
+add_library(ap_hal_rp2350 STATIC
+    lib/AP_HAL_RP2350/Scheduler.cpp
+    lib/AP_HAL_RP2350/Semaphores.cpp
+    lib/AP_HAL_RP2350/Util.cpp
+    lib/AP_HAL_RP2350/HAL_RP2350_Class.cpp
+)
+
+target_include_directories(ap_hal_rp2350 PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+if(CONFIG_DEBUG)
+    target_compile_definitions(ap_hal_rp2350 PUBLIC CONFIG_DEBUG)
+endif()
+
+target_link_libraries(ap_hal_rp2350 PUBLIC
+    pico_stdlib
+    pico_unique_id
+    hardware_timer
+    hardware_watchdog
+    hardware_sync
+    FreeRTOS-Kernel
+)
+
+# ============================================================================
+# ArduPilot Compatibility Shim (Legacy - will be replaced by ap_hal_rp2350)
 # ============================================================================
 
 add_library(ap_compat STATIC
@@ -483,3 +513,23 @@ pico_enable_stdio_usb(smoke_calibration 1)
 pico_enable_stdio_uart(smoke_calibration 0)
 
 pico_add_extra_outputs(smoke_calibration)
+
+# ============================================================================
+# AP_HAL_RP2350 Smoke Test
+# ============================================================================
+
+add_executable(smoke_ap_hal
+    tests/smoke_tests/ap_hal_test.cpp
+)
+
+target_link_libraries(smoke_ap_hal
+    ap_hal_rp2350
+    pico_stdlib
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(smoke_ap_hal 1)
+pico_enable_stdio_uart(smoke_ap_hal 0)
+
+pico_add_extra_outputs(smoke_ap_hal)
