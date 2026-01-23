@@ -82,9 +82,8 @@ constexpr uint8_t UART0_RX          = 1;
 constexpr uint32_t UART0_BAUD       = 9600;     // GPS default
 
 // GPIO
-constexpr uint8_t LED_BUILTIN       = 13;       // Red LED
+constexpr uint8_t LED_BUILTIN       = 7;        // Red LED (GPIO 7 per Feather RP2350 pinout)
 constexpr uint8_t NEOPIXEL          = 21;       // WS2812 NeoPixel
-constexpr uint8_t BUTTON            = 7;        // User button
 
 // ADC channels (GPIO 26-29 map to ADC0-3)
 constexpr uint8_t ADC_A0            = 26;

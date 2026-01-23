@@ -22,11 +22,21 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-22-002 | Claude Code CLI | validation
+
+**AP_HAL_RP2350 Phase 1 Hardware Validated**
+
+All 7 smoke tests passing on Feather RP2350 hardware: Timing (millis/micros accuracy), Scheduler delays, Semaphores (recursive mutex), Binary semaphores, Util functions (memory reporting, system ID, arming state), Timer callbacks (1kHz timer, 100Hz I/O), and System state. Fixed `available_memory()` to handle static-allocation-only configuration (returns total heap when FreeRTOS reports 0 free). Refactored test to follow DEBUG_OUTPUT.md pattern: tests run immediately, results stored, LED indicates status, serial output waits for USB connection.
+
+(lib/AP_HAL_RP2350/Util.cpp, tests/smoke_tests/ap_hal_test.cpp)
+
+---
+
 ### 2026-01-22-001 | Claude Code CLI | feature, architecture
 
 **AP_HAL_RP2350 Phase 1: Scheduler, Semaphores, Util**
 
-Implemented core ArduPilot HAL components for RocketChip RP2350, enabling direct ArduPilot library usage without the full ChibiOS port.
+Implemented core ArduPilot HAL components for RocketChip RP2350, enabling direct ArduPilot library usage without the full ChibiOS port. This work was prompted by calibration integration attempt (2026-01-21-004) which revealed that the existing ap_compat shim layer was insufficient for ArduPilot's calibration libraries.
 
 **Scheduler (Scheduler.h/.cpp):**
 - FreeRTOS task/timer mapping for ArduPilot's callback system
@@ -60,6 +70,16 @@ Implemented core ArduPilot HAL components for RocketChip RP2350, enabling direct
 - Build verified: smoke_ap_hal.uf2 compiles (58KB code, 88KB BSS)
 
 (lib/AP_HAL_RP2350/*, tests/smoke_tests/ap_hal_test.cpp, CMakeLists.txt, docs/AP_HAL_RP2350_PLAN.md)
+
+---
+
+### 2026-01-21-004 | Claude Code CLI | architecture
+
+**Calibration System Integration (DEFERRED)**
+
+Attempted calibration infrastructure integration with ArduPilot's AccelCalibrator and CompassCalibrator libraries. Work included CalibrationManager in src/calibration/ with startup calibration routines, compass calibration smoke test with sphere fit and WMM field validation, and SensorTask integration for runtime calibration application.
+
+*Revealed that existing ap_compat shim layer was insufficient—ArduPilot calibration libraries require proper HAL_Semaphore, Scheduler, and timing primitives. Deferred pending AP_HAL_RP2350 implementation (see 2026-01-22-001). Local work stashed; will revisit after HAL validation.*
 
 ---
 

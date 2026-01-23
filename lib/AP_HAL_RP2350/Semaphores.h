@@ -66,6 +66,8 @@ public:
     bool is_taken() const;
 
 private:
+    void ensure_initialized();  // Lazy init for static objects
+
     SemaphoreHandle_t m_handle;
     StaticSemaphore_t m_buffer;  // Static allocation for FreeRTOS
 };
@@ -124,8 +126,11 @@ public:
     void signal_ISR();
 
 private:
+    void ensure_initialized();  // Lazy init for static objects
+
     SemaphoreHandle_t m_handle;
     StaticSemaphore_t m_buffer;
+    bool m_initial_state;
 };
 
 

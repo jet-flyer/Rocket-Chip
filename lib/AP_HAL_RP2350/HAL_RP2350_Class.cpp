@@ -32,8 +32,8 @@ void HAL_RP2350::init() {
         return;
     }
 
-    // Initialize Pico SDK stdio (USB/UART debug output)
-    stdio_init_all();
+    // Note: Application is responsible for calling stdio_init_all() before hal.init()
+    // This follows ArduPilot pattern where app sets up hardware before HAL init
 
     printf("\n");
     printf("========================================\n");

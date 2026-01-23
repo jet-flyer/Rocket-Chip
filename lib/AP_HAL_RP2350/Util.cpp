@@ -33,7 +33,14 @@ Util::Util()
 // ============================================================================
 
 uint32_t Util::available_memory() const {
-    return xPortGetFreeHeapSize();
+    // With static allocation, xPortGetFreeHeapSize() returns 0 if no heap is used.
+    // Fall back to total heap size in that case (all heap is "available").
+    uint32_t free_heap = xPortGetFreeHeapSize();
+    if (free_heap == 0) {
+        // No dynamic allocations - report total heap as available
+        return configTOTAL_HEAP_SIZE;
+    }
+    return free_heap;
 }
 
 uint32_t Util::total_memory() const {

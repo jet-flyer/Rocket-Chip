@@ -533,3 +533,44 @@ pico_enable_stdio_usb(smoke_ap_hal 1)
 pico_enable_stdio_uart(smoke_ap_hal 0)
 
 pico_add_extra_outputs(smoke_ap_hal)
+
+# ============================================================================
+# Minimal Blink Test (no FreeRTOS - for debugging boot issues)
+# ============================================================================
+
+add_executable(minimal_blink
+    tests/smoke_tests/minimal_blink.cpp
+)
+
+target_link_libraries(minimal_blink
+    pico_stdlib
+)
+
+pico_add_extra_outputs(minimal_blink)
+
+# FreeRTOS Static Allocation Test - minimal test without AP_HAL
+add_executable(freertos_static_test
+    tests/smoke_tests/freertos_static_test.cpp
+)
+
+target_link_libraries(freertos_static_test
+    pico_stdlib
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_add_extra_outputs(freertos_static_test)
+
+# FreeRTOS with AP_HAL include (but no HAL usage) - tests global object
+add_executable(freertos_with_hal_include
+    tests/smoke_tests/freertos_with_hal_include.cpp
+)
+
+target_link_libraries(freertos_with_hal_include
+    pico_stdlib
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+    ap_hal_rp2350
+)
+
+pico_add_extra_outputs(freertos_with_hal_include)

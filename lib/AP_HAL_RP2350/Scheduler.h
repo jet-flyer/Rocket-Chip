@@ -347,19 +347,13 @@ private:
     // Main task handle (for in_main_thread check)
     TaskHandle_t m_main_task;
 
-    // Timer task
+    // Task handles (buffers are file-scope in .cpp, like ArduPilot pattern)
     TaskHandle_t m_timer_task;
-    StaticTask_t m_timer_task_buffer;
-    StackType_t m_timer_stack[HAL_TIMER_STACK_SIZE];
-
-    // I/O task
     TaskHandle_t m_io_task;
-    StaticTask_t m_io_task_buffer;
-    StackType_t m_io_stack[HAL_IO_STACK_SIZE];
 
-    // Synchronization
-    Semaphore m_timer_sem;
-    Semaphore m_io_sem;
+    // Synchronization (pointers to file-scope objects)
+    Semaphore* m_timer_sem;
+    Semaphore* m_io_sem;
 
     // Priority boost state
     bool m_priority_boosted;

@@ -15,10 +15,17 @@ namespace RP2350 {
 // Semaphore (Mutex) Implementation
 // ============================================================================
 
-Semaphore::Semaphore() {
-    // Create recursive mutex with static allocation
-    m_handle = xSemaphoreCreateRecursiveMutexStatic(&m_buffer);
-    configASSERT(m_handle != nullptr);
+Semaphore::Semaphore()
+    : m_handle(nullptr)
+{
+    // Defer creation until first use (handles static initialization order)
+}
+
+void Semaphore::ensure_initialized() {
+    if (m_handle == nullptr) {
+        m_handle = xSemaphoreCreateRecursiveMutexStatic(&m_buffer);
+        configASSERT(m_handle != nullptr);
+    }
 }
 
 Semaphore::~Semaphore() {
@@ -31,6 +38,7 @@ Semaphore::~Semaphore() {
 }
 
 bool Semaphore::take(uint32_t timeout_ms) {
+    ensure_initialized();
     if (m_handle == nullptr) {
         return false;
     }
@@ -53,6 +61,7 @@ bool Semaphore::take(uint32_t timeout_ms) {
 }
 
 bool Semaphore::take_nonblocking() {
+    ensure_initialized();
     if (m_handle == nullptr) {
         return false;
     }
@@ -60,6 +69,7 @@ bool Semaphore::take_nonblocking() {
 }
 
 void Semaphore::take_blocking() {
+    ensure_initialized();
     if (m_handle == nullptr) {
         return;
     }
@@ -67,6 +77,7 @@ void Semaphore::take_blocking() {
 }
 
 bool Semaphore::give() {
+    ensure_initialized();
     if (m_handle == nullptr) {
         return false;
     }
@@ -74,6 +85,7 @@ bool Semaphore::give() {
 }
 
 bool Semaphore::is_taken() const {
+    // Note: const method, can't call ensure_initialized
     if (m_handle == nullptr) {
         return false;
     }
@@ -91,14 +103,22 @@ bool Semaphore::is_taken() const {
 // BinarySemaphore Implementation
 // ============================================================================
 
-BinarySemaphore::BinarySemaphore(bool initial_state) {
-    // Create binary semaphore with static allocation
-    m_handle = xSemaphoreCreateBinaryStatic(&m_buffer);
-    configASSERT(m_handle != nullptr);
+BinarySemaphore::BinarySemaphore(bool initial_state)
+    : m_handle(nullptr)
+    , m_initial_state(initial_state)
+{
+    // Defer creation until first use (handles static initialization order)
+}
 
-    // If initial_state is true, signal it so first wait won't block
-    if (initial_state && m_handle != nullptr) {
-        xSemaphoreGive(m_handle);
+void BinarySemaphore::ensure_initialized() {
+    if (m_handle == nullptr) {
+        m_handle = xSemaphoreCreateBinaryStatic(&m_buffer);
+        configASSERT(m_handle != nullptr);
+
+        // If initial_state is true, signal it so first wait won't block
+        if (m_initial_state && m_handle != nullptr) {
+            xSemaphoreGive(m_handle);
+        }
     }
 }
 
@@ -110,6 +130,7 @@ BinarySemaphore::~BinarySemaphore() {
 }
 
 bool BinarySemaphore::wait(uint32_t timeout_us) {
+    ensure_initialized();
     if (m_handle == nullptr) {
         return false;
     }
@@ -135,6 +156,7 @@ bool BinarySemaphore::wait(uint32_t timeout_us) {
 }
 
 bool BinarySemaphore::wait_blocking() {
+    ensure_initialized();
     if (m_handle == nullptr) {
         return false;
     }
@@ -142,6 +164,7 @@ bool BinarySemaphore::wait_blocking() {
 }
 
 bool BinarySemaphore::wait_nonblocking() {
+    ensure_initialized();
     if (m_handle == nullptr) {
         return false;
     }
@@ -149,6 +172,7 @@ bool BinarySemaphore::wait_nonblocking() {
 }
 
 void BinarySemaphore::signal() {
+    ensure_initialized();
     if (m_handle == nullptr) {
         return;
     }
@@ -156,6 +180,7 @@ void BinarySemaphore::signal() {
 }
 
 void BinarySemaphore::signal_ISR() {
+    // Note: Can't call ensure_initialized from ISR - must be pre-initialized
     if (m_handle == nullptr) {
         return;
     }

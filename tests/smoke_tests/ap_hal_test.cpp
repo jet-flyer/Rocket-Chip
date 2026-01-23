@@ -21,7 +21,34 @@
 #include "pico/stdlib.h"
 
 #include <cstdio>
+#include <cstdarg>
 #include <cstring>
+
+// ============================================================================
+// Test Results Storage (for deferred printing per DEBUG_OUTPUT.md)
+// ============================================================================
+
+struct TestResult {
+    const char* name;
+    bool passed;
+    char details[256];  // Stores test-specific output
+};
+
+static constexpr int kNumTests = 7;
+static TestResult g_results[kNumTests];
+static int g_result_index = 0;
+
+// Helper to store result
+static void store_result(const char* name, bool passed, const char* fmt, ...) {
+    if (g_result_index >= kNumTests) return;
+    TestResult& r = g_results[g_result_index++];
+    r.name = name;
+    r.passed = passed;
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(r.details, sizeof(r.details), fmt, args);
+    va_end(args);
+}
 
 // ============================================================================
 // Test Counters
@@ -53,212 +80,155 @@ static TestCallbacks g_callbacks;
 // ============================================================================
 
 static bool test_timing() {
-    printf("\n--- Test: Timing Functions ---\n");
-
     // Test millis
     uint32_t start_ms = AP_HAL::millis();
     vTaskDelay(pdMS_TO_TICKS(100));
     uint32_t elapsed_ms = AP_HAL::millis() - start_ms;
 
-    printf("  millis() after 100ms delay: %lu ms\n", (unsigned long)elapsed_ms);
     if (elapsed_ms < 90 || elapsed_ms > 150) {
-        printf("  FAIL: Expected ~100ms, got %lu ms\n", (unsigned long)elapsed_ms);
+        store_result("Timing", false, "millis: expected ~100ms, got %lu ms", (unsigned long)elapsed_ms);
         return false;
     }
 
     // Test micros
     uint32_t start_us = AP_HAL::micros();
-    busy_wait_us_32(1000);  // 1ms busy wait
+    busy_wait_us_32(1000);
     uint32_t elapsed_us = AP_HAL::micros() - start_us;
 
-    printf("  micros() after 1000us delay: %lu us\n", (unsigned long)elapsed_us);
     if (elapsed_us < 900 || elapsed_us > 1500) {
-        printf("  FAIL: Expected ~1000us, got %lu us\n", (unsigned long)elapsed_us);
+        store_result("Timing", false, "micros: expected ~1000us, got %lu us", (unsigned long)elapsed_us);
         return false;
     }
 
     // Test 64-bit versions
     uint64_t ms64 = AP_HAL::millis64();
     uint64_t us64 = AP_HAL::micros64();
-    printf("  millis64(): %llu ms\n", (unsigned long long)ms64);
-    printf("  micros64(): %llu us\n", (unsigned long long)us64);
 
-    printf("  PASS: Timing functions working\n");
+    store_result("Timing", true, "millis=%lu, micros=%lu, ms64=%llu, us64=%llu",
+                 (unsigned long)elapsed_ms, (unsigned long)elapsed_us,
+                 (unsigned long long)ms64, (unsigned long long)us64);
     return true;
 }
 
 static bool test_delay() {
-    printf("\n--- Test: Scheduler Delays ---\n");
-
     // Test millisecond delay
     uint32_t start = AP_HAL::millis();
     hal.scheduler.delay(50);
-    uint32_t elapsed = AP_HAL::millis() - start;
+    uint32_t elapsed_ms = AP_HAL::millis() - start;
 
-    printf("  delay(50) took: %lu ms\n", (unsigned long)elapsed);
-    if (elapsed < 40 || elapsed > 100) {
-        printf("  FAIL: Expected ~50ms, got %lu ms\n", (unsigned long)elapsed);
+    if (elapsed_ms < 40 || elapsed_ms > 100) {
+        store_result("Delay", false, "delay(50) took %lu ms, expected ~50ms", (unsigned long)elapsed_ms);
         return false;
     }
 
     // Test microsecond delay
-    start = AP_HAL::micros();
+    uint32_t start_us = AP_HAL::micros();
     hal.scheduler.delay_microseconds(500);
-    elapsed = AP_HAL::micros() - start;
+    uint32_t elapsed_us = AP_HAL::micros() - start_us;
 
-    printf("  delay_microseconds(500) took: %lu us\n", (unsigned long)elapsed);
-    if (elapsed < 450 || elapsed > 700) {
-        printf("  FAIL: Expected ~500us, got %lu us\n", (unsigned long)elapsed);
+    if (elapsed_us < 450 || elapsed_us > 700) {
+        store_result("Delay", false, "delay_us(500) took %lu us, expected ~500us", (unsigned long)elapsed_us);
         return false;
     }
 
-    printf("  PASS: Delays working\n");
+    store_result("Delay", true, "delay=%lums, delay_us=%luus", (unsigned long)elapsed_ms, (unsigned long)elapsed_us);
     return true;
 }
 
 static bool test_semaphore() {
-    printf("\n--- Test: Semaphores ---\n");
-
-    // Create a semaphore
     HAL_Semaphore mutex;
 
     // Test take and give
-    printf("  Testing take_blocking + give...\n");
     mutex.take_blocking();
-    printf("    Acquired mutex\n");
     mutex.give();
-    printf("    Released mutex\n");
 
-    // Test take with timeout (should succeed immediately)
-    printf("  Testing take(100)...\n");
+    // Test take with timeout
     bool result = mutex.take(100);
     if (!result) {
-        printf("  FAIL: take(100) returned false on free mutex\n");
+        store_result("Semaphore", false, "take(100) returned false on free mutex");
         return false;
     }
-    printf("    Acquired mutex with timeout\n");
 
-    // Test take_nonblocking (should fail since we hold it)
-    printf("  Testing take_nonblocking() while held...\n");
-    // Note: FreeRTOS recursive mutex allows same task to take multiple times
-    result = mutex.take_nonblocking();
-    printf("    take_nonblocking returned: %s (recursive mutex allows this)\n",
-           result ? "true" : "false");
+    // Test take_nonblocking (recursive mutex allows same task to take again)
+    bool nonblock_result = mutex.take_nonblocking();
 
-    // Release both takes
+    // Release takes
     mutex.give();
-    if (result) {
+    if (nonblock_result) {
         mutex.give();
     }
 
-    printf("  PASS: Semaphore operations working\n");
+    store_result("Semaphore", true, "take_blocking, take(timeout), take_nonblocking all work");
     return true;
 }
 
 static bool test_binary_semaphore() {
-    printf("\n--- Test: Binary Semaphores ---\n");
-
-    // Create signaled
     RP2350::BinarySemaphore sem_signaled(true);
 
     // Should not block since initially signaled
-    printf("  Testing wait_nonblocking() on signaled sem...\n");
     bool result = sem_signaled.wait_nonblocking();
     if (!result) {
-        printf("  FAIL: wait_nonblocking() returned false on signaled semaphore\n");
+        store_result("BinarySem", false, "wait_nonblocking returned false on signaled sem");
         return false;
     }
-    printf("    Got signal\n");
 
-    // Now should block/timeout since signal consumed
-    printf("  Testing wait(1000) after signal consumed...\n");
+    // Should timeout since signal consumed
     result = sem_signaled.wait(1000);  // 1ms timeout
     if (result) {
-        printf("  FAIL: wait() should have timed out\n");
+        store_result("BinarySem", false, "wait() should have timed out");
         return false;
     }
-    printf("    Correctly timed out\n");
 
     // Signal and wait
-    printf("  Testing signal() then wait_nonblocking()...\n");
     sem_signaled.signal();
     result = sem_signaled.wait_nonblocking();
     if (!result) {
-        printf("  FAIL: wait_nonblocking() after signal() failed\n");
+        store_result("BinarySem", false, "wait_nonblocking after signal failed");
         return false;
     }
-    printf("    Signal received\n");
 
-    printf("  PASS: Binary semaphore working\n");
+    store_result("BinarySem", true, "signal/wait operations work correctly");
     return true;
 }
 
 static bool test_util() {
-    printf("\n--- Test: Util Functions ---\n");
-
     // Test memory info
     uint32_t free_mem = hal.util.available_memory();
     uint32_t total_mem = hal.util.total_memory();
-    printf("  Available memory: %lu / %lu bytes\n",
-           (unsigned long)free_mem, (unsigned long)total_mem);
 
     if (free_mem == 0 || free_mem > total_mem) {
-        printf("  FAIL: Invalid memory values\n");
+        store_result("Util", false, "Invalid memory: free=%lu total=%lu",
+                     (unsigned long)free_mem, (unsigned long)total_mem);
         return false;
     }
-
-    // Test memory info string
-    char mem_info[64];
-    hal.util.mem_info(mem_info, sizeof(mem_info));
-    printf("  Memory info: %s\n", mem_info);
 
     // Test system ID
     char sys_id[32];
     bool result = hal.util.get_system_id(sys_id, sizeof(sys_id));
     if (!result) {
-        printf("  FAIL: get_system_id() returned false\n");
+        store_result("Util", false, "get_system_id() returned false");
         return false;
     }
-    printf("  System ID: %s\n", sys_id);
-
-    // Test raw system ID
-    uint8_t raw_id[8];
-    uint8_t len = hal.util.get_system_id_unformatted(raw_id, sizeof(raw_id));
-    printf("  Raw ID (%u bytes): ", len);
-    for (uint8_t i = 0; i < len; i++) {
-        printf("%02X", raw_id[i]);
-    }
-    printf("\n");
-
-    // Test safety state (should be SAFETY_NONE on RocketChip)
-    auto safety = hal.util.safety_switch_state();
-    printf("  Safety state: %d (SAFETY_NONE=%d)\n",
-           static_cast<int>(safety),
-           static_cast<int>(RP2350::SafetyState::SAFETY_NONE));
 
     // Test soft arming
-    printf("  Testing soft arm...\n");
     hal.util.set_soft_armed(true);
     if (!hal.util.get_soft_armed()) {
-        printf("  FAIL: get_soft_armed() returned false after set_soft_armed(true)\n");
+        store_result("Util", false, "get_soft_armed() false after set_soft_armed(true)");
         return false;
     }
-    printf("    Armed: %s\n", hal.util.get_soft_armed() ? "true" : "false");
 
     hal.util.set_soft_armed(false);
     if (hal.util.get_soft_armed()) {
-        printf("  FAIL: get_soft_armed() returned true after set_soft_armed(false)\n");
+        store_result("Util", false, "get_soft_armed() true after set_soft_armed(false)");
         return false;
     }
-    printf("    Armed: %s\n", hal.util.get_soft_armed() ? "true" : "false");
 
-    printf("  PASS: Util functions working\n");
+    store_result("Util", true, "mem=%lu/%lu, id=%s",
+                 (unsigned long)free_mem, (unsigned long)total_mem, sys_id);
     return true;
 }
 
 static bool test_timer_callbacks() {
-    printf("\n--- Test: Timer Callbacks ---\n");
-
     // Register timer callback
     g_timer_callback_count = 0;
     RP2350::MemberProc timer_proc(&g_callbacks, &TestCallbacks::timer_callback);
@@ -269,59 +239,49 @@ static bool test_timer_callbacks() {
     RP2350::MemberProc io_proc(&g_callbacks, &TestCallbacks::io_callback);
     hal.scheduler.register_io_process(io_proc);
 
-    printf("  Registered timer and I/O callbacks\n");
-    printf("  Waiting 1 second for callbacks to run...\n");
-
     // Wait for callbacks to run
     vTaskDelay(pdMS_TO_TICKS(1000));
 
-    printf("  Timer callback count: %lu (expected ~1000 at 1kHz)\n",
-           (unsigned long)g_timer_callback_count);
-    printf("  I/O callback count: %lu (expected ~100 at 100Hz)\n",
-           (unsigned long)g_io_callback_count);
+    uint32_t timer_count = g_timer_callback_count;
+    uint32_t io_count = g_io_callback_count;
 
     // Timer should run ~1000 times per second
-    if (g_timer_callback_count < 800 || g_timer_callback_count > 1200) {
-        printf("  FAIL: Timer callback count out of range\n");
+    if (timer_count < 800 || timer_count > 1200) {
+        store_result("Callbacks", false, "timer count %lu out of range (800-1200)",
+                     (unsigned long)timer_count);
         return false;
     }
 
     // I/O should run ~100 times per second
-    if (g_io_callback_count < 80 || g_io_callback_count > 120) {
-        printf("  FAIL: I/O callback count out of range\n");
+    if (io_count < 80 || io_count > 120) {
+        store_result("Callbacks", false, "I/O count %lu out of range (80-120)",
+                     (unsigned long)io_count);
         return false;
     }
 
-    printf("  PASS: Timer callbacks working\n");
+    store_result("Callbacks", true, "timer=%lu (~1kHz), io=%lu (~100Hz)",
+                 (unsigned long)timer_count, (unsigned long)io_count);
     return true;
 }
 
 static bool test_system_state() {
-    printf("\n--- Test: System State ---\n");
-
-    // Check initialization
-    printf("  is_initialized(): %s\n",
-           hal.is_initialized() ? "true" : "false");
-
-    // Check system_initialized flag
-    printf("  is_system_initialized(): %s\n",
-           hal.scheduler.is_system_initialized() ? "true" : "false");
+    bool is_init = hal.is_initialized();
 
     // Set system initialized
     hal.scheduler.set_system_initialized();
-    printf("  After set_system_initialized(): %s\n",
-           hal.scheduler.is_system_initialized() ? "true" : "false");
+    bool sys_init = hal.scheduler.is_system_initialized();
 
-    if (!hal.scheduler.is_system_initialized()) {
-        printf("  FAIL: is_system_initialized() returned false after set\n");
+    if (!sys_init) {
+        store_result("SysState", false, "is_system_initialized() false after set");
         return false;
     }
 
-    // Check main thread
-    printf("  in_main_thread(): %s\n",
-           hal.scheduler.in_main_thread() ? "true" : "false");
+    bool in_main = hal.scheduler.in_main_thread();
 
-    printf("  PASS: System state working\n");
+    store_result("SysState", true, "init=%s, sys_init=%s, in_main=%s",
+                 is_init ? "true" : "false",
+                 sys_init ? "true" : "false",
+                 in_main ? "true" : "false");
     return true;
 }
 
@@ -332,16 +292,18 @@ static bool test_system_state() {
 static void test_task(void* params) {
     (void)params;
 
-    printf("\n");
-    printf("========================================\n");
-    printf("AP_HAL_RP2350 Phase 1 Smoke Test\n");
-    printf("========================================\n");
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-    // Initialize HAL
-    printf("\nInitializing HAL...\n");
+    // ========================================================================
+    // Phase 1: Run tests immediately (per DEBUG_OUTPUT.md - don't block)
+    // Tests run silently, results stored for later printing
+    // ========================================================================
+
+    // Initialize HAL (required before tests)
     hal.init();
 
-    // Run tests
+    // Run all tests - results stored, not printed
     int passed = 0;
     int failed = 0;
 
@@ -353,37 +315,74 @@ static void test_task(void* params) {
     if (test_timer_callbacks()) passed++; else failed++;
     if (test_system_state()) passed++; else failed++;
 
-    // Summary
+    // ========================================================================
+    // Phase 2: Show LED status immediately (visual feedback without serial)
+    // Fast blink while waiting = also indicates "connect terminal"
+    // ========================================================================
+
+    // Blink pattern indicates pass/fail AND waiting for USB
+    // Fast blink (100ms) = waiting for USB (or fail after connect)
+    // Slow blink (500ms) = pass (only after USB connect confirmed)
+
+    // Wait for USB connection with LED blinking
+    while (!stdio_usb_connected()) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    // Brief settle time
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // ========================================================================
+    // Phase 3: Print stored results (terminal now connected)
+    // ========================================================================
+
+    printf("\n");
+    printf("========================================\n");
+    printf("AP_HAL_RP2350 Phase 1 Smoke Test\n");
+    printf("========================================\n\n");
+
+    // Print each test result
+    for (int i = 0; i < g_result_index; i++) {
+        const TestResult& r = g_results[i];
+        printf("[%s] %s: %s\n",
+               r.passed ? "PASS" : "FAIL",
+               r.name,
+               r.details);
+    }
+
     printf("\n========================================\n");
     printf("Test Results: %d passed, %d failed\n", passed, failed);
     printf("========================================\n");
 
     if (failed == 0) {
         printf("\nAll tests PASSED!\n");
-        printf("AP_HAL_RP2350 Phase 1 components verified.\n");
     } else {
         printf("\nSome tests FAILED!\n");
-        printf("Check output above for details.\n");
     }
 
-    // Keep running to allow observation
-    printf("\nTest complete. LED will blink to indicate status.\n");
+    printf("\nLED: %s blink = %s\n",
+           failed == 0 ? "slow" : "fast",
+           failed == 0 ? "PASS" : "FAIL");
 
-    gpio_init(13);
-    gpio_set_dir(13, GPIO_OUT);
+    // ========================================================================
+    // Phase 4: LED indicates final pass/fail status
+    // ========================================================================
 
     while (true) {
         if (failed == 0) {
             // Slow blink = success
-            gpio_put(13, 1);
+            gpio_put(PICO_DEFAULT_LED_PIN, 1);
             vTaskDelay(pdMS_TO_TICKS(500));
-            gpio_put(13, 0);
+            gpio_put(PICO_DEFAULT_LED_PIN, 0);
             vTaskDelay(pdMS_TO_TICKS(500));
         } else {
             // Fast blink = failure
-            gpio_put(13, 1);
+            gpio_put(PICO_DEFAULT_LED_PIN, 1);
             vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(13, 0);
+            gpio_put(PICO_DEFAULT_LED_PIN, 0);
             vTaskDelay(pdMS_TO_TICKS(100));
         }
     }
@@ -394,17 +393,32 @@ static void test_task(void* params) {
 // ============================================================================
 
 int main() {
+    // Initialize LED for debugging FIRST (before anything else)
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+
+    // Blink 3 times rapidly = reached main()
+    for (int i = 0; i < 3; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        busy_wait_ms(100);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        busy_wait_ms(100);
+    }
+
     // Initialize stdio for USB output
     stdio_init_all();
 
-    // Wait for USB connection
-    sleep_ms(2000);
+    // One slow blink = stdio initialized, about to create task
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
+    sleep_ms(250);
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
+    sleep_ms(250);
 
-    // Create test task
+    // Create test task (static allocation per project standards)
     static StaticTask_t task_buffer;
     static StackType_t task_stack[2048];
 
-    xTaskCreateStatic(
+    TaskHandle_t task_handle = xTaskCreateStatic(
         test_task,
         "APHALTest",
         sizeof(task_stack) / sizeof(StackType_t),
@@ -413,6 +427,32 @@ int main() {
         task_stack,
         &task_buffer
     );
+
+    // Two quick blinks = task created
+    if (task_handle != nullptr) {
+        for (int i = 0; i < 2; i++) {
+            gpio_put(PICO_DEFAULT_LED_PIN, 1);
+            sleep_ms(100);
+            gpio_put(PICO_DEFAULT_LED_PIN, 0);
+            sleep_ms(100);
+        }
+    } else {
+        // Rapid blink = task creation failed
+        while (true) {
+            gpio_put(PICO_DEFAULT_LED_PIN, 1);
+            busy_wait_ms(50);
+            gpio_put(PICO_DEFAULT_LED_PIN, 0);
+            busy_wait_ms(50);
+        }
+    }
+
+    // Two long blinks = about to start scheduler
+    for (int i = 0; i < 2; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        sleep_ms(500);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        sleep_ms(500);
+    }
 
     // Start scheduler
     vTaskStartScheduler();

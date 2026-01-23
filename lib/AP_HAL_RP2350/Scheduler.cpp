@@ -19,6 +19,24 @@
 namespace RP2350 {
 
 // ============================================================================
+// File-Scope Static Allocations (ArduPilot pattern)
+// ============================================================================
+// These are allocated at file scope to ensure proper memory layout and
+// avoid issues with global object construction order.
+
+// Timer task static memory
+static StaticTask_t s_timer_task_buffer;
+static StackType_t s_timer_stack[HAL_TIMER_STACK_SIZE];
+
+// I/O task static memory
+static StaticTask_t s_io_task_buffer;
+static StackType_t s_io_stack[HAL_IO_STACK_SIZE];
+
+// Synchronization primitives
+static Semaphore s_timer_sem;
+static Semaphore s_io_sem;
+
+// ============================================================================
 // Constructor / Destructor
 // ============================================================================
 
@@ -37,6 +55,8 @@ Scheduler::Scheduler()
     , m_main_task(nullptr)
     , m_timer_task(nullptr)
     , m_io_task(nullptr)
+    , m_timer_sem(&s_timer_sem)
+    , m_io_sem(&s_io_sem)
     , m_priority_boosted(false)
     , m_saved_priority(0)
 {
@@ -66,14 +86,15 @@ void Scheduler::init() {
     m_main_task = xTaskGetCurrentTaskHandle();
 
     // Create timer task (high priority, runs callbacks at 1kHz)
+    // Uses file-scope static buffers (ArduPilot pattern)
     m_timer_task = xTaskCreateStatic(
         timer_task_entry,
         "AP_Timer",
         HAL_TIMER_STACK_SIZE,
         this,
         HAL_PRIORITY_TIMER,
-        m_timer_stack,
-        &m_timer_task_buffer
+        s_timer_stack,
+        &s_timer_task_buffer
     );
     configASSERT(m_timer_task != nullptr);
 
@@ -84,8 +105,8 @@ void Scheduler::init() {
         HAL_IO_STACK_SIZE,
         this,
         HAL_PRIORITY_IO,
-        m_io_stack,
-        &m_io_task_buffer
+        s_io_stack,
+        &s_io_task_buffer
     );
     configASSERT(m_io_task != nullptr);
 
@@ -178,13 +199,13 @@ void Scheduler::register_timer_process(MemberProc proc) {
     }
 
     // Take semaphore to protect array modification
-    m_timer_sem.take_blocking();
+    m_timer_sem->take_blocking();
 
     if (m_num_timer_procs < kMaxTimerProcs) {
         m_timer_procs[m_num_timer_procs++] = proc;
     }
 
-    m_timer_sem.give();
+    m_timer_sem->give();
 }
 
 void Scheduler::register_io_process(MemberProc proc) {
@@ -192,13 +213,13 @@ void Scheduler::register_io_process(MemberProc proc) {
         return;
     }
 
-    m_io_sem.take_blocking();
+    m_io_sem->take_blocking();
 
     if (m_num_io_procs < kMaxIOProcs) {
         m_io_procs[m_num_io_procs++] = proc;
     }
 
-    m_io_sem.give();
+    m_io_sem->give();
 }
 
 void Scheduler::register_timer_failsafe(Proc failsafe, uint32_t period_us) {
@@ -337,9 +358,9 @@ void Scheduler::io_task_entry(void* param) {
 
 void Scheduler::run_timer_procs() {
     // Run registered timer processes
-    m_timer_sem.take_blocking();
+    m_timer_sem->take_blocking();
     uint8_t n = m_num_timer_procs;
-    m_timer_sem.give();
+    m_timer_sem->give();
 
     for (uint8_t i = 0; i < n; i++) {
         m_timer_procs[i].call();
@@ -356,9 +377,9 @@ void Scheduler::run_timer_procs() {
 }
 
 void Scheduler::run_io_procs() {
-    m_io_sem.take_blocking();
+    m_io_sem->take_blocking();
     uint8_t n = m_num_io_procs;
-    m_io_sem.give();
+    m_io_sem->give();
 
     for (uint8_t i = 0; i < n; i++) {
         m_io_procs[i].call();
@@ -397,13 +418,13 @@ namespace AP_HAL {
     printf("\n");
 
     // Blink LED rapidly to indicate panic
-    gpio_init(13);  // LED_BUILTIN
-    gpio_set_dir(13, GPIO_OUT);
+    gpio_init(RP2350::Pins::LED_BUILTIN);
+    gpio_set_dir(RP2350::Pins::LED_BUILTIN, GPIO_OUT);
 
     while (true) {
-        gpio_put(13, 1);
+        gpio_put(RP2350::Pins::LED_BUILTIN, 1);
         busy_wait_us_32(100000);  // 100ms
-        gpio_put(13, 0);
+        gpio_put(RP2350::Pins::LED_BUILTIN, 0);
         busy_wait_us_32(100000);
     }
 }
