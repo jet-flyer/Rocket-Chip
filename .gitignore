@@ -16,7 +16,6 @@ compile_commands.json
 
 # General editor/OS files
 .idea/
-.claude/
 *.swp
 *.swo
 *~
@@ -45,6 +44,10 @@ tmp/
 config_local.h
 secrets.h
 credentials.h
+
+# Claude Code local files
+CLAUDE.local.md
+.claude/settings.local.json
 
 # Large binaries (if not needed in repo)
 *.uf2

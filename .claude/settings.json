@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake:*)",
+      "Bash(ninja:*)",
+      "Bash(make:*)",
+      "Bash(git:*)",
+      "Bash(arm-none-eabi-*:*)",
+      "Bash(picotool:*)",
+      "Bash(openocd:*)"
+    ],
+    "deny": [
+      "Bash(*secrets*)",
+      "Bash(*credentials*)",
+      "Bash(*password*)",
+      "Bash(*api_key*)",
+      "Bash(*apikey*)",
+      "Bash(*token*)",
+      "Edit(file_path:*secrets*)",
+      "Edit(file_path:*credentials*)",
+      "Edit(file_path:*.env)",
+      "Write(file_path:*secrets*)",
+      "Write(file_path:*credentials*)",
+      "Write(file_path:*.env)"
+    ]
+  }
+}
