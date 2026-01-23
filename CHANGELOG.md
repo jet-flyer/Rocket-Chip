@@ -22,6 +22,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-23-001 | Claude Code CLI | tooling, documentation
+
+**Claude Code memory structure and naming cleanup**
+
+Added `.claude/CLAUDE.md` (references README.md) and `.claude/settings.json` (build tool permissions, secrets deny patterns) for Claude Code project memory. Updated `.gitignore` to track `.claude/` while ignoring local files. Corrected HARDWARE.md product naming: Advanced tier confirmed as **Titan**, Nova reserved for future space-rated product (aligns with existing decisions in SAD.md and PROJECT_OVERVIEW.md).
+
+(.claude/CLAUDE.md, .claude/settings.json, .gitignore, README.md, docs/HARDWARE.md)
+
+---
+
 ### 2026-01-22-002 | Claude Code CLI | validation
 
 **AP_HAL_RP2350 Phase 1 Hardware Validated**
