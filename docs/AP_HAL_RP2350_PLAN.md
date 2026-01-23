@@ -16,10 +16,10 @@ ArduPilot Libraries (unchanged) → AP_HAL Interface → AP_HAL_RP2350 (our impl
 
 | Phase | Component | Status | Notes |
 |-------|-----------|--------|-------|
-| 1 | Scheduler | **COMPLETE** | FreeRTOS task/timer mapping, callbacks |
-| 1 | Semaphores | **COMPLETE** | Mutex + BinarySemaphore wrappers |
-| 1 | Util | **COMPLETE** | Memory info, system ID |
-| 1 | HAL Singleton | **COMPLETE** | HAL_RP2350 class, global `hal` instance |
+| 1 | Scheduler | **VALIDATED** | FreeRTOS task/timer mapping, callbacks |
+| 1 | Semaphores | **VALIDATED** | Mutex + BinarySemaphore wrappers |
+| 1 | Util | **VALIDATED** | Memory info, system ID, arming state |
+| 1 | HAL Singleton | **VALIDATED** | HAL_RP2350 class, global `hal` instance |
 | 1 | Storage | NOT STARTED | Flash persistence via AP_FlashStorage |
 | 1 | CalibrationStore | NOT STARTED | Depends on Storage |
 | 2 | I2CDevice | NOT STARTED | Full rewrite (replaces Bus::I2C) |
@@ -407,7 +407,30 @@ tests/smoke_tests/
 **Next session should:**
 1. Implement Storage (AP_FlashStorage integration)
 2. Implement CalibrationStore
-3. Hardware validation of smoke_ap_hal on actual RP2350
+3. ~~Hardware validation of smoke_ap_hal on actual RP2350~~ **DONE**
+
+### Session 2 (2026-01-22)
+
+**Actions:**
+- Hardware validated all Phase 1 components on Feather RP2350
+- All 7 smoke tests passing:
+  - Timing (millis/micros accuracy)
+  - Scheduler delays
+  - Semaphores (recursive mutex)
+  - Binary semaphores
+  - Util functions (memory, system ID, arming)
+  - Timer callbacks (1kHz timer, 100Hz I/O)
+  - System state
+
+**Fixes applied:**
+- Fixed `available_memory()` for static-allocation-only config (returns `configTOTAL_HEAP_SIZE` when heap reports 0)
+- Refactored smoke test to follow DEBUG_OUTPUT.md pattern (run tests immediately, store results, wait for USB, print)
+- Fixed file-scope static allocations for FreeRTOS task buffers and semaphores
+- Corrected LED pin in hwdef.h for Feather RP2350 (GPIO 7)
+
+**Next session should:**
+1. Implement Storage (AP_FlashStorage integration)
+2. Implement CalibrationStore
 
 ---
 
