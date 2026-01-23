@@ -7,7 +7,9 @@
 |------|------|-------------|
 | Base | **Core** | Bare-bones, lightweight, local logging only |
 | Main | *TBD* | Full sensors, optional telemetry via Booster Packs |
-| Advanced | *Nova or Titan (TBD)* | High-performance sensors, pyro, RTOS, TVC |
+| Advanced | **Titan** | High-performance sensors, pyro, RTOS, TVC |
+
+*Note: Nova reserved for future product (potentially space-rated hardware).*
 
 ### Booster Packs
 Expansion modules following rocketry-themed naming (specific names TBD when boards are designed):
