@@ -313,11 +313,66 @@ add_library(ap_calibrators STATIC
 
 target_include_directories(ap_calibrators PUBLIC
     ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
     ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${CMAKE_SOURCE_DIR}/src/hal
+    ${ROCKETCHIP_INCLUDE_DIR}
 )
 
 target_link_libraries(ap_calibrators PUBLIC
     ap_math
+    ap_hal_rp2350
+)
+
+# ============================================================================
+# ArduPilot Parameter System
+# ============================================================================
+
+add_library(ap_param STATIC
+    lib/ap_compat/AP_Param/AP_Param.cpp
+)
+
+target_include_directories(ap_param PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${CMAKE_SOURCE_DIR}/src/hal
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+if(CONFIG_DEBUG)
+    target_compile_definitions(ap_param PUBLIC CONFIG_DEBUG)
+endif()
+
+target_link_libraries(ap_param PUBLIC
+    ap_hal_rp2350
+    pico_stdlib
+)
+
+# ============================================================================
+# ArduPilot Inertial Sensor (calibration persistence)
+# ============================================================================
+
+add_library(ap_inertial_sensor STATIC
+    lib/ap_compat/AP_InertialSensor/AP_InertialSensor.cpp
+)
+
+target_include_directories(ap_inertial_sensor PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${CMAKE_SOURCE_DIR}/src/hal
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+if(CONFIG_DEBUG)
+    target_compile_definitions(ap_inertial_sensor PUBLIC CONFIG_DEBUG)
+endif()
+
+target_link_libraries(ap_inertial_sensor PUBLIC
+    ap_param
+    ap_calibrators
+    pico_stdlib
 )
 
 # ============================================================================
@@ -337,6 +392,7 @@ target_include_directories(services PUBLIC
 target_link_libraries(services PUBLIC
     hal
     hal_sensors
+    ap_inertial_sensor
     FreeRTOS-Kernel
 )
 
@@ -556,6 +612,7 @@ add_executable(smoke_calibration
 
 target_link_libraries(smoke_calibration
     hal_sensors
+    ap_inertial_sensor
     ap_calibrators
     ap_math
     pico_stdlib
@@ -568,6 +625,61 @@ pico_enable_stdio_usb(smoke_calibration 1)
 pico_enable_stdio_uart(smoke_calibration 0)
 
 pico_add_extra_outputs(smoke_calibration)
+
+# ============================================================================
+# USB Input Test (minimal, no flash operations)
+# ============================================================================
+
+add_executable(smoke_usb_input
+    tests/smoke_tests/usb_input_test.cpp
+)
+
+target_link_libraries(smoke_usb_input
+    pico_stdlib
+)
+
+pico_enable_stdio_usb(smoke_usb_input 1)
+pico_enable_stdio_uart(smoke_usb_input 0)
+
+pico_add_extra_outputs(smoke_usb_input)
+
+# ============================================================================
+# USB + NeoPixel Test (tests if NeoPixel PIO before stdio_init_all breaks USB)
+# ============================================================================
+
+add_executable(smoke_usb_neopixel
+    tests/smoke_tests/usb_neopixel_test.cpp
+)
+
+target_link_libraries(smoke_usb_neopixel
+    pico_stdlib
+    hal
+)
+
+pico_enable_stdio_usb(smoke_usb_neopixel 1)
+pico_enable_stdio_uart(smoke_usb_neopixel 0)
+
+pico_add_extra_outputs(smoke_usb_neopixel)
+
+# ============================================================================
+# USB + HAL Test (tests if hal.init() before stdio_init_all breaks USB)
+# ============================================================================
+
+add_executable(smoke_usb_hal
+    tests/smoke_tests/usb_hal_test.cpp
+)
+
+target_link_libraries(smoke_usb_hal
+    pico_stdlib
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+    ap_hal_rp2350
+)
+
+pico_enable_stdio_usb(smoke_usb_hal 1)
+pico_enable_stdio_uart(smoke_usb_hal 0)
+
+pico_add_extra_outputs(smoke_usb_hal)
 
 # ============================================================================
 # AP_HAL_RP2350 Smoke Test

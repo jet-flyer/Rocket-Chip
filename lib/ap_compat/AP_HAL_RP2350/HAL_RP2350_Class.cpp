@@ -10,6 +10,22 @@
 
 #include <cstdio>
 
+#include "FreeRTOS.h"
+#include "task.h"
+
+// Debug: blink onboard LED
+static void debug_blink(int count, int on_ms = 100, int off_ms = 100) {
+    const uint LED_PIN = 7;  // Feather RP2350 onboard LED
+    gpio_init(LED_PIN);
+    gpio_set_dir(LED_PIN, GPIO_OUT);
+    for (int i = 0; i < count; i++) {
+        gpio_put(LED_PIN, 1);
+        sleep_ms(on_ms);
+        gpio_put(LED_PIN, 0);
+        sleep_ms(off_ms);
+    }
+}
+
 namespace RP2350 {
 
 // ============================================================================
@@ -43,66 +59,34 @@ void HAL_RP2350::init() {
         return;
     }
 
-    // Note: Application is responsible for calling stdio_init_all() before hal.init()
-    // This follows ArduPilot pattern where app sets up hardware before HAL init
+    // NOTE: hal.init() is called BEFORE stdio_init_all() to avoid USB conflicts
+    // with flash operations. No printf/getchar calls here - use LED blinks only.
+    // Application can print HAL status after USB is initialized.
 
-    printf("\n");
-    printf("========================================\n");
-    printf("AP_HAL_RP2350 Initializing\n");
-    printf("Board: %s\n", HAL_BOARD_NAME);
-    printf("========================================\n");
-
-    // Print system ID
-    char sys_id[32];
-    if (util.get_system_id(sys_id, sizeof(sys_id))) {
-        printf("System ID: %s\n", sys_id);
-    }
-
-    // Print memory info
-    char mem_info[64];
-    util.mem_info(mem_info, sizeof(mem_info));
-    printf("%s\n", mem_info);
-
-    // CRITICAL: Initialize storage BEFORE scheduler starts!
+    // CRITICAL: Initialize storage first - flash operations here
     // Flash operations conflict with FreeRTOS SMP dual-core scheduler.
     // See REBUILD_CONTEXT.md for details on the flash_safe_execute issue.
     storage.init();
-    if (storage.healthy()) {
-        printf("Storage initialized (healthy)\n");
-    } else {
-        printf("Storage initialized (WARNING: not healthy)\n");
+
+    debug_blink(1);  // 1 blink = storage done
+
+    // Initialize scheduler if FreeRTOS is running
+    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
+        scheduler.init();
     }
 
-    // Initialize scheduler (creates timer and I/O tasks)
-    // Must be after storage init since flash ops can't run with SMP active
-    scheduler.init();
-    printf("Scheduler initialized\n");
+    debug_blink(2);  // 2 blinks = scheduler done
 
-    // Phase 2 subsystems
+    // Initialize remaining subsystems
     gpio.init();
-    printf("GPIO initialized\n");
     analogin.init();
-    printf("AnalogIn initialized\n");
-
-    // Serial port 0 (USB CDC) auto-initialized via stdio_init_all()
-    // Just mark it as ready - apps can call begin() to configure hardware UARTs
     serial[0]->begin(115200);
-    printf("Serial[0] (USB) initialized\n");
-    // Note: serial[1] and serial[2] are not auto-initialized
-    // Apps call hal.serial[1]->begin(baud) when needed
-
-    // I2C device manager
     i2c_mgr.init();
-    printf("I2C manager initialized\n");
-
-    // SPI device manager (polling-only per PD8)
     spi_mgr.init();
-    printf("SPI manager initialized (polling-only)\n");
 
     m_initialized = true;
 
-    printf("AP_HAL_RP2350 Ready\n");
-    printf("========================================\n\n");
+    debug_blink(3);  // 3 blinks = all init complete
 }
 
 // ============================================================================

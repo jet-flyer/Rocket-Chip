@@ -38,6 +38,46 @@ static void __not_in_flash_func(do_flash_program)(uint32_t offset, const uint8_t
     xip_cache_invalidate_all();
 }
 
+// Page-aligned write helper
+// RP2350 flash requires 256-byte page alignment for writes
+static constexpr uint32_t kFlashPageSize = 256;
+static uint8_t s_page_buffer[kFlashPageSize] __attribute__((aligned(4)));
+
+static void __not_in_flash_func(do_flash_program_unaligned)(
+    uint32_t sector_offset,  // Offset from flash base (not XIP address)
+    uint32_t offset_in_sector,
+    const uint8_t* data,
+    size_t length)
+{
+    // Process page by page
+    while (length > 0) {
+        // Calculate page boundaries
+        uint32_t page_start = (sector_offset + offset_in_sector) & ~(kFlashPageSize - 1);
+        uint32_t offset_in_page = (sector_offset + offset_in_sector) - page_start;
+        uint32_t bytes_in_page = kFlashPageSize - offset_in_page;
+        if (bytes_in_page > length) {
+            bytes_in_page = length;
+        }
+
+        // Read existing page via XIP
+        const uint8_t* xip_page = reinterpret_cast<const uint8_t*>(0x10000000 + page_start);
+        memcpy(s_page_buffer, xip_page, kFlashPageSize);
+
+        // Modify the bytes we want to write
+        memcpy(s_page_buffer + offset_in_page, data, bytes_in_page);
+
+        // Write full page
+        flash_range_program(page_start, s_page_buffer, kFlashPageSize);
+
+        // Move to next page
+        offset_in_sector += bytes_in_page;
+        data += bytes_in_page;
+        length -= bytes_in_page;
+    }
+
+    xip_cache_invalidate_all();
+}
+
 namespace RP2350 {
 
 // ============================================================================
@@ -146,6 +186,7 @@ void Storage::_timer_tick()
     }
 
     uint16_t length = m_dirty_end - m_dirty_start;
+
     if (m_flash_storage.write(m_dirty_start, length)) {
         m_dirty_start = HAL_STORAGE_SIZE;
         m_dirty_end = 0;
@@ -193,10 +234,12 @@ bool Storage::flash_write(uint8_t sector, uint32_t offset,
         return false;
     }
 
-    uint32_t flash_offset = kSectorOffset[sector] + offset;
+    uint32_t sector_offset = kSectorOffset[sector];
 
     uint32_t saved = save_and_disable_interrupts();
-    do_flash_program(flash_offset, data, length);
+    // Use page-aligned write helper for RP2350 compatibility
+    // flash_range_program requires 256-byte alignment and length
+    do_flash_program_unaligned(sector_offset, offset, data, length);
     restore_interrupts(saved);
 
     return true;

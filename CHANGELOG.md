@@ -22,6 +22,22 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-24-004 | Claude Code CLI | bugfix, feature
+
+**Accelerometer Calibration Persistence Working**
+
+Fixed flash storage persistence on RP2350 and completed accelerometer calibration integration:
+
+- **Flash page alignment fix**: RP2350's `flash_range_program()` requires 256-byte aligned writes. Added `do_flash_program_unaligned()` helper that reads existing page, modifies bytes, writes full page. This was causing silent write failures corrupting AP_FlashStorage sector headers.
+- **Unit conversion fix**: AccelCalibrator expects m/s², but ISM330DHCX driver returns g. Added GRAVITY_MSS (9.80665) conversion in calibration sample collection.
+- **HAL init order**: Moved `hal.init()` before `stdio_init_all()` to avoid BASEPRI conflicts with USB interrupts during flash operations.
+
+Calibration now persists correctly across power cycles. 6-position calibration produces reasonable offsets (~0.03-0.1g) and scale factors (~1.000-1.004).
+
+(lib/ap_compat/AP_HAL_RP2350/Storage.cpp, tests/smoke_tests/calibration_test.cpp)
+
+---
+
 ### 2026-01-24-003 | Claude Code CLI | feature, architecture
 
 **AP_HAL_RP2350 Phase 2 Complete - All Core Peripherals Implemented**

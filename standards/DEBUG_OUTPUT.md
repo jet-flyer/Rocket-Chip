@@ -99,6 +99,29 @@ printf("Test results: ...\n");
 
 ---
 
+## Flashing and Debugging Tools
+
+### picotool (Preferred for Flashing)
+
+Use `picotool` for routine build-flash-test cycles:
+
+```bash
+picotool load firmware.uf2 --force
+```
+
+The `--force` flag sends a USB vendor command to reboot the device into BOOTSEL mode automatically, flashes the firmware, then reboots back to application mode. No debug probe required.
+
+### Debug Probe (For Debugging Only)
+
+The Raspberry Pi Debug Probe is only needed for:
+- GDB debugging (breakpoints, stepping, variable inspection)
+- Flashing when USB is non-functional (e.g., firmware bug blocking USB enumeration)
+- Low-level register inspection via OpenOCD
+
+For normal development, prefer `picotool` - it's faster and doesn't require additional hardware connections.
+
+---
+
 ## Future Enhancements
 
 - **Dedicated debug ring buffer:** Capture debug messages to PSRAM, dump post-flight via USB. Avoids runtime printf overhead.
