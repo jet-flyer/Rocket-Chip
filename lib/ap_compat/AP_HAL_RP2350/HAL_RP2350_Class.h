@@ -12,6 +12,7 @@
 #include "hwdef.h"
 #include "Scheduler.h"
 #include "Semaphores.h"
+#include "Storage.h"
 #include "Util.h"
 
 namespace RP2350 {
@@ -66,6 +67,9 @@ public:
     /** @brief System utilities */
     Util util;
 
+    /** @brief Persistent storage (flash) */
+    Storage storage;
+
     // ========================================================================
     // HAL Subsystems (Phase 2 - Placeholders)
     // ========================================================================
@@ -77,7 +81,6 @@ public:
     // GPIO* gpio;
     // AnalogIn* analogin;
     // RCOutput* rcout;
-    // Storage* storage;
 
     // ========================================================================
     // Accessors for AP_HAL compatibility
@@ -116,10 +119,3 @@ private:
  */
 extern RP2350::HAL_RP2350 hal;
 
-// ============================================================================
-// AP_HAL Namespace Compatibility
-// ============================================================================
-
-namespace AP_HAL {
-    using HAL = RP2350::HAL_RP2350;
-}

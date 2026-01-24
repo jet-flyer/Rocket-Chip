@@ -123,17 +123,34 @@ rocketchip/
 │       └── CRC.h                  # CRC calculations
 │
 ├── lib/                           # External libraries
-│   ├── ap_compat/                 # ArduPilot compatibility shim
-│   │   ├── AP_HAL_Compat.h        # HAL function stubs
-│   │   └── AP_HAL_Compat.cpp
-│   ├── AP_Math/                   # ArduPilot math (submodule)
-│   ├── Filter/                    # ArduPilot filters (submodule)
-│   └── mavlink/                   # MAVLink headers
+│   ├── ap_compat/                 # ArduPilot compatibility layer
+│   │   ├── AP_HAL_Compat.h        # Config, feature flags, utility macros
+│   │   ├── AP_HAL/                # Stub headers for AP includes [SEE NOTE 1]
+│   │   ├── AP_InternalError/      # Error reporting
+│   │   └── AP_HAL_RP2350/         # Platform HAL implementation
+│   │       ├── AP_HAL_RP2350.h    # Main include
+│   │       ├── HAL_RP2350_Class.* # HAL singleton
+│   │       ├── Scheduler.*        # FreeRTOS task/timer mapping
+│   │       ├── Semaphores.*       # Mutex/BinarySemaphore
+│   │       ├── Util.*             # Memory, system ID, arming
+│   │       ├── Storage.*          # Flash storage [IMPLEMENTED]
+│   │       └── hwdef.h            # Board definitions
+│   ├── ardupilot/                 # ArduPilot libraries (unchanged copies)
+│   │   ├── AP_Math/               # Vector, matrix, quaternion math
+│   │   ├── Filter/                # Signal processing filters
+│   │   ├── AP_AccelCal/           # Accelerometer calibration
+│   │   ├── AP_FlashStorage/       # Wear-leveled flash (PLANNED)
+│   │   └── StorageManager/        # Storage regions (PLANNED)
+│   ├── st_drivers/                # ST platform-independent drivers
+│   └── mavlink/                   # MAVLink headers (future)
 │
 ├── tests/
 │   └── smoke_tests/               # Hardware validation tests
 │       ├── hal_validation.cpp     # HAL hardware smoke test
 │       ├── st_sensors_test.cpp    # ST driver sensors (IMU, Mag, Baro)
+│       ├── ap_hal_test.cpp        # AP_HAL_RP2350 smoke test [VALIDATED]
+│       ├── calibration_test.cpp   # Accelerometer calibration
+│       ├── storage_test.cpp       # Flash storage (PLANNED)
 │       ├── gps_test.cpp           # GPS module test
 │       ├── radio_tx_test.cpp      # Radio transmit test
 │       ├── i2c_scan.c             # I2C device scanner
@@ -252,3 +269,19 @@ Implemented files:
 - **docs/icd/GEMINI_PROTOCOL_ICD.md** - Gemini inter-MCU protocol ICD
 - **standards/CODING_STANDARDS.md** - Code style and safety rules
 - **standards/protocols/SPACEWIRE_LITE.md** - SpaceWire-Lite communication protocol
+- **docs/RP2350_FULL_AP_PORT.md** - Platform differences for full ArduPilot port
+
+---
+
+## Notes
+
+### Note 1: AP_HAL Stub Headers
+
+The `lib/ap_compat/AP_HAL/` directory contains minimal stub headers that satisfy ArduPilot's `#include <AP_HAL/AP_HAL.h>` chain without implementing functionality. Real implementations live in `lib/ap_compat/AP_HAL_RP2350/`.
+
+**RE-EVALUATION REQUIRED:** When Phase 2 implements real UART/GPIO/SPI drivers, evaluate whether stubs should:
+1. Forward to real implementations
+2. Be deleted and include paths restructured
+3. Remain as fallbacks
+
+See `docs/AP_HAL_RP2350_PLAN.md` Decision D5 for full context.

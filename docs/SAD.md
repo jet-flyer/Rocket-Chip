@@ -25,7 +25,7 @@ This document defines the software architecture for RocketChip, a modular motion
 |----------|--------|-----------|
 | RTOS | FreeRTOS (all tiers) | Deterministic timing, task isolation, foundation for Titan features |
 | Codebase | Unified | Single source, feature flags, easier maintenance |
-| ArduPilot | Library shims only | Get proven math/calibration without ChibiOS port |
+| ArduPilot | AP_HAL_RP2350 implementation | Genuine HAL enables direct ArduPilot library usage without ChibiOS port |
 | Sensor Bus | I2C with Qwiic | Stress test high utilization; Qwiic on Core for easy sensor additions |
 | Telemetry | MAVLink over LoRa | GCS compatibility, proven protocol |
 | Logging | User-configurable | MAVLink binary default; CSV and MATLAB export options |
@@ -138,8 +138,8 @@ This document defines the software architecture for RocketChip, a modular motion
 │  └───────────┘ └───────────┘ └───────────┘ └───────────┘           │
 │                                                                     │
 │  ┌───────────┐ ┌───────────────────────────────────────┐           │
-│  │  Control  │ │  ArduPilot Compat (AP_Math, Filters)  │           │
-│  │   Loop    │ │         via shim layer                │           │
+│  │  Control  │ │  ArduPilot Libraries (AP_Math, etc.)  │           │
+│  │   Loop    │ │         via AP_HAL_RP2350             │           │
 │  └───────────┘ └───────────────────────────────────────┘           │
 └─────────────────────────────────────────────────────────────────────┘
                                  │
@@ -834,17 +834,49 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 | Flight log buffer | - | 4MB | Before flush to flash |
 | **Available** | ~470KB | ~3.5MB | Headroom |
 
-### 9.2 Flash Allocation (4MB typical)
+### 9.2 Storage Architecture
 
-| Region | Size | Contents |
-|--------|------|----------|
-| Bootloader | 16KB | UF2 bootloader |
-| Firmware | 512KB | Application code |
-| Calibration | 16KB | Sensor offsets, scales |
-| Built-in missions | 64KB | Compiled mission data |
-| User missions | 128KB | User-defined missions |
-| Configuration | 16KB | Settings, preferences |
-| Flight logs | ~3.2MB | LittleFS filesystem |
+RocketChip uses a two-tier storage model based on ArduPilot's proven architecture:
+
+| Tier | Technology | Use Case | Characteristics |
+|------|------------|----------|-----------------|
+| **Tier 1** | AP_FlashStorage + StorageManager | Calibration, config, missions | Small, critical, wear-leveled, power-safe |
+| **Tier 2A** | LittleFS (on-chip flash) | Flight logs, session data | Filesystem, power-safe, USB export |
+| **Tier 2B** | FatFs (SD card) | Bulk export, extended logging | PC-readable, removable media (future) |
+
+### 9.3 Flash Memory Layout (8MB flash)
+
+```
+0x10000000  +-----------------+
+            |   Bootloader    |  16KB
+0x10004000  +-----------------+
+            |                 |
+            |    Firmware     |  512KB
+            |                 |
+0x10084000  +-----------------+
+            | Storage Sect A  |  4KB  --+-- AP_FlashStorage (Tier 1)
+0x10085000  +-----------------+         |   Dual-sector wear leveling
+            | Storage Sect B  |  4KB  --+
+0x10086000  +-----------------+
+            |                 |
+            |    LittleFS     |  ~7.5MB (Tier 2A)
+            |  (Flight Logs)  |
+            |                 |
+0x10800000  +-----------------+  (End of 8MB)
+```
+
+### 9.4 Tier 1 Storage Layout (via StorageManager)
+
+| Region | Offset | Size | Contents |
+|--------|--------|------|----------|
+| Calibration | 0 | 512B | Sensor offsets, scales, cross-axis |
+| Config | 512 | 512B | Mission settings, preferences |
+| Missions | 1024 | 3KB | Waypoints, geofence, rally points |
+
+AP_FlashStorage provides:
+- Log-structured writes (never erases during operation)
+- Automatic sector switching for wear leveling
+- Power-loss safety (always recoverable state)
 
 ---
 
@@ -1115,20 +1147,18 @@ Quick reference for which SAD sections are critical for each development phase.
 | Glider test mission | Not needed - glide phase = descent/recovery phase |
 | Product naming | Core, Main+Packs, Titan confirmed. Nova reserved. |
 | Sensor bus | I2C with Qwiic connector on Core for expandability |
+| Configuration storage | AP_FlashStorage + StorageManager (Tier 1). See Section 9.2. |
+| Calibration persistence | AP_FlashStorage CalibrationStore region (512B at offset 0). See Section 9.4. |
 
 ### Still Open
 
 1. **Booster Pack detection**: EEPROM ID byte on each pack, GPIO sense pins, or I2C address scanning for known devices?
 
-2. **Configuration storage**: EEPROM emulation in flash, or dedicated config partition in LittleFS?
+2. **OTA updates**: Required for MVP? USB-only acceptable initially?
 
-3. **OTA updates**: Required for MVP? USB-only acceptable initially?
+3. **USB command protocol**: Text-based CLI, or binary protocol, or both?
 
-4. **USB command protocol**: Text-based CLI, or binary protocol, or both?
-
-5. **Calibration persistence**: Store in same partition as config, or separate calibration region?
-
-6. **State machine formalism**: Is MissionEngine a Mealy machine (actions on transitions) or Moore machine (actions on state entry)? Section 6.2 suggests Moore ("Actions on Entry"), but 6.3 event-condition-action syntax implies Mealy. Clarify before Phase 3 implementation.
+4. **State machine formalism**: Is MissionEngine a Mealy machine (actions on transitions) or Moore machine (actions on state entry)? Section 6.2 suggests Moore ("Actions on Entry"), but 6.3 event-condition-action syntax implies Mealy. Clarify before Phase 3 implementation.
 
 ---
 

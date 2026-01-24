@@ -22,6 +22,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-24-002 | Claude Code CLI | bugfix, architecture
+
+**AP_HAL_RP2350 Phase 1 Complete - Flash/FreeRTOS SMP Fix**
+
+Fixed critical crash in Storage where `flash_safe_execute()` conflicts with FreeRTOS SMP. Root cause: `multicore_lockout` used by `flash_safe_execute()` cannot coexist with FreeRTOS SMP's dual-core scheduler. Solution: RAM-resident free functions with `__not_in_flash_func()`, direct `flash_range_erase()`/`flash_range_program()` calls with interrupt disable, and `xip_cache_invalidate_all()` after flash ops. Updated PD1 in RP2350_FULL_AP_PORT.md with correct solution. Created REBUILD_CONTEXT.md documenting the debugging process. Phase 1 now fully hardware-validated: Scheduler, Semaphores, Util, Storage, CalibrationStore all working.
+
+*Rationale: The Pico SDK's flash_safe_execute() is designed for single-core or bare-metal multicore operation, not RTOS-managed SMP. With FreeRTOS controlling both cores, the lockout signaling deadlocks. Direct flash ops work because disabling interrupts on the current core is sufficient when the other core isn't actively accessing flash (FreeRTOS tasks yield regularly).*
+
+(lib/ap_compat/AP_HAL_RP2350/Storage.cpp, HAL_RP2350_Class.cpp, REBUILD_CONTEXT.md, docs/RP2350_FULL_AP_PORT.md, docs/AP_HAL_RP2350_PLAN.md)
+
+---
+
 ### 2026-01-24-001 | Claude Code CLI | documentation, architecture
 
 **RP2040/RP2350 Port Research and Platform Differences Documentation**

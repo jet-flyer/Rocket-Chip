@@ -30,8 +30,18 @@
 #define HAL_PROGRAM_SIZE_LIMIT_KB   4096
 #define BOARD_FLASH_SIZE            8192    // 8MB flash
 
-// Storage allocation (in flash)
-#define HAL_STORAGE_SIZE            16384   // 16KB for persistent storage
+// ============================================================================
+// Storage Configuration (Tier 1 - AP_FlashStorage)
+// ============================================================================
+
+// Logical storage size (must be less than flash sector size)
+// Layout: Calibration (512B) + Config (512B) + Missions (3KB) = 4KB
+#define HAL_STORAGE_SIZE            4096
+
+// Flash type for AP_FlashStorage
+// RP2350 behaves like STM32F4/F7: can write individual bits 1->0
+// Value 2 = AP_FLASHSTORAGE_TYPE_F4 (defined in AP_FlashStorage.h)
+#define AP_FLASHSTORAGE_TYPE        2
 
 // ============================================================================
 // FreeRTOS Configuration

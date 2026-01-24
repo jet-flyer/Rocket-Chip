@@ -146,16 +146,38 @@ target_link_libraries(hal_sensors PUBLIC
 # AP_HAL_RP2350 - ArduPilot HAL Implementation for RP2350
 # ============================================================================
 
+# AP_FlashStorage - ArduPilot wear-leveled flash storage
+add_library(ap_flash_storage STATIC
+    lib/ardupilot/libraries/AP_FlashStorage/AP_FlashStorage.cpp
+)
+
+# Note: lib/ap_compat MUST come before lib/ardupilot/libraries
+# so our AP_HAL shim takes priority over ArduPilot's full HAL
+target_include_directories(ap_flash_storage PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${CMAKE_SOURCE_DIR}/src/hal
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+target_link_libraries(ap_flash_storage PUBLIC
+    pico_stdlib
+)
+
 add_library(ap_hal_rp2350 STATIC
-    lib/AP_HAL_RP2350/Scheduler.cpp
-    lib/AP_HAL_RP2350/Semaphores.cpp
-    lib/AP_HAL_RP2350/Util.cpp
-    lib/AP_HAL_RP2350/HAL_RP2350_Class.cpp
+    lib/ap_compat/AP_HAL_RP2350/Scheduler.cpp
+    lib/ap_compat/AP_HAL_RP2350/Semaphores.cpp
+    lib/ap_compat/AP_HAL_RP2350/Util.cpp
+    lib/ap_compat/AP_HAL_RP2350/Storage.cpp
+    lib/ap_compat/AP_HAL_RP2350/HAL_RP2350_Class.cpp
 )
 
 target_include_directories(ap_hal_rp2350 PUBLIC
-    ${CMAKE_SOURCE_DIR}/lib/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
     ${CMAKE_SOURCE_DIR}/lib
+    ${CMAKE_SOURCE_DIR}/src/hal
     ${ROCKETCHIP_INCLUDE_DIR}
 )
 
@@ -164,24 +186,28 @@ if(CONFIG_DEBUG)
 endif()
 
 target_link_libraries(ap_hal_rp2350 PUBLIC
+    ap_flash_storage
     pico_stdlib
     pico_unique_id
     hardware_timer
     hardware_watchdog
     hardware_sync
+    hardware_flash
     FreeRTOS-Kernel
 )
 
 # ============================================================================
-# ArduPilot Compatibility Shim (Legacy - will be replaced by ap_hal_rp2350)
+# ArduPilot Compatibility Layer (config, macros, internal error tracking)
 # ============================================================================
 
 add_library(ap_compat STATIC
-    lib/ap_compat/AP_HAL_Compat.cpp
+    lib/ap_compat/AP_InternalError/AP_InternalError.cpp
 )
 
 target_include_directories(ap_compat PUBLIC
     ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
     ${CMAKE_SOURCE_DIR}/src/hal
     ${ROCKETCHIP_INCLUDE_DIR}
 )
@@ -191,7 +217,24 @@ if(CONFIG_DEBUG)
 endif()
 
 target_link_libraries(ap_compat PUBLIC
-    hal
+    pico_stdlib
+)
+
+# ============================================================================
+# CalibrationStore - Persistent calibration data storage
+# ============================================================================
+
+add_library(calibration_store STATIC
+    src/calibration/CalibrationStore.cpp
+)
+
+target_include_directories(calibration_store PUBLIC
+    ${CMAKE_SOURCE_DIR}/src/calibration
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+target_link_libraries(calibration_store PUBLIC
+    ap_hal_rp2350
 )
 
 # ============================================================================
@@ -523,16 +566,37 @@ add_executable(smoke_ap_hal
 )
 
 target_link_libraries(smoke_ap_hal
-    ap_hal_rp2350
     pico_stdlib
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
+    ap_hal_rp2350
 )
 
 pico_enable_stdio_usb(smoke_ap_hal 1)
 pico_enable_stdio_uart(smoke_ap_hal 0)
 
 pico_add_extra_outputs(smoke_ap_hal)
+
+# ============================================================================
+# Storage Smoke Test
+# ============================================================================
+
+add_executable(smoke_storage
+    tests/smoke_tests/storage_test.cpp
+    # hooks defined inline in storage_test.cpp (matching ap_hal_test.cpp pattern)
+)
+
+target_link_libraries(smoke_storage
+    ap_hal_rp2350
+    pico_stdlib
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(smoke_storage 1)
+pico_enable_stdio_uart(smoke_storage 0)
+
+pico_add_extra_outputs(smoke_storage)
 
 # ============================================================================
 # Minimal Blink Test (no FreeRTOS - for debugging boot issues)
@@ -547,6 +611,19 @@ target_link_libraries(minimal_blink
 )
 
 pico_add_extra_outputs(minimal_blink)
+
+# Flash Test - minimal test to verify flash operations work
+add_executable(flash_test
+    tests/smoke_tests/flash_test.cpp
+)
+
+target_link_libraries(flash_test
+    pico_stdlib
+    hardware_flash
+    hardware_sync
+)
+
+pico_add_extra_outputs(flash_test)
 
 # FreeRTOS Static Allocation Test - minimal test without AP_HAL
 add_executable(freertos_static_test
@@ -572,5 +649,8 @@ target_link_libraries(freertos_with_hal_include
     FreeRTOS-Kernel-Heap4
     ap_hal_rp2350
 )
+
+pico_enable_stdio_usb(freertos_with_hal_include 1)
+pico_enable_stdio_uart(freertos_with_hal_include 0)
 
 pico_add_extra_outputs(freertos_with_hal_include)

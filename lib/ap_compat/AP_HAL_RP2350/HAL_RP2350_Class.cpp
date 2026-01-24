@@ -19,6 +19,7 @@ namespace RP2350 {
 HAL_RP2350::HAL_RP2350()
     : scheduler()
     , util()
+    , storage()
     , m_initialized(false)
 {
 }
@@ -52,12 +53,22 @@ void HAL_RP2350::init() {
     util.mem_info(mem_info, sizeof(mem_info));
     printf("%s\n", mem_info);
 
+    // CRITICAL: Initialize storage BEFORE scheduler starts!
+    // Flash operations conflict with FreeRTOS SMP dual-core scheduler.
+    // See REBUILD_CONTEXT.md for details on the flash_safe_execute issue.
+    storage.init();
+    if (storage.healthy()) {
+        printf("Storage initialized (healthy)\n");
+    } else {
+        printf("Storage initialized (WARNING: not healthy)\n");
+    }
+
     // Initialize scheduler (creates timer and I/O tasks)
+    // Must be after storage init since flash ops can't run with SMP active
     scheduler.init();
     printf("Scheduler initialized\n");
 
     // Phase 2 subsystems will be initialized here:
-    // storage->init();
     // i2c_mgr->init();
     // spi_mgr->init();
     // etc.
@@ -76,7 +87,8 @@ void HAL_RP2350::loop() {
     // The main loop is typically handled by the application.
     // This method can be called for any per-iteration housekeeping.
 
-    // Future: storage flush, watchdog feed, etc.
+    // Flush any dirty storage data to flash
+    storage._timer_tick();
 }
 
 }  // namespace RP2350

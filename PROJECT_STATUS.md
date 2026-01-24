@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-01-16 by Claude Code CLI
+**Last Updated:** 2026-01-23 by Claude Code CLI
 
 ## Current Phase
 Phase 2 (Sensor Integration) - All sensors complete. Radio telemetry pending test, then EKF3 fusion.
@@ -21,12 +21,30 @@ Phase 2 (Sensor Integration) - All sensors complete. Radio telemetry pending tes
 - [x] Hardware debugging workflow (Debug Probe + OpenOCD + GDB)
 
 ## Active Work
+- [x] Hardware verification: AP_HAL_RP2350 Storage (smoke_storage test) - **VALIDATED 2026-01-24**
 - [ ] Hardware verification: rocketchip firmware (production main.cpp + SensorTask)
 - [ ] Hardware verification: radio link (two Feather RP2350 + RFM95W FeatherWings)
 - [ ] Sensor fusion (EKF3-derived) - all sensors ready, implementation after hw verification
 
 ## Blocked On
 Nothing currently.
+
+## Research Tasks (AP_HAL_RP2350 Full Port)
+Before implementing each AP_HAL component, check for known RP2040/RP2350 porting issues:
+
+- [ ] Review ArduPilot RP2040 port discussions (Discord, forums, GitHub issues)
+- [ ] Check ChibiOS RP2040 port for documented pitfalls
+- [ ] Review Pico SDK "gotchas" documentation and GitHub issues
+- [ ] Search for FreeRTOS + RP2040/RP2350 multicore issues
+
+**Document findings in:** `docs/RP2350_FULL_AP_PORT.md`
+
+**Key resources to check:**
+- ArduPilot Discord #hardware channel
+- ArduPilot Discourse forum (RP2040 search)
+- GitHub: ardupilot/ardupilot issues (RP2040, Pico)
+- GitHub: raspberrypi/pico-sdk issues
+- Pico SDK documentation: https://www.raspberrypi.com/documentation/pico-sdk/
 
 ## Architecture Documents
 - `docs/SAD.md` - Software Architecture Document

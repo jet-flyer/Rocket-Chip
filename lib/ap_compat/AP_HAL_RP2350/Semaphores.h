@@ -10,6 +10,9 @@
 
 #pragma once
 
+// Prevent the stub HAL_Semaphore from being defined
+#define HAL_SEMAPHORE_DEFINED 1
+
 #include "hwdef.h"
 #include "FreeRTOS.h"
 #include "semphr.h"

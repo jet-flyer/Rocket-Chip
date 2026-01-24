@@ -90,6 +90,14 @@ Approved deviations from coding standards. Each exception requires documented ra
 | **STEMMA QT / Qwiic** | 4-pin JST SH connector for I2C (3.3V) |
 | **SWD** | Serial Wire Debug interface for programming/debugging |
 
+### Platform-Specific Coding Rules
+
+| Rule | Correct | Incorrect | Rationale |
+|------|---------|-----------|-----------|
+| LED Pin | `PICO_DEFAULT_LED_PIN` | `7` or other hardcoded value | SDK defines correct pin per board variant |
+| Delay in main | `sleep_ms()` | `busy_wait_ms()` | `sleep_ms` is SDK-safe before RTOS |
+| FreeRTOS delay | `vTaskDelay()` | `sleep_ms()` | Must use RTOS primitives after scheduler starts |
+
 ---
 
 ## Safety and Regulatory

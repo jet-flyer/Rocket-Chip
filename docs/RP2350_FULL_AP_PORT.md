@@ -50,22 +50,42 @@ External links where this issue was discovered or discussed (forums, GitHub issu
 Flash write/erase operations stall the CPU briefly but code can continue executing from other flash banks or from RAM. ArduPilot's `AP_FlashStorage` assumes flash operations are "blocking but safe" - the CPU waits, then continues.
 
 **RP2350 Behavior:**
-RP2350 uses XIP (Execute-in-Place) where code runs directly from flash via the XIP cache. During flash write/erase operations, the **entire flash becomes inaccessible**. Any code attempting to execute from flash will crash instantly. With FreeRTOS SMP running on dual cores, Core 1 may be executing flash-resident code while Core 0 performs flash operations, causing a hard fault.
+RP2350 uses XIP (Execute-in-Place) where code runs directly from flash via the XIP cache. During flash write/erase operations, the **entire flash becomes inaccessible**. Any code attempting to execute from flash will crash instantly.
+
+**IMPORTANT UPDATE (2026-01-24):** The Pico SDK's `flash_safe_execute()` uses `multicore_lockout` internally, which **conflicts with FreeRTOS SMP**. When FreeRTOS SMP is managing both cores, calling `flash_safe_execute()` causes a hard fault because the lockout mechanism and scheduler conflict on Core 1 signaling.
 
 **Solution:**
-Use Pico SDK's `flash_safe_execute()` API which:
-1. Locks out Core 1 (puts it in a RAM-resident spin loop via `multicore_lockout`)
-2. Disables interrupts
-3. Executes the flash callback from RAM
-4. Restores normal operation
+Use direct flash operations with interrupt disable and XIP cache invalidation:
 
-Additionally wrap with `vTaskSuspendAll()` / `xTaskResumeAll()` to pause FreeRTOS scheduler during flash operations.
+1. **RAM-resident flash wrappers:** Use `__not_in_flash_func()` on free functions (not class methods - the attribute doesn't work on C++ member functions):
+   ```cpp
+   static void __not_in_flash_func(do_flash_erase)(uint32_t offset, size_t length) {
+       flash_range_erase(offset, length);
+       xip_cache_invalidate_all();  // SDK 2.2.0+ API
+   }
+   ```
+
+2. **Disable interrupts during flash ops:**
+   ```cpp
+   uint32_t saved = save_and_disable_interrupts();
+   do_flash_erase(offset, length);
+   restore_interrupts(saved);
+   ```
+
+3. **XIP cache invalidation:** Call `xip_cache_invalidate_all()` (from `hardware/xip_cache.h`) after flash operations so subsequent reads see the new flash contents.
+
+4. **Init order in HAL:** Storage.init() is called inside hal.init() before scheduler.init() creates additional HAL tasks. This works because FreeRTOS SMP allows flash ops as long as interrupts are disabled and flash functions are in RAM.
+
+**DO NOT USE:** `flash_safe_execute()` with FreeRTOS SMP. See `REBUILD_CONTEXT.md` for debugging history.
 
 **Files Affected:**
 - `lib/ap_compat/AP_HAL_RP2350/Storage.cpp`
+- `lib/ap_compat/AP_HAL_RP2350/HAL_RP2350_Class.cpp` (init order)
+- `lib/ap_compat/AP_HAL_RP2350/REBUILD_CONTEXT.md` (debugging notes)
 
 **References:**
-- Pico SDK `pico/flash.h` - `flash_safe_execute()` documentation
+- Pico SDK `hardware/xip_cache.h` - `xip_cache_invalidate_all()` (SDK 2.2.0+)
+- Pico SDK `hardware/flash.h` - `flash_range_erase()`, `flash_range_program()`
 - RP2350 Datasheet Section 2.8 (XIP)
 - ArduPilot `libraries/AP_FlashStorage/AP_FlashStorage.cpp`
 

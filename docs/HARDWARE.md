@@ -323,6 +323,7 @@ The 22-pin HSTX connector on the back provides:
 
 1. **PSRAM (GPIO 8)**: If board has 8MB PSRAM installed, GPIO 8 is reserved for PSRAM CS. Do not use as general GPIO.
 2. **E9 Erratum (A2 silicon)**: Affects high-impedance inputs and internal pulldowns. Use 8.2K or smaller external pull-down resistors where needed.
+3. **LED Pin**: Always use `PICO_DEFAULT_LED_PIN` instead of hardcoding GPIO 7. The Pico SDK defines the correct pin for each board variant. Hardcoding GPIO 7 may work on some boards but fail on others.
 
 ---
 

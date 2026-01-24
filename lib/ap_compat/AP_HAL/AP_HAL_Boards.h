@@ -37,7 +37,15 @@
 
 // Scheduler
 #define HAL_SCHEDULER_ENABLED 0
-#define HAL_STORAGE_SIZE 16384
+#define HAL_STORAGE_SIZE 4096
+
+// AP_FlashStorage type (2 = F4 style, can clear individual bits)
+#define AP_FLASHSTORAGE_TYPE 2
+
+// Required macros for ArduPilot headers
+#ifndef __AP_LINE__
+#define __AP_LINE__ __LINE__
+#endif
 
 // Serial ports
 #define HAL_NUM_CAN_IFACES 0

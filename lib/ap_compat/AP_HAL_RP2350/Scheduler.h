@@ -10,6 +10,10 @@
 
 #pragma once
 
+// Mark that full timing implementation is provided by this file
+// This prevents stub definitions in AP_HAL/AP_HAL.h
+#define AP_HAL_TIMING_DEFINED 1
+
 #include "hwdef.h"
 #include "Semaphores.h"
 #include "FreeRTOS.h"
@@ -372,6 +376,9 @@ private:
 // ============================================================================
 // AP_HAL Namespace - Global timing functions
 // ============================================================================
+
+// Mark that full timing implementation is available
+#define AP_HAL_TIMING_DEFINED 1
 
 namespace AP_HAL {
 

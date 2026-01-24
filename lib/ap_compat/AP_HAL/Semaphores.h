@@ -1,13 +1,11 @@
 /**
  * @file Semaphores.h
- * @brief HAL_Semaphore stub for RocketChip
+ * @brief AP_HAL Semaphores header
+ *
+ * For ArduPilot libraries that include <AP_HAL/Semaphores.h>.
+ * The stub HAL_Semaphore is defined in AP_HAL.h.
  */
 
 #pragma once
 
-#include <cstdint>
-
-// HAL_Semaphore is defined in AP_HAL_Compat.h
-// This header just re-exports it for code that includes AP_HAL/Semaphores.h
-
-#include "../AP_HAL_Compat.h"
+#include "AP_HAL.h"

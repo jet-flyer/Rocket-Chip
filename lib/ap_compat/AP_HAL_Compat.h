@@ -1,143 +1,124 @@
 /**
  * @file AP_HAL_Compat.h
- * @brief ArduPilot HAL compatibility shim for RocketChip
+ * @brief ArduPilot compatibility configuration for RocketChip
  *
- * Maps ArduPilot's AP_HAL functions to RocketChip's HAL.
- * This allows using ArduPilot libraries (AP_Math, Filter, Calibrators)
- * without porting the full ChibiOS-based AP_HAL.
+ * Provides feature flags, utility macros, and configuration for
+ * ArduPilot libraries. HAL implementations are in AP_HAL_RP2350/.
+ *
+ * @note Do NOT define HAL functions here - those are in AP_HAL_RP2350.
  */
 
 #pragma once
 
-#include "Timing.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstdarg>
 #include <cstdlib>
 
 // ============================================================================
+// FUNCTOR_TYPEDEF - Function pointer type creation
+// ============================================================================
+
+// ArduPilot uses FUNCTOR_TYPEDEF for callback function pointers.
+// This simplified version creates plain function pointer types.
+// Used by AP_FlashStorage for flash operation callbacks.
+
+#ifndef FUNCTOR_TYPEDEF
+#define FUNCTOR_TYPEDEF(name, rettype, ...) \
+    typedef rettype (*name)(__VA_ARGS__)
+#endif
+
+#ifndef FUNCTOR_DECLARE
+#define FUNCTOR_DECLARE(rettype, name, ...) \
+    rettype (*name)(__VA_ARGS__)
+#endif
+
+#ifndef FUNCTOR_BIND
+#define FUNCTOR_BIND(obj, func, rettype, ...) (func)
+#endif
+
+// ============================================================================
 // Board Detection
 // ============================================================================
 
+#ifndef HAL_BOARD_ROCKETCHIP
 #define HAL_BOARD_ROCKETCHIP 99
+#endif
+
+#ifndef HAL_BOARD_NAME
 #define HAL_BOARD_NAME "RocketChip-RP2350"
+#endif
+
+#ifndef CONFIG_HAL_BOARD
 #define CONFIG_HAL_BOARD HAL_BOARD_ROCKETCHIP
+#endif
 
 // Memory class (affects some algorithm choices)
+#ifndef HAL_MEM_CLASS
 #define HAL_MEM_CLASS HAL_MEM_CLASS_500
+#endif
+
+// ============================================================================
+// Storage Configuration
+// ============================================================================
+
+// Size in bytes of the persistent storage area
+#ifndef HAL_STORAGE_SIZE
+#define HAL_STORAGE_SIZE 4096
+#endif
+
+// Flash storage type for RP2350 (similar to STM32F4 - can clear bits)
+#ifndef AP_FLASHSTORAGE_TYPE
+#define AP_FLASHSTORAGE_TYPE 2  // AP_FLASHSTORAGE_TYPE_F4
+#endif
 
 // ============================================================================
 // Feature Flags - Disable unused ArduPilot features
 // ============================================================================
 
+#ifndef AP_PARAM_ENABLED
 #define AP_PARAM_ENABLED 0
+#endif
+
+#ifndef HAL_GCS_ENABLED
 #define HAL_GCS_ENABLED 0
+#endif
+
+#ifndef AP_INERTIALSENSOR_ENABLED
 #define AP_INERTIALSENSOR_ENABLED 0
+#endif
+
+#ifndef HAL_INS_ACCELCAL_ENABLED
 #define HAL_INS_ACCELCAL_ENABLED 1
+#endif
+
+#ifndef HAL_LOGGING_ENABLED
 #define HAL_LOGGING_ENABLED 0
+#endif
+
+#ifndef HAL_HAVE_IMU_HEATER
 #define HAL_HAVE_IMU_HEATER 0
+#endif
+
+#ifndef AP_AHRS_ENABLED
 #define AP_AHRS_ENABLED 0
+#endif
+
+#ifndef AP_GPS_ENABLED
 #define AP_GPS_ENABLED 0
+#endif
+
+#ifndef HAL_NAVEKF2_AVAILABLE
 #define HAL_NAVEKF2_AVAILABLE 0
+#endif
+
+#ifndef HAL_NAVEKF3_AVAILABLE
 #define HAL_NAVEKF3_AVAILABLE 0
+#endif
+
+#ifndef AP_SCRIPTING_ENABLED
 #define AP_SCRIPTING_ENABLED 0
-
-// ============================================================================
-// AP_HAL Namespace - Core timing functions
-// ============================================================================
-
-namespace AP_HAL {
-
-/**
- * @brief Get milliseconds since boot
- */
-inline uint32_t millis() {
-    return rocketchip::hal::Timing::millis32();
-}
-
-/**
- * @brief Get milliseconds since boot (64-bit)
- */
-inline uint64_t millis64() {
-    return rocketchip::hal::Timing::millis();
-}
-
-/**
- * @brief Get microseconds since boot
- */
-inline uint32_t micros() {
-    return rocketchip::hal::Timing::micros32();
-}
-
-/**
- * @brief Get microseconds since boot (64-bit)
- */
-inline uint64_t micros64() {
-    return rocketchip::hal::Timing::micros();
-}
-
-/**
- * @brief Panic handler - print message and halt
- */
-[[noreturn]] inline void panic(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    printf("AP_HAL PANIC: ");
-    vprintf(fmt, args);
-    printf("\n");
-    va_end(args);
-
-    // Halt
-    while(1) {
-        // Could add LED blink here
-    }
-}
-
-} // namespace AP_HAL
-
-// ============================================================================
-// HAL_Semaphore - Thread synchronization stub
-// ============================================================================
-
-/**
- * @brief Semaphore stub for single-threaded operation
- *
- * For Phase 1, calibration runs single-threaded so semaphores are no-ops.
- * TODO: Replace with FreeRTOS mutex for multi-threaded fusion.
- */
-class HAL_Semaphore {
-public:
-    HAL_Semaphore() = default;
-
-    bool take(uint32_t timeout_ms) {
-        (void)timeout_ms;
-        return true;
-    }
-
-    bool take_nonblocking() {
-        return true;
-    }
-
-    void give() {}
-};
-
-/**
- * @brief Scoped semaphore lock (RAII pattern)
- */
-class WITH_SEMAPHORE_TYPE {
-public:
-    WITH_SEMAPHORE_TYPE(HAL_Semaphore& sem) : m_sem(sem) {
-        m_sem.take(0);
-    }
-    ~WITH_SEMAPHORE_TYPE() {
-        m_sem.give();
-    }
-private:
-    HAL_Semaphore& m_sem;
-};
-
-// Macro for scoped semaphore - expands to no-op with our stub
-#define WITH_SEMAPHORE(sem) WITH_SEMAPHORE_TYPE _sem_lock(sem)
+#endif
 
 // ============================================================================
 // AP Namespace - Internal error reporting
@@ -192,8 +173,6 @@ inline void internal_error(uint32_t error_code) {
 #define INTERNAL_ERROR(error) do { printf("INTERNAL_ERROR: %d\n", (int)(error)); } while(0)
 #endif
 
-// constrain_value is defined by AP_Math - don't duplicate
-
 // MIN/MAX macros
 #ifndef MIN
 #define MIN(a,b) ((a)<(b)?(a):(b))
@@ -223,7 +202,7 @@ inline void internal_error(uint32_t error_code) {
 #define RAD_TO_DEG (180.0f / M_PI)
 #endif
 
-// Gravity constant (m/s²)
+// Gravity constant (m/s^2)
 #ifndef GRAVITY_MSS
 #define GRAVITY_MSS 9.80665f
 #endif
