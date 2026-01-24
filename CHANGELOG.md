@@ -22,6 +22,52 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-24-001 | Claude Code CLI | documentation, architecture
+
+**RP2040/RP2350 Port Research and Platform Differences Documentation**
+
+Researched existing RP2040/RP2350 ArduPilot port attempts (ChibiOS, Betaflight, MadFlight, ESP32 HAL) to identify known issues for current and future phases. Added 10 platform differences to `RP2350_FULL_AP_PORT.md`:
+
+- **Phase 1:** PD2 (SIO FIFO IRQ shared), PD3 (TinyUSB Core 1), PD5 (stage2 bootloader), PD6 (no ChibiOS)
+- **Phase 2:** PD4 (PWM timer sharing), PD7 (I2C clock stretching), PD8 (SPI+DMA stops at ~253 cycles), PD9 (RP2350-E9 GPIO/ADC erratum)
+- **Phase 4+:** PD10 (gyro rate requirements), PD11 (malloc must zero)
+
+Updated entry format to include "Source URLs" field. Key risks: PD8 (SPI+DMA) is critical - recommend polling initially until DMA proven stable. Our SPI-based sensors avoid PD7 (I2C) issues.
+
+(docs/RP2350_FULL_AP_PORT.md)
+
+---
+
+### 2026-01-23-004 | Claude Code CLI | architecture, refactor
+
+**Tier 1 Storage Implementation and AP_HAL Shim Refactor**
+
+Implemented Tier 1 persistent storage using ArduPilot's AP_FlashStorage for wear-leveled calibration/config storage. Created comprehensive AP_HAL stub headers to isolate ArduPilot library dependencies from full HAL requirements. Refactored `lib/ap_compat/` structure: `AP_HAL/` now provides minimal stubs for ArduPilot libraries, `AP_HAL_RP2350/` provides the full FreeRTOS-based HAL implementation. Added `AP_HAL::Storage` base class, `CalibrationStore` wrapper with CRC validation, flash memory layout headers (`flash_map.h`, `storage_layout.h`). Key files created: Storage.h/cpp, CalibrationStore.h/cpp, 15+ stub headers (UARTDriver.h, GPIO.h, etc.). Build validated with smoke_storage test target.
+
+(lib/ap_compat/, include/rocketchip/, src/calibration/, tests/smoke_tests/storage_test.cpp, CMakeLists.txt)
+
+---
+
+### 2026-01-23-003 | Claude Code CLI | documentation, refactor
+
+**Documentation Rectification: Errant Prompt Correction**
+
+Discovered that AP_HAL_RP2350_PLAN.md was created from an outdated prompt (pre-council review) that lacked the storage architecture decisions and council context. The correct prompt (`flash_storage_integration_prompt.md`) and conversation summary (`conversation_summary.md`) from the council review were not used. Rectified by rewriting documentation to reflect council decisions: two-tier storage model, genuine HAL implementation rationale, and directory structure (`lib/ap_compat/AP_HAL_RP2350/`). Also fixed stale references in SAD.md Section 1.2 (changed "Library shims only" to "AP_HAL_RP2350 implementation") and updated architecture diagram. Phase 1 implementation code was unaffected - only documentation needed correction.
+
+(docs/AP_HAL_RP2350_PLAN.md, docs/SAD.md)
+
+---
+
+### 2026-01-23-002 | Claude Code CLI | architecture, documentation, council
+
+**Storage Architecture and AP_HAL Documentation Update**
+
+Integrated council-approved storage architecture into project documentation. Two-tier model: Tier 1 (AP_FlashStorage for calibration/config/missions), Tier 2A (LittleFS for flight logs), Tier 2B (FatFs for SD card, future). Moved `lib/AP_HAL_RP2350/` into `lib/ap_compat/AP_HAL_RP2350/` per council recommendation. Rewrote `AP_HAL_RP2350_PLAN.md` with council decision context, storage tier architecture, and flash memory layout. Updated SAD.md Section 9.2-9.4 with storage architecture, resolved open questions #2 (configuration storage) and #5 (calibration persistence).
+
+(docs/AP_HAL_RP2350_PLAN.md, docs/SAD.md, docs/SCAFFOLDING.md, CMakeLists.txt, lib/ap_compat/AP_HAL_RP2350/)
+
+---
+
 ### 2026-01-23-001 | Claude Code CLI | tooling, documentation
 
 **Claude Code memory structure and naming cleanup**
