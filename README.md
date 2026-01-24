@@ -23,5 +23,6 @@ These change often. Check at the start of every session.
 - Log all significant changes in CHANGELOG.md
 - Never silently modify another agent's work
 - Coding standards are mandatory—no deviations without explicit approval (see exceptions table in standards/STANDARDS_DEVIATIONS.md)
+- **Prior art research required** - Before implementing hardware interfaces or novel functionality, check how ArduPilot, Adafruit, and SparkFun handle it (see CODING_STANDARDS.md "Prior Art Research" section)
 - Repository files are authoritative. If conflicts exist between agent memory and repo content, flag the discrepancy for review—don't silently overwrite either.
 - If caching or access issues pop up, prefer curl-equivalent methods like direct raw.githubusercontent.com URLs or appending timestamps to query parameters.

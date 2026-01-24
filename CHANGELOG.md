@@ -22,6 +22,24 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-24-003 | Claude Code CLI | feature, architecture
+
+**AP_HAL_RP2350 Phase 2 Complete - All Core Peripherals Implemented**
+
+Completed Phase 2 AP_HAL_RP2350 implementation with all core peripherals hardware-validated (23/23 tests passing):
+
+- **GPIO**: Pin I/O with DigitalSource wrapper, E9 erratum documented
+- **AnalogIn**: ADC channels, MCU temperature, board voltage monitoring
+- **UARTDriver**: USB CDC + 2x hardware UART via BetterStream interface
+- **I2CDevice**: Bus manager with device pooling, extended timeouts per PD7
+- **SPIDevice**: Polling-only transfers per PD8, device-name-based lookup
+
+Hardware validated: ISM330DHCX IMU, LIS3MDL magnetometer (I2C), RFM95W LoRa radio (SPI). Fixed SPI pin mapping (SCK=22, MOSI=23, MISO=20) to match Pico SDK defaults. Added Adafruit Arduino pin naming convention documentation to HARDWARE.md. RCOutput deferred to Titan tier (TVC/servo work).
+
+(lib/ap_compat/AP_HAL_RP2350/*, tests/smoke_tests/smoke_phase2.cpp, docs/HARDWARE.md)
+
+---
+
 ### 2026-01-24-002 | Claude Code CLI | bugfix, architecture
 
 **AP_HAL_RP2350 Phase 1 Complete - Flash/FreeRTOS SMP Fix**

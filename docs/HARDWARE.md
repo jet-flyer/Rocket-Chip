@@ -260,6 +260,30 @@ This ensures users can stack standard FeatherWings (displays, sensors, storage) 
 
 **Exception:** Gemini is a separate carrier board with its own PCB - it repurposes some GPIO for inter-MCU communication and is not expected to be FeatherWing-compatible.
 
+### Adafruit Pin Naming Convention
+
+**Important:** Adafruit guides and tutorials use Arduino-style pin naming, not raw GPIO numbers.
+
+| Arduino Name | Feather RP2350 GPIO | Notes |
+|--------------|---------------------|-------|
+| D5 | GPIO5 | Digital pins map directly |
+| D6 | GPIO6 | |
+| D9 | GPIO9 | |
+| D10 | GPIO10 | Common SPI CS for FeatherWings |
+| D11 | GPIO11 | Common RST for FeatherWings |
+| D12 | GPIO12 | |
+| D13 | GPIO13 | |
+| A0 | GPIO26 | Analog pins start at GPIO26 |
+| A1 | GPIO27 | |
+| A2 | GPIO28 | |
+| A3 | GPIO29 | |
+
+When Adafruit documentation says "CS on pin 10", they mean GPIO10 (silkscreen label "D10" on Feather).
+
+**Example - LoRa Radio FeatherWing (#3231):**
+- "Feather M0" jumper position: CS=D10 (GPIO10), RST=D11 (GPIO11), IRQ=D6 (GPIO6)
+- These are the Arduino pin names that map to GPIO numbers on RP2350
+
 ### Feather RP2350 HSTX Built-in Hardware
 
 | GPIO | Function | Notes |

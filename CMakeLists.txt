@@ -170,6 +170,11 @@ add_library(ap_hal_rp2350 STATIC
     lib/ap_compat/AP_HAL_RP2350/Util.cpp
     lib/ap_compat/AP_HAL_RP2350/Storage.cpp
     lib/ap_compat/AP_HAL_RP2350/HAL_RP2350_Class.cpp
+    lib/ap_compat/AP_HAL_RP2350/GPIO.cpp
+    lib/ap_compat/AP_HAL_RP2350/AnalogIn.cpp
+    lib/ap_compat/AP_HAL_RP2350/UARTDriver.cpp
+    lib/ap_compat/AP_HAL_RP2350/I2CDevice.cpp
+    lib/ap_compat/AP_HAL_RP2350/SPIDevice.cpp
 )
 
 target_include_directories(ap_hal_rp2350 PUBLIC
@@ -177,6 +182,7 @@ target_include_directories(ap_hal_rp2350 PUBLIC
     ${CMAKE_SOURCE_DIR}/lib/ap_compat
     ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
     ${CMAKE_SOURCE_DIR}/lib
+    ${CMAKE_SOURCE_DIR}/src              # For "hal/GPIO.h" to reach RocketChip HAL
     ${CMAKE_SOURCE_DIR}/src/hal
     ${ROCKETCHIP_INCLUDE_DIR}
 )
@@ -187,12 +193,18 @@ endif()
 
 target_link_libraries(ap_hal_rp2350 PUBLIC
     ap_flash_storage
+    hal                 # For RocketChip UART/I2C/SPI wrappers
     pico_stdlib
     pico_unique_id
     hardware_timer
     hardware_watchdog
     hardware_sync
     hardware_flash
+    hardware_adc
+    hardware_uart
+    hardware_i2c
+    hardware_spi
+    hardware_gpio
     FreeRTOS-Kernel
 )
 
@@ -597,6 +609,27 @@ pico_enable_stdio_usb(smoke_storage 1)
 pico_enable_stdio_uart(smoke_storage 0)
 
 pico_add_extra_outputs(smoke_storage)
+
+# ============================================================================
+# AP_HAL_RP2350 Phase 2 Smoke Test
+# ============================================================================
+
+add_executable(smoke_phase2
+    tests/smoke_tests/smoke_phase2.cpp
+)
+
+target_link_libraries(smoke_phase2
+    ap_hal_rp2350
+    hal
+    pico_stdlib
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(smoke_phase2 1)
+pico_enable_stdio_uart(smoke_phase2 0)
+
+pico_add_extra_outputs(smoke_phase2)
 
 # ============================================================================
 # Minimal Blink Test (no FreeRTOS - for debugging boot issues)

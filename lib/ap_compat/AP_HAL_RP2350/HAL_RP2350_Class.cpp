@@ -16,10 +16,20 @@ namespace RP2350 {
 // Constructor
 // ============================================================================
 
+// Static serial port instances
+static UARTDriver_RP2350 g_serial_usb(UARTDriver_RP2350::PortType::USB_CDC);
+static UARTDriver_RP2350 g_serial_uart0(UARTDriver_RP2350::PortType::UART0);
+static UARTDriver_RP2350 g_serial_uart1(UARTDriver_RP2350::PortType::UART1);
+
 HAL_RP2350::HAL_RP2350()
     : scheduler()
     , util()
     , storage()
+    , gpio()
+    , analogin()
+    , serial{&g_serial_usb, &g_serial_uart0, &g_serial_uart1}
+    , i2c_mgr()
+    , spi_mgr()
     , m_initialized(false)
 {
 }
@@ -68,10 +78,26 @@ void HAL_RP2350::init() {
     scheduler.init();
     printf("Scheduler initialized\n");
 
-    // Phase 2 subsystems will be initialized here:
-    // i2c_mgr->init();
-    // spi_mgr->init();
-    // etc.
+    // Phase 2 subsystems
+    gpio.init();
+    printf("GPIO initialized\n");
+    analogin.init();
+    printf("AnalogIn initialized\n");
+
+    // Serial port 0 (USB CDC) auto-initialized via stdio_init_all()
+    // Just mark it as ready - apps can call begin() to configure hardware UARTs
+    serial[0]->begin(115200);
+    printf("Serial[0] (USB) initialized\n");
+    // Note: serial[1] and serial[2] are not auto-initialized
+    // Apps call hal.serial[1]->begin(baud) when needed
+
+    // I2C device manager
+    i2c_mgr.init();
+    printf("I2C manager initialized\n");
+
+    // SPI device manager (polling-only per PD8)
+    spi_mgr.init();
+    printf("SPI manager initialized (polling-only)\n");
 
     m_initialized = true;
 

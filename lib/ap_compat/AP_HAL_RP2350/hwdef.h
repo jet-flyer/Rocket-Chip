@@ -80,10 +80,11 @@ constexpr uint8_t I2C1_SCL          = 7;
 constexpr uint32_t I2C1_FREQ_HZ     = 400000;
 
 // SPI0 - Primary SPI (radio, external flash)
-constexpr uint8_t SPI0_MISO         = 20;
-constexpr uint8_t SPI0_MOSI         = 19;
-constexpr uint8_t SPI0_SCK          = 18;
-constexpr uint8_t SPI0_CS_RADIO     = 10;       // RFM95W chip select
+// Pins match Pico SDK PICO_DEFAULT_SPI_* for adafruit_feather_rp2350
+constexpr uint8_t SPI0_MISO         = 20;       // PICO_DEFAULT_SPI_RX_PIN
+constexpr uint8_t SPI0_MOSI         = 23;       // PICO_DEFAULT_SPI_TX_PIN
+constexpr uint8_t SPI0_SCK          = 22;       // PICO_DEFAULT_SPI_SCK_PIN
+constexpr uint8_t SPI0_CS_RADIO     = 10;       // RFM95W chip select (FeatherWing "M0" jumper)
 constexpr uint32_t SPI0_FREQ_HZ     = 8000000;  // 8MHz
 
 // UART0 - Primary UART (GPS, external devices)

@@ -1,11 +1,15 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-01-23 by Claude Code CLI
+**Last Updated:** 2026-01-24 by Claude Code CLI
 
 ## Current Phase
-Phase 2 (Sensor Integration) - All sensors complete. Radio telemetry pending test, then EKF3 fusion.
+Phase 2 (Sensor Integration) - AP_HAL_RP2350 complete. Radio telemetry pending test, then EKF3 fusion.
 
 ## Recently Completed
+- [x] **AP_HAL_RP2350 Phase 2 complete** - All core peripherals implemented and hardware-validated (23/23 tests)
+  - GPIO, AnalogIn, UARTDriver, I2CDevice, SPIDevice
+  - Hardware validated: ISM330DHCX, LIS3MDL (I2C), RFM95W (SPI)
+  - RCOutput deferred to Titan tier (TVC/servo work)
 - [x] Production architecture migration (src/main.cpp + src/services/SensorTask) - **hardware verification pending**
 - [x] GPS driver (PA1010D) - NMEA parsing validated on hardware
 - [x] Radio driver (RFM95W) - LoRa TX/RX for wireless debugging - **hardware verification pending**
@@ -21,7 +25,8 @@ Phase 2 (Sensor Integration) - All sensors complete. Radio telemetry pending tes
 - [x] Hardware debugging workflow (Debug Probe + OpenOCD + GDB)
 
 ## Active Work
-- [x] Hardware verification: AP_HAL_RP2350 Storage (smoke_storage test) - **VALIDATED 2026-01-24**
+- [x] Hardware verification: AP_HAL_RP2350 Phase 1 (Storage) - **VALIDATED 2026-01-24**
+- [x] Hardware verification: AP_HAL_RP2350 Phase 2 (GPIO, AnalogIn, UART, I2C, SPI) - **VALIDATED 2026-01-24**
 - [ ] Hardware verification: rocketchip firmware (production main.cpp + SensorTask)
 - [ ] Hardware verification: radio link (two Feather RP2350 + RFM95W FeatherWings)
 - [ ] Sensor fusion (EKF3-derived) - all sensors ready, implementation after hw verification
@@ -54,6 +59,12 @@ Before implementing each AP_HAL component, check for known RP2040/RP2350 porting
 - Middle tier product name decision
 - Ground station software evaluation
 - Telemetry protocol final selection (CRSF/CCSDS vs raw MAVLink)
+
+## Future Enhancements
+- MCU temperature safety monitoring (like ArduPilot's HAL_WITH_MCU_MONITORING)
+  - Track min/max MCU voltage
+  - Overheat warning flag via AP_InternalError when temp > 85C
+  - Report via MAVLink MCU_STATUS when telemetry available
 
 ## Side Projects
 - Pegasus flight controller (full FC for drones, glide-back boosters)

@@ -21,6 +21,30 @@ These additional rules from JPL's standard are stretch goals for Pro tier:
 - Stricter `const`/`constexpr` usage
 - Triple-voting on safety-critical variables
 
+### Prior Art Research
+
+**Before implementing any hardware interface, driver, or novel functionality:**
+
+1. **Check ArduPilot first** - Search existing AP_HAL implementations for similar functionality
+   - How do ChibiOS/Linux/SITL HALs handle this?
+   - Are there relevant PRs or issues discussing the approach?
+   - Example: ADC voltage scaling (see [PR #18754](https://github.com/ArduPilot/ardupilot/pull/18754))
+
+2. **Check Adafruit/SparkFun libraries** - These are our preferred hardware vendors
+   - CircuitPython implementations often have clear, well-documented approaches
+   - Arduino libraries show common patterns for similar MCUs
+   - Check for errata workarounds they've already implemented
+
+3. **Check Pico SDK examples** - For RP2350-specific implementations
+   - SDK examples show idiomatic usage patterns
+   - Hardware-specific quirks are often documented in examples
+
+4. **Document findings** - When prior art influences implementation:
+   - Reference source in code comments (e.g., "// Per ArduPilot PR #18754...")
+   - Note any deviations from prior art and rationale
+
+**Rationale:** Proven solutions from established projects save time and reduce bugs. When millions of devices use a particular approach, that's strong evidence it works.
+
 ### Exceptions Table
 
 Approved deviations from coding standards. Each exception requires documented rationale.
