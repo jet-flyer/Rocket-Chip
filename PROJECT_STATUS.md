@@ -6,6 +6,10 @@
 Phase 2 (Sensor Integration) - AP_HAL_RP2350 complete. Radio telemetry pending test, then EKF3 fusion.
 
 ## Recently Completed
+- [x] **Accelerometer calibration working** - Full 6-position calibration with flash persistence
+  - Fixed RP2350 flash page alignment (256-byte writes required)
+  - AP_Param system integrated with AP_FlashStorage
+  - Calibration survives power cycles
 - [x] **AP_HAL_RP2350 Phase 2 complete** - All core peripherals implemented and hardware-validated (23/23 tests)
   - GPIO, AnalogIn, UARTDriver, I2CDevice, SPIDevice
   - Hardware validated: ISM330DHCX, LIS3MDL (I2C), RFM95W (SPI)
@@ -27,6 +31,8 @@ Phase 2 (Sensor Integration) - AP_HAL_RP2350 complete. Radio telemetry pending t
 ## Active Work
 - [x] Hardware verification: AP_HAL_RP2350 Phase 1 (Storage) - **VALIDATED 2026-01-24**
 - [x] Hardware verification: AP_HAL_RP2350 Phase 2 (GPIO, AnalogIn, UART, I2C, SPI) - **VALIDATED 2026-01-24**
+- [x] Accelerometer calibration with persistence - **VALIDATED 2026-01-24**
+- [ ] Magnetometer calibration - next up
 - [ ] Hardware verification: rocketchip firmware (production main.cpp + SensorTask)
 - [ ] Hardware verification: radio link (two Feather RP2350 + RFM95W FeatherWings)
 - [ ] Sensor fusion (EKF3-derived) - all sensors ready, implementation after hw verification
@@ -61,6 +67,18 @@ Before implementing each AP_HAL component, check for known RP2040/RP2350 porting
 - Telemetry protocol final selection (CRSF/CCSDS vs raw MAVLink)
 
 ## Future Enhancements
+
+### Pre-Crowdfunding
+- **RC_OS** - Serial terminal-based configuration UI
+  - Not a true OS, but an interactive terminal interface
+  - Handles majority of setup and configuration tasks without needing a PC app
+  - Calibration wizards (accel, compass, gyro)
+  - Mission configuration editor
+  - Firmware upload/update capability
+  - System diagnostics and sensor readouts
+  - Works with any serial terminal (PuTTY, screen, minicom, etc.)
+
+### Post-Launch
 - MCU temperature safety monitoring (like ArduPilot's HAL_WITH_MCU_MONITORING)
   - Track min/max MCU voltage
   - Overheat warning flag via AP_InternalError when temp > 85C

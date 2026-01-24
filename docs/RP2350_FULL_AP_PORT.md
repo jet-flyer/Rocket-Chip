@@ -74,7 +74,20 @@ Use direct flash operations with interrupt disable and XIP cache invalidation:
 
 3. **XIP cache invalidation:** Call `xip_cache_invalidate_all()` (from `hardware/xip_cache.h`) after flash operations so subsequent reads see the new flash contents.
 
-4. **Init order in HAL:** Storage.init() is called inside hal.init() before scheduler.init() creates additional HAL tasks. This works because FreeRTOS SMP allows flash ops as long as interrupts are disabled and flash functions are in RAM.
+4. **Page alignment requirement (CRITICAL):** `flash_range_program()` requires:
+   - Offset aligned to 256 bytes (FLASH_PAGE_SIZE)
+   - Length must be a multiple of 256 bytes
+
+   AP_FlashStorage writes small chunks (4-byte headers, small log entries) which causes **silent failures** if passed directly. Solution: read-modify-write full pages:
+   ```cpp
+   // Read existing page, modify bytes, write full page
+   const uint8_t* xip_page = (const uint8_t*)(0x10000000 + page_start);
+   memcpy(page_buffer, xip_page, 256);
+   memcpy(page_buffer + offset_in_page, data, bytes_to_write);
+   flash_range_program(page_start, page_buffer, 256);
+   ```
+
+5. **Init order in HAL:** Storage.init() is called inside hal.init() before scheduler.init() creates additional HAL tasks. This works because FreeRTOS SMP allows flash ops as long as interrupts are disabled and flash functions are in RAM.
 
 **DO NOT USE:** `flash_safe_execute()` with FreeRTOS SMP. See `REBUILD_CONTEXT.md` for debugging history.
 
