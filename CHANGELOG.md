@@ -22,6 +22,39 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-26-001 | Claude Code CLI | refactor, architecture
+
+**ArduPilot Dependency Bypass Code Removed - Reevaluation Required**
+
+Removed custom wrapper code that was created without explicit approval, bypassing ArduPilot's proven implementations:
+
+**Files Removed:**
+- `lib/ap_compat/AP_Compass/AP_Compass.cpp` - Custom compass wrapper with offset sign bug (subtracted instead of added offsets)
+- `lib/ap_compat/AP_Compass/AP_Compass.h` - Custom compass wrapper header
+- `lib/ap_compat/AP_Compass/CompassCalibrator.cpp` - Duplicate of ArduPilot's CompassCalibrator
+- `lib/ap_compat/AP_Compass/CompassCalibrator.h` - Duplicate header
+- `lib/ap_compat/AP_Param/AP_Param.cpp` - Simplified AP_Param implementation
+- `lib/ap_compat/AP_Param/AP_Param.h` - Simplified AP_Param header
+
+**Files Retained:**
+- `lib/ap_compat/AP_Compass/AP_Compass_config.h` - Legitimate config flags
+- `lib/ap_compat/AP_Param/ParamStorageLayout.h` - Custom storage layout (RocketChip-specific)
+
+**Standards Updated:**
+- Added "Dependency Bypassing Policy" to CODING_STANDARDS.md requiring explicit approval before bypassing any ArduPilot dependencies
+- Added "Sparse Checkout Review" requirement - missing ArduPilot libraries must be flagged for review before creating alternatives
+
+**Sparse Checkout Updated:**
+- Added `libraries/AP_Param` to ArduPilot sparse checkout
+
+Magnetometer calibration work paused pending comprehensive dependency reevaluation. The custom AP_Compass wrapper introduced a sign convention bug that ArduPilot's proven code already handles correctly.
+
+*Rationale: Custom wrappers bypass battle-tested ArduPilot code and introduce subtle bugs. The offset sign convention error (subtracting instead of adding) was found because ArduPilot's AP_Compass_Backend.cpp:85 does `mag += offsets`. Future work must use ArduPilot's implementations directly or receive explicit approval for alternatives.*
+
+(lib/ap_compat/AP_Compass/, lib/ap_compat/AP_Param/, standards/CODING_STANDARDS.md)
+
+---
+
 ### 2026-01-24-004 | Claude Code CLI | bugfix, feature
 
 **Accelerometer Calibration Persistence Working**

@@ -121,6 +121,39 @@ Approved deviations from coding standards. Each exception requires documented ra
 | LED Pin | `PICO_DEFAULT_LED_PIN` | `7` or other hardcoded value | SDK defines correct pin per board variant |
 | Delay in main | `sleep_ms()` | `busy_wait_ms()` | `sleep_ms` is SDK-safe before RTOS |
 | FreeRTOS delay | `vTaskDelay()` | `sleep_ms()` | Must use RTOS primitives after scheduler starts |
+| Large objects | `static ClassName g_obj;` | `ClassName obj;` in function | Stack space is limited; large objects cause overflow |
+| HAL init order | `hal.init()` before `stdio_init_all()` | `stdio_init_all()` first | Flash ops in HAL conflict with USB if USB is already running |
+| BASEPRI after HAL | Clear BASEPRI after `hal.init()` | Leave BASEPRI elevated | FreeRTOS/HAL may block USB interrupts via BASEPRI |
+
+### Memory Allocation Rules
+
+**Large Object Allocation:** Objects larger than ~1KB should use static allocation, not stack allocation:
+
+```cpp
+// CORRECT: Static allocation at file scope
+static CompassCalibrator g_calibrator;
+
+int main() {
+    g_calibrator.start(...);  // Use the static instance
+}
+
+// INCORRECT: Stack allocation in function
+int main() {
+    CompassCalibrator calibrator;  // May cause stack overflow!
+    calibrator.start(...);
+}
+```
+
+**Why:** RP2350 default stack size is limited. The compiler pre-allocates stack space at function entry, so crashes appear to happen before any code executes. Symptoms include:
+- Random-looking crash points (actually at function entry)
+- Crash happens after some printf output, before the next
+- No error message - device just stops responding
+
+**Objects known to require static allocation:**
+- `CompassCalibrator` (ArduPilot) - ~3KB+
+- Any object with large internal buffers
+
+**Debug tip:** When a crash appears random, try moving large local variables to static allocation.
 
 ---
 
@@ -192,6 +225,43 @@ Using ArduPilot libraries via compatibility shim (not full ArduPilot firmware):
 - **AP_AccelCal / AP_Compass** - Calibration routines
 
 Full ArduPilot port (ArduRocket) is a stretch goal requiring ChibiOS HAL.
+
+### Dependency Bypassing Policy
+
+**MANDATORY: Explicit approval required before bypassing any ArduPilot dependencies.**
+
+When integrating ArduPilot libraries, the default approach is to use ArduPilot's proven implementations directly. Writing custom wrappers, simplified versions, or workarounds that bypass ArduPilot's actual code is **not permitted without explicit user approval**.
+
+**Sparse Checkout Review:**
+
+When you encounter an ArduPilot dependency that is NOT in our sparse checkout (`lib/ardupilot/.git/info/sparse-checkout`), you MUST:
+1. **Flag it for review** - Tell the user which library is missing
+2. **Propose adding it** - Suggest: `git sparse-checkout add libraries/AP_LibraryName`
+3. **Wait for decision** - Do not create a simplified alternative without explicit approval
+
+When you find yourself writing code that mimics or copies ArduPilot logic (e.g., copying `correct_field()` implementation), STOP and flag this for review. The real ArduPilot code should be used instead.
+
+**Before proposing to bypass a dependency:**
+
+1. **Identify the exact dependency** - What ArduPilot code are you considering not using?
+2. **Explain the blocker** - What specifically prevents using the real implementation?
+   - Missing HAL component (specify which)
+   - ChibiOS-specific code that cannot be ported
+   - Circular dependency that cannot be resolved
+3. **Propose alternatives** - Can we implement the missing HAL component instead? Can we add the library to sparse checkout?
+4. **Wait for approval** - Do not proceed until the user explicitly approves the bypass
+
+**Rationale:** ArduPilot code has been battle-tested on millions of devices. Custom implementations introduce bugs that ArduPilot already solved (e.g., sign conventions, edge cases, calibration algorithms). The time "saved" by shortcuts is inevitably lost debugging issues that proven code handles correctly.
+
+**Examples of what requires approval:**
+- Writing a simplified `AP_Compass` wrapper instead of using `AP_Compass_Backend`
+- Implementing custom calibration logic instead of using `CompassCalibrator` directly
+- Stubbing out functionality that ArduPilot implements
+
+**What does NOT require approval:**
+- Implementing missing AP_HAL components (Storage, I2C, SPI, etc.)
+- Creating compatibility shims that call real ArduPilot code
+- Adding platform-specific implementations in `lib/ap_compat/`
 
 ---
 
