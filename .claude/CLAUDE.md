@@ -5,6 +5,11 @@
 @../standards/STANDARDS_DEVIATIONS.md
 @../docs/RP2350_FULL_AP_PORT.md
 
+# ChibiOS Development
+@../chibios/docs/IMPLEMENTATION_GUIDE.md
+@../chibios/PROGRESS.md
+@../docs/CHIBIOS_MIGRATION.md
+
 # Claude-Specific Context (check on every session)
 @LESSONS_LEARNED.md
 @DEBUG_PROBE_NOTES.md
