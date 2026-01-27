@@ -7,7 +7,8 @@ cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
-Makefile
+# CMake-generated Makefile (not ChibiOS Makefiles)
+/Makefile
 compile_commands.json
 
 # VSCode temps
@@ -59,3 +60,10 @@ tmpclaude-*
 tests/smoke_tests/freertos_static_test.cpp
 tests/smoke_tests/freertos_with_hal_include.cpp
 tests/smoke_tests/minimal_blink.cpp
+
+# ChibiOS (clone separately - see chibios/README.md)
+chibios/ChibiOS/
+
+# ChibiOS build artifacts
+chibios/phase0_validation/**/build/
+chibios/phase0_validation/**/.dep/
