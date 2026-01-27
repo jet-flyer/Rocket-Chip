@@ -1,3 +1,5 @@
+@AK_GUIDELINES.md
+
 @../README.md
 @../standards/CODING_STANDARDS.md
 @../standards/DEBUG_OUTPUT.md
