@@ -2,7 +2,7 @@
 
 **Purpose:** Document known issues, bugs, errata, and gotchas specific to ChibiOS on RP2350/RP2040 hardware. This complements `docs/RP2350_FULL_AP_PORT.md` which documents general platform differences.
 
-**Last Updated:** 2026-01-26
+**Last Updated:** 2026-01-27
 
 ---
 
@@ -19,24 +19,54 @@
 
 ## Critical Issues
 
-### CI1: USB HAL Not Implemented
+### CI1: USB Not Working on ChibiOS RP2350
 
 **Category:** Peripherals
 **Severity:** Critical
-**Status:** ChibiOS Limitation
+**Status:** BLOCKED - No working path identified
 
 **Issue:**
-ChibiOS does not have a USB HAL driver for RP2040/RP2350. When tested, the USB device is not recognized by the host computer.
+Neither ChibiOS native USB nor TinyUSB integration works on RP2350 with ChibiOS:
+
+1. **ChibiOS USB HAL**: Driver exists at `os/hal/ports/RP/LLD/USBv1/hal_usb_lld.c` but causes hard crashes when enabled. Device becomes unresponsive (all registers zero, requires BOOTSEL recovery).
+
+2. **TinyUSB Integration**: TinyUSB requires Pico SDK runtime functions (spin locks, interrupt handling, etc.) which fundamentally conflict with ChibiOS:
+   - Pico SDK `sync.c`, `platform.c` conflict with ChibiOS initialization
+   - Removing SDK sources and stubbing functions still crashes
+   - Interrupt priority handling differs between ChibiOS and SDK
+   - RP2350 Cortex-M33 unaligned access handling requires SDK runtime
+
+**UPDATE (2026-01-27):** Extensive testing confirmed both paths fail:
+- ChibiOS USB HAL: Hard crash on enable
+- TinyUSB + ChibiOS: Hard crash at boot, even with all Pico SDK functions stubbed
+- ChibiOS forum patches (SDK 2.2.0 integration) contain no USB-related changes
 
 **Impact:**
-- No USB CDC serial console via ChibiOS HAL
-- No USB mass storage or HID via ChibiOS HAL
+- Cannot use USB CDC for debug output or telemetry
+- Must use UART via debug probe for all debug communication
+- USB functionality blocked until ChibiOS implements working driver
 
 **Workaround:**
-Use TinyUSB library directly (same approach used in FreeRTOS branch). TinyUSB is well-tested on RP2350 and provides full USB functionality.
+Use UART via debug probe (GPIO0/1) for debug output. This is working and reliable. When ChibiOS USB becomes available, switching from UART to USB stream should be straightforward - only the stream source changes, not application code.
+
+**Root Cause Analysis (2026-01-27):**
+Examination of the ChibiOS USB driver source reveals a critical bug:
+
+1. **Missing IRQ handler wrapper**: The RP USB driver exports `usb_lld_serve_interrupt()` but has no actual `OSAL_IRQ_HANDLER()` wrapper to connect it to the interrupt vector (Vector78 for RP2350). Compare with STM32 USB driver which defines `OSAL_IRQ_HANDLER(STM32_USB1_LP_HANDLER)`.
+
+2. **Mismatched prologue/epilogue**: The `usb_lld_serve_interrupt()` function at line 394 in `hal_usb_lld.c` has `OSAL_IRQ_EPILOGUE()` at line 470 but no `OSAL_IRQ_PROLOGUE()` at the start.
+
+3. **No `rp_usb.inc` file**: Unlike UART which has `rp_uart0.inc`/`rp_uart1.inc` included from `rp_isr.c` to register handlers, there is no `rp_usb.inc` for USB.
+
+The driver defines all register layouts and logic but the interrupt plumbing is incomplete, explaining why enabling USB crashes the device.
+
+**Future Development:**
+ChibiOS forum shows active work on Pico SDK 2.2.0 integration (Jan 2026), but no USB driver work mentioned. The driver exists but needs the IRQ handler implementation completed. Monitor ChibiOS trunk for updates.
 
 **Source URLs:**
-- https://forum.chibios.org/viewtopic.php?f=3&t=5800&start=60
+- https://forum.chibios.org/viewtopic.php?f=3&t=5800&start=60 (USB HAL discussion)
+- https://forum.chibios.org/viewtopic.php?f=3&t=6631 (SDK 2.2.0 patches - no USB)
+- ChibiOS source: `os/hal/ports/RP/LLD/USBv1/hal_usb_lld.c` line 394, 470
 
 ---
 
@@ -181,6 +211,51 @@ ChibiOS SMP on RP2350 requires careful synchronization:
 - https://forum.chibios.org/viewtopic.php?t=6398
 - https://forum.chibios.org/viewtopic.php?t=5891
 - https://forum.chibios.org/viewtopic.php?f=3&t=5107&start=20
+
+---
+
+### CI13: I2C Hardware Driver is Stub Only
+
+**Category:** Peripherals
+**Severity:** High
+**Status:** ChibiOS Limitation
+
+**Issue:**
+The ChibiOS I2C low-level driver for RP2350 (`os/hal/ports/RP/LLD/I2Cv1/hal_i2c_lld.c`) contains only empty function bodies - it's a stub placeholder with no actual implementation. The driver is also NOT included in `platform.mk`.
+
+```c
+void i2c_lld_start(I2CDriver *i2cp) {
+  if (i2cp->state == I2C_STOP) {
+#if PLATFORM_I2C_USE_I2C1 == TRUE
+    if (&I2CD1 == i2cp) {
+      // EMPTY - no implementation
+    }
+#endif
+  }
+}
+```
+
+**Impact:**
+- Cannot use ChibiOS HAL I2C driver with hardware I2C peripheral
+- Sensors on I2C bus (STEMMA QT / QWIIC) not accessible via standard HAL
+
+**Workaround:**
+Use ChibiOS fallback/software I2C driver at `os/hal/lib/fallback/I2C/`:
+1. Include the fallback driver source in Makefile instead of I2Cv1
+2. Configure pins as GPIO with pull-ups
+3. Use `SW_I2C_USE_I2C1 = TRUE` in halconf.h
+
+The software I2C bit-bangs the protocol via GPIO. Slower than hardware but fully functional for sensor communication.
+
+**Alternative:** ChibiOS-Contrib (used by QMK) has a hardware I2C driver for RP2040 that could potentially be adapted for RP2350.
+
+**Files Affected:**
+- `chibios/phase0_validation/test_i2c_scan/` - Uses fallback driver
+
+**Source URLs:**
+- https://forum.chibios.org/viewtopic.php?t=5800&start=80 (I2C via SDK mention)
+- ChibiOS source: `os/hal/ports/RP/LLD/I2Cv1/hal_i2c_lld.c` (stub)
+- ChibiOS source: `os/hal/lib/fallback/I2C/hal_i2c_lld.c` (working)
 
 ---
 
@@ -337,12 +412,13 @@ void* hal_malloc(size_t size) {
 
 | ID | Issue | Severity | ChibiOS Fix? | Workaround Available |
 |----|-------|----------|--------------|---------------------|
-| CI1 | USB HAL missing | Critical | No | TinyUSB |
+| CI1 | USB HAL crashes | Critical | Exists but broken | TinyUSB/bare-metal |
 | CI2 | Flash XIP issues | Critical | No | RAM functions |
 | CI3 | Stage2 bootloader | Critical | Partial | Community patches |
 | CI4 | SPI+DMA stops | High | No | Link channels |
 | CI5 | I2C clock stretch | High | No | Lower speed |
 | CI6 | SMP complexity | High | Implemented | Careful design |
+| CI13 | I2C driver is stub | High | No | Fallback SW I2C |
 | CI7 | ADC linearity | Medium | No | 8-bit mode |
 | CI8 | GPIO/ADC interact | Medium | No | Disable input |
 | CI9 | E9 erratum | Medium | No | External pulldowns |

@@ -6,7 +6,9 @@
 |------|--------|-------|
 | LED Blink | **PASS** | Verified on hardware 2026-01-27 |
 | UART Console | **PASS** | Via debug probe UART, 115200 baud |
-| I2C Scan | Not started | |
+| USB (ChibiOS HAL) | **BLOCKED** | HAL crashes device - see CI1 |
+| USB (TinyUSB) | **BLOCKED** | Pico SDK conflicts with ChibiOS - see CI1 |
+| I2C Scan | **BUILD OK** | Using software I2C (fallback driver) - hardware I2C is stub |
 | SPI Loopback | Not started | |
 
 ### LED Blink Build Notes
@@ -29,6 +31,21 @@
   - chprintf stream wrapper for debug output
   - Connects via debug probe UART pass-through (GPIO0 TX)
   - 115200 baud, 8N1
+
+### I2C Scan Notes
+
+- **Date**: 2026-01-27
+- **Build size**: 11,540 bytes text
+- **Driver**: ChibiOS fallback/software I2C (bit-bang via GPIO)
+- **Reason**: Hardware I2C driver (I2Cv1) is a stub - empty function bodies (see CI13 in KNOWN_ISSUES.md)
+- **Pins**: GPIO2 (SDA), GPIO3 (SCL) - STEMMA QT/QWIIC port
+- **GPIO mode**: Push-pull with pull-ups (RP2350 PAL lacks open-drain mode definition)
+- **Alternative found**: ChibiOS-Contrib has RP2040 I2C driver used by QMK, could potentially be adapted
+- **Expected devices**:
+  - 0x77: DPS310 barometer
+  - 0x6A/0x6B: ISM330DHCX IMU
+  - 0x1C/0x1E: LIS3MDL magnetometer (if connected)
+- **To test**: Flash UF2, connect debug probe UART, open 115200 baud terminal
 
 ## Phase 1: hwdef Infrastructure
 

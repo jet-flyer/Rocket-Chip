@@ -22,6 +22,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-27-002 | Claude Code CLI | documentation, architecture
+
+**ChibiOS RP2350 Driver Status Investigation**
+
+Comprehensive investigation of ChibiOS RP2350 driver status revealed multiple blockers:
+
+**USB Driver (CI1)**: Root cause identified - missing OSAL_IRQ_HANDLER wrapper. The `usb_lld_serve_interrupt()` function has OSAL_IRQ_EPILOGUE without matching OSAL_IRQ_PROLOGUE, and there's no `rp_usb.inc` to register the handler with the interrupt vector.
+
+**I2C Driver (CI13)**: Hardware I2C driver (`I2Cv1/hal_i2c_lld.c`) is a stub with empty function bodies. Not included in platform.mk. ChibiOS-Contrib has an RP2040 driver used by QMK that could potentially be adapted. Fallback software I2C driver exists but integration with ChibiOS HAL layer causes crashes.
+
+**SPI Driver**: Fully implemented with DMA support - verified working.
+
+Created I2C scan test using direct GPIO bit-bang (bypassing ChibiOS HAL entirely) but hit same crash pattern as USB tests - fundamentally broken on reboot.
+
+(chibios/docs/KNOWN_ISSUES.md - added CI1 root cause analysis and CI13 for I2C stub, chibios/phase0_validation/test_i2c_scan/)
+
+*Rationale: The crash-on-reboot pattern affecting both USB and I2C tests suggests a deeper ChibiOS initialization issue on RP2350, possibly related to flash XIP or vector table setup. Further investigation needed.*
+
+---
+
 ### 2026-01-27-001 | Claude Code CLI | feature
 
 **ChibiOS Phase 0: UART Debug Output Working**
