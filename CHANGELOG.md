@@ -22,6 +22,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-27-001 | Claude Code CLI | feature
+
+**ChibiOS Phase 0: UART Debug Output Working**
+
+Added UART debug test for ChibiOS on RP2350. Output via Raspberry Pi Debug Probe UART pass-through at 115200 baud. Uses ChibiOS SIO driver with chprintf stream wrapper.
+
+Also includes incomplete test_usb_cdc project (TinyUSB integration attempt - blocked on Pico SDK header dependencies, documented for future bare-metal approach).
+
+(chibios/phase0_validation/test_uart/, chibios/phase0_validation/test_usb_cdc/, chibios/PROGRESS.md)
+
+---
+
 ### 2026-01-26-001 | Claude Code CLI | refactor, architecture
 
 **ArduPilot Dependency Bypass Code Removed - Reevaluation Required**
