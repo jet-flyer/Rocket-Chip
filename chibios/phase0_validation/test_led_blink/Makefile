@@ -34,8 +34,9 @@ ifeq ($(USE_LDOPT),)
 endif
 
 # Enable link time optimizations (LTO)
+# Disabled: LTO conflicts with portable make.exe on Windows
 ifeq ($(USE_LTO),)
-  USE_LTO = yes
+  USE_LTO = no
 endif
 
 # Verbose compile output
@@ -44,8 +45,9 @@ ifeq ($(USE_VERBOSE_COMPILE),)
 endif
 
 # Smart build (only compile used modules)
+# Disabled: Smart build uses Unix commands (cat/egrep) that fail on Windows
 ifeq ($(USE_SMART_BUILD),)
-  USE_SMART_BUILD = yes
+  USE_SMART_BUILD = no
 endif
 
 ##############################################################################
@@ -102,7 +104,11 @@ include $(CHIBIOS)/os/common/ports/ARMv8-M-ML/compilers/GCC/mk/port.mk
 LDSCRIPT = $(STARTUPLD)/RP2350_FLASH.ld
 
 # C sources
+# Note: hal_safety.c is missing from ChibiOS hal.mk when USE_SMART_BUILD=no
+# We add it manually here to fix undefined references to halRegWaitAnySet32X/halSftFail
 CSRC = $(ALLCSRC) \
+       $(CHIBIOS)/os/hal/src/hal_safety.c \
+       $(CHIBIOS)/os/hal/src/hal_buffered_serial.c \
        main.c
 
 # C++ sources
@@ -130,8 +136,8 @@ CPPWARN = -Wall -Wextra -Wundef
 UDEFS = -DCRT0_VTOR_INIT=1 -DNDEBUG
 
 # User ASM defines
-# DUAL-CORE: CRT0_EXTRA_CORES_NUMBER=1 enables Core 1
-UADEFS = -DCRT0_VTOR_INIT=1 -DCRT0_EXTRA_CORES_NUMBER=1
+# Single-core for now (CRT0_EXTRA_CORES_NUMBER=0), enable Core1 later
+UADEFS = -DCRT0_VTOR_INIT=1 -DCRT0_EXTRA_CORES_NUMBER=0
 
 # User include directories
 UINCDIR =

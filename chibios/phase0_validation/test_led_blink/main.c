@@ -21,8 +21,33 @@
 /* Configuration Constants                                                   */
 /*===========================================================================*/
 
-/* GPIO pin definitions - Adafruit Feather RP2350 HSTX */
-static const uint32_t kLedPin = 25U;       /* Onboard LED */
+/* GPIO pin definitions - Board-specific
+ *
+ * Note: We use RP_PICO2_RP2350 board definition but run on Adafruit Feather RP2350.
+ * A custom board file should be created for Phase 1.
+ *
+ * Adafruit Feather RP2350 HSTX pinout:
+ *   https://learn.adafruit.com/adafruit-feather-rp2350/pinouts
+ *   - GPIO7:  Red LED (#7 LED, above USB-C connector)
+ *   - GPIO21: NeoPixel (status indicator)
+ *   - GPIO13: Charge status LED
+ *
+ * Raspberry Pi Pico 2:
+ *   - GPIO25: Green LED
+ */
+#if defined(BOARD_ADAFRUIT_FEATHER_RP2350)
+  #define ROCKETCHIP_LED_PIN    7U
+  #define ROCKETCHIP_NEOPIXEL   21U
+#elif defined(BOARD_RP_PICO2_RP2350)
+  /* Running on Feather with Pico2 board definition - use Feather pins */
+  #define ROCKETCHIP_LED_PIN    7U
+  #define ROCKETCHIP_NEOPIXEL   21U
+#else
+  /* Fallback to Pico SDK convention if available */
+  #define ROCKETCHIP_LED_PIN    25U
+#endif
+
+static const uint32_t kLedPin = ROCKETCHIP_LED_PIN;
 
 /* Timing constants */
 static const uint32_t kBlinkIntervalMs = 500U;  /* 500ms on, 500ms off = 1Hz */

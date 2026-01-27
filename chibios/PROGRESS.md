@@ -4,10 +4,21 @@
 
 | Test | Status | Notes |
 |------|--------|-------|
-| LED Blink | Not started | |
+| LED Blink | **PASS** | Verified on hardware 2026-01-27 |
 | UART Console | Not started | |
 | I2C Scan | Not started | |
 | SPI Loopback | Not started | |
+
+### LED Blink Build Notes
+
+- **Date**: 2026-01-27
+- **Build size**: 7,480 bytes text, 17KB UF2
+- **Workarounds applied**:
+  - `USE_SMART_BUILD=no` (Unix shell commands in hal.mk fail on Windows)
+  - `USE_LTO=no` (LTO conflicts with portable make.exe on Windows)
+  - `CH_CFG_SMP_MODE=FALSE` (ARMv8-M-ML port doesn't support kernel SMP)
+  - `RP_CORE1_START=FALSE` (temporarily disabled, re-enable later)
+  - Manually added `hal_safety.c` and `hal_buffered_serial.c` to CSRC (missing from hal.mk non-smart-build path)
 
 ## Phase 1: hwdef Infrastructure
 

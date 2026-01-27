@@ -46,7 +46,9 @@
  *          direct interactions are handled by the OS.
  */
 #if !defined(CH_CFG_SMP_MODE)
-#define CH_CFG_SMP_MODE                     TRUE
+/* Note: ChibiOS kernel SMP not supported on ARMv8-M-ML port.
+   Core1 is still available via RP_CORE1_START in mcuconf.h. */
+#define CH_CFG_SMP_MODE                     FALSE
 #endif
 
 /**
