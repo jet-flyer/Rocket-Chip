@@ -177,6 +177,10 @@ private:
 // AP_HAL Compatibility Aliases
 // ============================================================================
 
+// Define guard macro BEFORE any includes of AP_HAL/AP_HAL.h
+// This prevents the stub HAL_Semaphore from being defined
+#define HAL_SEMAPHORE_DEFINED
+
 namespace AP_HAL {
     using Semaphore = RP2350::Semaphore;
     using BinarySemaphore = RP2350::BinarySemaphore;

@@ -7,6 +7,9 @@
 #include <AP_HAL_RP2350/HAL_RP2350_Class.h>
 #include <cstring>
 
+// ArduPilot pattern: declare extern hal in each .cpp file that uses it
+extern RP2350::HAL_RP2350 hal;
+
 namespace rocketchip {
 
 // ============================================================================
@@ -31,7 +34,7 @@ bool CalibrationStore::load(SensorCalibration& cal)
     }
 
     // Read from storage
-    hal.storage.read_block(&cal, kCalibrationOffset, sizeof(SensorCalibration));
+    ::hal.storage.read_block(&cal, kCalibrationOffset, sizeof(SensorCalibration));
 
     // Validate magic number
     if (cal.magic != kCalibrationMagic) {
@@ -65,10 +68,10 @@ bool CalibrationStore::save(const SensorCalibration& cal)
     to_save.crc32 = compute_crc(to_save);
 
     // Write to storage
-    hal.storage.write_block(kCalibrationOffset, &to_save, sizeof(SensorCalibration));
+    ::hal.storage.write_block(kCalibrationOffset, &to_save, sizeof(SensorCalibration));
 
     // Trigger immediate flush (optional - storage flushes periodically anyway)
-    hal.storage._timer_tick();
+    ::hal.storage._timer_tick();
 
     return true;
 }
@@ -83,8 +86,8 @@ bool CalibrationStore::erase()
     uint8_t zeros[kCalibrationSize];
     memset(zeros, 0, sizeof(zeros));
 
-    hal.storage.write_block(kCalibrationOffset, zeros, sizeof(zeros));
-    hal.storage._timer_tick();
+    ::hal.storage.write_block(kCalibrationOffset, zeros, sizeof(zeros));
+    ::hal.storage._timer_tick();
 
     return true;
 }
@@ -124,16 +127,20 @@ void CalibrationStore::get_defaults(SensorCalibration& cal)
     cal.gyro.offset[2] = 0.0f;
 
     // Magnetometer defaults (identity)
+    // Hard iron offset: zero
     cal.mag.offset[0] = 0.0f;
     cal.mag.offset[1] = 0.0f;
     cal.mag.offset[2] = 0.0f;
-    cal.mag.scale[0] = 1.0f;
-    cal.mag.scale[1] = 1.0f;
-    cal.mag.scale[2] = 1.0f;
-    // Identity rotation matrix
-    cal.mag.rotation[0] = 1.0f; cal.mag.rotation[1] = 0.0f; cal.mag.rotation[2] = 0.0f;
-    cal.mag.rotation[3] = 0.0f; cal.mag.rotation[4] = 1.0f; cal.mag.rotation[5] = 0.0f;
-    cal.mag.rotation[6] = 0.0f; cal.mag.rotation[7] = 0.0f; cal.mag.rotation[8] = 1.0f;
+    // Soft iron diagonal: identity (1,1,1)
+    cal.mag.diag[0] = 1.0f;
+    cal.mag.diag[1] = 1.0f;
+    cal.mag.diag[2] = 1.0f;
+    // Soft iron off-diagonal: zero
+    cal.mag.offdiag[0] = 0.0f;
+    cal.mag.offdiag[1] = 0.0f;
+    cal.mag.offdiag[2] = 0.0f;
+    // Scale factor: 1.0
+    cal.mag.scale_factor = 1.0f;
 
     // Barometer defaults
     cal.baro.pressure_offset = 0.0f;

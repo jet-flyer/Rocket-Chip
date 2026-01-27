@@ -130,19 +130,30 @@ constexpr uint8_t PA1010D           = 0x10;     // GPS module
 // Calibration support
 #define HAL_INS_ACCELCAL_ENABLED    1
 
+// Features we enable for calibration support
+#define AP_PARAM_ENABLED            1           // Parameter storage
+#define AP_INERTIALSENSOR_ENABLED   1           // Inertial sensor calibration
+
+// AHRS - Minimal implementation for compass calibration
+// Uses accel for pitch/roll (gravity), gyro integration for yaw
+#define AP_AHRS_ENABLED             1           // Our minimal AHRS in ap_compat
+#define AP_AHRS_DCM_ENABLED         1           // DCM attitude from accel/gyro
+
+// Compass calibration
+#define AP_COMPASS_ENABLED          1           // Enable compass support
+
+// GCS/MAVLink - Real MAVLink STATUSTEXT support
+#define HAL_GCS_ENABLED             1           // Enable for GCS_SEND_TEXT
+
 // Features we disable (no use case or deps not met)
-#define AP_PARAM_ENABLED            0
-#define HAL_GCS_ENABLED             0
 #define HAL_LOGGING_ENABLED         0
 #define AP_LOGGER_ENABLED           0
 #define HAL_HAVE_IMU_HEATER         0
-#define AP_AHRS_ENABLED             0
 #define AP_GPS_ENABLED              0           // We have our own GPS driver
 #define HAL_NAVEKF2_AVAILABLE       0
 #define HAL_NAVEKF3_AVAILABLE       0
 #define AP_SCRIPTING_ENABLED        0
 #define HAL_WITH_EKF_DOUBLE         0
-#define AP_INERTIALSENSOR_ENABLED   0           // Phase 2+
 #define HAL_NUM_CAN_IFACES          0
 #define HAL_HAVE_BOARD_VOLTAGE      0
 #define HAL_HAVE_SERVO_VOLTAGE      0

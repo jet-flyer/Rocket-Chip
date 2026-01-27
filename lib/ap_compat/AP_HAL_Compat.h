@@ -173,6 +173,22 @@ inline void internal_error(uint32_t error_code) {
 #define INTERNAL_ERROR(error) do { printf("INTERNAL_ERROR: %d\n", (int)(error)); } while(0)
 #endif
 
+// NEW_NOTHROW - used throughout ArduPilot for non-throwing new
+#include <new>
+#ifndef NEW_NOTHROW
+#define NEW_NOTHROW new(std::nothrow)
+#endif
+
+// DEV_PRINTF - debug printf (disabled in our stub)
+#ifndef DEV_PRINTF
+#define DEV_PRINTF(...) do {} while(0)
+#endif
+
+// FMT_PRINTF - format attribute for printf-like functions
+#ifndef FMT_PRINTF
+#define FMT_PRINTF(a, b)
+#endif
+
 // MIN/MAX macros
 #ifndef MIN
 #define MIN(a,b) ((a)<(b)?(a):(b))

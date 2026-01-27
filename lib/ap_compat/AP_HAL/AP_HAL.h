@@ -18,6 +18,7 @@
 
 // Abstract base classes for HAL interfaces
 #include "Storage.h"
+#include "HAL.h"
 
 // ============================================================================
 // Minimal HAL_Semaphore for ArduPilot libraries that need it

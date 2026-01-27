@@ -47,6 +47,35 @@ set(ROCKETCHIP_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
 option(CONFIG_DEBUG "Enable debug output macros" ON)
 
 # ============================================================================
+# ArduPilot Board Configuration (Global)
+# ============================================================================
+# These MUST be defined globally before any ArduPilot headers are included.
+# They satisfy ArduPilot's board detection in AP_HAL_Boards.h.
+add_compile_definitions(
+    # Board identification
+    HAL_BOARD_ROCKETCHIP=99
+    CONFIG_HAL_BOARD=99
+    CONFIG_HAL_BOARD_SUBTYPE=0
+    # Memory limits
+    HAL_PROGRAM_SIZE_LIMIT_KB=4096
+    # Serial port config
+    HAL_NUM_CAN_IFACES=0
+    BOARD_FLASH_SIZE=4096
+    # Core feature flags
+    HAL_HAVE_BOARD_VOLTAGE=0
+    HAL_HAVE_SERVO_VOLTAGE=0
+    HAL_WITH_IO_MCU=0
+    HAL_WITH_DRONECAN=0
+    HAL_MAX_CAN_PROTOCOL_DRIVERS=0
+    HAL_HAVE_IMU_HEATER=0
+    HAL_WITH_EKF_DOUBLE=0
+    # Param system disabled - use stub
+    AP_PARAM_ENABLED=0
+    # GCS disabled for now
+    HAL_GCS_ENABLED=0
+)
+
+# ============================================================================
 # HAL Library
 # ============================================================================
 
@@ -264,6 +293,7 @@ add_library(ap_math STATIC
     lib/ardupilot/libraries/AP_Math/location.cpp
     lib/ardupilot/libraries/AP_Math/polygon.cpp
     lib/ardupilot/libraries/AP_Math/crc.cpp
+    lib/ardupilot/libraries/AP_Math/AP_GeodesicGrid.cpp
 )
 
 target_include_directories(ap_math PUBLIC
@@ -304,35 +334,14 @@ target_link_libraries(ap_filter PUBLIC
 )
 
 # ============================================================================
-# ArduPilot Accelerometer Calibrator
+# ArduPilot AHRS (Attitude and Heading Reference System)
 # ============================================================================
 
-add_library(ap_calibrators STATIC
-    lib/ardupilot/libraries/AP_AccelCal/AccelCalibrator.cpp
+add_library(ap_ahrs STATIC
+    lib/ap_compat/AP_AHRS/AP_AHRS.cpp
 )
 
-target_include_directories(ap_calibrators PUBLIC
-    ${CMAKE_SOURCE_DIR}/lib/ap_compat
-    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
-    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
-    ${CMAKE_SOURCE_DIR}/src/hal
-    ${ROCKETCHIP_INCLUDE_DIR}
-)
-
-target_link_libraries(ap_calibrators PUBLIC
-    ap_math
-    ap_hal_rp2350
-)
-
-# ============================================================================
-# ArduPilot Parameter System
-# ============================================================================
-
-add_library(ap_param STATIC
-    lib/ap_compat/AP_Param/AP_Param.cpp
-)
-
-target_include_directories(ap_param PUBLIC
+target_include_directories(ap_ahrs PUBLIC
     ${CMAKE_SOURCE_DIR}/lib/ap_compat
     ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
     ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
@@ -341,20 +350,176 @@ target_include_directories(ap_param PUBLIC
 )
 
 if(CONFIG_DEBUG)
-    target_compile_definitions(ap_param PUBLIC CONFIG_DEBUG)
+    target_compile_definitions(ap_ahrs PUBLIC CONFIG_DEBUG)
 endif()
 
-target_link_libraries(ap_param PUBLIC
+target_link_libraries(ap_ahrs PUBLIC
+    ap_math
     ap_hal_rp2350
     pico_stdlib
 )
 
 # ============================================================================
-# ArduPilot Inertial Sensor (calibration persistence)
+# GCS MAVLink (Ground Control Station Communication)
 # ============================================================================
 
+add_library(ap_gcs STATIC
+    lib/ap_compat/GCS_MAVLink/GCS.cpp
+)
+
+target_include_directories(ap_gcs PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/mavlink
+    ${CMAKE_SOURCE_DIR}/lib/mavlink/common
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${CMAKE_SOURCE_DIR}/src/hal
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+if(CONFIG_DEBUG)
+    target_compile_definitions(ap_gcs PUBLIC CONFIG_DEBUG)
+endif()
+
+target_link_libraries(ap_gcs PUBLIC
+    ap_hal_rp2350
+    pico_stdlib
+)
+
+# ============================================================================
+# ArduPilot Calibrators (Accelerometer and Compass)
+# ============================================================================
+
+add_library(ap_calibrators STATIC
+    lib/ardupilot/libraries/AP_AccelCal/AccelCalibrator.cpp
+    # NOTE: CompassCalibrator integration paused pending dependency reevaluation
+    # Use ArduPilot's CompassCalibrator.cpp directly when resuming, NOT a custom copy
+    # See standards/AP_DEPENDENCY_POLICY.md
+)
+
+# Enable compass calibration - these must be defined before AP_Compass_config.h is included
+target_compile_definitions(ap_calibrators PUBLIC
+    AP_COMPASS_ENABLED=1
+    AP_AHRS_DCM_ENABLED=1
+    COMPASS_CAL_ENABLED=1
+    HAL_GCS_ENABLED=1
+)
+
+target_include_directories(ap_calibrators PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${CMAKE_SOURCE_DIR}/lib/mavlink
+    ${CMAKE_SOURCE_DIR}/lib/mavlink/common
+    ${CMAKE_SOURCE_DIR}/src/hal
+    ${CMAKE_SOURCE_DIR}/src/calibration
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+target_link_libraries(ap_calibrators PUBLIC
+    ap_math
+    ap_hal_rp2350
+    ap_ahrs
+    ap_gcs
+    calibration_store
+)
+
+# ============================================================================
+# ArduPilot Parameter System (Stub - disabled for RocketChip)
+# ============================================================================
+# Full AP_Param requires deep HAL integration. We provide headers-only stub
+# and disable param functionality in sensor libraries.
+
+add_library(ap_param INTERFACE)
+
+target_include_directories(ap_param INTERFACE
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${CMAKE_SOURCE_DIR}/src/hal
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+target_compile_definitions(ap_param INTERFACE
+    AP_PARAM_ENABLED=0
+)
+
+target_link_libraries(ap_param INTERFACE
+    ap_math
+)
+
+# ============================================================================
+# ArduPilot Serial Manager
+# ============================================================================
+
+add_library(ap_serial_manager STATIC
+    lib/ardupilot/libraries/AP_SerialManager/AP_SerialManager.cpp
+)
+
+target_include_directories(ap_serial_manager PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${CMAKE_SOURCE_DIR}/src/hal
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+if(CONFIG_DEBUG)
+    target_compile_definitions(ap_serial_manager PUBLIC CONFIG_DEBUG)
+endif()
+
+target_link_libraries(ap_serial_manager PUBLIC
+    ap_param
+    ap_hal_rp2350
+    pico_stdlib
+)
+
+# ============================================================================
+# ArduPilot Logger (minimal for AP_InertialSensor dependency)
+# ============================================================================
+
+add_library(ap_logger STATIC
+    lib/ardupilot/libraries/AP_Logger/AP_Logger.cpp
+    lib/ardupilot/libraries/AP_Logger/AP_Logger_Backend.cpp
+    lib/ardupilot/libraries/AP_Logger/LogFile.cpp
+    lib/ardupilot/libraries/AP_Logger/LoggerMessageWriter.cpp
+)
+
+target_include_directories(ap_logger PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${CMAKE_SOURCE_DIR}/src/hal
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+if(CONFIG_DEBUG)
+    target_compile_definitions(ap_logger PUBLIC CONFIG_DEBUG)
+endif()
+
+target_link_libraries(ap_logger PUBLIC
+    ap_param
+    ap_hal_rp2350
+    pico_stdlib
+)
+
+# ============================================================================
+# ArduPilot Inertial Sensor (Full library with ICM-20948 support)
+# ============================================================================
+# ICM-20948 is supported by AP_InertialSensor_Invensensev2
+
 add_library(ap_inertial_sensor STATIC
-    lib/ap_compat/AP_InertialSensor/AP_InertialSensor.cpp
+    # Core framework
+    lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor.cpp
+    lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor_Backend.cpp
+    lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor_Params.cpp
+    lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor_Logging.cpp
+    lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor_tempcal.cpp
+    lib/ardupilot/libraries/AP_InertialSensor/BatchSampler.cpp
+    lib/ardupilot/libraries/AP_InertialSensor/FastRateBuffer.cpp
+    lib/ardupilot/libraries/AP_InertialSensor/AuxiliaryBus.cpp
+    # ICM-20948 driver (via Invensensev2)
+    lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor_Invensensev2.cpp
 )
 
 target_include_directories(ap_inertial_sensor PUBLIC
@@ -365,6 +530,27 @@ target_include_directories(ap_inertial_sensor PUBLIC
     ${ROCKETCHIP_INCLUDE_DIR}
 )
 
+# Enable only ICM-20948 backend, disable others
+target_compile_definitions(ap_inertial_sensor PUBLIC
+    AP_INERTIALSENSOR_ENABLED=1
+    HAL_INS_DEFAULT=HAL_INS_INVENSENSEV2_I2C
+    AP_INERTIALSENSOR_INVENSENSEV2_ENABLED=1
+    # Disable unused backends
+    AP_INERTIALSENSOR_BMI055_ENABLED=0
+    AP_INERTIALSENSOR_BMI088_ENABLED=0
+    AP_INERTIALSENSOR_BMI160_ENABLED=0
+    AP_INERTIALSENSOR_BMI270_ENABLED=0
+    AP_INERTIALSENSOR_INVENSENSE_ENABLED=0
+    AP_INERTIALSENSOR_INVENSENSEV3_ENABLED=0
+    AP_INERTIALSENSOR_LSM9DS0_ENABLED=0
+    AP_INERTIALSENSOR_LSM9DS1_ENABLED=0
+    AP_INERTIALSENSOR_L3G4200D_ENABLED=0
+    AP_INERTIALSENSOR_ADIS1647X_ENABLED=0
+    AP_INERTIALSENSOR_SCHA63T_ENABLED=0
+    AP_INERTIALSENSOR_SITL_ENABLED=0
+    AP_INERTIALSENSOR_EXTERNALAHRS_ENABLED=0
+)
+
 if(CONFIG_DEBUG)
     target_compile_definitions(ap_inertial_sensor PUBLIC CONFIG_DEBUG)
 endif()
@@ -372,6 +558,8 @@ endif()
 target_link_libraries(ap_inertial_sensor PUBLIC
     ap_param
     ap_calibrators
+    ap_logger
+    ap_hal_rp2350
     pico_stdlib
 )
 
@@ -625,6 +813,92 @@ pico_enable_stdio_usb(smoke_calibration 1)
 pico_enable_stdio_uart(smoke_calibration 0)
 
 pico_add_extra_outputs(smoke_calibration)
+
+# ============================================================================
+# Compass Calibration Synthetic Test
+# ============================================================================
+# Software-only test - no magnetometer hardware required.
+# Verifies CompassCalibrator algorithm with synthetic data.
+
+add_executable(smoke_compass_cal_synthetic
+    tests/smoke_tests/compass_cal_synthetic_test.cpp
+)
+
+target_link_libraries(smoke_compass_cal_synthetic
+    ap_calibrators
+    ap_ahrs
+    ap_gcs
+    ap_math
+    ap_hal_rp2350
+    pico_stdlib
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(smoke_compass_cal_synthetic 1)
+pico_enable_stdio_uart(smoke_compass_cal_synthetic 0)
+
+pico_add_extra_outputs(smoke_compass_cal_synthetic)
+
+# ============================================================================
+# Compass Calibration Interactive Test
+# ============================================================================
+# Physical test - requires LIS3MDL magnetometer.
+# User rotates device through all orientations for calibration.
+
+add_executable(smoke_compass_cal
+    tests/smoke_tests/compass_cal_test.cpp
+)
+
+target_include_directories(smoke_compass_cal PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/hal
+    ${CMAKE_SOURCE_DIR}/src/sensors
+    ${CMAKE_SOURCE_DIR}/lib/st_drivers/lis3mdl-pid
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+target_link_libraries(smoke_compass_cal
+    hal_sensors
+    ap_calibrators
+    ap_ahrs
+    ap_gcs
+    ap_math
+    ap_hal_rp2350
+    pico_stdlib
+    hardware_i2c
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(smoke_compass_cal 1)
+pico_enable_stdio_uart(smoke_compass_cal 0)
+
+pico_add_extra_outputs(smoke_compass_cal)
+
+# ============================================================================
+# Compass Minimal Test (crash isolation)
+# ============================================================================
+# Stripped-down test to isolate compass calibration crash.
+
+add_executable(smoke_compass_minimal
+    tests/smoke_tests/compass_minimal_test.cpp
+)
+
+target_link_libraries(smoke_compass_minimal
+    ap_calibrators
+    ap_ahrs
+    ap_gcs
+    ap_math
+    ap_hal_rp2350
+    pico_stdlib
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+pico_enable_stdio_usb(smoke_compass_minimal 1)
+pico_enable_stdio_uart(smoke_compass_minimal 0)
+
+pico_add_extra_outputs(smoke_compass_minimal)
 
 # ============================================================================
 # USB Input Test (minimal, no flash operations)

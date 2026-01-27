@@ -22,6 +22,32 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-26-002 | Claude Code CLI | architecture, refactor
+
+**FreeRTOS ArduPilot Integration Work Paused - ChibiOS Evaluation**
+
+Attempted full ArduPilot library integration (AP_InertialSensor, AP_Logger, AP_SerialManager, AP_Param) to use native ICM-20948 driver. Encountered significant HAL architecture conflicts:
+
+**Work Completed:**
+- Added AP_InertialSensor, AP_Logger, AP_SerialManager to sparse checkout
+- Created 20+ stub headers for ArduPilot transitive dependencies
+- Updated CMakeLists.txt with global board configuration defines
+- Documented AP_HAL_RP2350 implementation in FREERTOS_INTEGRATION_STATUS.md
+- Created AP_DEPENDENCY_POLICY.md
+
+**Blockers Encountered:**
+- AP_Param requires `hal.util` and `hal.scheduler` with AP_HAL::HAL class hierarchy
+- Our RP2350::HAL_RP2350 uses different architecture (direct members vs pointers)
+- Full integration requires restructuring our HAL or extensive stub layer
+
+**Decision:** Pausing FreeRTOS integration path. User evaluating ChibiOS support now appearing in ArduPilot trunk, which could provide cleaner native integration path.
+
+All FreeRTOS-specific work branched to `freertos-integration` for preservation.
+
+(.claude/FREERTOS_INTEGRATION_STATUS.md, standards/AP_DEPENDENCY_POLICY.md, CMakeLists.txt, lib/ap_compat/*)
+
+---
+
 ### 2026-01-26-001 | Claude Code CLI | refactor, architecture
 
 **ArduPilot Dependency Bypass Code Removed - Reevaluation Required**

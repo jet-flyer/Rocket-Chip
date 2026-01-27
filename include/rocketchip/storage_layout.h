@@ -70,11 +70,21 @@ struct SensorCalibration {
         float offset[3];         // Offset in rad/s
     } gyro;
 
-    // Magnetometer calibration (48 bytes)
+    // Magnetometer calibration (40 bytes)
+    // Matches CompassCalibrator output format:
+    // - offset: hard iron correction (subtracted from raw)
+    // - diag: diagonal soft iron (symmetric matrix diagonal)
+    // - offdiag: off-diagonal soft iron (symmetric matrix off-diagonal)
+    // - scale_factor: overall scale correction
+    // Soft iron matrix is:
+    //   [diag.x,    offdiag.x, offdiag.y]
+    //   [offdiag.x, diag.y,    offdiag.z]
+    //   [offdiag.y, offdiag.z, diag.z   ]
     struct {
-        float offset[3];         // Hard iron offset in Gauss
-        float scale[3];          // Soft iron scale
-        float rotation[9];       // Soft iron rotation matrix (3x3)
+        float offset[3];         // Hard iron offset (mGauss)
+        float diag[3];           // Soft iron diagonal
+        float offdiag[3];        // Soft iron off-diagonal
+        float scale_factor;      // Overall scale factor
     } mag;
 
     // Barometer calibration (8 bytes)
@@ -86,7 +96,7 @@ struct SensorCalibration {
     // CRC32 for data integrity (4 bytes)
     uint32_t crc32;
 
-    // Total: 8 + 36 + 12 + 48 + 8 + 4 = 116 bytes
+    // Total: 8 + 36 + 12 + 40 + 8 + 4 = 108 bytes
     // Leaves room for future expansion within 512 byte region
 };
 

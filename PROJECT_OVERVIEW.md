@@ -65,6 +65,7 @@ Naming convention: rocket program names or terms strongly associated with spacef
 - **Architecture**: Mission Engine for event-condition-action workflows
 - **Development**: CMake + Pico SDK
 - **Communication**: SpaceWire-Lite for Gemini inter-MCU (aspirational standard, design-for-certifiability)
+- **Configuration**: RC_OS serial terminal interface for setup/calibration without PC software
 
 ## Terminology
 

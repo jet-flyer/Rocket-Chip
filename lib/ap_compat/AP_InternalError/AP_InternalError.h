@@ -1,146 +1,118 @@
 /**
  * @file AP_InternalError.h
- * @brief AP_InternalError implementation for RocketChip
+ * @brief AP_InternalError implementation compatible with ArduPilot interface
  *
- * Provides the AP_InternalError class with error_t enum for ArduPilot code.
- * This matches the ArduPilot error_t bitmask enum structure and provides
- * full error accumulation/tracking for production error reporting.
+ * Implements ArduPilot's AP_InternalError interface with:
+ * - error_t bitmask enum (matches ArduPilot)
+ * - Singleton accessor via AP::internalerror()
+ * - errors_as_string() for debugging
+ * - error_to_string() for single error names
  *
- * Council Decision (2026-01-21): Use ArduPilot AP_InternalError pattern with:
- * - Error accumulation bitmask
- * - Error count tracking
- * - Integration with debug output macros
- * - Future MAVLink telemetry support (placeholder)
+ * NOTE: Uses ArduPilot's interface but custom implementation because our HAL
+ * structure differs (hal.util is a direct member, not a pointer). This is
+ * documented in AP_DEPENDENCY_POLICY.md under "Provisional" implementations.
  *
- * @see standards/STANDARDS_DEVIATIONS.md for resolution history
+ * @see standards/AP_DEPENDENCY_POLICY.md
  */
 
 #pragma once
 
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include "debug.h"
 
-/**
- * @brief Internal error tracking class for RocketChip
- *
- * Accumulates error flags and counts for diagnostic purposes.
- * Thread-safe through atomic operations on error state.
- */
 class AP_InternalError {
 public:
-    // Error type enum - matches ArduPilot's bitmask enum
-    enum class error_t : uint32_t {
-        logger_mapfailure           = (1U <<  0),
-        logger_missing_logstructure = (1U <<  1),
-        logger_logwrite_missingfmt  = (1U <<  2),
-        logger_too_many_deletions   = (1U <<  3),
-        logger_bad_getfilename      = (1U <<  4),
-        panic                       = (1U <<  5),
-        logger_flushing_without_sem = (1U <<  6),
-        logger_bad_current_block    = (1U <<  7),
-        logger_blockcount_mismatch  = (1U <<  8),
-        logger_dequeue_failure      = (1U <<  9),
-        constraining_nan            = (1U << 10),
-        watchdog_reset              = (1U << 11),
-        iomcu_reset                 = (1U << 12),
-        iomcu_fail                  = (1U << 13),
-        spi_fail                    = (1U << 14),
-        main_loop_stuck             = (1U << 15),
-        gcs_bad_missionprotocol_link= (1U << 16),
-        bitmask_range               = (1U << 17),
-        gcs_offset                  = (1U << 18),
-        i2c_isr                     = (1U << 19),
-        flow_of_control             = (1U << 20),
-        switch_full_sector_recursion= (1U << 21),
-        bad_rotation                = (1U << 22),
-        stack_overflow              = (1U << 23),
-        imu_reset                   = (1U << 24),
-        gpio_isr                    = (1U << 25),
-        mem_guard                   = (1U << 26),
-        dma_fail                    = (1U << 27),
-        params_restored             = (1U << 28),
-        invalid_arg_or_result       = (1U << 29),
+    // Error type enum - matches ArduPilot's bitmask enum exactly
+    enum class error_t : uint32_t {                           // Hex      Decimal
+        logger_mapfailure           = (1U <<  0),  // 0x00001  1
+        logger_missing_logstructure = (1U <<  1),  // 0x00002  2
+        logger_logwrite_missingfmt  = (1U <<  2),  // 0x00004  4
+        logger_too_many_deletions   = (1U <<  3),  // 0x00008  8
+        logger_bad_getfilename      = (1U <<  4),  // 0x00010  16
+        panic                       = (1U <<  5),  // 0x00020  32
+        logger_flushing_without_sem = (1U <<  6),  // 0x00040  64
+        logger_bad_current_block    = (1U <<  7),  // 0x00080  128
+        logger_blockcount_mismatch  = (1U <<  8),  // 0x00100  256
+        logger_dequeue_failure      = (1U <<  9),  // 0x00200  512
+        constraining_nan            = (1U << 10),  // 0x00400  1024
+        watchdog_reset              = (1U << 11),  // 0x00800  2048
+        iomcu_reset                 = (1U << 12),  // 0x01000  4096
+        iomcu_fail                  = (1U << 13),  // 0x02000  8192
+        spi_fail                    = (1U << 14),  // 0x04000  16384
+        main_loop_stuck             = (1U << 15),  // 0x08000  32768
+        gcs_bad_missionprotocol_link= (1U << 16),  // 0x10000  65536
+        bitmask_range               = (1U << 17),  // 0x20000  131072
+        gcs_offset                  = (1U << 18),  // 0x40000  262144
+        i2c_isr                     = (1U << 19),  // 0x80000  524288
+        flow_of_control             = (1U << 20),  //0x100000  1048576
+        switch_full_sector_recursion= (1U << 21),  //0x200000  2097152
+        bad_rotation                = (1U << 22),  //0x400000  4194304
+        stack_overflow              = (1U << 23),  //0x800000  8388608
+        imu_reset                   = (1U << 24),  //0x1000000 16777216
+        gpio_isr                    = (1U << 25),  //0x2000000 33554432
+        mem_guard                   = (1U << 26),  //0x4000000 67108864
+        dma_fail                    = (1U << 27),  //0x8000000 134217728
+        params_restored             = (1U << 28),  //0x10000000 268435456
+        invalid_arg_or_result       = (1U << 29),  //0x20000000 536870912
+        __LAST__                    = (1U << 30),  // used only for sanity check
     };
 
+    static_assert(sizeof(error_t) == 4, "error_t should be 32-bit type");
+
     /**
-     * @brief Report an error condition
-     * @param e Error type from error_t enum
+     * @brief Report an error condition (ArduPilot-compatible interface)
+     */
+    void error(const AP_InternalError::error_t e, uint16_t line);
+
+    /**
+     * @brief Get last error line number
+     */
+    uint16_t last_error_line() const { return last_line; }
+
+    /**
+     * @brief Fill buffer with comma-separated list of error names
      *
-     * Accumulates the error in the bitmask and increments the error count.
-     * Outputs diagnostic message via DBG_ERROR when enabled.
+     * Example output: "flow_of_ctrl,spi_fail"
      */
-    static void error(error_t e) {
-        // Accumulate error in bitmask
-        s_errorMask |= static_cast<uint32_t>(e);
-        s_errorCount++;
-
-        // Output diagnostic (compile-time guarded)
-        DBG_ERROR("[AP_InternalError] Error: 0x%08lx (total: %lu)\n",
-                  static_cast<unsigned long>(e),
-                  static_cast<unsigned long>(s_errorCount));
-
-        // TODO: Queue for MAVLink STATUS_TEXT when telemetry available
-    }
+    void errors_as_string(uint8_t* buffer, uint16_t len) const;
 
     /**
-     * @brief Report an error with source line information
-     * @param e Error type from error_t enum
-     * @param line Source line number where error occurred
+     * @brief Convert single error code to string
      */
-    static void error(error_t e, uint16_t line) {
-        s_errorMask |= static_cast<uint32_t>(e);
-        s_errorCount++;
-
-        DBG_ERROR("[AP_InternalError] Error: 0x%08lx at line %d (total: %lu)\n",
-                  static_cast<unsigned long>(e),
-                  line,
-                  static_cast<unsigned long>(s_errorCount));
-    }
-
-    /**
-     * @brief Get accumulated error bitmask
-     * @return Bitmask of all errors that have occurred
-     */
-    static uint32_t errors() {
-        return s_errorMask;
-    }
+    void error_to_string(char* buffer, uint16_t len, error_t error_code) const;
 
     /**
      * @brief Get total error count
-     * @return Number of error() calls since boot
      */
-    static uint32_t count() {
-        return s_errorCount;
-    }
+    uint32_t count() const { return total_error_count; }
 
     /**
-     * @brief Check if any errors have occurred
-     * @return true if any errors have been reported
+     * @brief Get accumulated error bitmask
      */
-    static bool has_errors() {
-        return s_errorMask != 0;
-    }
-
-    /**
-     * @brief Clear all error state (use with caution)
-     *
-     * Primarily for test code. Production code should not clear errors.
-     */
-    static void clear() {
-        s_errorMask = 0;
-        s_errorCount = 0;
-    }
+    uint32_t errors() const { return internal_errors; }
 
 private:
-    // Static error state (initialized in AP_HAL_Compat.cpp)
-    static uint32_t s_errorMask;
-    static uint32_t s_errorCount;
+    uint32_t internal_errors = 0;
+    uint32_t total_error_count = 0;
+    uint16_t last_line = 0;
 };
 
-// Note: AP::internal_error() is defined in AP_HAL_Compat.h
-// to avoid duplicate definitions
+// ArduPilot-compatible singleton accessor
+namespace AP {
+    AP_InternalError& internalerror();
+}
 
-// INTERNAL_ERROR macro - calls AP_InternalError::error
-#ifndef INTERNAL_ERROR
-#define INTERNAL_ERROR(e) AP_InternalError::error(e)
+// INTERNAL_ERROR macro - matches ArduPilot's usage
+#ifndef __AP_LINE__
+#define __AP_LINE__ __LINE__
+#endif
+
+#define INTERNAL_ERROR(error_number) \
+    AP::internalerror().error(error_number, __AP_LINE__)
+
+// EXPECT_DELAY_MS macro - used in calibration code
+#ifndef EXPECT_DELAY_MS
+#define EXPECT_DELAY_MS(ms) ((void)0)
 #endif
