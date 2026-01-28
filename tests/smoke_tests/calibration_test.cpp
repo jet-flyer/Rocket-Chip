@@ -1,22 +1,21 @@
 /**
  * @file calibration_test.cpp
- * @brief Accelerometer calibration smoke test with persistent storage
+ * @brief Accelerometer calibration smoke test using ArduPilot AccelCalibrator
  *
- * Interactive 6-position accelerometer calibration using ArduPilot's
- * AccelCalibrator library. Calibration results are saved to flash via
- * AP_Param and persist across power cycles.
+ * Uses ArduPilot's AccelCalibrator algorithm with our existing sensor driver.
+ * This validates the calibration algorithm works while we work on full
+ * AP_InertialSensor integration (requires hwdef).
  *
  * Hardware required:
  * - Adafruit Feather RP2350 HSTX
- * - ISM330DHCX + LIS3MDL FeatherWing
+ * - ISM330DHCX + LIS3MDL FeatherWing (or ICM-20948)
  *
  * NeoPixel Status Colors:
  * - Magenta blink: Waiting for USB
  * - Yellow pulsing: Initializing
  * - Blue slow blink: Waiting for user input
  * - Blue solid: Collecting samples for current orientation
- * - Green fast blink: Calibration successful (saved to flash)
- * - Cyan solid: Existing calibration loaded from flash
+ * - Green fast blink: Calibration successful
  * - Red solid: Error
  */
 
@@ -26,19 +25,19 @@
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 
-// HAL includes
+// RocketChip HAL
 #include "HAL.h"
 #include "Bus.h"
 #include "Timing.h"
 #include "PIO.h"
-#include "IMU_ISM330DHCX.h"
+#include "IMU_ICM20948.h"
 
 // ArduPilot HAL for storage
 #include <AP_HAL_RP2350/HAL_RP2350_Class.h>
 
-// ArduPilot parameter system and inertial sensor
-#include <AP_Param/AP_Param.h>
-#include <AP_InertialSensor/AP_InertialSensor.h>
+// ArduPilot calibrator (standalone, no full INS required)
+#include <AP_AccelCal/AccelCalibrator.h>
+#include <AP_Math/AP_Math.h>
 
 using namespace rocketchip::hal;
 
@@ -46,32 +45,27 @@ using namespace rocketchip::hal;
 // Configuration Constants
 // ============================================================================
 
-// Hardware pins (per HARDWARE.md Feather RP2350 HSTX Built-in Hardware)
 static constexpr uint8_t kNeoPixelPin = 21;
+static constexpr uint32_t kI2cSpeedHz = 400000;
 
 // Timing constants (in milliseconds)
-static constexpr uint32_t kUsbWaitBlinkMs = 200;      // USB wait blink period
-static constexpr uint32_t kUsbSettleTimeMs = 500;     // Settle after USB connect
-static constexpr uint32_t kBlinkSlowPeriodMs = 500;   // Slow blink (waiting)
-static constexpr uint32_t kBlinkFastPeriodMs = 100;   // Fast blink (success)
-static constexpr uint32_t kAnimUpdatePeriodMs = 20;   // Pulse animation update
-static constexpr uint32_t kProgressIndicatorMs = 200; // Sample progress dots
+static constexpr uint32_t kUsbWaitBlinkMs = 200;
+static constexpr uint32_t kUsbSettleTimeMs = 500;
+static constexpr uint32_t kBlinkSlowPeriodMs = 500;
+static constexpr uint32_t kBlinkFastPeriodMs = 100;
+static constexpr uint32_t kAnimUpdatePeriodMs = 20;
+static constexpr uint32_t kProgressIndicatorMs = 200;
 
-// I2C configuration
-static constexpr uint32_t kI2cSpeedHz = 400000;       // 400kHz Fast Mode
-
-// LED brightness (0-255, but using percentage for readability)
 static constexpr uint8_t kLedBrightnessPercent = 50;
 
 // Calibration parameters
 static constexpr uint8_t kNumOrientations = 6;
-static constexpr float kSampleDurationSec = 2.0f;
+static constexpr float kSampleTimeSec = 0.5f;
 
 // ============================================================================
 // Static Data
 // ============================================================================
 
-// Orientation names for user prompts
 static const char* const kOrientationNames[] = {
     "LEVEL (Z pointing UP)",
     "ON LEFT SIDE (Y pointing UP)",
@@ -85,10 +79,7 @@ static const char* const kOrientationNames[] = {
 // Module State
 // ============================================================================
 
-// NeoPixel for status indication
 static WS2812* g_statusLed = nullptr;
-
-// Animation state
 static uint32_t g_lastAnimUpdate = 0;
 static float g_pulsePhase = 0.0f;
 static bool g_blinkState = false;
@@ -99,15 +90,15 @@ enum class CalibrationState {
     COLLECTING_SAMPLES,
     PROCESSING,
     SUCCESS,
-    LOADED_FROM_FLASH,
     ERROR
 };
 
 static CalibrationState g_currentState = CalibrationState::INITIALIZING;
 
-/**
- * @brief Update NeoPixel based on current state
- */
+// ============================================================================
+// LED Status Functions
+// ============================================================================
+
 void updateStatusLED() {
     if (!g_statusLed) return;
 
@@ -116,7 +107,6 @@ void updateStatusLED() {
 
     switch (g_currentState) {
         case CalibrationState::INITIALIZING:
-            // Yellow pulsing
             if (now - g_lastAnimUpdate >= kAnimUpdatePeriodMs) {
                 g_pulsePhase += 0.1f;
                 float brightness = (sinf(g_pulsePhase) + 1.0f) * 0.5f;
@@ -130,7 +120,6 @@ void updateStatusLED() {
             break;
 
         case CalibrationState::WAITING_FOR_ORIENTATION:
-            // Blue slow blink
             if (now - g_lastAnimUpdate >= kBlinkSlowPeriodMs) {
                 g_blinkState = !g_blinkState;
                 g_lastAnimUpdate = now;
@@ -139,17 +128,14 @@ void updateStatusLED() {
             break;
 
         case CalibrationState::COLLECTING_SAMPLES:
-            // Solid blue
             color = Colors::BLUE;
             break;
 
         case CalibrationState::PROCESSING:
-            // Yellow solid
             color = Colors::YELLOW;
             break;
 
         case CalibrationState::SUCCESS:
-            // Green fast blink
             if (now - g_lastAnimUpdate >= kBlinkFastPeriodMs) {
                 g_blinkState = !g_blinkState;
                 g_lastAnimUpdate = now;
@@ -157,13 +143,7 @@ void updateStatusLED() {
             color = g_blinkState ? Colors::GREEN : Colors::OFF;
             break;
 
-        case CalibrationState::LOADED_FROM_FLASH:
-            // Cyan solid (calibration loaded from storage)
-            color = RGB(0, 255, 255);
-            break;
-
         case CalibrationState::ERROR:
-            // Solid red
             color = Colors::RED;
             break;
     }
@@ -172,69 +152,15 @@ void updateStatusLED() {
     g_statusLed->show();
 }
 
-/**
- * @brief Recover USB CDC input after flash operations
- *
- * Flash operations disable interrupts for extended periods, which can
- * corrupt USB CDC state. This function attempts to recover input by
- * draining stale data and giving the USB host time to re-sync.
- */
-static void recoverUsbInput() {
-    // Check if USB is still connected
-    if (!stdio_usb_connected()) {
-        printf("WARNING: USB disconnected during init!\n");
-        printf("Waiting for reconnection...\n");
-        fflush(stdout);
-        while (!stdio_usb_connected()) {
-            if (g_statusLed) {
-                // Orange blink = USB reconnecting
-                static bool blink = false;
-                g_statusLed->setPixel(0, blink ? RGB(255, 128, 0) : Colors::OFF);
-                g_statusLed->show();
-                blink = !blink;
-            }
-            sleep_ms(200);
-        }
-        sleep_ms(500);  // Extra settle time after reconnect
-        printf("USB reconnected!\n");
-        fflush(stdout);
-    }
+// ============================================================================
+// User Input Functions
+// ============================================================================
 
-    // Drain any garbage that accumulated during flash operations
-    int drained = 0;
-    while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {
-        drained++;
-    }
-    if (drained > 0) {
-        printf("Drained %d stale bytes from USB\n", drained);
-        fflush(stdout);
-    }
-
-    // Give USB host time to recover from any missed packets
-    // Some USB hosts are slow to re-sync after device stops responding
-    sleep_ms(500);
-
-    // Drain again in case more garbage arrived
-    while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
-
-    // Flush stdio to sync state
-    stdio_flush();
-
-    // One more delay to let everything settle
-    sleep_ms(200);
-}
-
-/**
- * @brief Wait for user to press Enter, or specific key
- * @param key Key to wait for (Enter = '\n' or '\r')
- * @return Character received
- */
 int waitForKey() {
     int c;
     while ((c = getchar_timeout_us(10000)) == PICO_ERROR_TIMEOUT) {
         updateStatusLED();
     }
-    // Clear any remaining input
     while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
     return c;
 }
@@ -245,88 +171,40 @@ void waitForEnter() {
     int c;
     while ((c = getchar_timeout_us(10000)) != '\n' && c != '\r') {
         updateStatusLED();
-        if (c == PICO_ERROR_TIMEOUT) {
-            continue;
-        }
+        if (c == PICO_ERROR_TIMEOUT) continue;
     }
-    // Clear any remaining input
     while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
 }
 
-/**
- * @brief Print current calibration values
- */
-void printCalibration(AP_InertialSensor& ins) {
-    // Use ArduPilot Vector3f type (explicit namespace resolution)
-    const ::Vector3f& offset = ins.get_accel_offset(0);
-    const ::Vector3f& scale = ins.get_accel_scale(0);
-    const ::Vector3f& offdiag = ins.get_accel_offdiag(0);
-
-    printf("\nCalibration Parameters:\n");
-    printf("-----------------------\n");
-    printf("Offsets (g):\n");
-    printf("  X: %+.6f\n", static_cast<double>(offset.x));
-    printf("  Y: %+.6f\n", static_cast<double>(offset.y));
-    printf("  Z: %+.6f\n", static_cast<double>(offset.z));
-
-    printf("\nScale factors (diagonal):\n");
-    printf("  X: %.6f\n", static_cast<double>(scale.x));
-    printf("  Y: %.6f\n", static_cast<double>(scale.y));
-    printf("  Z: %.6f\n", static_cast<double>(scale.z));
-
-    printf("\nOff-diagonal (cross-axis):\n");
-    printf("  XY: %.6f\n", static_cast<double>(offdiag.x));
-    printf("  XZ: %.6f\n", static_cast<double>(offdiag.y));
-    printf("  YZ: %.6f\n", static_cast<double>(offdiag.z));
-}
+// ============================================================================
+// Main
+// ============================================================================
 
 int main() {
-    // ========================================================================
-    // CRITICAL: Do flash operations BEFORE USB is initialized!
-    // Per RP2350_FULL_AP_PORT.md PD1+PD3: Flash ops make flash inaccessible,
-    // which breaks TinyUSB interrupt handlers that live in flash.
-    // Solution: Initialize HAL (which does storage.init() flash ops) BEFORE
-    // calling stdio_init_all().
-    // ========================================================================
-
-    // Initialize NeoPixel early for visual feedback (doesn't need USB)
+    // Initialize NeoPixel early for visual feedback
     g_statusLed = new WS2812(kNeoPixelPin, 1);
     if (!g_statusLed->begin()) {
         delete g_statusLed;
         g_statusLed = nullptr;
     } else {
         g_statusLed->setBrightness(kLedBrightnessPercent);
-    }
-
-    // Yellow = initializing (flash ops happening, USB not started yet)
-    if (g_statusLed) {
         g_statusLed->setPixel(0, Colors::YELLOW);
         g_statusLed->show();
     }
 
-    // Initialize HAL subsystems - this does storage.init() which performs flash operations
-    // Do this BEFORE stdio_init_all() so USB isn't affected by flash ops
+    // Initialize ArduPilot HAL (for storage - future use)
     RP2350::hal_init();
 
-    // CRITICAL: Clear BASEPRI before USB init
-    // FreeRTOS or HAL init may leave BASEPRI elevated (configMAX_SYSCALL_INTERRUPT_PRIORITY=16)
-    // which blocks USB interrupts (priority 0x80). Clear it so USB IRQs can fire.
+    // Clear BASEPRI before USB init
     __asm volatile ("mov r0, #0\nmsr basepri, r0" ::: "r0");
 
-    // NOW initialize USB - after all flash operations are complete
+    // Initialize USB
     stdio_init_all();
 
-    // Initialize AP_Param and AP_InertialSensor AFTER USB is initialized
-    // (these don't do flash ops, just setup)
-    AP_Param::setup();
-    AP_InertialSensor& ins = *AP_InertialSensor::get_singleton();
-    ins.init();
-
-    // Wait for USB connection - flash ops are done, USB should work properly
+    // Wait for USB connection
     bool ledState = false;
     while (!stdio_usb_connected()) {
         if (g_statusLed) {
-            // Magenta blink = waiting for USB
             g_statusLed->setPixel(0, ledState ? RGB(128, 0, 128) : Colors::OFF);
             g_statusLed->show();
         }
@@ -339,127 +217,24 @@ int main() {
     printf("========================================\n");
     printf("  RocketChip Accelerometer Calibration\n");
     printf("  Using ArduPilot AccelCalibrator\n");
-    printf("  WITH PERSISTENT STORAGE\n");
+    printf("  Sensor: ICM-20948\n");
     printf("========================================\n\n");
-
-    // Print HAL status (init happened before USB, so print it now)
-    printf("HAL initialized: %s\n", hal.storage->healthy() ? "OK" : "WARNING: storage unhealthy");
-    printf("Board: %s\n", HAL_BOARD_NAME);
-    printf("Storage: %s\n", AP_Param::erased_on_boot() ? "freshly initialized" : "loaded from flash");
-    fflush(stdout);
 
     g_currentState = CalibrationState::INITIALIZING;
     updateStatusLED();
 
-    // Check if we have existing calibration
-    if (ins.accel_calibrated(0)) {
-        g_currentState = CalibrationState::LOADED_FROM_FLASH;
-        updateStatusLED();
-
-        printf("\n========================================\n");
-        printf("EXISTING CALIBRATION FOUND IN FLASH!\n");
-        printf("========================================\n");
-        fflush(stdout);
-
-        printCalibration(ins);
-        fflush(stdout);
-
-        printf("\n========================================\n");
-        printf("Options:\n");
-        printf("  [R] Recalibrate (run new calibration)\n");
-        printf("  [E] Erase calibration\n");
-        printf("  [T] Test corrected readings\n");
-        printf("  [Any] Exit\n");
-        printf("========================================\n");
-        fflush(stdout);
-
-        int choice = waitForKey();
-        if (choice != 'r' && choice != 'R' &&
-            choice != 'e' && choice != 'E' &&
-            choice != 't' && choice != 'T') {
-            printf("Exiting. Calibration preserved in flash.\n");
-            while (true) {
-                updateStatusLED();
-                sleep_ms(50);
-            }
-        }
-
-        if (choice == 'e' || choice == 'E') {
-            printf("Erasing calibration...\n");
-            ins.reset_calibration();
-            printf("Calibration erased. Reboot to start fresh.\n");
-            while (true) {
-                g_currentState = CalibrationState::ERROR;
-                updateStatusLED();
-                sleep_ms(50);
-            }
-        }
-
-        if (choice == 't' || choice == 'T') {
-            // Test mode - show corrected readings
-            printf("\nTest Mode - Showing corrected readings\n");
-            printf("Press any key to exit\n\n");
-
-            // Initialize I2C for sensors
-            i2c_init(i2c1, kI2cSpeedHz);
-            gpio_set_function(2, GPIO_FUNC_I2C);
-            gpio_set_function(3, GPIO_FUNC_I2C);
-            gpio_pull_up(2);
-            gpio_pull_up(3);
-
-            I2CBus imuBus(i2c1, 0x6A, 2, 3, kI2cSpeedHz);
-            IMU_ISM330DHCX imu(&imuBus);
-            imu.begin();
-            imu.setAccelRange(AccelRange::RANGE_4G);
-            imu.setODR(ODR::ODR_104HZ);
-
-            while (getchar_timeout_us(100000) == PICO_ERROR_TIMEOUT) {
-                rocketchip::hal::Vector3f accel, gyro;
-                if (imu.read(accel, gyro)) {
-                    // Raw reading (use ArduPilot Vector3f for calibration API)
-                    ::Vector3f raw(accel.x, accel.y, accel.z);
-
-                    // Corrected reading
-                    ::Vector3f corrected = ins.correct_accel(raw, 0);
-
-                    // Calculate magnitude (should be ~1g when stationary)
-                    float raw_mag = sqrtf(raw.x*raw.x + raw.y*raw.y + raw.z*raw.z);
-                    float cor_mag = sqrtf(corrected.x*corrected.x +
-                                          corrected.y*corrected.y +
-                                          corrected.z*corrected.z);
-
-                    printf("Raw: [%+7.3f, %+7.3f, %+7.3f] |%5.3f|g  "
-                           "Cor: [%+7.3f, %+7.3f, %+7.3f] |%5.3f|g\r",
-                           raw.x, raw.y, raw.z, raw_mag,
-                           corrected.x, corrected.y, corrected.z, cor_mag);
-                    fflush(stdout);
-                }
-                updateStatusLED();
-            }
-            printf("\n");
-            while (true) {
-                updateStatusLED();
-                sleep_ms(50);
-            }
-        }
-
-        // Fall through to recalibration
-        printf("\nStarting recalibration...\n");
-    }
-
     // ========================================================================
-    // Initialize I2C for sensors
+    // Initialize I2C and IMU
     // ========================================================================
-
     i2c_init(i2c1, kI2cSpeedHz);
     gpio_set_function(2, GPIO_FUNC_I2C);
     gpio_set_function(3, GPIO_FUNC_I2C);
     gpio_pull_up(2);
     gpio_pull_up(3);
 
-    // Initialize IMU
-    I2CBus imuBus(i2c1, 0x6A, 2, 3, kI2cSpeedHz);
-    IMU_ISM330DHCX imu(&imuBus);
+    I2CBus imuBus(i2c1, IMU_ICM20948::I2C_ADDR_ALT, 2, 3, kI2cSpeedHz);  // 0x69 on this board
+    imuBus.begin();  // Initialize the bus wrapper
+    IMU_ICM20948 imu(&imuBus);
 
     printf("Initializing IMU...\n");
     fflush(stdout);
@@ -467,48 +242,40 @@ int main() {
         printf("ERROR: IMU initialization failed!\n");
         fflush(stdout);
         g_currentState = CalibrationState::ERROR;
-        while (true) {
-            updateStatusLED();
-            sleep_ms(100);
-        }
+        while (true) { updateStatusLED(); sleep_ms(100); }
     }
 
-    // Configure IMU for calibration
     imu.setAccelRange(AccelRange::RANGE_4G);
     imu.setGyroRange(GyroRange::RANGE_500DPS);
-    imu.setODR(ODR::ODR_104HZ);
+    // Note: ICM-20948 ODR is set via sample rate dividers (not implemented in basic driver)
 
     printf("IMU initialized successfully.\n\n");
     fflush(stdout);
 
     // ========================================================================
-    // Run Calibration
+    // Run Calibration using AccelCalibrator
     // ========================================================================
-
     printf("Starting 6-position calibration...\n");
     printf("You will need to hold the device in 6 different orientations.\n");
-    printf("Hold steady for 2 seconds in each position.\n\n");
+    printf("Hold steady for %.1f seconds in each position.\n\n", kSampleTimeSec);
     fflush(stdout);
 
-    // Start calibration via AP_InertialSensor
-    ins.accel_calibrate_start(kNumOrientations, kSampleDurationSec,
-                              ACCEL_CAL_AXIS_ALIGNED_ELLIPSOID);
-
-    AccelCalibrator* calibrator = ins.get_calibrator(0);
+    // Create calibrator instance
+    static AccelCalibrator calibrator;
+    calibrator.start(ACCEL_CAL_AXIS_ALIGNED_ELLIPSOID, kNumOrientations, kSampleTimeSec);
 
     uint8_t orientation = 0;
     uint32_t sampleStartTime = 0;
     uint32_t lastSampleTime = 0;
     bool collectingSamples = false;
 
-    while (calibrator->get_status() != ACCEL_CAL_SUCCESS &&
-           calibrator->get_status() != ACCEL_CAL_FAILED) {
+    while (calibrator.get_status() != ACCEL_CAL_SUCCESS &&
+           calibrator.get_status() != ACCEL_CAL_FAILED) {
 
-        // Check for timeout
-        calibrator->check_for_timeout();
+        calibrator.check_for_timeout();
 
-        // Prompt for next orientation if needed
-        if (calibrator->get_status() == ACCEL_CAL_WAITING_FOR_ORIENTATION) {
+        // Prompt for next orientation
+        if (calibrator.get_status() == ACCEL_CAL_WAITING_FOR_ORIENTATION) {
             if (!collectingSamples && orientation < kNumOrientations) {
                 g_currentState = CalibrationState::WAITING_FOR_ORIENTATION;
                 updateStatusLED();
@@ -521,7 +288,7 @@ int main() {
                 printf("Collecting samples");
                 fflush(stdout);
 
-                calibrator->collect_sample();
+                calibrator.collect_sample();
                 collectingSamples = true;
                 sampleStartTime = Timing::millis32();
                 lastSampleTime = sampleStartTime;
@@ -529,19 +296,19 @@ int main() {
             }
         }
 
-        // Feed samples to calibrator at ~100Hz
+        // Feed samples at ~100Hz
         uint32_t now = Timing::millis32();
         if (collectingSamples && (now - lastSampleTime >= 10)) {
             rocketchip::hal::Vector3f accel, gyro;
             if (imu.read(accel, gyro)) {
-                // Convert from RocketChip Vector3f to ArduPilot Vector3f
-                // IMU returns acceleration in g units, AccelCalibrator expects m/s²
-                // delta_velocity = accel_mss * dt = accel_g * GRAVITY_MSS * dt
+                // Convert from g to m/s² and compute delta_velocity
                 float dt = (now - lastSampleTime) / 1000.0f;
-                ::Vector3f ap_accel(accel.x * GRAVITY_MSS * dt,
-                                    accel.y * GRAVITY_MSS * dt,
-                                    accel.z * GRAVITY_MSS * dt);
-                calibrator->new_sample(ap_accel, dt);
+                ::Vector3f delta_velocity(
+                    accel.x * GRAVITY_MSS * dt,
+                    accel.y * GRAVITY_MSS * dt,
+                    accel.z * GRAVITY_MSS * dt
+                );
+                calibrator.new_sample(delta_velocity, dt);
 
                 // Progress indicator
                 if ((now - sampleStartTime) % kProgressIndicatorMs < 50) {
@@ -552,17 +319,16 @@ int main() {
             lastSampleTime = now;
         }
 
-        // Check if we moved to next orientation
+        // Check if moved to next orientation
         if (collectingSamples &&
-            calibrator->get_status() == ACCEL_CAL_WAITING_FOR_ORIENTATION &&
-            calibrator->get_num_samples_collected() > orientation) {
+            calibrator.get_status() == ACCEL_CAL_WAITING_FOR_ORIENTATION &&
+            calibrator.get_num_samples_collected() > orientation) {
             printf(" Done!\n");
             orientation++;
             collectingSamples = false;
         }
 
-        // Check if calibration is being processed
-        if (calibrator->get_status() == ACCEL_CAL_COLLECTING_SAMPLE) {
+        if (calibrator.get_status() == ACCEL_CAL_COLLECTING_SAMPLE) {
             g_currentState = CalibrationState::COLLECTING_SAMPLES;
         }
 
@@ -571,55 +337,92 @@ int main() {
     }
 
     // ========================================================================
-    // Report Results and Save
+    // Report Results
     // ========================================================================
-
     printf("\n\n========================================\n");
 
-    if (calibrator->get_status() == ACCEL_CAL_SUCCESS) {
+    if (calibrator.get_status() == ACCEL_CAL_SUCCESS) {
         g_currentState = CalibrationState::PROCESSING;
         updateStatusLED();
 
         printf("CALIBRATION SUCCESSFUL!\n");
         printf("========================================\n\n");
 
-        printf("Fitness (mean squared residual): %.6f\n", calibrator->get_fitness());
+        printf("Fitness (MSE): %.6f\n", static_cast<double>(calibrator.get_fitness()));
 
-        // Save calibration via AP_InertialSensor
-        printf("\nSaving calibration to flash...\n");
-        ins._acal_save_calibrations();
-        printf("Calibration saved!\n");
+        // Get calibration parameters
+        ::Vector3f offset, diag, offdiag;
+        calibrator.get_calibration(offset, diag, offdiag);
 
-        // Print the saved values
-        printCalibration(ins);
+        printf("\nCalibration Results:\n");
+        printf("-----------------------\n");
+        printf("Offsets (m/s^2):\n");
+        printf("  X: %+.6f\n", static_cast<double>(offset.x));
+        printf("  Y: %+.6f\n", static_cast<double>(offset.y));
+        printf("  Z: %+.6f\n", static_cast<double>(offset.z));
 
-        // Verify by reloading from flash
+        printf("\nScale factors (diagonal):\n");
+        printf("  X: %.6f\n", static_cast<double>(diag.x));
+        printf("  Y: %.6f\n", static_cast<double>(diag.y));
+        printf("  Z: %.6f\n", static_cast<double>(diag.z));
+
+        printf("\nCross-axis (off-diagonal):\n");
+        printf("  XY: %.6f\n", static_cast<double>(offdiag.x));
+        printf("  XZ: %.6f\n", static_cast<double>(offdiag.y));
+        printf("  YZ: %.6f\n", static_cast<double>(offdiag.z));
+
+        // Test mode - show corrected readings
         printf("\n========================================\n");
-        printf("VERIFICATION: Reloading calibration from flash...\n");
+        printf("TEST MODE: Showing corrected readings\n");
+        printf("Press any key to exit\n");
+        printf("========================================\n\n");
 
-        // Reload calibration data from flash to verify persistence
-        ins.load_calibration();
+        g_currentState = CalibrationState::SUCCESS;
 
-        if (ins.accel_calibrated(0)) {
-            printf("SUCCESS: Calibration verified in flash!\n");
-            printCalibration(ins);
-            g_currentState = CalibrationState::SUCCESS;
-        } else {
-            printf("WARNING: Verification failed - calibration may not be saved\n");
-            g_currentState = CalibrationState::ERROR;
+        while (getchar_timeout_us(100000) == PICO_ERROR_TIMEOUT) {
+            rocketchip::hal::Vector3f accel, gyro;
+            if (imu.read(accel, gyro)) {
+                // Apply calibration manually
+                // corrected = diag * (raw - offset) + offdiag_correction
+                ::Vector3f raw(accel.x * GRAVITY_MSS, accel.y * GRAVITY_MSS, accel.z * GRAVITY_MSS);
+                ::Vector3f corrected;
+                corrected.x = diag.x * (raw.x - offset.x);
+                corrected.y = diag.y * (raw.y - offset.y);
+                corrected.z = diag.z * (raw.z - offset.z);
+                // Off-diagonal terms for cross-axis correction
+                corrected.x += offdiag.x * (raw.y - offset.y) + offdiag.y * (raw.z - offset.z);
+                corrected.y += offdiag.x * (raw.x - offset.x) + offdiag.z * (raw.z - offset.z);
+                corrected.z += offdiag.y * (raw.x - offset.x) + offdiag.z * (raw.y - offset.y);
+
+                float raw_mag = raw.length();
+                float cor_mag = corrected.length();
+
+                printf("Raw: [%+7.3f, %+7.3f, %+7.3f] |%5.3f|  "
+                       "Cor: [%+7.3f, %+7.3f, %+7.3f] |%5.3f|\r",
+                       static_cast<double>(raw.x), static_cast<double>(raw.y), static_cast<double>(raw.z),
+                       static_cast<double>(raw_mag),
+                       static_cast<double>(corrected.x), static_cast<double>(corrected.y), static_cast<double>(corrected.z),
+                       static_cast<double>(cor_mag));
+                fflush(stdout);
+            }
+            updateStatusLED();
         }
+        printf("\n");
 
     } else {
         g_currentState = CalibrationState::ERROR;
         printf("CALIBRATION FAILED!\n");
         printf("========================================\n\n");
-        printf("Status code: %d\n", calibrator->get_status());
-        printf("Samples collected: %d\n", calibrator->get_num_samples_collected());
+        printf("Status code: %d\n", calibrator.get_status());
+        printf("Samples collected: %d\n", calibrator.get_num_samples_collected());
     }
 
     printf("\n========================================\n");
+    printf("NOTE: Calibration storage requires hwdef setup.\n");
+    printf("Values above can be applied manually or saved\n");
+    printf("once full AP_InertialSensor integration is complete.\n");
+    printf("========================================\n");
 
-    // Keep LED status visible
     while (true) {
         updateStatusLED();
         sleep_ms(50);

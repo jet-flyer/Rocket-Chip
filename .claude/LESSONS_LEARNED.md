@@ -203,6 +203,80 @@ g_statusLed->show();
 
 ---
 
+## Entry 7: ArduPilot Expects Zeroed Memory Allocations
+
+**Date:** 2026-01-28
+**Time Spent:** ~2 hours of debugging
+**Severity:** Critical - Hardfault on device restart
+
+### Problem
+Device would complete tests successfully on first boot, but hardfault on restart (pressing RESET button). Core 1 crashed in `isr_hardfault`.
+
+### Symptoms
+- First boot: test runs to completion
+- After pressing RESET: device hangs immediately
+- GDB shows hardfault on Core 1 (rp2350.cm1)
+- Crash in `_free_r()` with garbage pointer (e.g., `0xd063dfd2`)
+
+### Root Cause
+ArduPilot's `Device` class has an uninitialized pointer `_checked.regs`:
+```cpp
+// In AP_HAL/Device.h
+struct {
+    uint8_t n_regs;
+    struct checkreg *regs;  // NEVER initialized to nullptr!
+} _checked;
+
+~Device() {
+    delete[] _checked.regs;  // Deletes garbage pointer!
+}
+```
+
+ArduPilot assumes malloc/new returns zeroed memory (like ChibiOS does). Standard malloc/new on Pico SDK does NOT zero memory.
+
+When the OwnPtr containing an I2CDevice goes out of scope, the Device destructor runs and calls `delete[]` on garbage, causing hardfault.
+
+### Solution
+Override C++ `operator new` to use `calloc` (which zeros memory):
+
+```cpp
+// In malloc_wrapper.cpp
+void* operator new(std::size_t size) {
+    if (size == 0) size = 1;
+    void* ptr = calloc(1, size);  // calloc zeros memory
+    if (ptr == nullptr) {
+        ptr = malloc(size);  // Fallback (will panic if OOM)
+    }
+    return ptr;
+}
+```
+
+Also requires CMake define to disable Pico SDK's default operator new/delete:
+```cmake
+add_compile_definitions(
+    PICO_CXX_DISABLE_ALLOCATION_OVERRIDES=1
+)
+```
+
+### How to Identify This Issue
+1. First boot works, restart crashes
+2. Hardfault on Core 1
+3. Crash in `_free_r()` or `delete`
+4. Stack trace shows destructor path
+5. Using ArduPilot code with OwnPtr/unique_ptr
+
+### Prevention
+- Always use the calloc-based operator new when integrating ArduPilot
+- This is documented in RP2350_FULL_AP_PORT.md as PD11
+- The Pico SDK's `pico_malloc` wraps malloc for thread safety but does NOT zero memory
+- The Pico SDK's `pico_cxx_options` provides operator new/delete that calls malloc (not calloc)
+
+### Key Files
+- `lib/ap_compat/AP_HAL_RP2350/malloc_wrapper.cpp` - Zero-initializing operator new
+- CMakeLists.txt - `PICO_CXX_DISABLE_ALLOCATION_OVERRIDES=1`
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

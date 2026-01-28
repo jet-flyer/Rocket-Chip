@@ -151,6 +151,23 @@ constexpr uint8_t PA1010D           = 0x10;     // GPS module
 // Calibration support
 #define HAL_INS_ACCELCAL_ENABLED    1
 
+// ============================================================================
+// IMU Probe Configuration
+// ============================================================================
+
+// PROBE_IMU_I2C macro: Creates probe call for I2C IMUs
+// driver: Driver class suffix (e.g., "Invensensev2" -> AP_InertialSensor_Invensensev2)
+// bus: I2C bus number (0 = Qwiic on Feather)
+// addr: 7-bit I2C address
+// args: Additional arguments (e.g., rotation)
+// Note: ADD_BACKEND and GET_I2C_DEVICE are defined in AP_InertialSensor.cpp
+#define PROBE_IMU_I2C(driver, bus, addr, args ...) \
+    ADD_BACKEND(AP_InertialSensor_ ## driver::probe(*this, GET_I2C_DEVICE(bus, addr), ##args))
+
+// IMU probe list: ICM-20948 on bus 0 (Qwiic) at 0x69
+// Note: Bus 0 in software maps to I2C1 hardware on Feather RP2350
+#define HAL_INS_PROBE_LIST PROBE_IMU_I2C(Invensensev2, 0, 0x69, ROTATION_NONE)
+
 // Features we enable for calibration support
 #define AP_PARAM_ENABLED            1           // Parameter storage
 #define AP_INERTIALSENSOR_ENABLED   1           // Inertial sensor calibration

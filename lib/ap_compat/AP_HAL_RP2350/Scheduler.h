@@ -295,6 +295,11 @@ public:
     /** @brief Run I/O callbacks (called by I/O task) */
     void run_io_procs();
 
+public:
+    // Thread priorities for DeviceBus (per ESP32 pattern)
+    static constexpr uint8_t kI2cThreadPriority = 5;  // I2C device polling
+    static constexpr uint8_t kSpiThreadPriority = 6;  // SPI device polling (higher for IMU)
+
 private:
     static constexpr uint8_t kMaxTimerProcs = 8;
     static constexpr uint8_t kMaxIOProcs = 8;

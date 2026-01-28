@@ -22,11 +22,9 @@
 
 #include "debug.h"
 
-// ArduPilot calibration support
-#include <AP_HAL_RP2350/HAL_RP2350_Class.h>
-#include <AP_Param/AP_Param.h>
-#include <AP_InertialSensor/AP_InertialSensor.h>
-#include <AP_Compass/AP_Compass.h>
+// RocketChip calibration storage
+#include "calibration/CalibrationStore.h"
+#include <AP_HAL_RP2350/hwdef.h>  // For GRAVITY_MSS, DEG_TO_RAD
 
 #include <cstdio>
 #include <cmath>
@@ -62,6 +60,11 @@ SensorTaskStats g_sensorTaskStats = {};
 // ============================================================================
 
 static TaskHandle_t s_taskHandle = nullptr;
+
+// Calibration
+static CalibrationStore s_calibrationStore;
+static SensorCalibration s_calibration;
+static bool s_calibrationLoaded = false;
 
 // Sensor instances
 static I2CBus* s_imuBus = nullptr;
@@ -135,34 +138,34 @@ static bool initSensors() {
         DBG_ERROR("FAILED\n");
     }
 
-    // Load IMU calibration from flash (if available)
-    DBG_PRINT("  IMU Calibration:  ");
-    if (AP_Param::initialized()) {
-        AP_InertialSensor* ins = AP_InertialSensor::get_singleton();
-        if (ins != nullptr) {
-            ins->init();
-            if (ins->accel_calibrated(0)) {
-                DBG_PRINT("Loaded\n");
-            } else {
-                DBG_PRINT("Not calibrated\n");
-            }
-        } else {
-            DBG_PRINT("N/A\n");
+    // Load calibration from flash
+    DBG_PRINT("  Calibration:      ");
+    s_calibrationStore.init();
+    if (s_calibrationStore.load(s_calibration)) {
+        s_calibrationLoaded = true;
+        DBG_PRINT("Loaded (flags=0x%02X)\n", s_calibration.flags);
+        if (s_calibration.flags & kCalFlagAccel) {
+            DBG_PRINT("    Accel ofs: [%.3f, %.3f, %.3f] m/s^2\n",
+                   s_calibration.accel.offset[0],
+                   s_calibration.accel.offset[1],
+                   s_calibration.accel.offset[2]);
+        }
+        if (s_calibration.flags & kCalFlagGyro) {
+            DBG_PRINT("    Gyro ofs:  [%.4f, %.4f, %.4f] rad/s\n",
+                   s_calibration.gyro.offset[0],
+                   s_calibration.gyro.offset[1],
+                   s_calibration.gyro.offset[2]);
+        }
+        if (s_calibration.flags & kCalFlagMag) {
+            DBG_PRINT("    Mag ofs:   [%.0f, %.0f, %.0f] mGauss\n",
+                   s_calibration.mag.offset[0],
+                   s_calibration.mag.offset[1],
+                   s_calibration.mag.offset[2]);
         }
     } else {
-        DBG_PRINT("AP_Param not initialized\n");
-    }
-
-    // Load compass calibration from flash (if available)
-    DBG_PRINT("  Mag Calibration:  ");
-    AP_Compass& compass = AP_Compass::get_singleton();
-    compass.init();
-    if (compass.compass_calibrated(0)) {
-        const ::Vector3f& offsets = compass.get_offsets(0);
-        DBG_PRINT("Loaded (ofs: %.0f,%.0f,%.0f mGauss)\n",
-               offsets.x, offsets.y, offsets.z);
-    } else {
-        DBG_PRINT("Not calibrated\n");
+        s_calibrationLoaded = false;
+        CalibrationStore::get_defaults(s_calibration);
+        DBG_PRINT("Not calibrated (using defaults)\n");
     }
 
     // At least IMU must be working for flight
@@ -179,41 +182,39 @@ static void readIMU() {
     if (s_imu->read(accel, gyro)) {
         // Take mutex and update shared data
         if (xSemaphoreTake(g_sensorDataMutex, 0) == pdTRUE) {
-            // Apply calibration if available
-            AP_InertialSensor* ins = AP_InertialSensor::get_singleton();
-            if (ins != nullptr && ins->accel_calibrated(0)) {
-                // Raw reading in g (use ArduPilot's Vector3f for calibration API)
-                ::Vector3f raw_accel(accel.x, accel.y, accel.z);
+            // Convert accel from g to m/s^2
+            float ax = accel.x * GRAVITY_MSS;
+            float ay = accel.y * GRAVITY_MSS;
+            float az = accel.z * GRAVITY_MSS;
 
-                // Apply calibration correction (still in g)
-                ::Vector3f corrected_accel = ins->correct_accel(raw_accel, 0);
-
-                // Convert calibrated values to m/s^2
-                g_sensorData.accel.x = corrected_accel.x * GRAVITY_MSS;
-                g_sensorData.accel.y = corrected_accel.y * GRAVITY_MSS;
-                g_sensorData.accel.z = corrected_accel.z * GRAVITY_MSS;
-            } else {
-                // No calibration - use raw values converted to m/s^2
-                g_sensorData.accel.x = accel.x * GRAVITY_MSS;
-                g_sensorData.accel.y = accel.y * GRAVITY_MSS;
-                g_sensorData.accel.z = accel.z * GRAVITY_MSS;
+            // Apply accel calibration if available
+            if (s_calibrationLoaded && (s_calibration.flags & kCalFlagAccel)) {
+                // Apply offset and scale correction
+                ax = (ax - s_calibration.accel.offset[0]) * s_calibration.accel.scale[0];
+                ay = (ay - s_calibration.accel.offset[1]) * s_calibration.accel.scale[1];
+                az = (az - s_calibration.accel.offset[2]) * s_calibration.accel.scale[2];
             }
+
+            g_sensorData.accel.x = ax;
+            g_sensorData.accel.y = ay;
+            g_sensorData.accel.z = az;
+
+            // Convert gyro from dps to rad/s
+            float gx = gyro.x * DEG_TO_RAD;
+            float gy = gyro.y * DEG_TO_RAD;
+            float gz = gyro.z * DEG_TO_RAD;
 
             // Apply gyro calibration if available
-            if (ins != nullptr && ins->gyro_calibrated(0)) {
-                ::Vector3f raw_gyro(gyro.x, gyro.y, gyro.z);
-                ::Vector3f corrected_gyro = ins->correct_gyro(raw_gyro, 0);
-
-                // Convert calibrated dps to rad/s
-                g_sensorData.gyro.x = corrected_gyro.x * DEG_TO_RAD;
-                g_sensorData.gyro.y = corrected_gyro.y * DEG_TO_RAD;
-                g_sensorData.gyro.z = corrected_gyro.z * DEG_TO_RAD;
-            } else {
-                // No calibration - convert raw dps to rad/s
-                g_sensorData.gyro.x = gyro.x * DEG_TO_RAD;
-                g_sensorData.gyro.y = gyro.y * DEG_TO_RAD;
-                g_sensorData.gyro.z = gyro.z * DEG_TO_RAD;
+            if (s_calibrationLoaded && (s_calibration.flags & kCalFlagGyro)) {
+                // Apply offset correction
+                gx -= s_calibration.gyro.offset[0];
+                gy -= s_calibration.gyro.offset[1];
+                gz -= s_calibration.gyro.offset[2];
             }
+
+            g_sensorData.gyro.x = gx;
+            g_sensorData.gyro.y = gy;
+            g_sensorData.gyro.z = gz;
 
             g_sensorData.imu_timestamp_us = time_us_32();
             xSemaphoreGive(g_sensorDataMutex);
@@ -229,25 +230,43 @@ static void readMag() {
 
     if (s_mag->read(mag)) {
         if (xSemaphoreTake(g_sensorDataMutex, 0) == pdTRUE) {
-            // Apply compass calibration if available
-            AP_Compass& compass = AP_Compass::get_singleton();
-            if (compass.compass_calibrated(0)) {
-                // Convert Gauss to milliGauss (AP_Compass uses mGauss)
-                ::Vector3f raw_mGauss(mag.x * 1000.0f, mag.y * 1000.0f, mag.z * 1000.0f);
+            // Convert to mGauss (calibration uses mGauss)
+            float mx = mag.x * 1000.0f;
+            float my = mag.y * 1000.0f;
+            float mz = mag.z * 1000.0f;
 
-                // Apply calibration correction
-                ::Vector3f corrected_mGauss = compass.correct_field(raw_mGauss, 0);
+            // Apply mag calibration if available
+            if (s_calibrationLoaded && (s_calibration.flags & kCalFlagMag)) {
+                // Apply hard iron correction (subtract offset)
+                mx -= s_calibration.mag.offset[0];
+                my -= s_calibration.mag.offset[1];
+                mz -= s_calibration.mag.offset[2];
 
-                // Store as Gauss (convert back from mGauss)
-                g_sensorData.mag.x = corrected_mGauss.x * 0.001f;
-                g_sensorData.mag.y = corrected_mGauss.y * 0.001f;
-                g_sensorData.mag.z = corrected_mGauss.z * 0.001f;
-            } else {
-                // No calibration - use raw values
-                g_sensorData.mag.x = mag.x;
-                g_sensorData.mag.y = mag.y;
-                g_sensorData.mag.z = mag.z;
+                // Apply soft iron correction (matrix multiply)
+                // Soft iron matrix:
+                //   [diag.x,    offdiag.x, offdiag.y]
+                //   [offdiag.x, diag.y,    offdiag.z]
+                //   [offdiag.y, offdiag.z, diag.z   ]
+                float cx = s_calibration.mag.diag[0] * mx +
+                           s_calibration.mag.offdiag[0] * my +
+                           s_calibration.mag.offdiag[1] * mz;
+                float cy = s_calibration.mag.offdiag[0] * mx +
+                           s_calibration.mag.diag[1] * my +
+                           s_calibration.mag.offdiag[2] * mz;
+                float cz = s_calibration.mag.offdiag[1] * mx +
+                           s_calibration.mag.offdiag[2] * my +
+                           s_calibration.mag.diag[2] * mz;
+
+                // Apply scale factor
+                mx = cx * s_calibration.mag.scale_factor;
+                my = cy * s_calibration.mag.scale_factor;
+                mz = cz * s_calibration.mag.scale_factor;
             }
+
+            // Store as Gauss (convert back from mGauss)
+            g_sensorData.mag.x = mx * 0.001f;
+            g_sensorData.mag.y = my * 0.001f;
+            g_sensorData.mag.z = mz * 0.001f;
             xSemaphoreGive(g_sensorDataMutex);
         }
     }

@@ -73,6 +73,9 @@ add_compile_definitions(
     AP_PARAM_ENABLED=1
     # GCS enabled for AP_AccelCal and status messages
     HAL_GCS_ENABLED=1
+    # Disable Pico SDK's operator new/delete - we provide our own that zeros memory
+    # ArduPilot expects zeroed allocations (like ChibiOS). See PD11.
+    PICO_CXX_DISABLE_ALLOCATION_OVERRIDES=1
 )
 
 # ============================================================================
@@ -155,6 +158,7 @@ target_sources(ruuvi_dps310 INTERFACE
 
 add_library(hal_sensors STATIC
     src/hal/IMU_ISM330DHCX.cpp
+    src/hal/IMU_ICM20948.cpp
     src/hal/Mag_LIS3MDL.cpp
     src/hal/Baro_DPS310.cpp
     src/hal/GPS_PA1010D.cpp
@@ -205,9 +209,12 @@ add_library(ap_hal_rp2350 STATIC
     lib/ap_compat/AP_HAL_RP2350/AnalogIn.cpp
     lib/ap_compat/AP_HAL_RP2350/UARTDriver.cpp
     lib/ap_compat/AP_HAL_RP2350/I2CDevice.cpp
+    lib/ap_compat/AP_HAL_RP2350/DeviceBus.cpp
     lib/ap_compat/AP_HAL_RP2350/SPIDevice.cpp
     lib/ap_compat/AP_HAL_RP2350/system.cpp
+    lib/ap_compat/AP_HAL_RP2350/malloc_wrapper.cpp
     # ArduPilot AP_HAL base class implementations
+    lib/ardupilot/libraries/AP_HAL/Device.cpp
     lib/ardupilot/libraries/AP_HAL/Storage.cpp
     lib/ardupilot/libraries/AP_HAL/Util.cpp
     lib/ardupilot/libraries/AP_HAL/Scheduler.cpp
@@ -217,6 +224,9 @@ add_library(ap_hal_rp2350 STATIC
     lib/ardupilot/libraries/AP_HAL/utility/print_vprintf.cpp
     lib/ardupilot/libraries/AP_HAL/utility/utoa_invert.cpp
     lib/ardupilot/libraries/AP_HAL/utility/ftoa_engine.cpp
+    # Dependencies for AP_Param and AP_InertialSensor
+    lib/ardupilot/libraries/AP_HAL/Semaphores.cpp
+    lib/ardupilot/libraries/AP_HAL/utility/RingBuffer.cpp
 )
 
 target_include_directories(ap_hal_rp2350 PUBLIC
@@ -250,6 +260,10 @@ target_link_libraries(ap_hal_rp2350 PUBLIC
     hardware_gpio
     FreeRTOS-Kernel
 )
+
+# Note: malloc_wrapper.cpp overrides operator new to use calloc (zero-init).
+# This is needed because ArduPilot code assumes zeroed memory (like ChibiOS).
+# See RP2350_FULL_AP_PORT.md PD11 for background.
 
 # ============================================================================
 # ArduPilot Compatibility Layer (config, macros, internal error tracking)
@@ -335,6 +349,7 @@ add_library(ap_filter STATIC
     lib/ardupilot/libraries/Filter/LowPassFilter.cpp
     lib/ardupilot/libraries/Filter/LowPassFilter2p.cpp
     lib/ardupilot/libraries/Filter/NotchFilter.cpp
+    lib/ardupilot/libraries/Filter/HarmonicNotchFilter.cpp
     lib/ardupilot/libraries/Filter/DerivativeFilter.cpp
     lib/ardupilot/libraries/Filter/ModeFilter.cpp
     lib/ardupilot/libraries/Filter/SlewLimiter.cpp
@@ -407,6 +422,7 @@ target_link_libraries(ap_gcs PUBLIC
 
 add_library(ap_calibrators STATIC
     lib/ardupilot/libraries/AP_AccelCal/AccelCalibrator.cpp
+    lib/ardupilot/libraries/AP_AccelCal/AP_AccelCal.cpp
     # NOTE: CompassCalibrator integration paused pending dependency reevaluation
     # Use ArduPilot's CompassCalibrator.cpp directly when resuming, NOT a custom copy
     # See standards/AP_DEPENDENCY_POLICY.md
@@ -604,6 +620,7 @@ endif()
 target_link_libraries(ap_inertial_sensor PUBLIC
     ap_param
     ap_calibrators
+    ap_filter
     # ap_logger  # Disabled - not yet implemented
     ap_hal_rp2350
     pico_stdlib
@@ -861,6 +878,35 @@ pico_enable_stdio_uart(smoke_calibration 0)
 pico_add_extra_outputs(smoke_calibration)
 
 # ============================================================================
+# INS Probe Test - Full AP_InertialSensor integration
+# ============================================================================
+
+add_executable(smoke_ins_probe
+    tests/smoke_tests/ins_probe_test.cpp
+)
+
+target_link_libraries(smoke_ins_probe
+    ap_hal_rp2350
+    ap_inertial_sensor
+    ap_math
+    pico_stdlib
+    hardware_i2c
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+)
+
+target_include_directories(smoke_ins_probe PRIVATE
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+)
+
+pico_enable_stdio_usb(smoke_ins_probe 1)
+pico_enable_stdio_uart(smoke_ins_probe 0)
+
+pico_add_extra_outputs(smoke_ins_probe)
+
+# ============================================================================
 # Compass Calibration Synthetic Test
 # ============================================================================
 # Software-only test - no magnetometer hardware required.
@@ -1090,6 +1136,22 @@ target_link_libraries(flash_test
 )
 
 pico_add_extra_outputs(flash_test)
+
+# Baro Test - simple DPS310 test to isolate restart hang (no FreeRTOS/ArduPilot)
+add_executable(smoke_baro
+    tests/smoke_tests/baro_test.cpp
+)
+
+target_link_libraries(smoke_baro
+    pico_stdlib
+    hardware_i2c
+    hardware_gpio
+)
+
+pico_enable_stdio_usb(smoke_baro 1)
+pico_enable_stdio_uart(smoke_baro 0)
+
+pico_add_extra_outputs(smoke_baro)
 
 # FreeRTOS Static Allocation Test - minimal test without AP_HAL
 # DISABLED: Test file does not exist

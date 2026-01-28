@@ -82,11 +82,9 @@ int main() {
 
     printf("\nFound %d device(s)\n\n", found);
 
-    // Known addresses
+    // Known addresses for current hardware
     printf("Expected devices:\n");
-    printf("  0x10 - PA1010D GPS\n");
-    printf("  0x1C - LIS3MDL Magnetometer\n");
-    printf("  0x6A - ISM330DHCX IMU\n");
+    printf("  0x68/0x69 - ICM-20948 IMU (9-axis)\n");
     printf("  0x77 - DPS310 Barometer\n");
     printf("\n");
 

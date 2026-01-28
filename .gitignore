@@ -53,6 +53,7 @@ CLAUDE.local.md
 *.uf2
 *.elf
 *.bin
+*.o
 tmpclaude-*
 
 # Experimental test files

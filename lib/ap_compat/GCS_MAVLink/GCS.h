@@ -28,8 +28,8 @@
 #define MAVLINK_CRC_EXTRA 1
 #endif
 
-// Include MAVLink common dialect
-#include <mavlink/common/mavlink.h>
+// Include MAVLink ardupilotmega dialect (includes common + ArduPilot-specific enums)
+#include <mavlink/ardupilotmega/mavlink.h>
 
 // ============================================================================
 // MAVLink System Configuration
@@ -68,6 +68,45 @@
  */
 #define GCS_SEND_TEXT(severity, fmt, ...) \
     gcs_send_statustext((MAV_SEVERITY)(severity), fmt, ##__VA_ARGS__)
+
+// ============================================================================
+// GCS_MAVLINK Class (ArduPilot Compatibility)
+// ============================================================================
+
+/**
+ * @brief MAVLink channel interface for calibration feedback
+ *
+ * ArduPilot's AP_AccelCal uses GCS_MAVLINK* to send status messages.
+ * This class provides the send_text interface it expects.
+ */
+class GCS_MAVLINK {
+public:
+    /**
+     * @brief Send text message to GCS
+     *
+     * @param severity MAV_SEVERITY value
+     * @param fmt Printf format string
+     * @param ... Format arguments
+     */
+    void send_text(MAV_SEVERITY severity, const char* fmt, ...);
+
+    /**
+     * @brief Send accelerometer calibration vehicle position
+     *
+     * Used by AP_AccelCal to inform GCS of calibration state.
+     *
+     * @param position ACCELCAL_VEHICLE_POS enum value
+     */
+    void send_accelcal_vehicle_position(uint32_t position);
+
+    /**
+     * @brief Get singleton instance
+     */
+    static GCS_MAVLINK* get_singleton();
+
+private:
+    static GCS_MAVLINK* _singleton;
+};
 
 // ============================================================================
 // GCS Class

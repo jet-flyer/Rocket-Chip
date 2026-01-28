@@ -62,7 +62,7 @@ extern "C" {
 
 void vApplicationMallocFailedHook(void) {
     // Report to ArduPilot error tracking system
-    AP_InternalError::error(AP_InternalError::error_t::mem_guard);
+    INTERNAL_ERROR(AP_InternalError::error_t::mem_guard);
 
     // Fatal errors retain minimal printf for post-mortem debugging
     // LED blink codes are primary indication in production
@@ -86,7 +86,7 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName) {
     (void)xTask;
 
     // Report to ArduPilot error tracking system
-    AP_InternalError::error(AP_InternalError::error_t::stack_overflow);
+    INTERNAL_ERROR(AP_InternalError::error_t::stack_overflow);
 
     // Fatal errors retain minimal printf for post-mortem debugging
     printf("\n!!! FATAL: Stack overflow in task: %s !!!\n", pcTaskName);
@@ -223,7 +223,7 @@ int main() {
     vTaskStartScheduler();
 
     // If we get here, something went wrong - this is a fatal error
-    AP_InternalError::error(AP_InternalError::error_t::flow_of_control);
+    INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
     DBG_ERROR("ERROR: Scheduler returned!\n");
 
     while (true) {

@@ -18,6 +18,10 @@
 
 #pragma once
 
+// Include RocketChip hardware definitions
+// This brings in HAL_INS_PROBE_LIST, HAL_BARO_PROBE_LIST, etc.
+#include <AP_HAL_RP2350/hwdef.h>
+
 // ArduPilot build system macros - usually set by waf build
 // __AP_LINE__ is used for error tracking with line numbers
 #ifndef __AP_LINE__

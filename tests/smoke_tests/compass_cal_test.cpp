@@ -57,8 +57,8 @@
 // Namespace alias to avoid Vector3f conflict with ArduPilot's Vector3f
 namespace rh = rocketchip::hal;
 
-// External HAL reference
-extern RP2350::HAL_RP2350 hal;
+// Global HAL reference is provided by AP_HAL_RP2350/HAL_RP2350_Class.h:
+// extern const AP_HAL::HAL& hal;
 
 // ============================================================================
 // Log Buffer for Battery-Powered Operation

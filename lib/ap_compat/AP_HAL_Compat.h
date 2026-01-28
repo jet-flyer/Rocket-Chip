@@ -73,19 +73,27 @@
 #endif
 
 // ============================================================================
-// Feature Flags - Disable unused ArduPilot features
+// Board-specific hardware definition
 // ============================================================================
 
+#include "RocketChip/hwdef.h"
+
+// ============================================================================
+// Feature Flags - Enable/disable ArduPilot features
+// ============================================================================
+
+// AP_PARAM enabled for calibration persistence
 #ifndef AP_PARAM_ENABLED
-#define AP_PARAM_ENABLED 0
+#define AP_PARAM_ENABLED 1
 #endif
 
 #ifndef HAL_GCS_ENABLED
 #define HAL_GCS_ENABLED 1
 #endif
 
+// AP_INERTIALSENSOR enabled for full INS integration
 #ifndef AP_INERTIALSENSOR_ENABLED
-#define AP_INERTIALSENSOR_ENABLED 0
+#define AP_INERTIALSENSOR_ENABLED 1
 #endif
 
 #ifndef HAL_INS_ACCELCAL_ENABLED

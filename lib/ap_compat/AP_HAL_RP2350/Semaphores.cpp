@@ -17,6 +17,7 @@
 
 #include "Semaphores.h"
 
+#include <cstdio>
 #include <FreeRTOS.h>
 #include <semphr.h>
 #include <task.h>

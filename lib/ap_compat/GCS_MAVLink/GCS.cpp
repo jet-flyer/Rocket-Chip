@@ -187,3 +187,68 @@ void gcs_send_statustext(MAV_SEVERITY severity, const char* fmt, ...) {
     printf("[GCS:%s] %s\n", sev_str, text_buf);
 #endif
 }
+
+// ============================================================================
+// GCS_MAVLINK Implementation (for AP_AccelCal compatibility)
+// ============================================================================
+
+GCS_MAVLINK* GCS_MAVLINK::_singleton = nullptr;
+
+GCS_MAVLINK* GCS_MAVLINK::get_singleton() {
+    if (_singleton == nullptr) {
+        _singleton = new GCS_MAVLINK();
+    }
+    return _singleton;
+}
+
+void GCS_MAVLINK::send_text(MAV_SEVERITY severity, const char* fmt, ...) {
+    char text_buf[64];
+
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(text_buf, sizeof(text_buf), fmt, args);
+    va_end(args);
+
+    // Delegate to the main GCS
+    GCS::get_singleton().send_statustext(severity, text_buf);
+}
+
+void GCS_MAVLINK::send_accelcal_vehicle_position(uint32_t position) {
+    // Send COMMAND_LONG with MAV_CMD_ACCELCAL_VEHICLE_POS
+    // This tells the GCS what position the vehicle is in (or success/failure)
+    mavlink_message_t msg;
+
+    mavlink_msg_command_long_pack(
+        MAVLINK_SYS_ID,
+        MAVLINK_COMP_ID,
+        &msg,
+        0,  // target_system (broadcast)
+        0,  // target_component (broadcast)
+        MAV_CMD_ACCELCAL_VEHICLE_POS,
+        0,  // confirmation
+        static_cast<float>(position),  // param1 - position
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f  // unused params
+    );
+
+    // Send over USB CDC
+    uint8_t buf[MAVLINK_MAX_PACKET_LEN];
+    uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
+    for (uint16_t i = 0; i < len; i++) {
+        putchar_raw(buf[i]);
+    }
+
+    // Also log for debug
+    const char* pos_name = "UNKNOWN";
+    switch (position) {
+        case ACCELCAL_VEHICLE_POS_LEVEL: pos_name = "LEVEL"; break;
+        case ACCELCAL_VEHICLE_POS_LEFT: pos_name = "LEFT"; break;
+        case ACCELCAL_VEHICLE_POS_RIGHT: pos_name = "RIGHT"; break;
+        case ACCELCAL_VEHICLE_POS_NOSEDOWN: pos_name = "NOSEDOWN"; break;
+        case ACCELCAL_VEHICLE_POS_NOSEUP: pos_name = "NOSEUP"; break;
+        case ACCELCAL_VEHICLE_POS_BACK: pos_name = "BACK"; break;
+        case ACCELCAL_VEHICLE_POS_SUCCESS: pos_name = "SUCCESS"; break;
+        case ACCELCAL_VEHICLE_POS_FAILED: pos_name = "FAILED"; break;
+        default: break;
+    }
+    printf("[GCS:ACCEL_CAL] Position: %s\n", pos_name);
+}

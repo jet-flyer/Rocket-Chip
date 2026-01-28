@@ -40,9 +40,11 @@ I2CBus::I2CBus(void* i2c_inst, uint8_t address, uint8_t sda_pin, uint8_t scl_pin
 }
 
 I2CBus::~I2CBus() {
-    if (m_initialized) {
-        i2c_deinit(static_cast<i2c_inst_t*>(m_i2c));
-    }
+    // NOTE: We intentionally do NOT call i2c_deinit() here.
+    // The hardware I2C peripheral is shared and will be reinitialized
+    // by the next user. Calling i2c_deinit() on a bus with a stuck
+    // transaction can hang. The I2C bus recovery in I2CDeviceManager::init()
+    // handles stuck bus states instead.
 }
 
 bool I2CBus::begin() {
