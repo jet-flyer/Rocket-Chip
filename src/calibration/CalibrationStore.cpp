@@ -7,8 +7,8 @@
 #include <AP_HAL_RP2350/HAL_RP2350_Class.h>
 #include <cstring>
 
-// ArduPilot pattern: declare extern hal in each .cpp file that uses it
-extern RP2350::HAL_RP2350 hal;
+// ArduPilot pattern: use global hal reference
+extern const AP_HAL::HAL& hal;
 
 namespace rocketchip {
 
@@ -34,7 +34,7 @@ bool CalibrationStore::load(SensorCalibration& cal)
     }
 
     // Read from storage
-    ::hal.storage.read_block(&cal, kCalibrationOffset, sizeof(SensorCalibration));
+    hal.storage->read_block(&cal, kCalibrationOffset, sizeof(SensorCalibration));
 
     // Validate magic number
     if (cal.magic != kCalibrationMagic) {
@@ -68,10 +68,10 @@ bool CalibrationStore::save(const SensorCalibration& cal)
     to_save.crc32 = compute_crc(to_save);
 
     // Write to storage
-    ::hal.storage.write_block(kCalibrationOffset, &to_save, sizeof(SensorCalibration));
+    hal.storage->write_block(kCalibrationOffset, &to_save, sizeof(SensorCalibration));
 
     // Trigger immediate flush (optional - storage flushes periodically anyway)
-    ::hal.storage._timer_tick();
+    hal.storage->_timer_tick();
 
     return true;
 }
@@ -86,8 +86,8 @@ bool CalibrationStore::erase()
     uint8_t zeros[kCalibrationSize];
     memset(zeros, 0, sizeof(zeros));
 
-    ::hal.storage.write_block(kCalibrationOffset, zeros, sizeof(zeros));
-    ::hal.storage._timer_tick();
+    hal.storage->write_block(kCalibrationOffset, zeros, sizeof(zeros));
+    hal.storage->_timer_tick();
 
     return true;
 }
