@@ -13,16 +13,17 @@
 #include <cstdint>
 #include <cstring>
 
+// Include AP_HAL_Boards.h first to ensure HAL_PARAM_DEFAULTS_PATH is defined
+// before it's used in AP_HAL/Util.h
+#include <AP_HAL/AP_HAL_Boards.h>
+
+// AP_HAL base class for inheritance
+#include <AP_HAL/Util.h>
+
 namespace RP2350 {
 
-/**
- * @brief Safety switch states
- */
-enum class SafetyState : uint8_t {
-    SAFETY_NONE = 0,      // No safety switch present
-    SAFETY_DISARMED = 1,  // Safety engaged, outputs disabled
-    SAFETY_ARMED = 2      // Safety disengaged, outputs enabled
-};
+// Use AP_HAL::Util::safety_state enum instead of custom enum
+// (SAFETY_NONE, SAFETY_DISARMED, SAFETY_ARMED are defined in base class)
 
 
 /**
@@ -31,9 +32,9 @@ enum class SafetyState : uint8_t {
  * Provides memory information, system identification, and various
  * utility functions required by ArduPilot libraries.
  *
- * Implements AP_HAL::Util interface.
+ * Inherits from AP_HAL::Util for ArduPilot compatibility.
  */
-class Util {
+class Util : public AP_HAL::Util {
 public:
     Util();
 
@@ -49,7 +50,7 @@ public:
      * @brief Get available heap memory
      * @return Free heap bytes
      */
-    uint32_t available_memory() const;
+    uint32_t available_memory() override;
 
     /**
      * @brief Get total heap size
@@ -61,8 +62,9 @@ public:
      * @brief Get memory usage information string
      * @param buffer Output buffer
      * @param buflen Buffer size
+     * @note Not const because it calls available_memory() which is non-const
      */
-    void mem_info(char* buffer, uint16_t buflen) const;
+    void mem_info(char* buffer, uint16_t buflen);
 
     // ========================================================================
     // System Identification
@@ -73,22 +75,21 @@ public:
      *
      * Returns a unique identifier for this board as a hex string.
      *
-     * @param buffer Output buffer (minimum 25 bytes)
-     * @param buflen Buffer size
+     * @param buf Output buffer (50 bytes per base class spec)
      * @return true on success
      */
-    bool get_system_id(char* buffer, uint8_t buflen) const;
+    bool get_system_id(char buf[50]) override;
 
     /**
      * @brief Get raw system ID bytes
      *
      * Returns the RP2350 unique board ID (8 bytes).
      *
-     * @param buffer Output buffer (minimum 8 bytes)
-     * @param buflen Buffer size
-     * @return Number of bytes written
+     * @param buf Output buffer
+     * @param len On input: buffer size; on output: bytes written
+     * @return true on success
      */
-    uint8_t get_system_id_unformatted(uint8_t* buffer, uint8_t buflen) const;
+    bool get_system_id_unformatted(uint8_t buf[], uint8_t& len) override;
 
     // ========================================================================
     // Safety State
@@ -101,32 +102,32 @@ public:
      *
      * @return Safety state
      */
-    SafetyState safety_switch_state() const;
+    enum safety_state safety_switch_state() override;
 
     // ========================================================================
-    // Arming State
+    // RTC (Hardware Real-Time Clock)
     // ========================================================================
 
     /**
-     * @brief Get soft-armed state
+     * @brief Set hardware RTC in UTC microseconds
      *
-     * Soft arming is a software flag, not tied to safety switch.
+     * RP2350 has no battery-backed RTC, so this just stores the value in RAM.
      *
-     * @return true if armed
+     * @param time_utc_usec UTC time in microseconds since epoch
      */
-    bool get_soft_armed() const;
+    void set_hw_rtc(uint64_t time_utc_usec) override;
 
     /**
-     * @brief Set soft-armed state
-     * @param armed New armed state
+     * @brief Get hardware RTC in UTC microseconds
+     *
+     * Returns stored UTC time adjusted by elapsed time since set.
+     *
+     * @return UTC time in microseconds since epoch (0 if never set)
      */
-    void set_soft_armed(bool armed);
+    uint64_t get_hw_rtc() const override;
 
-    /**
-     * @brief Get time of last arming state change
-     * @return Milliseconds since boot when armed state last changed
-     */
-    uint32_t get_last_armed_change_ms() const;
+    // Note: Arming state methods (get_soft_armed, set_soft_armed, get_last_armed_change)
+    // are provided by the base class AP_HAL::Util using protected members
 
     // ========================================================================
     // System Load
@@ -160,21 +161,9 @@ public:
     void timer_info(char* buffer, uint16_t buflen) const;
 
 private:
-    bool m_soft_armed;
-    uint32_t m_last_armed_change_ms;
+    // RTC time storage (no battery-backed RTC on RP2350)
+    uint64_t m_rtc_time_utc_usec;
+    uint64_t m_rtc_set_time_us;  // micros() when RTC was set
 };
 
 }  // namespace RP2350
-
-// ============================================================================
-// AP_HAL Compatibility
-// ============================================================================
-
-namespace AP_HAL {
-    using Util = RP2350::Util;
-
-    // Safety state enum aliases
-    constexpr auto SAFETY_NONE = RP2350::SafetyState::SAFETY_NONE;
-    constexpr auto SAFETY_DISARMED = RP2350::SafetyState::SAFETY_DISARMED;
-    constexpr auto SAFETY_ARMED = RP2350::SafetyState::SAFETY_ARMED;
-}

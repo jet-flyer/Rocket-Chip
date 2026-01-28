@@ -22,6 +22,9 @@
 
 #include <cstdint>
 
+// AP_HAL base classes for inheritance
+#include <AP_HAL/AnalogIn.h>
+
 namespace RP2350 {
 
 // Forward declare to avoid circular includes
@@ -33,7 +36,7 @@ class AnalogIn_RP2350;
  * Provides object-oriented access to a single ADC channel,
  * as required by AP_HAL::AnalogIn::channel().
  */
-class AnalogSource_RP2350 {
+class AnalogSource_RP2350 : public AP_HAL::AnalogSource {
 public:
     friend class AnalogIn_RP2350;
 
@@ -43,20 +46,20 @@ public:
      * @brief Read averaged raw ADC value
      * @return Averaged raw value (0-4095 scaled to float)
      */
-    float read_average();
+    float read_average() override;
 
     /**
      * @brief Read latest raw ADC value
      * @return Latest raw value (0-4095 scaled to float)
      */
-    float read_latest();
+    float read_latest() override;
 
     /**
      * @brief Set the ADC pin
      * @param pin GPIO pin number (26-29 for ADC, 254 for board VCC)
      * @return true if pin is valid ADC pin
      */
-    bool set_pin(uint8_t pin);
+    bool set_pin(uint8_t pin) override;
 
     /**
      * @brief Read averaged voltage
@@ -64,20 +67,20 @@ public:
      * @note Returns true measured voltage per ArduPilot convention for 3.3V boards
      *       (see ArduPilot PR #18754 for ADC scaling discussion)
      */
-    float voltage_average();
+    float voltage_average() override;
 
     /**
      * @brief Read latest voltage
      * @return Actual voltage in volts (0-3.3V for RP2350)
      */
-    float voltage_latest();
+    float voltage_latest() override;
 
     /**
      * @brief Read averaged voltage assuming ratiometric sensor
      * @return Actual voltage in volts
      * @note Same as voltage_average() for RP2350 (no separate ratiometric ref)
      */
-    float voltage_average_ratiometric();
+    float voltage_average_ratiometric() override;
 
 private:
     void set_channel(uint8_t channel);
@@ -94,7 +97,7 @@ private:
  *
  * Wraps RocketChip's static ADC class to provide the AP_HAL::AnalogIn interface.
  */
-class AnalogIn_RP2350 {
+class AnalogIn_RP2350 : public AP_HAL::AnalogIn {
 public:
     AnalogIn_RP2350();
     ~AnalogIn_RP2350() = default;
@@ -106,57 +109,59 @@ public:
     /**
      * @brief Initialize ADC subsystem
      */
-    void init();
+    void init() override;
 
     /**
      * @brief Get AnalogSource for a pin
      * @param n GPIO pin number (26-29 for ADC, 254 for board VCC)
      * @return Pointer to AnalogSource (caller does NOT own - static storage)
      */
-    AnalogSource_RP2350* channel(int16_t n);
+    AP_HAL::AnalogSource* channel(int16_t n) override;
 
     /**
      * @brief Check if pin is valid for analog input
      * @param pin GPIO pin number
      * @return true if pin can be used for ADC (26-29 or 254)
      */
-    bool valid_analog_pin(uint16_t pin) const;
+    bool valid_analog_pin(uint16_t pin) const override;
 
     /**
      * @brief Read board voltage (3.3V rail)
      * @return Board voltage in volts (nominally 3.3V)
      */
-    float board_voltage();
+    float board_voltage(void) override;
 
     /**
      * @brief Read servo rail voltage (not implemented)
      * @return 0 (no servo rail monitoring on this board)
      */
-    float servorail_voltage() { return 0.0f; }
+    float servorail_voltage(void) override { return 0.0f; }
 
     /**
      * @brief Power status flags (minimal implementation)
      * @return MAV_POWER_STATUS flags
      */
-    uint16_t power_status_flags();
+    uint16_t power_status_flags(void) override;
 
     /**
      * @brief Accumulated power status flags
      * @return All flags ever set
      */
-    uint16_t accumulated_power_status_flags() const { return m_power_flags; }
+    uint16_t accumulated_power_status_flags(void) const override { return m_power_flags; }
 
+#if HAL_WITH_MCU_MONITORING
     /**
      * @brief Read MCU internal temperature
      * @return Temperature in degrees Celsius
      */
-    float mcu_temperature();
+    float mcu_temperature(void) override;
 
     /**
      * @brief Read MCU voltage (same as board_voltage)
      * @return Voltage in volts
      */
-    float mcu_voltage() { return board_voltage(); }
+    float mcu_voltage(void) override { return board_voltage(); }
+#endif
 
 private:
     static constexpr uint8_t kMaxChannels = 6;  // 4 external + VCC + temp
@@ -175,17 +180,3 @@ private:
 };
 
 }  // namespace RP2350
-
-// ============================================================================
-// AP_HAL Namespace Compatibility
-// ============================================================================
-
-namespace AP_HAL {
-
-// Special pin values (from ArduPilot GPIO.h)
-#ifndef ANALOG_INPUT_BOARD_VCC
-#define ANALOG_INPUT_BOARD_VCC 254
-#define ANALOG_INPUT_NONE 255
-#endif
-
-}  // namespace AP_HAL

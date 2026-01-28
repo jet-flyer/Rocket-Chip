@@ -1,104 +1,149 @@
 /**
  * @file HAL_RP2350_Class.cpp
- * @brief HAL singleton implementation
+ * @brief HAL class implementation for RP2350
+ *
+ * Creates static instances of all HAL subsystems and passes them to
+ * the AP_HAL::HAL base class constructor.
  *
  * @note Part of AP_HAL_RP2350 - ArduPilot HAL for RocketChip
  */
 
 #include "HAL_RP2350_Class.h"
+#include "AnalogIn.h"
+#include "GPIO.h"
+#include "I2CDevice.h"
+#include "SPIDevice.h"
+#include "Scheduler.h"
+#include "Storage.h"
+#include "UARTDriver.h"
+#include "Util.h"
+
 #include "pico/stdlib.h"
-
-#include <cstdio>
-
 #include "FreeRTOS.h"
 #include "task.h"
 
-// Debug: blink onboard LED
-static void debug_blink(int count, int on_ms = 100, int off_ms = 100) {
-    const uint LED_PIN = 7;  // Feather RP2350 onboard LED
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
-    for (int i = 0; i < count; i++) {
-        gpio_put(LED_PIN, 1);
-        sleep_ms(on_ms);
-        gpio_put(LED_PIN, 0);
-        sleep_ms(off_ms);
-    }
-}
+#include <cstdio>
+
+// ============================================================================
+// Static Subsystem Instances
+// ============================================================================
+
+// Serial ports
+static RP2350::UARTDriver_RP2350 g_serial0(RP2350::UARTDriver_RP2350::PortType::USB_CDC);
+static RP2350::UARTDriver_RP2350 g_serial1(RP2350::UARTDriver_RP2350::PortType::UART0);
+static RP2350::UARTDriver_RP2350 g_serial2(RP2350::UARTDriver_RP2350::PortType::UART1);
+
+// Device managers
+static RP2350::I2CDeviceManager_RP2350 g_i2c_mgr;
+static RP2350::SPIDeviceManager_RP2350 g_spi_mgr;
+
+// Other subsystems
+static RP2350::AnalogIn_RP2350 g_analogin;
+static RP2350::Storage g_storage;
+static RP2350::GPIO_RP2350 g_gpio;
+static RP2350::Scheduler g_scheduler;
+static RP2350::Util g_util;
+
+// ============================================================================
+// HAL_RP2350 Constructor
+// ============================================================================
 
 namespace RP2350 {
 
-// ============================================================================
-// Constructor
-// ============================================================================
-
-// Static serial port instances
-static UARTDriver_RP2350 g_serial_usb(UARTDriver_RP2350::PortType::USB_CDC);
-static UARTDriver_RP2350 g_serial_uart0(UARTDriver_RP2350::PortType::UART0);
-static UARTDriver_RP2350 g_serial_uart1(UARTDriver_RP2350::PortType::UART1);
-
 HAL_RP2350::HAL_RP2350()
-    : scheduler()
-    , util()
-    , storage()
-    , gpio()
-    , analogin()
-    , serial{&g_serial_usb, &g_serial_uart0, &g_serial_uart1}
-    , i2c_mgr()
-    , spi_mgr()
-    , m_initialized(false)
+    : AP_HAL::HAL(
+        &g_serial0,         // serial0 (console)
+        &g_serial1,         // serial1 (telem1)
+        &g_serial2,         // serial2 (telem2)
+        nullptr,            // serial3 (1st GPS) - not used
+        nullptr,            // serial4 (2nd GPS) - not used
+        nullptr,            // serial5 (extra1) - not used
+        nullptr,            // serial6 (extra2) - not used
+        nullptr,            // serial7 (extra3) - not used
+        nullptr,            // serial8 (extra4) - not used
+        nullptr,            // serial9 (extra5) - not used
+        &g_i2c_mgr,         // I2C device manager
+        &g_spi_mgr,         // SPI device manager
+        nullptr,            // WSPI device manager - not implemented
+        &g_analogin,        // Analog inputs
+        &g_storage,         // Flash storage
+        &g_serial0,         // console (same as serial0)
+        &g_gpio,            // GPIO
+        nullptr,            // RCInput - not implemented
+        nullptr,            // RCOutput - not implemented
+        &g_scheduler,       // Scheduler
+        &g_util,            // Utilities
+        nullptr,            // OpticalFlow - not implemented
+        nullptr,            // Flash - not implemented (we use Storage)
+        nullptr             // CAN interfaces - not implemented
+    )
 {
 }
 
 // ============================================================================
-// Initialization
+// Run Method
 // ============================================================================
 
-void HAL_RP2350::init() {
-    if (m_initialized) {
-        return;
-    }
+void HAL_RP2350::run(int argc, char* const* argv, Callbacks* callbacks) const {
+    (void)argc;
+    (void)argv;
 
-    // NOTE: hal.init() is called BEFORE stdio_init_all() to avoid USB conflicts
-    // with flash operations. No printf/getchar calls here - use LED blinks only.
-    // Application can print HAL status after USB is initialized.
+    // Initialize HAL subsystems before application setup
+    // Note: Storage must be initialized before USB is fully active
+    // to avoid flash operation conflicts (see PD1 in RP2350_FULL_AP_PORT.md)
 
-    // CRITICAL: Initialize storage first - flash operations here
-    // Flash operations conflict with FreeRTOS SMP dual-core scheduler.
-    // See REBUILD_CONTEXT.md for details on the flash_safe_execute issue.
-    storage.init();
-
-    debug_blink(1);  // 1 blink = storage done
+    // Initialize storage first (flash operations)
+    g_storage.init();
 
     // Initialize scheduler if FreeRTOS is running
     if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
-        scheduler.init();
+        g_scheduler.init();
     }
 
-    debug_blink(2);  // 2 blinks = scheduler done
-
     // Initialize remaining subsystems
-    gpio.init();
-    analogin.init();
-    serial[0]->begin(115200);
-    i2c_mgr.init();
-    spi_mgr.init();
+    g_gpio.init();
+    g_analogin.init();
+    g_serial0.begin(115200);
+    g_i2c_mgr.init();
+    g_spi_mgr.init();
 
-    m_initialized = true;
+    // Call application setup
+    if (callbacks != nullptr) {
+        callbacks->setup();
 
-    debug_blink(3);  // 3 blinks = all init complete
+        // Main loop
+        for (;;) {
+            callbacks->loop();
+
+            // Flush storage periodically
+            g_storage._timer_tick();
+        }
+    }
 }
 
 // ============================================================================
-// Main Loop
+// Test Initialization Helper
 // ============================================================================
 
-void HAL_RP2350::loop() {
-    // The main loop is typically handled by the application.
-    // This method can be called for any per-iteration housekeeping.
+void hal_init() {
+    // Initialize HAL subsystems for testing
+    // This is called by test code instead of hal.run() when you want to
+    // initialize the HAL without entering the main application loop.
 
-    // Flush any dirty storage data to flash
-    storage._timer_tick();
+    // Initialize storage first (flash operations before USB)
+    g_storage.init();
+
+    // Initialize scheduler if FreeRTOS is running
+    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
+        g_scheduler.init();
+    }
+
+    // Initialize remaining subsystems
+    g_gpio.init();
+    g_analogin.init();
+    g_serial0.begin(115200);
+    g_i2c_mgr.init();
+    g_spi_mgr.init();
 }
 
 }  // namespace RP2350
@@ -107,4 +152,11 @@ void HAL_RP2350::loop() {
 // Global HAL Instance
 // ============================================================================
 
-RP2350::HAL_RP2350 hal;
+static RP2350::HAL_RP2350 g_hal_instance;
+
+const AP_HAL::HAL& AP_HAL::get_HAL() {
+    return g_hal_instance;
+}
+
+// Legacy global reference
+const AP_HAL::HAL& hal = g_hal_instance;

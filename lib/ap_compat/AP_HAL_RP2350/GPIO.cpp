@@ -5,7 +5,7 @@
  * @note Part of AP_HAL_RP2350 - ArduPilot HAL for RocketChip
  */
 
-#include "GPIO.h"     // AP_HAL_RP2350/GPIO.h (this file's header)
+#include "GPIO.h"     // AP_HAL_RP2350/GPIO.h (includes AP_HAL/GPIO.h for base class)
 #include "Scheduler.h"
 
 // RocketChip HAL - use "hal/" prefix to avoid conflict with local GPIO.h
@@ -28,11 +28,11 @@ DigitalSource_RP2350::DigitalSource_RP2350(uint8_t pin)
 }
 
 void DigitalSource_RP2350::mode(uint8_t output) {
-    using namespace rocketchip::hal;
+    namespace rhal = rocketchip::hal;
     if (output == HAL_GPIO_OUTPUT) {
-        GPIO::pinMode(m_pin, PinMode::OUTPUT);
+        rhal::GPIO::pinMode(m_pin, rhal::PinMode::OUTPUT);
     } else {
-        GPIO::pinMode(m_pin, PinMode::INPUT);
+        rhal::GPIO::pinMode(m_pin, rhal::PinMode::INPUT);
     }
 }
 
@@ -69,7 +69,7 @@ void GPIO_RP2350::init() {
 }
 
 void GPIO_RP2350::pinMode(uint8_t pin, uint8_t output) {
-    using namespace rocketchip::hal;
+    namespace rhal = rocketchip::hal;
 
     if (!valid_pin(pin)) {
         return;
@@ -77,12 +77,12 @@ void GPIO_RP2350::pinMode(uint8_t pin, uint8_t output) {
 
     switch (output) {
         case HAL_GPIO_OUTPUT:
-            GPIO::pinMode(pin, PinMode::OUTPUT);
+            rhal::GPIO::pinMode(pin, rhal::PinMode::OUTPUT);
             break;
         case HAL_GPIO_INPUT:
         case HAL_GPIO_ALT:
         default:
-            GPIO::pinMode(pin, PinMode::INPUT);
+            rhal::GPIO::pinMode(pin, rhal::PinMode::INPUT);
             break;
     }
 }
@@ -113,7 +113,7 @@ bool GPIO_RP2350::valid_pin(uint8_t pin) const {
     return pin < kMaxPins;
 }
 
-DigitalSource_RP2350* GPIO_RP2350::channel(uint16_t n) {
+AP_HAL::DigitalSource* GPIO_RP2350::channel(uint16_t n) {
     if (n >= kMaxPins) {
         return nullptr;
     }
@@ -150,39 +150,39 @@ bool GPIO_RP2350::usb_connected() {
 }
 
 bool GPIO_RP2350::attach_interrupt(uint8_t pin,
-                                    void (*fn)(uint8_t, bool, uint32_t),
-                                    uint8_t mode) {
-    using namespace rocketchip::hal;
+                                    irq_handler_fn_t fn,
+                                    INTERRUPT_TRIGGER_TYPE mode) {
+    namespace rhal = rocketchip::hal;
 
-    if (!valid_pin(pin) || fn == nullptr) {
-        // Null callback means detach
-        if (fn == nullptr) {
-            GPIO::detachInterrupt(pin);
+    if (!valid_pin(pin) || !fn) {
+        // Null/empty callback means detach
+        if (!fn) {
+            rhal::GPIO::detachInterrupt(pin);
             return true;
         }
         return false;
     }
 
     // Map AP_HAL interrupt mode to RocketChip PinEdge
-    PinEdge edge;
+    rhal::PinEdge edge;
     switch (mode) {
-        case AP_HAL::GPIO::INTERRUPT_RISING:
-            edge = PinEdge::RISING;
+        case INTERRUPT_RISING:
+            edge = rhal::PinEdge::RISING;
             break;
-        case AP_HAL::GPIO::INTERRUPT_FALLING:
-            edge = PinEdge::FALLING;
+        case INTERRUPT_FALLING:
+            edge = rhal::PinEdge::FALLING;
             break;
-        case AP_HAL::GPIO::INTERRUPT_BOTH:
-            edge = PinEdge::BOTH;
+        case INTERRUPT_BOTH:
+            edge = rhal::PinEdge::BOTH;
             break;
-        case AP_HAL::GPIO::INTERRUPT_NONE:
+        case INTERRUPT_NONE:
         default:
-            GPIO::detachInterrupt(pin);
+            rhal::GPIO::detachInterrupt(pin);
             return true;
     }
 
     // RocketChip GPIO callback signature differs slightly
-    // AP_HAL: (pin, state, timestamp_us)
+    // AP_HAL: Functor(pin, state, timestamp_us)
     // RocketChip: (pin, state) - we need to add timestamp
     //
     // For now, we create a wrapper. In a full implementation,
@@ -191,6 +191,7 @@ bool GPIO_RP2350::attach_interrupt(uint8_t pin,
     // TODO: Implement proper callback wrapper with timestamp
     // For Phase 2, interrupt support is lower priority - most ArduPilot
     // sensor drivers use polling via periodic callbacks.
+    (void)edge;  // Suppress unused warning
 
     return false;  // Not fully implemented yet
 }

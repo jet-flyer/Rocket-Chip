@@ -23,8 +23,8 @@ namespace RP2350 {
 // ============================================================================
 
 Util::Util()
-    : m_soft_armed(false)
-    , m_last_armed_change_ms(0)
+    : m_rtc_time_utc_usec(0)
+    , m_rtc_set_time_us(0)
 {
 }
 
@@ -32,7 +32,7 @@ Util::Util()
 // Memory Information
 // ============================================================================
 
-uint32_t Util::available_memory() const {
+uint32_t Util::available_memory() {
     // With static allocation, xPortGetFreeHeapSize() returns 0 if no heap is used.
     // Fall back to total heap size in that case (all heap is "available").
     uint32_t free_heap = xPortGetFreeHeapSize();
@@ -47,7 +47,7 @@ uint32_t Util::total_memory() const {
     return configTOTAL_HEAP_SIZE;
 }
 
-void Util::mem_info(char* buffer, uint16_t buflen) const {
+void Util::mem_info(char* buffer, uint16_t buflen) {
     if (buffer == nullptr || buflen == 0) {
         return;
     }
@@ -57,19 +57,20 @@ void Util::mem_info(char* buffer, uint16_t buflen) const {
     uint32_t used = total_heap - free_heap;
     uint32_t percent = (used * 100) / total_heap;
 
-    snprintf(buffer, buflen,
-             "Heap: %lu/%lu bytes (%lu%% used)",
-             static_cast<unsigned long>(used),
-             static_cast<unsigned long>(total_heap),
-             static_cast<unsigned long>(percent));
+    // Use std::snprintf, not base class snprintf (which is non-const)
+    std::snprintf(buffer, buflen,
+                  "Heap: %lu/%lu bytes (%lu%% used)",
+                  static_cast<unsigned long>(used),
+                  static_cast<unsigned long>(total_heap),
+                  static_cast<unsigned long>(percent));
 }
 
 // ============================================================================
 // System Identification
 // ============================================================================
 
-bool Util::get_system_id(char* buffer, uint8_t buflen) const {
-    if (buffer == nullptr || buflen < 25) {
+bool Util::get_system_id(char buf[50]) {
+    if (buf == nullptr) {
         return false;
     }
 
@@ -77,56 +78,57 @@ bool Util::get_system_id(char* buffer, uint8_t buflen) const {
     pico_unique_board_id_t id;
     pico_get_unique_board_id(&id);
 
-    // Format as hex string: "XXXX-XXXX-XXXX-XXXX"
-    snprintf(buffer, buflen,
-             "%02X%02X-%02X%02X-%02X%02X-%02X%02X",
-             id.id[0], id.id[1], id.id[2], id.id[3],
-             id.id[4], id.id[5], id.id[6], id.id[7]);
+    // Format as hex string: "XXXX-XXXX-XXXX-XXXX" (fits in 50 bytes)
+    std::snprintf(buf, 50,
+                  "%02X%02X-%02X%02X-%02X%02X-%02X%02X",
+                  id.id[0], id.id[1], id.id[2], id.id[3],
+                  id.id[4], id.id[5], id.id[6], id.id[7]);
 
     return true;
 }
 
-uint8_t Util::get_system_id_unformatted(uint8_t* buffer, uint8_t buflen) const {
-    if (buffer == nullptr || buflen == 0) {
-        return 0;
+bool Util::get_system_id_unformatted(uint8_t buf[], uint8_t& len) {
+    if (buf == nullptr || len == 0) {
+        return false;
     }
 
     pico_unique_board_id_t id;
     pico_get_unique_board_id(&id);
 
-    uint8_t copy_len = (buflen < PICO_UNIQUE_BOARD_ID_SIZE_BYTES)
-                       ? buflen : PICO_UNIQUE_BOARD_ID_SIZE_BYTES;
+    uint8_t copy_len = (len < PICO_UNIQUE_BOARD_ID_SIZE_BYTES)
+                       ? len : PICO_UNIQUE_BOARD_ID_SIZE_BYTES;
 
-    memcpy(buffer, id.id, copy_len);
-    return copy_len;
+    memcpy(buf, id.id, copy_len);
+    len = copy_len;
+    return true;
 }
 
 // ============================================================================
 // Safety State
 // ============================================================================
 
-SafetyState Util::safety_switch_state() const {
+AP_HAL::Util::safety_state Util::safety_switch_state() {
     // RocketChip has no physical safety switch
-    return SafetyState::SAFETY_NONE;
+    return SAFETY_NONE;
 }
 
 // ============================================================================
-// Arming State
+// Hardware RTC
 // ============================================================================
 
-bool Util::get_soft_armed() const {
-    return m_soft_armed;
+void Util::set_hw_rtc(uint64_t time_utc_usec) {
+    m_rtc_time_utc_usec = time_utc_usec;
+    m_rtc_set_time_us = Scheduler::micros64();
 }
 
-void Util::set_soft_armed(bool armed) {
-    if (m_soft_armed != armed) {
-        m_soft_armed = armed;
-        m_last_armed_change_ms = Scheduler::millis();
+uint64_t Util::get_hw_rtc() const {
+    if (m_rtc_time_utc_usec == 0) {
+        // RTC was never set
+        return 0;
     }
-}
-
-uint32_t Util::get_last_armed_change_ms() const {
-    return m_last_armed_change_ms;
+    // Adjust for elapsed time since RTC was set
+    uint64_t elapsed_us = Scheduler::micros64() - m_rtc_set_time_us;
+    return m_rtc_time_utc_usec + elapsed_us;
 }
 
 // ============================================================================
@@ -155,8 +157,8 @@ void Util::thread_info(char* buffer, uint16_t buflen) const {
 #else
     // Just report number of tasks
     UBaseType_t num_tasks = uxTaskGetNumberOfTasks();
-    snprintf(buffer, buflen, "Tasks: %u (trace disabled)",
-             static_cast<unsigned int>(num_tasks));
+    std::snprintf(buffer, buflen, "Tasks: %u (trace disabled)",
+                  static_cast<unsigned int>(num_tasks));
 #endif
 }
 
@@ -170,11 +172,12 @@ void Util::timer_info(char* buffer, uint16_t buflen) const {
     uint32_t minutes = seconds / 60;
     uint32_t hours = minutes / 60;
 
-    snprintf(buffer, buflen,
-             "Uptime: %02lu:%02lu:%02lu",
-             static_cast<unsigned long>(hours),
-             static_cast<unsigned long>(minutes % 60),
-             static_cast<unsigned long>(seconds % 60));
+    // Use std::snprintf, not base class snprintf (which is non-const)
+    std::snprintf(buffer, buflen,
+                  "Uptime: %02lu:%02lu:%02lu",
+                  static_cast<unsigned long>(hours),
+                  static_cast<unsigned long>(minutes % 60),
+                  static_cast<unsigned long>(seconds % 60));
 }
 
 }  // namespace RP2350

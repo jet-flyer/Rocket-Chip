@@ -2,7 +2,7 @@
  * @file usb_hal_test.cpp
  * @brief Test USB enumeration with HAL init order
  *
- * Tests whether calling hal.init() before stdio_init_all() breaks USB.
+ * Tests whether calling RP2350::hal_init() before stdio_init_all() breaks USB.
  * This test does NOT use NeoPixel to isolate the HAL as the variable.
  */
 
@@ -38,9 +38,9 @@ int main() {
     // Blink once = starting
     ledBlink(1, 200, 200);
 
-    // Initialize HAL BEFORE stdio_init_all()
+    // Initialize HAL subsystems BEFORE stdio_init_all()
     // This does storage.init() (flash ops), scheduler, gpio, i2c, spi
-    hal.init();
+    RP2350::hal_init();
 
     // Blink twice = HAL done
     ledBlink(2, 200, 200);
@@ -66,7 +66,7 @@ int main() {
     printf("\n========================================\n");
     printf("  USB + HAL Test (No NeoPixel)\n");
     printf("========================================\n\n");
-    printf("hal.init() was called BEFORE stdio_init_all().\n");
+    printf("RP2350::hal_init() was called BEFORE stdio_init_all().\n");
     printf("If you can see this, USB works with HAL pre-init.\n\n");
 
     printf("Press any key to confirm input works: ");

@@ -21,42 +21,14 @@
 #include "timers.h"
 #include <cstdint>
 
+// AP_HAL base class for inheritance
+#include <AP_HAL/Scheduler.h>
+
 namespace RP2350 {
 
-/**
- * @brief Function pointer types for callbacks
- */
-using Proc = void (*)();
-
-/**
- * @brief Member function callback (object + method pointer)
- *
- * ArduPilot uses this for class method callbacks.
- */
-class MemberProc {
-public:
-    MemberProc() : m_obj(nullptr), m_method(nullptr) {}
-
-    template<class T>
-    MemberProc(T* obj, void (T::*method)())
-        : m_obj(obj)
-        , m_method(reinterpret_cast<void (MemberProc::*)()>(method))
-    {}
-
-    void call() const {
-        if (m_obj != nullptr && m_method != nullptr) {
-            (static_cast<MemberProc*>(m_obj)->*m_method)();
-        }
-    }
-
-    bool is_valid() const {
-        return m_obj != nullptr && m_method != nullptr;
-    }
-
-private:
-    void* m_obj;
-    void (MemberProc::*m_method)();
-};
+// Use AP_HAL types for callbacks (required for AP_HAL::Scheduler inheritance)
+using Proc = AP_HAL::Proc;
+using MemberProc = AP_HAL::MemberProc;
 
 
 /**
@@ -88,9 +60,9 @@ enum class Priority : uint8_t {
  * Manages timing, delays, and periodic callbacks. Creates FreeRTOS tasks
  * for timer and I/O processing.
  *
- * Implements AP_HAL::Scheduler interface.
+ * Inherits from AP_HAL::Scheduler for ArduPilot compatibility.
  */
-class Scheduler {
+class Scheduler : public AP_HAL::Scheduler {
 public:
     Scheduler();
     ~Scheduler();
@@ -109,7 +81,7 @@ public:
      * Creates FreeRTOS tasks for timer and I/O callbacks.
      * Must be called before using any scheduler functions.
      */
-    void init();
+    void init() override;
 
     // ========================================================================
     // Timing Functions
@@ -151,7 +123,7 @@ public:
      *
      * @param ms Milliseconds to delay
      */
-    void delay(uint16_t ms);
+    void delay(uint16_t ms) override;
 
     /**
      * @brief Delay for microseconds (busy-wait)
@@ -160,7 +132,7 @@ public:
      *
      * @param us Microseconds to delay (must be accurate)
      */
-    void delay_microseconds(uint16_t us);
+    void delay_microseconds(uint16_t us) override;
 
     /**
      * @brief Delay with priority boost for main thread
@@ -169,12 +141,12 @@ public:
      *
      * @param us Microseconds to delay
      */
-    void delay_microseconds_boost(uint16_t us);
+    void delay_microseconds_boost(uint16_t us) override;
 
     /**
      * @brief End priority boost started by delay_microseconds_boost
      */
-    void boost_end();
+    void boost_end() override;
 
     // ========================================================================
     // Callback Registration
@@ -188,7 +160,7 @@ public:
      *
      * @param proc Member function to call
      */
-    void register_timer_process(MemberProc proc);
+    void register_timer_process(MemberProc proc) override;
 
     /**
      * @brief Register I/O callback (lower priority)
@@ -198,7 +170,7 @@ public:
      *
      * @param proc Member function to call
      */
-    void register_io_process(MemberProc proc);
+    void register_io_process(MemberProc proc) override;
 
     /**
      * @brief Register failsafe callback
@@ -209,7 +181,7 @@ public:
      * @param failsafe Function to call
      * @param period_us Call period in microseconds
      */
-    void register_timer_failsafe(Proc failsafe, uint32_t period_us);
+    void register_timer_failsafe(Proc failsafe, uint32_t period_us) override;
 
     /**
      * @brief Register callback for long delays
@@ -220,7 +192,7 @@ public:
      * @param proc Function to call
      * @param min_time_ms Minimum delay before callback triggers
      */
-    void register_delay_callback(Proc proc, uint16_t min_time_ms);
+    void register_delay_callback(Proc proc, uint16_t min_time_ms) override;
 
     // ========================================================================
     // System State
@@ -231,25 +203,25 @@ public:
      *
      * Called after all subsystems are ready.
      */
-    void set_system_initialized();
+    void set_system_initialized() override;
 
     /**
      * @brief Check if system is initialized
      * @return true if set_system_initialized() was called
      */
-    bool is_system_initialized() const;
+    bool is_system_initialized() override;
 
     /**
      * @brief Check if executing in main thread
      * @return true if current task is the main task
      */
-    bool in_main_thread() const;
+    bool in_main_thread() const override;
 
     /**
      * @brief Check if inside delay callback
      * @return true if currently executing delay callback
      */
-    bool in_delay_callback() const;
+    bool in_delay_callback() const override;
 
     // ========================================================================
     // Expected Delay (Watchdog Management)
@@ -262,13 +234,13 @@ public:
      *
      * @param ms Expected duration in milliseconds
      */
-    void expect_delay_ms(uint32_t ms);
+    void expect_delay_ms(uint32_t ms) override;
 
     /**
      * @brief Check if currently in expected delay
      * @return true if expect_delay_ms is active
      */
-    bool in_expected_delay() const;
+    bool in_expected_delay() const override;
 
     // ========================================================================
     // Thread Creation
@@ -280,12 +252,12 @@ public:
      * @param proc Member function to run
      * @param name Thread name (for debugging)
      * @param stack_size Stack size in bytes
-     * @param base Base priority level
+     * @param base Base priority level (uses AP_HAL::Scheduler::priority_base)
      * @param priority Priority offset from base
      * @return true on success
      */
     bool thread_create(MemberProc proc, const char* name,
-                       uint32_t stack_size, Priority base, int8_t priority);
+                       uint32_t stack_size, priority_base base, int8_t priority) override;
 
     // ========================================================================
     // System Control
@@ -295,7 +267,7 @@ public:
      * @brief Reboot the system
      * @param hold_in_bootloader If true, enter bootloader mode
      */
-    [[noreturn]] void reboot(bool hold_in_bootloader);
+    [[noreturn]] void reboot(bool hold_in_bootloader) override;
 
     // ========================================================================
     // Interrupt Control
@@ -305,13 +277,13 @@ public:
      * @brief Disable interrupts and save state
      * @return Opaque state to pass to restore_interrupts
      */
-    void* disable_interrupts_save();
+    void* disable_interrupts_save() override;
 
     /**
      * @brief Restore interrupt state
      * @param state Value returned by disable_interrupts_save
      */
-    void restore_interrupts(void* state);
+    void restore_interrupts(void* state) override;
 
     // ========================================================================
     // Internal - called by FreeRTOS tasks
@@ -382,14 +354,15 @@ private:
 
 namespace AP_HAL {
 
-using Proc = RP2350::Proc;
-using MemberProc = RP2350::MemberProc;
+// NOTE: Proc and MemberProc are defined in AP_HAL/AP_HAL_Namespace.h
+// RP2350::Proc/MemberProc types must be compatible with AP_HAL::Proc/MemberProc
 
-// Timing functions accessible globally
-inline uint32_t millis() { return RP2350::Scheduler::millis(); }
-inline uint64_t millis64() { return RP2350::Scheduler::millis64(); }
-inline uint32_t micros() { return RP2350::Scheduler::micros(); }
-inline uint64_t micros64() { return RP2350::Scheduler::micros64(); }
+// Timing functions - declared here, defined in system.cpp
+// These are required by ArduPilot libraries (e.g., AP_HAL/Util.cpp)
+uint32_t millis();
+uint64_t millis64();
+uint32_t micros();
+uint64_t micros64();
 
 /**
  * @brief Panic handler - print message and halt

@@ -15,7 +15,9 @@
 #pragma once
 
 #include <cstdint>
-#include "../AP_HAL/AP_HAL_Namespace.h"
+
+// AP_HAL base classes for inheritance
+#include <AP_HAL/GPIO.h>
 
 // Forward declare to avoid circular includes
 namespace rocketchip {
@@ -34,7 +36,7 @@ namespace RP2350 {
  * Provides object-oriented access to a single GPIO pin,
  * as required by AP_HAL::GPIO::channel().
  */
-class DigitalSource_RP2350 {
+class DigitalSource_RP2350 : public AP_HAL::DigitalSource {
 public:
     DigitalSource_RP2350() : m_pin(0xFF) {}  // Default constructor for array init
     explicit DigitalSource_RP2350(uint8_t pin);
@@ -43,24 +45,24 @@ public:
      * @brief Set pin mode
      * @param output HAL_GPIO_INPUT (0) or HAL_GPIO_OUTPUT (1)
      */
-    void mode(uint8_t output);
+    void mode(uint8_t output) override;
 
     /**
      * @brief Read pin state
      * @return 0 for LOW, 1 for HIGH
      */
-    uint8_t read();
+    uint8_t read() override;
 
     /**
      * @brief Write pin state
      * @param value 0 for LOW, non-zero for HIGH
      */
-    void write(uint8_t value);
+    void write(uint8_t value) override;
 
     /**
      * @brief Toggle pin state
      */
-    void toggle();
+    void toggle() override;
 
 private:
     uint8_t m_pin;
@@ -72,7 +74,7 @@ private:
  *
  * Wraps RocketChip's static GPIO class to provide the AP_HAL::GPIO interface.
  */
-class GPIO_RP2350 {
+class GPIO_RP2350 : public AP_HAL::GPIO {
 public:
     GPIO_RP2350();
     ~GPIO_RP2350() = default;
@@ -85,70 +87,70 @@ public:
      * @brief Initialize GPIO subsystem
      * @note No-op on RP2350 - SDK handles initialization
      */
-    void init();
+    void init() override;
 
     /**
      * @brief Configure pin mode
      * @param pin GPIO pin number (0-29 valid on RP2350)
      * @param output HAL_GPIO_INPUT (0), HAL_GPIO_OUTPUT (1), or HAL_GPIO_ALT (2)
      */
-    void pinMode(uint8_t pin, uint8_t output);
+    void pinMode(uint8_t pin, uint8_t output) override;
 
     /**
      * @brief Read pin state
      * @param pin GPIO pin number
      * @return 0 for LOW, 1 for HIGH
      */
-    uint8_t read(uint8_t pin);
+    uint8_t read(uint8_t pin) override;
 
     /**
      * @brief Write pin state
      * @param pin GPIO pin number
      * @param value 0 for LOW, non-zero for HIGH
      */
-    void write(uint8_t pin, uint8_t value);
+    void write(uint8_t pin, uint8_t value) override;
 
     /**
      * @brief Toggle pin state
      * @param pin GPIO pin number
      */
-    void toggle(uint8_t pin);
+    void toggle(uint8_t pin) override;
 
     /**
      * @brief Check if pin number is valid
      * @param pin GPIO pin number
      * @return true if pin is usable (0-29)
      */
-    bool valid_pin(uint8_t pin) const;
+    bool valid_pin(uint8_t pin) const override;
 
     /**
      * @brief Get DigitalSource for a pin
      * @param n GPIO pin number
      * @return Pointer to DigitalSource (caller does NOT own - static storage)
      */
-    DigitalSource_RP2350* channel(uint16_t n);
+    AP_HAL::DigitalSource* channel(uint16_t n) override;
 
     /**
      * @brief Check if USB cable is connected
      * @return true if USB CDC is connected
      */
-    bool usb_connected();
+    bool usb_connected(void) override;
 
     /**
      * @brief Attach interrupt handler to pin
      * @param pin GPIO pin number
-     * @param fn Callback function (pin, state, timestamp)
+     * @param fn Callback functor (pin, state, timestamp)
      * @param mode Trigger mode (RISING, FALLING, BOTH)
      * @return true on success
      */
     bool attach_interrupt(uint8_t pin,
-                          void (*fn)(uint8_t, bool, uint32_t),
-                          uint8_t mode);
+                          irq_handler_fn_t fn,
+                          INTERRUPT_TRIGGER_TYPE mode) override;
 
     /**
      * @brief Optional timer tick (no-op)
      */
-    void timer_tick() {}
+    void timer_tick(void) override {}
 
 private:
     static constexpr uint8_t kMaxPins = 30;  // GPIO0-29 on RP2350
@@ -161,32 +163,3 @@ private:
 };
 
 }  // namespace RP2350
-
-// ============================================================================
-// AP_HAL Namespace Compatibility
-// ============================================================================
-
-namespace AP_HAL {
-
-// GPIO mode constants (from ArduPilot GPIO.h)
-#ifndef HAL_GPIO_INPUT
-#define HAL_GPIO_INPUT  0
-#define HAL_GPIO_OUTPUT 1
-#define HAL_GPIO_ALT    2
-#endif
-
-// Interrupt trigger types
-class GPIO {
-public:
-    enum INTERRUPT_TRIGGER_TYPE {
-        INTERRUPT_NONE,
-        INTERRUPT_FALLING,
-        INTERRUPT_RISING,
-        INTERRUPT_BOTH,
-    };
-};
-
-// Type alias for interrupt callback
-using irq_handler_fn_t = void (*)(uint8_t, bool, uint32_t);
-
-}  // namespace AP_HAL

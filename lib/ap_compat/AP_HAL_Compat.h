@@ -81,7 +81,7 @@
 #endif
 
 #ifndef HAL_GCS_ENABLED
-#define HAL_GCS_ENABLED 0
+#define HAL_GCS_ENABLED 1
 #endif
 
 #ifndef AP_INERTIALSENSOR_ENABLED

@@ -55,15 +55,19 @@ namespace RP2350 {
 
 I2CDevice_RP2350::I2CDevice_RP2350(uint8_t bus, uint8_t address,
                                      uint32_t bus_clock, uint32_t timeout_ms)
-    : m_bus(bus)
-    , m_address(address)
+    : AP_HAL::I2CDevice()  // Calls Device(BUS_TYPE_I2C)
+    , m_bus(bus)
     , m_bus_clock(bus_clock)
     , m_timeout_ms(timeout_ms)
-    , m_read_flag(0)
     , m_retries(2)
     , m_i2c_bus(nullptr)
+    , m_semaphore(nullptr)
     , m_initialized(false)
 {
+    // Set device identification in base class
+    set_device_bus(bus);
+    set_device_address(address);
+
     // Bus 0 = Qwiic (I2C1 on Feather RP2350)
     // Bus 1 = Alternate (I2C0)
     void* i2c_inst = (bus == 0) ? QWIIC_I2C_INST : ALT_I2C_INST;
@@ -129,11 +133,11 @@ bool I2CDevice_RP2350::read_registers(uint8_t first_reg, uint8_t* recv, uint32_t
         return false;
     }
 
-    // Apply read flag if set
-    uint8_t reg = first_reg | m_read_flag;
+    // Apply read flag if set (from Device base class)
+    uint8_t reg = first_reg | _read_flag;
 
-    auto result = m_i2c_bus->readRegisters(reg, recv, recv_len);
-    return (result == rocketchip::hal::BusResult::OK);
+    // I2C read: write register address, then read data
+    return transfer(&reg, 1, recv, recv_len);
 }
 
 bool I2CDevice_RP2350::write_register(uint8_t reg, uint8_t val) {
@@ -141,8 +145,8 @@ bool I2CDevice_RP2350::write_register(uint8_t reg, uint8_t val) {
         return false;
     }
 
-    auto result = m_i2c_bus->writeRegister(reg, val);
-    return (result == rocketchip::hal::BusResult::OK);
+    uint8_t buf[2] = {reg, val};
+    return transfer(buf, 2, nullptr, 0);
 }
 
 bool I2CDevice_RP2350::read_registers_multiple(uint8_t first_reg, uint8_t* recv,
@@ -177,25 +181,44 @@ bool I2CDevice_RP2350::probe() {
 // Thread Safety
 // ============================================================================
 
-Semaphore* I2CDevice_RP2350::get_semaphore() {
-    // Note: In a full implementation, this would return the bus semaphore
-    // from I2CDeviceManager. For now, return nullptr (caller should handle).
+AP_HAL::Semaphore* I2CDevice_RP2350::get_semaphore() {
+    return m_semaphore;
+}
+
+// ============================================================================
+// Periodic Callbacks
+// ============================================================================
+
+AP_HAL::Device::PeriodicHandle I2CDevice_RP2350::register_periodic_callback(
+    uint32_t period_usec, PeriodicCb cb) {
+    // TODO: Implement periodic callbacks via Scheduler
+    // ArduPilot sensor drivers typically use this for polling sensors at fixed rates
+    // For Phase 2, most sensors will be polled directly from SensorTask
+    (void)period_usec;
+    (void)cb;
     return nullptr;
+}
+
+bool I2CDevice_RP2350::adjust_periodic_callback(PeriodicHandle h, uint32_t period_usec) {
+    // TODO: Implement when register_periodic_callback is implemented
+    (void)h;
+    (void)period_usec;
+    return false;
 }
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-bool I2CDevice_RP2350::set_speed(bool high) {
+bool I2CDevice_RP2350::set_speed(Speed speed) {
     // Would need to reinitialize bus with new speed
-    // For now, just track the request
-    (void)high;
+    // SPEED_HIGH = 400kHz, SPEED_LOW = 100kHz
+    (void)speed;
     return true;
 }
 
 void I2CDevice_RP2350::set_address(uint8_t address) {
-    m_address = address;
+    set_device_address(address);  // Update base class
     if (m_i2c_bus != nullptr) {
         m_i2c_bus->setAddress(address);
     }
@@ -235,10 +258,10 @@ void I2CDeviceManager_RP2350::init() {
     m_initialized = true;
 }
 
-I2CDevice_RP2350* I2CDeviceManager_RP2350::get_device(uint8_t bus, uint8_t address,
-                                                        uint32_t bus_clock,
-                                                        bool use_smbus,
-                                                        uint32_t timeout_ms) {
+AP_HAL::I2CDevice* I2CDeviceManager_RP2350::get_device_ptr(uint8_t bus, uint8_t address,
+                                                            uint32_t bus_clock,
+                                                            bool use_smbus,
+                                                            uint32_t timeout_ms) {
     (void)use_smbus;  // SMBus not supported on RP2350
 
     if (bus >= kMaxI2CBuses) {
@@ -259,9 +282,20 @@ I2CDevice_RP2350* I2CDeviceManager_RP2350::get_device(uint8_t bus, uint8_t addre
     }
 
     auto* device = new I2CDevice_RP2350(bus, address, bus_clock, timeout_ms);
+
+    // Give device access to bus semaphore
+    device->m_semaphore = &m_bus_semaphores[bus];
+
     m_devices[bus][m_device_count[bus]++] = device;
 
     return device;
+}
+
+Semaphore* I2CDeviceManager_RP2350::get_bus_semaphore(uint8_t bus) {
+    if (bus >= kMaxI2CBuses) {
+        return nullptr;
+    }
+    return &m_bus_semaphores[bus];
 }
 
 }  // namespace RP2350

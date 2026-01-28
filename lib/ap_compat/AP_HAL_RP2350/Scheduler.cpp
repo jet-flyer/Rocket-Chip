@@ -194,7 +194,8 @@ void Scheduler::boost_end() {
 // ============================================================================
 
 void Scheduler::register_timer_process(MemberProc proc) {
-    if (!proc.is_valid()) {
+    // Functor uses operator bool() for validity check
+    if (!proc) {
         return;
     }
 
@@ -209,7 +210,8 @@ void Scheduler::register_timer_process(MemberProc proc) {
 }
 
 void Scheduler::register_io_process(MemberProc proc) {
-    if (!proc.is_valid()) {
+    // Functor uses operator bool() for validity check
+    if (!proc) {
         return;
     }
 
@@ -241,7 +243,7 @@ void Scheduler::set_system_initialized() {
     m_system_initialized = true;
 }
 
-bool Scheduler::is_system_initialized() const {
+bool Scheduler::is_system_initialized() {
     return m_system_initialized;
 }
 
@@ -277,7 +279,7 @@ bool Scheduler::in_expected_delay() const {
 // ============================================================================
 
 bool Scheduler::thread_create(MemberProc proc, const char* name,
-                               uint32_t stack_size, Priority base, int8_t priority) {
+                               uint32_t stack_size, priority_base base, int8_t priority) {
     (void)proc;
     (void)name;
     (void)stack_size;
@@ -363,7 +365,10 @@ void Scheduler::run_timer_procs() {
     m_timer_sem->give();
 
     for (uint8_t i = 0; i < n; i++) {
-        m_timer_procs[i].call();
+        // Functor uses operator() to invoke
+        if (m_timer_procs[i]) {
+            m_timer_procs[i]();
+        }
     }
 
     // Run failsafe if registered and period elapsed
@@ -382,7 +387,10 @@ void Scheduler::run_io_procs() {
     m_io_sem->give();
 
     for (uint8_t i = 0; i < n; i++) {
-        m_io_procs[i].call();
+        // Functor uses operator() to invoke
+        if (m_io_procs[i]) {
+            m_io_procs[i]();
+        }
     }
 }
 

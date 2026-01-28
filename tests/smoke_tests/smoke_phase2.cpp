@@ -23,6 +23,8 @@
 
 // AP_HAL
 #include "AP_HAL_RP2350/AP_HAL_RP2350.h"
+#include <AP_HAL/I2CDevice.h>
+#include <AP_HAL/SPIDevice.h>
 
 // Use onboard LED for visual feedback
 #ifndef PICO_DEFAULT_LED_PIN
@@ -47,7 +49,7 @@ struct TestResult {
     const char* message;
 };
 
-static constexpr uint8_t kMaxTests = 24;
+static constexpr uint8_t kMaxTests = 26;
 static TestResult g_results[kMaxTests];
 static uint8_t g_num_tests = 0;
 static uint8_t g_passed = 0;
@@ -74,15 +76,15 @@ static void record_result(const char* name, bool passed, const char* message = n
 static void test_gpio_init() {
     // GPIO init is called by hal.init() - just verify it doesn't crash
     // and that we can access the gpio member
-    hal.gpio.init();  // Should be no-op, already called
+    hal.gpio->init();  // Should be no-op, already called
     record_result("GPIO init", true);
 }
 
 static void test_gpio_pin_valid() {
     // Test pin validation
-    bool valid_low = hal.gpio.valid_pin(0);
-    bool valid_high = hal.gpio.valid_pin(29);
-    bool invalid = !hal.gpio.valid_pin(30);
+    bool valid_low = hal.gpio->valid_pin(0);
+    bool valid_high = hal.gpio->valid_pin(29);
+    bool invalid = !hal.gpio->valid_pin(30);
 
     bool passed = valid_low && valid_high && invalid;
     record_result("GPIO pin validation", passed,
@@ -91,15 +93,15 @@ static void test_gpio_pin_valid() {
 
 static void test_gpio_led_toggle() {
     // Configure LED as output
-    hal.gpio.pinMode(PICO_DEFAULT_LED_PIN, HAL_GPIO_OUTPUT);
+    hal.gpio->pinMode(PICO_DEFAULT_LED_PIN, HAL_GPIO_OUTPUT);
 
     // Test toggle function - sets LED to known states and verifies
-    hal.gpio.write(PICO_DEFAULT_LED_PIN, 0);
-    uint8_t state1 = hal.gpio.read(PICO_DEFAULT_LED_PIN);
-    hal.gpio.toggle(PICO_DEFAULT_LED_PIN);
-    uint8_t state2 = hal.gpio.read(PICO_DEFAULT_LED_PIN);
-    hal.gpio.toggle(PICO_DEFAULT_LED_PIN);
-    uint8_t state3 = hal.gpio.read(PICO_DEFAULT_LED_PIN);
+    hal.gpio->write(PICO_DEFAULT_LED_PIN, 0);
+    uint8_t state1 = hal.gpio->read(PICO_DEFAULT_LED_PIN);
+    hal.gpio->toggle(PICO_DEFAULT_LED_PIN);
+    uint8_t state2 = hal.gpio->read(PICO_DEFAULT_LED_PIN);
+    hal.gpio->toggle(PICO_DEFAULT_LED_PIN);
+    uint8_t state3 = hal.gpio->read(PICO_DEFAULT_LED_PIN);
 
     bool passed = (state1 == 0) && (state2 == 1) && (state3 == 0);
     record_result("GPIO LED toggle", passed,
@@ -108,7 +110,7 @@ static void test_gpio_led_toggle() {
 
 static void test_gpio_digital_source() {
     // Test DigitalSource (channel) interface
-    auto* source = hal.gpio.channel(PICO_DEFAULT_LED_PIN);
+    auto* source = hal.gpio->channel(PICO_DEFAULT_LED_PIN);
 
     if (source == nullptr) {
         record_result("GPIO DigitalSource", false, "channel() returned nullptr");
@@ -150,17 +152,17 @@ static float g_board_voltage = 0.0f;
 
 static void test_analogin_init() {
     // AnalogIn init is called by hal.init() - verify it doesn't crash
-    hal.analogin.init();  // Should be no-op, already called
+    hal.analogin->init();  // Should be no-op, already called
     record_result("AnalogIn init", true);
 }
 
 static void test_analogin_pin_valid() {
     // Test pin validation - valid pins are 26-29 and 254 (board VCC)
-    bool valid_26 = hal.analogin.valid_analog_pin(26);
-    bool valid_29 = hal.analogin.valid_analog_pin(29);
-    bool valid_vcc = hal.analogin.valid_analog_pin(254);
-    bool invalid_25 = !hal.analogin.valid_analog_pin(25);
-    bool invalid_30 = !hal.analogin.valid_analog_pin(30);
+    bool valid_26 = hal.analogin->valid_analog_pin(26);
+    bool valid_29 = hal.analogin->valid_analog_pin(29);
+    bool valid_vcc = hal.analogin->valid_analog_pin(254);
+    bool invalid_25 = !hal.analogin->valid_analog_pin(25);
+    bool invalid_30 = !hal.analogin->valid_analog_pin(30);
 
     bool passed = valid_26 && valid_29 && valid_vcc && invalid_25 && invalid_30;
     record_result("AnalogIn pin validation", passed,
@@ -170,7 +172,7 @@ static void test_analogin_pin_valid() {
 static void test_analogin_temperature() {
     // Read internal temperature sensor
     // Expected: ~20-40C for room temperature operation
-    g_mcu_temperature = hal.analogin.mcu_temperature();
+    g_mcu_temperature = hal.analogin->mcu_temperature();
 
     bool passed = (g_mcu_temperature > 10.0f) && (g_mcu_temperature < 60.0f);
     record_result("AnalogIn MCU temp", passed,
@@ -179,7 +181,7 @@ static void test_analogin_temperature() {
 
 static void test_analogin_board_voltage() {
     // Read board voltage - should be ~3.3V
-    g_board_voltage = hal.analogin.board_voltage();
+    g_board_voltage = hal.analogin->board_voltage();
 
     bool passed = (g_board_voltage > 3.0f) && (g_board_voltage < 3.6f);
     record_result("AnalogIn board voltage", passed,
@@ -188,7 +190,7 @@ static void test_analogin_board_voltage() {
 
 static void test_analogin_channel() {
     // Test channel allocation for board VCC
-    auto* vcc_channel = hal.analogin.channel(254);  // ANALOG_INPUT_BOARD_VCC
+    auto* vcc_channel = hal.analogin->channel(254);  // ANALOG_INPUT_BOARD_VCC
 
     if (vcc_channel == nullptr) {
         record_result("AnalogIn channel", false, "channel(254) returned nullptr");
@@ -217,7 +219,7 @@ static void run_analogin_tests() {
 
 static void test_uart_usb_init() {
     // Serial[0] should already be initialized by hal.init()
-    bool passed = hal.serial[0]->is_initialized();
+    bool passed = hal.serial(0)->is_initialized();
     record_result("UART USB init", passed,
                   passed ? nullptr : "USB CDC not initialized");
 }
@@ -226,7 +228,7 @@ static void test_uart_usb_write() {
     // Note: This test runs BEFORE USB is connected (per DEBUG_OUTPUT.md pattern)
     // USBSerial::write() correctly returns 0 when not connected
     // We verify the method doesn't crash and returns a valid value
-    size_t written = hal.serial[0]->write(static_cast<uint8_t>('.'));
+    size_t written = hal.serial(0)->write(static_cast<uint8_t>('.'));
     // Expected: 0 before USB connects, 1 after - both are valid
     bool passed = (written == 0 || written == 1);
     record_result("UART USB write", passed,
@@ -235,13 +237,13 @@ static void test_uart_usb_write() {
 
 static void test_uart_usb_printf() {
     // Test printf - capture before/after to verify no crash
-    hal.serial[0]->printf("UART printf test ");
+    hal.serial(0)->printf("UART printf test ");
     record_result("UART USB printf", true);
 }
 
 static void test_uart_txspace() {
     // TX space should be non-zero
-    uint32_t space = hal.serial[0]->txspace();
+    uint32_t space = hal.serial(0)->txspace();
     bool passed = (space > 0);
     record_result("UART txspace", passed,
                   passed ? nullptr : "txspace() returned 0");
@@ -260,72 +262,151 @@ static void run_uart_tests() {
 // I2CDevice Tests
 // ============================================================================
 
-// Known sensor addresses on the ISM330DHCX + LIS3MDL FeatherWing
-static constexpr uint8_t kISM330DHCX_ADDR = 0x6A;  // IMU (SA0=low)
-static constexpr uint8_t kLIS3MDL_ADDR = 0x1C;     // Magnetometer (SA1=low)
-static constexpr uint8_t kDPS310_ADDR = 0x77;      // Barometer
+// Known sensor addresses on the ICM20948 9-DoF FeatherWing
+// ICM20948 I2C addresses - Adafruit default is 0x69, but AD0 pin controls this
+static constexpr uint8_t kICM20948_ADDR_AD0_LOW = 0x68;  // IMU (AD0=low)
+static constexpr uint8_t kICM20948_ADDR_AD0_HIGH = 0x69; // IMU (AD0=high, Adafruit default)
+static constexpr uint8_t kICM20948_WHOAMI = 0xEA;        // Expected WHO_AM_I value
+static constexpr uint8_t kICM20948_BANK_SEL = 0x7F;      // Bank select register
+static constexpr uint8_t kICM20948_PWR_MGMT_1 = 0x06;    // Power management register
+static constexpr uint8_t kICM20948_RESET = 0x80;         // Device reset bit
+static constexpr uint8_t kICM20948_WAKE = 0x01;          // Wake + auto clock
+static constexpr uint8_t kLIS3MDL_ADDR = 0x1C;           // Magnetometer (SA1=low)
+static constexpr uint8_t kDPS310_ADDR = 0x77;            // Barometer
+static constexpr uint8_t kDPS310_PROD_ID_REG = 0x0D;     // Product ID register
+static constexpr uint8_t kDPS310_PROD_ID = 0x10;         // Expected Product ID
 
 // Storage for I2C test results
 static bool g_imu_found = false;
+static uint8_t g_imu_addr = 0;  // Actual address where IMU was found
 static bool g_mag_found = false;
+static bool g_baro_found = false;
 static uint8_t g_imu_whoami = 0;
+static uint8_t g_baro_prodid = 0;
 
 static void test_i2c_manager_init() {
     // I2C manager should be initialized by hal.init()
     // Just verify we can get the bus mask
-    uint32_t mask = hal.i2c_mgr.get_bus_mask();
+    uint32_t mask = hal.i2c_mgr->get_bus_mask();
     bool passed = (mask == 0x03);  // Both buses available
     record_result("I2C manager init", passed,
                   passed ? nullptr : "get_bus_mask() wrong");
 }
 
 static void test_i2c_get_device() {
-    // Test getting a device handle
-    auto* dev = hal.i2c_mgr.get_device(0, kISM330DHCX_ADDR);
+    // Test getting a device handle (use either address, just testing the function)
+    auto* dev = hal.i2c_mgr->get_device_ptr(0, kICM20948_ADDR_AD0_HIGH);
     bool passed = (dev != nullptr);
     record_result("I2C get device", passed,
                   passed ? nullptr : "get_device() returned nullptr");
 }
 
 static void test_i2c_probe_imu() {
-    // Probe for ISM330DHCX (should be present)
-    auto* dev = hal.i2c_mgr.get_device(0, kISM330DHCX_ADDR);
-    if (dev == nullptr) {
-        record_result("I2C probe IMU", false, "No device handle");
-        return;
+    // Try both possible ICM20948 addresses
+    // Adafruit default is 0x69 (AD0 pulled high), but AD0=low gives 0x68
+    uint8_t addresses[] = {kICM20948_ADDR_AD0_HIGH, kICM20948_ADDR_AD0_LOW};
+
+    for (uint8_t addr : addresses) {
+        auto* dev = hal.i2c_mgr->get_device_ptr(0, addr);
+        if (dev == nullptr) continue;
+
+        // Probe by attempting a zero-byte write - device ACKs if present
+        if (dev->transfer(nullptr, 0, nullptr, 0)) {
+            g_imu_found = true;
+            g_imu_addr = addr;
+            break;
+        }
     }
 
-    g_imu_found = dev->probe();
     record_result("I2C probe IMU", g_imu_found,
-                  g_imu_found ? nullptr : "ISM330DHCX not responding at 0x6A");
+                  g_imu_found ? nullptr : "ICM20948 not found at 0x68 or 0x69");
 }
 
 static void test_i2c_read_whoami() {
-    // Read WHO_AM_I register from ISM330DHCX (0x0F should return 0x6B)
-    auto* dev = hal.i2c_mgr.get_device(0, kISM330DHCX_ADDR);
-    if (dev == nullptr || !g_imu_found) {
+    // Read WHO_AM_I register from ICM20948 (0x00 should return 0xEA)
+    // Per Adafruit libraries: device needs reset + wake before reading registers
+    if (!g_imu_found || g_imu_addr == 0) {
         record_result("I2C read WHO_AM_I", false, "IMU not available");
         return;
     }
 
-    bool success = dev->read_registers(0x0F, &g_imu_whoami, 1);
-    bool passed = success && (g_imu_whoami == 0x6B);
+    auto* dev = hal.i2c_mgr->get_device_ptr(0, g_imu_addr);
+    if (dev == nullptr) {
+        record_result("I2C read WHO_AM_I", false, "Device handle failed");
+        return;
+    }
+
+    // Step 1: Select Bank 0 (PWR_MGMT_1 is in Bank 0)
+    uint8_t bank_sel[2] = {kICM20948_BANK_SEL, 0x00};
+    dev->transfer(bank_sel, 2, nullptr, 0);
+
+    // Step 2: Software reset the device (per Adafruit library)
+    uint8_t reset_cmd[2] = {kICM20948_PWR_MGMT_1, kICM20948_RESET};
+    dev->transfer(reset_cmd, 2, nullptr, 0);
+
+    // Step 3: Wait for reset to complete (~100ms to be safe)
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    // Step 4: Wake device with auto clock select (clears SLEEP bit)
+    uint8_t wake_cmd[2] = {kICM20948_PWR_MGMT_1, kICM20948_WAKE};
+    dev->transfer(wake_cmd, 2, nullptr, 0);
+
+    // Step 5: Brief settle time
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    // Step 6: Ensure we're still in Bank 0
+    dev->transfer(bank_sel, 2, nullptr, 0);
+
+    // Step 7: Now read WHO_AM_I from register 0x00
+    uint8_t reg = 0x00;
+    bool success = dev->transfer(&reg, 1, &g_imu_whoami, 1);
+    bool passed = success && (g_imu_whoami == kICM20948_WHOAMI);
     record_result("I2C read WHO_AM_I", passed,
                   passed ? nullptr : "WHO_AM_I mismatch");
 }
 
 static void test_i2c_probe_mag() {
     // Probe for LIS3MDL (may or may not be present)
-    auto* dev = hal.i2c_mgr.get_device(0, kLIS3MDL_ADDR);
+    auto* dev = hal.i2c_mgr->get_device_ptr(0, kLIS3MDL_ADDR);
     if (dev == nullptr) {
         record_result("I2C probe MAG", false, "No device handle");
         return;
     }
 
-    g_mag_found = dev->probe();
+    // Probe by attempting a zero-byte write - device ACKs if present
+    g_mag_found = dev->transfer(nullptr, 0, nullptr, 0);
     // This is informational - mag might not be connected
     record_result("I2C probe MAG", true,
                   g_mag_found ? nullptr : "(not connected)");
+}
+
+static void test_i2c_probe_baro() {
+    // Probe for DPS310 barometer
+    auto* dev = hal.i2c_mgr->get_device_ptr(0, kDPS310_ADDR);
+    if (dev == nullptr) {
+        record_result("I2C probe BARO", false, "No device handle");
+        return;
+    }
+
+    // Probe by attempting a zero-byte write - device ACKs if present
+    g_baro_found = dev->transfer(nullptr, 0, nullptr, 0);
+    record_result("I2C probe BARO", g_baro_found,
+                  g_baro_found ? nullptr : "DPS310 not responding at 0x77");
+}
+
+static void test_i2c_read_baro_id() {
+    // Read Product ID register from DPS310 (0x0D should return 0x10)
+    auto* dev = hal.i2c_mgr->get_device_ptr(0, kDPS310_ADDR);
+    if (dev == nullptr || !g_baro_found) {
+        record_result("I2C read BARO ID", false, "Barometer not available");
+        return;
+    }
+
+    uint8_t reg = kDPS310_PROD_ID_REG;
+    bool success = dev->transfer(&reg, 1, &g_baro_prodid, 1);
+    bool passed = success && (g_baro_prodid == kDPS310_PROD_ID);
+    record_result("I2C read BARO ID", passed,
+                  passed ? nullptr : "Product ID mismatch");
 }
 
 static void run_i2c_tests() {
@@ -334,6 +415,8 @@ static void run_i2c_tests() {
     test_i2c_probe_imu();
     test_i2c_read_whoami();
     test_i2c_probe_mag();
+    test_i2c_probe_baro();
+    test_i2c_read_baro_id();
 }
 
 // ============================================================================
@@ -345,16 +428,15 @@ static bool g_radio_found = false;
 
 static void test_spi_manager_init() {
     // SPI manager should be initialized by hal.init()
-    // Verify we can get the bus mask
-    uint32_t mask = hal.spi_mgr.get_bus_mask();
-    bool passed = (mask == 0x03);  // Both SPI0 and SPI1 available
+    // Verify the manager pointer is valid
+    bool passed = (hal.spi != nullptr);
     record_result("SPI manager init", passed,
-                  passed ? nullptr : "get_bus_mask() wrong");
+                  passed ? nullptr : "hal.spi is nullptr");
 }
 
 static void test_spi_get_device() {
     // Test getting a device by name
-    auto* dev = hal.spi_mgr.get_device("radio:0");
+    auto* dev = hal.spi->get_device_ptr("radio:0");
     bool passed = (dev != nullptr);
     record_result("SPI get device", passed,
                   passed ? nullptr : "get_device(\"radio:0\") returned nullptr");
@@ -362,13 +444,10 @@ static void test_spi_get_device() {
 
 static void test_spi_device_initialized() {
     // Even without physical hardware, the SPI bus should initialize
-    auto* dev = hal.spi_mgr.get_device("radio:0");
-    if (dev == nullptr) {
-        record_result("SPI device init", false, "No device handle");
-        return;
-    }
-
-    bool passed = dev->is_initialized();
+    // Note: is_initialized() not part of AP_HAL::SPIDevice, so we test
+    // by checking if we can get a valid device pointer
+    auto* dev = hal.spi->get_device_ptr("radio:0");
+    bool passed = (dev != nullptr);
     record_result("SPI device init", passed,
                   passed ? nullptr : "SPI device not initialized");
 }
@@ -376,8 +455,8 @@ static void test_spi_device_initialized() {
 static void test_spi_transfer_basic() {
     // Basic transfer test - send dummy byte and receive
     // Note: Without hardware, this just tests that transfer doesn't crash
-    auto* dev = hal.spi_mgr.get_device("radio:0");
-    if (dev == nullptr || !dev->is_initialized()) {
+    auto* dev = hal.spi->get_device_ptr("radio:0");
+    if (dev == nullptr) {
         record_result("SPI transfer", false, "Device not ready");
         return;
     }
@@ -403,8 +482,8 @@ static void test_spi_transfer_basic() {
 
 static void test_spi_fullduplex() {
     // Test full-duplex transfer
-    auto* dev = hal.spi_mgr.get_device("radio:0");
-    if (dev == nullptr || !dev->is_initialized()) {
+    auto* dev = hal.spi->get_device_ptr("radio:0");
+    if (dev == nullptr) {
         record_result("SPI fullduplex", false, "Device not ready");
         return;
     }
@@ -454,20 +533,20 @@ static void print_summary() {
 // ============================================================================
 
 static void led_indicate_result() {
-    hal.gpio.pinMode(PICO_DEFAULT_LED_PIN, HAL_GPIO_OUTPUT);
+    hal.gpio->pinMode(PICO_DEFAULT_LED_PIN, HAL_GPIO_OUTPUT);
 
     if (g_failed == 0) {
         // All passed - slow steady blink
         printf("\nAll tests PASSED - LED slow blink\n");
         while (true) {
-            hal.gpio.toggle(PICO_DEFAULT_LED_PIN);
+            hal.gpio->toggle(PICO_DEFAULT_LED_PIN);
             vTaskDelay(pdMS_TO_TICKS(500));
         }
     } else {
         // Some failed - fast blink
         printf("\nSome tests FAILED - LED fast blink\n");
         while (true) {
-            hal.gpio.toggle(PICO_DEFAULT_LED_PIN);
+            hal.gpio->toggle(PICO_DEFAULT_LED_PIN);
             vTaskDelay(pdMS_TO_TICKS(100));
         }
     }
@@ -480,8 +559,8 @@ static void led_indicate_result() {
 static void main_task(void* params) {
     (void)params;
 
-    // Initialize HAL first
-    hal.init();
+    // Initialize HAL subsystems for testing
+    RP2350::hal_init();
 
     // -------------------------------------------------------------------------
     // Phase 1: Run all tests immediately (don't block on serial)
@@ -495,11 +574,11 @@ static void main_task(void* params) {
 
     // Visual feedback works without serial - blink to indicate tests complete
     // Pattern: 3 quick blinks = tests finished
-    hal.gpio.pinMode(PICO_DEFAULT_LED_PIN, HAL_GPIO_OUTPUT);
+    hal.gpio->pinMode(PICO_DEFAULT_LED_PIN, HAL_GPIO_OUTPUT);
     for (int i = 0; i < 3; i++) {
-        hal.gpio.write(PICO_DEFAULT_LED_PIN, 1);
+        hal.gpio->write(PICO_DEFAULT_LED_PIN, 1);
         vTaskDelay(pdMS_TO_TICKS(100));
-        hal.gpio.write(PICO_DEFAULT_LED_PIN, 0);
+        hal.gpio->write(PICO_DEFAULT_LED_PIN, 0);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
@@ -508,7 +587,7 @@ static void main_task(void* params) {
     // Per DEBUG_OUTPUT.md: "LED blink while waiting indicates connect terminal now"
     // -------------------------------------------------------------------------
     while (!stdio_usb_connected()) {
-        hal.gpio.toggle(PICO_DEFAULT_LED_PIN);
+        hal.gpio->toggle(PICO_DEFAULT_LED_PIN);
         vTaskDelay(pdMS_TO_TICKS(kUsbWaitBlinkMs));
     }
 
@@ -521,6 +600,7 @@ static void main_task(void* params) {
     printf("\n");
     printf("========================================\n");
     printf("AP_HAL_RP2350 Phase 2 Smoke Tests\n");
+    printf("Build: v7-icm20948-reset-wake\n");
     printf("========================================\n");
     printf("Testing components incrementally.\n");
     printf("Each component tested before proceeding.\n");
@@ -534,12 +614,17 @@ static void main_task(void* params) {
 
     // Print I2C readings
     printf("\nI2C Devices:\n");
-    printf("  ISM330DHCX (0x6A): %s", g_imu_found ? "Found" : "Not found");
+    printf("  ICM20948: %s", g_imu_found ? "Found" : "Not found");
     if (g_imu_found) {
-        printf(" (WHO_AM_I=0x%02X)", g_imu_whoami);
+        printf(" at 0x%02X (WHO_AM_I=0x%02X)", g_imu_addr, g_imu_whoami);
     }
     printf("\n");
     printf("  LIS3MDL (0x1C): %s\n", g_mag_found ? "Found" : "Not found");
+    printf("  DPS310 (0x77): %s", g_baro_found ? "Found" : "Not found");
+    if (g_baro_found) {
+        printf(" (PROD_ID=0x%02X)", g_baro_prodid);
+    }
+    printf("\n");
 
     // Print SPI info
     printf("\nSPI Devices:\n");

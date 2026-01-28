@@ -149,10 +149,10 @@ static const char* status_to_string(CompassCalibrator::Status status) {
 // ============================================================================
 
 int main() {
-    // CRITICAL: Initialize HAL BEFORE stdio_init_all()
+    // CRITICAL: Initialize HAL subsystems BEFORE stdio_init_all()
     // Flash operations in storage.init() conflict with USB CDC if USB is already running
     // See REBUILD_CONTEXT.md for details on flash/USB interaction
-    hal.init();
+    RP2350::hal_init();
 
     // CRITICAL: Clear BASEPRI before USB init
     // FreeRTOS or HAL init may leave BASEPRI elevated (configMAX_SYSCALL_INTERRUPT_PRIORITY=16)

@@ -118,6 +118,40 @@ public:
      */
     void set_yaw(float yaw_rad);
 
+    /**
+     * @brief Reset gyro drift estimate
+     *
+     * Called after gyro calibration to reset accumulated drift.
+     * @note Stub implementation - does nothing in minimal AHRS
+     */
+    void reset_gyro_drift() { _gyro_bias.zero(); }
+
+    /**
+     * @brief Get attitude trim (level calibration offset)
+     * @return Vector3f with roll, pitch trim in radians
+     */
+    const Vector3f& get_trim() const { return _trim; }
+
+    /**
+     * @brief Set attitude trim (level calibration offset)
+     * @param trim Vector3f with roll, pitch, yaw trim in radians
+     */
+    void set_trim(const Vector3f& trim) { _trim = trim; }
+
+    /**
+     * @brief Reset AHRS state
+     *
+     * Called to reset attitude estimation to initial state.
+     * @note Stub implementation - resets angles to zero
+     */
+    void reset() {
+        _roll_rad = 0;
+        _pitch_rad = 0;
+        _yaw_rad = 0;
+        _dcm_matrix.identity();
+        _healthy = false;
+    }
+
     // Constructor (public for singleton pattern)
     AP_AHRS();
 
@@ -131,6 +165,9 @@ private:
 
     // Gyro integration
     Vector3f _gyro_bias;            // Gyro bias estimate (rad/s)
+
+    // Trim (level calibration offset)
+    Vector3f _trim;                 // Roll, pitch, yaw trim in radians
 
     // State flags
     bool _initialized;

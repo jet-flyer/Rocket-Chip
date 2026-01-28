@@ -367,9 +367,9 @@ int main() {
     g_statusLed->fill(rh::Colors::YELLOW);
     g_statusLed->show();
 
-    // CRITICAL: Initialize HAL BEFORE stdio_init_all()
+    // CRITICAL: Initialize HAL subsystems BEFORE stdio_init_all()
     // Flash operations in storage.init() conflict with USB CDC if USB is already running
-    hal.init();
+    RP2350::hal_init();
 
     // CRITICAL: Clear BASEPRI before USB init
     // FreeRTOS or HAL init may leave BASEPRI elevated (configMAX_SYSCALL_INTERRUPT_PRIORITY=16)

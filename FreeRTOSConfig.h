@@ -85,6 +85,7 @@
 #define INCLUDE_xTaskAbortDelay                 1
 #define INCLUDE_xTaskGetHandle                  1
 #define INCLUDE_xTaskResumeFromISR              1
+#define INCLUDE_xSemaphoreGetMutexHolder        1
 
 /* SMP-specific includes */
 #define INCLUDE_xTaskGetIdleTaskHandleForCore   1

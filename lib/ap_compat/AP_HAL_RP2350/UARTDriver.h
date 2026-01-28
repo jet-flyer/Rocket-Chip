@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <AP_HAL/UARTDriver.h>
+
 #include <cstdint>
 #include <cstddef>
 
@@ -53,17 +55,17 @@ static constexpr uint16_t kDefaultRxBufferSize = 256;
  * Usage:
  * @code
  * // USB CDC (port 0)
- * hal.serial[0]->begin(115200);
- * hal.serial[0]->printf("Hello from USB\n");
+ * hal.serial(0)->begin(115200);
+ * hal.serial(0)->printf("Hello from USB\n");
  *
  * // Hardware UART (port 1)
- * hal.serial[1]->begin(9600);  // GPS default baud
- * while (hal.serial[1]->available()) {
- *     char c = hal.serial[1]->read();
+ * hal.serial(1)->begin(9600);  // GPS default baud
+ * while (hal.serial(1)->available()) {
+ *     char c = hal.serial(1)->read();
  * }
  * @endcode
  */
-class UARTDriver_RP2350 {
+class UARTDriver_RP2350 : public AP_HAL::UARTDriver {
 public:
     /**
      * @brief Port type selection
@@ -87,147 +89,96 @@ public:
      */
     ~UARTDriver_RP2350();
 
-    // Prevent copying
-    UARTDriver_RP2350(const UARTDriver_RP2350&) = delete;
-    UARTDriver_RP2350& operator=(const UARTDriver_RP2350&) = delete;
-
     // ========================================================================
-    // Initialization
+    // Public Virtual Methods (from AP_HAL::UARTDriver)
     // ========================================================================
-
-    /**
-     * @brief Initialize UART with specified baud rate
-     * @param baud Baud rate (ignored for USB CDC)
-     */
-    void begin(uint32_t baud);
-
-    /**
-     * @brief Initialize with buffer size hints
-     * @param baud Baud rate
-     * @param rxSpace RX buffer size (hint, may be ignored)
-     * @param txSpace TX buffer size (hint, may be ignored)
-     */
-    void begin(uint32_t baud, uint16_t rxSpace, uint16_t txSpace);
-
-    /**
-     * @brief Shutdown UART
-     */
-    void end();
 
     /**
      * @brief Check if initialized
      * @return true if begin() was called successfully
      */
-    bool is_initialized() const { return m_initialized; }
-
-    // ========================================================================
-    // Read Operations
-    // ========================================================================
-
-    /**
-     * @brief Check available bytes to read
-     * @return Number of bytes available (may be approximate for USB CDC)
-     */
-    uint32_t available();
-
-    /**
-     * @brief Read single byte
-     * @return Byte read (0-255), or -1 if none available
-     */
-    int16_t read();
-
-    /**
-     * @brief Read single byte
-     * @param b Reference to store byte
-     * @return true if byte was read
-     */
-    bool read(uint8_t& b);
-
-    /**
-     * @brief Read multiple bytes
-     * @param buffer Output buffer
-     * @param count Maximum bytes to read
-     * @return Number of bytes read, or -1 on error
-     */
-    int32_t read(uint8_t* buffer, uint16_t count);
-
-    /**
-     * @brief Discard all pending input
-     * @return true if successful
-     */
-    bool discard_input();
-
-    // ========================================================================
-    // Write Operations
-    // ========================================================================
-
-    /**
-     * @brief Write single byte
-     * @param c Byte to write
-     * @return 1 if written, 0 if failed
-     */
-    size_t write(uint8_t c);
-
-    /**
-     * @brief Write multiple bytes
-     * @param buffer Data to write
-     * @param size Number of bytes
-     * @return Number of bytes written
-     */
-    size_t write(const uint8_t* buffer, size_t size);
-
-    /**
-     * @brief Write null-terminated string
-     * @param str String to write
-     * @return Number of bytes written
-     */
-    size_t write(const char* str);
-
-    /**
-     * @brief Printf-style formatted output
-     * @param fmt Format string
-     * @return Number of bytes written
-     */
-    void printf(const char* fmt, ...);
-
-    /**
-     * @brief Check TX buffer space available
-     * @return Bytes available in TX buffer
-     */
-    uint32_t txspace();
+    bool is_initialized() override { return m_initialized; }
 
     /**
      * @brief Check if TX data is pending
      * @return true if TX buffer has unsent data
      */
-    bool tx_pending();
+    bool tx_pending() override;
 
     /**
-     * @brief Flush TX buffer (wait for all data to be sent)
+     * @brief Check TX buffer space available
+     * @return Bytes available in TX buffer
      */
-    void flush();
-
-    // ========================================================================
-    // Configuration
-    // ========================================================================
+    uint32_t txspace() override;
 
     /**
      * @brief Get current baud rate
      * @return Baud rate (0 for USB CDC)
      */
-    uint32_t get_baud_rate() const { return m_baud; }
+    uint32_t get_baud_rate() const override { return m_baud; }
 
     /**
      * @brief Set parity mode
      * @param v Parity: 0=none, 1=odd, 2=even
      */
-    void configure_parity(uint8_t v);
+    void configure_parity(uint8_t v) override;
 
     /**
      * @brief Set stop bits
      * @param n Number of stop bits (1 or 2)
      */
-    void set_stop_bits(int n);
+    void set_stop_bits(int n) override;
+
+protected:
+    // ========================================================================
+    // Protected Virtual Methods (backend implementations)
+    // ========================================================================
+
+    /**
+     * @brief Backend begin - initialize UART
+     * @param baud Baud rate (ignored for USB CDC)
+     * @param rxSpace RX buffer size hint
+     * @param txSpace TX buffer size hint
+     */
+    void _begin(uint32_t baud, uint16_t rxSpace, uint16_t txSpace) override;
+
+    /**
+     * @brief Backend write - write data to port
+     * @param buffer Data to write
+     * @param size Number of bytes
+     * @return Number of bytes written
+     */
+    size_t _write(const uint8_t *buffer, size_t size) override;
+
+    /**
+     * @brief Backend read - read data from port
+     * @param buffer Output buffer
+     * @param count Maximum bytes to read
+     * @return Number of bytes read, or -1 on error
+     */
+    ssize_t _read(uint8_t *buffer, uint16_t count) override;
+
+    /**
+     * @brief Backend end - shutdown UART
+     */
+    void _end() override;
+
+    /**
+     * @brief Backend flush - wait for TX to complete
+     */
+    void _flush() override;
+
+    /**
+     * @brief Backend available - check bytes available
+     * @return Number of bytes available to read
+     */
+    uint32_t _available() override;
+
+    /**
+     * @brief Backend discard input - clear RX buffer
+     * @return true if successful
+     */
+    bool _discard_input() override;
 
 private:
     PortType m_type;

@@ -8,7 +8,8 @@
  * #include <AP_HAL_RP2350/AP_HAL_RP2350.h>
  *
  * void app_main() {
- *     hal.init();
+ *     // Initialize HAL for testing (use hal.run() for applications)
+ *     RP2350::hal_init();
  *
  *     // Use timing
  *     uint32_t now = AP_HAL::millis();
@@ -19,8 +20,8 @@
  *     // ... protected code ...
  *     mutex.give();
  *
- *     // Get system info
- *     printf("Free mem: %lu\n", hal.util.available_memory());
+ *     // Get system info via pointer access
+ *     printf("Free mem: %lu\n", hal.util->available_memory());
  * }
  * @endcode
  *

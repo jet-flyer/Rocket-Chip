@@ -46,7 +46,7 @@ static void store_result(const char* name, bool passed, const char* msg) {
 // ============================================================================
 
 static bool test_storage_health() {
-    bool healthy = hal.storage.healthy();
+    bool healthy = hal.storage->healthy();
     store_result("Storage Health", healthy,
                  healthy ? "Storage subsystem healthy" : "Storage NOT healthy");
     return healthy;
@@ -57,8 +57,8 @@ static bool test_storage_read_write() {
     uint8_t test_data[4] = {0xDE, 0xAD, 0xBE, 0xEF};
     uint8_t read_buf[4] = {0};
 
-    hal.storage.write_block(0, test_data, sizeof(test_data));
-    hal.storage.read_block(read_buf, 0, sizeof(read_buf));
+    hal.storage->write_block(0, test_data, sizeof(test_data));
+    hal.storage->read_block(read_buf, 0, sizeof(read_buf));
 
     bool match = (memcmp(test_data, read_buf, sizeof(test_data)) == 0);
     store_result("Storage R/W", match,
@@ -76,8 +76,8 @@ static void test_task(void* params) {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-    // Initialize HAL (required before tests)
-    hal.init();
+    // Initialize HAL subsystems for testing
+    RP2350::hal_init();
 
     // Run tests - results stored, not printed
     int passed = 0;

@@ -158,6 +158,7 @@ constexpr uint8_t PA1010D           = 0x10;     // GPS module
 #define HAL_HAVE_BOARD_VOLTAGE      0
 #define HAL_HAVE_SERVO_VOLTAGE      0
 #define HAL_WITH_IO_MCU             0
+#define HAL_WITH_MCU_MONITORING     1   // RP2350 has internal temperature sensor
 #define HAL_WITH_DRONECAN           0
 #define HAL_MAX_CAN_PROTOCOL_DRIVERS 0
 

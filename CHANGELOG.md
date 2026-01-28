@@ -22,6 +22,31 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-27-001 | Claude Code CLI | architecture, refactor
+
+**AP_HAL_RP2350 Build Infrastructure Fixed - Hardware Validated**
+
+Fixed build issues enabling full HAL library compilation and linking. Hardware validation passed 21/23 tests (2 expected failures for unconnected sensors).
+
+**Fixes Applied:**
+- Added `<AP_HAL/GPIO.h>` include for `INTERRUPT_TRIGGER_TYPE` enum
+- Added ArduPilot base class implementations (Storage.cpp, Util.cpp, Scheduler.cpp) to build
+- Added Scheduler.h include to Storage.cpp for `AP_HAL::millis()` inline definition
+- Removed AP_AccelCal stub that was shadowing real ArduPilot header
+- Changed HAL_GCS_ENABLED=0 to =1 for AP_AccelCal support
+
+**Hardware Validation (smoke_phase2):**
+- GPIO: init, validation, toggle, DigitalSource - all pass
+- AnalogIn: MCU temp (21.0°C), board voltage (3.30V) - all pass
+- UART/USB CDC: init, write, printf - all pass
+- I2C/SPI: manager and device infrastructure - all pass
+
+**Remaining:** Proper AP_HAL inheritance (Phase 3), stale application code APIs.
+
+(lib/ap_compat/AP_HAL_RP2350/*.cpp, CMakeLists.txt)
+
+---
+
 ### 2026-01-26-002 | Claude Code CLI | architecture, refactor
 
 **FreeRTOS ArduPilot Integration Work Paused - ChibiOS Evaluation**

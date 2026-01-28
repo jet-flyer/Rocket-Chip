@@ -16,10 +16,17 @@
 #include <cstdarg>
 #include <cstdio>
 
+
 // MAVLink configuration - must be set before including MAVLink headers
 // Note: We don't use MAVLINK_USE_CONVENIENCE_FUNCTIONS because it requires
 // a global mavlink_system variable. Instead, we use explicit pack functions
 // like mavlink_msg_statustext_pack() which don't need it.
+
+// MAVLINK_CRC_EXTRA must be defined before including MAVLink - required for
+// consistent function signatures in mavlink_finalize_message_buffer
+#ifndef MAVLINK_CRC_EXTRA
+#define MAVLINK_CRC_EXTRA 1
+#endif
 
 // Include MAVLink common dialect
 #include <mavlink/common/mavlink.h>
@@ -121,6 +128,22 @@ public:
      */
     void update();
 
+    /**
+     * @brief Send parameter value to GCS
+     * Used by AP_Param when parameters change
+     * @note Stub - does nothing for now
+     */
+    template<typename T>
+    void send_parameter_value(const char* name, T type, float value) {
+        (void)name; (void)type; (void)value;
+    }
+
+    /**
+     * @brief Check if parameter setting is allowed
+     * @return true (always allow for RocketChip)
+     */
+    bool get_allow_param_set() const { return true; }
+
     // Constructor (public for singleton pattern)
     GCS();
 
@@ -149,7 +172,10 @@ private:
  */
 void gcs_send_statustext(MAV_SEVERITY severity, const char* fmt, ...);
 
-// Convenience accessor
+// Convenience accessor (ArduPilot convention)
 namespace AP {
     GCS& gcs();
 }
+
+// Global accessor (used by AP_Param macros)
+inline GCS& gcs() { return AP::gcs(); }

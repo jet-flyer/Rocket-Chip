@@ -39,11 +39,11 @@ public:
 
     static AP_Notify* get_singleton() { return _singleton; }
 
-    // Get flags reference
-    notify_flags_type flags;
-
     void init() {}
     void update() {}
+
+    // Static flags (ArduPilot code accesses AP_Notify::flags directly)
+    static notify_flags_type flags;
 
     // Singleton instance
     static AP_Notify* _singleton;

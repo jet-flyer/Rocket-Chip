@@ -69,10 +69,10 @@ add_compile_definitions(
     HAL_MAX_CAN_PROTOCOL_DRIVERS=0
     HAL_HAVE_IMU_HEATER=0
     HAL_WITH_EKF_DOUBLE=0
-    # Param system disabled - use stub
-    AP_PARAM_ENABLED=0
-    # GCS disabled for now
-    HAL_GCS_ENABLED=0
+    # Param system enabled - use real AP_Param
+    AP_PARAM_ENABLED=1
+    # GCS enabled for AP_AccelCal and status messages
+    HAL_GCS_ENABLED=1
 )
 
 # ============================================================================
@@ -191,19 +191,32 @@ target_include_directories(ap_flash_storage PUBLIC
 
 target_link_libraries(ap_flash_storage PUBLIC
     pico_stdlib
+    FreeRTOS-Kernel  # Needed because board/empty.h includes Semaphores.h
 )
 
 add_library(ap_hal_rp2350 STATIC
-    lib/ap_compat/AP_HAL_RP2350/Scheduler.cpp
+    # RP2350 HAL implementations
     lib/ap_compat/AP_HAL_RP2350/Semaphores.cpp
-    lib/ap_compat/AP_HAL_RP2350/Util.cpp
     lib/ap_compat/AP_HAL_RP2350/Storage.cpp
+    lib/ap_compat/AP_HAL_RP2350/Scheduler.cpp
+    lib/ap_compat/AP_HAL_RP2350/Util.cpp
     lib/ap_compat/AP_HAL_RP2350/HAL_RP2350_Class.cpp
     lib/ap_compat/AP_HAL_RP2350/GPIO.cpp
     lib/ap_compat/AP_HAL_RP2350/AnalogIn.cpp
     lib/ap_compat/AP_HAL_RP2350/UARTDriver.cpp
     lib/ap_compat/AP_HAL_RP2350/I2CDevice.cpp
     lib/ap_compat/AP_HAL_RP2350/SPIDevice.cpp
+    lib/ap_compat/AP_HAL_RP2350/system.cpp
+    # ArduPilot AP_HAL base class implementations
+    lib/ardupilot/libraries/AP_HAL/Storage.cpp
+    lib/ardupilot/libraries/AP_HAL/Util.cpp
+    lib/ardupilot/libraries/AP_HAL/Scheduler.cpp
+    lib/ardupilot/libraries/AP_HAL/system.cpp
+    lib/ardupilot/libraries/AP_HAL/UARTDriver.cpp
+    lib/ardupilot/libraries/AP_HAL/utility/BetterStream.cpp
+    lib/ardupilot/libraries/AP_HAL/utility/print_vprintf.cpp
+    lib/ardupilot/libraries/AP_HAL/utility/utoa_invert.cpp
+    lib/ardupilot/libraries/AP_HAL/utility/ftoa_engine.cpp
 )
 
 target_include_directories(ap_hal_rp2350 PUBLIC
@@ -222,6 +235,7 @@ endif()
 
 target_link_libraries(ap_hal_rp2350 PUBLIC
     ap_flash_storage
+    ap_compat           # AP_InternalError, AP_Notify stubs
     hal                 # For RocketChip UART/I2C/SPI wrappers
     pico_stdlib
     pico_unique_id
@@ -243,12 +257,14 @@ target_link_libraries(ap_hal_rp2350 PUBLIC
 
 add_library(ap_compat STATIC
     lib/ap_compat/AP_InternalError/AP_InternalError.cpp
+    lib/ap_compat/AP_Notify/AP_Notify.cpp
 )
 
 target_include_directories(ap_compat PUBLIC
     ${CMAKE_SOURCE_DIR}/lib/ap_compat
     ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
     ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${CMAKE_SOURCE_DIR}/lib  # For mavlink/common/mavlink.h
     ${CMAKE_SOURCE_DIR}/src/hal
     ${ROCKETCHIP_INCLUDE_DIR}
 )
@@ -306,8 +322,8 @@ target_link_libraries(ap_math PUBLIC
 )
 
 target_compile_definitions(ap_math PUBLIC
-    AP_PARAM_ENABLED=0
-    HAL_GCS_ENABLED=0
+    AP_PARAM_ENABLED=1
+    HAL_GCS_ENABLED=1
     HAL_WITH_EKF_DOUBLE=0
 )
 
@@ -370,8 +386,7 @@ add_library(ap_gcs STATIC
 target_include_directories(ap_gcs PUBLIC
     ${CMAKE_SOURCE_DIR}/lib/ap_compat
     ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
-    ${CMAKE_SOURCE_DIR}/lib/mavlink
-    ${CMAKE_SOURCE_DIR}/lib/mavlink/common
+    ${CMAKE_SOURCE_DIR}/lib  # For mavlink/common/mavlink.h
     ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
     ${CMAKE_SOURCE_DIR}/src/hal
     ${ROCKETCHIP_INCLUDE_DIR}
@@ -409,8 +424,7 @@ target_include_directories(ap_calibrators PUBLIC
     ${CMAKE_SOURCE_DIR}/lib/ap_compat
     ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
     ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
-    ${CMAKE_SOURCE_DIR}/lib/mavlink
-    ${CMAKE_SOURCE_DIR}/lib/mavlink/common
+    ${CMAKE_SOURCE_DIR}/lib  # For mavlink/common/mavlink.h
     ${CMAKE_SOURCE_DIR}/src/hal
     ${CMAKE_SOURCE_DIR}/src/calibration
     ${ROCKETCHIP_INCLUDE_DIR}
@@ -425,14 +439,14 @@ target_link_libraries(ap_calibrators PUBLIC
 )
 
 # ============================================================================
-# ArduPilot Parameter System (Stub - disabled for RocketChip)
+# ArduPilot StorageManager (required by AP_Param)
 # ============================================================================
-# Full AP_Param requires deep HAL integration. We provide headers-only stub
-# and disable param functionality in sensor libraries.
 
-add_library(ap_param INTERFACE)
+add_library(ap_storage_manager STATIC
+    lib/ardupilot/libraries/StorageManager/StorageManager.cpp
+)
 
-target_include_directories(ap_param INTERFACE
+target_include_directories(ap_storage_manager PUBLIC
     ${CMAKE_SOURCE_DIR}/lib/ap_compat
     ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
     ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
@@ -440,68 +454,99 @@ target_include_directories(ap_param INTERFACE
     ${ROCKETCHIP_INCLUDE_DIR}
 )
 
-target_compile_definitions(ap_param INTERFACE
-    AP_PARAM_ENABLED=0
+target_compile_definitions(ap_storage_manager PUBLIC
+    AP_PARAM_ENABLED=1
 )
 
-target_link_libraries(ap_param INTERFACE
+target_link_libraries(ap_storage_manager PUBLIC
+    ap_hal_rp2350
+)
+
+# ============================================================================
+# ArduPilot Parameter System (Real implementation)
+# ============================================================================
+
+add_library(ap_param STATIC
+    lib/ardupilot/libraries/AP_Param/AP_Param.cpp
+    lib/ardupilot/libraries/AP_Param/AP_ParamT.cpp
+)
+
+target_include_directories(ap_param PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${CMAKE_SOURCE_DIR}/src/hal
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+target_compile_definitions(ap_param PUBLIC
+    AP_PARAM_ENABLED=1
+)
+
+target_link_libraries(ap_param PUBLIC
     ap_math
+    ap_storage_manager
+    ap_hal_rp2350
 )
 
 # ============================================================================
 # ArduPilot Serial Manager
 # ============================================================================
-
-add_library(ap_serial_manager STATIC
-    lib/ardupilot/libraries/AP_SerialManager/AP_SerialManager.cpp
-)
-
-target_include_directories(ap_serial_manager PUBLIC
-    ${CMAKE_SOURCE_DIR}/lib/ap_compat
-    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
-    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
-    ${CMAKE_SOURCE_DIR}/src/hal
-    ${ROCKETCHIP_INCLUDE_DIR}
-)
-
-if(CONFIG_DEBUG)
-    target_compile_definitions(ap_serial_manager PUBLIC CONFIG_DEBUG)
-endif()
-
-target_link_libraries(ap_serial_manager PUBLIC
-    ap_param
-    ap_hal_rp2350
-    pico_stdlib
-)
+# DISABLED: AP_SerialManager not in sparse checkout
+# TODO: Add to sparse checkout when needed
+#
+# add_library(ap_serial_manager STATIC
+#     lib/ardupilot/libraries/AP_SerialManager/AP_SerialManager.cpp
+# )
+#
+# target_include_directories(ap_serial_manager PUBLIC
+#     ${CMAKE_SOURCE_DIR}/lib/ap_compat
+#     ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+#     ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+#     ${CMAKE_SOURCE_DIR}/src/hal
+#     ${ROCKETCHIP_INCLUDE_DIR}
+# )
+#
+# if(CONFIG_DEBUG)
+#     target_compile_definitions(ap_serial_manager PUBLIC CONFIG_DEBUG)
+# endif()
+#
+# target_link_libraries(ap_serial_manager PUBLIC
+#     ap_param
+#     ap_hal_rp2350
+#     pico_stdlib
+# )
 
 # ============================================================================
 # ArduPilot Logger (minimal for AP_InertialSensor dependency)
 # ============================================================================
-
-add_library(ap_logger STATIC
-    lib/ardupilot/libraries/AP_Logger/AP_Logger.cpp
-    lib/ardupilot/libraries/AP_Logger/AP_Logger_Backend.cpp
-    lib/ardupilot/libraries/AP_Logger/LogFile.cpp
-    lib/ardupilot/libraries/AP_Logger/LoggerMessageWriter.cpp
-)
-
-target_include_directories(ap_logger PUBLIC
-    ${CMAKE_SOURCE_DIR}/lib/ap_compat
-    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
-    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
-    ${CMAKE_SOURCE_DIR}/src/hal
-    ${ROCKETCHIP_INCLUDE_DIR}
-)
-
-if(CONFIG_DEBUG)
-    target_compile_definitions(ap_logger PUBLIC CONFIG_DEBUG)
-endif()
-
-target_link_libraries(ap_logger PUBLIC
-    ap_param
-    ap_hal_rp2350
-    pico_stdlib
-)
+# DISABLED: AP_Logger not in sparse checkout
+# TODO: Add to sparse checkout when needed
+#
+# add_library(ap_logger STATIC
+#     lib/ardupilot/libraries/AP_Logger/AP_Logger.cpp
+#     lib/ardupilot/libraries/AP_Logger/AP_Logger_Backend.cpp
+#     lib/ardupilot/libraries/AP_Logger/LogFile.cpp
+#     lib/ardupilot/libraries/AP_Logger/LoggerMessageWriter.cpp
+# )
+#
+# target_include_directories(ap_logger PUBLIC
+#     ${CMAKE_SOURCE_DIR}/lib/ap_compat
+#     ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+#     ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+#     ${CMAKE_SOURCE_DIR}/src/hal
+#     ${ROCKETCHIP_INCLUDE_DIR}
+# )
+#
+# if(CONFIG_DEBUG)
+#     target_compile_definitions(ap_logger PUBLIC CONFIG_DEBUG)
+# endif()
+#
+# target_link_libraries(ap_logger PUBLIC
+#     ap_param
+#     ap_hal_rp2350
+#     pico_stdlib
+# )
 
 # ============================================================================
 # ArduPilot Inertial Sensor (Full library with ICM-20948 support)
@@ -533,6 +578,7 @@ target_include_directories(ap_inertial_sensor PUBLIC
 # Enable only ICM-20948 backend, disable others
 target_compile_definitions(ap_inertial_sensor PUBLIC
     AP_INERTIALSENSOR_ENABLED=1
+    HAL_GCS_ENABLED=1  # Required for AP_AccelCal
     HAL_INS_DEFAULT=HAL_INS_INVENSENSEV2_I2C
     AP_INERTIALSENSOR_INVENSENSEV2_ENABLED=1
     # Disable unused backends
@@ -558,7 +604,7 @@ endif()
 target_link_libraries(ap_inertial_sensor PUBLIC
     ap_param
     ap_calibrators
-    ap_logger
+    # ap_logger  # Disabled - not yet implemented
     ap_hal_rp2350
     pico_stdlib
 )
@@ -1020,16 +1066,17 @@ pico_add_extra_outputs(smoke_phase2)
 # ============================================================================
 # Minimal Blink Test (no FreeRTOS - for debugging boot issues)
 # ============================================================================
-
-add_executable(minimal_blink
-    tests/smoke_tests/minimal_blink.cpp
-)
-
-target_link_libraries(minimal_blink
-    pico_stdlib
-)
-
-pico_add_extra_outputs(minimal_blink)
+# DISABLED: Test file does not exist
+#
+# add_executable(minimal_blink
+#     tests/smoke_tests/minimal_blink.cpp
+# )
+#
+# target_link_libraries(minimal_blink
+#     pico_stdlib
+# )
+#
+# pico_add_extra_outputs(minimal_blink)
 
 # Flash Test - minimal test to verify flash operations work
 add_executable(flash_test
@@ -1045,31 +1092,35 @@ target_link_libraries(flash_test
 pico_add_extra_outputs(flash_test)
 
 # FreeRTOS Static Allocation Test - minimal test without AP_HAL
-add_executable(freertos_static_test
-    tests/smoke_tests/freertos_static_test.cpp
-)
-
-target_link_libraries(freertos_static_test
-    pico_stdlib
-    FreeRTOS-Kernel
-    FreeRTOS-Kernel-Heap4
-)
-
-pico_add_extra_outputs(freertos_static_test)
+# DISABLED: Test file does not exist
+#
+# add_executable(freertos_static_test
+#     tests/smoke_tests/freertos_static_test.cpp
+# )
+#
+# target_link_libraries(freertos_static_test
+#     pico_stdlib
+#     FreeRTOS-Kernel
+#     FreeRTOS-Kernel-Heap4
+# )
+#
+# pico_add_extra_outputs(freertos_static_test)
 
 # FreeRTOS with AP_HAL include (but no HAL usage) - tests global object
-add_executable(freertos_with_hal_include
-    tests/smoke_tests/freertos_with_hal_include.cpp
-)
-
-target_link_libraries(freertos_with_hal_include
-    pico_stdlib
-    FreeRTOS-Kernel
-    FreeRTOS-Kernel-Heap4
-    ap_hal_rp2350
-)
-
-pico_enable_stdio_usb(freertos_with_hal_include 1)
-pico_enable_stdio_uart(freertos_with_hal_include 0)
-
-pico_add_extra_outputs(freertos_with_hal_include)
+# DISABLED: Test file does not exist
+#
+# add_executable(freertos_with_hal_include
+#     tests/smoke_tests/freertos_with_hal_include.cpp
+# )
+#
+# target_link_libraries(freertos_with_hal_include
+#     pico_stdlib
+#     FreeRTOS-Kernel
+#     FreeRTOS-Kernel-Heap4
+#     ap_hal_rp2350
+# )
+#
+# pico_enable_stdio_usb(freertos_with_hal_include 1)
+# pico_enable_stdio_uart(freertos_with_hal_include 0)
+#
+# pico_add_extra_outputs(freertos_with_hal_include)

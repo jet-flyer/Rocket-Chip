@@ -24,8 +24,8 @@ static void test_task(void* params) {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-    // Initialize HAL
-    hal.init();
+    // Initialize HAL subsystems for testing
+    RP2350::hal_init();
 
     // Success - slow blink (500ms on/off)
     while (true) {

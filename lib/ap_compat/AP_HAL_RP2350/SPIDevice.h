@@ -19,6 +19,10 @@
 #pragma once
 
 #include <cstdint>
+
+// AP_HAL base classes
+#include <AP_HAL/SPIDevice.h>
+
 #include "Semaphores.h"
 
 // Forward declare to avoid header conflicts
@@ -51,18 +55,6 @@ static constexpr uint32_t kLowSpeedSPIClockHz = 1000000;  // 1MHz
 
 /** High speed SPI clock */
 static constexpr uint32_t kHighSpeedSPIClockHz = 10000000;  // 10MHz
-
-// ============================================================================
-// Device Speed Enumeration
-// ============================================================================
-
-/**
- * @brief SPI speed setting
- */
-enum class SPISpeed : uint8_t {
-    LOW = 0,
-    HIGH = 1
-};
 
 // ============================================================================
 // SPI Device Descriptor
@@ -106,7 +98,9 @@ struct SPIDeviceDesc {
  * }
  * @endcode
  */
-class SPIDevice_RP2350 {
+class SPIDevice_RP2350 : public AP_HAL::SPIDevice {
+    friend class SPIDeviceManager_RP2350;  // Allows manager to set semaphore
+
 public:
     /**
      * @brief Construct SPI device from descriptor
@@ -121,7 +115,7 @@ public:
     SPIDevice_RP2350& operator=(const SPIDevice_RP2350&) = delete;
 
     // ========================================================================
-    // Core Transfer (Polling-only per PD8)
+    // AP_HAL::Device Interface (Polling-only per PD8)
     // ========================================================================
 
     /**
@@ -136,7 +130,7 @@ public:
      * @return true on success
      */
     bool transfer(const uint8_t* send, uint32_t send_len,
-                  uint8_t* recv, uint32_t recv_len);
+                  uint8_t* recv, uint32_t recv_len) override;
 
     /**
      * @brief Perform full-duplex SPI transfer
@@ -148,7 +142,7 @@ public:
      * @param len Number of bytes to transfer
      * @return true on success
      */
-    bool transfer_fullduplex(const uint8_t* send, uint8_t* recv, uint32_t len);
+    bool transfer_fullduplex(const uint8_t* send, uint8_t* recv, uint32_t len) override;
 
     /**
      * @brief Send clock pulses without asserting CS
@@ -158,7 +152,49 @@ public:
      * @param len Number of bytes worth of clocks
      * @return true on success
      */
-    bool clock_pulse(uint32_t len);
+    bool clock_pulse(uint32_t len) override;
+
+    // ========================================================================
+    // Thread Safety
+    // ========================================================================
+
+    /**
+     * @brief Get bus semaphore for external locking
+     * @return Pointer to semaphore
+     */
+    AP_HAL::Semaphore* get_semaphore() override;
+
+    // ========================================================================
+    // Periodic Callbacks
+    // ========================================================================
+
+    /**
+     * @brief Register periodic callback
+     * @param period_usec Callback period in microseconds
+     * @param cb Callback function
+     * @return Handle for cancellation, or nullptr on failure
+     */
+    PeriodicHandle register_periodic_callback(uint32_t period_usec, PeriodicCb cb) override;
+
+    // ========================================================================
+    // Configuration
+    // ========================================================================
+
+    /**
+     * @brief Set SPI speed
+     * @param speed SPEED_HIGH or SPEED_LOW
+     * @return true if set successfully
+     */
+    bool set_speed(Speed speed) override;
+
+    /**
+     * @brief Set bus slowdown factor
+     *
+     * Divides clock by this factor for debugging.
+     *
+     * @param slowdown Division factor
+     */
+    void set_slowdown(uint8_t slowdown) override;
 
     // ========================================================================
     // Device Info
@@ -170,44 +206,9 @@ public:
     const char* get_name() const { return m_name; }
 
     /**
-     * @brief Get bus number
-     */
-    uint8_t bus_num() const { return m_bus; }
-
-    /**
      * @brief Check if device is initialized
      */
     bool is_initialized() const { return m_initialized; }
-
-    // ========================================================================
-    // Thread Safety
-    // ========================================================================
-
-    /**
-     * @brief Get bus semaphore for external locking
-     * @return Pointer to semaphore
-     */
-    Semaphore* get_semaphore();
-
-    // ========================================================================
-    // Configuration
-    // ========================================================================
-
-    /**
-     * @brief Set SPI speed
-     * @param speed LOW or HIGH speed setting
-     * @return true if set successfully
-     */
-    bool set_speed(SPISpeed speed);
-
-    /**
-     * @brief Set bus slowdown factor
-     *
-     * Divides clock by this factor for debugging.
-     *
-     * @param slowdown Division factor
-     */
-    void set_slowdown(uint8_t slowdown);
 
 private:
     char m_name[kMaxDeviceNameLen];
@@ -219,6 +220,7 @@ private:
     uint8_t m_slowdown;
 
     rocketchip::hal::SPIBus* m_spi_bus;
+    Semaphore* m_semaphore;
     bool m_initialized;
 };
 
@@ -237,7 +239,7 @@ private:
  * - "flash:0" - External flash on SPI0 (if present)
  * - "imu:0" - IMU on SPI0 (if using SPI instead of I2C)
  */
-class SPIDeviceManager_RP2350 {
+class SPIDeviceManager_RP2350 : public AP_HAL::SPIDeviceManager {
 public:
     SPIDeviceManager_RP2350();
     ~SPIDeviceManager_RP2350();
@@ -252,25 +254,32 @@ public:
      * @param name Device name (e.g., "radio:0")
      * @return Pointer to device, or nullptr if not found
      */
-    SPIDevice_RP2350* get_device(const char* name);
+    AP_HAL::SPIDevice* get_device_ptr(const char* name) override;
 
     /**
      * @brief Get number of registered devices
      */
-    uint8_t get_count() const { return m_device_count; }
+    uint8_t get_count() override { return m_device_count; }
 
     /**
      * @brief Get device name at index
      * @param idx Device index
      * @return Device name, or nullptr if invalid
      */
-    const char* get_device_name(uint8_t idx) const;
+    const char* get_device_name(uint8_t idx) override;
 
     /**
      * @brief Get mask of available buses
      * @return Bitmask (bit 0 = bus 0, bit 1 = bus 1)
      */
     uint32_t get_bus_mask() const { return 0x03; }
+
+    /**
+     * @brief Get bus semaphore
+     * @param bus Bus number
+     * @return Pointer to semaphore, or nullptr if invalid bus
+     */
+    Semaphore* get_bus_semaphore(uint8_t bus);
 
 private:
     // Device table (built-in known devices)

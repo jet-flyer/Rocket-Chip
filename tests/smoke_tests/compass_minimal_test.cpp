@@ -23,8 +23,8 @@ static constexpr float kOffsetTolerance = 5.0f;
 static constexpr float kMaxFitness = 5.0f;
 
 int main() {
-    // CRITICAL: Initialize HAL BEFORE stdio_init_all()
-    hal.init();
+    // CRITICAL: Initialize HAL subsystems BEFORE stdio_init_all()
+    RP2350::hal_init();
 
     // CRITICAL: Clear BASEPRI before USB init
     __asm volatile ("mov r0, #0\nmsr basepri, r0" ::: "r0");

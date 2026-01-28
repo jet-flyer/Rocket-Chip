@@ -19,6 +19,10 @@
 #pragma once
 
 #include <cstdint>
+
+// AP_HAL base classes
+#include <AP_HAL/I2CDevice.h>
+
 #include "Semaphores.h"
 
 // Forward declare to avoid header conflicts
@@ -68,7 +72,9 @@ static constexpr uint32_t kDefaultClockHz = 400000;
  * }
  * @endcode
  */
-class I2CDevice_RP2350 {
+class I2CDevice_RP2350 : public AP_HAL::I2CDevice {
+    friend class I2CDeviceManager_RP2350;  // Allows manager to set semaphore
+
 public:
     /**
      * @brief Construct I2C device
@@ -88,7 +94,7 @@ public:
     I2CDevice_RP2350& operator=(const I2CDevice_RP2350&) = delete;
 
     // ========================================================================
-    // Core Transfer
+    // AP_HAL::Device Interface
     // ========================================================================
 
     /**
@@ -100,24 +106,7 @@ public:
      * @return true on success
      */
     bool transfer(const uint8_t* send, uint32_t send_len,
-                  uint8_t* recv, uint32_t recv_len);
-
-    /**
-     * @brief Read registers starting at first_reg
-     * @param first_reg Starting register address
-     * @param recv Buffer to receive data
-     * @param recv_len Number of bytes to read
-     * @return true on success
-     */
-    bool read_registers(uint8_t first_reg, uint8_t* recv, uint32_t recv_len);
-
-    /**
-     * @brief Write a single register
-     * @param reg Register address
-     * @param val Value to write
-     * @return true on success
-     */
-    bool write_register(uint8_t reg, uint8_t val);
+                  uint8_t* recv, uint32_t recv_len) override;
 
     /**
      * @brief Read registers multiple times
@@ -128,27 +117,28 @@ public:
      * @return true on success
      */
     bool read_registers_multiple(uint8_t first_reg, uint8_t* recv,
-                                  uint32_t recv_len, uint8_t times);
-
-    // ========================================================================
-    // Device Info
-    // ========================================================================
+                                  uint32_t recv_len, uint8_t times) override;
 
     /**
-     * @brief Get bus number
+     * @brief Read registers starting at first_reg
+     * @param first_reg Starting register address
+     * @param recv Buffer to receive data
+     * @param recv_len Number of bytes to read
+     * @return true on success
+     * @note We implement this rather than use Device::read_registers since
+     *       we don't link ArduPilot's Device.cpp
      */
-    uint8_t bus_num() const { return m_bus; }
+    bool read_registers(uint8_t first_reg, uint8_t* recv, uint32_t recv_len);
 
     /**
-     * @brief Get device address
+     * @brief Write a single register
+     * @param reg Register address
+     * @param val Value to write
+     * @return true on success
+     * @note We implement this rather than use Device::write_register since
+     *       we don't link ArduPilot's Device.cpp
      */
-    uint8_t get_bus_address() const { return m_address; }
-
-    /**
-     * @brief Check if device responds
-     * @return true if device ACKs
-     */
-    bool probe();
+    bool write_register(uint8_t reg, uint8_t val);
 
     // ========================================================================
     // Thread Safety
@@ -158,7 +148,37 @@ public:
      * @brief Get bus semaphore for external locking
      * @return Pointer to semaphore
      */
-    Semaphore* get_semaphore();
+    AP_HAL::Semaphore* get_semaphore() override;
+
+    // ========================================================================
+    // Periodic Callbacks
+    // ========================================================================
+
+    /**
+     * @brief Register periodic callback
+     * @param period_usec Callback period in microseconds
+     * @param cb Callback function
+     * @return Handle for cancellation, or nullptr on failure
+     */
+    PeriodicHandle register_periodic_callback(uint32_t period_usec, PeriodicCb cb) override;
+
+    /**
+     * @brief Adjust periodic callback timing
+     * @param h Handle from register_periodic_callback
+     * @param period_usec New period in microseconds
+     * @return true on success
+     */
+    bool adjust_periodic_callback(PeriodicHandle h, uint32_t period_usec) override;
+
+    // ========================================================================
+    // Device Info
+    // ========================================================================
+
+    /**
+     * @brief Check if device responds
+     * @return true if device ACKs
+     */
+    bool probe();
 
     // ========================================================================
     // Configuration
@@ -166,38 +186,31 @@ public:
 
     /**
      * @brief Set bus speed
-     * @param high true for high speed, false for low
+     * @param speed SPEED_HIGH or SPEED_LOW
      * @return true if set successfully
      */
-    bool set_speed(bool high);
+    bool set_speed(Speed speed) override;
 
     /**
      * @brief Change device address
      * @param address New 7-bit address
      */
-    void set_address(uint8_t address);
-
-    /**
-     * @brief Set read flag (ORed with register for reads)
-     * @param flag Read flag (usually 0 for I2C)
-     */
-    void set_read_flag(uint8_t flag) { m_read_flag = flag; }
+    void set_address(uint8_t address) override;
 
     /**
      * @brief Set number of retries
      * @param retries Retry count
      */
-    void set_retries(uint8_t retries) { m_retries = retries; }
+    void set_retries(uint8_t retries) override { m_retries = retries; }
 
 private:
     uint8_t m_bus;
-    uint8_t m_address;
     uint32_t m_bus_clock;
     uint32_t m_timeout_ms;
-    uint8_t m_read_flag;
     uint8_t m_retries;
 
     rocketchip::hal::I2CBus* m_i2c_bus;
+    Semaphore* m_semaphore;
     bool m_initialized;
 };
 
@@ -211,7 +224,7 @@ private:
  * Factory for creating I2CDevice instances. Manages bus initialization
  * and provides access to devices by bus/address.
  */
-class I2CDeviceManager_RP2350 {
+class I2CDeviceManager_RP2350 : public AP_HAL::I2CDeviceManager {
 public:
     I2CDeviceManager_RP2350();
     ~I2CDeviceManager_RP2350();
@@ -230,26 +243,33 @@ public:
      * @param timeout_ms Timeout in milliseconds
      * @return Pointer to device, or nullptr if invalid
      */
-    I2CDevice_RP2350* get_device(uint8_t bus, uint8_t address,
-                                   uint32_t bus_clock = kDefaultClockHz,
-                                   bool use_smbus = false,
-                                   uint32_t timeout_ms = kDefaultTimeoutMs);
+    AP_HAL::I2CDevice* get_device_ptr(uint8_t bus, uint8_t address,
+                                       uint32_t bus_clock = kDefaultClockHz,
+                                       bool use_smbus = false,
+                                       uint32_t timeout_ms = kDefaultTimeoutMs) override;
 
     /**
      * @brief Get mask of available buses
      * @return Bitmask (bit 0 = bus 0, bit 1 = bus 1)
      */
-    uint32_t get_bus_mask() const { return 0x03; }  // Both buses available
+    uint32_t get_bus_mask() const override { return 0x03; }  // Both buses available
 
     /**
      * @brief Get mask of external buses (Qwiic)
      */
-    uint32_t get_bus_mask_external() const { return 0x01; }  // Bus 0 = Qwiic
+    uint32_t get_bus_mask_external() const override { return 0x01; }  // Bus 0 = Qwiic
 
     /**
      * @brief Get mask of internal buses
      */
-    uint32_t get_bus_mask_internal() const { return 0x02; }  // Bus 1 = internal
+    uint32_t get_bus_mask_internal() const override { return 0x02; }  // Bus 1 = internal
+
+    /**
+     * @brief Get bus semaphore for a specific bus
+     * @param bus Bus number
+     * @return Pointer to semaphore, or nullptr if invalid bus
+     */
+    Semaphore* get_bus_semaphore(uint8_t bus);
 
 private:
     // Device pool (statically allocated)

@@ -1,21 +1,26 @@
-/**
- * @file Semaphores.h
- * @brief AP_HAL Semaphore implementation using FreeRTOS
+/*
+ * This file is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- * Provides mutex and binary semaphore wrappers for ArduPilot libraries.
- * Implements the AP_HAL::Semaphore and AP_HAL::BinarySemaphore interfaces.
+ * This file is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
- * @note Part of AP_HAL_RP2350 - ArduPilot HAL for RocketChip
+ * You should have received a copy of the GNU General Public License along
+ * with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Adapted from AP_HAL_ESP32/Semaphores.h for RP2350
  */
 
 #pragma once
 
-// Prevent the stub HAL_Semaphore from being defined
-#define HAL_SEMAPHORE_DEFINED 1
-
-#include "hwdef.h"
-#include "FreeRTOS.h"
-#include "semphr.h"
+#include <stdint.h>
+#include <AP_HAL/AP_HAL_Boards.h>
+#include <AP_HAL/AP_HAL_Macros.h>
+#include <AP_HAL/Semaphores.h>
 
 namespace RP2350 {
 
@@ -25,54 +30,30 @@ namespace RP2350 {
  * Wraps FreeRTOS recursive mutex. Recursive means the same task can take
  * the mutex multiple times without deadlock.
  *
- * Implements AP_HAL::Semaphore interface.
+ * Uses opaque storage to avoid requiring FreeRTOS.h in headers.
+ * The actual FreeRTOS types are used only in the implementation.
  */
-class Semaphore {
+class Semaphore : public AP_HAL::Semaphore {
 public:
     Semaphore();
-    ~Semaphore();
+    ~Semaphore() override;
 
-    // Prevent copying
-    Semaphore(const Semaphore&) = delete;
-    Semaphore& operator=(const Semaphore&) = delete;
+    bool give() override;
+    bool take(uint32_t timeout_ms) override;
+    bool take_nonblocking() override;
+    void take_blocking() override;
 
-    /**
-     * @brief Take the semaphore with timeout
-     * @param timeout_ms Maximum time to wait in milliseconds
-     * @return true if acquired, false on timeout
-     */
-    bool take(uint32_t timeout_ms);
+    // Check if current task owns this semaphore
+    bool check_owner();
 
-    /**
-     * @brief Try to take the semaphore without blocking
-     * @return true if acquired immediately, false if unavailable
-     */
-    bool take_nonblocking();
+protected:
+    // Opaque storage for FreeRTOS SemaphoreHandle_t (void*)
+    void* _handle;
 
-    /**
-     * @brief Take the semaphore, blocking indefinitely
-     */
-    void take_blocking();
-
-    /**
-     * @brief Release the semaphore
-     * @return true on success
-     */
-    bool give();
-
-    /**
-     * @brief Check if semaphore is currently held
-     * @return true if semaphore is taken
-     *
-     * @note For debugging only - state may change immediately after call
-     */
-    bool is_taken() const;
-
-private:
-    void ensure_initialized();  // Lazy init for static objects
-
-    SemaphoreHandle_t m_handle;
-    StaticSemaphore_t m_buffer;  // Static allocation for FreeRTOS
+    // Opaque storage for StaticSemaphore_t
+    // Size based on FreeRTOS StaticQueue_t for SMP config (approximately 128 bytes)
+    // This must be large enough to hold StaticSemaphore_t
+    alignas(4) uint8_t _buffer[128];
 };
 
 
@@ -81,113 +62,25 @@ private:
  *
  * Used for one-to-one signaling between tasks or from ISR to task.
  * Unlike mutex, this is for notification/synchronization, not protection.
- *
- * Implements AP_HAL::BinarySemaphore interface.
  */
-class BinarySemaphore {
+class BinarySemaphore : public AP_HAL::BinarySemaphore {
 public:
-    /**
-     * @brief Construct binary semaphore
-     * @param initial_state true = signaled (first wait won't block)
-     */
-    explicit BinarySemaphore(bool initial_state = false);
-    ~BinarySemaphore();
+    BinarySemaphore(bool initial_state = false);
+    ~BinarySemaphore() override;
 
-    // Prevent copying
-    BinarySemaphore(const BinarySemaphore&) = delete;
-    BinarySemaphore& operator=(const BinarySemaphore&) = delete;
+    CLASS_NO_COPY(BinarySemaphore);
 
-    /**
-     * @brief Wait for signal with timeout
-     * @param timeout_us Maximum time to wait in microseconds
-     * @return true if signaled, false on timeout
-     */
-    bool wait(uint32_t timeout_us);
+    bool wait(uint32_t timeout_us) override;
+    bool wait_blocking() override;
+    void signal() override;
+    void signal_ISR() override;
 
-    /**
-     * @brief Wait indefinitely for signal
-     * @return true when signaled
-     */
-    bool wait_blocking();
+protected:
+    // Opaque storage for FreeRTOS SemaphoreHandle_t (void*)
+    void* _sem;
 
-    /**
-     * @brief Check if signaled without blocking
-     * @return true if was signaled (consumes the signal)
-     */
-    bool wait_nonblocking();
-
-    /**
-     * @brief Signal the semaphore (from task context)
-     */
-    void signal();
-
-    /**
-     * @brief Signal the semaphore (from ISR context)
-     *
-     * Safe to call from interrupt handlers.
-     */
-    void signal_ISR();
-
-private:
-    void ensure_initialized();  // Lazy init for static objects
-
-    SemaphoreHandle_t m_handle;
-    StaticSemaphore_t m_buffer;
-    bool m_initial_state;
-};
-
-
-/**
- * @brief RAII scoped lock for Semaphore
- *
- * Automatically takes semaphore on construction and releases on destruction.
- *
- * @code
- * {
- *     WithSemaphore lock(my_mutex);
- *     // Protected code here
- * }  // Automatically released
- * @endcode
- */
-class WithSemaphore {
-public:
-    explicit WithSemaphore(Semaphore& sem) : m_sem(sem) {
-        m_sem.take_blocking();
-    }
-
-    explicit WithSemaphore(Semaphore* sem) : m_sem(*sem) {
-        m_sem.take_blocking();
-    }
-
-    ~WithSemaphore() {
-        m_sem.give();
-    }
-
-    // Prevent copying
-    WithSemaphore(const WithSemaphore&) = delete;
-    WithSemaphore& operator=(const WithSemaphore&) = delete;
-
-private:
-    Semaphore& m_sem;
+    // Opaque storage for StaticSemaphore_t
+    alignas(4) uint8_t _buffer[128];
 };
 
 }  // namespace RP2350
-
-// ============================================================================
-// AP_HAL Compatibility Aliases
-// ============================================================================
-
-// Define guard macro BEFORE any includes of AP_HAL/AP_HAL.h
-// This prevents the stub HAL_Semaphore from being defined
-#define HAL_SEMAPHORE_DEFINED
-
-namespace AP_HAL {
-    using Semaphore = RP2350::Semaphore;
-    using BinarySemaphore = RP2350::BinarySemaphore;
-}
-
-// Global alias for ArduPilot code expecting HAL_Semaphore
-using HAL_Semaphore = RP2350::Semaphore;
-
-// Convenience macro for scoped locking
-#define WITH_SEMAPHORE(sem) RP2350::WithSemaphore _sem_lock_##__LINE__(sem)

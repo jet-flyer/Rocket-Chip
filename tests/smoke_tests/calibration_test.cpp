@@ -304,9 +304,9 @@ int main() {
         g_statusLed->show();
     }
 
-    // Initialize HAL - this does storage.init() which performs flash operations
+    // Initialize HAL subsystems - this does storage.init() which performs flash operations
     // Do this BEFORE stdio_init_all() so USB isn't affected by flash ops
-    hal.init();
+    RP2350::hal_init();
 
     // CRITICAL: Clear BASEPRI before USB init
     // FreeRTOS or HAL init may leave BASEPRI elevated (configMAX_SYSCALL_INTERRUPT_PRIORITY=16)
@@ -343,7 +343,7 @@ int main() {
     printf("========================================\n\n");
 
     // Print HAL status (init happened before USB, so print it now)
-    printf("HAL initialized: %s\n", hal.storage.healthy() ? "OK" : "WARNING: storage unhealthy");
+    printf("HAL initialized: %s\n", hal.storage->healthy() ? "OK" : "WARNING: storage unhealthy");
     printf("Board: %s\n", HAL_BOARD_NAME);
     printf("Storage: %s\n", AP_Param::erased_on_boot() ? "freshly initialized" : "loaded from flash");
     fflush(stdout);

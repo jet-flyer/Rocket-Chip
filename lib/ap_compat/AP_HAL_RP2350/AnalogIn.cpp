@@ -5,6 +5,7 @@
  * @note Part of AP_HAL_RP2350 - ArduPilot HAL for RocketChip
  */
 
+#include "hwdef.h"    // HAL_WITH_MCU_MONITORING and other board config
 #include "AnalogIn.h"
 
 // RocketChip HAL - use "hal/" prefix to avoid conflicts
@@ -198,7 +199,7 @@ bool AnalogIn_RP2350::valid_analog_pin(uint16_t pin) const {
            (pin == kBoardVccPin);
 }
 
-AnalogSource_RP2350* AnalogIn_RP2350::channel(int16_t n) {
+AP_HAL::AnalogSource* AnalogIn_RP2350::channel(int16_t n) {
     // Validate pin
     if (n < 0) {
         return nullptr;
@@ -251,8 +252,10 @@ uint16_t AnalogIn_RP2350::power_status_flags() {
     return flags;
 }
 
+#if HAL_WITH_MCU_MONITORING
 float AnalogIn_RP2350::mcu_temperature() {
     return rocketchip::hal::ADC::readTemperature();
 }
+#endif
 
 }  // namespace RP2350

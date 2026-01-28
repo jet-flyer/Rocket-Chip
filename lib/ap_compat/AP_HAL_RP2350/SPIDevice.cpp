@@ -78,15 +78,19 @@ const uint8_t SPIDeviceManager_RP2350::kDeviceTableSize =
 // ============================================================================
 
 SPIDevice_RP2350::SPIDevice_RP2350(const SPIDeviceDesc& desc)
-    : m_bus(desc.bus)
+    : AP_HAL::SPIDevice()  // Calls Device(BUS_TYPE_SPI)
+    , m_bus(desc.bus)
     , m_cs_pin(desc.cs_pin)
     , m_freq_low(kLowSpeedSPIClockHz)
     , m_freq_high(desc.freq_hz)
     , m_freq_current(desc.freq_hz)
     , m_slowdown(1)
     , m_spi_bus(nullptr)
+    , m_semaphore(nullptr)
     , m_initialized(false)
 {
+    // Set device identification in base class
+    set_device_bus(desc.bus);
     // Copy name
     strncpy(m_name, desc.name, kMaxDeviceNameLen - 1);
     m_name[kMaxDeviceNameLen - 1] = '\0';
@@ -198,9 +202,21 @@ bool SPIDevice_RP2350::clock_pulse(uint32_t len) {
 // Thread Safety
 // ============================================================================
 
-Semaphore* SPIDevice_RP2350::get_semaphore() {
-    // Note: In a full implementation, this would return the bus semaphore
-    // from SPIDeviceManager. For now, return nullptr (caller should handle).
+AP_HAL::Semaphore* SPIDevice_RP2350::get_semaphore() {
+    return m_semaphore;
+}
+
+// ============================================================================
+// Periodic Callbacks
+// ============================================================================
+
+AP_HAL::Device::PeriodicHandle SPIDevice_RP2350::register_periodic_callback(
+    uint32_t period_usec, PeriodicCb cb) {
+    // TODO: Implement periodic callbacks via Scheduler
+    // ArduPilot sensor drivers typically use this for polling sensors at fixed rates
+    // For Phase 2, most sensors will be polled directly from SensorTask
+    (void)period_usec;
+    (void)cb;
     return nullptr;
 }
 
@@ -208,12 +224,12 @@ Semaphore* SPIDevice_RP2350::get_semaphore() {
 // Configuration
 // ============================================================================
 
-bool SPIDevice_RP2350::set_speed(SPISpeed speed) {
+bool SPIDevice_RP2350::set_speed(Speed speed) {
     if (!m_initialized) {
         return false;
     }
 
-    uint32_t new_freq = (speed == SPISpeed::HIGH) ? m_freq_high : m_freq_low;
+    uint32_t new_freq = (speed == SPEED_HIGH) ? m_freq_high : m_freq_low;
     new_freq /= m_slowdown;
 
     if (new_freq != m_freq_current) {
@@ -272,7 +288,7 @@ const SPIDeviceDesc* SPIDeviceManager_RP2350::find_desc(const char* name) const 
     return nullptr;
 }
 
-SPIDevice_RP2350* SPIDeviceManager_RP2350::get_device(const char* name) {
+AP_HAL::SPIDevice* SPIDeviceManager_RP2350::get_device_ptr(const char* name) {
     if (name == nullptr) {
         return nullptr;
     }
@@ -298,16 +314,27 @@ SPIDevice_RP2350* SPIDeviceManager_RP2350::get_device(const char* name) {
 
     // Create new device
     auto* device = new SPIDevice_RP2350(*desc);
+
+    // Give device access to bus semaphore
+    device->m_semaphore = &m_bus_semaphores[desc->bus];
+
     m_devices[m_device_count++] = device;
 
     return device;
 }
 
-const char* SPIDeviceManager_RP2350::get_device_name(uint8_t idx) const {
+const char* SPIDeviceManager_RP2350::get_device_name(uint8_t idx) {
     if (idx >= kDeviceTableSize) {
         return nullptr;
     }
     return kDeviceTable[idx].name;
+}
+
+Semaphore* SPIDeviceManager_RP2350::get_bus_semaphore(uint8_t bus) {
+    if (bus >= kMaxSPIBuses) {
+        return nullptr;
+    }
+    return &m_bus_semaphores[bus];
 }
 
 }  // namespace RP2350

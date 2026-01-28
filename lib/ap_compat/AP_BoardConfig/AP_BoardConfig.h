@@ -38,6 +38,13 @@ public:
         while(1) {}  // Halt
     }
 
+    // Configuration error handler (printf-style, used by AP_Param)
+    static void config_error(const char* fmt, ...) {
+        // Stub - ignore config errors on RocketChip
+        // In real ArduPilot, this would trigger a pre-arm check failure
+        (void)fmt;
+    }
+
     // Config options (stubs)
     static bool io_enabled() { return false; }
     static bool rc_out_disabled() { return true; }
