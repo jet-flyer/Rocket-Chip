@@ -277,6 +277,110 @@ add_compile_definitions(
 
 ---
 
+## Entry 8: FreeRTOS SMP Multi-Core Memory Visibility
+
+**Date:** 2026-01-28
+**Time Spent:** ~3 hours of debugging
+**Severity:** Critical - init() hangs indefinitely
+
+### Problem
+`AP_InertialSensor::init()` hangs forever. Monitor task shows callbacks are running, I2C transfers succeed, gyro is registered with correct rate (1125Hz), but `wait_for_sample()` never sees the `_new_gyro_data` flag.
+
+### Symptoms
+- init() blocks indefinitely in `wait_for_sample()` loop
+- Monitor shows: gyro_count=1, accel_count=1, rate=1125Hz
+- I2C transfer count increases (3000+/sec)
+- Callback count increases (1000+/sec)
+- But `_new_gyro_data` flag reads as false in main loop
+
+### Root Cause
+FreeRTOS SMP on dual-core RP2350 allows tasks to run on different cores. The DeviceBus callback thread (setting flags) may run on Core 1, while the main task (reading flags) runs on Core 0. ARM's weak memory model means writes on one core aren't immediately visible to the other core without memory barriers.
+
+ArduPilot assumes single-core memory semantics throughout. This worked on ESP32 because they pin all ArduPilot tasks to the same core.
+
+### Solution
+Two-pronged approach:
+
+1. **Core pinning** (primary fix):
+```cpp
+// Pin bus thread to Core 0 to match main task
+vTaskCoreAffinitySet(bus_thread_handle, (1 << 0));
+```
+
+2. **Memory barriers** (defense in depth):
+```cpp
+void Scheduler::delay_microseconds_boost(uint16_t us) {
+    __sync_synchronize();  // See latest values
+    // ... delay ...
+    __sync_synchronize();  // Publish our writes
+}
+```
+
+### How to Identify This Issue
+1. Polling loop never sees flag changes from another task
+2. Both tasks clearly running (debug output confirms)
+3. Using FreeRTOS SMP on multi-core MCU
+4. Works fine in single-core mode
+
+### Prevention
+- Pin all related ArduPilot tasks to the same core
+- Add memory barriers around any cross-task flag polling
+- Documented as PD12 in `RP2350_FULL_AP_PORT.md`
+
+---
+
+## Entry 9: FreeRTOS Priority Inversion with Busy-Wait
+
+**Date:** 2026-01-28
+**Time Spent:** ~1 hour (discovered during PD12 debugging)
+**Severity:** Critical - Lower priority tasks starve
+
+### Problem
+Even after fixing memory visibility (Entry 8), `wait_for_sample()` still hung. The DeviceBus callback thread was supposed to run and set flags, but it wasn't getting CPU time.
+
+### Symptoms
+- Main task spinning in `wait_for_sample()` at priority 2
+- DeviceBus thread at priority 5 (higher)
+- But DeviceBus callbacks not running frequently enough
+- `taskYIELD()` calls not helping
+
+### Root Cause
+DeviceBus was using `hal.scheduler->delay_microseconds()` between callbacks, which busy-waits for short delays. The thread would:
+1. Run callbacks (takes ~100us)
+2. Busy-wait for 1000us until next callback
+3. Repeat
+
+During the busy-wait, `taskYIELD()` was called, but **`taskYIELD()` only yields to tasks of equal or higher priority**. Since DeviceBus is at priority 5 and main task at priority 2, the yield does nothing useful.
+
+Result: DeviceBus hogs CPU during busy-wait, starving lower-priority tasks.
+
+### Solution
+Use `vTaskDelay()` instead of busy-wait:
+
+```cpp
+// CRITICAL: Must use vTaskDelay() to yield to lower-priority tasks
+TickType_t ticks = pdMS_TO_TICKS((delay + 500) / 1000);
+if (ticks == 0) {
+    ticks = 1;  // Always yield at least 1 tick
+}
+vTaskDelay(ticks);  // Properly yields to ALL tasks
+```
+
+This accepts 1ms timing granularity but ensures the scheduler can run other tasks.
+
+### How to Identify This Issue
+1. Higher-priority task using `taskYIELD()` in a loop
+2. Lower-priority tasks not getting CPU time
+3. System appears "stuck" but high-priority task is running
+
+### Prevention
+- Never busy-wait in higher-priority tasks when lower-priority tasks need CPU
+- `taskYIELD()` only yields to same-or-higher priority
+- Use `vTaskDelay(1)` to yield to ALL tasks (minimum 1 tick)
+- Documented as PD13 in `RP2350_FULL_AP_PORT.md`
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here
