@@ -17,18 +17,35 @@
 // ============================================================================
 
 #define HAL_BOARD_ROCKETCHIP        99
+
+#ifndef HAL_BOARD_NAME
 #define HAL_BOARD_NAME              "RocketChip-RP2350"
+#endif
+
+#ifndef CONFIG_HAL_BOARD
 #define CONFIG_HAL_BOARD            HAL_BOARD_ROCKETCHIP
+#endif
+
+#ifndef CONFIG_HAL_BOARD_SUBTYPE
 #define CONFIG_HAL_BOARD_SUBTYPE    0
+#endif
 
 // ============================================================================
 // Memory Configuration
 // ============================================================================
 
 // RP2350 memory: 520KB SRAM + 8MB PSRAM (Feather HSTX variant)
+#ifndef HAL_MEM_CLASS
 #define HAL_MEM_CLASS               HAL_MEM_CLASS_500
+#endif
+
+#ifndef HAL_PROGRAM_SIZE_LIMIT_KB
 #define HAL_PROGRAM_SIZE_LIMIT_KB   4096
+#endif
+
+#ifndef BOARD_FLASH_SIZE
 #define BOARD_FLASH_SIZE            8192    // 8MB flash
+#endif
 
 // ============================================================================
 // Storage Configuration (Tier 1 - AP_FlashStorage)
@@ -36,12 +53,16 @@
 
 // Logical storage size (must be less than flash sector size)
 // Layout: Calibration (512B) + Config (512B) + Missions (3KB) = 4KB
+#ifndef HAL_STORAGE_SIZE
 #define HAL_STORAGE_SIZE            4096
+#endif
 
 // Flash type for AP_FlashStorage
 // RP2350 behaves like STM32F4/F7: can write individual bits 1->0
 // Value 2 = AP_FLASHSTORAGE_TYPE_F4 (defined in AP_FlashStorage.h)
+#ifndef AP_FLASHSTORAGE_TYPE
 #define AP_FLASHSTORAGE_TYPE        2
+#endif
 
 // ============================================================================
 // FreeRTOS Configuration
@@ -158,21 +179,18 @@ constexpr uint8_t PA1010D           = 0x10;     // GPS module
 #define HAL_HAVE_BOARD_VOLTAGE      0
 #define HAL_HAVE_SERVO_VOLTAGE      0
 #define HAL_WITH_IO_MCU             0
+#ifndef HAL_WITH_MCU_MONITORING
 #define HAL_WITH_MCU_MONITORING     1   // RP2350 has internal temperature sensor
+#endif
 #define HAL_WITH_DRONECAN           0
 #define HAL_MAX_CAN_PROTOCOL_DRIVERS 0
 
 // ============================================================================
-// Utility Macros
+// Utility Macros (only those not provided by ArduPilot's AP_Common.h)
 // ============================================================================
 
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
-#endif
-
-#ifndef PACKED
-#define PACKED __attribute__((packed))
-#endif
+// Note: ARRAY_SIZE, PACKED, NORETURN, WARN_IF_UNUSED are defined by AP_Common.h
+// We only define macros that ArduPilot doesn't provide.
 
 #ifndef UNUSED
 #define UNUSED __attribute__((unused))
@@ -180,14 +198,6 @@ constexpr uint8_t PA1010D           = 0x10;     // GPS module
 
 #ifndef NOINLINE
 #define NOINLINE __attribute__((noinline))
-#endif
-
-#ifndef NORETURN
-#define NORETURN [[noreturn]]
-#endif
-
-#ifndef WARN_IF_UNUSED
-#define WARN_IF_UNUSED __attribute__((warn_unused_result))
 #endif
 
 #ifndef LIKELY

@@ -30,10 +30,16 @@
 #define WARN_IF_UNUSED __attribute__((warn_unused_result))
 #endif
 
-// Board identification
+// Board identification (use guards - hwdef.h may define these first)
+#ifndef HAL_BOARD_NAME
 #define HAL_BOARD_NAME "RP2350"
+#endif
+#ifndef HAL_CPU_CLASS
 #define HAL_CPU_CLASS HAL_CPU_CLASS_150
+#endif
+#ifndef HAL_MEM_CLASS
 #define HAL_MEM_CLASS HAL_MEM_CLASS_500  // RP2350 has 520KB SRAM + 8MB PSRAM
+#endif
 
 // Storage configuration
 #ifndef HAL_STORAGE_SIZE
@@ -42,19 +48,29 @@
 #define HAL_STORAGE_SIZE_AVAILABLE  HAL_STORAGE_SIZE
 
 // Sensor defaults
+#ifndef HAL_INS_DEFAULT
 #define HAL_INS_DEFAULT HAL_INS_NONE
+#endif
+#ifndef CONFIG_HAL_BOARD_SUBTYPE
 #define CONFIG_HAL_BOARD_SUBTYPE HAL_BOARD_SUBTYPE_NONE
+#endif
 
 // Program size
 #ifndef HAL_PROGRAM_SIZE_LIMIT_KB
 #define HAL_PROGRAM_SIZE_LIMIT_KB 8192  // 8MB flash
 #endif
 
-// Hardware features
+// Hardware features (use guards - hwdef.h may define these first)
+#ifndef HAL_HAVE_BOARD_VOLTAGE
 #define HAL_HAVE_BOARD_VOLTAGE 1
+#endif
+#ifndef HAL_HAVE_SERVO_VOLTAGE
 #define HAL_HAVE_SERVO_VOLTAGE 0
+#endif
 #define HAL_HAVE_SAFETY_SWITCH 0
+#ifndef HAL_WITH_IO_MCU
 #define HAL_WITH_IO_MCU 0
+#endif
 
 // CAN - not supported on RP2350
 #define HAL_NUM_CAN_IFACES 0
