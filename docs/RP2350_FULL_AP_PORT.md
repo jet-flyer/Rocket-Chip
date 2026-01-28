@@ -444,6 +444,111 @@ The ESP32 HAL team learned this lesson: "malloc needs to be over-ridden so that 
 
 ---
 
+### PD12: Multi-Core Memory Visibility (FreeRTOS SMP)
+
+**Category:** RTOS
+**Discovered:** 2026-01-28
+**Severity:** Critical
+**Status:** Resolved
+
+**STM32 Behavior:**
+ArduPilot runs on single-core STM32 processors. Memory writes by one task are immediately visible to other tasks. Code patterns like setting a flag in a callback and checking it in a polling loop work without explicit synchronization beyond the semaphore protecting the write.
+
+Example: `AP_InertialSensor::wait_for_sample()` checks `_new_gyro_data[i]` in a loop. The callback sets this flag inside `WITH_SEMAPHORE`, but the polling loop reads it WITHOUT holding the semaphore. On single-core, this works because all threads share the same core's cache.
+
+**RP2350 Behavior:**
+RP2350 is dual-core Cortex-M33. With FreeRTOS SMP, tasks can migrate between cores or run simultaneously on different cores. Memory writes on Core 0 may not be visible to Core 1 without explicit memory barriers or `volatile` access.
+
+Symptoms observed:
+- Callback runs successfully (verified via debug logs)
+- Callback sets `_new_gyro_data = true` inside semaphore
+- Polling loop on different core never sees the flag as true
+- `AP_InertialSensor::init()` hangs indefinitely despite gyro registered (count=1, rate=1125Hz)
+
+The ESP32 HAL (also dual-core) solves this by pinning related tasks to the same core using `xTaskCreatePinnedToCore()`. This sidesteps the visibility issue entirely.
+
+**Solution:**
+Combined two approaches:
+
+1. **Pin DeviceBus thread to Core 0** using `vTaskCoreAffinitySet(bus_thread_handle, (1 << 0))`. This matches ESP32 HAL's pattern and ensures callback thread and main task share the same core's cache.
+
+2. **Memory barriers in `delay_microseconds_boost()`** - Added `__sync_synchronize()` at start and end. This function is called by `wait_for_sample()` in a tight loop, so barriers ensure flag visibility even if cores differ.
+
+Both solutions together provide defense-in-depth. The core pinning is the primary fix; barriers provide additional safety.
+
+**Files Affected:**
+- `lib/ap_compat/AP_HAL_RP2350/Scheduler.cpp` - memory barriers in `delay_microseconds_boost()`
+- `lib/ap_compat/AP_HAL_RP2350/DeviceBus.cpp` - `vTaskCoreAffinitySet()` to pin bus thread
+
+**References:**
+- FreeRTOS SMP documentation on core affinity
+- ARM Cortex-M33 memory model
+- ArduPilot `libraries/AP_HAL_ESP32/Scheduler.cpp` (xTaskCreatePinnedToCore usage)
+
+**Source URLs:**
+- https://forums.raspberrypi.com/viewtopic.php?t=388734 (RP2040/RP2350 multi-core issues)
+- https://www.freertos.org/Documentation/02-Kernel/02-Kernel-features/13-Symmetric-multiprocessing-SMP/01-Symmetric-multiprocessing-introduction
+
+---
+
+### PD13: FreeRTOS Priority Inversion with Busy-Wait Delays
+
+**Category:** RTOS
+**Discovered:** 2026-01-28
+**Severity:** Critical
+**Status:** Resolved
+
+**STM32 Behavior:**
+ChibiOS on STM32 uses a different threading model. Timer callbacks run in ISR context or dedicated threads with proper yielding. The scheduler has fine-grained timing (sub-ms).
+
+**RP2350 Behavior:**
+FreeRTOS with 1kHz tick rate (1ms resolution) has coarse timing. The DeviceBus pattern from ESP32 HAL uses a polling thread that:
+1. Runs callbacks when due
+2. Calculates next callback time
+3. Delays until next callback
+
+The delay implementation matters critically:
+- `busy_wait_us_32()` - CPU spins, task stays "running", lower-priority tasks starve
+- `vTaskDelay()` - Task blocks, yields to other tasks, but rounds to 1ms ticks
+
+With DeviceBus at priority 5 and main task at priority 2:
+- If DeviceBus busy-waits between callbacks, main task NEVER runs
+- `wait_for_sample()` in main task cannot execute to check flags
+- System appears hung even though callbacks are running
+
+Symptoms:
+- Callbacks running at correct rate (~500/sec with I2C overhead)
+- Main task's `wait_for_sample()` never sees flags set
+- Adding debug prints shows callbacks execute but main task is starved
+
+**Solution:**
+DeviceBus must use `vTaskDelay()` for inter-callback delays, even for short periods:
+
+```cpp
+// CRITICAL: Must use vTaskDelay() to yield to lower-priority tasks.
+// DeviceBus runs at priority 5, main task at priority 2-5.
+// If we busy-wait, lower-priority tasks (like wait_for_sample) starve.
+TickType_t ticks = pdMS_TO_TICKS((delay + 500) / 1000);
+if (ticks == 0) {
+    ticks = 1;  // Always yield at least 1 tick
+}
+vTaskDelay(ticks);
+```
+
+This accepts 1ms timing granularity but ensures proper task scheduling. Callback rate is limited to ~500-700/sec due to FreeRTOS tick + I2C overhead, but this is sufficient for IMU operation.
+
+**Files Affected:**
+- `lib/ap_compat/AP_HAL_RP2350/DeviceBus.cpp` - Use `vTaskDelay()` instead of `hal.scheduler->delay_microseconds()`
+
+**References:**
+- FreeRTOS task scheduling and priority preemption
+- ArduPilot `libraries/AP_HAL_ESP32/DeviceBus.cpp`
+
+**Source URLs:**
+- https://www.freertos.org/Documentation/02-Kernel/02-Kernel-features/01-Tasks-and-co-routines/03-Task-priorities
+
+---
+
 ## Future Entries Template
 
 Copy this template when adding new platform differences:

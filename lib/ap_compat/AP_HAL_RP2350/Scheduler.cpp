@@ -167,19 +167,48 @@ void Scheduler::delay(uint16_t ms) {
 }
 
 void Scheduler::delay_microseconds(uint16_t us) {
-    // Use hardware timer for accurate microsecond delays
-    busy_wait_us_32(us);
+    // Sub-2ms delays need busy-wait for accuracy.
+    // FreeRTOS tick is 1ms, so vTaskDelay() rounds up to 1ms minimum.
+    // DeviceBus callbacks run at 889Hz (1125us period) - must not round to 1ms.
+    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
+        if (us >= 2000) {
+            // 2ms+: use RTOS delay for power efficiency
+            TickType_t ticks = pdMS_TO_TICKS((us + 500) / 1000);
+            if (ticks == 0) ticks = 1;
+            vTaskDelay(ticks);
+        } else {
+            // <2ms: busy wait for timing accuracy
+            // This ensures 889Hz callback rate isn't throttled by tick rounding
+            busy_wait_us_32(us);
+        }
+    } else {
+        busy_wait_us_32(us);
+    }
 }
 
 void Scheduler::delay_microseconds_boost(uint16_t us) {
-    // Boost priority temporarily
-    if (!m_priority_boosted && xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
-        m_saved_priority = uxTaskPriorityGet(nullptr);
-        vTaskPrioritySet(nullptr, static_cast<UBaseType_t>(Priority::PRIORITY_BOOST));
-        m_priority_boosted = true;
+    // Memory barrier BEFORE delay to ensure we see latest values from other cores
+    __sync_synchronize();
+
+    // This function is called by wait_for_sample() in a tight loop.
+    // We MUST yield to let the I2C callback thread (priority 5) run and
+    // set the _new_gyro_data/_new_accel_data flags.
+    //
+    // Strategy: yield to let callbacks run, then busy-wait for timing
+    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
+        // Yield first to let higher-priority callback thread run
+        taskYIELD();
+        // Then busy-wait for the remainder of the delay period
+        // (yield took some time, but busy_wait ensures minimum delay)
+        if (us > 0) {
+            busy_wait_us_32(us);
+        }
+    } else {
+        busy_wait_us_32(us);
     }
 
-    delay_microseconds(us);
+    // Memory barrier AFTER delay to see writes from callback threads
+    __sync_synchronize();
 }
 
 void Scheduler::boost_end() {

@@ -2,12 +2,12 @@
  * @file I2CDevice.h
  * @brief AP_HAL I2CDevice implementation for RP2350
  *
- * Wraps RocketChip's I2CBus class with AP_HAL::I2CDevice interface.
- * Provides device management and thread-safe bus access.
+ * Wraps Pico SDK I2C with AP_HAL::I2CDevice interface.
+ * Uses DeviceBus pattern from ESP32 HAL for periodic callbacks.
  *
  * Port mapping (RP2350):
- * - Bus 0: I2C0 (Qwiic connector on Feather)
- * - Bus 1: I2C1 (available on expansion pins)
+ * - Bus 0: I2C1 (Qwiic connector on Feather RP2350)
+ * - Bus 1: I2C0 (available on expansion pins)
  *
  * @note Extended timeouts per RP2350 platform difference PD7.
  *       Some I2C operations may need longer timeouts due to
@@ -23,14 +23,9 @@
 // AP_HAL base classes
 #include <AP_HAL/I2CDevice.h>
 
+#include "DeviceBus.h"
 #include "Semaphores.h"
-
-// Forward declare to avoid header conflicts
-namespace rocketchip {
-namespace hal {
-class I2CBus;
-}
-}
+#include "Scheduler.h"
 
 namespace RP2350 {
 
@@ -41,14 +36,29 @@ namespace RP2350 {
 /** Maximum number of I2C buses */
 static constexpr uint8_t kMaxI2CBuses = 2;
 
-/** Maximum devices per bus */
-static constexpr uint8_t kMaxDevicesPerBus = 8;
-
 /** Default I2C timeout in milliseconds (extended for SMP) */
 static constexpr uint32_t kDefaultTimeoutMs = 10;
 
 /** Default I2C clock speed */
 static constexpr uint32_t kDefaultClockHz = 400000;
+
+// ============================================================================
+// I2CBus - Per-bus state with DeviceBus for callbacks
+// ============================================================================
+
+/**
+ * @brief I2C bus container with DeviceBus callback infrastructure
+ *
+ * Each I2C bus gets one of these. It inherits from DeviceBus to get
+ * the per-bus thread that manages periodic callbacks.
+ */
+class I2CBus : public DeviceBus {
+public:
+    I2CBus() : DeviceBus(Scheduler::kI2cThreadPriority) {}
+
+    uint8_t bus_num;
+    uint32_t bus_clock;
+};
 
 // ============================================================================
 // I2CDevice_RP2350
@@ -57,8 +67,8 @@ static constexpr uint32_t kDefaultClockHz = 400000;
 /**
  * @brief I2C device wrapper for AP_HAL compatibility
  *
- * Wraps a RocketChip I2CBus instance for a specific device address.
- * Provides thread-safe access via semaphore.
+ * Uses DeviceBus for periodic callback infrastructure (per ESP32 pattern).
+ * Provides thread-safe access via bus semaphore.
  *
  * Usage:
  * @code
@@ -73,17 +83,15 @@ static constexpr uint32_t kDefaultClockHz = 400000;
  * @endcode
  */
 class I2CDevice_RP2350 : public AP_HAL::I2CDevice {
-    friend class I2CDeviceManager_RP2350;  // Allows manager to set semaphore
-
 public:
     /**
      * @brief Construct I2C device
-     * @param bus Bus number (0 or 1)
+     * @param bus Reference to I2CBus instance
      * @param address 7-bit I2C address
      * @param bus_clock Clock speed in Hz
      * @param timeout_ms Timeout in milliseconds
      */
-    I2CDevice_RP2350(uint8_t bus, uint8_t address,
+    I2CDevice_RP2350(I2CBus &bus, uint8_t address,
                       uint32_t bus_clock = kDefaultClockHz,
                       uint32_t timeout_ms = kDefaultTimeoutMs);
 
@@ -119,26 +127,9 @@ public:
     bool read_registers_multiple(uint8_t first_reg, uint8_t* recv,
                                   uint32_t recv_len, uint8_t times) override;
 
-    /**
-     * @brief Read registers starting at first_reg
-     * @param first_reg Starting register address
-     * @param recv Buffer to receive data
-     * @param recv_len Number of bytes to read
-     * @return true on success
-     * @note We implement this rather than use Device::read_registers since
-     *       we don't link ArduPilot's Device.cpp
-     */
-    bool read_registers(uint8_t first_reg, uint8_t* recv, uint32_t recv_len);
-
-    /**
-     * @brief Write a single register
-     * @param reg Register address
-     * @param val Value to write
-     * @return true on success
-     * @note We implement this rather than use Device::write_register since
-     *       we don't link ArduPilot's Device.cpp
-     */
-    bool write_register(uint8_t reg, uint8_t val);
+    // NOTE: read_registers and write_register are inherited from AP_HAL::Device
+    // which is implemented in lib/ardupilot/libraries/AP_HAL/Device.cpp.
+    // These base class methods call our transfer() implementation.
 
     // ========================================================================
     // Thread Safety
@@ -204,13 +195,10 @@ public:
     void set_retries(uint8_t retries) override { m_retries = retries; }
 
 private:
-    uint8_t m_bus;
-    uint32_t m_bus_clock;
+    I2CBus &m_bus;
+    uint8_t m_address;
     uint32_t m_timeout_ms;
     uint8_t m_retries;
-
-    rocketchip::hal::I2CBus* m_i2c_bus;
-    Semaphore* m_semaphore;
     bool m_initialized;
 };
 
@@ -222,10 +210,15 @@ private:
  * @brief I2C device manager for AP_HAL compatibility
  *
  * Factory for creating I2CDevice instances. Manages bus initialization
- * and provides access to devices by bus/address.
+ * and I2CBus instances with DeviceBus callback infrastructure.
  */
 class I2CDeviceManager_RP2350 : public AP_HAL::I2CDeviceManager {
 public:
+    friend class I2CDevice_RP2350;
+
+    // Static bus info array (per ESP32 pattern)
+    static I2CBus businfo[kMaxI2CBuses];
+
     I2CDeviceManager_RP2350();
     ~I2CDeviceManager_RP2350();
 
@@ -264,21 +257,8 @@ public:
      */
     uint32_t get_bus_mask_internal() const override { return 0x02; }  // Bus 1 = internal
 
-    /**
-     * @brief Get bus semaphore for a specific bus
-     * @param bus Bus number
-     * @return Pointer to semaphore, or nullptr if invalid bus
-     */
-    Semaphore* get_bus_semaphore(uint8_t bus);
-
 private:
-    // Device pool (statically allocated)
-    I2CDevice_RP2350* m_devices[kMaxI2CBuses][kMaxDevicesPerBus];
-    uint8_t m_device_count[kMaxI2CBuses];
     bool m_initialized;
-
-    // Bus semaphores (shared across devices on same bus)
-    Semaphore m_bus_semaphores[kMaxI2CBuses];
 };
 
 }  // namespace RP2350

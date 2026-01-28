@@ -22,6 +22,47 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-28-002 | Claude Code CLI | feature, bugfix
+
+**AP_InertialSensor Integration Complete - ICM-20948 Working**
+
+Resolved multi-core memory visibility (PD12) and priority inversion (PD13) issues. `AP_InertialSensor::init()` now completes successfully in ~2.3 seconds, detecting gyro and accelerometer with 1125Hz sample rate.
+
+**Root Causes:**
+1. **Memory visibility (PD12):** DeviceBus callback thread could run on different core than main task. Fixed by pinning bus thread to Core 0 via `vTaskCoreAffinitySet()` plus memory barriers in `delay_microseconds_boost()`.
+
+2. **Priority inversion (PD13):** DeviceBus (priority 5) was busy-waiting between callbacks, starving main task (priority 2). `taskYIELD()` only yields to equal/higher priority tasks. Fixed by changing DeviceBus to use `vTaskDelay(1)` between callbacks - accepts 1ms granularity but ensures proper yielding.
+
+**Additional fixes:**
+- I2C bus recovery after 3 consecutive failures (handles IMU temperature reset)
+- Adjusted `delay_microseconds()` threshold to 2000us for better timing accuracy
+
+Test output: Accel ~9.64 m/s² (gravity), gyro near zero when stationary. Live sensor streaming verified.
+
+(lib/ap_compat/AP_HAL_RP2350/Scheduler.cpp, DeviceBus.cpp, I2CDevice.cpp, tests/smoke_tests/ins_probe_test.cpp)
+
+---
+
+### 2026-01-28-001 | Claude Code CLI | architecture, bugfix
+
+**AP_InertialSensor Multi-Core Memory Visibility Investigation**
+
+Discovered fundamental platform difference: ArduPilot assumes single-core memory model where flag writes are immediately visible to polling loops. On RP2350 with FreeRTOS SMP (dual Cortex-M33), callback thread may run on different core than main thread, causing `_new_gyro_data` flags to be invisible despite being set.
+
+**Symptoms:** `AP_InertialSensor::init()` hangs indefinitely. Monitor shows gyro registered (count=1, rate=1125Hz), callbacks running (1000+/sec), I2C transfers succeeding (3000+), but `wait_for_sample()` never sees flags.
+
+**Attempts:**
+1. Memory barriers (`__sync_synchronize()`) in `delay_microseconds_boost()` - before and after delay
+2. Core pinning via `vTaskCoreAffinitySet()` - pins bus thread to Core 0 (like ESP32's approach)
+
+ESP32 HAL sidesteps this by pinning main thread and timer thread to same core via `xTaskCreatePinnedToCore(FASTCPU)`. ArduPilot's core code has implicit single-core assumptions throughout.
+
+Documented as PD12 in `docs/RP2350_FULL_AP_PORT.md`.
+
+(lib/ap_compat/AP_HAL_RP2350/Scheduler.cpp, DeviceBus.cpp)
+
+---
+
 ### 2026-01-27-001 | Claude Code CLI | architecture, refactor
 
 **AP_HAL_RP2350 Build Infrastructure Fixed - Hardware Validated**
