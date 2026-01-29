@@ -100,6 +100,7 @@ Before implementing each AP_HAL component, check for known RP2040/RP2350 porting
 
 ## Known Issues
 - Legacy Arduino codebase archived in DEPRECATED/ (not carried forward)
+- **INV2 temp reset spam** - ArduPilot Invensensev2 driver logs "temp reset IMU[0]" messages during warmup. Caused by occasional temperature read glitches during I2C high-rate sampling. Does not affect sensor operation - driver recovers automatically. May investigate I2C timing if it causes issues later.
 
 ## Future Documentation Planned
 - `docs/icd/` - Interface Control Documents (expansion connector, protocols)
