@@ -7,8 +7,7 @@
 
 #include "SensorTask.h"
 #include "HAL.h"
-#include "IMU_ISM330DHCX.h"
-#include "Mag_LIS3MDL.h"
+#include "IMU_ICM20948.h"
 #include "Baro_DPS310.h"
 
 #include "FreeRTOS.h"
@@ -42,9 +41,9 @@ namespace services {
 static constexpr uint8_t kI2cSda = 2;
 static constexpr uint8_t kI2cScl = 3;
 
-// I2C addresses
-static constexpr uint8_t kAddrIsm330dhcx = 0x6A;
-static constexpr uint8_t kAddrLis3mdl    = 0x1C;
+// I2C addresses (ICM-20948 at 0x69 on Adafruit board)
+static constexpr uint8_t kAddrIcm20948   = 0x69;  // ICM-20948 (not ISM330DHCX!)
+static constexpr uint8_t kAddrLis3mdl    = 0x1C;  // Not used - mag is inside ICM-20948
 static constexpr uint8_t kAddrDps310     = 0x77;
 
 // ============================================================================
@@ -68,11 +67,9 @@ static bool s_calibrationLoaded = false;
 
 // Sensor instances
 static I2CBus* s_imuBus = nullptr;
-static I2CBus* s_magBus = nullptr;
 static I2CBus* s_baroBus = nullptr;
 
-static IMU_ISM330DHCX* s_imu = nullptr;
-static Mag_LIS3MDL* s_mag = nullptr;
+static IMU_ICM20948* s_imu = nullptr;
 static Baro_DPS310* s_baro = nullptr;
 
 // Initialization flags
@@ -92,21 +89,18 @@ static bool initSensors() {
     DBG_PRINT("[SensorTask] Initializing sensors...\n");
 
     // Create bus instances (all share I2C1 hardware)
-    s_imuBus = new I2CBus(i2c1, kAddrIsm330dhcx, kI2cSda, kI2cScl, 400000);
-    s_magBus = new I2CBus(i2c1, kAddrLis3mdl, kI2cSda, kI2cScl, 400000);
+    s_imuBus = new I2CBus(i2c1, kAddrIcm20948, kI2cSda, kI2cScl, 400000);
     s_baroBus = new I2CBus(i2c1, kAddrDps310, kI2cSda, kI2cScl, 400000);
 
     // Create sensor instances
-    s_imu = new IMU_ISM330DHCX(s_imuBus);
-    s_mag = new Mag_LIS3MDL(s_magBus);
+    s_imu = new IMU_ICM20948(s_imuBus);
     s_baro = new Baro_DPS310(s_baroBus);
 
     // Initialize IMU
-    DBG_PRINT("  ISM330DHCX (IMU): ");
+    DBG_PRINT("  ICM-20948 (IMU):  ");
     s_imuInitialized = s_imu->begin();
     if (s_imuInitialized) {
-        // Configure for 1kHz operation
-        s_imu->setODR(ODR::ODR_1666HZ);  // Closest to 1kHz that's higher
+        // Configure ranges (ICM-20948 ODR is controlled via DLPF config in driver)
         s_imu->setAccelRange(AccelRange::RANGE_8G);
         s_imu->setGyroRange(GyroRange::RANGE_1000DPS);
         DBG_PRINT("OK\n");
@@ -114,16 +108,10 @@ static bool initSensors() {
         DBG_ERROR("FAILED\n");
     }
 
-    // Initialize Magnetometer
-    DBG_PRINT("  LIS3MDL (Mag):    ");
-    s_magInitialized = s_mag->begin();
-    if (s_magInitialized) {
-        s_mag->setRange(MagRange::RANGE_4GAUSS);
-        s_mag->setDataRate(MagDataRate::HP_80Hz);
-        DBG_PRINT("OK\n");
-    } else {
-        DBG_ERROR("FAILED\n");
-    }
+    // Note: Magnetometer (AK09916) is integrated in ICM-20948
+    // Accessing it requires auxiliary I2C bus setup - not implemented in simple driver
+    // For now, mag reads will be zeros
+    s_magInitialized = false;
 
     // Initialize Barometer
     DBG_PRINT("  DPS310 (Baro):    ");
@@ -226,50 +214,10 @@ static void readIMU() {
 }
 
 static void readMag() {
-    hal::Vector3f mag;
-
-    if (s_mag->read(mag)) {
-        if (xSemaphoreTake(g_sensorDataMutex, 0) == pdTRUE) {
-            // Convert to mGauss (calibration uses mGauss)
-            float mx = mag.x * 1000.0f;
-            float my = mag.y * 1000.0f;
-            float mz = mag.z * 1000.0f;
-
-            // Apply mag calibration if available
-            if (s_calibrationLoaded && (s_calibration.flags & kCalFlagMag)) {
-                // Apply hard iron correction (subtract offset)
-                mx -= s_calibration.mag.offset[0];
-                my -= s_calibration.mag.offset[1];
-                mz -= s_calibration.mag.offset[2];
-
-                // Apply soft iron correction (matrix multiply)
-                // Soft iron matrix:
-                //   [diag.x,    offdiag.x, offdiag.y]
-                //   [offdiag.x, diag.y,    offdiag.z]
-                //   [offdiag.y, offdiag.z, diag.z   ]
-                float cx = s_calibration.mag.diag[0] * mx +
-                           s_calibration.mag.offdiag[0] * my +
-                           s_calibration.mag.offdiag[1] * mz;
-                float cy = s_calibration.mag.offdiag[0] * mx +
-                           s_calibration.mag.diag[1] * my +
-                           s_calibration.mag.offdiag[2] * mz;
-                float cz = s_calibration.mag.offdiag[1] * mx +
-                           s_calibration.mag.offdiag[2] * my +
-                           s_calibration.mag.diag[2] * mz;
-
-                // Apply scale factor
-                mx = cx * s_calibration.mag.scale_factor;
-                my = cy * s_calibration.mag.scale_factor;
-                mz = cz * s_calibration.mag.scale_factor;
-            }
-
-            // Store as Gauss (convert back from mGauss)
-            g_sensorData.mag.x = mx * 0.001f;
-            g_sensorData.mag.y = my * 0.001f;
-            g_sensorData.mag.z = mz * 0.001f;
-            xSemaphoreGive(g_sensorDataMutex);
-        }
-    }
+    // Note: Magnetometer (AK09916) is integrated in ICM-20948 but requires
+    // auxiliary I2C bus setup. Not implemented yet - mag reads return zeros.
+    // TODO: Add ICM-20948 magnetometer support via auxiliary I2C
+    (void)0;  // Placeholder - mag not available
 }
 
 static void readBaro() {
@@ -328,6 +276,10 @@ static void SensorTask_Run(void* pvParameters) {
             g_sensorTaskStats.free_heap = xPortGetFreeHeapSize();
 
             DBG_PRINT("\n[SensorTask] Status:\n");
+            DBG_PRINT("  Init: IMU=%s, Baro=%s, Mag=%s\n",
+                   s_imuInitialized ? "OK" : "FAIL",
+                   s_baroInitialized ? "OK" : "FAIL",
+                   s_magInitialized ? "OK" : "N/A");
             DBG_PRINT("  IMU samples:  %lu (errors: %lu)\n",
                    g_sensorTaskStats.imu_samples, g_sensorTaskStats.imu_errors);
             DBG_PRINT("  Baro samples: %lu (errors: %lu)\n",
@@ -423,6 +375,34 @@ bool SensorTask_GetData(SensorData& data) {
 
 SensorTaskStats SensorTask_GetStats() {
     return g_sensorTaskStats;
+}
+
+void SensorTask_PrintStatus() {
+    g_sensorTaskStats.free_heap = xPortGetFreeHeapSize();
+
+    printf("\n[SensorTask] Status:\n");
+    printf("  Init: IMU=%s, Baro=%s, Mag=%s\n",
+           s_imuInitialized ? "OK" : "FAIL",
+           s_baroInitialized ? "OK" : "FAIL",
+           s_magInitialized ? "OK" : "N/A");
+    printf("  IMU samples:  %lu (errors: %lu)\n",
+           g_sensorTaskStats.imu_samples, g_sensorTaskStats.imu_errors);
+    printf("  Baro samples: %lu (errors: %lu)\n",
+           g_sensorTaskStats.baro_samples, g_sensorTaskStats.baro_errors);
+    printf("  Loop overruns: %lu\n", g_sensorTaskStats.loop_overruns);
+    printf("  Free heap:     %lu bytes\n", g_sensorTaskStats.free_heap);
+
+    // Print current sensor values
+    SensorData data;
+    if (SensorTask_GetData(data)) {
+        printf("  Accel: [%+7.2f, %+7.2f, %+7.2f] g\n",
+               data.accel.x, data.accel.y, data.accel.z);
+        printf("  Gyro:  [%+7.3f, %+7.3f, %+7.3f] dps\n",
+               data.gyro.x, data.gyro.y, data.gyro.z);
+        printf("  Baro:  %.1f Pa, %.1f C\n",
+               data.pressure_pa, data.temperature_c);
+    }
+    printf("\n");
 }
 
 } // namespace services

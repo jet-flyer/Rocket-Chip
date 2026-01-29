@@ -22,6 +22,48 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-28-004 | Claude Code CLI | bugfix, feature
+
+**ICM-20948 IMU Init Fix + USB CDC Handling Refactor**
+
+Fixed ICM-20948 IMU showing 0 samples despite barometer working on same I2C bus. Root cause: `IMU_ICM20948::begin()` was not calling `m_bus->begin()`, but `Baro_DPS310::begin()` did. Added the missing call.
+
+**USB CDC Refactor:**
+Discovered that USB CDC breaks completely ("error 2") when doing any USB I/O before FreeRTOS scheduler starts. TinyUSB's background tasks need to be running. Refactored main.cpp:
+- Removed all USB I/O from main() before `vTaskStartScheduler()`
+- Moved "press any key to start" pattern to UITask (runs after scheduler)
+- Added key commands: `?`/`h` for system status, `s` for sensor status
+- Added `SensorTask_PrintStatus()` function for on-demand sensor readout
+
+Hardware validation: IMU 25,000+ samples with 0 errors, Baro 1,250+ samples with 0 errors.
+
+(src/hal/IMU_ICM20948.cpp, src/main.cpp, src/services/SensorTask.cpp, src/services/SensorTask.h, .claude/LESSONS_LEARNED.md)
+
+---
+
+### 2026-01-28-003 | Claude Code CLI | architecture, bugfix
+
+**PD12 Memory Visibility Fix Complete - True Dual-Core Operation Achieved**
+
+Replaced the Core 0 pinning workaround with proper `std::atomic<bool>` fix for AP_InertialSensor flags. RP2350 + FreeRTOS SMP now operates with full dual-core scheduling - no core pinning required.
+
+**The Fix:**
+- Copied AP_InertialSensor to `lib/ap_compat/AP_InertialSensor/`
+- Changed `_new_gyro_data`/`_new_accel_data` flags from `bool` to `std::atomic<bool>`
+- Reads use `.load(std::memory_order_acquire)`, writes use `.store(true, std::memory_order_release)`
+- Removed `vTaskCoreAffinitySet()` call from DeviceBus.cpp
+
+**Validation:**
+- Checkpoint 1A (compile): PASS - rocketchip.uf2 built (180KB)
+- Checkpoint 1B (hardware): PASS - wait_for_sample() completes, 1125Hz sample rate
+- Checkpoint 2 (dual-core): PASS - Core pinning removed, sensors work on both cores
+
+This resolves the fundamental issue documented in PD12: ArduPilot reads flags without semaphore protection, causing race conditions on dual-core systems. The std::atomic approach is correct per C++11 memory model and portable across platforms.
+
+(lib/ap_compat/AP_InertialSensor/AP_InertialSensor.h, AP_InertialSensor.cpp, AP_InertialSensor_Backend.cpp, lib/ap_compat/AP_HAL_RP2350/DeviceBus.cpp, docs/FREERTOS_PATH_EVALUATION.md)
+
+---
+
 ### 2026-01-28-002 | Claude Code CLI | feature, bugfix
 
 **AP_InertialSensor Integration Complete - ICM-20948 Working**

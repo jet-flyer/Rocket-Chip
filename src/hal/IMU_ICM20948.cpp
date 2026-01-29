@@ -38,7 +38,13 @@ bool IMU_ICM20948::begin() {
         return false;
     }
 
-    // Probe the device first
+    // Initialize the bus first (match DPS310 pattern)
+    if (!m_bus->begin()) {
+        printf("ICM20948: Bus init failed\n");
+        return false;
+    }
+
+    // Probe the device
     if (!m_bus->probe()) {
         printf("ICM20948: Device not responding at I2C address\n");
         return false;

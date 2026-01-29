@@ -381,6 +381,70 @@ This accepts 1ms timing granularity but ensures the scheduler can run other task
 
 ---
 
+## Entry 10: USB CDC Requires FreeRTOS Scheduler Running
+
+**Date:** 2026-01-28
+**Time Spent:** ~1 hour of iterative debugging
+**Severity:** Critical - USB completely breaks (error 2)
+
+### Problem
+USB CDC serial would break with "error 2" when adding USB wait loops in `main()` before `vTaskStartScheduler()`.
+
+### Symptoms
+- Any `stdio_usb_connected()` check before scheduler starts breaks USB
+- Indefinite `while (!stdio_usb_connected())` loop breaks USB
+- Bounded wait loops (e.g., 6 seconds) also break USB
+- USB enumeration fails completely ("error 2" on host)
+- Works fine if no USB I/O done before scheduler
+
+### Root Cause
+TinyUSB on RP2350 with FreeRTOS SMP runs background tasks on Core 1. These tasks handle USB enumeration and I/O. Before `vTaskStartScheduler()` is called, these tasks aren't running.
+
+Calling `stdio_usb_connected()` or doing any USB I/O in main() before the scheduler starts causes USB to malfunction because the necessary TinyUSB background processing isn't happening.
+
+### Solution
+Move ALL USB I/O to FreeRTOS tasks that run after scheduler starts:
+
+```cpp
+int main() {
+    gpio_init(kLedPin);
+    gpio_set_dir(kLedPin, GPIO_OUT);
+    stdio_init_all();  // Initialize USB, but DON'T do any I/O yet!
+
+    // Do non-USB init here (sensors, etc.)
+    SensorTask_Init();
+    SensorTask_Create();
+
+    // Create UITask that will handle USB I/O
+    xTaskCreate(UITask, "UI", ...);
+
+    vTaskStartScheduler();  // NOW USB works
+}
+
+static void UITask(void* params) {
+    // Safe to do USB I/O here - scheduler is running
+    while (true) {
+        printf("\rPress any key to start...");  // Works!
+        int c = getchar_timeout_us(0);
+        if (c != PICO_ERROR_TIMEOUT) break;
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+```
+
+### How to Identify This Issue
+1. USB "error 2" on host when connecting
+2. USB worked before adding wait loop
+3. Wait loop or USB checks are in main() before scheduler
+
+### Prevention
+- **Rule: Never do USB I/O before `vTaskStartScheduler()`**
+- Move all "wait for terminal" patterns to FreeRTOS tasks
+- Use LED blink patterns for pre-scheduler status (not serial)
+- This applies to FreeRTOS SMP on RP2350 with TinyUSB
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

@@ -127,6 +127,11 @@ bool SensorTask_GetData(SensorData& data);
  */
 SensorTaskStats SensorTask_GetStats();
 
+/**
+ * @brief Print sensor status to serial (for debug key commands)
+ */
+void SensorTask_PrintStatus();
+
 } // namespace services
 } // namespace rocketchip
 

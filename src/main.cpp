@@ -34,7 +34,25 @@ static constexpr uint32_t kUiTaskPriority = 1;
 static constexpr uint32_t kUiStackSize = configMINIMAL_STACK_SIZE * 4;
 
 // ============================================================================
-// UI Task - LED blinking and status
+// Status Print Helper
+// ============================================================================
+
+static void printSystemStatus() {
+    printf("\n========================================\n");
+    printf("  RocketChip System Status\n");
+    printf("========================================\n");
+    printf("  Target: Adafruit Feather RP2350\n");
+    printf("  Phase: 2 (Sensors)\n");
+    printf("  Heap free: %u bytes\n", xPortGetFreeHeapSize());
+    printf("  Uptime: %llu ms\n", to_ms_since_boot(get_absolute_time()));
+    printf("----------------------------------------\n");
+    printf("  Press 's' for sensor status\n");
+    printf("  Press '?' or 'h' for this help\n");
+    printf("========================================\n\n");
+}
+
+// ============================================================================
+// UI Task - LED blinking, key commands, and status
 // ============================================================================
 
 static void UITask(void* pvParameters) {
@@ -43,12 +61,70 @@ static void UITask(void* pvParameters) {
     gpio_init(kLedPin);
     gpio_set_dir(kLedPin, GPIO_OUT);
 
+    // Wait for keypress before showing init output
+    // Now under FreeRTOS, USB CDC works properly
+    uint32_t promptCount = 0;
+    while (true) {
+        // Blink LED while waiting
+        gpio_put(kLedPin, 1);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        gpio_put(kLedPin, 0);
+        vTaskDelay(pdMS_TO_TICKS(100));
+
+        // Print prompt every 2 seconds
+        if (promptCount % 10 == 0) {
+            printf("\rPress any key to start...   ");
+        }
+        promptCount++;
+
+        // Check for keypress
+        int c = getchar_timeout_us(0);
+        if (c != PICO_ERROR_TIMEOUT) {
+            break;
+        }
+    }
+
+    // Print startup banner
+    printf("\n\n");
+    printf("========================================\n");
+    printf("  RocketChip Production Firmware\n");
+    printf("  Target: Adafruit Feather RP2350\n");
+    printf("  Phase: 2 (Sensors)\n");
+    printf("  Press '?' or 'h' for status\n");
+    printf("========================================\n\n");
+
+    // Print initial sensor status
+    SensorTask_PrintStatus();
+
+    // Main UI loop
     bool ledState = false;
 
     while (true) {
         // Toggle LED every 500ms (1Hz blink = system running)
         ledState = !ledState;
         gpio_put(kLedPin, ledState);
+
+        // Check for key commands (non-blocking)
+        int c = getchar_timeout_us(0);
+        if (c != PICO_ERROR_TIMEOUT) {
+            switch (c) {
+                case '?':
+                case 'h':
+                case 'H':
+                    printSystemStatus();
+                    break;
+                case 's':
+                case 'S':
+                    // Trigger SensorTask status print
+                    SensorTask_PrintStatus();
+                    break;
+                case '\r':
+                case '\n':
+                    // Just echo a newline for visual feedback
+                    printf("\n");
+                    break;
+            }
+        }
 
         vTaskDelay(pdMS_TO_TICKS(500));
     }
@@ -153,48 +229,20 @@ int main() {
     gpio_init(kLedPin);
     gpio_set_dir(kLedPin, GPIO_OUT);
 
-    // Blink 3 times rapidly to show we reached main()
-    for (int i = 0; i < 3; i++) {
-        gpio_put(kLedPin, 1);
-        busy_wait_ms(100);
-        gpio_put(kLedPin, 0);
-        busy_wait_ms(100);
-    }
-
-    // Initialize USB serial
+    // Initialize USB serial - don't do any USB I/O before FreeRTOS starts!
     stdio_init_all();
-    sleep_ms(2000);  // Wait for USB enumeration
 
-    // Blink 2 times slowly = USB init done
-    for (int i = 0; i < 2; i++) {
-        gpio_put(kLedPin, 1);
-        sleep_ms(250);
-        gpio_put(kLedPin, 0);
-        sleep_ms(250);
-    }
-
-    DBG_PRINT("\n\n");
-    DBG_PRINT("========================================\n");
-    DBG_PRINT("  RocketChip Production Firmware\n");
-    DBG_PRINT("  Target: Adafruit Feather RP2350\n");
-    DBG_PRINT("  Phase: 2 (Sensors)\n");
-    DBG_PRINT("========================================\n\n");
-
-    // Initialize SensorTask (HAL + sensors)
-    DBG_PRINT("[Main] Initializing SensorTask...\n");
+    // Initialize sensors before starting scheduler
+    // (USB wait and output will happen in UITask after scheduler starts)
     if (!SensorTask_Init()) {
-        DBG_ERROR("[Main] SensorTask init FAILED - continuing anyway\n");
-        // Don't fail completely - let the system run for debugging
+        // Can't print error here - no FreeRTOS yet, USB unreliable
+        // UITask will show sensor status later
     }
-
-    DBG_PRINT("[Main] Creating tasks...\n");
 
     // Create SensorTask
-    if (!SensorTask_Create()) {
-        DBG_ERROR("[Main] ERROR: Failed to create SensorTask\n");
-    }
+    SensorTask_Create();
 
-    // Create UI task (LED blink)
+    // Create UI task (handles keypress wait, LED, and status output)
     TaskHandle_t uiHandle;
     BaseType_t result = xTaskCreate(
         UITask,
@@ -205,21 +253,12 @@ int main() {
         &uiHandle
     );
 
-    if (result != pdPASS) {
-        DBG_ERROR("[Main] ERROR: Failed to create UITask\n");
-    } else {
+    if (result == pdPASS) {
         vTaskCoreAffinitySet(uiHandle, (1 << 0));  // Pin to Core 0
     }
 
-    DBG_PRINT("[Main] Starting scheduler...\n\n");
-
-    // One long blink before scheduler starts
-    gpio_put(kLedPin, 1);
-    sleep_ms(500);
-    gpio_put(kLedPin, 0);
-    sleep_ms(500);
-
     // Start the scheduler - should never return
+    // All USB I/O happens in tasks after this point
     vTaskStartScheduler();
 
     // If we get here, something went wrong - this is a fatal error
