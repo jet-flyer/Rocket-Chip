@@ -26,7 +26,7 @@ Expansion modules following rocketry-themed naming (specific names TBD when boar
 | Function | Part | Adafruit P/N | Specs | Notes |
 |----------|------|--------------|-------|-------|
 | MCU | Feather RP2350 HSTX | #6130 | Dual M33 @ 150MHz, 520KB SRAM, 8MB PSRAM | Primary dev board |
-| IMU | ICM-20948 9-DoF | #4554 | 9-axis (accel/gyro/mag), ArduPilot Invensensev2 | STEMMA QT/I2C, 0x68 |
+| IMU | ICM-20948 9-DoF | #4554 | 9-axis (accel/gyro/mag), ArduPilot Invensensev2 | STEMMA QT/I2C, 0x69 (default) |
 | Barometer | DPS310 | #4494 | ±1Pa precision | STEMMA QT/I2C |
 | Battery | Li-Ion 400mAh | #3898 | 3.7V, fits between Feather headers | |
 | Debug | SWD Debug Probe | #5699 | RP2040/RP2350 compatible | For crash debugging, timing analysis |

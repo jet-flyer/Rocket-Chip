@@ -536,6 +536,62 @@ stdio_init_all();
 
 ---
 
+## Entry 13: Adafruit ICM-20948 Default I2C Address is 0x69, not 0x68
+
+**Date:** 2026-01-29
+**Time Spent:** ~20 minutes
+**Severity:** High - IMU not detected, silent failure
+
+### Problem
+IMU (ICM-20948) not being detected by ArduPilot backends. Barometer worked fine (proving I2C bus functional), but zero I2C traffic to the IMU address.
+
+### Symptoms
+- Barometer samples: 2500+ (working at 0x77)
+- IMU samples: 0 (no traffic to 0x68)
+- `AP_INS: accel=0, gyro=0, rate=0Hz`
+- I2C debug output shows only 0x77 transfers, never 0x68
+
+### Root Cause
+`hwdef.h` was configured with **0x68** as the ICM-20948 address, but **Adafruit boards default to 0x69**.
+
+The ICM-20948 has an AD0 pin that controls I2C address:
+- AD0 = LOW (grounded) → 0x68
+- AD0 = HIGH (or floating) → 0x69
+
+**Adafruit boards pull AD0 HIGH by default**, giving address 0x69. You must bridge the SDO/ADR solder jumper on the back to change to 0x68.
+
+Comments in `hwdef.h` incorrectly stated "AD0 pulled LOW on Adafruit board" - this was wrong.
+
+### Solution
+Update all hwdef.h files:
+```cpp
+// WRONG:
+constexpr uint8_t ICM20948 = 0x68;  // AD0=LOW
+#define HAL_INS_PROBE_LIST PROBE_IMU_I2C(Invensensev2, 0, 0x68, ROTATION_NONE)
+
+// CORRECT:
+constexpr uint8_t ICM20948 = 0x69;  // AD0=HIGH (Adafruit default)
+#define HAL_INS_PROBE_LIST PROBE_IMU_I2C(Invensensev2, 0, 0x69, ROTATION_NONE)
+```
+
+### Files Fixed
+- `lib/ap_compat/AP_HAL_RP2350/hwdef.h`
+- `lib/ap_compat/RocketChip/hwdef.h`
+- `src/hal/IMU_ICM20948.h`
+- `docs/HARDWARE.md`
+
+### Prevention
+1. **Always check vendor documentation for default I2C addresses**
+2. Run I2C scan test to confirm actual device addresses before configuring probes
+3. For Adafruit boards: check product page or schematic for default pin states
+4. Add comments noting whether addresses are vendor defaults vs modified
+
+### Reference
+Adafruit ICM-20948 product page confirms 0x69 as default:
+https://learn.adafruit.com/adafruit-tdk-invensense-icm-20948-9-dof-imu/pinouts
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

@@ -7,7 +7,7 @@
  *
  * Hardware:
  * - MCU: RP2350A (dual Cortex-M33 @ 150MHz)
- * - IMU: ICM-20948 on I2C1 @ 0x68 (AD0 pulled LOW on Adafruit board)
+ * - IMU: ICM-20948 on I2C1 @ 0x69 (AD0 pulled HIGH, Adafruit default)
  * - Baro: DPS310 on I2C1 @ 0x77
  * - I2C1 pins: SDA=GPIO2, SCL=GPIO3 (STEMMA QT/Qwiic)
  */
@@ -25,7 +25,7 @@
 // IMU Configuration
 // ============================================================================
 
-// ICM-20948 on I2C bus 1 at address 0x68 (AD0=LOW on Adafruit board)
+// ICM-20948 on I2C bus 1 at address 0x69 (AD0=HIGH, Adafruit default)
 // Bus 0 = Qwiic (I2C1 on Feather RP2350 hardware)
 #define HAL_INS_DEFAULT INS_ROCKETCHIP_I2C
 #define HAL_INS_INV2_I2C 1
@@ -38,10 +38,11 @@
 #define PROBE_IMU_I2C(driver, bus, addr, args ...) \
     ADD_BACKEND(AP_InertialSensor_ ## driver::probe(*this, GET_I2C_DEVICE(bus, addr), ##args))
 
-// IMU probe list: ICM-20948 on bus 0 (Qwiic) at 0x68
+// IMU probe list: ICM-20948 on bus 0 (Qwiic) at 0x69
 // Note: Bus 0 in software maps to I2C1 hardware on Feather RP2350
-// Adafruit ICM-20948 has AD0 pulled LOW, so address is 0x68 (not 0x69)
-#define HAL_INS_PROBE_LIST PROBE_IMU_I2C(Invensensev2, 0, 0x68, ROTATION_NONE)
+// Adafruit ICM-20948 has AD0 pulled HIGH by default, so address is 0x69
+// (bridging the SDO/ADR solder jumper changes it to 0x68)
+#define HAL_INS_PROBE_LIST PROBE_IMU_I2C(Invensensev2, 0, 0x69, ROTATION_NONE)
 
 // ============================================================================
 // Barometer Configuration (future use)

@@ -26,7 +26,7 @@ namespace hal {
  * The AK09916 magnetometer is accessed via I2C bypass mode.
  *
  * @code
- * I2CBus bus(i2c0, 0x68, SDA_PIN, SCL_PIN);
+ * I2CBus bus(i2c0, 0x69, SDA_PIN, SCL_PIN);  // 0x69 is Adafruit default (AD0 HIGH)
  * IMU_ICM20948 imu(&bus);
  *
  * if (imu.begin()) {
@@ -45,8 +45,8 @@ namespace hal {
  */
 class IMU_ICM20948 {
 public:
-    static constexpr uint8_t I2C_ADDR_DEFAULT = 0x68;  // AD0 = 0
-    static constexpr uint8_t I2C_ADDR_ALT     = 0x69;  // AD0 = 1
+    static constexpr uint8_t I2C_ADDR_DEFAULT = 0x69;  // AD0 = 1 (Adafruit default, AD0 pulled HIGH)
+    static constexpr uint8_t I2C_ADDR_ALT     = 0x68;  // AD0 = 0 (bridge solder jumper to use this)
     static constexpr uint8_t DEVICE_ID        = 0xEA;  // WHO_AM_I value
 
     /**
