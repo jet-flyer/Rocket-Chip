@@ -17,7 +17,7 @@
 #include <cstdio>
 
 // Debug output for I2C (disable in production)
-#define I2C_DEBUG 1
+#define I2C_DEBUG 0
 
 #if I2C_DEBUG
 #define DBG_I2C(fmt, ...) printf("[I2C] " fmt "\n", ##__VA_ARGS__)

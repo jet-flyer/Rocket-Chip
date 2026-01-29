@@ -26,7 +26,7 @@
 #include "task.h"
 
 // Debug output for DeviceBus (disable in production)
-#define DEVICEBUS_DEBUG 1
+#define DEVICEBUS_DEBUG 0
 
 #if DEVICEBUS_DEBUG
 #define DBG_BUS(fmt, ...) printf("[DeviceBus] " fmt "\n", ##__VA_ARGS__)
