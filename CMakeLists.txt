@@ -272,6 +272,7 @@ target_link_libraries(ap_hal_rp2350 PUBLIC
 add_library(ap_compat STATIC
     lib/ap_compat/AP_InternalError/AP_InternalError.cpp
     lib/ap_compat/AP_Notify/AP_Notify.cpp
+    lib/ap_compat/AP_GPS/AP_GPS.cpp
 )
 
 target_include_directories(ap_compat PUBLIC
@@ -627,6 +628,127 @@ target_link_libraries(ap_inertial_sensor PUBLIC
 )
 
 # ============================================================================
+# ArduPilot Compass (AK09916 via ICM-20948)
+# ============================================================================
+
+add_library(ap_compass STATIC
+    # Core framework
+    lib/ardupilot/libraries/AP_Compass/AP_Compass.cpp
+    lib/ardupilot/libraries/AP_Compass/AP_Compass_Backend.cpp
+    # Compass_PerMotor stubbed in compass_stubs.cpp (motor compensation not for rockets)
+    # AP_Compass_Calibration.cpp skipped - requires full MAVLink GCS bindings
+    # Calibration algorithm is in CompassCalibrator.cpp
+    lib/ardupilot/libraries/AP_Compass/CompassCalibrator.cpp
+    # AK09916 driver (inside ICM-20948)
+    lib/ardupilot/libraries/AP_Compass/AP_Compass_AK09916.cpp
+    # Declination tables for magnetic variation
+    lib/ardupilot/libraries/AP_Declination/AP_Declination.cpp
+    lib/ardupilot/libraries/AP_Declination/tables.cpp
+    # Stubs for complex dependencies (Compass_PerMotor, Location::zero)
+    lib/ap_compat/stubs/compass_stubs.cpp
+)
+
+target_include_directories(ap_compass PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+target_compile_definitions(ap_compass PUBLIC
+    AP_COMPASS_ENABLED=1
+    COMPASS_CAL_ENABLED=1
+    AP_COMPASS_AK09916_ENABLED=1
+    AP_COMPASS_ICM20948_ENABLED=1
+    # Disable unused backends
+    AP_COMPASS_SITL_ENABLED=0
+    AP_COMPASS_DRONECAN_ENABLED=0
+    AP_COMPASS_EXTERNALAHRS_ENABLED=0
+    AP_COMPASS_LIS3MDL_ENABLED=0
+    AP_COMPASS_HMC5843_ENABLED=0
+    AP_COMPASS_AK8963_ENABLED=0
+    AP_COMPASS_BMM150_ENABLED=0
+    AP_COMPASS_BMM350_ENABLED=0
+    AP_COMPASS_MMC3416_ENABLED=0
+    AP_COMPASS_MMC5XX3_ENABLED=0
+    AP_COMPASS_QMC5883L_ENABLED=0
+    AP_COMPASS_QMC5883P_ENABLED=0
+    AP_COMPASS_IST8308_ENABLED=0
+    AP_COMPASS_IST8310_ENABLED=0
+    AP_COMPASS_LIS2MDL_ENABLED=0
+    AP_COMPASS_IIS2MDC_ENABLED=0
+    AP_COMPASS_LSM303D_ENABLED=0
+    AP_COMPASS_LSM9DS1_ENABLED=0
+    AP_COMPASS_MAG3110_ENABLED=0
+    AP_COMPASS_RM3100_ENABLED=0
+    AP_COMPASS_MSP_ENABLED=0
+)
+
+if(CONFIG_DEBUG)
+    target_compile_definitions(ap_compass PUBLIC CONFIG_DEBUG)
+endif()
+
+target_link_libraries(ap_compass PUBLIC
+    ap_inertial_sensor  # For auxiliary bus access
+    ap_param
+    ap_hal_rp2350
+    pico_stdlib
+)
+
+# ============================================================================
+# ArduPilot Barometer (DPS310)
+# ============================================================================
+
+add_library(ap_baro STATIC
+    # Use ap_compat versions (customized for RocketChip, not ArduPilot originals)
+    lib/ap_compat/AP_Baro/AP_Baro.cpp
+    lib/ap_compat/AP_Baro/AP_Baro_Backend.cpp
+    lib/ap_compat/AP_Baro/AP_Baro_DPS280.cpp
+    lib/ap_compat/AP_Baro/AP_Baro_atmosphere.cpp
+    # Filter library (DerivativeFilter used by AP_Baro)
+    lib/ardupilot/libraries/Filter/DerivativeFilter.cpp
+)
+
+target_include_directories(ap_baro PUBLIC
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+target_compile_definitions(ap_baro PUBLIC
+    AP_BARO_ENABLED=1
+    AP_BARO_DPS280_ENABLED=1
+    # Disable unused backends
+    AP_BARO_SITL_ENABLED=0
+    AP_BARO_DRONECAN_ENABLED=0
+    AP_BARO_EXTERNALAHRS_ENABLED=0
+    AP_BARO_MSP_ENABLED=0
+    AP_BARO_BMP085_ENABLED=0
+    AP_BARO_BMP280_ENABLED=0
+    AP_BARO_BMP388_ENABLED=0
+    AP_BARO_BMP581_ENABLED=0
+    AP_BARO_FBM320_ENABLED=0
+    AP_BARO_ICM20789_ENABLED=0
+    AP_BARO_ICP101XX_ENABLED=0
+    AP_BARO_ICP201XX_ENABLED=0
+    AP_BARO_KELLERLD_ENABLED=0
+    AP_BARO_LPS2XH_ENABLED=0
+    AP_BARO_MS5611_ENABLED=0
+    AP_BARO_SPL06_ENABLED=0
+)
+
+if(CONFIG_DEBUG)
+    target_compile_definitions(ap_baro PUBLIC CONFIG_DEBUG)
+endif()
+
+target_link_libraries(ap_baro PUBLIC
+    ap_param
+    ap_hal_rp2350
+    pico_stdlib
+)
+
+# ============================================================================
 # Services Library (FreeRTOS Tasks)
 # ============================================================================
 
@@ -640,10 +762,16 @@ target_include_directories(services PUBLIC
     ${ROCKETCHIP_INCLUDE_DIR}
 )
 
+if(CONFIG_DEBUG)
+    target_compile_definitions(services PUBLIC CONFIG_DEBUG)
+endif()
+
 target_link_libraries(services PUBLIC
     hal
     hal_sensors
     ap_inertial_sensor
+    ap_compass
+    ap_baro
     FreeRTOS-Kernel
 )
 

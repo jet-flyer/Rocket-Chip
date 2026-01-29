@@ -1,11 +1,16 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-01-24 by Claude Code CLI
+**Last Updated:** 2026-01-28 by Claude Code CLI
 
 ## Current Phase
-Phase 2 (Sensor Integration) - AP_HAL_RP2350 complete. Radio telemetry pending test, then EKF3 fusion.
+Phase 2 (Sensor Integration) - FreeRTOS path validated with std::atomic fix. AP_Param integration next.
 
 ## Recently Completed
+- [x] **PD12 Memory Visibility Fix (std::atomic)** - True dual-core operation achieved
+  - AP_InertialSensor flags changed to `std::atomic<bool>` with acquire/release semantics
+  - Core pinning removed - FreeRTOS SMP schedules freely across both cores
+  - wait_for_sample() working, 1125Hz sample rate confirmed
+  - See `docs/FREERTOS_PATH_EVALUATION.md` for full checkpoint status
 - [x] **Accelerometer calibration working** - Full 6-position calibration with flash persistence
   - Fixed RP2350 flash page alignment (256-byte writes required)
   - AP_Param system integrated with AP_FlashStorage
@@ -32,10 +37,14 @@ Phase 2 (Sensor Integration) - AP_HAL_RP2350 complete. Radio telemetry pending t
 - [x] Hardware verification: AP_HAL_RP2350 Phase 1 (Storage) - **VALIDATED 2026-01-24**
 - [x] Hardware verification: AP_HAL_RP2350 Phase 2 (GPIO, AnalogIn, UART, I2C, SPI) - **VALIDATED 2026-01-24**
 - [x] Accelerometer calibration with persistence - **VALIDATED 2026-01-24**
-- [ ] Magnetometer calibration - next up
+- [x] PD12 std::atomic fix - **VALIDATED 2026-01-28**
+- [x] Dual-core operation (no core pinning) - **VALIDATED 2026-01-28**
+- [ ] **Phase 3: Enable AP_Param** - next up (calibration persistence path)
+- [ ] Phase 4: Add AP_Baro/AP_GPS to sparse checkout
+- [ ] Phase 5: EKF3 integration decision
+- [ ] Magnetometer calibration
 - [ ] Hardware verification: rocketchip firmware (production main.cpp + SensorTask)
 - [ ] Hardware verification: radio link (two Feather RP2350 + RFM95W FeatherWings)
-- [ ] Sensor fusion (EKF3-derived) - all sensors ready, implementation after hw verification
 
 ## Blocked On
 Nothing currently.

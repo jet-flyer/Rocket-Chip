@@ -181,6 +181,13 @@ public:
      */
     BusResult write(const uint8_t* buffer, size_t length);
 
+    /**
+     * @brief Get underlying I2C hardware instance
+     * @return Pointer to i2c_inst_t (cast to void* for header portability)
+     * @note Used internally for bypass mode (e.g., ICM-20948 magnetometer)
+     */
+    void* getHardware() const { return m_i2c; }
+
 private:
     void* m_i2c;
     uint8_t m_address;

@@ -131,8 +131,7 @@ constexpr uint8_t ADC_TEMP_CHANNEL  = 4;        // Internal temperature sensor
 
 // I2C Device Addresses
 namespace I2CAddr {
-constexpr uint8_t ISM330DHCX        = 0x6A;     // IMU (alt: 0x6B)
-constexpr uint8_t LIS3MDL           = 0x1C;     // Magnetometer (alt: 0x1E)
+constexpr uint8_t ICM20948          = 0x68;     // 9-axis IMU (accel/gyro + AK09916 mag) - AD0=LOW on Adafruit board
 constexpr uint8_t DPS310            = 0x77;     // Barometer (alt: 0x76)
 constexpr uint8_t PA1010D           = 0x10;     // GPS module
 }  // namespace I2CAddr
@@ -164,10 +163,36 @@ constexpr uint8_t PA1010D           = 0x10;     // GPS module
 #define PROBE_IMU_I2C(driver, bus, addr, args ...) \
     ADD_BACKEND(AP_InertialSensor_ ## driver::probe(*this, GET_I2C_DEVICE(bus, addr), ##args))
 
-// IMU probe list: ICM-20948 on bus 0 (Qwiic) at 0x69
+// IMU probe list: ICM-20948 on bus 0 (Qwiic) at 0x68
 // Note: Bus 0 in software maps to I2C1 hardware on Feather RP2350
-#define HAL_INS_PROBE_LIST PROBE_IMU_I2C(Invensensev2, 0, 0x69, ROTATION_NONE)
+// Adafruit ICM-20948 has AD0 pulled LOW, so address is 0x68 (not 0x69)
+#define HAL_INS_PROBE_LIST PROBE_IMU_I2C(Invensensev2, 0, 0x68, ROTATION_NONE)
 
+// ============================================================================
+// Compass Configuration (AK09916 integrated in ICM-20948)
+// ============================================================================
+
+// AK09916 is accessed via ICM-20948's auxiliary I2C bus, not directly
+// The compass probe uses the INS instance (0) to access the auxiliary bus
+// probe_ICM20948_I2C(ins_instance, rotation) - probes AK09916 via Invensensev2 aux bus
+// Note: This macro expands inside Compass::probe_i2c_spi_compasses(), so it calls add_backend() directly
+#define HAL_MAG_PROBE_LIST \
+    add_backend(DRIVER_AK09916, AP_Compass_AK09916::probe_ICM20948_I2C(0, ROTATION_NONE))
+
+// ============================================================================
+// Barometer Configuration (DPS310)
+// ============================================================================
+
+// Enable barometer support
+#define AP_BARO_ENABLED             1
+#define AP_BARO_DPS280_ENABLED      1       // DPS310 uses the DPS280 driver
+
+// Barometer probe list: DPS310 on bus 0 at 0x77
+// probe_i2c_dev is a member function of AP_Baro called during init()
+#define HAL_BARO_PROBE_LIST \
+    probe_i2c_dev(AP_Baro_DPS310::probe, 0, 0x77)
+
+// ============================================================================
 // Features we enable for calibration support
 #define AP_PARAM_ENABLED            1           // Parameter storage
 #define AP_INERTIALSENSOR_ENABLED   1           // Inertial sensor calibration

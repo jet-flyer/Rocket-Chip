@@ -1,5 +1,49 @@
 # Debug Probe Usage Notes
 
+## Priority: Debug Probe Over LED Debugging
+
+**CRITICAL GUIDELINE: Always prioritize debug probe over LED-based debugging**, especially when encountering issues that prevent output (USB enumeration failures, hardfaults, early crashes).
+
+### Why Debug Probe First
+
+1. **Always works** - Even when USB is completely broken, the probe can flash, halt, and inspect the device
+2. **Full visibility** - GDB gives you register state, memory contents, and stack traces that LEDs never can
+3. **Faster iteration** - Flash via probe in seconds vs manual BOOTSEL dance
+4. **Catches what LEDs miss** - Hardfaults before LED init, crashes between LED states
+
+### Known Quirks (Don't Give Up!)
+
+The probe connection occasionally has issues:
+- OpenOCD may timeout on first connection attempt
+- GDB may report "Remote communication error"
+- Target may need multiple `monitor reset halt` commands
+
+**These are transient issues - retry and it works.** In extensive debugging sessions, the probe has proven reliable after initial connection quirks. The occasional hiccup is far outweighed by the debugging power it provides.
+
+### When to Consider LED Debugging
+
+Only use LED-based debugging when:
+- Debug probe is not physically connected
+- You specifically need to observe runtime behavior without breakpoints
+- Testing production firmware that won't have probe attached
+
+Even then, prefer adding diagnostic output over LED patterns when possible.
+
+### Quick Recovery Commands
+
+When the probe seems unresponsive:
+```bash
+# Kill and restart OpenOCD
+pkill openocd
+OPENOCD_DIR=/c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/
+${OPENOCD_DIR}openocd -s ${OPENOCD_DIR}scripts -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 5000"
+
+# In another terminal, try connecting
+arm-none-eabi-gdb -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt"
+```
+
+---
+
 ## Issue: USB CDC breaks after flash operations (RESOLVED)
 
 **Root Cause:**

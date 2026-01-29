@@ -220,7 +220,7 @@ void updateStatusLED() {
             break;
 
         case CalibrationState::CALIBRATING: {
-            AP_Compass& compass = AP_Compass::get_singleton();
+            Compass& compass = AP::compass();
             float pct = compass.compass_cal_completion_pct() / 100.0f;
 
             if (pct >= 0.99f) {
@@ -434,9 +434,9 @@ int main() {
            initial_reading.x, initial_reading.y, initial_reading.z);
     LOG("  Field magnitude: %.1f mGauss\n", initial_reading.length());
 
-    // Initialize AP_Compass
-    LOG("\nInitializing AP_Compass...\n");
-    AP_Compass& compass = AP_Compass::get_singleton();
+    // Initialize Compass
+    LOG("\nInitializing Compass...\n");
+    Compass& compass = AP::compass();
     compass.init();
 
     // Check if calibration already exists

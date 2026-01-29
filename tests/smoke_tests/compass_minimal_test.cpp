@@ -11,7 +11,8 @@
 #include <AP_Compass/CompassCalibrator.h>
 #include <GCS_MAVLink/GCS.h>
 
-extern RP2350::HAL_RP2350 hal;
+// HAL reference is declared in HAL_RP2350_Class.h as:
+// extern const AP_HAL::HAL& hal;
 
 // Test constants - same as compass_cal_synthetic_test.cpp
 static constexpr float kTrueOffsetX = 100.0f;

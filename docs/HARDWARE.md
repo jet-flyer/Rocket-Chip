@@ -26,7 +26,7 @@ Expansion modules following rocketry-themed naming (specific names TBD when boar
 | Function | Part | Adafruit P/N | Specs | Notes |
 |----------|------|--------------|-------|-------|
 | MCU | Feather RP2350 HSTX | #6130 | Dual M33 @ 150MHz, 520KB SRAM, 8MB PSRAM | Primary dev board |
-| IMU | ISM330DHCX + LIS3MDL FeatherWing | #4569 | 9-DoF, ISM330DHCX accel/gyro + LIS3MDL mag | FeatherWing, I2C |
+| IMU | ICM-20948 9-DoF | #4554 | 9-axis (accel/gyro/mag), ArduPilot Invensensev2 | STEMMA QT/I2C, 0x68 |
 | Barometer | DPS310 | #4494 | ±1Pa precision | STEMMA QT/I2C |
 | Battery | Li-Ion 400mAh | #3898 | 3.7V, fits between Feather headers | |
 | Debug | SWD Debug Probe | #5699 | RP2040/RP2350 compatible | For crash debugging, timing analysis |
@@ -78,6 +78,20 @@ Available for testing but not in active prototype:
 |------|--------------|-------|
 | PA1010D Mini GPS | #4415 | 10Hz, -165dBm, STEMMA QT - on hand |
 | Ultimate GPS FeatherWing | #3133 | FeatherWing form factor - on hand |
+
+#### GPS Interface Note
+
+**Current approach:** PA1010D via I2C (Qwiic/STEMMA QT). The module outputs NMEA sentences over I2C, which we parse directly. This approach:
+- Works with current hardware (no wiring changes)
+- Verified working in `tests/smoke_tests/gps_i2c_test.cpp`
+
+**Alternative approach:** If I2C GPS causes issues (e.g., bus contention, timing problems at high sensor rates), switch to UART:
+- PA1010D also supports UART (requires rewiring TX/RX instead of Qwiic)
+- Ultimate GPS FeatherWing uses UART natively
+- UART enables ArduPilot's `AP_GPS` driver for EKF integration
+- AP_GPS provides parsed position/velocity directly to navigation filter
+
+**Recommendation:** Start with I2C for simplicity. If EKF integration or bus contention becomes problematic, migrate to UART + AP_GPS.
 
 ### Telemetry (Booster Pack)
 | Part | Adafruit P/N | Notes |
@@ -355,10 +369,11 @@ The 22-pin HSTX connector on the back provides:
 
 | Address | Device | Notes |
 |---------|--------|-------|
-| 0x6A or 0x6B | ISM330DHCX | Primary IMU accel/gyro (FeatherWing #4569) |
-| 0x1C or 0x1E | LIS3MDL | Primary magnetometer (FeatherWing #4569) |
+| 0x68 or 0x69 | ICM-20948 | Primary 9-axis IMU (accel/gyro/AK09916 mag) |
 | 0x77 or 0x76 | DPS310 | Barometer |
-| 0x68 or 0x69 | ICM-20948 | Auxiliary IMU (if used) |
+| 0x10 | PA1010D | GPS module |
+| 0x6A or 0x6B | ISM330DHCX | Auxiliary IMU (if used) |
+| 0x1C or 0x1E | LIS3MDL | Auxiliary magnetometer (if used) |
 | 0x28 or 0x29 | BNO055 | Auxiliary IMU (if used) |
 
 ### Known Conflicts

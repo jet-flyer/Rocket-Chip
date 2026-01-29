@@ -22,9 +22,8 @@ namespace hal {
 /**
  * @brief ICM-20948 9-DoF IMU driver
  *
- * Provides accelerometer and gyroscope data from the ICM-20948.
- * Magnetometer (AK09916) is accessed via the ICM-20948's I2C master
- * but is not implemented in this basic driver.
+ * Provides accelerometer, gyroscope, and magnetometer data from the ICM-20948.
+ * The AK09916 magnetometer is accessed via I2C bypass mode.
  *
  * @code
  * I2CBus bus(i2c0, 0x68, SDA_PIN, SCL_PIN);
@@ -34,9 +33,12 @@ namespace hal {
  *     imu.setAccelRange(AccelRange::RANGE_8G);
  *     imu.setGyroRange(GyroRange::RANGE_1000DPS);
  *
- *     Vector3f accel, gyro;
+ *     Vector3f accel, gyro, mag;
  *     if (imu.read(accel, gyro)) {
- *         // Process data...
+ *         // Process IMU data...
+ *     }
+ *     if (imu.readMag(mag)) {
+ *         // Process mag data (in milliGauss)
  *     }
  * }
  * @endcode
@@ -100,6 +102,18 @@ public:
     bool readGyro(Vector3f& gyro);
 
     /**
+     * @brief Read magnetometer data (AK09916)
+     * @param mag Output: magnetic field in milliGauss
+     * @return true on successful read (false if mag not initialized)
+     */
+    bool readMag(Vector3f& mag);
+
+    /**
+     * @brief Check if magnetometer is initialized
+     */
+    bool isMagInitialized() const { return m_mag_initialized; }
+
+    /**
      * @brief Perform software reset
      */
     bool softReset();
@@ -125,6 +139,7 @@ private:
     static constexpr uint8_t kRegUserCtrl    = 0x03;
     static constexpr uint8_t kRegPwrMgmt1    = 0x06;
     static constexpr uint8_t kRegPwrMgmt2    = 0x07;
+    static constexpr uint8_t kRegIntPinCfg   = 0x0F;  // For I2C bypass mode
     static constexpr uint8_t kRegAccelXOutH  = 0x2D;
     static constexpr uint8_t kRegGyroXOutH   = 0x33;
 
@@ -136,6 +151,26 @@ private:
     static constexpr uint8_t kBitDeviceReset = 0x80;
     static constexpr uint8_t kBitSleep       = 0x40;
     static constexpr uint8_t kBitClkAuto     = 0x01;
+    static constexpr uint8_t kBitBypassEn    = 0x02;  // Enable I2C bypass for AK09916
+
+    // AK09916 magnetometer constants (accessed via I2C bypass)
+    static constexpr uint8_t kAk09916Addr     = 0x0C;  // AK09916 I2C address
+    static constexpr uint8_t kAk09916DeviceId = 0x09;  // Expected device ID
+
+    // AK09916 registers
+    static constexpr uint8_t kAkRegWia2   = 0x01;  // Device ID register
+    static constexpr uint8_t kAkRegSt1    = 0x10;  // Status 1
+    static constexpr uint8_t kAkRegHxl    = 0x11;  // Mag X low byte
+    static constexpr uint8_t kAkRegSt2    = 0x18;  // Status 2 (read to complete measurement)
+    static constexpr uint8_t kAkRegCntl2  = 0x31;  // Control 2
+    static constexpr uint8_t kAkRegCntl3  = 0x32;  // Control 3 (soft reset)
+
+    // AK09916 modes
+    static constexpr uint8_t kAkModePowerDown = 0x00;
+    static constexpr uint8_t kAkModeCont100Hz = 0x08;  // Continuous mode 2 (100Hz)
+
+    // AK09916 scaling: 0.15 uT/LSB = 1.5 mGauss/LSB
+    static constexpr float kMagScale = 1.5f;  // milliGauss per LSB
 
     // Helper methods
     bool selectBank(uint8_t bank);
@@ -146,8 +181,15 @@ private:
     void updateAccelSensitivity(AccelRange range);
     void updateGyroSensitivity(GyroRange range);
 
+    // AK09916 magnetometer helpers
+    bool initMagnetometer();
+    bool akWriteRegister(uint8_t reg, uint8_t value);
+    bool akReadRegister(uint8_t reg, uint8_t* value);
+    bool akReadRegisters(uint8_t reg, uint8_t* data, uint8_t len);
+
     SensorBus* m_bus;
     bool m_initialized;
+    bool m_mag_initialized;
     uint8_t m_currentBank;
     float m_accel_sensitivity;   // g/LSB
     float m_gyro_sensitivity;    // dps/LSB

@@ -9,8 +9,8 @@
 #include "AP_InternalError.h"
 #include <cmath>
 
-// Singleton instance
-static AP_InternalError instance;
+// Singleton instance (lazy init to avoid static constructor issues)
+static AP_InternalError* s_instance = nullptr;
 
 // Error string table (copied from ArduPilot for compatibility)
 static const char* const error_bit_descriptions[] = {
@@ -122,6 +122,9 @@ void AP_InternalError::errors_as_string(uint8_t* buffer, uint16_t len) const
 // Singleton accessor
 namespace AP {
     AP_InternalError& internalerror() {
-        return instance;
+        if (!s_instance) {
+            s_instance = new AP_InternalError();
+        }
+        return *s_instance;
     }
 }

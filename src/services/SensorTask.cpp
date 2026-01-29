@@ -2,13 +2,12 @@
  * @file SensorTask.cpp
  * @brief High-rate sensor sampling FreeRTOS task implementation
  *
+ * Uses ArduPilot's native AP_InertialSensor and Compass for sensor access.
  * Samples sensors at configured rates and updates shared SensorData.
  */
 
 #include "SensorTask.h"
 #include "HAL.h"
-#include "IMU_ICM20948.h"
-#include "Baro_DPS310.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -16,12 +15,19 @@
 
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
-#include "hardware/i2c.h"
 #include "hardware/timer.h"
 
 #include "debug.h"
 
-// RocketChip calibration storage
+// ArduPilot HAL and sensor libraries
+#include <AP_HAL_RP2350/HAL_RP2350_Class.h>
+#include <AP_HAL/AP_HAL.h>
+#include <AP_InertialSensor/AP_InertialSensor.h>
+#include <AP_Compass/AP_Compass.h>
+#include <AP_Baro/AP_Baro.h>
+#include <AP_Param/AP_Param.h>
+
+// RocketChip calibration storage (for barometer only now)
 #include "calibration/CalibrationStore.h"
 #include <AP_HAL_RP2350/hwdef.h>  // For GRAVITY_MSS, DEG_TO_RAD
 
@@ -30,21 +36,11 @@
 
 using namespace rocketchip::hal;
 
+// ArduPilot HAL reference
+extern const AP_HAL::HAL& hal;
+
 namespace rocketchip {
 namespace services {
-
-// ============================================================================
-// Hardware Configuration (k prefix per JSF AV naming conventions)
-// ============================================================================
-
-// I2C pins for Feather RP2350 (STEMMA QT / Qwiic)
-static constexpr uint8_t kI2cSda = 2;
-static constexpr uint8_t kI2cScl = 3;
-
-// I2C addresses (ICM-20948 at 0x69 on Adafruit board)
-static constexpr uint8_t kAddrIcm20948   = 0x69;  // ICM-20948 (not ISM330DHCX!)
-static constexpr uint8_t kAddrLis3mdl    = 0x1C;  // Not used - mag is inside ICM-20948
-static constexpr uint8_t kAddrDps310     = 0x77;
 
 // ============================================================================
 // Global Data
@@ -55,22 +51,26 @@ SemaphoreHandle_t g_sensorDataMutex = nullptr;
 SensorTaskStats g_sensorTaskStats = {};
 
 // ============================================================================
+// ArduPilot Sensor Instances (pointers - initialized AFTER HAL init)
+// Constructors access AP_Param which needs HAL, so can't be static globals
+// ============================================================================
+
+static AP_InertialSensor* g_ins = nullptr;
+static Compass* g_compass = nullptr;
+static AP_Baro* g_baro = nullptr;
+
+// ============================================================================
 // Private Data
 // ============================================================================
 
 static TaskHandle_t s_taskHandle = nullptr;
 
-// Calibration
+// Legacy calibration for barometer (IMU/Compass use AP_Param)
 static CalibrationStore s_calibrationStore;
 static SensorCalibration s_calibration;
 static bool s_calibrationLoaded = false;
 
-// Sensor instances
-static I2CBus* s_imuBus = nullptr;
-static I2CBus* s_baroBus = nullptr;
-
-static IMU_ICM20948* s_imu = nullptr;
-static Baro_DPS310* s_baro = nullptr;
+// Barometer uses ArduPilot AP_Baro (initialized after HAL)
 
 // Initialization flags
 static bool s_imuInitialized = false;
@@ -85,75 +85,102 @@ static constexpr uint32_t kMagDivider = 10;  // 100Hz magnetometer
 // Sensor Initialization
 // ============================================================================
 
+// Diagnostic blink helper (1 blink = checkpoint passed)
+static void diag_blink(int count) {
+    for (int i = 0; i < count; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        busy_wait_ms(150);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        busy_wait_ms(150);
+    }
+    busy_wait_ms(300);  // Pause between checkpoints
+}
+
 static bool initSensors() {
-    DBG_PRINT("[SensorTask] Initializing sensors...\n");
+    DBG_PRINT("[SensorTask] Initializing sensors via ArduPilot...\n");
 
-    // Create bus instances (all share I2C1 hardware)
-    s_imuBus = new I2CBus(i2c1, kAddrIcm20948, kI2cSda, kI2cScl, 400000);
-    s_baroBus = new I2CBus(i2c1, kAddrDps310, kI2cSda, kI2cScl, 400000);
+    diag_blink(1);  // Checkpoint: entered initSensors
 
-    // Create sensor instances
-    s_imu = new IMU_ICM20948(s_imuBus);
-    s_baro = new Baro_DPS310(s_baroBus);
+    // Initialize ArduPilot HAL (I2C, SPI, etc.)
+    DBG_PRINT("  HAL init:         ");
+    RP2350::hal_init();
+    DBG_PRINT("OK\n");
 
-    // Initialize IMU
-    DBG_PRINT("  ICM-20948 (IMU):  ");
-    s_imuInitialized = s_imu->begin();
+    diag_blink(1);  // Checkpoint: hal_init done
+
+    // Initialize AP_Param for calibration persistence
+    DBG_PRINT("  AP_Param:         ");
+    AP_Param::setup();
+    DBG_PRINT("OK\n");
+
+    diag_blink(1);  // Checkpoint: AP_Param done
+
+    // Create sensor instances (must be AFTER HAL init - constructors access AP_Param)
+    g_ins = new AP_InertialSensor();
+
+    diag_blink(1);  // Checkpoint: AP_InertialSensor created
+
+    g_compass = new Compass();
+
+    diag_blink(1);  // Checkpoint: Compass created
+
+    // Initialize AP_InertialSensor (probes ICM-20948 via HAL_INS_PROBE_LIST)
+    // NOTE: This now runs INSIDE a FreeRTOS task, so scheduler timer/IO tasks exist
+    DBG_PRINT("  AP_InertialSensor: ");
+    g_ins->init(100);  // 100Hz main loop rate
+    s_imuInitialized = (g_ins->get_accel_count() > 0 && g_ins->get_gyro_count() > 0);
     if (s_imuInitialized) {
-        // Configure ranges (ICM-20948 ODR is controlled via DLPF config in driver)
-        s_imu->setAccelRange(AccelRange::RANGE_8G);
-        s_imu->setGyroRange(GyroRange::RANGE_1000DPS);
-        DBG_PRINT("OK\n");
+        DBG_PRINT("OK (accel=%u, gyro=%u)\n", g_ins->get_accel_count(), g_ins->get_gyro_count());
     } else {
-        DBG_ERROR("FAILED\n");
+        DBG_ERROR("FAILED (accel=%u, gyro=%u)\n", g_ins->get_accel_count(), g_ins->get_gyro_count());
     }
 
-    // Note: Magnetometer (AK09916) is integrated in ICM-20948
-    // Accessing it requires auxiliary I2C bus setup - not implemented in simple driver
-    // For now, mag reads will be zeros
-    s_magInitialized = false;
+    diag_blink(1);  // Checkpoint: g_ins->init() done
 
-    // Initialize Barometer
-    DBG_PRINT("  DPS310 (Baro):    ");
-    s_baroInitialized = s_baro->begin();
+    // Initialize Compass (probes AK09916 via HAL_MAG_PROBE_LIST)
+    DBG_PRINT("  AP_Compass:        ");
+    g_compass->init();
+    s_magInitialized = (g_compass->get_count() > 0);
+    if (s_magInitialized) {
+        DBG_PRINT("OK (count=%u)\n", g_compass->get_count());
+    } else {
+        DBG_PRINT("N/A (count=%u)\n", g_compass->get_count());
+    }
+
+    diag_blink(1);  // Checkpoint: g_compass->init() done
+    if (s_magInitialized) {
+        DBG_PRINT("OK (count=%u)\n", g_compass->get_count());
+    } else {
+        DBG_PRINT("N/A (count=%u)\n", g_compass->get_count());
+    }
+
+    // Initialize Barometer via ArduPilot (probes DPS310 via HAL_BARO_PROBE_LIST)
+    DBG_PRINT("  AP_Baro:           ");
+    g_baro = new AP_Baro();
+    g_baro->init();
+    s_baroInitialized = (g_baro->num_instances() > 0);
+
+    diag_blink(1);  // Checkpoint: baro init done
+
     if (s_baroInitialized) {
-        // Configure for 50Hz continuous mode
-        s_baro->configurePressure(BaroRate::RATE_64HZ, BaroOversample::OSR_8);
-        s_baro->configureTemperature(BaroRate::RATE_64HZ, BaroOversample::OSR_8);
-        s_baro->startContinuous();
-        DBG_PRINT("OK\n");
+        // Calibrate barometer (sets ground pressure reference)
+        g_baro->calibrate(false);  // false = don't save to storage yet
+        DBG_PRINT("OK (count=%u)\n", g_baro->num_instances());
     } else {
-        DBG_ERROR("FAILED\n");
+        DBG_ERROR("FAILED (count=%u)\n", g_baro->num_instances());
     }
 
-    // Load calibration from flash
-    DBG_PRINT("  Calibration:      ");
+    // Load legacy calibration from flash (for barometer, etc.)
+    // IMU/Compass calibration now uses AP_Param automatically
+    DBG_PRINT("  Legacy cal:        ");
     s_calibrationStore.init();
     if (s_calibrationStore.load(s_calibration)) {
         s_calibrationLoaded = true;
         DBG_PRINT("Loaded (flags=0x%02X)\n", s_calibration.flags);
-        if (s_calibration.flags & kCalFlagAccel) {
-            DBG_PRINT("    Accel ofs: [%.3f, %.3f, %.3f] m/s^2\n",
-                   s_calibration.accel.offset[0],
-                   s_calibration.accel.offset[1],
-                   s_calibration.accel.offset[2]);
-        }
-        if (s_calibration.flags & kCalFlagGyro) {
-            DBG_PRINT("    Gyro ofs:  [%.4f, %.4f, %.4f] rad/s\n",
-                   s_calibration.gyro.offset[0],
-                   s_calibration.gyro.offset[1],
-                   s_calibration.gyro.offset[2]);
-        }
-        if (s_calibration.flags & kCalFlagMag) {
-            DBG_PRINT("    Mag ofs:   [%.0f, %.0f, %.0f] mGauss\n",
-                   s_calibration.mag.offset[0],
-                   s_calibration.mag.offset[1],
-                   s_calibration.mag.offset[2]);
-        }
     } else {
         s_calibrationLoaded = false;
         CalibrationStore::get_defaults(s_calibration);
-        DBG_PRINT("Not calibrated (using defaults)\n");
+        DBG_PRINT("None (defaults)\n");
     }
 
     // At least IMU must be working for flight
@@ -165,68 +192,61 @@ static bool initSensors() {
 // ============================================================================
 
 static void readIMU() {
-    hal::Vector3f accel, gyro;
+    // ArduPilot's INS handles blocking wait for sample internally
+    // For FreeRTOS task, we use update() which is non-blocking
+    g_ins->update();
 
-    if (s_imu->read(accel, gyro)) {
-        // Take mutex and update shared data
-        if (xSemaphoreTake(g_sensorDataMutex, 0) == pdTRUE) {
-            // Convert accel from g to m/s^2
-            float ax = accel.x * GRAVITY_MSS;
-            float ay = accel.y * GRAVITY_MSS;
-            float az = accel.z * GRAVITY_MSS;
+    // Get calibrated sensor data (calibration applied by ArduPilot via AP_Param)
+    // Use global namespace :: to get ArduPilot's Vector3f, not rocketchip::services::Vector3f
+    const ::Vector3f& accel = g_ins->get_accel(0);
+    const ::Vector3f& gyro = g_ins->get_gyro(0);
 
-            // Apply accel calibration if available
-            if (s_calibrationLoaded && (s_calibration.flags & kCalFlagAccel)) {
-                // Apply offset and scale correction
-                ax = (ax - s_calibration.accel.offset[0]) * s_calibration.accel.scale[0];
-                ay = (ay - s_calibration.accel.offset[1]) * s_calibration.accel.scale[1];
-                az = (az - s_calibration.accel.offset[2]) * s_calibration.accel.scale[2];
-            }
+    // Take mutex and update shared data
+    if (xSemaphoreTake(g_sensorDataMutex, 0) == pdTRUE) {
+        // ArduPilot returns accel in m/s^2, gyro in rad/s (already calibrated)
+        g_sensorData.accel.x = accel.x;
+        g_sensorData.accel.y = accel.y;
+        g_sensorData.accel.z = accel.z;
 
-            g_sensorData.accel.x = ax;
-            g_sensorData.accel.y = ay;
-            g_sensorData.accel.z = az;
+        g_sensorData.gyro.x = gyro.x;
+        g_sensorData.gyro.y = gyro.y;
+        g_sensorData.gyro.z = gyro.z;
 
-            // Convert gyro from dps to rad/s
-            float gx = gyro.x * DEG_TO_RAD;
-            float gy = gyro.y * DEG_TO_RAD;
-            float gz = gyro.z * DEG_TO_RAD;
-
-            // Apply gyro calibration if available
-            if (s_calibrationLoaded && (s_calibration.flags & kCalFlagGyro)) {
-                // Apply offset correction
-                gx -= s_calibration.gyro.offset[0];
-                gy -= s_calibration.gyro.offset[1];
-                gz -= s_calibration.gyro.offset[2];
-            }
-
-            g_sensorData.gyro.x = gx;
-            g_sensorData.gyro.y = gy;
-            g_sensorData.gyro.z = gz;
-
-            g_sensorData.imu_timestamp_us = time_us_32();
-            xSemaphoreGive(g_sensorDataMutex);
-        }
-        g_sensorTaskStats.imu_samples++;
-    } else {
-        g_sensorTaskStats.imu_errors++;
+        g_sensorData.imu_timestamp_us = time_us_32();
+        xSemaphoreGive(g_sensorDataMutex);
     }
+    g_sensorTaskStats.imu_samples++;
 }
 
 static void readMag() {
-    // Note: Magnetometer (AK09916) is integrated in ICM-20948 but requires
-    // auxiliary I2C bus setup. Not implemented yet - mag reads return zeros.
-    // TODO: Add ICM-20948 magnetometer support via auxiliary I2C
-    (void)0;  // Placeholder - mag not available
+    // Read compass via ArduPilot backend
+    if (!g_compass->read()) {
+        g_sensorTaskStats.mag_errors++;
+        return;
+    }
+
+    // Get calibrated magnetic field (milliGauss, calibration applied by ArduPilot)
+    const ::Vector3f& field = g_compass->get_field(0);
+
+    if (xSemaphoreTake(g_sensorDataMutex, 0) == pdTRUE) {
+        // Convert milliGauss to gauss (for consistency with SensorData)
+        g_sensorData.mag.x = field.x / 1000.0f;
+        g_sensorData.mag.y = field.y / 1000.0f;
+        g_sensorData.mag.z = field.z / 1000.0f;
+
+        xSemaphoreGive(g_sensorDataMutex);
+    }
+    g_sensorTaskStats.mag_samples++;
 }
 
 static void readBaro() {
-    float pressure_pa, temp_c;
+    // Update barometer - this reads new samples from hardware
+    g_baro->update();
 
-    if (s_baro->getLastResult(temp_c, pressure_pa)) {
+    if (g_baro->healthy()) {
         if (xSemaphoreTake(g_sensorDataMutex, 0) == pdTRUE) {
-            g_sensorData.pressure_pa = pressure_pa;
-            g_sensorData.temperature_c = temp_c;
+            g_sensorData.pressure_pa = g_baro->get_pressure();
+            g_sensorData.temperature_c = g_baro->get_temperature();
             g_sensorData.baro_timestamp_us = time_us_32();
             xSemaphoreGive(g_sensorDataMutex);
         }
@@ -243,7 +263,30 @@ static void readBaro() {
 static void SensorTask_Run(void* pvParameters) {
     (void)pvParameters;
 
+    // DIAGNOSTIC: 7 rapid blinks = SensorTask started (before any other code)
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    for (int i = 0; i < 7; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        busy_wait_ms(100);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        busy_wait_ms(100);
+    }
+    busy_wait_ms(500);
+
     DBG_PRINT("[SensorTask] Starting on Core %d\n", get_core_num());
+
+    // =========================================================================
+    // CRITICAL: Initialize sensors HERE, inside the task, AFTER scheduler starts
+    // This ensures hal_init() sees scheduler as RUNNING and creates timer/IO tasks
+    // which are required for AP_InertialSensor periodic callbacks to work.
+    // =========================================================================
+    DBG_PRINT("[SensorTask] Initializing sensors (scheduler running)...\n");
+    bool sensorsOk = initSensors();
+    if (!sensorsOk) {
+        DBG_ERROR("[SensorTask] Sensor init failed - task will idle\n");
+    }
+    DBG_PRINT("[SensorTask] Sensor init complete, entering main loop\n");
 
     TickType_t lastWakeTime = xTaskGetTickCount();
     const TickType_t period = pdMS_TO_TICKS(1);  // 1ms = 1kHz
@@ -275,13 +318,16 @@ static void SensorTask_Run(void* pvParameters) {
             statusCount = 0;
             g_sensorTaskStats.free_heap = xPortGetFreeHeapSize();
 
-            DBG_PRINT("\n[SensorTask] Status:\n");
-            DBG_PRINT("  Init: IMU=%s, Baro=%s, Mag=%s\n",
-                   s_imuInitialized ? "OK" : "FAIL",
-                   s_baroInitialized ? "OK" : "FAIL",
-                   s_magInitialized ? "OK" : "N/A");
+            DBG_PRINT("\n[SensorTask] Status (ArduPilot Native):\n");
+            DBG_PRINT("  AP_INS: accel=%u, gyro=%u, rate=%uHz\n",
+                   g_ins->get_accel_count(), g_ins->get_gyro_count(), g_ins->get_raw_gyro_rate_hz(0));
+            DBG_PRINT("  AP_Compass: count=%u, available=%s\n",
+                   g_compass->get_count(), g_compass->available() ? "YES" : "NO");
+            DBG_PRINT("  Baro: %s\n", s_baroInitialized ? "OK" : "FAIL");
             DBG_PRINT("  IMU samples:  %lu (errors: %lu)\n",
                    g_sensorTaskStats.imu_samples, g_sensorTaskStats.imu_errors);
+            DBG_PRINT("  Mag samples:  %lu (errors: %lu)\n",
+                   g_sensorTaskStats.mag_samples, g_sensorTaskStats.mag_errors);
             DBG_PRINT("  Baro samples: %lu (errors: %lu)\n",
                    g_sensorTaskStats.baro_samples, g_sensorTaskStats.baro_errors);
             DBG_PRINT("  Loop overruns: %lu\n", g_sensorTaskStats.loop_overruns);
@@ -314,22 +360,18 @@ static void SensorTask_Run(void* pvParameters) {
 // ============================================================================
 
 bool SensorTask_Init() {
-    // Initialize HAL (I2C, etc.)
-    HALInitResult result = initHAL();
-    if (!result.success) {
-        DBG_ERROR("[SensorTask] HAL init failed: %s\n", result.error_msg);
-        return false;
-    }
-
     // Create mutex for shared data
+    // NOTE: Sensor initialization happens INSIDE SensorTask_Run() after scheduler starts.
+    // This is critical because AP_HAL scheduler.init() requires FreeRTOS to be running
+    // to create the timer/IO tasks needed for AP_InertialSensor callbacks.
     g_sensorDataMutex = xSemaphoreCreateMutex();
     if (g_sensorDataMutex == nullptr) {
         DBG_ERROR("[SensorTask] Failed to create mutex\n");
         return false;
     }
 
-    // Initialize sensors
-    return initSensors();
+    DBG_PRINT("[SensorTask] Mutex created (sensors init deferred to task)\n");
+    return true;
 }
 
 bool SensorTask_Create() {
@@ -380,13 +422,16 @@ SensorTaskStats SensorTask_GetStats() {
 void SensorTask_PrintStatus() {
     g_sensorTaskStats.free_heap = xPortGetFreeHeapSize();
 
-    printf("\n[SensorTask] Status:\n");
-    printf("  Init: IMU=%s, Baro=%s, Mag=%s\n",
-           s_imuInitialized ? "OK" : "FAIL",
-           s_baroInitialized ? "OK" : "FAIL",
-           s_magInitialized ? "OK" : "N/A");
+    printf("\n[SensorTask] Status (ArduPilot Native):\n");
+    printf("  AP_INS: accel=%u, gyro=%u, rate=%uHz\n",
+           g_ins->get_accel_count(), g_ins->get_gyro_count(), g_ins->get_raw_gyro_rate_hz(0));
+    printf("  AP_Compass: count=%u, available=%s\n",
+           g_compass->get_count(), g_compass->available() ? "YES" : "NO");
+    printf("  Baro: %s\n", s_baroInitialized ? "OK" : "FAIL");
     printf("  IMU samples:  %lu (errors: %lu)\n",
            g_sensorTaskStats.imu_samples, g_sensorTaskStats.imu_errors);
+    printf("  Mag samples:  %lu (errors: %lu)\n",
+           g_sensorTaskStats.mag_samples, g_sensorTaskStats.mag_errors);
     printf("  Baro samples: %lu (errors: %lu)\n",
            g_sensorTaskStats.baro_samples, g_sensorTaskStats.baro_errors);
     printf("  Loop overruns: %lu\n", g_sensorTaskStats.loop_overruns);
@@ -395,10 +440,12 @@ void SensorTask_PrintStatus() {
     // Print current sensor values
     SensorData data;
     if (SensorTask_GetData(data)) {
-        printf("  Accel: [%+7.2f, %+7.2f, %+7.2f] g\n",
+        printf("  Accel: [%+7.2f, %+7.2f, %+7.2f] m/s^2\n",
                data.accel.x, data.accel.y, data.accel.z);
-        printf("  Gyro:  [%+7.3f, %+7.3f, %+7.3f] dps\n",
+        printf("  Gyro:  [%+7.3f, %+7.3f, %+7.3f] rad/s\n",
                data.gyro.x, data.gyro.y, data.gyro.z);
+        printf("  Mag:   [%+7.3f, %+7.3f, %+7.3f] gauss\n",
+               data.mag.x, data.mag.y, data.mag.z);
         printf("  Baro:  %.1f Pa, %.1f C\n",
                data.pressure_pa, data.temperature_c);
     }

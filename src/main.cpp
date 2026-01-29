@@ -58,8 +58,16 @@ static void printSystemStatus() {
 static void UITask(void* pvParameters) {
     (void)pvParameters;
 
+    // DIAGNOSTIC: 8 rapid blinks = UITask started
     gpio_init(kLedPin);
     gpio_set_dir(kLedPin, GPIO_OUT);
+    for (int i = 0; i < 8; i++) {
+        gpio_put(kLedPin, 1);
+        busy_wait_ms(80);
+        gpio_put(kLedPin, 0);
+        busy_wait_ms(80);
+    }
+    busy_wait_ms(500);
 
     // Wait for keypress before showing init output
     // Now under FreeRTOS, USB CDC works properly
@@ -225,22 +233,77 @@ void vApplicationGetPassiveIdleTaskMemory(StaticTask_t** ppxIdleTaskTCBBuffer,
 // ============================================================================
 
 int main() {
-    // Initialize LED for early debugging
-    gpio_init(kLedPin);
-    gpio_set_dir(kLedPin, GPIO_OUT);
+    // =========================================================================
+    // DIAGNOSTIC: 3 SLOW blinks = main() reached (static constructors OK)
+    // =========================================================================
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    for (int i = 0; i < 3; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        busy_wait_ms(200);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        busy_wait_ms(200);
+    }
+    busy_wait_ms(500);  // Pause after checkpoint 1
+    // =========================================================================
 
-    // Initialize USB serial - don't do any USB I/O before FreeRTOS starts!
-    stdio_init_all();
+    // =========================================================================
+    // CRITICAL: HAL init (flash operations) BEFORE USB per RP2350_FULL_AP_PORT.md PD1
+    // Flash ops make entire flash inaccessible - if USB is active, it breaks!
+    // =========================================================================
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
 
-    // Initialize sensors before starting scheduler
-    // (USB wait and output will happen in UITask after scheduler starts)
+    // Initialize SensorTask - this calls hal_init() which does flash operations in Storage.init()
+    // MUST happen before stdio_init_all() to avoid breaking USB
     if (!SensorTask_Init()) {
-        // Can't print error here - no FreeRTOS yet, USB unreliable
-        // UITask will show sensor status later
+        // Can't use DBG_ERROR yet - USB not initialized
+        // Will be visible via LED pattern or debug probe
     }
 
-    // Create SensorTask
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
+
+    // DIAGNOSTIC: 2 SLOW blinks = SensorTask_Init (HAL/flash ops) done
+    for (int i = 0; i < 2; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        busy_wait_ms(200);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        busy_wait_ms(200);
+    }
+    busy_wait_ms(500);
+
+    // =========================================================================
+    // Clear BASEPRI after HAL init - may be elevated, blocking USB IRQs
+    // Per LESSONS_LEARNED.md Entry 3
+    // =========================================================================
+    __asm volatile ("mov r0, #0\nmsr basepri, r0" ::: "r0");
+
+    // =========================================================================
+    // NOW safe to start USB - all flash operations complete
+    // =========================================================================
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
+    stdio_init_all();
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
+
+    // DIAGNOSTIC: 4 blinks = stdio_init_all done
+    for (int i = 0; i < 4; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        busy_wait_ms(200);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        busy_wait_ms(200);
+    }
+    busy_wait_ms(500);
+
+    // Create SensorTask (sensor init happens inside task after scheduler starts)
     SensorTask_Create();
+
+    // DIAGNOSTIC: 5 blinks = SensorTask_Create done
+    for (int i = 0; i < 5; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        busy_wait_ms(200);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        busy_wait_ms(200);
+    }
+    busy_wait_ms(500);
 
     // Create UI task (handles keypress wait, LED, and status output)
     TaskHandle_t uiHandle;
@@ -257,8 +320,16 @@ int main() {
         vTaskCoreAffinitySet(uiHandle, (1 << 0));  // Pin to Core 0
     }
 
+    // DIAGNOSTIC: 6 blinks = UITask created, about to start scheduler
+    for (int i = 0; i < 6; i++) {
+        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        busy_wait_ms(200);
+        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        busy_wait_ms(200);
+    }
+    busy_wait_ms(500);
+
     // Start the scheduler - should never return
-    // All USB I/O happens in tasks after this point
     vTaskStartScheduler();
 
     // If we get here, something went wrong - this is a fatal error

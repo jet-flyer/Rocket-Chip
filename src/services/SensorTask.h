@@ -68,9 +68,11 @@ struct SensorData {
 struct SensorTaskStats {
     uint32_t imu_samples;
     uint32_t baro_samples;
+    uint32_t mag_samples;
     uint32_t gps_samples;
     uint32_t imu_errors;
     uint32_t baro_errors;
+    uint32_t mag_errors;
     uint32_t gps_errors;
     uint32_t loop_overruns;
     uint32_t free_heap;
@@ -85,7 +87,8 @@ struct SensorTaskConfig {
     static constexpr uint32_t GPS_RATE_HZ = 10;      // 10Hz GPS
     static constexpr uint32_t TASK_PRIORITY = 5;     // Highest priority
     static constexpr uint32_t STACK_SIZE = 1024;     // 1KB stack
-    static constexpr UBaseType_t CORE_AFFINITY = (1 << 1);  // Core 1
+    // Core 0 for SensorTask - Core 1 is used by TinyUSB (per PD3 in RP2350_FULL_AP_PORT.md)
+    static constexpr UBaseType_t CORE_AFFINITY = (1 << 0);  // Core 0
 };
 
 // Global shared data (extern declarations)

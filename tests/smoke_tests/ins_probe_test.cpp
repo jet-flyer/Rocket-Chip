@@ -29,6 +29,9 @@
 #include <AP_InertialSensor/AP_InertialSensor.h>
 #include <AP_InertialSensor/AP_InertialSensor_Invensensev2.h>
 
+// ArduPilot Param (for persistent calibration)
+#include <AP_Param/AP_Param.h>
+
 // HAL reference
 extern const AP_HAL::HAL& hal;
 
@@ -401,7 +404,12 @@ static void test_task(void* params) {
     // Initialize HAL subsystems
     printf("Initializing HAL...\n");
     RP2350::hal_init();
-    printf("HAL initialized.\n\n");
+
+    // Initialize AP_Param system from storage
+    // This enables parameter persistence across reboots and firmware updates
+    printf("Initializing AP_Param...\n");
+    AP_Param::setup();
+    printf("HAL + AP_Param initialized.\n\n");
 
     // Run tests
     int passed = 0;
@@ -434,9 +442,6 @@ static void test_task(void* params) {
     if (passed == 2) {
         printf("SUCCESS: Full AP_InertialSensor integration working!\n");
         gpio_put(PICO_DEFAULT_LED_PIN, 1);  // Solid LED = success
-
-        // Start live sensor readings
-        test_sensor_readings();
     } else if (test1) {
         printf("PARTIAL: I2C working, driver integration needs work.\n");
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
@@ -445,11 +450,14 @@ static void test_task(void* params) {
         gpio_put(PICO_DEFAULT_LED_PIN, 0);
     }
 
-    printf("\nTest complete.\n");
+    printf("\n========================================\n");
+    printf("  TEST COMPLETE - ALL DONE\n");
+    printf("========================================\n");
+    fflush(stdout);
 
-    // Keep running
+    // Idle quietly (no more streaming output)
     for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(10000));
     }
 }
 

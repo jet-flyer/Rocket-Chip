@@ -445,6 +445,97 @@ static void UITask(void* params) {
 
 ---
 
+## Entry 11: Prioritize Debug Probe Over LED Debugging
+
+**Date:** 2026-01-29
+**Context:** Multiple debugging sessions where USB was broken
+**Severity:** Process Improvement - Saves hours of debugging time
+
+### Problem
+When encountering issues that break output (USB enumeration failures, hardfaults, early crashes), default instinct was to add LED blink patterns for diagnostics. This provided minimal information and required many flash/test cycles.
+
+### Better Approach
+**Always use the debug probe first.** It provides:
+- Register and memory inspection via GDB
+- Stack traces showing exact crash location
+- Ability to flash even when USB is completely broken
+- Variable inspection without modifying code
+
+### Occasional Connection Quirks (Expected)
+The probe connection may have transient issues:
+- OpenOCD timeout on first attempt
+- "Remote communication error" from GDB
+- Need to run `monitor reset halt` multiple times
+
+**These are normal** - retry and it works. The probe has proven reliable in extensive debugging sessions. Don't give up after one failed attempt.
+
+### When LED Debugging Makes Sense
+Only resort to LED-based debugging when:
+- Debug probe is not physically connected
+- Observing runtime behavior without breakpoints
+- Testing production firmware without probe
+
+### Key Takeaway
+The few seconds spent reconnecting a flaky probe connection saves hours compared to iterating with LED blink codes. The probe gives you answers; LEDs give you hints.
+
+---
+
+## Entry 12: USB CDC Init Order Critical for Enumeration
+
+**Date:** 2026-01-29
+**Time Spent:** ~1 hour
+**Severity:** Critical - USB completely broken (error 2)
+
+### Problem
+USB CDC (COM6) failed to enumerate. Device showed "error 2" in Device Manager. Serial output completely broken.
+
+### Symptoms
+- USB device doesn't appear in Device Manager
+- "error 2" when device tries to enumerate
+- LED blink patterns visible (code is running)
+- Manual BOOTSEL required to flash
+
+### Root Cause
+Init order in `src/main.cpp` was wrong:
+
+**BROKEN order:**
+```cpp
+stdio_init_all();           // USB starts first
+SensorTask_Init();          // HAL/flash ops break USB!
+```
+
+Flash operations in `SensorTask_Init()` → `hal_init()` → `Storage.init()` make entire flash inaccessible. TinyUSB interrupt handlers are in flash. When USB is active during flash ops, handlers can't execute and USB breaks permanently.
+
+### Solution
+Reorder init in `src/main.cpp`:
+
+**WORKING order:**
+```cpp
+// 1. HAL init (flash ops) BEFORE USB
+SensorTask_Init();          // Flash ops complete here
+
+// 2. Clear BASEPRI (may be elevated, blocking USB IRQs)
+__asm volatile ("mov r0, #0\nmsr basepri, r0" ::: "r0");
+
+// 3. NOW safe to start USB
+stdio_init_all();
+```
+
+### Key File
+`src/main.cpp` - init order at boot (lines 250-294 after fix)
+
+### Prevention
+- **Rule:** HAL init (flash ops) MUST happen before `stdio_init_all()`
+- Always clear BASEPRI after HAL init, before USB
+- This is documented in RP2350_FULL_AP_PORT.md PD1 (Flash/USB interaction)
+
+### Related
+- Entry 3: BASEPRI blocking USB
+- Entry 4: HAL init order
+- RP2350_FULL_AP_PORT.md PD1
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

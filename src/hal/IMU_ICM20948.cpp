@@ -5,6 +5,7 @@
 
 #include "IMU_ICM20948.h"
 #include "pico/stdlib.h"
+#include "hardware/i2c.h"
 #include <cstdio>
 
 namespace rocketchip {
@@ -24,6 +25,7 @@ static constexpr float kGyroSensitivity2000 = 16.4f;
 IMU_ICM20948::IMU_ICM20948(SensorBus* bus)
     : m_bus(bus)
     , m_initialized(false)
+    , m_mag_initialized(false)
     , m_currentBank(0xFF)  // Invalid, force bank switch on first access
     , m_accel_sensitivity(1.0f / kAccelSensitivity8G)
     , m_gyro_sensitivity(1.0f / kGyroSensitivity1000)
@@ -97,6 +99,20 @@ bool IMU_ICM20948::begin() {
     if (!setGyroRange(GyroRange::RANGE_1000DPS)) {
         printf("ICM20948: setGyroRange failed\n");
         return false;
+    }
+
+    // Enable I2C bypass mode to access AK09916 magnetometer directly
+    if (!writeRegister(kBank0, kRegIntPinCfg, kBitBypassEn)) {
+        printf("ICM20948: Failed to enable I2C bypass\n");
+        // Don't fail init - IMU still works without mag
+    } else {
+        // Try to initialize magnetometer
+        m_mag_initialized = initMagnetometer();
+        if (m_mag_initialized) {
+            printf("ICM20948: Magnetometer (AK09916) initialized\n");
+        } else {
+            printf("ICM20948: Magnetometer init failed (continuing without mag)\n");
+        }
     }
 
     printf("ICM20948: Init complete\n");
@@ -330,6 +346,136 @@ void IMU_ICM20948::updateGyroSensitivity(GyroRange range) {
         default:
             break;
     }
+}
+
+// ============================================================================
+// AK09916 Magnetometer Support
+// ============================================================================
+
+bool IMU_ICM20948::initMagnetometer() {
+    // Check device ID
+    uint8_t deviceId = 0;
+    if (!akReadRegister(kAkRegWia2, &deviceId)) {
+        printf("AK09916: Failed to read device ID\n");
+        return false;
+    }
+
+    if (deviceId != kAk09916DeviceId) {
+        printf("AK09916: Wrong device ID 0x%02X (expected 0x%02X)\n", deviceId, kAk09916DeviceId);
+        return false;
+    }
+
+    // Soft reset
+    if (!akWriteRegister(kAkRegCntl3, 0x01)) {
+        printf("AK09916: Soft reset failed\n");
+        return false;
+    }
+    sleep_ms(10);  // Wait for reset
+
+    // Set continuous mode 2 (100Hz)
+    if (!akWriteRegister(kAkRegCntl2, kAkModeCont100Hz)) {
+        printf("AK09916: Failed to set continuous mode\n");
+        return false;
+    }
+
+    return true;
+}
+
+bool IMU_ICM20948::readMag(Vector3f& mag) {
+    if (!m_mag_initialized) {
+        return false;
+    }
+
+    // Read status register to check if data is ready
+    uint8_t st1 = 0;
+    if (!akReadRegister(kAkRegSt1, &st1)) {
+        return false;
+    }
+
+    // Check DRDY bit
+    if (!(st1 & 0x01)) {
+        return false;  // Data not ready
+    }
+
+    // Read 8 bytes: HXL, HXH, HYL, HYH, HZL, HZH, TMPS, ST2
+    // (Must read through ST2 to complete the read cycle)
+    uint8_t data[8];
+    if (!akReadRegisters(kAkRegHxl, data, 8)) {
+        return false;
+    }
+
+    // Check for overflow (ST2 bit 3)
+    if (data[7] & 0x08) {
+        return false;  // Magnetic sensor overflow
+    }
+
+    // Parse data (little-endian)
+    int16_t mx = static_cast<int16_t>((data[1] << 8) | data[0]);
+    int16_t my = static_cast<int16_t>((data[3] << 8) | data[2]);
+    int16_t mz = static_cast<int16_t>((data[5] << 8) | data[4]);
+
+    // Convert to milliGauss
+    mag.x = static_cast<float>(mx) * kMagScale;
+    mag.y = static_cast<float>(my) * kMagScale;
+    mag.z = static_cast<float>(mz) * kMagScale;
+
+    return true;
+}
+
+bool IMU_ICM20948::akWriteRegister(uint8_t reg, uint8_t value) {
+    // Access AK09916 directly via I2C bypass mode
+    // Need to use a different I2C address (0x0C instead of ICM's 0x68/0x69)
+
+    // Get the underlying I2C hardware instance from the bus
+    I2CBus* i2cBus = static_cast<I2CBus*>(m_bus);
+    if (!i2cBus) {
+        return false;
+    }
+
+    i2c_inst_t* i2c = static_cast<i2c_inst_t*>(i2cBus->getHardware());
+
+    // Create a temporary transaction to AK09916
+    uint8_t buf[2] = {reg, value};
+    int result = i2c_write_blocking(i2c, kAk09916Addr, buf, 2, false);
+    return result == 2;
+}
+
+bool IMU_ICM20948::akReadRegister(uint8_t reg, uint8_t* value) {
+    I2CBus* i2cBus = static_cast<I2CBus*>(m_bus);
+    if (!i2cBus) {
+        return false;
+    }
+
+    i2c_inst_t* i2c = static_cast<i2c_inst_t*>(i2cBus->getHardware());
+
+    // Write register address
+    int result = i2c_write_blocking(i2c, kAk09916Addr, &reg, 1, true);
+    if (result != 1) {
+        return false;
+    }
+
+    // Read data
+    result = i2c_read_blocking(i2c, kAk09916Addr, value, 1, false);
+    return result == 1;
+}
+
+bool IMU_ICM20948::akReadRegisters(uint8_t reg, uint8_t* data, uint8_t len) {
+    I2CBus* i2cBus = static_cast<I2CBus*>(m_bus);
+    if (!i2cBus) {
+        return false;
+    }
+
+    i2c_inst_t* i2c = static_cast<i2c_inst_t*>(i2cBus->getHardware());
+
+    // Write register address
+    int result = i2c_write_blocking(i2c, kAk09916Addr, &reg, 1, true);
+    if (result != 1) {
+        return false;
+    }
+
+    // Read data
+    result = i2c_read_blocking(i2c, kAk09916Addr, data, len, false);
+    return result == static_cast<int>(len);
 }
 
 } // namespace hal

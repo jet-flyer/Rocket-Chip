@@ -11,11 +11,14 @@
 #include "AP_AHRS.h"
 #include <cmath>
 
-// Singleton instance
-static AP_AHRS s_ahrs_instance;
+// Singleton instance (lazy init to avoid static constructor issues)
+static AP_AHRS* s_ahrs_instance = nullptr;
 
 AP_AHRS& AP_AHRS::get_singleton() {
-    return s_ahrs_instance;
+    if (!s_ahrs_instance) {
+        s_ahrs_instance = new AP_AHRS();
+    }
+    return *s_ahrs_instance;
 }
 
 // ArduPilot-style accessor

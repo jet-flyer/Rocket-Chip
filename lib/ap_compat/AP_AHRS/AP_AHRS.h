@@ -152,6 +152,23 @@ public:
         _healthy = false;
     }
 
+    /**
+     * @brief Update vehicle orientation from sensors
+     *
+     * Called by AP_Compass during init to synchronize orientations.
+     * In minimal AHRS this is a no-op as we don't track board orientation.
+     */
+    void update_orientation() { }
+
+    /**
+     * @brief Reset height datum for barometer
+     *
+     * Called by AP_Baro when field elevation changes to reset the
+     * reference point for altitude estimation.
+     * @note Stub implementation - does nothing in minimal AHRS (no EKF)
+     */
+    void resetHeightDatum() { }
+
     // Constructor (public for singleton pattern)
     AP_AHRS();
 

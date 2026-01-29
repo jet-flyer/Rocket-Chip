@@ -34,7 +34,8 @@
 // GCS for STATUSTEXT output
 #include <GCS_MAVLink/GCS.h>
 
-extern RP2350::HAL_RP2350 hal;
+// HAL reference is declared in HAL_RP2350_Class.h as:
+// extern const AP_HAL::HAL& hal;
 
 // Static calibrator to avoid stack allocation issues
 static CompassCalibrator g_calibrator;
