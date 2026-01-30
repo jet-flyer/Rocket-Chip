@@ -102,6 +102,17 @@ Before implementing each AP_HAL component, check for known RP2040/RP2350 porting
 - Legacy Arduino codebase archived in DEPRECATED/ (not carried forward)
 - **INV2 temp reset spam** - ArduPilot Invensensev2 driver logs "temp reset IMU[0]" messages during warmup. Caused by occasional temperature read glitches during I2C high-rate sampling. Does not affect sensor operation - driver recovers automatically. May investigate I2C timing if it causes issues later.
 
+## TODO: Smoke Test Audit
+**After RC_OS v0.3 hardware verification:**
+- Audit all smoke tests in `tests/smoke_tests/` for stale code
+- Several tests disabled due to missing FreeRTOS hooks and outdated Compass API:
+  - `compass_cal_test.cpp` - DELETED (used LIS3MDL, old Compass API)
+  - `compass_cal_synthetic_test.cpp` - DISABLED (old CompassCalibrator API)
+  - `compass_minimal_test.cpp` - DISABLED (old CompassCalibrator API)
+  - `calibration_test.cpp` - DISABLED (missing FreeRTOS hooks)
+- **Verification rule:** Always build ALL targets before committing to catch stale tests
+- **Prevention:** Tests using ArduPilot APIs should link `ap_compat` for FreeRTOS hooks
+
 ## Future Documentation Planned
 - `docs/icd/` - Interface Control Documents (expansion connector, protocols)
 - `docs/TEST_PLAN.md` - Test procedures and criteria
