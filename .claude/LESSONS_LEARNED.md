@@ -634,6 +634,48 @@ And ensure CMakeLists.txt uses `lib/ap_compat/AP_InertialSensor/` instead of `li
 
 ---
 
+## Entry 15: USB Terminal Connection Affecting Program State (ACTIVE BUG)
+
+**Date:** 2026-01-30
+**Status:** Under investigation
+**Severity:** High - CLI unusable
+
+### Problem
+CLITask stops executing when USB terminal connects. Program behavior should NOT depend on terminal connection - only output buffering should be affected.
+
+### Symptoms
+- LED flashes rapidly (50ms) while waiting for sensor init - CORRECT
+- When terminal connects to COM6, LED goes SOLID - WRONG
+- Pressing Enter does nothing
+- Program appears frozen but scheduler is still running (verified via probe)
+
+### Observations
+- Rapid blink = CLITask in sensor init wait loop
+- Solid LED = CLITask stopped executing (crashed or blocked)
+- The transition happens exactly when terminal connects
+- This violates the principle that terminal connection should only affect output, not execution
+
+### Suspected Causes
+1. `printf()` or `fflush(stdout)` blocking or crashing on USB CDC state change
+2. `getchar_timeout_us(0)` behaving unexpectedly when USB connects
+3. USB CDC interrupt causing a crash or priority inversion
+4. TinyUSB internal state corruption
+
+### Investigation Plan
+1. Use probe to check CLITask state immediately after terminal connects
+2. Check if CLITask is blocked in printf/fflush or getchar
+3. Try removing all printf calls before the keypress loop
+4. Check if USB CDC TX is causing the issue
+
+### Key Insight
+The user correctly identified: "the program shouldn't be affected by the terminal connecting just the output being dumped" - this observation narrowed down the bug significantly.
+
+### Files Involved
+- `src/main.cpp` - CLITask function
+- Pico SDK's `pico_stdio_usb` implementation
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here
