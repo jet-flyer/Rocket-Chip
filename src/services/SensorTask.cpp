@@ -31,6 +31,9 @@
 #include "calibration/CalibrationStore.h"
 #include <AP_HAL_RP2350/hwdef.h>  // For GRAVITY_MSS, DEG_TO_RAD
 
+// GCS MAVLink for calibration callbacks
+#include <GCS_MAVLink/GCS.h>
+
 #include <cstdio>
 #include <cmath>
 
@@ -76,6 +79,13 @@ static bool s_calibrationLoaded = false;
 static bool s_imuInitialized = false;
 static bool s_magInitialized = false;
 static bool s_baroInitialized = false;
+
+// Calibration state
+static bool s_accelCalRunning = false;
+static bool s_compassCalRunning = false;
+
+// Init complete flag (for CLI synchronization)
+static volatile bool s_initComplete = false;
 
 // Timing dividers (all relative to 1kHz base rate)
 static constexpr uint32_t kBaroDivider = SensorTaskConfig::IMU_RATE_HZ / SensorTaskConfig::BARO_RATE_HZ;  // 20
@@ -183,6 +193,28 @@ static bool initSensors() {
         DBG_PRINT("None (defaults)\n");
     }
 
+    // Initialize GCS and wire up calibration callbacks
+    DBG_PRINT("  GCS MAVLink:       ");
+    GCS::get_singleton().init();
+
+    // Wire up calibration callbacks from GCS to our API
+    GCS::get_singleton().set_simple_accel_cal_callback([]() -> MAV_RESULT {
+        return SensorTask_SimpleAccelCal();
+    });
+    GCS::get_singleton().set_accel_cal_start_callback([]() -> bool {
+        return SensorTask_StartAccelCal();
+    });
+    GCS::get_singleton().set_accel_cal_pos_callback([](int pos) -> bool {
+        return SensorTask_AccelCalConfirmPosition(pos);
+    });
+    GCS::get_singleton().set_compass_cal_start_callback([]() -> bool {
+        return SensorTask_StartCompassCal();
+    });
+    GCS::get_singleton().set_baro_cal_callback([]() -> bool {
+        return SensorTask_CalibrateBaro();
+    });
+    DBG_PRINT("OK\n");
+
     // At least IMU must be working for flight
     return s_imuInitialized;
 }
@@ -288,11 +320,13 @@ static void SensorTask_Run(void* pvParameters) {
     }
     DBG_PRINT("[SensorTask] Sensor init complete, entering main loop\n");
 
+    // Signal CLI that it's safe to show prompt (no more init output)
+    s_initComplete = true;
+
     TickType_t lastWakeTime = xTaskGetTickCount();
     const TickType_t period = pdMS_TO_TICKS(1);  // 1ms = 1kHz
 
     uint32_t loopCount = 0;
-    uint32_t statusCount = 0;
 
     while (true) {
         // Always read IMU at 1kHz
@@ -310,42 +344,47 @@ static void SensorTask_Run(void* pvParameters) {
             readBaro();
         }
 
-        loopCount++;
-        statusCount++;
+        // Update calibration state machines at 100Hz (every 10th iteration)
+        if (loopCount % 10 == 0) {
+            // NOTE: GCS::update() not called here - UITask handles all serial input
+            // and routes MAVLink bytes to GCS::parse_byte() vs CLI commands.
 
-        // Print status every 5000 iterations (5 seconds at 1kHz)
-        if (statusCount >= 5000) {
-            statusCount = 0;
-            g_sensorTaskStats.free_heap = xPortGetFreeHeapSize();
+            // Update accelerometer calibration if running
+            if (s_accelCalRunning && g_ins != nullptr) {
+                g_ins->acal_update();
+                // Check if calibration finished
+                AP_AccelCal* acal = g_ins->get_acal();
+                if (acal != nullptr) {
+                    accel_cal_status_t status = acal->get_status();
+                    if (status == ACCEL_CAL_SUCCESS || status == ACCEL_CAL_FAILED) {
+                        s_accelCalRunning = false;
+                        printf("[SensorTask] Accel calibration %s\n",
+                               status == ACCEL_CAL_SUCCESS ? "SUCCEEDED" : "FAILED");
+                    }
+                }
+            }
 
-            DBG_PRINT("\n[SensorTask] Status (ArduPilot Native):\n");
-            DBG_PRINT("  AP_INS: accel=%u, gyro=%u, rate=%uHz\n",
-                   g_ins->get_accel_count(), g_ins->get_gyro_count(), g_ins->get_raw_gyro_rate_hz(0));
-            DBG_PRINT("  AP_Compass: count=%u, available=%s\n",
-                   g_compass->get_count(), g_compass->available() ? "YES" : "NO");
-            DBG_PRINT("  Baro: %s\n", s_baroInitialized ? "OK" : "FAIL");
-            DBG_PRINT("  IMU samples:  %lu (errors: %lu)\n",
-                   g_sensorTaskStats.imu_samples, g_sensorTaskStats.imu_errors);
-            DBG_PRINT("  Mag samples:  %lu (errors: %lu)\n",
-                   g_sensorTaskStats.mag_samples, g_sensorTaskStats.mag_errors);
-            DBG_PRINT("  Baro samples: %lu (errors: %lu)\n",
-                   g_sensorTaskStats.baro_samples, g_sensorTaskStats.baro_errors);
-            DBG_PRINT("  Loop overruns: %lu\n", g_sensorTaskStats.loop_overruns);
-            DBG_PRINT("  Free heap:     %lu bytes\n", g_sensorTaskStats.free_heap);
-
-            // Print current sensor values
-            SensorData data;
-            if (SensorTask_GetData(data)) {
-                DBG_PRINT("  Accel: [%+7.2f, %+7.2f, %+7.2f] m/s^2\n",
-                       data.accel.x, data.accel.y, data.accel.z);
-                DBG_PRINT("  Gyro:  [%+7.3f, %+7.3f, %+7.3f] rad/s\n",
-                       data.gyro.x, data.gyro.y, data.gyro.z);
-                DBG_PRINT("  Mag:   [%+7.3f, %+7.3f, %+7.3f] gauss\n",
-                       data.mag.x, data.mag.y, data.mag.z);
-                DBG_PRINT("  Baro:  %.2f Pa, %.2f C\n",
-                       data.pressure_pa, data.temperature_c);
+            // Update compass calibration if running
+            if (s_compassCalRunning && g_compass != nullptr) {
+                g_compass->cal_update();
+                // Check if calibration finished
+                if (!g_compass->is_calibrating()) {
+                    s_compassCalRunning = false;
+                    printf("[SensorTask] Compass calibration finished\n");
+                }
             }
         }
+
+        // Send heartbeat at 1Hz (every 1000th iteration) only when GCS is connected
+        // This prevents garbage binary output when using CLI terminal
+        if (loopCount % 1000 == 0 && GCS::get_singleton().is_connected()) {
+            GCS::get_singleton().send_heartbeat();
+        }
+
+        loopCount++;
+
+        // Periodic status disabled - use 's' command in CLI for on-demand status
+        // (Automatic printing interferes with interactive CLI menus)
 
         // Wait until next period
         BaseType_t wasDelayed = xTaskDelayUntil(&lastWakeTime, period);
@@ -450,6 +489,143 @@ void SensorTask_PrintStatus() {
                data.pressure_pa, data.temperature_c);
     }
     printf("\n");
+}
+
+// ============================================================================
+// Calibration API Implementation
+// ============================================================================
+
+bool SensorTask_StartAccelCal() {
+    if (g_ins == nullptr || !s_imuInitialized) {
+        printf("[SensorTask] Cannot start accel cal - IMU not initialized\n");
+        return false;
+    }
+
+    if (s_accelCalRunning || s_compassCalRunning) {
+        printf("[SensorTask] Cannot start accel cal - calibration already running\n");
+        return false;
+    }
+
+    printf("[SensorTask] Starting 6-position accelerometer calibration...\n");
+
+    // Initialize the calibrator (creates AP_AccelCal if needed)
+    g_ins->acal_init();
+
+    AP_AccelCal* acal = g_ins->get_acal();
+    if (acal == nullptr) {
+        printf("[SensorTask] Failed to create AP_AccelCal\n");
+        return false;
+    }
+
+    // Start the calibration with our GCS_MAVLINK instance
+    GCS_MAVLINK* gcs = GCS_MAVLINK::get_singleton();
+    acal->start(gcs, MAVLINK_SYS_ID, MAVLINK_COMP_ID);
+
+    s_accelCalRunning = true;
+    printf("[SensorTask] Accel calibration started - place device LEVEL and confirm\n");
+    return true;
+}
+
+MAV_RESULT SensorTask_SimpleAccelCal() {
+    if (g_ins == nullptr || !s_imuInitialized) {
+        printf("[SensorTask] Cannot run simple accel cal - IMU not initialized\n");
+        return MAV_RESULT_FAILED;
+    }
+
+    if (s_accelCalRunning || s_compassCalRunning) {
+        printf("[SensorTask] Cannot run simple accel cal - calibration already running\n");
+        return MAV_RESULT_TEMPORARILY_REJECTED;
+    }
+
+    printf("[SensorTask] Running simple 1D accelerometer calibration (keep device level)...\n");
+    MAV_RESULT result = g_ins->simple_accel_cal();
+
+    if (result == MAV_RESULT_ACCEPTED) {
+        printf("[SensorTask] Simple accel calibration completed successfully\n");
+    } else {
+        printf("[SensorTask] Simple accel calibration failed (result=%d)\n", result);
+    }
+
+    return result;
+}
+
+bool SensorTask_AccelCalConfirmPosition(int position) {
+    if (!s_accelCalRunning || g_ins == nullptr) {
+        return false;
+    }
+
+    AP_AccelCal* acal = g_ins->get_acal();
+    if (acal == nullptr) {
+        return false;
+    }
+
+    // Tell AP_AccelCal that the vehicle is in the requested position
+    return acal->gcs_vehicle_position(static_cast<float>(position));
+}
+
+bool SensorTask_StartCompassCal() {
+    if (g_compass == nullptr || !s_magInitialized) {
+        printf("[SensorTask] Cannot start compass cal - compass not initialized\n");
+        return false;
+    }
+
+    if (s_accelCalRunning || s_compassCalRunning) {
+        printf("[SensorTask] Cannot start compass cal - calibration already running\n");
+        return false;
+    }
+
+    printf("[SensorTask] Starting compass calibration...\n");
+    printf("[SensorTask] Rotate device slowly through all orientations\n");
+
+    // Start calibration for all compass instances
+    // Parameters: retry=false, autosave=true, delay=0, autoreboot=false
+    bool started = g_compass->start_calibration_all(false, true, 0.0f, false);
+
+    if (started) {
+        s_compassCalRunning = true;
+        printf("[SensorTask] Compass calibration started\n");
+    } else {
+        printf("[SensorTask] Failed to start compass calibration\n");
+    }
+
+    return started;
+}
+
+bool SensorTask_CalibrateBaro() {
+    if (g_baro == nullptr || !s_baroInitialized) {
+        printf("[SensorTask] Cannot calibrate baro - not initialized\n");
+        return false;
+    }
+
+    printf("[SensorTask] Calibrating barometer (setting ground pressure)...\n");
+    g_baro->calibrate(true);  // true = save to storage
+    printf("[SensorTask] Barometer calibration complete\n");
+    return true;
+}
+
+bool SensorTask_IsCalibrating() {
+    return s_accelCalRunning || s_compassCalRunning;
+}
+
+void SensorTask_CancelCalibration() {
+    if (s_accelCalRunning && g_ins != nullptr) {
+        AP_AccelCal* acal = g_ins->get_acal();
+        if (acal != nullptr) {
+            acal->cancel();
+        }
+        s_accelCalRunning = false;
+        printf("[SensorTask] Accel calibration cancelled\n");
+    }
+
+    if (s_compassCalRunning && g_compass != nullptr) {
+        g_compass->cancel_calibration_all();
+        s_compassCalRunning = false;
+        printf("[SensorTask] Compass calibration cancelled\n");
+    }
+}
+
+bool SensorTask_IsInitComplete() {
+    return s_initComplete;
 }
 
 } // namespace services

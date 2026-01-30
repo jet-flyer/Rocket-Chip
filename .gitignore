@@ -60,3 +60,4 @@ tmpclaude-*
 tests/smoke_tests/freertos_static_test.cpp
 tests/smoke_tests/freertos_with_hal_include.cpp
 tests/smoke_tests/minimal_blink.cpp
+chibios/

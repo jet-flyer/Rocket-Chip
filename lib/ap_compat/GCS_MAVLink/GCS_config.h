@@ -40,7 +40,7 @@
 
 // HAL_MAVLINK_BINDINGS: Advanced MAVLink message bindings (send functions)
 // Requires GCS_MAVLINK::get_chan(), HAVE_PAYLOAD_SPACE, etc.
-// Disabled for now - calibration works without GCS progress reports
+// Enabled for calibration progress reports via MAVLink
 #ifndef HAL_MAVLINK_BINDINGS_ENABLED
-#define HAL_MAVLINK_BINDINGS_ENABLED 0
+#define HAL_MAVLINK_BINDINGS_ENABLED 1
 #endif

@@ -580,8 +580,8 @@ add_library(ap_inertial_sensor STATIC
     lib/ardupilot/libraries/AP_InertialSensor/BatchSampler.cpp
     lib/ardupilot/libraries/AP_InertialSensor/FastRateBuffer.cpp
     lib/ardupilot/libraries/AP_InertialSensor/AuxiliaryBus.cpp
-    # ICM-20948 driver (via Invensensev2)
-    lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor_Invensensev2.cpp
+    # ICM-20948 driver (via Invensensev2) - local copy with debug disabled
+    lib/ap_compat/AP_InertialSensor_Invensensev2/AP_InertialSensor_Invensensev2.cpp
 )
 
 target_include_directories(ap_inertial_sensor PUBLIC
@@ -636,7 +636,8 @@ add_library(ap_compass STATIC
     lib/ardupilot/libraries/AP_Compass/AP_Compass.cpp
     lib/ardupilot/libraries/AP_Compass/AP_Compass_Backend.cpp
     # Compass_PerMotor stubbed in compass_stubs.cpp (motor compensation not for rockets)
-    # AP_Compass_Calibration.cpp skipped - requires full MAVLink GCS bindings
+    # Calibration methods (cal_update, start_calibration_all, cancel_calibration_all, etc.)
+    lib/ardupilot/libraries/AP_Compass/AP_Compass_Calibration.cpp
     # Calibration algorithm is in CompassCalibrator.cpp
     lib/ardupilot/libraries/AP_Compass/CompassCalibrator.cpp
     # AK09916 driver (inside ICM-20948)

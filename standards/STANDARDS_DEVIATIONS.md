@@ -99,6 +99,35 @@ typedef double float64_t;
 
 ---
 
+### 4. HAVE_PAYLOAD_SPACE Always Returns True
+
+**Location**: [GCS.h:48](lib/ap_compat/GCS_MAVLink/GCS.h#L48)
+```cpp
+#define HAVE_PAYLOAD_SPACE(chan, id) (true)
+```
+
+**Standard Violated**: ArduPilot design pattern - should check actual TX buffer space
+
+**Severity**: Medium
+**Difficulty**: Moderate
+**Status**: Temporary simplification - fix when implementing radio telemetry
+
+**Rationale**: USB CDC uses blocking writes, so buffer space is effectively unlimited. For initial calibration MAVLink integration, this simplification is acceptable.
+
+**Risk**: When radio telemetry (RFM69, etc.) is added with limited TX buffers:
+- Messages could be dropped silently
+- Buffer overruns possible under high message rates
+
+**Remediation**: Implement proper buffer space checking when adding radio telemetry:
+1. Track TX buffer space per channel
+2. Implement `comm_get_txspace()` for each channel type
+3. Replace macro with proper ArduPilot-style check:
+```cpp
+#define HAVE_PAYLOAD_SPACE(chan, id) (comm_get_txspace(chan) >= MAVLINK_MSG_ID_##id##_LEN + overhead)
+```
+
+---
+
 ## Resolved Deviations
 
 ### R1. USB CDC Wait Pattern (FIXED 2026-01-21)

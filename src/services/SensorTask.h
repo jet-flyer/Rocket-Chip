@@ -18,6 +18,9 @@
 #include "semphr.h"
 #include <cstdint>
 
+// For MAV_RESULT enum (used by calibration API)
+#include <GCS_MAVLink/GCS.h>
+
 namespace rocketchip {
 namespace services {
 
@@ -134,6 +137,79 @@ SensorTaskStats SensorTask_GetStats();
  * @brief Print sensor status to serial (for debug key commands)
  */
 void SensorTask_PrintStatus();
+
+// ============================================================================
+// Calibration API
+// ============================================================================
+
+/**
+ * @brief Start accelerometer 6-position calibration
+ *
+ * Initiates the ArduPilot AccelCalibrator. User must place device
+ * in 6 orientations when prompted. Results saved to AP_Param.
+ *
+ * @return true if calibration started successfully
+ */
+bool SensorTask_StartAccelCal();
+
+/**
+ * @brief Start simple 1D accelerometer calibration
+ *
+ * Quick level calibration - device must be level when called.
+ * Results saved to AP_Param.
+ *
+ * @return MAV_RESULT indicating success/failure
+ */
+MAV_RESULT SensorTask_SimpleAccelCal();
+
+/**
+ * @brief Confirm vehicle position for accel calibration
+ *
+ * Called when GCS (or user) confirms device is in requested position.
+ *
+ * @param position ACCELCAL_VEHICLE_POS enum value
+ * @return true if position acknowledged
+ */
+bool SensorTask_AccelCalConfirmPosition(int position);
+
+/**
+ * @brief Start compass calibration
+ *
+ * Initiates the ArduPilot CompassCalibrator. User must rotate
+ * device through all orientations. Results saved to AP_Param.
+ *
+ * @return true if calibration started successfully
+ */
+bool SensorTask_StartCompassCal();
+
+/**
+ * @brief Calibrate barometer (set ground pressure reference)
+ *
+ * @return true if calibration successful
+ */
+bool SensorTask_CalibrateBaro();
+
+/**
+ * @brief Check if any calibration is in progress
+ *
+ * @return true if accel or compass calibration is running
+ */
+bool SensorTask_IsCalibrating();
+
+/**
+ * @brief Cancel any running calibration
+ */
+void SensorTask_CancelCalibration();
+
+/**
+ * @brief Check if sensor initialization is complete
+ *
+ * CLI waits for this before showing user prompt to avoid
+ * interleaved output with sensor init debug messages.
+ *
+ * @return true if sensor init has completed (success or failure)
+ */
+bool SensorTask_IsInitComplete();
 
 } // namespace services
 } // namespace rocketchip

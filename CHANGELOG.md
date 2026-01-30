@@ -22,6 +22,49 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-29-002 | Claude Code CLI | bugfix
+
+**CLI Menu System Lost - Re-implementation Required**
+
+Agent error: Ran `git checkout src/main.cpp` which reverted ALL uncommitted changes, not just the current session's changes. The CLI menu system from 2026-01-29-001 was not committed and is now lost.
+
+**Lost functionality (from src/main.cpp):**
+- CLITask with calibration menu system
+- Menu modes (Main, Calibration)
+- Calibration menu (`c` command) with options: wizard, level cal, 6-pos accel, compass, baro
+- `runCalibrationWizard()` guided calibration flow
+- `SensorTask_IsInitComplete()` wait pattern for clean boot output
+- Position confirmation wiring for 6-pos accel cal
+
+**Still intact:**
+- SensorTask calibration API functions (SensorTask_StartAccelCal, etc.) in SensorTask.cpp
+- GCS MAVLink integration in lib/ap_compat/GCS_MAVLink/
+- All other modified files from previous sessions
+
+Re-implementation to follow.
+
+(src/main.cpp)
+
+---
+
+### 2026-01-29-001 | Claude Code CLI | feature
+
+**Full MAVLink Calibration Integration**
+
+Integrated ArduPilot calibration system with full MAVLink GCS support:
+- Added MAVLink message parsing in `GCS::update()` - parses incoming commands from USB CDC
+- Implemented `MAV_CMD_PREFLIGHT_CALIBRATION` handler for QGroundControl/Mission Planner
+- Added calibration API to SensorTask: `SensorTask_StartAccelCal()`, `SensorTask_SimpleAccelCal()`, `SensorTask_StartCompassCal()`, `SensorTask_CalibrateBaro()`, `SensorTask_IsCalibrating()`, `SensorTask_CancelCalibration()`
+- Renamed UITask to CLITask for clarity; added CLI commands (a=accel cal, l=level cal, m=mag cal, b=baro cal, c=cancel)
+- Enabled `HAL_MAVLINK_BINDINGS_ENABLED` for calibration progress messages
+- Added `mavlink_system` global and convenience function support
+
+**Simplification noted**: `HAVE_PAYLOAD_SPACE` always returns true (USB CDC blocking writes). Tracked in STANDARDS_DEVIATIONS.md for later fix when radio telemetry added.
+
+(lib/ap_compat/GCS_MAVLink/GCS.h, lib/ap_compat/GCS_MAVLink/GCS.cpp, lib/ap_compat/GCS_MAVLink/GCS_config.h, src/services/SensorTask.h, src/services/SensorTask.cpp, src/main.cpp)
+
+---
+
 ### 2026-01-28-004 | Claude Code CLI | bugfix, feature
 
 **ICM-20948 IMU Init Fix + USB CDC Handling Refactor**

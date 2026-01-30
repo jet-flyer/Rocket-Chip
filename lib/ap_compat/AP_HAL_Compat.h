@@ -187,9 +187,9 @@ inline void internal_error(uint32_t error_code) {
 #define NEW_NOTHROW new(std::nothrow)
 #endif
 
-// DEV_PRINTF - debug printf (disabled in our stub)
+// DEV_PRINTF - debug printf (enabled for calibration debugging)
 #ifndef DEV_PRINTF
-#define DEV_PRINTF(...) do {} while(0)
+#define DEV_PRINTF(...) printf(__VA_ARGS__)
 #endif
 
 // FMT_PRINTF - format attribute for printf-like functions
