@@ -22,6 +22,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-29-003 | Claude Code CLI | documentation
+
+**CLI Reference Preserved from Context**
+
+Created `CLI_RESTORE.md` with complete CLI code recovered from Claude's context window. This reference document contains all the lost code from 2026-01-29-001 including CLITask, menu helpers, calibration wizard, and the CR+LF buffer drain fix discovered during debugging. Committed to repo so it cannot be lost again by accidental `git checkout`.
+
+(CLI_RESTORE.md)
+
+---
+
 ### 2026-01-29-002 | Claude Code CLI | bugfix
 
 **CLI Menu System Lost - Re-implementation Required**
