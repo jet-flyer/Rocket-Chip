@@ -76,6 +76,9 @@ add_compile_definitions(
     # Disable Pico SDK's operator new/delete - we provide our own that zeros memory
     # ArduPilot expects zeroed allocations (like ChibiOS). See PD11.
     PICO_CXX_DISABLE_ALLOCATION_OVERRIDES=1
+    # Bypass DTR check in stdio_usb_connected() - some terminals don't set DTR
+    # Without this, USB wait loops hang forever waiting for DTR signal
+    PICO_STDIO_USB_CONNECTION_WITHOUT_DTR=1
 )
 
 # ============================================================================
@@ -571,20 +574,26 @@ target_link_libraries(ap_param PUBLIC
 # ICM-20948 is supported by AP_InertialSensor_Invensensev2
 
 add_library(ap_inertial_sensor STATIC
-    # Core framework
-    lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor.cpp
-    lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor_Backend.cpp
+    # Core framework - USE AP_COMPAT VERSION for std::atomic fix (PD12)
+    # The ap_compat versions have _new_gyro_data/_new_accel_data as std::atomic<bool>
+    # for cross-core memory visibility on FreeRTOS SMP dual-core RP2350
+    lib/ap_compat/AP_InertialSensor/AP_InertialSensor.cpp
+    lib/ap_compat/AP_InertialSensor/AP_InertialSensor_Backend.cpp
+    # Rest from ArduPilot (no cross-core flag issues)
     lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor_Params.cpp
     lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor_Logging.cpp
     lib/ardupilot/libraries/AP_InertialSensor/AP_InertialSensor_tempcal.cpp
     lib/ardupilot/libraries/AP_InertialSensor/BatchSampler.cpp
     lib/ardupilot/libraries/AP_InertialSensor/FastRateBuffer.cpp
     lib/ardupilot/libraries/AP_InertialSensor/AuxiliaryBus.cpp
-    # ICM-20948 driver (via Invensensev2) - local copy with debug disabled
+    # ICM-20948 driver (via Invensensev2) - custom copy with debug disabled
     lib/ap_compat/AP_InertialSensor_Invensensev2/AP_InertialSensor_Invensensev2.cpp
 )
 
 target_include_directories(ap_inertial_sensor PUBLIC
+    # CRITICAL: ap_compat/AP_InertialSensor MUST come BEFORE ardupilot/libraries
+    # so that the std::atomic fixed headers are used instead of ArduPilot's originals
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_InertialSensor
     ${CMAKE_SOURCE_DIR}/lib/ap_compat
     ${CMAKE_SOURCE_DIR}/lib/ap_compat/AP_HAL_RP2350
     ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries

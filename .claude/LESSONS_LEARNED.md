@@ -592,6 +592,48 @@ https://learn.adafruit.com/adafruit-tdk-invensense-icm-20948-9-dof-imu/pinouts
 
 ---
 
+## Entry 14: Don't Delete "Duplicate" Files Without Checking for Platform Fixes
+
+**Date:** 2026-01-29
+**Time Spent:** ~2 hours rediscovering the issue
+**Severity:** Critical - IMU completely broken
+
+### Problem
+IMU stopped working with "INS: unable to initialise driver" after a "cleanup" commit removed `lib/ap_compat/AP_InertialSensor/` files, thinking they were stale duplicates of ArduPilot code.
+
+### Symptoms
+- `AP_InertialSensor::init()` hangs indefinitely or fails
+- Baro works fine (same I2C bus, same hardware)
+- I2C scan shows device responding at correct address
+- Callbacks running, but `wait_for_sample()` never sees flag changes
+
+### Root Cause
+The files in `lib/ap_compat/AP_InertialSensor/` were NOT duplicates. They contained the critical **PD12 fix**: `std::atomic<bool>` for cross-core memory visibility on dual-core RP2350.
+
+Commit `f8b85cb` deleted them with message "Removed stale AP_InertialSensor copy" during a cleanup/sync operation. Without the `std::atomic` fix, writes on one core aren't visible to reads on the other core.
+
+### Solution
+Restore the files from the commit that added them:
+```bash
+git checkout dd454e6 -- lib/ap_compat/AP_InertialSensor/
+```
+
+And ensure CMakeLists.txt uses `lib/ap_compat/AP_InertialSensor/` instead of `lib/ardupilot/libraries/AP_InertialSensor/` for the core .cpp files.
+
+### Prevention
+1. **Never assume "duplicate" files are identical** - check for platform-specific modifications
+2. **Files in `lib/ap_compat/` exist for a reason** - they override ArduPilot with platform fixes
+3. **Before deleting any ap_compat file**, search for comments containing "fix", "PD", "RP2350", "FreeRTOS", "atomic"
+4. **Add README.md files** to directories with critical fixes (done for AP_InertialSensor)
+5. **When asking an agent to "clean up" repos**, explicitly exclude `lib/ap_compat/` from deletion
+
+### Key Files
+- `lib/ap_compat/AP_InertialSensor/AP_InertialSensor.h` - std::atomic flags
+- `lib/ap_compat/AP_InertialSensor/AP_InertialSensor_Backend.cpp` - memory_order writes
+- `lib/ap_compat/AP_InertialSensor/README.md` - documents why files exist
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

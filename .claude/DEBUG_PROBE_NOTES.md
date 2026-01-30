@@ -11,15 +11,6 @@
 3. **Faster iteration** - Flash via probe in seconds vs manual BOOTSEL dance
 4. **Catches what LEDs miss** - Hardfaults before LED init, crashes between LED states
 
-### Known Quirks (Don't Give Up!)
-
-The probe connection occasionally has issues:
-- OpenOCD may timeout on first connection attempt
-- GDB may report "Remote communication error"
-- Target may need multiple `monitor reset halt` commands
-
-**These are transient issues - retry and it works.** In extensive debugging sessions, the probe has proven reliable after initial connection quirks. The occasional hiccup is far outweighed by the debugging power it provides.
-
 ### When to Consider LED Debugging
 
 Only use LED-based debugging when:
@@ -29,17 +20,41 @@ Only use LED-based debugging when:
 
 Even then, prefer adding diagnostic output over LED patterns when possible.
 
-### Quick Recovery Commands
+---
 
-When the probe seems unresponsive:
+## Two OpenOCD Installations (CRITICAL)
+
+There are TWO OpenOCD versions installed on this system:
+
+| Version | Path | RP2350 Support |
+|---------|------|----------------|
+| **System (Chocolatey)** | `C:/ProgramData/chocolatey/lib/openocd/` | **NO** (0.12.0 from 2023) |
+| **Pico SDK** | `/c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/` | **YES** (0.12.0+dev from 2025) |
+
+**ALWAYS use full paths** to ensure the correct OpenOCD version is used. The system `openocd` in PATH does NOT have RP2350 support.
+
+---
+
+## Reliable OpenOCD Startup (USE THIS)
+
+**Standard command to start OpenOCD - use this every time:**
+
 ```bash
-# Kill and restart OpenOCD
-pkill openocd
-OPENOCD_DIR=/c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/
-${OPENOCD_DIR}openocd -s ${OPENOCD_DIR}scripts -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 5000"
+# Kill any existing OpenOCD, wait for USB release, then start fresh
+taskkill //F //IM openocd.exe 2>/dev/null; sleep 2; /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/openocd -s /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/scripts -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 5000" &
+```
 
-# In another terminal, try connecting
-arm-none-eabi-gdb -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt"
+This command is idempotent - safe to run even if no OpenOCD is running.
+
+**Why this works:**
+1. `taskkill //F //IM openocd.exe` - Kills ALL OpenOCD processes (pkill doesn't work on Windows)
+2. `sleep 2` - Allows USB device to be released
+3. Full paths ensure Pico SDK OpenOCD is used (not system version)
+4. `&` runs in background so terminal remains usable
+
+**When done debugging:**
+```bash
+taskkill //F //IM openocd.exe
 ```
 
 ---
@@ -61,27 +76,27 @@ Do flash operations BEFORE USB is fully active:
 
 This follows DEBUG_OUTPUT.md pattern: "Run program logic immediately, wait for connection before printing results."
 
-**Previous failed workarounds (for reference):**
-- sleep_ms() delays after flash ops - partial TX fix, RX still broken
-- recoverUsbInput() draining - didn't help
-- Extended recovery times - didn't help
-
-The issue was architectural - USB must not be active during flash operations.
-
 ---
 
 ## Working Commands
 
-### Start OpenOCD (RP2350)
+### Start OpenOCD (RP2350) - FULL PATH VERSION
 ```bash
-OPENOCD_DIR=/c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/
-${OPENOCD_DIR}openocd -s ${OPENOCD_DIR}scripts -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 5000"
+# Always kill first, then start with full paths
+taskkill //F //IM openocd.exe 2>/dev/null; sleep 2; /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/openocd -s /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/scripts -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 5000" &
 ```
 
 ### GDB Connection (single line - multiline doesn't work well in bash)
 ```bash
-cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "file build/smoke_calibration.elf" -ex "load" -ex "info breakpoints" build/smoke_calibration.elf
+cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "bt"
 ```
+
+### Flash and Run via GDB
+```bash
+cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "load" -ex "monitor reset run"
+```
+
+---
 
 ## Known Issues
 
@@ -89,9 +104,31 @@ cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb -batch -ex "target 
 
 2. **Timeouts**: GDB batch mode can hang waiting for breakpoints. Use short timeout values.
 
-3. **OpenOCD version**: System OpenOCD (0.12.0) doesn't have rp2350.cfg. Must use pico-sdk's OpenOCD at `~/.pico-sdk/openocd/0.12.0+dev/`.
+3. **OpenOCD version confusion**: System OpenOCD (Chocolatey, 0.12.0) doesn't have rp2350.cfg. **Always use full paths** to Pico SDK's OpenOCD at `/c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/`.
 
 4. **Target state**: After GDB disconnects, may need `monitor reset halt` to regain control.
+
+5. **USB I/O Errors with PC=0x00000000**: When you see "error submitting USB write: Input/Output Error" and PC=0x00000000 with corrupt stack, the device is in a bad state. Try:
+   - Kill OpenOCD completely: `taskkill //F //IM openocd.exe`
+   - Wait 2-3 seconds
+   - Restart OpenOCD with full path command
+   - Use `monitor reset halt` before any other commands
+   - If still failing, power cycle the device (unplug USB) or use picotool to flash
+
+6. **Dual USB conflict**: The RP2350 target's USB CDC and the debug probe are separate USB connections to the host. However, if the target firmware crashes with USB in a bad state, the CMSIS-DAP probe may also report I/O errors. Power cycling the target usually resolves this.
+
+7. **"Unable to find CMSIS-DAP device"** - **RESOLVED**
+
+   **Root cause identified (2026-01-30):** Multiple stale OpenOCD processes holding the USB device exclusively.
+
+   **Solution:** Always kill all OpenOCD processes before starting:
+   ```bash
+   taskkill //F //IM openocd.exe 2>/dev/null; sleep 2; <start openocd with full path>
+   ```
+
+   **Why `pkill openocd` didn't work:** The `pkill` command is not available in Windows Git Bash. Use `taskkill //F //IM openocd.exe` instead.
+
+---
 
 ## Iterative Debugging Tips
 
@@ -110,11 +147,7 @@ When USB is unresponsive:
 2. Only ask for manual BOOTSEL as last resort
 
 ```bash
-arm-none-eabi-gdb firmware.elf -batch \
-  -ex "target extended-remote localhost:3333" \
-  -ex "monitor reset halt" \
-  -ex "load" \
-  -ex "monitor reset run"
+cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "load" -ex "monitor reset run"
 ```
 
 ---

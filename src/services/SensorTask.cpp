@@ -15,7 +15,10 @@
 
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+
 #include "hardware/timer.h"
+#include "hardware/i2c.h"
+#include "hardware/gpio.h"
 
 #include "debug.h"
 
@@ -30,6 +33,13 @@
 // RocketChip calibration storage (for barometer only now)
 #include "calibration/CalibrationStore.h"
 #include <AP_HAL_RP2350/hwdef.h>  // For GRAVITY_MSS, DEG_TO_RAD
+
+// Compile-time diagnostic: verify HAL_INS_PROBE_LIST is defined
+#ifdef HAL_INS_PROBE_LIST
+#pragma message "HAL_INS_PROBE_LIST is defined in SensorTask.cpp"
+#else
+#pragma message "WARNING: HAL_INS_PROBE_LIST is NOT defined in SensorTask.cpp"
+#endif
 
 // GCS MAVLink for calibration callbacks
 #include <GCS_MAVLink/GCS.h>
@@ -95,47 +105,89 @@ static constexpr uint32_t kMagDivider = 10;  // 100Hz magnetometer
 // Sensor Initialization
 // ============================================================================
 
-// Diagnostic blink helper (1 blink = checkpoint passed)
-static void diag_blink(int count) {
-    for (int i = 0; i < count; i++) {
-        gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        busy_wait_ms(150);
-        gpio_put(PICO_DEFAULT_LED_PIN, 0);
-        busy_wait_ms(150);
+// Helper: I2C bus scan for a specific instance
+static void scan_i2c_instance(i2c_inst_t* i2c, uint8_t sda, uint8_t scl, const char* name) {
+    printf("  [DIAG] Scanning %s (SDA=%d, SCL=%d): ", name, sda, scl);
+
+    // Initialize I2C for scan (100kHz for reliability)
+    i2c_init(i2c, 100000);
+    gpio_set_function(sda, GPIO_FUNC_I2C);
+    gpio_set_function(scl, GPIO_FUNC_I2C);
+    gpio_pull_up(sda);
+    gpio_pull_up(scl);
+
+    int found = 0;
+    for (uint8_t addr = 0x08; addr < 0x78; addr++) {
+        uint8_t dummy;
+        int ret = i2c_read_timeout_us(i2c, addr, &dummy, 1, false, 5000);
+        if (ret >= 0) {
+            printf("0x%02X ", addr);
+            found++;
+        }
     }
-    busy_wait_ms(300);  // Pause between checkpoints
+    if (found == 0) {
+        printf("(none)");
+    }
+    printf("\n");
+}
+
+// Helper: I2C bus scan (scans BOTH i2c0 and i2c1)
+static void i2c_bus_scan(const char* label) {
+    printf("  [DIAG] I2C scan (%s):\n", label);
+
+    // Scan i2c1 on GPIO 2/3 (Feather Qwiic connector)
+    scan_i2c_instance(i2c1, 2, 3, "i2c1 (Qwiic)");
+
+    // Also scan i2c0 on GPIO 4/5 in case IMU is connected there
+    scan_i2c_instance(i2c0, 4, 5, "i2c0 (alt pins 4/5)");
+
+    // Try WHO_AM_I read on common IMU addresses (i2c1)
+    i2c_init(i2c1, 400000);
+    gpio_set_function(2, GPIO_FUNC_I2C);
+    gpio_set_function(3, GPIO_FUNC_I2C);
+    gpio_pull_up(2);
+    gpio_pull_up(3);
+
+    for (uint8_t addr = 0x68; addr <= 0x69; addr++) {
+        uint8_t reg = 0x00;
+        uint8_t whoami = 0;
+        int ret = i2c_write_timeout_us(i2c1, addr, &reg, 1, true, 10000);
+        if (ret == 1) {
+            ret = i2c_read_timeout_us(i2c1, addr, &whoami, 1, false, 10000);
+            if (ret == 1) {
+                printf("  [DIAG] 0x%02X WHO_AM_I = 0x%02X (expected 0xEA for ICM-20948)\n", addr, whoami);
+            }
+        }
+    }
 }
 
 static bool initSensors() {
     DBG_PRINT("[SensorTask] Initializing sensors via ArduPilot...\n");
 
-    diag_blink(1);  // Checkpoint: entered initSensors
+
+    // DIAGNOSTIC: Scan BEFORE any HAL init to see fresh hardware state
+    printf("[SensorTask] I2C scan BEFORE hal_init:\n");
+    i2c_bus_scan("pre-HAL");
 
     // Initialize ArduPilot HAL (I2C, SPI, etc.)
     DBG_PRINT("  HAL init:         ");
     RP2350::hal_init();
     DBG_PRINT("OK\n");
 
-    diag_blink(1);  // Checkpoint: hal_init done
+    // DIAGNOSTIC: Scan AFTER HAL init to see if HAL affected I2C
+    printf("[SensorTask] I2C scan AFTER hal_init:\n");
+    i2c_bus_scan("post-HAL");
 
     // Initialize AP_Param for calibration persistence
     DBG_PRINT("  AP_Param:         ");
     AP_Param::setup();
     DBG_PRINT("OK\n");
 
-    diag_blink(1);  // Checkpoint: AP_Param done
-
     // Create sensor instances (must be AFTER HAL init - constructors access AP_Param)
     g_ins = new AP_InertialSensor();
-
-    diag_blink(1);  // Checkpoint: AP_InertialSensor created
-
     g_compass = new Compass();
 
-    diag_blink(1);  // Checkpoint: Compass created
-
     // Initialize AP_InertialSensor (probes ICM-20948 via HAL_INS_PROBE_LIST)
-    // NOTE: This now runs INSIDE a FreeRTOS task, so scheduler timer/IO tasks exist
     DBG_PRINT("  AP_InertialSensor: ");
     g_ins->init(100);  // 100Hz main loop rate
     s_imuInitialized = (g_ins->get_accel_count() > 0 && g_ins->get_gyro_count() > 0);
@@ -144,8 +196,6 @@ static bool initSensors() {
     } else {
         DBG_ERROR("FAILED (accel=%u, gyro=%u)\n", g_ins->get_accel_count(), g_ins->get_gyro_count());
     }
-
-    diag_blink(1);  // Checkpoint: g_ins->init() done
 
     // Initialize Compass (probes AK09916 via HAL_MAG_PROBE_LIST)
     DBG_PRINT("  AP_Compass:        ");
@@ -157,20 +207,11 @@ static bool initSensors() {
         DBG_PRINT("N/A (count=%u)\n", g_compass->get_count());
     }
 
-    diag_blink(1);  // Checkpoint: g_compass->init() done
-    if (s_magInitialized) {
-        DBG_PRINT("OK (count=%u)\n", g_compass->get_count());
-    } else {
-        DBG_PRINT("N/A (count=%u)\n", g_compass->get_count());
-    }
-
     // Initialize Barometer via ArduPilot (probes DPS310 via HAL_BARO_PROBE_LIST)
     DBG_PRINT("  AP_Baro:           ");
     g_baro = new AP_Baro();
     g_baro->init();
     s_baroInitialized = (g_baro->num_instances() > 0);
-
-    diag_blink(1);  // Checkpoint: baro init done
 
     if (s_baroInitialized) {
         // Calibrate barometer (sets ground pressure reference)
@@ -295,16 +336,12 @@ static void readBaro() {
 static void SensorTask_Run(void* pvParameters) {
     (void)pvParameters;
 
-    // DIAGNOSTIC: 7 rapid blinks = SensorTask started (before any other code)
+    // Initialize LED for status
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-    for (int i = 0; i < 7; i++) {
-        gpio_put(PICO_DEFAULT_LED_PIN, 1);
-        busy_wait_ms(100);
-        gpio_put(PICO_DEFAULT_LED_PIN, 0);
-        busy_wait_ms(100);
-    }
-    busy_wait_ms(500);
+
+    // NOTE: No USB wait here - sensors don't need USB to initialize.
+    // CLITask handles USB wait before printing prompts.
 
     DBG_PRINT("[SensorTask] Starting on Core %d\n", get_core_num());
 

@@ -16,11 +16,22 @@ public:
     // Stubs for commonly called methods
     void init() {}
 
-    // Board type - return 0 for unknown/custom
+    // Board type enum - we return PX4_BOARD_AUTO (0) which doesn't match any special cases
     enum px4_board_type {
         PX4_BOARD_AUTO = 0,
+        PX4_BOARD_PX4V1 = 1,
+        PX4_BOARD_PIXHAWK = 2,
+        PX4_BOARD_PIXHAWK2 = 3,
+        PX4_BOARD_PIXRACER = 4,
+        PX4_BOARD_PHMINI = 5,
+        PX4_BOARD_AUAV21 = 20,
+        PX4_BOARD_PH2SLIM = 21,
+        PX4_BOARD_AEROFC = 98,
+        PX4_BOARD_FMUV5 = 11,
+        PX4_BOARD_FMUV6 = 14,
     };
 
+    // Return AUTO - doesn't match any board-specific special cases in ArduPilot
     static px4_board_type get_board_type() { return PX4_BOARD_AUTO; }
 
     // Safety switch - always report armed/no switch

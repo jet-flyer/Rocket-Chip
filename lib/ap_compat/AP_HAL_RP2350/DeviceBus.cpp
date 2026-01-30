@@ -38,8 +38,9 @@ using namespace RP2350;
 
 extern const AP_HAL::HAL& hal;
 
-// Stack size for bus threads (1KB should be enough for callback invocation)
-static constexpr uint32_t kBusThreadStackSize = 1024;
+// Stack size for bus threads - 2KB needed for ArduPilot IMU callbacks
+// 1KB was causing stack overflow on restart (see LESSONS_LEARNED)
+static constexpr uint32_t kBusThreadStackSize = 2048;
 
 DeviceBus::DeviceBus(uint8_t _thread_priority)
     : semaphore()
