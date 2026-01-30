@@ -321,6 +321,40 @@ MAV_RESULT GCS::handle_accelcal_vehicle_pos(const mavlink_command_long_t& cmd) {
     return MAV_RESULT_UNSUPPORTED;
 }
 
+MAV_RESULT GCS::send_local_command(uint16_t command,
+                                    float p1, float p2, float p3,
+                                    float p4, float p5, float p6, float p7) {
+    // Build a MAVLink command struct as if received from external GCS
+    mavlink_command_long_t cmd = {};
+    cmd.command = command;
+    cmd.param1 = p1;
+    cmd.param2 = p2;
+    cmd.param3 = p3;
+    cmd.param4 = p4;
+    cmd.param5 = p5;
+    cmd.param6 = p6;
+    cmd.param7 = p7;
+
+    // Route through the same handler as external MAVLink
+    MAV_RESULT result = MAV_RESULT_UNSUPPORTED;
+
+    switch (command) {
+        case MAV_CMD_PREFLIGHT_CALIBRATION:
+            result = handle_preflight_calibration(cmd);
+            break;
+
+        case MAV_CMD_ACCELCAL_VEHICLE_POS:
+            result = handle_accelcal_vehicle_pos(cmd);
+            break;
+
+        default:
+            result = MAV_RESULT_UNSUPPORTED;
+            break;
+    }
+
+    return result;
+}
+
 void GCS::send_command_ack(uint16_t command, MAV_RESULT result, uint8_t target_sysid, uint8_t target_compid) {
     mavlink_message_t msg;
 
@@ -371,13 +405,10 @@ void gcs_send_statustext(MAV_SEVERITY severity, const char* fmt, ...) {
         default: break;
     }
 
-    // Output to debug (if enabled)
-#ifdef CONFIG_DEBUG
-    DBG_PRINT("[GCS:%s] %s\n", sev_str, text_buf);
-#else
-    // If debug not enabled, still print to serial for visibility
-    printf("[GCS:%s] %s\n", sev_str, text_buf);
-#endif
+    // GCS status messages disabled - use MAVLink telemetry when connected
+    // printf("[GCS:%s] %s\n", sev_str, text_buf);
+    (void)sev_str;
+    (void)text_buf;
 }
 
 // ============================================================================

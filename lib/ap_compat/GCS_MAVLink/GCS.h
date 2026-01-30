@@ -268,6 +268,21 @@ public:
     // Constructor (public for singleton pattern)
     GCS();
 
+    /**
+     * @brief Send a command locally (as if from GCS)
+     *
+     * Used by RC_OS CLI to route commands through the same MAVLink handler
+     * path as external GCS commands. This ensures CLI and GCS use identical
+     * code paths for calibration, etc.
+     *
+     * @param command MAV_CMD_* command ID
+     * @param p1-p7 Command parameters (meaning depends on command)
+     * @return MAV_RESULT indicating success/failure
+     */
+    MAV_RESULT send_local_command(uint16_t command,
+                                   float p1 = 0, float p2 = 0, float p3 = 0,
+                                   float p4 = 0, float p5 = 0, float p6 = 0, float p7 = 0);
+
 private:
     bool _initialized;
     bool _connected;

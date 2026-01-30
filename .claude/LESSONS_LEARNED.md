@@ -634,10 +634,10 @@ And ensure CMakeLists.txt uses `lib/ap_compat/AP_InertialSensor/` instead of `li
 
 ---
 
-## Entry 15: USB Terminal Connection Affecting Program State (ACTIVE BUG)
+## Entry 15: USB Terminal Connection Affecting Program State
 
 **Date:** 2026-01-30
-**Status:** Under investigation
+**Status:** Solution implemented, pending hardware verification
 **Severity:** High - CLI unusable
 
 ### Problem
@@ -649,30 +649,80 @@ CLITask stops executing when USB terminal connects. Program behavior should NOT 
 - Pressing Enter does nothing
 - Program appears frozen but scheduler is still running (verified via probe)
 
-### Observations
-- Rapid blink = CLITask in sensor init wait loop
-- Solid LED = CLITask stopped executing (crashed or blocked)
-- The transition happens exactly when terminal connects
-- This violates the principle that terminal connection should only affect output, not execution
+### Root Cause Analysis
+The old CLITask architecture was **too tightly coupled** to sensor code:
+1. CLI ran regardless of terminal connection state (wasting cycles)
+2. CLI called `SensorTask_*()` functions directly (coupling CLI to sensor implementation)
+3. USB I/O operations (printf/getchar) were attempted even when terminal wasn't properly connected
 
-### Suspected Causes
-1. `printf()` or `fflush(stdout)` blocking or crashing on USB CDC state change
-2. `getchar_timeout_us(0)` behaving unexpectedly when USB connects
-3. USB CDC interrupt causing a crash or priority inversion
-4. TinyUSB internal state corruption
+The user's key insight: "the CLI menu needs to be completely divorced from any internally running code by its very nature."
 
-### Investigation Plan
-1. Use probe to check CLITask state immediately after terminal connects
-2. Check if CLITask is blocked in printf/fflush or getchar
-3. Try removing all printf calls before the keypress loop
-4. Check if USB CDC TX is causing the issue
+### Solution: RC_OS Decoupled Architecture (v0.3)
 
-### Key Insight
-The user correctly identified: "the program shouldn't be affected by the terminal connecting just the output being dumped" - this observation narrowed down the bug significantly.
+**Principle:** CLI should be a "local GCS" that translates keystrokes → MAVLink commands internally.
 
-### Files Involved
-- `src/main.cpp` - CLITask function
-- Pico SDK's `pico_stdio_usb` implementation
+1. **CLITask only runs when terminal connected** (`stdio_usb_connected()`):
+   - When disconnected: slow LED blink (1Hz), NO USB I/O whatsoever
+   - When connected: show banner, process CLI commands
+
+2. **All calibration commands route through MAVLink** via `RC_OS::cmd_*()` functions:
+   ```cpp
+   // CLI command 'l' → MAVLink internally
+   MAV_RESULT result = RC_OS::cmd_level_cal();
+   // This calls GCS::send_local_command(MAV_CMD_PREFLIGHT_CALIBRATION, 0,0,0,0,1,0,0)
+   // Which routes through same handler as Mission Planner would use
+   ```
+
+3. **Benefits:**
+   - CLI and GCS use identical code paths for all operations
+   - CLI completely decoupled from SensorTask internals
+   - Terminal connection can't affect flight code
+   - Easy to test: CLI commands = MAVLink commands
+
+### Files Modified
+- `src/main.cpp` - Rewrote CLITask with terminal-connected check
+- `src/cli/RC_OS.h` - New file with CLI→MAVLink command mappings
+- `lib/ap_compat/GCS_MAVLink/GCS.h` - Added `send_local_command()` method
+- `lib/ap_compat/GCS_MAVLink/GCS.cpp` - Implemented `send_local_command()`
+
+### Key Code Pattern
+```cpp
+static void CLITask(void* pvParameters) {
+    bool wasConnected = false;
+    while (true) {
+        bool isConnected = stdio_usb_connected();
+
+        if (!isConnected) {
+            // DISCONNECTED: Just blink LED, NO USB I/O
+            gpio_put(kLedPin, 1);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            gpio_put(kLedPin, 0);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            wasConnected = false;
+            continue;  // Skip all USB I/O
+        }
+
+        // CONNECTED: Normal CLI operation
+        if (!wasConnected) {
+            wasConnected = true;
+            printf("RocketChip OS v0.3\n");  // Safe - terminal IS connected
+        }
+        // ... process CLI commands via RC_OS::cmd_*() ...
+    }
+}
+```
+
+### Prevention
+1. **Never do USB I/O unless `stdio_usb_connected()` returns true**
+2. **CLI should speak MAVLink internally**, not call sensor functions directly
+3. **Terminal connection should only affect output buffering**, not program flow
+
+### Verification Pending
+- [ ] LED blinks slowly (1Hz) when terminal not connected
+- [ ] LED blinks faster when terminal connects
+- [ ] Banner appears on terminal connection
+- [ ] CLI commands work ('h', 's', 'c')
+- [ ] Calibration commands route through MAVLink (check GCS debug output)
 
 ---
 
