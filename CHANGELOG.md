@@ -22,6 +22,21 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-01-31-001 | Claude Code CLI | documentation
+
+**FreeRTOS Branch Documentation Sync**
+
+Updated project documentation to reflect current FreeRTOS branch state:
+- Changed all IMU references from ISM330DHCX to ICM-20948 (primary IMU with native ArduPilot Invensensev2 support)
+- Deprecated ground station RX bridge (using Adafruit Fruit Jam with RC GCS code instead)
+- Flagged ISM330DHCX code (13 files) for later removal in AGENT_WHITEBOARD.md
+- Expanded AGENT_WHITEBOARD.md purpose to include cross-context-window communication
+- Removed ChibiOS references from .claude/CLAUDE.md (incorrect for freertos branch)
+
+(SAD.md, SCAFFOLDING.md, HARDWARE.md, PROJECT_STATUS.md, AGENT_WHITEBOARD.md, .claude/CLAUDE.md)
+
+---
+
 ### 2026-01-29-003 | Claude Code CLI | documentation
 
 **CLI Reference Preserved from Context**
