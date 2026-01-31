@@ -342,8 +342,8 @@ AP_HAL::I2CDevice* I2CDeviceManager_RP2350::get_device_ptr(uint8_t bus, uint8_t 
                                                             uint32_t timeout_ms) {
     (void)use_smbus;  // SMBus not supported on RP2350
 
-    // DIAGNOSTIC: Always print to trace get_device calls
-    printf("[I2C] get_device_ptr(bus=%u, addr=0x%02X)\n", bus, address);
+    // Debug disabled - use probe instead
+    // printf("[I2C] get_device_ptr(bus=%u, addr=0x%02X)\n", bus, address);
 
     if (bus >= kMaxI2CBuses) {
         DBG_I2C("Invalid bus %u (max %u)", bus, kMaxI2CBuses - 1);

@@ -194,15 +194,14 @@ void Scheduler::delay_microseconds_boost(uint16_t us) {
     // We MUST yield to let the I2C callback thread (priority 5) run and
     // set the _new_gyro_data/_new_accel_data flags.
     //
-    // Strategy: yield to let callbacks run, then busy-wait for timing
+    // CRITICAL (per LESSONS_LEARNED Entry 9): taskYIELD() only yields to tasks
+    // of EQUAL or HIGHER priority. Since Sensor task is priority 5 and CLI is
+    // priority 1, taskYIELD() won't give CPU to CLI. We must use vTaskDelay(1)
+    // which properly yields to ALL tasks.
     if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
-        // Yield first to let higher-priority callback thread run
-        taskYIELD();
-        // Then busy-wait for the remainder of the delay period
-        // (yield took some time, but busy_wait ensures minimum delay)
-        if (us > 0) {
-            busy_wait_us_32(us);
-        }
+        // Use vTaskDelay(1) to yield to ALL tasks (including lower priority CLI)
+        // This accepts 1ms granularity but ensures scheduler runs other tasks
+        vTaskDelay(1);
     } else {
         busy_wait_us_32(us);
     }

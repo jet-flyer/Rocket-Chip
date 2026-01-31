@@ -20,8 +20,6 @@
 #include "hardware/i2c.h"
 #include "hardware/gpio.h"
 
-#include "debug.h"
-
 // ArduPilot HAL and sensor libraries
 #include <AP_HAL_RP2350/HAL_RP2350_Class.h>
 #include <AP_HAL/AP_HAL.h>
@@ -105,110 +103,28 @@ static constexpr uint32_t kMagDivider = 10;  // 100Hz magnetometer
 // Sensor Initialization
 // ============================================================================
 
-// Helper: I2C bus scan for a specific instance
-static void scan_i2c_instance(i2c_inst_t* i2c, uint8_t sda, uint8_t scl, const char* name) {
-    printf("  [DIAG] Scanning %s (SDA=%d, SCL=%d): ", name, sda, scl);
-
-    // Initialize I2C for scan (100kHz for reliability)
-    i2c_init(i2c, 100000);
-    gpio_set_function(sda, GPIO_FUNC_I2C);
-    gpio_set_function(scl, GPIO_FUNC_I2C);
-    gpio_pull_up(sda);
-    gpio_pull_up(scl);
-
-    int found = 0;
-    for (uint8_t addr = 0x08; addr < 0x78; addr++) {
-        uint8_t dummy;
-        int ret = i2c_read_timeout_us(i2c, addr, &dummy, 1, false, 5000);
-        if (ret >= 0) {
-            printf("0x%02X ", addr);
-            found++;
-        }
-    }
-    if (found == 0) {
-        printf("(none)");
-    }
-    printf("\n");
-}
-
-// Helper: I2C bus scan (scans BOTH i2c0 and i2c1)
-static void i2c_bus_scan(const char* label) {
-    printf("  [DIAG] I2C scan (%s):\n", label);
-
-    // Scan i2c1 on GPIO 2/3 (Feather Qwiic connector)
-    scan_i2c_instance(i2c1, 2, 3, "i2c1 (Qwiic)");
-
-    // Also scan i2c0 on GPIO 4/5 in case IMU is connected there
-    scan_i2c_instance(i2c0, 4, 5, "i2c0 (alt pins 4/5)");
-
-    // Try WHO_AM_I read on common IMU addresses (i2c1)
-    i2c_init(i2c1, 400000);
-    gpio_set_function(2, GPIO_FUNC_I2C);
-    gpio_set_function(3, GPIO_FUNC_I2C);
-    gpio_pull_up(2);
-    gpio_pull_up(3);
-
-    for (uint8_t addr = 0x68; addr <= 0x69; addr++) {
-        uint8_t reg = 0x00;
-        uint8_t whoami = 0;
-        int ret = i2c_write_timeout_us(i2c1, addr, &reg, 1, true, 10000);
-        if (ret == 1) {
-            ret = i2c_read_timeout_us(i2c1, addr, &whoami, 1, false, 10000);
-            if (ret == 1) {
-                printf("  [DIAG] 0x%02X WHO_AM_I = 0x%02X (expected 0xEA for ICM-20948)\n", addr, whoami);
-            }
-        }
-    }
-}
+// I2C scan functions removed - use debug probe instead of printf diagnostics
 
 static bool initSensors() {
-    DBG_PRINT("[SensorTask] Initializing sensors via ArduPilot...\n");
-
-
-    // DIAGNOSTIC: Scan BEFORE any HAL init to see fresh hardware state
-    printf("[SensorTask] I2C scan BEFORE hal_init:\n");
-    i2c_bus_scan("pre-HAL");
-
     // Initialize ArduPilot HAL (I2C, SPI, etc.)
-    DBG_PRINT("  HAL init:         ");
     RP2350::hal_init();
-    DBG_PRINT("OK\n");
-
-    // DIAGNOSTIC: Scan AFTER HAL init to see if HAL affected I2C
-    printf("[SensorTask] I2C scan AFTER hal_init:\n");
-    i2c_bus_scan("post-HAL");
 
     // Initialize AP_Param for calibration persistence
-    DBG_PRINT("  AP_Param:         ");
     AP_Param::setup();
-    DBG_PRINT("OK\n");
 
     // Create sensor instances (must be AFTER HAL init - constructors access AP_Param)
     g_ins = new AP_InertialSensor();
     g_compass = new Compass();
 
     // Initialize AP_InertialSensor (probes ICM-20948 via HAL_INS_PROBE_LIST)
-    DBG_PRINT("  AP_InertialSensor: ");
     g_ins->init(100);  // 100Hz main loop rate
     s_imuInitialized = (g_ins->get_accel_count() > 0 && g_ins->get_gyro_count() > 0);
-    if (s_imuInitialized) {
-        DBG_PRINT("OK (accel=%u, gyro=%u)\n", g_ins->get_accel_count(), g_ins->get_gyro_count());
-    } else {
-        DBG_ERROR("FAILED (accel=%u, gyro=%u)\n", g_ins->get_accel_count(), g_ins->get_gyro_count());
-    }
 
     // Initialize Compass (probes AK09916 via HAL_MAG_PROBE_LIST)
-    DBG_PRINT("  AP_Compass:        ");
     g_compass->init();
     s_magInitialized = (g_compass->get_count() > 0);
-    if (s_magInitialized) {
-        DBG_PRINT("OK (count=%u)\n", g_compass->get_count());
-    } else {
-        DBG_PRINT("N/A (count=%u)\n", g_compass->get_count());
-    }
 
     // Initialize Barometer via ArduPilot (probes DPS310 via HAL_BARO_PROBE_LIST)
-    DBG_PRINT("  AP_Baro:           ");
     g_baro = new AP_Baro();
     g_baro->init();
     s_baroInitialized = (g_baro->num_instances() > 0);
@@ -216,26 +132,19 @@ static bool initSensors() {
     if (s_baroInitialized) {
         // Calibrate barometer (sets ground pressure reference)
         g_baro->calibrate(false);  // false = don't save to storage yet
-        DBG_PRINT("OK (count=%u)\n", g_baro->num_instances());
-    } else {
-        DBG_ERROR("FAILED (count=%u)\n", g_baro->num_instances());
     }
 
     // Load legacy calibration from flash (for barometer, etc.)
     // IMU/Compass calibration now uses AP_Param automatically
-    DBG_PRINT("  Legacy cal:        ");
     s_calibrationStore.init();
     if (s_calibrationStore.load(s_calibration)) {
         s_calibrationLoaded = true;
-        DBG_PRINT("Loaded (flags=0x%02X)\n", s_calibration.flags);
     } else {
         s_calibrationLoaded = false;
         CalibrationStore::get_defaults(s_calibration);
-        DBG_PRINT("None (defaults)\n");
     }
 
     // Initialize GCS and wire up calibration callbacks
-    DBG_PRINT("  GCS MAVLink:       ");
     GCS::get_singleton().init();
 
     // Wire up calibration callbacks from GCS to our API
@@ -254,7 +163,6 @@ static bool initSensors() {
     GCS::get_singleton().set_baro_cal_callback([]() -> bool {
         return SensorTask_CalibrateBaro();
     });
-    DBG_PRINT("OK\n");
 
     // At least IMU must be working for flight
     return s_imuInitialized;
@@ -343,19 +251,12 @@ static void SensorTask_Run(void* pvParameters) {
     // NOTE: No USB wait here - sensors don't need USB to initialize.
     // CLITask handles USB wait before printing prompts.
 
-    DBG_PRINT("[SensorTask] Starting on Core %d\n", get_core_num());
-
     // =========================================================================
     // CRITICAL: Initialize sensors HERE, inside the task, AFTER scheduler starts
     // This ensures hal_init() sees scheduler as RUNNING and creates timer/IO tasks
     // which are required for AP_InertialSensor periodic callbacks to work.
     // =========================================================================
-    DBG_PRINT("[SensorTask] Initializing sensors (scheduler running)...\n");
-    bool sensorsOk = initSensors();
-    if (!sensorsOk) {
-        DBG_ERROR("[SensorTask] Sensor init failed - task will idle\n");
-    }
-    DBG_PRINT("[SensorTask] Sensor init complete, entering main loop\n");
+    initSensors();
 
     // Signal CLI that it's safe to show prompt (no more init output)
     s_initComplete = true;
@@ -442,17 +343,14 @@ bool SensorTask_Init() {
     // to create the timer/IO tasks needed for AP_InertialSensor callbacks.
     g_sensorDataMutex = xSemaphoreCreateMutex();
     if (g_sensorDataMutex == nullptr) {
-        DBG_ERROR("[SensorTask] Failed to create mutex\n");
         return false;
     }
 
-    DBG_PRINT("[SensorTask] Mutex created (sensors init deferred to task)\n");
     return true;
 }
 
 bool SensorTask_Create() {
     if (g_sensorDataMutex == nullptr) {
-        DBG_ERROR("[SensorTask] Not initialized - call SensorTask_Init() first\n");
         return false;
     }
 
@@ -466,15 +364,12 @@ bool SensorTask_Create() {
     );
 
     if (result != pdPASS) {
-        DBG_ERROR("[SensorTask] Failed to create task\n");
         return false;
     }
 
     // Pin to Core 1
     vTaskCoreAffinitySet(s_taskHandle, SensorTaskConfig::CORE_AFFINITY);
 
-    DBG_PRINT("[SensorTask] Task created (priority %lu, Core 1)\n",
-           SensorTaskConfig::TASK_PRIORITY);
     return true;
 }
 

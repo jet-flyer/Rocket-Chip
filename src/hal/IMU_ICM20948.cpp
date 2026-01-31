@@ -36,39 +36,39 @@ IMU_ICM20948::IMU_ICM20948(SensorBus* bus)
 
 bool IMU_ICM20948::begin() {
     if (!m_bus) {
-        printf("ICM20948: No bus\n");
+        // printf("ICM20948: No bus\n");
         return false;
     }
 
     // Initialize the bus first (match DPS310 pattern)
     if (!m_bus->begin()) {
-        printf("ICM20948: Bus init failed\n");
+        // printf("ICM20948: Bus init failed\n");
         return false;
     }
 
     // Probe the device
     if (!m_bus->probe()) {
-        printf("ICM20948: Device not responding at I2C address\n");
+        // printf("ICM20948: Device not responding at I2C address\n");
         return false;
     }
-    printf("ICM20948: Device found via probe\n");
+    // printf("ICM20948: Device found via probe\n");
 
     // Check WHO_AM_I
     uint8_t whoami = 0;
     if (!readRegister(kBank0, kRegWhoAmI, &whoami)) {
-        printf("ICM20948: WHO_AM_I read failed\n");
+        // printf("ICM20948: WHO_AM_I read failed\n");
         return false;
     }
 
-    printf("ICM20948: WHO_AM_I = 0x%02X (expected 0x%02X)\n", whoami, DEVICE_ID);
+    // printf("ICM20948: WHO_AM_I = 0x%02X (expected 0x%02X)\n", whoami, DEVICE_ID);
     if (whoami != DEVICE_ID) {
-        printf("ICM20948: Wrong device ID\n");
+        // printf("ICM20948: Wrong device ID\n");
         return false;
     }
 
     // Soft reset
     if (!softReset()) {
-        printf("ICM20948: Soft reset failed\n");
+        // printf("ICM20948: Soft reset failed\n");
         return false;
     }
 
@@ -76,7 +76,7 @@ bool IMU_ICM20948::begin() {
 
     // Wake up device, auto-select best clock
     if (!writeRegister(kBank0, kRegPwrMgmt1, kBitClkAuto)) {
-        printf("ICM20948: PWR_MGMT_1 write failed\n");
+        // printf("ICM20948: PWR_MGMT_1 write failed\n");
         return false;
     }
 
@@ -84,7 +84,7 @@ bool IMU_ICM20948::begin() {
 
     // Enable accel and gyro (disable sleep for all axes)
     if (!writeRegister(kBank0, kRegPwrMgmt2, 0x00)) {
-        printf("ICM20948: PWR_MGMT_2 write failed\n");
+        // printf("ICM20948: PWR_MGMT_2 write failed\n");
         return false;
     }
 
@@ -92,30 +92,30 @@ bool IMU_ICM20948::begin() {
 
     // Configure default ranges
     if (!setAccelRange(AccelRange::RANGE_8G)) {
-        printf("ICM20948: setAccelRange failed\n");
+        // printf("ICM20948: setAccelRange failed\n");
         return false;
     }
 
     if (!setGyroRange(GyroRange::RANGE_1000DPS)) {
-        printf("ICM20948: setGyroRange failed\n");
+        // printf("ICM20948: setGyroRange failed\n");
         return false;
     }
 
     // Enable I2C bypass mode to access AK09916 magnetometer directly
     if (!writeRegister(kBank0, kRegIntPinCfg, kBitBypassEn)) {
-        printf("ICM20948: Failed to enable I2C bypass\n");
+        // printf("ICM20948: Failed to enable I2C bypass\n");
         // Don't fail init - IMU still works without mag
     } else {
         // Try to initialize magnetometer
         m_mag_initialized = initMagnetometer();
         if (m_mag_initialized) {
-            printf("ICM20948: Magnetometer (AK09916) initialized\n");
+            // printf("ICM20948: Magnetometer (AK09916) initialized\n");
         } else {
-            printf("ICM20948: Magnetometer init failed (continuing without mag)\n");
+            // printf("ICM20948: Magnetometer init failed (continuing without mag)\n");
         }
     }
 
-    printf("ICM20948: Init complete\n");
+    // printf("ICM20948: Init complete\n");
     m_initialized = true;
     return true;
 }
@@ -356,25 +356,25 @@ bool IMU_ICM20948::initMagnetometer() {
     // Check device ID
     uint8_t deviceId = 0;
     if (!akReadRegister(kAkRegWia2, &deviceId)) {
-        printf("AK09916: Failed to read device ID\n");
+        // printf("AK09916: Failed to read device ID\n");
         return false;
     }
 
     if (deviceId != kAk09916DeviceId) {
-        printf("AK09916: Wrong device ID 0x%02X (expected 0x%02X)\n", deviceId, kAk09916DeviceId);
+        // printf("AK09916: Wrong device ID 0x%02X (expected 0x%02X)\n", deviceId, kAk09916DeviceId);
         return false;
     }
 
     // Soft reset
     if (!akWriteRegister(kAkRegCntl3, 0x01)) {
-        printf("AK09916: Soft reset failed\n");
+        // printf("AK09916: Soft reset failed\n");
         return false;
     }
     sleep_ms(10);  // Wait for reset
 
     // Set continuous mode 2 (100Hz)
     if (!akWriteRegister(kAkRegCntl2, kAkModeCont100Hz)) {
-        printf("AK09916: Failed to set continuous mode\n");
+        // printf("AK09916: Failed to set continuous mode\n");
         return false;
     }
 
