@@ -1,9 +1,9 @@
 # RocketChip Software Architecture Document (SAD) v1.0
 
-**Status:** Approved for Phase 1 Development
-**Last Updated:** 2026-01-16
+**Status:** Phase 2 In Progress
+**Last Updated:** 2026-01-31
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
-**Development Environment:** CMake + Pico SDK + FreeRTOS
+**Development Environment:** CMake + Pico SDK + FreeRTOS SMP
 **Hardware Reference:** `docs/HARDWARE.md` (authoritative source)
 
 ---
@@ -41,9 +41,9 @@ This document defines the software architecture for RocketChip, a modular motion
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           CORE BOARD                                │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌───────────┐  │
-│  │   RP2350    │  │ ISM330DHCX  │  │   DPS310    │  │  Flash    │  │
-│  │  Dual M33   │◄─┤ + LIS3MDL   │  │  Barometer  │  │  Storage  │  │
-│  │  + 8MB PSRAM│  │  9-DoF IMU  │  │   (I2C)     │  │  (QSPI)   │  │
+│  │   RP2350    │  │  ICM-20948  │  │   DPS310    │  │  Flash    │  │
+│  │  Dual M33   │◄─┤  9-DoF IMU  │  │  Barometer  │  │  Storage  │  │
+│  │  + 8MB PSRAM│  │   (I2C)     │  │   (I2C)     │  │  (QSPI)   │  │
 │  └──────┬──────┘  └─────────────┘  └─────────────┘  └───────────┘  │
 │         │                                                           │
 │    ┌────┴────┐   ┌─────────────┐   ┌─────────────┐                 │
@@ -78,7 +78,7 @@ This document defines the software architecture for RocketChip, a modular motion
 | Function | Part | Adafruit P/N | Specs | Interface |
 |----------|------|--------------|-------|-----------|
 | MCU | Feather RP2350 HSTX | #6130 | Dual M33 @ 150MHz, 520KB SRAM, 8MB PSRAM | - |
-| IMU | ISM330DHCX + LIS3MDL FeatherWing | #4569 | 9-DoF, ISM330DHCX accel/gyro + LIS3MDL mag | I2C (0x6A/0x6B, 0x1C/0x1E) |
+| IMU | ICM-20948 9-DoF | #4554 | Accel/gyro/mag (AK09916), ArduPilot Invensensev2 driver | I2C (0x69 default) |
 | Barometer | DPS310 | #4494 | ±1Pa precision, temperature | I2C (0x77/0x76) |
 | Battery | Li-Ion 400mAh | #3898 | 3.7V nominal | JST-PH |
 
@@ -100,12 +100,11 @@ This document defines the software architecture for RocketChip, a modular motion
 
 | Address | Device | Notes |
 |---------|--------|-------|
-| 0x6A/0x6B | ISM330DHCX | Primary IMU accel/gyro |
-| 0x1C/0x1E | LIS3MDL | Primary magnetometer |
+| 0x69 | ICM-20948 | Primary 9-DoF IMU (Adafruit default, AD0=HIGH) |
 | 0x77/0x76 | DPS310 | Barometer |
 | 0x10 | PA1010D | GPS (GPS pack) |
-| 0x68/0x69 | ICM-20948 | Auxiliary IMU (if used) |
-| 0x6A/0x6B | LSM6DSOX | Auxiliary IMU (if used) |
+| 0x6A/0x6B | ISM330DHCX | Auxiliary IMU (if used, FeatherWing #4569) |
+| 0x1C/0x1E | LIS3MDL | Auxiliary magnetometer (if used) |
 
 **Known Conflicts:** DPS310 and BMP280/BMP580 share 0x77/0x76 - cannot use simultaneously without multiplexer.
 
@@ -227,11 +226,10 @@ rocketchip/
 │   │   ├── PIO.h/.cpp             # PIO operations (NeoPixel, etc.)
 │   │   ├── UART.h/.cpp            # UART operations
 │   │   ├── Timing.h/.cpp          # Timing utilities
-│   │   ├── IMU_ISM330DHCX.h/.cpp  # ISM330DHCX accel/gyro driver
-│   │   ├── Mag_LIS3MDL.h/.cpp     # LIS3MDL magnetometer driver
+│   │   ├── IMU_ICM20948.h/.cpp    # ICM-20948 9-DoF driver (primary)
 │   │   ├── Baro_DPS310.h/.cpp     # DPS310 barometer driver
 │   │   ├── GPS_PA1010D.h/.cpp     # PA1010D GPS driver (NMEA)
-│   │   ├── Radio_RFM95W.h/.cpp    # RFM95W LoRa driver (debug serial bridge)
+│   │   ├── Radio_RFM95W.h/.cpp    # RFM95W LoRa driver
 │   │   ├── Storage.h/.cpp         # Flash storage (PLANNED)
 │   │   ├── Display.h/.cpp         # OLED driver (PLANNED)
 │   │   ├── LED.h/.cpp             # NeoPixel driver (PLANNED)
@@ -239,14 +237,17 @@ rocketchip/
 │   │   ├── Pyro.h/.cpp            # Pyro channels (PLANNED - Titan tier)
 │   │   └── Servo.h/.cpp           # Servo PWM (PLANNED - Titan tier)
 │   │
-│   ├── services/                  # FreeRTOS Tasks (PLANNED - Phase 3+)
-│   │   ├── SensorTask.h/.cpp      # High-rate sensor sampling
-│   │   ├── FusionTask.h/.cpp      # AHRS, altitude, velocity
-│   │   ├── MissionTask.h/.cpp     # Event/state processing
-│   │   ├── LoggerTask.h/.cpp      # Data logging to storage
-│   │   ├── TelemetryTask.h/.cpp   # MAVLink transmission
-│   │   ├── UITask.h/.cpp          # Display, LED, buttons
+│   ├── services/                  # FreeRTOS Tasks [EXISTS - Phase 2]
+│   │   ├── SensorTask.h/.cpp      # High-rate sensor sampling [IMPLEMENTED]
+│   │   ├── FusionTask.h/.cpp      # AHRS, altitude, velocity (PLANNED)
+│   │   ├── MissionTask.h/.cpp     # Event/state processing (PLANNED)
+│   │   ├── LoggerTask.h/.cpp      # Data logging to storage (PLANNED)
+│   │   ├── TelemetryTask.h/.cpp   # MAVLink transmission (PLANNED)
+│   │   ├── UITask.h/.cpp          # Display, LED, buttons (PLANNED)
 │   │   └── ControlTask.h/.cpp     # TVC control loop (Titan)
+│   │
+│   ├── cli/                       # CLI/RC_OS Interface [EXISTS - Phase 2]
+│   │   └── RC_OS.h                # MAVLink command routing
 │   │
 │   ├── protocol/                  # Communication protocols (PLANNED - Phase 7)
 │   │   ├── MAVLink.h/.cpp         # MAVLink encoding/decoding
@@ -266,13 +267,19 @@ rocketchip/
 │       ├── PID.h                  # PID controller
 │       └── CRC.h                  # CRC calculations
 │
-├── lib/                           # External libraries (PLANNED - Phase 4+)
-│   ├── ap_compat/                 # ArduPilot compatibility shim
+├── lib/                           # External libraries [EXISTS - Phase 2]
+│   ├── ap_compat/                 # ArduPilot compatibility layer (36+ directories)
 │   │   ├── AP_HAL_Compat.h        # HAL function stubs
-│   │   └── AP_HAL_Compat.cpp
-│   ├── AP_Math/                   # ArduPilot math (submodule)
-│   ├── Filter/                    # ArduPilot filters (submodule)
-│   └── mavlink/                   # MAVLink headers
+│   │   ├── AP_HAL_RP2350/         # Full FreeRTOS-based HAL [IMPLEMENTED]
+│   │   ├── AP_InertialSensor/     # std::atomic fix for dual-core (PD12)
+│   │   ├── GCS_MAVLink/           # MAVLink GCS integration [IMPLEMENTED]
+│   │   └── stubs/                 # ArduPilot dependency stubs
+│   ├── ardupilot/                 # ArduPilot libraries (sparse checkout)
+│   │   ├── AP_Math/               # Vector, matrix, quaternion math
+│   │   ├── Filter/                # Signal processing filters
+│   │   ├── AP_AccelCal/           # Accelerometer calibration
+│   │   └── AP_FlashStorage/       # Wear-leveled flash [IMPLEMENTED]
+│   └── mavlink/                   # MAVLink v2 headers [IMPLEMENTED]
 │
 ├── tests/                         # Tests [EXISTS - Phase 1-2]
 │   └── smoke_tests/               # Hardware validation tests
@@ -391,7 +398,7 @@ struct MissionState {
 ### 4.2 HAL Interfaces
 
 ```cpp
-// IMU interface - implementations: IMU_ISM330DHCX, IMU_ICM20948, IMU_LSM6DSO, etc.
+// IMU interface - implementations: IMU_ICM20948 (primary), IMU_ISM330DHCX (optional)
 class IMU {
 public:
     virtual bool begin() = 0;
@@ -724,8 +731,8 @@ add_compile_definitions(
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │    IMU      │     │    Baro     │     │    GPS      │
-│ ISM330DHCX  │     │   DPS310    │     │  PA1010D    │
-│ + LIS3MDL   │     │             │     │             │
+│  ICM-20948  │     │   DPS310    │     │  PA1010D    │
+│  (9-DoF)    │     │             │     │             │
 └──────┬──────┘     └──────┬──────┘     └──────┬──────┘
        │ 1kHz              │ 50Hz              │ 10Hz
        └───────────────────┴───────────────────┘
@@ -903,20 +910,18 @@ Build system, FreeRTOS, and core HAL primitives.
 - [ ] Button handling with debounce (future)
 
 ### Phase 2: Sensors ⚙️ **IN PROGRESS**
-Hardware drivers for IMU, magnetometer, barometer, and GPS.
+Hardware drivers for IMU, barometer, and GPS.
 
-- [x] ISM330DHCX 6-DoF IMU driver (I2C via ST driver)
-- [x] LIS3MDL magnetometer driver (I2C via ST driver)
+- [x] ICM-20948 9-DoF IMU driver (I2C via ArduPilot Invensensev2)
 - [x] DPS310 barometer driver (I2C via ruuvi driver)
 - [x] PA1010D GPS driver (I2C with NMEA parsing)
-- [x] ST sensor smoke tests (st_sensors_test, gps_test)
-- [x] Radio driver (RFM95W debug serial bridge)
+- [x] Radio driver (RFM95W LoRa)
 - [x] Radio smoke test (radio_tx_test)
-- [x] Ground station RX bridge (ground_station/radio_rx.cpp)
-- [x] Production entry point (src/main.cpp) - **hardware verification pending**
-- [x] Validation code moved to tests/validation/freertos_validation/
-- [x] SensorTask with real HAL (src/services/) - **hardware verification pending**
-- [x] Services library and rocketchip build target
+- [x] Production entry point (src/main.cpp) - **VALIDATED**
+- [x] SensorTask with real HAL (src/services/) - **VALIDATED**
+- [x] AP_HAL_RP2350 complete - GPIO, AnalogIn, UART, I2C, SPI all validated
+- [x] std::atomic fix for dual-core memory visibility (PD12) - **VALIDATED**
+- [x] CLI/RC_OS menu system with MAVLink calibration integration
 - [ ] Basic sensor data logging to flash
 
 ### Phase 3: GPS Navigation 📡 **PLANNED**

@@ -1,9 +1,9 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-01-28 by Claude Code CLI
+**Last Updated:** 2026-01-31 by Claude Code CLI
 
 ## Current Phase
-Phase 2 (Sensor Integration) - FreeRTOS path validated with std::atomic fix. AP_Param integration next.
+Phase 2 (Sensor Integration) - FreeRTOS path validated. CLI/RC_OS menu system in progress.
 
 ## Recently Completed
 - [x] **PD12 Memory Visibility Fix (std::atomic)** - True dual-core operation achieved
@@ -17,18 +17,17 @@ Phase 2 (Sensor Integration) - FreeRTOS path validated with std::atomic fix. AP_
   - Calibration survives power cycles
 - [x] **AP_HAL_RP2350 Phase 2 complete** - All core peripherals implemented and hardware-validated (23/23 tests)
   - GPIO, AnalogIn, UARTDriver, I2CDevice, SPIDevice
-  - Hardware validated: ISM330DHCX, LIS3MDL (I2C), RFM95W (SPI)
+  - Hardware validated: ICM-20948 (I2C), DPS310 (I2C), RFM95W (SPI)
   - RCOutput deferred to Titan tier (TVC/servo work)
 - [x] Production architecture migration (src/main.cpp + src/services/SensorTask) - **hardware verification pending**
 - [x] GPS driver (PA1010D) - NMEA parsing validated on hardware
 - [x] Radio driver (RFM95W) - LoRa TX/RX for wireless debugging - **hardware verification pending**
 - [x] Ground station receiver firmware created (ground_station/)
 - [x] Council review: EKF3 sensor fusion architecture approved
-- [x] ST platform-independent driver integration (council-approved)
-  - ISM330DHCX IMU wrapper (accel + gyro)
-  - LIS3MDL magnetometer wrapper
+- [x] ArduPilot sensor integration
+  - ICM-20948 9-DoF IMU via Invensensev2 driver (native ArduPilot support)
   - DPS310 barometer wrapper (ruuvi driver)
-- [x] smoke_st_sensors test validated on hardware - all three sensors reading correctly
+- [x] CLI/RC_OS menu system - MAVLink calibration integration (2026-01-29)
 - [x] HAL implemented and validated (Bus, GPIO, ADC, PWM, Timing, PIO, UART)
 - [x] FreeRTOS SMP dual-core operation validated
 - [x] Hardware debugging workflow (Debug Probe + OpenOCD + GDB)
