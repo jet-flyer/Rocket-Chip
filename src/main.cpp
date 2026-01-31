@@ -246,12 +246,18 @@ static void CLITask(void* pvParameters) {
             // Print startup banner
             printf("\n\n");
             printf("========================================\n");
-            printf("  RocketChip OS v0.3\n");
+            printf("  RocketChip OS v0.3.1\n");
             printf("  Press 'h' for help\n");
             printf("========================================\n\n");
 
             // Print initial sensor status
             SensorTask_PrintStatus();
+
+            // Drain any garbage from USB input buffer before accepting commands
+            // Terminal connection often has noise bytes that could trigger unwanted actions
+            while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
+                // Discard all pending input
+            }
 
             g_menuMode = MenuMode::Main;
         }

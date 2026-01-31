@@ -637,8 +637,9 @@ And ensure CMakeLists.txt uses `lib/ap_compat/AP_InertialSensor/` instead of `li
 ## Entry 15: USB Terminal Connection Affecting Program State
 
 **Date:** 2026-01-30
-**Status:** Solution implemented, pending hardware verification
+**Status:** RESOLVED (v0.3.1)
 **Severity:** High - CLI unusable
+**Time Spent:** ~4 hours (architecture redesign + debugging)
 
 ### Problem
 CLITask stops executing when USB terminal connects. Program behavior should NOT depend on terminal connection - only output buffering should be affected.
@@ -712,17 +713,33 @@ static void CLITask(void* pvParameters) {
 }
 ```
 
+### Additional Fix: USB Input Buffer Drain
+
+Initial implementation still showed phantom menu transitions - calibration menu appeared without user pressing 'c'. Root cause: **USB CDC buffer had garbage bytes** when terminal connected.
+
+**Fix:** Drain input buffer immediately after terminal connects, before processing commands:
+```cpp
+// After printing banner and sensor status...
+// Drain any garbage from USB input buffer before accepting commands
+while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
+    // Discard all pending input
+}
+g_menuMode = MenuMode::Main;
+```
+
 ### Prevention
 1. **Never do USB I/O unless `stdio_usb_connected()` returns true**
 2. **CLI should speak MAVLink internally**, not call sensor functions directly
 3. **Terminal connection should only affect output buffering**, not program flow
+4. **Drain USB input buffer after terminal connects** - garbage bytes from connection handshake can trigger unwanted commands
 
-### Verification Pending
-- [ ] LED blinks slowly (1Hz) when terminal not connected
-- [ ] LED blinks faster when terminal connects
-- [ ] Banner appears on terminal connection
-- [ ] CLI commands work ('h', 's', 'c')
-- [ ] Calibration commands route through MAVLink (check GCS debug output)
+### Verification (PASSED 2026-01-30)
+- [x] LED blinks slowly (1Hz) when terminal not connected
+- [x] Banner appears on terminal connection with sensor status
+- [x] CLI commands work ('h', 's', 'c')
+- [x] Calibration commands route through MAVLink (verified: `[GCS] Accel calibration requested`)
+- [x] Level cal completes quickly (~2 seconds)
+- [x] No phantom menu transitions
 
 ---
 
