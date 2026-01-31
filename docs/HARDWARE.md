@@ -127,29 +127,26 @@ Studied for hardware/software architecture:
 | Feather M0 Basic Proto | #2772 | RX bridge MCU - hosts RFM95W breakout |
 | Adafruit Fruit Jam | - | RP2350 mini computer - candidate for GCS platform |
 
-### Ground Station RX Bridge
+### Ground Station
 
-**Status**: TODO
+**Status**: Planning to use Adafruit Fruit Jam with RC GCS code
 
-Using Feather M0 + RFM95W breakout as the ground station receiver bridge:
-- **Firmware**: Bare metal (no Arduino) - receives LoRa packets and forwards over USB CDC
-- **Wiring**: Per Adafruit RFM95W guide (SPI + CS/RST/IRQ)
-- **Flashing**: UF2 bootloader (double-tap reset)
+**Previous approach (deprecated)**: Feather M0 + RFM95W breakout as RX bridge - code in `ground_station/` for reference only.
 
 ### Radio Configuration
 
-**Status**: TODO - Must define shared settings for TX (rocket) and RX (ground station)
+Radio parameters are configured in `src/hal/Radio_RFM95W.cpp`:
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| Frequency | TBD | 915 MHz band (US ISM) |
-| Spreading Factor | TBD | SF7-SF12, trade range vs data rate |
-| Bandwidth | TBD | 125/250/500 kHz |
-| Coding Rate | TBD | 4/5 to 4/8 |
-| Sync Word | TBD | Private network identifier |
-| TX Power | TBD | Max +20 dBm for RFM95W |
+| Frequency | 915.0 MHz | US ISM band |
+| Spreading Factor | SF7 | Fastest, ~5.5 kbps |
+| Bandwidth | 125 kHz | Standard LoRa |
+| Coding Rate | 4/5 | Minimum error correction |
+| Sync Word | 0x12 | Private network |
+| TX Power | +20 dBm | Maximum legal for ISM |
 
-These settings must match exactly between rocket TX and ground station RX.
+**Note**: Ground station must use matching settings. See `ground_station/radio_rx.cpp` for reference implementation (deprecated).
 
 ## Market Benchmarks
 
