@@ -110,7 +110,9 @@ static bool initSensors() {
     RP2350::hal_init();
 
     // Initialize AP_Param for calibration persistence
+    // setup() validates/initializes header, load_all() loads saved values from flash
     AP_Param::setup();
+    AP_Param::load_all();
 
     // Create sensor instances (must be AFTER HAL init - constructors access AP_Param)
     g_ins = new AP_InertialSensor();

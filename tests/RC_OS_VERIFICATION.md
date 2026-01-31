@@ -186,12 +186,37 @@
 - Persistence test blocked until calibration save is fully implemented
 
 **Next Steps (Calibration Persistence):**
-- Add explicit `AP_Param::save()` call after each calibration completes:
-  - `SensorTask_SimpleAccelCal()` - after level cal
-  - `SensorTask_StartAccelCal()` completion - after 6-pos cal finishes
-  - `SensorTask_StartCompassCal()` completion - after compass cal finishes
-- Current issue: `set_and_save()` queues saves but relies on IO handler to flush
-- If device resets before flush, calibration data is lost
-- Fix is straightforward: explicit `AP_Param::save()` after successful calibration
+
+**Session 2026-01-31 (continued) - Calibration persistence debugging:**
+
+1. **Fixed: Storage timer tick not registered**
+   - Added `hal.scheduler->register_timer_process(FUNCTOR_BIND(&g_storage, &Storage::_timer_tick, void))` to `hal_init()`
+   - Without this, `set_and_save()` queues writes but they never flush to flash
+   - File: `lib/ap_compat/AP_HAL_RP2350/HAL_RP2350_Class.cpp:140-143`
+
+2. **Fixed: AP_Param::load_all() not called**
+   - Added `AP_Param::load_all()` after `AP_Param::setup()` in `initSensors()`
+   - `setup()` validates/initializes header, but `load_all()` actually loads saved values from flash
+   - File: `src/services/SensorTask.cpp:115`
+
+3. **CURRENT ISSUE: Calibration offsets remain zero after successful calibration**
+   - GDB inspection shows `_accel_offset[0] = {x=0, y=0, z=0}` even after "calibration successful"
+   - Raw accel values show ~30° tilt (X: +4.6, Z: +8.4) even when device is level
+   - Calibration reports success but offset is NOT being stored in `_accel_offset`
+   - Possible causes to investigate:
+     a. Calibration convergence failing internally (not reaching save code path)
+     b. `INS_PARAM_WRAPPER` not working correctly for `set_and_save`
+     c. Timing issue: samples being read outside the actual calibration window
+   - User observed: device position during calibration doesn't seem to affect final values
+
+4. **Debugging notes:**
+   - `simple_accel_cal()` takes 50 samples × 5ms = 250ms per iteration, up to 40 iterations
+   - Device must be held level THE ENTIRE TIME "Calibrating..." is shown (2-3 seconds)
+   - `_accel_offset(k).set_and_save(new_accel_offset[k])` at line 2662 should save offset
+   - GDB command to check: `print *((AP_InertialSensor*)0x200188b8)` then look for `_accel_offset_old_param`
+
+**Files modified this session:**
+- `lib/ap_compat/AP_HAL_RP2350/HAL_RP2350_Class.cpp` - storage timer tick registration
+- `src/services/SensorTask.cpp` - AP_Param::load_all() call
 
 ---
