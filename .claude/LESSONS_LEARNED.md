@@ -637,7 +637,7 @@ And ensure CMakeLists.txt uses `lib/ap_compat/AP_InertialSensor/` instead of `li
 ## Entry 15: USB Terminal Connection Affecting Program State
 
 **Date:** 2026-01-30
-**Status:** RESOLVED (v0.3.1)
+**Status:** RESOLVED (v0.3.14)
 **Severity:** High - CLI unusable
 **Time Spent:** ~4 hours (architecture redesign + debugging)
 
@@ -740,6 +740,41 @@ g_menuMode = MenuMode::Main;
 - [x] Calibration commands route through MAVLink (verified: `[GCS] Accel calibration requested`)
 - [x] Level cal completes quickly (~2 seconds)
 - [x] No phantom menu transitions
+
+---
+
+## Entry 16: PuTTY Truncates Initial USB CDC Output
+
+**Date:** 2026-01-30
+**Status:** Documented (host-side issue, not firmware bug)
+**Severity:** Low - Cosmetic only
+
+### Problem
+Banner output on terminal connection appears truncated - consistently cuts off at the same point regardless of firmware changes.
+
+### Symptoms
+- Banner shows: `=== RocketChip OS v0.3.14 ===\nPress 'h' for help, 's' for sen`
+- Always cuts off at same spot (~63 characters)
+- CLI commands still work after banner
+- Multiple attempts at fixing with timing delays, fflush(), puts() vs printf() all failed
+
+### Root Cause
+**PuTTY has a known issue with USB CDC serial** where it misses bytes during initial connection handshake. This is a host-side terminal issue, not a firmware bug.
+
+**Key discovery:** VSCode Serial Monitor shows complete output:
+```
+=== RocketChip OS v0.3.14 ===
+Press 'h' for help, 's' for sensor status
+```
+
+### Solution
+- **Use VSCode Serial Monitor** instead of PuTTY for USB CDC devices
+- Documented in `docs/ROCKETCHIP_OS.md` under Terminal Compatibility
+
+### Prevention
+1. When debugging output truncation, test with multiple terminal programs
+2. VSCode Serial Monitor is more reliable for USB CDC than PuTTY
+3. Don't waste time on firmware fixes if issue is terminal-specific
 
 ---
 

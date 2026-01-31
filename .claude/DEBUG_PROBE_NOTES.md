@@ -132,6 +132,27 @@ cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb build/rocketchip.el
 
 ## Iterative Debugging Tips
 
+### NEVER Add Debug Printf - Use Probe Instead
+
+**CRITICAL:** When debugging issues, **do NOT add printf/debug statements** as the first approach. Printf can:
+1. Change timing and hide/create race conditions
+2. Block on USB CDC mutex, causing deadlocks
+3. Affect the very issue you're trying to debug
+
+**Always use the debug probe first:**
+```bash
+# Halt and get backtrace
+arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor halt" -ex "bt"
+
+# Check specific variables
+arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor halt" -ex "print my_variable"
+
+# Check which task is running on each core
+arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor halt" -ex "print (char*)pxCurrentTCBs[0]->pcTaskName" -ex "print (char*)pxCurrentTCBs[1]->pcTaskName"
+```
+
+The probe gives you instant visibility without modifying code behavior.
+
 ### Add Version String to Debug Output
 When iteratively debugging crashes, add a version identifier to confirm the correct binary is running:
 

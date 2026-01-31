@@ -242,10 +242,13 @@ These issues are **not** present in traditional CLI implementations and required
 - [ ] Status shows "calibrated" state after restart
 
 ### Terminal Compatibility
-- [ ] PuTTY (Windows)
+- [ ] **VSCode Serial Monitor** (Recommended) - works reliably
+- [ ] PuTTY (Windows) - **Known issue:** may truncate initial banner on connection
 - [ ] screen (Linux/macOS)
 - [ ] minicom (Linux)
 - [ ] Arduino Serial Monitor
+
+**Note:** PuTTY has a known issue with USB CDC serial where it misses the first bytes on initial connection. This causes the banner to appear truncated. Use VSCode Serial Monitor for reliable output.
 
 ---
 

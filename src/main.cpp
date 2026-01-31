@@ -60,7 +60,7 @@ static void printSystemStatus() {
     printf("  Target: Adafruit Feather RP2350\n");
     printf("  Phase: 2 (Sensors)\n");
     printf("  Heap free: %u bytes\n", xPortGetFreeHeapSize());
-    printf("  Uptime: %llu ms\n", to_ms_since_boot(get_absolute_time()));
+    printf("  Uptime: %lu ms\n", (uint32_t)to_ms_since_boot(get_absolute_time()));
     printf("----------------------------------------\n");
     printf("Commands:\n");
     printf("  h - This help\n");
@@ -208,12 +208,54 @@ static void CLITask(void* pvParameters) {
     bool ledState = false;
     uint32_t ledCounter = 0;
 
+    // =========================================================================
+    // Wait for sensors to be ready BEFORE entering main loop
+    // Fast blink while waiting
+    // =========================================================================
+    while (!SensorTask_IsInitComplete()) {
+        gpio_put(kLedPin, 1);
+        vTaskDelay(pdMS_TO_TICKS(50));
+        gpio_put(kLedPin, 0);
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    // =========================================================================
+    // Wait for REAL terminal connection (DTR signal)
+    // Slow blink while waiting - user sees "connect terminal now"
+    // =========================================================================
+    while (!stdio_usb_connected()) {
+        gpio_put(kLedPin, 1);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        gpio_put(kLedPin, 0);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    // Settle time for USB CDC to stabilize
+    vTaskDelay(pdMS_TO_TICKS(300));
+
+    // Drain any garbage from USB buffer (terminal negotiation bytes, etc.)
+    while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
+
+    // Print initial banner
+    puts("\n\n=== RocketChip OS v0.3.14 ===");
+    puts("Press 'h' for help, 's' for sensor status\n");
+    fflush(stdout);
+    vTaskDelay(pdMS_TO_TICKS(100));  // Let USB CDC transmit complete
+
+    // Drain any input that arrived during banner print
+    while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
+
+    g_menuMode = MenuMode::Main;
+    wasConnected = true;  // Mark as connected so we don't re-print banner immediately
+
+    // =========================================================================
+    // Main CLI loop
+    // =========================================================================
     while (true) {
         bool isConnected = stdio_usb_connected();
 
         // =====================================================================
         // DISCONNECTED STATE: Just blink LED slowly, don't touch USB I/O
-        // This is the key fix for Entry 15 - we do NOTHING when disconnected
         // =====================================================================
         if (!isConnected) {
             // Slow blink (1Hz) = system running, no terminal
@@ -226,38 +268,25 @@ static void CLITask(void* pvParameters) {
         }
 
         // =====================================================================
-        // JUST CONNECTED: Show banner once
+        // RECONNECTED: Show banner again
         // =====================================================================
         if (!wasConnected) {
             wasConnected = true;
 
-            // Wait for sensors to be ready before showing banner
-            // Fast blink while waiting
-            while (!SensorTask_IsInitComplete()) {
-                gpio_put(kLedPin, 1);
-                vTaskDelay(pdMS_TO_TICKS(50));
-                gpio_put(kLedPin, 0);
-                vTaskDelay(pdMS_TO_TICKS(50));
-            }
-
             // Brief settle time for USB CDC
             vTaskDelay(pdMS_TO_TICKS(200));
 
-            // Print startup banner
-            printf("\n\n");
-            printf("========================================\n");
-            printf("  RocketChip OS v0.3.1\n");
-            printf("  Press 'h' for help\n");
-            printf("========================================\n\n");
+            // Drain any garbage from USB buffer
+            while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
 
-            // Print initial sensor status
-            SensorTask_PrintStatus();
+            // Print reconnection banner
+            puts("\n\n=== RocketChip OS v0.3.14 ===");
+            puts("Press 'h' for help, 's' for sensor status\n");
+            fflush(stdout);
+            vTaskDelay(pdMS_TO_TICKS(100));  // Let USB CDC transmit complete
 
-            // Drain any garbage from USB input buffer before accepting commands
-            // Terminal connection often has noise bytes that could trigger unwanted actions
-            while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
-                // Discard all pending input
-            }
+            // Drain any input that arrived during banner print
+            while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
 
             g_menuMode = MenuMode::Main;
         }
