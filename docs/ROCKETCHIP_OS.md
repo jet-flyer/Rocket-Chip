@@ -219,6 +219,7 @@ These issues are **not** present in traditional CLI implementations and required
 2. **No parameter editing** - Can view AP_Param but not modify via CLI yet
 3. **No flight state lockout** - Calibration can run even when armed (safety gap)
 4. **Pre-connect output lost** - Messages before terminal connection are not buffered
+5. **No arrow key navigation** - Menu uses single-key commands only (future enhancement)
 
 ---
 

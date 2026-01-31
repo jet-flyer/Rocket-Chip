@@ -353,32 +353,72 @@ static void CLITask(void* pvParameters) {
                         case 'w':
                         case 'W':
                             runCalibrationWizard();
+                            // Wizard returns to main menu (full calibration sequence complete)
+                            printf("Press 'h' for help, 'c' for calibration menu.\n");
                             g_menuMode = MenuMode::Main;
                             break;
 
                         case 'l':
                         case 'L':
-                            // Level cal via MAVLink path
-                            printf("\nLevel Cal - keep device FLAT and STILL...");
-                            fflush(stdout);
+                            // Level cal via MAVLink path - prompt first, then calibrate
+                            printf("\nLevel Calibration\n");
+                            printf("Keep device FLAT and STILL on a level surface.\n");
+                            printf("Press ENTER when ready, 'x' to cancel...\n");
                             {
-                                MAV_RESULT result = RC_OS::cmd_level_cal();
-                                if (result == MAV_RESULT_ACCEPTED) {
-                                    printf(" OK!\n");
-                                } else {
-                                    printf(" FAILED (%d)\n", result);
+                                bool cancelled = false;
+                                while (true) {
+                                    int cmd = getchar_timeout_us(0);
+                                    if (cmd == '\r' || cmd == '\n') {
+                                        while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
+                                        break;
+                                    } else if (cmd == 'x' || cmd == 'X' || cmd == 27) {
+                                        printf("Cancelled.\n");
+                                        cancelled = true;
+                                        break;
+                                    }
+                                    vTaskDelay(pdMS_TO_TICKS(50));
+                                }
+                                if (!cancelled) {
+                                    printf("Calibrating...");
+                                    fflush(stdout);
+                                    MAV_RESULT result = RC_OS::cmd_level_cal();
+                                    if (result == MAV_RESULT_ACCEPTED) {
+                                        printf(" OK!\n");
+                                    } else {
+                                        printf(" FAILED (%d)\n", result);
+                                    }
                                 }
                             }
-                            g_menuMode = MenuMode::Main;
+                            // Stay in calibration menu, show options again
+                            printCalibrationMenu();
                             break;
 
                         case 'a':
                         case 'A':
-                            // 6-pos accel cal via MAVLink path
-                            while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
-                            printf("\nStarting 6-position accel calibration...\n");
-                            printf("Press ENTER to confirm each position, 'x' to cancel.\n");
+                            // 6-pos accel cal via MAVLink path - prompt first
+                            printf("\n6-Position Accel Calibration\n");
+                            printf("You will place device in 6 orientations.\n");
+                            printf("Press ENTER to start, 'x' to cancel...\n");
                             {
+                                bool cancelled = false;
+                                while (true) {
+                                    int cmd = getchar_timeout_us(0);
+                                    if (cmd == '\r' || cmd == '\n') {
+                                        while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
+                                        break;
+                                    } else if (cmd == 'x' || cmd == 'X' || cmd == 27) {
+                                        printf("Cancelled.\n");
+                                        cancelled = true;
+                                        break;
+                                    }
+                                    vTaskDelay(pdMS_TO_TICKS(50));
+                                }
+                                if (cancelled) {
+                                    printCalibrationMenu();
+                                    break;
+                                }
+                                printf("Starting calibration...\n");
+                                printf("Press ENTER to confirm each position, 'x' to cancel.\n");
                                 MAV_RESULT result = RC_OS::cmd_accel_cal_6pos();
                                 if (result == MAV_RESULT_ACCEPTED) {
                                     // Stay in calibration mode until complete
@@ -406,15 +446,35 @@ static void CLITask(void* pvParameters) {
                                     printf("Failed to start calibration (%d)\n", result);
                                 }
                             }
-                            g_menuMode = MenuMode::Main;
+                            // Stay in calibration menu
+                            printCalibrationMenu();
                             break;
 
                         case 'm':
                         case 'M':
-                            // Compass cal via MAVLink path
-                            printf("\nStarting compass calibration...\n");
-                            printf("Rotate device slowly. Press 'x' when done.\n");
+                            // Compass cal via MAVLink path - prompt first
+                            printf("\nCompass Calibration\n");
+                            printf("Rotate device slowly in all directions.\n");
+                            printf("Press ENTER to start, 'x' to cancel...\n");
                             {
+                                bool cancelled = false;
+                                while (true) {
+                                    int cmd = getchar_timeout_us(0);
+                                    if (cmd == '\r' || cmd == '\n') {
+                                        while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
+                                        break;
+                                    } else if (cmd == 'x' || cmd == 'X' || cmd == 27) {
+                                        printf("Cancelled.\n");
+                                        cancelled = true;
+                                        break;
+                                    }
+                                    vTaskDelay(pdMS_TO_TICKS(50));
+                                }
+                                if (cancelled) {
+                                    printCalibrationMenu();
+                                    break;
+                                }
+                                printf("Starting calibration... Press 'x' when done rotating.\n");
                                 MAV_RESULT result = RC_OS::cmd_compass_cal();
                                 if (result == MAV_RESULT_ACCEPTED) {
                                     while (SensorTask_IsCalibrating()) {
@@ -435,7 +495,8 @@ static void CLITask(void* pvParameters) {
                                     printf("Failed to start calibration (%d)\n", result);
                                 }
                             }
-                            g_menuMode = MenuMode::Main;
+                            // Stay in calibration menu
+                            printCalibrationMenu();
                             break;
 
                         case 'g':
@@ -453,6 +514,7 @@ static void CLITask(void* pvParameters) {
                                     printf(" FAILED (%d)\n", result);
                                 }
                             }
+                            printCalibrationMenu();
                             break;
 
                         case 'b':
@@ -470,6 +532,7 @@ static void CLITask(void* pvParameters) {
                                     printf(" FAILED (%d)\n", result);
                                 }
                             }
+                            printCalibrationMenu();
                             break;
 
                         case 'x':
