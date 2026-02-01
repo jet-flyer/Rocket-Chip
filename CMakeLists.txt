@@ -81,6 +81,79 @@ add_compile_definitions(
     PICO_STDIO_USB_CONNECTION_WITHOUT_DTR=1
     # Disable ScopedTimer debug output
     ROCKETCHIP_DISABLE_TIMING_DEBUG=1
+
+    # ========================================================================
+    # AP_Vehicle Feature Flags
+    # ========================================================================
+    # See docs/AP_FEATURE_FLAGS.md for full documentation
+    #
+    # ENABLED - features we actively use
+    AP_VEHICLE_ENABLED=0            # We use our own Rocket class, not full AP_Vehicle
+    AP_INERTIALSENSOR_ENABLED=1
+    AP_COMPASS_ENABLED=1
+    AP_BARO_ENABLED=1
+    AP_PARAM_ENABLED=1
+    # HAL_GCS_ENABLED already defined above
+
+    # AHRS and Compass Calibration flags
+    # CRITICAL: These MUST be defined globally to avoid ODR violations.
+    # ArduPilot's AP_Compass_config.h computes COMPASS_CAL_ENABLED from
+    # AP_AHRS_DCM_ENABLED. If different compilation units see different
+    # values, the Compass class layout changes and member offsets shift.
+    AP_AHRS_ENABLED=1
+    AP_AHRS_DCM_ENABLED=1
+    COMPASS_CAL_ENABLED=1
+
+    # MAVLink bindings - must be consistent to avoid ODR violation
+    # AP_Compass.h has conditional members when HAL_MAVLINK_BINDINGS_ENABLED
+    HAL_MAVLINK_BINDINGS_ENABLED=1
+
+    # DISABLED - not needed for rocket flight computer
+    HAL_BUTTON_ENABLED=0
+    HAL_EFI_ENABLED=0
+    AP_RANGEFINDER_ENABLED=0
+    AP_RELAY_ENABLED=0
+    AP_RSSI_ENABLED=0
+    AP_SERVORELAYEVENTS_ENABLED=0
+    AP_OPENDRONEID_ENABLED=0
+    HAL_HOTT_TELEM_ENABLED=0
+    HAL_WITH_ESC_TELEM=0
+    AP_ESC_TELEM_ENABLED=0
+    AP_SERVO_TELEM_ENABLED=0
+    AP_VIDEOTX_ENABLED=0
+    AP_SMARTAUDIO_ENABLED=0
+    AP_TRAMP_ENABLED=0
+    HAL_WITH_FRSKY_TELEM_BIDIRECTIONAL=0
+    AP_TEMPERATURE_SENSOR_ENABLED=0
+    AP_STATS_ENABLED=0
+    HAL_GENERATOR_ENABLED=0
+    HAL_VISUALODOM_ENABLED=0
+    AP_AIS_ENABLED=0
+    HAL_NMEA_OUTPUT_ENABLED=0
+    AP_KDECAN_ENABLED=0
+    AP_IBUS_TELEM_ENABLED=0
+    AP_GRIPPER_ENABLED=0
+    AP_RPM_ENABLED=0
+    AP_SIM_ENABLED=0
+    AP_FILTER_ENABLED=0
+    AP_DDS_ENABLED=0
+    AP_EXTERNAL_CONTROL_ENABLED=0
+    AP_GPS_ENABLED=0                # Not yet integrated
+    # AP_AHRS_ENABLED - defined above (line 103) as =1 for compass calibration
+    HAL_LOGGING_ENABLED=0           # Using custom logging
+    AP_SCHEDULER_ENABLED=0          # Using FreeRTOS directly
+    AP_SERIALMANAGER_ENABLED=0      # Using custom serial management
+    AP_NETWORKING_ENABLED=0
+    HAL_MSP_ENABLED=0
+    AP_SCRIPTING_ENABLED=0
+    AP_FENCE_ENABLED=0              # Compliance review needed
+    AP_RALLY_ENABLED=0              # Compliance review needed
+    AP_MISSION_ENABLED=0            # Compliance review needed
+    AP_CUSTOMROTATIONS_ENABLED=0
+    AP_EXTERNAL_AHRS_ENABLED=0
+    OSD_ENABLED=0
+    HAL_INS_ACCELCAL_ENABLED=1      # Required for calibration
+    AP_INERTIALSENSOR_HARMONICNOTCH_ENABLED=0
 )
 
 # ============================================================================
@@ -761,6 +834,29 @@ target_link_libraries(ap_baro PUBLIC
 )
 
 # ============================================================================
+# Rocket Vehicle (AP_Param var_info for calibration persistence)
+# ============================================================================
+
+add_library(rocket_vehicle STATIC
+    src/vehicle/Rocket.cpp
+)
+
+target_include_directories(rocket_vehicle PUBLIC
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/vehicle
+    ${CMAKE_SOURCE_DIR}/lib/ap_compat
+    ${CMAKE_SOURCE_DIR}/lib/ardupilot/libraries
+    ${ROCKETCHIP_INCLUDE_DIR}
+)
+
+target_link_libraries(rocket_vehicle PUBLIC
+    ap_inertial_sensor
+    ap_compass
+    ap_baro
+    ap_param
+)
+
+# ============================================================================
 # Services Library (FreeRTOS Tasks)
 # ============================================================================
 
@@ -771,6 +867,7 @@ add_library(services STATIC
 target_include_directories(services PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/services
+    ${CMAKE_SOURCE_DIR}/src/vehicle
     ${ROCKETCHIP_INCLUDE_DIR}
 )
 
@@ -781,6 +878,7 @@ endif()
 target_link_libraries(services PUBLIC
     hal
     hal_sensors
+    rocket_vehicle
     ap_inertial_sensor
     ap_compass
     ap_baro

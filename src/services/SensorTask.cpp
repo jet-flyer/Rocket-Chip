@@ -32,6 +32,9 @@
 #include "calibration/CalibrationStore.h"
 #include <AP_HAL_RP2350/hwdef.h>  // For GRAVITY_MSS, DEG_TO_RAD
 
+// Rocket vehicle class for AP_Param var_info integration
+#include "vehicle/Rocket.h"
+
 // Compile-time diagnostic: verify HAL_INS_PROBE_LIST is defined
 #ifdef HAL_INS_PROBE_LIST
 #pragma message "HAL_INS_PROBE_LIST is defined in SensorTask.cpp"
@@ -41,6 +44,9 @@
 
 // GCS MAVLink for calibration callbacks
 #include <GCS_MAVLink/GCS.h>
+
+// AP_Notify for boot status feedback
+#include <AP_Notify/AP_Notify.h>
 
 #include <cstdio>
 #include <cmath>
@@ -62,13 +68,11 @@ SemaphoreHandle_t g_sensorDataMutex = nullptr;
 SensorTaskStats g_sensorTaskStats = {};
 
 // ============================================================================
-// ArduPilot Sensor Instances (pointers - initialized AFTER HAL init)
-// Constructors access AP_Param which needs HAL, so can't be static globals
+// ArduPilot Sensor Instances
+// Sensors are now owned by the Rocket vehicle class (src/vehicle/Rocket.h).
+// Access via rocket.ins(), rocket.compass(), rocket.baro().
+// This enables AP_Param var_info table for calibration persistence.
 // ============================================================================
-
-static AP_InertialSensor* g_ins = nullptr;
-static Compass* g_compass = nullptr;
-static AP_Baro* g_baro = nullptr;
 
 // ============================================================================
 // Private Data
@@ -95,9 +99,10 @@ static bool s_compassCalRunning = false;
 // Init complete flag (for CLI synchronization)
 static volatile bool s_initComplete = false;
 
-// Timing dividers (all relative to 1kHz base rate)
-static constexpr uint32_t kBaroDivider = SensorTaskConfig::IMU_RATE_HZ / SensorTaskConfig::BARO_RATE_HZ;  // 20
-static constexpr uint32_t kMagDivider = 10;  // 100Hz magnetometer
+// Timing dividers (relative to 500Hz base loop rate)
+// IMU data arrives at 1125Hz via DeviceBus callbacks; we fetch at 500Hz
+static constexpr uint32_t kBaroDivider = 10;  // 500/10 = 50Hz baro
+static constexpr uint32_t kMagDivider = 5;    // 500/5 = 100Hz magnetometer
 
 // ============================================================================
 // Sensor Initialization
@@ -106,34 +111,43 @@ static constexpr uint32_t kMagDivider = 10;  // 100Hz magnetometer
 // I2C scan functions removed - use debug probe instead of printf diagnostics
 
 static bool initSensors() {
+    // Set AP_Notify flag: we're initializing, don't move the vehicle
+    AP_Notify::flags.initialising = true;
+
     // Initialize ArduPilot HAL (I2C, SPI, etc.)
     RP2350::hal_init();
 
-    // Initialize AP_Param for calibration persistence
-    // setup() validates/initializes header, load_all() loads saved values from flash
+    // Initialize AP_Param storage FIRST (before sensor allocation)
+    // This validates/initializes the flash header before any sensor constructors run.
+    // Note: With no var_info set yet, load_all() is effectively a no-op.
     AP_Param::setup();
-    AP_Param::load_all();
 
-    // Create sensor instances (must be AFTER HAL init - constructors access AP_Param)
-    g_ins = new AP_InertialSensor();
-    g_compass = new Compass();
+    // Allocate sensor instances on Rocket vehicle (must be AFTER HAL init)
+    // Sensor constructors call AP_Param::setup_object_defaults() which uses their
+    // own var_info tables (not the vehicle-level table).
+    rocket.allocate_sensors();
+
+    // TEMPORARILY DISABLED: var_info registration for debugging
+    // Uncomment these lines to enable calibration persistence after stability verified:
+    // rocket.init_params();
+    // AP_Param::load_all();  // Load saved calibrations into sensor objects
 
     // Initialize AP_InertialSensor (probes ICM-20948 via HAL_INS_PROBE_LIST)
-    g_ins->init(100);  // 100Hz main loop rate
-    s_imuInitialized = (g_ins->get_accel_count() > 0 && g_ins->get_gyro_count() > 0);
+    rocket.ins()->init(100);  // 100Hz main loop rate
+    s_imuInitialized = (rocket.ins()->get_accel_count() > 0 && rocket.ins()->get_gyro_count() > 0);
 
     // Initialize Compass (probes AK09916 via HAL_MAG_PROBE_LIST)
-    g_compass->init();
-    s_magInitialized = (g_compass->get_count() > 0);
+    rocket.compass()->init();
+    s_magInitialized = (rocket.compass()->get_count() > 0);
 
-    // Initialize Barometer via ArduPilot (probes DPS310 via HAL_BARO_PROBE_LIST)
-    g_baro = new AP_Baro();
-    g_baro->init();
-    s_baroInitialized = (g_baro->num_instances() > 0);
+    // Initialize Barometer (probes DPS310 via HAL_BARO_PROBE_LIST)
+    rocket.baro()->init();
+    s_baroInitialized = (rocket.baro()->num_instances() > 0);
 
+    // Calibrate barometer (sets ground pressure reference)
+    // Takes ~2 seconds - AP_Notify::flags.initialising provides visual feedback
     if (s_baroInitialized) {
-        // Calibrate barometer (sets ground pressure reference)
-        g_baro->calibrate(false);  // false = don't save to storage yet
+        rocket.baro()->calibrate(false);  // false = don't save to storage yet
     }
 
     // Load legacy calibration from flash (for barometer, etc.)
@@ -166,6 +180,9 @@ static bool initSensors() {
         return SensorTask_CalibrateBaro();
     });
 
+    // Initialization complete - clear the flag
+    AP_Notify::flags.initialising = false;
+
     // At least IMU must be working for flight
     return s_imuInitialized;
 }
@@ -175,14 +192,24 @@ static bool initSensors() {
 // ============================================================================
 
 static void readIMU() {
-    // ArduPilot's INS handles blocking wait for sample internally
-    // For FreeRTOS task, we use update() which is non-blocking
-    g_ins->update();
+    // NON-BLOCKING: Don't call update() - it internally calls wait_for_sample()
+    // which blocks for 1-2ms due to vTaskDelay() timing on RP2350.
+    //
+    // DeviceBus callbacks already populate backend buffers at 1125Hz.
+    // We just read the latest available calibrated data.
+    //
+    // See RP2350_FULL_AP_PORT.md PD14 for details on vTaskDelay timing issues.
+
+    // Check if IMU has valid data before reading
+    if (!rocket.ins()->get_gyro_health(0)) {
+        g_sensorTaskStats.imu_errors++;
+        return;
+    }
 
     // Get calibrated sensor data (calibration applied by ArduPilot via AP_Param)
     // Use global namespace :: to get ArduPilot's Vector3f, not rocketchip::services::Vector3f
-    const ::Vector3f& accel = g_ins->get_accel(0);
-    const ::Vector3f& gyro = g_ins->get_gyro(0);
+    const ::Vector3f& accel = rocket.ins()->get_accel(0);
+    const ::Vector3f& gyro = rocket.ins()->get_gyro(0);
 
     // Take mutex and update shared data
     if (xSemaphoreTake(g_sensorDataMutex, 0) == pdTRUE) {
@@ -203,13 +230,13 @@ static void readIMU() {
 
 static void readMag() {
     // Read compass via ArduPilot backend
-    if (!g_compass->read()) {
+    if (!rocket.compass()->read()) {
         g_sensorTaskStats.mag_errors++;
         return;
     }
 
     // Get calibrated magnetic field (milliGauss, calibration applied by ArduPilot)
-    const ::Vector3f& field = g_compass->get_field(0);
+    const ::Vector3f& field = rocket.compass()->get_field(0);
 
     if (xSemaphoreTake(g_sensorDataMutex, 0) == pdTRUE) {
         // Convert milliGauss to gauss (for consistency with SensorData)
@@ -224,12 +251,12 @@ static void readMag() {
 
 static void readBaro() {
     // Update barometer - this reads new samples from hardware
-    g_baro->update();
+    rocket.baro()->update();
 
-    if (g_baro->healthy()) {
+    if (rocket.baro()->healthy()) {
         if (xSemaphoreTake(g_sensorDataMutex, 0) == pdTRUE) {
-            g_sensorData.pressure_pa = g_baro->get_pressure();
-            g_sensorData.temperature_c = g_baro->get_temperature();
+            g_sensorData.pressure_pa = rocket.baro()->get_pressure();
+            g_sensorData.temperature_c = rocket.baro()->get_temperature();
             g_sensorData.baro_timestamp_us = time_us_32();
             xSemaphoreGive(g_sensorDataMutex);
         }
@@ -263,8 +290,11 @@ static void SensorTask_Run(void* pvParameters) {
     // Signal CLI that it's safe to show prompt (no more init output)
     s_initComplete = true;
 
+    // Reset stats after init so we only count steady-state overruns
+    g_sensorTaskStats = {};
+
     TickType_t lastWakeTime = xTaskGetTickCount();
-    const TickType_t period = pdMS_TO_TICKS(1);  // 1ms = 1kHz
+    const TickType_t period = pdMS_TO_TICKS(2);  // 2ms = 500Hz (IMU data arrives at 1125Hz via callbacks)
 
     uint32_t loopCount = 0;
 
@@ -290,10 +320,10 @@ static void SensorTask_Run(void* pvParameters) {
             // and routes MAVLink bytes to GCS::parse_byte() vs CLI commands.
 
             // Update accelerometer calibration if running
-            if (s_accelCalRunning && g_ins != nullptr) {
-                g_ins->acal_update();
+            if (s_accelCalRunning && rocket.ins() != nullptr) {
+                rocket.ins()->acal_update();
                 // Check if calibration finished
-                AP_AccelCal* acal = g_ins->get_acal();
+                AP_AccelCal* acal = rocket.ins()->get_acal();
                 if (acal != nullptr) {
                     accel_cal_status_t status = acal->get_status();
                     if (status == ACCEL_CAL_SUCCESS || status == ACCEL_CAL_FAILED) {
@@ -305,10 +335,10 @@ static void SensorTask_Run(void* pvParameters) {
             }
 
             // Update compass calibration if running
-            if (s_compassCalRunning && g_compass != nullptr) {
-                g_compass->cal_update();
+            if (s_compassCalRunning && rocket.compass() != nullptr) {
+                rocket.compass()->cal_update();
                 // Check if calibration finished
-                if (!g_compass->is_calibrating()) {
+                if (!rocket.compass()->is_calibrating()) {
                     s_compassCalRunning = false;
                     printf("[SensorTask] Compass calibration finished\n");
                 }
@@ -397,9 +427,10 @@ void SensorTask_PrintStatus() {
 
     printf("\n[SensorTask] Status (ArduPilot Native):\n");
     printf("  AP_INS: accel=%u, gyro=%u, rate=%uHz\n",
-           g_ins->get_accel_count(), g_ins->get_gyro_count(), g_ins->get_raw_gyro_rate_hz(0));
-    printf("  AP_Compass: count=%u, available=%s\n",
-           g_compass->get_count(), g_compass->available() ? "YES" : "NO");
+           rocket.ins()->get_accel_count(), rocket.ins()->get_gyro_count(), rocket.ins()->get_raw_gyro_rate_hz(0));
+    printf("  AP_Compass: count=%u, available=%s (ptr=%p, singleton=%p)\n",
+           rocket.compass()->get_count(), rocket.compass()->available() ? "YES" : "NO",
+           (void*)rocket.compass(), (void*)Compass::get_singleton());
     printf("  Baro: %s\n", s_baroInitialized ? "OK" : "FAIL");
     printf("  IMU samples:  %lu (errors: %lu)\n",
            g_sensorTaskStats.imu_samples, g_sensorTaskStats.imu_errors);
@@ -430,7 +461,7 @@ void SensorTask_PrintStatus() {
 // ============================================================================
 
 bool SensorTask_StartAccelCal() {
-    if (g_ins == nullptr || !s_imuInitialized) {
+    if (rocket.ins() == nullptr || !s_imuInitialized) {
         printf("[SensorTask] Cannot start accel cal - IMU not initialized\n");
         return false;
     }
@@ -443,9 +474,9 @@ bool SensorTask_StartAccelCal() {
     printf("[SensorTask] Starting 6-position accelerometer calibration...\n");
 
     // Initialize the calibrator (creates AP_AccelCal if needed)
-    g_ins->acal_init();
+    rocket.ins()->acal_init();
 
-    AP_AccelCal* acal = g_ins->get_acal();
+    AP_AccelCal* acal = rocket.ins()->get_acal();
     if (acal == nullptr) {
         printf("[SensorTask] Failed to create AP_AccelCal\n");
         return false;
@@ -461,7 +492,7 @@ bool SensorTask_StartAccelCal() {
 }
 
 MAV_RESULT SensorTask_SimpleAccelCal() {
-    if (g_ins == nullptr || !s_imuInitialized) {
+    if (rocket.ins() == nullptr || !s_imuInitialized) {
         printf("[SensorTask] Cannot run simple accel cal - IMU not initialized\n");
         return MAV_RESULT_FAILED;
     }
@@ -472,7 +503,7 @@ MAV_RESULT SensorTask_SimpleAccelCal() {
     }
 
     printf("[SensorTask] Running simple 1D accelerometer calibration (keep device level)...\n");
-    MAV_RESULT result = g_ins->simple_accel_cal();
+    MAV_RESULT result = rocket.ins()->simple_accel_cal();
 
     if (result == MAV_RESULT_ACCEPTED) {
         printf("[SensorTask] Simple accel calibration completed successfully\n");
@@ -484,11 +515,11 @@ MAV_RESULT SensorTask_SimpleAccelCal() {
 }
 
 bool SensorTask_AccelCalConfirmPosition(int position) {
-    if (!s_accelCalRunning || g_ins == nullptr) {
+    if (!s_accelCalRunning || rocket.ins() == nullptr) {
         return false;
     }
 
-    AP_AccelCal* acal = g_ins->get_acal();
+    AP_AccelCal* acal = rocket.ins()->get_acal();
     if (acal == nullptr) {
         return false;
     }
@@ -498,7 +529,7 @@ bool SensorTask_AccelCalConfirmPosition(int position) {
 }
 
 bool SensorTask_StartCompassCal() {
-    if (g_compass == nullptr || !s_magInitialized) {
+    if (rocket.compass() == nullptr || !s_magInitialized) {
         printf("[SensorTask] Cannot start compass cal - compass not initialized\n");
         return false;
     }
@@ -513,7 +544,7 @@ bool SensorTask_StartCompassCal() {
 
     // Start calibration for all compass instances
     // Parameters: retry=false, autosave=true, delay=0, autoreboot=false
-    bool started = g_compass->start_calibration_all(false, true, 0.0f, false);
+    bool started = rocket.compass()->start_calibration_all(false, true, 0.0f, false);
 
     if (started) {
         s_compassCalRunning = true;
@@ -526,13 +557,13 @@ bool SensorTask_StartCompassCal() {
 }
 
 bool SensorTask_CalibrateBaro() {
-    if (g_baro == nullptr || !s_baroInitialized) {
+    if (rocket.baro() == nullptr || !s_baroInitialized) {
         printf("[SensorTask] Cannot calibrate baro - not initialized\n");
         return false;
     }
 
     printf("[SensorTask] Calibrating barometer (setting ground pressure)...\n");
-    g_baro->calibrate(true);  // true = save to storage
+    rocket.baro()->calibrate(true);  // true = save to storage
     printf("[SensorTask] Barometer calibration complete\n");
     return true;
 }
@@ -542,8 +573,8 @@ bool SensorTask_IsCalibrating() {
 }
 
 void SensorTask_CancelCalibration() {
-    if (s_accelCalRunning && g_ins != nullptr) {
-        AP_AccelCal* acal = g_ins->get_acal();
+    if (s_accelCalRunning && rocket.ins() != nullptr) {
+        AP_AccelCal* acal = rocket.ins()->get_acal();
         if (acal != nullptr) {
             acal->cancel();
         }
@@ -551,8 +582,8 @@ void SensorTask_CancelCalibration() {
         printf("[SensorTask] Accel calibration cancelled\n");
     }
 
-    if (s_compassCalRunning && g_compass != nullptr) {
-        g_compass->cancel_calibration_all();
+    if (s_compassCalRunning && rocket.compass() != nullptr) {
+        rocket.compass()->cancel_calibration_all();
         s_compassCalRunning = false;
         printf("[SensorTask] Compass calibration cancelled\n");
     }

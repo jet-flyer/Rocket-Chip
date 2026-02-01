@@ -77,8 +77,9 @@
 #define AP_COMPASS_I2C_BACKEND_DEFAULT_ENABLED 0
 #endif
 
+// AK09916 is the magnetometer inside the ICM-20948 chip
 #ifndef AP_COMPASS_AK09916_ENABLED
-#define AP_COMPASS_AK09916_ENABLED 0
+#define AP_COMPASS_AK09916_ENABLED 1
 #endif
 
 #ifndef AP_COMPASS_AK8963_ENABLED
@@ -97,8 +98,9 @@
 #define AP_COMPASS_HMC5843_ENABLED 0
 #endif
 
+// ICM20948 probe enables accessing AK09916 via the ICM-20948's auxiliary I2C bus
 #ifndef AP_COMPASS_ICM20948_ENABLED
-#define AP_COMPASS_ICM20948_ENABLED 0
+#define AP_COMPASS_ICM20948_ENABLED 1
 #endif
 
 #ifndef AP_COMPASS_IIS2MDC_ENABLED

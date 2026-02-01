@@ -101,6 +101,31 @@ Before implementing each AP_HAL component, check for known RP2040/RP2350 porting
 - Legacy Arduino codebase archived in DEPRECATED/ (not carried forward)
 - **INV2 temp reset spam** - ArduPilot Invensensev2 driver logs "temp reset IMU[0]" messages during warmup. Caused by occasional temperature read glitches during I2C high-rate sampling. Does not affect sensor operation - driver recovers automatically. May investigate I2C timing if it causes issues later.
 
+## Pre-IRL Test Requirements
+These items MUST be completed before any real flight/field testing:
+
+- [ ] **Full AP_Notify integration** - NeoPixel visual feedback for all operational states
+  - Currently: Stub implementation with static flags only
+  - Need: Functional NeoPixel backend on GPIO 21 (Feather RP2350 onboard)
+  - Need: Initialization patterns, armed/disarmed, error states, calibration feedback
+  - Reference: `lib/ardupilot/libraries/AP_Notify/` for backend examples
+- [x] **Loop timing optimization** - RESOLVED (2026-02-01)
+  - Throttled to 500Hz loop rate for I2C/Qwiic prototype boards
+  - IMU data still arrives at 1125Hz via DeviceBus callbacks
+  - See "Performance Mode" below for production optimization path
+
+## Performance Mode (Future)
+**Status:** Deferred until custom PCB / SPI sensors
+
+Current development uses Qwiic/STEMMA-QT breakouts (I2C @ 400kHz). I2C overhead limits practical loop rates to ~500Hz without overruns.
+
+When moving to production hardware (Titan tier custom PCB):
+- [ ] **SPI sensor bus** - ICM-20948 and DPS310 both support SPI
+  - SPI @ 10MHz: ~12µs per 14-byte read vs ~350µs for I2C
+  - Enables true 1kHz+ loop rates without overruns
+- [ ] **Restore 1kHz loop rate** - Change `pdMS_TO_TICKS(2)` back to `pdMS_TO_TICKS(1)` in SensorTask.cpp
+- [ ] **Consider 2kHz for TVC** - With SPI, even higher rates possible if needed for thrust vector control
+
 ## TODO: Smoke Test Audit
 **After RC_OS v0.3 hardware verification:**
 - Audit all smoke tests in `tests/smoke_tests/` for stale code

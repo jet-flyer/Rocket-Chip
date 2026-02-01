@@ -14,13 +14,16 @@
  */
 
 #include <cstdio>
+#include <cstring>
 #include "pico/stdlib.h"
+#include "hardware/watchdog.h"
 #include "FreeRTOS.h"
 #include "task.h"
 
 #include "services/SensorTask.h"
 #include "AP_InternalError/AP_InternalError.h"
 #include <GCS_MAVLink/GCS.h>
+#include <AP_HAL/AP_HAL.h>
 #include "cli/RC_OS.h"
 
 using namespace rocketchip::services;
@@ -79,6 +82,7 @@ static void printCalibrationMenu() {
     printf("  g - Gyro calibration\n");
     printf("  m - Compass calibration\n");
     printf("  b - Baro calibration\n");
+    printf("  r - RESET all parameters (factory)\n");
     printf("  x - Return to main menu\n");
     printf("========================================\n\n");
 }
@@ -530,6 +534,49 @@ static void CLITask(void* pvParameters) {
                                     printf(" (calibrates automatically at boot)\n");
                                 } else {
                                     printf(" FAILED (%d)\n", result);
+                                }
+                            }
+                            printCalibrationMenu();
+                            break;
+
+                        case 'r':
+                        case 'R':
+                            // Reset all parameters - DANGEROUS!
+                            printf("\n*** RESET ALL PARAMETERS ***\n");
+                            printf("This will erase all calibration data!\n");
+                            printf("Device will reboot after reset.\n");
+                            printf("Type 'YES' + ENTER to confirm: ");
+                            fflush(stdout);
+                            {
+                                char confirm[8] = {0};
+                                int idx = 0;
+                                bool gotEnter = false;
+                                while (idx < 7) {
+                                    int ch = getchar_timeout_us(10000000);  // 10 sec timeout
+                                    if (ch == PICO_ERROR_TIMEOUT) {
+                                        printf("\nTimeout - cancelled.\n");
+                                        break;
+                                    }
+                                    if (ch == '\r' || ch == '\n') {
+                                        gotEnter = true;
+                                        break;
+                                    }
+                                    confirm[idx++] = ch;
+                                    printf("%c", ch);
+                                    fflush(stdout);
+                                }
+                                printf("\n");
+                                if (gotEnter && strcmp(confirm, "YES") == 0) {
+                                    printf("Erasing parameters...\n");
+                                    extern const AP_HAL::HAL& hal;
+                                    hal.storage->erase();
+                                    printf("Done. Rebooting...\n");
+                                    vTaskDelay(pdMS_TO_TICKS(500));
+                                    // Software reset
+                                    watchdog_enable(1, false);
+                                    while(1);
+                                } else {
+                                    printf("Cancelled (need to type 'YES' then ENTER).\n");
                                 }
                             }
                             printCalibrationMenu();

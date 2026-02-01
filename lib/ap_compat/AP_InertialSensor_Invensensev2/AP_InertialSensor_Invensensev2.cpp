@@ -161,7 +161,11 @@ void AP_InertialSensor_Invensensev2::_fifo_reset()
 
 bool AP_InertialSensor_Invensensev2::_has_auxiliary_bus()
 {
-    return _dev->bus_type() != AP_HAL::Device::BUS_TYPE_I2C;
+    // RocketChip: Always enable auxiliary bus for ICM-20948 regardless of main bus type.
+    // ArduPilot disables aux bus on I2C because it's slower, but we need it to access
+    // the AK09916 magnetometer inside the ICM-20948. The aux bus operates at ~400kHz
+    // regardless of whether main communication is I2C or SPI.
+    return true;
 }
 
 void AP_InertialSensor_Invensensev2::start()

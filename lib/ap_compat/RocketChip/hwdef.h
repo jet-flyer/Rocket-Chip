@@ -25,10 +25,15 @@
 // IMU Configuration
 // ============================================================================
 
-// ICM-20948 on I2C bus 1 at address 0x69 (AD0=HIGH, Adafruit default)
+// ICM-20948 on I2C bus 0 at address 0x69 (AD0=HIGH, Adafruit default)
 // Bus 0 = Qwiic (I2C1 on Feather RP2350 hardware)
 #define HAL_INS_DEFAULT INS_ROCKETCHIP_I2C
-#define HAL_INS_INV2_I2C 1
+
+// HAL_INS_INV2_I2C is the backend type identifier (24) used by ArduPilot to identify
+// the Invensensev2 I2C backend. This is NOT the I2C bus number.
+// Do not override - let ArduPilot's AP_HAL_Boards.h define it as 24.
+// This ID is used by AP_Compass_AK09916::probe_ICM20948_I2C() to find the INS backend
+// for accessing the magnetometer via the ICM-20948's auxiliary I2C bus.
 
 // PROBE_IMU_I2C macro: Creates probe call for I2C IMUs
 // driver: Driver class suffix (e.g., "Invensensev2" -> AP_InertialSensor_Invensensev2)

@@ -549,6 +549,61 @@ This accepts 1ms timing granularity but ensures proper task scheduling. Callback
 
 ---
 
+### PD14: vTaskDelay() Timing Significantly Slower Than Expected
+
+**Category:** RTOS
+**Discovered:** 2026-02-01
+**Severity:** High
+**Status:** Resolved (workaround)
+
+**STM32 Behavior:**
+`vTaskDelay()` and ChibiOS equivalents provide predictable delays. A 1ms delay takes approximately 1ms. ArduPilot's `wait_for_sample()` uses short delays (~100µs) in a polling loop, expecting total loop time to be predictable.
+
+**RP2350 Behavior:**
+`vTaskDelay()` on RP2350 with FreeRTOS SMP takes significantly longer than expected. Community reports (RPi Forums, Jan 2026):
+- USB device took 15 seconds to appear after boot with `vTaskDelay()` calls
+- Removing `vTaskDelay()` or replacing with `portYIELD()` made it instantaneous
+- The issue is specific to RP2350 - RP2040 behaves correctly
+
+Combined with tick quantization (1ms ticks), each `vTaskDelay(1)` call can block for 1-2ms:
+- Worst case: Just missed a tick → blocks for 1.999ms
+- Best case: Just made a tick → blocks for 1.001ms
+
+**Impact on RocketChip:**
+ArduPilot's `AP_InertialSensor::update()` calls `wait_for_sample()`, which has a polling loop with `vTaskDelay(1)` calls. In a 500Hz (2ms) SensorTask loop:
+- `wait_for_sample()` consumes 1-2ms per iteration
+- Remaining time budget: 0-1ms for all other work
+- Result: 35-40% of loop iterations missed their deadline (overruns)
+
+**Solution:**
+Don't call `update()` from high-frequency periodic tasks. The DeviceBus callback thread already populates sensor data at 1125Hz. Just read the latest available data:
+
+```cpp
+static void readIMU() {
+    // DON'T call rocket.ins()->update() - it blocks!
+    // Just read the latest data directly
+    if (rocket.ins()->get_gyro_health(0)) {
+        const ::Vector3f& accel = rocket.ins()->get_accel(0);
+        const ::Vector3f& gyro = rocket.ins()->get_gyro(0);
+        // ... copy to shared data
+    }
+}
+```
+
+**Files Affected:**
+- `src/services/SensorTask.cpp` - Non-blocking `readIMU()` implementation
+- `lib/ap_compat/AP_HAL_RP2350/Scheduler.cpp` - `delay_microseconds_boost()` uses `vTaskDelay(1)`
+
+**References:**
+- FreeRTOS tick timing and task scheduling
+- ArduPilot `libraries/AP_InertialSensor/AP_InertialSensor.cpp` - `wait_for_sample()` implementation
+
+**Source URLs:**
+- https://forums.raspberrypi.com/viewtopic.php?p=2358678 (rp2350 with tinyusb - "slow" with FreeRTOS)
+- https://forums.raspberrypi.com/viewtopic.php?t=389724 (RP2350 FreeRTOS SMP discussion)
+
+---
+
 ## Future Entries Template
 
 Copy this template when adding new platform differences:

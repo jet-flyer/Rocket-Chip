@@ -38,9 +38,10 @@ using namespace RP2350;
 
 extern const AP_HAL::HAL& hal;
 
-// Stack size for bus threads - 2KB needed for ArduPilot IMU callbacks
-// 1KB was causing stack overflow on restart (see LESSONS_LEARNED)
-static constexpr uint32_t kBusThreadStackSize = 2048;
+// Stack size for bus threads - increased to 4KB to prevent sporadic crashes
+// during I2C FIFO reads and context switches (hardfault in PendSV_Handler)
+// 2KB was causing sporadic UNDEFINSTR faults during IMU callbacks
+static constexpr uint32_t kBusThreadStackSize = 4096;
 
 DeviceBus::DeviceBus(uint8_t _thread_priority)
     : semaphore()
