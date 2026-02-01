@@ -96,6 +96,10 @@ static bool s_baroInitialized = false;
 static bool s_accelCalRunning = false;
 static bool s_compassCalRunning = false;
 
+// Accel calibration step tracking (local cache to avoid 1-second GCS broadcast delay)
+static accel_cal_status_t s_lastAccelCalStatus = ACCEL_CAL_NOT_STARTED;
+static uint8_t s_accelCalStepCache = 0;
+
 // Init complete flag (for CLI synchronization)
 static volatile bool s_initComplete = false;
 
@@ -127,10 +131,13 @@ static bool initSensors() {
     // own var_info tables (not the vehicle-level table).
     rocket.allocate_sensors();
 
-    // TEMPORARILY DISABLED: var_info registration for debugging
-    // Uncomment these lines to enable calibration persistence after stability verified:
-    // rocket.init_params();
-    // AP_Param::load_all();  // Load saved calibrations into sensor objects
+    // Register vehicle-level var_info table with AP_Param
+    // This enables calibration persistence via INS_ACCSCAL, INS_ACCOFFS, etc.
+    rocket.init_params();
+
+    // Load saved calibrations from flash into sensor objects
+    // This restores calibration data from previous sessions
+    AP_Param::load_all();
 
     // Initialize AP_InertialSensor (probes ICM-20948 via HAL_INS_PROBE_LIST)
     rocket.ins()->init(100);  // 100Hz main loop rate
@@ -322,12 +329,32 @@ static void SensorTask_Run(void* pvParameters) {
             // Update accelerometer calibration if running
             if (s_accelCalRunning && rocket.ins() != nullptr) {
                 rocket.ins()->acal_update();
-                // Check if calibration finished
+
                 AP_AccelCal* acal = rocket.ins()->get_acal();
                 if (acal != nullptr) {
                     accel_cal_status_t status = acal->get_status();
+
+                    // Debug: Show status changes with accel count and armed state
+                    if (status != s_lastAccelCalStatus) {
+                        printf("[AccelCal] status: %d -> %d, step_cache=%d, accel_count=%d, armed=%d\n",
+                               (int)s_lastAccelCalStatus, (int)status, s_accelCalStepCache,
+                               rocket.ins()->get_accel_count(), (int)AP_HAL::get_HAL().util->get_soft_armed());
+                    }
+
+                    // Detect state transition: sample collection complete -> waiting for next position
+                    // This updates our step cache immediately instead of waiting for 1-second GCS broadcast
+                    if (s_lastAccelCalStatus == ACCEL_CAL_COLLECTING_SAMPLE &&
+                        status == ACCEL_CAL_WAITING_FOR_ORIENTATION) {
+                        s_accelCalStepCache++;  // Move to next position (2, 3, 4, 5, 6)
+                        printf("[AccelCal] Step incremented to %d\n", s_accelCalStepCache);
+                    }
+                    s_lastAccelCalStatus = status;
+
+                    // Check if calibration finished
                     if (status == ACCEL_CAL_SUCCESS || status == ACCEL_CAL_FAILED) {
                         s_accelCalRunning = false;
+                        s_lastAccelCalStatus = ACCEL_CAL_NOT_STARTED;
+                        s_accelCalStepCache = 0;
                         printf("[SensorTask] Accel calibration %s\n",
                                status == ACCEL_CAL_SUCCESS ? "SUCCEEDED" : "FAILED");
                     }
@@ -487,6 +514,8 @@ bool SensorTask_StartAccelCal() {
     acal->start(gcs, MAVLINK_SYS_ID, MAVLINK_COMP_ID);
 
     s_accelCalRunning = true;
+    s_accelCalStepCache = 1;  // Start at position 1 (LEVEL)
+    s_lastAccelCalStatus = ACCEL_CAL_WAITING_FOR_ORIENTATION;
     printf("[SensorTask] Accel calibration started - place device LEVEL and confirm\n");
     return true;
 }
@@ -591,6 +620,38 @@ void SensorTask_CancelCalibration() {
 
 bool SensorTask_IsInitComplete() {
     return s_initComplete;
+}
+
+uint8_t SensorTask_GetAccelCalStep() {
+    if (!s_accelCalRunning) {
+        return 0;
+    }
+    // Use locally cached step (updated immediately on state transition)
+    // rather than GCS position tracker (which has 1-second broadcast delay)
+    return s_accelCalStepCache;
+}
+
+accel_cal_status_t SensorTask_GetAccelCalStatus() {
+    if (!s_accelCalRunning || rocket.ins() == nullptr) {
+        return ACCEL_CAL_NOT_STARTED;
+    }
+    AP_AccelCal* acal = rocket.ins()->get_acal();
+    if (acal == nullptr) {
+        return ACCEL_CAL_NOT_STARTED;
+    }
+    return acal->get_status();
+}
+
+const char* SensorTask_GetAccelCalPositionName(uint8_t step) {
+    switch (step) {
+        case 1: return "LEVEL (flat on table)";
+        case 2: return "LEFT SIDE";
+        case 3: return "RIGHT SIDE";
+        case 4: return "NOSE DOWN";
+        case 5: return "NOSE UP";
+        case 6: return "BACK (upside down)";
+        default: return "UNKNOWN";
+    }
 }
 
 } // namespace services

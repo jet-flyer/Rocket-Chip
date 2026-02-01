@@ -21,6 +21,9 @@
 // For MAV_RESULT enum (used by calibration API)
 #include <GCS_MAVLink/GCS.h>
 
+// For accel_cal_status_t enum
+#include <AP_AccelCal/AccelCalibrator.h>
+
 namespace rocketchip {
 namespace services {
 
@@ -210,6 +213,35 @@ void SensorTask_CancelCalibration();
  * @return true if sensor init has completed (success or failure)
  */
 bool SensorTask_IsInitComplete();
+
+/**
+ * @brief Get current accel calibration step
+ *
+ * Returns the position AP_AccelCal is waiting for confirmation on.
+ * Only valid when accel calibration is running.
+ *
+ * @return Current step (1-6) or 0 if not calibrating
+ *         1=LEVEL, 2=LEFT, 3=RIGHT, 4=NOSEDOWN, 5=NOSEUP, 6=BACK
+ */
+uint8_t SensorTask_GetAccelCalStep();
+
+/**
+ * @brief Get current accel calibration state
+ *
+ * Returns the AP_AccelCal state machine status.
+ *
+ * @return ACCEL_CAL_NOT_STARTED, ACCEL_CAL_WAITING_FOR_ORIENTATION,
+ *         ACCEL_CAL_COLLECTING_SAMPLE, ACCEL_CAL_SUCCESS, or ACCEL_CAL_FAILED
+ */
+accel_cal_status_t SensorTask_GetAccelCalStatus();
+
+/**
+ * @brief Get human-readable name for accel calibration position
+ *
+ * @param step Position number (1-6)
+ * @return Position name string (e.g., "LEVEL", "LEFT SIDE")
+ */
+const char* SensorTask_GetAccelCalPositionName(uint8_t step);
 
 } // namespace services
 } // namespace rocketchip

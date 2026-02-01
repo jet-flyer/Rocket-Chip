@@ -87,101 +87,165 @@ static void printCalibrationMenu() {
     printf("========================================\n\n");
 }
 
+// ============================================================================
+// Calibration Routines (shared by wizard and direct menu access)
+// ============================================================================
+
+/**
+ * @brief Run 6-position accelerometer calibration
+ * @return true if completed successfully, false if cancelled or failed
+ */
+static bool run6PositionAccelCal() {
+    MAV_RESULT result = RC_OS::cmd_accel_cal_6pos();
+    if (result != MAV_RESULT_ACCEPTED) {
+        printf("Failed to start calibration (%d)\n", result);
+        return false;
+    }
+
+    uint8_t currentStep = 0;
+
+    while (SensorTask_IsCalibrating()) {
+        accel_cal_status_t status = SensorTask_GetAccelCalStatus();
+        uint8_t step = SensorTask_GetAccelCalStep();
+
+        // Debug: periodically show state
+        static uint32_t lastDebugMs = 0;
+        uint32_t now = to_ms_since_boot(get_absolute_time());
+        if (now - lastDebugMs > 500) {
+            lastDebugMs = now;
+            printf("[run6Pos] status=%d, step=%d, currentStep=%d\n", (int)status, step, currentStep);
+        }
+
+        // Prompt for new position when waiting and step changed
+        if (status == ACCEL_CAL_WAITING_FOR_ORIENTATION && step != currentStep && step > 0) {
+            currentStep = step;
+            printf("\n[%d/6] Place device %s\n",
+                   step, SensorTask_GetAccelCalPositionName(step));
+            printf("Press ENTER when ready, 'x' to cancel...\n");
+        }
+
+        // Handle user input
+        int cmd = getchar_timeout_us(0);
+        if (cmd == 'x' || cmd == 'X' || cmd == 27) {
+            SensorTask_CancelCalibration();
+            printf("Cancelled.\n");
+            return false;
+        } else if ((cmd == '\r' || cmd == '\n' || cmd == ' ') &&
+                   status == ACCEL_CAL_WAITING_FOR_ORIENTATION && currentStep > 0) {
+            // Drain input buffer
+            while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
+
+            printf("Collecting samples...");
+            fflush(stdout);
+            RC_OS::cmd_confirm_position(currentStep);
+
+            // Wait for collection to complete (status changes from COLLECTING back to WAITING)
+            while (SensorTask_IsCalibrating() &&
+                   SensorTask_GetAccelCalStatus() == ACCEL_CAL_COLLECTING_SAMPLE) {
+                int c = getchar_timeout_us(0);
+                if (c == 'x' || c == 'X' || c == 27) {
+                    SensorTask_CancelCalibration();
+                    printf(" cancelled.\n");
+                    return false;
+                }
+                gpio_put(kLedPin, !gpio_get(kLedPin));
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+            printf(" done!\n");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    printf("\n6-position calibration complete!\n");
+    return true;
+}
+
+/**
+ * @brief Run compass calibration
+ * @return true if completed successfully, false if cancelled or failed
+ */
+static bool runCompassCal() {
+    MAV_RESULT result = RC_OS::cmd_compass_cal();
+    if (result != MAV_RESULT_ACCEPTED) {
+        printf("Failed to start calibration (%d)\n", result);
+        return false;
+    }
+
+    printf("Rotate device slowly through all orientations...\n");
+    printf("Press 'x' when done.\n");
+
+    while (SensorTask_IsCalibrating()) {
+        int cmd = getchar_timeout_us(0);
+        if (cmd == 'x' || cmd == 'X' || cmd == 27) {
+            SensorTask_CancelCalibration();
+            printf("Compass calibration complete.\n");
+            return true;  // Compass cal ends when user says done
+        }
+        gpio_put(kLedPin, !gpio_get(kLedPin));
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    printf("Compass calibration complete.\n");
+    return true;
+}
+
+/**
+ * @brief Helper to wait for user input with skip option
+ * @return true if user pressed ENTER, false if skipped
+ */
+static bool waitForEnterOrSkip() {
+    while (true) {
+        int c = getchar_timeout_us(0);
+        if (c == '\r' || c == '\n') {
+            while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
+            return true;
+        } else if (c == 'x' || c == 'X') {
+            printf("Skipped.\n\n");
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
 static void runCalibrationWizard() {
     printf("\n=== Calibration Wizard ===\n");
     printf("This wizard will guide you through all calibrations.\n\n");
 
-    // Step 1: Level cal (quick, single position) - via MAVLink path
+    // Step 1: Level cal (quick, single position)
     printf("Step 1: Level Calibration (quick)\n");
     printf("Place device FLAT and STILL on a level surface.\n");
     printf("Press ENTER when ready, or 'x' to skip...\n");
 
-    while (true) {
-        int c = getchar_timeout_us(0);
-        if (c == '\r' || c == '\n') {
-            while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
-            printf("Calibrating...");
-            fflush(stdout);
-            MAV_RESULT result = RC_OS::cmd_level_cal();  // MAVLink path
-            if (result == MAV_RESULT_ACCEPTED) {
-                printf(" OK!\n\n");
-            } else {
-                printf(" FAILED (%d)\n\n", result);
-            }
-            break;
-        } else if (c == 'x' || c == 'X') {
-            printf("Skipped.\n\n");
-            break;
+    if (waitForEnterOrSkip()) {
+        printf("Calibrating...");
+        fflush(stdout);
+        MAV_RESULT result = RC_OS::cmd_level_cal();
+        if (result == MAV_RESULT_ACCEPTED) {
+            printf(" OK!\n\n");
+        } else {
+            printf(" FAILED (%d)\n\n", result);
         }
-        vTaskDelay(pdMS_TO_TICKS(50));
     }
 
-    // Step 2: 6-position accel cal (full, more accurate) - via MAVLink path
+    // Step 2: 6-position accel cal (uses shared function)
     printf("Step 2: 6-Position Accel Calibration\n");
     printf("You will place device in 6 orientations.\n");
     printf("Press ENTER to start, or 'x' to skip...\n");
 
-    while (true) {
-        int c = getchar_timeout_us(0);
-        if (c == '\r' || c == '\n') {
-            while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
-            MAV_RESULT result = RC_OS::cmd_accel_cal_6pos();  // MAVLink path
-            if (result == MAV_RESULT_ACCEPTED) {
-                printf("Follow position prompts. Press ENTER for each, 'x' to cancel.\n");
-                while (SensorTask_IsCalibrating()) {
-                    int cmd = getchar_timeout_us(0);
-                    if (cmd == 'x' || cmd == 'X' || cmd == 27) {
-                        SensorTask_CancelCalibration();
-                        printf("Accel cal cancelled.\n\n");
-                        break;
-                    } else if (cmd == '\r' || cmd == '\n' || cmd == ' ') {
-                        while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
-                        RC_OS::cmd_confirm_position(0);  // MAVLink path
-                        printf("Position confirmed.\n");
-                    }
-                    vTaskDelay(pdMS_TO_TICKS(50));
-                }
-            } else {
-                printf("Failed to start calibration (%d)\n\n", result);
-            }
-            break;
-        } else if (c == 'x' || c == 'X') {
-            printf("Skipped.\n\n");
-            break;
-        }
-        vTaskDelay(pdMS_TO_TICKS(50));
+    if (waitForEnterOrSkip()) {
+        run6PositionAccelCal();
+        printf("\n");
     }
 
-    // Step 3: Compass cal - via MAVLink path
+    // Step 3: Compass cal (uses shared function)
     printf("Step 3: Compass Calibration\n");
     printf("Rotate device slowly in all orientations.\n");
     printf("Press ENTER to start, or 'x' to skip...\n");
 
-    while (true) {
-        int c = getchar_timeout_us(0);
-        if (c == '\r' || c == '\n') {
-            while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
-            MAV_RESULT result = RC_OS::cmd_compass_cal();  // MAVLink path
-            if (result == MAV_RESULT_ACCEPTED) {
-                printf("Rotate device... press 'x' when done.\n");
-                while (SensorTask_IsCalibrating()) {
-                    int cmd = getchar_timeout_us(0);
-                    if (cmd == 'x' || cmd == 'X') {
-                        SensorTask_CancelCalibration();
-                        printf("Compass cal complete.\n\n");
-                        break;
-                    }
-                    vTaskDelay(pdMS_TO_TICKS(50));
-                }
-            } else {
-                printf("Failed to start calibration (%d)\n\n", result);
-            }
-            break;
-        } else if (c == 'x' || c == 'X') {
-            printf("Skipped.\n\n");
-            break;
-        }
-        vTaskDelay(pdMS_TO_TICKS(50));
+    if (waitForEnterOrSkip()) {
+        runCompassCal();
+        printf("\n");
     }
 
     printf("(Baro calibrates automatically at boot)\n\n");
@@ -240,9 +304,18 @@ static void CLITask(void* pvParameters) {
     // Drain any garbage from USB buffer (terminal negotiation bytes, etc.)
     while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
 
-    // Print initial banner
-    puts("\n\n=== RocketChip OS v0.3.14 ===");
-    puts("Press 'h' for help, 's' for sensor status\n");
+    // Print initial banner - split into small chunks with flush between each
+    // to avoid USB CDC buffer issues that cause truncation at ~63 chars
+    puts("\n");
+    fflush(stdout);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    puts("=== RocketChip OS v0.3.22 ===");
+    fflush(stdout);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    puts("Press 'h' for help, 's' for sensor status");
+    fflush(stdout);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    puts("");
     fflush(stdout);
     vTaskDelay(pdMS_TO_TICKS(100));  // Let USB CDC transmit complete
 
@@ -283,9 +356,14 @@ static void CLITask(void* pvParameters) {
             // Drain any garbage from USB buffer
             while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
 
-            // Print reconnection banner
-            puts("\n\n=== RocketChip OS v0.3.14 ===");
-            puts("Press 'h' for help, 's' for sensor status\n");
+            // Print reconnection banner - split to avoid USB CDC truncation
+            puts("\n");
+            fflush(stdout);
+            vTaskDelay(pdMS_TO_TICKS(50));
+            puts("=== RocketChip OS v0.3.22 ===");
+            fflush(stdout);
+            vTaskDelay(pdMS_TO_TICKS(50));
+            puts("Press 'h' for help, 's' for sensor status");
             fflush(stdout);
             vTaskDelay(pdMS_TO_TICKS(100));  // Let USB CDC transmit complete
 
@@ -399,107 +477,18 @@ static void CLITask(void* pvParameters) {
 
                         case 'a':
                         case 'A':
-                            // 6-pos accel cal via MAVLink path - prompt first
+                            // 6-pos accel cal - uses shared function
                             printf("\n6-Position Accel Calibration\n");
                             printf("You will place device in 6 orientations.\n");
-                            printf("Press ENTER to start, 'x' to cancel...\n");
-                            {
-                                bool cancelled = false;
-                                while (true) {
-                                    int cmd = getchar_timeout_us(0);
-                                    if (cmd == '\r' || cmd == '\n') {
-                                        while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
-                                        break;
-                                    } else if (cmd == 'x' || cmd == 'X' || cmd == 27) {
-                                        printf("Cancelled.\n");
-                                        cancelled = true;
-                                        break;
-                                    }
-                                    vTaskDelay(pdMS_TO_TICKS(50));
-                                }
-                                if (cancelled) {
-                                    printCalibrationMenu();
-                                    break;
-                                }
-                                printf("Starting calibration...\n");
-                                printf("Press ENTER to confirm each position, 'x' to cancel.\n");
-                                MAV_RESULT result = RC_OS::cmd_accel_cal_6pos();
-                                if (result == MAV_RESULT_ACCEPTED) {
-                                    // Stay in calibration mode until complete
-                                    while (SensorTask_IsCalibrating()) {
-                                        int cmd = getchar_timeout_us(0);
-                                        if (cmd == 'x' || cmd == 'X' || cmd == 27) {
-                                            SensorTask_CancelCalibration();
-                                            printf("Cancelled.\n");
-                                            break;
-                                        } else if (cmd == '\r' || cmd == '\n' || cmd == ' ') {
-                                            while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
-                                            // Confirm position via MAVLink
-                                            // TODO: Get current position from calibration state
-                                            RC_OS::cmd_confirm_position(0);
-                                            printf("Position confirmed.\n");
-                                        }
-                                        if (++ledCounter >= 5) {
-                                            ledCounter = 0;
-                                            ledState = !ledState;
-                                            gpio_put(kLedPin, ledState);
-                                        }
-                                        vTaskDelay(pdMS_TO_TICKS(50));
-                                    }
-                                } else {
-                                    printf("Failed to start calibration (%d)\n", result);
-                                }
-                            }
-                            // Stay in calibration menu
+                            run6PositionAccelCal();
                             printCalibrationMenu();
                             break;
 
                         case 'm':
                         case 'M':
-                            // Compass cal via MAVLink path - prompt first
+                            // Compass cal - uses shared function
                             printf("\nCompass Calibration\n");
-                            printf("Rotate device slowly in all directions.\n");
-                            printf("Press ENTER to start, 'x' to cancel...\n");
-                            {
-                                bool cancelled = false;
-                                while (true) {
-                                    int cmd = getchar_timeout_us(0);
-                                    if (cmd == '\r' || cmd == '\n') {
-                                        while (getchar_timeout_us(1000) != PICO_ERROR_TIMEOUT) {}
-                                        break;
-                                    } else if (cmd == 'x' || cmd == 'X' || cmd == 27) {
-                                        printf("Cancelled.\n");
-                                        cancelled = true;
-                                        break;
-                                    }
-                                    vTaskDelay(pdMS_TO_TICKS(50));
-                                }
-                                if (cancelled) {
-                                    printCalibrationMenu();
-                                    break;
-                                }
-                                printf("Starting calibration... Press 'x' when done rotating.\n");
-                                MAV_RESULT result = RC_OS::cmd_compass_cal();
-                                if (result == MAV_RESULT_ACCEPTED) {
-                                    while (SensorTask_IsCalibrating()) {
-                                        int cmd = getchar_timeout_us(0);
-                                        if (cmd == 'x' || cmd == 'X' || cmd == 27) {
-                                            SensorTask_CancelCalibration();
-                                            printf("Calibration complete.\n");
-                                            break;
-                                        }
-                                        if (++ledCounter >= 5) {
-                                            ledCounter = 0;
-                                            ledState = !ledState;
-                                            gpio_put(kLedPin, ledState);
-                                        }
-                                        vTaskDelay(pdMS_TO_TICKS(50));
-                                    }
-                                } else {
-                                    printf("Failed to start calibration (%d)\n", result);
-                                }
-                            }
-                            // Stay in calibration menu
+                            runCompassCal();
                             printCalibrationMenu();
                             break;
 

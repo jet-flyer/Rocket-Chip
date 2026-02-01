@@ -130,4 +130,62 @@ For normal development, prefer `picotool` - it's faster and doesn't require addi
 
 ---
 
+## CLI Testing via Python Serial
+
+**Use Python serial for reliable CLI testing.** PuTTY and VSCode Serial Monitor have quirks with USB CDC that cause truncated output and missed input. Python's pyserial provides consistent, scriptable testing.
+
+### Quick CLI Test
+```bash
+# Run all non-destructive tests
+python scripts/cli_test.py all
+
+# Test specific functionality
+python scripts/cli_test.py status    # Sensor status
+python scripts/cli_test.py help      # Help menu
+python scripts/cli_test.py menu      # Calibration menu
+python scripts/cli_test.py level_cal # Level calibration (device must be flat)
+```
+
+### Interactive 6-Position Calibration
+```bash
+python scripts/accel_cal_6pos.py
+```
+This script guides you through each position, you move the device when prompted.
+
+### Manual Serial Connection
+```bash
+python -m serial.tools.miniterm COM6 115200
+# Ctrl+] to exit
+```
+
+### Programmatic Testing
+```python
+import serial
+import time
+
+port = serial.Serial('COM6', 115200, timeout=1)
+time.sleep(0.5)
+port.read(1000)  # Drain buffer
+
+# Send command and read response
+port.write(b's')
+time.sleep(0.5)
+response = port.read(4000).decode('utf-8', errors='replace')
+print(response)
+
+port.close()
+```
+
+### Terminal Compatibility Notes
+| Terminal | Input | Output | Notes |
+|----------|-------|--------|-------|
+| Python miniterm | OK | OK | **Recommended** |
+| Python serial | OK | OK | Best for scripted tests |
+| PuTTY/plink | OK | Truncated banner | ~63 char cutoff on connect |
+| VSCode Serial Monitor | OK | OK | Must use "Terminal" mode, not "Text" mode |
+
+The banner truncation in PuTTY is a display quirk, not a firmware bug - CLI commands work fine.
+
+---
+
 *See also: `standards/CODING_STANDARDS.md` for general code conventions*
