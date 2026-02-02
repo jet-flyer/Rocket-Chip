@@ -6,7 +6,6 @@
  */
 
 #include "Scheduler.h"
-#include <AP_HAL/AP_HAL.h>
 
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
@@ -16,8 +15,7 @@
 
 #include <cstdio>
 #include <cstdarg>
-
-extern const AP_HAL::HAL& hal;
+#include <new>  // For placement new
 
 namespace RP2350 {
 
@@ -36,16 +34,13 @@ static StaticTask_t s_io_task_buffer;
 static StackType_t s_io_stack[HAL_IO_STACK_SIZE];
 
 // Synchronization primitives - DEFERRED INITIALIZATION
-// Static storage for semaphores - constructors do NOT run at static init time
-// Semaphores are constructed in Scheduler::init() after FreeRTOS starts
-static uint8_t s_timer_sem_storage[sizeof(Semaphore)] __attribute__((aligned(4)));
-static uint8_t s_io_sem_storage[sizeof(Semaphore)] __attribute__((aligned(4)));
+// These are raw storage that gets initialized via placement new in Scheduler::init()
+// because FreeRTOS semaphore APIs cannot be called before the scheduler exists.
+// See LESSONS_LEARNED.md for debugging history.
+alignas(Semaphore) static uint8_t s_timer_sem_storage[sizeof(Semaphore)];
+alignas(Semaphore) static uint8_t s_io_sem_storage[sizeof(Semaphore)];
 static Semaphore* s_timer_sem = nullptr;
 static Semaphore* s_io_sem = nullptr;
-
-// Storage task static memory (for AP_FlashStorage flush)
-static StaticTask_t s_storage_task_buffer;
-static StackType_t s_storage_stack[512];
 
 // ============================================================================
 // Constructor / Destructor
@@ -66,9 +61,8 @@ Scheduler::Scheduler()
     , m_main_task(nullptr)
     , m_timer_task(nullptr)
     , m_io_task(nullptr)
-    , m_timer_sem(nullptr)
-    , m_io_sem(nullptr)
-    , m_storage_task(nullptr)
+    , m_timer_sem(nullptr)  // Initialized in init() via placement new
+    , m_io_sem(nullptr)     // Initialized in init() via placement new
     , m_priority_boosted(false)
     , m_saved_priority(0)
 {
@@ -94,18 +88,11 @@ void Scheduler::init() {
         return;
     }
 
-    // =========================================================================
-    // CRITICAL: Create semaphores NOW, when FreeRTOS is running
-    // These must NOT be created at static init time (before main()) because
-    // xSemaphoreCreateRecursiveMutexStatic() requires FreeRTOS data structures
-    // to exist. See LESSONS_LEARNED.md and RP2350_FULL_AP_PORT.md for details.
-    // =========================================================================
-    if (s_timer_sem == nullptr) {
-        s_timer_sem = new (s_timer_sem_storage) Semaphore();
-    }
-    if (s_io_sem == nullptr) {
-        s_io_sem = new (s_io_sem_storage) Semaphore();
-    }
+    // Initialize semaphores via placement new
+    // CRITICAL: FreeRTOS semaphore APIs cannot be called during static initialization
+    // (before main()). We defer construction to here where the scheduler is running.
+    s_timer_sem = new (s_timer_sem_storage) Semaphore();
+    s_io_sem = new (s_io_sem_storage) Semaphore();
     m_timer_sem = s_timer_sem;
     m_io_sem = s_io_sem;
 
@@ -136,21 +123,6 @@ void Scheduler::init() {
         &s_io_task_buffer
     );
     configASSERT(m_io_task != nullptr);
-
-    // Create storage task (flushes AP_FlashStorage dirty pages to flash)
-    // Per ESP32 HAL pattern - required for AP_Param persistence
-    // TEMPORARILY DISABLED - investigating crash
-    // m_storage_task = xTaskCreateStatic(
-    //     storage_task_entry,
-    //     "AP_Storage",
-    //     512,
-    //     this,
-    //     HAL_PRIORITY_STORAGE,
-    //     s_storage_stack,
-    //     &s_storage_task_buffer
-    // );
-    // configASSERT(m_storage_task != nullptr);
-    m_storage_task = nullptr;
 
     m_initialized = true;
 }
@@ -269,11 +241,6 @@ void Scheduler::register_timer_process(MemberProc proc) {
         return;
     }
 
-    // Guard against calls before init() completed
-    if (m_timer_sem == nullptr) {
-        return;
-    }
-
     // Take semaphore to protect array modification
     m_timer_sem->take_blocking();
 
@@ -287,11 +254,6 @@ void Scheduler::register_timer_process(MemberProc proc) {
 void Scheduler::register_io_process(MemberProc proc) {
     // Functor uses operator bool() for validity check
     if (!proc) {
-        return;
-    }
-
-    // Guard against calls before init() completed
-    if (m_io_sem == nullptr) {
         return;
     }
 
@@ -431,24 +393,6 @@ void Scheduler::io_task_entry(void* param) {
 
         // Yield to other tasks
         vTaskDelay(pdMS_TO_TICKS(10));  // 100Hz I/O rate
-    }
-}
-
-void Scheduler::storage_task_entry(void* param) {
-    Scheduler* scheduler = static_cast<Scheduler*>(param);
-
-    // Wait for system to initialize before flushing storage
-    while (!scheduler->m_initialized) {
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-
-    while (true) {
-        // Call storage timer tick to flush dirty pages to flash
-        // This is required for AP_Param persistence (per ESP32 HAL pattern)
-        hal.storage->_timer_tick();
-
-        // 100Hz is sufficient for storage flushing
-        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 

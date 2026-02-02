@@ -725,7 +725,9 @@ int main() {
     );
 
     if (result == pdPASS) {
+#if configNUMBER_OF_CORES > 1
         vTaskCoreAffinitySet(cliHandle, (1 << 0));  // Pin to Core 0
+#endif
     }
 
     // Start the scheduler - should never return

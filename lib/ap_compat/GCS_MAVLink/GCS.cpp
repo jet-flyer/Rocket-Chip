@@ -437,6 +437,18 @@ void GCS_MAVLINK::send_text(MAV_SEVERITY severity, const char* fmt, ...) {
 }
 
 void GCS_MAVLINK::send_accelcal_vehicle_position(uint32_t position) {
+    // Track the requested position for CLI access
+    // Positions 1-6 are valid orientations
+    // Position 0 can occur during state transitions - ignore it
+    // Position 7+ are SUCCESS/FAILED codes - clear on those
+    if (position >= 1 && position <= 6) {
+        GCS::get_singleton().set_accel_cal_position(static_cast<uint8_t>(position));
+    } else if (position >= 7) {
+        // Success/failure codes (ACCELCAL_VEHICLE_POS_SUCCESS=16777215, etc.)
+        GCS::get_singleton().clear_accel_cal_position();
+    }
+    // position == 0: ignore, keep last valid position
+
     // Only send MAVLink binary when GCS is connected
     // Otherwise it shows as garbage in CLI terminal
     if (GCS::get_singleton().is_connected()) {

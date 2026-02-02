@@ -265,8 +265,8 @@ bool I2CDevice_RP2350::probe() {
 // ============================================================================
 
 AP_HAL::Semaphore* I2CDevice_RP2350::get_semaphore() {
-    // Return semaphore from our bus (DeviceBus holds it)
-    return &m_bus.semaphore;
+    // Return semaphore from our bus (DeviceBus holds it as pointer)
+    return m_bus.get_semaphore();
 }
 
 // ============================================================================
@@ -326,11 +326,13 @@ void I2CDeviceManager_RP2350::init() {
     // Initialize bus info
     businfo[0].bus_num = 0;
     businfo[0].bus_clock = kDefaultClockHz;
-    businfo[0].semaphore.give();  // Start unlocked
+    businfo[0].init_semaphore();  // Deferred init - FreeRTOS now running
+    businfo[0].get_semaphore()->give();  // Start unlocked
 
     businfo[1].bus_num = 1;
     businfo[1].bus_clock = kDefaultClockHz;
-    businfo[1].semaphore.give();  // Start unlocked
+    businfo[1].init_semaphore();  // Deferred init - FreeRTOS now running
+    businfo[1].get_semaphore()->give();  // Start unlocked
 
     m_initialized = true;
     DBG_I2C("I2C device manager initialized");

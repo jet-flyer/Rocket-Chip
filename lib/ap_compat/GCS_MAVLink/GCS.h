@@ -309,6 +309,33 @@ private:
     CompassCalStartCallback _compass_cal_start_callback = nullptr;
     BaroCalCallback _baro_cal_callback = nullptr;
     CommandAckCallback _calibration_callback = nullptr;
+
+    // Last accel cal position requested by AP_AccelCal
+    // Updated by GCS_MAVLINK::send_accelcal_vehicle_position()
+    uint8_t _last_accel_cal_position = 0;
+
+public:
+    /**
+     * @brief Get last requested accel calibration position
+     *
+     * AP_AccelCal sends position requests via send_accelcal_vehicle_position().
+     * This returns the last position requested.
+     *
+     * @return Position (1-6) or 0 if none/success/failed
+     */
+    uint8_t get_last_accel_cal_position() const { return _last_accel_cal_position; }
+
+    /**
+     * @brief Clear last accel calibration position
+     * Call when calibration ends or is cancelled
+     */
+    void clear_accel_cal_position() { _last_accel_cal_position = 0; }
+
+    /**
+     * @brief Set last accel calibration position
+     * Called by GCS_MAVLINK::send_accelcal_vehicle_position()
+     */
+    void set_accel_cal_position(uint8_t position) { _last_accel_cal_position = position; }
 };
 
 // ============================================================================

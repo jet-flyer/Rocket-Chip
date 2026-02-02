@@ -331,7 +331,6 @@ private:
     // Task handles (buffers are file-scope in .cpp, like ArduPilot pattern)
     TaskHandle_t m_timer_task;
     TaskHandle_t m_io_task;
-    TaskHandle_t m_storage_task;
 
     // Synchronization (pointers to file-scope objects)
     Semaphore* m_timer_sem;
@@ -344,7 +343,6 @@ private:
     // Static task entry points
     static void timer_task_entry(void* param);
     static void io_task_entry(void* param);
-    static void storage_task_entry(void* param);
 
     // Call delay callback if appropriate
     void call_delay_cb();

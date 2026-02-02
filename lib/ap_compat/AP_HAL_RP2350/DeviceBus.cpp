@@ -25,6 +25,8 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+#include <new>  // For placement new
+
 // Debug output for DeviceBus (disable in production)
 #define DEVICEBUS_DEBUG 0
 
@@ -44,7 +46,7 @@ extern const AP_HAL::HAL& hal;
 static constexpr uint32_t kBusThreadStackSize = 4096;
 
 DeviceBus::DeviceBus(uint8_t _thread_priority)
-    : semaphore()
+    : semaphore(nullptr)  // Deferred init - call init_semaphore() before use
     , callbacks(nullptr)
     , thread_priority(_thread_priority)
     , bus_thread_handle(nullptr)
@@ -52,6 +54,16 @@ DeviceBus::DeviceBus(uint8_t _thread_priority)
     , hal_device(nullptr)
 {
     DBG_BUS("DeviceBus created, priority=%u", _thread_priority);
+}
+
+void DeviceBus::init_semaphore()
+{
+    if (semaphore == nullptr) {
+        // Use placement new to construct semaphore in preallocated storage
+        // This is called after FreeRTOS is running, when semaphore APIs are safe
+        semaphore = new (semaphore_storage) Semaphore();
+        DBG_BUS("Semaphore initialized via placement new");
+    }
 }
 
 /*
@@ -87,7 +99,7 @@ void DeviceBus::bus_thread(void *arg)
                 if (s_callback_count <= 5 || s_callback_count % 100 == 0) {
                     DBG_BUS("Taking semaphore for callback #%lu...", s_callback_count + 1);
                 }
-                if (binfo->semaphore.take(HAL_SEMAPHORE_BLOCK_FOREVER)) {
+                if (binfo->semaphore->take(HAL_SEMAPHORE_BLOCK_FOREVER)) {
                     s_callback_count++;
                     if (s_callback_count <= 5 || s_callback_count % 100 == 0) {
                         DBG_BUS("CB #%lu START (cb=%p)", s_callback_count, (void*)&callback->cb);
@@ -96,7 +108,7 @@ void DeviceBus::bus_thread(void *arg)
                     if (s_callback_count <= 5 || s_callback_count % 100 == 0) {
                         DBG_BUS("CB #%lu END", s_callback_count);
                     }
-                    binfo->semaphore.give();
+                    binfo->semaphore->give();
                 }
             }
         }
@@ -142,6 +154,9 @@ AP_HAL::Device::PeriodicHandle DeviceBus::register_periodic_callback(
     AP_HAL::Device *_hal_device)
 {
     DBG_BUS("register_periodic_callback: period=%lu us", period_usec);
+
+    // Initialize semaphore on first use (deferred from constructor)
+    init_semaphore();
 
     // Allocate callback info FIRST (before thread creation)
     callback_info *callback = new callback_info;
@@ -204,10 +219,12 @@ AP_HAL::Device::PeriodicHandle DeviceBus::register_periodic_callback(
             return nullptr;
         }
 
-        // Pin bus thread to Core 0 to match main task
+        // Pin bus thread to Core 0 to match main task (SMP only)
         // ArduPilot assumes single-core memory semantics (see PD12)
+#if configNUMBER_OF_CORES > 1
         vTaskCoreAffinitySet(bus_thread_handle, (1 << 0));
         DBG_BUS("Bus thread pinned to Core 0");
+#endif
     }
 
     return callback;

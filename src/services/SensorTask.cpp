@@ -328,6 +328,16 @@ static void SensorTask_Run(void* pvParameters) {
 
             // Update accelerometer calibration if running
             if (s_accelCalRunning && rocket.ins() != nullptr) {
+                // CRITICAL: Must call update() to feed samples to the calibrator!
+                // This calls _backends[i]->update() -> update_accel() -> _publish_accel()
+                // which feeds delta_velocity samples to AccelCalibrator::new_sample().
+                // Without this, calibration gets NO samples and immediately fails.
+                //
+                // Note: update() internally calls wait_for_sample() which may block
+                // 1-2ms due to PD14 timing issues, but this is acceptable for
+                // interactive calibration (not flight-critical).
+                rocket.ins()->update();
+
                 rocket.ins()->acal_update();
 
                 AP_AccelCal* acal = rocket.ins()->get_acal();
@@ -426,8 +436,10 @@ bool SensorTask_Create() {
         return false;
     }
 
-    // Pin to Core 1
+    // Pin to Core 1 (SMP only)
+#if configNUMBER_OF_CORES > 1
     vTaskCoreAffinitySet(s_taskHandle, SensorTaskConfig::CORE_AFFINITY);
+#endif
 
     return true;
 }

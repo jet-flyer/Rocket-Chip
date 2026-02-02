@@ -14,56 +14,56 @@
 
 ## Open Flags
 
-### 2026-02-01 - Claude Code CLI (WIP: AP_Param Crash Fix)
+### 2026-02-02 - Claude Code CLI (WIP: FreeRTOS SMP Core 1 Issue)
 **Task**: Fix AP_Param crash to enable 6-position accelerometer calibration persistence
 **Plan File**: `C:\Users\pow-w\.claude\plans\swift-toasting-diffie.md`
-**Status**: IN PROGRESS - Debugging double fault crash
+**Status**: BLOCKED - FreeRTOS SMP dual-core issue prevents reliable operation
 
-**What's been tried:**
-1. **Deferred semaphore initialization** - DONE, working
-   - Changed from static `Semaphore` objects to placement-new in `Scheduler::init()`
-   - Uses `s_timer_sem_storage` / `s_io_sem_storage` byte arrays with placement new
-   - Files: `Scheduler.cpp:41-44, 91-98`
+## Session Findings (2026-02-02)
 
-2. **Added null guards** to `register_timer_process()` and `register_io_process()` - DONE
-   - Guards against calls before `init()` completes
+### Resolved: Static Semaphore Initialization
+- **Root cause**: Static `Semaphore` objects in `Scheduler.cpp` and `DeviceBus` called FreeRTOS APIs during static initialization (before `vTaskStartScheduler()`)
+- **Fix**: Deferred initialization using placement new in `init()` methods
+- **Files**: `Scheduler.cpp`, `DeviceBus.cpp`, `DeviceBus.h`, `I2CDevice.cpp`
 
-3. **Added storage task** for AP_FlashStorage flush - ADDED, THEN DISABLED
-   - Added `storage_task_entry()` per ESP32 HAL pattern
-   - **CURRENTLY DISABLED** (lines 116-126 commented out) to isolate crash
+### Observed: 6-Position Calibration Works (When Device Runs)
+- Status transitions correctly: 1 (WAITING) → 2 (COLLECTING) → 1 (WAITING)
+- Step increments properly after sample collection
+- Samples fed to AccelCal correctly
 
-4. **Removed duplicate timer_tick calls** - DONE
-   - `HAL_RP2350_Class.cpp` had register_timer_process for storage flush
-   - This conflicted with new storage_task
-   - Removed the duplicate registration
+### BLOCKING ISSUE: FreeRTOS SMP Core 1 Crashes
 
-**Current crash behavior:**
-- Device crashes with "double fault" - GDB shows `prvIdleTask` → `prvCheckTasksWaitingTermination`
-- Crash happens AFTER compass/baro init complete (user confirmed disabling those didn't help)
-- PC shows 0x00000088 with corrupt msp (0xf0000000) - indicates hard fault/lockup
-- OpenOCD reports "timed out while waiting for target halted" and "clearing lockup after double fault"
+**Symptoms:**
+- Core 1 consistently ends up at PC=0x000000da (bootrom WFE loop), msp=0xf0000000
+- GDB confirmed Core 1 **does launch initially** (prvPassiveIdleTask visible running)
+- Core 1 then crashes/dies at some point during operation
+- Core 0 continues I2C/sensor operations normally
+- When Core 0 tries to acquire FreeRTOS spinlocks, it deadlocks (Core 1 may be holding them)
 
-**Next steps to try:**
-1. Flash with storage_task disabled and test if crash persists
-2. If still crashes, investigate task stack corruption or memory issues
-3. If crash resolves, investigate proper storage_task implementation
+**Debug Evidence:**
+1. `info threads` after fresh boot shows Core 1 in `prvPassiveIdleTask` (correct)
+2. `info threads` after ~5 seconds shows Core 1 at `0x000000da` (bootrom WFE)
+3. No stack overflow detected (stack fill pattern `0xa5a5a5a5` intact)
+4. All application tasks pinned to Core 0 - only FreeRTOS idle task runs on Core 1
+5. Deadlock when Core 0's USB stdio ISR tries to acquire scheduler spinlock
 
-**Key files modified:**
-- `lib/ap_compat/AP_HAL_RP2350/Scheduler.cpp` - semaphore deferred init, storage task (disabled)
-- `lib/ap_compat/AP_HAL_RP2350/Scheduler.h` - added m_storage_task, storage_task_entry
-- `lib/ap_compat/AP_HAL_RP2350/HAL_RP2350_Class.cpp` - removed duplicate timer_tick registration
+**Working Theory:**
+The FreeRTOS SMP port for RP2350 has an issue where Core 1's passive idle task crashes or exits. Since only the passive idle task runs on Core 1 (all our tasks are pinned to Core 0), this may be:
+- Bug in FreeRTOS-Kernel RP2350 SMP port
+- Missing configuration
+- Interaction with TinyUSB (which expects Core 1 for some operations)
 
-**GDB commands for debugging:**
-```bash
-# Start OpenOCD
-taskkill //F //IM openocd.exe 2>/dev/null; sleep 2; /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/openocd -s /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/scripts -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 5000" &
+**Recommended Path Forward:**
+1. **Option A**: Switch to single-core mode (`configNUMBER_OF_CORES=1`) - proven stable
+2. **Option B**: Pin a real task to Core 1 instead of leaving it idle-only
+3. **Option C**: Update FreeRTOS-Kernel to latest and check for fixes
 
-# Flash and run
-cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "load" -ex "monitor reset run"
-
-# Get backtrace after crash
-arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor halt" -ex "bt"
-```
+**Key files modified (this session):**
+- `lib/ap_compat/AP_HAL_RP2350/Scheduler.cpp` - placement new for Semaphore
+- `lib/ap_compat/AP_HAL_RP2350/DeviceBus.cpp` - placement new for Semaphore, pointer instead of member
+- `lib/ap_compat/AP_HAL_RP2350/DeviceBus.h` - changed Semaphore to pointer + storage
+- `lib/ap_compat/AP_HAL_RP2350/I2CDevice.cpp` - use get_semaphore()
+- `FreeRTOSConfig.h` - dual-core enabled (configNUMBER_OF_CORES=2)
 
 ---
 

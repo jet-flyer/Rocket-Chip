@@ -87,13 +87,15 @@ taskkill //F //IM openocd.exe 2>/dev/null; sleep 2; /c/Users/pow-w/.pico-sdk/ope
 ```
 
 ### GDB Connection (single line - multiline doesn't work well in bash)
+**IMPORTANT:** Use Pico SDK's GDB (14_2_Rel1), NOT Chocolatey's arm-none-eabi-gdb. The Chocolatey version has connection issues with OpenOCD 0.12.0+dev.
+
 ```bash
-cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "bt"
+cd /c/Users/pow-w/Documents/Rocket-Chip && /c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "bt"
 ```
 
 ### Flash and Run via GDB
 ```bash
-cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "load" -ex "monitor reset run"
+cd /c/Users/pow-w/Documents/Rocket-Chip && /c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "load" -ex "monitor reset run"
 ```
 
 ---
@@ -127,6 +129,21 @@ cd /c/Users/pow-w/Documents/Rocket-Chip && arm-none-eabi-gdb build/rocketchip.el
    ```
 
    **Why `pkill openocd` didn't work:** The `pkill` command is not available in Windows Git Bash. Use `taskkill //F //IM openocd.exe` instead.
+
+8. **GDB "Remote communication error" / "Target disconnected" (error 10061)** - **RESOLVED**
+
+   **Root cause identified (2026-02-01):** Version mismatch between Chocolatey's arm-none-eabi-gdb (10.2, from 2021) and Pico SDK's OpenOCD (0.12.0+dev, from 2025).
+
+   **Solution:** Use Pico SDK's GDB instead of Chocolatey's:
+   ```bash
+   # WRONG - Chocolatey GDB (fails with "Target disconnected")
+   arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" ...
+
+   # CORRECT - Pico SDK GDB
+   /c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" ...
+   ```
+
+   **Symptoms:** Port 3333 appears open (`netstat -an | grep 3333`), Python can connect, but GDB reports "Remote communication error. Target disconnected.: (undocumented errno 10061)".
 
 ---
 

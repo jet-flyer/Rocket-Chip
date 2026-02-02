@@ -136,8 +136,11 @@ void hal_init() {
     // Initialize scheduler if FreeRTOS is running
     if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
         g_scheduler.init();
-        // Note: Storage flushing is now handled by dedicated storage_task in Scheduler.cpp
-        // (per ESP32 HAL pattern) - no need to register_timer_process here
+
+        // Register storage timer tick for AP_Param persistence
+        // Without this, set_and_save() queues writes but they never flush to flash
+        hal.scheduler->register_timer_process(
+            FUNCTOR_BIND(&g_storage, &Storage::_timer_tick, void));
     }
 
     // Initialize remaining subsystems

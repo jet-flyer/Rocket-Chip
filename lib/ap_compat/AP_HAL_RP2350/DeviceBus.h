@@ -36,7 +36,18 @@ class DeviceBus {
 public:
     DeviceBus(uint8_t thread_priority);
 
-    Semaphore semaphore;
+    // Must call init_semaphore() before using semaphore
+    // Cannot construct Semaphore during static init (FreeRTOS not ready)
+    void init_semaphore();
+
+    Semaphore* get_semaphore() { return semaphore; }
+
+private:
+    // Deferred initialization - semaphore is nullptr until init_semaphore() called
+    Semaphore* semaphore;
+    alignas(Semaphore) uint8_t semaphore_storage[sizeof(Semaphore)];
+
+public:
 
     AP_HAL::Device::PeriodicHandle register_periodic_callback(
         uint32_t period_usec,

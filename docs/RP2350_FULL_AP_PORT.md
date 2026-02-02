@@ -604,6 +604,50 @@ static void readIMU() {
 
 ---
 
+### PD15: FreeRTOS SMP Core 1 Passive Idle Task Crashes
+
+**Category:** RTOS
+**Discovered:** 2026-02-02
+**Severity:** Critical
+**Status:** Documented (Investigation incomplete)
+
+**STM32 Behavior:**
+ArduPilot runs on single-core STM32. No multi-core scheduler concerns.
+
+**RP2350 Behavior:**
+When FreeRTOS SMP is configured for dual-core (`configNUMBER_OF_CORES=2`), Core 1 runs the `prvPassiveIdleTask` when no other tasks are scheduled for it. On RP2350, Core 1 has been observed to crash/exit to bootrom (PC=0x000000da, which is WFE loop in bootrom) during normal operation.
+
+**Symptoms:**
+1. Core 1 launches successfully - GDB shows `prvPassiveIdleTask` running initially
+2. After some time (seconds to minutes), Core 1 ends up at 0x000000da (bootrom WFE)
+3. Core 0 continues executing normally (I2C transfers, sensor reads work)
+4. When Core 0 attempts to acquire FreeRTOS scheduler spinlocks (e.g., from USB ISR), it deadlocks
+5. No stack overflow detected - stack fill pattern `0xa5a5a5a5` remains intact
+
+**Investigation Notes:**
+- All application tasks are pinned to Core 0 using `vTaskCoreAffinitySet(handle, (1 << 0))`
+- Only FreeRTOS's passive idle task runs on Core 1
+- The issue may be in FreeRTOS-Kernel's RP2350 SMP port (`portable/ThirdParty/GCC/RP2350_ARM_NTZ/`)
+- TinyUSB expects Core 1 for some operations, which may conflict
+
+**Workaround Options:**
+1. **Single-core mode**: Set `configNUMBER_OF_CORES=1` - proven stable
+2. **Pin work to Core 1**: Give Core 1 a real task instead of just idle
+3. **Update FreeRTOS**: Check for fixes in newer FreeRTOS-Kernel releases
+
+**Files Affected:**
+- `FreeRTOSConfig.h` - Core count configuration
+- `FreeRTOS-Kernel/portable/ThirdParty/GCC/RP2350_ARM_NTZ/` - SMP port code
+
+**References:**
+- FreeRTOS SMP documentation
+- RP2350 SMP port in FreeRTOS-Kernel
+
+**Source URLs:**
+- https://forums.raspberrypi.com/viewtopic.php?t=389724 (RP2350 FreeRTOS SMP discussion)
+
+---
+
 ## Future Entries Template
 
 Copy this template when adding new platform differences:
