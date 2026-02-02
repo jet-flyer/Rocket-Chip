@@ -20,6 +20,23 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-02-002 | Nathan (via Claude Opus council review) | architecture
+
+**Sensor Fusion Architecture: ESKF + MMAE**
+
+Changed sensor fusion approach from ArduPilot EKF3 extraction to custom Error-State Kalman Filter (ESKF) with Multiple Model Adaptive Estimation (MMAE) bank for anomaly resilience.
+
+- Added `docs/ESKF/FUSION_ARCHITECTURE_DECISION.md` - full rationale and design
+- Added `docs/ESKF/FUSION_ARCHITECTURE.md` - reference document
+- Updated SAD.md §5.4 (fusion), §10 (Phase 4), key decisions table, open questions
+- Updated SCAFFOLDING.md FusionTask descriptions
+- AP_HAL_RP2350 still used for calibration/math/storage - NOT for fusion
+- Added `.claude/PROTECTED_FILES.md` - files requiring explicit permission to edit
+
+**Note:** Specific numerical parameters (state counts, filter counts, latencies) pending systematic review before implementation.
+
+---
+
 ### 2026-02-02-001 | Claude Code CLI | architecture
 
 **Branch Reorganization - Fresh Start with Bespoke FreeRTOS**

@@ -25,7 +25,8 @@ This document defines the software architecture for RocketChip, a modular motion
 |----------|--------|-----------|
 | RTOS | FreeRTOS (all tiers) | Deterministic timing, task isolation, foundation for Titan features |
 | Codebase | Unified | Single source, feature flags, easier maintenance |
-| ArduPilot | AP_HAL_RP2350 implementation | Genuine HAL enables direct ArduPilot library usage without ChibiOS port |
+| Sensor Fusion | Custom ESKF + MMAE | Faster than AP EKF3, no extraction dependencies, community-extensible hypothesis libraries |
+| ArduPilot | AP_HAL_RP2350 for calibration/math/storage | Proven utilities without full autopilot overhead; NOT used for fusion |
 | Sensor Bus | I2C with Qwiic | Stress test high utilization; Qwiic on Core for easy sensor additions |
 | Telemetry | MAVLink over LoRa | GCS compatibility, proven protocol |
 | Logging | User-configurable | MAVLink binary default; CSV and MATLAB export options |
@@ -552,23 +553,51 @@ The RP2350's dual Cortex-M33 cores enable clean separation:
 
 ### 5.4 Sensor Fusion
 
-RocketChip uses an EKF3-derived Extended Kalman Filter (22 states, wind removed) plus GSF yaw backup.
+> **Architecture Decision:** See `docs/ESKF/FUSION_ARCHITECTURE_DECISION.md` for full rationale.
+> **Note:** Specific numerical parameters (state counts, filter counts, latency budgets) are pending systematic review.
 
-| State Group | Count | Description |
-|-------------|-------|-------------|
-| Attitude | 4 | Quaternion (NED to body) |
-| Velocity | 3 | NED frame (m/s) |
-| Position | 3 | NED frame (m) |
-| Gyro bias | 3 | rad/s |
-| Accel bias | 3 | m/s² (full 3-axis, key EKF3 feature) |
-| Mag earth | 3 | Earth field NED (gauss) |
-| Mag body | 3 | Body field (gauss) |
+RocketChip uses a custom **Error-State Kalman Filter (ESKF)** with **Multiple Model Adaptive Estimation (MMAE)** for anomaly resilience. This replaces the previously planned EKF3 extraction approach.
 
-GSF (Gaussian Sum Filter) runs in parallel for emergency yaw recovery from GPS velocity when mag is unreliable.
+#### ESKF State Vector (15 elements — *pending review*)
 
-**Tier differences:** Core/Main uses single IMU at 200Hz. Titan adds second IMU with chi-squared cross-checking at 400Hz.
+| State Group     | Count | Description                           |
+|-----------------|-------|---------------------------------------|
+| Attitude error  | 3     | Rotation error vector (NOT quaternion) |
+| Velocity error  | 3     | NED frame (m/s)                       |
+| Position error  | 3     | NED frame (m)                         |
+| Gyro bias       | 3     | rad/s                                 |
+| Accel bias      | 3     | m/s²                                  |
 
-Reference: ArduPilot AP_NavEKF3
+The nominal state (full quaternion + position + velocity) is propagated separately through the nonlinear model. The ESKF tracks deviations from this nominal. After each measurement update, the error correction is folded back into the nominal state and the error state resets to zero.
+
+#### Architecture (Three-Layer Separation)
+
+```
+Mission Config → selects → Hypothesis Library (validated process models)
+Hypothesis Library → initializes → MMAE Filter Bank (parallel ESKFs)
+MMAE Filter Bank → feeds → Confidence Gate (platform-level, NOT configurable)
+Confidence Gate → signals → Mission Engine (state estimate + confidence flag)
+
+Independent AHRS (Mahony) runs alongside as cross-check → feeds Confidence Gate
+```
+
+#### Tier Differences (*filter counts and latencies pending review*)
+
+| Tier | Filter Configuration | AHRS Cross-Check | Confidence Gate |
+|------|---------------------|------------------|-----------------|
+| Core | Single ESKF | Yes (Mahony) | No |
+| Titan | MMAE bank of parallel ESKFs | Yes (Mahony) | Yes |
+| Gemini | Dual MCU, each with MMAE bank | Yes | Yes + cross-MCU validation |
+
+#### Implementation Foundation
+
+- **Matrix math:** CMSIS-DSP (ARM's optimized library for Cortex-M)
+- **Custom code:** ESKF class, MMAE bank manager, confidence gate, hypothesis interface
+- **NOT using:** ArduPilot EKF3, PX4 ECL, TinyEKF, Eigen, or any external filter framework
+
+#### References
+- Solà, J. "Quaternion kinematics for the error-state Kalman filter" (2017)
+- Groves, P. "Principles of GNSS, Inertial, and Multisensor Integrated Navigation Systems"
 
 ---
 
@@ -932,13 +961,16 @@ GPS integration and sensor fusion preparation.
 - [ ] GPS + barometer fusion for altitude
 
 ### Phase 4: Sensor Fusion 🧭 **PLANNED**
-AHRS and state estimation.
+ESKF navigation and state estimation. See `docs/ESKF/FUSION_ARCHITECTURE_DECISION.md`.
 
-- [ ] AP_Math integration
-- [ ] EKF3 core (22-state filter, wind removed)
-- [ ] GSF yaw estimator (backup for mag failures)
-- [ ] FusionTask (200Hz AHRS, altitude, velocity)
-- [ ] FusedState data structure
+- [ ] AP_Math integration (vectors, quaternions, matrices)
+- [ ] ESKF core (15-state error-state filter) — *state count pending review*
+- [ ] Independent AHRS cross-check (Mahony)
+- [ ] FusionTask (200-400Hz full navigation solution) — *frequency pending review*
+- [ ] FusedState data structure (attitude, position, velocity, confidence flag)
+- [ ] MMAE bank manager (Titan tier) — *filter count pending review*
+- [ ] Confidence gate (Titan tier)
+- [ ] Hypothesis interface specification
 
 ### Phase 5: Mission Engine 🚀 **PLANNED**
 Core flight logic and state machine.
@@ -1131,7 +1163,7 @@ Quick reference for which SAD sections are critical for each development phase.
 | **1: Foundation** | 1-2 | Build Config, Task Priorities, HAL Interfaces | Directory Structure, Fault Handling |
 | **2: Sensors** | 3-4 | Data Structures, HAL Interfaces, Task Architecture | Hardware Specs, Data Flow |
 | **3: GPS** | 5 | GPS Interface, GPS Pack specs | Data Flow |
-| **4: Fusion** | 6-7 | FusedState struct, FusionTask, EKF3, GSF | RAM Allocation |
+| **4: Fusion** | 6-7 | FusedState struct, FusionTask, ESKF, MMAE | RAM Allocation |
 | **5: Core Logic** | 8-9 | State Machine, Module Responsibilities, Inter-Task Comm | MissionEngine subsections |
 | **6: Storage** | 10-11 | Pre-Launch Buffer, Logging Format, Flash Allocation | Storage Interface |
 | **7: Telemetry** | 12-13 | Radio Interface, MAVLink, TelemetryTask | Telemetry Pack specs |
@@ -1154,6 +1186,7 @@ Quick reference for which SAD sections are critical for each development phase.
 | Sensor bus | I2C with Qwiic connector on Core for expandability |
 | Configuration storage | AP_FlashStorage + StorageManager (Tier 1). See Section 9.2. |
 | Calibration persistence | AP_FlashStorage CalibrationStore region (512B at offset 0). See Section 9.4. |
+| Sensor fusion algorithm | Custom ESKF + MMAE bank (not AP EKF3 extraction). Council reviewed 2026-02-02. See `docs/ESKF/`. |
 
 ### Still Open
 
@@ -1175,6 +1208,8 @@ Quick reference for which SAD sections are critical for each development phase.
 - [MAVLink Protocol](https://mavlink.io/en/)
 - RocketChip Architecture v3 (internal)
 - RocketChip Mission Engine Architecture v2 (internal)
+- Solà, J. "Quaternion kinematics for the error-state Kalman filter" (2017) — ESKF reference
+- Groves, P. "Principles of GNSS, Inertial, and Multisensor Integrated Navigation Systems"
 
 ---
 

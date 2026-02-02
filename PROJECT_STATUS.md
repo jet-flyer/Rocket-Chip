@@ -45,6 +45,7 @@ None - clean slate.
 - `docs/SAD.md` - Software Architecture Document
 - `docs/SCAFFOLDING.md` - Directory structure
 - `docs/ROCKETCHIP_OS.md` - CLI design
+- `docs/ESKF/` - Sensor fusion architecture (ESKF + MMAE, replaces EKF3 plan)
 
 ## Back Burner
 

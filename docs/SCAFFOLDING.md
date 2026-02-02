@@ -97,7 +97,7 @@ rocketchip/
 │   │
 │   ├── services/                  # FreeRTOS Tasks
 │   │   ├── SensorTask.h/.cpp      # High-rate sensor sampling
-│   │   ├── FusionTask.h/.cpp      # AHRS, altitude, velocity
+│   │   ├── FusionTask.h/.cpp      # ESKF navigation, MMAE bank (Titan)
 │   │   ├── MissionTask.h/.cpp     # Event/state processing
 │   │   ├── LoggerTask.h/.cpp      # Data logging to storage
 │   │   ├── TelemetryTask.h/.cpp   # MAVLink transmission
@@ -187,7 +187,7 @@ rocketchip/
 | **ActionExecutor** | Execute actions (log, beep, LED, pyro, etc.) |
 | **Condition** | Parse and evaluate condition expressions |
 | **SensorTask** | Sample IMU/Baro/GPS at configured rates |
-| **FusionTask** | AHRS, altitude estimation, velocity integration |
+| **FusionTask** | ESKF navigation, MMAE bank management (Titan), AHRS cross-check |
 | **LoggerTask** | Buffer data, write to flash, manage pre-launch buffer |
 | **TelemetryTask** | Encode MAVLink, transmit via radio |
 | **UITask** | Update display, handle buttons, drive LED patterns |
@@ -198,7 +198,7 @@ rocketchip/
 |------|----------|------|-------|------|-------|
 | SensorTask | 5 (highest) | 1kHz | 1KB | 0 | Hard real-time, DMA preferred |
 | ControlTask | 5 | 500Hz | 1KB | 0 | Only active during BOOST (Titan) |
-| FusionTask | 4 | 200Hz | 2KB | 1 | AHRS, altitude calc |
+| FusionTask | 4 | 200-400Hz | 2KB | 1 | ESKF navigation (see docs/ESKF/) |
 | MissionTask | 4 | 100Hz | 2KB | 1 | State machine, events |
 | LoggerTask | 3 | 50Hz | 2KB | 1 | Buffered writes |
 | TelemetryTask | 2 | 10Hz | 1KB | 1 | MAVLink over LoRa |
@@ -256,7 +256,7 @@ This section provides a high-level snapshot:
 - See SAD.md Section 10 for full checklist
 
 **Phases 3-9: Mission Engine, Fusion, Storage, Telemetry, UI** - 📋 **PLANNED**
-- State machine, EKF3 sensor fusion, MAVLink telemetry, flash logging
+- State machine, ESKF + MMAE sensor fusion (see `docs/ESKF/`), MAVLink telemetry, flash logging
 - See SAD.md Section 10 for full roadmap
 
 **File-Level Details:**

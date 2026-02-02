@@ -1,4 +1,5 @@
 @AK_GUIDELINES.md
+@PROTECTED_FILES.md
 
 @../README.md
 @../standards/CODING_STANDARDS.md
