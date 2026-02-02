@@ -26,7 +26,7 @@ Expansion modules following rocketry-themed naming (specific names TBD when boar
 | Function | Part | Adafruit P/N | Specs | Notes |
 |----------|------|--------------|-------|-------|
 | MCU | Feather RP2350 HSTX | #6130 | Dual M33 @ 150MHz, 520KB SRAM, 8MB PSRAM | Primary dev board |
-| IMU | ISM330DHCX + LIS3MDL FeatherWing | #4569 | 9-DoF, ISM330DHCX accel/gyro + LIS3MDL mag | FeatherWing, I2C |
+| IMU | ICM-20948 9-DoF | #4554 | 9-axis (accel/gyro/mag), ArduPilot Invensensev2 | STEMMA QT/I2C, 0x69 (default) |
 | Barometer | DPS310 | #4494 | ±1Pa precision | STEMMA QT/I2C |
 | Battery | Li-Ion 400mAh | #3898 | 3.7V, fits between Feather headers | |
 | Debug | SWD Debug Probe | #5699 | RP2040/RP2350 compatible | For crash debugging, timing analysis |
@@ -79,6 +79,20 @@ Available for testing but not in active prototype:
 | PA1010D Mini GPS | #4415 | 10Hz, -165dBm, STEMMA QT - on hand |
 | Ultimate GPS FeatherWing | #3133 | FeatherWing form factor - on hand |
 
+#### GPS Interface Note
+
+**Current approach:** PA1010D via I2C (Qwiic/STEMMA QT). The module outputs NMEA sentences over I2C, which we parse directly. This approach:
+- Works with current hardware (no wiring changes)
+- Verified working in `tests/smoke_tests/gps_i2c_test.cpp`
+
+**Alternative approach:** If I2C GPS causes issues (e.g., bus contention, timing problems at high sensor rates), switch to UART:
+- PA1010D also supports UART (requires rewiring TX/RX instead of Qwiic)
+- Ultimate GPS FeatherWing uses UART natively
+- UART enables ArduPilot's `AP_GPS` driver for EKF integration
+- AP_GPS provides parsed position/velocity directly to navigation filter
+
+**Recommendation:** Start with I2C for simplicity. If EKF integration or bus contention becomes problematic, migrate to UART + AP_GPS.
+
 ### Telemetry (Booster Pack)
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
@@ -127,29 +141,26 @@ Studied for hardware/software architecture:
 | Feather M0 Basic Proto | #2772 | RX bridge MCU - hosts RFM95W breakout |
 | Adafruit Fruit Jam | - | RP2350 mini computer - candidate for GCS platform |
 
-### Ground Station RX Bridge
+### Ground Station
 
-**Status**: TODO
+**Status**: Planning to use Adafruit Fruit Jam with RC GCS code
 
-Using Feather M0 + RFM95W breakout as the ground station receiver bridge:
-- **Firmware**: Bare metal (no Arduino) - receives LoRa packets and forwards over USB CDC
-- **Wiring**: Per Adafruit RFM95W guide (SPI + CS/RST/IRQ)
-- **Flashing**: UF2 bootloader (double-tap reset)
+**Previous approach (deprecated)**: Feather M0 + RFM95W breakout as RX bridge - code in `ground_station/` for reference only.
 
 ### Radio Configuration
 
-**Status**: TODO - Must define shared settings for TX (rocket) and RX (ground station)
+Radio parameters are configured in `src/hal/Radio_RFM95W.cpp`:
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| Frequency | TBD | 915 MHz band (US ISM) |
-| Spreading Factor | TBD | SF7-SF12, trade range vs data rate |
-| Bandwidth | TBD | 125/250/500 kHz |
-| Coding Rate | TBD | 4/5 to 4/8 |
-| Sync Word | TBD | Private network identifier |
-| TX Power | TBD | Max +20 dBm for RFM95W |
+| Frequency | 915.0 MHz | US ISM band |
+| Spreading Factor | SF7 | Fastest, ~5.5 kbps |
+| Bandwidth | 125 kHz | Standard LoRa |
+| Coding Rate | 4/5 | Minimum error correction |
+| Sync Word | 0x12 | Private network |
+| TX Power | +20 dBm | Maximum legal for ISM |
 
-These settings must match exactly between rocket TX and ground station RX.
+**Note**: Ground station must use matching settings. See `ground_station/radio_rx.cpp` for reference implementation (deprecated).
 
 ## Market Benchmarks
 
@@ -355,10 +366,11 @@ The 22-pin HSTX connector on the back provides:
 
 | Address | Device | Notes |
 |---------|--------|-------|
-| 0x6A or 0x6B | ISM330DHCX | Primary IMU accel/gyro (FeatherWing #4569) |
-| 0x1C or 0x1E | LIS3MDL | Primary magnetometer (FeatherWing #4569) |
+| 0x68 or 0x69 | ICM-20948 | Primary 9-axis IMU (accel/gyro/AK09916 mag) |
 | 0x77 or 0x76 | DPS310 | Barometer |
-| 0x68 or 0x69 | ICM-20948 | Auxiliary IMU (if used) |
+| 0x10 | PA1010D | GPS module |
+| 0x6A or 0x6B | ISM330DHCX | Auxiliary IMU (if used) |
+| 0x1C or 0x1E | LIS3MDL | Auxiliary magnetometer (if used) |
 | 0x28 or 0x29 | BNO055 | Auxiliary IMU (if used) |
 
 ### Known Conflicts

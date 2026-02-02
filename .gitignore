@@ -1,6 +1,3 @@
-# PlatformIO build artifacts
-.pio/
-
 # CMake build artifacts
 build/
 cmake-build-*/
@@ -12,7 +9,7 @@ compile_commands.json
 
 # VSCode temps
 .vscode/c_cpp_properties.json
-.vscode/launch.json  # Comment out if you want to commit debug configs
+.vscode/launch.json
 
 # General editor/OS files
 .idea/
@@ -53,9 +50,6 @@ CLAUDE.local.md
 *.uf2
 *.elf
 *.bin
-tmpclaude-*
 
-# Experimental test files
-tests/smoke_tests/freertos_static_test.cpp
-tests/smoke_tests/freertos_with_hal_include.cpp
-tests/smoke_tests/minimal_blink.cpp
+# Temporary test files
+tmpclaude-*

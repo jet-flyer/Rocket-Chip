@@ -3,17 +3,4 @@
 	url = https://github.com/raspberrypi/pico-sdk.git
 [submodule "FreeRTOS-Kernel"]
 	path = FreeRTOS-Kernel
-	url = https://github.com/raspberrypi/FreeRTOS-Kernel.git
-[submodule "lib/st_drivers/ism330dhcx-pid"]
-	path = lib/st_drivers/ism330dhcx-pid
-	url = https://github.com/STMicroelectronics/ism330dhcx-pid.git
-[submodule "lib/st_drivers/lis3mdl-pid"]
-	path = lib/st_drivers/lis3mdl-pid
-	url = https://github.com/STMicroelectronics/lis3mdl-pid.git
-[submodule "lib/st_drivers/ruuvi-dps310"]
-	path = lib/st_drivers/ruuvi-dps310
-	url = https://github.com/ruuvi/ruuvi.dps310.c.git
-[submodule "lib/ardupilot"]
-	path = lib/ardupilot
-	url = https://github.com/ArduPilot/ardupilot.git
-	shallow = true
+	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git

@@ -2,7 +2,7 @@
 
 **Purpose**: Track deviations from project coding standards (JSF AV C++, DEBUG_OUTPUT.md, CODING_STANDARDS.md) with severity, remediation difficulty, and rationale.
 
-**Last Updated**: 2026-01-21 (Revision 3 - Council-approved full resolution)
+**Last Updated**: 2026-02-02 (Fresh start - post branch reorganization)
 
 ---
 
@@ -29,172 +29,13 @@
 
 ## Active Deviations
 
-### 1. ArduPilot Library Deviations
-
-**Location**: `lib/ardupilot/` (external code)
-
-**Standard Violated**: Multiple JSF rules
-
-**Severity**: Accepted
-**Difficulty**: N/A
-**Status**: Permanently Accepted
-
-**Rationale**: ArduPilot is external, battle-tested code. Per `CODING_STANDARDS.md` "ArduPilot Library Integration" section, we accept ArduPilot's coding style within their libraries and use the shim layer (`lib/ap_compat/`) to bridge to RocketChip conventions.
-
-**Policy**:
-- No modifications to ArduPilot source files
-- Shim layer follows RocketChip standards
-- ArduPilot deviations are not tracked individually
+*No active deviations - starting fresh with bespoke implementation.*
 
 ---
 
-### 2. Dynamic Memory Allocation in Test Code
+## Resolved
 
-**Location**: [calibration_test.cpp:155](tests/smoke_tests/calibration_test.cpp#L155)
-```cpp
-statusLed = new WS2812(NEOPIXEL_PIN, 1);
-```
-
-**Standard Violated**: JSF AV Rule 206 - "Allocation/deallocation from/to the free store shall not occur after initialization"
-
-**Severity**: Low
-**Difficulty**: Easy
-**Status**: Accepted for test code
-
-**Rationale**: This is test/smoke code, not flight code. Dynamic allocation at startup is acceptable for interactive test utilities. Production code in `src/` uses static allocation.
-
-**Remediation**: If this code moves to production, change to:
-```cpp
-static WS2812 statusLedInstance(NEOPIXEL_PIN, 1);
-WS2812* statusLed = &statusLedInstance;
-```
-
----
-
-### 3. Use of Primitive Types in Test Code
-
-**Location**: [calibration_test.cpp](tests/smoke_tests/calibration_test.cpp) (multiple)
-```cpp
-uint8_t orientation = 0;       // Line 226
-bool collectingSamples = false; // Line 229
-float brightness = ...;         // Line 85
-```
-
-**Standard Violated**: JSF AV Rule 209 - "The basic types of char, int, short, long, float, double shall not be used"
-
-**Severity**: Low
-**Difficulty**: Trivial
-**Status**: Accepted for test code
-
-**Rationale**:
-- `uint8_t` is a fixed-width type and compliant
-- `bool` is explicitly allowed in C++
-- `float` usage in test code is acceptable; ArduPilot library uses `float` internally
-
-**Remediation**: For production code, define project-wide typedefs:
-```cpp
-typedef float  float32_t;
-typedef double float64_t;
-```
-
----
-
-## Resolved Deviations
-
-### R1. USB CDC Wait Pattern (FIXED 2026-01-21)
-
-**Location**: [calibration_test.cpp](tests/smoke_tests/calibration_test.cpp)
-
-**Standard Violated**: DEBUG_OUTPUT.md USB CDC handling pattern
-
-**Resolution**: Updated to match DEBUG_OUTPUT.md pattern:
-- Visual feedback during USB wait (magenta blink)
-- 500ms settle time after connection
-- LED indicates "connect terminal now" state
-
----
-
-### R2. Naming Convention Deviations (FIXED 2026-01-21)
-
-**Location**: [calibration_test.cpp](tests/smoke_tests/calibration_test.cpp), `src/main.cpp`, `src/services/SensorTask.cpp`
-
-**Standard Violated**: JSF AV Rule 50-53 (naming conventions)
-
-**Resolution**: Updated all identifiers to follow naming conventions:
-- Constants now use `k` prefix: `kNeoPixelPin`, `kLedPin`, `kUiTaskPriority`, `kI2cSda`, etc.
-- Global variables use `g_` prefix: `g_statusLed`, `g_sensorData`, `g_sensorDataMutex`, etc.
-- Module state clearly sectioned with comments
-
----
-
-### R3. Magic Numbers (FIXED 2026-01-21)
-
-**Location**: [calibration_test.cpp](tests/smoke_tests/calibration_test.cpp) (multiple)
-
-**Standard Violated**: JSF AV Rule 151 - "Magic numbers shall not be used"
-
-**Resolution**: Added configuration constants section at top of file:
-```cpp
-// Timing constants (in milliseconds)
-static constexpr uint32_t kUsbWaitBlinkMs = 200;
-static constexpr uint32_t kUsbSettleTimeMs = 500;
-// ... etc.
-```
-All magic numbers throughout the code now reference these constants.
-
----
-
-### R4. Raw printf Usage (FIXED 2026-01-21)
-
-**Location**: `src/main.cpp`, `src/services/SensorTask.cpp`
-
-**Standard Violated**: DEBUG_OUTPUT.md - diagnostic output should be compile-time guardable
-
-**Resolution**: Introduced compile-time guarded debug macros in `include/debug.h`:
-```cpp
-#ifdef CONFIG_DEBUG
-#define DBG_PRINT(fmt, ...) printf(fmt, ##__VA_ARGS__)
-#define DBG_ERROR(fmt, ...) printf(fmt, ##__VA_ARGS__)
-#else
-#define DBG_PRINT(fmt, ...) do {} while(0)
-#define DBG_ERROR(fmt, ...) do {} while(0)
-#endif
-```
-All diagnostic printf in production src/ code replaced with DBG_PRINT/DBG_ERROR.
-Fatal hooks (malloc/stack failure) retain minimal printf for post-mortem debugging plus LED blink codes.
-
----
-
-### R5. Error Handling Strategy Undefined (FIXED 2026-01-21)
-
-**Location**: [AP_InternalError.h](lib/ap_compat/AP_InternalError/AP_InternalError.h)
-
-**Standard Violated**: CODING_STANDARDS.md "Error Handling" section (implicit)
-
-**Previous Status**: Pending council decision
-
-**Council Decision (2026-01-21)**: Approved Option A - Full ArduPilot AP_InternalError integration
-
-**Resolution**: Implemented full AP_InternalError with:
-- Error accumulation bitmask (`AP_InternalError::errors()`)
-- Error count tracking (`AP_InternalError::count()`)
-- Integration with DBG_ERROR debug macro
-- Fatal paths (malloc/stack hooks, scheduler return) routed to `AP_InternalError::error()` with appropriate enum values
-- Placeholder for MAVLink STATUS_TEXT integration when telemetry available
-
----
-
-## Deviations by File
-
-| File | Critical | High | Medium | Low | Accepted | Fixed |
-|------|:--------:|:----:|:------:|:---:|:--------:|:-----:|
-| `src/main.cpp` | 0 | 0 | 0 | 0 | 0 | 2 |
-| `src/services/SensorTask.cpp` | 0 | 0 | 0 | 0 | 0 | 2 |
-| `tests/smoke_tests/calibration_test.cpp` | 0 | 0 | 0 | 2 | 0 | 3 |
-| `lib/ap_compat/*` | 0 | 0 | 0 | 0 | 0 | 1 |
-| `lib/ardupilot/*` | 0 | 0 | 0 | 0 | 1 | 0 |
-
-**Summary**: 8 deviations resolved, 3 remaining (2 accepted for test code, 1 permanently accepted for external library).
+*Previous deviations archived with `AP_FreeRTOS` branch.*
 
 ---
 
@@ -209,6 +50,4 @@ Fatal hooks (malloc/stack failure) retain minimal printf for post-mortem debuggi
 
 1. Test code (`tests/`) has relaxed standards enforcement to enable rapid validation
 2. Production code (`src/`) must strictly follow all standards
-3. External libraries are accepted as-is with shim layer bridging
-4. New deviations should be logged here before merging to main
-5. Debug output can be disabled for release builds via `-DCONFIG_DEBUG=OFF`
+3. New deviations should be logged here before merging to main

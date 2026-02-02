@@ -2,7 +2,7 @@
 
 This document defines the target directory structure for the RocketChip firmware.
 Created: 2026-01-09
-Updated: 2026-01-14
+Updated: 2026-01-31
 
 ## Build System
 
@@ -81,7 +81,7 @@ rocketchip/
 │   │   ├── UART.h/.cpp            # Serial communication
 │   │   ├── BoardDetect.h/.cpp     # Runtime board/pack detection
 │   │   ├── IMU.h                  # IMU interface
-│   │   ├── IMU_ISM330DHCX.cpp     # ISM330DHCX 6-DOF driver
+│   │   ├── IMU_ICM20948.cpp       # ICM-20948 9-DOF driver (primary)
 │   │   ├── Mag_LIS3MDL.cpp        # LIS3MDL magnetometer driver
 │   │   ├── Baro.h                 # Barometer interface
 │   │   ├── Baro_DPS310.cpp        # DPS310 driver
@@ -123,26 +123,34 @@ rocketchip/
 │       └── CRC.h                  # CRC calculations
 │
 ├── lib/                           # External libraries
-│   ├── ap_compat/                 # ArduPilot compatibility layer
+│   ├── ap_compat/                 # ArduPilot compatibility layer (36+ directories)
 │   │   ├── AP_HAL_Compat.h        # Config, feature flags, utility macros
 │   │   ├── AP_HAL/                # Stub headers for AP includes [SEE NOTE 1]
+│   │   ├── AP_HAL_RP2350/         # Platform HAL implementation
+│   │   │   ├── AP_HAL_RP2350.h    # Main include
+│   │   │   ├── HAL_RP2350_Class.* # HAL singleton
+│   │   │   ├── Scheduler.*        # FreeRTOS task/timer mapping
+│   │   │   ├── Semaphores.*       # Mutex/BinarySemaphore
+│   │   │   ├── Util.*             # Memory, system ID, arming
+│   │   │   ├── Storage.*          # Flash storage [IMPLEMENTED]
+│   │   │   ├── I2CDevice.*        # I2C bus manager [IMPLEMENTED]
+│   │   │   ├── SPIDevice.*        # SPI bus manager [IMPLEMENTED]
+│   │   │   ├── DeviceBus.*        # Device polling thread [IMPLEMENTED]
+│   │   │   └── hwdef.h            # Board definitions
+│   │   ├── AP_InertialSensor/     # IMU abstraction with std::atomic fix (PD12)
 │   │   ├── AP_InternalError/      # Error reporting
-│   │   └── AP_HAL_RP2350/         # Platform HAL implementation
-│   │       ├── AP_HAL_RP2350.h    # Main include
-│   │       ├── HAL_RP2350_Class.* # HAL singleton
-│   │       ├── Scheduler.*        # FreeRTOS task/timer mapping
-│   │       ├── Semaphores.*       # Mutex/BinarySemaphore
-│   │       ├── Util.*             # Memory, system ID, arming
-│   │       ├── Storage.*          # Flash storage [IMPLEMENTED]
-│   │       └── hwdef.h            # Board definitions
-│   ├── ardupilot/                 # ArduPilot libraries (unchanged copies)
+│   │   ├── GCS_MAVLink/           # MAVLink GCS integration [IMPLEMENTED]
+│   │   ├── RocketChip/            # RocketChip-specific hwdef
+│   │   └── stubs/                 # Additional ArduPilot stubs
+│   ├── ardupilot/                 # ArduPilot libraries (sparse checkout)
 │   │   ├── AP_Math/               # Vector, matrix, quaternion math
 │   │   ├── Filter/                # Signal processing filters
 │   │   ├── AP_AccelCal/           # Accelerometer calibration
-│   │   ├── AP_FlashStorage/       # Wear-leveled flash (PLANNED)
-│   │   └── StorageManager/        # Storage regions (PLANNED)
-│   ├── st_drivers/                # ST platform-independent drivers
-│   └── mavlink/                   # MAVLink headers (future)
+│   │   ├── AP_InertialSensor/     # Base sensor interface
+│   │   ├── AP_FlashStorage/       # Wear-leveled flash [IMPLEMENTED]
+│   │   └── StorageManager/        # Storage regions [IMPLEMENTED]
+│   ├── mavlink/                   # MAVLink v2 headers [IMPLEMENTED]
+│   └── st_drivers/                # ST platform-independent drivers (legacy)
 │
 ├── tests/
 │   └── smoke_tests/               # Hardware validation tests
@@ -238,10 +246,12 @@ This section provides a high-level snapshot:
 - See SAD.md Section 10 for full checklist
 
 **Phase 2: Sensors** - ⚙️ **IN PROGRESS**
-- ✅ Hardware drivers complete: ISM330DHCX, LIS3MDL, DPS310, PA1010D GPS, RFM95W radio
+- ✅ Hardware drivers complete: ICM-20948 (ArduPilot Invensensev2), DPS310, PA1010D GPS, RFM95W radio
 - ✅ Smoke tests validated on hardware
-- ✅ Ground station RX bridge implemented
-- ❌ FreeRTOS SensorTask (high-rate sampling) - pending
+- ✅ FreeRTOS SensorTask (high-rate sampling) - **COMPLETE**
+- ✅ AP_HAL_RP2350 - GPIO, AnalogIn, UART, I2C, SPI all validated
+- ✅ std::atomic fix for dual-core memory visibility (PD12) - **COMPLETE**
+- ✅ CLI/RC_OS menu system with MAVLink calibration integration
 - ❌ Data logging to flash - pending
 - See SAD.md Section 10 for full checklist
 
@@ -254,9 +264,12 @@ This section provides a high-level snapshot:
 Implemented files:
 - Build: CMakeLists.txt, build.sh, FreeRTOSConfig.h
 - HAL: HAL, Bus, GPIO, ADC, PWM, PIO, UART, Timing
-- Sensors: IMU_ISM330DHCX, Mag_LIS3MDL, Baro_DPS310, GPS_PA1010D, Radio_RFM95W
+- Sensors: IMU_ICM20948 (primary), Baro_DPS310, GPS_PA1010D, Radio_RFM95W
+- Services: SensorTask (production entry point with calibration support)
+- CLI: RC_OS.h (MAVLink command routing)
+- AP_HAL_RP2350: Scheduler, Semaphores, Util, Storage, I2CDevice, SPIDevice, DeviceBus
 - Tests: Multiple smoke tests (see `tests/smoke_tests/`)
-- Ground station: radio_rx.cpp
+- Ground station: radio_rx.cpp (deprecated - using Fruit Jam for GCS)
 - Docs: SAD, SCAFFOLDING, HARDWARE, standards
 
 ## Related Documents

@@ -263,6 +263,19 @@ When you find yourself writing code that mimics or copies ArduPilot logic (e.g.,
 - Creating compatibility shims that call real ArduPilot code
 - Adding platform-specific implementations in `lib/ap_compat/`
 
+### HAL Adaptation Policy
+
+**When porting HAL code to a new platform, adapt existing implementations rather than writing from scratch.**
+
+For AP_HAL_RP2350, the reference implementation is **AP_HAL_ESP32** (both use FreeRTOS). When implementing HAL components:
+
+1. **Start from the closest working HAL** - Copy the ESP32 implementation as the starting point
+2. **Document adaptations** - Track what's kept verbatim vs. what's platform-adapted in `ESP32_ADAPTATION.md`
+3. **Surgical replacements only** - Replace ESP-IDF API calls with Pico SDK equivalents; don't restructure the code
+4. **No simplified stubs** - If a feature isn't needed yet, use `Empty::` namespace drivers (ArduPilot's pattern), not custom stubs
+
+**Rationale:** The ESP32 HAL team already solved "ArduPilot on FreeRTOS." Their patterns for task creation, semaphores, timing, and callbacks are proven. Platform-specific changes should be API substitutions, not architectural rewrites.
+
 ---
 
 ## Code Verification Process
