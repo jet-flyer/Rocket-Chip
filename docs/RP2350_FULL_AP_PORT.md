@@ -234,26 +234,47 @@ Pico SDK handles this automatically via `boot_stage2`. The SDK's linker scripts 
 
 ---
 
-### PD6: No Official ChibiOS Support
+### PD6: ChibiOS Support Status (Updated 2026-02-02)
 
 **Category:** RTOS
 **Discovered:** 2026-01-24
 **Severity:** High
-**Status:** Documented (Architecture Decision)
+**Status:** Monitored - Progress but critical gaps remain
 
 **STM32 Behavior:**
 ArduPilot uses ChibiOS as its RTOS. Full HAL support exists for STM32F4/F7/H7 families.
 
-**RP2350 Behavior:**
-No official ChibiOS support exists for RP2350. The RP2040 ChibiOS port is incomplete:
-- USB HAL not implemented ("there is not yet a driver in the HAL")
-- Flash boot required community patches
-- XIP execution has cache contention issues
+**RP2350 Behavior (Updated Feb 2026):**
+ChibiOS has made significant progress but critical blockers remain:
 
-ArduPilot's official position: "Until there is an official version of ChibiOS on Pi Pico, we won't support them."
+**What's Now Working (Jan-Feb 2026):**
+- ✅ GPIO/PAL driver
+- ✅ I2C driver
+- ✅ SPI driver
+- ✅ UART driver
+- ✅ USB CDC (fixes landed Jan 31 by emolitor)
+- ✅ ADC registry (added Feb 1)
+- ✅ EFL Flash drivers (added Feb 1)
+- ✅ RP2040 merged to trunk, developer has commit access
+
+**Critical Blockers Still Present:**
+- ❌ **XIP Flash Execution** - Code runs from RAM only. XIP from external flash documented as "future priority" but not functional. Hard blocker for real firmware.
+- ❌ **RP2350 SMP Untested** - ChibiOS has SMP port for Cortex-M0 (RP2040), but Cortex-M33 (RP2350) is untested. Different architecture.
+- ❌ **ArduPilot Integration** - ArduPilot's ChibiOS fork has no RP2040/RP2350 commits. No board definitions.
+
+**ChibiOS SMP Comparison:**
+| Aspect | ChibiOS SMP | FreeRTOS SMP (RocketChip) |
+|--------|-------------|---------------------------|
+| Thread migration | No (static affinity) | Yes (dynamic) |
+| RP2350 M33 tested | No | Yes (PD12-14 fixes) |
+| Memory visibility | Unclear | Solved via barriers + pinning |
+
+ArduPilot's official position unchanged: "Until there is an official version of ChibiOS on Pi Pico, we won't support them."
 
 **Solution:**
-RocketChip uses FreeRTOS SMP + Pico SDK instead of ChibiOS. This is why we're building AP_HAL_RP2350 rather than waiting for upstream ArduPilot support. MadFlight and Betaflight both use this same approach successfully.
+RocketChip continues with FreeRTOS SMP + Pico SDK. Re-evaluated Feb 2026; ChibiOS XIP blocker prevents switching. ~60% of our HAL work transfers if ChibiOS becomes viable later.
+
+**Next Evaluation:** Mid-February 2026. Watch for XIP support and RP2350 SMP testing.
 
 **Files Affected:**
 - Entire `lib/ap_compat/AP_HAL_RP2350/` directory
@@ -261,11 +282,14 @@ RocketChip uses FreeRTOS SMP + Pico SDK instead of ChibiOS. This is why we're bu
 
 **References:**
 - ArduPilot ChibiOS fork: https://github.com/ArduPilot/ChibiOS
+- ChibiOS SMP documentation: http://www.chibios.org/dokuwiki/doku.php?id=chibios:articles:smp_rt7
 
 **Source URLs:**
 - https://github.com/ArduPilot/ardupilot/issues/28266 (ArduPilot RP2350 request)
 - https://discuss.ardupilot.org/t/pi-pico-porting-steps/125846 (Porting discussion)
 - https://github.com/betaflight/betaflight/issues/13943 (Betaflight's successful approach)
+- https://forum.chibios.org/viewtopic.php?f=3&t=6631 (RP2350 support thread, Jan 2026)
+- https://github.com/ChibiOS/ChibiOS/commits/master (Recent RP driver commits)
 
 ---
 

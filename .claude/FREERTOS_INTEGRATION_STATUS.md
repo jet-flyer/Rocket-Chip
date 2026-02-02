@@ -1,12 +1,15 @@
 # FreeRTOS ArduPilot Integration Status
 
 **Created:** 2026-01-26
-**Status:** PAUSED - Evaluating ChibiOS alternative
-**Branch:** `freertos-integration`
+**Last Updated:** 2026-02-02
+**Status:** ACTIVE - FreeRTOS path confirmed as correct approach
+**Branch:** `freertos`
 
 ## Overview
 
-This document captures the state of the FreeRTOS-based ArduPilot integration effort. Work is paused pending evaluation of ChibiOS support for RP2350 which may provide a cleaner path to full ArduPilot compatibility.
+This document captures the state of the FreeRTOS-based ArduPilot integration effort.
+
+**2026-02-02 Evaluation Result:** ChibiOS was re-evaluated after significant driver progress (USB, Flash, ADC landed in trunk Jan-Feb 2026). Conclusion: **Continue FreeRTOS path.** ChibiOS still has critical gaps (no XIP flash execution, untested RP2350 SMP). See "ChibiOS Evaluation" section below for details.
 
 ## What Was Accomplished
 
@@ -153,21 +156,51 @@ See `docs/RP2350_FULL_AP_PORT.md` for:
 - PD10: INS backend rate requirements
 - PD11: Memory allocation must zero
 
-## ChibiOS Alternative
+## ChibiOS Evaluation (2026-02-02)
 
-If ChibiOS now supports RP2350 in ArduPilot trunk:
-1. Could use ArduPilot's native build system (waf)
-2. Would get AP_HAL_ChibiOS directly
-3. All ArduPilot libraries would work without stubs
-4. Sensor drivers, logging, params all native
+### Recent ChibiOS Progress
+Significant driver work landed in ChibiOS trunk (Jan-Feb 2026) by contributor "emolitor":
+- **USB LLD** - Fixed interrupt handling (Jan 31)
+- **ADC registry** - RP2040/RP2350 ADC support (Feb 1)
+- **EFL (Flash)** - Embedded Flash Layer drivers (Feb 1)
+- **GPIO, I2C, SPI, UART** - Already working
 
-Evaluation needed:
-- Check ArduPilot trunk for RP2350/ChibiOS board definitions
-- Verify ChibiOS port completeness (USB, flash, etc.)
-- Compare effort: continue FreeRTOS stubs vs. adopt ChibiOS
+RP2040 support merged to trunk, developer has commit access for RP2350 work.
 
-## Decision Point
+### Critical Blockers Remaining
 
-**If ChibiOS path is viable:** Archive FreeRTOS branch, start fresh with ArduPilot's native build
+1. **No XIP Flash Execution** - ChibiOS RP2040/RP2350 runs from RAM only. XIP from external flash documented as "future priority" but not functional. This is a hard blocker for our 8MB flash firmware.
 
-**If ChibiOS path not ready:** Continue FreeRTOS integration, resolve HAL hierarchy conflicts
+2. **RP2350 SMP Untested** - ChibiOS has SMP port for Cortex-M0 (RP2040), but Cortex-M33 (RP2350) is different architecture. No evidence of RP2350-specific SMP testing.
+
+3. **ArduPilot Integration Missing** - ArduPilot's ChibiOS fork has no RP2040/RP2350 commits. No board definitions, no waf integration.
+
+### ChibiOS SMP vs FreeRTOS SMP
+| Aspect | ChibiOS SMP | FreeRTOS SMP (Ours) |
+|--------|-------------|---------------------|
+| Thread migration | No (static affinity) | Yes (dynamic) |
+| RP2350 tested | No | Yes (PD12-14 fixes) |
+| Memory visibility | Unclear | Solved |
+
+### Decision: Continue FreeRTOS
+
+**Rationale:**
+- ChibiOS XIP blocker prevents real firmware
+- Our FreeRTOS SMP is proven with extensive debugging
+- ~60% of our HAL work transfers if ChibiOS becomes viable later
+- ArduPilot integration is months away minimum
+
+### What Transfers If We Switch Later
+- **Preserves (~60%):** Device driver logic, flash storage, hwdef.h config, platform docs
+- **Lost (~40%):** FreeRTOS Scheduler/Semaphores/DeviceBus (RTOS-specific)
+
+### Next Evaluation
+Re-check ChibiOS status mid-February 2026. Watch for:
+- XIP flash execution support
+- RP2350 Cortex-M33 SMP testing
+- ArduPilot ChibiOS fork updates
+
+Sources:
+- [ChibiOS Forum: RP2350 Support](https://forum.chibios.org/viewtopic.php?f=3&t=6631)
+- [ChibiOS GitHub](https://github.com/ChibiOS/ChibiOS/commits/master)
+- [ChibiOS SMP Article](http://www.chibios.org/dokuwiki/doku.php?id=chibios:articles:smp_rt7)

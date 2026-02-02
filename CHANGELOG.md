@@ -22,6 +22,25 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-02-001 | Claude Code CLI | documentation, architecture
+
+**ChibiOS vs FreeRTOS Path Evaluation**
+
+Investigated recent ChibiOS RP2350 progress (USB, Flash, ADC drivers landed Jan-Feb 2026) to determine if switching paths is viable. Conclusion: **Continue FreeRTOS path.**
+
+Key findings:
+- ChibiOS drivers progressing (emolitor commits: USB fixes Jan 31, ADC/EFL Feb 1)
+- RP2040 merged to ChibiOS trunk, RP2350 patches in progress
+- **Blockers remain:** No XIP flash execution (RAM-only), RP2350 Cortex-M33 SMP untested
+- ArduPilot has no RP2350 board definitions yet
+- ~60% of our HAL work transfers if ChibiOS becomes viable later
+
+Updated documentation to reflect current status and decision. Next re-evaluation: mid-Feb 2026.
+
+(.claude/FREERTOS_INTEGRATION_STATUS.md, docs/RP2350_FULL_AP_PORT.md PD6)
+
+---
+
 ### 2026-01-31-001 | Claude Code CLI | documentation
 
 **FreeRTOS Branch Documentation Sync**
