@@ -1,5 +1,6 @@
 @AK_GUIDELINES.md
 @PROTECTED_FILES.md
+@SESSION_CHECKLIST.md
 
 @../README.md
 @../standards/CODING_STANDARDS.md
@@ -10,6 +11,7 @@
 # Claude-Specific Context (check on every session)
 @LESSONS_LEARNED.md
 @DEBUG_PROBE_NOTES.md
+@../docs/MULTICORE_RULES.md
 
 # Cross-Context Communication
 # Use AGENT_WHITEBOARD.md for:

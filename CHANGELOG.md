@@ -20,6 +20,25 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-03-001 | Claude Code CLI | documentation
+
+**Platform Constraints, Multi-Core Rules, Session Checklist, Decisions Folder**
+
+Added critical documentation capturing RP2350 + FreeRTOS SMP platform constraints and session management procedures.
+
+- Added `standards/CODING_STANDARDS.md` "RP2350 + FreeRTOS SMP Platform Constraints" section (~98 lines) - non-negotiable rules derived from LESSONS_LEARNED entries
+- Created `docs/MULTICORE_RULES.md` - core assignment rules, cross-core communication, memory barriers
+- Created `.claude/SESSION_CHECKLIST.md` - session start/end procedures, handoff protocol
+- Created `docs/decisions/` folder structure for council review outputs
+- Moved `docs/ESKF/` to `docs/decisions/ESKF/`
+- Updated `docs/PROJECT_STATUS.md` to "Reboot: Validate & Rebuild" phase with validation checklist
+- Updated `.claude/PROTECTED_FILES.md` with new protected entries
+- Updated `.claude/CLAUDE.md` with new @ references
+
+**Files:** CODING_STANDARDS.md, MULTICORE_RULES.md, SESSION_CHECKLIST.md, docs/decisions/README.md, PROJECT_STATUS.md, PROTECTED_FILES.md, CLAUDE.md
+
+---
+
 ### 2026-02-02-004 | Claude Code CLI | bugfix, architecture
 
 **FreeRTOS SMP + USB CDC Fix + Calibration Stack Fix**

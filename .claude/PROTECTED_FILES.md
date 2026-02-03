@@ -27,7 +27,18 @@ General requests like "update the docs" or "fix the instructions" do NOT grant p
 - `COUNCIL_PROCESS.md` - Council review protocol
 
 ### Architecture Documents Pending Review
-- `docs/ESKF/*.md` - Fusion architecture (numerical parameters pending systematic review)
+- `docs/decisions/ESKF/*.md` - Fusion architecture (numerical parameters pending systematic review)
+
+### Architecture Documents
+- `docs/SAD.md` - Software Architecture Document
+- `docs/MULTICORE_RULES.md` - Multi-core programming rules
+- `docs/SCAFFOLDING.md` - Directory structure (update when structure changes, not speculatively)
+
+### Agent Decision Documents (entire folder)
+- `docs/decisions/*` - Council review outputs and architectural decisions
+
+### Session Management
+- `.claude/SESSION_CHECKLIST.md` - Session handoff/end procedures
 
 ---
 

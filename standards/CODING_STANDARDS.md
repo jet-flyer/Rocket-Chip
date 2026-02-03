@@ -21,6 +21,104 @@ These additional rules from JPL's standard are stretch goals for Pro tier:
 - Stricter `const`/`constexpr` usage
 - Triple-voting on safety-critical variables
 
+### RP2350 + FreeRTOS SMP Platform Constraints
+
+These constraints are non-negotiable. They exist because violations produce silent
+crashes, USB failures, or cross-core corruption that take hours to diagnose.
+See `.claude/LESSONS_LEARNED.md` for the full debugging narratives behind each rule.
+
+#### FreeRTOS
+
+- **Use ONLY the Raspberry Pi FreeRTOS fork** (`raspberrypi/FreeRTOS-Kernel`).
+  The main FreeRTOS repo lacks the RP2350 SMP port. Verify in `.gitmodules`.
+  *(LL Entry 18)*
+
+- **FreeRTOSConfig.h is based on pico-examples.** Do not rewrite from scratch.
+  Do not change `configMAX_SYSCALL_INTERRUPT_PRIORITY` (must be 16),
+  `configSUPPORT_PICO_SYNC_INTEROP` (must be 1), or the RP2350/TrustZone/FPU
+  settings. *(LL Entry 18)*
+
+- **Don't busy-wait with `taskYIELD()`.** It only yields to equal-or-higher
+  priority tasks. Use `vTaskDelay(1)` to yield to all tasks. *(LL Entry 9)*
+
+- **Task stack minimums:** 256 words for simple I/O, 512 for moderate computation,
+  1024 for matrix math (ESKF, calibration fits). Any local variable >1KB must be
+  `static` or heap-allocated — large locals cause silent stack overflow at function
+  entry. *(LL Entries 1, 19)*
+
+#### USB CDC
+
+- **No USB I/O before `vTaskStartScheduler()`.** No printf, no getchar, no
+  `stdio_usb_connected()` checks in `main()`. TinyUSB background tasks only run
+  after the scheduler starts. *(LL Entry 10)*
+
+- **Guard all USB I/O with `stdio_usb_connected()`.** When disconnected, do
+  nothing — no printf, no getchar. *(LL Entry 15)*
+
+- **Drain USB input buffer on terminal connection.** Garbage bytes from USB
+  handshake trigger phantom commands. *(LL Entry 15)*
+
+- **Let SDK handle USB.** Do not create custom USB tasks. Do not set
+  `PICO_STDIO_USB_ENABLE_IRQ_BACKGROUND_TASK=0`. *(LL Entry 18)*
+
+#### Flash
+
+- **Flash ops make ALL flash inaccessible** — including USB IRQ handlers and code
+  on both cores. Use `flash_safe_execute()` from `pico/flash.h` for all flash
+  access. *(LL Entries 4, 12)*
+
+#### Multi-Core
+
+- **SensorTask pinned to Core 1.** USB IRQ handlers are on Core 0 (SDK-managed).
+  All other tasks should float unpinned for SMP load balancing. See
+  `docs/MULTICORE_RULES.md`. *(LL Entries 8, 10, 18)*
+
+- **Use FreeRTOS primitives for cross-core data sharing.** Never use plain
+  `volatile` — it lacks hardware memory barriers. *(LL Entry 8)*
+
+- **Clear BASEPRI after any HAL/init code that might elevate it:**
+  `__asm volatile ("mov r0, #0\nmsr basepri, r0" ::: "r0");` *(LL Entry 3)*
+
+#### Build System
+
+- **CMake + Pico SDK + FreeRTOS only.** No PlatformIO, no Arduino.
+
+- **All `#define` macros affecting class layout must be in global
+  `add_compile_definitions()`.** Inconsistent macros across compilation units
+  cause ODR violations — inline getters return garbage. *(LL Entry 17)*
+
+- **Board type before SDK import:**
+  `set(PICO_BOARD "adafruit_feather_rp2350" CACHE STRING "Board type")`
+
+#### Hardware
+
+- **Verify I2C addresses against Adafruit defaults.** ICM-20948 is 0x69
+  (AD0=HIGH), not 0x68. Run I2C scan to confirm. *(LL Entry 13)*
+
+- **WS2812 requires `begin()` after construction.** Without it, `setPixel()` and
+  `show()` silently no-op. *(LL Entry 6)*
+
+#### Debugging
+
+- **Use debug probe first** when USB is broken. Don't waste time on LED blink
+  patterns. *(LL Entries 5, 11)*
+
+- **Always include a version string** that changes with each significant build.
+  *(LL Entry 2)*
+
+#### General
+
+- **No arbitrary numerical values.** Sample rates, buffer sizes, thresholds,
+  timeouts — all must be justified by a source (datasheet, SDK docs, reference
+  implementation, confirmed forum post). If no source exists, flag and ask.
+
+- **Research before implementing.** Before writing code that touches hardware
+  interfaces, RTOS configuration, or sensor drivers, check relevant
+  documentation, datasheets, and recent forum posts for known issues.
+
+- **Don't assume — ask.** If a task or design choice isn't covered by existing
+  docs and research doesn't definitively answer it, ask before implementing.
+
 ### Prior Art Research
 
 **Before implementing any hardware interface, driver, or novel functionality:**
