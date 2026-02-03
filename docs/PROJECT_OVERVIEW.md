@@ -61,7 +61,7 @@ Naming convention: rocket program names or terms strongly associated with spacef
 - **Platform**: RP2350 (Adafruit Feather ecosystem)
 - **Feather Compatibility**: Core/Main boards maintain standard Feather pinout for 3rd-party FeatherWing compatibility
 - **RTOS**: FreeRTOS for real-time operations
-- **Libraries**: ArduPilot module integration (AP_Math, filters, calibration) via compatibility shims
+- **Sensor Fusion**: Custom ESKF + MMAE architecture (see docs/ESKF/)
 - **Architecture**: Mission Engine for event-condition-action workflows
 - **Development**: CMake + Pico SDK
 - **Communication**: SpaceWire-Lite for Gemini inter-MCU (aspirational standard, design-for-certifiability)

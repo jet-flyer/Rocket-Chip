@@ -228,10 +228,11 @@ Time | Event
 The following have been validated on Adafruit Feather RP2350:
 
 - ✅ FreeRTOS SMP dual-core scheduler running
-- ✅ I2C sensor communication (ISM330DHCX, LIS3MDL, DPS310)
-- ✅ HAL layer (Bus, GPIO, ADC, PWM, Timing, PIO, UART)
+- ✅ I2C bus communication working
 - ✅ USB CDC serial output
 - ✅ Hardware debugging (Debug Probe + OpenOCD + GDB)
+
+> **Note:** This validates the toolchain foundation. Sensor-specific validation (ICM-20948, DPS310) will be documented in Phase 2.
 
 ## Future Work
 

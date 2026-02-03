@@ -26,7 +26,7 @@ Expansion modules following rocketry-themed naming (specific names TBD when boar
 | Function | Part | Adafruit P/N | Specs | Notes |
 |----------|------|--------------|-------|-------|
 | MCU | Feather RP2350 HSTX | #6130 | Dual M33 @ 150MHz, 520KB SRAM, 8MB PSRAM | Primary dev board |
-| IMU | ICM-20948 9-DoF | #4554 | 9-axis (accel/gyro/mag), ArduPilot Invensensev2 | STEMMA QT/I2C, 0x69 (default) |
+| IMU | ICM-20948 9-DoF | #4554 | 9-axis (accel/gyro/mag) | STEMMA QT/I2C, 0x69 (default) |
 | Barometer | DPS310 | #4494 | ±1Pa precision | STEMMA QT/I2C |
 | Battery | Li-Ion 400mAh | #3898 | 3.7V, fits between Feather headers | |
 | Debug | SWD Debug Probe | #5699 | RP2040/RP2350 compatible | For crash debugging, timing analysis |
@@ -88,10 +88,9 @@ Available for testing but not in active prototype:
 **Alternative approach:** If I2C GPS causes issues (e.g., bus contention, timing problems at high sensor rates), switch to UART:
 - PA1010D also supports UART (requires rewiring TX/RX instead of Qwiic)
 - Ultimate GPS FeatherWing uses UART natively
-- UART enables ArduPilot's `AP_GPS` driver for EKF integration
-- AP_GPS provides parsed position/velocity directly to navigation filter
+- UART provides more reliable communication for high-rate sensor systems
 
-**Recommendation:** Start with I2C for simplicity. If EKF integration or bus contention becomes problematic, migrate to UART + AP_GPS.
+**Recommendation:** Start with I2C for simplicity. If bus contention becomes problematic, migrate to UART.
 
 ### Telemetry (Booster Pack)
 | Part | Adafruit P/N | Notes |

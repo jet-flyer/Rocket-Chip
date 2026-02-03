@@ -20,6 +20,24 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-02-003 | Claude Code CLI | documentation
+
+**Documentation Cleanup for Fresh Start**
+
+Reviewed all docs folder files to ensure consistency with bespoke FreeRTOS approach after branch reorganization.
+
+- Updated SAD.md: Rewrote directory structure, module dependencies, driver interfaces, storage architecture, and reset all development phases
+- Updated SCAFFOLDING.md: Aligned with SAD.md, reset implementation status
+- Updated TOOLCHAIN_VALIDATION.md: Removed stale sensor references, added Phase 2 note
+- Updated HARDWARE.md: Removed ArduPilot driver references from IMU and GPS sections
+- Updated .claude/CLAUDE.md: Removed reference to deleted RP2350_FULL_AP_PORT.md
+- Deleted: docs/RP2350_FULL_AP_PORT.md, docs/AP_HAL_RP2350_PLAN.md (archived in AP_FreeRTOS branch)
+- Moved: PROJECT_STATUS.md, PROJECT_OVERVIEW.md to docs/ folder
+
+ESKF docs and ROCKETCHIP_OS.md left as-is (historical reference for design decisions).
+
+---
+
 ### 2026-02-02-002 | Nathan (via Claude Opus council review) | architecture
 
 **Sensor Fusion Architecture: ESKF + MMAE**
