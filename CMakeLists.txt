@@ -1,0 +1,159 @@
+# RocketChip CMake Build System
+# Target: Adafruit Feather RP2350 HSTX
+# RTOS: FreeRTOS SMP (dual-core)
+
+# ============================================================================
+# Pico VS Code Extension Integration (handles toolchain and picotool)
+# ============================================================================
+
+if(WIN32)
+    set(USERHOME $ENV{USERPROFILE})
+else()
+    set(USERHOME $ENV{HOME})
+endif()
+set(sdkVersion 2.2.0)
+set(toolchainVersion 14_2_Rel1)
+set(picotoolVersion 2.2.0-a4)
+set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
+if (EXISTS ${picoVscode})
+    include(${picoVscode})
+endif()
+
+cmake_minimum_required(VERSION 3.13)
+
+# ============================================================================
+# Board and Platform Configuration (MUST be before pico_sdk_import)
+# ============================================================================
+
+# Set board type - this MUST be before pico_sdk_import
+# Adafruit Feather RP2350 (includes HSTX variant)
+# Board header defines: LED=GPIO7, WS2812=GPIO21
+set(PICO_BOARD "adafruit_feather_rp2350" CACHE STRING "Board type")
+
+# Pull in SDK and FreeRTOS (must be before project())
+include(pico_sdk_import.cmake)
+include(FreeRTOS_Kernel_import.cmake)
+
+# Project definition
+project(rocketchip C CXX ASM)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Initialize the SDK
+pico_sdk_init()
+
+# ============================================================================
+# Build Configuration
+# ============================================================================
+
+# Force Debug build for development (enables DBG_* macros)
+# Pico SDK defaults to Release, but we want debug output during development
+set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
+
+# Add DEBUG define for debug builds
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+    add_compile_definitions(DEBUG=1)
+endif()
+
+# Compiler warnings
+add_compile_options(
+    -Wall
+    -Wextra
+    -Wno-unused-parameter
+)
+
+# ============================================================================
+# External Libraries
+# ============================================================================
+
+# ruuvi.dps310.c - Proven DPS310 barometer driver
+set(RUUVI_DPS310_DIR ${CMAKE_CURRENT_LIST_DIR}/lib/ruuvi.dps310.c/src)
+
+# lwGPS - NMEA parser
+set(LWGPS_DIR ${CMAKE_CURRENT_LIST_DIR}/lib/lwgps/lwgps/src)
+
+# ============================================================================
+# Main Executable
+# ============================================================================
+
+add_executable(rocketchip
+    src/main.cpp
+    # Platform drivers
+    src/drivers/ws2812_status.c
+    src/drivers/i2c_bus.c
+    # IMU - custom driver with magnetometer support
+    src/drivers/icm20948.c
+    # Barometer - ruuvi library + Pico wrapper
+    ${RUUVI_DPS310_DIR}/dps310.c
+    src/drivers/baro_dps310.c
+    # GPS - lwGPS library + PA1010D wrapper
+    ${LWGPS_DIR}/lwgps/lwgps.c
+    src/drivers/gps_pa1010d.c
+    # Calibration system
+    src/calibration/calibration_data.c
+    src/calibration/calibration_manager.c
+    src/calibration/calibration_storage.c
+    src/calibration/accel_calibrator.c
+    # Debug infrastructure
+    src/debug/debug_stream.c
+    # Tasks
+    src/tasks/sensor_task.c
+)
+
+# Include directories
+target_include_directories(rocketchip PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/include
+    ${CMAKE_CURRENT_LIST_DIR}/src
+    ${CMAKE_CURRENT_LIST_DIR}/src/drivers
+    ${CMAKE_CURRENT_LIST_DIR}/src/calibration
+    ${CMAKE_CURRENT_LIST_DIR}/src/tasks
+    ${CMAKE_CURRENT_LIST_DIR}  # For FreeRTOSConfig.h
+    # External libraries
+    ${RUUVI_DPS310_DIR}
+    ${LWGPS_DIR}/include
+)
+
+# Generate WS2812 PIO header from SDK's pio file
+pico_generate_pio_header(rocketchip
+    ${PICO_SDK_PATH}/src/rp2_common/pico_status_led/ws2812.pio
+)
+
+# Link libraries
+target_link_libraries(rocketchip
+    pico_stdlib
+    hardware_gpio
+    hardware_pio         # For NeoPixel/WS2812 PIO driver
+    hardware_clocks      # For clock_get_hz()
+    hardware_i2c         # For I2C/QWIIC sensors
+    hardware_flash       # For flash_range_erase/program
+    pico_flash           # For flash_safe_execute (dual-core safe)
+    FreeRTOS-Kernel-Heap4  # FreeRTOS with heap_4 memory management
+)
+
+# Enable USB CDC for stdio (not UART)
+pico_enable_stdio_usb(rocketchip 1)
+pico_enable_stdio_uart(rocketchip 0)
+
+# USB configuration - use SDK's default IRQ-based handling
+# Per pico-examples/freertos/hello_freertos, this works with proper FreeRTOSConfig
+target_compile_definitions(rocketchip PRIVATE
+    PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1
+    PICO_STDIO_USB_RESET_BOOTSEL_ACTIVITY_LED=7
+)
+
+# Generate UF2 file for easy flashing
+pico_add_extra_outputs(rocketchip)
+
+# ============================================================================
+# Print Build Info
+# ============================================================================
+
+message(STATUS "")
+message(STATUS "=== RocketChip Build Configuration ===")
+message(STATUS "Board: ${PICO_BOARD}")
+message(STATUS "Platform: ${PICO_PLATFORM}")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "FreeRTOS: SMP (dual-core)")
+message(STATUS "")

@@ -20,6 +20,34 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-02-004 | Claude Code CLI | bugfix, architecture
+
+**FreeRTOS SMP + USB CDC Fix + Calibration Stack Fix**
+
+Fixed USB CDC enumeration failure on RP2350 with FreeRTOS SMP, plus stack overflow during 6-position accel calibration.
+
+**USB CDC Root cause:** Using main FreeRTOS repo instead of Raspberry Pi's fork, plus incorrect FreeRTOSConfig.h settings.
+
+**Calibration Root cause:** Sensor task stack (256 words) too small for ellipsoid fit local matrices. Increased to 512 words.
+
+**Changes:**
+- Replaced FreeRTOS-Kernel submodule with raspberrypi/FreeRTOS-Kernel (has RP2350_ARM_NTZ port)
+- Rewrote FreeRTOSConfig.h to match pico-examples/freertos/hello_freertos
+- Removed custom USB task - SDK's IRQ-based handling is correct approach
+- Pinned sensor sampling to Core 1 (Core 0 hosts USB IRQ handlers)
+- Simplified CMakeLists.txt USB configuration to use SDK defaults
+- Increased SENSOR_TASK_STACK from 256 to 512 words for calibration
+
+**Files:** FreeRTOS-Kernel (submodule), FreeRTOSConfig.h, FreeRTOS_Kernel_import.cmake, src/main.cpp, CMakeLists.txt, src/tasks/sensor_task.c
+
+**Reference:** LESSONS_LEARNED.md Entry 18 (USB), Entry 19 (stack overflow)
+
+**Status:** Calibration runs to completion but ellipsoid fit diverges - needs algorithm tuning.
+
+*Rationale: pico-examples/freertos/hello_freertos is the canonical reference for FreeRTOS on RP2350. Previous attempts used custom configurations that conflicted with SDK's USB stack. The Raspberry Pi FreeRTOS fork contains tested, working SMP support that the main FreeRTOS repo lacks.*
+
+---
+
 ### 2026-02-02-003 | Claude Code CLI | documentation
 
 **Documentation Cleanup for Fresh Start**

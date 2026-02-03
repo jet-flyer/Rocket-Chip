@@ -879,6 +879,202 @@ grep -rn "COMPASS_CAL_ENABLED\|AP_AHRS_DCM_ENABLED" CMakeLists.txt lib/
 
 ---
 
+## Entry 18: FreeRTOS SMP + USB CDC on RP2350 - Use Raspberry Pi's Fork
+
+**Date:** 2026-02-02
+**Time Spent:** ~4 hours (multiple failed approaches before finding root cause)
+**Severity:** Critical - USB completely broken, system hangs
+
+### Problem
+USB CDC (COM port) fails to enumerate when using FreeRTOS SMP on RP2350. Device appears in Device Manager briefly then disappears with "error 2". System may hang with tick count frozen at 0 or 1.
+
+### Symptoms
+- USB device doesn't enumerate (no COM port appears)
+- Debug probe shows system stuck in `usbd_control_xfer_cb`
+- FreeRTOS tick count frozen at 0 or 1
+- `low_priority_worker_irq` (SDK's USB handler) not running properly
+- Device may need power cycle to recover after failed enumeration attempts
+
+### Root Cause
+**Two fundamental issues:**
+
+1. **Wrong FreeRTOS repository**: The main FreeRTOS/FreeRTOS-Kernel repo does NOT have proper RP2350 SMP support. Must use **Raspberry Pi's fork**: `raspberrypi/FreeRTOS-Kernel`
+
+2. **Wrong FreeRTOSConfig.h**: Custom configurations don't include critical RP2350-specific settings. The pico-examples reference config has tested, working values.
+
+**Key insight:** The Raspberry Pi FreeRTOS-Kernel fork contains the RP2350_ARM_NTZ port with proper multi-core SMP support. The main FreeRTOS repo has RP2040 support but incomplete RP2350 support.
+
+### Solution
+
+1. **Use Raspberry Pi's FreeRTOS-Kernel fork:**
+```bash
+# Remove existing submodule if present
+git submodule deinit -f FreeRTOS-Kernel
+git rm -f FreeRTOS-Kernel
+rm -rf .git/modules/FreeRTOS-Kernel
+
+# Add correct fork
+git submodule add https://github.com/raspberrypi/FreeRTOS-Kernel.git FreeRTOS-Kernel
+git submodule update --init --recursive
+```
+
+2. **Use FreeRTOSConfig.h based on pico-examples:**
+```c
+// Critical RP2350-specific settings from pico-examples
+#define configSTACK_DEPTH_TYPE                  uint32_t
+#define configMINIMAL_STACK_SIZE                ((configSTACK_DEPTH_TYPE)512)
+#define configTOTAL_HEAP_SIZE                   (128*1024)
+#define configMAX_PRIORITIES                    32
+
+// SMP settings (set by RP2xxx port when FREE_RTOS_KERNEL_SMP is defined)
+#if FREE_RTOS_KERNEL_SMP
+#define configNUMBER_OF_CORES                   2
+#define configTICK_CORE                         0
+#define configRUN_MULTIPLE_PRIORITIES           1
+#define configUSE_CORE_AFFINITY                 1
+#endif
+
+// RP2350 ARM-specific (MANDATORY values)
+#define configSUPPORT_PICO_SYNC_INTEROP         1
+#define configSUPPORT_PICO_TIME_INTEROP         1
+#define configENABLE_MPU                        0
+#define configENABLE_TRUSTZONE                  0
+#define configRUN_FREERTOS_SECURE_ONLY          1
+#define configENABLE_FPU                        1
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY    16  // CRITICAL: Must be 16
+
+#include <assert.h>
+#define configASSERT(x)                         assert(x)
+```
+
+3. **Let SDK handle USB via IRQ (don't create custom USB task):**
+```cpp
+// In main.cpp - DON'T create a dedicated USB task
+int main() {
+    stdio_init_all();  // SDK handles tud_task via low_priority_worker_irq
+    // ... create other tasks ...
+    vTaskStartScheduler();
+}
+```
+
+4. **CMakeLists.txt - use SDK defaults for USB:**
+```cmake
+pico_enable_stdio_usb(rocketchip 1)
+pico_enable_stdio_uart(rocketchip 0)
+
+# Let SDK use default IRQ-based USB handling
+# Do NOT set PICO_STDIO_USB_ENABLE_IRQ_BACKGROUND_TASK=0
+```
+
+5. **Pin sensor tasks to Core 1, leave Core 0 for USB:**
+```c
+// USB IRQ handlers run on Core 0
+// Sensor sampling should be on Core 1 to avoid conflicts
+#define SENSOR_CORE 1
+vTaskCoreAffinitySet(sensorTaskHandle, (1 << SENSOR_CORE));
+```
+
+### Key Files
+- `FreeRTOS-Kernel/` (submodule) - Must be from raspberrypi/FreeRTOS-Kernel
+- `FreeRTOSConfig.h` - Must match pico-examples pattern
+- `FreeRTOS_Kernel_import.cmake` - Import helper for CMake
+- `src/main.cpp` - No custom USB task needed
+- `CMakeLists.txt` - Don't override SDK USB defaults
+
+### Reference Implementation
+**pico-examples/freertos/hello_freertos** is the canonical reference for FreeRTOS SMP on RP2350. When in doubt, check how they do it.
+
+### How to Identify This Issue
+1. USB doesn't enumerate with FreeRTOS SMP on RP2350
+2. Debug probe shows tick count frozen at 0
+3. System stuck in USB-related callbacks
+4. Using FreeRTOS from main FreeRTOS repo (not RPi fork)
+5. Custom FreeRTOSConfig.h without pico-examples settings
+
+### Prevention
+1. **Always use raspberrypi/FreeRTOS-Kernel** for RP2350 projects
+2. **Start from pico-examples FreeRTOSConfig.h**, not from scratch
+3. **Don't override SDK USB handling** unless you have a specific reason
+4. **Core 0 for USB, Core 1 for sensors** - avoid conflicts with USB IRQ handlers
+5. **Power cycle device** after failed USB enumeration attempts
+
+### Verification
+After applying fixes:
+```
+=== RocketChip v0.3.0-freertos-fix ===
+IMU: OK  Baro: OK
+Cal: LOADED from flash (gyro+level+baro)
+Press 'h' for help
+```
+
+---
+
+## Entry 19: FreeRTOS Task Stack Overflow During Calibration
+
+**Date:** 2026-02-03
+**Time Spent:** ~1 hour (used debug probe to identify lockup)
+**Severity:** Critical - Core crashes into lockup state
+
+### Problem
+6-position accelerometer calibration hangs at "Running ellipsoid fit..." - no crash message, no progress, USB stops responding.
+
+### Symptoms
+- Calibration collects all 6 positions successfully
+- Debug output shows "[6pos] Running ellipsoid fit..." then nothing
+- USB serial stops responding (no more output)
+- LED may continue, NeoPixel may freeze
+- Debug probe shows Core 1 in **lockup state** with corrupt stack
+
+### Root Cause
+The `run_ellipsoid_fit()` function allocates large arrays on the stack:
+- `float JTJ[6][6]` = 144 bytes
+- `float JTr[6]` = 24 bytes
+- `float aug[6][7]` = 168 bytes
+- `float delta[6]` = 24 bytes
+- Plus local variables and call frames = **~400+ bytes**
+
+The sensor task had only **256 words (1KB)** of stack. Combined with the calling function frames (calibration_manager → accel_calibrator → run_ellipsoid_fit), this exceeded available stack, causing immediate stack overflow and hardfault on Core 1.
+
+### Solution
+Increase sensor task stack size from 256 to 512 words (1KB to 2KB):
+
+```c
+// In sensor_task.c
+#define SENSOR_TASK_STACK       512     // Increased from 256 for ellipsoid fit
+```
+
+### How to Identify This Issue
+1. Function with large local arrays (matrices, buffers)
+2. Function runs in a FreeRTOS task context
+3. Debug probe shows core in "lockup state"
+4. Stack backtrace shows "corrupt stack" warning
+5. Output stops mid-operation with no error message
+
+### Diagnosis with Debug Probe
+```bash
+# Check which task is running and core state
+arm-none-eabi-gdb build/rocketchip.elf -batch \
+  -ex "target extended-remote localhost:3333" \
+  -ex "monitor halt" \
+  -ex "print (char*)pxCurrentTCBs[0]->pcTaskName" \
+  -ex "print (char*)pxCurrentTCBs[1]->pcTaskName" \
+  -ex "thread 2" -ex "bt"
+
+# Look for: "ARM M in lockup state" or corrupt stack warnings
+```
+
+### Prevention
+1. **Tasks with math-heavy operations need larger stacks** - matrix operations, FFT, filtering
+2. **Sensor task doing calibration needs extra stack** - calibration fit algorithms use local matrices
+3. **Default FreeRTOS stacks (256 words) are minimal** - increase for anything beyond simple I/O
+4. **Consider static allocation** for large matrices used repeatedly (see Entry 1)
+
+### Key Files
+- `src/tasks/sensor_task.c` - SENSOR_TASK_STACK definition (now 512)
+- `src/calibration/accel_calibrator.c` - `run_ellipsoid_fit()` with local matrices
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

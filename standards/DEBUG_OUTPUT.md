@@ -14,22 +14,72 @@ Serial debug output is essential during development for diagnosing timing issues
 
 ## Implementation
 
-### Debug Macros
+### Debug Macros (Deferred Logging)
+
+Debug output uses a **deferred logging architecture** via FreeRTOS Stream Buffers. This prevents high-priority tasks from blocking on USB CDC mutexes.
 
 ```cpp
 // In include/rocketchip/config.h
 
 #ifdef DEBUG
-  #define DBG_PRINT(fmt, ...) printf("[%lu] " fmt "\n", time_us_32(), ##__VA_ARGS__)
+  #include "pico/time.h"
+  #include "debug/debug_stream.h"
+  #define DBG_PRINT(fmt, ...) dbg_printf("[%lu] " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
   #define DBG_TASK(name) DBG_PRINT("[%s] tick", name)
   #define DBG_STATE(from, to) DBG_PRINT("State: %s -> %s", from, to)
-  #define DBG_ERROR(fmt, ...) printf("[%lu] ERROR: " fmt "\n", time_us_32(), ##__VA_ARGS__)
+  #define DBG_ERROR(fmt, ...) dbg_printf("[%lu] ERROR: " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
 #else
   #define DBG_PRINT(fmt, ...) ((void)0)
   #define DBG_TASK(name) ((void)0)
   #define DBG_STATE(from, to) ((void)0)
   #define DBG_ERROR(fmt, ...) ((void)0)
 #endif
+```
+
+**Key files:**
+- `src/debug/debug_stream.h` - API declarations
+- `src/debug/debug_stream.c` - Stream buffer implementation
+- `include/rocketchip/config.h` - Macro definitions
+
+### Build Configuration for DEBUG
+
+**CRITICAL:** The Pico SDK defaults to Release builds. To enable DBG_* macros:
+
+```cmake
+# In CMakeLists.txt - Force Debug build for development
+set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
+
+# Add DEBUG define for debug builds
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+    add_compile_definitions(DEBUG=1)
+endif()
+```
+
+After changing CMakeLists.txt, do a **clean rebuild**:
+```bash
+rm -rf build && mkdir build && cd build && cmake .. -G Ninja && ninja
+```
+
+### Deferred Logging Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  SensorTask     │     │  Stream Buffer  │     │   UITask        │
+│  (Core 1)       │────>│  (4KB, SRAM)    │────>│  (Core 0)       │
+│  dbg_printf()   │     │  Lock-free      │     │  printf()       │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+- **dbg_printf()** formats to stack buffer, writes to stream buffer (non-blocking)
+- **debug_stream_flush()** called from UITask drains buffer to real printf()
+- **debug_stream_init()** must be called before scheduler starts
+
+**UITask must flush debug output in all its loop paths:**
+```cpp
+// In each handler that uses 'continue' (SixPos, Calibrating, etc.)
+debug_stream_flush();
+vTaskDelay(pdMS_TO_TICKS(100));
+continue;
 ```
 
 ### Serial Configuration
