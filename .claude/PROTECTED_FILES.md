@@ -31,6 +31,7 @@ General requests like "update the docs" or "fix the instructions" do NOT grant p
 
 ### Architecture Documents
 - `docs/SAD.md` - Software Architecture Document
+- `docs/IVP.md` - Integration and Verification Plan (64-step development roadmap)
 - `docs/MULTICORE_RULES.md` - Multi-core programming rules
 - `docs/SCAFFOLDING.md` - Directory structure (update when structure changes, not speculatively)
 
