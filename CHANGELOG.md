@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-03-004 | Claude Code CLI | documentation, architecture
+
+Added PIO hardware watchdog design concepts document (`docs/PIO/PIO_WATCHDOG.md`). Covers heartbeat watchdog, dual-core cross-check, and pyro channel lockout using PIO state machines as CPU-independent safety monitors. Concept stage — not committed to IVP.
+
+---
+
 ### 2026-02-03-003 | Claude Code CLI | documentation, refactor
 
 **Bare-Metal Pivot — Documentation Cleanup (continued)**
