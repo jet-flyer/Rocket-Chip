@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-03-005 | Claude Code CLI | documentation, architecture, council
+
+**Integration and Verification Plan (IVP) + SAD Updates**
+
+Created `docs/IVP.md` — 64-step development roadmap across 9 stages with pass/fail verification gates. Council review (4 personas) produced 12 findings, all implemented: `⚠️ VALIDATE` convention for numerical values, RP2350 inter-core primitives section (spinlocks, FIFO, doorbells as IVP-21 through IVP-23), GPS as Stage 4 before fusion, I2C bus recovery, MPU details, milestone markers.
+
+SAD.md updates: per-sensor validity flags, seqlock implementation replacing TODO, inter-core primitives table, PIO allocation table, AMP architecture corrections, Section 14 numbering fix. SCAFFOLDING.md and PROJECT_STATUS.md updated with PIO_ALLOCATION.md placeholders.
+
+---
+
 ### 2026-02-03-004 | Claude Code CLI | documentation, architecture
 
 Added PIO hardware watchdog design concepts document (`docs/PIO/PIO_WATCHDOG.md`). Covers heartbeat watchdog, dual-core cross-check, and pyro channel lockout using PIO state machines as CPU-independent safety monitors. Concept stage — not committed to IVP.

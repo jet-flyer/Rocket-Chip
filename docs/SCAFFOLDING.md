@@ -30,6 +30,7 @@ rocketchip/
 │   ├── TOOLCHAIN_VALIDATION.md    # Build/debug setup guide
 │   ├── ROCKETCHIP_OS.md           # CLI design
 │   ├── GEMINI_CARRIER_BOARD.md    # Gemini redundant flight computer (future)
+│   ├── PIO_ALLOCATION.md          # PIO state machine allocation tracker (future)
 │   ├── ESKF/                      # Sensor fusion architecture
 │   │   ├── FUSION_ARCHITECTURE.md
 │   │   └── FUSION_ARCHITECTURE_DECISION.md

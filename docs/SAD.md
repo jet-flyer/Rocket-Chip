@@ -310,21 +310,25 @@ rocketchip/
 ### 4.1 Core Data Structures
 
 ```cpp
-// Shared sensor data (protected by mutex)
+// Shared sensor data (cross-core via seqlock double-buffer — see Section 4.3)
 struct SensorData {
-    // IMU (updated at IMU_RATE, e.g., 1kHz)
+    // IMU (updated at IMU_RATE — target 1kHz, validate during IVP-25)
     Vector3f accel;           // m/s² in body frame
     Vector3f gyro;            // rad/s in body frame
     Vector3f mag;             // µT (if available)
+    bool accel_valid;         // false if read failed or data stale
+    bool gyro_valid;
+    bool mag_valid;
     uint32_t imu_timestamp_us;
-    
-    // Barometer (updated at BARO_RATE, e.g., 50Hz)
+
+    // Barometer (updated at BARO_RATE — target 50Hz, validate during IVP-26)
     float pressure_pa;
     float temperature_c;
+    bool baro_valid;          // false if read failed or data stale
     uint32_t baro_timestamp_us;
-    
-    // GPS (updated at GPS_RATE, e.g., 10Hz)
-    bool gps_valid;
+
+    // GPS (updated at GPS_RATE — target 10Hz, validate during IVP-33)
+    bool gps_valid;           // false if no fix or read failed
     double latitude_deg;
     double longitude_deg;
     float altitude_msl_m;
@@ -435,13 +439,76 @@ public:
 
 ### 4.3 Inter-Module Communication
 
-> **TODO:** In bare-metal architecture, inter-module communication uses direct function calls and shared data structures rather than RTOS primitives. Define the specific patterns (global structs with access functions, callback registrations, etc.) during Phase 1 implementation.
+In the bare-metal dual-core architecture, inter-module communication uses two patterns:
+
+**Same-core (Core 0):** Direct function calls and global structs. Modules in the Core 0 superloop (fusion, mission, logger, telemetry, UI) share data through global data structures accessed synchronously — no locking needed since they execute cooperatively in a single loop.
+
+**Cross-core (Core 1 → Core 0):** Seqlock double-buffer for sensor data. See `PICO_SDK_MULTICORE_DECISION.md` for the full design rationale. See `docs/MULTICORE_RULES.md` for RP2350-specific inter-core rules.
+
+#### Seqlock Pattern
+
+Core 1 (writer) publishes sensor data lock-free. Core 0 (reader) retries if it detects a torn read. Uses `<stdatomic.h>` with explicit memory ordering — plain `volatile` is insufficient on ARM Cortex-M33 (LL Entry 8).
+
+```c
+// Shared between cores
+typedef struct {
+    _Atomic uint32_t sequence;    // Odd = write in progress, even = consistent
+    SensorData buffers[2];        // Double buffer
+} shared_sensor_t;
+
+// Writer (Core 1) — called after each sensor read cycle
+void publish_sensors(shared_sensor_t* shared, const SensorData* data) {
+    uint32_t seq = atomic_load_explicit(&shared->sequence, memory_order_relaxed);
+    atomic_store_explicit(&shared->sequence, seq + 1, memory_order_release);  // Odd → writing
+    shared->buffers[((seq + 1) >> 1) & 1] = *data;                           // Write to inactive buffer
+    atomic_store_explicit(&shared->sequence, seq + 2, memory_order_release);  // Even → done
+}
+
+// Reader (Core 0) — called from fusion/mission/UI modules
+bool read_sensors(shared_sensor_t* shared, SensorData* out) {
+    for (int retry = 0; retry < 4; retry++) {
+        uint32_t seq1 = atomic_load_explicit(&shared->sequence, memory_order_acquire);
+        if (seq1 & 1) continue;                    // Write in progress, retry
+        *out = shared->buffers[(seq1 >> 1) & 1];   // Copy from active buffer
+        uint32_t seq2 = atomic_load_explicit(&shared->sequence, memory_order_acquire);
+        if (seq1 == seq2) return true;              // Consistent read
+    }
+    return false;  // Failed after retries (should be rare — <1%)
+}
+```
+
+#### RP2350 Inter-Core Hardware Primitives
+
+The RP2350 provides several hardware mechanisms for inter-core coordination, all accessed through the SIO (Single-cycle I/O) block:
+
+| Primitive | Use in RocketChip | Notes |
+|-----------|------------------|-------|
+| **Hardware spinlocks** (32 via SIO) | Short critical sections if needed | IDs 24-31 available for app use; RP2350 errata E17 may force SW spinlocks |
+| **Multicore FIFO** (4-entry, 32-bit) | Command passing between cores | Used internally by `multicore_lockout` — cannot overlap |
+| **Doorbell interrupts** (RP2350-only) | Lightweight inter-core signaling | Alternative to polling seqlock sequence counter |
+| **Multicore lockout** | Flash operation safety | Pauses Core 1 in RAM while Core 0 erases/programs flash |
+| **Atomics** (`<stdatomic.h>`) | Seqlock sequence counter, flags | Required — `volatile` alone lacks HW memory barriers |
+| **MPU (PMSAv8)** | Stack guard regions per core | 8 regions per core, 32-byte minimum alignment |
+
+See `docs/IVP.md` Stage 3 for detailed verification steps exercising each primitive.
+
+#### PIO State Machine Allocation
+
+The RP2350 has 3 PIO blocks (PIO0, PIO1, PIO2) with 4 state machines each (12 total). PIO is a shared hardware resource that must be tracked:
+
+| PIO Block | SM | Current Use | Notes |
+|-----------|-----|------------|-------|
+| PIO0 | SM0 | WS2812 NeoPixel | Allocated in `ws2812_status_init()` |
+| PIO0 | SM1-3 | Available | |
+| PIO1 | SM0-3 | Available | |
+| PIO2 | SM0-3 | Available | |
+
+**Future candidates for PIO:** SPI DMA for high-rate sensor mode, precision PWM for servos (Titan), custom protocols. Track allocations here as they are committed.
+
+#### Action and Log Message Formats
 
 ```cpp
-// Shared data accessed via direct function calls
-// No RTOS primitives — bare-metal polling architecture
-
-// Action message format
+// Action message format (Core 0 internal, same-core only)
 struct ActionMessage {
     uint8_t action_type;      // ACTION_BEEP, ACTION_LED, ACTION_LOG, etc.
     int32_t param1;
@@ -449,7 +516,7 @@ struct ActionMessage {
     uint32_t timestamp_ms;
 };
 
-// Log message format
+// Log message format (Core 0 internal, same-core only)
 struct LogMessage {
     uint8_t msg_type;         // LOG_SENSOR, LOG_STATE, LOG_EVENT, etc.
     uint32_t timestamp_us;
@@ -464,30 +531,41 @@ struct LogMessage {
 
 ### 5.1 Bare-Metal Polling Architecture
 
-RocketChip uses a bare-metal polling main loop with timer-driven sensor sampling. This replaces the previous FreeRTOS task model with a simpler, more deterministic approach.
+RocketChip uses a bare-metal dual-core AMP (Asymmetric Multiprocessing) architecture. This replaces the previous FreeRTOS task model with a simpler, more deterministic approach. See `PICO_SDK_MULTICORE_DECISION.md` for the council decision rationale.
 
-| Module | Rate | Trigger | Notes |
-|--------|------|---------|-------|
-| Sensor sampling | 1kHz | Hardware timer / repeating_timer | Deterministic timing via Pico SDK timer |
-| Control loop | 500Hz | Derived from sensor tick | Only active during BOOST (Titan) |
-| Sensor fusion | 200Hz | Main loop polling | AHRS, altitude calc |
-| Mission engine | 100Hz | Main loop polling | State machine, events |
-| Data logger | 50Hz | Main loop polling | Buffered writes |
-| Telemetry | 10Hz | Main loop polling | MAVLink over LoRa |
-| UI/CLI | 30Hz | Main loop polling | Display, LEDs, buttons |
+> **Naming convention:** Module names like "SensorTask" and "FusionTask" are logical module names, not RTOS tasks. In the bare-metal architecture, Core 0 modules are functions called from a cooperative superloop. Core 1 runs a dedicated polling loop. The "Task" suffix is retained for continuity with the module decomposition in Section 3.2.
+
+> **Numerical values below are preliminary targets** — each must be validated empirically during implementation. See `docs/IVP.md` for verification gates. Actual achievable rates depend on I2C transaction times, computation costs, and bus contention measured during bringup.
+
+| Module | Target Rate | Core | Trigger | Notes |
+|--------|-------------|------|---------|-------|
+| Sensor sampling (IMU) | 1kHz | Core 1 | Tight polling loop (`time_us_64()`) | Rate limited by I2C transaction time — validate in IVP-25 |
+| Sensor sampling (Baro) | 50Hz | Core 1 | Rate divider on IMU loop | Validate in IVP-26 |
+| Sensor sampling (GPS) | 10Hz | Core 1 or Core 0 | Rate divider | GPS I2C reads are long — validate fit in IVP-33 |
+| Control loop | 500Hz | Core 1 | Derived from sensor tick | Only active during BOOST (Titan) |
+| Sensor fusion | 200Hz | Core 0 | Main loop polling | ESKF propagation + measurement updates |
+| Mission engine | 100Hz | Core 0 | Main loop polling | State machine, events |
+| Data logger | 50Hz | Core 0 | Main loop polling | Buffered writes |
+| Telemetry | 10Hz | Core 0 | Main loop polling | MAVLink over LoRa |
+| UI/CLI | 30Hz | Core 0 | Main loop polling | Display, LEDs, buttons |
 
 ### 5.2 Dual-Core Strategy
 
-The RP2350's dual Cortex-M33 cores enable clean separation:
+The RP2350's dual Cortex-M33 cores enable clean separation via AMP (Asymmetric Multiprocessing):
 
 **Core 0 (Main Loop + USB):**
-- Polling main loop for fusion, mission, logging, telemetry, UI
-- USB CDC serial (SDK-managed IRQ handlers)
+- Cooperative time-sliced superloop: fusion, mission, logging, telemetry, UI
+- USB CDC serial (SDK-managed IRQ handlers registered on Core 0 by `stdio_init_all()`)
+- All `printf`/USB I/O guarded by `stdio_usb_connected()`
 
 **Core 1 (Sensor Sampling):**
-- Timer-driven sensor reads at 1kHz
+- Tight polling loop using `time_us_64()` for deterministic timing (not timer ISR — avoids ISR jitter)
+- IMU + baro reads on I2C1, published via seqlock to Core 0
 - Control loop (Titan only)
+- Calls `multicore_lockout_victim_init()` on entry (required for flash safety)
 - Minimal processing to maintain deterministic timing
+
+**Cross-core data flow:** Core 1 → seqlock double-buffer → Core 0. See Section 4.3.
 
 ### 5.3 Execution Flow Diagram
 
@@ -881,7 +959,7 @@ RocketChip uses a multi-tier storage model:
 
 ## 10. Development Phases
 
-This section tracks the implementation roadmap. See `docs/SCAFFOLDING.md` for detailed file-level status and `docs/PROJECT_STATUS.md` for current focus.
+This section tracks the high-level implementation roadmap. For detailed step-by-step integration order with verification gates, see **`docs/IVP.md`** (Integration and Verification Plan). See `docs/SCAFFOLDING.md` for file-level status and `docs/PROJECT_STATUS.md` for current focus.
 
 > **Note:** Starting fresh after archiving previous ArduPilot integration attempts. All items reset to planned state.
 
@@ -1099,23 +1177,23 @@ Hardware voting ensures safety independent of firmware state:
 
 ## Appendix A: Phase-to-Section Cross-Reference
 
-Quick reference for which SAD sections are critical for each development phase.
+Quick reference for which SAD sections are critical for each development phase. For detailed integration steps, see `docs/IVP.md`.
 
-| Phase | Critical Sections | Reference Sections |
-|-------|-------------------|-------------------|
-| **1: Foundation** | Build Config (7), Task Architecture (5) | Directory Structure (3.1), Fault Handling (2.4) |
-| **2: Sensors** | Data Structures (4.1), Driver Interfaces (4.2), Storage (9.2-9.4) | Hardware Specs (2.2), Data Flow (8) |
-| **3: GPS** | GPS Interface (4.2) | Data Flow (8) |
-| **4: Fusion** | Sensor Fusion (5.4), FusedState (4.1), ESKF docs | RAM Allocation (9.1) |
-| **5: Mission Engine** | State Machine (6), Module Responsibilities (3.2), Inter-Task Comm (4.3) | MissionEngine (3.3) |
-| **6: Logging** | Pre-Launch Buffer (8.2), Logging Format (8.3), Flash Layout (9.3) | Storage Interface (4.2) |
-| **7: Telemetry** | Radio Interface (4.2), MAVLink (8.1) | Hardware Specs (2.2) |
-| **8: UI** | All UI-related | ROCKETCHIP_OS.md |
-| **9: Polish** | All sections | All docs |
+| Phase | Critical SAD Sections | IVP Stage | Reference Sections |
+|-------|----------------------|-----------|-------------------|
+| **1: Foundation** | Build Config (7), Execution Architecture (5) | Stage 1 | Directory Structure (3.1), Fault Handling (2.4) |
+| **2: Sensors** | Data Structures (4.1), Driver Interfaces (4.2), Storage (9.2-9.4) | Stages 2-3 | Hardware Specs (2.2), Data Flow (8) |
+| **3: GPS** | GPS Interface (4.2) | Stage 4 | Data Flow (8) |
+| **4: Fusion** | Sensor Fusion (5.4), FusedState (4.1), ESKF docs | Stage 5 | RAM Allocation (9.1) |
+| **5: Mission Engine** | State Machine (6), Module Responsibilities (3.2), Inter-Module Comm (4.3) | Stage 6 | MissionEngine (3.3) |
+| **6: Logging** | Pre-Launch Buffer (8.2), Logging Format (8.3), Flash Layout (9.3) | Stage 7 | Storage Interface (4.2) |
+| **7: Telemetry** | Radio Interface (4.2), Data Flow (8.1) | Stage 8 | Hardware Specs (2.2) |
+| **8: UI** | All UI-related | — | ROCKETCHIP_OS.md |
+| **9: Polish** | All sections | Stage 9 | All docs |
 
 ---
 
-## 14. Open Questions
+## 15. Open Questions
 
 ### Resolved
 
@@ -1142,7 +1220,7 @@ Quick reference for which SAD sections are critical for each development phase.
 
 ---
 
-## 15. References
+## 16. References
 
 - [RP2350 Datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)
 - [Pico SDK Documentation](https://www.raspberrypi.com/documentation/pico-sdk/)

@@ -52,6 +52,7 @@ Code is being rewritten for bare-metal Pico SDK. Existing source files may still
 - [ ] Update CMakeLists.txt to remove FreeRTOS dependencies
 - [ ] GPS integration
 - [ ] Replace any remaining ArduPilot math dependencies
+- [ ] Create `docs/PIO_ALLOCATION.md` — PIO state machine tracking (12 SMs across 3 blocks; currently 1 used for WS2812)
 - [ ] Begin ESKF sensor fusion (Phase 4) — see `docs/decisions/ESKF/`
 
 ## Blockers
