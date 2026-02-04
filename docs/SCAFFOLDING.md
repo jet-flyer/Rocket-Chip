@@ -8,7 +8,7 @@ Updated: 2026-02-02
 
 ## Build System
 
-Pure CMake + Pico SDK + FreeRTOS SMP (PlatformIO abandoned - requires Arduino framework for RP2350)
+Pure CMake + Pico SDK (bare-metal) (PlatformIO abandoned - requires Arduino framework for RP2350)
 
 ## Directory Tree
 
@@ -16,10 +16,8 @@ Structure below shows planned production architecture. See `docs/SAD.md` Section
 
 ```
 rocketchip/
-├── CMakeLists.txt                 # Primary build system (Pico SDK + FreeRTOS)
-├── FreeRTOSConfig.h               # FreeRTOS SMP configuration
+├── CMakeLists.txt                 # Primary build system (Pico SDK)
 ├── pico_sdk_import.cmake          # Pico SDK integration
-├── FreeRTOS_Kernel_import.cmake   # FreeRTOS integration
 ├── README.md                      # Agent instructions
 ├── CHANGELOG.md                   # Development history
 │
@@ -55,7 +53,6 @@ rocketchip/
 │
 ├── src/
 │   ├── main.cpp                   # Production entry point
-│   ├── hooks.cpp                  # FreeRTOS hooks (stack overflow, malloc fail)
 │   │
 │   ├── core/                      # Mission Engine (Phase 5+)
 │   │   ├── MissionEngine.*        # Top-level orchestrator
@@ -73,7 +70,7 @@ rocketchip/
 │   │   ├── Storage.*              # Flash storage
 │   │   └── LED.*                  # NeoPixel/status LED driver
 │   │
-│   ├── services/                  # FreeRTOS Tasks
+│   ├── services/                  # Application Modules
 │   │   ├── SensorTask.*           # High-rate sensor sampling
 │   │   ├── FusionTask.*           # ESKF/AHRS processing
 │   │   ├── MissionTask.*          # Event/state processing
@@ -104,7 +101,6 @@ rocketchip/
 │       └── Mission_Freeform.cpp   # Just log everything
 │
 ├── lib/                           # External Libraries
-│   ├── FreeRTOS-Kernel/           # FreeRTOS (git submodule)
 │   ├── pico-sdk/                  # Pico SDK (git submodule or system)
 │   └── mavlink/                   # MAVLink v2 headers (generated)
 │
@@ -138,19 +134,9 @@ See `docs/SAD.md` Section 3.2 for authoritative version.
 | **TelemetryTask** | Encode MAVLink, transmit via radio |
 | **UITask** | Update display, handle buttons, drive LED/CLI |
 
-## Task Architecture
+## Execution Architecture
 
-See `docs/SAD.md` Section 5 for authoritative version.
-
-| Task | Priority | Rate | Stack | Core | Notes |
-|------|----------|------|-------|------|-------|
-| SensorTask | 5 (highest) | 1kHz | 1KB | 0 | Hard real-time |
-| ControlTask | 5 | 500Hz | 1KB | 0 | Titan only (TVC) |
-| FusionTask | 4 | 200-400Hz | 2KB | 1 | ESKF navigation |
-| MissionTask | 4 | 100Hz | 2KB | 1 | State machine, events |
-| LoggerTask | 3 | 50Hz | 2KB | 1 | Buffered writes |
-| TelemetryTask | 2 | 10Hz | 1KB | 1 | MAVLink over LoRa |
-| UITask | 1 (lowest) | 30Hz | 1KB | 1 | Display, LEDs, CLI |
+Bare-metal Pico SDK with a polling main loop. Modules are called at their target rates using Pico SDK timer/alarm infrastructure. No RTOS task priorities, stacks, or core pinning apply. See `docs/SAD.md` for authoritative architecture.
 
 ## CMake Build Targets
 
@@ -172,9 +158,8 @@ See `docs/SAD.md` Section 5 for authoritative version.
 > **Note:** Starting fresh after archiving ArduPilot integration attempts. All implementation status reset.
 
 **Phase 1: Foundation** - 🔧 **CURRENT**
-- [ ] CMake build system with Pico SDK + FreeRTOS submodules
-- [ ] FreeRTOS SMP configuration (dual-core)
-- [ ] Minimal `main.cpp` with FreeRTOS task structure
+- [ ] CMake build system with Pico SDK
+- [ ] Minimal `main.cpp` with polling main loop
 - [ ] USB CDC serial output (debug)
 - [ ] LED status indicator (NeoPixel)
 - [ ] I2C bus initialization

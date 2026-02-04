@@ -21,36 +21,18 @@ These additional rules from JPL's standard are stretch goals for Pro tier:
 - Stricter `const`/`constexpr` usage
 - Triple-voting on safety-critical variables
 
-### RP2350 + FreeRTOS SMP Platform Constraints
+### RP2350 Bare-Metal Platform Constraints
 
 These constraints are non-negotiable. They exist because violations produce silent
-crashes, USB failures, or cross-core corruption that take hours to diagnose.
+crashes or USB failures that take hours to diagnose.
 See `.claude/LESSONS_LEARNED.md` for the full debugging narratives behind each rule.
 
-#### FreeRTOS
+#### Memory
 
-- **Use ONLY the Raspberry Pi FreeRTOS fork** (`raspberrypi/FreeRTOS-Kernel`).
-  The main FreeRTOS repo lacks the RP2350 SMP port. Verify in `.gitmodules`.
-  *(LL Entry 18)*
-
-- **FreeRTOSConfig.h is based on pico-examples.** Do not rewrite from scratch.
-  Do not change `configMAX_SYSCALL_INTERRUPT_PRIORITY` (must be 16),
-  `configSUPPORT_PICO_SYNC_INTEROP` (must be 1), or the RP2350/TrustZone/FPU
-  settings. *(LL Entry 18)*
-
-- **Don't busy-wait with `taskYIELD()`.** It only yields to equal-or-higher
-  priority tasks. Use `vTaskDelay(1)` to yield to all tasks. *(LL Entry 9)*
-
-- **Task stack minimums:** 256 words for simple I/O, 512 for moderate computation,
-  1024 for matrix math (ESKF, calibration fits). Any local variable >1KB must be
-  `static` or heap-allocated — large locals cause silent stack overflow at function
-  entry. *(LL Entries 1, 19)*
+- **Large local variables (>1KB) must be `static` or heap-allocated.** Large locals
+  cause silent stack corruption at function entry. *(LL Entry 1)*
 
 #### USB CDC
-
-- **No USB I/O before `vTaskStartScheduler()`.** No printf, no getchar, no
-  `stdio_usb_connected()` checks in `main()`. TinyUSB background tasks only run
-  after the scheduler starts. *(LL Entry 10)*
 
 - **Guard all USB I/O with `stdio_usb_connected()`.** When disconnected, do
   nothing — no printf, no getchar. *(LL Entry 15)*
@@ -58,8 +40,7 @@ See `.claude/LESSONS_LEARNED.md` for the full debugging narratives behind each r
 - **Drain USB input buffer on terminal connection.** Garbage bytes from USB
   handshake trigger phantom commands. *(LL Entry 15)*
 
-- **Let SDK handle USB.** Do not create custom USB tasks. Do not set
-  `PICO_STDIO_USB_ENABLE_IRQ_BACKGROUND_TASK=0`. *(LL Entry 18)*
+- **Let SDK handle USB.** Do not override SDK USB handling.
 
 #### Flash
 
@@ -67,25 +48,13 @@ See `.claude/LESSONS_LEARNED.md` for the full debugging narratives behind each r
   on both cores. Use `flash_safe_execute()` from `pico/flash.h` for all flash
   access. *(LL Entries 4, 12)*
 
-#### Multi-Core
-
-- **SensorTask pinned to Core 1.** USB IRQ handlers are on Core 0 (SDK-managed).
-  All other tasks should float unpinned for SMP load balancing. See
-  `docs/MULTICORE_RULES.md`. *(LL Entries 8, 10, 18)*
-
-- **Use FreeRTOS primitives for cross-core data sharing.** Never use plain
-  `volatile` — it lacks hardware memory barriers. *(LL Entry 8)*
-
-- **Clear BASEPRI after any HAL/init code that might elevate it:**
-  `__asm volatile ("mov r0, #0\nmsr basepri, r0" ::: "r0");` *(LL Entry 3)*
-
 #### Build System
 
-- **CMake + Pico SDK + FreeRTOS only.** No PlatformIO, no Arduino.
+- **CMake + Pico SDK only.** No PlatformIO, no Arduino.
 
 - **All `#define` macros affecting class layout must be in global
   `add_compile_definitions()`.** Inconsistent macros across compilation units
-  cause ODR violations — inline getters return garbage. *(LL Entry 17)*
+  cause ODR violations — inline getters return garbage.
 
 - **Board type before SDK import:**
   `set(PICO_BOARD "adafruit_feather_rp2350" CACHE STRING "Board type")`
@@ -113,8 +82,8 @@ See `.claude/LESSONS_LEARNED.md` for the full debugging narratives behind each r
   implementation, confirmed forum post). If no source exists, flag and ask.
 
 - **Research before implementing.** Before writing code that touches hardware
-  interfaces, RTOS configuration, or sensor drivers, check relevant
-  documentation, datasheets, and recent forum posts for known issues.
+  interfaces or sensor drivers, check relevant documentation, datasheets, and
+  recent forum posts for known issues.
 
 - **Don't assume — ask.** If a task or design choice isn't covered by existing
   docs and research doesn't definitively answer it, ask before implementing.
@@ -123,22 +92,22 @@ See `.claude/LESSONS_LEARNED.md` for the full debugging narratives behind each r
 
 **Before implementing any hardware interface, driver, or novel functionality:**
 
-1. **Check ArduPilot first** - Search existing AP_HAL implementations for similar functionality
-   - How do ChibiOS/Linux/SITL HALs handle this?
-   - Are there relevant PRs or issues discussing the approach?
-   - Example: ADC voltage scaling (see [PR #18754](https://github.com/ArduPilot/ardupilot/pull/18754))
+1. **Check Pico SDK examples first** - For RP2350-specific implementations
+   - SDK examples show idiomatic usage patterns
+   - Hardware-specific quirks are often documented in examples
 
 2. **Check Adafruit/SparkFun libraries** - These are our preferred hardware vendors
    - CircuitPython implementations often have clear, well-documented approaches
    - Arduino libraries show common patterns for similar MCUs
    - Check for errata workarounds they've already implemented
 
-3. **Check Pico SDK examples** - For RP2350-specific implementations
-   - SDK examples show idiomatic usage patterns
-   - Hardware-specific quirks are often documented in examples
+3. **Check ArduPilot as reference** - Useful for algorithms and sensor handling patterns
+   - Calibration algorithms, sensor fusion approaches, flight state logic
+   - Not a direct dependency — use as reference material, not imported code
+   - Full ArduPilot integration (ArduRocket) is a future goal once ChibiOS RP2350 support ships
 
 4. **Document findings** - When prior art influences implementation:
-   - Reference source in code comments (e.g., "// Per ArduPilot PR #18754...")
+   - Reference source in code comments (e.g., "// Based on Pico SDK example...")
    - Note any deviations from prior art and rationale
 
 **Rationale:** Proven solutions from established projects save time and reduce bugs. When millions of devices use a particular approach, that's strong evidence it works.
@@ -217,11 +186,8 @@ Approved deviations from coding standards. Each exception requires documented ra
 | Rule | Correct | Incorrect | Rationale |
 |------|---------|-----------|-----------|
 | LED Pin | `PICO_DEFAULT_LED_PIN` | `7` or other hardcoded value | SDK defines correct pin per board variant |
-| Delay in main | `sleep_ms()` | `busy_wait_ms()` | `sleep_ms` is SDK-safe before RTOS |
-| FreeRTOS delay | `vTaskDelay()` | `sleep_ms()` | Must use RTOS primitives after scheduler starts |
+| Delay | `sleep_ms()` | `busy_wait_ms()` | `sleep_ms` works with SDK timers |
 | Large objects | `static ClassName g_obj;` | `ClassName obj;` in function | Stack space is limited; large objects cause overflow |
-| HAL init order | `hal.init()` before `stdio_init_all()` | `stdio_init_all()` first | Flash ops in HAL conflict with USB if USB is already running |
-| BASEPRI after HAL | Clear BASEPRI after `hal.init()` | Leave BASEPRI elevated | FreeRTOS/HAL may block USB interrupts via BASEPRI |
 
 ### Memory Allocation Rules
 
@@ -248,8 +214,7 @@ int main() {
 - No error message - device just stops responding
 
 **Objects known to require static allocation:**
-- `CompassCalibrator` (ArduPilot) - ~3KB+
-- Any object with large internal buffers
+- Any object with large internal buffers (calibration matrices, sensor history, etc.)
 
 **Debug tip:** When a crash appears random, try moving large local variables to static allocation.
 
@@ -292,14 +257,6 @@ Firmware handling pyro channels must implement:
 
 ## Software Architecture
 
-### RTOS
-
-| Tier | RTOS | Notes |
-|------|------|-------|
-| Core | Evaluating | May not need RTOS for simple logging |
-| Main | Evaluating | Depends on telemetry complexity |
-| Pro | **FreeRTOS** | Required for TVC, pyro timing, multi-task |
-
 ### State Machines
 
 Flight phases managed via explicit state machine:
@@ -313,66 +270,6 @@ Event-action-state architecture (separate module/library):
 - **Mission** defines sensors, states, events, actions, logging
 - Same hardware runs different Missions for different applications
 - See Mission Engine documentation for details
-
-### ArduPilot Library Integration
-
-Using ArduPilot libraries via compatibility shim (not full ArduPilot firmware):
-- **AP_Math** - Vectors, matrices, quaternions
-- **AP_AHRS** - Attitude estimation (DCM)
-- **Filter** - LowPass, Notch filters
-- **AP_AccelCal / AP_Compass** - Calibration routines
-
-Full ArduPilot port (ArduRocket) is a stretch goal requiring ChibiOS HAL.
-
-### Dependency Bypassing Policy
-
-**MANDATORY: Explicit approval required before bypassing any ArduPilot dependencies.**
-
-When integrating ArduPilot libraries, the default approach is to use ArduPilot's proven implementations directly. Writing custom wrappers, simplified versions, or workarounds that bypass ArduPilot's actual code is **not permitted without explicit user approval**.
-
-**Sparse Checkout Review:**
-
-When you encounter an ArduPilot dependency that is NOT in our sparse checkout (`lib/ardupilot/.git/info/sparse-checkout`), you MUST:
-1. **Flag it for review** - Tell the user which library is missing
-2. **Propose adding it** - Suggest: `git sparse-checkout add libraries/AP_LibraryName`
-3. **Wait for decision** - Do not create a simplified alternative without explicit approval
-
-When you find yourself writing code that mimics or copies ArduPilot logic (e.g., copying `correct_field()` implementation), STOP and flag this for review. The real ArduPilot code should be used instead.
-
-**Before proposing to bypass a dependency:**
-
-1. **Identify the exact dependency** - What ArduPilot code are you considering not using?
-2. **Explain the blocker** - What specifically prevents using the real implementation?
-   - Missing HAL component (specify which)
-   - ChibiOS-specific code that cannot be ported
-   - Circular dependency that cannot be resolved
-3. **Propose alternatives** - Can we implement the missing HAL component instead? Can we add the library to sparse checkout?
-4. **Wait for approval** - Do not proceed until the user explicitly approves the bypass
-
-**Rationale:** ArduPilot code has been battle-tested on millions of devices. Custom implementations introduce bugs that ArduPilot already solved (e.g., sign conventions, edge cases, calibration algorithms). The time "saved" by shortcuts is inevitably lost debugging issues that proven code handles correctly.
-
-**Examples of what requires approval:**
-- Writing a simplified `AP_Compass` wrapper instead of using `AP_Compass_Backend`
-- Implementing custom calibration logic instead of using `CompassCalibrator` directly
-- Stubbing out functionality that ArduPilot implements
-
-**What does NOT require approval:**
-- Implementing missing AP_HAL components (Storage, I2C, SPI, etc.)
-- Creating compatibility shims that call real ArduPilot code
-- Adding platform-specific implementations in `lib/ap_compat/`
-
-### HAL Adaptation Policy
-
-**When porting HAL code to a new platform, adapt existing implementations rather than writing from scratch.**
-
-For AP_HAL_RP2350, the reference implementation is **AP_HAL_ESP32** (both use FreeRTOS). When implementing HAL components:
-
-1. **Start from the closest working HAL** - Copy the ESP32 implementation as the starting point
-2. **Document adaptations** - Track what's kept verbatim vs. what's platform-adapted in `ESP32_ADAPTATION.md`
-3. **Surgical replacements only** - Replace ESP-IDF API calls with Pico SDK equivalents; don't restructure the code
-4. **No simplified stubs** - If a feature isn't needed yet, use `Empty::` namespace drivers (ArduPilot's pattern), not custom stubs
-
-**Rationale:** The ESP32 HAL team already solved "ArduPilot on FreeRTOS." Their patterns for task creation, semaphores, timing, and callbacks are proven. Platform-specific changes should be API substitutions, not architectural rewrites.
 
 ---
 

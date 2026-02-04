@@ -12,7 +12,7 @@ Open-source. Modular. Built to be extended.
 |------|------|-------------|
 | Base | **Core** | Bare-bones, lightweight board. Local data logging only. Minimal sensors, maximum hackability. |
 | Main | *TBD* | Full sensor suite with local logging. Optional telemetry and peripherals via Booster Packs. |
-| Advanced | **Titan** | High-performance sensors, pyro channel triggering, RTOS, TVC support. |
+| Advanced | **Titan** | High-performance sensors, pyro channel triggering, deterministic control loops, TVC support. |
 
 *Note: Nova reserved for future product (potentially space-rated hardware).*
 
@@ -60,7 +60,7 @@ Naming convention: rocket program names or terms strongly associated with spacef
 
 - **Platform**: RP2350 (Adafruit Feather ecosystem)
 - **Feather Compatibility**: Core/Main boards maintain standard Feather pinout for 3rd-party FeatherWing compatibility
-- **RTOS**: FreeRTOS for real-time operations
+- **Architecture**: Bare-metal Pico SDK with polling main loop
 - **Sensor Fusion**: Custom ESKF + MMAE architecture (see docs/ESKF/)
 - **Architecture**: Mission Engine for event-condition-action workflows
 - **Development**: CMake + Pico SDK

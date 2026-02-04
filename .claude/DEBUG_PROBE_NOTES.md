@@ -164,8 +164,8 @@ arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localh
 # Check specific variables
 arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor halt" -ex "print my_variable"
 
-# Check which task is running on each core
-arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor halt" -ex "print (char*)pxCurrentTCBs[0]->pcTaskName" -ex "print (char*)pxCurrentTCBs[1]->pcTaskName"
+# Check program counter on each core
+arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor halt" -ex "info threads"
 ```
 
 The probe gives you instant visibility without modifying code behavior.

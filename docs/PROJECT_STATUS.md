@@ -4,23 +4,17 @@
 
 ## Current Phase
 
-**Reboot: Validate & Rebuild** — Bespoke FreeRTOS implementation on corrected foundation
+**Reboot: Bare-Metal Pico SDK Pivot** — Rewriting from FreeRTOS to bare-metal Pico SDK
 
 ## Context
 
 Archived ArduPilot integration attempts after encountering fundamental blockers:
-- `AP_ChibiOS` branch: XIP flash execution issues prevented viable ChibiOS port
+- `AP_ChibiOS` branch: XIP flash execution issues prevented viable ChibiOS port (official RP2350 ChibiOS support is actively being developed upstream)
 - `AP_FreeRTOS` branch: Working but complex; fundamental architectural incompatibilities
 
-Starting fresh with bespoke approach. Previous development revealed critical platform constraints (wrong FreeRTOS fork, incorrect core assignments, USB init ordering) that are now documented in `standards/CODING_STANDARDS.md` and `.claude/LESSONS_LEARNED.md`.
+Pivoting away from FreeRTOS to bare-metal Pico SDK. FreeRTOS SMP added complexity (cross-core memory visibility, priority inversion, USB init ordering) without proportional benefit at this stage. Bare-metal simplifies the architecture while retaining dual-core capability through Pico SDK primitives. Previous platform constraints are documented in `standards/CODING_STANDARDS.md` and `.claude/LESSONS_LEARNED.md`.
 
-## What Exists (from previous work — needs validation against corrected platform rules)
-
-Build system and RTOS:
-- [x] CMakeLists.txt (Pico SDK + FreeRTOS SMP)
-- [x] FreeRTOSConfig.h (based on pico-examples)
-- [x] FreeRTOS-Kernel submodule (raspberrypi fork — CORRECT)
-- [x] main.cpp with FreeRTOS task structure
+## What Exists (from previous work — needs adaptation for bare-metal)
 
 Sensor drivers:
 - [x] ICM-20948 9-DoF IMU (custom driver with magnetometer)
@@ -30,46 +24,51 @@ Sensor drivers:
 Infrastructure:
 - [x] Calibration system with flash persistence (gyro, level, 6-position accel, baro)
 - [x] RC_OS CLI menu (terminal-connected pattern)
-- [x] Debug stream (deferred USB CDC logging)
 - [x] WS2812 NeoPixel status LED driver
+- [x] CMakeLists.txt (needs update to remove FreeRTOS dependencies)
 
-## Validation Needed (before building on top)
+Deleted (need rewrite for bare-metal):
+- main.cpp (was FreeRTOS task-based)
+- sensor_task (was FreeRTOS task)
+- debug_stream (was FreeRTOS stream buffer-based)
+
+## Validation Needed (after bare-metal rewrite)
 
 - [ ] Clean build from fresh clone
 - [ ] USB CDC enumeration
-- [ ] Core assignment correctness (SensorTask on Core 1, USB on Core 0)
 - [ ] Sensor readings (IMU, baro)
 - [ ] Calibration load/save across power cycles
-- [ ] printf from unpinned tasks (validate cross-core USB safety)
 - [ ] RC_OS CLI commands
 
 ## Caution
 
-Previous code was developed partly under the WRONG FreeRTOS fork and with INCORRECT core assignments documented in SAD.md and TASK_PRIORITIES.md. Some existing code may contain assumptions or patterns from those errors. Validate before trusting.
+Code is being rewritten for bare-metal Pico SDK. Existing source files may still contain FreeRTOS includes, task primitives, or assumptions from the previous architecture. These need to be identified and replaced during the rewrite.
 
-## Next Steps (After Validation)
+## Next Steps
 
-- [ ] Fix any issues found during validation
-- [ ] GPS integration into task architecture
+- [ ] Write new bare-metal main.cpp (super-loop or timer-interrupt architecture)
+- [ ] Implement sensor polling loop without FreeRTOS tasks
+- [ ] Rewrite debug output for bare-metal (direct printf or simple ring buffer)
+- [ ] Update CMakeLists.txt to remove FreeRTOS dependencies
+- [ ] GPS integration
 - [ ] Replace any remaining ArduPilot math dependencies
 - [ ] Begin ESKF sensor fusion (Phase 4) — see `docs/decisions/ESKF/`
 
 ## Blockers
 
-None — clean foundation with corrected platform rules.
+None — clean foundation, pivoting to simpler bare-metal approach.
 
 ## Reference Material
 
 **Platform rules and constraints:**
-- `standards/CODING_STANDARDS.md` — RP2350 + FreeRTOS SMP constraints section
+- `standards/CODING_STANDARDS.md` — RP2350 platform constraints
 - `docs/MULTICORE_RULES.md` — Core assignment and cross-core rules
 - `.claude/LESSONS_LEARNED.md` — 19 debugging entries with root causes
 - `.claude/SESSION_CHECKLIST.md` — Session handoff procedures
 - `.claude/DEBUG_PROBE_NOTES.md` — OpenOCD/GDB setup
 
 **Architecture:**
-- `docs/SAD.md` — Software Architecture Document (⚠ core assignments need correction)
-- `docs/FreeRTOS/TASK_PRIORITIES.md` — Task hierarchy (⚠ core assignments need correction)
+- `docs/SAD.md` — Software Architecture Document
 - `docs/decisions/` — Council review outputs (ESKF architecture, etc.)
 
 **Available in archive branches:**
@@ -81,4 +80,4 @@ None — clean foundation with corrected platform rules.
 - Middle tier product name decision
 - Ground station software evaluation
 - Telemetry protocol selection
-- SAD.md / TASK_PRIORITIES.md core assignment correction
+- Full ArduPilot integration via ChibiOS HAL — official ChibiOS RP2350 support is actively being developed and imminent. Once available, a native AP_HAL_ChibiOS port becomes viable, enabling full ArduPilot firmware (ArduRocket) on RocketChip hardware

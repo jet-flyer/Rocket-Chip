@@ -86,33 +86,16 @@ constexpr uint8_t kPa1010d      = 0x10;     // GPS module
 } // namespace i2c
 
 // ============================================================================
-// Task Configuration (from SCAFFOLDING.md)
+// Timing Configuration
 // ============================================================================
 
-namespace task {
+namespace timing {
 
-// Task priorities (higher = more important)
-constexpr uint8_t kPrioritySensor   = 5;    // SensorTask - highest
-constexpr uint8_t kPriorityControl  = 5;    // ControlTask (Titan only)
-constexpr uint8_t kPriorityFusion   = 4;    // FusionTask
-constexpr uint8_t kPriorityMission  = 4;    // MissionTask
-constexpr uint8_t kPriorityLogger   = 3;    // LoggerTask
-constexpr uint8_t kPriorityTelemetry = 2;   // TelemetryTask
-constexpr uint8_t kPriorityUi       = 1;    // UITask - lowest
+constexpr uint32_t kSensorPollMs    = 10;   // 100Hz sensor polling
+constexpr uint32_t kBaroDivider     = 2;    // Baro every 2nd sensor poll = 50Hz
+constexpr uint32_t kCliPollMs       = 50;   // 20Hz CLI input polling
 
-// Stack sizes (in words, multiply by 4 for bytes)
-constexpr uint16_t kStackSensor     = 256;  // 1KB
-constexpr uint16_t kStackFusion     = 512;  // 2KB
-constexpr uint16_t kStackMission    = 512;  // 2KB
-constexpr uint16_t kStackLogger     = 512;  // 2KB
-constexpr uint16_t kStackTelemetry  = 256;  // 1KB
-constexpr uint16_t kStackUi         = 256;  // 1KB
-
-// Core affinity
-constexpr uint8_t kCoreRealtime     = 0;    // Sensor, Control tasks
-constexpr uint8_t kCoreBackground   = 1;    // Fusion, Mission, Logger, UI, Telemetry
-
-} // namespace task
+} // namespace timing
 
 } // namespace rocketchip
 #endif // __cplusplus
@@ -120,24 +103,15 @@ constexpr uint8_t kCoreBackground   = 1;    // Fusion, Mission, Logger, UI, Tele
 // ============================================================================
 // Debug Macros (from DEBUG_OUTPUT.md)
 // ============================================================================
-//
-// Uses deferred logging via FreeRTOS Stream Buffer to avoid blocking
-// high-priority tasks on USB CDC. Safe to call from any task/priority.
-//
-// IMPORTANT: debug_stream_init() must be called before scheduler starts,
-// and debug_stream_flush() must be called periodically from UITask.
-// ============================================================================
 
 #ifdef DEBUG
     #include "pico/time.h"
-    #include "debug/debug_stream.h"
-    #define DBG_PRINT(fmt, ...) dbg_printf("[%lu] " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
-    #define DBG_TASK(name) DBG_PRINT("[%s] tick", name)
+    #include <stdio.h>
+    #define DBG_PRINT(fmt, ...) printf("[%lu] " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
     #define DBG_STATE(from, to) DBG_PRINT("State: %s -> %s", from, to)
-    #define DBG_ERROR(fmt, ...) dbg_printf("[%lu] ERROR: " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
+    #define DBG_ERROR(fmt, ...) printf("[%lu] ERROR: " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
 #else
     #define DBG_PRINT(fmt, ...) ((void)0)
-    #define DBG_TASK(name) ((void)0)
     #define DBG_STATE(from, to) ((void)0)
     #define DBG_ERROR(fmt, ...) ((void)0)
 #endif

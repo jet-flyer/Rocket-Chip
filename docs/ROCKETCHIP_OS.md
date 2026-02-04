@@ -1,7 +1,7 @@
 # RocketChip OS
 
-**Status:** Phase 2 - Sensor Integration
-**Last Updated:** 2026-01-30
+**Status:** Bare-metal rewrite pending
+**Last Updated:** 2026-02-03
 
 RocketChip OS (RC_OS) is the command-line interface and user interaction system for RocketChip flight computers. It provides serial-based configuration, calibration, and status monitoring.
 
@@ -19,7 +19,7 @@ The CLI is designed to work standalone (via terminal) or alongside MAVLink-based
 
 ### Design Philosophy
 
-RC_OS follows patterns proven in the old APM CLI (ArduPilot ~2012-2014) while adapted for modern FreeRTOS architecture:
+RC_OS follows patterns proven in the old APM CLI (ArduPilot ~2012-2014) adapted for bare-metal Pico SDK:
 
 | Pattern | Implementation |
 |---------|---------------|
@@ -117,7 +117,7 @@ When a MAVLink GCS connects (sends heartbeats), binary telemetry is enabled. Wit
 - **g** - GPS status and satellite info
 - **t** - Telemetry radio status
 - **r** - Radio test mode
-- **p** - Parameter view/dump (AP_Param)
+- **p** - Parameter view/dump
 
 ### Phase 4 - Mission System
 - **m** (redefined) - Mission menu
@@ -132,7 +132,6 @@ When a MAVLink GCS connects (sends heartbeats), binary telemetry is enabled. Wit
 - **d** - Data download menu
 
 ### Future
-- Priority boost during user interaction
 - Ring buffer for pre-connect output capture
 - Scripting/macro support
 - OTA firmware update
@@ -142,32 +141,26 @@ When a MAVLink GCS connects (sends heartbeats), binary telemetry is enabled. Wit
 
 ## Architecture
 
-### FreeRTOS Task Model
+### Execution Model
 
-| Task | Priority | Core | Purpose |
-|------|----------|------|---------|
-| CLITask | 1 (lowest) | 0 | User interface, menu handling |
-| SensorTask | 5 | 1 | 1kHz IMU, 50Hz baro sampling |
-| APM_I2C | 5 | 0 | ArduPilot I2C bus thread |
+CLI runs as part of the polling main loop on Core 0, called at ~20Hz (`kCliPollMs = 50`). Sensor sampling runs on Core 1 via timer interrupts at 1kHz, so CLI polling never interferes with sensor timing.
 
-**Design rationale:** CLI at lowest priority ensures sensor sampling is never interrupted. This matches flight-critical requirements but may cause slight input lag during heavy sensor activity.
+### Terminal-Connected Pattern
 
-### Terminal-Connected Pattern (v0.3)
-
-CLITask only executes when a terminal is connected (`stdio_usb_connected()`). This resolves Entry 15 where terminal connection was affecting program state.
+CLI only executes when a terminal is connected (`stdio_usb_connected()`). This prevents USB I/O from affecting program behavior when no terminal is attached.
 
 ```
-CLITask Loop:
+Main loop:
   if (!stdio_usb_connected()) {
       // DISCONNECTED: Slow LED blink (1Hz), NO USB I/O
-      continue;
+  } else {
+      // CONNECTED: Process CLI commands
   }
-  // CONNECTED: Process CLI commands via RC_OS::cmd_*()
 ```
 
 **Benefits:**
 - Terminal connection affects only output, not program behavior
-- CLI completely decoupled from SensorTask internals
+- CLI completely decoupled from sensor internals
 - No wasted cycles when no terminal connected
 
 ### Menu State Machine
@@ -175,7 +168,7 @@ CLITask Loop:
 ```
 MenuMode::Main
   ├── 'h' → printSystemStatus()
-  ├── 's' → SensorTask_PrintStatus()  (read-only via mutex)
+  ├── 's' → print_sensor_status()  (reads shared data)
   └── 'c' → MenuMode::Calibration
               ├── 'w' → runCalibrationWizard()
               ├── 'l' → RC_OS::cmd_level_cal()      ← MAVLink path
@@ -188,35 +181,30 @@ MenuMode::Main
 
 ### Source Files
 
+> **Note:** Source files are being rewritten for bare-metal architecture. The table below shows the planned structure.
+
 | File | Purpose |
 |------|---------|
-| `src/main.cpp` | CLI task and menu handling |
-| `src/cli/RC_OS.h` | CLI→MAVLink command mappings |
-| `src/services/SensorTask.cpp` | Calibration implementations |
-| `lib/ap_compat/GCS_MAVLink/GCS.h` | MAVLink interface + send_local_command() |
-| `lib/ap_compat/GCS_MAVLink/GCS.cpp` | MAVLink parsing, routing, command handling |
+| `src/main.cpp` | Main loop with CLI polling |
+| `src/cli/rc_os.c` | CLI menu handling and command dispatch |
+| `src/calibration/calibration_manager.c` | Calibration implementations |
 
 ---
 
-## Platform-Specific Considerations
+## Platform Considerations
 
-RC_OS runs on RP2350 with FreeRTOS SMP - a fundamentally different environment from the original APM CLI (single-core ATmega, bare-metal). Key differences documented in `RP2350_FULL_AP_PORT.md`:
-
-| Issue | Solution | Reference |
-|-------|----------|-----------|
-| Multi-core memory visibility | std::atomic flags, core affinity | PD12 |
-| Priority inversion | vTaskDelay instead of busy-wait | PD13 |
-| USB CDC init order | HAL init before stdio_init_all | PD1, PD3 |
-| TinyUSB scheduler requirement | All USB I/O after vTaskStartScheduler | Entry 10 |
-
-These issues are **not** present in traditional CLI implementations and required platform-specific solutions.
+| Concern | Approach | Reference |
+|---------|----------|-----------|
+| USB CDC guard | Only do I/O when `stdio_usb_connected()` | LL Entry 15 |
+| Flash/USB conflict | Flash ops before `stdio_init_all()` | LL Entries 4, 12 |
+| Input buffer garbage | Drain buffer on terminal connect | LL Entry 15 |
 
 ---
 
 ## Known Limitations
 
-1. **Input lag** - CLI at priority 1 only runs when higher-priority tasks yield
-2. **No parameter editing** - Can view AP_Param but not modify via CLI yet
+1. **Input lag** - CLI polled at 20Hz; up to 50ms latency on keypress
+2. **No parameter editing** - View-only for now; parameter modification planned
 3. **No flight state lockout** - Calibration can run even when armed (safety gap)
 4. **Pre-connect output lost** - Messages before terminal connection are not buffered
 5. **No arrow key navigation** - Menu uses single-key commands only (future enhancement)

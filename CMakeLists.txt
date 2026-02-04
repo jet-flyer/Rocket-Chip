@@ -1,6 +1,6 @@
 # RocketChip CMake Build System
 # Target: Adafruit Feather RP2350 HSTX
-# RTOS: FreeRTOS SMP (dual-core)
+# Platform: Bare-metal Pico SDK
 
 # ============================================================================
 # Pico VS Code Extension Integration (handles toolchain and picotool)
@@ -30,9 +30,8 @@ cmake_minimum_required(VERSION 3.13)
 # Board header defines: LED=GPIO7, WS2812=GPIO21
 set(PICO_BOARD "adafruit_feather_rp2350" CACHE STRING "Board type")
 
-# Pull in SDK and FreeRTOS (must be before project())
+# Pull in SDK (must be before project())
 include(pico_sdk_import.cmake)
-include(FreeRTOS_Kernel_import.cmake)
 
 # Project definition
 project(rocketchip C CXX ASM)
@@ -79,7 +78,7 @@ set(LWGPS_DIR ${CMAKE_CURRENT_LIST_DIR}/lib/lwgps/lwgps/src)
 # ============================================================================
 
 add_executable(rocketchip
-    src/main.cpp
+    # src/main.cpp              # TODO: Rewrite for bare-metal
     # Platform drivers
     src/drivers/ws2812_status.c
     src/drivers/i2c_bus.c
@@ -96,10 +95,6 @@ add_executable(rocketchip
     src/calibration/calibration_manager.c
     src/calibration/calibration_storage.c
     src/calibration/accel_calibrator.c
-    # Debug infrastructure
-    src/debug/debug_stream.c
-    # Tasks
-    src/tasks/sensor_task.c
 )
 
 # Include directories
@@ -109,7 +104,7 @@ target_include_directories(rocketchip PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/src/drivers
     ${CMAKE_CURRENT_LIST_DIR}/src/calibration
     ${CMAKE_CURRENT_LIST_DIR}/src/tasks
-    ${CMAKE_CURRENT_LIST_DIR}  # For FreeRTOSConfig.h
+    ${CMAKE_CURRENT_LIST_DIR}
     # External libraries
     ${RUUVI_DPS310_DIR}
     ${LWGPS_DIR}/include
@@ -128,16 +123,14 @@ target_link_libraries(rocketchip
     hardware_clocks      # For clock_get_hz()
     hardware_i2c         # For I2C/QWIIC sensors
     hardware_flash       # For flash_range_erase/program
-    pico_flash           # For flash_safe_execute (dual-core safe)
-    FreeRTOS-Kernel-Heap4  # FreeRTOS with heap_4 memory management
+    pico_flash           # For flash_safe_execute
 )
 
 # Enable USB CDC for stdio (not UART)
 pico_enable_stdio_usb(rocketchip 1)
 pico_enable_stdio_uart(rocketchip 0)
 
-# USB configuration - use SDK's default IRQ-based handling
-# Per pico-examples/freertos/hello_freertos, this works with proper FreeRTOSConfig
+# USB configuration
 target_compile_definitions(rocketchip PRIVATE
     PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1
     PICO_STDIO_USB_RESET_BOOTSEL_ACTIVITY_LED=7
@@ -155,5 +148,5 @@ message(STATUS "=== RocketChip Build Configuration ===")
 message(STATUS "Board: ${PICO_BOARD}")
 message(STATUS "Platform: ${PICO_PLATFORM}")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "FreeRTOS: SMP (dual-core)")
+message(STATUS "Platform: Bare-metal Pico SDK")
 message(STATUS "")

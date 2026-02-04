@@ -130,7 +130,7 @@ void ws2812_set_brightness(uint8_t brightness);
 /**
  * @brief Update LED state - call periodically (e.g., 50Hz)
  *
- * This handles pattern animations. Call from a FreeRTOS task.
+ * This handles pattern animations. Call from the main loop.
  */
 void ws2812_update(void);
 

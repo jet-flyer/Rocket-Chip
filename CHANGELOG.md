@@ -20,6 +20,49 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-03-003 | Claude Code CLI | documentation, refactor
+
+**Bare-Metal Pivot — Documentation Cleanup (continued)**
+
+Systematic cleanup of FreeRTOS/ArduPilot references across all documentation.
+
+- LESSONS_LEARNED.md — archived 8 FreeRTOS-specific entries (7-10, 14, 17-19), minor rewording on entries 3, 4, 12, 15
+- DEBUG_OUTPUT.md — replaced deferred logging with direct printf macros, renamed per-task to per-module, updated build config table
+- CODING_STANDARDS.md — removed RTOS tier table, ArduPilot Library Integration, Dependency Bypassing Policy, HAL Adaptation Policy sections; demoted ArduPilot from "check first" to "useful reference" in Prior Art Research; removed archived LL entry references
+- PROJECT_OVERVIEW.md — replaced "RTOS" with "deterministic control loops" in Titan tier, "FreeRTOS" with "Bare-metal Pico SDK" in Technical Foundation
+- PROJECT_STATUS.md — added ChibiOS upstream note, added full ArduPilot integration as back burner goal
+- ROCKETCHIP_OS.md — replaced FreeRTOS Task Model with bare-metal Execution Model, updated source files table, replaced platform-specific FreeRTOS issues with USB CDC concerns, removed priority-based references
+- Deleted GETTING_STARTED.md (thoroughly outdated, not needed until development matures)
+
+---
+
+### 2026-02-03-002 | Claude Code CLI | architecture, refactor
+
+**Pivot from FreeRTOS to Bare-Metal Pico SDK**
+
+Removed all FreeRTOS dependencies, pivoting to bare-metal Pico SDK with polling main loop.
+
+**Deleted:**
+- FreeRTOS-Kernel submodule, FreeRTOSConfig.h, FreeRTOS_Kernel_import.cmake
+- docs/FreeRTOS/TASK_PRIORITIES.md
+- src/main.cpp, src/tasks/sensor_task.c/h, src/debug/debug_stream.c/h (RTOS glue — will be rewritten)
+
+**Edited:**
+- CMakeLists.txt — removed FreeRTOS imports, heap link, commented out deleted sources
+- config.h — replaced task priorities/stacks with polling timing constants, simplified debug macros to direct printf
+- CODING_STANDARDS.md — replaced FreeRTOS platform constraints with bare-metal rules
+- SAD.md, PROJECT_STATUS.md, SCAFFOLDING.md, MULTICORE_RULES.md — updated for bare-metal architecture
+- DEBUG_PROBE_NOTES.md, SESSION_CHECKLIST.md — minor RTOS reference removal
+- ws2812_status.h — comment update
+
+**Deferred for later evaluation (>40% rewrite needed):**
+- DEBUG_OUTPUT.md — deferred logging architecture references deleted code
+- LESSONS_LEARNED.md — ~50% of entries are FreeRTOS-specific
+
+**Preserved unchanged:** src/calibration/*, src/drivers/* (sensor drivers, calibration, LED — no RTOS dependency)
+
+---
+
 ### 2026-02-03-001 | Claude Code CLI | documentation
 
 **Platform Constraints, Multi-Core Rules, Session Checklist, Decisions Folder**

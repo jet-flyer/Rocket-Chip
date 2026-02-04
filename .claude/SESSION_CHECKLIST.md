@@ -18,7 +18,7 @@
 
 - **No arbitrary numbers.** Any numerical value (sample rates, buffer sizes, thresholds, timeouts) must be justified by a source (datasheet, SDK docs, reference implementation, forum post confirming it works). If no source exists, flag it and ask before proceeding.
 - **No assumptions on unspecified decisions.** If a task or design choice isn't covered by existing docs and internet research doesn't definitively answer it, ask before implementing. "Definitively answered" means confirmed working in a credible source, not a speculative forum post.
-- **Research before implementing.** Before writing code that touches hardware interfaces, RTOS configuration, or sensor drivers, check relevant documentation, datasheets, and especially recent forum posts for guidelines and known issues.
+- **Research before implementing.** Before writing code that touches hardware interfaces or sensor drivers, check relevant documentation, datasheets, and especially recent forum posts for guidelines and known issues.
 - **Log as you go.** Don't batch all documentation to the end. If you discover something unexpected, note it immediately.
 
 ---

@@ -4,6 +4,8 @@
 
 **Format:** Each entry includes the problem, symptoms, root cause, solution, and time spent to emphasize the importance of the lesson.
 
+> **Note:** FreeRTOS-specific entries (7, 8, 9, 10, 14, 17, 18, 19) archived with `AP_FreeRTOS` branch during bare-metal pivot. Original entry numbers preserved for traceability.
+
 ---
 
 ## Plan Files Reference
@@ -92,48 +94,50 @@ Update the version string whenever making changes during debugging sessions. Thi
 **Time Spent:** ~30 minutes
 
 ### Problem
-USB CDC output not working after HAL initialization. Terminal shows nothing or partial output.
+USB CDC output not working after initialization code that elevates interrupt priority masking. Terminal shows nothing or partial output.
 
 ### Root Cause
-FreeRTOS or HAL init leaves BASEPRI register elevated (typically to `configMAX_SYSCALL_INTERRUPT_PRIORITY = 16`), which blocks USB interrupts (priority 0x80).
+Initialization code (HAL, library init, etc.) can leave the ARM BASEPRI register elevated, which blocks USB interrupts.
 
 ### Solution
-Clear BASEPRI after hal.init(), before stdio_init_all():
+Clear BASEPRI after any init code that might elevate it, before USB I/O:
 
 ```cpp
-hal.init();
+// After init code that might change interrupt priorities
 __asm volatile ("mov r0, #0\nmsr basepri, r0" ::: "r0");
 stdio_init_all();
 ```
 
 ### Prevention
-- Always clear BASEPRI after HAL init in test code
-- Template this pattern in all smoke tests
+- If USB stops working after adding init code, check BASEPRI
+- Clear BASEPRI before enabling USB if uncertain
 
 ---
 
-## Entry 4: HAL Init Order with USB
+## Entry 4: Flash Operations Break USB
 
 **Date:** 2026-01-26
-**Related to:** RP2350_FULL_AP_PORT.md PD1
 
 ### Problem
-USB CDC breaks after flash operations in storage.init().
+USB CDC breaks after flash operations during initialization.
 
 ### Root Cause
 Flash operations make entire flash inaccessible. TinyUSB interrupt handlers are in flash. If USB is active during flash ops, handlers can't execute and USB breaks.
 
 ### Solution
-Initialize HAL (which does flash ops) BEFORE enabling USB:
+Do flash operations BEFORE enabling USB:
 
 ```cpp
-hal.init();           // Flash ops happen here, USB not yet active
-stdio_init_all();     // NOW enable USB
+// Flash ops happen here (calibration load, storage init, etc.)
+init_storage();
+
+// NOW safe to start USB
+stdio_init_all();
 ```
 
 ### Prevention
-- Follow this init order in ALL tests using HAL + USB
-- Document in test file comments
+- Follow this init order: flash ops first, then USB
+- Use `flash_safe_execute()` from `pico/flash.h` for runtime flash access
 
 ---
 
@@ -212,248 +216,6 @@ g_statusLed->show();
 
 ---
 
-## Entry 7: ArduPilot Expects Zeroed Memory Allocations
-
-**Date:** 2026-01-28
-**Time Spent:** ~2 hours of debugging
-**Severity:** Critical - Hardfault on device restart
-
-### Problem
-Device would complete tests successfully on first boot, but hardfault on restart (pressing RESET button). Core 1 crashed in `isr_hardfault`.
-
-### Symptoms
-- First boot: test runs to completion
-- After pressing RESET: device hangs immediately
-- GDB shows hardfault on Core 1 (rp2350.cm1)
-- Crash in `_free_r()` with garbage pointer (e.g., `0xd063dfd2`)
-
-### Root Cause
-ArduPilot's `Device` class has an uninitialized pointer `_checked.regs`:
-```cpp
-// In AP_HAL/Device.h
-struct {
-    uint8_t n_regs;
-    struct checkreg *regs;  // NEVER initialized to nullptr!
-} _checked;
-
-~Device() {
-    delete[] _checked.regs;  // Deletes garbage pointer!
-}
-```
-
-ArduPilot assumes malloc/new returns zeroed memory (like ChibiOS does). Standard malloc/new on Pico SDK does NOT zero memory.
-
-When the OwnPtr containing an I2CDevice goes out of scope, the Device destructor runs and calls `delete[]` on garbage, causing hardfault.
-
-### Solution
-Override C++ `operator new` to use `calloc` (which zeros memory):
-
-```cpp
-// In malloc_wrapper.cpp
-void* operator new(std::size_t size) {
-    if (size == 0) size = 1;
-    void* ptr = calloc(1, size);  // calloc zeros memory
-    if (ptr == nullptr) {
-        ptr = malloc(size);  // Fallback (will panic if OOM)
-    }
-    return ptr;
-}
-```
-
-Also requires CMake define to disable Pico SDK's default operator new/delete:
-```cmake
-add_compile_definitions(
-    PICO_CXX_DISABLE_ALLOCATION_OVERRIDES=1
-)
-```
-
-### How to Identify This Issue
-1. First boot works, restart crashes
-2. Hardfault on Core 1
-3. Crash in `_free_r()` or `delete`
-4. Stack trace shows destructor path
-5. Using ArduPilot code with OwnPtr/unique_ptr
-
-### Prevention
-- Always use the calloc-based operator new when integrating ArduPilot
-- This is documented in RP2350_FULL_AP_PORT.md as PD11
-- The Pico SDK's `pico_malloc` wraps malloc for thread safety but does NOT zero memory
-- The Pico SDK's `pico_cxx_options` provides operator new/delete that calls malloc (not calloc)
-
-### Key Files
-- `lib/ap_compat/AP_HAL_RP2350/malloc_wrapper.cpp` - Zero-initializing operator new
-- CMakeLists.txt - `PICO_CXX_DISABLE_ALLOCATION_OVERRIDES=1`
-
----
-
-## Entry 8: FreeRTOS SMP Multi-Core Memory Visibility
-
-**Date:** 2026-01-28
-**Time Spent:** ~3 hours of debugging
-**Severity:** Critical - init() hangs indefinitely
-
-### Problem
-`AP_InertialSensor::init()` hangs forever. Monitor task shows callbacks are running, I2C transfers succeed, gyro is registered with correct rate (1125Hz), but `wait_for_sample()` never sees the `_new_gyro_data` flag.
-
-### Symptoms
-- init() blocks indefinitely in `wait_for_sample()` loop
-- Monitor shows: gyro_count=1, accel_count=1, rate=1125Hz
-- I2C transfer count increases (3000+/sec)
-- Callback count increases (1000+/sec)
-- But `_new_gyro_data` flag reads as false in main loop
-
-### Root Cause
-FreeRTOS SMP on dual-core RP2350 allows tasks to run on different cores. The DeviceBus callback thread (setting flags) may run on Core 1, while the main task (reading flags) runs on Core 0. ARM's weak memory model means writes on one core aren't immediately visible to the other core without memory barriers.
-
-ArduPilot assumes single-core memory semantics throughout. This worked on ESP32 because they pin all ArduPilot tasks to the same core.
-
-### Solution
-Two-pronged approach:
-
-1. **Core pinning** (primary fix):
-```cpp
-// Pin bus thread to Core 0 to match main task
-vTaskCoreAffinitySet(bus_thread_handle, (1 << 0));
-```
-
-2. **Memory barriers** (defense in depth):
-```cpp
-void Scheduler::delay_microseconds_boost(uint16_t us) {
-    __sync_synchronize();  // See latest values
-    // ... delay ...
-    __sync_synchronize();  // Publish our writes
-}
-```
-
-### How to Identify This Issue
-1. Polling loop never sees flag changes from another task
-2. Both tasks clearly running (debug output confirms)
-3. Using FreeRTOS SMP on multi-core MCU
-4. Works fine in single-core mode
-
-### Prevention
-- Pin all related ArduPilot tasks to the same core
-- Add memory barriers around any cross-task flag polling
-- Documented as PD12 in `RP2350_FULL_AP_PORT.md`
-
----
-
-## Entry 9: FreeRTOS Priority Inversion with Busy-Wait
-
-**Date:** 2026-01-28
-**Time Spent:** ~1 hour (discovered during PD12 debugging)
-**Severity:** Critical - Lower priority tasks starve
-
-### Problem
-Even after fixing memory visibility (Entry 8), `wait_for_sample()` still hung. The DeviceBus callback thread was supposed to run and set flags, but it wasn't getting CPU time.
-
-### Symptoms
-- Main task spinning in `wait_for_sample()` at priority 2
-- DeviceBus thread at priority 5 (higher)
-- But DeviceBus callbacks not running frequently enough
-- `taskYIELD()` calls not helping
-
-### Root Cause
-DeviceBus was using `hal.scheduler->delay_microseconds()` between callbacks, which busy-waits for short delays. The thread would:
-1. Run callbacks (takes ~100us)
-2. Busy-wait for 1000us until next callback
-3. Repeat
-
-During the busy-wait, `taskYIELD()` was called, but **`taskYIELD()` only yields to tasks of equal or higher priority**. Since DeviceBus is at priority 5 and main task at priority 2, the yield does nothing useful.
-
-Result: DeviceBus hogs CPU during busy-wait, starving lower-priority tasks.
-
-### Solution
-Use `vTaskDelay()` instead of busy-wait:
-
-```cpp
-// CRITICAL: Must use vTaskDelay() to yield to lower-priority tasks
-TickType_t ticks = pdMS_TO_TICKS((delay + 500) / 1000);
-if (ticks == 0) {
-    ticks = 1;  // Always yield at least 1 tick
-}
-vTaskDelay(ticks);  // Properly yields to ALL tasks
-```
-
-This accepts 1ms timing granularity but ensures the scheduler can run other tasks.
-
-### How to Identify This Issue
-1. Higher-priority task using `taskYIELD()` in a loop
-2. Lower-priority tasks not getting CPU time
-3. System appears "stuck" but high-priority task is running
-
-### Prevention
-- Never busy-wait in higher-priority tasks when lower-priority tasks need CPU
-- `taskYIELD()` only yields to same-or-higher priority
-- Use `vTaskDelay(1)` to yield to ALL tasks (minimum 1 tick)
-- Documented as PD13 in `RP2350_FULL_AP_PORT.md`
-
----
-
-## Entry 10: USB CDC Requires FreeRTOS Scheduler Running
-
-**Date:** 2026-01-28
-**Time Spent:** ~1 hour of iterative debugging
-**Severity:** Critical - USB completely breaks (error 2)
-
-### Problem
-USB CDC serial would break with "error 2" when adding USB wait loops in `main()` before `vTaskStartScheduler()`.
-
-### Symptoms
-- Any `stdio_usb_connected()` check before scheduler starts breaks USB
-- Indefinite `while (!stdio_usb_connected())` loop breaks USB
-- Bounded wait loops (e.g., 6 seconds) also break USB
-- USB enumeration fails completely ("error 2" on host)
-- Works fine if no USB I/O done before scheduler
-
-### Root Cause
-TinyUSB on RP2350 with FreeRTOS SMP runs background tasks on Core 1. These tasks handle USB enumeration and I/O. Before `vTaskStartScheduler()` is called, these tasks aren't running.
-
-Calling `stdio_usb_connected()` or doing any USB I/O in main() before the scheduler starts causes USB to malfunction because the necessary TinyUSB background processing isn't happening.
-
-### Solution
-Move ALL USB I/O to FreeRTOS tasks that run after scheduler starts:
-
-```cpp
-int main() {
-    gpio_init(kLedPin);
-    gpio_set_dir(kLedPin, GPIO_OUT);
-    stdio_init_all();  // Initialize USB, but DON'T do any I/O yet!
-
-    // Do non-USB init here (sensors, etc.)
-    SensorTask_Init();
-    SensorTask_Create();
-
-    // Create UITask that will handle USB I/O
-    xTaskCreate(UITask, "UI", ...);
-
-    vTaskStartScheduler();  // NOW USB works
-}
-
-static void UITask(void* params) {
-    // Safe to do USB I/O here - scheduler is running
-    while (true) {
-        printf("\rPress any key to start...");  // Works!
-        int c = getchar_timeout_us(0);
-        if (c != PICO_ERROR_TIMEOUT) break;
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-}
-```
-
-### How to Identify This Issue
-1. USB "error 2" on host when connecting
-2. USB worked before adding wait loop
-3. Wait loop or USB checks are in main() before scheduler
-
-### Prevention
-- **Rule: Never do USB I/O before `vTaskStartScheduler()`**
-- Move all "wait for terminal" patterns to FreeRTOS tasks
-- Use LED blink patterns for pre-scheduler status (not serial)
-- This applies to FreeRTOS SMP on RP2350 with TinyUSB
-
----
-
 ## Entry 11: Prioritize Debug Probe Over LED Debugging
 
 **Date:** 2026-01-29
@@ -505,43 +267,35 @@ USB CDC (COM6) failed to enumerate. Device showed "error 2" in Device Manager. S
 - Manual BOOTSEL required to flash
 
 ### Root Cause
-Init order in `src/main.cpp` was wrong:
+Init order was wrong — flash operations happened after USB was already active:
 
 **BROKEN order:**
 ```cpp
 stdio_init_all();           // USB starts first
-SensorTask_Init();          // HAL/flash ops break USB!
+init_storage();             // Flash ops break USB!
 ```
 
-Flash operations in `SensorTask_Init()` → `hal_init()` → `Storage.init()` make entire flash inaccessible. TinyUSB interrupt handlers are in flash. When USB is active during flash ops, handlers can't execute and USB breaks permanently.
+Flash operations make entire flash inaccessible. TinyUSB interrupt handlers are in flash. When USB is active during flash ops, handlers can't execute and USB breaks permanently.
 
 ### Solution
-Reorder init in `src/main.cpp`:
+Reorder init:
 
 **WORKING order:**
 ```cpp
-// 1. HAL init (flash ops) BEFORE USB
-SensorTask_Init();          // Flash ops complete here
+// 1. Flash ops BEFORE USB
+init_storage();             // Flash ops complete here
 
-// 2. Clear BASEPRI (may be elevated, blocking USB IRQs)
-__asm volatile ("mov r0, #0\nmsr basepri, r0" ::: "r0");
-
-// 3. NOW safe to start USB
+// 2. NOW safe to start USB
 stdio_init_all();
 ```
 
-### Key File
-`src/main.cpp` - init order at boot (lines 250-294 after fix)
-
 ### Prevention
-- **Rule:** HAL init (flash ops) MUST happen before `stdio_init_all()`
-- Always clear BASEPRI after HAL init, before USB
-- This is documented in RP2350_FULL_AP_PORT.md PD1 (Flash/USB interaction)
+- **Rule:** Flash operations MUST happen before `stdio_init_all()`
+- This is the same root cause as Entry 4
 
 ### Related
 - Entry 3: BASEPRI blocking USB
-- Entry 4: HAL init order
-- RP2350_FULL_AP_PORT.md PD1
+- Entry 4: Flash/USB interaction
 
 ---
 
@@ -552,16 +306,15 @@ stdio_init_all();
 **Severity:** High - IMU not detected, silent failure
 
 ### Problem
-IMU (ICM-20948) not being detected by ArduPilot backends. Barometer worked fine (proving I2C bus functional), but zero I2C traffic to the IMU address.
+IMU (ICM-20948) not being detected. Barometer worked fine (proving I2C bus functional), but zero I2C traffic to the IMU address.
 
 ### Symptoms
-- Barometer samples: 2500+ (working at 0x77)
-- IMU samples: 0 (no traffic to 0x68)
-- `AP_INS: accel=0, gyro=0, rate=0Hz`
+- Barometer working at 0x77
+- IMU: no traffic to 0x68
 - I2C debug output shows only 0x77 transfers, never 0x68
 
 ### Root Cause
-`hwdef.h` was configured with **0x68** as the ICM-20948 address, but **Adafruit boards default to 0x69**.
+Configuration used **0x68** as the ICM-20948 address, but **Adafruit boards default to 0x69**.
 
 The ICM-20948 has an AD0 pin that controls I2C address:
 - AD0 = LOW (grounded) → 0x68
@@ -569,77 +322,18 @@ The ICM-20948 has an AD0 pin that controls I2C address:
 
 **Adafruit boards pull AD0 HIGH by default**, giving address 0x69. You must bridge the SDO/ADR solder jumper on the back to change to 0x68.
 
-Comments in `hwdef.h` incorrectly stated "AD0 pulled LOW on Adafruit board" - this was wrong.
-
 ### Solution
-Update all hwdef.h files:
-```cpp
-// WRONG:
-constexpr uint8_t ICM20948 = 0x68;  // AD0=LOW
-#define HAL_INS_PROBE_LIST PROBE_IMU_I2C(Invensensev2, 0, 0x68, ROTATION_NONE)
-
-// CORRECT:
-constexpr uint8_t ICM20948 = 0x69;  // AD0=HIGH (Adafruit default)
-#define HAL_INS_PROBE_LIST PROBE_IMU_I2C(Invensensev2, 0, 0x69, ROTATION_NONE)
-```
-
-### Files Fixed
-- `lib/ap_compat/AP_HAL_RP2350/hwdef.h`
-- `lib/ap_compat/RocketChip/hwdef.h`
-- `src/hal/IMU_ICM20948.h`
-- `docs/HARDWARE.md`
+Use 0x69 for Adafruit ICM-20948 breakouts (already set in `config.h`).
 
 ### Prevention
 1. **Always check vendor documentation for default I2C addresses**
-2. Run I2C scan test to confirm actual device addresses before configuring probes
+2. Run I2C scan test to confirm actual device addresses before configuring
 3. For Adafruit boards: check product page or schematic for default pin states
 4. Add comments noting whether addresses are vendor defaults vs modified
 
 ### Reference
 Adafruit ICM-20948 product page confirms 0x69 as default:
 https://learn.adafruit.com/adafruit-tdk-invensense-icm-20948-9-dof-imu/pinouts
-
----
-
-## Entry 14: Don't Delete "Duplicate" Files Without Checking for Platform Fixes
-
-**Date:** 2026-01-29
-**Time Spent:** ~2 hours rediscovering the issue
-**Severity:** Critical - IMU completely broken
-
-### Problem
-IMU stopped working with "INS: unable to initialise driver" after a "cleanup" commit removed `lib/ap_compat/AP_InertialSensor/` files, thinking they were stale duplicates of ArduPilot code.
-
-### Symptoms
-- `AP_InertialSensor::init()` hangs indefinitely or fails
-- Baro works fine (same I2C bus, same hardware)
-- I2C scan shows device responding at correct address
-- Callbacks running, but `wait_for_sample()` never sees flag changes
-
-### Root Cause
-The files in `lib/ap_compat/AP_InertialSensor/` were NOT duplicates. They contained the critical **PD12 fix**: `std::atomic<bool>` for cross-core memory visibility on dual-core RP2350.
-
-Commit `f8b85cb` deleted them with message "Removed stale AP_InertialSensor copy" during a cleanup/sync operation. Without the `std::atomic` fix, writes on one core aren't visible to reads on the other core.
-
-### Solution
-Restore the files from the commit that added them:
-```bash
-git checkout dd454e6 -- lib/ap_compat/AP_InertialSensor/
-```
-
-And ensure CMakeLists.txt uses `lib/ap_compat/AP_InertialSensor/` instead of `lib/ardupilot/libraries/AP_InertialSensor/` for the core .cpp files.
-
-### Prevention
-1. **Never assume "duplicate" files are identical** - check for platform-specific modifications
-2. **Files in `lib/ap_compat/` exist for a reason** - they override ArduPilot with platform fixes
-3. **Before deleting any ap_compat file**, search for comments containing "fix", "PD", "RP2350", "FreeRTOS", "atomic"
-4. **Add README.md files** to directories with critical fixes (done for AP_InertialSensor)
-5. **When asking an agent to "clean up" repos**, explicitly exclude `lib/ap_compat/` from deletion
-
-### Key Files
-- `lib/ap_compat/AP_InertialSensor/AP_InertialSensor.h` - std::atomic flags
-- `lib/ap_compat/AP_InertialSensor/AP_InertialSensor_Backend.cpp` - memory_order writes
-- `lib/ap_compat/AP_InertialSensor/README.md` - documents why files exist
 
 ---
 
@@ -651,89 +345,58 @@ And ensure CMakeLists.txt uses `lib/ap_compat/AP_InertialSensor/` instead of `li
 **Time Spent:** ~4 hours (architecture redesign + debugging)
 
 ### Problem
-CLITask stops executing when USB terminal connects. Program behavior should NOT depend on terminal connection - only output buffering should be affected.
+CLI stops executing when USB terminal connects. Program behavior should NOT depend on terminal connection - only output buffering should be affected.
 
 ### Symptoms
 - LED flashes rapidly (50ms) while waiting for sensor init - CORRECT
 - When terminal connects to COM6, LED goes SOLID - WRONG
 - Pressing Enter does nothing
-- Program appears frozen but scheduler is still running (verified via probe)
+- Program appears frozen
 
 ### Root Cause Analysis
-The old CLITask architecture was **too tightly coupled** to sensor code:
+The old CLI architecture was **too tightly coupled** to sensor code:
 1. CLI ran regardless of terminal connection state (wasting cycles)
-2. CLI called `SensorTask_*()` functions directly (coupling CLI to sensor implementation)
+2. CLI called sensor functions directly (coupling CLI to sensor implementation)
 3. USB I/O operations (printf/getchar) were attempted even when terminal wasn't properly connected
 
 The user's key insight: "the CLI menu needs to be completely divorced from any internally running code by its very nature."
 
-### Solution: RC_OS Decoupled Architecture (v0.3)
+### Solution: RC_OS Decoupled Architecture
 
 **Principle:** CLI should be a "local GCS" that translates keystrokes → MAVLink commands internally.
 
-1. **CLITask only runs when terminal connected** (`stdio_usb_connected()`):
+1. **CLI only runs when terminal connected** (`stdio_usb_connected()`):
    - When disconnected: slow LED blink (1Hz), NO USB I/O whatsoever
    - When connected: show banner, process CLI commands
 
-2. **All calibration commands route through MAVLink** via `RC_OS::cmd_*()` functions:
-   ```cpp
-   // CLI command 'l' → MAVLink internally
-   MAV_RESULT result = RC_OS::cmd_level_cal();
-   // This calls GCS::send_local_command(MAV_CMD_PREFLIGHT_CALIBRATION, 0,0,0,0,1,0,0)
-   // Which routes through same handler as Mission Planner would use
-   ```
+2. **All calibration commands route through internal command dispatch**, not direct sensor calls
 
 3. **Benefits:**
    - CLI and GCS use identical code paths for all operations
-   - CLI completely decoupled from SensorTask internals
+   - CLI completely decoupled from sensor internals
    - Terminal connection can't affect flight code
    - Easy to test: CLI commands = MAVLink commands
 
-### Files Modified
-- `src/main.cpp` - Rewrote CLITask with terminal-connected check
-- `src/cli/RC_OS.h` - New file with CLI→MAVLink command mappings
-- `lib/ap_compat/GCS_MAVLink/GCS.h` - Added `send_local_command()` method
-- `lib/ap_compat/GCS_MAVLink/GCS.cpp` - Implemented `send_local_command()`
-
 ### Key Code Pattern
 ```cpp
-static void CLITask(void* pvParameters) {
-    bool wasConnected = false;
-    while (true) {
-        bool isConnected = stdio_usb_connected();
+bool wasConnected = false;
 
-        if (!isConnected) {
-            // DISCONNECTED: Just blink LED, NO USB I/O
-            gpio_put(kLedPin, 1);
-            vTaskDelay(pdMS_TO_TICKS(500));
-            gpio_put(kLedPin, 0);
-            vTaskDelay(pdMS_TO_TICKS(500));
-            wasConnected = false;
-            continue;  // Skip all USB I/O
-        }
+// In main loop:
+bool isConnected = stdio_usb_connected();
 
-        // CONNECTED: Normal CLI operation
-        if (!wasConnected) {
-            wasConnected = true;
-            printf("RocketChip OS v0.3\n");  // Safe - terminal IS connected
-        }
-        // ... process CLI commands via RC_OS::cmd_*() ...
+if (!isConnected) {
+    // DISCONNECTED: Just blink LED, NO USB I/O
+    led_blink(500);
+    wasConnected = false;
+} else {
+    if (!wasConnected) {
+        wasConnected = true;
+        // Drain garbage from USB input buffer
+        while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
+        printf("RocketChip OS v0.4\n");
     }
+    // Process CLI commands...
 }
-```
-
-### Additional Fix: USB Input Buffer Drain
-
-Initial implementation still showed phantom menu transitions - calibration menu appeared without user pressing 'c'. Root cause: **USB CDC buffer had garbage bytes** when terminal connected.
-
-**Fix:** Drain input buffer immediately after terminal connects, before processing commands:
-```cpp
-// After printing banner and sensor status...
-// Drain any garbage from USB input buffer before accepting commands
-while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
-    // Discard all pending input
-}
-g_menuMode = MenuMode::Main;
 ```
 
 ### Prevention
@@ -741,14 +404,6 @@ g_menuMode = MenuMode::Main;
 2. **CLI should speak MAVLink internally**, not call sensor functions directly
 3. **Terminal connection should only affect output buffering**, not program flow
 4. **Drain USB input buffer after terminal connects** - garbage bytes from connection handshake can trigger unwanted commands
-
-### Verification (PASSED 2026-01-30)
-- [x] LED blinks slowly (1Hz) when terminal not connected
-- [x] Banner appears on terminal connection with sensor status
-- [x] CLI commands work ('h', 's', 'c')
-- [x] Calibration commands route through MAVLink (verified: `[GCS] Accel calibration requested`)
-- [x] Level cal completes quickly (~2 seconds)
-- [x] No phantom menu transitions
 
 ---
 
@@ -784,294 +439,6 @@ Press 'h' for help, 's' for sensor status
 1. When debugging output truncation, test with multiple terminal programs
 2. VSCode Serial Monitor is more reliable for USB CDC than PuTTY
 3. Don't waste time on firmware fixes if issue is terminal-specific
-
----
-
-## Entry 17: ODR Violation from Inconsistent Macro Definitions
-
-**Date:** 2026-01-31
-**Time Spent:** ~2 hours
-**Severity:** Critical - Class member access returns wrong values
-
-### Problem
-`_compass_count` shows `1` inside `Compass::init()` but `get_count()` returns `0` immediately after from `SensorTask.cpp`. The compass probe succeeds, backend registers, but the sensor appears unavailable.
-
-### Symptoms
-- Debug output inside `init()` shows `_compass_count=1`
-- Calling `get_count()` from another file returns `0`
-- `compass.available()` returns `false`
-- Compass probe clearly succeeds (debug shows "AK09916: Found ICM20948 magnetometer")
-- Member variable values "change" depending on which compilation unit reads them
-
-### Root Cause
-**ODR (One Definition Rule) Violation** - The `Compass` class has different memory layouts in different compilation units because conditional compilation macros have different values.
-
-Two specific issues found:
-
-1. **Contradictory `AP_AHRS_ENABLED` definitions** in CMakeLists.txt:
-   ```cmake
-   # Line 103:
-   AP_AHRS_ENABLED=1
-
-   # Line 138:
-   AP_AHRS_ENABLED=0  # Using stub  ← CONTRADICTION!
-   ```
-   The last definition wins for the compiler, but both appear in the command line, causing confusion.
-
-2. **`HAL_MAVLINK_BINDINGS_ENABLED` not defined globally**:
-   Only defined in `lib/ap_compat/GCS_MAVLink/GCS_config.h`. The `AP_Compass.h` header has conditional members:
-   ```cpp
-   #if HAL_MAVLINK_BINDINGS_ENABLED
-       Priority next_cal_progress_idx[MAVLINK_COMM_NUM_BUFFERS];
-       Priority next_cal_report_idx[MAVLINK_COMM_NUM_BUFFERS];
-   #endif
-   ```
-   If some compilation units see this as true and others don't, the class layout differs.
-
-**Why this breaks things:** When compilation unit A (AP_Compass.cpp) compiles with `COMPASS_CAL_ENABLED=1`, it includes calibration-related members. If compilation unit B (SensorTask.cpp) compiles with `COMPASS_CAL_ENABLED=0` (due to incorrect macro values), it sees a smaller class. The inline `get_count()` function reads from the wrong memory offset and returns garbage.
-
-### Solution
-Ensure ALL conditional compilation flags affecting class layout are in global `add_compile_definitions()`:
-
-```cmake
-# In CMakeLists.txt global definitions (around line 98-110):
-
-# AHRS and Compass Calibration flags
-# CRITICAL: These MUST be defined globally to avoid ODR violations.
-AP_AHRS_ENABLED=1
-AP_AHRS_DCM_ENABLED=1
-COMPASS_CAL_ENABLED=1
-
-# MAVLink bindings - must be consistent to avoid ODR violation
-HAL_MAVLINK_BINDINGS_ENABLED=1
-```
-
-Also remove any duplicate/contradictory definitions elsewhere in the file.
-
-### How to Identify This Issue
-1. Debug output inside a class method shows one value
-2. Same member accessed from a different file shows different value
-3. Inline member functions (getters) return wrong values
-4. The class has `#if`/`#ifdef` conditional members
-5. Build warnings about "macro redefined" (though not always present)
-
-### Diagnosis Command
-Search for all definitions of the suspect macro:
-```bash
-grep -rn "COMPASS_CAL_ENABLED\|AP_AHRS_DCM_ENABLED" CMakeLists.txt lib/
-```
-
-### Prevention
-1. **All ArduPilot feature flags affecting class layout must be in global `add_compile_definitions()`**
-2. **Never define the same macro in multiple places** - especially not with different values
-3. **When adding a macro**, search the entire CMakeLists.txt for existing definitions first
-4. **Conditional class members are dangerous** - if you see `#if` inside a class definition, that macro MUST be globally consistent
-5. **Clean rebuild required** when fixing ODR violations - incremental builds may have stale objects
-
-### Key Files
-- `CMakeLists.txt` - Global `add_compile_definitions()` section (lines 98-140)
-- `lib/ardupilot/libraries/AP_Compass/AP_Compass.h` - Class with conditional members
-- `lib/ardupilot/libraries/AP_Compass/AP_Compass_config.h` - Macro computations
-
-### Related
-- Entry 14: Don't delete "duplicate" files (also an ODR-adjacent issue)
-- RP2350_FULL_AP_PORT.md - Not specifically documented there but same principle applies
-
----
-
-## Entry 18: FreeRTOS SMP + USB CDC on RP2350 - Use Raspberry Pi's Fork
-
-**Date:** 2026-02-02
-**Time Spent:** ~4 hours (multiple failed approaches before finding root cause)
-**Severity:** Critical - USB completely broken, system hangs
-
-### Problem
-USB CDC (COM port) fails to enumerate when using FreeRTOS SMP on RP2350. Device appears in Device Manager briefly then disappears with "error 2". System may hang with tick count frozen at 0 or 1.
-
-### Symptoms
-- USB device doesn't enumerate (no COM port appears)
-- Debug probe shows system stuck in `usbd_control_xfer_cb`
-- FreeRTOS tick count frozen at 0 or 1
-- `low_priority_worker_irq` (SDK's USB handler) not running properly
-- Device may need power cycle to recover after failed enumeration attempts
-
-### Root Cause
-**Two fundamental issues:**
-
-1. **Wrong FreeRTOS repository**: The main FreeRTOS/FreeRTOS-Kernel repo does NOT have proper RP2350 SMP support. Must use **Raspberry Pi's fork**: `raspberrypi/FreeRTOS-Kernel`
-
-2. **Wrong FreeRTOSConfig.h**: Custom configurations don't include critical RP2350-specific settings. The pico-examples reference config has tested, working values.
-
-**Key insight:** The Raspberry Pi FreeRTOS-Kernel fork contains the RP2350_ARM_NTZ port with proper multi-core SMP support. The main FreeRTOS repo has RP2040 support but incomplete RP2350 support.
-
-### Solution
-
-1. **Use Raspberry Pi's FreeRTOS-Kernel fork:**
-```bash
-# Remove existing submodule if present
-git submodule deinit -f FreeRTOS-Kernel
-git rm -f FreeRTOS-Kernel
-rm -rf .git/modules/FreeRTOS-Kernel
-
-# Add correct fork
-git submodule add https://github.com/raspberrypi/FreeRTOS-Kernel.git FreeRTOS-Kernel
-git submodule update --init --recursive
-```
-
-2. **Use FreeRTOSConfig.h based on pico-examples:**
-```c
-// Critical RP2350-specific settings from pico-examples
-#define configSTACK_DEPTH_TYPE                  uint32_t
-#define configMINIMAL_STACK_SIZE                ((configSTACK_DEPTH_TYPE)512)
-#define configTOTAL_HEAP_SIZE                   (128*1024)
-#define configMAX_PRIORITIES                    32
-
-// SMP settings (set by RP2xxx port when FREE_RTOS_KERNEL_SMP is defined)
-#if FREE_RTOS_KERNEL_SMP
-#define configNUMBER_OF_CORES                   2
-#define configTICK_CORE                         0
-#define configRUN_MULTIPLE_PRIORITIES           1
-#define configUSE_CORE_AFFINITY                 1
-#endif
-
-// RP2350 ARM-specific (MANDATORY values)
-#define configSUPPORT_PICO_SYNC_INTEROP         1
-#define configSUPPORT_PICO_TIME_INTEROP         1
-#define configENABLE_MPU                        0
-#define configENABLE_TRUSTZONE                  0
-#define configRUN_FREERTOS_SECURE_ONLY          1
-#define configENABLE_FPU                        1
-#define configMAX_SYSCALL_INTERRUPT_PRIORITY    16  // CRITICAL: Must be 16
-
-#include <assert.h>
-#define configASSERT(x)                         assert(x)
-```
-
-3. **Let SDK handle USB via IRQ (don't create custom USB task):**
-```cpp
-// In main.cpp - DON'T create a dedicated USB task
-int main() {
-    stdio_init_all();  // SDK handles tud_task via low_priority_worker_irq
-    // ... create other tasks ...
-    vTaskStartScheduler();
-}
-```
-
-4. **CMakeLists.txt - use SDK defaults for USB:**
-```cmake
-pico_enable_stdio_usb(rocketchip 1)
-pico_enable_stdio_uart(rocketchip 0)
-
-# Let SDK use default IRQ-based USB handling
-# Do NOT set PICO_STDIO_USB_ENABLE_IRQ_BACKGROUND_TASK=0
-```
-
-5. **Pin sensor tasks to Core 1, leave Core 0 for USB:**
-```c
-// USB IRQ handlers run on Core 0
-// Sensor sampling should be on Core 1 to avoid conflicts
-#define SENSOR_CORE 1
-vTaskCoreAffinitySet(sensorTaskHandle, (1 << SENSOR_CORE));
-```
-
-### Key Files
-- `FreeRTOS-Kernel/` (submodule) - Must be from raspberrypi/FreeRTOS-Kernel
-- `FreeRTOSConfig.h` - Must match pico-examples pattern
-- `FreeRTOS_Kernel_import.cmake` - Import helper for CMake
-- `src/main.cpp` - No custom USB task needed
-- `CMakeLists.txt` - Don't override SDK USB defaults
-
-### Reference Implementation
-**pico-examples/freertos/hello_freertos** is the canonical reference for FreeRTOS SMP on RP2350. When in doubt, check how they do it.
-
-### How to Identify This Issue
-1. USB doesn't enumerate with FreeRTOS SMP on RP2350
-2. Debug probe shows tick count frozen at 0
-3. System stuck in USB-related callbacks
-4. Using FreeRTOS from main FreeRTOS repo (not RPi fork)
-5. Custom FreeRTOSConfig.h without pico-examples settings
-
-### Prevention
-1. **Always use raspberrypi/FreeRTOS-Kernel** for RP2350 projects
-2. **Start from pico-examples FreeRTOSConfig.h**, not from scratch
-3. **Don't override SDK USB handling** unless you have a specific reason
-4. **Core 0 for USB, Core 1 for sensors** - avoid conflicts with USB IRQ handlers
-5. **Power cycle device** after failed USB enumeration attempts
-
-### Verification
-After applying fixes:
-```
-=== RocketChip v0.3.0-freertos-fix ===
-IMU: OK  Baro: OK
-Cal: LOADED from flash (gyro+level+baro)
-Press 'h' for help
-```
-
----
-
-## Entry 19: FreeRTOS Task Stack Overflow During Calibration
-
-**Date:** 2026-02-03
-**Time Spent:** ~1 hour (used debug probe to identify lockup)
-**Severity:** Critical - Core crashes into lockup state
-
-### Problem
-6-position accelerometer calibration hangs at "Running ellipsoid fit..." - no crash message, no progress, USB stops responding.
-
-### Symptoms
-- Calibration collects all 6 positions successfully
-- Debug output shows "[6pos] Running ellipsoid fit..." then nothing
-- USB serial stops responding (no more output)
-- LED may continue, NeoPixel may freeze
-- Debug probe shows Core 1 in **lockup state** with corrupt stack
-
-### Root Cause
-The `run_ellipsoid_fit()` function allocates large arrays on the stack:
-- `float JTJ[6][6]` = 144 bytes
-- `float JTr[6]` = 24 bytes
-- `float aug[6][7]` = 168 bytes
-- `float delta[6]` = 24 bytes
-- Plus local variables and call frames = **~400+ bytes**
-
-The sensor task had only **256 words (1KB)** of stack. Combined with the calling function frames (calibration_manager → accel_calibrator → run_ellipsoid_fit), this exceeded available stack, causing immediate stack overflow and hardfault on Core 1.
-
-### Solution
-Increase sensor task stack size from 256 to 512 words (1KB to 2KB):
-
-```c
-// In sensor_task.c
-#define SENSOR_TASK_STACK       512     // Increased from 256 for ellipsoid fit
-```
-
-### How to Identify This Issue
-1. Function with large local arrays (matrices, buffers)
-2. Function runs in a FreeRTOS task context
-3. Debug probe shows core in "lockup state"
-4. Stack backtrace shows "corrupt stack" warning
-5. Output stops mid-operation with no error message
-
-### Diagnosis with Debug Probe
-```bash
-# Check which task is running and core state
-arm-none-eabi-gdb build/rocketchip.elf -batch \
-  -ex "target extended-remote localhost:3333" \
-  -ex "monitor halt" \
-  -ex "print (char*)pxCurrentTCBs[0]->pcTaskName" \
-  -ex "print (char*)pxCurrentTCBs[1]->pcTaskName" \
-  -ex "thread 2" -ex "bt"
-
-# Look for: "ARM M in lockup state" or corrupt stack warnings
-```
-
-### Prevention
-1. **Tasks with math-heavy operations need larger stacks** - matrix operations, FFT, filtering
-2. **Sensor task doing calibration needs extra stack** - calibration fit algorithms use local matrices
-3. **Default FreeRTOS stacks (256 words) are minimal** - increase for anything beyond simple I/O
-4. **Consider static allocation** for large matrices used repeatedly (see Entry 1)
-
-### Key Files
-- `src/tasks/sensor_task.c` - SENSOR_TASK_STACK definition (now 512)
-- `src/calibration/accel_calibrator.c` - `run_ellipsoid_fit()` with local matrices
 
 ---
 

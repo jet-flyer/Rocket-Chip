@@ -1,9 +1,9 @@
 # RocketChip Software Architecture Document (SAD) v2.0
 
-**Status:** Fresh Start - Bespoke FreeRTOS Implementation
+**Status:** Fresh Start - Bare-Metal Pico SDK
 **Last Updated:** 2026-02-02
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
-**Development Environment:** CMake + Pico SDK + FreeRTOS SMP
+**Development Environment:** CMake + Pico SDK
 **Hardware Reference:** `docs/HARDWARE.md` (authoritative source)
 
 > **Note:** This document describes the target architecture. Implementation is starting fresh after archiving previous ArduPilot integration attempts. See `docs/PROJECT_STATUS.md` for current progress.
@@ -25,7 +25,7 @@ This document defines the software architecture for RocketChip, a modular motion
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| RTOS | FreeRTOS (all tiers) | Deterministic timing, task isolation, foundation for Titan features |
+| Architecture | Bare-metal Pico SDK | Simpler architecture, direct hardware control, no scheduler overhead |
 | Codebase | Unified | Single source, feature flags, easier maintenance |
 | Sensor Fusion | Custom ESKF + MMAE | Faster than EKF3, no dependencies, community-extensible hypothesis libraries |
 | Math/Utilities | CMSIS-DSP + custom | ARM-optimized matrix ops; may reference ArduPilot algorithms but not import code directly |
@@ -163,10 +163,6 @@ This document defines the software architecture for RocketChip, a modular motion
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         PLATFORM LAYER                              │
 │  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                       FreeRTOS                               │   │
-│  │   Tasks | Queues | Semaphores | Timers | Memory Management  │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────────────┐   │
 │  │                    Pico SDK / RP2350                         │   │
 │  │   GPIO | I2C | SPI | UART | DMA | PIO | Flash | USB         │   │
 │  └─────────────────────────────────────────────────────────────┘   │
@@ -189,7 +185,7 @@ This document defines the software architecture for RocketChip, a modular motion
       log_error("WDT reset occurred");
   }
   ```
-- Per-task hooks via FreeRTOS (configCHECK_FOR_STACK_OVERFLOW=2).
+- Watchdog and hard fault handlers.
 - Recovery: Pre-reset flash logging.
 
 ---
@@ -202,8 +198,7 @@ This document defines the software architecture for RocketChip, a modular motion
 
 ```
 rocketchip/
-├── CMakeLists.txt                 # Primary build system (Pico SDK + FreeRTOS)
-├── FreeRTOSConfig.h               # FreeRTOS SMP configuration
+├── CMakeLists.txt                 # Primary build system (Pico SDK)
 │
 ├── include/
 │   └── rocketchip/                # Public headers
@@ -213,7 +208,6 @@ rocketchip/
 │
 ├── src/
 │   ├── main.cpp                   # Production entry point
-│   ├── hooks.cpp                  # FreeRTOS hooks (stack overflow, malloc fail)
 │   │
 │   ├── core/                      # Mission Engine (Phase 5+)
 │   │   ├── MissionEngine.*        # Top-level orchestrator
@@ -231,7 +225,7 @@ rocketchip/
 │   │   ├── Storage.*              # Flash storage
 │   │   └── LED.*                  # NeoPixel/status LED driver
 │   │
-│   ├── services/                  # FreeRTOS Tasks
+│   ├── services/                  # Application Modules
 │   │   ├── SensorTask.*           # High-rate sensor sampling
 │   │   ├── FusionTask.*           # ESKF/AHRS processing
 │   │   ├── MissionTask.*          # Event/state processing
@@ -262,7 +256,6 @@ rocketchip/
 │       └── Mission_Freeform.cpp   # Just log everything
 │
 ├── lib/                           # External Libraries
-│   ├── FreeRTOS-Kernel/           # FreeRTOS (git submodule)
 │   ├── pico-sdk/                  # Pico SDK (git submodule or system)
 │   └── mavlink/                   # MAVLink v2 headers (generated)
 │
@@ -440,19 +433,13 @@ public:
 };
 ```
 
-### 4.3 Inter-Task Communication
+### 4.3 Inter-Module Communication
+
+> **TODO:** In bare-metal architecture, inter-module communication uses direct function calls and shared data structures rather than RTOS primitives. Define the specific patterns (global structs with access functions, callback registrations, etc.) during Phase 1 implementation.
 
 ```cpp
-// FreeRTOS primitives
-extern SemaphoreHandle_t g_sensorDataMutex;
-extern SemaphoreHandle_t g_fusedStateMutex;
-extern SemaphoreHandle_t g_missionStateMutex;
-
-// Queues
-extern QueueHandle_t g_actionQueue;      // MissionTask -> ActionExecutor
-extern QueueHandle_t g_logQueue;         // All tasks -> LoggerTask
-extern QueueHandle_t g_telemetryQueue;   // Selected data -> TelemetryTask
-extern QueueHandle_t g_eventQueue;       // External events -> MissionTask
+// Shared data accessed via direct function calls
+// No RTOS primitives — bare-metal polling architecture
 
 // Action message format
 struct ActionMessage {
@@ -473,66 +460,65 @@ struct LogMessage {
 
 ---
 
-## 5. Task Architecture
+## 5. Execution Architecture
 
-### 5.1 Task Priorities and Rates
+### 5.1 Bare-Metal Polling Architecture
 
-| Task | Priority | Rate | Stack | Core | Notes |
-|------|----------|------|-------|------|-------|
-| SensorTask | 5 (highest) | 1kHz | 1KB | 0 | Hard real-time, DMA preferred |
-| ControlTask | 5 | 500Hz | 1KB | 0 | Only active during BOOST (Titan) |
-| FusionTask | 4 | 200Hz | 2KB | 1 | AHRS, altitude calc |
-| MissionTask | 4 | 100Hz | 2KB | 1 | State machine, events |
-| LoggerTask | 3 | 50Hz | 2KB | 1 | Buffered writes |
-| TelemetryTask | 2 | 10Hz | 1KB | 1 | MAVLink over LoRa |
-| UITask | 1 (lowest) | 30Hz | 1KB | 1 | Display, LEDs, buttons |
+RocketChip uses a bare-metal polling main loop with timer-driven sensor sampling. This replaces the previous FreeRTOS task model with a simpler, more deterministic approach.
+
+| Module | Rate | Trigger | Notes |
+|--------|------|---------|-------|
+| Sensor sampling | 1kHz | Hardware timer / repeating_timer | Deterministic timing via Pico SDK timer |
+| Control loop | 500Hz | Derived from sensor tick | Only active during BOOST (Titan) |
+| Sensor fusion | 200Hz | Main loop polling | AHRS, altitude calc |
+| Mission engine | 100Hz | Main loop polling | State machine, events |
+| Data logger | 50Hz | Main loop polling | Buffered writes |
+| Telemetry | 10Hz | Main loop polling | MAVLink over LoRa |
+| UI/CLI | 30Hz | Main loop polling | Display, LEDs, buttons |
 
 ### 5.2 Dual-Core Strategy
 
 The RP2350's dual Cortex-M33 cores enable clean separation:
 
-**Core 0 (Real-Time):**
-- SensorTask: Deterministic sensor sampling
-- ControlTask: PID loops with guaranteed timing (Titan only)
-- Minimal ISRs for timing-critical operations
+**Core 0 (Main Loop + USB):**
+- Polling main loop for fusion, mission, logging, telemetry, UI
+- USB CDC serial (SDK-managed IRQ handlers)
 
-**Core 1 (Application):**
-- FusionTask, MissionTask, LoggerTask, TelemetryTask, UITask
-- All non-timing-critical processing
-- Can tolerate jitter
+**Core 1 (Sensor Sampling):**
+- Timer-driven sensor reads at 1kHz
+- Control loop (Titan only)
+- Minimal processing to maintain deterministic timing
 
-### 5.3 Task Flow Diagram
+### 5.3 Execution Flow Diagram
 
 ```
                     ┌─────────────────────────────────────────┐
-                    │              CORE 0                     │
-                    │  ┌─────────────┐   ┌─────────────┐     │
-                    │  │ SensorTask  │   │ ControlTask │     │
-                    │  │   1kHz      │   │   500Hz     │     │
-                    │  └──────┬──────┘   └──────┬──────┘     │
-                    │         │                  │            │
-                    └─────────┼──────────────────┼────────────┘
-                              │                  │
-                              ▼                  ▼
+                    │              CORE 1                     │
+                    │  ┌──────────────────────────────────┐   │
+                    │  │  Timer-Driven Sensor Sampling    │   │
+                    │  │  1kHz repeating_timer callback   │   │
+                    │  └──────────────┬───────────────────┘   │
+                    │                 │                        │
+                    └─────────────────┼────────────────────────┘
+                                      │
+                                      ▼
                     ┌─────────────────────────────────────────┐
-                    │         SHARED DATA (mutex protected)   │
+                    │      SHARED DATA (global structs)       │
                     │   SensorData | FusedState | MissionState│
                     └─────────────────────────────────────────┘
-                              │
-                    ┌─────────┴─────────────────────────────────┐
-                    │                    CORE 1                  │
-                    │                                            │
-                    │  ┌─────────────┐   ┌─────────────┐        │
-                    │  │ FusionTask  │──▶│ MissionTask │        │
-                    │  │   200Hz     │   │   100Hz     │        │
-                    │  └─────────────┘   └──────┬──────┘        │
-                    │                           │               │
-                    │         ┌─────────────────┼───────────┐   │
-                    │         ▼                 ▼           ▼   │
-                    │  ┌───────────┐   ┌───────────┐ ┌────────┐│
-                    │  │LoggerTask │   │TelemTask  │ │ UITask ││
-                    │  │   50Hz    │   │   10Hz    │ │  30Hz  ││
-                    │  └───────────┘   └───────────┘ └────────┘│
+                                      │
+                    ┌─────────────────┴────────────────────────┐
+                    │              CORE 0                       │
+                    │                                           │
+                    │  ┌────────────────────────────────────┐   │
+                    │  │        Polling Main Loop           │   │
+                    │  │                                    │   │
+                    │  │  if (fusion_due)   run_fusion();   │   │
+                    │  │  if (mission_due)  run_mission();  │   │
+                    │  │  if (logger_due)   run_logger();   │   │
+                    │  │  if (telem_due)    run_telemetry();│   │
+                    │  │  if (ui_due)       run_ui();       │   │
+                    │  └────────────────────────────────────┘   │
                     │                                           │
                     └───────────────────────────────────────────┘
 ```
@@ -700,7 +686,7 @@ landing = "state:DESCENT AND accel_mag < 1.1 AND sustained:5000ms"
 
 ### 7.2 CMake Build System
 
-The project uses CMake with the Pico SDK and FreeRTOS-Kernel as submodules.
+The project uses CMake with the Pico SDK.
 
 **Build commands:**
 ```bash
@@ -834,15 +820,13 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 
 | Component | SRAM | PSRAM | Notes |
 |-----------|------|-------|-------|
-| FreeRTOS kernel | 16KB | - | Heap, TCBs |
-| Task stacks | 12KB | - | 7 tasks × 1-2KB |
 | Shared data structures | 4KB | - | Sensor, Fused, Mission state |
 | DMA buffers | 8KB | - | I2C/SPI transfers |
 | MAVLink buffers | 4KB | - | TX/RX buffers |
 | USB buffers | 4KB | - | CDC serial |
 | Pre-launch buffer | - | 512KB | Ring buffer |
 | Flight log buffer | - | 4MB | Before flush to flash |
-| **Available** | ~470KB | ~3.5MB | Headroom |
+| **Available** | ~498KB | ~3.5MB | Headroom |
 
 ### 9.2 Storage Architecture
 
@@ -902,11 +886,10 @@ This section tracks the implementation roadmap. See `docs/SCAFFOLDING.md` for de
 > **Note:** Starting fresh after archiving previous ArduPilot integration attempts. All items reset to planned state.
 
 ### Phase 1: Foundation 🔧 **CURRENT**
-Build system, FreeRTOS, and minimal validation.
+Build system, bare-metal Pico SDK, and minimal validation.
 
-- [ ] CMake build system with Pico SDK + FreeRTOS submodules
-- [ ] FreeRTOS SMP configuration (dual-core)
-- [ ] Minimal `main.cpp` with FreeRTOS task structure
+- [ ] CMake build system with Pico SDK
+- [ ] Minimal `main.cpp` with polling main loop
 - [ ] USB CDC serial output (debug)
 - [ ] LED status indicator (NeoPixel)
 - [ ] I2C bus initialization
@@ -1030,7 +1013,7 @@ Development builds include serial debug output via USB-CDC for diagnosing timing
 
 - Budget: 400mAh for 30min — detailed power table TBD after hardware validation
 - WCET: Analyze Sensor/Control tasks during Phase 2 implementation
-- Queue overflow policy: Define per-queue behavior (block/drop oldest/drop newest) — evaluate during RTOS framework implementation
+- Buffer overflow policy: Define per-buffer behavior (drop oldest/drop newest) — evaluate during implementation
 
 ---
 
@@ -1162,7 +1145,7 @@ Quick reference for which SAD sections are critical for each development phase.
 ## 15. References
 
 - [RP2350 Datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)
-- [FreeRTOS Documentation](https://www.freertos.org/Documentation)
+- [Pico SDK Documentation](https://www.raspberrypi.com/documentation/pico-sdk/)
 - [ArduPilot Source](https://github.com/ArduPilot/ardupilot)
 - [MAVLink Protocol](https://mavlink.io/en/)
 - RocketChip Architecture v3 (internal)
