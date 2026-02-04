@@ -326,7 +326,56 @@ Gemini is independent of the Titan tier, but compatible:
 | Pyro channels | 2-4 | Expandable |
 | TVC support | Via Core modules | Dedicated controller |
 
-### 8.2 Certification Path
+### 8.2 Dual-IMU Fusion and EKF Lane Switching
+
+With two independent Core modules, Gemini naturally provides two independent IMU/baro/GPS sensor suites. This opens the door to an ArduPilot EKF3-style **lane switching** architecture, where each module runs its own EKF instance and the system selects the healthiest estimate in real-time.
+
+#### Concept
+
+ArduPilot's EKF3 runs up to 5 parallel "lanes" — each an independent filter instance that can use different sensor sources. When a lane's innovation checks fail (indicating sensor divergence), the system switches to a healthy lane. Gemini could implement a simplified version:
+
+| Lane | IMU Source | Baro Source | Runs On |
+|------|-----------|-------------|---------|
+| Lane 0 | Module A IMU | Module A Baro | Core A |
+| Lane 1 | Module B IMU | Module B Baro | Core B |
+
+Each module runs its own ESKF and publishes a health/confidence metric. A selector (on whichever module is Primary) compares innovation magnitudes and covariance traces to pick the best estimate for state decisions.
+
+#### Communication Bandwidth Requirements
+
+The current SENSOR_SUMMARY message (24 bytes at 10 Hz) is designed for cross-validation, not fusion. Dual-IMU lane switching requires **full-rate sensor exchange** so each module can optionally run a cross-check against the partner's raw data:
+
+| Data | Size | Rate | Bandwidth |
+|------|------|------|-----------|
+| Raw IMU (accel+gyro, 6-axis int16) | 12 bytes | 200 Hz | 19.2 kbps |
+| Raw magnetometer (3-axis int16) | 6 bytes | 50 Hz | 2.4 kbps |
+| Barometer (pressure + temp) | 6 bytes | 50 Hz | 2.4 kbps |
+| EKF state summary (quaternion + bias flags) | 24 bytes | 50 Hz | 9.6 kbps |
+| **Total** | | | **~34 kbps** |
+
+This is well within SpaceWire-Lite capacity (1 Mbps GPIO prototype, 10 Mbps LVDS production) but requires a **high-rate bidirectional sensor channel** — the existing protocol only defines Primary→Secondary sensor flow at 10 Hz.
+
+#### Protocol Implications
+
+The current Gemini protocol (Section 4) would need:
+
+1. **New message type: SENSOR_RAW (bidirectional, 200 Hz)** — Full-rate IMU exchange between modules. Must be lightweight (minimal framing overhead at this rate).
+2. **New message type: EKF_HEALTH (bidirectional, 50 Hz)** — Each module publishes its EKF innovation magnitudes, covariance trace, and a lane-health enum (GOOD / DEGRADED / FAILED).
+3. **Bidirectional sensor flow** — Current design is Primary→Secondary only for SENSOR_SUMMARY. Lane switching requires both modules to share raw data simultaneously.
+4. **Latency budget** — At 200 Hz, messages must complete within 5 ms. At 10 Mbps LVDS, a 20-byte message takes ~16 µs (wire time), so latency is dominated by encode/decode, not link speed. At 1 Mbps GPIO prototype, wire time is ~160 µs — still feasible but tighter.
+
+#### Considerations Before Implementation
+
+- **Do both modules need the partner's raw IMU, or just the EKF health summary?** If lane switching only compares filter outputs (not raw sensor cross-fusion), the bandwidth requirement drops to ~12 kbps and the existing 10 Hz SENSOR_SUMMARY could be extended rather than adding a 200 Hz channel.
+- **SpaceWire-Lite flow control at high rates** — The credit-based flow control (8-byte tokens) needs to be validated at 200 Hz bidirectional. Potential for head-of-line blocking if one direction backs up.
+- **PIO state machine utilization** — DS encoding/decoding at 200 Hz message rate is within PIO capability, but concurrent bidirectional traffic means the PIO programs must handle full-duplex without stalling.
+- **This is a stretch-goal feature** — Basic Gemini failover (heartbeat + state sync) should be validated first. Lane switching adds complexity that's only justified if sensor disagreement is a real failure mode in the field.
+
+#### Reference
+
+- ArduPilot EKF3 lane switching: `libraries/AP_NavEKF3/AP_NavEKF3_core.cpp` — `UpdateFilter()`, innovation check logic, and lane selection in the `AP_NavEKF3` wrapper class.
+
+### 8.3 Certification Path
 
 For applications requiring formal certification:
 
@@ -354,6 +403,7 @@ For applications requiring formal certification:
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-01-19 | Claude | Initial draft from design session |
+| 1.1 | 2026-02-03 | Claude Code CLI | Added Section 8.2: Dual-IMU fusion and EKF lane switching |
 
 ---
 

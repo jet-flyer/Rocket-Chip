@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-03-006 | Claude Code CLI | documentation, architecture
+
+Added Section 8.2 (Dual-IMU Fusion and EKF Lane Switching) to `docs/GEMINI_CARRIER_BOARD.md`. Covers EKF3-style lane switching concept using Gemini's dual independent sensor suites, bandwidth analysis for high-rate bidirectional sensor exchange over SpaceWire-Lite, and protocol implications including new SENSOR_RAW and EKF_HEALTH message types.
+
+---
+
 ### 2026-02-03-005 | Claude Code CLI | documentation, architecture, council
 
 **Integration and Verification Plan (IVP) + SAD Updates**
