@@ -20,7 +20,7 @@ This Interface Control Document defines the communication protocol between the t
 
 - `standards/protocols/SPACEWIRE_LITE.md` - Physical and data-link layer specification
 - `docs/icd/EXPANSION_CONNECTOR_ICD.md` - Physical connector interface
-- `docs/GEMINI_CARRIER_BOARD.md` - Carrier board design overview
+- `docs/hardware/GEMINI_CARRIER_BOARD.md` - Carrier board design overview
 - `docs/SAD.md` - Software Architecture Document
 
 ---

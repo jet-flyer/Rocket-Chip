@@ -17,6 +17,7 @@ Expansion modules following rocketry-themed naming (specific names TBD when boar
 - **Pyro/Servo** - Pyro channels, servo PWM for TVC
 - **Navigation** - GPS, backup baro
 - **Power** - Solar charging, extended battery
+- **RC Link + Video (Telstar)** - ELRS receiver (CRSF/MAVLink), 5.8 GHz FPV VTx, RID module support. Designed for standalone use as well as RocketChip integration.
 
 ---
 
@@ -410,7 +411,7 @@ The 22-pin HSTX connector on the back provides:
 
 ## Gemini Carrier Board Hardware
 
-The Gemini carrier board mounts two Core modules for redundant flight computer operation. See `docs/GEMINI_CARRIER_BOARD.md` for full design documentation.
+The Gemini carrier board mounts two Core modules for redundant flight computer operation. See `docs/hardware/GEMINI_CARRIER_BOARD.md` for full design documentation.
 
 ### Gemini-Specific Components
 
@@ -464,7 +465,7 @@ Each Core module has independent power regulation:
 
 ### Related Documents
 
-- `docs/GEMINI_CARRIER_BOARD.md` - Design overview
+- `docs/hardware/GEMINI_CARRIER_BOARD.md` - Design overview
 - `docs/icd/EXPANSION_CONNECTOR_ICD.md` - Connector pinout
 - `docs/icd/GEMINI_PROTOCOL_ICD.md` - Inter-MCU protocol
 - `standards/protocols/SPACEWIRE_LITE.md` - Communication protocol

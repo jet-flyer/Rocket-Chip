@@ -4,7 +4,7 @@
 **Last Updated:** 2026-02-02
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
 **Development Environment:** CMake + Pico SDK
-**Hardware Reference:** `docs/HARDWARE.md` (authoritative source)
+**Hardware Reference:** `docs/hardware/HARDWARE.md` (authoritative source)
 
 > **Note:** This document describes the target architecture. Implementation is starting fresh after archiving previous ArduPilot integration attempts. See `docs/PROJECT_STATUS.md` for current progress.
 
@@ -1107,7 +1107,7 @@ Development builds include serial debug output via USB-CDC for diagnosing timing
 
 ## 14. Gemini Redundant Architecture
 
-Gemini is a carrier board configuration that pairs two Core modules for fault-tolerant operation. This section summarizes the software architecture; see `docs/GEMINI_CARRIER_BOARD.md` for full design documentation.
+Gemini is a carrier board configuration that pairs two Core modules for fault-tolerant operation. This section summarizes the software architecture; see `docs/hardware/GEMINI_CARRIER_BOARD.md` for full design documentation.
 
 ### 14.1 Overview
 
@@ -1168,7 +1168,7 @@ Hardware voting ensures safety independent of firmware state:
 
 ### 14.6 Related Documents
 
-- `docs/GEMINI_CARRIER_BOARD.md` - Full design documentation
+- `docs/hardware/GEMINI_CARRIER_BOARD.md` - Full design documentation
 - `docs/icd/EXPANSION_CONNECTOR_ICD.md` - Connector interface
 - `docs/icd/GEMINI_PROTOCOL_ICD.md` - Message protocol
 - `standards/protocols/SPACEWIRE_LITE.md` - Communication standard (aspirational)

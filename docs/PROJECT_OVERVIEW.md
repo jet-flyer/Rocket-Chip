@@ -33,7 +33,7 @@ Unlike Booster Packs (which stack on a single Core/Main board), Gemini is its ow
 | Pyro Safety | Hardware voting logic (AND to ARM, OR to FIRE) |
 | Power | Independent regulation per module with isolation |
 
-See `docs/GEMINI_CARRIER_BOARD.md` for detailed design documentation.
+See `docs/hardware/GEMINI_CARRIER_BOARD.md` for detailed design documentation.
 
 ## Booster Packs
 
@@ -47,6 +47,7 @@ Naming convention: rocket program names or terms strongly associated with spacef
 | Pyro/Servo | Pyro channels for deployment/staging, servo PWM for TVC |
 | Navigation | GPS module, backup barometer for recovery tracking |
 | Power | Solar charging, extended battery for long-duration missions |
+| RC Link + Video (Telstar) | ELRS receiver for RC control + MAVLink, 5.8 GHz FPV video transmitter, RID module support. Also usable as standalone FPV comms board. |
 
 ## Target Applications
 
@@ -79,8 +80,9 @@ Naming convention: rocket program names or terms strongly associated with spacef
 
 - `docs/SAD.md` - Software Architecture Document (system design, modules, interfaces)
 - `docs/SCAFFOLDING.md` - Directory structure and module overview
-- `docs/HARDWARE.md` - Current prototype hardware, pin assignments, sourcing
-- `docs/GEMINI_CARRIER_BOARD.md` - Gemini redundant flight computer design
+- `docs/hardware/HARDWARE.md` - Current prototype hardware, pin assignments, sourcing
+- `docs/hardware/GEMINI_CARRIER_BOARD.md` - Gemini redundant flight computer design
+- `docs/hardware/TELSTAR_BOOSTER_PACK.md` - Telstar ELRS RC link + FPV video Booster Pack
 - `docs/icd/EXPANSION_CONNECTOR_ICD.md` - Feather-based expansion connector specification
 - `docs/icd/GEMINI_PROTOCOL_ICD.md` - Gemini inter-MCU protocol specification
 - `standards/CODING_STANDARDS.md` - Coding standards, protocols, safety requirements

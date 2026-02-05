@@ -18,10 +18,10 @@ The expansion connector is based on the **Adafruit Feather standard** to leverag
 
 ### 1.1 Related Documents
 
-- `docs/GEMINI_CARRIER_BOARD.md` - Gemini carrier board design
+- `docs/hardware/GEMINI_CARRIER_BOARD.md` - Gemini carrier board design
 - `docs/icd/GEMINI_PROTOCOL_ICD.md` - Inter-MCU protocol for Gemini
 - `standards/protocols/SPACEWIRE_LITE.md` - SpaceWire-Lite communication protocol
-- `docs/HARDWARE.md` - Hardware specifications
+- `docs/hardware/HARDWARE.md` - Hardware specifications
 
 ---
 

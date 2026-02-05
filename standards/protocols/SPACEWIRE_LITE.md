@@ -32,7 +32,7 @@ SpaceWire-Lite is a simplified implementation of the ECSS-E-ST-50-12C SpaceWire 
 
 - `docs/icd/GEMINI_PROTOCOL_ICD.md` - Gemini-specific message formats and failover protocol
 - `docs/icd/EXPANSION_CONNECTOR_ICD.md` - Physical connector specification
-- `docs/GEMINI_CARRIER_BOARD.md` - Carrier board design overview
+- `docs/hardware/GEMINI_CARRIER_BOARD.md` - Carrier board design overview
 
 ---
 

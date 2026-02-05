@@ -34,7 +34,7 @@ Gemini is a carrier board that mounts two identical RocketChip Core modules to c
 | SpaceWire-Lite Spec | `standards/protocols/SPACEWIRE_LITE.md` | Inter-MCU communication protocol |
 | Expansion Connector ICD | `docs/icd/EXPANSION_CONNECTOR_ICD.md` | Physical connector interface |
 | Gemini Protocol ICD | `docs/icd/GEMINI_PROTOCOL_ICD.md` | Message formats and failover |
-| Hardware Reference | `docs/HARDWARE.md` | Component specifications |
+| Hardware Reference | `docs/hardware/HARDWARE.md` | Component specifications |
 | Software Architecture | `docs/SAD.md` | Software design |
 
 ---
@@ -384,6 +384,22 @@ For applications requiring formal certification:
 3. Qualification testing per relevant standards
 4. Independent design review
 
+### 8.4 Dedicated ELRS Communications Core
+
+On Gemini, one Core module could be dedicated to communications rather than redundancy — running as a dedicated ELRS receiver driving RF hardware directly, while the other Core handles navigation, logging, and control. This creates a natural "pilot and co-pilot" separation mirroring how spacecraft partition avionics between mission and bus functions.
+
+Two implementation approaches exist:
+
+**Port ELRS firmware to RP2350:** The ELRS source is open (C++ with HAL abstraction). The RP2350 is vastly more capable than the ESP8285 (single-core 80 MHz) that many ELRS receivers run. ELRS timing-critical work (FHSS hop synchronization, precise packet timing) would benefit from PIO and dual Cortex-M33 cores. Requires writing an RP2350 platform layer for ELRS and maintaining sync with upstream releases. Loses WiFi configuration path unless an ESP32 is added.
+
+**Implement ELRS OTA protocol natively:** Clean-room receiver implementation in RocketChip firmware — just the over-the-air packet format, FHSS sequences, binding phrase handling, and LoRa modem configuration. The RP2350 drives LR1121 RF hardware (on Telstar Booster Pack) over SPI. Decoded RC channels and MAVLink frames go directly to shared memory via the SpaceWire inter-MCU link — no CRSF serial layer needed, lower latency than UART. Risk: ELRS OTA protocol changes between major versions could break compatibility.
+
+**Additional opportunity — Integrated Remote ID:** With a dedicated Core running communications, FAA Remote ID (ASTM F3411-22a) broadcast could be implemented directly in firmware using a Bluetooth module on the Telstar board, eliminating the need for a separate RID add-on. The communications Core would have GPS data from the mission Core via SpaceWire and could format and broadcast Open Drone ID messages (reference implementation: https://github.com/opendroneid/opendroneid-core-c). See `docs/hardware/TELSTAR_BOOSTER_PACK.md` Section 8.3 for RID details.
+
+Both approaches require Telstar Booster Pack hardware with direct-drive LR1121 RF (Option B or C in `docs/hardware/TELSTAR_BOOSTER_PACK.md`). This is a post-Gemini-validation milestone — basic dual-redundancy failover should be proven first.
+
+See `docs/hardware/TELSTAR_BOOSTER_PACK.md` for full Telstar Booster Pack design documentation.
+
 ---
 
 ## 9. Risk Assessment
@@ -404,7 +420,8 @@ For applications requiring formal certification:
 |---------|------|--------|---------|
 | 1.0 | 2026-01-19 | Claude | Initial draft from design session |
 | 1.1 | 2026-02-03 | Claude Code CLI | Added Section 8.2: Dual-IMU fusion and EKF lane switching |
+| 1.2 | 2026-02-05 | Claude | Added Section 8.4: Dedicated ELRS communications core |
 
 ---
 
-*Document maintained in: `docs/GEMINI_CARRIER_BOARD.md`*
+*Document maintained in: `docs/hardware/GEMINI_CARRIER_BOARD.md`*

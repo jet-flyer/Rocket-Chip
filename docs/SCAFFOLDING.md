@@ -24,16 +24,19 @@ rocketchip/
 ├── docs/
 │   ├── SAD.md                     # Software Architecture Document
 │   ├── SCAFFOLDING.md             # This file
-│   ├── HARDWARE.md                # Hardware specs, pin assignments
 │   ├── PROJECT_OVERVIEW.md        # Vision and product tiers
 │   ├── PROJECT_STATUS.md          # Current phase and blockers
 │   ├── TOOLCHAIN_VALIDATION.md    # Build/debug setup guide
 │   ├── ROCKETCHIP_OS.md           # CLI design
-│   ├── GEMINI_CARRIER_BOARD.md    # Gemini redundant flight computer (future)
 │   ├── PIO_ALLOCATION.md          # PIO state machine allocation tracker (future)
 │   ├── ESKF/                      # Sensor fusion architecture
 │   │   ├── FUSION_ARCHITECTURE.md
 │   │   └── FUSION_ARCHITECTURE_DECISION.md
+│   ├── hardware/                  # Hardware design documents
+│   │   ├── HARDWARE.md            # Hardware specs, pin assignments
+│   │   ├── GEMINI_CARRIER_BOARD.md    # Gemini redundant flight computer (future)
+│   │   ├── STATUS_INDICATORS.md   # LED patterns and status feedback
+│   │   └── TELSTAR_BOOSTER_PACK.md   # ELRS RC link + FPV video Booster Pack
 │   └── icd/                       # Interface Control Documents
 │       ├── EXPANSION_CONNECTOR_ICD.md
 │       └── GEMINI_PROTOCOL_ICD.md
@@ -179,9 +182,10 @@ Previous ArduPilot integration (AP_HAL_RP2350, sensor drivers, calibration) is p
 - **docs/SAD.md** - Software Architecture Document (authoritative for architecture)
 - **docs/PROJECT_STATUS.md** - Current phase and blockers
 - **docs/PROJECT_OVERVIEW.md** - Vision and product tiers
-- **docs/HARDWARE.md** - Hardware specifications, pin assignments, I2C addresses
+- **docs/hardware/HARDWARE.md** - Hardware specifications, pin assignments, I2C addresses
 - **docs/TOOLCHAIN_VALIDATION.md** - Build and debug setup guide
 - **docs/ROCKETCHIP_OS.md** - CLI design
 - **docs/ESKF/** - Sensor fusion architecture
-- **docs/GEMINI_CARRIER_BOARD.md** - Gemini redundant flight computer (future)
+- **docs/hardware/GEMINI_CARRIER_BOARD.md** - Gemini redundant flight computer (future)
+- **docs/hardware/TELSTAR_BOOSTER_PACK.md** - Telstar ELRS RC link + FPV video Booster Pack
 - **standards/CODING_STANDARDS.md** - Code style and safety rules
