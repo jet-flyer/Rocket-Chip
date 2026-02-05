@@ -1,84 +1,66 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-02-03
+**Last Updated:** 2026-02-04
 
 ## Current Phase
 
-**Reboot: Bare-Metal Pico SDK Pivot** — Rewriting from FreeRTOS to bare-metal Pico SDK
+**IVP Stage 2: Single-Core Sensors** — Bringing up IMU and barometer drivers
 
-## Context
+## Completed
 
-Archived ArduPilot integration attempts after encountering fundamental blockers:
-- `AP_ChibiOS` branch: XIP flash execution issues prevented viable ChibiOS port (official RP2350 ChibiOS support is actively being developed upstream)
-- `AP_FreeRTOS` branch: Working but complex; fundamental architectural incompatibilities
+### Stage 1: Foundation (IVP-01 through IVP-08) ✅
 
-Pivoting away from FreeRTOS to bare-metal Pico SDK. FreeRTOS SMP added complexity (cross-core memory visibility, priority inversion, USB init ordering) without proportional benefit at this stage. Bare-metal simplifies the architecture while retaining dual-core capability through Pico SDK primitives. Previous platform constraints are documented in `standards/CODING_STANDARDS.md` and `.claude/LESSONS_LEARNED.md`.
+Hardware-verified 2026-02-04:
+- [x] IVP-01: Clean build from source
+- [x] IVP-02: Red LED blink (heartbeat 100ms on / 900ms off)
+- [x] IVP-03: NeoPixel rainbow via PIO
+- [x] IVP-04: USB CDC serial output
+- [x] IVP-05: Debug macros functional (timestamps, compile out in Release)
+- [x] IVP-06: I2C bus init at 400kHz
+- [x] IVP-07: I2C scan (ICM-20948, DPS310, PA1010D all detected)
+- [x] IVP-08: Heartbeat superloop with uptime
 
-## What Exists (from previous work — needs adaptation for bare-metal)
+## In Progress
 
-Sensor drivers:
-- [x] ICM-20948 9-DoF IMU (custom driver with magnetometer)
-- [x] DPS310 barometer (ruuvi library wrapper)
-- [x] PA1010D GPS (lwGPS library wrapper)
+### Stage 2: Single-Core Sensors (IVP-09 through IVP-18)
 
-Infrastructure:
-- [x] Calibration system with flash persistence (gyro, level, 6-position accel, baro)
-- [x] RC_OS CLI menu (terminal-connected pattern)
-- [x] WS2812 NeoPixel status LED driver
-- [x] CMakeLists.txt (needs update to remove FreeRTOS dependencies)
+- [ ] IVP-09: ICM-20948 IMU initialization
+- [ ] IVP-10: IMU data validation
+- [ ] IVP-11: DPS310 barometer initialization
+- [ ] IVP-12: Barometer data validation
+- [ ] IVP-13: Multi-sensor polling (single core)
+- [ ] IVP-13a: I2C bus recovery
+- [ ] IVP-14: Calibration storage (flash persistence)
+- [ ] IVP-15: Gyro bias calibration
+- [ ] IVP-16: Level calibration
+- [ ] IVP-17: 6-position accel calibration
+- [ ] IVP-18: CLI menu — **Minimum Viable Demo milestone**
 
-Deleted (need rewrite for bare-metal):
-- main.cpp (was FreeRTOS task-based)
-- sensor_task (was FreeRTOS task)
-- debug_stream (was FreeRTOS stream buffer-based)
+## What Exists
 
-## Validation Needed (after bare-metal rewrite)
+**Active (in build):**
+- `src/main.cpp` — Stage 1 entry point with HW validation
+- `src/drivers/ws2812_status.c/h` — NeoPixel PIO driver
+- `src/drivers/i2c_bus.c/h` — I2C bus wrapper
 
-- [ ] Clean build from fresh clone
-- [ ] USB CDC enumeration
-- [ ] Sensor readings (IMU, baro)
-- [ ] Calibration load/save across power cycles
-- [ ] RC_OS CLI commands
+**Ready (commented out in CMakeLists.txt, re-enable at their IVP step):**
+- `src/drivers/icm20948.c/h` — IMU driver (IVP-09)
+- `src/drivers/baro_dps310.c/h` — Barometer wrapper (IVP-11)
+- `src/drivers/gps_pa1010d.c/h` — GPS wrapper (IVP-31)
+- `src/calibration/calibration_data.c/h` — Cal structures (IVP-14)
+- `src/calibration/calibration_manager.c/h` — Cal state machine (IVP-14)
+- `src/calibration/calibration_storage.c/h` — Flash persistence (IVP-14)
 
-## Caution
-
-Code is being rewritten for bare-metal Pico SDK. Existing source files may still contain FreeRTOS includes, task primitives, or assumptions from the previous architecture. These need to be identified and replaced during the rewrite.
-
-## Next Steps
-
-- [ ] Write new bare-metal main.cpp (super-loop or timer-interrupt architecture)
-- [ ] Implement sensor polling loop without FreeRTOS tasks
-- [ ] Rewrite debug output for bare-metal (direct printf or simple ring buffer)
-- [ ] Update CMakeLists.txt to remove FreeRTOS dependencies
-- [ ] GPS integration
-- [ ] Replace any remaining ArduPilot math dependencies
-- [ ] Create `docs/PIO_ALLOCATION.md` — PIO state machine tracking (12 SMs across 3 blocks; currently 1 used for WS2812)
-- [ ] Begin ESKF sensor fusion (Phase 4) — see `docs/decisions/ESKF/`
+**Deleted (broken deps, rewrite at their stage):**
+- `accel_calibrator.c/h` — Rewrite at IVP-17
 
 ## Blockers
 
-None — clean foundation, pivoting to simpler bare-metal approach.
+None.
 
-## Reference Material
+## Reference
 
-**Platform rules and constraints:**
-- `standards/CODING_STANDARDS.md` — RP2350 platform constraints
-- `docs/MULTICORE_RULES.md` — Core assignment and cross-core rules
-- `.claude/LESSONS_LEARNED.md` — 19 debugging entries with root causes
-- `.claude/SESSION_CHECKLIST.md` — Session handoff procedures
-- `.claude/DEBUG_PROBE_NOTES.md` — OpenOCD/GDB setup
-
-**Architecture:**
+- `docs/IVP.md` — Full 64-step integration plan with verification gates
 - `docs/SAD.md` — Software Architecture Document
-- `docs/decisions/` — Council review outputs (ESKF architecture, etc.)
-
-**Available in archive branches:**
-- `AP_FreeRTOS` — Full FreeRTOS + ArduPilot implementation (for reference only)
-- `AP_ChibiOS` — ChibiOS exploration (for reference only)
-
-## Back Burner
-
-- Middle tier product name decision
-- Ground station software evaluation
-- Telemetry protocol selection
-- Full ArduPilot integration via ChibiOS HAL — official ChibiOS RP2350 support is actively being developed and imminent. Once available, a native AP_HAL_ChibiOS port becomes viable, enabling full ArduPilot firmware (ArduRocket) on RocketChip hardware
+- `standards/CODING_STANDARDS.md` — Platform constraints
+- `.claude/LESSONS_LEARNED.md` — Debugging journal

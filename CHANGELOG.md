@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-04-001 | Claude Code CLI | feature, hardware
+
+**IVP Stage 1 Complete: Foundation (IVP-01 through IVP-08)**
+
+Created `src/main.cpp` implementing bare-metal firmware foundation: red LED heartbeat, NeoPixel rainbow via PIO, USB CDC serial with terminal reconnect handling, I2C bus init and scan, structured HW validation output. All gates hardware-verified (ICM-20948, DPS310, PA1010D detected).
+
+Deleted stale files with broken dependencies (`accel_calibrator.c/h`, `debug.h`). Updated CMakeLists.txt to build only Stage 1 sources; other drivers commented with IVP stage markers for incremental re-enablement.
+
+---
+
 ### 2026-02-03-007 | Claude Code CLI | tooling
 
 Added plan mode council review instructions to `.claude/CLAUDE.md`. Before ExitPlanMode, agent now asks which council personas to use, spawns a Task agent to run the review, and attaches the verdict to the plan.
