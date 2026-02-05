@@ -78,23 +78,32 @@ set(LWGPS_DIR ${CMAKE_CURRENT_LIST_DIR}/lib/lwgps/lwgps/src)
 # ============================================================================
 
 add_executable(rocketchip
-    # src/main.cpp              # TODO: Rewrite for bare-metal
-    # Platform drivers
+    # -------------------------------------------------------------------------
+    # Stage 1: Foundation (IVP-01 through IVP-08)
+    # -------------------------------------------------------------------------
+    src/main.cpp
     src/drivers/ws2812_status.c
     src/drivers/i2c_bus.c
-    # IMU - custom driver with magnetometer support
-    src/drivers/icm20948.c
-    # Barometer - ruuvi library + Pico wrapper
-    ${RUUVI_DPS310_DIR}/dps310.c
-    src/drivers/baro_dps310.c
-    # GPS - lwGPS library + PA1010D wrapper
-    ${LWGPS_DIR}/lwgps/lwgps.c
-    src/drivers/gps_pa1010d.c
-    # Calibration system
-    src/calibration/calibration_data.c
-    src/calibration/calibration_manager.c
-    src/calibration/calibration_storage.c
-    src/calibration/accel_calibrator.c
+
+    # -------------------------------------------------------------------------
+    # Stage 2+: Uncomment as each IVP stage is reached
+    # -------------------------------------------------------------------------
+    # IVP-09: IMU driver
+    # src/drivers/icm20948.c
+
+    # IVP-11: Barometer (requires ruuvi library)
+    # ${RUUVI_DPS310_DIR}/dps310.c
+    # src/drivers/baro_dps310.c
+
+    # IVP-31: GPS (requires lwGPS library)
+    # ${LWGPS_DIR}/lwgps/lwgps.c
+    # src/drivers/gps_pa1010d.c
+
+    # IVP-14: Calibration system
+    # src/calibration/calibration_data.c
+    # src/calibration/calibration_manager.c
+    # src/calibration/calibration_storage.c
+    # Note: accel_calibrator.c deleted (broken deps), rewrite at IVP-17
 )
 
 # Include directories
@@ -102,12 +111,11 @@ target_include_directories(rocketchip PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/include
     ${CMAKE_CURRENT_LIST_DIR}/src
     ${CMAKE_CURRENT_LIST_DIR}/src/drivers
-    ${CMAKE_CURRENT_LIST_DIR}/src/calibration
-    ${CMAKE_CURRENT_LIST_DIR}/src/tasks
     ${CMAKE_CURRENT_LIST_DIR}
-    # External libraries
-    ${RUUVI_DPS310_DIR}
-    ${LWGPS_DIR}/include
+    # Uncomment as stages are reached:
+    # ${CMAKE_CURRENT_LIST_DIR}/src/calibration  # IVP-14
+    # ${RUUVI_DPS310_DIR}                        # IVP-11
+    # ${LWGPS_DIR}/include                       # IVP-31
 )
 
 # Generate WS2812 PIO header from SDK's pio file
@@ -122,8 +130,9 @@ target_link_libraries(rocketchip
     hardware_pio         # For NeoPixel/WS2812 PIO driver
     hardware_clocks      # For clock_get_hz()
     hardware_i2c         # For I2C/QWIIC sensors
-    hardware_flash       # For flash_range_erase/program
-    pico_flash           # For flash_safe_execute
+    # Uncomment at IVP-14 (calibration storage):
+    # hardware_flash     # For flash_range_erase/program
+    # pico_flash         # For flash_safe_execute
 )
 
 # Enable USB CDC for stdio (not UART)
