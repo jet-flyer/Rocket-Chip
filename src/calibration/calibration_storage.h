@@ -2,8 +2,8 @@
  * @file calibration_storage.h
  * @brief Calibration persistent storage interface
  *
- * Provides a simple interface for storing calibration data in flash.
- * Uses a dual-sector approach for wear leveling and power-safe writes.
+ * Stores calibration data in flash using a dual-sector approach
+ * for wear leveling and power-safe writes.
  */
 
 #ifndef ROCKETCHIP_CALIBRATION_STORAGE_H
@@ -18,8 +18,8 @@ extern "C" {
 /**
  * @brief Initialize calibration storage
  *
- * Sets up the flash sectors for calibration storage.
- * Call once at boot.
+ * Sets up flash sectors for calibration storage.
+ * Call once at boot, before stdio_init_all() per LL Entry 4/12.
  *
  * @return true on success
  */
@@ -36,8 +36,8 @@ bool calibration_storage_read(calibration_store_t* cal);
 /**
  * @brief Write calibration data to storage
  *
- * Uses dual-sector approach: writes to alternate sector,
- * then marks new sector as valid.
+ * Uses flash_safe_execute for dual-core safety.
+ * Writes to alternate sector for wear leveling.
  *
  * @param cal Calibration data to write
  * @return true on success

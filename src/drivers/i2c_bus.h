@@ -25,7 +25,7 @@ extern "C" {
 #define I2C_BUS_INSTANCE    i2c1
 #define I2C_BUS_SDA_PIN     2
 #define I2C_BUS_SCL_PIN     3
-#define I2C_BUS_FREQ_HZ     400000  // 400kHz Fast Mode
+#define I2C_BUS_FREQ_HZ     100000  // 100kHz for compatibility (was 400kHz)
 
 // Timeout for I2C operations (microseconds)
 #define I2C_TIMEOUT_US      10000
@@ -125,6 +125,30 @@ int i2c_bus_read_reg(uint8_t addr, uint8_t reg, uint8_t* value);
  * @return Number of bytes read, or negative on error
  */
 int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len);
+
+// ============================================================================
+// Bus Recovery (IVP-13a)
+// ============================================================================
+
+/**
+ * @brief Attempt to recover a stuck I2C bus
+ *
+ * If a slave device is holding SDA low (stuck in mid-transaction),
+ * this function toggles SCL up to 9 times to clock out the stuck byte,
+ * then issues a STOP condition.
+ *
+ * @return true if recovery successful (SDA released), false otherwise
+ */
+bool i2c_bus_recover(void);
+
+/**
+ * @brief Reset the I2C bus (deinit + recover + reinit)
+ *
+ * Performs a full bus reset sequence when a device becomes unresponsive.
+ *
+ * @return true if bus successfully reset and initialized
+ */
+bool i2c_bus_reset(void);
 
 #ifdef __cplusplus
 }

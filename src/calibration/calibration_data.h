@@ -1,9 +1,9 @@
 /**
  * @file calibration_data.h
- * @brief Calibration data structures for all sensors
+ * @brief Calibration data structures for RocketChip sensors
  *
- * Defines the calibration parameters that are stored persistently
- * and applied to sensor readings during operation.
+ * Defines calibration parameters stored persistently in flash.
+ * All values use SI units (m/s², rad/s, µT, Pa).
  */
 
 #ifndef ROCKETCHIP_CALIBRATION_DATA_H
@@ -37,7 +37,7 @@ typedef enum {
 } cal_status_flags_t;
 
 // ============================================================================
-// 3D Vector (for offsets/scales)
+// 3D Vector
 // ============================================================================
 
 typedef struct {
@@ -53,15 +53,14 @@ typedef struct {
 /**
  * @brief Accelerometer calibration data
  *
- * ArduPilot convention: corrected = (raw + offset) * scale
- * For full 6-position cal, offset and scale factors are computed.
- * For level cal only, offsets are computed assuming scale=1.
+ * Convention: corrected = (raw + offset) * scale
  */
 typedef struct {
-    cal_vec3_t offset;      ///< Offset in m/s² (add to raw, per ArduPilot convention)
+    cal_vec3_t offset;      ///< Offset in m/s² (add to raw)
     cal_vec3_t scale;       ///< Scale factors (multiply after offset)
     float temperature_ref;  ///< Temperature at calibration time (°C)
     uint8_t status;         ///< CAL_STATUS_LEVEL or CAL_STATUS_ACCEL_6POS
+    uint8_t _pad[3];
 } accel_cal_t;
 
 // ============================================================================
@@ -71,37 +70,14 @@ typedef struct {
 /**
  * @brief Gyroscope calibration data
  *
- * Gyro calibration is primarily bias removal at rest.
- * Temperature compensation can be added later.
+ * Convention: corrected = raw - bias
  */
 typedef struct {
     cal_vec3_t bias;        ///< Bias in rad/s (subtract from raw)
     float temperature_ref;  ///< Temperature at calibration time (°C)
     uint8_t status;         ///< CAL_STATUS_GYRO if calibrated
+    uint8_t _pad[3];
 } gyro_cal_t;
-
-// ============================================================================
-// Magnetometer Calibration
-// ============================================================================
-
-/**
- * @brief Magnetometer calibration data
- *
- * Full magnetometer calibration includes:
- * - Hard iron offset (additive bias from nearby ferrous materials)
- * - Soft iron matrix (distortion of the magnetic field)
- *
- * corrected = soft_iron * (raw - hard_iron)
- *
- * For simplicity, we start with hard iron only.
- */
-typedef struct {
-    cal_vec3_t hard_iron;   ///< Hard iron offset in µT
-    float soft_iron[9];     ///< 3x3 soft iron matrix (row-major)
-    float declination_deg;  ///< Magnetic declination for location
-    float field_strength;   ///< Expected field strength (for validation)
-    uint8_t status;         ///< CAL_STATUS_MAG if calibrated
-} mag_cal_t;
 
 // ============================================================================
 // Barometer Calibration
@@ -109,15 +85,12 @@ typedef struct {
 
 /**
  * @brief Barometer calibration data
- *
- * Barometer cal stores the ground-level pressure reference
- * for altitude calculations.
  */
 typedef struct {
     float ground_pressure_pa;   ///< Pressure at ground level
     float ground_temperature_c; ///< Temperature at calibration
-    float altitude_offset_m;    ///< Altitude offset (if at known elevation)
     uint8_t status;             ///< CAL_STATUS_BARO if calibrated
+    uint8_t _pad[3];
 } baro_cal_t;
 
 // ============================================================================
@@ -127,61 +100,52 @@ typedef struct {
 /**
  * @brief Complete calibration data stored in flash
  *
- * This structure is persisted to flash and loaded at boot.
- * Total size should be < 512 bytes to fit in Tier 1 storage.
+ * Total size should be < 256 bytes to fit in a single flash page.
  */
 typedef struct {
-    // Header
+    // Header (8 bytes)
     uint32_t magic;         ///< CALIBRATION_MAGIC
     uint16_t version;       ///< CALIBRATION_VERSION
     uint16_t crc16;         ///< CRC16 of data following this field
 
     // Calibration data
-    accel_cal_t accel;
-    gyro_cal_t gyro;
-    mag_cal_t mag;
-    baro_cal_t baro;
+    accel_cal_t accel;      // 32 bytes
+    gyro_cal_t gyro;        // 20 bytes
+    baro_cal_t baro;        // 12 bytes
 
     // Overall status
     uint32_t cal_flags;     ///< Bitfield of cal_status_flags_t
-    uint32_t cal_timestamp; ///< Unix timestamp of last calibration
 
-    // Padding for future expansion
-    uint8_t reserved[32];
+    // Reserved for future expansion
+    uint8_t reserved[24];
 } calibration_store_t;
 
-// Verify size fits in Tier 1 storage (512 bytes)
-_Static_assert(sizeof(calibration_store_t) <= 512,
-               "calibration_store_t exceeds 512 byte limit");
+// Verify size fits in a flash page
+_Static_assert(sizeof(calibration_store_t) <= 256,
+               "calibration_store_t exceeds 256 byte limit");
 
 // ============================================================================
-// Default Values
+// Functions
 // ============================================================================
 
 /**
  * @brief Initialize calibration data with defaults
- * @param cal Calibration store to initialize
  */
 void calibration_init_defaults(calibration_store_t* cal);
 
 /**
- * @brief Check if calibration data is valid
- * @param cal Calibration store to validate
- * @return true if magic, version, and CRC are valid
+ * @brief Validate calibration data (magic, version, CRC)
+ * @return true if valid
  */
 bool calibration_validate(const calibration_store_t* cal);
 
 /**
  * @brief Update CRC after modifying calibration data
- * @param cal Calibration store to update
  */
 void calibration_update_crc(calibration_store_t* cal);
 
 /**
  * @brief Check if a specific calibration has been performed
- * @param cal Calibration store
- * @param flag Flag from cal_status_flags_t
- * @return true if that calibration is complete
  */
 bool calibration_has(const calibration_store_t* cal, cal_status_flags_t flag);
 

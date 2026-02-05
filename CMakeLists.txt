@@ -86,24 +86,27 @@ add_executable(rocketchip
     src/drivers/i2c_bus.c
 
     # -------------------------------------------------------------------------
-    # Stage 2+: Uncomment as each IVP stage is reached
+    # Stage 2: Single-Core Sensors (IVP-09 through IVP-18)
     # -------------------------------------------------------------------------
     # IVP-09: IMU driver
-    # src/drivers/icm20948.c
+    src/drivers/icm20948.c
 
     # IVP-11: Barometer (requires ruuvi library)
-    # ${RUUVI_DPS310_DIR}/dps310.c
-    # src/drivers/baro_dps310.c
+    ${RUUVI_DPS310_DIR}/dps310.c
+    src/drivers/baro_dps310.c
 
     # IVP-31: GPS (requires lwGPS library)
     # ${LWGPS_DIR}/lwgps/lwgps.c
     # src/drivers/gps_pa1010d.c
 
     # IVP-14: Calibration system
-    # src/calibration/calibration_data.c
-    # src/calibration/calibration_manager.c
-    # src/calibration/calibration_storage.c
-    # Note: accel_calibrator.c deleted (broken deps), rewrite at IVP-17
+    src/calibration/calibration_data.c
+    src/calibration/calibration_manager.c
+    src/calibration/calibration_storage.c
+    # IVP-17: 6-position accel calibrator (to be written)
+
+    # IVP-18: RC_OS CLI
+    src/cli/rc_os.c
 )
 
 # Include directories
@@ -112,9 +115,9 @@ target_include_directories(rocketchip PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/src
     ${CMAKE_CURRENT_LIST_DIR}/src/drivers
     ${CMAKE_CURRENT_LIST_DIR}
-    # Uncomment as stages are reached:
-    # ${CMAKE_CURRENT_LIST_DIR}/src/calibration  # IVP-14
-    # ${RUUVI_DPS310_DIR}                        # IVP-11
+    ${CMAKE_CURRENT_LIST_DIR}/src/calibration    # IVP-14
+    ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
+    ${RUUVI_DPS310_DIR}                          # IVP-11
     # ${LWGPS_DIR}/include                       # IVP-31
 )
 
@@ -130,9 +133,9 @@ target_link_libraries(rocketchip
     hardware_pio         # For NeoPixel/WS2812 PIO driver
     hardware_clocks      # For clock_get_hz()
     hardware_i2c         # For I2C/QWIIC sensors
-    # Uncomment at IVP-14 (calibration storage):
-    # hardware_flash     # For flash_range_erase/program
-    # pico_flash         # For flash_safe_execute
+    # IVP-14: Calibration storage
+    hardware_flash       # For flash_range_erase/program
+    pico_flash           # For flash_safe_execute
 )
 
 # Enable USB CDC for stdio (not UART)

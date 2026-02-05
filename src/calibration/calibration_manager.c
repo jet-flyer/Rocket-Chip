@@ -5,9 +5,6 @@
 
 #include "calibration_manager.h"
 #include "calibration_storage.h"
-#include "accel_calibrator.h"
-#include "rocketchip/config.h"
-#include "pico/time.h"
 #include <math.h>
 #include <string.h>
 
@@ -16,10 +13,10 @@
 // ============================================================================
 
 #define GYRO_CAL_SAMPLES        200     // ~2 seconds at 100Hz
-#define GYRO_CAL_MOTION_THRESH  0.10f   // rad/s - motion detection threshold (~6 deg/s)
+#define GYRO_CAL_MOTION_THRESH  0.10f   // rad/s - motion detection (~6 deg/s)
 
 #define ACCEL_CAL_SAMPLES       100     // ~1 second at 100Hz
-#define ACCEL_CAL_MOTION_THRESH 0.5f    // m/s² - motion detection threshold
+#define ACCEL_CAL_MOTION_THRESH 0.5f    // m/s² - motion detection
 #define GRAVITY_NOMINAL         9.80665f
 
 #define BARO_CAL_SAMPLES        50      // ~1 second at 50Hz
@@ -43,15 +40,6 @@ static struct {
     uint32_t target_count;
 } g_sample_acc;
 
-// 6-position accelerometer calibrator
-static accel_calibrator_t g_accel_cal;
-
-// ============================================================================
-// Private Function Declarations
-// ============================================================================
-
-static void feed_accel_6pos(float ax, float ay, float az, float temperature_c);
-
 // ============================================================================
 // Private Functions
 // ============================================================================
@@ -64,7 +52,6 @@ static void reset_accumulator(uint32_t target_samples) {
 }
 
 static bool check_gyro_motion(void) {
-    // Check if gyro readings varied too much during calibration
     float range_x = g_sample_acc.max_x - g_sample_acc.min_x;
     float range_y = g_sample_acc.max_y - g_sample_acc.min_y;
     float range_z = g_sample_acc.max_z - g_sample_acc.min_z;
@@ -75,7 +62,6 @@ static bool check_gyro_motion(void) {
 }
 
 static bool check_accel_motion(void) {
-    // Check if accel readings varied too much during calibration
     float range_x = g_sample_acc.max_x - g_sample_acc.min_x;
     float range_y = g_sample_acc.max_y - g_sample_acc.min_y;
     float range_z = g_sample_acc.max_z - g_sample_acc.min_z;
@@ -90,9 +76,9 @@ static bool check_accel_motion(void) {
 // ============================================================================
 
 void calibration_manager_init(void) {
-    // Try to load from storage
+    // Storage init happens in main before USB
+    // Here we just load from the already-initialized storage
     if (calibration_load() != CAL_RESULT_OK) {
-        // Initialize with defaults
         calibration_init_defaults(&g_calibration);
     }
 
@@ -129,7 +115,7 @@ void calibration_feed_gyro(float gx, float gy, float gz, float temperature_c) {
         return;
     }
 
-    // Accumulate samples
+    // Accumulate
     g_sample_acc.sum_x += gx;
     g_sample_acc.sum_y += gy;
     g_sample_acc.sum_z += gz;
@@ -145,9 +131,8 @@ void calibration_feed_gyro(float gx, float gy, float gz, float temperature_c) {
 
     g_sample_acc.count++;
 
-    // Check if complete
+    // Check completion
     if (g_sample_acc.count >= g_sample_acc.target_count) {
-        // Check for motion
         if (check_gyro_motion()) {
             g_cal_state = CAL_STATE_FAILED;
             g_cal_result = CAL_RESULT_MOTION_DETECTED;
@@ -187,23 +172,17 @@ cal_result_t calibration_start_accel_level(void) {
 }
 
 void calibration_feed_accel(float ax, float ay, float az, float temperature_c) {
-    // Handle 6-position calibration separately
-    if (g_cal_state == CAL_STATE_ACCEL_6POS) {
-        feed_accel_6pos(ax, ay, az, temperature_c);
-        return;
-    }
-
     if (g_cal_state != CAL_STATE_ACCEL_LEVEL_SAMPLING) {
         return;
     }
 
-    // Accumulate samples
+    // Accumulate
     g_sample_acc.sum_x += ax;
     g_sample_acc.sum_y += ay;
     g_sample_acc.sum_z += az;
     g_sample_acc.sum_temp += temperature_c;
 
-    // Track min/max for motion detection
+    // Track min/max
     if (ax < g_sample_acc.min_x) g_sample_acc.min_x = ax;
     if (ax > g_sample_acc.max_x) g_sample_acc.max_x = ax;
     if (ay < g_sample_acc.min_y) g_sample_acc.min_y = ay;
@@ -213,9 +192,8 @@ void calibration_feed_accel(float ax, float ay, float az, float temperature_c) {
 
     g_sample_acc.count++;
 
-    // Check if complete
+    // Check completion
     if (g_sample_acc.count >= g_sample_acc.target_count) {
-        // Check for motion
         if (check_accel_motion()) {
             g_cal_state = CAL_STATE_FAILED;
             g_cal_result = CAL_RESULT_MOTION_DETECTED;
@@ -228,16 +206,12 @@ void calibration_feed_accel(float ax, float ay, float az, float temperature_c) {
         float avg_y = g_sample_acc.sum_y / n;
         float avg_z = g_sample_acc.sum_z / n;
 
-        // For level cal, we assume device is flat (Z pointing up or down)
-        // Expected: X≈0, Y≈0, Z≈±g
-        // Offset = expected - measured (so that raw + offset = expected)
-        // This matches ArduPilot convention: calibrated = (raw + offset) * scale
-        g_calibration.accel.offset.x = -avg_x;  // Expected 0, so offset = 0 - avg_x
-        g_calibration.accel.offset.y = -avg_y;  // Expected 0, so offset = 0 - avg_y
+        // Level cal: device flat, Z pointing up or down
+        // Offset = expected - measured
+        g_calibration.accel.offset.x = -avg_x;
+        g_calibration.accel.offset.y = -avg_y;
 
-        // For Z, we need to preserve gravity magnitude
-        // If Z is positive (upright), expected is +g, offset = g - avg_z
-        // If Z is negative (inverted), expected is -g, offset = -g - avg_z
+        // Preserve gravity magnitude on Z
         if (avg_z > 0) {
             g_calibration.accel.offset.z = GRAVITY_NOMINAL - avg_z;
         } else {
@@ -252,113 +226,6 @@ void calibration_feed_accel(float ax, float ay, float az, float temperature_c) {
 
         g_cal_state = CAL_STATE_COMPLETE;
         g_cal_result = CAL_RESULT_OK;
-    }
-}
-
-// ============================================================================
-// 6-Position Accelerometer Calibration
-// ============================================================================
-
-cal_result_t calibration_start_accel_6pos(void) {
-    DBG_PRINT("[6pos] start: cal_state=%d (IDLE=%d)", g_cal_state, CAL_STATE_IDLE);
-
-    if (g_cal_state != CAL_STATE_IDLE) {
-        DBG_PRINT("[6pos] BUSY: g_cal_state=%d", g_cal_state);
-        return CAL_RESULT_BUSY;
-    }
-
-    accel_cal_init(&g_accel_cal);
-    if (!accel_cal_start(&g_accel_cal)) {
-        DBG_PRINT("[6pos] accel_cal_start failed: state=%d", g_accel_cal.state);
-        return CAL_RESULT_INVALID_DATA;
-    }
-
-    g_cal_state = CAL_STATE_ACCEL_6POS;
-    g_cal_result = CAL_RESULT_OK;
-
-    DBG_PRINT("[6pos] started successfully");
-    return CAL_RESULT_OK;
-}
-
-int8_t calibration_get_6pos_position(void) {
-    if (g_cal_state != CAL_STATE_ACCEL_6POS) {
-        return -1;
-    }
-    return (int8_t)accel_cal_get_position(&g_accel_cal);
-}
-
-const char* calibration_get_6pos_position_name(void) {
-    if (g_cal_state != CAL_STATE_ACCEL_6POS) {
-        return "N/A";
-    }
-    return accel_cal_position_name(accel_cal_get_position(&g_accel_cal));
-}
-
-bool calibration_accept_6pos_position(void) {
-    if (g_cal_state != CAL_STATE_ACCEL_6POS) {
-        return false;
-    }
-    return accel_cal_accept_position(&g_accel_cal);
-}
-
-uint8_t calibration_get_6pos_position_progress(void) {
-    if (g_cal_state != CAL_STATE_ACCEL_6POS) {
-        return 0;
-    }
-    return accel_cal_get_position_progress(&g_accel_cal);
-}
-
-/**
- * @brief Feed accel sample to 6-position calibration
- * @note Called from calibration_feed_accel when in 6-pos mode
- */
-static void feed_accel_6pos(float ax, float ay, float az, float temperature_c) {
-    accel_cal_feed_sample(&g_accel_cal, ax, ay, az, temperature_c);
-
-    // Check state changes
-    accel_cal_state_t state = accel_cal_get_state(&g_accel_cal);
-
-    if (state == ACCEL_CAL_STATE_SUCCESS) {
-        // Copy results to calibration store
-        cal_vec3_t offset, scale;
-        float fitness;
-        if (accel_cal_get_result(&g_accel_cal, &offset, &scale, &fitness)) {
-            g_calibration.accel.offset = offset;
-            g_calibration.accel.scale = scale;
-            g_calibration.accel.temperature_ref = g_accel_cal.temperature_ref;
-            g_calibration.accel.status = CAL_STATUS_ACCEL_6POS;
-
-            g_calibration.cal_flags |= CAL_STATUS_ACCEL_6POS;
-            // Also set level flag since 6-pos is more accurate
-            g_calibration.cal_flags |= CAL_STATUS_LEVEL;
-            calibration_update_crc(&g_calibration);
-        }
-
-        g_cal_state = CAL_STATE_COMPLETE;
-        g_cal_result = CAL_RESULT_OK;
-    }
-    else if (state == ACCEL_CAL_STATE_FAILED) {
-        g_cal_state = CAL_STATE_FAILED;
-
-        // Map failure reason to cal_result
-        accel_cal_fail_t fail = accel_cal_get_fail_reason(&g_accel_cal);
-        switch (fail) {
-            case ACCEL_CAL_FAIL_MOTION:
-                g_cal_result = CAL_RESULT_MOTION_DETECTED;
-                break;
-            case ACCEL_CAL_FAIL_SAMPLE_SIMILAR:
-            case ACCEL_CAL_FAIL_FIT_FAILED:
-            case ACCEL_CAL_FAIL_OFFSET_OOB:
-            case ACCEL_CAL_FAIL_SCALE_OOB:
-                g_cal_result = CAL_RESULT_INVALID_DATA;
-                break;
-            case ACCEL_CAL_FAIL_TIMEOUT:
-                g_cal_result = CAL_RESULT_TIMEOUT;
-                break;
-            default:
-                g_cal_result = CAL_RESULT_INVALID_DATA;
-                break;
-        }
     }
 }
 
@@ -406,17 +273,11 @@ void calibration_feed_baro(float pressure_pa, float temperature_c) {
 // ============================================================================
 
 void calibration_cancel(void) {
-    // Cancel 6-pos calibration if active
-    if (g_cal_state == CAL_STATE_ACCEL_6POS) {
-        accel_cal_cancel(&g_accel_cal);
-    }
-
     g_cal_state = CAL_STATE_IDLE;
     g_cal_result = CAL_RESULT_OK;
 }
 
 void calibration_reset_state(void) {
-    // Reset state to IDLE after completion/failure has been acknowledged
     if (g_cal_state == CAL_STATE_COMPLETE || g_cal_state == CAL_STATE_FAILED) {
         g_cal_state = CAL_STATE_IDLE;
     }
@@ -431,11 +292,6 @@ bool calibration_is_active(void) {
 uint8_t calibration_get_progress(void) {
     if (!calibration_is_active()) {
         return (g_cal_state == CAL_STATE_COMPLETE) ? 100 : 0;
-    }
-
-    // Handle 6-position calibration
-    if (g_cal_state == CAL_STATE_ACCEL_6POS) {
-        return accel_cal_get_progress(&g_accel_cal);
     }
 
     if (g_sample_acc.target_count == 0) return 0;
@@ -461,8 +317,7 @@ void calibration_apply_gyro(float gx_raw, float gy_raw, float gz_raw,
 
 void calibration_apply_accel(float ax_raw, float ay_raw, float az_raw,
                              float* ax_cal, float* ay_cal, float* az_cal) {
-    // Apply offset and scale: calibrated = (raw + offset) * scale
-    // Matches ArduPilot convention and ellipsoid fitting algorithm
+    // calibrated = (raw + offset) * scale
     *ax_cal = (ax_raw + g_calibration.accel.offset.x) * g_calibration.accel.scale.x;
     *ay_cal = (ay_raw + g_calibration.accel.offset.y) * g_calibration.accel.scale.y;
     *az_cal = (az_raw + g_calibration.accel.offset.z) * g_calibration.accel.scale.z;

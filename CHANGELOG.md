@@ -20,6 +20,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-04-003 | Claude Code CLI | bugfix
+
+**I2C debug: drop to 100kHz, add verbose scan output**
+
+Cross-referenced current I2C code against working `AP_FreeRTOS` branch. Code is functionally identical (same pins, same instance, same pull-ups) except the working `i2c_scan.c` test used 100kHz, not 400kHz. Changed `I2C_BUS_FREQ_HZ` to 100kHz. Added verbose scan output showing I2C instance number, GPIO pin states, and configured frequency. Build ready, not yet flashed.
+
+(`src/drivers/i2c_bus.c`, `src/drivers/i2c_bus.h`)
+
+---
+
+### 2026-02-04-002 | Claude Code CLI | feature
+
+**IVP Stage 2: RC_OS CLI + Calibration Integration**
+
+Implemented bare-metal RC_OS CLI with calibration integration (IVP-15, IVP-16, IVP-18). CLI provides single-key command interface with calibration menu, sensor status, and I2C rescan capability. Sensor availability checks prevent calibration commands when sensors not initialized. Non-blocking calibration progress monitoring with dots and OK/FAIL output.
+
+**Status:** Calibration logic complete but blocked on I2C issue — see AGENT_WHITEBOARD.md for details.
+
+---
+
 ### 2026-02-04-001 | Claude Code CLI | feature, hardware
 
 **IVP Stage 1 Complete: Foundation (IVP-01 through IVP-08)**

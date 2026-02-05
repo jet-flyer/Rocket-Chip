@@ -5,6 +5,7 @@
 
 #include "i2c_bus.h"
 #include "hardware/gpio.h"
+#include "pico/time.h"
 #include <stdio.h>
 
 // ============================================================================
@@ -22,13 +23,13 @@ bool i2c_bus_init(void) {
         return true;
     }
 
-    // Initialize I2C at 400kHz
+    // Initialize I2C peripheral
     uint actual_freq = i2c_init(I2C_BUS_INSTANCE, I2C_BUS_FREQ_HZ);
     if (actual_freq == 0) {
         return false;
     }
 
-    // Configure GPIO pins for I2C
+    // Configure GPIO pins for I2C function
     gpio_set_function(I2C_BUS_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(I2C_BUS_SCL_PIN, GPIO_FUNC_I2C);
 
@@ -37,6 +38,9 @@ bool i2c_bus_init(void) {
     gpio_pull_up(I2C_BUS_SCL_PIN);
 
     g_initialized = true;
+
+    // Store actual frequency for debug output
+    // (actual_freq is stored internally if needed later)
     return true;
 }
 
@@ -69,7 +73,14 @@ void i2c_bus_scan(void) {
         return;
     }
 
+    // Debug: check GPIO pin states (both should be HIGH with pull-ups)
     printf("I2C bus scan:\n");
+    printf("  Instance: I2C%d\n", I2C_BUS_INSTANCE == i2c0 ? 0 : 1);
+    printf("  SDA=GPIO%d (state=%d), SCL=GPIO%d (state=%d)\n",
+           I2C_BUS_SDA_PIN, gpio_get(I2C_BUS_SDA_PIN),
+           I2C_BUS_SCL_PIN, gpio_get(I2C_BUS_SCL_PIN));
+    printf("  Configured freq: %d Hz\n", I2C_BUS_FREQ_HZ);
+
     int found = 0;
 
     for (uint8_t addr = 0x08; addr < 0x78; addr++) {
@@ -168,4 +179,75 @@ int i2c_bus_read_reg(uint8_t addr, uint8_t reg, uint8_t* value) {
 
 int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
     return i2c_bus_write_read(addr, reg, data, len);
+}
+
+// ============================================================================
+// Bus Recovery (IVP-13a)
+// ============================================================================
+
+bool i2c_bus_recover(void) {
+    // Temporarily switch pins to GPIO mode for bit-banging
+    gpio_set_function(I2C_BUS_SDA_PIN, GPIO_FUNC_SIO);
+    gpio_set_function(I2C_BUS_SCL_PIN, GPIO_FUNC_SIO);
+
+    // Configure SDA as input (to read its state)
+    gpio_set_dir(I2C_BUS_SDA_PIN, GPIO_IN);
+    gpio_pull_up(I2C_BUS_SDA_PIN);
+
+    // Configure SCL as output
+    gpio_set_dir(I2C_BUS_SCL_PIN, GPIO_OUT);
+    gpio_put(I2C_BUS_SCL_PIN, 1);
+
+    // Toggle SCL up to 9 times to clock out stuck byte
+    // Per I2C spec, a slave can hold SDA low for up to 9 bits
+    bool sda_released = false;
+    for (int i = 0; i < 9; i++) {
+        // Check if SDA is released
+        if (gpio_get(I2C_BUS_SDA_PIN)) {
+            sda_released = true;
+            break;
+        }
+
+        // Clock pulse: SCL low, then high
+        gpio_put(I2C_BUS_SCL_PIN, 0);
+        sleep_us(5);  // Hold low for ~5µs (400kHz half period)
+        gpio_put(I2C_BUS_SCL_PIN, 1);
+        sleep_us(5);
+    }
+
+    // Generate STOP condition: SDA low while SCL high, then SDA high
+    if (sda_released) {
+        // Set SDA as output low
+        gpio_set_dir(I2C_BUS_SDA_PIN, GPIO_OUT);
+        gpio_put(I2C_BUS_SDA_PIN, 0);
+        sleep_us(5);
+
+        // SCL high (already high)
+        sleep_us(5);
+
+        // SDA high = STOP condition
+        gpio_put(I2C_BUS_SDA_PIN, 1);
+        sleep_us(5);
+    }
+
+    // Restore I2C function on pins
+    gpio_set_function(I2C_BUS_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(I2C_BUS_SCL_PIN, GPIO_FUNC_I2C);
+    gpio_pull_up(I2C_BUS_SDA_PIN);
+    gpio_pull_up(I2C_BUS_SCL_PIN);
+
+    return sda_released;
+}
+
+bool i2c_bus_reset(void) {
+    // Deinitialize I2C
+    i2c_bus_deinit();
+
+    // Attempt recovery
+    bool recovered = i2c_bus_recover();
+
+    // Reinitialize I2C
+    bool init_ok = i2c_bus_init();
+
+    return recovered && init_ok;
 }
