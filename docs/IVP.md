@@ -524,6 +524,8 @@ The RP2350 provides several hardware mechanisms for inter-core coordination. Thi
 
 **[DIAG]:** Deadlock = both cores trying to acquire same lock in nested fashion. Spinlocks are NOT recursive. IRQ disruption = lock held too long on Core 0. Keep critical sections < `⚠️ VALIDATE 10us`.
 
+**[NOTE — Research 2026-02-06]:** RP2350 errata **E2** (SIO register aliasing) breaks hardware spinlocks — writes to SIO registers above offset `+0x180` alias spinlock registers, causing spurious releases. The SDK defaults to `PICO_USE_SW_SPIN_LOCKS=1` on RP2350, using `LDAEXB`/`STREXB` instead. This is transparent to all SDK APIs. Previous references to "E17" were incorrect — E17 was not found in SDK source.
+
 ---
 
 ### IVP-22: Multicore FIFO Message Passing
@@ -540,6 +542,8 @@ The RP2350 provides several hardware mechanisms for inter-core coordination. Thi
 - No interference with USB or sensor polling
 
 **[DIAG]:** Messages lost = FIFO overflow. `multicore_fifo_push_blocking()` will spin until space available. Use `_timeout_us` variant if blocking is unacceptable. Note: `multicore_lockout` uses the FIFO internally — cannot use FIFO for application messages while lockout is active.
+
+**[NOTE — Research 2026-02-06]:** This step exercises the FIFO primitive but the FIFO **cannot be used for app messaging in the final architecture**. `multicore_lockout_victim_init()` (called by `flash_safe_execute`, needed for IVP-28) registers an exclusive handler on the FIFO IRQ, claiming it permanently. RP2350 FIFO is also only 4-deep (halved from RP2040's 8), making it unsuitable for high-rate notification.
 
 ---
 
@@ -559,15 +563,19 @@ The RP2350 provides several hardware mechanisms for inter-core coordination. Thi
 
 **[DIAG]:** Doorbell not detected = wrong core mask in claim, or not checking correct doorbell number. Doorbells are RP2350-only — will not compile for RP2040 targets.
 
+**[NOTE — Research 2026-02-06]:** Doorbells are validated here but **polling the seqlock sequence counter is the chosen notification mechanism** for production. At 200Hz Core 0 loop rate, the sequence check costs 5-7 cycles (0.003% of loop budget) and always finds fresh IMU data. Doorbells save ~5ms latency the fusion loop can't use. Doorbells become relevant if RocketChip moves to a sleep-based power architecture (WFI/WFE).
+
 ---
 
-### IVP-24: Seqlock Double-Buffer
+### IVP-24: Seqlock Single-Buffer
 
 **Prerequisites:** IVP-20
 
-**Implement:** Seqlock for cross-core sensor data sharing per `PICO_SDK_MULTICORE_DECISION.md`:
-- Writer (Core 1): increment seq to odd (`memory_order_release`), write data, increment seq to even (`memory_order_release`)
-- Reader (Core 0): read seq (`memory_order_acquire`), copy data, read seq again, retry if mismatch or odd
+**Design reference:** `docs/decisions/SEQLOCK_DESIGN.md` — council-reviewed struct layout (~116 bytes), barrier requirements, and rationale.
+
+**Implement:** Single-buffer seqlock for cross-core sensor data sharing. `shared_sensor_data_t` (~116 bytes) in static SRAM, wrapped in `sensor_seqlock_t` with `_Atomic uint32_t sequence`:
+- Writer (Core 1): increment seq to odd (`memory_order_release`), `__dmb()`, write data, `__dmb()`, increment seq to even (`memory_order_release`)
+- Reader (Core 0): read seq (`memory_order_acquire`), `__dmb()`, copy data, `__dmb()`, read seq again, retry if mismatch or odd
 
 **[GATE]:**
 - Core 1 writes test struct (incrementing counter + known pattern) at `⚠️ VALIDATE 1kHz`

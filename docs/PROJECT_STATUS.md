@@ -39,7 +39,11 @@ Hardware-verified 2026-02-06:
 
 ## In Progress
 
-None — awaiting next stage decision.
+**Stage 3 design complete — ready to implement IVP-19 (Session A)**
+
+- Seqlock cross-core design approved by council (`docs/decisions/SEQLOCK_DESIGN.md`)
+- Session plan on whiteboard: A (Core 1 alive) → B (spinlock/FIFO/doorbell) → C (seqlock) → D (sensor migration) → E (USB/flash stress) → F (MPU/watchdog)
+- IVP.md updated with research corrections (E2 errata, FIFO reservation, polling > doorbell)
 
 ## What Exists
 

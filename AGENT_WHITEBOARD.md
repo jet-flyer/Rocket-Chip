@@ -36,6 +36,34 @@
 
 ---
 
+### 2026-02-06: Stage 3 Session Plan (Dual-Core Integration)
+
+**Status:** Planned — starting next
+**Reporter:** Claude Code CLI (reviewed with Nathan)
+
+Stage 3 (IVP-19 through IVP-30) grouped into work sessions. Multicore before GPS confirmed as correct order.
+
+| Session | IVP Steps | Focus | Notes |
+|---------|-----------|-------|-------|
+| **A** | IVP-19, IVP-20 | Core 1 alive + atomic counter | Get dual-core running, verify cross-core visibility |
+| **B** | IVP-21, IVP-22, IVP-23 | Spinlock, FIFO, doorbell | Exercise all RP2350 inter-core primitives |
+| **C** | IVP-24 | Seqlock (single-buffer) | **Design doc created:** `docs/decisions/SEQLOCK_DESIGN.md`. Council review pending. |
+| **D** | IVP-25, IVP-26 | IMU + baro on Core 1 | Real sensor migration. Uses I2C timing from Stage 2 (IMU 774us, baro 251us) |
+| **E** | IVP-27, IVP-28 | USB stress + flash under dual-core | Stability. Note: `multicore_lockout` uses FIFO — can't overlap with app FIFO messages |
+| **F** | IVP-29, IVP-30 | MPU stack guard + watchdog | Safety nets |
+
+**Key constraints (updated with research findings 2026-02-06):**
+- GPS module physically removed — reconnect at IVP-31 (Stage 4)
+- **Seqlock design decided:** Single-buffer seqlock, ~116 byte struct, Core 1 applies calibration. See `docs/decisions/SEQLOCK_DESIGN.md`.
+- **RP2350-E2 (not E17):** SIO register aliasing breaks HW spinlocks. SDK uses SW spinlocks by default (`PICO_USE_SW_SPIN_LOCKS=1`). Transparent to API users.
+- **FIFO is reserved:** `multicore_lockout`/`flash_safe_execute` claims FIFO IRQ exclusively. IVP-22 is exercise-only — FIFO cannot be used for app messaging in final architecture.
+- **Polling > doorbells:** Core 0 at 200Hz always finds fresh data. Seqlock sequence check costs 5-7 cycles. Doorbells deferred to sleep-based power architecture (future).
+- **SRAM only for shared data:** PSRAM has XIP cache coherency issues + exclusive monitor doesn't cover it. C11 atomics on PSRAM silently fail cross-core.
+- I2C master disable/enable hooks (LL Entry 21) carry into Core 1 calibration flow
+- **SAD Section 4.3 seqlock code has bugs** — missing `__dmb()` barriers, unnecessary double-buffer, wrong errata ID. Do not copy verbatim. Use `SEQLOCK_DESIGN.md` as reference.
+
+---
+
 ## Resolved
 
 *Resolved items are erased. See LESSONS_LEARNED.md for historical debugging context.*
