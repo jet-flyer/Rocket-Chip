@@ -24,10 +24,10 @@ Hardware-verified 2026-02-04:
 
 ### Stage 2: Single-Core Sensors (IVP-09 through IVP-18)
 
-- [ ] IVP-09: ICM-20948 IMU initialization
-- [ ] IVP-10: IMU data validation
-- [ ] IVP-11: DPS310 barometer initialization
-- [ ] IVP-12: Barometer data validation
+- [x] IVP-09: ICM-20948 IMU initialization (WHO_AM_I, accel ±4g, gyro ±500dps, AK09916 mag 100Hz)
+- [x] IVP-10: IMU data validation (10Hz, all gates pass across reboot cycles)
+- [x] IVP-11: DPS310 barometer initialization (ruuvi driver, 8Hz/8x oversampling, continuous mode)
+- [x] IVP-12: Barometer data validation (10Hz, 100 samples, all gates pass)
 - [ ] IVP-13: Multi-sensor polling (single core)
 - [ ] IVP-13a: I2C bus recovery
 - [ ] IVP-14: Calibration storage (flash persistence)
@@ -39,13 +39,13 @@ Hardware-verified 2026-02-04:
 ## What Exists
 
 **Active (in build):**
-- `src/main.cpp` — Stage 1 entry point with HW validation
+- `src/main.cpp` — Stage 2 entry point with HW validation + IVP-10 data dump
 - `src/drivers/ws2812_status.c/h` — NeoPixel PIO driver
 - `src/drivers/i2c_bus.c/h` — I2C bus wrapper
+- `src/drivers/icm20948.c/h` — ICM-20948 IMU driver (IVP-09/10)
+- `src/drivers/baro_dps310.c/h` — Barometer wrapper (IVP-11/12)
 
 **Ready (commented out in CMakeLists.txt, re-enable at their IVP step):**
-- `src/drivers/icm20948.c/h` — IMU driver (IVP-09)
-- `src/drivers/baro_dps310.c/h` — Barometer wrapper (IVP-11)
 - `src/drivers/gps_pa1010d.c/h` — GPS wrapper (IVP-31)
 - `src/calibration/calibration_data.c/h` — Cal structures (IVP-14)
 - `src/calibration/calibration_manager.c/h` — Cal state machine (IVP-14)

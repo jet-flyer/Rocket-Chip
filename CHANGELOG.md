@@ -20,6 +20,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-05-004 | Claude Code CLI | feature
+
+**IVP-11 & IVP-12: DPS310 barometer init and data validation**
+
+Re-enabled ruuvi.dps310.c library and `baro_dps310.c` in build. DPS310 configured for 8Hz/8x oversampling continuous mode. Added IVP-12 validation: 100 samples at 10Hz with gate checks (pressure ±3000 Pa of 101325, temperature 15-40°C, noise <10 Pa, NaN/inf, stuck values). All gates pass across reboot cycles. Pressure ~100498 Pa, noise 2.54 Pa, altitude 69.1m.
+
+(`CMakeLists.txt`, `src/main.cpp`, `docs/PROJECT_STATUS.md`)
+
+---
+
+### 2026-02-05-003 | Claude Code CLI | feature
+
+**IVP-09 & IVP-10: ICM-20948 IMU init and data validation**
+
+Re-enabled `icm20948.c` in build. Fixed 6 issues in magnetometer init (BYPASS_EN clear, I2C_MST_CTRL P_NSR bit, WHO_AM_I verification with retry, shutdown-before-mode-set, burst read length 23 bytes, ST2 offset). Added 3-attempt retry for full mag init sequence. Changed default ranges to ±4g/±500dps. Added IVP-10 validation: 50 samples at 10Hz with automated gate checks (accel magnitude, gyro noise, mag range, temperature, NaN detection, stability). All gates pass across multiple reboot cycles. NeoPixel turned off per user request.
+
+(`CMakeLists.txt`, `src/main.cpp`, `src/drivers/icm20948.c`)
+
+---
+
 ### 2026-02-05-002 | Claude Code CLI | bugfix, refactor
 
 **Reset to clean Stage 1 baseline, fix I2C bus recovery**

@@ -93,8 +93,8 @@ add_executable(rocketchip
     src/drivers/icm20948.c
 
     # IVP-11: Barometer (requires ruuvi library)
-    # ${RUUVI_DPS310_DIR}/dps310.c
-    # src/drivers/baro_dps310.c
+    ${RUUVI_DPS310_DIR}/dps310.c
+    src/drivers/baro_dps310.c
 
     # IVP-31: GPS (requires lwGPS library)
     # ${LWGPS_DIR}/lwgps/lwgps.c
@@ -117,7 +117,7 @@ target_include_directories(rocketchip PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
     # ${CMAKE_CURRENT_LIST_DIR}/src/calibration    # IVP-14
     # ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
-    # ${RUUVI_DPS310_DIR}                          # IVP-11
+    ${RUUVI_DPS310_DIR}                            # IVP-11
     # ${LWGPS_DIR}/include                         # IVP-31
 )
 

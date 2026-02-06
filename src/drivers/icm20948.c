@@ -314,7 +314,17 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
     if (!icm20948_set_gyro_fs(dev, dev->gyro_fs)) return false;
 
     // Initialize magnetometer
-    if (!init_magnetometer(dev)) {
+    // Initialize magnetometer with retries (intermittent after reboot)
+    for (int mag_attempt = 0; mag_attempt < 3; mag_attempt++) {
+        if (init_magnetometer(dev)) {
+            break;
+        }
+        // Reset I2C master and retry
+        write_bank_reg(dev, 0, B0_USER_CTRL,
+                       USER_CTRL_I2C_MST_EN | USER_CTRL_I2C_MST_RST);
+        sleep_ms(50);
+    }
+    if (!dev->mag_initialized) {
         // Mag init failure is not fatal - continue without mag
         dev->mag_initialized = false;
     }
