@@ -1,8 +1,8 @@
 /**
  * @file main.cpp
- * @brief RocketChip main entry point - IVP Stage 1
+ * @brief RocketChip main entry point - IVP Stage 2
  *
- * Implements IVP-01 through IVP-08:
+ * Implements IVP-01 through IVP-09:
  *   IVP-01: Clean build from source
  *   IVP-02: Red LED heartbeat (100ms on / 900ms off)
  *   IVP-03: NeoPixel rainbow via PIO
@@ -11,6 +11,7 @@
  *   IVP-06: I2C bus init at 400kHz with bus recovery
  *   IVP-07: I2C scan (detect all connected sensors)
  *   IVP-08: Heartbeat superloop with uptime
+ *   IVP-09: ICM-20948 IMU initialization
  */
 
 #include "rocketchip/config.h"
@@ -19,6 +20,7 @@
 #include "hardware/gpio.h"
 #include "drivers/ws2812_status.h"
 #include "drivers/i2c_bus.h"
+#include "drivers/icm20948.h"
 #include <stdio.h>
 
 // ============================================================================
@@ -41,8 +43,12 @@ static constexpr uint32_t kSuperloopValidationMs = 10000;
 
 static bool g_neopixelInitialized = false;
 static bool g_i2cInitialized = false;
+static bool g_imuInitialized = false;
 static bool g_superloopValidationDone = false;
 static uint32_t g_loopCounter = 0;
+
+// IMU device handle (static per LL Entry 1 — avoid large objects on stack)
+static icm20948_t g_imu;
 
 // ============================================================================
 // Hardware Validation
@@ -105,7 +111,17 @@ static void hw_validate_stage1(void) {
     printf("[INFO] Sensors found: %d/%zu expected\n",
            foundCount, sizeof(expected) / sizeof(expected[0]));
 
-    printf("=== Stage 1 Validation Complete ===\n\n");
+    // IVP-09: IMU initialization
+    if (g_imuInitialized) {
+        printf("[PASS] ICM-20948 init (WHO_AM_I=0xEA)\n");
+        printf("[%s] AK09916 magnetometer %s\n",
+               g_imu.mag_initialized ? "PASS" : "WARN",
+               g_imu.mag_initialized ? "ready" : "not ready");
+    } else {
+        printf("[FAIL] ICM-20948 init failed\n");
+    }
+
+    printf("=== Validation Complete ===\n\n");
 }
 
 static void hw_validate_superloop(uint32_t uptimeMs) {
@@ -144,6 +160,14 @@ int main() {
     // Sensor power-up settling time
     // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
     sleep_ms(200);
+
+    // -----------------------------------------------------------------
+    // IVP-09: ICM-20948 IMU init (before USB, after I2C)
+    // Accel ±4g, Gyro ±500dps, Mag continuous 100Hz
+    // -----------------------------------------------------------------
+    if (g_i2cInitialized) {
+        g_imuInitialized = icm20948_init(&g_imu, ICM20948_ADDR_DEFAULT);
+    }
 
     // -----------------------------------------------------------------
     // IVP-04: USB CDC init (after I2C/flash per LL Entry 4/12)
@@ -188,11 +212,28 @@ int main() {
     i2c_bus_scan();
     printf("\n");
 
+    // IVP-09: IMU status
+    if (g_imuInitialized) {
+        printf("ICM-20948 init OK (WHO_AM_I=0xEA)\n");
+        printf("  Accel: +/-%dg, Gyro: +/-%d dps\n",
+               (2 << g_imu.accel_fs), 250 * (1 << g_imu.gyro_fs));
+        printf("  Mag: %s (AK09916 via I2C master)\n",
+               g_imu.mag_initialized ? "OK, continuous 100Hz" : "NOT READY");
+    } else {
+        printf("ICM-20948 init FAILED\n");
+    }
+    printf("\n");
+
+    // Post-init I2C scan — verify bus integrity after IMU init
+    printf("Post-init I2C scan (bus integrity check):\n");
+    i2c_bus_scan();
+    printf("\n");
+
     // Hardware validation
     hw_validate_stage1();
 
     // IVP-08: Superloop
-    printf("Entering main loop (Stage 1 - no sensors)\n\n");
+    printf("Entering main loop\n\n");
 
     bool ledState = false;
 

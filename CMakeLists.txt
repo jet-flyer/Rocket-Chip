@@ -90,7 +90,7 @@ add_executable(rocketchip
     # Re-enable one at a time with verification at each IVP gate
     # -------------------------------------------------------------------------
     # IVP-09: IMU driver
-    # src/drivers/icm20948.c
+    src/drivers/icm20948.c
 
     # IVP-11: Barometer (requires ruuvi library)
     # ${RUUVI_DPS310_DIR}/dps310.c

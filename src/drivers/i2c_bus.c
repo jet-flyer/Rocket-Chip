@@ -200,37 +200,27 @@ bool i2c_bus_recover(void) {
     gpio_set_dir(I2C_BUS_SCL_PIN, GPIO_OUT);
     gpio_put(I2C_BUS_SCL_PIN, 1);
 
-    // Toggle SCL up to 9 times to clock out stuck byte
-    // Per I2C spec, a slave can hold SDA low for up to 9 bits
-    bool sda_released = false;
+    // Always clock 9 pulses to clear any stuck transaction,
+    // even if SDA appears high — a sensor may need the full
+    // sequence to reset its internal state machine
     for (int i = 0; i < 9; i++) {
-        // Check if SDA is released
-        if (gpio_get(I2C_BUS_SDA_PIN)) {
-            sda_released = true;
-            break;
-        }
-
-        // Clock pulse: SCL low, then high
         gpio_put(I2C_BUS_SCL_PIN, 0);
-        sleep_us(5);  // Hold low for ~5µs (400kHz half period)
+        sleep_us(5);
         gpio_put(I2C_BUS_SCL_PIN, 1);
         sleep_us(5);
     }
 
-    // Generate STOP condition: SDA low while SCL high, then SDA high
-    if (sda_released) {
-        // Set SDA as output low
-        gpio_set_dir(I2C_BUS_SDA_PIN, GPIO_OUT);
-        gpio_put(I2C_BUS_SDA_PIN, 0);
-        sleep_us(5);
+    bool sda_released = gpio_get(I2C_BUS_SDA_PIN);
 
-        // SCL high (already high)
-        sleep_us(5);
-
-        // SDA high = STOP condition
-        gpio_put(I2C_BUS_SDA_PIN, 1);
-        sleep_us(5);
-    }
+    // Always generate STOP condition: SDA low while SCL high, then SDA high
+    gpio_set_dir(I2C_BUS_SDA_PIN, GPIO_OUT);
+    gpio_put(I2C_BUS_SDA_PIN, 0);
+    sleep_us(5);
+    // SCL high (already high)
+    sleep_us(5);
+    // SDA high = STOP condition
+    gpio_put(I2C_BUS_SDA_PIN, 1);
+    sleep_us(5);
 
     // Restore I2C function on pins
     gpio_set_function(I2C_BUS_SDA_PIN, GPIO_FUNC_I2C);

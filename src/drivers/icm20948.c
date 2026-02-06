@@ -78,6 +78,7 @@
 // ============================================================================
 
 #define USER_CTRL_I2C_MST_EN    (1 << 5)
+#define USER_CTRL_I2C_MST_RST   (1 << 1)
 #define USER_CTRL_I2C_IF_DIS    (1 << 4)
 
 // ============================================================================
@@ -192,27 +193,75 @@ static bool mag_config_read(icm20948_t* dev, uint8_t reg, uint8_t len) {
 }
 
 /**
+ * @brief Read a single register from magnetometer via I2C master
+ */
+static bool mag_read_reg(icm20948_t* dev, uint8_t reg, uint8_t* value) {
+    // Configure SLV0 for a one-shot single-byte read
+    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_ADDR, AK09916_I2C_ADDR | I2C_SLV_READ)) return false;
+    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_REG, reg)) return false;
+    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_CTRL, I2C_SLV_EN | 1)) return false;
+
+    sleep_ms(1);  // Wait for I2C master transaction
+
+    // Read result from EXT_SLV_SENS_DATA_00
+    return read_bank_reg(dev, 0, B0_EXT_SLV_SENS_DATA_00, value);
+}
+
+/**
  * @brief Initialize the AK09916 magnetometer
+ *
+ * Sequence per Adafruit/SparkFun reference implementations:
+ * 1. Clear BYPASS_EN (disconnect external bus from aux bus)
+ * 2. Configure I2C master clock + P_NSR
+ * 3. Enable I2C master
+ * 4. Reset magnetometer
+ * 5. Verify WHO_AM_I with retry loop
+ * 6. Set continuous measurement mode
+ * 7. Configure SLV0 for automatic reads
  */
 static bool init_magnetometer(icm20948_t* dev) {
-    // Enable I2C master
+    // 1. Clear BYPASS_EN — required before enabling I2C master
+    uint8_t int_pin_cfg;
+    if (!read_bank_reg(dev, 0, B0_INT_PIN_CFG, &int_pin_cfg)) return false;
+    int_pin_cfg &= ~INT_PIN_CFG_BYPASS_EN;
+    if (!write_bank_reg(dev, 0, B0_INT_PIN_CFG, int_pin_cfg)) return false;
+
+    // 2. Configure I2C master: CLK=7 (~345kHz), P_NSR=1 (stop between reads)
+    // 0x17 = Adafruit/SparkFun standard value
+    if (!write_bank_reg(dev, 3, B3_I2C_MST_CTRL, 0x17)) return false;
+
+    // 3. Enable I2C master
     if (!write_bank_reg(dev, 0, B0_USER_CTRL, USER_CTRL_I2C_MST_EN)) return false;
-
-    // Configure I2C master clock (400 kHz)
-    if (!write_bank_reg(dev, 3, B3_I2C_MST_CTRL, 0x07)) return false;
-
     sleep_ms(10);
 
-    // Reset magnetometer
+    // 4. Reset magnetometer
     if (!mag_write_reg(dev, AK_CNTL3, 0x01)) return false;
     sleep_ms(100);
 
-    // Configure magnetometer for continuous 100Hz mode
+    // 5. Verify WHO_AM_I with retry (per SparkFun: up to 10 attempts)
+    bool mag_found = false;
+    for (int tries = 0; tries < 10; tries++) {
+        uint8_t wia2;
+        if (mag_read_reg(dev, AK_WIA2, &wia2) && wia2 == AK09916_WHO_AM_I) {
+            mag_found = true;
+            break;
+        }
+        // Reset I2C master and retry
+        if (!write_bank_reg(dev, 0, B0_USER_CTRL,
+                            USER_CTRL_I2C_MST_EN | USER_CTRL_I2C_MST_RST)) return false;
+        sleep_ms(10);
+    }
+    if (!mag_found) return false;
+
+    // 6. Set continuous 100Hz mode (shutdown first per Adafruit pattern)
+    if (!mag_write_reg(dev, AK_CNTL2, AK09916_MODE_POWER_DOWN)) return false;
+    sleep_ms(1);
     if (!mag_write_reg(dev, AK_CNTL2, AK09916_MODE_CONT_100HZ)) return false;
     sleep_ms(10);
 
-    // Configure SLV0 to read 8 bytes (ST1 + 6 data + ST2) starting at ST1
-    if (!mag_config_read(dev, AK_ST1, 8)) return false;
+    // 7. Configure SLV0 for continuous reads: 9 bytes from ST1
+    // ST1(1) + HXL/HXH/HYL/HYH/HZL/HZH(6) + dummy(1) + ST2(1)
+    if (!mag_config_read(dev, AK_ST1, 9)) return false;
 
     dev->mag_initialized = true;
     dev->mag_mode = AK09916_MODE_CONT_100HZ;
@@ -257,9 +306,9 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
     // Enable all sensors
     if (!write_bank_reg(dev, 0, B0_PWR_MGMT_2, 0x00)) return false;
 
-    // Set default ranges
-    dev->accel_fs = ICM20948_ACCEL_FS_8G;
-    dev->gyro_fs = ICM20948_GYRO_FS_1000DPS;
+    // Set default ranges (per IVP-09: ±4g, ±500dps)
+    dev->accel_fs = ICM20948_ACCEL_FS_4G;
+    dev->gyro_fs = ICM20948_GYRO_FS_500DPS;
 
     if (!icm20948_set_accel_fs(dev, dev->accel_fs)) return false;
     if (!icm20948_set_gyro_fs(dev, dev->gyro_fs)) return false;
@@ -379,8 +428,9 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     }
 
     // Read accel, gyro, temp, and ext sensor data in one burst
-    // ACCEL_XOUT_H (0x2D) through EXT_SLV_SENS_DATA_07 (0x42) = 22 bytes
-    uint8_t buf[22];
+    // ACCEL_XOUT_H (0x2D) through EXT_SLV_SENS_DATA_08 (0x43) = 23 bytes
+    // 14 bytes accel/gyro/temp + 9 bytes mag (ST1 + 6 data + dummy + ST2)
+    uint8_t buf[23];
     if (i2c_bus_read_regs(dev->addr, B0_ACCEL_XOUT_H, buf, sizeof(buf)) != sizeof(buf)) {
         data->accel_valid = false;
         data->gyro_valid = false;
@@ -414,11 +464,11 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     // Room temp offset and sensitivity vary; using typical values
     data->temperature_c = (temp_raw / 333.87f) + 21.0f;
 
-    // Parse magnetometer from EXT_SLV_SENS_DATA (bytes 14-21)
-    // Format: ST1, HXL, HXH, HYL, HYH, HZL, HZH, ST2
+    // Parse magnetometer from EXT_SLV_SENS_DATA (bytes 14-22)
+    // Format: ST1, HXL, HXH, HYL, HYH, HZL, HZH, dummy(0x17), ST2
     if (dev->mag_initialized) {
         uint8_t st1 = buf[14];
-        uint8_t st2 = buf[21];
+        uint8_t st2 = buf[22];  // ST2 at offset 8 (after dummy byte)
 
         if ((st1 & AK_ST1_DRDY) && !(st2 & AK_ST2_HOFL)) {
             // Data ready and no overflow
@@ -495,13 +545,14 @@ bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag) {
     if (!select_bank(dev, 0)) return false;
 
     // Read from external sensor data registers
-    uint8_t buf[8];  // ST1 + 6 data + ST2
-    if (i2c_bus_read_regs(dev->addr, B0_EXT_SLV_SENS_DATA_00, buf, 8) != 8) {
+    // 9 bytes: ST1 + 6 data + dummy + ST2
+    uint8_t buf[9];
+    if (i2c_bus_read_regs(dev->addr, B0_EXT_SLV_SENS_DATA_00, buf, 9) != 9) {
         return false;
     }
 
     uint8_t st1 = buf[0];
-    uint8_t st2 = buf[7];
+    uint8_t st2 = buf[8];  // ST2 after dummy byte
 
     if (!(st1 & AK_ST1_DRDY) || (st2 & AK_ST2_HOFL)) {
         return false;  // Not ready or overflow
