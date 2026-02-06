@@ -171,13 +171,34 @@ static icm20948_t g_imu;
 
 static bool read_accel_for_cal(float *ax, float *ay, float *az, float *temp_c) {
     sleep_ms(10);  // ~100Hz sampling rate
-    icm20948_data_t data;
-    if (!icm20948_read(&g_imu, &data)) return false;
-    *ax = data.accel.x;
-    *ay = data.accel.y;
-    *az = data.accel.z;
-    *temp_c = data.temperature_c;
+    icm20948_vec3_t accel;
+    if (!icm20948_read_accel(&g_imu, &accel)) {
+        return false;
+    }
+    *ax = accel.x;
+    *ay = accel.y;
+    *az = accel.z;
+    *temp_c = 0.0f;  // Not needed for 6-pos cal
     return true;
+}
+
+// ============================================================================
+// Calibration Hooks — disable I2C master during rapid accel reads
+// ============================================================================
+// The ICM-20948's internal I2C master (for mag reads) performs autonomous
+// Bank 3 transactions that race with our Bank 0 accel reads, causing
+// bank-select corruption after ~150 reads. Disable it during calibration.
+
+static void cal_pre_hook(void) {
+    if (g_imuInitialized) {
+        icm20948_set_i2c_master_enable(&g_imu, false);
+    }
+}
+
+static void cal_post_hook(void) {
+    if (g_imuInitialized) {
+        icm20948_set_i2c_master_enable(&g_imu, true);
+    }
 }
 
 // ============================================================================
@@ -1044,6 +1065,8 @@ int main() {
     rc_os_baro_available = g_baroContinuous;
     rc_os_print_sensor_status = print_sensor_status;
     rc_os_read_accel = read_accel_for_cal;
+    rc_os_cal_pre_hook = cal_pre_hook;
+    rc_os_cal_post_hook = cal_post_hook;
 
     // IVP-08: Superloop
     printf("Entering main loop\n\n");

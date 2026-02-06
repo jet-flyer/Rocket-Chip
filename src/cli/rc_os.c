@@ -43,6 +43,8 @@ bool rc_os_baro_available = false;
 
 // Accel read callback for 6-pos calibration (set by main.cpp)
 rc_os_read_accel_fn rc_os_read_accel = NULL;
+rc_os_cal_hook_fn rc_os_cal_pre_hook = NULL;
+rc_os_cal_hook_fn rc_os_cal_post_hook = NULL;
 
 // ============================================================================
 // Menu Printing
@@ -181,6 +183,7 @@ static void cmd_save_cal(void) {
     cal_result_t result = calibration_save();
     if (result == CAL_RESULT_OK) {
         printf(" OK!\n");
+        i2c_bus_reset();  // Flash ops can disrupt I2C
     } else {
         printf(" FAILED (%d)\n", result);
     }
@@ -226,13 +229,14 @@ static void cmd_reset_cal(void) {
 }
 
 // Per-position instructions for the user
+// Order matches calibration_manager.c kPositionNames (QGroundControl order)
 static const char* const kPositionInstructions[6] = {
     "Place board FLAT on table, component side UP",
-    "Place board FLAT on table, component side DOWN (inverted)",
+    "Stand board on its LEFT edge",
+    "Stand board on its RIGHT edge",
     "Stand board on USB connector end (nose down)",
     "Stand board on opposite end from USB (nose up)",
-    "Stand board on its LEFT edge",
-    "Stand board on its RIGHT edge"
+    "Place board FLAT on table, component side DOWN (inverted)"
 };
 
 #define ACCEL_6POS_MAX_RETRIES      3
@@ -281,6 +285,9 @@ static void cmd_accel_6pos_cal(void) {
 
     calibration_reset_6pos();
 
+    // Disable I2C master before rapid accel reads (prevents bank-switching race)
+    if (rc_os_cal_pre_hook) { rc_os_cal_pre_hook(); }
+
     for (uint8_t pos = 0; pos < 6; pos++) {
         printf("--- Position %d/6: %s ---\n", pos + 1,
                calibration_get_6pos_name(pos));
@@ -291,7 +298,7 @@ static void cmd_accel_6pos_cal(void) {
         if (!wait_for_enter_or_esc()) {
             calibration_reset_6pos();
             printf("Calibration aborted.\n");
-            return;
+            goto cal_cleanup;
         }
 
         printf("  Sampling... hold still");
@@ -318,7 +325,7 @@ static void cmd_accel_6pos_cal(void) {
                     if (!wait_for_enter_or_esc()) {
                         calibration_reset_6pos();
                         printf("Calibration aborted.\n");
-                        return;
+                        goto cal_cleanup;
                     }
                     printf("  Sampling... hold still");
                     fflush(stdout);
@@ -334,7 +341,7 @@ static void cmd_accel_6pos_cal(void) {
                     if (!wait_for_enter_or_esc()) {
                         calibration_reset_6pos();
                         printf("Calibration aborted.\n");
-                        return;
+                        goto cal_cleanup;
                     }
                     printf("  Sampling... hold still");
                     fflush(stdout);
@@ -343,7 +350,7 @@ static void cmd_accel_6pos_cal(void) {
                 printf("\n  ERROR: Failed to read sensor (%d)\n", result);
                 calibration_reset_6pos();
                 printf("Calibration aborted.\n");
-                return;
+                goto cal_cleanup;
             }
         }
 
@@ -351,7 +358,7 @@ static void cmd_accel_6pos_cal(void) {
             printf("  Failed after %d attempts.\n", ACCEL_6POS_MAX_RETRIES);
             calibration_reset_6pos();
             printf("Calibration aborted.\n");
-            return;
+            goto cal_cleanup;
         }
 
         printf("\n");
@@ -367,66 +374,78 @@ static void cmd_accel_6pos_cal(void) {
         printf(" FAILED (%d)\n", fit_result);
         printf("Ellipsoid fit did not converge or params out of range.\n");
         calibration_reset_6pos();
-        return;
+        goto cal_cleanup;
     }
     printf(" OK!\n\n");
 
     // Print results
-    const calibration_store_t* cal = calibration_manager_get();
-    printf("Results:\n");
-    printf("  Offset: X=%.4f Y=%.4f Z=%.4f\n",
-           (double)cal->accel.offset.x,
-           (double)cal->accel.offset.y,
-           (double)cal->accel.offset.z);
-    printf("  Scale:  X=%.4f Y=%.4f Z=%.4f\n",
-           (double)cal->accel.scale.x,
-           (double)cal->accel.scale.y,
-           (double)cal->accel.scale.z);
-    printf("  Offdiag: XY=%.4f XZ=%.4f YZ=%.4f\n",
-           (double)cal->accel.offdiag.x,
-           (double)cal->accel.offdiag.y,
-           (double)cal->accel.offdiag.z);
+    {
+        const calibration_store_t* cal = calibration_manager_get();
+        printf("Results:\n");
+        printf("  Offset: X=%.4f Y=%.4f Z=%.4f\n",
+               (double)cal->accel.offset.x,
+               (double)cal->accel.offset.y,
+               (double)cal->accel.offset.z);
+        printf("  Scale:  X=%.4f Y=%.4f Z=%.4f\n",
+               (double)cal->accel.scale.x,
+               (double)cal->accel.scale.y,
+               (double)cal->accel.scale.z);
+        printf("  Offdiag: XY=%.4f XZ=%.4f YZ=%.4f\n",
+               (double)cal->accel.offdiag.x,
+               (double)cal->accel.offdiag.y,
+               (double)cal->accel.offdiag.z);
+    }
 
     // Verification: read a few live samples and show corrected gravity magnitude
     printf("\nVerification (10 live samples):\n");
-    float mag_sum = 0.0f;
-    uint8_t good_reads = 0;
-    for (uint8_t i = 0; i < 10; i++) {
-        float ax, ay, az, temp;
-        if (rc_os_read_accel(&ax, &ay, &az, &temp)) {
-            float cx, cy, cz;
-            calibration_apply_accel(ax, ay, az, &cx, &cy, &cz);
-            float mag = sqrtf(cx*cx + cy*cy + cz*cz);
-            mag_sum += mag;
-            good_reads++;
+    {
+        float mag_sum = 0.0f;
+        uint8_t good_reads = 0;
+        for (uint8_t i = 0; i < 10; i++) {
+            float ax, ay, az, temp;
+            if (rc_os_read_accel(&ax, &ay, &az, &temp)) {
+                float cx, cy, cz;
+                calibration_apply_accel(ax, ay, az, &cx, &cy, &cz);
+                float mag = sqrtf(cx*cx + cy*cy + cz*cz);
+                mag_sum += mag;
+                good_reads++;
+            }
         }
-    }
-    if (good_reads > 0) {
-        float avg_mag = mag_sum / (float)good_reads;
-        printf("  Avg gravity magnitude: %.4f m/s^2 (expected 9.8067)\n",
-               (double)avg_mag);
-        float error = fabsf(avg_mag - ACCEL_6POS_GRAVITY_NOMINAL);
-        if (error < ACCEL_6POS_VERIFY_TOLERANCE) {
-            printf("  PASS (error %.4f < %.2f)\n",
-                   (double)error, (double)ACCEL_6POS_VERIFY_TOLERANCE);
-        } else {
-            printf("  WARNING: error %.4f > %.2f threshold\n",
-                   (double)error, (double)ACCEL_6POS_VERIFY_TOLERANCE);
+        if (good_reads > 0) {
+            float avg_mag = mag_sum / (float)good_reads;
+            printf("  Avg gravity magnitude: %.4f m/s^2 (expected 9.8067)\n",
+                   (double)avg_mag);
+            float error = fabsf(avg_mag - ACCEL_6POS_GRAVITY_NOMINAL);
+            if (error < ACCEL_6POS_VERIFY_TOLERANCE) {
+                printf("  PASS (error %.4f < %.2f)\n",
+                       (double)error, (double)ACCEL_6POS_VERIFY_TOLERANCE);
+            } else {
+                printf("  WARNING: error %.4f > %.2f threshold\n",
+                       (double)error, (double)ACCEL_6POS_VERIFY_TOLERANCE);
+            }
         }
     }
 
     // Auto-save to flash
     printf("\nSaving to flash...");
     fflush(stdout);
-    cal_result_t save_result = calibration_save();
-    if (save_result == CAL_RESULT_OK) {
-        printf(" OK!\n");
-    } else {
-        printf(" FAILED (%d)\n", save_result);
+    {
+        cal_result_t save_result = calibration_save();
+        if (save_result == CAL_RESULT_OK) {
+            printf(" OK!\n");
+            // Flash ops can disrupt I2C bus state — recover so subsequent reads work
+            i2c_bus_reset();
+        } else {
+            printf(" FAILED (%d)\n", save_result);
+        }
     }
 
     printf("\n6-position accel calibration complete.\n");
     calibration_reset_6pos();
+
+cal_cleanup:
+    // Re-enable I2C master for normal operation (mag reads)
+    if (rc_os_cal_post_hook) { rc_os_cal_post_hook(); }
 }
 
 static void cmd_wizard(void) {

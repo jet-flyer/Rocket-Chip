@@ -115,6 +115,21 @@ extern bool rc_os_baro_available;
 typedef bool (*rc_os_read_accel_fn)(float *ax, float *ay, float *az, float *temp_c);
 extern rc_os_read_accel_fn rc_os_read_accel;
 
+// ============================================================================
+// Pre/Post Calibration Hooks (set by main)
+// ============================================================================
+
+/**
+ * @brief Optional hooks called before/after 6-pos accel calibration.
+ *
+ * Use these to disable the ICM-20948 I2C master during calibration,
+ * preventing bank-switching race conditions on rapid accel reads.
+ * Set to NULL if no setup/teardown is needed.
+ */
+typedef void (*rc_os_cal_hook_fn)(void);
+extern rc_os_cal_hook_fn rc_os_cal_pre_hook;
+extern rc_os_cal_hook_fn rc_os_cal_post_hook;
+
 #ifdef __cplusplus
 }
 #endif

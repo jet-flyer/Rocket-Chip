@@ -485,6 +485,57 @@ When adding GPS back:
 
 ---
 
+## Entry 21: ICM-20948 I2C Master Bank-Switching Race Condition
+
+**Date:** 2026-02-06
+**Time Spent:** ~3 hours (across 2 sessions)
+**Severity:** Critical — 6-position accel calibration fails deterministically after ~150 reads
+
+### Problem
+During 6-position accelerometer calibration, the ICM-20948 returns all zeros after exactly 3 positions (~150 rapid reads). First 3 positions always pass; position 4 onward returns [0.0, 0.0, 0.0].
+
+### Symptoms
+- 6-pos calibration completes positions 1-3, zeros at position 4
+- Pattern is deterministic: always fails at the same point
+- Regular 10Hz sensor polling (IVP-13) works fine — only rapid reads trigger it
+- Reducing read size from 23 bytes to 6 bytes (accel-only) didn't help
+- Adding `i2c_bus_reset()` between positions didn't help
+
+### Root Cause
+The ICM-20948's **internal I2C master** (used for autonomous AK09916 magnetometer reads at 100Hz) shares the **bank-select register (0x7F)** with external reads. The I2C master performs Bank 3 transactions to read mag data. External accel reads use Bank 0.
+
+At 10Hz polling, there's enough time between reads that the bank state is always correct. During rapid calibration reads (back-to-back with minimal delay), the I2C master's Bank 3 switch collides with external Bank 0 reads, corrupting the bank state. After ~150 reads, the corruption accumulates and accel registers return zeros.
+
+**Key insight:** ArduPilot avoids this entirely by using **I2C bypass mode** (`I2C_BYPASS_EN` in `INT_PIN_CFG`) instead of the internal I2C master when the ICM-20948 is on an external I2C bus. The bypass mode connects the AK09916 directly to the external bus, eliminating the bank-switching race.
+
+### Solution
+Disable the I2C master during calibration:
+
+```c
+// Pre-calibration hook
+icm20948_set_i2c_master_enable(&g_imu, false);  // Stops autonomous mag reads
+
+// ... rapid accel reads for calibration ...
+
+// Post-calibration hook
+icm20948_set_i2c_master_enable(&g_imu, true);   // Resume mag reads
+```
+
+Implemented as pre/post hooks in `rc_os.h` to keep the IMU driver decoupled from the CLI.
+
+### Prevention
+1. **When doing rapid sensor reads, disable autonomous internal operations first**
+2. **Check ArduPilot's approach** for I2C sensor drivers — they've solved these races
+3. **Consider migrating to I2C bypass mode** (ArduPilot's approach) as a permanent fix at a future IVP step — this would eliminate the race entirely
+4. **Bank-select register (0x7F) is shared state** — any multi-bank sensor with an internal master has this risk
+
+### Reference
+- ArduPilot `AP_InertialSensor_Invensensev2.cpp` — uses bypass mode, not I2C master
+- ICM-20948 datasheet Section 11.2 — I2C Master Interface
+- `USER_CTRL` register (Bank 0, 0x03) — bit 5 (`I2C_MST_EN`)
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

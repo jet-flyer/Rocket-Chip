@@ -25,9 +25,6 @@
 #define ACCEL_6POS_SAMPLES_PER_POS  50
 #define ACCEL_6POS_POSITIONS        6
 #define ACCEL_6POS_TOTAL_SAMPLES    (ACCEL_6POS_SAMPLES_PER_POS * ACCEL_6POS_POSITIONS)
-#define ACCEL_6POS_MOTION_THRESH    0.5f    // m/s² - tighter than level cal
-#define ACCEL_6POS_ORIENT_MIN       7.0f    // m/s² - dominant axis minimum
-#define ACCEL_6POS_ORIENT_MAX_OFF   3.0f    // m/s² - off-axis maximum
 #define ACCEL_6POS_MAX_OFFSET       5.0f    // m/s² - max offset per axis after fit
 #define ACCEL_6POS_MIN_DIAG         0.8f    // Minimum diagonal scale factor
 #define ACCEL_6POS_MAX_DIAG         1.2f    // Maximum diagonal scale factor
@@ -63,26 +60,16 @@ static uint8_t g_6pos_collected;    // Bitmask of completed positions
 static float g_jtj[ACCEL_6POS_NUM_PARAMS * ACCEL_6POS_NUM_PARAMS];      // 324 bytes
 static float g_jtj_inv[ACCEL_6POS_NUM_PARAMS * ACCEL_6POS_NUM_PARAMS];  // 324 bytes
 
-// Position names matching ArduPilot convention
+// Position names — QGroundControl order (easiest first, inverted last)
 static const char* const kPositionNames[ACCEL_6POS_POSITIONS] = {
     "LEVEL (+Z up)",
-    "INVERTED (-Z up)",
+    "LEFT SIDE (+Y up)",
+    "RIGHT SIDE (-Y up)",
     "NOSE DOWN (+X up)",
     "NOSE UP (-X up)",
-    "LEFT SIDE (+Y up)",
-    "RIGHT SIDE (-Y up)"
+    "INVERTED (-Z up)"
 };
 
-// Expected dominant axis and sign for each position [axis_index, sign]
-// axis_index: 0=X, 1=Y, 2=Z;  sign: +1 or -1
-static const int8_t kExpectedOrientation[ACCEL_6POS_POSITIONS][2] = {
-    {2, +1},   // LEVEL: +Z
-    {2, -1},   // INVERTED: -Z
-    {0, +1},   // NOSE DOWN: +X
-    {0, -1},   // NOSE UP: -X
-    {1, +1},   // LEFT SIDE: +Y
-    {1, -1},   // RIGHT SIDE: -Y
-};
 
 // ============================================================================
 // Private Functions
@@ -476,8 +463,6 @@ cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_f
 
     uint16_t base_idx = pos * ACCEL_6POS_SAMPLES_PER_POS;
     float sum[3] = {0.0f, 0.0f, 0.0f};
-    float min_v[3] = {1e9f, 1e9f, 1e9f};
-    float max_v[3] = {-1e9f, -1e9f, -1e9f};
     float temp_unused;
 
     for (uint16_t i = 0; i < ACCEL_6POS_SAMPLES_PER_POS; i++) {
@@ -491,24 +476,10 @@ cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_f
         g_6pos_samples[base_idx + i][2] = az;
 
         sum[0] += ax; sum[1] += ay; sum[2] += az;
-
-        for (uint8_t a = 0; a < 3; a++) {
-            float v = (a == 0) ? ax : (a == 1) ? ay : az;
-            if (v < min_v[a]) min_v[a] = v;
-            if (v > max_v[a]) max_v[a] = v;
-        }
-
-        // ~100Hz sampling rate: 10ms between reads
-        // Caller (CLI) should add sleep_ms(10) between calls if needed,
-        // but the read_fn itself may block for a fresh sample.
     }
 
-    // Motion check
-    for (uint8_t a = 0; a < 3; a++) {
-        if ((max_v[a] - min_v[a]) > ACCEL_6POS_MOTION_THRESH) {
-            return CAL_RESULT_MOTION_DETECTED;
-        }
-    }
+    // No motion check — ArduPilot doesn't either. Solver handles noisy data;
+    // if samples are bad the fit won't converge (caught at gate check).
 
     // Compute average
     float n = (float)ACCEL_6POS_SAMPLES_PER_POS;
@@ -516,42 +487,9 @@ cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_f
     g_6pos_avg[pos][1] = sum[1] / n;
     g_6pos_avg[pos][2] = sum[2] / n;
 
-    // Orientation confirmation: verify dominant axis matches expected
-    int8_t expected_axis = kExpectedOrientation[pos][0];
-    int8_t expected_sign = kExpectedOrientation[pos][1];
-
-    // Find dominant axis
-    float abs_avg[3] = {
-        fabsf(g_6pos_avg[pos][0]),
-        fabsf(g_6pos_avg[pos][1]),
-        fabsf(g_6pos_avg[pos][2])
-    };
-
-    uint8_t dominant = 0;
-    if (abs_avg[1] > abs_avg[dominant]) dominant = 1;
-    if (abs_avg[2] > abs_avg[dominant]) dominant = 2;
-
-    // Check dominant axis matches expected
-    if (dominant != (uint8_t)expected_axis) {
-        return CAL_RESULT_INVALID_DATA;
-    }
-
-    // Check sign matches
-    float dominant_val = g_6pos_avg[pos][dominant];
-    if ((expected_sign > 0 && dominant_val < 0) ||
-        (expected_sign < 0 && dominant_val > 0)) {
-        return CAL_RESULT_INVALID_DATA;
-    }
-
-    // Check magnitude: dominant > 7.0, off-axes < 3.0
-    if (abs_avg[dominant] < ACCEL_6POS_ORIENT_MIN) {
-        return CAL_RESULT_INVALID_DATA;
-    }
-    for (uint8_t a = 0; a < 3; a++) {
-        if (a != dominant && abs_avg[a] > ACCEL_6POS_ORIENT_MAX_OFF) {
-            return CAL_RESULT_INVALID_DATA;
-        }
-    }
+    // No orientation pre-check — ArduPilot doesn't do this either.
+    // If the user places the board wrong, the Gauss-Newton fit won't converge
+    // and the gate checks (offset, scale, gravity magnitude) catch the error.
 
     g_6pos_collected |= (1 << pos);
     g_6pos_sample_count = 0;

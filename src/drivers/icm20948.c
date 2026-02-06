@@ -617,3 +617,21 @@ bool icm20948_data_ready(icm20948_t* dev, bool* accel_ready, bool* gyro_ready) {
 
     return true;
 }
+
+bool icm20948_set_i2c_master_enable(icm20948_t* dev, bool enable) {
+    if (dev == NULL || !dev->initialized) {
+        return false;
+    }
+
+    // Read current USER_CTRL, modify I2C_MST_EN bit
+    uint8_t user_ctrl;
+    if (!read_bank_reg(dev, 0, B0_USER_CTRL, &user_ctrl)) return false;
+
+    if (enable) {
+        user_ctrl |= USER_CTRL_I2C_MST_EN;
+    } else {
+        user_ctrl &= ~USER_CTRL_I2C_MST_EN;
+    }
+
+    return write_bank_reg(dev, 0, B0_USER_CTRL, user_ctrl);
+}

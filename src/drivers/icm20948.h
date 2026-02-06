@@ -233,6 +233,20 @@ bool icm20948_read_temperature(icm20948_t* dev, float* temp_c);
  */
 bool icm20948_data_ready(icm20948_t* dev, bool* accel_ready, bool* gyro_ready);
 
+/**
+ * @brief Enable or disable the internal I2C master (for magnetometer reads)
+ *
+ * The I2C master performs autonomous mag reads via Bank 3 registers.
+ * During rapid accel-only reads (e.g., calibration), the I2C master's
+ * bank-switching can race with external reads, causing data corruption.
+ * Disable the I2C master when only accel/gyro data is needed.
+ *
+ * @param dev Device handle
+ * @param enable true to enable I2C master, false to disable
+ * @return true on success
+ */
+bool icm20948_set_i2c_master_enable(icm20948_t* dev, bool enable);
+
 #ifdef __cplusplus
 }
 #endif

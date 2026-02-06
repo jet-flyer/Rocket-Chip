@@ -30,11 +30,11 @@ BAUD = 115200
 # Position descriptions for the human operator
 POSITIONS = [
     "LEVEL (+Z up) - Flat on table, component side UP",
-    "INVERTED (-Z up) - Flat on table, component side DOWN",
-    "NOSE DOWN (+X up) - Standing on USB connector end",
-    "NOSE UP (-X up) - Standing on opposite end from USB",
     "LEFT SIDE (+Y up) - Standing on left edge",
     "RIGHT SIDE (-Y up) - Standing on right edge",
+    "NOSE DOWN (+X up) - Standing on USB connector end",
+    "NOSE UP (-X up) - Standing on opposite end from USB",
+    "INVERTED (-Z up) - Flat on table, component side DOWN",
 ]
 
 
