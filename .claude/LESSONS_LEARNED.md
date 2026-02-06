@@ -442,6 +442,49 @@ Press 'h' for help, 's' for sensor status
 
 ---
 
+## Entry 20: PA1010D GPS Causes I2C Bus Interference When Probed
+
+**Date:** 2026-02-05
+**Time Spent:** ~2 hours
+**Severity:** High — Makes IMU and baro unusable when GPS is on shared bus
+
+### Problem
+After physically removing the GPS from the bus, IVP-13 runs at 0 errors/60s. With the GPS connected and probed during I2C bus scan, IMU gets ~17% read failures and baro gets 100% failures.
+
+### Symptoms
+- IMU reads fail periodically (~every 4th read at 10Hz)
+- DPS310 baro init succeeds but subsequent reads fail 100%
+- Bus scan shows all 3 devices (0x69, 0x77, 0x10) detected
+- SDA/SCL pin states both HIGH (bus not electrically stuck)
+- Recovery code fires continuously, always "succeeds" but errors resume immediately
+
+### Root Cause
+The PA1010D GPS module is fundamentally a UART device with an I2C wrapper. When probed (even a 1-byte read), it starts streaming NMEA data on the I2C bus. This creates bus contention that interferes with IMU and baro transactions.
+
+The Pico SDK had a related issue (#252, fixed in PR #273, SDK 1.2.0) with SDA hold time, but our SDK 2.2.0 already has that fix. The remaining issue is behavioral — the GPS's continuous I2C output after being probed causes timeouts for other devices.
+
+### Solution
+1. **Removed GPS from I2C bus scan** — skip address 0x10 in `i2c_bus_scan()`
+2. **Removed GPS from expected devices** in `hw_validate_stage1()`
+3. **Physically removed GPS module** from Qwiic chain for Stage 2
+
+### Prevention (for IVP-31)
+When adding GPS back:
+- Read in **small 32-byte chunks** (not the 250-byte reads from pico-examples)
+- Filter `0x0A` padding bytes (GPS pads with linefeed when no data ready)
+- Poll at GPS sentence rate (1-10Hz), not faster
+- Always send STOP condition after reads
+- Time-slice: GPS read → IMU read → baro read in main loop
+- Do NOT probe GPS during full bus scans
+
+### Reference
+- [Pico SDK #252](https://github.com/raspberrypi/pico-sdk/issues/252) — Original SDA hold time bug
+- [PR #273](https://github.com/raspberrypi/pico-sdk/pull/273) — Fix merged in SDK 1.2.0
+- Adafruit_GPS Arduino library uses 32-byte chunked reads
+- CircuitPython uses 1-byte-at-a-time reads with bus lock/unlock
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

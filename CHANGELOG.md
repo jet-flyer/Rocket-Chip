@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-05-004 | Claude Code CLI | feature
+
+**IVP-13a: I2C bus recovery under fault**
+
+Implemented I2C bus recovery for sensor disconnect/reconnect scenarios. Recovery fires after 50 consecutive errors (~333ms), performs bus reset (deinit + 9-clock bit-bang + STOP + reinit). IMU self-recovers from reads; baro gets lazy reinit after 100 consecutive failures when IMU confirms bus is healthy. Hardware-verified: Qwiic cable disconnect during 100Hz/50Hz polling — no hang, both sensors resume at full rate after reconnect, error counter visible in status output. All 4 IVP-13a gates pass.
+
+(`src/main.cpp`)
+
+---
+
 ### 2026-02-05-003 | Claude Code CLI | feature
 
 **IVP-09 through IVP-13: IMU, barometer, and multi-sensor polling**

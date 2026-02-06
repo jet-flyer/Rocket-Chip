@@ -16,6 +16,7 @@
  *   IVP-11: DPS310 barometer initialization
  *   IVP-12: Barometer data validation
  *   IVP-13: Multi-sensor polling (single core)
+ *   IVP-13a: I2C bus recovery under fault
  */
 
 #include "rocketchip/config.h"
@@ -59,6 +60,10 @@ static constexpr uint32_t kIvp13ImuIntervalUs = 10000;   // 100Hz = 10ms
 static constexpr uint32_t kIvp13BaroIntervalUs = 20000;  // 50Hz = 20ms
 static constexpr uint32_t kIvp13DurationMs = 60000;       // 60 seconds
 static constexpr uint32_t kIvp13StatusIntervalMs = 1000;  // Print status every 1s
+
+// IVP-13a: I2C bus recovery thresholds
+static constexpr uint32_t kI2cRecoveryThreshold = 50;     // ~333ms of failures at 150 reads/s
+static constexpr uint32_t kI2cRecoveryCooldownMs = 2000;   // Min ms between recovery attempts
 
 // ============================================================================
 // Global State
@@ -123,6 +128,14 @@ static uint32_t g_ivp13BaroTimeMax = 0;
 static uint32_t g_ivp13ImuSecCount = 0;
 static uint32_t g_ivp13BaroSecCount = 0;
 
+// IVP-13a: I2C bus recovery state
+static uint32_t g_i2cConsecErrors = 0;      // Consecutive I2C errors (any sensor)
+static uint32_t g_i2cRecoveryAttempts = 0;   // Total recovery attempts
+static uint32_t g_i2cRecoverySuccesses = 0;  // Successful recoveries
+static uint32_t g_i2cLastRecoveryMs = 0;     // Timestamp of last recovery attempt
+static uint32_t g_baroConsecFails = 0;       // Consecutive baro failures (for lazy reinit)
+static bool g_imuLastReadOk = false;         // IMU last read succeeded (bus health proxy)
+
 // IMU device handle (static per LL Entry 1 — avoid large objects on stack)
 static icm20948_t g_imu;
 
@@ -171,10 +184,11 @@ static void hw_validate_stage1(void) {
     }
 
     // IVP-07: I2C device detection
+    // Note: PA1010D GPS (0x10) excluded — probing it triggers I2C bus
+    // interference (Pico SDK #252). Re-add at IVP-31 with proper handling.
     static const uint8_t expected[] = {
         I2C_ADDR_ICM20948,  // 0x69
         I2C_ADDR_DPS310,    // 0x77
-        I2C_ADDR_PA1010D,   // 0x10
     };
     int foundCount = 0;
     for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); i++) {
@@ -472,6 +486,13 @@ static void ivp13_gate_check(void) {
            (unsigned long)g_ivp13ImuCount, (unsigned long)g_ivp13BaroCount,
            (double)elapsedS);
 
+    // IVP-13a: Recovery statistics
+    if (g_i2cRecoveryAttempts > 0) {
+        printf("[INFO] Bus recoveries: %lu/%lu successful\n",
+               (unsigned long)g_i2cRecoverySuccesses,
+               (unsigned long)g_i2cRecoveryAttempts);
+    }
+
     printf("=== IVP-13: %s ===\n\n", pass ? "ALL GATES PASS" : "GATE FAILURES - see above");
 }
 
@@ -734,8 +755,12 @@ int main() {
                     g_ivp13ImuSecCount++;
                     g_ivp13ImuTimeSum += dt;
                     if (dt > g_ivp13ImuTimeMax) g_ivp13ImuTimeMax = dt;
+                    g_i2cConsecErrors = 0;
+                    g_imuLastReadOk = true;
                 } else {
                     g_ivp13ImuErrors++;
+                    g_i2cConsecErrors++;
+                    g_imuLastReadOk = false;
                 }
             }
 
@@ -753,19 +778,79 @@ int main() {
                     g_ivp13BaroSecCount++;
                     g_ivp13BaroTimeSum += dt;
                     if (dt > g_ivp13BaroTimeMax) g_ivp13BaroTimeMax = dt;
+                    g_i2cConsecErrors = 0;
+                    g_baroConsecFails = 0;
                 } else {
                     g_ivp13BaroErrors++;
+                    g_i2cConsecErrors++;
+                    g_baroConsecFails++;
+                }
+            }
+
+            // IVP-13a: Lazy baro reinit — if IMU reads work but baro
+            // doesn't, DPS310 lost continuous mode (e.g. after disconnect).
+            // 100 consecutive baro fails at 50Hz = 2 seconds of failure.
+            if (g_baroConsecFails >= 100 && g_imuLastReadOk) {
+                g_baroConsecFails = 0;
+                g_baroInitialized = baro_dps310_init(BARO_DPS310_ADDR_DEFAULT);
+                g_baroContinuous = g_baroInitialized ?
+                    baro_dps310_start_continuous() : false;
+                if (stdio_usb_connected()) {
+                    printf("[RECOVERY] Baro reinit: %s\n",
+                           g_baroContinuous ? "OK" : "FAIL");
+                }
+            }
+
+            // IVP-13a: Bus recovery when consecutive errors exceed threshold
+            if (g_i2cConsecErrors >= kI2cRecoveryThreshold &&
+                (nowMs - g_i2cLastRecoveryMs) >= kI2cRecoveryCooldownMs) {
+                g_i2cLastRecoveryMs = nowMs;
+                g_i2cRecoveryAttempts++;
+                if (stdio_usb_connected()) {
+                    printf("[RECOVERY] %lu consecutive errors — resetting I2C bus (attempt %lu)\n",
+                           (unsigned long)g_i2cConsecErrors,
+                           (unsigned long)g_i2cRecoveryAttempts);
+                }
+                bool recovered = i2c_bus_reset();
+                if (recovered) {
+                    g_i2cRecoverySuccesses++;
+                    g_i2cConsecErrors = 0;
+
+                    // Don't reinit sensors here — icm20948_init() blocks
+                    // for 150ms+ with device reset and mag retries, which
+                    // hangs if sensors are still disconnected. Instead:
+                    // - IMU self-recovers from reads (no reinit needed)
+                    // - Baro needs reinit for continuous mode (done below)
+
+                    if (stdio_usb_connected()) {
+                        printf("[RECOVERY] Bus reset OK — resuming polling\n");
+                    }
+                } else {
+                    if (stdio_usb_connected()) {
+                        printf("[RECOVERY] Bus reset FAILED — will retry after cooldown\n");
+                    }
                 }
             }
 
             // Status print every second
             if (stdio_usb_connected() && (nowMs - g_ivp13LastStatusMs) >= kIvp13StatusIntervalMs) {
                 uint32_t elapsed = nowMs - g_ivp13StartMs;
-                printf("[%3lus] IMU: %lu/s  Baro: %lu/s  Err: %lu\n",
-                       (unsigned long)(elapsed / 1000),
-                       (unsigned long)g_ivp13ImuSecCount,
-                       (unsigned long)g_ivp13BaroSecCount,
-                       (unsigned long)(g_ivp13ImuErrors + g_ivp13BaroErrors));
+                uint32_t totalErrors = g_ivp13ImuErrors + g_ivp13BaroErrors;
+                if (g_i2cRecoveryAttempts > 0) {
+                    printf("[%3lus] IMU: %lu/s  Baro: %lu/s  Err: %lu  Rec: %lu/%lu\n",
+                           (unsigned long)(elapsed / 1000),
+                           (unsigned long)g_ivp13ImuSecCount,
+                           (unsigned long)g_ivp13BaroSecCount,
+                           (unsigned long)totalErrors,
+                           (unsigned long)g_i2cRecoverySuccesses,
+                           (unsigned long)g_i2cRecoveryAttempts);
+                } else {
+                    printf("[%3lus] IMU: %lu/s  Baro: %lu/s  Err: %lu\n",
+                           (unsigned long)(elapsed / 1000),
+                           (unsigned long)g_ivp13ImuSecCount,
+                           (unsigned long)g_ivp13BaroSecCount,
+                           (unsigned long)totalErrors);
+                }
                 g_ivp13ImuSecCount = 0;
                 g_ivp13BaroSecCount = 0;
                 g_ivp13LastStatusMs = nowMs;

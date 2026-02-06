@@ -86,6 +86,10 @@ void i2c_bus_scan(void) {
     int found = 0;
 
     for (uint8_t addr = 0x08; addr < 0x78; addr++) {
+        // Skip PA1010D GPS — probing triggers I2C bus interference
+        // (Pico SDK issue #252). Re-enable at IVP-31.
+        if (addr == I2C_ADDR_PA1010D) continue;
+
         if (i2c_bus_probe(addr)) {
             printf("  0x%02X", addr);
 

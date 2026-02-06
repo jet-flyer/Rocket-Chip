@@ -14,18 +14,28 @@
 
 ## Open Flags
 
-*No open flags.*
+### 2026-02-05: PA1010D GPS Removed from I2C Bus — Needs Proper Driver at IVP-31
+
+**Severity:** Deferred (not blocking Stage 2)
+**Reporter:** Claude Code CLI
+
+**Issue:** GPS module on shared Qwiic I2C bus causes bus interference when probed during bus scan. IMU gets ~17% read failures, baro gets 100% failures. Physically removed for Stage 2 work.
+
+**Root cause:** PA1010D is a UART-over-I2C device that streams NMEA continuously after being probed. Full bus scan (0x08-0x77) triggers it.
+
+**Fix needed at IVP-31:**
+- Write proper GPS driver with 32-byte chunked reads (per Adafruit_GPS library pattern)
+- Filter 0x0A padding bytes
+- Time-slice GPS reads with IMU/baro in main loop
+- Do NOT include GPS address in bus scan
+- SDK 2.2.0 already has the SDA hold time fix (PR #273)
+
+**See:** LL Entry 20, Pico SDK #252/#273
+
+**Files affected:** `i2c_bus.c` (skip 0x10 in scan), `main.cpp` (GPS removed from expected list)
 
 ---
 
 ## Resolved
 
-### 2026-02-05: I2C Bus Not Working — RESOLVED
-
-**Root cause:** Two issues compounding:
-1. **No bus recovery on boot.** Picotool `--force` reboots leave sensors mid-I2C-transaction with SDA held low. Without recovery, no devices respond on next boot.
-2. **Stage 2 init code corrupting bus.** IMU init (bank switching, mag I2C master setup), baro init, and flash ops during calibration storage init were interfering with bus state, preventing GPS (0x10) from being detected.
-
-**Fix:** Added `i2c_bus_recover()` call before `i2c_init()` in `i2c_bus_init()`. Stripped Stage 2 back to clean Stage 1 baseline. All 3 devices (0x69, 0x77, 0x10) now detected reliably at 400kHz.
-
-**Lesson:** 100kHz was a red herring — 400kHz works fine. The problem was always bus state corruption, not speed.
+*Resolved items are erased. See LESSONS_LEARNED.md for historical debugging context.*
