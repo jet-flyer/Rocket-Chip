@@ -20,23 +20,13 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
-### 2026-02-05-004 | Claude Code CLI | feature
-
-**IVP-11 & IVP-12: DPS310 barometer init and data validation**
-
-Re-enabled ruuvi.dps310.c library and `baro_dps310.c` in build. DPS310 configured for 8Hz/8x oversampling continuous mode. Added IVP-12 validation: 100 samples at 10Hz with gate checks (pressure ±3000 Pa of 101325, temperature 15-40°C, noise <10 Pa, NaN/inf, stuck values). All gates pass across reboot cycles. Pressure ~100498 Pa, noise 2.54 Pa, altitude 69.1m.
-
-(`CMakeLists.txt`, `src/main.cpp`, `docs/PROJECT_STATUS.md`)
-
----
-
 ### 2026-02-05-003 | Claude Code CLI | feature
 
-**IVP-09 & IVP-10: ICM-20948 IMU init and data validation**
+**IVP-09 through IVP-13: IMU, barometer, and multi-sensor polling**
 
-Re-enabled `icm20948.c` in build. Fixed 6 issues in magnetometer init (BYPASS_EN clear, I2C_MST_CTRL P_NSR bit, WHO_AM_I verification with retry, shutdown-before-mode-set, burst read length 23 bytes, ST2 offset). Added 3-attempt retry for full mag init sequence. Changed default ranges to ±4g/±500dps. Added IVP-10 validation: 50 samples at 10Hz with automated gate checks (accel magnitude, gyro noise, mag range, temperature, NaN detection, stability). All gates pass across multiple reboot cycles. NeoPixel turned off per user request.
+Re-enabled ICM-20948 and DPS310 drivers incrementally with verification at each gate. IMU: fixed 6 magnetometer init issues, added 3-attempt retry, set ±4g/±500dps. DPS310: ruuvi library with 8Hz/8x oversampling continuous mode. IVP-10 validation (50 IMU samples, magnitude-based gate checks), IVP-12 validation (100 baro samples, pressure/noise/stuck-value gates), IVP-13 multi-sensor polling (IMU 100Hz, baro 50Hz, 60s, zero I2C errors). Measured I2C timing: IMU avg 774us, baro avg 251us. All gates pass across reboot cycles.
 
-(`CMakeLists.txt`, `src/main.cpp`, `src/drivers/icm20948.c`)
+(`CMakeLists.txt`, `src/main.cpp`, `src/drivers/icm20948.c`, `docs/PROJECT_STATUS.md`)
 
 ---
 

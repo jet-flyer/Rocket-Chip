@@ -28,7 +28,7 @@ Hardware-verified 2026-02-04:
 - [x] IVP-10: IMU data validation (10Hz, all gates pass across reboot cycles)
 - [x] IVP-11: DPS310 barometer initialization (ruuvi driver, 8Hz/8x oversampling, continuous mode)
 - [x] IVP-12: Barometer data validation (10Hz, 100 samples, all gates pass)
-- [ ] IVP-13: Multi-sensor polling (single core)
+- [x] IVP-13: Multi-sensor polling (IMU 100Hz/774us, Baro 50Hz/251us, 0 errors/60s)
 - [ ] IVP-13a: I2C bus recovery
 - [ ] IVP-14: Calibration storage (flash persistence)
 - [ ] IVP-15: Gyro bias calibration

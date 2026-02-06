@@ -15,6 +15,7 @@
  *   IVP-10: IMU data validation (10Hz read, gate checks)
  *   IVP-11: DPS310 barometer initialization
  *   IVP-12: Barometer data validation
+ *   IVP-13: Multi-sensor polling (single core)
  */
 
 #include "rocketchip/config.h"
@@ -51,6 +52,13 @@ static constexpr uint32_t kImuValidationDelayMs = 2000; // Wait 2s after boot fo
 static constexpr uint32_t kBaroReadIntervalMs = 100;  // 10Hz polling
 static constexpr uint32_t kBaroSampleCount = 100;      // 10 seconds of data
 static constexpr uint32_t kBaroValidationDelayMs = 1000; // 1s after IVP-10 completes
+
+// IVP-13: Multi-sensor polling rates
+// IMU 100Hz, Baro 50Hz — VALIDATE targets per IVP.md
+static constexpr uint32_t kIvp13ImuIntervalUs = 10000;   // 100Hz = 10ms
+static constexpr uint32_t kIvp13BaroIntervalUs = 20000;  // 50Hz = 20ms
+static constexpr uint32_t kIvp13DurationMs = 60000;       // 60 seconds
+static constexpr uint32_t kIvp13StatusIntervalMs = 1000;  // Print status every 1s
 
 // ============================================================================
 // Global State
@@ -95,6 +103,25 @@ static uint32_t g_baroInvalidReads = 0;
 static uint32_t g_baroNanCount = 0;
 static float g_baroLastPress;  // For stuck-value detection
 static uint32_t g_baroStuckCount = 0;
+
+// IVP-13: Multi-sensor polling state
+static bool g_ivp13Started = false;
+static bool g_ivp13Done = false;
+static uint32_t g_ivp13StartMs = 0;
+static uint64_t g_ivp13LastImuUs = 0;
+static uint64_t g_ivp13LastBaroUs = 0;
+static uint32_t g_ivp13LastStatusMs = 0;
+static uint32_t g_ivp13ImuCount = 0;
+static uint32_t g_ivp13BaroCount = 0;
+static uint32_t g_ivp13ImuErrors = 0;
+static uint32_t g_ivp13BaroErrors = 0;
+static uint64_t g_ivp13ImuTimeSum = 0;   // Sum of per-read times in us
+static uint64_t g_ivp13BaroTimeSum = 0;
+static uint32_t g_ivp13ImuTimeMax = 0;
+static uint32_t g_ivp13BaroTimeMax = 0;
+// Per-second counters for rate measurement
+static uint32_t g_ivp13ImuSecCount = 0;
+static uint32_t g_ivp13BaroSecCount = 0;
 
 // IMU device handle (static per LL Entry 1 — avoid large objects on stack)
 static icm20948_t g_imu;
@@ -395,6 +422,60 @@ static void ivp12_gate_check(void) {
 }
 
 // ============================================================================
+// IVP-13: Multi-Sensor Polling Gate Check
+// ============================================================================
+
+static void ivp13_gate_check(void) {
+    printf("\n=== IVP-13: Multi-Sensor Polling Gate ===\n");
+
+    bool pass = true;
+    uint32_t elapsedMs = to_ms_since_boot(get_absolute_time()) - g_ivp13StartMs;
+    float elapsedS = elapsedMs / 1000.0f;
+
+    // Actual rates
+    float imuRate = g_ivp13ImuCount / elapsedS;
+    float baroRate = g_ivp13BaroCount / elapsedS;
+
+    // Gate: IMU rate within 5% of 100Hz target
+    bool imuOk = (imuRate > 95.0f && imuRate < 105.0f);
+    printf("[%s] IMU rate: %.1f Hz (target 100, expect 95-105)\n",
+           imuOk ? "PASS" : "FAIL", (double)imuRate);
+    if (!imuOk) pass = false;
+
+    // Gate: Baro rate within 10% of 50Hz target
+    bool baroOk = (baroRate > 45.0f && baroRate < 55.0f);
+    printf("[%s] Baro rate: %.1f Hz (target 50, expect 45-55)\n",
+           baroOk ? "PASS" : "FAIL", (double)baroRate);
+    if (!baroOk) pass = false;
+
+    // Gate: Zero I2C errors over 60 seconds
+    uint32_t totalErrors = g_ivp13ImuErrors + g_ivp13BaroErrors;
+    bool errOk = (totalErrors == 0);
+    printf("[%s] I2C errors: %lu (IMU: %lu, Baro: %lu)\n",
+           errOk ? "PASS" : "FAIL", (unsigned long)totalErrors,
+           (unsigned long)g_ivp13ImuErrors, (unsigned long)g_ivp13BaroErrors);
+    if (!errOk) pass = false;
+
+    // Info: Per-read I2C timing
+    if (g_ivp13ImuCount > 0) {
+        uint32_t imuAvgUs = (uint32_t)(g_ivp13ImuTimeSum / g_ivp13ImuCount);
+        printf("[INFO] IMU read time: avg %lu us, max %lu us\n",
+               (unsigned long)imuAvgUs, (unsigned long)g_ivp13ImuTimeMax);
+    }
+    if (g_ivp13BaroCount > 0) {
+        uint32_t baroAvgUs = (uint32_t)(g_ivp13BaroTimeSum / g_ivp13BaroCount);
+        printf("[INFO] Baro read time: avg %lu us, max %lu us\n",
+               (unsigned long)baroAvgUs, (unsigned long)g_ivp13BaroTimeMax);
+    }
+
+    printf("[INFO] Total samples: IMU %lu, Baro %lu over %.1f s\n",
+           (unsigned long)g_ivp13ImuCount, (unsigned long)g_ivp13BaroCount,
+           (double)elapsedS);
+
+    printf("=== IVP-13: %s ===\n\n", pass ? "ALL GATES PASS" : "GATE FAILURES - see above");
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -621,6 +702,84 @@ int main() {
             }
         }
 
+        // IVP-13: Multi-sensor polling at target rates (after IVP-10 + IVP-12)
+        if (g_imuInitialized && g_baroContinuous &&
+            g_imuValidationDone && g_baroValidationDone && !g_ivp13Done) {
+
+            uint64_t nowUs = time_us_64();
+
+            if (!g_ivp13Started) {
+                g_ivp13Started = true;
+                g_ivp13StartMs = nowMs;
+                g_ivp13LastImuUs = nowUs;
+                g_ivp13LastBaroUs = nowUs;
+                g_ivp13LastStatusMs = nowMs;
+                if (stdio_usb_connected()) {
+                    printf("=== IVP-13: Multi-Sensor Polling (IMU 100Hz, Baro 50Hz, 60s) ===\n");
+                }
+            }
+
+            // IMU read at 100Hz
+            if ((nowUs - g_ivp13LastImuUs) >= kIvp13ImuIntervalUs) {
+                g_ivp13LastImuUs += kIvp13ImuIntervalUs;
+                // Prevent accumulation if we fell behind
+                if ((nowUs - g_ivp13LastImuUs) > kIvp13ImuIntervalUs * 2) {
+                    g_ivp13LastImuUs = nowUs;
+                }
+                uint64_t t0 = time_us_64();
+                icm20948_data_t data;
+                if (icm20948_read(&g_imu, &data)) {
+                    uint32_t dt = (uint32_t)(time_us_64() - t0);
+                    g_ivp13ImuCount++;
+                    g_ivp13ImuSecCount++;
+                    g_ivp13ImuTimeSum += dt;
+                    if (dt > g_ivp13ImuTimeMax) g_ivp13ImuTimeMax = dt;
+                } else {
+                    g_ivp13ImuErrors++;
+                }
+            }
+
+            // Baro read at 50Hz
+            if ((nowUs - g_ivp13LastBaroUs) >= kIvp13BaroIntervalUs) {
+                g_ivp13LastBaroUs += kIvp13BaroIntervalUs;
+                if ((nowUs - g_ivp13LastBaroUs) > kIvp13BaroIntervalUs * 2) {
+                    g_ivp13LastBaroUs = nowUs;
+                }
+                uint64_t t0 = time_us_64();
+                baro_dps310_data_t bdata;
+                if (baro_dps310_read(&bdata)) {
+                    uint32_t dt = (uint32_t)(time_us_64() - t0);
+                    g_ivp13BaroCount++;
+                    g_ivp13BaroSecCount++;
+                    g_ivp13BaroTimeSum += dt;
+                    if (dt > g_ivp13BaroTimeMax) g_ivp13BaroTimeMax = dt;
+                } else {
+                    g_ivp13BaroErrors++;
+                }
+            }
+
+            // Status print every second
+            if (stdio_usb_connected() && (nowMs - g_ivp13LastStatusMs) >= kIvp13StatusIntervalMs) {
+                uint32_t elapsed = nowMs - g_ivp13StartMs;
+                printf("[%3lus] IMU: %lu/s  Baro: %lu/s  Err: %lu\n",
+                       (unsigned long)(elapsed / 1000),
+                       (unsigned long)g_ivp13ImuSecCount,
+                       (unsigned long)g_ivp13BaroSecCount,
+                       (unsigned long)(g_ivp13ImuErrors + g_ivp13BaroErrors));
+                g_ivp13ImuSecCount = 0;
+                g_ivp13BaroSecCount = 0;
+                g_ivp13LastStatusMs = nowMs;
+            }
+
+            // Check if 60 seconds elapsed
+            if ((nowMs - g_ivp13StartMs) >= kIvp13DurationMs) {
+                g_ivp13Done = true;
+                if (stdio_usb_connected()) {
+                    ivp13_gate_check();
+                }
+            }
+        }
+
         // Superloop validation at 10s
         if (stdio_usb_connected() && !g_superloopValidationDone &&
             nowMs >= kSuperloopValidationMs) {
@@ -629,6 +788,8 @@ int main() {
         }
 
         // Small sleep to prevent tight spinning (allows USB processing)
+        // Note: sleep_ms(1) limits max loop rate to ~1kHz; sufficient for
+        // IVP-13 targets (100Hz IMU + 50Hz baro). Remove in Stage 3.
         sleep_ms(1);
     }
 
