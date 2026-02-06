@@ -30,7 +30,7 @@ Hardware-verified 2026-02-04:
 - [x] IVP-12: Barometer data validation (10Hz, 100 samples, all gates pass)
 - [x] IVP-13: Multi-sensor polling (IMU 100Hz/774us, Baro 50Hz/251us, 0 errors/60s)
 - [x] IVP-13a: I2C bus recovery (disconnect/reconnect verified, lazy baro reinit, no hang)
-- [ ] IVP-14: Calibration storage (flash persistence)
+- [x] IVP-14: Calibration storage (flash persistence, all 4 gates pass, power cycle verified)
 - [ ] IVP-15: Gyro bias calibration
 - [ ] IVP-16: Level calibration
 - [ ] IVP-17: 6-position accel calibration

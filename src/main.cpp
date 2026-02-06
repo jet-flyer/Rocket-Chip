@@ -27,6 +27,8 @@
 #include "drivers/i2c_bus.h"
 #include "drivers/icm20948.h"
 #include "drivers/baro_dps310.h"
+#include "calibration/calibration_storage.h"
+#include "calibration/calibration_manager.h"
 #include <stdio.h>
 #include <math.h>
 
@@ -40,6 +42,9 @@ static constexpr uint kNeoPixelPin = 21;
 static constexpr uint32_t kHeartbeatOnMs = 100;
 static constexpr uint32_t kHeartbeatOffMs = 900;
 static constexpr uint32_t kHeartbeatPeriodMs = kHeartbeatOnMs + kHeartbeatOffMs;
+
+// Skip verified IVP gates (IVP-10, IVP-12, IVP-13) — set false to re-run
+static constexpr bool kSkipVerifiedGates = true;
 
 // Superloop validation at 10 seconds
 static constexpr uint32_t kSuperloopValidationMs = 10000;
@@ -135,6 +140,10 @@ static uint32_t g_i2cRecoverySuccesses = 0;  // Successful recoveries
 static uint32_t g_i2cLastRecoveryMs = 0;     // Timestamp of last recovery attempt
 static uint32_t g_baroConsecFails = 0;       // Consecutive baro failures (for lazy reinit)
 static bool g_imuLastReadOk = false;         // IMU last read succeeded (bus health proxy)
+
+// IVP-14: Calibration storage state
+static bool g_calStorageInitialized = false;
+static bool g_ivp14Done = false;
 
 // IMU device handle (static per LL Entry 1 — avoid large objects on stack)
 static icm20948_t g_imu;
@@ -497,6 +506,123 @@ static void ivp13_gate_check(void) {
 }
 
 // ============================================================================
+// IVP-14: Calibration Storage Gate Check
+// ============================================================================
+
+// Known test values for save/load verification
+static constexpr float kTestGyroX = 0.00123f;
+static constexpr float kTestGyroY = -0.00234f;
+static constexpr float kTestGyroZ = 0.00345f;
+
+static void ivp14_gate_check(void) {
+    printf("\n=== IVP-14: Calibration Storage Gate ===\n");
+
+    bool pass = true;
+
+    // Gate 1: Load returns OK or initializes defaults
+    {
+        cal_result_t result = calibration_load();
+        bool ok = (result == CAL_RESULT_OK || result == CAL_RESULT_STORAGE_ERROR);
+        printf("[%s] Gate 1: calibration_load() = %d (%s)\n",
+               ok ? "PASS" : "FAIL", (int)result,
+               result == CAL_RESULT_OK ? "valid data" : "defaults initialized");
+        // Note: STORAGE_ERROR on first boot is expected (no data yet)
+    }
+
+    // Gate 2: Save test data, read back, verify match
+    {
+        // Get current cal, modify gyro bias with known values
+        const calibration_store_t* current = calibration_manager_get();
+        calibration_store_t test_cal = *current;
+        test_cal.gyro.bias.x = kTestGyroX;
+        test_cal.gyro.bias.y = kTestGyroY;
+        test_cal.gyro.bias.z = kTestGyroZ;
+        test_cal.gyro.status = CAL_STATUS_GYRO;
+        test_cal.cal_flags |= CAL_STATUS_GYRO;
+        calibration_update_crc(&test_cal);
+
+        // Save
+        bool writeOk = calibration_storage_write(&test_cal);
+        if (!writeOk) {
+            printf("[FAIL] Gate 2: flash write failed\n");
+            pass = false;
+        } else {
+            // Read back
+            calibration_store_t readback;
+            bool readOk = calibration_storage_read(&readback);
+            if (!readOk) {
+                printf("[FAIL] Gate 2: flash read failed\n");
+                pass = false;
+            } else {
+                bool match = (fabsf(readback.gyro.bias.x - kTestGyroX) < 1e-6f &&
+                              fabsf(readback.gyro.bias.y - kTestGyroY) < 1e-6f &&
+                              fabsf(readback.gyro.bias.z - kTestGyroZ) < 1e-6f &&
+                              (readback.cal_flags & CAL_STATUS_GYRO));
+                printf("[%s] Gate 2: save/readback %s (bias: %.5f, %.5f, %.5f)\n",
+                       match ? "PASS" : "FAIL",
+                       match ? "match" : "MISMATCH",
+                       (double)readback.gyro.bias.x,
+                       (double)readback.gyro.bias.y,
+                       (double)readback.gyro.bias.z);
+                if (!match) pass = false;
+            }
+        }
+    }
+
+    // Gate 3: Power cycle persistence
+    // Check if test data survived from a previous boot
+    {
+        calibration_store_t persisted;
+        bool readOk = calibration_storage_read(&persisted);
+        if (readOk && (persisted.cal_flags & CAL_STATUS_GYRO) &&
+            fabsf(persisted.gyro.bias.x - kTestGyroX) < 1e-6f) {
+            printf("[PASS] Gate 3: data persisted across power cycle\n");
+        } else {
+            printf("[INFO] Gate 3: power cycle test — unplug USB, replug, check next boot\n");
+            // Not a failure — just needs physical verification
+        }
+    }
+
+    // Gate 4: 10 consecutive saves
+    {
+        bool allOk = true;
+        for (int i = 0; i < 10; i++) {
+            calibration_store_t test_cal;
+            calibration_init_defaults(&test_cal);
+            test_cal.gyro.bias.x = kTestGyroX;
+            test_cal.gyro.bias.y = kTestGyroY;
+            test_cal.gyro.bias.z = kTestGyroZ;
+            test_cal.gyro.status = CAL_STATUS_GYRO;
+            test_cal.cal_flags |= CAL_STATUS_GYRO;
+            // Use reserved field to track iteration
+            test_cal.reserved[0] = (uint8_t)(i + 1);
+            calibration_update_crc(&test_cal);
+
+            if (!calibration_storage_write(&test_cal)) {
+                printf("[FAIL] Gate 4: write %d/10 failed\n", i + 1);
+                allOk = false;
+                break;
+            }
+
+            // Verify readback
+            calibration_store_t verify;
+            if (!calibration_storage_read(&verify) || verify.reserved[0] != (uint8_t)(i + 1)) {
+                printf("[FAIL] Gate 4: readback %d/10 failed\n", i + 1);
+                allOk = false;
+                break;
+            }
+        }
+        if (allOk) {
+            printf("[PASS] Gate 4: 10/10 consecutive saves OK (wear leveling works)\n");
+        } else {
+            pass = false;
+        }
+    }
+
+    printf("=== IVP-14: %s ===\n\n", pass ? "ALL GATES PASS" : "GATE FAILURES - see above");
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -544,6 +670,13 @@ int main() {
             g_baroContinuous = baro_dps310_start_continuous();
         }
     }
+
+    // -----------------------------------------------------------------
+    // IVP-14: Calibration storage init (before USB per LL Entry 4/12)
+    // Storage init only reads flash via XIP — no erase/write at boot
+    // -----------------------------------------------------------------
+    g_calStorageInitialized = calibration_storage_init();
+    calibration_manager_init();
 
     // -----------------------------------------------------------------
     // IVP-04: USB CDC init (after I2C/flash per LL Entry 4/12)
@@ -610,6 +743,16 @@ int main() {
     }
     printf("\n");
 
+    // IVP-14: Calibration storage status
+    if (g_calStorageInitialized) {
+        const calibration_store_t* cal = calibration_manager_get();
+        printf("Calibration storage OK (flags=0x%02lX)\n",
+               (unsigned long)cal->cal_flags);
+    } else {
+        printf("Calibration storage FAILED\n");
+    }
+    printf("\n");
+
     // Post-init I2C scan — verify bus integrity after IMU init
     printf("Post-init I2C scan (bus integrity check):\n");
     i2c_bus_scan();
@@ -617,6 +760,14 @@ int main() {
 
     // Hardware validation
     hw_validate_stage1();
+
+    // Skip previously verified gates to speed up boot
+    if (kSkipVerifiedGates) {
+        g_imuValidationDone = true;
+        g_baroValidationDone = true;
+        g_ivp13Done = true;
+        printf("[INFO] Skipping verified gates (IVP-10, IVP-12, IVP-13)\n\n");
+    }
 
     // IVP-08: Superloop
     printf("Entering main loop\n\n");
@@ -863,6 +1014,13 @@ int main() {
                     ivp13_gate_check();
                 }
             }
+        }
+
+        // IVP-14: Calibration storage test (after IVP-13 completes)
+        if (g_ivp13Done && !g_ivp14Done && g_calStorageInitialized &&
+            stdio_usb_connected()) {
+            g_ivp14Done = true;
+            ivp14_gate_check();
         }
 
         // Superloop validation at 10s

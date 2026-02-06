@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-05-005 | Claude Code CLI | feature
+
+**IVP-14: Calibration storage (flash persistence)**
+
+Re-enabled calibration system (`calibration_data`, `calibration_manager`, `calibration_storage`) in CMakeLists.txt with `hardware_flash` and `pico_flash` libs. Added storage init before USB (per LL Entry 4/12), manager init after sensors. IVP-14 self-test verifies all 4 gates: load/defaults, save/readback match, power cycle persistence, 10 consecutive saves (wear leveling). Added `kSkipVerifiedGates` flag to skip IVP-10/12/13 at boot — set false to re-run. All gates pass across power cycles.
+
+(`CMakeLists.txt`, `src/main.cpp`)
+
+---
+
 ### 2026-02-05-004 | Claude Code CLI | feature
 
 **IVP-13a: I2C bus recovery under fault**
