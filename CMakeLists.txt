@@ -87,26 +87,26 @@ add_executable(rocketchip
 
     # -------------------------------------------------------------------------
     # Stage 2: Single-Core Sensors (IVP-09 through IVP-18)
+    # Re-enable one at a time with verification at each IVP gate
     # -------------------------------------------------------------------------
     # IVP-09: IMU driver
-    src/drivers/icm20948.c
+    # src/drivers/icm20948.c
 
     # IVP-11: Barometer (requires ruuvi library)
-    ${RUUVI_DPS310_DIR}/dps310.c
-    src/drivers/baro_dps310.c
+    # ${RUUVI_DPS310_DIR}/dps310.c
+    # src/drivers/baro_dps310.c
 
     # IVP-31: GPS (requires lwGPS library)
     # ${LWGPS_DIR}/lwgps/lwgps.c
     # src/drivers/gps_pa1010d.c
 
     # IVP-14: Calibration system
-    src/calibration/calibration_data.c
-    src/calibration/calibration_manager.c
-    src/calibration/calibration_storage.c
-    # IVP-17: 6-position accel calibrator (to be written)
+    # src/calibration/calibration_data.c
+    # src/calibration/calibration_manager.c
+    # src/calibration/calibration_storage.c
 
     # IVP-18: RC_OS CLI
-    src/cli/rc_os.c
+    # src/cli/rc_os.c
 )
 
 # Include directories
@@ -115,10 +115,10 @@ target_include_directories(rocketchip PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/src
     ${CMAKE_CURRENT_LIST_DIR}/src/drivers
     ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/src/calibration    # IVP-14
-    ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
-    ${RUUVI_DPS310_DIR}                          # IVP-11
-    # ${LWGPS_DIR}/include                       # IVP-31
+    # ${CMAKE_CURRENT_LIST_DIR}/src/calibration    # IVP-14
+    # ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
+    # ${RUUVI_DPS310_DIR}                          # IVP-11
+    # ${LWGPS_DIR}/include                         # IVP-31
 )
 
 # Generate WS2812 PIO header from SDK's pio file
@@ -133,9 +133,9 @@ target_link_libraries(rocketchip
     hardware_pio         # For NeoPixel/WS2812 PIO driver
     hardware_clocks      # For clock_get_hz()
     hardware_i2c         # For I2C/QWIIC sensors
-    # IVP-14: Calibration storage
-    hardware_flash       # For flash_range_erase/program
-    pico_flash           # For flash_safe_execute
+    # IVP-14: Calibration storage (re-enable with calibration)
+    # hardware_flash       # For flash_range_erase/program
+    # pico_flash           # For flash_safe_execute
 )
 
 # Enable USB CDC for stdio (not UART)

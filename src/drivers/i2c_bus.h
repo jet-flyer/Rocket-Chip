@@ -25,7 +25,7 @@ extern "C" {
 #define I2C_BUS_INSTANCE    i2c1
 #define I2C_BUS_SDA_PIN     2
 #define I2C_BUS_SCL_PIN     3
-#define I2C_BUS_FREQ_HZ     100000  // 100kHz for compatibility (was 400kHz)
+#define I2C_BUS_FREQ_HZ     400000  // 400kHz Fast Mode (I2C spec)
 
 // Timeout for I2C operations (microseconds)
 #define I2C_TIMEOUT_US      10000

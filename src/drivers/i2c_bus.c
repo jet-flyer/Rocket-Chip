@@ -23,6 +23,11 @@ bool i2c_bus_init(void) {
         return true;
     }
 
+    // Bus recovery BEFORE i2c_init: if a previous session was interrupted
+    // (e.g., picotool --force reboot), a sensor may be holding SDA low
+    // mid-transaction. Clock out the stuck byte per I2C spec.
+    i2c_bus_recover();
+
     // Initialize I2C peripheral
     uint actual_freq = i2c_init(I2C_BUS_INSTANCE, I2C_BUS_FREQ_HZ);
     if (actual_freq == 0) {
@@ -38,9 +43,6 @@ bool i2c_bus_init(void) {
     gpio_pull_up(I2C_BUS_SCL_PIN);
 
     g_initialized = true;
-
-    // Store actual frequency for debug output
-    // (actual_freq is stored internally if needed later)
     return true;
 }
 
