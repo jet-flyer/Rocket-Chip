@@ -39,7 +39,17 @@ typedef enum {
     CAL_RESULT_TIMEOUT,         // Calibration took too long
     CAL_RESULT_INVALID_DATA,    // Data out of expected range
     CAL_RESULT_STORAGE_ERROR,   // Failed to save
+    CAL_RESULT_FIT_FAILED,      // Ellipsoid fit did not converge or params out of range
 } cal_result_t;
+
+/**
+ * @brief Callback to read one accelerometer sample
+ *
+ * Used by 6-pos calibration to decouple from sensor driver.
+ * Implementation should block until a fresh sample is available (~10ms).
+ * @return true on success
+ */
+typedef bool (*accel_read_fn)(float *ax, float *ay, float *az, float *temp_c);
 
 // ============================================================================
 // Initialization
@@ -141,6 +151,50 @@ uint8_t calibration_get_progress(void);
  * @brief Get result of last calibration
  */
 cal_result_t calibration_get_result(void);
+
+// ============================================================================
+// 6-Position Accelerometer Calibration (IVP-17)
+// ============================================================================
+
+/**
+ * @brief Collect samples for one position of 6-pos calibration
+ *
+ * Blocking function: reads 50 samples via callback, checks motion
+ * and orientation. Positions must be collected in order 0-5.
+ *
+ * @param pos Position index (0-5)
+ * @param read_fn Callback that reads one accel sample (blocks ~10ms)
+ * @return CAL_RESULT_OK on success,
+ *         CAL_RESULT_MOTION_DETECTED if device moved,
+ *         CAL_RESULT_INVALID_DATA if orientation doesn't match expected
+ */
+cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_fn);
+
+/**
+ * @brief Run Gauss-Newton ellipsoid fit on collected 6-pos data
+ *
+ * Requires all 6 positions collected first.
+ * On success, stores offset/scale/offdiag to calibration data.
+ *
+ * @return CAL_RESULT_OK on success, CAL_RESULT_FIT_FAILED if fit diverged
+ */
+cal_result_t calibration_compute_6pos(void);
+
+/**
+ * @brief Reset all 6-pos collection state
+ */
+void calibration_reset_6pos(void);
+
+/**
+ * @brief Get average readings for a completed position
+ * @return Pointer to float[3] {ax, ay, az} or NULL if invalid
+ */
+const float* calibration_get_6pos_avg(uint8_t pos);
+
+/**
+ * @brief Get human-readable name for a position
+ */
+const char* calibration_get_6pos_name(uint8_t pos);
 
 // ============================================================================
 // Applying Calibration

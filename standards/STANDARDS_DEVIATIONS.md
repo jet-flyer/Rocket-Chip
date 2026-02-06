@@ -29,7 +29,16 @@
 
 ## Active Deviations
 
-*No active deviations - starting fresh with bespoke implementation.*
+### ArduPilot Algorithm Deviations (IVP-17: 6-Position Accel Calibration)
+
+These are implementation deviations from ArduPilot's `AccelCalibrator` class. The core math (Jacobian formulas, residual computation, parameter update) is identical.
+
+| ID | Location | ArduPilot Approach | Our Approach | Severity | Difficulty | Rationale |
+|----|----------|-------------------|--------------|----------|-----------|-----------|
+| AP-1 | `calibration_manager.c` | Heap-allocated `std::vector` for samples | Static array `g_6pos_samples[300][3]` (3.6KB) | Accepted | N/A | LL Entry 1: no heap after init; RP2350 has 264KB RAM |
+| AP-2 | `calibration_manager.c` | `mat_inverseN()` with LU decomposition | Gaussian elimination with partial pivoting | Accepted | N/A | Simpler, no separate L/U/P arrays; adequate for 9x9 |
+| AP-3 | `rc_os.c` | Progress callback + async state machine | Blocking function with sensor read callback | Accepted | N/A | Bare-metal CLI doesn't need async; matches existing `cmd_reset_cal()` pattern |
+| AP-4 | `rc_os.c` | Trusts user orientation (implicit) | Explicit orientation confirmation per position | Accepted | N/A | Catches positioning errors immediately vs failing at fit time |
 
 ---
 

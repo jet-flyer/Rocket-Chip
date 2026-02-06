@@ -101,6 +101,20 @@ extern rc_os_sensor_status_fn rc_os_print_sensor_status;
 extern bool rc_os_imu_available;
 extern bool rc_os_baro_available;
 
+// ============================================================================
+// Accel Read Callback (set by main, used by 6-pos cal)
+// ============================================================================
+
+/**
+ * @brief Callback to read one accelerometer sample for 6-pos calibration.
+ *
+ * Set this in main.cpp after IMU initialization.
+ * Should block until a fresh sample is available (~10ms at 100Hz).
+ * @return true on success
+ */
+typedef bool (*rc_os_read_accel_fn)(float *ax, float *ay, float *az, float *temp_c);
+extern rc_os_read_accel_fn rc_os_read_accel;
+
 #ifdef __cplusplus
 }
 #endif

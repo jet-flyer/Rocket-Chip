@@ -38,9 +38,10 @@ void calibration_init_defaults(calibration_store_t* cal) {
     cal->magic = CALIBRATION_MAGIC;
     cal->version = CALIBRATION_VERSION;
 
-    // Accel defaults: no offset, unity scale
+    // Accel defaults: no offset, unity scale, no cross-coupling
     cal->accel.offset = (cal_vec3_t){0.0f, 0.0f, 0.0f};
     cal->accel.scale = (cal_vec3_t){1.0f, 1.0f, 1.0f};
+    cal->accel.offdiag = (cal_vec3_t){0.0f, 0.0f, 0.0f};
     cal->accel.status = CAL_STATUS_NONE;
 
     // Gyro defaults: no bias
@@ -53,6 +54,11 @@ void calibration_init_defaults(calibration_store_t* cal) {
     cal->baro.status = CAL_STATUS_NONE;
 
     cal->cal_flags = 0;
+
+    // Board orientation: identity matrix (no rotation)
+    cal->board_rotation.m[0] = 1.0f; cal->board_rotation.m[1] = 0.0f; cal->board_rotation.m[2] = 0.0f;
+    cal->board_rotation.m[3] = 0.0f; cal->board_rotation.m[4] = 1.0f; cal->board_rotation.m[5] = 0.0f;
+    cal->board_rotation.m[6] = 0.0f; cal->board_rotation.m[7] = 0.0f; cal->board_rotation.m[8] = 1.0f;
 
     calibration_update_crc(cal);
 }

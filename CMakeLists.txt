@@ -106,7 +106,7 @@ add_executable(rocketchip
     src/calibration/calibration_storage.c
 
     # IVP-18: RC_OS CLI
-    # src/cli/rc_os.c
+    src/cli/rc_os.c
 )
 
 # Include directories
@@ -116,7 +116,7 @@ target_include_directories(rocketchip PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/src/drivers
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/src/calibration    # IVP-14
-    # ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
+    ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
     ${RUUVI_DPS310_DIR}                            # IVP-11
     # ${LWGPS_DIR}/include                         # IVP-31
 )
