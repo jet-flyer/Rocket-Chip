@@ -362,6 +362,57 @@ The 22-pin HSTX connector on the back provides:
 
 ---
 
+## Battery Voltage Monitoring
+
+### Status: Backlogged (requires external hardware)
+
+The Feather RP2350 HSTX **does not include a built-in battery voltage divider**. Adafruit omitted it because the RP2350 only has 4 ADC channels (A0-A3) and they chose not to dedicate one internally.
+
+Other Feather boards (ESP32, nRF52840) have built-in dividers on hidden ADC pins — the RP2350 Feather does not.
+
+### What's Needed
+
+An external voltage divider from the BAT pin to an ADC input:
+
+```
+BAT pin ---[10K]---+---[10K]--- GND
+                   |
+                   +--- A3 (GPIO29 / ADC3)
+```
+
+**Recommended pin:** A3/GPIO29 (ADC3) — same pin the Pico 2 uses for VSYS, no conflicts with current I2C/SPI assignments.
+
+### Specifications
+
+| Parameter | Value | Source |
+|-----------|-------|--------|
+| ADC resolution | 12-bit (0-4095) | RP2350 datasheet |
+| ADC reference | 3.3V | Pico SDK `hardware/adc.h` |
+| Divider ratio | 1:2 (two 10K resistors) | Adafruit recommendation |
+| Quiescent draw | ~185uA @ 3.7V | 3.7V / 20K ohm |
+| LiPo full | 4.2V (ADC sees 2.1V) | |
+| LiPo nominal | 3.7V (ADC sees 1.85V) | |
+| LiPo cutoff | 3.2V (ADC sees 1.6V) | |
+
+### Conversion Formula
+
+```c
+#include "hardware/adc.h"
+
+// 3.3V reference, 12-bit ADC, divide-by-2 compensation
+float battery_voltage = adc_read() * (3.3f / 4096.0f) * 2.0f;
+```
+
+### Current Sensing
+
+Not available on this board. Would require an external INA219 or INA260 breakout on I2C.
+
+### When to Implement
+
+This becomes relevant when adding telemetry (IVP Stage 4+). The voltage divider is a simple solder job on a proto board or Booster Pack. No firmware work until the hardware is wired.
+
+---
+
 ## I2C Address Map
 
 | Address | Device | Notes |
