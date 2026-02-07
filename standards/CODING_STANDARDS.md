@@ -73,7 +73,11 @@ See `.claude/LESSONS_LEARNED.md` for the full debugging narratives behind each r
   patterns. *(LL Entries 5, 11)*
 
 - **Always include a version string** that changes with each significant build.
-  *(LL Entry 2)*
+  During extended debugging sessions with multiple builds, use a monotonic build
+  iteration tag (e.g., `Build: IVP30-fix-3`) and verify it in serial output
+  before testing. `__DATE__ __TIME__` alone is insufficient — timestamps blur
+  together across rapid rebuilds and the same binary flashed twice looks
+  identical. *(LL Entry 2)*
 
 #### General
 

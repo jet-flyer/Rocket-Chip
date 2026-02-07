@@ -210,4 +210,35 @@ The banner truncation in PuTTY is a display quirk, not a firmware bug - CLI comm
 
 ---
 
+## Test Script Design Guidelines
+
+### Pause Output for Manual Input
+
+When test scripts require user action (power cycle, cable disconnect, key press), **pause serial output streaming** before prompting. Use `input()` to block the script so the prompt stays visible on screen. If the script continues printing serial data while waiting for input, the prompt scrolls away and the user misses it.
+
+```python
+# GOOD: Script pauses, prompt stays visible
+log_and_print(logf, "[script] >>> POWER CYCLE the device, then press ENTER <<<\n")
+input("[script] Press ENTER after power cycle...")
+
+# BAD: Prompt scrolls away while serial data streams
+print("Power cycle the device")
+while True:
+    chunk = port.read(4096)  # keeps printing, prompt is gone
+```
+
+### Build Iteration Tags for Debug Sessions
+
+During extended debugging sessions with multiple build-flash-test cycles, add a **monotonic build iteration tag** to the firmware banner. `__DATE__ __TIME__` alone is insufficient — timestamps blur together and the same binary flashed twice looks identical.
+
+```cpp
+// In firmware — increment on EVERY rebuild during debug iteration
+static const char *kBuildTag = "IVP30-fix-3";
+printf("Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
+```
+
+**Always verify the build tag in serial output before starting a test cycle.** A 5-minute soak on the wrong binary is 5 minutes wasted. *(LL Entry 2)*
+
+---
+
 *See also: `standards/CODING_STANDARDS.md` for general code conventions*

@@ -68,23 +68,34 @@ int main() {
 
 **Date:** 2026-01-26
 **Context:** Debugging stack overflow issue above
+**Recurrence:** 2026-02-07 (IVP-30 watchdog debugging — wasted a full 5-min soak + test cycle on old binary)
 
 ### Problem
 During iterative debugging, it was unclear if the latest code was actually running. Sometimes old binaries were being executed, wasting debugging time.
 
+**IVP-30 recurrence:** After fixing `watchdog_enable_caused_reboot()`, the fix was built but the previous binary was still running on the device. A full 5-minute soak + manual test cycle was wasted before discovering the old binary was loaded. The `__DATE__ __TIME__` stamp was present but not checked — timestamps blur together during rapid debug iterations.
+
 ### Solution
-Add a version string to debug output that changes with each significant code change:
+Use a **monotonic build iteration tag** that changes with each rebuild during debug sessions:
 
 ```cpp
-printf("Build: v3-static-calibrator\n");
+// During debug iteration, use a descriptive tag — INCREMENT ON EACH REBUILD
+static const char *kBuildTag = "IVP30-fix-3";
+printf("Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
 ```
 
-Update the version string whenever making changes during debugging sessions. This immediately confirms whether the expected code is running.
+**Why not `__DATE__ __TIME__` alone:**
+- Same binary flashed twice looks identical
+- Timestamps blur together during rapid rebuilds (same minute)
+- A descriptive tag is immediately recognizable in scrollback
+
+**Check the tag in serial output BEFORE starting any test cycle.** A 5-minute soak on the wrong binary is 5 minutes wasted.
 
 ### Prevention
-- Always add version strings when doing iterative debugging
-- Update version string on each significant change
-- Check version string first before analyzing other output
+- Always use a build iteration tag during extended debug sessions with multiple builds
+- Increment the tag on EVERY rebuild, not just "significant" changes
+- Verify the tag in serial output before running any test
+- When multiple builds happen in the same session, a counter suffix (`-1`, `-2`, `-3`) is clearer than timestamps
 
 ---
 
