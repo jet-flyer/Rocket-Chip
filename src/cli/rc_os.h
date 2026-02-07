@@ -116,6 +116,19 @@ typedef bool (*rc_os_read_accel_fn)(float *ax, float *ay, float *az, float *temp
 extern rc_os_read_accel_fn rc_os_read_accel;
 
 // ============================================================================
+// I2C Bus Scan Guard (set by main)
+// ============================================================================
+
+/**
+ * @brief Flag to disable I2C bus scan from CLI.
+ *
+ * Set to false when Core 1 owns the I2C bus (sensor phase).
+ * Prevents 'i' command from corrupting bus while Core 1 reads sensors.
+ * Defaults to true (scan allowed).
+ */
+extern bool rc_os_i2c_scan_allowed;
+
+// ============================================================================
 // Pre/Post Calibration Hooks (set by main)
 // ============================================================================
 

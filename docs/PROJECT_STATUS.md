@@ -1,12 +1,12 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-02-06
+**Last Updated:** 2026-02-07
 
 ## Current Phase
 
 **IVP Stage 3 IN PROGRESS** — Dual-Core Integration (v0.2.0)
 
-Sessions A+B+C+D (IVP-19 through IVP-26) hardware-verified. Next: Session E (IVP-27/28)
+Sessions A+B+C+D+E (IVP-19 through IVP-28) hardware-verified. Next: Session F (IVP-29/30)
 
 ## Completed
 
@@ -61,11 +61,17 @@ Hardware-verified 2026-02-06:
 - [x] IVP-25: Core 1 IMU sampling (998.4 Hz, avg 1002us cycle, 51.7us jitter stddev, 0 errors/5-min, 0 stale reads)
 - [x] IVP-26: Core 1 baro sampling (7.9 Hz matching DPS310 8Hz hw rate, data-ready gated, 0 errors, both datasets valid on Core 0)
 
+### Stage 3 Session E: USB Stress + Flash Under Dual-Core (IVP-27/28) ✅
+
+Hardware-verified 2026-02-07:
+- [x] IVP-27: USB stability soak (10-min, CLI responsive, disconnect/reconnect, 2660-key mash survived, 0 baro errors)
+- [x] IVP-28: Flash under dual-core (5/5 saves, ~63ms/op, +1-2 err/save within tolerance, readback OK, power-cycle persistence confirmed)
+
 ## In Progress
 
-**Stage 3 Session E next (IVP-27/28 — USB stress + flash under dual-core)**
+**Stage 3 Session F next (IVP-29/30 — MPU stack guard + watchdog)**
 
-Session plan on whiteboard: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) ✅ → C (seqlock) ✅ → D (sensor migration) ✅ → E (USB/flash stress) → F (MPU/watchdog)
+Session plan on whiteboard: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) ✅ → C (seqlock) ✅ → D (sensor migration) ✅ → E (USB/flash stress) ✅ → F (MPU/watchdog)
 
 ## What Exists
 
@@ -80,6 +86,7 @@ Session plan on whiteboard: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) 
 - `src/calibration/calibration_manager.c/h` — 6-pos accel calibration (Gauss-Newton)
 - `src/calibration/calibration_storage.c/h` — Flash persistence
 - `scripts/accel_cal_6pos.py` — Interactive serial calibration script
+- `scripts/ivp27_28_test.py` — IVP-27/28 soak + flash test monitor
 
 **Ready (commented out in CMakeLists.txt, re-enable at their IVP step):**
 - `src/drivers/gps_pa1010d.c/h` — GPS wrapper (IVP-31)

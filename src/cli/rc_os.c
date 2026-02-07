@@ -40,6 +40,7 @@ rc_os_sensor_status_fn rc_os_print_sensor_status = NULL;
 // Sensor availability flags (set by main.cpp)
 bool rc_os_imu_available = false;
 bool rc_os_baro_available = false;
+bool rc_os_i2c_scan_allowed = true;
 
 // Accel read callback for 6-pos calibration (set by main.cpp)
 rc_os_read_accel_fn rc_os_read_accel = NULL;
@@ -523,8 +524,12 @@ static void handle_main_menu(int c) {
 
         case 'i':
         case 'I':
-            printf("\nRescanning I2C bus...\n");
-            i2c_bus_scan();
+            if (rc_os_i2c_scan_allowed) {
+                printf("\nRescanning I2C bus...\n");
+                i2c_bus_scan();
+            } else {
+                printf("\nI2C scan disabled (Core 1 owns bus)\n");
+            }
             break;
 
         case 'c':
