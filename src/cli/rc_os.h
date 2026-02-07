@@ -129,6 +129,19 @@ extern rc_os_read_accel_fn rc_os_read_accel;
 extern bool rc_os_i2c_scan_allowed;
 
 // ============================================================================
+// Unhandled Key Callback (set by main)
+// ============================================================================
+
+/**
+ * @brief Callback for keys not handled by the main menu.
+ *
+ * Set this to handle test commands (e.g., 'o', 'w', 'W' for IVP-29/30)
+ * without modifying the CLI menu structure. Called with the character code.
+ */
+typedef void (*rc_os_unhandled_key_fn)(int key);
+extern rc_os_unhandled_key_fn rc_os_on_unhandled_key;
+
+// ============================================================================
 // Pre/Post Calibration Hooks (set by main)
 // ============================================================================
 

@@ -50,7 +50,7 @@ Stage 3 (IVP-19 through IVP-30) grouped into work sessions. Multicore before GPS
 | **C** | IVP-24 | Seqlock (single-buffer) | **Design doc approved:** `docs/decisions/SEQLOCK_DESIGN.md`. Council unanimous with 7 modifications (all incorporated). |
 | **D** | IVP-25, IVP-26 | IMU + baro on Core 1 | Real sensor migration. Uses I2C timing from Stage 2 (IMU 774us, baro 251us) |
 | **E** | IVP-27, IVP-28 | USB stress + flash under dual-core | Stability. Note: `multicore_lockout` uses FIFO — can't overlap with app FIFO messages |
-| **F** | IVP-29, IVP-30 | MPU stack guard + watchdog | Safety nets |
+| **F** | IVP-29, IVP-30 | MPU stack guard + watchdog | Code complete, awaiting HW verification |
 
 **Key constraints (updated with research findings 2026-02-06):**
 - GPS module physically removed — reconnect at IVP-31 (Stage 4)

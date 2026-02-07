@@ -47,6 +47,9 @@ rc_os_read_accel_fn rc_os_read_accel = NULL;
 rc_os_cal_hook_fn rc_os_cal_pre_hook = NULL;
 rc_os_cal_hook_fn rc_os_cal_post_hook = NULL;
 
+// Unhandled key callback (set by main.cpp, for IVP-29/30 test commands)
+rc_os_unhandled_key_fn rc_os_on_unhandled_key = NULL;
+
 // ============================================================================
 // Menu Printing
 // ============================================================================
@@ -541,6 +544,12 @@ static void handle_main_menu(int c) {
         case '\r':
         case '\n':
             // Ignore line endings
+            break;
+
+        default:
+            if (rc_os_on_unhandled_key) {
+                rc_os_on_unhandled_key(c);
+            }
             break;
     }
 }

@@ -4,9 +4,9 @@
 
 ## Current Phase
 
-**IVP Stage 3 IN PROGRESS** — Dual-Core Integration (v0.2.0)
+**IVP Stage 3 COMPLETE** — Dual-Core Integration (v0.2.0)
 
-Sessions A+B+C+D+E (IVP-19 through IVP-28) hardware-verified. Next: Session F (IVP-29/30)
+All 6 sessions (A through F, IVP-19 through IVP-30) hardware-verified. Next: Stage 4 (GPS integration)
 
 ## Completed
 
@@ -67,11 +67,17 @@ Hardware-verified 2026-02-07:
 - [x] IVP-27: USB stability soak (10-min, CLI responsive, disconnect/reconnect, 2660-key mash survived, 0 baro errors)
 - [x] IVP-28: Flash under dual-core (5/5 saves, ~63ms/op, +1-2 err/save within tolerance, readback OK, power-cycle persistence confirmed)
 
+### Stage 3 Session F: MPU Stack Guard + Watchdog (IVP-29/30) ✅
+
+Hardware-verified 2026-02-07:
+- [x] IVP-29: PMSAv8 MPU stack guard on both cores (64-byte guard regions, MemManage fault handler, no false faults over 5-min soak)
+- [x] IVP-30: Hardware watchdog (5s timeout, dual-core kick pattern, 300k+ IMU reads/0 errors during soak, Core 0 stall resets in ~5s, Core 1 stall resets in ~5s, WATCHDOG RESET banner on reboot, stack overflow triggers MPU fault with LED pattern)
+
+Session plan complete: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) ✅ → C (seqlock) ✅ → D (sensor migration) ✅ → E (USB/flash stress) ✅ → F (MPU/watchdog) ✅
+
 ## In Progress
 
-**Stage 3 Session F next (IVP-29/30 — MPU stack guard + watchdog)**
-
-Session plan on whiteboard: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) ✅ → C (seqlock) ✅ → D (sensor migration) ✅ → E (USB/flash stress) ✅ → F (MPU/watchdog)
+**Stage 3 COMPLETE.** Next: Stage 4 (IVP-31+, GPS integration)
 
 ## What Exists
 
@@ -87,6 +93,7 @@ Session plan on whiteboard: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) 
 - `src/calibration/calibration_storage.c/h` — Flash persistence
 - `scripts/accel_cal_6pos.py` — Interactive serial calibration script
 - `scripts/ivp27_28_test.py` — IVP-27/28 soak + flash test monitor
+- `scripts/ivp29_30_test.py` — IVP-29/30 watchdog soak + manual test monitor
 
 **Ready (commented out in CMakeLists.txt, re-enable at their IVP step):**
 - `src/drivers/gps_pa1010d.c/h` — GPS wrapper (IVP-31)

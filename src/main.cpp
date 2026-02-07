@@ -2,7 +2,7 @@
  * @file main.cpp
  * @brief RocketChip main entry point - IVP Stage 3
  *
- * Implements IVP-01 through IVP-28:
+ * Implements IVP-01 through IVP-30:
  *   IVP-01: Clean build from source
  *   IVP-02: Red LED heartbeat (100ms on / 900ms off)
  *   IVP-03: NeoPixel rainbow via PIO
@@ -32,6 +32,8 @@
  *   IVP-26: Core 1 baro sampling (~8Hz)
  *   IVP-27: USB stability soak (10 min under dual-core)
  *   IVP-28: Flash writes under dual-core
+ *   IVP-29: MPU stack guard regions (both cores)
+ *   IVP-30: Hardware watchdog (dual-core kick)
  */
 
 #include "rocketchip/config.h"
@@ -47,6 +49,9 @@
 #include "cli/rc_os.h"
 #include "pico/multicore.h"
 #include "hardware/sync.h"
+#include "hardware/exception.h"
+#include "hardware/watchdog.h"
+#include "hardware/structs/mpu.h"
 #include <atomic>
 #include <stdio.h>
 #include <string.h>
@@ -136,6 +141,16 @@ static constexpr uint32_t kIvp28FlashRepeatCount = 5;            // 5 saves (IVP
 static constexpr uint32_t kIvp28PostFlashSettleMs = 50;          // Core 1 resume detection
 // Council mod #2: Core 1 resumes mid-I2C-transaction after lockout; 1-2 reads fail.
 static constexpr uint32_t kIvp28MaxExpectedErrors = 5;
+
+// IVP-29: MPU stack guard
+static constexpr uint32_t kMpuGuardSizeBytes = 64;     // Guard region at bottom of stack
+static constexpr int32_t kFaultBlinkFastLoops = 200000; // ~100ms at 150MHz (fault handler busy-wait)
+static constexpr int32_t kFaultBlinkSlowLoops = 800000; // ~400ms at 150MHz (fault handler busy-wait)
+
+// IVP-30: Hardware watchdog
+static constexpr uint32_t kWatchdogTimeoutMs = 5000;    // 5 second timeout per IVP spec
+static constexpr uint32_t kIvp30SoakMs = 5 * 60 * 1000; // 5-minute soak (no false fires)
+static constexpr uint32_t kIvp30StatusIntervalMs = 60000; // Print every 60s
 
 // Core 1 skip command (for kSkipVerifiedGates — bypass Phase 2)
 static constexpr uint32_t kCmd_SkipToSensors = 0x5E5052E5;
@@ -322,6 +337,25 @@ static bool g_ivp27Prompt8min = false;
 static bool g_ivp28Started = false;
 static bool g_ivp28Done = false;
 
+// IVP-29: MPU stack guard
+static bool g_ivp29Done = false;
+
+// IVP-30: Watchdog
+static bool g_ivp30Active = false;
+static bool g_ivp30Done = false;
+static uint32_t g_ivp30StartMs = 0;
+static uint32_t g_ivp30LastStatusMs = 0;
+
+// Dual-core watchdog kick flags — std::atomic per MULTICORE_RULES.md
+// volatile is NOT sufficient for cross-core visibility on ARM (no hardware barrier)
+static std::atomic<bool> g_wdtCore0Alive{false};
+static std::atomic<bool> g_wdtCore1Alive{false};
+static bool g_watchdogEnabled = false;
+static bool g_testCommandsEnabled = false;  // Set after soak OR after watchdog reboot
+
+// IVP-30: Core 1 stall test flag (set by Core 0, checked by Core 1)
+static std::atomic<bool> g_core1StallTest{false};
+
 // IVP-14: Calibration storage state
 static bool g_calStorageInitialized = false;
 static bool g_ivp14Done = false;
@@ -375,6 +409,104 @@ static bool seqlock_read(sensor_seqlock_t* sl, shared_sensor_data_t* dst) {
 }
 
 // ============================================================================
+// IVP-29: MemManage / HardFault Handler
+// ============================================================================
+// Fires when MPU stack guard is hit (stack overflow).
+// Must NOT use stack (it may be overflowed). Uses direct GPIO register writes.
+// Blink pattern: 3 fast + 1 slow on red LED, forever.
+
+static void memmanage_fault_handler(void) {
+    __asm volatile ("cpsid i");  // Disable interrupts
+
+    // Direct GPIO register writes — no SDK calls that might use stack
+    io_rw_32 *gpio_out = &sio_hw->gpio_out;
+    const uint32_t led_mask = 1u << PICO_DEFAULT_LED_PIN;
+
+    while (true) {
+        for (int i = 0; i < 3; i++) {
+            *gpio_out |= led_mask;
+            for (volatile int32_t d = 0; d < kFaultBlinkFastLoops; d++) {}
+            *gpio_out &= ~led_mask;
+            for (volatile int32_t d = 0; d < kFaultBlinkFastLoops; d++) {}
+        }
+        *gpio_out |= led_mask;
+        for (volatile int32_t d = 0; d < kFaultBlinkSlowLoops; d++) {}
+        *gpio_out &= ~led_mask;
+        for (volatile int32_t d = 0; d < kFaultBlinkSlowLoops; d++) {}
+    }
+}
+
+// ============================================================================
+// IVP-29: MPU Stack Guard Setup (per-core, PMSAv8)
+// ============================================================================
+// Configures MPU region 0 as a no-access guard at the bottom of the stack.
+// Each core has its own MPU — call from the core being protected.
+
+extern "C" uint32_t __StackBottom;     // Core 0 stack bottom (SCRATCH_Y, linker-defined)
+extern "C" uint32_t __StackOneBottom;  // Core 1 stack bottom (SCRATCH_X, linker-defined)
+
+static void mpu_setup_stack_guard(uint32_t stack_bottom) {
+    // Disable MPU during configuration
+    mpu_hw->ctrl = 0;
+    __dsb();
+    __isb();
+
+    // Region 0: Stack guard (no access, execute-never)
+    // PMSAv8 RBAR: [31:5]=BASE, [4:3]=SH(0=non-shareable), [2:1]=AP(0=priv no-access), [0]=XN(1)
+    mpu_hw->rnr = 0;
+    mpu_hw->rbar = (stack_bottom & ~0x1Fu)
+                  | (0u << 3)   // SH: Non-shareable
+                  | (0u << 1)   // AP: Privileged no-access
+                  | (1u << 0);  // XN: Execute-never
+
+    // PMSAv8 RLAR: [31:5]=LIMIT, [3:1]=ATTRINDX(0), [0]=EN(1)
+    mpu_hw->rlar = ((stack_bottom + kMpuGuardSizeBytes - 1) & ~0x1Fu)
+                  | (0u << 1)   // ATTRINDX: 0 (uses MAIR0 attr 0)
+                  | (1u << 0);  // EN: Enable region
+
+    // MAIR0 attr 0 = 0x00 = Device-nGnRnE (strictest, no caching)
+    mpu_hw->mair[0] = 0;
+
+    // Enable MPU with PRIVDEFENA=1 (default memory map for unprogrammed regions)
+    mpu_hw->ctrl = (1u << 2)   // PRIVDEFENA
+                 | (1u << 0);  // ENABLE
+    __dsb();
+    __isb();
+}
+
+// ============================================================================
+// IVP-29: Gate Check
+// ============================================================================
+
+static void ivp29_gate_check(void) {
+    if (!stdio_usb_connected()) return;
+
+    printf("\n=== IVP-29: MPU Stack Guard Regions ===\n");
+    printf("[MANUAL] Gate 1: Core 0 overflow triggers fault (press 'o')\n");
+    printf("[MANUAL] Gate 2: Core 1 overflow triggers fault\n");
+    printf("[INFO]   Gate 3: Fault handler — red LED 3-fast+1-slow blink\n");
+    printf("[PASS]   Gate 4: No false faults (reached this point)\n");
+    printf("[MANUAL] Gate 5: Verify MPU regions via GDB\n");
+    printf("=== IVP-29: AUTOMATED GATES PASS / MANUAL gates above ===\n\n");
+}
+
+// ============================================================================
+// IVP-30: Gate Check
+// ============================================================================
+
+static void ivp30_gate_check(void) {
+    if (!stdio_usb_connected()) return;
+
+    printf("\n=== IVP-30: Hardware Watchdog ===\n");
+    printf("[PASS]   Gate 1: Normal operation — watchdog did not fire over 5 minutes\n");
+    printf("[MANUAL] Gate 2: Stall Core 0 (press 'w') — resets within 5s\n");
+    printf("[MANUAL] Gate 3: Stall Core 1 (press 'W') — resets within 5s\n");
+    printf("[MANUAL] Gate 4: After reset, verify 'WATCHDOG RESET' message\n");
+    printf("[MANUAL] Gate 5: Debug probe connected — watchdog pauses\n");
+    printf("=== IVP-30: AUTOMATED GATES PASS / MANUAL gates above ===\n\n");
+}
+
+// ============================================================================
 // IVP-19/20/21/22/23/24: Core 1 Entry Point
 // ============================================================================
 // Phase 1: Test dispatcher — responds to FIFO commands for IVP-22/23 exercises.
@@ -382,6 +514,9 @@ static bool seqlock_read(sensor_seqlock_t* sl, shared_sensor_data_t* dst) {
 // Atomic counter (IVP-20) increments throughout both phases.
 
 static void core1_entry(void) {
+    // IVP-29: MPU stack guard for Core 1
+    mpu_setup_stack_guard((uint32_t)&__StackOneBottom);
+
     // ---- Phase 1: Test Dispatcher ----
     // Core 1 polls FIFO every 1ms, blinks NeoPixel cyan fast (~4Hz) via timer.
     bool testMode = true;
@@ -641,6 +776,14 @@ static void core1_entry(void) {
 
         g_core1Counter.fetch_add(1, std::memory_order_relaxed);
 
+        // IVP-30: Signal watchdog that Core 1 is alive
+        g_wdtCore1Alive.store(true, std::memory_order_relaxed);
+
+        // IVP-30: Core 1 stall test (triggered by 'W' command from Core 0)
+        if (g_core1StallTest.load(std::memory_order_relaxed)) {
+            while (true) { __asm volatile ("nop"); }
+        }
+
         // Record jitter timestamps (first N samples)
         uint32_t jIdx = g_jitterSamplesCollected.load(std::memory_order_relaxed);
         if (jIdx < kJitterSampleCount) {
@@ -717,6 +860,51 @@ static void cal_post_hook(void) {
     if (g_ivp25Active) {
         g_calReloadPending.store(true, std::memory_order_release);
         g_core1PauseI2C.store(false, std::memory_order_release);
+    }
+}
+
+// ============================================================================
+// IVP-29/30: Test Command Handler (via RC_OS unhandled-key callback)
+// ============================================================================
+
+static void ivp_test_key_handler(int key) {
+    if (!g_testCommandsEnabled) return;  // Available after soak or watchdog reboot
+    if (!stdio_usb_connected()) return;
+
+    switch (key) {
+    case 'o': {
+        // IVP-29: Intentional Core 0 stack overflow
+        printf("\n[TEST] Triggering Core 0 stack overflow...\n");
+        printf("[TEST] Expect red LED 3-fast+1-slow blink. Power cycle to recover.\n");
+        sleep_ms(100);  // Flush output
+
+        // Recursive function with volatile local to prevent optimizer elimination
+        volatile uint8_t buf[256];
+        buf[0] = (uint8_t)key;  // Prevent unused-variable optimization
+        (void)buf[255];
+        ivp_test_key_handler(key);  // Recurse until stack overflow
+        break;
+    }
+    case 'w': {
+        // IVP-30: Stall Core 0 (watchdog should reset within 5s)
+        printf("\n[TEST] Stalling Core 0 — watchdog should reset within %lu ms\n",
+               (unsigned long)kWatchdogTimeoutMs);
+        sleep_ms(100);  // Flush output
+        while (true) { __asm volatile ("nop"); }
+        break;
+    }
+    case 'W': {
+        // IVP-30: Stall Core 1 via atomic flag
+        printf("\n[TEST] Stalling Core 1 — watchdog should reset within %lu ms\n",
+               (unsigned long)kWatchdogTimeoutMs);
+        g_core1StallTest.store(true, std::memory_order_relaxed);
+        sleep_ms(100);  // Flush output
+        // Core 1 will enter infinite loop on next iteration. Core 0 keeps running
+        // but can't kick watchdog (Core 1 alive flag stops being set).
+        break;
+    }
+    default:
+        break;
     }
 }
 
@@ -2092,6 +2280,20 @@ static void ivp28_flash_test(void) {
 // ============================================================================
 
 int main() {
+    // IVP-30: Check if previous reboot was caused by watchdog (before any init)
+    // Use watchdog_enable_caused_reboot() — on RP2350, watchdog_caused_reboot()
+    // also checks rom_get_last_boot_type() == BOOT_TYPE_NORMAL which can return
+    // false after a watchdog reset. watchdog_enable_caused_reboot() checks only
+    // watchdog_hw->reason && scratch[4] magic set by watchdog_enable().
+    bool watchdogReboot = watchdog_enable_caused_reboot();
+
+    // IVP-29: Register fault handlers early (before any MPU config)
+    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, memmanage_fault_handler);
+    exception_set_exclusive_handler(MEMMANAGE_EXCEPTION, memmanage_fault_handler);
+
+    // IVP-29: MPU stack guard for Core 0
+    mpu_setup_stack_guard((uint32_t)&__StackBottom);
+
     // -----------------------------------------------------------------
     // IVP-02: Red LED GPIO init
     // -----------------------------------------------------------------
@@ -2172,6 +2374,22 @@ int main() {
     printf("  Board: Adafruit Feather RP2350 HSTX\n");
     printf("==============================================\n\n");
 
+    // IVP-30: Print watchdog reboot warning (checked before any init)
+    if (watchdogReboot) {
+        printf("[WARN] *** PREVIOUS REBOOT WAS CAUSED BY WATCHDOG RESET ***\n");
+        printf("[INFO] Test commands enabled (soak skipped after watchdog reboot)\n");
+        printf("[INFO] Re-enabling watchdog (%lu ms)\n\n",
+               (unsigned long)kWatchdogTimeoutMs);
+        // After watchdog reboot: enable test commands + watchdog immediately
+        // Skip the 5-min soak — it already passed before the reset
+        g_testCommandsEnabled = true;
+        g_watchdogEnabled = true;
+        g_ivp29Done = true;
+        g_ivp30Active = false;
+        g_ivp30Done = true;
+        watchdog_enable(kWatchdogTimeoutMs, true);
+    }
+
     // IVP-05: Debug macros
     DBG_PRINT("Debug macros functional");
 
@@ -2242,6 +2460,13 @@ int main() {
         g_sensorPhaseDone.store(true, std::memory_order_release);
         printf("[INFO] Skipping IVP-21/22/23/25/26 soaks (verified Sessions B+C+D)\n");
 
+        // Skip IVP-27/28 (verified Session E)
+        g_ivp27Active = true;
+        g_ivp27Done = true;
+        g_ivp28Started = true;
+        g_ivp28Done = true;
+        printf("[INFO] Skipping IVP-27/28 (verified Session E)\n");
+
         // Send Core 1 directly to sensor loop (bypass Phase 2 spinlock soak)
         multicore_fifo_drain();
         sleep_ms(10);
@@ -2260,6 +2485,7 @@ int main() {
     rc_os_read_accel = read_accel_for_cal;
     rc_os_cal_pre_hook = cal_pre_hook;
     rc_os_cal_post_hook = cal_post_hook;
+    rc_os_on_unhandled_key = ivp_test_key_handler;
 
     // IVP-19: Core 1 already launched (after NeoPixel init, before USB wait)
     printf("Core 1 launched (test dispatcher mode)\n");
@@ -2541,9 +2767,88 @@ int main() {
         if (g_ivp27Done && !g_ivp28Started) {
             g_ivp28Started = true;
             if (stdio_usb_connected()) {
+                // Disable watchdog during flash ops — flash_safe_execute stalls
+                // Core 1 via multicore_lockout, preventing alive flag updates
+                if (g_watchdogEnabled) watchdog_disable();
                 ivp28_flash_test();
+                if (g_watchdogEnabled) watchdog_enable(kWatchdogTimeoutMs, true);
             }
             g_ivp28Done = true;
+        }
+
+        // ================================================================
+        // IVP-29: MPU gate check (runs once after IVP-28)
+        // ================================================================
+        if (g_ivp28Done && !g_ivp29Done) {
+            g_ivp29Done = true;
+            if (stdio_usb_connected()) {
+                ivp29_gate_check();
+
+                // Enable watchdog and start IVP-30 soak
+                printf("[INFO] Enabling hardware watchdog (%lu ms, pause_on_debug=true)\n",
+                       (unsigned long)kWatchdogTimeoutMs);
+                watchdog_enable(kWatchdogTimeoutMs, true);
+                g_watchdogEnabled = true;
+
+                g_ivp30Active = true;
+                g_ivp30StartMs = nowMs;
+                g_ivp30LastStatusMs = nowMs;
+                printf("[INFO] IVP-30: Watchdog soak started (%lu min)\n\n",
+                       (unsigned long)(kIvp30SoakMs / 60000));
+            }
+        }
+
+        // ================================================================
+        // IVP-30: Watchdog soak (5 minutes, no false fires)
+        // ================================================================
+        if (g_ivp30Active && !g_ivp30Done) {
+            uint32_t elapsedMs = nowMs - g_ivp30StartMs;
+
+            // Status every 60s
+            if ((nowMs - g_ivp30LastStatusMs) >= kIvp30StatusIntervalMs) {
+                g_ivp30LastStatusMs = nowMs;
+                if (stdio_usb_connected()) {
+                    shared_sensor_data_t snap;
+                    bool snapOk = seqlock_read(&g_sensorSeqlock, &snap);
+                    if (snapOk) {
+                        printf("[IVP-30] %lu/%lus | Core1: %lu loops, %lu IMU, %lu err | WDT: OK\n",
+                               (unsigned long)(elapsedMs / 1000),
+                               (unsigned long)(kIvp30SoakMs / 1000),
+                               (unsigned long)snap.core1_loop_count,
+                               (unsigned long)snap.imu_read_count,
+                               (unsigned long)snap.imu_error_count);
+                    } else {
+                        printf("[IVP-30] %lu/%lus | Seqlock read failed | WDT: OK\n",
+                               (unsigned long)(elapsedMs / 1000),
+                               (unsigned long)(kIvp30SoakMs / 1000));
+                    }
+                }
+            }
+
+            // Soak complete
+            if (elapsedMs >= kIvp30SoakMs) {
+                g_ivp30Done = true;
+                g_ivp30Active = false;
+                g_testCommandsEnabled = true;
+                if (stdio_usb_connected()) {
+                    ivp30_gate_check();
+                    printf("[INFO] Test commands available:\n");
+                    printf("  'o' — Stack overflow (Core 0 fault test)\n");
+                    printf("  'w' — Stall Core 0 (watchdog test)\n");
+                    printf("  'W' — Stall Core 1 (watchdog test)\n\n");
+                }
+            }
+        }
+
+        // IVP-30: Watchdog dual-core kick (every loop iteration)
+        if (g_watchdogEnabled) {
+            g_wdtCore0Alive.store(true, std::memory_order_relaxed);
+            if (g_wdtCore0Alive.load(std::memory_order_relaxed) &&
+                g_wdtCore1Alive.load(std::memory_order_relaxed)) {
+                watchdog_update();
+                g_wdtCore0Alive.store(false, std::memory_order_relaxed);
+                g_wdtCore1Alive.store(false, std::memory_order_relaxed);
+            }
         }
 
         // IVP-10: IMU data read at 10Hz

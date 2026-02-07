@@ -56,6 +56,9 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
     add_compile_definitions(DEBUG=1)
 endif()
 
+# IVP-29: SDK-level stack limit registers (belt-and-suspenders with MPU guard)
+add_compile_definitions(PICO_USE_STACK_GUARDS=1)
+
 # Compiler warnings
 add_compile_options(
     -Wall
@@ -138,6 +141,10 @@ target_link_libraries(rocketchip
     pico_flash           # For flash_safe_execute
     # IVP-19: Dual-core support
     pico_multicore       # For multicore_launch_core1, inter-core primitives
+    # IVP-29: MPU stack guard (exception handling)
+    hardware_exception
+    # IVP-30: Hardware watchdog
+    hardware_watchdog
 )
 
 # Enable USB CDC for stdio (not UART)
