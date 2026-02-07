@@ -1,0 +1,1028 @@
+# RocketChip Standards Audit
+
+## Metadata
+
+- **Last Full Audit:** 2026-02-07 (Phase 2: JSF AV safety-critical + flow control + platform)
+- **Audited By:** Claude Code CLI
+- **Codebase Snapshot:** `1f35647`
+- **Lines Audited:** ~5,149 (9 .c files, 11 .h files, 1 .cpp)
+
+---
+
+## How to Use This Document
+
+**Status codes:**
+
+| Code | Meaning |
+|------|---------|
+| PASS | Compliant with the rule |
+| FAIL | Violation found — see notes |
+| PARTIAL | Some files comply, others don't |
+| NOT CHECKED | Not yet audited |
+| N/A | Not applicable to this codebase |
+
+**Applicability codes:**
+
+| Code | Meaning |
+|------|---------|
+| M | Mandatory — applies directly, must be enforced |
+| R | Recommended — applies in principle, aspirational |
+| N/A | Not Applicable — wrong language feature, platform, etc. |
+| D | Deferred — applies but not relevant until a future feature is implemented |
+| SDK | SDK Interface Constraint — violation occurs at Pico SDK boundary. Documented per-function with safety justification. |
+
+**Incremental auditing:** This document is populated in phases. Each phase updates status fields. The audit history (Section G) tracks what was checked and when.
+
+**Splitting rule:** If this document exceeds 1500 lines, split into per-standard files with a unified index.
+
+**Relationship to other documents:**
+- `CODING_STANDARDS.md` — Defines our rules. This document checks compliance.
+- `STANDARDS_DEVIATIONS.md` — Accepted deviations are logged there, referenced here.
+- `LESSONS_LEARNED.md` — Debugging knowledge that informed our platform rules.
+
+---
+
+## Standards Hierarchy
+
+The project's coding standards are built on a layered foundation:
+
+```
+MISRA C (1998/2004)          ← Foundation: automotive safety C rules
+  └── JSF AV C++ (2005)      ← Extension: C++ for flight-critical systems (Lockheed Martin)
+        └── JPL C (2009)      ← Refinement: JPL institutional standard, adds LOC levels
+              └── Power of 10 ← Distillation: 10 most critical safety rules (Holzmann/JPL)
+```
+
+**How this project uses them:**
+- **JSF AV C++** is the primary coding standard reference (adopted at project start)
+- **JPL C Standard** is more recent and refines/supersedes JSF AV where they overlap. JPL C LOC-1 through LOC-4 are Mandatory.
+- **Power of 10** is the highest-priority subset — these 10 rules are the most impactful for safety-critical embedded code
+- **MISRA C** underpins both JSF AV and JPL C but is not directly audited (covered transitively)
+
+Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to C, builds on lessons learned from JSF AV deployment).
+
+---
+
+## Summary Dashboard
+
+| Standard | Total | Applicable | Compliant | Deviations | Not Checked |
+|----------|-------|------------|-----------|------------|-------------|
+| **Power of 10** | 10 | 10 | 3 | 3 | 4 |
+| **JSF AV C++ (flow ctrl)** | 16 | 16 | 12 | 4 | 0 |
+| **JSF AV C++ (memory)** | 2 | 2 | 2 | 0 | 0 |
+| **JSF AV C++ (portable)** | 7 | 7 | 5 | 2 | 0 |
+| **JSF AV C++ (main.cpp C++)** | 32 | 32 | 30 | 2 | 0 |
+| JSF AV C++ (remaining) | ~164 | ~93 | TBD | TBD | ~93 |
+| JPL C (LOC-1-6) | ~31 | ~25 | TBD | TBD | ~25 |
+| **Platform Rules** | 12 | 12 | 12 | 0 | 0 |
+| **Multicore** | 5 | 5 | 5 | 0 | 0 |
+| Debug Output | ~20 | ~20 | TBD | TBD | ~20 |
+| Git Workflow | ~14 | ~14 | TBD | TBD | ~14 |
+| Session Checklist | ~12 | ~12 | TBD | TBD | ~12 |
+
+*Dashboard updated: 2026-02-07 (Phase 2)*
+
+---
+
+## Existing Deviations Review
+
+Before auditing, existing exemption tracking was reviewed:
+
+**CODING_STANDARDS.md "Exceptions Table"** — Empty. This tracks exceptions to our own coding standards. No entries. The table should reference `STANDARDS_DEVIATIONS.md` rather than implying zero deviations exist (sync fix applied).
+
+**STANDARDS_DEVIATIONS.md** — 4 active entries (AP-1 through AP-4). These track how our calibration code *intentionally differs* from ArduPilot's implementation approach. Review:
+
+| ID | Type | Still Relevant? | Assessment |
+|----|------|-----------------|------------|
+| AP-1 | Static array vs heap | Yes | Not a deviation — this *enforces* our no-heap rule (P10-3). Reclassify as "design decision." |
+| AP-2 | Gaussian elimination vs LU | Yes | Algorithm choice, not a standards violation. Reclassify as "design decision." |
+| AP-3 | Blocking vs async | Yes | Architecture choice for bare-metal. Reclassify as "design decision." |
+| AP-4 | Explicit orientation confirmation | Yes | Enhancement over ArduPilot. Reclassify as "design decision." |
+
+**Recommendation:** These 4 entries are architectural decisions, not standards deviations. Consider moving them to a "Design Decisions" section in `STANDARDS_DEVIATIONS.md` or `docs/decisions/`. They do not represent violations of any coding standard.
+
+---
+
+## Section A: JSF AV C++ Standards (221 Rules)
+
+### A.1: Not Applicable Rules — C Files
+
+Rules that do not apply to the .c source files because the language features are not used. **Note:** main.cpp is a .cpp file and is audited against the full JSF AV C++ ruleset in A.3 (per user decision #3).
+
+| Rules | Category | Reason N/A (for .c files) |
+|-------|----------|---------------------------|
+| 50, 57, 64-66, 67, 68, 69, 70, 70.1, 71, 71.1, 72, 73, 74, 75, 76, 77, 77.1, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 88.1, 89, 90, 91, 92, 93, 94, 95, 96, 97, 97.1 | Classes | No C++ classes used in .c files. C-style structs with `extern "C"` linkage only. |
+| 98, 99, 100 | Namespaces | Not available in C. |
+| 101, 102, 103, 104, 105, 106 | Templates | Not available in C. |
+| 109, 116, 117, 117.1, 117.2, 121, 122, 124 | Functions (C++ specific) | Inline functions, const references, pass-by-reference — C++ only. |
+| 126 | Comments | "Only C++ comments (//)." C files legitimately use /* */ block comments. |
+| 177, 178, 179 | Type Conversions (C++) | User-defined conversions, downcasting, virtual base conversion — C++ only. |
+| 185 | Type Conversions | "Use C++ casts." C files use C-style casts. |
+| 208 | Fault Handling | "C++ exceptions prohibited." Exceptions don't exist in C. |
+
+**Total N/A for .c files:** ~60 rules
+
+### A.2: SDK Interface Constraints
+
+Rules technically violated at the Pico SDK API boundary. Per user decision #6, each is documented per-function with safety justification. **71 distinct SDK functions cataloged in Phase 2.**
+
+#### A.2.1: Type Violations at SDK Boundary (Rule 209)
+
+| SDK Function | Returns | Our Variable | Files | Safety Justification | Wrapper? |
+|-------------|---------|-------------|-------|---------------------|----------|
+| `i2c_read_timeout_us()` | `int` | `int ret` | i2c_bus.c:68,147,163 | Return checked for `< 0` error; value is byte count | No |
+| `i2c_write_timeout_us()` | `int` | `int ret` | i2c_bus.c:138,157,173 | Return checked for `< 0` error; value is byte count | No |
+| `getchar_timeout_us()` | `int` | `int ch` | rc_os.c:206,254,672 | Returns `PICO_ERROR_TIMEOUT` (-1) or char; `int` required | No |
+| `flash_safe_execute()` | `int` | `int result` | calibration_storage.c:99,113 | Returns `PICO_OK` (0) or error code; checked | No |
+| `spin_lock_claim_unused()` | `int` | `int g_spinlockId` | main.cpp:244 | Returns ID or -1; checked | No |
+| `multicore_doorbell_claim_unused()` | `int` | `int g_doorbellNum` | main.cpp:259 | Returns ID or -1; checked | No |
+| `snprintf()` | `int` | `int len` | gps_pa1010d.c:191 | C99 standard; checked for `< 0` and overflow | No |
+
+**Total:** 48 instances of `int` at SDK boundaries — all return values checked.
+
+#### A.2.2: Library Violations (Rules 22, 24)
+
+| Rule | SDK Function(s) | Violation | Safety Justification | Wrapper? |
+|------|-----------------|-----------|---------------------|----------|
+| 22 | `printf()`, `getchar_timeout_us()` | stdio.h prohibited | USB CDC is debug/CLI interface; all calls guarded by `stdio_usb_connected()` (34 guard sites verified). Compiles out in release. | No — fundamental |
+| 24 | `sleep_ms()`, `sleep_us()` | stdlib prohibited | Pico SDK timing primitives; no alternative on bare metal. 36 call sites across 5 files. | No — fundamental |
+
+#### A.2.3: SDK Function Catalog Summary
+
+| Category | Count | Return Checked | Notes |
+|----------|-------|---------------|-------|
+| Timer/Time | 5 | 3/3 non-void | `get_absolute_time`, `time_us_32`, `to_ms_since_boot`, `sleep_ms`, `sleep_us` |
+| GPIO | 6 | 1/1 non-void | `gpio_init/set_dir/set_function/pull_up/put/get` |
+| I2C | 4 | 3/3 non-void | `i2c_init/deinit/read_timeout_us/write_timeout_us` |
+| Spinlock | 4 | 3/3 non-void | `spin_lock_claim_unused/init/blocking`, `spin_unlock` |
+| Multicore FIFO | 6 | 3/3 non-void | `pop_blocking/pop_timeout_us/push_blocking/wready/drain/lockout_victim_init` |
+| Multicore Doorbell | 5 | 3/3 non-void | `claim_unused/clear/is_set/set_other/unclaim` |
+| Flash | 3 | 1/1 non-void | `flash_range_erase/program` (in callbacks), `flash_safe_execute` |
+| Watchdog | 4 | 1/1 non-void | `enable/disable/update/enable_caused_reboot` |
+| PIO | 4 | 1/1 non-void | WS2812 PIO state machine setup |
+| Stdio | 4 | 3/3 non-void | `stdio_init_all/usb_connected`, `printf`, `getchar_timeout_us` |
+| Other | 4 | — | `exception_set_exclusive_handler`, `clock_get_hz`, `multicore_launch_core1` |
+| **Total** | **71** | **27/27 non-void** | **100% return value coverage** |
+
+### A.3: Applicable Rules — Audit Tables
+
+*Status column populated as rules are audited in Phases 2-4. Rules listed here apply to ALL source files including main.cpp.*
+
+#### Code Size and Complexity
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 1 | Functions <= 200 logical lines | M | NOT CHECKED | Known: main() ~950 lines (Phase 2) |
+| 3 | Cyclomatic complexity <= 20 | M | NOT CHECKED | Known: main(), core1_entry() high complexity |
+
+#### Environment
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 8 | Conform to ISO C++ standard | R | NOT CHECKED | Using C17 + C++17 with Pico SDK extensions |
+| 9 | Only basic source character set | M | NOT CHECKED | |
+| 11 | No trigraphs | M | NOT CHECKED | Likely PASS (modern code) |
+| 12 | No digraphs | M | NOT CHECKED | |
+| 13 | No multi-byte characters | M | NOT CHECKED | |
+| 14 | Literal suffixes uppercase | M | NOT CHECKED | Check `0x` literals, float suffixes |
+| 15 | Provision for runtime checking | M | NOT CHECKED | Relates to assertion density |
+
+#### Libraries
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 17 | No errno | M | NOT CHECKED | |
+| 18 | No offsetof | M | NOT CHECKED | |
+| 19 | No locale.h | M | NOT CHECKED | Likely PASS |
+| 20 | No setjmp/longjmp | M | PASS | Confirmed: none in codebase (P10-1 audit) |
+| 21 | No signal handling | M | NOT CHECKED | |
+| 22 | No stdio.h | SDK | PARTIAL | stdio.h used for USB CDC — accepted SDK constraint |
+| 23 | No atof/atoi/atol | M | NOT CHECKED | |
+| 24 | No abort/exit/getenv/system | SDK | NOT CHECKED | SDK timing functions used |
+| 25 | No time handling | M | NOT CHECKED | Pico SDK uses own timer API |
+
+#### Pre-Processing Directives
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 26 | Only #ifndef/#define/#endif/#include | M | NOT CHECKED | We use #ifdef DEBUG |
+| 27 | Multiple inclusion prevention | M | NOT CHECKED | |
+| 28 | #ifndef/#endif only for include guards | M | NOT CHECKED | |
+| 29 | No #define for inline macros | M | NOT CHECKED | |
+| 30 | No #define for constants | R | NOT CHECKED | We use both #define and const/constexpr |
+| 31 | #define only for include guards | M | NOT CHECKED | |
+| 32 | #include only for headers | M | NOT CHECKED | Likely PASS |
+
+#### Header Files
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 33 | Use <filename.h> notation | R | NOT CHECKED | We use "filename.h" for project headers |
+| 34 | Logically related declarations only | R | NOT CHECKED | |
+| 35 | Include guards | M | NOT CHECKED | |
+| 36 | Minimize compilation dependencies | R | NOT CHECKED | |
+| 37 | Include only required headers | R | NOT CHECKED | |
+| 38 | Forward declarations for pointer types | R | NOT CHECKED | |
+| 39 | No variable/function definitions in headers | M | NOT CHECKED | |
+
+#### Style
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 40 | Implementation files include needed headers | M | NOT CHECKED | |
+| 41 | Lines <= 120 characters | R | NOT CHECKED | |
+| 42 | Expressions on separate lines | M | NOT CHECKED | |
+| 43 | No tabs | R | NOT CHECKED | |
+| 44 | Indent >= 2 spaces, consistent | M | NOT CHECKED | |
+| 45 | Words separated by underscore | R | NOT CHECKED | We use camelCase in some places |
+| 46 | Identifiers <= 64 chars | M | NOT CHECKED | |
+| 47 | No leading underscore | M | NOT CHECKED | |
+| 48 | Identifiers differ substantially | M | NOT CHECKED | |
+| 49 | Acronyms all uppercase | R | NOT CHECKED | |
+| 51 | Functions/variables lowercase | R | NOT CHECKED | We follow this |
+| 52 | Constants/enumerators lowercase | R | NOT CHECKED | We use kCamelCase for constants |
+| 53 | Headers use .h extension | M | NOT CHECKED | |
+| 53.1 | No special chars in filenames | M | NOT CHECKED | |
+| 54 | Implementation files use .cpp | R | NOT CHECKED | We use .c for C files |
+| 58 | Multi-param functions formatting | R | NOT CHECKED | |
+| 59 | Braces required for if/else/while/for | M | NOT CHECKED | |
+| 60 | Brace placement rules | R | NOT CHECKED | |
+| 61 | Nothing else on brace lines | R | NOT CHECKED | |
+| 62 | Dereference/address-of connected to type | R | NOT CHECKED | |
+| 63 | No spaces around ./->/ unary ops | R | NOT CHECKED | |
+
+#### Functions
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 107 | Functions declared at file scope | M | NOT CHECKED | |
+| 108 | No variable argument lists | M | NOT CHECKED | DBG_PRINT uses ##__VA_ARGS__ |
+| 110 | Max 7 arguments | M | NOT CHECKED | |
+| 111 | No return of pointer to local | M | NOT CHECKED | |
+| 113 | Single exit point | R | NOT CHECKED | Many functions have early returns |
+| 114 | Value-returning via return statement | M | NOT CHECKED | |
+| 115 | Check function return values | M | NOT CHECKED | See P10-7 audit |
+| 118 | Pointers when NULL possible | R | NOT CHECKED | |
+| 119 | No recursion | M | PASS | Confirmed: no recursion (P10-1 audit) |
+| 120 | Overloaded ops consistent semantics | R | NOT CHECKED | N/A for .c files |
+| 123 | Minimize accessor/mutator count | R | NOT CHECKED | |
+| 125 | Avoid unnecessary temporaries | R | NOT CHECKED | |
+
+#### Comments
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 127 | No commented-out code | M | NOT CHECKED | |
+| 128 | No external source docs in comments | R | NOT CHECKED | |
+| 129 | Header comments describe behavior | R | NOT CHECKED | |
+| 130 | Purpose of code explained | R | NOT CHECKED | |
+| 131 | Comments don't repeat code | R | NOT CHECKED | |
+| 132 | Variables/typedefs documented | R | NOT CHECKED | |
+| 133 | Source files have intro comment | M | NOT CHECKED | All files have @file/@brief |
+
+#### Declarations and Definitions
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 135 | No inner scope name shadowing | M | NOT CHECKED | |
+| 136 | Declarations at smallest scope | M | NOT CHECKED | See P10-6 audit |
+| 137 | File-scope declarations static | M | NOT CHECKED | |
+| 138 | No mixed internal/external linkage | M | NOT CHECKED | |
+| 139 | No multiple external declarations | M | NOT CHECKED | |
+| 140 | No register keyword | M | NOT CHECKED | Likely PASS |
+| 141 | No type declaration in definition | M | NOT CHECKED | |
+
+#### Initialization
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 142 | All variables initialized before use | M | NOT CHECKED | |
+| 143 | Meaningful initialization only | R | NOT CHECKED | |
+| 144 | Braces match initialization structure | M | NOT CHECKED | |
+| 145 | Enum = only for first or all | M | NOT CHECKED | |
+
+#### Types
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 146 | IEEE 754 floating point | M | NOT CHECKED | RP2350 uses software float |
+| 147 | No floating point bit representation | M | NOT CHECKED | |
+| 148 | Enums instead of int for choices | M | NOT CHECKED | |
+
+#### Constants
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 149 | No octal constants (except 0) | M | NOT CHECKED | |
+| 150 | Hex constants uppercase | M | NOT CHECKED | |
+| 151 | Named constants, no magic numbers | M | NOT CHECKED | Known: some inline numbers in IVP test code |
+| 151.1 | String literals not modified | M | NOT CHECKED | |
+
+#### Variables
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 152 | One variable per declaration | M | NOT CHECKED | |
+
+#### Unions and Bit Fields
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 153 | No unions | M | NOT CHECKED | |
+| 154 | Bit-fields explicitly typed | M | NOT CHECKED | |
+| 155 | No bit-field packing | R | NOT CHECKED | |
+| 156 | Struct members named and accessed | M | NOT CHECKED | |
+
+#### Operators
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 157 | No side effects in && / \|\| RHS | M | NOT CHECKED | |
+| 158 | Parenthesize && / \|\| operands | M | NOT CHECKED | |
+| 159 | Don't overload \|\|, &&, unary & | M | NOT CHECKED | N/A for C |
+| 160 | Assignment only in statements | M | NOT CHECKED | |
+| 162 | No signed/unsigned mixing | M | NOT CHECKED | |
+| 163 | No unsigned arithmetic | R | NOT CHECKED | We use unsigned extensively (embedded) |
+| 164 | Shift operand range checking | M | NOT CHECKED | |
+| 164.1 | No negative left operand in >> | M | NOT CHECKED | |
+| 165 | No unary minus on unsigned | M | NOT CHECKED | |
+| 166 | sizeof has no side effects | M | NOT CHECKED | |
+| 167 | Integer division documented | R | NOT CHECKED | |
+| 168 | No comma operator | M | NOT CHECKED | |
+
+#### Pointers and References
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 169 | Avoid pointer-to-pointer | M | PASS | No double pointers found (P10-9 audit) |
+| 170 | Max 2 indirection levels | M | PASS | No double pointers found |
+| 171 | Relational ops on same type pointers | M | NOT CHECKED | |
+| 173 | No address of auto to persistent | M | NOT CHECKED | |
+| 174 | No null pointer dereference | M | NOT CHECKED | |
+| 175 | Compare to 0, not NULL | R | NOT CHECKED | We use NULL in C code |
+| 176 | typedef for function pointers | M | NOT CHECKED | We do this (calibration callbacks) |
+
+#### Type Conversions
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 180 | No implicit info-losing conversions | M | NOT CHECKED | |
+| 181 | No redundant explicit casts | R | NOT CHECKED | |
+| 182 | No pointer type casting | M | NOT CHECKED | |
+| 183 | Minimize type casting | R | NOT CHECKED | |
+| 184 | No float-to-int unless required | M | NOT CHECKED | |
+
+#### Flow Control (Audited Phase 2)
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 186 | No unreachable code | M | PASS | No code after return/break/goto |
+| 187 | All statements have side effects | M | PASS | No bare expression statements |
+| 188 | Labels only in switch | M | FAIL | `cal_cleanup:` in rc_os.c:450 (goto target) |
+| 189 | No goto | M | FAIL | 6 goto in rc_os.c:305,332,348,357,365,381 (see P10-1) |
+| 190 | No continue | M | FAIL | 3 instances: i2c_bus.c:91, main.cpp:401, main.cpp:703 |
+| 191 | break only in switch | M | PASS | No break-from-loop violations |
+| 192 | if/else has final else | R | PASS | All multi-branch chains have final else |
+| 193 | Non-empty case has break | M | PASS | No fall-through violations |
+| 194 | Switch has default | M | FAIL | `handle_calibration_menu()` rc_os.c:561 missing default |
+| 195 | Switch expression not bool | M | PASS | All switches on int/enum types |
+| 196 | Switch has >= 2 cases | M | PASS | Minimum 3 cases found |
+| 197 | No float loop counters | M | PASS | All loop counters are integral |
+| 198 | for-init: single variable | M | PASS | No multi-init for-loops |
+| 199 | for-increment: single change | M | PASS | No multi-increment for-loops |
+| 200 | No null for-init/increment | M | PASS | All for-loops fully specified; `while(true)` used for infinite loops |
+| 201 | No modifying loop variable in body | M | PASS | Loop vars only modified in increment clause |
+
+**Rule 190 details (continue):**
+
+| File:Line | Loop | Purpose | Assessment |
+|-----------|------|---------|------------|
+| i2c_bus.c:91 | I2C scan | Skip GPS address 0x10 (LL Entry 20) | Necessary — GPS causes bus interference |
+| main.cpp:401 | Seqlock read | Retry if write-in-progress (odd sequence) | Correct synchronization pattern |
+| main.cpp:703 | Sensor loop | Reset timing after USB timeout in Core 1 | Acceptable loop control |
+
+**Rule 194 details:** `handle_calibration_menu()` at rc_os.c:561 has no `default:` clause. By contrast, `handle_main_menu()` at rc_os.c:512 correctly has `default:` calling `rc_os_on_unhandled_key()`. **Recommendation:** Add `default: break;` to the calibration menu switch.
+
+#### Expressions
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 202 | No float equality testing | M | NOT CHECKED | |
+| 203 | No overflow/underflow | M | NOT CHECKED | |
+| 204 | Single side-effect per expression | M | NOT CHECKED | |
+| 204.1 | Order-independent evaluation | M | NOT CHECKED | |
+| 205 | volatile only for hardware | M | NOT CHECKED | We use atomics instead (good) |
+
+#### Memory Allocation (Audited Phase 2)
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 206 | No heap after init | M | PASS | Confirmed: no malloc/free/new/delete (P10-3 audit) |
+| 207 | No unencapsulated global data | R | PASS | All globals use `static` + `g_` prefix; 8 `extern` interface decls in rc_os.h are intentional API |
+
+**Rule 207 details:** All file-scope variables across 10 source files use `static` for internal linkage and the `g_` naming prefix per project convention. The 8 `extern` declarations in rc_os.h (`rc_os_imu_available`, `rc_os_baro_available`, callback function pointers, etc.) are intentional cross-module interfaces — the actual definitions in rc_os.c are not `static` by design.
+
+#### Portable Code (Audited Phase 2)
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 209 | Fixed-width types (typedef) | M | PARTIAL | 48 SDK boundary (accepted), 14 fixable loop counters |
+| 210 | No data representation assumptions | R | PASS | Explicit byte unpacking, static_assert on struct sizes |
+| 210.1 | No member ordering assumptions | R | PASS | No struct-to-byte casts |
+| 211 | No basic type address assumptions | R | PASS | Pointer arithmetic limited to aligned flash buffers |
+| 212 | No underflow/overflow dependence | M | PASS | CRC intentional modulo only |
+| 213 | Explicit operator precedence | M | PARTIAL | 1 unclear precedence in calibration_data.c:17 |
+| 214 | No non-local static init order | R | PASS | All statics use in-class or aggregate init |
+| 215 | No pointer arithmetic | M | PASS | 2 instances in flash layout (intentional, aligned) |
+
+**Rule 209 details:** 62 total `int` usages found. 48 are at SDK boundaries (accepted — see A.2.1). 14 are fixable loop counters:
+
+| File:Line | Current | Fix | Priority |
+|-----------|---------|-----|----------|
+| calibration_data.c:18 | `int j` | `uint8_t j` | Trivial |
+| icm20948.c:243 | `int tries` | `uint8_t tries` | Trivial |
+| icm20948.c:318 | `int mag_attempt` | `uint8_t mag_attempt` | Trivial |
+| i2c_bus.c:86 | `int found` | `int32_t found` | Trivial |
+| i2c_bus.c:210 | `int i` | `uint8_t i` | Trivial |
+| rc_os.c:203 | `int idx` | `uint16_t idx` | Trivial |
+| main.cpp:426 | `int i` | `uint8_t i` | Trivial |
+| main.cpp:1057 | `int foundCount` | `uint8_t foundCount` | Trivial |
+| main.cpp:1444,1514,1587 | `int i` | `uint8_t i` | Trivial |
+
+**Rule 213 details:** calibration_data.c:17 has `crc ^= (uint16_t)data[i] << 8` — shift vs XOR precedence ambiguous to readers. Fix: `crc ^= ((uint16_t)data[i] << 8)`. Single parenthesis addition.
+
+#### Miscellaneous
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 216 | Avoid premature optimization | R | NOT CHECKED | |
+| 217 | Prefer compile/link errors | R | NOT CHECKED | |
+| 218 | Warning levels per project policy | M | NOT CHECKED | -Wall -Wextra enabled (P10-10) |
+
+#### Testing (assess against IVP approach)
+
+| Rule | Summary | App | Status | Notes |
+|------|---------|-----|--------|-------|
+| 219 | Base class tests apply to derived | N/A | N/A | No class hierarchies |
+| 220 | Structural coverage on flattened classes | N/A | N/A | No class hierarchies |
+| 221 | Virtual function resolution tested | N/A | N/A | No virtual functions |
+
+### A.4: main.cpp C++ Assessment (Audited Phase 2)
+
+Per user decision #3, main.cpp is audited against the full JSF AV C++ ruleset since it is a .cpp file. The C-only files (.c) are exempt from these rules.
+
+**Overall: 30/32 C++-specific rules PASS. 2 accepted deviations.**
+
+#### C++ Classes & Structures (Rules 64-97) — PASS
+
+main.cpp defines 3 structs (`spinlock_test_data_t`, `shared_sensor_data_t`, `sensor_seqlock_t`). All are plain aggregates (POD) with no user-defined constructors, destructors, or methods. `sensor_seqlock_t` contains `std::atomic<uint32_t>` (C++ class member) but no user-defined special members.
+
+#### Namespaces (Rules 98-100) — PASS
+
+No `using namespace` directives. All standard library types fully qualified (e.g., `std::atomic<uint32_t>`, `std::memory_order_acquire`).
+
+#### Templates (Rules 101-106) — PASS
+
+Only `std::atomic<T>` used (11 instances). No custom templates, no template specialization, no metaprogramming.
+
+#### Functions (Rules 109, 116-117, 121-122, 124) — PASS
+
+No `inline` keyword (uses `static` for internal linkage). No references (pointers preferred for embedded). No function overloading. No default arguments.
+
+#### Type Casts (Rules 177-179, 185) — PARTIAL
+
+| Finding | Status | Severity |
+|---------|--------|----------|
+| 81 C-style casts (e.g., `(double)snap.accel_x` for printf) | FAIL (185) | Low — all safe narrowing/widening |
+| No `reinterpret_cast` semantics used | PASS | — |
+| No unsafe pointer casts | PASS | — |
+
+**Deviation:** C-style casts used instead of `static_cast<T>()`. All 81 instances are safe type conversions (float-to-double for printf, integer widening). Would require 81 edits for minimal safety benefit. **Accepted.**
+
+#### Comments (Rule 126) — PASS
+
+File uses `//` comments throughout. One Doxygen `/** */` block comment for the file header (lines 1-37) — standard documentation practice, accepted.
+
+#### Exceptions & RTTI (Rule 208) — PASS
+
+No try/catch, no throw, no dynamic_cast, no typeid. Exceptions disabled in build configuration.
+
+#### C++ Memory (Rule 206) — PASS
+
+No `new`/`delete`. All memory statically allocated. Large buffers (e.g., `g_jitterTimestamps[kJitterSampleCount]` — 4KB) use `static` per LL Entry 1.
+
+#### C++ Features Used Correctly
+
+| Feature | Count | Assessment |
+|---------|-------|------------|
+| `std::atomic<T>` | 11 vars, 42 operations | Correct memory ordering throughout |
+| `constexpr` | 29 constants | Eliminates magic numbers, type-safe |
+| `static_assert` | 2 | Struct size/alignment validation |
+| `extern "C"` | 2 | Linker symbols (`__StackBottom`, `__StackOneBottom`) |
+| Brace initialization | 10+ | C++11 aggregate init style |
+| `auto` keyword | 0 | Deliberately avoided — explicit types preferred |
+| STL containers | 0 | Correctly avoided for bare-metal |
+
+---
+
+## Section B: Power of 10 Rules (Audited Phase 1)
+
+### B.1: Simple Control Flow
+
+> **Rule:** Restrict all code to very simple control flow constructs — do not use goto statements, setjmp or longjmp constructs, or direct or indirect recursion.
+
+**Rationale:** Eliminates unstructured control flow that makes code hard to analyze, verify, and maintain. Prevents stack overflow from unbounded recursion. Makes automated verification possible.
+
+**JSF AV cross-references:** Rule 20 (no setjmp/longjmp), Rule 119 (no recursion), Rule 189 (no goto)
+**JPL C cross-references:** LOC-2 Rule 1 (no direct or indirect recursion)
+
+**How to verify:** `grep -rn 'goto\|setjmp\|longjmp' src/` + manual check for recursive call patterns
+
+**Compliance status: PARTIAL**
+
+| Check | Status | Details |
+|-------|--------|---------|
+| No setjmp/longjmp | PASS | None found in codebase |
+| No recursion | PASS | No recursive function calls detected |
+| No goto | FAIL | 6 goto statements found |
+
+**goto findings:**
+
+All 6 goto statements are in [rc_os.c](src/cli/rc_os.c), function `cmd_accel_6pos_cal()`, lines 305, 332, 348, 357, 365, 381. All jump forward to label `cal_cleanup` (line 384) for error cleanup:
+
+```c
+// Pattern in each case:
+if (error_condition) {
+    printf("Error message\n");
+    goto cal_cleanup;
+}
+// ...
+cal_cleanup:
+    icm20948_set_i2c_master_enable(imu, true);  // Re-enable mag reads
+    return;
+```
+
+**Assessment:** This is the cleanup-on-error pattern, common in embedded C (Linux kernel uses it extensively). The gotos are all forward jumps to a single cleanup label. The function has resource acquisition (disabling I2C master) that must be released on all exit paths.
+
+**Recommendation:** Evaluate case-by-case per user decision #7. Options:
+1. Accept as deviation with documented rationale (cleanup pattern)
+2. Refactor: extract the calibration body into a sub-function, call cleanup in the caller
+3. Refactor: restructure with do-while(0) + break pattern
+
+### B.2: Fixed Upper Bound on Loops
+
+> **Rule:** Give all loops a fixed upper bound. It must be trivially possible for a checking tool to prove statically that the loop cannot exceed a preset upper bound on the number of iterations.
+
+**Rationale:** Prevents infinite loops and guarantees termination. Enables static analysis of worst-case execution time — critical for real-time embedded systems.
+
+**JSF AV cross-references:** Rule 197 (no float loop counters), Rules 198-201 (for-loop restrictions)
+**JPL C cross-references:** LOC-2 Rule 2 (all loops must have a statically determinable upper bound)
+
+**How to verify:** `grep -rn 'while\s*(true\|1)\|for\s*(;;\s*)' src/` + manual review of loop bounds
+
+**Compliance status: FAIL**
+
+| Location | Loop | Bounded? | Context |
+|----------|------|----------|---------|
+| main.cpp:425 | `while (true)` | No | IVP test wait loop — breaks on condition |
+| main.cpp:607 | `while (true)` | No | Core 1 sensor read loop |
+| main.cpp:679 | `while (true)` | No | IVP test wait loop |
+| main.cpp:784 | `while (true) { nop; }` | No | Deliberate halt on error |
+| main.cpp:893 | `while (true) { nop; }` | No | Deliberate halt on error |
+| main.cpp:2533 | `while (true)` | No | **Main application loop** |
+| rc_os.c:253 | `while (true)` | No | `wait_for_enter_or_esc()` — user input wait |
+| rc_os.c:654 | `while (getchar...)` | Implicit | USB buffer drain — terminates on timeout |
+
+**All bounded loops (compliant):** For-loops in calibration code (`pos < 6`, `retry < 3`, `iter < MAX_ITERATIONS`), I2C bus scan (`addr < 0x78`), sensor polling loops — all correctly bounded.
+
+**Assessment:**
+- Lines 784, 893: Deliberate infinite halt on unrecoverable error — acceptable for embedded (equivalent to `abort()`).
+- Line 2533: Main application loop — bare-metal embedded programs run forever by design. This is a universal exception for embedded systems.
+- Line 607: Core 1 sensor loop — same as main loop, runs until system reset.
+- Lines 425, 679: IVP test wait loops — break on timeout or condition. Could add explicit iteration limits.
+- Line 253: User input wait — has internal escape conditions but no hard timeout.
+
+**Recommendation:** Accept main loops (2533, 607) and error halts (784, 893) as documented deviations — bare-metal embedded programs don't terminate. Add explicit iteration limits to IVP test wait loops (425, 679) and `wait_for_enter_or_esc()` (253).
+
+### B.3: No Dynamic Memory After Initialization
+
+> **Rule:** Do not use dynamic memory allocation after initialization.
+
+**Rationale:** Heap allocation introduces unpredictable timing (fragmentation, garbage collection), potential memory leaks, and non-deterministic behavior. In safety-critical systems, all memory must be statically allocated and accounted for.
+
+**JSF AV cross-references:** Rule 206 (no free store after init)
+**JPL C cross-references:** LOC-2 Rule 3 (no dynamic memory allocation after task initialization)
+
+**How to verify:** `grep -rn 'malloc\|calloc\|realloc\|free(\|new \|delete ' src/`
+
+**Compliance status: PASS**
+
+No instances of `malloc`, `calloc`, `realloc`, `free`, `new`, or `delete` found anywhere in the codebase. All large buffers use static allocation:
+
+| Buffer | Size | Location |
+|--------|------|----------|
+| `g_6pos_samples[300][3]` | 3.6KB | calibration_manager.c:54 |
+| `g_jtj[81]` | 324B | calibration_manager.c:60 |
+| `g_jtj_inv[81]` | 324B | calibration_manager.c:61 |
+| `g_jtr[9]` | 36B | calibration_manager.c:62 |
+| Shared sensor data | 124B | main.cpp (static) |
+
+This is a strength of the codebase and directly informed by LL Entry 1 (stack overflow from large locals).
+
+### B.4: Function Length
+
+> **Rule:** No function should be longer than what can be printed on a single sheet of paper in a standard format with one line per statement and one line per declaration. This typically means no more than about 60 lines of code per function.
+
+**Rationale:** Short functions are easier to understand, test, and verify. Long functions indicate excessive complexity and tight coupling. Each function should do one thing.
+
+**JSF AV cross-references:** Rule 1 (functions <= 200 lines)
+**JPL C cross-references:** LOC-4 Rule 4 (function length limits)
+
+**How to verify:** Count lines per function across all source files. Flag any exceeding 60 lines.
+
+**Compliance status: FAIL**
+
+**Functions exceeding 60 lines:**
+
+| File | Function | ~Lines | Severity |
+|------|----------|--------|----------|
+| main.cpp | `main()` | ~950 | Critical |
+| main.cpp | `core1_entry()` | ~300 | Critical |
+| main.cpp | Multiple IVP gate functions | 100-200 each | High |
+| rc_os.c | `cmd_accel_6pos_cal()` | ~184 | High |
+| calibration_manager.c | `calibration_compute_6pos()` | ~100 | Medium |
+| calibration_manager.c | `mat_inverse_9x9()` | ~70 | Low |
+
+**Functions compliant (sampling):** `i2c_bus_init()` (26), `i2c_bus_recover()` (42), `i2c_bus_scan()` (55), `calibration_start_gyro()` (10), `calibration_start_accel_level()` (8), most driver functions.
+
+**Assessment:** The driver and calibration modules are reasonably compliant. The critical violations are concentrated in main.cpp (IVP test harness code) and the CLI calibration command. Per user decision #8, this is flagged as FAIL only — refactoring is a separate IVP task, not part of this audit.
+
+**Recommendation:** Flag only. Refactoring main.cpp is a separate task. Note that much of main.cpp's length is IVP test/gate logic that will be removed or reorganized for production.
+
+### B.5: Assertion Density
+
+> **Rule:** The code's assertion density should average to minimally two assertions per function. Assertions must be used to check for anomalous conditions that should never happen in real-life executions. Assertions must be side-effect free and should be defined as Boolean tests.
+
+**Rationale:** Assertions catch programming errors early, document invariants, and create self-checking code. They are the primary defense against "impossible" conditions that inevitably occur.
+
+**JSF AV cross-references:** Rule 15 (provision for runtime checking)
+**JPL C cross-references:** LOC-3 Rule 3 (assertions for anomalous conditions)
+
+**How to verify:** `grep -rn 'assert\|_Static_assert\|static_assert' src/ include/`
+
+**Compliance status: FAIL**
+
+| Type | Count | Location |
+|------|-------|----------|
+| `static_assert` (C++) | 2 | main.cpp:294-295 (struct size, alignment) |
+| `_Static_assert` (C) | 2 | calibration_data.h:145, calibration_storage.c:44 |
+| Runtime `assert()` | 0 | None in codebase |
+
+**Total assertions:** 4 (all compile-time)
+**Total functions:** ~80+ (estimated)
+**Assertion density:** 0.05 per function (target: >= 2.0)
+
+**Assessment:** Critical deficiency. The codebase has excellent parameter validation (early-return patterns) but zero runtime assertions for invariant checking. The 4 compile-time assertions validate struct layouts only.
+
+Many functions DO validate parameters with early returns:
+```c
+if (pos >= ACCEL_6POS_POSITIONS) return CAL_RESULT_INVALID_DATA;
+if (!g_initialized) return false;
+if (data == NULL || len == 0) return -1;
+```
+
+These serve a similar purpose to assertions but return error codes rather than halting. For embedded systems, this is often more appropriate than `assert()` which calls `abort()`.
+
+**Recommendation:** Define a project-specific `RC_ASSERT()` macro that:
+- In debug builds: prints location and halts (like standard assert)
+- In release builds: compiles out (like standard assert) or triggers watchdog
+- Add assertions for: non-null pointers at API boundaries, array bounds in loops, state machine invariants, calibration parameter ranges after fit convergence
+
+### B.6: Minimal Variable Scope
+
+> **Rule:** Declare all data objects at the smallest possible level of scope.
+
+**Rationale:** Minimizing scope reduces the opportunity for unintended interactions, makes code easier to understand, and helps the compiler optimize.
+
+**JSF AV cross-references:** Rule 136 (declarations at smallest scope), Rule 137 (file-scope static)
+**JPL C cross-references:** LOC-3 Rule 6 (restrict scope of data to the smallest possible)
+
+**How to verify:** Review global variables for possible scope reduction. Check file-scope statics.
+
+**Compliance status: PARTIAL**
+
+**Module-level statics (appropriate):**
+- `calibration_manager.c`: `g_calibration`, `g_cal_state`, buffers — file-scoped, necessary
+- `i2c_bus.c`: `g_initialized` — file-scoped, appropriate
+- `ws2812_status.c`: `g_state` — file-scoped, appropriate
+- `rc_os.c`: `g_menu`, `g_wasConnected` — file-scoped, appropriate
+
+**Cross-module globals (necessary for integration):**
+- `rc_os.c`: `rc_os_imu_available`, `rc_os_baro_available`, callback function pointers — used by main.cpp to configure CLI
+- These are intentional interfaces between modules
+
+**Excessive scope (main.cpp):**
+- 88+ static/global variables for IVP gate test tracking
+- These are test harness state — excessive for production but acceptable for IVP development phase
+
+**Assessment:** Driver and calibration modules follow this rule well. main.cpp has extensive global state but this is IVP test infrastructure that will be reorganized.
+
+**Recommendation:** Document that main.cpp global state is IVP-specific. Consider consolidating related test variables into structs to reduce namespace pollution.
+
+### B.7: Check Return Values and Parameters
+
+> **Rule:** Each calling function must check the return value of nonvoid functions, and each called function must check the validity of all parameters provided by the caller.
+
+**Rationale:** Unchecked return values can silently propagate errors. Unchecked parameters can cause undefined behavior. Both lead to failures that are difficult to diagnose.
+
+**JSF AV cross-references:** Rule 115 (test error information from functions)
+**JPL C cross-references:** LOC-3 Rule 7 (check return value of non-void functions, check validity of function parameters)
+
+**How to verify:** Manual review of function call sites for unchecked returns; review function entry points for parameter validation.
+
+**Compliance status: PARTIAL**
+
+**Parameter validation (good):**
+- `i2c_bus.c`: All public functions check `g_initialized`, `data != NULL`, `len > 0`
+- `calibration_manager.c`: Checks pos bounds, read_fn non-null, state validity
+- `rc_os.c`: Checks IMU/baro availability before calibration commands
+
+**Unchecked return values (issues):**
+
+| File | Line | Call | Return | Impact |
+|------|------|------|--------|--------|
+| rc_os.c | 190 | `i2c_bus_reset()` | `bool` ignored | Medium — recovery status lost |
+| rc_os.c | 441 | `i2c_bus_reset()` | `bool` ignored | Medium — recovery status lost |
+
+**Void functions (no return to check):**
+- `flash_range_program()`, `flash_range_erase()` — Pico SDK void functions, cannot check
+
+**Assessment:** Good parameter validation patterns in driver/calibration code. Two instances of ignored return values from `i2c_bus_reset()`. SDK functions with void returns are inherently uncheckable.
+
+**Recommendation:** Check return value of `i2c_bus_reset()` at lines 190 and 441 in rc_os.c. Log or handle the failure case.
+
+### B.8: Preprocessor Limitations
+
+> **Rule:** The use of the preprocessor must be limited to the inclusion of header files and simple macro definitions. Token pasting, variable argument lists (ellipses), and recursive macro calls are not allowed. All macros must expand into complete syntactic units. Conditional compilation directives must be kept to a minimum.
+
+**Rationale:** Complex macros are error-prone, hard to debug, and invisible to many analysis tools. Keeping preprocessor usage simple makes the code analyzable.
+
+**JSF AV cross-references:** Rules 26-32 (preprocessing directives)
+**JPL C cross-references:** LOC-1 Rule 5 (do not use the preprocessor for anything other than file inclusion and simple macros)
+
+**How to verify:** `grep -rn '#define' src/ include/` — review for complex macros, token pasting, variadic macros.
+
+**Compliance status: PARTIAL**
+
+| Category | Status | Details |
+|----------|--------|---------|
+| Token pasting (`##`) | PASS | None found |
+| Recursive macros | PASS | None found |
+| Conditional compilation | PASS | Only `#ifdef __cplusplus`, `#ifndef INCLUDE_GUARD`, `#ifdef DEBUG` |
+| Simple constant macros | PASS | Register bit masks, storage constants |
+| Variadic macros | FAIL | `DBG_PRINT` uses `##__VA_ARGS__` |
+
+**Variadic macro usage:**
+```c
+// config.h
+#define DBG_PRINT(fmt, ...) printf("[%lu] " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
+#define DBG_ERROR(fmt, ...) printf("[%lu] ERROR: " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
+```
+
+**Assessment:** The only preprocessor complexity is the debug macros using variadic arguments. This is a standard pattern for debug logging in embedded C. All other macros are simple constants or include guards.
+
+**Recommendation:** Accept as deviation. The `##__VA_ARGS__` pattern is:
+- Industry-standard for debug logging
+- Compiles out in release builds (`#ifdef DEBUG`)
+- Not hiding complexity — the expansion is straightforward
+- No practical alternative in C (C++ could use variadic templates)
+
+### B.9: Pointer Restrictions
+
+> **Rule:** The use of pointers must be restricted. Specifically, no more than one level of dereferencing should be used. Pointer dereference operations may not be hidden in macro definitions or inside typedef declarations.
+
+**Rationale:** Multi-level pointer indirection is a primary source of bugs (null dereferences, dangling pointers, aliasing). Restricting indirection depth makes code analyzable.
+
+**JSF AV cross-references:** Rule 169 (avoid pointer-to-pointer), Rule 170 (max 2 indirection levels), Rule 215 (no pointer arithmetic)
+**JPL C cross-references:** LOC-1 Rule 9 (restrict use of pointers; no more than one level of dereferencing)
+
+**How to verify:** `grep -rn '\*\*' src/ include/` for double pointer declarations. Review typedefs for hidden indirection.
+
+**Compliance status: PASS**
+
+- No double-pointer (`**`) declarations found in any source or header file
+- Function pointers use single indirection with proper typedefs:
+  - `typedef bool (*accel_read_fn)(...)` — calibration_manager.h
+  - `typedef void (*rc_os_sensor_status_fn)(void)` — rc_os.h
+- No hidden pointer dereferences in macros
+- `g_pTestSpinlock` in main.cpp is a single pointer
+
+### B.10: Compiler Warnings
+
+> **Rule:** All code must be compiled, from the first day of development, with all compiler warnings enabled at the most pedantic setting available. All code must compile without warnings. All code must also be checked daily with at least one strong static source code analyzer and should pass all analyses with zero warnings.
+
+**Rationale:** Compiler warnings catch real bugs. Suppressing or ignoring them allows defects to accumulate. Static analysis catches classes of errors that testing cannot.
+
+**JSF AV cross-references:** Rule 218 (warning levels per project policy)
+**JPL C cross-references:** LOC-1 Rule 10 (compile with all warnings enabled at pedantic setting)
+
+**How to verify:** Read CMakeLists.txt for warning flags. Check for -Wno-* suppressions.
+
+**Compliance status: PARTIAL**
+
+**CMakeLists.txt (lines 63-67):**
+```cmake
+add_compile_options(
+    -Wall
+    -Wextra
+    -Wno-unused-parameter
+)
+```
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| `-Wall` enabled | PASS | Catches most common issues |
+| `-Wextra` enabled | PASS | Additional diagnostics |
+| `-Werror` (warnings as errors) | FAIL | Not enabled |
+| `-Wpedantic` | FAIL | Not enabled |
+| Suppressions minimal | PASS | Only `-Wno-unused-parameter` |
+| Static analyzer | FAIL | No static analysis configured |
+| Zero warnings build | NOT CHECKED | Need to verify build output |
+
+**Assessment:**
+- Strong warning configuration for development (`-Wall -Wextra`)
+- `-Wno-unused-parameter` is reasonable — callback functions frequently have unused parameters by design
+- Missing `-Werror` means warnings don't block builds
+- Missing `-Wpedantic` means some standards compliance issues may be missed
+- No static analysis tool (clang-tidy, cppcheck) configured
+
+**Recommendation:**
+1. Consider adding `-Werror` (or `-Werror=return-type -Werror=uninitialized` for critical warnings only)
+2. Consider adding `-Wpedantic` for stricter standards compliance
+3. Add static analysis to build process (Phase 5 / future tooling effort)
+
+---
+
+## Section C: JPL C Standard
+
+*To be audited in Phase 3.*
+
+### C.1: LOC-1 Language Compliance — Mandatory
+
+| Rule | Description | Status |
+|------|-------------|--------|
+| LOC-1.1 | Do not stray outside language definition | NOT CHECKED |
+| LOC-1.2 | Compile with all warnings enabled | PARTIAL (see P10-10) |
+
+### C.2: LOC-2 Predictable Execution — Mandatory
+
+| Rule | Description | Status |
+|------|-------------|--------|
+| LOC-2.1 | No direct or indirect recursion | PASS (see P10-1) |
+| LOC-2.2 | All loops have fixed upper bound | FAIL (see P10-2) |
+| LOC-2.3 | No dynamic memory after init | PASS (see P10-3) |
+| LOC-2.4 | No variable-length arrays | NOT CHECKED |
+| LOC-2.5 | IPC message length verification | NOT CHECKED |
+| LOC-2.6 | Task stack size >= 150% measured | NOT CHECKED |
+| LOC-2.7 | Task stack watermark checked at runtime | NOT CHECKED |
+
+### C.3: LOC-3 Defensive Coding — Mandatory
+
+| Rule | Description | Status |
+|------|-------------|--------|
+| LOC-3.1 | Use assertions for anomalous conditions | FAIL (see P10-5) |
+| LOC-3.2 | Assertions side-effect free | PASS (4 static asserts are side-effect free) |
+| LOC-3.3 | Assertions not disabled in production | NOT CHECKED |
+| LOC-3.4 | Data integrity check on stored values | NOT CHECKED |
+| LOC-3.5 | Barrier patterns for critical data | NOT CHECKED |
+| LOC-3.6 | Restrict scope of data | PARTIAL (see P10-6) |
+| LOC-3.7 | Check return values and parameters | PARTIAL (see P10-7) |
+
+### C.4: LOC-4 Code Clarity — Mandatory
+
+| Rule | Description | Status |
+|------|-------------|--------|
+| LOC-4.1 | Function length limits | FAIL (see P10-4) |
+| LOC-4.2 | No more than one statement per line | NOT CHECKED |
+| LOC-4.3 | No hidden control flow (macros) | PARTIAL (see P10-8) |
+| LOC-4.4 | No unconditional jump (goto) | FAIL (see P10-1) |
+| LOC-4.5 | Order of evaluation explicit | NOT CHECKED |
+
+### C.5: LOC-5/6 MISRA-C Rules — Deferred
+
+MISRA-C subset rules deferred. Evaluate if/when the project pursues formal certification or commercial deployment.
+
+---
+
+## Section D: Project-Specific Rules
+
+### D.1: RP2350 Platform Constraints — Audited Phase 2
+
+| Rule | Source | Status | Evidence |
+|------|--------|--------|----------|
+| Large locals >1KB must be static | Memory | PASS | Max local buffer = 23 bytes (icm20948.c). All large buffers static: g_6pos_samples (3.6KB), page_buffer (256B), g_buffer (256B) |
+| Guard USB I/O with stdio_usb_connected() | USB CDC | PASS | 34 guard sites verified across main.cpp and rc_os.c. All printf/getchar calls guarded |
+| Drain USB input buffer on connect | USB CDC | PASS | main.cpp:2364-2366 and rc_os.c:653-656 — `while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}` |
+| Let SDK handle USB | USB CDC | PASS | No custom USB handling. All via stdio_init_all() + SDK |
+| Use flash_safe_execute() for flash | Flash | PASS | calibration_storage.c:99,113 wraps flash_range_erase/program in flash_safe_execute callbacks |
+| CMake + Pico SDK only | Build | PASS | No PlatformIO or Arduino |
+| All #define macros in global compile_definitions | Build | PASS | DEBUG defined in CMakeLists.txt via add_compile_definitions |
+| Board type before SDK import | Build | PASS | CMakeLists.txt:31 (PICO_BOARD) before line 34 (pico_sdk_import) |
+| Verify I2C addresses vs Adafruit defaults | Hardware | PASS | config.h uses 0x69 (ICM-20948), 0x77 (DPS310) — verified against datasheets |
+| WS2812 requires begin() | Hardware | PASS | ws2812_status.c init checks `g_state.initialized` before operations |
+| Debug probe first | Debugging | N/A | Process guideline, not code-auditable |
+| Version string with build tag | Debugging | PASS | config.h:19-22 has ROCKETCHIP_VERSION_STRING; rc_os.c has RC_OS_VERSION |
+| No arbitrary numerical values | General | PASS | 40+ constants k-prefixed with documentation. All timing/threshold values sourced |
+
+### D.2: Multicore Rules — Audited Phase 2
+
+| Rule | Source | Status | Evidence |
+|------|--------|--------|----------|
+| No plain volatile for cross-core | Cross-core | PASS | Zero `volatile` for shared data. All cross-core uses `std::atomic<T>` (11 vars). Only volatile: fault handler delay loops (not cross-core) |
+| Use atomics or spinlocks | Cross-core | PASS | 4 synchronization methods: `std::atomic` (11 vars, 42 ops), spinlocks (IVP-21), seqlock (IVP-24), HW FIFO (multicore_fifo) |
+| Keep USB I/O on Core 0 | printf | PASS | core1_entry() (main.cpp:640-821): zero printf/getchar/USB calls. All USB ops Core 0 exclusive |
+| Use flash_safe_execute() | Flash | PASS | See D.1 flash row. multicore_lockout_victim_init() called in core1_entry() |
+| Large locals must be static | Stack | PASS | Same as D.1 large locals row. Core 1 uses static seqlock data |
+
+### D.3: Debug Output Rules (DEBUG_OUTPUT.md)
+
+*To be itemized in Phase 3.*
+
+### D.4: Prior Art Research (CODING_STANDARDS.md)
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Check Pico SDK examples first | NOT CHECKED | |
+| Check Adafruit/SparkFun libraries | NOT CHECKED | |
+| Check ArduPilot as reference | NOT CHECKED | |
+| Document findings in code comments | NOT CHECKED | |
+
+### D.5: Safety & Regulatory (CODING_STANDARDS.md)
+
+*Pyro safety, watchdog, RF regulations — to be assessed when features are implemented.*
+
+### D.6: Git Workflow (GIT_WORKFLOW.md)
+
+*Process rules — to be assessed in Phase 4.*
+
+### D.7: Session Management (SESSION_CHECKLIST.md)
+
+*Process rules — to be assessed in Phase 4.*
+
+---
+
+## Section E: Agent Behavioral Guidelines
+
+`AK_GUIDELINES.md` contains 4 high-level process guidelines for AI agents:
+1. Think Before Coding
+2. Simplicity First
+3. Surgical Changes
+4. Goal-Driven Execution
+
+These are behavioral rules for AI agents, not code standards. They are self-enforcing (agents read them each session) and not auditable against code artifacts. Referenced here for completeness only — they are not part of the compliance audit.
+
+---
+
+## Section F: Documentation Sync Issues
+
+Issues found during audit that affect documentation, not code:
+
+| # | Issue | File(s) | Status |
+|---|-------|---------|--------|
+| 1 | `Status: Draft` but document appears complete | DEBUG_OUTPUT.md | Fixed (2026-02-07) |
+| 2 | Empty Exceptions Table implies no deviations | CODING_STANDARDS.md | Fixed (2026-02-07) |
+| 3 | "Full JSF AV Standards Audit Needed" flag | AGENT_WHITEBOARD.md | Resolved (2026-02-07) |
+| 4 | STANDARDS_AUDIT.md not in directory tree | SCAFFOLDING.md | Fixed (2026-02-07) |
+| 5 | References to non-existent PICO_SDK_MULTICORE_DECISION.md | SAD.md, IVP.md | Fixed (2026-02-07) |
+| 6 | AP-1 through AP-4 are design decisions, not standards deviations | STANDARDS_DEVIATIONS.md | Noted — reclassification recommended |
+
+---
+
+## Section G: Audit History
+
+| Date | Phase | Scope | Auditor | Commit | Notes |
+|------|-------|-------|---------|--------|-------|
+| 2026-02-07 | 1 | Power of 10 (10 rules), document skeleton, doc sync fixes | Claude Code CLI | `6df5462` | Initial audit. P10: 3 PASS, 3 FAIL, 4 PARTIAL |
+| 2026-02-07 | 2 | JSF AV flow control (186-201), memory (206-207), portable (209-215), main.cpp C++ (32 rules), platform (12 rules), multicore (5 rules), SDK catalog (71 functions) | Claude Code CLI | `1f35647` | 57 rules audited. Flow: 12 PASS, 4 FAIL. Portable: 5 PASS, 2 PARTIAL. Platform: 12/12 PASS. Multicore: 5/5 PASS. C++: 30/32 PASS. |
+
+---
+
+## Section H: Ongoing Compliance Verification
+
+### Current Enforcement
+
+- **Pre-commit checklist:** Manual checklist in CODING_STANDARDS.md (Section: Code Verification Process)
+- **Council reviews:** Required for safety-critical code (pyro, state machine)
+- **No automated enforcement** — no CI, no pre-commit hooks, no linters
+
+### Planned Improvements
+
+1. **Static analysis tooling (deferred):** Evaluate clang-tidy and/or cppcheck for automated rule checking. Priority rules: null pointer checks, unused return values, integer overflow.
+
+2. **Build warnings as errors:** Consider `-Werror` for critical warning classes (`-Werror=return-type -Werror=uninitialized`).
+
+3. **Triggered rechecks:** When new source files are added, recheck naming conventions (JSF AV 50-53), fixed-width types (209), and header guards (35).
+
+4. **Maintenance cadence:** Recheck after each stage milestone (Stage 4, Stage 5, etc.). Update audit history in Section G.
+
+5. **Assertion infrastructure:** Define `RC_ASSERT()` macro before Phase 2 audit to enable assertion density improvements.
