@@ -136,6 +136,8 @@ target_link_libraries(rocketchip
     # IVP-14: Calibration storage
     hardware_flash       # For flash_range_erase/program
     pico_flash           # For flash_safe_execute
+    # IVP-19: Dual-core support
+    pico_multicore       # For multicore_launch_core1, inter-core primitives
 )
 
 # Enable USB CDC for stdio (not UART)

@@ -17,9 +17,9 @@
 // ============================================================================
 
 #define ROCKETCHIP_VERSION_MAJOR    0
-#define ROCKETCHIP_VERSION_MINOR    1
-#define ROCKETCHIP_VERSION_PATCH    1
-#define ROCKETCHIP_VERSION_STRING   "0.1.1"
+#define ROCKETCHIP_VERSION_MINOR    2
+#define ROCKETCHIP_VERSION_PATCH    0
+#define ROCKETCHIP_VERSION_STRING   "0.2.0"
 
 // ============================================================================
 // Feature Flags

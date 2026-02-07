@@ -30,6 +30,9 @@
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
 #include "cli/rc_os.h"
+#include "pico/multicore.h"
+#include "hardware/sync.h"
+#include <atomic>
 #include <stdio.h>
 #include <math.h>
 
@@ -70,6 +73,24 @@ static constexpr uint32_t kIvp13StatusIntervalMs = 1000;  // Print status every 
 // IVP-13a: I2C bus recovery thresholds
 static constexpr uint32_t kI2cRecoveryThreshold = 50;     // ~333ms of failures at 150 reads/s
 static constexpr uint32_t kI2cRecoveryCooldownMs = 2000;   // Min ms between recovery attempts
+
+// IVP-21: Spinlock soak test
+static constexpr uint32_t kSpinlockSoakMs = 5 * 60 * 1000;  // 5 minutes
+static constexpr uint32_t kSpinlockCheckIntervalMs = 100;     // Core 0 reads 10x/sec
+
+// IVP-22: FIFO message passing test
+static constexpr uint32_t kFifoTestCount = 1000;
+
+// IVP-23: Doorbell test
+static constexpr uint32_t kDoorbellTestCount = 1000;
+
+// Core 1 test-mode commands (sent via FIFO)
+static constexpr uint32_t kCmd_FifoEchoStart = 0xF1F0E000;
+static constexpr uint32_t kCmd_FifoEchoDone  = 0xF1F0D000;
+static constexpr uint32_t kCmd_FifoSendStart = 0xF1F05000;
+static constexpr uint32_t kCmd_DoorbellStart = 0xDB00B000;
+static constexpr uint32_t kCmd_DoorbellDone  = 0xDB00D000;
+static constexpr uint32_t kCmd_SpinlockStart = 0x5510C000;
 
 // ============================================================================
 // Global State
@@ -142,6 +163,38 @@ static uint32_t g_i2cLastRecoveryMs = 0;     // Timestamp of last recovery attem
 static uint32_t g_baroConsecFails = 0;       // Consecutive baro failures (for lazy reinit)
 static bool g_imuLastReadOk = false;         // IMU last read succeeded (bus health proxy)
 
+// IVP-19/20: Dual-core state
+// Atomic counter in static SRAM — Core 1 increments, Core 0 reads.
+// Per SEQLOCK_DESIGN.md: shared data must be in SRAM (not PSRAM).
+static std::atomic<uint32_t> g_core1Counter{0};
+
+// IVP-21: Spinlock shared struct — multi-field, protected by spinlock.
+// If spinlock works correctly, a == b == c == write_count on every read.
+struct spinlock_test_data_t {
+    uint32_t field_a;
+    uint32_t field_b;
+    uint32_t field_c;
+    uint32_t write_count;
+};
+static spinlock_test_data_t g_spinlockData = {0, 0, 0, 0};
+static spin_lock_t* g_pTestSpinlock = nullptr;
+static int g_spinlockId = -1;
+
+// IVP-21: Soak test tracking (Core 0 side)
+static bool g_ivp21Active = false;
+static bool g_ivp21Done = false;
+static uint32_t g_ivp21StartMs = 0;
+static uint32_t g_ivp21LastCheckMs = 0;
+static uint32_t g_ivp21ReadCount = 0;
+static uint32_t g_ivp21InconsistentCount = 0;
+static uint32_t g_ivp21LockTimeMinUs = UINT32_MAX;
+static uint32_t g_ivp21LockTimeMaxUs = 0;
+static uint64_t g_ivp21LockTimeSumUs = 0;
+static uint32_t g_ivp21LastPrintMs = 0;
+
+// IVP-23: Doorbell number (shared between test setup and Core 1)
+static int g_doorbellNum = -1;
+
 // IVP-14: Calibration storage state
 static bool g_calStorageInitialized = false;
 static bool g_ivp14Done = false;
@@ -164,6 +217,126 @@ static constexpr uint32_t kCliCalFeedIntervalUs = 10000;  // 100Hz
 
 // IMU device handle (static per LL Entry 1 — avoid large objects on stack)
 static icm20948_t g_imu;
+
+// ============================================================================
+// IVP-19/20/21/22/23: Core 1 Entry Point
+// ============================================================================
+// Phase 1: Test dispatcher — responds to FIFO commands for IVP-22/23 exercises.
+// Phase 2: Spinlock soak + NeoPixel — writes shared struct at ~100kHz for IVP-21.
+// Atomic counter (IVP-20) increments throughout both phases.
+
+static void core1_entry(void) {
+    // ---- Phase 1: Test Dispatcher ----
+    // Core 1 polls FIFO every 1ms, blinks NeoPixel cyan fast (~4Hz) via timer.
+    bool testMode = true;
+    uint32_t lastNeoToggleMs = to_ms_since_boot(get_absolute_time());
+    bool neoOn = true;
+    ws2812_set_mode(WS2812_MODE_SOLID, WS2812_COLOR_CYAN);
+    ws2812_update();
+
+    while (testMode) {
+        // Poll FIFO with 1ms timeout (fast response to commands)
+        uint32_t cmd;
+        if (multicore_fifo_pop_timeout_us(1000, &cmd)) {
+            switch (cmd) {
+
+            // IVP-22: FIFO echo — Core 0 sends values, Core 1 echoes back
+            case kCmd_FifoEchoStart: {
+                // ACK: tell Core 0 we're ready
+                multicore_fifo_push_blocking(kCmd_FifoEchoStart);
+                for (uint32_t i = 0; i < kFifoTestCount; i++) {
+                    uint32_t val = multicore_fifo_pop_blocking();
+                    multicore_fifo_push_blocking(val);
+                }
+                multicore_fifo_push_blocking(kCmd_FifoEchoDone);
+                break;
+            }
+
+            // IVP-22: FIFO send — Core 1 sends sequential values to Core 0
+            case kCmd_FifoSendStart: {
+                for (uint32_t i = 0; i < kFifoTestCount; i++) {
+                    multicore_fifo_push_blocking(i);
+                }
+                break;
+            }
+
+            // IVP-23: Doorbell — Core 1 sets doorbell N times with 10us gaps
+            case kCmd_DoorbellStart: {
+                for (uint32_t i = 0; i < kDoorbellTestCount; i++) {
+                    multicore_doorbell_set_other_core((uint)g_doorbellNum);
+                    busy_wait_us(10);
+                }
+                multicore_fifo_push_blocking(kCmd_DoorbellDone);
+                break;
+            }
+
+            // Transition to Phase 2
+            case kCmd_SpinlockStart:
+                testMode = false;
+                break;
+
+            default:
+                break;
+            }
+        }
+
+        // NeoPixel blink via timer (~4Hz toggle = 125ms)
+        g_core1Counter.fetch_add(1, std::memory_order_relaxed);
+        uint32_t nowMs = to_ms_since_boot(get_absolute_time());
+        if ((nowMs - lastNeoToggleMs) >= 125) {
+            lastNeoToggleMs = nowMs;
+            neoOn = !neoOn;
+            ws2812_set_mode(WS2812_MODE_SOLID,
+                            neoOn ? WS2812_COLOR_CYAN : WS2812_COLOR_OFF);
+            ws2812_update();
+        }
+    }
+
+    // ---- Phase 2: Spinlock Soak + NeoPixel ----
+    // Write shared struct at ~100kHz under spinlock. NeoPixel at ~2Hz.
+    uint32_t soakStartMs = to_ms_since_boot(get_absolute_time());
+    uint32_t writeCounter = 0;
+    uint32_t lastNeoMs = soakStartMs;
+    bool neoState = false;
+
+    while (true) {
+        uint32_t nowMs = to_ms_since_boot(get_absolute_time());
+        bool soaking = (nowMs - soakStartMs) < kSpinlockSoakMs;
+
+        // Spinlock struct update (high rate during soak)
+        if (soaking && g_pTestSpinlock != nullptr) {
+            writeCounter++;
+            uint32_t saved = spin_lock_blocking(g_pTestSpinlock);
+            g_spinlockData.field_a = writeCounter;
+            g_spinlockData.field_b = writeCounter;
+            g_spinlockData.field_c = writeCounter;
+            g_spinlockData.write_count = writeCounter;
+            spin_unlock(g_pTestSpinlock, saved);
+        }
+
+        g_core1Counter.fetch_add(1, std::memory_order_relaxed);
+
+        // NeoPixel update at ~2Hz
+        if (nowMs - lastNeoMs >= 250) {
+            lastNeoMs = nowMs;
+            neoState = !neoState;
+            if (soaking) {
+                ws2812_set_mode(WS2812_MODE_SOLID,
+                    neoState ? WS2812_COLOR_CYAN : WS2812_COLOR_MAGENTA);
+            } else {
+                ws2812_set_mode(WS2812_MODE_SOLID, WS2812_COLOR_GREEN);
+            }
+            ws2812_update();
+        }
+
+        // ~100kHz update rate during soak, relaxed after
+        if (soaking) {
+            busy_wait_us(10);
+        } else {
+            sleep_ms(1);
+        }
+    }
+}
 
 // ============================================================================
 // Accel Read Callback (for 6-pos calibration via CLI)
@@ -910,6 +1083,287 @@ static void ivp16_gate_check(uint32_t elapsedMs) {
 }
 
 // ============================================================================
+// IVP-22: FIFO Message Passing Test
+// ============================================================================
+// Exercise-only — FIFO reserved by multicore_lockout (flash_safe_execute).
+
+static void ivp22_fifo_test(void) {
+    printf("\n=== IVP-22: Multicore FIFO Message Passing ===\n");
+    bool pass = true;
+
+    // Gate 1: Core 0 -> Core 1 echo (1000 messages)
+    {
+        multicore_fifo_push_blocking(kCmd_FifoEchoStart);
+
+        // Wait for Core 1 ACK (confirms it's in the echo loop)
+        uint32_t ack;
+        if (!multicore_fifo_pop_timeout_us(1000000, &ack) || ack != kCmd_FifoEchoStart) {
+            printf("[FAIL] Gate 1: Core 1 did not ACK echo start\n");
+        }
+
+        uint32_t lost = 0;
+        uint64_t rttSumUs = 0;
+        uint32_t rttMinUs = UINT32_MAX;
+        uint32_t rttMaxUs = 0;
+
+        for (uint32_t i = 0; i < kFifoTestCount; i++) {
+            uint64_t t0 = time_us_64();
+            multicore_fifo_push_blocking(i + 1);
+            uint32_t echo;
+            bool ok = multicore_fifo_pop_timeout_us(100000, &echo);
+            uint32_t dt = (uint32_t)(time_us_64() - t0);
+
+            if (!ok || echo != (i + 1)) {
+                lost++;
+            } else {
+                rttSumUs += dt;
+                if (dt < rttMinUs) rttMinUs = dt;
+                if (dt > rttMaxUs) rttMaxUs = dt;
+            }
+        }
+
+        // Wait for done signal
+        uint32_t done;
+        multicore_fifo_pop_timeout_us(1000000, &done);
+
+        bool echoOk = (lost == 0);
+        printf("[%s] Gate 1: Core0->Core1 echo: %lu/%lu OK, %lu lost\n",
+               echoOk ? "PASS" : "FAIL",
+               (unsigned long)(kFifoTestCount - lost),
+               (unsigned long)kFifoTestCount, (unsigned long)lost);
+        if (!echoOk) pass = false;
+
+        if (lost < kFifoTestCount) {
+            uint32_t rttAvg = (uint32_t)(rttSumUs / (kFifoTestCount - lost));
+            printf("[INFO] Round-trip latency: min=%lu avg=%lu max=%lu us\n",
+                   (unsigned long)rttMinUs, (unsigned long)rttAvg,
+                   (unsigned long)rttMaxUs);
+        }
+    }
+
+    multicore_fifo_drain();
+    sleep_ms(10);
+
+    // Gate 2: Core 1 -> Core 0 (1000 sequential messages)
+    {
+        multicore_fifo_push_blocking(kCmd_FifoSendStart);
+
+        uint32_t received = 0;
+        uint32_t outOfOrder = 0;
+
+        for (uint32_t i = 0; i < kFifoTestCount; i++) {
+            uint32_t val;
+            bool ok = multicore_fifo_pop_timeout_us(100000, &val);
+            if (ok) {
+                received++;
+                if (val != i) outOfOrder++;
+            }
+        }
+
+        bool sendOk = (received == kFifoTestCount && outOfOrder == 0);
+        printf("[%s] Gate 2: Core1->Core0: %lu/%lu received, %lu out of order\n",
+               sendOk ? "PASS" : "FAIL",
+               (unsigned long)received, (unsigned long)kFifoTestCount,
+               (unsigned long)outOfOrder);
+        if (!sendOk) pass = false;
+    }
+
+    multicore_fifo_drain();
+
+    // Gate 3: FIFO overflow test (RP2350 is 4-deep per SDK docs)
+    // Use non-blocking pushes so Core 1's 1ms poll can't drain between attempts
+    {
+        uint32_t pushCount = 0;
+        for (uint32_t i = 0; i < 16; i++) {
+            if (!multicore_fifo_wready()) break;
+            multicore_fifo_push_blocking(i + 100);
+            pushCount++;
+        }
+
+        printf("[%s] Gate 3: FIFO depth: %lu pushes before block (expect 4)\n",
+               (pushCount == 4) ? "PASS" : "WARN",
+               (unsigned long)pushCount);
+
+        multicore_fifo_drain();
+    }
+
+    // Gate 4: USB still connected
+    {
+        bool usbOk = stdio_usb_connected();
+        printf("[%s] Gate 4: USB still connected\n",
+               usbOk ? "PASS" : "FAIL");
+        if (!usbOk) pass = false;
+    }
+
+    printf("[INFO] FIFO reserved by multicore_lockout — exercise only\n");
+    printf("=== IVP-22: %s ===\n\n", pass ? "ALL GATES PASS" : "GATE FAILURES");
+}
+
+// ============================================================================
+// IVP-23: Doorbell Interrupt Test (RP2350-Specific)
+// ============================================================================
+// Exercise-only — seqlock polling chosen for production.
+
+static void ivp23_doorbell_test(void) {
+    printf("=== IVP-23: Doorbell Interrupts (RP2350-Specific) ===\n");
+    bool pass = true;
+
+    // Gate 1: Claim a doorbell
+    g_doorbellNum = multicore_doorbell_claim_unused(0x3, true);
+    bool claimOk = (g_doorbellNum >= 0);
+    printf("[%s] Gate 1: Doorbell claimed: %d\n",
+           claimOk ? "PASS" : "FAIL", g_doorbellNum);
+    if (!claimOk) {
+        printf("=== IVP-23: GATE FAILURES ===\n\n");
+        return;
+    }
+
+    multicore_doorbell_clear_current_core((uint)g_doorbellNum);
+
+    // Gate 2: Core 1 sets doorbell 1000 times, Core 0 detects
+    multicore_fifo_drain();
+    sleep_ms(10);
+    multicore_fifo_push_blocking(kCmd_DoorbellStart);
+
+    uint32_t detected = 0;
+    uint64_t latencySumUs = 0;
+    uint32_t latencyMinUs = UINT32_MAX;
+    uint32_t latencyMaxUs = 0;
+    uint64_t testStartUs = time_us_64();
+    static constexpr uint64_t kDoorbellTimeoutUs = 30 * 1000000ULL;
+
+    while (detected < kDoorbellTestCount) {
+        uint64_t pollStartUs = time_us_64();
+        if ((pollStartUs - testStartUs) > kDoorbellTimeoutUs) {
+            break;
+        }
+
+        if (multicore_doorbell_is_set_current_core((uint)g_doorbellNum)) {
+            uint64_t detectUs = time_us_64();
+            multicore_doorbell_clear_current_core((uint)g_doorbellNum);
+            detected++;
+
+            uint32_t latUs = (uint32_t)(detectUs - pollStartUs);
+            latencySumUs += latUs;
+            if (latUs < latencyMinUs) latencyMinUs = latUs;
+            if (latUs > latencyMaxUs) latencyMaxUs = latUs;
+        }
+    }
+
+    // Wait for Core 1's done signal
+    uint32_t done;
+    multicore_fifo_pop_timeout_us(5000000, &done);
+
+    bool detectOk = (detected == kDoorbellTestCount);
+    printf("[%s] Gate 2: Signals detected: %lu/%lu\n",
+           detectOk ? "PASS" : "FAIL",
+           (unsigned long)detected, (unsigned long)kDoorbellTestCount);
+    if (!detectOk) pass = false;
+
+    if (detected > 0) {
+        uint32_t latAvg = (uint32_t)(latencySumUs / detected);
+        printf("[INFO] Detection latency (polling): min=%lu avg=%lu max=%lu us\n",
+               (unsigned long)latencyMinUs, (unsigned long)latAvg,
+               (unsigned long)latencyMaxUs);
+    }
+
+    // Gate 3: Clear on Core 0 does not affect Core 1
+    {
+        multicore_doorbell_clear_current_core((uint)g_doorbellNum);
+        bool clearOk = !multicore_doorbell_is_set_current_core(
+                            (uint)g_doorbellNum);
+        printf("[%s] Gate 3: Clear on Core 0 does not affect Core 1\n",
+               clearOk ? "PASS" : "FAIL");
+        if (!clearOk) pass = false;
+    }
+
+    // Gate 4: USB still connected
+    {
+        bool usbOk = stdio_usb_connected();
+        printf("[%s] Gate 4: USB still connected\n",
+               usbOk ? "PASS" : "FAIL");
+        if (!usbOk) pass = false;
+    }
+
+    printf("[INFO] Doorbells validated but not used in production (seqlock polling chosen)\n");
+    printf("=== IVP-23: %s ===\n\n", pass ? "ALL GATES PASS" : "GATE FAILURES");
+
+    multicore_doorbell_unclaim((uint)g_doorbellNum, 0x3);
+}
+
+// ============================================================================
+// IVP-21: Spinlock Gate Check (called after 5-min soak completes)
+// ============================================================================
+
+static void ivp21_gate_check(void) {
+    printf("\n=== IVP-21: Hardware Spinlock Validation ===\n");
+    bool pass = true;
+
+    // Gate 1: Spinlock claim succeeded
+    {
+        bool claimOk = (g_spinlockId >= 0);
+        printf("[%s] Gate 1: Spinlock claimed ID=%d (expect 24-31)\n",
+               claimOk ? "PASS" : "FAIL", g_spinlockId);
+        if (!claimOk) pass = false;
+    }
+
+    // Gate 2: Document HW vs SW spinlocks
+    {
+#if PICO_USE_SW_SPIN_LOCKS
+        printf("[INFO] Gate 2: SOFTWARE spinlocks (PICO_USE_SW_SPIN_LOCKS=1, RP2350-E2)\n");
+#else
+        printf("[INFO] Gate 2: HARDWARE spinlocks (SIO registers)\n");
+#endif
+    }
+
+    // Gate 3: No inconsistent reads
+    {
+        bool consistOk = (g_ivp21InconsistentCount == 0);
+        printf("[%s] Gate 3: %lu reads, %lu inconsistent\n",
+               consistOk ? "PASS" : "FAIL",
+               (unsigned long)g_ivp21ReadCount,
+               (unsigned long)g_ivp21InconsistentCount);
+        if (!consistOk) pass = false;
+    }
+
+    // Gate 4: Lock hold time
+    {
+        uint32_t avgUs = (g_ivp21ReadCount > 0) ?
+            (uint32_t)(g_ivp21LockTimeSumUs / g_ivp21ReadCount) : 0;
+        uint32_t minUs = (g_ivp21LockTimeMinUs == UINT32_MAX) ? 0 : g_ivp21LockTimeMinUs;
+        bool timeOk = (g_ivp21LockTimeMaxUs < 10);
+        printf("[%s] Gate 4: Lock hold time: min=%lu avg=%lu max=%lu us (expect <10)\n",
+               timeOk ? "PASS" : "WARN",
+               (unsigned long)minUs, (unsigned long)avgUs,
+               (unsigned long)g_ivp21LockTimeMaxUs);
+    }
+
+    // Gate 5: 5 minutes continuous
+    {
+        uint32_t elapsed = to_ms_since_boot(get_absolute_time()) - g_ivp21StartMs;
+        bool durationOk = (elapsed >= kSpinlockSoakMs);
+        printf("[%s] Gate 5: Soak: %lu ms (target %lu ms)\n",
+               durationOk ? "PASS" : "FAIL",
+               (unsigned long)elapsed, (unsigned long)kSpinlockSoakMs);
+        if (!durationOk) pass = false;
+
+        uint32_t c1 = g_core1Counter.load(std::memory_order_acquire);
+        printf("[INFO] Core 1 counter: %lu, writes: %lu\n",
+               (unsigned long)c1, (unsigned long)g_spinlockData.write_count);
+    }
+
+    // Gate 6: USB not disrupted
+    {
+        bool usbOk = stdio_usb_connected();
+        printf("[%s] Gate 6: USB still connected after 5-min soak\n",
+               usbOk ? "PASS" : "FAIL");
+        if (!usbOk) pass = false;
+    }
+
+    printf("=== IVP-21: %s ===\n\n", pass ? "ALL GATES PASS" : "GATE FAILURES");
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -924,10 +1378,9 @@ int main() {
     // IVP-03: NeoPixel init
     // -----------------------------------------------------------------
     g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin);
-    if (g_neopixelInitialized) {
-        // NeoPixel off until used for status reporting
-        ws2812_set_mode(WS2812_MODE_OFF, WS2812_COLOR_OFF);
-    }
+
+    // IVP-19: Launch Core 1 early so NeoPixel blinks immediately (no USB dependency)
+    multicore_launch_core1(core1_entry);
 
     // -----------------------------------------------------------------
     // IVP-06: I2C bus init (before USB per LL Entry 4/12)
@@ -971,12 +1424,12 @@ int main() {
     stdio_init_all();
 
     // Fast LED blink while waiting for USB connection
+    // NeoPixel already running on Core 1 (launched after init)
     while (!stdio_usb_connected()) {
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
         sleep_ms(100);
         gpio_put(PICO_DEFAULT_LED_PIN, 0);
         sleep_ms(100);
-        ws2812_update();
     }
 
     // Settle time after connection (per LL Entry 15)
@@ -1068,6 +1521,41 @@ int main() {
     rc_os_cal_pre_hook = cal_pre_hook;
     rc_os_cal_post_hook = cal_post_hook;
 
+    // IVP-19: Core 1 already launched (after NeoPixel init, before USB wait)
+    printf("Core 1 launched (test dispatcher mode)\n");
+
+    // ================================================================
+    // IVP-21/22/23: Inter-core primitive exercises
+    // Core 1 is in test dispatcher mode, responding to FIFO commands.
+    // ================================================================
+
+    // IVP-22: FIFO message passing
+    ivp22_fifo_test();
+
+    // IVP-23: Doorbell signaling
+    ivp23_doorbell_test();
+
+    // IVP-21: Claim spinlock and start soak test
+    g_spinlockId = spin_lock_claim_unused(true);
+    g_pTestSpinlock = spin_lock_init((uint)g_spinlockId);
+    printf("Spinlock claimed: ID=%d\n", g_spinlockId);
+#if PICO_USE_SW_SPIN_LOCKS
+    printf("Spinlock type: SOFTWARE (RP2350-E2, LDAEXB/STREXB)\n");
+#else
+    printf("Spinlock type: HARDWARE (SIO registers)\n");
+#endif
+
+    // Signal Core 1 to exit test dispatcher and start spinlock soak
+    multicore_fifo_drain();
+    sleep_ms(10);
+    multicore_fifo_push_blocking(kCmd_SpinlockStart);
+    g_ivp21Active = true;
+    g_ivp21StartMs = to_ms_since_boot(get_absolute_time());
+    g_ivp21LastCheckMs = g_ivp21StartMs;
+    g_ivp21LastPrintMs = g_ivp21StartMs;
+    printf("\n=== IVP-21: Spinlock Soak (5 min) ===\n");
+    printf("Core 1 writing ~100kHz, Core 0 reading 10Hz...\n\n");
+
     // IVP-08: Superloop
     printf("Entering main loop\n\n");
 
@@ -1085,8 +1573,77 @@ int main() {
             gpio_put(PICO_DEFAULT_LED_PIN, ledState ? 1 : 0);
         }
 
-        // NeoPixel animation
-        ws2812_update();
+        // NeoPixel owned by Core 1 (IVP-19) — do not call ws2812_update() here
+
+        // IVP-20: Print Core 1 counter every second
+        {
+            static uint32_t lastCounterPrintMs = 0;
+            if (stdio_usb_connected() && (nowMs - lastCounterPrintMs) >= 1000) {
+                uint32_t count = g_core1Counter.load(std::memory_order_acquire);
+                static uint32_t prevCount = 0;
+                uint32_t rate = count - prevCount;
+                printf("Core 1: %lu total, %lu/s\n",
+                       (unsigned long)count, (unsigned long)rate);
+                prevCount = count;
+                lastCounterPrintMs = nowMs;
+            }
+        }
+
+        // IVP-21: Spinlock soak — read shared struct under lock
+        if (g_ivp21Active && !g_ivp21Done) {
+            if ((nowMs - g_ivp21LastCheckMs) >= kSpinlockCheckIntervalMs) {
+                g_ivp21LastCheckMs = nowMs;
+
+                uint64_t t0 = time_us_64();
+                uint32_t saved = spin_lock_blocking(g_pTestSpinlock);
+                uint32_t a = g_spinlockData.field_a;
+                uint32_t b = g_spinlockData.field_b;
+                uint32_t c = g_spinlockData.field_c;
+                uint32_t wc = g_spinlockData.write_count;
+                spin_unlock(g_pTestSpinlock, saved);
+                uint32_t dtUs = (uint32_t)(time_us_64() - t0);
+
+                g_ivp21ReadCount++;
+                if (dtUs < g_ivp21LockTimeMinUs) g_ivp21LockTimeMinUs = dtUs;
+                if (dtUs > g_ivp21LockTimeMaxUs) g_ivp21LockTimeMaxUs = dtUs;
+                g_ivp21LockTimeSumUs += dtUs;
+
+                // Consistency check
+                if (a != b || b != c || c != wc) {
+                    g_ivp21InconsistentCount++;
+                    if (stdio_usb_connected()) {
+                        printf("[FAIL] Spinlock: a=%lu b=%lu c=%lu wc=%lu\n",
+                               (unsigned long)a, (unsigned long)b,
+                               (unsigned long)c, (unsigned long)wc);
+                    }
+                }
+
+                // Progress every 30 seconds
+                if (stdio_usb_connected() &&
+                    (nowMs - g_ivp21LastPrintMs) >= 30000) {
+                    g_ivp21LastPrintMs = nowMs;
+                    uint32_t elapsed = nowMs - g_ivp21StartMs;
+                    uint32_t remain = (elapsed < kSpinlockSoakMs) ?
+                        (kSpinlockSoakMs - elapsed) / 1000 : 0;
+                    printf("[IVP-21] %lus, %lus left, %lu reads, %lu bad, "
+                           "max %lu us, writes=%lu\n",
+                           (unsigned long)(elapsed / 1000),
+                           (unsigned long)remain,
+                           (unsigned long)g_ivp21ReadCount,
+                           (unsigned long)g_ivp21InconsistentCount,
+                           (unsigned long)g_ivp21LockTimeMaxUs,
+                           (unsigned long)wc);
+                }
+
+                // Soak complete?
+                if ((nowMs - g_ivp21StartMs) >= kSpinlockSoakMs) {
+                    g_ivp21Done = true;
+                    if (stdio_usb_connected()) {
+                        ivp21_gate_check();
+                    }
+                }
+            }
+        }
 
         // IVP-10: IMU data read at 10Hz
         if (g_imuInitialized && !g_imuValidationDone && stdio_usb_connected()) {

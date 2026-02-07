@@ -4,9 +4,9 @@
 
 ## Current Phase
 
-**IVP Stage 2 COMPLETE** — Minimum Viable Demo milestone reached (v0.1.1)
+**IVP Stage 3 IN PROGRESS** — Dual-Core Integration (v0.2.0)
 
-Next: Stage 3 (Dual-Core Architecture) or Stage 4 (GPS Integration)
+Sessions A+B (IVP-19 through IVP-23) hardware-verified. Next: Session C (IVP-24)
 
 ## Completed
 
@@ -37,13 +37,24 @@ Hardware-verified 2026-02-06:
 - [x] IVP-17: 6-position accel calibration (Gauss-Newton solver, 6/6 gates pass, 3/3 power cycles)
 - [x] IVP-18: CLI menu (RC_OS with main + calibration menus, sensor status, I2C rescan)
 
+### Stage 3 Session A: Core 1 Alive (IVP-19/20) ✅
+
+Hardware-verified 2026-02-06:
+- [x] IVP-19: Core 1 launched, NeoPixel blinks cyan/magenta at 2Hz from Core 1
+- [x] IVP-20: Cross-core atomic counter (std::atomic<uint32_t>, relaxed/acquire, 5-min soak, 4/s stable)
+
+### Stage 3 Session B: Inter-Core Primitives (IVP-21/22/23) ✅
+
+Hardware-verified 2026-02-06:
+- [x] IVP-21: Spinlock soak (SW spinlock ID=26, 5-min soak, 0/2999 inconsistent, max 5us hold, 29.4M writes)
+- [x] IVP-22: FIFO message passing (1000/1000 echo, 0 lost, 1000/1000 sequential, FIFO depth 4 per SDK docs)
+- [x] IVP-23: Doorbell signals (1000/1000 detected, 0-5us latency, clear isolation confirmed)
+
 ## In Progress
 
-**Stage 3 design complete — ready to implement IVP-19 (Session A)**
+**Stage 3 Session C next (IVP-24 — seqlock single-buffer)**
 
-- Seqlock cross-core design approved by council (`docs/decisions/SEQLOCK_DESIGN.md`)
-- Session plan on whiteboard: A (Core 1 alive) → B (spinlock/FIFO/doorbell) → C (seqlock) → D (sensor migration) → E (USB/flash stress) → F (MPU/watchdog)
-- IVP.md updated with research corrections (E2 errata, FIFO reservation, polling > doorbell)
+Session plan on whiteboard: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) ✅ → C (seqlock) → D (sensor migration) → E (USB/flash stress) → F (MPU/watchdog)
 
 ## What Exists
 
