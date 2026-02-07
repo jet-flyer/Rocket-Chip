@@ -536,6 +536,57 @@ Implemented as pre/post hooks in `rc_os.h` to keep the IMU driver decoupled from
 
 ---
 
+## Entry 22: USB Reconnect Degrades Core 1 IMU Rate (LiPo-Powered Disconnect)
+
+**Date:** 2026-02-07
+**Status:** Observed, not yet root-caused
+**Severity:** Medium — stress test edge case, not a flight concern (no USB in flight)
+
+### Problem
+During IVP-27 Gate 3 (USB disconnect/reconnect with LiPo keeping MCU powered), Core 1 IMU sampling rate dropped from 999/s to 95/s and never recovered on its own. IMU error count climbed steadily (~5700 errors per minute) while `imu_read_count` froze at 250,756.
+
+### Symptoms
+- Before disconnect: Core 1 at 999/s, 0 IMU errors
+- After reconnect: Core 1 at 95/s, IMU errors accumulating linearly
+- `core1_loop_count` kept advancing (Core 1 alive, just failing reads)
+- Baro reads frozen at 2004 (also affected)
+- `i2c_bus_reset()` during IVP-28 flash test fixed it — Core 1 recovered to 1000/s
+
+### Likely Root Cause
+USB CDC re-enumeration on Core 0 may disrupt I2C bus timing or state. The `stdio_init_all()` USB reconnection path triggers IRQ reconfiguration on Core 0 while Core 1 is mid-I2C-transaction. The I2C peripheral may enter a stuck state that only `i2c_bus_reset()` resolves.
+
+### Workaround
+The `i2c_bus_reset()` calls in `ivp28_flash_test()` incidentally fixed it. A deliberate bus reset after USB reconnection would prevent the degradation.
+
+### Prevention (future)
+- Consider adding `i2c_bus_reset()` after USB CDC reconnection detection
+- Not a flight concern — USB is not connected during flight
+- Monitor if this appears in other dual-core scenarios
+
+---
+
+## Entry 23: CLI I2C Scan Corrupts Bus When Core 1 Owns I2C
+
+**Date:** 2026-02-07
+**Time Spent:** ~30 minutes
+**Severity:** High — bus corruption causes sustained sensor failures
+
+### Problem
+During IVP-27 key mash test (first attempt), the 'i' character triggered `i2c_bus_scan()` from Core 0 CLI while Core 1 was actively reading IMU/baro via I2C. This corrupted the bus — Core 1 dropped from 999/s to 95/s, IMU errors exploded to 15,659.
+
+### Root Cause
+`i2c_bus_scan()` iterates over all I2C addresses (0x08-0x77), sending probe transactions. When Core 1 is simultaneously reading sensors on the same I2C bus, the probes collide with sensor reads, corrupting the I2C state machine.
+
+### Solution
+Added `rc_os_i2c_scan_allowed` flag in `rc_os.h`. Set to `false` when Core 1 enters sensor phase. The 'i' CLI command now prints "I2C scan disabled (Core 1 owns bus)" instead of scanning.
+
+### Prevention
+- Any Core 0 function that touches I2C must check if Core 1 owns the bus
+- The I2C bus ownership model: Core 0 owns during init, Core 1 owns during sensor phase
+- Only `flash_safe_execute()` can safely interrupt Core 1's I2C (via multicore_lockout)
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here
