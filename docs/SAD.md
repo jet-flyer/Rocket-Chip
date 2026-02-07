@@ -443,7 +443,7 @@ In the bare-metal dual-core architecture, inter-module communication uses two pa
 
 **Same-core (Core 0):** Direct function calls and global structs. Modules in the Core 0 superloop (fusion, mission, logger, telemetry, UI) share data through global data structures accessed synchronously — no locking needed since they execute cooperatively in a single loop.
 
-**Cross-core (Core 1 → Core 0):** Seqlock double-buffer for sensor data. See `PICO_SDK_MULTICORE_DECISION.md` for the full design rationale. See `docs/MULTICORE_RULES.md` for RP2350-specific inter-core rules.
+**Cross-core (Core 1 → Core 0):** Seqlock double-buffer for sensor data. See `docs/decisions/SEQLOCK_DESIGN.md` for the full design rationale. See `docs/MULTICORE_RULES.md` for RP2350-specific inter-core rules.
 
 #### Seqlock Pattern
 
@@ -531,7 +531,7 @@ struct LogMessage {
 
 ### 5.1 Bare-Metal Polling Architecture
 
-RocketChip uses a bare-metal dual-core AMP (Asymmetric Multiprocessing) architecture. This replaces the previous FreeRTOS task model with a simpler, more deterministic approach. See `PICO_SDK_MULTICORE_DECISION.md` for the council decision rationale.
+RocketChip uses a bare-metal dual-core AMP (Asymmetric Multiprocessing) architecture. This replaces the previous FreeRTOS task model with a simpler, more deterministic approach. See `docs/decisions/SEQLOCK_DESIGN.md` for the council decision rationale.
 
 > **Naming convention:** Module names like "SensorTask" and "FusionTask" are logical module names, not RTOS tasks. In the bare-metal architecture, Core 0 modules are functions called from a cooperative superloop. Core 1 runs a dedicated polling loop. The "Task" suffix is retained for continuity with the module decomposition in Section 3.2.
 

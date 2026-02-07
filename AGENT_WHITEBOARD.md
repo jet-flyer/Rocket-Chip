@@ -14,79 +14,44 @@
 
 ## Open Flags
 
-### 2026-02-05: PA1010D GPS Removed from I2C Bus — Needs Proper Driver at IVP-31
+### 2026-02-07: Stage 4 GPS — Ready for IVP-31 Implementation
 
-**Severity:** Deferred (not blocking Stage 2)
+**Status:** Ready — needs board plugged in with GPS on Qwiic chain
 **Reporter:** Claude Code CLI
 
-**Issue:** GPS module on shared Qwiic I2C bus causes bus interference when probed during bus scan. IMU gets ~17% read failures, baro gets 100% failures. Physically removed for Stage 2 work.
+Stage 4 IVPs redesigned for dual-core architecture (GPS on Core 1). Driver updated (255-byte full-buffer reads, PMTK314 sentence filter). `main.cpp` is clean Stage 3 — no GPS code yet.
 
-**Root cause:** PA1010D is a UART-over-I2C device that streams NMEA continuously after being probed. Full bus scan (0x08-0x77) triggers it.
+**Next steps:**
+- Physically reconnect PA1010D to Qwiic chain
+- Implement IVP-31 in `main.cpp` (GPS init before Core 1 launch, GPS reads on Core 1 sensor loop, seqlock publish)
+- Standards review after build, before flash
 
-**Fix needed at IVP-31:**
-- Write proper GPS driver with 32-byte chunked reads (per Adafruit_GPS library pattern)
-- Filter 0x0A padding bytes
-- Time-slice GPS reads with IMU/baro in main loop
-- Do NOT include GPS address in bus scan
-- SDK 2.2.0 already has the SDA hold time fix (PR #273)
-
-**See:** LL Entry 20, Pico SDK #252/#273
-
-**Files affected:** `i2c_bus.c` (skip 0x10 in scan), `main.cpp` (GPS removed from expected list)
+**See:** `docs/IVP.md` IVP-31, `standards/VENDOR_GUIDELINES.md` PA1010D section
 
 ---
 
-### 2026-02-06: Stage 3 Session Plan (Dual-Core Integration)
+### 2026-02-07: Protected File Updates Pending Approval
 
-**Status:** Planned — starting next
-**Reporter:** Claude Code CLI (reviewed with Nathan)
+**Status:** Waiting on user
+**Reporter:** Claude Code CLI
 
-Stage 3 (IVP-19 through IVP-30) grouped into work sessions. Multicore before GPS confirmed as correct order.
-
-| Session | IVP Steps | Focus | Notes |
-|---------|-----------|-------|-------|
-| **A** | IVP-19, IVP-20 | Core 1 alive + atomic counter | Get dual-core running, verify cross-core visibility |
-| **B** | IVP-21, IVP-22, IVP-23 | Spinlock, FIFO, doorbell | Exercise all RP2350 inter-core primitives |
-| **C** | IVP-24 | Seqlock (single-buffer) | **Design doc approved:** `docs/decisions/SEQLOCK_DESIGN.md`. Council unanimous with 7 modifications (all incorporated). |
-| **D** | IVP-25, IVP-26 | IMU + baro on Core 1 | Real sensor migration. Uses I2C timing from Stage 2 (IMU 774us, baro 251us) |
-| **E** | IVP-27, IVP-28 | USB stress + flash under dual-core | Stability. Note: `multicore_lockout` uses FIFO — can't overlap with app FIFO messages |
-| **F** | IVP-29, IVP-30 | MPU stack guard + watchdog | Code complete, awaiting HW verification |
-
-**Key constraints (updated with research findings 2026-02-06):**
-- GPS module physically removed — reconnect at IVP-31 (Stage 4)
-- **Seqlock design decided:** Single-buffer seqlock, 124-byte struct (council added `mag_read_count` + `core1_loop_count`), Core 1 applies calibration. See `docs/decisions/SEQLOCK_DESIGN.md`.
-- **RP2350-E2 (not E17):** SIO register aliasing breaks HW spinlocks. SDK uses SW spinlocks by default (`PICO_USE_SW_SPIN_LOCKS=1`). Transparent to API users.
-- **FIFO is reserved:** `multicore_lockout`/`flash_safe_execute` claims FIFO IRQ exclusively. IVP-22 is exercise-only — FIFO cannot be used for app messaging in final architecture.
-- **Polling > doorbells:** Core 0 at 200Hz always finds fresh data. Seqlock sequence check costs 5-7 cycles. Doorbells deferred to sleep-based power architecture (future).
-- **SRAM only for shared data:** PSRAM has XIP cache coherency issues + exclusive monitor doesn't cover it. C11 atomics on PSRAM silently fail cross-core.
-- I2C master disable/enable hooks (LL Entry 21) carry into Core 1 calibration flow
-- **SAD Section 4.3 seqlock code has bugs** — missing `__dmb()` barriers, unnecessary double-buffer, wrong errata ID. Do not copy verbatim. Use `SEQLOCK_DESIGN.md` as reference.
+- `CODING_STANDARDS.md` — needs cross-reference to new `standards/VENDOR_GUIDELINES.md` in Prior Art Research section
+- `SEQLOCK_DESIGN.md` line 69 — comment says "reserved for IVP-33", now IVP-31 (cosmetic)
 
 ---
 
-### 2026-02-06: Full JSF AV Standards Audit Needed Post-Stage 3
+### 2026-02-07: Missing Vendor Datasheets
 
-**Severity:** Medium (technical debt)
+**Status:** Open — acquire before implementation needs them
 **Reporter:** Claude Code CLI
 
-**Issue:** Current "standards audit" checks ~10 critical rules (naming, types, memory, USB guards, magic numbers, atomics, cross-core invariants). JSF AV has 222 rules, JPL C standard adds more. Many rules are unchecked:
-- Cyclomatic complexity limits
-- Function length limits
-- Switch/case fall-through analysis
-- Const correctness
-- Pointer aliasing rules
-- Null checks on all pointer dereferences
-- Header include guard naming conventions
-- Comment-to-code ratios
-- And ~200 more
+| Document | Priority | Needed By |
+|----------|----------|-----------|
+| DPS310 datasheet (Infineon) | HIGH | IVP-36 (ESKF noise tuning) |
+| PA1010D datasheet + app notes (GlobalTop/Quectel) | HIGH | IVP-31 (GPS integration) |
+| RFM95W / SX1276 datasheet (Semtech) | MEDIUM | Stage 8 (telemetry) |
 
-**Recommended:** Dedicate a full session between Stage 3 and Stage 4 to:
-1. Create a JSF AV compliance checklist document (`standards/JSF_AV_CHECKLIST.md`)
-2. Run a systematic audit against ALL applicable rules
-3. Log findings and prioritize fixes
-4. Update `STANDARDS_DEVIATIONS.md` with any accepted deviations
-
-**Scope:** All `src/` files (~2500 lines across 12 source files as of Session D).
+Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 
 ---
 

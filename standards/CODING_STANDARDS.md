@@ -116,15 +116,9 @@ See `.claude/LESSONS_LEARNED.md` for the full debugging narratives behind each r
 
 **Rationale:** Proven solutions from established projects save time and reduce bugs. When millions of devices use a particular approach, that's strong evidence it works.
 
-### Exceptions Table
+### Exceptions and Deviations
 
-Approved deviations from coding standards. Each exception requires documented rationale.
-
-| ID | Rule | Exception | Rationale | Approved By | Date |
-|----|------|-----------|-----------|-------------|------|
-| *No exceptions yet* | | | | | |
-
-*When exceptions are approved, add them here with full context. If this table grows large, it may be broken out into a separate EXCEPTIONS.md file.*
+Approved deviations from coding standards are tracked in `standards/STANDARDS_DEVIATIONS.md`. Compliance audit results are tracked in `standards/STANDARDS_AUDIT.md`.
 
 ---
 

@@ -3,7 +3,7 @@
 **Status:** ACTIVE — Living document
 **Last Updated:** 2026-02-06
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
-**Architecture:** Bare-metal Pico SDK, dual-core AMP (see `PICO_SDK_MULTICORE_DECISION.md`)
+**Architecture:** Bare-metal Pico SDK, dual-core AMP (see `docs/decisions/SEQLOCK_DESIGN.md`)
 
 ---
 
@@ -21,7 +21,7 @@ This document defines the step-by-step integration order for RocketChip firmware
 - `include/rocketchip/config.h` — Pin assignments, I2C addresses, timing constants
 - `.claude/LESSONS_LEARNED.md` — Debugging journal (referenced as "LL Entry N")
 - `docs/decisions/ESKF/FUSION_ARCHITECTURE.md` — Sensor fusion design
-- `PICO_SDK_MULTICORE_DECISION.md` — Council decision on bare-metal dual-core
+- `docs/decisions/SEQLOCK_DESIGN.md` — Council decision on bare-metal dual-core and seqlock pattern
 
 **Numerical values:** Rates, thresholds, buffer sizes, and timing values throughout this document are **preliminary targets** unless marked `[VALIDATED]`. Each must be justified from a datasheet, SDK measurement, or empirical test before committing to implementation. Do not treat them as specifications — they are starting points for the verification gate to confirm or revise.
 

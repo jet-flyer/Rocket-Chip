@@ -1,6 +1,6 @@
 # Debug Output Standards
 
-**Status:** Draft
+**Status:** Active
 **Applies to:** All firmware development
 **Referenced by:** `docs/SAD.md` Section 11 (Tools and Validation)
 

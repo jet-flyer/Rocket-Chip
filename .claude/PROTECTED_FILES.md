@@ -24,6 +24,7 @@ General requests like "update the docs" or "fix the instructions" do NOT grant p
 
 ### Standards Documents
 - `standards/CODING_STANDARDS.md` - Project coding standards
+- `standards/STANDARDS_AUDIT.md` - Comprehensive compliance audit
 - `COUNCIL_PROCESS.md` - Council review protocol
 
 ### Architecture Documents Pending Review

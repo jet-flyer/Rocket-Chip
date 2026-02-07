@@ -45,6 +45,7 @@ rocketchip/
 │   ├── CODING_STANDARDS.md        # Code style and safety rules
 │   ├── DEBUG_OUTPUT.md            # USB CDC output conventions
 │   ├── GIT_WORKFLOW.md            # Git conventions
+│   ├── STANDARDS_AUDIT.md         # Comprehensive compliance audit (JSF AV, P10, JPL C, project rules)
 │   ├── STANDARDS_DEVIATIONS.md    # Deviation tracking
 │   └── protocols/
 │       └── SPACEWIRE_LITE.md      # SpaceWire-Lite (aspirational)
