@@ -67,7 +67,7 @@ Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to
 
 | Standard | Total | Applicable | Compliant | Deviations | Not Checked |
 |----------|-------|------------|-----------|------------|-------------|
-| **Power of 10** | 10 | 10 | 3 | 3 | 4 |
+| **Power of 10** | 10 | 10 | 2 | 8 | 0 |
 | **JSF AV C++ (flow ctrl 186-201)** | 16 | 16 | 12 | 4 | 0 |
 | **JSF AV C++ (memory 206-207)** | 2 | 2 | 2 | 0 | 0 |
 | **JSF AV C++ (portable 209-215)** | 7 | 7 | 5 | 2 | 0 |
@@ -82,7 +82,7 @@ Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to
 | **JSF AV C++ (unions 153-156)** | 4 | 2 | 2 | 0 | 0 |
 | **JSF AV C++ (preprocessing 26-32)** | 7 | 7 | 3 | 4 | 0 |
 | **JSF AV C++ (headers 33-39)** | 7 | 7 | 7 | 0 | 0 |
-| **JSF AV C++ (operators 157-168)** | 12 | 11 | 10 | 1 | 1 |
+| **JSF AV C++ (operators 157-168)** | 12 | 10 | 9 | 1 | 0 |
 | **JSF AV C++ (pointers 169-176)** | 7 | 7 | 7 | 0 | 0 |
 | **JSF AV C++ (type conv 180-184)** | 5 | 5 | 5 | 0 | 0 |
 | **JSF AV C++ (expressions 202-205)** | 5 | 5 | 5 | 0 | 0 |
@@ -98,7 +98,7 @@ Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to
 | **Session Checklist** | 5 | 5 | 4 | 1 | 0 |
 | **Prior Art Research** | 4 | 4 | 2 | 2 | 0 |
 
-**Totals (audited):** 258 rules checked. 213 PASS (83%), 40 PARTIAL/FAIL (15%), 5 N/A (2%).
+**Totals (audited):** 249 rules, 245 applicable. 201 PASS (82%), 44 PARTIAL/FAIL (18%), 4 N/A.
 
 **Zero NOT CHECKED rules remain.** Audit complete.
 
@@ -869,7 +869,7 @@ add_compile_options(
 | `-Wpedantic` | FAIL | Not enabled |
 | Suppressions minimal | PASS | Only `-Wno-unused-parameter` |
 | Static analyzer | FAIL | No static analysis configured |
-| Zero warnings build | NOT CHECKED | Need to verify build output |
+| Zero warnings build | PASS | Clean build verified — zero warnings with `-Wall -Wextra` |
 
 **Assessment:**
 - Strong warning configuration for development (`-Wall -Wextra`)
