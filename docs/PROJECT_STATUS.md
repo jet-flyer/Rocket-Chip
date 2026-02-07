@@ -6,7 +6,7 @@
 
 **IVP Stage 3 IN PROGRESS** — Dual-Core Integration (v0.2.0)
 
-Sessions A+B (IVP-19 through IVP-23) hardware-verified. Next: Session C (IVP-24)
+Sessions A+B+C (IVP-19 through IVP-24) hardware-verified. Next: Session D (IVP-25/26)
 
 ## Completed
 
@@ -50,11 +50,16 @@ Hardware-verified 2026-02-06:
 - [x] IVP-22: FIFO message passing (1000/1000 echo, 0 lost, 1000/1000 sequential, FIFO depth 4 per SDK docs)
 - [x] IVP-23: Doorbell signals (1000/1000 detected, 0-5us latency, clear isolation confirmed)
 
+### Stage 3 Session C: Seqlock Single-Buffer (IVP-24) ✅
+
+Hardware-verified 2026-02-06:
+- [x] IVP-24: Seqlock soak (124-byte struct, ~1kHz writer/200Hz reader, 0 torn/59852 reads, 56 retries 0.09%, 5-min soak)
+
 ## In Progress
 
-**Stage 3 Session C next (IVP-24 — seqlock single-buffer)**
+**Stage 3 Session D next (IVP-25/26 — sensor migration to Core 1)**
 
-Session plan on whiteboard: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) ✅ → C (seqlock) → D (sensor migration) → E (USB/flash stress) → F (MPU/watchdog)
+Session plan on whiteboard: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) ✅ → C (seqlock) ✅ → D (sensor migration) → E (USB/flash stress) → F (MPU/watchdog)
 
 ## What Exists
 

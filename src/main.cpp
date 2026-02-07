@@ -34,6 +34,7 @@
 #include "hardware/sync.h"
 #include <atomic>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 
 // ============================================================================
@@ -91,6 +92,11 @@ static constexpr uint32_t kCmd_FifoSendStart = 0xF1F05000;
 static constexpr uint32_t kCmd_DoorbellStart = 0xDB00B000;
 static constexpr uint32_t kCmd_DoorbellDone  = 0xDB00D000;
 static constexpr uint32_t kCmd_SpinlockStart = 0x5510C000;
+
+// IVP-24: Seqlock soak test
+static constexpr uint32_t kSeqlockSoakMs = 5 * 60 * 1000;      // 5-minute soak
+static constexpr uint32_t kSeqlockReadIntervalMs = 5;           // 200Hz reader
+static constexpr uint32_t kSeqlockWriteDelayUs = 1000;          // ~1kHz writer
 
 // ============================================================================
 // Global State
@@ -195,6 +201,64 @@ static uint32_t g_ivp21LastPrintMs = 0;
 // IVP-23: Doorbell number (shared between test setup and Core 1)
 static int g_doorbellNum = -1;
 
+// IVP-24: Shared sensor data struct (per SEQLOCK_DESIGN.md, council-approved)
+// All values calibration-applied, body frame, SI units. 124 bytes in SRAM.
+struct shared_sensor_data_t {
+    // IMU (56 bytes)
+    float accel_x, accel_y, accel_z;        // m/s^2
+    float gyro_x, gyro_y, gyro_z;           // rad/s
+    float mag_x, mag_y, mag_z;              // uT (when mag_valid)
+    float imu_temperature_c;
+    uint32_t imu_timestamp_us;
+    uint32_t imu_read_count;                // Monotonic
+    uint32_t mag_read_count;                // Increments only on new mag data
+    bool accel_valid, gyro_valid, mag_valid;
+    uint8_t _pad_imu;
+
+    // Barometer (20 bytes)
+    float pressure_pa, baro_temperature_c;
+    uint32_t baro_timestamp_us, baro_read_count;
+    bool baro_valid;
+    uint8_t _pad_baro[3];
+
+    // GPS (32 bytes, zeroed until IVP-31)
+    int32_t gps_lat_1e7, gps_lon_1e7;
+    float gps_alt_msl_m, gps_ground_speed_mps, gps_course_deg;
+    uint32_t gps_timestamp_us, gps_read_count;
+    uint8_t gps_fix_type, gps_satellites;
+    bool gps_valid;
+    uint8_t _pad_gps;
+
+    // Health (16 bytes)
+    uint32_t imu_error_count, baro_error_count, gps_error_count;
+    uint32_t core1_loop_count;              // For watchdog/stall detection
+};
+
+static_assert(sizeof(shared_sensor_data_t) == 124, "Struct size mismatch with SEQLOCK_DESIGN.md");
+static_assert(sizeof(shared_sensor_data_t) % 4 == 0, "Struct must be 4-byte aligned for memcpy");
+
+// IVP-24: Seqlock wrapper — single buffer with sequence counter
+struct sensor_seqlock_t {
+    std::atomic<uint32_t> sequence{0};      // Odd = write in progress
+    shared_sensor_data_t data;
+};
+
+static sensor_seqlock_t g_sensorSeqlock;
+
+// IVP-24: Cross-core signaling (atomic flags — FIFO reserved by multicore_lockout)
+static std::atomic<bool> g_startSeqlockSoak{false};
+static std::atomic<bool> g_seqlockSoakDone{false};
+
+// IVP-24: Soak test tracking (Core 0 side)
+static bool g_ivp24Active = false;
+static bool g_ivp24Done = false;
+static uint32_t g_ivp24StartMs = 0;
+static uint32_t g_ivp24LastReadMs = 0;
+static uint32_t g_ivp24ReadCount = 0;
+static uint32_t g_ivp24RetryCount = 0;
+static uint32_t g_ivp24TornCount = 0;
+static uint32_t g_ivp24LastPrintMs = 0;
+
 // IVP-14: Calibration storage state
 static bool g_calStorageInitialized = false;
 static bool g_ivp14Done = false;
@@ -219,7 +283,36 @@ static constexpr uint32_t kCliCalFeedIntervalUs = 10000;  // 100Hz
 static icm20948_t g_imu;
 
 // ============================================================================
-// IVP-19/20/21/22/23: Core 1 Entry Point
+// IVP-24: Seqlock Read/Write API
+// ============================================================================
+// Per SEQLOCK_DESIGN.md: explicit __dmb() required because memory_order_release
+// only orders the atomic store itself, not the non-atomic memcpy data.
+
+static void seqlock_write(sensor_seqlock_t* sl, const shared_sensor_data_t* src) {
+    uint32_t seq = sl->sequence.load(std::memory_order_relaxed);
+    // Signal write-in-progress (odd)
+    sl->sequence.store(seq + 1, std::memory_order_release);
+    __dmb();  // Ensure odd counter visible before data writes
+    memcpy(&sl->data, src, sizeof(shared_sensor_data_t));
+    __dmb();  // Ensure all data writes complete before even counter
+    sl->sequence.store(seq + 2, std::memory_order_release);
+}
+
+static bool seqlock_read(sensor_seqlock_t* sl, shared_sensor_data_t* dst) {
+    for (uint32_t attempt = 0; attempt < 4; attempt++) {
+        uint32_t seq1 = sl->sequence.load(std::memory_order_acquire);
+        if (seq1 & 1u) continue;  // Write in progress, retry
+        __dmb();  // Ensure counter read committed before data reads
+        memcpy(dst, &sl->data, sizeof(shared_sensor_data_t));
+        __dmb();  // Ensure all data loads complete before re-reading counter
+        uint32_t seq2 = sl->sequence.load(std::memory_order_acquire);
+        if (seq1 == seq2) return true;  // Consistent snapshot
+    }
+    return false;  // All 4 retries collided — caller uses previous data
+}
+
+// ============================================================================
+// IVP-19/20/21/22/23/24: Core 1 Entry Point
 // ============================================================================
 // Phase 1: Test dispatcher — responds to FIFO commands for IVP-22/23 exercises.
 // Phase 2: Spinlock soak + NeoPixel — writes shared struct at ~100kHz for IVP-21.
@@ -320,21 +413,72 @@ static void core1_entry(void) {
         if (nowMs - lastNeoMs >= 250) {
             lastNeoMs = nowMs;
             neoState = !neoState;
-            if (soaking) {
+            ws2812_set_mode(WS2812_MODE_SOLID,
+                neoState ? WS2812_COLOR_CYAN : WS2812_COLOR_MAGENTA);
+            ws2812_update();
+        }
+
+        // ~100kHz update rate during soak, idle wait after
+        if (soaking) {
+            busy_wait_us(10);
+        } else {
+            // Post-soak: check if Core 0 wants us to start seqlock soak
+            if (g_startSeqlockSoak.load(std::memory_order_acquire)) {
+                break;  // Exit Phase 2, enter Phase 3
+            }
+            sleep_ms(1);
+        }
+    }
+
+    // ---- Phase 3: Seqlock Soak ----
+    // Write synthetic sensor data at ~1kHz via seqlock. NeoPixel at ~2Hz.
+    shared_sensor_data_t localData = {};
+    uint32_t seqlockWriteCount = 0;
+    lastNeoMs = to_ms_since_boot(get_absolute_time());
+    neoState = false;
+
+    while (true) {
+        seqlockWriteCount++;
+        uint32_t nowUs = time_us_32();
+
+        // Synthetic test pattern: deterministic values derived from write count
+        localData.accel_x = (float)seqlockWriteCount;
+        localData.accel_y = (float)seqlockWriteCount * 2.0f;
+        localData.accel_z = (float)seqlockWriteCount * 3.0f;
+        localData.gyro_x = (float)(seqlockWriteCount & 0xFFFFu);
+        localData.gyro_y = (float)((seqlockWriteCount >> 8) & 0xFFFFu);
+        localData.gyro_z = (float)((seqlockWriteCount >> 16) & 0xFFFFu);
+        localData.imu_timestamp_us = nowUs;
+        localData.imu_read_count = seqlockWriteCount;
+        localData.mag_read_count = seqlockWriteCount / 10;
+        localData.accel_valid = true;
+        localData.gyro_valid = true;
+        localData.mag_valid = (seqlockWriteCount % 10 == 0);
+        localData.pressure_pa = 101325.0f + (float)(seqlockWriteCount % 100);
+        localData.baro_timestamp_us = nowUs;
+        localData.baro_read_count = seqlockWriteCount / 20;
+        localData.baro_valid = (seqlockWriteCount % 20 == 0);
+        localData.core1_loop_count = seqlockWriteCount;
+
+        seqlock_write(&g_sensorSeqlock, &localData);
+
+        g_core1Counter.fetch_add(1, std::memory_order_relaxed);
+
+        // NeoPixel: cyan/magenta during soak, green when done
+        uint32_t nowMs = to_ms_since_boot(get_absolute_time());
+        if (nowMs - lastNeoMs >= 250) {
+            lastNeoMs = nowMs;
+            neoState = !neoState;
+            if (g_seqlockSoakDone.load(std::memory_order_relaxed)) {
+                ws2812_set_mode(WS2812_MODE_SOLID, WS2812_COLOR_GREEN);
+            } else {
                 ws2812_set_mode(WS2812_MODE_SOLID,
                     neoState ? WS2812_COLOR_CYAN : WS2812_COLOR_MAGENTA);
-            } else {
-                ws2812_set_mode(WS2812_MODE_SOLID, WS2812_COLOR_GREEN);
             }
             ws2812_update();
         }
 
-        // ~100kHz update rate during soak, relaxed after
-        if (soaking) {
-            busy_wait_us(10);
-        } else {
-            sleep_ms(1);
-        }
+        busy_wait_us(kSeqlockWriteDelayUs);  // ~1kHz
     }
 }
 
@@ -1364,6 +1508,80 @@ static void ivp21_gate_check(void) {
 }
 
 // ============================================================================
+// IVP-24: Seqlock Gate Check
+// ============================================================================
+
+static void ivp24_gate_check(void) {
+    printf("\n=== IVP-24: Seqlock Single-Buffer Validation ===\n");
+    bool pass = true;
+
+    // Gate 1: Zero torn reads
+    {
+        bool tornOk = (g_ivp24TornCount == 0);
+        printf("[%s] Gate 1: %lu reads, %lu torn (expect 0)\n",
+               tornOk ? "PASS" : "FAIL",
+               (unsigned long)g_ivp24ReadCount,
+               (unsigned long)g_ivp24TornCount);
+        if (!tornOk) pass = false;
+    }
+
+    // Gate 2: Retry count < 1%
+    {
+        float retryPct = (g_ivp24ReadCount > 0) ?
+            (100.0f * (float)g_ivp24RetryCount / (float)g_ivp24ReadCount) : 0.0f;
+        bool retryOk = (retryPct < 1.0f);
+        printf("[%s] Gate 2: %lu retries (%.2f%%, expect <1%%)\n",
+               retryOk ? "PASS" : "WARN",
+               (unsigned long)g_ivp24RetryCount, (double)retryPct);
+    }
+
+    // Gate 3: Data consistency (checked inline during soak, reported here)
+    {
+        printf("[INFO] Gate 3: Consistency checked inline (torn count above)\n");
+    }
+
+    // Gate 4: Sequence counter is even and advancing
+    {
+        uint32_t seq = g_sensorSeqlock.sequence.load(std::memory_order_acquire);
+        bool seqOk = ((seq & 1u) == 0) && (seq > 0);
+        printf("[%s] Gate 4: Sequence counter: %lu (even=%s, advancing=%s)\n",
+               seqOk ? "PASS" : "FAIL",
+               (unsigned long)seq,
+               (seq & 1u) == 0 ? "yes" : "no",
+               seq > 0 ? "yes" : "no");
+        if (!seqOk) pass = false;
+    }
+
+    // Gate 5: Soak duration >= 300000ms
+    {
+        uint32_t elapsed = to_ms_since_boot(get_absolute_time()) - g_ivp24StartMs;
+        bool durationOk = (elapsed >= kSeqlockSoakMs);
+        printf("[%s] Gate 5: Soak: %lu ms (target %lu ms)\n",
+               durationOk ? "PASS" : "FAIL",
+               (unsigned long)elapsed, (unsigned long)kSeqlockSoakMs);
+        if (!durationOk) pass = false;
+
+        // Read latest snapshot for info
+        shared_sensor_data_t snap;
+        if (seqlock_read(&g_sensorSeqlock, &snap)) {
+            printf("[INFO] Core 1 writes: %lu, loop count: %lu\n",
+                   (unsigned long)snap.imu_read_count,
+                   (unsigned long)snap.core1_loop_count);
+        }
+    }
+
+    // Gate 6: USB not disrupted
+    {
+        bool usbOk = stdio_usb_connected();
+        printf("[%s] Gate 6: USB still connected after seqlock soak\n",
+               usbOk ? "PASS" : "FAIL");
+        if (!usbOk) pass = false;
+    }
+
+    printf("=== IVP-24: %s ===\n\n", pass ? "ALL GATES PASS" : "GATE FAILURES");
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -1640,6 +1858,77 @@ int main() {
                     g_ivp21Done = true;
                     if (stdio_usb_connected()) {
                         ivp21_gate_check();
+                    }
+                    // Trigger IVP-24 seqlock soak
+                    g_startSeqlockSoak.store(true, std::memory_order_release);
+                    g_ivp24Active = true;
+                    g_ivp24StartMs = nowMs;
+                    g_ivp24LastReadMs = nowMs;
+                    g_ivp24LastPrintMs = nowMs;
+                    if (stdio_usb_connected()) {
+                        printf("=== IVP-24: Seqlock Soak (5 min) ===\n");
+                        printf("Core 1 writing ~1kHz, Core 0 reading 200Hz...\n\n");
+                    }
+                }
+            }
+        }
+
+        // IVP-24: Seqlock soak — read shared struct via seqlock (no lock!)
+        if (g_ivp24Active && !g_ivp24Done) {
+            if ((nowMs - g_ivp24LastReadMs) >= kSeqlockReadIntervalMs) {
+                g_ivp24LastReadMs = nowMs;
+
+                shared_sensor_data_t snapshot;
+                bool ok = seqlock_read(&g_sensorSeqlock, &snapshot);
+                g_ivp24ReadCount++;
+
+                if (!ok) {
+                    g_ivp24RetryCount++;
+                } else {
+                    // Consistency check: values must be deterministic from imu_read_count
+                    uint32_t wc = snapshot.imu_read_count;
+                    float expectX = (float)wc;
+                    float expectY = (float)wc * 2.0f;
+                    float expectZ = (float)wc * 3.0f;
+                    if (snapshot.accel_x != expectX ||
+                        snapshot.accel_y != expectY ||
+                        snapshot.accel_z != expectZ ||
+                        snapshot.core1_loop_count != wc) {
+                        g_ivp24TornCount++;
+                        if (stdio_usb_connected()) {
+                            printf("[FAIL] Seqlock torn: wc=%lu ax=%.0f ay=%.0f az=%.0f lc=%lu\n",
+                                   (unsigned long)wc,
+                                   (double)snapshot.accel_x,
+                                   (double)snapshot.accel_y,
+                                   (double)snapshot.accel_z,
+                                   (unsigned long)snapshot.core1_loop_count);
+                        }
+                    }
+                }
+
+                // Progress every 30 seconds
+                if (stdio_usb_connected() &&
+                    (nowMs - g_ivp24LastPrintMs) >= 30000) {
+                    g_ivp24LastPrintMs = nowMs;
+                    uint32_t elapsed = nowMs - g_ivp24StartMs;
+                    uint32_t remain = (elapsed < kSeqlockSoakMs) ?
+                        (kSeqlockSoakMs - elapsed) / 1000 : 0;
+                    uint32_t seq = g_sensorSeqlock.sequence.load(std::memory_order_relaxed);
+                    printf("[IVP-24] %lus, %lus left, %lu reads, %lu retries, %lu torn, seq=%lu\n",
+                           (unsigned long)(elapsed / 1000),
+                           (unsigned long)remain,
+                           (unsigned long)g_ivp24ReadCount,
+                           (unsigned long)g_ivp24RetryCount,
+                           (unsigned long)g_ivp24TornCount,
+                           (unsigned long)seq);
+                }
+
+                // Soak complete?
+                if ((nowMs - g_ivp24StartMs) >= kSeqlockSoakMs) {
+                    g_ivp24Done = true;
+                    g_seqlockSoakDone.store(true, std::memory_order_release);
+                    if (stdio_usb_connected()) {
+                        ivp24_gate_check();
                     }
                 }
             }
