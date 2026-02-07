@@ -100,8 +100,8 @@ add_executable(rocketchip
     src/drivers/baro_dps310.c
 
     # IVP-31: GPS (requires lwGPS library)
-    # ${LWGPS_DIR}/lwgps/lwgps.c
-    # src/drivers/gps_pa1010d.c
+    ${LWGPS_DIR}/lwgps/lwgps.c
+    src/drivers/gps_pa1010d.c
 
     # IVP-14: Calibration system
     src/calibration/calibration_data.c
@@ -121,7 +121,7 @@ target_include_directories(rocketchip PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/src/calibration    # IVP-14
     ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
     ${RUUVI_DPS310_DIR}                            # IVP-11
-    # ${LWGPS_DIR}/include                         # IVP-31
+    ${LWGPS_DIR}/include                             # IVP-31
 )
 
 # Generate WS2812 PIO header from SDK's pio file

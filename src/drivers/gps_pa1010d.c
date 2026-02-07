@@ -19,9 +19,14 @@ static bool g_initialized = false;
 static lwgps_t g_gps;
 static gps_pa1010d_data_t g_data;
 
-// I2C read buffer
-#define GPS_BUFFER_SIZE 255
-static uint8_t g_buffer[GPS_BUFFER_SIZE];
+// I2C read buffer — full 255-byte MT3333 TX buffer per vendor recommendation.
+// GlobalTop/Quectel app notes: "read full buffer, partial reads not recommended."
+// Pico SDK i2c_read_blocking() has no upper limit (unlike Arduino Wire.h's 32).
+// At 400kHz, 255 bytes takes ~5.8ms. At 10Hz GPS poll, this affects 10 of 1000
+// IMU cycles/sec — negligible jitter for a 200Hz fusion consumer.
+// Ref: pico-examples/i2c/pa1010d_i2c uses 250-byte reads.
+#define GPS_MAX_READ    255
+static uint8_t g_buffer[GPS_MAX_READ + 1];  // +1 for null terminator
 
 // ============================================================================
 // Private Functions
@@ -126,6 +131,13 @@ bool gps_pa1010d_init(void) {
     }
 
     g_initialized = true;
+
+    // Configure NMEA output: enable only RMC + GGA sentences.
+    // RMC provides speed, course, date/time. GGA provides position, altitude, fix quality.
+    // Reduces parsing overhead and keeps output to ~139 bytes/sec (vs ~449 default).
+    // PMTK314 fields: GLL,RMC,VTG,GGA,GSA,GSV,...
+    gps_pa1010d_send_command("PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+
     return true;
 }
 
@@ -138,8 +150,8 @@ bool gps_pa1010d_update(void) {
         return false;
     }
 
-    // Read available NMEA data
-    int len = read_nmea_data(g_buffer, GPS_BUFFER_SIZE - 1);
+    // Read available NMEA data (full 255-byte MT3333 TX buffer)
+    int len = read_nmea_data(g_buffer, GPS_MAX_READ);
     if (len <= 0) {
         return false;
     }

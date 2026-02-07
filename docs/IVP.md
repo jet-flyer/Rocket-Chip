@@ -1,7 +1,7 @@
 # RocketChip Integration and Verification Plan (IVP)
 
 **Status:** ACTIVE — Living document
-**Last Updated:** 2026-02-03
+**Last Updated:** 2026-02-06
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
 **Architecture:** Bare-metal Pico SDK, dual-core AMP (see `PICO_SDK_MULTICORE_DECISION.md`)
 
@@ -88,12 +88,12 @@ cmake --build build/
 | 1 | Foundation | Phase 1 | IVP-01 — IVP-08 | Full | |
 | 2 | Single-Core Sensors | Phase 2 | IVP-09 — IVP-18 | Full | **Minimum Viable Demo** |
 | 3 | Dual-Core Integration | Phase 2 | IVP-19 — IVP-30 | Full | |
-| 4 | GPS Navigation | Phase 3 | IVP-31 — IVP-34 | Full | |
-| 5 | Sensor Fusion | Phase 4 | IVP-35 — IVP-44 | Moderate | |
-| 6 | Mission Engine | Phase 5 | IVP-45 — IVP-49 | Placeholder | **Crowdfunding Demo Ready** |
-| 7 | Data Logging | Phase 6 | IVP-50 — IVP-54 | Placeholder | |
-| 8 | Telemetry | Phase 7 | IVP-55 — IVP-59 | Placeholder | |
-| 9 | System Integration | Phase 9 | IVP-60 — IVP-64 | Placeholder | **Flight Ready** |
+| 4 | GPS Navigation | Phase 3 | IVP-31 — IVP-33 | Full | |
+| 5 | Sensor Fusion | Phase 4 | IVP-34 — IVP-43 | Moderate | |
+| 6 | Mission Engine | Phase 5 | IVP-44 — IVP-48 | Placeholder | **Crowdfunding Demo Ready** |
+| 7 | Data Logging | Phase 6 | IVP-49 — IVP-53 | Placeholder | |
+| 8 | Telemetry | Phase 7 | IVP-54 — IVP-58 | Placeholder | |
+| 9 | System Integration | Phase 9 | IVP-59 — IVP-63 | Placeholder | **Flight Ready** |
 
 ---
 
@@ -715,72 +715,74 @@ PMSAv8 configuration:
 
 **Purpose:** Bring up PA1010D GPS module, parse NMEA, validate fix quality. GPS measurement data is required as an input to the ESKF (Stage 5), so it must be integrated and validated first.
 
+**Architecture note (revised 2026-02-06):** The original Stage 4 IVPs (4 steps) were written before Stage 3 established that Core 1 owns the I2C bus exclusively. The PA1010D shares the I2C bus with IMU and baro — Core 0 cannot read GPS without bus collisions (see LL Entry 20). These IVPs are restructured to 3 steps: GPS runs on Core 1 from the start, publishing data to Core 0 via the seqlock established in IVP-24.
+
 ---
 
-### IVP-31: PA1010D GPS Initialization
+### IVP-31: PA1010D GPS Init + Core 1 Integration
 
-**Prerequisites:** IVP-07 (I2C scan shows 0x10)
+**Prerequisites:** IVP-26 (baro on Core 1 via seqlock), IVP-07 (I2C bus functional)
 
-**Implement:** Initialize PA1010D via I2C. The PA1010D GPS is an I2C device at address `0x10` (config.h `i2c::kPa1010d`). Configure update rate and verify communication. Use existing `lwGPS` library wrapper if available, or implement NMEA parsing.
+**Implement:**
+
+1. **GPS init on Core 0, before `multicore_launch_core1()`:** Call `gps_pa1010d_init()` which probes 0x10, initializes lwGPS parser, and sends PMTK314 to enable only RMC+GGA sentences (reduces parsing overhead, ~139 bytes/sec vs ~449 default). GPS init must complete before Core 1 launches because both share the I2C bus with no mutual exclusion. Record init result; do not block boot if GPS is absent.
+
+2. **GPS polling on Core 1 sensor loop:** Add `gps_pa1010d_update()` call to the Core 1 loop, interleaved with IMU and baro reads. Poll at 10Hz (every ~100 IMU cycles). Read the full 255-byte MT3333 TX buffer per vendor recommendation (GlobalTop/Quectel app notes: "read full buffer, partial reads not recommended"). Pico SDK `i2c_read_blocking()` has no upper limit — the 32-byte Arduino pattern was a Wire.h software limitation. At 400kHz, 255 bytes takes ~5.8ms; at 10Hz this affects 10 of 1000 IMU cycles/sec. The lwGPS parser is stateful and handles partial NMEA sentences across calls. Minimum 2ms between successive GPS reads (MT3333 TX buffer refill time per GlobalTop app note).
+
+3. **Publish GPS data via seqlock:** After `gps_pa1010d_update()`, copy parsed GPS fields into `shared_sensor_data_t` GPS section (`gps_lat_1e7`, `gps_lon_1e7`, `gps_alt_msl_m`, etc.) and publish via the existing `seqlock_write()`. Convert `double` lat/lon to `int32_t * 1e7` (ArduPilot convention, avoids soft-float on Cortex-M33). Increment `gps_read_count` on each successful parse. Set `gps_valid` based on fix type >= 2D.
+
+4. **Track previous `gps_read_count`** on Core 0 — compare against seqlock snapshot to detect genuinely new GPS data vs repeated reads (council modification).
 
 **[GATE]:**
-- Print: `PA1010D init OK at 0x10`
-- Device responds on I2C bus
-- Raw NMEA sentences received and printed: `$GPRMC`, `$GPGGA`
-- If indoors (no fix): `$GPGGA` shows 0 satellites, fix quality 0 — this is expected
+- Print: `PA1010D init OK at 0x10` (or `PA1010D not detected` — non-fatal)
+- Core 1 loop rate remains within 5% of pre-GPS baseline (~1kHz)
+- **Measure GPS I2C read time** (record — expected ~5.8ms for 255 bytes at 400kHz)
+- IMU and baro rates unaffected by GPS reads
+- Raw NMEA data received: print first 10 NMEA sentences to confirm `$GPRMC` and `$GPGGA` arriving
+- If indoors (no fix): `gps_fix_type = 0`, `gps_satellites = 0` — this is expected
+- `gps_read_count` increments on Core 0's seqlock snapshot
+- GPS poll interval is ~100ms (10Hz), measured from Core 1 timestamps
 
-**[DIAG]:** No response at 0x10 = check I2C scan. NMEA sentences garbled = I2C read length wrong (PA1010D returns up to 255 bytes per read). All zeros = device in sleep mode, send wake command.
+**[DIAG]:** No response at 0x10 = GPS not plugged into Qwiic chain (physically removed during Stage 2, reconnect now). NMEA garbled = 0x0A padding not filtered. IMU rate drops more than expected = measure actual GPS read time, verify 10Hz poll rate. `gps_read_count` stuck at 0 = `gps_pa1010d_update()` not being called on Core 1, or PMTK314 command failed.
+
+**[LL]:** Entry 20 (PA1010D bus interference), Entry 21 (I2C master race condition — same shared-bus principle)
 
 ---
 
-### IVP-32: GPS Fix and Data Validation
+### IVP-32: GPS Fix and Outdoor Validation
 
 **Prerequisites:** IVP-31, outdoor testing required
 
-**Implement:** Parse NMEA sentences into position, velocity, satellite count, fix quality. Print parsed fields.
+**Implement:** Take the device outdoors with open sky view. Core 0 reads GPS data from seqlock (not direct I2C). Print parsed fields from the seqlock snapshot: lat/lon, altitude, speed, satellite count, fix type, HDOP, time/date. No new driver code needed — this validates the end-to-end pipeline from PA1010D → Core 1 I2C read → lwGPS parse → seqlock → Core 0 display.
 
 **[GATE]:**
 - Satellite count > 0 (outdoor, open sky)
-- Fix quality: 1 (GPS fix) or 2 (DGPS)
-- Latitude/longitude: plausible for test location
+- Fix type: 2 (2D) or 3 (3D)
+- Latitude/longitude: plausible for test location (read from seqlock `gps_lat_1e7`/`gps_lon_1e7`, convert back to degrees for display)
 - Altitude MSL: plausible for test location (+/-50m)
 - Ground speed: near zero when stationary
 - Time to first fix: record (expected `⚠️ VALIDATE <60s` cold start)
-- `⚠️ VALIDATE 10Hz` update rate confirmed (or actual rate documented)
+- `gps_read_count` incrementing at ~10Hz
 - No NaN, no wildly jumping values between consecutive fixes
+- Core 1 IMU/baro rates unchanged from IVP-31 indoor test
 
-**[DIAG]:** No fix outdoors = antenna obstructed or GPS module not configured for correct constellation. Zero satellites = check antenna connection. Position jumps = multipath — expected near buildings.
-
----
-
-### IVP-33: GPS on Core 1 Integration
-
-**Prerequisites:** IVP-32, IVP-25
-
-**Implement:** Add GPS reads to Core 1 polling loop. GPS shares I2C1 bus with IMU and baro. GPS read interleaved at `⚠️ VALIDATE 10Hz` (every Nth IMU cycle). GPS data published through seqlock alongside IMU and baro.
-
-**[GATE]:**
-- GPS reads do not disrupt IMU or baro rates
-- **Measure GPS I2C read time** (record — NMEA reads can be long, up to `⚠️ VALIDATE 1-2ms`)
-- Total I2C budget per cycle still fits within Core 1 loop period
-- GPS data arrives on Core 0 via seqlock with valid flag
-- If GPS read would exceed cycle budget: document and defer GPS to Core 0
-
-**[DIAG]:** I2C bus contention = GPS reads are longer than sensor reads (NMEA is verbose). May need to read GPS on Core 0 instead if it doesn't fit in Core 1 timing budget. This is acceptable — GPS at 10Hz is not timing-critical.
+**[DIAG]:** No fix outdoors = antenna obstructed or GPS module not configured for correct constellation. Zero satellites = check antenna connection. Position jumps = multipath (expected near buildings). `gps_valid` stays false despite satellites = fix_mode not reaching 2D, check GSA sentence parsing.
 
 ---
 
-### IVP-34: GPS Integration with CLI
+### IVP-33: GPS CLI Integration
 
-**Prerequisites:** IVP-33, IVP-18
+**Prerequisites:** IVP-32, IVP-18 (RC_OS CLI)
 
-**Implement:** Add GPS data to CLI `s` (status) command output. Show fix status, satellite count, position, altitude, speed.
+**Implement:** Add GPS data to CLI `s` (status) command output. Core 0 reads GPS fields from its seqlock snapshot (already being read for IMU/baro status). Show fix status, satellite count, position (degrees with 7 decimal places), altitude, ground speed, HDOP, UTC time. Handle graceful degradation when GPS module is absent (init failed) or has no fix.
 
 **[GATE]:**
-- CLI `s` command shows GPS data when module connected
-- CLI `s` command shows "GPS: not detected" when module absent (graceful degradation)
-- Position data matches known test location
-- Display updates at GPS rate
+- CLI `s` command shows GPS data when module connected and has fix
+- CLI `s` command shows `GPS: no fix (N sats)` when module connected but no fix
+- CLI `s` command shows `GPS: not detected` when module absent
+- Position data matches known test location (outdoor)
+- Displayed `gps_read_count` increments confirm live data flow
+- No additional I2C traffic from Core 0 — all GPS data comes from seqlock
 
 ---
 
@@ -792,7 +794,7 @@ PMSAv8 configuration:
 
 ---
 
-### IVP-35: Vector3 and Quaternion Math Library
+### IVP-34: Vector3 and Quaternion Math Library
 
 **Prerequisites:** IVP-01
 
@@ -802,9 +804,9 @@ PMSAv8 configuration:
 
 ---
 
-### IVP-36: Matrix Operations
+### IVP-35: Matrix Operations
 
-**Prerequisites:** IVP-35
+**Prerequisites:** IVP-34
 
 **Implement:** `src/math/Matrix.h` — multiply, transpose, add, subtract, inverse (up to 15x15), Cholesky decomposition. May wrap CMSIS-DSP `arm_matrix_instance_f32`.
 
@@ -812,9 +814,9 @@ PMSAv8 configuration:
 
 ---
 
-### IVP-37: 1D Barometric Altitude Kalman Filter
+### IVP-36: 1D Barometric Altitude Kalman Filter
 
-**Prerequisites:** IVP-36, IVP-12, IVP-25
+**Prerequisites:** IVP-35, IVP-12, IVP-25
 
 **Implement:** 2-state (altitude, vertical velocity) Kalman filter using baro. Runs on Core 0. Process noise and measurement noise values: `⚠️ VALIDATE` — derive from DPS310 datasheet noise floor and empirical baro variance measured in IVP-12.
 
@@ -822,9 +824,9 @@ PMSAv8 configuration:
 
 ---
 
-### IVP-38: ESKF Propagation (IMU-Only)
+### IVP-37: ESKF Propagation (IMU-Only)
 
-**Prerequisites:** IVP-36, IVP-35, IVP-25
+**Prerequisites:** IVP-35, IVP-34, IVP-25
 
 **Implement:** ESKF nominal state propagation (accel + gyro). `⚠️ VALIDATE 15-state` error covariance prediction. No measurement updates yet. Process noise Q matrix values: `⚠️ VALIDATE` — derive from ICM-20948 datasheet noise density specs.
 
@@ -838,9 +840,9 @@ PMSAv8 configuration:
 
 ---
 
-### IVP-39: ESKF Barometric Altitude Update
+### IVP-38: ESKF Barometric Altitude Update
 
-**Prerequisites:** IVP-38, IVP-37
+**Prerequisites:** IVP-37, IVP-36
 
 **Implement:** Baro measurement update for altitude and vertical velocity correction. Measurement noise R: `⚠️ VALIDATE` — derive from DPS310 spec and IVP-12 measurements.
 
@@ -848,9 +850,9 @@ PMSAv8 configuration:
 
 ---
 
-### IVP-40: ESKF Magnetometer Heading Update
+### IVP-39: ESKF Magnetometer Heading Update
 
-**Prerequisites:** IVP-38
+**Prerequisites:** IVP-37
 
 **Implement:** Mag measurement update for yaw correction. Requires completed mag calibration. Mag noise values: `⚠️ VALIDATE` — derive from AK09916 noise spec.
 
@@ -858,9 +860,9 @@ PMSAv8 configuration:
 
 ---
 
-### IVP-41: Mahony AHRS Cross-Check
+### IVP-40: Mahony AHRS Cross-Check
 
-**Prerequisites:** IVP-38
+**Prerequisites:** IVP-37
 
 **Implement:** Independent Mahony AHRS on same sensor data, running alongside ESKF. Kp/Ki gains: `⚠️ VALIDATE` — reference Mahony (2008) and tune empirically.
 
@@ -868,9 +870,9 @@ PMSAv8 configuration:
 
 ---
 
-### IVP-42: GPS Measurement Update
+### IVP-41: GPS Measurement Update
 
-**Prerequisites:** IVP-39, IVP-33
+**Prerequisites:** IVP-38, IVP-33
 
 **Implement:** GPS position + velocity measurement updates to ESKF. GPS noise R matrix: `⚠️ VALIDATE` — derive from PA1010D position accuracy spec and HDOP.
 
@@ -878,9 +880,9 @@ PMSAv8 configuration:
 
 ---
 
-### IVP-43: MMAE Bank Manager (Titan Tier)
+### IVP-42: MMAE Bank Manager (Titan Tier)
 
-**Prerequisites:** IVP-38, IVP-39, IVP-40
+**Prerequisites:** IVP-37, IVP-38, IVP-39
 
 **Implement:** `⚠️ VALIDATE 4-6` parallel ESKFs with different process model hypotheses. Weighting via innovation likelihood.
 
@@ -888,9 +890,9 @@ PMSAv8 configuration:
 
 ---
 
-### IVP-44: Confidence Gate (Titan Tier)
+### IVP-43: Confidence Gate (Titan Tier)
 
-**Prerequisites:** IVP-43, IVP-41
+**Prerequisites:** IVP-42, IVP-40
 
 **Implement:** Evaluate MMAE weights + AHRS divergence. Output confidence flag to mission engine.
 
@@ -906,13 +908,13 @@ PMSAv8 configuration:
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-45 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
-| IVP-46 | Event Engine | Condition evaluator for launch, apogee, landing detection |
-| IVP-47 | Action Executor | LED, beep, logging trigger actions on state transitions |
-| IVP-48 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
-| IVP-49 | Mission Configuration | Load mission definitions (rocket, freeform) |
+| IVP-44 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
+| IVP-45 | Event Engine | Condition evaluator for launch, apogee, landing detection |
+| IVP-46 | Action Executor | LED, beep, logging trigger actions on state transitions |
+| IVP-47 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
+| IVP-48 | Mission Configuration | Load mission definitions (rocket, freeform) |
 
-> **Milestone:** At IVP-49 completion, the system has calibrated sensors, GPS, sensor fusion, and a working flight state machine — **Crowdfunding Demo Ready**.
+> **Milestone:** At IVP-48 completion, the system has calibrated sensors, GPS, sensor fusion, and a working flight state machine — **Crowdfunding Demo Ready**.
 
 ---
 
@@ -922,11 +924,11 @@ PMSAv8 configuration:
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-50 | LittleFS Integration | Mount filesystem on remaining flash |
-| IVP-51 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
-| IVP-52 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
-| IVP-53 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
-| IVP-54 | USB Data Download | Download flight logs via CLI |
+| IVP-49 | LittleFS Integration | Mount filesystem on remaining flash |
+| IVP-50 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
+| IVP-51 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
+| IVP-52 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
+| IVP-53 | USB Data Download | Download flight logs via CLI |
 
 ---
 
@@ -936,11 +938,11 @@ PMSAv8 configuration:
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-55 | RFM95W Radio Driver | SPI-based LoRa radio init, TX/RX |
-| IVP-56 | MAVLink Encoder | Heartbeat, attitude, GPS, system status messages |
-| IVP-57 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
-| IVP-58 | GCS Compatibility | QGroundControl / Mission Planner connection |
-| IVP-59 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
+| IVP-54 | RFM95W Radio Driver | SPI-based LoRa radio init, TX/RX |
+| IVP-55 | MAVLink Encoder | Heartbeat, attitude, GPS, system status messages |
+| IVP-56 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
+| IVP-57 | GCS Compatibility | QGroundControl / Mission Planner connection |
+| IVP-58 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
 
 ---
 
@@ -950,13 +952,13 @@ PMSAv8 configuration:
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-60 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
-| IVP-61 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
-| IVP-62 | Power Budget Validation | Battery runtime validation under flight load |
-| IVP-63 | Environmental Stress | Temperature range, vibration (if available) |
-| IVP-64 | Flight Test | Bungee-launched glider: full data capture + telemetry |
+| IVP-59 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
+| IVP-60 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
+| IVP-61 | Power Budget Validation | Battery runtime validation under flight load |
+| IVP-62 | Environmental Stress | Temperature range, vibration (if available) |
+| IVP-63 | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
-> **Milestone:** IVP-64 — **Flight Ready**.
+> **Milestone:** IVP-63 — **Flight Ready**.
 
 ---
 
@@ -973,11 +975,11 @@ Tests to re-run after changes to specific areas.
 | Flash/storage code change | IVP-14, IVP-28 | Persistence + dual-core safety |
 | Calibration code change | IVP-15 — IVP-17 | Calibration accuracy |
 | USB/CLI code change | IVP-04, IVP-18, IVP-27 | USB stability |
-| GPS driver change | IVP-31 — IVP-34 | GPS + integration |
-| Fusion algorithm change | IVP-37 — IVP-44 | Filter correctness |
-| Mission engine change | IVP-45 — IVP-49 | State machine correctness |
+| GPS driver change | IVP-31 — IVP-33 | GPS + integration |
+| Fusion algorithm change | IVP-36 — IVP-43 | Filter correctness |
+| Mission engine change | IVP-44 — IVP-48 | State machine correctness |
 | **Major refactor** | **All Stage 1-3** | Full regression |
-| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-60 | Release qualification (build, USB, flash, watchdog, bench test) |
+| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-59 | Release qualification (build, USB, flash, watchdog, bench test) |
 
 ---
 
