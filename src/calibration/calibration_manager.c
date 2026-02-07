@@ -644,43 +644,66 @@ cal_result_t calibration_get_result(void) {
 // Applying Calibration
 // ============================================================================
 
-void calibration_apply_gyro(float gx_raw, float gy_raw, float gz_raw,
-                            float* gx_cal, float* gy_cal, float* gz_cal) {
+void calibration_apply_gyro_with(const calibration_store_t *cal,
+                                  float gx_raw, float gy_raw, float gz_raw,
+                                  float* gx_cal, float* gy_cal, float* gz_cal) {
     // Bias removal
-    float cx = gx_raw - g_calibration.gyro.bias.x;
-    float cy = gy_raw - g_calibration.gyro.bias.y;
-    float cz = gz_raw - g_calibration.gyro.bias.z;
+    float cx = gx_raw - cal->gyro.bias.x;
+    float cy = gy_raw - cal->gyro.bias.y;
+    float cz = gz_raw - cal->gyro.bias.z;
 
     // Board rotation: R * corrected
-    const float* R = g_calibration.board_rotation.m;
+    const float* R = cal->board_rotation.m;
     *gx_cal = R[0]*cx + R[1]*cy + R[2]*cz;
     *gy_cal = R[3]*cx + R[4]*cy + R[5]*cz;
     *gz_cal = R[6]*cx + R[7]*cy + R[8]*cz;
 }
 
-void calibration_apply_accel(float ax_raw, float ay_raw, float az_raw,
-                             float* ax_cal, float* ay_cal, float* az_cal) {
+void calibration_apply_gyro(float gx_raw, float gy_raw, float gz_raw,
+                            float* gx_cal, float* gy_cal, float* gz_cal) {
+    calibration_apply_gyro_with(&g_calibration, gx_raw, gy_raw, gz_raw,
+                                gx_cal, gy_cal, gz_cal);
+}
+
+void calibration_apply_accel_with(const calibration_store_t *cal,
+                                   float ax_raw, float ay_raw, float az_raw,
+                                   float* ax_cal, float* ay_cal, float* az_cal) {
     // Stage 1: Ellipsoid correction — M * (raw + offset)
     // M is symmetric 3x3 with scale (diagonal) and offdiag terms
-    float ox = ax_raw + g_calibration.accel.offset.x;
-    float oy = ay_raw + g_calibration.accel.offset.y;
-    float oz = az_raw + g_calibration.accel.offset.z;
+    float ox = ax_raw + cal->accel.offset.x;
+    float oy = ay_raw + cal->accel.offset.y;
+    float oz = az_raw + cal->accel.offset.z;
 
-    float cx = g_calibration.accel.scale.x   * ox
-             + g_calibration.accel.offdiag.x * oy
-             + g_calibration.accel.offdiag.y * oz;
-    float cy = g_calibration.accel.offdiag.x * ox
-             + g_calibration.accel.scale.y   * oy
-             + g_calibration.accel.offdiag.z * oz;
-    float cz = g_calibration.accel.offdiag.y * ox
-             + g_calibration.accel.offdiag.z * oy
-             + g_calibration.accel.scale.z   * oz;
+    float cx = cal->accel.scale.x   * ox
+             + cal->accel.offdiag.x * oy
+             + cal->accel.offdiag.y * oz;
+    float cy = cal->accel.offdiag.x * ox
+             + cal->accel.scale.y   * oy
+             + cal->accel.offdiag.z * oz;
+    float cz = cal->accel.offdiag.y * ox
+             + cal->accel.offdiag.z * oy
+             + cal->accel.scale.z   * oz;
 
     // Stage 2: Board rotation — R * corrected
-    const float* R = g_calibration.board_rotation.m;
+    const float* R = cal->board_rotation.m;
     *ax_cal = R[0]*cx + R[1]*cy + R[2]*cz;
     *ay_cal = R[3]*cx + R[4]*cy + R[5]*cz;
     *az_cal = R[6]*cx + R[7]*cy + R[8]*cz;
+}
+
+void calibration_apply_accel(float ax_raw, float ay_raw, float az_raw,
+                             float* ax_cal, float* ay_cal, float* az_cal) {
+    calibration_apply_accel_with(&g_calibration, ax_raw, ay_raw, az_raw,
+                                  ax_cal, ay_cal, az_cal);
+}
+
+bool calibration_load_into(calibration_store_t* dest) {
+    if (dest == NULL) return false;
+    calibration_store_t loaded;
+    if (!calibration_storage_read(&loaded)) return false;
+    if (!calibration_validate(&loaded)) return false;
+    *dest = loaded;
+    return true;
 }
 
 float calibration_get_altitude_agl(float pressure_pa) {

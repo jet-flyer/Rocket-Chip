@@ -201,16 +201,42 @@ const char* calibration_get_6pos_name(uint8_t pos);
 // ============================================================================
 
 /**
- * @brief Apply gyro calibration to raw reading
+ * @brief Apply gyro calibration to raw reading (uses global calibration)
  */
 void calibration_apply_gyro(float gx_raw, float gy_raw, float gz_raw,
                             float* gx_cal, float* gy_cal, float* gz_cal);
 
 /**
- * @brief Apply accel calibration to raw reading
+ * @brief Apply accel calibration to raw reading (uses global calibration)
  */
 void calibration_apply_accel(float ax_raw, float ay_raw, float az_raw,
                              float* ax_cal, float* ay_cal, float* az_cal);
+
+/**
+ * @brief Apply gyro calibration using explicit calibration data
+ *
+ * For cross-core use where Core 1 has its own calibration copy.
+ */
+void calibration_apply_gyro_with(const calibration_store_t *cal,
+                                  float gx_raw, float gy_raw, float gz_raw,
+                                  float* gx_cal, float* gy_cal, float* gz_cal);
+
+/**
+ * @brief Apply accel calibration using explicit calibration data
+ *
+ * For cross-core use where Core 1 has its own calibration copy.
+ */
+void calibration_apply_accel_with(const calibration_store_t *cal,
+                                   float ax_raw, float ay_raw, float az_raw,
+                                   float* ax_cal, float* ay_cal, float* az_cal);
+
+/**
+ * @brief Load calibration into a caller-supplied buffer
+ *
+ * Reads from the cached copy in RAM (no flash access). Safe to call from Core 1.
+ * @return true if valid calibration was loaded
+ */
+bool calibration_load_into(calibration_store_t* dest);
 
 /**
  * @brief Get altitude above ground from pressure

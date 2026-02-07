@@ -6,7 +6,7 @@
 
 **IVP Stage 3 IN PROGRESS** — Dual-Core Integration (v0.2.0)
 
-Sessions A+B+C (IVP-19 through IVP-24) hardware-verified. Next: Session D (IVP-25/26)
+Sessions A+B+C+D (IVP-19 through IVP-26) hardware-verified. Next: Session E (IVP-27/28)
 
 ## Completed
 
@@ -55,11 +55,17 @@ Hardware-verified 2026-02-06:
 Hardware-verified 2026-02-06:
 - [x] IVP-24: Seqlock soak (124-byte struct, ~1kHz writer/200Hz reader, 0 torn/59852 reads, 56 retries 0.09%, 5-min soak)
 
+### Stage 3 Session D: Sensor Migration to Core 1 (IVP-25/26) ✅
+
+Hardware-verified 2026-02-06:
+- [x] IVP-25: Core 1 IMU sampling (998.4 Hz, avg 1002us cycle, 51.7us jitter stddev, 0 errors/5-min, 0 stale reads)
+- [x] IVP-26: Core 1 baro sampling (7.9 Hz matching DPS310 8Hz hw rate, data-ready gated, 0 errors, both datasets valid on Core 0)
+
 ## In Progress
 
-**Stage 3 Session D next (IVP-25/26 — sensor migration to Core 1)**
+**Stage 3 Session E next (IVP-27/28 — USB stress + flash under dual-core)**
 
-Session plan on whiteboard: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) ✅ → C (seqlock) ✅ → D (sensor migration) → E (USB/flash stress) → F (MPU/watchdog)
+Session plan on whiteboard: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) ✅ → C (seqlock) ✅ → D (sensor migration) ✅ → E (USB/flash stress) → F (MPU/watchdog)
 
 ## What Exists
 

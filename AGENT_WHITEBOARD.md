@@ -64,6 +64,32 @@ Stage 3 (IVP-19 through IVP-30) grouped into work sessions. Multicore before GPS
 
 ---
 
+### 2026-02-06: Full JSF AV Standards Audit Needed Post-Stage 3
+
+**Severity:** Medium (technical debt)
+**Reporter:** Claude Code CLI
+
+**Issue:** Current "standards audit" checks ~10 critical rules (naming, types, memory, USB guards, magic numbers, atomics, cross-core invariants). JSF AV has 222 rules, JPL C standard adds more. Many rules are unchecked:
+- Cyclomatic complexity limits
+- Function length limits
+- Switch/case fall-through analysis
+- Const correctness
+- Pointer aliasing rules
+- Null checks on all pointer dereferences
+- Header include guard naming conventions
+- Comment-to-code ratios
+- And ~200 more
+
+**Recommended:** Dedicate a full session between Stage 3 and Stage 4 to:
+1. Create a JSF AV compliance checklist document (`standards/JSF_AV_CHECKLIST.md`)
+2. Run a systematic audit against ALL applicable rules
+3. Log findings and prioritize fixes
+4. Update `STANDARDS_DEVIATIONS.md` with any accepted deviations
+
+**Scope:** All `src/` files (~2500 lines across 12 source files as of Session D).
+
+---
+
 ## Resolved
 
 *Resolved items are erased. See LESSONS_LEARNED.md for historical debugging context.*
