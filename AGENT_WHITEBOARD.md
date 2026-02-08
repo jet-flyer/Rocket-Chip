@@ -19,7 +19,7 @@
 **Status:** Research complete, awaiting user decision
 **Reporter:** Claude Code CLI
 
-Comprehensive F' evaluation added to `docs/decisions/TITAN_BOARD_ANALYSIS.md` (Sections 1-14 of the addendum). Three viable Titan paths identified:
+Comprehensive F' evaluation added to `docs/decisions/TITAN_BOARD_ANALYSIS.md` (Sections 1-15 of the addendum). Section 13 added 2026-02-08: H7 board candidates — no maker H7 dev boards exist, Matek H743 flight controllers recommended for Path A. Three viable Titan paths identified:
 - **Path A:** STM32H7 + F'/Zephyr (high risk — F' not running on H7 yet)
 - **Path B:** Pi Zero 2 W + F'/Linux (medium risk — proven framework, new integration)
 - **Path C:** Hybrid Pi Zero 2 W + RP2350 (recommended — mirrors Pixhawk architecture)

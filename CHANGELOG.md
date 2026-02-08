@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-08-004 | Claude Code CLI | documentation
+
+**Titan doc: H7 board candidates section**
+
+Added Section 13 to `TITAN_BOARD_ANALYSIS.md` — STM32H7 board landscape research. No maker H7 boards exist in Feather/Thing Plus form factor. Recommended Matek H743-Wing V3 flight controller for Titan Path A prototyping (ArduPilot-validated, dual IMU, DPS310, CAN, 13 PWM, ~$55-65).
+
+(`docs/decisions/TITAN_BOARD_ANALYSIS.md`)
+
+---
+
 ### 2026-02-08-003 | Claude Code CLI | refactor
 
 **C++20 conversion: .c→.cpp rename + #define→constexpr (PP-1 resolved)**

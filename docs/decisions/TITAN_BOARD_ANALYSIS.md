@@ -530,7 +530,21 @@ Ingenuity is the strongest reference: F' on Linux, on a flying vehicle, with rea
 
 **Recommendation:** If pursuing F', start with Pi Zero 2 W — it's the path of least resistance (F' on Linux just works). STM32H7 + F'/Zephyr requires solving unsolved problems.
 
-### 13. "Cherry-Pick" Alternative (No Full F' Adoption)
+### 13. STM32H7 Board Candidates (Updated 2026-02-08)
+
+No maker-friendly H7 dev boards exist in Feather/Thing Plus form factor — Adafruit/SparkFun stopped at F405 (too small for ArduPilot or F'). The WeAct H750 (Adafruit #5032) is discontinued and lacks ArduPilot support. The H7 lives in the flight controller ecosystem.
+
+**H7 flight controllers (ArduPilot-validated, sensors onboard):**
+
+| Board | MCU | IMU(s) | Baro | Key Interfaces | Est. Price |
+|-------|-----|--------|------|----------------|------------|
+| **Matek H743-Wing V3** | H743 480 MHz, 1 MB SRAM | ICM-42688-P + ICM-42605 (dual) | DPS310 | 7 UART, CAN, SD, 13 PWM | ~$55-65 |
+| Matek H743-WLITE | H743 480 MHz, 512 KB SRAM | ICM-42688-P | DPS310 | 7 UART, CAN, SD, 13 PWM | ~$45-55 |
+| Matek H743-Slim V3 | H743 480 MHz | Dual IMU | DPS310 | Similar to Wing | ~$50-60 |
+
+**Why FCs over dev boards:** ArduPilot already validated, sensors onboard (dual IMU + DPS310), PWM/CAN/SD pre-routed, cheaper than a bare Nucleo-H743ZI (~$70). Wing V3 is the best fit — fixed-wing/VTOL oriented, not quad-racing. Form factor is 30-46mm drone stack mount, not Feather.
+
+### 14. "Cherry-Pick" Alternative (No Full F' Adoption)
 
 If the full F' adoption is too disruptive, the key F' benefits can be implemented independently:
 
@@ -543,7 +557,7 @@ If the full F' adoption is too disruptive, the key F' benefits can be implemente
 
 This preserves the single-codebase advantage across tiers while adopting F' patterns without F' framework overhead.
 
-### 14. Open Questions for Future Council Review
+### 15. Open Questions for Future Council Review
 
 1. Is the separate-codebase trade-off acceptable, or does shared firmware across tiers outweigh F' benefits?
 2. Does F' GDS replace the need for MAVLink/QGroundControl compatibility on Titan? (F' uses its own protocol, not MAVLink)
