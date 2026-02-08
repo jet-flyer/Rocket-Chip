@@ -18,10 +18,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // ============================================================================
 // Menu State
 // ============================================================================
@@ -155,9 +151,5 @@ extern rc_os_unhandled_key_fn rc_os_on_unhandled_key;
 typedef void (*rc_os_cal_hook_fn)(void);
 extern rc_os_cal_hook_fn rc_os_cal_pre_hook;
 extern rc_os_cal_hook_fn rc_os_cal_post_hook;
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // ROCKETCHIP_RC_OS_H

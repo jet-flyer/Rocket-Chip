@@ -11,10 +11,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -85,9 +81,5 @@ void baro_dps310_set_sea_level(float pressure_pa);
  * @return Altitude in meters
  */
 float baro_dps310_pressure_to_altitude(float pressure_pa, float sea_level_pa);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // ROCKETCHIP_BARO_DPS310_H

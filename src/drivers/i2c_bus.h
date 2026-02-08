@@ -13,10 +13,6 @@
 #include <stdbool.h>
 #include "hardware/i2c.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -149,9 +145,5 @@ bool i2c_bus_recover(void);
  * @return true if bus successfully reset and initialized
  */
 bool i2c_bus_reset(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // ROCKETCHIP_I2C_BUS_H

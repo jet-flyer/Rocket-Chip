@@ -1,5 +1,5 @@
 /**
- * @file baro_dps310.c
+ * @file baro_dps310.cpp
  * @brief DPS310 Barometer wrapper using ruuvi.dps310.c library
  *
  * Implements Pico SDK I2C callbacks for the ruuvi DPS310 driver.
@@ -7,7 +7,9 @@
 
 #include "baro_dps310.h"
 #include "i2c_bus.h"
+extern "C" {
 #include "dps310.h"
+}
 #include "pico/time.h"
 #include <math.h>
 #include <string.h>
@@ -24,7 +26,9 @@ static void pico_sleep(uint32_t ms);
 static uint32_t pico_read(const void* comm_ctx, uint8_t reg_addr, uint8_t* data, uint8_t data_len);
 static uint32_t pico_write(const void* comm_ctx, uint8_t reg_addr, const uint8_t* data, uint8_t data_len);
 
-// DPS310 context - must be initialized with function pointers
+// DPS310 context - suppress missing-field-initializers for third-party struct
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 static dps310_ctx_t g_dps310_ctx = {
     .device_status = DPS310_NOT_INITIALIZED,
     .comm_ctx = &g_i2c_addr,
@@ -32,6 +36,7 @@ static dps310_ctx_t g_dps310_ctx = {
     .read = pico_read,
     .write = pico_write,
 };
+#pragma GCC diagnostic pop
 
 // ============================================================================
 // Pico SDK Callbacks for ruuvi DPS310

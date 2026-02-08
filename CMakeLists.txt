@@ -89,45 +89,45 @@ add_executable(rocketchip
     # Stage 1: Foundation (IVP-01 through IVP-08)
     # -------------------------------------------------------------------------
     src/main.cpp
-    src/drivers/ws2812_status.c
-    src/drivers/i2c_bus.c
+    src/drivers/ws2812_status.cpp
+    src/drivers/i2c_bus.cpp
 
     # -------------------------------------------------------------------------
     # Stage 2: Single-Core Sensors (IVP-09 through IVP-18)
     # Re-enable one at a time with verification at each IVP gate
     # -------------------------------------------------------------------------
     # IVP-09: IMU driver
-    src/drivers/icm20948.c
+    src/drivers/icm20948.cpp
 
     # IVP-11: Barometer (requires ruuvi library)
     ${RUUVI_DPS310_DIR}/dps310.c
-    src/drivers/baro_dps310.c
+    src/drivers/baro_dps310.cpp
 
     # IVP-31: GPS (requires lwGPS library)
     ${LWGPS_DIR}/lwgps/lwgps.c
-    src/drivers/gps_pa1010d.c
+    src/drivers/gps_pa1010d.cpp
 
     # IVP-14: Calibration system
-    src/calibration/calibration_data.c
-    src/calibration/calibration_manager.c
-    src/calibration/calibration_storage.c
+    src/calibration/calibration_data.cpp
+    src/calibration/calibration_manager.cpp
+    src/calibration/calibration_storage.cpp
 
     # IVP-18: RC_OS CLI
-    src/cli/rc_os.c
+    src/cli/rc_os.cpp
 )
 
 # -Wpedantic for our source files only (SDK sources are excluded)
 set(ROCKETCHIP_SOURCES
     src/main.cpp
-    src/drivers/ws2812_status.c
-    src/drivers/i2c_bus.c
-    src/drivers/icm20948.c
-    src/drivers/baro_dps310.c
-    src/drivers/gps_pa1010d.c
-    src/calibration/calibration_data.c
-    src/calibration/calibration_manager.c
-    src/calibration/calibration_storage.c
-    src/cli/rc_os.c
+    src/drivers/ws2812_status.cpp
+    src/drivers/i2c_bus.cpp
+    src/drivers/icm20948.cpp
+    src/drivers/baro_dps310.cpp
+    src/drivers/gps_pa1010d.cpp
+    src/calibration/calibration_data.cpp
+    src/calibration/calibration_manager.cpp
+    src/calibration/calibration_storage.cpp
+    src/cli/rc_os.cpp
 )
 set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 

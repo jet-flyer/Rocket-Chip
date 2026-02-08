@@ -11,10 +11,6 @@
 
 #include "calibration_data.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @brief Initialize calibration storage
  *
@@ -49,9 +45,5 @@ bool calibration_storage_write(const calibration_store_t* cal);
  * @return true on success
  */
 bool calibration_storage_erase(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // ROCKETCHIP_CALIBRATION_STORAGE_H

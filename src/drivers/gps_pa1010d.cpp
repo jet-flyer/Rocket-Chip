@@ -199,7 +199,7 @@ bool gps_pa1010d_send_command(const char* cmd) {
     len += 4;
 
     // Send via I2C
-    int ret = i2c_bus_write(GPS_PA1010D_ADDR, (uint8_t*)sentence, len);
+    int ret = i2c_bus_write(GPS_PA1010D_ADDR, reinterpret_cast<const uint8_t*>(sentence), len);
     return (ret == len);
 }
 

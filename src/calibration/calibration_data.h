@@ -12,10 +12,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // ============================================================================
 // Magic Numbers and Version
 // ============================================================================
@@ -142,7 +138,7 @@ typedef struct {
 } calibration_store_t;
 
 // Verify size fits in a flash page
-_Static_assert(sizeof(calibration_store_t) <= 256,
+static_assert(sizeof(calibration_store_t) <= 256,
                "calibration_store_t exceeds 256 byte limit");
 
 // ============================================================================
@@ -169,9 +165,5 @@ void calibration_update_crc(calibration_store_t* cal);
  * @brief Check if a specific calibration has been performed
  */
 bool calibration_has(const calibration_store_t* cal, cal_status_flags_t flag);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // ROCKETCHIP_CALIBRATION_DATA_H

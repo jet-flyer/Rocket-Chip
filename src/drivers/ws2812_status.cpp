@@ -156,7 +156,7 @@ void ws2812_set_hex(uint32_t hex) {
 
 void ws2812_off(void) {
     g_state.mode = WS2812_MODE_OFF;
-    g_state.base_color = (ws2812_rgb_t){0, 0, 0};
+    g_state.base_color = ws2812_rgb_t{0, 0, 0};
     send_pixel(0, 0, 0);
 }
 

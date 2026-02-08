@@ -16,10 +16,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -246,9 +242,5 @@ bool icm20948_data_ready(icm20948_t* dev, bool* accel_ready, bool* gyro_ready);
  * @return true on success
  */
 bool icm20948_set_i2c_master_enable(icm20948_t* dev, bool enable);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // ROCKETCHIP_ICM20948_H

@@ -250,8 +250,8 @@ void calibration_feed_accel(float ax, float ay, float az, float temperature_c) {
         }
 
         // Level cal uses simple offset only — reset scale to unity, clear offdiag
-        g_calibration.accel.scale = (cal_vec3_t){1.0f, 1.0f, 1.0f};
-        g_calibration.accel.offdiag = (cal_vec3_t){0.0f, 0.0f, 0.0f};
+        g_calibration.accel.scale = cal_vec3_t{1.0f, 1.0f, 1.0f};
+        g_calibration.accel.offdiag = cal_vec3_t{0.0f, 0.0f, 0.0f};
 
         g_calibration.accel.temperature_ref = g_sample_acc.sum_temp / n;
         g_calibration.accel.status = CAL_STATUS_LEVEL;

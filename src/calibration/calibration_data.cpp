@@ -39,13 +39,13 @@ void calibration_init_defaults(calibration_store_t* cal) {
     cal->version = CALIBRATION_VERSION;
 
     // Accel defaults: no offset, unity scale, no cross-coupling
-    cal->accel.offset = (cal_vec3_t){0.0f, 0.0f, 0.0f};
-    cal->accel.scale = (cal_vec3_t){1.0f, 1.0f, 1.0f};
-    cal->accel.offdiag = (cal_vec3_t){0.0f, 0.0f, 0.0f};
+    cal->accel.offset = cal_vec3_t{0.0f, 0.0f, 0.0f};
+    cal->accel.scale = cal_vec3_t{1.0f, 1.0f, 1.0f};
+    cal->accel.offdiag = cal_vec3_t{0.0f, 0.0f, 0.0f};
     cal->accel.status = CAL_STATUS_NONE;
 
     // Gyro defaults: no bias
-    cal->gyro.bias = (cal_vec3_t){0.0f, 0.0f, 0.0f};
+    cal->gyro.bias = cal_vec3_t{0.0f, 0.0f, 0.0f};
     cal->gyro.status = CAL_STATUS_NONE;
 
     // Baro defaults: standard atmosphere

@@ -11,10 +11,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -123,9 +119,5 @@ bool gps_pa1010d_send_command(const char* cmd);
  * @return true on success
  */
 bool gps_pa1010d_set_rate(uint8_t rate_hz);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // ROCKETCHIP_GPS_PA1010D_H

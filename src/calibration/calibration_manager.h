@@ -14,10 +14,6 @@
 
 #include "calibration_data.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // ============================================================================
 // Calibration State
 // ============================================================================
@@ -261,9 +257,5 @@ cal_result_t calibration_load(void);
  * @brief Reset calibration to factory defaults
  */
 cal_result_t calibration_reset(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // ROCKETCHIP_CALIBRATION_MANAGER_H
