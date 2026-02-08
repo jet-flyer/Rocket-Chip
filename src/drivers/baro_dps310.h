@@ -15,8 +15,8 @@
 // Configuration
 // ============================================================================
 
-#define BARO_DPS310_ADDR_DEFAULT    0x77
-#define BARO_DPS310_ADDR_ALT        0x76
+constexpr uint8_t kBaroDps310AddrDefault    = 0x77;
+constexpr uint8_t kBaroDps310AddrAlt        = 0x76;
 
 // ============================================================================
 // Types
@@ -38,7 +38,7 @@ typedef struct {
 
 /**
  * @brief Initialize the DPS310 barometer
- * @param addr I2C address (BARO_DPS310_ADDR_DEFAULT or BARO_DPS310_ADDR_ALT)
+ * @param addr I2C address (kBaroDps310AddrDefault or kBaroDps310AddrAlt)
  * @return true on success
  */
 bool baro_dps310_init(uint8_t addr);

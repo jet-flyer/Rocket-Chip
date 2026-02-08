@@ -22,8 +22,8 @@
 // Configuration
 // ============================================================================
 
-#define RC_OS_VERSION           "0.4.0"
-#define RC_OS_POLL_MS           50      // 20Hz polling
+constexpr const char* kRcOsVersion = "0.4.0";
+constexpr uint32_t kRcOsPollMs     = 50;   // 20Hz polling
 
 // ============================================================================
 // State
@@ -57,7 +57,7 @@ rc_os_unhandled_key_fn rc_os_on_unhandled_key = NULL;
 static void print_banner(void) {
     printf("\n");
     printf("========================================\n");
-    printf("  RocketChip OS v%s\n", RC_OS_VERSION);
+    printf("  RocketChip OS v%s\n", kRcOsVersion);
     printf("  Press 'h' for help\n");
     printf("========================================\n\n");
 }
@@ -66,7 +66,7 @@ static void print_system_status(void) {
     printf("\n========================================\n");
     printf("  RocketChip System Status\n");
     printf("========================================\n");
-    printf("  Version: %s\n", ROCKETCHIP_VERSION_STRING);
+    printf("  Version: %s\n", kVersionString);
     printf("  Board: Adafruit Feather RP2350 HSTX\n");
     printf("  Uptime: %lu ms\n", (unsigned long)to_ms_since_boot(get_absolute_time()));
 
@@ -245,15 +245,15 @@ static const char* const kPositionInstructions[6] = {
     "Place board FLAT on table, component side DOWN (inverted)"
 };
 
-#define ACCEL_6POS_MAX_RETRIES      3
-#define ACCEL_6POS_WAIT_TIMEOUT_US  30000000    // 30 seconds
-#define ACCEL_6POS_GRAVITY_NOMINAL  9.80665f    // m/s² (WGS-84 standard)
-#define ACCEL_6POS_VERIFY_TOLERANCE 0.02f       // m/s² (IVP-17 gate requirement)
+constexpr uint8_t  kAccel6posMaxRetries     = 3;
+constexpr uint32_t kAccel6posWaitTimeoutUs  = 30000000;     // 30 seconds
+constexpr float    kAccel6posGravityNominal = 9.80665f;     // m/s² (WGS-84 standard)
+constexpr float    kAccel6posVerifyTolerance = 0.02f;       // m/s² (IVP-17 gate requirement)
 
 // Helper: wait for ENTER key with timeout, ESC cancels. Returns true on ENTER.
 static bool wait_for_enter_or_esc(void) {
     while (true) {
-        int ch = getchar_timeout_us(ACCEL_6POS_WAIT_TIMEOUT_US);
+        int ch = getchar_timeout_us(kAccel6posWaitTimeoutUs);
         if (ch == PICO_ERROR_TIMEOUT) {
             printf("\nTimeout - calibration cancelled.\n");
             return false;
@@ -290,7 +290,7 @@ static void cmd_accel_6pos_cal_inner(void) {
         fflush(stdout);
 
         cal_result_t result = CAL_RESULT_INVALID_DATA;
-        for (uint8_t retry = 0; retry < ACCEL_6POS_MAX_RETRIES; retry++) {
+        for (uint8_t retry = 0; retry < kAccel6posMaxRetries; retry++) {
             result = calibration_collect_6pos_position(pos, rc_os_read_accel);
 
             if (result == CAL_RESULT_OK) {
@@ -303,9 +303,9 @@ static void cmd_accel_6pos_cal_inner(void) {
 
             if (result == CAL_RESULT_MOTION_DETECTED) {
                 printf("\n  Motion detected! Hold still and try again.\n");
-                if (retry < ACCEL_6POS_MAX_RETRIES - 1) {
+                if (retry < kAccel6posMaxRetries - 1) {
                     printf("  Press ENTER to retry (%d/%d)...\n",
-                           retry + 2, ACCEL_6POS_MAX_RETRIES);
+                           retry + 2, kAccel6posMaxRetries);
                     fflush(stdout);
                     if (!wait_for_enter_or_esc()) {
                         calibration_reset_6pos();
@@ -319,9 +319,9 @@ static void cmd_accel_6pos_cal_inner(void) {
                 printf("\n  Orientation doesn't match expected: %s\n",
                        calibration_get_6pos_name(pos));
                 printf("  Please reposition the board correctly.\n");
-                if (retry < ACCEL_6POS_MAX_RETRIES - 1) {
+                if (retry < kAccel6posMaxRetries - 1) {
                     printf("  Press ENTER to retry (%d/%d)...\n",
-                           retry + 2, ACCEL_6POS_MAX_RETRIES);
+                           retry + 2, kAccel6posMaxRetries);
                     fflush(stdout);
                     if (!wait_for_enter_or_esc()) {
                         calibration_reset_6pos();
@@ -340,7 +340,7 @@ static void cmd_accel_6pos_cal_inner(void) {
         }
 
         if (result != CAL_RESULT_OK) {
-            printf("  Failed after %d attempts.\n", ACCEL_6POS_MAX_RETRIES);
+            printf("  Failed after %d attempts.\n", kAccel6posMaxRetries);
             calibration_reset_6pos();
             printf("Calibration aborted.\n");
             return;
@@ -400,13 +400,13 @@ static void cmd_accel_6pos_cal_inner(void) {
             float avg_mag = mag_sum / (float)good_reads;
             printf("  Avg gravity magnitude: %.4f m/s^2 (expected 9.8067)\n",
                    (double)avg_mag);
-            float error = fabsf(avg_mag - ACCEL_6POS_GRAVITY_NOMINAL);
-            if (error < ACCEL_6POS_VERIFY_TOLERANCE) {
+            float error = fabsf(avg_mag - kAccel6posGravityNominal);
+            if (error < kAccel6posVerifyTolerance) {
                 printf("  PASS (error %.4f < %.2f)\n",
-                       (double)error, (double)ACCEL_6POS_VERIFY_TOLERANCE);
+                       (double)error, (double)kAccel6posVerifyTolerance);
             } else {
                 printf("  WARNING: error %.4f > %.2f threshold\n",
-                       (double)error, (double)ACCEL_6POS_VERIFY_TOLERANCE);
+                       (double)error, (double)kAccel6posVerifyTolerance);
             }
         }
     }

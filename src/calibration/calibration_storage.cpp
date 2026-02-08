@@ -1,5 +1,5 @@
 /**
- * @file calibration_storage.c
+ * @file calibration_storage.cpp
  * @brief Calibration persistent storage implementation
  *
  * Flash layout (at end of 8MB flash):
@@ -21,19 +21,19 @@
 // ============================================================================
 
 // Use last 8KB of 8MB flash for calibration storage
-#define FLASH_SIZE              (8 * 1024 * 1024)
-#define STORAGE_SIZE            (2 * FLASH_SECTOR_SIZE)  // 8KB total
-#define STORAGE_OFFSET          (FLASH_SIZE - STORAGE_SIZE)  // 0x7FE000
+constexpr uint32_t kFlashSize        = 8 * 1024 * 1024;
+constexpr uint32_t kStorageSize      = 2 * FLASH_SECTOR_SIZE;           // 8KB total
+constexpr uint32_t kStorageOffset    = kFlashSize - kStorageSize;       // 0x7FE000
 
-#define SECTOR_A_OFFSET         STORAGE_OFFSET
-#define SECTOR_B_OFFSET         (STORAGE_OFFSET + FLASH_SECTOR_SIZE)
+constexpr uint32_t kSectorAOffset    = kStorageOffset;
+constexpr uint32_t kSectorBOffset    = kStorageOffset + FLASH_SECTOR_SIZE;
 
 // ============================================================================
 // Sector Header
 // ============================================================================
 
-#define SECTOR_STATE_ERASED     0xFFFFFFFFU  // Fresh erased flash
-#define SECTOR_STATE_IN_USE     0x52435355U  // "RCSU" - sector is active
+constexpr uint32_t kSectorStateErased = 0xFFFFFFFFU;  // Fresh erased flash
+constexpr uint32_t kSectorStateInUse  = 0x52435355U;  // "RCSU" - sector is active
 
 typedef struct {
     uint32_t state;             // Sector state marker
@@ -41,15 +41,15 @@ typedef struct {
     uint32_t reserved[2];       // Alignment padding
 } sector_header_t;
 
-_Static_assert(sizeof(sector_header_t) == 16, "sector_header_t must be 16 bytes");
+static_assert(sizeof(sector_header_t) == 16, "sector_header_t must be 16 bytes");
 
 // Entry header follows sector header
 typedef struct {
-    uint32_t magic;             // ENTRY_MAGIC for validation
+    uint32_t magic;             // kEntryMagic for validation
     uint32_t reserved;
 } entry_header_t;
 
-#define ENTRY_MAGIC             0x52434345U  // "RCCE" - RocketChip Cal Entry
+constexpr uint32_t kEntryMagic = 0x52434345U;  // "RCCE" - RocketChip Cal Entry
 
 // ============================================================================
 // Private State
@@ -128,7 +128,7 @@ static bool find_valid_entry(uint32_t sector_offset, calibration_store_t* cal, u
     flash_read(sector_offset, &header, sizeof(header));
 
     // Sector must be IN_USE
-    if (header.state != SECTOR_STATE_IN_USE) {
+    if (header.state != kSectorStateInUse) {
         return false;
     }
 
@@ -136,7 +136,7 @@ static bool find_valid_entry(uint32_t sector_offset, calibration_store_t* cal, u
     entry_header_t entry_hdr;
     flash_read(sector_offset + sizeof(sector_header_t), &entry_hdr, sizeof(entry_hdr));
 
-    if (entry_hdr.magic != ENTRY_MAGIC) {
+    if (entry_hdr.magic != kEntryMagic) {
         return false;
     }
 
@@ -156,26 +156,26 @@ static bool find_valid_entry(uint32_t sector_offset, calibration_store_t* cal, u
 static bool find_active_sector(void) {
     calibration_store_t cal_a, cal_b;
     uint32_t seq_a = 0, seq_b = 0;
-    bool valid_a = find_valid_entry(SECTOR_A_OFFSET, &cal_a, &seq_a);
-    bool valid_b = find_valid_entry(SECTOR_B_OFFSET, &cal_b, &seq_b);
+    bool valid_a = find_valid_entry(kSectorAOffset, &cal_a, &seq_a);
+    bool valid_b = find_valid_entry(kSectorBOffset, &cal_b, &seq_b);
 
     if (!valid_a && !valid_b) {
         // No valid data - use sector A, start fresh
-        g_active_sector_offset = SECTOR_A_OFFSET;
+        g_active_sector_offset = kSectorAOffset;
         g_write_sequence = 1;
         calibration_init_defaults(&g_cached_cal);
         return false;
     }
 
     if (valid_a && !valid_b) {
-        g_active_sector_offset = SECTOR_A_OFFSET;
+        g_active_sector_offset = kSectorAOffset;
         g_write_sequence = seq_a + 1;
         g_cached_cal = cal_a;
         return true;
     }
 
     if (!valid_a && valid_b) {
-        g_active_sector_offset = SECTOR_B_OFFSET;
+        g_active_sector_offset = kSectorBOffset;
         g_write_sequence = seq_b + 1;
         g_cached_cal = cal_b;
         return true;
@@ -183,11 +183,11 @@ static bool find_active_sector(void) {
 
     // Both valid - use higher sequence number
     if (seq_a >= seq_b) {
-        g_active_sector_offset = SECTOR_A_OFFSET;
+        g_active_sector_offset = kSectorAOffset;
         g_write_sequence = seq_a + 1;
         g_cached_cal = cal_a;
     } else {
-        g_active_sector_offset = SECTOR_B_OFFSET;
+        g_active_sector_offset = kSectorBOffset;
         g_write_sequence = seq_b + 1;
         g_cached_cal = cal_b;
     }
@@ -196,7 +196,7 @@ static bool find_active_sector(void) {
 }
 
 static uint32_t get_alternate_sector(uint32_t current_offset) {
-    return (current_offset == SECTOR_A_OFFSET) ? SECTOR_B_OFFSET : SECTOR_A_OFFSET;
+    return (current_offset == kSectorAOffset) ? kSectorBOffset : kSectorAOffset;
 }
 
 static bool write_to_sector(uint32_t sector_offset, const calibration_store_t* cal, uint32_t sequence) {
@@ -213,12 +213,12 @@ static bool write_to_sector(uint32_t sector_offset, const calibration_store_t* c
 
     // Sector header
     sector_header_t* sec_hdr = (sector_header_t*)page_buffer;
-    sec_hdr->state = SECTOR_STATE_IN_USE;
+    sec_hdr->state = kSectorStateInUse;
     sec_hdr->sequence = sequence;
 
     // Entry header
     entry_header_t* entry_hdr = (entry_header_t*)(page_buffer + sizeof(sector_header_t));
-    entry_hdr->magic = ENTRY_MAGIC;
+    entry_hdr->magic = kEntryMagic;
 
     // Calibration data
     uint8_t* cal_data = page_buffer + sizeof(sector_header_t) + sizeof(entry_header_t);
@@ -286,15 +286,15 @@ bool calibration_storage_erase(void) {
     }
 
     // Erase both sectors
-    if (!safe_flash_erase(SECTOR_A_OFFSET, FLASH_SECTOR_SIZE)) {
+    if (!safe_flash_erase(kSectorAOffset, FLASH_SECTOR_SIZE)) {
         return false;
     }
-    if (!safe_flash_erase(SECTOR_B_OFFSET, FLASH_SECTOR_SIZE)) {
+    if (!safe_flash_erase(kSectorBOffset, FLASH_SECTOR_SIZE)) {
         return false;
     }
 
     // Reset to defaults
-    g_active_sector_offset = SECTOR_A_OFFSET;
+    g_active_sector_offset = kSectorAOffset;
     g_write_sequence = 1;
     calibration_init_defaults(&g_cached_cal);
 

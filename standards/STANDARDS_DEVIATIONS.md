@@ -2,7 +2,7 @@
 
 **Purpose**: Track deviations from project coding standards (JSF AV C++, DEBUG_OUTPUT.md, CODING_STANDARDS.md) with severity, remediation difficulty, and rationale.
 
-**Last Updated**: 2026-02-07 (Phase D remediation — while(true), stdio deviations. goto fixed via helper function extraction)
+**Last Updated**: 2026-02-08 (PP-1 resolved: .c→.cpp rename + #define→constexpr conversion)
 
 ---
 
@@ -61,18 +61,16 @@ JSF AV Rule 22 prohibits `<stdio.h>`. Our usage is mitigated by code classificat
 
 | ID | Location | Category | Severity | Rationale |
 |----|----------|----------|----------|-----------|
-| IO-1 | main.cpp, rc_os.c, i2c_bus.c | 428 printf + 4 getchar | Accepted | All Ground/IVP Test classification. Runtime lockout when state != IDLE (same binary principle). Zero stdio in flight-critical sensor drivers |
-| IO-2 | gps_pa1010d.c | 3 snprintf | Accepted | Flight-Critical — bounded by `sizeof()`, constant format strings, MISRA-C 2012 accepted safe subset. Migration path: custom formatters or u-blox UBX binary protocol. See AUDIT_REMEDIATION.md Fix C17 |
-
-### Preprocessor Deviations (JSF 29/30/31)
-
-| ID | Location | Category | Severity | Rationale |
-|----|----------|----------|----------|-----------|
-| PP-1 | icm20948.c, i2c_bus.h, config.h | 60+ `#define` for constants/macros | Medium | Embedded C drivers require `#define` for register bit masks and hardware config. `constexpr` not available in C translation units. Deferred to .c → .cpp conversion |
+| IO-1 | main.cpp, rc_os.cpp, i2c_bus.cpp | 428 printf + 4 getchar | Accepted | All Ground/IVP Test classification. Runtime lockout when state != IDLE (same binary principle). Zero stdio in flight-critical sensor drivers |
+| IO-2 | gps_pa1010d.cpp | 3 snprintf | Accepted | Flight-Critical — bounded by `sizeof()`, constant format strings, MISRA-C 2012 accepted safe subset. Migration path: custom formatters or u-blox UBX binary protocol. See AUDIT_REMEDIATION.md Fix C17 |
 
 ---
 
 ## Resolved
+
+### PP-1: 60+ `#define` for Constants/Macros (JSF 29/30/31)
+
+**Fixed 2026-02-08.** All 9 `.c` source files renamed to `.cpp` (C++20). All constant `#define` macros converted to `constexpr` with `k` prefix naming. ICM-20948 register defines (64) restructured into bank-scoped namespaces (`bank0::`, `bank2::`, `bank3::`, `bit::`, `ak09916::`). Remaining `#define` are: include guards, feature flags (`ROCKETCHIP_TIER_*`), `I2C_BUS_INSTANCE` (SDK macro), lwGPS config, and `DBG_*` compatibility macros wrapping C++20 template functions. Binary size unchanged (constexpr produces identical codegen to `#define`).
 
 ### GT-1: goto-for-Cleanup in cmd_accel_6pos_cal() (JSF 188/189)
 

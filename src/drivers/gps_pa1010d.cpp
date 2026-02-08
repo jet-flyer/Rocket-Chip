@@ -25,8 +25,8 @@ static gps_pa1010d_data_t g_data;
 // At 400kHz, 255 bytes takes ~5.8ms. At 10Hz GPS poll, this affects 10 of 1000
 // IMU cycles/sec — negligible jitter for a 200Hz fusion consumer.
 // Ref: pico-examples/i2c/pa1010d_i2c uses 250-byte reads.
-#define GPS_MAX_READ    255
-static uint8_t g_buffer[GPS_MAX_READ + 1];  // +1 for null terminator
+constexpr size_t kGpsMaxRead = 255;
+static uint8_t g_buffer[kGpsMaxRead + 1];  // +1 for null terminator
 
 // ============================================================================
 // Private Functions
@@ -54,7 +54,7 @@ static uint8_t nmea_checksum(const char* sentence) {
  */
 static int read_nmea_data(uint8_t* buffer, size_t max_len) {
     // PA1010D I2C protocol: just read bytes, no register address needed
-    int32_t ret = i2c_bus_read(GPS_PA1010D_ADDR, buffer, max_len);
+    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, buffer, max_len);
     if (ret <= 0) {
         return 0;
     }
@@ -126,7 +126,7 @@ bool gps_pa1010d_init(void) {
     memset(&g_data, 0, sizeof(g_data));
 
     // Check if device is present
-    if (!i2c_bus_probe(GPS_PA1010D_ADDR)) {
+    if (!i2c_bus_probe(kGpsPa1010dAddr)) {
         return false;
     }
 
@@ -151,7 +151,7 @@ bool gps_pa1010d_update(void) {
     }
 
     // Read available NMEA data (full 255-byte MT3333 TX buffer)
-    int len = read_nmea_data(g_buffer, GPS_MAX_READ);
+    int len = read_nmea_data(g_buffer, kGpsMaxRead);
     if (len <= 0) {
         return false;
     }
@@ -199,7 +199,7 @@ bool gps_pa1010d_send_command(const char* cmd) {
     len += 4;
 
     // Send via I2C
-    int ret = i2c_bus_write(GPS_PA1010D_ADDR, reinterpret_cast<const uint8_t*>(sentence), len);
+    int ret = i2c_bus_write(kGpsPa1010dAddr, reinterpret_cast<const uint8_t*>(sentence), len);
     return (ret == len);
 }
 

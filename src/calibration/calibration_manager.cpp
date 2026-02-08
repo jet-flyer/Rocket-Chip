@@ -1,5 +1,5 @@
 /**
- * @file calibration_manager.c
+ * @file calibration_manager.cpp
  * @brief Calibration routine manager implementation
  */
 
@@ -12,24 +12,24 @@
 // Configuration
 // ============================================================================
 
-#define GYRO_CAL_SAMPLES        200     // ~2 seconds at 100Hz
-#define GYRO_CAL_MOTION_THRESH  0.10f   // rad/s - motion detection (~6 deg/s)
+constexpr uint16_t kGyroCalSamples        = 200;      // ~2 seconds at 100Hz
+constexpr float    kGyroCalMotionThresh   = 0.10f;    // rad/s - motion detection (~6 deg/s)
 
-#define ACCEL_CAL_SAMPLES       100     // ~1 second at 100Hz
-#define ACCEL_CAL_MOTION_THRESH 1.0f    // m/s² - motion detection (relaxed for hand-held placement)
-#define GRAVITY_NOMINAL         9.80665f
+constexpr uint16_t kAccelCalSamples       = 100;      // ~1 second at 100Hz
+constexpr float    kAccelCalMotionThresh  = 1.0f;     // m/s² - motion detection (relaxed for hand-held placement)
+constexpr float    kGravityNominal        = 9.80665f;
 
-#define BARO_CAL_SAMPLES        50      // ~1 second at 50Hz
+constexpr uint16_t kBaroCalSamples        = 50;       // ~1 second at 50Hz
 
 // 6-position accel calibration (IVP-17)
-#define ACCEL_6POS_SAMPLES_PER_POS  50
-#define ACCEL_6POS_POSITIONS        6
-#define ACCEL_6POS_TOTAL_SAMPLES    (ACCEL_6POS_SAMPLES_PER_POS * ACCEL_6POS_POSITIONS)
-#define ACCEL_6POS_MAX_OFFSET       5.0f    // m/s² - max offset per axis after fit
-#define ACCEL_6POS_MIN_DIAG         0.8f    // Minimum diagonal scale factor
-#define ACCEL_6POS_MAX_DIAG         1.2f    // Maximum diagonal scale factor
-#define ACCEL_6POS_MAX_ITERATIONS   50      // Gauss-Newton iteration limit
-#define ACCEL_6POS_NUM_PARAMS       9       // offset[3] + diag[3] + offdiag[3]
+constexpr uint16_t kAccel6posSamplesPerPos = 50;
+constexpr uint8_t  kAccel6posPositions     = 6;
+constexpr uint16_t kAccel6posTotalSamples  = kAccel6posSamplesPerPos * kAccel6posPositions;
+constexpr float    kAccel6posMaxOffset     = 5.0f;    // m/s² - max offset per axis after fit
+constexpr float    kAccel6posMinDiag       = 0.8f;    // Minimum diagonal scale factor
+constexpr float    kAccel6posMaxDiag       = 1.2f;    // Maximum diagonal scale factor
+constexpr uint8_t  kAccel6posMaxIterations = 50;      // Gauss-Newton iteration limit
+constexpr uint8_t  kAccel6posNumParams     = 9;       // offset[3] + diag[3] + offdiag[3]
 
 // ============================================================================
 // Private State
@@ -51,17 +51,17 @@ static struct {
 } g_sample_acc;
 
 // 6-position accel calibration state (LL Entry 1: static allocation for large buffers)
-static float g_6pos_samples[ACCEL_6POS_TOTAL_SAMPLES][3];  // 3600 bytes
-static float g_6pos_avg[ACCEL_6POS_POSITIONS][3];           // 72 bytes
+static float g_6pos_samples[kAccel6posTotalSamples][3];  // 3600 bytes
+static float g_6pos_avg[kAccel6posPositions][3];           // 72 bytes
 static uint16_t g_6pos_sample_count;
 static uint8_t g_6pos_collected;    // Bitmask of completed positions
 
 // Gauss-Newton working arrays
-static float g_jtj[ACCEL_6POS_NUM_PARAMS * ACCEL_6POS_NUM_PARAMS];      // 324 bytes
-static float g_jtj_inv[ACCEL_6POS_NUM_PARAMS * ACCEL_6POS_NUM_PARAMS];  // 324 bytes
+static float g_jtj[kAccel6posNumParams * kAccel6posNumParams];      // 324 bytes
+static float g_jtj_inv[kAccel6posNumParams * kAccel6posNumParams];  // 324 bytes
 
 // Position names — QGroundControl order (easiest first, inverted last)
-static const char* const kPositionNames[ACCEL_6POS_POSITIONS] = {
+static const char* const kPositionNames[kAccel6posPositions] = {
     "LEVEL (+Z up)",
     "LEFT SIDE (+Y up)",
     "RIGHT SIDE (-Y up)",
@@ -87,9 +87,9 @@ static bool check_gyro_motion(void) {
     float range_y = g_sample_acc.max_y - g_sample_acc.min_y;
     float range_z = g_sample_acc.max_z - g_sample_acc.min_z;
 
-    return (range_x > GYRO_CAL_MOTION_THRESH ||
-            range_y > GYRO_CAL_MOTION_THRESH ||
-            range_z > GYRO_CAL_MOTION_THRESH);
+    return (range_x > kGyroCalMotionThresh ||
+            range_y > kGyroCalMotionThresh ||
+            range_z > kGyroCalMotionThresh);
 }
 
 static bool check_accel_motion(void) {
@@ -97,9 +97,9 @@ static bool check_accel_motion(void) {
     float range_y = g_sample_acc.max_y - g_sample_acc.min_y;
     float range_z = g_sample_acc.max_z - g_sample_acc.min_z;
 
-    return (range_x > ACCEL_CAL_MOTION_THRESH ||
-            range_y > ACCEL_CAL_MOTION_THRESH ||
-            range_z > ACCEL_CAL_MOTION_THRESH);
+    return (range_x > kAccelCalMotionThresh ||
+            range_y > kAccelCalMotionThresh ||
+            range_z > kAccelCalMotionThresh);
 }
 
 // ============================================================================
@@ -134,7 +134,7 @@ cal_result_t calibration_start_gyro(void) {
         return CAL_RESULT_BUSY;
     }
 
-    reset_accumulator(GYRO_CAL_SAMPLES);
+    reset_accumulator(kGyroCalSamples);
     g_cal_state = CAL_STATE_GYRO_SAMPLING;
     g_cal_result = CAL_RESULT_OK;
 
@@ -195,7 +195,7 @@ cal_result_t calibration_start_accel_level(void) {
         return CAL_RESULT_BUSY;
     }
 
-    reset_accumulator(ACCEL_CAL_SAMPLES);
+    reset_accumulator(kAccelCalSamples);
     g_cal_state = CAL_STATE_ACCEL_LEVEL_SAMPLING;
     g_cal_result = CAL_RESULT_OK;
 
@@ -244,9 +244,9 @@ void calibration_feed_accel(float ax, float ay, float az, float temperature_c) {
 
         // Preserve gravity magnitude on Z
         if (avg_z > 0) {
-            g_calibration.accel.offset.z = GRAVITY_NOMINAL - avg_z;
+            g_calibration.accel.offset.z = kGravityNominal - avg_z;
         } else {
-            g_calibration.accel.offset.z = -GRAVITY_NOMINAL - avg_z;
+            g_calibration.accel.offset.z = -kGravityNominal - avg_z;
         }
 
         // Level cal uses simple offset only — reset scale to unity, clear offdiag
@@ -274,7 +274,7 @@ cal_result_t calibration_start_baro(void) {
         return CAL_RESULT_BUSY;
     }
 
-    reset_accumulator(BARO_CAL_SAMPLES);
+    reset_accumulator(kBaroCalSamples);
     g_cal_state = CAL_STATE_BARO_SAMPLING;
     g_cal_result = CAL_RESULT_OK;
 
@@ -321,7 +321,7 @@ static float calc_residual_6pos(const float sample[3], const float params[9]) {
     float C = params[7] * sx + params[8] * sy + params[5] * sz;
 
     float len = sqrtf(A*A + B*B + C*C);
-    return GRAVITY_NOMINAL - len;
+    return kGravityNominal - len;
 }
 
 // Gauss-Newton helper: compute Jacobian for one sample (9 partial derivatives)
@@ -447,25 +447,25 @@ void calibration_reset_6pos(void) {
 }
 
 const char* calibration_get_6pos_name(uint8_t pos) {
-    if (pos >= ACCEL_6POS_POSITIONS) return "UNKNOWN";
+    if (pos >= kAccel6posPositions) return "UNKNOWN";
     return kPositionNames[pos];
 }
 
 const float* calibration_get_6pos_avg(uint8_t pos) {
-    if (pos >= ACCEL_6POS_POSITIONS) return NULL;
+    if (pos >= kAccel6posPositions) return NULL;
     return g_6pos_avg[pos];
 }
 
 cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_fn) {
-    if (pos >= ACCEL_6POS_POSITIONS) return CAL_RESULT_INVALID_DATA;
+    if (pos >= kAccel6posPositions) return CAL_RESULT_INVALID_DATA;
     if (read_fn == NULL) return CAL_RESULT_INVALID_DATA;
     if (g_6pos_collected & (1 << pos)) return CAL_RESULT_INVALID_DATA;  // Already done
 
-    uint16_t base_idx = pos * ACCEL_6POS_SAMPLES_PER_POS;
+    uint16_t base_idx = pos * kAccel6posSamplesPerPos;
     float sum[3] = {0.0f, 0.0f, 0.0f};
     float temp_unused;
 
-    for (uint16_t i = 0; i < ACCEL_6POS_SAMPLES_PER_POS; i++) {
+    for (uint16_t i = 0; i < kAccel6posSamplesPerPos; i++) {
         float ax, ay, az;
         if (!read_fn(&ax, &ay, &az, &temp_unused)) {
             return CAL_RESULT_NO_DATA;
@@ -482,7 +482,7 @@ cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_f
     // if samples are bad the fit won't converge (caught at gate check).
 
     // Compute average
-    float n = (float)ACCEL_6POS_SAMPLES_PER_POS;
+    float n = (float)kAccel6posSamplesPerPos;
     g_6pos_avg[pos][0] = sum[0] / n;
     g_6pos_avg[pos][1] = sum[1] / n;
     g_6pos_avg[pos][2] = sum[2] / n;
@@ -493,9 +493,9 @@ cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_f
 
     g_6pos_collected |= (1 << pos);
     g_6pos_sample_count = 0;
-    for (uint8_t p = 0; p < ACCEL_6POS_POSITIONS; p++) {
+    for (uint8_t p = 0; p < kAccel6posPositions; p++) {
         if (g_6pos_collected & (1 << p)) {
-            g_6pos_sample_count += ACCEL_6POS_SAMPLES_PER_POS;
+            g_6pos_sample_count += kAccel6posSamplesPerPos;
         }
     }
 
@@ -507,20 +507,20 @@ cal_result_t calibration_compute_6pos(void) {
     if (g_6pos_collected != 0x3F) return CAL_RESULT_NO_DATA;
 
     // Initialize parameters: offset={0,0,0}, diag={1,1,1}, offdiag={0,0,0}
-    float params[ACCEL_6POS_NUM_PARAMS] = {
+    float params[kAccel6posNumParams] = {
         0.0f, 0.0f, 0.0f,   // offset
         1.0f, 1.0f, 1.0f,   // diag (scale)
         0.0f, 0.0f, 0.0f    // offdiag
     };
 
-    float best_params[ACCEL_6POS_NUM_PARAMS];
+    float best_params[kAccel6posNumParams];
     memcpy(best_params, params, sizeof(params));
     float best_fitness = calc_mean_sq_residuals(params);
 
-    float jacob[ACCEL_6POS_NUM_PARAMS];
-    float jtfi[ACCEL_6POS_NUM_PARAMS];  // J^T * residuals
+    float jacob[kAccel6posNumParams];
+    float jtfi[kAccel6posNumParams];  // J^T * residuals
 
-    for (uint16_t iter = 0; iter < ACCEL_6POS_MAX_ITERATIONS; iter++) {
+    for (uint16_t iter = 0; iter < kAccel6posMaxIterations; iter++) {
         // Clear normal equation accumulators
         memset(g_jtj, 0, sizeof(g_jtj));
         memset(jtfi, 0, sizeof(jtfi));
@@ -530,10 +530,10 @@ cal_result_t calibration_compute_6pos(void) {
             float r = calc_residual_6pos(g_6pos_samples[i], params);
             calc_jacobian_6pos(g_6pos_samples[i], params, jacob);
 
-            for (uint8_t row = 0; row < ACCEL_6POS_NUM_PARAMS; row++) {
+            for (uint8_t row = 0; row < kAccel6posNumParams; row++) {
                 jtfi[row] += jacob[row] * r;
-                for (uint8_t col = 0; col < ACCEL_6POS_NUM_PARAMS; col++) {
-                    g_jtj[row * ACCEL_6POS_NUM_PARAMS + col] += jacob[row] * jacob[col];
+                for (uint8_t col = 0; col < kAccel6posNumParams; col++) {
+                    g_jtj[row * kAccel6posNumParams + col] += jacob[row] * jacob[col];
                 }
             }
         }
@@ -546,12 +546,12 @@ cal_result_t calibration_compute_6pos(void) {
 
         // Compute parameter update: delta = (J^T*J)^-1 * J^T*r
         // Update: params -= delta
-        float new_params[ACCEL_6POS_NUM_PARAMS];
+        float new_params[kAccel6posNumParams];
         bool has_nan = false;
-        for (uint8_t i = 0; i < ACCEL_6POS_NUM_PARAMS; i++) {
+        for (uint8_t i = 0; i < kAccel6posNumParams; i++) {
             float delta = 0.0f;
-            for (uint8_t j = 0; j < ACCEL_6POS_NUM_PARAMS; j++) {
-                delta += g_jtj_inv[i * ACCEL_6POS_NUM_PARAMS + j] * jtfi[j];
+            for (uint8_t j = 0; j < kAccel6posNumParams; j++) {
+                delta += g_jtj_inv[i * kAccel6posNumParams + j] * jtfi[j];
             }
             new_params[i] = params[i] - delta;
             if (isnan(new_params[i]) || isinf(new_params[i])) {
@@ -574,13 +574,13 @@ cal_result_t calibration_compute_6pos(void) {
 
     // Validate result
     for (uint8_t i = 0; i < 3; i++) {
-        if (fabsf(best_params[i]) > ACCEL_6POS_MAX_OFFSET) {
+        if (fabsf(best_params[i]) > kAccel6posMaxOffset) {
             return CAL_RESULT_FIT_FAILED;
         }
     }
     for (uint8_t i = 3; i < 6; i++) {
-        if (best_params[i] < ACCEL_6POS_MIN_DIAG ||
-            best_params[i] > ACCEL_6POS_MAX_DIAG) {
+        if (best_params[i] < kAccel6posMinDiag ||
+            best_params[i] > kAccel6posMaxDiag) {
             return CAL_RESULT_FIT_FAILED;
         }
     }

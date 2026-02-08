@@ -18,22 +18,22 @@
 // ============================================================================
 
 // I2C1 is connected to STEMMA QT on Feather RP2350
-#define I2C_BUS_INSTANCE    i2c1
-#define I2C_BUS_SDA_PIN     2
-#define I2C_BUS_SCL_PIN     3
-#define I2C_BUS_FREQ_HZ     400000  // 400kHz Fast Mode (I2C spec)
+#define I2C_BUS_INSTANCE    i2c1    // SDK macro — must remain #define
+constexpr uint8_t  kI2cBusSdaPin    = 2;
+constexpr uint8_t  kI2cBusSclPin    = 3;
+constexpr uint32_t kI2cBusFreqHz    = 400000;   // 400kHz Fast Mode (I2C spec)
 
 // Timeout for I2C operations (microseconds)
-#define I2C_TIMEOUT_US      10000
+constexpr uint32_t kI2cTimeoutUs    = 10000;
 
 // ============================================================================
 // Known Device Addresses
 // ============================================================================
 
-#define I2C_ADDR_DPS310     0x77    // Barometer
-#define I2C_ADDR_ICM20948   0x69    // IMU (AD0 high - Adafruit default)
-#define I2C_ADDR_AK09916    0x0C    // Magnetometer (inside ICM-20948)
-#define I2C_ADDR_PA1010D    0x10    // GPS
+constexpr uint8_t kI2cAddrDps310    = 0x77;     // Barometer
+constexpr uint8_t kI2cAddrIcm20948  = 0x69;     // IMU (AD0 high - Adafruit default)
+constexpr uint8_t kI2cAddrAk09916   = 0x0C;     // Magnetometer (inside ICM-20948)
+constexpr uint8_t kI2cAddrPa1010d   = 0x10;     // GPS
 
 // ============================================================================
 // Initialization

@@ -548,7 +548,7 @@ static void core1_entry(void) {
     bool skipPhase2 = false;
     uint32_t lastNeoToggleMs = to_ms_since_boot(get_absolute_time());
     bool neoOn = true;
-    ws2812_set_mode(WS2812_MODE_SOLID, WS2812_COLOR_CYAN);
+    ws2812_set_mode(WS2812_MODE_SOLID, kColorCyan);
     ws2812_update();
 
     while (testMode) {
@@ -614,7 +614,7 @@ static void core1_entry(void) {
             lastNeoToggleMs = nowMs;
             neoOn = !neoOn;
             ws2812_set_mode(WS2812_MODE_SOLID,
-                            neoOn ? WS2812_COLOR_CYAN : WS2812_COLOR_OFF);
+                            neoOn ? kColorCyan : kColorOff);
             ws2812_update();
         }
     }
@@ -651,7 +651,7 @@ static void core1_entry(void) {
                 lastNeoMs = nowMs;
                 neoState = !neoState;
                 ws2812_set_mode(WS2812_MODE_SOLID,
-                    neoState ? WS2812_COLOR_CYAN : WS2812_COLOR_MAGENTA);
+                    neoState ? kColorCyan : kColorMagenta);
                 ws2812_update();
             }
 
@@ -715,7 +715,7 @@ static void core1_entry(void) {
         if (g_core1PauseI2C.load(std::memory_order_acquire)) {
             g_core1I2CPaused.store(true, std::memory_order_release);
             // Show orange NeoPixel while paused
-            ws2812_set_mode(WS2812_MODE_SOLID, WS2812_COLOR_ORANGE);
+            ws2812_set_mode(WS2812_MODE_SOLID, kColorOrange);
             ws2812_update();
             // Wait for unpause — don't increment error counters (intentional pause)
             while (g_core1PauseI2C.load(std::memory_order_acquire)) {
@@ -723,7 +723,7 @@ static void core1_entry(void) {
             }
             g_core1I2CPaused.store(false, std::memory_order_release);
             // Resume NeoPixel state
-            ws2812_set_mode(WS2812_MODE_SOLID, WS2812_COLOR_BLUE);
+            ws2812_set_mode(WS2812_MODE_SOLID, kColorBlue);
             ws2812_update();
             continue;  // Restart loop timing
         }
@@ -784,7 +784,7 @@ static void core1_entry(void) {
             baroCycle = 0;
             // Council mod #3: check DPS310 data-ready before reading
             uint8_t measCfg = 0;
-            if (i2c_bus_read_reg(I2C_ADDR_DPS310, kDps310MeasCfgReg, &measCfg) == 0 &&
+            if (i2c_bus_read_reg(kI2cAddrDps310, kDps310MeasCfgReg, &measCfg) == 0 &&
                 (measCfg & (kDps310PrsRdy | kDps310TmpRdy)) == (kDps310PrsRdy | kDps310TmpRdy)) {
                 baro_dps310_data_t baroData;
                 if (baro_dps310_read(&baroData) && baroData.valid) {
@@ -827,10 +827,10 @@ static void core1_entry(void) {
             lastNeoMs = nowMs;
             neoState = !neoState;
             if (g_sensorPhaseDone.load(std::memory_order_acquire)) {
-                ws2812_set_mode(WS2812_MODE_SOLID, WS2812_COLOR_GREEN);
+                ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen);
             } else {
                 ws2812_set_mode(WS2812_MODE_SOLID,
-                    neoState ? WS2812_COLOR_BLUE : WS2812_COLOR_CYAN);
+                    neoState ? kColorBlue : kColorCyan);
             }
             ws2812_update();
         }
@@ -1044,9 +1044,9 @@ static void print_sensor_status(void) {
 
 static const char* get_device_name(uint8_t addr) {
     switch (addr) {
-        case I2C_ADDR_ICM20948: return "ICM-20948";
-        case I2C_ADDR_DPS310:   return "DPS310";
-        case I2C_ADDR_PA1010D:  return "PA1010D GPS";
+        case kI2cAddrIcm20948: return "ICM-20948";
+        case kI2cAddrDps310:   return "DPS310";
+        case kI2cAddrPa1010d:  return "PA1010D GPS";
         case 0x68:              return "ICM-20948 (AD0=LOW)";
         case 0x76:              return "DPS310 (alt)";
         default:                return "Unknown";
@@ -1076,8 +1076,8 @@ static void hw_validate_stage1(void) {
 
     // IVP-06: I2C bus
     if (g_i2cInitialized) {
-        printf("[PASS] I2C bus initialized at %dkHz (SDA=%d, SCL=%d)\n",
-               I2C_BUS_FREQ_HZ / 1000, I2C_BUS_SDA_PIN, I2C_BUS_SCL_PIN);
+        printf("[PASS] I2C bus initialized at %lukHz (SDA=%d, SCL=%d)\n",
+               (unsigned long)(kI2cBusFreqHz / 1000), kI2cBusSdaPin, kI2cBusSclPin);
     } else {
         printf("[FAIL] I2C bus failed to initialize\n");
     }
@@ -1086,8 +1086,8 @@ static void hw_validate_stage1(void) {
     // Note: PA1010D GPS (0x10) excluded — probing it triggers I2C bus
     // interference (Pico SDK #252). Re-add at IVP-31 with proper handling.
     static const uint8_t expected[] = {
-        I2C_ADDR_ICM20948,  // 0x69
-        I2C_ADDR_DPS310,    // 0x77
+        kI2cAddrIcm20948,  // 0x69
+        kI2cAddrDps310,    // 0x77
     };
     int foundCount = 0;
     for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); i++) {
@@ -2366,14 +2366,14 @@ int main() {
     // Accel ±4g, Gyro ±500dps, Mag continuous 100Hz
     // -----------------------------------------------------------------
     if (g_i2cInitialized) {
-        g_imuInitialized = icm20948_init(&g_imu, ICM20948_ADDR_DEFAULT);
+        g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
     }
 
     // -----------------------------------------------------------------
     // IVP-11: DPS310 barometer init (before USB, after I2C)
     // -----------------------------------------------------------------
     if (g_i2cInitialized) {
-        g_baroInitialized = baro_dps310_init(BARO_DPS310_ADDR_DEFAULT);
+        g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
         if (g_baroInitialized) {
             g_baroContinuous = baro_dps310_start_continuous();
         }
@@ -2411,7 +2411,7 @@ int main() {
     // -----------------------------------------------------------------
     printf("\n");
     printf("==============================================\n");
-    printf("  RocketChip v%s\n", ROCKETCHIP_VERSION_STRING);
+    printf("  RocketChip v%s\n", kVersionString);
     static const char* kBuildTag = "audit-remediation-1";
     printf("  Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
     printf("  Board: Adafruit Feather RP2350 HSTX\n");
@@ -2438,8 +2438,8 @@ int main() {
 
     // IVP-06/07: I2C status and scan
     if (g_i2cInitialized) {
-        printf("I2C1 initialized at %dkHz on SDA=%d, SCL=%d\n\n",
-               I2C_BUS_FREQ_HZ / 1000, I2C_BUS_SDA_PIN, I2C_BUS_SCL_PIN);
+        printf("I2C1 initialized at %lukHz on SDA=%d, SCL=%d\n\n",
+               (unsigned long)(kI2cBusFreqHz / 1000), kI2cBusSdaPin, kI2cBusSclPin);
     } else {
         printf("ERROR: I2C1 failed to initialize\n\n");
     }
@@ -3053,7 +3053,7 @@ int main() {
             // 100 consecutive baro fails at 50Hz = 2 seconds of failure.
             if (g_baroConsecFails >= 100 && g_imuLastReadOk) {
                 g_baroConsecFails = 0;
-                g_baroInitialized = baro_dps310_init(BARO_DPS310_ADDR_DEFAULT);
+                g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
                 g_baroContinuous = g_baroInitialized ?
                     baro_dps310_start_continuous() : false;
                 if (stdio_usb_connected()) {

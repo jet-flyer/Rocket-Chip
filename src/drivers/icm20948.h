@@ -21,12 +21,12 @@
 // ============================================================================
 
 // I2C address (0x69 with AD0 high - Adafruit default, 0x68 with AD0 low)
-#define ICM20948_ADDR_DEFAULT   0x69
-#define ICM20948_ADDR_ALT       0x68
+constexpr uint8_t kIcm20948AddrDefault  = 0x69;
+constexpr uint8_t kIcm20948AddrAlt      = 0x68;
 
 // Device IDs
-#define ICM20948_WHO_AM_I       0xEA
-#define AK09916_WHO_AM_I        0x09
+constexpr uint8_t kIcm20948WhoAmI       = 0xEA;
+constexpr uint8_t kAk09916WhoAmI        = 0x09;
 
 // ============================================================================
 // Types
@@ -121,7 +121,7 @@ typedef struct {
 /**
  * @brief Initialize the ICM-20948 sensor
  * @param dev Device handle
- * @param addr I2C address (ICM20948_ADDR_DEFAULT or ICM20948_ADDR_ALT)
+ * @param addr I2C address (kIcm20948AddrDefault or kIcm20948AddrAlt)
  * @return true on success
  */
 bool icm20948_init(icm20948_t* dev, uint8_t addr);

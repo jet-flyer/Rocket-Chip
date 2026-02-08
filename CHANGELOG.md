@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-08-003 | Claude Code CLI | refactor
+
+**C++20 conversion: .c→.cpp rename + #define→constexpr (PP-1 resolved)**
+
+Two-commit migration of all 9 C source files to C++20. Commit 1: renamed files via `git mv`, fixed C99 compound literals, added `extern "C"` wrap for ruuvi DPS310 library, removed internal `extern "C"` guards from headers, fixed `const` cast in GPS driver. Commit 2: converted 90+ `#define` macros to `constexpr` across all drivers/calibration/CLI — ICM-20948 registers organized into bank-scoped namespaces, calibration/storage constants use `k` prefix. Resolved PP-1 deviation (JSF 29/30/31). Binary size delta: -1404 bytes (97988 vs 99392 baseline). Third-party libs (ruuvi, lwGPS) remain C.
+
+(`src/**/*.cpp`, `src/**/*.h`, `include/rocketchip/config.h`, `CMakeLists.txt`, `standards/STANDARDS_DEVIATIONS.md`)
+
+---
+
 ### 2026-02-08-002 | Claude Code CLI | refactor, documentation
 
 **Standards audit remediation — Tier 4: RC_ASSERT, goto elimination, deviation docs**

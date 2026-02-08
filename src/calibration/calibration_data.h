@@ -16,8 +16,8 @@
 // Magic Numbers and Version
 // ============================================================================
 
-#define CALIBRATION_MAGIC       0x52434341  // "RCCA" - RocketChip Calibration
-#define CALIBRATION_VERSION     2
+constexpr uint32_t kCalibrationMagic   = 0x52434341;  // "RCCA" - RocketChip Calibration
+constexpr uint16_t kCalibrationVersion = 2;
 
 // ============================================================================
 // Calibration Status Flags

@@ -45,10 +45,10 @@
 // Version Information
 // ============================================================================
 
-#define ROCKETCHIP_VERSION_MAJOR    0
-#define ROCKETCHIP_VERSION_MINOR    2
-#define ROCKETCHIP_VERSION_PATCH    0
-#define ROCKETCHIP_VERSION_STRING   "0.2.0"
+constexpr uint8_t     kVersionMajor  = 0;
+constexpr uint8_t     kVersionMinor  = 2;
+constexpr uint8_t     kVersionPatch  = 0;
+constexpr const char* kVersionString = "0.2.0";
 
 // ============================================================================
 // Feature Flags
@@ -67,10 +67,9 @@
 // #define ROCKETCHIP_FEATURE_RADIO     1   // LoRa telemetry
 
 // ============================================================================
-// Pin Definitions (from HARDWARE.md) - C++ only
+// Pin Definitions (from HARDWARE.md)
 // ============================================================================
 
-#ifdef __cplusplus
 namespace rocketchip {
 namespace pins {
 
@@ -127,13 +126,11 @@ constexpr uint32_t kCliPollMs       = 50;   // 20Hz CLI input polling
 } // namespace timing
 
 } // namespace rocketchip
-#endif // __cplusplus
 
 // ============================================================================
 // Debug Macros (from DEBUG_OUTPUT.md)
 // ============================================================================
 
-#ifdef __cplusplus
 // C++20 constexpr debug toggle — JSF AV Rule 26/28 compliant.
 // Single #ifdef DEBUG bridge sets constexpr bool; all downstream code
 // uses if constexpr (zero overhead when disabled, compiles to bx lr).
@@ -174,19 +171,5 @@ inline void dbg_state(const char* from, const char* to) {
 #define DBG_PRINT(fmt, ...) dbg_print(fmt, ##__VA_ARGS__)
 #define DBG_STATE(from, to) dbg_state(from, to)
 #define DBG_ERROR(fmt, ...) dbg_error(fmt, ##__VA_ARGS__)
-
-#else // C fallback — removed during .c → .cpp conversion
-#ifdef DEBUG
-    #include "pico/time.h"
-    #include <stdio.h>
-    #define DBG_PRINT(fmt, ...) printf("[%lu] " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
-    #define DBG_STATE(from, to) DBG_PRINT("State: %s -> %s", from, to)
-    #define DBG_ERROR(fmt, ...) printf("[%lu] ERROR: " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
-#else
-    #define DBG_PRINT(fmt, ...) ((void)0)
-    #define DBG_STATE(from, to) ((void)0)
-    #define DBG_ERROR(fmt, ...) ((void)0)
-#endif
-#endif // __cplusplus
 
 #endif // ROCKETCHIP_CONFIG_H

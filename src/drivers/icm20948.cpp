@@ -1,5 +1,5 @@
 /**
- * @file icm20948.c
+ * @file icm20948.cpp
  * @brief ICM-20948 9-axis IMU driver implementation
  *
  * Reference: ICM-20948 datasheet, AK09916 datasheet
@@ -15,105 +15,106 @@
 #include <string.h>
 
 // ============================================================================
-// Register Definitions - Bank 0 (User Bank 0)
+// Register Definitions (constexpr — JSF AV Rules 29/30/31)
 // ============================================================================
 
-#define REG_BANK_SEL        0x7F    // Bank select (same address in all banks)
+// Bank select register (same address in all banks)
+constexpr uint8_t kRegBankSel = 0x7F;
 
-// Bank 0 registers
-#define B0_WHO_AM_I         0x00
-#define B0_USER_CTRL        0x03
-#define B0_LP_CONFIG        0x05
-#define B0_PWR_MGMT_1       0x06
-#define B0_PWR_MGMT_2       0x07
-#define B0_INT_PIN_CFG      0x0F
-#define B0_INT_ENABLE       0x10
-#define B0_INT_ENABLE_1     0x11
-#define B0_INT_STATUS       0x19
-#define B0_INT_STATUS_1     0x1A
-#define B0_ACCEL_XOUT_H     0x2D
-#define B0_ACCEL_XOUT_L     0x2E
-#define B0_ACCEL_YOUT_H     0x2F
-#define B0_ACCEL_YOUT_L     0x30
-#define B0_ACCEL_ZOUT_H     0x31
-#define B0_ACCEL_ZOUT_L     0x32
-#define B0_GYRO_XOUT_H      0x33
-#define B0_GYRO_XOUT_L      0x34
-#define B0_GYRO_YOUT_H      0x35
-#define B0_GYRO_YOUT_L      0x36
-#define B0_GYRO_ZOUT_H      0x37
-#define B0_GYRO_ZOUT_L      0x38
-#define B0_TEMP_OUT_H       0x39
-#define B0_TEMP_OUT_L       0x3A
-#define B0_EXT_SLV_SENS_DATA_00 0x3B  // Magnetometer data comes here
+namespace bank0 {
+    constexpr uint8_t kWhoAmI           = 0x00;
+    constexpr uint8_t kUserCtrl         = 0x03;
+    constexpr uint8_t kLpConfig         = 0x05;
+    constexpr uint8_t kPwrMgmt1         = 0x06;
+    constexpr uint8_t kPwrMgmt2         = 0x07;
+    constexpr uint8_t kIntPinCfg        = 0x0F;
+    constexpr uint8_t kIntEnable        = 0x10;
+    constexpr uint8_t kIntEnable1       = 0x11;
+    constexpr uint8_t kIntStatus        = 0x19;
+    constexpr uint8_t kIntStatus1       = 0x1A;
+    constexpr uint8_t kAccelXoutH       = 0x2D;
+    constexpr uint8_t kAccelXoutL       = 0x2E;
+    constexpr uint8_t kAccelYoutH       = 0x2F;
+    constexpr uint8_t kAccelYoutL       = 0x30;
+    constexpr uint8_t kAccelZoutH       = 0x31;
+    constexpr uint8_t kAccelZoutL       = 0x32;
+    constexpr uint8_t kGyroXoutH        = 0x33;
+    constexpr uint8_t kGyroXoutL        = 0x34;
+    constexpr uint8_t kGyroYoutH        = 0x35;
+    constexpr uint8_t kGyroYoutL        = 0x36;
+    constexpr uint8_t kGyroZoutH        = 0x37;
+    constexpr uint8_t kGyroZoutL        = 0x38;
+    constexpr uint8_t kTempOutH         = 0x39;
+    constexpr uint8_t kTempOutL         = 0x3A;
+    constexpr uint8_t kExtSlvSensData00 = 0x3B;  // Magnetometer data comes here
+} // namespace bank0
 
-// Bank 2 registers (accel/gyro config)
-#define B2_GYRO_SMPLRT_DIV  0x00
-#define B2_GYRO_CONFIG_1    0x01
-#define B2_GYRO_CONFIG_2    0x02
-#define B2_ACCEL_SMPLRT_DIV_1 0x10
-#define B2_ACCEL_SMPLRT_DIV_2 0x11
-#define B2_ACCEL_CONFIG     0x14
-#define B2_ACCEL_CONFIG_2   0x15
+namespace bank2 {
+    constexpr uint8_t kGyroSmplrtDiv    = 0x00;
+    constexpr uint8_t kGyroConfig1      = 0x01;
+    constexpr uint8_t kGyroConfig2      = 0x02;
+    constexpr uint8_t kAccelSmplrtDiv1  = 0x10;
+    constexpr uint8_t kAccelSmplrtDiv2  = 0x11;
+    constexpr uint8_t kAccelConfig      = 0x14;
+    constexpr uint8_t kAccelConfig2     = 0x15;
+} // namespace bank2
 
-// Bank 3 registers (I2C master)
-#define B3_I2C_MST_CTRL     0x01
-#define B3_I2C_MST_DELAY_CTRL 0x02
-#define B3_I2C_SLV0_ADDR    0x03
-#define B3_I2C_SLV0_REG     0x04
-#define B3_I2C_SLV0_CTRL    0x05
-#define B3_I2C_SLV0_DO      0x06
-
-// ============================================================================
-// PWR_MGMT_1 bits
-// ============================================================================
-
-#define PWR_MGMT_1_DEVICE_RESET (1 << 7)
-#define PWR_MGMT_1_SLEEP        (1 << 6)
-#define PWR_MGMT_1_LP_EN        (1 << 5)
-#define PWR_MGMT_1_CLKSEL_AUTO  0x01
+namespace bank3 {
+    constexpr uint8_t kI2cMstCtrl       = 0x01;
+    constexpr uint8_t kI2cMstDelayCtrl  = 0x02;
+    constexpr uint8_t kI2cSlv0Addr      = 0x03;
+    constexpr uint8_t kI2cSlv0Reg       = 0x04;
+    constexpr uint8_t kI2cSlv0Ctrl      = 0x05;
+    constexpr uint8_t kI2cSlv0Do        = 0x06;
+} // namespace bank3
 
 // ============================================================================
-// USER_CTRL bits
+// Bit Definitions
 // ============================================================================
 
-#define USER_CTRL_I2C_MST_EN    (1 << 5)
-#define USER_CTRL_I2C_MST_RST   (1 << 1)
-#define USER_CTRL_I2C_IF_DIS    (1 << 4)
+namespace bit {
+    // PWR_MGMT_1
+    constexpr uint8_t kDeviceReset      = (1U << 7);
+    constexpr uint8_t kSleep            = (1U << 6);
+    constexpr uint8_t kLpEn             = (1U << 5);
+    constexpr uint8_t kClkselAuto       = 0x01;
 
-// ============================================================================
-// INT_PIN_CFG bits
-// ============================================================================
+    // USER_CTRL
+    constexpr uint8_t kI2cMstEn         = (1U << 5);
+    constexpr uint8_t kI2cIfDis         = (1U << 4);
+    constexpr uint8_t kI2cMstRst        = (1U << 1);
 
-#define INT_PIN_CFG_BYPASS_EN   (1 << 1)
+    // INT_PIN_CFG
+    constexpr uint8_t kBypassEn         = (1U << 1);
 
-// ============================================================================
-// I2C_SLV_CTRL bits
-// ============================================================================
-
-#define I2C_SLV_EN              (1 << 7)
-#define I2C_SLV_READ            (1 << 7)  // For SLV_ADDR register
+    // I2C_SLV
+    constexpr uint8_t kSlvEn            = (1U << 7);
+    constexpr uint8_t kSlvRead          = (1U << 7);  // For SLV_ADDR register
+} // namespace bit
 
 // ============================================================================
 // AK09916 Magnetometer Registers
 // ============================================================================
 
-#define AK09916_I2C_ADDR    0x0C
+namespace ak09916 {
+    constexpr uint8_t kI2cAddr          = 0x0C;
 
-#define AK_WIA2             0x01    // Device ID (should read 0x09)
-#define AK_ST1              0x10    // Status 1 (data ready)
-#define AK_HXL              0x11    // Mag X low byte
-#define AK_HXH              0x12
-#define AK_HYL              0x13
-#define AK_HYH              0x14
-#define AK_HZL              0x15
-#define AK_HZH              0x16
-#define AK_ST2              0x18    // Status 2 (overflow)
-#define AK_CNTL2            0x31    // Control 2 (mode)
-#define AK_CNTL3            0x32    // Control 3 (reset)
+    constexpr uint8_t kWia2             = 0x01;  // Device ID (should read 0x09)
+    constexpr uint8_t kSt1              = 0x10;  // Status 1 (data ready)
+    constexpr uint8_t kHxl              = 0x11;  // Mag X low byte
+    constexpr uint8_t kHxh              = 0x12;
+    constexpr uint8_t kHyl              = 0x13;
+    constexpr uint8_t kHyh              = 0x14;
+    constexpr uint8_t kHzl              = 0x15;
+    constexpr uint8_t kHzh              = 0x16;
+    constexpr uint8_t kSt2              = 0x18;  // Status 2 (overflow)
+    constexpr uint8_t kCntl2            = 0x31;  // Control 2 (mode)
+    constexpr uint8_t kCntl3            = 0x32;  // Control 3 (reset)
 
-#define AK_ST1_DRDY         (1 << 0)
-#define AK_ST2_HOFL         (1 << 3)  // Magnetic overflow
+    // Status bits
+    constexpr uint8_t kSt1Drdy          = (1U << 0);
+    constexpr uint8_t kSt2Hofl          = (1U << 3);  // Magnetic overflow
+} // namespace ak09916
 
 // ============================================================================
 // Scale Factors
@@ -138,7 +139,7 @@ static const float kGyroScale[] = {
 };
 
 // Magnetometer scale: 0.15 µT/LSB (fixed for AK09916)
-#define MAG_SCALE 0.15f
+constexpr float kMagScale = 0.15f;
 
 // ============================================================================
 // Private Functions
@@ -148,7 +149,7 @@ static const float kGyroScale[] = {
  * @brief Select register bank
  */
 static bool select_bank(icm20948_t* dev, uint8_t bank) {
-    return i2c_bus_write_reg(dev->addr, REG_BANK_SEL, (bank << 4)) == 0;
+    return i2c_bus_write_reg(dev->addr, kRegBankSel, (bank << 4)) == 0;
 }
 
 /**
@@ -172,10 +173,10 @@ static bool read_bank_reg(icm20948_t* dev, uint8_t bank, uint8_t reg, uint8_t* v
  */
 static bool mag_write_reg(icm20948_t* dev, uint8_t reg, uint8_t value) {
     // Configure SLV0 for write
-    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_ADDR, AK09916_I2C_ADDR)) return false;
-    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_REG, reg)) return false;
-    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_DO, value)) return false;
-    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_CTRL, I2C_SLV_EN | 1)) return false;
+    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Addr, ak09916::kI2cAddr)) return false;
+    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Reg, reg)) return false;
+    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Do, value)) return false;
+    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Ctrl, bit::kSlvEn | 1)) return false;
 
     sleep_ms(1);  // Wait for transaction
     return true;
@@ -186,9 +187,9 @@ static bool mag_write_reg(icm20948_t* dev, uint8_t reg, uint8_t value) {
  */
 static bool mag_config_read(icm20948_t* dev, uint8_t reg, uint8_t len) {
     // Configure SLV0 for read
-    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_ADDR, AK09916_I2C_ADDR | I2C_SLV_READ)) return false;
-    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_REG, reg)) return false;
-    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_CTRL, I2C_SLV_EN | len)) return false;
+    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Addr, ak09916::kI2cAddr | bit::kSlvRead)) return false;
+    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Reg, reg)) return false;
+    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Ctrl, bit::kSlvEn | len)) return false;
     return true;
 }
 
@@ -197,14 +198,14 @@ static bool mag_config_read(icm20948_t* dev, uint8_t reg, uint8_t len) {
  */
 static bool mag_read_reg(icm20948_t* dev, uint8_t reg, uint8_t* value) {
     // Configure SLV0 for a one-shot single-byte read
-    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_ADDR, AK09916_I2C_ADDR | I2C_SLV_READ)) return false;
-    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_REG, reg)) return false;
-    if (!write_bank_reg(dev, 3, B3_I2C_SLV0_CTRL, I2C_SLV_EN | 1)) return false;
+    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Addr, ak09916::kI2cAddr | bit::kSlvRead)) return false;
+    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Reg, reg)) return false;
+    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Ctrl, bit::kSlvEn | 1)) return false;
 
     sleep_ms(1);  // Wait for I2C master transaction
 
     // Read result from EXT_SLV_SENS_DATA_00
-    return read_bank_reg(dev, 0, B0_EXT_SLV_SENS_DATA_00, value);
+    return read_bank_reg(dev, 0, bank0::kExtSlvSensData00, value);
 }
 
 /**
@@ -222,50 +223,50 @@ static bool mag_read_reg(icm20948_t* dev, uint8_t reg, uint8_t* value) {
 static bool init_magnetometer(icm20948_t* dev) {
     // 1. Clear BYPASS_EN — required before enabling I2C master
     uint8_t int_pin_cfg;
-    if (!read_bank_reg(dev, 0, B0_INT_PIN_CFG, &int_pin_cfg)) return false;
-    int_pin_cfg &= ~INT_PIN_CFG_BYPASS_EN;
-    if (!write_bank_reg(dev, 0, B0_INT_PIN_CFG, int_pin_cfg)) return false;
+    if (!read_bank_reg(dev, 0, bank0::kIntPinCfg, &int_pin_cfg)) return false;
+    int_pin_cfg &= ~bit::kBypassEn;
+    if (!write_bank_reg(dev, 0, bank0::kIntPinCfg, int_pin_cfg)) return false;
 
     // 2. Configure I2C master: CLK=7 (~345kHz), P_NSR=1 (stop between reads)
     // 0x17 = Adafruit/SparkFun standard value
-    if (!write_bank_reg(dev, 3, B3_I2C_MST_CTRL, 0x17)) return false;
+    if (!write_bank_reg(dev, 3, bank3::kI2cMstCtrl, 0x17)) return false;
 
     // 3. Enable I2C master
-    if (!write_bank_reg(dev, 0, B0_USER_CTRL, USER_CTRL_I2C_MST_EN)) return false;
+    if (!write_bank_reg(dev, 0, bank0::kUserCtrl, bit::kI2cMstEn)) return false;
     sleep_ms(10);
 
     // 4. Reset magnetometer
-    if (!mag_write_reg(dev, AK_CNTL3, 0x01)) return false;
+    if (!mag_write_reg(dev, ak09916::kCntl3, 0x01)) return false;
     sleep_ms(100);
 
     // 5. Verify WHO_AM_I with retry (per SparkFun: up to 10 attempts)
     bool mag_found = false;
     for (uint8_t tries = 0; tries < 10; tries++) {
         uint8_t wia2;
-        if (mag_read_reg(dev, AK_WIA2, &wia2) && wia2 == AK09916_WHO_AM_I) {
+        if (mag_read_reg(dev, ak09916::kWia2, &wia2) && wia2 == kAk09916WhoAmI) {
             mag_found = true;
             break;
         }
         // Reset I2C master and retry
-        if (!write_bank_reg(dev, 0, B0_USER_CTRL,
-                            USER_CTRL_I2C_MST_EN | USER_CTRL_I2C_MST_RST)) return false;
+        if (!write_bank_reg(dev, 0, bank0::kUserCtrl,
+                            bit::kI2cMstEn | bit::kI2cMstRst)) return false;
         sleep_ms(10);
     }
     if (!mag_found) return false;
 
     // 6. Set continuous 100Hz mode (shutdown first per Adafruit pattern)
-    if (!mag_write_reg(dev, AK_CNTL2, AK09916_MODE_POWER_DOWN)) return false;
+    if (!mag_write_reg(dev, ak09916::kCntl2, AK09916_MODE_POWER_DOWN)) return false;
     sleep_ms(1);
-    if (!mag_write_reg(dev, AK_CNTL2, AK09916_MODE_CONT_100HZ)) return false;
+    if (!mag_write_reg(dev, ak09916::kCntl2, AK09916_MODE_CONT_100HZ)) return false;
     sleep_ms(10);
 
     // 7. Configure SLV0 for continuous reads: 9 bytes from ST1
     // ST1(1) + HXL/HXH/HYL/HYH/HZL/HZH(6) + dummy(1) + ST2(1)
-    if (!mag_config_read(dev, AK_ST1, 9)) return false;
+    if (!mag_config_read(dev, ak09916::kSt1, 9)) return false;
 
     dev->mag_initialized = true;
     dev->mag_mode = AK09916_MODE_CONT_100HZ;
-    dev->mag_scale = MAG_SCALE;
+    dev->mag_scale = kMagScale;
 
     return true;
 }
@@ -285,11 +286,11 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
     // Check WHO_AM_I
     uint8_t who_am_i;
     if (!select_bank(dev, 0)) return false;
-    if (i2c_bus_read_reg(addr, B0_WHO_AM_I, &who_am_i) != 0) {
+    if (i2c_bus_read_reg(addr, bank0::kWhoAmI, &who_am_i) != 0) {
         return false;
     }
 
-    if (who_am_i != ICM20948_WHO_AM_I) {
+    if (who_am_i != kIcm20948WhoAmI) {
         return false;
     }
 
@@ -300,11 +301,11 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
     sleep_ms(100);
 
     // Wake up device, set auto clock source
-    if (!write_bank_reg(dev, 0, B0_PWR_MGMT_1, PWR_MGMT_1_CLKSEL_AUTO)) return false;
+    if (!write_bank_reg(dev, 0, bank0::kPwrMgmt1, bit::kClkselAuto)) return false;
     sleep_ms(50);
 
     // Enable all sensors
-    if (!write_bank_reg(dev, 0, B0_PWR_MGMT_2, 0x00)) return false;
+    if (!write_bank_reg(dev, 0, bank0::kPwrMgmt2, 0x00)) return false;
 
     // Set default ranges (per IVP-09: ±4g, ±500dps)
     dev->accel_fs = ICM20948_ACCEL_FS_4G;
@@ -320,8 +321,8 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
             break;
         }
         // Reset I2C master and retry
-        write_bank_reg(dev, 0, B0_USER_CTRL,
-                       USER_CTRL_I2C_MST_EN | USER_CTRL_I2C_MST_RST);
+        write_bank_reg(dev, 0, bank0::kUserCtrl,
+                       bit::kI2cMstEn | bit::kI2cMstRst);
         sleep_ms(50);
     }
     if (!dev->mag_initialized) {
@@ -340,11 +341,11 @@ bool icm20948_ready(icm20948_t* dev) {
 
     uint8_t who_am_i;
     if (!select_bank(dev, 0)) return false;
-    if (i2c_bus_read_reg(dev->addr, B0_WHO_AM_I, &who_am_i) != 0) {
+    if (i2c_bus_read_reg(dev->addr, bank0::kWhoAmI, &who_am_i) != 0) {
         return false;
     }
 
-    return who_am_i == ICM20948_WHO_AM_I;
+    return who_am_i == kIcm20948WhoAmI;
 }
 
 bool icm20948_reset(icm20948_t* dev) {
@@ -352,7 +353,7 @@ bool icm20948_reset(icm20948_t* dev) {
         return false;
     }
 
-    if (!write_bank_reg(dev, 0, B0_PWR_MGMT_1, PWR_MGMT_1_DEVICE_RESET)) {
+    if (!write_bank_reg(dev, 0, bank0::kPwrMgmt1, bit::kDeviceReset)) {
         return false;
     }
 
@@ -368,10 +369,10 @@ bool icm20948_set_accel_fs(icm20948_t* dev, icm20948_accel_fs_t fs) {
     }
 
     uint8_t config;
-    if (!read_bank_reg(dev, 2, B2_ACCEL_CONFIG, &config)) return false;
+    if (!read_bank_reg(dev, 2, bank2::kAccelConfig, &config)) return false;
 
     config = (config & 0xF9) | (fs << 1);  // Bits [2:1] = FS_SEL
-    if (!write_bank_reg(dev, 2, B2_ACCEL_CONFIG, config)) return false;
+    if (!write_bank_reg(dev, 2, bank2::kAccelConfig, config)) return false;
 
     dev->accel_fs = fs;
     dev->accel_scale = kAccelScale[fs];
@@ -385,10 +386,10 @@ bool icm20948_set_gyro_fs(icm20948_t* dev, icm20948_gyro_fs_t fs) {
     }
 
     uint8_t config;
-    if (!read_bank_reg(dev, 2, B2_GYRO_CONFIG_1, &config)) return false;
+    if (!read_bank_reg(dev, 2, bank2::kGyroConfig1, &config)) return false;
 
     config = (config & 0xF9) | (fs << 1);  // Bits [2:1] = FS_SEL
-    if (!write_bank_reg(dev, 2, B2_GYRO_CONFIG_1, config)) return false;
+    if (!write_bank_reg(dev, 2, bank2::kGyroConfig1, config)) return false;
 
     dev->gyro_fs = fs;
     dev->gyro_scale = kGyroScale[fs];
@@ -401,7 +402,7 @@ bool icm20948_set_mag_mode(icm20948_t* dev, ak09916_mode_t mode) {
         return false;
     }
 
-    if (!mag_write_reg(dev, AK_CNTL2, mode)) return false;
+    if (!mag_write_reg(dev, ak09916::kCntl2, mode)) return false;
     dev->mag_mode = mode;
     return true;
 }
@@ -412,15 +413,15 @@ bool icm20948_set_low_power(icm20948_t* dev, bool enable) {
     }
 
     uint8_t pwr;
-    if (!read_bank_reg(dev, 0, B0_PWR_MGMT_1, &pwr)) return false;
+    if (!read_bank_reg(dev, 0, bank0::kPwrMgmt1, &pwr)) return false;
 
     if (enable) {
-        pwr |= PWR_MGMT_1_LP_EN;
+        pwr |= bit::kLpEn;
     } else {
-        pwr &= ~PWR_MGMT_1_LP_EN;
+        pwr &= ~bit::kLpEn;
     }
 
-    return write_bank_reg(dev, 0, B0_PWR_MGMT_1, pwr);
+    return write_bank_reg(dev, 0, bank0::kPwrMgmt1, pwr);
 }
 
 bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
@@ -441,7 +442,7 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     // ACCEL_XOUT_H (0x2D) through EXT_SLV_SENS_DATA_08 (0x43) = 23 bytes
     // 14 bytes accel/gyro/temp + 9 bytes mag (ST1 + 6 data + dummy + ST2)
     uint8_t buf[23];
-    if (i2c_bus_read_regs(dev->addr, B0_ACCEL_XOUT_H, buf, sizeof(buf)) != sizeof(buf)) {
+    if (i2c_bus_read_regs(dev->addr, bank0::kAccelXoutH, buf, sizeof(buf)) != sizeof(buf)) {
         data->accel_valid = false;
         data->gyro_valid = false;
         data->mag_valid = false;
@@ -480,7 +481,7 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
         uint8_t st1 = buf[14];
         uint8_t st2 = buf[22];  // ST2 at offset 8 (after dummy byte)
 
-        if ((st1 & AK_ST1_DRDY) && !(st2 & AK_ST2_HOFL)) {
+        if ((st1 & ak09916::kSt1Drdy) && !(st2 & ak09916::kSt2Hofl)) {
             // Data ready and no overflow
             int16_t mx = (int16_t)((buf[16] << 8) | buf[15]);  // Little-endian
             int16_t my = (int16_t)((buf[18] << 8) | buf[17]);
@@ -509,7 +510,7 @@ bool icm20948_read_accel(icm20948_t* dev, icm20948_vec3_t* accel) {
     if (!select_bank(dev, 0)) return false;
 
     uint8_t buf[6];
-    if (i2c_bus_read_regs(dev->addr, B0_ACCEL_XOUT_H, buf, 6) != 6) {
+    if (i2c_bus_read_regs(dev->addr, bank0::kAccelXoutH, buf, 6) != 6) {
         return false;
     }
 
@@ -532,7 +533,7 @@ bool icm20948_read_gyro(icm20948_t* dev, icm20948_vec3_t* gyro) {
     if (!select_bank(dev, 0)) return false;
 
     uint8_t buf[6];
-    if (i2c_bus_read_regs(dev->addr, B0_GYRO_XOUT_H, buf, 6) != 6) {
+    if (i2c_bus_read_regs(dev->addr, bank0::kGyroXoutH, buf, 6) != 6) {
         return false;
     }
 
@@ -557,14 +558,14 @@ bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag) {
     // Read from external sensor data registers
     // 9 bytes: ST1 + 6 data + dummy + ST2
     uint8_t buf[9];
-    if (i2c_bus_read_regs(dev->addr, B0_EXT_SLV_SENS_DATA_00, buf, 9) != 9) {
+    if (i2c_bus_read_regs(dev->addr, bank0::kExtSlvSensData00, buf, 9) != 9) {
         return false;
     }
 
     uint8_t st1 = buf[0];
     uint8_t st2 = buf[8];  // ST2 after dummy byte
 
-    if (!(st1 & AK_ST1_DRDY) || (st2 & AK_ST2_HOFL)) {
+    if (!(st1 & ak09916::kSt1Drdy) || (st2 & ak09916::kSt2Hofl)) {
         return false;  // Not ready or overflow
     }
 
@@ -587,7 +588,7 @@ bool icm20948_read_temperature(icm20948_t* dev, float* temp_c) {
     if (!select_bank(dev, 0)) return false;
 
     uint8_t buf[2];
-    if (i2c_bus_read_regs(dev->addr, B0_TEMP_OUT_H, buf, 2) != 2) {
+    if (i2c_bus_read_regs(dev->addr, bank0::kTempOutH, buf, 2) != 2) {
         return false;
     }
 
@@ -605,7 +606,7 @@ bool icm20948_data_ready(icm20948_t* dev, bool* accel_ready, bool* gyro_ready) {
     if (!select_bank(dev, 0)) return false;
 
     uint8_t status;
-    if (i2c_bus_read_reg(dev->addr, B0_INT_STATUS_1, &status) != 0) {
+    if (i2c_bus_read_reg(dev->addr, bank0::kIntStatus1, &status) != 0) {
         return false;
     }
 
@@ -625,13 +626,13 @@ bool icm20948_set_i2c_master_enable(icm20948_t* dev, bool enable) {
 
     // Read current USER_CTRL, modify I2C_MST_EN bit
     uint8_t user_ctrl;
-    if (!read_bank_reg(dev, 0, B0_USER_CTRL, &user_ctrl)) return false;
+    if (!read_bank_reg(dev, 0, bank0::kUserCtrl, &user_ctrl)) return false;
 
     if (enable) {
-        user_ctrl |= USER_CTRL_I2C_MST_EN;
+        user_ctrl |= bit::kI2cMstEn;
     } else {
-        user_ctrl &= ~USER_CTRL_I2C_MST_EN;
+        user_ctrl &= ~bit::kI2cMstEn;
     }
 
-    return write_bank_reg(dev, 0, B0_USER_CTRL, user_ctrl);
+    return write_bank_reg(dev, 0, bank0::kUserCtrl, user_ctrl);
 }

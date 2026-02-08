@@ -29,18 +29,18 @@ bool i2c_bus_init(void) {
     i2c_bus_recover();
 
     // Initialize I2C peripheral
-    uint actual_freq = i2c_init(I2C_BUS_INSTANCE, I2C_BUS_FREQ_HZ);
+    uint actual_freq = i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
     if (actual_freq == 0) {
         return false;
     }
 
     // Configure GPIO pins for I2C function
-    gpio_set_function(I2C_BUS_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(I2C_BUS_SCL_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_I2C);
+    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_I2C);
 
     // Enable internal pull-ups (external pull-ups on STEMMA QT are also present)
-    gpio_pull_up(I2C_BUS_SDA_PIN);
-    gpio_pull_up(I2C_BUS_SCL_PIN);
+    gpio_pull_up(kI2cBusSdaPin);
+    gpio_pull_up(kI2cBusSclPin);
 
     g_initialized = true;
     return true;
@@ -52,8 +52,8 @@ void i2c_bus_deinit(void) {
     }
 
     i2c_deinit(I2C_BUS_INSTANCE);
-    gpio_set_function(I2C_BUS_SDA_PIN, GPIO_FUNC_NULL);
-    gpio_set_function(I2C_BUS_SCL_PIN, GPIO_FUNC_NULL);
+    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_NULL);
+    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_NULL);
 
     g_initialized = false;
 }
@@ -65,7 +65,7 @@ bool i2c_bus_probe(uint8_t addr) {
 
     // Try to read a single byte - if device ACKs, it's present
     uint8_t dummy;
-    int ret = i2c_read_timeout_us(I2C_BUS_INSTANCE, addr, &dummy, 1, false, I2C_TIMEOUT_US);
+    int ret = i2c_read_timeout_us(I2C_BUS_INSTANCE, addr, &dummy, 1, false, kI2cTimeoutUs);
     return (ret >= 0);
 }
 
@@ -79,30 +79,30 @@ void i2c_bus_scan(void) {
     printf("I2C bus scan:\n");
     printf("  Instance: I2C%d\n", I2C_BUS_INSTANCE == i2c0 ? 0 : 1);
     printf("  SDA=GPIO%d (state=%d), SCL=GPIO%d (state=%d)\n",
-           I2C_BUS_SDA_PIN, gpio_get(I2C_BUS_SDA_PIN),
-           I2C_BUS_SCL_PIN, gpio_get(I2C_BUS_SCL_PIN));
-    printf("  Configured freq: %d Hz\n", I2C_BUS_FREQ_HZ);
+           kI2cBusSdaPin, gpio_get(kI2cBusSdaPin),
+           kI2cBusSclPin, gpio_get(kI2cBusSclPin));
+    printf("  Configured freq: %lu Hz\n", (unsigned long)kI2cBusFreqHz);
 
     int found = 0;
 
     for (uint8_t addr = 0x08; addr < 0x78; addr++) {
         // Skip PA1010D GPS — probing triggers I2C bus interference
         // (Pico SDK issue #252). Re-enable at IVP-31.
-        if ((addr != I2C_ADDR_PA1010D) && i2c_bus_probe(addr)) {
+        if ((addr != kI2cAddrPa1010d) && i2c_bus_probe(addr)) {
             printf("  0x%02X", addr);
 
             // Identify known devices
             switch (addr) {
-                case I2C_ADDR_DPS310:
+                case kI2cAddrDps310:
                     printf(" (DPS310 Barometer)");
                     break;
-                case I2C_ADDR_ICM20948:
+                case kI2cAddrIcm20948:
                     printf(" (ICM-20948 IMU)");
                     break;
-                case I2C_ADDR_AK09916:
+                case kI2cAddrAk09916:
                     printf(" (AK09916 Magnetometer)");
                     break;
-                case I2C_ADDR_PA1010D:
+                case kI2cAddrPa1010d:
                     printf(" (PA1010D GPS)");
                     break;
                 case 0x68:
@@ -133,7 +133,7 @@ int i2c_bus_write(uint8_t addr, const uint8_t* data, size_t len) {
         return -1;
     }
 
-    int ret = i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, data, len, false, I2C_TIMEOUT_US);
+    int ret = i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, data, len, false, kI2cTimeoutUs);
     return ret;
 }
 
@@ -142,7 +142,7 @@ int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len) {
         return -1;
     }
 
-    int ret = i2c_read_timeout_us(I2C_BUS_INSTANCE, addr, data, len, false, I2C_TIMEOUT_US);
+    int ret = i2c_read_timeout_us(I2C_BUS_INSTANCE, addr, data, len, false, kI2cTimeoutUs);
     return ret;
 }
 
@@ -152,13 +152,13 @@ int i2c_bus_write_read(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
     }
 
     // Write register address (with repeated start - nostop=true)
-    int ret = i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, &reg, 1, true, I2C_TIMEOUT_US);
+    int ret = i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, &reg, 1, true, kI2cTimeoutUs);
     if (ret < 0) {
         return ret;
     }
 
     // Read data
-    ret = i2c_read_timeout_us(I2C_BUS_INSTANCE, addr, data, len, false, I2C_TIMEOUT_US);
+    ret = i2c_read_timeout_us(I2C_BUS_INSTANCE, addr, data, len, false, kI2cTimeoutUs);
     return ret;
 }
 
@@ -168,7 +168,7 @@ int i2c_bus_write_reg(uint8_t addr, uint8_t reg, uint8_t value) {
     }
 
     uint8_t buf[2] = {reg, value};
-    int ret = i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, buf, 2, false, I2C_TIMEOUT_US);
+    int ret = i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, buf, 2, false, kI2cTimeoutUs);
     return (ret == 2) ? 0 : -1;
 }
 
@@ -191,44 +191,44 @@ int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
 
 bool i2c_bus_recover(void) {
     // Temporarily switch pins to GPIO mode for bit-banging
-    gpio_set_function(I2C_BUS_SDA_PIN, GPIO_FUNC_SIO);
-    gpio_set_function(I2C_BUS_SCL_PIN, GPIO_FUNC_SIO);
+    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_SIO);
+    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
 
     // Configure SDA as input (to read its state)
-    gpio_set_dir(I2C_BUS_SDA_PIN, GPIO_IN);
-    gpio_pull_up(I2C_BUS_SDA_PIN);
+    gpio_set_dir(kI2cBusSdaPin, GPIO_IN);
+    gpio_pull_up(kI2cBusSdaPin);
 
     // Configure SCL as output
-    gpio_set_dir(I2C_BUS_SCL_PIN, GPIO_OUT);
-    gpio_put(I2C_BUS_SCL_PIN, 1);
+    gpio_set_dir(kI2cBusSclPin, GPIO_OUT);
+    gpio_put(kI2cBusSclPin, 1);
 
     // Always clock 9 pulses to clear any stuck transaction,
     // even if SDA appears high — a sensor may need the full
     // sequence to reset its internal state machine
     for (uint8_t i = 0; i < 9; i++) {
-        gpio_put(I2C_BUS_SCL_PIN, 0);
+        gpio_put(kI2cBusSclPin, 0);
         sleep_us(5);
-        gpio_put(I2C_BUS_SCL_PIN, 1);
+        gpio_put(kI2cBusSclPin, 1);
         sleep_us(5);
     }
 
-    bool sda_released = gpio_get(I2C_BUS_SDA_PIN);
+    bool sda_released = gpio_get(kI2cBusSdaPin);
 
     // Always generate STOP condition: SDA low while SCL high, then SDA high
-    gpio_set_dir(I2C_BUS_SDA_PIN, GPIO_OUT);
-    gpio_put(I2C_BUS_SDA_PIN, 0);
+    gpio_set_dir(kI2cBusSdaPin, GPIO_OUT);
+    gpio_put(kI2cBusSdaPin, 0);
     sleep_us(5);
     // SCL high (already high)
     sleep_us(5);
     // SDA high = STOP condition
-    gpio_put(I2C_BUS_SDA_PIN, 1);
+    gpio_put(kI2cBusSdaPin, 1);
     sleep_us(5);
 
     // Restore I2C function on pins
-    gpio_set_function(I2C_BUS_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(I2C_BUS_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(I2C_BUS_SDA_PIN);
-    gpio_pull_up(I2C_BUS_SCL_PIN);
+    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_I2C);
+    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_I2C);
+    gpio_pull_up(kI2cBusSdaPin);
+    gpio_pull_up(kI2cBusSclPin);
 
     return sda_released;
 }

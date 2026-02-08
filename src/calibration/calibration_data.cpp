@@ -35,8 +35,8 @@ void calibration_init_defaults(calibration_store_t* cal) {
 
     memset(cal, 0, sizeof(calibration_store_t));
 
-    cal->magic = CALIBRATION_MAGIC;
-    cal->version = CALIBRATION_VERSION;
+    cal->magic = kCalibrationMagic;
+    cal->version = kCalibrationVersion;
 
     // Accel defaults: no offset, unity scale, no cross-coupling
     cal->accel.offset = cal_vec3_t{0.0f, 0.0f, 0.0f};
@@ -67,10 +67,10 @@ bool calibration_validate(const calibration_store_t* cal) {
     if (cal == NULL) return false;
 
     // Check magic
-    if (cal->magic != CALIBRATION_MAGIC) return false;
+    if (cal->magic != kCalibrationMagic) return false;
 
     // Check version
-    if (cal->version > CALIBRATION_VERSION) return false;
+    if (cal->version > kCalibrationVersion) return false;
 
     // Check CRC (computed over everything after crc16 field)
     const uint8_t* data_start = (const uint8_t*)&cal->accel;
