@@ -47,6 +47,7 @@ rocketchip/
 │   ├── GIT_WORKFLOW.md            # Git conventions
 │   ├── STANDARDS_AUDIT.md         # Audit template (copy + date for new audits)
 │   ├── STANDARDS_AUDIT_2026-02-07.md  # Current audit (complete)
+│   ├── AUDIT_REMEDIATION.md       # Line-level fix tracking for audit findings
 │   ├── STANDARDS_DEVIATIONS.md    # Deviation tracking
 │   └── protocols/
 │       └── SPACEWIRE_LITE.md      # SpaceWire-Lite (aspirational)

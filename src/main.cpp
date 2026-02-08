@@ -398,12 +398,16 @@ static void seqlock_write(sensor_seqlock_t* sl, const shared_sensor_data_t* src)
 static bool seqlock_read(sensor_seqlock_t* sl, shared_sensor_data_t* dst) {
     for (uint32_t attempt = 0; attempt < 4; attempt++) {
         uint32_t seq1 = sl->sequence.load(std::memory_order_acquire);
-        if (seq1 & 1u) continue;  // Write in progress, retry
+        if (seq1 & 1u) {
+            continue;  // Write in progress, retry
+        }
         __dmb();  // Ensure counter read committed before data reads
         memcpy(dst, &sl->data, sizeof(shared_sensor_data_t));
         __dmb();  // Ensure all data loads complete before re-reading counter
         uint32_t seq2 = sl->sequence.load(std::memory_order_acquire);
-        if (seq1 == seq2) return true;  // Consistent snapshot
+        if (seq1 == seq2) {
+            return true;  // Consistent snapshot
+        }
     }
     return false;  // All 4 retries collided — caller uses previous data
 }
@@ -454,13 +458,13 @@ static void mpu_setup_stack_guard(uint32_t stack_bottom) {
     // Region 0: Stack guard (no access, execute-never)
     // PMSAv8 RBAR: [31:5]=BASE, [4:3]=SH(0=non-shareable), [2:1]=AP(0=priv no-access), [0]=XN(1)
     mpu_hw->rnr = 0;
-    mpu_hw->rbar = (stack_bottom & ~0x1Fu)
+    mpu_hw->rbar = (stack_bottom & ~0x1FU)
                   | (0u << 3)   // SH: Non-shareable
                   | (0u << 1)   // AP: Privileged no-access
                   | (1u << 0);  // XN: Execute-never
 
     // PMSAv8 RLAR: [31:5]=LIMIT, [3:1]=ATTRINDX(0), [0]=EN(1)
-    mpu_hw->rlar = ((stack_bottom + kMpuGuardSizeBytes - 1) & ~0x1Fu)
+    mpu_hw->rlar = ((stack_bottom + kMpuGuardSizeBytes - 1) & ~0x1FU)
                   | (0u << 1)   // ATTRINDX: 0 (uses MAIR0 attr 0)
                   | (1u << 0);  // EN: Enable region
 
@@ -479,7 +483,9 @@ static void mpu_setup_stack_guard(uint32_t stack_bottom) {
 // ============================================================================
 
 static void ivp29_gate_check(void) {
-    if (!stdio_usb_connected()) return;
+    if (!stdio_usb_connected()) {
+        return;
+    }
 
     printf("\n=== IVP-29: MPU Stack Guard Regions ===\n");
     printf("[MANUAL] Gate 1: Core 0 overflow triggers fault (press 'o')\n");
@@ -495,7 +501,9 @@ static void ivp29_gate_check(void) {
 // ============================================================================
 
 static void ivp30_gate_check(void) {
-    if (!stdio_usb_connected()) return;
+    if (!stdio_usb_connected()) {
+        return;
+    }
 
     printf("\n=== IVP-30: Hardware Watchdog ===\n");
     printf("[PASS]   Gate 1: Normal operation — watchdog did not fire over 5 minutes\n");
@@ -2370,7 +2378,8 @@ int main() {
     printf("\n");
     printf("==============================================\n");
     printf("  RocketChip v%s\n", ROCKETCHIP_VERSION_STRING);
-    printf("  Build: %s %s\n", __DATE__, __TIME__);
+    static const char *kBuildTag = "audit-remediation-1";
+    printf("  Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
     printf("  Board: Adafruit Feather RP2350 HSTX\n");
     printf("==============================================\n\n");
 
@@ -2714,7 +2723,9 @@ int main() {
                     bool snapOk = seqlock_read(&g_sensorSeqlock, &snap);
                     uint32_t elapsedSec = elapsedMs / 1000;
                     if (snapOk) {
-                        printf("[IVP-27] %lu/%lus | IMU: %lu reads, %lu err | Baro: %lu reads, %lu err | Core1: %lu loops | USB: %s\n",
+                        printf("[IVP-27] %lu/%lus | IMU: %lu reads, %lu err"
+                               " | Baro: %lu reads, %lu err"
+                               " | Core1: %lu loops | USB: %s\n",
                                (unsigned long)elapsedSec,
                                (unsigned long)(kIvp27SoakMs / 1000),
                                (unsigned long)snap.imu_read_count,

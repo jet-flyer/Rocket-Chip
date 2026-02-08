@@ -68,16 +68,16 @@ Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to
 | Standard | Total | Applicable | Compliant | Deviations | Not Checked |
 |----------|-------|------------|-----------|------------|-------------|
 | **Power of 10** | 10 | 10 | 2 | 8 | 0 |
-| **JSF AV C++ (flow ctrl 186-201)** | 16 | 16 | 12 | 4 | 0 |
+| **JSF AV C++ (flow ctrl 186-201)** | 16 | 16 | 13 | 3 | 0 |
 | **JSF AV C++ (memory 206-207)** | 2 | 2 | 2 | 0 | 0 |
-| **JSF AV C++ (portable 209-215)** | 7 | 7 | 5 | 2 | 0 |
-| **JSF AV C++ (functions 107-125)** | 12 | 12 | 11 | 1 | 0 |
+| **JSF AV C++ (portable 209-215)** | 7 | 7 | 6 | 1 | 0 |
+| **JSF AV C++ (functions 107-125)** | 12 | 12 | 12 | 0 | 0 |
 | **JSF AV C++ (decls 135-145)** | 11 | 11 | 11 | 0 | 0 |
-| **JSF AV C++ (style 40-63)** | 20 | 20 | 16 | 4 | 0 |
+| **JSF AV C++ (style 40-63)** | 20 | 20 | 18 | 2 | 0 |
 | **JSF AV C++ (comments 126-133)** | 8 | 8 | 8 | 0 | 0 |
 | **JSF AV C++ (main.cpp C++)** | 32 | 32 | 30 | 2 | 0 |
 | **JSF AV C++ (types 146-148)** | 3 | 3 | 3 | 0 | 0 |
-| **JSF AV C++ (constants 149-151)** | 4 | 4 | 3 | 1 | 0 |
+| **JSF AV C++ (constants 149-151)** | 4 | 4 | 4 | 0 | 0 |
 | **JSF AV C++ (variables 152)** | 1 | 1 | 0 | 1 | 0 |
 | **JSF AV C++ (unions 153-156)** | 4 | 2 | 2 | 0 | 0 |
 | **JSF AV C++ (preprocessing 26-32)** | 7 | 7 | 3 | 4 | 0 |
@@ -87,18 +87,18 @@ Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to
 | **JSF AV C++ (type conv 180-184)** | 5 | 5 | 5 | 0 | 0 |
 | **JSF AV C++ (expressions 202-205)** | 5 | 5 | 5 | 0 | 0 |
 | **JSF AV C++ (libraries 17-25)** | 9 | 9 | 7 | 2 | 0 |
-| **JSF AV C++ (environment 8-15)** | 6 | 6 | 3 | 3 | 0 |
+| **JSF AV C++ (environment 8-15)** | 6 | 6 | 4 | 2 | 0 |
 | **JSF AV C++ (miscellaneous 216-218)** | 3 | 3 | 3 | 0 | 0 |
-| **JPL C (LOC-1-4)** | 19 | 19 | 13 | 6 | 0 |
+| **JPL C (LOC-1-4)** | 19 | 19 | 14 | 5 | 0 |
 | JPL C (LOC-5/6) | ~15 | D | — | — | Deferred |
 | **Platform Rules** | 12 | 12 | 12 | 0 | 0 |
 | **Multicore** | 5 | 5 | 5 | 0 | 0 |
-| **Debug Output** | 9 | 9 | 7 | 2 | 0 |
+| **Debug Output** | 9 | 9 | 9 | 0 | 0 |
 | **Git Workflow** | 4 | 4 | 4 | 0 | 0 |
-| **Session Checklist** | 5 | 5 | 4 | 1 | 0 |
+| **Session Checklist** | 5 | 5 | 5 | 0 | 0 |
 | **Prior Art Research** | 4 | 4 | 2 | 2 | 0 |
 
-**Totals (audited):** 249 rules, 245 applicable. 201 PASS (82%), 44 PARTIAL/FAIL (18%), 4 N/A.
+**Totals (audited):** 249 rules, 245 applicable. 212 PASS (87%), 33 PARTIAL/FAIL (13%), 4 N/A.
 
 **Zero NOT CHECKED rules remain.** Audit complete.
 
@@ -206,7 +206,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 | 11 | No trigraphs | M | PASS | None found |
 | 12 | No digraphs | M | PASS | None found |
 | 13 | No multi-byte characters | M | PASS | None found |
-| 14 | Literal suffixes uppercase | M | PARTIAL | 2 lowercase hex: main.cpp:457,463 `0x1Fu` (should be `0x1F`) |
+| 14 | Literal suffixes uppercase | M | PASS | Fixed: `0x1Fu` → `0x1FU` at main.cpp:457,463 |
 | 15 | Provision for runtime checking | M | FAIL | No runtime assertions — only 4 compile-time (see P10-5) |
 
 #### Libraries (Audited Phase 3)
@@ -252,7 +252,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 | Rule | Summary | App | Status | Notes |
 |------|---------|-----|--------|-------|
 | 40 | Implementation files include needed headers | M | PASS | All files include required headers directly |
-| 41 | Lines <= 120 characters | R | FAIL | 1 line exceeds: main.cpp:2717 (135 chars, printf) |
+| 41 | Lines <= 120 characters | R | PASS | Fixed: split printf format string (was 135 chars at main.cpp:2717) |
 | 42 | Expressions on separate lines | M | FAIL | 8 violations: main.cpp:2866 + ws2812_status.c:307-317 (HSV math) |
 | 43 | No tabs | R | PASS | No tab characters in source files |
 | 44 | Indent >= 2 spaces, consistent | M | PASS | Consistent 4-space indentation |
@@ -267,7 +267,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 | 53.1 | No special chars in filenames | M | PASS | Alphanumeric + underscore only |
 | 54 | Implementation files use .cpp | R | PASS | .cpp for C++, .c for C (intentional) |
 | 58 | Multi-param functions formatting | R | PASS | Long param lists properly line-broken |
-| 59 | Braces required for if/else/while/for | M | FAIL | 4 single-statement guards without braces in main.cpp:401,406,482,498 |
+| 59 | Braces required for if/else/while/for | M | PASS | Fixed: added braces to 4 guards (main.cpp:401,406,482,498) |
 | 60 | Brace placement rules | R | PASS | Consistent K&R style |
 | 61 | Nothing else on brace lines | R | PASS | Only `} else {` (K&R allowed) |
 | 62 | Dereference/address-of connected to type | R | PARTIAL | Mixed: `float*` and `Type *` styles in headers |
@@ -283,7 +283,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 | 111 | No return of pointer to local | M | PASS | No pointer returns to local variables |
 | 113 | Single exit point | R | PASS | Multi-return via guard-clause pattern (early return on error) — acceptable |
 | 114 | Value-returning via return statement | M | PASS | All non-void functions return on all paths |
-| 115 | Check function return values | M | PARTIAL | 2 unchecked: i2c_bus_reset() at rc_os.c:190,441 (documented — see P10-7) |
+| 115 | Check function return values | M | PASS | Fixed: i2c_bus_reset() returns now checked at rc_os.c:190,443 |
 | 118 | Pointers when NULL possible | R | PASS | Proper NULL checks before pointer dereference |
 | 119 | No recursion | M | PASS | Confirmed: no recursion (P10-1 audit) |
 | 120 | Overloaded ops consistent semantics | R | N/A | No operator overloading (.c files); no operators in main.cpp |
@@ -336,7 +336,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 | Rule | Summary | App | Status | Notes |
 |------|---------|-----|--------|-------|
 | 149 | No octal constants (except 0) | M | PASS | No octal literals found (grep `\b0[0-7]+\b`). Only `0` used as zero |
-| 150 | Hex constants uppercase | M | PARTIAL | 2 lowercase hex: main.cpp:457 `0x1Fu`, main.cpp:463 `0x1Fu` (should be `0x1FU`) |
+| 150 | Hex constants uppercase | M | PASS | Fixed: `0x1Fu` → `0x1FU` at main.cpp:457,463 |
 | 151 | Named constants, no magic numbers | M | PASS | 40+ `constexpr`/`const` with k-prefix. IVP timing values all named constants |
 | 151.1 | String literals not modified | M | PASS | All string literals are `const char*` or printf format strings; none modified |
 
@@ -406,7 +406,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 | 191 | break only in switch | M | PASS | No break-from-loop violations |
 | 192 | if/else has final else | R | PASS | All multi-branch chains have final else |
 | 193 | Non-empty case has break | M | PASS | No fall-through violations |
-| 194 | Switch has default | M | FAIL | `handle_calibration_menu()` rc_os.c:561 missing default |
+| 194 | Switch has default | M | PASS | Fixed: added `default: break;` to handle_calibration_menu() |
 | 195 | Switch expression not bool | M | PASS | All switches on int/enum types |
 | 196 | Switch has >= 2 cases | M | PASS | Minimum 3 cases found |
 | 197 | No float loop counters | M | PASS | All loop counters are integral |
@@ -423,7 +423,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 | main.cpp:401 | Seqlock read | Retry if write-in-progress (odd sequence) | Correct synchronization pattern |
 | main.cpp:703 | Sensor loop | Reset timing after USB timeout in Core 1 | Acceptable loop control |
 
-**Rule 194 details:** `handle_calibration_menu()` at rc_os.c:561 has no `default:` clause. By contrast, `handle_main_menu()` at rc_os.c:512 correctly has `default:` calling `rc_os_on_unhandled_key()`. **Recommendation:** Add `default: break;` to the calibration menu switch.
+**Rule 194 details:** `handle_calibration_menu()` at rc_os.c:561 had no `default:` clause. **Fixed:** `default: break;` added.
 
 #### Expressions (Audited Phase 4)
 
@@ -453,7 +453,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 | 210.1 | No member ordering assumptions | R | PASS | No struct-to-byte casts |
 | 211 | No basic type address assumptions | R | PASS | Pointer arithmetic limited to aligned flash buffers |
 | 212 | No underflow/overflow dependence | M | PASS | CRC intentional modulo only |
-| 213 | Explicit operator precedence | M | PARTIAL | 1 unclear precedence in calibration_data.c:17 |
+| 213 | Explicit operator precedence | M | PASS | Fixed: added parentheses at calibration_data.c:17 |
 | 214 | No non-local static init order | R | PASS | All statics use in-class or aggregate init |
 | 215 | No pointer arithmetic | M | PASS | 2 instances in flash layout (intentional, aligned) |
 
@@ -471,7 +471,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 | main.cpp:1057 | `int foundCount` | `uint8_t foundCount` | Trivial |
 | main.cpp:1444,1514,1587 | `int i` | `uint8_t i` | Trivial |
 
-**Rule 213 details:** calibration_data.c:17 has `crc ^= (uint16_t)data[i] << 8` — shift vs XOR precedence ambiguous to readers. Fix: `crc ^= ((uint16_t)data[i] << 8)`. Single parenthesis addition.
+**Rule 213 details:** calibration_data.c:17 had `crc ^= (uint16_t)data[i] << 8` — shift vs XOR precedence ambiguous. **Fixed:** now `crc ^= ((uint16_t)data[i] << 8)`.
 
 #### Miscellaneous (Audited Phase 4)
 
@@ -762,26 +762,22 @@ These serve a similar purpose to assertions but return error codes rather than h
 
 **How to verify:** Manual review of function call sites for unchecked returns; review function entry points for parameter validation.
 
-**Compliance status: PARTIAL**
+**Compliance status: PASS** *(fixed during Tier 1 remediation)*
 
 **Parameter validation (good):**
 - `i2c_bus.c`: All public functions check `g_initialized`, `data != NULL`, `len > 0`
 - `calibration_manager.c`: Checks pos bounds, read_fn non-null, state validity
 - `rc_os.c`: Checks IMU/baro availability before calibration commands
 
-**Unchecked return values (issues):**
+**Previously unchecked return values (fixed):**
 
-| File | Line | Call | Return | Impact |
-|------|------|------|--------|--------|
-| rc_os.c | 190 | `i2c_bus_reset()` | `bool` ignored | Medium — recovery status lost |
-| rc_os.c | 441 | `i2c_bus_reset()` | `bool` ignored | Medium — recovery status lost |
+| File | Line | Call | Fix |
+|------|------|------|-----|
+| rc_os.c | 190 | `i2c_bus_reset()` | Now checked with warning on failure |
+| rc_os.c | 443 | `i2c_bus_reset()` | Now checked with warning on failure |
 
 **Void functions (no return to check):**
 - `flash_range_program()`, `flash_range_erase()` — Pico SDK void functions, cannot check
-
-**Assessment:** Good parameter validation patterns in driver/calibration code. Two instances of ignored return values from `i2c_bus_reset()`. SDK functions with void returns are inherently uncheckable.
-
-**Recommendation:** Check return value of `i2c_bus_reset()` at lines 190 and 441 in rc_os.c. Log or handle the failure case.
 
 ### B.8: Preprocessor Limitations
 
@@ -916,7 +912,7 @@ add_compile_options(
 | LOC-3.4 | Data integrity check on stored values | PASS | CRC16-CCITT on calibration data (calibration_data.c). Validated on read, recomputed on write |
 | LOC-3.5 | Barrier patterns for critical data | PASS | Seqlock with `__dmb()` barriers, `std::atomic` with explicit memory ordering, spinlocks with interrupt disable |
 | LOC-3.6 | Restrict scope of data | PARTIAL | See P10-6. Driver modules good; main.cpp has 88+ IVP test globals |
-| LOC-3.7 | Check return values and parameters | PARTIAL | See P10-7. 2 unchecked `i2c_bus_reset()` returns at rc_os.c:190,441 |
+| LOC-3.7 | Check return values and parameters | PASS | Fixed: i2c_bus_reset() returns now checked. See P10-7 |
 
 ### C.4: LOC-4 Code Clarity — Mandatory (Audited Phase 3)
 
@@ -926,7 +922,7 @@ add_compile_options(
 | LOC-4.2 | No more than one statement per line | PARTIAL | 7 multi-statement init lines in main.cpp (related variable groups). Acceptable — see Style Rule 42 |
 | LOC-4.3 | No hidden control flow (macros) | PARTIAL | See P10-8. DBG_PRINT/DBG_ERROR use `##__VA_ARGS__` but expand to simple printf |
 | LOC-4.4 | No unconditional jump (goto) | FAIL | See P10-1. 6 goto in rc_os.c (cleanup pattern) |
-| LOC-4.5 | Order of evaluation explicit | PASS | Parenthesization used throughout. One ambiguity at calibration_data.c:17 (see Rule 213) |
+| LOC-4.5 | Order of evaluation explicit | PASS | Parenthesization used throughout. calibration_data.c:17 fixed (see Rule 213) |
 
 ### C.5: LOC-5/6 MISRA-C Rules — Deferred
 
@@ -973,10 +969,10 @@ MISRA-C subset rules deferred. Evaluate if/when the project pursues formal certi
 | NeoPixel/LED patterns match conventions | PASS | ws2812_status.c follows ArduPilot-style status patterns |
 | Build type config (CMAKE_BUILD_TYPE, DEBUG) | PASS | CMakeLists.txt:50-57 forces Debug, defines DEBUG=1 |
 | Per-module debug policy (minimal for high-rate) | PASS | Sensor drivers have zero printf. High-rate paths clean of debug I/O |
-| Version string with build tag | FAIL | Uses `__DATE__ __TIME__` only — missing monotonic build tag (LL Entry 2) |
+| Version string with build tag | PASS | Fixed: added `kBuildTag` constant to banner printf |
 | CLI testing via Python serial | PASS | scripts/cli_test.py, accel_cal_6pos.py, ivp test scripts all use pyserial |
 | Pause output for manual input in scripts | PASS | Scripts use `input()` to block during manual steps |
-| Build iteration tags for debug sessions | FAIL | Same as version string — no `kBuildTag` constant. LL Entry 2 recurrence |
+| Build iteration tags for debug sessions | PASS | Fixed: same `kBuildTag` constant — increment on each rebuild |
 
 ### D.4: Prior Art Research (CODING_STANDARDS.md) — Audited Phase 4
 
@@ -1004,7 +1000,7 @@ MISRA-C subset rules deferred. Evaluate if/when the project pursues formal certi
 
 | Rule | Status | Evidence |
 |------|--------|---------|
-| PROJECT_STATUS.md kept current | FAIL | File does not exist at expected location. Phase tracking spread across CHANGELOG.md and AGENT_WHITEBOARD.md |
+| PROJECT_STATUS.md kept current | PASS | `docs/PROJECT_STATUS.md` exists (111 lines, current 2026-02-07). Original audit searched wrong path |
 | CHANGELOG.md updated | PASS | 20KB+ with dated entries for every session. Consistent format with tags |
 | AGENT_WHITEBOARD.md used for handoffs | PASS | Active flags for GPS, Stage 3 plan, JSF AV audit. Updated 2026-02-07 |
 | Build verified before commit | PASS | Clean build confirmed. No compilation errors |

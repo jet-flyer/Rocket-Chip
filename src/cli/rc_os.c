@@ -187,7 +187,9 @@ static void cmd_save_cal(void) {
     cal_result_t result = calibration_save();
     if (result == CAL_RESULT_OK) {
         printf(" OK!\n");
-        i2c_bus_reset();  // Flash ops can disrupt I2C
+        if (!i2c_bus_reset()) {  // Flash ops can disrupt I2C
+            printf("[WARN] I2C bus reset failed after save\n");
+        }
     } else {
         printf(" FAILED (%d)\n", result);
     }
@@ -438,7 +440,9 @@ static void cmd_accel_6pos_cal(void) {
         if (save_result == CAL_RESULT_OK) {
             printf(" OK!\n");
             // Flash ops can disrupt I2C bus state — recover so subsequent reads work
-            i2c_bus_reset();
+            if (!i2c_bus_reset()) {
+                printf("[WARN] I2C bus reset failed after save\n");
+            }
         } else {
             printf(" FAILED (%d)\n", save_result);
         }
@@ -619,6 +623,9 @@ static void handle_calibration_menu(int c) {
 
         case '\r':
         case '\n':
+            break;
+
+        default:
             break;
     }
 }
