@@ -14,6 +14,22 @@
 
 ## Open Flags
 
+### 2026-02-08: F' Evaluation Complete — Architectural Decision Pending
+
+**Status:** Research complete, awaiting user decision
+**Reporter:** Claude Code CLI
+
+Comprehensive F' evaluation added to `docs/decisions/TITAN_BOARD_ANALYSIS.md` (Sections 1-14 of the addendum). Three viable Titan paths identified:
+- **Path A:** STM32H7 + F'/Zephyr (high risk — F' not running on H7 yet)
+- **Path B:** Pi Zero 2 W + F'/Linux (medium risk — proven framework, new integration)
+- **Path C:** Hybrid Pi Zero 2 W + RP2350 (recommended — mirrors Pixhawk architecture)
+
+Key findings: F' multicore only works on Linux (pthreads). Zephyr has no Cortex-M SMP (blocked, no date). F' uses its own protocol, not MAVLink. Cherry-pick alternative exists (adopt F' patterns without framework).
+
+**No action needed until Titan development begins.** Core/Main IVP progression unchanged.
+
+---
+
 ### 2026-02-07: Stage 4 GPS — Ready for IVP-31 Implementation
 
 **Status:** Ready — needs board plugged in with GPS on Qwiic chain
