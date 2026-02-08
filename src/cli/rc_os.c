@@ -268,31 +268,10 @@ static bool wait_for_enter_or_esc(void) {
     }
 }
 
-static void cmd_accel_6pos_cal(void) {
-    if (!rc_os_imu_available) {
-        printf("\nERROR: IMU not available\n");
-        return;
-    }
-    if (rc_os_read_accel == NULL) {
-        printf("\nERROR: Accel read callback not set\n");
-        return;
-    }
-
-    printf("\n========================================\n");
-    printf("  6-Position Accelerometer Calibration\n");
-    printf("========================================\n");
-    printf("Calibrates accel offset, scale, and\n");
-    printf("cross-axis coupling by measuring gravity\n");
-    printf("in 6 orientations.\n\n");
-    printf("Hold the board still in each position,\n");
-    printf("then press ENTER to sample.\n");
-    printf("Press ESC at any time to cancel.\n");
-    printf("========================================\n\n");
-
+// Inner body of 6-position calibration. Returns on error or completion.
+// Caller (cmd_accel_6pos_cal) guarantees pre/post hook execution.
+static void cmd_accel_6pos_cal_inner(void) {
     calibration_reset_6pos();
-
-    // Disable I2C master before rapid accel reads (prevents bank-switching race)
-    if (rc_os_cal_pre_hook) { rc_os_cal_pre_hook(); }
 
     for (uint8_t pos = 0; pos < 6; pos++) {
         printf("--- Position %d/6: %s ---\n", pos + 1,
@@ -304,7 +283,7 @@ static void cmd_accel_6pos_cal(void) {
         if (!wait_for_enter_or_esc()) {
             calibration_reset_6pos();
             printf("Calibration aborted.\n");
-            goto cal_cleanup;
+            return;
         }
 
         printf("  Sampling... hold still");
@@ -331,7 +310,7 @@ static void cmd_accel_6pos_cal(void) {
                     if (!wait_for_enter_or_esc()) {
                         calibration_reset_6pos();
                         printf("Calibration aborted.\n");
-                        goto cal_cleanup;
+                        return;
                     }
                     printf("  Sampling... hold still");
                     fflush(stdout);
@@ -347,7 +326,7 @@ static void cmd_accel_6pos_cal(void) {
                     if (!wait_for_enter_or_esc()) {
                         calibration_reset_6pos();
                         printf("Calibration aborted.\n");
-                        goto cal_cleanup;
+                        return;
                     }
                     printf("  Sampling... hold still");
                     fflush(stdout);
@@ -356,7 +335,7 @@ static void cmd_accel_6pos_cal(void) {
                 printf("\n  ERROR: Failed to read sensor (%d)\n", result);
                 calibration_reset_6pos();
                 printf("Calibration aborted.\n");
-                goto cal_cleanup;
+                return;
             }
         }
 
@@ -364,7 +343,7 @@ static void cmd_accel_6pos_cal(void) {
             printf("  Failed after %d attempts.\n", ACCEL_6POS_MAX_RETRIES);
             calibration_reset_6pos();
             printf("Calibration aborted.\n");
-            goto cal_cleanup;
+            return;
         }
 
         printf("\n");
@@ -380,7 +359,7 @@ static void cmd_accel_6pos_cal(void) {
         printf(" FAILED (%d)\n", fit_result);
         printf("Ellipsoid fit did not converge or params out of range.\n");
         calibration_reset_6pos();
-        goto cal_cleanup;
+        return;
     }
     printf(" OK!\n\n");
 
@@ -450,8 +429,34 @@ static void cmd_accel_6pos_cal(void) {
 
     printf("\n6-position accel calibration complete.\n");
     calibration_reset_6pos();
+}
 
-cal_cleanup:
+static void cmd_accel_6pos_cal(void) {
+    if (!rc_os_imu_available) {
+        printf("\nERROR: IMU not available\n");
+        return;
+    }
+    if (rc_os_read_accel == NULL) {
+        printf("\nERROR: Accel read callback not set\n");
+        return;
+    }
+
+    printf("\n========================================\n");
+    printf("  6-Position Accelerometer Calibration\n");
+    printf("========================================\n");
+    printf("Calibrates accel offset, scale, and\n");
+    printf("cross-axis coupling by measuring gravity\n");
+    printf("in 6 orientations.\n\n");
+    printf("Hold the board still in each position,\n");
+    printf("then press ENTER to sample.\n");
+    printf("Press ESC at any time to cancel.\n");
+    printf("========================================\n\n");
+
+    // Disable I2C master before rapid accel reads (prevents bank-switching race)
+    if (rc_os_cal_pre_hook) { rc_os_cal_pre_hook(); }
+
+    cmd_accel_6pos_cal_inner();
+
     // Re-enable I2C master for normal operation (mag reads)
     if (rc_os_cal_post_hook) { rc_os_cal_post_hook(); }
 }

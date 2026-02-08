@@ -67,8 +67,8 @@ Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to
 
 | Standard | Total | Applicable | Compliant | Deviations | Not Checked |
 |----------|-------|------------|-----------|------------|-------------|
-| **Power of 10** | 10 | 10 | 2 | 8 | 0 |
-| **JSF AV C++ (flow ctrl 186-201)** | 16 | 16 | 13 | 3 | 0 |
+| **Power of 10** | 10 | 10 | 3 | 7 | 0 |
+| **JSF AV C++ (flow ctrl 186-201)** | 16 | 16 | 15 | 1 | 0 |
 | **JSF AV C++ (memory 206-207)** | 2 | 2 | 2 | 0 | 0 |
 | **JSF AV C++ (portable 209-215)** | 7 | 7 | 6 | 1 | 0 |
 | **JSF AV C++ (functions 107-125)** | 12 | 12 | 12 | 0 | 0 |
@@ -89,7 +89,7 @@ Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to
 | **JSF AV C++ (libraries 17-25)** | 9 | 9 | 7 | 2 | 0 |
 | **JSF AV C++ (environment 8-15)** | 6 | 6 | 4 | 2 | 0 |
 | **JSF AV C++ (miscellaneous 216-218)** | 3 | 3 | 3 | 0 | 0 |
-| **JPL C (LOC-1-4)** | 19 | 19 | 16 | 3 | 0 |
+| **JPL C (LOC-1-4)** | 19 | 19 | 17 | 2 | 0 |
 | JPL C (LOC-5/6) | ~15 | D | — | — | Deferred |
 | **Platform Rules** | 12 | 12 | 12 | 0 | 0 |
 | **Multicore** | 5 | 5 | 5 | 0 | 0 |
@@ -98,11 +98,11 @@ Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to
 | **Session Checklist** | 5 | 5 | 5 | 0 | 0 |
 | **Prior Art Research** | 4 | 4 | 2 | 2 | 0 |
 
-**Totals (audited):** 249 rules, 245 applicable. 217 PASS (89%), 28 PARTIAL/FAIL (11%), 4 N/A.
+**Totals (audited):** 249 rules, 245 applicable. 220 PASS (90%), 25 PARTIAL/FAIL (10%), 4 N/A.
 
 **Zero NOT CHECKED rules remain.** Audit complete.
 
-*Dashboard updated: 2026-02-07 (Phase 4 — Final + Tier 1-2 + Phase C partial remediation. C++20 upgrade applied)*
+*Dashboard updated: 2026-02-07 (Phase D — goto elimination. Rules 188, 189, P10-1, LOC-4.4 → PASS)*
 
 ---
 
@@ -400,8 +400,8 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 |------|---------|-----|--------|-------|
 | 186 | No unreachable code | M | PASS | No code after return/break/goto |
 | 187 | All statements have side effects | M | PASS | No bare expression statements |
-| 188 | Labels only in switch | M | FAIL | `cal_cleanup:` in rc_os.c:450 (goto target) |
-| 189 | No goto | M | FAIL | 6 goto in rc_os.c:305,332,348,357,365,381 (see P10-1) |
+| 188 | Labels only in switch | M | PASS | Fixed: extracted helper function, eliminated `cal_cleanup:` label |
+| 189 | No goto | M | PASS | Fixed: 6 `goto cal_cleanup` → `return` in helper function. Wrapper guarantees cleanup |
 | 190 | No continue | M | PARTIAL | Fixed i2c_bus.c (inverted condition). 2 kept in main.cpp: seqlock retry + Core 1 pause (restructuring harms readability of lock-free/loop code) |
 | 191 | break only in switch | M | PASS | No break-from-loop violations |
 | 192 | if/else has final else | R | PASS | All multi-branch chains have final else |
@@ -560,36 +560,17 @@ No `new`/`delete`. All memory statically allocated. Large buffers (e.g., `g_jitt
 
 **How to verify:** `grep -rn 'goto\|setjmp\|longjmp' src/` + manual check for recursive call patterns
 
-**Compliance status: PARTIAL**
+**Compliance status: PASS** *(fixed during Phase D remediation)*
 
 | Check | Status | Details |
 |-------|--------|---------|
 | No setjmp/longjmp | PASS | None found in codebase |
 | No recursion | PASS | No recursive function calls detected |
-| No goto | FAIL | 6 goto statements found |
+| No goto | PASS | Fixed: extracted `cmd_accel_6pos_cal_inner()` helper. All 6 `goto` → `return`. Wrapper guarantees cleanup |
 
-**goto findings:**
+**Previous goto findings (resolved):**
 
-All 6 goto statements are in [rc_os.c](src/cli/rc_os.c), function `cmd_accel_6pos_cal()`, lines 305, 332, 348, 357, 365, 381. All jump forward to label `cal_cleanup` (line 384) for error cleanup:
-
-```c
-// Pattern in each case:
-if (error_condition) {
-    printf("Error message\n");
-    goto cal_cleanup;
-}
-// ...
-cal_cleanup:
-    icm20948_set_i2c_master_enable(imu, true);  // Re-enable mag reads
-    return;
-```
-
-**Assessment:** This is the cleanup-on-error pattern, common in embedded C (Linux kernel uses it extensively). The gotos are all forward jumps to a single cleanup label. The function has resource acquisition (disabling I2C master) that must be released on all exit paths.
-
-**Recommendation:** Evaluate case-by-case per user decision #7. Options:
-1. Accept as deviation with documented rationale (cleanup pattern)
-2. Refactor: extract the calibration body into a sub-function, call cleanup in the caller
-3. Refactor: restructure with do-while(0) + break pattern
+All 6 goto statements were in `cmd_accel_6pos_cal()`. Refactored via Option A: body extracted into `cmd_accel_6pos_cal_inner()`, each `goto cal_cleanup` replaced with `return`. The wrapper function calls pre-hook → inner → post-hook, guaranteeing I2C master re-enable on every exit path.
 
 ### B.2: Fixed Upper Bound on Loops
 
@@ -929,7 +910,7 @@ set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-W
 | LOC-4.1 | Function length limits | FAIL | See P10-4. main() ~950 lines, core1_entry() ~300 lines |
 | LOC-4.2 | No more than one statement per line | PASS | Fixed: split all multi-statement lines (B1). See Style Rule 42 |
 | LOC-4.3 | No hidden control flow (macros) | PARTIAL | See P10-8. DBG_PRINT/DBG_ERROR use `##__VA_ARGS__` but expand to simple printf |
-| LOC-4.4 | No unconditional jump (goto) | FAIL | See P10-1. 6 goto in rc_os.c (cleanup pattern) |
+| LOC-4.4 | No unconditional jump (goto) | PASS | Fixed: helper function extraction eliminated all 6 goto statements |
 | LOC-4.5 | Order of evaluation explicit | PASS | Parenthesization used throughout. calibration_data.c:17 fixed (see Rule 213) |
 
 ### C.5: LOC-5/6 MISRA-C Rules — Deferred

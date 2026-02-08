@@ -190,15 +190,15 @@ NMEA protocol requires formatted ASCII with hex checksums (`$PMTK220,1000*1F\r\n
 
 ---
 
-## Tier 4: Architectural (Pending task breakdown)
+## Tier 4: Architectural (Applied 2026-02-07)
 
 | Task | Rule | Status | Notes |
 |------|------|--------|-------|
-| D1: RC_ASSERT() macro | P10-5 / LOC-3.1 | Pending | Infrastructure prerequisite |
-| D2: goto/label cleanup | JSF 188/189 / P10-1 | Pending | Evaluate during RC_OS redesign |
-| D3: main.cpp refactoring | JSF 1 / P10-4 / LOC-4.1 | Pending | ~950-line main() → modules |
-| D4: while(true) documentation | P10-2 / LOC-2.2 | Pending | Document bare-metal deviation |
-| D5: IVP test globals | P10-6 / LOC-3.6 | Pending | Depends on D3 |
+| D1: RC_ASSERT() macro | P10-5 / LOC-3.1 | **Done** | Macro defined in config.h. Debug: print + watchdog hang. Release: compiles out. Initial placements TBD |
+| D2: goto/label cleanup | JSF 188/189 / P10-1 | **Done** | Extracted body into `cmd_accel_6pos_cal_inner()` helper. All 6 `goto` → `return`. Wrapper guarantees pre/post hook. Zero goto/labels remaining |
+| D3: main.cpp refactoring | JSF 1 / P10-4 / LOC-4.1 | **Deferred** | ~950-line main() is IVP test harness. Refactor when transitioning to production architecture |
+| D4: while(true) documentation | P10-2 / LOC-2.2 | **Done** | 6 loops documented in STANDARDS_DEVIATIONS.md (BM-1 through BM-6). Watchdog mitigation |
+| D5: IVP test globals | P10-6 / LOC-3.6 | **Deferred** | Coupled to D3. 180 file-scope globals are IVP test state — eliminated by production refactoring |
 
 ---
 
@@ -209,3 +209,4 @@ NMEA protocol requires formatted ASCII with hex checksums (`$PMTK220,1000*1F\r\n
 | 2026-02-07 | Tier 1 (#1-7) complete | PASS — 4/4 files rebuilt, 0 warnings |
 | 2026-02-07 | Tier 2 (B1-B6) complete | PASS — 103/103 clean build, -Werror -Wpedantic enforced, 0 warnings |
 | 2026-02-07 | Tier 3 (C16, C20): C++20 upgrade + debug refactor | PASS — `-std=gnu++20`, 0 warnings, volatile loop fix applied |
+| 2026-02-07 | Tier 4 (D1-D4): RC_ASSERT + goto refactor + deviation docs | PASS — rc_os.c rebuilt, 0 warnings, 0 goto/labels remaining |

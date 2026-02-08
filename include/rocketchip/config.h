@@ -13,6 +13,35 @@
 #include "pico/stdlib.h"
 
 // ============================================================================
+// Runtime Assertions (P10-5 / LOC-3.1 / JSF AV Env 15)
+// ============================================================================
+//
+// RC_ASSERT(expr) — runtime assertion for anomalous conditions.
+//
+// Debug build:  prints file:line + expression to USB, then spins until
+//               watchdog resets the device (reboot-cause flag preserved).
+// Release build: compiles to nothing (zero overhead).
+//
+// Usage:  RC_ASSERT(ptr != NULL);
+//         RC_ASSERT(len > 0 && len <= MAX_BUF);
+//
+// Side-effect safety: expression is NOT evaluated in release builds.
+// Do not put statements with side effects inside RC_ASSERT().
+
+#ifdef DEBUG
+    #include <stdio.h>
+    #define RC_ASSERT(expr) \
+        do { \
+            if (!(expr)) { \
+                printf("[ASSERT] %s:%d: %s\n", __FILE__, __LINE__, #expr); \
+                while (true) { __asm volatile("nop"); } \
+            } \
+        } while (0)
+#else
+    #define RC_ASSERT(expr) ((void)0)
+#endif
+
+// ============================================================================
 // Version Information
 // ============================================================================
 
