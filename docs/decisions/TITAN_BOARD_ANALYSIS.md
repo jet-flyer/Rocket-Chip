@@ -234,4 +234,84 @@ The Titan path is architecturally sound, market-viable, and standards-compliant 
 
 ---
 
+## Addendum: F' (F Prime) as MCU Selection Factor
+
+**Date:** 2026-02-07
+**Context:** Feasibility research into NASA flight software frameworks for RocketChip
+
+### Finding
+
+NASA JPL's F' (F Prime) framework — the flight software that ran Mars Ingenuity — is a strong candidate for Titan's software architecture. F' provides pre-built commanding, telemetry, health monitoring, event logging, parameter storage, scheduling, and a free ground station (GDS). It would replace much of the custom infrastructure Titan needs.
+
+However, F' on MCU targets requires Zephyr RTOS, and **Zephyr on RP2350 is single-core only** — Core 1 sits completely idle. Zephyr SMP for Cortex-M is blocked by an open architectural rewrite (PR #85248, active as of Feb 2026) with no shipping date. This makes F' on RP2350 fundamentally incompatible with the dual-core sensor isolation architecture that Core/Main depends on.
+
+### Why This Favors STM32H7 for Titan
+
+| Factor | RP2350 | STM32H723ZG |
+|--------|--------|-------------|
+| F' formally tested board | No (CI-only, not documented) | **Yes** (one of only 2 tested boards) |
+| Zephyr maturity | New, early-stage | **Flagship target**, years of drivers |
+| Clock speed | 150 MHz Cortex-M33 | **550 MHz Cortex-M7** |
+| SRAM | 520 KB | **564 KB** (+ TCM regions) |
+| FPU | Single-precision | **Double-precision** |
+| Zephyr SMP status | Blocked (no Cortex-M SMP yet) | Same blocker (Cortex-M wide) |
+| F' thread overhead | Tight at 520KB with 12 threads | More headroom at higher clock |
+
+The compute headroom on STM32H7 (3.6x clock speed, double-precision FPU) means F' thread scheduling overhead and single-core constraint are less painful — a 550MHz core running all F' components on one core is more viable than a 150MHz core doing the same.
+
+### Strategic Implications
+
+**Core/Main stays on RP2350 + Pico SDK bare-metal.** The dual-core AMP architecture with explicit core pinning is the correct choice and cannot be replicated in Zephyr today. The Pico SDK ecosystem, `picotool` workflow, and all LESSONS_LEARNED knowledge apply here.
+
+**Titan on STM32H7 + F'/Zephyr becomes a credible path:**
+- F' component model replaces custom commanding/telemetry infrastructure
+- Pre-built LoRa component (SX1276/RFM95W compatible, 915MHz)
+- Pre-built Zephyr I2C driver component
+- FPP auto-generates serialization, dispatch, and topology wiring
+- GDS ground station replaces the need to build custom ground tools
+- "Built on NASA's Ingenuity flight software framework" — real marketing value for crowdfunding and competition teams
+
+**Trade-off:** This means Titan firmware is a **separate codebase** from Core/Main, not a compile-time flag. Sensor fusion algorithms, calibration math, and driver logic can be shared as portable C/C++ libraries, but the framework and HAL layers diverge.
+
+### What This Does NOT Change
+
+- Core/Main architecture decisions (bare-metal Pico SDK, dual-core AMP)
+- Current IVP progression — Titan firmware is gated on flight-proven Core/Main
+- Pyro safety requirements (hardware voting, council review)
+- The recommendation to cut TVC/MMAE/CAN from Titan v1
+
+### Candidate Dev Boards for F'/Titan Prototyping
+
+**Primary: NUCLEO-H723ZG (~$30-40)**
+- One of only 2 formally F'-tested boards — lowest-risk path to "hello world" on F'/Zephyr
+- Full debug probe (ST-LINK/V2-1) integrated
+- 550 MHz Cortex-M7, 564KB SRAM, 1MB flash
+- No onboard sensors (requires external breakouts)
+
+**Secondary: Matek H743-SLIM-V4 (~$40-50)**
+- STM32H743VIH6: 480 MHz Cortex-M7, **1MB SRAM**, 2MB flash
+- **Onboard dual ICM42688P IMUs + DPS368 baro** — enables F' sensor component testing without external wiring
+- 7x UART, 2x I2C, 1x CAN, USB-C — rich peripheral set
+- 30.5mm flight controller mounting pattern
+- ArduPilot already runs on it (`MATEKH743` target) — useful cross-reference
+- Zephyr has upstream H743 support ([NUCLEO-H743ZI](https://docs.zephyrproject.org/latest/boards/st/nucleo_h743zi/doc/index.html), [WeAct Mini](https://docs.zephyrproject.org/latest/boards/weact/mini_stm32h743/doc/index.html))
+
+**Matek caveats:**
+- H743 is not the F'-tested chip (H723 is) — same Cortex-M7 family but requires a custom Zephyr board definition mapping the Matek's specific pins
+- H743 runs at 480MHz vs H723's 550MHz (compensated by 1MB vs 564KB SRAM)
+- Flight controller form factor — SWD pads likely exposed but no full debug connector; may need soldering for probe access
+- Drone-oriented layout (13 PWM, OSD chip) — dead weight for rocket avionics but doesn't interfere
+
+**Recommendation:** Start on NUCLEO-H723ZG to prove F'/Zephyr works with minimal friction. Move to Matek H743-SLIM-V4 (or custom Titan PCB) once F' components are validated and sensor integration begins.
+
+### Open Questions for Future Council Review
+
+1. Is the separate-codebase trade-off acceptable, or does shared firmware across tiers outweigh F' benefits?
+2. Does F' GDS replace the need for MAVLink/QGroundControl compatibility on Titan? (F' uses its own protocol, not MAVLink)
+3. Should the OpenMCT ground station plan (Stage 8) target F' GDS instead of MAVLink bridge for Titan?
+4. When Zephyr Cortex-M SMP eventually ships, does it change the RP2350 calculus?
+5. H723 vs H743 for final Titan PCB — 550MHz/564KB vs 480MHz/1MB trade-off?
+
+---
+
 *This document is a council review output. See `COUNCIL_PROCESS.md` for panel definitions and review protocol.*
