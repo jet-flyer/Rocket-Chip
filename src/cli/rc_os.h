@@ -112,7 +112,7 @@ extern bool rc_os_baro_available;
  * Should block until a fresh sample is available (~10ms at 100Hz).
  * @return true on success
  */
-typedef bool (*rc_os_read_accel_fn)(float *ax, float *ay, float *az, float *temp_c);
+typedef bool (*rc_os_read_accel_fn)(float* ax, float* ay, float* az, float* temp_c);
 extern rc_os_read_accel_fn rc_os_read_accel;
 
 // ============================================================================

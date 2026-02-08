@@ -73,12 +73,12 @@ Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to
 | **JSF AV C++ (portable 209-215)** | 7 | 7 | 6 | 1 | 0 |
 | **JSF AV C++ (functions 107-125)** | 12 | 12 | 12 | 0 | 0 |
 | **JSF AV C++ (decls 135-145)** | 11 | 11 | 11 | 0 | 0 |
-| **JSF AV C++ (style 40-63)** | 20 | 20 | 18 | 2 | 0 |
+| **JSF AV C++ (style 40-63)** | 20 | 20 | 20 | 0 | 0 |
 | **JSF AV C++ (comments 126-133)** | 8 | 8 | 8 | 0 | 0 |
 | **JSF AV C++ (main.cpp C++)** | 32 | 32 | 30 | 2 | 0 |
 | **JSF AV C++ (types 146-148)** | 3 | 3 | 3 | 0 | 0 |
 | **JSF AV C++ (constants 149-151)** | 4 | 4 | 4 | 0 | 0 |
-| **JSF AV C++ (variables 152)** | 1 | 1 | 0 | 1 | 0 |
+| **JSF AV C++ (variables 152)** | 1 | 1 | 1 | 0 | 0 |
 | **JSF AV C++ (unions 153-156)** | 4 | 2 | 2 | 0 | 0 |
 | **JSF AV C++ (preprocessing 26-32)** | 7 | 7 | 3 | 4 | 0 |
 | **JSF AV C++ (headers 33-39)** | 7 | 7 | 7 | 0 | 0 |
@@ -89,7 +89,7 @@ Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to
 | **JSF AV C++ (libraries 17-25)** | 9 | 9 | 7 | 2 | 0 |
 | **JSF AV C++ (environment 8-15)** | 6 | 6 | 4 | 2 | 0 |
 | **JSF AV C++ (miscellaneous 216-218)** | 3 | 3 | 3 | 0 | 0 |
-| **JPL C (LOC-1-4)** | 19 | 19 | 14 | 5 | 0 |
+| **JPL C (LOC-1-4)** | 19 | 19 | 16 | 3 | 0 |
 | JPL C (LOC-5/6) | ~15 | D | — | — | Deferred |
 | **Platform Rules** | 12 | 12 | 12 | 0 | 0 |
 | **Multicore** | 5 | 5 | 5 | 0 | 0 |
@@ -98,11 +98,11 @@ Where JSF AV and JPL C conflict, JPL C takes precedence (newer, more targeted to
 | **Session Checklist** | 5 | 5 | 5 | 0 | 0 |
 | **Prior Art Research** | 4 | 4 | 2 | 2 | 0 |
 
-**Totals (audited):** 249 rules, 245 applicable. 212 PASS (87%), 33 PARTIAL/FAIL (13%), 4 N/A.
+**Totals (audited):** 249 rules, 245 applicable. 217 PASS (89%), 28 PARTIAL/FAIL (11%), 4 N/A.
 
 **Zero NOT CHECKED rules remain.** Audit complete.
 
-*Dashboard updated: 2026-02-07 (Phase 4 — Final)*
+*Dashboard updated: 2026-02-07 (Phase 4 — Final + Tier 1-2 + Phase C partial remediation. C++20 upgrade applied)*
 
 ---
 
@@ -201,7 +201,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 
 | Rule | Summary | App | Status | Notes |
 |------|---------|-----|--------|-------|
-| 8 | Conform to ISO C++ standard | R | PARTIAL | C17 + C++17 with 3 justified extensions: `__asm volatile`, `__attribute__((aligned))`, `<atomic>` |
+| 8 | Conform to ISO C++ standard | R | PARTIAL | C17 + C++20 with 3 justified extensions: `__asm volatile`, `__attribute__((aligned))`, `<atomic>`. Upgraded from C++17 during Phase C remediation |
 | 9 | Only basic source character set | M | PASS | No extended chars in source |
 | 11 | No trigraphs | M | PASS | None found |
 | 12 | No digraphs | M | PASS | None found |
@@ -227,9 +227,9 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 
 | Rule | Summary | App | Status | Notes |
 |------|---------|-----|--------|-------|
-| 26 | Only #ifndef/#define/#endif/#include | M | PARTIAL | `#ifdef DEBUG` and `#ifdef __cplusplus` are approved exceptions (documented in CODING_STANDARDS.md) |
+| 26 | Only #ifndef/#define/#endif/#include | M | PARTIAL | C++ path: `#ifdef DEBUG` now only sets `constexpr bool` (C++20 `if constexpr` handles logic). C fallback retains `#ifdef DEBUG` pending .c→.cpp conversion. `#ifdef __cplusplus` deferred to conversion |
 | 27 | Multiple inclusion prevention | M | PASS | All 11 headers have `#ifndef`/`#define`/`#endif` guards with unique `ROCKETCHIP_*` symbols |
-| 28 | #ifndef/#endif only for include guards | M | PARTIAL | `#ifdef DEBUG` (config.h:107-117) is approved deviation. `#ifdef __cplusplus` is industry standard |
+| 28 | #ifndef/#endif only for include guards | M | PARTIAL | C++ path: `#ifdef DEBUG` reduced to single bridge point (sets `constexpr bool`). C fallback retains full macro block pending .c→.cpp conversion. `#ifdef __cplusplus` deferred to conversion |
 | 29 | No #define for inline macros | M | FAIL | 11 register bit mask macros in icm20948.c:71-116. Embedded driver pattern, accept as technical debt |
 | 30 | No #define for constants | R | FAIL | 55+ `#define` for constants instead of const/constexpr. Embedded C/C++ interop necessity |
 | 31 | #define only for include guards | M | FAIL | 60+ non-guard `#define` (hardware config, register masks, parameters). Embedded systems pattern |
@@ -253,7 +253,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 |------|---------|-----|--------|-------|
 | 40 | Implementation files include needed headers | M | PASS | All files include required headers directly |
 | 41 | Lines <= 120 characters | R | PASS | Fixed: split printf format string (was 135 chars at main.cpp:2717) |
-| 42 | Expressions on separate lines | M | FAIL | 8 violations: main.cpp:2866 + ws2812_status.c:307-317 (HSV math) |
+| 42 | Expressions on separate lines | M | PASS | Fixed: split all multi-expression lines in main.cpp and ws2812_status.c |
 | 43 | No tabs | R | PASS | No tab characters in source files |
 | 44 | Indent >= 2 spaces, consistent | M | PASS | Consistent 4-space indentation |
 | 45 | Words separated by underscore | R | PASS | g_ prefix (globals), k prefix (constants), snake_case (functions) |
@@ -270,7 +270,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 | 59 | Braces required for if/else/while/for | M | PASS | Fixed: added braces to 4 guards (main.cpp:401,406,482,498) |
 | 60 | Brace placement rules | R | PASS | Consistent K&R style |
 | 61 | Nothing else on brace lines | R | PASS | Only `} else {` (K&R allowed) |
-| 62 | Dereference/address-of connected to type | R | PARTIAL | Mixed: `float*` and `Type *` styles in headers |
+| 62 | Dereference/address-of connected to type | R | PASS | Fixed: standardized to `Type*` (star with type) across all files |
 | 63 | No spaces around ./->/ unary ops | R | PASS | Correct spacing throughout |
 
 #### Functions (Audited Phase 3)
@@ -344,7 +344,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 
 | Rule | Summary | App | Status | Notes |
 |------|---------|-----|--------|-------|
-| 152 | One variable per declaration | M | PARTIAL | 12 multi-variable declarations in main.cpp — all are related-variable groups (e.g., `uint32_t start, end;`). Driver/calibration code compliant |
+| 152 | One variable per declaration | M | PASS | Fixed: split all 17 multi-variable declarations to one per line (struct members + locals) |
 
 #### Unions and Bit Fields (Audited Phase 3)
 
@@ -402,7 +402,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 | 187 | All statements have side effects | M | PASS | No bare expression statements |
 | 188 | Labels only in switch | M | FAIL | `cal_cleanup:` in rc_os.c:450 (goto target) |
 | 189 | No goto | M | FAIL | 6 goto in rc_os.c:305,332,348,357,365,381 (see P10-1) |
-| 190 | No continue | M | FAIL | 3 instances: i2c_bus.c:91, main.cpp:401, main.cpp:703 |
+| 190 | No continue | M | PARTIAL | Fixed i2c_bus.c (inverted condition). 2 kept in main.cpp: seqlock retry + Core 1 pause (restructuring harms readability of lock-free/loop code) |
 | 191 | break only in switch | M | PASS | No break-from-loop violations |
 | 192 | if/else has final else | R | PASS | All multi-branch chains have final else |
 | 193 | Non-empty case has break | M | PASS | No fall-through violations |
@@ -448,7 +448,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 
 | Rule | Summary | App | Status | Notes |
 |------|---------|-----|--------|-------|
-| 209 | Fixed-width types (typedef) | M | PARTIAL | 48 SDK boundary (accepted), 14 fixable loop counters |
+| 209 | Fixed-width types (typedef) | M | PARTIAL | 48 SDK boundary (accepted). Fixed: 9 loop counters → uint8_t/int32_t. Remaining: SDK return types (`int ret`) at API boundary |
 | 210 | No data representation assumptions | R | PASS | Explicit byte unpacking, static_assert on struct sizes |
 | 210.1 | No member ordering assumptions | R | PASS | No struct-to-byte casts |
 | 211 | No basic type address assumptions | R | PASS | Pointer arithmetic limited to aligned flash buffers |
@@ -479,7 +479,7 @@ Rules technically violated at the Pico SDK API boundary. Per user decision #6, e
 |------|---------|-----|--------|-------|
 | 216 | Avoid premature optimization | R | PASS | Bit operations justified by hardware (WS2812 GRB packing, RGB extraction). No unnecessary tricks |
 | 217 | Prefer compile/link errors | R | PASS | 4 static_assert for struct layouts. constexpr for configuration. Fixed-width types throughout |
-| 218 | Warning levels per project policy | M | PASS | `-Wall -Wextra` enabled. Single documented suppression: `-Wno-unused-parameter` (callback APIs). See P10-10 |
+| 218 | Warning levels per project policy | M | PASS | `-Wall -Wextra -Werror` + `-Wpedantic` (project sources). Single documented suppression: `-Wno-unused-parameter` (callback APIs) |
 
 #### Testing (assess against IVP approach)
 
@@ -796,24 +796,29 @@ These serve a similar purpose to assertions but return error codes rather than h
 |----------|--------|---------|
 | Token pasting (`##`) | PASS | None found |
 | Recursive macros | PASS | None found |
-| Conditional compilation | PASS | Only `#ifdef __cplusplus`, `#ifndef INCLUDE_GUARD`, `#ifdef DEBUG` |
+| Conditional compilation | PASS | Only `#ifdef __cplusplus`, `#ifndef INCLUDE_GUARD`, `#ifdef DEBUG` (bridge only in C++ path) |
 | Simple constant macros | PASS | Register bit masks, storage constants |
-| Variadic macros | FAIL | `DBG_PRINT` uses `##__VA_ARGS__` |
+| Variadic macros | PARTIAL | C++ path: `DBG_PRINT`/`DBG_ERROR` now map to C++20 variadic templates (no `##__VA_ARGS__`). C fallback retains variadic macros pending .c→.cpp conversion |
 
-**Variadic macro usage:**
-```c
-// config.h
-#define DBG_PRINT(fmt, ...) printf("[%lu] " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
-#define DBG_ERROR(fmt, ...) printf("[%lu] ERROR: " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
+**C++20 refactoring (Phase C remediation):**
+```cpp
+// config.h — C++ path (main.cpp)
+// Single bridge point: #ifdef DEBUG sets constexpr bool
+inline constexpr bool kDebugEnabled = true; // or false
+
+// Variadic templates replace macros — zero overhead when disabled
+template<typename... Args>
+inline void dbg_print(const char* fmt, Args... args) {
+    if constexpr (kDebugEnabled) { /* printf */ }
+}
+
+// Compatibility macros map old names to templates
+#define DBG_PRINT(fmt, ...) dbg_print(fmt, ##__VA_ARGS__)
 ```
 
-**Assessment:** The only preprocessor complexity is the debug macros using variadic arguments. This is a standard pattern for debug logging in embedded C. All other macros are simple constants or include guards.
+**Assessment:** In the C++ compilation path (main.cpp — where all DBG_ usage exists), variadic macros are eliminated in favor of C++20 variadic templates with `if constexpr`. The compatibility `#define` macros are simple name mappings with no conditional logic. The C fallback retains the original variadic macro pattern for .c files that include config.h but don't use DBG_ macros.
 
-**Recommendation:** Accept as deviation. The `##__VA_ARGS__` pattern is:
-- Industry-standard for debug logging
-- Compiles out in release builds (`#ifdef DEBUG`)
-- Not hiding complexity — the expansion is straightforward
-- No practical alternative in C (C++ could use variadic templates)
+**Remaining:** C fallback `##__VA_ARGS__` macros removed during .c→.cpp conversion
 
 ### B.9: Pointer Restrictions
 
@@ -848,35 +853,38 @@ These serve a similar purpose to assertions but return error codes rather than h
 
 **Compliance status: PARTIAL**
 
-**CMakeLists.txt (lines 63-67):**
+**CMakeLists.txt (lines 63-70):**
 ```cmake
 add_compile_options(
     -Wall
     -Wextra
+    -Werror
     -Wno-unused-parameter
 )
+# -Wpedantic applied per-file to project sources only
+set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 ```
 
 | Check | Status | Notes |
 |-------|--------|-------|
 | `-Wall` enabled | PASS | Catches most common issues |
 | `-Wextra` enabled | PASS | Additional diagnostics |
-| `-Werror` (warnings as errors) | FAIL | Not enabled |
-| `-Wpedantic` | FAIL | Not enabled |
+| `-Werror` (warnings as errors) | PASS | Enabled globally |
+| `-Wpedantic` | PASS | Enabled for project sources (excluded from SDK sources — SDK has void* to fn-ptr casts) |
 | Suppressions minimal | PASS | Only `-Wno-unused-parameter` |
 | Static analyzer | FAIL | No static analysis configured |
 | Zero warnings build | PASS | Clean build verified — zero warnings with `-Wall -Wextra` |
 
 **Assessment:**
-- Strong warning configuration for development (`-Wall -Wextra`)
+- Full warning configuration: `-Wall -Wextra -Werror` globally, `-Wpedantic` for project sources
 - `-Wno-unused-parameter` is reasonable — callback functions frequently have unused parameters by design
-- Missing `-Werror` means warnings don't block builds
-- Missing `-Wpedantic` means some standards compliance issues may be missed
+- `-Wpedantic` excluded from SDK sources (Pico SDK has `void*` to function pointer casts that violate strict pedantic C)
+- WS2812 color macros use `#ifdef __cplusplus` for C++ aggregate init vs C99 compound literals
 - No static analysis tool (clang-tidy, cppcheck) configured
 
 **Recommendation:**
-1. Consider adding `-Werror` (or `-Werror=return-type -Werror=uninitialized` for critical warnings only)
-2. Consider adding `-Wpedantic` for stricter standards compliance
+1. ~~Consider adding `-Werror`~~ **Done** — enabled globally
+2. ~~Consider adding `-Wpedantic`~~ **Done** — enabled for project sources
 3. Add static analysis to build process (Phase 5 / future tooling effort)
 
 ---
@@ -888,7 +896,7 @@ add_compile_options(
 | Rule | Description | Status | Notes |
 |------|-------------|--------|-------|
 | LOC-1.1 | Do not stray outside language definition | PASS | 3 justified compiler extensions: `__asm volatile` (BASEPRI), `__attribute__((aligned))` (seqlock), `<atomic>` (C11/C++11 standard). No undefined behavior |
-| LOC-1.2 | Compile with all warnings enabled | PARTIAL | `-Wall -Wextra` enabled; missing `-Wpedantic` and `-Werror` (see P10-10) |
+| LOC-1.2 | Compile with all warnings enabled | PASS | Fixed: `-Wall -Wextra -Werror` globally + `-Wpedantic` for project sources |
 
 ### C.2: LOC-2 Predictable Execution — Mandatory (Audited Phase 3)
 
@@ -919,7 +927,7 @@ add_compile_options(
 | Rule | Description | Status | Notes |
 |------|-------------|--------|-------|
 | LOC-4.1 | Function length limits | FAIL | See P10-4. main() ~950 lines, core1_entry() ~300 lines |
-| LOC-4.2 | No more than one statement per line | PARTIAL | 7 multi-statement init lines in main.cpp (related variable groups). Acceptable — see Style Rule 42 |
+| LOC-4.2 | No more than one statement per line | PASS | Fixed: split all multi-statement lines (B1). See Style Rule 42 |
 | LOC-4.3 | No hidden control flow (macros) | PARTIAL | See P10-8. DBG_PRINT/DBG_ERROR use `##__VA_ARGS__` but expand to simple printf |
 | LOC-4.4 | No unconditional jump (goto) | FAIL | See P10-1. 6 goto in rc_os.c (cleanup pattern) |
 | LOC-4.5 | Order of evaluation explicit | PASS | Parenthesization used throughout. calibration_data.c:17 fixed (see Rule 213) |
@@ -1058,7 +1066,7 @@ Issues found during audit that affect documentation, not code:
 
 1. **Static analysis tooling (deferred):** Evaluate clang-tidy and/or cppcheck for automated rule checking. Priority rules: null pointer checks, unused return values, integer overflow.
 
-2. **Build warnings as errors:** Consider `-Werror` for critical warning classes (`-Werror=return-type -Werror=uninitialized`).
+2. ~~**Build warnings as errors:** Consider `-Werror`~~ **Done** — `-Werror` enabled globally, `-Wpedantic` for project sources (B6).
 
 3. **Triggered rechecks:** When new source files are added, recheck naming conventions (JSF AV 50-53), fixed-width types (209), and header guards (35).
 

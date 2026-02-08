@@ -21,6 +21,39 @@ These additional rules from JPL's standard are stretch goals for Pro tier:
 - Stricter `const`/`constexpr` usage
 - Triple-voting on safety-critical variables
 
+### Code Classification
+
+All source files are classified by their role in the flight stack. Standards rigor
+scales with criticality — flight-critical code gets full JSF AV + JPL C enforcement,
+while ground-only code has relaxed rules for stdio and diagnostics.
+
+**Same binary principle:** There is no compile-time flight flag. Flight and ground code
+coexist in the same binary. The flight state machine controls runtime access — when the
+system transitions from IDLE to ARMED, ground-only code paths (CLI, diagnostics, USB I/O)
+are locked out at runtime, not compiled out.
+
+| Classification | Standards Rigor | stdio | Runtime Lockout |
+|---------------|----------------|-------|----------------|
+| **Flight-Critical** | Full JSF AV + JPL C. No stdio except bounded `snprintf` with `sizeof()` | `snprintf` only (MISRA-C safe subset) | Always active |
+| **Flight-Support** | Full JSF AV. No stdio in hot path | None | Always active |
+| **Ground** | JSF AV with stdio relaxation. `printf`/`getchar` permitted behind `stdio_usb_connected()` guard | Permitted with guards | Locked out when state != IDLE |
+| **IVP Test** | Relaxed (test harness). Will be stripped or refactored for production | Permitted | Locked out when state != IDLE |
+
+#### Current File Classification
+
+| File | Classification | Notes |
+|------|---------------|-------|
+| `src/drivers/icm20948.c` | Flight-Critical | IMU driver — zero printf in read path |
+| `src/drivers/baro_dps310.c` | Flight-Critical | Barometer driver |
+| `src/drivers/i2c_bus.c` | Flight-Critical (core) | Bus read/write/probe are flight-critical; `i2c_bus_scan()` is ground-only |
+| `src/drivers/gps_pa1010d.c` | Flight-Critical | 3 bounded `snprintf` for NMEA command formatting (documented MISRA deviation) |
+| `src/drivers/ws2812_status.c` | Flight-Support | Status LED — non-critical but active in flight |
+| `src/calibration/calibration_data.c` | Ground | Pre-flight calibration storage |
+| `src/calibration/calibration_manager.c` | Ground | Calibration algorithms — run pre-flight only |
+| `src/calibration/calibration_storage.c` | Ground | Flash storage — pre-flight only |
+| `src/cli/rc_os.c` | Ground | CLI / local GCS — locked out in flight |
+| `src/main.cpp` | IVP Test (mixed) | Contains flight loop + IVP test harness. Will be refactored (Tier 4 D3) |
+
 ### RP2350 Bare-Metal Platform Constraints
 
 These constraints are non-negotiable. They exist because violations produce silent

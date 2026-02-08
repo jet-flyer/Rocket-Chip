@@ -54,14 +54,14 @@ static uint8_t nmea_checksum(const char* sentence) {
  */
 static int read_nmea_data(uint8_t* buffer, size_t max_len) {
     // PA1010D I2C protocol: just read bytes, no register address needed
-    int ret = i2c_bus_read(GPS_PA1010D_ADDR, buffer, max_len);
+    int32_t ret = i2c_bus_read(GPS_PA1010D_ADDR, buffer, max_len);
     if (ret <= 0) {
         return 0;
     }
 
     // Find actual data length (PA1010D pads with 0x0A or 0xFF)
-    int len = 0;
-    for (int i = 0; i < ret; i++) {
+    int32_t len = 0;
+    for (int32_t i = 0; i < ret; i++) {
         // Stop at padding bytes
         if (buffer[i] == 0x0A && (i == 0 || buffer[i-1] == 0x0A)) {
             break;

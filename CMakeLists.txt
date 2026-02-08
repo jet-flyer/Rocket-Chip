@@ -37,7 +37,7 @@ include(pico_sdk_import.cmake)
 project(rocketchip C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Initialize the SDK
@@ -59,12 +59,16 @@ endif()
 # IVP-29: SDK-level stack limit registers (belt-and-suspenders with MPU guard)
 add_compile_definitions(PICO_USE_STACK_GUARDS=1)
 
-# Compiler warnings
+# Compiler warnings — applied globally (includes SDK sources)
 add_compile_options(
     -Wall
     -Wextra
+    -Werror
     -Wno-unused-parameter
 )
+# -Wpedantic applied only to our source files (SDK triggers
+# -Wpedantic violations we can't fix, e.g. void* to fn-ptr casts)
+# Added via set_source_files_properties below.
 
 # ============================================================================
 # External Libraries
@@ -111,6 +115,21 @@ add_executable(rocketchip
     # IVP-18: RC_OS CLI
     src/cli/rc_os.c
 )
+
+# -Wpedantic for our source files only (SDK sources are excluded)
+set(ROCKETCHIP_SOURCES
+    src/main.cpp
+    src/drivers/ws2812_status.c
+    src/drivers/i2c_bus.c
+    src/drivers/icm20948.c
+    src/drivers/baro_dps310.c
+    src/drivers/gps_pa1010d.c
+    src/calibration/calibration_data.c
+    src/calibration/calibration_manager.c
+    src/calibration/calibration_storage.c
+    src/cli/rc_os.c
+)
+set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
 # Include directories
 target_include_directories(rocketchip PRIVATE

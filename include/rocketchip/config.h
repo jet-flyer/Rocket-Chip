@@ -104,6 +104,49 @@ constexpr uint32_t kCliPollMs       = 50;   // 20Hz CLI input polling
 // Debug Macros (from DEBUG_OUTPUT.md)
 // ============================================================================
 
+#ifdef __cplusplus
+// C++20 constexpr debug toggle — JSF AV Rule 26/28 compliant.
+// Single #ifdef DEBUG bridge sets constexpr bool; all downstream code
+// uses if constexpr (zero overhead when disabled, compiles to bx lr).
+#ifdef DEBUG
+inline constexpr bool kDebugEnabled = true;
+#else
+inline constexpr bool kDebugEnabled = false;
+#endif
+
+#include "pico/time.h"
+#include <cstdio>
+
+template<typename... Args>
+inline void dbg_print(const char* fmt, Args... args) {
+    if constexpr (kDebugEnabled) {
+        printf("[%lu] ", (unsigned long)time_us_32());
+        printf(fmt, args...);
+        printf("\n");
+    }
+}
+
+template<typename... Args>
+inline void dbg_error(const char* fmt, Args... args) {
+    if constexpr (kDebugEnabled) {
+        printf("[%lu] ERROR: ", (unsigned long)time_us_32());
+        printf(fmt, args...);
+        printf("\n");
+    }
+}
+
+inline void dbg_state(const char* from, const char* to) {
+    if constexpr (kDebugEnabled) {
+        printf("[%lu] State: %s -> %s\n", (unsigned long)time_us_32(), from, to);
+    }
+}
+
+// Compatibility macros — map old names to C++20 template functions
+#define DBG_PRINT(fmt, ...) dbg_print(fmt, ##__VA_ARGS__)
+#define DBG_STATE(from, to) dbg_state(from, to)
+#define DBG_ERROR(fmt, ...) dbg_error(fmt, ##__VA_ARGS__)
+
+#else // C fallback — removed during .c → .cpp conversion
 #ifdef DEBUG
     #include "pico/time.h"
     #include <stdio.h>
@@ -115,5 +158,6 @@ constexpr uint32_t kCliPollMs       = 50;   // 20Hz CLI input polling
     #define DBG_STATE(from, to) ((void)0)
     #define DBG_ERROR(fmt, ...) ((void)0)
 #endif
+#endif // __cplusplus
 
 #endif // ROCKETCHIP_CONFIG_H

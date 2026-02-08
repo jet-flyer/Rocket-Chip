@@ -40,6 +40,21 @@ Stage 4 IVPs redesigned for dual-core architecture (GPS on Core 1). Driver updat
 
 ---
 
+### 2026-02-07: u-blox GPS Hardware Available — Future Flight GPS
+
+**Status:** Noted for IVP-31+ planning
+**Reporter:** Claude Code CLI
+
+User has a **Matek M8Q-5883** on hand (SAM-M8Q u-blox + QMC5883L compass, UART GPS + I2C compass). Module is EOL. Current production alternative: **Matek M9N-5883** (NEO-M9N). The M10Q-5883 is also EOL.
+
+**Key advantages over PA1010D:** UBX binary protocol (no snprintf/NMEA), dedicated UART bus (no I2C contention), external QMC5883L compass at 0x0D (no address conflict with ICM-20948/DPS310).
+
+**Note:** IVP-31 continues with PA1010D on I2C intentionally — stress-testing I2C bus sharing is the goal. u-blox migration is for production/flight builds.
+
+**Config path difference:** M8 uses legacy `UBX-CFG-MSG`; M10 uses `UBX-CFG-VALSET`. Same output parser (NAV-PVT). ArduPilot's `AP_GPS_UBLOX` handles both.
+
+---
+
 ### 2026-02-07: Missing Vendor Datasheets
 
 **Status:** Open — acquire before implementation needs them

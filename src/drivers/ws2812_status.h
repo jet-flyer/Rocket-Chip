@@ -151,6 +151,17 @@ ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v);
 // Predefined Colors (dimmed for status use)
 // ============================================================================
 
+#ifdef __cplusplus
+#define WS2812_COLOR_OFF     (ws2812_rgb_t{0x00, 0x00, 0x00})
+#define WS2812_COLOR_RED     (ws2812_rgb_t{0x40, 0x00, 0x00})
+#define WS2812_COLOR_GREEN   (ws2812_rgb_t{0x00, 0x40, 0x00})
+#define WS2812_COLOR_BLUE    (ws2812_rgb_t{0x00, 0x00, 0x40})
+#define WS2812_COLOR_YELLOW  (ws2812_rgb_t{0x40, 0x40, 0x00})
+#define WS2812_COLOR_CYAN    (ws2812_rgb_t{0x00, 0x40, 0x40})
+#define WS2812_COLOR_MAGENTA (ws2812_rgb_t{0x40, 0x00, 0x40})
+#define WS2812_COLOR_ORANGE  (ws2812_rgb_t{0x40, 0x20, 0x00})
+#define WS2812_COLOR_WHITE   (ws2812_rgb_t{0x40, 0x40, 0x40})
+#else
 #define WS2812_COLOR_OFF     ((ws2812_rgb_t){0x00, 0x00, 0x00})
 #define WS2812_COLOR_RED     ((ws2812_rgb_t){0x40, 0x00, 0x00})
 #define WS2812_COLOR_GREEN   ((ws2812_rgb_t){0x00, 0x40, 0x00})
@@ -160,6 +171,7 @@ ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v);
 #define WS2812_COLOR_MAGENTA ((ws2812_rgb_t){0x40, 0x00, 0x40})
 #define WS2812_COLOR_ORANGE  ((ws2812_rgb_t){0x40, 0x20, 0x00})
 #define WS2812_COLOR_WHITE   ((ws2812_rgb_t){0x40, 0x40, 0x40})
+#endif
 
 #ifdef __cplusplus
 }

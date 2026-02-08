@@ -240,7 +240,7 @@ static bool init_magnetometer(icm20948_t* dev) {
 
     // 5. Verify WHO_AM_I with retry (per SparkFun: up to 10 attempts)
     bool mag_found = false;
-    for (int tries = 0; tries < 10; tries++) {
+    for (uint8_t tries = 0; tries < 10; tries++) {
         uint8_t wia2;
         if (mag_read_reg(dev, AK_WIA2, &wia2) && wia2 == AK09916_WHO_AM_I) {
             mag_found = true;
@@ -315,7 +315,7 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
 
     // Initialize magnetometer
     // Initialize magnetometer with retries (intermittent after reboot)
-    for (int mag_attempt = 0; mag_attempt < 3; mag_attempt++) {
+    for (uint8_t mag_attempt = 0; mag_attempt < 3; mag_attempt++) {
         if (init_magnetometer(dev)) {
             break;
         }

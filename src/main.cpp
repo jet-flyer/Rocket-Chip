@@ -262,32 +262,49 @@ static int g_doorbellNum = -1;
 // All values calibration-applied, body frame, SI units. 124 bytes in SRAM.
 struct shared_sensor_data_t {
     // IMU (56 bytes)
-    float accel_x, accel_y, accel_z;        // m/s^2
-    float gyro_x, gyro_y, gyro_z;           // rad/s
-    float mag_x, mag_y, mag_z;              // uT (when mag_valid)
+    float accel_x;                          // m/s^2
+    float accel_y;
+    float accel_z;
+    float gyro_x;                           // rad/s
+    float gyro_y;
+    float gyro_z;
+    float mag_x;                            // uT (when mag_valid)
+    float mag_y;
+    float mag_z;
     float imu_temperature_c;
     uint32_t imu_timestamp_us;
     uint32_t imu_read_count;                // Monotonic
     uint32_t mag_read_count;                // Increments only on new mag data
-    bool accel_valid, gyro_valid, mag_valid;
+    bool accel_valid;
+    bool gyro_valid;
+    bool mag_valid;
     uint8_t _pad_imu;
 
     // Barometer (20 bytes)
-    float pressure_pa, baro_temperature_c;
-    uint32_t baro_timestamp_us, baro_read_count;
+    float pressure_pa;
+    float baro_temperature_c;
+    uint32_t baro_timestamp_us;
+    uint32_t baro_read_count;
     bool baro_valid;
     uint8_t _pad_baro[3];
 
     // GPS (32 bytes, zeroed until IVP-31)
-    int32_t gps_lat_1e7, gps_lon_1e7;
-    float gps_alt_msl_m, gps_ground_speed_mps, gps_course_deg;
-    uint32_t gps_timestamp_us, gps_read_count;
-    uint8_t gps_fix_type, gps_satellites;
+    int32_t gps_lat_1e7;
+    int32_t gps_lon_1e7;
+    float gps_alt_msl_m;
+    float gps_ground_speed_mps;
+    float gps_course_deg;
+    uint32_t gps_timestamp_us;
+    uint32_t gps_read_count;
+    uint8_t gps_fix_type;
+    uint8_t gps_satellites;
     bool gps_valid;
     uint8_t _pad_gps;
 
     // Health (16 bytes)
-    uint32_t imu_error_count, baro_error_count, gps_error_count;
+    uint32_t imu_error_count;
+    uint32_t baro_error_count;
+    uint32_t gps_error_count;
     uint32_t core1_loop_count;              // For watchdog/stall detection
 };
 
@@ -427,16 +444,16 @@ static void memmanage_fault_handler(void) {
     const uint32_t led_mask = 1u << PICO_DEFAULT_LED_PIN;
 
     while (true) {
-        for (int i = 0; i < 3; i++) {
+        for (uint8_t i = 0; i < 3; i++) {
             *gpio_out |= led_mask;
-            for (volatile int32_t d = 0; d < kFaultBlinkFastLoops; d++) {}
+            for (int32_t d = 0; d < kFaultBlinkFastLoops; d++) { __asm volatile(""); }
             *gpio_out &= ~led_mask;
-            for (volatile int32_t d = 0; d < kFaultBlinkFastLoops; d++) {}
+            for (int32_t d = 0; d < kFaultBlinkFastLoops; d++) { __asm volatile(""); }
         }
         *gpio_out |= led_mask;
-        for (volatile int32_t d = 0; d < kFaultBlinkSlowLoops; d++) {}
+        for (int32_t d = 0; d < kFaultBlinkSlowLoops; d++) { __asm volatile(""); }
         *gpio_out &= ~led_mask;
-        for (volatile int32_t d = 0; d < kFaultBlinkSlowLoops; d++) {}
+        for (int32_t d = 0; d < kFaultBlinkSlowLoops; d++) { __asm volatile(""); }
     }
 }
 
@@ -717,7 +734,12 @@ static void core1_entry(void) {
         if (imuOk) {
             imuConsecFail = 0;
             // Apply calibration
-            float ax, ay, az, gx, gy, gz;
+            float ax;
+            float ay;
+            float az;
+            float gx;
+            float gy;
+            float gz;
             calibration_apply_accel_with(&localCal,
                 imuData.accel.x, imuData.accel.y, imuData.accel.z,
                 &ax, &ay, &az);
@@ -825,7 +847,7 @@ static void core1_entry(void) {
 // Accel Read Callback (for 6-pos calibration via CLI)
 // ============================================================================
 
-static bool read_accel_for_cal(float *ax, float *ay, float *az, float *temp_c) {
+static bool read_accel_for_cal(float* ax, float* ay, float* az, float* temp_c) {
     sleep_ms(10);  // ~100Hz sampling rate
     icm20948_vec3_t accel;
     if (!icm20948_read_accel(&g_imu, &accel)) {
@@ -970,7 +992,12 @@ static void print_sensor_status(void) {
         if (g_imuInitialized) {
             icm20948_data_t data;
             if (icm20948_read(&g_imu, &data)) {
-                float gx, gy, gz, ax, ay, az;
+                float gx;
+                float gy;
+                float gz;
+                float ax;
+                float ay;
+                float az;
                 calibration_apply_gyro(data.gyro.x, data.gyro.y, data.gyro.z,
                                        &gx, &gy, &gz);
                 calibration_apply_accel(data.accel.x, data.accel.y, data.accel.z,
@@ -1449,7 +1476,7 @@ static void ivp14_gate_check(void) {
     // Gate 4: 10 consecutive saves
     {
         bool allOk = true;
-        for (int i = 0; i < 10; i++) {
+        for (uint8_t i = 0; i < 10; i++) {
             calibration_store_t test_cal;
             calibration_init_defaults(&test_cal);
             test_cal.gyro.bias.x = kTestGyroX;
@@ -1519,11 +1546,13 @@ static void ivp15_gate_check(void) {
     {
         float maxCorrected = 0.0f;
         uint32_t goodSamples = 0;
-        for (int i = 0; i < 10; i++) {
+        for (uint8_t i = 0; i < 10; i++) {
             sleep_ms(10);  // ~100Hz
             icm20948_data_t data;
             if (icm20948_read(&g_imu, &data)) {
-                float cx, cy, cz;
+                float cx;
+                float cy;
+                float cz;
                 calibration_apply_gyro(data.gyro.x, data.gyro.y, data.gyro.z,
                                        &cx, &cy, &cz);
                 float m = fabsf(cx);
@@ -1590,13 +1619,17 @@ static void ivp16_gate_check(uint32_t elapsedMs) {
 
     // Gate 2: After applying, Z reads +9.81 ±0.05, X and Y < 0.05 m/s²
     {
-        float axSum = 0.0f, aySum = 0.0f, azSum = 0.0f;
+        float axSum = 0.0f;
+        float aySum = 0.0f;
+        float azSum = 0.0f;
         uint32_t goodSamples = 0;
-        for (int i = 0; i < 10; i++) {
+        for (uint8_t i = 0; i < 10; i++) {
             sleep_ms(10);
             icm20948_data_t data;
             if (icm20948_read(&g_imu, &data)) {
-                float cx, cy, cz;
+                float cx;
+                float cy;
+                float cz;
                 calibration_apply_accel(data.accel.x, data.accel.y, data.accel.z,
                                         &cx, &cy, &cz);
                 axSum += cx;
@@ -1965,7 +1998,8 @@ static void ivp25_gate_check(void) {
         uint32_t jCount = g_jitterSamplesCollected.load(std::memory_order_acquire);
         if (jCount >= 2) {
             uint32_t n = (jCount < kJitterSampleCount) ? jCount : kJitterSampleCount;
-            uint32_t minDt = UINT32_MAX, maxDt = 0;
+            uint32_t minDt = UINT32_MAX;
+            uint32_t maxDt = 0;
             uint64_t sumDt = 0;
             for (uint32_t i = 1; i < n; i++) {
                 uint32_t dt = g_jitterTimestamps[i] - g_jitterTimestamps[i - 1];
@@ -2378,7 +2412,7 @@ int main() {
     printf("\n");
     printf("==============================================\n");
     printf("  RocketChip v%s\n", ROCKETCHIP_VERSION_STRING);
-    static const char *kBuildTag = "audit-remediation-1";
+    static const char* kBuildTag = "audit-remediation-1";
     printf("  Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
     printf("  Board: Adafruit Feather RP2350 HSTX\n");
     printf("==============================================\n\n");
@@ -2869,8 +2903,11 @@ int main() {
                 g_imuValidationStarted = true;
                 g_lastImuReadMs = nowMs;
                 // Initialize tracking
-                g_accelXSum = 0.0f;  g_accelYSum = 0.0f;  g_accelZSum = 0.0f;
-                g_accelZMin = 999.0f;  g_accelZMax = -999.0f;
+                g_accelXSum = 0.0f;
+                g_accelYSum = 0.0f;
+                g_accelZSum = 0.0f;
+                g_accelZMin = 999.0f;
+                g_accelZMax = -999.0f;
                 g_gyroAbsMax = 0.0f;
                 g_magMagMin = 999.0f;  g_magMagMax = 0.0f;
                 g_tempMin = 999.0f;    g_tempMax = -999.0f;

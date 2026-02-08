@@ -644,7 +644,7 @@ cal_result_t calibration_get_result(void) {
 // Applying Calibration
 // ============================================================================
 
-void calibration_apply_gyro_with(const calibration_store_t *cal,
+void calibration_apply_gyro_with(const calibration_store_t* cal,
                                   float gx_raw, float gy_raw, float gz_raw,
                                   float* gx_cal, float* gy_cal, float* gz_cal) {
     // Bias removal
@@ -665,7 +665,7 @@ void calibration_apply_gyro(float gx_raw, float gy_raw, float gz_raw,
                                 gx_cal, gy_cal, gz_cal);
 }
 
-void calibration_apply_accel_with(const calibration_store_t *cal,
+void calibration_apply_accel_with(const calibration_store_t* cal,
                                    float ax_raw, float ay_raw, float az_raw,
                                    float* ax_cal, float* ay_cal, float* az_cal) {
     // Stage 1: Ellipsoid correction — M * (raw + offset)

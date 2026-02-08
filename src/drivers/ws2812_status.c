@@ -304,17 +304,29 @@ ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v) {
     float r1, g1, b1;
 
     if (h < 60.0f) {
-        r1 = c; g1 = x; b1 = 0;
+        r1 = c;
+        g1 = x;
+        b1 = 0;
     } else if (h < 120.0f) {
-        r1 = x; g1 = c; b1 = 0;
+        r1 = x;
+        g1 = c;
+        b1 = 0;
     } else if (h < 180.0f) {
-        r1 = 0; g1 = c; b1 = x;
+        r1 = 0;
+        g1 = c;
+        b1 = x;
     } else if (h < 240.0f) {
-        r1 = 0; g1 = x; b1 = c;
+        r1 = 0;
+        g1 = x;
+        b1 = c;
     } else if (h < 300.0f) {
-        r1 = x; g1 = 0; b1 = c;
+        r1 = x;
+        g1 = 0;
+        b1 = c;
     } else {
-        r1 = c; g1 = 0; b1 = x;
+        r1 = c;
+        g1 = 0;
+        b1 = x;
     }
 
     rgb.r = (uint8_t)((r1 + m) * 255.0f);

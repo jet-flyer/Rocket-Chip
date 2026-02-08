@@ -75,23 +75,35 @@ Available for testing but not in active prototype:
 ## Planned / Future Hardware
 
 ### Navigation (Booster Pack)
-| Part | Adafruit P/N | Notes |
-|------|--------------|-------|
-| PA1010D Mini GPS | #4415 | 10Hz, -165dBm, STEMMA QT - on hand |
-| Ultimate GPS FeatherWing | #3133 | FeatherWing form factor - on hand |
+| Part | P/N | Interface | Notes |
+|------|-----|-----------|-------|
+| PA1010D Mini GPS | Adafruit #4415 | I2C (0x10) / UART | 10Hz, -165dBm, STEMMA QT — on hand, active IVP-31 target |
+| Ultimate GPS FeatherWing | Adafruit #3133 | UART | FeatherWing form factor — on hand |
+| **Matek M8Q-5883** | Matek (EOL) | UART GPS + I2C compass (0x0D) | SAM-M8Q u-blox + QMC5883L compass — **on hand**. UBX binary protocol. EOL; see alternatives below |
+
+#### u-blox GPS Migration Path
+
+The Matek M8Q-5883 combines a u-blox SAM-M8Q GPS (UART) with a QMC5883L magnetometer (I2C at 0x0D). The u-blox UBX binary protocol eliminates NMEA text formatting (`snprintf`), improving JSF AV Rule 22 compliance for flight code.
+
+| Module | u-blox Chip | Status | UBX Config | Notes |
+|--------|-------------|--------|------------|-------|
+| Matek M8Q-5883 | SAM-M8Q | **On hand**, EOL | Legacy CFG-MSG | QMC5883L compass at 0x0D |
+| Matek M9N-5883 | NEO-M9N | Current production | CFG-VALSET | Same compass, recommended replacement |
+| Matek M10Q-5883 | SAM-M10Q | EOL | CFG-VALSET | Same compass |
+
+UBX output parsing is identical across M8/M9/M10 — only configuration commands differ (M8 uses legacy `CFG-MSG`, M9/M10 use `CFG-VALSET`).
+
+**UART GPS on GPIO0/GPIO1:** No conflict with I2C1 (GPIO2/3) or SPI0 (GPIO20/22/23).
 
 #### GPS Interface Note
 
-**Current approach:** PA1010D via I2C (Qwiic/STEMMA QT). The module outputs NMEA sentences over I2C, which we parse directly. This approach:
-- Works with current hardware (no wiring changes)
-- Verified working in `tests/smoke_tests/gps_i2c_test.cpp`
+**Current approach (IVP-31):** PA1010D via I2C — intentional stress test for I2C bus contention handling. Known to cause bus interference when probed (see LL Entry 20). Uses NMEA over I2C with 32-byte chunked reads.
 
-**Alternative approach:** If I2C GPS causes issues (e.g., bus contention, timing problems at high sensor rates), switch to UART:
-- PA1010D also supports UART (requires rewiring TX/RX instead of Qwiic)
-- Ultimate GPS FeatherWing uses UART natively
-- UART provides more reliable communication for high-rate sensor systems
-
-**Recommendation:** Start with I2C for simplicity. If bus contention becomes problematic, migrate to UART.
+**Production approach:** Migrate to u-blox UART GPS (Matek M8Q/M9N). Benefits:
+- UBX binary protocol — no `snprintf`, no NMEA text formatting
+- UART eliminates I2C bus contention entirely
+- QMC5883L compass on separate I2C address (0x0D) — no conflict with IMU/baro
+- ArduPilot's standard approach for flight-certified GPS
 
 ### Telemetry (Booster Pack)
 | Part | Adafruit P/N | Notes |
@@ -419,7 +431,8 @@ This becomes relevant when adding telemetry (IVP Stage 4+). The voltage divider 
 |---------|--------|-------|
 | 0x68 or 0x69 | ICM-20948 | Primary 9-axis IMU (accel/gyro/AK09916 mag) |
 | 0x77 or 0x76 | DPS310 | Barometer |
-| 0x10 | PA1010D | GPS module |
+| 0x10 | PA1010D | GPS module (I2C) |
+| 0x0D | QMC5883L | External magnetometer (Matek M8Q/M9N-5883) |
 | 0x6A or 0x6B | ISM330DHCX | Auxiliary IMU (if used) |
 | 0x1C or 0x1E | LIS3MDL | Auxiliary magnetometer (if used) |
 | 0x28 or 0x29 | BNO055 | Auxiliary IMU (if used) |

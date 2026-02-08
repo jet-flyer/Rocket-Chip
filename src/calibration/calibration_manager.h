@@ -49,7 +49,7 @@ typedef enum {
  * Implementation should block until a fresh sample is available (~10ms).
  * @return true on success
  */
-typedef bool (*accel_read_fn)(float *ax, float *ay, float *az, float *temp_c);
+typedef bool (*accel_read_fn)(float* ax, float* ay, float* az, float* temp_c);
 
 // ============================================================================
 // Initialization
@@ -217,7 +217,7 @@ void calibration_apply_accel(float ax_raw, float ay_raw, float az_raw,
  *
  * For cross-core use where Core 1 has its own calibration copy.
  */
-void calibration_apply_gyro_with(const calibration_store_t *cal,
+void calibration_apply_gyro_with(const calibration_store_t* cal,
                                   float gx_raw, float gy_raw, float gz_raw,
                                   float* gx_cal, float* gy_cal, float* gz_cal);
 
@@ -226,7 +226,7 @@ void calibration_apply_gyro_with(const calibration_store_t *cal,
  *
  * For cross-core use where Core 1 has its own calibration copy.
  */
-void calibration_apply_accel_with(const calibration_store_t *cal,
+void calibration_apply_accel_with(const calibration_store_t* cal,
                                    float ax_raw, float ay_raw, float az_raw,
                                    float* ax_cal, float* ay_cal, float* az_cal);
 
