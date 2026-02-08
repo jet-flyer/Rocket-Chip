@@ -48,9 +48,10 @@ Stage 4 IVPs redesigned for dual-core architecture (GPS on Core 1). Driver updat
 
 ### 2026-02-07: Protected File Updates Pending Approval
 
-**Status:** Waiting on user
+**Status:** Partially resolved
 **Reporter:** Claude Code CLI
 
+- ~~`CODING_STANDARDS.md` file classification table — .c → .cpp (done 2026-02-08)~~
 - `CODING_STANDARDS.md` — needs cross-reference to new `standards/VENDOR_GUIDELINES.md` in Prior Art Research section
 - `SEQLOCK_DESIGN.md` line 69 — comment says "reserved for IVP-33", now IVP-31 (cosmetic)
 

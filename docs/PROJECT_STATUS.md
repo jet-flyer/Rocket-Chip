@@ -93,20 +93,20 @@ Completed 2026-02-08:
 
 **Active (in build):**
 - `src/main.cpp` — Full Stage 2 firmware with sensor polling + CLI
-- `src/drivers/ws2812_status.c/h` — NeoPixel PIO driver
-- `src/drivers/i2c_bus.c/h` — I2C bus wrapper with recovery
-- `src/drivers/icm20948.c/h` — ICM-20948 IMU driver with I2C master control
-- `src/drivers/baro_dps310.c/h` — DPS310 barometer wrapper
-- `src/cli/rc_os.c/h` — CLI menu system with calibration integration
-- `src/calibration/calibration_data.c/h` — Calibration data structures
-- `src/calibration/calibration_manager.c/h` — 6-pos accel calibration (Gauss-Newton)
-- `src/calibration/calibration_storage.c/h` — Flash persistence
+- `src/drivers/ws2812_status.cpp/h` — NeoPixel PIO driver
+- `src/drivers/i2c_bus.cpp/h` — I2C bus wrapper with recovery
+- `src/drivers/icm20948.cpp/h` — ICM-20948 IMU driver with I2C master control
+- `src/drivers/baro_dps310.cpp/h` — DPS310 barometer wrapper
+- `src/cli/rc_os.cpp/h` — CLI menu system with calibration integration
+- `src/calibration/calibration_data.cpp/h` — Calibration data structures
+- `src/calibration/calibration_manager.cpp/h` — 6-pos accel calibration (Gauss-Newton)
+- `src/calibration/calibration_storage.cpp/h` — Flash persistence
 - `scripts/accel_cal_6pos.py` — Interactive serial calibration script
 - `scripts/ivp27_28_test.py` — IVP-27/28 soak + flash test monitor
 - `scripts/ivp29_30_test.py` — IVP-29/30 watchdog soak + manual test monitor
 
 **Ready (commented out in CMakeLists.txt, re-enable at their IVP step):**
-- `src/drivers/gps_pa1010d.c/h` — GPS wrapper (IVP-31)
+- `src/drivers/gps_pa1010d.cpp/h` — GPS wrapper (IVP-31)
 
 ## Blockers
 
