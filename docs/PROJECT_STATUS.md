@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-02-07
+**Last Updated:** 2026-02-08
 
 ## Current Phase
 
@@ -74,6 +74,16 @@ Hardware-verified 2026-02-07:
 - [x] IVP-30: Hardware watchdog (5s timeout, dual-core kick pattern, 300k+ IMU reads/0 errors during soak, Core 0 stall resets in ~5s, Core 1 stall resets in ~5s, WATCHDOG RESET banner on reboot, stack overflow triggers MPU fault with LED pattern)
 
 Session plan complete: A (Core 1 alive) ✅ → B (spinlock/FIFO/doorbell) ✅ → C (seqlock) ✅ → D (sensor migration) ✅ → E (USB/flash stress) ✅ → F (MPU/watchdog) ✅
+
+### Standards Audit & Remediation ✅
+
+Completed 2026-02-08:
+- [x] Full JSF AV / JPL C / Power of 10 audit (249 rules, 245 applicable)
+- [x] Tier 1: Quick fixes (braces, hex case, default cases, precedence, return checks)
+- [x] Tier 2: Moderate fixes (multi-expression lines, variable declarations, int→fixed-width, -Werror/-Wpedantic)
+- [x] Tier 3: Deviation review (8 accepted deviations documented in STANDARDS_DEVIATIONS.md)
+- [x] Tier 4: RC_ASSERT macro, goto elimination, bare-metal loop/stdio/preprocessor deviation docs
+- **Result:** 220 PASS / 25 PARTIAL/FAIL (90% compliance). Remaining 25 are accepted deviations or deferred to production architecture refactoring.
 
 ## In Progress
 
