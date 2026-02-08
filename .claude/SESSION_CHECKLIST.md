@@ -34,6 +34,7 @@ Before committing and pushing:
 5. **No unintended deletions** — Run `git diff --stat` and verify the diff matches what you intended to change. If files were deleted, confirm that was intentional
 6. **Check AGENT_WHITEBOARD.md** — Update with current state, clear resolved items, add any new flags or open items discovered during the session
 7. **Commit with descriptive message** — Format: `[agent] brief description of what and why`
+8. **Push to remote** — `git push` so work is not stranded locally
 
 ---
 
@@ -41,13 +42,13 @@ Before committing and pushing:
 
 All of the above, plus:
 
-8. **Expand AGENT_WHITEBOARD.md** with handoff-specific details:
+9. **Expand AGENT_WHITEBOARD.md** with handoff-specific details:
    - What was in progress
    - What's blocked and why
    - Any concerns or open questions
    - Specific files that were being worked on
-9. **Don't leave broken code on main** — If work is incomplete, either stash it or commit to a feature branch
-10. **Note the exact state** — "Build compiles, sensor reads work, CLI untested" is better than "made progress"
+10. **Don't leave broken code on main** — If work is incomplete, either stash it or commit to a feature branch
+11. **Note the exact state** — "Build compiles, sensor reads work, CLI untested" is better than "made progress"
 
 ---
 
@@ -55,9 +56,9 @@ All of the above, plus:
 
 All of the normal completion items, plus:
 
-11. **Update PROJECT_STATUS.md** with milestone completion and next phase
-12. **Review SCAFFOLDING.md** — If directory structure changed, update it
-13. **Consider LESSONS_LEARNED.md** — If significant debugging occurred, document it
+12. **Update PROJECT_STATUS.md** with milestone completion and next phase
+13. **Review SCAFFOLDING.md** — If directory structure changed, update it
+14. **Consider LESSONS_LEARNED.md** — If significant debugging occurred, document it
 
 ---
 
