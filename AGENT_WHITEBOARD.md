@@ -14,17 +14,6 @@
 
 ## Open Flags
 
-### 2026-02-08: C++20 Conversion Complete — Protected File Update Needed
-
-**Status:** Needs user approval for protected file edit
-**Reporter:** Claude Code CLI
-
-All 9 `.c` files converted to `.cpp` and all constant `#define` macros converted to `constexpr`. PP-1 deviation resolved. Build clean, binary size reduced.
-
-**Pending:** `CODING_STANDARDS.md` file classification table (line ~97) still references `.c` filenames. This is a protected file — needs explicit user approval to update the 9 filename entries to `.cpp` extensions.
-
----
-
 ### 2026-02-08: F' Evaluation Complete — Architectural Decision Pending
 
 **Status:** Research complete, awaiting user decision

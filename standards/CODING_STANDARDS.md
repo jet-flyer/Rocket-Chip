@@ -43,15 +43,15 @@ are locked out at runtime, not compiled out.
 
 | File | Classification | Notes |
 |------|---------------|-------|
-| `src/drivers/icm20948.c` | Flight-Critical | IMU driver — zero printf in read path |
-| `src/drivers/baro_dps310.c` | Flight-Critical | Barometer driver |
-| `src/drivers/i2c_bus.c` | Flight-Critical (core) | Bus read/write/probe are flight-critical; `i2c_bus_scan()` is ground-only |
-| `src/drivers/gps_pa1010d.c` | Flight-Critical | 3 bounded `snprintf` for NMEA command formatting (documented MISRA deviation) |
-| `src/drivers/ws2812_status.c` | Flight-Support | Status LED — non-critical but active in flight |
-| `src/calibration/calibration_data.c` | Ground | Pre-flight calibration storage |
-| `src/calibration/calibration_manager.c` | Ground | Calibration algorithms — run pre-flight only |
-| `src/calibration/calibration_storage.c` | Ground | Flash storage — pre-flight only |
-| `src/cli/rc_os.c` | Ground | CLI / local GCS — locked out in flight |
+| `src/drivers/icm20948.cpp` | Flight-Critical | IMU driver — zero printf in read path |
+| `src/drivers/baro_dps310.cpp` | Flight-Critical | Barometer driver |
+| `src/drivers/i2c_bus.cpp` | Flight-Critical (core) | Bus read/write/probe are flight-critical; `i2c_bus_scan()` is ground-only |
+| `src/drivers/gps_pa1010d.cpp` | Flight-Critical | 3 bounded `snprintf` for NMEA command formatting (documented MISRA deviation) |
+| `src/drivers/ws2812_status.cpp` | Flight-Support | Status LED — non-critical but active in flight |
+| `src/calibration/calibration_data.cpp` | Ground | Pre-flight calibration storage |
+| `src/calibration/calibration_manager.cpp` | Ground | Calibration algorithms — run pre-flight only |
+| `src/calibration/calibration_storage.cpp` | Ground | Flash storage — pre-flight only |
+| `src/cli/rc_os.cpp` | Ground | CLI / local GCS — locked out in flight |
 | `src/main.cpp` | IVP Test (mixed) | Contains flight loop + IVP test harness. Will be refactored (Tier 4 D3) |
 
 ### RP2350 Bare-Metal Platform Constraints
