@@ -234,83 +234,326 @@ The Titan path is architecturally sound, market-viable, and standards-compliant 
 
 ---
 
-## Addendum: F' (F Prime) as MCU Selection Factor
+## Addendum: F' (F Prime) Comprehensive Evaluation
 
-**Date:** 2026-02-07
-**Context:** Feasibility research into NASA flight software frameworks for RocketChip
+**Date:** 2026-02-08
+**Context:** Multi-session feasibility research into NASA's F' flight software framework for RocketChip
+**Research scope:** F' architecture, platform support, coding standards alignment, multicore limitations, platform candidates (RP2350, STM32H7, Pi Zero 2 W), hybrid architecture options
 
-### Finding
+---
 
-NASA JPL's F' (F Prime) framework — the flight software that ran Mars Ingenuity — is a strong candidate for Titan's software architecture. F' provides pre-built commanding, telemetry, health monitoring, event logging, parameter storage, scheduling, and a free ground station (GDS). It would replace much of the custom infrastructure Titan needs.
+### 1. What F' Is
 
-However, F' on MCU targets requires Zephyr RTOS, and **Zephyr on RP2350 is single-core only** — Core 1 sits completely idle. Zephyr SMP for Cortex-M is blocked by an open architectural rewrite (PR #85248, active as of Feb 2026) with no shipping date. This makes F' on RP2350 fundamentally incompatible with the dual-core sensor isolation architecture that Core/Main depends on.
+F' (F Prime) is NASA JPL's open-source flight software framework. It flew on **Mars Ingenuity** (72 flights on Mars), **ISS-RapidScat** (2 years on ISS), and **ASTERIA CubeSat** (2017). It is the institutional flight software standard at JPL.
 
-### Why This Favors STM32H7 for Titan
+**Core architecture:**
+- **Components** — modular units encapsulating behavior, communicating only through typed ports
+- **Ports** — typed interfaces between components (sync, async, guarded)
+- **Topologies** — graph of connected components defining the system
+- **FPP** — modeling language that auto-generates C++ stubs, serialization, GDS dictionaries, and test harnesses
+- **GDS** — browser-based ground data system with commanding, telemetry, events, log viewing, file transfer
 
-| Factor | RP2350 | STM32H723ZG |
-|--------|--------|-------------|
-| F' formally tested board | No (CI-only, not documented) | **Yes** (one of only 2 tested boards) |
-| Zephyr maturity | New, early-stage | **Flagship target**, years of drivers |
-| Clock speed | 150 MHz Cortex-M33 | **550 MHz Cortex-M7** |
-| SRAM | 520 KB | **564 KB** (+ TCM regions) |
-| FPU | Single-precision | **Double-precision** |
-| Zephyr SMP status | Blocked (no Cortex-M SMP yet) | Same blocker (Cortex-M wide) |
-| F' thread overhead | Tight at 520KB with 12 threads | More headroom at higher clock |
+**Component types:**
+- **Passive** — no thread, executes in caller's context (suitable for drivers)
+- **Active** — has its own thread and message queue (suitable for mission logic, fusion)
+- **Queued** — has queue but no thread (rare)
 
-The compute headroom on STM32H7 (3.6x clock speed, double-precision FPU) means F' thread scheduling overhead and single-core constraint are less painful — a 550MHz core running all F' components on one core is more viable than a 150MHz core doing the same.
+**What F' provides "for free":**
+- Command dispatch and sequencing
+- Telemetry channel management
+- Structured event logging with severity levels (DIAGNOSTIC through FATAL)
+- Parameter persistence (runtime-configurable values)
+- Health monitoring between components
+- Unit test framework with auto-generated harnesses
+- File uplink/downlink
 
-### Strategic Implications
+### 2. F' Coding Standards Alignment
 
-**Core/Main stays on RP2350 + Pico SDK bare-metal.** The dual-core AMP architecture with explicit core pinning is the correct choice and cannot be replicated in Zephyr today. The Pico SDK ecosystem, `picotool` workflow, and all LESSONS_LEARNED knowledge apply here.
+F' coding rules are a **superset** of RocketChip's existing JSF AV C++ standards:
 
-**Titan on STM32H7 + F'/Zephyr becomes a credible path:**
-- F' component model replaces custom commanding/telemetry infrastructure
-- Pre-built LoRa component (SX1276/RFM95W compatible, 915MHz)
-- Pre-built Zephyr I2C driver component
-- FPP auto-generates serialization, dispatch, and topology wiring
-- GDS ground station replaces the need to build custom ground tools
-- "Built on NASA's Ingenuity flight software framework" — real marketing value for crowdfunding and competition teams
+| Rule | F' | RocketChip (JSF AV) | Match? |
+|------|-----|---------------------|--------|
+| No exceptions | `-fno-exceptions` | Same | Yes |
+| No RTTI | Forbidden | Same | Yes |
+| No dynamic alloc after init | Yes | Yes | Yes |
+| No recursion | Yes | Yes | Yes |
+| Fixed loop bounds | Yes | Yes | Yes |
+| No STL | Yes (uses Fw types) | N/A (bare-metal) | Compatible |
+| Explicit enum values | Yes | Yes | Yes |
+| Assert-based validation | `FW_ASSERT` | Custom asserts | Similar |
+| No GOTOs | Yes | Yes | Yes |
+| Check all return values | Yes | Yes | Yes |
+| Minimize preprocessor | Yes | Yes | Yes |
+| C++ standard | C++11 | C++11/14 | Compatible |
+| Formatting | ClangFormat (Chromium) | Not enforced yet | Adoptable |
 
-**Trade-off:** This means Titan firmware is a **separate codebase** from Core/Main, not a compile-time flag. Sensor fusion algorithms, calibration math, and driver logic can be shared as portable C/C++ libraries, but the framework and HAL layers diverge.
+F' adds JPL heritage rules: prefer `Fw` and `Os` framework types, compile without warnings or static analysis failures, avoid `Os::Task::delay` for synchronization.
 
-### What This Does NOT Change
+**Key finding:** The standards gap between RocketChip and F' is small. The main things F' adds that we lack are **structured telemetry/events** (replacing ad-hoc `DBG_PRINT`) and **auto-generated test harnesses**.
 
-- Core/Main architecture decisions (bare-metal Pico SDK, dual-core AMP)
-- Current IVP progression — Titan firmware is gated on flight-proven Core/Main
-- Pyro safety requirements (hardware voting, council review)
-- The recommendation to cut TVC/MMAE/CAN from Titan v1
+### 3. F' Platform Support
 
-### Candidate Dev Boards for F'/Titan Prototyping
+#### Officially Supported Platforms (from fprime docs)
 
-**Primary: NUCLEO-H723ZG (~$30-40)**
-- One of only 2 formally F'-tested boards — lowest-risk path to "hello world" on F'/Zephyr
-- Full debug probe (ST-LINK/V2-1) integrated
-- 550 MHz Cortex-M7, 564KB SRAM, 1MB flash
-- No onboard sensors (requires external breakouts)
+| Hardware | OS | Architecture | Notes |
+|----------|-----|-------------|-------|
+| x86 | Linux | x86_64 | Primary dev target |
+| Raspberry Pi | Linux | ARMv8 | Full F' support |
+| **Adafruit Feather RP2350 HSTX** | **fprime-baremetal** | **ARM** | **Our exact board** (added v3.5.0) |
+| Pi Pico / Pico 2 | Zephyr | ARM/RISC-V | Zephyr path |
+| Feather M4 | FreeRTOS | ARM | SAMD51 |
+| Teensy 4.1 | Zephyr | ARMv7-M | Cortex-M7 |
+| NUCLEO-H723ZG | Zephyr | ARM | STM32H7 |
+| BeagleBone Black | VxWorks 7 | ARMv7 | |
 
-**Secondary: Matek H743-SLIM-V4 (~$40-50)**
-- STM32H743VIH6: 480 MHz Cortex-M7, **1MB SRAM**, 2MB flash
-- **Onboard dual ICM42688P IMUs + DPS368 baro** — enables F' sensor component testing without external wiring
-- 7x UART, 2x I2C, 1x CAN, USB-C — rich peripheral set
-- 30.5mm flight controller mounting pattern
-- ArduPilot already runs on it (`MATEKH743` target) — useful cross-reference
-- Zephyr has upstream H743 support ([NUCLEO-H743ZI](https://docs.zephyrproject.org/latest/boards/st/nucleo_h743zi/doc/index.html), [WeAct Mini](https://docs.zephyrproject.org/latest/boards/weact/mini_stm32h743/doc/index.html))
+#### fprime-arduino Board Support (community package)
 
-**Matek caveats:**
-- H743 is not the F'-tested chip (H723 is) — same Cortex-M7 family but requires a custom Zephyr board definition mapping the Matek's specific pins
-- H743 runs at 480MHz vs H723's 550MHz (compensated by 1MB vs 564KB SRAM)
-- Flight controller form factor — SWD pads likely exposed but no full debug connector; may need soldering for probe access
-- Drone-oriented layout (13 PWM, OSD chip) — dead weight for rocket avionics but doesn't interfere
+Tested with "basic LedBlinker deployment" — not complex multi-sensor systems:
+- Raspberry Pi Pico 2 (RP2350) — F' 4.0.0
+- **Adafruit Feather RP2350 HSTX** — F' 3.5.0
+- Adafruit Feather RP2040 — F' 3.5.0
+- Teensy 4.1, 4.0, 3.2
+- ESP32 Dev Module
+- STM32 NUCLEO boards
+- Various Adafruit boards (nRF52840, SAMD21/51)
 
-**Recommendation:** Start on NUCLEO-H723ZG to prove F'/Zephyr works with minimal friction. Move to Matek H743-SLIM-V4 (or custom Titan PCB) once F' components are validated and sensor integration begins.
+### 4. The Multicore Problem (Critical Finding)
 
-### Open Questions for Future Council Review
+**F' has no multicore execution model of its own.** On every platform, it delegates threading to the OS.
+
+#### How F' "Does" Multicore on Linux
+
+On Linux, each Active Component gets a `pthread_create()`. The Linux kernel scheduler distributes threads across available cores. F' optionally supports `pthread_attr_setaffinity_np()` for manual core pinning (GNU/Linux only). This is not a framework feature — it's "Linux handles threads, and F' doesn't break."
+
+The actual source (`Os/Posix/Task.cpp`) shows:
+- Thread creation via `pthread_create()` with a wrapper
+- Optional CPU affinity via `pthread_attr_setaffinity_np()` (GNU-only, graceful fallback)
+- Priority via `SCHED_RR` with system range clamping
+- No automatic load balancing or core assignment
+
+The F' docs say: *"We have yet to see any issues running F' on multi-core systems."* This is passive compatibility, not active multicore support.
+
+#### Why This Blocks Every MCU Path
+
+| Path | Multicore Status |
+|------|-----------------|
+| **F' + Zephyr** (RP2350 or STM32H7) | **Blocked.** Zephyr has no Cortex-M SMP support. Issue #59826 open since June 2023, targeted for Zephyr 4.4 (April 2026) but no committed date. Blocker: Cortex-M0/M33 lack exclusive monitor for Zephyr's spinlock model. |
+| **F' + fprime-baremetal** (RP2350) | **Single-threaded.** Docs say "avoid Active Components at all costs." Rate groups on one core only. Core 1 completely outside F'. |
+| **F' + FreeRTOS** (STM32H7) | **Experimental.** GitHub discussion #1933 shows people attempting H7 + FreeRTOS OSAL — builds compile but don't run on real hardware. |
+| **F' + Linux** (Pi Zero 2 W, Raspberry Pi) | **Works.** Full pthreads, OS scheduler distributes across cores. This is where F' is designed to run. |
+
+**Bottom line:** F' multicore works on Linux because Linux does the work. On every MCU target, F' is effectively single-core.
+
+### 5. Platform Comparison for Titan
+
+#### Hardware Specifications
+
+| Spec | Pi Zero 2 W | STM32H743 | RP2350 (current) |
+|------|------------|-----------|-------------------|
+| **CPU** | 4x Cortex-A53 @ 1GHz | Cortex-M7 @ 480MHz (+M4 co-proc) | 2x Cortex-M33 @ 150MHz |
+| **RAM** | 512MB SDRAM | 1MB SRAM (192KB TCM + 864KB user) | 520KB SRAM + 8MB PSRAM |
+| **Flash/Storage** | SD card (GB+) | 2MB internal flash | 8MB QSPI flash |
+| **Weight** | 9g | ~2-5g (board dependent) | ~5g (Feather) |
+| **Dimensions** | 65 x 30mm | varies (Pixhawk ~50x30mm) | 50.8 x 22.8mm (Feather) |
+| **Power (idle)** | ~100mA / 500mW | ~50-100mA typical | ~25-40mA |
+| **Power (loaded)** | ~460mA / 2.3W | ~150-200mA | ~80-100mA |
+| **Price** | ~$15 | ~$10-15 chip / $50+ board | ~$10 chip / $14 Feather |
+| **WiFi/BT** | Yes (built-in) | No | No |
+| **Real-time** | No (Linux, ~6ms worst-case PREEMPT_RT) | Yes (hard real-time, sub-µs) | Yes (bare-metal, sub-µs) |
+| **FPU** | Double-precision (NEON) | Double-precision | Single-precision |
+| **F' support** | First-class (Linux POSIX) | Experimental (Zephyr) | fprime-baremetal (LedBlinker only) |
+
+#### F' Compatibility Comparison
+
+| | Pi Zero 2 W | STM32H7 | RP2350 |
+|---|---|---|---|
+| Active Components | Full threading (pthreads) | Not working yet | Not recommended |
+| Multi-core in F' | Yes — 4 cores via OS scheduler | Single-core (Zephyr SMP blocked) | Single-core |
+| GDS connection | WiFi + serial | Serial only | Serial only |
+| Flight heritage | Ingenuity ran F' on Linux (Snapdragon) | None in F' | None |
+
+#### Strengths and Weaknesses
+
+**Pi Zero 2 W + F' (Linux)**
+- Every F' feature works: active components, threading, full GDS
+- 512MB RAM = comfortable for ESKF + MMAE + logging + telemetry
+- 4 cores = genuine parallelism
+- WiFi = GDS dashboard during ground testing without wiring
+- SD card = unlimited flight log storage
+- *"Same framework as Mars Ingenuity"* — genuine marketing claim
+- BUT: **No hard real-time** (~6ms worst-case jitter with PREEMPT_RT)
+- BUT: **2.3W power** under load (tight on 400mAh battery)
+- BUT: **10-30 second boot time** (Linux)
+- BUT: **SD card corruption risk** on power loss
+
+**STM32H7 + F'/Zephyr**
+- Hard real-time (480MHz M7, TCM for zero-wait-state)
+- M4 co-processor for sensor pre-processing
+- Proven flight controller platform (Pixhawk 6X, CubeOrange+)
+- Massive ArduPilot driver ecosystem
+- Low power (~150-200mA loaded)
+- BUT: **F' not working on H7 yet** (compiles, doesn't run)
+- BUT: **Zephyr SMP blocked** — single-core only
+- BUT: **1MB RAM** workable but not generous
+- BUT: **Re-enters RTOS-land** (previously fled from, see AP_FreeRTOS branch)
+
+### 6. Hybrid Architecture Proposal
+
+The architecture that best leverages F' strengths while preserving real-time guarantees:
+
+```
+┌──────────────────────────────────────┐
+│     Pi Zero 2 W (Mission CPU)        │
+│     Linux + F' Framework             │
+│                                      │
+│  - Mission Engine (F' component)     │
+│  - ESKF Sensor Fusion                │
+│  - MMAE Bank (Titan)                 │
+│  - GDS + Telemetry                   │
+│  - Data Logging (SD card, unlimited) │
+│  - WiFi ground testing               │
+│  - GPS processing                    │
+│  - Confidence Gate                   │
+└──────────────┬───────────────────────┘
+               │ SPI or UART (MAVLink or F' framing)
+               │ ~1MHz+, <1ms latency
+┌──────────────┴───────────────────────┐
+│     RP2350 (Sensor/Safety CPU)       │
+│     Bare-metal Pico SDK              │
+│                                      │
+│  - 1kHz IMU sampling (Core 1)        │
+│  - Baro sampling                     │
+│  - Pyro control (safety-critical)    │
+│  - Watchdog                          │
+│  - Hardware arm/fire interlocks      │
+│  - Hard real-time guarantee          │
+│  - Seqlock cross-core data sharing   │
+└──────────────────────────────────────┘
+```
+
+**This mirrors the Pixhawk architecture** (STM32 main + STM32 IOMCU) but with an F'-powered Linux brain and the existing RP2350 as the real-time safety layer. It maps to the existing Gemini concept (SAD Section 14) — instead of two identical Cores, it's a powerful mission CPU + a real-time safety CPU.
+
+**Benefits:**
+- F' runs where it's designed to run (Linux, full POSIX, real threads)
+- Hard real-time stays where it's needed (RP2350 bare-metal, validated in IVP-19 through IVP-30)
+- Pyro safety remains on dedicated hardware with hardware interlocks
+- Entire Stage 1-3 codebase stays intact on the RP2350
+- Core tier ships with RP2350 alone; Titan adds Pi Zero 2 W as a "brain upgrade" Booster Pack
+- Total weight: ~14g for both boards
+- WiFi GDS during ground testing is a significant development velocity gain
+
+**Concerns:**
+- Two codebases (F'/Linux + bare-metal Pico SDK) with a bridge protocol between them
+- Pi Zero 2 W power budget (2.3W loaded) requires larger battery or power management
+- Linux boot time (10-30s) means RP2350 must be independently safe during boot
+- SD card reliability under power loss (mitigated by RP2350 handling safety-critical logging)
+- Cross-board communication latency adds to sensor-to-action pipeline
+
+### 7. F' Component Mapping to RocketChip SAD
+
+If F' is adopted (on any platform), the SAD module decomposition maps naturally:
+
+| RocketChip SAD Module | F' Component Type | Notes |
+|---|---|---|
+| SensorTask (IMU, Baro, GPS) | Passive | Drivers wrapped in F' components |
+| FusionTask (ESKF) | Active | Own thread, processes sensor port data |
+| MissionEngine + StateMachine | Active | Flight state management, command handling |
+| LoggerTask | Passive | Storage driver, invoked by rate group |
+| TelemetryTask | Active | Downlink scheduling, MAVLink or F' framing |
+| UITask / RC_OS | Passive | CLI replaced by F' GDS (or kept as companion) |
+| ActionExecutor | Passive | Pyro, servo, LED — invoked on state transitions |
+| CalibrationManager | Passive | Becomes F' parameters with persistence |
+| HealthMonitor | Framework-provided | Built-in health checking between components |
+
+### 8. What RocketChip Already Has That F' Would Provide
+
+| Capability | Current RocketChip | F' Equivalent | Gap? |
+|---|---|---|---|
+| Sensor drivers | Custom C (icm20948, baro_dps310, gps_pa1010d) | Wrapped in passive components | Small — logic survives |
+| Cross-core data sharing | Seqlock with atomics (validated) | F' ports (Linux) / custom bridge (hybrid) | F' can't replicate seqlock |
+| CLI | RC_OS (custom) | GDS (browser-based) | GDS is significantly more capable |
+| Debug output | DBG_PRINT macros | Structured events with severity levels | F' events are better |
+| Calibration persistence | calibration_storage (flash) | F' parameters | Similar capability |
+| Telemetry protocol | MAVLink (planned) | F' framing (custom) or CCSDS | **Incompatible** — no MAVLink in F' |
+| Unit tests | None (planned) | Auto-generated harnesses from FPP | **Major gap** — F' biggest win |
+| State machine | Planned (Phase 5) | F' state machine support (new in recent versions) | Natural fit |
+| Watchdog | Hardware WDT (validated) | F' health component | Both needed |
+
+### 9. MAVLink Compatibility Issue
+
+F' uses its **own binary protocol** (F Prime framing) with optional CCSDS (space standard). It does **not** support MAVLink. This means:
+
+- No QGroundControl compatibility
+- No Mission Planner compatibility
+- F' GDS replaces these with a browser-based dashboard
+- If MAVLink is required for Titan (competition teams, QGC compatibility), a custom MAVLink bridge F' component would need to be written
+- Alternative: Core/Main uses MAVLink (as planned), Titan uses F' GDS — different ground tools per tier
+
+### 10. Flight Heritage
+
+| Mission | Year | Platform | F' Role |
+|---------|------|----------|---------|
+| ISS-RapidScat | 2014-2016 | ISS instrument | Flight software framework |
+| ASTERIA CubeSat | 2017 | CubeSat | Full flight software |
+| **Mars Ingenuity** | 2021-2024 | Qualcomm Snapdragon (Linux) | Flight software for 72 Mars flights |
+| Lunar Flashlight | Planned | CubeSat | Surface ice detection |
+| NEA Scout | Planned | CubeSat | Asteroid mapping |
+| Ocean Worlds Life Surveyor | Planned | Instrument | Life detection |
+
+Ingenuity is the strongest reference: F' on Linux, on a flying vehicle, with real-time sensor processing and autonomous decision-making. 72 flights on Mars is compelling heritage.
+
+### 11. Updated Strategic Implications
+
+**Core/Main stays on RP2350 + Pico SDK bare-metal.** No change. The dual-core AMP architecture with seqlock is validated and correct. F' cannot replicate this on any MCU target today.
+
+**Three viable Titan paths exist:**
+
+| Path | Pros | Cons | Risk |
+|------|------|------|------|
+| **A: STM32H7 + F'/Zephyr** | Hard real-time, low power, ArduPilot ecosystem | F' not running on H7 yet, Zephyr SMP blocked, separate codebase | High (unproven) |
+| **B: Pi Zero 2 W + F' (Linux)** | Full F' support, 4-core, WiFi GDS, Ingenuity heritage marketing | No hard RT, 2.3W power, boot time, SD corruption risk | Medium (proven framework, new integration) |
+| **C: Hybrid (Pi Zero 2 W + RP2350)** | Best of both — F' on Linux, hard RT on RP2350 | Two boards, bridge protocol, power budget, complexity | Medium (both halves proven, bridge is new) |
+
+**Path C (Hybrid) is the strongest architecture** — it mirrors proven flight computer designs (Pixhawk main+IOMCU, GASPACS CubeSat ran a Pi Zero) and leverages validated work on both halves. The Pi Zero 2 W becomes a Titan Booster Pack.
+
+### 12. Candidate Dev Boards
+
+**For F'/Linux (Pi Zero 2 W path):**
+- Raspberry Pi Zero 2 W (~$15) — quad-core A53, 512MB, WiFi, 9g, 65x30mm
+- Direct F' support, no porting needed
+- Pairs with existing RP2350 Feather via SPI/UART
+
+**For F'/Zephyr (STM32H7 path):**
+- **Primary:** NUCLEO-H723ZG (~$30-40) — F'-tested board, 550MHz M7, integrated debugger
+- **Secondary:** Matek H743-SLIM-V4 (~$40-50) — 480MHz M7, 1MB SRAM, onboard dual IMU + baro, ArduPilot-compatible
+- Matek caveats: not the F'-tested chip (H723 vs H743), drone-oriented layout, needs custom Zephyr board definition
+
+**Recommendation:** If pursuing F', start with Pi Zero 2 W — it's the path of least resistance (F' on Linux just works). STM32H7 + F'/Zephyr requires solving unsolved problems.
+
+### 13. "Cherry-Pick" Alternative (No Full F' Adoption)
+
+If the full F' adoption is too disruptive, the key F' benefits can be implemented independently:
+
+1. **FPP-style component isolation** — enforce port-based interfaces with C++ abstract classes (already in SAD driver interfaces)
+2. **Structured events** — severity-leveled, timestamped, typed event system (replacing DBG_PRINT)
+3. **Parameter persistence** — extend calibration_storage to a general parameter system
+4. **Auto-generated tests** — lightweight code-gen for test harnesses (biggest missing piece)
+5. **GDS-style dashboard** — Python web dashboard reading telemetry stream (independent of F')
+6. **Health monitoring** — component heartbeat pattern (straightforward to implement)
+
+This preserves the single-codebase advantage across tiers while adopting F' patterns without F' framework overhead.
+
+### 14. Open Questions for Future Council Review
 
 1. Is the separate-codebase trade-off acceptable, or does shared firmware across tiers outweigh F' benefits?
 2. Does F' GDS replace the need for MAVLink/QGroundControl compatibility on Titan? (F' uses its own protocol, not MAVLink)
 3. Should the OpenMCT ground station plan (Stage 8) target F' GDS instead of MAVLink bridge for Titan?
 4. When Zephyr Cortex-M SMP eventually ships, does it change the RP2350 calculus?
 5. H723 vs H743 for final Titan PCB — 550MHz/564KB vs 480MHz/1MB trade-off?
+6. **NEW:** Is the Pi Zero 2 W hybrid architecture (Path C) worth prototyping before committing to STM32H7?
+7. **NEW:** Does the 2.3W power draw of Pi Zero 2 W require a larger battery SKU for Titan, and does that affect the weight/cost target?
+8. **NEW:** Should Core/Main keep MAVLink while Titan uses F' GDS, or must all tiers use the same ground protocol?
+9. **NEW:** Can the RP2350 in the hybrid architecture serve as a watchdog/safety backup if the Pi Zero 2 W crashes or hangs during boot?
 
 ---
 
