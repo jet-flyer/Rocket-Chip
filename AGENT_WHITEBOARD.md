@@ -72,6 +72,51 @@ User has a **Matek M8Q-5883** on hand (SAM-M8Q u-blox + QMC5883L compass, UART G
 
 ---
 
+### 2026-02-08: D3 main.cpp Function Length Refactoring — Planned, Blocked on GPS
+
+**Status:** Plan approved (council-reviewed), blocked on IVP-31 GPS completion
+**Reporter:** Claude Code CLI
+
+`main()` is ~992 lines, `core1_entry()` ~367 lines. Full decomposition plan in `~/.claude/plans/shimmying-snuggling-wilkes.md`. Council approved (Professor + ArduPilot): tick-function dispatcher pattern, `g_lastTickFunction` watchdog tracking, seqlock scope preservation. `.clang-tidy` config created with `readability-function-size` (60-line threshold) + `readability-identifier-naming`. LLVM install pending (needs admin elevation for `choco install llvm`).
+
+**Phase A** (tooling): `.clang-tidy` created, LLVM install pending.
+**Phase B** (refactoring): Starts after GPS work is stable.
+
+---
+
+### 2026-02-08: ArduPilot LED Patterns — Implement with State Machine (IVP-46)
+
+**Status:** Future — implement when flight state machine is written
+**Reporter:** Claude Code CLI
+
+When implementing the flight state machine (IVP-46: Action Executor), map NeoPixel patterns to ArduPilot's standard LED codes. AP uses: solid green = GPS lock, yellow = no GPS, blue = armed, red blink = error/failsafe, etc. Current IVP-31 GPS NeoPixel (yellow blink = searching, green = fix) is an interim implementation — replace with full AP-style state-driven patterns at IVP-46.
+
+**Reference:** ArduPilot `AP_Notify` / `NeoPixel.cpp` for pattern definitions.
+
+---
+
+### 2026-02-08: clang-tidy Standards Audit Integration — Back Burner
+
+**Status:** Moderate priority, deferred until next standards audit cycle
+**Reporter:** Claude Code CLI
+
+clang-tidy can replace much of the manual `STANDARDS_AUDIT` process. Beyond the function-size and naming checks already configured, additional checks map to our standards: `readability-magic-numbers` (JSF 151), `google-runtime-int` (JSF 209 fixed-width types), `cppcoreguidelines-avoid-goto` (P10-1), `bugprone-*` and `cert-*` (MISRA-adjacent). The `.clang-tidy` config would become a machine-readable encoding of our standards, with `// NOLINT` for accepted deviations.
+
+**Wait until:** Next scheduled audit. We just completed one (2026-02-07). Incrementally enable checks and validate against ARM cross-compile environment before enforcing.
+
+---
+
+### 2026-02-08: ICM-20948 I2C Bypass Mode Migration — Recommended
+
+**Status:** Recommended by council before IVP-36 (ESKF)
+**Reporter:** Claude Code CLI (IVP-31 council review)
+
+Council unanimously recommended migrating ICM-20948 from I2C master mode to I2C bypass mode (ArduPilot's approach). Eliminates bank-switching race (LL Entry 21) permanently. Currently mitigated by disabling I2C master during calibration, but adding GPS traffic increases collision window. Not blocking for IVP-31, but should happen before ESKF integration.
+
+See: ArduPilot `AP_InertialSensor_Invensensev2.cpp`, ICM-20948 datasheet `INT_PIN_CFG` register `I2C_BYPASS_EN` bit.
+
+---
+
 ### 2026-02-07: Missing Vendor Datasheets
 
 **Status:** Open — acquire before implementation needs them
