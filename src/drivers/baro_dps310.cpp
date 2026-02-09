@@ -14,12 +14,20 @@ extern "C" {
 #include <math.h>
 #include <string.h>
 
+// Atmospheric constants (barometric formula)
+constexpr float kStdAtmPressurePa    = 101325.0F;  // Standard sea-level pressure (Pa)
+constexpr float kHypsometricScale    = 44330.0F;    // Barometric formula coefficient
+constexpr float kHypsometricExponent = 0.1903F;     // Barometric formula exponent (1/5.255)
+
+// I2C write buffer limit
+constexpr uint8_t kMaxMultiByteWrite = 16;
+
 // ============================================================================
 // Private State
 // ============================================================================
 
 static uint8_t g_i2c_addr = 0;
-static float g_sea_level_pa = 101325.0F;
+static float g_sea_level_pa = kStdAtmPressurePa;
 
 // Forward declarations for callbacks
 static void pico_sleep(uint32_t ms);
@@ -62,8 +70,8 @@ static uint32_t pico_write(const void* comm_ctx, uint8_t reg_addr, const uint8_t
     }
 
     // For multi-byte writes, need to prepend register address
-    uint8_t buf[17];  // Max 16 bytes + reg addr
-    if (data_len > 16) return DPS310_BUS_ERROR;
+    uint8_t buf[kMaxMultiByteWrite + 1];
+    if (data_len > kMaxMultiByteWrite) return DPS310_BUS_ERROR;
 
     buf[0] = reg_addr;
     memcpy(&buf[1], data, data_len);
@@ -140,5 +148,5 @@ void baro_dps310_set_sea_level(float pressure_pa) {
 
 float baro_dps310_pressure_to_altitude(float pressure_pa, float sea_level_pa) {
     // Barometric formula: h = 44330 * (1 - (P/P0)^0.1903)
-    return 44330.0F * (1.0F - powf(pressure_pa / sea_level_pa, 0.1903F));
+    return kHypsometricScale * (1.0F - powf(pressure_pa / sea_level_pa, kHypsometricExponent));
 }

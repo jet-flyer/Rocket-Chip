@@ -8,6 +8,18 @@
 #include "pico/time.h"
 #include <stdio.h>
 
+// I2C bus scan range (7-bit addressing: 0x08–0x77)
+constexpr uint8_t kI2cScanStart        = 0x08;
+constexpr uint8_t kI2cScanEnd          = 0x78;  // Exclusive upper bound
+
+// Known alternate device addresses for bus scan identification
+constexpr uint8_t kI2cAddrIcm20948Alt  = 0x68;  // ICM-20948 with AD0=LOW
+constexpr uint8_t kI2cAddrDps310Alt    = 0x76;  // DPS310 alternate address
+
+// Bus recovery constants (I2C specification)
+constexpr uint8_t  kBusRecoveryCycles  = 9;     // 9 clock pulses per I2C spec
+constexpr uint32_t kBusRecoveryPulseUs = 5;     // Half-period for recovery clock
+
 // ============================================================================
 // Private State
 // ============================================================================
@@ -85,7 +97,7 @@ void i2c_bus_scan() {
 
     int found = 0;
 
-    for (uint8_t addr = 0x08; addr < 0x78; addr++) {
+    for (uint8_t addr = kI2cScanStart; addr < kI2cScanEnd; addr++) {
         // Skip PA1010D GPS — probing triggers I2C bus interference
         // (Pico SDK issue #252). Re-enable at IVP-31.
         if ((addr != kI2cAddrPa1010d) && i2c_bus_probe(addr)) {
@@ -105,10 +117,10 @@ void i2c_bus_scan() {
                 case kI2cAddrPa1010d:
                     printf(" (PA1010D GPS)");
                     break;
-                case 0x68:
+                case kI2cAddrIcm20948Alt:
                     printf(" (ICM-20948 IMU, AD0=LOW)");
                     break;
-                case 0x76:
+                case kI2cAddrDps310Alt:
                     printf(" (DPS310 Barometer, alt addr)");
                     break;
                 default:
@@ -207,11 +219,11 @@ bool i2c_bus_recover() {
     // Always clock 9 pulses to clear any stuck transaction,
     // even if SDA appears high — a sensor may need the full
     // sequence to reset its internal state machine
-    for (uint8_t i = 0; i < 9; i++) {
+    for (uint8_t i = 0; i < kBusRecoveryCycles; i++) {
         gpio_put(kI2cBusSclPin, false);
-        sleep_us(5);
+        sleep_us(kBusRecoveryPulseUs);
         gpio_put(kI2cBusSclPin, true);
-        sleep_us(5);
+        sleep_us(kBusRecoveryPulseUs);
     }
 
     bool sda_released = gpio_get(kI2cBusSdaPin);
@@ -219,12 +231,12 @@ bool i2c_bus_recover() {
     // Always generate STOP condition: SDA low while SCL high, then SDA high
     gpio_set_dir(kI2cBusSdaPin, GPIO_OUT);
     gpio_put(kI2cBusSdaPin, false);
-    sleep_us(5);
+    sleep_us(kBusRecoveryPulseUs);
     // SCL high (already high)
-    sleep_us(5);
+    sleep_us(kBusRecoveryPulseUs);
     // SDA high = STOP condition
     gpio_put(kI2cBusSdaPin, true);
-    sleep_us(5);
+    sleep_us(kBusRecoveryPulseUs);
 
     // Restore I2C function on pins
     gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_I2C);

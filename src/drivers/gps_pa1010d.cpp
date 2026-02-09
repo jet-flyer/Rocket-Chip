@@ -11,6 +11,28 @@
 #include <string.h>
 #include <stdio.h>
 
+// NMEA/I2C protocol constants
+constexpr uint8_t  kNmeaLf           = 0x0A;   // Line feed — padding byte when GPS buffer empty
+constexpr uint8_t  kNmeaCr           = 0x0D;   // Carriage return — NMEA line terminator
+constexpr uint8_t  kI2cBusErrorByte  = 0xFF;   // Bus error indicator
+constexpr char     kNmeaStart        = '$';    // NMEA sentence start delimiter
+
+// lwGPS 2-digit year base
+constexpr uint16_t kGpsYearBase      = 2000;
+
+// Fix type thresholds (GSA fix_mode values per NMEA spec)
+constexpr uint8_t  kGsaFixMode3d     = 3;      // GSA fix_mode >= 3 = 3D fix
+constexpr uint8_t  kGsaFixMode2d     = 2;      // GSA fix_mode == 2 = 2D fix
+
+// PMTK220 rate intervals (ms)
+constexpr uint16_t kGpsRate1Hz       = 1000;
+constexpr uint16_t kGpsRate5Hz       = 200;
+constexpr uint16_t kGpsRate10Hz      = 100;
+
+// NMEA command buffer
+constexpr size_t   kNmeaCmdBufSize   = 128;
+constexpr size_t   kNmeaChecksumLen  = 5;       // "*XX\r\n" checksum + CRLF room
+
 // ============================================================================
 // Private State
 // ============================================================================
@@ -73,12 +95,12 @@ static int read_nmea_data(uint8_t* buffer, size_t max_len) {
     // Filter: copy valid bytes, discard padding 0x0A and 0xFF
     int32_t out = 0;
     for (int32_t i = 0; i < ret; i++) {
-        if (raw[i] == 0xFF) {
+        if (raw[i] == kI2cBusErrorByte) {
             continue;  // Bus error byte — discard
         }
-        if (raw[i] == 0x0A) {
+        if (raw[i] == kNmeaLf) {
             // Keep LF only if it follows CR (legitimate \r\n terminator)
-            if (out > 0 && buffer[out - 1] == 0x0D) {
+            if (out > 0 && buffer[out - 1] == kNmeaCr) {
                 buffer[out++] = raw[i];
             }
             // Otherwise discard — it's padding
@@ -109,9 +131,9 @@ static void update_data_from_lwgps() {
     // GSA fix_mode: 1=none, 2=2D, 3=3D
     if (g_gps.fix >= 1) {
         // GGA says we have a fix — use GSA for 2D/3D if available
-        if (g_gps.fix_mode >= 3) {
+        if (g_gps.fix_mode >= kGsaFixMode3d) {
             g_data.fix = GPS_FIX_3D;
-        } else if (g_gps.fix_mode == 2) {
+        } else if (g_gps.fix_mode == kGsaFixMode2d) {
             g_data.fix = GPS_FIX_2D;
         } else {
             // GGA has fix but GSA hasn't updated yet — assume 3D
@@ -132,7 +154,7 @@ static void update_data_from_lwgps() {
 
     g_data.day = g_gps.date;
     g_data.month = g_gps.month;
-    g_data.year = 2000 + g_gps.year;  // lwGPS stores 2-digit year
+    g_data.year = kGpsYearBase + g_gps.year;  // lwGPS stores 2-digit year
 
     // Valid when RMC reports active AND GGA shows fix
     g_data.valid = lwgps_is_valid(&g_gps) && (g_data.fix >= GPS_FIX_2D);
@@ -169,7 +191,7 @@ bool gps_pa1010d_init() {
     // Check for NMEA start character anywhere in the buffer
     bool found_nmea = false;
     for (int32_t i = 0; i < ret; i++) {
-        if (g_buffer[i] == '$') {
+        if (g_buffer[i] == kNmeaStart) {
             found_nmea = true;
             break;
         }
@@ -240,16 +262,16 @@ bool gps_pa1010d_send_command(const char* cmd) {
     }
 
     // Build full NMEA sentence with checksum
-    char sentence[128];
-    int len = snprintf(sentence, sizeof(sentence) - 5, "$%s*", cmd);
-    if (len < 0 || len >= (int)(sizeof(sentence) - 5)) {
+    char sentence[kNmeaCmdBufSize];
+    int len = snprintf(sentence, sizeof(sentence) - kNmeaChecksumLen, "$%s*", cmd);
+    if (len < 0 || len >= (int)(sizeof(sentence) - kNmeaChecksumLen)) {
         return false;
     }
 
     // Calculate and append checksum
     uint8_t cs = nmea_checksum(sentence);
-    snprintf(sentence + len, 5, "%02X\r\n", cs);
-    len += 4;
+    snprintf(sentence + len, kNmeaChecksumLen, "%02X\r\n", cs);
+    len += 4;  // NOLINT(readability-magic-numbers) — literal 4 = "XX\r\n" appended bytes
 
     // Send via I2C
     int ret = i2c_bus_write(kGpsPa1010dAddr, reinterpret_cast<const uint8_t*>(sentence), len);
@@ -263,9 +285,9 @@ bool gps_pa1010d_set_rate(uint8_t rate_hz) {
     uint16_t interval_ms;
 
     switch (rate_hz) {
-        case 1:  interval_ms = 1000; break;
-        case 5:  interval_ms = 200;  break;
-        case 10: interval_ms = 100;  break;
+        case 1:  interval_ms = kGpsRate1Hz;  break;
+        case 5:  interval_ms = kGpsRate5Hz;  break;
+        case 10: interval_ms = kGpsRate10Hz; break;
         default: return false;
     }
 

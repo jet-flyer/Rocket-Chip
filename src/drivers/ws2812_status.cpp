@@ -9,6 +9,25 @@
 #include "ws2812.pio.h"
 #include <math.h>
 
+// WS2812 protocol constants
+constexpr float    kWs2812BitRate       = 800000.0F;  // 800kHz data rate
+constexpr uint32_t kDefaultBreathePeriodMs = 2000;
+constexpr uint32_t kDefaultBlinkOnMs    = 500;
+constexpr uint32_t kDefaultBlinkOffMs   = 500;
+constexpr uint32_t kFastBlinkPeriodMs   = 200;  // 5Hz = 100ms on + 100ms off
+constexpr uint32_t kFastBlinkOnMs       = 100;
+constexpr float    kRainbowCyclePeriodMs = 6000.0F;  // Full HSV rotation period
+constexpr float    kRainbowSaturation   = 100.0F;
+constexpr float    kRainbowValue        = 25.0F;     // Max brightness for rainbow mode
+constexpr float    kBreatheMinScale     = 0.1F;      // Minimum brightness during breathe
+constexpr float    kBreatheRange        = 0.9F;       // 1.0 - kBreatheMinScale
+constexpr float    kPi                  = 3.14159F;
+constexpr float    kAchromaticThreshold = 0.001F;     // Below this saturation, treat as gray
+constexpr float    kMaxChannelValue     = 255.0F;
+constexpr float    kPercentScale        = 100.0F;
+constexpr float    kHueFull             = 360.0F;
+constexpr float    kHueSector           = 60.0F;      // HSV sector width (360/6)
+
 // ============================================================================
 // Private State
 // ============================================================================
@@ -42,9 +61,9 @@ static struct {
     .mode = WS2812_MODE_OFF,
     .base_color = {0, 0, 0},
     .brightness = 255,
-    .breathe_period_ms = 2000,
-    .blink_on_ms = 500,
-    .blink_off_ms = 500,
+    .breathe_period_ms = kDefaultBreathePeriodMs,
+    .blink_on_ms = kDefaultBlinkOnMs,
+    .blink_off_ms = kDefaultBlinkOffMs,
     .last_update_ms = 0,
     .phase_start_ms = 0,
     .blink_state = false,
@@ -103,7 +122,7 @@ bool ws2812_status_init(PIO pio, uint pin) {
     }
 
     // Initialize PIO program (800kHz, RGB mode)
-    ws2812_program_init(pio, sm, offset, pin, 800000.0F, false);
+    ws2812_program_init(pio, sm, offset, pin, kWs2812BitRate, false);
 
     g_state.pio = pio;
     g_state.sm = sm;
@@ -223,9 +242,8 @@ void ws2812_update() {
         case WS2812_MODE_BREATHE: {
             // Sinusoidal brightness pulsing
             float phase = (float)elapsed / (float)g_state.breathe_period_ms;
-            float scale = (sinf(phase * 2.0F * 3.14159F) + 1.0F) / 2.0F;
-            // Minimum 10% brightness so LED doesn't fully turn off
-            scale = 0.1F + scale * 0.9F;
+            float scale = (sinf(phase * 2.0F * kPi) + 1.0F) / 2.0F;
+            scale = kBreatheMinScale + scale * kBreatheRange;
             ws2812_rgb_t color = apply_brightness(g_state.base_color, scale);
             send_pixel(color.r, color.g, color.b);
             break;
@@ -249,9 +267,9 @@ void ws2812_update() {
         }
 
         case WS2812_MODE_BLINK_FAST: {
-            // 5Hz blinking (100ms on, 100ms off)
-            uint32_t phase = elapsed % 200;
-            bool should_be_on = (phase < 100);
+            // 5Hz blinking
+            uint32_t phase = elapsed % kFastBlinkPeriodMs;
+            bool should_be_on = (phase < kFastBlinkOnMs);
 
             if (should_be_on != g_state.blink_state) {
                 g_state.blink_state = should_be_on;
@@ -266,9 +284,9 @@ void ws2812_update() {
         }
 
         case WS2812_MODE_RAINBOW: {
-            // Smooth rainbow cycle - 6 second full rotation
-            g_state.rainbow_hue = fmodf((float)elapsed / 6000.0F * 360.0F, 360.0F);
-            ws2812_rgb_t color = ws2812_hsv_to_rgb(g_state.rainbow_hue, 100.0F, 25.0F);
+            // Smooth rainbow cycle
+            g_state.rainbow_hue = fmodf((float)elapsed / kRainbowCyclePeriodMs * kHueFull, kHueFull);
+            ws2812_rgb_t color = ws2812_hsv_to_rgb(g_state.rainbow_hue, kRainbowSaturation, kRainbowValue);
             send_pixel(color.r, color.g, color.b);
             break;
         }
@@ -281,57 +299,47 @@ void ws2812_update() {
 // Utility
 // ============================================================================
 
+// NOLINTBEGIN(readability-magic-numbers) — standard HSV-to-RGB conversion
+// Sector boundaries (0, 60, 120, 180, 240, 300, 360) are inherent to the HSV color model.
 ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v) {
     ws2812_rgb_t rgb = {0, 0, 0};
 
     // Normalize inputs
-    h = fmodf(h, 360.0F);
-    if (h < 0) h += 360.0F;
-    s = s / 100.0F;
-    v = v / 100.0F;
+    h = fmodf(h, kHueFull);
+    if (h < 0) h += kHueFull;
+    s = s / kPercentScale;
+    v = v / kPercentScale;
 
-    if (s < 0.001F) {
-        // Achromatic (gray)
-        uint8_t gray = (uint8_t)(v * 255.0F);
+    if (s < kAchromaticThreshold) {
+        uint8_t gray = (uint8_t)(v * kMaxChannelValue);
         rgb.r = rgb.g = rgb.b = gray;
         return rgb;
     }
 
     float c = v * s;
-    float x = c * (1.0F - fabsf(fmodf(h / 60.0F, 2.0F) - 1.0F));
+    float x = c * (1.0F - fabsf(fmodf(h / kHueSector, 2.0F) - 1.0F));
     float m = v - c;
 
     float r1, g1, b1;
 
     if (h < 60.0F) {
-        r1 = c;
-        g1 = x;
-        b1 = 0;
+        r1 = c; g1 = x; b1 = 0;
     } else if (h < 120.0F) {
-        r1 = x;
-        g1 = c;
-        b1 = 0;
+        r1 = x; g1 = c; b1 = 0;
     } else if (h < 180.0F) {
-        r1 = 0;
-        g1 = c;
-        b1 = x;
+        r1 = 0; g1 = c; b1 = x;
     } else if (h < 240.0F) {
-        r1 = 0;
-        g1 = x;
-        b1 = c;
+        r1 = 0; g1 = x; b1 = c;
     } else if (h < 300.0F) {
-        r1 = x;
-        g1 = 0;
-        b1 = c;
+        r1 = x; g1 = 0; b1 = c;
     } else {
-        r1 = c;
-        g1 = 0;
-        b1 = x;
+        r1 = c; g1 = 0; b1 = x;
     }
 
-    rgb.r = (uint8_t)((r1 + m) * 255.0F);
-    rgb.g = (uint8_t)((g1 + m) * 255.0F);
-    rgb.b = (uint8_t)((b1 + m) * 255.0F);
+    rgb.r = (uint8_t)((r1 + m) * kMaxChannelValue);
+    rgb.g = (uint8_t)((g1 + m) * kMaxChannelValue);
+    rgb.b = (uint8_t)((b1 + m) * kMaxChannelValue);
 
     return rgb;
 }
+// NOLINTEND(readability-magic-numbers)

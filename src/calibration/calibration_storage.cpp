@@ -51,6 +51,9 @@ using entry_header_t = struct {
 
 constexpr uint32_t kEntryMagic = 0x52434345U;  // "RCCE" - RocketChip Cal Entry
 
+// Flash operation timeout
+constexpr uint32_t kFlashSafeTimeoutMs = 1000;  // flash_safe_execute() timeout
+
 // ============================================================================
 // Private State
 // ============================================================================
@@ -96,7 +99,7 @@ static bool safe_flash_write(uint32_t flash_offset, const uint8_t* data, size_t 
         .len = len
     };
 
-    int result = flash_safe_execute(do_flash_write, &params, 1000);
+    int result = flash_safe_execute(do_flash_write, &params, kFlashSafeTimeoutMs);
     return (result == PICO_OK);
 }
 
@@ -110,7 +113,7 @@ static bool safe_flash_erase(uint32_t flash_offset, size_t len) {
         .len = len
     };
 
-    int result = flash_safe_execute(do_flash_erase, &params, 1000);
+    int result = flash_safe_execute(do_flash_erase, &params, kFlashSafeTimeoutMs);
     return (result == PICO_OK);
 }
 

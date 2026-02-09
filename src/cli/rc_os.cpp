@@ -25,6 +25,19 @@
 constexpr const char* kRcOsVersion = "0.4.0";
 constexpr uint32_t kRcOsPollMs     = 50;   // 20Hz polling
 
+// CLI input constants
+constexpr int      kEscChar              = 27;           // ASCII ESC
+constexpr uint32_t kResetConfirmTimeoutUs = 10000000;    // 10 seconds for reset confirm
+constexpr size_t   kResetConfirmBufSize  = 8;            // "YES\0" + margin
+constexpr size_t   kResetConfirmMaxIdx   = 7;            // Buffer max index
+
+// Verification constants
+constexpr uint8_t  kVerifySampleCount    = 10;           // Live samples for post-cal check
+constexpr uint32_t kUsbSettleMs          = 200;          // USB CDC settle time after connect
+
+// 6-position calibration
+constexpr uint8_t  kAccel6posNumPositions = 6;           // Orthogonal orientations for gravity fit
+
 // ============================================================================
 // State
 // ============================================================================
@@ -205,11 +218,11 @@ static void cmd_reset_cal() {
     printf("Type 'YES' + ENTER to confirm: ");
     fflush(stdout);
 
-    char confirm[8] = {0};
+    char confirm[kResetConfirmBufSize] = {0};
     int idx = 0;
     bool gotEnter = false;
-    while (idx < 7) {
-        int ch = getchar_timeout_us(10000000);  // 10 second timeout
+    while (idx < (int)kResetConfirmMaxIdx) {
+        int ch = getchar_timeout_us(kResetConfirmTimeoutUs);
         if (ch == PICO_ERROR_TIMEOUT) {
             printf("\nTimeout - cancelled.\n");
             return;
@@ -240,7 +253,7 @@ static void cmd_reset_cal() {
 
 // Per-position instructions for the user
 // Order matches calibration_manager.c kPositionNames (QGroundControl order)
-static const char* const kPositionInstructions[6] = {
+static const char* const kPositionInstructions[kAccel6posNumPositions] = {
     "Place board FLAT on table, component side UP",
     "Stand board on its LEFT edge",
     "Stand board on its RIGHT edge",
@@ -262,7 +275,7 @@ static bool wait_for_enter_or_esc() {
             printf("\nTimeout - calibration cancelled.\n");
             return false;
         }
-        if (ch == 27) {  // ESC
+        if (ch == kEscChar) {
             printf("\nESC - calibration cancelled.\n");
             return false;
         }
@@ -277,8 +290,8 @@ static bool wait_for_enter_or_esc() {
 static void cmd_accel_6pos_cal_inner() {
     calibration_reset_6pos();
 
-    for (uint8_t pos = 0; pos < 6; pos++) {
-        printf("--- Position %d/6: %s ---\n", pos + 1,
+    for (uint8_t pos = 0; pos < kAccel6posNumPositions; pos++) {
+        printf("--- Position %d/%d: %s ---\n", pos + 1, kAccel6posNumPositions,
                calibration_get_6pos_name(pos));
         printf("  %s\n", kPositionInstructions[pos]);
         printf("  Press ENTER when ready...\n");
@@ -386,11 +399,11 @@ static void cmd_accel_6pos_cal_inner() {
     }
 
     // Verification: read a few live samples and show corrected gravity magnitude
-    printf("\nVerification (10 live samples):\n");
+    printf("\nVerification (%d live samples):\n", kVerifySampleCount);
     {
         float mag_sum = 0.0F;
         uint8_t good_reads = 0;
-        for (uint8_t i = 0; i < 10; i++) {
+        for (uint8_t i = 0; i < kVerifySampleCount; i++) {
             float ax, ay, az, temp;
             if (rc_os_read_accel(&ax, &ay, &az, &temp)) {
                 float cx, cy, cz;
@@ -624,7 +637,7 @@ static void handle_calibration_menu(int c) {
 
         case 'x':
         case 'X':
-        case 27:  // ESC
+        case kEscChar:
             if (calibration_is_active()) {
                 calibration_cancel();
                 printf("\nCalibration cancelled.\n");
@@ -673,7 +686,7 @@ bool rc_os_update() {
         g_wasConnected = true;
 
         // Brief settle time
-        sleep_ms(200);
+        sleep_ms(kUsbSettleMs);
 
         // Drain any garbage from input buffer (per LL Entry 15)
         while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {

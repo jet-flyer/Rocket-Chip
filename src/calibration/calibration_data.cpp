@@ -7,17 +7,27 @@
 #include <string.h>
 #include <stddef.h>
 
+// CRC-16/CCITT constants (ITU-T V.41)
+constexpr uint16_t kCrc16Init       = 0xFFFF;   // Initial CRC value
+constexpr uint16_t kCrc16Poly       = 0x1021;   // CCITT polynomial
+constexpr uint16_t kCrc16HighBit    = 0x8000;   // MSB test mask
+constexpr uint8_t  kCrc16BitsPerByte = 8;        // Bits processed per byte
+
+// Default barometric calibration (standard atmosphere)
+constexpr float    kDefaultGroundPressurePa  = 101325.0F;  // Sea-level pressure (Pa)
+constexpr float    kDefaultGroundTempC       = 20.0F;       // Standard ground temperature
+
 // ============================================================================
 // CRC16 (CCITT polynomial 0x1021)
 // ============================================================================
 
 static uint16_t crc16_ccitt(const uint8_t* data, size_t len) {
-    uint16_t crc = 0xFFFF;
+    uint16_t crc = kCrc16Init;
     for (size_t i = 0; i < len; i++) {
         crc ^= ((uint16_t)data[i] << 8);
-        for (uint8_t j = 0; j < 8; j++) {
-            if (crc & 0x8000) {
-                crc = (crc << 1) ^ 0x1021;
+        for (uint8_t j = 0; j < kCrc16BitsPerByte; j++) {
+            if (crc & kCrc16HighBit) {
+                crc = (crc << 1) ^ kCrc16Poly;
             } else {
                 crc <<= 1;
             }
@@ -49,16 +59,18 @@ void calibration_init_defaults(calibration_store_t* cal) {
     cal->gyro.status = CAL_STATUS_NONE;
 
     // Baro defaults: standard atmosphere
-    cal->baro.ground_pressure_pa = 101325.0F;
-    cal->baro.ground_temperature_c = 20.0F;
+    cal->baro.ground_pressure_pa = kDefaultGroundPressurePa;
+    cal->baro.ground_temperature_c = kDefaultGroundTempC;
     cal->baro.status = CAL_STATUS_NONE;
 
     cal->cal_flags = 0;
 
+    // NOLINTBEGIN(readability-magic-numbers) — 3x3 identity matrix indices are self-documenting
     // Board orientation: identity matrix (no rotation)
     cal->board_rotation.m[0] = 1.0F; cal->board_rotation.m[1] = 0.0F; cal->board_rotation.m[2] = 0.0F;
     cal->board_rotation.m[3] = 0.0F; cal->board_rotation.m[4] = 1.0F; cal->board_rotation.m[5] = 0.0F;
     cal->board_rotation.m[6] = 0.0F; cal->board_rotation.m[7] = 0.0F; cal->board_rotation.m[8] = 1.0F;
+    // NOLINTEND(readability-magic-numbers)
 
     calibration_update_crc(cal);
 }

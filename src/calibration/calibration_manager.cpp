@@ -30,6 +30,21 @@ constexpr float    kAccel6posMinDiag       = 0.8F;    // Minimum diagonal scale 
 constexpr float    kAccel6posMaxDiag       = 1.2F;    // Maximum diagonal scale factor
 constexpr uint8_t  kAccel6posMaxIterations = 50;      // Gauss-Newton iteration limit
 constexpr uint8_t  kAccel6posNumParams     = 9;       // offset[3] + diag[3] + offdiag[3]
+constexpr uint8_t  kAccel6posAugWidth      = kAccel6posNumParams * 2;  // Augmented matrix width
+constexpr uint8_t  kAccel6posOffsetEnd     = 3;       // params[0..2] = offset
+constexpr uint8_t  kAccel6posDiagEnd       = 6;       // params[3..5] = diagonal scale
+constexpr uint8_t  kAccel6posAllMask       = 0x3F;    // Bitmask: all 6 positions collected
+
+// Gauss-Newton solver tolerances
+constexpr float    kMinVectorLength        = 1e-6F;   // Below this, treat as zero-length
+constexpr float    kSingularityThreshold   = 1e-10F;  // Matrix pivot below this = singular
+constexpr float    kMinMaxInitializer      = 1e9F;    // Initial min/max accumulator bound
+
+// Atmospheric constants (barometric formula)
+constexpr float    kMinValidPressurePa     = 10000.0F;   // Sanity floor for ground pressure
+constexpr float    kStdAtmPressurePa       = 101325.0F;  // Standard sea-level pressure (Pa)
+constexpr float    kHypsometricScale       = 44330.0F;    // Barometric formula coefficient
+constexpr float    kHypsometricExponent    = 0.1903F;     // Barometric formula exponent (1/5.255)
 
 // ============================================================================
 // Private State
@@ -78,8 +93,8 @@ static const char* const kPositionNames[kAccel6posPositions] = {
 static void reset_accumulator(uint32_t target_samples) {
     memset(&g_sample_acc, 0, sizeof(g_sample_acc));
     g_sample_acc.target_count = target_samples;
-    g_sample_acc.min_x = g_sample_acc.min_y = g_sample_acc.min_z = 1e9F;
-    g_sample_acc.max_x = g_sample_acc.max_y = g_sample_acc.max_z = -1e9F;
+    g_sample_acc.min_x = g_sample_acc.min_y = g_sample_acc.min_z = kMinMaxInitializer;
+    g_sample_acc.max_x = g_sample_acc.max_y = g_sample_acc.max_z = -kMinMaxInitializer;
 }
 
 static bool check_gyro_motion() {
@@ -311,7 +326,8 @@ void calibration_feed_baro(float pressure_pa, float temperature_c) {
 // Gauss-Newton helper: compute residual for one sample
 // residual = GRAVITY - |M * (sample + offset)|
 // params[0..2] = offset, params[3..5] = diag, params[6..8] = offdiag
-static float calc_residual_6pos(const float sample[3], const float params[9]) {
+// NOLINTBEGIN(readability-magic-numbers) — matrix element indices match param vector layout
+static float calc_residual_6pos(const float sample[3], const float params[kAccel6posNumParams]) {
     float sx = sample[0] + params[0];
     float sy = sample[1] + params[1];
     float sz = sample[2] + params[2];
@@ -324,10 +340,13 @@ static float calc_residual_6pos(const float sample[3], const float params[9]) {
     return kGravityNominal - len;
 }
 
+// NOLINTEND(readability-magic-numbers)
+
 // Gauss-Newton helper: compute Jacobian for one sample (9 partial derivatives)
 // Based on ArduPilot AccelCalibrator.cpp Jacobian formulas
-static void calc_jacobian_6pos(const float sample[3], const float params[9],
-                               float jacob[9]) {
+// NOLINTBEGIN(readability-magic-numbers) — matrix element indices match param vector layout
+static void calc_jacobian_6pos(const float sample[3], const float params[kAccel6posNumParams],
+                               float jacob[kAccel6posNumParams]) {
     float sx = sample[0] + params[0];
     float sy = sample[1] + params[1];
     float sz = sample[2] + params[2];
@@ -337,8 +356,8 @@ static void calc_jacobian_6pos(const float sample[3], const float params[9],
     float C = params[7] * sx + params[8] * sy + params[5] * sz;
 
     float len = sqrtf(A*A + B*B + C*C);
-    if (len < 1e-6F) {
-        memset(jacob, 0, 9 * sizeof(float));
+    if (len < kMinVectorLength) {
+        memset(jacob, 0, kAccel6posNumParams * sizeof(float));
         return;
     }
 
@@ -355,9 +374,10 @@ static void calc_jacobian_6pos(const float sample[3], const float params[9],
     jacob[7] = -((sz*A + sx*C) / len);
     jacob[8] = -((sz*B + sy*C) / len);
 }
+// NOLINTEND(readability-magic-numbers)
 
 // Mean squared residuals across all collected samples
-static float calc_mean_sq_residuals(const float params[9]) {
+static float calc_mean_sq_residuals(const float params[kAccel6posNumParams]) {
     float sum = 0.0F;
     for (uint16_t i = 0; i < g_6pos_sample_count; i++) {
         float r = calc_residual_6pos(g_6pos_samples[i], params);
@@ -366,25 +386,26 @@ static float calc_mean_sq_residuals(const float params[9]) {
     return sum / (float)g_6pos_sample_count;
 }
 
-// 9x9 matrix inverse via Gaussian elimination with partial pivoting
+// NxN matrix inverse via Gaussian elimination with partial pivoting (N = kAccel6posNumParams)
 // Returns false if singular
-static bool mat_inverse_9x9(const float src[81], float dst[81]) {
-    // Augmented matrix [src | I] — work in dst as scratch
-    float aug[9][18];
+static bool mat_inverse_9x9(const float src[kAccel6posNumParams * kAccel6posNumParams],
+                             float dst[kAccel6posNumParams * kAccel6posNumParams]) {
+    // Augmented matrix [src | I]
+    float aug[kAccel6posNumParams][kAccel6posAugWidth];
 
-    for (uint8_t r = 0; r < 9; r++) {
-        for (uint8_t c = 0; c < 9; c++) {
-            aug[r][c] = src[r * 9 + c];
-            aug[r][c + 9] = (r == c) ? 1.0F : 0.0F;
+    for (uint8_t r = 0; r < kAccel6posNumParams; r++) {
+        for (uint8_t c = 0; c < kAccel6posNumParams; c++) {
+            aug[r][c] = src[r * kAccel6posNumParams + c];
+            aug[r][c + kAccel6posNumParams] = (r == c) ? 1.0F : 0.0F;
         }
     }
 
     // Forward elimination with partial pivoting
-    for (uint8_t col = 0; col < 9; col++) {
+    for (uint8_t col = 0; col < kAccel6posNumParams; col++) {
         // Find pivot
         uint8_t max_row = col;
         float max_val = fabsf(aug[col][col]);
-        for (uint8_t r = col + 1; r < 9; r++) {
+        for (uint8_t r = col + 1; r < kAccel6posNumParams; r++) {
             float val = fabsf(aug[r][col]);
             if (val > max_val) {
                 max_val = val;
@@ -392,13 +413,13 @@ static bool mat_inverse_9x9(const float src[81], float dst[81]) {
             }
         }
 
-        if (max_val < 1e-10F) {
+        if (max_val < kSingularityThreshold) {
             return false;  // Singular
         }
 
         // Swap rows
         if (max_row != col) {
-            for (uint8_t c = 0; c < 18; c++) {
+            for (uint8_t c = 0; c < kAccel6posAugWidth; c++) {
                 float tmp = aug[col][c];
                 aug[col][c] = aug[max_row][c];
                 aug[max_row][c] = tmp;
@@ -407,32 +428,32 @@ static bool mat_inverse_9x9(const float src[81], float dst[81]) {
 
         // Eliminate below
         float pivot = aug[col][col];
-        for (uint8_t r = col + 1; r < 9; r++) {
+        for (uint8_t r = col + 1; r < kAccel6posNumParams; r++) {
             float factor = aug[r][col] / pivot;
-            for (uint8_t c = col; c < 18; c++) {
+            for (uint8_t c = col; c < kAccel6posAugWidth; c++) {
                 aug[r][c] -= factor * aug[col][c];
             }
         }
     }
 
     // Back substitution
-    for (int8_t col = 8; col >= 0; col--) {
+    for (int8_t col = kAccel6posNumParams - 1; col >= 0; col--) {
         float pivot = aug[col][col];
-        for (uint8_t c = 0; c < 18; c++) {
+        for (uint8_t c = 0; c < kAccel6posAugWidth; c++) {
             aug[col][c] /= pivot;
         }
         for (int8_t r = static_cast<int8_t>(col - 1); r >= 0; r--) {
             float factor = aug[r][col];
-            for (uint8_t c = 0; c < 18; c++) {
+            for (uint8_t c = 0; c < kAccel6posAugWidth; c++) {
                 aug[r][c] -= factor * aug[col][c];
             }
         }
     }
 
     // Extract inverse from right half
-    for (uint8_t r = 0; r < 9; r++) {
-        for (uint8_t c = 0; c < 9; c++) {
-            dst[r * 9 + c] = aug[r][c + 9];
+    for (uint8_t r = 0; r < kAccel6posNumParams; r++) {
+        for (uint8_t c = 0; c < kAccel6posNumParams; c++) {
+            dst[r * kAccel6posNumParams + c] = aug[r][c + kAccel6posNumParams];
         }
     }
 
@@ -504,7 +525,7 @@ cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_f
 
 cal_result_t calibration_compute_6pos() {
     // Guard: all 6 positions must be collected
-    if (g_6pos_collected != 0x3F) return CAL_RESULT_NO_DATA;
+    if (g_6pos_collected != kAccel6posAllMask) return CAL_RESULT_NO_DATA;
 
     // Initialize parameters: offset={0,0,0}, diag={1,1,1}, offdiag={0,0,0}
     float params[kAccel6posNumParams] = {
@@ -573,19 +594,20 @@ cal_result_t calibration_compute_6pos() {
     }
 
     // Validate result
-    for (uint8_t i = 0; i < 3; i++) {
+    for (uint8_t i = 0; i < kAccel6posOffsetEnd; i++) {
         if (fabsf(best_params[i]) > kAccel6posMaxOffset) {
             return CAL_RESULT_FIT_FAILED;
         }
     }
-    for (uint8_t i = 3; i < 6; i++) {
+    for (uint8_t i = kAccel6posOffsetEnd; i < kAccel6posDiagEnd; i++) {
         if (best_params[i] < kAccel6posMinDiag ||
             best_params[i] > kAccel6posMaxDiag) {
             return CAL_RESULT_FIT_FAILED;
         }
     }
 
-    // Store results
+    // Store results — indices match param vector layout: offset[0..2], diag[3..5], offdiag[6..8]
+    // NOLINTBEGIN(readability-magic-numbers)
     g_calibration.accel.offset.x = best_params[0];
     g_calibration.accel.offset.y = best_params[1];
     g_calibration.accel.offset.z = best_params[2];
@@ -595,6 +617,7 @@ cal_result_t calibration_compute_6pos() {
     g_calibration.accel.offdiag.x = best_params[6];
     g_calibration.accel.offdiag.y = best_params[7];
     g_calibration.accel.offdiag.z = best_params[8];
+    // NOLINTEND(readability-magic-numbers)
     g_calibration.accel.status = CAL_STATUS_ACCEL_6POS;
 
     g_calibration.cal_flags |= CAL_STATUS_ACCEL_6POS;
@@ -653,10 +676,12 @@ void calibration_apply_gyro_with(const calibration_store_t* cal,
     float cz = gz_raw - cal->gyro.bias.z;
 
     // Board rotation: R * corrected
+    // NOLINTBEGIN(readability-magic-numbers) — 3x3 rotation matrix indices
     const float* R = cal->board_rotation.m;
     *gx_cal = R[0]*cx + R[1]*cy + R[2]*cz;
     *gy_cal = R[3]*cx + R[4]*cy + R[5]*cz;
     *gz_cal = R[6]*cx + R[7]*cy + R[8]*cz;
+    // NOLINTEND(readability-magic-numbers)
 }
 
 void calibration_apply_gyro(float gx_raw, float gy_raw, float gz_raw,
@@ -685,10 +710,12 @@ void calibration_apply_accel_with(const calibration_store_t* cal,
              + cal->accel.scale.z   * oz;
 
     // Stage 2: Board rotation — R * corrected
+    // NOLINTBEGIN(readability-magic-numbers) — 3x3 rotation matrix indices
     const float* R = cal->board_rotation.m;
     *ax_cal = R[0]*cx + R[1]*cy + R[2]*cz;
     *ay_cal = R[3]*cx + R[4]*cy + R[5]*cz;
     *az_cal = R[6]*cx + R[7]*cy + R[8]*cz;
+    // NOLINTEND(readability-magic-numbers)
 }
 
 void calibration_apply_accel(float ax_raw, float ay_raw, float az_raw,
@@ -709,9 +736,9 @@ bool calibration_load_into(calibration_store_t* dest) {
 float calibration_get_altitude_agl(float pressure_pa) {
     // Barometric formula: h = 44330 * (1 - (P/P0)^0.1903)
     float p0 = g_calibration.baro.ground_pressure_pa;
-    if (p0 < 10000.0F) p0 = 101325.0F;  // Sanity check
+    if (p0 < kMinValidPressurePa) p0 = kStdAtmPressurePa;  // Sanity check
 
-    return 44330.0F * (1.0F - powf(pressure_pa / p0, 0.1903F));
+    return kHypsometricScale * (1.0F - powf(pressure_pa / p0, kHypsometricExponent));
 }
 
 // ============================================================================

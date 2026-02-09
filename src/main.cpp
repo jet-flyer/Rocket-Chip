@@ -171,6 +171,35 @@ static bool g_nmeaCapturePrinted = false;                    // Core 0 gate prin
 // Core 1 skip command (for kSkipVerifiedGates — bypass Phase 2)
 static constexpr uint32_t kCmd_SkipToSensors = 0x5E5052E5;
 
+// Seqlock parameters
+static constexpr uint32_t kSeqlockMaxRetries = 4;
+
+// NeoPixel timing (Core 1 phases)
+static constexpr uint32_t kNeoToggleTestMs     = 125;   // ~4Hz during test dispatcher
+static constexpr uint32_t kNeoToggleSoakMs     = 250;   // ~2Hz during spinlock/sensor
+static constexpr uint32_t kSensorPhaseTimeoutMs = 300000; // 5 min — switch to magenta
+
+// Core 1 FIFO / doorbell timing
+static constexpr uint32_t kFifoPopTimeoutUs    = 1000;   // Dispatcher FIFO poll interval
+static constexpr uint32_t kDoorbellDelayUs     = 10;     // Inter-doorbell spacing
+static constexpr uint32_t kSpinlockBusyUs      = 10;     // Spinlock loop pacing
+
+// GPS coordinate bounds (WGS-84)
+static constexpr double kLatMaxDeg  =  90.0;
+static constexpr double kLatMinDeg  = -90.0;
+static constexpr double kLonMaxDeg  = 180.0;
+static constexpr double kLonMinDeg  = -180.0;
+static constexpr double kGpsCoordScale = 1e7; // Degrees to 1e-7 degree integers (MAVLink convention)
+
+// PA1010D SDA settling delay (LL Entry 24)
+static constexpr uint32_t kGpsSdaSettleUs = 500;
+
+// Fault handler blink pattern
+static constexpr uint8_t kFaultFastBlinks = 3;           // Fast blinks before slow
+
+// Baro reinit threshold (consecutive failures)
+static constexpr uint32_t kBaroReinitThreshold = 100;
+
 // ============================================================================
 // Global State
 // ============================================================================
@@ -436,7 +465,7 @@ static void seqlock_write(sensor_seqlock_t* sl, const shared_sensor_data_t* src)
 }
 
 static bool seqlock_read(sensor_seqlock_t* sl, shared_sensor_data_t* dst) {
-    for (uint32_t attempt = 0; attempt < 4; attempt++) {
+    for (uint32_t attempt = 0; attempt < kSeqlockMaxRetries; attempt++) {
         uint32_t seq1 = sl->sequence.load(std::memory_order_acquire);
         if (seq1 & 1U) {
             continue;  // Write in progress, retry
@@ -467,7 +496,7 @@ static void memmanage_fault_handler() {
     const uint32_t led_mask = 1U << PICO_DEFAULT_LED_PIN;
 
     while (true) {
-        for (uint8_t i = 0; i < 3; i++) {
+        for (uint8_t i = 0; i < kFaultFastBlinks; i++) {
             *gpio_out |= led_mask;
             for (int32_t d = 0; d < kFaultBlinkFastLoops; d++) { __asm volatile(""); }
             *gpio_out &= ~led_mask;
@@ -495,6 +524,7 @@ static void mpu_setup_stack_guard(uint32_t stack_bottom) {
     __dsb();
     __isb();
 
+    // NOLINTBEGIN(readability-magic-numbers) — PMSAv8 MPU register bit fields per ARMv8-M Architecture Reference Manual
     // Region 0: Stack guard (no access, execute-never)
     // PMSAv8 RBAR: [31:5]=BASE, [4:3]=SH(0=non-shareable), [2:1]=AP(0=priv no-access), [0]=XN(1)
     mpu_hw->rnr = 0;
@@ -514,6 +544,7 @@ static void mpu_setup_stack_guard(uint32_t stack_bottom) {
     // Enable MPU with PRIVDEFENA=1 (default memory map for unprogrammed regions)
     mpu_hw->ctrl = (1U << 2)   // PRIVDEFENA
                  | (1U << 0);  // ENABLE
+    // NOLINTEND(readability-magic-numbers)
     __dsb();
     __isb();
 }
@@ -570,7 +601,7 @@ static bool core1_test_dispatcher() {
 
     while (testMode) {
         uint32_t cmd;
-        if (multicore_fifo_pop_timeout_us(1000, &cmd)) {
+        if (multicore_fifo_pop_timeout_us(kFifoPopTimeoutUs, &cmd)) {
             switch (cmd) {
             case kCmd_FifoEchoStart: {
                 multicore_fifo_push_blocking(kCmd_FifoEchoStart);
@@ -590,7 +621,7 @@ static bool core1_test_dispatcher() {
             case kCmd_DoorbellStart: {
                 for (uint32_t i = 0; i < kDoorbellTestCount; i++) {
                     multicore_doorbell_set_other_core((uint)g_doorbellNum);
-                    busy_wait_us(10);
+                    busy_wait_us(kDoorbellDelayUs);
                 }
                 multicore_fifo_push_blocking(kCmd_DoorbellDone);
                 break;
@@ -611,7 +642,7 @@ static bool core1_test_dispatcher() {
 
         g_core1Counter.fetch_add(1, std::memory_order_relaxed);
         uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-        if ((nowMs - lastNeoToggleMs) >= 125) {
+        if ((nowMs - lastNeoToggleMs) >= kNeoToggleTestMs) {
             lastNeoToggleMs = nowMs;
             neoOn = !neoOn;
             ws2812_set_mode(WS2812_MODE_SOLID,
@@ -651,7 +682,7 @@ static void core1_spinlock_soak() {
 
         g_core1Counter.fetch_add(1, std::memory_order_relaxed);
 
-        if (nowMs - lastNeoMs >= 250) {
+        if (nowMs - lastNeoMs >= kNeoToggleSoakMs) {
             lastNeoMs = nowMs;
             neoState = !neoState;
             ws2812_set_mode(WS2812_MODE_SOLID,
@@ -660,12 +691,12 @@ static void core1_spinlock_soak() {
         }
 
         if (soaking) {
-            busy_wait_us(10);
+            busy_wait_us(kSpinlockBusyUs);
         } else {
             if (g_startSensorPhase.load(std::memory_order_acquire)) {
                 break;
             }
-            sleep_ms(1);
+            sleep_ms(1);  // NOLINT(readability-magic-numbers) — minimal idle sleep
         }
     }
 }
@@ -747,7 +778,7 @@ static void core1_read_gps(shared_sensor_data_t* localData,
     uint32_t t0 = time_us_32();
     bool parsed = gps_pa1010d_update();
     if (g_gpsOnI2C) {
-        busy_wait_us(500);  // SDA settling delay (LL Entry 24)
+        busy_wait_us(kGpsSdaSettleUs);  // SDA settling delay (LL Entry 24)
     }
     g_gpsReadTimeUs.store(time_us_32() - t0, std::memory_order_relaxed);
 
@@ -773,13 +804,13 @@ static void core1_read_gps(shared_sensor_data_t* localData,
 
     double lat = gpsData.latitude;
     double lon = gpsData.longitude;
-    if (lat > 90.0) { lat = 90.0; }
-    if (lat < -90.0) { lat = -90.0; }
-    if (lon > 180.0) { lon = 180.0; }
-    if (lon < -180.0) { lon = -180.0; }
+    if (lat > kLatMaxDeg) { lat = kLatMaxDeg; }
+    if (lat < kLatMinDeg) { lat = kLatMinDeg; }
+    if (lon > kLonMaxDeg) { lon = kLonMaxDeg; }
+    if (lon < kLonMinDeg) { lon = kLonMinDeg; }
 
-    localData->gps_lat_1e7 = (int32_t)(lat * 1e7);
-    localData->gps_lon_1e7 = (int32_t)(lon * 1e7);
+    localData->gps_lat_1e7 = (int32_t)(lat * kGpsCoordScale);
+    localData->gps_lon_1e7 = (int32_t)(lon * kGpsCoordScale);
     localData->gps_alt_msl_m = gpsData.altitude_m;
     localData->gps_ground_speed_mps = gpsData.speed_mps;
     localData->gps_course_deg = gpsData.course_deg;
@@ -804,12 +835,12 @@ static void core1_read_gps(shared_sensor_data_t* localData,
 static void core1_neopixel_update(shared_sensor_data_t* localData,
                                    uint32_t nowMs, uint32_t sensorPhaseStartMs,
                                    uint32_t* lastNeoMs, bool* neoState) {
-    if (nowMs - *lastNeoMs < 250) return;
+    if (nowMs - *lastNeoMs < kNeoToggleSoakMs) return;
 
     *lastNeoMs = nowMs;
     *neoState = !*neoState;
 
-    if ((nowMs - sensorPhaseStartMs) >= 300000) {
+    if ((nowMs - sensorPhaseStartMs) >= kSensorPhaseTimeoutMs) {
         ws2812_set_mode(WS2812_MODE_SOLID, kColorMagenta);
     } else if (g_gpsInitialized) {
         if (localData->gps_valid) {
@@ -844,9 +875,11 @@ static void core1_sensor_loop() {
         localCal.accel.scale.x = 1.0F;
         localCal.accel.scale.y = 1.0F;
         localCal.accel.scale.z = 1.0F;
+        // NOLINTBEGIN(readability-magic-numbers) — 3x3 identity matrix diagonal indices
         localCal.board_rotation.m[0] = 1.0F;
         localCal.board_rotation.m[4] = 1.0F;
         localCal.board_rotation.m[8] = 1.0F;
+        // NOLINTEND(readability-magic-numbers)
     }
 
     shared_sensor_data_t localData = {};
@@ -997,6 +1030,7 @@ static void cal_post_hook() {
     }
 }
 
+// NOLINTBEGIN(readability-magic-numbers) — IVP test code: will be stripped for production (see plan Phase 3)
 // ============================================================================
 // IVP-29/30: Test Command Handler (via RC_OS unhandled-key callback)
 // ============================================================================
@@ -3135,8 +3169,8 @@ static void ivp13_polling_tick(uint32_t nowMs) {
         }
     }
 
-    // Lazy baro reinit after 100 consecutive fails
-    if (g_baroConsecFails >= 100 && g_imuLastReadOk) {
+    // Lazy baro reinit after consecutive fails
+    if (g_baroConsecFails >= kBaroReinitThreshold && g_imuLastReadOk) {
         g_baroConsecFails = 0;
         g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
         g_baroContinuous = g_baroInitialized ?
@@ -3300,6 +3334,8 @@ static void ivp_calibration_tick(uint32_t nowMs) {
         }
     }
 }
+
+// NOLINTEND(readability-magic-numbers)
 
 static void cli_update_tick() {
     rc_os_update();
