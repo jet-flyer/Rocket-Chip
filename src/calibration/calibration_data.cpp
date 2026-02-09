@@ -24,7 +24,7 @@ constexpr float    kDefaultGroundTempC       = 20.0F;       // Standard ground t
 static uint16_t crc16_ccitt(const uint8_t* data, size_t len) {
     uint16_t crc = kCrc16Init;
     for (size_t i = 0; i < len; i++) {
-        crc ^= ((uint16_t)data[i] << 8);
+        crc ^= (static_cast<uint16_t>(data[i]) << 8);
         for (uint8_t j = 0; j < kCrc16BitsPerByte; j++) {
             if (crc & kCrc16HighBit) {
                 crc = (crc << 1) ^ kCrc16Poly;
@@ -93,7 +93,7 @@ bool calibration_validate(const calibration_store_t* cal) {
     }
 
     // Check CRC (computed over everything after crc16 field)
-    const uint8_t* data_start = (const uint8_t*)&cal->accel;
+    const auto* data_start = reinterpret_cast<const uint8_t*>(&cal->accel);
     size_t data_len = sizeof(calibration_store_t) - offsetof(calibration_store_t, accel);
     uint16_t computed_crc = crc16_ccitt(data_start, data_len);
 
@@ -106,7 +106,7 @@ void calibration_update_crc(calibration_store_t* cal) {
     }
 
     // CRC computed over everything after crc16 field
-    const uint8_t* data_start = (const uint8_t*)&cal->accel;
+    const auto* data_start = reinterpret_cast<const uint8_t*>(&cal->accel);
     size_t data_len = sizeof(calibration_store_t) - offsetof(calibration_store_t, accel);
     cal->crc16 = crc16_ccitt(data_start, data_len);
 }

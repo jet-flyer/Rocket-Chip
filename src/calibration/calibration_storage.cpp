@@ -79,12 +79,12 @@ using flash_erase_params_t = struct {
 };
 
 static void do_flash_write(void* param) {
-    flash_write_params_t* p = (flash_write_params_t*)param;
+    auto* p = static_cast<flash_write_params_t*>(param);
     flash_range_program(p->offset, p->data, p->len);
 }
 
 static void do_flash_erase(void* param) {
-    flash_erase_params_t* p = (flash_erase_params_t*)param;
+    auto* p = static_cast<flash_erase_params_t*>(param);
     flash_range_erase(p->offset, p->len);
 }
 
@@ -126,7 +126,7 @@ static bool safe_flash_erase(uint32_t flash_offset, size_t len) {
 }
 
 static void flash_read(uint32_t flash_offset, void* dest, size_t len) {
-    const uint8_t* src = (const uint8_t*)(XIP_BASE + flash_offset);
+    const auto* src = reinterpret_cast<const uint8_t*>(XIP_BASE + flash_offset);
     memcpy(dest, src, len);
 }
 
@@ -223,12 +223,12 @@ static bool write_to_sector(uint32_t sector_offset, const calibration_store_t* c
     memset(page_buffer, 0xFF, sizeof(page_buffer));
 
     // Sector header
-    sector_header_t* sec_hdr = (sector_header_t*)page_buffer;
+    auto* sec_hdr = reinterpret_cast<sector_header_t*>(page_buffer);
     sec_hdr->state = kSectorStateInUse;
     sec_hdr->sequence = sequence;
 
     // Entry header
-    entry_header_t* entry_hdr = (entry_header_t*)(page_buffer + sizeof(sector_header_t));
+    auto* entry_hdr = reinterpret_cast<entry_header_t*>(page_buffer + sizeof(sector_header_t));
     entry_hdr->magic = kEntryMagic;
 
     // Calibration data

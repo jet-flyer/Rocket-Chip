@@ -544,9 +544,9 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     //   [12..13] temp  H/L
     //   [14..22] mag   ST1/HXL/HXH/HYL/HYH/HZL/HZH/dummy/ST2
     // NOLINTBEGIN(readability-magic-numbers) — buffer byte offsets per datasheet register map
-    int16_t ax = (int16_t)((buf[0] << 8) | buf[1]);
-    int16_t ay = (int16_t)((buf[2] << 8) | buf[3]);
-    int16_t az = (int16_t)((buf[4] << 8) | buf[5]);
+    int16_t ax = static_cast<int16_t>((buf[0] << 8) | buf[1]);
+    int16_t ay = static_cast<int16_t>((buf[2] << 8) | buf[3]);
+    int16_t az = static_cast<int16_t>((buf[4] << 8) | buf[5]);
 
     // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
     data->accel.x = static_cast<float>(ax) * dev->accel_scale;
@@ -554,16 +554,16 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     data->accel.z = static_cast<float>(az) * dev->accel_scale;
     data->accel_valid = true;
 
-    int16_t gx = (int16_t)((buf[6] << 8) | buf[7]);
-    int16_t gy = (int16_t)((buf[8] << 8) | buf[9]);
-    int16_t gz = (int16_t)((buf[10] << 8) | buf[11]);
+    int16_t gx = static_cast<int16_t>((buf[6] << 8) | buf[7]);
+    int16_t gy = static_cast<int16_t>((buf[8] << 8) | buf[9]);
+    int16_t gz = static_cast<int16_t>((buf[10] << 8) | buf[11]);
 
     data->gyro.x = static_cast<float>(gx) * dev->gyro_scale;
     data->gyro.y = static_cast<float>(gy) * dev->gyro_scale;
     data->gyro.z = static_cast<float>(gz) * dev->gyro_scale;
     data->gyro_valid = true;
 
-    int16_t temp_raw = (int16_t)((buf[12] << 8) | buf[13]);
+    int16_t temp_raw = static_cast<int16_t>((buf[12] << 8) | buf[13]);
     data->temperature_c = (static_cast<float>(temp_raw) / kTempSensitivity) + kTempOffset;
 
     if (dev->mag_initialized) {
@@ -571,9 +571,9 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
         uint8_t st2 = buf[22];
 
         if ((st1 & ak09916::kSt1Drdy) && !(st2 & ak09916::kSt2Hofl)) {
-            int16_t mx = (int16_t)((buf[16] << 8) | buf[15]);  // Little-endian
-            int16_t my = (int16_t)((buf[18] << 8) | buf[17]);
-            int16_t mz = (int16_t)((buf[20] << 8) | buf[19]);
+            int16_t mx = static_cast<int16_t>((buf[16] << 8) | buf[15]);  // Little-endian
+            int16_t my = static_cast<int16_t>((buf[18] << 8) | buf[17]);
+            int16_t mz = static_cast<int16_t>((buf[20] << 8) | buf[19]);
 
             data->mag.x = static_cast<float>(mx) * dev->mag_scale;
             data->mag.y = static_cast<float>(my) * dev->mag_scale;
@@ -606,9 +606,9 @@ bool icm20948_read_accel(icm20948_t* dev, icm20948_vec3_t* accel) {
     }
 
     // NOLINTBEGIN(readability-magic-numbers) — XH/XL/YH/YL/ZH/ZL byte pairs
-    int16_t ax = (int16_t)((buf[0] << 8) | buf[1]);
-    int16_t ay = (int16_t)((buf[2] << 8) | buf[3]);
-    int16_t az = (int16_t)((buf[4] << 8) | buf[5]);
+    int16_t ax = static_cast<int16_t>((buf[0] << 8) | buf[1]);
+    int16_t ay = static_cast<int16_t>((buf[2] << 8) | buf[3]);
+    int16_t az = static_cast<int16_t>((buf[4] << 8) | buf[5]);
     // NOLINTEND(readability-magic-numbers)
 
     // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
@@ -634,9 +634,9 @@ bool icm20948_read_gyro(icm20948_t* dev, icm20948_vec3_t* gyro) {
     }
 
     // NOLINTBEGIN(readability-magic-numbers) — XH/XL/YH/YL/ZH/ZL byte pairs
-    int16_t gx = (int16_t)((buf[0] << 8) | buf[1]);
-    int16_t gy = (int16_t)((buf[2] << 8) | buf[3]);
-    int16_t gz = (int16_t)((buf[4] << 8) | buf[5]);
+    int16_t gx = static_cast<int16_t>((buf[0] << 8) | buf[1]);
+    int16_t gy = static_cast<int16_t>((buf[2] << 8) | buf[3]);
+    int16_t gz = static_cast<int16_t>((buf[4] << 8) | buf[5]);
     // NOLINTEND(readability-magic-numbers)
 
     // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
@@ -670,9 +670,9 @@ bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag) {
         return false;  // Not ready or overflow
     }
 
-    int16_t mx = (int16_t)((buf[2] << 8) | buf[1]);  // Little-endian
-    int16_t my = (int16_t)((buf[4] << 8) | buf[3]);
-    int16_t mz = (int16_t)((buf[6] << 8) | buf[5]);
+    int16_t mx = static_cast<int16_t>((buf[2] << 8) | buf[1]);  // Little-endian
+    int16_t my = static_cast<int16_t>((buf[4] << 8) | buf[3]);
+    int16_t mz = static_cast<int16_t>((buf[6] << 8) | buf[5]);
     // NOLINTEND(readability-magic-numbers)
 
     // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
@@ -697,7 +697,7 @@ bool icm20948_read_temperature(icm20948_t* dev, float* temp_c) {
         return false;
     }
 
-    int16_t temp_raw = (int16_t)((buf[0] << 8) | buf[1]);
+    int16_t temp_raw = static_cast<int16_t>((buf[0] << 8) | buf[1]);
     *temp_c = (static_cast<float>(temp_raw) / kTempSensitivity) + kTempOffset;
 
     return true;

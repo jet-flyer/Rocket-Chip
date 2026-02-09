@@ -121,11 +121,11 @@ static int read_nmea_data(uint8_t* buffer, size_t max_len) {
 static void update_data_from_lwgps() {
     g_data.latitude = g_gps.latitude;
     g_data.longitude = g_gps.longitude;
-    g_data.altitude_m = (float)g_gps.altitude;
+    g_data.altitude_m = static_cast<float>(g_gps.altitude);
 
-    g_data.speed_knots = (float)g_gps.speed;
-    g_data.speed_mps = (float)lwgps_to_speed(g_gps.speed, LWGPS_SPEED_MPS);
-    g_data.course_deg = (float)g_gps.course;
+    g_data.speed_knots = static_cast<float>(g_gps.speed);
+    g_data.speed_mps = static_cast<float>(lwgps_to_speed(g_gps.speed, LWGPS_SPEED_MPS));
+    g_data.course_deg = static_cast<float>(g_gps.course);
 
     // Fix type: prefer GGA fix quality (most reliably updated by lwGPS),
     // fall back to GSA fix_mode for 2D/3D distinction.
@@ -146,9 +146,9 @@ static void update_data_from_lwgps() {
     }
 
     g_data.satellites = g_gps.sats_in_use;
-    g_data.hdop = (float)g_gps.dop_h;
-    g_data.vdop = (float)g_gps.dop_v;
-    g_data.pdop = (float)g_gps.dop_p;
+    g_data.hdop = static_cast<float>(g_gps.dop_h);
+    g_data.vdop = static_cast<float>(g_gps.dop_v);
+    g_data.pdop = static_cast<float>(g_gps.dop_p);
 
     g_data.hour = g_gps.hours;
     g_data.minute = g_gps.minutes;

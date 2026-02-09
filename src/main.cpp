@@ -811,14 +811,14 @@ static void core1_read_gps(shared_sensor_data_t* localData,
     if (lon > kLonMaxDeg) { lon = kLonMaxDeg; }
     if (lon < kLonMinDeg) { lon = kLonMinDeg; }
 
-    localData->gps_lat_1e7 = (int32_t)(lat * kGpsCoordScale);
-    localData->gps_lon_1e7 = (int32_t)(lon * kGpsCoordScale);
+    localData->gps_lat_1e7 = static_cast<int32_t>(lat * kGpsCoordScale);
+    localData->gps_lon_1e7 = static_cast<int32_t>(lon * kGpsCoordScale);
     localData->gps_alt_msl_m = gpsData.altitude_m;
     localData->gps_ground_speed_mps = gpsData.speed_mps;
     localData->gps_course_deg = gpsData.course_deg;
     localData->gps_timestamp_us = gpsNowUs;
     localData->gps_read_count++;
-    localData->gps_fix_type = (uint8_t)gpsData.fix;
+    localData->gps_fix_type = static_cast<uint8_t>(gpsData.fix);
     localData->gps_satellites = gpsData.satellites;
     localData->gps_valid = gpsData.valid;
     localData->gps_gga_fix = gpsData.gga_fix;
@@ -968,7 +968,7 @@ static void core1_sensor_loop() {
 // ============================================================================
 
 static void core1_entry() {
-    mpu_setup_stack_guard((uint32_t)&__StackOneBottom);
+    mpu_setup_stack_guard(reinterpret_cast<uint32_t>(&__StackOneBottom));
 
     bool skipPhase2 = core1_test_dispatcher();
 
@@ -1058,7 +1058,7 @@ static void ivp_test_key_handler(int key) {
 
         // Recursive function with volatile local to prevent optimizer elimination
         volatile uint8_t buf[256];
-        buf[0] = (uint8_t)key;  // Prevent unused-variable optimization
+        buf[0] = static_cast<uint8_t>(key);  // Prevent unused-variable optimization
         (void)buf[255];
         // NOLINTNEXTLINE(misc-no-recursion) — intentional IVP-29 stack overflow test
         ivp_test_key_handler(key);  // Recurse until stack overflow
@@ -1400,7 +1400,7 @@ static void ivp10_gate_check() {
 
     bool pass = true;
 
-    float n = (float)g_validSampleCount;
+    float n = static_cast<float>(g_validSampleCount);
     float axAvg = (n > 0) ? g_accelXSum / n : 0.0F;
     float ayAvg = (n > 0) ? g_accelYSum / n : 0.0F;
     float azAvg = (n > 0) ? g_accelZSum / n : 0.0F;
@@ -1513,7 +1513,7 @@ static void ivp12_gate_check() {
         return;
     }
 
-    float pressAvg = g_baroPressSum / (float)g_baroValidReads;
+    float pressAvg = g_baroPressSum / static_cast<float>(g_baroValidReads);
 
     // Gate: Pressure ~101325 Pa (±3000 Pa for typical altitudes)
     bool pOk = (pressAvg > 98325.0F && pressAvg < 104325.0F);
@@ -1607,12 +1607,12 @@ static void ivp13_gate_check() {
 
     // Info: Per-read I2C timing
     if (g_ivp13ImuCount > 0) {
-        uint32_t imuAvgUs = (uint32_t)(g_ivp13ImuTimeSum / g_ivp13ImuCount);
+        uint32_t imuAvgUs = static_cast<uint32_t>(g_ivp13ImuTimeSum / g_ivp13ImuCount);
         printf("[INFO] IMU read time: avg %lu us, max %lu us\n",
                (unsigned long)imuAvgUs, (unsigned long)g_ivp13ImuTimeMax);
     }
     if (g_ivp13BaroCount > 0) {
-        uint32_t baroAvgUs = (uint32_t)(g_ivp13BaroTimeSum / g_ivp13BaroCount);
+        uint32_t baroAvgUs = static_cast<uint32_t>(g_ivp13BaroTimeSum / g_ivp13BaroCount);
         printf("[INFO] Baro read time: avg %lu us, max %lu us\n",
                (unsigned long)baroAvgUs, (unsigned long)g_ivp13BaroTimeMax);
     }
@@ -1723,7 +1723,7 @@ static void ivp14_gate_check() {
             test_cal.gyro.status = CAL_STATUS_GYRO;
             test_cal.cal_flags |= CAL_STATUS_GYRO;
             // Use reserved field to track iteration
-            test_cal.reserved[0] = (uint8_t)(i + 1);
+            test_cal.reserved[0] = static_cast<uint8_t>(i + 1);
             calibration_update_crc(&test_cal);
 
             if (!calibration_storage_write(&test_cal)) {
@@ -1734,7 +1734,7 @@ static void ivp14_gate_check() {
 
             // Verify readback
             calibration_store_t verify;
-            if (!calibration_storage_read(&verify) || verify.reserved[0] != (uint8_t)(i + 1)) {
+            if (!calibration_storage_read(&verify) || verify.reserved[0] != static_cast<uint8_t>(i + 1)) {
                 printf("[FAIL] Gate 4: readback %d/10 failed\n", i + 1);
                 allOk = false;
                 break;
@@ -1891,7 +1891,7 @@ static void ivp16_gate_check(uint32_t elapsedMs) {
             }
         }
         if (goodSamples >= 5) {
-            float n = (float)goodSamples;
+            float n = static_cast<float>(goodSamples);
             float axAvg = axSum / n;
             float ayAvg = aySum / n;
             float azAvg = azSum / n;
@@ -1981,7 +1981,7 @@ static void ivp22_fifo_test() {
             multicore_fifo_push_blocking(i + 1);
             uint32_t echo;
             bool ok = multicore_fifo_pop_timeout_us(100000, &echo);
-            uint32_t dt = (uint32_t)(time_us_64() - t0);
+            uint32_t dt = static_cast<uint32_t>(time_us_64() - t0);
 
             if (!ok || echo != (i + 1)) {
                 lost++;
@@ -2010,7 +2010,7 @@ static void ivp22_fifo_test() {
         }
 
         if (lost < kFifoTestCount) {
-            uint32_t rttAvg = (uint32_t)(rttSumUs / (kFifoTestCount - lost));
+            uint32_t rttAvg = static_cast<uint32_t>(rttSumUs / (kFifoTestCount - lost));
             printf("[INFO] Round-trip latency: min=%lu avg=%lu max=%lu us\n",
                    (unsigned long)rttMinUs, (unsigned long)rttAvg,
                    (unsigned long)rttMaxUs);
@@ -2127,7 +2127,7 @@ static void ivp23_doorbell_test() {
             multicore_doorbell_clear_current_core((uint)g_doorbellNum);
             detected++;
 
-            uint32_t latUs = (uint32_t)(detectUs - pollStartUs);
+            uint32_t latUs = static_cast<uint32_t>(detectUs - pollStartUs);
             latencySumUs += latUs;
             if (latUs < latencyMinUs) {
                 latencyMinUs = latUs;
@@ -2151,7 +2151,7 @@ static void ivp23_doorbell_test() {
     }
 
     if (detected > 0) {
-        uint32_t latAvg = (uint32_t)(latencySumUs / detected);
+        uint32_t latAvg = static_cast<uint32_t>(latencySumUs / detected);
         printf("[INFO] Detection latency (polling): min=%lu avg=%lu max=%lu us\n",
                (unsigned long)latencyMinUs, (unsigned long)latAvg,
                (unsigned long)latencyMaxUs);
@@ -2227,7 +2227,7 @@ static void ivp21_gate_check() {
     // Gate 4: Lock hold time
     {
         uint32_t avgUs = (g_ivp21ReadCount > 0) ?
-            (uint32_t)(g_ivp21LockTimeSumUs / g_ivp21ReadCount) : 0;
+            static_cast<uint32_t>(g_ivp21LockTimeSumUs / g_ivp21ReadCount) : 0;
         uint32_t minUs = (g_ivp21LockTimeMinUs == UINT32_MAX) ? 0 : g_ivp21LockTimeMinUs;
         bool timeOk = (g_ivp21LockTimeMaxUs < 10);
         printf("[%s] Gate 4: Lock hold time: min=%lu avg=%lu max=%lu us (expect <10)\n",
@@ -2277,7 +2277,7 @@ static void ivp25_gate_check() {
     bool snapOk = seqlock_read(&g_sensorSeqlock, &snap);
 
     uint32_t elapsedMs = to_ms_since_boot(get_absolute_time()) - g_ivp25StartMs;
-    float elapsedS = (float)elapsedMs / 1000.0F;
+    float elapsedS = static_cast<float>(elapsedMs) / 1000.0F;
 
     // Gate 1: I2C transaction time (INFO) — computed from jitter timestamps
     {
@@ -2297,7 +2297,7 @@ static void ivp25_gate_check() {
                 }
                 sumDt += dt;
             }
-            float avgDt = (float)sumDt / (float)(n - 1);
+            float avgDt = static_cast<float>(sumDt) / static_cast<float>(n - 1);
             printf("[INFO] Gate 1: I2C cycle time: avg=%.0f us, min=%lu us, max=%lu us (%lu samples)\n",
                    (double)avgDt, (unsigned long)minDt, (unsigned long)maxDt, (unsigned long)n);
         } else {
@@ -2309,12 +2309,12 @@ static void ivp25_gate_check() {
     {
         float imuRate = 0.0F;
         if (snapOk && elapsedS > 1.0F) {
-            imuRate = (float)snap.imu_read_count / elapsedS;
+            imuRate = static_cast<float>(snap.imu_read_count) / elapsedS;
         }
         // Target: ~1kHz or I2C-limited actual rate. Report and check within 1%.
         // At 400kHz I2C, full IMU read ~774us (measured IVP-13), so max ~1.29kHz
         // With 1ms target cycle, expect ~1000 Hz
-        float expectedRate = 1000000.0F / (float)kCore1TargetCycleUs;
+        float expectedRate = 1000000.0F / static_cast<float>(kCore1TargetCycleUs);
         float pctError = (expectedRate > 0) ?
             fabsf(imuRate - expectedRate) / expectedRate * 100.0F : 100.0F;
         bool rateOk = (pctError < kImuRateTolerancePct);
@@ -2336,16 +2336,16 @@ static void ivp25_gate_check() {
             uint32_t dtCount = (n > (kJitterSampleCount - 1)) ? (kJitterSampleCount - 1) : (n - 1);
             float sumDt = 0.0F;
             for (uint32_t i = 0; i < dtCount; i++) {
-                dts[i] = (float)(g_jitterTimestamps[i + 1] - g_jitterTimestamps[i]);
+                dts[i] = static_cast<float>(g_jitterTimestamps[i + 1] - g_jitterTimestamps[i]);
                 sumDt += dts[i];
             }
-            float meanDt = sumDt / (float)dtCount;
+            float meanDt = sumDt / static_cast<float>(dtCount);
             float sumSq = 0.0F;
             for (uint32_t i = 0; i < dtCount; i++) {
                 float diff = dts[i] - meanDt;
                 sumSq += diff * diff;
             }
-            float stdDev = sqrtf(sumSq / (float)dtCount);
+            float stdDev = sqrtf(sumSq / static_cast<float>(dtCount));
             printf("[INFO] Gate 3: Jitter std dev: %.1f us (mean cycle: %.1f us)\n",
                    (double)stdDev, (double)meanDt);
         } else {
@@ -2416,15 +2416,15 @@ static void ivp26_gate_check() {
     bool snapOk = seqlock_read(&g_sensorSeqlock, &snap);
 
     uint32_t elapsedMs = to_ms_since_boot(get_absolute_time()) - g_ivp25StartMs;
-    float elapsedS = (float)elapsedMs / 1000.0F;
+    float elapsedS = static_cast<float>(elapsedMs) / 1000.0F;
 
     // Gate 1: IMU rate unchanged (reference IVP-25)
     {
         float imuRate = 0.0F;
         if (snapOk && elapsedS > 1.0F) {
-            imuRate = (float)snap.imu_read_count / elapsedS;
+            imuRate = static_cast<float>(snap.imu_read_count) / elapsedS;
         }
-        float expectedRate = 1000000.0F / (float)kCore1TargetCycleUs;
+        float expectedRate = 1000000.0F / static_cast<float>(kCore1TargetCycleUs);
         float pctError = (expectedRate > 0) ?
             fabsf(imuRate - expectedRate) / expectedRate * 100.0F : 100.0F;
         bool rateOk = (pctError < kImuRateTolerancePct);
@@ -2441,7 +2441,7 @@ static void ivp26_gate_check() {
     {
         float baroRate = 0.0F;
         if (snapOk && elapsedS > 1.0F) {
-            baroRate = (float)snap.baro_read_count / elapsedS;
+            baroRate = static_cast<float>(snap.baro_read_count) / elapsedS;
         }
         // DPS310 configured at 8Hz/8x oversampling. Expect ~8 new samples/sec.
         float expectedBaroRate = 8.0F;  // DPS310 hardware rate, not poll rate
@@ -2643,7 +2643,7 @@ static bool init_hardware() {
     exception_set_exclusive_handler(MEMMANAGE_EXCEPTION, memmanage_fault_handler);
 
     // IVP-29: MPU stack guard for Core 0
-    mpu_setup_stack_guard((uint32_t)&__StackBottom);
+    mpu_setup_stack_guard(reinterpret_cast<uint32_t>(&__StackBottom));
 
     // IVP-02: Red LED GPIO init
     gpio_init(PICO_DEFAULT_LED_PIN);
@@ -2894,7 +2894,7 @@ static void ivp21_soak_tick(uint32_t nowMs) {
     uint32_t c = g_spinlockData.field_c;
     uint32_t wc = g_spinlockData.write_count;
     spin_unlock(g_pTestSpinlock, saved);
-    uint32_t dtUs = (uint32_t)(time_us_64() - t0);
+    uint32_t dtUs = static_cast<uint32_t>(time_us_64() - t0);
 
     g_ivp21ReadCount++;
     if (dtUs < g_ivp21LockTimeMinUs) {
@@ -3294,7 +3294,7 @@ static void ivp13_polling_tick(uint32_t nowMs) {
         uint64_t t0 = time_us_64();
         icm20948_data_t data;
         if (icm20948_read(&g_imu, &data)) {
-            uint32_t dt = (uint32_t)(time_us_64() - t0);
+            uint32_t dt = static_cast<uint32_t>(time_us_64() - t0);
             g_ivp13ImuCount++;
             g_ivp13ImuSecCount++;
             g_ivp13ImuTimeSum += dt;
@@ -3319,7 +3319,7 @@ static void ivp13_polling_tick(uint32_t nowMs) {
         uint64_t t0 = time_us_64();
         baro_dps310_data_t bdata;
         if (baro_dps310_read(&bdata)) {
-            uint32_t dt = (uint32_t)(time_us_64() - t0);
+            uint32_t dt = static_cast<uint32_t>(time_us_64() - t0);
             g_ivp13BaroCount++;
             g_ivp13BaroSecCount++;
             g_ivp13BaroTimeSum += dt;

@@ -198,7 +198,7 @@ void calibration_feed_gyro(float gx, float gy, float gz, float temperature_c) {
         }
 
         // Compute bias as average
-        float n = (float)g_sample_acc.count;
+        float n = static_cast<float>(g_sample_acc.count);
         g_calibration.gyro.bias.x = g_sample_acc.sum_x / n;
         g_calibration.gyro.bias.y = g_sample_acc.sum_y / n;
         g_calibration.gyro.bias.z = g_sample_acc.sum_z / n;
@@ -271,7 +271,7 @@ void calibration_feed_accel(float ax, float ay, float az, float temperature_c) {
         }
 
         // Compute average
-        float n = (float)g_sample_acc.count;
+        float n = static_cast<float>(g_sample_acc.count);
         float avg_x = g_sample_acc.sum_x / n;
         float avg_y = g_sample_acc.sum_y / n;
         float avg_z = g_sample_acc.sum_z / n;
@@ -330,7 +330,7 @@ void calibration_feed_baro(float pressure_pa, float temperature_c) {
     g_sample_acc.count++;
 
     if (g_sample_acc.count >= g_sample_acc.target_count) {
-        float n = (float)g_sample_acc.count;
+        float n = static_cast<float>(g_sample_acc.count);
         g_calibration.baro.ground_pressure_pa = g_sample_acc.sum_x / n;
         g_calibration.baro.ground_temperature_c = g_sample_acc.sum_temp / n;
         g_calibration.baro.status = CAL_STATUS_BARO;
@@ -407,7 +407,7 @@ static float calc_mean_sq_residuals(const float params[kAccel6posNumParams]) {
         float r = calc_residual_6pos(g_6pos_samples[i], params);
         sum += r * r;
     }
-    return sum / (float)g_6pos_sample_count;
+    return sum / static_cast<float>(g_6pos_sample_count);
 }
 
 // NxN matrix inverse via Gaussian elimination with partial pivoting (N = kAccel6posNumParams)
@@ -537,7 +537,7 @@ cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_f
     // if samples are bad the fit won't converge (caught at gate check).
 
     // Compute average
-    float n = (float)kAccel6posSamplesPerPos;
+    float n = static_cast<float>(kAccel6posSamplesPerPos);
     g_6pos_avg[pos][0] = sum[0] / n;
     g_6pos_avg[pos][1] = sum[1] / n;
     g_6pos_avg[pos][2] = sum[2] / n;
@@ -694,7 +694,7 @@ uint8_t calibration_get_progress() {
     }
 
     uint32_t progress = (g_sample_acc.count * 100) / g_sample_acc.target_count;
-    return (progress > 100) ? 100 : (uint8_t)progress;
+    return (progress > 100) ? 100 : static_cast<uint8_t>(progress);
 }
 
 cal_result_t calibration_get_result() {

@@ -414,7 +414,7 @@ static void cmd_accel_6pos_cal_inner() {
             }
         }
         if (good_reads > 0) {
-            float avg_mag = mag_sum / (float)good_reads;
+            float avg_mag = mag_sum / static_cast<float>(good_reads);
             printf("  Avg gravity magnitude: %.4f m/s^2 (expected 9.8067)\n",
                    (double)avg_mag);
             float error = fabsf(avg_mag - kAccel6posGravityNominal);

@@ -90,7 +90,7 @@ static void send_pixel(uint8_t r, uint8_t g, uint8_t b) {
     }
 
     // WS2812 expects GRB order, data in upper 24 bits
-    uint32_t grb = ((uint32_t)g << 24) | ((uint32_t)r << 16) | ((uint32_t)b << 8);
+    uint32_t grb = (static_cast<uint32_t>(g) << 24) | (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(b) << 8);
     pio_sm_put_blocking(g_state.pio, g_state.sm, grb);
 }
 
@@ -247,7 +247,7 @@ void ws2812_update() {
 
         case WS2812_MODE_BREATHE: {
             // Sinusoidal brightness pulsing
-            float phase = (float)elapsed / (float)g_state.breathe_period_ms;
+            float phase = static_cast<float>(elapsed) / static_cast<float>(g_state.breathe_period_ms);
             float scale = (sinf(phase * 2.0F * kPi) + 1.0F) / 2.0F;
             scale = kBreatheMinScale + scale * kBreatheRange;
             ws2812_rgb_t color = apply_brightness(g_state.base_color, scale);
@@ -291,7 +291,7 @@ void ws2812_update() {
 
         case WS2812_MODE_RAINBOW: {
             // Smooth rainbow cycle
-            g_state.rainbow_hue = fmodf((float)elapsed / kRainbowCyclePeriodMs * kHueFull, kHueFull);
+            g_state.rainbow_hue = fmodf(static_cast<float>(elapsed) / kRainbowCyclePeriodMs * kHueFull, kHueFull);
             ws2812_rgb_t color = ws2812_hsv_to_rgb(g_state.rainbow_hue, kRainbowSaturation, kRainbowValue);
             send_pixel(color.r, color.g, color.b);
             break;
@@ -319,7 +319,7 @@ ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v) {
     v = v / kPercentScale;
 
     if (s < kAchromaticThreshold) {
-        uint8_t gray = (uint8_t)(v * kMaxChannelValue);
+        uint8_t gray = static_cast<uint8_t>(v * kMaxChannelValue);
         rgb.r = rgb.g = rgb.b = gray;
         return rgb;
     }
@@ -344,9 +344,9 @@ ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v) {
         r1 = c; g1 = 0; b1 = x;
     }
 
-    rgb.r = (uint8_t)((r1 + m) * kMaxChannelValue);
-    rgb.g = (uint8_t)((g1 + m) * kMaxChannelValue);
-    rgb.b = (uint8_t)((b1 + m) * kMaxChannelValue);
+    rgb.r = static_cast<uint8_t>((r1 + m) * kMaxChannelValue);
+    rgb.g = static_cast<uint8_t>((g1 + m) * kMaxChannelValue);
+    rgb.b = static_cast<uint8_t>((b1 + m) * kMaxChannelValue);
 
     return rgb;
 }
