@@ -20,6 +20,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-09-003 | Claude Code CLI | tooling
+
+**Comprehensive clang-tidy standards audit — 127 checks mapped to JSF AV / P10 / JPL C**
+
+Rewrote `.clang-tidy` from 78-line function-size-only config to 376-line comprehensive standards audit config covering bugprone (34), cert (14), cppcoreguidelines (11), google (6), hicpp (3), misc (11), modernize (11), performance (11), readability (26), and clang-analyzer checks. Ran full audit across all 10 source files: 1,251 warnings in our code. Key finding: `misc-no-recursion` caught a recursive call chain that the manual audit missed (P10-1 was marked PASS). 5 safety-critical findings documented. Results in `docs/audits/CLANG_TIDY_AUDIT_2026-02-09.md`.
+
+(`.clang-tidy`, `docs/audits/CLANG_TIDY_AUDIT_2026-02-09.md`)
+
+---
+
+### 2026-02-09-002 | Claude Code CLI | refactor
+
+**Decompose main() and core1_entry() — P10-4 function length compliance**
+
+Extracted `main()` (992→65 lines) into `init_hardware()`, `print_boot_status()`, `init_application()`, and 15 tick-function dispatchers per council-approved plan. Extracted `core1_entry()` (367→15 lines) into `core1_test_dispatcher()`, `core1_spinlock_soak()`, `core1_sensor_loop()`. Added `g_lastTickFunction` watchdog tracking (council recommendation). Binary size unchanged (198,144 bytes). Hardware-verified: all behavior identical.
+
+(`src/main.cpp`)
+
+---
+
 ### 2026-02-09-001 | Claude Code CLI | documentation
 
 **Trim tracking documents — collapse completed sections**

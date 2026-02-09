@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-02-08
+**Last Updated:** 2026-02-09
 
 ## Current Phase
 
@@ -19,6 +19,8 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 | 3: Dual-Core | 19-30 | 2026-02-07 | Core 1 launch, atomics, spinlock, FIFO, doorbell, seqlock, sensor migration, USB/flash stress, MPU stack guard, watchdog |
 | 4: GPS Integration | 31-33 | 2026-02-08 | PA1010D on Core 1, outdoor fix validated, CLI integration |
 | Standards Audit | — | 2026-02-08 | 249 rules, 90% compliant, 25 accepted deviations. See `standards/STANDARDS_AUDIT_2026-02-07.md` |
+| D3 Refactoring | — | 2026-02-09 | main() 992→65 lines, core1_entry() 367→15 lines. Tick-function dispatcher pattern. Binary unchanged |
+| Automated Audit | — | 2026-02-09 | clang-tidy 127 checks, 1,251 findings across 10 files. See `docs/audits/CLANG_TIDY_AUDIT_2026-02-09.md` |
 
 ## In Progress
 
