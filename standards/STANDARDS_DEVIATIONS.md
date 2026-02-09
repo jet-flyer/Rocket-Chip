@@ -2,7 +2,7 @@
 
 **Purpose**: Track deviations from project coding standards (JSF AV C++, DEBUG_OUTPUT.md, CODING_STANDARDS.md) with severity, remediation difficulty, and rationale.
 
-**Last Updated**: 2026-02-08 (PP-1 resolved: .c→.cpp rename + #define→constexpr conversion)
+**Last Updated**: 2026-02-09 (RC-1, BM-6 resolved: IVP test code stripped)
 
 ---
 
@@ -47,19 +47,11 @@ P10 Rule 2 requires all loops to have a fixed upper bound. Bare-metal main loops
 | ID | Location | Rule | Severity | Rationale |
 |----|----------|------|----------|-----------|
 | BM-1 | `main.cpp` main() | P10-2 | Accepted | Core 0 application loop. Watchdog timer (IVP-30, 5s timeout) provides the safety net. Loop runs indefinitely by design — bare-metal has no OS to return to |
-| BM-2 | `main.cpp` core1_entry() dispatcher | P10-2 | Accepted | Core 1 test dispatcher. Same watchdog coverage. Exits via `return` on sentinel value |
-| BM-3 | `main.cpp` core1_entry() sensor phase | P10-2 | Accepted | Core 1 sensor polling loop. Watchdog-protected. Runs for device lifetime |
+| BM-2 | `main.cpp` core1_entry() wait loop | P10-2 | Accepted | Core 1 waits for sensor phase signal from Core 0. Bounded by boot sequence timing |
+| BM-3 | `main.cpp` core1_sensor_loop() | P10-2 | Accepted | Core 1 sensor polling loop. Watchdog-protected. Runs for device lifetime |
 | BM-4 | `main.cpp` memmanage_fault_handler() | P10-2 | Accepted | Unrecoverable fault handler — intentional halt-forever with LED blink pattern. Interrupts disabled, no recovery possible |
 | BM-5 | `main.cpp` mpu_setup_stack_guard() | P10-2 | Accepted | MPU config failure — intentional halt. Same rationale as BM-4 |
-| BM-6 | `main.cpp` spinlock soak | P10-2 | Accepted | IVP-21 exercise-only test code. Will be stripped during D3 refactoring |
-
-**Mitigation:** IVP-30 hardware watchdog (5s timeout) ensures no main loop can hang silently. Fault handlers (BM-4, BM-5) are unrecoverable by design — the LED blink pattern signals the failure mode. All bare-metal embedded systems (FreeRTOS idle task, ChibiOS main thread, Zephyr main loop) use the same pattern.
-
-### Intentional Recursion in IVP-29 Test (P10-1)
-
-| ID | Location | Rule | Severity | Rationale |
-|----|----------|------|----------|-----------|
-| RC-1 | `main.cpp` ivp_test_key_handler() | P10-1 | Accepted | Intentional recursive call to trigger stack overflow for IVP-29 MPU guard verification. Test-only code, locked behind `g_testCommandsEnabled` flag. Will be stripped for production. NOLINTNEXTLINE annotation in source. |
+**Mitigation:** Hardware watchdog (5s timeout) ensures no main loop can hang silently. Fault handlers (BM-4, BM-5) are unrecoverable by design — the LED blink pattern signals the failure mode. All bare-metal embedded systems (FreeRTOS idle task, ChibiOS main thread, Zephyr main loop) use the same pattern.
 
 ### stdio.h Usage Deviation (JSF 22/24)
 
@@ -67,12 +59,20 @@ JSF AV Rule 22 prohibits `<stdio.h>`. Our usage is mitigated by code classificat
 
 | ID | Location | Category | Severity | Rationale |
 |----|----------|----------|----------|-----------|
-| IO-1 | main.cpp, rc_os.cpp, i2c_bus.cpp | 428 printf + 4 getchar | Accepted | All Ground/IVP Test classification. Runtime lockout when state != IDLE (same binary principle). Zero stdio in flight-critical sensor drivers |
+| IO-1 | main.cpp, rc_os.cpp, i2c_bus.cpp | 212 printf + 6 getchar_timeout_us | Accepted | All Ground classification. Runtime lockout when state != IDLE (same binary principle). Zero stdio in flight-critical sensor drivers |
 | IO-2 | gps_pa1010d.cpp | 3 snprintf | Accepted | Flight-Critical — bounded by `sizeof()`, constant format strings, MISRA-C 2012 accepted safe subset. Migration path: custom formatters or u-blox UBX binary protocol. See AUDIT_REMEDIATION.md Fix C17 |
 
 ---
 
 ## Resolved
+
+### RC-1: Intentional Recursion in IVP-29 Test (P10-1)
+
+**Fixed 2026-02-09.** `ivp_test_key_handler()` removed with all IVP test code. No recursion remaining in codebase.
+
+### BM-6: IVP-21 Spinlock Soak Unbounded Loop (P10-2)
+
+**Fixed 2026-02-09.** `core1_spinlock_soak()` removed with all IVP test code. No unbounded test loops remaining.
 
 ### PP-1: 60+ `#define` for Constants/Macros (JSF 29/30/31)
 

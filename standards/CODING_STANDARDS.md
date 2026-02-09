@@ -37,7 +37,6 @@ are locked out at runtime, not compiled out.
 | **Flight-Critical** | Full JSF AV + JPL C. No stdio except bounded `snprintf` with `sizeof()` | `snprintf` only (MISRA-C safe subset) | Always active |
 | **Flight-Support** | Full JSF AV. No stdio in hot path | None | Always active |
 | **Ground** | JSF AV with stdio relaxation. `printf`/`getchar` permitted behind `stdio_usb_connected()` guard | Permitted with guards | Locked out when state != IDLE |
-| **IVP Test** | Relaxed (test harness). Will be stripped or refactored for production | Permitted | Locked out when state != IDLE |
 
 #### Current File Classification
 
@@ -52,7 +51,7 @@ are locked out at runtime, not compiled out.
 | `src/calibration/calibration_manager.cpp` | Ground | Calibration algorithms — run pre-flight only |
 | `src/calibration/calibration_storage.cpp` | Ground | Flash storage — pre-flight only |
 | `src/cli/rc_os.cpp` | Ground | CLI / local GCS — locked out in flight |
-| `src/main.cpp` | IVP Test (mixed) | Contains flight loop + IVP test harness. Will be refactored (Tier 4 D3) |
+| `src/main.cpp` | Ground (mixed) | Contains flight loop (Core 1 sensor sampling, watchdog) + ground-only CLI dispatch |
 
 ### RP2350 Bare-Metal Platform Constraints
 

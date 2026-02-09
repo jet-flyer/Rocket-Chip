@@ -27,7 +27,7 @@
 | 18 | JSF 162 | 6 signed/unsigned casts | **Accepted** — intentional at SDK/hardware type boundaries |
 | 19 | P10-8 | DBG_PRINT variadic macros | **Resolved** — C++20 variadic templates. Compatibility macros are simple name mappings |
 | 20 | JSF 8 | C17+C++20 with 3 extensions | **Accepted** — `__asm volatile`, `__attribute__((aligned))`, `<atomic>` justified |
-| 21 | LOC-2.5 | FIFO pop without validation | **Accepted** — IVP-22 exercise-only test code. Stripped during D3 refactoring |
+| 21 | LOC-2.5 | FIFO pop without validation | **Resolved** — IVP-22 test code stripped (2026-02-09) |
 | 22 | Prior art | SDK refs, doc gaps | **Pass** — all drivers reference datasheets/libraries |
 
 ---
@@ -49,20 +49,9 @@
 | P5e | Function decomposition: 9 production functions under 60-line limit | 9 | `2c3b5e6` — HW verified (0 errors) |
 | P5f | Math parentheses: check disabled per JSF AV Rule 213 exemption (LL Entry 26) | 65 | N/A |
 
-### Remaining (IVP Test Code Only)
+### IVP Test Code — Stripped (2026-02-09)
 
-All production code (flight-critical, flight-support, ground) is now fully remediated. The only remaining findings are in IVP test functions in `main.cpp`:
-
-| Category | Count | Rationale |
-|----------|-------|-----------|
-| Identifier naming (IVP) | ~100 | IVP test functions — will be stripped for production |
-| Function size (IVP) | ~20 | IVP test functions — will be stripped |
-| Cognitive complexity (IVP) | ~12 | IVP test functions — inherently complex test harness |
-| Magic numbers (IVP) | varies | NOLINT with `// IVP test — will be stripped` |
-
-### IVP Test Code Strategy
-
-IVP test functions in `main.cpp` received NOLINT annotations (magic numbers only) rather than full remediation. This code is temporary test harness — it will be stripped or refactored when the flight state machine replaces the IVP dispatcher. Braces (P4) and casts (P5) were applied everywhere including IVP code since those are mechanical and improve safety regardless of code lifetime.
+All IVP test functions, constants, and state variables removed from `main.cpp` after Stage 1-4 hardware verification. ~2,550 lines removed, eliminating all IVP-only clang-tidy findings (naming, function size, complexity, magic numbers). No remaining findings in production code.
 
 ---
 

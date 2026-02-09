@@ -37,9 +37,9 @@ See: ArduPilot `AP_InertialSensor_Invensensev2.cpp`, ICM-20948 `INT_PIN_CFG` reg
 
 ---
 
-### D3 main.cpp Refactoring — COMPLETE
+### D3 main.cpp Refactoring + IVP Strip — COMPLETE
 
-`main()` 992→65 lines, `core1_entry()` 367→15 lines. Tick-function dispatcher pattern with `g_lastTickFunction` watchdog tracking. Binary unchanged (198,144 bytes). Hardware-verified 2026-02-09. Comprehensive clang-tidy audit (127 checks, 1,251 findings) in `docs/audits/CLANG_TIDY_AUDIT_2026-02-09.md`.
+`main()` 992→65 lines, `core1_entry()` 367→15 lines. Tick-function dispatcher pattern. Clang-tidy audit (127 checks, 1,251 findings). IVP test code stripped: 3,623→1,073 lines (33 functions, ~2,550 lines removed). Binary 198,144→155,648 bytes (-21.4%). RC-1 and BM-6 deviations resolved. IVP scripts deleted.
 
 ---
 
@@ -62,7 +62,7 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 - **FeatherWing UART GPS:** Adafruit 3133 (PA1616D) on hand. Eliminates I2C contention. New `gps_uart.cpp` driver needed. `g_gpsOnI2C` flag already in place. Blocked on user soldering.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
 - **ArduPilot LED Patterns:** Map NeoPixel to AP standard codes at IVP-46 (state machine). Known NeoPixel green-transition bug deferred to same IVP.
-- **clang-tidy Integration:** LLVM installed, 127-check config active, first full audit complete (2026-02-09). **All production code fully remediated** across 6 phases (P1-P5f, 1,251 total findings). Only IVP test code remains deferred (~130 findings, will be stripped). Pre-commit enforcement deferred to next cycle.
+- **clang-tidy Integration:** LLVM installed, 127-check config active, first full audit complete (2026-02-09). **All code fully remediated** across 6 phases (P1-P5f, 1,251 total findings). IVP test code stripped — zero deferred findings. Pre-commit enforcement deferred to next cycle.
 
 ---
 
