@@ -30,15 +30,34 @@ Key findings: F' multicore only works on Linux (pthreads). Zephyr has no Cortex-
 
 ---
 
-### 2026-02-08: IVP-31 GPS — COMPLETE ✅
+### 2026-02-08: Stage 4 GPS (IVP-31/32/33) — COMPLETE ✅
 
 **Status:** Hardware-verified, committed
 **Reporter:** Claude Code CLI
 
-IVP-31 complete across 12 build iterations (gps-1 through gps-12c). I2C bus contention resolved: 500us post-read settling delay eliminates 8.4% IMU error rate entirely (0% errors at 10Hz GPS). Auto-detection: delay only active when I2C GPS at 0x10 detected. See LL Entry 24 for isolation test data.
+All Stage 4 IVPs complete. IVP-31 across 12 build iterations (gps-1 through gps-12c). IVP-32 GPS fix confirmed outdoors (PPS lock, lat/lon verified). IVP-33 CLI `s` command shows all GPS states. See LL Entry 24 for I2C contention data.
 
 **NeoPixel green bug** deferred to IVP-46 state engine.
-**Outdoor GPS fix test** still pending — `sats=0` during brief outdoor test.
+
+---
+
+### 2026-02-08: BSS Layout Regression — UNSOLVED, DEFERRED
+
+**Status:** Root cause unknown, does not block current work
+**Reporter:** Claude Code CLI
+
+Adding new static globals (especially with `std::atomic`) to `main.cpp` causes ~30-80% IMU I2C error rate. Investigated this session:
+
+- **`alignas(64)` alone:** Not sufficient (82% errors with dummy atomic struct)
+- **`alignas(64)` + flag grouping into `core_flags_t`:** Also caused errors (~14K reads clean, then degradation)
+- **Baseline `ivp31-gps-12`:** Rock solid (52K+ reads, 0 errors, survives `b` key press)
+- **Minimal change (build tag + printf format only):** Rock solid (68K+ reads, 0 errors)
+
+**Ruled out:** SRAM bank contention via alignment (fix didn't help). Exclusive monitor granule collision (seqlock uses STL not LDREX/STREX — council review).
+
+**Not yet tried:** (1) Move new globals to separate `.cpp` file, (2) `__attribute__((section))` BSS isolation, (3) `.map` file diff between working and broken, (4) BUSCTRL performance counters, (5) `objdump -d` comparison of generated code around seqlock read/write.
+
+**Impact:** Does not block any current IVP. Will matter when Stage 5 (ESKF) needs new cross-core globals. Investigate then.
 
 ---
 

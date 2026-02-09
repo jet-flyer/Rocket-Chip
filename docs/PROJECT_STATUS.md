@@ -4,9 +4,9 @@
 
 ## Current Phase
 
-**IVP Stage 4 IN PROGRESS** — GPS Integration
+**Stage 4 COMPLETE** — GPS Integration
 
-IVP-31 (PA1010D GPS on Core 1) complete and hardware-verified. I2C bus contention resolved with 500us settling delay (0% IMU errors at 10Hz GPS). Next: IVP-32+ or ESKF (IVP-36).
+All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI displays all GPS data from seqlock. Next: Stage 5 ESKF sensor fusion (IVP-34+).
 
 ## Completed
 
@@ -85,14 +85,16 @@ Completed 2026-02-08:
 - [x] Tier 4: RC_ASSERT macro, goto elimination, bare-metal loop/stdio/preprocessor deviation docs
 - **Result:** 220 PASS / 25 PARTIAL/FAIL (90% compliance). Remaining 25 are accepted deviations or deferred to production architecture refactoring.
 
-### Stage 4 Session A: GPS Integration (IVP-31) ✅
+### Stage 4: GPS Integration (IVP-31/32/33) ✅
 
 Hardware-verified 2026-02-08:
 - [x] IVP-31: PA1010D GPS on Core 1 (10Hz read, lwGPS NMEA parsing, seqlock publish, 0% IMU/baro/GPS errors over 5-min soak with 500us I2C settling delay)
+- [x] IVP-32: GPS outdoor fix validation (PPS lock confirmed, lat/lon accuracy verified, IMU/baro rates unchanged)
+- [x] IVP-33: GPS CLI integration (CLI `s` shows fix/no-fix/not-detected states, all data from seqlock, no Core 0 I2C traffic)
 
 ## In Progress
 
-**IVP-31 COMPLETE.** Next: ESKF sensor fusion (IVP-36) or remaining Stage 4 IVPs
+**Stage 4 COMPLETE.** Next: Stage 5 ESKF sensor fusion (IVP-34: Vector3/Quaternion math library)
 
 ## What Exists
 

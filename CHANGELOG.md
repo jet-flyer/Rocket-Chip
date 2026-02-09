@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-08-006 | Claude Code CLI | feature
+
+**IVP-32/33: GPS outdoor validation + CLI integration (Phase 4 complete)**
+
+GPS fix confirmed outdoors (PPS lock, lat/lon accuracy verified). CLI `s` command format polished to match IVP-33 gate wording (`GPS: no fix (N sats)`). BSS layout regression investigated — `alignas(64)` + flag grouping caused new errors; root cause remains unsolved. Deferred to future stage when new cross-core globals are needed. Minimal-change build (`ivp32-33-1`) passes with 68K+ reads, 0 errors.
+
+(`src/main.cpp`)
+
+---
+
 ### 2026-02-08-005 | Claude Code CLI | feature
 
 **IVP-31: PA1010D GPS integration on Core 1 with I2C contention fix**

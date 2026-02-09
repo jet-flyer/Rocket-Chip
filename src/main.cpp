@@ -64,7 +64,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp31-gps-12";
+static const char* kBuildTag = "ivp32-33-1";
 
 // Heartbeat: 100ms on, 900ms off (per IVP-08)
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -1104,9 +1104,8 @@ static void print_sensor_status(void) {
                            snap.gps_fix_type, snap.gps_satellites,
                            (double)snap.gps_ground_speed_mps);
                 } else {
-                    printf("GPS: no fix (type=%u, sats=%u, reads=%lu)\n",
-                           snap.gps_fix_type, snap.gps_satellites,
-                           (unsigned long)snap.gps_read_count);
+                    printf("GPS: no fix (%u sats)\n",
+                           snap.gps_satellites);
                     printf("     RMC=%c GGA=%u GSA=%u\n",
                            snap.gps_rmc_valid ? 'A' : 'V',
                            snap.gps_gga_fix,
