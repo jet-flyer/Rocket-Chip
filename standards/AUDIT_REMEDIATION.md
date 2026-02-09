@@ -32,6 +32,35 @@
 
 ---
 
+## Clang-Tidy Automated Audit Remediation (2026-02-09)
+
+**Source:** `docs/audits/CLANG_TIDY_AUDIT_2026-02-09.md` (1,251 warnings, 127 checks)
+
+| Phase | Scope | Count | Commit |
+|-------|-------|-------|--------|
+| P1 | Safety-critical: widening mult, misplaced cast, missing default, narrowing conversions | 32 | `4407d35` — HW verified (0 errors/117K reads) |
+| P2 | Auto-fix: uppercase suffixes, void args, nullptr, bool literals, using | 354 | `692da81` |
+| P3 | Magic numbers: named constexpr for production code, NOLINT for IVP test | 275 | `5ee49b9` |
+| P4 | Missing braces: JSF AV Rule 59, all if/for/while bodies | 170 | `28dd3dc` |
+| P5 | C-style casts: static_cast/reinterpret_cast per JSF AV Rule 185 | ~80 | `66eb7cb` |
+
+### Remaining (Deferred)
+
+| Category | Count | Rationale |
+|----------|-------|-----------|
+| Identifier naming | 162 | SDK callback constraints (18 in baro_dps310), C-origin code patterns. Fix incrementally as files are touched |
+| Math parentheses | 65 | 55 in Jacobian/matrix arithmetic — correct by standard precedence, parens would reduce readability of linear algebra |
+| Implicit bool conversion | 41 | Cosmetic (`if (ptr)` → `if (ptr != nullptr)`). Fix incrementally |
+| Uninitialized variables | 51 | Many are filled by memset/assignment immediately after declaration. Fix incrementally |
+| Function size | 27 | 20 are IVP test functions (will be stripped). 7 production functions within acceptable limits after D3 decomposition |
+| Cognitive complexity | 15 | 12 are IVP test functions. 3 calibration routines are inherently complex (6-pos fit) |
+
+### IVP Test Code Strategy
+
+IVP test functions in `main.cpp` received NOLINT annotations (magic numbers only) rather than full remediation. This code is temporary test harness — it will be stripped or refactored when the flight state machine replaces the IVP dispatcher. Braces (P4) and casts (P5) were applied everywhere including IVP code since those are mechanical and improve safety regardless of code lifetime.
+
+---
+
 ## GPS snprintf Mitigation (Fix C17 detail)
 
 3 bounded `snprintf` calls in `gps_pa1010d.cpp` for NMEA command formatting. Documented MISRA deviation. Migration path: custom formatters or u-blox UBX binary protocol.

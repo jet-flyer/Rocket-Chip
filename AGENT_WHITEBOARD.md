@@ -62,7 +62,7 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 - **FeatherWing UART GPS:** Adafruit 3133 (PA1616D) on hand. Eliminates I2C contention. New `gps_uart.cpp` driver needed. `g_gpsOnI2C` flag already in place. Blocked on user soldering.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
 - **ArduPilot LED Patterns:** Map NeoPixel to AP standard codes at IVP-46 (state machine). Known NeoPixel green-transition bug deferred to same IVP.
-- **clang-tidy Integration:** LLVM installed, 127-check config active, first full audit complete (2026-02-09). 354 auto-fixable warnings identified. Pre-commit enforcement deferred to next cycle.
+- **clang-tidy Integration:** LLVM installed, 127-check config active, first full audit complete (2026-02-09). Remediation complete: P1 safety-critical (HW verified), P2 auto-fix (354), P3 magic numbers (275), P4 braces (170), P5 casts (~80). Remaining ~370 cosmetic findings deferred (naming, parens, bool, uninit vars). Pre-commit enforcement deferred to next cycle.
 
 ---
 

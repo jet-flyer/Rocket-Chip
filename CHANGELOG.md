@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-09-004 | Claude Code CLI | refactor
+
+**Clang-tidy audit remediation — 5 phases, 911 findings resolved**
+
+P1: Safety-critical fixes (widening multiplication overflow, narrowing conversions, missing default clause) — HW verified 0 errors/117K reads. P2: 354 auto-fixable cosmetic warnings (uppercase suffixes, void args, nullptr, bool literals, using). P3: 275 magic numbers extracted to named constexpr (production code); IVP test code NOLINT'd. P4: 170 missing braces added per JSF AV Rule 59. P5: ~80 C-style casts converted to static_cast/reinterpret_cast per JSF AV Rule 185. Binary size unchanged throughout (198,144 bytes). Remaining ~370 cosmetic findings (naming, parens, implicit bool, uninit vars) documented as deferred in `standards/AUDIT_REMEDIATION.md`.
+
+(all 10 source files, `standards/AUDIT_REMEDIATION.md`)
+
+---
+
 ### 2026-02-09-003 | Claude Code CLI | tooling
 
 **Comprehensive clang-tidy standards audit — 127 checks mapped to JSF AV / P10 / JPL C**
