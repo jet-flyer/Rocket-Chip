@@ -267,52 +267,58 @@ static bool mag_read_reg(icm20948_t* dev, uint8_t reg, uint8_t* value) {
  * 6. Set continuous measurement mode
  * 7. Configure SLV0 for automatic reads
  */
-static bool init_magnetometer(icm20948_t* dev) {
-    // 1. Clear BYPASS_EN — required before enabling I2C master
-    uint8_t int_pin_cfg;
-    if (!read_bank_reg(dev, 0, bank0::kIntPinCfg, &int_pin_cfg)) {
+// Enable ICM-20948 internal I2C master for AK09916 communication
+static bool enable_i2c_master(icm20948_t* dev) {
+    // Clear BYPASS_EN — required before enabling I2C master
+    uint8_t intPinCfg = 0;
+    if (!read_bank_reg(dev, 0, bank0::kIntPinCfg, &intPinCfg)) {
         return false;
     }
-    int_pin_cfg &= ~bit::kBypassEn;
-    if (!write_bank_reg(dev, 0, bank0::kIntPinCfg, int_pin_cfg)) {
+    intPinCfg &= ~bit::kBypassEn;
+    if (!write_bank_reg(dev, 0, bank0::kIntPinCfg, intPinCfg)) {
         return false;
     }
 
-    // 2. Configure I2C master clock + P_NSR
+    // Configure I2C master clock + P_NSR
     if (!write_bank_reg(dev, 3, bank3::kI2cMstCtrl, kI2cMstClkPnsr)) {
         return false;
     }
 
-    // 3. Enable I2C master
+    // Enable I2C master
     if (!write_bank_reg(dev, 0, bank0::kUserCtrl, bit::kI2cMstEn)) {
         return false;
     }
     sleep_ms(kInitStepDelayMs);
+    return true;
+}
 
-    // 4. Reset magnetometer
+// Reset AK09916, verify WHO_AM_I, set continuous 100Hz mode, configure SLV0
+static bool configure_magnetometer(icm20948_t* dev) {
+    // Reset magnetometer
     if (!mag_write_reg(dev, ak09916::kCntl3, 0x01)) {
         return false;
     }
     sleep_ms(kResetSettleMs);
 
-    // 5. Verify WHO_AM_I with retry (per SparkFun)
-    bool mag_found = false;
+    // Verify WHO_AM_I with retry (per SparkFun)
+    bool magFound = false;
     for (uint8_t tries = 0; tries < kMagRetries; tries++) {
-        uint8_t wia2;
+        uint8_t wia2 = 0;
         if (mag_read_reg(dev, ak09916::kWia2, &wia2) && wia2 == kAk09916WhoAmI) {
-            mag_found = true;
+            magFound = true;
             break;
         }
-        // Reset I2C master and retry
         if (!write_bank_reg(dev, 0, bank0::kUserCtrl,
-                            bit::kI2cMstEn | bit::kI2cMstRst)) return false;
+                            bit::kI2cMstEn | bit::kI2cMstRst)) {
+            return false;
+        }
         sleep_ms(kInitStepDelayMs);
     }
-    if (!mag_found) {
+    if (!magFound) {
         return false;
     }
 
-    // 6. Set continuous 100Hz mode (shutdown first per Adafruit pattern)
+    // Set continuous 100Hz mode (shutdown first per Adafruit pattern)
     if (!mag_write_reg(dev, ak09916::kCntl2, AK09916_MODE_POWER_DOWN)) {
         return false;
     }
@@ -322,16 +328,22 @@ static bool init_magnetometer(icm20948_t* dev) {
     }
     sleep_ms(kInitStepDelayMs);
 
-    // 7. Configure SLV0 for continuous reads from ST1
+    // Configure SLV0 for continuous reads from ST1
     // ST1(1) + HXL/HXH/HYL/HYH/HZL/HZH(6) + dummy(1) + ST2(1)
-    if (!mag_config_read(dev, ak09916::kSt1, kMagExtReadSize)) {
+    return mag_config_read(dev, ak09916::kSt1, kMagExtReadSize);
+}
+
+static bool init_magnetometer(icm20948_t* dev) {
+    if (!enable_i2c_master(dev)) {
+        return false;
+    }
+    if (!configure_magnetometer(dev)) {
         return false;
     }
 
     dev->mag_initialized = true;
     dev->mag_mode = AK09916_MODE_CONT_100HZ;
     dev->mag_scale = kMagScale;
-
     return true;
 }
 
@@ -339,28 +351,19 @@ static bool init_magnetometer(icm20948_t* dev) {
 // Public Functions
 // ============================================================================
 
-bool icm20948_init(icm20948_t* dev, uint8_t addr) {
-    if (dev == nullptr) {
-        return false;
-    }
-
-    memset(dev, 0, sizeof(icm20948_t));
-    dev->addr = addr;
-
-    // Check WHO_AM_I
-    uint8_t who_am_i;
+// Verify WHO_AM_I, reset device, and wake into active mode
+static bool reset_and_wake(icm20948_t* dev) {
+    uint8_t whoAmI = 0;
     if (!select_bank(dev, 0)) {
         return false;
     }
-    if (i2c_bus_read_reg(addr, bank0::kWhoAmI, &who_am_i) != 0) {
+    if (i2c_bus_read_reg(dev->addr, bank0::kWhoAmI, &whoAmI) != 0) {
+        return false;
+    }
+    if (whoAmI != kIcm20948WhoAmI) {
         return false;
     }
 
-    if (who_am_i != kIcm20948WhoAmI) {
-        return false;
-    }
-
-    // Reset device
     if (!icm20948_reset(dev)) {
         return false;
     }
@@ -373,7 +376,18 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
     sleep_ms(kWakeSettleMs);
 
     // Enable all sensors
-    if (!write_bank_reg(dev, 0, bank0::kPwrMgmt2, 0x00)) {
+    return write_bank_reg(dev, 0, bank0::kPwrMgmt2, 0x00);
+}
+
+bool icm20948_init(icm20948_t* dev, uint8_t addr) {
+    if (dev == nullptr) {
+        return false;
+    }
+
+    memset(dev, 0, sizeof(icm20948_t));
+    dev->addr = addr;
+
+    if (!reset_and_wake(dev)) {
         return false;
     }
 
@@ -388,20 +402,14 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
         return false;
     }
 
-    // Initialize magnetometer
     // Initialize magnetometer with retries (intermittent after reboot)
-    for (uint8_t mag_attempt = 0; mag_attempt < kMagInitRetries; mag_attempt++) {
+    for (uint8_t magAttempt = 0; magAttempt < kMagInitRetries; magAttempt++) {
         if (init_magnetometer(dev)) {
             break;
         }
-        // Reset I2C master and retry
         write_bank_reg(dev, 0, bank0::kUserCtrl,
                        bit::kI2cMstEn | bit::kI2cMstRst);
         sleep_ms(kWakeSettleMs);
-    }
-    if (!dev->mag_initialized) {
-        // Mag init failure is not fatal - continue without mag
-        dev->mag_initialized = false;
     }
 
     dev->initialized = true;
@@ -413,15 +421,15 @@ bool icm20948_ready(icm20948_t* dev) {
         return false;
     }
 
-    uint8_t who_am_i;
+    uint8_t whoAmI = 0;
     if (!select_bank(dev, 0)) {
         return false;
     }
-    if (i2c_bus_read_reg(dev->addr, bank0::kWhoAmI, &who_am_i) != 0) {
+    if (i2c_bus_read_reg(dev->addr, bank0::kWhoAmI, &whoAmI) != 0) {
         return false;
     }
 
-    return who_am_i == kIcm20948WhoAmI;
+    return whoAmI == kIcm20948WhoAmI;
 }
 
 bool icm20948_reset(icm20948_t* dev) {
@@ -444,7 +452,7 @@ bool icm20948_set_accel_fs(icm20948_t* dev, icm20948_accel_fs_t fs) {
         return false;
     }
 
-    uint8_t config;
+    uint8_t config = 0;
     if (!read_bank_reg(dev, 2, bank2::kAccelConfig, &config)) {
         return false;
     }
@@ -465,7 +473,7 @@ bool icm20948_set_gyro_fs(icm20948_t* dev, icm20948_gyro_fs_t fs) {
         return false;
     }
 
-    uint8_t config;
+    uint8_t config = 0;
     if (!read_bank_reg(dev, 2, bank2::kGyroConfig1, &config)) {
         return false;
     }
@@ -498,7 +506,7 @@ bool icm20948_set_low_power(icm20948_t* dev, bool enable) {
         return false;
     }
 
-    uint8_t pwr;
+    uint8_t pwr = 0;
     if (!read_bank_reg(dev, 0, bank0::kPwrMgmt1, &pwr)) {
         return false;
     }
@@ -563,14 +571,14 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     data->gyro.z = static_cast<float>(gz) * dev->gyro_scale;
     data->gyro_valid = true;
 
-    int16_t temp_raw = static_cast<int16_t>((buf[12] << 8) | buf[13]);
-    data->temperature_c = (static_cast<float>(temp_raw) / kTempSensitivity) + kTempOffset;
+    int16_t tempRaw = static_cast<int16_t>((buf[12] << 8) | buf[13]);
+    data->temperature_c = (static_cast<float>(tempRaw) / kTempSensitivity) + kTempOffset;
 
     if (dev->mag_initialized) {
         uint8_t st1 = buf[14];
         uint8_t st2 = buf[22];
 
-        if ((st1 & ak09916::kSt1Drdy) && !(st2 & ak09916::kSt2Hofl)) {
+        if ((st1 & ak09916::kSt1Drdy) != 0 && (st2 & ak09916::kSt2Hofl) == 0) {
             int16_t mx = static_cast<int16_t>((buf[16] << 8) | buf[15]);  // Little-endian
             int16_t my = static_cast<int16_t>((buf[18] << 8) | buf[17]);
             int16_t mz = static_cast<int16_t>((buf[20] << 8) | buf[19]);
@@ -666,7 +674,7 @@ bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag) {
     uint8_t st1 = buf[0];
     uint8_t st2 = buf[8];
 
-    if (!(st1 & ak09916::kSt1Drdy) || (st2 & ak09916::kSt2Hofl)) {
+    if ((st1 & ak09916::kSt1Drdy) == 0 || (st2 & ak09916::kSt2Hofl) != 0) {
         return false;  // Not ready or overflow
     }
 
@@ -697,13 +705,13 @@ bool icm20948_read_temperature(icm20948_t* dev, float* temp_c) {
         return false;
     }
 
-    int16_t temp_raw = static_cast<int16_t>((buf[0] << 8) | buf[1]);
-    *temp_c = (static_cast<float>(temp_raw) / kTempSensitivity) + kTempOffset;
+    int16_t tempRaw = static_cast<int16_t>((buf[0] << 8) | buf[1]);
+    *temp_c = (static_cast<float>(tempRaw) / kTempSensitivity) + kTempOffset;
 
     return true;
 }
 
-bool icm20948_data_ready(icm20948_t* dev, bool* accel_ready, bool* gyro_ready) {
+bool icm20948_dataReady(icm20948_t* dev, bool* accelReady, bool* gyroReady) {
     if (dev == nullptr || !dev->initialized) {
         return false;
     }
@@ -712,19 +720,19 @@ bool icm20948_data_ready(icm20948_t* dev, bool* accel_ready, bool* gyro_ready) {
         return false;
     }
 
-    uint8_t status;
+    uint8_t status = 0;
     if (i2c_bus_read_reg(dev->addr, bank0::kIntStatus1, &status) != 0) {
         return false;
     }
 
     // Bit 0 is RAW_DATA_0_RDY_INT (accel and gyro share this)
-    bool data_ready = (status & 0x01) != 0;
+    bool dataReady = (status & 0x01) != 0;
 
-    if (accel_ready) {
-        *accel_ready = data_ready;
+    if (accelReady != nullptr) {
+        *accelReady = dataReady;
     }
-    if (gyro_ready) {
-        *gyro_ready = data_ready;
+    if (gyroReady != nullptr) {
+        *gyroReady = dataReady;
     }
 
     return true;
@@ -736,16 +744,16 @@ bool icm20948_set_i2c_master_enable(icm20948_t* dev, bool enable) {
     }
 
     // Read current USER_CTRL, modify I2C_MST_EN bit
-    uint8_t user_ctrl;
-    if (!read_bank_reg(dev, 0, bank0::kUserCtrl, &user_ctrl)) {
+    uint8_t userCtrl = 0;
+    if (!read_bank_reg(dev, 0, bank0::kUserCtrl, &userCtrl)) {
         return false;
     }
 
     if (enable) {
-        user_ctrl |= bit::kI2cMstEn;
+        userCtrl |= bit::kI2cMstEn;
     } else {
-        user_ctrl &= ~bit::kI2cMstEn;
+        userCtrl &= ~bit::kI2cMstEn;
     }
 
-    return write_bank_reg(dev, 0, bank0::kUserCtrl, user_ctrl);
+    return write_bank_reg(dev, 0, bank0::kUserCtrl, userCtrl);
 }

@@ -72,14 +72,14 @@ bool baro_dps310_read(baro_dps310_data_t* data);
  * @brief Set sea level pressure for altitude calculation
  * @param pressure_pa Sea level pressure in Pascals (default 101325)
  */
-void baro_dps310_set_sea_level(float pressure_pa);
+void baro_dps310_set_sea_level(float pressurePa);
 
 /**
  * @brief Calculate altitude from pressure
- * @param pressure_pa Current pressure in Pascals
- * @param sea_level_pa Sea level pressure in Pascals
+ * @param pressurePa Current pressure in Pascals
+ * @param seaLevelPa Sea level pressure in Pascals
  * @return Altitude in meters
  */
-float baro_dps310_pressure_to_altitude(float pressure_pa, float sea_level_pa);
+float baro_dps310_pressure_to_altitude(float pressurePa, float seaLevelPa);
 
 #endif // ROCKETCHIP_BARO_DPS310_H

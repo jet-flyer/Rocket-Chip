@@ -90,16 +90,16 @@ static void print_system_status() {
     const calibration_store_t* cal = calibration_manager_get();
     printf("----------------------------------------\n");
     printf("Calibration Status:\n");
-    printf("  Gyro:  %s\n", (cal->cal_flags & CAL_STATUS_GYRO) ? "OK" : "NOT DONE");
-    if (cal->cal_flags & CAL_STATUS_ACCEL_6POS) {
+    printf("  Gyro:  %s\n", (cal->cal_flags & CAL_STATUS_GYRO) != 0 ? "OK" : "NOT DONE");
+    if ((cal->cal_flags & CAL_STATUS_ACCEL_6POS) != 0) {
         printf("  Accel: 6POS\n");
-    } else if (cal->cal_flags & CAL_STATUS_LEVEL) {
+    } else if ((cal->cal_flags & CAL_STATUS_LEVEL) != 0) {
         printf("  Accel: LEVEL\n");
     } else {
         printf("  Accel: NOT DONE\n");
     }
-    printf("  Baro:  %s\n", (cal->cal_flags & CAL_STATUS_BARO) ? "OK" : "NOT DONE");
-    printf("  Mag:   %s\n", (cal->cal_flags & CAL_STATUS_MAG) ? "OK" : "NOT DONE");
+    printf("  Baro:  %s\n", (cal->cal_flags & CAL_STATUS_BARO) != 0 ? "OK" : "NOT DONE");
+    printf("  Mag:   %s\n", (cal->cal_flags & CAL_STATUS_MAG) != 0 ? "OK" : "NOT DONE");
 
     printf("----------------------------------------\n");
     printf("Commands:\n");
@@ -285,84 +285,122 @@ static bool wait_for_enter_or_esc() {
     }
 }
 
+// Collect one position with retries. Returns true on success, false on abort/failure.
+static bool collect_6pos_position(uint8_t pos) {
+    printf("--- Position %d/%d: %s ---\n", pos + 1, kAccel6posNumPositions,
+           calibration_get_6pos_name(pos));
+    printf("  %s\n", kPositionInstructions[pos]);
+    printf("  Press ENTER when ready...\n");
+    fflush(stdout);
+
+    if (!wait_for_enter_or_esc()) {
+        return false;
+    }
+
+    printf("  Sampling... hold still");
+    fflush(stdout);
+
+    for (uint8_t retry = 0; retry < kAccel6posMaxRetries; retry++) {
+        cal_result_t result = calibration_collect_6pos_position(pos, rc_os_read_accel);
+
+        if (result == CAL_RESULT_OK) {
+            const float* avg = calibration_get_6pos_avg(pos);
+            printf(" OK!\n");
+            printf("  Avg: X=%.2f Y=%.2f Z=%.2f\n",
+                   (double)avg[0], (double)avg[1], (double)avg[2]);
+            return true;
+        }
+
+        const char* errMsg = nullptr;
+        if (result == CAL_RESULT_MOTION_DETECTED) {
+            errMsg = "Motion detected! Hold still and try again.";
+        } else if (result == CAL_RESULT_INVALID_DATA) {
+            printf("\n  Orientation doesn't match expected: %s\n",
+                   calibration_get_6pos_name(pos));
+            errMsg = "Please reposition the board correctly.";
+        } else {
+            printf("\n  ERROR: Failed to read sensor (%d)\n", result);
+            return false;
+        }
+
+        printf("\n  %s\n", errMsg);
+        if (retry < kAccel6posMaxRetries - 1) {
+            printf("  Press ENTER to retry (%d/%d)...\n",
+                   retry + 2, kAccel6posMaxRetries);
+            fflush(stdout);
+            if (!wait_for_enter_or_esc()) {
+                return false;
+            }
+            printf("  Sampling... hold still");
+            fflush(stdout);
+        }
+    }
+
+    printf("  Failed after %d attempts.\n", kAccel6posMaxRetries);
+    return false;
+}
+
+// Print 6-pos calibration results and verify with live samples.
+static void print_6pos_results() {
+    const calibration_store_t* cal = calibration_manager_get();
+    printf("Results:\n");
+    printf("  Offset: X=%.4f Y=%.4f Z=%.4f\n",
+           (double)cal->accel.offset.x,
+           (double)cal->accel.offset.y,
+           (double)cal->accel.offset.z);
+    printf("  Scale:  X=%.4f Y=%.4f Z=%.4f\n",
+           (double)cal->accel.scale.x,
+           (double)cal->accel.scale.y,
+           (double)cal->accel.scale.z);
+    printf("  Offdiag: XY=%.4f XZ=%.4f YZ=%.4f\n",
+           (double)cal->accel.offdiag.x,
+           (double)cal->accel.offdiag.y,
+           (double)cal->accel.offdiag.z);
+
+    printf("\nVerification (%d live samples):\n", kVerifySampleCount);
+    float magSum = 0.0F;
+    uint8_t goodReads = 0;
+    for (uint8_t i = 0; i < kVerifySampleCount; i++) {
+        float ax = 0.0F;
+        float ay = 0.0F;
+        float az = 0.0F;
+        float temp = 0.0F;
+        if (rc_os_read_accel(&ax, &ay, &az, &temp)) {
+            float cx = 0.0F;
+            float cy = 0.0F;
+            float cz = 0.0F;
+            calibration_apply_accel(ax, ay, az, &cx, &cy, &cz);
+            float mag = sqrtf(cx*cx + cy*cy + cz*cz);
+            magSum += mag;
+            goodReads++;
+        }
+    }
+    if (goodReads > 0) {
+        float avgMag = magSum / static_cast<float>(goodReads);
+        printf("  Avg gravity magnitude: %.4f m/s^2 (expected 9.8067)\n",
+               (double)avgMag);
+        float error = fabsf(avgMag - kAccel6posGravityNominal);
+        if (error < kAccel6posVerifyTolerance) {
+            printf("  PASS (error %.4f < %.2f)\n",
+                   (double)error, (double)kAccel6posVerifyTolerance);
+        } else {
+            printf("  WARNING: error %.4f > %.2f threshold\n",
+                   (double)error, (double)kAccel6posVerifyTolerance);
+        }
+    }
+}
+
 // Inner body of 6-position calibration. Returns on error or completion.
 // Caller (cmd_accel_6pos_cal) guarantees pre/post hook execution.
 static void cmd_accel_6pos_cal_inner() {
     calibration_reset_6pos();
 
     for (uint8_t pos = 0; pos < kAccel6posNumPositions; pos++) {
-        printf("--- Position %d/%d: %s ---\n", pos + 1, kAccel6posNumPositions,
-               calibration_get_6pos_name(pos));
-        printf("  %s\n", kPositionInstructions[pos]);
-        printf("  Press ENTER when ready...\n");
-        fflush(stdout);
-
-        if (!wait_for_enter_or_esc()) {
+        if (!collect_6pos_position(pos)) {
             calibration_reset_6pos();
             printf("Calibration aborted.\n");
             return;
         }
-
-        printf("  Sampling... hold still");
-        fflush(stdout);
-
-        cal_result_t result = CAL_RESULT_INVALID_DATA;
-        for (uint8_t retry = 0; retry < kAccel6posMaxRetries; retry++) {
-            result = calibration_collect_6pos_position(pos, rc_os_read_accel);
-
-            if (result == CAL_RESULT_OK) {
-                const float* avg = calibration_get_6pos_avg(pos);
-                printf(" OK!\n");
-                printf("  Avg: X=%.2f Y=%.2f Z=%.2f\n",
-                       (double)avg[0], (double)avg[1], (double)avg[2]);
-                break;
-            }
-
-            if (result == CAL_RESULT_MOTION_DETECTED) {
-                printf("\n  Motion detected! Hold still and try again.\n");
-                if (retry < kAccel6posMaxRetries - 1) {
-                    printf("  Press ENTER to retry (%d/%d)...\n",
-                           retry + 2, kAccel6posMaxRetries);
-                    fflush(stdout);
-                    if (!wait_for_enter_or_esc()) {
-                        calibration_reset_6pos();
-                        printf("Calibration aborted.\n");
-                        return;
-                    }
-                    printf("  Sampling... hold still");
-                    fflush(stdout);
-                }
-            } else if (result == CAL_RESULT_INVALID_DATA) {
-                printf("\n  Orientation doesn't match expected: %s\n",
-                       calibration_get_6pos_name(pos));
-                printf("  Please reposition the board correctly.\n");
-                if (retry < kAccel6posMaxRetries - 1) {
-                    printf("  Press ENTER to retry (%d/%d)...\n",
-                           retry + 2, kAccel6posMaxRetries);
-                    fflush(stdout);
-                    if (!wait_for_enter_or_esc()) {
-                        calibration_reset_6pos();
-                        printf("Calibration aborted.\n");
-                        return;
-                    }
-                    printf("  Sampling... hold still");
-                    fflush(stdout);
-                }
-            } else {
-                printf("\n  ERROR: Failed to read sensor (%d)\n", result);
-                calibration_reset_6pos();
-                printf("Calibration aborted.\n");
-                return;
-            }
-        }
-
-        if (result != CAL_RESULT_OK) {
-            printf("  Failed after %d attempts.\n", kAccel6posMaxRetries);
-            calibration_reset_6pos();
-            printf("Calibration aborted.\n");
-            return;
-        }
-
         printf("\n");
     }
 
@@ -371,77 +409,28 @@ static void cmd_accel_6pos_cal_inner() {
     printf("Computing ellipsoid fit...");
     fflush(stdout);
 
-    cal_result_t fit_result = calibration_compute_6pos();
-    if (fit_result != CAL_RESULT_OK) {
-        printf(" FAILED (%d)\n", fit_result);
+    cal_result_t fitResult = calibration_compute_6pos();
+    if (fitResult != CAL_RESULT_OK) {
+        printf(" FAILED (%d)\n", fitResult);
         printf("Ellipsoid fit did not converge or params out of range.\n");
         calibration_reset_6pos();
         return;
     }
     printf(" OK!\n\n");
 
-    // Print results
-    {
-        const calibration_store_t* cal = calibration_manager_get();
-        printf("Results:\n");
-        printf("  Offset: X=%.4f Y=%.4f Z=%.4f\n",
-               (double)cal->accel.offset.x,
-               (double)cal->accel.offset.y,
-               (double)cal->accel.offset.z);
-        printf("  Scale:  X=%.4f Y=%.4f Z=%.4f\n",
-               (double)cal->accel.scale.x,
-               (double)cal->accel.scale.y,
-               (double)cal->accel.scale.z);
-        printf("  Offdiag: XY=%.4f XZ=%.4f YZ=%.4f\n",
-               (double)cal->accel.offdiag.x,
-               (double)cal->accel.offdiag.y,
-               (double)cal->accel.offdiag.z);
-    }
-
-    // Verification: read a few live samples and show corrected gravity magnitude
-    printf("\nVerification (%d live samples):\n", kVerifySampleCount);
-    {
-        float mag_sum = 0.0F;
-        uint8_t good_reads = 0;
-        for (uint8_t i = 0; i < kVerifySampleCount; i++) {
-            float ax, ay, az, temp;
-            if (rc_os_read_accel(&ax, &ay, &az, &temp)) {
-                float cx, cy, cz;
-                calibration_apply_accel(ax, ay, az, &cx, &cy, &cz);
-                float mag = sqrtf(cx*cx + cy*cy + cz*cz);
-                mag_sum += mag;
-                good_reads++;
-            }
-        }
-        if (good_reads > 0) {
-            float avg_mag = mag_sum / static_cast<float>(good_reads);
-            printf("  Avg gravity magnitude: %.4f m/s^2 (expected 9.8067)\n",
-                   (double)avg_mag);
-            float error = fabsf(avg_mag - kAccel6posGravityNominal);
-            if (error < kAccel6posVerifyTolerance) {
-                printf("  PASS (error %.4f < %.2f)\n",
-                       (double)error, (double)kAccel6posVerifyTolerance);
-            } else {
-                printf("  WARNING: error %.4f > %.2f threshold\n",
-                       (double)error, (double)kAccel6posVerifyTolerance);
-            }
-        }
-    }
+    print_6pos_results();
 
     // Auto-save to flash
     printf("\nSaving to flash...");
     fflush(stdout);
-    {
-        cal_result_t save_result = calibration_save();
-        if (save_result == CAL_RESULT_OK) {
-            printf(" OK!\n");
-            // Flash ops can disrupt I2C bus state — recover so subsequent reads work
-            if (!i2c_bus_reset()) {
-                printf("[WARN] I2C bus reset failed after save\n");
-            }
-        } else {
-            printf(" FAILED (%d)\n", save_result);
+    cal_result_t saveResult = calibration_save();
+    if (saveResult == CAL_RESULT_OK) {
+        printf(" OK!\n");
+        if (!i2c_bus_reset()) {
+            printf("[WARN] I2C bus reset failed after save\n");
         }
+    } else {
+        printf(" FAILED (%d)\n", saveResult);
     }
 
     printf("\n6-position accel calibration complete.\n");
@@ -470,12 +459,12 @@ static void cmd_accel_6pos_cal() {
     printf("========================================\n\n");
 
     // Disable I2C master before rapid accel reads (prevents bank-switching race)
-    if (rc_os_cal_pre_hook) { rc_os_cal_pre_hook(); }
+    if (rc_os_cal_pre_hook != nullptr) { rc_os_cal_pre_hook(); }
 
     cmd_accel_6pos_cal_inner();
 
     // Re-enable I2C master for normal operation (mag reads)
-    if (rc_os_cal_post_hook) { rc_os_cal_post_hook(); }
+    if (rc_os_cal_post_hook != nullptr) { rc_os_cal_post_hook(); }
 }
 
 static void cmd_wizard() {
@@ -544,7 +533,7 @@ static void handle_main_menu(int c) {
 
         case 's':
         case 'S':
-            if (rc_os_print_sensor_status) {
+            if (rc_os_print_sensor_status != nullptr) {
                 rc_os_print_sensor_status();
             } else {
                 printf("Sensor status not available.\n");
@@ -563,7 +552,7 @@ static void handle_main_menu(int c) {
 
         case 'b':
         case 'B':
-            if (rc_os_print_boot_summary) {
+            if (rc_os_print_boot_summary != nullptr) {
                 rc_os_print_boot_summary();
             } else {
                 printf("Boot summary not available.\n");
@@ -582,7 +571,7 @@ static void handle_main_menu(int c) {
             break;
 
         default:
-            if (rc_os_on_unhandled_key) {
+            if (rc_os_on_unhandled_key != nullptr) {
                 rc_os_on_unhandled_key(c);
             }
             break;

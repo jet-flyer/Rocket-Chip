@@ -45,7 +45,7 @@ typedef enum {
  * Implementation should block until a fresh sample is available (~10ms).
  * @return true on success
  */
-typedef bool (*accel_read_fn)(float* ax, float* ay, float* az, float* temp_c);
+typedef bool (*accel_read_fn)(float* ax, float* ay, float* az, float* tempC);
 
 // ============================================================================
 // Initialization
@@ -83,9 +83,9 @@ cal_result_t calibration_start_gyro(void);
  * @brief Feed gyro sample during calibration
  *
  * @param gx, gy, gz Gyro readings in rad/s
- * @param temperature_c Temperature in °C
+ * @param temperatureC Temperature in °C
  */
-void calibration_feed_gyro(float gx, float gy, float gz, float temperature_c);
+void calibration_feed_gyro(float gx, float gy, float gz, float temperatureC);
 
 // ============================================================================
 // Accelerometer Level Calibration (IVP-16)
@@ -101,7 +101,7 @@ cal_result_t calibration_start_accel_level(void);
 /**
  * @brief Feed accel sample during calibration
  */
-void calibration_feed_accel(float ax, float ay, float az, float temperature_c);
+void calibration_feed_accel(float ax, float ay, float az, float temperatureC);
 
 // ============================================================================
 // Barometer Calibration
@@ -117,7 +117,7 @@ cal_result_t calibration_start_baro(void);
 /**
  * @brief Feed baro sample during calibration
  */
-void calibration_feed_baro(float pressure_pa, float temperature_c);
+void calibration_feed_baro(float pressurePa, float temperatureC);
 
 // ============================================================================
 // Calibration Control
@@ -164,7 +164,7 @@ cal_result_t calibration_get_result(void);
  *         CAL_RESULT_MOTION_DETECTED if device moved,
  *         CAL_RESULT_INVALID_DATA if orientation doesn't match expected
  */
-cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_fn);
+cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn readFn);
 
 /**
  * @brief Run Gauss-Newton ellipsoid fit on collected 6-pos data
@@ -237,7 +237,7 @@ bool calibration_load_into(calibration_store_t* dest);
 /**
  * @brief Get altitude above ground from pressure
  */
-float calibration_get_altitude_agl(float pressure_pa);
+float calibration_get_altitude_agl(float pressurePa);
 
 // ============================================================================
 // Storage

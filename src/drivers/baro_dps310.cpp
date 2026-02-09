@@ -30,9 +30,11 @@ static uint8_t g_i2c_addr = 0;
 static float g_sea_level_pa = kStdAtmPressurePa;
 
 // Forward declarations for callbacks
+// NOLINTBEGIN(readability-identifier-naming) — params match ruuvi dps310 callback typedef
 static void pico_sleep(uint32_t ms);
 static uint32_t pico_read(const void* comm_ctx, uint8_t reg_addr, uint8_t* data, uint8_t data_len);
 static uint32_t pico_write(const void* comm_ctx, uint8_t reg_addr, const uint8_t* data, uint8_t data_len);
+// NOLINTEND(readability-identifier-naming)
 
 // DPS310 context - suppress missing-field-initializers for third-party struct
 #pragma GCC diagnostic push
@@ -54,14 +56,15 @@ static void pico_sleep(uint32_t ms) {
     sleep_ms(ms);
 }
 
+// NOLINTBEGIN(readability-identifier-naming) — params match ruuvi dps310 callback typedef
 static uint32_t pico_read(const void* comm_ctx, uint8_t reg_addr, uint8_t* data, uint8_t data_len) {
-    const uint8_t* addr = (const uint8_t*)comm_ctx;
+    const auto* addr = static_cast<const uint8_t*>(comm_ctx);
     int ret = i2c_bus_read_regs(*addr, reg_addr, data, data_len);
     return (ret == data_len) ? 0 : DPS310_BUS_ERROR;
 }
 
 static uint32_t pico_write(const void* comm_ctx, uint8_t reg_addr, const uint8_t* data, uint8_t data_len) {
-    const uint8_t* addr = (const uint8_t*)comm_ctx;
+    const auto* addr = static_cast<const uint8_t*>(comm_ctx);
 
     // For single byte writes, use the simple register write
     if (data_len == 1) {
@@ -81,6 +84,7 @@ static uint32_t pico_write(const void* comm_ctx, uint8_t reg_addr, const uint8_t
     int ret = i2c_bus_write(*addr, buf, data_len + 1);
     return (ret == (int)(data_len + 1)) ? 0 : DPS310_BUS_ERROR;
 }
+// NOLINTEND(readability-identifier-naming)
 
 // ============================================================================
 // Public API
@@ -144,11 +148,11 @@ bool baro_dps310_read(baro_dps310_data_t* data) {
     return true;
 }
 
-void baro_dps310_set_sea_level(float pressure_pa) {
-    g_sea_level_pa = pressure_pa;
+void baro_dps310_set_sea_level(float pressurePa) {
+    g_sea_level_pa = pressurePa;
 }
 
-float baro_dps310_pressure_to_altitude(float pressure_pa, float sea_level_pa) {
+float baro_dps310_pressure_to_altitude(float pressurePa, float seaLevelPa) {
     // Barometric formula: h = 44330 * (1 - (P/P0)^0.1903)
-    return kHypsometricScale * (1.0F - powf(pressure_pa / sea_level_pa, kHypsometricExponent));
+    return kHypsometricScale * (1.0F - powf(pressurePa / seaLevelPa, kHypsometricExponent));
 }

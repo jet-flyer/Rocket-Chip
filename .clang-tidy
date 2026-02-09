@@ -207,7 +207,10 @@ Checks: >
   readability-inconsistent-declaration-parameter-name,
   readability-isolate-declaration,
   readability-magic-numbers,
-  readability-math-missing-parentheses,
+  # DISABLED: readability-math-missing-parentheses — stricter than JSF AV Rule 213,
+  # which explicitly allows arithmetic precedence ("below arithmetic operators").
+  # CERT SEI EXP00-C-EX1 confirms: algebraic order parens are redundant.
+  # ArduPilot's AP_Math (our upstream reference) relies on * before + throughout.
   readability-misleading-indentation,
   readability-misplaced-array-index,
   readability-named-parameter,

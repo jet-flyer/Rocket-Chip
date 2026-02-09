@@ -813,17 +813,17 @@ static void core1_read_gps(shared_sensor_data_t* localData,
 
     localData->gps_lat_1e7 = static_cast<int32_t>(lat * kGpsCoordScale);
     localData->gps_lon_1e7 = static_cast<int32_t>(lon * kGpsCoordScale);
-    localData->gps_alt_msl_m = gpsData.altitude_m;
-    localData->gps_ground_speed_mps = gpsData.speed_mps;
-    localData->gps_course_deg = gpsData.course_deg;
+    localData->gps_alt_msl_m = gpsData.altitudeM;
+    localData->gps_ground_speed_mps = gpsData.speedMps;
+    localData->gps_course_deg = gpsData.courseDeg;
     localData->gps_timestamp_us = gpsNowUs;
     localData->gps_read_count++;
     localData->gps_fix_type = static_cast<uint8_t>(gpsData.fix);
     localData->gps_satellites = gpsData.satellites;
     localData->gps_valid = gpsData.valid;
-    localData->gps_gga_fix = gpsData.gga_fix;
-    localData->gps_gsa_fix_mode = gpsData.gsa_fix_mode;
-    localData->gps_rmc_valid = gpsData.rmc_valid;
+    localData->gps_gga_fix = gpsData.ggaFix;
+    localData->gps_gsa_fix_mode = gpsData.gsaFixMode;
+    localData->gps_rmc_valid = gpsData.rmcValid;
 
     if (!parsed) {
         localData->gps_error_count++;
@@ -1091,6 +1091,120 @@ static void ivp_test_key_handler(int key) {
 // Sensor Status Callback (for RC_OS CLI 's' command)
 // ============================================================================
 
+// Print sensor data from seqlock snapshot (Core 1 driving sensors)
+static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
+    if (snap.accel_valid) {
+        printf("Accel (m/s^2): X=%7.3f Y=%7.3f Z=%7.3f\n",
+               (double)snap.accel_x, (double)snap.accel_y, (double)snap.accel_z);
+    } else {
+        printf("Accel: invalid\n");
+    }
+    if (snap.gyro_valid) {
+        printf("Gyro  (rad/s): X=%7.4f Y=%7.4f Z=%7.4f\n",
+               (double)snap.gyro_x, (double)snap.gyro_y, (double)snap.gyro_z);
+    } else {
+        printf("Gyro: invalid\n");
+    }
+    if (snap.mag_valid) {
+        printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f\n",
+               (double)snap.mag_x, (double)snap.mag_y, (double)snap.mag_z);
+    } else {
+        printf("Mag: not ready\n");
+    }
+    if (snap.baro_valid) {
+        float alt = calibration_get_altitude_agl(snap.pressure_pa);
+        printf("Baro: %.1f Pa, %.2f C, AGL=%.2f m\n",
+               (double)snap.pressure_pa, (double)snap.baro_temperature_c,
+               (double)alt);
+    } else {
+        printf("Baro: no data yet\n");
+    }
+    // GPS
+    if (snap.gps_read_count > 0) {
+        if (snap.gps_valid) {
+            printf("GPS: %.7f, %.7f, %.1f m MSL\n",
+                   snap.gps_lat_1e7 / 1e7,
+                   snap.gps_lon_1e7 / 1e7,
+                   (double)snap.gps_alt_msl_m);
+            printf("     Fix=%u Sats=%u Speed=%.1f m/s\n",
+                   snap.gps_fix_type, snap.gps_satellites,
+                   (double)snap.gps_ground_speed_mps);
+        } else {
+            printf("GPS: no fix (%u sats)\n",
+                   snap.gps_satellites);
+            printf("     RMC=%c GGA=%u GSA=%u\n",
+                   snap.gps_rmc_valid ? 'A' : 'V',
+                   snap.gps_gga_fix,
+                   snap.gps_gsa_fix_mode);
+            if (snap.gps_lat_1e7 != 0 || snap.gps_lon_1e7 != 0) {
+                printf("     Last fix: %.7f, %.7f\n",
+                       snap.gps_lat_1e7 / 1e7,
+                       snap.gps_lon_1e7 / 1e7);
+            }
+        }
+    } else if (g_gpsInitialized) {
+        printf("GPS: initialized, no reads yet\n");
+    } else {
+        printf("GPS: not detected\n");
+    }
+    printf("Reads: I=%lu B=%lu G=%lu  "
+           "Errors: I=%lu B=%lu G=%lu\n",
+           (unsigned long)snap.imu_read_count,
+           (unsigned long)snap.baro_read_count,
+           (unsigned long)snap.gps_read_count,
+           (unsigned long)snap.imu_error_count,
+           (unsigned long)snap.baro_error_count,
+           (unsigned long)snap.gps_error_count);
+}
+
+// Print sensor data from direct I2C reads (Core 0 owns bus, pre-sensor-phase)
+static void print_direct_sensors() {
+    if (g_imuInitialized) {
+        icm20948_data_t data;
+        if (icm20948_read(&g_imu, &data)) {
+            float gx;
+            float gy;
+            float gz;
+            float ax;
+            float ay;
+            float az;
+            calibration_apply_gyro(data.gyro.x, data.gyro.y, data.gyro.z,
+                                   &gx, &gy, &gz);
+            calibration_apply_accel(data.accel.x, data.accel.y, data.accel.z,
+                                    &ax, &ay, &az);
+            printf("Accel (m/s^2): X=%7.3f Y=%7.3f Z=%7.3f\n",
+                   (double)ax, (double)ay, (double)az);
+            printf("Gyro  (rad/s): X=%7.4f Y=%7.4f Z=%7.4f\n",
+                   (double)gx, (double)gy, (double)gz);
+            if (data.mag_valid) {
+                printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f\n",
+                       (double)data.mag.x, (double)data.mag.y, (double)data.mag.z);
+            } else {
+                printf("Mag: not ready\n");
+            }
+            printf("Temp: %.1f C\n", (double)data.temperature_c);
+        } else {
+            printf("IMU: read failed\n");
+        }
+    } else {
+        printf("IMU: not initialized\n");
+    }
+
+    if (g_baroContinuous) {
+        baro_dps310_data_t bdata;
+        if (baro_dps310_read(&bdata) && bdata.valid) {
+            float alt = calibration_get_altitude_agl(bdata.pressure_pa);
+            printf("Baro: %.1f Pa, %.2f C, AGL=%.2f m\n",
+                   (double)bdata.pressure_pa, (double)bdata.temperature_c,
+                   (double)alt);
+        } else {
+            printf("Baro: read failed\n");
+        }
+    } else {
+        printf("Baro: not initialized\n");
+    }
+}
+
 static void print_sensor_status() {
     printf("\n========================================\n");
     printf("  Sensor Readings (calibrated)\n");
@@ -1099,121 +1213,14 @@ static void print_sensor_status() {
     // Council mod #6: Once Core 1 owns I2C, read from seqlock to prevent bus contention.
     // Before sensor phase, fall back to direct I2C reads.
     if (g_ivp25Active) {
-        // Read from seqlock — Core 1 is driving sensors
         shared_sensor_data_t snap;
         if (seqlock_read(&g_sensorSeqlock, &snap)) {
-            if (snap.accel_valid) {
-                printf("Accel (m/s^2): X=%7.3f Y=%7.3f Z=%7.3f\n",
-                       (double)snap.accel_x, (double)snap.accel_y, (double)snap.accel_z);
-            } else {
-                printf("Accel: invalid\n");
-            }
-            if (snap.gyro_valid) {
-                printf("Gyro  (rad/s): X=%7.4f Y=%7.4f Z=%7.4f\n",
-                       (double)snap.gyro_x, (double)snap.gyro_y, (double)snap.gyro_z);
-            } else {
-                printf("Gyro: invalid\n");
-            }
-            if (snap.mag_valid) {
-                printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f\n",
-                       (double)snap.mag_x, (double)snap.mag_y, (double)snap.mag_z);
-            } else {
-                printf("Mag: not ready\n");
-            }
-            if (snap.baro_valid) {
-                float alt = calibration_get_altitude_agl(snap.pressure_pa);
-                printf("Baro: %.1f Pa, %.2f C, AGL=%.2f m\n",
-                       (double)snap.pressure_pa, (double)snap.baro_temperature_c,
-                       (double)alt);
-            } else {
-                printf("Baro: no data yet\n");
-            }
-            // GPS
-            if (snap.gps_read_count > 0) {
-                if (snap.gps_valid) {
-                    printf("GPS: %.7f, %.7f, %.1f m MSL\n",
-                           snap.gps_lat_1e7 / 1e7,
-                           snap.gps_lon_1e7 / 1e7,
-                           (double)snap.gps_alt_msl_m);
-                    printf("     Fix=%u Sats=%u Speed=%.1f m/s\n",
-                           snap.gps_fix_type, snap.gps_satellites,
-                           (double)snap.gps_ground_speed_mps);
-                } else {
-                    printf("GPS: no fix (%u sats)\n",
-                           snap.gps_satellites);
-                    printf("     RMC=%c GGA=%u GSA=%u\n",
-                           snap.gps_rmc_valid ? 'A' : 'V',
-                           snap.gps_gga_fix,
-                           snap.gps_gsa_fix_mode);
-                    // Show retained last-fix coordinates if any
-                    if (snap.gps_lat_1e7 != 0 || snap.gps_lon_1e7 != 0) {
-                        printf("     Last fix: %.7f, %.7f\n",
-                               snap.gps_lat_1e7 / 1e7,
-                               snap.gps_lon_1e7 / 1e7);
-                    }
-                }
-            } else if (g_gpsInitialized) {
-                printf("GPS: initialized, no reads yet\n");
-            } else {
-                printf("GPS: not detected\n");
-            }
-            printf("Reads: I=%lu B=%lu G=%lu  "
-                   "Errors: I=%lu B=%lu G=%lu\n",
-                   (unsigned long)snap.imu_read_count,
-                   (unsigned long)snap.baro_read_count,
-                   (unsigned long)snap.gps_read_count,
-                   (unsigned long)snap.imu_error_count,
-                   (unsigned long)snap.baro_error_count,
-                   (unsigned long)snap.gps_error_count);
+            print_seqlock_sensors(snap);
         } else {
             printf("Seqlock read failed (retries exhausted)\n");
         }
     } else {
-        // Pre-sensor-phase: direct I2C reads (Core 0 owns bus)
-        if (g_imuInitialized) {
-            icm20948_data_t data;
-            if (icm20948_read(&g_imu, &data)) {
-                float gx;
-                float gy;
-                float gz;
-                float ax;
-                float ay;
-                float az;
-                calibration_apply_gyro(data.gyro.x, data.gyro.y, data.gyro.z,
-                                       &gx, &gy, &gz);
-                calibration_apply_accel(data.accel.x, data.accel.y, data.accel.z,
-                                        &ax, &ay, &az);
-                printf("Accel (m/s^2): X=%7.3f Y=%7.3f Z=%7.3f\n",
-                       (double)ax, (double)ay, (double)az);
-                printf("Gyro  (rad/s): X=%7.4f Y=%7.4f Z=%7.4f\n",
-                       (double)gx, (double)gy, (double)gz);
-                if (data.mag_valid) {
-                    printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f\n",
-                           (double)data.mag.x, (double)data.mag.y, (double)data.mag.z);
-                } else {
-                    printf("Mag: not ready\n");
-                }
-                printf("Temp: %.1f C\n", (double)data.temperature_c);
-            } else {
-                printf("IMU: read failed\n");
-            }
-        } else {
-            printf("IMU: not initialized\n");
-        }
-
-        if (g_baroContinuous) {
-            baro_dps310_data_t bdata;
-            if (baro_dps310_read(&bdata) && bdata.valid) {
-                float alt = calibration_get_altitude_agl(bdata.pressure_pa);
-                printf("Baro: %.1f Pa, %.2f C, AGL=%.2f m\n",
-                       (double)bdata.pressure_pa, (double)bdata.temperature_c,
-                       (double)alt);
-            } else {
-                printf("Baro: read failed\n");
-            }
-        } else {
-            printf("Baro: not initialized\n");
-        }
+        print_direct_sensors();
     }
 
     printf("========================================\n\n");
@@ -1234,37 +1241,8 @@ static const char* get_device_name(uint8_t addr) {
     }
 }
 
-static void hw_validate_stage1() {
-    printf("\n=== HW Validation: Stage 1 ===\n");
-    printf("  Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
-
-    // IVP-01: Build + boot
-    printf("[PASS] Build + boot (you're reading this)\n");
-
-    // IVP-02: Red LED
-    printf("[PASS] Red LED GPIO initialized (pin %d)\n", PICO_DEFAULT_LED_PIN);
-
-    // IVP-03: NeoPixel
-    printf("[%s] NeoPixel PIO initialized (pin %d)\n",
-           g_neopixelInitialized ? "PASS" : "FAIL", kNeoPixelPin);
-
-    // IVP-04: USB CDC
-    printf("[PASS] USB CDC connected\n");
-
-    // IVP-05: Debug macros
-    uint32_t ts = time_us_32();
-    printf("[%s] Debug macros functional (timestamp=%lu us)\n",
-           ts > 0 ? "PASS" : "FAIL", (unsigned long)ts);
-
-    // IVP-06: I2C bus
-    if (g_i2cInitialized) {
-        printf("[PASS] I2C bus initialized at %lukHz (SDA=%d, SCL=%d)\n",
-               (unsigned long)(kI2cBusFreqHz / 1000), kI2cBusSdaPin, kI2cBusSclPin);
-    } else {
-        printf("[FAIL] I2C bus failed to initialize\n");
-    }
-
-    // IVP-07: I2C device detection
+// Print I2C device detection results (IVP-07)
+static void hw_validate_i2c_devices() {
     // Skip I2C probes when Core 1 owns the bus (LL Entry 23: probe collision)
     if (rc_os_i2c_scan_allowed) {
         static const uint8_t expected[] = {
@@ -1286,8 +1264,10 @@ static void hw_validate_stage1() {
     } else {
         printf("[INFO] I2C probe skipped (Core 1 owns bus)\n");
     }
+}
 
-    // IVP-09: IMU initialization
+// Print sensor initialization results (IVP-09/11/31)
+static void hw_validate_sensors() {
     if (g_imuInitialized) {
         printf("[PASS] ICM-20948 init (WHO_AM_I=0xEA)\n");
         printf("[%s] AK09916 magnetometer %s\n",
@@ -1297,7 +1277,6 @@ static void hw_validate_stage1() {
         printf("[FAIL] ICM-20948 init failed\n");
     }
 
-    // IVP-11: Barometer initialization
     if (g_baroInitialized && g_baroContinuous) {
         printf("[PASS] DPS310 init OK, continuous mode active\n");
     } else if (g_baroInitialized) {
@@ -1306,12 +1285,36 @@ static void hw_validate_stage1() {
         printf("[FAIL] DPS310 init failed\n");
     }
 
-    // IVP-31: GPS initialization (non-fatal)
     if (g_gpsInitialized) {
         printf("[PASS] PA1010D GPS init at 0x10 (I2C mode, 500us settling delay active)\n");
     } else {
         printf("[----] GPS not detected on I2C (delay disabled)\n");
     }
+}
+
+static void hw_validate_stage1() {
+    printf("\n=== HW Validation: Stage 1 ===\n");
+    printf("  Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
+
+    printf("[PASS] Build + boot (you're reading this)\n");
+    printf("[PASS] Red LED GPIO initialized (pin %d)\n", PICO_DEFAULT_LED_PIN);
+    printf("[%s] NeoPixel PIO initialized (pin %d)\n",
+           g_neopixelInitialized ? "PASS" : "FAIL", kNeoPixelPin);
+    printf("[PASS] USB CDC connected\n");
+
+    uint32_t ts = time_us_32();
+    printf("[%s] Debug macros functional (timestamp=%lu us)\n",
+           ts > 0 ? "PASS" : "FAIL", (unsigned long)ts);
+
+    if (g_i2cInitialized) {
+        printf("[PASS] I2C bus initialized at %lukHz (SDA=%d, SCL=%d)\n",
+               (unsigned long)(kI2cBusFreqHz / 1000), kI2cBusSdaPin, kI2cBusSclPin);
+    } else {
+        printf("[FAIL] I2C bus failed to initialize\n");
+    }
+
+    hw_validate_i2c_devices();
+    hw_validate_sensors();
 
     printf("=== Validation Complete ===\n\n");
 }
@@ -2634,6 +2637,55 @@ static void ivp28_flash_test() {
 // Returns true if previous reboot was caused by watchdog.
 // ============================================================================
 
+// Initialize I2C sensors (IMU, baro, GPS). Requires I2C bus already initialized.
+static void init_sensors() {
+    // Drain GPS buffer if module is still powered (LiPo keeps it alive
+    // across picotool reboot). The PA1010D autonomously streams NMEA on
+    // I2C — if not drained, this collides with IMU/baro init below.
+    uint8_t gpsDrain[255];
+    int drainRet = i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
+    if (drainRet <= 0) {
+        i2c_bus_recover();
+    }
+
+    // Sensor power-up settling time
+    // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
+    sleep_ms(200);
+
+    // IVP-09: ICM-20948 IMU init (before USB, after I2C)
+    g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
+
+    // IVP-11: DPS310 barometer init (before USB, after I2C)
+    g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
+    if (g_baroInitialized) {
+        g_baroContinuous = baro_dps310_start_continuous();
+    }
+
+    // IVP-31: GPS init (before USB, after I2C). Non-fatal (LL Entry 20).
+    g_gpsInitialized = gps_pa1010d_init();
+    if (g_gpsInitialized) {
+        g_gpsOnI2C = true;
+    }
+}
+
+// Wait for USB CDC connection with LED blink, then drain input buffer.
+static void wait_for_usb_connection() {
+    stdio_init_all();
+
+    while (!stdio_usb_connected()) {
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
+        sleep_ms(100);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
+        sleep_ms(100);
+    }
+
+    // Settle time after connection (per LL Entry 15)
+    sleep_ms(500);
+
+    // Drain garbage from USB input buffer (per LL Entry 15)
+    while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
+}
+
 static bool init_hardware() {
     // IVP-30: Check if previous reboot was caused by watchdog (before any init)
     bool watchdogReboot = watchdog_enable_caused_reboot();
@@ -2641,8 +2693,6 @@ static bool init_hardware() {
     // IVP-29: Register fault handlers early (before any MPU config)
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, memmanage_fault_handler);
     exception_set_exclusive_handler(MEMMANAGE_EXCEPTION, memmanage_fault_handler);
-
-    // IVP-29: MPU stack guard for Core 0
     mpu_setup_stack_guard(reinterpret_cast<uint32_t>(&__StackBottom));
 
     // IVP-02: Red LED GPIO init
@@ -2658,40 +2708,8 @@ static bool init_hardware() {
     // IVP-06: I2C bus init (before USB per LL Entry 4/12)
     g_i2cInitialized = i2c_bus_init();
 
-    // Drain GPS buffer if module is still powered (LiPo keeps it alive
-    // across picotool reboot). The PA1010D autonomously streams NMEA on
-    // I2C — if not drained, this collides with IMU/baro init below.
     if (g_i2cInitialized) {
-        uint8_t gpsDrain[255];
-        int drainRet = i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
-        if (drainRet <= 0) {
-            i2c_bus_recover();
-        }
-    }
-
-    // Sensor power-up settling time
-    // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
-    sleep_ms(200);
-
-    // IVP-09: ICM-20948 IMU init (before USB, after I2C)
-    if (g_i2cInitialized) {
-        g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
-    }
-
-    // IVP-11: DPS310 barometer init (before USB, after I2C)
-    if (g_i2cInitialized) {
-        g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
-        if (g_baroInitialized) {
-            g_baroContinuous = baro_dps310_start_continuous();
-        }
-    }
-
-    // IVP-31: GPS init (before USB, after I2C). Non-fatal (LL Entry 20).
-    if (g_i2cInitialized) {
-        g_gpsInitialized = gps_pa1010d_init();
-        if (g_gpsInitialized) {
-            g_gpsOnI2C = true;
-        }
+        init_sensors();
     }
 
     // IVP-14: Calibration storage init (before USB per LL Entry 4/12)
@@ -2699,21 +2717,7 @@ static bool init_hardware() {
     calibration_manager_init();
 
     // IVP-04: USB CDC init (after I2C/flash per LL Entry 4/12)
-    stdio_init_all();
-
-    // Fast LED blink while waiting for USB connection
-    while (!stdio_usb_connected()) {
-        gpio_put(PICO_DEFAULT_LED_PIN, true);
-        sleep_ms(100);
-        gpio_put(PICO_DEFAULT_LED_PIN, false);
-        sleep_ms(100);
-    }
-
-    // Settle time after connection (per LL Entry 15)
-    sleep_ms(500);
-
-    // Drain garbage from USB input buffer (per LL Entry 15)
-    while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
+    wait_for_usb_connection();
 
     return watchdogReboot;
 }
@@ -2749,44 +2753,73 @@ static void print_boot_status(bool watchdogReboot) {
 // Init: Skip gates, RC_OS setup, pre-loop inter-core exercises
 // ============================================================================
 
+// Skip previously verified IVP gates for fast boot
+static void skip_verified_gates() {
+    g_imuValidationDone = true;
+    g_baroValidationDone = true;
+    g_ivp13Done = true;
+    g_ivp14Done = true;
+    g_ivp15Done = true;
+    g_ivp16Done = true;
+    printf("[INFO] Skipping verified gates (IVP-10 through IVP-16)\n");
+
+    g_ivp21Done = true;
+    g_ivp25Active = true;
+    g_ivp25Done = true;
+    g_sensorPhaseDone.store(true, std::memory_order_release);
+    printf("[INFO] Skipping IVP-21/22/23/25/26 soaks (verified Sessions B+C+D)\n");
+
+    g_ivp27Active = true;
+    g_ivp27Done = true;
+    g_ivp28Started = true;
+    g_ivp28Done = true;
+    printf("[INFO] Skipping IVP-27/28 (verified Session E)\n");
+
+    g_ivp29Done = true;
+    g_ivp30Done = true;
+    g_ivp30Active = false;
+    g_testCommandsEnabled = true;
+    g_watchdogEnabled = true;
+    watchdog_enable(kWatchdogTimeoutMs, true);
+    printf("[INFO] Skipping IVP-29/30 soak (verified Session E)\n");
+
+    multicore_fifo_drain();
+    sleep_ms(10);
+    multicore_fifo_push_blocking(kCmd_SkipToSensors);
+    g_startSensorPhase.store(true, std::memory_order_release);
+    rc_os_i2c_scan_allowed = false;
+    sleep_ms(500);
+    printf("[INFO] Core 1 skipped to sensor phase\n\n");
+}
+
+// Start IVP-21/22/23 inter-core primitive exercises
+static void start_intercore_exercises() {
+    ivp22_fifo_test();
+    ivp23_doorbell_test();
+
+    g_spinlockId = spin_lock_claim_unused(true);
+    g_pTestSpinlock = spin_lock_init((uint)g_spinlockId);
+    printf("Spinlock claimed: ID=%d\n", g_spinlockId);
+#if PICO_USE_SW_SPIN_LOCKS
+    printf("Spinlock type: SOFTWARE (RP2350-E2, LDAEXB/STREXB)\n");
+#else
+    printf("Spinlock type: HARDWARE (SIO registers)\n");
+#endif
+
+    multicore_fifo_drain();
+    sleep_ms(10);
+    multicore_fifo_push_blocking(kCmd_SpinlockStart);
+    g_ivp21Active = true;
+    g_ivp21StartMs = to_ms_since_boot(get_absolute_time());
+    g_ivp21LastCheckMs = g_ivp21StartMs;
+    g_ivp21LastPrintMs = g_ivp21StartMs;
+    printf("\n=== IVP-21: Spinlock Soak (5 min) ===\n");
+    printf("Core 1 writing ~100kHz, Core 0 reading 10Hz...\n\n");
+}
+
 static void init_application() {
-    // Skip previously verified gates to speed up boot
     if (kSkipVerifiedGates) {
-        g_imuValidationDone = true;
-        g_baroValidationDone = true;
-        g_ivp13Done = true;
-        g_ivp14Done = true;
-        g_ivp15Done = true;
-        g_ivp16Done = true;
-        printf("[INFO] Skipping verified gates (IVP-10 through IVP-16)\n");
-
-        g_ivp21Done = true;
-        g_ivp25Active = true;
-        g_ivp25Done = true;
-        g_sensorPhaseDone.store(true, std::memory_order_release);
-        printf("[INFO] Skipping IVP-21/22/23/25/26 soaks (verified Sessions B+C+D)\n");
-
-        g_ivp27Active = true;
-        g_ivp27Done = true;
-        g_ivp28Started = true;
-        g_ivp28Done = true;
-        printf("[INFO] Skipping IVP-27/28 (verified Session E)\n");
-
-        g_ivp29Done = true;
-        g_ivp30Done = true;
-        g_ivp30Active = false;
-        g_testCommandsEnabled = true;
-        g_watchdogEnabled = true;
-        watchdog_enable(kWatchdogTimeoutMs, true);
-        printf("[INFO] Skipping IVP-29/30 soak (verified Session E)\n");
-
-        multicore_fifo_drain();
-        sleep_ms(10);
-        multicore_fifo_push_blocking(kCmd_SkipToSensors);
-        g_startSensorPhase.store(true, std::memory_order_release);
-        rc_os_i2c_scan_allowed = false;
-        sleep_ms(500);
-        printf("[INFO] Core 1 skipped to sensor phase\n\n");
+        skip_verified_gates();
     }
 
     // IVP-18: RC_OS CLI init
@@ -2802,29 +2835,8 @@ static void init_application() {
 
     printf("Core 1 launched (test dispatcher mode)\n");
 
-    // IVP-21/22/23: Inter-core primitive exercises (skipped when gates verified)
     if (!kSkipVerifiedGates) {
-        ivp22_fifo_test();
-        ivp23_doorbell_test();
-
-        g_spinlockId = spin_lock_claim_unused(true);
-        g_pTestSpinlock = spin_lock_init((uint)g_spinlockId);
-        printf("Spinlock claimed: ID=%d\n", g_spinlockId);
-#if PICO_USE_SW_SPIN_LOCKS
-        printf("Spinlock type: SOFTWARE (RP2350-E2, LDAEXB/STREXB)\n");
-#else
-        printf("Spinlock type: HARDWARE (SIO registers)\n");
-#endif
-
-        multicore_fifo_drain();
-        sleep_ms(10);
-        multicore_fifo_push_blocking(kCmd_SpinlockStart);
-        g_ivp21Active = true;
-        g_ivp21StartMs = to_ms_since_boot(get_absolute_time());
-        g_ivp21LastCheckMs = g_ivp21StartMs;
-        g_ivp21LastPrintMs = g_ivp21StartMs;
-        printf("\n=== IVP-21: Spinlock Soak (5 min) ===\n");
-        printf("Core 1 writing ~100kHz, Core 0 reading 10Hz...\n\n");
+        start_intercore_exercises();
     }
 }
 

@@ -41,8 +41,8 @@ bool i2c_bus_init() {
     i2c_bus_recover();
 
     // Initialize I2C peripheral
-    uint actual_freq = i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
-    if (actual_freq == 0) {
+    uint actualFreq = i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
+    if (actualFreq == 0) {
         return false;
     }
 
@@ -76,7 +76,7 @@ bool i2c_bus_probe(uint8_t addr) {
     }
 
     // Try to read a single byte - if device ACKs, it's present
-    uint8_t dummy;
+    uint8_t dummy = 0;
     int ret = i2c_read_timeout_us(I2C_BUS_INSTANCE, addr, &dummy, 1, false, kI2cTimeoutUs);
     return (ret >= 0);
 }
@@ -226,7 +226,7 @@ bool i2c_bus_recover() {
         sleep_us(kBusRecoveryPulseUs);
     }
 
-    bool sda_released = gpio_get(kI2cBusSdaPin);
+    bool sdaReleased = gpio_get(kI2cBusSdaPin);
 
     // Always generate STOP condition: SDA low while SCL high, then SDA high
     gpio_set_dir(kI2cBusSdaPin, GPIO_OUT);
@@ -244,7 +244,7 @@ bool i2c_bus_recover() {
     gpio_pull_up(kI2cBusSdaPin);
     gpio_pull_up(kI2cBusSclPin);
 
-    return sda_released;
+    return sdaReleased;
 }
 
 bool i2c_bus_reset() {
@@ -255,7 +255,7 @@ bool i2c_bus_reset() {
     bool recovered = i2c_bus_recover();
 
     // Reinitialize I2C
-    bool init_ok = i2c_bus_init();
+    bool initOk = i2c_bus_init();
 
-    return recovered && init_ok;
+    return recovered && initOk;
 }

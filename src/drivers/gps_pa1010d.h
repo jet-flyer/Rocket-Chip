@@ -38,12 +38,12 @@ typedef struct {
     // Position
     double latitude;        ///< Latitude in degrees (+ = North)
     double longitude;       ///< Longitude in degrees (+ = East)
-    float altitude_m;       ///< Altitude above MSL in meters
+    float altitudeM;        ///< Altitude above MSL in meters
 
     // Motion
-    float speed_knots;      ///< Ground speed in knots
-    float speed_mps;        ///< Ground speed in m/s
-    float course_deg;       ///< True course in degrees
+    float speedKnots;       ///< Ground speed in knots
+    float speedMps;         ///< Ground speed in m/s
+    float courseDeg;        ///< True course in degrees
 
     // Quality
     gps_fix_t fix;          ///< Fix type
@@ -64,13 +64,13 @@ typedef struct {
 
     // Status
     bool valid;             ///< Position is valid (RMC active AND GGA fix)
-    bool time_valid;        ///< Time data is valid
-    bool date_valid;        ///< Date data is valid
+    bool timeValid;         ///< Time data is valid
+    bool dateValid;         ///< Date data is valid
 
     // Diagnostic (raw lwGPS fields for debugging fix detection)
-    uint8_t gga_fix;        ///< GGA fix quality (0=none, 1=GPS, 2=DGPS)
-    uint8_t gsa_fix_mode;   ///< GSA fix mode (1=none, 2=2D, 3=3D)
-    bool rmc_valid;         ///< RMC status ('A' = valid)
+    uint8_t ggaFix;         ///< GGA fix quality (0=none, 1=GPS, 2=DGPS)
+    uint8_t gsaFixMode;     ///< GSA fix mode (1=none, 2=2D, 3=3D)
+    bool rmcValid;          ///< RMC status ('A' = valid)
 } gps_pa1010d_data_t;
 
 // ============================================================================
@@ -124,7 +124,7 @@ bool gps_pa1010d_send_command(const char* cmd);
  * @param rate_hz Update rate (1, 5, or 10 Hz)
  * @return true on success
  */
-bool gps_pa1010d_set_rate(uint8_t rate_hz);
+bool gps_pa1010d_set_rate(uint8_t rateHz);
 
 /**
  * @brief Get pointer to last raw NMEA read buffer

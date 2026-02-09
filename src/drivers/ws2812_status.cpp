@@ -40,34 +40,34 @@ static struct {
 
     // Current mode and color
     ws2812_mode_t mode;
-    ws2812_rgb_t base_color;
+    ws2812_rgb_t baseColor;
     uint8_t brightness;
 
     // Pattern timing
-    uint32_t breathe_period_ms;
-    uint32_t blink_on_ms;
-    uint32_t blink_off_ms;
+    uint32_t breathePeriodMs;
+    uint32_t blinkOnMs;
+    uint32_t blinkOffMs;
 
     // Animation state
-    uint32_t last_update_ms;
-    uint32_t phase_start_ms;
-    bool blink_state;
-    float rainbow_hue;
+    uint32_t lastUpdateMs;
+    uint32_t phaseStartMs;
+    bool blinkState;
+    float rainbowHue;
 } g_state = {
     .pio = nullptr,
     .sm = 0,
     .offset = 0,
     .initialized = false,
     .mode = WS2812_MODE_OFF,
-    .base_color = {0, 0, 0},
+    .baseColor = {0, 0, 0},
     .brightness = 255,
-    .breathe_period_ms = kDefaultBreathePeriodMs,
-    .blink_on_ms = kDefaultBlinkOnMs,
-    .blink_off_ms = kDefaultBlinkOffMs,
-    .last_update_ms = 0,
-    .phase_start_ms = 0,
-    .blink_state = false,
-    .rainbow_hue = 0.0F,
+    .breathePeriodMs = kDefaultBreathePeriodMs,
+    .blinkOnMs = kDefaultBlinkOnMs,
+    .blinkOffMs = kDefaultBlinkOffMs,
+    .lastUpdateMs = 0,
+    .phaseStartMs = 0,
+    .blinkState = false,
+    .rainbowHue = 0.0F,
 };
 
 // ============================================================================
@@ -130,8 +130,8 @@ bool ws2812_status_init(PIO pio, uint pin) {
     g_state.sm = sm;
     g_state.offset = offset;
     g_state.initialized = true;
-    g_state.last_update_ms = to_ms_since_boot(get_absolute_time());
-    g_state.phase_start_ms = g_state.last_update_ms;
+    g_state.lastUpdateMs = to_ms_since_boot(get_absolute_time());
+    g_state.phaseStartMs = g_state.lastUpdateMs;
 
     // Start with LED off
     send_pixel(0, 0, 0);
@@ -159,9 +159,9 @@ void ws2812_status_deinit() {
 
 void ws2812_set_rgb(uint8_t r, uint8_t g, uint8_t b) {
     g_state.mode = WS2812_MODE_SOLID;
-    g_state.base_color.r = r;
-    g_state.base_color.g = g;
-    g_state.base_color.b = b;
+    g_state.baseColor.r = r;
+    g_state.baseColor.g = g;
+    g_state.baseColor.b = b;
     send_pixel(r, g, b);
 }
 
@@ -179,7 +179,7 @@ void ws2812_set_hex(uint32_t hex) {
 
 void ws2812_off() {
     g_state.mode = WS2812_MODE_OFF;
-    g_state.base_color = ws2812_rgb_t{0, 0, 0};
+    g_state.baseColor = ws2812_rgb_t{0, 0, 0};
     send_pixel(0, 0, 0);
 }
 
@@ -189,10 +189,10 @@ void ws2812_off() {
 
 void ws2812_set_mode(ws2812_mode_t mode, ws2812_rgb_t color) {
     g_state.mode = mode;
-    g_state.base_color = color;
-    g_state.phase_start_ms = to_ms_since_boot(get_absolute_time());
-    g_state.blink_state = true;
-    g_state.rainbow_hue = 0.0F;
+    g_state.baseColor = color;
+    g_state.phaseStartMs = to_ms_since_boot(get_absolute_time());
+    g_state.blinkState = true;
+    g_state.rainbowHue = 0.0F;
 
     // Immediately show initial state
     switch (mode) {
@@ -212,12 +212,12 @@ void ws2812_set_mode(ws2812_mode_t mode, ws2812_rgb_t color) {
 }
 
 void ws2812_set_breathe_period(uint32_t period_ms) {
-    g_state.breathe_period_ms = period_ms;
+    g_state.breathePeriodMs = period_ms;
 }
 
 void ws2812_set_blink_timing(uint32_t on_ms, uint32_t off_ms) {
-    g_state.blink_on_ms = on_ms;
-    g_state.blink_off_ms = off_ms;
+    g_state.blinkOnMs = on_ms;
+    g_state.blinkOffMs = off_ms;
 }
 
 void ws2812_set_brightness(uint8_t brightness) {
@@ -234,7 +234,7 @@ void ws2812_update() {
     }
 
     uint32_t now = to_ms_since_boot(get_absolute_time());
-    uint32_t elapsed = now - g_state.phase_start_ms;
+    uint32_t elapsed = now - g_state.phaseStartMs;
 
     switch (g_state.mode) {
         case WS2812_MODE_OFF:
@@ -247,24 +247,24 @@ void ws2812_update() {
 
         case WS2812_MODE_BREATHE: {
             // Sinusoidal brightness pulsing
-            float phase = static_cast<float>(elapsed) / static_cast<float>(g_state.breathe_period_ms);
+            float phase = static_cast<float>(elapsed) / static_cast<float>(g_state.breathePeriodMs);
             float scale = (sinf(phase * 2.0F * kPi) + 1.0F) / 2.0F;
             scale = kBreatheMinScale + scale * kBreatheRange;
-            ws2812_rgb_t color = apply_brightness(g_state.base_color, scale);
+            ws2812_rgb_t color = apply_brightness(g_state.baseColor, scale);
             send_pixel(color.r, color.g, color.b);
             break;
         }
 
         case WS2812_MODE_BLINK: {
-            uint32_t period = g_state.blink_on_ms + g_state.blink_off_ms;
+            uint32_t period = g_state.blinkOnMs + g_state.blinkOffMs;
             uint32_t phase = elapsed % period;
-            bool should_be_on = (phase < g_state.blink_on_ms);
+            bool shouldBeOn = (phase < g_state.blinkOnMs);
 
-            if (should_be_on != g_state.blink_state) {
-                g_state.blink_state = should_be_on;
-                if (should_be_on) {
-                    send_pixel(g_state.base_color.r, g_state.base_color.g,
-                              g_state.base_color.b);
+            if (shouldBeOn != g_state.blinkState) {
+                g_state.blinkState = shouldBeOn;
+                if (shouldBeOn) {
+                    send_pixel(g_state.baseColor.r, g_state.baseColor.g,
+                              g_state.baseColor.b);
                 } else {
                     send_pixel(0, 0, 0);
                 }
@@ -275,13 +275,13 @@ void ws2812_update() {
         case WS2812_MODE_BLINK_FAST: {
             // 5Hz blinking
             uint32_t phase = elapsed % kFastBlinkPeriodMs;
-            bool should_be_on = (phase < kFastBlinkOnMs);
+            bool shouldBeOn = (phase < kFastBlinkOnMs);
 
-            if (should_be_on != g_state.blink_state) {
-                g_state.blink_state = should_be_on;
-                if (should_be_on) {
-                    send_pixel(g_state.base_color.r, g_state.base_color.g,
-                              g_state.base_color.b);
+            if (shouldBeOn != g_state.blinkState) {
+                g_state.blinkState = shouldBeOn;
+                if (shouldBeOn) {
+                    send_pixel(g_state.baseColor.r, g_state.baseColor.g,
+                              g_state.baseColor.b);
                 } else {
                     send_pixel(0, 0, 0);
                 }
@@ -291,14 +291,14 @@ void ws2812_update() {
 
         case WS2812_MODE_RAINBOW: {
             // Smooth rainbow cycle
-            g_state.rainbow_hue = fmodf(static_cast<float>(elapsed) / kRainbowCyclePeriodMs * kHueFull, kHueFull);
-            ws2812_rgb_t color = ws2812_hsv_to_rgb(g_state.rainbow_hue, kRainbowSaturation, kRainbowValue);
+            g_state.rainbowHue = fmodf(static_cast<float>(elapsed) / kRainbowCyclePeriodMs * kHueFull, kHueFull);
+            ws2812_rgb_t color = ws2812_hsv_to_rgb(g_state.rainbowHue, kRainbowSaturation, kRainbowValue);
             send_pixel(color.r, color.g, color.b);
             break;
         }
     }
 
-    g_state.last_update_ms = now;
+    g_state.lastUpdateMs = now;
 }
 
 // ============================================================================
@@ -328,7 +328,9 @@ ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v) {
     float x = c * (1.0F - fabsf(fmodf(h / kHueSector, 2.0F) - 1.0F));
     float m = v - c;
 
-    float r1, g1, b1;
+    float r1 = 0.0F;
+    float g1 = 0.0F;
+    float b1 = 0.0F;
 
     if (h < 60.0F) {
         r1 = c; g1 = x; b1 = 0;

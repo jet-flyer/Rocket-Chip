@@ -20,9 +20,9 @@ constexpr char     kNmeaStart        = '$';    // NMEA sentence start delimiter
 // lwGPS 2-digit year base
 constexpr uint16_t kGpsYearBase      = 2000;
 
-// Fix type thresholds (GSA fix_mode values per NMEA spec)
-constexpr uint8_t  kGsaFixMode3d     = 3;      // GSA fix_mode >= 3 = 3D fix
-constexpr uint8_t  kGsaFixMode2d     = 2;      // GSA fix_mode == 2 = 2D fix
+// Fix type thresholds (GSA fixMode values per NMEA spec)
+constexpr uint8_t  kGsaFixMode3d     = 3;      // GSA fixMode >= 3 = 3D fix
+constexpr uint8_t  kGsaFixMode2d     = 2;      // GSA fixMode == 2 = 2D fix
 
 // PMTK220 rate intervals (ms)
 constexpr uint16_t kGpsRate1Hz       = 1000;
@@ -65,7 +65,7 @@ static uint8_t nmea_checksum(const char* sentence) {
         sentence++;
     }
     // XOR all characters until '*' or end
-    while (*sentence && *sentence != '*') {
+    while (*sentence != '\0' && *sentence != '*') {
         checksum ^= *sentence++;
     }
     return checksum;
@@ -86,10 +86,10 @@ static uint8_t nmea_checksum(const char* sentence) {
  *
  * Ref: Adafruit_GPS.cpp, SparkFun I2C GPS library, Quectel L76-L app note.
  */
-static int read_nmea_data(uint8_t* buffer, size_t max_len) {
+static int read_nmea_data(uint8_t* buffer, size_t maxLen) {
     // Read raw I2C data into a local buffer, then filter in-place
     static uint8_t raw[kGpsMaxRead];
-    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, raw, max_len);
+    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, raw, maxLen);
     if (ret <= 0) {
         return -1;  // I2C failure (NACK or timeout)
     }
@@ -121,16 +121,16 @@ static int read_nmea_data(uint8_t* buffer, size_t max_len) {
 static void update_data_from_lwgps() {
     g_data.latitude = g_gps.latitude;
     g_data.longitude = g_gps.longitude;
-    g_data.altitude_m = static_cast<float>(g_gps.altitude);
+    g_data.altitudeM = static_cast<float>(g_gps.altitude);
 
-    g_data.speed_knots = static_cast<float>(g_gps.speed);
-    g_data.speed_mps = static_cast<float>(lwgps_to_speed(g_gps.speed, LWGPS_SPEED_MPS));
-    g_data.course_deg = static_cast<float>(g_gps.course);
+    g_data.speedKnots = static_cast<float>(g_gps.speed);
+    g_data.speedMps = static_cast<float>(lwgps_to_speed(g_gps.speed, LWGPS_SPEED_MPS));
+    g_data.courseDeg = static_cast<float>(g_gps.course);
 
     // Fix type: prefer GGA fix quality (most reliably updated by lwGPS),
-    // fall back to GSA fix_mode for 2D/3D distinction.
+    // fall back to GSA fixMode for 2D/3D distinction.
     // GGA fix: 0=none, 1=GPS, 2=DGPS, 3=PPS, 4+=RTK
-    // GSA fix_mode: 1=none, 2=2D, 3=3D
+    // GSA fixMode: 1=none, 2=2D, 3=3D
     if (g_gps.fix >= 1) {
         // GGA says we have a fix — use GSA for 2D/3D if available
         if (g_gps.fix_mode >= kGsaFixMode3d) {
@@ -160,13 +160,13 @@ static void update_data_from_lwgps() {
 
     // Valid when RMC reports active AND GGA shows fix
     g_data.valid = lwgps_is_valid(&g_gps) && (g_data.fix >= GPS_FIX_2D);
-    g_data.time_valid = g_gps.time_valid;
-    g_data.date_valid = g_gps.date_valid;
+    g_data.timeValid = g_gps.time_valid;
+    g_data.dateValid = g_gps.date_valid;
 
     // Diagnostic: raw lwGPS fields for sensor status debugging
-    g_data.gga_fix = g_gps.fix;
-    g_data.gsa_fix_mode = g_gps.fix_mode;
-    g_data.rmc_valid = lwgps_is_valid(&g_gps);
+    g_data.ggaFix = g_gps.fix;
+    g_data.gsaFixMode = g_gps.fix_mode;
+    g_data.rmcValid = lwgps_is_valid(&g_gps);
 }
 
 // ============================================================================
@@ -191,14 +191,14 @@ bool gps_pa1010d_init() {
     }
 
     // Check for NMEA start character anywhere in the buffer
-    bool found_nmea = false;
+    bool foundNmea = false;
     for (int32_t i = 0; i < ret; i++) {
         if (g_buffer[i] == kNmeaStart) {
-            found_nmea = true;
+            foundNmea = true;
             break;
         }
     }
-    if (!found_nmea) {
+    if (!foundNmea) {
         return false;
     }
 
@@ -280,20 +280,20 @@ bool gps_pa1010d_send_command(const char* cmd) {
     return (ret == len);
 }
 
-bool gps_pa1010d_set_rate(uint8_t rate_hz) {
+bool gps_pa1010d_set_rate(uint8_t rateHz) {
     // PMTK220 - Set NMEA update rate
     // Parameter is update interval in milliseconds
     char cmd[32];
-    uint16_t interval_ms;
+    uint16_t intervalMs = 0;
 
-    switch (rate_hz) {
-        case 1:  interval_ms = kGpsRate1Hz;  break;
-        case 5:  interval_ms = kGpsRate5Hz;  break;
-        case 10: interval_ms = kGpsRate10Hz; break;
+    switch (rateHz) {
+        case 1:  intervalMs = kGpsRate1Hz;  break;
+        case 5:  intervalMs = kGpsRate5Hz;  break;
+        case 10: intervalMs = kGpsRate10Hz; break;
         default: return false;
     }
 
-    snprintf(cmd, sizeof(cmd), "PMTK220,%u", interval_ms);
+    snprintf(cmd, sizeof(cmd), "PMTK220,%u", intervalMs);
     return gps_pa1010d_send_command(cmd);
 }
 

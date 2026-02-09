@@ -223,11 +223,11 @@ bool icm20948_read_temperature(icm20948_t* dev, float* temp_c);
 /**
  * @brief Check if new data is available
  * @param dev Device handle
- * @param accel_ready Output: accel data ready
- * @param gyro_ready Output: gyro data ready
+ * @param accelReady Output: accel data ready
+ * @param gyroReady Output: gyro data ready
  * @return true on success
  */
-bool icm20948_data_ready(icm20948_t* dev, bool* accel_ready, bool* gyro_ready);
+bool icm20948_data_ready(icm20948_t* dev, bool* accelReady, bool* gyroReady);
 
 /**
  * @brief Enable or disable the internal I2C master (for magnetometer reads)

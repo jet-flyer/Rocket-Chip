@@ -712,6 +712,43 @@ This entry supersedes the picotool guidance in DEBUG_PROBE_NOTES.md and DEBUG_OU
 
 ---
 
+## Entry 26: JSF AV Rule 213 — Arithmetic Parentheses Disabled in Clang-Tidy
+
+**Date:** 2026-02-09
+**Context:** First clang-tidy audit — 65 `readability-math-missing-parentheses` findings
+**Severity:** Process — clang-tidy config decision, not a code bug
+
+### Problem
+clang-tidy flagged 65 instances of `readability-math-missing-parentheses` in sensor conversion math, matrix operations, and physics formulas. JSF AV Rule 213 requires explicit parentheses for operator precedence clarity.
+
+### Analysis
+Reviewed NASA/JPL's actual practice: their Power of 10 rules and institutional standards do NOT require parenthesizing well-understood arithmetic expressions like `a * b + c`. Rule 213 targets genuinely ambiguous precedence (bitwise operators mixed with arithmetic, logical operators mixed with comparison, ternary expressions). Standard mathematical expressions where `*` and `/` clearly bind tighter than `+` and `-` are universally understood by embedded engineers.
+
+The clang-tidy check is overly aggressive — it flags `ax * scale + offset` as needing `(ax * scale) + offset`, which adds visual noise without improving clarity. For matrix math and sensor conversions, the added parentheses make the code harder to read, not easier.
+
+### Solution
+Disabled `readability-math-missing-parentheses` in `.clang-tidy` config with comment:
+
+```yaml
+# readability-math-missing-parentheses: disabled — JSF AV Rule 213 exemption.
+# NASA/JPL practice: standard arithmetic precedence (* / before + -) is
+# universally understood. Parenthesizing a*b+c as (a*b)+c adds noise.
+# Reserve explicit parens for genuinely ambiguous cases (bitwise, ternary).
+```
+
+### Prevention
+1. **Bitwise + arithmetic mixing still requires parentheses** — e.g., `(flags & mask) != 0` not `flags & mask != 0`
+2. **Ternary expressions still require parentheses** — JSF AV Rule 213 applies
+3. **Logical operator mixing still requires parentheses** — `(a && b) || c` not `a && b || c`
+4. **Standard math is exempt** — `a * b + c`, `x / y - z`, etc. do not need explicit parens
+
+### Reference
+- JSF AV C++ Rule 213: "Parentheses should be used to indicate precedence"
+- NASA/JPL Power of 10, Rule 3: about reducing preprocessor use, not arithmetic parens
+- Clang-tidy check `readability-math-missing-parentheses`: too aggressive for embedded math
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

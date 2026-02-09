@@ -26,7 +26,7 @@ static uint16_t crc16_ccitt(const uint8_t* data, size_t len) {
     for (size_t i = 0; i < len; i++) {
         crc ^= (static_cast<uint16_t>(data[i]) << 8);
         for (uint8_t j = 0; j < kCrc16BitsPerByte; j++) {
-            if (crc & kCrc16HighBit) {
+            if ((crc & kCrc16HighBit) != 0) {
                 crc = (crc << 1) ^ kCrc16Poly;
             } else {
                 crc <<= 1;

@@ -508,6 +508,20 @@ Findings where automated and manual audits disagree:
 | JSF 151 (magic numbers) | PARTIAL | FAIL (275 occurrences) | Count refined |
 | JSF 50-53 (naming) | PARTIAL | FAIL (162 occurrences) | SDK constraints clarified |
 | JSF 145 (NULL vs nullptr) | NOT CHECKED in manual | FAIL (43 occurrences) | New finding |
+| JSF 213 (math parens) | NOT CHECKED in manual | 65 occurrences | **Check disabled** — see below |
+
+### JSF AV Rule 213 Arithmetic Parentheses — Exemption
+
+The `readability-math-missing-parentheses` check was **disabled** in `.clang-tidy` after review.
+
+**Rationale:** NASA/JPL's actual institutional practice does NOT require parenthesizing standard arithmetic expressions where `*`/`/` bind tighter than `+`/`-`. JSF AV Rule 213 targets genuinely ambiguous precedence (bitwise mixed with arithmetic, ternary, logical operators) — not `a * b + c`. The 65 findings were overwhelmingly in sensor conversion math and matrix operations (55 in calibration_manager.cpp Jacobian computation alone). Adding parentheses to `(ax * scale) + offset` degrades readability without improving safety.
+
+**What still requires explicit parentheses:**
+- Bitwise + arithmetic: `(flags & mask) != 0`
+- Logical operator mixing: `(a && b) || c`
+- Ternary expressions: `(cond) ? a : b` in larger expressions
+
+See LL Entry 26 for full analysis.
 
 ---
 
