@@ -43,10 +43,10 @@
 | P3 | Magic numbers: named constexpr for production code, NOLINT for IVP test | 275 | `5ee49b9` |
 | P4 | Missing braces: JSF AV Rule 59, all if/for/while bodies | 170 | `28dd3dc` |
 | P5 | C-style casts: static_cast/reinterpret_cast per JSF AV Rule 185 | ~80 | `66eb7cb` |
-| P5b | Identifier naming: camelCase locals/params across all production files | 162 | pending |
-| P5c | Implicit bool conversion: explicit `!= 0`/`!= nullptr` in production code | 41 | pending |
-| P5d | Uninitialized variables: init at declaration in production code | 51 | pending |
-| P5e | Function decomposition: 9 production functions under 60-line limit | 9 | pending |
+| P5b | Identifier naming: camelCase locals/params across all production files | 162 | `2c3b5e6` |
+| P5c | Implicit bool conversion: explicit `!= 0`/`!= nullptr` in production code | 41 | `2c3b5e6` |
+| P5d | Uninitialized variables: init at declaration in production code | 51 | `2c3b5e6` |
+| P5e | Function decomposition: 9 production functions under 60-line limit | 9 | `2c3b5e6` — HW verified (0 errors) |
 | P5f | Math parentheses: check disabled per JSF AV Rule 213 exemption (LL Entry 26) | 65 | N/A |
 
 ### Remaining (IVP Test Code Only)
