@@ -421,7 +421,7 @@ static bool mat_inverse_9x9(const float src[81], float dst[81]) {
         for (uint8_t c = 0; c < 18; c++) {
             aug[col][c] /= pivot;
         }
-        for (int8_t r = col - 1; r >= 0; r--) {
+        for (int8_t r = static_cast<int8_t>(col - 1); r >= 0; r--) {
             float factor = aug[r][col];
             for (uint8_t c = 0; c < 18; c++) {
                 aug[r][c] -= factor * aug[col][c];

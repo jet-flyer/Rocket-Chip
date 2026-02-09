@@ -1016,6 +1016,7 @@ static void ivp_test_key_handler(int key) {
         volatile uint8_t buf[256];
         buf[0] = (uint8_t)key;  // Prevent unused-variable optimization
         (void)buf[255];
+        // NOLINTNEXTLINE(misc-no-recursion) — intentional IVP-29 stack overflow test
         ivp_test_key_handler(key);  // Recurse until stack overflow
         break;
     }
@@ -1490,11 +1491,11 @@ static void ivp13_gate_check(void) {
 
     bool pass = true;
     uint32_t elapsedMs = to_ms_since_boot(get_absolute_time()) - g_ivp13StartMs;
-    float elapsedS = elapsedMs / 1000.0f;
+    float elapsedS = static_cast<float>(elapsedMs) / 1000.0f;
 
     // Actual rates
-    float imuRate = g_ivp13ImuCount / elapsedS;
-    float baroRate = g_ivp13BaroCount / elapsedS;
+    float imuRate = static_cast<float>(g_ivp13ImuCount) / elapsedS;
+    float baroRate = static_cast<float>(g_ivp13BaroCount) / elapsedS;
 
     // Gate: IMU rate within 5% of 100Hz target
     bool imuOk = (imuRate > 95.0f && imuRate < 105.0f);
@@ -2441,7 +2442,7 @@ static void ivp28_flash_test(void) {
                "gap=%lu reads, loop=%lu->%lu, err=+%lu%s, "
                "readback=%s, USB=%s\n",
                iterPass ? "PASS" : "FAIL",
-               (unsigned long)(i + 1), (unsigned long)kIvp28FlashRepeatCount,
+               static_cast<unsigned long>(i) + 1UL, (unsigned long)kIvp28FlashRepeatCount,
                saveOk ? "OK" : "FAILED",
                (unsigned long)durationUs,
                (double)durationUs / 1000.0,
@@ -3091,7 +3092,7 @@ static void ivp13_polling_tick(uint32_t nowMs) {
     // IMU read at 100Hz
     if ((nowUs - g_ivp13LastImuUs) >= kIvp13ImuIntervalUs) {
         g_ivp13LastImuUs += kIvp13ImuIntervalUs;
-        if ((nowUs - g_ivp13LastImuUs) > kIvp13ImuIntervalUs * 2) {
+        if ((nowUs - g_ivp13LastImuUs) > static_cast<uint64_t>(kIvp13ImuIntervalUs) * 2) {
             g_ivp13LastImuUs = nowUs;
         }
         uint64_t t0 = time_us_64();
@@ -3114,7 +3115,7 @@ static void ivp13_polling_tick(uint32_t nowMs) {
     // Baro read at 50Hz
     if ((nowUs - g_ivp13LastBaroUs) >= kIvp13BaroIntervalUs) {
         g_ivp13LastBaroUs += kIvp13BaroIntervalUs;
-        if ((nowUs - g_ivp13LastBaroUs) > kIvp13BaroIntervalUs * 2) {
+        if ((nowUs - g_ivp13LastBaroUs) > static_cast<uint64_t>(kIvp13BaroIntervalUs) * 2) {
             g_ivp13LastBaroUs = nowUs;
         }
         uint64_t t0 = time_us_64();

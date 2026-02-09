@@ -55,6 +55,12 @@ P10 Rule 2 requires all loops to have a fixed upper bound. Bare-metal main loops
 
 **Mitigation:** IVP-30 hardware watchdog (5s timeout) ensures no main loop can hang silently. Fault handlers (BM-4, BM-5) are unrecoverable by design — the LED blink pattern signals the failure mode. All bare-metal embedded systems (FreeRTOS idle task, ChibiOS main thread, Zephyr main loop) use the same pattern.
 
+### Intentional Recursion in IVP-29 Test (P10-1)
+
+| ID | Location | Rule | Severity | Rationale |
+|----|----------|------|----------|-----------|
+| RC-1 | `main.cpp` ivp_test_key_handler() | P10-1 | Accepted | Intentional recursive call to trigger stack overflow for IVP-29 MPU guard verification. Test-only code, locked behind `g_testCommandsEnabled` flag. Will be stripped for production. NOLINTNEXTLINE annotation in source. |
+
 ### stdio.h Usage Deviation (JSF 22/24)
 
 JSF AV Rule 22 prohibits `<stdio.h>`. Our usage is mitigated by code classification and runtime lockout.

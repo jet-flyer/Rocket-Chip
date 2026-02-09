@@ -647,6 +647,71 @@ busy_wait_us(500);  // PA1010D SDA settling
 
 ---
 
+## Entry 25: Use Debug Probe for Flashing — picotool Corrupts I2C Bus
+
+**Date:** 2026-02-09
+**Time Spent:** ~1.5 hours (wasted on false BSS regression diagnosis)
+**Severity:** Critical — Process improvement that prevents hours of wasted debugging
+
+### Problem
+During clang-tidy remediation, Phase 1 changes (adding `static_cast<float>()` to sensor conversions) appeared to cause a BSS layout regression — 100% IMU init failures, 0 successful reads. Multiple bisection rounds suggested the icm20948.cpp changes were the trigger. Reverted everything, baseline also started failing. Nearly wrote off the changes as triggering the known BSS sensitivity issue.
+
+### Symptoms
+- `[FAIL] ICM-20948 init failed` and `[FAIL] DPS310 init failed` in boot banner
+- 0 successful sensor reads, error count climbing continuously
+- Baseline binary also failed after enough flash cycles
+- Symptoms identical to the BSS layout regression (IVP-32/33)
+
+### Root Cause
+**`picotool load --force` corrupts the I2C bus across consecutive rapid flash cycles.** The `--force` flag sends a USB vendor command to reboot into BOOTSEL, which interrupts any in-progress I2C transaction. The bus recovery code at init handles ONE interrupted transaction, but rapid successive reboots (5-10 flash cycles during bisection testing) accumulate corruption that bus recovery can't clear.
+
+This was misdiagnosed as a code regression / BSS layout sensitivity issue because:
+1. The first flash of modified code failed (bus already degraded from prior cycles)
+2. Reverting to baseline also failed (bus was degraded regardless of code)
+3. A lucky power cycle during bisection cleared the bus temporarily, making one test pass and confusing the analysis
+
+### Solution
+**Always use the debug probe (SWD) for flashing during iterative development:**
+
+```bash
+# Start OpenOCD (once per session)
+taskkill //F //IM openocd.exe 2>/dev/null; sleep 2
+/c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/openocd \
+  -s /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/scripts \
+  -f interface/cmsis-dap.cfg -f target/rp2350.cfg \
+  -c "adapter speed 5000" &
+
+# Flash and run (each iteration)
+/c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe \
+  build/rocketchip.elf -batch \
+  -ex "target extended-remote localhost:3333" \
+  -ex "monitor reset halt" \
+  -ex "load" \
+  -ex "monitor reset run"
+```
+
+The debug probe:
+- Halts both cores cleanly before flashing (no mid-transaction interruption)
+- Resets via SWD, not USB (no I2C bus corruption)
+- Provides reliable state after flash (no need for power cycles between iterations)
+- Eliminates the entire class of "picotool reboot" debugging failures
+
+### When picotool Is Still OK
+- Single flash-and-go (not iterative testing)
+- When debug probe is not physically connected
+- Production flashing (one-shot, followed by power cycle)
+
+### Prevention
+1. **Debug probe is the default for all iterative development.** picotool is the fallback, not the primary tool
+2. **If using picotool, power cycle between flash cycles** — don't rely on the `--force` reboot alone
+3. **When sensor init fails after a code change, first rule out bus corruption** — flash the known-good baseline via probe before concluding it's a code regression
+4. **Never bisect code changes using picotool** — the accumulated bus corruption produces false positives that waste hours
+
+### Impact
+This entry supersedes the picotool guidance in DEBUG_PROBE_NOTES.md and DEBUG_OUTPUT.md. The debug probe was previously described as "for debugging only" — it is now the **primary recommended flashing tool** for iterative development.
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

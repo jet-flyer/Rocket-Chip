@@ -78,9 +78,9 @@ static void send_pixel(uint8_t r, uint8_t g, uint8_t b) {
  */
 static ws2812_rgb_t apply_brightness(ws2812_rgb_t color, float scale) {
     ws2812_rgb_t result;
-    result.r = (uint8_t)(color.r * scale);
-    result.g = (uint8_t)(color.g * scale);
-    result.b = (uint8_t)(color.b * scale);
+    result.r = static_cast<uint8_t>(static_cast<float>(color.r) * scale);
+    result.g = static_cast<uint8_t>(static_cast<float>(color.g) * scale);
+    result.b = static_cast<uint8_t>(static_cast<float>(color.b) * scale);
     return result;
 }
 

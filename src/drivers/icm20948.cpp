@@ -454,9 +454,10 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     int16_t ay = (int16_t)((buf[2] << 8) | buf[3]);
     int16_t az = (int16_t)((buf[4] << 8) | buf[5]);
 
-    data->accel.x = ax * dev->accel_scale;
-    data->accel.y = ay * dev->accel_scale;
-    data->accel.z = az * dev->accel_scale;
+    // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
+    data->accel.x = static_cast<float>(ax) * dev->accel_scale;
+    data->accel.y = static_cast<float>(ay) * dev->accel_scale;
+    data->accel.z = static_cast<float>(az) * dev->accel_scale;
     data->accel_valid = true;
 
     // Parse gyroscope (bytes 6-11)
@@ -464,16 +465,16 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     int16_t gy = (int16_t)((buf[8] << 8) | buf[9]);
     int16_t gz = (int16_t)((buf[10] << 8) | buf[11]);
 
-    data->gyro.x = gx * dev->gyro_scale;
-    data->gyro.y = gy * dev->gyro_scale;
-    data->gyro.z = gz * dev->gyro_scale;
+    data->gyro.x = static_cast<float>(gx) * dev->gyro_scale;
+    data->gyro.y = static_cast<float>(gy) * dev->gyro_scale;
+    data->gyro.z = static_cast<float>(gz) * dev->gyro_scale;
     data->gyro_valid = true;
 
     // Parse temperature (bytes 12-13)
     int16_t temp_raw = (int16_t)((buf[12] << 8) | buf[13]);
     // Temperature formula from datasheet: Temp_degC = ((TEMP_OUT - RoomTemp_Offset) / Temp_Sensitivity) + 21
     // Room temp offset and sensitivity vary; using typical values
-    data->temperature_c = (temp_raw / 333.87f) + 21.0f;
+    data->temperature_c = (static_cast<float>(temp_raw) / 333.87f) + 21.0f;
 
     // Parse magnetometer from EXT_SLV_SENS_DATA (bytes 14-22)
     // Format: ST1, HXL, HXH, HYL, HYH, HZL, HZH, dummy(0x17), ST2
@@ -487,9 +488,9 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
             int16_t my = (int16_t)((buf[18] << 8) | buf[17]);
             int16_t mz = (int16_t)((buf[20] << 8) | buf[19]);
 
-            data->mag.x = mx * dev->mag_scale;
-            data->mag.y = my * dev->mag_scale;
-            data->mag.z = mz * dev->mag_scale;
+            data->mag.x = static_cast<float>(mx) * dev->mag_scale;
+            data->mag.y = static_cast<float>(my) * dev->mag_scale;
+            data->mag.z = static_cast<float>(mz) * dev->mag_scale;
             data->mag_valid = true;
         } else {
             data->mag_valid = false;
@@ -518,9 +519,10 @@ bool icm20948_read_accel(icm20948_t* dev, icm20948_vec3_t* accel) {
     int16_t ay = (int16_t)((buf[2] << 8) | buf[3]);
     int16_t az = (int16_t)((buf[4] << 8) | buf[5]);
 
-    accel->x = ax * dev->accel_scale;
-    accel->y = ay * dev->accel_scale;
-    accel->z = az * dev->accel_scale;
+    // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
+    accel->x = static_cast<float>(ax) * dev->accel_scale;
+    accel->y = static_cast<float>(ay) * dev->accel_scale;
+    accel->z = static_cast<float>(az) * dev->accel_scale;
 
     return true;
 }
@@ -541,9 +543,10 @@ bool icm20948_read_gyro(icm20948_t* dev, icm20948_vec3_t* gyro) {
     int16_t gy = (int16_t)((buf[2] << 8) | buf[3]);
     int16_t gz = (int16_t)((buf[4] << 8) | buf[5]);
 
-    gyro->x = gx * dev->gyro_scale;
-    gyro->y = gy * dev->gyro_scale;
-    gyro->z = gz * dev->gyro_scale;
+    // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
+    gyro->x = static_cast<float>(gx) * dev->gyro_scale;
+    gyro->y = static_cast<float>(gy) * dev->gyro_scale;
+    gyro->z = static_cast<float>(gz) * dev->gyro_scale;
 
     return true;
 }
@@ -573,9 +576,10 @@ bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag) {
     int16_t my = (int16_t)((buf[4] << 8) | buf[3]);
     int16_t mz = (int16_t)((buf[6] << 8) | buf[5]);
 
-    mag->x = mx * dev->mag_scale;
-    mag->y = my * dev->mag_scale;
-    mag->z = mz * dev->mag_scale;
+    // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
+    mag->x = static_cast<float>(mx) * dev->mag_scale;
+    mag->y = static_cast<float>(my) * dev->mag_scale;
+    mag->z = static_cast<float>(mz) * dev->mag_scale;
 
     return true;
 }
@@ -593,7 +597,7 @@ bool icm20948_read_temperature(icm20948_t* dev, float* temp_c) {
     }
 
     int16_t temp_raw = (int16_t)((buf[0] << 8) | buf[1]);
-    *temp_c = (temp_raw / 333.87f) + 21.0f;
+    *temp_c = (static_cast<float>(temp_raw) / 333.87f) + 21.0f;
 
     return true;
 }

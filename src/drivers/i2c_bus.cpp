@@ -111,6 +111,8 @@ void i2c_bus_scan(void) {
                 case 0x76:
                     printf(" (DPS310 Barometer, alt addr)");
                     break;
+                default:
+                    break;
             }
             printf("\n");
             found++;
