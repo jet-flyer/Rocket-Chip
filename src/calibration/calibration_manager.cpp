@@ -168,12 +168,24 @@ void calibration_feed_gyro(float gx, float gy, float gz, float temperature_c) {
     g_sample_acc.sum_temp += temperature_c;
 
     // Track min/max for motion detection
-    if (gx < g_sample_acc.min_x) g_sample_acc.min_x = gx;
-    if (gx > g_sample_acc.max_x) g_sample_acc.max_x = gx;
-    if (gy < g_sample_acc.min_y) g_sample_acc.min_y = gy;
-    if (gy > g_sample_acc.max_y) g_sample_acc.max_y = gy;
-    if (gz < g_sample_acc.min_z) g_sample_acc.min_z = gz;
-    if (gz > g_sample_acc.max_z) g_sample_acc.max_z = gz;
+    if (gx < g_sample_acc.min_x) {
+        g_sample_acc.min_x = gx;
+    }
+    if (gx > g_sample_acc.max_x) {
+        g_sample_acc.max_x = gx;
+    }
+    if (gy < g_sample_acc.min_y) {
+        g_sample_acc.min_y = gy;
+    }
+    if (gy > g_sample_acc.max_y) {
+        g_sample_acc.max_y = gy;
+    }
+    if (gz < g_sample_acc.min_z) {
+        g_sample_acc.min_z = gz;
+    }
+    if (gz > g_sample_acc.max_z) {
+        g_sample_acc.max_z = gz;
+    }
 
     g_sample_acc.count++;
 
@@ -229,12 +241,24 @@ void calibration_feed_accel(float ax, float ay, float az, float temperature_c) {
     g_sample_acc.sum_temp += temperature_c;
 
     // Track min/max
-    if (ax < g_sample_acc.min_x) g_sample_acc.min_x = ax;
-    if (ax > g_sample_acc.max_x) g_sample_acc.max_x = ax;
-    if (ay < g_sample_acc.min_y) g_sample_acc.min_y = ay;
-    if (ay > g_sample_acc.max_y) g_sample_acc.max_y = ay;
-    if (az < g_sample_acc.min_z) g_sample_acc.min_z = az;
-    if (az > g_sample_acc.max_z) g_sample_acc.max_z = az;
+    if (ax < g_sample_acc.min_x) {
+        g_sample_acc.min_x = ax;
+    }
+    if (ax > g_sample_acc.max_x) {
+        g_sample_acc.max_x = ax;
+    }
+    if (ay < g_sample_acc.min_y) {
+        g_sample_acc.min_y = ay;
+    }
+    if (ay > g_sample_acc.max_y) {
+        g_sample_acc.max_y = ay;
+    }
+    if (az < g_sample_acc.min_z) {
+        g_sample_acc.min_z = az;
+    }
+    if (az > g_sample_acc.max_z) {
+        g_sample_acc.max_z = az;
+    }
 
     g_sample_acc.count++;
 
@@ -468,19 +492,29 @@ void calibration_reset_6pos() {
 }
 
 const char* calibration_get_6pos_name(uint8_t pos) {
-    if (pos >= kAccel6posPositions) return "UNKNOWN";
+    if (pos >= kAccel6posPositions) {
+        return "UNKNOWN";
+    }
     return kPositionNames[pos];
 }
 
 const float* calibration_get_6pos_avg(uint8_t pos) {
-    if (pos >= kAccel6posPositions) return nullptr;
+    if (pos >= kAccel6posPositions) {
+        return nullptr;
+    }
     return g_6pos_avg[pos];
 }
 
 cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_fn) {
-    if (pos >= kAccel6posPositions) return CAL_RESULT_INVALID_DATA;
-    if (read_fn == nullptr) return CAL_RESULT_INVALID_DATA;
-    if (g_6pos_collected & (1 << pos)) return CAL_RESULT_INVALID_DATA;  // Already done
+    if (pos >= kAccel6posPositions) {
+        return CAL_RESULT_INVALID_DATA;
+    }
+    if (read_fn == nullptr) {
+        return CAL_RESULT_INVALID_DATA;
+    }
+    if (g_6pos_collected & (1 << pos)) {
+        return CAL_RESULT_INVALID_DATA;  // Already done
+    }
 
     uint16_t base_idx = pos * kAccel6posSamplesPerPos;
     float sum[3] = {0.0F, 0.0F, 0.0F};
@@ -525,7 +559,9 @@ cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_f
 
 cal_result_t calibration_compute_6pos() {
     // Guard: all 6 positions must be collected
-    if (g_6pos_collected != kAccel6posAllMask) return CAL_RESULT_NO_DATA;
+    if (g_6pos_collected != kAccel6posAllMask) {
+        return CAL_RESULT_NO_DATA;
+    }
 
     // Initialize parameters: offset={0,0,0}, diag={1,1,1}, offdiag={0,0,0}
     float params[kAccel6posNumParams] = {
@@ -653,7 +689,9 @@ uint8_t calibration_get_progress() {
         return (g_cal_state == CAL_STATE_COMPLETE) ? 100 : 0;
     }
 
-    if (g_sample_acc.target_count == 0) return 0;
+    if (g_sample_acc.target_count == 0) {
+        return 0;
+    }
 
     uint32_t progress = (g_sample_acc.count * 100) / g_sample_acc.target_count;
     return (progress > 100) ? 100 : (uint8_t)progress;
@@ -725,10 +763,16 @@ void calibration_apply_accel(float ax_raw, float ay_raw, float az_raw,
 }
 
 bool calibration_load_into(calibration_store_t* dest) {
-    if (dest == nullptr) return false;
+    if (dest == nullptr) {
+        return false;
+    }
     calibration_store_t loaded;
-    if (!calibration_storage_read(&loaded)) return false;
-    if (!calibration_validate(&loaded)) return false;
+    if (!calibration_storage_read(&loaded)) {
+        return false;
+    }
+    if (!calibration_validate(&loaded)) {
+        return false;
+    }
     *dest = loaded;
     return true;
 }
@@ -736,7 +780,9 @@ bool calibration_load_into(calibration_store_t* dest) {
 float calibration_get_altitude_agl(float pressure_pa) {
     // Barometric formula: h = 44330 * (1 - (P/P0)^0.1903)
     float p0 = g_calibration.baro.ground_pressure_pa;
-    if (p0 < kMinValidPressurePa) p0 = kStdAtmPressurePa;  // Sanity check
+    if (p0 < kMinValidPressurePa) {
+        p0 = kStdAtmPressurePa;  // Sanity check
+    }
 
     return kHypsometricScale * (1.0F - powf(pressure_pa / p0, kHypsometricExponent));
 }

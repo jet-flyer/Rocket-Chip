@@ -78,7 +78,9 @@ static struct {
  * @brief Send raw RGB data to WS2812 via PIO
  */
 static void send_pixel(uint8_t r, uint8_t g, uint8_t b) {
-    if (!g_state.initialized) return;
+    if (!g_state.initialized) {
+        return;
+    }
 
     // Apply global brightness
     if (g_state.brightness < 255) {
@@ -138,7 +140,9 @@ bool ws2812_status_init(PIO pio, uint pin) {
 }
 
 void ws2812_status_deinit() {
-    if (!g_state.initialized) return;
+    if (!g_state.initialized) {
+        return;
+    }
 
     // Turn off LED
     send_pixel(0, 0, 0);
@@ -225,7 +229,9 @@ void ws2812_set_brightness(uint8_t brightness) {
 // ============================================================================
 
 void ws2812_update() {
-    if (!g_state.initialized) return;
+    if (!g_state.initialized) {
+        return;
+    }
 
     uint32_t now = to_ms_since_boot(get_absolute_time());
     uint32_t elapsed = now - g_state.phase_start_ms;
@@ -306,7 +312,9 @@ ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v) {
 
     // Normalize inputs
     h = fmodf(h, kHueFull);
-    if (h < 0) h += kHueFull;
+    if (h < 0) {
+        h += kHueFull;
+    }
     s = s / kPercentScale;
     v = v / kPercentScale;
 

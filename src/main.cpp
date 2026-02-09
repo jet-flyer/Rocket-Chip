@@ -772,7 +772,9 @@ static void core1_read_baro(shared_sensor_data_t* localData) {
 static void core1_read_gps(shared_sensor_data_t* localData,
                             uint32_t* lastGpsReadUs) {
     uint32_t gpsNowUs = time_us_32();
-    if (gpsNowUs - *lastGpsReadUs < kGpsMinIntervalUs) return;
+    if (gpsNowUs - *lastGpsReadUs < kGpsMinIntervalUs) {
+        return;
+    }
 
     *lastGpsReadUs = gpsNowUs;
     uint32_t t0 = time_us_32();
@@ -835,7 +837,9 @@ static void core1_read_gps(shared_sensor_data_t* localData,
 static void core1_neopixel_update(shared_sensor_data_t* localData,
                                    uint32_t nowMs, uint32_t sensorPhaseStartMs,
                                    uint32_t* lastNeoMs, bool* neoState) {
-    if (nowMs - *lastNeoMs < kNeoToggleSoakMs) return;
+    if (nowMs - *lastNeoMs < kNeoToggleSoakMs) {
+        return;
+    }
 
     *lastNeoMs = nowMs;
     *neoState = !*neoState;
@@ -1010,7 +1014,9 @@ static void cal_pre_hook() {
         g_core1PauseI2C.store(true, std::memory_order_release);
         // Wait for Core 1 to acknowledge pause (max 100ms)
         for (uint32_t i = 0; i < kCore1PauseAckMaxMs; i++) {
-            if (g_core1I2CPaused.load(std::memory_order_acquire)) break;
+            if (g_core1I2CPaused.load(std::memory_order_acquire)) {
+                break;
+            }
             sleep_ms(1);
         }
     }
@@ -1036,8 +1042,12 @@ static void cal_post_hook() {
 // ============================================================================
 
 static void ivp_test_key_handler(int key) {
-    if (!g_testCommandsEnabled) return;  // Available after soak or watchdog reboot
-    if (!stdio_usb_connected()) return;
+    if (!g_testCommandsEnabled) {
+        return;  // Available after soak or watchdog reboot
+    }
+    if (!stdio_usb_connected()) {
+        return;
+    }
 
     switch (key) {
     case 'o': {
@@ -1267,7 +1277,9 @@ static void hw_validate_stage1() {
             printf("[----] I2C 0x%02X (%s): %s\n",
                    expected[i], get_device_name(expected[i]),
                    found ? "FOUND" : "NOT FOUND");
-            if (found) foundCount++;
+            if (found) {
+                foundCount++;
+            }
         }
         printf("[INFO] Sensors found: %d/%zu expected\n",
                foundCount, sizeof(expected) / sizeof(expected[0]));
@@ -1343,26 +1355,44 @@ static void ivp10_accumulate(const icm20948_data_t* d) {
     g_accelZSum += d->accel.z;
 
     // Accel Z range for stability check
-    if (d->accel.z < g_accelZMin) g_accelZMin = d->accel.z;
-    if (d->accel.z > g_accelZMax) g_accelZMax = d->accel.z;
+    if (d->accel.z < g_accelZMin) {
+        g_accelZMin = d->accel.z;
+    }
+    if (d->accel.z > g_accelZMax) {
+        g_accelZMax = d->accel.z;
+    }
 
     // Gyro max absolute
     float gmax = fabsf(d->gyro.x);
-    if (fabsf(d->gyro.y) > gmax) gmax = fabsf(d->gyro.y);
-    if (fabsf(d->gyro.z) > gmax) gmax = fabsf(d->gyro.z);
-    if (gmax > g_gyroAbsMax) g_gyroAbsMax = gmax;
+    if (fabsf(d->gyro.y) > gmax) {
+        gmax = fabsf(d->gyro.y);
+    }
+    if (fabsf(d->gyro.z) > gmax) {
+        gmax = fabsf(d->gyro.z);
+    }
+    if (gmax > g_gyroAbsMax) {
+        g_gyroAbsMax = gmax;
+    }
 
     // Mag magnitude
     if (d->mag_valid) {
         float mag = sqrtf(d->mag.x * d->mag.x + d->mag.y * d->mag.y + d->mag.z * d->mag.z);
-        if (g_magValidCount == 0 || mag < g_magMagMin) g_magMagMin = mag;
-        if (g_magValidCount == 0 || mag > g_magMagMax) g_magMagMax = mag;
+        if (g_magValidCount == 0 || mag < g_magMagMin) {
+            g_magMagMin = mag;
+        }
+        if (g_magValidCount == 0 || mag > g_magMagMax) {
+            g_magMagMax = mag;
+        }
         g_magValidCount++;
     }
 
     // Temperature
-    if (d->temperature_c < g_tempMin) g_tempMin = d->temperature_c;
-    if (d->temperature_c > g_tempMax) g_tempMax = d->temperature_c;
+    if (d->temperature_c < g_tempMin) {
+        g_tempMin = d->temperature_c;
+    }
+    if (d->temperature_c > g_tempMax) {
+        g_tempMax = d->temperature_c;
+    }
 }
 
 static void ivp10_gate_check() {
@@ -1381,7 +1411,9 @@ static void ivp10_gate_check() {
     bool amOk = (accelMag > 9.3F && accelMag < 10.3F);
     printf("[%s] Accel magnitude: %.3f m/s^2 (expect 9.3-10.3)\n",
            amOk ? "PASS" : "FAIL", (double)accelMag);
-    if (!amOk) pass = false;
+    if (!amOk) {
+        pass = false;
+    }
 
     // Info: Individual axis averages (orientation-dependent)
     printf("[INFO] Accel axes avg: X=%.3f Y=%.3f Z=%.3f m/s^2\n",
@@ -1411,7 +1443,9 @@ static void ivp10_gate_check() {
     bool nanOk = (g_nanCount == 0);
     printf("[%s] NaN/inf count: %lu\n",
            nanOk ? "PASS" : "FAIL", (unsigned long)g_nanCount);
-    if (!nanOk) pass = false;
+    if (!nanOk) {
+        pass = false;
+    }
 
     // Gate: Accel stability (max-min < 0.5 over 5s)
     float azRange = g_accelZMax - g_accelZMin;
@@ -1449,13 +1483,21 @@ static void ivp12_accumulate(const baro_dps310_data_t* d) {
     g_baroLastPress = d->pressure_pa;
 
     // Pressure
-    if (g_baroValidReads == 0 || d->pressure_pa < g_baroPressMin) g_baroPressMin = d->pressure_pa;
-    if (g_baroValidReads == 0 || d->pressure_pa > g_baroPressMax) g_baroPressMax = d->pressure_pa;
+    if (g_baroValidReads == 0 || d->pressure_pa < g_baroPressMin) {
+        g_baroPressMin = d->pressure_pa;
+    }
+    if (g_baroValidReads == 0 || d->pressure_pa > g_baroPressMax) {
+        g_baroPressMax = d->pressure_pa;
+    }
     g_baroPressSum += d->pressure_pa;
 
     // Temperature
-    if (g_baroValidReads == 0 || d->temperature_c < g_baroTempMin) g_baroTempMin = d->temperature_c;
-    if (g_baroValidReads == 0 || d->temperature_c > g_baroTempMax) g_baroTempMax = d->temperature_c;
+    if (g_baroValidReads == 0 || d->temperature_c < g_baroTempMin) {
+        g_baroTempMin = d->temperature_c;
+    }
+    if (g_baroValidReads == 0 || d->temperature_c > g_baroTempMax) {
+        g_baroTempMax = d->temperature_c;
+    }
 
     g_baroValidReads++;
 }
@@ -1477,7 +1519,9 @@ static void ivp12_gate_check() {
     bool pOk = (pressAvg > 98325.0F && pressAvg < 104325.0F);
     printf("[%s] Pressure avg: %.1f Pa (expect 98325-104325)\n",
            pOk ? "PASS" : "FAIL", (double)pressAvg);
-    if (!pOk) pass = false;
+    if (!pOk) {
+        pass = false;
+    }
 
     // Gate: Temperature plausible (15-40°C)
     bool tOk = (g_baroTempMin > 15.0F && g_baroTempMax < 40.0F);
@@ -1500,14 +1544,18 @@ static void ivp12_gate_check() {
     bool nanOk = (g_baroNanCount == 0);
     printf("[%s] NaN/inf count: %lu\n",
            nanOk ? "PASS" : "FAIL", (unsigned long)g_baroNanCount);
-    if (!nanOk) pass = false;
+    if (!nanOk) {
+        pass = false;
+    }
 
     // Gate: No stuck values (>50% identical readings = stuck)
     bool stuckOk = (g_baroStuckCount < g_baroValidReads / 2);
     printf("[%s] Stuck values: %lu/%lu\n",
            stuckOk ? "PASS" : "FAIL",
            (unsigned long)g_baroStuckCount, (unsigned long)g_baroValidReads);
-    if (!stuckOk) pass = false;
+    if (!stuckOk) {
+        pass = false;
+    }
 
     // Info: altitude
     float alt = baro_dps310_pressure_to_altitude(pressAvg, 101325.0F);
@@ -1535,13 +1583,17 @@ static void ivp13_gate_check() {
     bool imuOk = (imuRate > 95.0F && imuRate < 105.0F);
     printf("[%s] IMU rate: %.1f Hz (target 100, expect 95-105)\n",
            imuOk ? "PASS" : "FAIL", (double)imuRate);
-    if (!imuOk) pass = false;
+    if (!imuOk) {
+        pass = false;
+    }
 
     // Gate: Baro rate within 10% of 50Hz target
     bool baroOk = (baroRate > 45.0F && baroRate < 55.0F);
     printf("[%s] Baro rate: %.1f Hz (target 50, expect 45-55)\n",
            baroOk ? "PASS" : "FAIL", (double)baroRate);
-    if (!baroOk) pass = false;
+    if (!baroOk) {
+        pass = false;
+    }
 
     // Gate: Zero I2C errors over 60 seconds
     uint32_t totalErrors = g_ivp13ImuErrors + g_ivp13BaroErrors;
@@ -1549,7 +1601,9 @@ static void ivp13_gate_check() {
     printf("[%s] I2C errors: %lu (IMU: %lu, Baro: %lu)\n",
            errOk ? "PASS" : "FAIL", (unsigned long)totalErrors,
            (unsigned long)g_ivp13ImuErrors, (unsigned long)g_ivp13BaroErrors);
-    if (!errOk) pass = false;
+    if (!errOk) {
+        pass = false;
+    }
 
     // Info: Per-read I2C timing
     if (g_ivp13ImuCount > 0) {
@@ -1636,7 +1690,9 @@ static void ivp14_gate_check() {
                        (double)readback.gyro.bias.x,
                        (double)readback.gyro.bias.y,
                        (double)readback.gyro.bias.z);
-                if (!match) pass = false;
+                if (!match) {
+                    pass = false;
+                }
             }
         }
     }
@@ -1721,7 +1777,9 @@ static void ivp15_gate_check() {
     printf("[%s] Gate 2: bias X=%.5f Y=%.5f Z=%.5f rad/s (expect <0.1 each)\n",
            biasOk ? "PASS" : "FAIL",
            (double)bx, (double)by, (double)bz);
-    if (!biasOk) pass = false;
+    if (!biasOk) {
+        pass = false;
+    }
 
     // Gate 3: After applying, readings near zero when stationary
     // Take 10 samples and check corrected gyro near zero
@@ -1738,9 +1796,15 @@ static void ivp15_gate_check() {
                 calibration_apply_gyro(data.gyro.x, data.gyro.y, data.gyro.z,
                                        &cx, &cy, &cz);
                 float m = fabsf(cx);
-                if (fabsf(cy) > m) m = fabsf(cy);
-                if (fabsf(cz) > m) m = fabsf(cz);
-                if (m > maxCorrected) maxCorrected = m;
+                if (fabsf(cy) > m) {
+                    m = fabsf(cy);
+                }
+                if (fabsf(cz) > m) {
+                    m = fabsf(cz);
+                }
+                if (m > maxCorrected) {
+                    maxCorrected = m;
+                }
                 goodSamples++;
             }
         }
@@ -1749,7 +1813,9 @@ static void ivp15_gate_check() {
         printf("[%s] Gate 3: corrected gyro max=%.5f rad/s (%lu/10 samples) (expect <0.05)\n",
                corrOk ? "PASS" : "FAIL",
                (double)maxCorrected, (unsigned long)goodSamples);
-        if (!corrOk) pass = false;
+        if (!corrOk) {
+            pass = false;
+        }
     }
 
     // Gate 4: Persists across power cycle
@@ -1773,7 +1839,9 @@ static void ivp15_gate_check() {
                    persistOk ? "PASS" : "FAIL",
                    persistOk ? "match" : "MISMATCH",
                    readOk ? (unsigned long)readback.cal_flags : 0UL);
-            if (!persistOk) pass = false;
+            if (!persistOk) {
+                pass = false;
+            }
             printf("[INFO] Power cycle to verify full persistence\n");
         }
     }
@@ -1797,7 +1865,9 @@ static void ivp16_gate_check(uint32_t elapsedMs) {
            timeOk ? "PASS" : "FAIL", (unsigned long)elapsedMs, (int)result,
            result == CAL_RESULT_OK ? "OK" :
            result == CAL_RESULT_MOTION_DETECTED ? "MOTION_DETECTED" : "ERROR");
-    if (!timeOk) pass = false;
+    if (!timeOk) {
+        pass = false;
+    }
 
     // Gate 2: After applying, Z reads +9.81 ±0.05, X and Y < 0.05 m/s²
     {
@@ -1866,7 +1936,9 @@ static void ivp16_gate_check(uint32_t elapsedMs) {
                    persistOk ? "PASS" : "FAIL",
                    persistOk ? "match" : "MISMATCH",
                    readOk ? (unsigned long)readback.cal_flags : 0UL);
-            if (!persistOk) pass = false;
+            if (!persistOk) {
+                pass = false;
+            }
 
             // Print computed offsets for reference
             printf("[INFO] Accel offsets: X=%.4f Y=%.4f Z=%.4f m/s^2\n",
@@ -1915,8 +1987,12 @@ static void ivp22_fifo_test() {
                 lost++;
             } else {
                 rttSumUs += dt;
-                if (dt < rttMinUs) rttMinUs = dt;
-                if (dt > rttMaxUs) rttMaxUs = dt;
+                if (dt < rttMinUs) {
+                    rttMinUs = dt;
+                }
+                if (dt > rttMaxUs) {
+                    rttMaxUs = dt;
+                }
             }
         }
 
@@ -1929,7 +2005,9 @@ static void ivp22_fifo_test() {
                echoOk ? "PASS" : "FAIL",
                (unsigned long)(kFifoTestCount - lost),
                (unsigned long)kFifoTestCount, (unsigned long)lost);
-        if (!echoOk) pass = false;
+        if (!echoOk) {
+            pass = false;
+        }
 
         if (lost < kFifoTestCount) {
             uint32_t rttAvg = (uint32_t)(rttSumUs / (kFifoTestCount - lost));
@@ -1954,7 +2032,9 @@ static void ivp22_fifo_test() {
             bool ok = multicore_fifo_pop_timeout_us(100000, &val);
             if (ok) {
                 received++;
-                if (val != i) outOfOrder++;
+                if (val != i) {
+                    outOfOrder++;
+                }
             }
         }
 
@@ -1963,7 +2043,9 @@ static void ivp22_fifo_test() {
                sendOk ? "PASS" : "FAIL",
                (unsigned long)received, (unsigned long)kFifoTestCount,
                (unsigned long)outOfOrder);
-        if (!sendOk) pass = false;
+        if (!sendOk) {
+            pass = false;
+        }
     }
 
     multicore_fifo_drain();
@@ -1973,7 +2055,9 @@ static void ivp22_fifo_test() {
     {
         uint32_t pushCount = 0;
         for (uint32_t i = 0; i < 16; i++) {
-            if (!multicore_fifo_wready()) break;
+            if (!multicore_fifo_wready()) {
+                break;
+            }
             multicore_fifo_push_blocking(i + 100);
             pushCount++;
         }
@@ -1990,7 +2074,9 @@ static void ivp22_fifo_test() {
         bool usbOk = stdio_usb_connected();
         printf("[%s] Gate 4: USB still connected\n",
                usbOk ? "PASS" : "FAIL");
-        if (!usbOk) pass = false;
+        if (!usbOk) {
+            pass = false;
+        }
     }
 
     printf("[INFO] FIFO reserved by multicore_lockout — exercise only\n");
@@ -2043,8 +2129,12 @@ static void ivp23_doorbell_test() {
 
             uint32_t latUs = (uint32_t)(detectUs - pollStartUs);
             latencySumUs += latUs;
-            if (latUs < latencyMinUs) latencyMinUs = latUs;
-            if (latUs > latencyMaxUs) latencyMaxUs = latUs;
+            if (latUs < latencyMinUs) {
+                latencyMinUs = latUs;
+            }
+            if (latUs > latencyMaxUs) {
+                latencyMaxUs = latUs;
+            }
         }
     }
 
@@ -2056,7 +2146,9 @@ static void ivp23_doorbell_test() {
     printf("[%s] Gate 2: Signals detected: %lu/%lu\n",
            detectOk ? "PASS" : "FAIL",
            (unsigned long)detected, (unsigned long)kDoorbellTestCount);
-    if (!detectOk) pass = false;
+    if (!detectOk) {
+        pass = false;
+    }
 
     if (detected > 0) {
         uint32_t latAvg = (uint32_t)(latencySumUs / detected);
@@ -2072,7 +2164,9 @@ static void ivp23_doorbell_test() {
                             (uint)g_doorbellNum);
         printf("[%s] Gate 3: Clear on Core 0 does not affect Core 1\n",
                clearOk ? "PASS" : "FAIL");
-        if (!clearOk) pass = false;
+        if (!clearOk) {
+            pass = false;
+        }
     }
 
     // Gate 4: USB still connected
@@ -2080,7 +2174,9 @@ static void ivp23_doorbell_test() {
         bool usbOk = stdio_usb_connected();
         printf("[%s] Gate 4: USB still connected\n",
                usbOk ? "PASS" : "FAIL");
-        if (!usbOk) pass = false;
+        if (!usbOk) {
+            pass = false;
+        }
     }
 
     printf("[INFO] Doorbells validated but not used in production (seqlock polling chosen)\n");
@@ -2102,7 +2198,9 @@ static void ivp21_gate_check() {
         bool claimOk = (g_spinlockId >= 0);
         printf("[%s] Gate 1: Spinlock claimed ID=%d (expect 24-31)\n",
                claimOk ? "PASS" : "FAIL", g_spinlockId);
-        if (!claimOk) pass = false;
+        if (!claimOk) {
+            pass = false;
+        }
     }
 
     // Gate 2: Document HW vs SW spinlocks
@@ -2121,7 +2219,9 @@ static void ivp21_gate_check() {
                consistOk ? "PASS" : "FAIL",
                (unsigned long)g_ivp21ReadCount,
                (unsigned long)g_ivp21InconsistentCount);
-        if (!consistOk) pass = false;
+        if (!consistOk) {
+            pass = false;
+        }
     }
 
     // Gate 4: Lock hold time
@@ -2143,7 +2243,9 @@ static void ivp21_gate_check() {
         printf("[%s] Gate 5: Soak: %lu ms (target %lu ms)\n",
                durationOk ? "PASS" : "FAIL",
                (unsigned long)elapsed, (unsigned long)kSpinlockSoakMs);
-        if (!durationOk) pass = false;
+        if (!durationOk) {
+            pass = false;
+        }
 
         uint32_t c1 = g_core1Counter.load(std::memory_order_acquire);
         printf("[INFO] Core 1 counter: %lu, writes: %lu\n",
@@ -2155,7 +2257,9 @@ static void ivp21_gate_check() {
         bool usbOk = stdio_usb_connected();
         printf("[%s] Gate 6: USB still connected after 5-min soak\n",
                usbOk ? "PASS" : "FAIL");
-        if (!usbOk) pass = false;
+        if (!usbOk) {
+            pass = false;
+        }
     }
 
     printf("=== IVP-21: %s ===\n\n", pass ? "ALL GATES PASS" : "GATE FAILURES");
@@ -2185,8 +2289,12 @@ static void ivp25_gate_check() {
             uint64_t sumDt = 0;
             for (uint32_t i = 1; i < n; i++) {
                 uint32_t dt = g_jitterTimestamps[i] - g_jitterTimestamps[i - 1];
-                if (dt < minDt) minDt = dt;
-                if (dt > maxDt) maxDt = dt;
+                if (dt < minDt) {
+                    minDt = dt;
+                }
+                if (dt > maxDt) {
+                    maxDt = dt;
+                }
                 sumDt += dt;
             }
             float avgDt = (float)sumDt / (float)(n - 1);
@@ -2213,7 +2321,9 @@ static void ivp25_gate_check() {
         printf("[%s] Gate 2: IMU rate: %.1f Hz (target ~%.0f Hz, %.1f%% off)\n",
                rateOk ? "PASS" : "FAIL",
                (double)imuRate, (double)expectedRate, (double)pctError);
-        if (!rateOk) pass = false;
+        if (!rateOk) {
+            pass = false;
+        }
     }
 
     // Gate 3: Jitter std dev (INFO)
@@ -2251,7 +2361,9 @@ static void ivp25_gate_check() {
                snapOk ? "ok" : "FAILED",
                snap.accel_valid ? "valid" : "invalid",
                snap.gyro_valid ? "valid" : "invalid");
-        if (!dataOk) pass = false;
+        if (!dataOk) {
+            pass = false;
+        }
     }
 
     // Gate 5: USB uninterrupted
@@ -2259,7 +2371,9 @@ static void ivp25_gate_check() {
         bool usbOk = stdio_usb_connected();
         printf("[%s] Gate 5: USB connected after sensor soak\n",
                usbOk ? "PASS" : "FAIL");
-        if (!usbOk) pass = false;
+        if (!usbOk) {
+            pass = false;
+        }
     }
 
     // Gate 6: 5 min continuous, 0 I2C errors
@@ -2271,7 +2385,9 @@ static void ivp25_gate_check() {
                (durationOk && errOk) ? "PASS" : "FAIL",
                (unsigned long)elapsedMs, (unsigned long)kSensorSoakMs,
                (unsigned long)imuErr);
-        if (!durationOk || !errOk) pass = false;
+        if (!durationOk || !errOk) {
+            pass = false;
+        }
     }
 
     // Extra: core1_loop_count stall detection
@@ -2314,7 +2430,9 @@ static void ivp26_gate_check() {
         bool rateOk = (pctError < kImuRateTolerancePct);
         printf("[%s] Gate 1: IMU rate: %.1f Hz (unchanged from IVP-25)\n",
                rateOk ? "PASS" : "FAIL", (double)imuRate);
-        if (!rateOk) pass = false;
+        if (!rateOk) {
+            pass = false;
+        }
     }
 
     // Gate 2: Baro rate within 10% of 50Hz
@@ -2332,7 +2450,9 @@ static void ivp26_gate_check() {
         bool rateOk = (pctError < kBaroRateTolerancePct);
         printf("[%s] Gate 2: Baro rate: %.1f Hz (expect ~%.0f Hz, DPS310 hw rate)\n",
                rateOk ? "PASS" : "WARN", (double)baroRate, (double)expectedBaroRate);
-        if (!rateOk) pass = false;
+        if (!rateOk) {
+            pass = false;
+        }
     }
 
     // Gate 3: No I2C bus errors (both devices)
@@ -2343,7 +2463,9 @@ static void ivp26_gate_check() {
         printf("[%s] Gate 3: I2C errors: IMU=%lu, Baro=%lu (expect 0)\n",
                errOk ? "PASS" : "FAIL",
                (unsigned long)imuErr, (unsigned long)baroErr);
-        if (!errOk) pass = false;
+        if (!errOk) {
+            pass = false;
+        }
     }
 
     // Gate 4: Total I2C time per cycle (INFO) — from jitter timestamps
@@ -2354,7 +2476,9 @@ static void ivp26_gate_check() {
             uint32_t maxDt = 0;
             for (uint32_t i = 1; i < n; i++) {
                 uint32_t dt = g_jitterTimestamps[i] - g_jitterTimestamps[i - 1];
-                if (dt > maxDt) maxDt = dt;
+                if (dt > maxDt) {
+                    maxDt = dt;
+                }
             }
             printf("[INFO] Gate 4: Max cycle time: %lu us (budget: %lu us)\n",
                    (unsigned long)maxDt, (unsigned long)kCore1TargetCycleUs);
@@ -2370,7 +2494,9 @@ static void ivp26_gate_check() {
                (snapOk && snap.accel_valid) ? "valid" : "invalid",
                (snapOk && snap.baro_valid) ? "valid" : "invalid",
                (unsigned long)(snapOk ? snap.baro_read_count : 0));
-        if (!bothValid) pass = false;
+        if (!bothValid) {
+            pass = false;
+        }
     }
 
     printf("=== IVP-26: %s ===\n\n", pass ? "ALL GATES PASS" : "GATE FAILURES");
@@ -2394,7 +2520,9 @@ static void ivp27_gate_check() {
                (durationOk && usbOk) ? "PASS" : "FAIL",
                (unsigned long)elapsedMs, (unsigned long)kIvp27SoakMs,
                usbOk ? "connected" : "DISCONNECTED");
-        if (!durationOk || !usbOk) pass = false;
+        if (!durationOk || !usbOk) {
+            pass = false;
+        }
     }
 
     // Gates 2/3/4: Manual verification
@@ -2487,7 +2615,9 @@ static void ivp28_flash_test() {
                readBackOk ? "OK" : "FAILED",
                usbOk ? "OK" : "BROKEN");
 
-        if (!iterPass) allPass = false;
+        if (!iterPass) {
+            allPass = false;
+        }
     }
 
     // Summary gates
@@ -2721,8 +2851,12 @@ static void heartbeat_tick(uint32_t nowMs) {
 
 static void ivp31_gps_capture_tick(uint32_t nowMs) {
     (void)nowMs;
-    if (!g_gpsInitialized || g_nmeaCapturePrinted) return;
-    if (!g_nmeaCaptureReady.load(std::memory_order_acquire)) return;
+    if (!g_gpsInitialized || g_nmeaCapturePrinted) {
+        return;
+    }
+    if (!g_nmeaCaptureReady.load(std::memory_order_acquire)) {
+        return;
+    }
 
     g_nmeaCapturePrinted = true;
     uint32_t readTimeUs = g_gpsReadTimeUs.load(std::memory_order_relaxed);
@@ -2744,8 +2878,12 @@ static void ivp31_gps_capture_tick(uint32_t nowMs) {
 }
 
 static void ivp21_soak_tick(uint32_t nowMs) {
-    if (!g_ivp21Active || g_ivp21Done) return;
-    if ((nowMs - g_ivp21LastCheckMs) < kSpinlockCheckIntervalMs) return;
+    if (!g_ivp21Active || g_ivp21Done) {
+        return;
+    }
+    if ((nowMs - g_ivp21LastCheckMs) < kSpinlockCheckIntervalMs) {
+        return;
+    }
 
     g_ivp21LastCheckMs = nowMs;
 
@@ -2759,8 +2897,12 @@ static void ivp21_soak_tick(uint32_t nowMs) {
     uint32_t dtUs = (uint32_t)(time_us_64() - t0);
 
     g_ivp21ReadCount++;
-    if (dtUs < g_ivp21LockTimeMinUs) g_ivp21LockTimeMinUs = dtUs;
-    if (dtUs > g_ivp21LockTimeMaxUs) g_ivp21LockTimeMaxUs = dtUs;
+    if (dtUs < g_ivp21LockTimeMinUs) {
+        g_ivp21LockTimeMinUs = dtUs;
+    }
+    if (dtUs > g_ivp21LockTimeMaxUs) {
+        g_ivp21LockTimeMaxUs = dtUs;
+    }
     g_ivp21LockTimeSumUs += dtUs;
 
     if (a != b || b != c || c != wc) {
@@ -2807,8 +2949,12 @@ static void ivp21_soak_tick(uint32_t nowMs) {
 }
 
 static void ivp25_soak_tick(uint32_t nowMs) {
-    if (!g_ivp25Active || g_ivp25Done) return;
-    if ((nowMs - g_ivp25LastReadMs) < kSeqlockReadIntervalMs) return;
+    if (!g_ivp25Active || g_ivp25Done) {
+        return;
+    }
+    if ((nowMs - g_ivp25LastReadMs) < kSeqlockReadIntervalMs) {
+        return;
+    }
 
     g_ivp25LastReadMs = nowMs;
 
@@ -2878,7 +3024,9 @@ static void ivp27_soak_tick(uint32_t nowMs) {
         }
     }
 
-    if (!g_ivp27Active || g_ivp27Done) return;
+    if (!g_ivp27Active || g_ivp27Done) {
+        return;
+    }
 
     uint32_t elapsedMs = nowMs - g_ivp27StartMs;
 
@@ -2938,19 +3086,27 @@ static void ivp27_soak_tick(uint32_t nowMs) {
 
 static void ivp28_flash_trigger(uint32_t nowMs) {
     (void)nowMs;
-    if (!g_ivp27Done || g_ivp28Started) return;
+    if (!g_ivp27Done || g_ivp28Started) {
+        return;
+    }
 
     g_ivp28Started = true;
     if (stdio_usb_connected()) {
-        if (g_watchdogEnabled) watchdog_disable();
+        if (g_watchdogEnabled) {
+            watchdog_disable();
+        }
         ivp28_flash_test();
-        if (g_watchdogEnabled) watchdog_enable(kWatchdogTimeoutMs, true);
+        if (g_watchdogEnabled) {
+            watchdog_enable(kWatchdogTimeoutMs, true);
+        }
     }
     g_ivp28Done = true;
 }
 
 static void ivp29_mpu_trigger(uint32_t nowMs) {
-    if (!g_ivp28Done || g_ivp29Done) return;
+    if (!g_ivp28Done || g_ivp29Done) {
+        return;
+    }
 
     g_ivp29Done = true;
     if (stdio_usb_connected()) {
@@ -2970,7 +3126,9 @@ static void ivp29_mpu_trigger(uint32_t nowMs) {
 }
 
 static void ivp30_soak_tick(uint32_t nowMs) {
-    if (!g_ivp30Active || g_ivp30Done) return;
+    if (!g_ivp30Active || g_ivp30Done) {
+        return;
+    }
 
     uint32_t elapsedMs = nowMs - g_ivp30StartMs;
 
@@ -3009,7 +3167,9 @@ static void ivp30_soak_tick(uint32_t nowMs) {
 }
 
 static void watchdog_kick_tick() {
-    if (!g_watchdogEnabled) return;
+    if (!g_watchdogEnabled) {
+        return;
+    }
 
     g_wdtCore0Alive.store(true, std::memory_order_relaxed);
     if (g_wdtCore0Alive.load(std::memory_order_relaxed) &&
@@ -3021,7 +3181,9 @@ static void watchdog_kick_tick() {
 }
 
 static void ivp10_validation_tick(uint32_t nowMs) {
-    if (!g_imuInitialized || g_imuValidationDone || !stdio_usb_connected()) return;
+    if (!g_imuInitialized || g_imuValidationDone || !stdio_usb_connected()) {
+        return;
+    }
 
     if (!g_imuValidationStarted && nowMs >= kImuValidationDelayMs) {
         g_imuValidationStarted = true;
@@ -3136,7 +3298,9 @@ static void ivp13_polling_tick(uint32_t nowMs) {
             g_ivp13ImuCount++;
             g_ivp13ImuSecCount++;
             g_ivp13ImuTimeSum += dt;
-            if (dt > g_ivp13ImuTimeMax) g_ivp13ImuTimeMax = dt;
+            if (dt > g_ivp13ImuTimeMax) {
+                g_ivp13ImuTimeMax = dt;
+            }
             g_i2cConsecErrors = 0;
             g_imuLastReadOk = true;
         } else {
@@ -3159,7 +3323,9 @@ static void ivp13_polling_tick(uint32_t nowMs) {
             g_ivp13BaroCount++;
             g_ivp13BaroSecCount++;
             g_ivp13BaroTimeSum += dt;
-            if (dt > g_ivp13BaroTimeMax) g_ivp13BaroTimeMax = dt;
+            if (dt > g_ivp13BaroTimeMax) {
+                g_ivp13BaroTimeMax = dt;
+            }
             g_i2cConsecErrors = 0;
             g_baroConsecFails = 0;
         } else {
@@ -3340,10 +3506,14 @@ static void ivp_calibration_tick(uint32_t nowMs) {
 static void cli_update_tick() {
     rc_os_update();
 
-    if (!calibration_is_active()) return;
+    if (!calibration_is_active()) {
+        return;
+    }
 
     uint64_t nowUs = time_us_64();
-    if ((nowUs - g_cliCalLastFeedUs) < kCliCalFeedIntervalUs) return;
+    if ((nowUs - g_cliCalLastFeedUs) < kCliCalFeedIntervalUs) {
+        return;
+    }
 
     g_cliCalLastFeedUs = nowUs;
     cal_state_t calState = calibration_manager_get_state();

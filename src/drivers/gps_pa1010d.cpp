@@ -61,7 +61,9 @@ static size_t g_lastReadLen = 0;           // Last successful read length
 static uint8_t nmea_checksum(const char* sentence) {
     uint8_t checksum = 0;
     // Skip leading '$' if present
-    if (*sentence == '$') sentence++;
+    if (*sentence == '$') {
+        sentence++;
+    }
     // XOR all characters until '*' or end
     while (*sentence && *sentence != '*') {
         checksum ^= *sentence++;

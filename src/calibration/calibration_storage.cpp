@@ -90,8 +90,12 @@ static void do_flash_erase(void* param) {
 
 static bool safe_flash_write(uint32_t flash_offset, const uint8_t* data, size_t len) {
     // Must be page-aligned
-    if ((flash_offset % FLASH_PAGE_SIZE) != 0) return false;
-    if ((len % FLASH_PAGE_SIZE) != 0) return false;
+    if ((flash_offset % FLASH_PAGE_SIZE) != 0) {
+        return false;
+    }
+    if ((len % FLASH_PAGE_SIZE) != 0) {
+        return false;
+    }
 
     flash_write_params_t params = {
         .offset = flash_offset,
@@ -105,8 +109,12 @@ static bool safe_flash_write(uint32_t flash_offset, const uint8_t* data, size_t 
 
 static bool safe_flash_erase(uint32_t flash_offset, size_t len) {
     // Must be sector-aligned
-    if ((flash_offset % FLASH_SECTOR_SIZE) != 0) return false;
-    if ((len % FLASH_SECTOR_SIZE) != 0) return false;
+    if ((flash_offset % FLASH_SECTOR_SIZE) != 0) {
+        return false;
+    }
+    if ((len % FLASH_SECTOR_SIZE) != 0) {
+        return false;
+    }
 
     flash_erase_params_t params = {
         .offset = flash_offset,
@@ -250,7 +258,9 @@ bool calibration_storage_init() {
 }
 
 bool calibration_storage_read(calibration_store_t* cal) {
-    if (cal == nullptr) return false;
+    if (cal == nullptr) {
+        return false;
+    }
 
     if (!g_initialized) {
         calibration_storage_init();
@@ -262,7 +272,9 @@ bool calibration_storage_read(calibration_store_t* cal) {
 }
 
 bool calibration_storage_write(const calibration_store_t* cal) {
-    if (cal == nullptr) return false;
+    if (cal == nullptr) {
+        return false;
+    }
 
     if (!g_initialized) {
         calibration_storage_init();

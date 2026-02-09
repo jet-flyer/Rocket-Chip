@@ -71,7 +71,9 @@ static uint32_t pico_write(const void* comm_ctx, uint8_t reg_addr, const uint8_t
 
     // For multi-byte writes, need to prepend register address
     uint8_t buf[kMaxMultiByteWrite + 1];
-    if (data_len > kMaxMultiByteWrite) return DPS310_BUS_ERROR;
+    if (data_len > kMaxMultiByteWrite) {
+        return DPS310_BUS_ERROR;
+    }
 
     buf[0] = reg_addr;
     memcpy(&buf[1], data, data_len);

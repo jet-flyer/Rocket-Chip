@@ -41,7 +41,9 @@ static uint16_t crc16_ccitt(const uint8_t* data, size_t len) {
 // ============================================================================
 
 void calibration_init_defaults(calibration_store_t* cal) {
-    if (cal == nullptr) return;
+    if (cal == nullptr) {
+        return;
+    }
 
     memset(cal, 0, sizeof(calibration_store_t));
 
@@ -76,13 +78,19 @@ void calibration_init_defaults(calibration_store_t* cal) {
 }
 
 bool calibration_validate(const calibration_store_t* cal) {
-    if (cal == nullptr) return false;
+    if (cal == nullptr) {
+        return false;
+    }
 
     // Check magic
-    if (cal->magic != kCalibrationMagic) return false;
+    if (cal->magic != kCalibrationMagic) {
+        return false;
+    }
 
     // Check version
-    if (cal->version > kCalibrationVersion) return false;
+    if (cal->version > kCalibrationVersion) {
+        return false;
+    }
 
     // Check CRC (computed over everything after crc16 field)
     const uint8_t* data_start = (const uint8_t*)&cal->accel;
@@ -93,7 +101,9 @@ bool calibration_validate(const calibration_store_t* cal) {
 }
 
 void calibration_update_crc(calibration_store_t* cal) {
-    if (cal == nullptr) return;
+    if (cal == nullptr) {
+        return;
+    }
 
     // CRC computed over everything after crc16 field
     const uint8_t* data_start = (const uint8_t*)&cal->accel;
@@ -102,6 +112,8 @@ void calibration_update_crc(calibration_store_t* cal) {
 }
 
 bool calibration_has(const calibration_store_t* cal, cal_status_flags_t flag) {
-    if (cal == nullptr) return false;
+    if (cal == nullptr) {
+        return false;
+    }
     return (cal->cal_flags & flag) != 0;
 }
