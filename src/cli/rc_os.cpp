@@ -63,7 +63,7 @@ rc_os_read_accel_fn rc_os_read_accel = nullptr;
 rc_os_cal_hook_fn rc_os_cal_pre_hook = nullptr;
 rc_os_cal_hook_fn rc_os_cal_post_hook = nullptr;
 
-// Unhandled key callback (set by main.cpp, for IVP-29/30 test commands)
+// Unhandled key callback (set by main.cpp for extensible key handling)
 rc_os_unhandled_key_fn rc_os_on_unhandled_key = nullptr;
 
 // ============================================================================
@@ -265,7 +265,7 @@ static const char* const kPositionInstructions[kAccel6posNumPositions] = {
 constexpr uint8_t  kAccel6posMaxRetries     = 3;
 constexpr uint32_t kAccel6posWaitTimeoutUs  = 30000000;     // 30 seconds
 constexpr float    kAccel6posGravityNominal = 9.80665F;     // m/s² (WGS-84 standard)
-constexpr float    kAccel6posVerifyTolerance = 0.02F;       // m/s² (IVP-17 gate requirement)
+constexpr float    kAccel6posVerifyTolerance = 0.02F;       // m/s² (6-pos calibration gate)
 
 // Helper: wait for ENTER key with timeout, ESC cancels. Returns true on ENTER.
 static bool wait_for_enter_or_esc() {
