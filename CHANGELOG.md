@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-09-006 | Claude Code CLI | refactor
+
+**Strip IVP test code from production codebase**
+
+Removed all Stage 1-4 IVP test code from `main.cpp` after hardware verification: 3,623→1,073 lines (**2,550 lines removed, 70% reduction**). 33 functions, ~80 state variables, ~70 constants deleted including 4KB jitter timestamp array. Binary **198,144→155,648 bytes (42,496 bytes saved, 21.4% smaller)**. Replaced `g_ivp25Active` with production `g_sensorPhaseActive` (plain bool). Unconditional watchdog enable (council critical fix). Renamed `hw_validate_stage1()` to `print_hw_status()`. Resolved 2 standards deviations: RC-1 (recursion), BM-6 (unbounded test loop). Updated IO-1 printf count (428→212). Changed main.cpp classification from "IVP Test (mixed)" to "Ground (mixed)". Deleted 4 IVP files (2 test scripts, 2 log files). All IVP code preserved in git history.
+
+(`src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`, `standards/STANDARDS_DEVIATIONS.md`, `standards/CODING_STANDARDS.md`, `standards/AUDIT_REMEDIATION.md`, `AGENT_WHITEBOARD.md`)
+
+---
+
 ### 2026-02-09-005 | Claude Code CLI | refactor
 
 **Clang-tidy P5b-f: identifier naming, bool conversions, init vars, function decomposition**
