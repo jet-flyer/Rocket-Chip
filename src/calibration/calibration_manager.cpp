@@ -13,11 +13,11 @@
 // ============================================================================
 
 constexpr uint16_t kGyroCalSamples        = 200;      // ~2 seconds at 100Hz
-constexpr float    kGyroCalMotionThresh   = 0.10f;    // rad/s - motion detection (~6 deg/s)
+constexpr float    kGyroCalMotionThresh   = 0.10F;    // rad/s - motion detection (~6 deg/s)
 
 constexpr uint16_t kAccelCalSamples       = 100;      // ~1 second at 100Hz
-constexpr float    kAccelCalMotionThresh  = 1.0f;     // m/s² - motion detection (relaxed for hand-held placement)
-constexpr float    kGravityNominal        = 9.80665f;
+constexpr float    kAccelCalMotionThresh  = 1.0F;     // m/s² - motion detection (relaxed for hand-held placement)
+constexpr float    kGravityNominal        = 9.80665F;
 
 constexpr uint16_t kBaroCalSamples        = 50;       // ~1 second at 50Hz
 
@@ -25,9 +25,9 @@ constexpr uint16_t kBaroCalSamples        = 50;       // ~1 second at 50Hz
 constexpr uint16_t kAccel6posSamplesPerPos = 50;
 constexpr uint8_t  kAccel6posPositions     = 6;
 constexpr uint16_t kAccel6posTotalSamples  = kAccel6posSamplesPerPos * kAccel6posPositions;
-constexpr float    kAccel6posMaxOffset     = 5.0f;    // m/s² - max offset per axis after fit
-constexpr float    kAccel6posMinDiag       = 0.8f;    // Minimum diagonal scale factor
-constexpr float    kAccel6posMaxDiag       = 1.2f;    // Maximum diagonal scale factor
+constexpr float    kAccel6posMaxOffset     = 5.0F;    // m/s² - max offset per axis after fit
+constexpr float    kAccel6posMinDiag       = 0.8F;    // Minimum diagonal scale factor
+constexpr float    kAccel6posMaxDiag       = 1.2F;    // Maximum diagonal scale factor
 constexpr uint8_t  kAccel6posMaxIterations = 50;      // Gauss-Newton iteration limit
 constexpr uint8_t  kAccel6posNumParams     = 9;       // offset[3] + diag[3] + offdiag[3]
 
@@ -78,11 +78,11 @@ static const char* const kPositionNames[kAccel6posPositions] = {
 static void reset_accumulator(uint32_t target_samples) {
     memset(&g_sample_acc, 0, sizeof(g_sample_acc));
     g_sample_acc.target_count = target_samples;
-    g_sample_acc.min_x = g_sample_acc.min_y = g_sample_acc.min_z = 1e9f;
-    g_sample_acc.max_x = g_sample_acc.max_y = g_sample_acc.max_z = -1e9f;
+    g_sample_acc.min_x = g_sample_acc.min_y = g_sample_acc.min_z = 1e9F;
+    g_sample_acc.max_x = g_sample_acc.max_y = g_sample_acc.max_z = -1e9F;
 }
 
-static bool check_gyro_motion(void) {
+static bool check_gyro_motion() {
     float range_x = g_sample_acc.max_x - g_sample_acc.min_x;
     float range_y = g_sample_acc.max_y - g_sample_acc.min_y;
     float range_z = g_sample_acc.max_z - g_sample_acc.min_z;
@@ -92,7 +92,7 @@ static bool check_gyro_motion(void) {
             range_z > kGyroCalMotionThresh);
 }
 
-static bool check_accel_motion(void) {
+static bool check_accel_motion() {
     float range_x = g_sample_acc.max_x - g_sample_acc.min_x;
     float range_y = g_sample_acc.max_y - g_sample_acc.min_y;
     float range_z = g_sample_acc.max_z - g_sample_acc.min_z;
@@ -106,7 +106,7 @@ static bool check_accel_motion(void) {
 // Initialization
 // ============================================================================
 
-void calibration_manager_init(void) {
+void calibration_manager_init() {
     // Storage init happens in main before USB
     // Here we just load from the already-initialized storage
     if (calibration_load() != CAL_RESULT_OK) {
@@ -117,11 +117,11 @@ void calibration_manager_init(void) {
     g_cal_result = CAL_RESULT_OK;
 }
 
-const calibration_store_t* calibration_manager_get(void) {
+const calibration_store_t* calibration_manager_get() {
     return &g_calibration;
 }
 
-cal_state_t calibration_manager_get_state(void) {
+cal_state_t calibration_manager_get_state() {
     return g_cal_state;
 }
 
@@ -129,7 +129,7 @@ cal_state_t calibration_manager_get_state(void) {
 // Gyro Calibration
 // ============================================================================
 
-cal_result_t calibration_start_gyro(void) {
+cal_result_t calibration_start_gyro() {
     if (g_cal_state != CAL_STATE_IDLE) {
         return CAL_RESULT_BUSY;
     }
@@ -190,7 +190,7 @@ void calibration_feed_gyro(float gx, float gy, float gz, float temperature_c) {
 // Accelerometer Level Calibration
 // ============================================================================
 
-cal_result_t calibration_start_accel_level(void) {
+cal_result_t calibration_start_accel_level() {
     if (g_cal_state != CAL_STATE_IDLE) {
         return CAL_RESULT_BUSY;
     }
@@ -250,8 +250,8 @@ void calibration_feed_accel(float ax, float ay, float az, float temperature_c) {
         }
 
         // Level cal uses simple offset only — reset scale to unity, clear offdiag
-        g_calibration.accel.scale = cal_vec3_t{1.0f, 1.0f, 1.0f};
-        g_calibration.accel.offdiag = cal_vec3_t{0.0f, 0.0f, 0.0f};
+        g_calibration.accel.scale = cal_vec3_t{1.0F, 1.0F, 1.0F};
+        g_calibration.accel.offdiag = cal_vec3_t{0.0F, 0.0F, 0.0F};
 
         g_calibration.accel.temperature_ref = g_sample_acc.sum_temp / n;
         g_calibration.accel.status = CAL_STATUS_LEVEL;
@@ -269,7 +269,7 @@ void calibration_feed_accel(float ax, float ay, float az, float temperature_c) {
 // Barometer Calibration
 // ============================================================================
 
-cal_result_t calibration_start_baro(void) {
+cal_result_t calibration_start_baro() {
     if (g_cal_state != CAL_STATE_IDLE) {
         return CAL_RESULT_BUSY;
     }
@@ -337,7 +337,7 @@ static void calc_jacobian_6pos(const float sample[3], const float params[9],
     float C = params[7] * sx + params[8] * sy + params[5] * sz;
 
     float len = sqrtf(A*A + B*B + C*C);
-    if (len < 1e-6f) {
+    if (len < 1e-6F) {
         memset(jacob, 0, 9 * sizeof(float));
         return;
     }
@@ -358,7 +358,7 @@ static void calc_jacobian_6pos(const float sample[3], const float params[9],
 
 // Mean squared residuals across all collected samples
 static float calc_mean_sq_residuals(const float params[9]) {
-    float sum = 0.0f;
+    float sum = 0.0F;
     for (uint16_t i = 0; i < g_6pos_sample_count; i++) {
         float r = calc_residual_6pos(g_6pos_samples[i], params);
         sum += r * r;
@@ -375,7 +375,7 @@ static bool mat_inverse_9x9(const float src[81], float dst[81]) {
     for (uint8_t r = 0; r < 9; r++) {
         for (uint8_t c = 0; c < 9; c++) {
             aug[r][c] = src[r * 9 + c];
-            aug[r][c + 9] = (r == c) ? 1.0f : 0.0f;
+            aug[r][c + 9] = (r == c) ? 1.0F : 0.0F;
         }
     }
 
@@ -392,7 +392,7 @@ static bool mat_inverse_9x9(const float src[81], float dst[81]) {
             }
         }
 
-        if (max_val < 1e-10f) {
+        if (max_val < 1e-10F) {
             return false;  // Singular
         }
 
@@ -439,7 +439,7 @@ static bool mat_inverse_9x9(const float src[81], float dst[81]) {
     return true;
 }
 
-void calibration_reset_6pos(void) {
+void calibration_reset_6pos() {
     memset(g_6pos_samples, 0, sizeof(g_6pos_samples));
     memset(g_6pos_avg, 0, sizeof(g_6pos_avg));
     g_6pos_sample_count = 0;
@@ -452,17 +452,17 @@ const char* calibration_get_6pos_name(uint8_t pos) {
 }
 
 const float* calibration_get_6pos_avg(uint8_t pos) {
-    if (pos >= kAccel6posPositions) return NULL;
+    if (pos >= kAccel6posPositions) return nullptr;
     return g_6pos_avg[pos];
 }
 
 cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_fn) {
     if (pos >= kAccel6posPositions) return CAL_RESULT_INVALID_DATA;
-    if (read_fn == NULL) return CAL_RESULT_INVALID_DATA;
+    if (read_fn == nullptr) return CAL_RESULT_INVALID_DATA;
     if (g_6pos_collected & (1 << pos)) return CAL_RESULT_INVALID_DATA;  // Already done
 
     uint16_t base_idx = pos * kAccel6posSamplesPerPos;
-    float sum[3] = {0.0f, 0.0f, 0.0f};
+    float sum[3] = {0.0F, 0.0F, 0.0F};
     float temp_unused;
 
     for (uint16_t i = 0; i < kAccel6posSamplesPerPos; i++) {
@@ -502,15 +502,15 @@ cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_f
     return CAL_RESULT_OK;
 }
 
-cal_result_t calibration_compute_6pos(void) {
+cal_result_t calibration_compute_6pos() {
     // Guard: all 6 positions must be collected
     if (g_6pos_collected != 0x3F) return CAL_RESULT_NO_DATA;
 
     // Initialize parameters: offset={0,0,0}, diag={1,1,1}, offdiag={0,0,0}
     float params[kAccel6posNumParams] = {
-        0.0f, 0.0f, 0.0f,   // offset
-        1.0f, 1.0f, 1.0f,   // diag (scale)
-        0.0f, 0.0f, 0.0f    // offdiag
+        0.0F, 0.0F, 0.0F,   // offset
+        1.0F, 1.0F, 1.0F,   // diag (scale)
+        0.0F, 0.0F, 0.0F    // offdiag
     };
 
     float best_params[kAccel6posNumParams];
@@ -549,7 +549,7 @@ cal_result_t calibration_compute_6pos(void) {
         float new_params[kAccel6posNumParams];
         bool has_nan = false;
         for (uint8_t i = 0; i < kAccel6posNumParams; i++) {
-            float delta = 0.0f;
+            float delta = 0.0F;
             for (uint8_t j = 0; j < kAccel6posNumParams; j++) {
                 delta += g_jtj_inv[i * kAccel6posNumParams + j] * jtfi[j];
             }
@@ -608,24 +608,24 @@ cal_result_t calibration_compute_6pos(void) {
 // Calibration Control
 // ============================================================================
 
-void calibration_cancel(void) {
+void calibration_cancel() {
     g_cal_state = CAL_STATE_IDLE;
     g_cal_result = CAL_RESULT_OK;
 }
 
-void calibration_reset_state(void) {
+void calibration_reset_state() {
     if (g_cal_state == CAL_STATE_COMPLETE || g_cal_state == CAL_STATE_FAILED) {
         g_cal_state = CAL_STATE_IDLE;
     }
 }
 
-bool calibration_is_active(void) {
+bool calibration_is_active() {
     return (g_cal_state != CAL_STATE_IDLE &&
             g_cal_state != CAL_STATE_COMPLETE &&
             g_cal_state != CAL_STATE_FAILED);
 }
 
-uint8_t calibration_get_progress(void) {
+uint8_t calibration_get_progress() {
     if (!calibration_is_active()) {
         return (g_cal_state == CAL_STATE_COMPLETE) ? 100 : 0;
     }
@@ -636,7 +636,7 @@ uint8_t calibration_get_progress(void) {
     return (progress > 100) ? 100 : (uint8_t)progress;
 }
 
-cal_result_t calibration_get_result(void) {
+cal_result_t calibration_get_result() {
     return g_cal_result;
 }
 
@@ -698,7 +698,7 @@ void calibration_apply_accel(float ax_raw, float ay_raw, float az_raw,
 }
 
 bool calibration_load_into(calibration_store_t* dest) {
-    if (dest == NULL) return false;
+    if (dest == nullptr) return false;
     calibration_store_t loaded;
     if (!calibration_storage_read(&loaded)) return false;
     if (!calibration_validate(&loaded)) return false;
@@ -709,16 +709,16 @@ bool calibration_load_into(calibration_store_t* dest) {
 float calibration_get_altitude_agl(float pressure_pa) {
     // Barometric formula: h = 44330 * (1 - (P/P0)^0.1903)
     float p0 = g_calibration.baro.ground_pressure_pa;
-    if (p0 < 10000.0f) p0 = 101325.0f;  // Sanity check
+    if (p0 < 10000.0F) p0 = 101325.0F;  // Sanity check
 
-    return 44330.0f * (1.0f - powf(pressure_pa / p0, 0.1903f));
+    return 44330.0F * (1.0F - powf(pressure_pa / p0, 0.1903F));
 }
 
 // ============================================================================
 // Storage
 // ============================================================================
 
-cal_result_t calibration_save(void) {
+cal_result_t calibration_save() {
     calibration_update_crc(&g_calibration);
     if (!calibration_storage_write(&g_calibration)) {
         return CAL_RESULT_STORAGE_ERROR;
@@ -726,7 +726,7 @@ cal_result_t calibration_save(void) {
     return CAL_RESULT_OK;
 }
 
-cal_result_t calibration_load(void) {
+cal_result_t calibration_load() {
     calibration_store_t loaded;
 
     if (!calibration_storage_read(&loaded)) {
@@ -741,7 +741,7 @@ cal_result_t calibration_load(void) {
     return CAL_RESULT_OK;
 }
 
-cal_result_t calibration_reset(void) {
+cal_result_t calibration_reset() {
     calibration_init_defaults(&g_calibration);
     return calibration_save();
 }

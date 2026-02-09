@@ -19,7 +19,7 @@ extern "C" {
 // ============================================================================
 
 static uint8_t g_i2c_addr = 0;
-static float g_sea_level_pa = 101325.0f;
+static float g_sea_level_pa = 101325.0F;
 
 // Forward declarations for callbacks
 static void pico_sleep(uint32_t ms);
@@ -99,22 +99,22 @@ bool baro_dps310_init(uint8_t addr) {
     return true;
 }
 
-bool baro_dps310_ready(void) {
+bool baro_dps310_ready() {
     return (g_dps310_ctx.device_status & DPS310_READY) != 0;
 }
 
-bool baro_dps310_start_continuous(void) {
+bool baro_dps310_start_continuous() {
     dps310_status_t status = dps310_measure_continuous_async(&g_dps310_ctx);
     return (status == DPS310_SUCCESS);
 }
 
-bool baro_dps310_stop(void) {
+bool baro_dps310_stop() {
     dps310_status_t status = dps310_standby(&g_dps310_ctx);
     return (status == DPS310_SUCCESS);
 }
 
 bool baro_dps310_read(baro_dps310_data_t* data) {
-    if (data == NULL) {
+    if (data == nullptr) {
         return false;
     }
 
@@ -140,5 +140,5 @@ void baro_dps310_set_sea_level(float pressure_pa) {
 
 float baro_dps310_pressure_to_altitude(float pressure_pa, float sea_level_pa) {
     // Barometric formula: h = 44330 * (1 - (P/P0)^0.1903)
-    return 44330.0f * (1.0f - powf(pressure_pa / sea_level_pa, 0.1903f));
+    return 44330.0F * (1.0F - powf(pressure_pa / sea_level_pa, 0.1903F));
 }

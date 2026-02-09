@@ -18,7 +18,7 @@ static bool g_initialized = false;
 // Initialization
 // ============================================================================
 
-bool i2c_bus_init(void) {
+bool i2c_bus_init() {
     if (g_initialized) {
         return true;
     }
@@ -46,7 +46,7 @@ bool i2c_bus_init(void) {
     return true;
 }
 
-void i2c_bus_deinit(void) {
+void i2c_bus_deinit() {
     if (!g_initialized) {
         return;
     }
@@ -69,7 +69,7 @@ bool i2c_bus_probe(uint8_t addr) {
     return (ret >= 0);
 }
 
-void i2c_bus_scan(void) {
+void i2c_bus_scan() {
     if (!g_initialized) {
         printf("I2C bus not initialized\n");
         return;
@@ -131,7 +131,7 @@ void i2c_bus_scan(void) {
 // ============================================================================
 
 int i2c_bus_write(uint8_t addr, const uint8_t* data, size_t len) {
-    if (!g_initialized || data == NULL || len == 0) {
+    if (!g_initialized || data == nullptr || len == 0) {
         return -1;
     }
 
@@ -140,7 +140,7 @@ int i2c_bus_write(uint8_t addr, const uint8_t* data, size_t len) {
 }
 
 int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len) {
-    if (!g_initialized || data == NULL || len == 0) {
+    if (!g_initialized || data == nullptr || len == 0) {
         return -1;
     }
 
@@ -149,7 +149,7 @@ int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len) {
 }
 
 int i2c_bus_write_read(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
-    if (!g_initialized || data == NULL || len == 0) {
+    if (!g_initialized || data == nullptr || len == 0) {
         return -1;
     }
 
@@ -175,7 +175,7 @@ int i2c_bus_write_reg(uint8_t addr, uint8_t reg, uint8_t value) {
 }
 
 int i2c_bus_read_reg(uint8_t addr, uint8_t reg, uint8_t* value) {
-    if (!g_initialized || value == NULL) {
+    if (!g_initialized || value == nullptr) {
         return -1;
     }
 
@@ -191,7 +191,7 @@ int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
 // Bus Recovery (IVP-13a)
 // ============================================================================
 
-bool i2c_bus_recover(void) {
+bool i2c_bus_recover() {
     // Temporarily switch pins to GPIO mode for bit-banging
     gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_SIO);
     gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
@@ -202,15 +202,15 @@ bool i2c_bus_recover(void) {
 
     // Configure SCL as output
     gpio_set_dir(kI2cBusSclPin, GPIO_OUT);
-    gpio_put(kI2cBusSclPin, 1);
+    gpio_put(kI2cBusSclPin, true);
 
     // Always clock 9 pulses to clear any stuck transaction,
     // even if SDA appears high — a sensor may need the full
     // sequence to reset its internal state machine
     for (uint8_t i = 0; i < 9; i++) {
-        gpio_put(kI2cBusSclPin, 0);
+        gpio_put(kI2cBusSclPin, false);
         sleep_us(5);
-        gpio_put(kI2cBusSclPin, 1);
+        gpio_put(kI2cBusSclPin, true);
         sleep_us(5);
     }
 
@@ -218,12 +218,12 @@ bool i2c_bus_recover(void) {
 
     // Always generate STOP condition: SDA low while SCL high, then SDA high
     gpio_set_dir(kI2cBusSdaPin, GPIO_OUT);
-    gpio_put(kI2cBusSdaPin, 0);
+    gpio_put(kI2cBusSdaPin, false);
     sleep_us(5);
     // SCL high (already high)
     sleep_us(5);
     // SDA high = STOP condition
-    gpio_put(kI2cBusSdaPin, 1);
+    gpio_put(kI2cBusSdaPin, true);
     sleep_us(5);
 
     // Restore I2C function on pins
@@ -235,7 +235,7 @@ bool i2c_bus_recover(void) {
     return sda_released;
 }
 
-bool i2c_bus_reset(void) {
+bool i2c_bus_reset() {
     // Deinitialize I2C
     i2c_bus_deinit();
 

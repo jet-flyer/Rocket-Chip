@@ -132,8 +132,8 @@ static constexpr uint8_t kDps310TmpRdy = 0x20;                  // Bit 5
 
 // Gate check thresholds
 static constexpr uint32_t kCore1PauseAckMaxMs = 100;            // Max wait for Core 1 ACK
-static constexpr float kImuRateTolerancePct = 5.0f;             // IMU rate ±5% (I2C jitter)
-static constexpr float kBaroRateTolerancePct = 50.0f;           // Baro rate ±50% (DPS310 hw rate is approximate)
+static constexpr float kImuRateTolerancePct = 5.0F;             // IMU rate ±5% (I2C jitter)
+static constexpr float kBaroRateTolerancePct = 50.0F;           // Baro rate ±50% (DPS310 hw rate is approximate)
 
 // IVP-27: USB stability soak
 static constexpr uint32_t kIvp27SoakMs = 10 * 60 * 1000;       // 10 minutes (IVP-27 gate 1)
@@ -438,7 +438,7 @@ static void seqlock_write(sensor_seqlock_t* sl, const shared_sensor_data_t* src)
 static bool seqlock_read(sensor_seqlock_t* sl, shared_sensor_data_t* dst) {
     for (uint32_t attempt = 0; attempt < 4; attempt++) {
         uint32_t seq1 = sl->sequence.load(std::memory_order_acquire);
-        if (seq1 & 1u) {
+        if (seq1 & 1U) {
             continue;  // Write in progress, retry
         }
         __dmb();  // Ensure counter read committed before data reads
@@ -459,12 +459,12 @@ static bool seqlock_read(sensor_seqlock_t* sl, shared_sensor_data_t* dst) {
 // Must NOT use stack (it may be overflowed). Uses direct GPIO register writes.
 // Blink pattern: 3 fast + 1 slow on red LED, forever.
 
-static void memmanage_fault_handler(void) {
+static void memmanage_fault_handler() {
     __asm volatile ("cpsid i");  // Disable interrupts
 
     // Direct GPIO register writes — no SDK calls that might use stack
     io_rw_32 *gpio_out = &sio_hw->gpio_out;
-    const uint32_t led_mask = 1u << PICO_DEFAULT_LED_PIN;
+    const uint32_t led_mask = 1U << PICO_DEFAULT_LED_PIN;
 
     while (true) {
         for (uint8_t i = 0; i < 3; i++) {
@@ -499,21 +499,21 @@ static void mpu_setup_stack_guard(uint32_t stack_bottom) {
     // PMSAv8 RBAR: [31:5]=BASE, [4:3]=SH(0=non-shareable), [2:1]=AP(0=priv no-access), [0]=XN(1)
     mpu_hw->rnr = 0;
     mpu_hw->rbar = (stack_bottom & ~0x1FU)
-                  | (0u << 3)   // SH: Non-shareable
-                  | (0u << 1)   // AP: Privileged no-access
-                  | (1u << 0);  // XN: Execute-never
+                  | (0U << 3)   // SH: Non-shareable
+                  | (0U << 1)   // AP: Privileged no-access
+                  | (1U << 0);  // XN: Execute-never
 
     // PMSAv8 RLAR: [31:5]=LIMIT, [3:1]=ATTRINDX(0), [0]=EN(1)
     mpu_hw->rlar = ((stack_bottom + kMpuGuardSizeBytes - 1) & ~0x1FU)
-                  | (0u << 1)   // ATTRINDX: 0 (uses MAIR0 attr 0)
-                  | (1u << 0);  // EN: Enable region
+                  | (0U << 1)   // ATTRINDX: 0 (uses MAIR0 attr 0)
+                  | (1U << 0);  // EN: Enable region
 
     // MAIR0 attr 0 = 0x00 = Device-nGnRnE (strictest, no caching)
     mpu_hw->mair[0] = 0;
 
     // Enable MPU with PRIVDEFENA=1 (default memory map for unprogrammed regions)
-    mpu_hw->ctrl = (1u << 2)   // PRIVDEFENA
-                 | (1u << 0);  // ENABLE
+    mpu_hw->ctrl = (1U << 2)   // PRIVDEFENA
+                 | (1U << 0);  // ENABLE
     __dsb();
     __isb();
 }
@@ -522,7 +522,7 @@ static void mpu_setup_stack_guard(uint32_t stack_bottom) {
 // IVP-29: Gate Check
 // ============================================================================
 
-static void ivp29_gate_check(void) {
+static void ivp29_gate_check() {
     if (!stdio_usb_connected()) {
         return;
     }
@@ -540,7 +540,7 @@ static void ivp29_gate_check(void) {
 // IVP-30: Gate Check
 // ============================================================================
 
-static void ivp30_gate_check(void) {
+static void ivp30_gate_check() {
     if (!stdio_usb_connected()) {
         return;
     }
@@ -560,7 +560,7 @@ static void ivp30_gate_check(void) {
 // Responds to FIFO commands for IVP-22/23. Blinks NeoPixel cyan ~4Hz.
 // Returns true if Phase 2 should be skipped (go directly to sensor loop).
 
-static bool core1_test_dispatcher(void) {
+static bool core1_test_dispatcher() {
     bool testMode = true;
     bool skipPhase2 = false;
     uint32_t lastNeoToggleMs = to_ms_since_boot(get_absolute_time());
@@ -629,7 +629,7 @@ static bool core1_test_dispatcher(void) {
 // Writes shared struct at ~100kHz under spinlock. NeoPixel cyan/magenta 2Hz.
 // Blocks until Core 0 signals sensor phase start.
 
-static void core1_spinlock_soak(void) {
+static void core1_spinlock_soak() {
     uint32_t soakStartMs = to_ms_since_boot(get_absolute_time());
     uint32_t writeCounter = 0;
     uint32_t lastNeoMs = soakStartMs;
@@ -837,16 +837,16 @@ static void core1_neopixel_update(shared_sensor_data_t* localData,
 // g_core1I2CPaused == true. Core 1 owns I2C during this phase.
 // Seqlock write stays here — read helpers write into localData by pointer.
 
-static void core1_sensor_loop(void) {
+static void core1_sensor_loop() {
     calibration_store_t localCal;
     if (!calibration_load_into(&localCal)) {
         memset(&localCal, 0, sizeof(localCal));
-        localCal.accel.scale.x = 1.0f;
-        localCal.accel.scale.y = 1.0f;
-        localCal.accel.scale.z = 1.0f;
-        localCal.board_rotation.m[0] = 1.0f;
-        localCal.board_rotation.m[4] = 1.0f;
-        localCal.board_rotation.m[8] = 1.0f;
+        localCal.accel.scale.x = 1.0F;
+        localCal.accel.scale.y = 1.0F;
+        localCal.accel.scale.z = 1.0F;
+        localCal.board_rotation.m[0] = 1.0F;
+        localCal.board_rotation.m[4] = 1.0F;
+        localCal.board_rotation.m[8] = 1.0F;
     }
 
     shared_sensor_data_t localData = {};
@@ -930,7 +930,7 @@ static void core1_sensor_loop(void) {
 // Core 1 Entry Point
 // ============================================================================
 
-static void core1_entry(void) {
+static void core1_entry() {
     mpu_setup_stack_guard((uint32_t)&__StackOneBottom);
 
     bool skipPhase2 = core1_test_dispatcher();
@@ -960,7 +960,7 @@ static bool read_accel_for_cal(float* ax, float* ay, float* az, float* temp_c) {
     *ax = accel.x;
     *ay = accel.y;
     *az = accel.z;
-    *temp_c = 0.0f;  // Not needed for 6-pos cal
+    *temp_c = 0.0F;  // Not needed for 6-pos cal
     return true;
 }
 
@@ -971,7 +971,7 @@ static bool read_accel_for_cal(float* ax, float* ay, float* az, float* temp_c) {
 // Bank 3 transactions that race with our Bank 0 accel reads, causing
 // bank-select corruption after ~150 reads. Disable it during calibration.
 
-static void cal_pre_hook(void) {
+static void cal_pre_hook() {
     // IVP-25: If Core 1 is running sensors, pause it and take I2C ownership
     if (g_ivp25Active && !g_core1I2CPaused.load(std::memory_order_acquire)) {
         g_core1PauseI2C.store(true, std::memory_order_release);
@@ -986,7 +986,7 @@ static void cal_pre_hook(void) {
     }
 }
 
-static void cal_post_hook(void) {
+static void cal_post_hook() {
     if (g_imuInitialized) {
         icm20948_set_i2c_master_enable(&g_imu, true);
     }
@@ -1047,7 +1047,7 @@ static void ivp_test_key_handler(int key) {
 // Sensor Status Callback (for RC_OS CLI 's' command)
 // ============================================================================
 
-static void print_sensor_status(void) {
+static void print_sensor_status() {
     printf("\n========================================\n");
     printf("  Sensor Readings (calibrated)\n");
     printf("========================================\n");
@@ -1190,7 +1190,7 @@ static const char* get_device_name(uint8_t addr) {
     }
 }
 
-static void hw_validate_stage1(void) {
+static void hw_validate_stage1() {
     printf("\n=== HW Validation: Stage 1 ===\n");
     printf("  Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
 
@@ -1331,20 +1331,20 @@ static void ivp10_accumulate(const icm20948_data_t* d) {
     if (d->temperature_c > g_tempMax) g_tempMax = d->temperature_c;
 }
 
-static void ivp10_gate_check(void) {
+static void ivp10_gate_check() {
     printf("\n=== IVP-10: IMU Data Validation Gate ===\n");
 
     bool pass = true;
 
     float n = (float)g_validSampleCount;
-    float axAvg = (n > 0) ? g_accelXSum / n : 0.0f;
-    float ayAvg = (n > 0) ? g_accelYSum / n : 0.0f;
-    float azAvg = (n > 0) ? g_accelZSum / n : 0.0f;
+    float axAvg = (n > 0) ? g_accelXSum / n : 0.0F;
+    float ayAvg = (n > 0) ? g_accelYSum / n : 0.0F;
+    float azAvg = (n > 0) ? g_accelZSum / n : 0.0F;
 
     // Gate: Accel magnitude ~9.8 m/s^2 (±0.5)
     // Uses magnitude because board orientation on desk is unknown
     float accelMag = sqrtf(axAvg * axAvg + ayAvg * ayAvg + azAvg * azAvg);
-    bool amOk = (accelMag > 9.3f && accelMag < 10.3f);
+    bool amOk = (accelMag > 9.3F && accelMag < 10.3F);
     printf("[%s] Accel magnitude: %.3f m/s^2 (expect 9.3-10.3)\n",
            amOk ? "PASS" : "FAIL", (double)accelMag);
     if (!amOk) pass = false;
@@ -1354,12 +1354,12 @@ static void ivp10_gate_check(void) {
            (double)axAvg, (double)ayAvg, (double)azAvg);
 
     // Gate: Gyro near zero (±0.05 rad/s)
-    bool gOk = (g_gyroAbsMax < 0.05f);
+    bool gOk = (g_gyroAbsMax < 0.05F);
     printf("[%s] Gyro max abs: %.4f rad/s (expect <0.05)\n",
            gOk ? "PASS" : "WARN", (double)g_gyroAbsMax);
 
     // Gate: Mag reasonable (10-60 µT), not zeros
-    bool mOk = (g_magValidCount > 0 && g_magMagMin > 10.0f && g_magMagMax < 60.0f);
+    bool mOk = (g_magValidCount > 0 && g_magMagMin > 10.0F && g_magMagMax < 60.0F);
     if (g_magValidCount > 0) {
         printf("[%s] Mag range: %.1f-%.1f uT (%lu/%lu valid) (expect 10-60)\n",
                mOk ? "PASS" : "WARN", (double)g_magMagMin, (double)g_magMagMax,
@@ -1369,7 +1369,7 @@ static void ivp10_gate_check(void) {
     }
 
     // Gate: Temperature plausible (15-40°C)
-    bool tOk = (g_tempMin > 15.0f && g_tempMax < 40.0f);
+    bool tOk = (g_tempMin > 15.0F && g_tempMax < 40.0F);
     printf("[%s] Temp range: %.1f-%.1fC (expect 15-40)\n",
            tOk ? "PASS" : "WARN", (double)g_tempMin, (double)g_tempMax);
 
@@ -1381,7 +1381,7 @@ static void ivp10_gate_check(void) {
 
     // Gate: Accel stability (max-min < 0.5 over 5s)
     float azRange = g_accelZMax - g_accelZMin;
-    bool azStable = (azRange < 0.5f);
+    bool azStable = (azRange < 0.5F);
     printf("[%s] Accel Z stability: range=%.3f m/s^2 (expect <0.5)\n",
            azStable ? "PASS" : "WARN", (double)azRange);
 
@@ -1409,7 +1409,7 @@ static void ivp12_accumulate(const baro_dps310_data_t* d) {
     }
 
     // Stuck value detection (same pressure to 0.01 Pa)
-    if (g_baroValidReads > 0 && fabsf(d->pressure_pa - g_baroLastPress) < 0.01f) {
+    if (g_baroValidReads > 0 && fabsf(d->pressure_pa - g_baroLastPress) < 0.01F) {
         g_baroStuckCount++;
     }
     g_baroLastPress = d->pressure_pa;
@@ -1426,7 +1426,7 @@ static void ivp12_accumulate(const baro_dps310_data_t* d) {
     g_baroValidReads++;
 }
 
-static void ivp12_gate_check(void) {
+static void ivp12_gate_check() {
     printf("\n=== IVP-12: Barometer Data Validation Gate ===\n");
 
     bool pass = true;
@@ -1440,13 +1440,13 @@ static void ivp12_gate_check(void) {
     float pressAvg = g_baroPressSum / (float)g_baroValidReads;
 
     // Gate: Pressure ~101325 Pa (±3000 Pa for typical altitudes)
-    bool pOk = (pressAvg > 98325.0f && pressAvg < 104325.0f);
+    bool pOk = (pressAvg > 98325.0F && pressAvg < 104325.0F);
     printf("[%s] Pressure avg: %.1f Pa (expect 98325-104325)\n",
            pOk ? "PASS" : "FAIL", (double)pressAvg);
     if (!pOk) pass = false;
 
     // Gate: Temperature plausible (15-40°C)
-    bool tOk = (g_baroTempMin > 15.0f && g_baroTempMax < 40.0f);
+    bool tOk = (g_baroTempMin > 15.0F && g_baroTempMax < 40.0F);
     printf("[%s] Temp range: %.1f-%.1fC (expect 15-40)\n",
            tOk ? "PASS" : "WARN", (double)g_baroTempMin, (double)g_baroTempMax);
 
@@ -1458,7 +1458,7 @@ static void ivp12_gate_check(void) {
 
     // Gate: Pressure noise < ±5 Pa over 10 seconds
     float pressRange = g_baroPressMax - g_baroPressMin;
-    bool nOk = (pressRange < 10.0f);  // ±5 Pa = 10 Pa total range
+    bool nOk = (pressRange < 10.0F);  // ±5 Pa = 10 Pa total range
     printf("[%s] Pressure noise: %.2f Pa range (expect <10)\n",
            nOk ? "PASS" : "WARN", (double)pressRange);
 
@@ -1476,7 +1476,7 @@ static void ivp12_gate_check(void) {
     if (!stuckOk) pass = false;
 
     // Info: altitude
-    float alt = baro_dps310_pressure_to_altitude(pressAvg, 101325.0f);
+    float alt = baro_dps310_pressure_to_altitude(pressAvg, 101325.0F);
     printf("[INFO] Altitude (std atm): %.1f m\n", (double)alt);
 
     printf("=== IVP-12: %s ===\n\n", pass ? "ALL GATES PASS" : "GATE FAILURES - see above");
@@ -1486,25 +1486,25 @@ static void ivp12_gate_check(void) {
 // IVP-13: Multi-Sensor Polling Gate Check
 // ============================================================================
 
-static void ivp13_gate_check(void) {
+static void ivp13_gate_check() {
     printf("\n=== IVP-13: Multi-Sensor Polling Gate ===\n");
 
     bool pass = true;
     uint32_t elapsedMs = to_ms_since_boot(get_absolute_time()) - g_ivp13StartMs;
-    float elapsedS = static_cast<float>(elapsedMs) / 1000.0f;
+    float elapsedS = static_cast<float>(elapsedMs) / 1000.0F;
 
     // Actual rates
     float imuRate = static_cast<float>(g_ivp13ImuCount) / elapsedS;
     float baroRate = static_cast<float>(g_ivp13BaroCount) / elapsedS;
 
     // Gate: IMU rate within 5% of 100Hz target
-    bool imuOk = (imuRate > 95.0f && imuRate < 105.0f);
+    bool imuOk = (imuRate > 95.0F && imuRate < 105.0F);
     printf("[%s] IMU rate: %.1f Hz (target 100, expect 95-105)\n",
            imuOk ? "PASS" : "FAIL", (double)imuRate);
     if (!imuOk) pass = false;
 
     // Gate: Baro rate within 10% of 50Hz target
-    bool baroOk = (baroRate > 45.0f && baroRate < 55.0f);
+    bool baroOk = (baroRate > 45.0F && baroRate < 55.0F);
     printf("[%s] Baro rate: %.1f Hz (target 50, expect 45-55)\n",
            baroOk ? "PASS" : "FAIL", (double)baroRate);
     if (!baroOk) pass = false;
@@ -1548,11 +1548,11 @@ static void ivp13_gate_check(void) {
 // ============================================================================
 
 // Known test values for save/load verification
-static constexpr float kTestGyroX = 0.00123f;
-static constexpr float kTestGyroY = -0.00234f;
-static constexpr float kTestGyroZ = 0.00345f;
+static constexpr float kTestGyroX = 0.00123F;
+static constexpr float kTestGyroY = -0.00234F;
+static constexpr float kTestGyroZ = 0.00345F;
 
-static void ivp14_gate_check(void) {
+static void ivp14_gate_check() {
     printf("\n=== IVP-14: Calibration Storage Gate ===\n");
 
     bool pass = true;
@@ -1592,9 +1592,9 @@ static void ivp14_gate_check(void) {
                 printf("[FAIL] Gate 2: flash read failed\n");
                 pass = false;
             } else {
-                bool match = (fabsf(readback.gyro.bias.x - kTestGyroX) < 1e-6f &&
-                              fabsf(readback.gyro.bias.y - kTestGyroY) < 1e-6f &&
-                              fabsf(readback.gyro.bias.z - kTestGyroZ) < 1e-6f &&
+                bool match = (fabsf(readback.gyro.bias.x - kTestGyroX) < 1e-6F &&
+                              fabsf(readback.gyro.bias.y - kTestGyroY) < 1e-6F &&
+                              fabsf(readback.gyro.bias.z - kTestGyroZ) < 1e-6F &&
                               (readback.cal_flags & CAL_STATUS_GYRO));
                 printf("[%s] Gate 2: save/readback %s (bias: %.5f, %.5f, %.5f)\n",
                        match ? "PASS" : "FAIL",
@@ -1613,7 +1613,7 @@ static void ivp14_gate_check(void) {
         calibration_store_t persisted;
         bool readOk = calibration_storage_read(&persisted);
         if (readOk && (persisted.cal_flags & CAL_STATUS_GYRO) &&
-            fabsf(persisted.gyro.bias.x - kTestGyroX) < 1e-6f) {
+            fabsf(persisted.gyro.bias.x - kTestGyroX) < 1e-6F) {
             printf("[PASS] Gate 3: data persisted across power cycle\n");
         } else {
             printf("[INFO] Gate 3: power cycle test — unplug USB, replug, check next boot\n");
@@ -1664,7 +1664,7 @@ static void ivp14_gate_check(void) {
 // IVP-15: Gyro Bias Calibration Gate Check
 // ============================================================================
 
-static void ivp15_gate_check(void) {
+static void ivp15_gate_check() {
     printf("\n=== IVP-15: Gyro Bias Calibration Gate ===\n");
 
     bool pass = true;
@@ -1683,7 +1683,7 @@ static void ivp15_gate_check(void) {
     float bx = cal->gyro.bias.x;
     float by = cal->gyro.bias.y;
     float bz = cal->gyro.bias.z;
-    bool biasOk = (fabsf(bx) < 0.1f && fabsf(by) < 0.1f && fabsf(bz) < 0.1f);
+    bool biasOk = (fabsf(bx) < 0.1F && fabsf(by) < 0.1F && fabsf(bz) < 0.1F);
     printf("[%s] Gate 2: bias X=%.5f Y=%.5f Z=%.5f rad/s (expect <0.1 each)\n",
            biasOk ? "PASS" : "FAIL",
            (double)bx, (double)by, (double)bz);
@@ -1692,7 +1692,7 @@ static void ivp15_gate_check(void) {
     // Gate 3: After applying, readings near zero when stationary
     // Take 10 samples and check corrected gyro near zero
     {
-        float maxCorrected = 0.0f;
+        float maxCorrected = 0.0F;
         uint32_t goodSamples = 0;
         for (uint8_t i = 0; i < 10; i++) {
             sleep_ms(10);  // ~100Hz
@@ -1711,7 +1711,7 @@ static void ivp15_gate_check(void) {
             }
         }
         // After bias subtraction, stationary gyro should read < 0.05 rad/s
-        bool corrOk = (goodSamples >= 5 && maxCorrected < 0.05f);
+        bool corrOk = (goodSamples >= 5 && maxCorrected < 0.05F);
         printf("[%s] Gate 3: corrected gyro max=%.5f rad/s (%lu/10 samples) (expect <0.05)\n",
                corrOk ? "PASS" : "FAIL",
                (double)maxCorrected, (unsigned long)goodSamples);
@@ -1732,9 +1732,9 @@ static void ivp15_gate_check(void) {
             bool persistOk = readOk &&
                 calibration_validate(&readback) &&
                 (readback.cal_flags & CAL_STATUS_GYRO) &&
-                fabsf(readback.gyro.bias.x - bx) < 1e-6f &&
-                fabsf(readback.gyro.bias.y - by) < 1e-6f &&
-                fabsf(readback.gyro.bias.z - bz) < 1e-6f;
+                fabsf(readback.gyro.bias.x - bx) < 1e-6F &&
+                fabsf(readback.gyro.bias.y - by) < 1e-6F &&
+                fabsf(readback.gyro.bias.z - bz) < 1e-6F;
             printf("[%s] Gate 4: save + readback %s (flags=0x%02lX)\n",
                    persistOk ? "PASS" : "FAIL",
                    persistOk ? "match" : "MISMATCH",
@@ -1767,9 +1767,9 @@ static void ivp16_gate_check(uint32_t elapsedMs) {
 
     // Gate 2: After applying, Z reads +9.81 ±0.05, X and Y < 0.05 m/s²
     {
-        float axSum = 0.0f;
-        float aySum = 0.0f;
-        float azSum = 0.0f;
+        float axSum = 0.0F;
+        float aySum = 0.0F;
+        float azSum = 0.0F;
         uint32_t goodSamples = 0;
         for (uint8_t i = 0; i < 10; i++) {
             sleep_ms(10);
@@ -1792,8 +1792,8 @@ static void ivp16_gate_check(uint32_t elapsedMs) {
             float ayAvg = aySum / n;
             float azAvg = azSum / n;
 
-            bool xyOk = (fabsf(axAvg) < 0.05f && fabsf(ayAvg) < 0.05f);
-            bool zOk = (fabsf(azAvg - 9.80665f) < 0.05f);
+            bool xyOk = (fabsf(axAvg) < 0.05F && fabsf(ayAvg) < 0.05F);
+            bool zOk = (fabsf(azAvg - 9.80665F) < 0.05F);
 
             printf("[%s] Gate 2: corrected X=%.4f Y=%.4f m/s^2 (expect <0.05 each)\n",
                    xyOk ? "PASS" : "WARN", (double)axAvg, (double)ayAvg);
@@ -1825,9 +1825,9 @@ static void ivp16_gate_check(uint32_t elapsedMs) {
             bool persistOk = readOk &&
                 calibration_validate(&readback) &&
                 (readback.cal_flags & CAL_STATUS_LEVEL) &&
-                fabsf(readback.accel.offset.x - cal->accel.offset.x) < 1e-6f &&
-                fabsf(readback.accel.offset.y - cal->accel.offset.y) < 1e-6f &&
-                fabsf(readback.accel.offset.z - cal->accel.offset.z) < 1e-6f;
+                fabsf(readback.accel.offset.x - cal->accel.offset.x) < 1e-6F &&
+                fabsf(readback.accel.offset.y - cal->accel.offset.y) < 1e-6F &&
+                fabsf(readback.accel.offset.z - cal->accel.offset.z) < 1e-6F;
             printf("[%s] Gate 3: save + readback %s (flags=0x%02lX)\n",
                    persistOk ? "PASS" : "FAIL",
                    persistOk ? "match" : "MISMATCH",
@@ -1851,7 +1851,7 @@ static void ivp16_gate_check(uint32_t elapsedMs) {
 // ============================================================================
 // Exercise-only — FIFO reserved by multicore_lockout (flash_safe_execute).
 
-static void ivp22_fifo_test(void) {
+static void ivp22_fifo_test() {
     printf("\n=== IVP-22: Multicore FIFO Message Passing ===\n");
     bool pass = true;
 
@@ -1968,7 +1968,7 @@ static void ivp22_fifo_test(void) {
 // ============================================================================
 // Exercise-only — seqlock polling chosen for production.
 
-static void ivp23_doorbell_test(void) {
+static void ivp23_doorbell_test() {
     printf("=== IVP-23: Doorbell Interrupts (RP2350-Specific) ===\n");
     bool pass = true;
 
@@ -2059,7 +2059,7 @@ static void ivp23_doorbell_test(void) {
 // IVP-21: Spinlock Gate Check (called after 5-min soak completes)
 // ============================================================================
 
-static void ivp21_gate_check(void) {
+static void ivp21_gate_check() {
     printf("\n=== IVP-21: Hardware Spinlock Validation ===\n");
     bool pass = true;
 
@@ -2131,7 +2131,7 @@ static void ivp21_gate_check(void) {
 // IVP-25: Core 1 IMU Sensor Gate Check
 // ============================================================================
 
-static void ivp25_gate_check(void) {
+static void ivp25_gate_check() {
     printf("\n=== IVP-25: Core 1 IMU Sensor Validation ===\n");
     bool pass = true;
 
@@ -2139,7 +2139,7 @@ static void ivp25_gate_check(void) {
     bool snapOk = seqlock_read(&g_sensorSeqlock, &snap);
 
     uint32_t elapsedMs = to_ms_since_boot(get_absolute_time()) - g_ivp25StartMs;
-    float elapsedS = (float)elapsedMs / 1000.0f;
+    float elapsedS = (float)elapsedMs / 1000.0F;
 
     // Gate 1: I2C transaction time (INFO) — computed from jitter timestamps
     {
@@ -2165,16 +2165,16 @@ static void ivp25_gate_check(void) {
 
     // Gate 2: IMU rate within 1% of target
     {
-        float imuRate = 0.0f;
-        if (snapOk && elapsedS > 1.0f) {
+        float imuRate = 0.0F;
+        if (snapOk && elapsedS > 1.0F) {
             imuRate = (float)snap.imu_read_count / elapsedS;
         }
         // Target: ~1kHz or I2C-limited actual rate. Report and check within 1%.
         // At 400kHz I2C, full IMU read ~774us (measured IVP-13), so max ~1.29kHz
         // With 1ms target cycle, expect ~1000 Hz
-        float expectedRate = 1000000.0f / (float)kCore1TargetCycleUs;
+        float expectedRate = 1000000.0F / (float)kCore1TargetCycleUs;
         float pctError = (expectedRate > 0) ?
-            fabsf(imuRate - expectedRate) / expectedRate * 100.0f : 100.0f;
+            fabsf(imuRate - expectedRate) / expectedRate * 100.0F : 100.0F;
         bool rateOk = (pctError < kImuRateTolerancePct);
         printf("[%s] Gate 2: IMU rate: %.1f Hz (target ~%.0f Hz, %.1f%% off)\n",
                rateOk ? "PASS" : "FAIL",
@@ -2190,13 +2190,13 @@ static void ivp25_gate_check(void) {
             // Compute std dev of inter-sample deltas — use static to avoid stack pressure
             static float dts[kJitterSampleCount - 1];  // ~4KB — static per coding standards
             uint32_t dtCount = (n > (kJitterSampleCount - 1)) ? (kJitterSampleCount - 1) : (n - 1);
-            float sumDt = 0.0f;
+            float sumDt = 0.0F;
             for (uint32_t i = 0; i < dtCount; i++) {
                 dts[i] = (float)(g_jitterTimestamps[i + 1] - g_jitterTimestamps[i]);
                 sumDt += dts[i];
             }
             float meanDt = sumDt / (float)dtCount;
-            float sumSq = 0.0f;
+            float sumSq = 0.0F;
             for (uint32_t i = 0; i < dtCount; i++) {
                 float diff = dts[i] - meanDt;
                 sumSq += diff * diff;
@@ -2258,7 +2258,7 @@ static void ivp25_gate_check(void) {
 // IVP-26: Core 1 Baro Sensor Gate Check
 // ============================================================================
 
-static void ivp26_gate_check(void) {
+static void ivp26_gate_check() {
     printf("\n=== IVP-26: Core 1 Baro Sensor Validation ===\n");
     bool pass = true;
 
@@ -2266,17 +2266,17 @@ static void ivp26_gate_check(void) {
     bool snapOk = seqlock_read(&g_sensorSeqlock, &snap);
 
     uint32_t elapsedMs = to_ms_since_boot(get_absolute_time()) - g_ivp25StartMs;
-    float elapsedS = (float)elapsedMs / 1000.0f;
+    float elapsedS = (float)elapsedMs / 1000.0F;
 
     // Gate 1: IMU rate unchanged (reference IVP-25)
     {
-        float imuRate = 0.0f;
-        if (snapOk && elapsedS > 1.0f) {
+        float imuRate = 0.0F;
+        if (snapOk && elapsedS > 1.0F) {
             imuRate = (float)snap.imu_read_count / elapsedS;
         }
-        float expectedRate = 1000000.0f / (float)kCore1TargetCycleUs;
+        float expectedRate = 1000000.0F / (float)kCore1TargetCycleUs;
         float pctError = (expectedRate > 0) ?
-            fabsf(imuRate - expectedRate) / expectedRate * 100.0f : 100.0f;
+            fabsf(imuRate - expectedRate) / expectedRate * 100.0F : 100.0F;
         bool rateOk = (pctError < kImuRateTolerancePct);
         printf("[%s] Gate 1: IMU rate: %.1f Hz (unchanged from IVP-25)\n",
                rateOk ? "PASS" : "FAIL", (double)imuRate);
@@ -2287,14 +2287,14 @@ static void ivp26_gate_check(void) {
     // Note: DPS310 at 8Hz continuous, we poll at 50Hz with data-ready check.
     // Actual baro data rate is ~8Hz (hardware limited), not 50Hz.
     {
-        float baroRate = 0.0f;
-        if (snapOk && elapsedS > 1.0f) {
+        float baroRate = 0.0F;
+        if (snapOk && elapsedS > 1.0F) {
             baroRate = (float)snap.baro_read_count / elapsedS;
         }
         // DPS310 configured at 8Hz/8x oversampling. Expect ~8 new samples/sec.
-        float expectedBaroRate = 8.0f;  // DPS310 hardware rate, not poll rate
+        float expectedBaroRate = 8.0F;  // DPS310 hardware rate, not poll rate
         float pctError = (expectedBaroRate > 0) ?
-            fabsf(baroRate - expectedBaroRate) / expectedBaroRate * 100.0f : 100.0f;
+            fabsf(baroRate - expectedBaroRate) / expectedBaroRate * 100.0F : 100.0F;
         bool rateOk = (pctError < kBaroRateTolerancePct);
         printf("[%s] Gate 2: Baro rate: %.1f Hz (expect ~%.0f Hz, DPS310 hw rate)\n",
                rateOk ? "PASS" : "WARN", (double)baroRate, (double)expectedBaroRate);
@@ -2346,7 +2346,7 @@ static void ivp26_gate_check(void) {
 // IVP-27: USB Stability Gate Check
 // ============================================================================
 
-static void ivp27_gate_check(void) {
+static void ivp27_gate_check() {
     printf("\n=== IVP-27: USB Stability Under Dual-Core Load ===\n");
     bool pass = true;
 
@@ -2391,7 +2391,7 @@ static void ivp27_gate_check(void) {
 // IVP-28: Flash Under Dual-Core Test
 // ============================================================================
 
-static void ivp28_flash_test(void) {
+static void ivp28_flash_test() {
     printf("\n=== IVP-28: Flash Operations Under Dual-Core ===\n");
     bool allPass = true;
 
@@ -2470,7 +2470,7 @@ static void ivp28_flash_test(void) {
 // Returns true if previous reboot was caused by watchdog.
 // ============================================================================
 
-static bool init_hardware(void) {
+static bool init_hardware() {
     // IVP-30: Check if previous reboot was caused by watchdog (before any init)
     bool watchdogReboot = watchdog_enable_caused_reboot();
 
@@ -2539,9 +2539,9 @@ static bool init_hardware(void) {
 
     // Fast LED blink while waiting for USB connection
     while (!stdio_usb_connected()) {
-        gpio_put(PICO_DEFAULT_LED_PIN, 1);
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
         sleep_ms(100);
-        gpio_put(PICO_DEFAULT_LED_PIN, 0);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
         sleep_ms(100);
     }
 
@@ -2585,7 +2585,7 @@ static void print_boot_status(bool watchdogReboot) {
 // Init: Skip gates, RC_OS setup, pre-loop inter-core exercises
 // ============================================================================
 
-static void init_application(void) {
+static void init_application() {
     // Skip previously verified gates to speed up boot
     if (kSkipVerifiedGates) {
         g_imuValidationDone = true;
@@ -2681,7 +2681,7 @@ static void heartbeat_tick(uint32_t nowMs) {
     bool shouldBeOn = (phase < kHeartbeatOnMs);
     if (shouldBeOn != ledState) {
         ledState = shouldBeOn;
-        gpio_put(PICO_DEFAULT_LED_PIN, ledState ? 1 : 0);
+        gpio_put(PICO_DEFAULT_LED_PIN, ledState ? true : false);
     }
 }
 
@@ -2974,7 +2974,7 @@ static void ivp30_soak_tick(uint32_t nowMs) {
     }
 }
 
-static void watchdog_kick_tick(void) {
+static void watchdog_kick_tick() {
     if (!g_watchdogEnabled) return;
 
     g_wdtCore0Alive.store(true, std::memory_order_relaxed);
@@ -2992,14 +2992,14 @@ static void ivp10_validation_tick(uint32_t nowMs) {
     if (!g_imuValidationStarted && nowMs >= kImuValidationDelayMs) {
         g_imuValidationStarted = true;
         g_lastImuReadMs = nowMs;
-        g_accelXSum = 0.0f;
-        g_accelYSum = 0.0f;
-        g_accelZSum = 0.0f;
-        g_accelZMin = 999.0f;
-        g_accelZMax = -999.0f;
-        g_gyroAbsMax = 0.0f;
-        g_magMagMin = 999.0f;  g_magMagMax = 0.0f;
-        g_tempMin = 999.0f;    g_tempMax = -999.0f;
+        g_accelXSum = 0.0F;
+        g_accelYSum = 0.0F;
+        g_accelZSum = 0.0F;
+        g_accelZMin = 999.0F;
+        g_accelZMax = -999.0F;
+        g_gyroAbsMax = 0.0F;
+        g_magMagMin = 999.0F;  g_magMagMax = 0.0F;
+        g_tempMin = 999.0F;    g_tempMax = -999.0F;
         g_nanCount = 0;        g_magValidCount = 0;
         g_validSampleCount = 0;
         printf("=== IVP-10: IMU Data Validation (10Hz x %lu samples) ===\n",
@@ -3033,7 +3033,7 @@ static void ivp12_validation_tick(uint32_t nowMs) {
         g_baroValidationStarted = true;
         g_baroValidStartMs = nowMs;
         g_lastBaroReadMs = nowMs;
-        g_baroPressSum = 0.0f;
+        g_baroPressSum = 0.0F;
         g_baroValidReads = 0;
         g_baroInvalidReads = 0;
         g_baroNanCount = 0;
@@ -3301,7 +3301,7 @@ static void ivp_calibration_tick(uint32_t nowMs) {
     }
 }
 
-static void cli_update_tick(void) {
+static void cli_update_tick() {
     rc_os_update();
 
     if (!calibration_is_active()) return;

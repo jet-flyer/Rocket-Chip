@@ -94,7 +94,7 @@ static int read_nmea_data(uint8_t* buffer, size_t max_len) {
 /**
  * @brief Update internal data structure from lwGPS
  */
-static void update_data_from_lwgps(void) {
+static void update_data_from_lwgps() {
     g_data.latitude = g_gps.latitude;
     g_data.longitude = g_gps.longitude;
     g_data.altitude_m = (float)g_gps.altitude;
@@ -149,7 +149,7 @@ static void update_data_from_lwgps(void) {
 // Public API
 // ============================================================================
 
-bool gps_pa1010d_init(void) {
+bool gps_pa1010d_init() {
     // Initialize lwGPS parser
     lwgps_init(&g_gps);
 
@@ -190,11 +190,11 @@ bool gps_pa1010d_init(void) {
     return true;
 }
 
-bool gps_pa1010d_ready(void) {
+bool gps_pa1010d_ready() {
     return g_initialized;
 }
 
-bool gps_pa1010d_update(void) {
+bool gps_pa1010d_update() {
     if (!g_initialized) {
         return false;
     }
@@ -222,7 +222,7 @@ bool gps_pa1010d_update(void) {
 }
 
 bool gps_pa1010d_get_data(gps_pa1010d_data_t* data) {
-    if (data == NULL) {
+    if (data == nullptr) {
         return false;
     }
 
@@ -230,12 +230,12 @@ bool gps_pa1010d_get_data(gps_pa1010d_data_t* data) {
     return g_data.valid;
 }
 
-bool gps_pa1010d_has_fix(void) {
+bool gps_pa1010d_has_fix() {
     return g_data.valid && (g_data.fix >= GPS_FIX_2D);
 }
 
 bool gps_pa1010d_send_command(const char* cmd) {
-    if (!g_initialized || cmd == NULL) {
+    if (!g_initialized || cmd == nullptr) {
         return false;
     }
 

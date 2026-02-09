@@ -31,7 +31,7 @@ static uint16_t crc16_ccitt(const uint8_t* data, size_t len) {
 // ============================================================================
 
 void calibration_init_defaults(calibration_store_t* cal) {
-    if (cal == NULL) return;
+    if (cal == nullptr) return;
 
     memset(cal, 0, sizeof(calibration_store_t));
 
@@ -39,32 +39,32 @@ void calibration_init_defaults(calibration_store_t* cal) {
     cal->version = kCalibrationVersion;
 
     // Accel defaults: no offset, unity scale, no cross-coupling
-    cal->accel.offset = cal_vec3_t{0.0f, 0.0f, 0.0f};
-    cal->accel.scale = cal_vec3_t{1.0f, 1.0f, 1.0f};
-    cal->accel.offdiag = cal_vec3_t{0.0f, 0.0f, 0.0f};
+    cal->accel.offset = cal_vec3_t{0.0F, 0.0F, 0.0F};
+    cal->accel.scale = cal_vec3_t{1.0F, 1.0F, 1.0F};
+    cal->accel.offdiag = cal_vec3_t{0.0F, 0.0F, 0.0F};
     cal->accel.status = CAL_STATUS_NONE;
 
     // Gyro defaults: no bias
-    cal->gyro.bias = cal_vec3_t{0.0f, 0.0f, 0.0f};
+    cal->gyro.bias = cal_vec3_t{0.0F, 0.0F, 0.0F};
     cal->gyro.status = CAL_STATUS_NONE;
 
     // Baro defaults: standard atmosphere
-    cal->baro.ground_pressure_pa = 101325.0f;
-    cal->baro.ground_temperature_c = 20.0f;
+    cal->baro.ground_pressure_pa = 101325.0F;
+    cal->baro.ground_temperature_c = 20.0F;
     cal->baro.status = CAL_STATUS_NONE;
 
     cal->cal_flags = 0;
 
     // Board orientation: identity matrix (no rotation)
-    cal->board_rotation.m[0] = 1.0f; cal->board_rotation.m[1] = 0.0f; cal->board_rotation.m[2] = 0.0f;
-    cal->board_rotation.m[3] = 0.0f; cal->board_rotation.m[4] = 1.0f; cal->board_rotation.m[5] = 0.0f;
-    cal->board_rotation.m[6] = 0.0f; cal->board_rotation.m[7] = 0.0f; cal->board_rotation.m[8] = 1.0f;
+    cal->board_rotation.m[0] = 1.0F; cal->board_rotation.m[1] = 0.0F; cal->board_rotation.m[2] = 0.0F;
+    cal->board_rotation.m[3] = 0.0F; cal->board_rotation.m[4] = 1.0F; cal->board_rotation.m[5] = 0.0F;
+    cal->board_rotation.m[6] = 0.0F; cal->board_rotation.m[7] = 0.0F; cal->board_rotation.m[8] = 1.0F;
 
     calibration_update_crc(cal);
 }
 
 bool calibration_validate(const calibration_store_t* cal) {
-    if (cal == NULL) return false;
+    if (cal == nullptr) return false;
 
     // Check magic
     if (cal->magic != kCalibrationMagic) return false;
@@ -81,7 +81,7 @@ bool calibration_validate(const calibration_store_t* cal) {
 }
 
 void calibration_update_crc(calibration_store_t* cal) {
-    if (cal == NULL) return;
+    if (cal == nullptr) return;
 
     // CRC computed over everything after crc16 field
     const uint8_t* data_start = (const uint8_t*)&cal->accel;
@@ -90,6 +90,6 @@ void calibration_update_crc(calibration_store_t* cal) {
 }
 
 bool calibration_has(const calibration_store_t* cal, cal_status_flags_t flag) {
-    if (cal == NULL) return false;
+    if (cal == nullptr) return false;
     return (cal->cal_flags & flag) != 0;
 }

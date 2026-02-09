@@ -35,19 +35,19 @@ constexpr uint32_t kSectorBOffset    = kStorageOffset + FLASH_SECTOR_SIZE;
 constexpr uint32_t kSectorStateErased = 0xFFFFFFFFU;  // Fresh erased flash
 constexpr uint32_t kSectorStateInUse  = 0x52435355U;  // "RCSU" - sector is active
 
-typedef struct {
+using sector_header_t = struct {
     uint32_t state;             // Sector state marker
     uint32_t sequence;          // Write sequence number (higher = newer)
     uint32_t reserved[2];       // Alignment padding
-} sector_header_t;
+};
 
 static_assert(sizeof(sector_header_t) == 16, "sector_header_t must be 16 bytes");
 
 // Entry header follows sector header
-typedef struct {
+using entry_header_t = struct {
     uint32_t magic;             // kEntryMagic for validation
     uint32_t reserved;
-} entry_header_t;
+};
 
 constexpr uint32_t kEntryMagic = 0x52434345U;  // "RCCE" - RocketChip Cal Entry
 
@@ -64,16 +64,16 @@ static calibration_store_t g_cached_cal;
 // Flash Operations (via flash_safe_execute)
 // ============================================================================
 
-typedef struct {
+using flash_write_params_t = struct {
     uint32_t offset;
     const uint8_t* data;
     size_t len;
-} flash_write_params_t;
+};
 
-typedef struct {
+using flash_erase_params_t = struct {
     uint32_t offset;
     size_t len;
-} flash_erase_params_t;
+};
 
 static void do_flash_write(void* param) {
     flash_write_params_t* p = (flash_write_params_t*)param;
@@ -153,7 +153,7 @@ static bool find_valid_entry(uint32_t sector_offset, calibration_store_t* cal, u
     return true;
 }
 
-static bool find_active_sector(void) {
+static bool find_active_sector() {
     calibration_store_t cal_a, cal_b;
     uint32_t seq_a = 0, seq_b = 0;
     bool valid_a = find_valid_entry(kSectorAOffset, &cal_a, &seq_a);
@@ -236,7 +236,7 @@ static bool write_to_sector(uint32_t sector_offset, const calibration_store_t* c
 // Public API
 // ============================================================================
 
-bool calibration_storage_init(void) {
+bool calibration_storage_init() {
     if (g_initialized) {
         return true;
     }
@@ -247,7 +247,7 @@ bool calibration_storage_init(void) {
 }
 
 bool calibration_storage_read(calibration_store_t* cal) {
-    if (cal == NULL) return false;
+    if (cal == nullptr) return false;
 
     if (!g_initialized) {
         calibration_storage_init();
@@ -259,7 +259,7 @@ bool calibration_storage_read(calibration_store_t* cal) {
 }
 
 bool calibration_storage_write(const calibration_store_t* cal) {
-    if (cal == NULL) return false;
+    if (cal == nullptr) return false;
 
     if (!g_initialized) {
         calibration_storage_init();
@@ -280,7 +280,7 @@ bool calibration_storage_write(const calibration_store_t* cal) {
     return true;
 }
 
-bool calibration_storage_erase(void) {
+bool calibration_storage_erase() {
     if (!g_initialized) {
         calibration_storage_init();
     }

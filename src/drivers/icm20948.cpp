@@ -123,23 +123,23 @@ namespace ak09916 {
 // Accelerometer scale factors (LSB to m/s²)
 // Sensitivity: 16384, 8192, 4096, 2048 LSB/g for ±2, ±4, ±8, ±16g
 static const float kAccelScale[] = {
-    9.80665f / 16384.0f,  // ±2g
-    9.80665f / 8192.0f,   // ±4g
-    9.80665f / 4096.0f,   // ±8g
-    9.80665f / 2048.0f,   // ±16g
+    9.80665F / 16384.0F,  // ±2g
+    9.80665F / 8192.0F,   // ±4g
+    9.80665F / 4096.0F,   // ±8g
+    9.80665F / 2048.0F,   // ±16g
 };
 
 // Gyroscope scale factors (LSB to rad/s)
 // Sensitivity: 131, 65.5, 32.8, 16.4 LSB/dps for ±250, ±500, ±1000, ±2000 dps
 static const float kGyroScale[] = {
-    (M_PI / 180.0f) / 131.0f,   // ±250 dps
-    (M_PI / 180.0f) / 65.5f,    // ±500 dps
-    (M_PI / 180.0f) / 32.8f,    // ±1000 dps
-    (M_PI / 180.0f) / 16.4f,    // ±2000 dps
+    (M_PI / 180.0F) / 131.0F,   // ±250 dps
+    (M_PI / 180.0F) / 65.5F,    // ±500 dps
+    (M_PI / 180.0F) / 32.8F,    // ±1000 dps
+    (M_PI / 180.0F) / 16.4F,    // ±2000 dps
 };
 
 // Magnetometer scale: 0.15 µT/LSB (fixed for AK09916)
-constexpr float kMagScale = 0.15f;
+constexpr float kMagScale = 0.15F;
 
 // ============================================================================
 // Private Functions
@@ -276,7 +276,7 @@ static bool init_magnetometer(icm20948_t* dev) {
 // ============================================================================
 
 bool icm20948_init(icm20948_t* dev, uint8_t addr) {
-    if (dev == NULL) {
+    if (dev == nullptr) {
         return false;
     }
 
@@ -335,7 +335,7 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
 }
 
 bool icm20948_ready(icm20948_t* dev) {
-    if (dev == NULL || !dev->initialized) {
+    if (dev == nullptr || !dev->initialized) {
         return false;
     }
 
@@ -349,7 +349,7 @@ bool icm20948_ready(icm20948_t* dev) {
 }
 
 bool icm20948_reset(icm20948_t* dev) {
-    if (dev == NULL) {
+    if (dev == nullptr) {
         return false;
     }
 
@@ -364,7 +364,7 @@ bool icm20948_reset(icm20948_t* dev) {
 }
 
 bool icm20948_set_accel_fs(icm20948_t* dev, icm20948_accel_fs_t fs) {
-    if (dev == NULL) {
+    if (dev == nullptr) {
         return false;
     }
 
@@ -381,7 +381,7 @@ bool icm20948_set_accel_fs(icm20948_t* dev, icm20948_accel_fs_t fs) {
 }
 
 bool icm20948_set_gyro_fs(icm20948_t* dev, icm20948_gyro_fs_t fs) {
-    if (dev == NULL) {
+    if (dev == nullptr) {
         return false;
     }
 
@@ -398,7 +398,7 @@ bool icm20948_set_gyro_fs(icm20948_t* dev, icm20948_gyro_fs_t fs) {
 }
 
 bool icm20948_set_mag_mode(icm20948_t* dev, ak09916_mode_t mode) {
-    if (dev == NULL || !dev->mag_initialized) {
+    if (dev == nullptr || !dev->mag_initialized) {
         return false;
     }
 
@@ -408,7 +408,7 @@ bool icm20948_set_mag_mode(icm20948_t* dev, ak09916_mode_t mode) {
 }
 
 bool icm20948_set_low_power(icm20948_t* dev, bool enable) {
-    if (dev == NULL || !dev->initialized) {
+    if (dev == nullptr || !dev->initialized) {
         return false;
     }
 
@@ -425,7 +425,7 @@ bool icm20948_set_low_power(icm20948_t* dev, bool enable) {
 }
 
 bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
-    if (dev == NULL || data == NULL || !dev->initialized) {
+    if (dev == nullptr || data == nullptr || !dev->initialized) {
         memset(data, 0, sizeof(icm20948_data_t));
         return false;
     }
@@ -474,7 +474,7 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     int16_t temp_raw = (int16_t)((buf[12] << 8) | buf[13]);
     // Temperature formula from datasheet: Temp_degC = ((TEMP_OUT - RoomTemp_Offset) / Temp_Sensitivity) + 21
     // Room temp offset and sensitivity vary; using typical values
-    data->temperature_c = (static_cast<float>(temp_raw) / 333.87f) + 21.0f;
+    data->temperature_c = (static_cast<float>(temp_raw) / 333.87F) + 21.0F;
 
     // Parse magnetometer from EXT_SLV_SENS_DATA (bytes 14-22)
     // Format: ST1, HXL, HXH, HYL, HYH, HZL, HZH, dummy(0x17), ST2
@@ -504,7 +504,7 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
 }
 
 bool icm20948_read_accel(icm20948_t* dev, icm20948_vec3_t* accel) {
-    if (dev == NULL || accel == NULL || !dev->initialized) {
+    if (dev == nullptr || accel == nullptr || !dev->initialized) {
         return false;
     }
 
@@ -528,7 +528,7 @@ bool icm20948_read_accel(icm20948_t* dev, icm20948_vec3_t* accel) {
 }
 
 bool icm20948_read_gyro(icm20948_t* dev, icm20948_vec3_t* gyro) {
-    if (dev == NULL || gyro == NULL || !dev->initialized) {
+    if (dev == nullptr || gyro == nullptr || !dev->initialized) {
         return false;
     }
 
@@ -552,7 +552,7 @@ bool icm20948_read_gyro(icm20948_t* dev, icm20948_vec3_t* gyro) {
 }
 
 bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag) {
-    if (dev == NULL || mag == NULL || !dev->initialized || !dev->mag_initialized) {
+    if (dev == nullptr || mag == nullptr || !dev->initialized || !dev->mag_initialized) {
         return false;
     }
 
@@ -585,7 +585,7 @@ bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag) {
 }
 
 bool icm20948_read_temperature(icm20948_t* dev, float* temp_c) {
-    if (dev == NULL || temp_c == NULL || !dev->initialized) {
+    if (dev == nullptr || temp_c == nullptr || !dev->initialized) {
         return false;
     }
 
@@ -597,13 +597,13 @@ bool icm20948_read_temperature(icm20948_t* dev, float* temp_c) {
     }
 
     int16_t temp_raw = (int16_t)((buf[0] << 8) | buf[1]);
-    *temp_c = (static_cast<float>(temp_raw) / 333.87f) + 21.0f;
+    *temp_c = (static_cast<float>(temp_raw) / 333.87F) + 21.0F;
 
     return true;
 }
 
 bool icm20948_data_ready(icm20948_t* dev, bool* accel_ready, bool* gyro_ready) {
-    if (dev == NULL || !dev->initialized) {
+    if (dev == nullptr || !dev->initialized) {
         return false;
     }
 
@@ -624,7 +624,7 @@ bool icm20948_data_ready(icm20948_t* dev, bool* accel_ready, bool* gyro_ready) {
 }
 
 bool icm20948_set_i2c_master_enable(icm20948_t* dev, bool enable) {
-    if (dev == NULL || !dev->initialized) {
+    if (dev == nullptr || !dev->initialized) {
         return false;
     }
 

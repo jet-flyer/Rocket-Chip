@@ -35,7 +35,7 @@ static struct {
     bool blink_state;
     float rainbow_hue;
 } g_state = {
-    .pio = NULL,
+    .pio = nullptr,
     .sm = 0,
     .offset = 0,
     .initialized = false,
@@ -48,7 +48,7 @@ static struct {
     .last_update_ms = 0,
     .phase_start_ms = 0,
     .blink_state = false,
-    .rainbow_hue = 0.0f,
+    .rainbow_hue = 0.0F,
 };
 
 // ============================================================================
@@ -103,7 +103,7 @@ bool ws2812_status_init(PIO pio, uint pin) {
     }
 
     // Initialize PIO program (800kHz, RGB mode)
-    ws2812_program_init(pio, sm, offset, pin, 800000.0f, false);
+    ws2812_program_init(pio, sm, offset, pin, 800000.0F, false);
 
     g_state.pio = pio;
     g_state.sm = sm;
@@ -118,7 +118,7 @@ bool ws2812_status_init(PIO pio, uint pin) {
     return true;
 }
 
-void ws2812_status_deinit(void) {
+void ws2812_status_deinit() {
     if (!g_state.initialized) return;
 
     // Turn off LED
@@ -154,7 +154,7 @@ void ws2812_set_hex(uint32_t hex) {
     ws2812_set_rgb(r, g, b);
 }
 
-void ws2812_off(void) {
+void ws2812_off() {
     g_state.mode = WS2812_MODE_OFF;
     g_state.base_color = ws2812_rgb_t{0, 0, 0};
     send_pixel(0, 0, 0);
@@ -169,7 +169,7 @@ void ws2812_set_mode(ws2812_mode_t mode, ws2812_rgb_t color) {
     g_state.base_color = color;
     g_state.phase_start_ms = to_ms_since_boot(get_absolute_time());
     g_state.blink_state = true;
-    g_state.rainbow_hue = 0.0f;
+    g_state.rainbow_hue = 0.0F;
 
     // Immediately show initial state
     switch (mode) {
@@ -205,7 +205,7 @@ void ws2812_set_brightness(uint8_t brightness) {
 // Update
 // ============================================================================
 
-void ws2812_update(void) {
+void ws2812_update() {
     if (!g_state.initialized) return;
 
     uint32_t now = to_ms_since_boot(get_absolute_time());
@@ -223,9 +223,9 @@ void ws2812_update(void) {
         case WS2812_MODE_BREATHE: {
             // Sinusoidal brightness pulsing
             float phase = (float)elapsed / (float)g_state.breathe_period_ms;
-            float scale = (sinf(phase * 2.0f * 3.14159f) + 1.0f) / 2.0f;
+            float scale = (sinf(phase * 2.0F * 3.14159F) + 1.0F) / 2.0F;
             // Minimum 10% brightness so LED doesn't fully turn off
-            scale = 0.1f + scale * 0.9f;
+            scale = 0.1F + scale * 0.9F;
             ws2812_rgb_t color = apply_brightness(g_state.base_color, scale);
             send_pixel(color.r, color.g, color.b);
             break;
@@ -267,8 +267,8 @@ void ws2812_update(void) {
 
         case WS2812_MODE_RAINBOW: {
             // Smooth rainbow cycle - 6 second full rotation
-            g_state.rainbow_hue = fmodf((float)elapsed / 6000.0f * 360.0f, 360.0f);
-            ws2812_rgb_t color = ws2812_hsv_to_rgb(g_state.rainbow_hue, 100.0f, 25.0f);
+            g_state.rainbow_hue = fmodf((float)elapsed / 6000.0F * 360.0F, 360.0F);
+            ws2812_rgb_t color = ws2812_hsv_to_rgb(g_state.rainbow_hue, 100.0F, 25.0F);
             send_pixel(color.r, color.g, color.b);
             break;
         }
@@ -285,41 +285,41 @@ ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v) {
     ws2812_rgb_t rgb = {0, 0, 0};
 
     // Normalize inputs
-    h = fmodf(h, 360.0f);
-    if (h < 0) h += 360.0f;
-    s = s / 100.0f;
-    v = v / 100.0f;
+    h = fmodf(h, 360.0F);
+    if (h < 0) h += 360.0F;
+    s = s / 100.0F;
+    v = v / 100.0F;
 
-    if (s < 0.001f) {
+    if (s < 0.001F) {
         // Achromatic (gray)
-        uint8_t gray = (uint8_t)(v * 255.0f);
+        uint8_t gray = (uint8_t)(v * 255.0F);
         rgb.r = rgb.g = rgb.b = gray;
         return rgb;
     }
 
     float c = v * s;
-    float x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
+    float x = c * (1.0F - fabsf(fmodf(h / 60.0F, 2.0F) - 1.0F));
     float m = v - c;
 
     float r1, g1, b1;
 
-    if (h < 60.0f) {
+    if (h < 60.0F) {
         r1 = c;
         g1 = x;
         b1 = 0;
-    } else if (h < 120.0f) {
+    } else if (h < 120.0F) {
         r1 = x;
         g1 = c;
         b1 = 0;
-    } else if (h < 180.0f) {
+    } else if (h < 180.0F) {
         r1 = 0;
         g1 = c;
         b1 = x;
-    } else if (h < 240.0f) {
+    } else if (h < 240.0F) {
         r1 = 0;
         g1 = x;
         b1 = c;
-    } else if (h < 300.0f) {
+    } else if (h < 300.0F) {
         r1 = x;
         g1 = 0;
         b1 = c;
@@ -329,9 +329,9 @@ ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v) {
         b1 = x;
     }
 
-    rgb.r = (uint8_t)((r1 + m) * 255.0f);
-    rgb.g = (uint8_t)((g1 + m) * 255.0f);
-    rgb.b = (uint8_t)((b1 + m) * 255.0f);
+    rgb.r = (uint8_t)((r1 + m) * 255.0F);
+    rgb.g = (uint8_t)((g1 + m) * 255.0F);
+    rgb.b = (uint8_t)((b1 + m) * 255.0F);
 
     return rgb;
 }

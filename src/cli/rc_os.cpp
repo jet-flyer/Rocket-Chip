@@ -35,10 +35,10 @@ static bool g_bannerPrinted = false;
 // (no extra state needed — reset confirmation is blocking)
 
 // Callback for sensor status (set by main.cpp)
-rc_os_sensor_status_fn rc_os_print_sensor_status = NULL;
+rc_os_sensor_status_fn rc_os_print_sensor_status = nullptr;
 
 // Callback for boot summary reprint (set by main.cpp)
-rc_os_boot_summary_fn rc_os_print_boot_summary = NULL;
+rc_os_boot_summary_fn rc_os_print_boot_summary = nullptr;
 
 // Sensor availability flags (set by main.cpp)
 bool rc_os_imu_available = false;
@@ -46,18 +46,18 @@ bool rc_os_baro_available = false;
 bool rc_os_i2c_scan_allowed = true;
 
 // Accel read callback for 6-pos calibration (set by main.cpp)
-rc_os_read_accel_fn rc_os_read_accel = NULL;
-rc_os_cal_hook_fn rc_os_cal_pre_hook = NULL;
-rc_os_cal_hook_fn rc_os_cal_post_hook = NULL;
+rc_os_read_accel_fn rc_os_read_accel = nullptr;
+rc_os_cal_hook_fn rc_os_cal_pre_hook = nullptr;
+rc_os_cal_hook_fn rc_os_cal_post_hook = nullptr;
 
 // Unhandled key callback (set by main.cpp, for IVP-29/30 test commands)
-rc_os_unhandled_key_fn rc_os_on_unhandled_key = NULL;
+rc_os_unhandled_key_fn rc_os_on_unhandled_key = nullptr;
 
 // ============================================================================
 // Menu Printing
 // ============================================================================
 
-static void print_banner(void) {
+static void print_banner() {
     printf("\n");
     printf("========================================\n");
     printf("  RocketChip OS v%s\n", kRcOsVersion);
@@ -65,7 +65,7 @@ static void print_banner(void) {
     printf("========================================\n\n");
 }
 
-static void print_system_status(void) {
+static void print_system_status() {
     printf("\n========================================\n");
     printf("  RocketChip System Status\n");
     printf("========================================\n");
@@ -98,7 +98,7 @@ static void print_system_status(void) {
     printf("========================================\n\n");
 }
 
-static void print_calibration_menu(void) {
+static void print_calibration_menu() {
     printf("\n========================================\n");
     printf("  Calibration Menu\n");
     printf("========================================\n");
@@ -118,7 +118,7 @@ static void print_calibration_menu(void) {
 // Calibration Commands
 // ============================================================================
 
-static void cmd_gyro_cal(void) {
+static void cmd_gyro_cal() {
     if (!rc_os_imu_available) {
         printf("\nERROR: IMU not available\n");
         return;
@@ -140,7 +140,7 @@ static void cmd_gyro_cal(void) {
     fflush(stdout);
 }
 
-static void cmd_level_cal(void) {
+static void cmd_level_cal() {
     if (!rc_os_imu_available) {
         printf("\nERROR: IMU not available\n");
         return;
@@ -162,7 +162,7 @@ static void cmd_level_cal(void) {
     fflush(stdout);
 }
 
-static void cmd_baro_cal(void) {
+static void cmd_baro_cal() {
     if (!rc_os_baro_available) {
         printf("\nERROR: Barometer not available\n");
         return;
@@ -184,7 +184,7 @@ static void cmd_baro_cal(void) {
     fflush(stdout);
 }
 
-static void cmd_save_cal(void) {
+static void cmd_save_cal() {
     printf("\nSaving calibration to flash...");
     fflush(stdout);
 
@@ -199,7 +199,7 @@ static void cmd_save_cal(void) {
     }
 }
 
-static void cmd_reset_cal(void) {
+static void cmd_reset_cal() {
     printf("\n*** RESET ALL CALIBRATION ***\n");
     printf("This will erase all calibration data!\n");
     printf("Type 'YES' + ENTER to confirm: ");
@@ -251,11 +251,11 @@ static const char* const kPositionInstructions[6] = {
 
 constexpr uint8_t  kAccel6posMaxRetries     = 3;
 constexpr uint32_t kAccel6posWaitTimeoutUs  = 30000000;     // 30 seconds
-constexpr float    kAccel6posGravityNominal = 9.80665f;     // m/s² (WGS-84 standard)
-constexpr float    kAccel6posVerifyTolerance = 0.02f;       // m/s² (IVP-17 gate requirement)
+constexpr float    kAccel6posGravityNominal = 9.80665F;     // m/s² (WGS-84 standard)
+constexpr float    kAccel6posVerifyTolerance = 0.02F;       // m/s² (IVP-17 gate requirement)
 
 // Helper: wait for ENTER key with timeout, ESC cancels. Returns true on ENTER.
-static bool wait_for_enter_or_esc(void) {
+static bool wait_for_enter_or_esc() {
     while (true) {
         int ch = getchar_timeout_us(kAccel6posWaitTimeoutUs);
         if (ch == PICO_ERROR_TIMEOUT) {
@@ -274,7 +274,7 @@ static bool wait_for_enter_or_esc(void) {
 
 // Inner body of 6-position calibration. Returns on error or completion.
 // Caller (cmd_accel_6pos_cal) guarantees pre/post hook execution.
-static void cmd_accel_6pos_cal_inner(void) {
+static void cmd_accel_6pos_cal_inner() {
     calibration_reset_6pos();
 
     for (uint8_t pos = 0; pos < 6; pos++) {
@@ -388,7 +388,7 @@ static void cmd_accel_6pos_cal_inner(void) {
     // Verification: read a few live samples and show corrected gravity magnitude
     printf("\nVerification (10 live samples):\n");
     {
-        float mag_sum = 0.0f;
+        float mag_sum = 0.0F;
         uint8_t good_reads = 0;
         for (uint8_t i = 0; i < 10; i++) {
             float ax, ay, az, temp;
@@ -435,12 +435,12 @@ static void cmd_accel_6pos_cal_inner(void) {
     calibration_reset_6pos();
 }
 
-static void cmd_accel_6pos_cal(void) {
+static void cmd_accel_6pos_cal() {
     if (!rc_os_imu_available) {
         printf("\nERROR: IMU not available\n");
         return;
     }
-    if (rc_os_read_accel == NULL) {
+    if (rc_os_read_accel == nullptr) {
         printf("\nERROR: Accel read callback not set\n");
         return;
     }
@@ -465,7 +465,7 @@ static void cmd_accel_6pos_cal(void) {
     if (rc_os_cal_post_hook) { rc_os_cal_post_hook(); }
 }
 
-static void cmd_wizard(void) {
+static void cmd_wizard() {
     // Wizard requires blocking waits which don't work with bare-metal polling.
     // Use individual calibrations instead (g, l, b) then save (v).
     printf("\n=== Calibration Wizard ===\n");
@@ -483,7 +483,7 @@ static void cmd_wizard(void) {
 // Calibration Progress Monitoring
 // ============================================================================
 
-static void update_calibration_progress(void) {
+static void update_calibration_progress() {
     static uint8_t lastProgress = 0;
     static bool wasActive = false;
 
@@ -652,13 +652,13 @@ static void handle_calibration_menu(int c) {
 // Public API
 // ============================================================================
 
-void rc_os_init(void) {
+void rc_os_init() {
     g_menu = RC_OS_MENU_MAIN;
     g_wasConnected = false;
     g_bannerPrinted = false;
 }
 
-bool rc_os_update(void) {
+bool rc_os_update() {
     bool isConnected = stdio_usb_connected();
 
     // Not connected - do nothing (per LL Entry 15)
@@ -709,14 +709,14 @@ bool rc_os_update(void) {
     return true;
 }
 
-bool rc_os_is_connected(void) {
+bool rc_os_is_connected() {
     return stdio_usb_connected();
 }
 
-bool rc_os_is_calibrating(void) {
+bool rc_os_is_calibrating() {
     return calibration_is_active();
 }
 
-rc_os_menu_t rc_os_get_menu(void) {
+rc_os_menu_t rc_os_get_menu() {
     return g_menu;
 }
