@@ -555,18 +555,12 @@ static void ivp30_gate_check(void) {
 }
 
 // ============================================================================
-// IVP-19/20/21/22/23/24: Core 1 Entry Point
+// Core 1 Phase 1: Test Dispatcher
 // ============================================================================
-// Phase 1: Test dispatcher — responds to FIFO commands for IVP-22/23 exercises.
-// Phase 2: Spinlock soak + NeoPixel — writes shared struct at ~100kHz for IVP-21.
-// Atomic counter (IVP-20) increments throughout both phases.
+// Responds to FIFO commands for IVP-22/23. Blinks NeoPixel cyan ~4Hz.
+// Returns true if Phase 2 should be skipped (go directly to sensor loop).
 
-static void core1_entry(void) {
-    // IVP-29: MPU stack guard for Core 1
-    mpu_setup_stack_guard((uint32_t)&__StackOneBottom);
-
-    // ---- Phase 1: Test Dispatcher ----
-    // Core 1 polls FIFO every 1ms, blinks NeoPixel cyan fast (~4Hz) via timer.
+static bool core1_test_dispatcher(void) {
     bool testMode = true;
     bool skipPhase2 = false;
     uint32_t lastNeoToggleMs = to_ms_since_boot(get_absolute_time());
@@ -575,14 +569,10 @@ static void core1_entry(void) {
     ws2812_update();
 
     while (testMode) {
-        // Poll FIFO with 1ms timeout (fast response to commands)
         uint32_t cmd;
         if (multicore_fifo_pop_timeout_us(1000, &cmd)) {
             switch (cmd) {
-
-            // IVP-22: FIFO echo — Core 0 sends values, Core 1 echoes back
             case kCmd_FifoEchoStart: {
-                // ACK: tell Core 0 we're ready
                 multicore_fifo_push_blocking(kCmd_FifoEchoStart);
                 for (uint32_t i = 0; i < kFifoTestCount; i++) {
                     uint32_t val = multicore_fifo_pop_blocking();
@@ -591,16 +581,12 @@ static void core1_entry(void) {
                 multicore_fifo_push_blocking(kCmd_FifoEchoDone);
                 break;
             }
-
-            // IVP-22: FIFO send — Core 1 sends sequential values to Core 0
             case kCmd_FifoSendStart: {
                 for (uint32_t i = 0; i < kFifoTestCount; i++) {
                     multicore_fifo_push_blocking(i);
                 }
                 break;
             }
-
-            // IVP-23: Doorbell — Core 1 sets doorbell N times with 10us gaps
             case kCmd_DoorbellStart: {
                 for (uint32_t i = 0; i < kDoorbellTestCount; i++) {
                     multicore_doorbell_set_other_core((uint)g_doorbellNum);
@@ -609,28 +595,20 @@ static void core1_entry(void) {
                 multicore_fifo_push_blocking(kCmd_DoorbellDone);
                 break;
             }
-
-            // Transition to Phase 2
             case kCmd_SpinlockStart:
                 testMode = false;
-                // Council mod #1: enable flash_safe_execute coverage before Phase 2
-                // (Phase 2 spinlock soak must be safe during calibration flash writes)
                 multicore_lockout_victim_init();
                 break;
-
-            // IVP-27/28: Skip Phase 2, go directly to Phase 3 (sensor loop)
             case kCmd_SkipToSensors:
                 testMode = false;
                 multicore_lockout_victim_init();
                 skipPhase2 = true;
                 break;
-
             default:
                 break;
             }
         }
 
-        // NeoPixel blink via timer (~4Hz toggle = 125ms)
         g_core1Counter.fetch_add(1, std::memory_order_relaxed);
         uint32_t nowMs = to_ms_since_boot(get_absolute_time());
         if ((nowMs - lastNeoToggleMs) >= 125) {
@@ -642,72 +620,226 @@ static void core1_entry(void) {
         }
     }
 
-    uint32_t lastNeoMs = to_ms_since_boot(get_absolute_time());
+    return skipPhase2;
+}
+
+// ============================================================================
+// Core 1 Phase 2: Spinlock Soak
+// ============================================================================
+// Writes shared struct at ~100kHz under spinlock. NeoPixel cyan/magenta 2Hz.
+// Blocks until Core 0 signals sensor phase start.
+
+static void core1_spinlock_soak(void) {
+    uint32_t soakStartMs = to_ms_since_boot(get_absolute_time());
+    uint32_t writeCounter = 0;
+    uint32_t lastNeoMs = soakStartMs;
     bool neoState = false;
 
-    if (!skipPhase2) {
-        // ---- Phase 2: Spinlock Soak + NeoPixel ----
-        // Write shared struct at ~100kHz under spinlock. NeoPixel at ~2Hz.
-        uint32_t soakStartMs = to_ms_since_boot(get_absolute_time());
-        uint32_t writeCounter = 0;
-        lastNeoMs = soakStartMs;
+    while (true) {
+        uint32_t nowMs = to_ms_since_boot(get_absolute_time());
+        bool soaking = (nowMs - soakStartMs) < kSpinlockSoakMs;
 
-        while (true) {
-            uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-            bool soaking = (nowMs - soakStartMs) < kSpinlockSoakMs;
-
-            // Spinlock struct update (high rate during soak)
-            if (soaking && g_pTestSpinlock != nullptr) {
-                writeCounter++;
-                uint32_t saved = spin_lock_blocking(g_pTestSpinlock);
-                g_spinlockData.field_a = writeCounter;
-                g_spinlockData.field_b = writeCounter;
-                g_spinlockData.field_c = writeCounter;
-                g_spinlockData.write_count = writeCounter;
-                spin_unlock(g_pTestSpinlock, saved);
-            }
-
-            g_core1Counter.fetch_add(1, std::memory_order_relaxed);
-
-            // NeoPixel update at ~2Hz
-            if (nowMs - lastNeoMs >= 250) {
-                lastNeoMs = nowMs;
-                neoState = !neoState;
-                ws2812_set_mode(WS2812_MODE_SOLID,
-                    neoState ? kColorCyan : kColorMagenta);
-                ws2812_update();
-            }
-
-            // ~100kHz update rate during soak, idle wait after
-            if (soaking) {
-                busy_wait_us(10);
-            } else {
-                // Post-soak: check if Core 0 wants us to start sensor phase
-                if (g_startSensorPhase.load(std::memory_order_acquire)) {
-                    break;  // Exit Phase 2, enter Phase 3
-                }
-                sleep_ms(1);
-            }
+        if (soaking && g_pTestSpinlock != nullptr) {
+            writeCounter++;
+            uint32_t saved = spin_lock_blocking(g_pTestSpinlock);
+            g_spinlockData.field_a = writeCounter;
+            g_spinlockData.field_b = writeCounter;
+            g_spinlockData.field_c = writeCounter;
+            g_spinlockData.write_count = writeCounter;
+            spin_unlock(g_pTestSpinlock, saved);
         }
-    } else {
-        // Skipping Phase 2 — wait for sensor phase signal from Core 0
-        while (!g_startSensorPhase.load(std::memory_order_acquire)) {
-            g_core1Counter.fetch_add(1, std::memory_order_relaxed);
+
+        g_core1Counter.fetch_add(1, std::memory_order_relaxed);
+
+        if (nowMs - lastNeoMs >= 250) {
+            lastNeoMs = nowMs;
+            neoState = !neoState;
+            ws2812_set_mode(WS2812_MODE_SOLID,
+                neoState ? kColorCyan : kColorMagenta);
+            ws2812_update();
+        }
+
+        if (soaking) {
+            busy_wait_us(10);
+        } else {
+            if (g_startSensorPhase.load(std::memory_order_acquire)) {
+                break;
+            }
             sleep_ms(1);
         }
     }
+}
 
-    // ---- Phase 3: Real Sensor Loop (IVP-25/26) ----
-    // Read IMU at ~1kHz, baro at ~50Hz via divider. Apply calibration.
-    // Publish via seqlock. NeoPixel: blue/cyan 2Hz during soak, green when done.
-    //
-    // INVARIANT: Core 0 must NOT call icm20948_*() or baro_dps310_*() unless
-    // g_core1I2CPaused == true. Core 1 owns I2C during Phase 3.
+// ============================================================================
+// Core 1 Phase 3: Sensor Read Helpers
+// ============================================================================
+// Each helper writes into localData (passed by pointer). The seqlock_write()
+// call stays in the sensor loop — NOT inside these helpers (council rule).
 
-    // Load calibration into local copy (reads from RAM cache, no flash access)
+static void core1_read_imu(shared_sensor_data_t* localData,
+                            calibration_store_t* localCal,
+                            uint32_t* imuConsecFail) {
+    icm20948_data_t imuData;
+    bool imuOk = icm20948_read(&g_imu, &imuData);
+    if (imuOk) {
+        *imuConsecFail = 0;
+        float ax, ay, az, gx, gy, gz;
+        calibration_apply_accel_with(localCal,
+            imuData.accel.x, imuData.accel.y, imuData.accel.z,
+            &ax, &ay, &az);
+        calibration_apply_gyro_with(localCal,
+            imuData.gyro.x, imuData.gyro.y, imuData.gyro.z,
+            &gx, &gy, &gz);
+
+        localData->accel_x = ax;
+        localData->accel_y = ay;
+        localData->accel_z = az;
+        localData->gyro_x = gx;
+        localData->gyro_y = gy;
+        localData->gyro_z = gz;
+        localData->imu_timestamp_us = time_us_32();
+        localData->imu_read_count++;
+        localData->accel_valid = true;
+        localData->gyro_valid = true;
+
+        if (imuData.mag_valid) {
+            localData->mag_x = imuData.mag.x;
+            localData->mag_y = imuData.mag.y;
+            localData->mag_z = imuData.mag.z;
+            localData->mag_valid = true;
+            localData->mag_read_count++;
+        }
+    } else {
+        (*imuConsecFail)++;
+        localData->accel_valid = false;
+        localData->gyro_valid = false;
+        localData->imu_error_count++;
+        if (*imuConsecFail >= kCore1ConsecFailMax) {
+            i2c_bus_recover();
+            *imuConsecFail = 0;
+        }
+    }
+}
+
+static void core1_read_baro(shared_sensor_data_t* localData) {
+    uint8_t measCfg = 0;
+    if (i2c_bus_read_reg(kI2cAddrDps310, kDps310MeasCfgReg, &measCfg) == 0 &&
+        (measCfg & (kDps310PrsRdy | kDps310TmpRdy)) == (kDps310PrsRdy | kDps310TmpRdy)) {
+        baro_dps310_data_t baroData;
+        if (baro_dps310_read(&baroData) && baroData.valid) {
+            localData->pressure_pa = baroData.pressure_pa;
+            localData->baro_temperature_c = baroData.temperature_c;
+            localData->baro_timestamp_us = time_us_32();
+            localData->baro_read_count++;
+            localData->baro_valid = true;
+        } else {
+            localData->baro_error_count++;
+        }
+    }
+}
+
+static void core1_read_gps(shared_sensor_data_t* localData,
+                            uint32_t* lastGpsReadUs) {
+    uint32_t gpsNowUs = time_us_32();
+    if (gpsNowUs - *lastGpsReadUs < kGpsMinIntervalUs) return;
+
+    *lastGpsReadUs = gpsNowUs;
+    uint32_t t0 = time_us_32();
+    bool parsed = gps_pa1010d_update();
+    if (g_gpsOnI2C) {
+        busy_wait_us(500);  // SDA settling delay (LL Entry 24)
+    }
+    g_gpsReadTimeUs.store(time_us_32() - t0, std::memory_order_relaxed);
+
+    // NMEA capture (Gate 5) — fill-then-signal
+    if (!g_nmeaCaptureReady.load(std::memory_order_relaxed)
+        && g_nmeaCaptureIdx < kNmeaCaptureSlots) {
+        const uint8_t* raw;
+        size_t rawLen;
+        if (gps_pa1010d_get_last_raw(&raw, &rawLen)) {
+            size_t copyLen = (rawLen < kNmeaCaptureLen - 1)
+                ? rawLen : kNmeaCaptureLen - 1;
+            memcpy(g_nmeaCapture[g_nmeaCaptureIdx], raw, copyLen);
+            g_nmeaCapture[g_nmeaCaptureIdx][copyLen] = '\0';
+            g_nmeaCaptureIdx++;
+            if (g_nmeaCaptureIdx >= kNmeaCaptureSlots) {
+                g_nmeaCaptureReady.store(true, std::memory_order_release);
+            }
+        }
+    }
+
+    gps_pa1010d_data_t gpsData;
+    gps_pa1010d_get_data(&gpsData);
+
+    double lat = gpsData.latitude;
+    double lon = gpsData.longitude;
+    if (lat > 90.0) { lat = 90.0; }
+    if (lat < -90.0) { lat = -90.0; }
+    if (lon > 180.0) { lon = 180.0; }
+    if (lon < -180.0) { lon = -180.0; }
+
+    localData->gps_lat_1e7 = (int32_t)(lat * 1e7);
+    localData->gps_lon_1e7 = (int32_t)(lon * 1e7);
+    localData->gps_alt_msl_m = gpsData.altitude_m;
+    localData->gps_ground_speed_mps = gpsData.speed_mps;
+    localData->gps_course_deg = gpsData.course_deg;
+    localData->gps_timestamp_us = gpsNowUs;
+    localData->gps_read_count++;
+    localData->gps_fix_type = (uint8_t)gpsData.fix;
+    localData->gps_satellites = gpsData.satellites;
+    localData->gps_valid = gpsData.valid;
+    localData->gps_gga_fix = gpsData.gga_fix;
+    localData->gps_gsa_fix_mode = gpsData.gsa_fix_mode;
+    localData->gps_rmc_valid = gpsData.rmc_valid;
+
+    if (!parsed) {
+        localData->gps_error_count++;
+    }
+}
+
+// ============================================================================
+// Core 1 Phase 3: NeoPixel State Update
+// ============================================================================
+
+static void core1_neopixel_update(shared_sensor_data_t* localData,
+                                   uint32_t nowMs, uint32_t sensorPhaseStartMs,
+                                   uint32_t* lastNeoMs, bool* neoState) {
+    if (nowMs - *lastNeoMs < 250) return;
+
+    *lastNeoMs = nowMs;
+    *neoState = !*neoState;
+
+    if ((nowMs - sensorPhaseStartMs) >= 300000) {
+        ws2812_set_mode(WS2812_MODE_SOLID, kColorMagenta);
+    } else if (g_gpsInitialized) {
+        if (localData->gps_valid) {
+            ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen);
+        } else if (localData->gps_read_count > 0) {
+            ws2812_set_mode(WS2812_MODE_SOLID,
+                *neoState ? kColorYellow : kColorOff);
+        } else {
+            ws2812_set_mode(WS2812_MODE_SOLID,
+                *neoState ? kColorBlue : kColorCyan);
+        }
+    } else if (g_sensorPhaseDone.load(std::memory_order_acquire)) {
+        ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen);
+    } else {
+        ws2812_set_mode(WS2812_MODE_SOLID,
+            *neoState ? kColorBlue : kColorCyan);
+    }
+    ws2812_update();
+}
+
+// ============================================================================
+// Core 1 Phase 3: Sensor Loop
+// ============================================================================
+// INVARIANT: Core 0 must NOT call icm20948_*() or baro_dps310_*() unless
+// g_core1I2CPaused == true. Core 1 owns I2C during this phase.
+// Seqlock write stays here — read helpers write into localData by pointer.
+
+static void core1_sensor_loop(void) {
     calibration_store_t localCal;
     if (!calibration_load_into(&localCal)) {
-        // No valid calibration — use identity (raw passthrough)
         memset(&localCal, 0, sizeof(localCal));
         localCal.accel.scale.x = 1.0f;
         localCal.accel.scale.y = 1.0f;
@@ -724,8 +856,8 @@ static void core1_entry(void) {
     uint32_t gpsCycle = 0;
     uint32_t lastGpsReadUs = 0;
     uint32_t sensorPhaseStartMs = to_ms_since_boot(get_absolute_time());
-    lastNeoMs = sensorPhaseStartMs;
-    neoState = false;
+    uint32_t lastNeoMs = sensorPhaseStartMs;
+    bool neoState = false;
 
     while (true) {
         uint32_t cycleStartUs = time_us_32();
@@ -740,221 +872,79 @@ static void core1_entry(void) {
         // Check I2C pause request from Core 0 (for calibration)
         if (g_core1PauseI2C.load(std::memory_order_acquire)) {
             g_core1I2CPaused.store(true, std::memory_order_release);
-            // Show orange NeoPixel while paused
             ws2812_set_mode(WS2812_MODE_SOLID, kColorOrange);
             ws2812_update();
-            // Wait for unpause — don't increment error counters (intentional pause)
             while (g_core1PauseI2C.load(std::memory_order_acquire)) {
                 sleep_ms(1);
             }
             g_core1I2CPaused.store(false, std::memory_order_release);
-            // Resume NeoPixel state
             ws2812_set_mode(WS2812_MODE_SOLID, kColorBlue);
             ws2812_update();
-            continue;  // Restart loop timing
+            continue;
         }
 
-        // ---- IMU read ----
-        icm20948_data_t imuData;
-        bool imuOk = icm20948_read(&g_imu, &imuData);
-        if (imuOk) {
-            imuConsecFail = 0;
-            // Apply calibration
-            float ax;
-            float ay;
-            float az;
-            float gx;
-            float gy;
-            float gz;
-            calibration_apply_accel_with(&localCal,
-                imuData.accel.x, imuData.accel.y, imuData.accel.z,
-                &ax, &ay, &az);
-            calibration_apply_gyro_with(&localCal,
-                imuData.gyro.x, imuData.gyro.y, imuData.gyro.z,
-                &gx, &gy, &gz);
+        // Sensor reads — each writes into localData by pointer
+        core1_read_imu(&localData, &localCal, &imuConsecFail);
 
-            localData.accel_x = ax;
-            localData.accel_y = ay;
-            localData.accel_z = az;
-            localData.gyro_x = gx;
-            localData.gyro_y = gy;
-            localData.gyro_z = gz;
-            localData.imu_timestamp_us = time_us_32();
-            localData.imu_read_count++;
-            localData.accel_valid = true;
-            localData.gyro_valid = true;
-
-            // Mag (updated by ICM-20948 I2C master at 100Hz, read via EXT_SLV)
-            if (imuData.mag_valid) {
-                localData.mag_x = imuData.mag.x;
-                localData.mag_y = imuData.mag.y;
-                localData.mag_z = imuData.mag.z;
-                localData.mag_valid = true;
-                localData.mag_read_count++;
-            }
-        } else {
-            imuConsecFail++;
-            localData.accel_valid = false;
-            localData.gyro_valid = false;
-            localData.imu_error_count++;
-            // Council mod #4: attempt bus recovery after consecutive failures
-            if (imuConsecFail >= kCore1ConsecFailMax) {
-                i2c_bus_recover();
-                imuConsecFail = 0;
-            }
-        }
-
-        // ---- Baro read (every Nth cycle) ----
         baroCycle++;
         if (baroCycle >= kCore1BaroDivider) {
             baroCycle = 0;
-            // Council mod #3: check DPS310 data-ready before reading
-            uint8_t measCfg = 0;
-            if (i2c_bus_read_reg(kI2cAddrDps310, kDps310MeasCfgReg, &measCfg) == 0 &&
-                (measCfg & (kDps310PrsRdy | kDps310TmpRdy)) == (kDps310PrsRdy | kDps310TmpRdy)) {
-                baro_dps310_data_t baroData;
-                if (baro_dps310_read(&baroData) && baroData.valid) {
-                    localData.pressure_pa = baroData.pressure_pa;
-                    localData.baro_temperature_c = baroData.temperature_c;
-                    localData.baro_timestamp_us = time_us_32();
-                    localData.baro_read_count++;
-                    localData.baro_valid = true;
-                } else {
-                    localData.baro_error_count++;
-                }
-            }
-            // If not ready, skip — don't count as error (DPS310 at 8Hz, we poll at 50Hz)
+            core1_read_baro(&localData);
         }
 
-        // ---- GPS read (every Nth cycle, always LAST per council) ----
         gpsCycle++;
         if (gpsCycle >= kCore1GpsDivider && g_gpsInitialized) {
             gpsCycle = 0;
-            uint32_t gpsNowUs = time_us_32();
-            if (gpsNowUs - lastGpsReadUs >= kGpsMinIntervalUs) {
-                lastGpsReadUs = gpsNowUs;
-                uint32_t t0 = time_us_32();
-                bool parsed = gps_pa1010d_update();
-                // PA1010D SDA settling delay — prevents I2C contention with IMU.
-                // Without this, MT3333 holds SDA low after 255-byte read, causing
-                // ~8% IMU error rate. 500us empirically verified (gps-12a/b/c).
-                // Cost: 5ms/sec (0.5% CPU) at 10Hz GPS. See LL Entry 24.
-                // Only active for I2C GPS — UART GPS skips this automatically.
-                if (g_gpsOnI2C) {
-                    busy_wait_us(500);
-                }
-                uint32_t readTime = time_us_32() - t0;
-                g_gpsReadTimeUs.store(readTime,
-                    std::memory_order_relaxed);
-
-                // NMEA capture (Gate 5) — fill-then-signal
-                if (!g_nmeaCaptureReady.load(
-                        std::memory_order_relaxed)
-                    && g_nmeaCaptureIdx < kNmeaCaptureSlots) {
-                    const uint8_t* raw;
-                    size_t rawLen;
-                    if (gps_pa1010d_get_last_raw(&raw, &rawLen)) {
-                        size_t copyLen = (rawLen < kNmeaCaptureLen - 1)
-                            ? rawLen : kNmeaCaptureLen - 1;
-                        memcpy(g_nmeaCapture[g_nmeaCaptureIdx],
-                            raw, copyLen);
-                        g_nmeaCapture[g_nmeaCaptureIdx][copyLen] = '\0';
-                        g_nmeaCaptureIdx++;
-                        if (g_nmeaCaptureIdx >= kNmeaCaptureSlots) {
-                            g_nmeaCaptureReady.store(true,
-                                std::memory_order_release);
-                        }
-                    }
-                }
-
-                gps_pa1010d_data_t gpsData;
-                gps_pa1010d_get_data(&gpsData);
-
-                // Clamp lat/lon before *1e7 (council: overflow protection)
-                double lat = gpsData.latitude;
-                double lon = gpsData.longitude;
-                if (lat > 90.0) { lat = 90.0; }
-                if (lat < -90.0) { lat = -90.0; }
-                if (lon > 180.0) { lon = 180.0; }
-                if (lon < -180.0) { lon = -180.0; }
-
-                localData.gps_lat_1e7 = (int32_t)(lat * 1e7);
-                localData.gps_lon_1e7 = (int32_t)(lon * 1e7);
-                localData.gps_alt_msl_m = gpsData.altitude_m;
-                localData.gps_ground_speed_mps = gpsData.speed_mps;
-                localData.gps_course_deg = gpsData.course_deg;
-                localData.gps_timestamp_us = gpsNowUs;
-                localData.gps_read_count++;
-                localData.gps_fix_type = (uint8_t)gpsData.fix;
-                localData.gps_satellites = gpsData.satellites;
-                localData.gps_valid = gpsData.valid;
-                localData.gps_gga_fix = gpsData.gga_fix;
-                localData.gps_gsa_fix_mode = gpsData.gsa_fix_mode;
-                localData.gps_rmc_valid = gpsData.rmc_valid;
-
-                if (!parsed) {
-                    localData.gps_error_count++;
-                }
-            }
+            core1_read_gps(&localData, &lastGpsReadUs);
         }
 
-        // Publish via seqlock (always write, even on IMU failure — council mod #4)
+        // Seqlock publish (always write, even on IMU failure — council mod #4)
         localData.core1_loop_count = loopCount;
         seqlock_write(&g_sensorSeqlock, &localData);
 
         g_core1Counter.fetch_add(1, std::memory_order_relaxed);
-
-        // IVP-30: Signal watchdog that Core 1 is alive
         g_wdtCore1Alive.store(true, std::memory_order_relaxed);
 
-        // IVP-30: Core 1 stall test (triggered by 'W' command from Core 0)
         if (g_core1StallTest.load(std::memory_order_relaxed)) {
             while (true) { __asm volatile ("nop"); }
         }
 
-        // Record jitter timestamps (first N samples)
         uint32_t jIdx = g_jitterSamplesCollected.load(std::memory_order_relaxed);
         if (jIdx < kJitterSampleCount) {
             g_jitterTimestamps[jIdx] = time_us_32();
             g_jitterSamplesCollected.store(jIdx + 1, std::memory_order_release);
         }
 
-        // NeoPixel state indicator
         uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-        if (nowMs - lastNeoMs >= 250) {
-            lastNeoMs = nowMs;
-            neoState = !neoState;
-            // 5-min soak complete → solid magenta (press 's' for results)
-            if ((nowMs - sensorPhaseStartMs) >= 300000) {
-                ws2812_set_mode(WS2812_MODE_SOLID, kColorMagenta);
-            } else if (g_gpsInitialized) {
-                // GPS controls NeoPixel when present
-                if (localData.gps_valid) {
-                    ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen);
-                } else if (localData.gps_read_count > 0) {
-                    // GPS active, no fix — yellow blink
-                    ws2812_set_mode(WS2812_MODE_SOLID,
-                        neoState ? kColorYellow : kColorOff);
-                } else {
-                    // GPS init'd but no reads yet — blue/cyan
-                    ws2812_set_mode(WS2812_MODE_SOLID,
-                        neoState ? kColorBlue : kColorCyan);
-                }
-            } else if (g_sensorPhaseDone.load(std::memory_order_acquire)) {
-                ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen);
-            } else {
-                ws2812_set_mode(WS2812_MODE_SOLID,
-                    neoState ? kColorBlue : kColorCyan);
-            }
-            ws2812_update();
-        }
+        core1_neopixel_update(&localData, nowMs, sensorPhaseStartMs,
+                              &lastNeoMs, &neoState);
 
-        // Self-pace to ~1kHz (busy_wait remaining time in cycle)
         uint32_t elapsed = time_us_32() - cycleStartUs;
         if (elapsed < kCore1TargetCycleUs) {
             busy_wait_us(kCore1TargetCycleUs - elapsed);
         }
     }
+}
+
+// ============================================================================
+// Core 1 Entry Point
+// ============================================================================
+
+static void core1_entry(void) {
+    mpu_setup_stack_guard((uint32_t)&__StackOneBottom);
+
+    bool skipPhase2 = core1_test_dispatcher();
+
+    if (!skipPhase2) {
+        core1_spinlock_soak();
+    } else {
+        while (!g_startSensorPhase.load(std::memory_order_acquire)) {
+            g_core1Counter.fetch_add(1, std::memory_order_relaxed);
+            sleep_ms(1);
+        }
+    }
+
+    core1_sensor_loop();
 }
 
 // ============================================================================
@@ -2475,15 +2465,12 @@ static void ivp28_flash_test(void) {
 }
 
 // ============================================================================
-// Main
+// Init: Hardware (fault handlers, MPU, GPIO, NeoPixel, Core 1, I2C, sensors)
+// Returns true if previous reboot was caused by watchdog.
 // ============================================================================
 
-int main() {
+static bool init_hardware(void) {
     // IVP-30: Check if previous reboot was caused by watchdog (before any init)
-    // Use watchdog_enable_caused_reboot() — on RP2350, watchdog_caused_reboot()
-    // also checks rom_get_last_boot_type() == BOOT_TYPE_NORMAL which can return
-    // false after a watchdog reset. watchdog_enable_caused_reboot() checks only
-    // watchdog_hw->reason && scratch[4] magic set by watchdog_enable().
     bool watchdogReboot = watchdog_enable_caused_reboot();
 
     // IVP-29: Register fault handlers early (before any MPU config)
@@ -2493,32 +2480,22 @@ int main() {
     // IVP-29: MPU stack guard for Core 0
     mpu_setup_stack_guard((uint32_t)&__StackBottom);
 
-    // -----------------------------------------------------------------
     // IVP-02: Red LED GPIO init
-    // -----------------------------------------------------------------
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-    // -----------------------------------------------------------------
     // IVP-03: NeoPixel init
-    // -----------------------------------------------------------------
     g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin);
 
     // IVP-19: Launch Core 1 early so NeoPixel blinks immediately (no USB dependency)
     multicore_launch_core1(core1_entry);
 
-    // -----------------------------------------------------------------
     // IVP-06: I2C bus init (before USB per LL Entry 4/12)
-    // i2c_bus_init() includes bus recovery to handle stuck bus
-    // from previous picotool reboot
-    // -----------------------------------------------------------------
     g_i2cInitialized = i2c_bus_init();
 
     // Drain GPS buffer if module is still powered (LiPo keeps it alive
     // across picotool reboot). The PA1010D autonomously streams NMEA on
     // I2C — if not drained, this collides with IMU/baro init below.
-    // If GPS is absent (cold boot, no LiPo), the NACK from a 255-byte
-    // read can leave the bus in a bad state — recover after failure.
     if (g_i2cInitialized) {
         uint8_t gpsDrain[255];
         int drainRet = i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
@@ -2531,17 +2508,12 @@ int main() {
     // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
     sleep_ms(200);
 
-    // -----------------------------------------------------------------
     // IVP-09: ICM-20948 IMU init (before USB, after I2C)
-    // Accel ±4g, Gyro ±500dps, Mag continuous 100Hz
-    // -----------------------------------------------------------------
     if (g_i2cInitialized) {
         g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
     }
 
-    // -----------------------------------------------------------------
     // IVP-11: DPS310 barometer init (before USB, after I2C)
-    // -----------------------------------------------------------------
     if (g_i2cInitialized) {
         g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
         if (g_baroInitialized) {
@@ -2549,34 +2521,22 @@ int main() {
         }
     }
 
-    // -----------------------------------------------------------------
-    // IVP-31: GPS init (before USB, after I2C)
-    // Non-fatal — boot continues if GPS absent (LL Entry 20)
-    // -----------------------------------------------------------------
+    // IVP-31: GPS init (before USB, after I2C). Non-fatal (LL Entry 20).
     if (g_i2cInitialized) {
         g_gpsInitialized = gps_pa1010d_init();
         if (g_gpsInitialized) {
-            // PA1010D detected on I2C — enable post-read settling delay.
-            // UART GPS (FeatherWing) won't init via gps_pa1010d_init(), so
-            // g_gpsOnI2C stays false and the delay is skipped automatically.
             g_gpsOnI2C = true;
         }
     }
 
-    // -----------------------------------------------------------------
     // IVP-14: Calibration storage init (before USB per LL Entry 4/12)
-    // Storage init only reads flash via XIP — no erase/write at boot
-    // -----------------------------------------------------------------
     g_calStorageInitialized = calibration_storage_init();
     calibration_manager_init();
 
-    // -----------------------------------------------------------------
     // IVP-04: USB CDC init (after I2C/flash per LL Entry 4/12)
-    // -----------------------------------------------------------------
     stdio_init_all();
 
     // Fast LED blink while waiting for USB connection
-    // NeoPixel already running on Core 1 (launched after init)
     while (!stdio_usb_connected()) {
         gpio_put(PICO_DEFAULT_LED_PIN, 1);
         sleep_ms(100);
@@ -2590,26 +2550,25 @@ int main() {
     // Drain garbage from USB input buffer (per LL Entry 15)
     while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
 
-    // -----------------------------------------------------------------
-    // Banner + Hardware Validation
-    // Per DEBUG_OUTPUT.md: print results after USB connect.
-    // hw_validate_stage1() is the canonical boot summary — also
-    // reprintable via 'b' key for late-connecting terminals.
-    // -----------------------------------------------------------------
+    return watchdogReboot;
+}
+
+// ============================================================================
+// Init: Boot banner and hardware validation output
+// ============================================================================
+
+static void print_boot_status(bool watchdogReboot) {
     printf("\n");
     printf("==============================================\n");
     printf("  RocketChip v%s\n", kVersionString);
     printf("  Board: Adafruit Feather RP2350 HSTX\n");
     printf("==============================================\n\n");
 
-    // IVP-30: Print watchdog reboot warning (checked before any init)
     if (watchdogReboot) {
         printf("[WARN] *** PREVIOUS REBOOT WAS CAUSED BY WATCHDOG RESET ***\n");
         printf("[INFO] Test commands enabled (soak skipped after watchdog reboot)\n");
         printf("[INFO] Re-enabling watchdog (%lu ms)\n\n",
                (unsigned long)kWatchdogTimeoutMs);
-        // After watchdog reboot: enable test commands + watchdog immediately
-        // Skip the 5-min soak — it already passed before the reset
         g_testCommandsEnabled = true;
         g_watchdogEnabled = true;
         g_ivp29Done = true;
@@ -2618,9 +2577,14 @@ int main() {
         watchdog_enable(kWatchdogTimeoutMs, true);
     }
 
-    // Hardware validation — canonical boot summary (build tag, PASS/FAIL for each subsystem)
     hw_validate_stage1();
+}
 
+// ============================================================================
+// Init: Skip gates, RC_OS setup, pre-loop inter-core exercises
+// ============================================================================
+
+static void init_application(void) {
     // Skip previously verified gates to speed up boot
     if (kSkipVerifiedGates) {
         g_imuValidationDone = true;
@@ -2631,22 +2595,18 @@ int main() {
         g_ivp16Done = true;
         printf("[INFO] Skipping verified gates (IVP-10 through IVP-16)\n");
 
-        // Skip IVP-21/22/23/25/26 soaks (verified Sessions B+C+D)
         g_ivp21Done = true;
-        g_ivp25Active = true;   // So print_sensor_status() reads from seqlock
+        g_ivp25Active = true;
         g_ivp25Done = true;
         g_sensorPhaseDone.store(true, std::memory_order_release);
         printf("[INFO] Skipping IVP-21/22/23/25/26 soaks (verified Sessions B+C+D)\n");
 
-        // Skip IVP-27/28 (verified Session E)
         g_ivp27Active = true;
         g_ivp27Done = true;
         g_ivp28Started = true;
         g_ivp28Done = true;
         printf("[INFO] Skipping IVP-27/28 (verified Session E)\n");
 
-        // Skip IVP-29/30 soak (verified Session E)
-        // Enable watchdog but skip the 5-min soak and gate prints
         g_ivp29Done = true;
         g_ivp30Done = true;
         g_ivp30Active = false;
@@ -2655,13 +2615,12 @@ int main() {
         watchdog_enable(kWatchdogTimeoutMs, true);
         printf("[INFO] Skipping IVP-29/30 soak (verified Session E)\n");
 
-        // Send Core 1 directly to sensor loop (bypass Phase 2 spinlock soak)
         multicore_fifo_drain();
         sleep_ms(10);
         multicore_fifo_push_blocking(kCmd_SkipToSensors);
         g_startSensorPhase.store(true, std::memory_order_release);
-        rc_os_i2c_scan_allowed = false;  // Core 1 owns I2C now
-        sleep_ms(500);  // Let Core 1 init sensors + start publishing
+        rc_os_i2c_scan_allowed = false;
+        sleep_ms(500);
         printf("[INFO] Core 1 skipped to sensor phase\n\n");
     }
 
@@ -2676,23 +2635,13 @@ int main() {
     rc_os_cal_post_hook = cal_post_hook;
     rc_os_on_unhandled_key = ivp_test_key_handler;
 
-    // IVP-19: Core 1 already launched (after NeoPixel init, before USB wait)
     printf("Core 1 launched (test dispatcher mode)\n");
 
-    // ================================================================
-    // IVP-21/22/23: Inter-core primitive exercises
-    // Core 1 is in test dispatcher mode, responding to FIFO commands.
-    // Skipped when kSkipVerifiedGates — Core 1 sent directly to sensors.
-    // ================================================================
-
+    // IVP-21/22/23: Inter-core primitive exercises (skipped when gates verified)
     if (!kSkipVerifiedGates) {
-        // IVP-22: FIFO message passing
         ivp22_fifo_test();
-
-        // IVP-23: Doorbell signaling
         ivp23_doorbell_test();
 
-        // IVP-21: Claim spinlock and start soak test
         g_spinlockId = spin_lock_claim_unused(true);
         g_pTestSpinlock = spin_lock_init((uint)g_spinlockId);
         printf("Spinlock claimed: ID=%d\n", g_spinlockId);
@@ -2702,7 +2651,6 @@ int main() {
         printf("Spinlock type: HARDWARE (SIO registers)\n");
 #endif
 
-        // Signal Core 1 to exit test dispatcher and start spinlock soak
         multicore_fifo_drain();
         sleep_ms(10);
         multicore_fifo_push_blocking(kCmd_SpinlockStart);
@@ -2713,717 +2661,733 @@ int main() {
         printf("\n=== IVP-21: Spinlock Soak (5 min) ===\n");
         printf("Core 1 writing ~100kHz, Core 0 reading 10Hz...\n\n");
     }
+}
 
-    // IVP-08: Superloop
+// ============================================================================
+// Main Loop Tick Functions
+// ============================================================================
+// Each tick function manages one subsystem. Private state uses static locals
+// inside the function; shared state (sensor data, gate flags) stays file-scope.
+// nowMs is computed once per loop iteration and passed to all ticks to prevent
+// temporal skew between subsystems.
+
+// Council recommendation: track which tick was running when watchdog fires.
+static const char* g_lastTickFunction = "init";
+
+static void heartbeat_tick(uint32_t nowMs) {
+    static bool ledState = false;
+    uint32_t phase = nowMs % kHeartbeatPeriodMs;
+    bool shouldBeOn = (phase < kHeartbeatOnMs);
+    if (shouldBeOn != ledState) {
+        ledState = shouldBeOn;
+        gpio_put(PICO_DEFAULT_LED_PIN, ledState ? 1 : 0);
+    }
+}
+
+static void ivp31_gps_capture_tick(uint32_t nowMs) {
+    (void)nowMs;
+    if (!g_gpsInitialized || g_nmeaCapturePrinted) return;
+    if (!g_nmeaCaptureReady.load(std::memory_order_acquire)) return;
+
+    g_nmeaCapturePrinted = true;
+    uint32_t readTimeUs = g_gpsReadTimeUs.load(std::memory_order_relaxed);
+    printf("\n=== IVP-31: GPS Integration Gates ===\n");
+    printf("[PASS] PA1010D init OK at 0x10\n");
+    printf("[INFO] GPS I2C read time: %lu us (%.1f ms)\n",
+           (unsigned long)readTimeUs, readTimeUs / 1000.0);
+    if (readTimeUs >= 4000 && readTimeUs <= 8000) {
+        printf("[PASS] GPS read time in range (4-8 ms)\n");
+    } else if (readTimeUs > 8000) {
+        printf("[WARN] GPS read time > 8ms — investigate\n");
+    }
+    printf("\n--- Gate 5: Raw NMEA (Core 1 path) ---\n");
+    for (uint32_t i = 0; i < kNmeaCaptureSlots; i++) {
+        printf("[%lu] %s\n", (unsigned long)i, g_nmeaCapture[i]);
+    }
+    printf("--- End NMEA capture ---\n");
+    printf("=== IVP-31 Gates Complete ===\n\n");
+}
+
+static void ivp21_soak_tick(uint32_t nowMs) {
+    if (!g_ivp21Active || g_ivp21Done) return;
+    if ((nowMs - g_ivp21LastCheckMs) < kSpinlockCheckIntervalMs) return;
+
+    g_ivp21LastCheckMs = nowMs;
+
+    uint64_t t0 = time_us_64();
+    uint32_t saved = spin_lock_blocking(g_pTestSpinlock);
+    uint32_t a = g_spinlockData.field_a;
+    uint32_t b = g_spinlockData.field_b;
+    uint32_t c = g_spinlockData.field_c;
+    uint32_t wc = g_spinlockData.write_count;
+    spin_unlock(g_pTestSpinlock, saved);
+    uint32_t dtUs = (uint32_t)(time_us_64() - t0);
+
+    g_ivp21ReadCount++;
+    if (dtUs < g_ivp21LockTimeMinUs) g_ivp21LockTimeMinUs = dtUs;
+    if (dtUs > g_ivp21LockTimeMaxUs) g_ivp21LockTimeMaxUs = dtUs;
+    g_ivp21LockTimeSumUs += dtUs;
+
+    if (a != b || b != c || c != wc) {
+        g_ivp21InconsistentCount++;
+        if (stdio_usb_connected()) {
+            printf("[FAIL] Spinlock: a=%lu b=%lu c=%lu wc=%lu\n",
+                   (unsigned long)a, (unsigned long)b,
+                   (unsigned long)c, (unsigned long)wc);
+        }
+    }
+
+    if (stdio_usb_connected() && (nowMs - g_ivp21LastPrintMs) >= 30000) {
+        g_ivp21LastPrintMs = nowMs;
+        uint32_t elapsed = nowMs - g_ivp21StartMs;
+        uint32_t remain = (elapsed < kSpinlockSoakMs) ?
+            (kSpinlockSoakMs - elapsed) / 1000 : 0;
+        printf("[IVP-21] %lus, %lus left, %lu reads, %lu bad, "
+               "max %lu us, writes=%lu\n",
+               (unsigned long)(elapsed / 1000),
+               (unsigned long)remain,
+               (unsigned long)g_ivp21ReadCount,
+               (unsigned long)g_ivp21InconsistentCount,
+               (unsigned long)g_ivp21LockTimeMaxUs,
+               (unsigned long)wc);
+    }
+
+    if ((nowMs - g_ivp21StartMs) >= kSpinlockSoakMs) {
+        g_ivp21Done = true;
+        if (stdio_usb_connected()) {
+            ivp21_gate_check();
+        }
+        g_startSensorPhase.store(true, std::memory_order_release);
+        rc_os_i2c_scan_allowed = false;
+        g_ivp25Active = true;
+        g_ivp25StartMs = nowMs;
+        g_ivp25LastReadMs = nowMs;
+        g_ivp25LastPrintMs = nowMs;
+        g_ivp25LastImuCount = 0;
+        if (stdio_usb_connected()) {
+            printf("=== IVP-25/26: Sensor Soak (5 min) ===\n");
+            printf("Core 1: IMU ~1kHz + Baro ~50Hz, Core 0 reading 200Hz...\n\n");
+        }
+    }
+}
+
+static void ivp25_soak_tick(uint32_t nowMs) {
+    if (!g_ivp25Active || g_ivp25Done) return;
+    if ((nowMs - g_ivp25LastReadMs) < kSeqlockReadIntervalMs) return;
+
+    g_ivp25LastReadMs = nowMs;
+
+    shared_sensor_data_t snapshot;
+    bool ok = seqlock_read(&g_sensorSeqlock, &snapshot);
+    g_ivp25ReadCount++;
+
+    if (!ok) {
+        g_ivp25RetryCount++;
+    } else {
+        if (snapshot.imu_read_count == g_ivp25LastImuCount) {
+            g_ivp25StaleCount++;
+        }
+        g_ivp25LastImuCount = snapshot.imu_read_count;
+    }
+
+    if (stdio_usb_connected() && (nowMs - g_ivp25LastPrintMs) >= 30000) {
+        g_ivp25LastPrintMs = nowMs;
+        uint32_t elapsed = nowMs - g_ivp25StartMs;
+        uint32_t remain = (elapsed < kSensorSoakMs) ?
+            (kSensorSoakMs - elapsed) / 1000 : 0;
+
+        shared_sensor_data_t snap2;
+        if (seqlock_read(&g_sensorSeqlock, &snap2)) {
+            printf("[IVP-25/26] %lus, %lus left | "
+                   "IMU:%lu Baro:%lu Err:I%lu/B%lu | "
+                   "A: %6.2f %6.2f %6.2f m/s^2\n",
+                   (unsigned long)(elapsed / 1000),
+                   (unsigned long)remain,
+                   (unsigned long)snap2.imu_read_count,
+                   (unsigned long)snap2.baro_read_count,
+                   (unsigned long)snap2.imu_error_count,
+                   (unsigned long)snap2.baro_error_count,
+                   (double)snap2.accel_x,
+                   (double)snap2.accel_y,
+                   (double)snap2.accel_z);
+        }
+    }
+
+    if ((nowMs - g_ivp25StartMs) >= kSensorSoakMs) {
+        g_ivp25Done = true;
+        g_sensorPhaseDone.store(true, std::memory_order_release);
+        if (stdio_usb_connected()) {
+            ivp25_gate_check();
+            ivp26_gate_check();
+        }
+    }
+}
+
+static void ivp27_soak_tick(uint32_t nowMs) {
+    // Start IVP-27 when IVP-25/26 completes
+    if (g_ivp25Done && !g_ivp27Active && !g_ivp27Done) {
+        g_ivp27Active = true;
+        g_ivp27StartMs = nowMs;
+        g_ivp27LastStatusMs = nowMs;
+        if (stdio_usb_connected()) {
+            printf("\n========================================\n");
+            printf("=== IVP-27: USB Stability Soak (%u min) ===\n",
+                   (unsigned)(kIvp27SoakMs / 60000));
+            printf("========================================\n");
+            printf("[INFO] Core 1 sensors active. USB soak starts now.\n");
+            printf("[INFO] Status updates every %u seconds.\n",
+                   (unsigned)(kIvp27StatusIntervalMs / 1000));
+            printf("[MANUAL] At ~3 min: Disconnect USB.\n");
+            printf("[MANUAL] At ~6 min: Reconnect USB.\n");
+            printf("[MANUAL] At ~8 min: Rapid key mash test.\n");
+        }
+    }
+
+    if (!g_ivp27Active || g_ivp27Done) return;
+
+    uint32_t elapsedMs = nowMs - g_ivp27StartMs;
+
+    if ((nowMs - g_ivp27LastStatusMs) >= kIvp27StatusIntervalMs) {
+        g_ivp27LastStatusMs = nowMs;
+        if (stdio_usb_connected()) {
+            shared_sensor_data_t snap;
+            bool snapOk = seqlock_read(&g_sensorSeqlock, &snap);
+            uint32_t elapsedSec = elapsedMs / 1000;
+            if (snapOk) {
+                printf("[IVP-27] %lu/%lus | IMU: %lu reads, %lu err"
+                       " | Baro: %lu reads, %lu err"
+                       " | Core1: %lu loops | USB: %s\n",
+                       (unsigned long)elapsedSec,
+                       (unsigned long)(kIvp27SoakMs / 1000),
+                       (unsigned long)snap.imu_read_count,
+                       (unsigned long)snap.imu_error_count,
+                       (unsigned long)snap.baro_read_count,
+                       (unsigned long)snap.baro_error_count,
+                       (unsigned long)snap.core1_loop_count,
+                       stdio_usb_connected() ? "OK" : "DISCONNECTED");
+            } else {
+                printf("[IVP-27] %lu/%lus | Seqlock read failed\n",
+                       (unsigned long)elapsedSec,
+                       (unsigned long)(kIvp27SoakMs / 1000));
+            }
+        }
+    }
+
+    if (!g_ivp27Prompt3min && elapsedMs >= 3 * 60 * 1000) {
+        g_ivp27Prompt3min = true;
+        if (stdio_usb_connected()) {
+            printf("\n[MANUAL] >>> DISCONNECT USB NOW. Wait 60 seconds, then reconnect. <<<\n\n");
+        }
+    }
+    if (!g_ivp27Prompt6min && elapsedMs >= 6 * 60 * 1000) {
+        g_ivp27Prompt6min = true;
+        if (stdio_usb_connected()) {
+            printf("\n[MANUAL] >>> RECONNECT USB. Did output resume? Press 'h' to test CLI. <<<\n\n");
+        }
+    }
+    if (!g_ivp27Prompt8min && elapsedMs >= 8 * 60 * 1000) {
+        g_ivp27Prompt8min = true;
+        if (stdio_usb_connected()) {
+            printf("\n[MANUAL] >>> RAPID KEY MASH for 10 seconds. Verify no crash or hang. <<<\n\n");
+        }
+    }
+
+    if (elapsedMs >= kIvp27SoakMs) {
+        g_ivp27Done = true;
+        g_ivp27Active = false;
+        if (stdio_usb_connected()) {
+            ivp27_gate_check();
+        }
+    }
+}
+
+static void ivp28_flash_trigger(uint32_t nowMs) {
+    (void)nowMs;
+    if (!g_ivp27Done || g_ivp28Started) return;
+
+    g_ivp28Started = true;
+    if (stdio_usb_connected()) {
+        if (g_watchdogEnabled) watchdog_disable();
+        ivp28_flash_test();
+        if (g_watchdogEnabled) watchdog_enable(kWatchdogTimeoutMs, true);
+    }
+    g_ivp28Done = true;
+}
+
+static void ivp29_mpu_trigger(uint32_t nowMs) {
+    if (!g_ivp28Done || g_ivp29Done) return;
+
+    g_ivp29Done = true;
+    if (stdio_usb_connected()) {
+        ivp29_gate_check();
+
+        printf("[INFO] Enabling hardware watchdog (%lu ms, pause_on_debug=true)\n",
+               (unsigned long)kWatchdogTimeoutMs);
+        watchdog_enable(kWatchdogTimeoutMs, true);
+        g_watchdogEnabled = true;
+
+        g_ivp30Active = true;
+        g_ivp30StartMs = nowMs;
+        g_ivp30LastStatusMs = nowMs;
+        printf("[INFO] IVP-30: Watchdog soak started (%lu min)\n\n",
+               (unsigned long)(kIvp30SoakMs / 60000));
+    }
+}
+
+static void ivp30_soak_tick(uint32_t nowMs) {
+    if (!g_ivp30Active || g_ivp30Done) return;
+
+    uint32_t elapsedMs = nowMs - g_ivp30StartMs;
+
+    if ((nowMs - g_ivp30LastStatusMs) >= kIvp30StatusIntervalMs) {
+        g_ivp30LastStatusMs = nowMs;
+        if (stdio_usb_connected()) {
+            shared_sensor_data_t snap;
+            bool snapOk = seqlock_read(&g_sensorSeqlock, &snap);
+            if (snapOk) {
+                printf("[IVP-30] %lu/%lus | Core1: %lu loops, %lu IMU, %lu err | WDT: OK\n",
+                       (unsigned long)(elapsedMs / 1000),
+                       (unsigned long)(kIvp30SoakMs / 1000),
+                       (unsigned long)snap.core1_loop_count,
+                       (unsigned long)snap.imu_read_count,
+                       (unsigned long)snap.imu_error_count);
+            } else {
+                printf("[IVP-30] %lu/%lus | Seqlock read failed | WDT: OK\n",
+                       (unsigned long)(elapsedMs / 1000),
+                       (unsigned long)(kIvp30SoakMs / 1000));
+            }
+        }
+    }
+
+    if (elapsedMs >= kIvp30SoakMs) {
+        g_ivp30Done = true;
+        g_ivp30Active = false;
+        g_testCommandsEnabled = true;
+        if (stdio_usb_connected()) {
+            ivp30_gate_check();
+            printf("[INFO] Test commands available:\n");
+            printf("  'o' — Stack overflow (Core 0 fault test)\n");
+            printf("  'w' — Stall Core 0 (watchdog test)\n");
+            printf("  'W' — Stall Core 1 (watchdog test)\n\n");
+        }
+    }
+}
+
+static void watchdog_kick_tick(void) {
+    if (!g_watchdogEnabled) return;
+
+    g_wdtCore0Alive.store(true, std::memory_order_relaxed);
+    if (g_wdtCore0Alive.load(std::memory_order_relaxed) &&
+        g_wdtCore1Alive.load(std::memory_order_relaxed)) {
+        watchdog_update();
+        g_wdtCore0Alive.store(false, std::memory_order_relaxed);
+        g_wdtCore1Alive.store(false, std::memory_order_relaxed);
+    }
+}
+
+static void ivp10_validation_tick(uint32_t nowMs) {
+    if (!g_imuInitialized || g_imuValidationDone || !stdio_usb_connected()) return;
+
+    if (!g_imuValidationStarted && nowMs >= kImuValidationDelayMs) {
+        g_imuValidationStarted = true;
+        g_lastImuReadMs = nowMs;
+        g_accelXSum = 0.0f;
+        g_accelYSum = 0.0f;
+        g_accelZSum = 0.0f;
+        g_accelZMin = 999.0f;
+        g_accelZMax = -999.0f;
+        g_gyroAbsMax = 0.0f;
+        g_magMagMin = 999.0f;  g_magMagMax = 0.0f;
+        g_tempMin = 999.0f;    g_tempMax = -999.0f;
+        g_nanCount = 0;        g_magValidCount = 0;
+        g_validSampleCount = 0;
+        printf("=== IVP-10: IMU Data Validation (10Hz x %lu samples) ===\n",
+               (unsigned long)kImuSampleCount);
+    }
+
+    if (g_imuValidationStarted && g_imuSampleNum < kImuSampleCount &&
+        (nowMs - g_lastImuReadMs) >= kImuReadIntervalMs) {
+        g_lastImuReadMs = nowMs;
+        icm20948_data_t data;
+        if (icm20948_read(&g_imu, &data)) {
+            ivp10_print_sample(g_imuSampleNum, &data);
+            ivp10_accumulate(&data);
+            g_imuSampleNum++;
+        } else {
+            printf("[%03lu] READ FAILED\n", (unsigned long)g_imuSampleNum);
+        }
+    }
+
+    if (g_imuSampleNum >= kImuSampleCount) {
+        g_imuValidationDone = true;
+        ivp10_gate_check();
+    }
+}
+
+static void ivp12_validation_tick(uint32_t nowMs) {
+    if (!g_baroContinuous || g_baroValidationDone || !g_imuValidationDone ||
+        !stdio_usb_connected()) return;
+
+    if (!g_baroValidationStarted) {
+        g_baroValidationStarted = true;
+        g_baroValidStartMs = nowMs;
+        g_lastBaroReadMs = nowMs;
+        g_baroPressSum = 0.0f;
+        g_baroValidReads = 0;
+        g_baroInvalidReads = 0;
+        g_baroNanCount = 0;
+        g_baroStuckCount = 0;
+        printf("=== IVP-12: Baro Data Validation (10Hz x %lu samples) ===\n",
+               (unsigned long)kBaroSampleCount);
+    }
+
+    if ((nowMs - g_baroValidStartMs) >= kBaroValidationDelayMs &&
+        g_baroSampleNum < kBaroSampleCount &&
+        (nowMs - g_lastBaroReadMs) >= kBaroReadIntervalMs) {
+        g_lastBaroReadMs = nowMs;
+        baro_dps310_data_t bdata;
+        bool ok = baro_dps310_read(&bdata);
+        if (ok) {
+            ivp12_accumulate(&bdata);
+            if (g_baroSampleNum % 10 == 0) {
+                printf("[%03lu] P: %.1f Pa  T: %.2fC  Alt: %.1fm  %s\n",
+                       (unsigned long)g_baroSampleNum,
+                       (double)bdata.pressure_pa, (double)bdata.temperature_c,
+                       (double)bdata.altitude_m,
+                       bdata.valid ? "OK" : "INVALID");
+            }
+        } else {
+            g_baroInvalidReads++;
+            if (g_baroSampleNum % 10 == 0) {
+                printf("[%03lu] READ FAILED\n", (unsigned long)g_baroSampleNum);
+            }
+        }
+        g_baroSampleNum++;
+    }
+
+    if (g_baroSampleNum >= kBaroSampleCount) {
+        g_baroValidationDone = true;
+        ivp12_gate_check();
+    }
+}
+
+static void ivp13_polling_tick(uint32_t nowMs) {
+    if (!g_imuInitialized || !g_baroContinuous ||
+        !g_imuValidationDone || !g_baroValidationDone || g_ivp13Done) return;
+
+    uint64_t nowUs = time_us_64();
+
+    if (!g_ivp13Started) {
+        g_ivp13Started = true;
+        g_ivp13StartMs = nowMs;
+        g_ivp13LastImuUs = nowUs;
+        g_ivp13LastBaroUs = nowUs;
+        g_ivp13LastStatusMs = nowMs;
+        if (stdio_usb_connected()) {
+            printf("=== IVP-13: Multi-Sensor Polling (IMU 100Hz, Baro 50Hz, 60s) ===\n");
+        }
+    }
+
+    // IMU read at 100Hz
+    if ((nowUs - g_ivp13LastImuUs) >= kIvp13ImuIntervalUs) {
+        g_ivp13LastImuUs += kIvp13ImuIntervalUs;
+        if ((nowUs - g_ivp13LastImuUs) > kIvp13ImuIntervalUs * 2) {
+            g_ivp13LastImuUs = nowUs;
+        }
+        uint64_t t0 = time_us_64();
+        icm20948_data_t data;
+        if (icm20948_read(&g_imu, &data)) {
+            uint32_t dt = (uint32_t)(time_us_64() - t0);
+            g_ivp13ImuCount++;
+            g_ivp13ImuSecCount++;
+            g_ivp13ImuTimeSum += dt;
+            if (dt > g_ivp13ImuTimeMax) g_ivp13ImuTimeMax = dt;
+            g_i2cConsecErrors = 0;
+            g_imuLastReadOk = true;
+        } else {
+            g_ivp13ImuErrors++;
+            g_i2cConsecErrors++;
+            g_imuLastReadOk = false;
+        }
+    }
+
+    // Baro read at 50Hz
+    if ((nowUs - g_ivp13LastBaroUs) >= kIvp13BaroIntervalUs) {
+        g_ivp13LastBaroUs += kIvp13BaroIntervalUs;
+        if ((nowUs - g_ivp13LastBaroUs) > kIvp13BaroIntervalUs * 2) {
+            g_ivp13LastBaroUs = nowUs;
+        }
+        uint64_t t0 = time_us_64();
+        baro_dps310_data_t bdata;
+        if (baro_dps310_read(&bdata)) {
+            uint32_t dt = (uint32_t)(time_us_64() - t0);
+            g_ivp13BaroCount++;
+            g_ivp13BaroSecCount++;
+            g_ivp13BaroTimeSum += dt;
+            if (dt > g_ivp13BaroTimeMax) g_ivp13BaroTimeMax = dt;
+            g_i2cConsecErrors = 0;
+            g_baroConsecFails = 0;
+        } else {
+            g_ivp13BaroErrors++;
+            g_i2cConsecErrors++;
+            g_baroConsecFails++;
+        }
+    }
+
+    // Lazy baro reinit after 100 consecutive fails
+    if (g_baroConsecFails >= 100 && g_imuLastReadOk) {
+        g_baroConsecFails = 0;
+        g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
+        g_baroContinuous = g_baroInitialized ?
+            baro_dps310_start_continuous() : false;
+        if (stdio_usb_connected()) {
+            printf("[RECOVERY] Baro reinit: %s\n",
+                   g_baroContinuous ? "OK" : "FAIL");
+        }
+    }
+
+    // Bus recovery when consecutive errors exceed threshold
+    if (g_i2cConsecErrors >= kI2cRecoveryThreshold &&
+        (nowMs - g_i2cLastRecoveryMs) >= kI2cRecoveryCooldownMs) {
+        g_i2cLastRecoveryMs = nowMs;
+        g_i2cRecoveryAttempts++;
+        if (stdio_usb_connected()) {
+            printf("[RECOVERY] %lu consecutive errors — resetting I2C bus (attempt %lu)\n",
+                   (unsigned long)g_i2cConsecErrors,
+                   (unsigned long)g_i2cRecoveryAttempts);
+        }
+        bool recovered = i2c_bus_reset();
+        if (recovered) {
+            g_i2cRecoverySuccesses++;
+            g_i2cConsecErrors = 0;
+            if (stdio_usb_connected()) {
+                printf("[RECOVERY] Bus reset OK — resuming polling\n");
+            }
+        } else {
+            if (stdio_usb_connected()) {
+                printf("[RECOVERY] Bus reset FAILED — will retry after cooldown\n");
+            }
+        }
+    }
+
+    // Status print every second
+    if (stdio_usb_connected() && (nowMs - g_ivp13LastStatusMs) >= kIvp13StatusIntervalMs) {
+        uint32_t elapsed = nowMs - g_ivp13StartMs;
+        uint32_t totalErrors = g_ivp13ImuErrors + g_ivp13BaroErrors;
+        if (g_i2cRecoveryAttempts > 0) {
+            printf("[%3lus] IMU: %lu/s  Baro: %lu/s  Err: %lu  Rec: %lu/%lu\n",
+                   (unsigned long)(elapsed / 1000),
+                   (unsigned long)g_ivp13ImuSecCount,
+                   (unsigned long)g_ivp13BaroSecCount,
+                   (unsigned long)totalErrors,
+                   (unsigned long)g_i2cRecoverySuccesses,
+                   (unsigned long)g_i2cRecoveryAttempts);
+        } else {
+            printf("[%3lus] IMU: %lu/s  Baro: %lu/s  Err: %lu\n",
+                   (unsigned long)(elapsed / 1000),
+                   (unsigned long)g_ivp13ImuSecCount,
+                   (unsigned long)g_ivp13BaroSecCount,
+                   (unsigned long)totalErrors);
+        }
+        g_ivp13ImuSecCount = 0;
+        g_ivp13BaroSecCount = 0;
+        g_ivp13LastStatusMs = nowMs;
+    }
+
+    if ((nowMs - g_ivp13StartMs) >= kIvp13DurationMs) {
+        g_ivp13Done = true;
+        if (stdio_usb_connected()) {
+            ivp13_gate_check();
+        }
+    }
+}
+
+static void ivp_calibration_tick(uint32_t nowMs) {
+    // IVP-14: Calibration storage test (after IVP-13)
+    if (g_ivp13Done && !g_ivp14Done && g_calStorageInitialized &&
+        stdio_usb_connected()) {
+        g_ivp14Done = true;
+        ivp14_gate_check();
+    }
+
+    // IVP-15: Gyro bias calibration (after IVP-14)
+    if (g_ivp14Done && !g_ivp15Done && g_imuInitialized &&
+        stdio_usb_connected()) {
+
+        uint64_t nowUs = time_us_64();
+
+        if (!g_ivp15Started) {
+            g_ivp15Started = true;
+            g_ivp15LastFeedUs = nowUs;
+            printf("=== IVP-15: Gyro Bias Calibration ===\n");
+            printf("[INFO] Keep device STATIONARY for ~2 seconds...\n");
+            cal_result_t startResult = calibration_start_gyro();
+            if (startResult != CAL_RESULT_OK) {
+                printf("[FAIL] calibration_start_gyro() = %d\n", (int)startResult);
+                g_ivp15Done = true;
+            }
+        }
+
+        if (g_ivp15Started && calibration_is_active() &&
+            (nowUs - g_ivp15LastFeedUs) >= kIvp15FeedIntervalUs) {
+            g_ivp15LastFeedUs = nowUs;
+            icm20948_data_t data;
+            if (icm20948_read(&g_imu, &data)) {
+                calibration_feed_gyro(data.gyro.x, data.gyro.y, data.gyro.z,
+                                      data.temperature_c);
+                uint8_t progress = calibration_get_progress();
+                static uint8_t lastProgress = 0;
+                if (progress >= lastProgress + 25 || progress == 100) {
+                    printf("[INFO] Gyro cal progress: %u%%\n", progress);
+                    lastProgress = progress;
+                }
+            }
+        }
+
+        cal_state_t state = calibration_manager_get_state();
+        if (g_ivp15Started && !calibration_is_active() &&
+            (state == CAL_STATE_COMPLETE || state == CAL_STATE_FAILED)) {
+            g_ivp15Done = true;
+            ivp15_gate_check();
+            calibration_reset_state();
+        }
+    }
+
+    // IVP-16: Accel level calibration (after IVP-15)
+    if (g_ivp15Done && !g_ivp16Done && g_imuInitialized &&
+        stdio_usb_connected()) {
+
+        uint64_t nowUs = time_us_64();
+        static uint32_t ivp16StartMs = 0;
+
+        if (!g_ivp16Started) {
+            g_ivp16Started = true;
+            g_ivp16LastFeedUs = nowUs;
+            ivp16StartMs = nowMs;
+            printf("=== IVP-16: Accel Level Calibration ===\n");
+            printf("[INFO] Keep device FLAT on table (Z-up) for ~1 second...\n");
+            cal_result_t startResult = calibration_start_accel_level();
+            if (startResult != CAL_RESULT_OK) {
+                printf("[FAIL] calibration_start_accel_level() = %d\n", (int)startResult);
+                g_ivp16Done = true;
+            }
+        }
+
+        if (g_ivp16Started && calibration_is_active() &&
+            (nowUs - g_ivp16LastFeedUs) >= kIvp16FeedIntervalUs) {
+            g_ivp16LastFeedUs = nowUs;
+            icm20948_data_t data;
+            if (icm20948_read(&g_imu, &data)) {
+                calibration_feed_accel(data.accel.x, data.accel.y, data.accel.z,
+                                       data.temperature_c);
+                uint8_t progress = calibration_get_progress();
+                static uint8_t lastProgress16 = 0;
+                if (progress >= lastProgress16 + 25 || progress == 100) {
+                    printf("[INFO] Level cal progress: %u%%\n", progress);
+                    lastProgress16 = progress;
+                }
+            }
+        }
+
+        cal_state_t state = calibration_manager_get_state();
+        if (g_ivp16Started && !calibration_is_active() &&
+            (state == CAL_STATE_COMPLETE || state == CAL_STATE_FAILED)) {
+            g_ivp16Done = true;
+            uint32_t elapsed = nowMs - ivp16StartMs;
+            ivp16_gate_check(elapsed);
+            calibration_reset_state();
+        }
+    }
+}
+
+static void cli_update_tick(void) {
+    rc_os_update();
+
+    if (!calibration_is_active()) return;
+
+    uint64_t nowUs = time_us_64();
+    if ((nowUs - g_cliCalLastFeedUs) < kCliCalFeedIntervalUs) return;
+
+    g_cliCalLastFeedUs = nowUs;
+    cal_state_t calState = calibration_manager_get_state();
+
+    if (calState == CAL_STATE_GYRO_SAMPLING && g_imuInitialized) {
+        icm20948_data_t data;
+        if (icm20948_read(&g_imu, &data)) {
+            calibration_feed_gyro(data.gyro.x, data.gyro.y,
+                                  data.gyro.z, data.temperature_c);
+        }
+    } else if (calState == CAL_STATE_ACCEL_LEVEL_SAMPLING && g_imuInitialized) {
+        icm20948_data_t data;
+        if (icm20948_read(&g_imu, &data)) {
+            calibration_feed_accel(data.accel.x, data.accel.y,
+                                   data.accel.z, data.temperature_c);
+        }
+    } else if (calState == CAL_STATE_BARO_SAMPLING && g_baroContinuous) {
+        baro_dps310_data_t bdata;
+        if (baro_dps310_read(&bdata) && bdata.valid) {
+            calibration_feed_baro(bdata.pressure_pa,
+                                  bdata.temperature_c);
+        }
+    }
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+int main() {
+    bool watchdogReboot = init_hardware();
+    print_boot_status(watchdogReboot);
+    init_application();
+
     printf("Entering main loop\n\n");
-
-    bool ledState = false;
 
     while (true) {
         uint32_t nowMs = to_ms_since_boot(get_absolute_time());
         g_loopCounter++;
 
-        // Heartbeat LED: 100ms on, 900ms off
-        uint32_t phase = nowMs % kHeartbeatPeriodMs;
-        bool shouldBeOn = (phase < kHeartbeatOnMs);
-        if (shouldBeOn != ledState) {
-            ledState = shouldBeOn;
-            gpio_put(PICO_DEFAULT_LED_PIN, ledState ? 1 : 0);
-        }
+        g_lastTickFunction = "heartbeat";
+        heartbeat_tick(nowMs);
 
-        // NeoPixel owned by Core 1 (IVP-19) — do not call ws2812_update() here
+        g_lastTickFunction = "gps_capture";
+        ivp31_gps_capture_tick(nowMs);
 
-        // IVP-20 Core 1 rate verification: gate passed.
-        // Rate visible via 's' key (sensor status) and IVP-30 soak output.
+        g_lastTickFunction = "ivp21_soak";
+        ivp21_soak_tick(nowMs);
 
-        // IVP-31 Gate 5: Raw NMEA from Core 1 (one-time print)
-        if (g_gpsInitialized && !g_nmeaCapturePrinted
-            && g_nmeaCaptureReady.load(std::memory_order_acquire)) {
-            g_nmeaCapturePrinted = true;
-            uint32_t readTimeUs = g_gpsReadTimeUs.load(
-                std::memory_order_relaxed);
-            printf("\n=== IVP-31: GPS Integration Gates ===\n");
-            printf("[PASS] PA1010D init OK at 0x10\n");
-            printf("[INFO] GPS I2C read time: %lu us (%.1f ms)\n",
-                   (unsigned long)readTimeUs,
-                   readTimeUs / 1000.0);
-            if (readTimeUs >= 4000 && readTimeUs <= 8000) {
-                printf("[PASS] GPS read time in range (4-8 ms)\n");
-            } else if (readTimeUs > 8000) {
-                printf("[WARN] GPS read time > 8ms — investigate\n");
-            }
-            printf("\n--- Gate 5: Raw NMEA (Core 1 path) ---\n");
-            for (uint32_t i = 0; i < kNmeaCaptureSlots; i++) {
-                printf("[%lu] %s\n", (unsigned long)i,
-                       g_nmeaCapture[i]);
-            }
-            printf("--- End NMEA capture ---\n");
-            printf("=== IVP-31 Gates Complete ===\n\n");
-        }
+        g_lastTickFunction = "ivp25_soak";
+        ivp25_soak_tick(nowMs);
 
-        // IVP-21: Spinlock soak — read shared struct under lock
-        if (g_ivp21Active && !g_ivp21Done) {
-            if ((nowMs - g_ivp21LastCheckMs) >= kSpinlockCheckIntervalMs) {
-                g_ivp21LastCheckMs = nowMs;
+        g_lastTickFunction = "ivp27_soak";
+        ivp27_soak_tick(nowMs);
 
-                uint64_t t0 = time_us_64();
-                uint32_t saved = spin_lock_blocking(g_pTestSpinlock);
-                uint32_t a = g_spinlockData.field_a;
-                uint32_t b = g_spinlockData.field_b;
-                uint32_t c = g_spinlockData.field_c;
-                uint32_t wc = g_spinlockData.write_count;
-                spin_unlock(g_pTestSpinlock, saved);
-                uint32_t dtUs = (uint32_t)(time_us_64() - t0);
+        g_lastTickFunction = "ivp28_flash";
+        ivp28_flash_trigger(nowMs);
 
-                g_ivp21ReadCount++;
-                if (dtUs < g_ivp21LockTimeMinUs) g_ivp21LockTimeMinUs = dtUs;
-                if (dtUs > g_ivp21LockTimeMaxUs) g_ivp21LockTimeMaxUs = dtUs;
-                g_ivp21LockTimeSumUs += dtUs;
+        g_lastTickFunction = "ivp29_mpu";
+        ivp29_mpu_trigger(nowMs);
 
-                // Consistency check
-                if (a != b || b != c || c != wc) {
-                    g_ivp21InconsistentCount++;
-                    if (stdio_usb_connected()) {
-                        printf("[FAIL] Spinlock: a=%lu b=%lu c=%lu wc=%lu\n",
-                               (unsigned long)a, (unsigned long)b,
-                               (unsigned long)c, (unsigned long)wc);
-                    }
-                }
+        g_lastTickFunction = "ivp30_soak";
+        ivp30_soak_tick(nowMs);
 
-                // Progress every 30 seconds
-                if (stdio_usb_connected() &&
-                    (nowMs - g_ivp21LastPrintMs) >= 30000) {
-                    g_ivp21LastPrintMs = nowMs;
-                    uint32_t elapsed = nowMs - g_ivp21StartMs;
-                    uint32_t remain = (elapsed < kSpinlockSoakMs) ?
-                        (kSpinlockSoakMs - elapsed) / 1000 : 0;
-                    printf("[IVP-21] %lus, %lus left, %lu reads, %lu bad, "
-                           "max %lu us, writes=%lu\n",
-                           (unsigned long)(elapsed / 1000),
-                           (unsigned long)remain,
-                           (unsigned long)g_ivp21ReadCount,
-                           (unsigned long)g_ivp21InconsistentCount,
-                           (unsigned long)g_ivp21LockTimeMaxUs,
-                           (unsigned long)wc);
-                }
+        g_lastTickFunction = "watchdog";
+        watchdog_kick_tick();
 
-                // Soak complete?
-                if ((nowMs - g_ivp21StartMs) >= kSpinlockSoakMs) {
-                    g_ivp21Done = true;
-                    if (stdio_usb_connected()) {
-                        ivp21_gate_check();
-                    }
-                    // Trigger IVP-25/26 sensor soak
-                    g_startSensorPhase.store(true, std::memory_order_release);
-                    rc_os_i2c_scan_allowed = false;  // Core 1 owns I2C now
-                    g_ivp25Active = true;
-                    g_ivp25StartMs = nowMs;
-                    g_ivp25LastReadMs = nowMs;
-                    g_ivp25LastPrintMs = nowMs;
-                    g_ivp25LastImuCount = 0;
-                    if (stdio_usb_connected()) {
-                        printf("=== IVP-25/26: Sensor Soak (5 min) ===\n");
-                        printf("Core 1: IMU ~1kHz + Baro ~50Hz, Core 0 reading 200Hz...\n\n");
-                    }
-                }
-            }
-        }
+        g_lastTickFunction = "ivp10_imu";
+        ivp10_validation_tick(nowMs);
 
-        // IVP-25/26: Sensor soak — read real sensor data via seqlock
-        if (g_ivp25Active && !g_ivp25Done) {
-            if ((nowMs - g_ivp25LastReadMs) >= kSeqlockReadIntervalMs) {
-                g_ivp25LastReadMs = nowMs;
+        g_lastTickFunction = "ivp12_baro";
+        ivp12_validation_tick(nowMs);
 
-                shared_sensor_data_t snapshot;
-                bool ok = seqlock_read(&g_sensorSeqlock, &snapshot);
-                g_ivp25ReadCount++;
+        g_lastTickFunction = "ivp13_poll";
+        ivp13_polling_tick(nowMs);
 
-                if (!ok) {
-                    g_ivp25RetryCount++;
-                } else {
-                    // Stale detection: imu_read_count should be advancing
-                    if (snapshot.imu_read_count == g_ivp25LastImuCount) {
-                        g_ivp25StaleCount++;
-                    }
-                    g_ivp25LastImuCount = snapshot.imu_read_count;
-                }
+        g_lastTickFunction = "calibration";
+        ivp_calibration_tick(nowMs);
 
-                // Progress every 30 seconds
-                if (stdio_usb_connected() &&
-                    (nowMs - g_ivp25LastPrintMs) >= 30000) {
-                    g_ivp25LastPrintMs = nowMs;
-                    uint32_t elapsed = nowMs - g_ivp25StartMs;
-                    uint32_t remain = (elapsed < kSensorSoakMs) ?
-                        (kSensorSoakMs - elapsed) / 1000 : 0;
-
-                    shared_sensor_data_t snap2;
-                    if (seqlock_read(&g_sensorSeqlock, &snap2)) {
-                        printf("[IVP-25/26] %lus, %lus left | "
-                               "IMU:%lu Baro:%lu Err:I%lu/B%lu | "
-                               "A: %6.2f %6.2f %6.2f m/s^2\n",
-                               (unsigned long)(elapsed / 1000),
-                               (unsigned long)remain,
-                               (unsigned long)snap2.imu_read_count,
-                               (unsigned long)snap2.baro_read_count,
-                               (unsigned long)snap2.imu_error_count,
-                               (unsigned long)snap2.baro_error_count,
-                               (double)snap2.accel_x,
-                               (double)snap2.accel_y,
-                               (double)snap2.accel_z);
-                    }
-                }
-
-                // Soak complete?
-                if ((nowMs - g_ivp25StartMs) >= kSensorSoakMs) {
-                    g_ivp25Done = true;
-                    g_sensorPhaseDone.store(true, std::memory_order_release);
-                    if (stdio_usb_connected()) {
-                        ivp25_gate_check();
-                        ivp26_gate_check();
-                    }
-                }
-            }
-        }
-
-        // ================================================================
-        // IVP-27: USB stability soak (starts after IVP-25/26 completes)
-        // ================================================================
-        if (g_ivp25Done && !g_ivp27Active && !g_ivp27Done) {
-            g_ivp27Active = true;
-            g_ivp27StartMs = nowMs;
-            g_ivp27LastStatusMs = nowMs;
-            if (stdio_usb_connected()) {
-                printf("\n========================================\n");
-                printf("=== IVP-27: USB Stability Soak (%u min) ===\n",
-                       (unsigned)(kIvp27SoakMs / 60000));
-                printf("========================================\n");
-                printf("[INFO] Core 1 sensors active. USB soak starts now.\n");
-                printf("[INFO] Status updates every %u seconds.\n",
-                       (unsigned)(kIvp27StatusIntervalMs / 1000));
-                printf("[MANUAL] At ~3 min: Disconnect USB.\n");
-                printf("[MANUAL] At ~6 min: Reconnect USB.\n");
-                printf("[MANUAL] At ~8 min: Rapid key mash test.\n");
-            }
-        }
-
-        if (g_ivp27Active && !g_ivp27Done) {
-            uint32_t elapsedMs = nowMs - g_ivp27StartMs;
-
-            // Periodic status every 60s
-            if ((nowMs - g_ivp27LastStatusMs) >= kIvp27StatusIntervalMs) {
-                g_ivp27LastStatusMs = nowMs;
-                if (stdio_usb_connected()) {
-                    shared_sensor_data_t snap;
-                    bool snapOk = seqlock_read(&g_sensorSeqlock, &snap);
-                    uint32_t elapsedSec = elapsedMs / 1000;
-                    if (snapOk) {
-                        printf("[IVP-27] %lu/%lus | IMU: %lu reads, %lu err"
-                               " | Baro: %lu reads, %lu err"
-                               " | Core1: %lu loops | USB: %s\n",
-                               (unsigned long)elapsedSec,
-                               (unsigned long)(kIvp27SoakMs / 1000),
-                               (unsigned long)snap.imu_read_count,
-                               (unsigned long)snap.imu_error_count,
-                               (unsigned long)snap.baro_read_count,
-                               (unsigned long)snap.baro_error_count,
-                               (unsigned long)snap.core1_loop_count,
-                               stdio_usb_connected() ? "OK" : "DISCONNECTED");
-                    } else {
-                        printf("[IVP-27] %lu/%lus | Seqlock read failed\n",
-                               (unsigned long)elapsedSec,
-                               (unsigned long)(kIvp27SoakMs / 1000));
-                    }
-                }
-            }
-
-            // Timed manual gate prompts (council mod #3)
-            if (!g_ivp27Prompt3min && elapsedMs >= 3 * 60 * 1000) {
-                g_ivp27Prompt3min = true;
-                if (stdio_usb_connected()) {
-                    printf("\n[MANUAL] >>> DISCONNECT USB NOW. Wait 60 seconds, then reconnect. <<<\n\n");
-                }
-            }
-            if (!g_ivp27Prompt6min && elapsedMs >= 6 * 60 * 1000) {
-                g_ivp27Prompt6min = true;
-                if (stdio_usb_connected()) {
-                    printf("\n[MANUAL] >>> RECONNECT USB. Did output resume? Press 'h' to test CLI. <<<\n\n");
-                }
-            }
-            if (!g_ivp27Prompt8min && elapsedMs >= 8 * 60 * 1000) {
-                g_ivp27Prompt8min = true;
-                if (stdio_usb_connected()) {
-                    printf("\n[MANUAL] >>> RAPID KEY MASH for 10 seconds. Verify no crash or hang. <<<\n\n");
-                }
-            }
-
-            // Soak complete
-            if (elapsedMs >= kIvp27SoakMs) {
-                g_ivp27Done = true;
-                g_ivp27Active = false;
-                if (stdio_usb_connected()) {
-                    ivp27_gate_check();
-                }
-            }
-        }
-
-        // ================================================================
-        // IVP-28: Flash under dual-core (runs once after IVP-27 completes)
-        // ================================================================
-        if (g_ivp27Done && !g_ivp28Started) {
-            g_ivp28Started = true;
-            if (stdio_usb_connected()) {
-                // Disable watchdog during flash ops — flash_safe_execute stalls
-                // Core 1 via multicore_lockout, preventing alive flag updates
-                if (g_watchdogEnabled) watchdog_disable();
-                ivp28_flash_test();
-                if (g_watchdogEnabled) watchdog_enable(kWatchdogTimeoutMs, true);
-            }
-            g_ivp28Done = true;
-        }
-
-        // ================================================================
-        // IVP-29: MPU gate check (runs once after IVP-28)
-        // ================================================================
-        if (g_ivp28Done && !g_ivp29Done) {
-            g_ivp29Done = true;
-            if (stdio_usb_connected()) {
-                ivp29_gate_check();
-
-                // Enable watchdog and start IVP-30 soak
-                printf("[INFO] Enabling hardware watchdog (%lu ms, pause_on_debug=true)\n",
-                       (unsigned long)kWatchdogTimeoutMs);
-                watchdog_enable(kWatchdogTimeoutMs, true);
-                g_watchdogEnabled = true;
-
-                g_ivp30Active = true;
-                g_ivp30StartMs = nowMs;
-                g_ivp30LastStatusMs = nowMs;
-                printf("[INFO] IVP-30: Watchdog soak started (%lu min)\n\n",
-                       (unsigned long)(kIvp30SoakMs / 60000));
-            }
-        }
-
-        // ================================================================
-        // IVP-30: Watchdog soak (5 minutes, no false fires)
-        // ================================================================
-        if (g_ivp30Active && !g_ivp30Done) {
-            uint32_t elapsedMs = nowMs - g_ivp30StartMs;
-
-            // Status every 60s
-            if ((nowMs - g_ivp30LastStatusMs) >= kIvp30StatusIntervalMs) {
-                g_ivp30LastStatusMs = nowMs;
-                if (stdio_usb_connected()) {
-                    shared_sensor_data_t snap;
-                    bool snapOk = seqlock_read(&g_sensorSeqlock, &snap);
-                    if (snapOk) {
-                        printf("[IVP-30] %lu/%lus | Core1: %lu loops, %lu IMU, %lu err | WDT: OK\n",
-                               (unsigned long)(elapsedMs / 1000),
-                               (unsigned long)(kIvp30SoakMs / 1000),
-                               (unsigned long)snap.core1_loop_count,
-                               (unsigned long)snap.imu_read_count,
-                               (unsigned long)snap.imu_error_count);
-                    } else {
-                        printf("[IVP-30] %lu/%lus | Seqlock read failed | WDT: OK\n",
-                               (unsigned long)(elapsedMs / 1000),
-                               (unsigned long)(kIvp30SoakMs / 1000));
-                    }
-                }
-            }
-
-            // Soak complete
-            if (elapsedMs >= kIvp30SoakMs) {
-                g_ivp30Done = true;
-                g_ivp30Active = false;
-                g_testCommandsEnabled = true;
-                if (stdio_usb_connected()) {
-                    ivp30_gate_check();
-                    printf("[INFO] Test commands available:\n");
-                    printf("  'o' — Stack overflow (Core 0 fault test)\n");
-                    printf("  'w' — Stall Core 0 (watchdog test)\n");
-                    printf("  'W' — Stall Core 1 (watchdog test)\n\n");
-                }
-            }
-        }
-
-        // IVP-30: Watchdog dual-core kick (every loop iteration)
-        if (g_watchdogEnabled) {
-            g_wdtCore0Alive.store(true, std::memory_order_relaxed);
-            if (g_wdtCore0Alive.load(std::memory_order_relaxed) &&
-                g_wdtCore1Alive.load(std::memory_order_relaxed)) {
-                watchdog_update();
-                g_wdtCore0Alive.store(false, std::memory_order_relaxed);
-                g_wdtCore1Alive.store(false, std::memory_order_relaxed);
-            }
-        }
-
-        // IVP-10: IMU data read at 10Hz
-        if (g_imuInitialized && !g_imuValidationDone && stdio_usb_connected()) {
-            // Wait for sensor settle before starting
-            if (!g_imuValidationStarted && nowMs >= kImuValidationDelayMs) {
-                g_imuValidationStarted = true;
-                g_lastImuReadMs = nowMs;
-                // Initialize tracking
-                g_accelXSum = 0.0f;
-                g_accelYSum = 0.0f;
-                g_accelZSum = 0.0f;
-                g_accelZMin = 999.0f;
-                g_accelZMax = -999.0f;
-                g_gyroAbsMax = 0.0f;
-                g_magMagMin = 999.0f;  g_magMagMax = 0.0f;
-                g_tempMin = 999.0f;    g_tempMax = -999.0f;
-                g_nanCount = 0;        g_magValidCount = 0;
-                g_validSampleCount = 0;
-                printf("=== IVP-10: IMU Data Validation (10Hz x %lu samples) ===\n",
-                       (unsigned long)kImuSampleCount);
-            }
-
-            if (g_imuValidationStarted && g_imuSampleNum < kImuSampleCount &&
-                (nowMs - g_lastImuReadMs) >= kImuReadIntervalMs) {
-                g_lastImuReadMs = nowMs;
-                icm20948_data_t data;
-                if (icm20948_read(&g_imu, &data)) {
-                    ivp10_print_sample(g_imuSampleNum, &data);
-                    ivp10_accumulate(&data);
-                    g_imuSampleNum++;
-                } else {
-                    printf("[%03lu] READ FAILED\n", (unsigned long)g_imuSampleNum);
-                }
-            }
-
-            if (g_imuSampleNum >= kImuSampleCount) {
-                g_imuValidationDone = true;
-                ivp10_gate_check();
-            }
-        }
-
-        // IVP-12: Baro data read at 10Hz (starts after IVP-10 completes)
-        if (g_baroContinuous && !g_baroValidationDone && g_imuValidationDone &&
-            stdio_usb_connected()) {
-            if (!g_baroValidationStarted) {
-                g_baroValidationStarted = true;
-                g_baroValidStartMs = nowMs;
-                g_lastBaroReadMs = nowMs;
-                g_baroPressSum = 0.0f;
-                g_baroValidReads = 0;
-                g_baroInvalidReads = 0;
-                g_baroNanCount = 0;
-                g_baroStuckCount = 0;
-                printf("=== IVP-12: Baro Data Validation (10Hz x %lu samples) ===\n",
-                       (unsigned long)kBaroSampleCount);
-            }
-
-            // Wait briefly for DPS310 to have data after starting continuous
-            if ((nowMs - g_baroValidStartMs) >= kBaroValidationDelayMs &&
-                g_baroSampleNum < kBaroSampleCount &&
-                (nowMs - g_lastBaroReadMs) >= kBaroReadIntervalMs) {
-                g_lastBaroReadMs = nowMs;
-                baro_dps310_data_t bdata;
-                bool ok = baro_dps310_read(&bdata);
-                if (ok) {
-                    ivp12_accumulate(&bdata);
-                    // Print every 10th sample to keep output manageable
-                    if (g_baroSampleNum % 10 == 0) {
-                        printf("[%03lu] P: %.1f Pa  T: %.2fC  Alt: %.1fm  %s\n",
-                               (unsigned long)g_baroSampleNum,
-                               (double)bdata.pressure_pa, (double)bdata.temperature_c,
-                               (double)bdata.altitude_m,
-                               bdata.valid ? "OK" : "INVALID");
-                    }
-                } else {
-                    g_baroInvalidReads++;
-                    if (g_baroSampleNum % 10 == 0) {
-                        printf("[%03lu] READ FAILED\n", (unsigned long)g_baroSampleNum);
-                    }
-                }
-                g_baroSampleNum++;
-            }
-
-            if (g_baroSampleNum >= kBaroSampleCount) {
-                g_baroValidationDone = true;
-                ivp12_gate_check();
-            }
-        }
-
-        // IVP-13: Multi-sensor polling at target rates (after IVP-10 + IVP-12)
-        if (g_imuInitialized && g_baroContinuous &&
-            g_imuValidationDone && g_baroValidationDone && !g_ivp13Done) {
-
-            uint64_t nowUs = time_us_64();
-
-            if (!g_ivp13Started) {
-                g_ivp13Started = true;
-                g_ivp13StartMs = nowMs;
-                g_ivp13LastImuUs = nowUs;
-                g_ivp13LastBaroUs = nowUs;
-                g_ivp13LastStatusMs = nowMs;
-                if (stdio_usb_connected()) {
-                    printf("=== IVP-13: Multi-Sensor Polling (IMU 100Hz, Baro 50Hz, 60s) ===\n");
-                }
-            }
-
-            // IMU read at 100Hz
-            if ((nowUs - g_ivp13LastImuUs) >= kIvp13ImuIntervalUs) {
-                g_ivp13LastImuUs += kIvp13ImuIntervalUs;
-                // Prevent accumulation if we fell behind
-                if ((nowUs - g_ivp13LastImuUs) > kIvp13ImuIntervalUs * 2) {
-                    g_ivp13LastImuUs = nowUs;
-                }
-                uint64_t t0 = time_us_64();
-                icm20948_data_t data;
-                if (icm20948_read(&g_imu, &data)) {
-                    uint32_t dt = (uint32_t)(time_us_64() - t0);
-                    g_ivp13ImuCount++;
-                    g_ivp13ImuSecCount++;
-                    g_ivp13ImuTimeSum += dt;
-                    if (dt > g_ivp13ImuTimeMax) g_ivp13ImuTimeMax = dt;
-                    g_i2cConsecErrors = 0;
-                    g_imuLastReadOk = true;
-                } else {
-                    g_ivp13ImuErrors++;
-                    g_i2cConsecErrors++;
-                    g_imuLastReadOk = false;
-                }
-            }
-
-            // Baro read at 50Hz
-            if ((nowUs - g_ivp13LastBaroUs) >= kIvp13BaroIntervalUs) {
-                g_ivp13LastBaroUs += kIvp13BaroIntervalUs;
-                if ((nowUs - g_ivp13LastBaroUs) > kIvp13BaroIntervalUs * 2) {
-                    g_ivp13LastBaroUs = nowUs;
-                }
-                uint64_t t0 = time_us_64();
-                baro_dps310_data_t bdata;
-                if (baro_dps310_read(&bdata)) {
-                    uint32_t dt = (uint32_t)(time_us_64() - t0);
-                    g_ivp13BaroCount++;
-                    g_ivp13BaroSecCount++;
-                    g_ivp13BaroTimeSum += dt;
-                    if (dt > g_ivp13BaroTimeMax) g_ivp13BaroTimeMax = dt;
-                    g_i2cConsecErrors = 0;
-                    g_baroConsecFails = 0;
-                } else {
-                    g_ivp13BaroErrors++;
-                    g_i2cConsecErrors++;
-                    g_baroConsecFails++;
-                }
-            }
-
-            // IVP-13a: Lazy baro reinit — if IMU reads work but baro
-            // doesn't, DPS310 lost continuous mode (e.g. after disconnect).
-            // 100 consecutive baro fails at 50Hz = 2 seconds of failure.
-            if (g_baroConsecFails >= 100 && g_imuLastReadOk) {
-                g_baroConsecFails = 0;
-                g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
-                g_baroContinuous = g_baroInitialized ?
-                    baro_dps310_start_continuous() : false;
-                if (stdio_usb_connected()) {
-                    printf("[RECOVERY] Baro reinit: %s\n",
-                           g_baroContinuous ? "OK" : "FAIL");
-                }
-            }
-
-            // IVP-13a: Bus recovery when consecutive errors exceed threshold
-            if (g_i2cConsecErrors >= kI2cRecoveryThreshold &&
-                (nowMs - g_i2cLastRecoveryMs) >= kI2cRecoveryCooldownMs) {
-                g_i2cLastRecoveryMs = nowMs;
-                g_i2cRecoveryAttempts++;
-                if (stdio_usb_connected()) {
-                    printf("[RECOVERY] %lu consecutive errors — resetting I2C bus (attempt %lu)\n",
-                           (unsigned long)g_i2cConsecErrors,
-                           (unsigned long)g_i2cRecoveryAttempts);
-                }
-                bool recovered = i2c_bus_reset();
-                if (recovered) {
-                    g_i2cRecoverySuccesses++;
-                    g_i2cConsecErrors = 0;
-
-                    // Don't reinit sensors here — icm20948_init() blocks
-                    // for 150ms+ with device reset and mag retries, which
-                    // hangs if sensors are still disconnected. Instead:
-                    // - IMU self-recovers from reads (no reinit needed)
-                    // - Baro needs reinit for continuous mode (done below)
-
-                    if (stdio_usb_connected()) {
-                        printf("[RECOVERY] Bus reset OK — resuming polling\n");
-                    }
-                } else {
-                    if (stdio_usb_connected()) {
-                        printf("[RECOVERY] Bus reset FAILED — will retry after cooldown\n");
-                    }
-                }
-            }
-
-            // Status print every second
-            if (stdio_usb_connected() && (nowMs - g_ivp13LastStatusMs) >= kIvp13StatusIntervalMs) {
-                uint32_t elapsed = nowMs - g_ivp13StartMs;
-                uint32_t totalErrors = g_ivp13ImuErrors + g_ivp13BaroErrors;
-                if (g_i2cRecoveryAttempts > 0) {
-                    printf("[%3lus] IMU: %lu/s  Baro: %lu/s  Err: %lu  Rec: %lu/%lu\n",
-                           (unsigned long)(elapsed / 1000),
-                           (unsigned long)g_ivp13ImuSecCount,
-                           (unsigned long)g_ivp13BaroSecCount,
-                           (unsigned long)totalErrors,
-                           (unsigned long)g_i2cRecoverySuccesses,
-                           (unsigned long)g_i2cRecoveryAttempts);
-                } else {
-                    printf("[%3lus] IMU: %lu/s  Baro: %lu/s  Err: %lu\n",
-                           (unsigned long)(elapsed / 1000),
-                           (unsigned long)g_ivp13ImuSecCount,
-                           (unsigned long)g_ivp13BaroSecCount,
-                           (unsigned long)totalErrors);
-                }
-                g_ivp13ImuSecCount = 0;
-                g_ivp13BaroSecCount = 0;
-                g_ivp13LastStatusMs = nowMs;
-            }
-
-            // Check if 60 seconds elapsed
-            if ((nowMs - g_ivp13StartMs) >= kIvp13DurationMs) {
-                g_ivp13Done = true;
-                if (stdio_usb_connected()) {
-                    ivp13_gate_check();
-                }
-            }
-        }
-
-        // IVP-14: Calibration storage test (after IVP-13 completes)
-        if (g_ivp13Done && !g_ivp14Done && g_calStorageInitialized &&
-            stdio_usb_connected()) {
-            g_ivp14Done = true;
-            ivp14_gate_check();
-        }
-
-        // IVP-15: Gyro bias calibration (after IVP-14 completes)
-        // Device must be stationary — 200 samples at 100Hz (~2 seconds)
-        if (g_ivp14Done && !g_ivp15Done && g_imuInitialized &&
-            stdio_usb_connected()) {
-
-            uint64_t nowUs = time_us_64();
-
-            if (!g_ivp15Started) {
-                g_ivp15Started = true;
-                g_ivp15LastFeedUs = nowUs;
-                printf("=== IVP-15: Gyro Bias Calibration ===\n");
-                printf("[INFO] Keep device STATIONARY for ~2 seconds...\n");
-                cal_result_t startResult = calibration_start_gyro();
-                if (startResult != CAL_RESULT_OK) {
-                    printf("[FAIL] calibration_start_gyro() = %d\n", (int)startResult);
-                    g_ivp15Done = true;
-                }
-            }
-
-            // Feed gyro samples at 100Hz while calibrating
-            if (g_ivp15Started && calibration_is_active() &&
-                (nowUs - g_ivp15LastFeedUs) >= kIvp15FeedIntervalUs) {
-                g_ivp15LastFeedUs = nowUs;
-                icm20948_data_t data;
-                if (icm20948_read(&g_imu, &data)) {
-                    calibration_feed_gyro(data.gyro.x, data.gyro.y, data.gyro.z,
-                                          data.temperature_c);
-                    // Print progress every 50 samples
-                    uint8_t progress = calibration_get_progress();
-                    static uint8_t lastProgress = 0;
-                    if (progress >= lastProgress + 25 || progress == 100) {
-                        printf("[INFO] Gyro cal progress: %u%%\n", progress);
-                        lastProgress = progress;
-                    }
-                }
-            }
-
-            // Check if calibration completed or failed
-            cal_state_t state = calibration_manager_get_state();
-            if (g_ivp15Started && !calibration_is_active() &&
-                (state == CAL_STATE_COMPLETE || state == CAL_STATE_FAILED)) {
-                g_ivp15Done = true;
-                ivp15_gate_check();
-                calibration_reset_state();
-            }
-        }
-
-        // IVP-16: Accel level calibration (after IVP-15 completes)
-        // Device must be flat on table (Z-up) — 100 samples at 100Hz (~1 second)
-        if (g_ivp15Done && !g_ivp16Done && g_imuInitialized &&
-            stdio_usb_connected()) {
-
-            uint64_t nowUs = time_us_64();
-            static uint32_t ivp16StartMs = 0;
-
-            if (!g_ivp16Started) {
-                g_ivp16Started = true;
-                g_ivp16LastFeedUs = nowUs;
-                ivp16StartMs = nowMs;
-                printf("=== IVP-16: Accel Level Calibration ===\n");
-                printf("[INFO] Keep device FLAT on table (Z-up) for ~1 second...\n");
-                cal_result_t startResult = calibration_start_accel_level();
-                if (startResult != CAL_RESULT_OK) {
-                    printf("[FAIL] calibration_start_accel_level() = %d\n", (int)startResult);
-                    g_ivp16Done = true;
-                }
-            }
-
-            // Feed accel samples at 100Hz while calibrating
-            if (g_ivp16Started && calibration_is_active() &&
-                (nowUs - g_ivp16LastFeedUs) >= kIvp16FeedIntervalUs) {
-                g_ivp16LastFeedUs = nowUs;
-                icm20948_data_t data;
-                if (icm20948_read(&g_imu, &data)) {
-                    calibration_feed_accel(data.accel.x, data.accel.y, data.accel.z,
-                                           data.temperature_c);
-                    uint8_t progress = calibration_get_progress();
-                    static uint8_t lastProgress16 = 0;
-                    if (progress >= lastProgress16 + 25 || progress == 100) {
-                        printf("[INFO] Level cal progress: %u%%\n", progress);
-                        lastProgress16 = progress;
-                    }
-                }
-            }
-
-            // Check if calibration completed or failed
-            cal_state_t state = calibration_manager_get_state();
-            if (g_ivp16Started && !calibration_is_active() &&
-                (state == CAL_STATE_COMPLETE || state == CAL_STATE_FAILED)) {
-                g_ivp16Done = true;
-                uint32_t elapsed = nowMs - ivp16StartMs;
-                ivp16_gate_check(elapsed);
-                calibration_reset_state();
-            }
-        }
-
-        // IVP-18: RC_OS CLI + calibration sample feeding
-        // RC_OS handles terminal connection, banner, input processing.
-        // When CLI triggers a calibration, we feed samples here at 100Hz.
-        {
-            rc_os_update();
-
-            // Feed sensor samples to active calibration (CLI-triggered)
-            if (calibration_is_active()) {
-                uint64_t nowUs = time_us_64();
-                if ((nowUs - g_cliCalLastFeedUs) >= kCliCalFeedIntervalUs) {
-                    g_cliCalLastFeedUs = nowUs;
-                    cal_state_t calState = calibration_manager_get_state();
-
-                    if (calState == CAL_STATE_GYRO_SAMPLING && g_imuInitialized) {
-                        icm20948_data_t data;
-                        if (icm20948_read(&g_imu, &data)) {
-                            calibration_feed_gyro(data.gyro.x, data.gyro.y,
-                                                  data.gyro.z, data.temperature_c);
-                        }
-                    } else if (calState == CAL_STATE_ACCEL_LEVEL_SAMPLING && g_imuInitialized) {
-                        icm20948_data_t data;
-                        if (icm20948_read(&g_imu, &data)) {
-                            calibration_feed_accel(data.accel.x, data.accel.y,
-                                                   data.accel.z, data.temperature_c);
-                        }
-                    } else if (calState == CAL_STATE_BARO_SAMPLING && g_baroContinuous) {
-                        baro_dps310_data_t bdata;
-                        if (baro_dps310_read(&bdata) && bdata.valid) {
-                            calibration_feed_baro(bdata.pressure_pa,
-                                                  bdata.temperature_c);
-                        }
-                    }
-                }
-            }
-        }
+        g_lastTickFunction = "cli";
+        cli_update_tick();
 
         // Superloop validation at 10s
         if (stdio_usb_connected() && !g_superloopValidationDone &&
@@ -3432,9 +3396,7 @@ int main() {
             hw_validate_superloop(nowMs);
         }
 
-        // Small sleep to prevent tight spinning (allows USB processing)
-        // Note: sleep_ms(1) limits max loop rate to ~1kHz; sufficient for
-        // IVP-13 targets (100Hz IMU + 50Hz baro). Remove in Stage 3.
+        g_lastTickFunction = "sleep";
         sleep_ms(1);
     }
 
