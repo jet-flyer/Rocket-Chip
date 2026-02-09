@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 // ============================================================================
 // Configuration
@@ -62,9 +63,14 @@ typedef struct {
     uint16_t year;
 
     // Status
-    bool valid;             ///< Position is valid
+    bool valid;             ///< Position is valid (RMC active AND GGA fix)
     bool time_valid;        ///< Time data is valid
     bool date_valid;        ///< Date data is valid
+
+    // Diagnostic (raw lwGPS fields for debugging fix detection)
+    uint8_t gga_fix;        ///< GGA fix quality (0=none, 1=GPS, 2=DGPS)
+    uint8_t gsa_fix_mode;   ///< GSA fix mode (1=none, 2=2D, 3=3D)
+    bool rmc_valid;         ///< RMC status ('A' = valid)
 } gps_pa1010d_data_t;
 
 // ============================================================================
@@ -89,7 +95,7 @@ bool gps_pa1010d_ready(void);
  * Call this periodically (at least 10Hz for 10Hz GPS).
  * Reads available NMEA data from I2C and parses it.
  *
- * @return true if new valid position data is available
+ * @return true if I2C read succeeded (data received), false on I2C error
  */
 bool gps_pa1010d_update(void);
 
@@ -119,5 +125,13 @@ bool gps_pa1010d_send_command(const char* cmd);
  * @return true on success
  */
 bool gps_pa1010d_set_rate(uint8_t rate_hz);
+
+/**
+ * @brief Get pointer to last raw NMEA read buffer
+ * @param buf Output pointer to internal buffer (valid until next update)
+ * @param len Output length of last read data
+ * @return true if data available
+ */
+bool gps_pa1010d_get_last_raw(const uint8_t** buf, size_t* len);
 
 #endif // ROCKETCHIP_GPS_PA1010D_H

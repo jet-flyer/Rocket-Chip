@@ -87,6 +87,20 @@ typedef void (*rc_os_sensor_status_fn)(void);
 extern rc_os_sensor_status_fn rc_os_print_sensor_status;
 
 // ============================================================================
+// Boot Summary Callback (set by main)
+// ============================================================================
+
+/**
+ * @brief Function pointer for boot/init summary reprint
+ *
+ * Set this to your HW validation print function.
+ * Called when user presses 'b' in main menu (late-connect reprint).
+ * Per DEBUG_OUTPUT.md: "Boot button can trigger result reprint"
+ */
+typedef void (*rc_os_boot_summary_fn)(void);
+extern rc_os_boot_summary_fn rc_os_print_boot_summary;
+
+// ============================================================================
 // Sensor Availability Flags (set by main)
 // ============================================================================
 

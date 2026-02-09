@@ -598,6 +598,55 @@ Added `rc_os_i2c_scan_allowed` flag in `rc_os.h`. Set to `false` when Core 1 ent
 
 ---
 
+## Entry 24: PA1010D I2C Bus Contention — 500us Settling Delay Fix
+
+**Date:** 2026-02-08
+**Time Spent:** ~3 hours (gps-11 through gps-12c, 4 controlled isolation tests)
+**Severity:** High — 8.4% IMU error rate on shared I2C bus
+
+### Problem
+With PA1010D GPS polling at 10Hz on Core 1 (shared I2C bus with ICM-20948 IMU and DPS310 baro), the IMU suffered ~8.4% read failure rate (16,300 errors / 194,831 reads). GPS itself had 7.9% error rate.
+
+### Symptoms
+- ~8 consecutive IMU failures after each GPS read, then natural recovery
+- Baro unaffected (0 errors) — its reads are less timing-sensitive
+- Pattern deterministic: always bursts of ~8 failures per GPS cycle
+- `i2c_bus_recover()` at 10Hz made it WORSE (99.7% GPS failure in gps-11) — GPIO_FUNC_SIO/I2C switching in hot loop corrupts the I2C peripheral
+
+### Root Cause
+The PA1010D (MT3333 chipset) is a UART-over-I2C bridge. After a 255-byte read completes with STOP condition, the MT3333 briefly holds SDA low while its internal UART buffer replenishes. The next IMU bank-select write (`i2c_bus_write_reg(0x69, 0x7F, 0)`) fails because SDA is not yet released.
+
+This is purely electrical/bus-level behavior — independent of GPS satellite lock. The MT3333 always fills its 255-byte buffer whether sending valid NMEA or padding.
+
+### Solution
+Add 500us `busy_wait_us()` after each GPS I2C read, before allowing the next IMU read.
+
+```cpp
+bool parsed = gps_pa1010d_update();
+busy_wait_us(500);  // PA1010D SDA settling
+```
+
+**Cost:** 500us × 10Hz = 5ms/sec = 0.5% CPU overhead. ~0.5 missed IMU samples per GPS cycle.
+
+### Isolation Test Results
+
+| Build | GPS Rate | Delay | IMU Errors | GPS Errors |
+|-------|----------|-------|------------|------------|
+| gps-10 | 10Hz | none | 8.4% (16,300) | 7.9% (166) |
+| gps-12a | 5Hz | 500us | 0% | 0% |
+| gps-12b | 5Hz | none | 0% | 0% |
+| gps-12c | 10Hz | 500us | 0% | 0% |
+
+**Key finding:** Either the 500us delay OR reducing to 5Hz independently eliminates contention. The delay is preferred — it allows 10Hz GPS with negligible overhead.
+
+### Prevention
+1. **UART-over-I2C devices need settling time** after bulk reads on shared buses
+2. **Never use `i2c_bus_recover()` in a hot loop** — it switches GPIO function, corrupting the I2C peripheral. Reserve for rare error recovery only
+3. **For production:** Use UART GPS (FeatherWing) to eliminate I2C contention entirely. I2C GPS mode with auto-detected settling delay for plug-and-play tier
+4. **ArduPilot never shares GPS with high-rate sensors on I2C** — always separate bus or UART
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

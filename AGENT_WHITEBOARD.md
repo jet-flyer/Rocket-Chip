@@ -30,19 +30,15 @@ Key findings: F' multicore only works on Linux (pthreads). Zephyr has no Cortex-
 
 ---
 
-### 2026-02-07: Stage 4 GPS — Ready for IVP-31 Implementation
+### 2026-02-08: IVP-31 GPS — COMPLETE ✅
 
-**Status:** Ready — needs board plugged in with GPS on Qwiic chain
+**Status:** Hardware-verified, committed
 **Reporter:** Claude Code CLI
 
-Stage 4 IVPs redesigned for dual-core architecture (GPS on Core 1). Driver updated (255-byte full-buffer reads, PMTK314 sentence filter). `main.cpp` is clean Stage 3 — no GPS code yet.
+IVP-31 complete across 12 build iterations (gps-1 through gps-12c). I2C bus contention resolved: 500us post-read settling delay eliminates 8.4% IMU error rate entirely (0% errors at 10Hz GPS). Auto-detection: delay only active when I2C GPS at 0x10 detected. See LL Entry 24 for isolation test data.
 
-**Next steps:**
-- Physically reconnect PA1010D to Qwiic chain
-- Implement IVP-31 in `main.cpp` (GPS init before Core 1 launch, GPS reads on Core 1 sensor loop, seqlock publish)
-- Standards review after build, before flash
-
-**See:** `docs/IVP.md` IVP-31, `standards/VENDOR_GUIDELINES.md` PA1010D section
+**NeoPixel green bug** deferred to IVP-46 state engine.
+**Outdoor GPS fix test** still pending — `sats=0` during brief outdoor test.
 
 ---
 
@@ -54,6 +50,22 @@ Stage 4 IVPs redesigned for dual-core architecture (GPS on Core 1). Driver updat
 - ~~`CODING_STANDARDS.md` file classification table — .c → .cpp (done 2026-02-08)~~
 - `CODING_STANDARDS.md` — needs cross-reference to new `standards/VENDOR_GUIDELINES.md` in Prior Art Research section
 - `SEQLOCK_DESIGN.md` line 69 — comment says "reserved for IVP-33", now IVP-31 (cosmetic)
+
+---
+
+### 2026-02-08: FeatherWing UART GPS Migration — Hardware on Hand
+
+**Status:** Pending hardware soldering
+**Reporter:** Claude Code CLI
+
+User has **Adafruit Ultimate GPS FeatherWing (product 3133)** — PA1616D, UART-only, 99 channels, uFL external antenna connector. Eliminates I2C bus contention entirely (no settling delay needed). Key advantages over PA1010D:
+- UART: dedicated bus, no I2C sharing with IMU/baro
+- 99 channels vs 33: faster TTFF, full multi-constellation parallel search
+- uFL connector: external antenna for better signal in airframe
+
+**Implementation:** New `gps_uart.cpp` driver (UART read, same lwGPS parser). `g_gpsOnI2C` flag already in place — UART GPS init won't set it, delay auto-skipped.
+
+**Blocked on:** User soldering the FeatherWing.
 
 ---
 
@@ -74,7 +86,7 @@ User has a **Matek M8Q-5883** on hand (SAM-M8Q u-blox + QMC5883L compass, UART G
 
 ### 2026-02-08: D3 main.cpp Function Length Refactoring — Planned, Blocked on GPS
 
-**Status:** Plan approved (council-reviewed), blocked on IVP-31 GPS completion
+**Status:** Plan approved (council-reviewed), unblocked (IVP-31 GPS complete)
 **Reporter:** Claude Code CLI
 
 `main()` is ~992 lines, `core1_entry()` ~367 lines. Full decomposition plan in `~/.claude/plans/shimmying-snuggling-wilkes.md`. Council approved (Professor + ArduPilot): tick-function dispatcher pattern, `g_lastTickFunction` watchdog tracking, seqlock scope preservation. `.clang-tidy` config created with `readability-function-size` (60-line threshold) + `readability-identifier-naming`. LLVM install pending (needs admin elevation for `choco install llvm`).
@@ -90,6 +102,10 @@ User has a **Matek M8Q-5883** on hand (SAM-M8Q u-blox + QMC5883L compass, UART G
 **Reporter:** Claude Code CLI
 
 When implementing the flight state machine (IVP-46: Action Executor), map NeoPixel patterns to ArduPilot's standard LED codes. AP uses: solid green = GPS lock, yellow = no GPS, blue = armed, red blink = error/failsafe, etc. Current IVP-31 GPS NeoPixel (yellow blink = searching, green = fix) is an interim implementation — replace with full AP-style state-driven patterns at IVP-46.
+
+**Known bug (gps-10):** NeoPixel does not transition to green when GPS PPS LED confirms fix. The `gps_valid` flag logic (GGA-primary + RMC + GSA) is correct, but the Core 1 NeoPixel update path doesn't trigger the green transition in practice. Root cause not fully diagnosed — likely a timing issue between `gps_valid` becoming true and the NeoPixel state check on the next sensor loop iteration. Deferred to IVP-46 state engine which will handle all LED state transitions centrally.
+
+**Also cosmetic:** Brief cyan flash on boot before yellow blink. This is the Core 1 test dispatcher's initial state (line 573) before `kSkipVerifiedGates` advances to sensor phase (~1-2s). Not a bug.
 
 **Reference:** ArduPilot `AP_Notify` / `NeoPixel.cpp` for pattern definitions.
 

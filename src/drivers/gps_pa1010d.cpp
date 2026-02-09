@@ -27,6 +27,7 @@ static gps_pa1010d_data_t g_data;
 // Ref: pico-examples/i2c/pa1010d_i2c uses 250-byte reads.
 constexpr size_t kGpsMaxRead = 255;
 static uint8_t g_buffer[kGpsMaxRead + 1];  // +1 for null terminator
+static size_t g_lastReadLen = 0;           // Last successful read length
 
 // ============================================================================
 // Private Functions
@@ -47,32 +48,47 @@ static uint8_t nmea_checksum(const char* sentence) {
 }
 
 /**
- * @brief Read NMEA data from PA1010D via I2C
+ * @brief Read NMEA data from PA1010D via I2C, filtering padding bytes
  *
- * The PA1010D has a 255-byte buffer. Reading returns available NMEA data.
- * Empty reads return 0x0A (newline) bytes.
+ * The PA1010D (MT3333) pads its 255-byte I2C buffer with 0x0A when empty.
+ * Three packet types can arrive (per GlobalTop/Quectel app notes):
+ *   Type 1: [NMEA data][0x0A padding...]   — normal
+ *   Type 2: [all 0x0A]                     — buffer was empty
+ *   Type 3: [0x0A padding...][NMEA data]   — read caught tail of prev buffer
+ *
+ * Adafruit approach: keep 0x0A only when preceded by 0x0D (legitimate \r\n
+ * NMEA terminator). Discard all standalone 0x0A (padding). This handles
+ * all three packet types and preserves sentence framing for lwGPS.
+ *
+ * Ref: Adafruit_GPS.cpp, SparkFun I2C GPS library, Quectel L76-L app note.
  */
 static int read_nmea_data(uint8_t* buffer, size_t max_len) {
-    // PA1010D I2C protocol: just read bytes, no register address needed
-    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, buffer, max_len);
+    // Read raw I2C data into a local buffer, then filter in-place
+    static uint8_t raw[kGpsMaxRead];
+    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, raw, max_len);
     if (ret <= 0) {
-        return 0;
+        return -1;  // I2C failure (NACK or timeout)
     }
 
-    // Find actual data length (PA1010D pads with 0x0A or 0xFF)
-    int32_t len = 0;
+    // Filter: copy valid bytes, discard padding 0x0A and 0xFF
+    int32_t out = 0;
     for (int32_t i = 0; i < ret; i++) {
-        // Stop at padding bytes
-        if (buffer[i] == 0x0A && (i == 0 || buffer[i-1] == 0x0A)) {
-            break;
+        if (raw[i] == 0xFF) {
+            continue;  // Bus error byte — discard
         }
-        if (buffer[i] == 0xFF) {
-            break;
+        if (raw[i] == 0x0A) {
+            // Keep LF only if it follows CR (legitimate \r\n terminator)
+            if (out > 0 && buffer[out - 1] == 0x0D) {
+                buffer[out++] = raw[i];
+            }
+            // Otherwise discard — it's padding
+            continue;
         }
-        len = i + 1;
+        buffer[out++] = raw[i];
     }
 
-    return len;
+    g_lastReadLen = (size_t)out;
+    return out;
 }
 
 /**
@@ -87,13 +103,22 @@ static void update_data_from_lwgps(void) {
     g_data.speed_mps = (float)lwgps_to_speed(g_gps.speed, LWGPS_SPEED_MPS);
     g_data.course_deg = (float)g_gps.course;
 
-    // Fix type from GSA
-    if (g_gps.fix_mode <= 1) {
-        g_data.fix = GPS_FIX_NONE;
-    } else if (g_gps.fix_mode == 2) {
-        g_data.fix = GPS_FIX_2D;
+    // Fix type: prefer GGA fix quality (most reliably updated by lwGPS),
+    // fall back to GSA fix_mode for 2D/3D distinction.
+    // GGA fix: 0=none, 1=GPS, 2=DGPS, 3=PPS, 4+=RTK
+    // GSA fix_mode: 1=none, 2=2D, 3=3D
+    if (g_gps.fix >= 1) {
+        // GGA says we have a fix — use GSA for 2D/3D if available
+        if (g_gps.fix_mode >= 3) {
+            g_data.fix = GPS_FIX_3D;
+        } else if (g_gps.fix_mode == 2) {
+            g_data.fix = GPS_FIX_2D;
+        } else {
+            // GGA has fix but GSA hasn't updated yet — assume 3D
+            g_data.fix = GPS_FIX_3D;
+        }
     } else {
-        g_data.fix = GPS_FIX_3D;
+        g_data.fix = GPS_FIX_NONE;
     }
 
     g_data.satellites = g_gps.sats_in_use;
@@ -109,9 +134,15 @@ static void update_data_from_lwgps(void) {
     g_data.month = g_gps.month;
     g_data.year = 2000 + g_gps.year;  // lwGPS stores 2-digit year
 
+    // Valid when RMC reports active AND GGA shows fix
     g_data.valid = lwgps_is_valid(&g_gps) && (g_data.fix >= GPS_FIX_2D);
     g_data.time_valid = g_gps.time_valid;
     g_data.date_valid = g_gps.date_valid;
+
+    // Diagnostic: raw lwGPS fields for sensor status debugging
+    g_data.gga_fix = g_gps.fix;
+    g_data.gsa_fix_mode = g_gps.fix_mode;
+    g_data.rmc_valid = lwgps_is_valid(&g_gps);
 }
 
 // ============================================================================
@@ -125,18 +156,36 @@ bool gps_pa1010d_init(void) {
     // Clear data
     memset(&g_data, 0, sizeof(g_data));
 
-    // Check if device is present
-    if (!i2c_bus_probe(kGpsPa1010dAddr)) {
+    // Presence check: read a full buffer instead of single-byte probe.
+    // The PA1010D is a UART-over-I2C device — it doesn't ACK single-byte
+    // probes reliably. All reference implementations (pico-examples,
+    // Adafruit, SparkFun) skip probing and go straight to data reads.
+    // A successful 255-byte read with any '$' character confirms presence.
+    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead);
+    if (ret <= 0) {
+        return false;
+    }
+
+    // Check for NMEA start character anywhere in the buffer
+    bool found_nmea = false;
+    for (int32_t i = 0; i < ret; i++) {
+        if (g_buffer[i] == '$') {
+            found_nmea = true;
+            break;
+        }
+    }
+    if (!found_nmea) {
         return false;
     }
 
     g_initialized = true;
 
-    // Configure NMEA output: enable only RMC + GGA sentences.
-    // RMC provides speed, course, date/time. GGA provides position, altitude, fix quality.
-    // Reduces parsing overhead and keeps output to ~139 bytes/sec (vs ~449 default).
+    // Configure NMEA output: enable RMC + GGA + GSA sentences.
+    // RMC: speed, course, date/time. GGA: position, altitude, fix quality.
+    // GSA: fix mode (2D/3D) and DOP values — required for gps_valid flag.
+    // Output ~180 bytes/sec (vs ~449 default with all sentences).
     // PMTK314 fields: GLL,RMC,VTG,GGA,GSA,GSV,...
-    gps_pa1010d_send_command("PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+    gps_pa1010d_send_command("PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
 
     return true;
 }
@@ -151,9 +200,13 @@ bool gps_pa1010d_update(void) {
     }
 
     // Read available NMEA data (full 255-byte MT3333 TX buffer)
+    // Returns: >0 = NMEA bytes, 0 = padding only (no new data), <0 = I2C error
     int len = read_nmea_data(g_buffer, kGpsMaxRead);
-    if (len <= 0) {
-        return false;
+    if (len < 0) {
+        return false;  // I2C failure — caller should count as error
+    }
+    if (len == 0) {
+        return true;   // I2C OK but no new NMEA sentence — not an error
     }
 
     // Null-terminate for safety
@@ -165,7 +218,7 @@ bool gps_pa1010d_update(void) {
     // Update our data structure
     update_data_from_lwgps();
 
-    return g_data.valid;
+    return true;
 }
 
 bool gps_pa1010d_get_data(gps_pa1010d_data_t* data) {
@@ -218,4 +271,13 @@ bool gps_pa1010d_set_rate(uint8_t rate_hz) {
 
     snprintf(cmd, sizeof(cmd), "PMTK220,%u", interval_ms);
     return gps_pa1010d_send_command(cmd);
+}
+
+bool gps_pa1010d_get_last_raw(const uint8_t** buf, size_t* len) {
+    if (!g_initialized || g_lastReadLen == 0) {
+        return false;
+    }
+    *buf = g_buffer;
+    *len = g_lastReadLen;
+    return true;
 }

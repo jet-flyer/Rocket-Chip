@@ -4,9 +4,9 @@
 
 ## Current Phase
 
-**IVP Stage 3 COMPLETE** — Dual-Core Integration (v0.2.0)
+**IVP Stage 4 IN PROGRESS** — GPS Integration
 
-All 6 sessions (A through F, IVP-19 through IVP-30) hardware-verified. Next: Stage 4 (GPS integration)
+IVP-31 (PA1010D GPS on Core 1) complete and hardware-verified. I2C bus contention resolved with 500us settling delay (0% IMU errors at 10Hz GPS). Next: IVP-32+ or ESKF (IVP-36).
 
 ## Completed
 
@@ -85,9 +85,14 @@ Completed 2026-02-08:
 - [x] Tier 4: RC_ASSERT macro, goto elimination, bare-metal loop/stdio/preprocessor deviation docs
 - **Result:** 220 PASS / 25 PARTIAL/FAIL (90% compliance). Remaining 25 are accepted deviations or deferred to production architecture refactoring.
 
+### Stage 4 Session A: GPS Integration (IVP-31) ✅
+
+Hardware-verified 2026-02-08:
+- [x] IVP-31: PA1010D GPS on Core 1 (10Hz read, lwGPS NMEA parsing, seqlock publish, 0% IMU/baro/GPS errors over 5-min soak with 500us I2C settling delay)
+
 ## In Progress
 
-**Stage 3 COMPLETE.** Next: Stage 4 (IVP-31+, GPS integration)
+**IVP-31 COMPLETE.** Next: ESKF sensor fusion (IVP-36) or remaining Stage 4 IVPs
 
 ## What Exists
 
@@ -105,8 +110,7 @@ Completed 2026-02-08:
 - `scripts/ivp27_28_test.py` — IVP-27/28 soak + flash test monitor
 - `scripts/ivp29_30_test.py` — IVP-29/30 watchdog soak + manual test monitor
 
-**Ready (commented out in CMakeLists.txt, re-enable at their IVP step):**
-- `src/drivers/gps_pa1010d.cpp/h` — GPS wrapper (IVP-31)
+- `src/drivers/gps_pa1010d.cpp/h` — GPS driver (PA1010D via I2C, lwGPS NMEA parser)
 
 ## Blockers
 

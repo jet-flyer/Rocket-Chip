@@ -20,6 +20,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-08-005 | Claude Code CLI | feature
+
+**IVP-31: PA1010D GPS integration on Core 1 with I2C contention fix**
+
+GPS reads at 10Hz on Core 1 via seqlock. Full NMEA parsing (lwGPS), GGA+RMC+GSA sentence filter, Adafruit-style 0x0A padding filter, cold-boot bus recovery. I2C contention (8.4% IMU error rate at gps-10) resolved with 500us post-read settling delay — controlled isolation tests (gps-12a/b/c) proved delay alone is sufficient at 10Hz. Auto-detection: delay only active when I2C GPS at 0x10 is detected; UART GPS skips it. `kCore1ConsecFailMax` lowered from 50 to 10 for GPS-induced burst detection.
+
+*Rationale: 500us delay vs 5Hz rate reduction — delay preserves 10Hz GPS data with only 0.5% CPU overhead. Isolation testing documented in LL Entry 24. ArduPilot never shares GPS with high-rate sensors on I2C; production migrates to UART FeatherWing (Adafruit 3133).*
+
+(`src/main.cpp`, `src/drivers/gps_pa1010d.cpp`, `src/drivers/gps_pa1010d.h`, `.claude/LESSONS_LEARNED.md`)
+
+---
+
 ### 2026-02-08-004 | Claude Code CLI | documentation
 
 **Titan doc: H7 board candidates section**

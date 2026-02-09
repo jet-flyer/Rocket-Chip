@@ -37,6 +37,9 @@ static bool g_bannerPrinted = false;
 // Callback for sensor status (set by main.cpp)
 rc_os_sensor_status_fn rc_os_print_sensor_status = NULL;
 
+// Callback for boot summary reprint (set by main.cpp)
+rc_os_boot_summary_fn rc_os_print_boot_summary = NULL;
+
 // Sensor availability flags (set by main.cpp)
 bool rc_os_imu_available = false;
 bool rc_os_baro_available = false;
@@ -89,6 +92,7 @@ static void print_system_status(void) {
     printf("Commands:\n");
     printf("  h - This help\n");
     printf("  s - Sensor status\n");
+    printf("  b - Boot summary (reprint)\n");
     printf("  i - I2C bus rescan\n");
     printf("  c - Calibration menu\n");
     printf("========================================\n\n");
@@ -541,6 +545,15 @@ static void handle_main_menu(int c) {
                 i2c_bus_scan();
             } else {
                 printf("\nI2C scan disabled (Core 1 owns bus)\n");
+            }
+            break;
+
+        case 'b':
+        case 'B':
+            if (rc_os_print_boot_summary) {
+                rc_os_print_boot_summary();
+            } else {
+                printf("Boot summary not available.\n");
             }
             break;
 

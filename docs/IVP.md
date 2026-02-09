@@ -32,6 +32,8 @@ This document defines the step-by-step integration order for RocketChip firmware
 - `[LL]` = LESSONS_LEARNED cross-reference
 - `⚠️ VALIDATE` = numerical value requires measurement/datasheet confirmation before implementation
 
+**Stage completion rule:** When all IVP steps in a Stage are verified, **strip or refactor all gate/soak/diagnostic test code** from that Stage out of production source files. `main.cpp` should contain only the verified behavior, not the test scaffolding that proved it. Silencing prints via skip flags is a temporary measure during active development — not a substitute for cleanup. Each Stage boundary is a cleanup checkpoint.
+
 ---
 
 ## 2. Test Environment

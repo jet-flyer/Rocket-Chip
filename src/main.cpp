@@ -34,6 +34,7 @@
  *   IVP-28: Flash writes under dual-core
  *   IVP-29: MPU stack guard regions (both cores)
  *   IVP-30: Hardware watchdog (dual-core kick)
+ *   IVP-31: PA1010D GPS init + Core 1 integration
  */
 
 #include "rocketchip/config.h"
@@ -44,6 +45,7 @@
 #include "drivers/i2c_bus.h"
 #include "drivers/icm20948.h"
 #include "drivers/baro_dps310.h"
+#include "drivers/gps_pa1010d.h"
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
 #include "cli/rc_os.h"
@@ -62,6 +64,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
+static const char* kBuildTag = "ivp31-gps-12";
 
 // Heartbeat: 100ms on, 900ms off (per IVP-08)
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -119,7 +122,7 @@ static constexpr uint32_t kCore1BaroDivider = 20;               // Baro at ~50Hz
 static constexpr uint32_t kSensorSoakMs = 5 * 60 * 1000;       // 5-minute soak
 static constexpr uint32_t kSeqlockReadIntervalMs = 5;           // 200Hz Core 0 reader
 static constexpr uint32_t kJitterSampleCount = 1000;            // For gate 3 jitter
-static constexpr uint32_t kCore1ConsecFailMax = 50;             // I2C recovery threshold
+static constexpr uint32_t kCore1ConsecFailMax = 10;             // I2C recovery threshold (catches GPS-induced ~8-read bursts)
 
 // DPS310 MEAS_CFG register (0x08): data-ready bits
 // Per DPS310 datasheet Section 7, PRS_RDY=bit4, TMP_RDY=bit5
@@ -152,6 +155,19 @@ static constexpr uint32_t kWatchdogTimeoutMs = 5000;    // 5 second timeout per 
 static constexpr uint32_t kIvp30SoakMs = 5 * 60 * 1000; // 5-minute soak (no false fires)
 static constexpr uint32_t kIvp30StatusIntervalMs = 60000; // Print every 60s
 
+// IVP-31: GPS on Core 1
+static constexpr uint32_t kCore1GpsDivider = 100;          // 10Hz at 1kHz loop
+static constexpr uint32_t kGpsMinIntervalUs = 2000;         // MT3333 buffer refill time
+
+// IVP-31 Gate 5: NMEA raw capture — Core 1 fills, Core 0 reads after ready flag
+static constexpr uint32_t kNmeaCaptureSlots = 10;
+static constexpr uint32_t kNmeaCaptureLen = 128;
+static char g_nmeaCapture[kNmeaCaptureSlots][kNmeaCaptureLen];
+static std::atomic<bool> g_nmeaCaptureReady{false};
+static uint32_t g_nmeaCaptureIdx = 0;                       // Core 1 only
+static std::atomic<uint32_t> g_gpsReadTimeUs{0};            // Gate 3: last GPS I2C read time
+static bool g_nmeaCapturePrinted = false;                    // Core 0 gate print flag
+
 // Core 1 skip command (for kSkipVerifiedGates — bypass Phase 2)
 static constexpr uint32_t kCmd_SkipToSensors = 0x5E5052E5;
 
@@ -164,6 +180,9 @@ static bool g_i2cInitialized = false;
 static bool g_imuInitialized = false;
 static bool g_baroInitialized = false;
 static bool g_baroContinuous = false;
+static bool g_gpsInitialized = false;
+static bool g_gpsOnI2C = false;       // True when GPS detected at I2C address 0x10 (needs settling delay)
+
 static bool g_superloopValidationDone = false;
 static uint32_t g_loopCounter = 0;
 
@@ -299,7 +318,11 @@ struct shared_sensor_data_t {
     uint8_t gps_fix_type;
     uint8_t gps_satellites;
     bool gps_valid;
-    uint8_t _pad_gps;
+    // Diagnostic: raw lwGPS fields for debugging fix detection
+    uint8_t gps_gga_fix;       // GGA fix quality (0=none, 1=GPS, 2=DGPS)
+    uint8_t gps_gsa_fix_mode;  // GSA fix mode (1=none, 2=2D, 3=3D)
+    bool gps_rmc_valid;        // RMC status ('A')
+    uint8_t _pad_gps[2];
 
     // Health (16 bytes)
     uint32_t imu_error_count;
@@ -308,7 +331,7 @@ struct shared_sensor_data_t {
     uint32_t core1_loop_count;              // For watchdog/stall detection
 };
 
-static_assert(sizeof(shared_sensor_data_t) == 124, "Struct size mismatch with SEQLOCK_DESIGN.md");
+static_assert(sizeof(shared_sensor_data_t) == 128, "Struct size changed — update SEQLOCK_DESIGN.md");
 static_assert(sizeof(shared_sensor_data_t) % 4 == 0, "Struct must be 4-byte aligned for memcpy");
 
 // IVP-24: Seqlock wrapper — single buffer with sequence counter
@@ -698,7 +721,10 @@ static void core1_entry(void) {
     uint32_t loopCount = 0;
     uint32_t baroCycle = 0;
     uint32_t imuConsecFail = 0;
-    lastNeoMs = to_ms_since_boot(get_absolute_time());
+    uint32_t gpsCycle = 0;
+    uint32_t lastGpsReadUs = 0;
+    uint32_t sensorPhaseStartMs = to_ms_since_boot(get_absolute_time());
+    lastNeoMs = sensorPhaseStartMs;
     neoState = false;
 
     while (true) {
@@ -800,6 +826,78 @@ static void core1_entry(void) {
             // If not ready, skip — don't count as error (DPS310 at 8Hz, we poll at 50Hz)
         }
 
+        // ---- GPS read (every Nth cycle, always LAST per council) ----
+        gpsCycle++;
+        if (gpsCycle >= kCore1GpsDivider && g_gpsInitialized) {
+            gpsCycle = 0;
+            uint32_t gpsNowUs = time_us_32();
+            if (gpsNowUs - lastGpsReadUs >= kGpsMinIntervalUs) {
+                lastGpsReadUs = gpsNowUs;
+                uint32_t t0 = time_us_32();
+                bool parsed = gps_pa1010d_update();
+                // PA1010D SDA settling delay — prevents I2C contention with IMU.
+                // Without this, MT3333 holds SDA low after 255-byte read, causing
+                // ~8% IMU error rate. 500us empirically verified (gps-12a/b/c).
+                // Cost: 5ms/sec (0.5% CPU) at 10Hz GPS. See LL Entry 24.
+                // Only active for I2C GPS — UART GPS skips this automatically.
+                if (g_gpsOnI2C) {
+                    busy_wait_us(500);
+                }
+                uint32_t readTime = time_us_32() - t0;
+                g_gpsReadTimeUs.store(readTime,
+                    std::memory_order_relaxed);
+
+                // NMEA capture (Gate 5) — fill-then-signal
+                if (!g_nmeaCaptureReady.load(
+                        std::memory_order_relaxed)
+                    && g_nmeaCaptureIdx < kNmeaCaptureSlots) {
+                    const uint8_t* raw;
+                    size_t rawLen;
+                    if (gps_pa1010d_get_last_raw(&raw, &rawLen)) {
+                        size_t copyLen = (rawLen < kNmeaCaptureLen - 1)
+                            ? rawLen : kNmeaCaptureLen - 1;
+                        memcpy(g_nmeaCapture[g_nmeaCaptureIdx],
+                            raw, copyLen);
+                        g_nmeaCapture[g_nmeaCaptureIdx][copyLen] = '\0';
+                        g_nmeaCaptureIdx++;
+                        if (g_nmeaCaptureIdx >= kNmeaCaptureSlots) {
+                            g_nmeaCaptureReady.store(true,
+                                std::memory_order_release);
+                        }
+                    }
+                }
+
+                gps_pa1010d_data_t gpsData;
+                gps_pa1010d_get_data(&gpsData);
+
+                // Clamp lat/lon before *1e7 (council: overflow protection)
+                double lat = gpsData.latitude;
+                double lon = gpsData.longitude;
+                if (lat > 90.0) { lat = 90.0; }
+                if (lat < -90.0) { lat = -90.0; }
+                if (lon > 180.0) { lon = 180.0; }
+                if (lon < -180.0) { lon = -180.0; }
+
+                localData.gps_lat_1e7 = (int32_t)(lat * 1e7);
+                localData.gps_lon_1e7 = (int32_t)(lon * 1e7);
+                localData.gps_alt_msl_m = gpsData.altitude_m;
+                localData.gps_ground_speed_mps = gpsData.speed_mps;
+                localData.gps_course_deg = gpsData.course_deg;
+                localData.gps_timestamp_us = gpsNowUs;
+                localData.gps_read_count++;
+                localData.gps_fix_type = (uint8_t)gpsData.fix;
+                localData.gps_satellites = gpsData.satellites;
+                localData.gps_valid = gpsData.valid;
+                localData.gps_gga_fix = gpsData.gga_fix;
+                localData.gps_gsa_fix_mode = gpsData.gsa_fix_mode;
+                localData.gps_rmc_valid = gpsData.rmc_valid;
+
+                if (!parsed) {
+                    localData.gps_error_count++;
+                }
+            }
+        }
+
         // Publish via seqlock (always write, even on IMU failure — council mod #4)
         localData.core1_loop_count = loopCount;
         seqlock_write(&g_sensorSeqlock, &localData);
@@ -821,12 +919,28 @@ static void core1_entry(void) {
             g_jitterSamplesCollected.store(jIdx + 1, std::memory_order_release);
         }
 
-        // NeoPixel: blue/cyan during soak, green when done
+        // NeoPixel state indicator
         uint32_t nowMs = to_ms_since_boot(get_absolute_time());
         if (nowMs - lastNeoMs >= 250) {
             lastNeoMs = nowMs;
             neoState = !neoState;
-            if (g_sensorPhaseDone.load(std::memory_order_acquire)) {
+            // 5-min soak complete → solid magenta (press 's' for results)
+            if ((nowMs - sensorPhaseStartMs) >= 300000) {
+                ws2812_set_mode(WS2812_MODE_SOLID, kColorMagenta);
+            } else if (g_gpsInitialized) {
+                // GPS controls NeoPixel when present
+                if (localData.gps_valid) {
+                    ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen);
+                } else if (localData.gps_read_count > 0) {
+                    // GPS active, no fix — yellow blink
+                    ws2812_set_mode(WS2812_MODE_SOLID,
+                        neoState ? kColorYellow : kColorOff);
+                } else {
+                    // GPS init'd but no reads yet — blue/cyan
+                    ws2812_set_mode(WS2812_MODE_SOLID,
+                        neoState ? kColorBlue : kColorCyan);
+                }
+            } else if (g_sensorPhaseDone.load(std::memory_order_acquire)) {
                 ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen);
             } else {
                 ws2812_set_mode(WS2812_MODE_SOLID,
@@ -979,11 +1093,44 @@ static void print_sensor_status(void) {
             } else {
                 printf("Baro: no data yet\n");
             }
-            printf("IMU reads: %lu, Baro reads: %lu, Errors: I=%lu B=%lu\n",
+            // GPS
+            if (snap.gps_read_count > 0) {
+                if (snap.gps_valid) {
+                    printf("GPS: %.7f, %.7f, %.1f m MSL\n",
+                           snap.gps_lat_1e7 / 1e7,
+                           snap.gps_lon_1e7 / 1e7,
+                           (double)snap.gps_alt_msl_m);
+                    printf("     Fix=%u Sats=%u Speed=%.1f m/s\n",
+                           snap.gps_fix_type, snap.gps_satellites,
+                           (double)snap.gps_ground_speed_mps);
+                } else {
+                    printf("GPS: no fix (type=%u, sats=%u, reads=%lu)\n",
+                           snap.gps_fix_type, snap.gps_satellites,
+                           (unsigned long)snap.gps_read_count);
+                    printf("     RMC=%c GGA=%u GSA=%u\n",
+                           snap.gps_rmc_valid ? 'A' : 'V',
+                           snap.gps_gga_fix,
+                           snap.gps_gsa_fix_mode);
+                    // Show retained last-fix coordinates if any
+                    if (snap.gps_lat_1e7 != 0 || snap.gps_lon_1e7 != 0) {
+                        printf("     Last fix: %.7f, %.7f\n",
+                               snap.gps_lat_1e7 / 1e7,
+                               snap.gps_lon_1e7 / 1e7);
+                    }
+                }
+            } else if (g_gpsInitialized) {
+                printf("GPS: initialized, no reads yet\n");
+            } else {
+                printf("GPS: not detected\n");
+            }
+            printf("Reads: I=%lu B=%lu G=%lu  "
+                   "Errors: I=%lu B=%lu G=%lu\n",
                    (unsigned long)snap.imu_read_count,
                    (unsigned long)snap.baro_read_count,
+                   (unsigned long)snap.gps_read_count,
                    (unsigned long)snap.imu_error_count,
-                   (unsigned long)snap.baro_error_count);
+                   (unsigned long)snap.baro_error_count,
+                   (unsigned long)snap.gps_error_count);
         } else {
             printf("Seqlock read failed (retries exhausted)\n");
         }
@@ -1055,6 +1202,7 @@ static const char* get_device_name(uint8_t addr) {
 
 static void hw_validate_stage1(void) {
     printf("\n=== HW Validation: Stage 1 ===\n");
+    printf("  Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
 
     // IVP-01: Build + boot
     printf("[PASS] Build + boot (you're reading this)\n");
@@ -1083,22 +1231,25 @@ static void hw_validate_stage1(void) {
     }
 
     // IVP-07: I2C device detection
-    // Note: PA1010D GPS (0x10) excluded — probing it triggers I2C bus
-    // interference (Pico SDK #252). Re-add at IVP-31 with proper handling.
-    static const uint8_t expected[] = {
-        kI2cAddrIcm20948,  // 0x69
-        kI2cAddrDps310,    // 0x77
-    };
-    int foundCount = 0;
-    for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); i++) {
-        bool found = i2c_bus_probe(expected[i]);
-        printf("[----] I2C 0x%02X (%s): %s\n",
-               expected[i], get_device_name(expected[i]),
-               found ? "FOUND" : "NOT FOUND");
-        if (found) foundCount++;
+    // Skip I2C probes when Core 1 owns the bus (LL Entry 23: probe collision)
+    if (rc_os_i2c_scan_allowed) {
+        static const uint8_t expected[] = {
+            kI2cAddrIcm20948,  // 0x69
+            kI2cAddrDps310,    // 0x77
+        };
+        int foundCount = 0;
+        for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); i++) {
+            bool found = i2c_bus_probe(expected[i]);
+            printf("[----] I2C 0x%02X (%s): %s\n",
+                   expected[i], get_device_name(expected[i]),
+                   found ? "FOUND" : "NOT FOUND");
+            if (found) foundCount++;
+        }
+        printf("[INFO] Sensors found: %d/%zu expected\n",
+               foundCount, sizeof(expected) / sizeof(expected[0]));
+    } else {
+        printf("[INFO] I2C probe skipped (Core 1 owns bus)\n");
     }
-    printf("[INFO] Sensors found: %d/%zu expected\n",
-           foundCount, sizeof(expected) / sizeof(expected[0]));
 
     // IVP-09: IMU initialization
     if (g_imuInitialized) {
@@ -1117,6 +1268,13 @@ static void hw_validate_stage1(void) {
         printf("[WARN] DPS310 init OK, continuous mode failed\n");
     } else {
         printf("[FAIL] DPS310 init failed\n");
+    }
+
+    // IVP-31: GPS initialization (non-fatal)
+    if (g_gpsInitialized) {
+        printf("[PASS] PA1010D GPS init at 0x10\n");
+    } else {
+        printf("[----] PA1010D GPS not detected (non-fatal)\n");
     }
 
     printf("=== Validation Complete ===\n\n");
@@ -2357,6 +2515,19 @@ int main() {
     // -----------------------------------------------------------------
     g_i2cInitialized = i2c_bus_init();
 
+    // Drain GPS buffer if module is still powered (LiPo keeps it alive
+    // across picotool reboot). The PA1010D autonomously streams NMEA on
+    // I2C — if not drained, this collides with IMU/baro init below.
+    // If GPS is absent (cold boot, no LiPo), the NACK from a 255-byte
+    // read can leave the bus in a bad state — recover after failure.
+    if (g_i2cInitialized) {
+        uint8_t gpsDrain[255];
+        int drainRet = i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
+        if (drainRet <= 0) {
+            i2c_bus_recover();
+        }
+    }
+
     // Sensor power-up settling time
     // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
     sleep_ms(200);
@@ -2376,6 +2547,20 @@ int main() {
         g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
         if (g_baroInitialized) {
             g_baroContinuous = baro_dps310_start_continuous();
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // IVP-31: GPS init (before USB, after I2C)
+    // Non-fatal — boot continues if GPS absent (LL Entry 20)
+    // -----------------------------------------------------------------
+    if (g_i2cInitialized) {
+        g_gpsInitialized = gps_pa1010d_init();
+        if (g_gpsInitialized) {
+            // PA1010D detected on I2C — enable post-read settling delay.
+            // UART GPS (FeatherWing) won't init via gps_pa1010d_init(), so
+            // g_gpsOnI2C stays false and the delay is skipped automatically.
+            g_gpsOnI2C = true;
         }
     }
 
@@ -2407,13 +2592,14 @@ int main() {
     while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
 
     // -----------------------------------------------------------------
-    // Banner
+    // Banner + Hardware Validation
+    // Per DEBUG_OUTPUT.md: print results after USB connect.
+    // hw_validate_stage1() is the canonical boot summary — also
+    // reprintable via 'b' key for late-connecting terminals.
     // -----------------------------------------------------------------
     printf("\n");
     printf("==============================================\n");
     printf("  RocketChip v%s\n", kVersionString);
-    static const char* kBuildTag = "audit-remediation-1";
-    printf("  Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
     printf("  Board: Adafruit Feather RP2350 HSTX\n");
     printf("==============================================\n\n");
 
@@ -2433,57 +2619,7 @@ int main() {
         watchdog_enable(kWatchdogTimeoutMs, true);
     }
 
-    // IVP-05: Debug macros
-    DBG_PRINT("Debug macros functional");
-
-    // IVP-06/07: I2C status and scan
-    if (g_i2cInitialized) {
-        printf("I2C1 initialized at %lukHz on SDA=%d, SCL=%d\n\n",
-               (unsigned long)(kI2cBusFreqHz / 1000), kI2cBusSdaPin, kI2cBusSclPin);
-    } else {
-        printf("ERROR: I2C1 failed to initialize\n\n");
-    }
-    i2c_bus_scan();
-    printf("\n");
-
-    // IVP-09: IMU status
-    if (g_imuInitialized) {
-        printf("ICM-20948 init OK (WHO_AM_I=0xEA)\n");
-        printf("  Accel: +/-%dg, Gyro: +/-%d dps\n",
-               (2 << g_imu.accel_fs), 250 * (1 << g_imu.gyro_fs));
-        printf("  Mag: %s (AK09916 via I2C master)\n",
-               g_imu.mag_initialized ? "OK, continuous 100Hz" : "NOT READY");
-    } else {
-        printf("ICM-20948 init FAILED\n");
-    }
-    printf("\n");
-
-    // IVP-11: Baro status
-    if (g_baroInitialized && g_baroContinuous) {
-        printf("DPS310 init OK, continuous mode (8Hz, 8x OS)\n");
-    } else if (g_baroInitialized) {
-        printf("DPS310 init OK, continuous mode FAILED\n");
-    } else {
-        printf("DPS310 init FAILED\n");
-    }
-    printf("\n");
-
-    // IVP-14: Calibration storage status
-    if (g_calStorageInitialized) {
-        const calibration_store_t* cal = calibration_manager_get();
-        printf("Calibration storage OK (flags=0x%02lX)\n",
-               (unsigned long)cal->cal_flags);
-    } else {
-        printf("Calibration storage FAILED\n");
-    }
-    printf("\n");
-
-    // Post-init I2C scan — verify bus integrity after IMU init
-    printf("Post-init I2C scan (bus integrity check):\n");
-    i2c_bus_scan();
-    printf("\n");
-
-    // Hardware validation
+    // Hardware validation — canonical boot summary (build tag, PASS/FAIL for each subsystem)
     hw_validate_stage1();
 
     // Skip previously verified gates to speed up boot
@@ -2510,6 +2646,16 @@ int main() {
         g_ivp28Done = true;
         printf("[INFO] Skipping IVP-27/28 (verified Session E)\n");
 
+        // Skip IVP-29/30 soak (verified Session E)
+        // Enable watchdog but skip the 5-min soak and gate prints
+        g_ivp29Done = true;
+        g_ivp30Done = true;
+        g_ivp30Active = false;
+        g_testCommandsEnabled = true;
+        g_watchdogEnabled = true;
+        watchdog_enable(kWatchdogTimeoutMs, true);
+        printf("[INFO] Skipping IVP-29/30 soak (verified Session E)\n");
+
         // Send Core 1 directly to sensor loop (bypass Phase 2 spinlock soak)
         multicore_fifo_drain();
         sleep_ms(10);
@@ -2525,6 +2671,7 @@ int main() {
     rc_os_imu_available = g_imuInitialized;
     rc_os_baro_available = g_baroContinuous;
     rc_os_print_sensor_status = print_sensor_status;
+    rc_os_print_boot_summary = hw_validate_stage1;
     rc_os_read_accel = read_accel_for_cal;
     rc_os_cal_pre_hook = cal_pre_hook;
     rc_os_cal_post_hook = cal_post_hook;
@@ -2587,18 +2734,32 @@ int main() {
 
         // NeoPixel owned by Core 1 (IVP-19) — do not call ws2812_update() here
 
-        // IVP-20: Print Core 1 counter every second
-        {
-            static uint32_t lastCounterPrintMs = 0;
-            if (stdio_usb_connected() && (nowMs - lastCounterPrintMs) >= 1000) {
-                uint32_t count = g_core1Counter.load(std::memory_order_acquire);
-                static uint32_t prevCount = 0;
-                uint32_t rate = count - prevCount;
-                printf("Core 1: %lu total, %lu/s\n",
-                       (unsigned long)count, (unsigned long)rate);
-                prevCount = count;
-                lastCounterPrintMs = nowMs;
+        // IVP-20 Core 1 rate verification: gate passed.
+        // Rate visible via 's' key (sensor status) and IVP-30 soak output.
+
+        // IVP-31 Gate 5: Raw NMEA from Core 1 (one-time print)
+        if (g_gpsInitialized && !g_nmeaCapturePrinted
+            && g_nmeaCaptureReady.load(std::memory_order_acquire)) {
+            g_nmeaCapturePrinted = true;
+            uint32_t readTimeUs = g_gpsReadTimeUs.load(
+                std::memory_order_relaxed);
+            printf("\n=== IVP-31: GPS Integration Gates ===\n");
+            printf("[PASS] PA1010D init OK at 0x10\n");
+            printf("[INFO] GPS I2C read time: %lu us (%.1f ms)\n",
+                   (unsigned long)readTimeUs,
+                   readTimeUs / 1000.0);
+            if (readTimeUs >= 4000 && readTimeUs <= 8000) {
+                printf("[PASS] GPS read time in range (4-8 ms)\n");
+            } else if (readTimeUs > 8000) {
+                printf("[WARN] GPS read time > 8ms — investigate\n");
             }
+            printf("\n--- Gate 5: Raw NMEA (Core 1 path) ---\n");
+            for (uint32_t i = 0; i < kNmeaCaptureSlots; i++) {
+                printf("[%lu] %s\n", (unsigned long)i,
+                       g_nmeaCapture[i]);
+            }
+            printf("--- End NMEA capture ---\n");
+            printf("=== IVP-31 Gates Complete ===\n\n");
         }
 
         // IVP-21: Spinlock soak — read shared struct under lock
