@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-09-007 | Claude Code CLI | documentation
+
+**IVP plan expansion: Phase M magnetometer calibration + Stage 5 sensor fusion flesh-out**
+
+Added Phase M (IVP-34 through IVP-38) — 5 magnetometer calibration IVPs with full ArduPilot CompassCalibrator parity (sphere-coverage, two-step Levenberg-Marquardt, ellipsoid fit). Renumbered all downstream IVPs +5 (Stage 5: IVP-39-48, Stage 6: IVP-49-53, Stage 7: IVP-54-58, Stage 8: IVP-59-63, Stage 9: IVP-64-68). Fleshed out all 10 Stage 5 IVPs with full implementation specs: Vec3/Quaternion library, matrix operations, 1D baro KF, ESKF propagation (Sola 2017), baro/mag/GPS measurement updates, Mahony AHRS, MMAE bank manager, confidence gate. Updated cross-references in AGENT_WHITEBOARD.md, PROJECT_STATUS.md, VENDOR_GUIDELINES.md.
+
+(`docs/IVP.md`, `AGENT_WHITEBOARD.md`, `docs/PROJECT_STATUS.md`, `standards/VENDOR_GUIDELINES.md`)
+
+---
+
 ### 2026-02-09-006 | Claude Code CLI | refactor
 
 **Strip IVP test code from production codebase**

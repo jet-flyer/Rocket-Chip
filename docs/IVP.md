@@ -13,7 +13,8 @@ This document defines the step-by-step integration order for RocketChip firmware
 
 **This is a living document:**
 - **Stages 1-4** (Foundation, Sensors, Dual-Core, GPS): Fully detailed
-- **Stage 5** (Sensor Fusion): Moderate detail, some TBDs
+- **Phase M** (Magnetometer Calibration): Fully detailed — added out-of-sequence to correct a missed Phase 3 dependency (see note below)
+- **Stage 5** (Sensor Fusion): Fully detailed
 - **Stages 6-9** (Mission Engine, Logging, Telemetry, Integration): Placeholders expanded as earlier stages complete
 
 **Key references (not duplicated here):**
@@ -91,11 +92,12 @@ cmake --build build/
 | 2 | Single-Core Sensors | Phase 2 | IVP-09 — IVP-18 | Full | **Minimum Viable Demo** |
 | 3 | Dual-Core Integration | Phase 2 | IVP-19 — IVP-30 | Full | |
 | 4 | GPS Navigation | Phase 3 | IVP-31 — IVP-33 | Full | |
-| 5 | Sensor Fusion | Phase 4 | IVP-34 — IVP-43 | Moderate | |
-| 6 | Mission Engine | Phase 5 | IVP-44 — IVP-48 | Placeholder | **Crowdfunding Demo Ready** |
-| 7 | Data Logging | Phase 6 | IVP-49 — IVP-53 | Placeholder | |
-| 8 | Telemetry | Phase 7 | IVP-54 — IVP-58 | Placeholder | |
-| 9 | System Integration | Phase 9 | IVP-59 — IVP-63 | Placeholder | **Flight Ready** |
+| **M** | **Magnetometer Calibration** | **Phase 3** | **IVP-34 — IVP-38** | **Full** | **(out-of-sequence)** |
+| 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-48 | Full | |
+| 6 | Mission Engine | Phase 5 | IVP-49 — IVP-53 | Placeholder | **Crowdfunding Demo Ready** |
+| 7 | Data Logging | Phase 6 | IVP-54 — IVP-58 | Placeholder | |
+| 8 | Telemetry | Phase 7 | IVP-59 — IVP-63 | Placeholder | |
+| 9 | System Integration | Phase 9 | IVP-64 — IVP-68 | Placeholder | **Flight Ready** |
 
 ---
 
@@ -788,117 +790,851 @@ PMSAv8 configuration:
 
 ---
 
+## Phase M: Magnetometer Calibration (Out-of-Sequence)
+
+**Purpose:** Full compass calibration with ArduPilot-parity ellipsoid fit. Corrects a missed Phase 3 dependency — IVP-44 (ESKF Mag Heading Update) requires completed magnetometer calibration, but no mag calibration was included in the original plan. GPS (Stage 4) is already validated; Phase M slots in before sensor fusion begins.
+
+**Why "Phase M":** This phase was added out-of-sequence after Stages 1-4 were completed. The "M" designation marks this as a corrective insertion for a missed dependency. IVP numbering is inline (IVP-34 through IVP-38) with downstream stages renumbered +5 accordingly.
+
+**ArduPilot parity target:** The calibration algorithm matches ArduPilot's `CompassCalibrator` class (two-step Levenberg-Marquardt with sphere-coverage acceptance). This is one of ArduPilot's key reliability features — the sphere-coverage constraint ensures uniform sample distribution, preventing degenerate fits from planar or clustered data.
+
+**Prior art:** Previous implementation on the `AP_FreeRTOS` branch reached milestone 4 of 5 (synthetic test passing, hardware test with LIS3MDL). Key lessons from that branch: CompassCalibrator is ~3KB+ (must be static, LL Entry 1), `report.ofs` is the correction offset (negative of hard iron), `thin_samples()` stalls Step 2 if sample feeding stops, and near-PC magnetic interference causes `fit_acceptable()` rejections.
+
+**Hardware setup for mag calibration:** Disconnect baro (DPS310) and GPS (PA1010D) from the Qwiic chain during calibration. Only the ICM-20948 (IMU + AK09916 magnetometer) is needed. This eliminates I2C bus contention and frees bandwidth for optional OLED display feedback.
+
+**AK09916 magnetometer specs (via ICM-20948 I2C master):**
+- Resolution: 0.15 uT/LSB
+- Measurement range: +/-4900 uT
+- Continuous mode 4: 100Hz
+- Noise: ~0.1 uT RMS (per AKM datasheet)
+- Expected field magnitude: 25-65 uT (varies by location)
+
+---
+
+### IVP-34: Magnetometer Calibration Data Structure + Storage
+
+**Prerequisites:** IVP-14 (calibration storage), IVP-17 (6-pos accel cal — same model)
+
+**Implement:**
+
+1. **Add `mag_cal_t` struct to `calibration_data.h`:**
+   ```cpp
+   typedef struct {
+       cal_vec3_t offset;      ///< Hard iron offset in uT (add to raw)
+       cal_vec3_t scale;       ///< Soft iron diagonal scale factors
+       cal_vec3_t offdiag;     ///< Soft iron off-diagonal terms (XY, XZ, YZ)
+       float expected_radius;  ///< Expected field magnitude in uT (from fit)
+       float temperature_ref;  ///< Temperature at calibration time (C)
+       uint8_t status;         ///< CAL_STATUS_MAG if calibrated
+       uint8_t _pad[3];
+   } mag_cal_t;  // 48 bytes
+   ```
+   This uses the identical 9-parameter model as `accel_cal_t` (offset + diag + offdiag), matching ArduPilot's `CompassCalibrator::param_t`. The `expected_radius` stores the fitted sphere radius for post-calibration validation.
+
+2. **Add `mag_cal_t mag;` field to `calibration_store_t`:**
+   Place after `baro_cal_t baro;`. Total struct size increases from ~132 to ~180 bytes (within 256-byte flash page limit). Bump `kCalibrationVersion` from 2 to 3. The version bump triggers `calibration_init_defaults()` for the mag field on first boot after update — existing accel/gyro/baro calibrations are preserved via the migration path in `calibration_load()`.
+
+3. **Add `calibration_apply_mag()` and `calibration_apply_mag_with()` functions:**
+   Same signature pattern as existing `calibration_apply_accel()` / `calibration_apply_accel_with()`:
+   ```cpp
+   void calibration_apply_mag(float mx_raw, float my_raw, float mz_raw,
+                               float* mx_cal, float* my_cal, float* mz_cal);
+   void calibration_apply_mag_with(const calibration_store_t* cal,
+                                    float mx_raw, float my_raw, float mz_raw,
+                                    float* mx_cal, float* my_cal, float* mz_cal);
+   ```
+   Correction formula: `corrected = M * (raw + offset)` where M is the symmetric 3x3 matrix with scale (diagonal) and offdiag terms — identical to the accel correction in `calibration_apply_accel()`.
+
+**[GATE]:**
+- `sizeof(calibration_store_t) <= 256` (static_assert passes)
+- `kCalibrationVersion == 3`
+- Default mag cal: offset={0,0,0}, scale={1,1,1}, offdiag={0,0,0}, expected_radius=0
+- Apply identity cal to raw mag data: output equals input
+- Save/load cycle with mag data: values persist across power cycle
+- Upgrade from v2 calibration: accel/gyro/baro fields preserved, mag initialized to defaults
+
+**[DIAG]:** Static_assert fails = struct padding. Check alignment of new field. Load fails after version bump = migration path in `calibration_load()` not handling v2→v3.
+
+---
+
+### IVP-35: Sphere-Coverage Sample Collection Engine
+
+**Prerequisites:** IVP-34, IVP-10 (IMU data validated — AK09916 mag data available)
+
+**Implement:**
+
+1. **Static sample buffer:**
+   ```cpp
+   static float g_mag_samples[300][3];  // 3.6KB — same pattern as g_6pos_samples
+   static uint16_t g_mag_sample_count = 0;
+   ```
+   300 samples matches ArduPilot's `COMPASS_CAL_DEFAULT_BUFFER_LENGTH`. Buffer is static (LL Entry 1).
+
+2. **Sphere-coverage acceptance criterion (ArduPilot parity):**
+   Each new sample must have minimum angular separation from ALL existing samples. The threshold is computed from a circle-packing formula:
+   ```
+   min_angular_separation = acos(1 - 2/N)  where N = current sample count
+   ```
+   This produces ~8.3 degrees at 300 samples. Samples that are too close to existing samples are rejected — this forces the user to rotate the device to cover the full sphere.
+
+   The angular separation is computed as:
+   ```cpp
+   float dot = (s1[0]*s2[0] + s1[1]*s2[1] + s1[2]*s2[2]) / (len1 * len2);
+   float angle = acosf(fmaxf(-1.0f, fminf(1.0f, dot)));  // clamp for numerical safety
+   if (angle < min_sep) reject;
+   ```
+
+3. **Geodesic completion mask (80 sections, 10 bytes):**
+   ArduPilot uses an icosahedron with 4 subdivisions (20 faces x 4 = 80 sections) to track which regions of the sphere have been covered. Each section maps to 1 bit in a `uint8_t[10]` mask. Progress = popcount(mask) / 80. This provides meaningful progress feedback rather than raw sample count.
+
+   Section lookup: normalize sample vector, map to icosahedron face via dot product with 20 face normals, then subdivide within face.
+
+4. **Sample feed function:**
+   ```cpp
+   // Returns true if sample was accepted, false if too close to existing
+   bool calibration_feed_mag_sample(float mx, float my, float mz);
+   uint16_t calibration_get_mag_sample_count(void);
+   uint8_t calibration_get_mag_completion_pct(void);  // 0-100 from geodesic mask
+   ```
+
+**[GATE]:**
+- Feed 300 samples from uniform spherical distribution (synthetic): all accepted, completion 100%
+- Feed 300 samples from a plane (e.g., only rotating around Z): rejected after ~20, completion stays low (~15%)
+- Feed duplicate samples: rejected (angular separation check)
+- Sample count never exceeds 300
+- Completion percentage tracks actual sphere coverage (not just sample count)
+- Memory: verify `g_mag_samples` is in BSS, not stack
+
+**[DIAG]:** All samples rejected = threshold too high. Check units (radians, not degrees). Completion stuck at low percentage = device not being rotated through enough orientations. Synthetic test should use Fibonacci sphere sampling for uniform distribution.
+
+---
+
+### IVP-36: Two-Step Levenberg-Marquardt Compass Fit
+
+**Prerequisites:** IVP-35, IVP-17 (existing Gauss-Newton solver — reusable Jacobian math)
+
+**Implement:**
+
+ArduPilot's compass calibration uses a two-step process. Both steps use the same Levenberg-Marquardt (damped least-squares) optimizer but with different parameter sets.
+
+1. **Step 1: Sphere fit (4 parameters, 10 iterations)**
+   - Parameters: `[offset_x, offset_y, offset_z, radius]`
+   - Residual: `r_i = radius - |sample_i + offset|`
+   - Initial guess: offset = -mean(samples), radius = mean(|samples + offset|)
+   - LM damping: lambda starts at 1.0, multiply by 10 on worse fit, divide by 10 on better fit
+   - This finds the hard iron offset (dominant error source)
+
+2. **Fisher-Yates thinning between steps:**
+   After Step 1 converges, thin the sample buffer from N to `N * 2/3` using Fisher-Yates shuffle. This removes correlated samples and improves Step 2 convergence. ArduPilot's `thin_samples()` implementation.
+
+3. **Step 2: Ellipsoid fit (9 parameters, 20 iterations)**
+   - Parameters: `[offset_x, offset_y, offset_z, diag_x, diag_y, diag_z, offdiag_xy, offdiag_xz, offdiag_yz]`
+   - Residual: `r_i = radius - |M * (sample_i + offset)|` where M is symmetric 3x3
+   - Initial guess: offsets from Step 1, diag = {1,1,1}, offdiag = {0,0,0}
+   - Same LM damping as Step 1
+   - **The Jacobian math is identical to `calc_jacobian_6pos()` in `calibration_manager.cpp`** — the 9 partial derivatives are the same for any ellipsoid fit
+
+4. **Parameter bounds checking (ArduPilot parity):**
+   ```
+   radius:  15.0 - 95.0 uT (equiv. AP's 150-950 mGauss)
+   diag:    0.2 - 5.0 (each axis)
+   offdiag: |value| < 1.0
+   offsets: |value| < 85.0 uT (equiv. AP's 2000 mGauss / 2.39)
+   ```
+   If any parameter exceeds bounds after convergence, return `CAL_RESULT_FIT_FAILED`.
+
+5. **Fitness metric:**
+   ```
+   fitness = sqrt(sum(residuals^2) / N)
+   ```
+   ArduPilot considers fitness < 50 mGauss (≈ 5.0 uT) as acceptable. The fitness value quantifies the RMS deviation from the fitted ellipsoid — lower means better calibration.
+
+**Reusable code from `calibration_manager.cpp`:**
+- `forward_eliminate()` and `back_substitute()` — Gaussian elimination for normal equation solve
+- Jacobian computation — same 9 partial derivatives
+- Static 9x9 matrix operations — no heap allocation
+
+**New code needed:**
+- LM damping wrapper (add lambda to diagonal of J^T*J before solving)
+- 4-parameter sphere fit (simpler Jacobian than the 9-param version)
+- `thin_samples()` Fisher-Yates shuffle
+- Parameter bounds validation
+- Two-step orchestration: sphere_fit → thin → ellipsoid_fit → validate
+
+**[GATE]:**
+- Synthetic test: generate 300 samples on known ellipsoid (offset=[10,-5,20] uT, scale=[1.1,0.95,1.05], offdiag=[0.02,-0.01,0.03]), add 0.1 uT noise
+  - Step 1 (sphere) converges in <10 iterations
+  - Step 2 (ellipsoid) converges in <20 iterations
+  - Recovered offset within 0.5 uT of truth
+  - Recovered scale within 0.05 of truth
+  - Fitness < 1.0 uT
+- Parameter bounds: out-of-range synthetic data returns `CAL_RESULT_FIT_FAILED`
+- **Benchmark on target:** Full fit (both steps) < 100ms on Cortex-M33 at 150MHz
+- No heap allocation during fit (all static arrays)
+- Existing accel 6-pos calibration unaffected (regression test IVP-17)
+
+**[DIAG]:** Step 1 diverges = initial guess bad, check mean computation. Step 2 diverges = LM lambda not growing fast enough, or Step 1 result was poor. Fitness too high = inadequate sphere coverage (IVP-35 acceptance was too lax), or significant magnetic interference during collection. Regression in accel cal = shared code modified incorrectly.
+
+**[LL]:** Entry 1 (static allocation for large objects), Entry 21 (I2C master disable during calibration)
+
+---
+
+### IVP-37: Interactive Compass Calibration CLI
+
+**Prerequisites:** IVP-36, IVP-18 (CLI infrastructure), IVP-35 (sample collection)
+
+**Implement:**
+
+1. **CLI command `m` in calibration submenu:**
+   ```
+   === Compass Calibration ===
+   Rotate the device slowly through all orientations.
+   Cover the full sphere - pitch, roll, and yaw in all combinations.
+   Progress shows sphere coverage (not just sample count).
+
+   Disconnect baro and GPS from Qwiic chain before starting.
+   Only ICM-20948 (IMU + mag) should be connected.
+
+   Press ENTER to start, 'x' to cancel...
+   ```
+
+2. **Pre-calibration hook:** Call `icm20948_set_i2c_master_enable(&g_imu, false)` to disable autonomous I2C master mag reads. Then switch AK09916 to single-measurement mode and read mag data directly via I2C master commands. This prevents the bank-switching race condition (LL Entry 21) during the high-rate sampling needed for calibration.
+
+   Alternative (simpler): Keep I2C master enabled in continuous 100Hz mode and just read the EXT_SENS_DATA registers. The bank-switching race only manifests at >10Hz external read rates, and we're reading at ~20Hz for calibration. **Decision: use continuous mode, read at 20Hz** — simpler, sufficient, and the race wasn't triggered at rates below ~50Hz in IVP-17 testing.
+
+3. **Sample collection loop (runs on Core 0 during calibration):**
+   ```
+   while (sample_count < 300 && !cancelled) {
+       // Read mag from Core 1 seqlock (not direct I2C)
+       read mag sample from seqlock snapshot;
+       bool accepted = calibration_feed_mag_sample(mx, my, mz);
+       if (accepted) {
+           update NeoPixel progress (blue→green gradient);
+           print progress every 10 accepted samples;
+       }
+       sleep_ms(50);  // ~20Hz collection rate
+   }
+   ```
+
+   Core 1 continues its normal sensor loop (IMU + mag at 100Hz via I2C master). Core 0 reads mag data from the seqlock at 20Hz for calibration. No I2C bus ownership conflict — Core 1 owns the bus throughout.
+
+4. **NeoPixel progress feedback:**
+   - Collecting: blue pulsing, brightness proportional to completion %
+   - Sample accepted: brief green flash
+   - Fit running: yellow solid
+   - Success: green solid for 3 seconds
+   - Failed: red solid for 3 seconds
+
+5. **Post-collection: run fit and validate:**
+   ```
+   printf("Computing fit (%d samples)...\n", sample_count);
+   cal_result_t result = calibration_compute_mag();
+   if (result == CAL_RESULT_OK) {
+       printf("Compass calibration OK!\n");
+       printf("  Offset: [%.2f, %.2f, %.2f] uT\n", ...);
+       printf("  Scale:  [%.3f, %.3f, %.3f]\n", ...);
+       printf("  Fitness: %.2f uT\n", fitness);
+       calibration_save();
+   } else {
+       printf("Calibration FAILED: %s\n", result_string);
+   }
+   ```
+
+6. **Post-calibration hook:** Restore I2C master to normal operation if it was modified.
+
+**[GATE]:**
+- `m` command accessible from calibration menu
+- NeoPixel shows progress during collection
+- Device rotation through arbitrary orientations → progress increases
+- Sitting still → progress stalls (sphere coverage not increasing)
+- Full rotation coverage (~1-2 minutes): 300 samples collected, fit runs
+- Fit result printed with offset, scale, offdiag, fitness
+- Calibration saved to flash, persists across power cycle
+- `x` cancels cleanly at any point, restores normal operation
+- Core 1 sensor loop uninterrupted throughout calibration
+- Scripted test (partial — Python sends `c` then `m`, verifies "Compass Calibration" banner):
+  ```python
+  port.write(b'c'); time.sleep(0.3)
+  port.write(b'm'); time.sleep(0.5)
+  response = port.read(4000).decode()
+  assert 'Compass Calibration' in response
+  port.write(b'x')  # Cancel
+  ```
+
+**[DIAG]:** Progress stuck at 0 = mag data all zeros (AK09916 not in continuous mode, or I2C master disabled and not re-enabled). Fit fails consistently = near-PC magnetic interference (move away from computer, monitor, speakers). NeoPixel not updating = `ws2812_status_update()` not called in the collection loop.
+
+**[LL]:** Entry 21 (I2C master bank-switching race), Entry 6 (WS2812 begin() required)
+
+---
+
+### IVP-38: Mag Calibration Applied to Live Data + Validation
+
+**Prerequisites:** IVP-37 (successful calibration stored), IVP-25 (Core 1 sensor loop)
+
+**Implement:**
+
+1. **Core 1 applies mag calibration to live sensor data:**
+   In the Core 1 sensor loop, after reading raw mag data from ICM-20948, apply calibration via `calibration_apply_mag_with()` before writing to seqlock. This matches the existing pattern where gyro bias and accel calibration are applied on Core 1 before publishing.
+
+   Core 1 loads calibration data once at startup via `calibration_load_into(&local_cal)` — same as existing accel/gyro calibration loading.
+
+2. **CLI `s` (status) command shows calibrated mag data:**
+   ```
+   Mag: [12.3, -5.1, 42.7] uT  |M| = 45.2 uT  [CAL OK]
+   ```
+   Display calibrated X/Y/Z components and total magnitude. Compare magnitude to `expected_radius` from calibration — if within 15%, show `[CAL OK]`, otherwise `[CAL WARN]`.
+
+3. **Heading computation (for display only, not used in ESKF yet):**
+   ```cpp
+   float heading_deg = atan2f(-my_cal, mx_cal) * 180.0f / M_PI;
+   if (heading_deg < 0) heading_deg += 360.0f;
+   ```
+   This is tilt-uncorrected magnetic heading. Tilt compensation requires accel data and will be done properly in IVP-44 (ESKF mag update). This simple heading is useful for visual validation — rotate the device and heading should track smoothly.
+
+4. **Validation test:** Rotate device 360 degrees around vertical axis. Calibrated magnitude should remain approximately constant (within 5 uT of expected_radius). Heading should increase monotonically through 0-360 degrees. Before calibration, magnitude varies significantly and heading is erratic.
+
+**[GATE]:**
+- CLI `s` shows calibrated mag with `[CAL OK]` status
+- Calibrated magnitude stable within +/-5 uT during rotation (vs raw which varies +/-15-30 uT uncalibrated)
+- Heading tracks 0-360 degrees smoothly during yaw rotation
+- Heading returns to approximately same value (+/-5 degrees) after full 360-degree rotation
+- Core 1 IMU rate unchanged (mag calibration apply is ~10 multiplies + 6 adds, negligible)
+- Power cycle: calibration persists, calibrated output resumes immediately
+- Raw vs calibrated comparison (rotate and compare): calibrated clearly superior
+- No regressions in accel/gyro calibration application
+
+**[DIAG]:** Magnitude varies widely after cal = poor calibration (insufficient sphere coverage, or strong local interference during cal). Heading jumps = off-diagonal terms wrong sign. Calibration not loading on Core 1 = `calibration_load_into()` failing (check version/CRC).
+
+---
+
 ## Stage 5: Sensor Fusion
 
-**Purpose:** ESKF sensor fusion, incrementally: math library, then simple baro filter, then full 15-state ESKF, then MMAE bank. See `docs/decisions/ESKF/FUSION_ARCHITECTURE.md`.
+**Purpose:** ESKF sensor fusion, incrementally: math library, then simple baro filter, then full 15-state ESKF, then MMAE bank. See `docs/decisions/ESKF/FUSION_ARCHITECTURE.md` and `docs/decisions/ESKF/FUSION_ARCHITECTURE_DECISION.md`.
 
 **Prerequisite decision:** All numerical parameters in this stage (state counts, filter counts, process noise values, measurement noise values, convergence thresholds) are preliminary. Each must be derived from datasheets, Sola (2017), and empirical tuning. Do not hardcode without justification.
 
+**Platform constraints (from research):**
+- **RP2350 FPU is single-precision only** (FPv5-SP). Double-precision is 20-50x slower (software emulation). All filter math MUST use `float`, not `double`.
+- **CMSIS-DSP is NOT included in Pico SDK 2.2.0** — only Core stubs (`arm_math_types.h`). Use plain C/C++ float math initially. CMSIS-DSP can be added later as a submodule if benchmarks warrant it.
+- **Total ESKF static RAM budget:** ~4-6KB (P covariance matrix 15x15 = 900 bytes, nominal state = 64 bytes, error state = 60 bytes, F/Q/K working matrices ~3KB).
+- **Joseph form covariance update mandatory** for single-precision numerical stability. Standard `P = (I - KH)P` loses positive-definiteness in float32 within minutes.
+- **Sequential scalar measurement updates** eliminate need for matrix inverse — process one measurement component at a time, reducing the 15x15 inverse to scalar divisions.
+
+**Execution model:** ESKF runs on Core 0, reading sensor data from the seqlock written by Core 1. Fusion rate target: 200Hz (Core tier), up to 400Hz (Titan tier). Core 1 continues 1kHz IMU / 50Hz baro / 10Hz GPS sampling independently.
+
+**Reference:** Solà, J. "Quaternion kinematics for the error-state Kalman filter" (2017) — primary reference for all ESKF equations in this stage.
+
 ---
 
-### IVP-34: Vector3 and Quaternion Math Library
+### IVP-39: Vector3 and Quaternion Math Library
 
 **Prerequisites:** IVP-01
 
-**Implement:** `src/math/Vector3.h`, `src/math/Quaternion.h`. Operations: add, subtract, cross, dot, normalize, quaternion multiply/conjugate/rotate/from_euler/to_euler.
+**Implement:** `src/math/vec3.h`, `src/math/quat.h`. All `float` (no `double`). Header-only or header + `.cpp` — keep simple.
 
-**[GATE]:** Unit tests (host-compiled, with ASan/UBSan) pass with float tolerance. Edge cases: zero vector normalize, identity quaternion, 90-degree rotations. Run on host first, then verify on target.
+1. **Vec3 operations:**
+   - Construct, add, subtract, negate
+   - Scalar multiply/divide
+   - Dot product, cross product
+   - Length, length_squared, normalize (handle zero-length gracefully — return zero vector, not NaN)
+   - Element access: `.x`, `.y`, `.z`
 
----
+2. **Quaternion operations (Hamilton convention, scalar-first `[w, x, y, z]`):**
+   - Construct from `w,x,y,z` and from axis-angle
+   - Multiply (Hamilton product), conjugate, inverse
+   - Normalize (required after every propagation step to prevent drift)
+   - Rotate Vec3: `q.rotate(v)` = `q * [0,v] * q*`
+   - `from_euler(roll, pitch, yaw)` and `to_euler()` (ZYX convention)
+   - `from_two_vectors(v1, v2)` — quaternion that rotates v1 to v2 (needed for init)
+   - `to_rotation_matrix()` — 3x3 DCM (needed for ESKF F_x matrix)
 
-### IVP-35: Matrix Operations
-
-**Prerequisites:** IVP-34
-
-**Implement:** `src/math/Matrix.h` — multiply, transpose, add, subtract, inverse (up to 15x15), Cholesky decomposition. May wrap CMSIS-DSP `arm_matrix_instance_f32`.
-
-**[GATE]:** Unit tests for known matrices (host-compiled first, then target). **Benchmark on target:** 15x15 multiply = Xus (record — informs ESKF timing budget). Cholesky of known positive-definite matrix matches expected result.
-
----
-
-### IVP-36: 1D Barometric Altitude Kalman Filter
-
-**Prerequisites:** IVP-35, IVP-12, IVP-25
-
-**Implement:** 2-state (altitude, vertical velocity) Kalman filter using baro. Runs on Core 0. Process noise and measurement noise values: `⚠️ VALIDATE` — derive from DPS310 datasheet noise floor and empirical baro variance measured in IVP-12.
-
-**[GATE]:** Raise device 1 meter — filter reports ~1m change with less noise than raw baro. Velocity transitions from zero to positive to zero. Converges within reasonable time after boot (record actual convergence time).
-
----
-
-### IVP-37: ESKF Propagation (IMU-Only)
-
-**Prerequisites:** IVP-35, IVP-34, IVP-25
-
-**Implement:** ESKF nominal state propagation (accel + gyro). `⚠️ VALIDATE 15-state` error covariance prediction. No measurement updates yet. Process noise Q matrix values: `⚠️ VALIDATE` — derive from ICM-20948 datasheet noise density specs.
+3. **Error-state specific:**
+   - `quat_from_small_angle(Vec3 delta_theta)` — first-order quaternion from rotation vector: `q ≈ [1, δθ/2]` normalized. This is the core ESKF operation for error injection.
 
 **[GATE]:**
-- Stationary: attitude drift measured and recorded (expected `⚠️ VALIDATE <5 degrees` over 30 seconds)
-- Rotate 90 degrees: tracks correctly (within `⚠️ VALIDATE 10 degrees`)
-- **Benchmark execution time per step** on target (record — informs fusion rate)
-- No NaN in state vector or covariance matrix
+- Host-compiled unit tests (with ASan/UBSan) pass with `float` tolerance (1e-5 relative)
+- Edge cases: zero vector normalize → zero vector (no NaN), identity quaternion multiply, 90° and 180° rotations
+- `quat_from_small_angle([0,0,0])` → identity quaternion
+- Euler round-trip: `from_euler(r,p,y).to_euler()` recovers `r,p,y` (avoiding gimbal lock at ±90° pitch)
+- Quaternion rotation matches DCM rotation for same vector
+- Cross-compile for RP2350: no `double` literals, no `<cmath>` double overloads — use `sqrtf`, `atan2f`, `sinf`, `cosf`
+- Binary size delta recorded
 
-**Reference:** Sola (2017) "Quaternion kinematics for the error-state Kalman filter"
-
----
-
-### IVP-38: ESKF Barometric Altitude Update
-
-**Prerequisites:** IVP-37, IVP-36
-
-**Implement:** Baro measurement update for altitude and vertical velocity correction. Measurement noise R: `⚠️ VALIDATE` — derive from DPS310 spec and IVP-12 measurements.
-
-**[GATE]:** Altitude tracks raw baro with reduced noise. Raise 1m: error measured and recorded. No divergence over 5 minutes.
+**[DIAG]:** NaN in quaternion ops = not normalizing after multiply. Rotation seems backwards = conjugate convention wrong (Hamilton vs JPL). Euler angles wrong = ZYX vs XYZ ordering mismatch.
 
 ---
 
-### IVP-39: ESKF Magnetometer Heading Update
+### IVP-40: Matrix Operations
 
-**Prerequisites:** IVP-37
+**Prerequisites:** IVP-39
 
-**Implement:** Mag measurement update for yaw correction. Requires completed mag calibration. Mag noise values: `⚠️ VALIDATE` — derive from AK09916 noise spec.
+**Implement:** `src/math/mat.h` — compile-time-sized matrix using templates or fixed sizes. Operations needed for 15-state ESKF:
 
-**[GATE]:** Yaw drift measured when stationary (record rate). 360-degree rotation returns to approximate original. Recovers from nearby magnetic interference.
+1. **Core operations:**
+   - Multiply (MxN * NxP → MxP), transpose, add, subtract
+   - Scalar multiply
+   - Identity matrix construction
+   - Element access: `m(row, col)` or `m[row][col]`
+
+2. **ESKF-specific operations:**
+   - **Symmetric matrix multiply:** `A * B * A^T` (used for covariance propagation `P = F*P*F^T + Q`) — optimize for symmetric P
+   - **Joseph form update:** `P = (I - K*H) * P * (I - K*H)^T + K*R*K^T` — numerically stable covariance update
+   - **Scalar measurement update:** For sequential updates, H is a row vector, R is a scalar. The Kalman gain simplifies to: `K = P*H^T / (H*P*H^T + r)` — no matrix inverse needed, just a scalar division
+   - **Cholesky decomposition** (lower triangular): for generating sigma points if UKF cross-check is ever added, and for covariance conditioning checks
+
+3. **Storage:** Static arrays, no heap. Working matrices allocated as `static` locals or file-scope globals.
+
+4. **Size configurations needed:**
+   - 15x15 (P covariance, F transition, Q process noise)
+   - 15x1 (error state vector, Kalman gain for scalar updates)
+   - 3x3 (rotation matrices, small covariance blocks)
+   - Arbitrary up to 15x15
+
+**[GATE]:**
+- Host-compiled unit tests: known matrix multiplications, transpose, identity
+- `A * A_inverse ≈ I` for well-conditioned matrices (float tolerance)
+- Joseph form produces same result as standard update for well-conditioned case, stays positive-definite when standard form doesn't (test with ill-conditioned P)
+- Cholesky of known positive-definite matrix matches expected L
+- **Benchmark on target:** 15x15 multiply = Xµs (record — informs ESKF timing budget). Target: <50µs per 15x15 multiply at 150MHz
+- Symmetric multiply `F*P*F^T` for 15x15: Xµs (record — this is the dominant ESKF cost)
+- No `double` anywhere — verify with `grep -r "double" src/math/`
+- Binary size delta recorded
+
+**[DIAG]:** Slow benchmark = check for accidental `double` promotion (literal `1.0` instead of `1.0f`). Cholesky fails = matrix not positive definite (check inputs). NaN propagation = check for division by zero in scalar update denominator.
 
 ---
 
-### IVP-40: Mahony AHRS Cross-Check
+### IVP-41: 1D Barometric Altitude Kalman Filter
 
-**Prerequisites:** IVP-37
+**Prerequisites:** IVP-40, IVP-12, IVP-25
 
-**Implement:** Independent Mahony AHRS on same sensor data, running alongside ESKF. Kp/Ki gains: `⚠️ VALIDATE` — reference Mahony (2008) and tune empirically.
+**Implement:** `src/fusion/baro_kf.h/.cpp` — 2-state (altitude, vertical velocity) linear Kalman filter using baro pressure. Runs on Core 0 at 50Hz (matching baro update rate from Core 1 seqlock). This is the educational stepping stone before the full ESKF — proves the math library works end-to-end on real sensor data.
 
-**[GATE]:** Attitude difference ESKF vs Mahony measured during normal operation (record). Reconverges after fast rotation. Alarm threshold: `⚠️ VALIDATE` — determine empirically from divergence during known-good operation.
+1. **State vector:** `x = [altitude_m, vertical_velocity_m_s]^T` (2x1)
+
+2. **Process model (constant velocity):**
+   ```
+   F = [1  dt]    Q = [dt^4/4  dt^3/2] * q_accel
+       [0   1]        [dt^3/2  dt^2  ]
+   ```
+   where `dt = 1/50` (50Hz) and `q_accel` is the process noise power spectral density for vertical acceleration. Initial `q_accel`: `⚠️ VALIDATE` — start with 0.1 m/s², tune empirically. This represents expected unmodeled vertical acceleration.
+
+3. **Measurement model:**
+   ```
+   H = [1  0]     z = barometric_altitude_m (from calibration_get_altitude_agl())
+   R = sigma_baro^2
+   ```
+   `sigma_baro`: `⚠️ VALIDATE` — derive from DPS310 datasheet pressure noise (~0.6 Pa RMS at 64x oversampling) converted to altitude noise via barometric formula (~0.05m at sea level). Measure empirically in IVP-12 if not already recorded.
+
+4. **Altitude from pressure:** Use existing `calibration_get_altitude_agl()` which applies the hypsometric formula with ground pressure reference from baro calibration.
+
+5. **Joseph form update** (not standard form) — practice for the full ESKF.
+
+**[GATE]:**
+- Device stationary: altitude estimate stable, noise < raw baro noise (quantify both)
+- Raise device ~1 meter slowly: filter tracks altitude change within 0.2m, velocity transitions 0→positive→0
+- Drop 0.5m quickly: velocity responds, altitude tracks (may lag slightly — record settling time)
+- Convergence after boot: reaches steady-state within `⚠️ VALIDATE 5 seconds`
+- No divergence over 5 minutes continuous operation
+- No NaN, covariance stays positive (P[0][0] > 0, P[1][1] > 0)
+- **Measure filter execution time** per step (record — expected <5µs for 2-state)
+
+**[DIAG]:** Filter diverges = Q too small (trusting model too much) or R too small (trusting measurement too much). Altitude offset = ground pressure reference not set (run baro calibration first). Velocity noisy = Q too large.
 
 ---
 
-### IVP-41: GPS Measurement Update
+### IVP-42: ESKF Propagation (IMU-Only)
 
-**Prerequisites:** IVP-38, IVP-33
+**Prerequisites:** IVP-40, IVP-39, IVP-25
 
-**Implement:** GPS position + velocity measurement updates to ESKF. GPS noise R matrix: `⚠️ VALIDATE` — derive from PA1010D position accuracy spec and HDOP.
+**Implement:** `src/fusion/eskf.h/.cpp` — 15-state Error-State Kalman Filter, propagation only (no measurement updates). Runs on Core 0, reading IMU data from seqlock. This step establishes the nominal state propagation and error covariance prediction.
 
-**[GATE]:** TBD — requires outdoor testing. Position converges to GPS. Velocity matches GPS ground speed. Record actual convergence time.
+1. **Nominal state (16 elements, propagated nonlinearly):**
+   ```
+   x_nom = [q(4), p(3), v(3), a_bias(3), g_bias(3)]
+   ```
+   - `q`: attitude quaternion (body-to-NED, Hamilton convention, scalar-first)
+   - `p`: position in NED frame (m) — initialized to [0,0,0], updated by GPS later
+   - `v`: velocity in NED frame (m/s) — initialized to [0,0,0]
+   - `a_bias`: accelerometer bias (m/s²) — initialized from calibration
+   - `g_bias`: gyroscope bias (rad/s) — initialized from calibration
+
+2. **Nominal state propagation (per Sola §5.3):**
+   ```
+   q ← q ⊗ q{(ω - g_bias) * dt}     // integrate angular velocity
+   v ← v + (R(q) * (a - a_bias) - g) * dt   // rotate accel to NED, subtract gravity
+   p ← p + v * dt + 0.5 * (R(q) * (a - a_bias) - g) * dt²
+   ```
+   where `R(q)` = rotation matrix from body to NED, `g = [0, 0, 9.81]^T`.
+
+3. **Error state (15 elements):**
+   ```
+   δx = [δθ(3), δp(3), δv(3), δa_bias(3), δg_bias(3)]
+   ```
+   Note: attitude error uses rotation vector (3 elements), NOT quaternion (4 elements). This is the key advantage of ESKF — the error state is minimal and avoids quaternion constraint.
+
+4. **Error state transition matrix F_x (15x15, per Sola §5.3.3):**
+   ```
+   F_x = I + F_δ * dt
+   ```
+   where F_δ contains the Jacobian blocks:
+   - `∂δθ/∂δθ = -[ω]_×` (skew-symmetric of angular rate)
+   - `∂δv/∂δθ = -R(q) * [a - a_bias]_×` (accel sensitivity to attitude error)
+   - `∂δv/∂δa_bias = -R(q)` (accel bias effect on velocity)
+   - `∂δθ/∂δg_bias = -I` (gyro bias effect on attitude)
+   - All other blocks are zero or identity
+
+5. **Process noise Q (15x15):**
+   Derived from IMU noise density specs (ICM-20948 datasheet):
+   - Gyro noise: `σ_g = 0.015 °/s/√Hz` = `⚠️ VALIDATE 2.62e-4 rad/s/√Hz`
+   - Accel noise: `σ_a = 230 µg/√Hz` = `⚠️ VALIDATE 2.26e-3 m/s²/√Hz`
+   - Gyro bias random walk: `⚠️ VALIDATE 1e-5 rad/s²/√Hz` (estimated — no datasheet spec, tune empirically)
+   - Accel bias random walk: `⚠️ VALIDATE 1e-4 m/s³/√Hz` (estimated — tune empirically)
+   ```
+   Q = diag(σ_g² * dt, 0, σ_a² * dt, σ_ab² * dt, σ_gb² * dt)
+   ```
+   (Actual Q construction per Sola §5.2.4 — continuous-time noise integrated over dt)
+
+6. **Covariance propagation:**
+   ```
+   P ← F_x * P * F_x^T + Q
+   ```
+
+7. **NED frame initialization:** On first valid accel reading (device stationary), compute initial quaternion:
+   - Pitch from accel: `pitch = atan2(-ax, sqrt(ay² + az²))`
+   - Roll from accel: `roll = atan2(ay, az)`
+   - Yaw: set to 0 initially (mag heading correction comes in IVP-44)
+   - Initial P: large diagonal values for attitude (`⚠️ VALIDATE 0.1 rad²`), position (`⚠️ VALIDATE 100 m²`), velocity (`⚠️ VALIDATE 1 m²/s²`), biases (`⚠️ VALIDATE` from calibration uncertainty)
+
+8. **Error state reset:** After measurement updates (future IVPs), inject error into nominal and reset:
+   ```
+   q ← q ⊗ q{δθ}
+   p ← p + δp
+   v ← v + δv
+   a_bias ← a_bias + δa_bias
+   g_bias ← g_bias + δg_bias
+   δx ← 0
+   ```
+   Also apply the reset Jacobian G to covariance: `P ← G * P * G^T` (Sola §7.2). For small angles, G ≈ I (can skip initially but must add before flight).
+
+**Memory:**
+- Nominal state: 16 floats = 64 bytes
+- Error state: 15 floats = 60 bytes
+- P matrix: 15x15 = 900 bytes
+- F_x matrix: 15x15 = 900 bytes (can be computed in-place)
+- Q matrix: 15x15 = 900 bytes (sparse — can optimize to diagonal)
+- Working space: ~1KB
+- **Total: ~3.8KB static** (within 4-6KB budget)
+
+**[GATE]:**
+- Stationary on flat surface: attitude estimate = [0, 0, 0] roll/pitch/yaw (within ±2°). Drift rate measured and recorded over 30 seconds — expected `⚠️ VALIDATE <5° total` (gyro-only, no corrections)
+- Rotate 90° around one axis: tracks correctly within `⚠️ VALIDATE 10°`
+- Velocity integrates correctly: move device ~1m, velocity transitions from zero to positive to zero (will drift without GPS — expected and acceptable for this step)
+- P matrix diagonal stays positive throughout (no negative variance)
+- No NaN or Inf in any state or covariance element
+- **Benchmark execution time per propagation step** on target: record µs. Target: `⚠️ VALIDATE <100µs` per step at 150MHz (informing fusion rate feasibility)
+- Quaternion norm stays within 1.0 ± 1e-4 after 10,000 steps (normalization working)
+- CLI `s` command displays fused attitude (roll/pitch/yaw in degrees)
+
+**[DIAG]:** Attitude immediately wrong = NED frame init bad (check accel signs, gravity direction convention). Rapid divergence = F_x Jacobian error (check skew-symmetric construction). P grows unboundedly = Q too large or F_x incorrect. NaN = quaternion not normalized, or division by zero in rotation matrix. Benchmark too slow = accidental `double` math.
+
+**[LL]:** Entry 1 (static allocation for matrices)
 
 ---
 
-### IVP-42: MMAE Bank Manager (Titan Tier)
+### IVP-43: ESKF Barometric Altitude Update
 
-**Prerequisites:** IVP-37, IVP-38, IVP-39
+**Prerequisites:** IVP-42, IVP-41
 
-**Implement:** `⚠️ VALIDATE 4-6` parallel ESKFs with different process model hypotheses. Weighting via innovation likelihood.
+**Implement:** Add barometric altitude measurement update to the ESKF. This is the first measurement update — uses the sequential scalar technique to avoid matrix inverse.
 
-**[GATE]:** TBD — requires motion profiles. Nominal hypothesis dominates during static conditions. Anomaly (covered baro port) shifts weight to non-nominal hypothesis.
+1. **Measurement model:**
+   ```
+   z = altitude_agl (from baro)
+   h(x) = -p_d (down component of NED position, negated for altitude-up)
+   H = [0 0 0 | 0 0 -1 | 0 0 0 | 0 0 0 | 0 0 0]  (1x15 row vector)
+   ```
+   H selects the down-position error state and negates it.
+
+2. **Sequential scalar update (no matrix inverse):**
+   ```
+   innovation = z - h(x_nom)
+   S = H * P * H^T + R        // scalar (1x1)
+   K = P * H^T / S             // 15x1 column vector
+   δx = K * innovation         // 15x1 error state correction
+   ```
+   Then apply Joseph form:
+   ```
+   IKH = I - K * H             // 15x15
+   P = IKH * P * IKH^T + K * R * K^T
+   ```
+
+3. **Innovation gating:** Reject baro measurements where `|innovation| > 3 * sqrt(S)`. Logs rejection count. Prevents bad baro data (e.g., occluded port) from corrupting the filter.
+
+4. **Measurement noise R (scalar):**
+   `R = sigma_baro_alt²` — `⚠️ VALIDATE` from DPS310 noise spec and empirical measurement. Expected ~0.05-0.1m altitude noise at 64x oversampling. Can use the variance measured in IVP-41's standalone baro KF.
+
+5. **Error state injection and reset** (per IVP-42 step 8): apply δx to nominal state, reset δx and covariance.
+
+**[GATE]:**
+- Device stationary: altitude tracks baro with reduced noise (compare ESKF altitude variance vs raw baro variance, ESKF should be lower)
+- Raise device 1m: filter reports ~1m change, settles within `⚠️ VALIDATE 2 seconds`
+- Innovation gate: cover baro port briefly — innovations grow, gate rejects measurements, filter coasts on IMU, P grows. Uncover port — filter reconverges
+- No divergence over 5 minutes
+- P stays positive-definite throughout (check diagonal elements)
+- Combined propagation + update benchmark: Xµs (record)
+- Compare against standalone baro KF (IVP-41) — ESKF altitude should be comparable or better
+
+**[DIAG]:** Altitude offset = NED frame sign convention wrong (NED down is positive, altitude up is negative position). Innovation always large = H vector wrong or measurement model wrong. P collapses to zero = Joseph form not implemented correctly. Filter doesn't respond to baro = K is zero (P too small, or R too large).
 
 ---
 
-### IVP-43: Confidence Gate (Titan Tier)
+### IVP-44: ESKF Magnetometer Heading Update
 
-**Prerequisites:** IVP-42, IVP-40
+**Prerequisites:** IVP-42, IVP-38 (calibrated mag data on Core 1)
 
-**Implement:** Evaluate MMAE weights + AHRS divergence. Output confidence flag to mission engine.
+**Implement:** Add magnetometer heading measurement update to the ESKF. This corrects yaw drift that accel and baro cannot observe.
 
-**[GATE]:** TBD — define "uncertain" threshold. Gate correctly flags uncertainty during intentional anomalies.
+1. **Measurement model (heading-only, not full vector):**
+   Use tilt-compensated magnetic heading as the measurement, not the raw 3D mag vector. This decouples mag from roll/pitch (which accel already observes):
+   ```
+   // Rotate calibrated mag vector to level frame using current attitude
+   m_level = R(q)^T * m_cal     // or equivalently, apply roll/pitch correction
+   heading_measured = atan2(-m_level.y, m_level.x)
+   heading_predicted = yaw from q
+   innovation = wrap_pi(heading_measured - heading_predicted)
+   ```
+   The `wrap_pi()` ensures the innovation stays in [-π, π] to avoid discontinuity at ±180°.
+
+2. **H vector (1x15):** Jacobian of heading with respect to error state. Only the yaw component of δθ is non-zero:
+   ```
+   H ≈ [0 0 1 | 0...0]  (simplified — full derivation in Sola §6.2)
+   ```
+   The exact H depends on current attitude but for small errors and level flight, the yaw-only approximation is adequate.
+
+3. **Measurement noise R (scalar):**
+   `R = sigma_mag_heading²` — `⚠️ VALIDATE` — derive from AK09916 noise (0.1 µT RMS, ~0.15 µT/LSB) converted to heading noise at current field strength. At 45 µT total field: σ_heading ≈ 0.1/45 ≈ 0.002 rad ≈ 0.13°. In practice, soft iron residuals dominate — start with `⚠️ VALIDATE σ_heading = 5°` (0.087 rad) and tune.
+
+4. **Magnetic interference detection:** If calibrated mag magnitude deviates >25% from `expected_radius` stored in calibration, increase R by 10x (reduce trust in mag when in anomalous field). Log occurrences.
+
+5. **Update rate:** `⚠️ VALIDATE 10Hz` — mag is low-rate, high-latency. Running at IMU rate wastes compute and risks overweighting mag.
+
+**[GATE]:**
+- Stationary: yaw drift rate with mag updates < `⚠️ VALIDATE 0.1°/min` (vs several degrees/min without)
+- Rotate 360° around vertical: heading tracks smoothly, returns to start within `⚠️ VALIDATE ±5°`
+- Bring magnet near device: interference detected (R inflated), filter coasts, yaw drifts slowly. Remove magnet: filter reconverges within `⚠️ VALIDATE 10 seconds`
+- Innovation gate rejects gross outliers
+- Compare heading from ESKF vs simple `atan2` heading from IVP-38 — ESKF should be smoother
+
+**[DIAG]:** Heading 90° or 180° off = axis convention mismatch (NED vs ENU, or body-frame X/Y swap). Heading oscillates = R too small (overweighting noisy mag). Heading doesn't converge = R too large or H Jacobian wrong. Innovation always wraps = `wrap_pi()` not applied.
+
+---
+
+### IVP-45: Mahony AHRS Cross-Check
+
+**Prerequisites:** IVP-42
+
+**Implement:** `src/fusion/mahony_ahrs.h/.cpp` — independent attitude estimator running alongside ESKF. Lightweight PI controller on orientation error. Uses same IMU data from seqlock but maintains its own quaternion. Provides the independent cross-check required by the confidence gate (IVP-48).
+
+1. **Algorithm (Mahony 2008):**
+   ```
+   // Error from gravity reference
+   v_hat = R(q)^T * [0, 0, 1]           // predicted gravity in body frame
+   e_accel = a_meas × v_hat              // cross product = rotation error
+
+   // Error from mag reference (optional, when mag calibrated)
+   h = R(q) * m_cal                       // mag in NED frame
+   b = [sqrt(hx² + hy²), 0, hz]          // reference field (horizontal + vertical)
+   e_mag = m_cal × (R(q)^T * b)          // mag rotation error
+
+   // PI controller
+   integral += Ki * (e_accel + e_mag) * dt
+   omega_corrected = omega_meas + Kp * (e_accel + e_mag) + integral
+
+   // Integrate corrected angular rate
+   q ← q ⊗ q{omega_corrected * dt}
+   normalize(q)
+   ```
+
+2. **Gains:** `Kp = ⚠️ VALIDATE 2.0`, `Ki = ⚠️ VALIDATE 0.005`. Start with Mahony's recommended values. Higher Kp = faster convergence but more noise. Lower Ki = less bias correction.
+
+3. **Accel gating:** Skip accel correction when `|a| > ⚠️ VALIDATE 1.2g` or `|a| < ⚠️ VALIDATE 0.8g`. During boost, accel does not point at gravity — using it corrupts attitude. This is critical for flight.
+
+4. **Output:** Quaternion → roll/pitch/yaw. Compare against ESKF attitude every update cycle. Report maximum divergence.
+
+5. **Divergence metric:**
+   ```
+   angle_diff = 2 * acos(|q_eskf · q_mahony|)   // quaternion angular distance
+   ```
+
+**[GATE]:**
+- Stationary: Mahony attitude within `⚠️ VALIDATE ±2°` of ESKF attitude
+- Slow rotation: divergence < `⚠️ VALIDATE 5°`
+- Fast rotation: divergence may temporarily grow, then reconverges within `⚠️ VALIDATE 5 seconds`
+- Accel gating: move device rapidly (>1.2g): accel correction disabled, attitude still tracks via gyro integration
+- **Benchmark:** Mahony update time = Xµs (record — expected <10µs, much lighter than ESKF)
+- Divergence printed in CLI `s` output: `AHRS diff: X.X°`
+
+**[DIAG]:** Large steady-state divergence = gain mismatch or different gravity convention between ESKF and Mahony. Mahony oscillates = Kp too high. Mahony drifts = Ki too low or gyro bias not tracked.
+
+---
+
+### IVP-46: GPS Measurement Update
+
+**Prerequisites:** IVP-43, IVP-33
+
+**Implement:** Add GPS position and velocity measurement updates to the ESKF. GPS provides the only absolute position reference — without it, position drifts indefinitely on IMU integration alone. Requires outdoor testing.
+
+1. **NED frame origin establishment:**
+   On first valid 3D GPS fix, record the WGS84 geodetic coordinates as the NED frame origin:
+   ```
+   lat0 = gps_lat_1e7 / 1e7 * DEG_TO_RAD
+   lon0 = gps_lon_1e7 / 1e7 * DEG_TO_RAD
+   alt0 = gps_alt_msl_m
+   ```
+   All subsequent GPS positions are converted to NED relative to this origin using the standard geodetic-to-NED conversion (flat-earth approximation is adequate for model rocketry distances):
+   ```
+   north = (lat - lat0) * R_earth
+   east  = (lon - lon0) * R_earth * cos(lat0)
+   down  = -(alt - alt0)
+   ```
+   Store origin in filter state. Reset origin on ARM (flight state machine, Stage 6) or on user command.
+
+2. **Position measurement update (3 sequential scalar updates):**
+   ```
+   H_north = [0 0 0 | 1 0 0 | 0 0 0 | ...]  // selects north position error
+   H_east  = [0 0 0 | 0 1 0 | 0 0 0 | ...]
+   H_down  = [0 0 0 | 0 0 1 | 0 0 0 | ...]
+   ```
+   Process each component sequentially (north, then east, then down), updating P between each. R for each component: `sigma_pos² = ⚠️ VALIDATE (HDOP * CEP95_to_sigma)²`. PA1010D CEP 95% = ~3m. At HDOP=1: σ ≈ 1.5m horizontal, σ_vert ≈ 2x horizontal.
+
+3. **Velocity measurement update (2 sequential scalar updates):**
+   GPS provides ground speed and track angle, not NED velocity components directly. Convert:
+   ```
+   v_north = ground_speed * cos(track_angle)
+   v_east  = ground_speed * sin(track_angle)
+   ```
+   Vertical velocity from GPS is unreliable — skip it, let baro + IMU handle vertical velocity. R for velocity: `sigma_vel² = ⚠️ VALIDATE 0.5² m²/s²` (derived from GPS velocity accuracy spec).
+
+4. **Innovation gating:** Reject GPS measurements where any innovation exceeds `⚠️ VALIDATE 5 * sqrt(S)`. Log rejections. Prevents multipath-corrupted fixes from damaging the filter.
+
+5. **Update rate:** Match GPS rate from Core 1 seqlock — 10Hz. Only update when `gps_read_count` has incremented since last update (new fix available).
+
+6. **Stationary detection pseudo-measurement:** When `ground_speed < ⚠️ VALIDATE 0.3 m/s` AND accel magnitude is within ±0.1g of gravity AND gyro rates < 0.02 rad/s for > 2 seconds: apply zero-velocity pseudo-measurement `v = [0,0,0]` with tight R (`⚠️ VALIDATE 0.01 m²/s²`). This dramatically reduces position drift when stationary and accelerates filter convergence after boot.
+
+**[GATE]:** (outdoor testing required)
+- First GPS fix: NED origin established, position starts tracking
+- Walk 10m north: ESKF position tracks GPS with less noise than raw GPS
+- Walk in a square: return to start within `⚠️ VALIDATE ±3m` of origin
+- Stationary: position drift < `⚠️ VALIDATE 1m` over 5 minutes (with GPS)
+- Innovation gate: enter building (GPS degrades) — gate rejects, filter coasts on IMU
+- Return outdoors: filter reconverges to GPS
+- Zero-velocity detection: stationary device shows near-zero velocity and minimal position drift
+- GPS dropout: disable GPS, verify ESKF continues on IMU only (position drifts but attitude stable)
+- All position and velocity values displayed in CLI `s` output
+
+**[DIAG]:** Position jumps = innovation gate threshold too loose. Slow convergence = R too large. Position spirals = NED frame convention wrong (lat/lon to north/east mapping). Velocity noisy = GPS velocity noise underestimated.
+
+---
+
+### IVP-47: MMAE Bank Manager (Titan Tier)
+
+**Prerequisites:** IVP-42, IVP-43, IVP-44
+
+**Implement:** `src/fusion/mmae.h/.cpp` — Multiple Model Adaptive Estimation bank. Runs `⚠️ VALIDATE 4` parallel ESKF instances, each with a different process model hypothesis. The MMAE bank determines which hypothesis best matches reality and reports the weighted fused state.
+
+1. **Hypothesis interface:**
+   ```cpp
+   struct flight_hypothesis_t {
+       const char* name;                    // e.g., "nominal_ascent"
+       void (*predict_Q)(float dt, float state[15], float Q[15][15]);  // process noise for this regime
+       float (*expected_accel_mag)(void);    // expected accel magnitude
+       float (*expected_baro_rate)(void);    // expected altitude rate
+       bool  (*is_plausible)(const float state[16]);  // basic sanity check
+   };
+   ```
+   Each hypothesis modifies the process noise Q to reflect expected dynamics. For example, "on_ground" hypothesis has very low Q for velocity/position (shouldn't be moving), while "boost" has high Q for velocity (rapid acceleration expected).
+
+2. **Rocketry hypothesis library (initial set):**
+   - **On-ground:** low Q_velocity, low Q_position, accel ≈ 1g
+   - **Boost:** high Q_velocity, moderate Q_position, accel > 1g
+   - **Coast:** moderate Q_velocity, moderate Q_position, accel < 1g (drag)
+   - **Descent:** moderate Q_velocity, negative altitude rate expected
+
+3. **MMAE weighting (Bayesian likelihood):**
+   ```
+   For each filter j:
+       L_j = exp(-0.5 * innovation_j^T * S_j^-1 * innovation_j) / sqrt(det(S_j))
+       w_j = w_j_prev * L_j
+   Normalize: w_j = w_j / sum(w_k)
+   ```
+   The filter whose innovations are smallest (best predicting measurements) gets the highest weight.
+
+4. **Fused output:**
+   ```
+   x_fused = sum(w_j * x_nom_j)           // weighted nominal states
+   P_fused = sum(w_j * (P_j + (x_j - x_fused)(x_j - x_fused)^T))  // includes spread of means
+   ```
+   For quaternion averaging, use the eigenvector method or iterative mean (simple weighted average of quaternion components with normalization for small differences).
+
+5. **Memory:** 4 parallel ESKFs × ~3.8KB = ~15.2KB. Within RP2350's 520KB SRAM budget but significant. All static allocation.
+
+**[GATE]:**
+- Static bench: "on_ground" hypothesis dominates (>90% weight)
+- Simulate boost (rapid upward accel on sensor): "boost" hypothesis weight increases within `⚠️ VALIDATE 0.5 seconds`
+- Cover baro port (anomalous pressure): hypothesis that doesn't trust baro gains weight
+- Fused state is a smooth blend — no discontinuities during hypothesis transitions
+- **Benchmark:** Full bank update (4 filters × propagation + update) = Xµs (record). Must fit within `⚠️ VALIDATE 2ms` at 200Hz
+- Weight history logged for post-analysis
+- CLI `s` shows active hypothesis name and weight distribution
+
+**[DIAG]:** All weights equal = all hypotheses have similar Q (not differentiated enough). One hypothesis always dominates = others have wrong expected dynamics. Benchmark too slow = simplify hypotheses or reduce to 3 filters. Memory too large = consider smaller P representation (diagonal P approximation for non-dominant hypotheses).
+
+---
+
+### IVP-48: Confidence Gate (Titan Tier)
+
+**Prerequisites:** IVP-47, IVP-45
+
+**Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates MMAE bank health and AHRS cross-check to produce a binary confidence flag consumed by the Mission Engine (Stage 6). This is the platform safety layer — it is NOT configurable by Mission profiles.
+
+1. **Confidence conditions (ALL must be true for `confident = true`):**
+   - **Dominant hypothesis:** max(w_j) > `⚠️ VALIDATE 0.6` — at least one filter clearly explains the data
+   - **AHRS agreement:** quaternion angular distance between ESKF fused and Mahony AHRS < `⚠️ VALIDATE 15°`
+   - **Covariance health:** max diagonal of P_fused < `⚠️ VALIDATE` threshold (position < 100m², velocity < 10 m²/s², attitude < 0.5 rad²)
+   - **Innovation consistency:** no filter has sustained innovation > 3σ for more than `⚠️ VALIDATE 5 seconds`
+
+2. **Output:**
+   ```cpp
+   struct confidence_output_t {
+       bool confident;                  // safe to execute irreversible actions
+       float max_hypothesis_weight;     // dominant hypothesis weight
+       float ahrs_divergence_deg;       // ESKF vs Mahony angle
+       uint32_t time_since_confident_ms; // 0 when confident, counts up when not
+       const char* dominant_hypothesis; // name of leading hypothesis
+   };
+   ```
+
+3. **Mission Engine integration:** When `confident = false`:
+   - Pyro channels LOCKED (cannot fire)
+   - TVC commands ZEROED (neutral position)
+   - Status LED: orange pulsing
+   - Telemetry: UNCERTAIN flag set
+   - If uncertain for > `⚠️ VALIDATE 30 seconds` during descent: execute safe fallback (deploy drogue if not already deployed)
+
+4. **Hysteresis:** Transition from confident→uncertain requires `⚠️ VALIDATE 3` consecutive failing evaluations (debounce). Transition back requires `⚠️ VALIDATE 5` consecutive passing evaluations (conservative).
+
+**[GATE]:**
+- Normal operation: confidence flag = true, dominant hypothesis clear
+- Cover baro port: confidence drops as no hypothesis cleanly explains data. Actions locked
+- Uncover: confidence recovers within `⚠️ VALIDATE 15 seconds`
+- Bring magnet near: AHRS divergence grows, may trip confidence gate
+- Both ESKF and Mahony normal: confident = true
+- Introduce sustained innovation outlier: confidence flag transitions to false after debounce
+- CLI shows confidence state, dominant hypothesis, AHRS divergence, time since last confident
+- **No false confidence losses** during normal bench operation over 10 minutes
+
+**[DIAG]:** Always uncertain = thresholds too tight. Never uncertain = thresholds too loose or test conditions not anomalous enough. Flapping between confident/uncertain = hysteresis too short. Safe fallback doesn't trigger = mission engine not consuming the flag (Stage 6 integration).
 
 ---
 
@@ -910,13 +1646,13 @@ PMSAv8 configuration:
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-44 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
-| IVP-45 | Event Engine | Condition evaluator for launch, apogee, landing detection |
-| IVP-46 | Action Executor | LED, beep, logging trigger actions on state transitions |
-| IVP-47 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
-| IVP-48 | Mission Configuration | Load mission definitions (rocket, freeform) |
+| IVP-49 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
+| IVP-50 | Event Engine | Condition evaluator for launch, apogee, landing detection |
+| IVP-51 | Action Executor | LED, beep, logging trigger actions on state transitions |
+| IVP-52 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
+| IVP-53 | Mission Configuration | Load mission definitions (rocket, freeform) |
 
-> **Milestone:** At IVP-48 completion, the system has calibrated sensors, GPS, sensor fusion, and a working flight state machine — **Crowdfunding Demo Ready**.
+> **Milestone:** At IVP-53 completion, the system has calibrated sensors, GPS, sensor fusion, and a working flight state machine — **Crowdfunding Demo Ready**.
 
 ---
 
@@ -926,11 +1662,11 @@ PMSAv8 configuration:
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-49 | LittleFS Integration | Mount filesystem on remaining flash |
-| IVP-50 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
-| IVP-51 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
-| IVP-52 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
-| IVP-53 | USB Data Download | Download flight logs via CLI |
+| IVP-54 | LittleFS Integration | Mount filesystem on remaining flash |
+| IVP-55 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
+| IVP-56 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
+| IVP-57 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
+| IVP-58 | USB Data Download | Download flight logs via CLI |
 
 ---
 
@@ -940,11 +1676,11 @@ PMSAv8 configuration:
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-54 | RFM95W Radio Driver | SPI-based LoRa radio init, TX/RX |
-| IVP-55 | MAVLink Encoder | Heartbeat, attitude, GPS, system status messages |
-| IVP-56 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
-| IVP-57 | GCS Compatibility | QGroundControl / Mission Planner connection |
-| IVP-58 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
+| IVP-59 | RFM95W Radio Driver | SPI-based LoRa radio init, TX/RX |
+| IVP-60 | MAVLink Encoder | Heartbeat, attitude, GPS, system status messages |
+| IVP-61 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
+| IVP-62 | GCS Compatibility | QGroundControl / Mission Planner connection |
+| IVP-63 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
 
 ---
 
@@ -954,13 +1690,13 @@ PMSAv8 configuration:
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-59 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
-| IVP-60 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
-| IVP-61 | Power Budget Validation | Battery runtime validation under flight load |
-| IVP-62 | Environmental Stress | Temperature range, vibration (if available) |
-| IVP-63 | Flight Test | Bungee-launched glider: full data capture + telemetry |
+| IVP-64 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
+| IVP-65 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
+| IVP-66 | Power Budget Validation | Battery runtime validation under flight load |
+| IVP-67 | Environmental Stress | Temperature range, vibration (if available) |
+| IVP-68 | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
-> **Milestone:** IVP-63 — **Flight Ready**.
+> **Milestone:** IVP-68 — **Flight Ready**.
 
 ---
 
@@ -978,10 +1714,11 @@ Tests to re-run after changes to specific areas.
 | Calibration code change | IVP-15 — IVP-17 | Calibration accuracy |
 | USB/CLI code change | IVP-04, IVP-18, IVP-27 | USB stability |
 | GPS driver change | IVP-31 — IVP-33 | GPS + integration |
-| Fusion algorithm change | IVP-36 — IVP-43 | Filter correctness |
-| Mission engine change | IVP-44 — IVP-48 | State machine correctness |
+| Mag calibration code change | IVP-34 — IVP-38, IVP-17 | Mag cal + accel cal regression |
+| Fusion algorithm change | IVP-39 — IVP-48 | Filter correctness |
+| Mission engine change | IVP-49 — IVP-53 | State machine correctness |
 | **Major refactor** | **All Stage 1-3** | Full regression |
-| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-59 | Release qualification (build, USB, flash, watchdog, bench test) |
+| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-64 | Release qualification (build, USB, flash, watchdog, bench test) |
 
 ---
 

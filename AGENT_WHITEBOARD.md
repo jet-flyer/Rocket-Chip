@@ -31,7 +31,7 @@ Adding new `std::atomic` static globals to `main.cpp` causes ~30-80% IMU I2C err
 
 ### ICM-20948 I2C Bypass Mode Migration
 
-Council recommended migrating from I2C master mode to bypass mode (ArduPilot's approach) before IVP-36 (ESKF). Eliminates bank-switching race (LL Entry 21). Currently mitigated by disabling I2C master during calibration.
+Council recommended migrating from I2C master mode to bypass mode (ArduPilot's approach) before IVP-42 (ESKF Propagation). Eliminates bank-switching race (LL Entry 21). Currently mitigated by disabling I2C master during calibration.
 
 See: ArduPilot `AP_InertialSensor_Invensensev2.cpp`, ICM-20948 `INT_PIN_CFG` register `I2C_BYPASS_EN` bit.
 
@@ -47,7 +47,7 @@ See: ArduPilot `AP_InertialSensor_Invensensev2.cpp`, ICM-20948 `INT_PIN_CFG` reg
 
 | Document | Priority | Needed By |
 |----------|----------|-----------|
-| DPS310 datasheet (Infineon) | HIGH | IVP-36 (ESKF noise tuning) |
+| DPS310 datasheet (Infineon) | HIGH | IVP-41 (ESKF 1D baro KF) |
 | RFM95W / SX1276 datasheet (Semtech) | MEDIUM | Stage 8 (telemetry) |
 
 Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
@@ -61,7 +61,7 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 - **F' Evaluation:** Three Titan paths identified (A: STM32H7+F'/Zephyr, B: Pi Zero 2 W+F'/Linux, C: Hybrid). Research complete in `docs/decisions/TITAN_BOARD_ANALYSIS.md`. Decision deferred until Titan development begins.
 - **FeatherWing UART GPS:** Adafruit 3133 (PA1616D) on hand. Eliminates I2C contention. New `gps_uart.cpp` driver needed. `g_gpsOnI2C` flag already in place. Blocked on user soldering.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
-- **ArduPilot LED Patterns:** Map NeoPixel to AP standard codes at IVP-46 (state machine). Known NeoPixel green-transition bug deferred to same IVP.
+- **ArduPilot LED Patterns:** Map NeoPixel to AP standard codes at IVP-51 (state machine). Known NeoPixel green-transition bug deferred to same IVP.
 - **clang-tidy Integration:** LLVM installed, 127-check config active, first full audit complete (2026-02-09). **All code fully remediated** across 6 phases (P1-P5f, 1,251 total findings). IVP test code stripped — zero deferred findings. Pre-commit enforcement deferred to next cycle.
 
 ---

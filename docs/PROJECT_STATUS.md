@@ -6,7 +6,7 @@
 
 **Stage 4 COMPLETE** — GPS Integration
 
-All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI displays all GPS data from seqlock. Next: Stage 5 ESKF sensor fusion (IVP-34+).
+All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI displays all GPS data from seqlock. Next: Phase M magnetometer calibration (IVP-34+), then Stage 5 ESKF sensor fusion (IVP-39+).
 
 ## Completed
 
@@ -25,7 +25,7 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 
 ## In Progress
 
-**Stage 4 COMPLETE.** Next: Stage 5 ESKF sensor fusion (IVP-34: Vector3/Quaternion math library)
+**Stage 4 COMPLETE.** Next: Phase M magnetometer calibration (IVP-34: Mag cal data structure + storage)
 
 ## Blockers
 
@@ -33,7 +33,7 @@ None.
 
 ## Reference
 
-- `docs/IVP.md` — Full 64-step integration plan with verification gates
+- `docs/IVP.md` — Full 68-step integration plan with verification gates (includes Phase M mag cal)
 - `docs/SAD.md` — Software Architecture Document
 - `docs/SCAFFOLDING.md` — Directory structure and file listing
 - `standards/CODING_STANDARDS.md` — Platform constraints

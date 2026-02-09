@@ -17,7 +17,7 @@ Local copies prevent broken links and ensure offline access. Store PDFs in `lib/
 | Component | Datasheet | Local Copy | Notes |
 |-----------|-----------|------------|-------|
 | ICM-20948 | TDK InvenSense DS-000189 v1.3 | `lib/icm20948/ref/datasheet_ICM-20948-v1.3.pdf` | Includes AK09916 mag register map |
-| DPS310 | Infineon | **MISSING** | Needed for ESKF noise tuning (IVP-36) |
+| DPS310 | Infineon | **MISSING** | Needed for ESKF noise tuning (IVP-41) |
 | PA1010D / MT3333 | GlobalTop FGPMMOPA6H / CDTop | **MISSING** | Module datasheet |
 | PA1010D I2C protocol | GlobalTop "NMEA over I2C" app note | **MISSING** | Available at sparkfun.com (see URLs below) |
 | PA1010D I2C protocol | Quectel L76-L I2C App Note V1.0 | **MISSING** | Same MT3333 chipset, same protocol |
@@ -76,7 +76,7 @@ The internal I2C master autonomously reads the AK09916 magnetometer at ~100Hz us
 
 ## DPS310 (Infineon) — Barometer
 
-**Datasheet:** MISSING — acquire before IVP-36 (ESKF noise tuning)
+**Datasheet:** MISSING — acquire before IVP-41 (ESKF noise tuning)
 **I2C Address:** `0x77` (SDO floating/low). Alternate `0x76`.
 **Driver:** `lib/ruuvi.dps310.c` (proven third-party wrapper)
 
