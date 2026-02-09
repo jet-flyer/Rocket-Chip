@@ -1272,9 +1272,9 @@ static void hw_validate_stage1(void) {
 
     // IVP-31: GPS initialization (non-fatal)
     if (g_gpsInitialized) {
-        printf("[PASS] PA1010D GPS init at 0x10\n");
+        printf("[PASS] PA1010D GPS init at 0x10 (I2C mode, 500us settling delay active)\n");
     } else {
-        printf("[----] PA1010D GPS not detected (non-fatal)\n");
+        printf("[----] GPS not detected on I2C (delay disabled)\n");
     }
 
     printf("=== Validation Complete ===\n\n");
