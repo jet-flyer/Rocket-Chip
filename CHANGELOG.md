@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-09-001 | Claude Code CLI | documentation
+
+**Trim tracking documents — collapse completed sections**
+
+Cleaned up PROJECT_STATUS.md (completed stages → summary table), AGENT_WHITEBOARD.md (erased resolved flags, compacted deferred items into bullet list), AUDIT_REMEDIATION.md (line-by-line fix tables → summary). Net -365 lines. No information lost — per-IVP detail remains in IVP.md, audit detail in STANDARDS_AUDIT_2026-02-07.md.
+
+(`docs/PROJECT_STATUS.md`, `AGENT_WHITEBOARD.md`, `standards/AUDIT_REMEDIATION.md`)
+
+---
+
 ### 2026-02-08-006 | Claude Code CLI | feature
 
 **IVP-32/33: GPS outdoor validation + CLI integration (Phase 4 complete)**
