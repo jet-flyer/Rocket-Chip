@@ -66,6 +66,9 @@ rc_os_cal_hook_fn rc_os_cal_post_hook = nullptr;
 // Unhandled key callback (set by main.cpp for extensible key handling)
 rc_os_unhandled_key_fn rc_os_on_unhandled_key = nullptr;
 
+// Boot status callback (set by main.cpp, called on first terminal connect)
+rc_os_boot_status_fn rc_os_print_hw_boot_status = nullptr;
+
 // ============================================================================
 // Menu Printing
 // ============================================================================
@@ -670,7 +673,7 @@ bool rc_os_update() {
         return false;
     }
 
-    // Just connected - print banner
+    // Just connected - print boot status and banner
     if (!g_wasConnected) {
         g_wasConnected = true;
 
@@ -682,7 +685,12 @@ bool rc_os_update() {
             // Discard
         }
 
-        // Print banner
+        // Print full boot banner via callback (version, HW status, watchdog warning)
+        if (rc_os_print_hw_boot_status != nullptr) {
+            rc_os_print_hw_boot_status();
+        }
+
+        // Print RC_OS banner
         print_banner();
         g_bannerPrinted = true;
 
