@@ -193,6 +193,63 @@ const float* calibration_get_6pos_avg(uint8_t pos);
 const char* calibration_get_6pos_name(uint8_t pos);
 
 // ============================================================================
+// Magnetometer Calibration (IVP-35/36)
+// ============================================================================
+
+/**
+ * @brief Result of feeding a mag sample to the collection buffer
+ */
+enum class mag_feed_result_t : uint8_t {
+    ACCEPTED,
+    REJECTED_RANGE,
+    REJECTED_CLOSE,
+    BUFFER_FULL
+};
+
+/**
+ * @brief Feed one magnetometer sample for compass calibration
+ *
+ * Checks magnitude range (15-95 µT) and angular separation from recent samples.
+ * Updates geodesic coverage mask on acceptance.
+ *
+ * @return Result code indicating whether sample was accepted
+ */
+mag_feed_result_t calibration_feed_mag_sample(float mx, float my, float mz);
+
+/**
+ * @brief Reset mag calibration collection state
+ */
+void calibration_reset_mag_cal(void);
+
+/**
+ * @brief Get number of accepted mag samples
+ */
+uint16_t calibration_get_mag_sample_count(void);
+
+/**
+ * @brief Get sphere coverage percentage (0-100)
+ */
+uint8_t calibration_get_mag_coverage_pct(void);
+
+/**
+ * @brief Run two-step LM ellipsoid fit on collected mag samples
+ *
+ * Step 1: Sphere fit (4 params) for initial offset/radius estimate
+ * Step 2: Ellipsoid fit (9 params) for full soft-iron correction
+ *
+ * On success, stores results to calibration data.
+ *
+ * @return CAL_RESULT_OK on success, CAL_RESULT_FIT_FAILED if fit diverged,
+ *         CAL_RESULT_NO_DATA if insufficient samples
+ */
+cal_result_t calibration_compute_mag_cal(void);
+
+/**
+ * @brief Get mag fit fitness (RMS residual in µT) after compute
+ */
+float calibration_get_mag_fitness(void);
+
+// ============================================================================
 // Applying Calibration
 // ============================================================================
 
@@ -225,6 +282,21 @@ void calibration_apply_gyro_with(const calibration_store_t* cal,
 void calibration_apply_accel_with(const calibration_store_t* cal,
                                    float ax_raw, float ay_raw, float az_raw,
                                    float* ax_cal, float* ay_cal, float* az_cal);
+
+/**
+ * @brief Apply mag calibration to raw reading (uses global calibration)
+ */
+void calibration_apply_mag(float mx_raw, float my_raw, float mz_raw,
+                            float* mx_cal, float* my_cal, float* mz_cal);
+
+/**
+ * @brief Apply mag calibration using explicit calibration data
+ *
+ * For cross-core use where Core 1 has its own calibration copy.
+ */
+void calibration_apply_mag_with(const calibration_store_t* cal,
+                                  float mx_raw, float my_raw, float mz_raw,
+                                  float* mx_cal, float* my_cal, float* mz_cal);
 
 /**
  * @brief Load calibration into a caller-supplied buffer

@@ -164,6 +164,8 @@ target_link_libraries(rocketchip
     hardware_exception
     # IVP-30: Hardware watchdog
     hardware_watchdog
+    # IVP-35: Mag calibration (Fisher-Yates shuffle with hardware TRNG)
+    pico_rand
 )
 
 # Enable USB CDC for stdio (not UART)
