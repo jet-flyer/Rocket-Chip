@@ -36,7 +36,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "mag-cal-cli-2";
+static const char* kBuildTag = "mag-apply-1";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -334,9 +334,13 @@ static void core1_read_imu(shared_sensor_data_t* localData,
         localData->gyro_valid = true;
 
         if (imuData.mag_valid) {
-            localData->mag_x = imuData.mag.x;
-            localData->mag_y = imuData.mag.y;
-            localData->mag_z = imuData.mag.z;
+            float mx_cal, my_cal, mz_cal;
+            calibration_apply_mag_with(localCal,
+                imuData.mag.x, imuData.mag.y, imuData.mag.z,
+                &mx_cal, &my_cal, &mz_cal);
+            localData->mag_x = mx_cal;
+            localData->mag_y = my_cal;
+            localData->mag_z = mz_cal;
             localData->mag_valid = true;
             localData->mag_read_count++;
         }
@@ -640,8 +644,12 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
         printf("Gyro: invalid\n");
     }
     if (snap.mag_valid) {
-        printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f\n",
-               (double)snap.mag_x, (double)snap.mag_y, (double)snap.mag_z);
+        float magMag = sqrtf(snap.mag_x*snap.mag_x + snap.mag_y*snap.mag_y + snap.mag_z*snap.mag_z);
+        printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f  |M|=%.1f\n",
+               (double)snap.mag_x, (double)snap.mag_y, (double)snap.mag_z, (double)magMag);
+        float heading = atan2f(-snap.mag_y, snap.mag_x) * (180.0F / 3.14159265F);
+        if (heading < 0.0F) { heading += 360.0F; }
+        printf("Heading: %.1f deg (level only)\n", (double)heading);
     } else {
         printf("Mag: not ready\n");
     }
@@ -711,8 +719,15 @@ static void print_direct_sensors() {
             printf("Gyro  (rad/s): X=%7.4f Y=%7.4f Z=%7.4f\n",
                    (double)gx, (double)gy, (double)gz);
             if (data.mag_valid) {
-                printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f\n",
-                       (double)data.mag.x, (double)data.mag.y, (double)data.mag.z);
+                float mx_cal, my_cal, mz_cal;
+                calibration_apply_mag(data.mag.x, data.mag.y, data.mag.z,
+                                      &mx_cal, &my_cal, &mz_cal);
+                float magMag = sqrtf(mx_cal*mx_cal + my_cal*my_cal + mz_cal*mz_cal);
+                printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f  |M|=%.1f\n",
+                       (double)mx_cal, (double)my_cal, (double)mz_cal, (double)magMag);
+                float heading = atan2f(-my_cal, mx_cal) * (180.0F / 3.14159265F);
+                if (heading < 0.0F) { heading += 360.0F; }
+                printf("Heading: %.1f deg (level only)\n", (double)heading);
             } else {
                 printf("Mag: not ready\n");
             }
