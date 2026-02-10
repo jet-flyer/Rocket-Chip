@@ -100,6 +100,17 @@ extern rc_os_sensor_status_fn rc_os_print_sensor_status;
 typedef void (*rc_os_boot_summary_fn)(void);
 extern rc_os_boot_summary_fn rc_os_print_boot_summary;
 
+/**
+ * @brief Function pointer for full boot status (banner + HW validation).
+ *
+ * Called once on first terminal connection. Prints the full boot banner
+ * including version, board info, watchdog status, and HW validation.
+ * Enables non-blocking USB: firmware runs without terminal, boot output
+ * is deferred until a terminal connects.
+ */
+typedef void (*rc_os_boot_status_fn)(void);
+extern rc_os_boot_status_fn rc_os_print_boot_status;
+
 // ============================================================================
 // Sensor Availability Flags (set by main)
 // ============================================================================

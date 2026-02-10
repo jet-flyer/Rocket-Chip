@@ -53,6 +53,9 @@ rc_os_sensor_status_fn rc_os_print_sensor_status = nullptr;
 // Callback for boot summary reprint (set by main.cpp)
 rc_os_boot_summary_fn rc_os_print_boot_summary = nullptr;
 
+// Callback for full boot status on first connect (set by main.cpp)
+rc_os_boot_status_fn rc_os_print_boot_status = nullptr;
+
 // Sensor availability flags (set by main.cpp)
 bool rc_os_imu_available = false;
 bool rc_os_baro_available = false;
@@ -670,7 +673,7 @@ bool rc_os_update() {
         return false;
     }
 
-    // Just connected - print banner
+    // Just connected - print boot status + banner
     if (!g_wasConnected) {
         g_wasConnected = true;
 
@@ -682,7 +685,13 @@ bool rc_os_update() {
             // Discard
         }
 
-        // Print banner
+        // Print full boot status on first-ever connect (non-blocking USB:
+        // boot output deferred until terminal connects)
+        if (!g_bannerPrinted && rc_os_print_boot_status != nullptr) {
+            rc_os_print_boot_status();
+        }
+
+        // Print CLI banner
         print_banner();
         g_bannerPrinted = true;
 

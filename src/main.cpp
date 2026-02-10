@@ -36,7 +36,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "recover-fix-2";
+static const char* kBuildTag = "nonblock-usb-3";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -184,6 +184,7 @@ static std::atomic<bool> g_core1I2CPaused{false};
 static std::atomic<bool> g_wdtCore0Alive{false};
 static std::atomic<bool> g_wdtCore1Alive{false};
 static bool g_watchdogEnabled = false;
+static bool g_watchdogReboot = false;
 
 // Sensor phase active — set by Core 0 when Core 1 enters sensor loop.
 // Read only by Core 0 (cal hooks, print_sensor_status). Plain bool is correct —
@@ -879,22 +880,10 @@ static void init_sensors() {
     }
 }
 
-// Wait for USB CDC connection with LED blink, then drain input buffer.
-static void wait_for_usb_connection() {
+// Initialize USB CDC without blocking. Terminal connection is handled
+// by rc_os_update() which prints banner on first connect (LL Entry 15).
+static void init_usb() {
     stdio_init_all();
-
-    while (!stdio_usb_connected()) {
-        gpio_put(PICO_DEFAULT_LED_PIN, true);
-        sleep_ms(100);
-        gpio_put(PICO_DEFAULT_LED_PIN, false);
-        sleep_ms(100);
-    }
-
-    // Settle time after connection (per LL Entry 15)
-    sleep_ms(500);
-
-    // Drain garbage from USB input buffer (per LL Entry 15)
-    while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
 }
 
 static bool init_hardware() {
@@ -927,8 +916,10 @@ static bool init_hardware() {
     g_calStorageInitialized = calibration_storage_init();
     calibration_manager_init();
 
-    // USB CDC init (after I2C/flash per LL Entry 4/12)
-    wait_for_usb_connection();
+    // USB CDC init (after I2C/flash per LL Entry 4/12). Non-blocking —
+    // rc_os_update() handles terminal connect/disconnect and prints boot
+    // banner on first connection.
+    init_usb();
 
     return watchdogReboot;
 }
@@ -937,14 +928,14 @@ static bool init_hardware() {
 // Init: Boot banner and hardware status output
 // ============================================================================
 
-static void print_boot_status(bool watchdogReboot) {
+static void print_boot_status() {
     printf("\n");
     printf("==============================================\n");
     printf("  RocketChip v%s\n", kVersionString);
     printf("  Board: Adafruit Feather RP2350 HSTX\n");
     printf("==============================================\n\n");
 
-    if (watchdogReboot) {
+    if (g_watchdogReboot) {
         printf("[WARN] *** PREVIOUS REBOOT WAS CAUSED BY WATCHDOG RESET ***\n");
         printf("[INFO] Re-enabling watchdog (%lu ms)\n\n",
                (unsigned long)kWatchdogTimeoutMs);
@@ -957,13 +948,16 @@ static void print_boot_status(bool watchdogReboot) {
 // Init: RC_OS setup, Core 1 sensor phase start, watchdog enable
 // ============================================================================
 
-static void init_application() {
+static void init_application(bool watchdogReboot) {
+    g_watchdogReboot = watchdogReboot;
+
     // RC_OS CLI init
     rc_os_init();
     rc_os_imu_available = g_imuInitialized;
     rc_os_baro_available = g_baroContinuous;
     rc_os_print_sensor_status = print_sensor_status;
     rc_os_print_boot_summary = print_hw_status;
+    rc_os_print_boot_status = print_boot_status;
     rc_os_read_accel = read_accel_for_cal;
     rc_os_cal_pre_hook = cal_pre_hook;
     rc_os_cal_post_hook = cal_post_hook;
@@ -973,13 +967,10 @@ static void init_application() {
     g_startSensorPhase.store(true, std::memory_order_release);
     rc_os_i2c_scan_allowed = false;  // LL Entry 23: prevent CLI I2C scan from corrupting bus
     sleep_ms(500);  // Let Core 1 start up
-    printf("[INFO] Core 1 sensor phase started\n");
 
     // Enable watchdog (council critical fix: must be unconditional)
     g_watchdogEnabled = true;
     watchdog_enable(kWatchdogTimeoutMs, true);
-    printf("[INFO] Watchdog enabled (%lu ms)\n\n",
-           (unsigned long)kWatchdogTimeoutMs);
 }
 
 // ============================================================================
@@ -1057,10 +1048,7 @@ static void cli_update_tick() {
 
 int main() {
     bool watchdogReboot = init_hardware();
-    print_boot_status(watchdogReboot);
-    init_application();
-
-    printf("Entering main loop\n\n");
+    init_application(watchdogReboot);
 
     while (true) {
         uint32_t nowMs = to_ms_since_boot(get_absolute_time());
