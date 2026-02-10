@@ -24,6 +24,7 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 | IVP Code Strip | — | 2026-02-09 | main.cpp 3,623→1,073 lines (70% reduction). Binary 198,144→155,648 bytes (-21.4%). 2 deviations resolved |
 | I2C Recovery Fix | — | 2026-02-10 | Fixed peripheral corruption in bus recovery (LL Entry 28). Probe-first detection, SCL/SDA improvements. 386K reads, 0 errors |
 | Non-blocking USB | — | 2026-02-10 | Firmware runs without terminal. Boot banner deferred to first connect. Soak verified: 536K reads, 0 errors |
+| Phase M: Mag Cal | IVP-34–38 | 2026-02-10 | Full magnetometer calibration: data structures, LM ellipsoid solver, CLI wizard, Core 1 live apply + heading. 4 commits, all HW verified |
 
 ## In Progress
 
@@ -31,12 +32,12 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 
 1. ~~Soak baseline~~ — **DONE** (536K IMU reads, 0 errors, 6 min with all 3 sensors)
 2. ~~Non-blocking USB init~~ — **DONE** (ec87703). Prior failures were picotool artifacts (LL Entry 25/27)
-3. **Phase M: Magnetometer calibration wizard** — Commits 1+2 done (94dffad: data structures, apply functions, sample collection, LM solver). Commit 3 (CLI command) in stash@{0}. Commit 4 (Core 1 live apply) blocked by Commit 3
+3. ~~Phase M: Magnetometer calibration~~ — **DONE** (4 commits: 94dffad, d261b66, c84c38c). CLI wizard + Core 1 live apply + heading display
 4. **Unified calibration wizard** — Gyro, level, 6-pos accel, mag cal through single CLI flow
 
 ## Blockers
 
-None currently. Phase M is next.
+None currently.
 
 ## Reference
 

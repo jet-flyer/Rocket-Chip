@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-10-004 | Claude Code CLI | feature
+
+**Phase M complete: Core 1 live mag apply + heading display (IVP-38)**
+
+Applied mag calibration on Core 1 via `calibration_apply_mag_with()`, matching existing accel/gyro pattern. Sensor status (`s`) now shows calibrated magnitude `|M|` and tilt-uncorrected heading (0-360 deg). Both seqlock display and pre-sensor-phase direct-read paths updated. HW verified: 0 IMU errors, `|M|` ~60 µT stable, heading tracks smoothly. Phase M (IVP-34 through IVP-38) is now complete — all 4 commits merged.
+
+(`src/main.cpp`)
+
+---
+
 ### 2026-02-10-003 | Claude Code CLI | feature
 
 **Non-blocking USB init — firmware runs without terminal**

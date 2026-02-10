@@ -19,7 +19,7 @@
 **Do NOT move to Stage 5 ESKF (IVP-39+) until these are complete:**
 
 1. ~~**Soak baseline**~~ — **DONE** (2026-02-10). 536K IMU reads, 0 errors, 6 min with all 3 sensors (`nonblock-usb-3`).
-2. **Phase M: Full magnetometer calibration wizard** — Commits 1+2 done (data structures, solver). Commit 3 (CLI command, in stash@{0}) and Commit 4 (Core 1 live apply) still needed.
+2. ~~**Phase M: Magnetometer calibration**~~ — **DONE** (2026-02-10). All 4 commits merged (94dffad, d261b66, c84c38c). CLI wizard + Core 1 live apply + heading display.
 3. ~~**Non-blocking USB init**~~ — **DONE** (2026-02-10, ec87703). Boot banner deferred to first terminal connect. Prior failures were picotool artifacts.
 4. ~~**Boot-time peripheral detection**~~ — **DONE** (2026-02-10). Runtime hot-plug detection is a stretch goal, not a blocker.
 5. **Full calibration wizard** — Gyro, level, 6-pos accel, and mag cal should all be accessible through a unified CLI flow. Currently separate commands.
@@ -34,7 +34,7 @@ Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all(
 
 **Qwiic chain order finding:** PA1010D GPS must be first in chain (closest to board/power). At end of chain, probe detection is intermittent. Documented in `docs/hardware/HARDWARE.md`.
 
-**Plan files preserved:** `~/.claude/plans/phase-m-mag-cal.md` (Phase M plan).
+**Plan files:** `~/.claude/plans/phase-m-mag-cal.md` (Phase M plan, completed).
 
 ---
 
