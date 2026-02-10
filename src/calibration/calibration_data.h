@@ -17,7 +17,7 @@
 // ============================================================================
 
 constexpr uint32_t kCalibrationMagic   = 0x52434341;  // "RCCA" - RocketChip Calibration
-constexpr uint16_t kCalibrationVersion = 2;
+constexpr uint16_t kCalibrationVersion = 3;
 
 // ============================================================================
 // Calibration Status Flags
@@ -93,6 +93,26 @@ typedef struct {
 } baro_cal_t;
 
 // ============================================================================
+// Magnetometer Calibration
+// ============================================================================
+
+/**
+ * @brief Magnetometer calibration data
+ *
+ * Convention: corrected = M * (raw + offset)
+ * Same model as accel_cal_t. Units in µT.
+ */
+typedef struct {
+    cal_vec3_t offset;          ///< Hard-iron offset in µT (add to raw)
+    cal_vec3_t scale;           ///< Diagonal soft-iron scale factors
+    cal_vec3_t offdiag;         ///< Off-diagonal cross-coupling (XY, XZ, YZ)
+    float expected_radius;      ///< Expected field magnitude in µT (from fit)
+    float temperature_ref;      ///< Temperature at calibration time (°C)
+    uint8_t status;             ///< CAL_STATUS_MAG if calibrated
+    uint8_t _pad[3];
+} mag_cal_t;
+
+// ============================================================================
 // Board Orientation
 // ============================================================================
 
@@ -126,6 +146,7 @@ typedef struct {
     accel_cal_t accel;      // 44 bytes (expanded with offdiag in v2)
     gyro_cal_t gyro;        // 20 bytes
     baro_cal_t baro;        // 12 bytes
+    mag_cal_t mag;          // 48 bytes (added in v3)
 
     // Overall status
     uint32_t cal_flags;     ///< Bitfield of cal_status_flags_t
@@ -140,6 +161,10 @@ typedef struct {
 // Verify size fits in a flash page
 static_assert(sizeof(calibration_store_t) <= 256,
                "calibration_store_t exceeds 256 byte limit");
+static_assert(sizeof(calibration_store_t) == 180,
+               "calibration_store_t size changed — update flash storage if needed");
+static_assert(sizeof(mag_cal_t) == 48,
+               "mag_cal_t must be 48 bytes");
 
 // ============================================================================
 // Functions

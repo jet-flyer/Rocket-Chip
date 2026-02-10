@@ -65,6 +65,13 @@ void calibration_init_defaults(calibration_store_t* cal) {
     cal->baro.ground_temperature_c = kDefaultGroundTempC;
     cal->baro.status = CAL_STATUS_NONE;
 
+    // Mag defaults: no offset, unity scale, no cross-coupling
+    cal->mag.offset = cal_vec3_t{0.0F, 0.0F, 0.0F};
+    cal->mag.scale = cal_vec3_t{1.0F, 1.0F, 1.0F};
+    cal->mag.offdiag = cal_vec3_t{0.0F, 0.0F, 0.0F};
+    cal->mag.expected_radius = 0.0F;
+    cal->mag.status = CAL_STATUS_NONE;
+
     cal->cal_flags = 0;
 
     // NOLINTBEGIN(readability-magic-numbers) — 3x3 identity matrix indices are self-documenting
