@@ -204,7 +204,13 @@ int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
 // ============================================================================
 
 bool i2c_bus_recover() {
-    // Temporarily switch pins to GPIO mode for bit-banging
+    // Disable I2C peripheral BEFORE switching GPIO functions.
+    // Switching GPIO from I2C to SIO while the DW_apb_i2c is enabled
+    // corrupts the peripheral's internal state machine — all subsequent
+    // transactions silently fail. (Discovered 2026-02-10, see LL Entry 28.)
+    i2c_deinit(I2C_BUS_INSTANCE);
+
+    // Switch pins to GPIO mode for bit-banging
     gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_SIO);
     gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
 
@@ -212,50 +218,73 @@ bool i2c_bus_recover() {
     gpio_set_dir(kI2cBusSdaPin, GPIO_IN);
     gpio_pull_up(kI2cBusSdaPin);
 
-    // Configure SCL as output
+    // Configure SCL as output, drive high
+    gpio_set_dir(kI2cBusSclPin, GPIO_OUT);
+    gpio_put(kI2cBusSclPin, true);
+    sleep_us(kBusRecoveryPulseUs);
+
+    // Check SCL stuck low: if another device holds SCL, clock pulses
+    // can't propagate — recovery is impossible (Linux kernel pattern)
+    gpio_set_dir(kI2cBusSclPin, GPIO_IN);
+    bool sclHigh = gpio_get(kI2cBusSclPin);
     gpio_set_dir(kI2cBusSclPin, GPIO_OUT);
     gpio_put(kI2cBusSclPin, true);
 
-    // Always clock 9 pulses to clear any stuck transaction,
-    // even if SDA appears high — a sensor may need the full
-    // sequence to reset its internal state machine
-    for (uint8_t i = 0; i < kBusRecoveryCycles; i++) {
-        gpio_put(kI2cBusSclPin, false);
-        sleep_us(kBusRecoveryPulseUs);
-        gpio_put(kI2cBusSclPin, true);
-        sleep_us(kBusRecoveryPulseUs);
+    bool sdaReleased = false;
+
+    if (!sclHigh) {
+        // SCL stuck low — a device is clock-stretching or bus is shorted.
+        // Can't recover via clocking. Caller should consider power cycle.
+        sdaReleased = false;
+    } else {
+        // Clock up to 9 pulses (NXP UM10204 3.1.16). Check SDA after
+        // each rising SCL edge — early exit if SDA released (Linux kernel
+        // pattern). Most stuck transactions clear in 1-3 pulses.
+        for (uint8_t i = 0; i < kBusRecoveryCycles; i++) {
+            gpio_put(kI2cBusSclPin, false);
+            sleep_us(kBusRecoveryPulseUs);
+            gpio_put(kI2cBusSclPin, true);
+            sleep_us(kBusRecoveryPulseUs);
+
+            if (gpio_get(kI2cBusSdaPin)) {
+                sdaReleased = true;
+                break;
+            }
+        }
+
+        if (!sdaReleased) {
+            sdaReleased = gpio_get(kI2cBusSdaPin);
+        }
     }
 
-    bool sdaReleased = gpio_get(kI2cBusSdaPin);
-
-    // Always generate STOP condition: SDA low while SCL high, then SDA high
+    // Generate STOP condition: SDA low while SCL high, then SDA high
     gpio_set_dir(kI2cBusSdaPin, GPIO_OUT);
     gpio_put(kI2cBusSdaPin, false);
     sleep_us(kBusRecoveryPulseUs);
-    // SCL high (already high)
+    gpio_put(kI2cBusSclPin, true);  // Ensure SCL high
     sleep_us(kBusRecoveryPulseUs);
-    // SDA high = STOP condition
-    gpio_put(kI2cBusSdaPin, true);
+    gpio_put(kI2cBusSdaPin, true);  // SDA rising = STOP
     sleep_us(kBusRecoveryPulseUs);
 
-    // Restore I2C function on pins
+    // Restore GPIO to I2C function
     gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_I2C);
     gpio_set_function(kI2cBusSclPin, GPIO_FUNC_I2C);
     gpio_pull_up(kI2cBusSdaPin);
     gpio_pull_up(kI2cBusSclPin);
 
+    // Reinitialize I2C peripheral (configures clock, enables controller)
+    i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
+
     return sdaReleased;
 }
 
 bool i2c_bus_reset() {
-    // Deinitialize I2C
-    i2c_bus_deinit();
+    // i2c_bus_recover() handles deinit/reinit of the peripheral internally.
+    // We just need to reset the initialized flag and restore it after.
+    g_initialized = false;
 
-    // Attempt recovery
     bool recovered = i2c_bus_recover();
 
-    // Reinitialize I2C
-    bool initOk = i2c_bus_init();
-
-    return recovered && initOk;
+    g_initialized = true;
+    return recovered;
 }

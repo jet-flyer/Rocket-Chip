@@ -36,7 +36,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "prod-1";
+static const char* kBuildTag = "recover-fix-2";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -839,32 +839,43 @@ static void print_hw_status() {
 
 // Initialize I2C sensors (IMU, baro, GPS). Requires I2C bus already initialized.
 static void init_sensors() {
-    // Drain GPS buffer if module is still powered (LiPo keeps it alive
-    // across picotool reboot). The PA1010D autonomously streams NMEA on
-    // I2C — if not drained, this collides with IMU/baro init below.
-    uint8_t gpsDrain[255];
-    int drainRet = i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
-    if (drainRet <= 0) {
-        i2c_bus_recover();
+    // Probe-first peripheral detection: only init drivers for devices that
+    // are physically present on the bus. Prevents wasted init attempts and
+    // avoids bus side-effects from absent devices (LL Entry 28).
+    bool imuDetected  = i2c_bus_probe(kIcm20948AddrDefault);
+    bool baroDetected = i2c_bus_probe(kBaroDps310AddrDefault);
+    bool gpsDetected  = i2c_bus_probe(kGpsPa1010dAddr);
+
+    // If GPS is present, drain its buffer before IMU/baro init.
+    // The PA1010D streams NMEA autonomously on I2C — undrained data
+    // causes bus contention during other device init (LL Entry 20).
+    if (gpsDetected) {
+        uint8_t gpsDrain[255];
+        i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
     }
 
     // Sensor power-up settling time
     // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
     sleep_ms(200);
 
-    // ICM-20948 IMU init (before USB, after I2C)
-    g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
-
-    // DPS310 barometer init (before USB, after I2C)
-    g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
-    if (g_baroInitialized) {
-        g_baroContinuous = baro_dps310_start_continuous();
+    // Only init detected devices
+    if (imuDetected) {
+        g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
     }
 
-    // GPS init (before USB, after I2C). Non-fatal (LL Entry 20).
-    g_gpsInitialized = gps_pa1010d_init();
-    if (g_gpsInitialized) {
-        g_gpsOnI2C = true;
+    if (baroDetected) {
+        g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
+        if (g_baroInitialized) {
+            g_baroContinuous = baro_dps310_start_continuous();
+        }
+    }
+
+    // GPS init is non-fatal (LL Entry 20)
+    if (gpsDetected) {
+        g_gpsInitialized = gps_pa1010d_init();
+        if (g_gpsInitialized) {
+            g_gpsOnI2C = true;
+        }
     }
 }
 

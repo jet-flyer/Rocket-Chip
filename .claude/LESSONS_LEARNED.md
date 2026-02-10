@@ -796,6 +796,51 @@ Zero errors across all three tests. The BSS layout change in Test 2 would have b
 
 ---
 
+## Entry 28: i2c_bus_recover() Corrupts DW_apb_i2c When Called on Active Bus
+
+**Date:** 2026-02-10
+**Time Spent:** ~3 hours (including false starts investigating hardware)
+**Severity:** Critical — complete I2C bus failure from boot
+
+### Problem
+After removing GPS from the Qwiic chain, the firmware booted with `[FAIL] ICM-20948 init failed` and `[FAIL] DPS310 init failed`. Zero successful reads from boot. The exact same code (prod-1) had passed 370K reads with 0 errors the day before.
+
+### Symptoms
+- Both sensors show init FAIL in boot banner
+- IMU error count climbs at ~2000/sec, zero successful reads
+- GDB breakpoint at `init_sensors()` shows both sensors probe TRUE
+- After letting `init_sensors()` run naturally: both init FALSE
+- GPIO funcsel correct (3 = I2C) after recovery, bus lines HIGH
+
+### Root Cause
+`init_sensors()` tried to drain the GPS buffer at address 0x10. With GPS physically absent, this NACK'd. The drain failure triggered `i2c_bus_recover()`, which switches GPIO2/3 from `GPIO_FUNC_I2C` to `GPIO_FUNC_SIO` for bit-bang recovery, then restores them. **But the DW_apb_i2c peripheral was not disabled before the GPIO yank.**
+
+Switching GPIO function away from I2C while the peripheral is enabled corrupts the DW_apb_i2c's internal state machine. After recovery, the GPIO pins are restored to I2C mode, but the peripheral is in an undefined state. All subsequent transactions silently fail — no abort, no interrupt, TX FIFO doesn't drain.
+
+### GDB Proof
+```
+Before i2c_bus_recover(): i2c_bus_probe(0x69) = true, probe(0x77) = true
+After  i2c_bus_recover(): i2c_bus_probe(0x69) = false, probe(0x77) = false
+GPIO2 CTRL = 0x3 (I2C function) in both cases — peripheral is corrupt, not GPIO
+```
+
+### Solution (Three Parts)
+1. **`i2c_bus_recover()` now deinits/reinits the I2C peripheral** around the GPIO function switch. `i2c_deinit()` before SIO switch, `i2c_init()` after I2C restore.
+2. **`init_sensors()` uses probe-first pattern** — probes each device before attempting init. GPS drain only runs if GPS is present. No blind reads to absent devices.
+3. **Added SCL-stuck-low check and per-pulse SDA early exit** (Linux kernel pattern) to recovery.
+
+### Prevention
+1. **Never switch GPIO function while the I2C peripheral is enabled.** Always `i2c_deinit()` first.
+2. **Never call `i2c_bus_recover()` for a simple NACK.** NACK = device absent, not bus stuck. Only recover when SDA is actually held low.
+3. **Probe before init.** Don't waste time or risk side-effects by initializing drivers for absent hardware.
+4. **This was LL Entry 24 taken to its logical conclusion.** Entry 24 said "don't use recovery in a hot loop" — the real lesson is that GPIO function switching requires peripheral management, period.
+
+### Related
+- LL Entry 24: PA1010D bus contention, first observation of GPIO function switching issues
+- LL Entry 25: picotool bus corruption (different root cause, similar symptoms)
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here
