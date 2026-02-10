@@ -14,6 +14,20 @@
 
 ## Open Flags
 
+### PRIORITY: Foundational Features Before ESKF
+
+**Do NOT move to Stage 5 ESKF (IVP-39+) until these are complete:**
+
+1. **Soak baseline (2026-02-11)** — Run a clean 6-min soak via debug probe on the current `recover-fix-2` build to establish the post-fix baseline. This is the first thing to do next session.
+2. **Phase M: Full magnetometer calibration wizard** — Commits 1+2 done (data structures, solver). Commit 3 (CLI command, in stash@{0}) and Commit 4 (Core 1 live apply) still needed.
+3. **Non-blocking USB init** — Retest via debug probe (see below). Firmware must run without a terminal connected.
+4. **Boot-time peripheral detection** — Implemented (2026-02-10). Runtime hot-plug detection is a stretch goal, not a blocker.
+5. **Full calibration wizard** — Gyro, level, 6-pos accel, and mag cal should all be accessible through a unified CLI flow. Currently separate commands.
+
+**Rationale (user directive):** Features like peripheral detection, calibration wizards, and non-blocking USB are not "future nice-to-haves" — they are core functionality that ESKF depends on. Mag cal provides the hard-iron/soft-iron corrections that the ESKF magnetometer measurement model needs. Non-blocking USB is required for any untethered operation. Get the foundation solid before adding fusion.
+
+---
+
 ### Non-Blocking USB — DEFERRED
 
 **Goal:** Remove blocking `wait_for_usb_connection()` so firmware runs without terminal.
@@ -41,12 +55,6 @@ See: ArduPilot `AP_InertialSensor_Invensensev2.cpp`, ICM-20948 `INT_PIN_CFG` reg
 
 ---
 
-### D3 main.cpp Refactoring + IVP Strip — COMPLETE
-
-`main()` 992→65 lines, `core1_entry()` 367→15 lines. Tick-function dispatcher pattern. Clang-tidy audit (127 checks, 1,251 findings). IVP test code stripped: 3,623→1,073 lines (33 functions, ~2,550 lines removed). Binary 198,144→155,648 bytes (-21.4%). RC-1 and BM-6 deviations resolved. IVP scripts deleted.
-
----
-
 ### Missing Vendor Datasheets
 
 | Document | Priority | Needed By |
@@ -67,10 +75,15 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
 - **ArduPilot LED Patterns:** Map NeoPixel to AP standard codes at IVP-51 (state machine). Known NeoPixel green-transition bug deferred to same IVP.
 - **clang-tidy Integration:** LLVM installed, 127-check config active, first full audit complete (2026-02-09). **All code fully remediated** across 6 phases (P1-P5f, 1,251 total findings). IVP test code stripped — zero deferred findings. Pre-commit enforcement deferred to next cycle.
+- **Dynamic Peripheral Detection + OTA Drivers (Crowdfunding Goal):** Boot-time probe-first detection implemented (2026-02-10). Runtime hot-plug, driver registry, and OTA firmware downloads for unrecognized devices are stretch goals. Full architecture documented in SAD Section 13.2. Flipper Zero-style: plug in a sensor, RC identifies it, prompts for driver. WiFi/BT OTA for Core/Middle tiers.
 
 ---
 
 ## Resolved
+
+### D3 main.cpp Refactoring + IVP Strip — COMPLETE (2026-02-09)
+
+`main()` 992→65 lines, `core1_entry()` 367→15 lines. Tick-function dispatcher pattern. Clang-tidy audit (127 checks, 1,251 findings). IVP test code stripped: 3,623→1,073 lines (33 functions, ~2,550 lines removed). Binary 198,144→155,648 bytes (-21.4%). RC-1 and BM-6 deviations resolved. IVP scripts deleted.
 
 ### BSS Layout / Codegen Sensitivity — DISPROVED (2026-02-09)
 

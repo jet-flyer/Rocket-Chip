@@ -1097,11 +1097,96 @@ Development builds include serial debug output via USB-CDC for diagnosing timing
 
 ## 13. Extensibility
 
-> **[PLACEHOLDER — To be expanded post-MVP when plugin architecture is designed]**
+### 13.1 Tier Differentiation
 
-- Mission plugins: User-defined missions loadable at runtime (format TBD)
-- Tier differentiation: Compile-time `#ifdef` for CORE/MAIN/TITAN feature sets
-- Booster Pack API: Hardware abstraction for expansion packs (see Open Questions)
+Feature sets are controlled at compile time via `ROCKETCHIP_TIER_*` defines:
+
+- **Core/Middle tiers**: Qwiic I2C expansion, USB configuration, optional WiFi/BT (Pico 2 W)
+- **Titan tier**: Full sensor suite, SPI high-rate mode, advanced fusion, dedicated expansion bus
+- Mission plugins: User-defined missions loadable at runtime (format TBD post-MVP)
+
+### 13.2 I2C Peripheral Detection and Driver Management
+
+RocketChip automatically detects I2C devices connected via Qwiic/STEMMA QT — at boot and optionally at runtime. The goal is a Flipper Zero-style experience: plug in a sensor or peripheral, RocketChip identifies it, and either activates a built-in driver or prompts the user to download support for it.
+
+This applies to **any I2C device** — standalone sensors (TOF, altimeter, extra IMU), displays, Booster Packs, or third-party Qwiic breakouts.
+
+#### Boot-Time Detection (Implemented)
+
+At startup, `init_sensors()` probes known I2C addresses before attempting driver initialization (implemented 2026-02-10). Absent devices are skipped — no wasted init, no bus side-effects.
+
+```
+Boot sequence:
+  1. i2c_bus_init() — bus recovery + peripheral init
+  2. Probe each known address (1-byte read, check ACK)
+  3. Initialize only detected devices
+  4. Report detected/missing in boot banner
+```
+
+The probe-first pattern prevents issues like LL Entry 28 (recovery triggered by NACK from absent device corrupting the bus).
+
+#### Runtime Hot-Plug Detection (Planned)
+
+**Status:** Crowdfunding stretch goal for Core/Middle tiers
+
+Periodic I2C address scan detects newly connected or disconnected peripherals and notifies the user via CLI, status LED, or connected app.
+
+```
+Runtime detection loop (Core 0 idle time):
+  1. Scan one I2C address per main loop tick (time-sliced)
+  2. Compare results against last-known device set
+  3. New device found:
+     a. Known address → activate built-in driver, notify user
+     b. Unknown address → identify if possible, prompt for driver
+  4. Device removed → deactivate driver, update status
+```
+
+**Constraints:**
+- Scan must NOT run while Core 1 owns the I2C bus for sensor sampling (see LL Entry 23)
+- PA1010D GPS (0x10) requires special handling — excluded from generic scan per LL Entry 20
+- Scan interval configurable (default 5s full sweep across valid address range)
+
+#### Device Registry
+
+A table maps I2C addresses to device identifiers and driver support:
+
+| Address | Device | Driver | Category |
+|---------|--------|--------|----------|
+| 0x69 | ICM-20948 IMU | `icm20948.cpp` | Built-in |
+| 0x77 | DPS310 Barometer | `baro_dps310.cpp` | Built-in |
+| 0x10 | PA1010D GPS | `gps_pa1010d.cpp` | Built-in |
+| 0x0C | AK09916 Magnetometer | via ICM-20948 | Built-in |
+| 0x29 | VL53L0X TOF | — | Downloadable |
+| 0x68 | ICM-20948 (AD0=LOW), BME280, MPU-6050, etc. | — | Downloadable |
+| *others* | *Community peripherals* | — | *Catalog lookup* |
+
+For addresses shared by multiple devices (e.g., 0x68), a WHO_AM_I register read or device-specific identification sequence disambiguates.
+
+#### Firmware Updates for New Peripherals
+
+When an unrecognized device is detected, RocketChip can acquire driver support through two paths:
+
+**USB (all models):**
+1. CLI displays: `New I2C device at 0x29 — no driver installed`
+2. User downloads driver package from RocketChip catalog via PC
+3. Flash update via USB includes the new driver
+
+**OTA (WiFi/BT models — Pico 2 W and similar):**
+1. Unknown address detected → user prompted: "New device at 0x29 (VL53L0X TOF). Download driver?"
+2. Driver package downloaded over WiFi/BT → stored in flash filesystem
+3. Device activated on next boot (or immediately if hot-plug is supported)
+
+This mirrors the Flipper Zero model where plugging in new hardware prompts a firmware update that adds support for it.
+
+**Implementation considerations:**
+- Driver packages: pre-compiled modules or interpreted config blocks (TBD)
+- Peripheral catalog: static JSON index + binary blobs, hosted with minimal infrastructure
+- Security: signed packages with version pinning
+- Titan tier ships with comprehensive built-in driver set; Core/Middle tiers rely on catalog for expanded peripheral support
+
+### 13.3 Booster Pack API
+
+Hardware abstraction for expansion packs. Booster Packs are a special case of Section 13.2 — multi-device assemblies identified by their I2C address signature (the set of detected addresses matching a known pack profile). A Booster Pack containing an IMU + barometer + flash chip would be identified by the combination of addresses, not any single one.
 
 ---
 
@@ -1208,11 +1293,13 @@ Quick reference for which SAD sections are critical for each development phase. 
 | Calibration persistence | AP_FlashStorage CalibrationStore region (512B at offset 0). See Section 9.4. |
 | Sensor fusion algorithm | Custom ESKF + MMAE bank (not AP EKF3 extraction). Council reviewed 2026-02-02. See `docs/ESKF/`. |
 
+### Resolved
+
+1. **Peripheral / Booster Pack detection**: I2C address scanning with device registry and WHO_AM_I disambiguation (Section 13.2). Booster Packs identified by address signature (Section 13.3). No EEPROM required.
+
+2. **OTA updates**: USB-only for MVP. OTA driver downloads via WiFi/BT are a crowdfunding stretch goal for Core/Middle tiers with wireless connectivity (Section 13.2).
+
 ### Still Open
-
-1. **Booster Pack detection**: EEPROM ID byte on each pack, GPIO sense pins, or I2C address scanning for known devices?
-
-2. **OTA updates**: Required for MVP? USB-only acceptable initially?
 
 3. **USB command protocol**: Text-based CLI, or binary protocol, or both?
 

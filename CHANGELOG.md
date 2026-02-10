@@ -20,6 +20,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-10-002 | Claude Code CLI | architecture, documentation
+
+**SAD Section 13: I2C peripheral detection and driver management architecture**
+
+Expanded SAD Section 13 (Extensibility) from placeholder to full architecture for I2C peripheral detection. Boot-time probe-first detection (already implemented). Runtime hot-plug detection, device registry with WHO_AM_I disambiguation, and OTA driver downloads for WiFi/BT models (crowdfunding stretch goal for Core/Middle tiers). Resolved open questions #1 (Booster Pack detection) and #2 (OTA updates). Established ESKF gate: foundational features (mag cal wizard, non-blocking USB, unified calibration) must complete before Stage 5.
+
+(`docs/SAD.md`, `AGENT_WHITEBOARD.md`, `docs/PROJECT_STATUS.md`)
+
+---
+
+### 2026-02-10-001 | Claude Code CLI | bugfix, feature
+
+**Fix i2c_bus_recover() peripheral corruption + probe-first detection**
+
+Fixed critical bug: `i2c_bus_recover()` corrupted the DW_apb_i2c peripheral by switching GPIO functions (SIO↔I2C) while the peripheral was enabled. Now properly deinits before GPIO switch and reinits after (LL Entry 28). Added probe-first peripheral detection in `init_sensors()` — only inits drivers for devices physically present on the bus. GPS drain no longer triggers recovery for absent devices. Recovery improved with SCL-stuck-low check and per-pulse SDA early exit (Linux kernel pattern). New soak test script with early-fail detection and SWD reset support. Soak verified: 386K IMU reads, 0 errors.
+
+(`src/drivers/i2c_bus.cpp`, `src/main.cpp`, `scripts/i2c_soak_test.py`)
+
+---
+
 ### 2026-02-09-008 | Claude Code CLI | bugfix
 
 **Revert non-blocking USB init (6de6245) — soak failures across 4 build variants**
