@@ -24,7 +24,7 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 **Revert non-blocking USB init (6de6245) — soak failures across 4 build variants**
 
-Reverted premature commit 6de6245 which removed `wait_for_usb_connection()`. Deep research confirmed Pico SDK has no I2C bus recovery function (custom recovery is correct per I2C spec NXP UM10204 Section 3.1.16). Attempted 4 build variants (prod-13 through prod-16) with robust bus recovery (retry loop, 100µs GPIO settling delay, `i2c_deinit()` before bit-bang) and non-blocking USB. All failed soak testing at 40-90 seconds with cascading I2C errors (IMU first, then baro/GPS). Even reverting i2c_bus.cpp while keeping only main.cpp USB changes produced identical failures — confirming this is the codegen sensitivity issue, not a logic bug. Documented findings in AGENT_WHITEBOARD.md for future investigation. Phase M stash@{0} (CLI mag cal) preserved.
+Reverted premature commit 6de6245 which removed `wait_for_usb_connection()`. Deep research confirmed Pico SDK has no I2C bus recovery function (custom recovery is correct per I2C spec NXP UM10204 Section 3.1.16). Attempted 4 build variants (prod-13 through prod-16) with robust bus recovery (retry loop, 100µs GPIO settling delay, `i2c_deinit()` before bit-bang) and non-blocking USB. All failed soak testing at 40-90 seconds with cascading I2C errors (IMU first, then baro/GPS). Phase M stash@{0} (CLI mag cal) preserved. **[CORRECTION 2026-02-09]:** The "codegen sensitivity" attribution was wrong — all testing used picotool rapid flash cycles, which corrupt the I2C bus (LL Entry 25). Disproved by three soak tests via debug probe with i2c_bus.cpp modifications, all 0 errors (LL Entry 27). Non-blocking USB should be retested via probe.
 
 (`src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`, `AGENT_WHITEBOARD.md`)
 
@@ -104,7 +104,7 @@ Cleaned up PROJECT_STATUS.md (completed stages → summary table), AGENT_WHITEBO
 
 **IVP-32/33: GPS outdoor validation + CLI integration (Phase 4 complete)**
 
-GPS fix confirmed outdoors (PPS lock, lat/lon accuracy verified). CLI `s` command format polished to match IVP-33 gate wording (`GPS: no fix (N sats)`). BSS layout regression investigated — `alignas(64)` + flag grouping caused new errors; root cause remains unsolved. Deferred to future stage when new cross-core globals are needed. Minimal-change build (`ivp32-33-1`) passes with 68K+ reads, 0 errors.
+GPS fix confirmed outdoors (PPS lock, lat/lon accuracy verified). CLI `s` command format polished to match IVP-33 gate wording (`GPS: no fix (N sats)`). BSS layout regression investigated — `alignas(64)` + flag grouping caused new errors. Minimal-change build (`ivp32-33-1`) passes with 68K+ reads, 0 errors. **[CORRECTION 2026-02-09]:** "BSS layout regression" was actually picotool bus corruption from rapid flash cycles (LL Entry 25/27). Disproved — see LL Entry 27.
 
 (`src/main.cpp`)
 

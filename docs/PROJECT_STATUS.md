@@ -29,7 +29,7 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 
 ## Blockers
 
-- **Non-blocking USB init** — Attempted and reverted (6de6245). All 4 build variants (prod-13 through prod-16) fail soak at 40-90s with cascading I2C errors. Codegen sensitivity issue — even changes to i2c_bus.cpp constants trigger runtime degradation. See AGENT_WHITEBOARD.md for full notes. Phase M not blocked by this.
+- **Non-blocking USB init** — Attempted and reverted (6de6245). All 4 build variants (prod-13 through prod-16) failed soak at 40-90s, but all testing used picotool rapid flash cycles — now proven to corrupt I2C bus (LL Entry 25/27). "Codegen sensitivity" hypothesis **disproved** (2026-02-09): three soak tests via debug probe with i2c_bus.cpp modifications all passed with 0 errors (~370K reads each). Should be re-attempted with probe-only testing. Phase M not blocked by this.
 
 ## Reference
 

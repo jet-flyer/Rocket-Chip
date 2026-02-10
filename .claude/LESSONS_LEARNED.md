@@ -749,6 +749,53 @@ Disabled `readability-math-missing-parentheses` in `.clang-tidy` config with com
 
 ---
 
+## Entry 27: "Codegen Sensitivity" Was Picotool Bus Corruption All Along
+
+**Date:** 2026-02-09
+**Time Spent:** ~3 hours (1.5h original misdiagnosis from Entry 25 + 1.5h definitive disproof test)
+**Severity:** Critical — Process lesson. False hypothesis blocked i2c_bus.cpp improvements for days.
+
+### Problem
+A hypothesis developed over multiple sessions that changes to `i2c_bus.cpp` or `main.cpp` BSS layout caused I2C degradation after 40-90 seconds of operation. This was documented in the AGENT_WHITEBOARD as "BSS Layout / Codegen Sensitivity — UNSOLVED, DEFERRED" and led to avoidance of any modifications to flight-critical source files.
+
+### The Flawed Evidence Chain
+1. Modified binary → I2C degradation after 40-90s of soak testing
+2. Reverted binary → also failed
+3. Conclusion: "ANY binary change triggers codegen sensitivity"
+
+### Root Cause: Contaminated Methodology
+**All prior soak tests that produced the "codegen sensitivity" evidence were flashed via `picotool --force`.** LL Entry 25 later proved that picotool rapid flash cycles corrupt the I2C bus (the `--force` USB reboot interrupts in-progress I2C transactions). The accumulated bus corruption was misattributed to code changes.
+
+The misdiagnosis was self-reinforcing:
+- Modified code failed (bus already degraded from prior picotool cycles)
+- Reverted code also failed (bus degraded regardless of code)
+- Lucky power cycles between tests occasionally cleared the bus, making random tests pass and further confusing analysis
+
+### Definitive Disproof Test
+Three 6-minute soak tests, all flashed via **debug probe (SWD)** — which halts both cores cleanly before flashing, no mid-transaction interruption:
+
+| Test | Binary Change | IMU Reads | IMU Errors | Rate |
+|------|--------------|-----------|------------|------|
+| Baseline | None (`prod-1`) | 398,665 | **0** | ~931/s |
+| Test 1 | `constexpr` added to i2c_bus.cpp | 369,604 | **0** | ~931/s |
+| Test 2 | `static volatile` added to i2c_bus.cpp (BSS change) | 369,549 | **0** | ~931/s |
+
+Zero errors across all three tests. The BSS layout change in Test 2 would have been the exact trigger for the hypothesized "codegen sensitivity."
+
+### What This Means
+- **No BSS isolation needed.** No `__attribute__((section))`, no separate `.cpp` files for globals.
+- **No BUSCTRL investigation needed.** Memory bus contention was never the issue.
+- **No `.map` / `objdump -d` diff needed.** There's nothing wrong with the codegen.
+- **i2c_bus.cpp can be freely modified.** Flash via probe and changes are safe.
+- **The prod-13 through prod-16 USB changes should be retested via probe.** Their soak failures may have been entirely picotool artifacts.
+
+### Prevention
+1. **Never use picotool for iterative soak testing.** Debug probe is the only reliable method for consecutive flash cycles. (Reinforces LL Entry 25.)
+2. **When a hypothesis is built on flawed methodology, re-run the test with correct methodology before investing in workarounds.** The codegen sensitivity investigation paths (BSS isolation, section attributes, BUSCTRL counters) would have been wasted work.
+3. **Question persistent "unsolved" issues.** If a problem defies explanation, the most likely cause is a confound in the test setup, not a mysterious hardware behavior.
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here
