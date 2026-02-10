@@ -163,6 +163,20 @@ typedef void (*rc_os_unhandled_key_fn)(int key);
 extern rc_os_unhandled_key_fn rc_os_on_unhandled_key;
 
 // ============================================================================
+// Mag Read Callback (set by main, used by mag cal)
+// ============================================================================
+
+/**
+ * @brief Callback to read one magnetometer sample for compass calibration.
+ *
+ * Reads from seqlock (Core 1 keeps running). Returns false on seqlock
+ * failure or mag not valid.
+ * @return true on success
+ */
+typedef bool (*rc_os_read_mag_fn)(float* mx, float* my, float* mz);
+extern rc_os_read_mag_fn rc_os_read_mag;
+
+// ============================================================================
 // Pre/Post Calibration Hooks (set by main)
 // ============================================================================
 

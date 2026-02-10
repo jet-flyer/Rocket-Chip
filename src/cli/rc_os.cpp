@@ -14,6 +14,7 @@
 #include "calibration/calibration_data.h"
 #include "drivers/i2c_bus.h"
 #include "rocketchip/config.h"
+#include "hardware/watchdog.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -37,6 +38,11 @@ constexpr uint32_t kUsbSettleMs          = 200;          // USB CDC settle time 
 
 // 6-position calibration
 constexpr uint8_t  kAccel6posNumPositions = 6;           // Orthogonal orientations for gravity fit
+
+// Mag calibration (IVP-37)
+constexpr uint32_t kMagCalPollMs          = 50;           // ~20Hz mag sample rate
+constexpr uint16_t kMagCalProgressInterval = 25;          // Print every N accepted samples
+constexpr uint16_t kMagCalMinSamples      = 50;           // Minimum for reliable fit
 
 // ============================================================================
 // State
@@ -65,6 +71,9 @@ bool rc_os_i2c_scan_allowed = true;
 rc_os_read_accel_fn rc_os_read_accel = nullptr;
 rc_os_cal_hook_fn rc_os_cal_pre_hook = nullptr;
 rc_os_cal_hook_fn rc_os_cal_post_hook = nullptr;
+
+// Mag read callback for compass calibration (set by main.cpp)
+rc_os_read_mag_fn rc_os_read_mag = nullptr;
 
 // Unhandled key callback (set by main.cpp for extensible key handling)
 rc_os_unhandled_key_fn rc_os_on_unhandled_key = nullptr;
@@ -122,7 +131,7 @@ static void print_calibration_menu() {
     printf("  l - Level calibration (keep flat)\n");
     printf("  b - Baro calibration (ground ref)\n");
     printf("  a - 6-position accel (future)\n");
-    printf("  m - Compass calibration (future)\n");
+    printf("  m - Compass calibration\n");
     printf("  w - Full wizard (all in sequence)\n");
     printf("  r - Reset all calibration\n");
     printf("  v - Save calibration to flash\n");
@@ -470,6 +479,170 @@ static void cmd_accel_6pos_cal() {
     if (rc_os_cal_post_hook != nullptr) { rc_os_cal_post_hook(); }
 }
 
+static void cmd_mag_cal() {
+    if (rc_os_read_mag == nullptr) {
+        printf("\nERROR: Mag read callback not set\n");
+        return;
+    }
+
+    printf("\n========================================\n");
+    printf("  Compass Calibration\n");
+    printf("========================================\n");
+    printf("Rotate the device slowly through all\n");
+    printf("orientations to cover the full sphere.\n");
+    printf("Press 'x' or ESC to cancel.\n");
+    printf("========================================\n\n");
+
+    calibration_reset_mag_cal();
+
+    uint16_t lastPrintedCount = 0;
+    uint32_t totalReads = 0;
+
+    while (true) {
+        // Check for cancel
+        int ch = getchar_timeout_us(0);
+        if (ch == 'x' || ch == 'X' || ch == kEscChar) {
+            printf("\nCalibration cancelled.\n");
+            calibration_reset_mag_cal();
+            return;
+        }
+
+        // Kick watchdog — this is a long-running blocking function
+        watchdog_update();
+
+        // Read mag sample from seqlock
+        float mx = 0.0F;
+        float my = 0.0F;
+        float mz = 0.0F;
+        if (!rc_os_read_mag(&mx, &my, &mz)) {
+            sleep_ms(kMagCalPollMs);
+            continue;
+        }
+        totalReads++;
+
+        // Feed to collection
+        mag_feed_result_t result = calibration_feed_mag_sample(mx, my, mz);
+        uint16_t count = calibration_get_mag_sample_count();
+
+        // Print first accepted sample immediately for feedback
+        if (result == mag_feed_result_t::ACCEPTED && count == 1) {
+            float mag = sqrtf(mx*mx + my*my + mz*mz);
+            printf("  First sample: |M|=%.1f uT (read %lu)\n",
+                   (double)mag, (unsigned long)totalReads);
+            fflush(stdout);
+        }
+
+        // Print progress at intervals
+        if (result == mag_feed_result_t::ACCEPTED &&
+            count >= lastPrintedCount + kMagCalProgressInterval) {
+            lastPrintedCount = count;
+            uint8_t coverage = calibration_get_mag_coverage_pct();
+            printf("  Samples: %u  Coverage: %u%%  (read %lu)\n",
+                   count, coverage, (unsigned long)totalReads);
+            fflush(stdout);
+        }
+
+        // Buffer full — proceed to fit
+        if (result == mag_feed_result_t::BUFFER_FULL) {
+            break;
+        }
+
+        sleep_ms(kMagCalPollMs);
+    }
+
+    uint16_t finalCount = calibration_get_mag_sample_count();
+    uint8_t finalCoverage = calibration_get_mag_coverage_pct();
+    printf("\nCollection complete: %u samples, %u%% coverage\n",
+           finalCount, finalCoverage);
+
+    if (finalCount < kMagCalMinSamples) {
+        printf("ERROR: Not enough samples (%u < %u)\n",
+               finalCount, kMagCalMinSamples);
+        calibration_reset_mag_cal();
+        return;
+    }
+
+    printf("Computing ellipsoid fit...");
+    fflush(stdout);
+
+    cal_result_t fitResult = calibration_compute_mag_cal();
+    if (fitResult != CAL_RESULT_OK) {
+        printf(" FAILED (%d)\n", fitResult);
+        if (fitResult == CAL_RESULT_FIT_FAILED) {
+            printf("Ellipsoid fit did not converge or params out of range.\n");
+        }
+        calibration_reset_mag_cal();
+        return;
+    }
+    printf(" OK!\n\n");
+
+    // Print results
+    const calibration_store_t* cal = calibration_manager_get();
+    printf("Results:\n");
+    printf("  Offset: X=%.2f Y=%.2f Z=%.2f uT\n",
+           (double)cal->mag.offset.x,
+           (double)cal->mag.offset.y,
+           (double)cal->mag.offset.z);
+    printf("  Scale:  X=%.4f Y=%.4f Z=%.4f\n",
+           (double)cal->mag.scale.x,
+           (double)cal->mag.scale.y,
+           (double)cal->mag.scale.z);
+    printf("  Offdiag: XY=%.4f XZ=%.4f YZ=%.4f\n",
+           (double)cal->mag.offdiag.x,
+           (double)cal->mag.offdiag.y,
+           (double)cal->mag.offdiag.z);
+    printf("  Expected radius: %.2f uT\n",
+           (double)cal->mag.expected_radius);
+    printf("  Fitness (RMS): %.3f uT\n",
+           (double)calibration_get_mag_fitness());
+
+    // Verification: 10 live samples
+    printf("\nVerification (%d live samples):\n", kVerifySampleCount);
+    float magSum = 0.0F;
+    uint8_t goodReads = 0;
+    for (uint8_t i = 0; i < kVerifySampleCount; i++) {
+        float mx = 0.0F;
+        float my = 0.0F;
+        float mz = 0.0F;
+        if (rc_os_read_mag(&mx, &my, &mz)) {
+            float cx = 0.0F;
+            float cy = 0.0F;
+            float cz = 0.0F;
+            calibration_apply_mag(mx, my, mz, &cx, &cy, &cz);
+            float mag = sqrtf(cx*cx + cy*cy + cz*cz);
+            magSum += mag;
+            goodReads++;
+        }
+        sleep_ms(kMagCalPollMs);
+    }
+    if (goodReads > 0) {
+        float avgMag = magSum / static_cast<float>(goodReads);
+        printf("  Avg calibrated magnitude: %.2f uT (expected %.2f)\n",
+               (double)avgMag, (double)cal->mag.expected_radius);
+    } else {
+        printf("  WARNING: No valid mag reads during verification\n");
+    }
+
+    // Auto-save to flash
+    printf("\nSaving to flash...");
+    fflush(stdout);
+    cal_result_t saveResult = calibration_save();
+    if (saveResult == CAL_RESULT_OK) {
+        printf(" OK!\n");
+        if (!i2c_bus_reset()) {
+            printf("[WARN] I2C bus reset failed after save\n");
+        }
+    } else {
+        printf(" FAILED (%d)\n", saveResult);
+    }
+
+    // Signal Core 1 to reload calibration
+    if (rc_os_cal_post_hook != nullptr) { rc_os_cal_post_hook(); }
+
+    printf("\nCompass calibration complete.\n");
+    calibration_reset_mag_cal();
+}
+
 static void cmd_wizard() {
     // Wizard requires blocking waits which don't work with bare-metal polling.
     // Use individual calibrations instead (g, l, b) then save (v).
@@ -609,7 +782,7 @@ static void handle_calibration_menu(int c) {
 
         case 'm':
         case 'M':
-            printf("\nCompass calibration not yet implemented.\n");
+            cmd_mag_cal();
             break;
 
         case 'w':

@@ -808,7 +808,10 @@ mag_feed_result_t calibration_feed_mag_sample(float mx, float my, float mz) {
     }
 
     // Angular separation check against recent samples
-    // Minimum angular separation: acos(1 - 2/N) where N = current count
+    // Minimum angular separation based on TARGET count (kMagMaxSamples), not running count.
+    // Using running count requires near-orthogonal orientations for early samples (90° for
+    // sample 2), rejecting everything during smooth hand rotation. ArduPilot uses fixed
+    // minimum distance based on target sample count.
     if (g_mag_sample_count > 0) {
         float nx = mx / mag;
         float ny = my / mag;
@@ -818,7 +821,7 @@ mag_feed_result_t calibration_feed_mag_sample(float mx, float my, float mz) {
         uint16_t checkStart = (g_mag_sample_count > kMagRecentWindow)
                               ? (g_mag_sample_count - kMagRecentWindow) : 0;
 
-        float minSepCos = 1.0F - 2.0F / static_cast<float>(g_mag_sample_count + 1);
+        float minSepCos = 1.0F - 2.0F / static_cast<float>(kMagMaxSamples);
 
         for (uint16_t i = checkStart; i < g_mag_sample_count; i++) {
             float rmag = sqrtf(g_mag_samples[i][0]*g_mag_samples[i][0]

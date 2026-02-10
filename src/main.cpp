@@ -36,7 +36,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "nonblock-usb-3";
+static const char* kBuildTag = "mag-cal-cli-2";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -567,6 +567,26 @@ static bool read_accel_for_cal(float* ax, float* ay, float* az, float* temp_c) {
 }
 
 // ============================================================================
+// Mag Read Callback (for compass calibration via CLI)
+// ============================================================================
+// Reads from seqlock — Core 1 keeps running, no I2C contention.
+// Bus-agnostic: reads from shared data regardless of sensor transport.
+
+static bool read_mag_from_seqlock(float* mx, float* my, float* mz) {
+    shared_sensor_data_t snap;
+    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
+        return false;
+    }
+    if (!snap.mag_valid) {
+        return false;
+    }
+    *mx = snap.mag_x;
+    *my = snap.mag_y;
+    *mz = snap.mag_z;
+    return true;
+}
+
+// ============================================================================
 // Calibration Hooks — disable I2C master during rapid accel reads
 // ============================================================================
 // The ICM-20948's internal I2C master (for mag reads) performs autonomous
@@ -959,6 +979,7 @@ static void init_application(bool watchdogReboot) {
     rc_os_print_boot_summary = print_hw_status;
     rc_os_print_boot_status = print_boot_status;
     rc_os_read_accel = read_accel_for_cal;
+    rc_os_read_mag = read_mag_from_seqlock;
     rc_os_cal_pre_hook = cal_pre_hook;
     rc_os_cal_post_hook = cal_post_hook;
 
