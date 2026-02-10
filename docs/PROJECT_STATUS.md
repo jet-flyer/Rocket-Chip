@@ -23,19 +23,20 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 | Automated Audit | — | 2026-02-09 | clang-tidy 127 checks, 1,251 findings across 10 files. See `docs/audits/CLANG_TIDY_AUDIT_2026-02-09.md` |
 | IVP Code Strip | — | 2026-02-09 | main.cpp 3,623→1,073 lines (70% reduction). Binary 198,144→155,648 bytes (-21.4%). 2 deviations resolved |
 | I2C Recovery Fix | — | 2026-02-10 | Fixed peripheral corruption in bus recovery (LL Entry 28). Probe-first detection, SCL/SDA improvements. 386K reads, 0 errors |
+| Non-blocking USB | — | 2026-02-10 | Firmware runs without terminal. Boot banner deferred to first connect. Soak verified: 536K reads, 0 errors |
 
 ## In Progress
 
 **Foundational features — must complete before Stage 5 ESKF (IVP-39+):**
 
-1. **Soak baseline (next session)** — 6-min soak via debug probe on current build to establish post-fix baseline
-2. **Phase M: Magnetometer calibration wizard** — Commits 1+2 done (94dffad: data structures, apply functions, sample collection, LM solver). Commit 3 (CLI command) in stash@{0}. Commit 4 (Core 1 live apply) blocked by Commit 3
-3. **Non-blocking USB init** — Retest via debug probe (prior failures were picotool artifacts per LL Entry 25/27)
+1. ~~Soak baseline~~ — **DONE** (536K IMU reads, 0 errors, 6 min with all 3 sensors)
+2. ~~Non-blocking USB init~~ — **DONE** (ec87703). Prior failures were picotool artifacts (LL Entry 25/27)
+3. **Phase M: Magnetometer calibration wizard** — Commits 1+2 done (94dffad: data structures, apply functions, sample collection, LM solver). Commit 3 (CLI command) in stash@{0}. Commit 4 (Core 1 live apply) blocked by Commit 3
 4. **Unified calibration wizard** — Gyro, level, 6-pos accel, mag cal through single CLI flow
 
 ## Blockers
 
-- **Non-blocking USB init** — Attempted and reverted (6de6245). All 4 build variants (prod-13 through prod-16) failed soak at 40-90s, but all testing used picotool rapid flash cycles — now proven to corrupt I2C bus (LL Entry 25/27). "Codegen sensitivity" hypothesis **disproved** (2026-02-09): three soak tests via debug probe with i2c_bus.cpp modifications all passed with 0 errors (~370K reads each). Should be re-attempted with probe-only testing.
+None currently. Phase M is next.
 
 ## Reference
 

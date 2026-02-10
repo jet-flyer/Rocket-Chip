@@ -18,25 +18,23 @@
 
 **Do NOT move to Stage 5 ESKF (IVP-39+) until these are complete:**
 
-1. **Soak baseline (2026-02-11)** — Run a clean 6-min soak via debug probe on the current `recover-fix-2` build to establish the post-fix baseline. This is the first thing to do next session.
+1. ~~**Soak baseline**~~ — **DONE** (2026-02-10). 536K IMU reads, 0 errors, 6 min with all 3 sensors (`nonblock-usb-3`).
 2. **Phase M: Full magnetometer calibration wizard** — Commits 1+2 done (data structures, solver). Commit 3 (CLI command, in stash@{0}) and Commit 4 (Core 1 live apply) still needed.
-3. **Non-blocking USB init** — Retest via debug probe (see below). Firmware must run without a terminal connected.
-4. **Boot-time peripheral detection** — Implemented (2026-02-10). Runtime hot-plug detection is a stretch goal, not a blocker.
+3. ~~**Non-blocking USB init**~~ — **DONE** (2026-02-10, ec87703). Boot banner deferred to first terminal connect. Prior failures were picotool artifacts.
+4. ~~**Boot-time peripheral detection**~~ — **DONE** (2026-02-10). Runtime hot-plug detection is a stretch goal, not a blocker.
 5. **Full calibration wizard** — Gyro, level, 6-pos accel, and mag cal should all be accessible through a unified CLI flow. Currently separate commands.
 
 **Rationale (user directive):** Features like peripheral detection, calibration wizards, and non-blocking USB are not "future nice-to-haves" — they are core functionality that ESKF depends on. Mag cal provides the hard-iron/soft-iron corrections that the ESKF magnetometer measurement model needs. Non-blocking USB is required for any untethered operation. Get the foundation solid before adding fusion.
 
 ---
 
-### Non-Blocking USB — DEFERRED
+### Non-Blocking USB — RESOLVED (2026-02-10)
 
-**Goal:** Remove blocking `wait_for_usb_connection()` so firmware runs without terminal.
+Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all()`. Boot banner deferred to first terminal connect via `rc_os_print_boot_status` callback. Core 1 + watchdog start immediately. Soak verified: 536K reads, 0 errors. Prior prod-13 through prod-16 failures were picotool artifacts (LL Entry 25/27).
 
-**What was tried (prod-13 through prod-16):** All 4 variants failed soak tests at 42-90s. However, all testing was done via **picotool rapid flash cycles** — now known to corrupt I2C bus (LL Entry 25). These results are contaminated and should be retested via debug probe.
+**Qwiic chain order finding:** PA1010D GPS must be first in chain (closest to board/power). At end of chain, probe detection is intermittent. Documented in `docs/hardware/HARDWARE.md`.
 
-**Next step:** Re-attempt non-blocking USB changes, testing exclusively via debug probe. The prod-13 through prod-16 failures may have been picotool artifacts, not code regressions.
-
-**Plan files preserved:** `~/.claude/plans/silly-dreaming-wilkinson.md` (USB+recovery plan), `~/.claude/plans/phase-m-mag-cal.md` (Phase M plan).
+**Plan files preserved:** `~/.claude/plans/phase-m-mag-cal.md` (Phase M plan).
 
 ---
 

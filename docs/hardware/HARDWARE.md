@@ -97,7 +97,9 @@ UBX output parsing is identical across M8/M9/M10 — only configuration commands
 
 #### GPS Interface Note
 
-**Current approach (IVP-31):** PA1010D via I2C — intentional stress test for I2C bus contention handling. Known to cause bus interference when probed (see LL Entry 20). Uses NMEA over I2C with 32-byte chunked reads.
+**Current approach (IVP-31):** PA1010D via I2C — intentional stress test for I2C bus contention handling. Known to cause bus interference when probed (see LL Entry 20). Uses NMEA over I2C with 32-byte chunked reads. 500us post-read settling delay eliminates IMU contention at 10Hz GPS.
+
+**Qwiic chain order:** PA1010D GPS must be **first in chain** (closest to board/power). At end of chain, I2C probe detection is intermittent due to power-up timing. Recommended order: Board → GPS → Baro → IMU. Verified with other GPS modules pending.
 
 **Production approach:** Migrate to u-blox UART GPS (Matek M8Q/M9N). Benefits:
 - UBX binary protocol — no `snprintf`, no NMEA text formatting

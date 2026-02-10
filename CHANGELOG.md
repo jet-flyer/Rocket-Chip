@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-10-003 | Claude Code CLI | feature
+
+**Non-blocking USB init — firmware runs without terminal**
+
+Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all()`. Boot banner and HW status deferred to first terminal connection via `rc_os_print_boot_status` callback. Core 1 sensor phase and watchdog start immediately with no USB dependency. Qwiic chain order documented: GPS must be first (closest to board) — at end of chain, probe detection is intermittent. Soak verified: 536K IMU reads, 0 errors (6 min, all 3 sensors).
+
+(`src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`, `docs/hardware/HARDWARE.md`)
+
+---
+
 ### 2026-02-10-002 | Claude Code CLI | architecture, documentation
 
 **SAD Section 13: I2C peripheral detection and driver management architecture**
