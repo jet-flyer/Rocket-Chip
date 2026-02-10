@@ -25,11 +25,11 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 
 ## In Progress
 
-**Stage 4 COMPLETE.** Next: Phase M magnetometer calibration (IVP-34: Mag cal data structure + storage)
+**Phase M: Magnetometer Calibration** — Commits 1+2 done (94dffad: data structures, apply functions, sample collection, LM solver). Commit 3 (CLI command) in stash@{0}. Commit 4 (Core 1 live apply) blocked by Commit 3.
 
 ## Blockers
 
-None.
+- **Non-blocking USB init** — Attempted and reverted (6de6245). All 4 build variants (prod-13 through prod-16) fail soak at 40-90s with cascading I2C errors. Codegen sensitivity issue — even changes to i2c_bus.cpp constants trigger runtime degradation. See AGENT_WHITEBOARD.md for full notes. Phase M not blocked by this.
 
 ## Reference
 

@@ -166,19 +166,4 @@ typedef void (*rc_os_cal_hook_fn)(void);
 extern rc_os_cal_hook_fn rc_os_cal_pre_hook;
 extern rc_os_cal_hook_fn rc_os_cal_post_hook;
 
-// ============================================================================
-// Boot Status Callback (set by main)
-// ============================================================================
-
-/**
- * @brief Callback to print full boot banner on first terminal connect.
- *
- * Called by rc_os_update() when terminal connects for the first time.
- * Prints version, board, watchdog warning, HW validation, and sensor status.
- * Keeps boot banner logic in main.cpp (access to constants and globals)
- * while rc_os handles the non-blocking USB connect detection.
- */
-typedef void (*rc_os_boot_status_fn)(void);
-extern rc_os_boot_status_fn rc_os_print_hw_boot_status;
-
 #endif // ROCKETCHIP_RC_OS_H

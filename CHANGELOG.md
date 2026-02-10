@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-09-008 | Claude Code CLI | bugfix
+
+**Revert non-blocking USB init (6de6245) — soak failures across 4 build variants**
+
+Reverted premature commit 6de6245 which removed `wait_for_usb_connection()`. Deep research confirmed Pico SDK has no I2C bus recovery function (custom recovery is correct per I2C spec NXP UM10204 Section 3.1.16). Attempted 4 build variants (prod-13 through prod-16) with robust bus recovery (retry loop, 100µs GPIO settling delay, `i2c_deinit()` before bit-bang) and non-blocking USB. All failed soak testing at 40-90 seconds with cascading I2C errors (IMU first, then baro/GPS). Even reverting i2c_bus.cpp while keeping only main.cpp USB changes produced identical failures — confirming this is the codegen sensitivity issue, not a logic bug. Documented findings in AGENT_WHITEBOARD.md for future investigation. Phase M stash@{0} (CLI mag cal) preserved.
+
+(`src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`, `AGENT_WHITEBOARD.md`)
+
+---
+
 ### 2026-02-09-007 | Claude Code CLI | documentation
 
 **IVP plan expansion: Phase M magnetometer calibration + Stage 5 sensor fusion flesh-out**

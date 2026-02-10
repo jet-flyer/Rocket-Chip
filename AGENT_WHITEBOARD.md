@@ -14,9 +14,33 @@
 
 ## Open Flags
 
-### BSS Layout Regression — UNSOLVED, DEFERRED
+### I2C Bus Recovery + Non-Blocking USB — UNSOLVED, DEFERRED
 
-Adding new `std::atomic` static globals to `main.cpp` causes ~30-80% IMU I2C errors. `alignas(64)` and flag grouping both failed. Baseline `ivp32-33-1` is rock solid (68K+ reads, 0 errors). Extremely sensitive to code generation changes.
+**Goal:** Remove blocking `wait_for_usb_connection()` so firmware runs without terminal; improve I2C bus recovery robustness.
+
+**Deep research findings (2026-02-09):**
+- Pico SDK has NO I2C bus recovery function. `i2c_init()` resets peripheral state machine via RESETS register but does nothing for external bus (slave holding SDA low). Custom recovery is the correct approach (I2C spec NXP UM10204 Section 3.1.16). Linux kernel, ArduPilot, Zephyr all implement custom recovery.
+- The original "BSS sensitivity" hypothesis was partially confirmed as **I2C bus recovery timing sensitivity** — `gpio_set_function(GPIO_FUNC_I2C)` needs settling time before peripheral starts transactions.
+
+**What was tried (prod-13 through prod-16):**
+- prod-13: Robust recovery (retry loop, settling delay, `i2c_deinit()` before bit-bang) + non-blocking USB — soak failed at ~60s
+- prod-14: Changed Core 1 error path from `i2c_bus_reset()` to lightweight `i2c_init()` — soak failed at ~90s, same cascade pattern
+- prod-15: Always clock all 9 pulses (match old behavior) — soak failed at ~42s
+- prod-16: Reverted i2c_bus.cpp entirely, kept only main.cpp USB changes — not tested (user requested full revert)
+
+**Key observation:** ANY change to i2c_bus.cpp (even adding constants that don't affect runtime code paths) triggers the codegen sensitivity. The ~60-90s soak failure is a new manifestation — different from BSS sensitivity (immediate failure) and from picotool corruption (immediate on cold boot). Errors cascade: IMU first, then baro and GPS follow.
+
+**Reverted to:** 94dffad (pre-USB-changes). 6de6245 reverted. stash@{0} has Phase M Commit 3 CLI changes.
+
+**Next steps (same as before + new):** (1) Separate `.cpp` file for new globals, (2) `__attribute__((section))` BSS isolation, (3) `.map` + `objdump -d` diff between working and failing binaries, (4) BUSCTRL perf counters, (5) Try USB changes in isolation without ANY i2c_bus.cpp modifications. Does not block Phase M Commits 3+4 (stash@{0}).
+
+**Plan files preserved:** `~/.claude/plans/silly-dreaming-wilkinson.md` (USB+recovery plan), `~/.claude/plans/phase-m-mag-cal.md` (Phase M plan).
+
+---
+
+### BSS Layout / Codegen Sensitivity — UNSOLVED, DEFERRED
+
+Adding new `std::atomic` static globals to `main.cpp` causes ~30-80% IMU I2C errors. `alignas(64)` and flag grouping both failed. Baseline `ivp32-33-1` is rock solid (68K+ reads, 0 errors). Extremely sensitive to code generation changes — even changes to i2c_bus.cpp that don't affect runtime code paths can trigger runtime I2C degradation after 40-90 seconds.
 
 **Next steps (when Stage 5 ESKF needs new cross-core globals):** (1) Separate `.cpp` file for new globals, (2) `__attribute__((section))` BSS isolation, (3) `.map` + `objdump -d` diff, (4) BUSCTRL perf counters. Does not block current work.
 
