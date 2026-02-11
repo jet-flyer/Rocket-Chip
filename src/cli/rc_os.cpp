@@ -79,6 +79,7 @@ rc_os_boot_status_fn rc_os_print_boot_status = nullptr;
 bool rc_os_imu_available = false;
 bool rc_os_baro_available = false;
 bool rc_os_i2c_scan_allowed = true;
+volatile bool rc_os_mag_cal_active = false;
 
 // Accel read callback for 6-pos calibration (set by main.cpp)
 rc_os_read_accel_fn rc_os_read_accel = nullptr;
@@ -805,7 +806,9 @@ static void cmd_mag_cal() {
         return;
     }
 
+    rc_os_mag_cal_active = true;   // Pause GPS on Core 1
     mag_cal_inner();
+    rc_os_mag_cal_active = false;  // Resume GPS
     cal_neo(kCalNeoOff);
 }
 
@@ -1023,11 +1026,13 @@ static void cmd_wizard() {
             cal_neo(kCalNeoOff);
             skipped++;
         } else {
+            rc_os_mag_cal_active = true;   // Pause GPS on Core 1
             if (mag_cal_inner()) {
                 passed++;
             } else {
                 failed++;
             }
+            rc_os_mag_cal_active = false;  // Resume GPS
         }
     }
 

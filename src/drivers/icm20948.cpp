@@ -6,6 +6,13 @@
  *
  * Note: ICM-20948 uses a bank-switching register architecture.
  * Registers 0x00-0x7F exist in each of 4 banks (0-3).
+ *
+ * AK09916 magnetometer is accessed via I2C bypass mode (BYPASS_EN=1),
+ * which connects the internal auxiliary bus to the external I2C bus.
+ * The AK09916 appears directly at address 0x0C. This eliminates the
+ * ICM-20948's internal I2C master (and its bank-switching race, stall
+ * after disable/enable, and fragile SLV0 configuration).
+ * ArduPilot uses the same approach (AP_InertialSensor_Invensensev2.cpp).
  */
 
 #include "icm20948.h"
@@ -46,7 +53,6 @@ namespace bank0 {
     constexpr uint8_t kGyroZoutL        = 0x38;
     constexpr uint8_t kTempOutH         = 0x39;
     constexpr uint8_t kTempOutL         = 0x3A;
-    constexpr uint8_t kExtSlvSensData00 = 0x3B;  // Magnetometer data comes here
 } // namespace bank0
 
 namespace bank2 {
@@ -59,14 +65,8 @@ namespace bank2 {
     constexpr uint8_t kAccelConfig2     = 0x15;
 } // namespace bank2
 
-namespace bank3 {
-    constexpr uint8_t kI2cMstCtrl       = 0x01;
-    constexpr uint8_t kI2cMstDelayCtrl  = 0x02;
-    constexpr uint8_t kI2cSlv0Addr      = 0x03;
-    constexpr uint8_t kI2cSlv0Reg       = 0x04;
-    constexpr uint8_t kI2cSlv0Ctrl      = 0x05;
-    constexpr uint8_t kI2cSlv0Do        = 0x06;
-} // namespace bank3
+// bank3 namespace removed — bypass mode does not use the I2C master
+// (Bank 3 contained SLV0/SLV4 config, I2C master clock, delay ctrl)
 
 // ============================================================================
 // Bit Definitions
@@ -86,10 +86,6 @@ namespace bit {
 
     // INT_PIN_CFG
     constexpr uint8_t kBypassEn         = (1U << 1);
-
-    // I2C_SLV
-    constexpr uint8_t kSlvEn            = (1U << 7);
-    constexpr uint8_t kSlvRead          = (1U << 7);  // For SLV_ADDR register
 } // namespace bit
 
 // ============================================================================
@@ -145,17 +141,18 @@ constexpr float kMagScale = 0.15F;
 constexpr float kTempSensitivity = 333.87F;  // LSB/°C
 constexpr float kTempOffset      = 21.0F;    // Room temperature offset (°C)
 
-// I2C master config: CLK=7 (~345kHz), P_NSR=1 (stop between reads)
-// Standard value used by Adafruit and SparkFun reference implementations
-constexpr uint8_t kI2cMstClkPnsr = 0x17;
-
 // FS_SEL bitmask: bits [2:1] in ACCEL_CONFIG / GYRO_CONFIG1
 constexpr uint8_t kFsSelMask = 0xF9;  // Clear bits [2:1], preserve rest
 
-// Burst read sizes
-constexpr uint8_t kBurstReadSize      = 23;  // ACCEL_XOUT_H through EXT_SLV_SENS_DATA_08
+// Read sizes
+constexpr uint8_t kImuReadSize        = 14;  // ACCEL_XOUT_H through TEMP_OUT_L
 constexpr uint8_t kAccelGyroTempSize  = 6;   // 3-axis × 2 bytes
-constexpr uint8_t kMagExtReadSize     = 9;   // ST1 + 6 data + dummy + ST2
+constexpr uint8_t kMagReadSize        = 9;   // ST1 + 6 data + TMPS(dummy) + ST2
+
+// AK09916 outputs at 100Hz in continuous mode. When icm20948_read() is called
+// at ~1kHz, only every Nth call reads the mag to avoid unnecessary bus traffic
+// through the bypass bridge. AK09916 datasheet: 100Hz mode = 10ms per sample.
+constexpr uint8_t kMagReadDivider     = 10;  // Read mag every 10th call (~100Hz)
 
 // Timing delays (datasheet minimums)
 constexpr uint32_t kInitStepDelayMs   = 10;   // Between bank switches / config steps
@@ -195,122 +192,62 @@ static bool read_bank_reg(icm20948_t* dev, uint8_t bank, uint8_t reg, uint8_t* v
     return i2c_bus_read_reg(dev->addr, reg, value) == 0;
 }
 
-/**
- * @brief Write to magnetometer via I2C master
- */
-static bool mag_write_reg(icm20948_t* dev, uint8_t reg, uint8_t value) {
-    // Configure SLV0 for write
-    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Addr, ak09916::kI2cAddr)) {
-        return false;
-    }
-    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Reg, reg)) {
-        return false;
-    }
-    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Do, value)) {
-        return false;
-    }
-    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Ctrl, bit::kSlvEn | 1)) {
-        return false;
-    }
-
-    sleep_ms(1);  // Wait for transaction
-    return true;
+// Direct I2C read from AK09916 (bypass mode — device at 0x0C on external bus)
+static bool mag_direct_read_reg(uint8_t reg, uint8_t* value) {
+    return i2c_bus_read_reg(ak09916::kI2cAddr, reg, value) == 0;
 }
 
-/**
- * @brief Configure magnetometer read via I2C master
- */
-static bool mag_config_read(icm20948_t* dev, uint8_t reg, uint8_t len) {
-    // Configure SLV0 for read
-    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Addr, ak09916::kI2cAddr | bit::kSlvRead)) {
-        return false;
-    }
-    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Reg, reg)) {
-        return false;
-    }
-    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Ctrl, bit::kSlvEn | len)) {
-        return false;
-    }
-    return true;
+// Direct I2C write to AK09916
+static bool mag_direct_write_reg(uint8_t reg, uint8_t value) {
+    return i2c_bus_write_reg(ak09916::kI2cAddr, reg, value) == 0;
 }
 
-/**
- * @brief Read a single register from magnetometer via I2C master
- */
-static bool mag_read_reg(icm20948_t* dev, uint8_t reg, uint8_t* value) {
-    // Configure SLV0 for a one-shot single-byte read
-    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Addr, ak09916::kI2cAddr | bit::kSlvRead)) {
+// Enable I2C bypass mode — connects AK09916 to external I2C bus at 0x0C.
+// Must disable I2C master FIRST (I2C_MST_EN=0), then set BYPASS_EN=1.
+// Reversing this order causes the internal master and external host to
+// both drive the auxiliary bus simultaneously (undefined behavior).
+static bool enable_bypass_mode(icm20948_t* dev) {
+    // Disable I2C master if it was enabled
+    uint8_t userCtrl = 0;
+    if (!read_bank_reg(dev, 0, bank0::kUserCtrl, &userCtrl)) {
         return false;
     }
-    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Reg, reg)) {
-        return false;
-    }
-    if (!write_bank_reg(dev, 3, bank3::kI2cSlv0Ctrl, bit::kSlvEn | 1)) {
+    userCtrl &= ~bit::kI2cMstEn;
+    if (!write_bank_reg(dev, 0, bank0::kUserCtrl, userCtrl)) {
         return false;
     }
 
-    sleep_ms(1);  // Wait for I2C master transaction
-
-    // Read result from EXT_SLV_SENS_DATA_00
-    return read_bank_reg(dev, 0, bank0::kExtSlvSensData00, value);
-}
-
-/**
- * @brief Initialize the AK09916 magnetometer
- *
- * Sequence per Adafruit/SparkFun reference implementations:
- * 1. Clear BYPASS_EN (disconnect external bus from aux bus)
- * 2. Configure I2C master clock + P_NSR
- * 3. Enable I2C master
- * 4. Reset magnetometer
- * 5. Verify WHO_AM_I with retry loop
- * 6. Set continuous measurement mode
- * 7. Configure SLV0 for automatic reads
- */
-// Enable ICM-20948 internal I2C master for AK09916 communication
-static bool enable_i2c_master(icm20948_t* dev) {
-    // Clear BYPASS_EN — required before enabling I2C master
+    // Enable BYPASS_EN — connects AK09916 to external I2C bus
     uint8_t intPinCfg = 0;
     if (!read_bank_reg(dev, 0, bank0::kIntPinCfg, &intPinCfg)) {
         return false;
     }
-    intPinCfg &= ~bit::kBypassEn;
+    intPinCfg |= bit::kBypassEn;
     if (!write_bank_reg(dev, 0, bank0::kIntPinCfg, intPinCfg)) {
         return false;
     }
 
-    // Configure I2C master clock + P_NSR
-    if (!write_bank_reg(dev, 3, bank3::kI2cMstCtrl, kI2cMstClkPnsr)) {
-        return false;
-    }
-
-    // Enable I2C master
-    if (!write_bank_reg(dev, 0, bank0::kUserCtrl, bit::kI2cMstEn)) {
-        return false;
-    }
     sleep_ms(kInitStepDelayMs);
     return true;
 }
 
-// Reset AK09916, verify WHO_AM_I, set continuous 100Hz mode, configure SLV0
+// Reset AK09916, verify WHO_AM_I, set continuous 100Hz mode (all via direct I2C)
 static bool configure_magnetometer(icm20948_t* dev) {
-    // Reset magnetometer
-    if (!mag_write_reg(dev, ak09916::kCntl3, 0x01)) {
+    (void)dev;  // dev not needed — AK09916 is on external bus at fixed address
+
+    // Reset magnetometer via direct I2C
+    if (!mag_direct_write_reg(ak09916::kCntl3, 0x01)) {
         return false;
     }
     sleep_ms(kResetSettleMs);
 
-    // Verify WHO_AM_I with retry (per SparkFun)
+    // Verify WHO_AM_I with retry
     bool magFound = false;
     for (uint8_t tries = 0; tries < kMagRetries; tries++) {
         uint8_t wia2 = 0;
-        if (mag_read_reg(dev, ak09916::kWia2, &wia2) && wia2 == kAk09916WhoAmI) {
+        if (mag_direct_read_reg(ak09916::kWia2, &wia2) && wia2 == kAk09916WhoAmI) {
             magFound = true;
             break;
-        }
-        if (!write_bank_reg(dev, 0, bank0::kUserCtrl,
-                            bit::kI2cMstEn | bit::kI2cMstRst)) {
-            return false;
         }
         sleep_ms(kInitStepDelayMs);
     }
@@ -319,22 +256,20 @@ static bool configure_magnetometer(icm20948_t* dev) {
     }
 
     // Set continuous 100Hz mode (shutdown first per Adafruit pattern)
-    if (!mag_write_reg(dev, ak09916::kCntl2, AK09916_MODE_POWER_DOWN)) {
+    if (!mag_direct_write_reg(ak09916::kCntl2, AK09916_MODE_POWER_DOWN)) {
         return false;
     }
     sleep_ms(1);
-    if (!mag_write_reg(dev, ak09916::kCntl2, AK09916_MODE_CONT_100HZ)) {
+    if (!mag_direct_write_reg(ak09916::kCntl2, AK09916_MODE_CONT_100HZ)) {
         return false;
     }
     sleep_ms(kInitStepDelayMs);
 
-    // Configure SLV0 for continuous reads from ST1
-    // ST1(1) + HXL/HXH/HYL/HYH/HZL/HZH(6) + dummy(1) + ST2(1)
-    return mag_config_read(dev, ak09916::kSt1, kMagExtReadSize);
+    return true;
 }
 
 static bool init_magnetometer(icm20948_t* dev) {
-    if (!enable_i2c_master(dev)) {
+    if (!enable_bypass_mode(dev)) {
         return false;
     }
     if (!configure_magnetometer(dev)) {
@@ -402,13 +337,11 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
         return false;
     }
 
-    // Initialize magnetometer with retries (intermittent after reboot)
+    // Initialize magnetometer (bypass mode) with retries
     for (uint8_t magAttempt = 0; magAttempt < kMagInitRetries; magAttempt++) {
         if (init_magnetometer(dev)) {
             break;
         }
-        write_bank_reg(dev, 0, bank0::kUserCtrl,
-                       bit::kI2cMstEn | bit::kI2cMstRst);
         sleep_ms(kWakeSettleMs);
     }
 
@@ -443,6 +376,8 @@ bool icm20948_reset(icm20948_t* dev) {
 
     sleep_ms(kResetSettleMs);
     dev->initialized = false;
+    // Device reset clears BYPASS_EN — icm20948_init() must be called
+    // to restore bypass mode and mag functionality.
     dev->mag_initialized = false;
     return true;
 }
@@ -494,7 +429,7 @@ bool icm20948_set_mag_mode(icm20948_t* dev, ak09916_mode_t mode) {
         return false;
     }
 
-    if (!mag_write_reg(dev, ak09916::kCntl2, mode)) {
+    if (!mag_direct_write_reg(ak09916::kCntl2, mode)) {
         return false;
     }
     dev->mag_mode = mode;
@@ -534,10 +469,8 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
         return false;
     }
 
-    // Read accel, gyro, temp, and ext sensor data in one burst
-    // ACCEL_XOUT_H (0x2D) through EXT_SLV_SENS_DATA_08 (0x43)
-    // 14 bytes accel/gyro/temp + 9 bytes mag (ST1 + 6 data + dummy + ST2)
-    uint8_t buf[kBurstReadSize];
+    // Read 14 bytes: ACCEL_XOUT_H (0x2D) through TEMP_OUT_L (0x3A)
+    uint8_t buf[kImuReadSize];
     if (i2c_bus_read_regs(dev->addr, bank0::kAccelXoutH, buf, sizeof(buf)) != sizeof(buf)) {
         data->accel_valid = false;
         data->gyro_valid = false;
@@ -545,12 +478,11 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
         return false;
     }
 
-    // Parse sensor data from burst read buffer
+    // Parse accel/gyro/temp from burst read buffer
     // Byte layout per ICM-20948 datasheet register map:
     //   [0..5]   accel XH/XL/YH/YL/ZH/ZL
     //   [6..11]  gyro  XH/XL/YH/YL/ZH/ZL
     //   [12..13] temp  H/L
-    //   [14..22] mag   ST1/HXL/HXH/HYL/HYH/HZL/HZH/dummy/ST2
     // NOLINTBEGIN(readability-magic-numbers) — buffer byte offsets per datasheet register map
     int16_t ax = static_cast<int16_t>((buf[0] << 8) | buf[1]);
     int16_t ay = static_cast<int16_t>((buf[2] << 8) | buf[3]);
@@ -574,23 +506,40 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     int16_t tempRaw = static_cast<int16_t>((buf[12] << 8) | buf[13]);
     data->temperature_c = (static_cast<float>(tempRaw) / kTempSensitivity) + kTempOffset;
 
-    if (dev->mag_initialized) {
-        uint8_t st1 = buf[14];
-        uint8_t st2 = buf[22];
+    // Read mag from AK09916 at 0x0C (bypass mode) at reduced rate.
+    // AK09916 outputs at 100Hz — reading at 1kHz wastes 90% of bus time
+    // on DRDY=0 results. Divider matches mag output rate.
+    static uint8_t magDivCount = 0;
+    magDivCount++;
+    if (dev->mag_initialized && magDivCount >= kMagReadDivider) {
+        magDivCount = 0;
+        uint8_t magBuf[kMagReadSize];
+        if (i2c_bus_read_regs(ak09916::kI2cAddr, ak09916::kSt1,
+                              magBuf, sizeof(magBuf)) == sizeof(magBuf)) {
+            uint8_t st1 = magBuf[0];
+            uint8_t st2 = magBuf[8];
 
-        if ((st1 & ak09916::kSt1Drdy) != 0 && (st2 & ak09916::kSt2Hofl) == 0) {
-            int16_t mx = static_cast<int16_t>((buf[16] << 8) | buf[15]);  // Little-endian
-            int16_t my = static_cast<int16_t>((buf[18] << 8) | buf[17]);
-            int16_t mz = static_cast<int16_t>((buf[20] << 8) | buf[19]);
+            if ((st1 & ak09916::kSt1Drdy) != 0 && (st2 & ak09916::kSt2Hofl) == 0) {
+                int16_t mx = static_cast<int16_t>((magBuf[2] << 8) | magBuf[1]);  // Little-endian
+                int16_t my = static_cast<int16_t>((magBuf[4] << 8) | magBuf[3]);
+                int16_t mz = static_cast<int16_t>((magBuf[6] << 8) | magBuf[5]);
 
-            data->mag.x = static_cast<float>(mx) * dev->mag_scale;
-            data->mag.y = static_cast<float>(my) * dev->mag_scale;
-            data->mag.z = static_cast<float>(mz) * dev->mag_scale;
-            data->mag_valid = true;
+                data->mag.x = static_cast<float>(mx) * dev->mag_scale;
+                data->mag.y = static_cast<float>(my) * dev->mag_scale;
+                data->mag.z = static_cast<float>(mz) * dev->mag_scale;
+                data->mag_valid = true;
+            } else {
+                data->mag_valid = false;
+            }
         } else {
             data->mag_valid = false;
         }
-    } else {
+    } else if (!dev->mag_initialized && magDivCount >= kMagReadDivider) {
+        // Mag lost after device reset — attempt lazy re-init once per divider cycle.
+        // init_magnetometer() re-enables bypass + configures AK09916 (~220ms).
+        // On success, subsequent calls resume normal mag reads.
+        magDivCount = 0;
+        init_magnetometer(dev);
         data->mag.x = data->mag.y = data->mag.z = 0;
         data->mag_valid = false;
     }
@@ -660,13 +609,9 @@ bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag) {
         return false;
     }
 
-    if (!select_bank(dev, 0)) {
-        return false;
-    }
-
-    // Read from external sensor data registers: ST1 + 6 data + dummy + ST2
-    uint8_t buf[kMagExtReadSize];
-    if (i2c_bus_read_regs(dev->addr, bank0::kExtSlvSensData00, buf, sizeof(buf)) != sizeof(buf)) {
+    // Read directly from AK09916 at 0x0C (bypass mode)
+    uint8_t buf[kMagReadSize];
+    if (i2c_bus_read_regs(ak09916::kI2cAddr, ak09916::kSt1, buf, sizeof(buf)) != sizeof(buf)) {
         return false;
     }
 
@@ -738,22 +683,3 @@ bool icm20948_dataReady(icm20948_t* dev, bool* accelReady, bool* gyroReady) {
     return true;
 }
 
-bool icm20948_set_i2c_master_enable(icm20948_t* dev, bool enable) {
-    if (dev == nullptr || !dev->initialized) {
-        return false;
-    }
-
-    // Read current USER_CTRL, modify I2C_MST_EN bit
-    uint8_t userCtrl = 0;
-    if (!read_bank_reg(dev, 0, bank0::kUserCtrl, &userCtrl)) {
-        return false;
-    }
-
-    if (enable) {
-        userCtrl |= bit::kI2cMstEn;
-    } else {
-        userCtrl &= ~bit::kI2cMstEn;
-    }
-
-    return write_bank_reg(dev, 0, bank0::kUserCtrl, userCtrl);
-}

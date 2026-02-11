@@ -45,14 +45,6 @@ Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all(
 
 ---
 
-### ICM-20948 I2C Bypass Mode Migration
-
-Council recommended migrating from I2C master mode to bypass mode (ArduPilot's approach) before IVP-42 (ESKF Propagation). Eliminates bank-switching race (LL Entry 21). Currently mitigated by disabling I2C master during calibration.
-
-See: ArduPilot `AP_InertialSensor_Invensensev2.cpp`, ICM-20948 `INT_PIN_CFG` register `I2C_BYPASS_EN` bit.
-
----
-
 ### Missing Vendor Datasheets
 
 | Document | Priority | Needed By |
@@ -78,6 +70,10 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 ---
 
 ## Resolved
+
+### ICM-20948 I2C Bypass Mode Migration — COMPLETE (2026-02-10)
+
+Migrated from I2C master mode to bypass mode (`BYPASS_EN=1`). AK09916 reads directly at 0x0C. Removed ~120 lines of I2C master code (Bank 3, SLV0, master clock). Added mag read divider (100Hz), two-level device recovery, lazy mag re-init, GPS pause during mag cal. Council-approved (unanimous). HW verified: mag cal 300 samples, 72% coverage, RMS 0.878 uT with GPS on bus. Build tag: bypass-5.
 
 ### D3 main.cpp Refactoring + IVP Strip — COMPLETE (2026-02-09)
 

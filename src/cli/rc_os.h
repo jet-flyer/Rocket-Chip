@@ -149,6 +149,16 @@ extern rc_os_read_accel_fn rc_os_read_accel;
  */
 extern bool rc_os_i2c_scan_allowed;
 
+/**
+ * @brief GPS pause flag for mag calibration.
+ *
+ * Set to true by cmd_mag_cal() to suppress GPS reads on Core 1.
+ * In bypass mode, GPS NMEA streaming (0x10) causes bus contention
+ * with AK09916 mag reads (0x0C). Core 1 checks this flag before
+ * calling core1_read_gps().
+ */
+extern volatile bool rc_os_mag_cal_active;
+
 // ============================================================================
 // Unhandled Key Callback (set by main)
 // ============================================================================
@@ -190,10 +200,10 @@ extern rc_os_reset_mag_staleness_fn rc_os_reset_mag_staleness;
 // ============================================================================
 
 /**
- * @brief Optional hooks called before/after 6-pos accel calibration.
+ * @brief Optional hooks called before/after calibration sequences.
  *
- * Use these to disable the ICM-20948 I2C master during calibration,
- * preventing bank-switching race conditions on rapid accel reads.
+ * Pre-hook pauses Core 1 sensor reads so Core 0 can take I2C ownership.
+ * Post-hook signals calibration reload and resumes Core 1.
  * Set to NULL if no setup/teardown is needed.
  */
 typedef void (*rc_os_cal_hook_fn)(void);

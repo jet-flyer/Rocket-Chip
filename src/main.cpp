@@ -36,7 +36,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "wizard-12";
+static const char* kBuildTag = "bypass-5";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -49,7 +49,8 @@ static constexpr uint32_t kCore1BaroDivider = 20;               // Baro at ~50Hz
 static constexpr uint32_t kCore1GpsDivider = 100;               // GPS at ~10Hz
 static constexpr uint32_t kGpsMinIntervalUs = 2000;             // MT3333 buffer refill time
 static constexpr uint32_t kCore1CalFeedDivider = 10;            // Cal feed at ~100Hz
-static constexpr uint32_t kCore1ConsecFailMax = 10;             // I2C recovery threshold
+static constexpr uint32_t kCore1ConsecFailBusRecover = 10;      // I2C bus recovery threshold
+static constexpr uint32_t kCore1ConsecFailDevReset = 50;        // ICM-20948 device reset threshold
 
 // DPS310 MEAS_CFG register (0x08): data-ready bits
 // Per DPS310 datasheet Section 7, PRS_RDY=bit4, TMP_RDY=bit5
@@ -388,9 +389,14 @@ static void core1_read_imu(shared_sensor_data_t* localData,
         localData->accel_valid = false;
         localData->gyro_valid = false;
         localData->imu_error_count++;
-        if (*imuConsecFail >= kCore1ConsecFailMax) {
-            i2c_bus_recover();
+        if (*imuConsecFail >= kCore1ConsecFailDevReset) {
+            // Bus recovery didn't help — ICM-20948 itself is hung.
+            // Full device reset restores bypass mode + mag.
+            icm20948_init(&g_imu, kIcm20948AddrDefault);
             *imuConsecFail = 0;
+        } else if (*imuConsecFail >= kCore1ConsecFailBusRecover
+                   && *imuConsecFail % kCore1ConsecFailBusRecover == 0) {
+            i2c_bus_recover();
         }
     }
 }
@@ -594,7 +600,8 @@ static void core1_sensor_loop() {
         }
 
         gpsCycle++;
-        if (gpsCycle >= kCore1GpsDivider && g_gpsInitialized) {
+        if (gpsCycle >= kCore1GpsDivider && g_gpsInitialized
+            && !rc_os_mag_cal_active) {
             gpsCycle = 0;
             core1_read_gps(&localData, &lastGpsReadUs);
         }
@@ -709,11 +716,10 @@ static bool read_mag_from_seqlock(float* mx, float* my, float* mz) {
 }
 
 // ============================================================================
-// Calibration Hooks — disable I2C master during rapid accel reads
+// Calibration Hooks — pause Core 1 during rapid accel reads
 // ============================================================================
-// The ICM-20948's internal I2C master (for mag reads) performs autonomous
-// Bank 3 transactions that race with our Bank 0 accel reads, causing
-// bank-select corruption after ~150 reads. Disable it during calibration.
+// Bypass mode eliminates the I2C master race condition (LL Entry 21).
+// Hooks only need to pause/unpause Core 1 for bus ownership.
 
 static void cal_pre_hook() {
     // If Core 1 is running sensors, pause it and take I2C ownership
@@ -727,15 +733,9 @@ static void cal_pre_hook() {
             sleep_ms(1);
         }
     }
-    if (g_imuInitialized) {
-        icm20948_set_i2c_master_enable(&g_imu, false);
-    }
 }
 
 static void cal_post_hook() {
-    if (g_imuInitialized) {
-        icm20948_set_i2c_master_enable(&g_imu, true);
-    }
     // Tell Core 1 to reload calibration and resume sensors
     if (g_sensorPhaseActive) {
         g_calReloadPending.store(true, std::memory_order_release);
@@ -923,12 +923,13 @@ static void print_sensor_status() {
 
 static const char* get_device_name(uint8_t addr) {
     switch (addr) {
-        case kI2cAddrIcm20948: return "ICM-20948";
-        case kI2cAddrDps310:   return "DPS310";
-        case kI2cAddrPa1010d:  return "PA1010D GPS";
-        case 0x68:              return "ICM-20948 (AD0=LOW)";
-        case 0x76:              return "DPS310 (alt)";
-        default:                return "Unknown";
+        case kI2cAddrIcm20948:  return "ICM-20948";
+        case kI2cAddrAk09916:   return "AK09916 (mag)";
+        case kI2cAddrDps310:    return "DPS310";
+        case kI2cAddrPa1010d:   return "PA1010D GPS";
+        case 0x68:               return "ICM-20948 (AD0=LOW)";
+        case 0x76:               return "DPS310 (alt)";
+        default:                 return "Unknown";
     }
 }
 
@@ -937,6 +938,7 @@ static void hw_validate_i2c_devices() {
     // Skip I2C probes when Core 1 owns the bus (LL Entry 23: probe collision)
     if (rc_os_i2c_scan_allowed) {
         static const uint8_t expected[] = {
+            kI2cAddrAk09916,   // 0x0C (AK09916 visible via bypass mode)
             kI2cAddrIcm20948,  // 0x69
             kI2cAddrDps310,    // 0x77
         };
@@ -1020,23 +1022,20 @@ static void init_sensors() {
     // Probe-first peripheral detection: only init drivers for devices that
     // are physically present on the bus. Prevents wasted init attempts and
     // avoids bus side-effects from absent devices (LL Entry 28).
+    //
+    // Init order matters: IMU + baro FIRST, GPS LAST.
+    // In bypass mode, AK09916 at 0x0C shares the external I2C bus.
+    // Probing the GPS (0x10) triggers NMEA streaming which can corrupt
+    // AK09916 init transactions. Defer GPS probe until after IMU bypass
+    // mode is fully established.
     bool imuDetected  = i2c_bus_probe(kIcm20948AddrDefault);
     bool baroDetected = i2c_bus_probe(kBaroDps310AddrDefault);
-    bool gpsDetected  = i2c_bus_probe(kGpsPa1010dAddr);
-
-    // If GPS is present, drain its buffer before IMU/baro init.
-    // The PA1010D streams NMEA autonomously on I2C — undrained data
-    // causes bus contention during other device init (LL Entry 20).
-    if (gpsDetected) {
-        uint8_t gpsDrain[255];
-        i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
-    }
 
     // Sensor power-up settling time
     // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
     sleep_ms(200);
 
-    // Only init detected devices
+    // Init IMU first — establishes bypass mode for AK09916 at 0x0C
     if (imuDetected) {
         g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
     }
@@ -1048,8 +1047,12 @@ static void init_sensors() {
         }
     }
 
-    // GPS init is non-fatal (LL Entry 20)
+    // GPS probe + init AFTER IMU bypass mode is stable.
+    // PA1010D streams NMEA autonomously after any I2C read (LL Entry 20).
+    bool gpsDetected = i2c_bus_probe(kGpsPa1010dAddr);
     if (gpsDetected) {
+        uint8_t gpsDrain[255];
+        i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
         g_gpsInitialized = gps_pa1010d_init();
         if (g_gpsInitialized) {
             g_gpsOnI2C = true;

@@ -26,6 +26,7 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 | Non-blocking USB | — | 2026-02-10 | Firmware runs without terminal. Boot banner deferred to first connect. Soak verified: 536K reads, 0 errors |
 | Phase M: Mag Cal | IVP-34–38 | 2026-02-10 | Full magnetometer calibration: data structures, LM ellipsoid solver, CLI wizard, Core 1 live apply + heading. 4 commits, all HW verified |
 | Phase M.5: Wizard | — | 2026-02-10 | Unified 5-step calibration wizard with NeoPixel feedback. Core 1 cal feeds (no I2C contention). Raw mag data in seqlock for recalibration. All 5 steps HW verified including full mag cal (300 samples, 81% coverage, RMS 2.499 uT) |
+| I2C Bypass Mode | — | 2026-02-10 | ICM-20948 mag access migrated from I2C master to bypass mode (ArduPilot approach). Eliminates bank-switching race, master stall, disable/enable corruption. HW verified with GPS on bus: mag cal 300 samples, RMS 0.878 uT |
 
 ## In Progress
 
@@ -35,6 +36,7 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 2. ~~Non-blocking USB init~~ — **DONE** (ec87703). Prior failures were picotool artifacts (LL Entry 25/27)
 3. ~~Phase M: Magnetometer calibration~~ — **DONE** (4 commits: 94dffad, d261b66, c84c38c). CLI wizard + Core 1 live apply + heading display
 4. ~~Unified calibration wizard~~ — **DONE** (wizard-12). 5-step wizard with NeoPixel feedback, ENTER/x navigation, raw mag data fix. Full mag cal HW verified (300 samples, 81% coverage, RMS 2.499 uT)
+5. ~~I2C bypass mode~~ — **DONE** (bypass-5). Council-approved migration from I2C master to bypass mode. GPS pause during mag cal. Two-level device recovery
 
 ## Blockers
 

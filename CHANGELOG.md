@@ -20,6 +20,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-10-007 | Claude Code CLI | feature, bugfix
+
+**ICM-20948: Migrate from I2C master mode to bypass mode**
+
+Replaced ICM-20948's internal I2C master with bypass mode (`INT_PIN_CFG.BYPASS_EN=1`) for AK09916 magnetometer access. AK09916 now reads directly at 0x0C on the external I2C bus, eliminating the bank-switching race (LL Entry 21), progressive master stall, and unrecoverable disable/enable cycle that caused mag cal failures. Removed ~120 lines of I2C master plumbing (Bank 3 registers, SLV0 config, master clock setup). Added mag read divider (100Hz vs 1kHz), two-level device recovery (bus recover at 10 fails, full device reset at 50), lazy mag re-init after device reset, and GPS pause during mag cal (`rc_os_mag_cal_active` flag). Reordered `init_sensors()` so GPS probe/init happens after IMU bypass mode is established. Council-approved (unanimous). HW verified: mag cal 300 samples/72% coverage/RMS 0.878 uT with GPS on bus, system self-recovers from lockups.
+
+*ArduPilot uses the same approach (`AP_InertialSensor_Invensensev2.cpp`). The I2C master creates an entire class of bugs that bypass mode eliminates entirely.*
+
+(`src/drivers/icm20948.cpp`, `src/drivers/icm20948.h`, `src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`)
+
+---
+
 ### 2026-02-10-006 | Claude Code CLI | feature, bugfix
 
 **Phase M.5 complete: Full calibration wizard + mag cal HW verified**
