@@ -22,7 +22,7 @@
 2. ~~**Phase M: Magnetometer calibration**~~ — **DONE** (2026-02-10). All 4 commits merged (94dffad, d261b66, c84c38c). CLI wizard + Core 1 live apply + heading display.
 3. ~~**Non-blocking USB init**~~ — **DONE** (2026-02-10, ec87703). Boot banner deferred to first terminal connect. Prior failures were picotool artifacts.
 4. ~~**Boot-time peripheral detection**~~ — **DONE** (2026-02-10). Runtime hot-plug detection is a stretch goal, not a blocker.
-5. **Full calibration wizard** — Gyro, level, 6-pos accel, and mag cal should all be accessible through a unified CLI flow. Currently separate commands.
+5. ~~**Full calibration wizard**~~ — **DONE** (2026-02-10, wizard-12). 5-step wizard (gyro, level, baro, 6-pos accel, compass) with NeoPixel feedback. ENTER/x navigation, Core 1 sensor feeds. Fixed mag cal raw data (seqlock now carries raw + calibrated mag). All 5 steps HW verified including full mag cal (300 samples, 81% coverage, RMS 2.499 uT).
 
 **Rationale (user directive):** Features like peripheral detection, calibration wizards, and non-blocking USB are not "future nice-to-haves" — they are core functionality that ESKF depends on. Mag cal provides the hard-iron/soft-iron corrections that the ESKF magnetometer measurement model needs. Non-blocking USB is required for any untethered operation. Get the foundation solid before adding fusion.
 

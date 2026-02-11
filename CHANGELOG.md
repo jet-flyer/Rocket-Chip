@@ -20,6 +20,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-10-006 | Claude Code CLI | feature, bugfix
+
+**Phase M.5 complete: Full calibration wizard + mag cal HW verified**
+
+NeoPixel now shows mode color during ENTER wait (before user presses ENTER, not after). All standalone cal commands match wizard UX with ENTER prompt + NeoPixel feedback. Added `cmd_accel_6pos_cal()` initial ENTER prompt (was missing). Added mag cal diagnostics: cancel prints accepted/read/readFail/close/range breakdown, sensor status shows `M=` (mag_read_count), periodic `mag_valid=false` diagnostic prints. Full mag cal HW verified: 300 samples, 81% coverage, ellipsoid fit RMS 2.499 uT, save to flash OK. Build tag: wizard-12.
+
+(`src/main.cpp`, `src/cli/rc_os.cpp`)
+
+---
+
+### 2026-02-10-005 | Claude Code CLI | feature
+
+**Phase M.5: Unified calibration wizard with NeoPixel feedback**
+
+Implemented full 5-step calibration wizard (gyro, level, baro, 6-pos accel, compass) accessible from CLI `c` → `w`. Each step waits for ENTER to start, 'x' to skip/cancel. NeoPixel shows calibration state via cross-core atomic override (blue breathe = IMU sampling, cyan = baro, yellow = accel positioning, rainbow = mag rotation, green = success, red = failure). Moved async calibration sensor feeds from Core 0 to Core 1 to eliminate I2C bus contention — Core 0 no longer touches I2C during gyro/level/baro calibrations. Extracted `mag_cal_inner()` for reuse between standalone command and wizard. Fixed watchdog crash in blocking prompts (polling loop with `watchdog_update()` instead of 30s `getchar_timeout_us()`). Fixed auto-progress bug from stale USB input buffer bytes (double-drain with 100ms gap). Fixed mag cal collecting only 1 sample: seqlock now carries raw mag data (`mag_raw_x/y/z`) alongside calibrated — ellipsoid solver needs uncorrected data. Struct grew 128→140 bytes. HW verified: wizard-6, gyro/level/baro/6-pos accel all pass.
+
+(`src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`)
+
+---
+
 ### 2026-02-10-004 | Claude Code CLI | feature
 
 **Phase M complete: Core 1 live mag apply + heading display (IVP-38)**

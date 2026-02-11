@@ -176,6 +176,15 @@ extern rc_os_unhandled_key_fn rc_os_on_unhandled_key;
 typedef bool (*rc_os_read_mag_fn)(float* mx, float* my, float* mz);
 extern rc_os_read_mag_fn rc_os_read_mag;
 
+/**
+ * @brief Reset mag read staleness counter.
+ *
+ * Call before starting a new mag cal so the staleness gate doesn't
+ * inherit a counter from a previous calibration run.
+ */
+typedef void (*rc_os_reset_mag_staleness_fn)(void);
+extern rc_os_reset_mag_staleness_fn rc_os_reset_mag_staleness;
+
 // ============================================================================
 // Pre/Post Calibration Hooks (set by main)
 // ============================================================================
@@ -190,5 +199,35 @@ extern rc_os_read_mag_fn rc_os_read_mag;
 typedef void (*rc_os_cal_hook_fn)(void);
 extern rc_os_cal_hook_fn rc_os_cal_pre_hook;
 extern rc_os_cal_hook_fn rc_os_cal_post_hook;
+
+// ============================================================================
+// INTERIM: NeoPixel Calibration Override (Phase M.5)
+// Replace with AP_Notify-style status state machine when implemented.
+// ============================================================================
+
+/**
+ * @brief NeoPixel override mode values (set by CLI during calibration).
+ *
+ * 0 = off (normal NeoPixel behavior), 1-8 = calibration states.
+ * Defined as constexpr in main.cpp. Values listed here for reference:
+ *   0=off, 1=gyro, 2=level, 3=baro, 4=accel_wait, 5=accel_sample,
+ *   6=mag, 7=success, 8=fail
+ */
+typedef void (*rc_os_set_cal_neo_fn)(uint8_t mode);
+extern rc_os_set_cal_neo_fn rc_os_set_cal_neo;
+
+// ============================================================================
+// Calibration Feed Callback (set by main)
+// ============================================================================
+
+/**
+ * @brief Wizard polling loop callback.
+ *
+ * Called from the wizard's blocking loop. Core 1 feeds sensor samples
+ * directly (no I2C from Core 0). This callback exists for the wizard's
+ * wait loop to call — main.cpp provides a no-op since Core 1 handles feeds.
+ */
+typedef void (*rc_os_feed_cal_fn)(void);
+extern rc_os_feed_cal_fn rc_os_feed_cal;
 
 #endif // ROCKETCHIP_RC_OS_H

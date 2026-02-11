@@ -36,7 +36,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "mag-apply-1";
+static const char* kBuildTag = "wizard-12";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -48,6 +48,7 @@ static constexpr uint32_t kCore1TargetCycleUs = 1000;           // ~1kHz target
 static constexpr uint32_t kCore1BaroDivider = 20;               // Baro at ~50Hz
 static constexpr uint32_t kCore1GpsDivider = 100;               // GPS at ~10Hz
 static constexpr uint32_t kGpsMinIntervalUs = 2000;             // MT3333 buffer refill time
+static constexpr uint32_t kCore1CalFeedDivider = 10;            // Cal feed at ~100Hz
 static constexpr uint32_t kCore1ConsecFailMax = 10;             // I2C recovery threshold
 
 // DPS310 MEAS_CFG register (0x08): data-ready bits
@@ -90,8 +91,22 @@ static constexpr uint32_t kSeqlockMaxRetries = 4;
 static constexpr uint32_t kNeoToggleSoakMs     = 250;           // ~2Hz blink
 static constexpr uint32_t kSensorPhaseTimeoutMs = 300000;       // 5 min — switch to magenta
 
-// CLI calibration feed interval
-static constexpr uint32_t kCliCalFeedIntervalUs = 10000;        // 100Hz
+// NeoPixel calibration override values (set by Core 0 CLI, read by Core 1)
+// Core 1 checks this atomic; when non-zero, overrides normal NeoPixel status.
+static constexpr uint8_t kCalNeoOff         = 0;  // Normal NeoPixel behavior
+static constexpr uint8_t kCalNeoGyro        = 1;  // Blue breathe (keep still)
+static constexpr uint8_t kCalNeoLevel       = 2;  // Blue breathe (keep flat)
+static constexpr uint8_t kCalNeoBaro        = 3;  // Cyan breathe (sampling)
+static constexpr uint8_t kCalNeoAccelWait   = 4;  // Yellow blink (position board)
+static constexpr uint8_t kCalNeoAccelSample = 5;  // Yellow solid (hold still)
+static constexpr uint8_t kCalNeoMag         = 6;  // Rainbow (rotate freely)
+static constexpr uint8_t kCalNeoSuccess     = 7;  // Green solid (step passed)
+static constexpr uint8_t kCalNeoFail        = 8;  // Red blink fast (step failed)
+
+// Tracks last NeoPixel override value so we only call ws2812_set_mode()
+// on transitions, not every cycle (which would reset animation state).
+static uint8_t g_lastCalNeoOverride = kCalNeoOff;
+
 
 // ============================================================================
 // Global State
@@ -110,16 +125,19 @@ static uint32_t g_loopCounter = 0;
 // Shared sensor data struct (per SEQLOCK_DESIGN.md, council-approved)
 // All values calibration-applied, body frame, SI units. 128 bytes in SRAM.
 struct shared_sensor_data_t {
-    // IMU (56 bytes)
+    // IMU (68 bytes: 13 floats + 3 uint32_t + 3 bool + 1 pad)
     float accel_x;                          // m/s^2
     float accel_y;
     float accel_z;
     float gyro_x;                           // rad/s
     float gyro_y;
     float gyro_z;
-    float mag_x;                            // uT (when mag_valid)
+    float mag_x;                            // uT calibrated (when mag_valid)
     float mag_y;
     float mag_z;
+    float mag_raw_x;                        // uT raw (for mag recalibration)
+    float mag_raw_y;
+    float mag_raw_z;
     float imu_temperature_c;
     uint32_t imu_timestamp_us;
     uint32_t imu_read_count;                // Monotonic
@@ -161,7 +179,7 @@ struct shared_sensor_data_t {
     uint32_t core1_loop_count;              // For watchdog/stall detection
 };
 
-static_assert(sizeof(shared_sensor_data_t) == 128, "Struct size changed — update SEQLOCK_DESIGN.md");
+static_assert(sizeof(shared_sensor_data_t) == 140, "Struct size changed — update SEQLOCK_DESIGN.md");
 static_assert(sizeof(shared_sensor_data_t) % 4 == 0, "Struct must be 4-byte aligned for memcpy");
 
 // Seqlock wrapper — single buffer with sequence counter
@@ -179,6 +197,11 @@ static std::atomic<bool> g_calReloadPending{false};
 static std::atomic<bool> g_core1PauseI2C{false};
 static std::atomic<bool> g_core1I2CPaused{false};
 
+// INTERIM: NeoPixel calibration override (Phase M.5).
+// Replace with proper AP_Notify-style status state machine when implemented.
+// Core 0 (CLI) writes, Core 1 reads in core1_neopixel_update().
+static std::atomic<uint8_t> g_calNeoPixelOverride{kCalNeoOff};
+
 // Dual-core watchdog kick flags — std::atomic per MULTICORE_RULES.md
 // volatile is NOT sufficient for cross-core visibility on ARM (no hardware barrier)
 static std::atomic<bool> g_wdtCore0Alive{false};
@@ -194,8 +217,6 @@ static bool g_sensorPhaseActive = false;
 // Calibration storage state
 static bool g_calStorageInitialized = false;
 
-// CLI feed interval for calibrations triggered via menu
-static uint64_t g_cliCalLastFeedUs = 0;
 
 // IMU device handle (static per LL Entry 1 — avoid large objects on stack)
 static icm20948_t g_imu;
@@ -309,11 +330,26 @@ static void mpu_setup_stack_guard(uint32_t stack_bottom) {
 
 static void core1_read_imu(shared_sensor_data_t* localData,
                             calibration_store_t* localCal,
-                            uint32_t* imuConsecFail) {
+                            uint32_t* imuConsecFail,
+                            bool feedCal) {
     icm20948_data_t imuData;
     bool imuOk = icm20948_read(&g_imu, &imuData);
     if (imuOk) {
         *imuConsecFail = 0;
+
+        // Feed calibration with RAW data (before cal apply) — Core 1 owns I2C,
+        // so no bus contention. Core 0 must NOT do concurrent icm20948_read().
+        if (feedCal) {
+            cal_state_t calState = calibration_manager_get_state();
+            if (calState == CAL_STATE_GYRO_SAMPLING) {
+                calibration_feed_gyro(imuData.gyro.x, imuData.gyro.y,
+                                      imuData.gyro.z, imuData.temperature_c);
+            } else if (calState == CAL_STATE_ACCEL_LEVEL_SAMPLING) {
+                calibration_feed_accel(imuData.accel.x, imuData.accel.y,
+                                       imuData.accel.z, imuData.temperature_c);
+            }
+        }
+
         float ax, ay, az, gx, gy, gz;
         calibration_apply_accel_with(localCal,
             imuData.accel.x, imuData.accel.y, imuData.accel.z,
@@ -341,6 +377,9 @@ static void core1_read_imu(shared_sensor_data_t* localData,
             localData->mag_x = mx_cal;
             localData->mag_y = my_cal;
             localData->mag_z = mz_cal;
+            localData->mag_raw_x = imuData.mag.x;
+            localData->mag_raw_y = imuData.mag.y;
+            localData->mag_raw_z = imuData.mag.z;
             localData->mag_valid = true;
             localData->mag_read_count++;
         }
@@ -367,6 +406,12 @@ static void core1_read_baro(shared_sensor_data_t* localData) {
             localData->baro_timestamp_us = time_us_32();
             localData->baro_read_count++;
             localData->baro_valid = true;
+
+            // Feed baro calibration with raw data from Core 1
+            if (calibration_manager_get_state() == CAL_STATE_BARO_SAMPLING) {
+                calibration_feed_baro(baroData.pressure_pa,
+                                      baroData.temperature_c);
+            }
         } else {
             localData->baro_error_count++;
         }
@@ -429,6 +474,34 @@ static void core1_neopixel_update(shared_sensor_data_t* localData,
     *lastNeoMs = nowMs;
     *neoState = !*neoState;
 
+    // INTERIM: Calibration NeoPixel override (Phase M.5).
+    // When Core 0 CLI is running a calibration, it sets the override to
+    // indicate the desired LED pattern. Replace with AP_Notify state machine.
+    uint8_t calOverride = g_calNeoPixelOverride.load(std::memory_order_relaxed);
+    if (calOverride != kCalNeoOff) {
+        // Only call ws2812_set_mode() on transition — calling it every cycle
+        // resets phaseStartMs and rainbowHue, which keeps rainbow stuck on red
+        // and restarts breathe/blink animations from the beginning.
+        if (calOverride != g_lastCalNeoOverride) {
+            g_lastCalNeoOverride = calOverride;
+            switch (calOverride) {
+                case kCalNeoGyro:        // fall through
+                case kCalNeoLevel:       ws2812_set_mode(WS2812_MODE_BREATHE, kColorBlue); break;
+                case kCalNeoBaro:        ws2812_set_mode(WS2812_MODE_BREATHE, kColorCyan); break;
+                case kCalNeoAccelWait:   ws2812_set_mode(WS2812_MODE_BLINK, kColorYellow); break;
+                case kCalNeoAccelSample: ws2812_set_mode(WS2812_MODE_SOLID, kColorYellow); break;
+                case kCalNeoMag:         ws2812_set_mode(WS2812_MODE_RAINBOW, kColorWhite); break;
+                case kCalNeoSuccess:     ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen); break;
+                case kCalNeoFail:        ws2812_set_mode(WS2812_MODE_BLINK_FAST, kColorRed); break;
+                default:                 break;
+            }
+        }
+        ws2812_update();
+        return;
+    }
+    g_lastCalNeoOverride = kCalNeoOff;
+
+    // Normal status NeoPixel logic
     if ((nowMs - sensorPhaseStartMs) >= kSensorPhaseTimeoutMs) {
         ws2812_set_mode(WS2812_MODE_SOLID, kColorMagenta);
     } else if (g_gpsInitialized) {
@@ -474,6 +547,7 @@ static void core1_sensor_loop() {
     shared_sensor_data_t localData = {};
     uint32_t loopCount = 0;
     uint32_t baroCycle = 0;
+    uint32_t calFeedCycle = 0;
     uint32_t imuConsecFail = 0;
     uint32_t gpsCycle = 0;
     uint32_t lastGpsReadUs = 0;
@@ -506,7 +580,12 @@ static void core1_sensor_loop() {
         }
 
         // Sensor reads — each writes into localData by pointer
-        core1_read_imu(&localData, &localCal, &imuConsecFail);
+        calFeedCycle++;
+        bool feedCal = (calFeedCycle >= kCore1CalFeedDivider);
+        if (feedCal) {
+            calFeedCycle = 0;
+        }
+        core1_read_imu(&localData, &localCal, &imuConsecFail, feedCal);
 
         baroCycle++;
         if (baroCycle >= kCore1BaroDivider) {
@@ -576,17 +655,56 @@ static bool read_accel_for_cal(float* ax, float* ay, float* az, float* temp_c) {
 // Reads from seqlock — Core 1 keeps running, no I2C contention.
 // Bus-agnostic: reads from shared data regardless of sensor transport.
 
+// Staleness gate — only accept mag data with a new mag_read_count.
+// Reset before each calibration run so 2nd attempt doesn't inherit stale counter.
+static uint32_t g_lastMagReadCount = 0;
+
+// Diagnostic counters for mag read failures (debug mag cal freeze)
+static uint32_t g_magDiagSeqlockFail = 0;
+static uint32_t g_magDiagNotValid = 0;
+static uint32_t g_magDiagStale = 0;
+static uint32_t g_magDiagLastSeenCount = 0;
+
+static void reset_mag_read_staleness() {
+    g_lastMagReadCount = 0;
+    g_magDiagSeqlockFail = 0;
+    g_magDiagNotValid = 0;
+    g_magDiagStale = 0;
+    g_magDiagLastSeenCount = 0;
+}
+
 static bool read_mag_from_seqlock(float* mx, float* my, float* mz) {
     shared_sensor_data_t snap;
     if (!seqlock_read(&g_sensorSeqlock, &snap)) {
+        g_magDiagSeqlockFail++;
         return false;
     }
+    g_magDiagLastSeenCount = snap.mag_read_count;
     if (!snap.mag_valid) {
+        g_magDiagNotValid++;
+        // Periodic diagnostic — print every 200 failures to show what's happening
+        if (g_magDiagNotValid == 1 || g_magDiagNotValid % 200 == 0) {
+            printf("  [mag_valid=false, mag_read_count=%lu, lastAccepted=%lu]\n",
+                   (unsigned long)snap.mag_read_count,
+                   (unsigned long)g_lastMagReadCount);
+            fflush(stdout);
+        }
         return false;
     }
-    *mx = snap.mag_x;
-    *my = snap.mag_y;
-    *mz = snap.mag_z;
+    // Only return genuinely new mag data — AK09916 updates at ~100Hz,
+    // but the seqlock is written at ~1kHz. Without this check, the mag cal
+    // feeds identical samples that get REJECTED_CLOSE by the angular filter.
+    if (snap.mag_read_count == g_lastMagReadCount) {
+        g_magDiagStale++;
+        return false;
+    }
+    g_lastMagReadCount = snap.mag_read_count;
+
+    // Return RAW mag data for calibration — the ellipsoid solver needs
+    // uncorrected samples to compute offset/scale/offdiag corrections.
+    *mx = snap.mag_raw_x;
+    *my = snap.mag_raw_y;
+    *mz = snap.mag_raw_z;
     return true;
 }
 
@@ -623,6 +741,29 @@ static void cal_post_hook() {
         g_calReloadPending.store(true, std::memory_order_release);
         g_core1PauseI2C.store(false, std::memory_order_release);
     }
+}
+
+// ============================================================================
+// INTERIM: NeoPixel override callback (Phase M.5)
+// Replace with AP_Notify state machine when full status module is implemented.
+// ============================================================================
+
+static void set_cal_neo_override(uint8_t mode) {
+    g_calNeoPixelOverride.store(mode, std::memory_order_relaxed);
+}
+
+// ============================================================================
+// Calibration Sensor Feed Helper (no-op — Core 1 feeds directly)
+// ============================================================================
+// Async calibration samples (gyro/level/baro) are now fed by Core 1 in
+// core1_read_imu() and core1_read_baro(), using raw sensor data with no
+// I2C bus contention. This function exists as the rc_os_feed_cal callback
+// target — the wizard's wait loop calls it for watchdog kicking.
+// Core 0 must NOT call icm20948_read() or baro_dps310_read() while Core 1
+// owns the I2C bus (per MULTICORE_RULES.md invariant at core1_sensor_loop).
+
+static void feed_active_calibration() {
+    // Core 1 handles all sensor feeds. Nothing to do here.
 }
 
 // ============================================================================
@@ -689,9 +830,10 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
     } else {
         printf("GPS: not detected\n");
     }
-    printf("Reads: I=%lu B=%lu G=%lu  "
+    printf("Reads: I=%lu M=%lu B=%lu G=%lu  "
            "Errors: I=%lu B=%lu G=%lu\n",
            (unsigned long)snap.imu_read_count,
+           (unsigned long)snap.mag_read_count,
            (unsigned long)snap.baro_read_count,
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.imu_error_count,
@@ -995,8 +1137,11 @@ static void init_application(bool watchdogReboot) {
     rc_os_print_boot_status = print_boot_status;
     rc_os_read_accel = read_accel_for_cal;
     rc_os_read_mag = read_mag_from_seqlock;
+    rc_os_reset_mag_staleness = reset_mag_read_staleness;
     rc_os_cal_pre_hook = cal_pre_hook;
     rc_os_cal_post_hook = cal_post_hook;
+    rc_os_set_cal_neo = set_cal_neo_override;
+    rc_os_feed_cal = feed_active_calibration;
 
     // Signal Core 1 to start sensor phase
     g_sensorPhaseActive = true;
@@ -1044,38 +1189,7 @@ static void watchdog_kick_tick() {
 
 static void cli_update_tick() {
     rc_os_update();
-
-    if (!calibration_is_active()) {
-        return;
-    }
-
-    uint64_t nowUs = time_us_64();
-    if ((nowUs - g_cliCalLastFeedUs) < kCliCalFeedIntervalUs) {
-        return;
-    }
-
-    g_cliCalLastFeedUs = nowUs;
-    cal_state_t calState = calibration_manager_get_state();
-
-    if (calState == CAL_STATE_GYRO_SAMPLING && g_imuInitialized) {
-        icm20948_data_t data;
-        if (icm20948_read(&g_imu, &data)) {
-            calibration_feed_gyro(data.gyro.x, data.gyro.y,
-                                  data.gyro.z, data.temperature_c);
-        }
-    } else if (calState == CAL_STATE_ACCEL_LEVEL_SAMPLING && g_imuInitialized) {
-        icm20948_data_t data;
-        if (icm20948_read(&g_imu, &data)) {
-            calibration_feed_accel(data.accel.x, data.accel.y,
-                                   data.accel.z, data.temperature_c);
-        }
-    } else if (calState == CAL_STATE_BARO_SAMPLING && g_baroContinuous) {
-        baro_dps310_data_t bdata;
-        if (baro_dps310_read(&bdata) && bdata.valid) {
-            calibration_feed_baro(bdata.pressure_pa,
-                                  bdata.temperature_c);
-        }
-    }
+    feed_active_calibration();
 }
 
 // ============================================================================
