@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-10-008 | Claude Code CLI | council, documentation
+
+**Council decision: Sensor fusion tier architecture (MMAE + sensor affinity)**
+
+Added council-approved architectural decision document for hybrid MMAE + sensor affinity across hardware tiers (Core: single ESKF, Titan: MMAE regime switching, Gemini: full MMAE + affinity with dual-MCU). Unanimous approval with staged implementation. Added MATLAB .mat v5 export to PROJECT_STATUS.md future features roadmap.
+
+(`docs/decisions/SENSOR_FUSION_TIERS.md`, `docs/PROJECT_STATUS.md`)
+
+---
+
 ### 2026-02-10-007 | Claude Code CLI | feature, bugfix
 
 **ICM-20948: Migrate from I2C master mode to bypass mode**

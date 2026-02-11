@@ -42,6 +42,10 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 
 None currently.
 
+## Future Features (Tracked)
+
+- **MATLAB .mat v5 export for flight logs** — Target research/educational users who standardize on MATLAB. Compatible with GNU Octave. Post-flight analysis workflow: `export matlab <flight_id>` CLI command. Architecture already in SAD.md (Section 10, logging format enum). Implementation deferred until flight logging is active.
+
 ## Reference
 
 - `docs/IVP.md` — Full 68-step integration plan with verification gates (includes Phase M mag cal)
