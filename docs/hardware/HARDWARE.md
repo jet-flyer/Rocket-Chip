@@ -39,6 +39,71 @@ Expansion modules following rocketry-themed naming (specific names TBD when boar
 
 ---
 
+## Sensor Specifications for Fusion
+
+Verified datasheet values used by ESKF and calibration code. All ICM-20948 values from
+**DS-000189 v1.3** (TDK InvenSense), Tables 1-2. Conditions: VDD=1.8V, VDDIO=1.8V, TA=25°C.
+
+### ICM-20948 Gyroscope (Table 1)
+
+| Parameter | Value | Units | Condition | DS Note |
+|-----------|-------|-------|-----------|---------|
+| Noise Spectral Density | **0.015** | dps/√Hz | BW=10Hz, FS_SEL=0 | Note 2 (characterization) |
+| → SI conversion | **2.618e-4** | rad/s/√Hz | × π/180 | Used as `kSigmaGyro` |
+| Initial ZRO Tolerance | ±5 | dps | 25°C, component-level | Note 2 |
+| ZRO Temp Variation | ±0.05 | dps/°C | -40 to +85°C | Note 2 |
+| Cross-Axis Sensitivity | ±2 | % | | Note 2 |
+| Sensitivity Scale Factor | 131 | LSB/dps | FS_SEL=0 (±250dps) | Note 1 (guaranteed) |
+| Bias Instability | — | — | **Not specified** in datasheet | Empirical tuning required |
+
+### ICM-20948 Accelerometer (Table 2)
+
+| Parameter | Value | Units | Condition | DS Note |
+|-----------|-------|-------|-----------|---------|
+| Noise Spectral Density | **230** | µg/√Hz | BW=10Hz | Note 2 (characterization) |
+| → SI conversion | **2.256e-3** | m/s²/√Hz | × 9.80665e-6 | Used as `kSigmaAccel` |
+| Initial ZRO Tolerance | ±50 | mg | 25°C, board-level | Note 2 |
+| ZRO Temp Variation | ±0.80 | mg/°C | 0 to +85°C | Note 2 |
+| Cross-Axis Sensitivity | ±2 | % | | Note 2 |
+| Sensitivity Scale Factor | 16,384 | LSB/g | FS=0 (±2g) | Note 1 (guaranteed) |
+| Bias Instability | — | — | **Not specified** in datasheet | Empirical tuning required |
+
+### AK09916 Magnetometer (ICM-20948 Table 3, bypass mode at 0x0C)
+
+| Parameter | Value | Units |
+|-----------|-------|-------|
+| Full-Scale Range | ±4900 | µT |
+| Output Resolution | 16 | bits |
+| Sensitivity | 0.15 | µT/LSB |
+| Max ODR | 100 | Hz |
+
+### DPS310 Barometer
+
+| Parameter | Value | Units | Condition |
+|-----------|-------|-------|-----------|
+| Pressure Noise | 0.35 | Pa RMS | 16× oversampling |
+| → Altitude Noise | 0.029 | m | Via 0.083 m/Pa conversion |
+| Measurement Rate | 32 | Hz | ArduPilot parity (kBaroDps310MeasRate) |
+
+Cross-reference: `src/drivers/baro_dps310.h`, `src/fusion/baro_kf.h`.
+
+### ESKF Empirical Parameters
+
+The ICM-20948 datasheet does **not** publish bias instability (Allan deviation). These
+values are empirical starting points, tuned via NEES. ArduPilot cross-reference included
+for context — their values are intentionally inflated for multirotor vibration.
+
+| Parameter | Our Value | Units | ArduPilot EKF3 | Source |
+|-----------|-----------|-------|----------------|--------|
+| Gyro bias walk | 1.0e-5 | rad/s²/√Hz | GBIAS_P_NSE = 1e-3 | Empirical |
+| Accel bias walk | 1.0e-4 | m/s³/√Hz | ABIAS_P_NSE = 2e-2 | Empirical |
+| Gyro process noise | 2.618e-4 | rad/s/√Hz | GYRO_P_NSE = 1.5e-2 | DS Table 1 |
+| Accel process noise | 2.256e-3 | m/s²/√Hz | ACC_P_NSE = 3.5e-1 | DS Table 2 |
+
+Cross-reference: `src/fusion/eskf.h` (all constants with full source citations).
+
+---
+
 ## Auxiliary Hardware (On Hand)
 
 Available for testing but not in active prototype:

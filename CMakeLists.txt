@@ -51,6 +51,7 @@ if(BUILD_TESTS)
     # ------------------------------------------------------------------
     add_library(rc_fusion STATIC
         src/fusion/baro_kf.cpp
+        src/fusion/eskf.cpp
     )
     target_link_libraries(rc_fusion PUBLIC rc_math)
 
@@ -177,6 +178,9 @@ else()
 
         # IVP-41: Baro KF (first fusion code)
         src/fusion/baro_kf.cpp
+
+        # IVP-42a: ESKF core propagation
+        src/fusion/eskf.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -194,6 +198,7 @@ else()
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/baro_kf.cpp
+        src/fusion/eskf.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
