@@ -24,10 +24,11 @@ add_executable(test_baro_kf test_baro_kf.cpp)
 target_link_libraries(test_baro_kf PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_baro_kf)
 
-# IVP-42a: ESKF core propagation
+# IVP-42a: ESKF core propagation + IVP-42b: CSV trajectory tests
 add_executable(test_eskf_propagation test_eskf_propagation.cpp)
 target_link_libraries(test_eskf_propagation PRIVATE rc_fusion GTest::gtest_main)
-gtest_discover_tests(test_eskf_propagation)
+gtest_discover_tests(test_eskf_propagation
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # add_executable(test_eskf_update test_eskf_update.cpp)
 # target_link_libraries(test_eskf_update PRIVATE rc_fusion GTest::gtest_main)

@@ -4,6 +4,7 @@
 #include "math/mat.h"
 #include "math/quat.h"
 #include "math/vec3.h"
+#include "csv_loader.h"
 
 #include <cmath>
 
@@ -374,4 +375,149 @@ TEST(ESKFPropagation, ConstantAcceleration) {
     EXPECT_NEAR(eskf.p.z, 0.0f, 0.5f);
 
     EXPECT_TRUE(eskf.healthy());
+}
+
+// ============================================================================
+// Test 11: ConstantVelocityFromCSV
+// Replay 30s constant velocity CSV: position grows linearly, attitude stays
+// identity. Propagation-only (no GPS corrections), so velocity must be seeded.
+// ============================================================================
+TEST(ESKFPropagation, ConstantVelocityFromCSV) {
+    auto samples = rc::test::load_csv("test/data/const_velocity_30s.csv");
+    ASSERT_GT(samples.size(), 0u);
+
+    ESKF eskf;
+    EXPECT_TRUE(eskf.init(
+        Vec3(samples[0].ax, samples[0].ay, samples[0].az),
+        Vec3(samples[0].gx, samples[0].gy, samples[0].gz)));
+
+    // Seed initial velocity (ESKF init assumes stationary)
+    eskf.v = Vec3(10.0f, 0.0f, 0.0f);
+
+    for (size_t i = 1; i < samples.size(); ++i) {
+        eskf.predict(
+            Vec3(samples[i].ax, samples[i].ay, samples[i].az),
+            Vec3(samples[i].gx, samples[i].gy, samples[i].gz), kDt);
+    }
+
+    // After 30s at 10 m/s North: p_north ≈ 300m
+    // First-order integration: p += v*dt lags by half a step
+    EXPECT_NEAR(eskf.p.x, 300.0f, 15.0f)
+        << "Expected ~300m North position after 30s at 10 m/s";
+
+    // Velocity should remain ~10 m/s North
+    EXPECT_NEAR(eskf.v.x, 10.0f, 0.5f);
+    EXPECT_NEAR(eskf.v.y, 0.0f, 0.1f);
+    EXPECT_NEAR(eskf.v.z, 0.0f, 0.1f);
+
+    // Attitude should stay near identity
+    Vec3 euler = eskf.q.to_euler();
+    EXPECT_NEAR(euler.x * (180.0f / kPi), 0.0f, 1.0f);  // roll
+    EXPECT_NEAR(euler.y * (180.0f / kPi), 0.0f, 1.0f);  // pitch
+    EXPECT_NEAR(euler.z * (180.0f / kPi), 0.0f, 1.0f);  // yaw
+
+    EXPECT_TRUE(eskf.healthy());
+}
+
+// ============================================================================
+// Test 12: ConstantTurnFromCSV
+// Replay 10s constant yaw rate CSV: yaw tracks 30°/s×10s = 300°,
+// position traces a circle. Propagation-only — loose tolerances.
+// ============================================================================
+TEST(ESKFPropagation, ConstantTurnFromCSV) {
+    auto samples = rc::test::load_csv("test/data/const_turn_10s.csv");
+    ASSERT_GT(samples.size(), 0u);
+
+    // Init with stationary reading — turn accel [0, 2.618, -g] fails
+    // stationarity check since |a| > g + tolerance
+    ESKF eskf;
+    EXPECT_TRUE(eskf.init(kAccelStationary, kGyroStationary));
+
+    // Seed initial velocity: 5 m/s North
+    eskf.v = Vec3(5.0f, 0.0f, 0.0f);
+
+    for (size_t i = 1; i < samples.size(); ++i) {
+        eskf.predict(
+            Vec3(samples[i].ax, samples[i].ay, samples[i].az),
+            Vec3(samples[i].gx, samples[i].gy, samples[i].gz), kDt);
+    }
+
+    // After 10s at 30°/s: total yaw = 300°
+    // Quaternion wraps at 360°, so 300° = -60° in [-180, 180] range
+    Vec3 euler = eskf.q.to_euler();
+    float yaw_deg = euler.z * (180.0f / kPi);
+
+    // 300° wraps to -60° in atan2 range. Check within ±5°.
+    EXPECT_NEAR(yaw_deg, -60.0f, 5.0f)
+        << "Expected ~300° (=-60°) yaw after 10s at 30°/s, got " << yaw_deg;
+
+    // Roll and pitch should remain near zero (level turn)
+    EXPECT_NEAR(euler.x * (180.0f / kPi), 0.0f, 2.0f);
+    EXPECT_NEAR(euler.y * (180.0f / kPi), 0.0f, 2.0f);
+
+    // Position should trace a circle with r ≈ 9.55m
+    // After 300° of a circle, check we're in the right neighborhood
+    const float r = 5.0f / (30.0f * kPi / 180.0f);  // ~9.549m
+    float dist = std::sqrt(eskf.p.x * eskf.p.x + eskf.p.y * eskf.p.y);
+    EXPECT_GT(dist, 0.5f);         // moved away from origin
+    EXPECT_LT(dist, 2.0f * r);    // didn't fly off to infinity
+
+    EXPECT_TRUE(eskf.healthy());
+}
+
+// ============================================================================
+// Test 13: BankedTurnFromCSV
+// Replay 10s banked turn CSV: 30° roll maintained, yaw rate ~64.9°/s,
+// circular trajectory. Propagation-only — loose tolerances.
+// ============================================================================
+TEST(ESKFPropagation, BankedTurnFromCSV) {
+    auto samples = rc::test::load_csv("test/data/banked_turn_10s.csv");
+    ASSERT_GT(samples.size(), 0u);
+
+    // Init with stationary reading — banked accel [0, 0, -g/cos(30°)] fails
+    // stationarity check. Then override attitude to match truth.
+    ESKF eskf;
+    EXPECT_TRUE(eskf.init(kAccelStationary, kGyroStationary));
+
+    // Override attitude to match truth (30° roll, 0 pitch, 0 yaw)
+    eskf.q = Quat::from_euler(30.0f * (kPi / 180.0f), 0.0f, 0.0f);
+
+    // Seed initial velocity: 5 m/s North
+    eskf.v = Vec3(5.0f, 0.0f, 0.0f);
+
+    for (size_t i = 1; i < samples.size(); ++i) {
+        eskf.predict(
+            Vec3(samples[i].ax, samples[i].ay, samples[i].az),
+            Vec3(samples[i].gx, samples[i].gy, samples[i].gz), kDt);
+    }
+
+    // Expected yaw rate: omega = g * tan(30°) / 5 ≈ 1.133 rad/s ≈ 64.9°/s
+    // After 10s: total yaw ≈ 649° → wrapped: 649 - 360 = 289° → -71° in [-180,180]
+    Vec3 euler = eskf.q.to_euler();
+    float yaw_deg = euler.z * (180.0f / kPi);
+    float roll_deg = euler.x * (180.0f / kPi);
+
+    // Roll should stay near 30° (bank angle maintained by coordinated turn)
+    EXPECT_NEAR(roll_deg, 30.0f, 5.0f)
+        << "Expected ~30° roll (bank angle), got " << roll_deg;
+
+    // Yaw should have advanced significantly (>360° total)
+    // The exact wrapped value depends on numerical integration, so just check
+    // that the quaternion is healthy and yaw has moved a lot from zero.
+    // Total yaw ~649°, wrapped ~289° = -71°.
+    // With propagation-only drift, allow ±15° tolerance.
+    float expected_total_yaw = 649.0f;
+    float wrapped = std::fmod(expected_total_yaw, 360.0f);  // 289°
+    if (wrapped > 180.0f) wrapped -= 360.0f;                // -71°
+    EXPECT_NEAR(yaw_deg, wrapped, 15.0f)
+        << "Expected ~" << wrapped << "° wrapped yaw, got " << yaw_deg;
+
+    // Position: should have traced a circle, distance from origin bounded
+    float dist = std::sqrt(eskf.p.x * eskf.p.x + eskf.p.y * eskf.p.y);
+    const float r = 5.0f / 1.133f;  // ~4.41m turn radius
+    EXPECT_GT(dist, 0.1f);
+    EXPECT_LT(dist, 3.0f * r);
+
+    EXPECT_TRUE(eskf.healthy());
+    EXPECT_NEAR(eskf.q.norm(), 1.0f, 1e-5f);
 }
