@@ -1243,7 +1243,11 @@ Protocol specification: `standards/protocols/SPACEWIRE_LITE.md`
 | Communication loss | No messages | Both continue independently | 500 ms |
 | Sensor failure | Health flags | Cross-validate with partner | Immediate |
 
-### 14.5 Pyro Safety
+### 14.5 Watchdog Integration
+
+On Gemini, the partner board provides a recovery path that doesn't exist on single-board configurations. The Gemini heartbeat failover window (1.5s) is shorter than the watchdog timeout (5s), so partner takeover completes before the WDT fires in all single-board failure cases. Per-board status LEDs (separate from NeoPixel) allow ground crew to visually identify which board has faulted. See `docs/hardware/GEMINI_CARRIER_BOARD.md` Sections 8.3-8.4 for cross-board watchdog handoff protocol, rejoin procedure, and LED patterns.
+
+### 14.6 Pyro Safety
 
 Hardware voting ensures safety independent of firmware state:
 
@@ -1251,7 +1255,7 @@ Hardware voting ensures safety independent of firmware state:
 - **FIRE allows either**: Once armed, either MCU can fire
 - **Fail-safe**: Discrete logic operates even if both MCUs hang
 
-### 14.6 Related Documents
+### 14.7 Related Documents
 
 - `docs/hardware/GEMINI_CARRIER_BOARD.md` - Full design documentation
 - `docs/icd/EXPANSION_CONNECTOR_ICD.md` - Connector interface

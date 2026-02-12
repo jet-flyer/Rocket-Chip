@@ -20,6 +20,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-12-001 | Claude Code CLI | bugfix, architecture
+
+**Watchdog FMEA analysis, IVP-49 Watchdog Recovery Policy, reboot detection bugfix**
+
+Fixed `watchdog_enable_caused_reboot()` → `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks scratch[4] magic that persists across picotool flashes, causing false "PREVIOUS REBOOT WAS CAUSED BY WATCHDOG" warnings on clean boots. The base function uses RP2350-specific `rom_get_last_boot_type()` for correct POR discrimination.
+
+Added IVP-49 (Watchdog Recovery Policy) as first step of Stage 6, prerequisite to state machine. Covers: scratch register persistence for reboot diagnostics, reboot counting with safe-mode lockout, ESKF failure backoff, recovery boot path, ground-side launch abort on any WDT reset. All downstream IVP numbers shifted +1 (Stage 7: IVP-55-59, Stage 8: IVP-60-64, Stage 9: IVP-65-69). Updated Gemini carrier board doc with cross-board watchdog handoff and per-board status LEDs. Updated SAD Section 14.
+
+(`src/main.cpp`, `docs/IVP.md`, `AGENT_WHITEBOARD.md`, `docs/hardware/GEMINI_CARRIER_BOARD.md`, `docs/SAD.md`)
+
+---
+
 ### 2026-02-10-008 | Claude Code CLI | council, documentation
 
 **Council decision: Sensor fusion tier architecture (MMAE + sensor affinity)**

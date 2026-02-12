@@ -38,6 +38,16 @@ Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all(
 
 ---
 
+### Watchdog Recovery Policy — IVP-49 (New, Stage 6 Prerequisite)
+
+**Added 2026-02-12.** IVP-30 watchdog mechanism is correct for ground/IDLE. But a full reboot mid-flight loses all ESKF state, pyro timers, and nav knowledge. IVP-49 added as first step of Stage 6 (before state machine IVP-50) to define the recovery policy: scratch register persistence, reboot counting with safe-mode lockout, ESKF failure backoff, and recovery boot path.
+
+**Bug fixed:** `watchdog_enable_caused_reboot()` → `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks scratch[4] magic that persists across picotool flashes, causing false "PREVIOUS REBOOT WAS CAUSED BY WATCHDOG" warnings on clean boots. The base function uses `rom_get_last_boot_type()` on RP2350 for correct discrimination.
+
+**IVP renumber:** All Stage 7-9 IVP numbers shifted +1 (old IVP-54→55 through IVP-68→69). Regression matrix updated. ArduPilot LED Patterns deferred note references IVP-51 → now IVP-52.
+
+---
+
 ### Protected File Updates Pending Approval
 
 - `CODING_STANDARDS.md` — needs cross-reference to `standards/VENDOR_GUIDELINES.md` in Prior Art Research section
@@ -63,7 +73,7 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 - **F' Evaluation:** Three Titan paths identified (A: STM32H7+F'/Zephyr, B: Pi Zero 2 W+F'/Linux, C: Hybrid). Research complete in `docs/decisions/TITAN_BOARD_ANALYSIS.md`. Decision deferred until Titan development begins.
 - **FeatherWing UART GPS:** Adafruit 3133 (PA1616D) on hand. Eliminates I2C contention. New `gps_uart.cpp` driver needed. `g_gpsOnI2C` flag already in place. Blocked on user soldering.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
-- **ArduPilot LED Patterns:** Map NeoPixel to AP standard codes at IVP-51 (state machine). Known NeoPixel green-transition bug deferred to same IVP.
+- **ArduPilot LED Patterns:** Map NeoPixel to AP standard codes at IVP-52 (action executor). Known NeoPixel green-transition bug deferred to same IVP.
 - **clang-tidy Integration:** LLVM installed, 127-check config active, first full audit complete (2026-02-09). **All code fully remediated** across 6 phases (P1-P5f, 1,251 total findings). IVP test code stripped — zero deferred findings. Pre-commit enforcement deferred to next cycle.
 - **Dynamic Peripheral Detection + OTA Drivers (Crowdfunding Goal):** Boot-time probe-first detection implemented (2026-02-10). Runtime hot-plug, driver registry, and OTA firmware downloads for unrecognized devices are stretch goals. Full architecture documented in SAD Section 13.2. Flipper Zero-style: plug in a sensor, RC identifies it, prompts for driver. WiFi/BT OTA for Core/Middle tiers.
 

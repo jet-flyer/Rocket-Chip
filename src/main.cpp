@@ -1152,8 +1152,12 @@ static void init_usb() {
 }
 
 static bool init_hardware() {
-    // Check if previous reboot was caused by watchdog (before any init)
-    bool watchdogReboot = watchdog_enable_caused_reboot();
+    // Check if previous reboot was caused by watchdog timeout (before any init).
+    // Use watchdog_caused_reboot() — NOT watchdog_enable_caused_reboot().
+    // The _enable_ variant checks scratch[4] magic which persists across picotool
+    // flashes and soft resets, causing false warnings. The base function checks
+    // rom_get_last_boot_type() on RP2350 for correct POR discrimination.
+    bool watchdogReboot = watchdog_caused_reboot();
 
     // Register fault handlers early (before any MPU config)
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, memmanage_fault_handler);

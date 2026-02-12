@@ -375,7 +375,67 @@ The current Gemini protocol (Section 4) would need:
 
 - ArduPilot EKF3 lane switching: `libraries/AP_NavEKF3/AP_NavEKF3_core.cpp` — `UpdateFilter()`, innovation check logic, and lane selection in the `AP_NavEKF3` wrapper class.
 
-### 8.3 Certification Path
+### 8.3 Cross-Board Watchdog Handoff
+
+On single-board RocketChip (Core/Main), a hardware watchdog reset triggers a full chip reset and the system must recover from scratch (see IVP-49 Watchdog Recovery Policy). On Gemini, the partner board can take over before the WDT fires — this is the primary advantage of dual-redundancy.
+
+#### Watchdog-to-Failover Integration
+
+| Event | Single Board | Gemini |
+|-------|-------------|--------|
+| Subsystem failure (ESKF diverge) | Disable subsystem, continue degraded | Disable on failing board, partner takes nav authority |
+| Core 1 sensor hang | WDT fires, full reboot | Partner detects via missed heartbeat, takes sensor authority before WDT fires |
+| Core 0 main loop hang | WDT fires, full reboot | Partner detects via missed heartbeat, assumes Primary role |
+| WDT reset on one board | Recovery boot path (IVP-49) | Partner already Primary, rebooted board rejoins as Secondary after self-test |
+| WDT reset on both boards | Safe mode (reboot counter) | Both enter safe mode — hardware voting logic keeps pyro safe regardless |
+
+#### Key Design Principle
+
+The 5s watchdog timeout (IVP-30) is intentionally longer than the Gemini heartbeat failover window (1.5s per Section 5.2). This means **Gemini failover completes before the watchdog fires** in all single-board failure cases. The WDT only fires if the failing board's own internal recovery (subsystem restart, Core 1 relaunch) also fails — it's the third line of defense after subsystem restart and partner takeover.
+
+#### Rejoin Protocol
+
+When a board reboots after a WDT reset while its partner is operating:
+1. Rebooted board reads scratch registers, detects WDT reboot
+2. Enters Secondary role (does NOT attempt to reclaim Primary)
+3. Runs full self-test (sensor init, ESKF health, I2C bus check)
+4. Reports status to partner via SpaceWire HEALTH message
+5. Partner validates (compares rebooted board's sensor data against its own for `⚠️ VALIDATE 30s`)
+6. Only after validation: rebooted board eligible for Primary role again
+7. If self-test fails or validation fails: rebooted board stays in degraded/monitoring mode
+
+#### Ground-Side Implications
+
+The single-board LAUNCH_ABORT policy (IVP-49) applies to each board independently on Gemini. If either board experiences a WDT reset during pre-flight, the entire system requires operator acknowledgement before arming. Both boards must report healthy for the ARM consensus (hardware AND gate) to engage.
+
+### 8.4 Per-Board Status Indicators
+
+Each Core module on the Gemini carrier should have its own dedicated status indicator visible to the operator. The carrier board provides:
+
+| Indicator | Location | Purpose |
+|-----------|----------|---------|
+| LED_A (RGB or NeoPixel) | Near Module A slot | Module A health and role status |
+| LED_B (RGB or NeoPixel) | Near Module B slot | Module B health and role status |
+| LED_SYS (single color) | Center of carrier | System-level status (armed, safe mode, link health) |
+
+#### LED Patterns (Preliminary)
+
+| State | LED_A / LED_B | LED_SYS |
+|-------|---------------|---------|
+| Healthy Primary | Solid green | — |
+| Healthy Secondary | Solid blue | — |
+| Degraded (self-test partial) | Yellow blink | — |
+| WDT recovery (rejoining) | Magenta blink | — |
+| Failed (not responding) | Off or solid red | — |
+| System armed | — | Solid amber |
+| Launch abort (WDT event) | — | Red blink |
+| Safe mode (reboot loop) | Solid red | Solid red |
+| SpaceWire link healthy | — | Green (dim) |
+| SpaceWire link down | — | Red (dim) |
+
+These indicators allow ground crew to visually distinguish which board has a problem without needing serial terminal access. During pre-flight inspection, both board LEDs must show green before arming is permitted.
+
+### 8.5 Certification Path
 
 For applications requiring formal certification:
 
@@ -384,7 +444,7 @@ For applications requiring formal certification:
 3. Qualification testing per relevant standards
 4. Independent design review
 
-### 8.4 Dedicated ELRS Communications Core
+### 8.6 Dedicated ELRS Communications Core
 
 On Gemini, one Core module could be dedicated to communications rather than redundancy — running as a dedicated ELRS receiver driving RF hardware directly, while the other Core handles navigation, logging, and control. This creates a natural "pilot and co-pilot" separation mirroring how spacecraft partition avionics between mission and bus functions.
 
@@ -420,7 +480,8 @@ See `docs/hardware/TELSTAR_BOOSTER_PACK.md` for full Telstar Booster Pack design
 |---------|------|--------|---------|
 | 1.0 | 2026-01-19 | Claude | Initial draft from design session |
 | 1.1 | 2026-02-03 | Claude Code CLI | Added Section 8.2: Dual-IMU fusion and EKF lane switching |
-| 1.2 | 2026-02-05 | Claude | Added Section 8.4: Dedicated ELRS communications core |
+| 1.2 | 2026-02-05 | Claude | Added Section 8.6: Dedicated ELRS communications core |
+| 1.3 | 2026-02-12 | Claude Code CLI | Added Sections 8.3-8.4: Cross-board watchdog handoff, per-board status LEDs |
 
 ---
 

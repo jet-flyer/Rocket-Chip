@@ -94,10 +94,10 @@ cmake --build build/
 | 4 | GPS Navigation | Phase 3 | IVP-31 — IVP-33 | Full | |
 | **M** | **Magnetometer Calibration** | **Phase 3** | **IVP-34 — IVP-38** | **Full** | **(out-of-sequence)** |
 | 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-48 | Full | |
-| 6 | Mission Engine | Phase 5 | IVP-49 — IVP-53 | Placeholder | **Crowdfunding Demo Ready** |
-| 7 | Data Logging | Phase 6 | IVP-54 — IVP-58 | Placeholder | |
-| 8 | Telemetry | Phase 7 | IVP-59 — IVP-63 | Placeholder | |
-| 9 | System Integration | Phase 9 | IVP-64 — IVP-68 | Placeholder | **Flight Ready** |
+| 6 | Mission Engine | Phase 5 | IVP-49 — IVP-54 | Placeholder | **Crowdfunding Demo Ready** |
+| 7 | Data Logging | Phase 6 | IVP-55 — IVP-59 | Placeholder | |
+| 8 | Telemetry | Phase 7 | IVP-60 — IVP-64 | Placeholder | |
+| 9 | System Integration | Phase 9 | IVP-65 — IVP-69 | Placeholder | **Flight Ready** |
 
 ---
 
@@ -1642,17 +1642,59 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 **Purpose:** Flight state machine and event-driven actions. See SAD.md Section 6.
 
-**Prerequisite decision:** Resolve SAD Open Question #4 (Mealy vs Moore state machine) before implementing.
+**Prerequisite decisions:**
+- Resolve SAD Open Question #4 (Mealy vs Moore state machine) before implementing IVP-50.
+- IVP-49 (Watchdog Recovery Policy) must be completed first — the state machine depends on knowing how the system recovers from a mid-flight reboot.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-49 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
-| IVP-50 | Event Engine | Condition evaluator for launch, apogee, landing detection |
-| IVP-51 | Action Executor | LED, beep, logging trigger actions on state transitions |
-| IVP-52 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
-| IVP-53 | Mission Configuration | Load mission definitions (rocket, freeform) |
+| IVP-49 | Watchdog Recovery Policy | Scratch register persistence, reboot counting, state-aware recovery path |
+| IVP-50 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
+| IVP-51 | Event Engine | Condition evaluator for launch, apogee, landing detection |
+| IVP-52 | Action Executor | LED, beep, logging trigger actions on state transitions |
+| IVP-53 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
+| IVP-54 | Mission Configuration | Load mission definitions (rocket, freeform) |
 
-> **Milestone:** At IVP-53 completion, the system has calibrated sensors, GPS, sensor fusion, and a working flight state machine — **Crowdfunding Demo Ready**.
+---
+
+### IVP-49: Watchdog Recovery Policy
+
+**Prerequisites:** IVP-30 (hardware watchdog mechanism), Stage 5 complete
+
+**Rationale:** IVP-30 implemented the watchdog *mechanism* (dual-core heartbeat, 5s timeout, kick pattern). The mechanism is correct for ground/IDLE — a full reboot recovers cleanly. But a full reboot mid-flight (ARMED through DESCENT) is catastrophic: ESKF state lost, pyro timers reset, position/velocity knowledge gone. The state machine (IVP-50) cannot be designed without first defining what happens when the system wakes up after an unexpected reset. This step establishes the recovery policy that IVP-50 builds on.
+
+**Bug fix (included):** Replace `watchdog_enable_caused_reboot()` with `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks a scratch register magic value that persists across picotool flashes and soft resets, causing false watchdog warnings on clean boots. The base `watchdog_caused_reboot()` checks `rom_get_last_boot_type() == BOOT_TYPE_NORMAL` on RP2350, correctly distinguishing true WDT timeouts from reflash reboots.
+
+**Design principle: Subsystem restart, not full reboot.** A hardware watchdog reset is unavoidable (it's a chip-level reset), but the *software response* should restart only the failed subsystem when possible. If ESKF diverges, restart ESKF — don't reboot the whole system. If Core 1 sensor loop hangs, attempt Core 1 restart before triggering a full WDT reset. The watchdog is the last resort when targeted recovery fails, not the first response to any anomaly.
+
+**Implement:**
+
+1. **Scratch register persistence.** Before enabling the watchdog, write diagnostic context to `watchdog_hw->scratch[5..7]` (scratch[4] is reserved by the SDK for reboot magic). On each main loop iteration, update scratch registers with: current flight state enum (scratch[5] low byte), last tick function ID (scratch[5] high byte), monotonic reboot counter (scratch[6]), and a CRC or magic to validate the data (scratch[7]). These survive a WDT reset but not a power-on reset.
+
+2. **Reboot counter with safe-mode lockout.** On boot, read scratch[6] reboot counter. If counter > `⚠️ VALIDATE 3` within a detection window (use scratch[7] timestamp or magic to detect rapid reboots vs. widely-spaced ones), enter safe mode: NeoPixel solid red, beacon-only operation, no ESKF, no pyro. Log reboot count to flash if storage is available. Counter resets on clean power-on (scratch registers cleared by POR).
+
+3. **Ground-side launch abort policy.** Any watchdog reset while in IDLE or ARMED state sets a persistent `LAUNCH_ABORT` flag. This flag requires explicit operator acknowledgement (CLI command or physical reset sequence) before the system can transition to ARMED. Rationale: a WDT reset on the ground indicates a software fault that must be investigated before flight. Even a single ground-side WDT event should abort launch preparation and require a restart of pre-flight procedure. The flag persists across soft resets (stored in scratch registers) and clears only on POR or explicit operator command.
+
+4. **ESKF failure backoff.** Add a consecutive-failure counter for ESKF init→diverge cycles. After `⚠️ VALIDATE 5` consecutive failures (init succeeds but `healthy()` returns false within N seconds), disable ESKF until manual CLI reset (`'e'` key or similar). This prevents the init→diverge→re-init churn observed during ESKF development without requiring a full system reboot. This is the model for subsystem-level recovery: detect failure, disable the failing subsystem, continue operating in degraded mode.
+
+5. **Recovery boot path.** In `init_hardware()` / `init_application()`, after reading scratch registers: if this is a WDT reboot (not POR), log the event, print the diagnostic context from scratch registers, and set a `g_recoveryBoot` flag. The state machine (IVP-50) will later use this flag to determine post-reboot behavior per flight state:
+   - **IDLE/LANDED:** Normal reboot + LAUNCH_ABORT flag set.
+   - **ARMED:** LAUNCH_ABORT + automatic DISARM.
+   - **BOOST/COAST/DESCENT:** Recovery mode — skip ESKF (can't re-init under acceleration), resume pyro timers from flash checkpoint, activate beacon. Degrade to baro-only altitude with timer-based backup deployment.
+
+**[GATE]:**
+- `watchdog_caused_reboot()` returns false on clean power-on (no more persistent false warnings)
+- `watchdog_caused_reboot()` returns true after genuine WDT timeout, with correct scratch register diagnostics
+- Reboot counter increments across WDT resets, resets on POR
+- After `⚠️ VALIDATE 3` rapid WDT reboots: system enters safe mode (NeoPixel solid red, prints "[SAFE] Reboot loop detected")
+- ESKF disables after N consecutive divergences, CLI can re-enable
+- Ground WDT reset sets LAUNCH_ABORT flag, prevents ARMED transition until acknowledged
+- Normal 5-minute soak with ESKF running: zero WDT fires, zero false warnings
+- Scratch register data survives WDT reset, verified via GDB `x/4w &watchdog_hw->scratch[4]`
+
+**[DIAG]:** False WDT warning persists = still using `watchdog_enable_caused_reboot()` or scratch registers not cleared on POR. Safe mode triggers unexpectedly = reboot counter threshold too low or detection window too tight. ESKF never re-enables = backoff counter not resettable via CLI. Scratch data garbled after WDT = CRC/magic validation logic bug. LAUNCH_ABORT blocks arming unexpectedly = flag not cleared on POR or CLI command not working.
+
+> **Milestone:** At IVP-54 completion, the system has calibrated sensors, GPS, sensor fusion, and a working flight state machine — **Crowdfunding Demo Ready**.
 
 ---
 
@@ -1662,11 +1704,11 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-54 | LittleFS Integration | Mount filesystem on remaining flash |
-| IVP-55 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
-| IVP-56 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
-| IVP-57 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
-| IVP-58 | USB Data Download | Download flight logs via CLI |
+| IVP-55 | LittleFS Integration | Mount filesystem on remaining flash |
+| IVP-56 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
+| IVP-57 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
+| IVP-58 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
+| IVP-59 | USB Data Download | Download flight logs via CLI |
 
 ---
 
@@ -1676,11 +1718,11 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-59 | RFM95W Radio Driver | SPI-based LoRa radio init, TX/RX |
-| IVP-60 | MAVLink Encoder | Heartbeat, attitude, GPS, system status messages |
-| IVP-61 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
-| IVP-62 | GCS Compatibility | QGroundControl / Mission Planner connection |
-| IVP-63 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
+| IVP-60 | RFM95W Radio Driver | SPI-based LoRa radio init, TX/RX |
+| IVP-61 | MAVLink Encoder | Heartbeat, attitude, GPS, system status messages |
+| IVP-62 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
+| IVP-63 | GCS Compatibility | QGroundControl / Mission Planner connection |
+| IVP-64 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
 
 ---
 
@@ -1690,13 +1732,13 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-64 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
-| IVP-65 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
-| IVP-66 | Power Budget Validation | Battery runtime validation under flight load |
-| IVP-67 | Environmental Stress | Temperature range, vibration (if available) |
-| IVP-68 | Flight Test | Bungee-launched glider: full data capture + telemetry |
+| IVP-65 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
+| IVP-66 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
+| IVP-67 | Power Budget Validation | Battery runtime validation under flight load |
+| IVP-68 | Environmental Stress | Temperature range, vibration (if available) |
+| IVP-69 | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
-> **Milestone:** IVP-68 — **Flight Ready**.
+> **Milestone:** IVP-69 — **Flight Ready**.
 
 ---
 
@@ -1716,9 +1758,10 @@ Tests to re-run after changes to specific areas.
 | GPS driver change | IVP-31 — IVP-33 | GPS + integration |
 | Mag calibration code change | IVP-34 — IVP-38, IVP-17 | Mag cal + accel cal regression |
 | Fusion algorithm change | IVP-39 — IVP-48 | Filter correctness |
-| Mission engine change | IVP-49 — IVP-53 | State machine correctness |
+| Watchdog policy change | IVP-49, IVP-30 | Recovery behavior + mechanism |
+| Mission engine change | IVP-50 — IVP-54 | State machine correctness |
 | **Major refactor** | **All Stage 1-3** | Full regression |
-| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-64 | Release qualification (build, USB, flash, watchdog, bench test) |
+| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-49, IVP-65 | Release qualification (build, USB, flash, watchdog, recovery, bench test) |
 
 ---
 
