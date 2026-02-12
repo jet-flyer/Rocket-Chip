@@ -1,0 +1,4 @@
+# RocketChip git attributes
+# Council CR-7: Ensure consistent line endings for reference CSVs
+# to prevent spurious diffs on Windows.
+test/data/reference/*.csv text eol=lf

@@ -30,6 +30,19 @@ target_link_libraries(test_eskf_propagation PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_eskf_propagation
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+# IVP-42c: Replay harness (standalone tool, not a test)
+add_executable(replay_harness replay/replay_harness.cpp)
+target_link_libraries(replay_harness PRIVATE rc_fusion)
+target_include_directories(replay_harness PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(replay_harness PRIVATE _CRT_SECURE_NO_WARNINGS)
+
+# IVP-42c: Replay regression test
+add_executable(test_replay_regression test_replay_regression.cpp)
+target_link_libraries(test_replay_regression PRIVATE rc_fusion GTest::gtest_main)
+target_include_directories(test_replay_regression PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+gtest_discover_tests(test_replay_regression
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 # add_executable(test_eskf_update test_eskf_update.cpp)
 # target_link_libraries(test_eskf_update PRIVATE rc_fusion GTest::gtest_main)
 # gtest_discover_tests(test_eskf_update)

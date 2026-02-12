@@ -436,6 +436,49 @@ If you intentionally change the filter (new measurement, different Q tuning), yo
 
 **Why this is so effective (learning note):** It catches *any* behavioral change, even subtle ones. A sign flip in one element of the Jacobian might only shift the output by 0.01° per step — invisible in a single test — but over 1000 steps the output CSV diverges from the reference. The diff catches it.
 
+### 5.5 Fault injection verification (IVP-42b)
+
+Every CSV-driven test was verified to catch real physics errors by injecting the exact faults
+the council review caught during planning. Both faults produce catastrophic trajectory
+divergence, not borderline failures — confirming the tests have strong discriminating power.
+
+| # | Fault Injected | File Modified | Test That Caught It | Failure Signature |
+|---|---------------|---------------|-------------------|-------------------|
+| 1 | **Flipped centripetal sign** — `a_centripetal` → `-a_centripetal` in body Y accel (Traj 4: const turn) | `generate_synthetic.py` line 184 | ConstantTurnFromCSV | Position dist = 108m, exceeded 2r limit of 19m. Vehicle spiraled outward instead of turning. |
+| 2 | **Wrong gyro axis** — swapped `gy = omega*sin(bank)` to `gx` (Traj 5: banked turn) | `generate_synthetic.py` lines 212-213 | BankedTurnFromCSV | Roll = -14.8° vs expected 30° (44.8° error). Position dist = 323m vs 13m limit. Attitude completely destabilized. |
+
+**Why these specific faults:** Both are the exact errors identified and corrected during the
+council review (ArduPilot Core Contributor + NASA/JPL Avionics Lead). Fault 1 tests the
+centripetal sign convention (positive yaw = left turn = centrifugal pushes body +Y). Fault 2
+tests the NED-to-body gyro decomposition (yaw rate couples into pitch axis via roll, not
+roll axis). These are the two most common physics errors in turn trajectory generation.
+
+**Verification date:** 2026-02-12. Commit `7b9ee7b`.
+
+### 5.6 Replay regression fault injection (IVP-42c)
+
+The change-indication regression tests (Section 5.4) were verified by injecting faults into
+ESKF constants, rebuilding, and checking whether the regression test caught the diff.
+
+| # | Fault Injected | Caught? | Failure Signature |
+|---|---------------|---------|-------------------|
+| 1 | **kGravity 9.80665 → 9.81** (+0.034%) | **YES** — row 6 | `vd` drift: 0.0001 m/s per step (gravity residual accumulates). Static trajectory diverges immediately. All 5 trajectories failed. |
+| 2 | **kSigmaGyro 2.618e-4 → 5.0e-4** (~1.9x) | **NO** — passed | Process noise Q change is too small per-step (~9e-10 difference in P increment). After 12,000 steps the cumulative P diagonal delta (~1.1e-5) falls within the combined relative+absolute tolerance (1e-4). |
+
+**Implication of Fault 2:** The regression test's tolerance (council CR-2: combined
+`max(1e-4, 1e-4 * max(|a|, |b|))`) is deliberately tuned to catch *structural* changes
+(formula rewrites, sign errors, constant changes that affect state propagation) rather than
+*tuning* changes (noise parameter adjustments that only affect covariance growth rate). This
+is by design — the council explicitly stated: "The purpose of this test is change detection,
+not numerical accuracy validation — the unit tests handle accuracy."
+
+**If tighter process noise regression detection is needed in the future**, options include:
+1. A separate P-diagonal-only regression test with absolute tolerance `1e-6`
+2. Logging `trace(P)` at the end and checking for drift
+3. NEES-based tests (Section 6.2) once ground truth is available in the replay
+
+**Verification date:** 2026-02-12.
+
 ---
 
 ## 6. Statistical Diagnostics
