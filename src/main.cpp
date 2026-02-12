@@ -21,6 +21,7 @@
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
 #include "fusion/baro_kf.h"
+#include "fusion/eskf.h"
 #include "cli/rc_os.h"
 #include "pico/multicore.h"
 #include "hardware/sync.h"
@@ -37,7 +38,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp41-2";
+static const char* kBuildTag = "ivp42d-4";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -89,6 +90,21 @@ static constexpr uint32_t kBaroReinitThreshold = 100;
 // Seqlock parameters
 static constexpr uint32_t kSeqlockMaxRetries = 4;
 
+// IVP-42d: ESKF propagation — every 5th IMU sample = 200Hz
+// Note: count divider discards 4/5 IMU samples. For flight with high vibration,
+// compound integration of all samples or higher rate propagation may be needed (R-5).
+static constexpr uint32_t kEskfImuDivider = 5;
+
+// Rad-to-deg for CLI display
+static constexpr float kRadToDeg = 180.0F / 3.14159265F;
+
+// ESKF state buffer: 200Hz × 5s = 1000 samples × 68B = 68KB (SRAM)
+static constexpr uint32_t kEskfBufferSamples = 1000;
+
+// ESKF dt sanity bounds (reject if too fast or too slow)
+static constexpr uint32_t kEskfMinDtUs = 1000;     // 1ms
+static constexpr uint32_t kEskfMaxDtUs = 100000;    // 100ms
+
 // NeoPixel timing (Core 1 sensor phase)
 static constexpr uint32_t kNeoToggleSoakMs     = 250;           // ~2Hz blink
 static constexpr uint32_t kSensorPhaseTimeoutMs = 300000;       // 5 min — switch to magenta
@@ -128,6 +144,35 @@ static uint32_t g_loopCounter = 0;
 static rc::BaroKF g_baroKf;
 static bool g_baroKfInitialized = false;
 static uint32_t g_lastBaroKfCount = 0;  // Track baro_read_count for new-data detection
+
+// IVP-42d: ESKF 15-state error-state Kalman filter (Core 0 at 200Hz)
+// Static per LL Entry 1: ESKF struct is ~970 bytes (Mat15 P = 900 bytes).
+static rc::ESKF g_eskf;
+static bool g_eskfInitialized = false;
+static uint32_t g_lastEskfImuCount = 0;
+static uint32_t g_lastEskfTimestampUs = 0;
+
+// Compact ESKF state for circular buffer (no P matrix — R-6 council requirement)
+// 68 bytes per sample. At 200Hz for 5s = 1000 samples = 68KB static in SRAM.
+struct eskf_state_snap_t {
+    uint32_t timestamp_us;          // 4B
+    float qw, qx, qy, qz;         // 16B — quaternion
+    float px, py, pz;              // 12B — position NED (m)
+    float vx, vy, vz;              // 12B — velocity NED (m/s)
+    float abx, aby, abz;           // 12B — accel bias (m/s²)
+    float gbx, gby, gbz;           // 12B — gyro bias (rad/s)
+};
+static_assert(sizeof(eskf_state_snap_t) == 68, "ESKF snap size changed");
+
+static eskf_state_snap_t g_eskfBuffer[kEskfBufferSamples];
+static uint32_t g_eskfBufferIndex = 0;
+static uint32_t g_eskfBufferCount = 0;
+
+// ESKF benchmark timing (wall-clock us per predict() call)
+static uint32_t g_eskfBenchMin = UINT32_MAX;
+static uint32_t g_eskfBenchMax = 0;
+static uint32_t g_eskfBenchSum = 0;
+static uint32_t g_eskfBenchCount = 0;
 
 // Shared sensor data struct (per SEQLOCK_DESIGN.md, council-approved)
 // All values calibration-applied, body frame, SI units. 128 bytes in SRAM.
@@ -814,6 +859,34 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
     } else {
         printf("Baro: no data yet\n");
     }
+    // ESKF fused attitude (IVP-42d)
+    if (g_eskfInitialized && g_eskf.healthy()) {
+        rc::Vec3 euler = g_eskf.q.to_euler();
+        float roll_deg  = euler.x * kRadToDeg;
+        float pitch_deg = euler.y * kRadToDeg;
+        float yaw_deg   = euler.z * kRadToDeg;
+        // R-3: show attitude P diagonal max for covariance visibility
+        float patt = g_eskf.P(0, 0);
+        if (g_eskf.P(1, 1) > patt) { patt = g_eskf.P(1, 1); }
+        if (g_eskf.P(2, 2) > patt) { patt = g_eskf.P(2, 2); }
+        printf("ESKF: R=%6.2f P=%6.2f Y=%6.2f deg  Patt=%.4f  qnorm=%.6f\n",
+               (double)roll_deg, (double)pitch_deg, (double)yaw_deg,
+               (double)patt, (double)g_eskf.q.norm());
+        printf("      vel=%.3f,%.3f,%.3f m/s\n",
+               (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z);
+        if (g_eskfBenchCount > 0) {
+            uint32_t avg = g_eskfBenchSum / g_eskfBenchCount;
+            printf("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
+                   (unsigned long)avg, (unsigned long)g_eskfBenchMin,
+                   (unsigned long)g_eskfBenchMax, (unsigned long)g_eskfBenchCount);
+        }
+        printf("      buf: %lu/%lu samples\n",
+               (unsigned long)g_eskfBufferCount, (unsigned long)kEskfBufferSamples);
+    } else if (g_eskfInitialized) {
+        printf("ESKF: UNHEALTHY (stopped, awaiting re-init)\n");
+    } else {
+        printf("ESKF: waiting for stationary init...\n");
+    }
     // GPS
     if (snap.gps_read_count > 0) {
         if (snap.gps_valid) {
@@ -1264,6 +1337,102 @@ static void fusion_tick() {
     g_lastBaroKfCount = snap.baro_read_count;
 }
 
+// IVP-42d: ESKF init from first stable accel/gyro reading.
+// Returns true if init succeeded.
+static bool eskf_try_init(const shared_sensor_data_t& snap) {
+    rc::Vec3 accel(snap.accel_x, snap.accel_y, snap.accel_z);
+    rc::Vec3 gyro(snap.gyro_x, snap.gyro_y, snap.gyro_z);
+
+    if (!g_eskf.init(accel, gyro)) {
+        return false;  // Stationarity check failed — try again next tick
+    }
+
+    g_eskfInitialized = true;
+    g_lastEskfTimestampUs = snap.imu_timestamp_us;  // CR-2: set for first predict dt
+    return true;
+}
+
+// IVP-42d: ESKF predict step with benchmark + state buffer write.
+static void eskf_run_predict(const shared_sensor_data_t& snap) {
+    // Compute dt from IMU timestamps (unsigned subtraction handles 32-bit wrap)
+    uint32_t dtUs = snap.imu_timestamp_us - g_lastEskfTimestampUs;
+    g_lastEskfTimestampUs = snap.imu_timestamp_us;  // CR-3: always update timestamp
+
+    // Sanity-check dt — reject if too fast or too slow
+    if (dtUs < kEskfMinDtUs || dtUs > kEskfMaxDtUs) {
+        return;
+    }
+
+    float dt = static_cast<float>(dtUs) * 1e-6f;
+
+    rc::Vec3 accel(snap.accel_x, snap.accel_y, snap.accel_z);
+    rc::Vec3 gyro(snap.gyro_x, snap.gyro_y, snap.gyro_z);
+
+    // Benchmark: wall-clock time for predict()
+    uint32_t t0 = time_us_32();
+    g_eskf.predict(accel, gyro, dt);
+    uint32_t elapsed = time_us_32() - t0;
+
+    // CR-1: stop propagation if filter diverges
+    if (!g_eskf.healthy()) {
+        g_eskfInitialized = false;
+        return;
+    }
+
+    // Update benchmark stats
+    if (elapsed < g_eskfBenchMin) { g_eskfBenchMin = elapsed; }
+    if (elapsed > g_eskfBenchMax) { g_eskfBenchMax = elapsed; }
+    g_eskfBenchSum += elapsed;
+    g_eskfBenchCount++;
+
+    // Write compact state to circular buffer
+    eskf_state_snap_t& s = g_eskfBuffer[g_eskfBufferIndex];
+    s.timestamp_us = snap.imu_timestamp_us;
+    s.qw = g_eskf.q.w;  s.qx = g_eskf.q.x;
+    s.qy = g_eskf.q.y;  s.qz = g_eskf.q.z;
+    s.px = g_eskf.p.x;  s.py = g_eskf.p.y;  s.pz = g_eskf.p.z;
+    s.vx = g_eskf.v.x;  s.vy = g_eskf.v.y;  s.vz = g_eskf.v.z;
+    s.abx = g_eskf.accel_bias.x;  s.aby = g_eskf.accel_bias.y;
+    s.abz = g_eskf.accel_bias.z;
+    s.gbx = g_eskf.gyro_bias.x;   s.gby = g_eskf.gyro_bias.y;
+    s.gbz = g_eskf.gyro_bias.z;
+    g_eskfBufferIndex = (g_eskfBufferIndex + 1) % kEskfBufferSamples;
+    if (g_eskfBufferCount < kEskfBufferSamples) {
+        g_eskfBufferCount++;
+    }
+}
+
+// IVP-42d: ESKF tick — runs at 200Hz via IMU count divider.
+static void eskf_tick() {
+    if (!g_sensorPhaseActive) {
+        return;
+    }
+
+    // CR-4: seqlock failure is a separate early return from data validity
+    shared_sensor_data_t snap;
+    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
+        return;  // Seqlock contention — skip this cycle
+    }
+
+    if (!snap.accel_valid || !snap.gyro_valid) {
+        return;
+    }
+
+    // Run every kEskfImuDivider-th new IMU sample (200Hz at 1kHz IMU rate)
+    uint32_t newSamples = snap.imu_read_count - g_lastEskfImuCount;
+    if (newSamples < kEskfImuDivider) {
+        return;
+    }
+    g_lastEskfImuCount = snap.imu_read_count;
+
+    if (!g_eskfInitialized) {
+        eskf_try_init(snap);
+        return;
+    }
+
+    eskf_run_predict(snap);
+}
+
 // ============================================================================
 // Main
 // ============================================================================
@@ -1284,6 +1453,9 @@ int main() {
 
         g_lastTickFunction = "fusion";
         fusion_tick();
+
+        g_lastTickFunction = "eskf";
+        eskf_tick();
 
         g_lastTickFunction = "cli";
         cli_update_tick();

@@ -126,6 +126,35 @@ struct Mat {
         return sum;
     }
 
+    // ---- In-place mutations (avoid return-by-value for large matrices, LL Entry 1) ----
+
+    // Zero all elements in place
+    void set_zero() {
+        for (int32_t r = 0; r < Rows; ++r) {
+            for (int32_t c = 0; c < Cols; ++c) {
+                data[r][c] = 0.0f;
+            }
+        }
+    }
+
+    // Set to identity in place (square matrices only)
+    void set_identity() {
+        static_assert(Rows == Cols, "set_identity requires square matrix");
+        set_zero();
+        for (int32_t i = 0; i < Rows; ++i) {
+            data[i][i] = 1.0f;
+        }
+    }
+
+    // Multiply all elements by scalar in place
+    void scale(float s) {
+        for (int32_t r = 0; r < Rows; ++r) {
+            for (int32_t c = 0; c < Cols; ++c) {
+                data[r][c] *= s;
+            }
+        }
+    }
+
     // ---- Static constructors ----
 
     static Mat zeros() {

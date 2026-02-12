@@ -112,6 +112,10 @@ else()
     # IVP-29: SDK-level stack limit registers (belt-and-suspenders with MPU guard)
     add_compile_definitions(PICO_USE_STACK_GUARDS=1)
 
+    # Core 0 stack: 4KB (SDK default is 2KB = 0x800, insufficient for ESKF call chain).
+    # SCRATCH_Y is 4KB total with 0 bytes of .scratch_y data — full 4KB available.
+    add_compile_definitions(PICO_STACK_SIZE=0x1000)
+
     # Compiler warnings — applied globally (includes SDK sources)
     add_compile_options(
         -Wall
@@ -201,6 +205,13 @@ else()
         src/fusion/eskf.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
+
+    # IVP-42d: Per-file -O2 for ESKF propagation (LL Entry 1 / council R-4).
+    # At -O0, the predict() call chain accumulates ~5KB+ of stack from Mat15
+    # temporaries and function frames, triggering MemManage fault. -O2 enables
+    # NRVO and inlining that eliminates these stack allocations. The benchmark
+    # gate (<100µs) also requires optimization — -O0 gives ~200µs+.
+    set_source_files_properties(src/fusion/eskf.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic")
 
     # Include directories
     target_include_directories(rocketchip PRIVATE

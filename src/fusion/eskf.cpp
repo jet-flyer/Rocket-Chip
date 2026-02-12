@@ -65,7 +65,7 @@ bool ESKF::init(const Vec3& accel_meas, const Vec3& gyro_meas) {
     gyro_bias = Vec3();
 
     // Initialize P diagonal per eskf.h constants
-    P = Mat15::zeros();
+    P.set_zero();
     using namespace eskf;
     for (int32_t i = 0; i < kBlockSize; ++i) {
         P(kIdxAttitude + i, kIdxAttitude + i)  = kInitPAttitude;
@@ -134,11 +134,11 @@ void ESKF::propagate_nominal(const Vec3& accel_meas, const Vec3& gyro_meas,
 // Where: ω = gyro_body (bias-corrected), a = accel_body (bias-corrected),
 //         R = body-to-NED DCM, [·]_x = skew-symmetric matrix
 // ============================================================================
-Mat15 ESKF::build_F(const Quat& q_in, const Vec3& accel_body,
-                     const Vec3& gyro_body, float dt) {
+void ESKF::build_F(Mat15& F, const Quat& q_in, const Vec3& accel_body,
+                    const Vec3& gyro_body, float dt) {
     using namespace eskf;
 
-    Mat15 F = Mat15::identity();
+    F.set_identity();
 
     const Mat3 R = quat_to_dcm(q_in);
     const Mat3 skew_omega = skew(gyro_body);
@@ -178,18 +178,16 @@ Mat15 ESKF::build_F(const Quat& q_in, const Vec3& accel_body,
             F(kIdxVelocity + r, kIdxAccelBias + c) = -dt * R(r, c);
         }
     }
-
-    return F;
 }
 
 // ============================================================================
 // build_Qc: Continuous-time process noise Q_c (15×15 diagonal)
 // Q_d ≈ Q_c * dt  (zeroth-order hold discretization, per R-9)
 // ============================================================================
-Mat15 ESKF::build_Qc() {
+void ESKF::build_Qc(Mat15& Qc) {
     using namespace eskf;
 
-    Mat15 Qc = Mat15::zeros();
+    Qc.set_zero();
 
     const float sigma_gyro_sq = kSigmaGyro * kSigmaGyro;
     const float sigma_accel_sq = kSigmaAccel * kSigmaAccel;
@@ -203,8 +201,6 @@ Mat15 ESKF::build_Qc() {
         Qc(kIdxGyroBias + i, kIdxGyroBias + i)  = sigma_gyro_bias_sq;
     }
     // Position block: no direct noise (position uncertainty grows via velocity)
-
-    return Qc;
 }
 
 // ============================================================================
@@ -231,30 +227,49 @@ void ESKF::predict(const Vec3& accel_meas, const Vec3& gyro_meas, float dt) {
     // However, for first-order accuracy at typical rates (200Hz, dt=5ms),
     // the difference between pre and post q is negligible.
     // ArduPilot EKF3 uses the same approach.
-    const Mat15 F = build_F(q, accel_body, gyro_body, dt);
-    const Mat15 Qc = build_Qc();
-    const Mat15 Qd = Qc * dt;  // Zeroth-order hold (R-9)
+    // Static Mat15 locals to avoid stack overflow on RP2350 (LL Entry 1).
+    // Mat15 = 900B each; multiple on stack causes MemManage fault.
+    // Safe: single-threaded Core 0.
+    static Mat15 F_local;
+    static Mat15 Qd_local;
+    build_F(F_local, q, accel_body, gyro_body, dt);
+    build_Qc(Qd_local);        // Build Qc directly into Qd_local
+    Qd_local.scale(dt);         // Zeroth-order hold (R-9): Qd = Qc * dt
 
-    // 3. Sparse F*P*F^T
-    // Extract the non-trivial F blocks (off-diagonal terms):
-    //   F_aa = F[att,att],   F_ag = F[att,gb]
-    //   F_pv = F[pos,vel]
-    //   F_va = F[vel,att],   F_vb = F[vel,ab]
+    // 3. Dense F*P*F^T + Q_d
+    // Dense path: O(15^3) ≈ 3375 multiply-adds at 200Hz = ~675K flops/sec.
+    // TODO(IVP-42b): Profile on target, implement sparse if needed.
     //
-    // Full FPFT is computed block-by-block. For each output block (i,j),
-    // P_new(i,j) = sum_k sum_l F(i,k) * P(k,l) * F^T(l,j)
-    //            = sum_k sum_l F(i,k) * P(k,l) * F(j,l)^T
-    //
-    // Rather than implementing every sparse term (error-prone for first
-    // implementation), we use the dense path and validate that the sparse
-    // path matches. The dense path is O(15^3) ≈ 3375 multiply-adds,
-    // which at 200Hz is ~675K flops/sec — well within RP2350 budget.
-    //
-    // TODO(IVP-42b): Profile dense path on target, implement sparse if needed.
-
-    // Dense FPFT (same as predict_dense, but inlined to avoid duplicate
-    // nominal propagation)
-    P = fpft_dense(F, P) + Qd;
+    // fpft_dense inlined to use static temporaries (avoid 1800B stack
+    // from template return values at -O0).
+    static Mat15 FP_temp;
+    static Mat15 Ft_temp;
+    // FP = F * P
+    for (int32_t r = 0; r < 15; ++r) {
+        for (int32_t c = 0; c < 15; ++c) {
+            float sum = 0.0f;
+            for (int32_t k = 0; k < 15; ++k) {
+                sum += F_local.data[r][k] * P.data[k][c];
+            }
+            FP_temp.data[r][c] = sum;
+        }
+    }
+    // F^T
+    for (int32_t r = 0; r < 15; ++r) {
+        for (int32_t c = 0; c < 15; ++c) {
+            Ft_temp.data[c][r] = F_local.data[r][c];
+        }
+    }
+    // P = FP * F^T + Qd
+    for (int32_t r = 0; r < 15; ++r) {
+        for (int32_t c = 0; c < 15; ++c) {
+            float sum = 0.0f;
+            for (int32_t k = 0; k < 15; ++k) {
+                sum += FP_temp.data[r][k] * Ft_temp.data[k][c];
+            }
+            P.data[r][c] = sum + Qd_local.data[r][c];
+        }
+    }
 
     // 4. Symmetry enforcement
     P.force_symmetric();
@@ -276,11 +291,39 @@ void ESKF::predict_dense(const Vec3& accel_meas, const Vec3& gyro_meas,
 
     propagate_nominal(accel_meas, gyro_meas, dt);
 
-    const Mat15 F = build_F(q, accel_body, gyro_body, dt);
-    const Mat15 Qc = build_Qc();
-    const Mat15 Qd = Qc * dt;
+    // Static locals: same rationale as predict() (LL Entry 1).
+    static Mat15 F_d;
+    static Mat15 Qd_d;
+    static Mat15 FP_d;
+    static Mat15 Ft_d;
+    build_F(F_d, q, accel_body, gyro_body, dt);
+    build_Qc(Qd_d);
+    Qd_d.scale(dt);
 
-    P = fpft_dense(F, P) + Qd;
+    // F*P*F^T + Qd inlined with static temporaries (same as predict())
+    for (int32_t r = 0; r < 15; ++r) {
+        for (int32_t c = 0; c < 15; ++c) {
+            float sum = 0.0f;
+            for (int32_t k = 0; k < 15; ++k) {
+                sum += F_d.data[r][k] * P.data[k][c];
+            }
+            FP_d.data[r][c] = sum;
+        }
+    }
+    for (int32_t r = 0; r < 15; ++r) {
+        for (int32_t c = 0; c < 15; ++c) {
+            Ft_d.data[c][r] = F_d.data[r][c];
+        }
+    }
+    for (int32_t r = 0; r < 15; ++r) {
+        for (int32_t c = 0; c < 15; ++c) {
+            float sum = 0.0f;
+            for (int32_t k = 0; k < 15; ++k) {
+                sum += FP_d.data[r][k] * Ft_d.data[k][c];
+            }
+            P.data[r][c] = sum + Qd_d.data[r][c];
+        }
+    }
     P.force_symmetric();
     clamp_covariance();
 
@@ -324,7 +367,9 @@ void ESKF::reset(const Vec3& delta_theta) {
 
     // Build reset Jacobian G (15×15)
     // G = I except G[att,att] = I - [delta_theta/2]_x
-    Mat15 G = Mat15::identity();
+    // Static: same rationale as predict() (LL Entry 1).
+    static Mat15 G;
+    G.set_identity();
     const Mat3 half_skew = skew(delta_theta * 0.5f);
     for (int32_t r = 0; r < 3; ++r) {
         for (int32_t c = 0; c < 3; ++c) {
@@ -332,8 +377,32 @@ void ESKF::reset(const Vec3& delta_theta) {
         }
     }
 
-    // P ← G * P * G^T
-    P = fpft_dense(G, P);
+    // P ← G * P * G^T (inlined with static temporaries, LL Entry 1)
+    static Mat15 GP_temp;
+    static Mat15 Gt_temp;
+    for (int32_t r = 0; r < 15; ++r) {
+        for (int32_t c = 0; c < 15; ++c) {
+            float sum = 0.0f;
+            for (int32_t k = 0; k < 15; ++k) {
+                sum += G.data[r][k] * P.data[k][c];
+            }
+            GP_temp.data[r][c] = sum;
+        }
+    }
+    for (int32_t r = 0; r < 15; ++r) {
+        for (int32_t c = 0; c < 15; ++c) {
+            Gt_temp.data[c][r] = G.data[r][c];
+        }
+    }
+    for (int32_t r = 0; r < 15; ++r) {
+        for (int32_t c = 0; c < 15; ++c) {
+            float sum = 0.0f;
+            for (int32_t k = 0; k < 15; ++k) {
+                sum += GP_temp.data[r][k] * Gt_temp.data[k][c];
+            }
+            P.data[r][c] = sum;
+        }
+    }
     P.force_symmetric();
 }
 

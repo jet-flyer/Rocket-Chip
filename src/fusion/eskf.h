@@ -142,11 +142,13 @@ struct ESKF {
 private:
     // Build the error-state transition matrix F_x (15×15).
     // F_x = I + dt * F_delta, where F_delta encodes the linearized dynamics.
-    static Mat15 build_F(const Quat& q, const Vec3& accel_body,
+    // Output parameter to avoid 900B return-by-value on stack (LL Entry 1).
+    static void build_F(Mat15& out, const Quat& q, const Vec3& accel_body,
                          const Vec3& gyro_body, float dt);
 
     // Build continuous-time process noise Q_c (15×15 diagonal).
-    static Mat15 build_Qc();
+    // Output parameter to avoid 900B return-by-value on stack (LL Entry 1).
+    static void build_Qc(Mat15& out);
 
     // Common propagation logic shared by predict() and predict_dense().
     void propagate_nominal(const Vec3& accel_meas, const Vec3& gyro_meas,
