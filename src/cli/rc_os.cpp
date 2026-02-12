@@ -864,9 +864,9 @@ static void cmd_wizard() {
     printf("This wizard runs all calibrations:\n");
     printf("  1. Gyro (keep still, ~2s)\n");
     printf("  2. Level (keep flat, ~1s)\n");
-    printf("  3. Baro ground ref (~1s)\n");
-    printf("  4. 6-position accel\n");
-    printf("  5. Compass calibration\n");
+    printf("  3. 6-position accel\n");
+    printf("  4. Compass calibration\n");
+    printf("(Baro ground ref runs automatically at boot)\n");
     printf("Press ENTER to begin, 'x' to cancel.\n");
     printf("========================================\n\n");
 
@@ -880,7 +880,7 @@ static void cmd_wizard() {
     bool hooksActive = false;
 
     // --- Step 1: Gyro ---
-    printf("\n--- Step 1/5: Gyro Calibration ---\n");
+    printf("\n--- Step 1/4: Gyro Calibration ---\n");
     if (!rc_os_imu_available) {
         printf("  SKIPPED (IMU not available)\n");
         skipped++;
@@ -913,7 +913,7 @@ static void cmd_wizard() {
     }
 
     // --- Step 2: Level ---
-    printf("\n--- Step 2/5: Level Calibration ---\n");
+    printf("\n--- Step 2/4: Level Calibration ---\n");
     if (!rc_os_imu_available) {
         printf("  SKIPPED (IMU not available)\n");
         skipped++;
@@ -945,41 +945,10 @@ static void cmd_wizard() {
         }
     }
 
-    // --- Step 3: Baro ---
-    printf("\n--- Step 3/5: Baro Calibration ---\n");
-    if (!rc_os_baro_available) {
-        printf("  SKIPPED (barometer not available)\n");
-        skipped++;
-    } else {
-        printf("Setting ground reference (~1s).\n");
-        printf("ENTER to start, 'x' to skip.\n");
-        cal_neo(kCalNeoBaro);
-        if (!wait_for_enter_or_esc()) {
-            printf("  SKIPPED by user\n");
-            cal_neo(kCalNeoOff);
-            skipped++;
-        } else {
-            cal_result_t result = calibration_start_baro();
-            if (result != CAL_RESULT_OK) {
-                printf("ERROR: Failed to start baro cal (%d)\n", result);
-                cal_neo_flash_result(false);
-                failed++;
-            } else {
-                printf("Sampling");
-                fflush(stdout);
-                if (wait_for_async_cal()) {
-                    cal_neo_flash_result(true);
-                    passed++;
-                } else {
-                    cal_neo_flash_result(false);
-                    failed++;
-                }
-            }
-        }
-    }
+    // (Baro ground ref runs automatically at boot — not in wizard)
 
-    // --- Step 4: 6-Position Accel ---
-    printf("\n--- Step 4/5: 6-Position Accel Calibration ---\n");
+    // --- Step 3: 6-Position Accel ---
+    printf("\n--- Step 3/4: 6-Position Accel Calibration ---\n");
     if (!rc_os_imu_available || rc_os_read_accel == nullptr) {
         printf("  SKIPPED (IMU or accel callback not available)\n");
         skipped++;
@@ -1012,8 +981,8 @@ static void cmd_wizard() {
         }
     }
 
-    // --- Step 5: Compass ---
-    printf("\n--- Step 5/5: Compass Calibration ---\n");
+    // --- Step 4: Compass ---
+    printf("\n--- Step 4/4: Compass Calibration ---\n");
     if (rc_os_read_mag == nullptr) {
         printf("  SKIPPED (mag read callback not set)\n");
         skipped++;

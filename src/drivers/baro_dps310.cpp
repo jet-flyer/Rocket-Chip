@@ -22,6 +22,35 @@ constexpr float kHypsometricExponent = 0.1903F;     // Barometric formula expone
 // I2C write buffer limit
 constexpr uint8_t kMaxMultiByteWrite = 16;
 
+// Map integer oversampling/rate values to ruuvi driver enums.
+static dps310_os_t os_from_int(uint8_t val) {
+    switch (val) {
+        case 1:   return DPS310_OS_1;
+        case 2:   return DPS310_OS_2;
+        case 4:   return DPS310_OS_4;
+        case 8:   return DPS310_OS_8;
+        case 16:  return DPS310_OS_16;
+        case 32:  return DPS310_OS_32;
+        case 64:  return DPS310_OS_64;
+        case 128: return DPS310_OS_128;
+        default:  return DPS310_OS_8;  // Fall back to safe default
+    }
+}
+
+static dps310_mr_t mr_from_int(uint8_t val) {
+    switch (val) {
+        case 1:   return DPS310_MR_1;
+        case 2:   return DPS310_MR_2;
+        case 4:   return DPS310_MR_4;
+        case 8:   return DPS310_MR_8;
+        case 16:  return DPS310_MR_16;
+        case 32:  return DPS310_MR_32;
+        case 64:  return DPS310_MR_64;
+        case 128: return DPS310_MR_128;
+        default:  return DPS310_MR_8;  // Fall back to safe default
+    }
+}
+
 // ============================================================================
 // Private State
 // ============================================================================
@@ -99,13 +128,17 @@ bool baro_dps310_init(uint8_t addr) {
         return false;
     }
 
-    // Configure for 8x oversampling, 8 Hz rate (good balance of precision/speed)
-    status = dps310_config_temp(&g_dps310_ctx, DPS310_MR_8, DPS310_OS_8);
+    // Configure oversampling and measurement rate from header constants.
+    // See baro_dps310.h for the full tradeoff table (precision vs latency vs power).
+    const dps310_mr_t mr = mr_from_int(kBaroDps310MeasRate);
+    const dps310_os_t os = os_from_int(kBaroDps310Oversampling);
+
+    status = dps310_config_temp(&g_dps310_ctx, mr, os);
     if (status != DPS310_SUCCESS) {
         return false;
     }
 
-    status = dps310_config_pres(&g_dps310_ctx, DPS310_MR_8, DPS310_OS_8);
+    status = dps310_config_pres(&g_dps310_ctx, mr, os);
     if (status != DPS310_SUCCESS) {
         return false;
     }

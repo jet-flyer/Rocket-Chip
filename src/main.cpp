@@ -20,6 +20,7 @@
 #include "drivers/gps_pa1010d.h"
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
+#include "fusion/baro_kf.h"
 #include "cli/rc_os.h"
 #include "pico/multicore.h"
 #include "hardware/sync.h"
@@ -36,7 +37,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "bypass-5";
+static const char* kBuildTag = "ivp41-2";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -122,6 +123,11 @@ static bool g_gpsInitialized = false;
 static bool g_gpsOnI2C = false;       // True when GPS detected at I2C address 0x10
 
 static uint32_t g_loopCounter = 0;
+
+// IVP-41: Baro Kalman filter (runs on Core 0 at baro data rate ~8Hz)
+static rc::BaroKF g_baroKf;
+static bool g_baroKfInitialized = false;
+static uint32_t g_lastBaroKfCount = 0;  // Track baro_read_count for new-data detection
 
 // Shared sensor data struct (per SEQLOCK_DESIGN.md, council-approved)
 // All values calibration-applied, body frame, SI units. 128 bytes in SRAM.
@@ -799,6 +805,12 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
         printf("Baro: %.1f Pa, %.2f C, AGL=%.2f m\n",
                (double)snap.pressure_pa, (double)snap.baro_temperature_c,
                (double)alt);
+        if (g_baroKfInitialized && g_baroKf.healthy()) {
+            printf("KF:   alt=%.3f m  vvel=%.3f m/s  NIS=%.2f\n",
+                   (double)g_baroKf.altitude(),
+                   (double)g_baroKf.velocity(),
+                   (double)g_baroKf.last_nis());
+        }
     } else {
         printf("Baro: no data yet\n");
     }
@@ -1145,12 +1157,18 @@ static void init_application(bool watchdogReboot) {
     rc_os_cal_post_hook = cal_post_hook;
     rc_os_set_cal_neo = set_cal_neo_override;
     rc_os_feed_cal = feed_active_calibration;
-
     // Signal Core 1 to start sensor phase
     g_sensorPhaseActive = true;
     g_startSensorPhase.store(true, std::memory_order_release);
     rc_os_i2c_scan_allowed = false;  // LL Entry 23: prevent CLI I2C scan from corrupting bus
     sleep_ms(500);  // Let Core 1 start up
+
+    // Auto-calibrate baro ground reference at boot.
+    // Core 1 feeds baro samples asynchronously — cal completes in background
+    // (~50 samples at 8Hz = ~6s). User can re-trigger manually via CLI 'c' menu.
+    if (g_baroContinuous) {
+        calibration_start_baro();
+    }
 
     // Enable watchdog (council critical fix: must be unconditional)
     g_watchdogEnabled = true;
@@ -1195,6 +1213,57 @@ static void cli_update_tick() {
     feed_active_calibration();
 }
 
+// IVP-41: Run BaroKF predict/update when new baro data arrives via seqlock.
+// DPS310 at 8Hz measurement rate → KF runs at ~8Hz.
+// dt computed from actual baro timestamps for accuracy.
+static void fusion_tick() {
+    if (!g_sensorPhaseActive || !g_baroContinuous) {
+        return;
+    }
+
+    shared_sensor_data_t snap;
+    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
+        return;  // Seqlock contention, skip this cycle
+    }
+
+    if (!snap.baro_valid) {
+        return;
+    }
+
+    // Only run when we have new baro data
+    if (snap.baro_read_count == g_lastBaroKfCount) {
+        return;
+    }
+
+    float alt = calibration_get_altitude_agl(snap.pressure_pa);
+
+    if (!g_baroKfInitialized) {
+        g_baroKf.init(alt);
+        g_baroKfInitialized = true;
+        g_lastBaroKfCount = snap.baro_read_count;
+        return;
+    }
+
+    // Compute dt from baro timestamps (handles wraparound via unsigned subtraction)
+    static uint32_t s_lastBaroTimestampUs = 0;
+    uint32_t dtUs = snap.baro_timestamp_us - s_lastBaroTimestampUs;
+    s_lastBaroTimestampUs = snap.baro_timestamp_us;
+
+    // Sanity-check dt: reject if <1ms or >1s (missed sample, wraparound, etc.)
+    constexpr uint32_t kMinDtUs = 1000;     // 1ms
+    constexpr uint32_t kMaxDtUs = 1000000;  // 1s
+    if (dtUs < kMinDtUs || dtUs > kMaxDtUs) {
+        g_lastBaroKfCount = snap.baro_read_count;
+        return;
+    }
+
+    float dt = static_cast<float>(dtUs) * 1e-6f;
+
+    g_baroKf.predict(dt);
+    g_baroKf.update(alt);
+    g_lastBaroKfCount = snap.baro_read_count;
+}
+
 // ============================================================================
 // Main
 // ============================================================================
@@ -1212,6 +1281,9 @@ int main() {
 
         g_lastTickFunction = "watchdog";
         watchdog_kick_tick();
+
+        g_lastTickFunction = "fusion";
+        fusion_tick();
 
         g_lastTickFunction = "cli";
         cli_update_tick();
