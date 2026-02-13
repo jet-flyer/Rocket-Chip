@@ -105,6 +105,15 @@ struct ESKF {
     static constexpr float kStationaryGyroMax = 0.02f;  // rad/s (~1.1°/s)
 
     // =================================================================
+    // Barometric altitude measurement — IVP-43
+    // DPS310 @ 16x oversampling noise (same as BaroKF)
+    // =================================================================
+
+    static constexpr float kSigmaBaro = 0.029f;                        // m
+    static constexpr float kRBaro = kSigmaBaro * kSigmaBaro;           // ~0.000841 m²
+    static constexpr float kBaroInnovationGate = 3.0f;                 // 3σ gate
+
+    // =================================================================
     // Methods
     // =================================================================
 
@@ -122,6 +131,13 @@ struct ESKF {
     // Same result as predict() but slower — used to validate sparse path.
     void predict_dense(const Vec3& accel_meas, const Vec3& gyro_meas, float dt);
 
+    // Barometric altitude measurement update (IVP-43).
+    // z = altitude_agl_m (positive up, from calibration_get_altitude_agl).
+    // h(x) = -p.z (NED down negated). H = [0 0 0 | 0 0 -1 | 0...].
+    // Returns false if input is non-finite or innovation is gated out.
+    // Solà (2017) §7.2, Joseph form for P update.
+    bool update_baro(float altitude_agl_m);
+
     // Error state reset with Jacobian G after measurement update.
     // Absorbs error state into nominal, resets error to zero.
     // Solà (2017) §7.2, council RF-1.
@@ -137,6 +153,7 @@ struct ESKF {
     // Diagnostics
     // =================================================================
     float last_propagation_dt_{};
+    float last_baro_nis_{};        // IVP-43: Normalized Innovation Squared
     bool initialized_{};
 
 private:

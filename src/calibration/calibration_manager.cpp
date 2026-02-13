@@ -30,8 +30,13 @@ constexpr float    kAccel6posMaxOffset     = 5.0F;    // m/s² - max offset per 
 constexpr float    kAccel6posMinDiag       = 0.8F;    // Minimum diagonal scale factor
 constexpr float    kAccel6posMaxDiag       = 1.2F;    // Maximum diagonal scale factor
 constexpr uint8_t  kAccel6posMaxIterations = 50;      // Gauss-Newton iteration limit
-constexpr uint8_t  kAccel6posNumParams     = 9;       // offset[3] + diag[3] + offdiag[3]
-constexpr uint8_t  kAccel6posAugWidth      = kAccel6posNumParams * 2;  // Augmented matrix width
+// 6 parameters: offset[3] + diag[3]. Offdiag dropped because 6 axis-aligned
+// positions provide only 6 independent constraints — the 3 offdiag parameters
+// sit in the Jacobian null space (underdetermined). A full 9-param model is valid
+// with richer data (e.g., 24+ arbitrary orientations), but from 6 cardinal
+// positions the offdiag values are arbitrary. ArduPilot's AccelCalibrator solves
+// 9 params but discards offdiag at runtime for the same reason.
+constexpr uint8_t  kAccel6posNumParams     = 6;       // offset[3] + diag[3]
 constexpr uint8_t  kAccel6posOffsetEnd     = 3;       // params[0..2] = offset
 constexpr uint8_t  kAccel6posDiagEnd       = 6;       // params[3..5] = diagonal scale
 constexpr uint8_t  kAccel6posAllMask       = 0x3F;    // Bitmask: all 6 positions collected
@@ -105,8 +110,9 @@ static uint16_t g_6pos_sample_count;
 static uint8_t g_6pos_collected;    // Bitmask of completed positions
 
 // Gauss-Newton working arrays (shared between 6-pos accel and mag ellipsoid — never concurrent)
-static float g_jtj[kAccel6posNumParams * kAccel6posNumParams];      // 324 bytes
-static float g_jtj_inv[kAccel6posNumParams * kAccel6posNumParams];  // 324 bytes
+// Sized for largest user: mag ellipsoid (9x9). Accel 6-pos uses 6x6 subset.
+static float g_jtj[kMagEllipsoidParams * kMagEllipsoidParams];      // 324 bytes
+static float g_jtj_inv[kMagEllipsoidParams * kMagEllipsoidParams];  // 324 bytes
 
 // Mag calibration state (LL Entry 1: static allocation for large buffers)
 static float g_mag_samples[kMagMaxSamples][3];         // 3600 bytes
@@ -392,36 +398,28 @@ void calibration_feed_baro(float pressurePa, float temperatureC) {
 // ============================================================================
 
 // Gauss-Newton helper: compute residual for one sample
-// residual = GRAVITY - |M * (sample + offset)|
-// params[0..2] = offset, params[3..5] = diag, params[6..8] = offdiag
-// NOLINTBEGIN(readability-magic-numbers) — matrix element indices match param vector layout
+// residual = GRAVITY - |diag * (sample + offset)|
+// params[0..2] = offset, params[3..5] = diagonal scale
 static float calc_residual_6pos(const float sample[3], const float params[kAccel6posNumParams]) {
-    float sx = sample[0] + params[0];
-    float sy = sample[1] + params[1];
-    float sz = sample[2] + params[2];
-
-    float A = params[3] * sx + params[6] * sy + params[7] * sz;
-    float B = params[6] * sx + params[4] * sy + params[8] * sz;
-    float C = params[7] * sx + params[8] * sy + params[5] * sz;
+    float A = params[3] * (sample[0] + params[0]);
+    float B = params[4] * (sample[1] + params[1]);
+    float C = params[5] * (sample[2] + params[2]);
 
     float len = sqrtf(A*A + B*B + C*C);
     return kGravityNominal - len;
 }
 
-// NOLINTEND(readability-magic-numbers)
-
-// Gauss-Newton helper: compute Jacobian for one sample (9 partial derivatives)
-// Based on ArduPilot AccelCalibrator.cpp Jacobian formulas
-// NOLINTBEGIN(readability-magic-numbers) — matrix element indices match param vector layout
+// Gauss-Newton helper: compute Jacobian for one sample (6 partial derivatives)
+// params[0..2] = offset, params[3..5] = diagonal scale
 static void calc_jacobian_6pos(const float sample[3], const float params[kAccel6posNumParams],
                                float jacob[kAccel6posNumParams]) {
     float sx = sample[0] + params[0];
     float sy = sample[1] + params[1];
     float sz = sample[2] + params[2];
 
-    float A = params[3] * sx + params[6] * sy + params[7] * sz;
-    float B = params[6] * sx + params[4] * sy + params[8] * sz;
-    float C = params[7] * sx + params[8] * sy + params[5] * sz;
+    float A = params[3] * sx;
+    float B = params[4] * sy;
+    float C = params[5] * sz;
 
     float len = sqrtf(A*A + B*B + C*C);
     if (len < kMinVectorLength) {
@@ -430,19 +428,14 @@ static void calc_jacobian_6pos(const float sample[3], const float params[kAccel6
     }
 
     // d(residual)/d(offset[0..2])
-    jacob[0] = -((params[3]*A + params[6]*B + params[7]*C) / len);
-    jacob[1] = -((params[6]*A + params[4]*B + params[8]*C) / len);
-    jacob[2] = -((params[7]*A + params[8]*B + params[5]*C) / len);
+    jacob[0] = -(params[3] * A / len);
+    jacob[1] = -(params[4] * B / len);
+    jacob[2] = -(params[5] * C / len);
     // d(residual)/d(diag[0..2])
     jacob[3] = -(sx * A / len);
     jacob[4] = -(sy * B / len);
     jacob[5] = -(sz * C / len);
-    // d(residual)/d(offdiag[0..2]) — XY, XZ, YZ
-    jacob[6] = -((sy*A + sx*B) / len);
-    jacob[7] = -((sz*A + sx*C) / len);
-    jacob[8] = -((sz*B + sy*C) / len);
 }
-// NOLINTEND(readability-magic-numbers)
 
 // Mean squared residuals across all collected samples
 static float calc_mean_sq_residuals(const float params[kAccel6posNumParams]) {
@@ -658,7 +651,7 @@ static bool gauss_newton_update(float* params, const float* jtfi) {
     return true;
 }
 
-// Validate 6-pos fit result: offsets within range, diagonal within bounds
+// Validate 6-pos fit result: offsets and diagonal within bounds
 static bool validate_6pos_params(const float* params) {
     for (uint8_t i = 0; i < kAccel6posOffsetEnd; i++) {
         if (fabsf(params[i]) > kAccel6posMaxOffset) {
@@ -675,18 +668,20 @@ static bool validate_6pos_params(const float* params) {
 
 // Store 6-pos fit results into global calibration
 static void store_6pos_results(const float* params) {
-    // Indices match param vector layout: offset[0..2], diag[3..5], offdiag[6..8]
-    // NOLINTBEGIN(readability-magic-numbers)
+    // params[0..2] = offset, params[3..5] = diagonal scale
     g_calibration.accel.offset.x = params[0];
     g_calibration.accel.offset.y = params[1];
     g_calibration.accel.offset.z = params[2];
     g_calibration.accel.scale.x  = params[3];
     g_calibration.accel.scale.y  = params[4];
     g_calibration.accel.scale.z  = params[5];
-    g_calibration.accel.offdiag.x = params[6];
-    g_calibration.accel.offdiag.y = params[7];
-    g_calibration.accel.offdiag.z = params[8];
-    // NOLINTEND(readability-magic-numbers)
+    // Offdiag zeroed — underdetermined from 6 axis-aligned positions.
+    // A 9-param model (offset + diag + offdiag) is valid in principle, but the
+    // 3 offdiag parameters sit in the Jacobian null space when only axis-aligned
+    // data is available. ArduPilot solves 9 params but discards offdiag at runtime.
+    // We solve only the 6 that the data constrains. Cross-axis coupling from the
+    // ICM-20948 is ±2% (DS-000189 Table 2) — negligible for our use case.
+    g_calibration.accel.offdiag = cal_vec3_t{0.0F, 0.0F, 0.0F};
     g_calibration.accel.status = CAL_STATUS_ACCEL_6POS;
 
     g_calibration.cal_flags |= CAL_STATUS_ACCEL_6POS;
@@ -699,11 +694,10 @@ cal_result_t calibration_compute_6pos() {
         return CAL_RESULT_NO_DATA;
     }
 
-    // Initialize parameters: offset={0,0,0}, diag={1,1,1}, offdiag={0,0,0}
+    // Initialize parameters: offset={0,0,0}, diag={1,1,1}
     float params[kAccel6posNumParams] = {
         0.0F, 0.0F, 0.0F,
-        1.0F, 1.0F, 1.0F,
-        0.0F, 0.0F, 0.0F
+        1.0F, 1.0F, 1.0F
     };
 
     float bestParams[kAccel6posNumParams];

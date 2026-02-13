@@ -43,6 +43,7 @@ target_include_directories(test_replay_regression PRIVATE ${CMAKE_CURRENT_SOURCE
 gtest_discover_tests(test_replay_regression
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-# add_executable(test_eskf_update test_eskf_update.cpp)
-# target_link_libraries(test_eskf_update PRIVATE rc_fusion GTest::gtest_main)
-# gtest_discover_tests(test_eskf_update)
+# IVP-43: ESKF barometric altitude measurement update
+add_executable(test_eskf_update test_eskf_update.cpp)
+target_link_libraries(test_eskf_update PRIVATE rc_fusion GTest::gtest_main)
+gtest_discover_tests(test_eskf_update)

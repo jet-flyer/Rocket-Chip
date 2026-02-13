@@ -407,6 +407,146 @@ void ESKF::reset(const Vec3& delta_theta) {
 }
 
 // ============================================================================
+// update_baro: Barometric altitude measurement update (IVP-43)
+//
+// Measurement model:
+//   z = altitude_agl_m (positive up)
+//   h(x) = -p.z (NED down negated → altitude up)
+//   H = [0 0 0 | 0 0 -1 | 0 0 0 | 0 0 0 | 0 0 0]   (1×15)
+//   R = kRBaro = 0.029² ≈ 0.000841 m²
+//
+// Sequential scalar update — no matrix inverse needed.
+// Joseph form P update for numerical stability (Bucy & Joseph, 1968).
+// Static locals for Mat15 temporaries (LL Entry 1, ~2.9KB BSS).
+// Single-threaded Core 0 — no reentrancy concern.
+//
+// Council conditions: isfinite() guard, S > 0 guard. See review verdict.
+// P rotation at reset() omitted — small-angle approximation, G ≈ I to
+// float precision for baro-only corrections. See Solà (2017) Eq. 298.
+// ============================================================================
+bool ESKF::update_baro(float altitude_agl_m) {
+    using namespace eskf;
+
+    // Council condition 1: reject non-finite input
+    if (!std::isfinite(altitude_agl_m)) {
+        return false;
+    }
+
+    // H has one non-zero element: H[0][kIdxPosition+2] = -1
+    // So H*P*H^T = P[5][5], and K = -P[:,5] / S
+    constexpr int32_t kHIdx = kIdxPosition + 2;  // index 5 (NED-down)
+
+    // Innovation: y = z - h(x) = altitude_agl_m - (-p.z) = altitude_agl_m + p.z
+    const float innovation = altitude_agl_m + p.z;
+
+    // Innovation covariance: S = H*P*H^T + R = P[5][5] + R
+    const float S = P(kHIdx, kHIdx) + kRBaro;
+
+    // Council condition 2: reject degenerate covariance
+    if (S < 1e-12f) {
+        return false;
+    }
+
+    // NIS for diagnostics
+    last_baro_nis_ = (innovation * innovation) / S;
+
+    // Innovation gate: reject if |y| > kBaroInnovationGate * sqrt(S)
+    const float gate_threshold = kBaroInnovationGate * sqrtf(S);
+    if (fabsf(innovation) > gate_threshold) {
+        return false;
+    }
+
+    // Kalman gain: K = P * H^T / S
+    // H^T is a column vector with -1 at index kHIdx, so P*H^T = -P[:,kHIdx]
+    // K[i] = -P[i][kHIdx] / S
+    static Mat<15, 1> K;
+    const float inv_S = 1.0f / S;
+    for (int32_t i = 0; i < kStateSize; ++i) {
+        K.data[i][0] = -P.data[i][kHIdx] * inv_S;
+    }
+
+    // Error state correction: δx = K * innovation
+    static Mat<15, 1> dx;
+    for (int32_t i = 0; i < kStateSize; ++i) {
+        dx.data[i][0] = K.data[i][0] * innovation;
+    }
+
+    // Joseph form P update: P = (I - K*H) * P * (I - K*H)^T + K*R*K^T
+    // I - K*H: identity except column kHIdx where (I-KH)[i][kHIdx] += K[i]*1
+    // (because H[kHIdx] = -1, so -K*H means +K in column kHIdx)
+    static Mat15 IKH;
+    IKH.set_identity();
+    for (int32_t i = 0; i < kStateSize; ++i) {
+        IKH.data[i][kHIdx] += K.data[i][0];  // -K * (-1) = +K
+    }
+
+    // IKH * P  (15×15 × 15×15)
+    static Mat15 IKH_P;
+    for (int32_t r = 0; r < kStateSize; ++r) {
+        for (int32_t c = 0; c < kStateSize; ++c) {
+            float sum = 0.0f;
+            for (int32_t k = 0; k < kStateSize; ++k) {
+                sum += IKH.data[r][k] * P.data[k][c];
+            }
+            IKH_P.data[r][c] = sum;
+        }
+    }
+
+    // (IKH * P) * IKH^T + K*R*K^T
+    static Mat15 P_new;
+    for (int32_t r = 0; r < kStateSize; ++r) {
+        for (int32_t c = 0; c < kStateSize; ++c) {
+            float sum = 0.0f;
+            for (int32_t k = 0; k < kStateSize; ++k) {
+                sum += IKH_P.data[r][k] * IKH.data[c][k];  // IKH^T
+            }
+            // + K * R * K^T (rank-1 outer product scaled by R)
+            sum += K.data[r][0] * kRBaro * K.data[c][0];
+            P_new.data[r][c] = sum;
+        }
+    }
+
+    // Commit updated covariance
+    P = P_new;
+
+    // Inject error state into nominal state
+    // Position: p += δp
+    p.x += dx.data[kIdxPosition + 0][0];
+    p.y += dx.data[kIdxPosition + 1][0];
+    p.z += dx.data[kIdxPosition + 2][0];
+
+    // Velocity: v += δv
+    v.x += dx.data[kIdxVelocity + 0][0];
+    v.y += dx.data[kIdxVelocity + 1][0];
+    v.z += dx.data[kIdxVelocity + 2][0];
+
+    // Accel bias: ab += δab
+    accel_bias.x += dx.data[kIdxAccelBias + 0][0];
+    accel_bias.y += dx.data[kIdxAccelBias + 1][0];
+    accel_bias.z += dx.data[kIdxAccelBias + 2][0];
+
+    // Gyro bias: gb += δgb
+    gyro_bias.x += dx.data[kIdxGyroBias + 0][0];
+    gyro_bias.y += dx.data[kIdxGyroBias + 1][0];
+    gyro_bias.z += dx.data[kIdxGyroBias + 2][0];
+
+    // Attitude: q ← q ⊗ Exp(δθ)
+    // P rotation omitted — G ≈ I for small δθ (Solà Eq. 298).
+    // For baro-only corrections, |δθ| < 1e-4 rad, G differs from I
+    // by < 1e-8, below float precision.
+    const Vec3 delta_theta(dx.data[kIdxAttitude + 0][0],
+                           dx.data[kIdxAttitude + 1][0],
+                           dx.data[kIdxAttitude + 2][0]);
+    reset(delta_theta);
+
+    // Symmetry + clamping
+    P.force_symmetric();
+    clamp_covariance();
+
+    return true;
+}
+
+// ============================================================================
 // clamp_covariance: Diagonal clamping per council RF-2
 // Prevents P from growing unbounded during GPS-denied operation.
 // ============================================================================

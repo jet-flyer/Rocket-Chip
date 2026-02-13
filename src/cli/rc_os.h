@@ -227,6 +227,19 @@ typedef void (*rc_os_set_cal_neo_fn)(uint8_t mode);
 extern rc_os_set_cal_neo_fn rc_os_set_cal_neo;
 
 // ============================================================================
+// ESKF Live Output Callback (set by main)
+// ============================================================================
+
+/**
+ * @brief Function pointer for compact ESKF status line.
+ *
+ * Called at 1Hz when live ESKF mode is active (user pressed 'e').
+ * Should print a single compact line (no trailing newline).
+ */
+typedef void (*rc_os_eskf_live_fn)(void);
+extern rc_os_eskf_live_fn rc_os_print_eskf_live;
+
+// ============================================================================
 // Calibration Feed Callback (set by main)
 // ============================================================================
 

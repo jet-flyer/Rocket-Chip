@@ -38,7 +38,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp42d-7";
+static const char* kBuildTag = "ivp43-4";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -828,8 +828,11 @@ static void feed_active_calibration() {
 // Print sensor data from seqlock snapshot (Core 1 driving sensors)
 static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
     if (snap.accel_valid) {
-        printf("Accel (m/s^2): X=%7.3f Y=%7.3f Z=%7.3f\n",
-               (double)snap.accel_x, (double)snap.accel_y, (double)snap.accel_z);
+        float aMag = sqrtf(snap.accel_x*snap.accel_x + snap.accel_y*snap.accel_y
+                           + snap.accel_z*snap.accel_z);
+        printf("Accel (m/s^2): X=%7.3f Y=%7.3f Z=%7.3f |A|=%.3f\n",
+               (double)snap.accel_x, (double)snap.accel_y, (double)snap.accel_z,
+               (double)aMag);
     } else {
         printf("Accel: invalid\n");
     }
@@ -876,8 +879,9 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
         printf("ESKF: R=%6.2f P=%6.2f Y=%6.2f deg  Patt=%.4f  qnorm=%.6f\n",
                (double)roll_deg, (double)pitch_deg, (double)yaw_deg,
                (double)patt, (double)g_eskf.q.norm());
-        printf("      vel=%.3f,%.3f,%.3f m/s\n",
-               (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z);
+        printf("      vel=%.3f,%.3f,%.3f m/s  bNIS=%.2f\n",
+               (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z,
+               (double)g_eskf.last_baro_nis_);
         if (g_eskfBenchCount > 0) {
             uint32_t avg = g_eskfBenchSum / g_eskfBenchCount;
             printf("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
@@ -928,6 +932,35 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
            (unsigned long)snap.imu_error_count,
            (unsigned long)snap.baro_error_count,
            (unsigned long)snap.gps_error_count);
+}
+
+// Compact ESKF live output (1Hz, one line per update)
+static void print_eskf_live() {
+    if (!g_eskfInitialized) {
+        printf("ESKF: waiting for init...\n");
+        return;
+    }
+    if (!g_eskf.healthy()) {
+        printf("ESKF: UNHEALTHY\n");
+        return;
+    }
+    // Read seqlock for baro_read_count
+    shared_sensor_data_t snap;
+    seqlock_read(&g_sensorSeqlock, &snap);
+
+    float alt = -g_eskf.p.z;
+    float vz = g_eskf.v.z;
+    float vh = sqrtf(g_eskf.v.x * g_eskf.v.x + g_eskf.v.y * g_eskf.v.y);
+    float patt = g_eskf.P(0, 0);
+    if (g_eskf.P(1, 1) > patt) { patt = g_eskf.P(1, 1); }
+    if (g_eskf.P(2, 2) > patt) { patt = g_eskf.P(2, 2); }
+    float ppos = g_eskf.P(5, 5);
+
+    printf("alt=%.2f vz=%.2f vh=%.2f Patt=%.4f Pp=%.4f bNIS=%.2f B=%lu\n",
+           (double)alt, (double)vz, (double)vh,
+           (double)patt, (double)ppos,
+           (double)g_eskf.last_baro_nis_,
+           (unsigned long)snap.baro_read_count);
 }
 
 // Print sensor data from direct I2C reads (Core 0 owns bus, pre-sensor-phase)
@@ -985,6 +1018,42 @@ static void print_direct_sensors() {
     }
 }
 
+static void print_cal_params() {
+    const calibration_store_t* cal = calibration_manager_get();
+    uint16_t flags = cal->cal_flags;
+    printf("  Cal Flags: 0x%04X [%s%s%s%s%s]\n", flags,
+           (flags & CAL_STATUS_LEVEL) ? "Lv " : "",
+           (flags & CAL_STATUS_ACCEL_6POS) ? "6P " : "",
+           (flags & CAL_STATUS_GYRO) ? "Gy " : "",
+           (flags & CAL_STATUS_MAG) ? "Mg " : "",
+           (flags & CAL_STATUS_BARO) ? "Ba " : "");
+    printf("  Accel: off=[%.4f, %.4f, %.4f]\n",
+           (double)cal->accel.offset.x, (double)cal->accel.offset.y,
+           (double)cal->accel.offset.z);
+    printf("         scl=[%.4f, %.4f, %.4f]\n",
+           (double)cal->accel.scale.x, (double)cal->accel.scale.y,
+           (double)cal->accel.scale.z);
+    printf("         odg=[%.4f, %.4f, %.4f]\n",
+           (double)cal->accel.offdiag.x, (double)cal->accel.offdiag.y,
+           (double)cal->accel.offdiag.z);
+    printf("  Gyro:  bias=[%.6f, %.6f, %.6f]\n",
+           (double)cal->gyro.bias.x, (double)cal->gyro.bias.y,
+           (double)cal->gyro.bias.z);
+    if (flags & CAL_STATUS_MAG) {
+        printf("  Mag:   off=[%.1f, %.1f, %.1f]\n",
+               (double)cal->mag.offset.x, (double)cal->mag.offset.y,
+               (double)cal->mag.offset.z);
+        printf("         scl=[%.4f, %.4f, %.4f]\n",
+               (double)cal->mag.scale.x, (double)cal->mag.scale.y,
+               (double)cal->mag.scale.z);
+    }
+    const float* R = cal->board_rotation.m;
+    printf("  Rot:   [%.3f %.3f %.3f; %.3f %.3f %.3f; %.3f %.3f %.3f]\n",
+           (double)R[0], (double)R[1], (double)R[2],
+           (double)R[3], (double)R[4], (double)R[5],
+           (double)R[6], (double)R[7], (double)R[8]);
+}
+
 static void print_sensor_status() {
     printf("\n========================================\n");
     printf("  Sensor Readings (calibrated)\n");
@@ -1003,6 +1072,7 @@ static void print_sensor_status() {
         print_direct_sensors();
     }
 
+    print_cal_params();
     printf("========================================\n\n");
 }
 
@@ -1238,6 +1308,7 @@ static void init_application(bool watchdogReboot) {
     rc_os_cal_post_hook = cal_post_hook;
     rc_os_set_cal_neo = set_cal_neo_override;
     rc_os_feed_cal = feed_active_calibration;
+    rc_os_print_eskf_live = print_eskf_live;
     // Signal Core 1 to start sensor phase
     g_sensorPhaseActive = true;
     g_startSensorPhase.store(true, std::memory_order_release);
@@ -1439,6 +1510,16 @@ static void eskf_tick() {
     }
 
     eskf_run_predict(snap);
+
+    // IVP-43: Baro altitude measurement update (~32Hz DPS310 rate, on new data)
+    if (snap.baro_valid && g_baroContinuous) {
+        static uint32_t s_lastEskfBaroCount = 0;
+        if (snap.baro_read_count != s_lastEskfBaroCount) {
+            s_lastEskfBaroCount = snap.baro_read_count;
+            float alt = calibration_get_altitude_agl(snap.pressure_pa);
+            g_eskf.update_baro(alt);
+        }
+    }
 }
 
 // ============================================================================

@@ -101,6 +101,14 @@ rc_os_set_cal_neo_fn rc_os_set_cal_neo = nullptr;
 // Calibration sensor feed callback (set by main.cpp)
 rc_os_feed_cal_fn rc_os_feed_cal = nullptr;
 
+// ESKF live output callback (set by main.cpp)
+rc_os_eskf_live_fn rc_os_print_eskf_live = nullptr;
+
+// Live ESKF mode state
+static bool g_eskfLiveActive = false;
+static uint32_t g_eskfLiveLastPrintUs = 0;
+static constexpr uint32_t kEskfLivePeriodUs = 1000000;  // 1Hz
+
 // ============================================================================
 // Menu Printing
 // ============================================================================
@@ -140,6 +148,7 @@ static void print_system_status() {
     printf("Commands:\n");
     printf("  h - This help\n");
     printf("  s - Sensor status\n");
+    printf("  e - ESKF live (1Hz, any key stops)\n");
     printf("  b - Boot summary (reprint)\n");
     printf("  i - I2C bus rescan\n");
     printf("  c - Calibration menu\n");
@@ -517,7 +526,9 @@ static void cmd_accel_6pos_cal_inner() {
     cal_result_t fitResult = calibration_compute_6pos();
     if (fitResult != CAL_RESULT_OK) {
         printf(" FAILED (%d)\n", fitResult);
-        printf("Ellipsoid fit did not converge or params out of range.\n");
+        printf("Fit failed — params out of range.\n");
+        printf("Common cause: board not held at true cardinal orientations.\n");
+        printf("Use a flat surface or box edge for precise positioning.\n");
         calibration_reset_6pos();
         return;
     }
@@ -1127,6 +1138,18 @@ static void handle_main_menu(int c) {
             print_calibration_menu();
             break;
 
+        case 'e':
+        case 'E':
+            if (rc_os_print_eskf_live != nullptr) {
+                g_eskfLiveActive = true;
+                g_eskfLiveLastPrintUs = time_us_32();
+                printf("\n--- ESKF live (1Hz) --- any key to stop ---\n");
+                rc_os_print_eskf_live();
+            } else {
+                printf("ESKF not available.\n");
+            }
+            break;
+
         case '\r':
         case '\n':
             // Ignore line endings
@@ -1262,6 +1285,24 @@ bool rc_os_update() {
 
     // Update calibration progress display
     update_calibration_progress();
+
+    // Live ESKF mode: periodic print at 1Hz, any key stops
+    if (g_eskfLiveActive) {
+        int c = getchar_timeout_us(0);
+        if (c != PICO_ERROR_TIMEOUT) {
+            g_eskfLiveActive = false;
+            printf("\n--- ESKF live stopped ---\n");
+            return true;
+        }
+        uint32_t nowUs = time_us_32();
+        if (nowUs - g_eskfLiveLastPrintUs >= kEskfLivePeriodUs) {
+            g_eskfLiveLastPrintUs = nowUs;
+            if (rc_os_print_eskf_live != nullptr) {
+                rc_os_print_eskf_live();
+            }
+        }
+        return false;
+    }
 
     // Check for input (non-blocking)
     int c = getchar_timeout_us(0);
