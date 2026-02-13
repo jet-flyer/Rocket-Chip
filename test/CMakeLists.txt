@@ -47,3 +47,13 @@ gtest_discover_tests(test_replay_regression
 add_executable(test_eskf_update test_eskf_update.cpp)
 target_link_libraries(test_eskf_update PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_eskf_update)
+
+# IVP-44: ESKF magnetometer heading measurement update
+add_executable(test_eskf_mag_update test_eskf_mag_update.cpp)
+target_link_libraries(test_eskf_mag_update PRIVATE rc_fusion GTest::gtest_main)
+gtest_discover_tests(test_eskf_mag_update)
+
+# IVP-44b: ESKF zero-velocity pseudo-measurement (ZUPT)
+add_executable(test_eskf_zupt test_eskf_zupt.cpp)
+target_link_libraries(test_eskf_zupt PRIVATE rc_fusion GTest::gtest_main)
+gtest_discover_tests(test_eskf_zupt)

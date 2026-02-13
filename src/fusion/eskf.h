@@ -114,6 +114,56 @@ struct ESKF {
     static constexpr float kBaroInnovationGate = 3.0f;                 // 3σ gate
 
     // =================================================================
+    // Magnetometer heading measurement — IVP-44
+    // AK09916 noise: 0.1 µT RMS at ~45 µT total field → ~0.002 rad.
+    // Soft iron residuals dominate — start conservative at 5°.
+    // Source: PHASE5_ESKF_PLAN.md, ArduPilot EKF3 MAG_NOISE.
+    //
+    // H ≈ [0, 0, 1, 0...0] (yaw-only, level-flight approximation).
+    // Valid while roll/pitch < ~45°. Above that, cross-coupling from
+    // roll/pitch into heading exceeds kSigmaMagHeading and the update
+    // effectively becomes a slow correction rather than a tight lock.
+    // Full attitude-dependent H deferred to Titan tier.
+    //
+    // Max trackable spin rate at 10Hz mag update: ~5 rev/s (900°/s).
+    // Beyond this, wrap_pi() on the innovation aliases. The ESKF
+    // gyro-driven predict (200Hz) tracks arbitrarily fast rotations;
+    // only the mag correction has this limit.
+    // =================================================================
+
+    static constexpr float kSigmaMagHeading = 0.087f;                   // rad (~5°)
+    static constexpr float kRMagHeading = kSigmaMagHeading * kSigmaMagHeading;  // ~0.00757 rad²
+    static constexpr float kMagInnovationGate = 3.0f;                   // 3σ gate
+    static constexpr float kMagInterferenceThreshold = 0.25f;           // 25% deviation → inflate R
+    static constexpr float kMagInterferenceRejectThreshold = 0.50f;     // 50% deviation → hard reject (council)
+    static constexpr float kMagInterferenceRScale = 10.0f;              // R inflation factor (25-50% band)
+    static constexpr float kMagMinMagnitude = 1.0f;                     // µT — below this, reject
+
+    // =================================================================
+    // Zero-velocity pseudo-measurement (ZUPT) — IVP-44b
+    // Constrains horizontal velocity when stationary. Without GPS or
+    // ZUPT, horizontal v/p states are unobservable and diverge within
+    // ~30s, corrupting accel bias estimation via positive feedback.
+    //
+    // Stationarity detection uses kStationaryAccelTol and
+    // kStationaryGyroMax (same as init() RF-5). When both are met,
+    // inject v=[0,0,0] as three scalar measurements.
+    //
+    // ArduPilot EKF3: InertialNav zero-velocity when onGround.
+    // PX4 ECL-EKF2: zero_velocity_update() with accel/gyro checks.
+    // =================================================================
+
+    // ZUPT measurement noise: how precisely we know v=0.
+    // Must be loose enough that velocity covariance P_v doesn't collapse.
+    // If P_v → 0, the Kalman gain for subsequent updates vanishes and
+    // the ZUPT can't fight accel-bias-driven velocity accumulation.
+    // ArduPilot EKF3 uses ~0.5 m/s for on-ground zero-velocity.
+    // PX4 ECL uses similar order. We match ArduPilot.
+    static constexpr float kSigmaZupt = 0.5f;                           // m/s
+    static constexpr float kRZupt = kSigmaZupt * kSigmaZupt;            // 0.25 m²/s²
+    static constexpr float kZuptInnovationGate = 5.0f;                   // 5σ gate (generous)
+
+    // =================================================================
     // Methods
     // =================================================================
 
@@ -138,6 +188,30 @@ struct ESKF {
     // Solà (2017) §7.2, Joseph form for P update.
     bool update_baro(float altitude_agl_m);
 
+    // Magnetometer heading measurement update (IVP-44).
+    // mag_body: calibrated magnetometer reading in body frame (µT).
+    // expected_magnitude: expected field magnitude from cal (µT, 0 = skip
+    //   interference check). Two-tier interference detection (council):
+    //   >25% deviation inflates R by 10x, >50% hard rejects.
+    // declination_rad: magnetic declination (rad, East-positive). Added to
+    //   measured magnetic heading so the ESKF tracks true heading.
+    //   GPS-derived WMM lookup (IVP-46) or user parameter. 0 = magnetic heading.
+    //   ArduPilot: MagDeclination(), PX4: get_mag_declination().
+    // h(x) = -atan2(m_level.y, m_level.x) + declination.
+    // H ≈ [0, 0, 1, 0...0] (yaw-only approximation — see constants block).
+    // Returns false if non-finite, magnitude too low, interference reject,
+    //   or innovation gated out. Solà (2017) §6.2, Joseph form.
+    bool update_mag_heading(const Vec3& mag_body, float expected_magnitude,
+                            float declination_rad = 0.0f);
+
+    // Zero-velocity pseudo-measurement update (IVP-44b).
+    // Checks stationarity from raw IMU data (accel magnitude ≈ g,
+    // gyro rates < threshold). If stationary, applies v=[0,0,0] as
+    // three sequential scalar measurements on velocity states [6..8].
+    // Returns false if not stationary or innovation gated out.
+    // Call at predict() rate (200Hz) — stationarity check is cheap.
+    bool update_zupt(const Vec3& accel_meas, const Vec3& gyro_meas);
+
     // Error state reset with Jacobian G after measurement update.
     // Absorbs error state into nominal, resets error to zero.
     // Solà (2017) §7.2, council RF-1.
@@ -154,6 +228,9 @@ struct ESKF {
     // =================================================================
     float last_propagation_dt_{};
     float last_baro_nis_{};        // IVP-43: Normalized Innovation Squared
+    float last_mag_nis_{};         // IVP-44: Normalized Innovation Squared
+    float last_zupt_nis_{};        // IVP-44b: max ZUPT NIS across 3 axes
+    bool last_zupt_active_{};      // IVP-44b: true when stationarity detected
     bool initialized_{};
 
 private:

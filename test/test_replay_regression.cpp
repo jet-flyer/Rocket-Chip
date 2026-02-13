@@ -114,6 +114,13 @@ std::vector<RefRow> run_replay(const std::string& input_path) {
         rc::Vec3 gyro(sample.gx, sample.gy, sample.gz);
         eskf.predict(accel, gyro, dt);
 
+        // IVP-44: mag heading update (matches replay_harness.cpp)
+        if (!std::isnan(sample.mx) && !std::isnan(sample.my) &&
+            !std::isnan(sample.mz)) {
+            rc::Vec3 mag_body(sample.mx, sample.my, sample.mz);
+            eskf.update_mag_heading(mag_body, 0.0f, 0.0f);
+        }
+
         result.push_back(make_row(sample.timestamp_us, eskf));
     }
 

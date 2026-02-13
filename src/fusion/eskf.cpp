@@ -547,6 +547,344 @@ bool ESKF::update_baro(float altitude_agl_m) {
 }
 
 // ============================================================================
+// wrap_pi: Wrap angle to [-π, π]
+// Standard approach per ArduPilot wrap_PI().
+// ============================================================================
+static float wrap_pi(float angle) {
+    constexpr float kPi = 3.14159265f;
+    constexpr float kTwoPi = 2.0f * kPi;
+    // fmodf range is (-2π, 2π), shift to (-π, π)
+    angle = fmodf(angle, kTwoPi);
+    if (angle > kPi) { angle -= kTwoPi; }
+    if (angle < -kPi) { angle += kTwoPi; }
+    return angle;
+}
+
+// ============================================================================
+// update_mag_heading: Magnetometer heading measurement update (IVP-44)
+//
+// Measurement model (ArduPilot/PX4 zero-yaw rotation approach):
+//   1. Extract roll, pitch from current q (well-observed by accel)
+//   2. Build R_zero = R(roll, pitch, yaw=0) — tilt only, no yaw
+//   3. mag_level = R_zero * mag_body — level-frame mag (yaw signal preserved)
+//   4. heading_measured = -atan2(mag_level.y, mag_level.x)
+//   5. heading_predicted = yaw from q (ZYX Euler extraction)
+//   6. innovation = wrap_pi(heading_predicted - heading_measured)
+//
+//   H ≈ [0, 0, 1, 0...0] (yaw-only, level-flight approximation)
+//   R = kRMagHeading (~0.00757 rad²), inflated under interference
+//
+// Reference: ArduPilot fuseEulerYaw(), PX4 ECL fuseHeading()
+//   Both use the zero-yaw rotation to separate tilt compensation from
+//   heading measurement. The full rotation R(q)*mag_body would recover
+//   the NED field direction (constant, independent of heading).
+//
+// Two-tier interference detection (council modification):
+//   25-50% magnitude deviation: inflate R by 10x
+//   >50% deviation: hard reject
+//
+// Sequential scalar update — same pattern as update_baro().
+// Joseph form P update for numerical stability.
+// Static locals for Mat15 temporaries (LL Entry 1).
+// ============================================================================
+bool ESKF::update_mag_heading(const Vec3& mag_body, float expected_magnitude,
+                              float declination_rad) {
+    using namespace eskf;
+
+    // Guard: reject non-finite input
+    if (!std::isfinite(mag_body.x) || !std::isfinite(mag_body.y) ||
+        !std::isfinite(mag_body.z) || !std::isfinite(declination_rad)) {
+        return false;
+    }
+
+    // Guard: reject too-low magnitude (sensor saturation, near strong magnet)
+    const float mag_norm = mag_body.norm();
+    if (mag_norm < kMagMinMagnitude) {
+        return false;
+    }
+
+    // Two-tier interference detection
+    float R_effective = kRMagHeading;
+    if (expected_magnitude > 0.0f) {
+        const float deviation = fabsf(mag_norm - expected_magnitude) / expected_magnitude;
+        if (deviation > kMagInterferenceRejectThreshold) {
+            return false;  // >50%: hard reject
+        }
+        if (deviation > kMagInterferenceThreshold) {
+            R_effective = kRMagHeading * kMagInterferenceRScale;  // 25-50%: inflate R
+        }
+    }
+
+    // Zero-yaw tilt compensation (ArduPilot/PX4 approach):
+    // Build rotation with same roll/pitch as current q but yaw=0.
+    // This rotates body-frame mag to a level frame that preserves the yaw signal.
+    const Vec3 euler = q.to_euler();  // Vec3(roll, pitch, yaw)
+    const Quat q_zero_yaw = Quat::from_euler(euler.x, euler.y, 0.0f);
+    const Vec3 mag_level = q_zero_yaw.rotate(mag_body);
+
+    // Measured heading: angle of horizontal mag projection in the level frame.
+    // Negative atan2 because magnetic North is +X, and heading increases CW.
+    // Declination converts magnetic heading to true heading.
+    // ArduPilot: -atan2F(magMeasNED.y, magMeasNED.x) + MagDeclination()
+    // PX4 ECL: atan2(mag_e, mag_n) + get_mag_declination()
+    const float heading_measured = wrap_pi(-atan2f(mag_level.y, mag_level.x)
+                                           + declination_rad);
+
+    // Predicted heading from current quaternion (ZYX Euler yaw)
+    const float heading_predicted = euler.z;
+
+    // Innovation: standard KF convention y = z - h(x) = measured - predicted.
+    // ArduPilot uses predicted - measured internally but negates K accordingly.
+    // We use the standard form matching update_baro() for consistency.
+    const float innovation = wrap_pi(heading_measured - heading_predicted);
+
+    // H has one non-zero element: H[0][kIdxAttitude+2] = 1 (yaw component)
+    constexpr int32_t kHIdx = kIdxAttitude + 2;  // index 2 (yaw)
+
+    // Innovation covariance: S = H*P*H^T + R = P[2][2] + R
+    const float S = P(kHIdx, kHIdx) + R_effective;
+
+    // Reject degenerate covariance
+    if (S < 1e-12f) {
+        return false;
+    }
+
+    // NIS for diagnostics
+    last_mag_nis_ = (innovation * innovation) / S;
+
+    // Innovation gate: reject if |y| > kMagInnovationGate * sqrt(S)
+    const float gate_threshold = kMagInnovationGate * sqrtf(S);
+    if (fabsf(innovation) > gate_threshold) {
+        return false;
+    }
+
+    // Kalman gain: K = P * H^T / S
+    // H^T is a column vector with 1 at index kHIdx, so P*H^T = P[:,kHIdx]
+    // K[i] = P[i][kHIdx] / S
+    static Mat<15, 1> K;
+    const float inv_S = 1.0f / S;
+    for (int32_t i = 0; i < kStateSize; ++i) {
+        K.data[i][0] = P.data[i][kHIdx] * inv_S;
+    }
+
+    // Error state correction: δx = K * innovation
+    static Mat<15, 1> dx;
+    for (int32_t i = 0; i < kStateSize; ++i) {
+        dx.data[i][0] = K.data[i][0] * innovation;
+    }
+
+    // Joseph form P update: P = (I - K*H) * P * (I - K*H)^T + K*R*K^T
+    // I - K*H: identity except column kHIdx where (I-KH)[i][kHIdx] -= K[i]
+    // (because H[kHIdx] = +1, so -K*H means -K in column kHIdx)
+    static Mat15 IKH;
+    IKH.set_identity();
+    for (int32_t i = 0; i < kStateSize; ++i) {
+        IKH.data[i][kHIdx] -= K.data[i][0];
+    }
+
+    // IKH * P  (15×15 × 15×15)
+    static Mat15 IKH_P;
+    for (int32_t r = 0; r < kStateSize; ++r) {
+        for (int32_t c = 0; c < kStateSize; ++c) {
+            float sum = 0.0f;
+            for (int32_t k = 0; k < kStateSize; ++k) {
+                sum += IKH.data[r][k] * P.data[k][c];
+            }
+            IKH_P.data[r][c] = sum;
+        }
+    }
+
+    // (IKH * P) * IKH^T + K*R*K^T
+    static Mat15 P_new;
+    for (int32_t r = 0; r < kStateSize; ++r) {
+        for (int32_t c = 0; c < kStateSize; ++c) {
+            float sum = 0.0f;
+            for (int32_t k = 0; k < kStateSize; ++k) {
+                sum += IKH_P.data[r][k] * IKH.data[c][k];  // IKH^T
+            }
+            // + K * R * K^T (rank-1 outer product scaled by R)
+            sum += K.data[r][0] * R_effective * K.data[c][0];
+            P_new.data[r][c] = sum;
+        }
+    }
+
+    // Commit updated covariance
+    P = P_new;
+
+    // Inject error state into nominal state
+    // Position: p += δp
+    p.x += dx.data[kIdxPosition + 0][0];
+    p.y += dx.data[kIdxPosition + 1][0];
+    p.z += dx.data[kIdxPosition + 2][0];
+
+    // Velocity: v += δv
+    v.x += dx.data[kIdxVelocity + 0][0];
+    v.y += dx.data[kIdxVelocity + 1][0];
+    v.z += dx.data[kIdxVelocity + 2][0];
+
+    // Accel bias: ab += δab
+    accel_bias.x += dx.data[kIdxAccelBias + 0][0];
+    accel_bias.y += dx.data[kIdxAccelBias + 1][0];
+    accel_bias.z += dx.data[kIdxAccelBias + 2][0];
+
+    // Gyro bias: gb += δgb
+    gyro_bias.x += dx.data[kIdxGyroBias + 0][0];
+    gyro_bias.y += dx.data[kIdxGyroBias + 1][0];
+    gyro_bias.z += dx.data[kIdxGyroBias + 2][0];
+
+    // Attitude: q ← q ⊗ Exp(δθ) + P rotation via reset()
+    const Vec3 delta_theta(dx.data[kIdxAttitude + 0][0],
+                           dx.data[kIdxAttitude + 1][0],
+                           dx.data[kIdxAttitude + 2][0]);
+    reset(delta_theta);
+
+    // Symmetry + clamping
+    P.force_symmetric();
+    clamp_covariance();
+
+    return true;
+}
+
+// ============================================================================
+// update_zupt: Zero-velocity pseudo-measurement (IVP-44b)
+//
+// Checks stationarity from raw IMU data, then applies v=[0,0,0] as
+// three sequential scalar updates on velocity states [6..8].
+//
+// Stationarity criteria (same as init() RF-5):
+//   |accel_norm - g| < kStationaryAccelTol  (±0.1g)
+//   gyro_norm < kStationaryGyroMax           (<0.02 rad/s)
+//
+// Each scalar update: H has a single 1 at velocity index.
+//   y = 0 - v[axis], S = P[idx][idx] + R, K = P[:,idx] / S
+// Three sequential updates are numerically equivalent to a single
+// 3×3 block update when off-diagonal velocity covariances are small.
+//
+// ArduPilot EKF3: zeroPosVelUpdate() when onGround.
+// PX4 ECL: zero_velocity_update() in ekf_helper.cpp.
+// ============================================================================
+bool ESKF::update_zupt(const Vec3& accel_meas, const Vec3& gyro_meas) {
+    using namespace eskf;
+
+    // Guard: reject non-finite input
+    if (!std::isfinite(accel_meas.x) || !std::isfinite(accel_meas.y) ||
+        !std::isfinite(accel_meas.z) || !std::isfinite(gyro_meas.x) ||
+        !std::isfinite(gyro_meas.y) || !std::isfinite(gyro_meas.z)) {
+        last_zupt_active_ = false;
+        return false;
+    }
+
+    // Stationarity check (RF-5 thresholds)
+    const float accel_norm = accel_meas.norm();
+    const float gyro_norm = gyro_meas.norm();
+    if (fabsf(accel_norm - kGravity) > kStationaryAccelTol ||
+        gyro_norm > kStationaryGyroMax) {
+        last_zupt_active_ = false;
+        return false;
+    }
+
+    last_zupt_active_ = true;
+
+    // Three sequential scalar updates: v_n=0, v_e=0, v_d=0
+    // H[axis] has a single 1 at kIdxVelocity + axis.
+    float max_nis = 0.0f;
+    const float v_components[3] = { v.x, v.y, v.z };
+
+    for (int32_t axis = 0; axis < 3; ++axis) {
+        const int32_t kHIdx = kIdxVelocity + axis;
+
+        // Innovation: y = z - h(x) = 0 - v[axis]
+        const float innovation = -v_components[axis];
+
+        // Innovation covariance: S = P[idx][idx] + R
+        const float S = P(kHIdx, kHIdx) + kRZupt;
+        if (S < 1e-12f) {
+            continue;
+        }
+
+        // NIS
+        const float nis = (innovation * innovation) / S;
+        if (nis > max_nis) {
+            max_nis = nis;
+        }
+
+        // Innovation gate
+        const float gate_threshold = kZuptInnovationGate * sqrtf(S);
+        if (fabsf(innovation) > gate_threshold) {
+            continue;
+        }
+
+        // Kalman gain: K = P[:,idx] / S (H has +1 at kHIdx)
+        static Mat<15, 1> K;
+        const float inv_S = 1.0f / S;
+        for (int32_t i = 0; i < kStateSize; ++i) {
+            K.data[i][0] = P.data[i][kHIdx] * inv_S;
+        }
+
+        // Error state correction: δx = K * innovation
+        static Mat<15, 1> dx;
+        for (int32_t i = 0; i < kStateSize; ++i) {
+            dx.data[i][0] = K.data[i][0] * innovation;
+        }
+
+        // Joseph form P update
+        static Mat15 IKH;
+        IKH.set_identity();
+        for (int32_t i = 0; i < kStateSize; ++i) {
+            IKH.data[i][kHIdx] -= K.data[i][0];
+        }
+
+        static Mat15 IKH_P;
+        for (int32_t r = 0; r < kStateSize; ++r) {
+            for (int32_t c = 0; c < kStateSize; ++c) {
+                float sum = 0.0f;
+                for (int32_t k = 0; k < kStateSize; ++k) {
+                    sum += IKH.data[r][k] * P.data[k][c];
+                }
+                IKH_P.data[r][c] = sum;
+            }
+        }
+
+        static Mat15 P_new;
+        for (int32_t r = 0; r < kStateSize; ++r) {
+            for (int32_t c = 0; c < kStateSize; ++c) {
+                float sum = 0.0f;
+                for (int32_t k = 0; k < kStateSize; ++k) {
+                    sum += IKH_P.data[r][k] * IKH.data[c][k];
+                }
+                sum += K.data[r][0] * kRZupt * K.data[c][0];
+                P_new.data[r][c] = sum;
+            }
+        }
+        P = P_new;
+
+        // Inject error state into nominal
+        p.x += dx.data[kIdxPosition + 0][0];
+        p.y += dx.data[kIdxPosition + 1][0];
+        p.z += dx.data[kIdxPosition + 2][0];
+        v.x += dx.data[kIdxVelocity + 0][0];
+        v.y += dx.data[kIdxVelocity + 1][0];
+        v.z += dx.data[kIdxVelocity + 2][0];
+        accel_bias.x += dx.data[kIdxAccelBias + 0][0];
+        accel_bias.y += dx.data[kIdxAccelBias + 1][0];
+        accel_bias.z += dx.data[kIdxAccelBias + 2][0];
+        gyro_bias.x += dx.data[kIdxGyroBias + 0][0];
+        gyro_bias.y += dx.data[kIdxGyroBias + 1][0];
+        gyro_bias.z += dx.data[kIdxGyroBias + 2][0];
+
+        const Vec3 delta_theta(dx.data[kIdxAttitude + 0][0],
+                               dx.data[kIdxAttitude + 1][0],
+                               dx.data[kIdxAttitude + 2][0]);
+        reset(delta_theta);
+        P.force_symmetric();
+    }
+
+    last_zupt_nis_ = max_nis;
+    clamp_covariance();
+    return true;
+}
+
+// ============================================================================
 // clamp_covariance: Diagonal clamping per council RF-2
 // Prevents P from growing unbounded during GPS-denied operation.
 // ============================================================================

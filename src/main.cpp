@@ -38,7 +38,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp43-4";
+static const char* kBuildTag = "ivp44-4";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -879,9 +879,10 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
         printf("ESKF: R=%6.2f P=%6.2f Y=%6.2f deg  Patt=%.4f  qnorm=%.6f\n",
                (double)roll_deg, (double)pitch_deg, (double)yaw_deg,
                (double)patt, (double)g_eskf.q.norm());
-        printf("      vel=%.3f,%.3f,%.3f m/s  bNIS=%.2f\n",
+        printf("      vel=%.3f,%.3f,%.3f m/s  bNIS=%.2f mNIS=%.2f\n",
                (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z,
-               (double)g_eskf.last_baro_nis_);
+               (double)g_eskf.last_baro_nis_,
+               (double)g_eskf.last_mag_nis_);
         if (g_eskfBenchCount > 0) {
             uint32_t avg = g_eskfBenchSum / g_eskfBenchCount;
             printf("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
@@ -956,10 +957,15 @@ static void print_eskf_live() {
     if (g_eskf.P(2, 2) > patt) { patt = g_eskf.P(2, 2); }
     float ppos = g_eskf.P(5, 5);
 
-    printf("alt=%.2f vz=%.2f vh=%.2f Patt=%.4f Pp=%.4f bNIS=%.2f B=%lu\n",
-           (double)alt, (double)vz, (double)vh,
+    rc::Vec3 euler = g_eskf.q.to_euler();
+    float yaw_deg = euler.z * kRadToDeg;
+
+    printf("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f Z=%c B=%lu\n",
+           (double)alt, (double)vz, (double)vh, (double)yaw_deg,
            (double)patt, (double)ppos,
            (double)g_eskf.last_baro_nis_,
+           (double)g_eskf.last_mag_nis_,
+           g_eskf.last_zupt_active_ ? 'Y' : 'N',
            (unsigned long)snap.baro_read_count);
 }
 
@@ -1225,13 +1231,25 @@ static void init_usb() {
     stdio_init_all();
 }
 
+// Watchdog sentinel in scratch[0]. We write this before watchdog_enable() and
+// check it at boot. scratch[0] survives watchdog resets (by design) but is
+// cleared by POR and SWD resets. Neither the bootrom nor the SDK touches
+// scratch[0-3] — only scratch[4-7] are used for reboot-to-address.
+//
+// Why not use the SDK functions:
+// - watchdog_caused_reboot(): false positives on SWD `monitor reset run` because
+//   the reason register persists across warm resets and rom_get_last_boot_type()
+//   returns BOOT_TYPE_NORMAL for SWD-loaded boots after a watchdog timeout.
+// - watchdog_enable_caused_reboot(): false negatives on real watchdog timeouts
+//   because the bootrom overwrites scratch[4] during boot.
+static constexpr uint32_t kWatchdogSentinel = 0x52435754;  // "RCWT"
+
 static bool init_hardware() {
-    // Check if previous reboot was caused by watchdog timeout (before any init).
-    // Use watchdog_caused_reboot() — NOT watchdog_enable_caused_reboot().
-    // The _enable_ variant checks scratch[4] magic which persists across picotool
-    // flashes and soft resets, causing false warnings. The base function checks
-    // rom_get_last_boot_type() on RP2350 for correct POR discrimination.
-    bool watchdogReboot = watchdog_caused_reboot();
+    // Check for genuine watchdog timeout: reason register set AND our sentinel
+    // present in scratch[0]. Clear sentinel immediately to avoid stale reads.
+    bool watchdogReboot = (watchdog_hw->reason != 0) &&
+                          (watchdog_hw->scratch[0] == kWatchdogSentinel);
+    watchdog_hw->scratch[0] = 0;
 
     // Register fault handlers early (before any MPU config)
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, memmanage_fault_handler);
@@ -1322,8 +1340,11 @@ static void init_application(bool watchdogReboot) {
         calibration_start_baro();
     }
 
-    // Enable watchdog (council critical fix: must be unconditional)
+    // Enable watchdog (council critical fix: must be unconditional).
+    // Write sentinel to scratch[0] so next boot can distinguish a genuine
+    // watchdog timeout from SWD/picotool resets (see kWatchdogSentinel comment).
     g_watchdogEnabled = true;
+    watchdog_hw->scratch[0] = kWatchdogSentinel;
     watchdog_enable(kWatchdogTimeoutMs, true);
 }
 
@@ -1416,14 +1437,46 @@ static void fusion_tick() {
     g_lastBaroKfCount = snap.baro_read_count;
 }
 
+// INTERIM: Adafruit ICM-20948 breakout has sensor Z-up convention.
+// ESKF expects NED (Z-down). Negate Z for accel, gyro, and mag at
+// the ESKF feed boundary. Proper fix: set board_rotation matrix with
+// Z-negate (needs level cal redo and council review for axis mapping).
+// X→X, Y→Y, Z→-Z preserves right-handedness for rotation about Z.
+static rc::Vec3 sensor_to_ned_accel(const shared_sensor_data_t& snap) {
+    return rc::Vec3(snap.accel_x, snap.accel_y, -snap.accel_z);
+}
+static rc::Vec3 sensor_to_ned_gyro(const shared_sensor_data_t& snap) {
+    return rc::Vec3(snap.gyro_x, snap.gyro_y, -snap.gyro_z);
+}
+static rc::Vec3 sensor_to_ned_mag(const shared_sensor_data_t& snap) {
+    return rc::Vec3(snap.mag_x, snap.mag_y, -snap.mag_z);
+}
+
 // IVP-42d: ESKF init from first stable accel/gyro reading.
+// IVP-44: If mag is available, set initial yaw from tilt-compensated heading.
 // Returns true if init succeeded.
 static bool eskf_try_init(const shared_sensor_data_t& snap) {
-    rc::Vec3 accel(snap.accel_x, snap.accel_y, snap.accel_z);
-    rc::Vec3 gyro(snap.gyro_x, snap.gyro_y, snap.gyro_z);
+    rc::Vec3 accel = sensor_to_ned_accel(snap);
+    rc::Vec3 gyro = sensor_to_ned_gyro(snap);
 
     if (!g_eskf.init(accel, gyro)) {
         return false;  // Stationarity check failed — try again next tick
+    }
+
+    // IVP-44: Set initial yaw from magnetometer heading if available.
+    // Without this, yaw starts at 0° and the mag gate rejects updates
+    // if actual heading is far from 0° (innovation >> 3σ).
+    // Same approach as ArduPilot EKF3 InitialiseFilterBootstrap().
+    if (snap.mag_valid) {
+        rc::Vec3 mag = sensor_to_ned_mag(snap);
+        // Tilt-compensate using roll/pitch from current quaternion (yaw=0)
+        rc::Vec3 euler = g_eskf.q.to_euler();
+        rc::Quat q_zero_yaw = rc::Quat::from_euler(euler.x, euler.y, 0.0f);
+        rc::Vec3 mag_level = q_zero_yaw.rotate(mag);
+        float initial_yaw = -atan2f(mag_level.y, mag_level.x);
+        // Rebuild quaternion with mag-derived yaw
+        g_eskf.q = rc::Quat::from_euler(euler.x, euler.y, initial_yaw);
+        g_eskf.q.normalize();
     }
 
     g_eskfInitialized = true;
@@ -1444,8 +1497,8 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
 
     float dt = static_cast<float>(dtUs) * 1e-6f;
 
-    rc::Vec3 accel(snap.accel_x, snap.accel_y, snap.accel_z);
-    rc::Vec3 gyro(snap.gyro_x, snap.gyro_y, snap.gyro_z);
+    rc::Vec3 accel = sensor_to_ned_accel(snap);
+    rc::Vec3 gyro = sensor_to_ned_gyro(snap);
 
     // Benchmark: wall-clock time for predict()
     uint32_t t0 = time_us_32();
@@ -1519,6 +1572,34 @@ static void eskf_tick() {
             float alt = calibration_get_altitude_agl(snap.pressure_pa);
             g_eskf.update_baro(alt);
         }
+    }
+
+    // IVP-44: Mag heading measurement update (~10Hz from AK09916 via seqlock)
+    if (snap.mag_valid) {
+        static uint32_t s_lastEskfMagCount = 0;
+        if (snap.mag_read_count != s_lastEskfMagCount) {
+            s_lastEskfMagCount = snap.mag_read_count;
+            rc::Vec3 mag_body = sensor_to_ned_mag(snap);
+            // Get expected magnitude from calibration for interference detection.
+            // If mag not calibrated (expected_radius == 0), skip interference check.
+            const calibration_store_t* cal = calibration_manager_get();
+            float expected_mag = (cal->cal_flags & CAL_STATUS_MAG)
+                                 ? cal->mag.expected_radius : 0.0f;
+            // declination_rad=0 for now — magnetic heading only.
+            // WMM lookup table (IVP-44 follow-up) will provide true heading.
+            g_eskf.update_mag_heading(mag_body, expected_mag, 0.0f);
+        }
+    }
+
+    // IVP-44b: Zero-velocity pseudo-measurement (ZUPT).
+    // Runs at predict rate (200Hz). Stationarity check is cheap — the ESKF
+    // internally checks accel magnitude ≈ g and gyro < threshold.
+    // When stationary, injects v=[0,0,0] to prevent horizontal velocity
+    // divergence that occurs without GPS or velocity aiding.
+    {
+        rc::Vec3 accel = sensor_to_ned_accel(snap);
+        rc::Vec3 gyro = sensor_to_ned_gyro(snap);
+        g_eskf.update_zupt(accel, gyro);
     }
 }
 

@@ -95,6 +95,15 @@ int main(int argc, char* argv[]) {
         rc::Vec3 gyro(sample.gx, sample.gy, sample.gz);
         eskf.predict(accel, gyro, dt);
 
+        // IVP-44: Magnetometer heading update (when mag data available)
+        if (!std::isnan(sample.mx) && !std::isnan(sample.my) &&
+            !std::isnan(sample.mz)) {
+            rc::Vec3 mag_body(sample.mx, sample.my, sample.mz);
+            // expected_magnitude=0 skips interference check (no cal reference in replay).
+            // declination_rad=0 (magnetic heading, no GPS-derived WMM lookup in replay).
+            eskf.update_mag_heading(mag_body, 0.0f, 0.0f);
+        }
+
         rc::test::write_output_row(out, sample.timestamp_us, eskf);
         ++row_count;
 
