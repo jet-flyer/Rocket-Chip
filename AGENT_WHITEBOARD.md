@@ -50,6 +50,16 @@ Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all(
 
 ---
 
+### Sparse FPFT Optimization — Deferred to Post-IVP-46
+
+**Added 2026-02-12.** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies). Benchmarked at ~496µs on target (IVP-42d, `6c84cd3`), vs <100µs gate target. Within cycle budget at 200Hz (~10%) but 5x over target. The sparse path exploits F_x block structure (many zero/identity blocks) to avoid the full O(N³) triple product — should bring it under 100µs.
+
+**When:** After all measurement updates are wired with real sensor feeds (IVP-43 baro done, IVP-44 mag, IVP-46 GPS pending). Current benchmarks use injected data; real performance picture needs all feeds live. Natural slot: alongside or after IVP-46, before IVP-48 health pass.
+
+**Also applies to:** `update_baro()` Joseph form has two dense 15×15 multiplies (~8Hz, less critical than 200Hz predict). Mag and GPS updates will add more. Profile full pipeline with all feeds before optimizing.
+
+---
+
 ### Protected File Updates Pending Approval
 
 - `CODING_STANDARDS.md` — needs cross-reference to `standards/VENDOR_GUIDELINES.md` in Prior Art Research section
