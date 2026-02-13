@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-02-12
+**Last Updated:** 2026-02-13
 
 ## Current Phase
 
@@ -27,30 +27,32 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 | Phase M: Mag Cal | IVP-34–38 | 2026-02-10 | Full magnetometer calibration: data structures, LM ellipsoid solver, CLI wizard, Core 1 live apply + heading. 4 commits, all HW verified |
 | Phase M.5: Wizard | — | 2026-02-10 | Unified 5-step calibration wizard with NeoPixel feedback. Core 1 cal feeds (no I2C contention). Raw mag data in seqlock for recalibration. All 5 steps HW verified including full mag cal (300 samples, 81% coverage, RMS 2.499 uT) |
 | I2C Bypass Mode | — | 2026-02-10 | ICM-20948 mag access migrated from I2C master to bypass mode (ArduPilot approach). Eliminates bank-switching race, master stall, disable/enable corruption. HW verified with GPS on bus: mag cal 300 samples, RMS 0.878 uT |
-| 5: ESKF (partial) | IVP-39–43 | 2026-02-12 | Vec3/Quat/Mat math libs, baro KF, ESKF propagation, replay harness, baro measurement update. 106/106 host tests pass. HW verified: stationary |
+| 5: ESKF (partial) | IVP-39–44b | 2026-02-13 | Vec3/Quat/Mat math libs, baro KF, ESKF propagation, replay harness, baro/mag/ZUPT measurement updates. 135/135 host tests pass. HW verified: stationary |
 
 ## In Progress
 
-**Stage 5: Sensor Fusion (ESKF)** — IVP-43 complete, IVP-44 (mag heading update) next.
+**Stage 5: Sensor Fusion (ESKF)** — IVP-44b complete, IVP-45 (GPS update) next.
 
 - IVP-39: Vec3/Quat/Mat math — DONE
 - IVP-40: Matrix ops + state indices — DONE
 - IVP-41: 1D baro KF — DONE
 - IVP-42a-d: ESKF propagation + replay harness — DONE
 - IVP-43: Baro measurement update — DONE (b59b341)
-- IVP-44: Mag heading update — NEXT
-- IVP-45: ZUPT + stationarity — pending
-- IVP-46: GPS position/velocity update — pending
+- IVP-44: Mag heading update — DONE (261ab98)
+- IVP-44b: ZUPT (zero-velocity) — DONE (261ab98, merged with IVP-44)
+- IVP-45: ZUPT + stationarity — subsumed by IVP-44b
+- IVP-46: GPS position/velocity update — NEXT
 - IVP-47: Attitude initialization refinement — pending
 - IVP-48: ESKF health + diagnostics — pending
 
 ## Blockers
 
-None currently. Cal data flow bugs (6-pos zeros, mag zeros, wizard persistence) fixed in 4cf1839.
+None currently. High baro NIS (~2000-3500) observed during IVP-44 HW test — likely stale reference pressure (shows 20.5m AGL on desk). Needs fresh `baro cal` to reset. Not a regression.
 
 ## Future Features (Tracked)
 
 - **MATLAB .mat v5 export for flight logs** — Target research/educational users who standardize on MATLAB. Compatible with GNU Octave. Post-flight analysis workflow: `export matlab <flight_id>` CLI command. Architecture already in SAD.md (Section 10, logging format enum). Implementation deferred until flight logging is active.
+- **GPS-free 3D flight path reconstruction (RC GCS)** — Forward-backward RTS smoother using IMU+baro+mag logs with known boundary conditions (zero velocity at launch/landing, launch site position). Enables full 3D trajectory for Core tier without GPS. Deferred to GCS development.
 
 ## Reference
 

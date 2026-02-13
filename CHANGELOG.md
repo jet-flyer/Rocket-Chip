@@ -20,6 +20,22 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-13-001 | Claude Code CLI | feature
+
+**IVP-44 + IVP-44b: ESKF magnetometer heading update + zero-velocity (ZUPT)**
+
+Implemented mag heading measurement update (IVP-44): tilt-compensated heading via zero-yaw rotation (ArduPilot fuseEulerYaw approach), wrap_pi innovation, two-tier interference detection (25% inflates R 10x, 50% hard rejects, council), declination_rad parameter for WMM true heading. 16 new host tests. Mag-based initial yaw at ESKF init prevents gate rejection when heading far from 0°.
+
+Added ZUPT pseudo-measurement (IVP-44b): prevents horizontal velocity divergence in GPS-denied operation (previously ~48 m/s in 30s, now <0.03 m/s for 60s+). Stationarity detection from accel/gyro, three sequential scalar velocity updates with Joseph form, kSigmaZupt=0.5 matching ArduPilot EKF3. 13 new host tests.
+
+Target integration: sensor_to_ned INTERIM Z-negate helpers (ICM-20948 Z-up → NED Z-down), mag update at ~10Hz via seqlock, ZUPT at 200Hz, live display shows yaw/mNIS/ZUPT flag. Watchdog sentinel refinement (scratch[0] custom sentinel replaces broken SDK functions). Synthetic data + replay harness updated with mag columns.
+
+Host tests: 135/135 (29 new). Binary: 202,752 bytes UF2. HW verified: 60s stationary, vh<0.03, Z=Y, mNIS<1, yaw drift <1°, 0 IMU errors.
+
+(`src/fusion/eskf.h`, `src/fusion/eskf.cpp`, `src/main.cpp`, `test/test_eskf_mag_update.cpp`, `test/test_eskf_zupt.cpp`, `test/CMakeLists.txt`, `test/scripts/generate_synthetic.py`, `test/replay/replay_harness.cpp`, `test/test_replay_regression.cpp`, `test/data/*.csv`)
+
+---
+
 ### 2026-02-12-003 | Claude Code CLI | feature, bugfix
 
 **IVP-43: ESKF barometric altitude measurement update + 6-param accel cal fix**
