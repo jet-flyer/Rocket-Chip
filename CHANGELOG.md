@@ -20,6 +20,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-12-003 | Claude Code CLI | feature, bugfix
+
+**IVP-43: ESKF barometric altitude measurement update + 6-param accel cal fix**
+
+Implemented ESKF baro measurement update (IVP-43): scalar update with Joseph form P update (inline statics for stack safety), 3σ innovation gating, NIS diagnostic, `isfinite`/S guards per council conditions. Added live ESKF mode ('e' key for 1Hz compact status: alt, velocity, Patt, bNIS). 11 new host tests (106/106 total pass). Fixed 6-pos accel cal: reduced Gauss-Newton solver from 9 to 6 parameters — 6 axis-aligned positions provide only 6 constraints, offdiag sits in Jacobian null space. Board rotation matrix added to status output. HW verified: |A|=9.770, bNIS stable, 0 I2C errors.
+
+(`src/fusion/eskf.cpp`, `src/fusion/eskf.h`, `src/main.cpp`, `src/cli/rc_os.cpp`, `src/cli/rc_os.h`, `src/calibration/calibration_manager.cpp`, `test/test_eskf_update.cpp`, `test/CMakeLists.txt`)
+
+---
+
+### 2026-02-12-002 | Claude Code CLI | bugfix
+
+**Fix calibration data flow: 6-pos accel zeros, mag cal zeros, wizard persistence**
+
+Three bugs fixed during HW calibration testing: (1) 6-pos accel cal returned zeros after ~200 reads — `read_accel_for_cal()` used 6-byte read that doesn't clear ICM-20948 data-ready flag, switched to 14-byte `icm20948_read()`. (2) Mag cal fed zero samples — `icm20948_read()` mag divider skipped 9/10 calls without setting `mag_valid=false`, uninitialized stack value bypassed staleness gate, added else clause. (3) Wizard gyro/level results lost after Core 1 resume — wizard stored in RAM but never called `calibration_save()`, Core 1 reload from flash overwrote them, now saves to flash after each step. HW verified: mag cal 300 samples, 90% coverage, RMS 0.927 uT.
+
+(`src/main.cpp`, `src/drivers/icm20948.cpp`, `src/cli/rc_os.cpp`)
+
+---
+
 ### 2026-02-12-001 | Claude Code CLI | bugfix, architecture
 
 **Watchdog FMEA analysis, IVP-49 Watchdog Recovery Policy, reboot detection bugfix**
