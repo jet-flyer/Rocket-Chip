@@ -57,3 +57,8 @@ gtest_discover_tests(test_eskf_mag_update)
 add_executable(test_eskf_zupt test_eskf_zupt.cpp)
 target_link_libraries(test_eskf_zupt PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_eskf_zupt)
+
+# IVP-44: WMM magnetic declination lookup table
+add_executable(test_wmm_declination test_wmm_declination.cpp)
+target_link_libraries(test_wmm_declination PRIVATE rc_fusion GTest::gtest_main)
+gtest_discover_tests(test_wmm_declination)

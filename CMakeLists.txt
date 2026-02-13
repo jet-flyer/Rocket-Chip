@@ -52,6 +52,7 @@ if(BUILD_TESTS)
     add_library(rc_fusion STATIC
         src/fusion/baro_kf.cpp
         src/fusion/eskf.cpp
+        src/fusion/wmm_declination.cpp
     )
     target_link_libraries(rc_fusion PUBLIC rc_math)
 
@@ -185,6 +186,9 @@ else()
 
         # IVP-42a: ESKF core propagation
         src/fusion/eskf.cpp
+
+        # IVP-44: WMM declination lookup table
+        src/fusion/wmm_declination.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -203,6 +207,7 @@ else()
         src/math/quat.cpp
         src/fusion/baro_kf.cpp
         src/fusion/eskf.cpp
+        src/fusion/wmm_declination.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
