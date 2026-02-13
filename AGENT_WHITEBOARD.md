@@ -42,7 +42,9 @@ Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all(
 
 **Added 2026-02-12.** IVP-30 watchdog mechanism is correct for ground/IDLE. But a full reboot mid-flight loses all ESKF state, pyro timers, and nav knowledge. IVP-49 added as first step of Stage 6 (before state machine IVP-50) to define the recovery policy: scratch register persistence, reboot counting with safe-mode lockout, ESKF failure backoff, and recovery boot path.
 
-**Bug fixed:** `watchdog_enable_caused_reboot()` → `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks scratch[4] magic that persists across picotool flashes, causing false "PREVIOUS REBOOT WAS CAUSED BY WATCHDOG" warnings on clean boots. The base function uses `rom_get_last_boot_type()` on RP2350 for correct discrimination.
+**Bug fix attempted (IVP-49):** `watchdog_enable_caused_reboot()` → `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks scratch[4] magic that persists across picotool flashes, causing false warnings on clean boots. The base function uses `rom_get_last_boot_type()` on RP2350.
+
+**UNRESOLVED (2026-02-12):** Warning STILL appears after the fix. Confirmed `watchdog_caused_reboot()` is in the built binary (`ivp42d-5`), warning persists on boot. Possible causes: (1) `watchdog_caused_reboot()` also has false-positive path on RP2350, (2) genuine watchdog timeout is happening (e.g., during debug probe flash), (3) ROM boot type register not clearing on SWD reset. Needs investigation — check `rom_get_last_boot_type()` return value via GDB, or add diagnostic print showing the raw return value.
 
 **IVP renumber:** All Stage 7-9 IVP numbers shifted +1 (old IVP-54→55 through IVP-68→69). Regression matrix updated. ArduPilot LED Patterns deferred note references IVP-51 → now IVP-52.
 

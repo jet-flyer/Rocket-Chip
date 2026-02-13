@@ -542,6 +542,10 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
         init_magnetometer(dev);
         data->mag.x = data->mag.y = data->mag.z = 0;
         data->mag_valid = false;
+    } else {
+        // Non-divider cycle: mag not read this call. Explicitly mark invalid
+        // so callers don't act on uninitialized stack data.
+        data->mag_valid = false;
     }
     // NOLINTEND(readability-magic-numbers)
 

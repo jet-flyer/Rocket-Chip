@@ -38,7 +38,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp42d-4";
+static const char* kBuildTag = "ivp42d-7";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -696,14 +696,18 @@ static void core1_entry() {
 
 static bool read_accel_for_cal(float* ax, float* ay, float* az, float* temp_c) {
     sleep_ms(10);  // ~100Hz sampling rate
-    icm20948_vec3_t accel;
-    if (!icm20948_read_accel(&g_imu, &accel)) {
+    // Use full icm20948_read() instead of icm20948_read_accel() — the accel-only
+    // read (6 bytes from ACCEL_XOUT_H) does NOT read through TEMP_OUT_L, so the
+    // data-ready flag is never cleared. After ~200 reads the output registers
+    // stop updating (all zeros). The full 14-byte read clears data-ready.
+    icm20948_data_t data;
+    if (!icm20948_read(&g_imu, &data) || !data.accel_valid) {
         return false;
     }
-    *ax = accel.x;
-    *ay = accel.y;
-    *az = accel.z;
-    *temp_c = 0.0F;  // Not needed for 6-pos cal
+    *ax = data.accel.x;
+    *ay = data.accel.y;
+    *az = data.accel.z;
+    *temp_c = data.temperature_c;
     return true;
 }
 

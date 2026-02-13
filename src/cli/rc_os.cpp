@@ -650,6 +650,14 @@ static bool mag_cal_inner() {
             rejectClose++;
         } else if (result == mag_feed_result_t::REJECTED_RANGE) {
             rejectRange++;
+            // Debug: print first 3 range rejects to diagnose out-of-range values
+            if (rejectRange <= 3) {
+                float rawMag = sqrtf(mx*mx + my*my + mz*mz);
+                printf("  [range reject #%lu: raw=%.1f,%.1f,%.1f |M|=%.1f uT]\n",
+                       (unsigned long)rejectRange, (double)mx, (double)my,
+                       (double)mz, (double)rawMag);
+                fflush(stdout);
+            }
         }
 
         // Print first accepted sample immediately for feedback
@@ -902,6 +910,8 @@ static void cmd_wizard() {
                 printf("Sampling");
                 fflush(stdout);
                 if (wait_for_async_cal()) {
+                    calibration_save();
+                    i2c_bus_reset();
                     cal_neo_flash_result(true);
                     passed++;
                 } else {
@@ -935,6 +945,8 @@ static void cmd_wizard() {
                 printf("Sampling");
                 fflush(stdout);
                 if (wait_for_async_cal()) {
+                    calibration_save();
+                    i2c_bus_reset();
                     cal_neo_flash_result(true);
                     passed++;
                 } else {
