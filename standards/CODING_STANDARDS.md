@@ -148,6 +148,8 @@ See `.claude/LESSONS_LEARNED.md` for the full debugging narratives behind each r
 
 **Rationale:** Proven solutions from established projects save time and reduce bugs. When millions of devices use a particular approach, that's strong evidence it works.
 
+**See also:** `standards/VENDOR_GUIDELINES.md` — vendor-specific constraints, datasheet-sourced values, and OEM recommendations for all hardware components.
+
 ### Exceptions and Deviations
 
 Approved deviations from coding standards are tracked in `standards/STANDARDS_DEVIATIONS.md`. Compliance audit results are tracked in `standards/STANDARDS_AUDIT.md`.

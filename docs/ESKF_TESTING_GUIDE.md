@@ -1,8 +1,8 @@
 # ESKF Testing & Learning Guide — Host-Side Verification for RocketChip
 
-**Status:** ACTIVE — Living document (local/untracked)  
-**Created:** 2026-02-11  
-**Location:** `docs/ESKF_TESTING_GUIDE.md` (gitignored — not committed to repo)  
+**Status:** ACTIVE — Living document
+**Created:** 2026-02-11
+**Location:** `docs/ESKF_TESTING_GUIDE.md`
 **Scope:** Host-side (PC) testing infrastructure for Stage 5 ESKF implementation + learning resources  
 **Relationship to IVP:** This document complements `docs/IVP.md`. The IVP defines *on-target* verification gates (flash to RP2350, observe behavior). This document defines *host-side* verification (compile for desktop, run automated tests). Both must pass before a step is considered complete.  
 **Audience:** Nathan (learning context) + AI agents (implementation instructions). Sections marked "(learning note)" explain the *why* behind engineering decisions. Agent-executable instructions are in Sections 3, 4, 5, 9, and 10.

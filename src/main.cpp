@@ -20,8 +20,8 @@
 #include "drivers/gps_pa1010d.h"
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
-#include "fusion/baro_kf.h"
 #include "fusion/eskf.h"
+#include "fusion/wmm_declination.h"
 #include "cli/rc_os.h"
 #include "pico/multicore.h"
 #include "hardware/sync.h"
@@ -137,13 +137,6 @@ static bool g_baroInitialized = false;
 static bool g_baroContinuous = false;
 static bool g_gpsInitialized = false;
 static bool g_gpsOnI2C = false;       // True when GPS detected at I2C address 0x10
-
-static uint32_t g_loopCounter = 0;
-
-// IVP-41: Baro Kalman filter (runs on Core 0 at baro data rate ~8Hz)
-static rc::BaroKF g_baroKf;
-static bool g_baroKfInitialized = false;
-static uint32_t g_lastBaroKfCount = 0;  // Track baro_read_count for new-data detection
 
 // IVP-42d: ESKF 15-state error-state Kalman filter (Core 0 at 200Hz)
 // Static per LL Entry 1: ESKF struct is ~970 bytes (Mat15 P = 900 bytes).
@@ -857,12 +850,6 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
         printf("Baro: %.1f Pa, %.2f C, AGL=%.2f m\n",
                (double)snap.pressure_pa, (double)snap.baro_temperature_c,
                (double)alt);
-        if (g_baroKfInitialized && g_baroKf.healthy()) {
-            printf("KF:   alt=%.3f m  vvel=%.3f m/s  NIS=%.2f\n",
-                   (double)g_baroKf.altitude(),
-                   (double)g_baroKf.velocity(),
-                   (double)g_baroKf.last_nis());
-        }
     } else {
         printf("Baro: no data yet\n");
     }
@@ -1386,57 +1373,6 @@ static void cli_update_tick() {
     feed_active_calibration();
 }
 
-// IVP-41: Run BaroKF predict/update when new baro data arrives via seqlock.
-// DPS310 at 8Hz measurement rate → KF runs at ~8Hz.
-// dt computed from actual baro timestamps for accuracy.
-static void fusion_tick() {
-    if (!g_sensorPhaseActive || !g_baroContinuous) {
-        return;
-    }
-
-    shared_sensor_data_t snap;
-    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
-        return;  // Seqlock contention, skip this cycle
-    }
-
-    if (!snap.baro_valid) {
-        return;
-    }
-
-    // Only run when we have new baro data
-    if (snap.baro_read_count == g_lastBaroKfCount) {
-        return;
-    }
-
-    float alt = calibration_get_altitude_agl(snap.pressure_pa);
-
-    if (!g_baroKfInitialized) {
-        g_baroKf.init(alt);
-        g_baroKfInitialized = true;
-        g_lastBaroKfCount = snap.baro_read_count;
-        return;
-    }
-
-    // Compute dt from baro timestamps (handles wraparound via unsigned subtraction)
-    static uint32_t s_lastBaroTimestampUs = 0;
-    uint32_t dtUs = snap.baro_timestamp_us - s_lastBaroTimestampUs;
-    s_lastBaroTimestampUs = snap.baro_timestamp_us;
-
-    // Sanity-check dt: reject if <1ms or >1s (missed sample, wraparound, etc.)
-    constexpr uint32_t kMinDtUs = 1000;     // 1ms
-    constexpr uint32_t kMaxDtUs = 1000000;  // 1s
-    if (dtUs < kMinDtUs || dtUs > kMaxDtUs) {
-        g_lastBaroKfCount = snap.baro_read_count;
-        return;
-    }
-
-    float dt = static_cast<float>(dtUs) * 1e-6f;
-
-    g_baroKf.predict(dt);
-    g_baroKf.update(alt);
-    g_lastBaroKfCount = snap.baro_read_count;
-}
-
 // INTERIM: Adafruit ICM-20948 breakout has sensor Z-up convention.
 // ESKF expects NED (Z-down). Negate Z for accel, gyro, and mag at
 // the ESKF feed boundary. Proper fix: set board_rotation matrix with
@@ -1585,9 +1521,14 @@ static void eskf_tick() {
             const calibration_store_t* cal = calibration_manager_get();
             float expected_mag = (cal->cal_flags & CAL_STATUS_MAG)
                                  ? cal->mag.expected_radius : 0.0f;
-            // declination_rad=0 for now — magnetic heading only.
-            // WMM lookup table (IVP-44 follow-up) will provide true heading.
-            g_eskf.update_mag_heading(mag_body, expected_mag, 0.0f);
+            // WMM declination: use GPS position if available, else 0 (magnetic heading).
+            float declination_rad = 0.0f;
+            if (snap.gps_valid && snap.gps_fix_type >= 2) {
+                float lat_deg = static_cast<float>(snap.gps_lat_1e7) * 1e-7f;
+                float lon_deg = static_cast<float>(snap.gps_lon_1e7) * 1e-7f;
+                declination_rad = rc::wmm_get_declination(lat_deg, lon_deg);
+            }
+            g_eskf.update_mag_heading(mag_body, expected_mag, declination_rad);
         }
     }
 
@@ -1613,16 +1554,12 @@ int main() {
 
     while (true) {
         uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-        g_loopCounter++;
 
         g_lastTickFunction = "heartbeat";
         heartbeat_tick(nowMs);
 
         g_lastTickFunction = "watchdog";
         watchdog_kick_tick();
-
-        g_lastTickFunction = "fusion";
-        fusion_tick();
 
         g_lastTickFunction = "eskf";
         eskf_tick();

@@ -98,8 +98,8 @@ void i2c_bus_scan() {
     int found = 0;
 
     for (uint8_t addr = kI2cScanStart; addr < kI2cScanEnd; addr++) {
-        // Skip PA1010D GPS — probing triggers I2C bus interference
-        // (Pico SDK issue #252). Re-enable at IVP-31.
+        // Skip PA1010D GPS — probing triggers NMEA streaming on I2C,
+        // causing bus contention with IMU/baro (LL Entry 20).
         if ((addr != kI2cAddrPa1010d) && i2c_bus_probe(addr)) {
             printf("  0x%02X", addr);
 

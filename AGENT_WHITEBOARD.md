@@ -60,8 +60,7 @@ Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all(
 
 ### Protected File Updates Pending Approval
 
-- `CODING_STANDARDS.md` — needs cross-reference to `standards/VENDOR_GUIDELINES.md` in Prior Art Research section
-- `SEQLOCK_DESIGN.md` line 69 — comment says "reserved for IVP-33", now IVP-31 (cosmetic)
+*None currently.*
 
 ---
 
@@ -69,7 +68,7 @@ Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all(
 
 | Document | Priority | Needed By |
 |----------|----------|-----------|
-| DPS310 datasheet (Infineon) | HIGH | IVP-41 (ESKF 1D baro KF) |
+| DPS310 datasheet (Infineon) | MEDIUM | ESKF baro tuning, IVP-48 health diagnostics |
 | RFM95W / SX1276 datasheet (Semtech) | MEDIUM | Stage 8 (telemetry) |
 
 Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.

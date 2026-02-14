@@ -85,7 +85,7 @@ Verified datasheet values used by ESKF and calibration code. All ICM-20948 value
 | → Altitude Noise | 0.029 | m | Via 0.083 m/Pa conversion |
 | Measurement Rate | 32 | Hz | ArduPilot parity (kBaroDps310MeasRate) |
 
-Cross-reference: `src/drivers/baro_dps310.h`, `src/fusion/baro_kf.h`.
+Cross-reference: `src/drivers/baro_dps310.h`, `src/fusion/eskf.h` (ESKF baro update).
 
 ### ESKF Empirical Parameters
 

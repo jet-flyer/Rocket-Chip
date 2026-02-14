@@ -174,15 +174,12 @@ else()
         src/cli/rc_os.cpp
 
         # -------------------------------------------------------------------------
-        # Stage 5: Sensor Fusion Math (IVP-39 through IVP-41)
+        # Stage 5: Sensor Fusion Math (IVP-39+)
         # Pure C++ — no SDK dependencies. Compiles on host and target.
         # -------------------------------------------------------------------------
         # IVP-39: Vec3 + Quaternion
         src/math/vec3.cpp
         src/math/quat.cpp
-
-        # IVP-41: Baro KF (first fusion code)
-        src/fusion/baro_kf.cpp
 
         # IVP-42a: ESKF core propagation
         src/fusion/eskf.cpp
@@ -205,7 +202,6 @@ else()
         src/cli/rc_os.cpp
         src/math/vec3.cpp
         src/math/quat.cpp
-        src/fusion/baro_kf.cpp
         src/fusion/eskf.cpp
         src/fusion/wmm_declination.cpp
     )

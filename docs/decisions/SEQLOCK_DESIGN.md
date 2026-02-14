@@ -66,7 +66,7 @@ typedef struct {
     uint8_t _pad_baro[3];
     // 20 bytes
 
-    // --- GPS (reserved for IVP-33, zeroed until then) ---
+    // --- GPS (implemented IVP-31) ---
     int32_t gps_lat_1e7;        // Latitude * 1e7 (ArduPilot convention)
     int32_t gps_lon_1e7;        // Longitude * 1e7
     float gps_alt_msl_m;        // Altitude MSL in meters

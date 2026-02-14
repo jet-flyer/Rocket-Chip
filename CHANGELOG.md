@@ -20,6 +20,22 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-13-002 | Claude Code CLI | refactor, documentation
+
+**Pre-IVP-46 cleanup: remove standalone BaroKF from firmware, wire WMM declination, doc sweep**
+
+Removed standalone BaroKF from main firmware — superseded by ESKF `update_baro()` (IVP-43). Removed `fusion_tick()`, BaroKF globals, KF display line from `print_seqlock_sensors`, CMakeLists target build entry. Host tests + mat_benchmark retain baro_kf for unit testing and benchmarking.
+
+Wired WMM declination into mag heading update: uses `wmm_get_declination(lat, lon)` when GPS has valid fix (fix_type >= 2), falls back to 0 (magnetic heading) without GPS. Removed unused `g_loopCounter`. Updated stale GPS comment in `i2c_bus.cpp`.
+
+Living document cleanup: updated PROJECT_STATUS.md (cleared stale baro NIS blocker, fixed IVP-46 as next step, noted standalone BaroKF removal), HARDWARE.md (baro cross-reference now points to eskf.h), ESKF_TESTING_GUIDE.md (removed false "gitignored" claim), AGENT_WHITEBOARD.md (DPS310 datasheet priority adjusted). CODING_STANDARDS.md and SEQLOCK_DESIGN.md cosmetic edits from earlier in session.
+
+Host tests: 155/155 pass. Target build: 0 errors, 0 warnings. Binary: 207,360 bytes UF2.
+
+(`src/main.cpp`, `CMakeLists.txt`, `src/drivers/i2c_bus.cpp`, `docs/PROJECT_STATUS.md`, `docs/hardware/HARDWARE.md`, `docs/ESKF_TESTING_GUIDE.md`, `AGENT_WHITEBOARD.md`, `standards/CODING_STANDARDS.md`, `docs/decisions/SEQLOCK_DESIGN.md`)
+
+---
+
 ### 2026-02-13-001 | Claude Code CLI | feature
 
 **IVP-44 + IVP-44b: ESKF magnetometer heading update + zero-velocity (ZUPT)**
