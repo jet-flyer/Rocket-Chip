@@ -62,3 +62,8 @@ gtest_discover_tests(test_eskf_zupt)
 add_executable(test_wmm_declination test_wmm_declination.cpp)
 target_link_libraries(test_wmm_declination PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_wmm_declination)
+
+# IVP-46: ESKF GPS position & velocity measurement update
+add_executable(test_eskf_gps_update test_eskf_gps_update.cpp)
+target_link_libraries(test_eskf_gps_update PRIVATE rc_fusion GTest::gtest_main)
+gtest_discover_tests(test_eskf_gps_update)

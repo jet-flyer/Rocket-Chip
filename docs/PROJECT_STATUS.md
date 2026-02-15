@@ -27,11 +27,12 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 | Phase M: Mag Cal | IVP-34–38 | 2026-02-10 | Full magnetometer calibration: data structures, LM ellipsoid solver, CLI wizard, Core 1 live apply + heading. 4 commits, all HW verified |
 | Phase M.5: Wizard | — | 2026-02-10 | Unified 5-step calibration wizard with NeoPixel feedback. Core 1 cal feeds (no I2C contention). Raw mag data in seqlock for recalibration. All 5 steps HW verified including full mag cal (300 samples, 81% coverage, RMS 2.499 uT) |
 | I2C Bypass Mode | — | 2026-02-10 | ICM-20948 mag access migrated from I2C master to bypass mode (ArduPilot approach). Eliminates bank-switching race, master stall, disable/enable corruption. HW verified with GPS on bus: mag cal 300 samples, RMS 0.878 uT |
-| 5: ESKF (partial) | IVP-39–44b | 2026-02-13 | Vec3/Quat/Mat math libs, ESKF propagation, replay harness, baro/mag/ZUPT measurement updates, WMM declination table (wired into mag update). 155/155 host tests pass. HW verified: stationary |
+| 5: ESKF (partial) | IVP-39–46 | 2026-02-13 | Vec3/Quat/Mat math libs, ESKF propagation, replay harness, baro/mag/ZUPT/GPS measurement updates, WMM declination, NED frame + moving origin. 172/172 host tests pass. Indoor HW verified. Outdoor GPS gate deferred to LoRa bridge |
+| Modular GPS Refactor | — | 2026-02-13 | Transport-neutral `gps.h` + UART backend (`gps_uart.cpp`). Function pointer dispatch, auto-detect UART→I2C. Pattern template for future IMU/baro SPI migration. See `docs/SENSOR_ARCHITECTURE.md` |
 
 ## In Progress
 
-**Stage 5: Sensor Fusion (ESKF)** — IVP-44b complete, IVP-46 (GPS update) next.
+**Stage 5: Sensor Fusion (ESKF)** — IVP-46 complete, IVP-47 (attitude init refinement) next.
 
 - IVP-39: Vec3/Quat/Mat math — DONE
 - IVP-40: Matrix ops + state indices — DONE
@@ -41,8 +42,8 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 - IVP-44: Mag heading update — DONE (261ab98). WMM declination wired in (uses GPS position when available).
 - IVP-44b: ZUPT (zero-velocity) — DONE (261ab98, merged with IVP-44)
 - IVP-45: ZUPT + stationarity — subsumed by IVP-44b
-- IVP-46: GPS position/velocity update — NEXT
-- IVP-47: Attitude initialization refinement — pending
+- IVP-46: GPS position/velocity update — DONE. 172/172 host tests. Outdoor gate deferred to LoRa bridge.
+- IVP-47: Attitude initialization refinement — NEXT
 - IVP-48: ESKF health + diagnostics — pending
 
 ## Blockers

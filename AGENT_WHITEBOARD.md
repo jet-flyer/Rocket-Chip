@@ -14,6 +14,33 @@
 
 ## Open Flags
 
+### Session Handoff (2026-02-14)
+
+**Uncommitted work in working tree — TWO logical commits pending:**
+
+1. **IVP-46: GPS fusion** — ESKF GPS position/velocity updates. 172/172 host tests pass. Indoor HW verification attempted but blocked by I2C GPS contention (~13K IMU errors). Deferred to UART GPS. Files: `eskf.h`, `eskf.cpp`, `eskf_state.h`, `main.cpp` (ESKF wiring), `test/test_eskf_gps_update.cpp`, `test/CMakeLists.txt`, `scripts/eskf_gps_soak.py`.
+
+2. **Modular GPS refactor + UART backend** — Transport-neutral `gps.h`, UART driver (`gps_uart.h/cpp`), function pointer dispatch in main.cpp, CMakeLists.txt, `SENSOR_ARCHITECTURE.md`. Target build clean, 172/172 host tests pass. Files: `gps.h`, `gps_uart.h`, `gps_uart.cpp`, `gps_pa1010d.h`, `gps_pa1010d.cpp`, `main.cpp` (dispatch), `CMakeLists.txt`, docs.
+
+**Both blocked on:** User soldering Adafruit Ultimate GPS FeatherWing (#3133) to GPIO0/1. Once wired, follow re-validation plan in `~/.claude/plans/sleepy-whistling-globe.md`.
+
+**Commit plan:** Commit #1 = IVP-46 fusion code. Commit #2 = modular GPS refactor + UART backend. Both after HW verification with UART GPS. CHANGELOG entries already written (2026-02-13-003, 2026-02-13-004).
+
+**One commit already pushed ahead of origin:** 17c4111 (Flight Director docs). `git push` will send it.
+
+**Key decisions from this session (not yet in code/docs):**
+
+- **Sensor migration roadmap:** User confirmed all base sensors will eventually move off I2C. GPS→UART is first. IMU→SPI and baro→SPI follow. The modular pattern in `SENSOR_ARCHITECTURE.md` is the template.
+- **UART GPS is the production path.** I2C GPS (PA1010D on Qwiic) remains as a dev/plug-and-play option but is not the target for flight builds due to bus contention.
+- **2-second UART init timeout** was chosen to guarantee at least 2 full NMEA sentence cycles (MT3339 outputs at 1Hz default). Only adds boot delay when no UART GPS is connected — once UART GPS is detected, boot continues immediately.
+- **No council review** was requested for this refactor — user skipped it since it's a clean separation of existing functionality, not a new algorithm or safety-critical change.
+- **`UART_FUNCSEL_NUM()` macro required on RP2350** — unlike RP2040, GPIO function for UART depends on the pin number (even pins use `GPIO_FUNC_UART`, others use `GPIO_FUNC_UART_AUX`). The SDK macro handles this. Documented in gps_uart.cpp.
+- **`uart0` is not constexpr** — it expands to a `reinterpret_cast` pointer. Used `#define GPS_UART_INST uart0` instead of `constexpr auto`.
+- **IVP-46 indoor HW verification results** (before pivoting to UART): ESKF initialized successfully, showed GPS fields (`pos=`, `gNIS=`, `vNIS=`, `Z=Y G=N`), but ~13K IMU errors from PA1010D I2C bus contention. This is the LL Entry 20/24 pattern, not a code bug. Confirms UART GPS migration is necessary.
+- **SCAFFOLDING.md needs update** with new files: `gps.h`, `gps_uart.h`, `gps_uart.cpp`, `SENSOR_ARCHITECTURE.md`. It's a protected file — update when committing.
+
+---
+
 ### PRIORITY: Foundational Features Before ESKF
 
 **Do NOT move to Stage 5 ESKF (IVP-39+) until these are complete:**
@@ -48,19 +75,20 @@ Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all(
 
 ---
 
-### Sparse FPFT Optimization — Deferred to Post-IVP-46
+### Sparse FPFT Optimization — Ready to Profile
 
-**Added 2026-02-12.** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies). Benchmarked at ~496µs on target (IVP-42d, `6c84cd3`), vs <100µs gate target. Within cycle budget at 200Hz (~10%) but 5x over target. The sparse path exploits F_x block structure (many zero/identity blocks) to avoid the full O(N³) triple product — should bring it under 100µs.
+**Added 2026-02-12, updated 2026-02-13.** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies). Benchmarked at ~496µs on target (IVP-42d, `6c84cd3`), vs <100µs gate target. Within cycle budget at 200Hz (~10%) but 5x over target. The sparse path exploits F_x block structure (many zero/identity blocks) to avoid the full O(N³) triple product — should bring it under 100µs.
 
-**When:** After all measurement updates are wired with real sensor feeds (IVP-43 baro done, IVP-44 mag, IVP-46 GPS pending). Current benchmarks use injected data; real performance picture needs all feeds live. Natural slot: alongside or after IVP-46, before IVP-48 health pass.
+**Status:** All 4 measurement updates now wired (baro IVP-43, mag IVP-44, ZUPT IVP-44b, GPS IVP-46). Ready to profile full pipeline with all feeds live. Natural slot: before IVP-48 health pass.
 
-**Also applies to:** `update_baro()` Joseph form has two dense 15×15 multiplies (~8Hz, less critical than 200Hz predict). Mag and GPS updates will add more. Profile full pipeline with all feeds before optimizing.
+**Also applies to:** `update_baro()` Joseph form has two dense 15×15 multiplies (~8Hz), `update_gps_position()` has 3× (10Hz), `update_gps_velocity()` has 2× (10Hz), `update_zupt()` has 3× (200Hz when stationary). Profile full pipeline before optimizing — ZUPT at 200Hz is the highest-frequency consumer.
 
 ---
 
 ### Protected File Updates Pending Approval
 
-*None currently.*
+- `CODING_STANDARDS.md` — needs cross-reference to `standards/VENDOR_GUIDELINES.md` in Prior Art Research section
+- `SEQLOCK_DESIGN.md` line 69 — comment says "reserved for IVP-33", now IVP-31 (cosmetic)
 
 ---
 
@@ -80,7 +108,7 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 *Items noted for future stages — not blocking, no action needed now.*
 
 - **F' Evaluation:** Three Titan paths identified (A: STM32H7+F'/Zephyr, B: Pi Zero 2 W+F'/Linux, C: Hybrid). Research complete in `docs/decisions/TITAN_BOARD_ANALYSIS.md`. Decision deferred until Titan development begins.
-- **FeatherWing UART GPS:** Adafruit 3133 (PA1616D) on hand. Eliminates I2C contention. New `gps_uart.cpp` driver needed. `g_gpsOnI2C` flag already in place. Blocked on user soldering.
+- **FeatherWing UART GPS:** Adafruit 3133 (PA1616D) on hand. UART driver complete (`gps_uart.h/cpp`), function pointer dispatch wired in main.cpp, auto-detects UART first → I2C fallback. **Blocked on user soldering GPIO0/1.** Re-validation plan in `~/.claude/plans/sleepy-whistling-globe.md`. See `docs/SENSOR_ARCHITECTURE.md` for modular pattern.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
 - **ArduPilot LED Patterns:** Map NeoPixel to AP standard codes at IVP-52 (action executor). Known NeoPixel green-transition bug deferred to same IVP.
 - **clang-tidy Integration:** LLVM installed, 127-check config active, first full audit complete (2026-02-09). **All code fully remediated** across 6 phases (P1-P5f, 1,251 total findings). IVP test code stripped — zero deferred findings. Pre-commit enforcement deferred to next cycle.

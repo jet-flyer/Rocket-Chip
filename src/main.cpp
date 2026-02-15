@@ -18,6 +18,7 @@
 #include "drivers/icm20948.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_pa1010d.h"
+#include "drivers/gps_uart.h"
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
 #include "fusion/eskf.h"
@@ -95,8 +96,9 @@ static constexpr uint32_t kSeqlockMaxRetries = 4;
 // compound integration of all samples or higher rate propagation may be needed (R-5).
 static constexpr uint32_t kEskfImuDivider = 5;
 
-// Rad-to-deg for CLI display
+// Rad-to-deg and deg-to-rad for CLI display / sensor conversion
 static constexpr float kRadToDeg = 180.0F / 3.14159265F;
+static constexpr float kDegToRad = 3.14159265F / 180.0F;
 
 // ESKF state buffer: 200Hz × 5s = 1000 samples × 68B = 68KB (SRAM)
 static constexpr uint32_t kEskfBufferSamples = 1000;
@@ -136,7 +138,13 @@ static bool g_imuInitialized = false;
 static bool g_baroInitialized = false;
 static bool g_baroContinuous = false;
 static bool g_gpsInitialized = false;
-static bool g_gpsOnI2C = false;       // True when GPS detected at I2C address 0x10
+static gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;
+
+// GPS backend dispatch — set at init based on detected transport.
+// All backends produce gps_data_t (from gps.h). No virtual dispatch overhead.
+static bool (*gps_fn_update)(void) = nullptr;
+static bool (*gps_fn_get_data)(gps_data_t*) = nullptr;
+static bool (*gps_fn_has_fix)(void) = nullptr;
 
 // IVP-42d: ESKF 15-state error-state Kalman filter (Core 0 at 200Hz)
 // Static per LL Entry 1: ESKF struct is ~970 bytes (Mat15 P = 900 bytes).
@@ -206,6 +214,8 @@ struct shared_sensor_data_t {
     float gps_alt_msl_m;
     float gps_ground_speed_mps;
     float gps_course_deg;
+    float gps_hdop;
+    float gps_vdop;
     uint32_t gps_timestamp_us;
     uint32_t gps_read_count;
     uint8_t gps_fix_type;
@@ -224,7 +234,7 @@ struct shared_sensor_data_t {
     uint32_t core1_loop_count;              // For watchdog/stall detection
 };
 
-static_assert(sizeof(shared_sensor_data_t) == 140, "Struct size changed — update SEQLOCK_DESIGN.md");
+static_assert(sizeof(shared_sensor_data_t) == 148, "Struct size changed — update SEQLOCK_DESIGN.md");
 static_assert(sizeof(shared_sensor_data_t) % 4 == 0, "Struct must be 4-byte aligned for memcpy");
 
 // Seqlock wrapper — single buffer with sequence counter
@@ -476,13 +486,13 @@ static void core1_read_gps(shared_sensor_data_t* localData,
     }
 
     *lastGpsReadUs = gpsNowUs;
-    bool parsed = gps_pa1010d_update();
-    if (g_gpsOnI2C) {
+    bool parsed = gps_fn_update();
+    if (g_gpsTransport == GPS_TRANSPORT_I2C) {
         busy_wait_us(kGpsSdaSettleUs);  // SDA settling delay (LL Entry 24)
     }
 
-    gps_pa1010d_data_t gpsData;
-    gps_pa1010d_get_data(&gpsData);
+    gps_data_t gpsData;
+    gps_fn_get_data(&gpsData);
 
     double lat = gpsData.latitude;
     double lon = gpsData.longitude;
@@ -496,6 +506,8 @@ static void core1_read_gps(shared_sensor_data_t* localData,
     localData->gps_alt_msl_m = gpsData.altitudeM;
     localData->gps_ground_speed_mps = gpsData.speedMps;
     localData->gps_course_deg = gpsData.courseDeg;
+    localData->gps_hdop = gpsData.hdop;
+    localData->gps_vdop = gpsData.vdop;
     localData->gps_timestamp_us = gpsNowUs;
     localData->gps_read_count++;
     localData->gps_fix_type = static_cast<uint8_t>(gpsData.fix);
@@ -866,10 +878,16 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
         printf("ESKF: R=%6.2f P=%6.2f Y=%6.2f deg  Patt=%.4f  qnorm=%.6f\n",
                (double)roll_deg, (double)pitch_deg, (double)yaw_deg,
                (double)patt, (double)g_eskf.q.norm());
-        printf("      vel=%.3f,%.3f,%.3f m/s  bNIS=%.2f mNIS=%.2f\n",
-               (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z,
+        printf("      pos=%.1f,%.1f,%.1f m  vel=%.3f,%.3f,%.3f m/s\n",
+               (double)g_eskf.p.x, (double)g_eskf.p.y, (double)g_eskf.p.z,
+               (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z);
+        printf("      bNIS=%.2f mNIS=%.2f gNIS=%.2f vNIS=%.2f Z=%c G=%c\n",
                (double)g_eskf.last_baro_nis_,
-               (double)g_eskf.last_mag_nis_);
+               (double)g_eskf.last_mag_nis_,
+               (double)g_eskf.last_gps_pos_nis_,
+               (double)g_eskf.last_gps_vel_nis_,
+               g_eskf.last_zupt_active_ ? 'Y' : 'N',
+               g_eskf.has_origin_ ? 'Y' : 'N');
         if (g_eskfBenchCount > 0) {
             uint32_t avg = g_eskfBenchSum / g_eskfBenchCount;
             printf("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
@@ -884,9 +902,12 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
         printf("ESKF: waiting for stationary init...\n");
     }
     // GPS
+    const char* gpsTransportStr = (g_gpsTransport == GPS_TRANSPORT_UART) ? "UART"
+                                : (g_gpsTransport == GPS_TRANSPORT_I2C)  ? "I2C"
+                                :                                          "none";
     if (snap.gps_read_count > 0) {
         if (snap.gps_valid) {
-            printf("GPS: %.7f, %.7f, %.1f m MSL\n",
+            printf("GPS (%s): %.7f, %.7f, %.1f m MSL\n", gpsTransportStr,
                    snap.gps_lat_1e7 / 1e7,
                    snap.gps_lon_1e7 / 1e7,
                    (double)snap.gps_alt_msl_m);
@@ -894,7 +915,7 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
                    snap.gps_fix_type, snap.gps_satellites,
                    (double)snap.gps_ground_speed_mps);
         } else {
-            printf("GPS: no fix (%u sats)\n",
+            printf("GPS (%s): no fix (%u sats)\n", gpsTransportStr,
                    snap.gps_satellites);
             printf("     RMC=%c GGA=%u GSA=%u\n",
                    snap.gps_rmc_valid ? 'A' : 'V',
@@ -907,7 +928,7 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
             }
         }
     } else if (g_gpsInitialized) {
-        printf("GPS: initialized, no reads yet\n");
+        printf("GPS (%s): initialized, no reads yet\n", gpsTransportStr);
     } else {
         printf("GPS: not detected\n");
     }
@@ -947,13 +968,17 @@ static void print_eskf_live() {
     rc::Vec3 euler = g_eskf.q.to_euler();
     float yaw_deg = euler.z * kRadToDeg;
 
-    printf("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f Z=%c B=%lu\n",
-           (double)alt, (double)vz, (double)vh, (double)yaw_deg,
+    printf("alt=%.2f vz=%.2f vh=%.2f pN=%.1f pE=%.1f Y=%.1f Patt=%.4f Pp=%.3f bNIS=%.2f mNIS=%.2f gNIS=%.2f vNIS=%.2f Z=%c G=%c\n",
+           (double)alt, (double)vz, (double)vh,
+           (double)g_eskf.p.x, (double)g_eskf.p.y,
+           (double)yaw_deg,
            (double)patt, (double)ppos,
            (double)g_eskf.last_baro_nis_,
            (double)g_eskf.last_mag_nis_,
+           (double)g_eskf.last_gps_pos_nis_,
+           (double)g_eskf.last_gps_vel_nis_,
            g_eskf.last_zupt_active_ ? 'Y' : 'N',
-           (unsigned long)snap.baro_read_count);
+           g_eskf.has_origin_ ? 'Y' : 'N');
 }
 
 // Print sensor data from direct I2C reads (Core 0 owns bus, pre-sensor-phase)
@@ -1130,10 +1155,12 @@ static void hw_validate_sensors() {
         printf("[FAIL] DPS310 init failed\n");
     }
 
-    if (g_gpsInitialized) {
-        printf("[PASS] PA1010D GPS init at 0x10 (I2C mode, 500us settling delay active)\n");
+    if (g_gpsInitialized && g_gpsTransport == GPS_TRANSPORT_UART) {
+        printf("[PASS] GPS init (UART on GPIO0/1, 9600 baud)\n");
+    } else if (g_gpsInitialized && g_gpsTransport == GPS_TRANSPORT_I2C) {
+        printf("[PASS] PA1010D GPS init at 0x10 (I2C, 500us settling delay active)\n");
     } else {
-        printf("[----] GPS not detected on I2C (delay disabled)\n");
+        printf("[----] GPS not detected (UART timeout, I2C absent)\n");
     }
 }
 
@@ -1199,15 +1226,29 @@ static void init_sensors() {
         }
     }
 
-    // GPS probe + init AFTER IMU bypass mode is stable.
-    // PA1010D streams NMEA autonomously after any I2C read (LL Entry 20).
-    bool gpsDetected = i2c_bus_probe(kGpsPa1010dAddr);
-    if (gpsDetected) {
-        uint8_t gpsDrain[255];
-        i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
-        g_gpsInitialized = gps_pa1010d_init();
-        if (g_gpsInitialized) {
-            g_gpsOnI2C = true;
+    // GPS detection: try UART first (production), fall back to I2C (Qwiic dev).
+    // UART GPS eliminates I2C bus contention (LL Entry 20/24).
+    // UART init has 2-second timeout — only adds delay when no UART GPS connected.
+    if (gps_uart_init()) {
+        g_gpsInitialized = true;
+        g_gpsTransport = GPS_TRANSPORT_UART;
+        gps_fn_update = gps_uart_update;
+        gps_fn_get_data = gps_uart_get_data;
+        gps_fn_has_fix = gps_uart_has_fix;
+    } else {
+        // I2C GPS probe + init AFTER IMU bypass mode is stable.
+        // PA1010D streams NMEA autonomously after any I2C read (LL Entry 20).
+        bool gpsDetected = i2c_bus_probe(kGpsPa1010dAddr);
+        if (gpsDetected) {
+            uint8_t gpsDrain[255];
+            i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
+            if (gps_pa1010d_init()) {
+                g_gpsInitialized = true;
+                g_gpsTransport = GPS_TRANSPORT_I2C;
+                gps_fn_update = gps_pa1010d_update;
+                gps_fn_get_data = gps_pa1010d_get_data;
+                gps_fn_has_fix = gps_pa1010d_has_fix;
+            }
         }
     }
 }
@@ -1529,6 +1570,45 @@ static void eskf_tick() {
                 declination_rad = rc::wmm_get_declination(lat_deg, lon_deg);
             }
             g_eskf.update_mag_heading(mag_body, expected_mag, declination_rad);
+        }
+    }
+
+    // IVP-46: GPS position + velocity measurement update (~10Hz on new 3D fix)
+    if (snap.gps_valid && snap.gps_fix_type >= 3) {
+        static uint32_t s_lastEskfGpsCount = 0;
+        if (snap.gps_read_count != s_lastEskfGpsCount) {
+            s_lastEskfGpsCount = snap.gps_read_count;
+
+            constexpr double kDeg2RadD = 3.14159265358979323846 / 180.0;
+            double lat_rad = static_cast<double>(snap.gps_lat_1e7) * 1e-7 * kDeg2RadD;
+            double lon_rad = static_cast<double>(snap.gps_lon_1e7) * 1e-7 * kDeg2RadD;
+            float alt_m = snap.gps_alt_msl_m;
+
+            // Establish NED origin on first quality fix (HDOP <= 4.0)
+            if (!g_eskf.has_origin_) {
+                g_eskf.set_origin(lat_rad, lon_rad, alt_m, snap.gps_hdop);
+            }
+
+            if (g_eskf.has_origin_) {
+                // Position update
+                rc::Vec3 gps_ned = g_eskf.geodetic_to_ned(lat_rad, lon_rad, alt_m);
+                g_eskf.update_gps_position(gps_ned, snap.gps_hdop, snap.gps_vdop);
+
+                // Moving origin check (cleaner in caller than inside ESKF method)
+                float xy_dist = sqrtf(g_eskf.p.x * g_eskf.p.x
+                                      + g_eskf.p.y * g_eskf.p.y);
+                if (xy_dist > rc::ESKF::kOriginResetDistance) {
+                    g_eskf.reset_origin(lat_rad, lon_rad, alt_m);
+                }
+
+                // Velocity update (only when moving — course unreliable at low speed)
+                if (snap.gps_ground_speed_mps >= rc::ESKF::kGpsMinSpeedForVel) {
+                    float course_rad = snap.gps_course_deg * kDegToRad;
+                    float v_north = snap.gps_ground_speed_mps * cosf(course_rad);
+                    float v_east  = snap.gps_ground_speed_mps * sinf(course_rad);
+                    g_eskf.update_gps_velocity(v_north, v_east);
+                }
+            }
         }
     }
 
