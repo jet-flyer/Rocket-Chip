@@ -124,7 +124,7 @@ Seqlock pattern is correct and appropriate for the data rates (~1kHz writer / 20
 
 ESKF is the correct theoretical choice (reference: Sola, "Quaternion kinematics for the error-state Kalman filter," 2017). Error-state formulation keeps the state vector small (15 states), operates in a nearly-linear regime, and avoids quaternion normalization issues.
 
-The three-layer architecture (Mission Config → Hypothesis Library → MMAE → Confidence Gate → Mission Engine) is textbook clean. Separates estimation from model selection from decision-making.
+The three-layer architecture (Mission Config → Hypothesis Library → MMAE → Confidence Gate → Flight Director) is textbook clean. Separates estimation from model selection from decision-making.
 
 Mahony AHRS over Madgwick is defensible: gyro bias estimation via PI correction term, better stability under high angular rates during boost and spin.
 
@@ -406,7 +406,7 @@ The architecture that best leverages F' strengths while preserving real-time gua
 │     Pi Zero 2 W (Mission CPU)        │
 │     Linux + F' Framework             │
 │                                      │
-│  - Mission Engine (F' component)     │
+│  - Flight Director (F' component)     │
 │  - ESKF Sensor Fusion                │
 │  - MMAE Bank (Titan)                 │
 │  - GDS + Telemetry                   │
@@ -457,7 +457,7 @@ If F' is adopted (on any platform), the SAD module decomposition maps naturally:
 |---|---|---|
 | SensorTask (IMU, Baro, GPS) | Passive | Drivers wrapped in F' components |
 | FusionTask (ESKF) | Active | Own thread, processes sensor port data |
-| MissionEngine + StateMachine | Active | Flight state management, command handling |
+| FlightDirector + StateMachine | Active | Flight state management, command handling |
 | LoggerTask | Passive | Storage driver, invoked by rate group |
 | TelemetryTask | Active | Downlink scheduling, MAVLink or F' framing |
 | UITask / RC_OS | Passive | CLI replaced by F' GDS (or kept as companion) |

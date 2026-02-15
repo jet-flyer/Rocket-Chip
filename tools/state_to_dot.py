@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# tools/state_to_dot.py - Generate Graphviz DOT from MissionEngine states
+# tools/state_to_dot.py - Generate Graphviz DOT from FlightDirector states
 
 import sys
 import json  # Assuming states exported as JSON; adjust as needed

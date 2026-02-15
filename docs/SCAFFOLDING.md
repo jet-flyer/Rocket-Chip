@@ -61,8 +61,8 @@ rocketchip/
 ├── src/
 │   ├── main.cpp                   # Production entry point
 │   │
-│   ├── core/                      # Mission Engine (Phase 5+)
-│   │   ├── MissionEngine.*        # Top-level orchestrator
+│   ├── core/                      # Flight Director (Phase 5+)
+│   │   ├── FlightDirector.*       # Top-level orchestrator
 │   │   ├── StateMachine.*         # State management
 │   │   ├── EventEngine.*          # Event detection & dispatch
 │   │   ├── ActionExecutor.*       # Action handling
@@ -131,7 +131,7 @@ See `docs/SAD.md` Section 3.2 for authoritative version.
 
 | Module | Responsibility |
 |--------|----------------|
-| **MissionEngine** | Load missions, coordinate subsystems, manage lifecycle |
+| **FlightDirector** | Load Mission Profile, coordinate subsystems, manage lifecycle |
 | **StateMachine** | Track current state, validate transitions, enforce timeouts |
 | **EventEngine** | Evaluate conditions against sensor data, fire events |
 | **ActionExecutor** | Execute actions (log, beep, LED, pyro, etc.) |

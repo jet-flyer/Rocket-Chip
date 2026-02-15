@@ -15,7 +15,7 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stages 1-4** (Foundation, Sensors, Dual-Core, GPS): Fully detailed
 - **Phase M** (Magnetometer Calibration): Fully detailed — added out-of-sequence to correct a missed Phase 3 dependency (see note below)
 - **Stage 5** (Sensor Fusion): Fully detailed
-- **Stages 6-9** (Mission Engine, Logging, Telemetry, Integration): Placeholders expanded as earlier stages complete
+- **Stages 6-9** (Flight Director, Logging, Telemetry, Integration): Placeholders expanded as earlier stages complete
 
 **Key references (not duplicated here):**
 - `docs/SAD.md` — System architecture, data structures, module responsibilities
@@ -94,7 +94,7 @@ cmake --build build/
 | 4 | GPS Navigation | Phase 3 | IVP-31 — IVP-33 | Full | |
 | **M** | **Magnetometer Calibration** | **Phase 3** | **IVP-34 — IVP-38** | **Full** | **(out-of-sequence)** |
 | 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-48 | Full | |
-| 6 | Mission Engine | Phase 5 | IVP-49 — IVP-54 | Placeholder | **Crowdfunding Demo Ready** |
+| 6 | Flight Director | Phase 5 | IVP-49 — IVP-54 | Placeholder | **Crowdfunding Demo Ready** |
 | 7 | Data Logging | Phase 6 | IVP-55 — IVP-59 | Placeholder | |
 | 8 | Telemetry | Phase 7 | IVP-60 — IVP-64 | Placeholder | |
 | 9 | System Integration | Phase 9 | IVP-65 — IVP-69 | Placeholder | **Flight Ready** |
@@ -1596,7 +1596,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 **Prerequisites:** IVP-47, IVP-45
 
-**Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates MMAE bank health and AHRS cross-check to produce a binary confidence flag consumed by the Mission Engine (Stage 6). This is the platform safety layer — it is NOT configurable by Mission profiles.
+**Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates MMAE bank health and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director (Stage 6). This is the platform safety layer — it is NOT configurable by Mission Profiles.
 
 1. **Confidence conditions (ALL must be true for `confident = true`):**
    - **Dominant hypothesis:** max(w_j) > `⚠️ VALIDATE 0.6` — at least one filter clearly explains the data
@@ -1615,7 +1615,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
    };
    ```
 
-3. **Mission Engine integration:** When `confident = false`:
+3. **Flight Director integration:** When `confident = false`:
    - Pyro channels LOCKED (cannot fire)
    - TVC commands ZEROED (neutral position)
    - Status LED: orange pulsing
@@ -1634,11 +1634,11 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 - CLI shows confidence state, dominant hypothesis, AHRS divergence, time since last confident
 - **No false confidence losses** during normal bench operation over 10 minutes
 
-**[DIAG]:** Always uncertain = thresholds too tight. Never uncertain = thresholds too loose or test conditions not anomalous enough. Flapping between confident/uncertain = hysteresis too short. Safe fallback doesn't trigger = mission engine not consuming the flag (Stage 6 integration).
+**[DIAG]:** Always uncertain = thresholds too tight. Never uncertain = thresholds too loose or test conditions not anomalous enough. Flapping between confident/uncertain = hysteresis too short. Safe fallback doesn't trigger = Flight Director not consuming the flag (Stage 6 integration).
 
 ---
 
-## Stage 6: Mission Engine — *TBD after Stage 5*
+## Stage 6: Flight Director — *TBD after Stage 5*
 
 **Purpose:** Flight state machine and event-driven actions. See SAD.md Section 6.
 

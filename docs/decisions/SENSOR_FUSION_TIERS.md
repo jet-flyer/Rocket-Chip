@@ -230,7 +230,7 @@ T=3s (Burnout):
 - Hypothesis framework with clean interfaces
 - 4-6 hypothesis library for rocketry (nominal, CATO, tumble, drogue, main, landed)
 - Bayesian weight updates (IMM interaction)
-- Confidence gate integration with Mission Engine
+- Confidence gate integration with Flight Director
 - Extensive logging (hypothesis weights, per-hypothesis states, innovations)
 - Post-flight visualization tools
 
@@ -297,7 +297,7 @@ public:
   - State estimate agreement checks
   - Affinity decision agreement (both should pick same sensors)
   - Divergence detection and handling
-- Mission Engine coordination:
+- Flight Director coordination:
   - Wait for both MCUs before pyro/TVC
   - Proceed on single MCU if other MCU fails (degraded mode)
 
@@ -352,7 +352,7 @@ void MMAE::update() {
 - State estimate: 10Hz (position, velocity, attitude)
 - Hypothesis weights: 10Hz (which regime is active)
 - Affinity decisions: On-change only (which sensor selected, why)
-- Confidence flag: 10Hz (mission engine authority)
+- Confidence flag: 10Hz (Flight Director authority)
 - Critical events: Immediate (hypothesis switch, sensor switch, confidence degradation)
 
 **Post-flight log (Flash storage, full resolution):**
@@ -390,7 +390,7 @@ void MMAE::update() {
 **Scenario 4: Cross-MCU divergence (Gemini)**
 - Simulate different sensor failures on each MCU
 - Verify: Cross-validation detects disagreement
-- Pass condition: Elevated confidence gate, mission engine waits
+- Pass condition: Elevated confidence gate, Flight Director waits
 
 **Scenario 5: Hypothesis uncertainty**
 - Simulate ambiguous dynamics (e.g., tumbling)

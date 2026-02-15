@@ -209,8 +209,8 @@ rocketchip/
 ├── src/
 │   ├── main.cpp                   # Production entry point
 │   │
-│   ├── core/                      # Mission Engine (Phase 5+)
-│   │   ├── MissionEngine.*        # Top-level orchestrator
+│   ├── core/                      # Flight Director (Phase 5+)
+│   │   ├── FlightDirector.*      # Top-level orchestrator
 │   │   ├── StateMachine.*         # State management
 │   │   ├── EventEngine.*          # Event detection & dispatch
 │   │   ├── ActionExecutor.*       # Action handling
@@ -281,7 +281,7 @@ rocketchip/
 
 | Module | Responsibility | Dependencies |
 |--------|----------------|--------------|
-| **MissionEngine** | Load missions, coordinate subsystems, manage lifecycle | StateMachine, EventEngine, ActionExecutor |
+| **FlightDirector** | Load Mission Profile, coordinate subsystems, manage lifecycle | StateMachine, EventEngine, ActionExecutor |
 | **StateMachine** | Track current state, validate transitions, enforce timeouts | None (standalone) |
 | **EventEngine** | Evaluate conditions against sensor data, fire events | Condition, SensorData |
 | **ActionExecutor** | Execute actions (log, beep, LED, pyro, etc.) | HAL drivers |
@@ -294,7 +294,7 @@ rocketchip/
 
 > **Note:** Math utilities (Vector3, Quaternion, Matrix) are custom implementations. May reference ArduPilot/Adafruit algorithms for correctness but not import code directly. CMSIS-DSP provides ARM-optimized primitives for matrix operations in ESKF.
 
-### 3.3 MissionEngine
+### 3.3 FlightDirector
 
 #### 3.3.1 States
 - IDLE, ARMED, LAUNCH_DETECTED, ASCENT, APOGEE, DESCENT, LANDED.
@@ -544,7 +544,7 @@ RocketChip uses a bare-metal dual-core AMP (Asymmetric Multiprocessing) architec
 | Sensor sampling (GPS) | 10Hz | Core 1 or Core 0 | Rate divider | GPS I2C reads are long — validate fit in IVP-33 |
 | Control loop | 500Hz | Core 1 | Derived from sensor tick | Only active during BOOST (Titan) |
 | Sensor fusion | 200Hz | Core 0 | Main loop polling | ESKF propagation + measurement updates |
-| Mission engine | 100Hz | Core 0 | Main loop polling | State machine, events |
+| Flight Director | 100Hz | Core 0 | Main loop polling | State machine, events |
 | Data logger | 50Hz | Core 0 | Main loop polling | Buffered writes |
 | Telemetry | 10Hz | Core 0 | Main loop polling | MAVLink over LoRa |
 | UI/CLI | 30Hz | Core 0 | Main loop polling | Display, LEDs, buttons |
@@ -626,7 +626,7 @@ The nominal state (full quaternion + position + velocity) is propagated separate
 Mission Config → selects → Hypothesis Library (validated process models)
 Hypothesis Library → initializes → MMAE Filter Bank (parallel ESKFs)
 MMAE Filter Bank → feeds → Confidence Gate (platform-level, NOT configurable)
-Confidence Gate → signals → Mission Engine (state estimate + confidence flag)
+Confidence Gate → signals → Flight Director (state estimate + confidence flag)
 
 Independent AHRS (Mahony) runs alongside as cross-check → feeds Confidence Gate
 ```
@@ -1003,7 +1003,7 @@ ESKF navigation and state estimation. See `docs/ESKF/FUSION_ARCHITECTURE_DECISIO
 - [ ] MMAE bank manager (Titan tier) — *filter count pending review*
 - [ ] Confidence gate (Titan tier)
 
-### Phase 5: Mission Engine 🚀 **PLANNED**
+### Phase 5: Flight Director 🚀 **PLANNED**
 Core flight logic and state machine.
 
 - [ ] StateMachine implementation
@@ -1059,7 +1059,7 @@ Advanced features for high-power rocketry.
 ## 11. Tools and Validation
 
 ### 11.1 Validation Tools
-- Graphviz: Script tools/state_to_dot.py parses MissionEngine states, generates DOT, outputs SVG via `dot -Tsvg states.dot -o states.svg`.
+- Graphviz: Script tools/state_to_dot.py parses FlightDirector states, generates DOT, outputs SVG via `dot -Tsvg states.dot -o states.svg`.
   Integrate into Makefile: `make docs` target auto-gens.
   Pseudocode for state_to_dot():
   ```
@@ -1274,7 +1274,7 @@ Quick reference for which SAD sections are critical for each development phase. 
 | **2: Sensors** | Data Structures (4.1), Driver Interfaces (4.2), Storage (9.2-9.4) | Stages 2-3 | Hardware Specs (2.2), Data Flow (8) |
 | **3: GPS** | GPS Interface (4.2) | Stage 4 | Data Flow (8) |
 | **4: Fusion** | Sensor Fusion (5.4), FusedState (4.1), ESKF docs | Stage 5 | RAM Allocation (9.1) |
-| **5: Mission Engine** | State Machine (6), Module Responsibilities (3.2), Inter-Module Comm (4.3) | Stage 6 | MissionEngine (3.3) |
+| **5: Flight Director** | State Machine (6), Module Responsibilities (3.2), Inter-Module Comm (4.3) | Stage 6 | FlightDirector (3.3) |
 | **6: Logging** | Pre-Launch Buffer (8.2), Logging Format (8.3), Flash Layout (9.3) | Stage 7 | Storage Interface (4.2) |
 | **7: Telemetry** | Radio Interface (4.2), Data Flow (8.1) | Stage 8 | Hardware Specs (2.2) |
 | **8: UI** | All UI-related | — | ROCKETCHIP_OS.md |
@@ -1307,7 +1307,7 @@ Quick reference for which SAD sections are critical for each development phase. 
 
 3. **USB command protocol**: Text-based CLI, or binary protocol, or both?
 
-4. **State machine formalism**: Is MissionEngine a Mealy machine (actions on transitions) or Moore machine (actions on state entry)? Section 6.2 suggests Moore ("Actions on Entry"), but 6.3 event-condition-action syntax implies Mealy. Clarify before Phase 3 implementation.
+4. **State machine formalism**: Is FlightDirector a Mealy machine (actions on transitions) or Moore machine (actions on state entry)? Section 6.2 suggests Moore ("Actions on Entry"), but 6.3 event-condition-action syntax implies Mealy. Clarify before Phase 3 implementation.
 
 ---
 
@@ -1318,7 +1318,7 @@ Quick reference for which SAD sections are critical for each development phase. 
 - [ArduPilot Source](https://github.com/ArduPilot/ardupilot)
 - [MAVLink Protocol](https://mavlink.io/en/)
 - RocketChip Architecture v3 (internal)
-- RocketChip Mission Engine Architecture v2 (internal)
+- RocketChip Flight Director Architecture v2 (internal)
 - Solà, J. "Quaternion kinematics for the error-state Kalman filter" (2017) — ESKF reference
 - Groves, P. "Principles of GNSS, Inertial, and Multisensor Integrated Navigation Systems"
 

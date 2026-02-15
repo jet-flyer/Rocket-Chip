@@ -32,7 +32,7 @@ The core principle: **every ESKF code change should be testable in seconds on yo
 
 ### Project-wide rule (not just ESKF)
 
-This principle applies to **all algorithm code going forward**, not just sensor fusion. The mission engine state machine (Stage 6), event detection logic, confidence gate, logging format encoders — anything that computes an answer from data should be platform-independent and host-testable. The calibration code (Stages 1-2) predates this rule and is entangled with Pico SDK; a full separation refactor is deferred but acknowledged as tech debt.
+This principle applies to **all algorithm code going forward**, not just sensor fusion. The Flight Director state machine (Stage 6), event detection logic, confidence gate, logging format encoders — anything that computes an answer from data should be platform-independent and host-testable. The calibration code (Stages 1-2) predates this rule and is entangled with Pico SDK; a full separation refactor is deferred but acknowledged as tech debt.
 
 **What must be platform-independent (host-testable):**
 - All math: vector, quaternion, matrix operations

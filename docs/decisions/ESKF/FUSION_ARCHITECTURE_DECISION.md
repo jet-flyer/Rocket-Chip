@@ -25,7 +25,7 @@ This is a fundamental architecture change. Every reference to EKF3, GSF, and AP-
 - Custom 15-state ESKF as the base filter algorithm
 - MMAE (Multiple Model Adaptive Estimation) bank of 4-6 parallel ESKFs for anomaly resilience (Titan tier)
 - Lightweight independent AHRS (Mahony/Madgwick) as cross-check alongside ESKF bank
-- Confidence gate governing mission engine authority over irreversible actions (pyro, TVC)
+- Confidence gate governing Flight Director authority over irreversible actions (pyro, TVC)
 - Mission-selectable hypothesis libraries (community-extensible)
 
 ### Why the Change
@@ -54,7 +54,7 @@ All within budget at 400Hz (2.5ms cycle). ESKF is fastest. For reference, AP's E
 Mission Config → selects → Hypothesis Library (validated process models)
 Hypothesis Library → initializes → MMAE Filter Bank (4-6 parallel ESKFs)
 MMAE Filter Bank → feeds → Confidence Gate (platform-level, NOT configurable)
-Confidence Gate → signals → Mission Engine (state estimate + confidence flag)
+Confidence Gate → signals → Flight Director (state estimate + confidence flag)
 
 Independent AHRS (Mahony) runs alongside as cross-check → feeds Confidence Gate
 ```
@@ -224,5 +224,5 @@ Create a dedicated fusion architecture document (can be derived from this decisi
 - **AP_HAL_RP2350** — Still valid and used for calibration (AP_AccelCal, AP_Compass), math utilities (AP_Math), and flash storage (AP_FlashStorage). The HAL work is not wasted. Only the *fusion algorithm* is no longer AP-derived.
 - **Sensor drivers** — ST platform-independent drivers for ISM330DHCX, LIS3MDL, DPS310 are unchanged. They feed the ESKF instead of EKF3 but the driver layer is the same.
 - **MAVLink telemetry** — Still the telemetry protocol. The fused state output format will differ but the transport is unchanged.
-- **Mission Engine architecture** — Unchanged, but now receives a confidence flag alongside state estimates.
+- **Flight Director architecture** — Unchanged, but now receives a confidence flag alongside state estimates.
 - **Dual-core task model** — Core 0 sensor sampling, Core 1 fusion + mission logic. This actually works better with ESKF (simpler per-cycle computation, more predictable timing).

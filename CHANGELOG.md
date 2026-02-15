@@ -20,6 +20,44 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-14-001 | Claude Code CLI | documentation, architecture
+
+**Flight Director & Mission Profile: naming, docs, cross-reference sync**
+
+Established council-decided naming convention: **Flight Director** (runtime engine) and **Mission Profile** (configuration data), replacing the umbrella term "Mission Engine." Created `docs/flight_director/` with comprehensive design spec (`FLIGHT_DIRECTOR_DESIGN.md`, all details PRELIMINARY) and moved research doc there (`RESEARCH.md`, historical — unchanged). Created `docs/mission_profiles/` with stub (`MISSION_PROFILES.md`, to be fleshed out in future session). Updated 32 cross-references across 11 files to use correct terminology. Historical research doc preserved with original naming.
+
+(`docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md`, `docs/flight_director/RESEARCH.md`, `docs/mission_profiles/MISSION_PROFILES.md`, `docs/SAD.md`, `docs/IVP.md`, `docs/SCAFFOLDING.md`, `standards/CODING_STANDARDS.md`, `docs/decisions/SENSOR_FUSION_TIERS.md`, `docs/decisions/TITAN_BOARD_ANALYSIS.md`, `docs/decisions/ESKF/FUSION_ARCHITECTURE_DECISION.md`, `docs/ESKF_TESTING_GUIDE.md`, `docs/PHASE5_ESKF_PLAN.md`, `docs/PROJECT_OVERVIEW.md`, `tools/state_to_dot.py`)
+
+---
+
+### 2026-02-13-004 | Claude Code CLI | architecture, feature
+
+**Modular GPS refactor: transport-neutral types + UART backend**
+
+Refactored GPS subsystem into transport-neutral data types + transport-specific backends, establishing the pattern for migrating all base sensors off I2C (IMU→SPI, baro→SPI in future). Created `gps.h` with shared `gps_data_t`, `gps_fix_t`, `gps_transport_t` (zero transport dependencies). Updated `gps_pa1010d.h/cpp` to use shared types. Created UART GPS backend (`gps_uart.h/cpp`) for Adafruit Ultimate GPS FeatherWing (#3133) on GPIO0/1 (9600 baud NMEA, lwGPS parser, 2-second presence detection timeout). Added function pointer dispatch in main.cpp — auto-detects UART first (production), falls back to I2C (Qwiic dev). Boot banner and CLI status display show transport type. Created `docs/SENSOR_ARCHITECTURE.md` documenting the modular sensor pattern.
+
+Host tests: 172/172 pass. Target build: 0 errors, 0 warnings. Binary: 216,576 bytes UF2. HW verification deferred to UART GPS wiring.
+
+(`src/drivers/gps.h`, `src/drivers/gps_uart.h`, `src/drivers/gps_uart.cpp`, `src/drivers/gps_pa1010d.h`, `src/drivers/gps_pa1010d.cpp`, `src/main.cpp`, `CMakeLists.txt`, `docs/SENSOR_ARCHITECTURE.md`)
+
+---
+
+### 2026-02-13-003 | Claude Code CLI | feature
+
+**IVP-46: GPS position & velocity measurement update for ESKF**
+
+Added GPS position (3 sequential scalar updates) and velocity (2 sequential scalar updates, N/E only) measurement updates to the ESKF. Flat-earth NED frame with double-precision geodetic origin, moving-origin mechanism for HAB-range flights (>10km), HDOP-scaled position noise (σ=3.5m base, MT3333 CEP50), innovation gating (5σ), per-axis NIS tracking.
+
+New files: `test/test_eskf_gps_update.cpp` (17 tests: origin management, geodetic conversion, position/velocity updates, gating, convergence, full pipeline), `scripts/eskf_gps_soak.py` (indoor/outdoor/walk modes). Added HDOP/VDOP to seqlock struct, named state index constants (`kIdxPosN` etc.) to `eskf_state.h`, GPS constants + NED origin state + 5 methods to ESKF. Wired into `eskf_tick()` between mag update and ZUPT. Updated `s` and `e` CLI displays with position, GPS NIS, and origin flag.
+
+Council-approved (3 panelists, unanimous). 8 conditions integrated: C-1 MT3333 noise, C-2 velocity NE-only, C-3 named indices, C-4 HDOP origin gate, C-5 double-precision subtraction, C-6 ZUPT stays IMU-only, C-7 origin reset continuity, C-8 course-to-velocity formula.
+
+Host tests: 172/172 pass (155 existing + 17 new). Target build: 0 errors, 0 warnings. Binary: 213,504 bytes UF2 (+6,144 from GPS methods). Outdoor gate tests deferred to LoRa serial bridge setup.
+
+(`src/fusion/eskf.h`, `src/fusion/eskf.cpp`, `src/fusion/eskf_state.h`, `src/main.cpp`, `test/test_eskf_gps_update.cpp`, `test/CMakeLists.txt`, `scripts/eskf_gps_soak.py`)
+
+---
+
 ### 2026-02-13-002 | Claude Code CLI | refactor, documentation
 
 **Pre-IVP-46 cleanup: remove standalone BaroKF from firmware, wire WMM declination, doc sweep**

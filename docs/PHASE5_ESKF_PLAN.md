@@ -305,7 +305,7 @@ The confidence gate is a safety feature, not a multi-IMU feature. It evaluates M
 
 **Target work:**
 - Wire to Core 0 alongside MMAE bank
-- Mission Engine integration (Stage 6): pyro LOCKED when `confident = false`
+- Flight Director integration (Stage 6): pyro LOCKED when `confident = false`
 - CLI shows confidence state, dominant hypothesis, AHRS divergence
 - Gate per IVP.md: normal = confident, baro occluded = uncertain + locked, magnet = AHRS divergence, 10min no false losses
 

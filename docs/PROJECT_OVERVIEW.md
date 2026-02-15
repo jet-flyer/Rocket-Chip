@@ -63,7 +63,7 @@ Naming convention: rocket program names or terms strongly associated with spacef
 - **Feather Compatibility**: Core/Main boards maintain standard Feather pinout for 3rd-party FeatherWing compatibility
 - **Architecture**: Bare-metal Pico SDK with polling main loop
 - **Sensor Fusion**: Custom ESKF + MMAE architecture (see docs/ESKF/)
-- **Architecture**: Mission Engine for event-condition-action workflows
+- **Architecture**: Flight Director for event-condition-action workflows
 - **Development**: CMake + Pico SDK
 - **Communication**: SpaceWire-Lite for Gemini inter-MCU (aspirational standard, design-for-certifiability)
 - **Configuration**: RC_OS serial terminal interface for setup/calibration without PC software

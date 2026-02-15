@@ -289,19 +289,16 @@ Firmware handling pyro channels must implement:
 
 ## Software Architecture
 
-### State Machines
+### Flight Director & Mission Profiles
 
-Flight phases managed via explicit state machine:
+The **Flight Director** is the runtime engine — event-action-state architecture that tracks flight state, processes events, and executes transitions. It contains a hierarchical state machine at its core:
 - States: IDLE, ARMED, BOOST, COAST, DESCENT, LANDED, ERROR
 - All transitions logged
 - Timeout fallbacks for stuck states
 
-### Mission Engine
+The **Mission Profile** is the configuration data that feeds the Flight Director — it defines phases, transitions, guard conditions, actions, and hardware mappings for a specific vehicle type. Same hardware runs different Mission Profiles for different applications.
 
-Event-action-state architecture (separate module/library):
-- **Mission** defines sensors, states, events, actions, logging
-- Same hardware runs different Missions for different applications
-- See Mission Engine documentation for details
+The Flight Director follows the Mission Profile. See `docs/flight_director/` and `docs/mission_profiles/` for details.
 
 ---
 
