@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-18-001 | Claude Code CLI | documentation
+
+**Session handoff: Stage 4 GPS reboot deferred — bNIS regression unresolved**
+
+Attempted Stage 4 GPS reboot (protocol-agnostic/UART-first approach per plan `purrfect-pondering-hopcroft.md`). Commits A/B/C built clean and passed 172/172 host tests, but HW validation revealed ESKF bNIS explosion (~125K→589K after ~12 baro updates, stationary). Root cause not diagnosed — may predate Stage 4. All Stage 4 commits reverted; repo returned to `17c4111`. Next session must diagnose bNIS regression before resuming Stage 4. See AGENT_WHITEBOARD.md for full handoff notes.
+
+(`AGENT_WHITEBOARD.md`)
+
+---
+
 ### 2026-02-14-001 | Claude Code CLI | documentation, architecture
 
 **Flight Director & Mission Profile: naming, docs, cross-reference sync**
