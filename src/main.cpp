@@ -38,7 +38,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp46-3";
+static const char* kBuildTag = "ivp46-4";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -216,6 +216,8 @@ struct shared_sensor_data_t {
     uint8_t gps_gsa_fix_mode;  // GSA fix mode (1=none, 2=2D, 3=3D)
     bool gps_rmc_valid;        // RMC status ('A')
     uint8_t _pad_gps[2];
+    float gps_hdop;            // Horizontal DOP (0 = unknown)
+    float gps_vdop;            // Vertical DOP (0 = unknown)
 
     // Health (16 bytes)
     uint32_t imu_error_count;
@@ -224,7 +226,7 @@ struct shared_sensor_data_t {
     uint32_t core1_loop_count;              // For watchdog/stall detection
 };
 
-static_assert(sizeof(shared_sensor_data_t) == 140, "Struct size changed — update SEQLOCK_DESIGN.md");
+static_assert(sizeof(shared_sensor_data_t) == 148, "Struct size changed — update SEQLOCK_DESIGN.md");
 static_assert(sizeof(shared_sensor_data_t) % 4 == 0, "Struct must be 4-byte aligned for memcpy");
 
 // Seqlock wrapper — single buffer with sequence counter
@@ -504,6 +506,8 @@ static void core1_read_gps(shared_sensor_data_t* localData,
     localData->gps_gga_fix = gpsData.ggaFix;
     localData->gps_gsa_fix_mode = gpsData.gsaFixMode;
     localData->gps_rmc_valid = gpsData.rmcValid;
+    localData->gps_hdop = gpsData.hdop;
+    localData->gps_vdop = gpsData.vdop;
 
     if (!parsed) {
         localData->gps_error_count++;
@@ -890,9 +894,10 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
                    snap.gps_lat_1e7 / 1e7,
                    snap.gps_lon_1e7 / 1e7,
                    (double)snap.gps_alt_msl_m);
-            printf("     Fix=%u Sats=%u Speed=%.1f m/s\n",
+            printf("     Fix=%u Sats=%u Speed=%.1f m/s HDOP=%.2f VDOP=%.2f\n",
                    snap.gps_fix_type, snap.gps_satellites,
-                   (double)snap.gps_ground_speed_mps);
+                   (double)snap.gps_ground_speed_mps,
+                   (double)snap.gps_hdop, (double)snap.gps_vdop);
         } else {
             printf("GPS: no fix (%u sats)\n",
                    snap.gps_satellites);
