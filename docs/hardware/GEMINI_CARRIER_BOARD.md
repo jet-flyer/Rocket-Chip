@@ -377,7 +377,7 @@ The current Gemini protocol (Section 4) would need:
 
 ### 8.3 Cross-Board Watchdog Handoff
 
-On single-board RocketChip (Core/Main), a hardware watchdog reset triggers a full chip reset and the system must recover from scratch (see IVP-49 Watchdog Recovery Policy). On Gemini, the partner board can take over before the WDT fires — this is the primary advantage of dual-redundancy.
+On single-board RocketChip (Core/Main), a hardware watchdog reset triggers a full chip reset and the system must recover from scratch (see IVP-51 Watchdog Recovery Policy). On Gemini, the partner board can take over before the WDT fires — this is the primary advantage of dual-redundancy.
 
 #### Watchdog-to-Failover Integration
 
@@ -386,7 +386,7 @@ On single-board RocketChip (Core/Main), a hardware watchdog reset triggers a ful
 | Subsystem failure (ESKF diverge) | Disable subsystem, continue degraded | Disable on failing board, partner takes nav authority |
 | Core 1 sensor hang | WDT fires, full reboot | Partner detects via missed heartbeat, takes sensor authority before WDT fires |
 | Core 0 main loop hang | WDT fires, full reboot | Partner detects via missed heartbeat, assumes Primary role |
-| WDT reset on one board | Recovery boot path (IVP-49) | Partner already Primary, rebooted board rejoins as Secondary after self-test |
+| WDT reset on one board | Recovery boot path (IVP-51) | Partner already Primary, rebooted board rejoins as Secondary after self-test |
 | WDT reset on both boards | Safe mode (reboot counter) | Both enter safe mode — hardware voting logic keeps pyro safe regardless |
 
 #### Key Design Principle
@@ -406,7 +406,7 @@ When a board reboots after a WDT reset while its partner is operating:
 
 #### Ground-Side Implications
 
-The single-board LAUNCH_ABORT policy (IVP-49) applies to each board independently on Gemini. If either board experiences a WDT reset during pre-flight, the entire system requires operator acknowledgement before arming. Both boards must report healthy for the ARM consensus (hardware AND gate) to engage.
+The single-board LAUNCH_ABORT policy (IVP-51) applies to each board independently on Gemini. If either board experiences a WDT reset during pre-flight, the entire system requires operator acknowledgement before arming. Both boards must report healthy for the ARM consensus (hardware AND gate) to engage.
 
 ### 8.4 Per-Board Status Indicators
 

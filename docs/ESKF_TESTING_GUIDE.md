@@ -672,7 +672,7 @@ This maps to the IVP but specifies what testing infrastructure must exist at eac
 | IVP-45 (Mahony) | Cross-check AHRS | `test_mahony.cpp` — same trajectories, verify divergence metric |
 | IVP-46 (GPS Update) | Position/velocity | GPS update tests. Replay Cube flight data. First ArduPilot comparison. |
 | IVP-47 (MMAE) | Multi-model bank | `test_mmae.cpp` — phase sequence test. Probability convergence. Timing. |
-| IVP-48 (Confidence Gate) | Safety layer | Failure injection tests: bad sensor, divergence, etc. |
+| IVP-50 (Confidence Gate) | Safety layer | Failure injection tests: bad sensor, divergence, etc. |
 
 ---
 

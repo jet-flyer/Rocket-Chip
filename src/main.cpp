@@ -1666,7 +1666,7 @@ static void eskf_tick() {
     // Gated on 3D fix with new data. On first quality fix, sets NED origin
     // and resets p/v to zero. Subsequent fixes convert geodetic to NED and
     // inject position + velocity. Velocity gated on speed >= 0.5 m/s to
-    // suppress noisy updates at rest (known limitation until IVP-50 state machine).
+    // suppress noisy updates at rest (known limitation until IVP-52 state machine).
     if (snap.gps_valid && snap.gps_fix_type >= 3) {
         static uint32_t s_lastGpsCount = 0;
         if (snap.gps_read_count != s_lastGpsCount) {

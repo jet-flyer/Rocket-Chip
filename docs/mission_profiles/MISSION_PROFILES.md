@@ -161,4 +161,4 @@ No Flight Director code changes needed — just a different `const MissionProfil
 - `docs/flight_director/RESEARCH.md` — Full research, prior art, council decisions
 - `docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md` — Flight Director runtime design spec
 - `docs/SAD.md` Section 6 — State machine topology
-- `docs/IVP.md` Stage 6, IVP-54 — Mission Configuration step
+- `docs/IVP.md` Stage 6, IVP-56 — Mission Configuration step

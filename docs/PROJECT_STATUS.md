@@ -6,7 +6,7 @@
 
 **Stage 5 IN PROGRESS** — Sensor Fusion (ESKF)
 
-IVP-39 through IVP-46 complete. All measurement updates wired with real sensor feeds (baro, mag, GPS). ESKF outdoor-validated with GPS feeding position/velocity. Next: IVP-47 (attitude init refinement) and IVP-48 (health + diagnostics).
+IVP-39 through IVP-46 complete. All measurement updates wired with real sensor feeds (baro, mag, GPS). ESKF outdoor-validated with GPS feeding position/velocity. Next: IVP-45 (Mahony AHRS), IVP-47 (sparse FPFT optimization), and IVP-48 (ESKF health tuning).
 
 ## Completed
 
@@ -32,7 +32,7 @@ IVP-39 through IVP-46 complete. All measurement updates wired with real sensor f
 
 ## In Progress
 
-**Stage 5: Sensor Fusion (ESKF)** — IVP-46 complete, IVP-47/48 next.
+**Stage 5: Sensor Fusion (ESKF)** — IVP-46 complete. Next: IVP-45 (Mahony), IVP-47 (sparse FPFT), IVP-48 (health tuning).
 
 - IVP-39: Vec3/Quat/Mat math — DONE
 - IVP-40: Matrix ops + state indices — DONE
@@ -41,10 +41,12 @@ IVP-39 through IVP-46 complete. All measurement updates wired with real sensor f
 - IVP-43: Baro measurement update — DONE (b59b341)
 - IVP-44: Mag heading update — DONE (261ab98). WMM declination wired in (uses GPS position when available).
 - IVP-44b: ZUPT (zero-velocity) — DONE (261ab98, merged with IVP-44)
-- IVP-45: ZUPT + stationarity — subsumed by IVP-44b
+- IVP-45: Mahony AHRS attitude initialization — pending
 - IVP-46: GPS position/velocity update — DONE (6489266). 9-step incremental plan. Step 9 outdoor validated: Fix=3 Sats=12, GPS feeding ESKF. Interrupt-driven UART ring buffer fixed FIFO overflow.
-- IVP-47: Attitude initialization refinement — pending
-- IVP-48: ESKF health + diagnostics — pending
+- IVP-47: Sparse FPFT optimization — pending (predict() ~496µs → <100µs target)
+- IVP-48: ESKF health tuning & diagnostics — pending
+- IVP-49: MMAE bank manager — pending (Titan tier)
+- IVP-50: Confidence gate — pending (Titan tier)
 
 ## Blockers
 
@@ -57,7 +59,7 @@ None currently.
 
 ## Reference
 
-- `docs/IVP.md` — Full 68-step integration plan with verification gates (includes Phase M mag cal)
+- `docs/IVP.md` — Full 71-step integration plan with verification gates (includes Phase M mag cal)
 - `docs/SAD.md` — Software Architecture Document
 - `docs/SCAFFOLDING.md` — Directory structure and file listing
 - `standards/CODING_STANDARDS.md` — Platform constraints

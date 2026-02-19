@@ -93,11 +93,11 @@ cmake --build build/
 | 3 | Dual-Core Integration | Phase 2 | IVP-19 — IVP-30 | Full | |
 | 4 | GPS Navigation | Phase 3 | IVP-31 — IVP-33 | Full | |
 | **M** | **Magnetometer Calibration** | **Phase 3** | **IVP-34 — IVP-38** | **Full** | **(out-of-sequence)** |
-| 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-48 | Full | |
-| 6 | Flight Director | Phase 5 | IVP-49 — IVP-54 | Placeholder | **Crowdfunding Demo Ready** |
-| 7 | Data Logging | Phase 6 | IVP-55 — IVP-59 | Placeholder | |
-| 8 | Telemetry | Phase 7 | IVP-60 — IVP-64 | Placeholder | |
-| 9 | System Integration | Phase 9 | IVP-65 — IVP-69 | Placeholder | **Flight Ready** |
+| 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-50 | Full | |
+| 6 | Flight Director | Phase 5 | IVP-51 — IVP-56 | Placeholder | **Crowdfunding Demo Ready** |
+| 7 | Data Logging | Phase 6 | IVP-57 — IVP-61 | Placeholder | |
+| 8 | Telemetry | Phase 7 | IVP-62 — IVP-66 | Placeholder | |
+| 9 | System Integration | Phase 9 | IVP-67 — IVP-71 | Placeholder | **Flight Ready** |
 
 ---
 
@@ -1537,9 +1537,66 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ---
 
-### IVP-47: MMAE Bank Manager (Titan Tier)
+### IVP-47: Sparse FPFT Optimization
 
-**Prerequisites:** IVP-42, IVP-43, IVP-44
+**Prerequisites:** IVP-46 (all measurement feeds live)
+
+**Rationale:** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies), benchmarked at ~496µs on target (IVP-42d). Within cycle budget for a single ESKF at 200Hz (~10% CPU), but MMAE (IVP-49) runs 4 parallel ESKFs — 4 × 496µs = ~2ms, consuming the entire 5ms cycle budget before any measurement updates. Sparse optimization must come before MMAE.
+
+**Implement:** Exploit F_x block structure (many zero/identity blocks) to avoid the full O(N³) triple product FPFT = F P F^T + Q.
+
+1. **Identify F_x sparsity pattern.** The 15×15 state transition matrix has identity blocks (attitude→attitude, bias→bias), zero blocks (bias→position), and small dense blocks (attitude→velocity via specific force). Map which 3×3 sub-blocks are zero, identity, or dense.
+
+2. **Replace dense `mat_mul_15x15()` triple product** with block-structured multiply that skips zero blocks and substitutes identity blocks with direct copy. Target: <100µs per predict call.
+
+3. **Also optimize measurement update Joseph form** — `update_baro()`, `update_mag()`, `update_gps_pos/vel()` each have two dense 15×15 multiplies. H matrices are extremely sparse (1–3 non-zero elements per row). Exploit H sparsity for Kalman gain and Joseph form.
+
+4. **Benchmark** all paths on target with `time_us_32()`. Record before/after for predict, each measurement update, and total `eskf_tick()` cycle time.
+
+**[GATE]:**
+- `predict()` < 100µs (down from ~496µs)
+- All measurement updates profiled and optimized where beneficial
+- Total `eskf_tick()` cycle time recorded
+- Host tests still pass (identical numerical output — sparse is an algebraic optimization, not an approximation)
+- HW soak: no regression in bNIS/gNIS/mNIS behavior
+
+**[DIAG]:** Numerical drift between sparse and dense paths = block boundary error in sparse implementation. Benchmark not improving = profiling wrong code path or memory-bound not compute-bound.
+
+---
+
+### IVP-48: ESKF Health Tuning & Diagnostics
+
+**Prerequisites:** IVP-46, IVP-47
+
+**Rationale:** With all measurement feeds live and performance optimized, tune the ESKF for robust real-world operation before layering MMAE on top. A poorly-tuned single ESKF will produce poorly-tuned MMAE hypotheses.
+
+**Implement:**
+
+1. **Magnetometer innovation gate tuning.** Current mNIS is stuck at 124.99 (gate rejecting every update when board not level). The heading measurement model assumes approximately level orientation. Options: (a) widen the mag innovation gate, (b) add a tilt-compensated heading model, (c) gate mag updates on pitch/roll magnitude. Research ArduPilot EKF3 `magFuseMethod` and PX4 ECL mag fusion for prior art.
+
+2. **Innovation gate threshold review.** Audit all innovation gates (baro, mag, GPS pos, GPS vel, ZUPT) for appropriate σ thresholds. Currently using `⚠️ VALIDATE` placeholders in several places. Derive thresholds from sensor datasheets and outdoor test data.
+
+3. **GPS 10Hz upgrade.** Call `gps_uart_set_rate(10)` in `init_sensors()` after `gps_uart_init()` succeeds. Verify ring buffer handles the 10x throughput increase (512 bytes = 5.3x margin at 9600 baud, still sufficient). Update ESKF GPS update rate check.
+
+4. **Process noise Q tuning.** Review Q diagonal values against real sensor data. Current values are from Solà (2017) defaults — may need adjustment for ICM-20948 noise characteristics (datasheet: gyro noise density 0.015 dps/√Hz, accel noise density 230 µg/√Hz).
+
+5. **CLI health dashboard.** Add ESKF health summary to `e` display: per-sensor NIS statistics (min/max/mean over window), covariance diagonal magnitudes, innovation gate rejection counts.
+
+**[GATE]:**
+- mNIS accepts updates when board is reasonably level (< 30° tilt)
+- All innovation gate thresholds justified by source (datasheet, reference implementation, or empirical)
+- GPS running at 10Hz, `gps_read_count` incrementing at ~10/s
+- 60s indoor soak: all NIS values within expected bounds, zero UNHEALTHY
+- Outdoor soak: GPS NIS reasonable during walk, mag NIS reasonable when level
+- CLI `e` shows meaningful health diagnostics
+
+**[DIAG]:** mNIS still stuck after tuning = measurement model fundamentally wrong for non-level operation (need tilt compensation). GPS NIS consistently high = R values too tight for actual GPS accuracy. Baro NIS spikes after GPS origin set = altitude reference mismatch between baro and GPS.
+
+---
+
+### IVP-49: MMAE Bank Manager (Titan Tier)
+
+**Prerequisites:** IVP-42, IVP-43, IVP-44, IVP-47 (sparse optimization required — 4 parallel ESKFs must fit within 2ms cycle budget)
 
 **Implement:** `src/fusion/mmae.h/.cpp` — Multiple Model Adaptive Estimation bank. Runs `⚠️ VALIDATE 4` parallel ESKF instances, each with a different process model hypothesis. The MMAE bank determines which hypothesis best matches reality and reports the weighted fused state.
 
@@ -1592,9 +1649,9 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ---
 
-### IVP-48: Confidence Gate (Titan Tier)
+### IVP-50: Confidence Gate (Titan Tier)
 
-**Prerequisites:** IVP-47, IVP-45
+**Prerequisites:** IVP-49, IVP-45
 
 **Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates MMAE bank health and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director (Stage 6). This is the platform safety layer — it is NOT configurable by Mission Profiles.
 
@@ -1643,25 +1700,25 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 **Purpose:** Flight state machine and event-driven actions. See SAD.md Section 6.
 
 **Prerequisite decisions:**
-- Resolve SAD Open Question #4 (Mealy vs Moore state machine) before implementing IVP-50.
-- IVP-49 (Watchdog Recovery Policy) must be completed first — the state machine depends on knowing how the system recovers from a mid-flight reboot.
+- Resolve SAD Open Question #4 (Mealy vs Moore state machine) before implementing IVP-52.
+- IVP-51 (Watchdog Recovery Policy) must be completed first — the state machine depends on knowing how the system recovers from a mid-flight reboot.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-49 | Watchdog Recovery Policy | Scratch register persistence, reboot counting, state-aware recovery path |
-| IVP-50 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
-| IVP-51 | Event Engine | Condition evaluator for launch, apogee, landing detection |
-| IVP-52 | Action Executor | LED, beep, logging trigger actions on state transitions |
-| IVP-53 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
-| IVP-54 | Mission Configuration | Load mission definitions (rocket, freeform) |
+| IVP-51 | Watchdog Recovery Policy | Scratch register persistence, reboot counting, state-aware recovery path |
+| IVP-52 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
+| IVP-53 | Event Engine | Condition evaluator for launch, apogee, landing detection |
+| IVP-54 | Action Executor | LED, beep, logging trigger actions on state transitions |
+| IVP-55 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
+| IVP-56 | Mission Configuration | Load mission definitions (rocket, freeform) |
 
 ---
 
-### IVP-49: Watchdog Recovery Policy
+### IVP-51: Watchdog Recovery Policy
 
 **Prerequisites:** IVP-30 (hardware watchdog mechanism), Stage 5 complete
 
-**Rationale:** IVP-30 implemented the watchdog *mechanism* (dual-core heartbeat, 5s timeout, kick pattern). The mechanism is correct for ground/IDLE — a full reboot recovers cleanly. But a full reboot mid-flight (ARMED through DESCENT) is catastrophic: ESKF state lost, pyro timers reset, position/velocity knowledge gone. The state machine (IVP-50) cannot be designed without first defining what happens when the system wakes up after an unexpected reset. This step establishes the recovery policy that IVP-50 builds on.
+**Rationale:** IVP-30 implemented the watchdog *mechanism* (dual-core heartbeat, 5s timeout, kick pattern). The mechanism is correct for ground/IDLE — a full reboot recovers cleanly. But a full reboot mid-flight (ARMED through DESCENT) is catastrophic: ESKF state lost, pyro timers reset, position/velocity knowledge gone. The state machine (IVP-52) cannot be designed without first defining what happens when the system wakes up after an unexpected reset. This step establishes the recovery policy that IVP-50 builds on.
 
 **Bug fix (included):** Replace `watchdog_enable_caused_reboot()` with `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks a scratch register magic value that persists across picotool flashes and soft resets, causing false watchdog warnings on clean boots. The base `watchdog_caused_reboot()` checks `rom_get_last_boot_type() == BOOT_TYPE_NORMAL` on RP2350, correctly distinguishing true WDT timeouts from reflash reboots.
 
@@ -1677,7 +1734,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 4. **ESKF failure backoff.** Add a consecutive-failure counter for ESKF init→diverge cycles. After `⚠️ VALIDATE 5` consecutive failures (init succeeds but `healthy()` returns false within N seconds), disable ESKF until manual CLI reset (`'e'` key or similar). This prevents the init→diverge→re-init churn observed during ESKF development without requiring a full system reboot. This is the model for subsystem-level recovery: detect failure, disable the failing subsystem, continue operating in degraded mode.
 
-5. **Recovery boot path.** In `init_hardware()` / `init_application()`, after reading scratch registers: if this is a WDT reboot (not POR), log the event, print the diagnostic context from scratch registers, and set a `g_recoveryBoot` flag. The state machine (IVP-50) will later use this flag to determine post-reboot behavior per flight state:
+5. **Recovery boot path.** In `init_hardware()` / `init_application()`, after reading scratch registers: if this is a WDT reboot (not POR), log the event, print the diagnostic context from scratch registers, and set a `g_recoveryBoot` flag. The state machine (IVP-52) will later use this flag to determine post-reboot behavior per flight state:
    - **IDLE/LANDED:** Normal reboot + LAUNCH_ABORT flag set.
    - **ARMED:** LAUNCH_ABORT + automatic DISARM.
    - **BOOST/COAST/DESCENT:** Recovery mode — skip ESKF (can't re-init under acceleration), resume pyro timers from flash checkpoint, activate beacon. Degrade to baro-only altitude with timer-based backup deployment.
@@ -1694,7 +1751,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 **[DIAG]:** False WDT warning persists = still using `watchdog_enable_caused_reboot()` or scratch registers not cleared on POR. Safe mode triggers unexpectedly = reboot counter threshold too low or detection window too tight. ESKF never re-enables = backoff counter not resettable via CLI. Scratch data garbled after WDT = CRC/magic validation logic bug. LAUNCH_ABORT blocks arming unexpectedly = flag not cleared on POR or CLI command not working.
 
-> **Milestone:** At IVP-54 completion, the system has calibrated sensors, GPS, sensor fusion, and a working flight state machine — **Crowdfunding Demo Ready**.
+> **Milestone:** At IVP-56 completion, the system has calibrated sensors, GPS, sensor fusion, and a working flight state machine — **Crowdfunding Demo Ready**.
 
 ---
 
@@ -1704,11 +1761,11 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-55 | LittleFS Integration | Mount filesystem on remaining flash |
-| IVP-56 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
-| IVP-57 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
-| IVP-58 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
-| IVP-59 | USB Data Download | Download flight logs via CLI |
+| IVP-57 | LittleFS Integration | Mount filesystem on remaining flash |
+| IVP-58 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
+| IVP-59 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
+| IVP-60 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
+| IVP-61 | USB Data Download | Download flight logs via CLI |
 
 ---
 
@@ -1718,11 +1775,11 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-60 | RFM95W Radio Driver | SPI-based LoRa radio init, TX/RX |
-| IVP-61 | MAVLink Encoder | Heartbeat, attitude, GPS, system status messages |
-| IVP-62 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
-| IVP-63 | GCS Compatibility | QGroundControl / Mission Planner connection |
-| IVP-64 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
+| IVP-62 | RFM95W Radio Driver | SPI-based LoRa radio init, TX/RX |
+| IVP-63 | MAVLink Encoder | Heartbeat, attitude, GPS, system status messages |
+| IVP-64 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
+| IVP-65 | GCS Compatibility | QGroundControl / Mission Planner connection |
+| IVP-66 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
 
 ---
 
@@ -1732,13 +1789,13 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-65 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
-| IVP-66 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
-| IVP-67 | Power Budget Validation | Battery runtime validation under flight load |
-| IVP-68 | Environmental Stress | Temperature range, vibration (if available) |
-| IVP-69 | Flight Test | Bungee-launched glider: full data capture + telemetry |
+| IVP-67 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
+| IVP-68 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
+| IVP-69 | Power Budget Validation | Battery runtime validation under flight load |
+| IVP-70 | Environmental Stress | Temperature range, vibration (if available) |
+| IVP-71 | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
-> **Milestone:** IVP-69 — **Flight Ready**.
+> **Milestone:** IVP-71 — **Flight Ready**.
 
 ---
 
@@ -1757,11 +1814,11 @@ Tests to re-run after changes to specific areas.
 | USB/CLI code change | IVP-04, IVP-18, IVP-27 | USB stability |
 | GPS driver change | IVP-31 — IVP-33 | GPS + integration |
 | Mag calibration code change | IVP-34 — IVP-38, IVP-17 | Mag cal + accel cal regression |
-| Fusion algorithm change | IVP-39 — IVP-48 | Filter correctness |
-| Watchdog policy change | IVP-49, IVP-30 | Recovery behavior + mechanism |
-| Mission engine change | IVP-50 — IVP-54 | State machine correctness |
+| Fusion algorithm change | IVP-39 — IVP-50 | Filter correctness |
+| Watchdog policy change | IVP-51, IVP-30 | Recovery behavior + mechanism |
+| Mission engine change | IVP-52 — IVP-56 | State machine correctness |
 | **Major refactor** | **All Stage 1-3** | Full regression |
-| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-49, IVP-65 | Release qualification (build, USB, flash, watchdog, recovery, bench test) |
+| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-51, IVP-67 | Release qualification (build, USB, flash, watchdog, recovery, bench test) |
 
 ---
 

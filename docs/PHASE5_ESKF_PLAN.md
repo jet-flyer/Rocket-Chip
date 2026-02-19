@@ -2,7 +2,7 @@
 
 ## Context
 
-Phase 5 (IVP-39 through IVP-48) implements sensor fusion from math primitives through a 15-state ESKF with MMAE. The ESKF Testing Guide (`docs/ESKF_TESTING_GUIDE.md`) defines a parallel host-side testing infrastructure. This plan integrates both tracks, resolves doc contradictions, and incorporates council review findings.
+Phase 5 (IVP-39 through IVP-50) implements sensor fusion from math primitives through a 15-state ESKF with MMAE. The ESKF Testing Guide (`docs/ESKF_TESTING_GUIDE.md`) defines a parallel host-side testing infrastructure. This plan integrates both tracks, resolves doc contradictions, and incorporates council review findings.
 
 **Document precedence:** Newer decision documents supersede older ones. `docs/decisions/SENSOR_FUSION_TIERS.md` (2026-02-10) is the most recent and authoritative tier document. `FUSION_ARCHITECTURE_DECISION.md` (2026-02-02) and `FUSION_ARCHITECTURE.md` (2026-02-02) are earlier decisions that are superseded where they conflict (e.g., Core tier MMAE/confidence gate scoping).
 
@@ -44,10 +44,10 @@ Per `SENSOR_FUSION_TIERS.md` (the authoritative document, 2026-02-10):
 | Confidence gate | **Yes** | Yes | Safety feature, not multi-IMU. Evaluates MMAE health + AHRS cross-check. |
 | Sensor affinity | No | Gemini only (dual-MCU) | Multi-IMU feature, not needed with single sensor set |
 
-**Scope of this plan:** IVP-39 through IVP-48. All steps are in scope:
+**Scope of this plan:** IVP-39 through IVP-50. All steps are in scope:
 - **IVP-39-46:** Baseline ESKF with measurement updates and Mahony cross-check
 - **IVP-47 (MMAE):** Recommended for Core tier per TIERS.md Option B
-- **IVP-48 (Confidence Gate):** Core tier — not a multi-IMU feature, it evaluates MMAE bank health + AHRS agreement + covariance bounds + innovation consistency. RP2350 has ample compute headroom. Multi-IMU sensor affinity is the Gemini-only feature.
+- **IVP-50 (Confidence Gate):** Core tier — not a multi-IMU feature, it evaluates MMAE bank health + AHRS agreement + covariance bounds + innovation consistency. RP2350 has ample compute headroom. Multi-IMU sensor affinity is the Gemini-only feature.
 
 **Note:** FUSION_ARCHITECTURE.md and FUSION_ARCHITECTURE_DECISION.md (decision documents, not modified) have older tier tables showing "No MMAE, no confidence gate" for Core. SENSOR_FUSION_TIERS.md (2026-02-10) supersedes — MMAE recommended for Core, confidence gate is Core (not multi-IMU), sensor affinity is Gemini-focused. SAD.md tier references need alignment.
 
@@ -290,7 +290,7 @@ Per `SENSOR_FUSION_TIERS.md` Option B (Recommended): MMAE is valuable at Core ti
 
 ---
 
-### IVP-48: Confidence Gate
+### IVP-50: Confidence Gate
 
 The confidence gate is a safety feature, not a multi-IMU feature. It evaluates MMAE bank health + AHRS cross-check + covariance bounds + innovation consistency. RP2350 has ample compute headroom. Core tier includes it.
 
@@ -324,7 +324,7 @@ IVP-39 (Vec3/Quat)
                |-> IVP-44 (Mag Update)    +-> IVP-46 (GPS)
                |-> IVP-45 (Mahony)       -+        |
                                                      |-> IVP-47 (MMAE Bank)
-                                                           |-> IVP-48 (Confidence Gate)
+                                                           |-> IVP-50 (Confidence Gate)
 ```
 
 IVP-43/44/45 are independent after IVP-42 — could theoretically parallelize, but IVP-43 should go first to prove the measurement update machinery.
@@ -367,7 +367,7 @@ Not every IVP step needs HW verification — pure math libraries (IVP-39, 40) an
 | **HW-3** | IVP-45 | Mahony running alongside ESKF. `AHRS diff` shown in CLI `s`. Stationary divergence <2 deg. Slow rotation divergence <5 deg. Both outputs visible simultaneously. |
 | **HW-4** | IVP-46 | GPS outdoor test. Walk 10m straight -> tracks. Walk square -> returns within 3m. Stationary drift <1m/5min. Enter building -> coast -> exit -> reconverge. Zero-velocity detection works. |
 | **HW-5** | IVP-47 | MMAE on target. Static bench: "on-ground" hypothesis >90% weight. Shake board (simulate boost accel) -> hypothesis switches. CLI shows hypothesis weights. Smooth blending, no discontinuities. Total bank benchmark. |
-| **HW-6** | IVP-48 | Confidence gate end-to-end. Normal: confident=true. Cover baro port -> confident=false, actions locked. Bring magnet near -> AHRS divergence grows. 10 min bench: no false confidence losses. CLI shows all confidence metrics. |
+| **HW-6** | IVP-50 | Confidence gate end-to-end. Normal: confident=true. Cover baro port -> confident=false, actions locked. Bring magnet near -> AHRS divergence grows. 10 min bench: no false confidence losses. CLI shows all confidence metrics. |
 
 **HW verification procedure:** Flash via debug probe (LL Entry 25 — never use picotool for iterative testing). Verify build tag in serial output before testing. Run each gate criterion. Record results in commit message.
 

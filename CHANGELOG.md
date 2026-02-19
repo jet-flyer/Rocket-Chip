@@ -156,11 +156,11 @@ Three bugs fixed during HW calibration testing: (1) 6-pos accel cal returned zer
 
 ### 2026-02-12-001 | Claude Code CLI | bugfix, architecture
 
-**Watchdog FMEA analysis, IVP-49 Watchdog Recovery Policy, reboot detection bugfix**
+**Watchdog FMEA analysis, IVP-51 Watchdog Recovery Policy, reboot detection bugfix**
 
 Fixed `watchdog_enable_caused_reboot()` → `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks scratch[4] magic that persists across picotool flashes, causing false "PREVIOUS REBOOT WAS CAUSED BY WATCHDOG" warnings on clean boots. The base function uses RP2350-specific `rom_get_last_boot_type()` for correct POR discrimination.
 
-Added IVP-49 (Watchdog Recovery Policy) as first step of Stage 6, prerequisite to state machine. Covers: scratch register persistence for reboot diagnostics, reboot counting with safe-mode lockout, ESKF failure backoff, recovery boot path, ground-side launch abort on any WDT reset. All downstream IVP numbers shifted +1 (Stage 7: IVP-55-59, Stage 8: IVP-60-64, Stage 9: IVP-65-69). Updated Gemini carrier board doc with cross-board watchdog handoff and per-board status LEDs. Updated SAD Section 14.
+Added IVP-51 (Watchdog Recovery Policy) as first step of Stage 6, prerequisite to state machine. Covers: scratch register persistence for reboot diagnostics, reboot counting with safe-mode lockout, ESKF failure backoff, recovery boot path, ground-side launch abort on any WDT reset. All downstream IVP numbers shifted +1 (Stage 7: IVP-57-61, Stage 8: IVP-62-66, Stage 9: IVP-67-71). Updated Gemini carrier board doc with cross-board watchdog handoff and per-board status LEDs. Updated SAD Section 14.
 
 (`src/main.cpp`, `docs/IVP.md`, `AGENT_WHITEBOARD.md`, `docs/hardware/GEMINI_CARRIER_BOARD.md`, `docs/SAD.md`)
 
@@ -262,7 +262,7 @@ Reverted premature commit 6de6245 which removed `wait_for_usb_connection()`. Dee
 
 **IVP plan expansion: Phase M magnetometer calibration + Stage 5 sensor fusion flesh-out**
 
-Added Phase M (IVP-34 through IVP-38) — 5 magnetometer calibration IVPs with full ArduPilot CompassCalibrator parity (sphere-coverage, two-step Levenberg-Marquardt, ellipsoid fit). Renumbered all downstream IVPs +5 (Stage 5: IVP-39-48, Stage 6: IVP-49-53, Stage 7: IVP-54-58, Stage 8: IVP-59-63, Stage 9: IVP-64-68). Fleshed out all 10 Stage 5 IVPs with full implementation specs: Vec3/Quaternion library, matrix operations, 1D baro KF, ESKF propagation (Sola 2017), baro/mag/GPS measurement updates, Mahony AHRS, MMAE bank manager, confidence gate. Updated cross-references in AGENT_WHITEBOARD.md, PROJECT_STATUS.md, VENDOR_GUIDELINES.md.
+Added Phase M (IVP-34 through IVP-38) — 5 magnetometer calibration IVPs with full ArduPilot CompassCalibrator parity (sphere-coverage, two-step Levenberg-Marquardt, ellipsoid fit). Renumbered all downstream IVPs +5 (Stage 5: IVP-39-50, Stage 6: IVP-51-56, Stage 7: IVP-57-61, Stage 8: IVP-62-66, Stage 9: IVP-67-71). Fleshed out all 10 Stage 5 IVPs with full implementation specs: Vec3/Quaternion library, matrix operations, 1D baro KF, ESKF propagation (Sola 2017), baro/mag/GPS measurement updates, Mahony AHRS, MMAE bank manager, confidence gate. Updated cross-references in AGENT_WHITEBOARD.md, PROJECT_STATUS.md, VENDOR_GUIDELINES.md.
 
 (`docs/IVP.md`, `AGENT_WHITEBOARD.md`, `docs/PROJECT_STATUS.md`, `standards/VENDOR_GUIDELINES.md`)
 
@@ -404,7 +404,7 @@ Created `standards/VENDOR_GUIDELINES.md` — centralized reference for vendor-sp
 
 **Stage 4 GPS IVP revision — restructured for dual-core architecture**
 
-Rewrote IVP-31 through IVP-34 (now IVP-31 through IVP-33) after Stage 3 established that Core 1 owns the I2C bus exclusively. Original IVPs assumed GPS could run on Core 0 — this causes bus collisions (LL Entry 20). Key changes: GPS init before Core 1 launch, GPS reads on Core 1 sensor loop (full 255-byte reads at 10Hz per vendor recommendation), seqlock for Core 0 access, old IVP-33 (Core 1 migration) merged into IVP-31 (it's now a prerequisite, not a follow-on). Updated `gps_pa1010d.c` with full-buffer reads and PMTK314 sentence filter. Renumbered IVP-35+ down by 1 to close the gap (now IVP-34 through IVP-63). Reverted partial IVP-31 implementation from main.cpp.
+Rewrote IVP-31 through IVP-34 (now IVP-31 through IVP-33) after Stage 3 established that Core 1 owns the I2C bus exclusively. Original IVPs assumed GPS could run on Core 0 — this causes bus collisions (LL Entry 20). Key changes: GPS init before Core 1 launch, GPS reads on Core 1 sensor loop (full 255-byte reads at 10Hz per vendor recommendation), seqlock for Core 0 access, old IVP-33 (Core 1 migration) merged into IVP-31 (it's now a prerequisite, not a follow-on). Updated `gps_pa1010d.c` with full-buffer reads and PMTK314 sentence filter. Renumbered IVP-35+ down by 1 to close the gap (now IVP-34 through IVP-71). Reverted partial IVP-31 implementation from main.cpp.
 
 (`docs/IVP.md`, `src/drivers/gps_pa1010d.c`, `src/main.cpp`)
 
