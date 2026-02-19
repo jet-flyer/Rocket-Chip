@@ -20,6 +20,28 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-18-002 | Claude Code CLI | feature, architecture
+
+**Stage 4 GPS: IVP-46 complete (8-step incremental plan)**
+
+ESKF GPS position + velocity measurement updates (IVP-46). 8 individually HW-verified commits:
+1. Transport-neutral `gps_data_t` types extracted to `gps.h`
+2. UART GPS driver (`gps_uart.cpp`) for FeatherWing on GPIO0/1
+3. ESKF GPS methods + **P covariance reset fix** in `set_origin()` (council-identified root cause of previous bNIS explosion) + 18 host tests including PostOriginBaroStability
+4. HDOP/VDOP in shared sensor data + CLI display
+5. Transport detection (UART-first, I2C fallback) + function pointer dispatch + hold-on-valid pattern
+6. Best-fix diagnostic capture with atomic cross-core visibility
+7. ESKF GPS wiring in `eskf_tick()` — origin establishment, geodetic-to-NED, position/velocity updates, 10km origin re-centering
+8. SENSOR_ARCHITECTURE doc + soak script + CHANGELOG
+
+**Critical fix:** `set_origin()` now resets P[3..8] diagonal to GPS-derived uncertainty and zeros all cross-covariance terms. Without this, stale correlations from pre-origin predict cycles corrupted baro Kalman gain → bNIS explosion.
+
+Host tests: 173/173 pass. 5-minute indoor soak: bNIS max=4.09, 0 UNHEALTHY, ZUPT 100% active.
+
+(`src/fusion/eskf.h`, `src/fusion/eskf.cpp`, `src/fusion/eskf_state.h`, `src/drivers/gps.h`, `src/drivers/gps_uart.h`, `src/drivers/gps_uart.cpp`, `src/drivers/gps_pa1010d.h`, `src/drivers/gps_pa1010d.cpp`, `src/main.cpp`, `test/test_eskf_gps_update.cpp`, `docs/SENSOR_ARCHITECTURE.md`, `scripts/eskf_gps_soak.py`)
+
+---
+
 ### 2026-02-18-001 | Claude Code CLI | documentation
 
 **Session handoff: Stage 4 GPS reboot deferred — bNIS regression unresolved**
