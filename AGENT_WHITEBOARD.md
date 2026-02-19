@@ -16,6 +16,12 @@
 
 ---
 
+### IVP-45 Mahony AHRS — Plan Ready, Implementation Pending
+
+**Added 2026-02-18.** Council-reviewed and approved plan at `~/.claude/plans/iterative-launching-grove.md`. All parameters researched (ArduPilot/PX4/BetaFlight/INAV), council approved with 4 modifications (mag gate ±15%, cal-valid guard, gravity-vector init, startup terminates on ARM). Plan covers: 2 new files (`src/fusion/mahony_ahrs.h/.cpp`), 14 host tests (`test/test_mahony.cpp`), surgical `main.cpp` integration, CMakeLists updates. Next session: approve plan and implement. CHANGELOG entry for IVP renumber (`d0dcb39`) should be added with the IVP-45 commit.
+
+---
+
 ### UART GPS Running at 1Hz (Default) — Upgrade to 10Hz Pending
 
 **Added 2026-02-18.** The UART GPS (PA1616D/MT3339) is currently running at its factory-default 1Hz NMEA update rate. The driver has `gps_uart_set_rate(10)` ready to go, but it hasn't been called yet. 1Hz is sufficient for initial ESKF integration and outdoor validation. Once Step 9 outdoor test passes with the interrupt-driven ring buffer, add `gps_uart_set_rate(10)` in `init_sensors()` after `gps_uart_init()` succeeds. No code changes needed in the driver — just the one call in main.cpp.
