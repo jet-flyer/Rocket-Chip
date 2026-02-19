@@ -1292,6 +1292,13 @@ bool ESKF::healthy() const {
         return false;
     }
 
+    // Velocity magnitude sentinel: catches divergence from silent sensor fault
+    // (e.g., ICM-20948 all-zeros output not caught by I2C error counter).
+    // 500 m/s > max hobby rocket burnout (~Mach 1.5); any real flight is below this.
+    if (v.norm() >= kMaxHealthyVelocity) {
+        return false;
+    }
+
     return true;
 }
 

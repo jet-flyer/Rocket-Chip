@@ -202,7 +202,11 @@ static void update_data_from_lwgps() {
     g_data.month = g_gps.month;
     g_data.year = kGpsYearBase + g_gps.year;
 
-    g_data.valid = lwgps_is_valid(&g_gps) && (g_data.fix >= GPS_FIX_2D);
+    // Valid if GGA reports a fix (quality >= 1) and fix type is 2D or 3D.
+    // Deliberately does NOT require RMC=A — RMC can lag GGA by several sentences
+    // on first acquisition, causing G=N even with a genuine 3D lock. GGA fix
+    // quality is the authoritative positional validity indicator (ArduPilot pattern).
+    g_data.valid = (g_gps.fix >= 1) && (g_data.fix >= GPS_FIX_2D);
     g_data.timeValid = g_gps.time_valid;
     g_data.dateValid = g_gps.date_valid;
 

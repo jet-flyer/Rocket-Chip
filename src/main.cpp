@@ -40,7 +40,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp45-1";
+static const char* kBuildTag = "ivp45-4";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -55,6 +55,10 @@ static constexpr uint32_t kGpsMinIntervalUs = 2000;             // MT3333 buffer
 static constexpr uint32_t kCore1CalFeedDivider = 10;            // Cal feed at ~100Hz
 static constexpr uint32_t kCore1ConsecFailBusRecover = 10;      // I2C bus recovery threshold
 static constexpr uint32_t kCore1ConsecFailDevReset = 50;        // ICM-20948 device reset threshold
+// Minimum plausible accel magnitude: 9.8 × cos(72°) = 3.0 m/s².
+// Below any valid sensor reading — all-zeros output means device is in sleep/reset state.
+// Source: gravity projection floor when tilted 72° off vertical.
+static constexpr float kAccelMinHealthyMag = 3.0f;
 
 // DPS310 MEAS_CFG register (0x08): data-ready bits
 // Per DPS310 datasheet Section 7, PRS_RDY=bit4, TMP_RDY=bit5
@@ -109,7 +113,6 @@ static constexpr uint32_t kEskfMinDtUs = 1000;     // 1ms
 static constexpr uint32_t kEskfMaxDtUs = 100000;    // 100ms
 
 // NeoPixel timing (Core 1 sensor phase)
-static constexpr uint32_t kNeoToggleSoakMs     = 250;           // ~2Hz blink
 static constexpr uint32_t kSensorPhaseTimeoutMs = 300000;       // 5 min — switch to magenta
 
 // NeoPixel calibration override values (set by Core 0 CLI, read by Core 1)
@@ -124,9 +127,11 @@ static constexpr uint8_t kCalNeoMag         = 6;  // Rainbow (rotate freely)
 static constexpr uint8_t kCalNeoSuccess     = 7;  // Green solid (step passed)
 static constexpr uint8_t kCalNeoFail        = 8;  // Red blink fast (step failed)
 
-// Tracks last NeoPixel override value so we only call ws2812_set_mode()
+// Tracks last NeoPixel mode/color so we only call ws2812_set_mode()
 // on transitions, not every cycle (which would reset animation state).
 static uint8_t g_lastCalNeoOverride = kCalNeoOff;
+static ws2812_mode_t  g_lastNeoMode  = WS2812_MODE_OFF;
+static ws2812_rgb_t   g_lastNeoColor = kColorOff;
 
 
 // ============================================================================
@@ -160,6 +165,21 @@ struct best_gps_fix_t {
 };
 static best_gps_fix_t g_bestGpsFix = {};
 static std::atomic<bool> g_bestGpsValid{false};
+
+// IVP-46 outdoor session stats — accumulated while GPS is active, printed on
+// reconnect via 's'. Lets the user verify movement gates without a live terminal.
+struct gps_session_stats_t {
+    float max_dist_from_origin_m;    // Furthest ESKF position from origin (10m gate)
+    float last_pos_n_m;              // ESKF N position at last GPS fix (square gate)
+    float last_pos_e_m;              // ESKF E position at last GPS fix (square gate)
+    float last_dist_from_origin_m;   // Distance from origin at last GPS fix (closure)
+    uint32_t gps_updates;            // Total GPS position updates applied
+    float min_gps_nis;               // Min GPS NIS seen (innovation health)
+    float max_gps_nis;               // Max GPS NIS seen
+};
+static gps_session_stats_t g_gpsSess = {
+    0.0f, 0.0f, 0.0f, 0.0f, 0, 1e9f, 0.0f
+};
 
 // IVP-42d: ESKF 15-state error-state Kalman filter (Core 0 at 200Hz)
 // Static per LL Entry 1: ESKF struct is ~970 bytes (Mat15 P = 900 bytes).
@@ -410,6 +430,31 @@ static void core1_read_imu(shared_sensor_data_t* localData,
     icm20948_data_t imuData;
     bool imuOk = icm20948_read(&g_imu, &imuData);
     if (imuOk) {
+        // Sanity-check raw accel magnitude. A working sensor in ANY orientation always
+        // measures at least 3 m/s² (gravity floor at 72° tilt: 9.8×cos(72°)=3.0).
+        // All-zeros output = ICM-20948 silent reset to sleep state — device ACKs I2C
+        // reads in sleep mode, returning 0x0000 from output registers. Not counted by
+        // the normal error path (which requires NACK). Route to consecutive-fail path
+        // so bus-recover + device-reinit fires. (LL Entry 29)
+        const float rawAccelMag = sqrtf(
+            imuData.accel.x * imuData.accel.x +
+            imuData.accel.y * imuData.accel.y +
+            imuData.accel.z * imuData.accel.z);
+        if (rawAccelMag < kAccelMinHealthyMag) {
+            (*imuConsecFail)++;
+            localData->accel_valid = false;
+            localData->gyro_valid = false;
+            localData->imu_error_count++;
+            if (*imuConsecFail >= kCore1ConsecFailDevReset) {
+                icm20948_init(&g_imu, kIcm20948AddrDefault);
+                *imuConsecFail = 0;
+            } else if (*imuConsecFail >= kCore1ConsecFailBusRecover
+                       && *imuConsecFail % kCore1ConsecFailBusRecover == 0) {
+                i2c_bus_recover();
+            }
+            return;
+        }
+
         *imuConsecFail = 0;
 
         // Feed calibration with RAW data (before cal apply) — Core 1 owns I2C,
@@ -582,35 +627,38 @@ static void core1_read_gps(shared_sensor_data_t* localData,
 // Core 1: NeoPixel State Update
 // ============================================================================
 
-static void core1_neopixel_update(shared_sensor_data_t* localData,
-                                   uint32_t nowMs, uint32_t sensorPhaseStartMs,
-                                   uint32_t* lastNeoMs, bool* neoState) {
-    if (nowMs - *lastNeoMs < kNeoToggleSoakMs) {
-        return;
+// Helper: call ws2812_set_mode() only when mode or color changes.
+// Calling ws2812_set_mode() every tick resets phaseStartMs, blinkState,
+// and rainbowHue, which prevents breathe/blink/rainbow from animating.
+static void neo_set_if_changed(ws2812_mode_t mode, ws2812_rgb_t color) {
+    if (mode != g_lastNeoMode ||
+        color.r != g_lastNeoColor.r ||
+        color.g != g_lastNeoColor.g ||
+        color.b != g_lastNeoColor.b) {
+        g_lastNeoMode  = mode;
+        g_lastNeoColor = color;
+        ws2812_set_mode(mode, color);
     }
+}
 
-    *lastNeoMs = nowMs;
-    *neoState = !*neoState;
-
+static void core1_neopixel_update(shared_sensor_data_t* localData,
+                                   uint32_t nowMs, uint32_t sensorPhaseStartMs) {
     // INTERIM: Calibration NeoPixel override (Phase M.5).
     // When Core 0 CLI is running a calibration, it sets the override to
     // indicate the desired LED pattern. Replace with AP_Notify state machine.
     uint8_t calOverride = g_calNeoPixelOverride.load(std::memory_order_relaxed);
     if (calOverride != kCalNeoOff) {
-        // Only call ws2812_set_mode() on transition — calling it every cycle
-        // resets phaseStartMs and rainbowHue, which keeps rainbow stuck on red
-        // and restarts breathe/blink animations from the beginning.
         if (calOverride != g_lastCalNeoOverride) {
             g_lastCalNeoOverride = calOverride;
             switch (calOverride) {
                 case kCalNeoGyro:        // fall through
-                case kCalNeoLevel:       ws2812_set_mode(WS2812_MODE_BREATHE, kColorBlue); break;
-                case kCalNeoBaro:        ws2812_set_mode(WS2812_MODE_BREATHE, kColorCyan); break;
-                case kCalNeoAccelWait:   ws2812_set_mode(WS2812_MODE_BLINK, kColorYellow); break;
-                case kCalNeoAccelSample: ws2812_set_mode(WS2812_MODE_SOLID, kColorYellow); break;
-                case kCalNeoMag:         ws2812_set_mode(WS2812_MODE_RAINBOW, kColorWhite); break;
-                case kCalNeoSuccess:     ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen); break;
-                case kCalNeoFail:        ws2812_set_mode(WS2812_MODE_BLINK_FAST, kColorRed); break;
+                case kCalNeoLevel:       neo_set_if_changed(WS2812_MODE_BREATHE, kColorBlue); break;
+                case kCalNeoBaro:        neo_set_if_changed(WS2812_MODE_BREATHE, kColorCyan); break;
+                case kCalNeoAccelWait:   neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow); break;
+                case kCalNeoAccelSample: neo_set_if_changed(WS2812_MODE_SOLID, kColorYellow); break;
+                case kCalNeoMag:         neo_set_if_changed(WS2812_MODE_RAINBOW, kColorWhite); break;
+                case kCalNeoSuccess:     neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen); break;
+                case kCalNeoFail:        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
                 default:                 break;
             }
         }
@@ -619,34 +667,32 @@ static void core1_neopixel_update(shared_sensor_data_t* localData,
     }
     g_lastCalNeoOverride = kCalNeoOff;
 
-    // Normal status NeoPixel logic
+    // Normal status NeoPixel logic — use neo_set_if_changed() so animations
+    // aren't reset every tick.
     if ((nowMs - sensorPhaseStartMs) >= kSensorPhaseTimeoutMs) {
-        ws2812_set_mode(WS2812_MODE_SOLID, kColorMagenta);
+        neo_set_if_changed(WS2812_MODE_SOLID, kColorMagenta);
     } else if (!g_eskfInitialized) {
         // ESKF waiting for stationary init — fast red blink ("hold still").
-        // Clear visual cue that the board needs to be motionless.
-        ws2812_set_mode(WS2812_MODE_BLINK_FAST, kColorRed);
+        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed);
     } else if (g_gpsInitialized) {
         if (localData->gps_fix_type >= 3) {
             // 3D fix — solid green
-            ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen);
+            neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen);
         } else if (localData->gps_fix_type == 2) {
             // 2D fix — blink green
-            ws2812_set_mode(WS2812_MODE_SOLID,
-                *neoState ? kColorGreen : kColorOff);
+            neo_set_if_changed(WS2812_MODE_BLINK, kColorGreen);
         } else if (localData->gps_read_count > 0) {
             // Searching (NMEA flowing, no fix) — blink yellow
-            ws2812_set_mode(WS2812_MODE_SOLID,
-                *neoState ? kColorYellow : kColorOff);
+            neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow);
         } else {
-            ws2812_set_mode(WS2812_MODE_SOLID,
-                *neoState ? kColorBlue : kColorCyan);
+            // GPS init but no NMEA yet — fast blink cyan
+            neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorCyan);
         }
     } else if (g_sensorPhaseDone.load(std::memory_order_acquire)) {
-        ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen);
+        neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen);
     } else {
-        ws2812_set_mode(WS2812_MODE_SOLID,
-            *neoState ? kColorBlue : kColorCyan);
+        // ESKF running, no GPS — slow blink blue
+        neo_set_if_changed(WS2812_MODE_BLINK, kColorBlue);
     }
     ws2812_update();
 }
@@ -680,8 +726,6 @@ static void core1_sensor_loop() {
     uint32_t gpsCycle = 0;
     uint32_t lastGpsReadUs = 0;
     uint32_t sensorPhaseStartMs = to_ms_since_boot(get_absolute_time());
-    uint32_t lastNeoMs = sensorPhaseStartMs;
-    bool neoState = false;
 
     while (true) {
         uint32_t cycleStartUs = time_us_32();
@@ -735,8 +779,7 @@ static void core1_sensor_loop() {
         g_wdtCore1Alive.store(true, std::memory_order_relaxed);
 
         uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-        core1_neopixel_update(&localData, nowMs, sensorPhaseStartMs,
-                              &lastNeoMs, &neoState);
+        core1_neopixel_update(&localData, nowMs, sensorPhaseStartMs);
 
         uint32_t elapsed = time_us_32() - cycleStartUs;
         if (elapsed < kCore1TargetCycleUs) {
@@ -1287,6 +1330,19 @@ static void print_hw_status() {
         printf("  Best GPS: no fix acquired yet\n");
     }
 
+    // IVP-46 outdoor session stats (persists in RAM — survives loss of GPS lock)
+    if (g_gpsSess.gps_updates > 0) {
+        printf("  GPS session: %lu updates, max_dist=%.1fm, last_dist=%.1fm\n",
+               (unsigned long)g_gpsSess.gps_updates,
+               (double)g_gpsSess.max_dist_from_origin_m,
+               (double)g_gpsSess.last_dist_from_origin_m);
+        printf("              last_pos N=%.1f E=%.1f m  gNIS=[%.2f, %.2f]\n",
+               (double)g_gpsSess.last_pos_n_m,
+               (double)g_gpsSess.last_pos_e_m,
+               (double)g_gpsSess.min_gps_nis,
+               (double)g_gpsSess.max_gps_nis);
+    }
+
     printf("=== Status Complete ===\n\n");
 }
 
@@ -1722,6 +1778,20 @@ static void eskf_tick() {
                     float v_east  = snap.gps_ground_speed_mps * sinf(course_rad);
                     g_eskf.update_gps_velocity(v_north, v_east);
                 }
+
+                // IVP-46 session stats — accumulated for post-session review via 's'
+                g_gpsSess.gps_updates++;
+                float dist = sqrtf(g_eskf.p.x * g_eskf.p.x +
+                                   g_eskf.p.y * g_eskf.p.y);
+                if (dist > g_gpsSess.max_dist_from_origin_m) {
+                    g_gpsSess.max_dist_from_origin_m = dist;
+                }
+                g_gpsSess.last_pos_n_m = g_eskf.p.x;
+                g_gpsSess.last_pos_e_m = g_eskf.p.y;
+                g_gpsSess.last_dist_from_origin_m = dist;
+                float nis = g_eskf.last_gps_pos_nis_;
+                if (nis < g_gpsSess.min_gps_nis) { g_gpsSess.min_gps_nis = nis; }
+                if (nis > g_gpsSess.max_gps_nis) { g_gpsSess.max_gps_nis = nis; }
             }
         }
     }

@@ -105,6 +105,17 @@ struct ESKF {
     static constexpr float kStationaryGyroMax = 0.02f;  // rad/s (~1.1°/s)
 
     // =================================================================
+    // Health sentinel — IVP-48 (velocity divergence guard)
+    // Max plausible velocity: above hobby rocket burnout (~Mach 1.5 ≈ 510 m/s)
+    // but well below any divergence trajectory (1688 m/s after ~3 min of accel-bias
+    // at 9.8 m/s²). Catches silent ICM-20948 zero-output fault before vel grows
+    // large enough to corrupt bias estimates.
+    // =================================================================
+
+    // Source: Mach 1.5 at sea level ≈ 510 m/s — 500 m/s gives ~1s headroom.
+    static constexpr float kMaxHealthyVelocity = 500.0f;  // m/s
+
+    // =================================================================
     // Barometric altitude measurement — IVP-43
     // DPS310 @ 16x oversampling noise (same as BaroKF)
     // =================================================================
