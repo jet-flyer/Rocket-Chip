@@ -38,7 +38,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp44-4";
+static const char* kBuildTag = "ivp46-1";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -481,7 +481,7 @@ static void core1_read_gps(shared_sensor_data_t* localData,
         busy_wait_us(kGpsSdaSettleUs);  // SDA settling delay (LL Entry 24)
     }
 
-    gps_pa1010d_data_t gpsData;
+    gps_data_t gpsData;
     gps_pa1010d_get_data(&gpsData);
 
     double lat = gpsData.latitude;

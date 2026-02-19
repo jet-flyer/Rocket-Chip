@@ -1,15 +1,15 @@
 /**
  * @file gps_pa1010d.h
- * @brief PA1010D GPS module driver using lwGPS library
+ * @brief PA1010D GPS module driver — I2C transport backend
  *
  * CDTop PA1010D via I2C with NMEA parsing by lwGPS.
+ * Uses transport-neutral types from gps.h.
  */
 
 #ifndef ROCKETCHIP_GPS_PA1010D_H
 #define ROCKETCHIP_GPS_PA1010D_H
 
-#include <stdint.h>
-#include <stdbool.h>
+#include "gps.h"
 #include <stddef.h>
 
 // ============================================================================
@@ -17,61 +17,6 @@
 // ============================================================================
 
 constexpr uint8_t kGpsPa1010dAddr   = 0x10;
-
-// ============================================================================
-// Types
-// ============================================================================
-
-/**
- * @brief GPS fix type
- */
-typedef enum {
-    GPS_FIX_NONE = 0,   // No fix
-    GPS_FIX_2D   = 2,   // 2D fix (no altitude)
-    GPS_FIX_3D   = 3,   // 3D fix
-} gps_fix_t;
-
-/**
- * @brief GPS data
- */
-typedef struct {
-    // Position
-    double latitude;        ///< Latitude in degrees (+ = North)
-    double longitude;       ///< Longitude in degrees (+ = East)
-    float altitudeM;        ///< Altitude above MSL in meters
-
-    // Motion
-    float speedKnots;       ///< Ground speed in knots
-    float speedMps;         ///< Ground speed in m/s
-    float courseDeg;        ///< True course in degrees
-
-    // Quality
-    gps_fix_t fix;          ///< Fix type
-    uint8_t satellites;     ///< Number of satellites in use
-    float hdop;             ///< Horizontal dilution of precision
-    float vdop;             ///< Vertical dilution of precision
-    float pdop;             ///< Position dilution of precision
-
-    // Time (UTC)
-    uint8_t hour;
-    uint8_t minute;
-    uint8_t second;
-
-    // Date (UTC)
-    uint8_t day;
-    uint8_t month;
-    uint16_t year;
-
-    // Status
-    bool valid;             ///< Position is valid (RMC active AND GGA fix)
-    bool timeValid;         ///< Time data is valid
-    bool dateValid;         ///< Date data is valid
-
-    // Diagnostic (raw lwGPS fields for debugging fix detection)
-    uint8_t ggaFix;         ///< GGA fix quality (0=none, 1=GPS, 2=DGPS)
-    uint8_t gsaFixMode;     ///< GSA fix mode (1=none, 2=2D, 3=3D)
-    bool rmcValid;          ///< RMC status ('A' = valid)
-} gps_pa1010d_data_t;
 
 // ============================================================================
 // API
@@ -104,7 +49,7 @@ bool gps_pa1010d_update(void);
  * @param data Output data structure
  * @return true if data is valid
  */
-bool gps_pa1010d_get_data(gps_pa1010d_data_t* data);
+bool gps_pa1010d_get_data(gps_data_t* data);
 
 /**
  * @brief Check if GPS has a valid fix

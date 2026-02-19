@@ -39,7 +39,7 @@ constexpr size_t   kNmeaChecksumLen  = 5;       // "*XX\r\n" checksum + CRLF roo
 
 static bool g_initialized = false;
 static lwgps_t g_gps;
-static gps_pa1010d_data_t g_data;
+static gps_data_t g_data;
 
 // I2C read buffer — full 255-byte MT3333 TX buffer per vendor recommendation.
 // GlobalTop/Quectel app notes: "read full buffer, partial reads not recommended."
@@ -245,7 +245,7 @@ bool gps_pa1010d_update() {
     return true;
 }
 
-bool gps_pa1010d_get_data(gps_pa1010d_data_t* data) {
+bool gps_pa1010d_get_data(gps_data_t* data) {
     if (data == nullptr) {
         return false;
     }
