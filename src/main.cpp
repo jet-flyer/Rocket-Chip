@@ -39,7 +39,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp46-5";
+static const char* kBuildTag = "ivp46-6";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -144,6 +144,20 @@ static gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;
 static bool (*gps_fn_update)()                    = nullptr;
 static bool (*gps_fn_get_data)(gps_data_t*)       = nullptr;
 static bool (*gps_fn_has_fix)()                    = nullptr;
+
+// Best GPS fix diagnostic: captures the highest-quality fix seen this session.
+// Written by Core 1, read by Core 0 CLI. Atomic flag guards visibility
+// (not struct consistency — benign for diagnostics, not flight-critical).
+struct best_gps_fix_t {
+    int32_t lat_1e7;
+    int32_t lon_1e7;
+    float alt_msl_m;
+    float hdop;
+    uint8_t satellites;
+    uint8_t fix_type;
+};
+static best_gps_fix_t g_bestGpsFix = {};
+static std::atomic<bool> g_bestGpsValid{false};
 
 // IVP-42d: ESKF 15-state error-state Kalman filter (Core 0 at 200Hz)
 // Static per LL Entry 1: ESKF struct is ~970 bytes (Mat15 P = 900 bytes).
@@ -530,6 +544,30 @@ static void core1_read_gps(shared_sensor_data_t* localData,
 
     if (!parsed) {
         localData->gps_error_count++;
+    }
+
+    // Best-fix capture: update when satellite count or HDOP improves.
+    // Reads from localData (persistent hold-on-valid), not d (instantaneous).
+    if (localData->gps_valid && localData->gps_fix_type >= 2) {
+        bool better = false;
+        if (!g_bestGpsValid.load(std::memory_order_relaxed)) {
+            better = true;  // First fix ever
+        } else if (localData->gps_satellites > g_bestGpsFix.satellites) {
+            better = true;  // More satellites
+        } else if (localData->gps_satellites == g_bestGpsFix.satellites &&
+                   localData->gps_hdop > 0.0f &&
+                   localData->gps_hdop < g_bestGpsFix.hdop) {
+            better = true;  // Same sats, better HDOP
+        }
+        if (better) {
+            g_bestGpsFix.lat_1e7     = localData->gps_lat_1e7;
+            g_bestGpsFix.lon_1e7     = localData->gps_lon_1e7;
+            g_bestGpsFix.alt_msl_m   = localData->gps_alt_msl_m;
+            g_bestGpsFix.hdop        = localData->gps_hdop;
+            g_bestGpsFix.satellites  = localData->gps_satellites;
+            g_bestGpsFix.fix_type    = localData->gps_fix_type;
+            g_bestGpsValid.store(true, std::memory_order_release);
+        }
     }
 }
 
@@ -933,7 +971,13 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
                    snap.gps_rmc_valid ? 'A' : 'V',
                    snap.gps_gga_fix,
                    snap.gps_gsa_fix_mode);
-            if (snap.gps_lat_1e7 != 0 || snap.gps_lon_1e7 != 0) {
+            if (g_bestGpsValid.load(std::memory_order_relaxed)) {
+                printf("     Best: %.7f, %.7f  Sats=%u HDOP=%.2f\n",
+                       g_bestGpsFix.lat_1e7 / 1e7,
+                       g_bestGpsFix.lon_1e7 / 1e7,
+                       g_bestGpsFix.satellites,
+                       (double)g_bestGpsFix.hdop);
+            } else if (snap.gps_lat_1e7 != 0 || snap.gps_lon_1e7 != 0) {
                 printf("     Last fix: %.7f, %.7f\n",
                        snap.gps_lat_1e7 / 1e7,
                        snap.gps_lon_1e7 / 1e7);
@@ -1197,6 +1241,19 @@ static void print_hw_status() {
 
     hw_validate_i2c_devices();
     hw_validate_sensors();
+
+    // Best GPS fix diagnostic
+    if (g_bestGpsValid.load(std::memory_order_acquire)) {
+        printf("  Best GPS: Fix=%u Sats=%u HDOP=%.2f\n",
+               g_bestGpsFix.fix_type, g_bestGpsFix.satellites,
+               (double)g_bestGpsFix.hdop);
+        printf("            %.7f, %.7f, %.1f m MSL\n",
+               g_bestGpsFix.lat_1e7 / 1e7,
+               g_bestGpsFix.lon_1e7 / 1e7,
+               (double)g_bestGpsFix.alt_msl_m);
+    } else if (g_gpsInitialized) {
+        printf("  Best GPS: no fix acquired yet\n");
+    }
 
     printf("=== Status Complete ===\n\n");
 }
