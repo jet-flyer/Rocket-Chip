@@ -16,14 +16,6 @@
 
 ---
 
-### IVP-45 Mahony AHRS — Implementation In Progress
-
-**Added 2026-02-18. Updated 2026-02-19.** `src/fusion/mahony_ahrs.h/.cpp` written, 14 host tests pass (187/187 total). CMakeLists updated. Next: `main.cpp` integration (globals, eskf_tick, CLI output).
-
-**Standards audit pending** — `mahony_ahrs.h/.cpp` and `test_mahony.cpp` have not yet been run through the formal standards audit (CODING_STANDARDS.md / clang-tidy). Do before or shortly after IVP-45 commit.
-
-CHANGELOG entry for IVP renumber (`d0dcb39`) should be added with the IVP-45 commit.
-
 ---
 
 ### UART GPS Running at 1Hz (Default) — Upgrade to 10Hz Pending
@@ -94,6 +86,10 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 ---
 
 ## Resolved
+
+### IVP-45 Mahony AHRS — COMPLETE (2026-02-19)
+
+`mahony_ahrs.h/.cpp` + 14 host tests (187/187). Wired into `eskf_tick()` at 200Hz. `Mdiv` in both `e` and `s` CLI output. HW verified: 60s soak, movement tracking, zero sensor errors. Committed `a120e6f`. Standards audit (clang-tidy) pending — deferred to IVP-47/48 cycle.
 
 ### Foundational Features Gate — COMPLETE (2026-02-10)
 
