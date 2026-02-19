@@ -28,28 +28,6 @@
 
 ---
 
-### PRIORITY: Foundational Features Before ESKF
-
-**Do NOT move to Stage 5 ESKF (IVP-39+) until these are complete:**
-
-1. ~~**Soak baseline**~~ — **DONE** (2026-02-10). 536K IMU reads, 0 errors, 6 min with all 3 sensors (`nonblock-usb-3`).
-2. ~~**Phase M: Magnetometer calibration**~~ — **DONE** (2026-02-10). All 4 commits merged (94dffad, d261b66, c84c38c). CLI wizard + Core 1 live apply + heading display.
-3. ~~**Non-blocking USB init**~~ — **DONE** (2026-02-10, ec87703). Boot banner deferred to first terminal connect. Prior failures were picotool artifacts.
-4. ~~**Boot-time peripheral detection**~~ — **DONE** (2026-02-10). Runtime hot-plug detection is a stretch goal, not a blocker.
-5. ~~**Full calibration wizard**~~ — **DONE** (2026-02-10, wizard-12). 5-step wizard (gyro, level, baro, 6-pos accel, compass) with NeoPixel feedback. ENTER/x navigation, Core 1 sensor feeds. Fixed mag cal raw data (seqlock now carries raw + calibrated mag). All 5 steps HW verified including full mag cal (300 samples, 81% coverage, RMS 2.499 uT).
-
-**Rationale (user directive):** Features like peripheral detection, calibration wizards, and non-blocking USB are not "future nice-to-haves" — they are core functionality that ESKF depends on. Mag cal provides the hard-iron/soft-iron corrections that the ESKF magnetometer measurement model needs. Non-blocking USB is required for any untethered operation. Get the foundation solid before adding fusion.
-
----
-
-### Non-Blocking USB — RESOLVED (2026-02-10)
-
-Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all()`. Boot banner deferred to first terminal connect via `rc_os_print_boot_status` callback. Core 1 + watchdog start immediately. Soak verified: 536K reads, 0 errors. Prior prod-13 through prod-16 failures were picotool artifacts (LL Entry 25/27).
-
-**Qwiic chain order finding:** PA1010D GPS must be first in chain (closest to board/power). At end of chain, probe detection is intermittent. Documented in `docs/hardware/HARDWARE.md`.
-
-**Plan files:** `~/.claude/plans/phase-m-mag-cal.md` (Phase M plan, completed).
-
 ---
 
 ### Watchdog Recovery Policy — IVP-49 (New, Stage 6 Prerequisite)
@@ -66,7 +44,7 @@ Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all(
 
 **Added 2026-02-12.** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies). Benchmarked at ~496µs on target (IVP-42d, `6c84cd3`), vs <100µs gate target. Within cycle budget at 200Hz (~10%) but 5x over target. The sparse path exploits F_x block structure (many zero/identity blocks) to avoid the full O(N³) triple product — should bring it under 100µs.
 
-**When:** After all measurement updates are wired with real sensor feeds (IVP-43 baro done, IVP-44 mag, IVP-46 GPS pending). Current benchmarks use injected data; real performance picture needs all feeds live. Natural slot: alongside or after IVP-46, before IVP-48 health pass.
+**When:** All measurement feeds now live (IVP-43 baro, IVP-44 mag, IVP-46 GPS — all done). Natural slot: before IVP-48 health pass.
 
 **Also applies to:** `update_baro()` Joseph form has two dense 15×15 multiplies (~8Hz, less critical than 200Hz predict). Mag and GPS updates will add more. Profile full pipeline with all feeds before optimizing.
 
@@ -94,7 +72,7 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 *Items noted for future stages — not blocking, no action needed now.*
 
 - **F' Evaluation:** Three Titan paths identified (A: STM32H7+F'/Zephyr, B: Pi Zero 2 W+F'/Linux, C: Hybrid). Research complete in `docs/decisions/TITAN_BOARD_ANALYSIS.md`. Decision deferred until Titan development begins.
-- **FeatherWing UART GPS:** Adafruit 3133 (PA1616D) on hand. Eliminates I2C contention. New `gps_uart.cpp` driver needed. `g_gpsOnI2C` flag already in place. Blocked on user soldering.
+- ~~**FeatherWing UART GPS:**~~ **DONE** (2026-02-18). `gps_uart.cpp` driver complete with interrupt-driven ring buffer. Outdoor validated.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
 - **ArduPilot LED Patterns:** Map NeoPixel to AP standard codes at IVP-52 (action executor). Known NeoPixel green-transition bug deferred to same IVP.
 - **clang-tidy Integration:** LLVM installed, 127-check config active, first full audit complete (2026-02-09). **All code fully remediated** across 6 phases (P1-P5f, 1,251 total findings). IVP test code stripped — zero deferred findings. Pre-commit enforcement deferred to next cycle.
@@ -106,6 +84,14 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 ---
 
 ## Resolved
+
+### Foundational Features Gate — COMPLETE (2026-02-10)
+
+All 5 prerequisites for ESKF completed: soak baseline (536K reads/0 errors), mag cal wizard (300 samples, 81% coverage), non-blocking USB (boot banner deferred), boot-time peripheral detection, unified 5-step calibration wizard. Qwiic chain order finding: GPS must be first in chain.
+
+### Non-Blocking USB — COMPLETE (2026-02-10)
+
+Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all()`. Boot banner deferred to first terminal connect. Soak verified: 536K reads, 0 errors.
 
 ### Stage 4 GPS (IVP-46) — COMPLETE (2026-02-18)
 

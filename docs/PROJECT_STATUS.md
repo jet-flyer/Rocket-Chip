@@ -4,9 +4,9 @@
 
 ## Current Phase
 
-**Stage 4 COMPLETE** — GPS Integration
+**Stage 5 IN PROGRESS** — Sensor Fusion (ESKF)
 
-All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI displays all GPS data from seqlock. Next: complete foundational features (mag cal wizard, non-blocking USB, unified calibration) before Stage 5 ESKF.
+IVP-39 through IVP-46 complete. All measurement updates wired with real sensor feeds (baro, mag, GPS). ESKF outdoor-validated with GPS feeding position/velocity. Next: IVP-47 (attitude init refinement) and IVP-48 (health + diagnostics).
 
 ## Completed
 
@@ -32,7 +32,7 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 
 ## In Progress
 
-**Stage 5: Sensor Fusion (ESKF)** — IVP-44b complete, IVP-46 (GPS update) next.
+**Stage 5: Sensor Fusion (ESKF)** — IVP-46 complete, IVP-47/48 next.
 
 - IVP-39: Vec3/Quat/Mat math — DONE
 - IVP-40: Matrix ops + state indices — DONE
