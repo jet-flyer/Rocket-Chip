@@ -20,20 +20,6 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
-### 2026-02-19-001 | Claude Code CLI | bugfix, architecture
-
-**ESKF velocity divergence: root-cause fix for silent ICM-20948 zero-output fault**
-
-Fixed catastrophic ESKF divergence (`vel=1688 m/s`, `bNIS=23,000,000`) caused by ICM-20948 entering sleep/reset state mid-session. The device ACKs I2C reads in sleep mode and returns all-zero output registers — invisible to the existing consecutive-fail counter which only triggers on NACKs. With raw accel ≈ (0,0,0), the ESKF propagated a constant +9.8 m/s² specific force in NED-Z, accumulating 1688 m/s after ~3 min. ZUPT and ESKF init guards both failed because `|A|=0.285 m/s²` (calibration offset residual) is nowhere near 9.8 m/s².
-
-Three-part fix: (1) `core1_read_imu()` now validates raw accel magnitude against `kAccelMinHealthyMag = 3.0f` m/s² (gravity floor at 72° tilt: 9.8×cos(72°)) after every successful I2C read, routing zero-output reads to the consecutive-fail path so bus-recover and device-reinit fire. (2) `healthy()` in `eskf.cpp` now checks `v.norm() >= kMaxHealthyVelocity (500 m/s)` as a velocity-divergence sentinel — above max hobby rocket burnout, below any slow divergence trajectory. (3) `eskf_tick()` reset-on-unhealthy path already correct (verified, no change). 187/187 host tests pass.
-
-*Root cause established by backward math: stored cal `off=[0.0235, 0.1632, -0.2364]` implies raw_x≈0, raw_y≈0, raw_z≈0 for all three axes — physically impossible from any real sensor orientation. The calibration was correct; the sensor was in sleep state.*
-
-(`src/main.cpp`, `src/fusion/eskf.h`, `src/fusion/eskf.cpp`)
-
----
-
 ### 2026-02-18-003 | Claude Code CLI | bugfix, feature
 
 **IVP-46 Step 9 fix: interrupt-driven UART GPS + ESKF init NeoPixel**
