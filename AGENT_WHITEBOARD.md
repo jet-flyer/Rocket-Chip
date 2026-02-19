@@ -14,31 +14,6 @@
 
 ## Open Flags
 
-### Session Handoff (2026-02-18) — Stage 4 Redo Required
-
-**Current state:** Repo is at `17c4111` (last stable). All Stage 4 work from this session discarded.
-
-**What happened this session:**
-- Attempted Stage 4 GPS reboot per plan `purrfect-pondering-hopcroft.md`
-- Committed Commits A/B/C (transport-neutral types, GPS wiring, ESKF wiring) — all built clean, 172/172 tests pass
-- HW test revealed ESKF bNIS explosion (~125K→589K) after ~12 baro updates with board stationary — filter completely diverges, IMU errors climb (2K→5K)
-- Root cause of bNIS explosion NOT diagnosed — may be pre-existing (from `ddeccdb` or `261ab98`) rather than Stage 4 code
-- Session went off the rails: wrong binary verification (timestamp instead of build tag), force-pushed without HW validation
-
-**Before attempting Stage 4 again, next session MUST:**
-1. **Diagnose the bNIS explosion first.** Flash `17c4111` via probe, run `e` for 60s stationary with build tag `ivp46-diag-1`. If bNIS blows up at that commit, the bug predates Stage 4 and must be fixed first. If stable, bisect the Stage 4 commits.
-2. **Use build tag `ivp46-N` for all Stage 4 iterations** — increment N on every flash, verify in serial before any test.
-3. **Do not push to remote until HW validation passes.**
-4. **Do not force-push without explicit user direction.**
-
-**Stage 4 plan is still valid** — `~/.claude/plans/purrfect-pondering-hopcroft.md`. The approach, math, and host tests are correct. Execution was the problem.
-
-**Key decisions confirmed this session:**
-- UART GPS is the production path (GPIO0/1, Adafruit #3133 FeatherWing)
-- Transport-agnostic function pointer dispatch pattern is correct
-- Hold-on-valid pattern for `core1_read_gps()` is correct
-- 172/172 ESKF GPS host tests pass — the math is correct
-
 ---
 
 ### UART GPS Running at 1Hz (Default) — Upgrade to 10Hz Pending
@@ -131,6 +106,10 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 ---
 
 ## Resolved
+
+### Stage 4 GPS (IVP-46) — COMPLETE (2026-02-18)
+
+9-step incremental plan fully executed and outdoor-validated. bNIS explosion from previous session was caused by missing P covariance reset in `set_origin()` (fixed in Step 3). UART FIFO overflow fixed with interrupt-driven ring buffer (Step 9). ESKF init NeoPixel (fast red blink) prevents user-error divergence from resetting while moving. 60s soak: bNIS 0.00–2.13, zero UNHEALTHY, G=Y. 173/173 host tests pass.
 
 ### ICM-20948 I2C Bypass Mode Migration — COMPLETE (2026-02-10)
 
