@@ -16,9 +16,13 @@
 
 ---
 
-### IVP-45 Mahony AHRS — Plan Ready, Implementation Pending
+### IVP-45 Mahony AHRS — Implementation In Progress
 
-**Added 2026-02-18.** Council-reviewed and approved plan at `~/.claude/plans/iterative-launching-grove.md`. All parameters researched (ArduPilot/PX4/BetaFlight/INAV), council approved with 4 modifications (mag gate ±15%, cal-valid guard, gravity-vector init, startup terminates on ARM). Plan covers: 2 new files (`src/fusion/mahony_ahrs.h/.cpp`), 14 host tests (`test/test_mahony.cpp`), surgical `main.cpp` integration, CMakeLists updates. Next session: approve plan and implement. CHANGELOG entry for IVP renumber (`d0dcb39`) should be added with the IVP-45 commit.
+**Added 2026-02-18. Updated 2026-02-19.** `src/fusion/mahony_ahrs.h/.cpp` written, 14 host tests pass (187/187 total). CMakeLists updated. Next: `main.cpp` integration (globals, eskf_tick, CLI output).
+
+**Standards audit pending** — `mahony_ahrs.h/.cpp` and `test_mahony.cpp` have not yet been run through the formal standards audit (CODING_STANDARDS.md / clang-tidy). Do before or shortly after IVP-45 commit.
+
+CHANGELOG entry for IVP renumber (`d0dcb39`) should be added with the IVP-45 commit.
 
 ---
 

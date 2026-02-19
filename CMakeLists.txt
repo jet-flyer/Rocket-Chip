@@ -53,6 +53,7 @@ if(BUILD_TESTS)
         src/fusion/baro_kf.cpp
         src/fusion/eskf.cpp
         src/fusion/wmm_declination.cpp
+        src/fusion/mahony_ahrs.cpp
     )
     target_link_libraries(rc_fusion PUBLIC rc_math)
 
@@ -187,6 +188,9 @@ else()
 
         # IVP-44: WMM declination lookup table
         src/fusion/wmm_declination.cpp
+
+        # IVP-45: Mahony AHRS cross-check
+        src/fusion/mahony_ahrs.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -206,6 +210,7 @@ else()
         src/math/quat.cpp
         src/fusion/eskf.cpp
         src/fusion/wmm_declination.cpp
+        src/fusion/mahony_ahrs.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 

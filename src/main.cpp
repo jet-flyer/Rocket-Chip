@@ -22,6 +22,7 @@
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
 #include "fusion/eskf.h"
+#include "fusion/mahony_ahrs.h"
 #include "fusion/wmm_declination.h"
 #include "cli/rc_os.h"
 #include "pico/multicore.h"
@@ -39,7 +40,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp46-9c";
+static const char* kBuildTag = "ivp45-1";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -166,6 +167,11 @@ static rc::ESKF g_eskf;
 static bool g_eskfInitialized = false;
 static uint32_t g_lastEskfImuCount = 0;
 static uint32_t g_lastEskfTimestampUs = 0;
+
+// IVP-45: Mahony AHRS cross-check (~33 bytes, no stack overflow risk)
+static rc::MahonyAHRS g_mahony;
+static bool g_mahonyInitialized = false;
+static uint32_t g_lastMahonyTimestampUs = 0;
 
 // Compact ESKF state for circular buffer (no P matrix — R-6 council requirement)
 // 68 bytes per sample. At 200Hz for 5s = 1000 samples = 68KB static in SRAM.
@@ -942,6 +948,16 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
                (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z,
                (double)g_eskf.last_baro_nis_,
                (double)g_eskf.last_mag_nis_);
+        // IVP-45: Mahony cross-check
+        if (g_mahonyInitialized && g_mahony.healthy()) {
+            rc::Vec3 meuler = g_mahony.q.to_euler();
+            float mdiv_deg = rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg;
+            printf("Mahony: R=%6.2f P=%6.2f Y=%6.2f deg  Mdiv=%.1f deg\n",
+                   (double)(meuler.x * kRadToDeg),
+                   (double)(meuler.y * kRadToDeg),
+                   (double)(meuler.z * kRadToDeg),
+                   (double)mdiv_deg);
+        }
         if (g_eskfBenchCount > 0) {
             uint32_t avg = g_eskfBenchSum / g_eskfBenchCount;
             printf("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
@@ -1034,7 +1050,10 @@ static void print_eskf_live() {
     rc::Vec3 euler = g_eskf.q.to_euler();
     float yaw_deg = euler.z * kRadToDeg;
 
-    printf("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f Z=%c G=%c gNIS=%.2f B=%lu\n",
+    float mdiv_deg = (g_mahonyInitialized && g_mahony.healthy())
+                     ? rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg
+                     : -1.0f;
+    printf("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f Z=%c G=%c gNIS=%.2f Mdiv=%.1f B=%lu\n",
            (double)alt, (double)vz, (double)vh, (double)yaw_deg,
            (double)patt, (double)ppos,
            (double)g_eskf.last_baro_nis_,
@@ -1042,6 +1061,7 @@ static void print_eskf_live() {
            g_eskf.last_zupt_active_ ? 'Y' : 'N',
            g_eskf.has_origin_ ? 'Y' : 'N',
            (double)g_eskf.last_gps_pos_nis_,
+           (double)mdiv_deg,
            (unsigned long)snap.baro_read_count);
 }
 
@@ -1701,6 +1721,37 @@ static void eskf_tick() {
                     float v_north = snap.gps_ground_speed_mps * cosf(course_rad);
                     float v_east  = snap.gps_ground_speed_mps * sinf(course_rad);
                     g_eskf.update_gps_velocity(v_north, v_east);
+                }
+            }
+        }
+    }
+
+    // IVP-45: Mahony AHRS cross-check — independent attitude estimator.
+    // Runs at same 200Hz tick as ESKF. Uses its own dt tracking so it
+    // remains independent of the ESKF timestamp variable.
+    {
+        rc::Vec3 accel = sensor_to_ned_accel(snap);
+        rc::Vec3 gyro  = sensor_to_ned_gyro(snap);
+
+        if (!g_mahonyInitialized) {
+            rc::Vec3 mag_body = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
+            if (g_mahony.init(accel, mag_body)) {
+                g_mahonyInitialized = true;
+                g_lastMahonyTimestampUs = snap.imu_timestamp_us;
+            }
+        } else {
+            uint32_t dtUs = snap.imu_timestamp_us - g_lastMahonyTimestampUs;
+            g_lastMahonyTimestampUs = snap.imu_timestamp_us;
+            if (dtUs >= kEskfMinDtUs && dtUs <= kEskfMaxDtUs) {
+                float dt = static_cast<float>(dtUs) * 1e-6f;
+                rc::Vec3 mag_body = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
+                const calibration_store_t* cal = calibration_manager_get();
+                float expected_mag = (cal->cal_flags & CAL_STATUS_MAG)
+                                     ? cal->mag.expected_radius : 0.0f;
+                bool mag_cal_valid = (cal->cal_flags & CAL_STATUS_MAG) != 0;
+                g_mahony.update(accel, gyro, mag_body, expected_mag, mag_cal_valid, dt);
+                if (!g_mahony.healthy()) {
+                    g_mahonyInitialized = false;
                 }
             }
         }

@@ -67,3 +67,8 @@ gtest_discover_tests(test_wmm_declination)
 add_executable(test_eskf_gps_update test_eskf_gps_update.cpp)
 target_link_libraries(test_eskf_gps_update PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_eskf_gps_update)
+
+# IVP-45: Mahony AHRS cross-check
+add_executable(test_mahony test_mahony.cpp)
+target_link_libraries(test_mahony PRIVATE rc_fusion GTest::gtest_main)
+gtest_discover_tests(test_mahony)
