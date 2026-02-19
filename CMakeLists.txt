@@ -164,6 +164,7 @@ else()
         # IVP-31: GPS (requires lwGPS library)
         ${LWGPS_DIR}/lwgps/lwgps.c
         src/drivers/gps_pa1010d.cpp
+        src/drivers/gps_uart.cpp
 
         # IVP-14: Calibration system
         src/calibration/calibration_data.cpp
@@ -196,6 +197,7 @@ else()
         src/drivers/icm20948.cpp
         src/drivers/baro_dps310.cpp
         src/drivers/gps_pa1010d.cpp
+        src/drivers/gps_uart.cpp
         src/calibration/calibration_data.cpp
         src/calibration/calibration_manager.cpp
         src/calibration/calibration_storage.cpp
@@ -238,6 +240,7 @@ else()
         hardware_pio         # For NeoPixel/WS2812 PIO driver
         hardware_clocks      # For clock_get_hz()
         hardware_i2c         # For I2C/QWIIC sensors
+        hardware_uart        # For UART GPS (IVP-46)
         # IVP-14: Calibration storage
         hardware_flash       # For flash_range_erase/program
         pico_flash           # For flash_safe_execute
