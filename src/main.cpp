@@ -39,7 +39,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp46-6";
+static const char* kBuildTag = "ivp46-7";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -96,8 +96,9 @@ static constexpr uint32_t kSeqlockMaxRetries = 4;
 // compound integration of all samples or higher rate propagation may be needed (R-5).
 static constexpr uint32_t kEskfImuDivider = 5;
 
-// Rad-to-deg for CLI display
+// Rad/deg conversion for CLI display and geodetic conversion
 static constexpr float kRadToDeg = 180.0F / 3.14159265F;
+static constexpr double kDeg2Rad = 3.14159265358979323846 / 180.0;
 
 // ESKF state buffer: 200Hz × 5s = 1000 samples × 68B = 68KB (SRAM)
 static constexpr uint32_t kEskfBufferSamples = 1000;
@@ -1024,12 +1025,14 @@ static void print_eskf_live() {
     rc::Vec3 euler = g_eskf.q.to_euler();
     float yaw_deg = euler.z * kRadToDeg;
 
-    printf("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f Z=%c B=%lu\n",
+    printf("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f Z=%c G=%c gNIS=%.2f B=%lu\n",
            (double)alt, (double)vz, (double)vh, (double)yaw_deg,
            (double)patt, (double)ppos,
            (double)g_eskf.last_baro_nis_,
            (double)g_eskf.last_mag_nis_,
            g_eskf.last_zupt_active_ ? 'Y' : 'N',
+           g_eskf.has_origin_ ? 'Y' : 'N',
+           (double)g_eskf.last_gps_pos_nis_,
            (unsigned long)snap.baro_read_count);
 }
 
@@ -1648,6 +1651,50 @@ static void eskf_tick() {
         rc::Vec3 accel = sensor_to_ned_accel(snap);
         rc::Vec3 gyro = sensor_to_ned_gyro(snap);
         g_eskf.update_zupt(accel, gyro);
+    }
+
+    // IVP-46: GPS position + velocity measurement update.
+    // Gated on 3D fix with new data. On first quality fix, sets NED origin
+    // and resets p/v to zero. Subsequent fixes convert geodetic to NED and
+    // inject position + velocity. Velocity gated on speed >= 0.5 m/s to
+    // suppress noisy updates at rest (known limitation until IVP-50 state machine).
+    if (snap.gps_valid && snap.gps_fix_type >= 3) {
+        static uint32_t s_lastGpsCount = 0;
+        if (snap.gps_read_count != s_lastGpsCount) {
+            s_lastGpsCount = snap.gps_read_count;
+
+            double lat_rad = static_cast<double>(snap.gps_lat_1e7) * 1e-7 * kDeg2Rad;
+            double lon_rad = static_cast<double>(snap.gps_lon_1e7) * 1e-7 * kDeg2Rad;
+            float alt_m = snap.gps_alt_msl_m;
+            float hdop = snap.gps_hdop;
+
+            // First 3D fix: set origin + reset p/v
+            if (!g_eskf.has_origin_) {
+                if (g_eskf.set_origin(lat_rad, lon_rad, alt_m, hdop)) {
+                    g_eskf.p = rc::Vec3();
+                    g_eskf.v = rc::Vec3();
+                }
+            } else {
+                // Re-center origin if position drifts > 10km (HAB flights)
+                float dist_xy = sqrtf(g_eskf.p.x * g_eskf.p.x +
+                                      g_eskf.p.y * g_eskf.p.y);
+                if (dist_xy > rc::ESKF::kOriginResetDistance) {
+                    g_eskf.reset_origin(lat_rad, lon_rad, alt_m);
+                }
+
+                // GPS position update (3 sequential scalar updates N/E/D)
+                rc::Vec3 gps_ned = g_eskf.geodetic_to_ned(lat_rad, lon_rad, alt_m);
+                g_eskf.update_gps_position(gps_ned, hdop);
+
+                // GPS velocity update — only when moving (>= 0.5 m/s)
+                if (snap.gps_ground_speed_mps >= rc::ESKF::kGpsMinSpeedForVel) {
+                    float course_rad = snap.gps_course_deg * static_cast<float>(kDeg2Rad);
+                    float v_north = snap.gps_ground_speed_mps * cosf(course_rad);
+                    float v_east  = snap.gps_ground_speed_mps * sinf(course_rad);
+                    g_eskf.update_gps_velocity(v_north, v_east);
+                }
+            }
+        }
     }
 }
 
