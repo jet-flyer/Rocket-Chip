@@ -18,6 +18,7 @@
 #include "drivers/icm20948.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_pa1010d.h"
+#include "drivers/gps_uart.h"
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
 #include "fusion/eskf.h"
@@ -38,7 +39,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp46-4";
+static const char* kBuildTag = "ivp46-5";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -136,7 +137,13 @@ static bool g_imuInitialized = false;
 static bool g_baroInitialized = false;
 static bool g_baroContinuous = false;
 static bool g_gpsInitialized = false;
-static bool g_gpsOnI2C = false;       // True when GPS detected at I2C address 0x10
+static gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;
+
+// Transport-neutral GPS function pointers — set once during init_sensors().
+// Avoids if/else on every Core 1 GPS poll cycle.
+static bool (*gps_fn_update)()                    = nullptr;
+static bool (*gps_fn_get_data)(gps_data_t*)       = nullptr;
+static bool (*gps_fn_has_fix)()                    = nullptr;
 
 // IVP-42d: ESKF 15-state error-state Kalman filter (Core 0 at 200Hz)
 // Static per LL Entry 1: ESKF struct is ~970 bytes (Mat15 P = 900 bytes).
@@ -478,36 +485,48 @@ static void core1_read_gps(shared_sensor_data_t* localData,
     }
 
     *lastGpsReadUs = gpsNowUs;
-    bool parsed = gps_pa1010d_update();
-    if (g_gpsOnI2C) {
+
+    // Transport-neutral poll via function pointers (set once in init_sensors)
+    bool parsed = gps_fn_update();
+    if (g_gpsTransport == GPS_TRANSPORT_I2C) {
         busy_wait_us(kGpsSdaSettleUs);  // SDA settling delay (LL Entry 24)
     }
 
-    gps_data_t gpsData;
-    gps_pa1010d_get_data(&gpsData);
+    gps_data_t d;
+    gps_fn_get_data(&d);
 
-    double lat = gpsData.latitude;
-    double lon = gpsData.longitude;
-    if (lat > kLatMaxDeg) { lat = kLatMaxDeg; }
-    if (lat < kLatMinDeg) { lat = kLatMinDeg; }
-    if (lon > kLonMaxDeg) { lon = kLonMaxDeg; }
-    if (lon < kLonMinDeg) { lon = kLonMinDeg; }
-
-    localData->gps_lat_1e7 = static_cast<int32_t>(lat * kGpsCoordScale);
-    localData->gps_lon_1e7 = static_cast<int32_t>(lon * kGpsCoordScale);
-    localData->gps_alt_msl_m = gpsData.altitudeM;
-    localData->gps_ground_speed_mps = gpsData.speedMps;
-    localData->gps_course_deg = gpsData.courseDeg;
-    localData->gps_timestamp_us = gpsNowUs;
+    // gps_read_count always increments — counts driver polls, not valid fixes.
     localData->gps_read_count++;
-    localData->gps_fix_type = static_cast<uint8_t>(gpsData.fix);
-    localData->gps_satellites = gpsData.satellites;
-    localData->gps_valid = gpsData.valid;
-    localData->gps_gga_fix = gpsData.ggaFix;
-    localData->gps_gsa_fix_mode = gpsData.gsaFixMode;
-    localData->gps_rmc_valid = gpsData.rmcValid;
-    localData->gps_hdop = gpsData.hdop;
-    localData->gps_vdop = gpsData.vdop;
+    localData->gps_timestamp_us = gpsNowUs;
+
+    // Hold-on-valid pattern (ArduPilot GPS backend `new_data` flag):
+    // Between 1Hz NMEA bursts at 10Hz polling, 9/10 cycles have d.valid==false.
+    // Only overwrite position/velocity fields when the driver reports valid data.
+    // localData retains last-valid values between bursts.
+    if (d.valid) {
+        double lat = d.latitude;
+        double lon = d.longitude;
+        if (lat > kLatMaxDeg) { lat = kLatMaxDeg; }
+        if (lat < kLatMinDeg) { lat = kLatMinDeg; }
+        if (lon > kLonMaxDeg) { lon = kLonMaxDeg; }
+        if (lon < kLonMinDeg) { lon = kLonMinDeg; }
+
+        localData->gps_lat_1e7 = static_cast<int32_t>(lat * kGpsCoordScale);
+        localData->gps_lon_1e7 = static_cast<int32_t>(lon * kGpsCoordScale);
+        localData->gps_alt_msl_m = d.altitudeM;
+        localData->gps_ground_speed_mps = d.speedMps;
+        localData->gps_course_deg = d.courseDeg;
+        localData->gps_valid = true;
+        localData->gps_hdop = d.hdop;
+        localData->gps_vdop = d.vdop;
+    }
+
+    // Always update diagnostic fields (satellites, fix type, raw sentence flags)
+    localData->gps_fix_type = static_cast<uint8_t>(d.fix);
+    localData->gps_satellites = d.satellites;
+    localData->gps_gga_fix = d.ggaFix;
+    localData->gps_gsa_fix_mode = d.gsaFixMode;
+    localData->gps_rmc_valid = d.rmcValid;
 
     if (!parsed) {
         localData->gps_error_count++;
@@ -559,9 +578,15 @@ static void core1_neopixel_update(shared_sensor_data_t* localData,
     if ((nowMs - sensorPhaseStartMs) >= kSensorPhaseTimeoutMs) {
         ws2812_set_mode(WS2812_MODE_SOLID, kColorMagenta);
     } else if (g_gpsInitialized) {
-        if (localData->gps_valid) {
+        if (localData->gps_fix_type >= 3) {
+            // 3D fix — solid green
             ws2812_set_mode(WS2812_MODE_SOLID, kColorGreen);
+        } else if (localData->gps_fix_type == 2) {
+            // 2D fix — blink green
+            ws2812_set_mode(WS2812_MODE_SOLID,
+                *neoState ? kColorGreen : kColorOff);
         } else if (localData->gps_read_count > 0) {
+            // Searching (NMEA flowing, no fix) — blink yellow
             ws2812_set_mode(WS2812_MODE_SOLID,
                 *neoState ? kColorYellow : kColorOff);
         } else {
@@ -887,10 +912,13 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
     } else {
         printf("ESKF: waiting for stationary init...\n");
     }
-    // GPS
+    // GPS — show transport label
+    const char* gpsLabel = (g_gpsTransport == GPS_TRANSPORT_UART) ? "UART" :
+                           (g_gpsTransport == GPS_TRANSPORT_I2C)  ? "I2C"  : "???";
     if (snap.gps_read_count > 0) {
         if (snap.gps_valid) {
-            printf("GPS: %.7f, %.7f, %.1f m MSL\n",
+            printf("GPS (%s): %.7f, %.7f, %.1f m MSL\n",
+                   gpsLabel,
                    snap.gps_lat_1e7 / 1e7,
                    snap.gps_lon_1e7 / 1e7,
                    (double)snap.gps_alt_msl_m);
@@ -899,8 +927,8 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
                    (double)snap.gps_ground_speed_mps,
                    (double)snap.gps_hdop, (double)snap.gps_vdop);
         } else {
-            printf("GPS: no fix (%u sats)\n",
-                   snap.gps_satellites);
+            printf("GPS (%s): no fix (%u sats)\n",
+                   gpsLabel, snap.gps_satellites);
             printf("     RMC=%c GGA=%u GSA=%u\n",
                    snap.gps_rmc_valid ? 'A' : 'V',
                    snap.gps_gga_fix,
@@ -912,7 +940,7 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
             }
         }
     } else if (g_gpsInitialized) {
-        printf("GPS: initialized, no reads yet\n");
+        printf("GPS (%s): initialized, no reads yet\n", gpsLabel);
     } else {
         printf("GPS: not detected\n");
     }
@@ -1136,9 +1164,13 @@ static void hw_validate_sensors() {
     }
 
     if (g_gpsInitialized) {
-        printf("[PASS] PA1010D GPS init at 0x10 (I2C mode, 500us settling delay active)\n");
+        if (g_gpsTransport == GPS_TRANSPORT_UART) {
+            printf("[PASS] GPS init (UART on GPIO0/1, 9600 baud)\n");
+        } else {
+            printf("[PASS] GPS init (I2C at 0x10, 500us settling delay)\n");
+        }
     } else {
-        printf("[----] GPS not detected on I2C (delay disabled)\n");
+        printf("[----] GPS not detected (UART or I2C)\n");
     }
 }
 
@@ -1204,15 +1236,28 @@ static void init_sensors() {
         }
     }
 
-    // GPS probe + init AFTER IMU bypass mode is stable.
-    // PA1010D streams NMEA autonomously after any I2C read (LL Entry 20).
-    bool gpsDetected = i2c_bus_probe(kGpsPa1010dAddr);
-    if (gpsDetected) {
-        uint8_t gpsDrain[255];
-        i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
-        g_gpsInitialized = gps_pa1010d_init();
-        if (g_gpsInitialized) {
-            g_gpsOnI2C = true;
+    // GPS detection — UART first (FeatherWing on GPIO0/1), I2C fallback.
+    // UART GPS has no I2C bus contention (LL Entry 24), preferred for production.
+    if (gps_uart_init()) {
+        g_gpsInitialized = true;
+        g_gpsTransport = GPS_TRANSPORT_UART;
+        gps_fn_update   = gps_uart_update;
+        gps_fn_get_data = gps_uart_get_data;
+        gps_fn_has_fix  = gps_uart_has_fix;
+    } else {
+        // I2C fallback — probe + init AFTER IMU bypass mode is stable.
+        // PA1010D streams NMEA autonomously after any I2C read (LL Entry 20).
+        bool gpsDetected = i2c_bus_probe(kGpsPa1010dAddr);
+        if (gpsDetected) {
+            uint8_t gpsDrain[255];
+            i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
+            if (gps_pa1010d_init()) {
+                g_gpsInitialized = true;
+                g_gpsTransport = GPS_TRANSPORT_I2C;
+                gps_fn_update   = gps_pa1010d_update;
+                gps_fn_get_data = gps_pa1010d_get_data;
+                gps_fn_has_fix  = gps_pa1010d_has_fix;
+            }
         }
     }
 }
