@@ -22,6 +22,15 @@ constexpr int32_t kStateSize    = 15;  // Total error state dimension
 // Block sizes (all 3-element subvectors)
 constexpr int32_t kBlockSize = 3;
 
+// Per-axis named indices (used in measurement update H-vector construction)
+constexpr int32_t kIdxPosN = kIdxPosition + 0;   // 3
+constexpr int32_t kIdxPosE = kIdxPosition + 1;   // 4
+constexpr int32_t kIdxPosD = kIdxPosition + 2;   // 5
+constexpr int32_t kIdxVelN = kIdxVelocity + 0;   // 6
+constexpr int32_t kIdxVelE = kIdxVelocity + 1;   // 7
+constexpr int32_t kIdxVelD = kIdxVelocity + 2;   // 8
+constexpr int32_t kIdxYaw  = kIdxAttitude + 2;   // 2
+
 } // namespace rc::eskf
 
 #endif // ROCKETCHIP_FUSION_ESKF_STATE_H

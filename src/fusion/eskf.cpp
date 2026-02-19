@@ -885,6 +885,359 @@ bool ESKF::update_zupt(const Vec3& accel_meas, const Vec3& gyro_meas) {
 }
 
 // ============================================================================
+// set_origin: Establish NED frame origin from first quality GPS fix
+// Council condition C-4: HDOP must be <= kGpsMaxHdopForOrigin.
+// Council fix: Reset position/velocity P to GPS-derived uncertainty.
+// Without this, stale cross-covariances from pre-origin drift corrupt
+// the Kalman gain for subsequent baro updates, causing bNIS explosion.
+// ArduPilot EKF3: ResetPosition() reinitializes P and zeros cross-terms.
+// ============================================================================
+bool ESKF::set_origin(double lat_rad, double lon_rad, float alt_m, float hdop) {
+    using namespace eskf;
+
+    if (has_origin_) {
+        return false;  // Origin already set
+    }
+    if (hdop > kGpsMaxHdopForOrigin) {
+        return false;  // Geometry too poor for origin
+    }
+
+    origin_lat_rad_ = lat_rad;
+    origin_lon_rad_ = lon_rad;
+    origin_alt_m_ = alt_m;
+    cos_origin_lat_ = cosf(static_cast<float>(lat_rad));
+    has_origin_ = true;
+
+    // Council fix: Reset position/velocity P to GPS-derived uncertainty.
+    // Without this, stale cross-covariances corrupt baro Kalman gain.
+    const float r_pos = kSigmaGpsPosBase * fmaxf(hdop, 1.0f);
+    const float p_pos = r_pos * r_pos;  // Position variance from GPS quality
+    const float p_vel = kRGpsVel;       // Velocity variance (fixed)
+
+    // Zero ALL cross-covariance terms involving position [3..5] and velocity [6..8]
+    for (int32_t i = 0; i < kStateSize; ++i) {
+        for (int32_t j = kIdxPosition; j < kIdxPosition + 6; ++j) {
+            P.data[i][j] = 0.0f;
+            P.data[j][i] = 0.0f;
+        }
+    }
+    // Set position diagonal
+    P.data[kIdxPosition + 0][kIdxPosition + 0] = p_pos;  // North
+    P.data[kIdxPosition + 1][kIdxPosition + 1] = p_pos;  // East
+    P.data[kIdxPosition + 2][kIdxPosition + 2] = p_pos * kSigmaGpsVertScale * kSigmaGpsVertScale;  // Down
+    // Set velocity diagonal
+    P.data[kIdxVelocity + 0][kIdxVelocity + 0] = p_vel;
+    P.data[kIdxVelocity + 1][kIdxVelocity + 1] = p_vel;
+    P.data[kIdxVelocity + 2][kIdxVelocity + 2] = p_vel;
+
+    return true;
+}
+
+// ============================================================================
+// reset_origin: Re-center NED frame, adjusting p for continuity
+// Computes absolute geodetic from old origin + p, stores new origin,
+// reprojects p into the new frame. Net effect: p becomes near-zero.
+// Council condition C-7: absolute position must be preserved.
+// ============================================================================
+void ESKF::reset_origin(double new_lat_rad, double new_lon_rad, float new_alt_m) {
+    if (!has_origin_) {
+        return;
+    }
+
+    // Save current absolute geodetic position (reverse flat-earth, in double)
+    double abs_lat = origin_lat_rad_
+        + static_cast<double>(p.x) / static_cast<double>(kEarthRadius);
+    double abs_lon = origin_lon_rad_
+        + static_cast<double>(p.y) / (static_cast<double>(kEarthRadius)
+                                       * static_cast<double>(cos_origin_lat_));
+    float abs_alt = origin_alt_m_ - p.z;  // NED down: alt = origin_alt - down
+
+    // Store new origin
+    origin_lat_rad_ = new_lat_rad;
+    origin_lon_rad_ = new_lon_rad;
+    origin_alt_m_ = new_alt_m;
+    cos_origin_lat_ = cosf(static_cast<float>(new_lat_rad));
+
+    // Reproject absolute position into new frame
+    p = geodetic_to_ned(abs_lat, abs_lon, abs_alt);
+}
+
+// ============================================================================
+// geodetic_to_ned: Convert WGS84 geodetic to local NED frame
+// Critical (council C-5): subtraction in double before float cast.
+// Flat-earth approximation — valid within ~100km of origin.
+// ArduPilot: Location::get_distance_NED(), same formula.
+// ============================================================================
+Vec3 ESKF::geodetic_to_ned(double lat_rad, double lon_rad, float alt_m) const {
+    if (!has_origin_) {
+        return Vec3(0.0f, 0.0f, 0.0f);
+    }
+
+    // Double-precision subtraction before float cast (council C-5)
+    float north = static_cast<float>(
+        (lat_rad - origin_lat_rad_) * static_cast<double>(kEarthRadius));
+    float east = static_cast<float>(
+        (lon_rad - origin_lon_rad_) * static_cast<double>(kEarthRadius)
+        * static_cast<double>(cos_origin_lat_));
+    float down = -(alt_m - origin_alt_m_);
+
+    return Vec3(north, east, down);
+}
+
+// ============================================================================
+// update_gps_position: 3 sequential scalar updates on position (N, E, D)
+//
+// R per axis:
+//   Horizontal (N, E): (kSigmaGpsPosBase * max(hdop, 1))²
+//   Vertical (D): R_horiz * kSigmaGpsVertScale² (or VDOP-based if vdop > 0)
+//
+// Same sequential scalar update pattern as update_zupt().
+// ArduPilot EKF3: FuseVelPosNED(), PX4: fuseHorizontalPosition()/fuseVerticalPosition().
+// ============================================================================
+bool ESKF::update_gps_position(const Vec3& gps_ned, float hdop, float vdop) {
+    using namespace eskf;
+
+    // Guard: reject non-finite input
+    if (!std::isfinite(gps_ned.x) || !std::isfinite(gps_ned.y) ||
+        !std::isfinite(gps_ned.z)) {
+        return false;
+    }
+    if (!has_origin_) {
+        return false;
+    }
+
+    // Compute R for each axis
+    const float hdop_clamped = (hdop > 1.0f) ? hdop : 1.0f;
+    const float sigma_h = kSigmaGpsPosBase * hdop_clamped;
+    const float R_horiz = sigma_h * sigma_h;
+
+    float R_vert;
+    if (vdop > 0.0f) {
+        const float vdop_clamped = (vdop > 1.0f) ? vdop : 1.0f;
+        const float sigma_v = kSigmaGpsPosBase * vdop_clamped;
+        R_vert = sigma_v * sigma_v;
+    } else {
+        R_vert = R_horiz * kSigmaGpsVertScale * kSigmaGpsVertScale;
+    }
+
+    const float R_values[3] = { R_horiz, R_horiz, R_vert };
+    const int32_t indices[3] = { kIdxPosN, kIdxPosE, kIdxPosD };
+    const float p_components[3] = { p.x, p.y, p.z };
+    const float gps_components[3] = { gps_ned.x, gps_ned.y, gps_ned.z };
+
+    float max_nis = 0.0f;
+
+    for (int32_t axis = 0; axis < 3; ++axis) {
+        const int32_t kHIdx = indices[axis];
+        const float R = R_values[axis];
+
+        // Innovation: y = z - h(x) = gps_pos[axis] - p[axis]
+        const float innovation = gps_components[axis] - p_components[axis];
+
+        // Innovation covariance: S = P[idx][idx] + R
+        const float S = P(kHIdx, kHIdx) + R;
+        if (S < 1e-12f) {
+            continue;
+        }
+
+        // NIS
+        const float nis = (innovation * innovation) / S;
+        if (nis > max_nis) {
+            max_nis = nis;
+        }
+
+        // Innovation gate
+        const float gate_threshold = kGpsPositionGate * sqrtf(S);
+        if (fabsf(innovation) > gate_threshold) {
+            continue;
+        }
+
+        // Kalman gain: K = P[:,idx] / S
+        static Mat<15, 1> K;
+        const float inv_S = 1.0f / S;
+        for (int32_t i = 0; i < kStateSize; ++i) {
+            K.data[i][0] = P.data[i][kHIdx] * inv_S;
+        }
+
+        // Error state correction: δx = K * innovation
+        static Mat<15, 1> dx;
+        for (int32_t i = 0; i < kStateSize; ++i) {
+            dx.data[i][0] = K.data[i][0] * innovation;
+        }
+
+        // Joseph form P update: P = (I-KH)P(I-KH)' + KRK'
+        static Mat15 IKH;
+        IKH.set_identity();
+        for (int32_t i = 0; i < kStateSize; ++i) {
+            IKH.data[i][kHIdx] -= K.data[i][0];
+        }
+
+        static Mat15 IKH_P;
+        for (int32_t r = 0; r < kStateSize; ++r) {
+            for (int32_t c = 0; c < kStateSize; ++c) {
+                float sum = 0.0f;
+                for (int32_t k = 0; k < kStateSize; ++k) {
+                    sum += IKH.data[r][k] * P.data[k][c];
+                }
+                IKH_P.data[r][c] = sum;
+            }
+        }
+
+        static Mat15 P_new;
+        for (int32_t r = 0; r < kStateSize; ++r) {
+            for (int32_t c = 0; c < kStateSize; ++c) {
+                float sum = 0.0f;
+                for (int32_t k = 0; k < kStateSize; ++k) {
+                    sum += IKH_P.data[r][k] * IKH.data[c][k];
+                }
+                sum += K.data[r][0] * R * K.data[c][0];
+                P_new.data[r][c] = sum;
+            }
+        }
+        P = P_new;
+
+        // Inject error state into nominal
+        p.x += dx.data[kIdxPosition + 0][0];
+        p.y += dx.data[kIdxPosition + 1][0];
+        p.z += dx.data[kIdxPosition + 2][0];
+        v.x += dx.data[kIdxVelocity + 0][0];
+        v.y += dx.data[kIdxVelocity + 1][0];
+        v.z += dx.data[kIdxVelocity + 2][0];
+        accel_bias.x += dx.data[kIdxAccelBias + 0][0];
+        accel_bias.y += dx.data[kIdxAccelBias + 1][0];
+        accel_bias.z += dx.data[kIdxAccelBias + 2][0];
+        gyro_bias.x += dx.data[kIdxGyroBias + 0][0];
+        gyro_bias.y += dx.data[kIdxGyroBias + 1][0];
+        gyro_bias.z += dx.data[kIdxGyroBias + 2][0];
+
+        const Vec3 delta_theta(dx.data[kIdxAttitude + 0][0],
+                               dx.data[kIdxAttitude + 1][0],
+                               dx.data[kIdxAttitude + 2][0]);
+        reset(delta_theta);
+        P.force_symmetric();
+    }
+
+    last_gps_pos_nis_ = max_nis;
+    clamp_covariance();
+    return true;
+}
+
+// ============================================================================
+// update_gps_velocity: 2 sequential scalar updates on velocity (N, E only)
+//
+// Vertical velocity from GPS is unreliable — baro + IMU handle vertical.
+// ArduPilot EKF3: FuseVelPosNED() with velocity axes.
+// Council C-2: only indices [6..7], not [6..8].
+// ============================================================================
+bool ESKF::update_gps_velocity(float v_north, float v_east) {
+    using namespace eskf;
+
+    // Guard: reject non-finite input
+    if (!std::isfinite(v_north) || !std::isfinite(v_east)) {
+        return false;
+    }
+
+    const int32_t indices[2] = { kIdxVelN, kIdxVelE };
+    const float gps_vel[2] = { v_north, v_east };
+    const float v_components[2] = { v.x, v.y };
+
+    float max_nis = 0.0f;
+
+    for (int32_t axis = 0; axis < 2; ++axis) {
+        const int32_t kHIdx = indices[axis];
+
+        // Innovation: y = z - h(x) = gps_vel[axis] - v[axis]
+        const float innovation = gps_vel[axis] - v_components[axis];
+
+        // Innovation covariance: S = P[idx][idx] + R
+        const float S = P(kHIdx, kHIdx) + kRGpsVel;
+        if (S < 1e-12f) {
+            continue;
+        }
+
+        // NIS
+        const float nis = (innovation * innovation) / S;
+        if (nis > max_nis) {
+            max_nis = nis;
+        }
+
+        // Innovation gate
+        const float gate_threshold = kGpsVelocityGate * sqrtf(S);
+        if (fabsf(innovation) > gate_threshold) {
+            continue;
+        }
+
+        // Kalman gain: K = P[:,idx] / S
+        static Mat<15, 1> K;
+        const float inv_S = 1.0f / S;
+        for (int32_t i = 0; i < kStateSize; ++i) {
+            K.data[i][0] = P.data[i][kHIdx] * inv_S;
+        }
+
+        // Error state correction: δx = K * innovation
+        static Mat<15, 1> dx;
+        for (int32_t i = 0; i < kStateSize; ++i) {
+            dx.data[i][0] = K.data[i][0] * innovation;
+        }
+
+        // Joseph form P update
+        static Mat15 IKH;
+        IKH.set_identity();
+        for (int32_t i = 0; i < kStateSize; ++i) {
+            IKH.data[i][kHIdx] -= K.data[i][0];
+        }
+
+        static Mat15 IKH_P;
+        for (int32_t r = 0; r < kStateSize; ++r) {
+            for (int32_t c = 0; c < kStateSize; ++c) {
+                float sum = 0.0f;
+                for (int32_t k = 0; k < kStateSize; ++k) {
+                    sum += IKH.data[r][k] * P.data[k][c];
+                }
+                IKH_P.data[r][c] = sum;
+            }
+        }
+
+        static Mat15 P_new;
+        for (int32_t r = 0; r < kStateSize; ++r) {
+            for (int32_t c = 0; c < kStateSize; ++c) {
+                float sum = 0.0f;
+                for (int32_t k = 0; k < kStateSize; ++k) {
+                    sum += IKH_P.data[r][k] * IKH.data[c][k];
+                }
+                sum += K.data[r][0] * kRGpsVel * K.data[c][0];
+                P_new.data[r][c] = sum;
+            }
+        }
+        P = P_new;
+
+        // Inject error state into nominal
+        p.x += dx.data[kIdxPosition + 0][0];
+        p.y += dx.data[kIdxPosition + 1][0];
+        p.z += dx.data[kIdxPosition + 2][0];
+        v.x += dx.data[kIdxVelocity + 0][0];
+        v.y += dx.data[kIdxVelocity + 1][0];
+        v.z += dx.data[kIdxVelocity + 2][0];
+        accel_bias.x += dx.data[kIdxAccelBias + 0][0];
+        accel_bias.y += dx.data[kIdxAccelBias + 1][0];
+        accel_bias.z += dx.data[kIdxAccelBias + 2][0];
+        gyro_bias.x += dx.data[kIdxGyroBias + 0][0];
+        gyro_bias.y += dx.data[kIdxGyroBias + 1][0];
+        gyro_bias.z += dx.data[kIdxGyroBias + 2][0];
+
+        const Vec3 delta_theta(dx.data[kIdxAttitude + 0][0],
+                               dx.data[kIdxAttitude + 1][0],
+                               dx.data[kIdxAttitude + 2][0]);
+        reset(delta_theta);
+        P.force_symmetric();
+    }
+
+    last_gps_vel_nis_ = max_nis;
+    clamp_covariance();
+    return true;
+}
+
+// ============================================================================
 // clamp_covariance: Diagonal clamping per council RF-2
 // Prevents P from growing unbounded during GPS-denied operation.
 // ============================================================================

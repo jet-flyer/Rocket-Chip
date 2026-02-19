@@ -164,8 +164,74 @@ struct ESKF {
     static constexpr float kZuptInnovationGate = 5.0f;                   // 5σ gate (generous)
 
     // =================================================================
+    // GPS position measurement — IVP-46
+    // MT3333 CEP50 = 3m (PA1010D datasheet). σ ≈ CEP50 / 0.833 ≈ 3.6m.
+    // Use 3.5m base, scaled by HDOP. Council condition C-1.
+    // ArduPilot EK3_GPS_POS_NOISE default 0.5m is for u-blox M8/M9 with SBAS.
+    // =================================================================
+
+    // Earth radius: ArduPilot RADIUS_OF_EARTH (AP_Math/definitions.h)
+    static constexpr float kEarthRadius = 6378100.0f;  // m
+
+    static constexpr float kSigmaGpsPosBase = 3.5f;           // m (horizontal, HDOP=1)
+    static constexpr float kSigmaGpsVertScale = 2.0f;         // vertical σ multiplier
+    static constexpr float kRGpsPosDefault = kSigmaGpsPosBase * kSigmaGpsPosBase;  // 12.25 m²
+
+    // GPS velocity noise — ArduPilot EK3_VELNE_M_NSE default = 0.5 m/s.
+    // Fixed R (no sAcc from NMEA). Scale with sAcc when UBX available (IVP-48).
+    static constexpr float kSigmaGpsVel = 0.5f;               // m/s
+    static constexpr float kRGpsVel = kSigmaGpsVel * kSigmaGpsVel;  // 0.25 m²/s²
+
+    // Innovation gates — 5σ, matching ArduPilot GPS gating
+    static constexpr float kGpsPositionGate = 5.0f;
+    static constexpr float kGpsVelocityGate = 5.0f;
+
+    // Min ground speed for velocity update — below this, GPS course unreliable
+    static constexpr float kGpsMinSpeedForVel = 0.5f;  // m/s
+
+    // Origin quality gate — reject first fix with poor geometry. Council C-4.
+    static constexpr float kGpsMaxHdopForOrigin = 4.0f;
+
+    // Moving origin threshold — re-center NED frame when |p.xy| exceeds this.
+    // Keeps flat-earth error < 1m. Relevant for HABs (50-100km downrange).
+    static constexpr float kOriginResetDistance = 10000.0f;  // m
+
+    // =================================================================
+    // NED frame origin — double precision for lat/lon (council C-5).
+    // Float32 gives ~1.19m resolution at equator, marginal for origin.
+    // =================================================================
+    double origin_lat_rad_{};
+    double origin_lon_rad_{};
+    float origin_alt_m_{};
+    float cos_origin_lat_{};   // precomputed cos(origin_lat) for NED conversion
+    bool has_origin_{};
+
+    // =================================================================
     // Methods
     // =================================================================
+
+    // Set NED origin from first quality GPS fix (HDOP <= kGpsMaxHdopForOrigin).
+    // Resets position/velocity P to GPS-derived uncertainty (council fix).
+    // Returns false if origin already set or HDOP too high.
+    bool set_origin(double lat_rad, double lon_rad, float alt_m, float hdop);
+
+    // Reset NED origin to new position, adjusting p for continuity.
+    // Used for moving-origin when |p.xy| > kOriginResetDistance.
+    void reset_origin(double new_lat_rad, double new_lon_rad, float new_alt_m);
+
+    // Convert WGS84 geodetic to NED. Double lat/lon for precision (council C-5).
+    // Subtraction (lat - origin_lat) in double before float cast.
+    Vec3 geodetic_to_ned(double lat_rad, double lon_rad, float alt_m) const;
+
+    // GPS position update: 3 sequential scalar updates (N, E, D).
+    // R_horiz = (kSigmaGpsPosBase * max(hdop, 1))².
+    // R_vert = R_horiz * kSigmaGpsVertScale² (or VDOP-based if vdop > 0).
+    bool update_gps_position(const Vec3& gps_ned, float hdop = 0.0f,
+                              float vdop = 0.0f);
+
+    // GPS velocity update: 2 sequential scalar updates (N, E only).
+    // Vertical velocity from GPS unreliable — baro + IMU handle vertical.
+    bool update_gps_velocity(float v_north, float v_east);
 
     // Initialize from stationary accelerometer reading.
     // Derives initial attitude from gravity vector direction.
@@ -230,6 +296,8 @@ struct ESKF {
     float last_baro_nis_{};        // IVP-43: Normalized Innovation Squared
     float last_mag_nis_{};         // IVP-44: Normalized Innovation Squared
     float last_zupt_nis_{};        // IVP-44b: max ZUPT NIS across 3 axes
+    float last_gps_pos_nis_{};     // IVP-46: max NIS across 3 position axes
+    float last_gps_vel_nis_{};     // IVP-46: max NIS across 2 velocity axes
     bool last_zupt_active_{};      // IVP-44b: true when stationarity detected
     bool initialized_{};
 
