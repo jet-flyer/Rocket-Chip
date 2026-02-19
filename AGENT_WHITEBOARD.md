@@ -41,6 +41,18 @@
 
 ---
 
+### UART GPS Running at 1Hz (Default) — Upgrade to 10Hz Pending
+
+**Added 2026-02-18.** The UART GPS (PA1616D/MT3339) is currently running at its factory-default 1Hz NMEA update rate. The driver has `gps_uart_set_rate(10)` ready to go, but it hasn't been called yet. 1Hz is sufficient for initial ESKF integration and outdoor validation. Once Step 9 outdoor test passes with the interrupt-driven ring buffer, add `gps_uart_set_rate(10)` in `init_sensors()` after `gps_uart_init()` succeeds. No code changes needed in the driver — just the one call in main.cpp.
+
+---
+
+### mNIS Stuck at 124.99 — Mag Update Rejected When Board Not Level
+
+**Added 2026-02-18.** During soak testing, `mNIS=124.99` (constant) indicates the magnetometer innovation gate is rejecting every update. Likely cause: the heading measurement model assumes approximately level orientation, but the board was tilted (`R=168° P=-2°`). The mag calibration was done in a different orientation. Not a regression — this existed before the GPS changes. Investigate when tuning ESKF health gates (IVP-48).
+
+---
+
 ### PRIORITY: Foundational Features Before ESKF
 
 **Do NOT move to Stage 5 ESKF (IVP-39+) until these are complete:**

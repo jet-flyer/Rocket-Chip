@@ -1,6 +1,6 @@
 /**
  * @file gps_uart.cpp
- * @brief UART GPS driver using lwGPS library
+ * @brief UART GPS driver using lwGPS library — interrupt-driven receive
  *
  * Reads NMEA sentences from a UART GPS module (e.g., Adafruit Ultimate GPS
  * FeatherWing #3133 / PA1616D) and parses with lwGPS.
@@ -13,16 +13,25 @@
  * Key differences from I2C backend:
  *   - No padding filter (UART gives clean bytes, no 0x0A padding)
  *   - No settling delay (point-to-point, no bus contention)
- *   - Non-blocking FIFO drain instead of bulk I2C read
+ *   - Interrupt-driven RX with 512-byte ring buffer (no FIFO overflow)
  *   - 2-second presence detection timeout at init
  *
+ * Receive path:
+ *   GPS module (9600 baud) -> UART0 hardware FIFO (32 bytes)
+ *   -> ISR on Core 0 (drains FIFO -> ring buffer)
+ *   -> gps_uart_drain() on Core 1 (drains ring buffer -> lwGPS)
+ *   -> gps_uart_update() at 10Hz (drain + extract gps_data_t)
+ *
  * Ref: Adafruit Ultimate GPS FeatherWing product page, MT3339 datasheet.
+ *      ArduPilot AP_HAL::UARTDriver (DMA + ring buffer pattern).
+ *      Pico SDK stdio_uart.c (IRQ handler pattern).
  */
 
 #include "gps_uart.h"
 #include "lwgps/lwgps.h"
 #include "hardware/uart.h"
 #include "hardware/gpio.h"
+#include "hardware/irq.h"
 #include "pico/time.h"
 #include <string.h>
 #include <stdio.h>
@@ -54,10 +63,43 @@ constexpr size_t   kNmeaChecksumLen = 5;       // "*XX\r\n"
 // MT3339 outputs NMEA at 1Hz default — 2 seconds guarantees at least one sentence.
 constexpr uint32_t kInitTimeoutUs   = 2000000; // 2 seconds
 
-// Update: max bytes to drain per call.
-// At 9600 baud / 10Hz poll = ~96 bytes/interval. 512 gives 5x margin.
-// Bounded to prevent monopolizing Core 1 if FIFO backed up.
-constexpr size_t   kMaxDrainBytes   = 512;
+// ============================================================================
+// Interrupt-Driven Ring Buffer
+// ============================================================================
+//
+// SPSC (single-producer single-consumer) lock-free ring buffer.
+//
+// Producer: gps_uart_rx_isr() on Core 0 (UART0 IRQ)
+//   - Writes g_rxBuf[head], then advances g_rxHead
+//   - Reads g_rxTail to check if buffer is full
+//
+// Consumer: gps_uart_drain() on Core 1 (polled at 10Hz+)
+//   - Snapshots g_rxHead, reads g_rxBuf[tail..head], then advances g_rxTail
+//
+// Thread safety:
+//   - volatile uint32_t for head/tail — ARM Cortex-M33 naturally-aligned
+//     32-bit writes are atomic (ARMv8-M architecture guarantee)
+//   - ISR writes buffer entry BEFORE advancing head; consumer reads head
+//     BEFORE reading buffer entries
+//   - RP2350 SRAM is cache-coherent across cores (no L1 data caches on
+//     Cortex-M33) — volatile is sufficient, no __dmb() needed
+//   - lwGPS state (g_gps, g_data) only touched by Core 1 — no cross-core
+//     access on parser state
+//
+// Sizing: 512 bytes (power-of-2 for efficient masking).
+//   At 9600 baud (~960 B/s), 10Hz poll = ~96 bytes/interval.
+//   512 = 5.3x margin, holds 2+ full NMEA bursts.
+//
+// Ref: ArduPilot ByteBuffer, Pico SDK stdio_uart.c, Linux serial core.
+
+constexpr uint32_t kRxBufSize = 512;
+constexpr uint32_t kRxBufMask = kRxBufSize - 1;
+static_assert((kRxBufSize & kRxBufMask) == 0, "Ring buffer size must be power of 2");
+
+static uint8_t           g_rxBuf[kRxBufSize];
+static volatile uint32_t g_rxHead     = 0;  // Written by ISR, read by consumer
+static volatile uint32_t g_rxTail     = 0;  // Written by consumer, read by ISR
+static volatile uint32_t g_rxOverflow = 0;  // Overflow counter (diagnostic)
 
 // ============================================================================
 // Private State
@@ -66,6 +108,38 @@ constexpr size_t   kMaxDrainBytes   = 512;
 static bool g_initialized = false;
 static lwgps_t g_gps;
 static gps_data_t g_data;
+
+// ============================================================================
+// ISR
+// ============================================================================
+
+/**
+ * @brief UART0 RX interrupt handler — drains hardware FIFO into ring buffer
+ *
+ * Runs on Core 0 (where gps_uart_init() registered it). Fires on:
+ *   - UARTRXINTR: RX FIFO reaches threshold (>= 4 bytes, default IFLS)
+ *   - UARTRTINTR: >= 1 byte and no new bytes for 32 bit periods (~3.3ms at 9600)
+ *
+ * At 9600 baud, fires at most ~240 times/sec. Each invocation is <1us.
+ * Total Core 0 CPU impact: <0.1%.
+ */
+static void gps_uart_rx_isr() {
+    while (uart_is_readable(GPS_UART_INST)) {
+        uint8_t byte = static_cast<uint8_t>(uart_get_hw(GPS_UART_INST)->dr);
+
+        uint32_t head = g_rxHead;
+        uint32_t next = (head + 1) & kRxBufMask;
+
+        if (next == g_rxTail) {
+            // Buffer full — drop byte, count overflow
+            g_rxOverflow = g_rxOverflow + 1;
+            continue;
+        }
+
+        g_rxBuf[head] = byte;
+        g_rxHead = next;
+    }
+}
 
 // ============================================================================
 // Private Functions
@@ -146,6 +220,11 @@ bool gps_uart_init() {
     lwgps_init(&g_gps);
     memset(&g_data, 0, sizeof(g_data));
 
+    // Reset ring buffer state
+    g_rxHead = 0;
+    g_rxTail = 0;
+    g_rxOverflow = 0;
+
     // Configure UART0
     uart_init(GPS_UART_INST, kGpsUartBaud);
     gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
@@ -179,6 +258,15 @@ bool gps_uart_init() {
     // Configure NMEA output: RMC + GGA + GSA (same as I2C backend)
     gps_uart_send_command("PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
 
+    // Enable interrupt-driven receive.
+    // ISR registered on Core 0 (the core running this init).
+    // uart_set_irqs_enabled(rx=true, tx=false) enables both:
+    //   UARTRXINTR — fires when RX FIFO reaches threshold (>= 4 bytes)
+    //   UARTRTINTR — fires when >= 1 byte and no new bytes for 32 bit periods
+    irq_set_exclusive_handler(UART_IRQ_NUM(GPS_UART_INST), gps_uart_rx_isr);
+    irq_set_enabled(UART_IRQ_NUM(GPS_UART_INST), true);
+    uart_set_irqs_enabled(GPS_UART_INST, true, false);
+
     return true;
 }
 
@@ -186,28 +274,45 @@ bool gps_uart_ready() {
     return g_initialized;
 }
 
+void gps_uart_drain() {
+    if (!g_initialized) {
+        return;
+    }
+
+    // Snapshot head (written by ISR on Core 0) then read bytes up to that point.
+    // After reading, advance tail. This is the SPSC consumer path.
+    uint32_t head = g_rxHead;
+    uint32_t tail = g_rxTail;
+
+    if (head == tail) {
+        return;  // Ring buffer empty
+    }
+
+    // Calculate contiguous bytes available.
+    // Feed to lwGPS in up to two chunks (wrap-around).
+    if (head > tail) {
+        // Single contiguous region: [tail..head)
+        lwgps_process(&g_gps, &g_rxBuf[tail], head - tail);
+    } else {
+        // Wrapped: [tail..end) then [0..head)
+        lwgps_process(&g_gps, &g_rxBuf[tail], kRxBufSize - tail);
+        if (head > 0) {
+            lwgps_process(&g_gps, &g_rxBuf[0], head);
+        }
+    }
+
+    g_rxTail = head;
+}
+
 bool gps_uart_update() {
     if (!g_initialized) {
         return false;
     }
 
-    // Non-blocking drain: read available bytes from UART RX FIFO.
-    // Bounded at kMaxDrainBytes to prevent monopolizing Core 1.
-    uint8_t buf[kMaxDrainBytes];
-    size_t count = 0;
+    // Drain ring buffer into lwGPS parser
+    gps_uart_drain();
 
-    while (count < kMaxDrainBytes && uart_is_readable(GPS_UART_INST)) {
-        buf[count++] = static_cast<uint8_t>(uart_getc(GPS_UART_INST));
-    }
-
-    if (count == 0) {
-        return true;  // No data available — not an error
-    }
-
-    // Feed to lwGPS parser
-    lwgps_process(&g_gps, buf, count);
-
-    // Update data structure
+    // Update data structure from whatever lwGPS has accumulated
     update_data_from_lwgps();
 
     return true;
@@ -223,6 +328,10 @@ bool gps_uart_get_data(gps_data_t* data) {
 
 bool gps_uart_has_fix() {
     return g_data.valid && (g_data.fix >= GPS_FIX_2D);
+}
+
+uint32_t gps_uart_get_overflow_count() {
+    return g_rxOverflow;
 }
 
 bool gps_uart_send_command(const char* cmd) {

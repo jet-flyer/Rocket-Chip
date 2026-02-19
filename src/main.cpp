@@ -39,7 +39,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp46-8";
+static const char* kBuildTag = "ivp46-9c";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -616,6 +616,10 @@ static void core1_neopixel_update(shared_sensor_data_t* localData,
     // Normal status NeoPixel logic
     if ((nowMs - sensorPhaseStartMs) >= kSensorPhaseTimeoutMs) {
         ws2812_set_mode(WS2812_MODE_SOLID, kColorMagenta);
+    } else if (!g_eskfInitialized) {
+        // ESKF waiting for stationary init — fast red blink ("hold still").
+        // Clear visual cue that the board needs to be motionless.
+        ws2812_set_mode(WS2812_MODE_BLINK_FAST, kColorRed);
     } else if (g_gpsInitialized) {
         if (localData->gps_fix_type >= 3) {
             // 3D fix — solid green
@@ -968,10 +972,15 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
         } else {
             printf("GPS (%s): no fix (%u sats)\n",
                    gpsLabel, snap.gps_satellites);
-            printf("     RMC=%c GGA=%u GSA=%u\n",
+            printf("     RMC=%c GGA=%u GSA=%u",
                    snap.gps_rmc_valid ? 'A' : 'V',
                    snap.gps_gga_fix,
                    snap.gps_gsa_fix_mode);
+            if (g_gpsTransport == GPS_TRANSPORT_UART) {
+                printf("  rxOvf=%lu",
+                       (unsigned long)gps_uart_get_overflow_count());
+            }
+            printf("\n");
             if (g_bestGpsValid.load(std::memory_order_relaxed)) {
                 printf("     Best: %.7f, %.7f  Sats=%u HDOP=%.2f\n",
                        g_bestGpsFix.lat_1e7 / 1e7,
