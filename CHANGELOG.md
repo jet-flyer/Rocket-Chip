@@ -20,6 +20,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-18-003 | Claude Code CLI | bugfix, feature
+
+**IVP-46 Step 9 fix: interrupt-driven UART GPS + ESKF init NeoPixel**
+
+Fixed UART FIFO overflow that caused Step 9 outdoor validation failure — GPS GGA/RMC sentences lost due to 32-byte hardware FIFO filling between 10Hz polls. Added interrupt-driven 512-byte SPSC ring buffer (ISR on Core 0, consumer on Core 1). Also added fast red NeoPixel blink during ESKF stationary init as "hold still" cue.
+
+Outdoor verified: Fix=3 Sats=12 HDOP=0.90, GPS feeding ESKF (G=Y). 60s soak: bNIS 0.00–2.13, zero UNHEALTHY, rxOvf=0.
+
+(`src/drivers/gps_uart.cpp`, `src/drivers/gps_uart.h`, `src/main.cpp`, `AGENT_WHITEBOARD.md`)
+
+---
+
 ### 2026-02-18-002 | Claude Code CLI | feature, architecture
 
 **Stage 4 GPS: IVP-46 complete (8-step incremental plan)**

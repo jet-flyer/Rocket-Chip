@@ -28,7 +28,7 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 | Phase M.5: Wizard | — | 2026-02-10 | Unified 5-step calibration wizard with NeoPixel feedback. Core 1 cal feeds (no I2C contention). Raw mag data in seqlock for recalibration. All 5 steps HW verified including full mag cal (300 samples, 81% coverage, RMS 2.499 uT) |
 | I2C Bypass Mode | — | 2026-02-10 | ICM-20948 mag access migrated from I2C master to bypass mode (ArduPilot approach). Eliminates bank-switching race, master stall, disable/enable corruption. HW verified with GPS on bus: mag cal 300 samples, RMS 0.878 uT |
 | 5: ESKF (partial) | IVP-39–44b | 2026-02-13 | Vec3/Quat/Mat math libs, ESKF propagation, replay harness, baro/mag/ZUPT measurement updates, WMM declination table (wired into mag update). 155/155 host tests pass. HW verified: stationary |
-| 5: ESKF GPS | IVP-46 | 2026-02-18 | GPS position/velocity measurement updates. UART-first transport detection, P covariance reset fix, 18 GPS host tests. 5-min indoor soak: bNIS max=4.09, 0 UNHEALTHY. 173/173 host tests pass |
+| 5: ESKF GPS | IVP-46 | 2026-02-18 | GPS position/velocity measurement updates. UART-first transport detection, P covariance reset fix, interrupt-driven ring buffer, ESKF init NeoPixel. Outdoor validated: Fix=3 Sats=12 HDOP=0.90. 60s soak: bNIS 0.00–2.13. 173/173 host tests |
 
 ## In Progress
 
@@ -42,7 +42,7 @@ All Stage 4 IVPs (31/32/33) hardware-verified. GPS fix confirmed outdoors, CLI d
 - IVP-44: Mag heading update — DONE (261ab98). WMM declination wired in (uses GPS position when available).
 - IVP-44b: ZUPT (zero-velocity) — DONE (261ab98, merged with IVP-44)
 - IVP-45: ZUPT + stationarity — subsumed by IVP-44b
-- IVP-46: GPS position/velocity update — DONE (0c6b931). 8-step incremental plan, all HW verified. Outdoor validation (Step 9) pending.
+- IVP-46: GPS position/velocity update — DONE (6489266). 9-step incremental plan. Step 9 outdoor validated: Fix=3 Sats=12, GPS feeding ESKF. Interrupt-driven UART ring buffer fixed FIFO overflow.
 - IVP-47: Attitude initialization refinement — pending
 - IVP-48: ESKF health + diagnostics — pending
 
