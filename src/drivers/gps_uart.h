@@ -8,7 +8,11 @@
  *
  * Receive architecture: UART0 RX interrupt (Core 0) drains hardware FIFO
  * into a 512-byte ring buffer. Application code on Core 1 reads from the
- * ring buffer — zero bytes lost at 9600 baud.
+ * ring buffer — zero bytes lost at operating baud rate.
+ *
+ * Baud rate: init at 9600 (MT3339 factory default), negotiate to 57600
+ * during gps_uart_init() before enabling IRQ. Required for 10Hz operation
+ * (9600 baud saturates at ~4.8 NMEA bursts/sec; 57600 gives 2.8x headroom).
  *
  * Pin assignment: GPIO0 (TX), GPIO1 (RX) — Feather standard UART0.
  */
@@ -22,7 +26,7 @@
 // Configuration
 // ============================================================================
 
-constexpr uint32_t kGpsUartBaud     = 9600;    // MT3339 default (PA1616D)
+constexpr uint32_t kGpsUartBaud     = 9600;    // MT3339 factory default — init only, negotiated to 57600
 constexpr uint32_t kGpsUartTxPin   = 0;       // GPIO0 — Feather UART0 TX
 constexpr uint32_t kGpsUartRxPin   = 1;       // GPIO1 — Feather UART0 RX
 

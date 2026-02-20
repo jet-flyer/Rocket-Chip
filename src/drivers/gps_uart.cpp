@@ -55,6 +55,17 @@ constexpr uint16_t kGpsRate1Hz      = 1000;
 constexpr uint16_t kGpsRate5Hz      = 200;
 constexpr uint16_t kGpsRate10Hz     = 100;
 
+// PMTK251 baud rate negotiation
+// MT3339 switches baud immediately on receiving PMTK251 — ACK arrives at the
+// NEW baud rate, so it won't be readable at the old rate. Use a delay instead.
+// Source: GlobalTop PMTK_A11 spec; Adafruit_GPS uses 1000ms delay after PMTK251.
+// 57600 chosen: 5760 B/s / ~200 B per 10Hz burst = 28 Hz capacity (2.8× headroom).
+// At 115200 the MT3339 PA1616D is documented to work but some units are unreliable
+// above 57600 (Adafruit forum reports). 57600 is the safe high-speed choice.
+// Source: Adafruit Ultimate GPS product page, user forum thread #71672.
+constexpr uint32_t kGpsBaud57600          = 57600;
+constexpr uint32_t kGpsBaudNegotiateDelayMs = 250;  // ms — module stabilize time
+
 // NMEA command buffer
 constexpr size_t   kNmeaCmdBufSize  = 128;
 constexpr size_t   kNmeaChecksumLen = 5;       // "*XX\r\n"
@@ -87,8 +98,10 @@ constexpr uint32_t kInitTimeoutUs   = 2000000; // 2 seconds
 //     access on parser state
 //
 // Sizing: 512 bytes (power-of-2 for efficient masking).
-//   At 9600 baud (~960 B/s), 10Hz poll = ~96 bytes/interval.
-//   512 = 5.3x margin, holds 2+ full NMEA bursts.
+//   At 57600 baud (~5760 B/s), 10Hz poll = ~576 bytes/interval worst case.
+//   In practice each 10Hz burst is ~200 bytes (GGA+RMC+GSA sentences).
+//   512 bytes holds 2+ full bursts; ISR drains FIFO faster than burst rate.
+//   Overflow would only occur if Core 1 stalls for >88ms — not possible at 200Hz loop.
 //
 // Ref: ArduPilot ByteBuffer, Pico SDK stdio_uart.c, Linux serial core.
 
@@ -216,6 +229,34 @@ static void update_data_from_lwgps() {
 }
 
 // ============================================================================
+// Private Helpers
+// ============================================================================
+
+// Negotiate UART baud rate with MT3339.
+// Must be called AFTER presence detection (GPS is confirmed present and talking).
+// Sends PMTK251 at current baud, waits for module to switch, then reinits
+// host UART at new baud. IRQ must NOT be enabled yet (called before IRQ setup).
+//
+// MT3339 behavior: switches baud immediately on receiving PMTK251. ACK arrives
+// at the new rate — ignore it. Use delay as synchronization.
+// Source: GlobalTop PMTK_A11; Adafruit_GPS library pattern.
+static void negotiate_baud(uint32_t newBaud) {
+    // Send PMTK251 at current baud rate
+    char cmd[32];
+    snprintf(cmd, sizeof(cmd), "PMTK251,%lu", (unsigned long)newBaud);
+    gps_uart_send_command(cmd);
+
+    // Wait for module to switch — ACK arrives at new rate, don't try to read it
+    busy_wait_ms(kGpsBaudNegotiateDelayMs);
+
+    // Reinit host UART at new baud
+    uart_deinit(GPS_UART_INST);
+    uart_init(GPS_UART_INST, newBaud);
+    gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
+    gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
+}
+
+// ============================================================================
 // Public API
 // ============================================================================
 
@@ -257,10 +298,21 @@ bool gps_uart_init() {
         return false;
     }
 
+    // Negotiate 57600 baud before enabling IRQ.
+    // MT3339 cold-starts at 9600 — we detected presence at 9600, now upgrade.
+    // At 57600 baud: 5760 B/s / ~200 B per 10Hz burst = 28 Hz capacity (2.8x headroom).
+    // negotiate_baud() deinits/reinits the host UART — must run before IRQ registration.
+    negotiate_baud(kGpsBaud57600);
+
     g_initialized = true;
 
     // Configure NMEA output: RMC + GGA + GSA (same as I2C backend)
     gps_uart_send_command("PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+
+    // Set 10Hz update rate (PMTK220,100ms interval).
+    // Must be called AFTER baud negotiation — module must be at 57600 to
+    // sustain 10Hz output (9600 baud can only fit ~4.8 NMEA bursts/sec).
+    gps_uart_set_rate(10);
 
     // Enable interrupt-driven receive.
     // ISR registered on Core 0 (the core running this init).

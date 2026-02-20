@@ -18,9 +18,9 @@
 
 ---
 
-### UART GPS Running at 1Hz (Default) — Upgrade to 10Hz Pending
+~~### UART GPS Running at 1Hz (Default) — Upgrade to 10Hz Pending~~
 
-**Added 2026-02-18.** The UART GPS (PA1616D/MT3339) is currently running at its factory-default 1Hz NMEA update rate. The driver has `gps_uart_set_rate(10)` ready to go, but it hasn't been called yet. 1Hz is sufficient for initial ESKF integration and outdoor validation. Once Step 9 outdoor test passes with the interrupt-driven ring buffer, add `gps_uart_set_rate(10)` in `init_sensors()` after `gps_uart_init()` succeeds. No code changes needed in the driver — just the one call in main.cpp.
+**RESOLVED 2026-02-20.** GPS now negotiates 57600 baud and sets 10Hz in `gps_uart_init()`. HW verified: ~127 GPS reads/10s, rxOvf=0, IMUerr=0.
 
 ---
 
