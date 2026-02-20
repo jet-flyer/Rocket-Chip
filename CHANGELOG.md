@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-20-001 | Claude Code CLI | feature
+
+**GPS upgraded to 57600 baud + 10Hz update rate**
+
+`gps_uart_init()` now negotiates the MT3339 from factory-default 9600 baud to 57600 baud via PMTK251, then sets 10Hz update rate via PMTK220. Cold-start safe: always detects presence at 9600 then negotiates. 9600 baud saturates at ~4.8 NMEA bursts/sec and cannot sustain 10Hz; 57600 gives 2.8× headroom. ESKF GPS measurement updates (`update_gps_position()` / `update_gps_velocity()`) automatically benefit — they fire on each new `gps_read_count` increment with no further code changes needed.
+
+HW verified: ~127 GPS reads/10s, rxOvf=0, IMUerr=0. (`src/drivers/gps_uart.cpp`, `src/drivers/gps_uart.h`)
+
+---
+
 ### 2026-02-19-001 | Claude Code CLI | bugfix, architecture
 
 **ESKF velocity divergence: root-cause fix for silent ICM-20948 zero-output fault**

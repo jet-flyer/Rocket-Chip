@@ -16,6 +16,12 @@
 
 ---
 
+### Next Step: Full clang-tidy Audit (Pre-IVP-47)
+
+**Added 2026-02-20.** 18 files changed since the last full audit (2026-02-09): `eskf.cpp/h`, `mahony_ahrs.cpp/h`, `wmm_declination.cpp/h`, `gps_uart.cpp/h`, `gps.h`, `main.cpp`, and others. A partial run during the 2026-02-20 session showed findings in `eskf.h` (uppercase literal suffix, parameter naming). Full audit not yet remediated. Run clang-tidy across all changed files, remediate findings, commit, then proceed to IVP-47 (sparse FPFT).
+
+---
+
 ---
 
 ~~### UART GPS Running at 1Hz (Default) — Upgrade to 10Hz Pending~~
