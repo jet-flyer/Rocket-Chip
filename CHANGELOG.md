@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-20-002 | Claude Code CLI | documentation
+
+**Pre-audit documentation cleanup: 10 files updated for consistency**
+
+Cross-document review and reconciliation ahead of full clang-tidy audit. Major updates: SCAFFOLDING.md complete rewrite to match actual filesystem (was 18 days stale with fictional directories); SAD.md converted from living-document style to high-level architecture reference with current implementation status; VENDOR_GUIDELINES.md updated for ICM-20948 bypass mode (implemented 2026-02-10) and UART GPS transport (preferred since IVP-46); GPS UART driver added to CODING_STANDARDS.md file classification and STANDARDS_DEVIATIONS.md IO-2 deviation. Removed empty `src/debug/` and `src/tasks/` directories and 6 stale temp files.
+
+(`docs/SCAFFOLDING.md`, `docs/SAD.md`, `docs/PROJECT_STATUS.md`, `docs/IVP.md`, `standards/VENDOR_GUIDELINES.md`, `standards/CODING_STANDARDS.md`, `standards/AUDIT_REMEDIATION.md`, `standards/STANDARDS_AUDIT.md`, `standards/STANDARDS_DEVIATIONS.md`, `AGENT_WHITEBOARD.md`)
+
+---
+
 ### 2026-02-20-001 | Claude Code CLI | feature
 
 **GPS upgraded to 57600 baud + 10Hz update rate**

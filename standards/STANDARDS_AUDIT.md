@@ -126,6 +126,8 @@ Where JSF AV and JPL C conflict, JPL C takes precedence.
 ## Section G: Audit History
 
 | Date | Phase | Scope | Auditor | Commit | Notes |
+| 2026-02-07 | Manual | 249 rules (P10, JSF AV, JPL C, platform) | Claude | `5a8...` | 90% compliant, 25 accepted deviations. See `STANDARDS_AUDIT_2026-02-07.md` |
+| 2026-02-09 | Automated | clang-tidy 127 checks, 10 files | Claude | `2c3b5e6` | 1,251 findings, all remediated across 6 phases. See `docs/audits/CLANG_TIDY_AUDIT_2026-02-09.md` |
 |------|-------|-------|---------|--------|-------|
 
 ---

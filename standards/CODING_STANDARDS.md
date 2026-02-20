@@ -45,7 +45,8 @@ are locked out at runtime, not compiled out.
 | `src/drivers/icm20948.cpp` | Flight-Critical | IMU driver — zero printf in read path |
 | `src/drivers/baro_dps310.cpp` | Flight-Critical | Barometer driver |
 | `src/drivers/i2c_bus.cpp` | Flight-Critical (core) | Bus read/write/probe are flight-critical; `i2c_bus_scan()` is ground-only |
-| `src/drivers/gps_pa1010d.cpp` | Flight-Critical | 3 bounded `snprintf` for NMEA command formatting (documented MISRA deviation) |
+| `src/drivers/gps_pa1010d.cpp` | Flight-Critical | I2C GPS backend. 3 bounded `snprintf` for PMTK commands (documented MISRA deviation) |
+| `src/drivers/gps_uart.cpp` | Flight-Critical | UART GPS backend (preferred). 3 bounded `snprintf` for PMTK commands (same IO-2 deviation) |
 | `src/drivers/ws2812_status.cpp` | Flight-Support | Status LED — non-critical but active in flight |
 | `src/calibration/calibration_data.cpp` | Ground | Pre-flight calibration storage |
 | `src/calibration/calibration_manager.cpp` | Ground | Calibration algorithms — run pre-flight only |

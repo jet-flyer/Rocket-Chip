@@ -1,12 +1,12 @@
 # RocketChip Software Architecture Document (SAD) v2.0
 
-**Status:** Fresh Start - Bare-Metal Pico SDK
-**Last Updated:** 2026-02-02
+**Status:** Active — High-Level Architecture Reference
+**Last Updated:** 2026-02-20
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
 **Development Environment:** CMake + Pico SDK
 **Hardware Reference:** `docs/hardware/HARDWARE.md` (authoritative source)
 
-> **Note:** This document describes the target architecture. Implementation is starting fresh after archiving previous ArduPilot integration attempts. See `docs/PROJECT_STATUS.md` for current progress.
+> **Note:** This document describes the high-level software architecture. For implementation status, see `docs/PROJECT_STATUS.md`. For the step-by-step integration plan, see `docs/IVP.md`. For file-level structure, see `docs/SCAFFOLDING.md`.
 
 ---
 
@@ -89,7 +89,7 @@ This document defines the software architecture for RocketChip, a modular motion
 
 | Pack | Part | Adafruit P/N | Specs | Interface |
 |------|------|--------------|-------|-----------|
-| GPS | PA1010D Mini GPS | #4415 | 10Hz, -165dBm sensitivity | I2C (0x10) |
+| GPS | PA1010D Mini GPS | #4415 | 10Hz, -165dBm sensitivity | UART (preferred, 57600 baud) or I2C (0x10) |
 | Telemetry | RFM95W LoRa FeatherWing 915MHz | #3231 | 915MHz ISM, ~2km range | SPI |
 
 #### Titan Tier Upgrades (Future)
@@ -113,7 +113,7 @@ This document defines the software architecture for RocketChip, a modular motion
 
 ### 2.3 Software Layer Diagram
 
-> **Note:** Math/utility library selection (CMSIS-DSP vs custom vs partial ArduPilot reference) is pending final decision during implementation.
+> **Note:** Math utilities are custom implementations (`src/math/`): `mat.h` (header-only NxM matrix template), `vec3.cpp/.h`, `quat.cpp/.h`. CMSIS-DSP is not used — the custom template library was sufficient for ESKF 15x15 matrix operations.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -170,23 +170,11 @@ This document defines the software architecture for RocketChip, a modular motion
 ```
 
 ### 2.4 Fault Handling
-- Watchdog: RP2350 HW WDT enabled with 5s timeout via watchdog_enable(5000, 1) in production main.
-  Pseudocode (to be implemented in production):
-  ```
-  // In production main
-  #include <hardware/watchdog.h>
-  watchdog_enable(5000, 1);  // 5s timeout, pause on debug
-
-  // In each task loop
-  watchdog_update();  // Kick the dog
-
-  // On boot: Log reset cause
-  if (watchdog_caused_reboot()) {
-      log_error("WDT reset occurred");
-  }
-  ```
-- Watchdog and hard fault handlers.
-- Recovery: Pre-reset flash logging.
+- **Watchdog:** RP2350 HW WDT enabled with 5s timeout via `watchdog_enable(5000, 1)`. Implemented in `main.cpp` (IVP-30).
+- **Watchdog reboot detection:** Custom sentinel in scratch register 0 (`kWatchdogSentinel = 0x52435754`). SDK functions `watchdog_caused_reboot()` and `watchdog_enable_caused_reboot()` are both unreliable for this use case — see `.claude/LESSONS_LEARNED.md` and AGENT_WHITEBOARD.md (IVP-51) for details.
+- **Hard fault handler:** `memmanage_fault_handler()` with LED blink pattern and intentional halt.
+- **MPU stack guard:** Custom ARMv8-M MPU region on Core 0 stack bottom (IVP-29).
+- **Recovery policy:** IVP-51 (Stage 6) will define mid-flight recovery: scratch register persistence, reboot counting with safe-mode lockout, ESKF state backoff.
 
 ---
 
@@ -194,7 +182,7 @@ This document defines the software architecture for RocketChip, a modular motion
 
 ### 3.1 Directory Structure
 
-**Current status:** Fresh start post-branch reorganization. Repository is clean; structure below shows the planned production architecture. See `docs/SCAFFOLDING.md` for implementation status tracking.
+**Note:** The tree below shows the planned production architecture with modules not yet implemented. For the actual current filesystem, see `docs/SCAFFOLDING.md`.
 
 ```
 rocketchip/
@@ -603,7 +591,7 @@ The RP2350's dual Cortex-M33 cores enable clean separation via AMP (Asymmetric M
 
 ### 5.4 Sensor Fusion
 
-> **Architecture Decision:** See `docs/ESKF/FUSION_ARCHITECTURE_DECISION.md` for full rationale.
+> **Architecture Decision:** See `docs/decisions/ESKF/FUSION_ARCHITECTURE_DECISION.md` for full rationale.
 > **Note:** Specific numerical parameters (state counts, filter counts, latency budgets) are pending systematic review.
 
 RocketChip uses a custom **Error-State Kalman Filter (ESKF)** with **Multiple Model Adaptive Estimation (MMAE)** for anomaly resilience. This replaces the previously planned EKF3 extraction approach.
@@ -641,9 +629,10 @@ Independent AHRS (Mahony) runs alongside as cross-check → feeds Confidence Gat
 
 #### Implementation Foundation
 
-- **Matrix math:** CMSIS-DSP (ARM's optimized library for Cortex-M)
-- **Custom code:** ESKF class, MMAE bank manager, confidence gate, hypothesis interface
-- **NOT using:** ArduPilot EKF3, PX4 ECL, TinyEKF, Eigen, or any external filter framework
+- **Matrix math:** Custom `mat.h` header-only NxM template (not CMSIS-DSP)
+- **Implemented:** ESKF class (`eskf.cpp`), Mahony AHRS (`mahony_ahrs.cpp`), WMM declination (`wmm_declination.cpp`)
+- **Planned (Titan):** MMAE bank manager, confidence gate
+- **NOT using:** ArduPilot EKF3, PX4 ECL, TinyEKF, Eigen, CMSIS-DSP, or any external filter/math framework
 
 #### References
 - Solà, J. "Quaternion kinematics for the error-state Kalman filter" (2017)
@@ -773,14 +762,12 @@ cmake ..
 make -j$(nproc)
 ```
 
-**Current status:** Fresh start. Build system and targets will be defined as implementation proceeds.
+**Current targets:**
+- `rocketchip` - Main firmware (RP2350 target)
+- `rocketchip_tests` - Host-side Google Test suite (187+ tests)
+- `mat_benchmark` - Matrix math performance benchmark
 
-**Planned targets:**
-- `rocketchip` - Main application (production firmware)
-- `i2c_scan` - I2C device scanner utility
-- `smoke_*` - Hardware validation tests (per-sensor)
-
-**Feature flags** (to be implemented):
+**Feature flags:**
 ```cmake
 add_compile_definitions(
     ROCKETCHIP_TIER=2        # 1=Core, 2=Main, 3=Titan
@@ -959,100 +946,27 @@ RocketChip uses a multi-tier storage model:
 
 ## 10. Development Phases
 
-This section tracks the high-level implementation roadmap. For detailed step-by-step integration order with verification gates, see **`docs/IVP.md`** (Integration and Verification Plan). See `docs/SCAFFOLDING.md` for file-level status and `docs/PROJECT_STATUS.md` for current focus.
+This section describes the high-level implementation roadmap. For the detailed 71-step integration plan with verification gates, see **`docs/IVP.md`**. For current status, see **`docs/PROJECT_STATUS.md`**.
 
-> **Note:** Starting fresh after archiving previous ArduPilot integration attempts. All items reset to planned state.
+| Phase | SAD Sections | IVP Stages | Status |
+|-------|-------------|------------|--------|
+| 1: Foundation | Build (7), Execution (5) | 1 (IVP-01–08) | **Complete** |
+| 2: Sensors | Data Structures (4.1), Drivers (4.2), Storage (9) | 2 (IVP-09–18) | **Complete** |
+| 3: GPS | GPS Interface (4.2) | 4 (IVP-31–33) | **Complete** |
+| 4: Sensor Fusion | Fusion (5.4), FusedState (4.1) | 5 (IVP-39–50) | **In Progress** — Core ESKF + all measurements done. Optimization and Titan features pending |
+| 5: Flight Director | State Machine (6), Modules (3.2) | 6 (IVP-51–56) | Planned |
+| 6: Data Logging | Pre-Launch Buffer (8.2), Logging (8.3), Flash (9.3) | 7 (IVP-57–61) | Planned |
+| 7: Telemetry | Radio Interface (4.2), Data Flow (8.1) | 8 (IVP-62–66) | Planned |
+| 8: UI | All UI-related | — | Planned |
+| 9: Polish & Testing | All sections | 9 (IVP-67–71) | Planned |
+| Titan Features | Control Loop, Pyro, High-G | Titan-tier IVPs | Deferred |
 
-### Phase 1: Foundation 🔧 **CURRENT**
-Build system, bare-metal Pico SDK, and minimal validation.
-
-- [ ] CMake build system with Pico SDK
-- [ ] Minimal `main.cpp` with polling main loop
-- [ ] USB CDC serial output (debug)
-- [ ] LED status indicator (NeoPixel)
-- [ ] I2C bus initialization
-- [ ] I2C scanner smoke test
-- [ ] Documentation updated for fresh start
-
-### Phase 2: Sensors 📡 **PLANNED**
-Direct sensor interfaces using Pico SDK (no HAL abstraction).
-
-- [ ] ICM-20948 9-DoF IMU driver (I2C)
-- [ ] DPS310 barometer driver (I2C)
-- [ ] SensorTask (high-rate sampling)
-- [ ] Sensor data structures
-- [ ] Dual-sector persistent storage (Tier 1 - calibration/config) — *required for calibration persistence*
-- [ ] Basic calibration workflow (accel, mag level)
-- [ ] RC_OS CLI menu structure (see `docs/ROCKETCHIP_OS.md`)
-
-### Phase 3: GPS Navigation 📍 **PLANNED**
-GPS integration.
-
-- [ ] PA1010D GPS driver (NMEA parsing)
-- [ ] Position logging
-- [ ] GPS pack runtime detection
-
-### Phase 4: Sensor Fusion 🧭 **PLANNED**
-ESKF navigation and state estimation. See `docs/ESKF/FUSION_ARCHITECTURE_DECISION.md`.
-
-- [ ] Math utilities (Vector3, Quaternion, Matrix)
-- [ ] ESKF core (15-state error-state filter) — *state count pending review*
-- [ ] Independent AHRS cross-check (Mahony)
-- [ ] FusionTask (200-400Hz) — *frequency pending review*
-- [ ] FusedState data structure
-- [ ] MMAE bank manager (Titan tier) — *filter count pending review*
-- [ ] Confidence gate (Titan tier)
-
-### Phase 5: Flight Director 🚀 **PLANNED**
-Core flight logic and state machine.
-
-- [ ] StateMachine implementation
-- [ ] EventEngine
-- [ ] ActionExecutor (LED, beep, logging triggers)
-- [ ] MissionTask (100Hz event processing)
-- [ ] Basic rocket mission definition
-- [ ] State transition validation
-
-### Phase 6: Data Logging 💾 **PLANNED**
-Flight log storage and pre-launch buffering. (Tier 1 storage implemented in Phase 2)
-
-- [ ] LittleFS for flight logs (Tier 2A)
-- [ ] LoggerTask (50Hz buffered writes)
-- [ ] Pre-launch ring buffer (PSRAM)
-- [ ] USB data download interface
-- [ ] Log format configuration (MAVLink binary, CSV)
-
-### Phase 7: Telemetry 📶 **PLANNED**
-MAVLink telemetry and ground station integration.
-
-- [ ] RFM95W LoRa radio driver
-- [ ] MAVLink message encoder/decoder
-- [ ] TelemetryTask (10Hz downlink)
-- [ ] QGroundControl/Mission Planner compatibility
-
-### Phase 8: User Interface 🖥️ **PLANNED**
-Display, menus, and calibration.
-
-- [ ] UITask (display/LED/button update)
-- [ ] Menu system (mission select, calibration, settings)
-- [ ] LED status patterns
-- [ ] Button handling
-
-### Phase 9: Polish & Testing 📚 **PLANNED**
-Final integration and documentation.
-
-- [ ] Full system integration testing
-- [ ] Bench and flight test procedures
-- [ ] User manual
-
-### Future: Titan Tier Features 🔥 **DEFERRED**
-Advanced features for high-power rocketry.
-
-- [ ] ControlTask (500Hz PID for TVC)
-- [ ] Servo driver (PIO-based PWM)
-- [ ] Pyro driver with safety interlocks
-- [ ] High-G accelerometer (ADXL375)
-- [ ] Dual IMU cross-checking
+Additional completed milestones not in the original phase plan:
+- **Stage 3: Dual-Core** (IVP-19–30) — Core 1 sensor loop, seqlock, MPU stack guard, watchdog
+- **Phase M: Mag Cal** (IVP-34–38) — Magnetometer calibration wizard, LM ellipsoid fit
+- **I2C Bypass Mode** — ICM-20948 AK09916 direct reads (eliminates bank-switching race)
+- **Standards Audit** — Manual (249 rules) + automated (clang-tidy, 1,251 findings remediated)
+- **ESKF Divergence Fix** — Silent ICM-20948 zero-output detection + velocity sentinel
 
 ---
 
@@ -1292,10 +1206,10 @@ Quick reference for which SAD sections are critical for each development phase. 
 | Power management | Always-on for MVP (~30min on 400mAh). ULP deferred. |
 | Glider test mission | Not needed - glide phase = descent/recovery phase |
 | Product naming | Core, Main+Packs, Titan confirmed. Nova reserved. |
-| Sensor bus | I2C with Qwiic connector on Core for expandability |
+| Sensor bus | I2C (Qwiic) for Core expandability; UART preferred for GPS (see `docs/SENSOR_ARCHITECTURE.md`) |
 | Configuration storage | AP_FlashStorage + StorageManager (Tier 1). See Section 9.2. |
 | Calibration persistence | AP_FlashStorage CalibrationStore region (512B at offset 0). See Section 9.4. |
-| Sensor fusion algorithm | Custom ESKF + MMAE bank (not AP EKF3 extraction). Council reviewed 2026-02-02. See `docs/ESKF/`. |
+| Sensor fusion algorithm | Custom ESKF + MMAE bank (not AP EKF3 extraction). Council reviewed 2026-02-02. See `docs/decisions/ESKF/`. |
 
 ### Resolved
 

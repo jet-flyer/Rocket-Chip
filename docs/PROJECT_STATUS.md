@@ -35,17 +35,8 @@ IVP-39 through IVP-46 complete, plus IVP-45 (Mahony AHRS). All measurement updat
 
 ## In Progress
 
-**Stage 5: Sensor Fusion (ESKF)** — IVP-45 and IVP-46 complete. Next: IVP-47 (sparse FPFT), IVP-48 (health tuning).
+**Stage 5: Sensor Fusion (ESKF)** — IVP-39 through IVP-46 complete. Next: IVP-47 (sparse FPFT), IVP-48 (health tuning).
 
-- IVP-39: Vec3/Quat/Mat math — DONE
-- IVP-40: Matrix ops + state indices — DONE
-- IVP-41: 1D baro KF — DONE (standalone filter removed from firmware; ESKF baro update supersedes it. Host tests retained.)
-- IVP-42a-d: ESKF propagation + replay harness — DONE
-- IVP-43: Baro measurement update — DONE (b59b341)
-- IVP-44: Mag heading update — DONE (261ab98). WMM declination wired in (uses GPS position when available).
-- IVP-44b: ZUPT (zero-velocity) — DONE (261ab98, merged with IVP-44)
-- IVP-45: Mahony AHRS cross-check — DONE. Running at 200Hz in main.cpp. Mdiv in CLI output. 187/187 tests.
-- IVP-46: GPS position/velocity update — DONE (6489266). 9-step incremental plan. Step 9 outdoor validated: Fix=3 Sats=12, GPS feeding ESKF. Interrupt-driven UART ring buffer fixed FIFO overflow. GPS now 57600 baud / 10Hz.
 - IVP-47: Sparse FPFT optimization — pending (predict() ~496µs → <100µs target)
 - IVP-48: ESKF health tuning & diagnostics — pending
 - IVP-49: MMAE bank manager — pending (Titan tier)

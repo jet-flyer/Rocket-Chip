@@ -8,8 +8,6 @@
 3. **Work-in-progress tracking** - Track incomplete tasks spanning multiple sessions
 4. **Hardware decisions pending** - Flag items needing user input before code changes
 
-**Last reviewed by Nathan**: *[DATE]*
-
 ---
 
 ## Open Flags

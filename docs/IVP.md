@@ -1,7 +1,7 @@
 # RocketChip Integration and Verification Plan (IVP)
 
 **Status:** ACTIVE — Living document
-**Last Updated:** 2026-02-06
+**Last Updated:** 2026-02-20
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
 **Architecture:** Bare-metal Pico SDK, dual-core AMP (see `docs/decisions/SEQLOCK_DESIGN.md`)
 

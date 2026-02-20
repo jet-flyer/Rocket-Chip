@@ -57,4 +57,11 @@ All IVP test functions, constants, and state variables removed from `main.cpp` a
 
 ## GPS snprintf Mitigation (Fix C17 detail)
 
-3 bounded `snprintf` calls in `gps_pa1010d.cpp` for NMEA command formatting. Documented MISRA deviation. Migration path: custom formatters or u-blox UBX binary protocol.
+Bounded `snprintf` calls for NMEA/PMTK command formatting. Documented MISRA deviation (IO-2 in `STANDARDS_DEVIATIONS.md`). All calls use `sizeof()` bounds.
+
+| File | Count | Purpose |
+|------|-------|---------|
+| `gps_pa1010d.cpp` | 3 | PMTK314 sentence filter, PMTK220 rate set |
+| `gps_uart.cpp` | 3 | PMTK251 baud negotiation, PMTK314 filter, PMTK220 rate set |
+
+Migration path: custom formatters or u-blox UBX binary protocol.

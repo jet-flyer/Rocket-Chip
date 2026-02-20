@@ -60,7 +60,7 @@ JSF AV Rule 22 prohibits `<stdio.h>`. Our usage is mitigated by code classificat
 | ID | Location | Category | Severity | Rationale |
 |----|----------|----------|----------|-----------|
 | IO-1 | main.cpp, rc_os.cpp, i2c_bus.cpp | 212 printf + 6 getchar_timeout_us | Accepted | All Ground classification. Runtime lockout when state != IDLE (same binary principle). Zero stdio in flight-critical sensor drivers |
-| IO-2 | gps_pa1010d.cpp | 3 snprintf | Accepted | Flight-Critical — bounded by `sizeof()`, constant format strings, MISRA-C 2012 accepted safe subset. Migration path: custom formatters or u-blox UBX binary protocol. See AUDIT_REMEDIATION.md Fix C17 |
+| IO-2 | gps_pa1010d.cpp, gps_uart.cpp | 6 snprintf (3 per file) | Accepted | Flight-Critical — bounded by `sizeof()`, constant format strings, MISRA-C 2012 accepted safe subset. Migration path: custom formatters or u-blox UBX binary protocol. See AUDIT_REMEDIATION.md Fix C17 |
 
 ---
 
