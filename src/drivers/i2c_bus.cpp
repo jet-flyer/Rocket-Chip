@@ -91,8 +91,8 @@ void i2c_bus_scan() {
     printf("I2C bus scan:\n");
     printf("  Instance: I2C%d\n", I2C_BUS_INSTANCE == i2c0 ? 0 : 1);
     printf("  SDA=GPIO%d (state=%d), SCL=GPIO%d (state=%d)\n",
-           kI2cBusSdaPin, gpio_get(kI2cBusSdaPin),
-           kI2cBusSclPin, gpio_get(kI2cBusSclPin));
+           kI2cBusSdaPin, static_cast<int>(gpio_get(kI2cBusSdaPin)),
+           kI2cBusSclPin, static_cast<int>(gpio_get(kI2cBusSclPin)));
     printf("  Configured freq: %lu Hz\n", (unsigned long)kI2cBusFreqHz);
 
     int found = 0;
@@ -203,6 +203,52 @@ int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
 // Bus Recovery (IVP-13a)
 // ============================================================================
 
+// SCL-stuck check + 9-pulse clock recovery (NXP UM10204 3.1.16).
+// Assumes GPIO already in SIO mode with SDA=input, SCL=output-high.
+// Returns true if SDA was released.
+static bool clock_pulse_recovery() {
+    // Check SCL stuck low: if another device holds SCL, clock pulses
+    // can't propagate — recovery is impossible (Linux kernel pattern)
+    gpio_set_dir(kI2cBusSclPin, false);  // GPIO_IN
+    bool sclHigh = gpio_get(kI2cBusSclPin);
+    gpio_set_dir(kI2cBusSclPin, true);  // GPIO_OUT
+    gpio_put(kI2cBusSclPin, true);
+
+    if (!sclHigh) {
+        // SCL stuck low — a device is clock-stretching or bus is shorted.
+        // Can't recover via clocking. Caller should consider power cycle.
+        return false;
+    }
+
+    // Clock up to 9 pulses. Check SDA after each rising SCL edge —
+    // early exit if SDA released (Linux kernel pattern).
+    // Most stuck transactions clear in 1-3 pulses.
+    for (uint8_t i = 0; i < kBusRecoveryCycles; i++) {
+        gpio_put(kI2cBusSclPin, false);
+        sleep_us(kBusRecoveryPulseUs);
+        gpio_put(kI2cBusSclPin, true);
+        sleep_us(kBusRecoveryPulseUs);
+
+        if (gpio_get(kI2cBusSdaPin)) {
+            return true;
+        }
+    }
+
+    return gpio_get(kI2cBusSdaPin);
+}
+
+// Bit-bang a STOP condition: SDA low while SCL high, then SDA high.
+// Assumes GPIO already in SIO mode with SCL=output.
+static void generate_stop_condition() {
+    gpio_set_dir(kI2cBusSdaPin, true);  // GPIO_OUT
+    gpio_put(kI2cBusSdaPin, false);
+    sleep_us(kBusRecoveryPulseUs);
+    gpio_put(kI2cBusSclPin, true);  // Ensure SCL high
+    sleep_us(kBusRecoveryPulseUs);
+    gpio_put(kI2cBusSdaPin, true);  // SDA rising = STOP
+    sleep_us(kBusRecoveryPulseUs);
+}
+
 bool i2c_bus_recover() {
     // Disable I2C peripheral BEFORE switching GPIO functions.
     // Switching GPIO from I2C to SIO while the DW_apb_i2c is enabled
@@ -215,56 +261,17 @@ bool i2c_bus_recover() {
     gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
 
     // Configure SDA as input (to read its state)
-    gpio_set_dir(kI2cBusSdaPin, GPIO_IN);
+    gpio_set_dir(kI2cBusSdaPin, false);  // GPIO_IN
     gpio_pull_up(kI2cBusSdaPin);
 
     // Configure SCL as output, drive high
-    gpio_set_dir(kI2cBusSclPin, GPIO_OUT);
+    gpio_set_dir(kI2cBusSclPin, true);  // GPIO_OUT
     gpio_put(kI2cBusSclPin, true);
     sleep_us(kBusRecoveryPulseUs);
 
-    // Check SCL stuck low: if another device holds SCL, clock pulses
-    // can't propagate — recovery is impossible (Linux kernel pattern)
-    gpio_set_dir(kI2cBusSclPin, GPIO_IN);
-    bool sclHigh = gpio_get(kI2cBusSclPin);
-    gpio_set_dir(kI2cBusSclPin, GPIO_OUT);
-    gpio_put(kI2cBusSclPin, true);
+    bool sdaReleased = clock_pulse_recovery();
 
-    bool sdaReleased = false;
-
-    if (!sclHigh) {
-        // SCL stuck low — a device is clock-stretching or bus is shorted.
-        // Can't recover via clocking. Caller should consider power cycle.
-        sdaReleased = false;
-    } else {
-        // Clock up to 9 pulses (NXP UM10204 3.1.16). Check SDA after
-        // each rising SCL edge — early exit if SDA released (Linux kernel
-        // pattern). Most stuck transactions clear in 1-3 pulses.
-        for (uint8_t i = 0; i < kBusRecoveryCycles; i++) {
-            gpio_put(kI2cBusSclPin, false);
-            sleep_us(kBusRecoveryPulseUs);
-            gpio_put(kI2cBusSclPin, true);
-            sleep_us(kBusRecoveryPulseUs);
-
-            if (gpio_get(kI2cBusSdaPin)) {
-                sdaReleased = true;
-                break;
-            }
-        }
-
-        if (!sdaReleased) {
-            sdaReleased = gpio_get(kI2cBusSdaPin);
-        }
-    }
-
-    // Generate STOP condition: SDA low while SCL high, then SDA high
-    gpio_set_dir(kI2cBusSdaPin, GPIO_OUT);
-    gpio_put(kI2cBusSdaPin, false);
-    sleep_us(kBusRecoveryPulseUs);
-    gpio_put(kI2cBusSclPin, true);  // Ensure SCL high
-    sleep_us(kBusRecoveryPulseUs);
-    gpio_put(kI2cBusSdaPin, true);  // SDA rising = STOP
-    sleep_us(kBusRecoveryPulseUs);
+    generate_stop_condition();
 
     // Restore GPIO to I2C function
     gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_I2C);

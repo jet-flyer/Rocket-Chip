@@ -55,6 +55,10 @@ constexpr uint16_t kGpsRate1Hz      = 1000;
 constexpr uint16_t kGpsRate5Hz      = 200;
 constexpr uint16_t kGpsRate10Hz     = 100;
 
+// Supported GPS update rates (Hz)
+constexpr uint8_t  kGpsRateHz5      = 5;
+constexpr uint8_t  kGpsRateHz10     = 10;
+
 // PMTK251 baud rate negotiation
 // MT3339 switches baud immediately on receiving PMTK251 — ACK arrives at the
 // NEW baud rate, so it won't be readable at the old rate. Use a delay instead.
@@ -189,11 +193,10 @@ static void update_data_from_lwgps() {
     g_data.speedMps = static_cast<float>(lwgps_to_speed(g_gps.speed, LWGPS_SPEED_MPS));
     g_data.courseDeg = static_cast<float>(g_gps.course);
 
-    // Fix type: prefer GGA fix quality, fall back to GSA fixMode for 2D/3D
+    // Fix type: prefer GGA fix quality, fall back to GSA fixMode for 2D/3D.
+    // GSA fixMode==2 is 2D; anything else (3, or not yet updated) → 3D.
     if (g_gps.fix >= 1) {
-        if (g_gps.fix_mode >= kGsaFixMode3d) {
-            g_data.fix = GPS_FIX_3D;
-        } else if (g_gps.fix_mode == kGsaFixMode2d) {
+        if (g_gps.fix_mode == kGsaFixMode2d) {
             g_data.fix = GPS_FIX_2D;
         } else {
             g_data.fix = GPS_FIX_3D;
@@ -220,8 +223,8 @@ static void update_data_from_lwgps() {
     // on first acquisition, causing G=N even with a genuine 3D lock. GGA fix
     // quality is the authoritative positional validity indicator (ArduPilot pattern).
     g_data.valid = (g_gps.fix >= 1) && (g_data.fix >= GPS_FIX_2D);
-    g_data.timeValid = g_gps.time_valid;
-    g_data.dateValid = g_gps.date_valid;
+    g_data.timeValid = (g_gps.time_valid != 0U);
+    g_data.dateValid = (g_gps.date_valid != 0U);
 
     g_data.ggaFix = g_gps.fix;
     g_data.gsaFixMode = g_gps.fix_mode;
@@ -243,7 +246,7 @@ static void update_data_from_lwgps() {
 static void negotiate_baud(uint32_t newBaud) {
     // Send PMTK251 at current baud rate
     char cmd[32];
-    snprintf(cmd, sizeof(cmd), "PMTK251,%lu", (unsigned long)newBaud);
+    (void)snprintf(cmd, sizeof(cmd), "PMTK251,%lu", (unsigned long)newBaud);
     gps_uart_send_command(cmd);
 
     // Wait for module to switch — ACK arrives at new rate, don't try to read it
@@ -254,6 +257,24 @@ static void negotiate_baud(uint32_t newBaud) {
     uart_init(GPS_UART_INST, newBaud);
     gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
     gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
+}
+
+// Drain UART for up to 2 seconds looking for '$' (NMEA start).
+// MT3339 outputs NMEA at 1Hz by default, so 2 seconds guarantees at
+// least one full sentence cycle if a GPS is connected.
+// This only adds delay when NO UART GPS is connected.
+static bool detect_gps_presence() {
+    absolute_time_t deadline = make_timeout_time_us(kInitTimeoutUs);
+
+    while (!time_reached(deadline)) {
+        if (uart_is_readable(GPS_UART_INST)) {
+            char c = static_cast<char>(uart_getc(GPS_UART_INST));
+            if (c == kNmeaStart) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 // ============================================================================
@@ -275,24 +296,8 @@ bool gps_uart_init() {
     gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
     gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
 
-    // Presence detection: drain UART for up to 2 seconds looking for '$'.
-    // MT3339 outputs NMEA at 1Hz by default, so 2 seconds guarantees at
-    // least one full sentence cycle if a GPS is connected.
-    // This only adds delay when NO UART GPS is connected.
-    bool foundNmea = false;
-    absolute_time_t deadline = make_timeout_time_us(kInitTimeoutUs);
-
-    while (!time_reached(deadline)) {
-        if (uart_is_readable(GPS_UART_INST)) {
-            char c = static_cast<char>(uart_getc(GPS_UART_INST));
-            if (c == kNmeaStart) {
-                foundNmea = true;
-                break;
-            }
-        }
-    }
-
-    if (!foundNmea) {
+    // Presence detection
+    if (!detect_gps_presence()) {
         // No GPS detected — deinit UART so pins are free
         uart_deinit(GPS_UART_INST);
         return false;
@@ -312,7 +317,7 @@ bool gps_uart_init() {
     // Set 10Hz update rate (PMTK220,100ms interval).
     // Must be called AFTER baud negotiation — module must be at 57600 to
     // sustain 10Hz output (9600 baud can only fit ~4.8 NMEA bursts/sec).
-    gps_uart_set_rate(10);
+    gps_uart_set_rate(kGpsRateHz10);
 
     // Enable interrupt-driven receive.
     // ISR registered on Core 0 (the core running this init).
@@ -404,7 +409,7 @@ bool gps_uart_send_command(const char* cmd) {
 
     // Calculate and append checksum
     uint8_t cs = nmea_checksum(sentence);
-    snprintf(sentence + len, kNmeaChecksumLen, "%02X\r\n", cs);
+    (void)snprintf(sentence + len, kNmeaChecksumLen, "%02X\r\n", cs);
     len += 4;  // "XX\r\n"
 
     // Send via UART
@@ -418,12 +423,12 @@ bool gps_uart_set_rate(uint8_t rateHz) {
     uint16_t intervalMs = 0;
 
     switch (rateHz) {
-        case 1:  intervalMs = kGpsRate1Hz;  break;
-        case 5:  intervalMs = kGpsRate5Hz;  break;
-        case 10: intervalMs = kGpsRate10Hz; break;
+        case 1:             intervalMs = kGpsRate1Hz;  break;
+        case kGpsRateHz5:   intervalMs = kGpsRate5Hz;  break;
+        case kGpsRateHz10:  intervalMs = kGpsRate10Hz; break;
         default: return false;
     }
 
-    snprintf(cmd, sizeof(cmd), "PMTK220,%u", intervalMs);
+    (void)snprintf(cmd, sizeof(cmd), "PMTK220,%u", intervalMs);
     return gps_uart_send_command(cmd);
 }

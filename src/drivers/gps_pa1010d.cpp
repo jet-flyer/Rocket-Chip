@@ -29,6 +29,10 @@ constexpr uint16_t kGpsRate1Hz       = 1000;
 constexpr uint16_t kGpsRate5Hz       = 200;
 constexpr uint16_t kGpsRate10Hz      = 100;
 
+// Supported GPS update rates (Hz)
+constexpr uint8_t  kGpsRateHz5       = 5;
+constexpr uint8_t  kGpsRateHz10      = 10;
+
 // NMEA command buffer
 constexpr size_t   kNmeaCmdBufSize   = 128;
 constexpr size_t   kNmeaChecksumLen  = 5;       // "*XX\r\n" checksum + CRLF room
@@ -88,8 +92,8 @@ static uint8_t nmea_checksum(const char* sentence) {
  */
 static int read_nmea_data(uint8_t* buffer, size_t maxLen) {
     // Read raw I2C data into a local buffer, then filter in-place
-    static uint8_t raw[kGpsMaxRead];
-    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, raw, maxLen);
+    static uint8_t g_raw[kGpsMaxRead];
+    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_raw, maxLen);
     if (ret <= 0) {
         return -1;  // I2C failure (NACK or timeout)
     }
@@ -97,18 +101,18 @@ static int read_nmea_data(uint8_t* buffer, size_t maxLen) {
     // Filter: copy valid bytes, discard padding 0x0A and 0xFF
     int32_t out = 0;
     for (int32_t i = 0; i < ret; i++) {
-        if (raw[i] == kI2cBusErrorByte) {
+        if (g_raw[i] == kI2cBusErrorByte) {
             continue;  // Bus error byte — discard
         }
-        if (raw[i] == kNmeaLf) {
+        if (g_raw[i] == kNmeaLf) {
             // Keep LF only if it follows CR (legitimate \r\n terminator)
             if (out > 0 && buffer[out - 1] == kNmeaCr) {
-                buffer[out++] = raw[i];
+                buffer[out++] = g_raw[i];
             }
             // Otherwise discard — it's padding
             continue;
         }
-        buffer[out++] = raw[i];
+        buffer[out++] = g_raw[i];
     }
 
     g_lastReadLen = (size_t)out;
@@ -132,13 +136,11 @@ static void update_data_from_lwgps() {
     // GGA fix: 0=none, 1=GPS, 2=DGPS, 3=PPS, 4+=RTK
     // GSA fixMode: 1=none, 2=2D, 3=3D
     if (g_gps.fix >= 1) {
-        // GGA says we have a fix — use GSA for 2D/3D if available
-        if (g_gps.fix_mode >= kGsaFixMode3d) {
-            g_data.fix = GPS_FIX_3D;
-        } else if (g_gps.fix_mode == kGsaFixMode2d) {
+        // GGA says we have a fix — use GSA for 2D/3D if available.
+        // GSA fixMode==2 is 2D; anything else (3, or not yet updated) → 3D.
+        if (g_gps.fix_mode == kGsaFixMode2d) {
             g_data.fix = GPS_FIX_2D;
         } else {
-            // GGA has fix but GSA hasn't updated yet — assume 3D
             g_data.fix = GPS_FIX_3D;
         }
     } else {
@@ -160,8 +162,8 @@ static void update_data_from_lwgps() {
 
     // Valid when RMC reports active AND GGA shows fix
     g_data.valid = lwgps_is_valid(&g_gps) && (g_data.fix >= GPS_FIX_2D);
-    g_data.timeValid = g_gps.time_valid;
-    g_data.dateValid = g_gps.date_valid;
+    g_data.timeValid = (g_gps.time_valid != 0U);
+    g_data.dateValid = (g_gps.date_valid != 0U);
 
     // Diagnostic: raw lwGPS fields for sensor status debugging
     g_data.ggaFix = g_gps.fix;
@@ -272,7 +274,7 @@ bool gps_pa1010d_send_command(const char* cmd) {
 
     // Calculate and append checksum
     uint8_t cs = nmea_checksum(sentence);
-    snprintf(sentence + len, kNmeaChecksumLen, "%02X\r\n", cs);
+    (void)snprintf(sentence + len, kNmeaChecksumLen, "%02X\r\n", cs);
     len += 4;  // NOLINT(readability-magic-numbers) — literal 4 = "XX\r\n" appended bytes
 
     // Send via I2C
@@ -287,13 +289,13 @@ bool gps_pa1010d_set_rate(uint8_t rateHz) {
     uint16_t intervalMs = 0;
 
     switch (rateHz) {
-        case 1:  intervalMs = kGpsRate1Hz;  break;
-        case 5:  intervalMs = kGpsRate5Hz;  break;
-        case 10: intervalMs = kGpsRate10Hz; break;
+        case 1:             intervalMs = kGpsRate1Hz;  break;
+        case kGpsRateHz5:   intervalMs = kGpsRate5Hz;  break;
+        case kGpsRateHz10:  intervalMs = kGpsRate10Hz; break;
         default: return false;
     }
 
-    snprintf(cmd, sizeof(cmd), "PMTK220,%u", intervalMs);
+    (void)snprintf(cmd, sizeof(cmd), "PMTK220,%u", intervalMs);
     return gps_pa1010d_send_command(cmd);
 }
 

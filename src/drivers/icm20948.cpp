@@ -455,6 +455,81 @@ bool icm20948_set_low_power(icm20948_t* dev, bool enable) {
     return write_bank_reg(dev, 0, bank0::kPwrMgmt1, pwr);
 }
 
+// Parse accel, gyro, and temperature from 14-byte burst read buffer.
+// Byte layout per ICM-20948 datasheet register map:
+//   [0..5]   accel XH/XL/YH/YL/ZH/ZL
+//   [6..11]  gyro  XH/XL/YH/YL/ZH/ZL
+//   [12..13] temp  H/L
+// NOLINTBEGIN(readability-magic-numbers) — buffer byte offsets per datasheet register map
+static void parse_accel_gyro_temp(const uint8_t* buf, icm20948_t* dev, icm20948_data_t* data) {
+    int16_t ax = static_cast<int16_t>((buf[0] << 8) | buf[1]);
+    int16_t ay = static_cast<int16_t>((buf[2] << 8) | buf[3]);
+    int16_t az = static_cast<int16_t>((buf[4] << 8) | buf[5]);
+
+    // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
+    data->accel.x = static_cast<float>(ax) * dev->accel_scale;
+    data->accel.y = static_cast<float>(ay) * dev->accel_scale;
+    data->accel.z = static_cast<float>(az) * dev->accel_scale;
+    data->accel_valid = true;
+
+    int16_t gx = static_cast<int16_t>((buf[6] << 8) | buf[7]);
+    int16_t gy = static_cast<int16_t>((buf[8] << 8) | buf[9]);
+    int16_t gz = static_cast<int16_t>((buf[10] << 8) | buf[11]);
+
+    data->gyro.x = static_cast<float>(gx) * dev->gyro_scale;
+    data->gyro.y = static_cast<float>(gy) * dev->gyro_scale;
+    data->gyro.z = static_cast<float>(gz) * dev->gyro_scale;
+    data->gyro_valid = true;
+
+    int16_t tempRaw = static_cast<int16_t>((buf[12] << 8) | buf[13]);
+    data->temperature_c = (static_cast<float>(tempRaw) / kTempSensitivity) + kTempOffset;
+}
+
+// Read mag from AK09916 at 0x0C (bypass mode) at reduced rate.
+// AK09916 outputs at 100Hz — reading at 1kHz wastes 90% of bus time
+// on DRDY=0 results. Divider matches mag output rate.
+static void read_mag_bypass(icm20948_t* dev, icm20948_data_t* data) {
+    static uint8_t g_magDivCount = 0;
+    g_magDivCount++;
+    if (dev->mag_initialized && g_magDivCount >= kMagReadDivider) {
+        g_magDivCount = 0;
+        uint8_t magBuf[kMagReadSize];
+        if (i2c_bus_read_regs(ak09916::kI2cAddr, ak09916::kSt1,
+                              magBuf, sizeof(magBuf)) == sizeof(magBuf)) {
+            uint8_t st1 = magBuf[0];
+            uint8_t st2 = magBuf[8];
+
+            if ((st1 & ak09916::kSt1Drdy) != 0 && (st2 & ak09916::kSt2Hofl) == 0) {
+                int16_t mx = static_cast<int16_t>((magBuf[2] << 8) | magBuf[1]);  // Little-endian
+                int16_t my = static_cast<int16_t>((magBuf[4] << 8) | magBuf[3]);
+                int16_t mz = static_cast<int16_t>((magBuf[6] << 8) | magBuf[5]);
+
+                data->mag.x = static_cast<float>(mx) * dev->mag_scale;
+                data->mag.y = static_cast<float>(my) * dev->mag_scale;
+                data->mag.z = static_cast<float>(mz) * dev->mag_scale;
+                data->mag_valid = true;
+            } else {
+                data->mag_valid = false;
+            }
+        } else {
+            data->mag_valid = false;
+        }
+    } else if (!dev->mag_initialized && g_magDivCount >= kMagReadDivider) {
+        // Mag lost after device reset — attempt lazy re-init once per divider cycle.
+        // init_magnetometer() re-enables bypass + configures AK09916 (~220ms).
+        // On success, subsequent calls resume normal mag reads.
+        g_magDivCount = 0;
+        init_magnetometer(dev);
+        data->mag.x = data->mag.y = data->mag.z = 0;
+        data->mag_valid = false;
+    } else {
+        // Non-divider cycle: mag not read this call. Explicitly mark invalid
+        // so callers don't act on uninitialized stack data.
+        data->mag_valid = false;
+    }
+}
+// NOLINTEND(readability-magic-numbers)
+
 bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     if (dev == nullptr || data == nullptr || !dev->initialized) {
         memset(data, 0, sizeof(icm20948_data_t));
@@ -478,76 +553,8 @@ bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
         return false;
     }
 
-    // Parse accel/gyro/temp from burst read buffer
-    // Byte layout per ICM-20948 datasheet register map:
-    //   [0..5]   accel XH/XL/YH/YL/ZH/ZL
-    //   [6..11]  gyro  XH/XL/YH/YL/ZH/ZL
-    //   [12..13] temp  H/L
-    // NOLINTBEGIN(readability-magic-numbers) — buffer byte offsets per datasheet register map
-    int16_t ax = static_cast<int16_t>((buf[0] << 8) | buf[1]);
-    int16_t ay = static_cast<int16_t>((buf[2] << 8) | buf[3]);
-    int16_t az = static_cast<int16_t>((buf[4] << 8) | buf[5]);
-
-    // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
-    data->accel.x = static_cast<float>(ax) * dev->accel_scale;
-    data->accel.y = static_cast<float>(ay) * dev->accel_scale;
-    data->accel.z = static_cast<float>(az) * dev->accel_scale;
-    data->accel_valid = true;
-
-    int16_t gx = static_cast<int16_t>((buf[6] << 8) | buf[7]);
-    int16_t gy = static_cast<int16_t>((buf[8] << 8) | buf[9]);
-    int16_t gz = static_cast<int16_t>((buf[10] << 8) | buf[11]);
-
-    data->gyro.x = static_cast<float>(gx) * dev->gyro_scale;
-    data->gyro.y = static_cast<float>(gy) * dev->gyro_scale;
-    data->gyro.z = static_cast<float>(gz) * dev->gyro_scale;
-    data->gyro_valid = true;
-
-    int16_t tempRaw = static_cast<int16_t>((buf[12] << 8) | buf[13]);
-    data->temperature_c = (static_cast<float>(tempRaw) / kTempSensitivity) + kTempOffset;
-
-    // Read mag from AK09916 at 0x0C (bypass mode) at reduced rate.
-    // AK09916 outputs at 100Hz — reading at 1kHz wastes 90% of bus time
-    // on DRDY=0 results. Divider matches mag output rate.
-    static uint8_t magDivCount = 0;
-    magDivCount++;
-    if (dev->mag_initialized && magDivCount >= kMagReadDivider) {
-        magDivCount = 0;
-        uint8_t magBuf[kMagReadSize];
-        if (i2c_bus_read_regs(ak09916::kI2cAddr, ak09916::kSt1,
-                              magBuf, sizeof(magBuf)) == sizeof(magBuf)) {
-            uint8_t st1 = magBuf[0];
-            uint8_t st2 = magBuf[8];
-
-            if ((st1 & ak09916::kSt1Drdy) != 0 && (st2 & ak09916::kSt2Hofl) == 0) {
-                int16_t mx = static_cast<int16_t>((magBuf[2] << 8) | magBuf[1]);  // Little-endian
-                int16_t my = static_cast<int16_t>((magBuf[4] << 8) | magBuf[3]);
-                int16_t mz = static_cast<int16_t>((magBuf[6] << 8) | magBuf[5]);
-
-                data->mag.x = static_cast<float>(mx) * dev->mag_scale;
-                data->mag.y = static_cast<float>(my) * dev->mag_scale;
-                data->mag.z = static_cast<float>(mz) * dev->mag_scale;
-                data->mag_valid = true;
-            } else {
-                data->mag_valid = false;
-            }
-        } else {
-            data->mag_valid = false;
-        }
-    } else if (!dev->mag_initialized && magDivCount >= kMagReadDivider) {
-        // Mag lost after device reset — attempt lazy re-init once per divider cycle.
-        // init_magnetometer() re-enables bypass + configures AK09916 (~220ms).
-        // On success, subsequent calls resume normal mag reads.
-        magDivCount = 0;
-        init_magnetometer(dev);
-        data->mag.x = data->mag.y = data->mag.z = 0;
-        data->mag_valid = false;
-    } else {
-        // Non-divider cycle: mag not read this call. Explicitly mark invalid
-        // so callers don't act on uninitialized stack data.
-        data->mag_valid = false;
-    }
-    // NOLINTEND(readability-magic-numbers)
+    parse_accel_gyro_temp(buf, dev, data);
+    read_mag_bypass(dev, data);
 
     return true;
 }
@@ -640,8 +647,8 @@ bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag) {
     return true;
 }
 
-bool icm20948_read_temperature(icm20948_t* dev, float* temp_c) {
-    if (dev == nullptr || temp_c == nullptr || !dev->initialized) {
+bool icm20948_read_temperature(icm20948_t* dev, float* tempC) {
+    if (dev == nullptr || tempC == nullptr || !dev->initialized) {
         return false;
     }
 
@@ -655,12 +662,12 @@ bool icm20948_read_temperature(icm20948_t* dev, float* temp_c) {
     }
 
     int16_t tempRaw = static_cast<int16_t>((buf[0] << 8) | buf[1]);
-    *temp_c = (static_cast<float>(tempRaw) / kTempSensitivity) + kTempOffset;
+    *tempC = (static_cast<float>(tempRaw) / kTempSensitivity) + kTempOffset;
 
     return true;
 }
 
-bool icm20948_dataReady(icm20948_t* dev, bool* accelReady, bool* gyroReady) {
+bool icm20948_data_ready(icm20948_t* dev, bool* accelReady, bool* gyroReady) {
     if (dev == nullptr || !dev->initialized) {
         return false;
     }

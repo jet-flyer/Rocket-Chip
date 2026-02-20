@@ -218,7 +218,7 @@ bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag);
  * @param temp_c Output temperature in °C
  * @return true on success
  */
-bool icm20948_read_temperature(icm20948_t* dev, float* temp_c);
+bool icm20948_read_temperature(icm20948_t* dev, float* tempC);
 
 /**
  * @brief Check if new data is available

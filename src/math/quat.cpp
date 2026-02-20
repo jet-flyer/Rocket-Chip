@@ -4,6 +4,15 @@
 
 namespace rc {
 
+// Near-zero threshold for safe division (norm and norm_sq)
+constexpr float kNormEpsilon   = 1e-12F;
+// Dot product threshold for near-parallel/antiparallel vectors
+constexpr float kDotParallel   = 0.9999F;
+// Cross product threshold for fallback perpendicular axis
+constexpr float kCrossEpsilon  = 1e-6F;
+// Pi/2 for gimbal lock pitch clamp
+constexpr float kHalfPi        = 1.5707963F;
+
 Quat Quat::operator*(const Quat& rhs) const {
     // Hamilton product
     return {
@@ -16,11 +25,11 @@ Quat Quat::operator*(const Quat& rhs) const {
 
 Quat Quat::inverse() const {
     const float n2 = norm_sq();
-    if (n2 < 1e-12f) {
-        return {1.0f, 0.0f, 0.0f, 0.0f};
+    if (n2 < kNormEpsilon) {
+        return {1.0F, 0.0F, 0.0F, 0.0F};
     }
-    const float inv_n2 = 1.0f / n2;
-    return {w * inv_n2, -x * inv_n2, -y * inv_n2, -z * inv_n2};
+    const float invN2 = 1.0F / n2;
+    return {w * invN2, -x * invN2, -y * invN2, -z * invN2};
 }
 
 float Quat::norm() const {
@@ -29,17 +38,17 @@ float Quat::norm() const {
 
 Quat& Quat::normalize() {
     const float n = norm();
-    if (n < 1e-12f) {
-        w = 1.0f;
-        x = 0.0f;
-        y = 0.0f;
-        z = 0.0f;
+    if (n < kNormEpsilon) {
+        w = 1.0F;
+        x = 0.0F;
+        y = 0.0F;
+        z = 0.0F;
     } else {
-        const float inv_n = 1.0f / n;
-        w *= inv_n;
-        x *= inv_n;
-        y *= inv_n;
-        z *= inv_n;
+        const float invN = 1.0F / n;
+        w *= invN;
+        x *= invN;
+        y *= invN;
+        z *= invN;
     }
     return *this;
 }
@@ -53,9 +62,9 @@ Quat Quat::normalized() const {
 Vec3 Quat::rotate(const Vec3& v) const {
     // q * [0,v] * q*  — expanded for efficiency (avoids two full quaternion multiplies)
     // Reference: Sola (2017) Eq. 27-28
-    const float tx = 2.0f * (y * v.z - z * v.y);
-    const float ty = 2.0f * (z * v.x - x * v.z);
-    const float tz = 2.0f * (x * v.y - y * v.x);
+    const float tx = 2.0F * (y * v.z - z * v.y);
+    const float ty = 2.0F * (z * v.x - x * v.z);
+    const float tz = 2.0F * (x * v.y - y * v.x);
     return {
         v.x + w * tx + y * tz - z * ty,
         v.y + w * ty + z * tx - x * tz,
@@ -63,7 +72,7 @@ Vec3 Quat::rotate(const Vec3& v) const {
     };
 }
 
-void Quat::to_rotation_matrix(float m[9]) const {
+void Quat::to_rotation_matrix(float m[9]) const { // NOLINT(readability-magic-numbers)
     // Row-major DCM. Reference: Sola (2017) Eq. 22
     const float xx = x * x;
     const float yy = y * y;
@@ -75,17 +84,17 @@ void Quat::to_rotation_matrix(float m[9]) const {
     const float wy = w * y;
     const float wz = w * z;
 
-    m[0] = 1.0f - 2.0f * (yy + zz);
-    m[1] = 2.0f * (xy - wz);
-    m[2] = 2.0f * (xz + wy);
+    m[0] = 1.0F - 2.0F * (yy + zz);
+    m[1] = 2.0F * (xy - wz);
+    m[2] = 2.0F * (xz + wy);
 
-    m[3] = 2.0f * (xy + wz);
-    m[4] = 1.0f - 2.0f * (xx + zz);
-    m[5] = 2.0f * (yz - wx);
+    m[3] = 2.0F * (xy + wz);
+    m[4] = 1.0F - 2.0F * (xx + zz);
+    m[5] = 2.0F * (yz - wx);  // NOLINT(readability-magic-numbers)
 
-    m[6] = 2.0f * (xz - wy);
-    m[7] = 2.0f * (yz + wx);
-    m[8] = 1.0f - 2.0f * (xx + yy);
+    m[6] = 2.0F * (xz - wy);  // NOLINT(readability-magic-numbers)
+    m[7] = 2.0F * (yz + wx);  // NOLINT(readability-magic-numbers)
+    m[8] = 1.0F - 2.0F * (xx + yy);
 }
 
 Vec3 Quat::to_euler() const {
@@ -93,37 +102,37 @@ Vec3 Quat::to_euler() const {
     // Reference: Sola (2017) Eq. 290
 
     // Roll (x-axis rotation)
-    const float sinr_cosp = 2.0f * (w * x + y * z);
-    const float cosr_cosp = 1.0f - 2.0f * (x * x + y * y);
-    const float roll = atan2f(sinr_cosp, cosr_cosp);
+    const float sinrCosp = 2.0F * (w * x + y * z);
+    const float cosrCosp = 1.0F - 2.0F * (x * x + y * y);
+    const float roll = atan2f(sinrCosp, cosrCosp);
 
     // Pitch (y-axis rotation) — clamp to avoid NaN at gimbal lock
-    const float sinp = 2.0f * (w * y - z * x);
-    float pitch;
-    if (sinp >= 1.0f) {
-        pitch = 1.5707963f;   // +pi/2
-    } else if (sinp <= -1.0f) {
-        pitch = -1.5707963f;  // -pi/2
+    const float sinp = 2.0F * (w * y - z * x);
+    float pitch = 0.0F;
+    if (sinp >= 1.0F) {
+        pitch = kHalfPi;   // +pi/2
+    } else if (sinp <= -1.0F) {
+        pitch = -kHalfPi;  // -pi/2
     } else {
         pitch = asinf(sinp);
     }
 
     // Yaw (z-axis rotation)
-    const float siny_cosp = 2.0f * (w * z + x * y);
-    const float cosy_cosp = 1.0f - 2.0f * (y * y + z * z);
-    const float yaw = atan2f(siny_cosp, cosy_cosp);
+    const float sinyCosp = 2.0F * (w * z + x * y);
+    const float cosyCosp = 1.0F - 2.0F * (y * y + z * z);
+    const float yaw = atan2f(sinyCosp, cosyCosp);
 
     return {roll, pitch, yaw};
 }
 
 Quat Quat::from_euler(float roll, float pitch, float yaw) {
     // ZYX convention
-    const float cr = cosf(roll * 0.5f);
-    const float sr = sinf(roll * 0.5f);
-    const float cp = cosf(pitch * 0.5f);
-    const float sp = sinf(pitch * 0.5f);
-    const float cy = cosf(yaw * 0.5f);
-    const float sy = sinf(yaw * 0.5f);
+    const float cr = cosf(roll * 0.5F);
+    const float sr = sinf(roll * 0.5F);
+    const float cp = cosf(pitch * 0.5F);
+    const float sp = sinf(pitch * 0.5F);
+    const float cy = cosf(yaw * 0.5F);
+    const float sy = sinf(yaw * 0.5F);
 
     return {
         cr * cp * cy + sr * sp * sy,
@@ -134,10 +143,10 @@ Quat Quat::from_euler(float roll, float pitch, float yaw) {
 }
 
 Quat Quat::from_axis_angle(const Vec3& axis, float angle) {
-    const float half_angle = angle * 0.5f;
-    const float s = sinf(half_angle);
+    const float halfAngle = angle * 0.5F;
+    const float s = sinf(halfAngle);
     const Vec3 n = axis.normalized();
-    return Quat(cosf(half_angle), n.x * s, n.y * s, n.z * s).normalized();
+    return Quat(cosf(halfAngle), n.x * s, n.y * s, n.z * s).normalized();
 }
 
 Quat Quat::from_two_vectors(const Vec3& from, const Vec3& to) {
@@ -146,35 +155,35 @@ Quat Quat::from_two_vectors(const Vec3& from, const Vec3& to) {
     const Vec3 tn = to.normalized();
     const float d = fn.dot(tn);
 
-    if (d > 0.9999f) {
+    if (d > kDotParallel) {
         // Vectors nearly parallel — identity rotation
-        return {1.0f, 0.0f, 0.0f, 0.0f};
+        return {1.0F, 0.0F, 0.0F, 0.0F};
     }
 
-    if (d < -0.9999f) {
+    if (d < -kDotParallel) {
         // Vectors nearly antiparallel — 180 deg rotation about any perpendicular axis
-        Vec3 perp = Vec3(1.0f, 0.0f, 0.0f).cross(fn);
-        if (perp.norm_sq() < 1e-6f) {
-            perp = Vec3(0.0f, 1.0f, 0.0f).cross(fn);
+        Vec3 perp = Vec3(1.0F, 0.0F, 0.0F).cross(fn);
+        if (perp.norm_sq() < kCrossEpsilon) {
+            perp = Vec3(0.0F, 1.0F, 0.0F).cross(fn);
         }
         perp = perp.normalized();
-        return {0.0f, perp.x, perp.y, perp.z};
+        return {0.0F, perp.x, perp.y, perp.z};
     }
 
     const Vec3 c = fn.cross(tn);
     // q = [1 + dot, cross] then normalize
     // Reference: "half-way quaternion" method
-    return Quat(1.0f + d, c.x, c.y, c.z).normalized();
+    return Quat(1.0F + d, c.x, c.y, c.z).normalized();
 }
 
-Quat Quat::from_small_angle(const Vec3& delta_theta) {
-    // First-order approximation: q ~= [1, delta_theta/2] normalized
-    // Sola (2017) Eq. 186: for small rotation vector delta_theta,
-    // the corresponding quaternion is approximately [1, delta_theta/2].
-    const float hx = delta_theta.x * 0.5f;
-    const float hy = delta_theta.y * 0.5f;
-    const float hz = delta_theta.z * 0.5f;
-    return Quat(1.0f, hx, hy, hz).normalized();
+Quat Quat::from_small_angle(const Vec3& deltaTheta) {
+    // First-order approximation: q ~= [1, deltaTheta/2] normalized
+    // Sola (2017) Eq. 186: for small rotation vector deltaTheta,
+    // the corresponding quaternion is approximately [1, deltaTheta/2].
+    const float hx = deltaTheta.x * 0.5F;
+    const float hy = deltaTheta.y * 0.5F;
+    const float hz = deltaTheta.z * 0.5F;
+    return Quat(1.0F, hx, hy, hz).normalized();
 }
 
 } // namespace rc

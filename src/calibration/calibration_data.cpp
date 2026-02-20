@@ -100,11 +100,11 @@ bool calibration_validate(const calibration_store_t* cal) {
     }
 
     // Check CRC (computed over everything after crc16 field)
-    const auto* data_start = reinterpret_cast<const uint8_t*>(&cal->accel);
-    size_t data_len = sizeof(calibration_store_t) - offsetof(calibration_store_t, accel);
-    uint16_t computed_crc = crc16_ccitt(data_start, data_len);
+    const auto* dataStart = reinterpret_cast<const uint8_t*>(&cal->accel);
+    size_t dataLen = sizeof(calibration_store_t) - offsetof(calibration_store_t, accel);
+    uint16_t computedCrc = crc16_ccitt(dataStart, dataLen);
 
-    return (cal->crc16 == computed_crc);
+    return (cal->crc16 == computedCrc);
 }
 
 void calibration_update_crc(calibration_store_t* cal) {
@@ -113,9 +113,9 @@ void calibration_update_crc(calibration_store_t* cal) {
     }
 
     // CRC computed over everything after crc16 field
-    const auto* data_start = reinterpret_cast<const uint8_t*>(&cal->accel);
-    size_t data_len = sizeof(calibration_store_t) - offsetof(calibration_store_t, accel);
-    cal->crc16 = crc16_ccitt(data_start, data_len);
+    const auto* dataStart = reinterpret_cast<const uint8_t*>(&cal->accel);
+    size_t dataLen = sizeof(calibration_store_t) - offsetof(calibration_store_t, accel);
+    cal->crc16 = crc16_ccitt(dataStart, dataLen);
 }
 
 bool calibration_has(const calibration_store_t* cal, cal_status_flags_t flag) {

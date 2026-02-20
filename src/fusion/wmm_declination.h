@@ -20,11 +20,11 @@
 namespace rc {
 
 // Get magnetic declination at a GPS position.
-// lat_deg: geodetic latitude in degrees (-90 to +90)
-// lon_deg: geodetic longitude in degrees (-180 to +180)
+// latDeg: geodetic latitude in degrees (-90 to +90)
+// lonDeg: geodetic longitude in degrees (-180 to +180)
 // Returns: declination in radians (East-positive, same convention as
 //   ESKF update_mag_heading declination_rad parameter).
-float wmm_get_declination(float lat_deg, float lon_deg);
+float wmm_get_declination(float latDeg, float lonDeg);
 
 } // namespace rc
 

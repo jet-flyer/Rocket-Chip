@@ -224,46 +224,46 @@ struct ESKF {
     // Set NED origin from first quality GPS fix (HDOP <= kGpsMaxHdopForOrigin).
     // Resets position/velocity P to GPS-derived uncertainty (council fix).
     // Returns false if origin already set or HDOP too high.
-    bool set_origin(double lat_rad, double lon_rad, float alt_m, float hdop);
+    bool set_origin(double latRad, double lonRad, float altM, float hdop);
 
     // Reset NED origin to new position, adjusting p for continuity.
     // Used for moving-origin when |p.xy| > kOriginResetDistance.
-    void reset_origin(double new_lat_rad, double new_lon_rad, float new_alt_m);
+    void reset_origin(double newLatRad, double newLonRad, float newAltM);
 
     // Convert WGS84 geodetic to NED. Double lat/lon for precision (council C-5).
     // Subtraction (lat - origin_lat) in double before float cast.
-    Vec3 geodetic_to_ned(double lat_rad, double lon_rad, float alt_m) const;
+    Vec3 geodetic_to_ned(double latRad, double lonRad, float altM) const;
 
     // GPS position update: 3 sequential scalar updates (N, E, D).
     // R_horiz = (kSigmaGpsPosBase * max(hdop, 1))².
     // R_vert = R_horiz * kSigmaGpsVertScale² (or VDOP-based if vdop > 0).
-    bool update_gps_position(const Vec3& gps_ned, float hdop = 0.0f,
+    bool update_gps_position(const Vec3& gpsNed, float hdop = 0.0f,
                               float vdop = 0.0f);
 
     // GPS velocity update: 2 sequential scalar updates (N, E only).
     // Vertical velocity from GPS unreliable — baro + IMU handle vertical.
-    bool update_gps_velocity(float v_north, float v_east);
+    bool update_gps_velocity(float vNorth, float vEast);
 
     // Initialize from stationary accelerometer reading.
     // Derives initial attitude from gravity vector direction.
     // Returns false if stationarity check fails (RF-5).
-    bool init(const Vec3& accel_meas, const Vec3& gyro_meas);
+    bool init(const Vec3& accelMeas, const Vec3& gyroMeas);
 
     // Propagate (predict) step: integrate IMU measurements forward by dt.
     // Uses sparse FPFT exploiting F_x block structure (R-1).
     // Solà (2017) §5.3.
-    void predict(const Vec3& accel_meas, const Vec3& gyro_meas, float dt);
+    void predict(const Vec3& accelMeas, const Vec3& gyroMeas, float dt);
 
     // Propagate using dense FPFT (verification path only).
     // Same result as predict() but slower — used to validate sparse path.
-    void predict_dense(const Vec3& accel_meas, const Vec3& gyro_meas, float dt);
+    void predict_dense(const Vec3& accelMeas, const Vec3& gyroMeas, float dt);
 
     // Barometric altitude measurement update (IVP-43).
     // z = altitude_agl_m (positive up, from calibration_get_altitude_agl).
     // h(x) = -p.z (NED down negated). H = [0 0 0 | 0 0 -1 | 0...].
     // Returns false if input is non-finite or innovation is gated out.
     // Solà (2017) §7.2, Joseph form for P update.
-    bool update_baro(float altitude_agl_m);
+    bool update_baro(float altitudeAglM);
 
     // Magnetometer heading measurement update (IVP-44).
     // mag_body: calibrated magnetometer reading in body frame (µT).
@@ -278,8 +278,8 @@ struct ESKF {
     // H ≈ [0, 0, 1, 0...0] (yaw-only approximation — see constants block).
     // Returns false if non-finite, magnitude too low, interference reject,
     //   or innovation gated out. Solà (2017) §6.2, Joseph form.
-    bool update_mag_heading(const Vec3& mag_body, float expected_magnitude,
-                            float declination_rad = 0.0f);
+    bool update_mag_heading(const Vec3& magBody, float expectedMagnitude,
+                            float declinationRad = 0.0f);
 
     // Zero-velocity pseudo-measurement update (IVP-44b).
     // Checks stationarity from raw IMU data (accel magnitude ≈ g,
@@ -287,12 +287,12 @@ struct ESKF {
     // three sequential scalar measurements on velocity states [6..8].
     // Returns false if not stationary or innovation gated out.
     // Call at predict() rate (200Hz) — stationarity check is cheap.
-    bool update_zupt(const Vec3& accel_meas, const Vec3& gyro_meas);
+    bool update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas);
 
     // Error state reset with Jacobian G after measurement update.
     // Absorbs error state into nominal, resets error to zero.
     // Solà (2017) §7.2, council RF-1.
-    void reset(const Vec3& delta_theta);
+    void reset(const Vec3& deltaTheta);
 
     // Clamp P diagonal to prevent runaway (council RF-2).
     void clamp_covariance();
@@ -316,15 +316,15 @@ private:
     // Build the error-state transition matrix F_x (15×15).
     // F_x = I + dt * F_delta, where F_delta encodes the linearized dynamics.
     // Output parameter to avoid 900B return-by-value on stack (LL Entry 1).
-    static void build_F(Mat15& out, const Quat& q, const Vec3& accel_body,
-                         const Vec3& gyro_body, float dt);
+    static void build_F(Mat15& out, const Quat& q, const Vec3& accelBody,
+                         const Vec3& gyroBody, float dt);
 
     // Build continuous-time process noise Q_c (15×15 diagonal).
     // Output parameter to avoid 900B return-by-value on stack (LL Entry 1).
     static void build_Qc(Mat15& out);
 
     // Common propagation logic shared by predict() and predict_dense().
-    void propagate_nominal(const Vec3& accel_meas, const Vec3& gyro_meas,
+    void propagate_nominal(const Vec3& accelMeas, const Vec3& gyroMeas,
                            float dt);
 };
 

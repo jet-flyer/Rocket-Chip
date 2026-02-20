@@ -55,8 +55,8 @@ static dps310_mr_t mr_from_int(uint8_t val) {
 // Private State
 // ============================================================================
 
-static uint8_t g_i2c_addr = 0;
-static float g_sea_level_pa = kStdAtmPressurePa;
+static uint8_t g_i2cAddr = 0;
+static float g_seaLevelPa = kStdAtmPressurePa;
 
 // Forward declarations for callbacks
 // NOLINTBEGIN(readability-identifier-naming) — params match ruuvi dps310 callback typedef
@@ -68,9 +68,9 @@ static uint32_t pico_write(const void* comm_ctx, uint8_t reg_addr, const uint8_t
 // DPS310 context - suppress missing-field-initializers for third-party struct
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-static dps310_ctx_t g_dps310_ctx = {
+static dps310_ctx_t g_dps310Ctx = {
     .device_status = DPS310_NOT_INITIALIZED,
-    .comm_ctx = &g_i2c_addr,
+    .comm_ctx = &g_i2cAddr,
     .sleep = pico_sleep,
     .read = pico_read,
     .write = pico_write,
@@ -120,10 +120,10 @@ static uint32_t pico_write(const void* comm_ctx, uint8_t reg_addr, const uint8_t
 // ============================================================================
 
 bool baro_dps310_init(uint8_t addr) {
-    g_i2c_addr = addr;
+    g_i2cAddr = addr;
 
     // Initialize the ruuvi driver
-    dps310_status_t status = dps310_init(&g_dps310_ctx);
+    dps310_status_t status = dps310_init(&g_dps310Ctx);
     if (status != DPS310_SUCCESS) {
         return false;
     }
@@ -133,30 +133,26 @@ bool baro_dps310_init(uint8_t addr) {
     const dps310_mr_t mr = mr_from_int(kBaroDps310MeasRate);
     const dps310_os_t os = os_from_int(kBaroDps310Oversampling);
 
-    status = dps310_config_temp(&g_dps310_ctx, mr, os);
+    status = dps310_config_temp(&g_dps310Ctx, mr, os);
     if (status != DPS310_SUCCESS) {
         return false;
     }
 
-    status = dps310_config_pres(&g_dps310_ctx, mr, os);
-    if (status != DPS310_SUCCESS) {
-        return false;
-    }
-
-    return true;
+    status = dps310_config_pres(&g_dps310Ctx, mr, os);
+    return (status == DPS310_SUCCESS);
 }
 
 bool baro_dps310_ready() {
-    return (g_dps310_ctx.device_status & DPS310_READY) != 0;
+    return (g_dps310Ctx.device_status & DPS310_READY) != 0;
 }
 
 bool baro_dps310_start_continuous() {
-    dps310_status_t status = dps310_measure_continuous_async(&g_dps310_ctx);
+    dps310_status_t status = dps310_measure_continuous_async(&g_dps310Ctx);
     return (status == DPS310_SUCCESS);
 }
 
 bool baro_dps310_stop() {
-    dps310_status_t status = dps310_standby(&g_dps310_ctx);
+    dps310_status_t status = dps310_standby(&g_dps310Ctx);
     return (status == DPS310_SUCCESS);
 }
 
@@ -165,8 +161,9 @@ bool baro_dps310_read(baro_dps310_data_t* data) {
         return false;
     }
 
-    float temp = 0, pres = 0;
-    dps310_status_t status = dps310_get_last_result(&g_dps310_ctx, &temp, &pres);
+    float temp = 0.0F;
+    float pres = 0.0F;
+    dps310_status_t status = dps310_get_last_result(&g_dps310Ctx, &temp, &pres);
 
     if (status != DPS310_SUCCESS) {
         data->valid = false;
@@ -175,14 +172,14 @@ bool baro_dps310_read(baro_dps310_data_t* data) {
 
     data->temperature_c = temp;
     data->pressure_pa = pres;
-    data->altitude_m = baro_dps310_pressure_to_altitude(pres, g_sea_level_pa);
+    data->altitude_m = baro_dps310_pressure_to_altitude(pres, g_seaLevelPa);
     data->valid = true;
 
     return true;
 }
 
 void baro_dps310_set_sea_level(float pressurePa) {
-    g_sea_level_pa = pressurePa;
+    g_seaLevelPa = pressurePa;
 }
 
 float baro_dps310_pressure_to_altitude(float pressurePa, float seaLevelPa) {

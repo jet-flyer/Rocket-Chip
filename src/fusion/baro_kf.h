@@ -41,7 +41,7 @@ struct BaroKF {
     float last_nis_{};
 
     // Initialize filter state
-    void init(float altitude_m);
+    void init(float altitudeM);
 
     // Predict step: propagate state and covariance forward by dt seconds.
     // Uses constant-velocity model with acceleration process noise.
@@ -50,7 +50,7 @@ struct BaroKF {
     // Update step: incorporate barometric altitude measurement.
     // Uses Joseph form for numerical stability.
     // Returns false if measurement is rejected (not implemented yet — always true).
-    bool update(float baro_alt_m);
+    bool update(float baroAltM);
 
     // Accessors
     float altitude() const { return x[0]; }
@@ -59,6 +59,11 @@ struct BaroKF {
 
     // Health check: P diagonal positive and finite
     bool healthy() const;
+
+private:
+    // Joseph form covariance update: P = (I-KH)*P*(I-KH)^T + K*R*K^T
+    // Called from update() after state update.
+    void joseph_update(float k0, float k1);
 };
 
 } // namespace rc

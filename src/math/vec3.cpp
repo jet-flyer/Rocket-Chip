@@ -4,6 +4,8 @@
 
 namespace rc {
 
+constexpr float kNormEpsilon = 1e-12F;  // Minimum norm for safe division
+
 Vec3 Vec3::cross(const Vec3& rhs) const {
     return {
         y * rhs.z - z * rhs.y,
@@ -18,10 +20,10 @@ float Vec3::norm() const {
 
 Vec3 Vec3::normalized() const {
     const float n = norm();
-    if (n < 1e-12f) {
-        return {0.0f, 0.0f, 0.0f};
+    if (n < kNormEpsilon) {
+        return {0.0F, 0.0F, 0.0F};
     }
-    return *this * (1.0f / n);
+    return *this * (1.0F / n);
 }
 
 } // namespace rc

@@ -63,10 +63,10 @@ struct Quat {
     // Quaternion that rotates vector 'from' to vector 'to'
     static Quat from_two_vectors(const Vec3& from, const Vec3& to);
 
-    // First-order quaternion from small rotation vector delta_theta:
-    // q ~= [1, delta_theta/2] normalized
+    // First-order quaternion from small rotation vector deltaTheta:
+    // q ~= [1, deltaTheta/2] normalized
     // Core ESKF operation for error state injection. Sola (2017) Eq. 186.
-    static Quat from_small_angle(const Vec3& delta_theta);
+    static Quat from_small_angle(const Vec3& deltaTheta);
 };
 
 } // namespace rc

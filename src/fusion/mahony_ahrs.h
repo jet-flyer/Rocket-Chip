@@ -73,7 +73,7 @@ struct MahonyAHRS {
     // mag_body: body-frame magnetometer reading (µT). If zero vector,
     //   attitude initializes with yaw=0 (North assumed).
     // Returns false if accel fails gate (not stationary).
-    bool init(const Vec3& accel, const Vec3& mag_body);
+    bool init(const Vec3& accel, const Vec3& magBody);
 
     // Update attitude estimate.
     // accel, gyro: body-frame IMU readings (m/s², rad/s).
@@ -82,8 +82,8 @@ struct MahonyAHRS {
     // mag_cal_valid: if false, skip mag correction entirely (council addition).
     // dt: time step (s).
     void update(const Vec3& accel, const Vec3& gyro,
-                const Vec3& mag_body, float expected_mag,
-                bool mag_cal_valid, float dt);
+                const Vec3& magBody, float expectedMag,
+                bool magCalValid, float dt);
 
     // Angular divergence between two quaternions (rad).
     // Returns the minimum rotation angle to align a to b.
@@ -91,6 +91,16 @@ struct MahonyAHRS {
 
     // Health check: NaN/Inf detection in quaternion components.
     bool healthy() const;
+
+private:
+    // Accel gravity-reference error: cross product of measured vs predicted down.
+    // Returns zero vector if accel magnitude fails gate.
+    Vec3 compute_accel_error(const Vec3& accel) const;
+
+    // Mag heading-reference error: cross product of measured vs predicted field.
+    // Returns zero vector if mag is invalid, too small, or fails gate.
+    Vec3 compute_mag_error(const Vec3& magBody, float expectedMag,
+                           bool magCalValid) const;
 };
 
 } // namespace rc

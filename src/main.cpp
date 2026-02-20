@@ -40,7 +40,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static const char* kBuildTag = "ivp45-4";
+static constexpr const char* kBuildTag = "ivp45-4";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -58,7 +58,7 @@ static constexpr uint32_t kCore1ConsecFailDevReset = 50;        // ICM-20948 dev
 // Minimum plausible accel magnitude: 9.8 × cos(72°) = 3.0 m/s².
 // Below any valid sensor reading — all-zeros output means device is in sleep/reset state.
 // Source: gravity projection floor when tilted 72° off vertical.
-static constexpr float kAccelMinHealthyMag = 3.0f;
+static constexpr float kAccelMinHealthyMag = 3.0F;
 
 // DPS310 MEAS_CFG register (0x08): data-ready bits
 // Per DPS310 datasheet Section 7, PRS_RDY=bit4, TMP_RDY=bit5
@@ -90,9 +90,6 @@ static constexpr double kGpsCoordScale = 1e7;                   // Degrees to 1e
 // PA1010D SDA settling delay (LL Entry 24)
 static constexpr uint32_t kGpsSdaSettleUs = 500;
 
-// Baro reinit threshold (consecutive failures)
-static constexpr uint32_t kBaroReinitThreshold = 100;
-
 // Seqlock parameters
 static constexpr uint32_t kSeqlockMaxRetries = 4;
 
@@ -104,6 +101,31 @@ static constexpr uint32_t kEskfImuDivider = 5;
 // Rad/deg conversion for CLI display and geodetic conversion
 static constexpr float kRadToDeg = 180.0F / 3.14159265F;
 static constexpr double kDeg2Rad = 3.14159265358979323846 / 180.0;
+static constexpr float kFullCircleDeg = 360.0F;           // Heading wrap-around
+
+// Microsecond-to-second conversion
+static constexpr float kUsToSec = 1e-6F;
+static constexpr float kGps1e7ToDegreesF = 1e-7F;         // GPS 1e-7 degree integers to degrees (float)
+static constexpr double kGps1e7ToDegrees = 1e-7;           // GPS 1e-7 degree integers to degrees (double)
+
+// Calibration read rate (~100Hz for accel cal)
+static constexpr uint32_t kCalReadDelayMs = 10;
+
+// Mag diagnostic print modulus (every N failures)
+static constexpr uint32_t kMagDiagPrintModulus = 200;
+
+// Sensor power-up settling time (generous margin over ICM-20948 11ms + DPS310 40ms)
+static constexpr uint32_t kSensorSettleMs = 200;
+
+// Core 1 startup delay
+static constexpr uint32_t kCore1StartupDelayMs = 500;
+
+// GPS session NIS sentinel (larger than any valid NIS)
+static constexpr float kGpsNisSentinel = 1e9F;
+
+// I2C alternate addresses for device identification
+static constexpr uint8_t kI2cAddrIcm20948Alt = 0x68;      // ICM-20948 with AD0=LOW
+static constexpr uint8_t kI2cAddrDps310Alt   = 0x76;      // DPS310 alternate address
 
 // ESKF state buffer: 200Hz × 5s = 1000 samples × 68B = 68KB (SRAM)
 static constexpr uint32_t kEskfBufferSamples = 1000;
@@ -148,9 +170,9 @@ static gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;
 
 // Transport-neutral GPS function pointers — set once during init_sensors().
 // Avoids if/else on every Core 1 GPS poll cycle.
-static bool (*gps_fn_update)()                    = nullptr;
-static bool (*gps_fn_get_data)(gps_data_t*)       = nullptr;
-static bool (*gps_fn_has_fix)()                    = nullptr;
+static bool (*g_gpsFnUpdate)()                    = nullptr;
+static bool (*g_gpsFnGetData)(gps_data_t*)       = nullptr;
+static bool (*g_gpsFnHasFix)()                    = nullptr;
 
 // Best GPS fix diagnostic: captures the highest-quality fix seen this session.
 // Written by Core 1, read by Core 0 CLI. Atomic flag guards visibility
@@ -178,7 +200,7 @@ struct gps_session_stats_t {
     float max_gps_nis;               // Max GPS NIS seen
 };
 static gps_session_stats_t g_gpsSess = {
-    0.0f, 0.0f, 0.0f, 0.0f, 0, 1e9f, 0.0f
+    0.0F, 0.0F, 0.0F, 0.0F, 0, kGpsNisSentinel, 0.0F
 };
 
 // IVP-42d: ESKF 15-state error-state Kalman filter (Core 0 at 200Hz)
@@ -203,7 +225,7 @@ struct eskf_state_snap_t {
     float abx, aby, abz;           // 12B — accel bias (m/s²)
     float gbx, gby, gbz;           // 12B — gyro bias (rad/s)
 };
-static_assert(sizeof(eskf_state_snap_t) == 68, "ESKF snap size changed");
+static_assert(sizeof(eskf_state_snap_t) == 68, "ESKF snap size changed"); // NOLINT(readability-magic-numbers)
 
 static eskf_state_snap_t g_eskfBuffer[kEskfBufferSamples];
 static uint32_t g_eskfBufferIndex = 0;
@@ -274,13 +296,13 @@ struct shared_sensor_data_t {
     uint32_t core1_loop_count;              // For watchdog/stall detection
 };
 
-static_assert(sizeof(shared_sensor_data_t) == 148, "Struct size changed — update SEQLOCK_DESIGN.md");
+static_assert(sizeof(shared_sensor_data_t) == 148, "Struct size changed — update SEQLOCK_DESIGN.md"); // NOLINT(readability-magic-numbers)
 static_assert(sizeof(shared_sensor_data_t) % 4 == 0, "Struct must be 4-byte aligned for memcpy");
 
 // Seqlock wrapper — single buffer with sequence counter
 struct sensor_seqlock_t {
     std::atomic<uint32_t> sequence{0};      // Odd = write in progress
-    shared_sensor_data_t data;
+    shared_sensor_data_t data = {};
 };
 
 static sensor_seqlock_t g_sensorSeqlock;
@@ -335,7 +357,7 @@ static void seqlock_write(sensor_seqlock_t* sl, const shared_sensor_data_t* src)
 static bool seqlock_read(sensor_seqlock_t* sl, shared_sensor_data_t* dst) {
     for (uint32_t attempt = 0; attempt < kSeqlockMaxRetries; attempt++) {
         uint32_t seq1 = sl->sequence.load(std::memory_order_acquire);
-        if (seq1 & 1U) {
+        if ((seq1 & 1U) != 0U) {
             continue;  // Write in progress, retry
         }
         __dmb();  // Ensure counter read committed before data reads
@@ -360,19 +382,19 @@ static void memmanage_fault_handler() {
     __asm volatile ("cpsid i");  // Disable interrupts
 
     // Direct GPIO register writes — no SDK calls that might use stack
-    io_rw_32 *gpio_out = &sio_hw->gpio_out;
-    const uint32_t led_mask = 1U << PICO_DEFAULT_LED_PIN;
+    io_rw_32 *gpioOut = &sio_hw->gpio_out;
+    const uint32_t ledMask = 1U << PICO_DEFAULT_LED_PIN;
 
     while (true) {
         for (uint8_t i = 0; i < kFaultFastBlinks; i++) {
-            *gpio_out |= led_mask;
+            *gpioOut |= ledMask;
             for (int32_t d = 0; d < kFaultBlinkFastLoops; d++) { __asm volatile(""); }
-            *gpio_out &= ~led_mask;
+            *gpioOut &= ~ledMask;
             for (int32_t d = 0; d < kFaultBlinkFastLoops; d++) { __asm volatile(""); }
         }
-        *gpio_out |= led_mask;
+        *gpioOut |= ledMask;
         for (int32_t d = 0; d < kFaultBlinkSlowLoops; d++) { __asm volatile(""); }
-        *gpio_out &= ~led_mask;
+        *gpioOut &= ~ledMask;
         for (int32_t d = 0; d < kFaultBlinkSlowLoops; d++) { __asm volatile(""); }
     }
 }
@@ -383,10 +405,12 @@ static void memmanage_fault_handler() {
 // Configures MPU region 0 as a no-access guard at the bottom of the stack.
 // Each core has its own MPU — call from the core being protected.
 
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" uint32_t __StackBottom;     // Core 0 stack bottom (SCRATCH_Y, linker-defined)
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" uint32_t __StackOneBottom;  // Core 1 stack bottom (SCRATCH_X, linker-defined)
 
-static void mpu_setup_stack_guard(uint32_t stack_bottom) {
+static void mpu_setup_stack_guard(uint32_t stackBottom) {
     // Disable MPU during configuration
     mpu_hw->ctrl = 0;
     __dsb();
@@ -396,13 +420,13 @@ static void mpu_setup_stack_guard(uint32_t stack_bottom) {
     // Region 0: Stack guard (no access, execute-never)
     // PMSAv8 RBAR: [31:5]=BASE, [4:3]=SH(0=non-shareable), [2:1]=AP(0=priv no-access), [0]=XN(1)
     mpu_hw->rnr = 0;
-    mpu_hw->rbar = (stack_bottom & ~0x1FU)
+    mpu_hw->rbar = (stackBottom & ~0x1FU)
                   | (0U << 3)   // SH: Non-shareable
                   | (0U << 1)   // AP: Privileged no-access
                   | (1U << 0);  // XN: Execute-never
 
     // PMSAv8 RLAR: [31:5]=LIMIT, [3:1]=ATTRINDX(0), [0]=EN(1)
-    mpu_hw->rlar = ((stack_bottom + kMpuGuardSizeBytes - 1) & ~0x1FU)
+    mpu_hw->rlar = ((stackBottom + kMpuGuardSizeBytes - 1) & ~0x1FU)
                   | (0U << 1)   // ATTRINDX: 0 (uses MAIR0 attr 0)
                   | (1U << 0);  // EN: Enable region
 
@@ -470,7 +494,12 @@ static void core1_read_imu(shared_sensor_data_t* localData,
             }
         }
 
-        float ax, ay, az, gx, gy, gz;
+        float ax = 0.0F;
+        float ay = 0.0F;
+        float az = 0.0F;
+        float gx = 0.0F;
+        float gy = 0.0F;
+        float gz = 0.0F;
         calibration_apply_accel_with(localCal,
             imuData.accel.x, imuData.accel.y, imuData.accel.z,
             &ax, &ay, &az);
@@ -490,13 +519,15 @@ static void core1_read_imu(shared_sensor_data_t* localData,
         localData->gyro_valid = true;
 
         if (imuData.mag_valid) {
-            float mx_cal, my_cal, mz_cal;
+            float mxCal = 0.0F;
+            float myCal = 0.0F;
+            float mzCal = 0.0F;
             calibration_apply_mag_with(localCal,
                 imuData.mag.x, imuData.mag.y, imuData.mag.z,
-                &mx_cal, &my_cal, &mz_cal);
-            localData->mag_x = mx_cal;
-            localData->mag_y = my_cal;
-            localData->mag_z = mz_cal;
+                &mxCal, &myCal, &mzCal);
+            localData->mag_x = mxCal;
+            localData->mag_y = myCal;
+            localData->mag_z = mzCal;
             localData->mag_raw_x = imuData.mag.x;
             localData->mag_raw_y = imuData.mag.y;
             localData->mag_raw_z = imuData.mag.z;
@@ -553,13 +584,13 @@ static void core1_read_gps(shared_sensor_data_t* localData,
     *lastGpsReadUs = gpsNowUs;
 
     // Transport-neutral poll via function pointers (set once in init_sensors)
-    bool parsed = gps_fn_update();
+    bool parsed = g_gpsFnUpdate();
     if (g_gpsTransport == GPS_TRANSPORT_I2C) {
         busy_wait_us(kGpsSdaSettleUs);  // SDA settling delay (LL Entry 24)
     }
 
     gps_data_t d;
-    gps_fn_get_data(&d);
+    g_gpsFnGetData(&d);
 
     // gps_read_count always increments — counts driver polls, not valid fixes.
     localData->gps_read_count++;
@@ -601,16 +632,11 @@ static void core1_read_gps(shared_sensor_data_t* localData,
     // Best-fix capture: update when satellite count or HDOP improves.
     // Reads from localData (persistent hold-on-valid), not d (instantaneous).
     if (localData->gps_valid && localData->gps_fix_type >= 2) {
-        bool better = false;
-        if (!g_bestGpsValid.load(std::memory_order_relaxed)) {
-            better = true;  // First fix ever
-        } else if (localData->gps_satellites > g_bestGpsFix.satellites) {
-            better = true;  // More satellites
-        } else if (localData->gps_satellites == g_bestGpsFix.satellites &&
-                   localData->gps_hdop > 0.0f &&
-                   localData->gps_hdop < g_bestGpsFix.hdop) {
-            better = true;  // Same sats, better HDOP
-        }
+        bool better = !g_bestGpsValid.load(std::memory_order_relaxed)
+                      || (localData->gps_satellites > g_bestGpsFix.satellites)
+                      || (localData->gps_satellites == g_bestGpsFix.satellites &&
+                          localData->gps_hdop > 0.0F &&
+                          localData->gps_hdop < g_bestGpsFix.hdop);
         if (better) {
             g_bestGpsFix.lat_1e7     = localData->gps_lat_1e7;
             g_bestGpsFix.lon_1e7     = localData->gps_lon_1e7;
@@ -808,8 +834,8 @@ static void core1_entry() {
 // Accel Read Callback (for 6-pos calibration via CLI)
 // ============================================================================
 
-static bool read_accel_for_cal(float* ax, float* ay, float* az, float* temp_c) {
-    sleep_ms(10);  // ~100Hz sampling rate
+static bool read_accel_for_cal(float* ax, float* ay, float* az, float* tempC) {
+    sleep_ms(kCalReadDelayMs);  // ~100Hz sampling rate
     // Use full icm20948_read() instead of icm20948_read_accel() — the accel-only
     // read (6 bytes from ACCEL_XOUT_H) does NOT read through TEMP_OUT_L, so the
     // data-ready flag is never cleared. After ~200 reads the output registers
@@ -821,7 +847,7 @@ static bool read_accel_for_cal(float* ax, float* ay, float* az, float* temp_c) {
     *ax = data.accel.x;
     *ay = data.accel.y;
     *az = data.accel.z;
-    *temp_c = data.temperature_c;
+    *tempC = data.temperature_c;
     return true;
 }
 
@@ -850,7 +876,7 @@ static void reset_mag_read_staleness() {
 }
 
 static bool read_mag_from_seqlock(float* mx, float* my, float* mz) {
-    shared_sensor_data_t snap;
+    shared_sensor_data_t snap = {};
     if (!seqlock_read(&g_sensorSeqlock, &snap)) {
         g_magDiagSeqlockFail++;
         return false;
@@ -859,11 +885,11 @@ static bool read_mag_from_seqlock(float* mx, float* my, float* mz) {
     if (!snap.mag_valid) {
         g_magDiagNotValid++;
         // Periodic diagnostic — print every 200 failures to show what's happening
-        if (g_magDiagNotValid == 1 || g_magDiagNotValid % 200 == 0) {
-            printf("  [mag_valid=false, mag_read_count=%lu, lastAccepted=%lu]\n",
-                   (unsigned long)snap.mag_read_count,
-                   (unsigned long)g_lastMagReadCount);
-            fflush(stdout);
+        if (g_magDiagNotValid == 1 || g_magDiagNotValid % kMagDiagPrintModulus == 0) {
+            (void)printf("  [mag_valid=false, mag_read_count=%lu, lastAccepted=%lu]\n",
+                        (unsigned long)snap.mag_read_count,
+                        (unsigned long)g_lastMagReadCount);
+            (void)fflush(stdout);
         }
         return false;
     }
@@ -960,8 +986,8 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
         float magMag = sqrtf(snap.mag_x*snap.mag_x + snap.mag_y*snap.mag_y + snap.mag_z*snap.mag_z);
         printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f  |M|=%.1f\n",
                (double)snap.mag_x, (double)snap.mag_y, (double)snap.mag_z, (double)magMag);
-        float heading = atan2f(-snap.mag_y, snap.mag_x) * (180.0F / 3.14159265F);
-        if (heading < 0.0F) { heading += 360.0F; }
+        float heading = atan2f(-snap.mag_y, snap.mag_x) * kRadToDeg;
+        if (heading < 0.0F) { heading += kFullCircleDeg; }
         printf("Heading: %.1f deg (level only)\n", (double)heading);
     } else {
         printf("Mag: not ready\n");
@@ -977,15 +1003,15 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
     // ESKF fused attitude (IVP-42d)
     if (g_eskfInitialized && g_eskf.healthy()) {
         rc::Vec3 euler = g_eskf.q.to_euler();
-        float roll_deg  = euler.x * kRadToDeg;
-        float pitch_deg = euler.y * kRadToDeg;
-        float yaw_deg   = euler.z * kRadToDeg;
+        float rollDeg  = euler.x * kRadToDeg;
+        float pitchDeg = euler.y * kRadToDeg;
+        float yawDeg   = euler.z * kRadToDeg;
         // R-3: show attitude P diagonal max for covariance visibility
         float patt = g_eskf.P(0, 0);
         if (g_eskf.P(1, 1) > patt) { patt = g_eskf.P(1, 1); }
         if (g_eskf.P(2, 2) > patt) { patt = g_eskf.P(2, 2); }
         printf("ESKF: R=%6.2f P=%6.2f Y=%6.2f deg  Patt=%.4f  qnorm=%.6f\n",
-               (double)roll_deg, (double)pitch_deg, (double)yaw_deg,
+               (double)rollDeg, (double)pitchDeg, (double)yawDeg,
                (double)patt, (double)g_eskf.q.norm());
         printf("      vel=%.3f,%.3f,%.3f m/s  bNIS=%.2f mNIS=%.2f\n",
                (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z,
@@ -994,12 +1020,12 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
         // IVP-45: Mahony cross-check
         if (g_mahonyInitialized && g_mahony.healthy()) {
             rc::Vec3 meuler = g_mahony.q.to_euler();
-            float mdiv_deg = rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg;
+            float mdivDeg = rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg;
             printf("Mahony: R=%6.2f P=%6.2f Y=%6.2f deg  Mdiv=%.1f deg\n",
                    (double)(meuler.x * kRadToDeg),
                    (double)(meuler.y * kRadToDeg),
                    (double)(meuler.z * kRadToDeg),
-                   (double)mdiv_deg);
+                   (double)mdivDeg);
         }
         if (g_eskfBenchCount > 0) {
             uint32_t avg = g_eskfBenchSum / g_eskfBenchCount;
@@ -1015,14 +1041,18 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
         printf("ESKF: waiting for stationary init...\n");
     }
     // GPS — show transport label
-    const char* gpsLabel = (g_gpsTransport == GPS_TRANSPORT_UART) ? "UART" :
-                           (g_gpsTransport == GPS_TRANSPORT_I2C)  ? "I2C"  : "???";
+    const char* gpsLabel = "???";
+    if (g_gpsTransport == GPS_TRANSPORT_UART) {
+        gpsLabel = "UART";
+    } else if (g_gpsTransport == GPS_TRANSPORT_I2C) {
+        gpsLabel = "I2C";
+    }
     if (snap.gps_read_count > 0) {
         if (snap.gps_valid) {
             printf("GPS (%s): %.7f, %.7f, %.1f m MSL\n",
                    gpsLabel,
-                   snap.gps_lat_1e7 / 1e7,
-                   snap.gps_lon_1e7 / 1e7,
+                   snap.gps_lat_1e7 / kGpsCoordScale,
+                   snap.gps_lon_1e7 / kGpsCoordScale,
                    (double)snap.gps_alt_msl_m);
             printf("     Fix=%u Sats=%u Speed=%.1f m/s HDOP=%.2f VDOP=%.2f\n",
                    snap.gps_fix_type, snap.gps_satellites,
@@ -1042,14 +1072,14 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
             printf("\n");
             if (g_bestGpsValid.load(std::memory_order_relaxed)) {
                 printf("     Best: %.7f, %.7f  Sats=%u HDOP=%.2f\n",
-                       g_bestGpsFix.lat_1e7 / 1e7,
-                       g_bestGpsFix.lon_1e7 / 1e7,
+                       g_bestGpsFix.lat_1e7 / kGpsCoordScale,
+                       g_bestGpsFix.lon_1e7 / kGpsCoordScale,
                        g_bestGpsFix.satellites,
                        (double)g_bestGpsFix.hdop);
             } else if (snap.gps_lat_1e7 != 0 || snap.gps_lon_1e7 != 0) {
                 printf("     Last fix: %.7f, %.7f\n",
-                       snap.gps_lat_1e7 / 1e7,
-                       snap.gps_lon_1e7 / 1e7);
+                       snap.gps_lat_1e7 / kGpsCoordScale,
+                       snap.gps_lon_1e7 / kGpsCoordScale);
             }
         }
     } else if (g_gpsInitialized) {
@@ -1079,7 +1109,7 @@ static void print_eskf_live() {
         return;
     }
     // Read seqlock for baro_read_count
-    shared_sensor_data_t snap;
+    shared_sensor_data_t snap = {};
     seqlock_read(&g_sensorSeqlock, &snap);
 
     float alt = -g_eskf.p.z;
@@ -1088,23 +1118,24 @@ static void print_eskf_live() {
     float patt = g_eskf.P(0, 0);
     if (g_eskf.P(1, 1) > patt) { patt = g_eskf.P(1, 1); }
     if (g_eskf.P(2, 2) > patt) { patt = g_eskf.P(2, 2); }
+    // NOLINTNEXTLINE(readability-magic-numbers) — ESKF P(5,5) = position-down variance
     float ppos = g_eskf.P(5, 5);
 
     rc::Vec3 euler = g_eskf.q.to_euler();
-    float yaw_deg = euler.z * kRadToDeg;
+    float yawDeg = euler.z * kRadToDeg;
 
-    float mdiv_deg = (g_mahonyInitialized && g_mahony.healthy())
-                     ? rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg
-                     : -1.0f;
+    float mdivDeg = (g_mahonyInitialized && g_mahony.healthy())
+                    ? rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg
+                    : -1.0F;
     printf("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f Z=%c G=%c gNIS=%.2f Mdiv=%.1f B=%lu\n",
-           (double)alt, (double)vz, (double)vh, (double)yaw_deg,
+           (double)alt, (double)vz, (double)vh, (double)yawDeg,
            (double)patt, (double)ppos,
            (double)g_eskf.last_baro_nis_,
            (double)g_eskf.last_mag_nis_,
            g_eskf.last_zupt_active_ ? 'Y' : 'N',
            g_eskf.has_origin_ ? 'Y' : 'N',
            (double)g_eskf.last_gps_pos_nis_,
-           (double)mdiv_deg,
+           (double)mdivDeg,
            (unsigned long)snap.baro_read_count);
 }
 
@@ -1113,12 +1144,12 @@ static void print_direct_sensors() {
     if (g_imuInitialized) {
         icm20948_data_t data;
         if (icm20948_read(&g_imu, &data)) {
-            float gx;
-            float gy;
-            float gz;
-            float ax;
-            float ay;
-            float az;
+            float gx = 0.0F;
+            float gy = 0.0F;
+            float gz = 0.0F;
+            float ax = 0.0F;
+            float ay = 0.0F;
+            float az = 0.0F;
             calibration_apply_gyro(data.gyro.x, data.gyro.y, data.gyro.z,
                                    &gx, &gy, &gz);
             calibration_apply_accel(data.accel.x, data.accel.y, data.accel.z,
@@ -1128,14 +1159,16 @@ static void print_direct_sensors() {
             printf("Gyro  (rad/s): X=%7.4f Y=%7.4f Z=%7.4f\n",
                    (double)gx, (double)gy, (double)gz);
             if (data.mag_valid) {
-                float mx_cal, my_cal, mz_cal;
+                float mxCal = 0.0F;
+                float myCal = 0.0F;
+                float mzCal = 0.0F;
                 calibration_apply_mag(data.mag.x, data.mag.y, data.mag.z,
-                                      &mx_cal, &my_cal, &mz_cal);
-                float magMag = sqrtf(mx_cal*mx_cal + my_cal*my_cal + mz_cal*mz_cal);
+                                      &mxCal, &myCal, &mzCal);
+                float magMag = sqrtf(mxCal*mxCal + myCal*myCal + mzCal*mzCal);
                 printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f  |M|=%.1f\n",
-                       (double)mx_cal, (double)my_cal, (double)mz_cal, (double)magMag);
-                float heading = atan2f(-my_cal, mx_cal) * (180.0F / 3.14159265F);
-                if (heading < 0.0F) { heading += 360.0F; }
+                       (double)mxCal, (double)myCal, (double)mzCal, (double)magMag);
+                float heading = atan2f(-myCal, mxCal) * kRadToDeg;
+                if (heading < 0.0F) { heading += kFullCircleDeg; }
                 printf("Heading: %.1f deg (level only)\n", (double)heading);
             } else {
                 printf("Mag: not ready\n");
@@ -1167,11 +1200,11 @@ static void print_cal_params() {
     const calibration_store_t* cal = calibration_manager_get();
     uint16_t flags = cal->cal_flags;
     printf("  Cal Flags: 0x%04X [%s%s%s%s%s]\n", flags,
-           (flags & CAL_STATUS_LEVEL) ? "Lv " : "",
-           (flags & CAL_STATUS_ACCEL_6POS) ? "6P " : "",
-           (flags & CAL_STATUS_GYRO) ? "Gy " : "",
-           (flags & CAL_STATUS_MAG) ? "Mg " : "",
-           (flags & CAL_STATUS_BARO) ? "Ba " : "");
+           ((flags & CAL_STATUS_LEVEL) != 0) ? "Lv " : "",
+           ((flags & CAL_STATUS_ACCEL_6POS) != 0) ? "6P " : "",
+           ((flags & CAL_STATUS_GYRO) != 0) ? "Gy " : "",
+           ((flags & CAL_STATUS_MAG) != 0) ? "Mg " : "",
+           ((flags & CAL_STATUS_BARO) != 0) ? "Ba " : "");
     printf("  Accel: off=[%.4f, %.4f, %.4f]\n",
            (double)cal->accel.offset.x, (double)cal->accel.offset.y,
            (double)cal->accel.offset.z);
@@ -1184,7 +1217,7 @@ static void print_cal_params() {
     printf("  Gyro:  bias=[%.6f, %.6f, %.6f]\n",
            (double)cal->gyro.bias.x, (double)cal->gyro.bias.y,
            (double)cal->gyro.bias.z);
-    if (flags & CAL_STATUS_MAG) {
+    if ((flags & CAL_STATUS_MAG) != 0) {
         printf("  Mag:   off=[%.1f, %.1f, %.1f]\n",
                (double)cal->mag.offset.x, (double)cal->mag.offset.y,
                (double)cal->mag.offset.z);
@@ -1192,11 +1225,13 @@ static void print_cal_params() {
                (double)cal->mag.scale.x, (double)cal->mag.scale.y,
                (double)cal->mag.scale.z);
     }
-    const float* R = cal->board_rotation.m;
+    const float* rotMat = cal->board_rotation.m;
+    // NOLINTBEGIN(readability-magic-numbers) — row-major DCM indices [0..8]
     printf("  Rot:   [%.3f %.3f %.3f; %.3f %.3f %.3f; %.3f %.3f %.3f]\n",
-           (double)R[0], (double)R[1], (double)R[2],
-           (double)R[3], (double)R[4], (double)R[5],
-           (double)R[6], (double)R[7], (double)R[8]);
+           (double)rotMat[0], (double)rotMat[1], (double)rotMat[2],
+           (double)rotMat[3], (double)rotMat[4], (double)rotMat[5],
+           (double)rotMat[6], (double)rotMat[7], (double)rotMat[8]);
+    // NOLINTEND(readability-magic-numbers)
 }
 
 static void print_sensor_status() {
@@ -1207,7 +1242,7 @@ static void print_sensor_status() {
     // Once Core 1 owns I2C, read from seqlock to prevent bus contention.
     // Before sensor phase, fall back to direct I2C reads.
     if (g_sensorPhaseActive) {
-        shared_sensor_data_t snap;
+        shared_sensor_data_t snap = {};
         if (seqlock_read(&g_sensorSeqlock, &snap)) {
             print_seqlock_sensors(snap);
         } else {
@@ -1231,8 +1266,8 @@ static const char* get_device_name(uint8_t addr) {
         case kI2cAddrAk09916:   return "AK09916 (mag)";
         case kI2cAddrDps310:    return "DPS310";
         case kI2cAddrPa1010d:   return "PA1010D GPS";
-        case 0x68:               return "ICM-20948 (AD0=LOW)";
-        case 0x76:               return "DPS310 (alt)";
+        case kI2cAddrIcm20948Alt: return "ICM-20948 (AD0=LOW)";
+        case kI2cAddrDps310Alt:   return "DPS310 (alt)";
         default:                 return "Unknown";
     }
 }
@@ -1241,23 +1276,23 @@ static const char* get_device_name(uint8_t addr) {
 static void hw_validate_i2c_devices() {
     // Skip I2C probes when Core 1 owns the bus (LL Entry 23: probe collision)
     if (rc_os_i2c_scan_allowed) {
-        static const uint8_t expected[] = {
+        static constexpr uint8_t kExpected[] = {
             kI2cAddrAk09916,   // 0x0C (AK09916 visible via bypass mode)
             kI2cAddrIcm20948,  // 0x69
             kI2cAddrDps310,    // 0x77
         };
         int foundCount = 0;
-        for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); i++) {
-            bool found = i2c_bus_probe(expected[i]);
+        for (const auto& addr : kExpected) {
+            bool found = i2c_bus_probe(addr);
             printf("[----] I2C 0x%02X (%s): %s\n",
-                   expected[i], get_device_name(expected[i]),
+                   addr, get_device_name(addr),
                    found ? "FOUND" : "NOT FOUND");
             if (found) {
                 foundCount++;
             }
         }
         printf("[INFO] Sensors found: %d/%zu expected\n",
-               foundCount, sizeof(expected) / sizeof(expected[0]));
+               foundCount, sizeof(kExpected) / sizeof(kExpected[0]));
     } else {
         printf("[INFO] I2C probe skipped (Core 1 owns bus)\n");
     }
@@ -1323,8 +1358,8 @@ static void print_hw_status() {
                g_bestGpsFix.fix_type, g_bestGpsFix.satellites,
                (double)g_bestGpsFix.hdop);
         printf("            %.7f, %.7f, %.1f m MSL\n",
-               g_bestGpsFix.lat_1e7 / 1e7,
-               g_bestGpsFix.lon_1e7 / 1e7,
+               g_bestGpsFix.lat_1e7 / kGpsCoordScale,
+               g_bestGpsFix.lon_1e7 / kGpsCoordScale,
                (double)g_bestGpsFix.alt_msl_m);
     } else if (g_gpsInitialized) {
         printf("  Best GPS: no fix acquired yet\n");
@@ -1367,7 +1402,7 @@ static void init_sensors() {
 
     // Sensor power-up settling time
     // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
-    sleep_ms(200);
+    sleep_ms(kSensorSettleMs);
 
     // Init IMU first — establishes bypass mode for AK09916 at 0x0C
     if (imuDetected) {
@@ -1386,9 +1421,9 @@ static void init_sensors() {
     if (gps_uart_init()) {
         g_gpsInitialized = true;
         g_gpsTransport = GPS_TRANSPORT_UART;
-        gps_fn_update   = gps_uart_update;
-        gps_fn_get_data = gps_uart_get_data;
-        gps_fn_has_fix  = gps_uart_has_fix;
+        g_gpsFnUpdate   = gps_uart_update;
+        g_gpsFnGetData = gps_uart_get_data;
+        g_gpsFnHasFix  = gps_uart_has_fix;
     } else {
         // I2C fallback — probe + init AFTER IMU bypass mode is stable.
         // PA1010D streams NMEA autonomously after any I2C read (LL Entry 20).
@@ -1399,9 +1434,9 @@ static void init_sensors() {
             if (gps_pa1010d_init()) {
                 g_gpsInitialized = true;
                 g_gpsTransport = GPS_TRANSPORT_I2C;
-                gps_fn_update   = gps_pa1010d_update;
-                gps_fn_get_data = gps_pa1010d_get_data;
-                gps_fn_has_fix  = gps_pa1010d_has_fix;
+                g_gpsFnUpdate   = gps_pa1010d_update;
+                g_gpsFnGetData = gps_pa1010d_get_data;
+                g_gpsFnHasFix  = gps_pa1010d_has_fix;
             }
         }
     }
@@ -1440,7 +1475,7 @@ static bool init_hardware() {
 
     // Red LED GPIO init
     gpio_init(PICO_DEFAULT_LED_PIN);
-    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, true);  // GPIO_OUT
 
     // NeoPixel init
     g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin);
@@ -1513,7 +1548,7 @@ static void init_application(bool watchdogReboot) {
     g_sensorPhaseActive = true;
     g_startSensorPhase.store(true, std::memory_order_release);
     rc_os_i2c_scan_allowed = false;  // LL Entry 23: prevent CLI I2C scan from corrupting bus
-    sleep_ms(500);  // Let Core 1 start up
+    sleep_ms(kCore1StartupDelayMs);  // Let Core 1 start up
 
     // Auto-calibrate baro ground reference at boot.
     // Core 1 feeds baro samples asynchronously — cal completes in background
@@ -1540,12 +1575,12 @@ static void init_application(bool watchdogReboot) {
 static const char* g_lastTickFunction = "init";
 
 static void heartbeat_tick(uint32_t nowMs) {
-    static bool ledState = false;
+    static bool g_ledState = false;
     uint32_t phase = nowMs % kHeartbeatPeriodMs;
     bool shouldBeOn = (phase < kHeartbeatOnMs);
-    if (shouldBeOn != ledState) {
-        ledState = shouldBeOn;
-        gpio_put(PICO_DEFAULT_LED_PIN, ledState ? true : false);
+    if (shouldBeOn != g_ledState) {
+        g_ledState = shouldBeOn;
+        gpio_put(PICO_DEFAULT_LED_PIN, g_ledState);
     }
 }
 
@@ -1602,11 +1637,11 @@ static bool eskf_try_init(const shared_sensor_data_t& snap) {
         rc::Vec3 mag = sensor_to_ned_mag(snap);
         // Tilt-compensate using roll/pitch from current quaternion (yaw=0)
         rc::Vec3 euler = g_eskf.q.to_euler();
-        rc::Quat q_zero_yaw = rc::Quat::from_euler(euler.x, euler.y, 0.0f);
-        rc::Vec3 mag_level = q_zero_yaw.rotate(mag);
-        float initial_yaw = -atan2f(mag_level.y, mag_level.x);
+        rc::Quat qZeroYaw = rc::Quat::from_euler(euler.x, euler.y, 0.0F);
+        rc::Vec3 magLevel = qZeroYaw.rotate(mag);
+        float initialYaw = -atan2f(magLevel.y, magLevel.x);
         // Rebuild quaternion with mag-derived yaw
-        g_eskf.q = rc::Quat::from_euler(euler.x, euler.y, initial_yaw);
+        g_eskf.q = rc::Quat::from_euler(euler.x, euler.y, initialYaw);
         g_eskf.q.normalize();
     }
 
@@ -1626,7 +1661,7 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
         return;
     }
 
-    float dt = static_cast<float>(dtUs) * 1e-6f;
+    float dt = static_cast<float>(dtUs) * kUsToSec;
 
     rc::Vec3 accel = sensor_to_ned_accel(snap);
     rc::Vec3 gyro = sensor_to_ned_gyro(snap);
@@ -1672,7 +1707,7 @@ static void eskf_tick() {
     }
 
     // CR-4: seqlock failure is a separate early return from data validity
-    shared_sensor_data_t snap;
+    shared_sensor_data_t snap = {};
     if (!seqlock_read(&g_sensorSeqlock, &snap)) {
         return;  // Seqlock contention — skip this cycle
     }
@@ -1697,9 +1732,9 @@ static void eskf_tick() {
 
     // IVP-43: Baro altitude measurement update (~32Hz DPS310 rate, on new data)
     if (snap.baro_valid && g_baroContinuous) {
-        static uint32_t s_lastEskfBaroCount = 0;
-        if (snap.baro_read_count != s_lastEskfBaroCount) {
-            s_lastEskfBaroCount = snap.baro_read_count;
+        static uint32_t g_lastEskfBaroCount = 0;
+        if (snap.baro_read_count != g_lastEskfBaroCount) {
+            g_lastEskfBaroCount = snap.baro_read_count;
             float alt = calibration_get_altitude_agl(snap.pressure_pa);
             g_eskf.update_baro(alt);
         }
@@ -1707,23 +1742,23 @@ static void eskf_tick() {
 
     // IVP-44: Mag heading measurement update (~10Hz from AK09916 via seqlock)
     if (snap.mag_valid) {
-        static uint32_t s_lastEskfMagCount = 0;
-        if (snap.mag_read_count != s_lastEskfMagCount) {
-            s_lastEskfMagCount = snap.mag_read_count;
-            rc::Vec3 mag_body = sensor_to_ned_mag(snap);
+        static uint32_t g_lastEskfMagCount = 0;
+        if (snap.mag_read_count != g_lastEskfMagCount) {
+            g_lastEskfMagCount = snap.mag_read_count;
+            rc::Vec3 magBody = sensor_to_ned_mag(snap);
             // Get expected magnitude from calibration for interference detection.
             // If mag not calibrated (expected_radius == 0), skip interference check.
             const calibration_store_t* cal = calibration_manager_get();
-            float expected_mag = (cal->cal_flags & CAL_STATUS_MAG)
-                                 ? cal->mag.expected_radius : 0.0f;
+            float expectedMag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
+                                ? cal->mag.expected_radius : 0.0F;
             // WMM declination: use GPS position if available, else 0 (magnetic heading).
-            float declination_rad = 0.0f;
+            float declinationRad = 0.0F;
             if (snap.gps_valid && snap.gps_fix_type >= 2) {
-                float lat_deg = static_cast<float>(snap.gps_lat_1e7) * 1e-7f;
-                float lon_deg = static_cast<float>(snap.gps_lon_1e7) * 1e-7f;
-                declination_rad = rc::wmm_get_declination(lat_deg, lon_deg);
+                float latDeg = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
+                float lonDeg = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
+                declinationRad = rc::wmm_get_declination(latDeg, lonDeg);
             }
-            g_eskf.update_mag_heading(mag_body, expected_mag, declination_rad);
+            g_eskf.update_mag_heading(magBody, expectedMag, declinationRad);
         }
     }
 
@@ -1744,39 +1779,39 @@ static void eskf_tick() {
     // inject position + velocity. Velocity gated on speed >= 0.5 m/s to
     // suppress noisy updates at rest (known limitation until IVP-52 state machine).
     if (snap.gps_valid && snap.gps_fix_type >= 3) {
-        static uint32_t s_lastGpsCount = 0;
-        if (snap.gps_read_count != s_lastGpsCount) {
-            s_lastGpsCount = snap.gps_read_count;
+        static uint32_t g_lastGpsCount = 0;
+        if (snap.gps_read_count != g_lastGpsCount) {
+            g_lastGpsCount = snap.gps_read_count;
 
-            double lat_rad = static_cast<double>(snap.gps_lat_1e7) * 1e-7 * kDeg2Rad;
-            double lon_rad = static_cast<double>(snap.gps_lon_1e7) * 1e-7 * kDeg2Rad;
-            float alt_m = snap.gps_alt_msl_m;
+            double latRad = static_cast<double>(snap.gps_lat_1e7) * kGps1e7ToDegrees * kDeg2Rad;
+            double lonRad = static_cast<double>(snap.gps_lon_1e7) * kGps1e7ToDegrees * kDeg2Rad;
+            float altM = snap.gps_alt_msl_m;
             float hdop = snap.gps_hdop;
 
             // First 3D fix: set origin + reset p/v
             if (!g_eskf.has_origin_) {
-                if (g_eskf.set_origin(lat_rad, lon_rad, alt_m, hdop)) {
+                if (g_eskf.set_origin(latRad, lonRad, altM, hdop)) {
                     g_eskf.p = rc::Vec3();
                     g_eskf.v = rc::Vec3();
                 }
             } else {
                 // Re-center origin if position drifts > 10km (HAB flights)
-                float dist_xy = sqrtf(g_eskf.p.x * g_eskf.p.x +
-                                      g_eskf.p.y * g_eskf.p.y);
-                if (dist_xy > rc::ESKF::kOriginResetDistance) {
-                    g_eskf.reset_origin(lat_rad, lon_rad, alt_m);
+                float distXy = sqrtf(g_eskf.p.x * g_eskf.p.x +
+                                     g_eskf.p.y * g_eskf.p.y);
+                if (distXy > rc::ESKF::kOriginResetDistance) {
+                    g_eskf.reset_origin(latRad, lonRad, altM);
                 }
 
                 // GPS position update (3 sequential scalar updates N/E/D)
-                rc::Vec3 gps_ned = g_eskf.geodetic_to_ned(lat_rad, lon_rad, alt_m);
-                g_eskf.update_gps_position(gps_ned, hdop);
+                rc::Vec3 gpsNed = g_eskf.geodetic_to_ned(latRad, lonRad, altM);
+                g_eskf.update_gps_position(gpsNed, hdop);
 
                 // GPS velocity update — only when moving (>= 0.5 m/s)
                 if (snap.gps_ground_speed_mps >= rc::ESKF::kGpsMinSpeedForVel) {
-                    float course_rad = snap.gps_course_deg * static_cast<float>(kDeg2Rad);
-                    float v_north = snap.gps_ground_speed_mps * cosf(course_rad);
-                    float v_east  = snap.gps_ground_speed_mps * sinf(course_rad);
-                    g_eskf.update_gps_velocity(v_north, v_east);
+                    float courseRad = snap.gps_course_deg * static_cast<float>(kDeg2Rad);
+                    float vNorth = snap.gps_ground_speed_mps * cosf(courseRad);
+                    float vEast  = snap.gps_ground_speed_mps * sinf(courseRad);
+                    g_eskf.update_gps_velocity(vNorth, vEast);
                 }
 
                 // IVP-46 session stats — accumulated for post-session review via 's'
@@ -1804,8 +1839,8 @@ static void eskf_tick() {
         rc::Vec3 gyro  = sensor_to_ned_gyro(snap);
 
         if (!g_mahonyInitialized) {
-            rc::Vec3 mag_body = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
-            if (g_mahony.init(accel, mag_body)) {
+            rc::Vec3 magBody = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
+            if (g_mahony.init(accel, magBody)) {
                 g_mahonyInitialized = true;
                 g_lastMahonyTimestampUs = snap.imu_timestamp_us;
             }
@@ -1813,13 +1848,13 @@ static void eskf_tick() {
             uint32_t dtUs = snap.imu_timestamp_us - g_lastMahonyTimestampUs;
             g_lastMahonyTimestampUs = snap.imu_timestamp_us;
             if (dtUs >= kEskfMinDtUs && dtUs <= kEskfMaxDtUs) {
-                float dt = static_cast<float>(dtUs) * 1e-6f;
-                rc::Vec3 mag_body = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
+                float dt = static_cast<float>(dtUs) * kUsToSec;
+                rc::Vec3 magBody = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
                 const calibration_store_t* cal = calibration_manager_get();
-                float expected_mag = (cal->cal_flags & CAL_STATUS_MAG)
-                                     ? cal->mag.expected_radius : 0.0f;
-                bool mag_cal_valid = (cal->cal_flags & CAL_STATUS_MAG) != 0;
-                g_mahony.update(accel, gyro, mag_body, expected_mag, mag_cal_valid, dt);
+                float expectedMag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
+                                    ? cal->mag.expected_radius : 0.0F;
+                bool magCalValid = (cal->cal_flags & CAL_STATUS_MAG) != 0;
+                g_mahony.update(accel, gyro, magBody, expectedMag, magCalValid, dt);
                 if (!g_mahony.healthy()) {
                     g_mahonyInitialized = false;
                 }

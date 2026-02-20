@@ -102,16 +102,16 @@ void ws2812_set_mode(ws2812_mode_t mode, ws2812_rgb_t color);
 
 /**
  * @brief Set breathing/pulse speed
- * @param period_ms Full breath cycle period in milliseconds
+ * @param periodMs Full breath cycle period in milliseconds
  */
-void ws2812_set_breathe_period(uint32_t period_ms);
+void ws2812_set_breathe_period(uint32_t periodMs);
 
 /**
  * @brief Set blink timing
- * @param on_ms On time in milliseconds
- * @param off_ms Off time in milliseconds
+ * @param onMs On time in milliseconds
+ * @param offMs Off time in milliseconds
  */
-void ws2812_set_blink_timing(uint32_t on_ms, uint32_t off_ms);
+void ws2812_set_blink_timing(uint32_t onMs, uint32_t offMs);
 
 /**
  * @brief Set global brightness (dimming)

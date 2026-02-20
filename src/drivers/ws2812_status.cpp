@@ -27,6 +27,7 @@ constexpr float    kMaxChannelValue     = 255.0F;
 constexpr float    kPercentScale        = 100.0F;
 constexpr float    kHueFull             = 360.0F;
 constexpr float    kHueSector           = 60.0F;      // HSV sector width (360/6)
+constexpr uint32_t kGrbGreenShift       = 24;         // GRB bit position: green in upper byte
 
 // ============================================================================
 // Private State
@@ -90,7 +91,7 @@ static void send_pixel(uint8_t r, uint8_t g, uint8_t b) {
     }
 
     // WS2812 expects GRB order, data in upper 24 bits
-    uint32_t grb = (static_cast<uint32_t>(g) << 24) | (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(b) << 8);
+    uint32_t grb = (static_cast<uint32_t>(g) << kGrbGreenShift) | (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(b) << 8);
     pio_sm_put_blocking(g_state.pio, g_state.sm, grb);
 }
 
@@ -200,8 +201,6 @@ void ws2812_set_mode(ws2812_mode_t mode, ws2812_rgb_t color) {
             send_pixel(0, 0, 0);
             break;
         case WS2812_MODE_SOLID:
-            send_pixel(color.r, color.g, color.b);
-            break;
         case WS2812_MODE_BLINK:
         case WS2812_MODE_BLINK_FAST:
             send_pixel(color.r, color.g, color.b);
@@ -211,17 +210,51 @@ void ws2812_set_mode(ws2812_mode_t mode, ws2812_rgb_t color) {
     }
 }
 
-void ws2812_set_breathe_period(uint32_t period_ms) {
-    g_state.breathePeriodMs = period_ms;
+void ws2812_set_breathe_period(uint32_t periodMs) {
+    g_state.breathePeriodMs = periodMs;
 }
 
-void ws2812_set_blink_timing(uint32_t on_ms, uint32_t off_ms) {
-    g_state.blinkOnMs = on_ms;
-    g_state.blinkOffMs = off_ms;
+void ws2812_set_blink_timing(uint32_t onMs, uint32_t offMs) {
+    g_state.blinkOnMs = onMs;
+    g_state.blinkOffMs = offMs;
 }
 
 void ws2812_set_brightness(uint8_t brightness) {
     g_state.brightness = brightness;
+}
+
+// ============================================================================
+// Update Helpers
+// ============================================================================
+
+static void update_breathe(uint32_t elapsed) {
+    float phase = static_cast<float>(elapsed) / static_cast<float>(g_state.breathePeriodMs);
+    float scale = (sinf(phase * 2.0F * kPi) + 1.0F) / 2.0F;
+    scale = kBreatheMinScale + scale * kBreatheRange;
+    ws2812_rgb_t color = apply_brightness(g_state.baseColor, scale);
+    send_pixel(color.r, color.g, color.b);
+}
+
+static void update_blink(uint32_t elapsed, uint32_t onMs, uint32_t offMs) {
+    uint32_t period = onMs + offMs;
+    uint32_t phase = elapsed % period;
+    bool shouldBeOn = (phase < onMs);
+
+    if (shouldBeOn != g_state.blinkState) {
+        g_state.blinkState = shouldBeOn;
+        if (shouldBeOn) {
+            send_pixel(g_state.baseColor.r, g_state.baseColor.g,
+                      g_state.baseColor.b);
+        } else {
+            send_pixel(0, 0, 0);
+        }
+    }
+}
+
+static void update_rainbow(uint32_t elapsed) {
+    g_state.rainbowHue = fmodf(static_cast<float>(elapsed) / kRainbowCyclePeriodMs * kHueFull, kHueFull);
+    ws2812_rgb_t color = ws2812_hsv_to_rgb(g_state.rainbowHue, kRainbowSaturation, kRainbowValue);
+    send_pixel(color.r, color.g, color.b);
 }
 
 // ============================================================================
@@ -238,64 +271,25 @@ void ws2812_update() {
 
     switch (g_state.mode) {
         case WS2812_MODE_OFF:
-            // Nothing to update
-            break;
-
         case WS2812_MODE_SOLID:
-            // Nothing to update - color already set
+            // Nothing to update — color already set or off
             break;
 
-        case WS2812_MODE_BREATHE: {
-            // Sinusoidal brightness pulsing
-            float phase = static_cast<float>(elapsed) / static_cast<float>(g_state.breathePeriodMs);
-            float scale = (sinf(phase * 2.0F * kPi) + 1.0F) / 2.0F;
-            scale = kBreatheMinScale + scale * kBreatheRange;
-            ws2812_rgb_t color = apply_brightness(g_state.baseColor, scale);
-            send_pixel(color.r, color.g, color.b);
+        case WS2812_MODE_BREATHE:
+            update_breathe(elapsed);
             break;
-        }
 
-        case WS2812_MODE_BLINK: {
-            uint32_t period = g_state.blinkOnMs + g_state.blinkOffMs;
-            uint32_t phase = elapsed % period;
-            bool shouldBeOn = (phase < g_state.blinkOnMs);
-
-            if (shouldBeOn != g_state.blinkState) {
-                g_state.blinkState = shouldBeOn;
-                if (shouldBeOn) {
-                    send_pixel(g_state.baseColor.r, g_state.baseColor.g,
-                              g_state.baseColor.b);
-                } else {
-                    send_pixel(0, 0, 0);
-                }
-            }
+        case WS2812_MODE_BLINK:
+            update_blink(elapsed, g_state.blinkOnMs, g_state.blinkOffMs);
             break;
-        }
 
-        case WS2812_MODE_BLINK_FAST: {
-            // 5Hz blinking
-            uint32_t phase = elapsed % kFastBlinkPeriodMs;
-            bool shouldBeOn = (phase < kFastBlinkOnMs);
-
-            if (shouldBeOn != g_state.blinkState) {
-                g_state.blinkState = shouldBeOn;
-                if (shouldBeOn) {
-                    send_pixel(g_state.baseColor.r, g_state.baseColor.g,
-                              g_state.baseColor.b);
-                } else {
-                    send_pixel(0, 0, 0);
-                }
-            }
+        case WS2812_MODE_BLINK_FAST:
+            update_blink(elapsed, kFastBlinkOnMs, kFastBlinkPeriodMs - kFastBlinkOnMs);
             break;
-        }
 
-        case WS2812_MODE_RAINBOW: {
-            // Smooth rainbow cycle
-            g_state.rainbowHue = fmodf(static_cast<float>(elapsed) / kRainbowCyclePeriodMs * kHueFull, kHueFull);
-            ws2812_rgb_t color = ws2812_hsv_to_rgb(g_state.rainbowHue, kRainbowSaturation, kRainbowValue);
-            send_pixel(color.r, color.g, color.b);
+        case WS2812_MODE_RAINBOW:
+            update_rainbow(elapsed);
             break;
-        }
     }
 
     g_state.lastUpdateMs = now;
