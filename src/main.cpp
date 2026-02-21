@@ -965,8 +965,8 @@ static void feed_active_calibration() {
 // Sensor Status Callback (for RC_OS CLI 's' command)
 // ============================================================================
 
-// Print sensor data from seqlock snapshot (Core 1 driving sensors)
-static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
+// Helpers for print_seqlock_sensors() — extracted to reduce CC
+static void print_imu_status(const shared_sensor_data_t& snap) {
     if (snap.accel_valid) {
         float aMag = sqrtf(snap.accel_x*snap.accel_x + snap.accel_y*snap.accel_y
                            + snap.accel_z*snap.accel_z);
@@ -1000,6 +1000,9 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
     } else {
         printf("Baro: no data yet\n");
     }
+}
+
+static void print_eskf_status() {
     // ESKF fused attitude (IVP-42d)
     if (g_eskfInitialized && g_eskf.healthy()) {
         rc::Vec3 euler = g_eskf.q.to_euler();
@@ -1040,6 +1043,9 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
     } else {
         printf("ESKF: waiting for stationary init...\n");
     }
+}
+
+static void print_gps_status(const shared_sensor_data_t& snap) {
     // GPS — show transport label
     const char* gpsLabel = "???";
     if (g_gpsTransport == GPS_TRANSPORT_UART) {
@@ -1087,6 +1093,9 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
     } else {
         printf("GPS: not detected\n");
     }
+}
+
+static void print_sensor_counts(const shared_sensor_data_t& snap) {
     printf("Reads: I=%lu M=%lu B=%lu G=%lu  "
            "Errors: I=%lu B=%lu G=%lu\n",
            (unsigned long)snap.imu_read_count,
@@ -1096,6 +1105,14 @@ static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
            (unsigned long)snap.imu_error_count,
            (unsigned long)snap.baro_error_count,
            (unsigned long)snap.gps_error_count);
+}
+
+// Print sensor data from seqlock snapshot (Core 1 driving sensors)
+static void print_seqlock_sensors(const shared_sensor_data_t& snap) {
+    print_imu_status(snap);
+    print_eskf_status();
+    print_gps_status(snap);
+    print_sensor_counts(snap);
 }
 
 // Compact ESKF live output (1Hz, one line per update)
@@ -1700,37 +1717,8 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
     }
 }
 
-// IVP-42d: ESKF tick — runs at 200Hz via IMU count divider.
-static void eskf_tick() {
-    if (!g_sensorPhaseActive) {
-        return;
-    }
-
-    // CR-4: seqlock failure is a separate early return from data validity
-    shared_sensor_data_t snap = {};
-    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
-        return;  // Seqlock contention — skip this cycle
-    }
-
-    if (!snap.accel_valid || !snap.gyro_valid) {
-        return;
-    }
-
-    // Run every kEskfImuDivider-th new IMU sample (200Hz at 1kHz IMU rate)
-    uint32_t newSamples = snap.imu_read_count - g_lastEskfImuCount;
-    if (newSamples < kEskfImuDivider) {
-        return;
-    }
-    g_lastEskfImuCount = snap.imu_read_count;
-
-    if (!g_eskfInitialized) {
-        eskf_try_init(snap);
-        return;
-    }
-
-    eskf_run_predict(snap);
-
-    // IVP-43: Baro altitude measurement update (~32Hz DPS310 rate, on new data)
+// IVP-43: Baro altitude measurement update (~32Hz DPS310 rate, on new data)
+static void eskf_tick_baro(const shared_sensor_data_t& snap) {
     if (snap.baro_valid && g_baroContinuous) {
         static uint32_t g_lastEskfBaroCount = 0;
         if (snap.baro_read_count != g_lastEskfBaroCount) {
@@ -1739,8 +1727,10 @@ static void eskf_tick() {
             g_eskf.update_baro(alt);
         }
     }
+}
 
-    // IVP-44: Mag heading measurement update (~10Hz from AK09916 via seqlock)
+// IVP-44: Mag heading measurement update (~10Hz from AK09916 via seqlock)
+static void eskf_tick_mag(const shared_sensor_data_t& snap) {
     if (snap.mag_valid) {
         static uint32_t g_lastEskfMagCount = 0;
         if (snap.mag_read_count != g_lastEskfMagCount) {
@@ -1761,23 +1751,14 @@ static void eskf_tick() {
             g_eskf.update_mag_heading(magBody, expectedMag, declinationRad);
         }
     }
+}
 
-    // IVP-44b: Zero-velocity pseudo-measurement (ZUPT).
-    // Runs at predict rate (200Hz). Stationarity check is cheap — the ESKF
-    // internally checks accel magnitude ≈ g and gyro < threshold.
-    // When stationary, injects v=[0,0,0] to prevent horizontal velocity
-    // divergence that occurs without GPS or velocity aiding.
-    {
-        rc::Vec3 accel = sensor_to_ned_accel(snap);
-        rc::Vec3 gyro = sensor_to_ned_gyro(snap);
-        g_eskf.update_zupt(accel, gyro);
-    }
-
-    // IVP-46: GPS position + velocity measurement update.
-    // Gated on 3D fix with new data. On first quality fix, sets NED origin
-    // and resets p/v to zero. Subsequent fixes convert geodetic to NED and
-    // inject position + velocity. Velocity gated on speed >= 0.5 m/s to
-    // suppress noisy updates at rest (known limitation until IVP-52 state machine).
+// IVP-46: GPS position + velocity measurement update.
+// Gated on 3D fix with new data. On first quality fix, sets NED origin
+// and resets p/v to zero. Subsequent fixes convert geodetic to NED and
+// inject position + velocity. Velocity gated on speed >= 0.5 m/s to
+// suppress noisy updates at rest (known limitation until IVP-52 state machine).
+static void eskf_tick_gps(const shared_sensor_data_t& snap) {
     if (snap.gps_valid && snap.gps_fix_type >= 3) {
         static uint32_t g_lastGpsCount = 0;
         if (snap.gps_read_count != g_lastGpsCount) {
@@ -1830,37 +1811,84 @@ static void eskf_tick() {
             }
         }
     }
+}
 
-    // IVP-45: Mahony AHRS cross-check — independent attitude estimator.
-    // Runs at same 200Hz tick as ESKF. Uses its own dt tracking so it
-    // remains independent of the ESKF timestamp variable.
-    {
-        rc::Vec3 accel = sensor_to_ned_accel(snap);
-        rc::Vec3 gyro  = sensor_to_ned_gyro(snap);
+// IVP-45: Mahony AHRS cross-check — independent attitude estimator.
+// Runs at same 200Hz tick as ESKF. Uses its own dt tracking so it
+// remains independent of the ESKF timestamp variable.
+static void eskf_tick_mahony(const shared_sensor_data_t& snap) {
+    rc::Vec3 accel = sensor_to_ned_accel(snap);
+    rc::Vec3 gyro  = sensor_to_ned_gyro(snap);
 
-        if (!g_mahonyInitialized) {
-            rc::Vec3 magBody = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
-            if (g_mahony.init(accel, magBody)) {
-                g_mahonyInitialized = true;
-                g_lastMahonyTimestampUs = snap.imu_timestamp_us;
-            }
-        } else {
-            uint32_t dtUs = snap.imu_timestamp_us - g_lastMahonyTimestampUs;
+    if (!g_mahonyInitialized) {
+        rc::Vec3 magBody = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
+        if (g_mahony.init(accel, magBody)) {
+            g_mahonyInitialized = true;
             g_lastMahonyTimestampUs = snap.imu_timestamp_us;
-            if (dtUs >= kEskfMinDtUs && dtUs <= kEskfMaxDtUs) {
-                float dt = static_cast<float>(dtUs) * kUsToSec;
-                rc::Vec3 magBody = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
-                const calibration_store_t* cal = calibration_manager_get();
-                float expectedMag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
-                                    ? cal->mag.expected_radius : 0.0F;
-                bool magCalValid = (cal->cal_flags & CAL_STATUS_MAG) != 0;
-                g_mahony.update(accel, gyro, magBody, expectedMag, magCalValid, dt);
-                if (!g_mahony.healthy()) {
-                    g_mahonyInitialized = false;
-                }
+        }
+    } else {
+        uint32_t dtUs = snap.imu_timestamp_us - g_lastMahonyTimestampUs;
+        g_lastMahonyTimestampUs = snap.imu_timestamp_us;
+        if (dtUs >= kEskfMinDtUs && dtUs <= kEskfMaxDtUs) {
+            float dt = static_cast<float>(dtUs) * kUsToSec;
+            rc::Vec3 magBody = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
+            const calibration_store_t* cal = calibration_manager_get();
+            float expectedMag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
+                                ? cal->mag.expected_radius : 0.0F;
+            bool magCalValid = (cal->cal_flags & CAL_STATUS_MAG) != 0;
+            g_mahony.update(accel, gyro, magBody, expectedMag, magCalValid, dt);
+            if (!g_mahony.healthy()) {
+                g_mahonyInitialized = false;
             }
         }
     }
+}
+
+// IVP-42d: ESKF tick — runs at 200Hz via IMU count divider.
+static void eskf_tick() {
+    if (!g_sensorPhaseActive) {
+        return;
+    }
+
+    // CR-4: seqlock failure is a separate early return from data validity
+    shared_sensor_data_t snap = {};
+    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
+        return;  // Seqlock contention — skip this cycle
+    }
+
+    if (!snap.accel_valid || !snap.gyro_valid) {
+        return;
+    }
+
+    // Run every kEskfImuDivider-th new IMU sample (200Hz at 1kHz IMU rate)
+    uint32_t newSamples = snap.imu_read_count - g_lastEskfImuCount;
+    if (newSamples < kEskfImuDivider) {
+        return;
+    }
+    g_lastEskfImuCount = snap.imu_read_count;
+
+    if (!g_eskfInitialized) {
+        eskf_try_init(snap);
+        return;
+    }
+
+    eskf_run_predict(snap);
+    eskf_tick_baro(snap);
+    eskf_tick_mag(snap);
+
+    // IVP-44b: Zero-velocity pseudo-measurement (ZUPT).
+    // Runs at predict rate (200Hz). Stationarity check is cheap — the ESKF
+    // internally checks accel magnitude ≈ g and gyro < threshold.
+    // When stationary, injects v=[0,0,0] to prevent horizontal velocity
+    // divergence that occurs without GPS or velocity aiding.
+    {
+        rc::Vec3 accel = sensor_to_ned_accel(snap);
+        rc::Vec3 gyro = sensor_to_ned_gyro(snap);
+        g_eskf.update_zupt(accel, gyro);
+    }
+
+    eskf_tick_gps(snap);
+    eskf_tick_mahony(snap);
 }
 
 // ============================================================================
