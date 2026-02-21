@@ -20,6 +20,30 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-21-002 | Claude Code CLI | feature, architecture
+
+**IVP-47: Codegen FPFT — 9.1× speedup, predict() at 59µs (was 538µs)**
+
+SymPy codegen script (`scripts/generate_fpft.py`) generates flat scalar C++ for F*P*F^T + Q_d covariance propagation. 199 CSE intermediates, 120 upper-triangle outputs, Q_d constants baked in. Read-after-write hazard fixed by snapshotting all 120 P inputs to locals before computation. Running from SRAM (`.time_critical` section) — XIP cache (2KB) thrashes on 10KB function from flash (398µs), SRAM eliminates cache entirely (59µs). Three-layer verification: SymPy self-test (2.6e-18 vs NumPy), Test 8 CodegenVsDenseFPFT (100 steps, 1e-4), Test 15 CodegenSingleStep (1e-6). `static_assert` guards sync codegen constants with eskf.h. 194/194 host tests pass. Binary: 239,616 bytes (+21KB codegen, +10KB .data from SRAM placement). Benchmark: 59µs avg, 50µs min, 113µs max (17,883 calls), 0 sensor errors. Standards deviation CG-1 logged for auto-generated function exceeding 200 L-SLOC.
+
+(`scripts/generate_fpft.py`, `src/fusion/eskf_codegen.cpp`, `src/fusion/eskf_codegen.h`, `src/fusion/eskf.cpp`, `CMakeLists.txt`, `test/test_eskf_propagation.cpp`, `test/data/reference/*.csv`, `standards/STANDARDS_DEVIATIONS.md`)
+
+---
+
+### 2026-02-21-001 | Claude Code CLI | feature, architecture
+
+**IVP-47: Block-sparse FPFT experiment — reverted to dense after benchmark**
+
+Implemented and verified block-sparse FPFT covariance propagation exploiting F_x block structure (15 of 25 blocks are zero). Algebraically correct: 193/193 host tests pass, 1e-6 single-step tolerance vs dense reference. However, on-target benchmark showed block-sparse was **31% slower** than dense (712µs avg vs 542µs avg). Root cause: ~30+ `block3()` Mat3 copies per step, poor cache locality jumping around 15×15 P matrix, and dense inner loops autovectorize better on Cortex-M33. Theoretical 10× FMA reduction doesn't offset memory access overhead.
+
+**Outcome:** Reverted predict() to dense. Retained `block3()`/`set_block3()`/`add_block3()` helpers in mat.h (useful for measurement updates). Retained PSymmetry test. predict() at 538µs avg confirmed on target (matches pre-experiment baseline). **Codegen (SymPy/SymForce element-wise scalar expansion) is the correct optimization path** — scheduled for 24-state wind estimation expansion, where dense becomes O(24³×3) ≈ 41K FMA vs codegen O(N²).
+
+*Block-sparse and codegen are fundamentally different approaches. ArduPilot/PX4 use codegen (SymPy/SymForce), not block-sparse. Codegen emits flat scalar C++ with CSE — zero function calls, zero copies, zero temporaries at runtime.*
+
+(`src/fusion/eskf.cpp`, `src/math/mat.h`, `test/test_eskf_propagation.cpp`, `test/data/reference/*.csv`)
+
+---
+
 ### 2026-02-20-005 | Claude Code CLI | feature
 
 **IVP-47: ESKF health tuning — mag heading fix + diagnostics**

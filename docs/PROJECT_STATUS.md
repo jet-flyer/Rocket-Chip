@@ -1,12 +1,12 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-02-20
+**Last Updated:** 2026-02-21
 
 ## Current Phase
 
 **Stage 5 IN PROGRESS** — Sensor Fusion (ESKF)
 
-IVP-39 through IVP-46 complete, plus IVP-45 (Mahony AHRS) and IVP-48 (health tuning). All measurement updates wired. GPS upgraded to 57600 baud / 10Hz. ESKF divergence fix (silent ICM-20948 zero-output) HW verified. Mag heading fix: mNIS was stuck at 124.99, now 0.00–0.52. Per-sensor diagnostics and CLI health dashboard added. Next: IVP-47 (sparse FPFT optimization).
+IVP-39 through IVP-48 complete (all measurement updates, health tuning, Mahony AHRS). IVP-47 codegen FPFT complete — 9.1× speedup (538µs → 59µs avg). SymPy CSE generates flat scalar C++ running from SRAM (.time_critical section). 194/194 host tests pass. HW benchmark verified. Stage 5 ESKF core complete.
 
 ## Completed
 
@@ -33,12 +33,13 @@ IVP-39 through IVP-46 complete, plus IVP-45 (Mahony AHRS) and IVP-48 (health tun
 | ESKF divergence fix | — | 2026-02-19 | Silent ICM-20948 zero-output detection: accel magnitude guard in core1_read_imu() + velocity sentinel in healthy(). 60s soak: max bNIS=3.81, max vel=0.077 m/s, 0 errors |
 | GPS 10Hz / 57600 baud | — | 2026-02-20 | GPS negotiated to 57600 baud + 10Hz in gps_uart_init(). Cold-start safe (always inits at 9600 then negotiates). HW verified: ~127 GPS reads/10s, rxOvf=0 |
 | 5: Health Tuning | IVP-48 | 2026-02-20 | Fixed mNIS=124.99 death spiral: tilt R inflation (30-60°), hard reject >60°, 300σ gate (ArduPilot match), public reset_mag_heading() API. Per-sensor diagnostic counters + CLI health dashboard. 192/192 host tests. HW verified: mNIS 0.00–0.52 |
+| 5: FPFT experiment | IVP-47 | 2026-02-21 | Block-sparse tried first (31% slower, reverted). Codegen FPFT via SymPy CSE: 199 intermediates, SRAM execution. 9.1× speedup: 538µs → 59µs avg. 194/194 host tests. Binary +21KB text, +10KB .data |
 
 ## In Progress
 
-**Stage 5: Sensor Fusion (ESKF)** — IVP-39 through IVP-46 + IVP-48 complete. Next: IVP-47 (sparse FPFT).
+**Stage 5: Sensor Fusion (ESKF)** — IVP-39 through IVP-48 complete. All core ESKF work done.
 
-- IVP-47: Sparse FPFT optimization — pending (predict() ~496µs → <100µs target)
+- IVP-47: Codegen FPFT optimization — **COMPLETE** (59µs avg, 9.1× speedup)
 - IVP-49: MMAE bank manager — pending (Titan tier)
 - IVP-50: Confidence gate — pending (Titan tier)
 

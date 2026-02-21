@@ -52,6 +52,7 @@ if(BUILD_TESTS)
     add_library(rc_fusion STATIC
         src/fusion/baro_kf.cpp
         src/fusion/eskf.cpp
+        src/fusion/eskf_codegen.cpp
         src/fusion/wmm_declination.cpp
         src/fusion/mahony_ahrs.cpp
     )
@@ -185,6 +186,7 @@ else()
 
         # IVP-42a: ESKF core propagation
         src/fusion/eskf.cpp
+        src/fusion/eskf_codegen.cpp
 
         # IVP-44: WMM declination lookup table
         src/fusion/wmm_declination.cpp
@@ -209,17 +211,17 @@ else()
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/eskf.cpp
+        src/fusion/eskf_codegen.cpp
         src/fusion/wmm_declination.cpp
         src/fusion/mahony_ahrs.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
-    # IVP-42d: Per-file -O2 for ESKF propagation (LL Entry 1 / council R-4).
-    # At -O0, the predict() call chain accumulates ~5KB+ of stack from Mat15
-    # temporaries and function frames, triggering MemManage fault. -O2 enables
-    # NRVO and inlining that eliminates these stack allocations. The benchmark
-    # gate (<100µs) also requires optimization — -O0 gives ~200µs+.
+    # IVP-42d / IVP-47: Per-file -O2 for ESKF propagation and codegen.
+    # eskf.cpp: -O2 for stack optimization (LL Entry 1 / council R-4).
+    # eskf_codegen.cpp: -O2 critical for codegen performance (199 CSE intermediates).
     set_source_files_properties(src/fusion/eskf.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic")
+    set_source_files_properties(src/fusion/eskf_codegen.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic")
 
     # Include directories
     target_include_directories(rocketchip PRIVATE

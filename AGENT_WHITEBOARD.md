@@ -14,11 +14,9 @@
 
 ---
 
-### Changelog Amendment Needed
+### SRAM Execution Audit — Check for Other XIP Cache Bottlenecks
 
-**Added 2026-02-20.** The cyclomatic complexity caveat edits (`.clang-tidy` comment, pre-commit hook note, whiteboard deferred note) were committed standalone. Amend into the next CHANGELOG.md entry rather than adding a separate entry for a comment-only change.
-
----
+**Added 2026-02-21.** IVP-47 codegen FPFT revealed that RP2350's 2KB XIP cache causes catastrophic performance loss for large hot functions (10KB codegen: 398µs from flash → 59µs from SRAM, 6.7× difference). The `.time_critical` section is the SDK's intended solution. **Audit all high-frequency code paths** for functions that may be larger than the XIP cache and running from flash: `scalar_kalman_update()` (Joseph form, runs at baro/mag/GPS rates), `propagate_nominal()` (200Hz), sensor read functions on Core 1, any future measurement update expansion. Profile suspect functions with/without `.time_critical` to quantify actual impact. Low-rate functions (<10Hz) are unlikely to benefit.
 
 ---
 
@@ -29,16 +27,6 @@
 **False warning bug — FIXED (2026-02-12).** Root cause: both SDK functions are broken for our use case. `watchdog_caused_reboot()` gives false positives on SWD `monitor reset run` (reason register persists, `rom_get_last_boot_type()` returns `BOOT_TYPE_NORMAL`). `watchdog_enable_caused_reboot()` gives false negatives on real timeouts (bootrom overwrites scratch[4]). Fix: custom sentinel in scratch[0] (`kWatchdogSentinel = 0x52435754`), written before `watchdog_enable()`, checked and cleared at boot. Scratch[0] survives watchdog resets but is cleared by POR/SWD reset. HW verified: no warning on cold plug, boot button, or first SWD flash. Warning correctly appears on SWD reflash while watchdog is running (genuine timeout during bootrom — bootrom takes >5s, watchdog fires). This remaining case will be addressed with the broader IVP-51 watchdog recovery policy.
 
 **IVP renumber (2026-02-18):** All Stage 6-9 IVP numbers shifted +2 (IVP-49→51 through IVP-69→71). New IVP-47 (Sparse FPFT) and IVP-48 (ESKF Health Tuning) inserted.
-
----
-
-### Sparse FPFT Optimization — IVP-47
-
-**Added 2026-02-12.** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies). Benchmarked at ~496µs on target (IVP-42d, `6c84cd3`), vs <100µs gate target. Within cycle budget at 200Hz (~10%) but 5x over target. The sparse path exploits F_x block structure (many zero/identity blocks) to avoid the full O(N³) triple product — should bring it under 100µs.
-
-**When:** IVP-48 health tuning is now complete (mNIS fixed, all feeds fusing). This is the next IVP.
-
-**Also applies to:** `update_baro()` Joseph form has two dense 15×15 multiplies (~8Hz, less critical than 200Hz predict). Mag and GPS updates will add more. Profile full pipeline with all feeds before optimizing.
 
 ---
 
@@ -76,6 +64,10 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 ---
 
 ## Resolved
+
+### IVP-47 Codegen FPFT — COMPLETE (2026-02-21)
+
+SymPy codegen (`scripts/generate_fpft.py`) generates flat scalar C++ for F*P*F^T + Q_d. 199 CSE intermediates, SRAM execution (`.time_critical` section). Block-sparse tried first (31% slower, reverted). Codegen: **9.1× speedup, 538µs → 59µs avg** (50µs min, 113µs max). 194/194 host tests, 0 sensor errors on target. Binary +21KB text, +10KB .data. Standards deviation CG-1 logged. Joseph-form measurement updates (`scalar_kalman_update()`) remain dense — lower rate (8-10Hz), profile when expanding to 24 states.
 
 ### IVP-48 ESKF Health Tuning — COMPLETE (2026-02-20)
 

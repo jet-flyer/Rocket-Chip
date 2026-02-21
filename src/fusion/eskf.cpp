@@ -1,6 +1,17 @@
 #include "fusion/eskf.h"
+#include "fusion/eskf_codegen.h"
 
 #include <cmath>
+
+// R3: Compile-time sync — fail build if codegen constants drift from eskf.h
+static_assert(codegen::kSigmaGyro == rc::ESKF::kSigmaGyro,
+              "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
+static_assert(codegen::kSigmaAccel == rc::ESKF::kSigmaAccel,
+              "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
+static_assert(codegen::kSigmaGyroBiasWalk == rc::ESKF::kSigmaGyroBiasWalk,
+              "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
+static_assert(codegen::kSigmaAccelBiasWalk == rc::ESKF::kSigmaAccelBiasWalk,
+              "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
 
 namespace rc {
 
@@ -262,45 +273,29 @@ static void dense_fpft_add(Mat15& pMat, const Mat15& fMat, const Mat15& qdMat) {
 }
 
 // ============================================================================
-// predict: Sparse FPFT propagation (R-1 optimization)
+// predict: Codegen FPFT covariance propagation
+// P = F * P * F^T + Q_d (Sola 2017, Eq. 269)
 //
-// Exploits F_x block structure: many blocks are zero or identity.
-// Computes g_pNew = F * P * F^T + Q_d using only non-zero blocks.
+// Uses SymPy-generated flat scalar expansion (scripts/generate_fpft.py).
+// CSE eliminates redundant sub-expressions. Q_d baked into generated code.
+// Dense predict_dense() retained as verification reference (Test 8).
 //
-// The sparse approach avoids the full 15×15 × 15×15 × 15×15 triple product
-// by computing individual 3×3 block contributions. This is O(5^2 * 3^3)
-// instead of O(15^3), roughly 5× faster on embedded targets.
+// IVP-47 history: Block-sparse tried first, 31% SLOWER (712us vs 542us).
+// Codegen is the correct path (PX4/ArduPilot pattern).
 // ============================================================================
 void ESKF::predict(const Vec3& accelMeas, const Vec3& gyroMeas, float dt) {
-    // Bias-corrected measurements (needed for F construction)
     const Vec3 accelBody = accelMeas - accel_bias;
     const Vec3 gyroBody = gyroMeas - gyro_bias;
 
-    // 1. Propagate nominal state
     propagate_nominal(accelMeas, gyroMeas, dt);
 
-    // 2. Build F and Q_d
-    // Note: F uses the pre-propagation quaternion for linearization.
-    // We already propagated nominal state, so we use the PRE-update q.
-    // However, for first-order accuracy at typical rates (200Hz, dt=5ms),
-    // the difference between pre and post q is negligible.
-    // ArduPilot EKF3 uses the same approach.
-    // Static Mat15 locals to avoid stack overflow on RP2350 (LL Entry 1).
-    // Mat15 = 900B each; multiple on stack causes MemManage fault.
-    // Safe: single-threaded Core 0.
-    static Mat15 g_fLocal;
-    static Mat15 g_qdLocal;
-    build_F(g_fLocal, q, accelBody, gyroBody, dt);
-    build_Qc(g_qdLocal);        // Build Qc directly into g_qdLocal
-    g_qdLocal.scale(dt);         // Zeroth-order hold (R-9): Qd = Qc * dt
-
-    // 3. Dense F*P*F^T + Q_d
-    dense_fpft_add(P, g_fLocal, g_qdLocal);
-
-    // 4. Symmetry enforcement
+    // Codegen FPFT: SymPy-generated flat scalar expansion with CSE
+    // Replaces dense O(N^3) triple product. Q_d baked in.
+    const Mat3 rotMat = quat_to_dcm(q);
+    codegen_fpft(P.data, rotMat.data,
+                 accelBody.x, accelBody.y, accelBody.z,
+                 gyroBody.x, gyroBody.y, gyroBody.z, dt);
     P.force_symmetric();
-
-    // 5. Covariance clamping (RF-2)
     clamp_covariance();
 
     last_propagation_dt_ = dt;

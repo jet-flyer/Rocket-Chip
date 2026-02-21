@@ -255,14 +255,15 @@ TEST(ESKFPropagation, ResetJacobianG) {
 }
 
 // ============================================================================
-// Test 8: SparseVsDenseFPFT
-// 100 steps: sparse and dense P match within tolerance
+// Test 8: CodegenVsDenseFPFT (R6)
+// 100 steps: codegen predict() vs dense predict_dense() match within tolerance.
+// Primary verification that SymPy-generated code matches hand-written dense.
 // ============================================================================
-TEST(ESKFPropagation, SparseVsDenseFPFT) {
+TEST(ESKFPropagation, CodegenVsDenseFPFT) {
     // Initialize two identical ESKFs
-    ESKF sparse;
+    ESKF codegen;
     ESKF dense;
-    sparse.init(kAccelStationary, kGyroStationary);
+    codegen.init(kAccelStationary, kGyroStationary);
     dense.init(kAccelStationary, kGyroStationary);
 
     // Small rotation to exercise off-diagonal F blocks
@@ -271,32 +272,34 @@ TEST(ESKFPropagation, SparseVsDenseFPFT) {
     const Vec3 accel(0.1f, -0.05f, -kG + 0.02f);
 
     for (int i = 0; i < 100; ++i) {
-        sparse.predict(accel, gyro, kDt);
+        codegen.predict(accel, gyro, kDt);
         dense.predict_dense(accel, gyro, kDt);
     }
 
-    // Compare P matrices element-by-element
+    // Compare P matrices element-by-element.
+    // Codegen uses SymPy-expanded scalar ops; dense uses triple matrix product.
+    // Float summation order differs — 1e-4 tolerance for 100-step accumulation.
     const float tol = 1e-4f;
     for (int r = 0; r < 15; ++r) {
         for (int c = 0; c < 15; ++c) {
-            EXPECT_NEAR(sparse.P(r, c), dense.P(r, c), tol)
+            EXPECT_NEAR(codegen.P(r, c), dense.P(r, c), tol)
                 << "P mismatch at (" << r << "," << c << ")";
         }
     }
 
-    // Compare nominal states
-    EXPECT_NEAR(sparse.q.w, dense.q.w, 1e-6f);
-    EXPECT_NEAR(sparse.q.x, dense.q.x, 1e-6f);
-    EXPECT_NEAR(sparse.q.y, dense.q.y, 1e-6f);
-    EXPECT_NEAR(sparse.q.z, dense.q.z, 1e-6f);
+    // Compare nominal states (identical — both call propagate_nominal())
+    EXPECT_NEAR(codegen.q.w, dense.q.w, 1e-6f);
+    EXPECT_NEAR(codegen.q.x, dense.q.x, 1e-6f);
+    EXPECT_NEAR(codegen.q.y, dense.q.y, 1e-6f);
+    EXPECT_NEAR(codegen.q.z, dense.q.z, 1e-6f);
 
-    EXPECT_NEAR(sparse.p.x, dense.p.x, 1e-4f);
-    EXPECT_NEAR(sparse.p.y, dense.p.y, 1e-4f);
-    EXPECT_NEAR(sparse.p.z, dense.p.z, 1e-4f);
+    EXPECT_NEAR(codegen.p.x, dense.p.x, 1e-4f);
+    EXPECT_NEAR(codegen.p.y, dense.p.y, 1e-4f);
+    EXPECT_NEAR(codegen.p.z, dense.p.z, 1e-4f);
 
-    EXPECT_NEAR(sparse.v.x, dense.v.x, 1e-4f);
-    EXPECT_NEAR(sparse.v.y, dense.v.y, 1e-4f);
-    EXPECT_NEAR(sparse.v.z, dense.v.z, 1e-4f);
+    EXPECT_NEAR(codegen.v.x, dense.v.x, 1e-4f);
+    EXPECT_NEAR(codegen.v.y, dense.v.y, 1e-4f);
+    EXPECT_NEAR(codegen.v.z, dense.v.z, 1e-4f);
 }
 
 // ============================================================================
@@ -521,3 +524,56 @@ TEST(ESKFPropagation, BankedTurnFromCSV) {
     EXPECT_TRUE(eskf.healthy());
     EXPECT_NEAR(eskf.q.norm(), 1.0f, 1e-5f);
 }
+
+// ============================================================================
+// Test 14: PSymmetry
+// After 100 predict steps, P must equal P^T within 1e-6.
+// Catches asymmetry from force_symmetric() or floating-point drift.
+// ============================================================================
+TEST(ESKFPropagation, PSymmetry) {
+    ESKF eskf = make_initialized();
+
+    const Vec3 gyro(0.01f, 0.02f, 0.03f);
+    const Vec3 accel(0.1f, -0.05f, -kG + 0.02f);
+
+    for (int i = 0; i < 100; ++i) {
+        eskf.predict(accel, gyro, kDt);
+    }
+
+    for (int r = 0; r < 15; ++r) {
+        for (int c = r + 1; c < 15; ++c) {
+            EXPECT_NEAR(eskf.P(r, c), eskf.P(c, r), 1e-6f)
+                << "Symmetry violation at (" << r << "," << c << ")";
+        }
+    }
+}
+
+// ============================================================================
+// Test 15: CodegenSingleStep (Check C)
+// Single predict step: codegen vs dense at tight tolerance.
+// Verifies algebraic correctness without accumulation drift.
+// ============================================================================
+TEST(ESKFPropagation, CodegenSingleStep) {
+    ESKF codegen;
+    ESKF dense;
+    codegen.init(kAccelStationary, kGyroStationary);
+    dense.init(kAccelStationary, kGyroStationary);
+
+    // Non-trivial inputs (same as Test 8)
+    const Vec3 gyro(0.01f, 0.02f, 0.03f);
+    const Vec3 accel(0.1f, -0.05f, -kG + 0.02f);
+
+    // Single step
+    codegen.predict(accel, gyro, kDt);
+    dense.predict_dense(accel, gyro, kDt);
+
+    // Tight tolerance for single step — no accumulation drift
+    const float tol = 1e-6f;
+    for (int r = 0; r < 15; ++r) {
+        for (int c = 0; c < 15; ++c) {
+            EXPECT_NEAR(codegen.P(r, c), dense.P(r, c), tol)
+                << "Single-step P mismatch at (" << r << "," << c << ")";
+        }
+    }
+}
+
