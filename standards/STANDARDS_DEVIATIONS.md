@@ -53,6 +53,14 @@ P10 Rule 2 requires all loops to have a fixed upper bound. Bare-metal main loops
 | BM-5 | `main.cpp` mpu_setup_stack_guard() | P10-2 | Accepted | MPU config failure — intentional halt. Same rationale as BM-4 |
 **Mitigation:** Hardware watchdog (5s timeout) ensures no main loop can hang silently. Fault handlers (BM-4, BM-5) are unrecoverable by design — the LED blink pattern signals the failure mode. All bare-metal embedded systems (FreeRTOS idle task, ChibiOS main thread, Zephyr main loop) use the same pattern.
 
+### Function Pointer Usage (JSF AV Rule 170)
+
+JSF AV Rule 170 prohibits function pointers. Used here for LM solver deduplication in Ground-classified calibration code.
+
+| ID | Location | Severity | Difficulty | Rationale |
+|----|----------|----------|-----------|-----------|
+| FP-1 | `calibration_manager.cpp` `lm_solve()` | Accepted | N/A | `ResidualFn` / `JacobianFn` function pointers eliminate ~120 lines of duplicated LM iteration between sphere fit (4-param) and ellipsoid fit (9-param). Ground classification — runs once per calibration, never in flight loop. Per plan: `.claude/plans/quirky-squishing-clarke.md` Batch 4 |
+
 ### stdio.h Usage Deviation (JSF 22/24)
 
 JSF AV Rule 22 prohibits `<stdio.h>`. Our usage is mitigated by code classification and runtime lockout.
