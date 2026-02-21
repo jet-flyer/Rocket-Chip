@@ -872,61 +872,58 @@ static float lm_mean_sq_residuals(const float* params, uint16_t numSamples,
 // Uses g_jtj / g_jtjInv as working buffers (sized for 9x9, sufficient for 4x4).
 // On return, bestParams holds the best fit and bestFitness holds RMS^2.
 // JSF AV Rule 170 deviation: function pointers accepted for Ground-classified code.
+// Accumulate J^T*J and J^T*residual for one LM iteration
+static void lm_accumulate_jtj(const float* params, uint8_t numParams,
+                               uint16_t numSamples, float* jtfi,
+                               ResidualFn residualFn, JacobianFn jacobianFn) {
+    float jacob[kLmMaxParams];
+    memset(g_jtj, 0, numParams * numParams * sizeof(float));
+    memset(jtfi, 0, numParams * sizeof(float));
+    for (uint16_t i = 0; i < numSamples; i++) {
+        float r = residualFn(g_magSamples[i], params);
+        jacobianFn(g_magSamples[i], params, jacob);
+        for (uint8_t row = 0; row < numParams; row++) {
+            jtfi[row] += jacob[row] * r;
+            for (uint8_t col = 0; col < numParams; col++) {
+                g_jtj[row * numParams + col] += jacob[row] * jacob[col];
+            }
+        }
+    }
+}
+
+// Compute LM parameter step, returns false if any parameter is non-finite
+static bool lm_compute_step(const float* params, float* newParams,
+                             const float* jtfi, uint8_t numParams) {
+    for (uint8_t i = 0; i < numParams; i++) {
+        float delta = 0.0F;
+        for (uint8_t j = 0; j < numParams; j++) {
+            delta += g_jtjInv[i * numParams + j] * jtfi[j];
+        }
+        newParams[i] = params[i] - delta;
+        if (isnan(newParams[i]) || isinf(newParams[i])) { return false; }
+    }
+    return true;
+}
+
 // See STANDARDS_DEVIATIONS.md FP-1.
 static void lm_solve(float* params, float* bestParams, float* bestFitness,
                      uint8_t numParams, uint16_t numSamples, uint8_t maxIter,
                      ResidualFn residualFn, JacobianFn jacobianFn) {
     float lambda = kMagLmLambdaInit;
-    float jacob[kLmMaxParams];
     float jtfi[kLmMaxParams];
-
     for (uint8_t iter = 0; iter < maxIter; iter++) {
-        // Accumulate J^T*J and J^T*r
-        memset(g_jtj, 0, numParams * numParams * sizeof(float));
-        memset(jtfi, 0, numParams * sizeof(float));
+        lm_accumulate_jtj(params, numParams, numSamples, jtfi,
+                           residualFn, jacobianFn);
 
-        for (uint16_t i = 0; i < numSamples; i++) {
-            float r = residualFn(g_magSamples[i], params);
-            jacobianFn(g_magSamples[i], params, jacob);
-
-            for (uint8_t row = 0; row < numParams; row++) {
-                jtfi[row] += jacob[row] * r;
-                for (uint8_t col = 0; col < numParams; col++) {
-                    g_jtj[row * numParams + col] += jacob[row] * jacob[col];
-                }
-            }
-        }
-
-        // LM damping: add lambda to diagonal
         for (uint8_t d = 0; d < numParams; d++) {
             g_jtj[d * numParams + d] += lambda;
         }
+        if (!mat_inverse(g_jtj, g_jtjInv, numParams)) { break; }
 
-        if (!mat_inverse(g_jtj, g_jtjInv, numParams)) {
-            break;  // Singular
-        }
-
-        // Compute parameter update
         float newParams[kLmMaxParams];
-        bool valid = true;
-        for (uint8_t i = 0; i < numParams; i++) {
-            float delta = 0.0F;
-            for (uint8_t j = 0; j < numParams; j++) {
-                delta += g_jtjInv[i * numParams + j] * jtfi[j];
-            }
-            newParams[i] = params[i] - delta;
-            if (isnan(newParams[i]) || isinf(newParams[i])) {
-                valid = false;
-                break;
-            }
-        }
-        if (!valid) {
-            break;
-        }
+        if (!lm_compute_step(params, newParams, jtfi, numParams)) { break; }
 
-        // Evaluate new fitness
         float fitness = lm_mean_sq_residuals(newParams, numSamples, residualFn);
-
         if (fitness < *bestFitness) {
             *bestFitness = fitness;
             memcpy(bestParams, newParams, numParams * sizeof(float));

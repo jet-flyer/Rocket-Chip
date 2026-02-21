@@ -447,108 +447,107 @@ static void mpu_setup_stack_guard(uint32_t stackBottom) {
 // Each helper writes into localData (passed by pointer). The seqlock_write()
 // call stays in the sensor loop — NOT inside these helpers (council rule).
 
+// IMU error path: increment fail counter, invalidate accel/gyro, attempt recovery.
+static void core1_imu_error_recovery(uint32_t* imuConsecFail,
+                                      shared_sensor_data_t* localData) {
+    (*imuConsecFail)++;
+    localData->accel_valid = false;
+    localData->gyro_valid = false;
+    localData->imu_error_count++;
+    if (*imuConsecFail >= kCore1ConsecFailDevReset) {
+        icm20948_init(&g_imu, kIcm20948AddrDefault);
+        *imuConsecFail = 0;
+    } else if (*imuConsecFail >= kCore1ConsecFailBusRecover
+               && *imuConsecFail % kCore1ConsecFailBusRecover == 0) {
+        i2c_bus_recover();
+    }
+}
+
+// Apply calibration to raw IMU data and write calibrated values into localData.
+static void core1_apply_imu_cal(const icm20948_data_t& imuData,
+                                 shared_sensor_data_t* localData,
+                                 calibration_store_t* localCal) {
+    float ax = 0.0F;
+    float ay = 0.0F;
+    float az = 0.0F;
+    float gx = 0.0F;
+    float gy = 0.0F;
+    float gz = 0.0F;
+    calibration_apply_accel_with(localCal,
+        imuData.accel.x, imuData.accel.y, imuData.accel.z,
+        &ax, &ay, &az);
+    calibration_apply_gyro_with(localCal,
+        imuData.gyro.x, imuData.gyro.y, imuData.gyro.z,
+        &gx, &gy, &gz);
+
+    localData->accel_x = ax;
+    localData->accel_y = ay;
+    localData->accel_z = az;
+    localData->gyro_x = gx;
+    localData->gyro_y = gy;
+    localData->gyro_z = gz;
+    localData->imu_timestamp_us = time_us_32();
+    localData->imu_read_count++;
+    localData->accel_valid = true;
+    localData->gyro_valid = true;
+
+    if (imuData.mag_valid) {
+        float mxCal = 0.0F;
+        float myCal = 0.0F;
+        float mzCal = 0.0F;
+        calibration_apply_mag_with(localCal,
+            imuData.mag.x, imuData.mag.y, imuData.mag.z,
+            &mxCal, &myCal, &mzCal);
+        localData->mag_x = mxCal;
+        localData->mag_y = myCal;
+        localData->mag_z = mzCal;
+        localData->mag_raw_x = imuData.mag.x;
+        localData->mag_raw_y = imuData.mag.y;
+        localData->mag_raw_z = imuData.mag.z;
+        localData->mag_valid = true;
+        localData->mag_read_count++;
+    }
+}
+
 static void core1_read_imu(shared_sensor_data_t* localData,
                             calibration_store_t* localCal,
                             uint32_t* imuConsecFail,
                             bool feedCal) {
     icm20948_data_t imuData;
     bool imuOk = icm20948_read(&g_imu, &imuData);
-    if (imuOk) {
-        // Sanity-check raw accel magnitude. A working sensor in ANY orientation always
-        // measures at least 3 m/s² (gravity floor at 72° tilt: 9.8×cos(72°)=3.0).
-        // All-zeros output = ICM-20948 silent reset to sleep state — device ACKs I2C
-        // reads in sleep mode, returning 0x0000 from output registers. Not counted by
-        // the normal error path (which requires NACK). Route to consecutive-fail path
-        // so bus-recover + device-reinit fires. (LL Entry 29)
-        const float rawAccelMag = sqrtf(
-            imuData.accel.x * imuData.accel.x +
-            imuData.accel.y * imuData.accel.y +
-            imuData.accel.z * imuData.accel.z);
-        if (rawAccelMag < kAccelMinHealthyMag) {
-            (*imuConsecFail)++;
-            localData->accel_valid = false;
-            localData->gyro_valid = false;
-            localData->imu_error_count++;
-            if (*imuConsecFail >= kCore1ConsecFailDevReset) {
-                icm20948_init(&g_imu, kIcm20948AddrDefault);
-                *imuConsecFail = 0;
-            } else if (*imuConsecFail >= kCore1ConsecFailBusRecover
-                       && *imuConsecFail % kCore1ConsecFailBusRecover == 0) {
-                i2c_bus_recover();
-            }
-            return;
-        }
+    if (!imuOk) {
+        core1_imu_error_recovery(imuConsecFail, localData);
+        return;
+    }
 
-        *imuConsecFail = 0;
+    // Sanity-check raw accel magnitude. A working sensor in ANY orientation always
+    // measures at least 3 m/s² (gravity floor at 72° tilt: 9.8×cos(72°)=3.0).
+    // All-zeros = ICM-20948 silent reset to sleep state (LL Entry 29).
+    const float rawAccelMag = sqrtf(
+        imuData.accel.x * imuData.accel.x +
+        imuData.accel.y * imuData.accel.y +
+        imuData.accel.z * imuData.accel.z);
+    if (rawAccelMag < kAccelMinHealthyMag) {
+        core1_imu_error_recovery(imuConsecFail, localData);
+        return;
+    }
 
-        // Feed calibration with RAW data (before cal apply) — Core 1 owns I2C,
-        // so no bus contention. Core 0 must NOT do concurrent icm20948_read().
-        if (feedCal) {
-            cal_state_t calState = calibration_manager_get_state();
-            if (calState == CAL_STATE_GYRO_SAMPLING) {
-                calibration_feed_gyro(imuData.gyro.x, imuData.gyro.y,
-                                      imuData.gyro.z, imuData.temperature_c);
-            } else if (calState == CAL_STATE_ACCEL_LEVEL_SAMPLING) {
-                calibration_feed_accel(imuData.accel.x, imuData.accel.y,
-                                       imuData.accel.z, imuData.temperature_c);
-            }
-        }
+    *imuConsecFail = 0;
 
-        float ax = 0.0F;
-        float ay = 0.0F;
-        float az = 0.0F;
-        float gx = 0.0F;
-        float gy = 0.0F;
-        float gz = 0.0F;
-        calibration_apply_accel_with(localCal,
-            imuData.accel.x, imuData.accel.y, imuData.accel.z,
-            &ax, &ay, &az);
-        calibration_apply_gyro_with(localCal,
-            imuData.gyro.x, imuData.gyro.y, imuData.gyro.z,
-            &gx, &gy, &gz);
-
-        localData->accel_x = ax;
-        localData->accel_y = ay;
-        localData->accel_z = az;
-        localData->gyro_x = gx;
-        localData->gyro_y = gy;
-        localData->gyro_z = gz;
-        localData->imu_timestamp_us = time_us_32();
-        localData->imu_read_count++;
-        localData->accel_valid = true;
-        localData->gyro_valid = true;
-
-        if (imuData.mag_valid) {
-            float mxCal = 0.0F;
-            float myCal = 0.0F;
-            float mzCal = 0.0F;
-            calibration_apply_mag_with(localCal,
-                imuData.mag.x, imuData.mag.y, imuData.mag.z,
-                &mxCal, &myCal, &mzCal);
-            localData->mag_x = mxCal;
-            localData->mag_y = myCal;
-            localData->mag_z = mzCal;
-            localData->mag_raw_x = imuData.mag.x;
-            localData->mag_raw_y = imuData.mag.y;
-            localData->mag_raw_z = imuData.mag.z;
-            localData->mag_valid = true;
-            localData->mag_read_count++;
-        }
-    } else {
-        (*imuConsecFail)++;
-        localData->accel_valid = false;
-        localData->gyro_valid = false;
-        localData->imu_error_count++;
-        if (*imuConsecFail >= kCore1ConsecFailDevReset) {
-            // Bus recovery didn't help — ICM-20948 itself is hung.
-            // Full device reset restores bypass mode + mag.
-            icm20948_init(&g_imu, kIcm20948AddrDefault);
-            *imuConsecFail = 0;
-        } else if (*imuConsecFail >= kCore1ConsecFailBusRecover
-                   && *imuConsecFail % kCore1ConsecFailBusRecover == 0) {
-            i2c_bus_recover();
+    // Feed calibration with RAW data (before cal apply) — Core 1 owns I2C,
+    // so no bus contention. Core 0 must NOT do concurrent icm20948_read().
+    if (feedCal) {
+        cal_state_t calState = calibration_manager_get_state();
+        if (calState == CAL_STATE_GYRO_SAMPLING) {
+            calibration_feed_gyro(imuData.gyro.x, imuData.gyro.y,
+                                  imuData.gyro.z, imuData.temperature_c);
+        } else if (calState == CAL_STATE_ACCEL_LEVEL_SAMPLING) {
+            calibration_feed_accel(imuData.accel.x, imuData.accel.y,
+                                   imuData.accel.z, imuData.temperature_c);
         }
     }
+
+    core1_apply_imu_cal(imuData, localData, localCal);
 }
 
 static void core1_read_baro(shared_sensor_data_t* localData) {
@@ -570,6 +569,26 @@ static void core1_read_baro(shared_sensor_data_t* localData) {
             }
         } else {
             localData->baro_error_count++;
+        }
+    }
+}
+
+// Update best-fix diagnostic when satellite count or HDOP improves.
+static void core1_update_best_gps_fix(const shared_sensor_data_t* localData) {
+    if (localData->gps_valid && localData->gps_fix_type >= 2) {
+        bool better = !g_bestGpsValid.load(std::memory_order_relaxed)
+                      || (localData->gps_satellites > g_bestGpsFix.satellites)
+                      || (localData->gps_satellites == g_bestGpsFix.satellites &&
+                          localData->gps_hdop > 0.0F &&
+                          localData->gps_hdop < g_bestGpsFix.hdop);
+        if (better) {
+            g_bestGpsFix.lat_1e7     = localData->gps_lat_1e7;
+            g_bestGpsFix.lon_1e7     = localData->gps_lon_1e7;
+            g_bestGpsFix.alt_msl_m   = localData->gps_alt_msl_m;
+            g_bestGpsFix.hdop        = localData->gps_hdop;
+            g_bestGpsFix.satellites  = localData->gps_satellites;
+            g_bestGpsFix.fix_type    = localData->gps_fix_type;
+            g_bestGpsValid.store(true, std::memory_order_release);
         }
     }
 }
@@ -629,24 +648,7 @@ static void core1_read_gps(shared_sensor_data_t* localData,
         localData->gps_error_count++;
     }
 
-    // Best-fix capture: update when satellite count or HDOP improves.
-    // Reads from localData (persistent hold-on-valid), not d (instantaneous).
-    if (localData->gps_valid && localData->gps_fix_type >= 2) {
-        bool better = !g_bestGpsValid.load(std::memory_order_relaxed)
-                      || (localData->gps_satellites > g_bestGpsFix.satellites)
-                      || (localData->gps_satellites == g_bestGpsFix.satellites &&
-                          localData->gps_hdop > 0.0F &&
-                          localData->gps_hdop < g_bestGpsFix.hdop);
-        if (better) {
-            g_bestGpsFix.lat_1e7     = localData->gps_lat_1e7;
-            g_bestGpsFix.lon_1e7     = localData->gps_lon_1e7;
-            g_bestGpsFix.alt_msl_m   = localData->gps_alt_msl_m;
-            g_bestGpsFix.hdop        = localData->gps_hdop;
-            g_bestGpsFix.satellites  = localData->gps_satellites;
-            g_bestGpsFix.fix_type    = localData->gps_fix_type;
-            g_bestGpsValid.store(true, std::memory_order_release);
-        }
-    }
+    core1_update_best_gps_fix(localData);
 }
 
 // ============================================================================
@@ -730,19 +732,47 @@ static void core1_neopixel_update(shared_sensor_data_t* localData,
 // g_core1I2CPaused == true. Core 1 owns I2C during this phase.
 // Seqlock write stays here — read helpers write into localData by pointer.
 
-static void core1_sensor_loop() {
-    calibration_store_t localCal;
-    if (!calibration_load_into(&localCal)) {
-        memset(&localCal, 0, sizeof(localCal));
-        localCal.accel.scale.x = 1.0F;
-        localCal.accel.scale.y = 1.0F;
-        localCal.accel.scale.z = 1.0F;
+// Check calibration reload request and I2C pause from Core 0. Returns true
+// if the caller should skip the rest of the loop iteration (continue).
+static bool core1_check_pause_and_reload(calibration_store_t* localCal) {
+    if (g_calReloadPending.load(std::memory_order_acquire)) {
+        calibration_load_into(localCal);
+        g_calReloadPending.store(false, std::memory_order_release);
+    }
+
+    if (g_core1PauseI2C.load(std::memory_order_acquire)) {
+        g_core1I2CPaused.store(true, std::memory_order_release);
+        ws2812_set_mode(WS2812_MODE_SOLID, kColorOrange);
+        ws2812_update();
+        while (g_core1PauseI2C.load(std::memory_order_acquire)) {
+            sleep_ms(1);
+        }
+        g_core1I2CPaused.store(false, std::memory_order_release);
+        ws2812_set_mode(WS2812_MODE_SOLID, kColorBlue);
+        ws2812_update();
+        return true;
+    }
+    return false;
+}
+
+// Load calibration from flash, or set identity defaults if unavailable.
+static void core1_load_cal_or_defaults(calibration_store_t* localCal) {
+    if (!calibration_load_into(localCal)) {
+        memset(localCal, 0, sizeof(*localCal));
+        localCal->accel.scale.x = 1.0F;
+        localCal->accel.scale.y = 1.0F;
+        localCal->accel.scale.z = 1.0F;
         // NOLINTBEGIN(readability-magic-numbers) — 3x3 identity matrix diagonal indices
-        localCal.board_rotation.m[0] = 1.0F;
-        localCal.board_rotation.m[4] = 1.0F;
-        localCal.board_rotation.m[8] = 1.0F;
+        localCal->board_rotation.m[0] = 1.0F;
+        localCal->board_rotation.m[4] = 1.0F;
+        localCal->board_rotation.m[8] = 1.0F;
         // NOLINTEND(readability-magic-numbers)
     }
+}
+
+static void core1_sensor_loop() {
+    calibration_store_t localCal;
+    core1_load_cal_or_defaults(&localCal);
 
     shared_sensor_data_t localData = {};
     uint32_t loopCount = 0;
@@ -757,23 +787,7 @@ static void core1_sensor_loop() {
         uint32_t cycleStartUs = time_us_32();
         loopCount++;
 
-        // Check calibration reload request from Core 0
-        if (g_calReloadPending.load(std::memory_order_acquire)) {
-            calibration_load_into(&localCal);
-            g_calReloadPending.store(false, std::memory_order_release);
-        }
-
-        // Check I2C pause request from Core 0 (for calibration)
-        if (g_core1PauseI2C.load(std::memory_order_acquire)) {
-            g_core1I2CPaused.store(true, std::memory_order_release);
-            ws2812_set_mode(WS2812_MODE_SOLID, kColorOrange);
-            ws2812_update();
-            while (g_core1PauseI2C.load(std::memory_order_acquire)) {
-                sleep_ms(1);
-            }
-            g_core1I2CPaused.store(false, std::memory_order_release);
-            ws2812_set_mode(WS2812_MODE_SOLID, kColorBlue);
-            ws2812_update();
+        if (core1_check_pause_and_reload(&localCal)) {
             continue;
         }
 
@@ -1753,6 +1767,22 @@ static void eskf_tick_mag(const shared_sensor_data_t& snap) {
     }
 }
 
+// Accumulate GPS session stats for post-session review via 's'.
+static void eskf_tick_gps_stats() {
+    g_gpsSess.gps_updates++;
+    float dist = sqrtf(g_eskf.p.x * g_eskf.p.x +
+                       g_eskf.p.y * g_eskf.p.y);
+    if (dist > g_gpsSess.max_dist_from_origin_m) {
+        g_gpsSess.max_dist_from_origin_m = dist;
+    }
+    g_gpsSess.last_pos_n_m = g_eskf.p.x;
+    g_gpsSess.last_pos_e_m = g_eskf.p.y;
+    g_gpsSess.last_dist_from_origin_m = dist;
+    float nis = g_eskf.last_gps_pos_nis_;
+    if (nis < g_gpsSess.min_gps_nis) { g_gpsSess.min_gps_nis = nis; }
+    if (nis > g_gpsSess.max_gps_nis) { g_gpsSess.max_gps_nis = nis; }
+}
+
 // IVP-46: GPS position + velocity measurement update.
 // Gated on 3D fix with new data. On first quality fix, sets NED origin
 // and resets p/v to zero. Subsequent fixes convert geodetic to NED and
@@ -1795,19 +1825,7 @@ static void eskf_tick_gps(const shared_sensor_data_t& snap) {
                     g_eskf.update_gps_velocity(vNorth, vEast);
                 }
 
-                // IVP-46 session stats — accumulated for post-session review via 's'
-                g_gpsSess.gps_updates++;
-                float dist = sqrtf(g_eskf.p.x * g_eskf.p.x +
-                                   g_eskf.p.y * g_eskf.p.y);
-                if (dist > g_gpsSess.max_dist_from_origin_m) {
-                    g_gpsSess.max_dist_from_origin_m = dist;
-                }
-                g_gpsSess.last_pos_n_m = g_eskf.p.x;
-                g_gpsSess.last_pos_e_m = g_eskf.p.y;
-                g_gpsSess.last_dist_from_origin_m = dist;
-                float nis = g_eskf.last_gps_pos_nis_;
-                if (nis < g_gpsSess.min_gps_nis) { g_gpsSess.min_gps_nis = nis; }
-                if (nis > g_gpsSess.max_gps_nis) { g_gpsSess.max_gps_nis = nis; }
+                eskf_tick_gps_stats();
             }
         }
     }
