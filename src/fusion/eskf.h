@@ -326,6 +326,21 @@ private:
     // Common propagation logic shared by predict() and predict_dense().
     void propagate_nominal(const Vec3& accelMeas, const Vec3& gyroMeas,
                            float dt);
+
+    // Inject error-state correction δx into the nominal state.
+    // Applies position, velocity, accel bias, gyro bias deltas + quaternion reset.
+    // Called by all measurement update functions after computing Kalman gain.
+    void inject_error_state(const Mat<eskf::kStateSize, 1>& dx);
+
+    // Scalar Kalman update with Joseph-form P correction.
+    // hIdx: column index of the single non-zero H entry.
+    // hValue: value of H at that entry (+1.0F or -1.0F).
+    // innovation: measurement residual (z - h(x)).
+    // r: scalar measurement noise variance.
+    // SAFETY: single-threaded, Core 0 only, never called from ISR.
+    // NOTE: -fno-threadsafe-statics (Pico SDK). Static locals zero-init at load.
+    void scalar_kalman_update(int32_t hIdx, float hValue,
+                              float innovation, float r);
 };
 
 } // namespace rc

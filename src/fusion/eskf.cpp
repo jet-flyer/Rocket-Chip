@@ -226,6 +226,42 @@ void ESKF::build_Qc(Mat15& out) {
 }
 
 // ============================================================================
+// dense_fpft_add: P = F * P * F^T + Qd (dense triple product)
+// Static locals avoid 1800B stack from temporaries (LL Entry 1).
+// Natural slot for IVP-47 sparse optimization.
+// ============================================================================
+static void dense_fpft_add(Mat15& pMat, const Mat15& fMat, const Mat15& qdMat) {
+    static Mat15 g_fpTemp;
+    static Mat15 g_ftTemp;
+    // FP = F * P
+    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
+        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
+            float sum = 0.0F;
+            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
+                sum += fMat.data[r][k] * pMat.data[k][c];
+            }
+            g_fpTemp.data[r][c] = sum;
+        }
+    }
+    // F^T
+    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
+        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
+            g_ftTemp.data[c][r] = fMat.data[r][c];
+        }
+    }
+    // P = FP * F^T + Qd
+    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
+        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
+            float sum = 0.0F;
+            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
+                sum += g_fpTemp.data[r][k] * g_ftTemp.data[k][c];
+            }
+            pMat.data[r][c] = sum + qdMat.data[r][c];
+        }
+    }
+}
+
+// ============================================================================
 // predict: Sparse FPFT propagation (R-1 optimization)
 //
 // Exploits F_x block structure: many blocks are zero or identity.
@@ -259,39 +295,7 @@ void ESKF::predict(const Vec3& accelMeas, const Vec3& gyroMeas, float dt) {
     g_qdLocal.scale(dt);         // Zeroth-order hold (R-9): Qd = Qc * dt
 
     // 3. Dense F*P*F^T + Q_d
-    // Dense path: O(15^3) ≈ 3375 multiply-adds at 200Hz = ~675K flops/sec.
-    // TODO(IVP-42b): Profile on target, implement sparse if needed.
-    //
-    // fpft_dense inlined to use static temporaries (avoid 1800B stack
-    // from template return values at -O0).
-    static Mat15 g_fpTemp;
-    static Mat15 g_ftTemp;
-    // FP = F * P
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_fLocal.data[r][k] * P.data[k][c];
-            }
-            g_fpTemp.data[r][c] = sum;
-        }
-    }
-    // F^T
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            g_ftTemp.data[c][r] = g_fLocal.data[r][c];
-        }
-    }
-    // P = FP * F^T + Qd
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_fpTemp.data[r][k] * g_ftTemp.data[k][c];
-            }
-            P.data[r][c] = sum + g_qdLocal.data[r][c];
-        }
-    }
+    dense_fpft_add(P, g_fLocal, g_qdLocal);
 
     // 4. Symmetry enforcement
     P.force_symmetric();
@@ -316,36 +320,11 @@ void ESKF::predict_dense(const Vec3& accelMeas, const Vec3& gyroMeas,
     // Static locals: same rationale as predict() (LL Entry 1).
     static Mat15 g_fDense;
     static Mat15 g_qdDense;
-    static Mat15 g_fpDense;
-    static Mat15 g_ftDense;
     build_F(g_fDense, q, accelBody, gyroBody, dt);
     build_Qc(g_qdDense);
     g_qdDense.scale(dt);
 
-    // F*P*F^T + Qd inlined with static temporaries (same as predict())
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_fDense.data[r][k] * P.data[k][c];
-            }
-            g_fpDense.data[r][c] = sum;
-        }
-    }
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            g_ftDense.data[c][r] = g_fDense.data[r][c];
-        }
-    }
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_fpDense.data[r][k] * g_ftDense.data[k][c];
-            }
-            P.data[r][c] = sum + g_qdDense.data[r][c];
-        }
-    }
+    dense_fpft_add(P, g_fDense, g_qdDense);
     P.force_symmetric();
     clamp_covariance();
 
@@ -427,6 +406,95 @@ void ESKF::reset(const Vec3& deltaTheta) {
 }
 
 // ============================================================================
+// inject_error_state: Apply error-state correction δx to nominal state
+// Shared by all 5 measurement update functions.
+// ============================================================================
+void ESKF::inject_error_state(const Mat<eskf::kStateSize, 1>& dx) {
+    p.x += dx.data[eskf::kIdxPosition + 0][0];
+    p.y += dx.data[eskf::kIdxPosition + 1][0];
+    p.z += dx.data[eskf::kIdxPosition + 2][0];
+
+    v.x += dx.data[eskf::kIdxVelocity + 0][0];
+    v.y += dx.data[eskf::kIdxVelocity + 1][0];
+    v.z += dx.data[eskf::kIdxVelocity + 2][0];
+
+    accel_bias.x += dx.data[eskf::kIdxAccelBias + 0][0];
+    accel_bias.y += dx.data[eskf::kIdxAccelBias + 1][0];
+    accel_bias.z += dx.data[eskf::kIdxAccelBias + 2][0];
+
+    gyro_bias.x += dx.data[eskf::kIdxGyroBias + 0][0];
+    gyro_bias.y += dx.data[eskf::kIdxGyroBias + 1][0];
+    gyro_bias.z += dx.data[eskf::kIdxGyroBias + 2][0];
+
+    const Vec3 deltaTheta(dx.data[eskf::kIdxAttitude + 0][0],
+                           dx.data[eskf::kIdxAttitude + 1][0],
+                           dx.data[eskf::kIdxAttitude + 2][0]);
+    reset(deltaTheta);
+}
+
+// ============================================================================
+// scalar_kalman_update: Joseph-form scalar measurement update
+// Computes K = hValue * P[:,hIdx] / S, δx = K * innovation,
+// P = (I - K*H)*P*(I - K*H)' + K*R*K', then injects δx.
+// hValue: actual H-matrix entry (+1.0F or -1.0F). Generalizes to non-unit
+// Jacobian entries without API change. See plan hValue correctness proof.
+// ============================================================================
+void ESKF::scalar_kalman_update(int32_t hIdx, float hValue,
+                                float innovation, float r) {
+    const float s = hValue * hValue * P(hIdx, hIdx) + r;
+    const float invS = 1.0F / s;
+
+    // Kalman gain: K[i] = hValue * P[i][hIdx] / S
+    static Mat<eskf::kStateSize, 1> g_gain;
+    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
+        g_gain.data[i][0] = hValue * P.data[i][hIdx] * invS;
+    }
+
+    // Error state correction: δx = K * innovation
+    static Mat<eskf::kStateSize, 1> g_dx;
+    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
+        g_dx.data[i][0] = g_gain.data[i][0] * innovation;
+    }
+
+    // Joseph form: P = (I - K*H) * P * (I - K*H)^T + K*R*K^T
+    // I - K*H: identity except column hIdx where (I-KH)[i][hIdx] -= hValue * K[i]
+    static Mat15 g_ikh;
+    g_ikh.set_identity();
+    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
+        g_ikh.data[i][hIdx] -= hValue * g_gain.data[i][0];
+    }
+
+    // IKH * P
+    static Mat15 g_ikhP;
+    for (int32_t r2 = 0; r2 < eskf::kStateSize; ++r2) {
+        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
+            float sum = 0.0F;
+            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
+                sum += g_ikh.data[r2][k] * P.data[k][c];
+            }
+            g_ikhP.data[r2][c] = sum;
+        }
+    }
+
+    // (IKH * P) * IKH^T + K*R*K^T
+    static Mat15 g_pNew;
+    for (int32_t r2 = 0; r2 < eskf::kStateSize; ++r2) {
+        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
+            float sum = 0.0F;
+            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
+                sum += g_ikhP.data[r2][k] * g_ikh.data[c][k];
+            }
+            sum += g_gain.data[r2][0] * r * g_gain.data[c][0];
+            g_pNew.data[r2][c] = sum;
+        }
+    }
+
+    P = g_pNew;
+    inject_error_state(g_dx);
+    P.force_symmetric();
+}
+
+// ============================================================================
 // update_baro: Barometric altitude measurement update (IVP-43)
 //
 // Measurement model:
@@ -451,13 +519,13 @@ bool ESKF::update_baro(float altitudeAglM) {
     }
 
     // H has one non-zero element: H[0][kIdxPosition+2] = -1
-    // So H*P*H^T = P[5][5], and K = -P[:,5] / S
     constexpr int32_t kHIdx = eskf::kIdxPosition + 2;  // index 5 (NED-down)
+    constexpr float kHValue = -1.0F;
 
     // Innovation: y = z - h(x) = altitudeAglM - (-p.z) = altitudeAglM + p.z
     const float innovation = altitudeAglM + p.z;
 
-    // Innovation covariance: S = H*P*H^T + R = P[5][5] + R
+    // Innovation covariance: S = H²*P[5][5] + R
     const float s = P(kHIdx, kHIdx) + kRBaro;
 
     // Council condition 2: reject degenerate covariance
@@ -468,99 +536,14 @@ bool ESKF::update_baro(float altitudeAglM) {
     // NIS for diagnostics
     last_baro_nis_ = (innovation * innovation) / s;
 
-    // Innovation gate: reject if |y| > kBaroInnovationGate * sqrt(S)
+    // Innovation gate
     const float gateThreshold = kBaroInnovationGate * sqrtf(s);
     if (fabsf(innovation) > gateThreshold) {
         return false;
     }
 
-    // Kalman gain: K = P * H^T / S
-    // H^T is a column vector with -1 at index kHIdx, so P*H^T = -P[:,kHIdx]
-    // K[i] = -P[i][kHIdx] / S
-    static Mat<eskf::kStateSize, 1> g_gain;
-    const float invS = 1.0F / s;
-    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        g_gain.data[i][0] = -P.data[i][kHIdx] * invS;
-    }
-
-    // Error state correction: δx = K * innovation
-    static Mat<eskf::kStateSize, 1> g_dx;
-    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        g_dx.data[i][0] = g_gain.data[i][0] * innovation;
-    }
-
-    // Joseph form P update: P = (I - K*H) * P * (I - K*H)^T + K*R*K^T
-    // I - K*H: identity except column kHIdx where (I-KH)[i][kHIdx] += K[i]*1
-    // (because H[kHIdx] = -1, so -K*H means +K in column kHIdx)
-    static Mat15 g_ikh;
-    g_ikh.set_identity();
-    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        g_ikh.data[i][kHIdx] += g_gain.data[i][0];  // -K * (-1) = +K
-    }
-
-    // ikh * P  (15×15 × 15×15)
-    static Mat15 g_ikhP;
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_ikh.data[r][k] * P.data[k][c];
-            }
-            g_ikhP.data[r][c] = sum;
-        }
-    }
-
-    // (ikh * P) * ikh^T + K*R*K^T
-    static Mat15 g_pNew;
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_ikhP.data[r][k] * g_ikh.data[c][k];  // ikh^T
-            }
-            // + K * R * K^T (rank-1 outer product scaled by R)
-            sum += g_gain.data[r][0] * kRBaro * g_gain.data[c][0];
-            g_pNew.data[r][c] = sum;
-        }
-    }
-
-    // Commit updated covariance
-    P = g_pNew;
-
-    // Inject error state into nominal state
-    // Position: p += δp
-    p.x += g_dx.data[eskf::kIdxPosition + 0][0];
-    p.y += g_dx.data[eskf::kIdxPosition + 1][0];
-    p.z += g_dx.data[eskf::kIdxPosition + 2][0];
-
-    // Velocity: v += δv
-    v.x += g_dx.data[eskf::kIdxVelocity + 0][0];
-    v.y += g_dx.data[eskf::kIdxVelocity + 1][0];
-    v.z += g_dx.data[eskf::kIdxVelocity + 2][0];
-
-    // Accel bias: ab += δab
-    accel_bias.x += g_dx.data[eskf::kIdxAccelBias + 0][0];
-    accel_bias.y += g_dx.data[eskf::kIdxAccelBias + 1][0];
-    accel_bias.z += g_dx.data[eskf::kIdxAccelBias + 2][0];
-
-    // Gyro bias: gb += δgb
-    gyro_bias.x += g_dx.data[eskf::kIdxGyroBias + 0][0];
-    gyro_bias.y += g_dx.data[eskf::kIdxGyroBias + 1][0];
-    gyro_bias.z += g_dx.data[eskf::kIdxGyroBias + 2][0];
-
-    // Attitude: q ← q ⊗ Exp(δθ)
-    // P rotation omitted — G ≈ I for small δθ (Solà Eq. 298).
-    // For baro-only corrections, |δθ| < 1e-4 rad, G differs from I
-    // by < 1e-8, below float precision.
-    const Vec3 deltaTheta(g_dx.data[eskf::kIdxAttitude + 0][0],
-                           g_dx.data[eskf::kIdxAttitude + 1][0],
-                           g_dx.data[eskf::kIdxAttitude + 2][0]);
-    reset(deltaTheta);
-
-    // Symmetry + clamping
-    P.force_symmetric();
+    scalar_kalman_update(kHIdx, kHValue, innovation, kRBaro);
     clamp_covariance();
-
     return true;
 }
 
@@ -607,157 +590,44 @@ static float wrap_pi(float angle) {
 // ============================================================================
 bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
                               float declinationRad) {
-    // Guard: reject non-finite input
     if (!std::isfinite(magBody.x) || !std::isfinite(magBody.y) ||
         !std::isfinite(magBody.z) || !std::isfinite(declinationRad)) {
         return false;
     }
-
-    // Guard: reject too-low magnitude (sensor saturation, near strong magnet)
     const float magNorm = magBody.norm();
     if (magNorm < kMagMinMagnitude) {
         return false;
     }
 
-    // Two-tier interference detection
+    // Two-tier interference detection: 25-50% inflate R, >50% reject
     float rEffective = kRMagHeading;
     if (expectedMagnitude > 0.0F) {
         const float deviation = fabsf(magNorm - expectedMagnitude) / expectedMagnitude;
-        if (deviation > kMagInterferenceRejectThreshold) {
-            return false;  // >50%: hard reject
-        }
+        if (deviation > kMagInterferenceRejectThreshold) { return false; }
         if (deviation > kMagInterferenceThreshold) {
-            rEffective = kRMagHeading * kMagInterferenceRScale;  // 25-50%: inflate R
+            rEffective = kRMagHeading * kMagInterferenceRScale;
         }
     }
 
-    // Zero-yaw tilt compensation (ArduPilot/PX4 approach):
-    // Build rotation with same roll/pitch as current q but yaw=0.
-    // This rotates body-frame mag to a level frame that preserves the yaw signal.
-    const Vec3 euler = q.to_euler();  // Vec3(roll, pitch, yaw)
+    // Zero-yaw tilt compensation: rotate magBody to level frame preserving yaw signal
+    const Vec3 euler = q.to_euler();
     const Quat qZeroYaw = Quat::from_euler(euler.x, euler.y, 0.0F);
     const Vec3 magLevel = qZeroYaw.rotate(magBody);
 
-    // Measured heading: angle of horizontal mag projection in the level frame.
-    // Negative atan2 because magnetic North is +X, and heading increases CW.
-    // Declination converts magnetic heading to true heading.
-    // ArduPilot: -atan2F(magMeasNED.y, magMeasNED.x) + MagDeclination()
-    // PX4 ECL: atan2(mag_e, mag_n) + get_mag_declination()
+    // Measured heading (mag North + declination), predicted heading (Euler yaw)
     const float headingMeasured = wrap_pi(-atan2f(magLevel.y, magLevel.x)
                                            + declinationRad);
+    const float innovation = wrap_pi(headingMeasured - euler.z);
 
-    // Predicted heading from current quaternion (ZYX Euler yaw)
-    const float headingPredicted = euler.z;
-
-    // Innovation: standard KF convention y = z - h(x) = measured - predicted.
-    // ArduPilot uses predicted - measured internally but negates K accordingly.
-    // We use the standard form matching update_baro() for consistency.
-    const float innovation = wrap_pi(headingMeasured - headingPredicted);
-
-    // H has one non-zero element: H[0][kIdxAttitude+2] = 1 (yaw component)
-    constexpr int32_t kHIdx = eskf::kIdxAttitude + 2;  // index 2 (yaw)
-
-    // Innovation covariance: S = H*P*H^T + R = P[2][2] + R
+    constexpr int32_t kHIdx = eskf::kIdxAttitude + 2;  // yaw index
     const float s = P(kHIdx, kHIdx) + rEffective;
+    if (s < kMinInnovationVariance) { return false; }
 
-    // Reject degenerate covariance
-    if (s < kMinInnovationVariance) {
-        return false;
-    }
-
-    // NIS for diagnostics
     last_mag_nis_ = (innovation * innovation) / s;
+    if (fabsf(innovation) > kMagInnovationGate * sqrtf(s)) { return false; }
 
-    // Innovation gate: reject if |y| > kMagInnovationGate * sqrt(S)
-    const float gateThreshold = kMagInnovationGate * sqrtf(s);
-    if (fabsf(innovation) > gateThreshold) {
-        return false;
-    }
-
-    // Kalman gain: K = P * H^T / S
-    // H^T is a column vector with 1 at index kHIdx, so P*H^T = P[:,kHIdx]
-    // K[i] = P[i][kHIdx] / S
-    static Mat<eskf::kStateSize, 1> g_gain;
-    const float invS = 1.0F / s;
-    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        g_gain.data[i][0] = P.data[i][kHIdx] * invS;
-    }
-
-    // Error state correction: δx = K * innovation
-    static Mat<eskf::kStateSize, 1> g_dx;
-    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        g_dx.data[i][0] = g_gain.data[i][0] * innovation;
-    }
-
-    // Joseph form P update: P = (I - K*H) * P * (I - K*H)^T + K*R*K^T
-    // I - K*H: identity except column kHIdx where (I-KH)[i][kHIdx] -= K[i]
-    // (because H[kHIdx] = +1, so -K*H means -K in column kHIdx)
-    static Mat15 g_ikh;
-    g_ikh.set_identity();
-    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        g_ikh.data[i][kHIdx] -= g_gain.data[i][0];
-    }
-
-    // ikh * P  (15×15 × 15×15)
-    static Mat15 g_ikhP;
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_ikh.data[r][k] * P.data[k][c];
-            }
-            g_ikhP.data[r][c] = sum;
-        }
-    }
-
-    // (ikh * P) * ikh^T + K*R*K^T
-    static Mat15 g_pNew;
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_ikhP.data[r][k] * g_ikh.data[c][k];  // ikh^T
-            }
-            // + K * R * K^T (rank-1 outer product scaled by R)
-            sum += g_gain.data[r][0] * rEffective * g_gain.data[c][0];
-            g_pNew.data[r][c] = sum;
-        }
-    }
-
-    // Commit updated covariance
-    P = g_pNew;
-
-    // Inject error state into nominal state
-    // Position: p += δp
-    p.x += g_dx.data[eskf::kIdxPosition + 0][0];
-    p.y += g_dx.data[eskf::kIdxPosition + 1][0];
-    p.z += g_dx.data[eskf::kIdxPosition + 2][0];
-
-    // Velocity: v += δv
-    v.x += g_dx.data[eskf::kIdxVelocity + 0][0];
-    v.y += g_dx.data[eskf::kIdxVelocity + 1][0];
-    v.z += g_dx.data[eskf::kIdxVelocity + 2][0];
-
-    // Accel bias: ab += δab
-    accel_bias.x += g_dx.data[eskf::kIdxAccelBias + 0][0];
-    accel_bias.y += g_dx.data[eskf::kIdxAccelBias + 1][0];
-    accel_bias.z += g_dx.data[eskf::kIdxAccelBias + 2][0];
-
-    // Gyro bias: gb += δgb
-    gyro_bias.x += g_dx.data[eskf::kIdxGyroBias + 0][0];
-    gyro_bias.y += g_dx.data[eskf::kIdxGyroBias + 1][0];
-    gyro_bias.z += g_dx.data[eskf::kIdxGyroBias + 2][0];
-
-    // Attitude: q ← q ⊗ Exp(δθ) + P rotation via reset()
-    const Vec3 deltaTheta(g_dx.data[eskf::kIdxAttitude + 0][0],
-                           g_dx.data[eskf::kIdxAttitude + 1][0],
-                           g_dx.data[eskf::kIdxAttitude + 2][0]);
-    reset(deltaTheta);
-
-    // Symmetry + clamping
-    P.force_symmetric();
+    scalar_kalman_update(kHIdx, 1.0F, innovation, rEffective);
     clamp_covariance();
-
     return true;
 }
 
@@ -828,69 +698,7 @@ bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas) {
             continue;
         }
 
-        // Kalman gain: K = P[:,idx] / S (H has +1 at kHIdx)
-        static Mat<eskf::kStateSize, 1> g_gain;
-        const float invS = 1.0F / s;
-        for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-            g_gain.data[i][0] = P.data[i][kHIdx] * invS;
-        }
-
-        // Error state correction: δx = K * innovation
-        static Mat<eskf::kStateSize, 1> g_dx;
-        for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-            g_dx.data[i][0] = g_gain.data[i][0] * innovation;
-        }
-
-        // Joseph form P update
-        static Mat15 g_ikh;
-        g_ikh.set_identity();
-        for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-            g_ikh.data[i][kHIdx] -= g_gain.data[i][0];
-        }
-
-        static Mat15 g_ikhP;
-        for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-            for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-                float sum = 0.0F;
-                for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                    sum += g_ikh.data[r][k] * P.data[k][c];
-                }
-                g_ikhP.data[r][c] = sum;
-            }
-        }
-
-        static Mat15 g_pNew;
-        for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-            for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-                float sum = 0.0F;
-                for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                    sum += g_ikhP.data[r][k] * g_ikh.data[c][k];
-                }
-                sum += g_gain.data[r][0] * kRZupt * g_gain.data[c][0];
-                g_pNew.data[r][c] = sum;
-            }
-        }
-        P = g_pNew;
-
-        // Inject error state into nominal
-        p.x += g_dx.data[eskf::kIdxPosition + 0][0];
-        p.y += g_dx.data[eskf::kIdxPosition + 1][0];
-        p.z += g_dx.data[eskf::kIdxPosition + 2][0];
-        v.x += g_dx.data[eskf::kIdxVelocity + 0][0];
-        v.y += g_dx.data[eskf::kIdxVelocity + 1][0];
-        v.z += g_dx.data[eskf::kIdxVelocity + 2][0];
-        accel_bias.x += g_dx.data[eskf::kIdxAccelBias + 0][0];
-        accel_bias.y += g_dx.data[eskf::kIdxAccelBias + 1][0];
-        accel_bias.z += g_dx.data[eskf::kIdxAccelBias + 2][0];
-        gyro_bias.x += g_dx.data[eskf::kIdxGyroBias + 0][0];
-        gyro_bias.y += g_dx.data[eskf::kIdxGyroBias + 1][0];
-        gyro_bias.z += g_dx.data[eskf::kIdxGyroBias + 2][0];
-
-        const Vec3 deltaTheta(g_dx.data[eskf::kIdxAttitude + 0][0],
-                               g_dx.data[eskf::kIdxAttitude + 1][0],
-                               g_dx.data[eskf::kIdxAttitude + 2][0]);
-        reset(deltaTheta);
-        P.force_symmetric();
+        scalar_kalman_update(kHIdx, 1.0F, innovation, kRZupt);
     }
 
     last_zupt_nis_ = maxNis;
@@ -1007,20 +815,16 @@ Vec3 ESKF::geodetic_to_ned(double latRad, double lonRad, float altM) const {
 // ArduPilot EKF3: FuseVelPosNED(), PX4: fuseHorizontalPosition()/fuseVerticalPosition().
 // ============================================================================
 bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
-    // Guard: reject non-finite input
     if (!std::isfinite(gpsNed.x) || !std::isfinite(gpsNed.y) ||
         !std::isfinite(gpsNed.z)) {
         return false;
     }
-    if (!has_origin_) {
-        return false;
-    }
+    if (!has_origin_) { return false; }
 
-    // Compute R for each axis
+    // Compute R per axis: horizontal from HDOP, vertical from VDOP or scaled horiz
     const float hdopClamped = (hdop > 1.0F) ? hdop : 1.0F;
     const float sigmaH = kSigmaGpsPosBase * hdopClamped;
     const float rHoriz = sigmaH * sigmaH;
-
     float rVert = 0.0F;
     if (vdop > 0.0F) {
         const float vdopClamped = (vdop > 1.0F) ? vdop : 1.0F;
@@ -1034,97 +838,21 @@ bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
     const int32_t indices[3] = { eskf::kIdxPosN, eskf::kIdxPosE, eskf::kIdxPosD };
     const float pComponents[3] = { p.x, p.y, p.z };
     const float gpsComponents[3] = { gpsNed.x, gpsNed.y, gpsNed.z };
-
     float maxNis = 0.0F;
 
     for (int32_t axis = 0; axis < 3; ++axis) {
         const int32_t kHIdx = indices[axis];
         const float rNoise = rValues[axis];
-
-        // Innovation: y = z - h(x) = gps_pos[axis] - p[axis]
         const float innovation = gpsComponents[axis] - pComponents[axis];
-
-        // Innovation covariance: S = P[idx][idx] + R
         const float s = P(kHIdx, kHIdx) + rNoise;
-        if (s < kMinInnovationVariance) {
-            continue;
-        }
+        if (s < kMinInnovationVariance) { continue; }
 
-        // NIS
         const float nis = (innovation * innovation) / s;
-        if (nis > maxNis) {
-            maxNis = nis;
-        }
+        if (nis > maxNis) { maxNis = nis; }
 
-        // Innovation gate
-        const float gateThreshold = kGpsPositionGate * sqrtf(s);
-        if (fabsf(innovation) > gateThreshold) {
-            continue;
-        }
+        if (fabsf(innovation) > kGpsPositionGate * sqrtf(s)) { continue; }
 
-        // Kalman gain: K = P[:,idx] / S
-        static Mat<eskf::kStateSize, 1> g_gain;
-        const float invS = 1.0F / s;
-        for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-            g_gain.data[i][0] = P.data[i][kHIdx] * invS;
-        }
-
-        // Error state correction: δx = K * innovation
-        static Mat<eskf::kStateSize, 1> g_dx;
-        for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-            g_dx.data[i][0] = g_gain.data[i][0] * innovation;
-        }
-
-        // Joseph form P update: P = (I-KH)P(I-KH)' + KRK'
-        static Mat15 g_ikh;
-        g_ikh.set_identity();
-        for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-            g_ikh.data[i][kHIdx] -= g_gain.data[i][0];
-        }
-
-        static Mat15 g_ikhP;
-        for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-            for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-                float sum = 0.0F;
-                for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                    sum += g_ikh.data[r][k] * P.data[k][c];
-                }
-                g_ikhP.data[r][c] = sum;
-            }
-        }
-
-        static Mat15 g_pNew;
-        for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-            for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-                float sum = 0.0F;
-                for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                    sum += g_ikhP.data[r][k] * g_ikh.data[c][k];
-                }
-                sum += g_gain.data[r][0] * rNoise * g_gain.data[c][0];
-                g_pNew.data[r][c] = sum;
-            }
-        }
-        P = g_pNew;
-
-        // Inject error state into nominal
-        p.x += g_dx.data[eskf::kIdxPosition + 0][0];
-        p.y += g_dx.data[eskf::kIdxPosition + 1][0];
-        p.z += g_dx.data[eskf::kIdxPosition + 2][0];
-        v.x += g_dx.data[eskf::kIdxVelocity + 0][0];
-        v.y += g_dx.data[eskf::kIdxVelocity + 1][0];
-        v.z += g_dx.data[eskf::kIdxVelocity + 2][0];
-        accel_bias.x += g_dx.data[eskf::kIdxAccelBias + 0][0];
-        accel_bias.y += g_dx.data[eskf::kIdxAccelBias + 1][0];
-        accel_bias.z += g_dx.data[eskf::kIdxAccelBias + 2][0];
-        gyro_bias.x += g_dx.data[eskf::kIdxGyroBias + 0][0];
-        gyro_bias.y += g_dx.data[eskf::kIdxGyroBias + 1][0];
-        gyro_bias.z += g_dx.data[eskf::kIdxGyroBias + 2][0];
-
-        const Vec3 deltaTheta(g_dx.data[eskf::kIdxAttitude + 0][0],
-                               g_dx.data[eskf::kIdxAttitude + 1][0],
-                               g_dx.data[eskf::kIdxAttitude + 2][0]);
-        reset(deltaTheta);
-        P.force_symmetric();
+        scalar_kalman_update(kHIdx, 1.0F, innovation, rNoise);
     }
 
     last_gps_pos_nis_ = maxNis;
@@ -1175,69 +903,7 @@ bool ESKF::update_gps_velocity(float vNorth, float vEast) {
             continue;
         }
 
-        // Kalman gain: K = P[:,idx] / S
-        static Mat<eskf::kStateSize, 1> g_gain;
-        const float invS = 1.0F / s;
-        for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-            g_gain.data[i][0] = P.data[i][kHIdx] * invS;
-        }
-
-        // Error state correction: δx = K * innovation
-        static Mat<eskf::kStateSize, 1> g_dx;
-        for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-            g_dx.data[i][0] = g_gain.data[i][0] * innovation;
-        }
-
-        // Joseph form P update
-        static Mat15 g_ikh;
-        g_ikh.set_identity();
-        for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-            g_ikh.data[i][kHIdx] -= g_gain.data[i][0];
-        }
-
-        static Mat15 g_ikhP;
-        for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-            for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-                float sum = 0.0F;
-                for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                    sum += g_ikh.data[r][k] * P.data[k][c];
-                }
-                g_ikhP.data[r][c] = sum;
-            }
-        }
-
-        static Mat15 g_pNew;
-        for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-            for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-                float sum = 0.0F;
-                for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                    sum += g_ikhP.data[r][k] * g_ikh.data[c][k];
-                }
-                sum += g_gain.data[r][0] * kRGpsVel * g_gain.data[c][0];
-                g_pNew.data[r][c] = sum;
-            }
-        }
-        P = g_pNew;
-
-        // Inject error state into nominal
-        p.x += g_dx.data[eskf::kIdxPosition + 0][0];
-        p.y += g_dx.data[eskf::kIdxPosition + 1][0];
-        p.z += g_dx.data[eskf::kIdxPosition + 2][0];
-        v.x += g_dx.data[eskf::kIdxVelocity + 0][0];
-        v.y += g_dx.data[eskf::kIdxVelocity + 1][0];
-        v.z += g_dx.data[eskf::kIdxVelocity + 2][0];
-        accel_bias.x += g_dx.data[eskf::kIdxAccelBias + 0][0];
-        accel_bias.y += g_dx.data[eskf::kIdxAccelBias + 1][0];
-        accel_bias.z += g_dx.data[eskf::kIdxAccelBias + 2][0];
-        gyro_bias.x += g_dx.data[eskf::kIdxGyroBias + 0][0];
-        gyro_bias.y += g_dx.data[eskf::kIdxGyroBias + 1][0];
-        gyro_bias.z += g_dx.data[eskf::kIdxGyroBias + 2][0];
-
-        const Vec3 deltaTheta(g_dx.data[eskf::kIdxAttitude + 0][0],
-                               g_dx.data[eskf::kIdxAttitude + 1][0],
-                               g_dx.data[eskf::kIdxAttitude + 2][0]);
-        reset(deltaTheta);
-        P.force_symmetric();
+        scalar_kalman_update(kHIdx, 1.0F, innovation, kRGpsVel);
     }
 
     last_gps_vel_nis_ = maxNis;
