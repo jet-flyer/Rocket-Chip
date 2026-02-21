@@ -100,30 +100,26 @@ TEST(ESKFMagUpdate, WrapPiDiscontinuity) {
 }
 
 // ============================================================================
-// Test 3: InnovationGating
-// Large heading error (>3σ) → update rejected
+// Test 3: SafetyNetGateAccepts90DegError
+// With 100σ safety-net gate (ArduPilot pattern), a 90° heading error is
+// accepted — R controls correction strength, not the gate.
+// The gate only catches truly catastrophic outliers.
 // ============================================================================
-TEST(ESKFMagUpdate, InnovationGating) {
+TEST(ESKFMagUpdate, SafetyNetGateAccepts90DegError) {
     ESKF eskf = make_initialized();
 
-    // Shrink P[2][2] to make the gate very tight
+    // Shrink P[2][2] — with the old 3σ gate this would reject, with 100σ it accepts
     eskf.P(2, 2) = 1e-6f;
 
     // Set yaw = 0, create mag reading for heading = 90° (π/2)
-    // Innovation = π/2 ≈ 1.57 rad. Gate = 3*sqrt(1e-6 + 0.00757) ≈ 0.26 rad.
-    // π/2 >> 0.26 → rejected.
+    // Innovation = π/2 ≈ 1.57 rad. Gate = 100*sqrt(1e-6 + 0.00757) ≈ 8.7 rad.
+    // 1.57 << 8.7 → accepted (R limits correction via Kalman gain).
     Quat q_90 = Quat::from_euler(0.0f, 0.0f, kPi / 2.0f);
     Vec3 mag_b = mag_body_from_quat(q_90, kMagNed);
 
-    const Vec3 p_before = eskf.p;
-    const float P22_before = eskf.P(2, 2);
-
     bool accepted = eskf.update_mag_heading(mag_b, kMagExpected);
-    EXPECT_FALSE(accepted);
-
-    // State should be unchanged
-    EXPECT_FLOAT_EQ(eskf.P(2, 2), P22_before);
-    EXPECT_FLOAT_EQ(eskf.p.x, p_before.x);
+    EXPECT_TRUE(accepted) << "100σ safety-net gate should accept 90° error";
+    EXPECT_EQ(eskf.mag_total_accepts_, 1u);
 }
 
 // ============================================================================
@@ -456,4 +452,176 @@ TEST(ESKFMagUpdate, RejectsNaNDeclination) {
     EXPECT_FALSE(accepted);
 
     EXPECT_FLOAT_EQ(eskf.P(2, 2), P22_before);
+}
+
+// ============================================================================
+// Test 17: TiltInflatesR — 40° roll inflates R, update accepted but weaker
+// At 40° tilt (between 30° threshold and 60° max), R is inflated, so the
+// Kalman gain is lower and the correction is weaker than at level.
+// ============================================================================
+TEST(ESKFMagUpdate, TiltInflatesR) {
+    constexpr float kRoll40 = 40.0f * kPi / 180.0f;
+    const Quat qTilted = Quat::from_euler(kRoll40, 0.0f, 0.0f);
+
+    // Create two ESKFs: one level, one tilted at 40° roll
+    ESKF eskfLevel = make_initialized();
+    ESKF eskfTilted = make_initialized();
+    eskfTilted.q = qTilted;
+
+    // Generate consistent mag body readings for each orientation
+    Vec3 magLevel = mag_body_from_quat(eskfLevel.q, kMagNed);
+    Vec3 magTilted = mag_body_from_quat(eskfTilted.q, kMagNed);
+
+    // Inflate P[yaw] so the update has room to correct
+    eskfLevel.P(2, 2) = 0.1f;
+    eskfTilted.P(2, 2) = 0.1f;
+
+    float P22_level_before = eskfLevel.P(2, 2);
+    float P22_tilted_before = eskfTilted.P(2, 2);
+
+    bool acceptedLevel = eskfLevel.update_mag_heading(magLevel, kMagExpected, 0.0f);
+    bool acceptedTilted = eskfTilted.update_mag_heading(magTilted, kMagExpected, 0.0f);
+
+    EXPECT_TRUE(acceptedLevel) << "Level update should be accepted";
+    EXPECT_TRUE(acceptedTilted) << "40° tilt update should still be accepted";
+
+    // At 40° tilt, R is inflated → Kalman gain is lower → P reduction is smaller
+    float P22_reduction_level = P22_level_before - eskfLevel.P(2, 2);
+    float P22_reduction_tilted = P22_tilted_before - eskfTilted.P(2, 2);
+
+    EXPECT_GT(P22_reduction_level, P22_reduction_tilted)
+        << "Level correction should reduce P[yaw] more than tilted correction";
+}
+
+// ============================================================================
+// Test 18: HighTiltRejects — 70° roll exceeds 60° max → hard reject
+// ============================================================================
+TEST(ESKFMagUpdate, HighTiltRejects) {
+    constexpr float kRoll70 = 70.0f * kPi / 180.0f;
+    const Quat qTilted = Quat::from_euler(kRoll70, 0.0f, 0.0f);
+
+    ESKF eskf = make_initialized();
+    eskf.q = qTilted;
+
+    // Inflate P[yaw] so the gate wouldn't block if tilt weren't the issue
+    eskf.P(2, 2) = 1.0f;
+
+    Vec3 magTilted = mag_body_from_quat(eskf.q, kMagNed);
+    float P22_before = eskf.P(2, 2);
+
+    bool accepted = eskf.update_mag_heading(magTilted, kMagExpected, 0.0f);
+    EXPECT_FALSE(accepted) << "70° tilt should be hard-rejected (>60° max)";
+
+    // P unchanged — update was rejected
+    EXPECT_FLOAT_EQ(eskf.P(2, 2), P22_before);
+}
+
+// ============================================================================
+// Test 19: MagResetAfterSustainedRejection — 50 consecutive gate rejections
+// trigger heading reset. After reset, next call with consistent mag accepts.
+// ============================================================================
+TEST(ESKFMagUpdate, MagResetAfterSustainedRejection) {
+    ESKF eskf = make_initialized();
+
+    // Use high tilt (>60°) to accumulate consecutive rejects.
+    // Tilt rejects do NOT trigger heading reset (heading unreliable at tilt),
+    // but they do increment the consecutive reject counter.
+    constexpr float kRoll70 = 70.0f * kPi / 180.0f;
+    eskf.q = Quat::from_euler(kRoll70, 0.0f, 0.0f);
+    eskf.P(2, 2) = 1.0f;
+
+    Vec3 magTilted = mag_body_from_quat(eskf.q, kMagNed);
+
+    // Feed 50+ rejections via tilt — counter increments but no reset fires
+    for (uint32_t i = 0; i < ESKF::kMagResetAfterRejects + 5; ++i) {
+        EXPECT_FALSE(eskf.update_mag_heading(magTilted, kMagExpected, 0.0f));
+    }
+    EXPECT_EQ(eskf.mag_resets_, 0u) << "Tilt rejects should NOT trigger heading reset";
+    EXPECT_EQ(eskf.mag_consecutive_rejects_, ESKF::kMagResetAfterRejects + 5);
+    EXPECT_EQ(eskf.mag_total_rejects_, ESKF::kMagResetAfterRejects + 5);
+
+    // Return to level — accept resets the consecutive counter
+    eskf.q = Quat::from_euler(0.0f, 0.0f, 0.0f);
+    Vec3 magLevel = mag_body_from_quat(eskf.q, kMagNed);
+    EXPECT_TRUE(eskf.update_mag_heading(magLevel, kMagExpected, 0.0f))
+        << "After return to level, should accept";
+    EXPECT_EQ(eskf.mag_consecutive_rejects_, 0u);
+    EXPECT_EQ(eskf.mag_total_accepts_, 1u);
+}
+
+// ============================================================================
+// Test 20: CounterResetBehavior — accept resets consecutive counter
+// ============================================================================
+TEST(ESKFMagUpdate, CounterResetBehavior) {
+    ESKF eskf = make_initialized();
+    eskf.P(2, 2) = 0.1f;  // Enough room for acceptance
+
+    Vec3 mag = mag_body_from_quat(eskf.q, kMagNed);
+    EXPECT_TRUE(eskf.update_mag_heading(mag, kMagExpected, 0.0f));
+    EXPECT_EQ(eskf.mag_total_accepts_, 1u);
+    EXPECT_EQ(eskf.mag_consecutive_rejects_, 0u);
+
+    // Force a few rejections via high tilt
+    constexpr float kRoll70 = 70.0f * kPi / 180.0f;
+    eskf.q = Quat::from_euler(kRoll70, 0.0f, 0.0f);
+    Vec3 magTilted = mag_body_from_quat(eskf.q, kMagNed);
+
+    for (int i = 0; i < 5; ++i) {
+        EXPECT_FALSE(eskf.update_mag_heading(magTilted, kMagExpected, 0.0f));
+    }
+    EXPECT_EQ(eskf.mag_consecutive_rejects_, 5u);
+    EXPECT_EQ(eskf.mag_total_rejects_, 5u);
+
+    // Return to level and accept — consecutive counter resets, total doesn't
+    eskf.q = Quat::from_euler(0.0f, 0.0f, 0.0f);
+    eskf.P(2, 2) = 0.1f;
+    mag = mag_body_from_quat(eskf.q, kMagNed);
+    EXPECT_TRUE(eskf.update_mag_heading(mag, kMagExpected, 0.0f));
+    EXPECT_EQ(eskf.mag_consecutive_rejects_, 0u);
+    EXPECT_EQ(eskf.mag_total_rejects_, 5u);
+    EXPECT_EQ(eskf.mag_total_accepts_, 2u);
+}
+
+// ============================================================================
+// Test 21: PSymmetryAfterReset — P remains symmetric after heading reset
+// (council binding addition: Professor)
+// Direct call to reset_mag_heading() — public API for state machine (IVP-52).
+// ============================================================================
+TEST(ESKFMagUpdate, PSymmetryAfterReset) {
+    ESKF eskf = make_initialized();
+
+    // Run some predict+baro+mag cycles to build up cross-covariances
+    const Vec3 accel(0.0f, 0.0f, -ESKF::kGravity);
+    const Vec3 gyro(0.0f, 0.0f, 0.0f);
+    for (int i = 0; i < 100; ++i) {
+        eskf.predict(accel, gyro, 0.005f);
+        if (i % 25 == 0) { eskf.update_baro(0.0f); }
+    }
+
+    // Directly call reset_mag_heading (public API for state machine use)
+    eskf.reset_mag_heading(kPi / 2.0f);
+    EXPECT_EQ(eskf.mag_resets_, 1u);
+
+    // Verify yaw snapped to ~90°
+    Vec3 euler = eskf.q.to_euler();
+    EXPECT_NEAR(euler.z, kPi / 2.0f, 0.01f);
+
+    // Verify P is symmetric after reset
+    constexpr int32_t N = 15;
+    for (int32_t i = 0; i < N; ++i) {
+        for (int32_t j = i + 1; j < N; ++j) {
+            EXPECT_FLOAT_EQ(eskf.P(i, j), eskf.P(j, i))
+                << "P[" << i << "][" << j << "] != P[" << j << "][" << i << "]";
+        }
+    }
+
+    // Verify P[yaw] row/column zeroed (except diagonal)
+    constexpr int32_t kYaw = 2;
+    for (int32_t i = 0; i < N; ++i) {
+        if (i != kYaw) {
+            EXPECT_FLOAT_EQ(eskf.P(kYaw, i), 0.0f)
+                << "P[yaw][" << i << "] should be zero after reset";
+        }
+    }
+    EXPECT_NEAR(eskf.P(kYaw, kYaw), ESKF::kInitPAttitude, 1e-6f);
 }

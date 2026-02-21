@@ -46,6 +46,9 @@ struct ESKF {
 
     // =================================================================
     // IMU noise parameters — ICM-20948 DS-000189 v1.3
+    // Reviewed IVP-47 Step 6: all values verified correct.
+    // Bias walk values conservative for stationary/low-vibration.
+    // IVP-52 note: may need 10-100× increase during boost/coast phases.
     // =================================================================
 
     // Gyro noise spectral density: 0.015 dps/√Hz (Table 1, BW=10Hz, FS_SEL=0)
@@ -58,13 +61,13 @@ struct ESKF {
 
     // Gyro bias random walk — no datasheet spec (ICM-20948 does not publish
     // bias instability / Allan deviation). Empirical starting point.
-    // ArduPilot EKF3 GBIAS_P_NSE = 1e-3 rad/s (inflated for multirotor).
-    // Tune via NEES: if bias states don't converge, increase.
+    // ArduPilot EKF3 GBIAS_P_NSE = 1e-3 rad/s (100× larger, multirotor vibration).
+    // Conservative for ground use. Tune via NEES if bias states don't converge.
     static constexpr float kSigmaGyroBiasWalk = 1.0e-5f;  // rad/s²/√Hz
 
     // Accel bias random walk — no datasheet spec. Empirical starting point.
-    // ArduPilot EKF3 ABIAS_P_NSE = 2e-2 m/s² (inflated for multirotor).
-    // Tune via NEES: if bias states don't converge, increase.
+    // ArduPilot EKF3 ABIAS_P_NSE = 2e-2 m/s² (200× larger, multirotor vibration).
+    // Conservative for ground use. Tune via NEES if bias states don't converge.
     static constexpr float kSigmaAccelBiasWalk = 1.0e-4f;  // m/s³/√Hz
 
     // =================================================================
@@ -144,11 +147,30 @@ struct ESKF {
 
     static constexpr float kSigmaMagHeading = 0.087f;                   // rad (~5°)
     static constexpr float kRMagHeading = kSigmaMagHeading * kSigmaMagHeading;  // ~0.00757 rad²
-    static constexpr float kMagInnovationGate = 3.0f;                   // 3σ gate
+    // ArduPilot EKF3 MAG_GATE = 300σ — physically untriggerable since
+    // max innovation (π rad via wrap_pi) < 300×√R ≈ 26 rad.
+    // Interference detection handles bad data, R controls correction
+    // strength. Previous 3σ gate caused mNIS=124.99 death spiral.
+    static constexpr float kMagInnovationGate = 300.0f;                  // ArduPilot match
     static constexpr float kMagInterferenceThreshold = 0.25f;           // 25% deviation → inflate R
     static constexpr float kMagInterferenceRejectThreshold = 0.50f;     // 50% deviation → hard reject (council)
     static constexpr float kMagInterferenceRScale = 10.0f;              // R inflation factor (25-50% band)
     static constexpr float kMagMinMagnitude = 1.0f;                     // µT — below this, reject
+
+    // Consecutive rejection threshold for state machine use (IVP-52).
+    // With 300σ gate, automatic reset is unnecessary (gate never fires).
+    // The state machine can call reset_mag_heading() when this is exceeded.
+    static constexpr uint32_t kMagResetAfterRejects = 50;  // ~5s at 10Hz mag
+
+    // Tilt-conditional R inflation (IVP-47, ArduPilot fuseEulerYaw pattern).
+    // At large tilt, the H≈[0,0,1] linearization has cross-coupling from
+    // roll/pitch uncertainty into heading. Inflate R proportionally between
+    // threshold and max; hard-reject above max.
+    static constexpr float kMagTiltThresholdRad = 0.524f;   // ~30° — cross-coupling >5° heading error
+    static constexpr float kMagTiltMaxRad = 1.047f;         // ~60° — heading extraction unreliable
+    // R multiplier at max tilt. Range 50-500 acceptable; 100 chosen as
+    // conservative middle. Higher values weaken correction more at tilt.
+    static constexpr float kMagTiltRInflationMax = 100.0f;
 
     // =================================================================
     // Zero-velocity pseudo-measurement (ZUPT) — IVP-44b
@@ -281,6 +303,12 @@ struct ESKF {
     bool update_mag_heading(const Vec3& magBody, float expectedMagnitude,
                             float declinationRad = 0.0f);
 
+    // Force-reset yaw to measured heading (IVP-47).
+    // Resets q yaw, P[yaw,yaw] = kInitPAttitude, zeros yaw cross-covariances.
+    // Navigation states may briefly wobble; settles in 2-3s with GPS.
+    // Public API for state machine (IVP-52) and explicit heading alignment.
+    void reset_mag_heading(float headingMeasured);
+
     // Zero-velocity pseudo-measurement update (IVP-44b).
     // Checks stationarity from raw IMU data (accel magnitude ≈ g,
     // gyro rates < threshold). If stationary, applies v=[0,0,0] as
@@ -306,10 +334,24 @@ struct ESKF {
     float last_propagation_dt_{};
     float last_baro_nis_{};        // IVP-43: Normalized Innovation Squared
     float last_mag_nis_{};         // IVP-44: Normalized Innovation Squared
+    uint32_t mag_consecutive_rejects_{};  // IVP-47: heading reset trigger counter
+    uint32_t mag_total_rejects_{};        // IVP-47: lifetime reject count
+    uint32_t mag_total_accepts_{};        // IVP-47: lifetime accept count
+    uint32_t mag_resets_{};               // IVP-47: heading reset count
     float last_zupt_nis_{};        // IVP-44b: max ZUPT NIS across 3 axes
     float last_gps_pos_nis_{};     // IVP-46: max NIS across 3 position axes
     float last_gps_vel_nis_{};     // IVP-46: max NIS across 2 velocity axes
     bool last_zupt_active_{};      // IVP-44b: true when stationarity detected
+
+    // Per-sensor diagnostic counters (IVP-47)
+    uint32_t baro_total_accepts_{};
+    uint32_t baro_total_rejects_{};
+    uint32_t gps_pos_total_accepts_{};
+    uint32_t gps_pos_total_rejects_{};
+    uint32_t gps_vel_total_accepts_{};
+    uint32_t gps_vel_total_rejects_{};
+    uint32_t zupt_total_accepts_{};
+    uint32_t zupt_total_rejects_{};
     bool initialized_{};
 
 private:

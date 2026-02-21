@@ -20,12 +20,6 @@
 
 ---
 
-### mNIS Stuck at 124.99 — Mag Update Rejected When Board Not Level
-
-**Added 2026-02-18.** During soak testing, `mNIS=124.99` (constant) indicates the magnetometer innovation gate is rejecting every update. Likely cause: the heading measurement model assumes approximately level orientation, but the board was tilted (`R=168° P=-2°`). The mag calibration was done in a different orientation. Not a regression — this existed before the GPS changes. Investigate when tuning ESKF health gates (IVP-48).
-
----
-
 ---
 
 ### Watchdog Recovery Policy — IVP-51 (New, Stage 6 Prerequisite)
@@ -38,11 +32,11 @@
 
 ---
 
-### Sparse FPFT Optimization — IVP-48
+### Sparse FPFT Optimization — IVP-47
 
-**Added 2026-02-12, renumbered 2026-02-20 (was IVP-47).** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies). Benchmarked at ~496µs on target (IVP-42d, `6c84cd3`), vs <100µs gate target. Within cycle budget at 200Hz (~10%) but 5x over target. The sparse path exploits F_x block structure (many zero/identity blocks) to avoid the full O(N³) triple product — should bring it under 100µs.
+**Added 2026-02-12.** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies). Benchmarked at ~496µs on target (IVP-42d, `6c84cd3`), vs <100µs gate target. Within cycle budget at 200Hz (~10%) but 5x over target. The sparse path exploits F_x block structure (many zero/identity blocks) to avoid the full O(N³) triple product — should bring it under 100µs.
 
-**When:** After IVP-47 (ESKF Health Tuning) — all feeds must be correctly fusing before benchmarking is meaningful.
+**When:** IVP-48 health tuning is now complete (mNIS fixed, all feeds fusing). This is the next IVP.
 
 **Also applies to:** `update_baro()` Joseph form has two dense 15×15 multiplies (~8Hz, less critical than 200Hz predict). Mag and GPS updates will add more. Profile full pipeline with all feeds before optimizing.
 
@@ -82,6 +76,10 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 ---
 
 ## Resolved
+
+### IVP-48 ESKF Health Tuning — COMPLETE (2026-02-20)
+
+Fixed mNIS=124.99 death spiral: tilt R inflation (30-60°, ArduPilot `fuseEulerYaw`), hard reject >60°, 300σ gate (ArduPilot EKF3 match), public `reset_mag_heading()` for IVP-52 state machine. Per-sensor accept/reject counters, CLI health dashboard (`s` gate counters + P diags, `e` mA + zNIS). Q review: all values correct. 192/192 host tests. HW verified: mNIS 0.00–0.52, zero errors.
 
 ### P5c clang-tidy Function Decomposition — COMPLETE (2026-02-20)
 

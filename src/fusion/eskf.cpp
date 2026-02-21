@@ -539,9 +539,11 @@ bool ESKF::update_baro(float altitudeAglM) {
     // Innovation gate
     const float gateThreshold = kBaroInnovationGate * sqrtf(s);
     if (fabsf(innovation) > gateThreshold) {
+        ++baro_total_rejects_;
         return false;
     }
 
+    ++baro_total_accepts_;
     scalar_kalman_update(kHIdx, kHValue, innovation, kRBaro);
     clamp_covariance();
     return true;
@@ -588,6 +590,20 @@ static float wrap_pi(float angle) {
 // Joseph form P update for numerical stability.
 // Static locals for Mat15 temporaries (LL Entry 1).
 // ============================================================================
+// Compute effective R after two-tier interference detection.
+// Returns negative if hard-rejected (>50% deviation).
+static float mag_interference_r(float magNorm, float expectedMagnitude) {
+    float rEffective = ESKF::kRMagHeading;
+    if (expectedMagnitude > 0.0F) {
+        const float deviation = fabsf(magNorm - expectedMagnitude) / expectedMagnitude;
+        if (deviation > ESKF::kMagInterferenceRejectThreshold) { return -1.0F; }
+        if (deviation > ESKF::kMagInterferenceThreshold) {
+            rEffective = ESKF::kRMagHeading * ESKF::kMagInterferenceRScale;
+        }
+    }
+    return rEffective;
+}
+
 bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
                               float declinationRad) {
     if (!std::isfinite(magBody.x) || !std::isfinite(magBody.y) ||
@@ -595,22 +611,31 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
         return false;
     }
     const float magNorm = magBody.norm();
-    if (magNorm < kMagMinMagnitude) {
-        return false;
-    }
+    if (magNorm < kMagMinMagnitude) { return false; }
 
-    // Two-tier interference detection: 25-50% inflate R, >50% reject
-    float rEffective = kRMagHeading;
-    if (expectedMagnitude > 0.0F) {
-        const float deviation = fabsf(magNorm - expectedMagnitude) / expectedMagnitude;
-        if (deviation > kMagInterferenceRejectThreshold) { return false; }
-        if (deviation > kMagInterferenceThreshold) {
-            rEffective = kRMagHeading * kMagInterferenceRScale;
-        }
-    }
+    float rEffective = mag_interference_r(magNorm, expectedMagnitude);
+    if (rEffective < 0.0F) { return false; }
 
     // Zero-yaw tilt compensation: rotate magBody to level frame preserving yaw signal
     const Vec3 euler = q.to_euler();
+
+    // Tilt-conditional R inflation (IVP-47). At large tilt, the H≈[0,0,1]
+    // linearization cross-couples roll/pitch into heading. Inflate R to
+    // weaken correction; hard-reject above 60° where extraction is unreliable.
+    const float tilt = sqrtf(euler.x * euler.x + euler.y * euler.y);
+    if (tilt > kMagTiltMaxRad) {
+        ++mag_consecutive_rejects_;
+        ++mag_total_rejects_;
+        // No heading reset here — heading extraction unreliable at >60° tilt.
+        // Reset only fires from the safety-net gate path where heading is valid.
+        return false;
+    }
+    if (tilt > kMagTiltThresholdRad) {
+        const float tiltFrac = (tilt - kMagTiltThresholdRad)
+                             / (kMagTiltMaxRad - kMagTiltThresholdRad);
+        rEffective *= (1.0F + kMagTiltRInflationMax * tiltFrac);
+    }
+
     const Quat qZeroYaw = Quat::from_euler(euler.x, euler.y, 0.0F);
     const Vec3 magLevel = qZeroYaw.rotate(magBody);
 
@@ -624,11 +649,47 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
     if (s < kMinInnovationVariance) { return false; }
 
     last_mag_nis_ = (innovation * innovation) / s;
-    if (fabsf(innovation) > kMagInnovationGate * sqrtf(s)) { return false; }
 
+    // 300σ gate (ArduPilot EKF3 match). Physically untriggerable since
+    // max innovation (π rad) < 300×√R ≈ 26 rad. Kept for symmetry with
+    // baro/GPS/ZUPT update pattern.
+    if (fabsf(innovation) > kMagInnovationGate * sqrtf(s)) {
+        ++mag_consecutive_rejects_;
+        ++mag_total_rejects_;
+        return false;
+    }
+
+    mag_consecutive_rejects_ = 0;
+    ++mag_total_accepts_;
     scalar_kalman_update(kHIdx, 1.0F, innovation, rEffective);
     clamp_covariance();
     return true;
+}
+
+// ============================================================================
+// reset_mag_heading: Force-reset yaw after sustained rejection (IVP-47).
+// ArduPilot alignYawAngle() / PX4 resetMagHeading() pattern.
+// Zeroes yaw cross-covariances to prevent stale correlations from
+// corrupting subsequent updates. Navigation states may briefly wobble
+// after heading reset; settles in 2-3s with GPS aiding.
+// ============================================================================
+void ESKF::reset_mag_heading(float headingMeasured) {
+    constexpr int32_t kYawIdx = eskf::kIdxAttitude + 2;
+    const Vec3 euler = q.to_euler();
+
+    q = Quat::from_euler(euler.x, euler.y, headingMeasured);
+    q = q.normalized();
+
+    P(kYawIdx, kYawIdx) = kInitPAttitude;
+    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
+        if (i != kYawIdx) {
+            P(kYawIdx, i) = 0.0F;
+            P(i, kYawIdx) = 0.0F;
+        }
+    }
+
+    mag_consecutive_rejects_ = 0;
+    ++mag_resets_;
 }
 
 // ============================================================================
@@ -664,6 +725,7 @@ bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas) {
     if (fabsf(accelNorm - kGravity) > kStationaryAccelTol ||
         gyroNorm > kStationaryGyroMax) {
         last_zupt_active_ = false;
+        ++zupt_total_rejects_;
         return false;
     }
 
@@ -702,6 +764,7 @@ bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas) {
     }
 
     last_zupt_nis_ = maxNis;
+    ++zupt_total_accepts_;
     clamp_covariance();
     return true;
 }
@@ -856,6 +919,7 @@ bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
     }
 
     last_gps_pos_nis_ = maxNis;
+    ++gps_pos_total_accepts_;
     clamp_covariance();
     return true;
 }
@@ -907,6 +971,7 @@ bool ESKF::update_gps_velocity(float vNorth, float vEast) {
     }
 
     last_gps_vel_nis_ = maxNis;
+    ++gps_vel_total_accepts_;
     clamp_covariance();
     return true;
 }

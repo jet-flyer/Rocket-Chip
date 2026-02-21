@@ -1434,7 +1434,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 **Prerequisites:** IVP-42
 
-**Implement:** `src/fusion/mahony_ahrs.h/.cpp` — independent attitude estimator running alongside ESKF. Lightweight PI controller on orientation error. Uses same IMU data from seqlock but maintains its own quaternion. Provides the independent cross-check required by the confidence gate (IVP-48).
+**Implement:** `src/fusion/mahony_ahrs.h/.cpp` — independent attitude estimator running alongside ESKF. Lightweight PI controller on orientation error. Uses same IMU data from seqlock but maintains its own quaternion. Provides the independent cross-check required by the confidence gate (IVP-50).
 
 1. **Algorithm (Mahony 2008):**
    ```
@@ -1537,9 +1537,36 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ---
 
-### IVP-47: Sparse FPFT Optimization
+### IVP-47: ESKF Health Tuning & Diagnostics
 
 **Prerequisites:** IVP-46 (all measurement feeds live)
+
+**Rationale:** With all measurement feeds live, tune the ESKF for robust real-world operation before optimizing performance or layering MMAE on top. A poorly-tuned single ESKF will produce poorly-tuned MMAE hypotheses. Currently the magnetometer feed is non-functional (mNIS stuck at 124.99, every update rejected) — this must be fixed before performance optimization, which needs all feeds actually fusing to produce meaningful benchmarks.
+
+**Implement:**
+
+1. **Magnetometer innovation gate tuning.** Current mNIS is stuck at 124.99 (gate rejecting every update when board not level). The heading measurement model assumes approximately level orientation. Options: (a) widen the mag innovation gate, (b) add a tilt-compensated heading model, (c) gate mag updates on pitch/roll magnitude. Research ArduPilot EKF3 `magFuseMethod` and PX4 ECL mag fusion for prior art.
+
+2. **Innovation gate threshold review.** Audit all innovation gates (baro, mag, GPS pos, GPS vel, ZUPT) for appropriate σ thresholds. Currently using `⚠️ VALIDATE` placeholders in several places. Derive thresholds from sensor datasheets and outdoor test data.
+
+3. **Process noise Q tuning.** Review Q diagonal values against real sensor data. Current values are from Solà (2017) defaults — may need adjustment for ICM-20948 noise characteristics (datasheet: gyro noise density 0.015 dps/√Hz, accel noise density 230 µg/√Hz).
+
+4. **CLI health dashboard.** Add ESKF health summary to `e` display: per-sensor NIS statistics (min/max/mean over window), covariance diagonal magnitudes, innovation gate rejection counts.
+
+**[GATE]:**
+- mNIS accepts updates when board is reasonably level (< 30° tilt)
+- All innovation gate thresholds justified by source (datasheet, reference implementation, or empirical)
+- 60s indoor soak: all NIS values within expected bounds, zero UNHEALTHY
+- Outdoor soak: GPS NIS reasonable during walk, mag NIS reasonable when level
+- CLI `e` shows meaningful health diagnostics
+
+**[DIAG]:** mNIS still stuck after tuning = measurement model fundamentally wrong for non-level operation (need tilt compensation). GPS NIS consistently high = R values too tight for actual GPS accuracy. Baro NIS spikes after GPS origin set = altitude reference mismatch between baro and GPS.
+
+---
+
+### IVP-48: Sparse FPFT Optimization
+
+**Prerequisites:** IVP-47 (ESKF tuned with all feeds fusing correctly)
 
 **Rationale:** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies), benchmarked at ~496µs on target (IVP-42d). Within cycle budget for a single ESKF at 200Hz (~10% CPU), but MMAE (IVP-49) runs 4 parallel ESKFs — 4 × 496µs = ~2ms, consuming the entire 5ms cycle budget before any measurement updates. Sparse optimization must come before MMAE.
 
@@ -1564,39 +1591,9 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ---
 
-### IVP-48: ESKF Health Tuning & Diagnostics
-
-**Prerequisites:** IVP-46, IVP-47
-
-**Rationale:** With all measurement feeds live and performance optimized, tune the ESKF for robust real-world operation before layering MMAE on top. A poorly-tuned single ESKF will produce poorly-tuned MMAE hypotheses.
-
-**Implement:**
-
-1. **Magnetometer innovation gate tuning.** Current mNIS is stuck at 124.99 (gate rejecting every update when board not level). The heading measurement model assumes approximately level orientation. Options: (a) widen the mag innovation gate, (b) add a tilt-compensated heading model, (c) gate mag updates on pitch/roll magnitude. Research ArduPilot EKF3 `magFuseMethod` and PX4 ECL mag fusion for prior art.
-
-2. **Innovation gate threshold review.** Audit all innovation gates (baro, mag, GPS pos, GPS vel, ZUPT) for appropriate σ thresholds. Currently using `⚠️ VALIDATE` placeholders in several places. Derive thresholds from sensor datasheets and outdoor test data.
-
-3. **GPS 10Hz upgrade.** Call `gps_uart_set_rate(10)` in `init_sensors()` after `gps_uart_init()` succeeds. Verify ring buffer handles the 10x throughput increase (512 bytes = 5.3x margin at 9600 baud, still sufficient). Update ESKF GPS update rate check.
-
-4. **Process noise Q tuning.** Review Q diagonal values against real sensor data. Current values are from Solà (2017) defaults — may need adjustment for ICM-20948 noise characteristics (datasheet: gyro noise density 0.015 dps/√Hz, accel noise density 230 µg/√Hz).
-
-5. **CLI health dashboard.** Add ESKF health summary to `e` display: per-sensor NIS statistics (min/max/mean over window), covariance diagonal magnitudes, innovation gate rejection counts.
-
-**[GATE]:**
-- mNIS accepts updates when board is reasonably level (< 30° tilt)
-- All innovation gate thresholds justified by source (datasheet, reference implementation, or empirical)
-- GPS running at 10Hz, `gps_read_count` incrementing at ~10/s
-- 60s indoor soak: all NIS values within expected bounds, zero UNHEALTHY
-- Outdoor soak: GPS NIS reasonable during walk, mag NIS reasonable when level
-- CLI `e` shows meaningful health diagnostics
-
-**[DIAG]:** mNIS still stuck after tuning = measurement model fundamentally wrong for non-level operation (need tilt compensation). GPS NIS consistently high = R values too tight for actual GPS accuracy. Baro NIS spikes after GPS origin set = altitude reference mismatch between baro and GPS.
-
----
-
 ### IVP-49: MMAE Bank Manager (Titan Tier)
 
-**Prerequisites:** IVP-42, IVP-43, IVP-44, IVP-47 (sparse optimization required — 4 parallel ESKFs must fit within 2ms cycle budget)
+**Prerequisites:** IVP-42, IVP-43, IVP-44, IVP-48 (sparse optimization required — 4 parallel ESKFs must fit within 2ms cycle budget)
 
 **Implement:** `src/fusion/mmae.h/.cpp` — Multiple Model Adaptive Estimation bank. Runs `⚠️ VALIDATE 4` parallel ESKF instances, each with a different process model hypothesis. The MMAE bank determines which hypothesis best matches reality and reports the weighted fused state.
 

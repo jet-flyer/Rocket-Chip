@@ -1034,6 +1034,22 @@ static void print_eskf_status() {
                (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z,
                (double)g_eskf.last_baro_nis_,
                (double)g_eskf.last_mag_nis_);
+        // IVP-47: gate accept/reject counters
+        // NOLINTBEGIN(readability-magic-numbers) — ESKF P indices are state layout
+        printf("      gate: bA=%lu/%lu mA=%lu/%lu mR=%lu gA=%lu/%lu zA=%lu/%lu\n",
+               (unsigned long)g_eskf.baro_total_accepts_,
+               (unsigned long)(g_eskf.baro_total_accepts_ + g_eskf.baro_total_rejects_),
+               (unsigned long)g_eskf.mag_total_accepts_,
+               (unsigned long)(g_eskf.mag_total_accepts_ + g_eskf.mag_total_rejects_),
+               (unsigned long)g_eskf.mag_resets_,
+               (unsigned long)g_eskf.gps_pos_total_accepts_,
+               (unsigned long)(g_eskf.gps_pos_total_accepts_ + g_eskf.gps_pos_total_rejects_),
+               (unsigned long)g_eskf.zupt_total_accepts_,
+               (unsigned long)(g_eskf.zupt_total_accepts_ + g_eskf.zupt_total_rejects_));
+        printf("      Pvel=%.4f,%.4f,%.4f  Pab=%.6f  Pgb=%.6f\n",
+               (double)g_eskf.P(6, 6), (double)g_eskf.P(7, 7), (double)g_eskf.P(8, 8),
+               (double)g_eskf.P(9, 9), (double)g_eskf.P(12, 12));
+        // NOLINTEND(readability-magic-numbers)
         // IVP-45: Mahony cross-check
         if (g_mahonyInitialized && g_mahony.healthy()) {
             rc::Vec3 meuler = g_mahony.q.to_euler();
@@ -1158,12 +1174,15 @@ static void print_eskf_live() {
     float mdivDeg = (g_mahonyInitialized && g_mahony.healthy())
                     ? rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg
                     : -1.0F;
-    printf("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f Z=%c G=%c gNIS=%.2f Mdiv=%.1f B=%lu\n",
+    printf("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f mA=%lu/%lu Z=%c zNIS=%.2f G=%c gNIS=%.2f Mdiv=%.1f B=%lu\n",
            (double)alt, (double)vz, (double)vh, (double)yawDeg,
            (double)patt, (double)ppos,
            (double)g_eskf.last_baro_nis_,
            (double)g_eskf.last_mag_nis_,
+           (unsigned long)g_eskf.mag_total_accepts_,
+           (unsigned long)(g_eskf.mag_total_accepts_ + g_eskf.mag_total_rejects_),
            g_eskf.last_zupt_active_ ? 'Y' : 'N',
+           (double)g_eskf.last_zupt_nis_,
            g_eskf.has_origin_ ? 'Y' : 'N',
            (double)g_eskf.last_gps_pos_nis_,
            (double)mdivDeg,

@@ -20,6 +20,34 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-20-005 | Claude Code CLI | feature
+
+**IVP-47: ESKF health tuning — mag heading fix + diagnostics**
+
+Fixed mNIS=124.99 death spiral (mag heading completely non-functional). Three-part fix: (1) tilt-conditional R inflation at 30-60° with hard reject above 60° (ArduPilot `fuseEulerYaw` pattern), (2) public `reset_mag_heading()` API for state machine use (IVP-52), (3) mag gate widened to 300σ matching ArduPilot EKF3 (interference detection handles bad data, not the gate). Added per-sensor accept/reject counters for baro, mag, GPS pos/vel, ZUPT. Q constants reviewed — all correct per ICM-20948 datasheet. CLI `s` command shows gate counters + P velocity/bias diagonals. CLI `e` command shows mag accept ratio + ZUPT NIS. 192/192 host tests pass. HW verified: 65s soak, mNIS 0.00–0.52 (was 124.99), bNIS 0–4, zero sensor errors.
+
+(`src/fusion/eskf.h`, `src/fusion/eskf.cpp`, `src/main.cpp`, `test/test_eskf_mag_update.cpp`)
+
+---
+
+### 2026-02-20-004 | Claude Code CLI | tooling
+
+**Pre-commit hook: function size + cognitive complexity gate**
+
+Added `.git/hooks/pre-commit` that runs `readability-function-size` and `readability-function-cognitive-complexity` checks on staged `.cpp` files in `src/`. Blocks commit if any function exceeds thresholds (60 lines, 200 statements, nesting 6, CC 25). Uses same clang-tidy path and ARM cross-compilation args as `scripts/run_clang_tidy.sh`. Skippable with `--no-verify`.
+
+---
+
+### 2026-02-20-003 | Claude Code CLI | refactor
+
+**P5c: decompose 24 function-size/CC warnings to zero**
+
+Per plan: `.claude/plans/quirky-squishing-clarke.md`. Four batches executed in council-mandated order (lowest risk first): Batch 3 `rc_os.cpp` (wizard + mag cal extraction), Batch 4 `calibration_manager.cpp` (LM solver dedup via function pointers), Batch 2 `main.cpp` (eskf_tick + sensor print decomposition), Batch 1 `eskf.cpp` (Joseph-form deduplication into `scalar_kalman_update()`). Additional borderline findings caught in final audit: `core1_read_imu`, `core1_read_gps`, `core1_sensor_loop`, `eskf_tick_gps`, `lm_solve` — all decomposed. Binary: text=114,144 (-2,248 from P5b baseline), BSS=96,524 (-11,408, from consolidating 5 sets of static Mat15 into 1). Full clang-tidy audit: 0 function-size/CC findings in production code. HW verified: 60s soak, 86K IMU reads, 0 errors, ESKF stable (qnorm=1.000000, vel<0.03 m/s).
+
+(`src/fusion/eskf.cpp`, `src/fusion/eskf.h`, `src/main.cpp`, `src/calibration/calibration_manager.cpp`, `src/cli/rc_os.cpp`)
+
+---
+
 ### 2026-02-20-002 | Claude Code CLI | documentation
 
 **Pre-audit documentation cleanup: 10 files updated for consistency**

@@ -6,7 +6,7 @@
 
 **Stage 5 IN PROGRESS** — Sensor Fusion (ESKF)
 
-IVP-39 through IVP-46 complete, plus IVP-45 (Mahony AHRS). All measurement updates wired. GPS upgraded to 57600 baud / 10Hz. ESKF divergence fix (silent ICM-20948 zero-output) HW verified. Next: IVP-47 (sparse FPFT optimization), IVP-48 (health tuning).
+IVP-39 through IVP-46 complete, plus IVP-45 (Mahony AHRS) and IVP-48 (health tuning). All measurement updates wired. GPS upgraded to 57600 baud / 10Hz. ESKF divergence fix (silent ICM-20948 zero-output) HW verified. Mag heading fix: mNIS was stuck at 124.99, now 0.00–0.52. Per-sensor diagnostics and CLI health dashboard added. Next: IVP-47 (sparse FPFT optimization).
 
 ## Completed
 
@@ -32,13 +32,13 @@ IVP-39 through IVP-46 complete, plus IVP-45 (Mahony AHRS). All measurement updat
 | 5: Mahony AHRS | IVP-45 | 2026-02-19 | Independent attitude estimator integrated in main.cpp. Running at 200Hz alongside ESKF. Mdiv cross-check in CLI `s`/`e` output. 187/187 host tests pass. HW verified |
 | ESKF divergence fix | — | 2026-02-19 | Silent ICM-20948 zero-output detection: accel magnitude guard in core1_read_imu() + velocity sentinel in healthy(). 60s soak: max bNIS=3.81, max vel=0.077 m/s, 0 errors |
 | GPS 10Hz / 57600 baud | — | 2026-02-20 | GPS negotiated to 57600 baud + 10Hz in gps_uart_init(). Cold-start safe (always inits at 9600 then negotiates). HW verified: ~127 GPS reads/10s, rxOvf=0 |
+| 5: Health Tuning | IVP-48 | 2026-02-20 | Fixed mNIS=124.99 death spiral: tilt R inflation (30-60°), hard reject >60°, 300σ gate (ArduPilot match), public reset_mag_heading() API. Per-sensor diagnostic counters + CLI health dashboard. 192/192 host tests. HW verified: mNIS 0.00–0.52 |
 
 ## In Progress
 
-**Stage 5: Sensor Fusion (ESKF)** — IVP-39 through IVP-46 complete. Next: IVP-47 (sparse FPFT), IVP-48 (health tuning).
+**Stage 5: Sensor Fusion (ESKF)** — IVP-39 through IVP-46 + IVP-48 complete. Next: IVP-47 (sparse FPFT).
 
 - IVP-47: Sparse FPFT optimization — pending (predict() ~496µs → <100µs target)
-- IVP-48: ESKF health tuning & diagnostics — pending
 - IVP-49: MMAE bank manager — pending (Titan tier)
 - IVP-50: Confidence gate — pending (Titan tier)
 
