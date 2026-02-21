@@ -177,6 +177,43 @@ using Mat15 = Mat<15, 15>;
 using Vec15 = Mat<15, 1>;
 
 // ============================================================================
+// 3×3 block accessors for NxN matrices
+// Parameters rb/cb are element indices (0, 3, 6, ...) matching kIdx* constants.
+// ============================================================================
+
+// Extract 3×3 block starting at (rb, cb)
+template <int32_t N>
+Mat3 block3(const Mat<N, N>& m, int32_t rb, int32_t cb) {
+    Mat3 blk;
+    for (int32_t r = 0; r < 3; ++r) {
+        for (int32_t c = 0; c < 3; ++c) {
+            blk.data[r][c] = m.data[rb + r][cb + c];
+        }
+    }
+    return blk;
+}
+
+// Set 3×3 block at (rb, cb)
+template <int32_t N>
+void set_block3(Mat<N, N>& m, int32_t rb, int32_t cb, const Mat3& blk) {
+    for (int32_t r = 0; r < 3; ++r) {
+        for (int32_t c = 0; c < 3; ++c) {
+            m.data[rb + r][cb + c] = blk.data[r][c];
+        }
+    }
+}
+
+// Accumulate: m[rb..rb+2, cb..cb+2] += blk
+template <int32_t N>
+void add_block3(Mat<N, N>& m, int32_t rb, int32_t cb, const Mat3& blk) {
+    for (int32_t r = 0; r < 3; ++r) {
+        for (int32_t c = 0; c < 3; ++c) {
+            m.data[rb + r][cb + c] += blk.data[r][c];
+        }
+    }
+}
+
+// ============================================================================
 // ESKF-specific free functions
 // ============================================================================
 
