@@ -14,17 +14,9 @@
 
 ---
 
-### Next Step: Full clang-tidy Audit (Pre-IVP-47)
+### Changelog Amendment Needed
 
-**Added 2026-02-20.** 18 files changed since the last full audit (2026-02-09): `eskf.cpp/h`, `mahony_ahrs.cpp/h`, `wmm_declination.cpp/h`, `gps_uart.cpp/h`, `gps.h`, `main.cpp`, and others. A partial run during the 2026-02-20 session showed findings in `eskf.h` (uppercase literal suffix, parameter naming). Full audit not yet remediated. Run clang-tidy across all changed files, remediate findings, commit, then proceed to IVP-47 (sparse FPFT).
-
----
-
----
-
-~~### UART GPS Running at 1Hz (Default) — Upgrade to 10Hz Pending~~
-
-**RESOLVED 2026-02-20.** GPS now negotiates 57600 baud and sets 10Hz in `gps_uart_init()`. HW verified: ~127 GPS reads/10s, rxOvf=0, IMUerr=0.
+**Added 2026-02-20.** The cyclomatic complexity caveat edits (`.clang-tidy` comment, pre-commit hook note, whiteboard deferred note) were committed standalone. Amend into the next CHANGELOG.md entry rather than adding a separate entry for a comment-only change.
 
 ---
 
@@ -46,11 +38,11 @@
 
 ---
 
-### Sparse FPFT Optimization — IVP-47
+### Sparse FPFT Optimization — IVP-48
 
-**Added 2026-02-12.** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies). Benchmarked at ~496µs on target (IVP-42d, `6c84cd3`), vs <100µs gate target. Within cycle budget at 200Hz (~10%) but 5x over target. The sparse path exploits F_x block structure (many zero/identity blocks) to avoid the full O(N³) triple product — should bring it under 100µs.
+**Added 2026-02-12, renumbered 2026-02-20 (was IVP-47).** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies). Benchmarked at ~496µs on target (IVP-42d, `6c84cd3`), vs <100µs gate target. Within cycle budget at 200Hz (~10%) but 5x over target. The sparse path exploits F_x block structure (many zero/identity blocks) to avoid the full O(N³) triple product — should bring it under 100µs.
 
-**When:** All measurement feeds now live (IVP-43 baro, IVP-44 mag, IVP-46 GPS — all done). Natural slot: before IVP-48 health pass.
+**When:** After IVP-47 (ESKF Health Tuning) — all feeds must be correctly fusing before benchmarking is meaningful.
 
 **Also applies to:** `update_baro()` Joseph form has two dense 15×15 multiplies (~8Hz, less critical than 200Hz predict). Mag and GPS updates will add more. Profile full pipeline with all feeds before optimizing.
 
@@ -81,7 +73,7 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 - ~~**FeatherWing UART GPS:**~~ **DONE** (2026-02-18). `gps_uart.cpp` driver complete with interrupt-driven ring buffer. Outdoor validated.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
 - **LED Engine Refactor (back burner):** Current ws2812 driver is a solid animation engine but callers must manage transition-only `set_mode()` calls manually (fixed 2026-02-19 with `neo_set_if_changed()`). Refactor to a proper declarative state machine where flight/status states map to LED patterns — the engine handles transitions internally. Natural integration point: IVP-54 (action executor) when mapping to ArduPilot AP_Notify standard codes. Outdoor LED verification pending with GPS fix test.
-- **clang-tidy Integration:** LLVM installed, 127-check config active, first full audit complete (2026-02-09). **All code fully remediated** across 6 phases (P1-P5f, 1,251 total findings). IVP test code stripped — zero deferred findings. Pre-commit enforcement deferred to next cycle.
+- **clang-tidy Integration:** LLVM installed, 127-check config active, full audit clean (2026-02-20, P5c complete). **All code fully remediated** across 6 phases (P1-P5c, 1,501 total findings + 24 function decompositions). Pre-commit hook active for function-size + cognitive complexity gate. Full 127-check pre-commit enforcement deferred (too slow for every commit). **Post-dev caveat:** clang-tidy has no native cyclomatic complexity check — the cognitive complexity gate is a proxy, not equivalent. JSF AV Rule 3 requires cyclomatic CC <= 20. A post-dev audit with a true cyclomatic tool is needed for final JSF compliance sign-off. Options: (1) `lizard` — Python, `pip install lizard`, run `lizard -C 20 src/` for instant per-function CC report; (2) `pmccabe` — C-native, lightweight; (3) `metrix++` — Python, multi-metric. Manual review of functions scoring cognitive 20+ is also viable given the codebase size.
 - **Dynamic Peripheral Detection + OTA Drivers (Crowdfunding Goal):** Boot-time probe-first detection implemented (2026-02-10). Runtime hot-plug, driver registry, and OTA firmware downloads for unrecognized devices are stretch goals. Full architecture documented in SAD Section 13.2. Flipper Zero-style: plug in a sensor, RC identifies it, prompts for driver. WiFi/BT OTA for Core/Middle tiers.
 - **State-Aware ZUPT for State Machine (IVP-52):** Current ZUPT (IVP-44b) uses IMU-based stationarity detection with kSigmaZupt=0.5 m/s. When the state machine knows we're IDLE or ARMED (on pad), we can: (1) tighten R to ~0.1 m/s since stationarity is guaranteed, (2) skip the accel/gyro stationarity check entirely, (3) keep loose ZUPT as fallback for uncertain states (LANDED before confirmed). ArduPilot EKF3 `onGround` flag and PX4 ECL `vehicle_at_rest` both use vehicle state to override IMU-based detection. Natural integration point: `eskf_tick()` checks flight state and calls `update_zupt()` with tighter R when on pad.
 - **Direct NOAA/IGRF WMM Table Generation:** Current WMM declination table is converted from ArduPilot's `AP_Declination/tables.cpp` (IGRF13 epoch). Long-term goal: generate table directly from NOAA WMM/IGRF coefficients (spherical harmonic expansion) to remove AP dependency. NOAA publishes WMM coefficients as `WMM.COF` file every 5 years (next: WMM2030). Python script to evaluate the model at grid points and output C++ table. Not blocking — current table is valid through ~2028-2029.
@@ -91,9 +83,17 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 
 ## Resolved
 
+### P5c clang-tidy Function Decomposition — COMPLETE (2026-02-20)
+
+24 function-size/CC warnings decomposed to zero across 4 batches. Pre-commit hook added for function-size + CC gate. Binary: text=114,144, BSS=96,524. HW verified: 60s soak, 0 errors, ESKF stable.
+
+### GPS 57600 Baud + 10Hz — COMPLETE (2026-02-20)
+
+`gps_uart_init()` negotiates 57600 baud and 10Hz. HW verified: ~127 GPS reads/10s, rxOvf=0, IMUerr=0.
+
 ### IVP-45 Mahony AHRS — COMPLETE (2026-02-19)
 
-`mahony_ahrs.h/.cpp` + 14 host tests (187/187). Wired into `eskf_tick()` at 200Hz. `Mdiv` in both `e` and `s` CLI output. HW verified: 60s soak, movement tracking, zero sensor errors. Committed `a120e6f`. Standards audit (clang-tidy) pending — deferred to IVP-47/48 cycle.
+`mahony_ahrs.h/.cpp` + 14 host tests (187/187). Wired into `eskf_tick()` at 200Hz. `Mdiv` in both `e` and `s` CLI output. HW verified: 60s soak, movement tracking, zero sensor errors. Committed `a120e6f`. Standards audit complete (P5c, 2026-02-20).
 
 ### Foundational Features Gate — COMPLETE (2026-02-10)
 

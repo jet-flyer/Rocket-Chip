@@ -257,7 +257,11 @@ CheckOptions:
 
   # ═══════════════════════════════════════════════════════════════
   # COGNITIVE COMPLEXITY (JSF AV Rule 3)
-  # Cyclomatic complexity proxy — flags overly complex functions
+  # Cognitive complexity proxy for cyclomatic complexity — clang-tidy
+  # has no native cyclomatic check. JSF AV Rule 3 requires CC <= 20.
+  # Cognitive != cyclomatic (nesting penalties differ), so passing
+  # here does NOT guarantee JSF compliance. Post-dev audit with a
+  # true cyclomatic tool (e.g. lizard) is needed for final sign-off.
   # ═══════════════════════════════════════════════════════════════
   - key: readability-function-cognitive-complexity.Threshold
     value: '25'
