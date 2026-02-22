@@ -841,6 +841,88 @@ GPIO2 CTRL = 0x3 (I2C function) in both cases — peripheral is corrupt, not GPI
 
 ---
 
+## Entry 29: ICM-20948 Silent Zero-Output Fault Causes ESKF Divergence
+
+**Date:** 2026-02-19
+**Time Spent:** ~2 hours
+**Severity:** Critical — Filter divergence at +9.8 m/s²/s, velocity reaches 1688 m/s after ~3 min
+
+### Problem
+ICM-20948 can enter a sleep/reset state mid-session and ACK I2C reads returning all zeros for accel/gyro. The existing consecutive-fail counter only triggers on NACKs, so zero-output reads pass as "successful" and feed the ESKF.
+
+### Symptoms
+- All accel/gyro values read as 0.0 after calibration offset subtraction
+- `|A| ≈ 0.285 m/s²` (the calibration offset residual, not real acceleration)
+- ESKF velocity diverges linearly at +9.8 m/s²/s (gravity not cancelled)
+- No sensor errors reported — the I2C transaction succeeds
+
+### Root Cause
+The ICM-20948 returns to a sleep/reset state (cause unknown — possibly power glitch or register corruption). In this state it ACKs all I2C reads but returns zeros for all data registers. After calibration offset subtraction, `raw ≈ 0` maps to `|A| ≈ |cal_offset| ≈ 0.285 m/s²`. This is physically impossible from any real orientation (minimum real `|A|` ≈ 9.8 m/s² at rest).
+
+### Solution
+1. **`core1_read_imu()` validates raw accel magnitude** after every successful read: `|A| >= kAccelMinHealthyMag (3.0 m/s²)`. Failure routes to consecutive-fail path → bus-recover → device-reinit.
+2. **`ESKF::healthy()` checks velocity divergence**: `v.norm() < kMaxHealthyVelocity (500 m/s)`. Triggers filter reset via existing `eskf_tick()` CR-1 path.
+
+### Prevention
+1. **Never trust I2C ACK alone** — validate the data content for physical plausibility
+2. **Never blame calibration when `|A| ≈ 0`** — that's the calibration offset residual, not a sign of bad cal. The sensor is in a fault state
+3. **Add velocity-divergence sentinel to filter health** — catches any undetected sensor fault that biases acceleration
+
+---
+
+## Entry 30: RP2350 XIP Cache Thrashing — Use `.time_critical` for Hot Functions >2KB
+
+**Date:** 2026-02-21
+**Time Spent:** ~1 hour (profiling + diagnosis)
+**Severity:** Critical — 6.7× performance degradation (398µs → 59µs)
+
+### Problem
+The codegen FPFT function (`codegen_fpft()`, ~10KB compiled) was running at 398µs from flash (XIP). After moving to SRAM via `.time_critical` section, it dropped to 59µs. At 24 states the function grew further — SRAM execution gives 111µs vs what would be ~740µs from flash.
+
+### Symptoms
+- Function takes much longer than expected from instruction count alone
+- Performance is inconsistent — varies by ~2× between runs (cache aliasing)
+- Adding seemingly unrelated code changes the timing (cache layout shifts)
+
+### Root Cause
+The RP2350's XIP (eXecute In Place) cache is only **2KB**. Any function whose hot path exceeds 2KB will thrash the cache on every call — each cache line evicts a recently-used line, creating a worst-case pattern where almost every instruction is a cache miss. The function doesn't need to be 2KB of source — it's the compiled ARM Thumb-2 binary size that matters.
+
+**Why 6.7×:** The ~10KB function at 15 states fills the 2KB cache ~5× over. Every loop iteration evicts lines needed by the next iteration. The Cortex-M33 stalls on every cache miss (no out-of-order execution to hide latency). SRAM has zero-wait-state access — no cache, no misses, deterministic timing.
+
+### Solution
+Use the Pico SDK's `.time_critical` section for any function that:
+1. Runs at high frequency (≥100Hz)
+2. Has compiled binary size >2KB
+3. Shows timing variance or unexpectedly slow execution
+
+```cpp
+// In CMakeLists.txt — put codegen in SRAM
+set_source_files_properties(src/fusion/eskf_codegen.cpp
+    PROPERTIES COMPILE_FLAGS "-mcpu=cortex-m33 -mthumb")
+pico_set_binary_type(rocketchip copy_to_ram)  # NOT this — use per-function
+
+// In source — per-function SRAM placement
+void __not_in_flash_func(codegen_fpft)(...) { ... }
+// Or via linker section in CMakeLists:
+target_link_options(rocketchip PRIVATE
+    -Wl,--section-start=.time_critical.codegen_fpft=...)
+```
+
+The SDK's `__not_in_flash_func()` or `.time_critical` section annotation is the standard approach. Our implementation uses section attributes in `CMakeLists.txt` to place the entire codegen compilation unit in SRAM.
+
+### Prevention
+1. **Profile any function running ≥100Hz** that takes longer than expected. The XIP cache is the most likely culprit
+2. **Check compiled function size** with `arm-none-eabi-nm --size-sort build/rocketchip.elf | grep function_name`. If >2KB and hot, move to SRAM
+3. **Budget SRAM for `.time_critical`** — 520KB total, codegen takes ~12KB. Leave room for other hot functions
+4. **Low-rate functions (<10Hz) don't benefit** — the cache refill cost is amortized over the long interval between calls
+
+### Reference
+- RP2350 datasheet Section 5.5.3 — XIP Cache (2KB, 2-way set associative)
+- Pico SDK `pico/platform.h` — `__not_in_flash_func()` macro
+- ArduPilot AP_HAL_ChibiOS uses similar SRAM placement for fast sensor paths on STM32
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here
