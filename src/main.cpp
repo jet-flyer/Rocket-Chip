@@ -1016,14 +1016,49 @@ static void print_imu_status(const shared_sensor_data_t& snap) {
     }
 }
 
+// NOLINTBEGIN(readability-magic-numbers) — ESKF P indices are state layout
+static void print_eskf_gates_and_diags() {
+    printf("      gate: bA=%lu/%lu mA=%lu/%lu mR=%lu gA=%lu/%lu zA=%lu/%lu\n",
+           (unsigned long)g_eskf.baro_total_accepts_,
+           (unsigned long)(g_eskf.baro_total_accepts_ + g_eskf.baro_total_rejects_),
+           (unsigned long)g_eskf.mag_total_accepts_,
+           (unsigned long)(g_eskf.mag_total_accepts_ + g_eskf.mag_total_rejects_),
+           (unsigned long)g_eskf.mag_resets_,
+           (unsigned long)g_eskf.gps_pos_total_accepts_,
+           (unsigned long)(g_eskf.gps_pos_total_accepts_ + g_eskf.gps_pos_total_rejects_),
+           (unsigned long)g_eskf.zupt_total_accepts_,
+           (unsigned long)(g_eskf.zupt_total_accepts_ + g_eskf.zupt_total_rejects_));
+    printf("      Pvel=%.4f,%.4f,%.4f  Pab=%.6f  Pgb=%.6f\n",
+           (double)g_eskf.P(6, 6), (double)g_eskf.P(7, 7), (double)g_eskf.P(8, 8),
+           (double)g_eskf.P(9, 9), (double)g_eskf.P(12, 12));
+    // 24-state inhibit flags + conditional extended state display
+    printf("      inhib: mag=%c wind=%c bbias=%c\n",
+           g_eskf.inhibit_mag_states_ ? 'Y' : 'N',
+           g_eskf.inhibit_wind_states_ ? 'Y' : 'N',
+           g_eskf.inhibit_baro_bias_ ? 'Y' : 'N');
+    if (!g_eskf.inhibit_mag_states_) {
+        printf("      eMag=%.1f,%.1f,%.1f bMag=%.1f,%.1f,%.1f\n",
+               (double)g_eskf.earth_mag.x, (double)g_eskf.earth_mag.y,
+               (double)g_eskf.earth_mag.z,
+               (double)g_eskf.body_mag_bias.x, (double)g_eskf.body_mag_bias.y,
+               (double)g_eskf.body_mag_bias.z);
+    }
+    if (!g_eskf.inhibit_wind_states_) {
+        printf("      wind=%.2f,%.2f m/s\n",
+               (double)g_eskf.wind_n_, (double)g_eskf.wind_e_);
+    }
+    if (!g_eskf.inhibit_baro_bias_) {
+        printf("      bBias=%.3f m\n", (double)g_eskf.baro_bias_);
+    }
+}
+// NOLINTEND(readability-magic-numbers)
+
 static void print_eskf_status() {
-    // ESKF fused attitude (IVP-42d)
     if (g_eskfInitialized && g_eskf.healthy()) {
         rc::Vec3 euler = g_eskf.q.to_euler();
         float rollDeg  = euler.x * kRadToDeg;
         float pitchDeg = euler.y * kRadToDeg;
         float yawDeg   = euler.z * kRadToDeg;
-        // R-3: show attitude P diagonal max for covariance visibility
         float patt = g_eskf.P(0, 0);
         if (g_eskf.P(1, 1) > patt) { patt = g_eskf.P(1, 1); }
         if (g_eskf.P(2, 2) > patt) { patt = g_eskf.P(2, 2); }
@@ -1034,23 +1069,7 @@ static void print_eskf_status() {
                (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z,
                (double)g_eskf.last_baro_nis_,
                (double)g_eskf.last_mag_nis_);
-        // IVP-47: gate accept/reject counters
-        // NOLINTBEGIN(readability-magic-numbers) — ESKF P indices are state layout
-        printf("      gate: bA=%lu/%lu mA=%lu/%lu mR=%lu gA=%lu/%lu zA=%lu/%lu\n",
-               (unsigned long)g_eskf.baro_total_accepts_,
-               (unsigned long)(g_eskf.baro_total_accepts_ + g_eskf.baro_total_rejects_),
-               (unsigned long)g_eskf.mag_total_accepts_,
-               (unsigned long)(g_eskf.mag_total_accepts_ + g_eskf.mag_total_rejects_),
-               (unsigned long)g_eskf.mag_resets_,
-               (unsigned long)g_eskf.gps_pos_total_accepts_,
-               (unsigned long)(g_eskf.gps_pos_total_accepts_ + g_eskf.gps_pos_total_rejects_),
-               (unsigned long)g_eskf.zupt_total_accepts_,
-               (unsigned long)(g_eskf.zupt_total_accepts_ + g_eskf.zupt_total_rejects_));
-        printf("      Pvel=%.4f,%.4f,%.4f  Pab=%.6f  Pgb=%.6f\n",
-               (double)g_eskf.P(6, 6), (double)g_eskf.P(7, 7), (double)g_eskf.P(8, 8),
-               (double)g_eskf.P(9, 9), (double)g_eskf.P(12, 12));
-        // NOLINTEND(readability-magic-numbers)
-        // IVP-45: Mahony cross-check
+        print_eskf_gates_and_diags();
         if (g_mahonyInitialized && g_mahony.healthy()) {
             rc::Vec3 meuler = g_mahony.q.to_euler();
             float mdivDeg = rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg;

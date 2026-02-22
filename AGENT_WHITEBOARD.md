@@ -16,7 +16,7 @@
 
 ### SRAM Execution Audit — Check for Other XIP Cache Bottlenecks
 
-**Added 2026-02-21.** IVP-47 codegen FPFT revealed that RP2350's 2KB XIP cache causes catastrophic performance loss for large hot functions (10KB codegen: 398µs from flash → 59µs from SRAM, 6.7× difference). The `.time_critical` section is the SDK's intended solution. **Audit all high-frequency code paths** for functions that may be larger than the XIP cache and running from flash: `scalar_kalman_update()` (Joseph form, runs at baro/mag/GPS rates), `propagate_nominal()` (200Hz), sensor read functions on Core 1, any future measurement update expansion. Profile suspect functions with/without `.time_critical` to quantify actual impact. Low-rate functions (<10Hz) are unlikely to benefit.
+**Added 2026-02-21.** IVP-47 codegen FPFT revealed that RP2350's 2KB XIP cache causes catastrophic performance loss for large hot functions (10KB codegen: 398µs from flash → 59µs from SRAM, 6.7× difference). The `.time_critical` section is the SDK's intended solution. **Updated 2026-02-21:** 24-state codegen is ~1100 lines (~566 changes), function is larger than 15-state version. Still in `.time_critical` SRAM section. Benchmark: 111µs avg (was 59µs at 15-state). **Audit remaining high-frequency code paths** for functions that may exceed XIP cache: `scalar_kalman_update()` (now O(N²) rank-1 Joseph form, runs at baro/mag/GPS rates), `propagate_nominal()` (200Hz), sensor read functions on Core 1. Low-rate functions (<10Hz) are unlikely to benefit.
 
 ---
 
@@ -51,6 +51,7 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 
 *Items noted for future stages — not blocking, no action needed now.*
 
+- **3-Axis Magnetometer Model (Titan tier):** Current `update_mag_heading()` uses yaw-only scalar H (heading + WMM declination). Mag states (earth_mag indices 15-17, body_mag_bias 18-20) are **unobservable** with this model — no F coupling (identity propagation), no H entries at 15-20. States MUST remain inhibited until a proper 3-axis measurement model is implemented: `z_predicted = R(q) * earth_mag_NED + body_mag_bias`, with H entries at attitude (0-2), earth_mag (15-17), body_mag_bias (18-20). WMM table already has field data — needs inclination + magnitude extraction in addition to current declination-only use. ArduPilot reference: `fuseMagnetometer()` in `NavEKF3_MagFusion.cpp`. Once implemented, flip `inhibit_mag_states_` to enable.
 - **F' Evaluation:** Three Titan paths identified (A: STM32H7+F'/Zephyr, B: Pi Zero 2 W+F'/Linux, C: Hybrid). Research complete in `docs/decisions/TITAN_BOARD_ANALYSIS.md`. Decision deferred until Titan development begins.
 - ~~**FeatherWing UART GPS:**~~ **DONE** (2026-02-18). `gps_uart.cpp` driver complete with interrupt-driven ring buffer. Outdoor validated.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
@@ -64,6 +65,10 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 ---
 
 ## Resolved
+
+### 24-State ESKF Expansion — COMPLETE (2026-02-21)
+
+15→24 error states: earth_mag NED (3), body_mag_bias (3), wind_NE (2), baro_bias (1). Runtime inhibit flags (ArduPilot EKF3 pattern) — all new states inhibited by default. Codegen regenerated for 24 states (111µs avg, was 59µs at 15-state). O(N²) rank-1 Joseph form replaced O(N³) dense triple product in measurement updates. Sparse reset exploiting G=I except 3×3 attitude block (~450 MACs vs ~27,648 dense). 199/199 host tests, 0 sensor errors on target. CLI shows `inhib: mag=Y wind=Y bbias=Y` + conditional extended state display. 18 files changed.
 
 ### IVP-47 Codegen FPFT — COMPLETE (2026-02-21)
 

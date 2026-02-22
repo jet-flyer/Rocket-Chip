@@ -175,6 +175,8 @@ struct Mat {
 using Mat3 = Mat<3, 3>;
 using Mat15 = Mat<15, 15>;
 using Vec15 = Mat<15, 1>;
+using Mat24 = Mat<24, 24>;
+using Vec24 = Mat<24, 1>;
 
 // ============================================================================
 // 3×3 block accessors for NxN matrices

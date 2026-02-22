@@ -20,6 +20,20 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-21-003 | Claude Code CLI | feature, architecture
+
+**24-State ESKF Expansion with Runtime Inhibit Flags**
+
+Expanded error-state vector from 15 to 24 states: earth_mag NED (3), body_mag_bias (3), wind_NE (2), baro_bias (1). ArduPilot EKF3-pattern runtime inhibit flags (`inhibit_mag_states_`, `inhibit_wind_states_`, `inhibit_baro_bias_`) — all inhibited by default, P zeroed for inhibited blocks. When inhibited, codegen propagates all 24 states (identity F for new states, near-zero cost) but `clamp_covariance()` zeros inhibited P blocks. `set_inhibit_*()` methods handle enable/disable with proper P initialization and cross-covariance zeroing.
+
+Codegen regenerated for 24 states via `generate_fpft.py` (N=24). Benchmark: **111µs avg, 101µs min, 156µs max** (was 59µs at 15-state). Critical runtime fix: O(N²) rank-1 Joseph form replaced O(N³) dense triple product in `scalar_kalman_update()` — device was unresponsive with dense 24×24 matrix multiplies at measurement update rates. Sparse `reset()` exploits G=I structure except 3×3 attitude block (~450 MACs vs ~27,648 dense). `healthy()` made inhibit-aware (skips P diagonal check for inhibited indices).
+
+Baro update subtracts `baro_bias_` when enabled. Mag states (15-20) are **unobservable** with current yaw-only H — require 3-axis mag model (Titan tier). 5 new inhibit tests, Mat15→Mat24 across all test files. All 5 replay reference CSVs regenerated. CLI shows `inhib: mag=Y wind=Y bbias=Y` + conditional extended state display when states enabled. 199/199 host tests pass. HW verified: 0 sensor errors.
+
+(`src/fusion/eskf.cpp`, `src/fusion/eskf.h`, `src/fusion/eskf_state.h`, `src/fusion/eskf_codegen.cpp`, `src/fusion/eskf_codegen.h`, `scripts/generate_fpft.py`, `src/math/mat.h`, `src/main.cpp`, `test/test_eskf_propagation.cpp`, `test/test_eskf_update.cpp`, `test/test_eskf_mag_update.cpp`, `test/test_eskf_zupt.cpp`, `test/test_mat.cpp`, `test/data/reference/*.csv`)
+
+---
+
 ### 2026-02-21-002 | Claude Code CLI | feature, architecture
 
 **IVP-47: Codegen FPFT — 9.1× speedup, predict() at 59µs (was 538µs)**

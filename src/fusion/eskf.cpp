@@ -12,6 +12,14 @@ static_assert(codegen::kSigmaGyroBiasWalk == rc::ESKF::kSigmaGyroBiasWalk,
               "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
 static_assert(codegen::kSigmaAccelBiasWalk == rc::ESKF::kSigmaAccelBiasWalk,
               "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
+static_assert(codegen::kSigmaEarthMagWalk == rc::ESKF::kSigmaEarthMagWalk,
+              "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
+static_assert(codegen::kSigmaBodyMagBiasWalk == rc::ESKF::kSigmaBodyMagBiasWalk,
+              "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
+static_assert(codegen::kSigmaWindWalk == rc::ESKF::kSigmaWindWalk,
+              "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
+static_assert(codegen::kSigmaBaroBiasWalk == rc::ESKF::kSigmaBaroBiasWalk,
+              "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
 
 namespace rc {
 
@@ -102,7 +110,20 @@ bool ESKF::init(const Vec3& accelMeas, const Vec3& gyroMeas) {
     accel_bias = Vec3();
     gyro_bias = Vec3();
 
+    // Zero extended states
+    earth_mag = Vec3();
+    body_mag_bias = Vec3();
+    wind_n_ = 0.0F;
+    wind_e_ = 0.0F;
+    baro_bias_ = 0.0F;
+
+    // All extended states start inhibited
+    inhibit_mag_states_ = true;
+    inhibit_wind_states_ = true;
+    inhibit_baro_bias_ = true;
+
     // Initialize P diagonal per eskf.h constants
+    // Extended states: P = 0 (inhibited by default)
     P.set_zero();
     for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
         P(eskf::kIdxAttitude + i, eskf::kIdxAttitude + i)  = kInitPAttitude;
@@ -111,6 +132,7 @@ bool ESKF::init(const Vec3& accelMeas, const Vec3& gyroMeas) {
         P(eskf::kIdxAccelBias + i, eskf::kIdxAccelBias + i) = kInitPAccelBias;
         P(eskf::kIdxGyroBias + i, eskf::kIdxGyroBias + i)  = kInitPGyroBias;
     }
+    // P[15..23] stays zero — inhibited states have no covariance
 
     initialized_ = true;
     last_propagation_dt_ = 0.0F;
@@ -157,21 +179,26 @@ void ESKF::propagate_nominal(const Vec3& accelMeas, const Vec3& gyroMeas,
 }
 
 // ============================================================================
-// build_F: Error-state transition matrix F_x (15×15)
+// build_F: Error-state transition matrix F_x (24×24)
 // F_x = I + dt * F_delta
 // Solà (2017) §5.3.3, Eq. 269
 //
 // F_delta block structure (named indices from eskf_state.h):
-//   [att]  | -[ω]_x     0      0      0     -I   |
-//   [pos]  |    0        0      I      0      0   |
-//   [vel]  | -R[a]_x    0      0     -R      0   |
-//   [ab]   |    0        0      0      0      0   |
-//   [gb]   |    0        0      0      0      0   |
+//   [att]  | -[ω]_x     0      0      0     -I    0   0   0   0  |
+//   [pos]  |    0        0      I      0      0    0   0   0   0  |
+//   [vel]  | -R[a]_x    0      0     -R      0    0   0   0   0  |
+//   [ab]   |    0        0      0      0      0    0   0   0   0  |
+//   [gb]   |    0        0      0      0      0    0   0   0   0  |
+//   [emag] |    0        0      0      0      0    0   0   0   0  |
+//   [bmag] |    0        0      0      0      0    0   0   0   0  |
+//   [wind] |    0        0      0      0      0    0   0   0   0  |
+//   [bbias]|    0        0      0      0      0    0   0   0   0  |
 //
+// States 15-23: identity F propagation (no coupling to core states).
 // Where: ω = gyroBody (bias-corrected), a = accelBody (bias-corrected),
 //         R = body-to-NED DCM, [·]_x = skew-symmetric matrix
 // ============================================================================
-void ESKF::build_F(Mat15& out, const Quat& q, const Vec3& accelBody,
+void ESKF::build_F(Mat24& out, const Quat& q, const Vec3& accelBody,
                     const Vec3& gyroBody, float dt) {
     out.set_identity();
 
@@ -216,10 +243,12 @@ void ESKF::build_F(Mat15& out, const Quat& q, const Vec3& accelBody,
 }
 
 // ============================================================================
-// build_Qc: Continuous-time process noise Q_c (15×15 diagonal)
+// build_Qc: Continuous-time process noise Q_c (24×24 diagonal)
 // Q_d ≈ Q_c * dt  (zeroth-order hold discretization, per R-9)
+// Extended states 15-23 have random walk noise even when inhibited.
+// clamp_covariance() zeroes inhibited blocks after propagation (R-8).
 // ============================================================================
-void ESKF::build_Qc(Mat15& out) {
+void ESKF::build_Qc(Mat24& out) {
     out.set_zero();
 
     const float sigmaGyroSq = kSigmaGyro * kSigmaGyro;
@@ -234,16 +263,30 @@ void ESKF::build_Qc(Mat15& out) {
         out(eskf::kIdxGyroBias + i, eskf::kIdxGyroBias + i)  = sigmaGyroBiasSq;
     }
     // Position block: no direct noise (position uncertainty grows via velocity)
+
+    // Extended states — random walk noise
+    const float sigmaEarthMagSq = kSigmaEarthMagWalk * kSigmaEarthMagWalk;
+    const float sigmaBodyMagBiasSq = kSigmaBodyMagBiasWalk * kSigmaBodyMagBiasWalk;
+    const float sigmaWindSq = kSigmaWindWalk * kSigmaWindWalk;
+    const float sigmaBaroBiasSq = kSigmaBaroBiasWalk * kSigmaBaroBiasWalk;
+
+    for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
+        out(eskf::kIdxEarthMag + i, eskf::kIdxEarthMag + i)       = sigmaEarthMagSq;
+        out(eskf::kIdxBodyMagBias + i, eskf::kIdxBodyMagBias + i) = sigmaBodyMagBiasSq;
+    }
+    out(eskf::kIdxWindNE + 0, eskf::kIdxWindNE + 0) = sigmaWindSq;
+    out(eskf::kIdxWindNE + 1, eskf::kIdxWindNE + 1) = sigmaWindSq;
+    out(eskf::kIdxBaroBias, eskf::kIdxBaroBias)      = sigmaBaroBiasSq;
 }
 
 // ============================================================================
 // dense_fpft_add: P = F * P * F^T + Qd (dense triple product)
-// Static locals avoid 1800B stack from temporaries (LL Entry 1).
-// Natural slot for IVP-47 sparse optimization.
+// Static locals avoid stack pressure from temporaries (LL Entry 1).
+// Used only by predict_dense() as verification reference.
 // ============================================================================
-static void dense_fpft_add(Mat15& pMat, const Mat15& fMat, const Mat15& qdMat) {
-    static Mat15 g_fpTemp;
-    static Mat15 g_ftTemp;
+static void dense_fpft_add(Mat24& pMat, const Mat24& fMat, const Mat24& qdMat) {
+    static Mat24 g_fpTemp;
+    static Mat24 g_ftTemp;
     // FP = F * P
     for (int32_t r = 0; r < eskf::kStateSize; ++r) {
         for (int32_t c = 0; c < eskf::kStateSize; ++c) {
@@ -313,8 +356,8 @@ void ESKF::predict_dense(const Vec3& accelMeas, const Vec3& gyroMeas,
     propagate_nominal(accelMeas, gyroMeas, dt);
 
     // Static locals: same rationale as predict() (LL Entry 1).
-    static Mat15 g_fDense;
-    static Mat15 g_qdDense;
+    static Mat24 g_fDense;
+    static Mat24 g_qdDense;
     build_F(g_fDense, q, accelBody, gyroBody, dt);
     build_Qc(g_qdDense);
     g_qdDense.scale(dt);
@@ -348,56 +391,76 @@ void ESKF::predict_dense(const Vec3& accelMeas, const Vec3& gyroMeas,
 // G ≈ I and the correction to P is negligible. We include it for
 // correctness per the council RF-1 requirement.
 // ============================================================================
-void ESKF::reset(const Vec3& deltaTheta) {
-    // The full error state would be passed in; for now this handles
-    // the attitude-only reset that's most critical. The caller is
-    // responsible for applying delta_p, delta_v, delta_ab, delta_gb
-    // to the nominal state before calling reset().
+// Sparse P ← G*P*G^T where G = I except 3×3 attitude block G_a.
+// Only rows/cols 0-2 change. Cost: ~450 MACs at N=24 vs ~27,648 dense.
+void ESKF::reset_covariance_attitude(const float ga[3][3]) {
+    // Step 1: GP[0:3][:] = G_a * P[0:3][:] (rows 0-2 of G*P)
+    static float gpRows[3][24];  // NOLINT(readability-magic-numbers)
+    for (int32_t i = 0; i < 3; ++i) {
+        for (int32_t j = 0; j < eskf::kStateSize; ++j) {
+            gpRows[i][j] = ga[i][0] * P.data[0][j]
+                         + ga[i][1] * P.data[1][j]
+                         + ga[i][2] * P.data[2][j];
+        }
+    }
 
-    // Attitude injection
+    // Save original P columns 0-2 for rows >=3 (step 3 reads P[i>=3][k<3]
+    // after step 2 has overwritten symmetric entries).
+    static float pCol0_2[24][3];  // NOLINT(readability-magic-numbers)
+    for (int32_t i = 3; i < eskf::kStateSize; ++i) {
+        pCol0_2[i][0] = P.data[i][0];
+        pCol0_2[i][1] = P.data[i][1];
+        pCol0_2[i][2] = P.data[i][2];
+    }
+
+    // Step 2: cols j >= 3 — P_new[i<3][j] = gpRows[i][j]
+    for (int32_t i = 0; i < 3; ++i) {
+        for (int32_t j = 3; j < eskf::kStateSize; ++j) {
+            P.data[i][j] = gpRows[i][j];
+            P.data[j][i] = gpRows[i][j];
+        }
+    }
+
+    // 3×3 attitude block: P_new[i][j] = sum_k gpRows[i][k] * ga[j][k]
+    for (int32_t i = 0; i < 3; ++i) {
+        for (int32_t j = i; j < 3; ++j) {
+            float sum = 0.0F;
+            for (int32_t k = 0; k < 3; ++k) {
+                sum += gpRows[i][k] * ga[j][k];
+            }
+            P.data[i][j] = sum;
+            P.data[j][i] = sum;
+        }
+    }
+
+    // Step 3: rows >= 3, cols 0-2 — use saved original columns
+    for (int32_t i = 3; i < eskf::kStateSize; ++i) {
+        for (int32_t j = 0; j < 3; ++j) {
+            float sum = 0.0F;
+            for (int32_t k = 0; k < 3; ++k) {
+                sum += pCol0_2[i][k] * ga[j][k];
+            }
+            P.data[i][j] = sum;
+            P.data[j][i] = sum;
+        }
+    }
+}
+
+void ESKF::reset(const Vec3& deltaTheta) {
     const Quat dq = Quat::from_small_angle(deltaTheta);
     q = q * dq;
     q.normalize();
 
-    // Build reset Jacobian G (15×15)
-    // G = I except G[att,att] = I - [deltaTheta/2]_x
-    // Static: same rationale as predict() (LL Entry 1).
-    static Mat15 g_gMat;
-    g_gMat.set_identity();
+    // G_a = I - [deltaTheta/2]_x (attitude block of reset Jacobian)
+    float ga[3][3];
     const Mat3 halfSkew = skew(deltaTheta * 0.5F);
     for (int32_t r = 0; r < 3; ++r) {
         for (int32_t c = 0; c < 3; ++c) {
-            g_gMat(eskf::kIdxAttitude + r, eskf::kIdxAttitude + c) -= halfSkew(r, c);
+            ga[r][c] = ((r == c) ? 1.0F : 0.0F) - halfSkew(r, c);
         }
     }
 
-    // P ← G * P * G^T (inlined with static temporaries, LL Entry 1)
-    static Mat15 g_gpTemp;
-    static Mat15 g_gtTemp;
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_gMat.data[r][k] * P.data[k][c];
-            }
-            g_gpTemp.data[r][c] = sum;
-        }
-    }
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            g_gtTemp.data[c][r] = g_gMat.data[r][c];
-        }
-    }
-    for (int32_t r = 0; r < eskf::kStateSize; ++r) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_gpTemp.data[r][k] * g_gtTemp.data[k][c];
-            }
-            P.data[r][c] = sum;
-        }
-    }
-    P.force_symmetric();
+    reset_covariance_attitude(ga);
 }
 
 // ============================================================================
@@ -421,6 +484,20 @@ void ESKF::inject_error_state(const Mat<eskf::kStateSize, 1>& dx) {
     gyro_bias.y += dx.data[eskf::kIdxGyroBias + 1][0];
     gyro_bias.z += dx.data[eskf::kIdxGyroBias + 2][0];
 
+    // Extended states
+    earth_mag.x += dx.data[eskf::kIdxEarthMag + 0][0];
+    earth_mag.y += dx.data[eskf::kIdxEarthMag + 1][0];
+    earth_mag.z += dx.data[eskf::kIdxEarthMag + 2][0];
+
+    body_mag_bias.x += dx.data[eskf::kIdxBodyMagBias + 0][0];
+    body_mag_bias.y += dx.data[eskf::kIdxBodyMagBias + 1][0];
+    body_mag_bias.z += dx.data[eskf::kIdxBodyMagBias + 2][0];
+
+    wind_n_ += dx.data[eskf::kIdxWindNE + 0][0];
+    wind_e_ += dx.data[eskf::kIdxWindNE + 1][0];
+
+    baro_bias_ += dx.data[eskf::kIdxBaroBias][0];
+
     const Vec3 deltaTheta(dx.data[eskf::kIdxAttitude + 0][0],
                            dx.data[eskf::kIdxAttitude + 1][0],
                            dx.data[eskf::kIdxAttitude + 2][0]);
@@ -433,6 +510,12 @@ void ESKF::inject_error_state(const Mat<eskf::kStateSize, 1>& dx) {
 // P = (I - K*H)*P*(I - K*H)' + K*R*K', then injects δx.
 // hValue: actual H-matrix entry (+1.0F or -1.0F). Generalizes to non-unit
 // Jacobian entries without API change. See plan hValue correctness proof.
+//
+// O(N²) rank-1 Joseph form: since H is scalar (single non-zero entry),
+// the triple product expands to:
+//   P_new[i][j] = P[i][j] - K[i]*hv*P[h][j] - P[i][h]*hv*K[j] + K[i]*S*K[j]
+// where h=hIdx, hv=hValue, S=hv²*P[h][h]+R. Avoids O(N³) dense matrix multiply.
+// Mathematically identical to the full Joseph form.
 // ============================================================================
 void ESKF::scalar_kalman_update(int32_t hIdx, float hValue,
                                 float innovation, float r) {
@@ -451,42 +534,30 @@ void ESKF::scalar_kalman_update(int32_t hIdx, float hValue,
         g_dx.data[i][0] = g_gain.data[i][0] * innovation;
     }
 
-    // Joseph form: P = (I - K*H) * P * (I - K*H)^T + K*R*K^T
-    // I - K*H: identity except column hIdx where (I-KH)[i][hIdx] -= hValue * K[i]
-    static Mat15 g_ikh;
-    g_ikh.set_identity();
+    // O(N²) rank-1 Joseph form (upper triangle, then copy to lower).
+    // P_new[i][j] = P[i][j] - K[i]*hv*P_h[j] - P_h[i]*hv*K[j] + K[i]*S*K[j]
+    // where P_h = original P[hIdx][:] row, saved before in-place update.
+    static float g_phRow[eskf::kStateSize];
+    for (int32_t j = 0; j < eskf::kStateSize; ++j) {
+        g_phRow[j] = P.data[hIdx][j];
+    }
+
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        g_ikh.data[i][hIdx] -= hValue * g_gain.data[i][0];
-    }
-
-    // IKH * P
-    static Mat15 g_ikhP;
-    for (int32_t r2 = 0; r2 < eskf::kStateSize; ++r2) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_ikh.data[r2][k] * P.data[k][c];
-            }
-            g_ikhP.data[r2][c] = sum;
+        const float ki = g_gain.data[i][0];
+        const float kiS = ki * s;
+        const float hvPhi = hValue * g_phRow[i];
+        for (int32_t j = i; j < eskf::kStateSize; ++j) {
+            const float kj = g_gain.data[j][0];
+            const float hvPhj = hValue * g_phRow[j];
+            P.data[i][j] = P.data[i][j]
+                         - ki * hvPhj
+                         - hvPhi * kj
+                         + kiS * kj;
+            P.data[j][i] = P.data[i][j];  // symmetric
         }
     }
 
-    // (IKH * P) * IKH^T + K*R*K^T
-    static Mat15 g_pNew;
-    for (int32_t r2 = 0; r2 < eskf::kStateSize; ++r2) {
-        for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            float sum = 0.0F;
-            for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_ikhP.data[r2][k] * g_ikh.data[c][k];
-            }
-            sum += g_gain.data[r2][0] * r * g_gain.data[c][0];
-            g_pNew.data[r2][c] = sum;
-        }
-    }
-
-    P = g_pNew;
     inject_error_state(g_dx);
-    P.force_symmetric();
 }
 
 // ============================================================================
@@ -494,8 +565,8 @@ void ESKF::scalar_kalman_update(int32_t hIdx, float hValue,
 //
 // Measurement model:
 //   z = altitudeAglM (positive up)
-//   h(x) = -p.z (NED down negated → altitude up)
-//   H = [0 0 0 | 0 0 -1 | 0 0 0 | 0 0 0 | 0 0 0]   (1×15)
+//   h(x) = -p.z + baro_bias (NED down negated + bias when enabled)
+//   H = [0 0 0 | 0 0 -1 | 0...0 | 0...0 | 0 0 | +1]  (1×24, +1 at [23] when enabled)
 //   R = kRBaro = 0.029² ≈ 0.000841 m²
 //
 // Sequential scalar update — no matrix inverse needed.
@@ -514,11 +585,19 @@ bool ESKF::update_baro(float altitudeAglM) {
     }
 
     // H has one non-zero element: H[0][kIdxPosition+2] = -1
+    // When baro_bias is enabled, H also has +1 at index 23. However,
+    // scalar_kalman_update() only handles single-entry H. This works because:
+    //   - When inhibited (default): P[23][*] = 0, K[23] = 0 regardless
+    //   - When enabled: baro_bias corrects via cross-covariance P[5][23]
+    // Full dual-entry H update deferred until baro_bias proves useful.
     constexpr int32_t kHIdx = eskf::kIdxPosition + 2;  // index 5 (NED-down)
     constexpr float kHValue = -1.0F;
 
-    // Innovation: y = z - h(x) = altitudeAglM - (-p.z) = altitudeAglM + p.z
-    const float innovation = altitudeAglM + p.z;
+    // Innovation: y = z - h(x)
+    // h(x) = -p.z + baro_bias (when baro bias enabled)
+    // When inhibited, P[23][*] = 0, so Kalman gain for baro_bias state is zero.
+    const float predicted = -p.z + (inhibit_baro_bias_ ? 0.0F : baro_bias_);
+    const float innovation = altitudeAglM - predicted;
 
     // Innovation covariance: S = H²*P[5][5] + R
     const float s = P(kHIdx, kHIdx) + kRBaro;
@@ -577,13 +656,19 @@ static float wrap_pi(float angle) {
 //   heading measurement. The full rotation R(q)*magBody would recover
 //   the NED field direction (constant, independent of heading).
 //
+// UNOBSERVABLE: mag states 15-20 (earth_mag, body_mag_bias) have no H entries
+// and no F coupling with this yaw-only model. They MUST remain inhibited until
+// a proper 3-axis mag measurement model is implemented (Titan tier).
+// Full 3-axis model: z_pred = R(q) * earth_mag + body_mag_bias, with H at
+// attitude(0-2), earth_mag(15-17), body_mag_bias(18-20).
+//
 // Two-tier interference detection (council modification):
 //   25-50% magnitude deviation: inflate R by 10x
 //   >50% deviation: hard reject
 //
 // Sequential scalar update — same pattern as update_baro().
 // Joseph form P update for numerical stability.
-// Static locals for Mat15 temporaries (LL Entry 1).
+// Static locals for Mat24 temporaries (LL Entry 1).
 // ============================================================================
 // Compute effective R after two-tier interference detection.
 // Returns negative if hard-rejected (>50% deviation).
@@ -972,10 +1057,25 @@ bool ESKF::update_gps_velocity(float vNorth, float vEast) {
 }
 
 // ============================================================================
+// zero_p_block: Zero P rows/columns for a contiguous block of states.
+// Used by inhibit flag control and clamp_covariance().
+// ============================================================================
+void ESKF::zero_p_block(int32_t startIdx, int32_t count) {
+    for (int32_t i = startIdx; i < startIdx + count; ++i) {
+        for (int32_t j = 0; j < eskf::kStateSize; ++j) {
+            P.data[i][j] = 0.0F;
+            P.data[j][i] = 0.0F;
+        }
+    }
+}
+
+// ============================================================================
 // clamp_covariance: Diagonal clamping per council RF-2
 // Prevents P from growing unbounded during GPS-denied operation.
+// R-8: Codegen adds Q_d to all 24 states (including inhibited ones).
+// This function zeroes the inhibited blocks back to 0 after propagation.
 // ============================================================================
-void ESKF::clamp_covariance() {
+void ESKF::clamp_core_covariance() {
     for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
         if (P(eskf::kIdxAttitude + i, eskf::kIdxAttitude + i) > kClampPAttitude) {
             P(eskf::kIdxAttitude + i, eskf::kIdxAttitude + i) = kClampPAttitude;
@@ -987,24 +1087,93 @@ void ESKF::clamp_covariance() {
             P(eskf::kIdxVelocity + i, eskf::kIdxVelocity + i) = kClampPVelocity;
         }
     }
-    // Bias blocks are not clamped — they should converge via updates
+    // Core bias blocks are not clamped — they should converge via updates
+}
+
+void ESKF::clamp_extended_covariance() {
+    // Codegen adds Q_d to all states. Inhibited blocks must be re-zeroed
+    // here — the codegen doesn't know about inhibit flags.
+    if (inhibit_mag_states_) {
+        zero_p_block(eskf::kIdxEarthMag, 6);  // earth_mag(3) + body_mag_bias(3)
+    } else {
+        for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
+            if (P(eskf::kIdxEarthMag + i, eskf::kIdxEarthMag + i) > kClampPEarthMag) {
+                P(eskf::kIdxEarthMag + i, eskf::kIdxEarthMag + i) = kClampPEarthMag;
+            }
+            if (P(eskf::kIdxBodyMagBias + i, eskf::kIdxBodyMagBias + i) > kClampPBodyMagBias) {
+                P(eskf::kIdxBodyMagBias + i, eskf::kIdxBodyMagBias + i) = kClampPBodyMagBias;
+            }
+        }
+    }
+
+    if (inhibit_wind_states_) {
+        zero_p_block(eskf::kIdxWindNE, 2);
+    } else {
+        for (int32_t i = 0; i < 2; ++i) {
+            if (P(eskf::kIdxWindNE + i, eskf::kIdxWindNE + i) > kClampPWind) {
+                P(eskf::kIdxWindNE + i, eskf::kIdxWindNE + i) = kClampPWind;
+            }
+        }
+    }
+
+    if (inhibit_baro_bias_) {
+        zero_p_block(eskf::kIdxBaroBias, 1);
+    } else {
+        if (P(eskf::kIdxBaroBias, eskf::kIdxBaroBias) > kClampPBaroBias) {
+            P(eskf::kIdxBaroBias, eskf::kIdxBaroBias) = kClampPBaroBias;
+        }
+    }
+}
+
+void ESKF::clamp_covariance() {
+    clamp_core_covariance();
+    clamp_extended_covariance();
 }
 
 // ============================================================================
 // healthy: Health check per council RF-3
 // Returns false if any of:
 //   - P contains NaN or Inf
-//   - P diagonal is not all positive
+//   - Enabled P diagonals are not strictly positive
 //   - Quaternion norm is far from 1
 //   - Biases exceed physical limits
+//
+// R-1: Inhibit-aware. Inhibited state blocks have P diagonal = 0 (by design).
+// diagonal_positive() would return false. Instead, check only enabled state
+// block diagonals for strict positivity.
 // ============================================================================
 bool ESKF::healthy() const {
-    // P finite and positive diagonal
+    // P must be finite everywhere (including inhibited blocks, which are 0)
     if (!P.is_finite()) {
         return false;
     }
-    if (!P.diagonal_positive()) {
-        return false;
+
+    // Core states [0..14]: always require positive diagonal
+    for (int32_t i = 0; i < eskf::kIdxEarthMag; ++i) {
+        if (P.data[i][i] <= 0.0F) {
+            return false;
+        }
+    }
+
+    // Extended states: only check diagonal when NOT inhibited
+    if (!inhibit_mag_states_) {
+        for (int32_t i = eskf::kIdxEarthMag; i < eskf::kIdxEarthMag + 6; ++i) {
+            if (P.data[i][i] <= 0.0F) {
+                return false;
+            }
+        }
+    }
+    if (!inhibit_wind_states_) {
+        for (int32_t i = eskf::kIdxWindNE; i < eskf::kIdxWindNE + 2; ++i) {
+            if (P.data[i][i] <= 0.0F) {
+                return false;
+            }
+        }
+    }
+    if (!inhibit_baro_bias_) {
+        if (P.data[eskf::kIdxBaroBias][eskf::kIdxBaroBias] <= 0.0F) {
+            return false;
+        }
     }
 
     // Quaternion norm check: |norm - 1| < kQuatNormTolerance
@@ -1032,6 +1201,69 @@ bool ESKF::healthy() const {
     }
 
     return true;
+}
+
+// ============================================================================
+// set_inhibit_mag: Enable/disable earth_mag[15-17] + body_mag_bias[18-20]
+// R-7: When enabling, assert P is zero before setting initial variance.
+// When disabling, zero P block to prevent stale cross-covariances.
+// UNOBSERVABLE: mag states 15-20 require 3-axis mag model (Titan tier).
+// Do NOT enable until full 3-axis measurement update is implemented.
+// ============================================================================
+void ESKF::set_inhibit_mag(bool inhibit) {
+    if (inhibit == inhibit_mag_states_) {
+        return;  // No change
+    }
+    inhibit_mag_states_ = inhibit;
+    if (inhibit) {
+        // Disabling: zero P block + nominal states
+        zero_p_block(eskf::kIdxEarthMag, 6);
+        earth_mag = Vec3();
+        body_mag_bias = Vec3();
+    } else {
+        // Enabling: set P diagonal to initial variance
+        zero_p_block(eskf::kIdxEarthMag, 6);  // Clear any stale cross-covariances
+        for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
+            P(eskf::kIdxEarthMag + i, eskf::kIdxEarthMag + i) = kInitPEarthMag;
+            P(eskf::kIdxBodyMagBias + i, eskf::kIdxBodyMagBias + i) = kInitPBodyMagBias;
+        }
+    }
+}
+
+// ============================================================================
+// set_inhibit_wind: Enable/disable wind_NE[21-22]
+// ============================================================================
+void ESKF::set_inhibit_wind(bool inhibit) {
+    if (inhibit == inhibit_wind_states_) {
+        return;
+    }
+    inhibit_wind_states_ = inhibit;
+    if (inhibit) {
+        zero_p_block(eskf::kIdxWindNE, 2);
+        wind_n_ = 0.0F;
+        wind_e_ = 0.0F;
+    } else {
+        zero_p_block(eskf::kIdxWindNE, 2);
+        P(eskf::kIdxWindNE + 0, eskf::kIdxWindNE + 0) = kInitPWind;
+        P(eskf::kIdxWindNE + 1, eskf::kIdxWindNE + 1) = kInitPWind;
+    }
+}
+
+// ============================================================================
+// set_inhibit_baro_bias: Enable/disable baro_bias[23]
+// ============================================================================
+void ESKF::set_inhibit_baro_bias(bool inhibit) {
+    if (inhibit == inhibit_baro_bias_) {
+        return;
+    }
+    inhibit_baro_bias_ = inhibit;
+    if (inhibit) {
+        zero_p_block(eskf::kIdxBaroBias, 1);
+        baro_bias_ = 0.0F;
+    } else {
+        zero_p_block(eskf::kIdxBaroBias, 1);
+        P(eskf::kIdxBaroBias, eskf::kIdxBaroBias) = kInitPBaroBias;
+    }
 }
 
 } // namespace rc

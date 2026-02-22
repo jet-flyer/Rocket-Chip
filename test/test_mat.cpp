@@ -456,17 +456,30 @@ TEST(MatTest, FPFT15x15DiagonalPositive) {
 
 TEST(MatTest, StateIndicesAreContiguous) {
     // Verify indices form contiguous non-overlapping blocks
+    // Core 15 states
     EXPECT_EQ(rc::eskf::kIdxAttitude, 0);
     EXPECT_EQ(rc::eskf::kIdxPosition, 3);
     EXPECT_EQ(rc::eskf::kIdxVelocity, 6);
     EXPECT_EQ(rc::eskf::kIdxAccelBias, 9);
     EXPECT_EQ(rc::eskf::kIdxGyroBias, 12);
-    EXPECT_EQ(rc::eskf::kStateSize, 15);
+    // Extended states (24-state expansion)
+    EXPECT_EQ(rc::eskf::kIdxEarthMag, 15);
+    EXPECT_EQ(rc::eskf::kIdxBodyMagBias, 18);
+    EXPECT_EQ(rc::eskf::kIdxWindNE, 21);
+    EXPECT_EQ(rc::eskf::kIdxWindN, 21);
+    EXPECT_EQ(rc::eskf::kIdxWindE, 22);
+    EXPECT_EQ(rc::eskf::kIdxBaroBias, 23);
+    EXPECT_EQ(rc::eskf::kStateSize, 24);
 
-    // Each block is exactly 3 elements
+    // Core blocks are exactly 3 elements each
     EXPECT_EQ(rc::eskf::kIdxPosition - rc::eskf::kIdxAttitude, rc::eskf::kBlockSize);
     EXPECT_EQ(rc::eskf::kIdxVelocity - rc::eskf::kIdxPosition, rc::eskf::kBlockSize);
     EXPECT_EQ(rc::eskf::kIdxAccelBias - rc::eskf::kIdxVelocity, rc::eskf::kBlockSize);
     EXPECT_EQ(rc::eskf::kIdxGyroBias - rc::eskf::kIdxAccelBias, rc::eskf::kBlockSize);
-    EXPECT_EQ(rc::eskf::kStateSize - rc::eskf::kIdxGyroBias, rc::eskf::kBlockSize);
+    // Extended blocks: earth_mag(3) + body_mag(3) + wind(2) + baro_bias(1) = 9
+    EXPECT_EQ(rc::eskf::kIdxEarthMag - rc::eskf::kIdxGyroBias, rc::eskf::kBlockSize);
+    EXPECT_EQ(rc::eskf::kIdxBodyMagBias - rc::eskf::kIdxEarthMag, rc::eskf::kBlockSize);
+    EXPECT_EQ(rc::eskf::kIdxWindNE - rc::eskf::kIdxBodyMagBias, rc::eskf::kBlockSize);
+    EXPECT_EQ(rc::eskf::kIdxBaroBias - rc::eskf::kIdxWindNE, 2);  // wind is 2 states
+    EXPECT_EQ(rc::eskf::kStateSize - rc::eskf::kIdxBaroBias, 1);   // baro_bias is 1 state
 }

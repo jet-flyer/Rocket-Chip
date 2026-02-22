@@ -205,9 +205,9 @@ TEST(ESKFZupt, JosephSymmetry) {
         eskf.predict(kAccelStationary, kGyroZero, dt);
         eskf.update_zupt(kAccelStationary, kGyroZero);
 
-        // P must remain symmetric
-        for (int32_t r = 0; r < 15; ++r) {
-            for (int32_t c = r + 1; c < 15; ++c) {
+        // P must remain symmetric (all 24 states, including zeroed inhibited blocks)
+        for (int32_t r = 0; r < rc::eskf::kStateSize; ++r) {
+            for (int32_t c = r + 1; c < rc::eskf::kStateSize; ++c) {
                 EXPECT_NEAR(eskf.P(r, c), eskf.P(c, r), 1e-6f)
                     << "Asymmetry at (" << r << "," << c << ") after "
                     << i + 1 << " updates";
@@ -224,8 +224,8 @@ TEST(ESKFZupt, JosephPositiveDefinite) {
         eskf.predict(kAccelStationary, kGyroZero, dt);
         eskf.update_zupt(kAccelStationary, kGyroZero);
 
-        // P diagonal must remain positive
-        for (int32_t j = 0; j < 15; ++j) {
+        // Core P diagonal must remain positive; inhibited states [15..23] are zero
+        for (int32_t j = 0; j < rc::eskf::kIdxEarthMag; ++j) {
             EXPECT_GT(eskf.P(j, j), 0.0f)
                 << "P(" << j << "," << j << ") non-positive after "
                 << i + 1 << " updates";

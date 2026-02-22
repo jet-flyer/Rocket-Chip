@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """
-generate_fpft.py — SymPy codegen for ESKF 15-state FPFT covariance propagation.
+generate_fpft.py — SymPy codegen for ESKF 24-state FPFT covariance propagation.
 
 Generates eskf_codegen.cpp containing codegen_fpft(), a flat scalar C++ function
-that computes P_new = F * P * F^T + Q_d for the 15-state error-state Kalman filter.
+that computes P_new = F * P * F^T + Q_d for the 24-state error-state Kalman filter.
 
 Uses Common Subexpression Elimination (CSE) to minimize redundant computation.
 The generated code replaces the dense O(N^3) triple product with O(N^2) scalar ops.
+
+States 15-23 (earth_mag, body_mag_bias, wind_NE, baro_bias) have identity F
+propagation — no coupling to core states. Their contribution to FPFT is purely
+additive Q_d noise on the diagonal. Inhibit flag zeroing happens in eskf.cpp
+clamp_covariance(), not here.
 
 Reference: Sola (2017) "Quaternion kinematics for the error-state Kalman filter", Eq. 269
 PX4 ECL uses the same SymPy/SymForce codegen approach (BSD-3 licensed).
@@ -16,8 +21,9 @@ Usage:
 
 Output:
     src/fusion/eskf_codegen.cpp
+    src/fusion/eskf_codegen.h
 
-The generated file is committed to the repo. Re-run this script only when the F matrix
+The generated files are committed to the repo. Re-run this script only when the F matrix
 structure or Q_d noise constants change.
 """
 
@@ -34,32 +40,46 @@ except ImportError:
 # ============================================================================
 # Constants from eskf.h — must match exactly (enforced by static_assert in C++)
 # ============================================================================
+
+# Core 15-state noise
 SIGMA_GYRO = 2.618e-4           # rad/s/sqrt(Hz)
 SIGMA_ACCEL = 2.256e-3          # m/s^2/sqrt(Hz)
 SIGMA_GYRO_BIAS_WALK = 1.0e-5   # rad/s^2/sqrt(Hz)
 SIGMA_ACCEL_BIAS_WALK = 1.0e-4  # m/s^3/sqrt(Hz)
 
-N = 15  # state size
+# Extended state noise (ArduPilot EKF3 defaults, Gauss->uT converted)
+SIGMA_EARTH_MAG_WALK = 0.1       # uT/s (EK3_MAGE_P_NSE = 1e-3 Gauss/s)
+SIGMA_BODY_MAG_BIAS_WALK = 0.01  # uT/s (EK3_MAGB_P_NSE = 1e-4 Gauss/s)
+SIGMA_WIND_WALK = 0.2            # m/s/s (EK3_WIND_P_NSE Copter default)
+SIGMA_BARO_BIAS_WALK = 0.01      # m/s (novel, HAB/long-duration use)
+
+N = 24  # state size
 
 # State indices (match eskf_state.h)
-IDX_ATT = 0    # [0..2]  attitude error
-IDX_POS = 3    # [3..5]  position
-IDX_VEL = 6    # [6..8]  velocity
-IDX_AB  = 9    # [9..11] accelerometer bias
-IDX_GB  = 12   # [12..14] gyroscope bias
+IDX_ATT   = 0    # [0..2]   attitude error
+IDX_POS   = 3    # [3..5]   position
+IDX_VEL   = 6    # [6..8]   velocity
+IDX_AB    = 9    # [9..11]  accelerometer bias
+IDX_GB    = 12   # [12..14] gyroscope bias
+IDX_EMAG  = 15   # [15..17] earth magnetic field NED
+IDX_BMAGB = 18   # [18..20] body magnetic field bias
+IDX_WIND  = 21   # [21..22] horizontal wind NE
+IDX_BBIAS = 23   # [23]     barometric altitude bias
 
 
 def build_symbolic_F():
-    """Build the 15x15 discrete-time state transition matrix F symbolically.
+    """Build the 24x24 discrete-time state transition matrix F symbolically.
 
     F = I + dt * F_delta (Sola 2017, Eq. 269)
 
-    Non-zero off-diagonal blocks:
+    Non-zero off-diagonal blocks (core 15 states only):
       F[att,att] = I - dt*skew(w)       (dense 3x3)
       F[att,gb]  = -dt*I                (scaled identity)
       F[pos,vel] = +dt*I                (scaled identity)
       F[vel,att] = -dt*R*skew(a)        (dense 3x3)
       F[vel,ab]  = -dt*R                (dense 3x3)
+
+    States 15-23: identity F (no coupling to core states).
     """
     dt = sp.Symbol('dt')
 
@@ -82,7 +102,7 @@ def build_symbolic_F():
         [-ay,  ax,   0],
     ])
 
-    # Start with identity
+    # Start with identity (24x24 — states 15-23 are identity by default)
     F = sp.eye(N)
 
     # F[att,att] = I - dt*skew(w)
@@ -104,7 +124,9 @@ def build_symbolic_F():
 
 
 def build_symbolic_P():
-    """Build a symmetric 15x15 P matrix with 120 unique symbols (upper triangle)."""
+    """Build a symmetric 24x24 P matrix with 300 unique symbols (upper triangle)."""
+    n_unique = N * (N + 1) // 2
+    print(f"  ({n_unique} unique symbols)")
     P = sp.zeros(N, N)
     for i in range(N):
         for j in range(i, N):
@@ -117,12 +139,16 @@ def build_symbolic_P():
 def build_Qd_diagonal(dt_sym):
     """Build diagonal Q_d = dt * diag(sigma^2 values).
 
-    Q_d structure (15 diagonal elements):
-      [0..2]  sigma_gyro^2 * dt       (attitude)
-      [3..5]  0                        (position — no direct noise)
-      [6..8]  sigma_accel^2 * dt       (velocity)
-      [9..11] sigma_accel_bias^2 * dt  (accel bias walk)
-      [12..14] sigma_gyro_bias^2 * dt  (gyro bias walk)
+    Q_d structure (24 diagonal elements):
+      [0..2]   sigma_gyro^2 * dt          (attitude)
+      [3..5]   0                           (position — no direct noise)
+      [6..8]   sigma_accel^2 * dt          (velocity)
+      [9..11]  sigma_accel_bias^2 * dt     (accel bias walk)
+      [12..14] sigma_gyro_bias^2 * dt      (gyro bias walk)
+      [15..17] sigma_earth_mag^2 * dt      (earth mag walk)
+      [18..20] sigma_body_mag_bias^2 * dt  (body mag bias walk)
+      [21..22] sigma_wind^2 * dt           (wind walk)
+      [23]     sigma_baro_bias^2 * dt      (baro bias walk)
     """
     diag = [0.0] * N
 
@@ -130,6 +156,10 @@ def build_Qd_diagonal(dt_sym):
     sa2 = SIGMA_ACCEL ** 2
     sab2 = SIGMA_ACCEL_BIAS_WALK ** 2
     sgb2 = SIGMA_GYRO_BIAS_WALK ** 2
+    sem2 = SIGMA_EARTH_MAG_WALK ** 2
+    sbm2 = SIGMA_BODY_MAG_BIAS_WALK ** 2
+    sw2 = SIGMA_WIND_WALK ** 2
+    sbb2 = SIGMA_BARO_BIAS_WALK ** 2
 
     for i in range(3):
         diag[IDX_ATT + i] = sg2
@@ -137,6 +167,12 @@ def build_Qd_diagonal(dt_sym):
         diag[IDX_VEL + i] = sa2
         diag[IDX_AB + i]  = sab2
         diag[IDX_GB + i]  = sgb2
+        diag[IDX_EMAG + i]  = sem2
+        diag[IDX_BMAGB + i] = sbm2
+
+    diag[IDX_WIND + 0] = sw2
+    diag[IDX_WIND + 1] = sw2
+    diag[IDX_BBIAS]    = sbb2
 
     # Return as symbolic expression: diag[i] * dt
     Qd = sp.zeros(N, N)
@@ -167,7 +203,7 @@ def run_self_test(F_sym, P_sym, dt_sym, R_sym, accel_syms, gyro_syms):
 
     P_np = np.eye(N) * 0.01  # small initial covariance
 
-    # Build F numerically
+    # Build F numerically (24x24)
     skew_w_np = np.array([
         [0, -wz_val, wy_val],
         [wz_val, 0, -wx_val],
@@ -185,6 +221,7 @@ def run_self_test(F_sym, P_sym, dt_sym, R_sym, accel_syms, gyro_syms):
     F_np[IDX_POS:IDX_POS+3, IDX_VEL:IDX_VEL+3] = dt_val * np.eye(3)
     F_np[IDX_VEL:IDX_VEL+3, IDX_ATT:IDX_ATT+3] = -dt_val * R_np @ skew_a_np
     F_np[IDX_VEL:IDX_VEL+3, IDX_AB:IDX_AB+3] = -dt_val * R_np
+    # States 15-23: identity (already from np.eye)
 
     # Build Q_d numerically
     Qd_np = np.zeros((N, N))
@@ -193,6 +230,11 @@ def run_self_test(F_sym, P_sym, dt_sym, R_sym, accel_syms, gyro_syms):
         Qd_np[IDX_VEL+i, IDX_VEL+i] = SIGMA_ACCEL**2 * dt_val
         Qd_np[IDX_AB+i,  IDX_AB+i]  = SIGMA_ACCEL_BIAS_WALK**2 * dt_val
         Qd_np[IDX_GB+i,  IDX_GB+i]  = SIGMA_GYRO_BIAS_WALK**2 * dt_val
+        Qd_np[IDX_EMAG+i, IDX_EMAG+i]  = SIGMA_EARTH_MAG_WALK**2 * dt_val
+        Qd_np[IDX_BMAGB+i, IDX_BMAGB+i] = SIGMA_BODY_MAG_BIAS_WALK**2 * dt_val
+    Qd_np[IDX_WIND+0, IDX_WIND+0] = SIGMA_WIND_WALK**2 * dt_val
+    Qd_np[IDX_WIND+1, IDX_WIND+1] = SIGMA_WIND_WALK**2 * dt_val
+    Qd_np[IDX_BBIAS, IDX_BBIAS]   = SIGMA_BARO_BIAS_WALK**2 * dt_val
 
     # Propagate P 10 steps to get non-trivial P
     for _ in range(10):
@@ -257,6 +299,7 @@ def emit_cpp(intermediates, reduced_exprs, output_path):
     """
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     sympy_ver = sp.__version__
+    n_upper = N * (N + 1) // 2
 
     # Find all P elements referenced in the expressions
     p_refs = _collect_P_refs(intermediates, reduced_exprs)
@@ -269,10 +312,14 @@ def emit_cpp(intermediates, reduced_exprs, output_path):
     lines.append(f"// P input snapshots: {len(p_refs)}")
     lines.append(f"//")
     lines.append(f"// Baked-in Q_d constants (must match eskf.h):")
-    lines.append(f"//   kSigmaGyro         = {SIGMA_GYRO}")
-    lines.append(f"//   kSigmaAccel        = {SIGMA_ACCEL}")
-    lines.append(f"//   kSigmaGyroBiasWalk = {SIGMA_GYRO_BIAS_WALK}")
-    lines.append(f"//   kSigmaAccelBiasWalk= {SIGMA_ACCEL_BIAS_WALK}")
+    lines.append(f"//   kSigmaGyro             = {SIGMA_GYRO}")
+    lines.append(f"//   kSigmaAccel            = {SIGMA_ACCEL}")
+    lines.append(f"//   kSigmaGyroBiasWalk     = {SIGMA_GYRO_BIAS_WALK}")
+    lines.append(f"//   kSigmaAccelBiasWalk    = {SIGMA_ACCEL_BIAS_WALK}")
+    lines.append(f"//   kSigmaEarthMagWalk     = {SIGMA_EARTH_MAG_WALK}")
+    lines.append(f"//   kSigmaBodyMagBiasWalk  = {SIGMA_BODY_MAG_BIAS_WALK}")
+    lines.append(f"//   kSigmaWindWalk         = {SIGMA_WIND_WALK}")
+    lines.append(f"//   kSigmaBaroBiasWalk     = {SIGMA_BARO_BIAS_WALK}")
     lines.append(f"//")
     lines.append(f"// Reference: Sola (2017) Eq. 269, PX4 ECL codegen pattern")
     lines.append(f"")
@@ -282,17 +329,21 @@ def emit_cpp(intermediates, reduced_exprs, output_path):
     lines.append(f"constexpr float kSigmaAccel = {SIGMA_ACCEL}f;")
     lines.append(f"constexpr float kSigmaGyroBiasWalk = {SIGMA_GYRO_BIAS_WALK}f;")
     lines.append(f"constexpr float kSigmaAccelBiasWalk = {SIGMA_ACCEL_BIAS_WALK}f;")
+    lines.append(f"constexpr float kSigmaEarthMagWalk = {SIGMA_EARTH_MAG_WALK}f;")
+    lines.append(f"constexpr float kSigmaBodyMagBiasWalk = {SIGMA_BODY_MAG_BIAS_WALK}f;")
+    lines.append(f"constexpr float kSigmaWindWalk = {SIGMA_WIND_WALK}f;")
+    lines.append(f"constexpr float kSigmaBaroBiasWalk = {SIGMA_BARO_BIAS_WALK}f;")
     lines.append(f"}}  // namespace codegen")
     lines.append(f"")
-    lines.append(f"// Computes P = F * P * F^T + Q_d for 15-state ESKF")
-    lines.append(f"// P: symmetric 15x15 covariance (updated in place)")
+    lines.append(f"// Computes P = F * P * F^T + Q_d for 24-state ESKF")
+    lines.append(f"// P: symmetric 24x24 covariance (updated in place)")
     lines.append(f"// R: 3x3 body-to-NED DCM")
     lines.append(f"// ax,ay,az: bias-corrected accelerometer (m/s^2)")
     lines.append(f"// wx,wy,wz: bias-corrected gyroscope (rad/s)")
     lines.append(f"// dt_val: time step (s)")
     lines.append(f"// Execute from SRAM to avoid XIP cache thrashing (10KB+ function)")
     lines.append(f"__attribute__((section(\".time_critical.codegen_fpft\")))")
-    lines.append(f"void codegen_fpft(float P[15][15],")
+    lines.append(f"void codegen_fpft(float P[{N}][{N}],")
     lines.append(f"                  const float R[3][3],")
     lines.append(f"                  float ax, float ay, float az,")
     lines.append(f"                  float wx, float wy, float wz,")
@@ -316,7 +367,7 @@ def emit_cpp(intermediates, reduced_exprs, output_path):
         lines.append(f"    const float {sym} = {c_expr};")
 
     lines.append(f"")
-    lines.append(f"    // Upper triangle assignments (120 elements)")
+    lines.append(f"    // Upper triangle assignments ({n_upper} elements)")
 
     # Emit upper triangle P assignments
     idx = 0
@@ -349,7 +400,7 @@ def emit_cpp(intermediates, reduced_exprs, output_path):
     hlines.append(f"#define ESKF_CODEGEN_H")
     hlines.append(f"")
     hlines.append(f"// Codegen FPFT function declaration")
-    hlines.append(f"void codegen_fpft(float P[15][15], const float R[3][3],")
+    hlines.append(f"void codegen_fpft(float P[{N}][{N}], const float R[3][3],")
     hlines.append(f"                  float ax, float ay, float az,")
     hlines.append(f"                  float wx, float wy, float wz,")
     hlines.append(f"                  float dt_val);")
@@ -360,6 +411,10 @@ def emit_cpp(intermediates, reduced_exprs, output_path):
     hlines.append(f"inline constexpr float kSigmaAccel = {SIGMA_ACCEL}f;")
     hlines.append(f"inline constexpr float kSigmaGyroBiasWalk = {SIGMA_GYRO_BIAS_WALK}f;")
     hlines.append(f"inline constexpr float kSigmaAccelBiasWalk = {SIGMA_ACCEL_BIAS_WALK}f;")
+    hlines.append(f"inline constexpr float kSigmaEarthMagWalk = {SIGMA_EARTH_MAG_WALK}f;")
+    hlines.append(f"inline constexpr float kSigmaBodyMagBiasWalk = {SIGMA_BODY_MAG_BIAS_WALK}f;")
+    hlines.append(f"inline constexpr float kSigmaWindWalk = {SIGMA_WIND_WALK}f;")
+    hlines.append(f"inline constexpr float kSigmaBaroBiasWalk = {SIGMA_BARO_BIAS_WALK}f;")
     hlines.append(f"}}  // namespace codegen")
     hlines.append(f"")
     hlines.append(f"#endif  // ESKF_CODEGEN_H")
@@ -397,7 +452,8 @@ def main():
     print(f"Building symbolic F ({N}x{N})...")
     F, dt_sym, R_sym, accel_syms, gyro_syms = build_symbolic_F()
 
-    print(f"Building symbolic P ({N}x{N}, 120 unique symbols)...")
+    n_unique = N * (N + 1) // 2
+    print(f"Building symbolic P ({N}x{N}, {n_unique} unique symbols)...")
     P_sym = build_symbolic_P()
 
     print(f"Building symbolic Q_d ({N}x{N} diagonal)...")
@@ -410,13 +466,13 @@ def main():
     P_test_np, ref_np = run_self_test(F, P_sym, dt_sym, R_sym, accel_syms, gyro_syms)
 
     # Extract upper triangle expressions for CSE
-    print(f"Extracting upper triangle (120 expressions)...")
+    print(f"Extracting upper triangle ({n_unique} expressions)...")
     upper_tri_exprs = []
     for i in range(N):
         for j in range(i, N):
             upper_tri_exprs.append(FPFT[i, j])
 
-    print(f"Running CSE (this may take a minute)...")
+    print(f"Running CSE (this may take a few minutes for {N}-state)...")
     intermediates, reduced = sp.cse(upper_tri_exprs, optimizations='basic')
     print(f"  CSE found {len(intermediates)} common subexpressions")
 
@@ -425,9 +481,8 @@ def main():
     emit_cpp(intermediates, reduced, output_path)
 
     print("\nDone. Remember to:")
-    print("  1. Add src/fusion/eskf_codegen.cpp to CMakeLists.txt")
-    print("  2. Wire codegen_fpft() into ESKF::predict()")
-    print("  3. Build and run tests (Test 8 validates codegen vs dense)")
+    print("  1. Build and run tests (Test 8 validates codegen vs dense)")
+    print("  2. Benchmark on target (expect ~100-150us for 24-state)")
 
 
 if __name__ == '__main__':

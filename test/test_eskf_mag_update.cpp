@@ -18,7 +18,6 @@
 #include <limits>
 
 using rc::ESKF;
-using rc::Mat15;
 using rc::Quat;
 using rc::Vec3;
 
@@ -217,8 +216,8 @@ TEST(ESKFMagUpdate, JosephSymmetry) {
     }
 
     // Check symmetry: |P[i][j] - P[j][i]| < epsilon
-    for (int i = 0; i < 15; ++i) {
-        for (int j = i + 1; j < 15; ++j) {
+    for (int i = 0; i < rc::eskf::kStateSize; ++i) {
+        for (int j = i + 1; j < rc::eskf::kStateSize; ++j) {
             EXPECT_NEAR(eskf.P(i, j), eskf.P(j, i), 1e-6f)
                 << "P[" << i << "][" << j << "] != P[" << j << "][" << i << "]";
         }
@@ -238,7 +237,8 @@ TEST(ESKFMagUpdate, JosephPositiveDefinite) {
         eskf.update_mag_heading(mag_b, kMagExpected);
     }
 
-    for (int i = 0; i < 15; ++i) {
+    // Core diagonal elements must be positive; inhibited states [15..23] are zero
+    for (int i = 0; i < rc::eskf::kIdxEarthMag; ++i) {
         EXPECT_GT(eskf.P(i, i), 0.0f)
             << "P[" << i << "][" << i << "] is not positive";
     }
@@ -388,14 +388,14 @@ TEST(ESKFMagUpdate, MixedBaroMagUpdates) {
     EXPECT_TRUE(eskf.healthy());
 
     // P should be symmetric
-    for (int i = 0; i < 15; ++i) {
-        for (int j = i + 1; j < 15; ++j) {
+    for (int i = 0; i < rc::eskf::kStateSize; ++i) {
+        for (int j = i + 1; j < rc::eskf::kStateSize; ++j) {
             EXPECT_NEAR(eskf.P(i, j), eskf.P(j, i), 1e-5f);
         }
     }
 
-    // All diagonals positive
-    for (int i = 0; i < 15; ++i) {
+    // Core diagonals positive; inhibited states [15..23] are zero
+    for (int i = 0; i < rc::eskf::kIdxEarthMag; ++i) {
         EXPECT_GT(eskf.P(i, i), 0.0f);
     }
 }
@@ -607,7 +607,7 @@ TEST(ESKFMagUpdate, PSymmetryAfterReset) {
     EXPECT_NEAR(euler.z, kPi / 2.0f, 0.01f);
 
     // Verify P is symmetric after reset
-    constexpr int32_t N = 15;
+    constexpr int32_t N = rc::eskf::kStateSize;
     for (int32_t i = 0; i < N; ++i) {
         for (int32_t j = i + 1; j < N; ++j) {
             EXPECT_FLOAT_EQ(eskf.P(i, j), eskf.P(j, i))

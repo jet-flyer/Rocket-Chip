@@ -1,11 +1,13 @@
 #ifndef ROCKETCHIP_FUSION_ESKF_H
 #define ROCKETCHIP_FUSION_ESKF_H
 
-// ESKF: 15-state Error-State Kalman Filter.
+// ESKF: 24-state Error-State Kalman Filter.
 // Pure C++ — no Pico SDK dependencies.
 //
-// Nominal state: quaternion (body-to-NED), position, velocity, biases.
-// Error state: 15-dimensional per eskf_state.h.
+// Nominal state: quaternion (body-to-NED), position, velocity, biases,
+//   earth mag field, body mag bias, wind, baro bias.
+// Error state: 24-dimensional per eskf_state.h.
+// States 15-23 use runtime inhibit flags (ArduPilot pattern).
 // Reference: Solà (2017) "Quaternion kinematics for the error-state KF"
 //   arXiv:1711.02508 — 560+ citations (Semantic Scholar, 2026).
 //   Industry standard reference used by PX4 ECL-EKF2 and ArduPilot EKF2/3.
@@ -32,10 +34,26 @@ struct ESKF {
     Vec3 accel_bias;    // Accelerometer bias estimate (m/s²)
     Vec3 gyro_bias;     // Gyroscope bias estimate (rad/s)
 
+    // --- Extended states (runtime inhibit flags, ArduPilot pattern) ---
+    Vec3 earth_mag;         // Earth magnetic field NED (uT)
+    Vec3 body_mag_bias;     // Hard-iron bias body frame (uT)
+    float wind_n_{};        // Horizontal wind North (m/s)
+    float wind_e_{};        // Horizontal wind East (m/s)
+    float baro_bias_{};     // Barometric altitude bias (m)
+
     // =================================================================
-    // Error-state covariance (15×15, symmetric)
+    // Runtime inhibit flags — ArduPilot EKF3 pattern
+    // When true: P diagonal = 0, cross-covariances = 0, no compute cost.
+    // ArduPilot: inhibitMagStates, inhibitWindStates (NavEKF3_core.h).
     // =================================================================
-    Mat15 P;
+    bool inhibit_mag_states_{true};    // earth_mag[15-17] + body_mag_bias[18-20]
+    bool inhibit_wind_states_{true};   // wind_NE[21-22]
+    bool inhibit_baro_bias_{true};     // baro_bias[23]
+
+    // =================================================================
+    // Error-state covariance (24×24, symmetric)
+    // =================================================================
+    Mat24 P;
 
     // =================================================================
     // Physical constants
@@ -71,6 +89,36 @@ struct ESKF {
     static constexpr float kSigmaAccelBiasWalk = 1.0e-4f;  // m/s³/√Hz
 
     // =================================================================
+    // Extended state noise — ArduPilot EKF3 defaults (Gauss→uT converted)
+    // ArduPilot uses Gauss internally: 1 Gauss = 100 uT.
+    // EK3_MAGE_P_NSE = 1e-3 Gauss/s = 0.1 uT/s
+    // EK3_MAGB_P_NSE = 1e-4 Gauss/s = 0.01 uT/s
+    // EK3_WIND_P_NSE = 0.1 m/s/s (Plane/Rover default)
+    // =================================================================
+
+    // Earth magnetic field process noise (NED frame drift)
+    // ArduPilot EK3_MAGE_P_NSE default = 1e-3 Gauss/s = 0.1 uT/s
+    static constexpr float kSigmaEarthMagWalk = 0.1f;  // uT/s
+
+    // Body magnetic field bias process noise (hard-iron drift)
+    // ArduPilot EK3_MAGB_P_NSE default = 1e-4 Gauss/s = 0.01 uT/s
+    static constexpr float kSigmaBodyMagBiasWalk = 0.01f;  // uT/s
+
+    // Wind velocity process noise (horizontal gust variance)
+    // ArduPilot EK3_WIND_P_NSE: 0.1 (Plane/Rover), 0.2 (Copter).
+    // Parachute descent has high drag + low inertia = sensitive to gusts,
+    // more like Copter than Plane. 0.2 matches Copter default.
+    static constexpr float kSigmaWindWalk = 0.2f;  // m/s/s
+
+    // Barometric altitude bias process noise.
+    // Neither ArduPilot EKF3 nor PX4 ECL model baro bias as a dynamic state
+    // (both treat it as a static offset). Primarily useful for HAB/long-duration
+    // flights where temperature-driven baro drift matters (hours, not seconds).
+    // For a 30-120s rocket flight, baro drift is negligible — keep inhibited.
+    // DPS310 temperature coefficient: ±0.5 Pa/K → ~0.04 m/K.
+    static constexpr float kSigmaBaroBiasWalk = 0.01f;  // m/s
+
+    // =================================================================
     // P initialization — Solà (2017) typical values + ICM-20948 ZRO specs
     // =================================================================
 
@@ -89,6 +137,12 @@ struct ESKF {
     // Gyro bias: ~0.017 rad/s = ~1°/s (within ±5°/s ZRO, Table 1)
     static constexpr float kInitPGyroBias = 3.0e-4f;  // (rad/s)²
 
+    // Extended state P initialization (used when inhibit flag is cleared)
+    static constexpr float kInitPEarthMag = 100.0f;       // uT² (~10 uT uncertainty)
+    static constexpr float kInitPBodyMagBias = 25.0f;     // uT² (~5 uT uncertainty)
+    static constexpr float kInitPWind = 25.0f;            // m²/s² (~5 m/s uncertainty)
+    static constexpr float kInitPBaroBias = 1.0f;         // m² (~1 m uncertainty)
+
     // =================================================================
     // P diagonal clamping — council review RF-2
     // =================================================================
@@ -96,6 +150,12 @@ struct ESKF {
     static constexpr float kClampPAttitude = 1.0f;      // rad² (~57° max)
     static constexpr float kClampPPosition = 10000.0f;   // m² (~100m max)
     static constexpr float kClampPVelocity = 100.0f;     // m²/s² (~10 m/s max)
+
+    // Extended state clamping
+    static constexpr float kClampPEarthMag = 400.0f;      // uT² (~20 uT max)
+    static constexpr float kClampPBodyMagBias = 100.0f;   // uT² (~10 uT max)
+    static constexpr float kClampPWind = 2500.0f;         // m²/s² (~50 m/s max)
+    static constexpr float kClampPBaroBias = 25.0f;       // m² (~5 m max)
 
     // =================================================================
     // Stationarity check — council review RF-5
@@ -323,10 +383,22 @@ struct ESKF {
     void reset(const Vec3& deltaTheta);
 
     // Clamp P diagonal to prevent runaway (council RF-2).
+    // Also zeroes inhibited state blocks (R-8: codegen adds Q_d to all 24 states,
+    // clamp_covariance() then zeroes the inhibited blocks back to 0).
     void clamp_covariance();
 
     // Health check: NaN detection, P bounds, quaternion norm (council RF-3).
+    // Inhibit-aware (R-1): skips P diagonal check for inhibited state indices.
     bool healthy() const;
+
+    // =================================================================
+    // Inhibit flag control — ArduPilot pattern
+    // When enabling (inhibit=false): sets P diagonal to initial variance (R-7).
+    // When disabling (inhibit=true): zeros P diagonal + cross-covariances.
+    // =================================================================
+    void set_inhibit_mag(bool inhibit);
+    void set_inhibit_wind(bool inhibit);
+    void set_inhibit_baro_bias(bool inhibit);
 
     // =================================================================
     // Diagnostics
@@ -355,15 +427,27 @@ struct ESKF {
     bool initialized_{};
 
 private:
-    // Build the error-state transition matrix F_x (15×15).
+    // Build the error-state transition matrix F_x (24×24).
     // F_x = I + dt * F_delta, where F_delta encodes the linearized dynamics.
-    // Output parameter to avoid 900B return-by-value on stack (LL Entry 1).
-    static void build_F(Mat15& out, const Quat& q, const Vec3& accelBody,
+    // States 15-23 have identity F propagation (no coupling to core states).
+    // Output parameter to avoid stack pressure (LL Entry 1).
+    static void build_F(Mat24& out, const Quat& q, const Vec3& accelBody,
                          const Vec3& gyroBody, float dt);
 
-    // Build continuous-time process noise Q_c (15×15 diagonal).
-    // Output parameter to avoid 900B return-by-value on stack (LL Entry 1).
-    static void build_Qc(Mat15& out);
+    // Build continuous-time process noise Q_c (24×24 diagonal).
+    // Output parameter to avoid stack pressure (LL Entry 1).
+    static void build_Qc(Mat24& out);
+
+    // Zero P rows/columns for a contiguous block of states.
+    // Used by inhibit flag control and clamp_covariance().
+    void zero_p_block(int32_t startIdx, int32_t count);
+
+    // Sparse P ← G*P*G^T for attitude-only reset (G=I except 3×3 block).
+    void reset_covariance_attitude(const float ga[3][3]);
+
+    // Clamp sub-functions (decomposed for readability-function-cognitive-complexity)
+    void clamp_core_covariance();
+    void clamp_extended_covariance();
 
     // Common propagation logic shared by predict() and predict_dense().
     void propagate_nominal(const Vec3& accelMeas, const Vec3& gyroMeas,

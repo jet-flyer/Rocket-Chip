@@ -11,7 +11,6 @@
 static constexpr float kPi = 3.14159265358979323846f;
 
 using rc::ESKF;
-using rc::Mat15;
 using rc::Quat;
 using rc::Vec3;
 
@@ -58,9 +57,12 @@ TEST(ESKFPropagation, StaticTrajectory) {
     // Check attitude block grew
     EXPECT_GT(eskf.P(0, 0), ESKF::kInitPAttitude);
 
-    // P must be positive definite (diagonal positive is necessary condition)
-    EXPECT_TRUE(eskf.P.diagonal_positive());
+    // P must be finite; core states [0..14] must have positive diagonal.
+    // Extended states [15..23] are inhibited (P=0) by default — not checked here.
     EXPECT_TRUE(eskf.P.is_finite());
+    for (int i = 0; i < rc::eskf::kIdxEarthMag; ++i) {
+        EXPECT_GT(eskf.P(i, i), 0.0f) << "Core P diagonal zero at index " << i;
+    }
 }
 
 // ============================================================================
@@ -100,8 +102,12 @@ TEST(ESKFPropagation, PDiagonalStaysPositive) {
         eskf.predict(kAccelStationary, kGyroStationary, kDt);
     }
 
-    EXPECT_TRUE(eskf.P.diagonal_positive());
+    // Core states [0..14] must have positive diagonal after 5 min of propagation.
+    // Extended states [15..23] are inhibited (P=0).
     EXPECT_TRUE(eskf.P.is_finite());
+    for (int i = 0; i < rc::eskf::kIdxEarthMag; ++i) {
+        EXPECT_GT(eskf.P(i, i), 0.0f) << "Core P diagonal zero at index " << i;
+    }
 
     // Verify clamping held — attitude diagonal should not exceed clamp
     using namespace rc::eskf;
@@ -220,6 +226,12 @@ TEST(ESKFPropagation, PClamping) {
         EXPECT_FLOAT_EQ(eskf.P(kIdxAccelBias + i, kIdxAccelBias + i), 1e6f);
         EXPECT_FLOAT_EQ(eskf.P(kIdxGyroBias + i, kIdxGyroBias + i), 1e6f);
     }
+
+    // Extended states are inhibited by default → zeroed, not clamped
+    for (int i = kIdxEarthMag; i < kStateSize; ++i) {
+        EXPECT_FLOAT_EQ(eskf.P(i, i), 0.0f)
+            << "Inhibited state P diagonal should be 0 at index " << i;
+    }
 }
 
 // ============================================================================
@@ -246,9 +258,11 @@ TEST(ESKFPropagation, ResetJacobianG) {
     float yaw_change = euler_after.z - euler_before.z;
     EXPECT_NEAR(yaw_change, angle, 1e-3f);
 
-    // P should still be PD and finite after reset
-    EXPECT_TRUE(eskf.P.diagonal_positive());
+    // P should still be finite after reset; core diags positive
     EXPECT_TRUE(eskf.P.is_finite());
+    for (int i = 0; i < rc::eskf::kIdxEarthMag; ++i) {
+        EXPECT_GT(eskf.P(i, i), 0.0f);
+    }
 
     // Quaternion should still be normalized
     EXPECT_NEAR(eskf.q.norm(), 1.0f, 1e-6f);
@@ -280,8 +294,8 @@ TEST(ESKFPropagation, CodegenVsDenseFPFT) {
     // Codegen uses SymPy-expanded scalar ops; dense uses triple matrix product.
     // Float summation order differs — 1e-4 tolerance for 100-step accumulation.
     const float tol = 1e-4f;
-    for (int r = 0; r < 15; ++r) {
-        for (int c = 0; c < 15; ++c) {
+    for (int r = 0; r < rc::eskf::kStateSize; ++r) {
+        for (int c = 0; c < rc::eskf::kStateSize; ++c) {
             EXPECT_NEAR(codegen.P(r, c), dense.P(r, c), tol)
                 << "P mismatch at (" << r << "," << c << ")";
         }
@@ -540,8 +554,8 @@ TEST(ESKFPropagation, PSymmetry) {
         eskf.predict(accel, gyro, kDt);
     }
 
-    for (int r = 0; r < 15; ++r) {
-        for (int c = r + 1; c < 15; ++c) {
+    for (int r = 0; r < rc::eskf::kStateSize; ++r) {
+        for (int c = r + 1; c < rc::eskf::kStateSize; ++c) {
             EXPECT_NEAR(eskf.P(r, c), eskf.P(c, r), 1e-6f)
                 << "Symmetry violation at (" << r << "," << c << ")";
         }
@@ -569,11 +583,172 @@ TEST(ESKFPropagation, CodegenSingleStep) {
 
     // Tight tolerance for single step — no accumulation drift
     const float tol = 1e-6f;
-    for (int r = 0; r < 15; ++r) {
-        for (int c = 0; c < 15; ++c) {
+    for (int r = 0; r < rc::eskf::kStateSize; ++r) {
+        for (int c = 0; c < rc::eskf::kStateSize; ++c) {
             EXPECT_NEAR(codegen.P(r, c), dense.P(r, c), tol)
                 << "Single-step P mismatch at (" << r << "," << c << ")";
         }
     }
+}
+
+// ============================================================================
+// Test 16: InhibitedStatesZeroP
+// All extended states inhibited by default → P[15..23] = 0 everywhere
+// ============================================================================
+TEST(ESKFPropagation, InhibitedStatesZeroP) {
+    ESKF eskf = make_initialized();
+
+    // After init, inhibited states should have P = 0
+    for (int i = rc::eskf::kIdxEarthMag; i < rc::eskf::kStateSize; ++i) {
+        EXPECT_FLOAT_EQ(eskf.P(i, i), 0.0f)
+            << "Inhibited P diagonal not zero at index " << i;
+        for (int j = 0; j < rc::eskf::kStateSize; ++j) {
+            EXPECT_FLOAT_EQ(eskf.P(i, j), 0.0f)
+                << "Inhibited P cross-covariance not zero at (" << i << "," << j << ")";
+        }
+    }
+
+    // Propagate 100 steps — inhibited states should stay zero
+    for (int step = 0; step < 100; ++step) {
+        eskf.predict(kAccelStationary, kGyroStationary, kDt);
+    }
+
+    for (int i = rc::eskf::kIdxEarthMag; i < rc::eskf::kStateSize; ++i) {
+        EXPECT_FLOAT_EQ(eskf.P(i, i), 0.0f)
+            << "Inhibited P diagonal grew after propagation at index " << i;
+    }
+
+    EXPECT_TRUE(eskf.healthy());
+}
+
+// ============================================================================
+// Test 17: EnableMagStates
+// Enable mag states → P[15..20] diagonal = initial variance
+// ============================================================================
+TEST(ESKFPropagation, EnableMagStates) {
+    ESKF eskf = make_initialized();
+
+    // Initially inhibited
+    EXPECT_TRUE(eskf.inhibit_mag_states_);
+    for (int i = rc::eskf::kIdxEarthMag; i < rc::eskf::kIdxEarthMag + 6; ++i) {
+        EXPECT_FLOAT_EQ(eskf.P(i, i), 0.0f);
+    }
+
+    // Enable mag states
+    eskf.set_inhibit_mag(false);
+    EXPECT_FALSE(eskf.inhibit_mag_states_);
+
+    // Check P diagonal initialized
+    for (int i = 0; i < 3; ++i) {
+        EXPECT_FLOAT_EQ(eskf.P(rc::eskf::kIdxEarthMag + i, rc::eskf::kIdxEarthMag + i),
+                        ESKF::kInitPEarthMag);
+        EXPECT_FLOAT_EQ(eskf.P(rc::eskf::kIdxBodyMagBias + i, rc::eskf::kIdxBodyMagBias + i),
+                        ESKF::kInitPBodyMagBias);
+    }
+
+    // Cross-covariances should be zero (freshly enabled)
+    for (int i = rc::eskf::kIdxEarthMag; i < rc::eskf::kIdxEarthMag + 6; ++i) {
+        for (int j = 0; j < rc::eskf::kIdxEarthMag; ++j) {
+            EXPECT_FLOAT_EQ(eskf.P(i, j), 0.0f);
+        }
+    }
+
+    EXPECT_TRUE(eskf.healthy());
+}
+
+// ============================================================================
+// Test 18: NewStatesIdentityPropagation
+// Enable wind states, propagate 100 steps. P diagonals should grow only by
+// Q_d accumulation (no F coupling to core states).
+// ============================================================================
+TEST(ESKFPropagation, NewStatesIdentityPropagation) {
+    ESKF eskf = make_initialized();
+
+    // Enable wind states
+    eskf.set_inhibit_wind(false);
+    const float initP = ESKF::kInitPWind;
+
+    // Propagate 100 steps
+    for (int step = 0; step < 100; ++step) {
+        eskf.predict(kAccelStationary, kGyroStationary, kDt);
+    }
+
+    // Wind P diagonal should grow by ~100 * dt * sigma_wind^2
+    // Identity F means P_new = 1*P*1 + Qd = P + Qd (per step)
+    const float expectedGrowth = 100.0f * kDt * ESKF::kSigmaWindWalk * ESKF::kSigmaWindWalk;
+    const float expectedP = initP + expectedGrowth;
+
+    for (int i = 0; i < 2; ++i) {
+        float actual = eskf.P(rc::eskf::kIdxWindNE + i, rc::eskf::kIdxWindNE + i);
+        EXPECT_NEAR(actual, expectedP, expectedP * 0.01f)
+            << "Wind P diagonal growth mismatch at axis " << i;
+    }
+
+    EXPECT_TRUE(eskf.healthy());
+}
+
+// ============================================================================
+// Test 19: InhibitToggle
+// Enable → predict → disable → verify P zeroed
+// ============================================================================
+TEST(ESKFPropagation, InhibitToggle) {
+    ESKF eskf = make_initialized();
+
+    // Enable baro bias
+    eskf.set_inhibit_baro_bias(false);
+    EXPECT_FALSE(eskf.inhibit_baro_bias_);
+    EXPECT_FLOAT_EQ(eskf.P(rc::eskf::kIdxBaroBias, rc::eskf::kIdxBaroBias),
+                    ESKF::kInitPBaroBias);
+
+    // Propagate to grow P and nominal state
+    eskf.baro_bias_ = 1.5f;
+    for (int step = 0; step < 50; ++step) {
+        eskf.predict(kAccelStationary, kGyroStationary, kDt);
+    }
+
+    // P should have grown from initial
+    EXPECT_GT(eskf.P(rc::eskf::kIdxBaroBias, rc::eskf::kIdxBaroBias),
+              ESKF::kInitPBaroBias);
+
+    // Now inhibit — should zero P and nominal state
+    eskf.set_inhibit_baro_bias(true);
+    EXPECT_TRUE(eskf.inhibit_baro_bias_);
+    EXPECT_FLOAT_EQ(eskf.P(rc::eskf::kIdxBaroBias, rc::eskf::kIdxBaroBias), 0.0f);
+    EXPECT_FLOAT_EQ(eskf.baro_bias_, 0.0f);
+
+    EXPECT_TRUE(eskf.healthy());
+}
+
+// ============================================================================
+// Test 20: BaroBiasSubtraction
+// Enable baro bias, set bias to 5.0m, verify baro update innovation
+// accounts for bias.
+// ============================================================================
+TEST(ESKFPropagation, BaroBiasSubtraction) {
+    ESKF eskf = make_initialized();
+
+    // Enable baro bias and set a known bias value
+    eskf.set_inhibit_baro_bias(false);
+    eskf.baro_bias_ = 5.0f;
+
+    // With p.z = 0 (at origin, NED down), predicted altitude:
+    //   h(x) = -p.z + baro_bias = 0 + 5 = 5m
+    // If we measure altitude = 5m, innovation should be ~0
+    bool result = eskf.update_baro(5.0f);
+    EXPECT_TRUE(result);
+    // NIS should be near zero (innovation ~0)
+    EXPECT_LT(eskf.last_baro_nis_, 1.0f);
+
+    // If we measure altitude = 0m, innovation = 0 - 5 = -5m (large)
+    // Reset ESKF to clean state for this test
+    ESKF eskf2 = make_initialized();
+    eskf2.set_inhibit_baro_bias(false);
+    eskf2.baro_bias_ = 5.0f;
+    result = eskf2.update_baro(0.0f);
+    // Should either pass with large NIS or get gated
+    // Innovation = 0 - (0 + 5) = -5m. S ≈ P[5][5] + R ≈ 100 + 0.000841 ≈ 100
+    // NIS ≈ 25/100 = 0.25 — should pass gate
+    EXPECT_TRUE(result);
+    EXPECT_GT(eskf2.last_baro_nis_, 0.1f);  // non-trivial innovation
 }
 

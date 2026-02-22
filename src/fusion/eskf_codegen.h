@@ -3,7 +3,7 @@
 #define ESKF_CODEGEN_H
 
 // Codegen FPFT function declaration
-void codegen_fpft(float P[15][15], const float R[3][3],
+void codegen_fpft(float P[24][24], const float R[3][3],
                   float ax, float ay, float az,
                   float wx, float wy, float wz,
                   float dt_val);
@@ -14,6 +14,10 @@ inline constexpr float kSigmaGyro = 0.0002618f;
 inline constexpr float kSigmaAccel = 0.002256f;
 inline constexpr float kSigmaGyroBiasWalk = 1e-05f;
 inline constexpr float kSigmaAccelBiasWalk = 0.0001f;
+inline constexpr float kSigmaEarthMagWalk = 0.1f;
+inline constexpr float kSigmaBodyMagBiasWalk = 0.01f;
+inline constexpr float kSigmaWindWalk = 0.2f;
+inline constexpr float kSigmaBaroBiasWalk = 0.01f;
 }  // namespace codegen
 
 #endif  // ESKF_CODEGEN_H
