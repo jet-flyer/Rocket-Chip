@@ -20,6 +20,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-22-002 | Claude Code CLI | documentation, tooling
+
+**Prior art audit & license compliance.** Rewrote `LICENSE` (removed stale Adafruit/Arduino/LittleFS refs from FreeRTOS era). Created `THIRD_PARTY_LICENSES.md` with full attribution for all actual dependencies (Pico SDK BSD-3, ruuvi MIT, lwGPS MIT, ICM-20948 MIT, GoogleTest BSD-3, WMM table from ArduPilot GPL-3). Added SPDX headers (`GPL-3.0-or-later`) to all 54 project-owned source files. Removed unused `ws2812b-animation` submodule. Added explicit GPL-3.0 attribution to WMM declination table.
+
+(`LICENSE`, `THIRD_PARTY_LICENSES.md`, `.gitmodules`, 54 source/test files)
+
+---
+
 ### 2026-02-22-001 | Claude Code CLI | refactor
 
 **Post-Stage 5 code audit cleanup.** Updated stale build tag (`ivp45-4` → `stage5-complete`), fixed outdated "not yet implemented" comment for 6-pos accel cal in `calibration_manager.h`, clarified baro_kf rejection comment. Deleted 6 untracked `.uf2` files (old debug probe firmware + test binary) from repo root. Full codebase audit found no debugging artifacts, commented-out code, or dead code — codebase is clean.
