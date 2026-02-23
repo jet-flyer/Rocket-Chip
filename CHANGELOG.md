@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-22-001 | Claude Code CLI | refactor
+
+**Post-Stage 5 code audit cleanup.** Updated stale build tag (`ivp45-4` → `stage5-complete`), fixed outdated "not yet implemented" comment for 6-pos accel cal in `calibration_manager.h`, clarified baro_kf rejection comment. Deleted 6 untracked `.uf2` files (old debug probe firmware + test binary) from repo root. Full codebase audit found no debugging artifacts, commented-out code, or dead code — codebase is clean.
+
+---
+
 ### 2026-02-21-003 | Claude Code CLI | feature, architecture
 
 **24-State ESKF Expansion with Runtime Inhibit Flags**

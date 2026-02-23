@@ -6,7 +6,7 @@
  * - Gyro bias calibration (device at rest)
  * - Accelerometer level calibration (device flat)
  * - Barometer ground reference
- * - 6-position accel calibration (IVP-17, not yet implemented)
+ * - 6-position accel calibration (IVP-17)
  */
 
 #ifndef ROCKETCHIP_CALIBRATION_MANAGER_H

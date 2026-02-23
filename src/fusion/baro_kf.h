@@ -49,7 +49,7 @@ struct BaroKF {
 
     // Update step: incorporate barometric altitude measurement.
     // Uses Joseph form for numerical stability.
-    // Returns false if measurement is rejected (not implemented yet — always true).
+    // Returns false if measurement is rejected (rejection gating not yet implemented).
     bool update(float baroAltM);
 
     // Accessors

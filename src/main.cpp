@@ -40,7 +40,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static constexpr const char* kBuildTag = "ivp45-4";
+static constexpr const char* kBuildTag = "stage5-complete";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
