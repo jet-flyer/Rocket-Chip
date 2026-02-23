@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 // IVP-42c: Replay regression test.
 // Re-runs ESKF replay on each canonical trajectory and compares output
 // against committed reference CSVs. Any behavioral change in the ESKF

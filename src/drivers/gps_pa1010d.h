@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file gps_pa1010d.h
  * @brief PA1010D GPS module driver — I2C transport backend

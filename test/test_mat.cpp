@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 #include <gtest/gtest.h>
 #include "math/mat.h"
 #include "fusion/eskf_state.h"

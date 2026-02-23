@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 // IVP-46: ESKF GPS Position & Velocity Measurement Update Tests
 //
 // Verifies: NED origin management, geodetic-to-NED conversion,

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 // IVP-41: 1D Barometric Altitude Kalman Filter Tests
 //
 // Verifies: static convergence, ramp tracking, noise reduction,

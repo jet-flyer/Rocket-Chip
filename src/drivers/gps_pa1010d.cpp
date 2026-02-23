@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file gps_pa1010d.c
  * @brief PA1010D GPS module driver using lwGPS library

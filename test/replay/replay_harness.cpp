@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 // IVP-42c: Standalone ESKF replay harness.
 // Reads input CSV (Section 5.3 format), feeds ESKF, writes output CSV.
 // Output becomes change-indication regression baseline (ESKF_TESTING_GUIDE.md S5.4).

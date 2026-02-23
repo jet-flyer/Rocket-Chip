@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file baro_dps310.h
  * @brief DPS310 Barometer wrapper using ruuvi.dps310.c library

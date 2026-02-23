@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 #ifndef ROCKETCHIP_MATH_VEC3_H
 #define ROCKETCHIP_MATH_VEC3_H
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 // IVP-44b: ESKF Zero-Velocity Pseudo-Measurement (ZUPT) tests.
 //
 // Validates that the ZUPT constrains horizontal velocity when the

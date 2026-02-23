@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 #include <gtest/gtest.h>
 #include "fusion/eskf.h"
 #include "fusion/eskf_state.h"
@@ -751,4 +753,3 @@ TEST(ESKFPropagation, BaroBiasSubtraction) {
     EXPECT_TRUE(result);
     EXPECT_GT(eskf2.last_baro_nis_, 0.1f);  // non-trivial innovation
 }
-

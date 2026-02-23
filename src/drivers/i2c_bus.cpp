@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file i2c_bus.c
  * @brief I2C bus driver implementation

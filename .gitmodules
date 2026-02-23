@@ -1,9 +1,6 @@
 [submodule "pico-sdk"]
 	path = pico-sdk
 	url = https://github.com/raspberrypi/pico-sdk.git
-[submodule "lib/ws2812b-animation"]
-	path = lib/ws2812b-animation
-	url = https://github.com/TuriSc/RP2040-WS2812B-Animation.git
 [submodule "lib/ruuvi.dps310.c"]
 	path = lib/ruuvi.dps310.c
 	url = https://github.com/ruuvi/ruuvi.dps310.c.git

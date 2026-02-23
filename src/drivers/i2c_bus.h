@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file i2c_bus.h
  * @brief I2C bus driver wrapper for QWIIC/STEMMA QT sensors

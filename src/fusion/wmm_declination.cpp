@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 // WMM magnetic declination lookup with bilinear interpolation.
 // See wmm_declination.h for data source and accuracy notes.
 
@@ -22,7 +24,9 @@ static constexpr float kDegToRad = 3.14159265F / 180.0F;
 
 // Declination table: degrees.
 // 19 rows (lat -90 to +90, 10° steps) × 37 cols (lon -180 to +180, 10° steps).
-// Source: ArduPilot AP_Declination/tables.cpp (IGRF13 epoch, auto-generated).
+// Source: ArduPilot AP_Declination/tables.cpp (IGRF13 epoch, auto-generated
+// from IGRF coefficients by ArduPilot generate/generate.py).
+// ArduPilot is licensed under GPL-3.0-or-later (https://github.com/ArduPilot/ardupilot).
 // Table size: 2,812 bytes.
 // NOLINTBEGIN(readability-magic-numbers)
 static constexpr float kDeclinationTable[19][37] = {

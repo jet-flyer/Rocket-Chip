@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 // IVP-45: Mahony AHRS Cross-Check Tests
 //
 // Verifies: initialization, gate behavior (accel, mag, cal-valid, spin),

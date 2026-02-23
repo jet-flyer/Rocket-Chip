@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file mat_benchmark.cpp
  * @brief Standalone matrix operation benchmark for IVP-40 gate.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file gps_uart.cpp
  * @brief UART GPS driver using lwGPS library — interrupt-driven receive

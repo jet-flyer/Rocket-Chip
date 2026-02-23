@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file gps_uart.h
  * @brief UART GPS driver — interrupt-driven hardware UART transport backend

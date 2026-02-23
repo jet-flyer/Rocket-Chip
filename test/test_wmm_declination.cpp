@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 // WMM declination lookup table tests.
 // Validates bilinear interpolation, known declination values,
 // boundary conditions, and NaN/edge case handling.

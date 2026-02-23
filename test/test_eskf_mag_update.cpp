@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 // IVP-44: ESKF Magnetometer Heading Measurement Update Tests
 //
 // Verifies: mag heading update correctness, wrap_pi discontinuity handling,

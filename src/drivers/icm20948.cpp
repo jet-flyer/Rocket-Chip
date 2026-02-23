@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file icm20948.cpp
  * @brief ICM-20948 9-axis IMU driver implementation
@@ -693,4 +695,3 @@ bool icm20948_data_ready(icm20948_t* dev, bool* accelReady, bool* gyroReady) {
 
     return true;
 }
-

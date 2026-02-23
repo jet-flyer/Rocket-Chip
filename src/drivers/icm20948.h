@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file icm20948.h
  * @brief ICM-20948 9-axis IMU driver (Accel + Gyro + AK09916 Magnetometer)
