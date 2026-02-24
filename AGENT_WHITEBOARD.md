@@ -14,6 +14,12 @@
 
 ---
 
+### Dynamic Validation Methods Document — New (2026-02-23)
+
+`docs/DYNAMIC_VALIDATION.md` — Six repeatable physical test methods for ESKF accuracy verification: Allan variance, turntable rotation, pendulum, elevator (baro), data logging + replay, vehicle GPS-vs-INS. Priority order documented. Allan variance is the logical first step (validates Q tuning). Data logging + replay is the highest-value infrastructure investment (enables all other tests to become regression-testable). Complements `docs/ESKF_TESTING_GUIDE.md` (host-side) and `docs/IVP.md` (integration gates).
+
+---
+
 ### SRAM Execution Audit — Check for Other XIP Cache Bottlenecks
 
 **Added 2026-02-21.** IVP-47 codegen FPFT revealed that RP2350's 2KB XIP cache causes catastrophic performance loss for large hot functions (10KB codegen: 398µs from flash → 59µs from SRAM, 6.7× difference). The `.time_critical` section is the SDK's intended solution. **Updated 2026-02-21:** 24-state codegen is ~1100 lines (~566 changes), function is larger than 15-state version. Still in `.time_critical` SRAM section. Benchmark: 111µs avg (was 59µs at 15-state). **Audit remaining high-frequency code paths** for functions that may exceed XIP cache: `scalar_kalman_update()` (now O(N²) rank-1 Joseph form, runs at baro/mag/GPS rates), `propagate_nominal()` (200Hz), sensor read functions on Core 1. Low-rate functions (<10Hz) are unlikely to benefit.

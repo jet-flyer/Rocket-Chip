@@ -20,6 +20,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-23-002 | Claude Code CLI | documentation
+
+**Dynamic validation methods document.** Created `docs/DYNAMIC_VALIDATION.md` — six repeatable physical test methods for verifying ESKF accuracy beyond host-side unit tests and stationary soaks: Allan variance (Q tuning validation), turntable rotation test, pendulum test, elevator test (baro fusion), data logging + replay infrastructure, and vehicle GPS-vs-INS comparison. Includes truth references, pass/fail criteria, and Python Allan variance implementation.
+
+(`docs/DYNAMIC_VALIDATION.md`)
+
+---
+
 ### 2026-02-23-001 | Claude Code CLI | architecture
 
 **Dense FPFT + SRAM feasibility benchmark.** Tested dense O(N³) F*P*F^T at 24 states with SRAM placement (`.time_critical` section) to evaluate eliminating codegen maintenance. Result: **NOT VIABLE** — 1,747µs avg vs codegen 111µs (15.7× slower, 34.9% CPU at 200Hz). SRAM eliminated XIP cache thrashing (device runs, tight min/max) but O(24³)=13,824 MACs is the fundamental bottleneck. Codegen stays. SRAM audit of remaining hot-path functions found all <640 bytes — no further `.time_critical` placements needed. No code changes on main.
