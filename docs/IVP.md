@@ -1,7 +1,7 @@
 # RocketChip Integration and Verification Plan (IVP)
 
 **Status:** ACTIVE — Living document
-**Last Updated:** 2026-02-20
+**Last Updated:** 2026-02-24
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
 **Architecture:** Bare-metal Pico SDK, dual-core AMP (see `docs/decisions/SEQLOCK_DESIGN.md`)
 
@@ -15,7 +15,7 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stages 1-4** (Foundation, Sensors, Dual-Core, GPS): Fully detailed
 - **Phase M** (Magnetometer Calibration): Fully detailed — added out-of-sequence to correct a missed Phase 3 dependency (see note below)
 - **Stage 5** (Sensor Fusion): Fully detailed
-- **Stages 6-9** (Flight Director, Logging, Telemetry, Integration): Placeholders expanded as earlier stages complete
+- **Stages 6-10** (Flight Director, Adaptive Estimation, Logging, Telemetry, Integration): Placeholders expanded as earlier stages complete
 
 **Key references (not duplicated here):**
 - `docs/SAD.md` — System architecture, data structures, module responsibilities
@@ -93,11 +93,12 @@ cmake --build build/
 | 3 | Dual-Core Integration | Phase 2 | IVP-19 — IVP-30 | Full | |
 | 4 | GPS Navigation | Phase 3 | IVP-31 — IVP-33 | Full | |
 | **M** | **Magnetometer Calibration** | **Phase 3** | **IVP-34 — IVP-38** | **Full** | **(out-of-sequence)** |
-| 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-50 | Full | |
-| 6 | Flight Director | Phase 5 | IVP-51 — IVP-56 | Placeholder | **Crowdfunding Demo Ready** |
-| 7 | Data Logging | Phase 6 | IVP-57 — IVP-61 | Placeholder | |
-| 8 | Telemetry | Phase 7 | IVP-62 — IVP-66 | Placeholder | |
-| 9 | System Integration | Phase 9 | IVP-67 — IVP-71 | Placeholder | **Flight Ready** |
+| 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-48 | Full | |
+| 6 | Flight Director | Phase 5 | IVP-49 — IVP-53 | Placeholder | **Crowdfunding Demo Ready** |
+| 7 | Adaptive Estimation & Safety | Phase 5 | IVP-54 — IVP-57 | Placeholder | |
+| 8 | Data Logging | Phase 6 | IVP-58 — IVP-62 | Placeholder | |
+| 9 | Telemetry | Phase 7 | IVP-63 — IVP-67 | Placeholder | |
+| 10 | System Integration | Phase 9 | IVP-68 — IVP-72 | Placeholder | **Flight Ready** |
 
 ---
 
@@ -1109,7 +1110,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ## Stage 5: Sensor Fusion
 
-**Purpose:** ESKF sensor fusion, incrementally: math library, then simple baro filter, then full 15-state ESKF, then MMAE bank. See `docs/decisions/ESKF/FUSION_ARCHITECTURE.md` and `docs/decisions/ESKF/FUSION_ARCHITECTURE_DECISION.md`.
+**Purpose:** ESKF sensor fusion, incrementally: math library, then simple baro filter, then full 24-state ESKF with codegen FPFT optimization. See `docs/decisions/ESKF/FUSION_ARCHITECTURE.md` and `docs/decisions/ESKF/FUSION_ARCHITECTURE_DECISION.md`.
 
 **Prerequisite decision:** All numerical parameters in this stage (state counts, filter counts, process noise values, measurement noise values, convergence thresholds) are preliminary. Each must be derived from datasheets, Sola (2017), and empirical tuning. Do not hardcode without justification.
 
@@ -1434,7 +1435,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 **Prerequisites:** IVP-42
 
-**Implement:** `src/fusion/mahony_ahrs.h/.cpp` — independent attitude estimator running alongside ESKF. Lightweight PI controller on orientation error. Uses same IMU data from seqlock but maintains its own quaternion. Provides the independent cross-check required by the confidence gate (IVP-50).
+**Implement:** `src/fusion/mahony_ahrs.h/.cpp` — independent attitude estimator running alongside ESKF. Lightweight PI controller on orientation error. Uses same IMU data from seqlock but maintains its own quaternion. Provides the independent cross-check required by the confidence gate (IVP-55).
 
 1. **Algorithm (Mahony 2008):**
    ```
@@ -1568,7 +1569,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 **Prerequisites:** IVP-47 (ESKF tuned with all feeds fusing correctly)
 
-**Rationale:** `predict()` currently uses dense FPFT (three 15×15 matrix multiplies), benchmarked at ~496µs on target (IVP-42d). Within cycle budget for a single ESKF at 200Hz (~10% CPU), but MMAE (IVP-49) runs 4 parallel ESKFs — 4 × 496µs = ~2ms, consuming the entire 5ms cycle budget before any measurement updates. Sparse optimization must come before MMAE.
+**Rationale:** `predict()` originally used dense FPFT (three matrix multiplies), benchmarked at ~496µs on target (IVP-42d). At 24 states, dense O(N³) is not viable (1,747µs from SRAM, 15.7× slower than codegen). SymPy codegen with CSE eliminates ~90% of operations by expanding only non-zero symbolic terms at compile time.
 
 **Implement:** Exploit F_x block structure (many zero/identity blocks) to avoid the full O(N³) triple product FPFT = F P F^T + Q.
 
@@ -1591,131 +1592,33 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ---
 
-### IVP-49: MMAE Bank Manager (Titan Tier)
-
-**Prerequisites:** IVP-42, IVP-43, IVP-44, IVP-48 (sparse optimization required — 4 parallel ESKFs must fit within 2ms cycle budget)
-
-**Implement:** `src/fusion/mmae.h/.cpp` — Multiple Model Adaptive Estimation bank. Runs `⚠️ VALIDATE 4` parallel ESKF instances, each with a different process model hypothesis. The MMAE bank determines which hypothesis best matches reality and reports the weighted fused state.
-
-1. **Hypothesis interface:**
-   ```cpp
-   struct flight_hypothesis_t {
-       const char* name;                    // e.g., "nominal_ascent"
-       void (*predict_Q)(float dt, float state[15], float Q[15][15]);  // process noise for this regime
-       float (*expected_accel_mag)(void);    // expected accel magnitude
-       float (*expected_baro_rate)(void);    // expected altitude rate
-       bool  (*is_plausible)(const float state[16]);  // basic sanity check
-   };
-   ```
-   Each hypothesis modifies the process noise Q to reflect expected dynamics. For example, "on_ground" hypothesis has very low Q for velocity/position (shouldn't be moving), while "boost" has high Q for velocity (rapid acceleration expected).
-
-2. **Rocketry hypothesis library (initial set):**
-   - **On-ground:** low Q_velocity, low Q_position, accel ≈ 1g
-   - **Boost:** high Q_velocity, moderate Q_position, accel > 1g
-   - **Coast:** moderate Q_velocity, moderate Q_position, accel < 1g (drag)
-   - **Descent:** moderate Q_velocity, negative altitude rate expected
-
-3. **MMAE weighting (Bayesian likelihood):**
-   ```
-   For each filter j:
-       L_j = exp(-0.5 * innovation_j^T * S_j^-1 * innovation_j) / sqrt(det(S_j))
-       w_j = w_j_prev * L_j
-   Normalize: w_j = w_j / sum(w_k)
-   ```
-   The filter whose innovations are smallest (best predicting measurements) gets the highest weight.
-
-4. **Fused output:**
-   ```
-   x_fused = sum(w_j * x_nom_j)           // weighted nominal states
-   P_fused = sum(w_j * (P_j + (x_j - x_fused)(x_j - x_fused)^T))  // includes spread of means
-   ```
-   For quaternion averaging, use the eigenvector method or iterative mean (simple weighted average of quaternion components with normalization for small differences).
-
-5. **Memory:** 4 parallel ESKFs × ~3.8KB = ~15.2KB. Within RP2350's 520KB SRAM budget but significant. All static allocation.
-
-**[GATE]:**
-- Static bench: "on_ground" hypothesis dominates (>90% weight)
-- Simulate boost (rapid upward accel on sensor): "boost" hypothesis weight increases within `⚠️ VALIDATE 0.5 seconds`
-- Cover baro port (anomalous pressure): hypothesis that doesn't trust baro gains weight
-- Fused state is a smooth blend — no discontinuities during hypothesis transitions
-- **Benchmark:** Full bank update (4 filters × propagation + update) = Xµs (record). Must fit within `⚠️ VALIDATE 2ms` at 200Hz
-- Weight history logged for post-analysis
-- CLI `s` shows active hypothesis name and weight distribution
-
-**[DIAG]:** All weights equal = all hypotheses have similar Q (not differentiated enough). One hypothesis always dominates = others have wrong expected dynamics. Benchmark too slow = simplify hypotheses or reduce to 3 filters. Memory too large = consider smaller P representation (diagonal P approximation for non-dominant hypotheses).
+*Stage 5 complete at IVP-48. MMAE (originally planned as IVP-49) was replaced by phase-scheduled Q/R after research demonstrated that deterministic flight-phase switching via the state machine captures the same benefit at near-zero computational cost. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for full rationale.*
 
 ---
 
-### IVP-50: Confidence Gate (Titan Tier)
-
-**Prerequisites:** IVP-49, IVP-45
-
-**Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates MMAE bank health and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director (Stage 6). This is the platform safety layer — it is NOT configurable by Mission Profiles.
-
-1. **Confidence conditions (ALL must be true for `confident = true`):**
-   - **Dominant hypothesis:** max(w_j) > `⚠️ VALIDATE 0.6` — at least one filter clearly explains the data
-   - **AHRS agreement:** quaternion angular distance between ESKF fused and Mahony AHRS < `⚠️ VALIDATE 15°`
-   - **Covariance health:** max diagonal of P_fused < `⚠️ VALIDATE` threshold (position < 100m², velocity < 10 m²/s², attitude < 0.5 rad²)
-   - **Innovation consistency:** no filter has sustained innovation > 3σ for more than `⚠️ VALIDATE 5 seconds`
-
-2. **Output:**
-   ```cpp
-   struct confidence_output_t {
-       bool confident;                  // safe to execute irreversible actions
-       float max_hypothesis_weight;     // dominant hypothesis weight
-       float ahrs_divergence_deg;       // ESKF vs Mahony angle
-       uint32_t time_since_confident_ms; // 0 when confident, counts up when not
-       const char* dominant_hypothesis; // name of leading hypothesis
-   };
-   ```
-
-3. **Flight Director integration:** When `confident = false`:
-   - Pyro channels LOCKED (cannot fire)
-   - TVC commands ZEROED (neutral position)
-   - Status LED: orange pulsing
-   - Telemetry: UNCERTAIN flag set
-   - If uncertain for > `⚠️ VALIDATE 30 seconds` during descent: execute safe fallback (deploy drogue if not already deployed)
-
-4. **Hysteresis:** Transition from confident→uncertain requires `⚠️ VALIDATE 3` consecutive failing evaluations (debounce). Transition back requires `⚠️ VALIDATE 5` consecutive passing evaluations (conservative).
-
-**[GATE]:**
-- Normal operation: confidence flag = true, dominant hypothesis clear
-- Cover baro port: confidence drops as no hypothesis cleanly explains data. Actions locked
-- Uncover: confidence recovers within `⚠️ VALIDATE 15 seconds`
-- Bring magnet near: AHRS divergence grows, may trip confidence gate
-- Both ESKF and Mahony normal: confident = true
-- Introduce sustained innovation outlier: confidence flag transitions to false after debounce
-- CLI shows confidence state, dominant hypothesis, AHRS divergence, time since last confident
-- **No false confidence losses** during normal bench operation over 10 minutes
-
-**[DIAG]:** Always uncertain = thresholds too tight. Never uncertain = thresholds too loose or test conditions not anomalous enough. Flapping between confident/uncertain = hysteresis too short. Safe fallback doesn't trigger = Flight Director not consuming the flag (Stage 6 integration).
-
----
-
-## Stage 6: Flight Director — *TBD after Stage 5*
+## Stage 6: Flight Director
 
 **Purpose:** Flight state machine and event-driven actions. See SAD.md Section 6.
 
 **Prerequisite decisions:**
-- Resolve SAD Open Question #4 (Mealy vs Moore state machine) before implementing IVP-52.
-- IVP-51 (Watchdog Recovery Policy) must be completed first — the state machine depends on knowing how the system recovers from a mid-flight reboot.
+- Resolve SAD Open Question #4 (Mealy vs Moore state machine) before implementing IVP-50.
+- IVP-49 (Watchdog Recovery Policy) must be completed first — the state machine depends on knowing how the system recovers from a mid-flight reboot.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-51 | Watchdog Recovery Policy | Scratch register persistence, reboot counting, state-aware recovery path |
-| IVP-52 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
-| IVP-53 | Event Engine | Condition evaluator for launch, apogee, landing detection |
-| IVP-54 | Action Executor | LED, beep, logging trigger actions on state transitions |
-| IVP-55 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
-| IVP-56 | Mission Configuration | Load mission definitions (rocket, freeform) |
+| IVP-49 | Watchdog Recovery Policy | Scratch register persistence, reboot counting, state-aware recovery path |
+| IVP-50 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
+| IVP-51 | Event Engine | Condition evaluator for launch, apogee, landing detection |
+| IVP-52 | Action Executor | LED, beep, logging trigger actions on state transitions |
+| IVP-53 | Mission Configuration | Load mission definitions (rocket, freeform, HAB) |
 
 ---
 
-### IVP-51: Watchdog Recovery Policy
+### IVP-49: Watchdog Recovery Policy
 
 **Prerequisites:** IVP-30 (hardware watchdog mechanism), Stage 5 complete
 
-**Rationale:** IVP-30 implemented the watchdog *mechanism* (dual-core heartbeat, 5s timeout, kick pattern). The mechanism is correct for ground/IDLE — a full reboot recovers cleanly. But a full reboot mid-flight (ARMED through DESCENT) is catastrophic: ESKF state lost, pyro timers reset, position/velocity knowledge gone. The state machine (IVP-52) cannot be designed without first defining what happens when the system wakes up after an unexpected reset. This step establishes the recovery policy that IVP-50 builds on.
+**Rationale:** IVP-30 implemented the watchdog *mechanism* (dual-core heartbeat, 5s timeout, kick pattern). The mechanism is correct for ground/IDLE — a full reboot recovers cleanly. But a full reboot mid-flight (ARMED through DESCENT) is catastrophic: ESKF state lost, pyro timers reset, position/velocity knowledge gone. The state machine (IVP-50) cannot be designed without first defining what happens when the system wakes up after an unexpected reset.
 
 **Bug fix (included):** Replace `watchdog_enable_caused_reboot()` with `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks a scratch register magic value that persists across picotool flashes and soft resets, causing false watchdog warnings on clean boots. The base `watchdog_caused_reboot()` checks `rom_get_last_boot_type() == BOOT_TYPE_NORMAL` on RP2350, correctly distinguishing true WDT timeouts from reflash reboots.
 
@@ -1731,7 +1634,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 4. **ESKF failure backoff.** Add a consecutive-failure counter for ESKF init→diverge cycles. After `⚠️ VALIDATE 5` consecutive failures (init succeeds but `healthy()` returns false within N seconds), disable ESKF until manual CLI reset (`'e'` key or similar). This prevents the init→diverge→re-init churn observed during ESKF development without requiring a full system reboot. This is the model for subsystem-level recovery: detect failure, disable the failing subsystem, continue operating in degraded mode.
 
-5. **Recovery boot path.** In `init_hardware()` / `init_application()`, after reading scratch registers: if this is a WDT reboot (not POR), log the event, print the diagnostic context from scratch registers, and set a `g_recoveryBoot` flag. The state machine (IVP-52) will later use this flag to determine post-reboot behavior per flight state:
+5. **Recovery boot path.** In `init_hardware()` / `init_application()`, after reading scratch registers: if this is a WDT reboot (not POR), log the event, print the diagnostic context from scratch registers, and set a `g_recoveryBoot` flag. The state machine (IVP-50) will use this flag to determine post-reboot behavior per flight state:
    - **IDLE/LANDED:** Normal reboot + LAUNCH_ABORT flag set.
    - **ARMED:** LAUNCH_ABORT + automatic DISARM.
    - **BOOST/COAST/DESCENT:** Recovery mode — skip ESKF (can't re-init under acceleration), resume pyro timers from flash checkpoint, activate beacon. Degrade to baro-only altitude with timer-based backup deployment.
@@ -1748,51 +1651,195 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 **[DIAG]:** False WDT warning persists = still using `watchdog_enable_caused_reboot()` or scratch registers not cleared on POR. Safe mode triggers unexpectedly = reboot counter threshold too low or detection window too tight. ESKF never re-enables = backoff counter not resettable via CLI. Scratch data garbled after WDT = CRC/magic validation logic bug. LAUNCH_ABORT blocks arming unexpectedly = flag not cleared on POR or CLI command not working.
 
-> **Milestone:** At IVP-56 completion, the system has calibrated sensors, GPS, sensor fusion, and a working flight state machine — **Crowdfunding Demo Ready**.
+> **Milestone:** At IVP-53 completion, the system has calibrated sensors, GPS, sensor fusion, and a working flight state machine — **Crowdfunding Demo Ready**.
 
 ---
 
-## Stage 7: Data Logging — *TBD after Stage 6*
+## Stage 7: Adaptive Estimation & Safety
+
+**Purpose:** Phase-aware ESKF tuning and confidence-gated safety. Integrates with the state machine (IVP-50) for flight phase detection and with the Flight Director (Stage 6) for safety-gated actions.
+
+**Background:** Extended research (2026-02-24) demonstrated that MMAE/IMM is the wrong tool for RocketChip's flight regime switching. Real aerospace navigation (X-43A, SpaceX Grasshopper, ArduPilot EKF3, PX4 ECL) universally uses single kinematic filters with deterministic regime adaptation — not multi-model banks. Simple phase-scheduled Q/R captures the same benefit at near-zero computational cost. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for full rationale and benchmark data.
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| IVP-54 | Phase-Scheduled Q/R + Innovation Adaptation | Per-phase noise models tied to state machine, innovation ratio fine-tuning, optional Bierman measurement updates |
+| IVP-55 | Confidence Gate | ESKF health + AHRS cross-check → binary confidence flag for Flight Director |
+| IVP-56 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
+| IVP-57 | Vehicle Parameter Profiles | Mission-specific Q/R presets per vehicle type (rocket, HAB, drone) |
+
+---
+
+### IVP-54: Phase-Scheduled Q/R + Innovation Adaptation
+
+**Prerequisites:** IVP-50 (state machine provides flight phase detection), IVP-48 (ESKF tuned)
+
+**Implement:** Per-phase Q and R matrices selected from vehicle-specific parameter profiles, with thin innovation-ratio adaptation layer for fine-tuning.
+
+1. **Q/R profiles per flight phase:**
+   - **IDLE/ARMED:** Low Q_velocity, low Q_position (stationary), tight R_baro, normal R_mag
+   - **BOOST:** High Q_velocity (rapid acceleration), increased R_baro (vibration/transonic effects), relaxed R_mag
+   - **COAST:** Moderate Q_velocity (drag deceleration), gate R_baro during transonic transition, normal R_mag
+   - **DESCENT:** Moderate Q, restore R_baro trust, enable accel corrections for attitude (1g gate passes)
+
+2. **Transition smoothing:** Exponential ramp between Q/R values over `⚠️ VALIDATE 5-10` filter steps during detected phase transitions. Avoids covariance discontinuities from hard switching.
+
+3. **Innovation ratio adaptation (thin layer on top):** Per-channel scalar monitor: compute α = ν²/S over a `⚠️ VALIDATE 50-100` sample sliding window. If α consistently exceeds 1.0, scale up relevant Q diagonal elements. Constraints:
+   - Adapt only Q, never R simultaneously (ill-conditioned)
+   - Only diagonal Q elements
+   - Floor at 10% of phase-scheduled Q value
+   - Freeze adaptation for `⚠️ VALIDATE 0.5-1s` around phase transitions
+
+4. **Bierman measurement updates (optional, GPS-conditional):** When GPS is detected at boot, use Bierman scalar measurement updates instead of Joseph form (43µs vs 81µs per scalar update, benchmarked on hardware). Factorize P→UD before measurement epoch, Bierman updates on U/D, reconstruct after. Only activated when GPS provides ≥6 scalar measurements per epoch (break-even point for factorize overhead). Boot-time flag — not per-measurement switching. Implementation in `ud_factor.h/.cpp` already benchmarked.
+
+**[GATE]:**
+- Static bench: IDLE Q/R active, innovation ratios near 1.0
+- Simulated boost (accel stimulus): Q transitions to boost profile within 1-2 filter steps
+- Return to rest: Q transitions back within 5-10 steps
+- Innovation adaptation: artificially increase sensor noise → adaptation increases Q → innovations return to ~1.0
+- No discontinuities in state estimates during phase transitions (smooth ramp)
+- Benchmark: phase-scheduled Q/R adds <5µs overhead per predict
+- CLI shows: current phase, active Q/R profile name, innovation ratios per channel, adaptation state
+- If Bierman enabled: verify cycle time improvement matches benchmark (486µs hybrid vs 851µs Joseph)
+
+**[DIAG]:** Innovation ratios stuck high = Q too low for actual sensor noise. Phase transitions cause state jumps = ramp too fast or Q/R delta too large. Adaptation oscillates = window too short or floor too low. Bierman slower than Joseph = measurement count below break-even threshold (disable Bierman for that epoch pattern).
+
+---
+
+### IVP-55: Confidence Gate
+
+**Prerequisites:** IVP-54, IVP-45 (Mahony AHRS)
+
+**Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates ESKF innovation consistency and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director. This is the platform safety layer — NOT configurable by Mission Profiles.
+
+1. **Confidence conditions (ALL must be true for `confident = true`):**
+   - **AHRS agreement:** quaternion angular distance between ESKF and Mahony AHRS < `⚠️ VALIDATE 15°`
+   - **Covariance health:** max diagonal of P < `⚠️ VALIDATE` threshold (position < 100m², velocity < 10 m²/s², attitude < 0.5 rad²)
+   - **Innovation consistency:** no sensor channel has sustained innovation > 3σ for more than `⚠️ VALIDATE 5 seconds`
+   - **Phase agreement:** ESKF innovation behavior is consistent with state machine's detected phase (e.g., if state machine says BOOST but baro innovations suggest stationary, flag disagreement)
+
+2. **Output:**
+   ```cpp
+   struct confidence_output_t {
+       bool confident;                   // safe to execute irreversible actions
+       float ahrs_divergence_deg;        // ESKF vs Mahony angle
+       uint32_t time_since_confident_ms; // 0 when confident, counts up when not
+       bool phase_agreement;             // sensor behavior matches detected phase
+   };
+   ```
+
+3. **Hysteresis:** Transition from confident→uncertain requires `⚠️ VALIDATE 3` consecutive failing evaluations (debounce). Transition back requires `⚠️ VALIDATE 5` consecutive passing evaluations (conservative).
+
+**[GATE]:**
+- Normal operation: confidence flag = true
+- Cover baro port: innovation consistency fails, confidence drops. Actions locked
+- Uncover: confidence recovers within `⚠️ VALIDATE 15 seconds`
+- Bring magnet near: AHRS divergence grows, may trip confidence gate
+- Both ESKF and Mahony normal: confident = true
+- Introduce sustained innovation outlier: confidence transitions to false after debounce
+- CLI shows confidence state, AHRS divergence, time since last confident, phase agreement
+- **No false confidence losses** during normal bench operation over 10 minutes
+
+**[DIAG]:** Always uncertain = thresholds too tight. Never uncertain = thresholds too loose or test conditions not anomalous enough. Flapping = hysteresis too short.
+
+---
+
+### IVP-56: Confidence-Gated Actions
+
+**Prerequisites:** IVP-55 (confidence gate), IVP-52 (action executor)
+
+**Implement:** Wire confidence gate output into the Flight Director's action executor. When `confident = false`:
+- Pyro channels LOCKED (cannot fire)
+- TVC commands ZEROED (neutral position)
+- Status LED: orange pulsing
+- Telemetry: UNCERTAIN flag set
+- If uncertain for > `⚠️ VALIDATE 30 seconds` during descent: execute safe fallback (deploy drogue if not already deployed)
+
+**[GATE]:**
+- Confidence loss → pyro locked within 1 tick
+- Recovery → pyro re-enabled after hysteresis window
+- Safe fallback triggers after timeout during simulated descent
+- No pyro firing possible when `confident = false`
+
+**[DIAG]:** Safe fallback doesn't trigger = Flight Director not consuming the flag. Pyro fires despite low confidence = action executor not checking gate.
+
+---
+
+### IVP-57: Vehicle Parameter Profiles
+
+**Prerequisites:** IVP-54 (phase-scheduled Q/R framework)
+
+**Implement:** Mission-specific Q/R presets per vehicle type. The Q/R scheduling (IVP-54) selects values per flight phase — this step provides the actual phase definitions and noise parameters per vehicle type.
+
+1. **Profile structure:**
+   ```cpp
+   struct vehicle_profile_t {
+       const char* name;                           // e.g., "model_rocket"
+       phase_qr_params_t phase_params[kMaxPhases]; // Q/R per phase
+       uint8_t num_phases;
+       float boost_accel_threshold;                // |A| to detect boost
+       float coast_accel_threshold;                // |A| to detect coast
+   };
+   ```
+
+2. **Initial profiles:**
+   - **Model rocket:** IDLE, ARMED, BOOST, COAST, DESCENT, LANDED
+   - **HAB:** IDLE, ARMED, ASCENT, BURST, DESCENT, LANDED (different Q — slow ascent, no motor)
+   - **Freeform:** Single phase, default Q/R (no regime switching)
+
+3. **Selection:** Via CLI command or compile-time default. Profile is const data — no runtime allocation.
+
+**[GATE]:**
+- Switch vehicle profile: Q/R presets change accordingly
+- CLI shows active profile name
+- Each profile's phase definitions match the state machine's phase detection logic
+- Model rocket profile validated with bench soak (IDLE phase)
+
+**[DIAG]:** Phase definitions don't trigger = threshold mismatch between profile and state machine. All profiles identical = profiles not differentiated enough for vehicle type.
+
+---
+
+## Stage 8: Data Logging — *TBD after Stage 7*
 
 **Purpose:** Flight data storage. See SAD.md Sections 8, 9.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-57 | LittleFS Integration | Mount filesystem on remaining flash |
-| IVP-58 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
-| IVP-59 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
-| IVP-60 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
-| IVP-61 | USB Data Download | Download flight logs via CLI |
+| IVP-58 | LittleFS Integration | Mount filesystem on remaining flash |
+| IVP-59 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
+| IVP-60 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
+| IVP-61 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
+| IVP-62 | USB Data Download | Download flight logs via CLI |
 
 ---
 
-## Stage 8: Telemetry — *TBD after Stage 7*
+## Stage 9: Telemetry — *TBD after Stage 8*
 
 **Purpose:** MAVLink over LoRa radio. See SAD.md Sections 3.2, 8.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-62 | RFM95W Radio Driver | SPI-based LoRa radio init, TX/RX |
-| IVP-63 | MAVLink Encoder | Heartbeat, attitude, GPS, system status messages |
-| IVP-64 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
-| IVP-65 | GCS Compatibility | QGroundControl / Mission Planner connection |
-| IVP-66 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
+| IVP-63 | RFM95W Radio Driver | SPI-based LoRa radio init, TX/RX |
+| IVP-64 | MAVLink Encoder | Heartbeat, attitude, GPS, system status messages |
+| IVP-65 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
+| IVP-66 | GCS Compatibility | QGroundControl / Mission Planner connection |
+| IVP-67 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
 
 ---
 
-## Stage 9: System Integration — *TBD after Stage 8*
+## Stage 10: System Integration — *TBD after Stage 9*
 
 **Purpose:** Full system verification and flight readiness.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-67 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
-| IVP-68 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
-| IVP-69 | Power Budget Validation | Battery runtime validation under flight load |
-| IVP-70 | Environmental Stress | Temperature range, vibration (if available) |
-| IVP-71 | Flight Test | Bungee-launched glider: full data capture + telemetry |
+| IVP-68 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
+| IVP-69 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
+| IVP-70 | Power Budget Validation | Battery runtime validation under flight load |
+| IVP-71 | Environmental Stress | Temperature range, vibration (if available) |
+| IVP-72 | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
-> **Milestone:** IVP-71 — **Flight Ready**.
+> **Milestone:** IVP-72 — **Flight Ready**.
 
 ---
 
@@ -1811,11 +1858,12 @@ Tests to re-run after changes to specific areas.
 | USB/CLI code change | IVP-04, IVP-18, IVP-27 | USB stability |
 | GPS driver change | IVP-31 — IVP-33 | GPS + integration |
 | Mag calibration code change | IVP-34 — IVP-38, IVP-17 | Mag cal + accel cal regression |
-| Fusion algorithm change | IVP-39 — IVP-50 | Filter correctness |
-| Watchdog policy change | IVP-51, IVP-30 | Recovery behavior + mechanism |
-| Mission engine change | IVP-52 — IVP-56 | State machine correctness |
+| Fusion algorithm change | IVP-39 — IVP-48 | Filter correctness |
+| Adaptive estimation change | IVP-54 — IVP-57 | Q/R scheduling, confidence gate |
+| Watchdog policy change | IVP-49, IVP-30 | Recovery behavior + mechanism |
+| Flight Director change | IVP-50 — IVP-53 | State machine correctness |
 | **Major refactor** | **All Stage 1-3** | Full regression |
-| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-51, IVP-67 | Release qualification (build, USB, flash, watchdog, recovery, bench test) |
+| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-49, IVP-68 | Release qualification (build, USB, flash, watchdog, recovery, bench test) |
 
 ---
 

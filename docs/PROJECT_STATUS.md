@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-02-24
+**Last Updated:** 2026-02-24 (IVP restructured: MMAE pivot, stage renumbering)
 
 ## Current Phase
 
@@ -39,11 +39,11 @@ IVP-39 through IVP-48 complete (all measurement updates, health tuning, Mahony A
 
 ## In Progress
 
-**Stage 5: Sensor Fusion (ESKF)** — IVP-39 through IVP-48 complete. All core ESKF work done.
+**Stage 5: Sensor Fusion (ESKF)** — COMPLETE (IVP-39 through IVP-48).
 
-- IVP-47: Codegen FPFT optimization — **COMPLETE** (59µs avg, 9.1× speedup)
-- IVP-49: MMAE bank manager — pending (Titan tier)
-- IVP-50: Confidence gate — pending (Titan tier)
+**Next: Stage 6 (Flight Director)** — IVP-49 through IVP-53. Watchdog recovery policy, state machine core, event engine, action executor, mission configuration. Prerequisite: SAD Open Question #4 (Mealy vs Moore state machine) must be resolved before IVP-50.
+
+**Then: Stage 7 (Adaptive Estimation & Safety)** — IVP-54 through IVP-57. Phase-scheduled Q/R (replaces MMAE — see `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`), confidence gate, confidence-gated actions, vehicle parameter profiles.
 
 ## Blockers
 
@@ -56,7 +56,7 @@ None currently.
 
 ## Reference
 
-- `docs/IVP.md` — Full 71-step integration plan with verification gates (includes Phase M mag cal)
+- `docs/IVP.md` — Full 72-step integration plan with verification gates (includes Phase M mag cal)
 - `docs/SAD.md` — Software Architecture Document
 - `docs/SCAFFOLDING.md` — Directory structure and file listing
 - `standards/CODING_STANDARDS.md` — Platform constraints

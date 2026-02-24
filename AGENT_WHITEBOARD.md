@@ -26,13 +26,13 @@
 
 ---
 
-### Watchdog Recovery Policy — IVP-51 (New, Stage 6 Prerequisite)
+### Watchdog Recovery Policy — IVP-49 (Stage 6 First Step)
 
-**Added 2026-02-12.** IVP-30 watchdog mechanism is correct for ground/IDLE. But a full reboot mid-flight loses all ESKF state, pyro timers, and nav knowledge. IVP-51 added as first step of Stage 6 (before state machine IVP-52) to define the recovery policy: scratch register persistence, reboot counting with safe-mode lockout, ESKF failure backoff, and recovery boot path.
+**Added 2026-02-12.** IVP-30 watchdog mechanism is correct for ground/IDLE. But a full reboot mid-flight loses all ESKF state, pyro timers, and nav knowledge. IVP-49 added as first step of Stage 6 (before state machine IVP-50) to define the recovery policy: scratch register persistence, reboot counting with safe-mode lockout, ESKF failure backoff, and recovery boot path.
 
-**False warning bug — FIXED (2026-02-12).** Root cause: both SDK functions are broken for our use case. `watchdog_caused_reboot()` gives false positives on SWD `monitor reset run` (reason register persists, `rom_get_last_boot_type()` returns `BOOT_TYPE_NORMAL`). `watchdog_enable_caused_reboot()` gives false negatives on real timeouts (bootrom overwrites scratch[4]). Fix: custom sentinel in scratch[0] (`kWatchdogSentinel = 0x52435754`), written before `watchdog_enable()`, checked and cleared at boot. Scratch[0] survives watchdog resets but is cleared by POR/SWD reset. HW verified: no warning on cold plug, boot button, or first SWD flash. Warning correctly appears on SWD reflash while watchdog is running (genuine timeout during bootrom — bootrom takes >5s, watchdog fires). This remaining case will be addressed with the broader IVP-51 watchdog recovery policy.
+**False warning bug — FIXED (2026-02-12).** Root cause: both SDK functions are broken for our use case. `watchdog_caused_reboot()` gives false positives on SWD `monitor reset run` (reason register persists, `rom_get_last_boot_type()` returns `BOOT_TYPE_NORMAL`). `watchdog_enable_caused_reboot()` gives false negatives on real timeouts (bootrom overwrites scratch[4]). Fix: custom sentinel in scratch[0] (`kWatchdogSentinel = 0x52435754`), written before `watchdog_enable()`, checked and cleared at boot. Scratch[0] survives watchdog resets but is cleared by POR/SWD reset. HW verified: no warning on cold plug, boot button, or first SWD flash. Warning correctly appears on SWD reflash while watchdog is running (genuine timeout during bootrom — bootrom takes >5s, watchdog fires). This remaining case will be addressed with the broader IVP-49 watchdog recovery policy.
 
-**IVP renumber (2026-02-18):** All Stage 6-9 IVP numbers shifted +2 (IVP-49→51 through IVP-69→71). New IVP-47 (Sparse FPFT) and IVP-48 (ESKF Health Tuning) inserted.
+**IVP renumber (2026-02-24):** MMAE pivot + stage restructuring. Stage 5 ends at IVP-48. New Stage 6 (Flight Director, IVP-49–53), new Stage 7 (Adaptive Estimation & Safety, IVP-54–57). Downstream stages renumbered 8–10 (IVP-58–72). See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`.
 
 ---
 
@@ -49,7 +49,7 @@
 | Document | Priority | Needed By |
 |----------|----------|-----------|
 | DPS310 datasheet (Infineon) | MEDIUM | ESKF baro tuning, IVP-48 health diagnostics |
-| RFM95W / SX1276 datasheet (Semtech) | MEDIUM | Stage 8 (telemetry) |
+| RFM95W / SX1276 datasheet (Semtech) | MEDIUM | Stage 9 (telemetry) |
 
 Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 
@@ -59,15 +59,15 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 
 *Items noted for future stages — not blocking, no action needed now.*
 
-- **ESKF Readability/Optimization Pass (post-IMM/MMAE):** `reset_covariance_attitude()` is 52 lines (threshold 60) — close to limit and will grow with IMM mode transitions. `scalar_kalman_update()` inner loop could benefit from a named rank-1 P update helper. `clamp_extended_covariance()` uses if/else chains per state block — a table-driven pattern (`{idx, count, clamp, inhibit_flag}` array) would scale better as more blocks are added. Not blocking — all functions pass the pre-commit hook now, but a deeper pass would improve readability and prepare for IMM/MMAE expansion.
+- **ESKF Readability/Optimization Pass (post-Stage 7):** `reset_covariance_attitude()` is 52 lines (threshold 60) — close to limit and will grow with phase-scheduled Q/R transitions. `scalar_kalman_update()` inner loop could benefit from a named rank-1 P update helper. `clamp_extended_covariance()` uses if/else chains per state block — a table-driven pattern (`{idx, count, clamp, inhibit_flag}` array) would scale better as more blocks are added. Not blocking — all functions pass the pre-commit hook now, but a deeper pass would improve readability and prepare for phase-scheduled Q/R + Bierman integration.
 - **3-Axis Magnetometer Model (Titan tier):** Current `update_mag_heading()` uses yaw-only scalar H (heading + WMM declination). Mag states (earth_mag indices 15-17, body_mag_bias 18-20) are **unobservable** with this model — no F coupling (identity propagation), no H entries at 15-20. States MUST remain inhibited until a proper 3-axis measurement model is implemented: `z_predicted = R(q) * earth_mag_NED + body_mag_bias`, with H entries at attitude (0-2), earth_mag (15-17), body_mag_bias (18-20). WMM table already has field data — needs inclination + magnitude extraction in addition to current declination-only use. ArduPilot reference: `fuseMagnetometer()` in `NavEKF3_MagFusion.cpp`. Once implemented, flip `inhibit_mag_states_` to enable.
 - **F' Evaluation:** Three Titan paths identified (A: STM32H7+F'/Zephyr, B: Pi Zero 2 W+F'/Linux, C: Hybrid). Research complete in `docs/decisions/TITAN_BOARD_ANALYSIS.md`. Decision deferred until Titan development begins.
 - ~~**FeatherWing UART GPS:**~~ **DONE** (2026-02-18). `gps_uart.cpp` driver complete with interrupt-driven ring buffer. Outdoor validated.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
-- **LED Engine Refactor (back burner):** Current ws2812 driver is a solid animation engine but callers must manage transition-only `set_mode()` calls manually (fixed 2026-02-19 with `neo_set_if_changed()`). Refactor to a proper declarative state machine where flight/status states map to LED patterns — the engine handles transitions internally. Natural integration point: IVP-54 (action executor) when mapping to ArduPilot AP_Notify standard codes. Outdoor LED verification pending with GPS fix test.
+- **LED Engine Refactor (back burner):** Current ws2812 driver is a solid animation engine but callers must manage transition-only `set_mode()` calls manually (fixed 2026-02-19 with `neo_set_if_changed()`). Refactor to a proper declarative state machine where flight/status states map to LED patterns — the engine handles transitions internally. Natural integration point: IVP-52 (action executor) when mapping to ArduPilot AP_Notify standard codes. Outdoor LED verification pending with GPS fix test.
 - **clang-tidy Integration:** LLVM installed, 127-check config active, full audit clean (2026-02-20, P5c complete). **All code fully remediated** across 6 phases (P1-P5c, 1,501 total findings + 24 function decompositions). Pre-commit hook active for function-size + cognitive complexity gate. Full 127-check pre-commit enforcement deferred (too slow for every commit). **Post-dev caveat:** clang-tidy has no native cyclomatic complexity check — the cognitive complexity gate is a proxy, not equivalent. JSF AV Rule 3 requires cyclomatic CC <= 20. A post-dev audit with a true cyclomatic tool is needed for final JSF compliance sign-off. Options: (1) `lizard` — Python, `pip install lizard`, run `lizard -C 20 src/` for instant per-function CC report; (2) `pmccabe` — C-native, lightweight; (3) `metrix++` — Python, multi-metric. Manual review of functions scoring cognitive 20+ is also viable given the codebase size.
 - **Dynamic Peripheral Detection + OTA Drivers (Crowdfunding Goal):** Boot-time probe-first detection implemented (2026-02-10). Runtime hot-plug, driver registry, and OTA firmware downloads for unrecognized devices are stretch goals. Full architecture documented in SAD Section 13.2. Flipper Zero-style: plug in a sensor, RC identifies it, prompts for driver. WiFi/BT OTA for Core/Middle tiers.
-- **State-Aware ZUPT for State Machine (IVP-52):** Current ZUPT (IVP-44b) uses IMU-based stationarity detection with kSigmaZupt=0.5 m/s. When the state machine knows we're IDLE or ARMED (on pad), we can: (1) tighten R to ~0.1 m/s since stationarity is guaranteed, (2) skip the accel/gyro stationarity check entirely, (3) keep loose ZUPT as fallback for uncertain states (LANDED before confirmed). ArduPilot EKF3 `onGround` flag and PX4 ECL `vehicle_at_rest` both use vehicle state to override IMU-based detection. Natural integration point: `eskf_tick()` checks flight state and calls `update_zupt()` with tighter R when on pad.
+- **State-Aware ZUPT for State Machine (IVP-50):** Current ZUPT (IVP-44b) uses IMU-based stationarity detection with kSigmaZupt=0.5 m/s. When the state machine knows we're IDLE or ARMED (on pad), we can: (1) tighten R to ~0.1 m/s since stationarity is guaranteed, (2) skip the accel/gyro stationarity check entirely, (3) keep loose ZUPT as fallback for uncertain states (LANDED before confirmed). ArduPilot EKF3 `onGround` flag and PX4 ECL `vehicle_at_rest` both use vehicle state to override IMU-based detection. Natural integration point: `eskf_tick()` checks flight state and calls `update_zupt()` with tighter R when on pad.
 - **Direct NOAA/IGRF WMM Table Generation:** Current WMM declination table is converted from ArduPilot's `AP_Declination/tables.cpp` (IGRF13 epoch). Long-term goal: generate table directly from NOAA WMM/IGRF coefficients (spherical harmonic expansion) to remove AP dependency. NOAA publishes WMM coefficients as `WMM.COF` file every 5 years (next: WMM2030). Python script to evaluate the model at grid points and output C++ table. Not blocking — current table is valid through ~2028-2029.
 - **Power Optimization: Codegen FPFT is mandatory (2026-02-23).** Dense+SRAM benchmark proved dense is 15.7× slower (1,747µs vs 111µs) — not viable at 24 states even from SRAM. Codegen is the only feasible path. For future power work: codegen allows 4,889µs WFI sleep per 5,000µs tick (2.2% active). Sensors dominate power budget (IMU ~3mA, GPS ~25mA, NeoPixel ~5-8mA). RP2350 Cortex-M33: ~15-25mA active, ~1-5mA WFI sleep. Revisit only if state count grows beyond 24 or if FPU-accelerated dense becomes available on a future MCU.
 - **RC GCS: GPS-free 3D Flight Path Reconstruction (user request, 2026-02-13):** Post-processing feature for RC GCS. Uses raw IMU+baro+mag flight logs with forward-backward RTS smoother and known boundary conditions (launch point = origin, v=0 at ignition and landing, landing point from recovery GPS/manual entry). Reconstructs full 3D flight path without real-time GPS. Core tier ships without GPS — this makes 3D visualization viable for all tiers. Natural companion to IVP-44b ZUPT (stationary constraint) and IVP-46 (GPS when available). Reference: ArduPilot `tools/replay/`, PX4 `ecl/EKF/ekf_helper.cpp` smoother.
@@ -110,6 +110,16 @@ Full 5-test benchmark suite completed. See `docs/benchmarks/UD_BENCHMARK_RESULTS
 
 **Bierman advantage noted.** Bierman is consistently faster than Joseph for scalar updates. If measurement update becomes a bottleneck at higher sensor rates, Bierman with factorize/reconstruct around codegen predict is a viable hybrid path (486µs vs 851µs per epoch)
 
+### MMAE/IMM Pivot — Phase-Scheduled Q/R Replaces MMAE (2026-02-24)
+
+Research across 4 phases proved MMAE/IMM is the wrong tool for RocketChip's flight regime switching. Real aerospace navigation (X-43A, SpaceX, ArduPilot EKF3, PX4 ECL) uses single kinematic filters with deterministic regime adaptation — not multi-model banks. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for full analysis.
+
+**New architecture (Stage 7, IVP-54):** Phase-scheduled Q/R matrices tied to state machine flight phases (IDLE→ARMED→BOOST→COAST→DESCENT→LANDED) + thin innovation-ratio adaptation layer + optional Bierman scalar measurement updates (GPS-conditional, boot-time detection). Captures 80-90% of IMM's benefit at near-zero complexity cost. Software identical across all tiers — Titan differs only in hardware.
+
+**IVP restructuring:** Stage 5 ends at IVP-48. New Stage 6: Flight Director (IVP-49–53). New Stage 7: Adaptive Estimation & Safety (IVP-54–57). Downstream stages renumbered 8–10 (IVP-58–72). Total IVP count: 72.
+
+---
+
 ### 24-State ESKF Expansion — COMPLETE (2026-02-21)
 
 15→24 error states: earth_mag NED (3), body_mag_bias (3), wind_NE (2), baro_bias (1). Runtime inhibit flags (ArduPilot EKF3 pattern) — all new states inhibited by default. Codegen regenerated for 24 states (111µs avg, was 59µs at 15-state). O(N²) rank-1 Joseph form replaced O(N³) dense triple product in measurement updates. Sparse reset exploiting G=I except 3×3 attitude block (~450 MACs vs ~27,648 dense). 199/199 host tests, 0 sensor errors on target. CLI shows `inhib: mag=Y wind=Y bbias=Y` + conditional extended state display. 18 files changed.
@@ -120,7 +130,7 @@ SymPy codegen (`scripts/generate_fpft.py`) generates flat scalar C++ for F*P*F^T
 
 ### IVP-48 ESKF Health Tuning — COMPLETE (2026-02-20)
 
-Fixed mNIS=124.99 death spiral: tilt R inflation (30-60°, ArduPilot `fuseEulerYaw`), hard reject >60°, 300σ gate (ArduPilot EKF3 match), public `reset_mag_heading()` for IVP-52 state machine. Per-sensor accept/reject counters, CLI health dashboard (`s` gate counters + P diags, `e` mA + zNIS). Q review: all values correct. 192/192 host tests. HW verified: mNIS 0.00–0.52, zero errors.
+Fixed mNIS=124.99 death spiral: tilt R inflation (30-60°, ArduPilot `fuseEulerYaw`), hard reject >60°, 300σ gate (ArduPilot EKF3 match), public `reset_mag_heading()` for IVP-50 state machine. Per-sensor accept/reject counters, CLI health dashboard (`s` gate counters + P diags, `e` mA + zNIS). Q review: all values correct. 192/192 host tests. HW verified: mNIS 0.00–0.52, zero errors.
 
 ### P5c clang-tidy Function Decomposition — COMPLETE (2026-02-20)
 

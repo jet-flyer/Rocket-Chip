@@ -23,7 +23,7 @@ Host tests verify the math is correct. Stationary soaks verify stability. Neithe
 | 2 | Turntable / Known-Rotation Test | Low | High | Turntable or lazy susan |
 | 3 | Pendulum Test | Very low | Medium | String, known length |
 | 4 | Elevator Test | Low | High (baro/altitude) | Access to multi-story building |
-| 5 | Data Logging + Replay Infrastructure | Medium | Highest (multiplier) | Flash/SD logging (Stage 7) or serial capture |
+| 5 | Data Logging + Replay Infrastructure | Medium | Highest (multiplier) | Flash/SD logging (Stage 8) or serial capture |
 | 6 | Vehicle GPS-vs-INS Comparison | Medium | Highest (dynamic) | GPS lock, vehicle, logging |
 
 ---
@@ -207,17 +207,17 @@ Physical test → Raw sensor log (CSV/binary on flash)
             Output comparison (vs truth or vs previous run)
 ```
 
-**Minimum viable version (before Stage 7 logging):**
+**Minimum viable version (before Stage 8 logging):**
 - Stream raw sensor data over serial at reduced rate (50-100 Hz)
 - Python script captures timestamped CSV
 - Replay through host build
 
-**Full version (Stage 7+):**
+**Full version (Stage 8+):**
 - Binary logging to PSRAM/flash at full rate
 - Post-download to PC
 - Replay with full-rate data
 
-**Relationship to IVP:** Stage 7 (IVP-57 through IVP-61) covers the data logging subsystem. The replay harness already exists in `test/replay/`. The gap is the on-device recording side.
+**Relationship to IVP:** Stage 8 (IVP-58 through IVP-62) covers the data logging subsystem. The replay harness already exists in `test/replay/`. The gap is the on-device recording side.
 
 ---
 

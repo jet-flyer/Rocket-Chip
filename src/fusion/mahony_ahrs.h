@@ -49,7 +49,7 @@ struct MahonyAHRS {
 
     // Startup: 10× Kp for first 20s, then decay to normal.
     // BetaFlight pattern — fast convergence on power-on.
-    // TODO(IVP-52): also terminate on ARM state transition.
+    // TODO(IVP-50): also terminate on ARM state transition.
     static constexpr float kStartupKpMultiplier = 10.0f;
     static constexpr float kStartupDurationS    = 20.0f;
 

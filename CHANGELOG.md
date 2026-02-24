@@ -20,6 +20,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-24-002 | Claude Code CLI | documentation
+
+**MMAE pivot documentation + IVP restructuring.** Updated project documentation to reflect ESKF research findings: MMAE/IMM replaced by phase-scheduled Q/R (IVP-54, Stage 7). Stage 5 marked complete (IVP-39–48). New Stage 6: Flight Director (IVP-49–53). New Stage 7: Adaptive Estimation & Safety (IVP-54–57). Downstream stages renumbered 8–10 (IVP-58–72, total 72). Audited and fixed stale IVP references across 8 docs + 3 source files (comment-only: IVP-52→IVP-50 in eskf.h, main.cpp, mahony_ahrs.h). Added superseded banner to PHASE5_ESKF_PLAN.md.
+
+(`docs/IVP.md`, `docs/PROJECT_STATUS.md`, `AGENT_WHITEBOARD.md`, `docs/SAD.md`, `docs/SCAFFOLDING.md`, `docs/PHASE5_ESKF_PLAN.md`, `docs/ESKF_TESTING_GUIDE.md`, `docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md`, `docs/DYNAMIC_VALIDATION.md`, `src/main.cpp`, `src/fusion/eskf.h`, `src/fusion/mahony_ahrs.h`)
+
+---
+
 ### 2026-02-24-001 | Claude Code CLI | architecture
 
 **UD factorization + DCP float64 benchmark.** Implemented and ran 5-test benchmark suite comparing UD (Thornton WMGS + Bierman) vs current codegen FPFT + Joseph architecture. Phase 1 gate **PASS**: P is rock-stable at 100K steps with codegen — no negative diagonals, zero asymmetry, condition number bounded. UD not needed for numerical stability. DCP float64 is 7.8× slower than f32 FPU per MAC. Thornton f32 predict is 29.6× slower than codegen (1,420µs vs 48µs). Bierman scalar update is 2× faster than Joseph (43µs vs 81µs). Fixed Thornton D-array in-place corruption bug (algorithm requires old D values during WMGS sweep — added snapshot). Fixed NaN detection in `ud_all_positive()`.

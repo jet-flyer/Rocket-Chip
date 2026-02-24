@@ -1,8 +1,10 @@
-# Phase 5: ESKF + MMAE Development Plan
+# Phase 5: ESKF Development Plan
+
+> **SUPERSEDED (2026-02-24):** Stage 5 is COMPLETE (IVP-39 through IVP-48). The MMAE sections below (old IVP-47 MMAE, old IVP-50 Confidence Gate) are **obsolete** — MMAE was replaced by phase-scheduled Q/R (now IVP-54, Stage 7). See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for the research that drove this pivot. The confidence gate concept survives as IVP-55 but without MMAE bank evaluation. IVP-39 through IVP-46 content below remains accurate as a historical record of the completed work.
 
 ## Context
 
-Phase 5 (IVP-39 through IVP-50) implements sensor fusion from math primitives through a 15-state ESKF with MMAE. The ESKF Testing Guide (`docs/ESKF_TESTING_GUIDE.md`) defines a parallel host-side testing infrastructure. This plan integrates both tracks, resolves doc contradictions, and incorporates council review findings.
+Phase 5 (IVP-39 through IVP-48) implements sensor fusion from math primitives through a 24-state ESKF with codegen FPFT optimization. The ESKF Testing Guide (`docs/ESKF_TESTING_GUIDE.md`) defines a parallel host-side testing infrastructure. This plan integrates both tracks, resolves doc contradictions, and incorporates council review findings.
 
 **Document precedence:** Newer decision documents supersede older ones. `docs/decisions/SENSOR_FUSION_TIERS.md` (2026-02-10) is the most recent and authoritative tier document. `FUSION_ARCHITECTURE_DECISION.md` (2026-02-02) and `FUSION_ARCHITECTURE.md` (2026-02-02) are earlier decisions that are superseded where they conflict (e.g., Core tier MMAE/confidence gate scoping).
 
@@ -44,12 +46,10 @@ Per `SENSOR_FUSION_TIERS.md` (the authoritative document, 2026-02-10):
 | Confidence gate | **Yes** | Yes | Safety feature, not multi-IMU. Evaluates MMAE health + AHRS cross-check. |
 | Sensor affinity | No | Gemini only (dual-MCU) | Multi-IMU feature, not needed with single sensor set |
 
-**Scope of this plan:** IVP-39 through IVP-50. All steps are in scope:
-- **IVP-39-46:** Baseline ESKF with measurement updates and Mahony cross-check
-- **IVP-47 (MMAE):** Recommended for Core tier per TIERS.md Option B
-- **IVP-50 (Confidence Gate):** Core tier — not a multi-IMU feature, it evaluates MMAE bank health + AHRS agreement + covariance bounds + innovation consistency. RP2350 has ample compute headroom. Multi-IMU sensor affinity is the Gemini-only feature.
-
-**Note:** FUSION_ARCHITECTURE.md and FUSION_ARCHITECTURE_DECISION.md (decision documents, not modified) have older tier tables showing "No MMAE, no confidence gate" for Core. SENSOR_FUSION_TIERS.md (2026-02-10) supersedes — MMAE recommended for Core, confidence gate is Core (not multi-IMU), sensor affinity is Gemini-focused. SAD.md tier references need alignment.
+**Scope of this plan:** IVP-39 through IVP-48 (completed). Original scope included MMAE (old IVP-47) and confidence gate (old IVP-50) — these were moved to Stage 7 as IVP-54 (phase-scheduled Q/R, replacing MMAE) and IVP-55 (confidence gate, without MMAE bank evaluation) after the 2026-02-24 MMAE pivot.
+- **IVP-39-46:** Baseline ESKF with measurement updates and Mahony cross-check — COMPLETE
+- **IVP-47:** Codegen FPFT optimization (9.1× speedup) — COMPLETE (was old "Sparse FPFT" slot)
+- **IVP-48:** ESKF Health Tuning — COMPLETE
 
 ---
 

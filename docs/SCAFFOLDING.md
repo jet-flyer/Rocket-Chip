@@ -1,7 +1,7 @@
 # RocketChip Directory Structure
 
 **Created:** 2026-01-09
-**Updated:** 2026-02-20
+**Updated:** 2026-02-24
 
 **Status:** Reflects actual filesystem as of Stage 5 (Sensor Fusion). Previous ArduPilot integration archived in `AP_FreeRTOS` and `AP_ChibiOS` branches.
 
@@ -33,6 +33,7 @@ rocketchip/
 │   ├── SEQLOCK_STRUCT_LAYOUT.md   # Cross-core data sharing layout
 │   ├── MULTICORE_RULES.md         # RP2350 dual-core programming rules
 │   ├── PHASE5_ESKF_PLAN.md        # ESKF implementation plan
+│   ├── DYNAMIC_VALIDATION.md      # Physical ESKF verification test methods
 │   ├── ESKF_TESTING_GUIDE.md      # ESKF test and replay harness guide
 │   ├── HARDWARE_BUDGETS.md        # Power and weight budgets
 │   ├── TOOLCHAIN_VALIDATION.md    # Build/debug setup guide
@@ -50,7 +51,10 @@ rocketchip/
 │   │   ├── TITAN_BOARD_ANALYSIS.md
 │   │   └── ESKF/
 │   │       ├── FUSION_ARCHITECTURE.md
-│   │       └── FUSION_ARCHITECTURE_DECISION.md
+│   │       ├── FUSION_ARCHITECTURE_DECISION.md
+│   │       └── ESKF_RESEARCH_SUMMARY.md  # MMAE pivot research (2026-02-24)
+│   ├── benchmarks/
+│   │   └── UD_BENCHMARK_RESULTS.md      # UD factorization benchmark (2026-02-24)
 │   ├── flight_director/
 │   │   ├── FLIGHT_DIRECTOR_DESIGN.md    # Flight Director design (Stage 6)
 │   │   └── RESEARCH.md
@@ -96,12 +100,14 @@ rocketchip/
 │   │   └── lwgps_opts.h           # lwGPS config overrides
 │   │
 │   ├── fusion/                    # Sensor Fusion (Stage 5)
-│   │   ├── eskf.cpp/.h            # 15-state Error-State Kalman Filter
+│   │   ├── eskf.cpp/.h            # 24-state Error-State Kalman Filter
+│   │   ├── eskf_codegen.cpp/.h    # SymPy-generated FPFT (SRAM, .time_critical)
 │   │   ├── eskf_state.h           # ESKF state vector definitions
 │   │   ├── mahony_ahrs.cpp/.h     # Independent Mahony AHRS cross-check
 │   │   ├── baro_kf.cpp/.h         # 1D baro Kalman filter (host tests only, not in firmware)
+│   │   ├── ud_factor.cpp/.h       # UD factorization (benchmark only, not in firmware)
 │   │   ├── wmm_declination.cpp/.h # World Magnetic Model declination lookup
-│   │   └── (future: mmae.*, confidence_gate.* — Titan tier)
+│   │   └── (future: confidence_gate.* — Stage 7)
 │   │
 │   ├── math/                      # Math utilities (header-heavy)
 │   │   ├── mat.h                  # NxM matrix template (header-only)
@@ -149,7 +155,9 @@ rocketchip/
 │   ├── accel_cal_6pos.py          # Interactive 6-position calibration
 │   ├── i2c_soak_test.py           # Long-duration I2C reliability test
 │   ├── eskf_gps_soak.py           # ESKF GPS soak test
-│   └── codegen_soak_test.py       # Binary change soak comparison
+│   ├── codegen_soak_test.py       # Binary change soak comparison
+│   ├── generate_fpft.py           # SymPy codegen for ESKF FPFT (CSE optimization)
+│   └── run_clang_tidy.sh          # clang-tidy runner with project config
 │
 ├── lib/                           # External libraries (git submodules)
 │   ├── icm20948/                  # Vendor reference library
@@ -193,7 +201,8 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 | **gps_pa1010d** | PA1010D GPS driver — I2C backend with 32-byte chunked reads |
 | **gps_uart** | GPS UART backend — interrupt-driven ring buffer, baud negotiation, 10Hz rate |
 | **ws2812_status** | NeoPixel status LED — animation engine with mode-based patterns |
-| **eskf** | 15-state Error-State Kalman Filter — propagation + baro/mag/GPS/ZUPT updates |
+| **eskf** | 24-state Error-State Kalman Filter — propagation + baro/mag/GPS/ZUPT updates |
+| **eskf_codegen** | SymPy-generated FPFT covariance prediction — SRAM execution (.time_critical) |
 | **mahony_ahrs** | Independent Mahony AHRS — 200Hz attitude cross-check for ESKF |
 | **wmm_declination** | World Magnetic Model — declination lookup by lat/lon |
 | **calibration_manager** | Gyro bias, level cal, 6-position accel cal, magnetometer ellipsoid fit |
@@ -213,7 +222,7 @@ Bare-metal dual-core AMP (Asymmetric Multiprocessing) on RP2350:
 | Target | Type | Description |
 |--------|------|-------------|
 | `rocketchip` | Prod | Main firmware (RP2350 target) |
-| `rocketchip_tests` | Dev | Host-side Google Test suite (187+ tests) |
+| `rocketchip_tests` | Dev | Host-side Google Test suite (194+ tests) |
 | `mat_benchmark` | Dev | Matrix math performance benchmark |
 
 Build commands:
@@ -227,7 +236,7 @@ cmake -B build_host -G Ninja -DBUILD_HOST_TESTS=ON && cmake --build build_host
 
 ## Implementation Status
 
-For the complete 71-step development roadmap, see **`docs/IVP.md`**.
+For the complete 72-step development roadmap, see **`docs/IVP.md`**.
 For current focus and blockers, see **`docs/PROJECT_STATUS.md`**.
 
 | Stage | IVPs | Status | Summary |
@@ -237,11 +246,12 @@ For current focus and blockers, see **`docs/PROJECT_STATUS.md`**.
 | 3: Dual-Core | 19–30 | Complete | Core 1, atomics, spinlock, FIFO, doorbell, seqlock, sensor migration, MPU, watchdog |
 | 4: GPS Integration | 31–33 | Complete | PA1010D on Core 1, outdoor fix validated |
 | Phase M: Mag Cal | 34–38 | Complete | Data structures, LM ellipsoid solver, CLI wizard, live apply |
-| 5: Sensor Fusion | 39–50 | In Progress | ESKF + all measurement updates done (39–46). Sparse FPFT (47) and health tuning (48) pending. MMAE (49) and confidence gate (50) are Titan tier |
-| 6: Flight Director | 51–56 | Planned | Watchdog recovery, state machine, event engine, action executor |
-| 7: Data Logging | 57–61 | Planned | LittleFS, logger service, pre-launch buffer |
-| 8: Telemetry | 62–66 | Planned | RFM95W, MAVLink, GCS compatibility |
-| 9: System Integration | 67–71 | Planned | Bench test, flight test, environmental |
+| 5: Sensor Fusion | 39–48 | Complete | 24-state ESKF, codegen FPFT, health tuning, Mahony AHRS |
+| 6: Flight Director | 49–53 | Planned | Watchdog recovery, state machine, event engine, action executor, mission config |
+| 7: Adaptive Estimation | 54–57 | Planned | Phase-scheduled Q/R, confidence gate, confidence-gated actions, vehicle profiles |
+| 8: Data Logging | 58–62 | Planned | LittleFS, logger service, pre-launch buffer |
+| 9: Telemetry | 63–67 | Planned | RFM95W, MAVLink, GCS compatibility |
+| 10: System Integration | 68–72 | Planned | Bench test, flight test, environmental |
 
 **Archived Work:**
 Previous ArduPilot integration preserved in `AP_FreeRTOS` and `AP_ChibiOS` branches.

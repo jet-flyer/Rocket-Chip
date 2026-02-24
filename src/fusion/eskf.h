@@ -68,7 +68,7 @@ struct ESKF {
     // IMU noise parameters — ICM-20948 DS-000189 v1.3
     // Reviewed IVP-47 Step 6: all values verified correct.
     // Bias walk values conservative for stationary/low-vibration.
-    // IVP-52 note: may need 10-100× increase during boost/coast phases.
+    // IVP-50 note: may need 10-100× increase during boost/coast phases.
     // =================================================================
 
     // Gyro noise spectral density: 0.015 dps/√Hz (Table 1, BW=10Hz, FS_SEL=0)
@@ -219,7 +219,7 @@ struct ESKF {
     static constexpr float kMagInterferenceRScale = 10.0f;              // R inflation factor (25-50% band)
     static constexpr float kMagMinMagnitude = 1.0f;                     // µT — below this, reject
 
-    // Consecutive rejection threshold for state machine use (IVP-52).
+    // Consecutive rejection threshold for state machine use (IVP-50).
     // With 300σ gate, automatic reset is unnecessary (gate never fires).
     // The state machine can call reset_mag_heading() when this is exceeded.
     static constexpr uint32_t kMagResetAfterRejects = 50;  // ~5s at 10Hz mag
@@ -368,7 +368,7 @@ struct ESKF {
     // Force-reset yaw to measured heading (IVP-47).
     // Resets q yaw, P[yaw,yaw] = kInitPAttitude, zeros yaw cross-covariances.
     // Navigation states may briefly wobble; settles in 2-3s with GPS.
-    // Public API for state machine (IVP-52) and explicit heading alignment.
+    // Public API for state machine (IVP-50) and explicit heading alignment.
     void reset_mag_heading(float headingMeasured);
 
     // Zero-velocity pseudo-measurement update (IVP-44b).
