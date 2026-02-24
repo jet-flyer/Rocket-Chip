@@ -26,6 +26,7 @@ Local copies stored in `docs/hardware/datasheets/` for centralized offline acces
 | RFM69HCW | HopeRF RFM69HCW v1.1 | `docs/hardware/datasheets/RFM69HCW-datasheet.pdf` | ISM transceiver module (79 pages) |
 | ISM330DHCX | ST ISM330DHCX | `docs/hardware/datasheets/ISM330DHCX-datasheet.pdf` | 6-DoF IMU (Adafruit 9-DoF FeatherWing) |
 | LIS3MDL | ST LIS3MDL | `docs/hardware/datasheets/LIS3MDL-datasheet.pdf` | 3-axis magnetometer (Adafruit 9-DoF FeatherWing) |
+| ADXL375 | Analog Devices ADXL375 Rev. B | `docs/hardware/datasheets/ADXL375.pdf` | ±200g 3-axis high-G accelerometer (Pro tier) |
 
 ---
 

@@ -121,6 +121,7 @@ Available for testing but not in active prototype:
 ### Sensors
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
+| ADXL375 High-G Accelerometer | #5374 | ±200g, I2C/SPI, STEMMA QT — for high-power rocket flights |
 | ISM330DHCX + LIS3MDL FeatherWing | #4569 | 9-DoF combo, higher precision option |
 | LSM6DSOX + LIS3MDL FeatherWing | #4517 | 9-DoF combo, alternative IMU option |
 | BNO055 | #2472 | Onboard sensor fusion, 100Hz output |
@@ -128,9 +129,16 @@ Available for testing but not in active prototype:
 | BMP280 | #2651 | Barometer, lower precision than DPS310 |
 | VL53L4CD ToF Sensor | #5396 | Time of flight distance sensor, STEMMA QT |
 
+### Radio Modules
+| Part | Adafruit P/N | Qty | Notes |
+|------|--------------|-----|-------|
+| LoRa Radio FeatherWing (RFM95W 915MHz) | #3231 | 2 | US ISM band, pairs with GCS receiver |
+
 ### Accessories
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
+| Teensy 3.x Feather Adapter | #3200 | Allows Teensy boards in Feather ecosystem |
+| Pico to Pi HAT X Converter | #6249 | Bridges Pico to Pi HAT form factor |
 | FeatherWing OLED 128x64 | #4650 | Status display option |
 | Proto PiCowBell | #5905 | Prototyping plate for Pico |
 | Li-Ion 150mAh | #1317 | Smaller battery option |
@@ -175,13 +183,13 @@ UBX output parsing is identical across M8/M9/M10 — only configuration commands
 ### Telemetry (Booster Pack)
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
-| LoRa Radio FeatherWing (RFM95W 915MHz) | #3231 | Current testing board, US ISM band |
+| LoRa Radio FeatherWing (RFM95W 915MHz) | #3231 | **On hand** (×2), US ISM band |
 | RFM69HCW Radio FeatherWing (915MHz) | #3229 | Alternative, shorter range but cheaper |
 
 ### Pro Tier Upgrades
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
-| ADXL375 High-G Accelerometer | #5374 | ±200g for high-power rockets |
+| ADXL375 High-G Accelerometer | #5374 | ±200g for high-power rockets — **on hand** |
 | BMP580 | #6407 | 2cm noise @ 85Hz, upgrade from DPS310 |
 | Pyro channels | TBD | MOSFET drivers or dedicated board |
 
@@ -216,13 +224,18 @@ Studied for hardware/software architecture:
 
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
+| Adafruit Fruit Jam (Mini RP2350 Computer) | #6200 | **On hand** — RP2350 mini computer, primary GCS platform |
+| Pimoroni HyperPixel 4.0" Display | #3578 | **On hand** — Hi-res display for Fruit Jam GCS |
+| CYBERDECK HAT for Raspberry Pi 400 & 500 | #4863 | **On hand** — Keyboard integration for portable GCS |
+| CYBERDECK Bonnet for Raspberry Pi 400 & 500 | #4862 | **On hand** — Compact keyboard integration option |
+| LoRa Radio Bonnet with OLED (RFM95W 915MHz) | #4074 | **On hand** — GCS radio with built-in OLED status display |
+| Raspberry Pi Zero 2W with Header | #6008 | **On hand** — Lightweight GCS option or relay node |
 | RFM95W LoRa Breakout (915MHz) | #3072 | Current GCS receiver, pairs with #3231 FeatherWing |
 | Feather M0 Basic Proto | #2772 | RX bridge MCU - hosts RFM95W breakout |
-| Adafruit Fruit Jam | - | RP2350 mini computer - candidate for GCS platform |
 
 ### Ground Station
 
-**Status**: Planning to use Adafruit Fruit Jam with RC GCS code
+**Status**: Adafruit Fruit Jam (#6200) on hand for RC GCS development. HyperPixel display and LoRa Bonnet provide integrated radio + display. Cyberdeck HAT/Bonnet available for portable keyboard-integrated builds. Pi Zero 2W available as lightweight alternative or relay node.
 
 **Previous approach (deprecated)**: Feather M0 + RFM95W breakout as RX bridge - code in `ground_station/` for reference only.
 

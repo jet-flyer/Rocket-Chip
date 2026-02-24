@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-24-004 | Claude Code CLI | hardware, documentation
+
+**Hardware inventory update from Adafruit order.** Added new components to HARDWARE.md: ADXL375 high-G accelerometer and LoRa FeatherWings (×2) moved to on-hand inventory, Ground Station section expanded with Fruit Jam (#6200), HyperPixel 4.0" display, Cyberdeck HAT/Bonnet, LoRa Radio Bonnet with OLED, and Pi Zero 2W. Teensy 3.x Feather Adapter and Pico-to-Pi HAT X Converter added to accessories. ADXL375 datasheet (Analog Devices Rev. B) downloaded to `docs/hardware/datasheets/` and added to VENDOR_GUIDELINES.md inventory. SRAM audit closure, SCAFFOLDING.md fix, and 10 datasheets from prior session folded in per whiteboard note.
+
+---
+
 ### 2026-02-24-003 | Claude Code CLI | feature, architecture
 
 **Bierman measurement update adoption + SRAM DCP benchmark.** Replaced Joseph scalar measurement updates with Bierman on UD-factored covariance (43% faster per epoch: 486µs vs 851µs). Compile-time switch via `ESKF_USE_BIERMAN=1` (target only; host tests keep Joseph path unchanged). P representation state machine (`PRepr` enum + `ensure_dense()`/`ensure_ud()`) handles lazy factorize/reconstruct around codegen predict. SRAM DCP micro-benchmark confirmed DCP overhead is intrinsic register shuffling (~58 cyc/op from SRAM vs ~63 from flash), not XIP cache. Alpha precision canary: f32 relErr=1.37e-08 vs f64 reference — DCP Phase 2 deferred (not blocking). 207/207 host tests (199 original + 8 new Bierman). Target build clean.
