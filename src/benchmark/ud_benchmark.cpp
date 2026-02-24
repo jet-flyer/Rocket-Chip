@@ -72,7 +72,7 @@ static constexpr float kGyroX = 0.001f;      // Tiny drift
 static constexpr float kGyroY = -0.002f;
 static constexpr float kGyroZ = 0.0005f;
 
-static const char* kBuildTag = "ud-bench-6";
+static const char* kBuildTag = "ud-bench-7";
 
 // =========================================================================
 // SysTick cycle counter helpers
@@ -274,6 +274,115 @@ static void test1_dcp_throughput() {
     bench_promoted_mac();
     bench_demotion();
     bench_chained_f64();
+}
+
+// =========================================================================
+// Test 1b: DCP Throughput from SRAM (.time_critical section)
+//
+// Phase 0 gate: the Test 1 benchmarks above run from flash (XIP).
+// RP2350's 2KB XIP cache may inflate DCP cycle counts due to cache misses
+// on the multi-instruction mrrc/mcrr/cdp coprocessor sequence.
+// These SRAM variants measure true DCP throughput without XIP overhead.
+// =========================================================================
+
+__attribute__((section(".time_critical.dcp_bench")))
+static void bench_f32_mac_sram() {
+    volatile float f32_b = 0.999f, f32_c = 1.001f;
+    float acc = 0.0f;
+    uint32_t start = systick_read();
+    for (int32_t i = 0; i < kDcpIterations; ++i) {
+        acc += static_cast<float>(f32_b) * static_cast<float>(f32_c);
+    }
+    uint32_t cycles = systick_elapsed(start, systick_read());
+    volatile float sink = acc;
+    (void)sink;
+    printf("f32 MAC (SRAM):    %lu cycles / %ld iter = %.1f cycles/op\n",
+           (unsigned long)cycles, kDcpIterations,
+           static_cast<double>(cycles) / kDcpIterations);
+}
+
+__attribute__((section(".time_critical.dcp_bench")))
+static void bench_f64_mac_sram() {
+    volatile double f64_b = 0.999, f64_c = 1.001;
+    double acc = 0.0;
+    uint32_t start = systick_read();
+    for (int32_t i = 0; i < kDcpIterations; ++i) {
+        acc += static_cast<double>(f64_b) * static_cast<double>(f64_c);
+    }
+    uint32_t cycles = systick_elapsed(start, systick_read());
+    volatile double sink = acc;
+    (void)sink;
+    printf("f64 MAC (SRAM):    %lu cycles / %ld iter = %.1f cycles/op\n",
+           (unsigned long)cycles, kDcpIterations,
+           static_cast<double>(cycles) / kDcpIterations);
+}
+
+__attribute__((section(".time_critical.dcp_bench")))
+static void bench_promoted_mac_sram() {
+    volatile float f32_b = 0.999f, f32_c = 1.001f;
+    double acc = 0.0;
+    uint32_t start = systick_read();
+    for (int32_t i = 0; i < kDcpIterations; ++i) {
+        acc += static_cast<double>(static_cast<float>(f32_b))
+             * static_cast<double>(static_cast<float>(f32_c));
+    }
+    uint32_t cycles = systick_elapsed(start, systick_read());
+    volatile double sink = acc;
+    (void)sink;
+    printf("f32->f64 (SRAM):   %lu cycles / %ld iter = %.1f cycles/op\n",
+           (unsigned long)cycles, kDcpIterations,
+           static_cast<double>(cycles) / kDcpIterations);
+}
+
+__attribute__((section(".time_critical.dcp_bench")))
+static void bench_chained_f64_sram() {
+    volatile double b0 = 1.001, b1 = 0.999, b2 = 1.002, b3 = 0.998;
+    volatile double c0 = 0.997, c1 = 1.003, c2 = 0.996, c3 = 1.004;
+    double acc = 0.0;
+    uint32_t start = systick_read();
+    for (int32_t i = 0; i < kDcpIterations; ++i) {
+        acc += static_cast<double>(b0) * static_cast<double>(c0);
+        acc += static_cast<double>(b1) * static_cast<double>(c1);
+        acc += static_cast<double>(b2) * static_cast<double>(c2);
+        acc += static_cast<double>(b3) * static_cast<double>(c3);
+        acc += static_cast<double>(b0) * static_cast<double>(c1);
+        acc += static_cast<double>(b1) * static_cast<double>(c0);
+        acc += static_cast<double>(b2) * static_cast<double>(c3);
+        acc += static_cast<double>(b3) * static_cast<double>(c2);
+    }
+    uint32_t cycles = systick_elapsed(start, systick_read());
+    volatile double sink = acc;
+    (void)sink;
+    printf("Chained f64 (SRAM):%lu cycles / %ld×8 = %.1f cycles/op\n",
+           (unsigned long)cycles, kDcpIterations,
+           static_cast<double>(cycles) / (kDcpIterations * 8));
+}
+
+// f64 add-only from SRAM: models the Bierman alpha accumulation path
+// where f32 products are accumulated into a f64 running sum.
+__attribute__((section(".time_critical.dcp_bench")))
+static void bench_f64_add_sram() {
+    volatile float f32_product = 0.999f;
+    double acc = 0.0;
+    uint32_t start = systick_read();
+    for (int32_t i = 0; i < kDcpIterations; ++i) {
+        acc += static_cast<double>(static_cast<float>(f32_product));
+    }
+    uint32_t cycles = systick_elapsed(start, systick_read());
+    volatile double sink = acc;
+    (void)sink;
+    printf("f64 ADD (SRAM):    %lu cycles / %ld iter = %.1f cycles/op\n",
+           (unsigned long)cycles, kDcpIterations,
+           static_cast<double>(cycles) / kDcpIterations);
+}
+
+static void test1b_dcp_throughput_sram() {
+    printf("\n--- Test 1b: DCP Throughput (SRAM) ---\n");
+    bench_f32_mac_sram();
+    bench_f64_mac_sram();
+    bench_promoted_mac_sram();
+    bench_chained_f64_sram();
+    bench_f64_add_sram();
 }
 
 // =========================================================================
@@ -810,11 +919,13 @@ int main() {
     printf("Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
     printf("Board: RP2350 HSTX Feather @ 150MHz\n");
     printf("Optimization: -O2\n");
+    printf("Phase 0: DCP SRAM vs Flash throughput comparison\n");
     printf("Phase 1: DCP throughput + P stability (100K steps)\n");
     printf("Phase 2: UD timing + accuracy + full cycle\n\n");
 
     // ---- Phase 1 ----
     test1_dcp_throughput();
+    test1b_dcp_throughput_sram();
     test2_p_stability();
 
     // ---- Phase 2 ----

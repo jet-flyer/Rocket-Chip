@@ -22,7 +22,7 @@
 
 ### SRAM Execution Audit — Check for Other XIP Cache Bottlenecks
 
-**Added 2026-02-21.** IVP-47 codegen FPFT revealed that RP2350's 2KB XIP cache causes catastrophic performance loss for large hot functions (10KB codegen: 398µs from flash → 59µs from SRAM, 6.7× difference). The `.time_critical` section is the SDK's intended solution. **Updated 2026-02-21:** 24-state codegen is ~1100 lines (~566 changes), function is larger than 15-state version. Still in `.time_critical` SRAM section. Benchmark: 111µs avg (was 59µs at 15-state). **Audit remaining high-frequency code paths** for functions that may exceed XIP cache: `scalar_kalman_update()` (now O(N²) rank-1 Joseph form, runs at baro/mag/GPS rates), `propagate_nominal()` (200Hz), sensor read functions on Core 1. Low-rate functions (<10Hz) are unlikely to benefit.
+**Added 2026-02-21.** IVP-47 codegen FPFT revealed that RP2350's 2KB XIP cache causes catastrophic performance loss for large hot functions (10KB codegen: 398µs from flash → 59µs from SRAM, 6.7× difference). The `.time_critical` section is the SDK's intended solution. **Updated 2026-02-21:** 24-state codegen is ~1100 lines (~566 changes), function is larger than 15-state version. Still in `.time_critical` SRAM section. Benchmark: 111µs avg (was 59µs at 15-state). **Updated 2026-02-24:** `scalar_kalman_update()` (Joseph form) replaced by Bierman path behind `ESKF_USE_BIERMAN=1`. Bierman functions in `ud_factor.cpp` already run from SRAM (`.time_critical` section). Remaining audit targets: `propagate_nominal()` (200Hz), sensor read functions on Core 1. Low-rate functions (<10Hz) are unlikely to benefit.
 
 ---
 
@@ -59,7 +59,7 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 
 *Items noted for future stages — not blocking, no action needed now.*
 
-- **ESKF Readability/Optimization Pass (post-Stage 7):** `reset_covariance_attitude()` is 52 lines (threshold 60) — close to limit and will grow with phase-scheduled Q/R transitions. `scalar_kalman_update()` inner loop could benefit from a named rank-1 P update helper. `clamp_extended_covariance()` uses if/else chains per state block — a table-driven pattern (`{idx, count, clamp, inhibit_flag}` array) would scale better as more blocks are added. Not blocking — all functions pass the pre-commit hook now, but a deeper pass would improve readability and prepare for phase-scheduled Q/R + Bierman integration.
+- **ESKF Readability/Optimization Pass (post-Stage 7):** `reset_covariance_attitude()` is 52 lines (threshold 60) — close to limit and will grow with phase-scheduled Q/R transitions. `clamp_extended_covariance()` uses if/else chains per state block — a table-driven pattern (`{idx, count, clamp, inhibit_flag}` array) would scale better as more blocks are added. Not blocking — all functions pass the pre-commit hook now, but a deeper pass would improve readability and prepare for phase-scheduled Q/R. Note: `scalar_kalman_update()` (Joseph form) is now bypassed on target by Bierman path (`ESKF_USE_BIERMAN=1`, 2026-02-24); Joseph retained behind `#ifdef` for host-side A/B testing.
 - **3-Axis Magnetometer Model (Titan tier):** Current `update_mag_heading()` uses yaw-only scalar H (heading + WMM declination). Mag states (earth_mag indices 15-17, body_mag_bias 18-20) are **unobservable** with this model — no F coupling (identity propagation), no H entries at 15-20. States MUST remain inhibited until a proper 3-axis measurement model is implemented: `z_predicted = R(q) * earth_mag_NED + body_mag_bias`, with H entries at attitude (0-2), earth_mag (15-17), body_mag_bias (18-20). WMM table already has field data — needs inclination + magnitude extraction in addition to current declination-only use. ArduPilot reference: `fuseMagnetometer()` in `NavEKF3_MagFusion.cpp`. Once implemented, flip `inhibit_mag_states_` to enable.
 - **F' Evaluation:** Three Titan paths identified (A: STM32H7+F'/Zephyr, B: Pi Zero 2 W+F'/Linux, C: Hybrid). Research complete in `docs/decisions/TITAN_BOARD_ANALYSIS.md`. Decision deferred until Titan development begins.
 - ~~**FeatherWing UART GPS:**~~ **DONE** (2026-02-18). `gps_uart.cpp` driver complete with interrupt-driven ring buffer. Outdoor validated.
@@ -109,6 +109,24 @@ Full 5-test benchmark suite completed. See `docs/benchmarks/UD_BENCHMARK_RESULTS
 **Implementation issues fixed:** Thornton D-array in-place corruption (algorithm requires old D values during WMGS sweep), NaN detection in `ud_all_positive()` (IEEE 754 `NaN <= 0` returns false).
 
 **Bierman advantage noted.** Bierman is consistently faster than Joseph for scalar updates. If measurement update becomes a bottleneck at higher sensor rates, Bierman with factorize/reconstruct around codegen predict is a viable hybrid path (486µs vs 851µs per epoch)
+
+### Bierman Measurement Update Adoption — COMPLETE (2026-02-24)
+
+Replaced Joseph scalar measurement updates with Bierman on UD-factored covariance behind `ESKF_USE_BIERMAN=1` (target only). Hybrid architecture: codegen FPFT predict (dense P) → lazy factorize → Bierman scalar updates → reconstruct on next predict. 43% faster per measurement epoch (486µs vs 851µs).
+
+**Implementation:** P representation state machine (`PRepr` enum + `ensure_dense()`/`ensure_ud()`). File-scope `g_bierman_ud` (UD24, 2,400B BSS). All 5 measurement update call sites switched (baro, mag, ZUPT, GPS position, GPS velocity). `ensure_dense()` guards on `set_inhibit_*()`, `reset_mag_heading()`, `set_origin()`, `healthy()`.
+
+**Alpha precision canary (Council Req. #4):** f32 relErr=1.37e-08 vs f64 reference — 6 OOM below 1e-4 threshold. DCP Phase 2 deferred indefinitely.
+
+**SRAM DCP benchmark (Phase 0):** DCP overhead is intrinsic register shuffling (~58 cyc/op from SRAM vs ~63 from flash, 7.8× f32). No datasheet tricks to improve.
+
+**Test:** 207/207 host tests (199 original + 8 Bierman). Binary: text +1,368B, BSS +2,692B.
+
+**HW soak (60s):** 87,756 IMU reads, 0 errors, ESKF HEALTHY throughout. Predict 561µs avg (106µs min, 735µs max — includes factorize/reconstruct overhead). qnorm=1.000000, Mdiv=0.0°.
+
+**Bug fixed:** `healthy()` had a PRepr guard returning false when P was in UD form. CLI status print could call `healthy()` between measurement (UD) and next predict (dense), causing false UNHEALTHY reports. Guard removed — stale dense P diagonals are valid for health checks since Bierman preserves positive-definiteness.
+
+---
 
 ### MMAE/IMM Pivot — Phase-Scheduled Q/R Replaces MMAE (2026-02-24)
 

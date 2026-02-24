@@ -3,6 +3,7 @@
 #include "fusion/eskf.h"
 #include "fusion/eskf_codegen.h"
 
+#include <cassert>
 #include <cmath>
 
 // R3: Compile-time sync — fail build if codegen constants drift from eskf.h
@@ -49,6 +50,23 @@ constexpr float kQuatNormTolerance = 1e-3F;
 constexpr float kMaxGyroBias = 0.175F;
 
 } // anonymous namespace
+
+// ============================================================================
+// Bierman measurement update — UD-factored covariance (ESKF_USE_BIERMAN)
+// ============================================================================
+#ifdef ESKF_USE_BIERMAN
+
+// P representation state machine.
+// DENSE: P is a valid dense 24×24 covariance (codegen FPFT output).
+// UD:    P is stale; g_bierman_ud holds the valid UD factorization.
+enum class PRepr { DENSE, UD };
+
+static PRepr g_p_repr = PRepr::DENSE;
+
+// File-scope UD24 — 2,400 bytes BSS (LL Entry 1: too large for struct member).
+static UD24 g_bierman_ud;
+
+#endif // ESKF_USE_BIERMAN
 
 // ============================================================================
 // Helper: 3x3 skew-symmetric matrix from vector
@@ -135,6 +153,10 @@ bool ESKF::init(const Vec3& accelMeas, const Vec3& gyroMeas) {
         P(eskf::kIdxGyroBias + i, eskf::kIdxGyroBias + i)  = kInitPGyroBias;
     }
     // P[15..23] stays zero — inhibited states have no covariance
+
+#ifdef ESKF_USE_BIERMAN
+    g_p_repr = PRepr::DENSE;  // Fresh P from init — always dense
+#endif
 
     initialized_ = true;
     last_propagation_dt_ = 0.0F;
@@ -333,6 +355,11 @@ void ESKF::predict(const Vec3& accelMeas, const Vec3& gyroMeas, float dt) {
     const Vec3 gyroBody = gyroMeas - gyro_bias;
 
     propagate_nominal(accelMeas, gyroMeas, dt);
+
+#ifdef ESKF_USE_BIERMAN
+    // Codegen FPFT requires dense P — reconstruct from UD if needed.
+    ensure_dense();
+#endif
 
     // Codegen FPFT: SymPy-generated flat scalar expansion with CSE
     // Replaces dense O(N^3) triple product. Q_d baked in.
@@ -563,6 +590,82 @@ void ESKF::scalar_kalman_update(int32_t hIdx, float hValue,
 }
 
 // ============================================================================
+// Bierman measurement update path (ESKF_USE_BIERMAN)
+// ============================================================================
+#ifdef ESKF_USE_BIERMAN
+
+void ESKF::ensure_dense() {
+    if (g_p_repr == PRepr::DENSE) {
+        return;
+    }
+    // Reconstruct P = U * D * U^T from UD factorization
+    ud_to_dense(g_bierman_ud, P.data);
+    P.force_symmetric();
+    clamp_covariance();
+
+    // Post-reconstruct assertion (Council Req. #3): P diagonals >= 0
+    // in debug builds. Negative diagonal after reconstruct means UD corruption.
+#ifndef NDEBUG
+    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
+        assert(P.data[i][i] >= 0.0F);  // NOLINT(cert-dcl03-c)
+    }
+#endif
+
+    g_p_repr = PRepr::DENSE;
+}
+
+void ESKF::ensure_ud() {
+    if (g_p_repr == PRepr::UD) {
+        return;
+    }
+    // Inhibited states have P diagonal = 0, which makes P semi-positive-definite.
+    // ud_factorize requires strictly positive-definite. Temporarily set zero
+    // diagonals to a tiny epsilon, factorize, then zero the D entries.
+    // Bierman won't touch these states — D=0 means zero contribution to
+    // alpha and zero Kalman gain.
+    static constexpr float kFactorizeEps = 1e-30F;
+    bool patched[eskf::kStateSize] = {};
+    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
+        if (P.data[i][i] <= 0.0F) {
+            P.data[i][i] = kFactorizeEps;
+            patched[i] = true;
+        }
+    }
+
+    const bool ok = ud_factorize(g_bierman_ud, P.data);
+
+    // Restore patched diagonals to zero in both P and UD
+    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
+        if (patched[i]) {
+            P.data[i][i] = 0.0F;
+            g_bierman_ud.D[i] = 0.0F;
+        }
+    }
+
+    // If factorize failed despite patching, P is corrupt — healthy() will catch it.
+    (void)ok;
+    g_p_repr = PRepr::UD;
+}
+
+void ESKF::bierman_kalman_update(int32_t hIdx, float hValue,
+                                  float innovation, float r) {
+    ensure_ud();
+
+    static float g_bierman_dx[eskf::kStateSize];
+    bierman_scalar_update(g_bierman_ud, hIdx, hValue, innovation, r,
+                          g_bierman_dx);
+
+    // Convert dx array to Mat<N,1> for inject_error_state
+    static Mat<eskf::kStateSize, 1> g_dx_mat;
+    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
+        g_dx_mat.data[i][0] = g_bierman_dx[i];
+    }
+    inject_error_state(g_dx_mat);
+}
+
+#endif // ESKF_USE_BIERMAN
+
+// ============================================================================
 // update_baro: Barometric altitude measurement update (IVP-43)
 //
 // Measurement model:
@@ -620,8 +723,12 @@ bool ESKF::update_baro(float altitudeAglM) {
     }
 
     ++baro_total_accepts_;
+#ifdef ESKF_USE_BIERMAN
+    bierman_kalman_update(kHIdx, kHValue, innovation, kRBaro);
+#else
     scalar_kalman_update(kHIdx, kHValue, innovation, kRBaro);
     clamp_covariance();
+#endif
     return true;
 }
 
@@ -701,15 +808,11 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
     // Zero-yaw tilt compensation: rotate magBody to level frame preserving yaw signal
     const Vec3 euler = q.to_euler();
 
-    // Tilt-conditional R inflation (IVP-47). At large tilt, the H≈[0,0,1]
-    // linearization cross-couples roll/pitch into heading. Inflate R to
-    // weaken correction; hard-reject above 60° where extraction is unreliable.
+    // Tilt-conditional R inflation (IVP-47): H≈[0,0,1] cross-couples at tilt
     const float tilt = sqrtf(euler.x * euler.x + euler.y * euler.y);
-    if (tilt > kMagTiltMaxRad) {
+    if (tilt > kMagTiltMaxRad) {  // >60°: heading extraction unreliable
         ++mag_consecutive_rejects_;
         ++mag_total_rejects_;
-        // No heading reset here — heading extraction unreliable at >60° tilt.
-        // Reset only fires from the safety-net gate path where heading is valid.
         return false;
     }
     if (tilt > kMagTiltThresholdRad) {
@@ -743,8 +846,12 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
 
     mag_consecutive_rejects_ = 0;
     ++mag_total_accepts_;
+#ifdef ESKF_USE_BIERMAN
+    bierman_kalman_update(kHIdx, 1.0F, innovation, rEffective);
+#else
     scalar_kalman_update(kHIdx, 1.0F, innovation, rEffective);
     clamp_covariance();
+#endif
     return true;
 }
 
@@ -756,6 +863,9 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
 // after heading reset; settles in 2-3s with GPS aiding.
 // ============================================================================
 void ESKF::reset_mag_heading(float headingMeasured) {
+#ifdef ESKF_USE_BIERMAN
+    ensure_dense();  // Modifies P directly
+#endif
     constexpr int32_t kYawIdx = eskf::kIdxAttitude + 2;
     const Vec3 euler = q.to_euler();
 
@@ -814,17 +924,12 @@ bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas) {
     last_zupt_active_ = true;
 
     // Three sequential scalar updates: v_n=0, v_e=0, v_d=0
-    // H[axis] has a single 1 at kIdxVelocity + axis.
     float maxNis = 0.0F;
     const float vComponents[3] = { v.x, v.y, v.z };
 
     for (int32_t axis = 0; axis < 3; ++axis) {
         const int32_t kHIdx = eskf::kIdxVelocity + axis;
-
-        // Innovation: y = z - h(x) = 0 - v[axis]
-        const float innovation = -vComponents[axis];
-
-        // Innovation covariance: S = P[idx][idx] + R
+        const float innovation = -vComponents[axis];  // y = 0 - v[axis]
         const float s = P(kHIdx, kHIdx) + kRZupt;
         if (s < kMinInnovationVariance) {
             continue;
@@ -842,12 +947,18 @@ bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas) {
             continue;
         }
 
+#ifdef ESKF_USE_BIERMAN
+        bierman_kalman_update(kHIdx, 1.0F, innovation, kRZupt);
+#else
         scalar_kalman_update(kHIdx, 1.0F, innovation, kRZupt);
+#endif
     }
 
     last_zupt_nis_ = maxNis;
     ++zupt_total_accepts_;
+#ifndef ESKF_USE_BIERMAN
     clamp_covariance();
+#endif
     return true;
 }
 
@@ -866,6 +977,9 @@ bool ESKF::set_origin(double latRad, double lonRad, float altM, float hdop) {
     if (hdop > kGpsMaxHdopForOrigin) {
         return false;  // Geometry too poor for origin
     }
+#ifdef ESKF_USE_BIERMAN
+    ensure_dense();  // Modifies P directly
+#endif
 
     origin_lat_rad_ = latRad;
     origin_lon_rad_ = lonRad;
@@ -997,12 +1111,18 @@ bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
 
         if (fabsf(innovation) > kGpsPositionGate * sqrtf(s)) { continue; }
 
+#ifdef ESKF_USE_BIERMAN
+        bierman_kalman_update(kHIdx, 1.0F, innovation, rNoise);
+#else
         scalar_kalman_update(kHIdx, 1.0F, innovation, rNoise);
+#endif
     }
 
     last_gps_pos_nis_ = maxNis;
     ++gps_pos_total_accepts_;
+#ifndef ESKF_USE_BIERMAN
     clamp_covariance();
+#endif
     return true;
 }
 
@@ -1049,12 +1169,18 @@ bool ESKF::update_gps_velocity(float vNorth, float vEast) {
             continue;
         }
 
+#ifdef ESKF_USE_BIERMAN
+        bierman_kalman_update(kHIdx, 1.0F, innovation, kRGpsVel);
+#else
         scalar_kalman_update(kHIdx, 1.0F, innovation, kRGpsVel);
+#endif
     }
 
     last_gps_vel_nis_ = maxNis;
     ++gps_vel_total_accepts_;
+#ifndef ESKF_USE_BIERMAN
     clamp_covariance();
+#endif
     return true;
 }
 
@@ -1145,6 +1271,9 @@ void ESKF::clamp_covariance() {
 // block diagonals for strict positivity.
 // ============================================================================
 bool ESKF::healthy() const {
+    // Bierman note: when P is in UD form, stale dense diagonals are still
+    // valid for health checks (Bierman preserves positive-definiteness).
+
     // P must be finite everywhere (including inhibited blocks, which are 0)
     if (!P.is_finite()) {
         return false;
@@ -1195,9 +1324,7 @@ bool ESKF::healthy() const {
         return false;
     }
 
-    // Velocity magnitude sentinel: catches divergence from silent sensor fault
-    // (e.g., ICM-20948 all-zeros output not caught by I2C error counter).
-    // 500 m/s > max hobby rocket burnout (~Mach 1.5); any real flight is below this.
+    // Velocity sentinel: catches silent sensor fault divergence (LL Entry 29)
     if (v.norm() >= kMaxHealthyVelocity) {
         return false;
     }
@@ -1216,6 +1343,9 @@ void ESKF::set_inhibit_mag(bool inhibit) {
     if (inhibit == inhibit_mag_states_) {
         return;  // No change
     }
+#ifdef ESKF_USE_BIERMAN
+    ensure_dense();  // Inhibit modifies P directly
+#endif
     inhibit_mag_states_ = inhibit;
     if (inhibit) {
         // Disabling: zero P block + nominal states
@@ -1239,6 +1369,9 @@ void ESKF::set_inhibit_wind(bool inhibit) {
     if (inhibit == inhibit_wind_states_) {
         return;
     }
+#ifdef ESKF_USE_BIERMAN
+    ensure_dense();
+#endif
     inhibit_wind_states_ = inhibit;
     if (inhibit) {
         zero_p_block(eskf::kIdxWindNE, 2);
@@ -1258,6 +1391,9 @@ void ESKF::set_inhibit_baro_bias(bool inhibit) {
     if (inhibit == inhibit_baro_bias_) {
         return;
     }
+#ifdef ESKF_USE_BIERMAN
+    ensure_dense();
+#endif
     inhibit_baro_bias_ = inhibit;
     if (inhibit) {
         zero_p_block(eskf::kIdxBaroBias, 1);

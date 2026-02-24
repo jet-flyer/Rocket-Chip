@@ -238,6 +238,10 @@ static uint32_t g_eskfBenchMin = UINT32_MAX;
 static uint32_t g_eskfBenchMax = 0;
 static uint32_t g_eskfBenchSum = 0;
 static uint32_t g_eskfBenchCount = 0;
+// BENCH: predict timing histogram — comment out for production builds
+// static constexpr uint32_t kHistBuckets = 8;
+// static constexpr uint32_t kHistStep = 100;  // µs per bucket
+// static uint32_t g_eskfBenchHist[kHistBuckets] = {};
 
 // Shared sensor data struct (per SEQLOCK_DESIGN.md, council-approved)
 // All values calibration-applied, body frame, SI units. 128 bytes in SRAM.
@@ -1086,6 +1090,18 @@ static void print_eskf_status() {
             printf("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
                    (unsigned long)avg, (unsigned long)g_eskfBenchMin,
                    (unsigned long)g_eskfBenchMax, (unsigned long)g_eskfBenchCount);
+            // BENCH: histogram display — uncomment with declarations above
+            // printf("      hist(us): ");
+            // for (uint32_t i = 0; i < kHistBuckets; i++) {
+            //     if (i < kHistBuckets - 1) {
+            //         printf("<%lu=%lu ", (unsigned long)((i + 1) * kHistStep),
+            //                (unsigned long)g_eskfBenchHist[i]);
+            //     } else {
+            //         printf(">%lu=%lu", (unsigned long)(i * kHistStep),
+            //                (unsigned long)g_eskfBenchHist[i]);
+            //     }
+            // }
+            // printf("\n");
         }
         printf("      buf: %lu/%lu samples\n",
                (unsigned long)g_eskfBufferCount, (unsigned long)kEskfBufferSamples);
@@ -1753,6 +1769,10 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
     if (elapsed > g_eskfBenchMax) { g_eskfBenchMax = elapsed; }
     g_eskfBenchSum += elapsed;
     g_eskfBenchCount++;
+    // BENCH: histogram recording — uncomment with declarations above
+    // uint32_t bucket = elapsed / kHistStep;
+    // if (bucket >= kHistBuckets) { bucket = kHistBuckets - 1; }
+    // g_eskfBenchHist[bucket]++;
 
     // Write compact state to circular buffer
     eskf_state_snap_t& s = g_eskfBuffer[g_eskfBufferIndex];

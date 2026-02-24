@@ -24,6 +24,10 @@
 #include "math/quat.h"
 #include "math/vec3.h"
 
+#ifdef ESKF_USE_BIERMAN
+#include "fusion/ud_factor.h"
+#endif
+
 namespace rc {
 
 struct ESKF {
@@ -471,6 +475,20 @@ private:
     // NOTE: -fno-threadsafe-statics (Pico SDK). Static locals zero-init at load.
     void scalar_kalman_update(int32_t hIdx, float hValue,
                               float innovation, float r);
+
+#ifdef ESKF_USE_BIERMAN
+    // Bierman scalar measurement update on UD-factored covariance.
+    // Same interface as scalar_kalman_update(). Factorizes P→UD on first call
+    // per predict epoch, runs Bierman update, then injects error state.
+    void bierman_kalman_update(int32_t hIdx, float hValue,
+                               float innovation, float r);
+
+    // P representation state machine — ensure correct form before access.
+    // ensure_dense(): reconstruct P from UD if needed (for predict, inhibit, etc.)
+    // ensure_ud():    factorize P into UD if needed (for Bierman measurement update)
+    void ensure_dense();
+    void ensure_ud();
+#endif
 };
 
 } // namespace rc

@@ -53,6 +53,7 @@ if(BUILD_TESTS)
         src/fusion/baro_kf.cpp
         src/fusion/eskf.cpp
         src/fusion/eskf_codegen.cpp
+        src/fusion/ud_factor.cpp
         src/fusion/wmm_declination.cpp
         src/fusion/mahony_ahrs.cpp
     )
@@ -193,6 +194,9 @@ else()
 
         # IVP-45: Mahony AHRS cross-check
         src/fusion/mahony_ahrs.cpp
+
+        # UD factorization (Bierman measurement update path)
+        src/fusion/ud_factor.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -214,6 +218,7 @@ else()
         src/fusion/eskf_codegen.cpp
         src/fusion/wmm_declination.cpp
         src/fusion/mahony_ahrs.cpp
+        src/fusion/ud_factor.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
@@ -264,6 +269,11 @@ else()
     # Enable USB CDC for stdio (not UART)
     pico_enable_stdio_usb(rocketchip 1)
     pico_enable_stdio_uart(rocketchip 0)
+
+    # Bierman scalar measurement update (replaces Joseph form)
+    target_compile_definitions(rocketchip PRIVATE
+        ESKF_USE_BIERMAN=1
+    )
 
     # USB configuration
     target_compile_definitions(rocketchip PRIVATE

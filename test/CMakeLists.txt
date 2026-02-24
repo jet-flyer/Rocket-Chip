@@ -72,3 +72,20 @@ gtest_discover_tests(test_eskf_gps_update)
 add_executable(test_mahony test_mahony.cpp)
 target_link_libraries(test_mahony PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_mahony)
+
+# Bierman measurement update tests (ESKF_USE_BIERMAN=1)
+# Separate fusion library with Bierman flag — existing rc_fusion stays unchanged.
+add_library(rc_fusion_bierman STATIC
+    ${CMAKE_SOURCE_DIR}/src/fusion/baro_kf.cpp
+    ${CMAKE_SOURCE_DIR}/src/fusion/eskf.cpp
+    ${CMAKE_SOURCE_DIR}/src/fusion/eskf_codegen.cpp
+    ${CMAKE_SOURCE_DIR}/src/fusion/ud_factor.cpp
+    ${CMAKE_SOURCE_DIR}/src/fusion/wmm_declination.cpp
+    ${CMAKE_SOURCE_DIR}/src/fusion/mahony_ahrs.cpp
+)
+target_link_libraries(rc_fusion_bierman PUBLIC rc_math)
+target_compile_definitions(rc_fusion_bierman PUBLIC ESKF_USE_BIERMAN=1)
+
+add_executable(test_eskf_bierman test_eskf_bierman.cpp)
+target_link_libraries(test_eskf_bierman PRIVATE rc_fusion_bierman GTest::gtest_main)
+gtest_discover_tests(test_eskf_bierman)

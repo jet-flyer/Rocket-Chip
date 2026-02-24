@@ -20,6 +20,28 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-24-003 | Claude Code CLI | feature, architecture
+
+**Bierman measurement update adoption + SRAM DCP benchmark.** Replaced Joseph scalar measurement updates with Bierman on UD-factored covariance (43% faster per epoch: 486µs vs 851µs). Compile-time switch via `ESKF_USE_BIERMAN=1` (target only; host tests keep Joseph path unchanged). P representation state machine (`PRepr` enum + `ensure_dense()`/`ensure_ud()`) handles lazy factorize/reconstruct around codegen predict. SRAM DCP micro-benchmark confirmed DCP overhead is intrinsic register shuffling (~58 cyc/op from SRAM vs ~63 from flash), not XIP cache. Alpha precision canary: f32 relErr=1.37e-08 vs f64 reference — DCP Phase 2 deferred (not blocking). 207/207 host tests (199 original + 8 new Bierman). Target build clean.
+
+**Net change summary:**
+
+| Metric | Before | After | Delta |
+|--------|--------|-------|-------|
+| Measurement epoch | 851 µs | 486 µs | **-43%** (365 µs saved) |
+| Scalar update (per) | 81 µs (Joseph) | 43 µs (Bierman) | **-47%** |
+| CPU headroom @ 200Hz | 3,149 µs free | 3,514 µs free | **+365 µs WFI/cycle** |
+| text (flash) | 137,732 B | 139,100 B | +1,368 B (+1.0%) |
+| BSS (SRAM) | 88,268 B | 90,960 B | +2,692 B (+3.0%) |
+| Host tests | 199 | 207 | +8 (Bierman suite) |
+| f32 alpha precision | — | relErr 1.37e-08 | No f64 DCP needed |
+| P stability | Symmetric, positive | Symmetric, positive | No regression (1000-cycle stress test) |
+| Joseph form | Active | Retained behind `#ifdef` | Zero-risk A/B switch |
+
+(`CMakeLists.txt`, `src/fusion/eskf.h`, `src/fusion/eskf.cpp`, `src/fusion/ud_factor.cpp`, `src/benchmark/ud_benchmark.cpp`, `test/test_eskf_bierman.cpp`, `test/CMakeLists.txt`)
+
+---
+
 ### 2026-02-24-002 | Claude Code CLI | documentation
 
 **MMAE pivot documentation + IVP restructuring.** Updated project documentation to reflect ESKF research findings: MMAE/IMM replaced by phase-scheduled Q/R (IVP-54, Stage 7). Stage 5 marked complete (IVP-39–48). New Stage 6: Flight Director (IVP-49–53). New Stage 7: Adaptive Estimation & Safety (IVP-54–57). Downstream stages renumbered 8–10 (IVP-58–72, total 72). Audited and fixed stale IVP references across 8 docs + 3 source files (comment-only: IVP-52→IVP-50 in eskf.h, main.cpp, mahony_ahrs.h). Added superseded banner to PHASE5_ESKF_PLAN.md.

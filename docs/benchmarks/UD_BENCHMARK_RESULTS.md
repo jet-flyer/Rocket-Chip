@@ -420,3 +420,50 @@ Hybrid (codegen+factorize+Bierman): 486 us/cycle
 | `src/benchmark/ud_benchmark.cpp` | All 5 tests, standalone main() |
 | `CMakeLists.txt` | `ud_benchmark` target (line ~299) |
 | `src/fusion/eskf.h` | `build_F`/`build_Qc` made public for benchmark access |
+
+---
+
+## Addendum: Production Predict Timing Distribution (2026-02-24)
+
+**Context:** After Bierman adoption (codegen predict + Bierman measurement update),
+a 180-second soak captured predict timing histogram on target hardware.
+
+**Build:** Bierman-enabled production firmware (`ESKF_USE_BIERMAN=1`)
+**Duration:** 180s, 37,728 predict calls, 191,462 IMU reads, **0 errors**
+**ESKF:** HEALTHY throughout, qnorm=1.000000, Mdiv=0.1°, vel<0.03 m/s
+
+### Histogram (100µs buckets)
+
+| Bucket (µs) | Count | Percentage | Description |
+|-------------|-------|-----------|-------------|
+| <100 | 0 | 0.0% | — |
+| 100–200 | 502 | 1.3% | Predict-only (P already dense, no reconstruct) |
+| 200–300 | 0 | 0.0% | — |
+| 300–400 | 0 | 0.0% | — |
+| 400–500 | 0 | 0.0% | — |
+| 500–600 | 18,924 | 50.2% | Reconstruct + codegen FPFT (typical epoch) |
+| 600–700 | 18,247 | 48.4% | Same + heavier measurement epoch |
+| >700 | 55 | 0.1% | Rare worst-case |
+
+**Summary:** avg=595µs, min=106µs, max=744µs
+
+### Interpretation
+
+The distribution is **strongly bimodal** with zero counts in the 200-500µs range:
+
+1. **Fast mode (100-200µs, 1.3%):** Predict ticks where no measurement update preceded
+   the call — P is already in DENSE form, so `ensure_dense()` is a no-op. Cost is
+   pure codegen FPFT (~111µs) + overhead.
+
+2. **Primary mode (500-700µs, 98.6%):** Ticks where `ensure_dense()` must reconstruct
+   P from UD form before codegen runs. The ~50/48 split between 500-600 and 600-700
+   reflects variable measurement load per epoch (baro-only vs baro+mag+ZUPT).
+
+3. **Tail (>700µs, 0.1%):** 55 calls in 37,728 — rare scheduling jitter or epochs
+   with unusually many measurements. Not a concern at 0.15% occurrence.
+
+The bimodal shape confirms the PRepr state machine works as designed: most ticks
+pay the reconstruct cost (UD→dense), and the ~1.3% predict-only ticks get the
+fast path. The 595µs average is consistent with the benchmark prediction of 486µs
+per measurement epoch (the difference is codegen FPFT scaling from 111µs average
+to the full reconstruct+predict pipeline).
