@@ -428,18 +428,20 @@ struct ESKF {
     uint32_t zupt_total_rejects_{};
     bool initialized_{};
 
-private:
     // Build the error-state transition matrix F_x (24×24).
     // F_x = I + dt * F_delta, where F_delta encodes the linearized dynamics.
     // States 15-23 have identity F propagation (no coupling to core states).
     // Output parameter to avoid stack pressure (LL Entry 1).
+    // Public: needed by ud_benchmark for Thornton comparison.
     static void build_F(Mat24& out, const Quat& q, const Vec3& accelBody,
                          const Vec3& gyroBody, float dt);
 
     // Build continuous-time process noise Q_c (24×24 diagonal).
     // Output parameter to avoid stack pressure (LL Entry 1).
+    // Public: needed by ud_benchmark for Thornton comparison.
     static void build_Qc(Mat24& out);
 
+private:
     // Zero P rows/columns for a contiguous block of states.
     // Used by inhibit flag control and clamp_covariance().
     void zero_p_block(int32_t startIdx, int32_t count);

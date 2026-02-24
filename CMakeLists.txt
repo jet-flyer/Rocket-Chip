@@ -298,6 +298,33 @@ else()
     pico_add_extra_outputs(mat_benchmark)
 
     # ============================================================================
+    # UD Factorization Benchmark (numerical stability investigation)
+    # ============================================================================
+
+    add_executable(ud_benchmark
+        src/benchmark/ud_benchmark.cpp
+        src/fusion/ud_factor.cpp
+        src/fusion/eskf.cpp
+        src/fusion/eskf_codegen.cpp
+        src/math/vec3.cpp
+        src/math/quat.cpp
+        src/fusion/baro_kf.cpp
+    )
+    target_include_directories(ud_benchmark PRIVATE
+        ${CMAKE_CURRENT_LIST_DIR}/include
+        ${CMAKE_CURRENT_LIST_DIR}/src
+    )
+    # Benchmark must use -O2 — Debug (-O0) gives wildly pessimistic numbers.
+    target_compile_options(ud_benchmark PRIVATE -O2)
+    target_link_libraries(ud_benchmark
+        pico_stdlib
+        hardware_timer
+    )
+    pico_enable_stdio_usb(ud_benchmark 1)
+    pico_enable_stdio_uart(ud_benchmark 0)
+    pico_add_extra_outputs(ud_benchmark)
+
+    # ============================================================================
     # Print Build Info
     # ============================================================================
 

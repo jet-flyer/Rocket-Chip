@@ -20,6 +20,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-24-001 | Claude Code CLI | architecture
+
+**UD factorization + DCP float64 benchmark.** Implemented and ran 5-test benchmark suite comparing UD (Thornton WMGS + Bierman) vs current codegen FPFT + Joseph architecture. Phase 1 gate **PASS**: P is rock-stable at 100K steps with codegen — no negative diagonals, zero asymmetry, condition number bounded. UD not needed for numerical stability. DCP float64 is 7.8× slower than f32 FPU per MAC. Thornton f32 predict is 29.6× slower than codegen (1,420µs vs 48µs). Bierman scalar update is 2× faster than Joseph (43µs vs 81µs). Fixed Thornton D-array in-place corruption bug (algorithm requires old D values during WMGS sweep — added snapshot). Fixed NaN detection in `ud_all_positive()`.
+
+(`src/fusion/ud_factor.h`, `src/fusion/ud_factor.cpp`, `src/benchmark/ud_benchmark.cpp`, `docs/benchmarks/UD_BENCHMARK_RESULTS.md`, `CMakeLists.txt`, `src/fusion/eskf.h`)
+
+---
+
 ### 2026-02-23-002 | Claude Code CLI | documentation
 
 **Dynamic validation methods document.** Created `docs/DYNAMIC_VALIDATION.md` — six repeatable physical test methods for verifying ESKF accuracy beyond host-side unit tests and stationary soaks: Allan variance (Q tuning validation), turntable rotation test, pendulum test, elevator test (baro fusion), data logging + replay infrastructure, and vehicle GPS-vs-INS comparison. Includes truth references, pass/fail criteria, and Python Allan variance implementation.

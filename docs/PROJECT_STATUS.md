@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-02-21
+**Last Updated:** 2026-02-24
 
 ## Current Phase
 
@@ -35,6 +35,7 @@ IVP-39 through IVP-48 complete (all measurement updates, health tuning, Mahony A
 | 5: Health Tuning | IVP-48 | 2026-02-20 | Fixed mNIS=124.99 death spiral: tilt R inflation (30-60°), hard reject >60°, 300σ gate (ArduPilot match), public reset_mag_heading() API. Per-sensor diagnostic counters + CLI health dashboard. 192/192 host tests. HW verified: mNIS 0.00–0.52 |
 | 5: FPFT experiment | IVP-47 | 2026-02-21 | Block-sparse tried first (31% slower, reverted). Codegen FPFT via SymPy CSE: 199 intermediates, SRAM execution. 9.1× speedup: 538µs → 59µs avg. 194/194 host tests. Binary +21KB text, +10KB .data |
 | Dense+SRAM benchmark | — | 2026-02-23 | Dense O(N³) at 24 states NOT VIABLE from SRAM: 1,747µs avg vs codegen 111µs (15.7×). Codegen mandatory. All other hot-path functions <640B, no further SRAM placements needed |
+| UD factorization benchmark | — | 2026-02-24 | Phase 1 gate PASS: P stable at 100K steps, UD not needed. DCP f64 7.8× slower than f32. Thornton f32 29.6× slower than codegen. Bierman 2× faster than Joseph. Fixed D-array corruption + NaN bug in Thornton |
 
 ## In Progress
 

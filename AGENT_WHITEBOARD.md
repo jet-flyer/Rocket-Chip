@@ -92,6 +92,24 @@ Dense O(N³) at 24 states is not viable even from SRAM. Codegen stays.
 
 SRAM eliminated XIP cache thrashing (tight min/max, device runs) but O(24³)=13,824 MACs per call is the fundamental bottleneck. Codegen eliminates ~90% of those by expanding only non-zero symbolic terms at build time. Math is identical (verified Test 8 @ 1e-4, Test 15 @ 1e-6)
 
+---
+
+### UD Factorization Benchmark — Phase 1 Gate PASS (2026-02-24)
+
+Full 5-test benchmark suite completed. See `docs/benchmarks/UD_BENCHMARK_RESULTS.md` for full results.
+
+**Phase 1 Gate: PASS** — P is rock-stable at 100K steps with codegen FPFT + force_symmetric + clamp_covariance. No negative diagonals, zero raw asymmetry, condition number bounded at ~3.42e7. UD factorization not needed for numerical stability. Software is identical across all tiers — Titan differs only in hardware.
+
+**Key numbers:**
+- DCP float64: 55.8 cyc/op vs f32 FPU 7.2 cyc/op (7.8× overhead)
+- Thornton f32 predict: 1,420µs vs codegen 48µs (29.6× slower)
+- Bierman scalar update: 43µs vs Joseph 81µs (1.9× faster)
+- Hybrid codegen+Bierman: 486µs/cycle vs current 851µs (43% faster — Bierman advantage)
+
+**Implementation issues fixed:** Thornton D-array in-place corruption (algorithm requires old D values during WMGS sweep), NaN detection in `ud_all_positive()` (IEEE 754 `NaN <= 0` returns false).
+
+**Bierman advantage noted.** Bierman is consistently faster than Joseph for scalar updates. If measurement update becomes a bottleneck at higher sensor rates, Bierman with factorize/reconstruct around codegen predict is a viable hybrid path (486µs vs 851µs per epoch)
+
 ### 24-State ESKF Expansion — COMPLETE (2026-02-21)
 
 15→24 error states: earth_mag NED (3), body_mag_bias (3), wind_NE (2), baro_bias (1). Runtime inhibit flags (ArduPilot EKF3 pattern) — all new states inhibited by default. Codegen regenerated for 24 states (111µs avg, was 59µs at 15-state). O(N²) rank-1 Joseph form replaced O(N³) dense triple product in measurement updates. Sparse reset exploiting G=I except 3×3 attitude block (~450 MACs vs ~27,648 dense). 199/199 host tests, 0 sensor errors on target. CLI shows `inhib: mag=Y wind=Y bbias=Y` + conditional extended state display. 18 files changed.
