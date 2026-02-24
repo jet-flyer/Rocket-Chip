@@ -30,25 +30,21 @@
 
 ---
 
-### Branch `bench/dense-sram-24state` — Dense FPFT Benchmark (2026-02-22)
+### Dense FPFT + SRAM Benchmark — NOT VIABLE (2026-02-23)
 
-**License audit merged to main** (2026-02-22). Branch rebased onto main — 0 commits ahead, clean for benchmark.
+Dense O(N³) at 24 states is not viable even from SRAM. Codegen stays.
 
-**Goal:** Test whether dense O(N³) F*P*F^T at 24 states + SRAM placement is viable, eliminating codegen maintenance burden. User decision: code simplicity > power optimization for now.
+| Metric | Codegen + SRAM | Dense + SRAM | Dense + Flash |
+|--------|---------------|-------------|---------------|
+| avg µs | 111 | 1,747 | ~unresponsive |
+| min µs | 101 | 1,737 | — |
+| max µs | 156 | 1,883 | — |
+| CPU @ 200Hz | 2.2% | 34.9% | — |
+| text | 137,732 | 118,604 (-14%) | — |
+| bss | 88,268 | 97,484 (+10%) | — |
+| Sensor errors | 0 | 0 | — |
 
-**Plan file:** `.claude/plans/majestic-toasting-rabbit.md`
-
-**Baseline binary size (main):** text=137,732 data=0 bss=88,268
-
-**Benchmark steps (no code edits done yet):**
-1. Add `.time_critical` section attributes to `dense_fpft_add()`, `build_F()`, `build_Qc()`, `predict_dense()` in `eskf.cpp`
-2. Change `g_eskf.predict()` → `g_eskf.predict_dense()` in `main.cpp:1742` (1 line)
-3. Build, check binary size delta
-4. Flash via debug probe, 60s soak — check predict timing avg/min/max from CLI `s`
-5. Compare: codegen 111µs avg vs dense+SRAM ?µs. If <200µs → dense viable. If >300µs → codegen stays
-6. Clean up benchmark branch
-
-**Key context:** The dense path already exists as `ESKF::predict_dense()` in `eskf.cpp:353-372`. It was never SRAM-placed or timed at 24 states. `eskf.cpp` already compiles with `-O2` (CMakeLists.txt:220).
+SRAM eliminated XIP cache thrashing (tight min/max, device runs) but O(24³)=13,824 MACs per call is the fundamental bottleneck. Codegen eliminates ~90% of those by expanding only non-zero symbolic terms at build time. Math is identical (verified Test 8 @ 1e-4, Test 15 @ 1e-6)
 
 ---
 
@@ -83,7 +79,7 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 - **Dynamic Peripheral Detection + OTA Drivers (Crowdfunding Goal):** Boot-time probe-first detection implemented (2026-02-10). Runtime hot-plug, driver registry, and OTA firmware downloads for unrecognized devices are stretch goals. Full architecture documented in SAD Section 13.2. Flipper Zero-style: plug in a sensor, RC identifies it, prompts for driver. WiFi/BT OTA for Core/Middle tiers.
 - **State-Aware ZUPT for State Machine (IVP-52):** Current ZUPT (IVP-44b) uses IMU-based stationarity detection with kSigmaZupt=0.5 m/s. When the state machine knows we're IDLE or ARMED (on pad), we can: (1) tighten R to ~0.1 m/s since stationarity is guaranteed, (2) skip the accel/gyro stationarity check entirely, (3) keep loose ZUPT as fallback for uncertain states (LANDED before confirmed). ArduPilot EKF3 `onGround` flag and PX4 ECL `vehicle_at_rest` both use vehicle state to override IMU-based detection. Natural integration point: `eskf_tick()` checks flight state and calls `update_zupt()` with tighter R when on pad.
 - **Direct NOAA/IGRF WMM Table Generation:** Current WMM declination table is converted from ArduPilot's `AP_Declination/tables.cpp` (IGRF13 epoch). Long-term goal: generate table directly from NOAA WMM/IGRF coefficients (spherical harmonic expansion) to remove AP dependency. NOAA publishes WMM coefficients as `WMM.COF` file every 5 years (next: WMM2030). Python script to evaluate the model at grid points and output C++ table. Not blocking — current table is valid through ~2028-2029.
-- **Power Optimization: Codegen vs Dense FPFT (future):** MCU cycle usage has negligible power impact today (~1-2 mA delta between 111µs codegen and ~400µs dense per 200Hz tick). Sensors (IMU ~3mA, GPS ~25mA) and NeoPixel (~5-8mA) dominate. However, for battery-life optimization, every milliamp counts — the codegen path allows longer `__wfi()` sleep between ticks (4889µs vs 4600µs). If dense+SRAM proves viable (benchmark branch `bench/dense-sram-24state` pending), prefer dense for code simplicity now; revisit codegen as a power optimization when tackling sleep modes and low-power profiles. RP2350 Cortex-M33 draws ~15-25mA active per core, ~1-5mA in WFI sleep.
+- **Power Optimization: Codegen FPFT is mandatory (2026-02-23).** Dense+SRAM benchmark proved dense is 15.7× slower (1,747µs vs 111µs) — not viable at 24 states even from SRAM. Codegen is the only feasible path. For future power work: codegen allows 4,889µs WFI sleep per 5,000µs tick (2.2% active). Sensors dominate power budget (IMU ~3mA, GPS ~25mA, NeoPixel ~5-8mA). RP2350 Cortex-M33: ~15-25mA active, ~1-5mA WFI sleep. Revisit only if state count grows beyond 24 or if FPU-accelerated dense becomes available on a future MCU.
 - **RC GCS: GPS-free 3D Flight Path Reconstruction (user request, 2026-02-13):** Post-processing feature for RC GCS. Uses raw IMU+baro+mag flight logs with forward-backward RTS smoother and known boundary conditions (launch point = origin, v=0 at ignition and landing, landing point from recovery GPS/manual entry). Reconstructs full 3D flight path without real-time GPS. Core tier ships without GPS — this makes 3D visualization viable for all tiers. Natural companion to IVP-44b ZUPT (stationary constraint) and IVP-46 (GPS when available). Reference: ArduPilot `tools/replay/`, PX4 `ecl/EKF/ekf_helper.cpp` smoother.
 
 ---

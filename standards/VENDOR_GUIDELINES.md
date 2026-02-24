@@ -21,7 +21,7 @@ Local copies prevent broken links and ensure offline access. Store PDFs in `lib/
 | PA1010D / MT3333 | GlobalTop FGPMMOPA6H / CDTop | **MISSING** | Module datasheet |
 | PA1010D I2C protocol | GlobalTop "NMEA over I2C" app note | **MISSING** | Available at sparkfun.com (see URLs below) |
 | PA1010D I2C protocol | Quectel L76-L I2C App Note V1.0 | **MISSING** | Same MT3333 chipset, same protocol |
-| RP2350 | Raspberry Pi | Online only | https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf |
+| RP2350 | Raspberry Pi | `docs/hardware/datasheets/rp2350-datasheet.pdf` | https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf |
 | RFM95W | HopeRF / Semtech SX1276 | **MISSING** | Needed before Stage 8 (telemetry) |
 
 ### Source URLs (for acquisition)
@@ -182,7 +182,7 @@ The PA1010D is fundamentally a UART device with an I2C wrapper. When any I2C rea
 
 ## RP2350 (Raspberry Pi) — MCU
 
-**Datasheet:** Online (https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)
+**Datasheet:** `docs/hardware/datasheets/rp2350-datasheet.pdf` (source: https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)
 **SDK Version:** 2.2.0
 
 ### Silicon Errata
