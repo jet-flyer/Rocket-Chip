@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-23-001 | Claude Code CLI | architecture
+
+**Dense FPFT + SRAM feasibility benchmark.** Tested dense O(N³) F*P*F^T at 24 states with SRAM placement (`.time_critical` section) to evaluate eliminating codegen maintenance. Result: **NOT VIABLE** — 1,747µs avg vs codegen 111µs (15.7× slower, 34.9% CPU at 200Hz). SRAM eliminated XIP cache thrashing (device runs, tight min/max) but O(24³)=13,824 MACs is the fundamental bottleneck. Codegen stays. SRAM audit of remaining hot-path functions found all <640 bytes — no further `.time_critical` placements needed. No code changes on main.
+
+---
+
 ### 2026-02-22-002 | Claude Code CLI | documentation, tooling
 
 **Prior art audit & license compliance.** Rewrote `LICENSE` (removed stale Adafruit/Arduino/LittleFS refs from FreeRTOS era). Created `THIRD_PARTY_LICENSES.md` with full attribution for all actual dependencies (Pico SDK BSD-3, ruuvi MIT, lwGPS MIT, ICM-20948 MIT, GoogleTest BSD-3, WMM table from ArduPilot GPL-3). Added SPDX headers (`GPL-3.0-or-later`) to all 54 project-owned source files. Removed unused `ws2812b-animation` submodule. Added explicit GPL-3.0 attribution to WMM declination table.

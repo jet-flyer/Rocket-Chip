@@ -30,22 +30,6 @@
 
 ---
 
-### Dense FPFT + SRAM Benchmark — NOT VIABLE (2026-02-23)
-
-Dense O(N³) at 24 states is not viable even from SRAM. Codegen stays.
-
-| Metric | Codegen + SRAM | Dense + SRAM | Dense + Flash |
-|--------|---------------|-------------|---------------|
-| avg µs | 111 | 1,747 | ~unresponsive |
-| min µs | 101 | 1,737 | — |
-| max µs | 156 | 1,883 | — |
-| CPU @ 200Hz | 2.2% | 34.9% | — |
-| text | 137,732 | 118,604 (-14%) | — |
-| bss | 88,268 | 97,484 (+10%) | — |
-| Sensor errors | 0 | 0 | — |
-
-SRAM eliminated XIP cache thrashing (tight min/max, device runs) but O(24³)=13,824 MACs per call is the fundamental bottleneck. Codegen eliminates ~90% of those by expanding only non-zero symbolic terms at build time. Math is identical (verified Test 8 @ 1e-4, Test 15 @ 1e-6)
-
 ---
 
 ### Protected File Updates Pending Approval
@@ -85,6 +69,22 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 ---
 
 ## Resolved
+
+### Dense FPFT + SRAM Benchmark — NOT VIABLE (2026-02-23)
+
+Dense O(N³) at 24 states is not viable even from SRAM. Codegen stays.
+
+| Metric | Codegen + SRAM | Dense + SRAM | Dense + Flash |
+|--------|---------------|-------------|---------------|
+| avg µs | 111 | 1,747 | ~unresponsive |
+| min µs | 101 | 1,737 | — |
+| max µs | 156 | 1,883 | — |
+| CPU @ 200Hz | 2.2% | 34.9% | — |
+| text | 137,732 | 118,604 (-14%) | — |
+| bss | 88,268 | 97,484 (+10%) | — |
+| Sensor errors | 0 | 0 | — |
+
+SRAM eliminated XIP cache thrashing (tight min/max, device runs) but O(24³)=13,824 MACs per call is the fundamental bottleneck. Codegen eliminates ~90% of those by expanding only non-zero symbolic terms at build time. Math is identical (verified Test 8 @ 1e-4, Test 15 @ 1e-6)
 
 ### 24-State ESKF Expansion — COMPLETE (2026-02-21)
 
