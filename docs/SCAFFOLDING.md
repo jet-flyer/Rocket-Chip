@@ -136,6 +136,7 @@ rocketchip/
 │   ├── test_eskf_gps_update.cpp
 │   ├── test_eskf_mag_update.cpp
 │   ├── test_eskf_zupt.cpp
+│   ├── test_eskf_bierman.cpp
 │   ├── test_mahony.cpp
 │   ├── test_wmm_declination.cpp
 │   ├── test_replay_regression.cpp
