@@ -12,24 +12,20 @@
 
 ## Datasheet Inventory
 
-Local copies prevent broken links and ensure offline access. Store PDFs in `lib/<component>/ref/` alongside the driver or library.
+Local copies stored in `docs/hardware/datasheets/` for centralized offline access.
 
 | Component | Datasheet | Local Copy | Notes |
 |-----------|-----------|------------|-------|
-| ICM-20948 | TDK InvenSense DS-000189 v1.3 | `lib/icm20948/ref/datasheet_ICM-20948-v1.3.pdf` | Includes AK09916 mag register map |
-| DPS310 | Infineon | **MISSING** | Needed for ESKF noise tuning (IVP-41) |
-| PA1010D / MT3333 | GlobalTop FGPMMOPA6H / CDTop | **MISSING** | Module datasheet |
-| PA1010D I2C protocol | GlobalTop "NMEA over I2C" app note | **MISSING** | Available at sparkfun.com (see URLs below) |
-| PA1010D I2C protocol | Quectel L76-L I2C App Note V1.0 | **MISSING** | Same MT3333 chipset, same protocol |
+| ICM-20948 | TDK InvenSense DS-000189 v1.3 | `docs/hardware/datasheets/ICM-20948-datasheet-v1.3.pdf` | Includes AK09916 mag register map |
+| DPS310 | Infineon DPS310 v01_02 | `docs/hardware/datasheets/DPS310-datasheet.pdf` | 41 pages, register map + noise specs |
+| PA1010D / MT3333 | CDTop CD-PA1010D v0.03 | `docs/hardware/datasheets/PA1010D-datasheet-v03.pdf` | Module datasheet (27 pages) |
+| PA1010D I2C protocol | GlobalTop "NMEA over I2C" app note | `docs/hardware/datasheets/PA1010D-NMEA-over-I2C-appnote.pdf` | I2C protocol details |
+| PA1010D I2C protocol | Quectel L76-L I2C App Note V1.0 | `docs/hardware/datasheets/Quectel-L76-L-I2C-appnote.pdf` | Same MT3333 chipset, same protocol |
 | RP2350 | Raspberry Pi | `docs/hardware/datasheets/rp2350-datasheet.pdf` | https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf |
-| RFM95W | HopeRF / Semtech SX1276 | **MISSING** | Needed before Stage 8 (telemetry) |
-
-### Source URLs (for acquisition)
-
-- DPS310: https://www.infineon.com/dgdl/Infineon-DPS310-DataSheet-v01_02-EN.pdf
-- PA1010D I2C app note (GlobalTop): https://cdn.sparkfun.com/assets/parts/1/2/2/8/0/GTOP_NMEA_over_I2C_Application_Note.pdf
-- PA1010D I2C app note (Quectel): https://www.dragino.com/downloads/downloads/datasheet/other_vendors/L76-L/Quectel_L76-L_I2C_Application_Note_V1.0.pdf
-- RFM95W / SX1276: https://cdn-shop.adafruit.com/product-files/3179/sx1276_77_78_79.pdf
+| SX1276 / RFM95W | Semtech SX1276/77/78/79 | `docs/hardware/datasheets/SX1276-datasheet.pdf` | LoRa transceiver IC (Stage 9) |
+| RFM69HCW | HopeRF RFM69HCW v1.1 | `docs/hardware/datasheets/RFM69HCW-datasheet.pdf` | ISM transceiver module (79 pages) |
+| ISM330DHCX | ST ISM330DHCX | `docs/hardware/datasheets/ISM330DHCX-datasheet.pdf` | 6-DoF IMU (Adafruit 9-DoF FeatherWing) |
+| LIS3MDL | ST LIS3MDL | `docs/hardware/datasheets/LIS3MDL-datasheet.pdf` | 3-axis magnetometer (Adafruit 9-DoF FeatherWing) |
 
 ---
 

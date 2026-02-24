@@ -25,7 +25,7 @@ rocketchip/
 ├── docs/
 │   ├── SAD.md                     # Software Architecture Document
 │   ├── SCAFFOLDING.md             # This file
-│   ├── IVP.md                     # Integration and Verification Plan (71 steps)
+│   ├── IVP.md                     # Integration and Verification Plan (72 steps)
 │   ├── PROJECT_STATUS.md          # Current phase and blockers
 │   ├── PROJECT_OVERVIEW.md        # Vision and product tiers
 │   ├── ROCKETCHIP_OS.md           # CLI design

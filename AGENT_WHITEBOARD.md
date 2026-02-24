@@ -12,6 +12,15 @@
 
 ## Open Flags
 
+### Amend to Next Changelog Entry
+
+**Added 2026-02-24.** The following changes should be folded into the next session's changelog entry (not a standalone entry):
+- SRAM execution audit closed (all hot-path functions <640B except codegen_fpft already in SRAM)
+- SCAFFOLDING.md step count fixed (71→72)
+- 10 datasheets downloaded to `docs/hardware/datasheets/` (ICM-20948, DPS310, PA1010D + 2 app notes, RP2350, SX1276, RFM69HCW, ISM330DHCX, LIS3MDL)
+- VENDOR_GUIDELINES.md datasheet inventory updated — all entries now have local copies, no MISSING items
+- Whiteboard cleaned: SRAM audit and missing datasheets flags removed
+
 ---
 
 ### Dynamic Validation Methods Document — New (2026-02-23)
@@ -19,10 +28,6 @@
 `docs/DYNAMIC_VALIDATION.md` — Six repeatable physical test methods for ESKF accuracy verification: Allan variance, turntable rotation, pendulum, elevator (baro), data logging + replay, vehicle GPS-vs-INS. Priority order documented. Allan variance is the logical first step (validates Q tuning). Data logging + replay is the highest-value infrastructure investment (enables all other tests to become regression-testable). Complements `docs/ESKF_TESTING_GUIDE.md` (host-side) and `docs/IVP.md` (integration gates).
 
 ---
-
-### SRAM Execution Audit — Check for Other XIP Cache Bottlenecks
-
-**Added 2026-02-21.** IVP-47 codegen FPFT revealed that RP2350's 2KB XIP cache causes catastrophic performance loss for large hot functions (10KB codegen: 398µs from flash → 59µs from SRAM, 6.7× difference). The `.time_critical` section is the SDK's intended solution. **Updated 2026-02-21:** 24-state codegen is ~1100 lines (~566 changes), function is larger than 15-state version. Still in `.time_critical` SRAM section. Benchmark: 111µs avg (was 59µs at 15-state). **Updated 2026-02-24:** `scalar_kalman_update()` (Joseph form) replaced by Bierman path behind `ESKF_USE_BIERMAN=1`. Bierman functions in `ud_factor.cpp` already run from SRAM (`.time_critical` section). Remaining audit targets: `propagate_nominal()` (200Hz), sensor read functions on Core 1. Low-rate functions (<10Hz) are unlikely to benefit.
 
 ---
 
@@ -43,15 +48,6 @@
 *None currently.*
 
 ---
-
-### Missing Vendor Datasheets
-
-| Document | Priority | Needed By |
-|----------|----------|-----------|
-| DPS310 datasheet (Infineon) | MEDIUM | ESKF baro tuning, IVP-48 health diagnostics |
-| RFM95W / SX1276 datasheet (Semtech) | MEDIUM | Stage 9 (telemetry) |
-
-Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 
 ---
 
@@ -75,6 +71,12 @@ Source URLs in `standards/VENDOR_GUIDELINES.md` Datasheet Inventory section.
 ---
 
 ## Resolved
+
+### SRAM Execution Audit — CLOSED (2026-02-24)
+
+All hot-path functions audited via `arm-none-eabi-nm --size-sort`. Only `codegen_fpft` (20,124B) exceeds the 2KB XIP cache — already in `.time_critical` SRAM section. All others well under threshold: `core1_read_gps` 352B, `propagate_nominal` 324B, `core1_sensor_loop` 272B, `core1_read_imu` 164B, `core1_read_baro` 116B. No further SRAM placements needed.
+
+---
 
 ### Dense FPFT + SRAM Benchmark — NOT VIABLE (2026-02-23)
 
