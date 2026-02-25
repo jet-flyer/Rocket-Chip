@@ -94,7 +94,7 @@ cmake --build build/
 | 4 | GPS Navigation | Phase 3 | IVP-31 — IVP-33 | Full | |
 | **M** | **Magnetometer Calibration** | **Phase 3** | **IVP-34 — IVP-38** | **Full** | **(out-of-sequence)** |
 | 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-48 | Full | |
-| **6** | **Radio & Telemetry** | **Phase 5** | **IVP-63 — IVP-67** | **Placeholder** | **(pulled forward)** |
+| **6** | **Radio & Telemetry** | **Phase 5** | **IVP-63 — IVP-67** | **IVP-63 verified** | **(pulled forward)** |
 | 7 | Flight Director | Phase 6 | IVP-49 — IVP-53 | Placeholder | **Crowdfunding Demo Ready** |
 | 8 | Adaptive Estimation & Safety | Phase 6 | IVP-54 — IVP-57 | Placeholder | |
 | 9 | Data Logging | Phase 7 | IVP-58 — IVP-62 | Placeholder | |

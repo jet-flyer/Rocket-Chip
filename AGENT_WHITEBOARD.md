@@ -12,14 +12,9 @@
 
 ## Open Flags
 
-### Amend to Next Changelog Entry
+### Temporary Test TX + Bench Power in Flight Firmware
 
-**Added 2026-02-24.** The following changes should be folded into the next session's changelog entry (not a standalone entry):
-- SRAM execution audit closed (all hot-path functions <640B except codegen_fpft already in SRAM)
-- SCAFFOLDING.md step count fixed (71→72)
-- 10 datasheets downloaded to `docs/hardware/datasheets/` (ICM-20948, DPS310, PA1010D + 2 app notes, RP2350, SX1276, RFM69HCW, ISM330DHCX, LIS3MDL)
-- VENDOR_GUIDELINES.md datasheet inventory updated — all entries now have local copies, no MISSING items
-- Whiteboard cleaned: SRAM audit and missing datasheets flags removed
+**Added 2026-02-25.** `radio_test_tx_tick()` in `src/main.cpp` sends 1 Hz heartbeat packets (`"RC #N t=N"`). TX power at 5 dBm in `src/drivers/rfm95w.cpp`. Both are temporary for IVP-63 verification. Remove test TX when real telemetry encoding comes (IVP-64/65). Restore power to 20 dBm for field use.
 
 ---
 
@@ -37,7 +32,7 @@
 
 **False warning bug — FIXED (2026-02-12).** Root cause: both SDK functions are broken for our use case. `watchdog_caused_reboot()` gives false positives on SWD `monitor reset run` (reason register persists, `rom_get_last_boot_type()` returns `BOOT_TYPE_NORMAL`). `watchdog_enable_caused_reboot()` gives false negatives on real timeouts (bootrom overwrites scratch[4]). Fix: custom sentinel in scratch[0] (`kWatchdogSentinel = 0x52435754`), written before `watchdog_enable()`, checked and cleared at boot. Scratch[0] survives watchdog resets but is cleared by POR/SWD reset. HW verified: no warning on cold plug, boot button, or first SWD flash. Warning correctly appears on SWD reflash while watchdog is running (genuine timeout during bootrom — bootrom takes >5s, watchdog fires). This remaining case will be addressed with the broader IVP-49 watchdog recovery policy.
 
-**Stage renumber (2026-02-24):** Radio & Telemetry pulled forward to Stage 6 (IVP-63–67, no deps on later stages). Flight Director is now Stage 7 (IVP-49–53), Adaptive Estimation Stage 8 (IVP-54–57), Data Logging Stage 9 (IVP-58–62), System Integration Stage 10 (IVP-68–72). IVP step numbers unchanged — only stage ordering changed. Full IVP renumber deferred to next substantial restructuring. CCSDS telemetry replaces MAVLink — IVP-64/66 scopes pending re-eval.
+**Stage renumber (2026-02-24):** Radio & Telemetry pulled forward to Stage 6 (IVP-63–67, no deps on later stages). Flight Director is now Stage 7 (IVP-49–53), Adaptive Estimation Stage 8 (IVP-54–57), Data Logging Stage 9 (IVP-58–62), System Integration Stage 10 (IVP-68–72). IVP step numbers unchanged — only stage ordering changed. Full IVP renumber deferred to next substantial restructuring. CCSDS telemetry replaces MAVLink — IVP-64/66 scopes pending re-eval. **IVP-63 all 8 gates passed (2026-02-25).**
 
 ---
 

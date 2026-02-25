@@ -44,7 +44,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static constexpr const char* kBuildTag = "ivp63-radio-2";
+static constexpr const char* kBuildTag = "ivp63-complete";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -1993,7 +1993,7 @@ static void eskf_tick() {
 }
 
 // ============================================================================
-// Radio Test TX (temporary — 1 Hz heartbeat for link verification)
+// Radio Test TX (temporary — 10 Hz for IVP-63 Gate 8 soak)
 // ============================================================================
 
 static uint32_t g_radioTestTxCount = 0;
