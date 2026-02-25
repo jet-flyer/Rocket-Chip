@@ -65,8 +65,8 @@ constexpr const char* kVersionString = "0.2.0";
 #define ROCKETCHIP_FEATURE_USB_CDC      1   // USB serial console
 #define ROCKETCHIP_FEATURE_NEOPIXEL     1   // NeoPixel status LED
 #define ROCKETCHIP_FEATURE_I2C          1   // I2C bus (sensors, GPS)
-// #define ROCKETCHIP_FEATURE_SPI       1   // SPI bus (high-rate sensors)
-// #define ROCKETCHIP_FEATURE_RADIO     1   // LoRa telemetry
+#define ROCKETCHIP_FEATURE_SPI          1   // SPI bus (radio, high-rate sensors)
+#define ROCKETCHIP_FEATURE_RADIO        1   // LoRa telemetry (RFM95W)
 
 // ============================================================================
 // Pin Definitions (from HARDWARE.md)
@@ -92,6 +92,11 @@ constexpr uint8_t kUart0Rx      = 1;        // UART0 RX
 constexpr uint8_t kSpi0Miso     = 20;       // SPI0 MISO
 constexpr uint8_t kSpi0Sck      = 22;       // SPI0 SCK
 constexpr uint8_t kSpi0Mosi     = 23;       // SPI0 MOSI
+
+// Radio (LoRa FeatherWing #3231, Feather M0 jumper position)
+constexpr uint8_t kRadioCs       = 10;       // D10 = GPIO10 (chip select)
+constexpr uint8_t kRadioRst      = 11;       // D11 = GPIO11 (reset)
+constexpr uint8_t kRadioIrq      = 6;        // D6  = GPIO6  (DIO0 interrupt)
 
 // ADC inputs
 constexpr uint8_t kAdcA0        = 26;       // ADC channel 0

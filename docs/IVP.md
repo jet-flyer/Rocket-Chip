@@ -94,11 +94,15 @@ cmake --build build/
 | 4 | GPS Navigation | Phase 3 | IVP-31 — IVP-33 | Full | |
 | **M** | **Magnetometer Calibration** | **Phase 3** | **IVP-34 — IVP-38** | **Full** | **(out-of-sequence)** |
 | 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-48 | Full | |
-| 6 | Flight Director | Phase 5 | IVP-49 — IVP-53 | Placeholder | **Crowdfunding Demo Ready** |
-| 7 | Adaptive Estimation & Safety | Phase 5 | IVP-54 — IVP-57 | Placeholder | |
-| 8 | Data Logging | Phase 6 | IVP-58 — IVP-62 | Placeholder | |
-| 9 | Telemetry | Phase 7 | IVP-63 — IVP-67 | Placeholder | |
+| **6** | **Radio & Telemetry** | **Phase 5** | **IVP-63 — IVP-67** | **Placeholder** | **(pulled forward)** |
+| 7 | Flight Director | Phase 6 | IVP-49 — IVP-53 | Placeholder | **Crowdfunding Demo Ready** |
+| 8 | Adaptive Estimation & Safety | Phase 6 | IVP-54 — IVP-57 | Placeholder | |
+| 9 | Data Logging | Phase 7 | IVP-58 — IVP-62 | Placeholder | |
 | 10 | System Integration | Phase 9 | IVP-68 — IVP-72 | Placeholder | **Flight Ready** |
+
+> **Stage 6 pull-forward rationale:** Radio & Telemetry was originally Stage 9 but has zero dependencies on Stages 7–9 (Flight Director, Adaptive Estimation, Data Logging). A live radio link enables untethered dynamic validation tests (turntable, pendulum, vehicle GPS-vs-INS) and real-time debugging — both of which accelerate remaining development. SPI bus is independent from I2C sensors. IVP step numbers are unchanged; only stage ordering changed. A full IVP number renumber is deferred to the next substantial restructuring.
+
+> **IVP-64 re-evaluation pending:** Original scope was MAVLink encoding. Project is pivoting to CCSDS telemetry. IVP-64 and IVP-66 scopes will be redefined when Stage 6 reaches those steps.
 
 ---
 
@@ -1596,7 +1600,23 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ---
 
-## Stage 6: Flight Director
+## Stage 6: Radio & Telemetry
+
+**Purpose:** LoRa radio link for telemetry downlink and real-time debugging. Pulled forward from original Stage 9 position — no dependencies on Flight Director, Adaptive Estimation, or Data Logging. Enables untethered dynamic validation tests and live sensor streaming.
+
+**Hardware:** Adafruit LoRa Radio FeatherWing #3231 (RFM95W, 915 MHz ISM). SPI0 bus (independent from I2C sensors). FeatherWing jumpers: CS=GPIO10, RST=GPIO11, IRQ=GPIO6 (M0 defaults).
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| IVP-63 | RFM95W Radio Driver | SPI bus init, LoRa radio init, TX/RX with polling |
+| IVP-64 | Telemetry Encoder | ~~MAVLink~~ → CCSDS TM packet encoding (scope TBD) |
+| IVP-65 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
+| IVP-66 | GCS Compatibility | ~~QGroundControl / Mission Planner~~ → re-eval for CCSDS (scope TBD) |
+| IVP-67 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
+
+---
+
+## Stage 7: Flight Director
 
 **Purpose:** Flight state machine and event-driven actions. See SAD.md Section 6.
 
@@ -1655,7 +1675,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ---
 
-## Stage 7: Adaptive Estimation & Safety
+## Stage 8: Adaptive Estimation & Safety
 
 **Purpose:** Phase-aware ESKF tuning and confidence-gated safety. Integrates with the state machine (IVP-50) for flight phase detection and with the Flight Director (Stage 6) for safety-gated actions.
 
@@ -1799,7 +1819,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ---
 
-## Stage 8: Data Logging — *TBD after Stage 7*
+## Stage 9: Data Logging — *TBD after Stage 8*
 
 **Purpose:** Flight data storage. See SAD.md Sections 8, 9.
 
@@ -1810,20 +1830,6 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 | IVP-60 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
 | IVP-61 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
 | IVP-62 | USB Data Download | Download flight logs via CLI |
-
----
-
-## Stage 9: Telemetry — *TBD after Stage 8*
-
-**Purpose:** MAVLink over LoRa radio. See SAD.md Sections 3.2, 8.
-
-| Step | Title | Brief Description |
-|------|-------|------------------|
-| IVP-63 | RFM95W Radio Driver | SPI-based LoRa radio init, TX/RX |
-| IVP-64 | MAVLink Encoder | Heartbeat, attitude, GPS, system status messages |
-| IVP-65 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
-| IVP-66 | GCS Compatibility | QGroundControl / Mission Planner connection |
-| IVP-67 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
 
 ---
 

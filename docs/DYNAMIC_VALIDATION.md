@@ -217,7 +217,7 @@ Physical test → Raw sensor log (CSV/binary on flash)
 - Post-download to PC
 - Replay with full-rate data
 
-**Relationship to IVP:** Stage 8 (IVP-58 through IVP-62) covers the data logging subsystem. The replay harness already exists in `test/replay/`. The gap is the on-device recording side.
+**Relationship to IVP:** Stage 9 (IVP-58 through IVP-62) covers the data logging subsystem. Stage 6 (IVP-63, Radio & Telemetry) enables live streaming for all dynamic validation tests. The replay harness already exists in `test/replay/`. The gap is the on-device recording side.
 
 ---
 

@@ -954,12 +954,12 @@ This section describes the high-level implementation roadmap. For the detailed 7
 | 2: Sensors | Data Structures (4.1), Drivers (4.2), Storage (9) | 2 (IVP-09–18) | **Complete** |
 | 3: GPS | GPS Interface (4.2) | 4 (IVP-31–33) | **Complete** |
 | 4: Sensor Fusion | Fusion (5.4), FusedState (4.1) | 5 (IVP-39–48) | **Complete** — 24-state ESKF, codegen FPFT, health tuning, Mahony AHRS |
-| 5: Flight Director | State Machine (6), Modules (3.2) | 6 (IVP-49–53) | Planned |
-| 6: Adaptive Estimation | Fusion (5.4), Safety (6) | 7 (IVP-54–57) | Planned |
-| 7: Data Logging | Pre-Launch Buffer (8.2), Logging (8.3), Flash (9.3) | 8 (IVP-58–62) | Planned |
-| 8: Telemetry | Radio Interface (4.2), Data Flow (8.1) | 9 (IVP-63–67) | Planned |
-| 9: UI | All UI-related | — | Planned |
-| 10: Polish & Testing | All sections | 10 (IVP-68–72) | Planned |
+| 5: Radio & Telemetry | Radio Interface (4.2), Data Flow (8.1) | 6 (IVP-63–67) | Planned — pulled forward, no deps on Stages 7–9 |
+| 6: Flight Director | State Machine (6), Modules (3.2) | 7 (IVP-49–53) | Planned |
+| 6: Adaptive Estimation | Fusion (5.4), Safety (6) | 8 (IVP-54–57) | Planned |
+| 7: Data Logging | Pre-Launch Buffer (8.2), Logging (8.3), Flash (9.3) | 9 (IVP-58–62) | Planned |
+| 8: UI | All UI-related | — | Planned |
+| 9: Polish & Testing | All sections | 10 (IVP-68–72) | Planned |
 | Titan Features | Control Loop, Pyro, High-G | Titan-tier IVPs | Deferred |
 
 Additional completed milestones not in the original phase plan:

@@ -26,6 +26,8 @@
 #include "fusion/eskf.h"
 #include "fusion/mahony_ahrs.h"
 #include "fusion/wmm_declination.h"
+#include "drivers/spi_bus.h"
+#include "drivers/rfm95w.h"
 #include "cli/rc_os.h"
 #include "pico/multicore.h"
 #include "hardware/sync.h"
@@ -42,7 +44,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static constexpr const char* kBuildTag = "stage5-complete";
+static constexpr const char* kBuildTag = "ivp63-radio-1";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -169,6 +171,9 @@ static bool g_baroInitialized = false;
 static bool g_baroContinuous = false;
 static bool g_gpsInitialized = false;
 static gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;
+static bool g_spiInitialized = false;
+static bool g_radioInitialized = false;
+static rfm95w_t g_radio;
 
 // Transport-neutral GPS function pointers — set once during init_sensors().
 // Avoids if/else on every Core 1 GPS poll cycle.
@@ -1439,6 +1444,14 @@ static void print_hw_status() {
     hw_validate_i2c_devices();
     hw_validate_sensors();
 
+    if (g_radioInitialized) {
+        printf("[PASS] Radio: RFM95W LoRa 915 MHz (CS=%d RST=%d IRQ=%d)\n",
+               rocketchip::pins::kRadioCs, rocketchip::pins::kRadioRst,
+               rocketchip::pins::kRadioIrq);
+    } else if (g_spiInitialized) {
+        printf("[----] Radio: not detected (FeatherWing not stacked?)\n");
+    }
+
     // Best GPS fix diagnostic
     if (g_bestGpsValid.load(std::memory_order_acquire)) {
         printf("  Best GPS: Fix=%u Sats=%u HDOP=%.2f\n",
@@ -1575,6 +1588,16 @@ static bool init_hardware() {
 
     if (g_i2cInitialized) {
         init_sensors();
+    }
+
+    // SPI bus + radio init (before USB per LL Entry 4/12)
+    // Optional peripheral: absent FeatherWing detected at init time
+    g_spiInitialized = spi_bus_init();
+    if (g_spiInitialized) {
+        g_radioInitialized = rfm95w_init(&g_radio,
+            rocketchip::pins::kRadioCs,
+            rocketchip::pins::kRadioRst,
+            rocketchip::pins::kRadioIrq);
     }
 
     // Calibration storage init (before USB per LL Entry 4/12)

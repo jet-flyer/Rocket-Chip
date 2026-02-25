@@ -31,13 +31,13 @@
 
 ---
 
-### Watchdog Recovery Policy — IVP-49 (Stage 6 First Step)
+### Watchdog Recovery Policy — IVP-49 (Stage 7 First Step)
 
-**Added 2026-02-12.** IVP-30 watchdog mechanism is correct for ground/IDLE. But a full reboot mid-flight loses all ESKF state, pyro timers, and nav knowledge. IVP-49 added as first step of Stage 6 (before state machine IVP-50) to define the recovery policy: scratch register persistence, reboot counting with safe-mode lockout, ESKF failure backoff, and recovery boot path.
+**Added 2026-02-12.** IVP-30 watchdog mechanism is correct for ground/IDLE. But a full reboot mid-flight loses all ESKF state, pyro timers, and nav knowledge. IVP-49 added as first step of Stage 7 (before state machine IVP-50) to define the recovery policy: scratch register persistence, reboot counting with safe-mode lockout, ESKF failure backoff, and recovery boot path.
 
 **False warning bug — FIXED (2026-02-12).** Root cause: both SDK functions are broken for our use case. `watchdog_caused_reboot()` gives false positives on SWD `monitor reset run` (reason register persists, `rom_get_last_boot_type()` returns `BOOT_TYPE_NORMAL`). `watchdog_enable_caused_reboot()` gives false negatives on real timeouts (bootrom overwrites scratch[4]). Fix: custom sentinel in scratch[0] (`kWatchdogSentinel = 0x52435754`), written before `watchdog_enable()`, checked and cleared at boot. Scratch[0] survives watchdog resets but is cleared by POR/SWD reset. HW verified: no warning on cold plug, boot button, or first SWD flash. Warning correctly appears on SWD reflash while watchdog is running (genuine timeout during bootrom — bootrom takes >5s, watchdog fires). This remaining case will be addressed with the broader IVP-49 watchdog recovery policy.
 
-**IVP renumber (2026-02-24):** MMAE pivot + stage restructuring. Stage 5 ends at IVP-48. New Stage 6 (Flight Director, IVP-49–53), new Stage 7 (Adaptive Estimation & Safety, IVP-54–57). Downstream stages renumbered 8–10 (IVP-58–72). See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`.
+**Stage renumber (2026-02-24):** Radio & Telemetry pulled forward to Stage 6 (IVP-63–67, no deps on later stages). Flight Director is now Stage 7 (IVP-49–53), Adaptive Estimation Stage 8 (IVP-54–57), Data Logging Stage 9 (IVP-58–62), System Integration Stage 10 (IVP-68–72). IVP step numbers unchanged — only stage ordering changed. Full IVP renumber deferred to next substantial restructuring. CCSDS telemetry replaces MAVLink — IVP-64/66 scopes pending re-eval.
 
 ---
 

@@ -197,6 +197,12 @@ else()
 
         # UD factorization (Bierman measurement update path)
         src/fusion/ud_factor.cpp
+
+        # -------------------------------------------------------------------------
+        # Stage 6: Radio & Telemetry (IVP-63)
+        # -------------------------------------------------------------------------
+        src/drivers/spi_bus.cpp
+        src/drivers/rfm95w.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -219,6 +225,8 @@ else()
         src/fusion/wmm_declination.cpp
         src/fusion/mahony_ahrs.cpp
         src/fusion/ud_factor.cpp
+        src/drivers/spi_bus.cpp
+        src/drivers/rfm95w.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
@@ -264,6 +272,8 @@ else()
         hardware_watchdog
         # IVP-35: Mag calibration (Fisher-Yates shuffle with hardware TRNG)
         pico_rand
+        # IVP-63: SPI bus for LoRa radio
+        hardware_spi
     )
 
     # Enable USB CDC for stdio (not UART)

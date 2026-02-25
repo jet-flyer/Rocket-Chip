@@ -1,12 +1,12 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-02-24 (Bierman measurement update adoption)
+**Last Updated:** 2026-02-24 (Radio & Telemetry stage pull-forward)
 
 ## Current Phase
 
-**Stage 5 IN PROGRESS** — Sensor Fusion (ESKF)
+**Stage 6 IN PROGRESS** — Radio & Telemetry (IVP-63: RFM95W Radio Driver)
 
-IVP-39 through IVP-48 complete (all measurement updates, health tuning, Mahony AHRS). IVP-47 codegen FPFT complete — 9.1× speedup (538µs → 59µs avg). SymPy CSE generates flat scalar C++ running from SRAM (.time_critical section). 194/194 host tests pass. HW benchmark verified. Stage 5 ESKF core complete.
+Stage 5 (Sensor Fusion) complete. Radio & Telemetry pulled forward from original Stage 9 position — no dependencies on Flight Director, Adaptive Estimation, or Data Logging. Live radio link enables untethered dynamic validation tests and real-time debugging.
 
 ## Completed
 
@@ -40,11 +40,11 @@ IVP-39 through IVP-48 complete (all measurement updates, health tuning, Mahony A
 
 ## In Progress
 
-**Stage 5: Sensor Fusion (ESKF)** — COMPLETE (IVP-39 through IVP-48).
+**Stage 6: Radio & Telemetry** — IN PROGRESS (IVP-63: RFM95W Radio Driver). SPI bus abstraction + RFM95W LoRa driver. FeatherWing jumpers: CS=GPIO10, RST=GPIO11, IRQ=GPIO6 (M0 defaults).
 
-**Next: Stage 6 (Flight Director)** — IVP-49 through IVP-53. Watchdog recovery policy, state machine core, event engine, action executor, mission configuration. Prerequisite: SAD Open Question #4 (Mealy vs Moore state machine) must be resolved before IVP-50.
+**Next: Stage 7 (Flight Director)** — IVP-49 through IVP-53. Watchdog recovery policy, state machine core, event engine, action executor, mission configuration. Prerequisite: SAD Open Question #4 (Mealy vs Moore state machine) must be resolved before IVP-50.
 
-**Then: Stage 7 (Adaptive Estimation & Safety)** — IVP-54 through IVP-57. Phase-scheduled Q/R (replaces MMAE — see `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`), confidence gate, confidence-gated actions, vehicle parameter profiles.
+**Then: Stage 8 (Adaptive Estimation & Safety)** — IVP-54 through IVP-57. Phase-scheduled Q/R (replaces MMAE — see `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`), confidence gate, confidence-gated actions, vehicle parameter profiles.
 
 ## Blockers
 
