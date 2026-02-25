@@ -91,8 +91,10 @@ rocketchip/
 │   │
 │   ├── drivers/                   # Hardware drivers (Flight-Critical)
 │   │   ├── i2c_bus.cpp/.h         # I2C bus init, read/write, probe, recovery
+│   │   ├── spi_bus.cpp/.h         # SPI0 bus init, read/write, burst (GPIO-controlled CS)
 │   │   ├── icm20948.cpp/.h        # ICM-20948 9-DoF IMU (I2C bypass mode)
 │   │   ├── baro_dps310.cpp/.h     # DPS310 barometer
+│   │   ├── rfm95w.cpp/.h          # RFM95W (SX1276) LoRa radio driver
 │   │   ├── gps_pa1010d.cpp/.h     # PA1010D GPS (I2C backend)
 │   │   ├── gps_uart.cpp/.h        # GPS UART backend (preferred, 57600 baud / 10Hz)
 │   │   ├── gps.h                  # Transport-neutral GPS interface
@@ -166,9 +168,11 @@ rocketchip/
 │   ├── ruuvi.dps310.c/            # Ruuvi DPS310 C driver
 │   └── ws2812b-animation/         # WS2812 animation library
 │
-├── ground_station/                # Ground station prototypes
-│   ├── radio_rx.cpp
-│   ├── lora_rx_simple/            # LoRa receiver (Arduino)
+├── ground_station/                # Ground station (Fruit Jam + RFM95W breakout)
+│   ├── CMakeLists.txt             # Standalone Pico SDK build (adafruit_fruit_jam)
+│   ├── radio_rx.cpp               # LoRa RX bridge: packets → USB serial + NeoPixel RSSI bar
+│   ├── gs_spi.cpp                 # SPI1 bus for Fruit Jam (replaces flight spi_bus.cpp)
+│   ├── lora_rx_simple/            # LoRa receiver (Arduino, deprecated — M0 has RFM69)
 │   └── rfm69_rx_simple/           # RFM69 receiver (Arduino)
 │
 ├── tools/
@@ -185,6 +189,7 @@ rocketchip/
 │   └── DEBUG_PROBE_NOTES.md       # OpenOCD/GDB setup
 │
 ├── build/                         # CMake build output (gitignored)
+├── build_gs/                      # Ground station build output (gitignored)
 ├── build_host/                    # Host test build output (gitignored)
 └── logs/                          # Serial capture logs (gitignored)
 ```

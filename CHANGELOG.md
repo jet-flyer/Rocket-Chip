@@ -20,6 +20,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-02-25-001 | Claude Code CLI | feature, hardware
+
+**Ground station LoRa RX bridge — Fruit Jam + RFM95W breakout, end-to-end link verified.** Standalone Pico SDK build for Adafruit Fruit Jam (#6200, RP2350B) with RFM95W breakout (#3072) wired via jumper cables on SPI1. Receives LoRa packets and prints to USB serial with RSSI/SNR per packet and 30-second link quality summaries (min/avg/max RSSI+SNR, packet count, CRC errors). 5 onboard NeoPixels show RSSI bar graph (red→green gradient, 0-5 bars based on signal strength, 2-second timeout to off). Button 3 (GPIO5) toggles NeoPixels on/off. `gs_spi.cpp` provides the same `spi_bus_*()` API as the flight `spi_bus.cpp` but targets SPI1 (GPIO 28/30/31), allowing `rfm95w.cpp` to compile unchanged for both builds. Temporary 1 Hz test TX heartbeat added to flight firmware for link verification. TX power reduced to +5 dBm for bench testing. HW verified: RSSI -54 to -58 dBm, SNR 8-10 dB, <1% CRC errors at desk range. RP2350B PIO gpiobase=16 required for GPIO32 NeoPixels (SDK issue #2030).
+
+(`ground_station/radio_rx.cpp`, `ground_station/gs_spi.cpp`, `ground_station/CMakeLists.txt`, `src/main.cpp`, `src/drivers/rfm95w.cpp`, `ground_station/lora_rx_simple/lora_rx_simple.ino`)
+
+---
+
 ### 2026-02-24-004 | Claude Code CLI | hardware, documentation
 
 **Hardware inventory update from Adafruit order.** Added new components to HARDWARE.md: ADXL375 high-G accelerometer and LoRa FeatherWings (×2) moved to on-hand inventory, Ground Station section expanded with Fruit Jam (#6200), HyperPixel 4.0" display, Cyberdeck HAT/Bonnet, LoRa Radio Bonnet with OLED, and Pi Zero 2W. Teensy 3.x Feather Adapter and Pico-to-Pi HAT X Converter added to accessories. ADXL375 datasheet (Analog Devices Rev. B) downloaded to `docs/hardware/datasheets/` and added to VENDOR_GUIDELINES.md inventory. SRAM audit closure, SCAFFOLDING.md fix, and 10 datasheets from prior session folded in per whiteboard note.

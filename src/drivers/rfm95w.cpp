@@ -73,7 +73,7 @@ static void configure_modem(rfm95w_t* dev) {
     spi_bus_write_reg(cs, rfm95w::reg::kPreambleMsb, 0x00);
     spi_bus_write_reg(cs, rfm95w::reg::kPreambleLsb, 0x08);
 
-    rfm95w_set_tx_power(dev, 20);
+    rfm95w_set_tx_power(dev, 5);  // Bench testing — raise to 20 for field use
     spi_bus_write_reg(cs, rfm95w::reg::kSyncWord, 0x12);
     spi_bus_write_reg(cs, rfm95w::reg::kDioMapping1, 0x00);
 }

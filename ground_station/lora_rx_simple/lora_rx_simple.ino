@@ -23,10 +23,11 @@
 #include <SPI.h>
 #include <RH_RF95.h>
 
-// Pin configuration for Feather M0 with RFM9x
-#define RFM95_CS   8   // Feather M0 LoRa: 8, Basic+breakout: 10
-#define RFM95_RST  4   // Feather M0 LoRa: 4, Basic+breakout: 11
-#define RFM95_INT  3   // Feather M0 LoRa: 3, Basic+breakout: 6
+// Pin configuration for Feather M0 Basic Proto (#2772) + RFM95W breakout (#3072)
+// For Feather M0 with integrated RFM9x: CS=8, RST=4, INT=3
+#define RFM95_CS   10
+#define RFM95_RST  11
+#define RFM95_INT  6
 
 // Radio frequency - must match transmitter!
 #define RF95_FREQ 915.0
@@ -81,17 +82,68 @@ void setup() {
   Serial.print(RF95_FREQ);
   Serial.println(" MHz");
 
-  // Match these settings with the transmitter
-  rf95.setTxPower(23, false);  // Max power for RX doesn't matter much
+  // Must match RocketChip TX settings (rfm95w.cpp configure_modem)
+  rf95.setTxPower(23, false);
+  rf95.setSpreadingFactor(7);          // SF7
+  rf95.setSignalBandwidth(125000);     // BW 125kHz
+  rf95.setCodingRate4(5);              // CR 4/5
+  rf95.setSyncWord(0x12);              // Private network (matches TX)
 
-  // Default modem config: Bw125Cr45Sf128 (medium range, medium speed)
-  // For longer range: rf95.setModemConfig(RH_RF95::Bw125Cr48Sf4096);
-
+  Serial.println("Config: SF7 BW125 CR4/5 Sync=0x12");
   Serial.println("Waiting for packets...");
   Serial.println();
 }
 
+// Link quality statistics
 uint32_t pkt_count = 0;
+uint32_t rx_errors = 0;
+int16_t rssi_min = 0;
+int16_t rssi_max = -200;
+int32_t rssi_sum = 0;
+int8_t snr_min = 127;
+int8_t snr_max = -128;
+int32_t snr_sum = 0;
+uint32_t last_status_ms = 0;
+uint32_t last_pkt_ms = 0;
+
+void printLinkStatus() {
+  Serial.println();
+  Serial.println("--- Link Quality ---");
+  Serial.print("  Packets: ");
+  Serial.print(pkt_count);
+  Serial.print("  Errors: ");
+  Serial.println(rx_errors);
+  if (pkt_count > 0) {
+    Serial.print("  RSSI: ");
+    Serial.print(rssi_min);
+    Serial.print(" / ");
+    Serial.print((int16_t)(rssi_sum / (int32_t)pkt_count));
+    Serial.print(" / ");
+    Serial.print(rssi_max);
+    Serial.println(" dBm (min/avg/max)");
+    Serial.print("  SNR:  ");
+    Serial.print(snr_min);
+    Serial.print(" / ");
+    Serial.print((int8_t)(snr_sum / (int32_t)pkt_count));
+    Serial.print(" / ");
+    Serial.print(snr_max);
+    Serial.println(" dB (min/avg/max)");
+    if (last_pkt_ms > 0) {
+      uint32_t elapsed = millis() - last_pkt_ms;
+      if (elapsed < 10000) {
+        Serial.print("  Last pkt: ");
+        Serial.print(elapsed);
+        Serial.println(" ms ago");
+      } else {
+        Serial.print("  Last pkt: ");
+        Serial.print(elapsed / 1000);
+        Serial.println(" s ago");
+      }
+    }
+  }
+  Serial.println("--------------------");
+  Serial.println();
+}
 
 void loop() {
   if (rf95.available()) {
@@ -101,12 +153,26 @@ void loop() {
     if (rf95.recv(buf, &len)) {
       digitalWrite(LED_PIN, HIGH);
       pkt_count++;
+      last_pkt_ms = millis();
 
-      // Print packet header
+      int16_t rssi = rf95.lastRssi();
+      int8_t snr = rf95.lastSNR();
+
+      // Update link quality stats
+      rssi_sum += rssi;
+      if (rssi < rssi_min || rssi_min == 0) rssi_min = rssi;
+      if (rssi > rssi_max) rssi_max = rssi;
+      snr_sum += snr;
+      if (snr < snr_min) snr_min = snr;
+      if (snr > snr_max) snr_max = snr;
+
+      // Print packet header with RSSI + SNR
       Serial.print("[");
       Serial.print(pkt_count);
       Serial.print("] RSSI:");
-      Serial.print(rf95.lastRssi(), DEC);
+      Serial.print(rssi, DEC);
+      Serial.print(" SNR:");
+      Serial.print(snr, DEC);
       Serial.print(" len:");
       Serial.print(len);
       Serial.print(" | ");
@@ -136,7 +202,14 @@ void loop() {
 
       digitalWrite(LED_PIN, LOW);
     } else {
-      Serial.println("Receive failed");
+      rx_errors++;
+      Serial.println("[RX ERROR] Receive failed");
     }
+  }
+
+  // Print link quality summary every 30 seconds
+  if (millis() - last_status_ms >= 30000) {
+    last_status_ms = millis();
+    printLinkStatus();
   }
 }

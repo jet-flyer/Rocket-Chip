@@ -44,7 +44,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = 21;
-static constexpr const char* kBuildTag = "ivp63-radio-1";
+static constexpr const char* kBuildTag = "ivp63-radio-2";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -1993,6 +1993,29 @@ static void eskf_tick() {
 }
 
 // ============================================================================
+// Radio Test TX (temporary — 1 Hz heartbeat for link verification)
+// ============================================================================
+
+static uint32_t g_radioTestTxCount = 0;
+static uint32_t g_radioTestTxLastMs = 0;
+
+static void radio_test_tx_tick(uint32_t nowMs) {
+    if (!g_radioInitialized) { return; }
+    if (nowMs - g_radioTestTxLastMs < 1000) { return; }
+    g_radioTestTxLastMs = nowMs;
+    g_radioTestTxCount++;
+
+    char pkt[48];
+    int len = snprintf(pkt, sizeof(pkt), "RC #%lu t=%lu",
+                       (unsigned long)g_radioTestTxCount,
+                       (unsigned long)(nowMs / 1000));
+
+    rfm95w_send(&g_radio,
+                reinterpret_cast<const uint8_t*>(pkt),
+                static_cast<uint8_t>(len));
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -2011,6 +2034,9 @@ int main() {
 
         g_lastTickFunction = "eskf";
         eskf_tick();
+
+        g_lastTickFunction = "radio_tx";
+        radio_test_tx_tick(nowMs);
 
         g_lastTickFunction = "cli";
         cli_update_tick();

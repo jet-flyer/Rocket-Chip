@@ -1,5 +1,6 @@
 # CMake build artifacts
 build/
+build_gs/
 build_host/
 cmake-build-*/
 CMakeCache.txt
@@ -28,6 +29,7 @@ desktop.ini
 
 # Logs and temps
 *.log
+logs/
 temp/
 tmp/
 *.tmp
