@@ -673,8 +673,8 @@ This maps to the IVP but specifies what testing infrastructure must exist at eac
 | IVP-46 (GPS Update) | Position/velocity | GPS update tests. Replay Cube flight data. First ArduPilot comparison. |
 | IVP-47 (Codegen FPFT) | Performance optimization | Codegen vs dense comparison test. SRAM execution. Timing benchmark. |
 | IVP-48 (Health Tuning) | Per-sensor diagnostics | NIS gate tests. Tilt R inflation. Accept/reject counters. |
-| IVP-54 (Phase-Scheduled Q/R) | Adaptive estimation | Phase transition Q/R switching. Innovation adaptation. Bierman (GPS-conditional). |
-| IVP-55 (Confidence Gate) | Safety layer | Failure injection tests: bad sensor, divergence, AHRS cross-check, etc. |
+| IVP-59 (Phase-Scheduled Q/R) | Adaptive estimation | Phase transition Q/R switching. Innovation adaptation. Bierman (GPS-conditional). |
+| IVP-60 (Confidence Gate) | Safety layer | Failure injection tests: bad sensor, divergence, AHRS cross-check, etc. |
 
 ---
 

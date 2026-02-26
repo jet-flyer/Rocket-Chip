@@ -8,7 +8,7 @@
 //
 // Runs alongside the 15-state ESKF as an independent cross-check.
 // NOT a navigation solution — lightweight "second opinion" for the
-// confidence gate (IVP-50). When ESKF diverges but Mahony doesn't
+// confidence gate (IVP-60). When ESKF diverges but Mahony doesn't
 // (or vice versa), the gate can flag the discrepancy.
 //
 // Algorithm: Mahony et al. (2008) "Nonlinear complementary filters
@@ -49,7 +49,7 @@ struct MahonyAHRS {
 
     // Startup: 10× Kp for first 20s, then decay to normal.
     // BetaFlight pattern — fast convergence on power-on.
-    // TODO(IVP-50): also terminate on ARM state transition.
+    // TODO(IVP-55): also terminate on ARM state transition.
     static constexpr float kStartupKpMultiplier = 10.0f;
     static constexpr float kStartupDurationS    = 20.0f;
 

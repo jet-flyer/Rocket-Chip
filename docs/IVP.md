@@ -94,15 +94,15 @@ cmake --build build/
 | 4 | GPS Navigation | Phase 3 | IVP-31 — IVP-33 | Full | |
 | **M** | **Magnetometer Calibration** | **Phase 3** | **IVP-34 — IVP-38** | **Full** | **(out-of-sequence)** |
 | 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-48 | Full | |
-| **6** | **Radio & Telemetry** | **Phase 5** | **IVP-63 — IVP-67** | **IVP-63 verified** | **(pulled forward)** |
-| 7 | Flight Director | Phase 6 | IVP-49 — IVP-53 | Placeholder | **Crowdfunding Demo Ready** |
-| 8 | Adaptive Estimation & Safety | Phase 6 | IVP-54 — IVP-57 | Placeholder | |
-| 9 | Data Logging | Phase 7 | IVP-58 — IVP-62 | Placeholder | |
+| **6** | **Radio & Telemetry** | **Phase 5** | **IVP-49 — IVP-53** | **IVP-49 verified** | **(pulled forward)** |
+| 7 | Flight Director | Phase 6 | IVP-54 — IVP-58 | Placeholder | **Crowdfunding Demo Ready** |
+| 8 | Adaptive Estimation & Safety | Phase 6 | IVP-59 — IVP-62 | Placeholder | |
+| 9 | Data Logging | Phase 7 | IVP-63 — IVP-67 | Placeholder | |
 | 10 | System Integration | Phase 9 | IVP-68 — IVP-72 | Placeholder | **Flight Ready** |
 
-> **Stage 6 pull-forward rationale:** Radio & Telemetry was originally Stage 9 but has zero dependencies on Stages 7–9 (Flight Director, Adaptive Estimation, Data Logging). A live radio link enables untethered dynamic validation tests (turntable, pendulum, vehicle GPS-vs-INS) and real-time debugging — both of which accelerate remaining development. SPI bus is independent from I2C sensors. IVP step numbers are unchanged; only stage ordering changed. A full IVP number renumber is deferred to the next substantial restructuring.
+> **Stage 6 pull-forward rationale:** Radio & Telemetry was originally Stage 9 but has zero dependencies on Stages 7–9 (Flight Director, Adaptive Estimation, Data Logging). A live radio link enables untethered dynamic validation tests (turntable, pendulum, vehicle GPS-vs-INS) and real-time debugging — both of which accelerate remaining development. SPI bus is independent from I2C sensors. IVP numbers were renumbered sequentially at the same time as this stage ordering change — Stage 6 (Radio) now holds IVP-49–53, Stage 7 (Flight Director) IVP-54–58, and so on.
 
-> **IVP-64 re-evaluation pending:** Original scope was MAVLink encoding. Project is pivoting to CCSDS telemetry. IVP-64 and IVP-66 scopes will be redefined when Stage 6 reaches those steps.
+> **IVP-50 re-evaluation pending:** Original scope was MAVLink encoding. Project is pivoting to CCSDS telemetry. IVP-50 and IVP-52 scopes will be redefined when Stage 6 reaches those steps.
 
 ---
 
@@ -1439,7 +1439,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 **Prerequisites:** IVP-42
 
-**Implement:** `src/fusion/mahony_ahrs.h/.cpp` — independent attitude estimator running alongside ESKF. Lightweight PI controller on orientation error. Uses same IMU data from seqlock but maintains its own quaternion. Provides the independent cross-check required by the confidence gate (IVP-55).
+**Implement:** `src/fusion/mahony_ahrs.h/.cpp` — independent attitude estimator running alongside ESKF. Lightweight PI controller on orientation error. Uses same IMU data from seqlock but maintains its own quaternion. Provides the independent cross-check required by the confidence gate (IVP-60).
 
 1. **Algorithm (Mahony 2008):**
    ```
@@ -1608,11 +1608,99 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-63 | RFM95W Radio Driver | SPI bus init, LoRa radio init, TX/RX with polling |
-| IVP-64 | Telemetry Encoder | ~~MAVLink~~ → CCSDS TM packet encoding (scope TBD) |
-| IVP-65 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
-| IVP-66 | GCS Compatibility | ~~QGroundControl / Mission Planner~~ → re-eval for CCSDS (scope TBD) |
-| IVP-67 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
+| IVP-49 | RFM95W Radio Driver | SPI bus init, LoRa radio init, TX/RX with polling ✓ |
+| IVP-50 | Telemetry Encoder | ~~MAVLink~~ → CCSDS TM packet encoding (scope TBD) |
+| IVP-51 | Telemetry Service | `⚠️ VALIDATE 10Hz` downlink with message prioritization |
+| IVP-52 | GCS Compatibility | ~~QGroundControl / Mission Planner~~ → re-eval for CCSDS (scope TBD) |
+| IVP-53 | Bidirectional Commands | GCS sends calibrate, arm, parameter set commands |
+
+---
+
+### IVP-49: RFM95W LoRa Radio Driver ✓ VERIFIED 2026-02-25
+
+**Prerequisites:** Stage 5 complete (sensor fusion running), SPI0 hardware available
+
+**Implement:** SPI bus driver (`src/drivers/spi_bus.h/.cpp`, GPIO-controlled CS), RFM95W LoRa driver (`src/drivers/rfm95w.h/.cpp`). Optional peripheral — absent FeatherWing detected at boot via RegVersion read (expected 0x12). LoRa parameters: 915 MHz, SF7, BW 125 kHz, CR 4/5. Polling IRQ pattern (`rfm95w_poll_irq()`) instead of hardware interrupt for initial driver. Ground station: standalone Pico SDK build targeting Adafruit Fruit Jam (#6200, RP2350B) with RFM95W breakout (#3072), SPI1 (GPIO 28/30/31).
+
+Council-reviewed (unanimous, 6 amendments incorporated): 64-bit frequency calculation, GPIO CS not hardware CS, FIFO pointer reset before TX, 100ms TX timeout, used-registers-only constants, `poll_irq()` for deferred ISR swap.
+
+**Temporary bench state (per AGENT_WHITEBOARD):** 1 Hz test TX heartbeat (`"RC #N t=N"`) active in flight firmware (`radio_test_tx_tick()` in `src/main.cpp`), TX power at 5 dBm in `src/drivers/rfm95w.cpp`. Remove test TX when IVP-50 (telemetry encoder) lands; restore to 20 dBm for field use.
+
+**[GATE] — All 8 gates verified 2026-02-25 (commit d2f3cbe):**
+1. **Init:** `RegVersion = 0x12` confirmed, radio transitions to standby
+2. **Absent hardware:** FeatherWing not stacked → graceful skip at boot, no failures
+3. **TX:** packet transmitted successfully, no timeout
+4. **RX:** packet received on ground station with correct payload
+5. **RSSI:** −54 to −58 dBm at desk range, SNR 8–10 dB
+6. **Loopback:** 100% delivery over 100 packets, <1% CRC errors
+7. **Range:** link holds through interior walls at 5 dBm
+8. **Integration soak:** 120K IMU reads, 0 errors at 10 Hz TX rate; all sensors nominal with FeatherWing stacked
+
+**[DIAG]:** `RegVersion` not 0x12 = SPI wiring or CS jumper issue on FeatherWing. TX timeout = check RST line, radio may need longer settle after init. RX misses = frequency or spreading factor mismatch between flight and ground station. IMU errors during TX = SPI/I2C bus isolation issue (SPI0 and I2C1 are independent peripherals on RP2350, should not interfere).
+
+**[LL]:** Entry 25 (use debug probe for iterative flashing — picotool bus corruption risk)
+
+---
+
+### IVP-50: Telemetry Encoder — *TBD after IVP-49*
+
+**Prerequisites:** IVP-49
+
+**Implement:** Encode a fixed-size telemetry packet from live ESKF state, sensor health flags, and flight state. Packet format TBD — original scope was MAVLink v2, project is evaluating CCSDS Space Packet Protocol (APID-based, fixed secondary header). Decision required before implementation: packet format, field selection, and whether to reuse the ground station RX bridge or build a new decoder.
+
+**[GATE]:**
+- Packet encodes and decodes to original values with no field corruption
+- Ground station parses packet and displays key fields (position, velocity, attitude, health)
+- Encoder adds < `⚠️ VALIDATE 50µs` overhead per telemetry tick
+
+**[DIAG]:** Endianness mismatch between flight (ARM LE) and ground station (x86 LE or RPi LE) — use explicit byte-order encoding. Packet size exceeds LoRa payload limit (255 bytes max for SX1276) — split into multiple packets or reduce field count.
+
+---
+
+### IVP-51: Telemetry Service — *TBD after IVP-50*
+
+**Prerequisites:** IVP-50
+
+**Implement:** Downlink service running on Core 0 at `⚠️ VALIDATE 10Hz`. Message queue with prioritization — flight-critical state packets higher priority than diagnostic/health packets. Rate governer to stay within LoRa duty cycle limits.
+
+**[GATE]:**
+- 10 Hz packets received continuously on ground station over 5 minutes
+- No queue overflow under sustained load
+- IMU and baro sample rates on Core 1 unaffected by 10 Hz radio TX
+- Duty cycle: verify TX time-on-air per packet × 10 Hz ≤ FCC Part 15 limit for 915 MHz ISM
+
+**[DIAG]:** Queue overflow = rate too high or packet assembly too slow. Sensor rate degradation = radio TX blocking Core 0 longer than expected; profile TX call duration.
+
+---
+
+### IVP-52: GCS Compatibility — *TBD after IVP-51*
+
+**Prerequisites:** IVP-51
+
+**Implement:** Ground control station compatibility. Original scope was QGroundControl / Mission Planner (MAVLink-native). Re-evaluating for CCSDS — options include custom Python GCS, OpenMCT with CCSDS plugin, or a thin MAVLink-over-CCSDS bridge. Decision required before implementation.
+
+**[GATE]:**
+- GCS displays real-time telemetry fields: position, velocity, attitude, sensor health
+- Position and attitude visualized (map or 3D attitude indicator)
+- Telemetry updates visible within 200ms of packet reception
+
+**[DIAG]:** GCS decode errors = packet format mismatch. Latency > 200ms = GCS rendering bottleneck, not radio link.
+
+---
+
+### IVP-53: Bidirectional Commands — *TBD after IVP-52*
+
+**Prerequisites:** IVP-52
+
+**Implement:** Uplink command channel from GCS to flight computer. Commands: calibrate, arm/disarm, parameter get/set. Each command requires an acknowledge packet in response. Command authentication TBD (simple sequence number or HMAC for production).
+
+**[GATE]:**
+- Calibrate command received and executed; ACK sent back to GCS
+- Arm command received; system transitions to ARMED state (requires state machine from Stage 7)
+- Parameter set received; value updated and verified via subsequent parameter get
+- Unrecognized command: NACK sent, no state change
+
+**[DIAG]:** ACK not received = uplink packet lost or GCS not listening on RX. State does not change on arm = command handler not wired to state machine. Parameter changes don't persist = not saved to flash after update.
 
 ---
 
@@ -1621,24 +1709,26 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 **Purpose:** Flight state machine and event-driven actions. See SAD.md Section 6.
 
 **Prerequisite decisions:**
-- Resolve SAD Open Question #4 (Mealy vs Moore state machine) before implementing IVP-50.
-- IVP-49 (Watchdog Recovery Policy) must be completed first — the state machine depends on knowing how the system recovers from a mid-flight reboot.
+- Resolve SAD Open Question #4 (Mealy vs Moore state machine) before implementing IVP-55.
+- IVP-54 (Watchdog Recovery Policy) must be completed first — the state machine depends on knowing how the system recovers from a mid-flight reboot.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-49 | Watchdog Recovery Policy | Scratch register persistence, reboot counting, state-aware recovery path |
-| IVP-50 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
-| IVP-51 | Event Engine | Condition evaluator for launch, apogee, landing detection |
-| IVP-52 | Action Executor | LED, beep, logging trigger actions on state transitions |
-| IVP-53 | Mission Configuration | Load mission definitions (rocket, freeform, HAB) |
+| IVP-54 | Watchdog Recovery Policy | Scratch register persistence, reboot counting, state-aware recovery path |
+| IVP-55 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
+| IVP-56 | Event Engine | Condition evaluator for launch, apogee, landing detection |
+| IVP-57 | Action Executor | LED, beep, logging trigger actions on state transitions |
+| IVP-58 | Mission Configuration | Load mission definitions (rocket, freeform, HAB) |
+
+> **Milestone:** At IVP-58 completion, the system has calibrated sensors, GPS, sensor fusion, radio link, and a working flight state machine — **Crowdfunding Demo Ready**.
 
 ---
 
-### IVP-49: Watchdog Recovery Policy
+### IVP-54: Watchdog Recovery Policy
 
 **Prerequisites:** IVP-30 (hardware watchdog mechanism), Stage 5 complete
 
-**Rationale:** IVP-30 implemented the watchdog *mechanism* (dual-core heartbeat, 5s timeout, kick pattern). The mechanism is correct for ground/IDLE — a full reboot recovers cleanly. But a full reboot mid-flight (ARMED through DESCENT) is catastrophic: ESKF state lost, pyro timers reset, position/velocity knowledge gone. The state machine (IVP-50) cannot be designed without first defining what happens when the system wakes up after an unexpected reset.
+**Rationale:** IVP-30 implemented the watchdog *mechanism* (dual-core heartbeat, 5s timeout, kick pattern). The mechanism is correct for ground/IDLE — a full reboot recovers cleanly. But a full reboot mid-flight (ARMED through DESCENT) is catastrophic: ESKF state lost, pyro timers reset, position/velocity knowledge gone. The state machine (IVP-55) cannot be designed without first defining what happens when the system wakes up after an unexpected reset.
 
 **Bug fix (included):** Replace `watchdog_enable_caused_reboot()` with `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks a scratch register magic value that persists across picotool flashes and soft resets, causing false watchdog warnings on clean boots. The base `watchdog_caused_reboot()` checks `rom_get_last_boot_type() == BOOT_TYPE_NORMAL` on RP2350, correctly distinguishing true WDT timeouts from reflash reboots.
 
@@ -1654,7 +1744,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 4. **ESKF failure backoff.** Add a consecutive-failure counter for ESKF init→diverge cycles. After `⚠️ VALIDATE 5` consecutive failures (init succeeds but `healthy()` returns false within N seconds), disable ESKF until manual CLI reset (`'e'` key or similar). This prevents the init→diverge→re-init churn observed during ESKF development without requiring a full system reboot. This is the model for subsystem-level recovery: detect failure, disable the failing subsystem, continue operating in degraded mode.
 
-5. **Recovery boot path.** In `init_hardware()` / `init_application()`, after reading scratch registers: if this is a WDT reboot (not POR), log the event, print the diagnostic context from scratch registers, and set a `g_recoveryBoot` flag. The state machine (IVP-50) will use this flag to determine post-reboot behavior per flight state:
+5. **Recovery boot path.** In `init_hardware()` / `init_application()`, after reading scratch registers: if this is a WDT reboot (not POR), log the event, print the diagnostic context from scratch registers, and set a `g_recoveryBoot` flag. The state machine (IVP-55) will use this flag to determine post-reboot behavior per flight state:
    - **IDLE/LANDED:** Normal reboot + LAUNCH_ABORT flag set.
    - **ARMED:** LAUNCH_ABORT + automatic DISARM.
    - **BOOST/COAST/DESCENT:** Recovery mode — skip ESKF (can't re-init under acceleration), resume pyro timers from flash checkpoint, activate beacon. Degrade to baro-only altitude with timer-based backup deployment.
@@ -1671,28 +1761,93 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 **[DIAG]:** False WDT warning persists = still using `watchdog_enable_caused_reboot()` or scratch registers not cleared on POR. Safe mode triggers unexpectedly = reboot counter threshold too low or detection window too tight. ESKF never re-enables = backoff counter not resettable via CLI. Scratch data garbled after WDT = CRC/magic validation logic bug. LAUNCH_ABORT blocks arming unexpectedly = flag not cleared on POR or CLI command not working.
 
-> **Milestone:** At IVP-53 completion, the system has calibrated sensors, GPS, sensor fusion, and a working flight state machine — **Crowdfunding Demo Ready**.
+---
+
+### IVP-55: State Machine Core — *TBD after IVP-54*
+
+**Prerequisites:** IVP-54 (watchdog recovery policy defined), IVP-49 (radio link operational for arming)
+
+**Implement:** Hierarchical state machine with states IDLE / ARMED / BOOST / COAST / DESCENT / LANDED / ERROR. Each state has entry/exit actions and a set of valid transitions guarded by conditions from IVP-56 (event engine). All transitions logged. Timeout fallbacks for stuck states.
+
+Resolve SAD Open Question #4 (Mealy vs Moore) before implementation — the answer determines whether actions belong to transitions or states. See `docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md`.
+
+**[GATE]:**
+- All 7 states reachable in bench simulation (inject sensor stimuli)
+- All transitions log correctly: `State: IDLE -> ARMED` format
+- Stuck-state timeouts trigger correctly
+- `g_recoveryBoot` flag routes correctly to LAUNCH_ABORT vs recovery mode per IVP-54 policy
+- No state transitions occur when `confident = false` for irreversible actions (wired at IVP-61)
+
+**[DIAG]:** Transition not triggering = event condition thresholds not met; verify against IVP-56 engine output. State machine stuck = missing self-transition or timeout handler.
+
+---
+
+### IVP-56: Event Engine — *TBD after IVP-55*
+
+**Prerequisites:** IVP-55, IVP-48 (ESKF provides acceleration/altitude/velocity)
+
+**Implement:** Condition evaluator feeding the state machine. Detects: launch (`|A| > threshold` for N consecutive samples), apogee (velocity sign change or baro max), landing (low velocity + low altitude change for T seconds). All thresholds configurable per vehicle profile (IVP-62).
+
+**[GATE]:**
+- Launch detection: hand-toss simulation triggers BOOST transition
+- Apogee detection: baro peak detected within `⚠️ VALIDATE 2s` of actual peak
+- Landing detection: no false positives during 5-minute bench soak
+- Missed apogee fallback: timer-based deploy fires after `⚠️ VALIDATE 15s` coast timeout
+
+**[DIAG]:** False launch = vibration/handling triggers threshold; raise threshold or add debounce. Missed apogee = velocity noise prevents clean sign change; use baro peak detection as primary.
+
+---
+
+### IVP-57: Action Executor — *TBD after IVP-56*
+
+**Prerequisites:** IVP-56, IVP-49 (radio for telemetry status), IVP-63 (logging for event recording — Stage 9)
+
+**Implement:** Maps state transitions to hardware actions. Actions: NeoPixel patterns (status indication), buzzer beep sequences, telemetry flag updates, logging triggers. Pyro channel actions deferred to IVP-61 (confidence-gated) and require explicit safety review before any wiring.
+
+**[GATE]:**
+- ARMED state entry: NeoPixel solid orange, telemetry ARMED flag set
+- BOOST state entry: NeoPixel solid red, log marker written
+- LANDED state entry: NeoPixel slow green blink, buzzer recovery pattern
+- Actions execute within 1 tick of state transition
+
+**[DIAG]:** NeoPixel not changing = action executor not wired to state machine callbacks. Telemetry flag stale = radio tick not reading current flight state.
+
+---
+
+### IVP-58: Mission Configuration — *TBD after IVP-57*
+
+**Prerequisites:** IVP-57, IVP-14 (flash storage)
+
+**Implement:** Load mission definitions from flash at boot. Definitions specify vehicle type (rocket, HAB, freeform), enabling the appropriate event thresholds and action mappings for IVP-56 and IVP-57. Stored as structured data in flash alongside calibration. CLI command to select/preview active mission.
+
+**[GATE]:**
+- Three mission definitions compile and load correctly: model rocket, HAB, freeform
+- CLI shows active mission name and key parameters
+- Mission selection persists across power cycle
+- Freeform mission: single phase, default thresholds, no regime switching
+
+**[DIAG]:** Load fails after flash write = struct version mismatch; bump version and re-init. Wrong thresholds in active mission = selection logic not reading correct profile index.
 
 ---
 
 ## Stage 8: Adaptive Estimation & Safety
 
-**Purpose:** Phase-aware ESKF tuning and confidence-gated safety. Integrates with the state machine (IVP-50) for flight phase detection and with the Flight Director (Stage 6) for safety-gated actions.
+**Purpose:** Phase-aware ESKF tuning and confidence-gated safety. Integrates with the state machine (IVP-55) for flight phase detection and with the Flight Director (Stage 7) for safety-gated actions.
 
 **Background:** Extended research (2026-02-24) demonstrated that MMAE/IMM is the wrong tool for RocketChip's flight regime switching. Real aerospace navigation (X-43A, SpaceX Grasshopper, ArduPilot EKF3, PX4 ECL) universally uses single kinematic filters with deterministic regime adaptation — not multi-model banks. Simple phase-scheduled Q/R captures the same benefit at near-zero computational cost. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for full rationale and benchmark data.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-54 | Phase-Scheduled Q/R + Innovation Adaptation | Per-phase noise models tied to state machine, innovation ratio fine-tuning, optional Bierman measurement updates |
-| IVP-55 | Confidence Gate | ESKF health + AHRS cross-check → binary confidence flag for Flight Director |
-| IVP-56 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
-| IVP-57 | Vehicle Parameter Profiles | Mission-specific Q/R presets per vehicle type (rocket, HAB, drone) |
+| IVP-59 | Phase-Scheduled Q/R + Innovation Adaptation | Per-phase noise models tied to state machine, innovation ratio fine-tuning, optional Bierman measurement updates |
+| IVP-60 | Confidence Gate | ESKF health + AHRS cross-check → binary confidence flag for Flight Director |
+| IVP-61 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
+| IVP-62 | Vehicle Parameter Profiles | Mission-specific Q/R presets per vehicle type (rocket, HAB, drone) |
 
 ---
 
-### IVP-54: Phase-Scheduled Q/R + Innovation Adaptation
+### IVP-59: Phase-Scheduled Q/R + Innovation Adaptation
 
-**Prerequisites:** IVP-50 (state machine provides flight phase detection), IVP-48 (ESKF tuned)
+**Prerequisites:** IVP-55 (state machine provides flight phase detection), IVP-48 (ESKF tuned)
 
 **Implement:** Per-phase Q and R matrices selected from vehicle-specific parameter profiles, with thin innovation-ratio adaptation layer for fine-tuning.
 
@@ -1726,9 +1881,9 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ---
 
-### IVP-55: Confidence Gate
+### IVP-60: Confidence Gate
 
-**Prerequisites:** IVP-54, IVP-45 (Mahony AHRS)
+**Prerequisites:** IVP-59, IVP-45 (Mahony AHRS)
 
 **Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates ESKF innovation consistency and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director. This is the platform safety layer — NOT configurable by Mission Profiles.
 
@@ -1764,9 +1919,9 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ---
 
-### IVP-56: Confidence-Gated Actions
+### IVP-61: Confidence-Gated Actions
 
-**Prerequisites:** IVP-55 (confidence gate), IVP-52 (action executor)
+**Prerequisites:** IVP-60 (confidence gate), IVP-57 (action executor)
 
 **Implement:** Wire confidence gate output into the Flight Director's action executor. When `confident = false`:
 - Pyro channels LOCKED (cannot fire)
@@ -1785,11 +1940,11 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 ---
 
-### IVP-57: Vehicle Parameter Profiles
+### IVP-62: Vehicle Parameter Profiles
 
-**Prerequisites:** IVP-54 (phase-scheduled Q/R framework)
+**Prerequisites:** IVP-59 (phase-scheduled Q/R framework)
 
-**Implement:** Mission-specific Q/R presets per vehicle type. The Q/R scheduling (IVP-54) selects values per flight phase — this step provides the actual phase definitions and noise parameters per vehicle type.
+**Implement:** Mission-specific Q/R presets per vehicle type. The Q/R scheduling (IVP-59) selects values per flight phase — this step provides the actual phase definitions and noise parameters per vehicle type.
 
 1. **Profile structure:**
    ```cpp
@@ -1825,11 +1980,11 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-58 | LittleFS Integration | Mount filesystem on remaining flash |
-| IVP-59 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
-| IVP-60 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
-| IVP-61 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
-| IVP-62 | USB Data Download | Download flight logs via CLI |
+| IVP-63 | LittleFS Integration | Mount filesystem on remaining flash |
+| IVP-64 | Logger Service | Buffered writes at `⚠️ VALIDATE 50Hz` |
+| IVP-65 | Pre-Launch Ring Buffer | PSRAM ring buffer for pre-launch capture |
+| IVP-66 | Log Format | MAVLink binary format, readable by Mission Planner/QGC |
+| IVP-67 | USB Data Download | Download flight logs via CLI |
 
 ---
 
@@ -1865,11 +2020,11 @@ Tests to re-run after changes to specific areas.
 | GPS driver change | IVP-31 — IVP-33 | GPS + integration |
 | Mag calibration code change | IVP-34 — IVP-38, IVP-17 | Mag cal + accel cal regression |
 | Fusion algorithm change | IVP-39 — IVP-48 | Filter correctness |
-| Adaptive estimation change | IVP-54 — IVP-57 | Q/R scheduling, confidence gate |
-| Watchdog policy change | IVP-49, IVP-30 | Recovery behavior + mechanism |
-| Flight Director change | IVP-50 — IVP-53 | State machine correctness |
+| Adaptive estimation change | IVP-59 — IVP-62 | Q/R scheduling, confidence gate |
+| Watchdog policy change | IVP-54, IVP-30 | Recovery behavior + mechanism |
+| Flight Director change | IVP-55 — IVP-58 | State machine correctness |
 | **Major refactor** | **All Stage 1-3** | Full regression |
-| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-49, IVP-68 | Release qualification (build, USB, flash, watchdog, recovery, bench test) |
+| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-54, IVP-68 | Release qualification (build, USB, flash, watchdog, recovery, bench test) |
 
 ---
 

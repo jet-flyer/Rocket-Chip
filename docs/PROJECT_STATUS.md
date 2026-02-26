@@ -1,10 +1,10 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-02-25 (IVP-63 gates complete)
+**Last Updated:** 2026-02-25 (IVP-49 gates complete; IVP renumber complete)
 
 ## Current Phase
 
-**Stage 6 IN PROGRESS** — Radio & Telemetry (IVP-63 complete, IVP-64 next)
+**Stage 6 IN PROGRESS** — Radio & Telemetry (IVP-49 complete, IVP-50 next)
 
 Stage 5 (Sensor Fusion) complete. Radio & Telemetry pulled forward from original Stage 9 position — no dependencies on Flight Director, Adaptive Estimation, or Data Logging. Live radio link enables untethered dynamic validation tests and real-time debugging.
 
@@ -37,15 +37,15 @@ Stage 5 (Sensor Fusion) complete. Radio & Telemetry pulled forward from original
 | Dense+SRAM benchmark | — | 2026-02-23 | Dense O(N³) at 24 states NOT VIABLE from SRAM: 1,747µs avg vs codegen 111µs (15.7×). Codegen mandatory. All other hot-path functions <640B, no further SRAM placements needed |
 | UD factorization benchmark | — | 2026-02-24 | Phase 1 gate PASS: P stable at 100K steps, UD not needed. DCP f64 7.8× slower than f32. Thornton f32 29.6× slower than codegen. Bierman 2× faster than Joseph. Fixed D-array corruption + NaN bug in Thornton |
 | Bierman measurement update | — | 2026-02-24 | Replaced Joseph with Bierman behind `ESKF_USE_BIERMAN=1`. PRepr state machine (lazy factorize/reconstruct). 43% faster per epoch (486µs vs 851µs). Alpha canary: relErr=1.37e-08, DCP Phase 2 deferred. 207/207 host tests. HW soak: 88K reads, 0 errors, ESKF HEALTHY, predict 561µs avg |
-| 6: Radio Driver | IVP-63 | 2026-02-25 | RFM95W LoRa driver (SPI bus, GPIO-controlled CS, TX/RX polling). Ground station RX bridge on Fruit Jam (#6200) + RFM95W breakout (#3072) via SPI1. All 8 verification gates passed: init, absent HW, TX, RX, RSSI, loopback (100%, 0 gaps), range (through walls at 5 dBm), integration soak (120K IMU reads, 0 errors at 10Hz TX) |
+| 6: Radio Driver | IVP-49 | 2026-02-25 | RFM95W LoRa driver (SPI bus, GPIO-controlled CS, TX/RX polling). Ground station RX bridge on Fruit Jam (#6200) + RFM95W breakout (#3072) via SPI1. All 8 verification gates passed: init, absent HW, TX, RX, RSSI, loopback (100%, 0 gaps), range (through walls at 5 dBm), integration soak (120K IMU reads, 0 errors at 10Hz TX) |
 
 ## In Progress
 
-**Stage 6: Radio & Telemetry** — IVP-63 complete. Next: IVP-64 (Telemetry Encoder — CCSDS TM, scope TBD). Temporary 1Hz test TX and 5 dBm bench power in place; raise to 20 dBm for field use.
+**Stage 6: Radio & Telemetry** — IVP-49 complete. Next: IVP-50 (Telemetry Encoder — CCSDS TM, scope TBD). Temporary 1Hz test TX and 5 dBm bench power in place; raise to 20 dBm for field use.
 
-**Next: Stage 7 (Flight Director)** — IVP-49 through IVP-53. Watchdog recovery policy, state machine core, event engine, action executor, mission configuration. Prerequisite: SAD Open Question #4 (Mealy vs Moore state machine) must be resolved before IVP-50.
+**Next: Stage 7 (Flight Director)** — IVP-54 through IVP-58. Watchdog recovery policy, state machine core, event engine, action executor, mission configuration. Prerequisite: SAD Open Question #4 (Mealy vs Moore state machine) must be resolved before IVP-55.
 
-**Then: Stage 8 (Adaptive Estimation & Safety)** — IVP-54 through IVP-57. Phase-scheduled Q/R (replaces MMAE — see `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`), confidence gate, confidence-gated actions, vehicle parameter profiles.
+**Then: Stage 8 (Adaptive Estimation & Safety)** — IVP-59 through IVP-62. Phase-scheduled Q/R (replaces MMAE — see `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`), confidence gate, confidence-gated actions, vehicle parameter profiles.
 
 ## Blockers
 

@@ -1870,7 +1870,7 @@ static void eskf_tick_gps_stats() {
 // Gated on 3D fix with new data. On first quality fix, sets NED origin
 // and resets p/v to zero. Subsequent fixes convert geodetic to NED and
 // inject position + velocity. Velocity gated on speed >= 0.5 m/s to
-// suppress noisy updates at rest (known limitation until IVP-50 state machine).
+// suppress noisy updates at rest (known limitation until IVP-55 state machine).
 static void eskf_tick_gps(const shared_sensor_data_t& snap) {
     if (snap.gps_valid && snap.gps_fix_type >= 3) {
         static uint32_t g_lastGpsCount = 0;
@@ -1993,7 +1993,7 @@ static void eskf_tick() {
 }
 
 // ============================================================================
-// Radio Test TX (temporary — 10 Hz for IVP-63 Gate 8 soak)
+// Radio Test TX (temporary — 10 Hz for IVP-49 Gate 8 soak)
 // ============================================================================
 
 static uint32_t g_radioTestTxCount = 0;

@@ -171,10 +171,10 @@ This document defines the software architecture for RocketChip, a modular motion
 
 ### 2.4 Fault Handling
 - **Watchdog:** RP2350 HW WDT enabled with 5s timeout via `watchdog_enable(5000, 1)`. Implemented in `main.cpp` (IVP-30).
-- **Watchdog reboot detection:** Custom sentinel in scratch register 0 (`kWatchdogSentinel = 0x52435754`). SDK functions `watchdog_caused_reboot()` and `watchdog_enable_caused_reboot()` are both unreliable for this use case — see `.claude/LESSONS_LEARNED.md` and AGENT_WHITEBOARD.md (IVP-49) for details.
+- **Watchdog reboot detection:** Custom sentinel in scratch register 0 (`kWatchdogSentinel = 0x52435754`). SDK functions `watchdog_caused_reboot()` and `watchdog_enable_caused_reboot()` are both unreliable for this use case — see `.claude/LESSONS_LEARNED.md` and AGENT_WHITEBOARD.md (IVP-54) for details.
 - **Hard fault handler:** `memmanage_fault_handler()` with LED blink pattern and intentional halt.
 - **MPU stack guard:** Custom ARMv8-M MPU region on Core 0 stack bottom (IVP-29).
-- **Recovery policy:** IVP-49 (Stage 6) will define mid-flight recovery: scratch register persistence, reboot counting with safe-mode lockout, ESKF state backoff.
+- **Recovery policy:** IVP-54 (Stage 7) will define mid-flight recovery: scratch register persistence, reboot counting with safe-mode lockout, ESKF state backoff.
 
 ---
 
@@ -954,10 +954,10 @@ This section describes the high-level implementation roadmap. For the detailed 7
 | 2: Sensors | Data Structures (4.1), Drivers (4.2), Storage (9) | 2 (IVP-09–18) | **Complete** |
 | 3: GPS | GPS Interface (4.2) | 4 (IVP-31–33) | **Complete** |
 | 4: Sensor Fusion | Fusion (5.4), FusedState (4.1) | 5 (IVP-39–48) | **Complete** — 24-state ESKF, codegen FPFT, health tuning, Mahony AHRS |
-| 5: Radio & Telemetry | Radio Interface (4.2), Data Flow (8.1) | 6 (IVP-63–67) | Planned — pulled forward, no deps on Stages 7–9 |
-| 6: Flight Director | State Machine (6), Modules (3.2) | 7 (IVP-49–53) | Planned |
-| 6: Adaptive Estimation | Fusion (5.4), Safety (6) | 8 (IVP-54–57) | Planned |
-| 7: Data Logging | Pre-Launch Buffer (8.2), Logging (8.3), Flash (9.3) | 9 (IVP-58–62) | Planned |
+| 5: Radio & Telemetry | Radio Interface (4.2), Data Flow (8.1) | 6 (IVP-49–53) | In Progress — IVP-49 verified 2026-02-25 |
+| 6: Flight Director | State Machine (6), Modules (3.2) | 7 (IVP-54–58) | Planned |
+| 6: Adaptive Estimation | Fusion (5.4), Safety (6) | 8 (IVP-59–62) | Planned |
+| 7: Data Logging | Pre-Launch Buffer (8.2), Logging (8.3), Flash (9.3) | 9 (IVP-63–67) | Planned |
 | 8: UI | All UI-related | — | Planned |
 | 9: Polish & Testing | All sections | 10 (IVP-68–72) | Planned |
 | Titan Features | Control Loop, Pyro, High-G | Titan-tier IVPs | Deferred |
