@@ -587,7 +587,7 @@ TEST(ESKFMagUpdate, CounterResetBehavior) {
 // ============================================================================
 // Test 21: PSymmetryAfterReset — P remains symmetric after heading reset
 // (council binding addition: Professor)
-// Direct call to reset_mag_heading() — public API for state machine (IVP-52).
+// Direct call to reset_mag_heading() — public API for state machine (IVP-67).
 // ============================================================================
 TEST(ESKFMagUpdate, PSymmetryAfterReset) {
     ESKF eskf = make_initialized();

@@ -20,6 +20,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-03-001 | Claude Code CLI | architecture, documentation
+
+**IVP resequencing — Data Logging pulled forward to Stage 6.** Two council reviews (telemetry protocol selection + data logging architecture) established that the telemetry encoder depends on data structures defined by the logging architecture. Data Logging moved from Stage 9 to Stage 6 (IVP-49–56), Radio & Telemetry becomes Stage 7 (IVP-57–65), new Ground Station Stage 10 (IVP-75–80) added. All IVP numbers from 49 onward renumbered. Total IVP count: 72→85. Logging format changed from MAVLink .bin to PCM fixed frames. Telemetry encoder now uses CCSDS/MAVLink strategy pattern selected by Mission Profile. Three-struct data model defined: FusedState (float32 ESKF-internal), TelemetryState (fixed-point wire-ready), SensorSnapshot (raw pre-calibration).
+
+(`docs/IVP.md`, `docs/SAD.md`, `docs/PROJECT_STATUS.md`, `AGENT_WHITEBOARD.md`, `src/main.cpp`, `src/fusion/eskf.h`, `src/fusion/mahony_ahrs.h`, `test/test_eskf_mag_update.cpp`, `CMakeLists.txt`, `docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md`, `docs/mission_profiles/MISSION_PROFILES.md`, `docs/DYNAMIC_VALIDATION.md`, `docs/ESKF_TESTING_GUIDE.md`, `docs/PHASE5_ESKF_PLAN.md`, `docs/hardware/GEMINI_CARRIER_BOARD.md`)
+
+---
+
 ### 2026-02-25-001 | Claude Code CLI | feature, hardware
 
 **Ground station LoRa RX bridge — Fruit Jam + RFM95W breakout, end-to-end link verified.** Standalone Pico SDK build for Adafruit Fruit Jam (#6200, RP2350B) with RFM95W breakout (#3072) wired via jumper cables on SPI1. Receives LoRa packets and prints to USB serial with RSSI/SNR per packet and 30-second link quality summaries (min/avg/max RSSI+SNR, packet count, CRC errors). 5 onboard NeoPixels show RSSI bar graph (red→green gradient, 0-5 bars based on signal strength, 2-second timeout to off). Button 3 (GPIO5) toggles NeoPixels on/off. `gs_spi.cpp` provides the same `spi_bus_*()` API as the flight `spi_bus.cpp` but targets SPI1 (GPIO 28/30/31), allowing `rfm95w.cpp` to compile unchanged for both builds. Temporary 1 Hz test TX heartbeat added to flight firmware for link verification. TX power reduced to +5 dBm for bench testing. HW verified: RSSI -54 to -58 dBm, SNR 8-10 dB, <1% CRC errors at desk range. RP2350B PIO gpiobase=16 required for GPIO32 NeoPixels (SDK issue #2030).

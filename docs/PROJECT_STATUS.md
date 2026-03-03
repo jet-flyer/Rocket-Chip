@@ -1,12 +1,12 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-02-25 (IVP-49 gates complete; IVP renumber complete)
+**Last Updated:** 2026-03-03 (IVP resequencing — Data Logging pulled forward to Stage 6)
 
 ## Current Phase
 
-**Stage 6 IN PROGRESS** — Radio & Telemetry (IVP-49 complete, IVP-50 next)
+**Stage 6 NEXT** — Data Logging (IVP-49 through IVP-56)
 
-Stage 5 (Sensor Fusion) complete. Radio & Telemetry pulled forward from original Stage 9 position — no dependencies on Flight Director, Adaptive Estimation, or Data Logging. Live radio link enables untethered dynamic validation tests and real-time debugging.
+Stage 5 (Sensor Fusion) complete. Data Logging pulled forward from original Stage 9 position — telemetry encoder depends on data structures defined by the logging architecture. Defines canonical data model (FusedState/TelemetryState/SensorSnapshot), PCM frame format, PSRAM ring buffer, flash storage, and USB download.
 
 ## Completed
 
@@ -37,15 +37,19 @@ Stage 5 (Sensor Fusion) complete. Radio & Telemetry pulled forward from original
 | Dense+SRAM benchmark | — | 2026-02-23 | Dense O(N³) at 24 states NOT VIABLE from SRAM: 1,747µs avg vs codegen 111µs (15.7×). Codegen mandatory. All other hot-path functions <640B, no further SRAM placements needed |
 | UD factorization benchmark | — | 2026-02-24 | Phase 1 gate PASS: P stable at 100K steps, UD not needed. DCP f64 7.8× slower than f32. Thornton f32 29.6× slower than codegen. Bierman 2× faster than Joseph. Fixed D-array corruption + NaN bug in Thornton |
 | Bierman measurement update | — | 2026-02-24 | Replaced Joseph with Bierman behind `ESKF_USE_BIERMAN=1`. PRepr state machine (lazy factorize/reconstruct). 43% faster per epoch (486µs vs 851µs). Alpha canary: relErr=1.37e-08, DCP Phase 2 deferred. 207/207 host tests. HW soak: 88K reads, 0 errors, ESKF HEALTHY, predict 561µs avg |
-| 6: Radio Driver | IVP-49 | 2026-02-25 | RFM95W LoRa driver (SPI bus, GPIO-controlled CS, TX/RX polling). Ground station RX bridge on Fruit Jam (#6200) + RFM95W breakout (#3072) via SPI1. All 8 verification gates passed: init, absent HW, TX, RX, RSSI, loopback (100%, 0 gaps), range (through walls at 5 dBm), integration soak (120K IMU reads, 0 errors at 10Hz TX) |
+| 7: Radio Driver | IVP-57 | 2026-02-25 | RFM95W LoRa driver (SPI bus, GPIO-controlled CS, TX/RX polling). Ground station RX bridge on Fruit Jam (#6200) + RFM95W breakout (#3072) via SPI1. All 8 verification gates passed: init, absent HW, TX, RX, RSSI, loopback (100%, 0 gaps), range (through walls at 5 dBm), integration soak (120K IMU reads, 0 errors at 10Hz TX) |
 
 ## In Progress
 
-**Stage 6: Radio & Telemetry** — IVP-49 complete. Next: IVP-50 (Telemetry Encoder — CCSDS TM, scope TBD). Temporary 1Hz test TX and 5 dBm bench power in place; raise to 20 dBm for field use.
+**Stage 6: Data Logging** — IVP-49 through IVP-56. Pulled forward from original Stage 9. Defines canonical data model, PCM frame format, PSRAM ring buffer, flash storage, USB download. IVP-55 (Raw Sensor Logging) and IVP-56 (Economy Tier & HAB Flush) are placeholders deferred to later.
 
-**Next: Stage 7 (Flight Director)** — IVP-54 through IVP-58. Watchdog recovery policy, state machine core, event engine, action executor, mission configuration. Prerequisite: SAD Open Question #4 (Mealy vs Moore state machine) must be resolved before IVP-55.
+**Radio driver (IVP-57) already verified** — temporary 1Hz test TX and 5 dBm bench power in place; raise to 20 dBm for field use. Remove test TX when IVP-58 (telemetry encoder) lands.
 
-**Then: Stage 8 (Adaptive Estimation & Safety)** — IVP-59 through IVP-62. Phase-scheduled Q/R (replaces MMAE — see `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`), confidence gate, confidence-gated actions, vehicle parameter profiles.
+**Next: Stage 7 (Radio & Telemetry)** — IVP-57 through IVP-65. Telemetry encoder (CCSDS/MAVLink strategy), telemetry service, translation layer, QGC validation, bidirectional commands.
+
+**Then: Stage 8 (Flight Director)** — IVP-66 through IVP-70. Watchdog recovery policy, state machine core, event engine, action executor, mission configuration. Prerequisite: SAD Open Question #4 (Mealy vs Moore state machine) must be resolved before IVP-67.
+
+**Then: Stage 9 (Adaptive Estimation & Safety)** — IVP-71 through IVP-74. Phase-scheduled Q/R (replaces MMAE — see `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`), confidence gate, confidence-gated actions, vehicle parameter profiles.
 
 ## Blockers
 
@@ -53,12 +57,12 @@ None currently.
 
 ## Future Features (Tracked)
 
-- **MATLAB .mat v5 export for flight logs** — Target research/educational users who standardize on MATLAB. Compatible with GNU Octave. Post-flight analysis workflow: `export matlab <flight_id>` CLI command. Architecture already in SAD.md (Section 10, logging format enum). Implementation deferred until flight logging is active.
+- **MATLAB .mat v5 export for flight logs** — Target research/educational users who standardize on MATLAB. Compatible with GNU Octave. Post-flight analysis workflow: convert downloaded PCM log to MATLAB via Python script. Implementation deferred until flight logging is active (Stage 6).
 - **GPS-free 3D flight path reconstruction (RC GCS)** — Forward-backward RTS smoother using IMU+baro+mag logs with known boundary conditions (zero velocity at launch/landing, launch site position). Enables full 3D trajectory for Core tier without GPS. Deferred to GCS development.
 
 ## Reference
 
-- `docs/IVP.md` — Full 72-step integration plan with verification gates (includes Phase M mag cal)
+- `docs/IVP.md` — Full 85-step integration plan with verification gates (includes Phase M mag cal)
 - `docs/SAD.md` — Software Architecture Document
 - `docs/SCAFFOLDING.md` — Directory structure and file listing
 - `standards/CODING_STANDARDS.md` — Platform constraints

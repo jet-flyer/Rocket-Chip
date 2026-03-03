@@ -199,7 +199,7 @@ else()
         src/fusion/ud_factor.cpp
 
         # -------------------------------------------------------------------------
-        # Stage 6: Radio & Telemetry (IVP-63)
+        # Stage 7: Radio & Telemetry (IVP-57)
         # -------------------------------------------------------------------------
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
@@ -272,7 +272,7 @@ else()
         hardware_watchdog
         # IVP-35: Mag calibration (Fisher-Yates shuffle with hardware TRNG)
         pico_rand
-        # IVP-63: SPI bus for LoRa radio
+        # IVP-57: SPI bus for LoRa radio
         hardware_spi
     )
 

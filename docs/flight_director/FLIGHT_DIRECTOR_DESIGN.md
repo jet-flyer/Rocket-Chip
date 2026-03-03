@@ -2,8 +2,8 @@
 
 **Status:** PRELIMINARY — All details pending implementation validation
 **For:** RocketChip (RP2350 bare-metal Pico SDK, dual-core AMP)
-**IVP Scope:** IVP-50 (State Machine Core), IVP-51 (Event Engine), IVP-52 (Action Executor), IVP-56 (Confidence-Gated Actions)
-**Date:** 2026-02-14
+**IVP Scope:** IVP-67 (State Machine Core), IVP-68 (Event Engine), IVP-69 (Action Executor), IVP-73 (Confidence-Gated Actions)
+**Last Updated:** 2026-03-03
 
 > **Every technical detail in this document is preliminary.** Nothing is finalized until implementation validates the design against the hardware, the sensor pipeline, and the existing codebase. Values, signatures, struct layouts, and state definitions may change during development.
 
@@ -31,8 +31,8 @@ A high schooler, a NASA engineer, and a Hackaday reader all understand that sent
 
 - **SAD Section 6** defines the state machine topology and event-condition-action examples. This document refines those into an implementation spec.
 - **RESEARCH.md** (in this folder) documents the research, prior art survey, and council-reviewed architectural decisions that inform this design.
-- **IVP Stage 6** (IVP-49 through IVP-53) defines the implementation and verification steps.
-- **IVP-49** (Watchdog Recovery Policy) is a prerequisite — the Flight Director must know how the system recovers from a mid-flight reboot.
+- **IVP Stage 8** (IVP-66 through IVP-70) defines the implementation and verification steps.
+- **IVP-66** (Watchdog Recovery Policy) is a prerequisite — the Flight Director must know how the system recovers from a mid-flight reboot.
 
 ---
 
@@ -493,7 +493,7 @@ Single ABORT phase. Entry actions are **profile-defined per source phase**, with
 
 | Action | Description | Safety Class |
 |--------|-------------|-------------|
-| `fire_pyro(channel)` | Fire pyrotechnic channel | **Irreversible** — confidence-gated (IVP-56) |
+| `fire_pyro(channel)` | Fire pyrotechnic channel | **Irreversible** — confidence-gated (IVP-73) |
 | `set_led(pattern)` | Set NeoPixel pattern | Reversible |
 | `start_log()` | Begin flight data logging | Reversible |
 | `stop_log()` | End flight data logging | Reversible |
@@ -510,9 +510,9 @@ Actions are bound to phases via the Mission Profile:
 
 The action executor receives an action list and executes them sequentially. It does not make decisions — it executes what the profile and state tracking engine tell it to.
 
-### Confidence Gating (IVP-56, PRELIMINARY)
+### Confidence Gating (IVP-73, PRELIMINARY)
 
-Irreversible actions (pyro fires) are gated by the confidence flag from the ESKF confidence gate (IVP-55):
+Irreversible actions (pyro fires) are gated by the confidence flag from the ESKF confidence gate (IVP-72):
 - `confident = true` → action executes normally
 - `confident = false` → action is **held**, not discarded. If confidence recovers within a timeout, the action fires. If timeout expires, the action fires anyway (fail-safe to recovery).
 
@@ -573,8 +573,8 @@ Since all consumers are on Core 0 in the same superloop, no cross-core synchroni
 | FusedState | Attitude, position, velocity, altitude | Seqlock read (Core 1 → Core 0) |
 | CLI / Button | Commands (arm, disarm, abort, reset) | Polled in command handler |
 | Mission Profile | Phase definitions, transitions, guards | `const MissionProfile*` loaded at init |
-| Confidence Gate (IVP-55) | Confidence flag for pyro gating | Read from confidence output struct |
-| Watchdog Recovery (IVP-49) | Recovery boot flag, previous flight phase | Read from scratch registers at boot |
+| Confidence Gate (IVP-72) | Confidence flag for pyro gating | Read from confidence output struct |
+| Watchdog Recovery (IVP-66) | Recovery boot flag, previous flight phase | Read from scratch registers at boot |
 
 ### Outputs
 
@@ -628,6 +628,6 @@ void run_flight_director() {
 
 - `docs/flight_director/RESEARCH.md` — Research, prior art, council decisions
 - `docs/SAD.md` Section 6 — State machine topology, event-condition-action examples
-- `docs/IVP.md` IVP-49 through IVP-53 — Stage 6 implementation steps
-- `AGENT_WHITEBOARD.md` — IVP-49 watchdog recovery policy details
+- `docs/IVP.md` IVP-66 through IVP-70 — Stage 8 implementation steps
+- `AGENT_WHITEBOARD.md` — IVP-66 watchdog recovery policy details
 - `docs/mission_profiles/MISSION_PROFILES.md` — Mission Profile format (separate doc)

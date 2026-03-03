@@ -1,6 +1,6 @@
 # Phase 5: ESKF Development Plan
 
-> **SUPERSEDED (2026-02-24):** Stage 5 is COMPLETE (IVP-39 through IVP-48). The MMAE sections below (old IVP-47 MMAE, old IVP-50 Confidence Gate) are **obsolete** — MMAE was replaced by phase-scheduled Q/R (now IVP-54, Stage 7). See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for the research that drove this pivot. The confidence gate concept survives as IVP-55 but without MMAE bank evaluation. IVP-39 through IVP-46 content below remains accurate as a historical record of the completed work.
+> **SUPERSEDED (2026-02-24):** Stage 5 is COMPLETE (IVP-39 through IVP-48). The MMAE sections below (old IVP-47 MMAE, old IVP-50 Confidence Gate) are **obsolete** — MMAE was replaced by phase-scheduled Q/R (now IVP-71, Stage 9). See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for the research that drove this pivot. The confidence gate concept survives as IVP-72 but without MMAE bank evaluation. IVP-39 through IVP-46 content below remains accurate as a historical record of the completed work.
 
 ## Context
 
@@ -46,7 +46,7 @@ Per `SENSOR_FUSION_TIERS.md` (the authoritative document, 2026-02-10):
 | Confidence gate | **Yes** | Yes | Safety feature, not multi-IMU. Evaluates MMAE health + AHRS cross-check. |
 | Sensor affinity | No | Gemini only (dual-MCU) | Multi-IMU feature, not needed with single sensor set |
 
-**Scope of this plan:** IVP-39 through IVP-48 (completed). Original scope included MMAE (old IVP-47) and confidence gate (old IVP-50) — these were moved to Stage 7 as IVP-54 (phase-scheduled Q/R, replacing MMAE) and IVP-55 (confidence gate, without MMAE bank evaluation) after the 2026-02-24 MMAE pivot.
+**Scope of this plan:** IVP-39 through IVP-48 (completed). Original scope included MMAE (old IVP-47) and confidence gate (old IVP-50) — these were moved to Stage 9 as IVP-71 (phase-scheduled Q/R, replacing MMAE) and IVP-72 (confidence gate, without MMAE bank evaluation) after the 2026-02-24 MMAE pivot.
 - **IVP-39-46:** Baseline ESKF with measurement updates and Mahony cross-check — COMPLETE
 - **IVP-47:** Codegen FPFT optimization (9.1× speedup) — COMPLETE (was old "Sparse FPFT" slot)
 - **IVP-48:** ESKF Health Tuning — COMPLETE
@@ -267,7 +267,9 @@ All fusion code (`src/math/`, `src/fusion/`) is **Flight-Critical** classificati
 
 ---
 
-### IVP-47: MMAE Bank Manager
+### IVP-71: Phase-Scheduled Q/R (was MMAE Bank Manager)
+
+> **Note:** Originally planned as MMAE bank manager. Replaced by phase-scheduled Q/R after the 2026-02-24 MMAE pivot. Content below reflects the original MMAE plan for historical reference.
 
 Per `SENSOR_FUSION_TIERS.md` Option B (Recommended): MMAE is valuable at Core tier for regime-specific sensor noise models. "Same computational complexity as Option A once MMAE framework exists."
 
@@ -290,11 +292,11 @@ Per `SENSOR_FUSION_TIERS.md` Option B (Recommended): MMAE is valuable at Core ti
 
 ---
 
-### IVP-50: Confidence Gate
+### IVP-72: Confidence Gate (was IVP-50)
 
 The confidence gate is a safety feature, not a multi-IMU feature. It evaluates MMAE bank health + AHRS cross-check + covariance bounds + innovation consistency. RP2350 has ample compute headroom. Core tier includes it.
 
-**Prerequisites:** IVP-47, IVP-45
+**Prerequisites:** IVP-71, IVP-45
 
 **Host work:**
 - Create `src/fusion/confidence_gate.h/.cpp`: evaluates MMAE bank health + AHRS cross-check
@@ -305,7 +307,7 @@ The confidence gate is a safety feature, not a multi-IMU feature. It evaluates M
 
 **Target work:**
 - Wire to Core 0 alongside MMAE bank
-- Flight Director integration (Stage 6): pyro LOCKED when `confident = false`
+- Flight Director integration (Stage 8): pyro LOCKED when `confident = false`
 - CLI shows confidence state, dominant hypothesis, AHRS divergence
 - Gate per IVP.md: normal = confident, baro occluded = uncertain + locked, magnet = AHRS divergence, 10min no false losses
 
@@ -323,8 +325,8 @@ IVP-39 (Vec3/Quat)
                |-> IVP-43 (Baro Update)  -+
                |-> IVP-44 (Mag Update)    +-> IVP-46 (GPS)
                |-> IVP-45 (Mahony)       -+        |
-                                                     |-> IVP-47 (MMAE Bank)
-                                                           |-> IVP-50 (Confidence Gate)
+                                                     |-> IVP-71 (Phase-Scheduled Q/R)
+                                                           |-> IVP-72 (Confidence Gate)
 ```
 
 IVP-43/44/45 are independent after IVP-42 — could theoretically parallelize, but IVP-43 should go first to prove the measurement update machinery.
@@ -366,8 +368,8 @@ Not every IVP step needs HW verification — pure math libraries (IVP-39, 40) an
 | **HW-2** | IVP-43 | Baro measurement update. ESKF altitude noise < raw baro. Raise board 1m -> tracks within 0.2m/2s. Cover baro port -> coast -> uncover -> reconverge. 5 min stable. |
 | **HW-3** | IVP-45 | Mahony running alongside ESKF. `AHRS diff` shown in CLI `s`. Stationary divergence <2 deg. Slow rotation divergence <5 deg. Both outputs visible simultaneously. |
 | **HW-4** | IVP-46 | GPS outdoor test. Walk 10m straight -> tracks. Walk square -> returns within 3m. Stationary drift <1m/5min. Enter building -> coast -> exit -> reconverge. Zero-velocity detection works. |
-| **HW-5** | IVP-47 | MMAE on target. Static bench: "on-ground" hypothesis >90% weight. Shake board (simulate boost accel) -> hypothesis switches. CLI shows hypothesis weights. Smooth blending, no discontinuities. Total bank benchmark. |
-| **HW-6** | IVP-50 | Confidence gate end-to-end. Normal: confident=true. Cover baro port -> confident=false, actions locked. Bring magnet near -> AHRS divergence grows. 10 min bench: no false confidence losses. CLI shows all confidence metrics. |
+| **HW-5** | IVP-71 | Phase-scheduled Q/R on target (originally MMAE). Static bench: "on-ground" hypothesis >90% weight. Shake board (simulate boost accel) -> hypothesis switches. CLI shows hypothesis weights. Smooth blending, no discontinuities. Total bank benchmark. |
+| **HW-6** | IVP-72 | Confidence gate end-to-end. Normal: confident=true. Cover baro port -> confident=false, actions locked. Bring magnet near -> AHRS divergence grows. 10 min bench: no false confidence losses. CLI shows all confidence metrics. |
 
 **HW verification procedure:** Flash via debug probe (LL Entry 25 — never use picotool for iterative testing). Verify build tag in serial output before testing. Run each gate criterion. Record results in commit message.
 

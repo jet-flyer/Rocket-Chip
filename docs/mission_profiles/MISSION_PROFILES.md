@@ -2,7 +2,7 @@
 
 **Status:** PRELIMINARY STUB — To be fleshed out in a dedicated session
 **For:** RocketChip (RP2350 bare-metal Pico SDK, dual-core AMP)
-**Date:** 2026-02-14
+**Last Updated:** 2026-03-03
 
 > **This document is a placeholder.** It establishes the Mission Profile as a distinct concept with its own documentation space. The struct definitions, rocket profile instance, and future expansion details will be developed in a separate session.
 
@@ -161,4 +161,4 @@ No Flight Director code changes needed — just a different `const MissionProfil
 - `docs/flight_director/RESEARCH.md` — Full research, prior art, council decisions
 - `docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md` — Flight Director runtime design spec
 - `docs/SAD.md` Section 6 — State machine topology
-- `docs/IVP.md` Stage 6, IVP-56 — Mission Configuration step
+- `docs/IVP.md` Stage 8, IVP-70 — Mission Configuration step

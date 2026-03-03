@@ -171,10 +171,10 @@ This document defines the software architecture for RocketChip, a modular motion
 
 ### 2.4 Fault Handling
 - **Watchdog:** RP2350 HW WDT enabled with 5s timeout via `watchdog_enable(5000, 1)`. Implemented in `main.cpp` (IVP-30).
-- **Watchdog reboot detection:** Custom sentinel in scratch register 0 (`kWatchdogSentinel = 0x52435754`). SDK functions `watchdog_caused_reboot()` and `watchdog_enable_caused_reboot()` are both unreliable for this use case — see `.claude/LESSONS_LEARNED.md` and AGENT_WHITEBOARD.md (IVP-54) for details.
+- **Watchdog reboot detection:** Custom sentinel in scratch register 0 (`kWatchdogSentinel = 0x52435754`). SDK functions `watchdog_caused_reboot()` and `watchdog_enable_caused_reboot()` are both unreliable for this use case — see `.claude/LESSONS_LEARNED.md` and AGENT_WHITEBOARD.md (IVP-66) for details.
 - **Hard fault handler:** `memmanage_fault_handler()` with LED blink pattern and intentional halt.
 - **MPU stack guard:** Custom ARMv8-M MPU region on Core 0 stack bottom (IVP-29).
-- **Recovery policy:** IVP-54 (Stage 7) will define mid-flight recovery: scratch register persistence, reboot counting with safe-mode lockout, ESKF state backoff.
+- **Recovery policy:** IVP-66 (Stage 8) will define mid-flight recovery: scratch register persistence, reboot counting with safe-mode lockout, ESKF state backoff.
 
 ---
 
@@ -807,7 +807,7 @@ add_compile_definitions(
               ▼            ▼            ▼
        ┌───────────┐ ┌───────────┐ ┌───────────┐
        │MissionTask│ │LoggerTask │ │TelemetryTask
-       │ (events)  │ │ (storage) │ │ (MAVLink) │
+       │ (events)  │ │ (storage) │ │ (encoder) │
        └───────────┘ └───────────┘ └───────────┘
                            │            │
                            ▼            ▼
@@ -834,47 +834,45 @@ On launch detection:
 4. Pre-launch data preserved for analysis
 ```
 
-### 8.3 Logging Format Configuration
+**Logging tiers as decimation levels.** The fusion pipeline outputs at native rate. Logging tiers are decimation levels of the same pipeline, not separate systems. `log_rate_hz` parameter (1–200 Hz) with Economy/Standard/Research as preset labels on a continuous slider. Averaging decimation preferred over simple decimation (average groups of N rather than keep every Nth sample). See IVP-52 for implementation.
 
-Logging format is user-configurable via mission settings or runtime command.
+### 8.3 Logging Format
 
-#### Supported Formats
+Onboard logging uses PCM fixed frames (per Data Logging council consensus). The frame format is the canonical onboard data representation — telemetry encoding (CCSDS or MAVLink) is a separate downstream step.
 
-| Format | Extension | Use Case | GCS Compatible |
-|--------|-----------|----------|----------------|
-| **MAVLink Binary** | `.bin` | Default. Direct import to Mission Planner/QGC | ✅ Yes |
-| **CSV** | `.csv` | Excel, Google Sheets, simple analysis | ❌ No |
-| **MATLAB** | `.mat` | University/research, MATLAB import | ❌ No |
+#### PCM Frame Format
 
-#### Format Selection
+| Field | Size | Description |
+|-------|------|-------------|
+| Sync word | 2B | Fixed 16-bit pattern for frame alignment |
+| MET timestamp | 4B | Mission Elapsed Time from `time_us_64()` (49.7-day range) |
+| Frame type | 1B | Economy=0, Standard=1, Research=2 |
+| Length | 1B | Payload length |
+| Payload | Variable | TelemetryState (Standard) or reduced field set (Economy) |
 
-```cpp
-enum class LogFormat : uint8_t {
-    MAVLINK_BIN = 0,  // Default - GCS compatible
-    CSV         = 1,  // Human-readable, spreadsheet import
-    MATLAB_MAT  = 2,  // MATLAB .mat file (v5 format)
-};
+#### Logging Tiers
+
+Three preset labels on a continuous `log_rate_hz` slider (1–200 Hz):
+
+| Tier | Rate | Content | Storage | Use Case |
+|------|------|---------|---------|----------|
+| **Economy** | 1–2 Hz | Position + altitude + state | Flash (periodic flush) | HAB, long-duration |
+| **Standard** | 50 Hz (default) | Full TelemetryState | PSRAM ring buffer | Normal flight |
+| **Research** | 200+ Hz | TelemetryState + SensorSnapshot | PSRAM only | Bench testing, anomaly investigation |
+
+#### Data Model (Three-Struct Hierarchy)
+
+- **FusedState** — float32, ESKF-internal. Written by FusionTask. Not directly logged.
+- **TelemetryState** — fixed-point wire-ready. Converted from FusedState. Consumed by logger and telemetry encoder. The struct IS the ICD.
+- **SensorSnapshot** — raw pre-calibration readings. Written by SensorTask. Research tier only.
+
+#### Post-Flight Export
+
+USB download of raw PCM frames (IVP-54), decoded to CSV by Python host script (`scripts/decode_flight_log.py`). Decommutation table from Mission Profile defines field layout.
+
 ```
-
-#### Implementation Notes
-
-- **MAVLink Binary**: Native format, streams same packets as telemetry. Use MAVLink log tools for analysis.
-- **CSV**: Header row with field names, one sample per line. Larger files but universal compatibility.
-- **MATLAB**: MAT-file v5 format (widely compatible). Each field stored as named array. Requires MAT file writer library or post-flight conversion.
-
-#### Recommended Workflow
-
-1. **Flight logging**: MAVLink binary (smallest, fastest)
-2. **Post-flight export**: Convert to CSV or MATLAB via USB tool
-3. **Direct logging**: CSV for simple projects, MATLAB for research
-
-#### Export Tool (Future)
-
-USB command interface will support:
-```
-export csv <flight_id>      # Export as CSV
-export matlab <flight_id>   # Export as MATLAB .mat
-export mavlink <flight_id>  # Re-export as MAVLink (default)
+list flights              # List recorded flights
+download <flight_id>      # Download raw PCM binary
 ```
 
 ---
@@ -887,7 +885,7 @@ export mavlink <flight_id>  # Re-export as MAVLink (default)
 |-----------|------|-------|-------|
 | Shared data structures | 4KB | - | Sensor, Fused, Mission state |
 | DMA buffers | 8KB | - | I2C/SPI transfers |
-| MAVLink buffers | 4KB | - | TX/RX buffers |
+| Telemetry buffers | 4KB | - | TX/RX encoder buffers (TelemetryState is shared ICD) |
 | USB buffers | 4KB | - | CDC serial |
 | Pre-launch buffer | - | 512KB | Ring buffer |
 | Flight log buffer | - | 4MB | Before flush to flash |
@@ -946,7 +944,7 @@ RocketChip uses a multi-tier storage model:
 
 ## 10. Development Phases
 
-This section describes the high-level implementation roadmap. For the detailed 71-step integration plan with verification gates, see **`docs/IVP.md`**. For current status, see **`docs/PROJECT_STATUS.md`**.
+This section describes the high-level implementation roadmap. For the detailed 85-step integration plan with verification gates, see **`docs/IVP.md`**. For current status, see **`docs/PROJECT_STATUS.md`**.
 
 | Phase | SAD Sections | IVP Stages | Status |
 |-------|-------------|------------|--------|
@@ -954,12 +952,12 @@ This section describes the high-level implementation roadmap. For the detailed 7
 | 2: Sensors | Data Structures (4.1), Drivers (4.2), Storage (9) | 2 (IVP-09–18) | **Complete** |
 | 3: GPS | GPS Interface (4.2) | 4 (IVP-31–33) | **Complete** |
 | 4: Sensor Fusion | Fusion (5.4), FusedState (4.1) | 5 (IVP-39–48) | **Complete** — 24-state ESKF, codegen FPFT, health tuning, Mahony AHRS |
-| 5: Radio & Telemetry | Radio Interface (4.2), Data Flow (8.1) | 6 (IVP-49–53) | In Progress — IVP-49 verified 2026-02-25 |
-| 6: Flight Director | State Machine (6), Modules (3.2) | 7 (IVP-54–58) | Planned |
-| 6: Adaptive Estimation | Fusion (5.4), Safety (6) | 8 (IVP-59–62) | Planned |
-| 7: Data Logging | Pre-Launch Buffer (8.2), Logging (8.3), Flash (9.3) | 9 (IVP-63–67) | Planned |
-| 8: UI | All UI-related | — | Planned |
-| 9: Polish & Testing | All sections | 10 (IVP-68–72) | Planned |
+| 5: Data Logging | Pre-Launch Buffer (8.2), Logging (8.3), Flash (9.3) | 6 (IVP-49–56) | Next — pulled forward from original Stage 9 |
+| 6: Radio & Telemetry | Radio Interface (4.2), Data Flow (8.1) | 7 (IVP-57–65) | Planned — IVP-57 (radio driver) verified 2026-02-25 |
+| 7: Flight Director | State Machine (6), Modules (3.2) | 8 (IVP-66–70) | Planned |
+| 8: Adaptive Estimation | Fusion (5.4), Safety (6) | 9 (IVP-71–74) | Planned |
+| 9: Ground Station | GCS Platform | 10 (IVP-75–80) | Planned — can parallel Stages 8–9 |
+| 10: System Integration | All sections | 11 (IVP-81–85) | Planned |
 | Titan Features | Control Loop, Pyro, High-G | Titan-tier IVPs | Deferred |
 
 Additional completed milestones not in the original phase plan:
