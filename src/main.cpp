@@ -13,6 +13,7 @@
 
 #include "rocketchip/config.h"
 #include "pico/stdlib.h"
+#include "pico/stdio_usb.h"
 #include "pico/time.h"
 #include "hardware/gpio.h"
 #include "drivers/ws2812_status.h"
@@ -34,6 +35,7 @@
 #include "logging/data_convert.h"
 #include "logging/flash_flush.h"
 #include "logging/flight_table.h"
+#include "logging/crc32.h"
 #include "rocketchip/pcm_frame.h"
 #include "rocketchip/fused_state.h"
 #include "cli/rc_os.h"
@@ -2217,10 +2219,10 @@ static void cmd_flush_log() {
                    / rc::kFlashSectorSize);
         break;
     case rc::FlushResult::kFlashFull:
-        printf("Flash full. Erase flights with 'E' command.\n");
+        printf("Flash full. Erase flights with 'x' command.\n");
         break;
     case rc::FlushResult::kTableFull:
-        printf("Flight table full (32 flights). Erase with 'E'.\n");
+        printf("Flight table full (32 flights). Erase with 'x'.\n");
         break;
     case rc::FlushResult::kEraseError:
         printf("Flash erase error.\n");
@@ -2249,15 +2251,30 @@ static void cmd_erase_all_flights() {
         return;
     }
 
-    printf("Erase ALL %lu flights? Press 'Y' to confirm: ", (unsigned long)count);
+    printf("Erase ALL %lu flights? Type 'yes' + Enter to confirm: ",
+           (unsigned long)count);
 
-    // Wait for confirmation (blocking — acceptable for destructive CLI command)
-    int confirm = getchar_timeout_us(5000000);  // 5s timeout
-    if (confirm != 'Y') {
-        printf("\nErase cancelled.\n");
+    // Read up to 8 chars with 10s timeout (blocking — acceptable for destructive op)
+    char buf[8] = {};
+    int pos = 0;
+    while (pos < 7) {
+        int ch = getchar_timeout_us(10000000);  // 10s timeout
+        if (ch == PICO_ERROR_TIMEOUT) {
+            break;
+        }
+        if (ch == '\r' || ch == '\n') {
+            break;
+        }
+        buf[pos++] = static_cast<char>(ch);
+        putchar(ch);  // echo
+    }
+    buf[pos] = '\0';
+    printf("\n");
+
+    if (pos != 3 || buf[0] != 'y' || buf[1] != 'e' || buf[2] != 's') {
+        printf("Erase cancelled.\n");
         return;
     }
-    printf("Y\n");
 
     printf("Erasing flight log sectors...\n");
     if (!rc::flight_log_erase_all(&g_flightTable, flush_kick_watchdog)) {
@@ -2281,13 +2298,158 @@ static void cmd_erase_all_flights() {
     printf("All flights erased.\n");
 }
 
+// ============================================================================
+// IVP-54a: Flight list + binary download
+// ============================================================================
+
+static void cmd_list_flights() {
+    if (!g_flightTable.loaded) {
+        printf("Flight table not loaded.\n");
+        return;
+    }
+    uint32_t count = rc::flight_table_count(&g_flightTable);
+    if (count == 0) {
+        printf("No flights stored.\n");
+        return;
+    }
+    printf("\n  #  Frames  Rate  Sectors  Size(KB)\n");
+    printf("  -- ------  ----  -------  --------\n");
+    for (uint32_t i = 0; i < count; ++i) {
+        rc::FlightLogEntry entry = {};
+        if (rc::flight_table_get_entry(&g_flightTable, i, &entry)) {
+            uint32_t sizeKb = (entry.sector_count * rc::kFlashSectorSize) / 1024;
+            printf("  %2lu %6lu  %3uHz  %5lu  %6lu\n",
+                   (unsigned long)(i + 1),
+                   (unsigned long)entry.frame_count,
+                   (unsigned)entry.log_rate_hz,
+                   (unsigned long)entry.sector_count,
+                   (unsigned long)sizeKb);
+        }
+    }
+    printf("\n  Flash: %.1f%% used (%lu flights)\n\n",
+           static_cast<double>(rc::flight_table_used_pct(&g_flightTable)),
+           (unsigned long)count);
+}
+
+// Read multi-digit flight number from USB (blocks up to 3s)
+static int read_flight_number() {
+    int num = 0;
+    bool gotDigit = false;
+    for (int i = 0; i < 3; ++i) {  // max 2 digits + enter
+        int c = getchar_timeout_us(3000000);
+        if (c == PICO_ERROR_TIMEOUT) {
+            break;
+        }
+        if (c >= '0' && c <= '9') {
+            num = num * 10 + (c - '0');
+            gotDigit = true;
+        } else if (c == '\r' || c == '\n') {
+            break;
+        }
+    }
+    return gotDigit ? num : -1;
+}
+
+// Stream raw binary frames from flash via USB CDC
+static void cmd_download_flight() {
+    if (!g_flightTable.loaded) {
+        printf("Flight table not loaded.\n");
+        return;
+    }
+    uint32_t count = rc::flight_table_count(&g_flightTable);
+    if (count == 0) {
+        printf("No flights stored.\n");
+        return;
+    }
+
+    printf("Flight # (1-%lu): ", (unsigned long)count);
+    int num = read_flight_number();
+    if (num < 1 || static_cast<uint32_t>(num) > count) {
+        printf("\nInvalid flight number.\n");
+        return;
+    }
+    printf("%d\n", num);
+
+    rc::FlightLogEntry entry = {};
+    if (!rc::flight_table_get_entry(&g_flightTable, static_cast<uint32_t>(num - 1),
+                                     &entry)) {
+        printf("Failed to read flight entry.\n");
+        return;
+    }
+
+    // Text header
+    printf("RCBIN:%d:%lu:%u:%lu\n",
+           num,
+           (unsigned long)entry.frame_count,
+           (unsigned)entry.log_rate_hz,
+           (unsigned long)entry.frame_size);
+
+    // Stream raw binary frames from flash via XIP, skipping sector padding.
+    // Flash layout: each 4096B sector holds floor(4096/frame_size) frames,
+    // with unused tail bytes padded to 0xFF.
+    uint32_t frame_size = entry.frame_size;
+    uint32_t frames_per_sector = rc::kFlashSectorSize / frame_size;
+    uint32_t flash_base = entry.start_sector * rc::kFlashSectorSize;
+    const uint8_t* xip_base = reinterpret_cast<const uint8_t*>(
+        XIP_BASE + flash_base);
+
+    // Disable CRLF translation for raw binary output — SDK converts 0x0A→0x0D0A
+    stdio_set_translate_crlf(&stdio_usb, false);
+
+    // End-to-end CRC-32 over all binary data (council req. #5)
+    uint32_t running_crc = 0xFFFFFFFFU;
+    uint32_t frames_sent = 0;
+
+    while (frames_sent < entry.frame_count) {
+        // Which sector and offset within sector for this frame?
+        uint32_t sector_idx = frames_sent / frames_per_sector;
+        uint32_t frame_in_sector = frames_sent % frames_per_sector;
+        uint32_t offset = sector_idx * rc::kFlashSectorSize +
+                          frame_in_sector * frame_size;
+
+        // How many contiguous frames remain in this sector?
+        uint32_t remaining_in_sector = frames_per_sector - frame_in_sector;
+        uint32_t remaining_total = entry.frame_count - frames_sent;
+        uint32_t batch = (remaining_in_sector < remaining_total)
+                             ? remaining_in_sector : remaining_total;
+        uint32_t batch_bytes = batch * frame_size;
+
+        fwrite(xip_base + offset, 1, batch_bytes, stdout);
+        fflush(stdout);
+
+        running_crc = rc::crc32_update(running_crc,
+                                       xip_base + offset, batch_bytes);
+        frames_sent += batch;
+        watchdog_update();
+    }
+
+    // Re-enable CRLF translation for text output
+    stdio_set_translate_crlf(&stdio_usb, true);
+
+    // Finalize CRC
+    running_crc ^= 0xFFFFFFFFU;
+
+    // Text footer with CRC-32 for transport integrity
+    printf("RCEND:%08lX\n", (unsigned long)running_crc);
+}
+
 static void handle_unhandled_key(int key) {
     switch (key) {
+    case 'l':
     case 'L':
         cmd_flush_log();
         break;
-    case 'E':
+    case 'x':
+    case 'X':
         cmd_erase_all_flights();
+        break;
+    case 'f':
+    case 'F':
+        cmd_list_flights();
+        break;
+    case 'd':
+    case 'D':
+        cmd_download_flight();
         break;
     default:
         break;

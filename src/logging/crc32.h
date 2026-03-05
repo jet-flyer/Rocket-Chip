@@ -66,6 +66,21 @@ inline uint32_t crc32(const uint8_t* data, uint32_t len) {
     return crc ^ 0xFFFFFFFFU;
 }
 
+/**
+ * @brief Update running CRC-32 with additional data (no init/finalize)
+ * @param crc   Running CRC (caller manages init 0xFFFFFFFF and final XOR)
+ * @param data  Pointer to data
+ * @param len   Length in bytes
+ * @return Updated CRC value
+ */
+inline uint32_t crc32_update(uint32_t crc, const uint8_t* data, uint32_t len) {
+    for (uint32_t i = 0; i < len; ++i) {
+        uint8_t idx = static_cast<uint8_t>((crc ^ data[i]) & 0xFFU);
+        crc = (crc >> 8) ^ detail::kCrc32Table.entries[idx];
+    }
+    return crc;
+}
+
 } // namespace rc
 
 #endif // ROCKETCHIP_CRC32_H

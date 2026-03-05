@@ -1,12 +1,12 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-03-04 (IVP-53b complete — flash storage pipeline HW verified)
+**Last Updated:** 2026-03-04 (IVP-54b complete — Stage 6 Data Logging COMPLETE)
 
 ## Current Phase
 
-**Stage 6 IN PROGRESS** — Data Logging (IVP-49 through IVP-56)
+**Stage 6 COMPLETE** — Data Logging (IVP-49 through IVP-54b)
 
-IVP-49 through IVP-53b complete. Data model, PCM frames, ring buffer, PSRAM init, decimation, flash flush, and CLI capacity all implemented and HW verified. Remaining: IVP-54a (CLI flight list + binary download), IVP-54b (Python decoder script). IVP-55/56 deferred.
+All Stage 6 IVPs complete and HW verified: data model, PCM frames, PSRAM ring buffer, decimation, flash flush, CLI flight list/download, Python decoder script. End-to-end verified: flush → list → download → decode → CSV with 0 corrupt frames. IVP-55 (raw sensor logging) and IVP-56 (economy tier) remain deferred. Next: Stage 7 Radio & Telemetry (IVP-58+, IVP-57 already complete) or Stage 8 Flight Director (IVP-66+).
 
 ## Completed
 
@@ -37,6 +37,7 @@ IVP-49 through IVP-53b complete. Data model, PCM frames, ring buffer, PSRAM init
 | Dense+SRAM benchmark | — | 2026-02-23 | Dense O(N³) at 24 states NOT VIABLE from SRAM: 1,747µs avg vs codegen 111µs (15.7×). Codegen mandatory. All other hot-path functions <640B, no further SRAM placements needed |
 | UD factorization benchmark | — | 2026-02-24 | Phase 1 gate PASS: P stable at 100K steps, UD not needed. DCP f64 7.8× slower than f32. Thornton f32 29.6× slower than codegen. Bierman 2× faster than Joseph. Fixed D-array corruption + NaN bug in Thornton |
 | Bierman measurement update | — | 2026-02-24 | Replaced Joseph with Bierman behind `ESKF_USE_BIERMAN=1`. PRepr state machine (lazy factorize/reconstruct). 43% faster per epoch (486µs vs 851µs). Alpha canary: relErr=1.37e-08, DCP Phase 2 deferred. 207/207 host tests. HW soak: 88K reads, 0 errors, ESKF HEALTHY, predict 561µs avg |
+| 6: Data Logging | IVP-49–54b | 2026-03-04 | FusedState/TelemetryState data model, PCM frames, CRC-16/CRC-32, PSRAM ring buffer (8MB, 50Hz), box-car decimation (200→50Hz), flash flight table (dual-sector), flash flush engine, CLI flight list/download/erase, Python decoder script. End-to-end: 3733 frames, 0 corrupt, CRC-32 OK |
 | 7: Radio Driver | IVP-57 | 2026-02-25 | RFM95W LoRa driver (SPI bus, GPIO-controlled CS, TX/RX polling). Ground station RX bridge on Fruit Jam (#6200) + RFM95W breakout (#3072) via SPI1. All 8 verification gates passed: init, absent HW, TX, RX, RSSI, loopback (100%, 0 gaps), range (through walls at 5 dBm), integration soak (120K IMU reads, 0 errors at 10Hz TX) |
 
 ## In Progress

@@ -159,8 +159,10 @@ static void print_system_status() {
     printf("  b - Boot summary (reprint)\n");
     printf("  i - I2C bus rescan\n");
     printf("  c - Calibration menu\n");
-    printf("  L - Flush log to flash\n");
-    printf("  E - Erase all flights\n");
+    printf("  f - List stored flights\n");
+    printf("  d - Download flight (binary)\n");
+    printf("  l - Flush log to flash\n");
+    printf("  x - Erase all flights\n");
     printf("========================================\n\n");
 }
 

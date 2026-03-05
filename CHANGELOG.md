@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-04-003 | Claude Code CLI | feature, bugfix
+
+**Stage 6 Data Logging — IVP-54a/54b completed. Full USB download pipeline HW verified.** IVP-54a: CLI flight list (`f`) and binary download (`d`) commands. Sector-aware frame streaming skips flash padding. CRLF translation disabled during binary output (`stdio_set_translate_crlf`). End-to-end CRC-32 in RCEND footer. IVP-54b: Python decoder script (`scripts/decode_flight_log.py`) — serial download, offline decode, CSV output, auto-detect port, interactive mode (no-args lists flights and prompts for selection).
+
+**HW verified:** 3733 frames downloaded, 0 corrupt, transport CRC-32 OK. CSV output with plausible sensor values, monotonic timestamps.
+
+**Bugs fixed:** (1) Python struct format `TELEM_FORMAT` was 44 bytes — missing `temperature_c` field, should be 45. (2) Pico SDK `stdio_usb` CRLF translation converted `0x0A` bytes in binary data to `0x0D 0x0A`, corrupting frame alignment. Fixed with `stdio_set_translate_crlf(&stdio_usb, false)` around binary write. (3) Download streamed contiguous bytes including sector padding (26B of 0xFF per 4KB sector). Fixed with sector-aware frame-by-frame streaming. (4) Unicode box-drawing chars in flight table header caused Windows console codec errors. Fixed with ASCII dashes.
+
+**UX improvements:** Erase moved from `E` to `x` (too close to `e`/ESKF live). Erase confirmation changed from single `Y` keypress to typing "yes" + Enter. Flush accepts both `l` and `L`. Flight list/download accept both cases. Interactive mode: running script with no args lists flights and prompts for selection.
+
 ### 2026-03-04-002 | Claude Code CLI | feature, bugfix
 
 **Stage 6 Data Logging — IVP-52c, IVP-53b completed. Full flash storage pipeline HW verified.** IVP-52c (decimation + main loop integration + SRAM fallback) and IVP-53b (flash flush + watchdog + CLI capacity) verified on hardware. Flush: 5,807 frames → 78 sectors → Flight #1, second flush 5,018 frames → Flight #2. Power cycle persistence: 2 flights survived reboot (7.7% used). Erase: 'E'+'Y' confirmation clears table and used sectors. Boot banner shows flash capacity. CLI help shows L/E commands.
