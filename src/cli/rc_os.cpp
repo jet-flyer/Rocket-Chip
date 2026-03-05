@@ -159,6 +159,8 @@ static void print_system_status() {
     printf("  b - Boot summary (reprint)\n");
     printf("  i - I2C bus rescan\n");
     printf("  c - Calibration menu\n");
+    printf("  L - Flush log to flash\n");
+    printf("  E - Erase all flights\n");
     printf("========================================\n\n");
 }
 
@@ -1160,7 +1162,6 @@ static void handle_main_menu(int c) {
             break;
 
         case 'e':
-        case 'E':
             if (rc_os_print_eskf_live != nullptr) {
                 g_eskfLiveActive = true;
                 g_eskfLiveLastPrintUs = time_us_32();

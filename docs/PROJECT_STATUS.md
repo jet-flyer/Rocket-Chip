@@ -1,12 +1,12 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-03-03 (IVP resequencing — Data Logging pulled forward to Stage 6)
+**Last Updated:** 2026-03-04 (IVP-53b complete — flash storage pipeline HW verified)
 
 ## Current Phase
 
-**Stage 6 NEXT** — Data Logging (IVP-49 through IVP-56)
+**Stage 6 IN PROGRESS** — Data Logging (IVP-49 through IVP-56)
 
-Stage 5 (Sensor Fusion) complete. Data Logging pulled forward from original Stage 9 position — telemetry encoder depends on data structures defined by the logging architecture. Defines canonical data model (FusedState/TelemetryState/SensorSnapshot), PCM frame format, PSRAM ring buffer, flash storage, and USB download.
+IVP-49 through IVP-53b complete. Data model, PCM frames, ring buffer, PSRAM init, decimation, flash flush, and CLI capacity all implemented and HW verified. Remaining: IVP-54a (CLI flight list + binary download), IVP-54b (Python decoder script). IVP-55/56 deferred.
 
 ## Completed
 
@@ -41,7 +41,7 @@ Stage 5 (Sensor Fusion) complete. Data Logging pulled forward from original Stag
 
 ## In Progress
 
-**Stage 6: Data Logging** — IVP-49 through IVP-56. Pulled forward from original Stage 9. Defines canonical data model, PCM frame format, PSRAM ring buffer, flash storage, USB download. IVP-55 (Raw Sensor Logging) and IVP-56 (Economy Tier & HAB Flush) are placeholders deferred to later.
+**Stage 6: Data Logging** — IVP-49 through IVP-53b complete (data model, PCM frames, ring buffer, PSRAM, decimation, flash flush, CLI capacity). Next: IVP-54a (CLI flight list + binary USB download) and IVP-54b (Python decoder script). IVP-55 (Raw Sensor Logging) and IVP-56 (Economy Tier & HAB Flush) deferred.
 
 **Radio driver (IVP-57) already verified** — temporary 1Hz test TX and 5 dBm bench power in place; raise to 20 dBm for field use. Remove test TX when IVP-58 (telemetry encoder) lands.
 

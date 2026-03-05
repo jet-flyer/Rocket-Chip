@@ -63,6 +63,7 @@ if(BUILD_TESTS)
     # Logging library (no SDK dependencies)
     # IVP-49/50/51: Data model, timestamps, PCM frame format
     # IVP-52b: Ring buffer
+    # IVP-52c: Log decimator
     # IVP-53a: CRC-32 + Flight log table
     # ------------------------------------------------------------------
     add_library(rc_logging STATIC
@@ -70,6 +71,7 @@ if(BUILD_TESTS)
         src/logging/pcm_frame.cpp
         src/logging/ring_buffer.cpp
         src/logging/flight_table.cpp
+        src/logging/log_decimator.cpp
     )
     target_include_directories(rc_logging PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/include
@@ -216,12 +218,15 @@ else()
         src/fusion/ud_factor.cpp
 
         # -------------------------------------------------------------------------
-        # Stage 6: Data Logging (IVP-49/50/51, IVP-52b, IVP-53a)
+        # Stage 6: Data Logging (IVP-49/50/51, IVP-52a/b/c, IVP-53a/b)
         # -------------------------------------------------------------------------
         src/logging/data_convert.cpp
         src/logging/pcm_frame.cpp
         src/logging/ring_buffer.cpp
         src/logging/flight_table.cpp
+        src/logging/log_decimator.cpp
+        src/logging/flash_flush.cpp
+        src/logging/psram_init.cpp
 
         # -------------------------------------------------------------------------
         # Stage 7: Radio & Telemetry (IVP-57)
@@ -254,6 +259,9 @@ else()
         src/logging/pcm_frame.cpp
         src/logging/ring_buffer.cpp
         src/logging/flight_table.cpp
+        src/logging/log_decimator.cpp
+        src/logging/flash_flush.cpp
+        src/logging/psram_init.cpp
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
     )
@@ -304,6 +312,8 @@ else()
         pico_rand
         # IVP-57: SPI bus for LoRa radio
         hardware_spi
+        # IVP-53b: XIP cache clean for PSRAM flush (council req. #1)
+        hardware_xip_cache
     )
 
     # Enable USB CDC for stdio (not UART)

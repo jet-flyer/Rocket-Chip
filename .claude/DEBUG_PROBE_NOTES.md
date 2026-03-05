@@ -95,8 +95,10 @@ cd /c/Users/pow-w/Documents/Rocket-Chip && /c/Users/pow-w/.pico-sdk/toolchain/14
 
 ### Flash and Run via GDB
 ```bash
-cd /c/Users/pow-w/Documents/Rocket-Chip && /c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "load" -ex "monitor reset run"
+cd /c/Users/pow-w/Documents/Rocket-Chip && /c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "load" -ex "monitor resume"
 ```
+
+**CRITICAL (2026-03-04):** Use `monitor resume`, NOT `monitor reset run`, for dual-core targets in GDB batch mode. `monitor reset run` does not reliably resume both cores — Core 1 can appear stuck at bootrom `0x000000da` while Core 0 waits for cross-core flags. `monitor resume` correctly resumes both cores from their halted state after `load`. To inspect state after free-run, use `shell sleep N` then `monitor halt`.
 
 ---
 

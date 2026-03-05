@@ -20,6 +20,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-04-002 | Claude Code CLI | feature, bugfix
+
+**Stage 6 Data Logging — IVP-52c, IVP-53b completed. Full flash storage pipeline HW verified.** IVP-52c (decimation + main loop integration + SRAM fallback) and IVP-53b (flash flush + watchdog + CLI capacity) verified on hardware. Flush: 5,807 frames → 78 sectors → Flight #1, second flush 5,018 frames → Flight #2. Power cycle persistence: 2 flights survived reboot (7.7% used). Erase: 'E'+'Y' confirmation clears table and used sectors. Boot banner shows flash capacity. CLI help shows L/E commands.
+
+**Bugs fixed:** (1) `case 'E':` in `rc_os.cpp` shadowed the erase command — both `'e'` and `'E'` mapped to ESKF live mode, preventing the unhandled-key callback from reaching `cmd_erase_all_flights()` in main.cpp. Fixed: only `'e'` triggers ESKF live. (2) `flight_log_erase_all()` erased all 1912 flight log sectors regardless of usage — at ~30ms/sector = 57 seconds, causing USB timeout and device crash. Fixed: only erases used sectors (based on `next_free_sector`). (3) GDB `monitor reset run` doesn't reliably resume both cores on dual-core RP2350 — Core 1 appears stuck at bootrom. Fixed: use `monitor resume` instead. Updated DEBUG_PROBE_NOTES.md.
+
+**Observed:** DPS310 baro read count freezes after ~800 reads (error count keeps climbing). Baro data valid for initial reads but sensor appears to stop continuous measurement mode. Pre-existing issue, not caused by IVP-53b changes. Needs recovery mechanism (future IVP).
+
+(`src/main.cpp`, `src/cli/rc_os.cpp`, `src/logging/flash_flush.h`, `src/logging/flash_flush.cpp`, `.claude/DEBUG_PROBE_NOTES.md`, `AGENT_WHITEBOARD.md`)
+
+---
+
+### 2026-03-04-001 | Claude Code CLI | feature
+
+**Stage 6 Data Logging — IVP-52b, IVP-53a, IVP-52a completed.** Sub-steps executed out of plan order (plan: 52b→53a→52a→52c→53b→54a→54b) to front-load host-testable work before hardware-dependent steps. IVP-52b (ring buffer, host-testable) and IVP-53a (CRC-32 + flight table, host-testable) completed first with 299/299 host tests. IVP-52a (PSRAM init + self-test) completed next — 8MB APS6404L detected via QMI direct-mode SPI ID read, QPI mode configured, self-test passes at 3 addresses, council req. #2 flash-safe hard gate passes (write→flash_safe_execute erase→readback verify). PSRAM init runs before Core 1 launch (QMI manipulation unsafe while Core 1 executes from flash); flash-safe test deferred to after Core 1 calls multicore_lockout_victim_init(). Flight table sector count corrected from plan estimate 1912 to actual 1916 ((0x7FC000-0x080000)/4096). 60s HW soak: 88,896 IMU reads, 2 startup errors, ESKF stable.
+
+(`src/logging/psram_init.h`, `src/logging/psram_init.cpp`, `src/logging/ring_buffer.h`, `src/logging/ring_buffer.cpp`, `src/logging/flight_table.h`, `src/logging/flight_table.cpp`, `src/logging/crc32.h`, `test/test_ring_buffer.cpp`, `test/test_flight_table.cpp`, `CMakeLists.txt`, `test/CMakeLists.txt`, `src/main.cpp`)
+
+---
+
 ### 2026-03-03-001 | Claude Code CLI | architecture, documentation
 
 **IVP resequencing — Data Logging pulled forward to Stage 6.** Two council reviews (telemetry protocol selection + data logging architecture) established that the telemetry encoder depends on data structures defined by the logging architecture. Data Logging moved from Stage 9 to Stage 6 (IVP-49–56), Radio & Telemetry becomes Stage 7 (IVP-57–65), new Ground Station Stage 10 (IVP-75–80) added. All IVP numbers from 49 onward renumbered. Total IVP count: 72→85. Logging format changed from MAVLink .bin to PCM fixed frames. Telemetry encoder now uses CCSDS/MAVLink strategy pattern selected by Mission Profile. Three-struct data model defined: FusedState (float32 ESKF-internal), TelemetryState (fixed-point wire-ready), SensorSnapshot (raw pre-calibration).

@@ -28,6 +28,14 @@
 #include "fusion/wmm_declination.h"
 #include "drivers/spi_bus.h"
 #include "drivers/rfm95w.h"
+#include "logging/psram_init.h"
+#include "logging/log_decimator.h"
+#include "logging/ring_buffer.h"
+#include "logging/data_convert.h"
+#include "logging/flash_flush.h"
+#include "logging/flight_table.h"
+#include "rocketchip/pcm_frame.h"
+#include "rocketchip/fused_state.h"
 #include "cli/rc_os.h"
 #include "pico/multicore.h"
 #include "hardware/sync.h"
@@ -174,6 +182,27 @@ static gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;
 static bool g_spiInitialized = false;
 static bool g_radioInitialized = false;
 static rfm95w_t g_radio;
+static size_t g_psramSize = 0;
+static bool g_psramSelfTestPassed = false;
+static bool g_psramFlashSafePassed = false;
+
+// Logging subsystem (IVP-52c)
+static rc::RingBuffer g_ringBuffer;
+static rc::LogDecimator g_decimator;
+static bool g_loggingInitialized = false;
+// SRAM fallback: 200KB ring buffer at 25Hz if PSRAM unavailable.
+// 200KB / 55B = 3636 frames / 25Hz = 145 seconds.
+static constexpr uint32_t kSramRingSize = 200U * 1024U;
+static uint8_t g_sramRingBuf[kSramRingSize];
+// Decimation: 4:1 for PSRAM (200→50Hz), 8:1 for SRAM (200→25Hz)
+static constexpr uint32_t kDecimationPsram = 4;
+static constexpr uint32_t kDecimationSram = 8;
+// Header sync: every 50 frames (~1 second at 50Hz)
+static constexpr uint32_t kHeaderSyncDiv = 50;
+
+// Flight table (IVP-53b) — flash-persistent flight log index
+static rc::FlightTableState g_flightTable;
+static bool g_flightTableLoaded = false;
 
 // Transport-neutral GPS function pointers — set once during init_sensors().
 // Avoids if/else on every Core 1 GPS poll cycle.
@@ -216,6 +245,7 @@ static rc::ESKF g_eskf;
 static bool g_eskfInitialized = false;
 static uint32_t g_lastEskfImuCount = 0;
 static uint32_t g_lastEskfTimestampUs = 0;
+static uint32_t g_eskfEpoch = 0;        // Incremented on each ESKF propagation
 
 // IVP-45: Mahony AHRS cross-check (~33 bytes, no stack overflow risk)
 static rc::MahonyAHRS g_mahony;
@@ -324,6 +354,7 @@ static std::atomic<bool> g_sensorPhaseDone{false};
 static std::atomic<bool> g_calReloadPending{false};
 static std::atomic<bool> g_core1PauseI2C{false};
 static std::atomic<bool> g_core1I2CPaused{false};
+static std::atomic<bool> g_core1LockoutReady{false};  // Core 1 has called multicore_lockout_victim_init()
 
 // INTERIM: NeoPixel calibration override (Phase M.5).
 // Replace with proper AP_Notify-style status state machine when implemented.
@@ -852,6 +883,7 @@ static void core1_entry() {
     }
 
     multicore_lockout_victim_init();
+    g_core1LockoutReady.store(true, std::memory_order_release);
     core1_sensor_loop();
 }
 
@@ -1177,6 +1209,16 @@ static void print_sensor_counts(const shared_sensor_data_t& snap) {
            (unsigned long)snap.imu_error_count,
            (unsigned long)snap.baro_error_count,
            (unsigned long)snap.gps_error_count);
+    if (g_loggingInitialized) {
+        printf("  Log: %lu frames stored, %lu capacity\n",
+               (unsigned long)rc::ring_stored_count(&g_ringBuffer),
+               (unsigned long)rc::ring_capacity_frames(&g_ringBuffer));
+    }
+    if (g_flightTable.loaded) {
+        printf("  Flash: %lu flights, %.1f%% used\n",
+               (unsigned long)rc::flight_table_count(&g_flightTable),
+               static_cast<double>(rc::flight_table_used_pct(&g_flightTable)));
+    }
 }
 
 // Print sensor data from seqlock snapshot (Core 1 driving sensors)
@@ -1469,6 +1511,56 @@ static void print_hw_status() {
         printf("[----] Radio: not detected (FeatherWing not stacked?)\n");
     }
 
+    // PSRAM status
+    if (g_psramSize > 0) {
+        printf("[%s] PSRAM: %luMB at 0x%08lX",
+               g_psramSelfTestPassed ? "PASS" : "FAIL",
+               (unsigned long)(g_psramSize / (1024 * 1024)),
+               (unsigned long)rc::kPsramCachedBase);
+        if (g_psramSelfTestPassed) {
+            printf(" self-test OK");
+        } else {
+            printf(" self-test FAIL");
+        }
+        if (g_psramFlashSafePassed) {
+            printf(", flash-safe OK\n");
+        } else {
+            printf(", flash-safe %s\n",
+                   g_psramSelfTestPassed ? "FAIL" : "skipped");
+        }
+    } else {
+        printf("[----] PSRAM: not detected (GPIO %d)\n",
+               rocketchip::pins::kPsramCs);
+    }
+
+    // Logging status
+    if (g_loggingInitialized) {
+        bool isPsram = (g_psramSize > 0 && g_psramSelfTestPassed);
+        uint32_t rate = isPsram ? (200 / kDecimationPsram) : (200 / kDecimationSram);
+        printf("[PASS] Logging: %s ring, %luHz, %lu frames capacity, %lu stored\n",
+               isPsram ? "PSRAM" : "SRAM",
+               (unsigned long)rate,
+               (unsigned long)rc::ring_capacity_frames(&g_ringBuffer),
+               (unsigned long)rc::ring_stored_count(&g_ringBuffer));
+    } else {
+        printf("[----] Logging: not initialized\n");
+    }
+
+    // Flash flight table status (IVP-53b)
+    if (g_flightTable.loaded) {
+        uint32_t nFlights = rc::flight_table_count(&g_flightTable);
+        float usedPct = rc::flight_table_used_pct(&g_flightTable);
+        uint32_t freeSectors = rc::flight_table_capacity_sectors() -
+                               rc::flight_table_used_sectors(&g_flightTable);
+        uint32_t freeMB = (freeSectors * rc::kFlashSectorSize) / (1024U * 1024U);
+        printf("[PASS] Flash: %.1f%% used (%lu flights, %luMB free)\n",
+               static_cast<double>(usedPct),
+               (unsigned long)nFlights,
+               (unsigned long)freeMB);
+    } else {
+        printf("[INFO] Flash: flight table empty (fresh)\n");
+    }
+
     // Best GPS fix diagnostic
     if (g_bestGpsValid.load(std::memory_order_acquire)) {
         printf("  Best GPS: Fix=%u Sats=%u HDOP=%.2f\n",
@@ -1597,6 +1689,17 @@ static bool init_hardware() {
     // NeoPixel init
     g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin);
 
+    // PSRAM init — MUST be before Core 1 launch because psram_init()
+    // manipulates QMI registers that control XIP flash execution.
+    // Core 1 must not be running from flash during QMI reconfiguration.
+    // flash_safe_test also uses flash_safe_execute() which needs
+    // multicore_lockout — safe only after Core 1 is launched. So:
+    // init + self-test before Core 1, flash-safe test deferred to after.
+    g_psramSize = rc::psram_init(rocketchip::pins::kPsramCs);
+    if (g_psramSize > 0) {
+        g_psramSelfTestPassed = rc::psram_self_test(g_psramSize);
+    }
+
     // Launch Core 1 early so NeoPixel blinks immediately (no USB dependency)
     multicore_launch_core1(core1_entry);
 
@@ -1606,6 +1709,9 @@ static bool init_hardware() {
     if (g_i2cInitialized) {
         init_sensors();
     }
+
+    // PSRAM flash-safe test deferred to after g_startSensorPhase, where
+    // Core 1 has called multicore_lockout_victim_init().
 
     // SPI bus + radio init (before USB per LL Entry 4/12)
     // Optional peripheral: absent FeatherWing detected at init time
@@ -1653,6 +1759,9 @@ static void print_boot_status() {
 // Init: RC_OS setup, Core 1 sensor phase start, watchdog enable
 // ============================================================================
 
+// Forward declaration for CLI key handler (defined after logging_tick)
+static void handle_unhandled_key(int key);
+
 static void init_application(bool watchdogReboot) {
     g_watchdogReboot = watchdogReboot;
 
@@ -1671,11 +1780,55 @@ static void init_application(bool watchdogReboot) {
     rc_os_set_cal_neo = set_cal_neo_override;
     rc_os_feed_cal = feed_active_calibration;
     rc_os_print_eskf_live = print_eskf_live;
+    rc_os_on_unhandled_key = handle_unhandled_key;
     // Signal Core 1 to start sensor phase
     g_sensorPhaseActive = true;
     g_startSensorPhase.store(true, std::memory_order_release);
     rc_os_i2c_scan_allowed = false;  // LL Entry 23: prevent CLI I2C scan from corrupting bus
-    sleep_ms(kCore1StartupDelayMs);  // Let Core 1 start up
+    // Wait for Core 1 to call multicore_lockout_victim_init() — required before
+    // any flash_safe_execute() call. Deterministic flag instead of sleep_ms().
+    while (!g_core1LockoutReady.load(std::memory_order_acquire)) {
+        sleep_ms(1);
+    }
+
+    // PSRAM flash-safe test (deferred from init_hardware).
+    // Core 1 has called multicore_lockout_victim_init(),
+    // so flash_safe_execute() is safe to use.
+    if (g_psramSize > 0 && g_psramSelfTestPassed) {
+        g_psramFlashSafePassed = rc::psram_flash_safe_test();
+    }
+
+    // Initialize logging ring buffer (IVP-52c).
+    // Uses PSRAM if available (8MB at 50Hz = ~48 min), SRAM fallback otherwise
+    // (200KB at 25Hz = ~145 sec). Ring buffer init writes header to memory.
+    {
+        uint8_t* ringMem = nullptr;
+        uint32_t ringSize = 0;
+        uint32_t decRatio = kDecimationSram;
+
+        if (g_psramSize > 0 && g_psramSelfTestPassed) {
+            ringMem = rc::psram_base_ptr();
+            ringSize = static_cast<uint32_t>(g_psramSize);
+            decRatio = kDecimationPsram;
+        } else {
+            ringMem = g_sramRingBuf;
+            ringSize = kSramRingSize;
+            decRatio = kDecimationSram;
+        }
+
+        if (ringMem != nullptr) {
+            g_loggingInitialized =
+                rc::ring_init(&g_ringBuffer, ringMem, ringSize,
+                              rc::kPcmFrameStandardSize, kHeaderSyncDiv);
+            if (g_loggingInitialized) {
+                rc::decimator_init(&g_decimator, decRatio);
+            }
+        }
+    }
+
+    // Load flight table from flash (IVP-53b).
+    // Dual-sector pattern — higher sequence wins. If no valid table, starts fresh.
+    g_flightTableLoaded = rc::flight_table_load(&g_flightTable);
 
     // Auto-calibrate baro ground reference at boot.
     // Core 1 feeds baro samples asynchronously — cal completes in background
@@ -2007,6 +2160,252 @@ static void eskf_tick() {
 
     eskf_tick_gps(snap);
     eskf_tick_mahony(snap);
+
+    g_eskfEpoch++;
+}
+
+// ============================================================================
+// Logging Tick (IVP-52c)
+// ============================================================================
+// Flash Flush + Erase (IVP-53b)
+// ============================================================================
+
+// Watchdog kick callback for flash operations.
+// During multi-sector flash writes, the main loop is blocked.
+// The watchdog (5s) must be kicked between sectors (~45ms each).
+static void flush_kick_watchdog() {
+    watchdog_update();
+}
+
+static void cmd_flush_log() {
+    if (!g_loggingInitialized) {
+        printf("Logging not initialized.\n");
+        return;
+    }
+    if (!g_flightTable.loaded) {
+        printf("Flight table not loaded.\n");
+        return;
+    }
+
+    uint32_t stored = rc::ring_stored_count(&g_ringBuffer);
+    if (stored == 0) {
+        printf("No frames in ring buffer.\n");
+        return;
+    }
+
+    bool isPsram = (g_psramSize > 0 && g_psramSelfTestPassed);
+    uint8_t rate = isPsram
+        ? static_cast<uint8_t>(200U / kDecimationPsram)
+        : static_cast<uint8_t>(200U / kDecimationSram);
+
+    printf("Flushing %lu frames to flash...\n", (unsigned long)stored);
+
+    // Build summary from current state (minimal — no flight state machine yet)
+    rc::FlightMetadata meta = {};
+    rc::FlightSummary summ = {};
+    summ.frame_count = stored;
+
+    rc::FlushResult result = rc::flush_ring_to_flash(
+        &g_ringBuffer, &g_flightTable, &meta, &summ, rate, flush_kick_watchdog);
+
+    switch (result) {
+    case rc::FlushResult::kOk:
+        printf("Flush OK. Flight #%lu saved (%lu frames, %lu sectors).\n",
+               (unsigned long)rc::flight_table_count(&g_flightTable),
+               (unsigned long)stored,
+               (unsigned long)(stored * rc::kPcmFrameStandardSize + rc::kFlashSectorSize - 1)
+                   / rc::kFlashSectorSize);
+        break;
+    case rc::FlushResult::kFlashFull:
+        printf("Flash full. Erase flights with 'E' command.\n");
+        break;
+    case rc::FlushResult::kTableFull:
+        printf("Flight table full (32 flights). Erase with 'E'.\n");
+        break;
+    case rc::FlushResult::kEraseError:
+        printf("Flash erase error.\n");
+        break;
+    case rc::FlushResult::kWriteError:
+        printf("Flash write error.\n");
+        break;
+    case rc::FlushResult::kTableSaveError:
+        printf("Flight table save error.\n");
+        break;
+    default:
+        printf("Flush error: %d\n", static_cast<int>(result));
+        break;
+    }
+}
+
+static void cmd_erase_all_flights() {
+    if (!g_flightTable.loaded) {
+        printf("Flight table not loaded.\n");
+        return;
+    }
+
+    uint32_t count = rc::flight_table_count(&g_flightTable);
+    if (count == 0) {
+        printf("No flights to erase.\n");
+        return;
+    }
+
+    printf("Erase ALL %lu flights? Press 'Y' to confirm: ", (unsigned long)count);
+
+    // Wait for confirmation (blocking — acceptable for destructive CLI command)
+    int confirm = getchar_timeout_us(5000000);  // 5s timeout
+    if (confirm != 'Y') {
+        printf("\nErase cancelled.\n");
+        return;
+    }
+    printf("Y\n");
+
+    printf("Erasing flight log sectors...\n");
+    if (!rc::flight_log_erase_all(&g_flightTable, flush_kick_watchdog)) {
+        printf("Flash erase error.\n");
+        return;
+    }
+
+    // Erase flight table in flash
+    if (!rc::flight_table_erase_flash()) {
+        printf("Table erase error.\n");
+        return;
+    }
+
+    // Reset in-memory table
+    rc::flight_table_erase_all(&g_flightTable);
+    g_flightTable.loaded = true;
+
+    // Save fresh empty table
+    rc::flight_table_save(&g_flightTable);
+
+    printf("All flights erased.\n");
+}
+
+static void handle_unhandled_key(int key) {
+    switch (key) {
+    case 'L':
+        cmd_flush_log();
+        break;
+    case 'E':
+        cmd_erase_all_flights();
+        break;
+    default:
+        break;
+    }
+}
+
+// ============================================================================
+// Logging Tick (IVP-52c)
+// ============================================================================
+// Runs at main loop rate (~1kHz), but only produces output when ESKF has
+// advanced (200Hz). Decimator further reduces to 50Hz (PSRAM) or 25Hz (SRAM).
+
+static uint32_t g_lastLogEpoch = 0;
+
+static void logging_tick() {
+    if (!g_loggingInitialized || !g_eskfInitialized) {
+        return;
+    }
+
+    // Only run when ESKF has produced a new propagation
+    if (g_eskfEpoch == g_lastLogEpoch) {
+        return;
+    }
+    g_lastLogEpoch = g_eskfEpoch;
+
+    // Read sensor snapshot for GPS/baro/temp fields
+    shared_sensor_data_t snap = {};
+    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
+        return;  // Seqlock contention — skip this cycle
+    }
+
+    // Populate FusedState from ESKF nominal state + sensor snapshot
+    rc::FusedState fused = {};
+
+    fused.q_w = g_eskf.q.w;
+    fused.q_x = g_eskf.q.x;
+    fused.q_y = g_eskf.q.y;
+    fused.q_z = g_eskf.q.z;
+
+    fused.pos_n = g_eskf.p.x;
+    fused.pos_e = g_eskf.p.y;
+    fused.pos_d = g_eskf.p.z;
+
+    fused.vel_n = g_eskf.v.x;
+    fused.vel_e = g_eskf.v.y;
+    fused.vel_d = g_eskf.v.z;
+
+    fused.accel_bias_x = g_eskf.accel_bias.x;
+    fused.accel_bias_y = g_eskf.accel_bias.y;
+    fused.accel_bias_z = g_eskf.accel_bias.z;
+
+    fused.gyro_bias_x = g_eskf.gyro_bias.x;
+    fused.gyro_bias_y = g_eskf.gyro_bias.y;
+    fused.gyro_bias_z = g_eskf.gyro_bias.z;
+
+    // Covariance diagnostics (max diagonal in each block)
+    float patt = g_eskf.P(0, 0);
+    if (g_eskf.P(1, 1) > patt) { patt = g_eskf.P(1, 1); }
+    if (g_eskf.P(2, 2) > patt) { patt = g_eskf.P(2, 2); }
+    fused.sig_att = patt;
+
+    float ppos = g_eskf.P(3, 3);
+    if (g_eskf.P(4, 4) > ppos) { ppos = g_eskf.P(4, 4); }
+    if (g_eskf.P(5, 5) > ppos) { ppos = g_eskf.P(5, 5); }
+    fused.sig_pos = ppos;
+
+    float pvel = g_eskf.P(6, 6);
+    if (g_eskf.P(7, 7) > pvel) { pvel = g_eskf.P(7, 7); }
+    if (g_eskf.P(8, 8) > pvel) { pvel = g_eskf.P(8, 8); }
+    fused.sig_vel = pvel;
+
+    // Baro AGL and vertical velocity
+    if (snap.baro_valid) {
+        fused.baro_alt_agl = calibration_get_altitude_agl(snap.pressure_pa);
+        fused.baro_vvel = g_eskf.v.z;  // NED down = positive descent
+    }
+
+    // Temperatures
+    fused.baro_temperature_c = snap.baro_temperature_c;
+    fused.imu_temperature_c = snap.imu_temperature_c;
+
+    // Mahony divergence
+    fused.mahony_div_deg = (g_mahonyInitialized && g_mahony.healthy())
+        ? rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg
+        : -1.0f;
+
+    // GPS from sensor snapshot
+    fused.gps_lat_1e7 = snap.gps_lat_1e7;
+    fused.gps_lon_1e7 = snap.gps_lon_1e7;
+    fused.gps_alt_msl_m = snap.gps_alt_msl_m;
+    fused.gps_ground_speed_mps = snap.gps_ground_speed_mps;
+    fused.gps_fix_type = snap.gps_fix_type;
+    fused.gps_satellites = snap.gps_satellites;
+
+    // Health
+    fused.eskf_healthy = g_eskf.healthy();
+    fused.zupt_active = g_eskf.last_zupt_active_;
+
+    // Flight state (0=IDLE until IVP-67)
+    fused.flight_state = 0;
+
+    // MET from system clock
+    fused.met_ms = to_ms_since_boot(get_absolute_time());
+
+    // Feed to decimator
+    rc::FusedState averaged = {};
+    if (!rc::decimator_push(&g_decimator, fused, averaged)) {
+        return;  // Not enough samples yet
+    }
+
+    // Convert to wire format and push to ring buffer
+    rc::TelemetryState telem = {};
+    rc::fused_to_telemetry(averaged, telem);
+
+    rc::PcmFrameStandard frame = {};
+    rc::pcm_encode_standard(telem, averaged.met_ms, frame);
+
+    rc::ring_push(&g_ringBuffer, &frame);
 }
 
 // ============================================================================
@@ -2051,6 +2450,9 @@ int main() {
 
         g_lastTickFunction = "eskf";
         eskf_tick();
+
+        g_lastTickFunction = "logging";
+        logging_tick();
 
         g_lastTickFunction = "radio_tx";
         radio_test_tx_tick(nowMs);

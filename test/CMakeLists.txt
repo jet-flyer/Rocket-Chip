@@ -105,6 +105,11 @@ add_executable(test_ring_buffer test_ring_buffer.cpp)
 target_link_libraries(test_ring_buffer PRIVATE rc_logging GTest::gtest_main)
 gtest_discover_tests(test_ring_buffer)
 
+# IVP-52c: Log decimator tests
+add_executable(test_log_decimator test_log_decimator.cpp)
+target_link_libraries(test_log_decimator PRIVATE rc_logging GTest::gtest_main)
+gtest_discover_tests(test_log_decimator)
+
 # IVP-53a: CRC-32 + Flight log table tests
 add_executable(test_flight_table test_flight_table.cpp)
 target_link_libraries(test_flight_table PRIVATE rc_logging GTest::gtest_main)

@@ -38,6 +38,24 @@
 
 ---
 
+### Core Load Audit — Dedicated Dive Needed
+
+**Added 2026-03-04.** No deliberate audit has been done to map what runs on each core and whether the load is balanced. Current split is organic: Core 0 = main loop + USB + CLI + ESKF + logging pipeline, Core 1 = sensor sampling (IMU 1kHz, baro 8Hz, GPS 10Hz, mag 100Hz). Need a dedicated session to:
+1. Catalogue every function and ISR running on each core
+2. Measure actual CPU utilization per core (cycle counting or timer profiling)
+3. Identify if any work should move between cores for better balance
+4. Document the core assignment rationale in SAD or a dedicated doc
+
+Not blocking current IVP work — informational audit for optimization.
+
+---
+
+### DPS310 Baro Read Count Freezes — Needs Recovery Mechanism
+
+**Added 2026-03-04.** During IVP-53b HW verification, observed DPS310 baro read count frozen at ~802 while error count climbs continuously (~3K/min). Baro data from initial reads is valid (pressure/temp correct, ESKF bNIS normal) but sensor stops producing new ready flags (`MEAS_CFG` bits PRS_RDY|TMP_RDY` never both set again). Likely cause: DPS310 continuous measurement mode register reset during a `flash_safe_execute()` cycle (I2C bus inaccessible while flash op runs, sensor may re-enter idle). Fix: periodic re-check of DPS310 measurement config register, re-init continuous mode if stopped. Not flight-blocking (baro data only needed for altitude, ESKF has GPS+ZUPT fallbacks) but should be addressed before Stage 8 (Flight Director relies on baro altitude for state transitions).
+
+---
+
 ### Protected File Updates Pending Approval
 
 *None currently.*
