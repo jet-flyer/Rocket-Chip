@@ -60,6 +60,23 @@ if(BUILD_TESTS)
     target_link_libraries(rc_fusion PUBLIC rc_math)
 
     # ------------------------------------------------------------------
+    # Logging library (no SDK dependencies)
+    # IVP-49/50/51: Data model, timestamps, PCM frame format
+    # IVP-52b: Ring buffer
+    # IVP-53a: CRC-32 + Flight log table
+    # ------------------------------------------------------------------
+    add_library(rc_logging STATIC
+        src/logging/data_convert.cpp
+        src/logging/pcm_frame.cpp
+        src/logging/ring_buffer.cpp
+        src/logging/flight_table.cpp
+    )
+    target_include_directories(rc_logging PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/include
+        ${CMAKE_CURRENT_LIST_DIR}/src
+    )
+
+    # ------------------------------------------------------------------
     # Tests
     # ------------------------------------------------------------------
     enable_testing()
@@ -199,6 +216,14 @@ else()
         src/fusion/ud_factor.cpp
 
         # -------------------------------------------------------------------------
+        # Stage 6: Data Logging (IVP-49/50/51, IVP-52b, IVP-53a)
+        # -------------------------------------------------------------------------
+        src/logging/data_convert.cpp
+        src/logging/pcm_frame.cpp
+        src/logging/ring_buffer.cpp
+        src/logging/flight_table.cpp
+
+        # -------------------------------------------------------------------------
         # Stage 7: Radio & Telemetry (IVP-57)
         # -------------------------------------------------------------------------
         src/drivers/spi_bus.cpp
@@ -225,6 +250,10 @@ else()
         src/fusion/wmm_declination.cpp
         src/fusion/mahony_ahrs.cpp
         src/fusion/ud_factor.cpp
+        src/logging/data_convert.cpp
+        src/logging/pcm_frame.cpp
+        src/logging/ring_buffer.cpp
+        src/logging/flight_table.cpp
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
     )
@@ -244,6 +273,7 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/src/calibration    # IVP-14
         ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
+        ${CMAKE_CURRENT_LIST_DIR}/src/logging          # IVP-49
         ${RUUVI_DPS310_DIR}                            # IVP-11
         ${LWGPS_DIR}/include                             # IVP-31
     )

@@ -89,3 +89,23 @@ target_compile_definitions(rc_fusion_bierman PUBLIC ESKF_USE_BIERMAN=1)
 add_executable(test_eskf_bierman test_eskf_bierman.cpp)
 target_link_libraries(test_eskf_bierman PRIVATE rc_fusion_bierman GTest::gtest_main)
 gtest_discover_tests(test_eskf_bierman)
+
+# IVP-49/50: Data model and timestamp tests
+add_executable(test_data_model test_data_model.cpp)
+target_link_libraries(test_data_model PRIVATE rc_logging GTest::gtest_main)
+gtest_discover_tests(test_data_model)
+
+# IVP-51: PCM frame format tests
+add_executable(test_pcm_frame test_pcm_frame.cpp)
+target_link_libraries(test_pcm_frame PRIVATE rc_logging GTest::gtest_main)
+gtest_discover_tests(test_pcm_frame)
+
+# IVP-52b: Ring buffer + crash recovery tests
+add_executable(test_ring_buffer test_ring_buffer.cpp)
+target_link_libraries(test_ring_buffer PRIVATE rc_logging GTest::gtest_main)
+gtest_discover_tests(test_ring_buffer)
+
+# IVP-53a: CRC-32 + Flight log table tests
+add_executable(test_flight_table test_flight_table.cpp)
+target_link_libraries(test_flight_table PRIVATE rc_logging GTest::gtest_main)
+gtest_discover_tests(test_flight_table)

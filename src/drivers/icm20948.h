@@ -231,4 +231,17 @@ bool icm20948_read_temperature(icm20948_t* dev, float* tempC);
  */
 bool icm20948_data_ready(icm20948_t* dev, bool* accelReady, bool* gyroReady);
 
+/**
+ * @brief Read DLPF/ODR configuration registers (Bank 2) for boot banner
+ * @param dev Device handle
+ * @param accel_config  Output: ACCEL_CONFIG register (0x14)
+ * @param gyro_config1  Output: GYRO_CONFIG_1 register (0x01)
+ * @param gyro_smplrt   Output: GYRO_SMPLRT_DIV register (0x00)
+ * @return true on success
+ */
+bool icm20948_read_config_registers(icm20948_t* dev,
+                                     uint8_t* accel_config,
+                                     uint8_t* gyro_config1,
+                                     uint8_t* gyro_smplrt);
+
 #endif // ROCKETCHIP_ICM20948_H

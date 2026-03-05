@@ -695,3 +695,26 @@ bool icm20948_data_ready(icm20948_t* dev, bool* accelReady, bool* gyroReady) {
 
     return true;
 }
+
+bool icm20948_read_config_registers(icm20948_t* dev,
+                                     uint8_t* accel_config,
+                                     uint8_t* gyro_config1,
+                                     uint8_t* gyro_smplrt) {
+    if (dev == nullptr || !dev->initialized) {
+        return false;
+    }
+
+    // All three registers are in Bank 2
+    if (!read_bank_reg(dev, 2, bank2::kAccelConfig, accel_config)) {
+        return false;
+    }
+    if (!read_bank_reg(dev, 2, bank2::kGyroConfig1, gyro_config1)) {
+        return false;
+    }
+    if (!read_bank_reg(dev, 2, bank2::kGyroSmplrtDiv, gyro_smplrt)) {
+        return false;
+    }
+
+    // Return to Bank 0 for normal operation
+    return select_bank(dev, 0);
+}

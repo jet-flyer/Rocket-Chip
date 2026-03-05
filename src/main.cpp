@@ -1397,6 +1397,23 @@ static void hw_validate_sensors() {
         printf("[%s] AK09916 magnetometer %s\n",
                g_imu.mag_initialized ? "PASS" : "WARN",
                g_imu.mag_initialized ? "ready" : "not ready");
+
+        // Pre-Stage 6 check: DLPF/ODR readback from Bank 2
+        uint8_t accelCfg = 0;
+        uint8_t gyroCfg1 = 0;
+        uint8_t gyroDiv = 0;
+        if (icm20948_read_config_registers(&g_imu, &accelCfg, &gyroCfg1, &gyroDiv)) {
+            // ACCEL_CONFIG[5:3]=DLPF_CFG, [2:1]=FS_SEL, [0]=DLPF_EN
+            // GYRO_CONFIG_1[5:3]=DLPF_CFG, [2:1]=FS_SEL, [0]=DLPF_EN
+            uint8_t accelDlpf = (accelCfg >> 3) & 0x07U;
+            bool accelDlpfEn  = (accelCfg & 0x01U) != 0;
+            uint8_t gyroDlpf  = (gyroCfg1 >> 3) & 0x07U;
+            bool gyroDlpfEn   = (gyroCfg1 & 0x01U) != 0;
+            printf("  IMU config: accelDLPF=%u(%s) gyroDLPF=%u(%s) gyroDiv=%u\n",
+                   accelDlpf, accelDlpfEn ? "on" : "off",
+                   gyroDlpf, gyroDlpfEn ? "on" : "off",
+                   gyroDiv);
+        }
     } else {
         printf("[FAIL] ICM-20948 init failed\n");
     }
