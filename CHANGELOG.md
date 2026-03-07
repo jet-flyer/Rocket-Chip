@@ -20,6 +20,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-07-001 | Claude Code CLI | feature, architecture
+
+**Stage J: Fruit Jam HAL — Board abstraction + parity verification complete.** Compile-time board support package (BSP) via `board::` namespace constants so the same `main.cpp` builds and runs on both Feather RP2350 HSTX (#6130) and Fruit Jam (#6200). Zero runtime overhead — all `constexpr` pin constants resolved at compile time.
+
+**New files:** `board.h` (selector), `board_feather_rp2350.h`, `board_fruit_jam.h`, `BOARD_COMPARISON.md`. **Modified:** i2c_bus, spi_bus, ws2812, rfm95w, gps_uart, config.h, main.cpp, rc_os.cpp, both CMakeLists.txt. **Deleted:** `gs_spi.cpp`, `radio_rx.cpp` (replaced by board-abstracted main.cpp).
+
+**Council amendments implemented:** [M1] GPIO 5 conflict guard, [M2] LED active-low inversion with `board_led_set()` helper, [M3] UART GPS unavailable guard, [M4] PSRAM CS from SDK, [S1] hardcoded I2C leak grep, [S3] multi-LED NeoPixel clone, [S4] ESKF clean no-op verification, [N1] SPI1 bus sharing comment, [N2] full codebase inclusion rationale.
+
+**J.2 HW verified on Fruit Jam:** All 15 parity gate items passed. PSRAM 8MB on GPIO 47, radio RFM95W on SPI1, GPS PA1010D on I2C0, 5 NeoPixels on GPIO 32 (gpiobase=16), absent IMU/baro graceful no-op, 60s soak with 0 errors and no watchdog resets.
+
+**Bug fixed:** Core 1 was reading absent IMU/baro ~1000/s, generating unnecessary I2C errors. Added `g_imuInitialized`/`g_baroInitialized` guards in Core 1 sensor loop.
+
 ### 2026-03-04-003 | Claude Code CLI | feature, bugfix
 
 **Stage 6 Data Logging — IVP-54a/54b completed. Full USB download pipeline HW verified.** IVP-54a: CLI flight list (`f`) and binary download (`d`) commands. Sector-aware frame streaming skips flash padding. CRLF translation disabled during binary output (`stdio_set_translate_crlf`). End-to-end CRC-32 in RCEND footer. IVP-54b: Python decoder script (`scripts/decode_flight_log.py`) — serial download, offline decode, CSV output, auto-detect port, interactive mode (no-args lists flights and prompts for selection).

@@ -48,12 +48,13 @@ typedef enum {
 // ============================================================================
 
 /**
- * @brief Initialize WS2812 status LED
- * @param pio PIO instance (pio0 or pio1)
- * @param pin GPIO pin for data
+ * @brief Initialize WS2812 status LED(s)
+ * @param pio PIO instance (pio0, pio1, or pio2)
+ * @param pin GPIO pin for data (board::kNeoPixelPin)
+ * @param num_leds Number of LEDs in chain (board::kNeoPixelCount, default 1)
  * @return true on success
  */
-bool ws2812_status_init(PIO pio, uint pin);
+bool ws2812_status_init(PIO pio, uint pin, uint8_t num_leds = 1);
 
 /**
  * @brief Deinitialize and release PIO resources

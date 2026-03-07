@@ -923,6 +923,67 @@ The SDK's `__not_in_flash_func()` or `.time_critical` section annotation is the 
 
 ---
 
+## Entry 31: flash_safe_execute() Corrupts I2C Peripheral + Blocks GPS Satellite Lock
+
+**Date:** 2026-03-06
+**Time Spent:** ~2 hours
+**Severity:** Critical — I2C bus dead from boot, GPS lock impossible
+
+### Problem
+After reflashing the Fruit Jam ground station RX firmware, the PA1010D GPS reported "not found" despite being physically connected and powered (LED lit). Additionally, the GPS module spent 10+ minutes outdoors without acquiring a satellite lock — far exceeding the typical 35-60s cold start (PA1010D datasheet).
+
+### Symptoms
+- GPS init fails: `gps_pa1010d_init()` returns false (255-byte I2C read gets no valid NMEA)
+- I2C bus pins driven LOW: `SDA=GPIO20 state=0, SCL=GPIO21 state=0` — even with GPS unplugged
+- After `i2c_deinit()`, raw GPIO reads HIGH (external pull-ups working) — proves the DW_apb_i2c peripheral is driving the lines LOW, not the bus
+- GPS module has power (LED lit) but no satellite lock after 10+ minutes outdoors
+- After I2C fix: GPS lock acquired within 1 minute
+
+### Root Cause
+**`flash_safe_execute()` on RP2350B corrupts the I2C0 DW_apb_i2c peripheral.** The ground station firmware wrote a CSV header to flash via `flash_log_write()` during init — this calls `flash_safe_execute()`, which uses `multicore_lockout` to halt the other core and disable interrupts while flash is inaccessible. On return, the I2C0 peripheral is left in a bad state with SDA/SCL driven LOW.
+
+The init order was:
+```cpp
+i2c_bus_init();        // I2C0 on GPIO 20/21
+flash_log_init();      // flash_safe_execute() here — corrupts I2C0
+// GPS init fails — I2C bus is dead
+```
+
+**Unexpected secondary effect:** The I2C bus stuck LOW (SDA=0, SCL=0) also prevented the PA1010D from acquiring a GPS satellite lock. The module had power and its LED was lit, but with SDA held LOW by the corrupted I2C peripheral, the MT3333 chipset's internal UART-to-I2C bridge was in contention. This apparently interferes with the GPS RF front-end or internal processing — the module cannot acquire satellites while its I2C interface is being held in an invalid state by the bus master.
+
+This is the same class of issue as LL Entry 28 (GPIO function switching corrupts DW_apb_i2c) but triggered by a different path (`flash_safe_execute()` instead of `i2c_bus_recover()`).
+
+### Solution
+1. **Init order: flash ops BEFORE I2C init.** Move all `flash_safe_execute()` calls before `i2c_bus_init()` at boot.
+2. **Call `i2c_bus_reset()` after every runtime `flash_safe_execute()`.** The reset deinits/reinits the I2C peripheral, clearing the corrupted state.
+
+```cpp
+// CORRECT init order
+flash_log_init();      // Flash ops first
+i2c_bus_init();        // I2C init after — peripheral starts clean
+gps_pa1010d_init();    // GPS works
+
+// Runtime flash ops (e.g., flash_log_flush_page)
+flash_safe_execute(...);
+i2c_bus_reset();       // Reinit I2C after every flash op
+```
+
+### GPS Lock Finding
+The PA1010D's inability to acquire satellites while I2C SDA is held LOW was unexpected. GPS lock acquisition should theoretically be independent of the communication bus — the RF front-end and correlators don't share circuitry with I2C. However, the MT3333 chipset is a highly integrated SoC where the I2C bridge state may affect internal power management or clock distribution. Cold start to lock: ~35s typical per datasheet, up to 60s worst case. A 10+ minute failure with powered LED indicates external interference, not just weak signal.
+
+### Prevention
+1. **Always init flash before I2C** at boot — same principle as LL Entry 4/12 (flash before USB)
+2. **Always call `i2c_bus_reset()` after any `flash_safe_execute()` call** in runtime code
+3. **If GPS won't lock despite having power, check the I2C bus state** — SDA/SCL held LOW by a corrupted peripheral prevents lock acquisition
+4. **This pattern applies to ALL RP2350 boards** — both the flight Feather (I2C1 on GPIO 2/3) and the Fruit Jam ground station (I2C0 on GPIO 20/21)
+
+### Related
+- LL Entry 4: Flash operations break USB (same class — flash ops corrupt other peripherals)
+- LL Entry 12: USB CDC init order critical (same pattern — flash before peripheral init)
+- LL Entry 28: i2c_bus_recover() corrupts DW_apb_i2c (same peripheral corruption, different trigger)
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

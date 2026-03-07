@@ -53,7 +53,7 @@
 // Constants
 // ============================================================================
 
-static constexpr uint kNeoPixelPin = 21;
+static constexpr uint kNeoPixelPin = board::kNeoPixelPin;
 static constexpr const char* kBuildTag = "ivp63-complete";
 
 // Heartbeat: 100ms on, 900ms off
@@ -184,6 +184,14 @@ static gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;
 static bool g_spiInitialized = false;
 static bool g_radioInitialized = false;
 static rfm95w_t g_radio;
+
+// Runtime BW mode: 0=BW125, 1=BW250, 2=BW500 (switchable via RX command)
+static uint8_t g_txBwMode = 0;
+static const uint8_t kTxBwValues[3] = {
+    rfm95w::kBw125, rfm95w::kBw250, rfm95w::kBw500
+};
+static const char* const kTxBwLabels[3] = { "BW125", "BW250", "BW500" };
+
 static size_t g_psramSize = 0;
 static bool g_psramSelfTestPassed = false;
 static bool g_psramFlashSafePassed = false;
@@ -426,19 +434,23 @@ static void memmanage_fault_handler() {
     __asm volatile ("cpsid i");  // Disable interrupts
 
     // Direct GPIO register writes — no SDK calls that might use stack
-    io_rw_32 *gpioOut = &sio_hw->gpio_out;
-    const uint32_t ledMask = 1U << PICO_DEFAULT_LED_PIN;
+    const uint32_t ledMask = 1U << board::kLedPin;
+
+    // Active-low LED: SET register turns pin HIGH (off), CLR turns LOW (on)
+    // Active-high LED: SET turns on, CLR turns off
+    io_rw_32 *ledOn  = board::kLedActiveHigh ? &sio_hw->gpio_set : &sio_hw->gpio_clr;
+    io_rw_32 *ledOff = board::kLedActiveHigh ? &sio_hw->gpio_clr : &sio_hw->gpio_set;
 
     while (true) {
         for (uint8_t i = 0; i < kFaultFastBlinks; i++) {
-            *gpioOut |= ledMask;
+            *ledOn = ledMask;
             for (int32_t d = 0; d < kFaultBlinkFastLoops; d++) { __asm volatile(""); }
-            *gpioOut &= ~ledMask;
+            *ledOff = ledMask;
             for (int32_t d = 0; d < kFaultBlinkFastLoops; d++) { __asm volatile(""); }
         }
-        *gpioOut |= ledMask;
+        *ledOn = ledMask;
         for (int32_t d = 0; d < kFaultBlinkSlowLoops; d++) { __asm volatile(""); }
-        *gpioOut &= ~ledMask;
+        *ledOff = ledMask;
         for (int32_t d = 0; d < kFaultBlinkSlowLoops; d++) { __asm volatile(""); }
     }
 }
@@ -841,10 +853,12 @@ static void core1_sensor_loop() {
         if (feedCal) {
             calFeedCycle = 0;
         }
-        core1_read_imu(&localData, &localCal, &imuConsecFail, feedCal);
+        if (g_imuInitialized) {
+            core1_read_imu(&localData, &localCal, &imuConsecFail, feedCal);
+        }
 
         baroCycle++;
-        if (baroCycle >= kCore1BaroDivider) {
+        if (baroCycle >= kCore1BaroDivider && g_baroInitialized) {
             baroCycle = 0;
             core1_read_baro(&localData);
         }
@@ -1565,7 +1579,8 @@ static void print_hw_status() {
     printf("  Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
 
     printf("[PASS] Build + boot (you're reading this)\n");
-    printf("[PASS] Red LED GPIO initialized (pin %d)\n", PICO_DEFAULT_LED_PIN);
+    printf("[PASS] Red LED GPIO initialized (pin %d, %s)\n",
+           board::kLedPin, board::kLedActiveHigh ? "active-high" : "active-low");
     printf("[%s] NeoPixel PIO initialized (pin %d)\n",
            g_neopixelInitialized ? "PASS" : "FAIL", kNeoPixelPin);
     printf("[PASS] USB CDC connected\n");
@@ -1585,7 +1600,8 @@ static void print_hw_status() {
     hw_validate_sensors();
 
     if (g_radioInitialized) {
-        printf("[PASS] Radio: RFM95W LoRa 915 MHz (CS=%d RST=%d IRQ=%d)\n",
+        printf("[PASS] Radio: RFM95W LoRa 915 MHz SF7/%s 20dBm (CS=%d RST=%d IRQ=%d)\n",
+               kTxBwLabels[g_txBwMode],
                rocketchip::pins::kRadioCs, rocketchip::pins::kRadioRst,
                rocketchip::pins::kRadioIrq);
     } else if (g_spiInitialized) {
@@ -1637,7 +1653,8 @@ static void init_sensors() {
 
     // GPS detection — UART first (FeatherWing on GPIO0/1), I2C fallback.
     // UART GPS has no I2C bus contention (LL Entry 24), preferred for production.
-    if (gps_uart_init()) {
+    // [M3] UART GPS unavailable on Fruit Jam (GPIO 0/1 = Boot button + USB Host D+)
+    if (board::kUartGpsAvailable && gps_uart_init()) {
         g_gpsInitialized = true;
         g_gpsTransport = GPS_TRANSPORT_UART;
         g_gpsFnUpdate   = gps_uart_update;
@@ -1696,11 +1713,12 @@ static void init_early_hw() {
     mpu_setup_stack_guard(reinterpret_cast<uint32_t>(&__StackBottom));
 
     // Red LED GPIO init
-    gpio_init(PICO_DEFAULT_LED_PIN);
-    gpio_set_dir(PICO_DEFAULT_LED_PIN, true);  // GPIO_OUT
+    gpio_init(board::kLedPin);
+    gpio_set_dir(board::kLedPin, true);  // GPIO_OUT
 
     // NeoPixel init
-    g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin);
+    g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin,
+                                                board::kNeoPixelCount);
 }
 
 static void init_peripherals() {
@@ -1763,7 +1781,7 @@ static void print_boot_status() {
     printf("\n");
     printf("==============================================\n");
     printf("  RocketChip v%s\n", kVersionString);
-    printf("  Board: Adafruit Feather RP2350 HSTX\n");
+    printf("  Board: %s\n", board::kBoardName);
     printf("==============================================\n\n");
 
     if (g_watchdogReboot) {
@@ -1883,7 +1901,7 @@ static void heartbeat_tick(uint32_t nowMs) {
     bool shouldBeOn = (phase < kHeartbeatOnMs);
     if (shouldBeOn != g_ledState) {
         g_ledState = shouldBeOn;
-        gpio_put(PICO_DEFAULT_LED_PIN, g_ledState);
+        board::board_led_set(g_ledState);
     }
 }
 
@@ -2594,20 +2612,61 @@ static void logging_tick() {
 static uint32_t g_radioTestTxCount = 0;
 static uint32_t g_radioTestTxLastMs = 0;
 
+// Check for BW-change command from RX after each TX.
+// Command format: "BW:X" where X is 0/1/2.
+static void radio_check_bw_command(void) {
+    // Brief RX window: switch to RX, poll for up to 50ms
+    rfm95w_start_rx(&g_radio);
+    uint64_t start = time_us_64();
+    while ((time_us_64() - start) < 50000) {
+        if (rfm95w_available(&g_radio)) {
+            uint8_t buf[16];
+            uint8_t len = rfm95w_recv(&g_radio, buf, sizeof(buf));
+            if (len >= 4 && buf[0] == 'B' && buf[1] == 'W' && buf[2] == ':') {
+                uint8_t newMode = static_cast<uint8_t>(buf[3] - '0');
+                if (newMode < 3 && newMode != g_txBwMode) {
+                    g_txBwMode = newMode;
+                    rfm95w_set_bandwidth(&g_radio, kTxBwValues[g_txBwMode]);
+                    if (stdio_usb_connected()) {
+                        printf("[BW] Switched to %s (RX command)\n",
+                               kTxBwLabels[g_txBwMode]);
+                    }
+                }
+            }
+            break;
+        }
+    }
+}
+
 static void radio_test_tx_tick(uint32_t nowMs) {
     if (!g_radioInitialized) { return; }
     if (nowMs - g_radioTestTxLastMs < 1000) { return; }
     g_radioTestTxLastMs = nowMs;
     g_radioTestTxCount++;
 
-    char pkt[48];
-    int len = snprintf(pkt, sizeof(pkt), "RC #%lu t=%lu",
+    // Get latest GPS from seqlock
+    shared_sensor_data_t snap;
+    int32_t lat = 0;
+    int32_t lon = 0;
+    if (seqlock_read(&g_sensorSeqlock, &snap) && snap.gps_valid) {
+        lat = snap.gps_lat_1e7;
+        lon = snap.gps_lon_1e7;
+    }
+
+    // Packet: "RC #N t=N BW125 lat=NNNNNNNN lon=NNNNNNNN"
+    char pkt[80];
+    int len = snprintf(pkt, sizeof(pkt), "RC #%lu t=%lu %s lat=%ld lon=%ld",
                        (unsigned long)g_radioTestTxCount,
-                       (unsigned long)(nowMs / 1000));
+                       (unsigned long)(nowMs / 1000),
+                       kTxBwLabels[g_txBwMode],
+                       (long)lat, (long)lon);
 
     rfm95w_send(&g_radio,
                 reinterpret_cast<const uint8_t*>(pkt),
                 static_cast<uint8_t>(len));
+
+    // After TX, briefly listen for BW-change command from RX
+    radio_check_bw_command();
 }
 
 // ============================================================================

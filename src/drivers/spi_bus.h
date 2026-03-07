@@ -5,7 +5,7 @@
  * @brief SPI bus driver for LoRa FeatherWing and future SPI peripherals
  *
  * Thin wrapper over Pico SDK SPI functions, mirrors i2c_bus.h pattern.
- * Uses SPI0 on GPIO 20 (MISO), 22 (SCK), 23 (MOSI).
+ * SPI instance and pins are board-abstracted (see board.h).
  *
  * Chip select is GPIO-controlled (not hardware CS) because the SX1276
  * requires CS held low across multi-byte FIFO burst transfers. The Pico SDK
@@ -21,10 +21,15 @@
 #include <stddef.h>
 
 // ============================================================================
-// Configuration
+// Configuration (board-abstracted — see board.h)
 // ============================================================================
 
-// SPI0 is the default SPI on Feather RP2350 HSTX
+#include "rocketchip/board.h"
+
+// SPI instance and pins provided by board header
+// BOARD_SPI_INSTANCE is #define because SDK spi_inst_t* is not constexpr-friendly.
+#define SPI_BUS_INSTANCE BOARD_SPI_INSTANCE
+
 constexpr uint32_t kSpiBusFreqHz = 5000000;  // 5 MHz (SX1276 supports up to 10 MHz)
 
 // ============================================================================

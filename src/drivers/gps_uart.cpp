@@ -30,6 +30,7 @@
  */
 
 #include "gps_uart.h"
+#include "rocketchip/board.h"
 #include "lwgps/lwgps.h"
 #include "hardware/uart.h"
 #include "hardware/gpio.h"
@@ -284,6 +285,11 @@ static bool detect_gps_presence() {
 // ============================================================================
 
 bool gps_uart_init() {
+    // [M3] UART GPS unavailable on boards where GPIO 0/1 are not UART pins
+    if constexpr (!board::kUartGpsAvailable) {
+        return false;
+    }
+
     // Initialize lwGPS parser
     lwgps_init(&g_gps);
     memset(&g_data, 0, sizeof(g_data));

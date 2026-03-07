@@ -73,7 +73,7 @@ static void configure_modem(rfm95w_t* dev) {
     spi_bus_write_reg(cs, rfm95w::reg::kPreambleMsb, 0x00);
     spi_bus_write_reg(cs, rfm95w::reg::kPreambleLsb, 0x08);
 
-    rfm95w_set_tx_power(dev, 5);  // Bench testing — raise to 20 for field use
+    rfm95w_set_tx_power(dev, 20);  // Field power (was 5 for IVP-57 bench)
     spi_bus_write_reg(cs, rfm95w::reg::kSyncWord, 0x12);
     spi_bus_write_reg(cs, rfm95w::reg::kDioMapping1, 0x00);
 }
@@ -259,6 +259,15 @@ void rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm) {
 
 int16_t rfm95w_rssi(const rfm95w_t* dev) {
     return dev->last_rssi;
+}
+
+void rfm95w_set_bandwidth(rfm95w_t* dev, uint8_t bw) {
+    if (!dev->initialized) { return; }
+
+    // Read current RegModemConfig1, replace BW bits [7:4], preserve CR and header bits
+    uint8_t cfg1 = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kModemConfig1);
+    cfg1 = static_cast<uint8_t>((cfg1 & 0x0F) | (bw << 4));
+    spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kModemConfig1, cfg1);
 }
 
 void rfm95w_start_rx(rfm95w_t* dev) {

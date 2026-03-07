@@ -18,6 +18,16 @@
 
 ---
 
+### Stage 7 (Radio & Telemetry) — Ready to Begin
+
+**Updated 2026-03-07.** Stage J complete — board abstraction verified on Fruit Jam. All radio/telemetry/GCS features (RX service, CCSDS decode, MAVLink bridge, uplink, RSSI bar, distance calc) are **board-agnostic**. They activate based on radio presence + Mission Profile mode. Works on Fruit Jam, a second Feather HSTX with radio FeatherWing, or any RP2350 board. Uses A/B suffixes: _A = TX side, _B = RX side. IVP-57 (radio driver) already complete. Next: IVP-58 (telemetry encoder).
+
+- **Key insight:** No `gcs_main.cpp` needed. Probe-first detection handles absent sensors. ESKF doesn't run without IMU. GCS compute (Haversine, RSSI bar, MAVLink re-encode) is trivial. Same binary, different hardware, different Mission Profile.
+
+Execute: Stage J first, then Stage 7 on both TX and RX sides.
+
+---
+
 ### Dynamic Validation Methods Document — New (2026-02-23)
 
 `docs/DYNAMIC_VALIDATION.md` — Six repeatable physical test methods for ESKF accuracy verification: Allan variance, turntable rotation, pendulum, elevator (baro), data logging + replay, vehicle GPS-vs-INS. Priority order documented. Allan variance is the logical first step (validates Q tuning). Data logging + replay is the highest-value infrastructure investment (enables all other tests to become regression-testable). Complements `docs/ESKF_TESTING_GUIDE.md` (host-side) and `docs/IVP.md` (integration gates).

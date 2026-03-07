@@ -40,6 +40,7 @@ static struct {
     uint sm;
     uint offset;
     bool initialized;
+    uint8_t numLeds;       // Number of LEDs in chain (board::kNeoPixelCount)
 
     // Current mode and color
     ws2812_mode_t mode;
@@ -61,6 +62,7 @@ static struct {
     .sm = 0,
     .offset = 0,
     .initialized = false,
+    .numLeds = 1,
     .mode = WS2812_MODE_OFF,
     .baseColor = {0, 0, 0},
     .brightness = 255,
@@ -94,7 +96,12 @@ static void send_pixel(uint8_t r, uint8_t g, uint8_t b) {
 
     // WS2812 expects GRB order, data in upper 24 bits
     uint32_t grb = (static_cast<uint32_t>(g) << kGrbGreenShift) | (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(b) << 8);
-    pio_sm_put_blocking(g_state.pio, g_state.sm, grb);
+
+    // [S3] Send same color to all LEDs in chain (1 on Feather, 5 on Fruit Jam).
+    // Per-LED control (RSSI bar, etc.) is Stage 7 scope via status engine.
+    for (uint8_t i = 0; i < g_state.numLeds; ++i) {
+        pio_sm_put_blocking(g_state.pio, g_state.sm, grb);
+    }
 }
 
 /**
@@ -112,7 +119,7 @@ static ws2812_rgb_t apply_brightness(ws2812_rgb_t color, float scale) {
 // Initialization
 // ============================================================================
 
-bool ws2812_status_init(PIO pio, uint pin) {
+bool ws2812_status_init(PIO pio, uint pin, uint8_t num_leds) {
     if (g_state.initialized) {
         return true;  // Already initialized
     }
@@ -133,10 +140,11 @@ bool ws2812_status_init(PIO pio, uint pin) {
     g_state.sm = sm;
     g_state.offset = offset;
     g_state.initialized = true;
+    g_state.numLeds = (num_leds > 0) ? num_leds : 1;
     g_state.lastUpdateMs = to_ms_since_boot(get_absolute_time());
     g_state.phaseStartMs = g_state.lastUpdateMs;
 
-    // Start with LED off
+    // Start with LEDs off
     send_pixel(0, 0, 0);
 
     return true;

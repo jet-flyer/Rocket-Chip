@@ -133,7 +133,7 @@ static void print_system_status() {
     printf("  RocketChip System Status\n");
     printf("========================================\n");
     printf("  Version: %s\n", kVersionString);
-    printf("  Board: Adafruit Feather RP2350 HSTX\n");
+    printf("  Board: %s\n", board::kBoardName);
     printf("  Uptime: %lu ms\n", (unsigned long)to_ms_since_boot(get_absolute_time()));
 
     // Calibration status

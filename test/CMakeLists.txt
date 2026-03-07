@@ -114,3 +114,8 @@ gtest_discover_tests(test_log_decimator)
 add_executable(test_flight_table test_flight_table.cpp)
 target_link_libraries(test_flight_table PRIVATE rc_logging GTest::gtest_main)
 gtest_discover_tests(test_flight_table)
+
+# IVP-58: Telemetry encoder (CCSDS + MAVLink)
+add_executable(test_telemetry_encoder test_telemetry_encoder.cpp)
+target_link_libraries(test_telemetry_encoder PRIVATE rc_telemetry GTest::gtest_main)
+gtest_discover_tests(test_telemetry_encoder)

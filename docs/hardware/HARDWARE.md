@@ -224,7 +224,7 @@ Studied for hardware/software architecture:
 
 | Part | Adafruit P/N | Notes |
 |------|--------------|-------|
-| Adafruit Fruit Jam (Mini RP2350 Computer) | #6200 | **On hand** — RP2350 mini computer, primary GCS platform |
+| Adafruit Fruit Jam (Mini RP2350 Computer) | #6200 | **On hand** — RP2350B, 16MB flash, 8MB PSRAM, ESP32-C6 WiFi, DVI out, MicroSD, I2S audio, 2x USB-A host, 5 NeoPixels, 3 buttons. Primary GCS platform. See `BOARD_COMPARISON.md` |
 | Pimoroni HyperPixel 4.0" Display | #3578 | **On hand** — Hi-res display for Fruit Jam GCS |
 | CYBERDECK HAT for Raspberry Pi 400 & 500 | #4863 | **On hand** — Keyboard integration for portable GCS |
 | CYBERDECK Bonnet for Raspberry Pi 400 & 500 | #4862 | **On hand** — Compact keyboard integration option |

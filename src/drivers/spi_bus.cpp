@@ -13,20 +13,17 @@
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
 
-// SPI0 instance used by all SPI peripherals
-#define SPI_BUS_INSTANCE spi0
-
 bool spi_bus_init(void) {
-    // Init SPI0 — returns actual baudrate achieved
+    // Init SPI — instance selected by board header (SPI_BUS_INSTANCE from spi_bus.h)
     spi_init(SPI_BUS_INSTANCE, kSpiBusFreqHz);
 
     // Mode 0: CPOL=0, CPHA=0 (SX1276 requirement)
     spi_set_format(SPI_BUS_INSTANCE, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
 
-    // Configure GPIO for SPI function
-    gpio_set_function(rocketchip::pins::kSpi0Miso, GPIO_FUNC_SPI);
-    gpio_set_function(rocketchip::pins::kSpi0Sck,  GPIO_FUNC_SPI);
-    gpio_set_function(rocketchip::pins::kSpi0Mosi, GPIO_FUNC_SPI);
+    // Configure GPIO for SPI function — pins from board header
+    gpio_set_function(board::kSpiMisoPin, GPIO_FUNC_SPI);
+    gpio_set_function(board::kSpiSckPin,  GPIO_FUNC_SPI);
+    gpio_set_function(board::kSpiMosiPin, GPIO_FUNC_SPI);
 
     return true;
 }

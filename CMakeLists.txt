@@ -79,6 +79,19 @@ if(BUILD_TESTS)
     )
 
     # ------------------------------------------------------------------
+    # Telemetry library (no SDK dependencies)
+    # IVP-58: CCSDS + MAVLink encoders
+    # ------------------------------------------------------------------
+    add_library(rc_telemetry STATIC
+        src/telemetry/telemetry_encoder.cpp
+    )
+    target_include_directories(rc_telemetry PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/include
+        ${CMAKE_CURRENT_LIST_DIR}/src
+        ${CMAKE_CURRENT_LIST_DIR}/src/logging
+    )
+
+    # ------------------------------------------------------------------
     # Tests
     # ------------------------------------------------------------------
     enable_testing()
@@ -229,10 +242,11 @@ else()
         src/logging/psram_init.cpp
 
         # -------------------------------------------------------------------------
-        # Stage 7: Radio & Telemetry (IVP-57)
+        # Stage 7: Radio & Telemetry (IVP-57, IVP-58)
         # -------------------------------------------------------------------------
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
+        src/telemetry/telemetry_encoder.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -264,6 +278,7 @@ else()
         src/logging/psram_init.cpp
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
+        src/telemetry/telemetry_encoder.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
@@ -282,6 +297,7 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/src/calibration    # IVP-14
         ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
         ${CMAKE_CURRENT_LIST_DIR}/src/logging          # IVP-49
+        ${CMAKE_CURRENT_LIST_DIR}/src/telemetry        # IVP-58
         ${RUUVI_DPS310_DIR}                            # IVP-11
         ${LWGPS_DIR}/include                             # IVP-31
     )
@@ -326,9 +342,9 @@ else()
     )
 
     # USB configuration
+    # BOOTSEL LED uses PICO_DEFAULT_LED_PIN (SDK provides per board)
     target_compile_definitions(rocketchip PRIVATE
         PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1
-        PICO_STDIO_USB_RESET_BOOTSEL_ACTIVITY_LED=7
     )
 
     # Generate UF2 file for easy flashing

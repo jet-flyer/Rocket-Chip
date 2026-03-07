@@ -1,12 +1,12 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-03-04 (IVP-54b complete — Stage 6 Data Logging COMPLETE)
+**Last Updated:** 2026-03-07 (Stage J complete — Fruit Jam board abstraction)
 
 ## Current Phase
 
-**Stage 6 COMPLETE** — Data Logging (IVP-49 through IVP-54b)
+**Stage J COMPLETE** — Fruit Jam Board Abstraction
 
-All Stage 6 IVPs complete and HW verified: data model, PCM frames, PSRAM ring buffer, decimation, flash flush, CLI flight list/download, Python decoder script. End-to-end verified: flush → list → download → decode → CSV with 0 corrupt frames. IVP-55 (raw sensor logging) and IVP-56 (economy tier) remain deferred. Next: Stage 7 Radio & Telemetry (IVP-58+, IVP-57 already complete) or Stage 8 Flight Director (IVP-66+).
+Compile-time BSP so the same `main.cpp` builds for Feather RP2350 HSTX and Fruit Jam. All 15 J.2 parity gate items passed on Fruit Jam hardware. Next: Stage 7 Radio & Telemetry (IVP-58+).
 
 ## Completed
 
@@ -39,14 +39,11 @@ All Stage 6 IVPs complete and HW verified: data model, PCM frames, PSRAM ring bu
 | Bierman measurement update | — | 2026-02-24 | Replaced Joseph with Bierman behind `ESKF_USE_BIERMAN=1`. PRepr state machine (lazy factorize/reconstruct). 43% faster per epoch (486µs vs 851µs). Alpha canary: relErr=1.37e-08, DCP Phase 2 deferred. 207/207 host tests. HW soak: 88K reads, 0 errors, ESKF HEALTHY, predict 561µs avg |
 | 6: Data Logging | IVP-49–54b | 2026-03-04 | FusedState/TelemetryState data model, PCM frames, CRC-16/CRC-32, PSRAM ring buffer (8MB, 50Hz), box-car decimation (200→50Hz), flash flight table (dual-sector), flash flush engine, CLI flight list/download/erase, Python decoder script. End-to-end: 3733 frames, 0 corrupt, CRC-32 OK |
 | 7: Radio Driver | IVP-57 | 2026-02-25 | RFM95W LoRa driver (SPI bus, GPIO-controlled CS, TX/RX polling). Ground station RX bridge on Fruit Jam (#6200) + RFM95W breakout (#3072) via SPI1. All 8 verification gates passed: init, absent HW, TX, RX, RSSI, loopback (100%, 0 gaps), range (through walls at 5 dBm), integration soak (120K IMU reads, 0 errors at 10Hz TX) |
+| J: Fruit Jam HAL | J.1-J.3 | 2026-03-07 | Compile-time board abstraction (BSP). board.h selector, board_feather_rp2350.h, board_fruit_jam.h. All drivers use board:: constants. 15/15 parity gate items passed on Fruit Jam HW. Core 1 absent-sensor guards added |
 
 ## In Progress
 
-**Stage 6: Data Logging** — IVP-49 through IVP-53b complete (data model, PCM frames, ring buffer, PSRAM, decimation, flash flush, CLI capacity). Next: IVP-54a (CLI flight list + binary USB download) and IVP-54b (Python decoder script). IVP-55 (Raw Sensor Logging) and IVP-56 (Economy Tier & HAB Flush) deferred.
-
-**Radio driver (IVP-57) already verified** — temporary 1Hz test TX and 5 dBm bench power in place; raise to 20 dBm for field use. Remove test TX when IVP-58 (telemetry encoder) lands.
-
-**Next: Stage 7 (Radio & Telemetry)** — IVP-57 through IVP-65. Telemetry encoder (CCSDS/MAVLink strategy), telemetry service, translation layer, QGC validation, bidirectional commands.
+**Next: Stage 7 (Radio & Telemetry)** — IVP-58 through IVP-65. IVP-57 (radio driver) already complete. Telemetry encoder (CCSDS primary, MAVLink secondary), telemetry service, translation layer, QGC validation, bidirectional commands. Temporary 1Hz test TX and 5 dBm bench power still in place; raise to 20 dBm for field use.
 
 **Then: Stage 8 (Flight Director)** — IVP-66 through IVP-70. Watchdog recovery policy, state machine core, event engine, action executor, mission configuration. Prerequisite: SAD Open Question #4 (Mealy vs Moore state machine) must be resolved before IVP-67.
 

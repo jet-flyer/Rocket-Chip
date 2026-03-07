@@ -16,13 +16,16 @@
 #include "hardware/i2c.h"
 
 // ============================================================================
-// Configuration
+// Configuration (board-abstracted — see board.h)
 // ============================================================================
 
-// I2C1 is connected to STEMMA QT on Feather RP2350
-#define I2C_BUS_INSTANCE    i2c1    // SDK macro — must remain #define
-constexpr uint8_t  kI2cBusSdaPin    = 2;
-constexpr uint8_t  kI2cBusSclPin    = 3;
+#include "rocketchip/board.h"
+
+// I2C instance and pins provided by board header (board::kI2cSdaPin, etc.)
+// BOARD_I2C_INSTANCE is #define because SDK i2c_inst_t* is not constexpr-friendly.
+#define I2C_BUS_INSTANCE    BOARD_I2C_INSTANCE
+constexpr uint8_t  kI2cBusSdaPin    = board::kI2cSdaPin;
+constexpr uint8_t  kI2cBusSclPin    = board::kI2cSclPin;
 constexpr uint32_t kI2cBusFreqHz    = 400000;   // 400kHz Fast Mode (I2C spec)
 
 // Timeout for I2C operations (microseconds)

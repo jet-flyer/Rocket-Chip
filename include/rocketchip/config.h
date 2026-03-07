@@ -13,6 +13,7 @@
 #define ROCKETCHIP_CONFIG_H
 
 #include "pico/stdlib.h"
+#include "rocketchip/board.h"
 
 // ============================================================================
 // Runtime Assertions (P10-5 / LOC-3.1 / JSF AV Env 15)
@@ -75,34 +76,35 @@ constexpr const char* kVersionString = "0.2.0";
 namespace rocketchip {
 namespace pins {
 
-// Built-in hardware (Feather RP2350 HSTX)
-constexpr uint8_t kLedRed       = 7;        // Built-in red LED
-constexpr uint8_t kNeoPixel     = 21;       // Built-in NeoPixel
-constexpr uint8_t kPsramCs      = 8;        // DO NOT USE if PSRAM installed
+// Board-abstracted pins — delegated to board:: namespace (see board.h)
+constexpr uint8_t kLedRed       = board::kLedPin;
+constexpr uint8_t kNeoPixel     = board::kNeoPixelPin;
+constexpr uint8_t kPsramCs      = board::kPsramCsPin;
 
-// I2C1 (STEMMA QT / Qwiic connector)
-constexpr uint8_t kI2c1Sda      = 2;        // I2C1 SDA
-constexpr uint8_t kI2c1Scl      = 3;        // I2C1 SCL
+// I2C (STEMMA QT / Qwiic)
+constexpr uint8_t kI2cSda       = board::kI2cSdaPin;
+constexpr uint8_t kI2cScl       = board::kI2cSclPin;
 
-// UART0 (Serial1)
-constexpr uint8_t kUart0Tx      = 0;        // UART0 TX
-constexpr uint8_t kUart0Rx      = 1;        // UART0 RX
+// UART GPS
+constexpr uint8_t kUart0Tx      = board::kUartGpsTxPin;
+constexpr uint8_t kUart0Rx      = board::kUartGpsRxPin;
 
-// SPI0 (default SPI)
-constexpr uint8_t kSpi0Miso     = 20;       // SPI0 MISO
-constexpr uint8_t kSpi0Sck      = 22;       // SPI0 SCK
-constexpr uint8_t kSpi0Mosi     = 23;       // SPI0 MOSI
+// SPI (radio bus)
+constexpr uint8_t kSpiMiso      = board::kSpiMisoPin;
+constexpr uint8_t kSpiSck       = board::kSpiSckPin;
+constexpr uint8_t kSpiMosi      = board::kSpiMosiPin;
 
-// Radio (LoRa FeatherWing #3231, Feather M0 jumper position)
-constexpr uint8_t kRadioCs       = 10;       // D10 = GPIO10 (chip select)
-constexpr uint8_t kRadioRst      = 11;       // D11 = GPIO11 (reset)
-constexpr uint8_t kRadioIrq      = 6;        // D6  = GPIO6  (DIO0 interrupt)
+// Radio (RFM95W)
+constexpr uint8_t kRadioCs      = board::kRadioCsPin;
+constexpr uint8_t kRadioRst     = board::kRadioRstPin;
+constexpr uint8_t kRadioIrq     = board::kRadioIrqPin;
 
-// ADC inputs
-constexpr uint8_t kAdcA0        = 26;       // ADC channel 0
-constexpr uint8_t kAdcA1        = 27;       // ADC channel 1
-constexpr uint8_t kAdcA2        = 28;       // ADC channel 2
-constexpr uint8_t kAdcA3        = 29;       // ADC channel 3
+// Old names kept for call-site compatibility — will be removed in a future cleanup
+constexpr uint8_t kI2c1Sda      = board::kI2cSdaPin;
+constexpr uint8_t kI2c1Scl      = board::kI2cSclPin;
+constexpr uint8_t kSpi0Miso     = board::kSpiMisoPin;
+constexpr uint8_t kSpi0Sck      = board::kSpiSckPin;
+constexpr uint8_t kSpi0Mosi     = board::kSpiMosiPin;
 
 } // namespace pins
 

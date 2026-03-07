@@ -76,9 +76,15 @@ namespace irq {
 // Max payload size (SX1276 FIFO is 256 bytes total, split TX/RX)
 constexpr uint8_t kMaxPayload         = 128;
 
-// TX timeout: SF7/BW125 airtime ~31ms for 16 bytes; 100ms = 3× margin,
-// well under 5s watchdog. Council Amendment #1.
-constexpr uint32_t kTxTimeoutUs       = 100000;
+// TX timeout: SF7/BW250 airtime ~90ms for 105B (MAVLink worst case);
+// 150ms = ~1.7× margin. Council Amendment #2 (Stage 7 plan).
+constexpr uint32_t kTxTimeoutUs       = 150000;
+
+// Bandwidth constants for rfm95w_set_bandwidth()
+// SX1276 RegModemConfig1[7:4] bandwidth encoding
+constexpr uint8_t kBw125  = 0x07;    // 125 kHz
+constexpr uint8_t kBw250  = 0x08;    // 250 kHz
+constexpr uint8_t kBw500  = 0x09;    // 500 kHz
 
 } // namespace rfm95w
 
@@ -189,6 +195,17 @@ void rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm);
  * @return RSSI in dBm (negative value, e.g., -80)
  */
 int16_t rfm95w_rssi(const rfm95w_t* dev);
+
+/**
+ * @brief Set LoRa bandwidth
+ *
+ * Modifies RegModemConfig1[7:4]. Must be called while in Standby or Sleep.
+ * Both TX and RX must use the same bandwidth to communicate.
+ *
+ * @param dev Initialized device handle
+ * @param bw  Bandwidth code: rfm95w::kBw125, kBw250, or kBw500
+ */
+void rfm95w_set_bandwidth(rfm95w_t* dev, uint8_t bw);
 
 /**
  * @brief Set radio to RX continuous mode
