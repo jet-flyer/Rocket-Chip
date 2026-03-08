@@ -161,6 +161,7 @@ static void print_system_status() {
     printf("  c - Calibration menu\n");
     printf("  t - Telemetry status (TX or RX)\n");
     printf("  r - Cycle TX rate (2/5/10 Hz)\n");
+    printf("  m - Toggle MAVLink/CSV output (RX)\n");
     printf("  f - List stored flights\n");
     printf("  d - Download flight (binary)\n");
     printf("  l - Flush log to flash\n");

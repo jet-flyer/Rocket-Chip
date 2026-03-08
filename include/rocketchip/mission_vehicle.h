@@ -16,6 +16,9 @@ namespace mission {
 // Radio mode: TX (telemetry downlink)
 inline constexpr bool kRadioModeRx = false;
 
+// No MAVLink output on vehicle (TX mode)
+inline constexpr bool kDefaultMavlinkOutput = false;
+
 } // namespace mission
 
 #endif // ROCKETCHIP_MISSION_VEHICLE_H

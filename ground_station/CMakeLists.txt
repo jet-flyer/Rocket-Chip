@@ -124,6 +124,7 @@ target_include_directories(rocketchip PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../src/cli
     ${CMAKE_CURRENT_LIST_DIR}/../src/logging
     ${CMAKE_CURRENT_LIST_DIR}/../src/telemetry
+    ${CMAKE_CURRENT_LIST_DIR}/../lib/mavlink
     ${RUUVI_DPS310_DIR}
     ${LWGPS_DIR}/include
 )

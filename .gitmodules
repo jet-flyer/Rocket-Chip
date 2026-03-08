@@ -10,3 +10,6 @@
 [submodule "lib/icm20948"]
 	path = lib/icm20948
 	url = https://github.com/stephendpmurphy/icm20948.git
+[submodule "lib/mavlink"]
+	path = lib/mavlink
+	url = https://github.com/mavlink/c_library_v2.git

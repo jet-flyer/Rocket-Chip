@@ -60,6 +60,11 @@ struct TelemetryServiceState {
     int16_t  last_rx_rssi;       // RSSI of last received packet (dBm)
     int8_t   last_rx_snr;        // SNR of last received packet (dB)
     uint16_t last_rx_seq;        // Sequence counter of last received packet
+
+    // MAVLink RX output (IVP-61)
+    bool           mavlink_output;    // true = MAVLink binary, false = CSV text
+    uint32_t       last_heartbeat_ms; // 1 Hz heartbeat timer
+    MavlinkEncoder mav_encoder;       // Single instance for monotonic seq
 };
 
 // ============================================================================
@@ -140,6 +145,18 @@ void telemetry_service_stop_rx(TelemetryServiceState* state);
  * @param now_ms Current time (ms since boot)
  */
 void telemetry_service_rx_tick(TelemetryServiceState* state, uint32_t now_ms);
+
+/**
+ * @brief Set MAVLink output mode (IVP-61)
+ *
+ * When enabled, RX tick emits MAVLink v2 binary frames on stdout
+ * instead of CSV text. Heartbeat emitted at 1Hz even without packets.
+ *
+ * @param state  Service state
+ * @param enable true = MAVLink binary, false = CSV text
+ */
+void telemetry_service_set_mavlink_output(TelemetryServiceState* state,
+                                           bool enable);
 
 } // namespace rc
 

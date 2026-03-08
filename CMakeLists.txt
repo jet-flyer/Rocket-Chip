@@ -89,6 +89,7 @@ if(BUILD_TESTS)
         ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_LIST_DIR}/src
         ${CMAKE_CURRENT_LIST_DIR}/src/logging
+        ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink
     )
 
     # ------------------------------------------------------------------
@@ -300,6 +301,7 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
         ${CMAKE_CURRENT_LIST_DIR}/src/logging          # IVP-49
         ${CMAKE_CURRENT_LIST_DIR}/src/telemetry        # IVP-58
+        ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink            # IVP-61
         ${RUUVI_DPS310_DIR}                            # IVP-11
         ${LWGPS_DIR}/include                             # IVP-31
     )

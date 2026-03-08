@@ -18,6 +18,17 @@
 #include "rocketchip/telemetry_encoder.h"
 #include "crc16_ccitt.h"
 #include <string.h>
+#include <math.h>
+
+// c_library_v2 — official MAVLink C library (header-only)
+// common dialect includes standard (GLOBAL_POSITION_INT) and minimal (HEARTBEAT)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+#pragma GCC diagnostic ignored "-Wpedantic"
+extern "C" {
+#include "common/mavlink.h"
+}
+#pragma GCC diagnostic pop
 
 namespace rc {
 
@@ -98,7 +109,7 @@ void CcsdsEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
     p[1] = static_cast<uint8_t>(crc & 0xFF);
     p += ccsds::kCrcLen;
 
-    result.len = static_cast<uint8_t>(p - result.buf);
+    result.len = static_cast<uint16_t>(p - result.buf);
     result.ok  = true;
 
     // Advance 14-bit sequence counter (wraps at 16383)
@@ -106,8 +117,23 @@ void CcsdsEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
 }
 
 // ============================================================================
-// MAVLink Encoder (stub — produces placeholder packets until fastmavlink integrated)
+// MAVLink Encoder (c_library_v2 — IVP-61)
 // ============================================================================
+
+// Flight state → MAV_STATE mapping
+// IDLE/LANDED=STANDBY, ARMED/BOOST/COAST/DESCENT=ACTIVE, ERROR=CRITICAL, other=BOOT
+uint8_t flight_state_to_mav_state(uint8_t flight_state) {
+    switch (flight_state) {
+        case 0: return MAV_STATE_STANDBY;   // IDLE
+        case 1: return MAV_STATE_ACTIVE;    // ARMED
+        case 2: return MAV_STATE_ACTIVE;    // BOOST
+        case 3: return MAV_STATE_ACTIVE;    // COAST
+        case 4: return MAV_STATE_ACTIVE;    // DESCENT
+        case 5: return MAV_STATE_STANDBY;   // LANDED
+        case 6: return MAV_STATE_CRITICAL;  // ERROR
+        default: return MAV_STATE_BOOT;     // pre-convergence
+    }
+}
 
 void MavlinkEncoder::init(uint8_t sysid, uint8_t compid) {
     system_id    = sysid;
@@ -115,16 +141,139 @@ void MavlinkEncoder::init(uint8_t sysid, uint8_t compid) {
     seq          = 0;
 }
 
+uint16_t MavlinkEncoder::encode_heartbeat(uint8_t flight_state, uint8_t* buf) {
+    mavlink_message_t msg;
+    mavlink_msg_heartbeat_pack(
+        system_id, component_id, &msg,
+        MAV_TYPE_ROCKET,
+        MAV_AUTOPILOT_GENERIC,
+        MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+        static_cast<uint32_t>(flight_state),
+        flight_state_to_mav_state(flight_state));
+    msg.seq = seq++;
+    return mavlink_msg_to_send_buffer(buf, &msg);
+}
+
+uint16_t MavlinkEncoder::encode_sys_status(const TelemetryState& telem,
+                                            uint8_t* buf) {
+    // Sensor present/enabled/health bitmasks
+    // Report 3D_ACCEL + 3D_GYRO + 3D_MAG + ABSOLUTE_PRESSURE
+    uint32_t sensors = MAV_SYS_STATUS_SENSOR_3D_ACCEL
+                     | MAV_SYS_STATUS_SENSOR_3D_GYRO
+                     | MAV_SYS_STATUS_SENSOR_3D_MAG
+                     | MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE;
+    uint32_t health = sensors;  // All healthy (simplified)
+    if ((telem.health & kHealthEskfHealthy) == 0) {
+        health = 0;  // ESKF unhealthy — report no sensors healthy
+    }
+
+    mavlink_message_t msg;
+    mavlink_msg_sys_status_pack(
+        system_id, component_id, &msg,
+        sensors,        // onboard_control_sensors_present
+        sensors,        // onboard_control_sensors_enabled
+        health,         // onboard_control_sensors_health
+        0,              // load (0 = unknown)
+        static_cast<uint16_t>(telem.battery_mv),  // voltage_battery (mV)
+        -1,             // current_battery (-1 = unknown)
+        -1,             // battery_remaining (-1 = unknown)
+        0, 0, 0, 0, 0, 0,  // drop/error rates (unused)
+        0, 0, 0);       // extended sensor fields (unused)
+    msg.seq = seq++;
+    return mavlink_msg_to_send_buffer(buf, &msg);
+}
+
+uint16_t MavlinkEncoder::encode_attitude(const TelemetryState& telem,
+                                          uint32_t boot_ms, uint8_t* buf) {
+    // Q15 quaternion → Euler angles
+    float qw = static_cast<float>(telem.q_w) / 32767.0F;
+    float qx = static_cast<float>(telem.q_x) / 32767.0F;
+    float qy = static_cast<float>(telem.q_y) / 32767.0F;
+    float qz = static_cast<float>(telem.q_z) / 32767.0F;
+
+    float roll  = atan2f(2.0F * (qw * qx + qy * qz),
+                         1.0F - 2.0F * (qx * qx + qy * qy));
+    float pitch = asinf(2.0F * (qw * qy - qz * qx));
+    float yaw   = atan2f(2.0F * (qw * qz + qx * qy),
+                         1.0F - 2.0F * (qy * qy + qz * qz));
+
+    mavlink_message_t msg;
+    mavlink_msg_attitude_pack(
+        system_id, component_id, &msg,
+        boot_ms,    // time_boot_ms
+        roll,       // roll (rad)
+        pitch,      // pitch (rad)
+        yaw,        // yaw (rad)
+        0.0F,       // rollspeed (not available from TelemetryState)
+        0.0F,       // pitchspeed
+        0.0F);      // yawspeed
+    msg.seq = seq++;
+    return mavlink_msg_to_send_buffer(buf, &msg);
+}
+
+uint16_t MavlinkEncoder::encode_global_pos(const TelemetryState& telem,
+                                            uint32_t boot_ms, uint8_t* buf) {
+    // GPS fix type from upper nibble of gps_fix_sats
+    uint8_t fix_type = (telem.gps_fix_sats >> 4) & 0x0F;
+
+    int32_t lat = telem.lat_1e7;
+    int32_t lon = telem.lon_1e7;
+    int32_t alt = telem.alt_mm;
+    int32_t relative_alt = telem.baro_alt_mm;
+    int16_t vx = telem.vel_n_cms;   // cm/s — matches MAVLink units
+    int16_t vy = telem.vel_e_cms;
+    int16_t vz = telem.vel_d_cms;
+    // Heading: compute from velocity if GPS has fix, else UINT16_MAX
+    uint16_t hdg;
+    if (fix_type == 0) {
+        // No GPS fix — send invalid heading, zero position
+        lat = 0;
+        lon = 0;
+        alt = 0;
+        relative_alt = 0;
+        vx = 0;
+        vy = 0;
+        vz = 0;
+        hdg = UINT16_MAX;
+    } else {
+        // Heading from yaw (same Euler conversion as ATTITUDE)
+        float qw = static_cast<float>(telem.q_w) / 32767.0F;
+        float qx = static_cast<float>(telem.q_x) / 32767.0F;
+        float qy = static_cast<float>(telem.q_y) / 32767.0F;
+        float qz = static_cast<float>(telem.q_z) / 32767.0F;
+        float yaw = atan2f(2.0F * (qw * qz + qx * qy),
+                           1.0F - 2.0F * (qy * qy + qz * qz));
+        // Convert rad to centidegrees (0-36000), wrap to positive
+        float yaw_deg = yaw * (180.0F / 3.14159265F);
+        if (yaw_deg < 0.0F) { yaw_deg += 360.0F; }
+        hdg = static_cast<uint16_t>(yaw_deg * 100.0F);
+    }
+
+    mavlink_message_t msg;
+    mavlink_msg_global_position_int_pack(
+        system_id, component_id, &msg,
+        boot_ms,        // time_boot_ms
+        lat,            // lat (degE7)
+        lon,            // lon (degE7)
+        alt,            // alt (mm MSL)
+        relative_alt,   // relative_alt (mm AGL)
+        vx,             // vx (cm/s north)
+        vy,             // vy (cm/s east)
+        vz,             // vz (cm/s down)
+        hdg);           // hdg (cdeg, UINT16_MAX if unknown)
+    msg.seq = seq++;
+    return mavlink_msg_to_send_buffer(buf, &msg);
+}
+
 void MavlinkEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
                                  EncodeResult& result) {
-    // TODO(IVP-58): Replace with fastmavlink encode calls
-    // For now, produce a zero-filled buffer at the expected size
-    // so the telemetry service can test packet flow and duty cycle.
-    memset(result.buf, 0, sizeof(result.buf));
-    result.len = 105;
-    result.ok  = false;    // false = not a real MAVLink encode yet
-    (void)telem;
-    (void)met_ms;
+    uint8_t* p = result.buf;
+    p += encode_heartbeat(telem.flight_state, p);
+    p += encode_sys_status(telem, p);
+    p += encode_attitude(telem, met_ms, p);
+    p += encode_global_pos(telem, met_ms, p);
+    result.len = static_cast<uint16_t>(p - result.buf);
+    result.ok  = true;
 }
 
 // ============================================================================

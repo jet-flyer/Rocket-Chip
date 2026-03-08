@@ -11,6 +11,11 @@
 #include "rocketchip/telemetry_encoder.h"
 #include "crc16_ccitt.h"
 #include <cstring>
+#include <cmath>
+
+extern "C" {
+#include "common/mavlink.h"
+}
 
 using namespace rc;
 
@@ -215,27 +220,205 @@ TEST_F(CcsdsEncoderTest, FitsInLoRaPayload) {
 }
 
 // ============================================================================
-// MAVLink Encoder Stub Tests
+// MAVLink Encoder Tests (IVP-61: c_library_v2)
 // ============================================================================
 
-TEST(MavlinkEncoderTest, StubProducesCorrectLength) {
+class MavlinkEncoderTest : public ::testing::Test {
+protected:
     MavlinkEncoder enc;
-    enc.init();
+    TelemetryState telem;
+    uint8_t frame[MAVLINK_MAX_PACKET_LEN];
+
+    void SetUp() override {
+        enc.init();
+        telem = make_test_telem();
+        memset(frame, 0, sizeof(frame));
+    }
+};
+
+TEST_F(MavlinkEncoderTest, HeartbeatWireFormat) {
+    uint16_t len = enc.encode_heartbeat(0, frame);
+    EXPECT_GT(len, 0);
+    EXPECT_EQ(frame[0], 0xFD) << "MAVLink v2 magic byte";
+    EXPECT_EQ(frame[1], 9) << "HEARTBEAT payload length";
+    // msgid = 0 (HEARTBEAT) in bytes 7-9
+    EXPECT_EQ(frame[7], 0);
+    EXPECT_EQ(frame[8], 0);
+    EXPECT_EQ(frame[9], 0);
+}
+
+TEST_F(MavlinkEncoderTest, HeartbeatFlightStateMapping) {
+    // IDLE → STANDBY (3)
+    EXPECT_EQ(flight_state_to_mav_state(0), MAV_STATE_STANDBY);
+    // ARMED → ACTIVE (4)
+    EXPECT_EQ(flight_state_to_mav_state(1), MAV_STATE_ACTIVE);
+    // BOOST → ACTIVE (4)
+    EXPECT_EQ(flight_state_to_mav_state(2), MAV_STATE_ACTIVE);
+    // COAST → ACTIVE (4)
+    EXPECT_EQ(flight_state_to_mav_state(3), MAV_STATE_ACTIVE);
+    // DESCENT → ACTIVE (4)
+    EXPECT_EQ(flight_state_to_mav_state(4), MAV_STATE_ACTIVE);
+    // LANDED → STANDBY (3)
+    EXPECT_EQ(flight_state_to_mav_state(5), MAV_STATE_STANDBY);
+    // ERROR → CRITICAL (5)
+    EXPECT_EQ(flight_state_to_mav_state(6), MAV_STATE_CRITICAL);
+    // Unknown → BOOT (1)
+    EXPECT_EQ(flight_state_to_mav_state(255), MAV_STATE_BOOT);
+}
+
+TEST_F(MavlinkEncoderTest, SysStatusWireFormat) {
+    uint16_t len = enc.encode_sys_status(telem, frame);
+    EXPECT_GT(len, 0);
+    EXPECT_EQ(frame[0], 0xFD);
+    // msgid = 1 (SYS_STATUS)
+    EXPECT_EQ(frame[7], 1);
+    EXPECT_EQ(frame[8], 0);
+    EXPECT_EQ(frame[9], 0);
+}
+
+TEST_F(MavlinkEncoderTest, AttitudeIdentityQuaternion) {
+    // Identity quaternion (1,0,0,0) → roll=0, pitch=0, yaw=0
+    telem.q_w = 32767;
+    telem.q_x = 0;
+    telem.q_y = 0;
+    telem.q_z = 0;
+    uint16_t len = enc.encode_attitude(telem, 1000, frame);
+    EXPECT_GT(len, 0);
+
+    // Decode the MAVLink frame to extract payload
+    mavlink_message_t msg;
+    mavlink_status_t status;
+    for (uint16_t i = 0; i < len; i++) {
+        if (mavlink_parse_char(MAVLINK_COMM_0, frame[i], &msg, &status)) {
+            EXPECT_EQ(msg.msgid, MAVLINK_MSG_ID_ATTITUDE);
+            mavlink_attitude_t att;
+            mavlink_msg_attitude_decode(&msg, &att);
+            EXPECT_NEAR(att.roll, 0.0F, 0.001F);
+            EXPECT_NEAR(att.pitch, 0.0F, 0.001F);
+            EXPECT_NEAR(att.yaw, 0.0F, 0.001F);
+        }
+    }
+}
+
+TEST_F(MavlinkEncoderTest, Attitude45DegRoll) {
+    // 45-degree roll: q = cos(22.5°) + sin(22.5°)*i
+    float half = 22.5F * 3.14159265F / 180.0F;
+    telem.q_w = static_cast<int16_t>(cosf(half) * 32767.0F);
+    telem.q_x = static_cast<int16_t>(sinf(half) * 32767.0F);
+    telem.q_y = 0;
+    telem.q_z = 0;
+    uint16_t len = enc.encode_attitude(telem, 1000, frame);
+
+    mavlink_message_t msg;
+    mavlink_status_t status;
+    for (uint16_t i = 0; i < len; i++) {
+        if (mavlink_parse_char(MAVLINK_COMM_1, frame[i], &msg, &status)) {
+            mavlink_attitude_t att;
+            mavlink_msg_attitude_decode(&msg, &att);
+            EXPECT_NEAR(att.roll, 3.14159265F / 4.0F, 0.01F)
+                << "Roll should be ~pi/4 radians";
+        }
+    }
+}
+
+TEST_F(MavlinkEncoderTest, AttitudeWireFormat) {
+    uint16_t len = enc.encode_attitude(telem, 1000, frame);
+    EXPECT_GT(len, 0);
+    EXPECT_EQ(frame[0], 0xFD);
+    // msgid = 30 (ATTITUDE)
+    EXPECT_EQ(frame[7], 30);
+}
+
+TEST_F(MavlinkEncoderTest, GlobalPosIntWireFormat) {
+    uint16_t len = enc.encode_global_pos(telem, 1000, frame);
+    EXPECT_GT(len, 0);
+    EXPECT_EQ(frame[0], 0xFD);
+    // msgid = 33 (GLOBAL_POSITION_INT)
+    EXPECT_EQ(frame[7], 33);
+}
+
+TEST_F(MavlinkEncoderTest, GlobalPosNoGps) {
+    // No GPS fix → hdg=UINT16_MAX, lat/lon=0
+    telem.gps_fix_sats = 0x0C;  // fix=0, sats=12
+    uint16_t len = enc.encode_global_pos(telem, 1000, frame);
+
+    mavlink_message_t msg;
+    mavlink_status_t status;
+    for (uint16_t i = 0; i < len; i++) {
+        if (mavlink_parse_char(MAVLINK_COMM_2, frame[i], &msg, &status)) {
+            mavlink_global_position_int_t pos;
+            mavlink_msg_global_position_int_decode(&msg, &pos);
+            EXPECT_EQ(pos.lat, 0);
+            EXPECT_EQ(pos.lon, 0);
+            EXPECT_EQ(pos.hdg, UINT16_MAX);
+        }
+    }
+}
+
+TEST_F(MavlinkEncoderTest, SequenceMonotonic) {
+    // 4 messages: HB, SYS, ATT, POS → seq 0, 1, 2, 3
+    uint8_t buf[MAVLINK_MAX_PACKET_LEN];
+    enc.encode_heartbeat(0, buf);
+    EXPECT_EQ(enc.seq, 1);
+    enc.encode_sys_status(telem, buf);
+    EXPECT_EQ(enc.seq, 2);
+    enc.encode_attitude(telem, 1000, buf);
+    EXPECT_EQ(enc.seq, 3);
+    enc.encode_global_pos(telem, 1000, buf);
+    EXPECT_EQ(enc.seq, 4);
+}
+
+TEST_F(MavlinkEncoderTest, EncodeNavFourFrames) {
     EncodeResult result{};
-    TelemetryState telem = make_test_telem();
     enc.encode_nav(telem, 12345, result);
-    EXPECT_EQ(result.len, 105);
-    // Stub returns ok=false until fastmavlink is integrated
-    EXPECT_FALSE(result.ok);
+    EXPECT_TRUE(result.ok);
+    // Walk MAVLink v2 frame structure: header(10) + payload(N) + CRC(2)
+    int frame_count = 0;
+    uint16_t pos = 0;
+    while (pos < result.len) {
+        ASSERT_EQ(result.buf[pos], 0xFD) << "Frame " << frame_count << " should start with 0xFD";
+        uint8_t payload_len = result.buf[pos + 1];
+        pos += 10 + payload_len + 2;  // header + payload + CRC
+        frame_count++;
+    }
+    EXPECT_EQ(frame_count, 4) << "encode_nav should produce 4 MAVLink frames";
+    EXPECT_EQ(pos, result.len) << "Total frame bytes should match result.len";
 }
 
-TEST(MavlinkEncoderTest, MaxPacketSize) {
-    EXPECT_EQ(MavlinkEncoder::max_packet_size(), 105);
-}
+TEST_F(MavlinkEncoderTest, BinaryIntegrity0x0A) {
+    // Verify 0x0A (newline) bytes in payload don't break MAVLink framing.
+    // The frame is raw binary — no CR/LF translation should occur.
+    telem.vel_n_cms = 0x0A0A;  // Contains 0x0A bytes
 
-TEST(MavlinkEncoderTest, FitsInLoRaPayload) {
-    EXPECT_LE(MavlinkEncoder::max_packet_size(), 128)
-        << "Must fit in SX1276 max payload";
+    MavlinkEncoder fresh;
+    fresh.init();
+    EncodeResult result{};
+    fresh.encode_nav(telem, 1000, result);
+    EXPECT_TRUE(result.ok);
+    EXPECT_GT(result.len, 0);
+
+    // Walk MAVLink v2 frame structure to count frames
+    int frame_count = 0;
+    uint16_t pos = 0;
+    while (pos < result.len) {
+        ASSERT_EQ(result.buf[pos], 0xFD) << "Frame " << frame_count << " missing magic";
+        uint8_t payload_len = result.buf[pos + 1];
+        pos += 10 + payload_len + 2;
+        frame_count++;
+    }
+    EXPECT_EQ(frame_count, 4)
+        << "All 4 MAVLink frames should encode with 0x0A bytes in payload";
+    EXPECT_EQ(pos, result.len);
+
+    // Verify the 0x0A byte exists in the raw buffer (not stripped/translated)
+    bool found_0a = false;
+    for (uint16_t i = 0; i < result.len; i++) {
+        if (result.buf[i] == 0x0A) {
+            found_0a = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found_0a) << "0x0A byte should be preserved in binary output";
 }
 
 // ============================================================================
@@ -258,7 +441,8 @@ TEST(TelemetryEncoderStateTest, MavlinkSelection) {
     EncodeResult result{};
     TelemetryState telem = make_test_telem();
     state.encode_nav(telem, 12345, result);
-    EXPECT_EQ(result.len, 105);
+    EXPECT_TRUE(result.ok);
+    EXPECT_GT(result.len, 0);
 }
 
 TEST(TelemetryEncoderStateTest, MaxPacketSize) {
@@ -266,7 +450,7 @@ TEST(TelemetryEncoderStateTest, MaxPacketSize) {
     state.init(EncoderType::kCcsds);
     EXPECT_EQ(state.max_packet_size(), 54);
     state.init(EncoderType::kMavlink);
-    EXPECT_EQ(state.max_packet_size(), 105);
+    EXPECT_EQ(state.max_packet_size(), 144);
 }
 
 // ============================================================================

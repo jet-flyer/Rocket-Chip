@@ -4,7 +4,7 @@
  * @file mission_station.h
  * @brief Station mission profile — ground receiver configuration
  *
- * RX telemetry reception, CCSDS decode, CSV output over USB serial.
+ * RX telemetry reception, CCSDS decode, MAVLink re-encode over USB serial.
  * Sensors and ESKF are inert if hardware is absent (same binary,
  * just different behavioral defaults).
  */
@@ -16,6 +16,9 @@ namespace mission {
 
 // Radio mode: RX (telemetry reception)
 inline constexpr bool kRadioModeRx = true;
+
+// Default output: MAVLink binary for QGC/Mission Planner
+inline constexpr bool kDefaultMavlinkOutput = true;
 
 } // namespace mission
 

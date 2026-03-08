@@ -6,6 +6,7 @@
  *
  * IVP-59: TX service (CCSDS encoder + rfm95w_send)
  * IVP-60: RX service (rfm95w_recv + CCSDS decode + CSV output)
+ * IVP-61: MAVLink v2 re-encode (RX → MAVLink binary on USB)
  */
 
 #include "rocketchip/telemetry_service.h"
@@ -50,6 +51,9 @@ void telemetry_service_init(TelemetryServiceState* state,
     state->last_rx_rssi = 0;
     state->last_rx_snr = 0;
     state->last_rx_seq = 0;
+    state->mavlink_output = false;
+    state->last_heartbeat_ms = 0;
+    state->mav_encoder.init();
 }
 
 // ============================================================================
@@ -78,7 +82,7 @@ void telemetry_service_tick(TelemetryServiceState* state,
 
     // TX with airtime measurement
     uint64_t tx_start = time_us_64();
-    bool sent = rfm95w_send(state->radio, result.buf, result.len);
+    bool sent = rfm95w_send(state->radio, result.buf, static_cast<uint8_t>(result.len));
     uint64_t tx_end = time_us_64();
 
     if (sent) {
@@ -173,9 +177,68 @@ static void print_rx_csv(const TelemetryState& telem, uint16_t seq,
            (unsigned long)met_ms);
 }
 
+// ============================================================================
+// MAVLink binary output helpers (IVP-61)
+// ============================================================================
+
+static constexpr uint32_t kHeartbeatIntervalMs = 1000;  // 1 Hz heartbeat
+// Max single MAVLink v2 frame: header(10) + payload(max 255) + CRC(2) = 267.
+// Our largest message is SYS_STATUS (31B payload) → 43 bytes. 64 is ample.
+static constexpr uint8_t kMavFrameBufSize = 64;
+
+static void emit_raw(const uint8_t* data, uint16_t len) {
+    fwrite(data, 1, len, stdout);
+    fflush(stdout);
+}
+
+static void mavlink_emit_heartbeat(TelemetryServiceState* state,
+                                    uint32_t now_ms) {
+    if (now_ms - state->last_heartbeat_ms < kHeartbeatIntervalMs) { return; }
+    state->last_heartbeat_ms = now_ms;
+
+    uint8_t flight_state = 0;  // IDLE if no packets received yet
+    uint8_t frame[kMavFrameBufSize];
+    uint16_t len = state->mav_encoder.encode_heartbeat(flight_state, frame);
+    emit_raw(frame, len);
+}
+
+static void mavlink_emit_nav(TelemetryServiceState* state,
+                              const TelemetryState& telem, uint32_t now_ms) {
+    uint8_t frame[kMavFrameBufSize];
+    uint16_t len = 0;
+
+    // Emit heartbeat + SYS_STATUS if due
+    if (now_ms - state->last_heartbeat_ms >= kHeartbeatIntervalMs) {
+        state->last_heartbeat_ms = now_ms;
+        len = state->mav_encoder.encode_heartbeat(
+            telem.flight_state, frame);
+        emit_raw(frame, len);
+
+        len = state->mav_encoder.encode_sys_status(telem, frame);
+        emit_raw(frame, len);
+    }
+
+    // Always emit ATTITUDE + GLOBAL_POSITION_INT per decoded packet
+    len = state->mav_encoder.encode_attitude(telem, now_ms, frame);
+    emit_raw(frame, len);
+
+    len = state->mav_encoder.encode_global_pos(telem, now_ms, frame);
+    emit_raw(frame, len);
+}
+
+// ============================================================================
+// RX tick (IVP-60 + IVP-61)
+// ============================================================================
+
 void telemetry_service_rx_tick(TelemetryServiceState* state, uint32_t now_ms) {
     if (state->mode != RadioMode::kRx) { return; }
     if (state->radio == nullptr) { return; }
+
+    // MAVLink heartbeat: emit even when no LoRa packets arrive
+    if (state->mavlink_output) {
+        mavlink_emit_heartbeat(state, now_ms);
+    }
+
     if (!rfm95w_available(state->radio)) { return; }
 
     uint8_t buf[128];
@@ -197,7 +260,17 @@ void telemetry_service_rx_tick(TelemetryServiceState* state, uint32_t now_ms) {
     state->last_rx_ms = now_ms;
     state->last_rx_seq = seq;
 
-    print_rx_csv(telem, seq, met_ms, state->last_rx_rssi, state->last_rx_snr);
+    if (state->mavlink_output) {
+        mavlink_emit_nav(state, telem, now_ms);
+    } else {
+        print_rx_csv(telem, seq, met_ms, state->last_rx_rssi,
+                     state->last_rx_snr);
+    }
+}
+
+void telemetry_service_set_mavlink_output(TelemetryServiceState* state,
+                                           bool enable) {
+    state->mavlink_output = enable;
 }
 
 } // namespace rc

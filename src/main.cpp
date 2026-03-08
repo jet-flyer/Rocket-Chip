@@ -1618,11 +1618,13 @@ static void print_hw_status() {
                rocketchip::pins::kRadioCs, rocketchip::pins::kRadioRst,
                rocketchip::pins::kRadioIrq);
         if constexpr (kRadioModeRx) {
-            printf("[MODE] RX — listening for CCSDS packets\n");
+            printf("[MODE] RX — %s output ('m' to toggle)\n",
+                   g_telemService.mavlink_output ? "MAVLink" : "CSV");
         } else {
-            printf("[MODE] TX %dHz CCSDS %dB\n",
+            printf("[MODE] TX %dHz CCSDS %dB%s\n",
                    static_cast<int>(g_telemService.rate_hz),
-                   static_cast<int>(rc::ccsds::kNavPacketLen));
+                   static_cast<int>(rc::ccsds::kNavPacketLen),
+                   g_telemService.mavlink_output ? " + USB MAVLink" : "");
         }
     } else if (g_spiInitialized) {
         printf("[----] Radio: not detected (FeatherWing not stacked?)\n");
@@ -1752,7 +1754,7 @@ static void init_peripherals() {
             rocketchip::pins::kRadioIrq);
     }
 
-    // Telemetry service init (IVP-59/60)
+    // Telemetry service init (IVP-59/60/61)
     // Radio mode is compile-time: kRadioModeRx selects RX (ground station),
     // default is TX (flight downlink). Will be set by Mission Profile.
     if (g_radioInitialized) {
@@ -1761,6 +1763,11 @@ static void init_peripherals() {
             rc::telemetry_service_start_rx(&g_telemService);
         }
     }
+
+    // MAVLink encoder init — needed for both RX relay and vehicle direct output.
+    // Init regardless of radio — direct USB MAVLink doesn't need LoRa.
+    g_telemService.mav_encoder.init();
+    g_telemService.mavlink_output = kDefaultMavlinkOutput;
 
     // Calibration storage init (before USB per LL Entry 4/12)
     g_calStorageInitialized = calibration_storage_init();
@@ -1950,6 +1957,25 @@ static void watchdog_kick_tick() {
 }
 
 static void cli_update_tick() {
+    // In MAVLink output mode, suppress all CLI text (banner, status, help)
+    // to avoid corrupting the binary stream. Only 'm' key accepted.
+    // Drain ALL pending USB input — GCS sends heartbeats, param requests,
+    // etc. that must be consumed or the USB CDC TX buffer backs up and
+    // the host's serial writes time out.
+    if (g_telemService.mavlink_output) {
+        if (stdio_usb_connected()) {
+            int ch;
+            while ((ch = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
+                if (ch == 'm' || ch == 'M') {
+                    g_telemService.mavlink_output = false;
+                    printf("\n[%s] Output: CLI\n",
+                           kRadioModeRx ? "RX" : "USB");
+                    return;
+                }
+            }
+        }
+        return;
+    }
     rc_os_update();
     feed_active_calibration();
 }
@@ -2496,61 +2522,56 @@ static void cmd_download_flight() {
     printf("RCEND:%08lX\n", (unsigned long)crc);
 }
 
+static void cmd_radio_status() {
+    if (!g_radioInitialized) {
+        printf("Radio not initialized.\n");
+        return;
+    }
+    if (g_telemService.mode == rc::RadioMode::kRx) {
+        uint32_t now = to_ms_since_boot(get_absolute_time());
+        uint32_t gap = (g_telemService.rx_count > 0) ?
+            (now - g_telemService.last_rx_ms) : 0;
+        printf("RX: %lu pkts, %ddBm, %d.%ddB SNR, %lu CRC err, last %lu.%lus ago\n",
+               (unsigned long)g_telemService.rx_count,
+               static_cast<int>(g_telemService.last_rx_rssi),
+               static_cast<int>(g_telemService.last_rx_snr),
+               0,
+               (unsigned long)g_telemService.rx_crc_errors,
+               (unsigned long)(gap / 1000),
+               (unsigned long)((gap % 1000) / 100));
+    } else {
+        uint32_t now = to_ms_since_boot(get_absolute_time());
+        uint8_t duty = rc::telemetry_service_duty_pct(&g_telemService, now);
+        printf("TX: %dHz CCSDS %dB %lums/pkt duty=%u%% seq=%lu drop=%lu\n",
+               static_cast<int>(g_telemService.rate_hz),
+               static_cast<int>(rc::ccsds::kNavPacketLen),
+               (unsigned long)g_telemService.last_airtime_us / 1000,
+               static_cast<unsigned>(duty),
+               (unsigned long)g_telemService.tx_count,
+               (unsigned long)g_telemService.tx_fail_count);
+    }
+}
+
 static void handle_unhandled_key(int key) {
     switch (key) {
-    case 'l':
-    case 'L':
-        cmd_flush_log();
-        break;
-    case 'x':
-    case 'X':
-        cmd_erase_all_flights();
-        break;
-    case 'f':
-    case 'F':
-        cmd_list_flights();
-        break;
-    case 'd':
-    case 'D':
-        cmd_download_flight();
-        break;
-    case 't':
-    case 'T':
-        if (!g_radioInitialized) {
-            printf("Radio not initialized.\n");
-        } else if (g_telemService.mode == rc::RadioMode::kRx) {
-            uint32_t now = to_ms_since_boot(get_absolute_time());
-            uint32_t gap = (g_telemService.rx_count > 0) ?
-                (now - g_telemService.last_rx_ms) : 0;
-            printf("RX: %lu pkts, %ddBm, %d.%ddB SNR, %lu CRC err, last %lu.%lus ago\n",
-                   (unsigned long)g_telemService.rx_count,
-                   static_cast<int>(g_telemService.last_rx_rssi),
-                   static_cast<int>(g_telemService.last_rx_snr),
-                   0,  // SNR is int, no fractional
-                   (unsigned long)g_telemService.rx_crc_errors,
-                   (unsigned long)(gap / 1000),
-                   (unsigned long)((gap % 1000) / 100));
-        } else {
-            uint32_t now = to_ms_since_boot(get_absolute_time());
-            uint8_t duty = rc::telemetry_service_duty_pct(&g_telemService, now);
-            printf("TX: %dHz CCSDS %dB %lums/pkt duty=%u%% seq=%lu drop=%lu\n",
-                   static_cast<int>(g_telemService.rate_hz),
-                   static_cast<int>(rc::ccsds::kNavPacketLen),
-                   (unsigned long)g_telemService.last_airtime_us / 1000,
-                   static_cast<unsigned>(duty),
-                   (unsigned long)g_telemService.tx_count,
-                   (unsigned long)g_telemService.tx_fail_count);
-        }
-        break;
+    case 'l': case 'L': cmd_flush_log(); break;
+    case 'x': case 'X': cmd_erase_all_flights(); break;
+    case 'f': case 'F': cmd_list_flights(); break;
+    case 'd': case 'D': cmd_download_flight(); break;
+    case 't': case 'T': cmd_radio_status(); break;
     case 'r':
-        // Cycle TX rate (TX mode only — RX builds have no rate to cycle)
         if (g_radioInitialized && !kRadioModeRx) {
             uint8_t newRate = rc::telemetry_service_cycle_rate(&g_telemService);
             printf("[TX] Rate changed to %dHz\n", static_cast<int>(newRate));
         }
         break;
-    default:
+    case 'm': case 'M':
+        g_telemService.mavlink_output = !g_telemService.mavlink_output;
+        printf("[%s] Output: %s\n",
+               kRadioModeRx ? "RX" : "USB",
+               g_telemService.mavlink_output ? "MAVLink" : "CLI");
         break;
+    default: break;
     }
 }
 
@@ -2675,6 +2696,54 @@ static void logging_tick() {
 }
 
 // ============================================================================
+// Direct USB MAVLink Output (IVP-61)
+// ============================================================================
+// Vehicle direct mode: encode TelemetryState → MAVLink v2 frames → USB.
+// Same as station relay but skips LoRa — like plugging an ArduPilot board
+// directly into QGC/Mission Planner via USB.
+
+static constexpr uint32_t kMavDirectIntervalMs = 100;  // 10 Hz output
+static constexpr uint8_t  kMavFrameBufSize     = 64;
+static uint32_t g_lastMavDirectMs = 0;
+
+static void mavlink_direct_tick(uint32_t nowMs) {
+    if (!g_telemService.mavlink_output) { return; }
+    if constexpr (kRadioModeRx) { return; }  // Station uses RX path
+    if (!g_latestTelemValid) { return; }
+    if (!stdio_usb_connected()) { return; }
+
+    // Rate limit — 10 Hz nav + 1 Hz heartbeat/sys_status
+    uint8_t frame[kMavFrameBufSize];
+    uint16_t len = 0;
+
+    // 1 Hz heartbeat + SYS_STATUS
+    if (nowMs - g_telemService.last_heartbeat_ms >= 1000) {
+        g_telemService.last_heartbeat_ms = nowMs;
+        len = g_telemService.mav_encoder.encode_heartbeat(
+            g_latestTelem.flight_state, frame);
+        fwrite(frame, 1, len, stdout);
+
+        len = g_telemService.mav_encoder.encode_sys_status(
+            g_latestTelem, frame);
+        fwrite(frame, 1, len, stdout);
+    }
+
+    // 10 Hz ATTITUDE + GLOBAL_POSITION_INT
+    if (nowMs - g_lastMavDirectMs < kMavDirectIntervalMs) { return; }
+    g_lastMavDirectMs = nowMs;
+
+    len = g_telemService.mav_encoder.encode_attitude(
+        g_latestTelem, nowMs, frame);
+    fwrite(frame, 1, len, stdout);
+
+    len = g_telemService.mav_encoder.encode_global_pos(
+        g_latestTelem, nowMs, frame);
+    fwrite(frame, 1, len, stdout);
+
+    fflush(stdout);
+}
+
+// ============================================================================
 // Telemetry Radio Tick (IVP-59 TX, IVP-60 RX)
 // ============================================================================
 
@@ -2735,6 +2804,9 @@ int main() {
 
         g_lastTickFunction = "radio";
         telemetry_radio_tick(nowMs);
+
+        g_lastTickFunction = "mavlink";
+        mavlink_direct_tick(nowMs);
 
         g_lastTickFunction = "cli";
         cli_update_tick();

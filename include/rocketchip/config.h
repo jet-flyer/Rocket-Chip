@@ -74,6 +74,7 @@ constexpr const char* kVersionString = "0.2.0";
 // Selected by ROCKETCHIP_MISSION_STATION define in CMakeLists.txt.
 // Default: vehicle (TX telemetry downlink). See mission.h for details.
 using mission::kRadioModeRx;
+using mission::kDefaultMavlinkOutput;
 
 // ============================================================================
 // Pin Definitions (from HARDWARE.md)

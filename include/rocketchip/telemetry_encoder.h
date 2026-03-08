@@ -14,9 +14,9 @@
  *   2B CRC-16-CCITT
  *   = 54 bytes total
  *
- * MAVLink v2 (secondary, via fastmavlink):
- *   HEARTBEAT + ATTITUDE_QUATERNION + GLOBAL_POSITION_INT
- *   = ~105 bytes total (3 messages per tick)
+ * MAVLink v2 (secondary, via c_library_v2):
+ *   HEARTBEAT + SYS_STATUS + ATTITUDE + GLOBAL_POSITION_INT
+ *   = ~144 bytes total (4 messages per tick)
  *
  * IVP-58: Telemetry Encoder (Stage 7: Radio & Telemetry)
  */
@@ -74,8 +74,8 @@ static_assert(kNavPacketLen == 54, "CCSDS nav packet must be 54 bytes");
 // ============================================================================
 
 struct EncodeResult {
-    uint8_t  buf[128];    // Encoded packet(s) — max LoRa payload
-    uint8_t  len;         // Total bytes written
+    uint8_t  buf[256];    // Encoded packet(s) — fits 4 MAVLink v2 frames or 1 CCSDS
+    uint16_t len;         // Total bytes written
     bool     ok;          // Encode succeeded
 };
 
@@ -104,26 +104,67 @@ struct CcsdsEncoder {
 };
 
 // ============================================================================
-// MAVLink Encoder (stub — implementation requires fastmavlink)
+// MAVLink Encoder (c_library_v2 — official MAVLink C library)
 // ============================================================================
+
+// Flight state → MAV_STATE mapping
+uint8_t flight_state_to_mav_state(uint8_t flight_state);
 
 struct MavlinkEncoder {
     uint8_t  system_id;
     uint8_t  component_id;
-    uint8_t  seq;          // MAVLink sequence number (wrapping uint8)
+    uint8_t  seq;          // MAVLink sequence number (wrapping uint8, monotonic across all messages)
 
     void init(uint8_t sysid = 1, uint8_t compid = 1);
 
     /**
-     * @brief Encode HEARTBEAT + ATTITUDE_QUATERNION + GLOBAL_POSITION_INT
+     * @brief Encode HEARTBEAT frame
+     * @param flight_state RC flight_state value (mapped to MAV_STATE)
+     * @param buf Output buffer (must be >= 21 bytes)
+     * @return Frame length in bytes
+     */
+    uint16_t encode_heartbeat(uint8_t flight_state, uint8_t* buf);
+
+    /**
+     * @brief Encode SYS_STATUS frame (battery + sensor health)
+     * @param telem Wire-format telemetry state
+     * @param buf Output buffer (must be >= 43 bytes)
+     * @return Frame length in bytes
+     */
+    uint16_t encode_sys_status(const TelemetryState& telem, uint8_t* buf);
+
+    /**
+     * @brief Encode ATTITUDE frame (Euler angles from Q15 quaternion)
+     * @param telem Wire-format telemetry state
+     * @param boot_ms Time since boot in ms (for time_boot_ms field)
+     * @param buf Output buffer (must be >= 40 bytes)
+     * @return Frame length in bytes
+     */
+    uint16_t encode_attitude(const TelemetryState& telem, uint32_t boot_ms,
+                             uint8_t* buf);
+
+    /**
+     * @brief Encode GLOBAL_POSITION_INT frame
+     * @param telem Wire-format telemetry state
+     * @param boot_ms Time since boot in ms
+     * @param buf Output buffer (must be >= 40 bytes)
+     * @return Frame length in bytes
+     */
+    uint16_t encode_global_pos(const TelemetryState& telem, uint32_t boot_ms,
+                               uint8_t* buf);
+
+    /**
+     * @brief Encode all 4 MAVLink messages into result buffer
      * @param telem  Wire-format telemetry state
-     * @param met_ms Mission elapsed time
-     * @param result Output buffer and length
+     * @param met_ms Mission elapsed time (used as boot_ms)
+     * @param result Output buffer and length (all 4 frames concatenated)
      */
     void encode_nav(const TelemetryState& telem, uint32_t met_ms,
                     EncodeResult& result);
 
-    static constexpr uint8_t max_packet_size() { return 105; }
+    // Max single frame: HEARTBEAT=21, SYS_STATUS=43, ATTITUDE=40, GLOBAL_POSITION_INT=40
+    // Total 4 frames: ~144 bytes
+    static constexpr uint8_t max_packet_size() { return 144; }
 };
 
 // ============================================================================
