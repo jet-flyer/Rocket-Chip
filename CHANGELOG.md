@@ -20,6 +20,19 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-08-001 | Claude Code CLI | feature, bugfix
+
+**Stage 7 Radio & Telemetry — IVP-58 through IVP-61 complete. IVP-62 deferred.** End-to-end telemetry pipeline verified: CCSDS encoding over LoRa (vehicle→station), MAVLink re-encoding on station, QGC High Latency mode connected via Fruit Jam bridge with live attitude data.
+
+**IVP-58:** CCSDS space packet encoder — 42-byte PCM nav frames with CRC-16, 6-byte CCSDS primary header, MET timestamps.
+**IVP-59:** Telemetry service — replaces test TX with production pipeline. SX1276 DIO0 mapping fix.
+**IVP-60:** Station RX mode + CCSDS decode + Mission Profile infrastructure. Compile-time vehicle/station behavioral selection via `mission.h`. 5-min soak: 607 pkts, 0 CRC err, 98.7% delivery.
+**IVP-61:** MAVLink v2 encoder using official c_library_v2 (header-only submodule). Station re-encodes CCSDS→MAVLink for QGC. Vehicle direct USB output at 10Hz. QGC High Latency mode verified on both paths.
+
+**IVP-62 (bidirectional MAVLink commands) deferred.** Full implementation complete (mavlink_rx handler, 14 host tests, command dispatch for params/capabilities/arm/mode/missions) but QGC direct USB connection unstable — "Communication Lost" after initial connect due to USB CDC buffer timing. Work preserved on `ivp62-wip` branch. Main reverted to IVP-61 where FJ bridge path is confirmed working.
+
+**QGC connection status:** Works via Fruit Jam LoRa bridge (COM9, High Latency mode). Direct USB (COM7) deferred — protocol is correct (verified via pymavlink/Python) but QGC's 3.5s heartbeat timeout + USB CDC buffering behavior causes disconnects.
+
 ### 2026-03-07-001 | Claude Code CLI | feature, architecture
 
 **Stage J: Fruit Jam HAL — Board abstraction + parity verification complete.** Compile-time board support package (BSP) via `board::` namespace constants so the same `main.cpp` builds and runs on both Feather RP2350 HSTX (#6130) and Fruit Jam (#6200). Zero runtime overhead — all `constexpr` pin constants resolved at compile time.

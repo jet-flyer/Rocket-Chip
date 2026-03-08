@@ -12,12 +12,13 @@
 
 ## Open Flags
 
-### Stage 7 (Radio & Telemetry) — In Progress
+### Stage 7 (Radio & Telemetry) — IVP-57–61 Complete, IVP-62 Deferred
 
-**Updated 2026-03-07.** IVP-57 (radio driver), IVP-58 (CCSDS encoder), IVP-59 (telemetry service), and IVP-60 (RX mode + CCSDS decode) complete. Mission Profile infrastructure added (compile-time vehicle/station selection). 5-min soak verified: 607 pkts, 0 CRC err, 98.7% delivery. Next: IVP-61 (MAVLink re-encode + QGC validation + range test).
+**Updated 2026-03-08.** IVP-57 through IVP-61 complete. Full telemetry pipeline working: CCSDS over LoRa → station MAVLink re-encode → QGC High Latency mode with live data. IVP-62 (bidirectional MAVLink commands) fully implemented but deferred — QGC direct USB connection unstable due to USB CDC buffer timing (heartbeat lost in buffer dump on connect). Work preserved on `ivp62-wip` branch (mavlink_rx handler, flight_state.h, 14 host tests, param/command/mission dispatch).
 
 - **Key insight:** No `gcs_main.cpp` needed. Probe-first detection handles absent sensors. ESKF doesn't run without IMU. GCS compute (Haversine, RSSI bar, MAVLink re-encode) is trivial. Same binary, different hardware, different Mission Profile.
 - **Mission Profile pattern:** `mission.h` selector includes `mission_vehicle.h` or `mission_station.h` based on `ROCKETCHIP_MISSION_STATION` CMake define. Parallel to `board.h` but for behavioral config (radio mode, sensor policy, etc.). Expandable for future profiles.
+- **QGC USB CDC issue (IVP-62 blocker):** When vehicle streams MAVLink in sticky mode, USB CDC buffers accumulate. On QGC connect, buffered data dumps all at once, overwhelming the parser. QGC's 3.5s heartbeat timeout fires before the next live heartbeat arrives. The FJ LoRa bridge works because radio link naturally drops old packets. Fix approaches: (1) circular output buffer with timestamp-based discard, (2) flush USB CDC buffer on connect detect, (3) heartbeat-only mode until GCS heartbeat received.
 
 ---
 
