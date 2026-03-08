@@ -1,12 +1,12 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-03-08 (Stage 7 IVP-58–61 complete, IVP-62 deferred)
+**Last Updated:** 2026-03-08 (Stage 7 core complete, remaining IVPs deferred)
 
 ## Current Phase
 
-**Stage 7 IN PROGRESS** — Radio & Telemetry (IVP-57–65)
+**Stage 7 COMPLETE** (core pipeline) — Radio & Telemetry (IVP-57–61)
 
-IVP-57 through IVP-61 complete. Full telemetry pipeline working: vehicle encodes CCSDS over LoRa → Fruit Jam station receives and re-encodes as MAVLink → QGC connects via USB (High Latency mode) with live attitude data. IVP-62 (bidirectional MAVLink commands) deferred — implementation complete and preserved on `ivp62-wip` branch but QGC direct USB connection unstable due to USB CDC buffer timing. Next: IVP-63+ or Stage 8 (Flight Director).
+Full telemetry pipeline working: vehicle encodes CCSDS over LoRa → Fruit Jam station receives and re-encodes as MAVLink → QGC connects via USB (High Latency mode) with live attitude data. Remaining Stage 7 IVPs deferred: IVP-62 (bidirectional commands, on `ivp62-wip` branch), IVP-63 (FSK + range, needs GCS UI), IVP-64 (rate tuning, deferred to post-Mission Profile), IVP-65 (native MAVLink radio, dropped — only useful with AP telem radios). Next: Stage 8 (Flight Director).
 
 ## Completed
 
@@ -44,9 +44,7 @@ IVP-57 through IVP-61 complete. Full telemetry pipeline working: vehicle encodes
 
 ## In Progress
 
-**Next: Stage 7 remaining (IVP-63–65)** or skip to **Stage 8 (Flight Director)**. IVP-62 (bidirectional commands) deferred — work on `ivp62-wip` branch. Remaining Stage 7: IVP-63 (range test at 20 dBm), IVP-64 (telemetry rate optimization), IVP-65 (multi-vehicle support).
-
-**Then: Stage 8 (Flight Director)** — IVP-66 through IVP-70. Watchdog recovery policy, state machine core, event engine, action executor, mission configuration. Prerequisite: SAD Open Question #4 (Mealy vs Moore state machine) must be resolved before IVP-67.
+**Next: Stage 8 (Flight Director)** — IVP-66 through IVP-70. Watchdog recovery policy, state machine core, event engine, action executor, mission configuration. Prerequisite: SAD Open Question #4 (Mealy vs Moore state machine) must be resolved before IVP-67.
 
 **Then: Stage 9 (Adaptive Estimation & Safety)** — IVP-71 through IVP-74. Phase-scheduled Q/R (replaces MMAE — see `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`), confidence gate, confidence-gated actions, vehicle parameter profiles.
 
