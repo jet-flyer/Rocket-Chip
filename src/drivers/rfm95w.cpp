@@ -135,6 +135,9 @@ bool rfm95w_send(rfm95w_t* dev, const uint8_t* data, uint8_t len) {
     // Clear all IRQ flags before TX
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kIrqFlags, rfm95w::irq::kAll);
 
+    // Map DIO0 to TxDone (bits [7:6] = 01)
+    spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kDioMapping1, 0x40);
+
     // Set TX mode
     set_mode(dev, rfm95w::mode::kTx);
 
@@ -142,14 +145,16 @@ bool rfm95w_send(rfm95w_t* dev, const uint8_t* data, uint8_t len) {
     uint64_t start = time_us_64();
     while (!rfm95w_poll_irq(dev)) {
         if ((time_us_64() - start) > rfm95w::kTxTimeoutUs) {
-            // Timeout — return to Standby
+            // Timeout — restore DIO0 mapping and return to Standby
+            spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kDioMapping1, 0x00);
             set_mode(dev, rfm95w::mode::kStandby);
             return false;
         }
     }
 
-    // Clear IRQ flags
+    // Clear IRQ flags and restore DIO0 to RxDone
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kIrqFlags, rfm95w::irq::kAll);
+    spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kDioMapping1, 0x00);
 
     // Return to Standby
     set_mode(dev, rfm95w::mode::kStandby);

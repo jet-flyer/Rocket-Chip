@@ -12,15 +12,9 @@
 
 ## Open Flags
 
-### Temporary Test TX + Bench Power in Flight Firmware
+### Stage 7 (Radio & Telemetry) — In Progress
 
-**Added 2026-02-25.** `radio_test_tx_tick()` in `src/main.cpp` sends 1 Hz heartbeat packets (`"RC #N t=N"`). TX power at 5 dBm in `src/drivers/rfm95w.cpp`. Both are temporary for IVP-57 verification. Remove test TX when real telemetry encoding comes (IVP-58/59). Restore power to 20 dBm for field use.
-
----
-
-### Stage 7 (Radio & Telemetry) — Ready to Begin
-
-**Updated 2026-03-07.** Stage J complete — board abstraction verified on Fruit Jam. All radio/telemetry/GCS features (RX service, CCSDS decode, MAVLink bridge, uplink, RSSI bar, distance calc) are **board-agnostic**. They activate based on radio presence + Mission Profile mode. Works on Fruit Jam, a second Feather HSTX with radio FeatherWing, or any RP2350 board. Uses A/B suffixes: _A = TX side, _B = RX side. IVP-57 (radio driver) already complete. Next: IVP-58 (telemetry encoder).
+**Updated 2026-03-07.** IVP-57 (radio driver) and IVP-58 (CCSDS encoder) complete. IVP-59 (telemetry service) complete — replaced `radio_test_tx_tick()` with CCSDS TX service at 2/5/10 Hz. TX power restored to 20 dBm. SX1276 DIO0 mapping bug fixed (was preventing all TX). Next: IVP-60 (RX mode + CSV decode).
 
 - **Key insight:** No `gcs_main.cpp` needed. Probe-first detection handles absent sensors. ESKF doesn't run without IMU. GCS compute (Haversine, RSSI bar, MAVLink re-encode) is trivial. Same binary, different hardware, different Mission Profile.
 

@@ -159,6 +159,8 @@ static void print_system_status() {
     printf("  b - Boot summary (reprint)\n");
     printf("  i - I2C bus rescan\n");
     printf("  c - Calibration menu\n");
+    printf("  t - Telemetry TX status\n");
+    printf("  r - Cycle TX rate (2/5/10 Hz)\n");
     printf("  f - List stored flights\n");
     printf("  d - Download flight (binary)\n");
     printf("  l - Flush log to flash\n");

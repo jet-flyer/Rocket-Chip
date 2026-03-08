@@ -242,11 +242,12 @@ else()
         src/logging/psram_init.cpp
 
         # -------------------------------------------------------------------------
-        # Stage 7: Radio & Telemetry (IVP-57, IVP-58)
+        # Stage 7: Radio & Telemetry (IVP-57, IVP-58, IVP-59)
         # -------------------------------------------------------------------------
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
         src/telemetry/telemetry_encoder.cpp
+        src/telemetry/telemetry_service.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -279,6 +280,7 @@ else()
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
         src/telemetry/telemetry_encoder.cpp
+        src/telemetry/telemetry_service.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 

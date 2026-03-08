@@ -38,6 +38,7 @@
 #include "logging/crc32.h"
 #include "rocketchip/pcm_frame.h"
 #include "rocketchip/fused_state.h"
+#include "rocketchip/telemetry_service.h"
 #include "cli/rc_os.h"
 #include "pico/multicore.h"
 #include "hardware/sync.h"
@@ -191,6 +192,11 @@ static const uint8_t kTxBwValues[3] = {
     rfm95w::kBw125, rfm95w::kBw250, rfm95w::kBw500
 };
 static const char* const kTxBwLabels[3] = { "BW125", "BW250", "BW500" };
+
+// Telemetry service (IVP-59) — replaces radio_test_tx_tick()
+static rc::TelemetryServiceState g_telemService;
+static rc::TelemetryState g_latestTelem = {};      // Updated by logging_tick()
+static bool g_latestTelemValid = false;
 
 static size_t g_psramSize = 0;
 static bool g_psramSelfTestPassed = false;
@@ -1604,6 +1610,9 @@ static void print_hw_status() {
                kTxBwLabels[g_txBwMode],
                rocketchip::pins::kRadioCs, rocketchip::pins::kRadioRst,
                rocketchip::pins::kRadioIrq);
+        printf("[MODE] TX %dHz CCSDS %dB\n",
+               static_cast<int>(g_telemService.rate_hz),
+               static_cast<int>(rc::ccsds::kNavPacketLen));
     } else if (g_spiInitialized) {
         printf("[----] Radio: not detected (FeatherWing not stacked?)\n");
     }
@@ -1730,6 +1739,11 @@ static void init_peripherals() {
             rocketchip::pins::kRadioCs,
             rocketchip::pins::kRadioRst,
             rocketchip::pins::kRadioIrq);
+    }
+
+    // Telemetry service init (IVP-59) — 2 Hz default (ground/IDLE rate)
+    if (g_radioInitialized) {
+        rc::telemetry_service_init(&g_telemService, &g_radio, 2);
     }
 
     // Calibration storage init (before USB per LL Entry 4/12)
@@ -2484,6 +2498,29 @@ static void handle_unhandled_key(int key) {
     case 'D':
         cmd_download_flight();
         break;
+    case 't':
+    case 'T':
+        if (g_radioInitialized) {
+            uint32_t now = to_ms_since_boot(get_absolute_time());
+            uint8_t duty = rc::telemetry_service_duty_pct(&g_telemService, now);
+            printf("TX: %dHz CCSDS %dB %lums/pkt duty=%u%% seq=%lu drop=%lu\n",
+                   static_cast<int>(g_telemService.rate_hz),
+                   static_cast<int>(rc::ccsds::kNavPacketLen),
+                   (unsigned long)g_telemService.last_airtime_us / 1000,
+                   static_cast<unsigned>(duty),
+                   (unsigned long)g_telemService.tx_count,
+                   (unsigned long)g_telemService.tx_fail_count);
+        } else {
+            printf("Radio not initialized.\n");
+        }
+        break;
+    case 'r':
+    case 'R':
+        if (g_radioInitialized) {
+            uint8_t newRate = rc::telemetry_service_cycle_rate(&g_telemService);
+            printf("[TX] Rate changed to %dHz\n", static_cast<int>(newRate));
+        }
+        break;
     default:
         break;
     }
@@ -2603,70 +2640,19 @@ static void logging_tick() {
     rc::pcm_encode_standard(telem, averaged.met_ms, frame);
 
     rc::ring_push(&g_ringBuffer, &frame);
+
+    // Stash for telemetry service (IVP-59)
+    g_latestTelem = telem;
+    g_latestTelemValid = true;
 }
 
 // ============================================================================
-// Radio Test TX (temporary — 10 Hz for IVP-57 Gate 8 soak)
+// Telemetry TX Tick (IVP-59 — replaces radio_test_tx_tick)
 // ============================================================================
 
-static uint32_t g_radioTestTxCount = 0;
-static uint32_t g_radioTestTxLastMs = 0;
-
-// Check for BW-change command from RX after each TX.
-// Command format: "BW:X" where X is 0/1/2.
-static void radio_check_bw_command(void) {
-    // Brief RX window: switch to RX, poll for up to 50ms
-    rfm95w_start_rx(&g_radio);
-    uint64_t start = time_us_64();
-    while ((time_us_64() - start) < 50000) {
-        if (rfm95w_available(&g_radio)) {
-            uint8_t buf[16];
-            uint8_t len = rfm95w_recv(&g_radio, buf, sizeof(buf));
-            if (len >= 4 && buf[0] == 'B' && buf[1] == 'W' && buf[2] == ':') {
-                uint8_t newMode = static_cast<uint8_t>(buf[3] - '0');
-                if (newMode < 3 && newMode != g_txBwMode) {
-                    g_txBwMode = newMode;
-                    rfm95w_set_bandwidth(&g_radio, kTxBwValues[g_txBwMode]);
-                    if (stdio_usb_connected()) {
-                        printf("[BW] Switched to %s (RX command)\n",
-                               kTxBwLabels[g_txBwMode]);
-                    }
-                }
-            }
-            break;
-        }
-    }
-}
-
-static void radio_test_tx_tick(uint32_t nowMs) {
-    if (!g_radioInitialized) { return; }
-    if (nowMs - g_radioTestTxLastMs < 1000) { return; }
-    g_radioTestTxLastMs = nowMs;
-    g_radioTestTxCount++;
-
-    // Get latest GPS from seqlock
-    shared_sensor_data_t snap;
-    int32_t lat = 0;
-    int32_t lon = 0;
-    if (seqlock_read(&g_sensorSeqlock, &snap) && snap.gps_valid) {
-        lat = snap.gps_lat_1e7;
-        lon = snap.gps_lon_1e7;
-    }
-
-    // Packet: "RC #N t=N BW125 lat=NNNNNNNN lon=NNNNNNNN"
-    char pkt[80];
-    int len = snprintf(pkt, sizeof(pkt), "RC #%lu t=%lu %s lat=%ld lon=%ld",
-                       (unsigned long)g_radioTestTxCount,
-                       (unsigned long)(nowMs / 1000),
-                       kTxBwLabels[g_txBwMode],
-                       (long)lat, (long)lon);
-
-    rfm95w_send(&g_radio,
-                reinterpret_cast<const uint8_t*>(pkt),
-                static_cast<uint8_t>(len));
-
-    // After TX, briefly listen for BW-change command from RX
-    radio_check_bw_command();
+static void telemetry_tx_tick(uint32_t nowMs) {
+    if (!g_radioInitialized || !g_latestTelemValid) { return; }
+    rc::telemetry_service_tick(&g_telemService, &g_latestTelem, nowMs);
 }
 
 // ============================================================================
@@ -2693,7 +2679,7 @@ int main() {
         logging_tick();
 
         g_lastTickFunction = "radio_tx";
-        radio_test_tx_tick(nowMs);
+        telemetry_tx_tick(nowMs);
 
         g_lastTickFunction = "cli";
         cli_update_tick();

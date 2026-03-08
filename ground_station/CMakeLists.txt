@@ -108,6 +108,7 @@ add_executable(rocketchip
     ${CMAKE_CURRENT_LIST_DIR}/../src/drivers/spi_bus.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/drivers/rfm95w.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/telemetry/telemetry_encoder.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../src/telemetry/telemetry_service.cpp
 )
 
 # Include directories (same as main build)
@@ -190,6 +191,7 @@ set(ROCKETCHIP_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/../src/drivers/spi_bus.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/drivers/rfm95w.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/telemetry/telemetry_encoder.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../src/telemetry/telemetry_service.cpp
 )
 set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
