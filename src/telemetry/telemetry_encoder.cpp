@@ -162,4 +162,57 @@ uint8_t TelemetryEncoderState::max_packet_size() const {
     }
 }
 
+// ============================================================================
+// CCSDS Decoder (IVP-60: RX mode)
+// ============================================================================
+
+bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
+                      TelemetryState& telem, uint16_t& seq_out,
+                      uint32_t& met_ms_out) {
+    // Length check
+    if (len != ccsds::kNavPacketLen) {
+        return false;
+    }
+
+    // Validate primary header: Version=000, Type=0, SecHdrFlag=1
+    // Byte 0 upper 5 bits: VVV T S = 000 0 1 = 0x08
+    if ((buf[0] & 0xF8) != 0x08) {
+        return false;
+    }
+
+    // APID check
+    uint16_t apid = static_cast<uint16_t>(
+        ((buf[0] & 0x07) << 8) | buf[1]);
+    if (apid != ccsds::kApidNav) {
+        return false;
+    }
+
+    // CRC-16 verification: CRC covers bytes 0..51, stored big-endian in 52..53
+    uint16_t computed_crc = crc16_ccitt(buf, 52);
+    uint16_t stored_crc = static_cast<uint16_t>(
+        (buf[52] << 8) | buf[53]);
+    if (computed_crc != stored_crc) {
+        return false;
+    }
+
+    // Extract 14-bit sequence counter from bytes 2-3
+    seq_out = static_cast<uint16_t>(
+        ((buf[2] & 0x3F) << 8) | buf[3]);
+
+    // Extract MET from secondary header (bytes 6-9, big-endian)
+    met_ms_out = (static_cast<uint32_t>(buf[6]) << 24) |
+                 (static_cast<uint32_t>(buf[7]) << 16) |
+                 (static_cast<uint32_t>(buf[8]) <<  8) |
+                  static_cast<uint32_t>(buf[9]);
+
+    // Copy 40-byte nav payload (bytes 10-49) into TelemetryState
+    memset(&telem, 0, sizeof(telem));
+    memcpy(&telem, &buf[10], 40);
+
+    // Restore met_ms from secondary header
+    telem.met_ms = met_ms_out;
+
+    return true;
+}
+
 } // namespace rc

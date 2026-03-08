@@ -1751,18 +1751,16 @@ Flash flush requires `flash_safe_execute()` — both cores paused during sector 
 
 ## Stage 7: Radio & Telemetry
 
-**Purpose:** Encode logged data for radio transmission, manage radio link, implement receive-side decoding and protocol translation. Includes TX (vehicle) and RX (ground-side RocketChip in Receiver mode) firmware.
+**Purpose:** Encode logged data for radio transmission, manage radio link, implement receive-side decoding and protocol translation. Same firmware on all boards — TX/RX is a compile-time configuration (`ROCKETCHIP_RADIO_RX`), selected by Mission Profile. Not a runtime toggle.
 
 **Dependencies:** Stage 6 (TelemetryState struct, PCM frame format), RFM95W hardware
-
-**Note:** Before implementing IVP-60, evaluate whether RX firmware should be a Receiver Mission Profile rather than bespoke code. A Receiver profile that configures the same firmware for RX-only mode with translation output fits the Mission Profile ecosystem cleanly — any RocketChip board becomes a ground receiver by selecting a profile.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
 | IVP-57 | RFM95W Radio Driver | SPI bus init, LoRa TX/RX, polling ✓ |
 | IVP-58 | Telemetry Encoder | CCSDS/MAVLink strategy interface, Mission Profile selects encoder |
 | IVP-59 | Telemetry Service | Configurable TX rate, APID prioritization, duty cycle management |
-| IVP-60 | Translation Layer | RX-mode firmware for ground-side RocketChip, protocol translation |
+| IVP-60 | RX Mode + CCSDS Decode | Compile-time RX mode — CCSDS decode, CSV output, NeoPixel link quality |
 | IVP-61 | QGC Validation | End-to-end TX→RX→QGC display verification |
 | IVP-62 | Bidirectional Commands | Command reception/parsing, ACK/NACK (execution depends on Stage 8) |
 | IVP-63 | FSK Continuous Bitstream | *(placeholder — deferred)* |
@@ -1780,8 +1778,6 @@ Flash flush requires `flash_safe_execute()` — both cores paused during sector 
 **Implement:** SPI bus driver (`src/drivers/spi_bus.h/.cpp`, GPIO-controlled CS), RFM95W LoRa driver (`src/drivers/rfm95w.h/.cpp`). Optional peripheral — absent FeatherWing detected at boot via RegVersion read (expected 0x12). LoRa parameters: 915 MHz, SF7, BW 125 kHz, CR 4/5. Polling IRQ pattern (`rfm95w_poll_irq()`) instead of hardware interrupt for initial driver. Ground station: standalone Pico SDK build targeting Adafruit Fruit Jam (#6200, RP2350B) with RFM95W breakout (#3072), SPI1 (GPIO 28/30/31).
 
 Council-reviewed (unanimous, 6 amendments incorporated): 64-bit frequency calculation, GPIO CS not hardware CS, FIFO pointer reset before TX, 100ms TX timeout, used-registers-only constants, `poll_irq()` for deferred ISR swap.
-
-**Temporary bench state (per AGENT_WHITEBOARD):** 1 Hz test TX heartbeat (`"RC #N t=N"`) active in flight firmware (`radio_test_tx_tick()` in `src/main.cpp`), TX power at 5 dBm in `src/drivers/rfm95w.cpp`. Remove test TX when IVP-58 (telemetry encoder) lands; restore to 20 dBm for field use.
 
 **[GATE] — All 8 gates verified 2026-02-25 (commit d2f3cbe):**
 1. **Init:** `RegVersion = 0x12` confirmed, radio transitions to standby
@@ -1839,22 +1835,30 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-### IVP-60: Translation Layer — *preliminary*
+### IVP-60: RX Mode + CCSDS Decode
 
-**Prerequisites:** IVP-58 (encoder format defined)
+**Prerequisites:** IVP-59 (telemetry service TX), IVP-58 (CCSDS encoder)
 
-**Note:** Before implementing, evaluate whether RX firmware should be a `Receiver` Mission Profile on a standard RocketChip board rather than bespoke code. Any RocketChip board becomes a ground receiver by selecting the profile.
+**Architecture (revised 2026-03-07):** RX mode is a **compile-time configuration**, not a runtime toggle. `ROCKETCHIP_RADIO_RX=1` in CMakeLists.txt selects RX mode (ground station build). Default (undefined) is TX mode (flight downlink). Same `main.cpp`, same main loop — the `if constexpr (kRadioModeRx)` branches compile out the unused path. Sensors, ESKF, logging all proceed normally if hardware is present (inert if absent). CLI stays active in RX mode. Will be set by Mission Profile in Stage 8.
 
-**Implement:** RX-mode firmware for ground-side RocketChip. Receives any RocketChip telemetry (CCSDS or MAVLink), decodes, outputs translated data over USB serial. Generic: any supported input to any supported output. CCSDS on wire → MAVLink over USB for QGC (user never sees CCSDS). Also accepts MAVLink from external sources for passthrough. Future: WiFi/Bluetooth output for production tiers.
+**Implement:**
+1. `ccsds_decode_nav()` — reverse of `CcsdsEncoder::encode_nav()`. Validates primary header (version, type, APID), verifies CRC-16-CCITT, extracts TelemetryState + sequence counter + MET.
+2. `telemetry_service_start_rx()` / `telemetry_service_stop_rx()` — enter/exit RX continuous mode.
+3. `telemetry_service_rx_tick()` — polls `rfm95w_available()`, calls `rfm95w_recv()`, decodes CCSDS, prints CSV line with RSSI/SNR.
+4. `kRadioModeRx` constexpr in `config.h` — compile-time mode selection. Ground station CMakeLists.txt sets `ROCKETCHIP_RADIO_RX=1`. `t` key shows RX stats when in RX build.
+5. NeoPixel RX overlay: solid green (receiving), 2Hz yellow blink (>1s gap), fast red blink (>5s gap).
+
+**RX CSV output:** `RX,seq,rssi,snr,lat,lon,alt_m,vel_n,vel_e,vel_d,baro_alt_m,q_w,q_x,q_y,q_z,state,met_ms`
 
 **[GATE]:**
-- RX board receives CCSDS packets and outputs MAVLink messages over USB
-- RX board receives MAVLink packets and passes through over USB
-- QGC connects to RX board USB and displays telemetry
-- Translation adds < `⚠️ VALIDATE 5ms` latency per packet
-- 10+ minute continuous operation with no missed translations
+- TX board: flight build (default). RX board: ground station build (`ROCKETCHIP_RADIO_RX=1`)
+- RX serial shows CSV telemetry lines with valid RSSI/SNR
+- CLI `t` on RX board shows packet count, RSSI, CRC errors
+- NeoPixel: solid green while receiving, yellow/red blink on gap
+- 5-min soak: count packets, no USB stalls
+- Sensor rates on TX board unaffected
 
-**[DIAG]:** Decode errors = packet format mismatch between TX and RX firmware versions. USB output stalls = CDC buffer management issue. QGC doesn't connect = MAVLink system ID or component ID mismatch.
+**[DIAG]:** No packets received = BW mismatch or DIO0 mapping wrong. CRC errors = frequency drift or interference. CSV stalls = USB CDC buffer full (rate-limit output or increase buffer).
 
 ---
 

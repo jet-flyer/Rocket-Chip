@@ -141,6 +141,30 @@ struct TelemetryEncoderState {
     uint8_t max_packet_size() const;
 };
 
+// ============================================================================
+// CCSDS Decoder (IVP-60: RX mode)
+// ============================================================================
+
+/**
+ * @brief Decode a CCSDS nav packet into TelemetryState
+ *
+ * Reverse of CcsdsEncoder::encode_nav(). Validates:
+ *   - Packet length (must be exactly 54 bytes)
+ *   - Version (000), Type (0), SecHdrFlag (1)
+ *   - APID (kApidNav)
+ *   - CRC-16-CCITT over primary + secondary + payload
+ *
+ * @param buf       Raw packet bytes
+ * @param len       Packet length
+ * @param telem     Output: decoded TelemetryState (met_ms and _reserved zeroed)
+ * @param seq_out   Output: 14-bit sequence counter from header
+ * @param met_ms_out Output: MET from secondary header
+ * @return true if packet is valid and decoded, false on any error
+ */
+bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
+                      TelemetryState& telem, uint16_t& seq_out,
+                      uint32_t& met_ms_out);
+
 } // namespace rc
 
 #endif // ROCKETCHIP_TELEMETRY_ENCODER_H

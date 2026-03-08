@@ -46,6 +46,7 @@ static void init_gpio_and_reset(uint8_t cs, uint8_t rst, uint8_t irq) {
 
     gpio_init(irq);
     gpio_set_dir(irq, GPIO_IN);
+    gpio_disable_pulls(irq);  // No internal pulls — SX1276 DIO0 is push-pull
 
     // SX1276 datasheet Section 7.2.2 — POR after reset
     gpio_put(rst, 0);
@@ -211,14 +212,14 @@ bool rfm95w_available(rfm95w_t* dev) {
         return false;
     }
 
-    // Check DIO0 pin (RxDone interrupt)
-    if (rfm95w_poll_irq(dev)) {
-        // Verify it's actually RxDone, not some other IRQ
-        uint8_t irq_flags = spi_bus_read_reg(dev->cs_pin,
-                                             rfm95w::reg::kIrqFlags);
-        return (irq_flags & rfm95w::irq::kRxDone) != 0;
-    }
-    return false;
+    // Check IRQ flags register directly for RxDone.
+    // GPIO DIO0 polling is unreliable on some boards (Fruit Jam GPIO5
+    // shared with Button3 may have external pull-down clamping DIO0).
+    // Register read is authoritative — SX1276 sets RxDone bit regardless
+    // of DIO0 pin state.
+    uint8_t irq_flags = spi_bus_read_reg(dev->cs_pin,
+                                         rfm95w::reg::kIrqFlags);
+    return (irq_flags & rfm95w::irq::kRxDone) != 0;
 }
 
 bool rfm95w_poll_irq(rfm95w_t* dev) {

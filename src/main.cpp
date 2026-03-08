@@ -163,6 +163,10 @@ static constexpr uint8_t kCalNeoAccelSample = 5;  // Yellow solid (hold still)
 static constexpr uint8_t kCalNeoMag         = 6;  // Rainbow (rotate freely)
 static constexpr uint8_t kCalNeoSuccess     = 7;  // Green solid (step passed)
 static constexpr uint8_t kCalNeoFail        = 8;  // Red blink fast (step failed)
+// RX mode NeoPixel overlay (set by Core 0 RX tick, read by Core 1)
+static constexpr uint8_t kRxNeoReceiving   = 9;  // Green solid (packets arriving)
+static constexpr uint8_t kRxNeoGap         = 10; // Yellow blink (>1s gap)
+static constexpr uint8_t kRxNeoLost        = 11; // Red blink fast (>5s gap)
 
 // Tracks last NeoPixel mode/color so we only call ws2812_set_mode()
 // on transitions, not every cycle (which would reset animation state).
@@ -749,6 +753,9 @@ static void core1_neopixel_update(shared_sensor_data_t* localData,
                 case kCalNeoMag:         neo_set_if_changed(WS2812_MODE_RAINBOW, kColorWhite); break;
                 case kCalNeoSuccess:     neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen); break;
                 case kCalNeoFail:        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
+                case kRxNeoReceiving:    neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen); break;
+                case kRxNeoGap:          neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow); break;
+                case kRxNeoLost:         neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
                 default:                 break;
             }
         }
@@ -1610,9 +1617,13 @@ static void print_hw_status() {
                kTxBwLabels[g_txBwMode],
                rocketchip::pins::kRadioCs, rocketchip::pins::kRadioRst,
                rocketchip::pins::kRadioIrq);
-        printf("[MODE] TX %dHz CCSDS %dB\n",
-               static_cast<int>(g_telemService.rate_hz),
-               static_cast<int>(rc::ccsds::kNavPacketLen));
+        if constexpr (kRadioModeRx) {
+            printf("[MODE] RX — listening for CCSDS packets\n");
+        } else {
+            printf("[MODE] TX %dHz CCSDS %dB\n",
+                   static_cast<int>(g_telemService.rate_hz),
+                   static_cast<int>(rc::ccsds::kNavPacketLen));
+        }
     } else if (g_spiInitialized) {
         printf("[----] Radio: not detected (FeatherWing not stacked?)\n");
     }
@@ -1741,9 +1752,14 @@ static void init_peripherals() {
             rocketchip::pins::kRadioIrq);
     }
 
-    // Telemetry service init (IVP-59) — 2 Hz default (ground/IDLE rate)
+    // Telemetry service init (IVP-59/60)
+    // Radio mode is compile-time: kRadioModeRx selects RX (ground station),
+    // default is TX (flight downlink). Will be set by Mission Profile.
     if (g_radioInitialized) {
         rc::telemetry_service_init(&g_telemService, &g_radio, 2);
+        if constexpr (kRadioModeRx) {
+            rc::telemetry_service_start_rx(&g_telemService);
+        }
     }
 
     // Calibration storage init (before USB per LL Entry 4/12)
@@ -2500,7 +2516,21 @@ static void handle_unhandled_key(int key) {
         break;
     case 't':
     case 'T':
-        if (g_radioInitialized) {
+        if (!g_radioInitialized) {
+            printf("Radio not initialized.\n");
+        } else if (g_telemService.mode == rc::RadioMode::kRx) {
+            uint32_t now = to_ms_since_boot(get_absolute_time());
+            uint32_t gap = (g_telemService.rx_count > 0) ?
+                (now - g_telemService.last_rx_ms) : 0;
+            printf("RX: %lu pkts, %ddBm, %d.%ddB SNR, %lu CRC err, last %lu.%lus ago\n",
+                   (unsigned long)g_telemService.rx_count,
+                   static_cast<int>(g_telemService.last_rx_rssi),
+                   static_cast<int>(g_telemService.last_rx_snr),
+                   0,  // SNR is int, no fractional
+                   (unsigned long)g_telemService.rx_crc_errors,
+                   (unsigned long)(gap / 1000),
+                   (unsigned long)((gap % 1000) / 100));
+        } else {
             uint32_t now = to_ms_since_boot(get_absolute_time());
             uint8_t duty = rc::telemetry_service_duty_pct(&g_telemService, now);
             printf("TX: %dHz CCSDS %dB %lums/pkt duty=%u%% seq=%lu drop=%lu\n",
@@ -2510,13 +2540,11 @@ static void handle_unhandled_key(int key) {
                    static_cast<unsigned>(duty),
                    (unsigned long)g_telemService.tx_count,
                    (unsigned long)g_telemService.tx_fail_count);
-        } else {
-            printf("Radio not initialized.\n");
         }
         break;
     case 'r':
-    case 'R':
-        if (g_radioInitialized) {
+        // Cycle TX rate (TX mode only — RX builds have no rate to cycle)
+        if (g_radioInitialized && !kRadioModeRx) {
             uint8_t newRate = rc::telemetry_service_cycle_rate(&g_telemService);
             printf("[TX] Rate changed to %dHz\n", static_cast<int>(newRate));
         }
@@ -2647,12 +2675,39 @@ static void logging_tick() {
 }
 
 // ============================================================================
-// Telemetry TX Tick (IVP-59 — replaces radio_test_tx_tick)
+// Telemetry Radio Tick (IVP-59 TX, IVP-60 RX)
 // ============================================================================
 
-static void telemetry_tx_tick(uint32_t nowMs) {
-    if (!g_radioInitialized || !g_latestTelemValid) { return; }
-    rc::telemetry_service_tick(&g_telemService, &g_latestTelem, nowMs);
+// RX NeoPixel gap thresholds
+static constexpr uint32_t kRxGapWarningMs = 1000;   // Yellow blink after 1s
+static constexpr uint32_t kRxGapLostMs    = 5000;   // Red blink after 5s
+
+static void telemetry_radio_tick(uint32_t nowMs) {
+    if (!g_radioInitialized) { return; }
+
+    if (g_telemService.mode == rc::RadioMode::kTx) {
+        if (!g_latestTelemValid) { return; }
+        rc::telemetry_service_tick(&g_telemService, &g_latestTelem, nowMs);
+        // Clear RX NeoPixel override when in TX mode
+        uint8_t cur = g_calNeoPixelOverride.load(std::memory_order_relaxed);
+        if (cur >= kRxNeoReceiving && cur <= kRxNeoLost) {
+            g_calNeoPixelOverride.store(kCalNeoOff, std::memory_order_relaxed);
+        }
+    } else {
+        rc::telemetry_service_rx_tick(&g_telemService, nowMs);
+
+        // RX NeoPixel overlay — signal link quality to Core 1
+        uint32_t gap = nowMs - g_telemService.last_rx_ms;
+        uint8_t neoVal;
+        if (g_telemService.rx_count == 0 || gap >= kRxGapLostMs) {
+            neoVal = kRxNeoLost;
+        } else if (gap >= kRxGapWarningMs) {
+            neoVal = kRxNeoGap;
+        } else {
+            neoVal = kRxNeoReceiving;
+        }
+        g_calNeoPixelOverride.store(neoVal, std::memory_order_relaxed);
+    }
 }
 
 // ============================================================================
@@ -2678,8 +2733,8 @@ int main() {
         g_lastTickFunction = "logging";
         logging_tick();
 
-        g_lastTickFunction = "radio_tx";
-        telemetry_tx_tick(nowMs);
+        g_lastTickFunction = "radio";
+        telemetry_radio_tick(nowMs);
 
         g_lastTickFunction = "cli";
         cli_update_tick();

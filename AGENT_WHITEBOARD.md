@@ -14,11 +14,10 @@
 
 ### Stage 7 (Radio & Telemetry) — In Progress
 
-**Updated 2026-03-07.** IVP-57 (radio driver) and IVP-58 (CCSDS encoder) complete. IVP-59 (telemetry service) complete — replaced `radio_test_tx_tick()` with CCSDS TX service at 2/5/10 Hz. TX power restored to 20 dBm. SX1276 DIO0 mapping bug fixed (was preventing all TX). Next: IVP-60 (RX mode + CSV decode).
+**Updated 2026-03-07.** IVP-57 (radio driver), IVP-58 (CCSDS encoder), IVP-59 (telemetry service), and IVP-60 (RX mode + CCSDS decode) complete. Mission Profile infrastructure added (compile-time vehicle/station selection). 5-min soak verified: 607 pkts, 0 CRC err, 98.7% delivery. Next: IVP-61 (MAVLink re-encode + QGC validation + range test).
 
 - **Key insight:** No `gcs_main.cpp` needed. Probe-first detection handles absent sensors. ESKF doesn't run without IMU. GCS compute (Haversine, RSSI bar, MAVLink re-encode) is trivial. Same binary, different hardware, different Mission Profile.
-
-Execute: Stage J first, then Stage 7 on both TX and RX sides.
+- **Mission Profile pattern:** `mission.h` selector includes `mission_vehicle.h` or `mission_station.h` based on `ROCKETCHIP_MISSION_STATION` CMake define. Parallel to `board.h` but for behavioral config (radio mode, sensor policy, etc.). Expandable for future profiles.
 
 ---
 
@@ -39,6 +38,16 @@ Execute: Stage J first, then Stage 7 on both TX and RX sides.
 **Stage renumber (2026-03-03):** Data Logging pulled forward to Stage 6 (IVP-49–56). Radio & Telemetry is Stage 7 (IVP-57–65, IVP-57 verified). Flight Director is Stage 8 (IVP-66–70), Adaptive Estimation Stage 9 (IVP-71–74), Ground Station Stage 10 (IVP-75–80, new), System Integration Stage 11 (IVP-81–85). Total: 85 IVP steps. CCSDS telemetry primary, MAVLink secondary — encoder selected by Mission Profile.
 
 ---
+
+### Behavior Path Map / Logic Flow Audit — Post-Stage 7
+
+**Added 2026-03-07.** No comprehensive map exists of all runtime behavior paths through the firmware: boot sequence, sensor detection permutations, TX/RX mode transitions, CLI command dispatch, Core 0/Core 1 interactions, error recovery paths, NeoPixel state machine, USB connect/disconnect handling. Each IVP adds new branches (e.g., IVP-60 adds TX↔RX mode switch). A dedicated session to produce a visual/textual behavior map would catch dead paths, missing error handling, and undocumented state transitions. Natural fit after Stage 7 completes and before Stage 8 (Flight Director state machine).
+
+---
+
+### Mission Profile Expansion — Dedicated Session Needed
+
+**Added 2026-03-07.** Mission profile infrastructure is in place (`include/rocketchip/mission.h` selector, `mission_vehicle.h`, `mission_station.h`). Currently only defines `mission::kRadioModeRx`. Needs a dedicated session to flesh out the full profile system: sensor enable/disable policy, logging behavior, CLI feature set, telemetry rates, ESKF mode, NeoPixel behavior, etc. Each profile header defines constexpr values that `config.h` imports via `using`. Same pattern as `board.h` (hardware) but for behavioral configuration. Natural integration point: Stage 8 (Flight Director / Mission Profiles). Convention: `mission_<name>.h` naming, `ROCKETCHIP_MISSION_<NAME>=1` CMake define.
 
 ---
 
@@ -72,6 +81,7 @@ Not blocking current IVP work — informational audit for optimization.
 
 *Items noted for future stages — not blocking, no action needed now.*
 
+- **5-NeoPixel RSSI Bar for Station (post-Stage 7):** Re-add the 5-LED RSSI bar feedback from the bespoke ground station code (`ground_station/radio_rx.cpp`). The old code used all 5 NeoPixels as an RSSI signal strength bar. Current IVP-60 RX overlay uses a single NeoPixel (green/yellow/red). After Stage 7 is complete, expand to use all 5 NeoPixels on boards that have them (Fruit Jam has 5) for a proper RSSI bar visualization in station mode.
 - **ESKF Readability/Optimization Pass (post-Stage 9):** `reset_covariance_attitude()` is 52 lines (threshold 60) — close to limit and will grow with phase-scheduled Q/R transitions. `clamp_extended_covariance()` uses if/else chains per state block — a table-driven pattern (`{idx, count, clamp, inhibit_flag}` array) would scale better as more blocks are added. Not blocking — all functions pass the pre-commit hook now, but a deeper pass would improve readability and prepare for phase-scheduled Q/R. Note: `scalar_kalman_update()` (Joseph form) is now bypassed on target by Bierman path (`ESKF_USE_BIERMAN=1`, 2026-02-24); Joseph retained behind `#ifdef` for host-side A/B testing.
 - **3-Axis Magnetometer Model (Titan tier):** Current `update_mag_heading()` uses yaw-only scalar H (heading + WMM declination). Mag states (earth_mag indices 15-17, body_mag_bias 18-20) are **unobservable** with this model — no F coupling (identity propagation), no H entries at 15-20. States MUST remain inhibited until a proper 3-axis measurement model is implemented: `z_predicted = R(q) * earth_mag_NED + body_mag_bias`, with H entries at attitude (0-2), earth_mag (15-17), body_mag_bias (18-20). WMM table already has field data — needs inclination + magnitude extraction in addition to current declination-only use. ArduPilot reference: `fuseMagnetometer()` in `NavEKF3_MagFusion.cpp`. Once implemented, flip `inhibit_mag_states_` to enable.
 - **F' Evaluation:** Three Titan paths identified (A: STM32H7+F'/Zephyr, B: Pi Zero 2 W+F'/Linux, C: Hybrid). Research complete in `docs/decisions/TITAN_BOARD_ANALYSIS.md`. Decision deferred until Titan development begins.

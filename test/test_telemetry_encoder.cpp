@@ -268,3 +268,147 @@ TEST(TelemetryEncoderStateTest, MaxPacketSize) {
     state.init(EncoderType::kMavlink);
     EXPECT_EQ(state.max_packet_size(), 105);
 }
+
+// ============================================================================
+// CCSDS Decoder Tests (IVP-60)
+// ============================================================================
+
+class CcsdsDecoderTest : public ::testing::Test {
+protected:
+    CcsdsEncoder enc;
+    TelemetryState telem_in;
+    EncodeResult encoded;
+
+    void SetUp() override {
+        enc.init();
+        telem_in = make_test_telem();
+        memset(&encoded, 0, sizeof(encoded));
+        enc.encode_nav(telem_in, telem_in.met_ms, encoded);
+    }
+};
+
+TEST_F(CcsdsDecoderTest, RoundTripIdentity) {
+    TelemetryState decoded{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    ASSERT_TRUE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
+    EXPECT_EQ(seq, 0);
+    EXPECT_EQ(met, 12345u);
+}
+
+TEST_F(CcsdsDecoderTest, RoundTripQuaternion) {
+    TelemetryState decoded{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    ASSERT_TRUE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
+    EXPECT_EQ(decoded.q_w, telem_in.q_w);
+    EXPECT_EQ(decoded.q_x, telem_in.q_x);
+    EXPECT_EQ(decoded.q_y, telem_in.q_y);
+    EXPECT_EQ(decoded.q_z, telem_in.q_z);
+}
+
+TEST_F(CcsdsDecoderTest, RoundTripGps) {
+    TelemetryState decoded{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    ASSERT_TRUE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
+    EXPECT_EQ(decoded.lat_1e7, telem_in.lat_1e7);
+    EXPECT_EQ(decoded.lon_1e7, telem_in.lon_1e7);
+    EXPECT_EQ(decoded.alt_mm, telem_in.alt_mm);
+}
+
+TEST_F(CcsdsDecoderTest, RoundTripVelocity) {
+    TelemetryState decoded{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    ASSERT_TRUE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
+    EXPECT_EQ(decoded.vel_n_cms, telem_in.vel_n_cms);
+    EXPECT_EQ(decoded.vel_e_cms, telem_in.vel_e_cms);
+    EXPECT_EQ(decoded.vel_d_cms, telem_in.vel_d_cms);
+}
+
+TEST_F(CcsdsDecoderTest, RoundTripBaro) {
+    TelemetryState decoded{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    ASSERT_TRUE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
+    EXPECT_EQ(decoded.baro_alt_mm, telem_in.baro_alt_mm);
+    EXPECT_EQ(decoded.baro_vvel_cms, telem_in.baro_vvel_cms);
+}
+
+TEST_F(CcsdsDecoderTest, RoundTripStatus) {
+    TelemetryState decoded{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    ASSERT_TRUE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
+    EXPECT_EQ(decoded.gps_speed_cms, telem_in.gps_speed_cms);
+    EXPECT_EQ(decoded.gps_fix_sats, telem_in.gps_fix_sats);
+    EXPECT_EQ(decoded.flight_state, telem_in.flight_state);
+    EXPECT_EQ(decoded.health, telem_in.health);
+    EXPECT_EQ(decoded.temperature_c, telem_in.temperature_c);
+    EXPECT_EQ(decoded.battery_mv, telem_in.battery_mv);
+}
+
+TEST_F(CcsdsDecoderTest, RoundTripMet) {
+    TelemetryState decoded{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    ASSERT_TRUE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
+    EXPECT_EQ(met, telem_in.met_ms);
+    EXPECT_EQ(decoded.met_ms, telem_in.met_ms);
+}
+
+TEST_F(CcsdsDecoderTest, SequenceCounterPreserved) {
+    // Encode 3 packets, decode each, verify seq
+    for (uint16_t i = 0; i < 3; i++) {
+        EncodeResult r{};
+        enc.encode_nav(telem_in, 1000 + i, r);
+        TelemetryState decoded{};
+        uint16_t seq = 0;
+        uint32_t met = 0;
+        ASSERT_TRUE(ccsds_decode_nav(r.buf, r.len, decoded, seq, met));
+        EXPECT_EQ(seq, i + 1);  // SetUp already consumed seq 0
+    }
+}
+
+TEST_F(CcsdsDecoderTest, RejectWrongLength) {
+    TelemetryState decoded{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    EXPECT_FALSE(ccsds_decode_nav(encoded.buf, 53, decoded, seq, met));
+    EXPECT_FALSE(ccsds_decode_nav(encoded.buf, 55, decoded, seq, met));
+    EXPECT_FALSE(ccsds_decode_nav(encoded.buf, 0, decoded, seq, met));
+}
+
+TEST_F(CcsdsDecoderTest, RejectCorruptedCrc) {
+    encoded.buf[20] ^= 0x01;  // Flip a payload bit
+    TelemetryState decoded{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    EXPECT_FALSE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
+}
+
+TEST_F(CcsdsDecoderTest, RejectWrongApid) {
+    // Corrupt APID (byte 1)
+    encoded.buf[1] = 0xFF;
+    // Recompute CRC so only APID check triggers
+    uint16_t crc = crc16_ccitt(encoded.buf, 52);
+    encoded.buf[52] = static_cast<uint8_t>(crc >> 8);
+    encoded.buf[53] = static_cast<uint8_t>(crc & 0xFF);
+    TelemetryState decoded{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    EXPECT_FALSE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
+}
+
+TEST_F(CcsdsDecoderTest, RejectWrongVersion) {
+    // Set version bits to non-zero
+    encoded.buf[0] |= 0x20;
+    uint16_t crc = crc16_ccitt(encoded.buf, 52);
+    encoded.buf[52] = static_cast<uint8_t>(crc >> 8);
+    encoded.buf[53] = static_cast<uint8_t>(crc & 0xFF);
+    TelemetryState decoded{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    EXPECT_FALSE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
+}
