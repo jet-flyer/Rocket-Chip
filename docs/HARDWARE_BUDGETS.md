@@ -2,6 +2,11 @@
 
 **Purpose:** Track measured timing, memory, and resource budgets for firmware planning.
 
+> **See also:** `docs/audits/cla_rbm/COMPUTATIONAL_LOAD_ANALYSIS.md` for current per-core
+> CPU utilization, ESKF timing, sensor rates, and memory budget (measured 2026-03-08,
+> Stage 7 firmware). The data below is from IVP-13 (2026-02-05) and serves as a
+> historical baseline — the CLA supersedes it for current planning.
+
 ---
 
 ## I2C Bus Timing (400kHz Fast Mode)

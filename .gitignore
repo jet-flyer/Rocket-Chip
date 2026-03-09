@@ -56,3 +56,6 @@ CLAUDE.local.md
 
 # Temporary test files
 tmpclaude-*
+
+# Generated Graphviz SVGs (render from .dot sources)
+docs/audits/cla_rbm/dot/*.svg

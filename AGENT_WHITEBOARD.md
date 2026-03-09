@@ -40,10 +40,6 @@
 
 ---
 
-### Behavior Path Map / Logic Flow Audit — Post-Stage 7
-
-**Added 2026-03-07.** No comprehensive map exists of all runtime behavior paths through the firmware: boot sequence, sensor detection permutations, TX/RX mode transitions, CLI command dispatch, Core 0/Core 1 interactions, error recovery paths, NeoPixel state machine, USB connect/disconnect handling. Each IVP adds new branches (e.g., IVP-60 adds TX↔RX mode switch). A dedicated session to produce a visual/textual behavior map would catch dead paths, missing error handling, and undocumented state transitions. Natural fit after Stage 7 completes and before Stage 8 (Flight Director state machine).
-
 ---
 
 ### Mission Profile Expansion — Dedicated Session Needed
@@ -51,16 +47,6 @@
 **Added 2026-03-07.** Mission profile infrastructure is in place (`include/rocketchip/mission.h` selector, `mission_vehicle.h`, `mission_station.h`). Currently only defines `mission::kRadioModeRx`. Needs a dedicated session to flesh out the full profile system: sensor enable/disable policy, logging behavior, CLI feature set, telemetry rates, ESKF mode, NeoPixel behavior, etc. Each profile header defines constexpr values that `config.h` imports via `using`. Same pattern as `board.h` (hardware) but for behavioral configuration. Natural integration point: Stage 8 (Flight Director / Mission Profiles). Convention: `mission_<name>.h` naming, `ROCKETCHIP_MISSION_<NAME>=1` CMake define.
 
 ---
-
-### Core Load Audit — Dedicated Dive Needed
-
-**Added 2026-03-04.** No deliberate audit has been done to map what runs on each core and whether the load is balanced. Current split is organic: Core 0 = main loop + USB + CLI + ESKF + logging pipeline, Core 1 = sensor sampling (IMU 1kHz, baro 8Hz, GPS 10Hz, mag 100Hz). Need a dedicated session to:
-1. Catalogue every function and ISR running on each core
-2. Measure actual CPU utilization per core (cycle counting or timer profiling)
-3. Identify if any work should move between cores for better balance
-4. Document the core assignment rationale in SAD or a dedicated doc
-
-Not blocking current IVP work — informational audit for optimization.
 
 ---
 
@@ -89,7 +75,7 @@ Not blocking current IVP work — informational audit for optimization.
 - ~~**FeatherWing UART GPS:**~~ **DONE** (2026-02-18). `gps_uart.cpp` driver complete with interrupt-driven ring buffer. Outdoor validated.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
 - **LED Engine Refactor (back burner):** Current ws2812 driver is a solid animation engine but callers must manage transition-only `set_mode()` calls manually (fixed 2026-02-19 with `neo_set_if_changed()`). Refactor to a proper declarative state machine where flight/status states map to LED patterns — the engine handles transitions internally. Natural integration point: IVP-69 (action executor) when mapping to ArduPilot AP_Notify standard codes. Outdoor LED verification pending with GPS fix test.
-- **clang-tidy Integration:** LLVM installed, 127-check config active, full audit clean (2026-02-20, P5c complete). **All code fully remediated** across 6 phases (P1-P5c, 1,501 total findings + 24 function decompositions). Pre-commit hook active for function-size + cognitive complexity gate. Full 127-check pre-commit enforcement deferred (too slow for every commit). **Post-dev caveat:** clang-tidy has no native cyclomatic complexity check — the cognitive complexity gate is a proxy, not equivalent. JSF AV Rule 3 requires cyclomatic CC <= 20. A post-dev audit with a true cyclomatic tool is needed for final JSF compliance sign-off. Options: (1) `lizard` — Python, `pip install lizard`, run `lizard -C 20 src/` for instant per-function CC report; (2) `pmccabe` — C-native, lightweight; (3) `metrix++` — Python, multi-metric. Manual review of functions scoring cognitive 20+ is also viable given the codebase size.
+- **clang-tidy Integration:** LLVM installed, 127-check config active, full audit clean (2026-02-20, P5c complete). **All code fully remediated** across 6 phases (P1-P5c, 1,501 total findings + 24 function decompositions). Pre-commit hook active for function-size + cognitive complexity gate. Full 127-check pre-commit enforcement deferred (too slow for every commit). **Post-dev caveat:** clang-tidy has no native cyclomatic complexity check — the cognitive complexity gate is a proxy, not equivalent. JSF AV Rule 3 requires cyclomatic CC <= 20. A post-dev audit with a true cyclomatic tool is needed for final JSF compliance sign-off. Options: (1) `lizard` — Python, `pip install lizard`, run `lizard -C 20 src/` for instant per-function CC report; (2) `pmccabe` — C-native, lightweight; (3) `metrix++` — Python, multi-metric. Manual review of functions scoring cognitive 20+ is also viable given the codebase size. **Note:** Grok produced a cyclomatic complexity script (not yet added to repo) — check with user for the script before writing a new one.
 - **Dynamic Peripheral Detection + OTA Drivers (Crowdfunding Goal):** Boot-time probe-first detection implemented (2026-02-10). Runtime hot-plug, driver registry, and OTA firmware downloads for unrecognized devices are stretch goals. Full architecture documented in SAD Section 13.2. Flipper Zero-style: plug in a sensor, RC identifies it, prompts for driver. WiFi/BT OTA for Core/Middle tiers.
 - **State-Aware ZUPT for State Machine (IVP-67):** Current ZUPT (IVP-44b) uses IMU-based stationarity detection with kSigmaZupt=0.5 m/s. When the state machine knows we're IDLE or ARMED (on pad), we can: (1) tighten R to ~0.1 m/s since stationarity is guaranteed, (2) skip the accel/gyro stationarity check entirely, (3) keep loose ZUPT as fallback for uncertain states (LANDED before confirmed). ArduPilot EKF3 `onGround` flag and PX4 ECL `vehicle_at_rest` both use vehicle state to override IMU-based detection. Natural integration point: `eskf_tick()` checks flight state and calls `update_zupt()` with tighter R when on pad.
 - **Direct NOAA/IGRF WMM Table Generation:** Current WMM declination table is converted from ArduPilot's `AP_Declination/tables.cpp` (IGRF13 epoch). Long-term goal: generate table directly from NOAA WMM/IGRF coefficients (spherical harmonic expansion) to remove AP dependency. NOAA publishes WMM coefficients as `WMM.COF` file every 5 years (next: WMM2030). Python script to evaluate the model at grid points and output C++ table. Not blocking — current table is valid through ~2028-2029.
@@ -102,6 +88,12 @@ Not blocking current IVP work — informational audit for optimization.
 ---
 
 ## Resolved
+
+### CLA + RBM Audit — COMPLETE (2026-03-08)
+
+Computational Load Analysis and Runtime Behavior Map produced as `docs/audits/cla_rbm/`. CLA based on 270s HW soak (no firmware instrumentation — CLI data collection only). RBM verified against source by `scripts/rbm_check.py`. Graphviz `.dot` diagrams for boot sequence, cross-core timeline, error recovery. Key findings: Core 0 ~12% duty (84% margin), Core 1 ~85% duty (IMU I2C dominated), 343KB/520KB SRAM used. Six gaps documented (GAP-1 through GAP-6). Cross-reference added to `docs/HARDWARE_BUDGETS.md`.
+
+---
 
 ### SRAM Execution Audit — CLOSED (2026-02-24)
 

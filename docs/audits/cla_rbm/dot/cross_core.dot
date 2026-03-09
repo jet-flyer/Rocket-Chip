@@ -1,0 +1,89 @@
+// RocketChip Cross-Core Communication Map
+// Shows all atomic flags, seqlock, and lockout interactions between Core 0 and Core 1
+// Render: dot -Tsvg cross_core.dot -o cross_core.svg
+
+digraph cross_core {
+    rankdir=LR;
+    node [fontname="Helvetica", fontsize=10];
+    edge [fontname="Helvetica", fontsize=9];
+
+    // Core 0 functions
+    subgraph cluster_core0 {
+        label="Core 0";
+        style=filled;
+        fillcolor="#E3F2FD";
+        color="#1565C0";
+        fontcolor="#1565C0";
+
+        c0_init [label="init_application()", shape=box];
+        c0_eskf [label="eskf_tick()\n200Hz", shape=box];
+        c0_wdt [label="watchdog_kick_tick()\n1Hz", shape=box];
+        c0_cli [label="cli_update_tick()\n20Hz", shape=box];
+        c0_cal [label="calibration commands\n(rare)", shape=box];
+        c0_flash [label="flash_safe_execute()\n(rare)", shape=box];
+        c0_logging [label="logging_tick()\n50Hz", shape=box];
+    }
+
+    // Core 1 functions
+    subgraph cluster_core1 {
+        label="Core 1";
+        style=filled;
+        fillcolor="#F3E5F5";
+        color="#6A1B9A";
+        fontcolor="#6A1B9A";
+
+        c1_wait [label="Wait loop\n(boot)", shape=box];
+        c1_imu [label="core1_read_imu()\n1kHz", shape=box];
+        c1_baro [label="core1_read_baro()\n16Hz", shape=box];
+        c1_gps [label="core1_read_gps()\n10Hz", shape=box];
+        c1_seqlock [label="seqlock_write()\n1kHz", shape=box];
+        c1_wdt [label="g_wdtCore1Alive\nstore(true)", shape=box];
+        c1_neo [label="core1_neopixel_update()", shape=box];
+        c1_pause [label="core1_check_pause()", shape=box];
+    }
+
+    // Shared primitives
+    subgraph cluster_shared {
+        label="Shared Primitives";
+        style=filled;
+        fillcolor="#FFF3E0";
+        color="#E65100";
+        fontcolor="#E65100";
+        node [shape=diamond];
+
+        seq [label="g_sensorSeqlock\n(seqlock, 148B)"];
+        start [label="g_startSensorPhase\n(atomic bool)"];
+        wdt1 [label="g_wdtCore1Alive\n(atomic bool)"];
+        pause [label="g_core1PauseI2C\n(atomic bool)"];
+        paused [label="g_core1I2CPaused\n(atomic bool)"];
+        reload [label="g_calReloadPending\n(atomic bool)"];
+        lockout [label="g_core1LockoutReady\n(atomic bool)"];
+        neoov [label="g_calNeoPixelOverride\n(atomic u8)"];
+    }
+
+    // Data flow edges
+    c0_init -> start [label="set true", color="#2E7D32"];
+    start -> c1_wait [label="read, unblock", color="#2E7D32"];
+
+    c1_seqlock -> seq [label="write @1kHz", color="#1565C0"];
+    seq -> c0_eskf [label="read @200Hz", color="#1565C0"];
+
+    c1_wdt -> wdt1 [label="store true @1kHz", color="#FF6F00"];
+    wdt1 -> c0_wdt [label="read + clear @1Hz", color="#FF6F00"];
+
+    c0_cal -> pause [label="set true", color="#D32F2F"];
+    pause -> c1_pause [label="read, stall", color="#D32F2F"];
+    c1_pause -> paused [label="set true", color="#D32F2F"];
+    paused -> c0_cal [label="wait for ack", color="#D32F2F"];
+
+    c0_cal -> reload [label="set true", color="#7B1FA2"];
+    reload -> c1_pause [label="read, reload cal", color="#7B1FA2"];
+
+    c0_cli -> neoov [label="set override", color="#00695C"];
+    neoov -> c1_neo [label="read @1kHz", color="#00695C"];
+
+    c0_flash -> c1_pause [label="multicore_lockout\n(stalls Core 1)", color="#D32F2F", style=dashed];
+
+    c1_wait -> lockout [label="set true\nafter victim_init", color="#2E7D32"];
+    lockout -> c0_flash [label="check before\nflash ops", color="#2E7D32"];
+}

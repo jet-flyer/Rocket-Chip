@@ -1,0 +1,133 @@
+// RocketChip Error Recovery Paths
+// Each path terminates in: (a) Recovered, (b) Degraded, (c) Watchdog Reset
+// Render: dot -Tsvg error_recovery.dot -o error_recovery.svg
+
+digraph error_recovery {
+    rankdir=TB;
+    node [fontname="Helvetica", fontsize=10, shape=box, style=rounded];
+    edge [fontname="Helvetica", fontsize=9];
+
+    // Outcomes
+    recovered [label="(a) RECOVERED\nNormal operation", shape=ellipse, style=filled, fillcolor="#C8E6C9"];
+    degraded [label="(b) DEGRADED\nReduced capability", shape=ellipse, style=filled, fillcolor="#FFF9C4"];
+    watchdog [label="(c) WATCHDOG RESET\nFull reboot", shape=ellipse, style=filled, fillcolor="#FFCDD2"];
+
+    // IMU error path
+    subgraph cluster_imu {
+        label="IMU (ICM-20948)";
+        style=dashed;
+        color="#1565C0";
+
+        imu_nack [label="I2C NACK\n(read failure)"];
+        imu_zeros [label="Zero-output fault\n|A| < 3.0 m/s²"];
+        imu_consec [label="Consecutive fail\ncounter++"];
+        imu_recover [label="i2c_bus_reset()\n9-clock recovery"];
+        imu_reinit [label="icm20948_reinit()\nfull device reset"];
+        imu_ok [label="Read succeeds\ncounter = 0"];
+
+        imu_nack -> imu_consec;
+        imu_zeros -> imu_consec;
+        imu_consec -> imu_recover [label="≥ 3 fails"];
+        imu_consec -> imu_reinit [label="≥ 10 fails"];
+        imu_recover -> imu_ok [label="bus cleared"];
+        imu_reinit -> imu_ok [label="device reset"];
+    }
+    imu_ok -> recovered;
+
+    // Baro error path
+    subgraph cluster_baro {
+        label="Baro (DPS310)";
+        style=dashed;
+        color="#F57F17";
+
+        baro_fail [label="Read failure\n(MEAS_CFG not ready)"];
+        baro_count [label="Error count++\n(no recovery)"];
+        baro_degrade [label="No altitude updates\nESKF baro path inactive"];
+
+        baro_fail -> baro_count -> baro_degrade;
+    }
+    baro_degrade -> degraded [label="Loss: baro altitude\nGPS+ZUPT fallback"];
+
+    // GPS error path
+    subgraph cluster_gps {
+        label="GPS (PA1010D)";
+        style=dashed;
+        color="#2E7D32";
+
+        gps_parse [label="Parse failure\n(invalid NMEA)"];
+        gps_nofix [label="No satellite fix"];
+        gps_skip [label="Skip cycle\nerror count++"];
+        gps_degrade [label="Dead-reckoning only\nNo position updates"];
+
+        gps_parse -> gps_skip;
+        gps_nofix -> gps_degrade;
+    }
+    gps_skip -> recovered [label="Next parse succeeds"];
+    gps_degrade -> degraded [label="Loss: GPS position/velocity"];
+
+    // ESKF error path
+    subgraph cluster_eskf {
+        label="ESKF Filter";
+        style=dashed;
+        color="#6A1B9A";
+
+        eskf_health [label="5 health sentinels:\nNaN, ∞, qnorm, P diag,\nvelocity > 500 m/s"];
+        eskf_coast [label="Coast mode\nskip measurement updates"];
+        eskf_reinit [label="Filter reset\nidentity P, zero state"];
+        eskf_degrade [label="No nav solution\nNeoPixel = UNHEALTHY"];
+
+        eskf_health -> eskf_coast [label="1 sentinel fails"];
+        eskf_coast -> eskf_reinit [label="sustained"];
+        eskf_reinit -> recovered [label="sensor data valid"];
+        eskf_reinit -> eskf_degrade [label="sensors also failed"];
+    }
+    eskf_degrade -> degraded [label="Loss: attitude, position,\nvelocity estimates"];
+
+    // Watchdog path
+    subgraph cluster_wdt {
+        label="Watchdog";
+        style=dashed;
+        color="#D32F2F";
+
+        wdt_c0 [label="Core 0 alive check\n(g_wdtCore0Alive)"];
+        wdt_c1 [label="Core 1 alive check\n(g_wdtCore1Alive)"];
+        wdt_and [label="AND gate\nboth must be alive"];
+        wdt_timeout [label="5s timeout\nno kick"];
+
+        wdt_c0 -> wdt_and;
+        wdt_c1 -> wdt_and;
+        wdt_and -> wdt_timeout [label="either core stalled"];
+    }
+    wdt_timeout -> watchdog;
+
+    // USB path
+    subgraph cluster_usb {
+        label="USB CDC";
+        style=dashed;
+        color="#00695C";
+
+        usb_disconnect [label="Terminal disconnects"];
+        usb_connect [label="Terminal connects"];
+        usb_drain [label="Drain input buffer\n(garbage bytes)"];
+        usb_banner [label="Print boot banner"];
+
+        usb_disconnect -> usb_connect [label="reconnect"];
+        usb_connect -> usb_drain -> usb_banner;
+    }
+    usb_banner -> recovered;
+
+    // I2C bus recovery
+    subgraph cluster_i2c {
+        label="I2C Bus";
+        style=dashed;
+        color="#795548";
+
+        i2c_stuck [label="SDA stuck LOW"];
+        i2c_recover [label="i2c_bus_reset()\ndeinit → 9-clock → reinit"];
+        i2c_scl_check [label="SCL stuck?\n(another device holds)"];
+
+        i2c_stuck -> i2c_scl_check;
+        i2c_scl_check -> i2c_recover [label="SCL free"];
+    }
+    i2c_recover -> recovered;
+}

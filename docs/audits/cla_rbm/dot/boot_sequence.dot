@@ -1,0 +1,102 @@
+// RocketChip Boot Sequence — init_hardware() → init_application() → main loop
+// Render: dot -Tsvg boot_sequence.dot -o boot_sequence.svg
+
+digraph boot_sequence {
+    rankdir=TB;
+    node [shape=box, style=rounded, fontname="Helvetica", fontsize=10];
+    edge [fontname="Helvetica", fontsize=9];
+
+    // Entry
+    main [label="main()", shape=ellipse, style=filled, fillcolor="#E8F5E9"];
+
+    // init_hardware
+    subgraph cluster_hw {
+        label="init_hardware()";
+        style=dashed;
+        color="#1565C0";
+        fontcolor="#1565C0";
+
+        wdt_check [label="check_watchdog_reboot()\nscratch sentinel"];
+        early_hw [label="init_early_hw()\nfault handlers + MPU\nLED GPIO + NeoPixel"];
+        psram_init [label="psram_init()\n+ self_test()"];
+        core1_launch [label="multicore_launch_core1()\n(Core 1 starts, waits)"];
+        i2c_init [label="i2c_bus_init()\n400kHz Fast Mode"];
+        sensor_init [label="init_sensors()\nprobe-first detection"];
+        periph_init [label="init_peripherals()\nSPI + Radio + Telem\nCal storage + USB CDC"];
+
+        wdt_check -> early_hw -> psram_init -> core1_launch;
+        core1_launch -> i2c_init -> sensor_init -> periph_init;
+    }
+
+    // init_application
+    subgraph cluster_app {
+        label="init_application()";
+        style=dashed;
+        color="#2E7D32";
+        fontcolor="#2E7D32";
+
+        hooks_init [label="init_rc_os_hooks()\nwire CLI callbacks"];
+        signal_core1 [label="g_startSensorPhase=true\n+ rc_os_i2c_scan_allowed=false"];
+        wait_lockout [label="Wait for\ng_core1LockoutReady"];
+        psram_test [label="psram_flash_safe_test()\n(deferred — needs lockout)"];
+        logging_init [label="init_logging_ring()\nPSRAM or SRAM fallback"];
+        flight_load [label="flight_table_load()\n+ calibration_start_baro()"];
+        wdt_enable [label="watchdog sentinel\n+ watchdog_enable(5000ms)"];
+
+        hooks_init -> signal_core1 -> wait_lockout -> psram_test;
+        psram_test -> logging_init -> flight_load -> wdt_enable;
+    }
+
+    // Sensor detection
+    subgraph cluster_sensors {
+        label="init_sensors() — probe first";
+        style=dashed;
+        color="#F57F17";
+        fontcolor="#F57F17";
+
+        settle [label="sleep_ms(200)\nsensor settling"];
+        imu_probe [label="i2c_bus_probe(0x69)\nICM-20948"];
+        imu_init [label="icm20948_init()\n+ bypass mode"];
+        baro_probe [label="i2c_bus_probe(0x77)\nDPS310"];
+        baro_init [label="baro_dps310_init()\n+ start_continuous()"];
+        gps_uart [label="UART GPS detect\n(if kUartGpsAvailable)"];
+        gps_i2c [label="I2C GPS fallback\n(probe 0x10)"];
+
+        settle -> imu_probe;
+        imu_probe -> imu_init [label="found"];
+        imu_probe -> baro_probe [label="not found"];
+        imu_init -> baro_probe;
+        baro_probe -> baro_init [label="found"];
+        baro_probe -> gps_uart [label="not found"];
+        baro_init -> gps_uart;
+        gps_uart -> gps_i2c [label="not found"];
+    }
+
+    // Core 1
+    subgraph cluster_core1 {
+        label="Core 1";
+        style=dashed;
+        color="#6A1B9A";
+        fontcolor="#6A1B9A";
+
+        c1_entry [label="core1_entry()\nMPU stack guard"];
+        c1_wait [label="Wait for\ng_startSensorPhase"];
+        c1_lockout [label="multicore_lockout_victim_init()"];
+        c1_ready [label="g_core1LockoutReady=true"];
+        c1_loop [label="core1_sensor_loop()\n1kHz polling"];
+
+        c1_entry -> c1_wait -> c1_lockout -> c1_ready -> c1_loop;
+    }
+
+    // Main loop
+    main_loop [label="Main Loop\nwhile(true)", shape=ellipse, style=filled, fillcolor="#FFF9C4"];
+
+    // Edges
+    main -> wdt_check;
+    periph_init -> hooks_init;
+    wdt_enable -> main_loop;
+    core1_launch -> c1_entry [style=dashed, label="Core 1 launched"];
+    signal_core1 -> c1_wait [style=dashed, label="signal"];
+    wait_lockout -> c1_ready [style=dashed, dir=back, label="ack"];
+    sensor_init -> settle;
+}
