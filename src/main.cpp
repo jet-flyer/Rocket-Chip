@@ -64,7 +64,7 @@ static constexpr uint32_t kHeartbeatPeriodMs = kHeartbeatOnMs + kHeartbeatOffMs;
 
 // Core 1 sensor loop timing
 static constexpr uint32_t kCore1TargetCycleUs = 1000;           // ~1kHz target
-static constexpr uint32_t kCore1BaroDivider = 20;               // Baro at ~50Hz
+static constexpr uint32_t kCore1BaroDivider = 32;               // Baro at ~31Hz (DPS310 continuous = 32 SPS)
 static constexpr uint32_t kCore1GpsDivider = 100;               // GPS at ~10Hz
 static constexpr uint32_t kGpsMinIntervalUs = 2000;             // MT3333 buffer refill time
 static constexpr uint32_t kCore1CalFeedDivider = 10;            // Cal feed at ~100Hz
@@ -621,31 +621,10 @@ static void core1_read_baro(shared_sensor_data_t* localData) {
     static uint32_t baroConsecFail = 0;
     static uint32_t baroReinitAttempts = 0;
 
-    uint8_t measCfg = 0;
-    int readResult = i2c_bus_read_reg(kI2cAddrDps310, kDps310MeasCfgReg,
-                                      &measCfg);
-
-    // I2C failure or data-not-ready: escalate (mirrors IMU pattern)
-    if (readResult != 0 ||
-        (measCfg & (kDps310PrsRdy | kDps310TmpRdy)) !=
-            (kDps310PrsRdy | kDps310TmpRdy)) {
-        baroConsecFail++;
-        localData->baro_error_count++;
-        if (baroConsecFail >= kCore1ConsecFailDevReset) {
-            if (baroReinitAttempts < kBaroMaxReinitAttempts) {
-                baro_dps310_start_continuous();
-                baroReinitAttempts++;
-            } else {
-                g_baroInitialized = false;  // Declare baro dead
-            }
-            baroConsecFail = 0;
-        } else if (baroConsecFail >= kCore1ConsecFailBusRecover
-                   && baroConsecFail % kCore1ConsecFailBusRecover == 0) {
-            i2c_bus_recover();
-        }
-        return;
-    }
-
+    // Read directly via ruuvi driver — no MEAS_CFG pre-check.
+    // The DPS310 in continuous mode alternates PRS_RDY and TMP_RDY;
+    // requiring both simultaneously is too strict and produces false errors.
+    // The ruuvi driver reads raw registers; I2C failure returns !valid.
     baro_dps310_data_t baroData;
     if (baro_dps310_read(&baroData) && baroData.valid) {
         localData->pressure_pa = baroData.pressure_pa;
@@ -661,9 +640,23 @@ static void core1_read_baro(shared_sensor_data_t* localData) {
             calibration_feed_baro(baroData.pressure_pa,
                                   baroData.temperature_c);
         }
-    } else {
-        localData->baro_error_count++;
-        baroConsecFail++;
+        return;
+    }
+
+    // I2C failure or driver error — escalate (mirrors IMU pattern)
+    baroConsecFail++;
+    localData->baro_error_count++;
+    if (baroConsecFail >= kCore1ConsecFailDevReset) {
+        if (baroReinitAttempts < kBaroMaxReinitAttempts) {
+            baro_dps310_start_continuous();
+            baroReinitAttempts++;
+        } else {
+            g_baroInitialized = false;  // Declare baro dead
+        }
+        baroConsecFail = 0;
+    } else if (baroConsecFail >= kCore1ConsecFailBusRecover
+               && baroConsecFail % kCore1ConsecFailBusRecover == 0) {
+        i2c_bus_recover();
     }
 }
 
