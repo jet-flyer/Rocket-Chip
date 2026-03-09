@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-08-002 | Claude Code CLI | documentation, tooling
+
+**CLA + RBM pre-Stage 8 audit.** Computational Load Analysis from 270s HW soak (zero firmware changes — serial CLI data collection only). Runtime Behavior Map covering boot sequence, Core 0/Core 1 dispatch, CLI state machine, NeoPixel priority, error recovery (6 gaps documented). Graphviz `.dot` diagrams for boot sequence, cross-core timeline, error recovery. Repeatable via `scripts/cla_collect.py`, `scripts/rbm_check.py`, `scripts/render_dot.sh`. Cross-reference added to `HARDWARE_BUDGETS.md`. (`docs/audits/cla_rbm/`, `scripts/`)
+
+---
+
 ### 2026-03-08-001 | Claude Code CLI | feature, bugfix
 
 **Stage 7 Radio & Telemetry — IVP-58 through IVP-61 complete. IVP-62 deferred.** End-to-end telemetry pipeline verified: CCSDS encoding over LoRa (vehicle→station), MAVLink re-encoding on station, QGC High Latency mode connected via Fruit Jam bridge with live attitude data.

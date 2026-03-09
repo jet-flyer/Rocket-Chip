@@ -89,12 +89,6 @@
 
 ## Resolved
 
-### CLA + RBM Audit — COMPLETE (2026-03-08)
-
-Computational Load Analysis and Runtime Behavior Map produced as `docs/audits/cla_rbm/`. CLA based on 270s HW soak (no firmware instrumentation — CLI data collection only). RBM verified against source by `scripts/rbm_check.py`. Graphviz `.dot` diagrams for boot sequence, cross-core timeline, error recovery. Key findings: Core 0 ~12% duty (84% margin), Core 1 ~85% duty (IMU I2C dominated), 343KB/520KB SRAM used. Six gaps documented (GAP-1 through GAP-6). Cross-reference added to `docs/HARDWARE_BUDGETS.md`.
-
----
-
 ### SRAM Execution Audit — CLOSED (2026-02-24)
 
 All hot-path functions audited via `arm-none-eabi-nm --size-sort`. Only `codegen_fpft` (20,124B) exceeds the 2KB XIP cache — already in `.time_critical` SRAM section. All others well under threshold: `core1_read_gps` 352B, `propagate_nominal` 324B, `core1_sensor_loop` 272B, `core1_read_imu` 164B, `core1_read_baro` 116B. No further SRAM placements needed.
