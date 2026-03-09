@@ -110,4 +110,15 @@ bool gps_uart_send_command(const char* cmd);
  */
 bool gps_uart_set_rate(uint8_t rateHz);
 
+/**
+ * @brief Reinitialize UART GPS (staleness recovery)
+ *
+ * Deinits UART, resets ring buffer, renegotiates baud, re-enables IRQ.
+ * Blocks for up to 2s during presence detection.
+ * Call only when GPS has been stale for an extended period.
+ *
+ * @return true if GPS re-detected and reinitialized
+ */
+bool gps_uart_reinit(void);
+
 #endif // ROCKETCHIP_GPS_UART_H

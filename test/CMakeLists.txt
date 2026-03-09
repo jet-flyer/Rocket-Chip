@@ -115,6 +115,11 @@ add_executable(test_flight_table test_flight_table.cpp)
 target_link_libraries(test_flight_table PRIVATE rc_logging GTest::gtest_main)
 gtest_discover_tests(test_flight_table)
 
+# Pre-Stage 8: ESKF reset API tests (Flight Director)
+add_executable(test_eskf_reset test_eskf_reset.cpp)
+target_link_libraries(test_eskf_reset PRIVATE rc_fusion GTest::gtest_main)
+gtest_discover_tests(test_eskf_reset)
+
 # IVP-58: Telemetry encoder (CCSDS + MAVLink)
 add_executable(test_telemetry_encoder test_telemetry_encoder.cpp)
 target_link_libraries(test_telemetry_encoder PRIVATE rc_telemetry GTest::gtest_main)

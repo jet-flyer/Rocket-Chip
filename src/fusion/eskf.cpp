@@ -1042,6 +1042,53 @@ void ESKF::reset_origin(double newLatRad, double newLonRad, float newAltM) {
 }
 
 // ============================================================================
+// reset_velocity: Zero velocity + reset P velocity block.
+// Flight Director API for state transitions (IVP-67).
+// Pattern: same as set_origin() P-reset for velocity block (lines 996-1010).
+// ============================================================================
+void ESKF::reset_velocity() {
+#ifdef ESKF_USE_BIERMAN
+    ensure_dense();
+#endif
+    v = Vec3();
+    // Zero cross-covariances for velocity states [6..8]
+    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
+        for (int32_t j = eskf::kIdxVelocity;
+             j < eskf::kIdxVelocity + eskf::kBlockSize; ++j) {
+            P.data[i][j] = 0.0F;
+            P.data[j][i] = 0.0F;
+        }
+    }
+    for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
+        P.data[eskf::kIdxVelocity + i][eskf::kIdxVelocity + i] =
+            kInitPVelocity;
+    }
+}
+
+// ============================================================================
+// reset_position: Zero position + reset P position block.
+// Flight Director API for state transitions (IVP-67).
+// ============================================================================
+void ESKF::reset_position() {
+#ifdef ESKF_USE_BIERMAN
+    ensure_dense();
+#endif
+    p = Vec3();
+    // Zero cross-covariances for position states [3..5]
+    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
+        for (int32_t j = eskf::kIdxPosition;
+             j < eskf::kIdxPosition + eskf::kBlockSize; ++j) {
+            P.data[i][j] = 0.0F;
+            P.data[j][i] = 0.0F;
+        }
+    }
+    for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
+        P.data[eskf::kIdxPosition + i][eskf::kIdxPosition + i] =
+            kInitPPosition;
+    }
+}
+
+// ============================================================================
 // geodetic_to_ned: Convert WGS84 geodetic to local NED frame
 // Critical (council C-5): subtraction in double before float cast.
 // Flat-earth approximation — valid within ~100km of origin.
@@ -1330,6 +1377,89 @@ bool ESKF::healthy() const {
     }
 
     return true;
+}
+
+// ============================================================================
+// check_p_growth: Periodic P-diagonal growth rate check.
+// Returns false if position or velocity P diags grew >10× in 30s (diverging).
+// Reset cycling guard: >2 resets in 5 min → permanently degraded.
+// ============================================================================
+// Snapshot P-diagonals for position and velocity into baseline arrays.
+void ESKF::snapshot_p_growth_baseline() {
+    for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
+        p_growth_baseline_pos_[i] =
+            P.data[eskf::kIdxPosition + i][eskf::kIdxPosition + i];
+        p_growth_baseline_vel_[i] =
+            P.data[eskf::kIdxVelocity + i][eskf::kIdxVelocity + i];
+    }
+}
+
+// Record a P-growth reset event, flag degraded if cycling.
+void ESKF::record_p_growth_reset(uint32_t nowUs) {
+    if (p_growth_reset_count_ == 0) {
+        p_growth_first_reset_us_ = nowUs;
+    }
+    p_growth_reset_count_++;
+    if (p_growth_reset_count_ > kPGrowthMaxResetsInWindow &&
+        nowUs - p_growth_first_reset_us_ < kPGrowthResetWindowUs) {
+        p_growth_degraded_ = true;
+    }
+    p_growth_baseline_set_ = false;
+}
+
+bool ESKF::check_p_growth(uint32_t nowUs) {
+    if (p_growth_degraded_) {
+        return false;
+    }
+
+    if (!p_growth_baseline_set_) {
+        snapshot_p_growth_baseline();
+        p_growth_last_check_us_ = nowUs;
+        p_growth_baseline_set_ = true;
+        return true;
+    }
+
+    if (nowUs - p_growth_last_check_us_ < kPGrowthCheckIntervalUs) {
+        return true;
+    }
+
+    // Check growth ratio for each axis
+    for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
+        float posP = P.data[eskf::kIdxPosition + i][eskf::kIdxPosition + i];
+        float velP = P.data[eskf::kIdxVelocity + i][eskf::kIdxVelocity + i];
+
+        if (p_growth_baseline_pos_[i] > 1e-6F &&
+            posP > p_growth_baseline_pos_[i] * kPGrowthRatioThreshold) {
+            record_p_growth_reset(nowUs);
+            return false;
+        }
+        if (p_growth_baseline_vel_[i] > 1e-6F &&
+            velP > p_growth_baseline_vel_[i] * kPGrowthRatioThreshold) {
+            record_p_growth_reset(nowUs);
+            return false;
+        }
+    }
+
+    // Update baseline snapshot
+    snapshot_p_growth_baseline();
+    p_growth_last_check_us_ = nowUs;
+
+    // Clear reset counter if window expired
+    if (p_growth_reset_count_ > 0 &&
+        nowUs - p_growth_first_reset_us_ >= kPGrowthResetWindowUs) {
+        p_growth_reset_count_ = 0;
+    }
+
+    return true;
+}
+
+// ============================================================================
+// reset_p_growth_baseline: Clear baseline state after filter re-init.
+// ============================================================================
+void ESKF::reset_p_growth_baseline() {
+    p_growth_baseline_set_ = false;
+    p_growth_degraded_ = false;
+    p_growth_reset_count_ = 0;
 }
 
 // ============================================================================

@@ -426,6 +426,59 @@ bool gps_uart_send_command(const char* cmd) {
     return true;
 }
 
+bool gps_uart_reinit() {
+    // [M3] UART GPS unavailable on boards where GPIO 0/1 are not UART pins
+    if constexpr (!board::kUartGpsAvailable) {
+        return false;
+    }
+
+    // Disable interrupt — prevents ISR from touching ring buffer during reset
+    irq_set_enabled(UART_IRQ_NUM(GPS_UART_INST), false);
+    uart_set_irqs_enabled(GPS_UART_INST, false, false);
+
+    // Deinit UART
+    uart_deinit(GPS_UART_INST);
+
+    // Reset ring buffer
+    g_rxHead = 0;
+    g_rxTail = 0;
+    g_rxOverflow = 0;
+
+    // Reset parser
+    lwgps_init(&g_gps);
+    memset(&g_data, 0, sizeof(g_data));
+
+    // Mark uninitialized — gps_uart_send_command() guard will be bypassed
+    // by negotiate_baud() using uart_write_blocking() via the existing path.
+    g_initialized = false;
+
+    // Reinit UART at factory baud for presence detection
+    uart_init(GPS_UART_INST, kGpsUartBaud);
+    gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
+    gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
+
+    // Presence detection (blocks up to 2s)
+    if (!detect_gps_presence()) {
+        uart_deinit(GPS_UART_INST);
+        return false;
+    }
+
+    // Negotiate 57600 baud
+    negotiate_baud(kGpsBaud57600);
+
+    g_initialized = true;
+
+    // Reconfigure output sentences and rate
+    gps_uart_send_command("PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+    gps_uart_set_rate(kGpsRateHz10);
+
+    // Re-enable interrupt
+    irq_set_enabled(UART_IRQ_NUM(GPS_UART_INST), true);
+    uart_set_irqs_enabled(GPS_UART_INST, true, false);
+
+    return true;
+}
+
 bool gps_uart_set_rate(uint8_t rateHz) {
     char cmd[32];
     uint16_t intervalMs = 0;

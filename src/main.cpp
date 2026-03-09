@@ -70,6 +70,7 @@ static constexpr uint32_t kGpsMinIntervalUs = 2000;             // MT3333 buffer
 static constexpr uint32_t kCore1CalFeedDivider = 10;            // Cal feed at ~100Hz
 static constexpr uint32_t kCore1ConsecFailBusRecover = 10;      // I2C bus recovery threshold
 static constexpr uint32_t kCore1ConsecFailDevReset = 50;        // ICM-20948 device reset threshold
+static constexpr uint32_t kBaroMaxReinitAttempts = 3;           // Max baro re-inits before declaring dead
 // Minimum plausible accel magnitude: 9.8 × cos(72°) = 3.0 m/s².
 // Below any valid sensor reading — all-zeros output means device is in sleep/reset state.
 // Source: gravity projection floor when tilted 72° off vertical.
@@ -617,25 +618,52 @@ static void core1_read_imu(shared_sensor_data_t* localData,
 }
 
 static void core1_read_baro(shared_sensor_data_t* localData) {
-    uint8_t measCfg = 0;
-    if (i2c_bus_read_reg(kI2cAddrDps310, kDps310MeasCfgReg, &measCfg) == 0 &&
-        (measCfg & (kDps310PrsRdy | kDps310TmpRdy)) == (kDps310PrsRdy | kDps310TmpRdy)) {
-        baro_dps310_data_t baroData;
-        if (baro_dps310_read(&baroData) && baroData.valid) {
-            localData->pressure_pa = baroData.pressure_pa;
-            localData->baro_temperature_c = baroData.temperature_c;
-            localData->baro_timestamp_us = time_us_32();
-            localData->baro_read_count++;
-            localData->baro_valid = true;
+    static uint32_t baroConsecFail = 0;
+    static uint32_t baroReinitAttempts = 0;
 
-            // Feed baro calibration with raw data from Core 1
-            if (calibration_manager_get_state() == CAL_STATE_BARO_SAMPLING) {
-                calibration_feed_baro(baroData.pressure_pa,
-                                      baroData.temperature_c);
+    uint8_t measCfg = 0;
+    int readResult = i2c_bus_read_reg(kI2cAddrDps310, kDps310MeasCfgReg,
+                                      &measCfg);
+
+    // I2C failure or data-not-ready: escalate (mirrors IMU pattern)
+    if (readResult != 0 ||
+        (measCfg & (kDps310PrsRdy | kDps310TmpRdy)) !=
+            (kDps310PrsRdy | kDps310TmpRdy)) {
+        baroConsecFail++;
+        localData->baro_error_count++;
+        if (baroConsecFail >= kCore1ConsecFailDevReset) {
+            if (baroReinitAttempts < kBaroMaxReinitAttempts) {
+                baro_dps310_start_continuous();
+                baroReinitAttempts++;
+            } else {
+                g_baroInitialized = false;  // Declare baro dead
             }
-        } else {
-            localData->baro_error_count++;
+            baroConsecFail = 0;
+        } else if (baroConsecFail >= kCore1ConsecFailBusRecover
+                   && baroConsecFail % kCore1ConsecFailBusRecover == 0) {
+            i2c_bus_recover();
         }
+        return;
+    }
+
+    baro_dps310_data_t baroData;
+    if (baro_dps310_read(&baroData) && baroData.valid) {
+        localData->pressure_pa = baroData.pressure_pa;
+        localData->baro_temperature_c = baroData.temperature_c;
+        localData->baro_timestamp_us = time_us_32();
+        localData->baro_read_count++;
+        localData->baro_valid = true;
+        baroConsecFail = 0;
+        baroReinitAttempts = 0;  // Successful read proves sensor is alive
+
+        // Feed baro calibration with raw data from Core 1
+        if (calibration_manager_get_state() == CAL_STATE_BARO_SAMPLING) {
+            calibration_feed_baro(baroData.pressure_pa,
+                                  baroData.temperature_c);
+        }
+    } else {
+        localData->baro_error_count++;
+        baroConsecFail++;
     }
 }
 
@@ -657,6 +685,41 @@ static void core1_update_best_gps_fix(const shared_sensor_data_t* localData) {
             g_bestGpsValid.store(true, std::memory_order_release);
         }
     }
+}
+
+static constexpr uint32_t kGpsStalenessTimeoutUs = 10000000;  // 10s
+// Velocity threshold for "probably flying" heuristic (flight state gate).
+// Prevents UART reinit mid-flight. Replaced by real state machine in IVP-67.
+static constexpr float kGpsFlyingVelocityThreshold = 5.0F;  // m/s
+
+// GPS UART staleness watchdog. Reinits UART if no valid parse for 10s,
+// gated on flight state (don't reinit mid-flight). Blocks up to 2s.
+static void core1_gps_staleness_check(bool parsed, uint32_t nowUs) {
+    static uint32_t lastValidGpsUs = 0;
+
+    if (parsed) {
+        lastValidGpsUs = nowUs;
+        return;
+    }
+
+    if (g_gpsTransport != GPS_TRANSPORT_UART || lastValidGpsUs == 0) {
+        return;
+    }
+    if (nowUs - lastValidGpsUs <= kGpsStalenessTimeoutUs) {
+        return;
+    }
+
+    // Flight state gate: proxy heuristic until real state machine in IVP-67.
+    bool probablyFlying = g_eskfInitialized &&
+                          g_eskf.v.norm() > kGpsFlyingVelocityThreshold;
+    if (probablyFlying) {
+        return;
+    }
+
+    if (!gps_uart_reinit()) {
+        g_gpsInitialized = false;  // GPS dead — stop polling
+    }
+    lastValidGpsUs = time_us_32();  // Reset timer after attempt
 }
 
 static void core1_read_gps(shared_sensor_data_t* localData,
@@ -714,6 +777,7 @@ static void core1_read_gps(shared_sensor_data_t* localData,
         localData->gps_error_count++;
     }
 
+    core1_gps_staleness_check(parsed, gpsNowUs);
     core1_update_best_gps_fix(localData);
 }
 
@@ -2023,6 +2087,7 @@ static bool eskf_try_init(const shared_sensor_data_t& snap) {
     }
 
     g_eskfInitialized = true;
+    g_eskf.reset_p_growth_baseline();
     g_lastEskfTimestampUs = snap.imu_timestamp_us;  // CR-2: set for first predict dt
     return true;
 }
@@ -2241,6 +2306,13 @@ static void eskf_tick() {
     }
 
     eskf_run_predict(snap);
+
+    // P-growth check: catch slow divergence before velocity hits 500 m/s
+    if (!g_eskf.check_p_growth(time_us_32())) {
+        g_eskfInitialized = false;  // CR-1 reset
+        return;
+    }
+
     eskf_tick_baro(snap);
     eskf_tick_mag(snap);
 

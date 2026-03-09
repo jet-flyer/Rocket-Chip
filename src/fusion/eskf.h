@@ -375,6 +375,21 @@ struct ESKF {
     // Public API for state machine (IVP-67) and explicit heading alignment.
     void reset_mag_heading(float headingMeasured);
 
+    // Reset velocity to zero with covariance reset (Flight Director API).
+    // Zeros v, zeros all P cross-covariances involving velocity [6..8],
+    // sets P velocity diagonal to kInitPVelocity.
+    // Biases are NOT reset — they represent physical sensor characteristics
+    // that survive state transitions (council unanimous).
+    // Note: triggers ensure_dense() when ESKF_USE_BIERMAN is active —
+    // next predict cycle will pay UD factorization cost.
+    void reset_velocity();
+
+    // Reset position to zero with covariance reset (Flight Director API).
+    // Zeros p, zeros all P cross-covariances involving position [3..5],
+    // sets P position diagonal to kInitPPosition.
+    // Same Bierman/bias notes as reset_velocity().
+    void reset_position();
+
     // Zero-velocity pseudo-measurement update (IVP-44b).
     // Checks stationarity from raw IMU data (accel magnitude ≈ g,
     // gyro rates < threshold). If stationary, applies v=[0,0,0] as
@@ -396,6 +411,19 @@ struct ESKF {
     // Health check: NaN detection, P bounds, quaternion norm (council RF-3).
     // Inhibit-aware (R-1): skips P diagonal check for inhibited state indices.
     bool healthy() const;
+
+    // P-diagonal growth rate check — catch slow ESKF divergence.
+    // Returns false if position or velocity P diagonals grew >10× in 30s,
+    // or if reset cycling is detected (>2 resets in 5 min → degraded).
+    // Caller should trigger CR-1 reset on false.
+    //
+    // Threshold math: Q_pos ≈ 0.01 m²/s², so normal 30s growth from
+    // converged P ≈ 5 m² is ~0.3 m² (ratio 1.06×). 10× threshold is
+    // ~167× above normal — unambiguously a fault.
+    bool check_p_growth(uint32_t nowUs);
+
+    // Reset P-growth baseline (call after filter re-init).
+    void reset_p_growth_baseline();
 
     // =================================================================
     // Inhibit flag control — ArduPilot pattern
@@ -489,6 +517,22 @@ private:
     void ensure_dense();
     void ensure_ud();
 #endif
+
+    // P-growth monitoring state
+    static constexpr uint32_t kPGrowthCheckIntervalUs = 30000000;  // 30s
+    static constexpr float kPGrowthRatioThreshold = 10.0F;
+    static constexpr uint32_t kPGrowthMaxResetsInWindow = 2;
+    static constexpr uint32_t kPGrowthResetWindowUs = 300000000;   // 5 min
+    uint32_t p_growth_last_check_us_ = 0;
+    float p_growth_baseline_pos_[3] = {};
+    float p_growth_baseline_vel_[3] = {};
+    bool p_growth_baseline_set_ = false;
+    uint32_t p_growth_reset_count_ = 0;
+    uint32_t p_growth_first_reset_us_ = 0;
+    bool p_growth_degraded_ = false;
+
+    void snapshot_p_growth_baseline();
+    void record_p_growth_reset(uint32_t nowUs);
 };
 
 } // namespace rc
