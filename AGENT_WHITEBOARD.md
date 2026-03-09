@@ -50,9 +50,9 @@
 
 ---
 
-### DPS310 Baro Read Count Freezes — Needs Recovery Mechanism
+### DPS310 Baro Rate — Consider Increasing Above 32 SPS
 
-**Added 2026-03-04.** During IVP-53b HW verification, observed DPS310 baro read count frozen at ~802 while error count climbs continuously (~3K/min). Baro data from initial reads is valid (pressure/temp correct, ESKF bNIS normal) but sensor stops producing new ready flags (`MEAS_CFG` bits PRS_RDY|TMP_RDY` never both set again). Likely cause: DPS310 continuous measurement mode register reset during a `flash_safe_execute()` cycle (I2C bus inaccessible while flash op runs, sensor may re-enter idle). Fix: periodic re-check of DPS310 measurement config register, re-init continuous mode if stopped. Not flight-blocking (baro data only needed for altitude, ESKF has GPS+ZUPT fallbacks) but should be addressed before Stage 8 (Flight Director relies on baro altitude for state transitions).
+**Added 2026-03-09.** DPS310 currently configured at 32 SPS (`kBaroDps310MeasRate` in `baro_dps310.h`). DPS310 supports up to 128 SPS (with reduced oversampling). Higher rate would improve baro altitude responsiveness for the Flight Director. **64 SPS is the sweet spot:** doubles rate with only ~0.02m more altitude noise (0.7 Pa vs 0.5 Pa at 8× oversampling). 128 SPS drops to 1× oversampling (~2.5 Pa / ~20cm noise). Changes needed: `kBaroDps310MeasRate=64` in `baro_dps310.h`, `kCore1BaroDivider=16` in `main.cpp` (1000Hz/16=62.5Hz poll). DPS310 datasheet Table 6 has the full rate/oversampling matrix.
 
 ---
 
@@ -88,6 +88,12 @@
 ---
 
 ## Resolved
+
+### DPS310 Baro Read Count Freezes — FIXED (2026-03-09)
+
+Recovery mechanism added: consecutive fail counter → bus recovery at 10 → re-init continuous mode at 50 (capped at 3 attempts). Also fixed false error inflation: removed MEAS_CFG PRS_RDY|TMP_RDY pre-check (both flags don't set simultaneously in continuous mode), aligned poll divider to 32 (matches 32 SPS output rate). HW verified: 60s soak, 2333 baro reads, 0 errors.
+
+---
 
 ### SRAM Execution Audit — CLOSED (2026-02-24)
 
