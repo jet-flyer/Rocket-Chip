@@ -1,9 +1,20 @@
 # Flight Director Design Specification
 
-**Status:** PRELIMINARY — All details pending implementation validation
+> **⚠️ DEPRECATED (2026-03-14)** — Superseded by council-reviewed documents:
+> - **Formalism & topology:** `docs/flight_director/STATE_MACHINE_FORMALISM_RESEARCH.md`
+> - **Council decisions:** `docs/decisions/flight_director/council_state_machine_formalism.md`
+> - **QP/C integration:** `docs/flight_director/QP_APPLICATION_GUIDE.md`
+>
+> **What changed:** State machine formalism resolved as UML statecharts (not Mealy/Moore binary). APOGEE reclassified as event, not state. QEP adopted for Stage 8, QF+QV as target architecture. Phase topology corrected to 7 states with DESCENT superstate. IVP Stage 8 restructured and renumbered.
+>
+> **What's still valuable here:** Condition evaluator (16 guards), pre-arm checks (2-tier), command handler, action executor, FlightState struct, and abort behavior matrix. These details will be carried forward into the implementation.
+>
+> **Retained for reference.** Do not use for new implementation decisions.
+
+**Status:** ~~PRELIMINARY~~ DEPRECATED — See documents above
 **For:** RocketChip (RP2350 bare-metal Pico SDK, dual-core AMP)
-**IVP Scope:** IVP-67 (State Machine Core), IVP-68 (Event Engine), IVP-69 (Action Executor), IVP-73 (Confidence-Gated Actions)
-**Last Updated:** 2026-03-03
+**IVP Scope:** ~~IVP-67 (State Machine Core), IVP-68 (Event Engine), IVP-69 (Action Executor), IVP-73 (Confidence-Gated Actions)~~ See restructured IVP.md Stage 8
+**Last Updated:** 2026-03-03 (deprecated 2026-03-14)
 
 > **Every technical detail in this document is preliminary.** Nothing is finalized until implementation validates the design against the hardware, the sensor pipeline, and the existing codebase. Values, signatures, struct layouts, and state definitions may change during development.
 

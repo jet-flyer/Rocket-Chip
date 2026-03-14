@@ -1,7 +1,7 @@
 # RocketChip Integration and Verification Plan (IVP)
 
 **Status:** ACTIVE — Living document
-**Last Updated:** 2026-02-24
+**Last Updated:** 2026-03-14
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
 **Architecture:** Bare-metal Pico SDK, dual-core AMP (see `docs/decisions/SEQLOCK_DESIGN.md`)
 
@@ -17,7 +17,9 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stage 5** (Sensor Fusion): Fully detailed
 - **Stage 6** (Data Logging): Preliminary — pulled forward from original Stage 9 (dependency for telemetry)
 - **Stage 7** (Radio & Telemetry): IVP-57 verified, IVP-58–62 preliminary, IVP-63–65 placeholders
-- **Stages 8-11** (Flight Director, Adaptive Estimation, Ground Station, Integration): Placeholders expanded as earlier stages complete
+- **Stage 8** (Flight Director): Fully detailed — restructured per council review (UML statecharts, QEP, 10 IVPs)
+- **Stage 9** (Active Object Architecture): Fully detailed — QF+QV migration from superloop
+- **Stages 10-12** (Adaptive Estimation, Ground Station, Integration): Placeholders expanded as earlier stages complete
 
 **Key references (not duplicated here):**
 - `docs/SAD.md` — System architecture, data structures, module responsibilities
@@ -98,10 +100,11 @@ cmake --build build/
 | 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-48 | Full | |
 | **6** | **Data Logging** | **Phase 5** | **IVP-49 — IVP-56** | **Preliminary** | **(pulled forward)** |
 | **7** | **Radio & Telemetry** | **Phase 5** | **IVP-57 — IVP-65** | **IVP-57 verified** | |
-| 8 | Flight Director | Phase 6 | IVP-66 — IVP-70 | Placeholder | **Crowdfunding Demo Ready** |
-| 9 | Adaptive Estimation & Safety | Phase 6 | IVP-71 — IVP-74 | Placeholder | |
-| **10** | **Ground Station** | **Phase 7** | **IVP-75 — IVP-80** | **Placeholder** | |
-| 11 | System Integration | Phase 9 | IVP-81 — IVP-85 | Placeholder | **Flight Ready** |
+| 8 | Flight Director | Phase 6 | IVP-66 — IVP-75 | Full | **Crowdfunding Demo Ready** |
+| **9** | **Active Object Architecture** | **Phase 6** | **IVP-76 — IVP-80** | **Full** | |
+| 10 | Adaptive Estimation & Safety | Phase 6 | IVP-81 — IVP-84 | Placeholder | |
+| **11** | **Ground Station** | **Phase 7** | **IVP-85 — IVP-90** | **Placeholder** | |
+| 12 | System Integration | Phase 9 | IVP-91 — IVP-95 | Placeholder | **Flight Ready** |
 
 > **Stage 6 pull-forward rationale:** Data Logging was originally Stage 9 but is a dependency for the telemetry encoder — the encoder reads from data structures (FusedState, TelemetryState, SensorSnapshot) defined by the logging architecture. Pulling logging forward establishes the canonical data model that all downstream consumers (telemetry encoder, flight director, GCS) read from. IVP numbers were renumbered sequentially. See council reviews: `docs/decisions/Telem+logging/council_data_logging.md` and `council_telemetry_protocol.md`.
 
@@ -1440,7 +1443,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 **Prerequisites:** IVP-42
 
-**Implement:** `src/fusion/mahony_ahrs.h/.cpp` — independent attitude estimator running alongside ESKF. Lightweight PI controller on orientation error. Uses same IMU data from seqlock but maintains its own quaternion. Provides the independent cross-check required by the confidence gate (IVP-72).
+**Implement:** `src/fusion/mahony_ahrs.h/.cpp` — independent attitude estimator running alongside ESKF. Lightweight PI controller on orientation error. Uses same IMU data from seqlock but maintains its own quaternion. Provides the independent cross-check required by the confidence gate (IVP-82).
 
 1. **Algorithm (Mahony 2008):**
    ```
@@ -1921,21 +1924,36 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ## Stage 8: Flight Director
 
-**Purpose:** Flight state machine and event-driven actions. See SAD.md Section 6.
+**Purpose:** Flight state machine using UML statecharts (QEP), event-driven condition evaluation, and action execution. See `docs/flight_director/STATE_MACHINE_FORMALISM_RESEARCH.md` for formalism rationale, `docs/decisions/flight_director/council_state_machine_formalism.md` for council decisions, and `docs/flight_director/QP_APPLICATION_GUIDE.md` for QEP integration details.
 
-**Prerequisite decisions:**
-- Resolve SAD Open Question #4 (Mealy vs Moore state machine) before implementing IVP-67.
-- IVP-66 (Watchdog Recovery Policy) must be completed first — the state machine depends on knowing how the system recovers from a mid-flight reboot.
+**Key decisions (resolved):**
+- **SAD Open Question #4 resolved:** UML statecharts — not pure Mealy or Moore. Entry/exit actions for state-invariant behavior, transition actions for source-dependent irreversible operations (safety architecture). See council review.
+- **Apogee is an event, not a state.** EVT_APOGEE is a detection event (velocity zero-crossing). Drogue deploy is a transition action on COAST→DESCENT.
+- **QEP for Stage 8, QF+QV as target architecture.** QEP dispatches from existing superloop. Active Object migration in Stage 9.
+- **STARS autocoder gated on toolchain validation** (IVP-67). If setup is clean, STARS is primary; if problematic, hand-authored QEP with STARS deferred.
+- **Phase topology:** 7 top-level states (IDLE, ARMED, BOOST, COAST, DESCENT, LANDED, ABORT). DESCENT is a superstate with DROGUE and MAIN sub-phases. `state_flight` superstate provides common abort handling for BOOST/COAST/DESCENT.
+- **Transition-gated irreversible actions (safety).** Pyro firing is a transition action, not an entry action. Any path into a state cannot inadvertently fire a pyro. This is a safety architecture decision — see research doc Section 5.
+
+**Prerequisites:**
+- IVP-66 (Watchdog Recovery Policy) must be completed first.
+- Prior art carried forward from deprecated `docs/flight_director/RESEARCH.md` (condition evaluator, pre-arm checks, command handler, abort matrix) and `docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md` (action executor, FlightState struct).
+
+**Pending doc work (council Action Items #1, #2):** SAD.md Open Question #4 must be closed with "UML statecharts — see council review." The deprecated `FLIGHT_DIRECTOR_DESIGN.md` should be rewritten from the council findings and new research once Stage 8 implementation validates the design against hardware. The deprecated doc is retained as reference until then.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
 | IVP-66 | Watchdog Recovery Policy | Scratch register persistence, reboot counting, state-aware recovery path |
-| IVP-67 | State Machine Core | IDLE/ARMED/BOOST/COAST/DESCENT/LANDED states and transitions |
-| IVP-68 | Event Engine | Condition evaluator for launch, apogee, landing detection |
-| IVP-69 | Action Executor | LED, beep, logging trigger actions on state transitions |
-| IVP-70 | Mission Configuration | Load mission definitions (rocket, freeform, HAB) |
+| IVP-67 | Toolchain Validation | QP/C + STARS + QM + SPIN compilation gate against Pico SDK |
+| IVP-68 | QEP Integration + Phase Skeleton | Dispatch engine, phase stubs, HSM hierarchy, CLI event injection |
+| IVP-69 | Command Handler + Pre-Arm | CMD_ARM validation, two-tier pre-arm checks, rejection behavior |
+| IVP-70 | Core Guard Functions | 5-6 guards for rocket profile, sustain timing, compare_field helper |
+| IVP-71 | Multi-Method Detection Logic | AND/OR/TIMEOUT combinators, edge detection, validity policy |
+| IVP-72 | Action Executor | LED, logging, telemetry actions on transitions and state entry/exit |
+| IVP-73 | Bench Flight Simulation (SITL) | Full IDLE→LANDED sequence via CLI-injected simulated stimuli |
+| IVP-74 | Mission Configuration | Baked-in const profile (FEMA approach), CLI preview |
+| IVP-75 | Active Object Migration Planning | QF+QV compile gate, AO boundary design, migration plan for Stage 9 |
 
-> **Milestone:** At IVP-70 completion, the system has calibrated sensors, GPS, sensor fusion, data logging, radio link, and a working flight state machine — **Crowdfunding Demo Ready**.
+> **Milestone:** At IVP-74 completion, the system has calibrated sensors, GPS, sensor fusion, data logging, radio link, and a working flight state machine — **Crowdfunding Demo Ready**.
 
 ---
 
@@ -1943,7 +1961,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Prerequisites:** IVP-30 (hardware watchdog mechanism), Stage 5 complete
 
-**Rationale:** IVP-30 implemented the watchdog *mechanism* (dual-core heartbeat, 5s timeout, kick pattern). The mechanism is correct for ground/IDLE — a full reboot recovers cleanly. But a full reboot mid-flight (ARMED through DESCENT) is catastrophic: ESKF state lost, pyro timers reset, position/velocity knowledge gone. The state machine (IVP-67) cannot be designed without first defining what happens when the system wakes up after an unexpected reset.
+**Rationale:** IVP-30 implemented the watchdog *mechanism* (dual-core heartbeat, 5s timeout, kick pattern). The mechanism is correct for ground/IDLE — a full reboot recovers cleanly. But a full reboot mid-flight (ARMED through DESCENT) is catastrophic: ESKF state lost, pyro timers reset, position/velocity knowledge gone. The state machine (IVP-68) cannot be designed without first defining what happens when the system wakes up after an unexpected reset.
 
 **Bug fix (included):** Replace `watchdog_enable_caused_reboot()` with `watchdog_caused_reboot()` in `init_hardware()`. The `_enable_` variant checks a scratch register magic value that persists across picotool flashes and soft resets, causing false watchdog warnings on clean boots. The base `watchdog_caused_reboot()` checks `rom_get_last_boot_type() == BOOT_TYPE_NORMAL` on RP2350, correctly distinguishing true WDT timeouts from reflash reboots.
 
@@ -1959,7 +1977,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 4. **ESKF failure backoff.** Add a consecutive-failure counter for ESKF init→diverge cycles. After `⚠️ VALIDATE 5` consecutive failures (init succeeds but `healthy()` returns false within N seconds), disable ESKF until manual CLI reset (`'e'` key or similar). This prevents the init→diverge→re-init churn observed during ESKF development without requiring a full system reboot. This is the model for subsystem-level recovery: detect failure, disable the failing subsystem, continue operating in degraded mode.
 
-5. **Recovery boot path.** In `init_hardware()` / `init_application()`, after reading scratch registers: if this is a WDT reboot (not POR), log the event, print the diagnostic context from scratch registers, and set a `g_recoveryBoot` flag. The state machine (IVP-67) will use this flag to determine post-reboot behavior per flight state:
+5. **Recovery boot path.** In `init_hardware()` / `init_application()`, after reading scratch registers: if this is a WDT reboot (not POR), log the event, print the diagnostic context from scratch registers, and set a `g_recoveryBoot` flag. The state machine (IVP-68) will use this flag to determine post-reboot behavior per flight state:
    - **IDLE/LANDED:** Normal reboot + LAUNCH_ABORT flag set.
    - **ARMED:** LAUNCH_ABORT + automatic DISARM.
    - **BOOST/COAST/DESCENT:** Recovery mode — skip ESKF (can't re-init under acceleration), resume pyro timers from flash checkpoint, activate beacon. Degrade to baro-only altitude with timer-based backup deployment.
@@ -1978,91 +1996,516 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-### IVP-67: State Machine Core — *TBD after IVP-66*
+### IVP-67: Toolchain Validation (QP/C + STARS + QM + SPIN)
 
-**Prerequisites:** IVP-66 (watchdog recovery policy defined), IVP-57 (radio link operational for arming)
+**Prerequisites:** IVP-66
 
-**Implement:** Hierarchical state machine with states IDLE / ARMED / BOOST / COAST / DESCENT / LANDED / ERROR. Each state has entry/exit actions and a set of valid transitions guarded by conditions from IVP-68 (event engine). All transitions logged. Timeout fallbacks for stuck states.
+**Rationale:** Gates the STARS adoption decision. QEP is the minimum requirement for IVP-68. STARS is the preferred authoring tool but adoption depends on clean setup. This IVP validates the entire toolchain in a single session before committing to it.
 
-Resolve SAD Open Question #4 (Mealy vs Moore) before implementation — the answer determines whether actions belong to transitions or states. See `docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md`.
+**Implement:**
+
+1. **QP/C compilation.** Clone `github.com/QuantumLeaps/qpc`. Vendor QEP files into `lib/qep/` (same pattern as ArduPilot sparse-checkout). Write `qp_port.h` for RP2350 bare-metal Pico SDK (critical sections via `save_and_disable_interrupts()`, `Q_NASSERT` to use project's own assert). Compile against ARM Cortex-M33 target.
+
+2. **Trivial QEP test.** 3-state HSM (IDLE→ACTIVE→DONE) with entry/exit actions and one transition action. Link against Pico SDK. Flash to hardware via debug probe. Verify state transitions via serial output.
+
+3. **QM installation.** Install QM (Quantum Modeler) on development machine. Open, create trivial 3-state model matching the test above.
+
+4. **STARS autocoder.** Clone `github.com/JPLOpenSource/STARS`. Run STARS JAR against the QM model. Verify it generates: C++ (QEP state handlers), Promela (SPIN model), Python (interactive simulator).
+
+5. **SPIN verification.** Install SPIN. Write one trivial LTL safety property (`[] !(state == IDLE && action_fired)`). Verify against generated Promela model.
+
+6. **Generated code integration.** Compile STARS-generated C++ against Pico SDK. Link and flash. Verify behavior matches hand-written test from step 2.
+
+7. **Python simulator.** Run STARS-generated Python simulator. Send events, observe state transitions.
 
 **[GATE]:**
-- All 7 states reachable in bench simulation (inject sensor stimuli)
-- All transitions log correctly: `State: IDLE -> ARMED` format
-- Stuck-state timeouts trigger correctly
-- `g_recoveryBoot` flag routes correctly to LAUNCH_ABORT vs recovery mode per IVP-66 policy
-- No state transitions occur when `confident = false` for irreversible actions (wired at IVP-73)
+- QEP compiles and links against Pico SDK ARM Cortex-M33 target
+- Trivial HSM runs on RP2350 hardware with correct state transitions
+- QM installs and opens on development machine
+- STARS generates C++, Promela, and Python from QM model
+- Generated C++ compiles and links against Pico SDK
+- SPIN verifies trivial safety property against generated Promela
+- Python simulator responds to simulated events
 
-**[DIAG]:** Transition not triggering = event condition thresholds not met; verify against IVP-68 engine output. State machine stuck = missing self-transition or timeout handler.
+**Gate decision:** All checks pass in one session → STARS is primary authoring tool for IVP-68+. Java version conflicts, SPIN issues, or generated code incompatibilities → fall back to hand-authored QEP, revisit STARS later. Document decision in `AGENT_WHITEBOARD.md`.
+
+**[DIAG]:** QEP won't compile = missing port header or C/C++ linkage mismatch (QEP is C99, project is C++20 — use `extern "C"`). STARS JAR fails = Java version requirement. Generated code won't link = STARS output assumptions don't match Pico SDK build. SPIN install fails = platform issue, try pre-built binary.
 
 ---
 
-### IVP-68: Event Engine — *TBD after IVP-67*
+### IVP-68: QEP Integration + Phase Skeleton
 
-**Prerequisites:** IVP-67, IVP-48 (ESKF provides acceleration/altitude/velocity)
+**Prerequisites:** IVP-67 (QEP compiles), IVP-57 (radio link operational)
 
-**Implement:** Condition evaluator feeding the state machine. Detects: launch (`|A| > threshold` for N consecutive samples), apogee (velocity sign change or baro max), landing (low velocity + low altitude change for T seconds). All thresholds configurable per vehicle profile (IVP-74).
+**Implement:** Flight Director as a QEP hierarchical state machine called from the existing Core 0 superloop at 100Hz. UML statechart formalism — entry/exit actions (Moore) + transition actions (Mealy) with guaranteed execution ordering.
+
+1. **HSM hierarchy:**
+   ```
+   state_top                      (root — handles unhandled events)
+   ├── phase_idle                 (ground, pre-arm)
+   ├── phase_armed                (ground, armed, awaiting launch)
+   ├── state_flight               (superstate — common abort handling)
+   │   ├── phase_boost            (powered ascent)
+   │   ├── phase_coast            (unpowered ascent, apogee detection active)
+   │   └── state_descent          (superstate — recovery phase)
+   │       ├── phase_drogue       (drogue descent, awaiting main deploy altitude)
+   │       └── phase_main         (main chute descent)
+   ├── phase_landed               (post-flight, data preservation)
+   └── phase_abort                (safe state, profile-defined actions)
+   ```
+
+2. **State handler stubs.** Each phase is a QEP state handler function (see QP_APPLICATION_GUIDE.md Section 3.1). Stub handlers process Q_ENTRY_SIG, Q_EXIT_SIG, SIG_TICK, and defer unhandled events to parent via Q_SUPER(). Entry/exit actions initially just log transitions.
+
+3. **Signal enum.** SIG_TICK, SIG_ARMED, SIG_LAUNCH, SIG_BURNOUT, SIG_APOGEE, SIG_MAIN_DEPLOY, SIG_LANDING, SIG_ABORT, SIG_DISARM, SIG_RESET. Starts after Q_USER_SIG.
+
+4. **Superloop integration.** `run_flight_director()` dispatches SIG_TICK and pending command signals via `QHSM_DISPATCH()`. Identical to current tick-function pattern — QEP replaces the hand-rolled switch-case.
+
+5. **CLI event injection.** Debug commands to inject any signal manually: `'a'` = SIG_ARMED, `'l'` = SIG_LAUNCH, etc. Enables bench testing of full state sequence without sensors.
+
+6. **FlightState struct.** Current phase enum, flight markers (launch_time, apogee_time, landing_time), status flags. Updated by entry actions.
 
 **[GATE]:**
-- Launch detection: hand-toss simulation triggers BOOST transition
-- Apogee detection: baro peak detected within `⚠️ VALIDATE 2s` of actual peak
+- All 7 top-level phases + 2 DESCENT sub-phases reachable via CLI injection
+- All transitions log: `[FD] IDLE -> ARMED`, `[FD] COAST -> DESCENT.DROGUE` format
+- `state_flight` superstate handles SIG_ABORT from any flight sub-phase
+- Entry/exit actions execute in correct UML order (exit source → transition action → enter target)
+- `g_recoveryBoot` flag routes correctly per IVP-66 policy
+- QEP dispatch <5µs per event (measure with `time_us_32()`)
+- CLI `'s'` status shows current phase, flight markers, FlightState contents
+
+**[DIAG]:** Wrong transition order = LCA calculation bug (unlikely if using stock QEP). Event not handled = missing case in handler or wrong Q_SUPER() parent. Dispatch too slow = event struct too large or handler doing too much work.
+
+---
+
+### IVP-69: Command Handler + Pre-Arm
+
+**Prerequisites:** IVP-68 (phase skeleton running)
+
+**Implement:** Command validation layer between external inputs (CLI, radio, button) and the state machine. Commands are requests that can be rejected; only validated commands generate events.
+
+1. **Commands:** CMD_ARM, CMD_DISARM, CMD_ABORT, CMD_RESET. Each produces the corresponding SIG_* event only after validation passes.
+
+2. **Pre-arm checks (two-tier model from deprecated FLIGHT_DIRECTOR_DESIGN.md):**
+   - **Tier 1 — Platform safety (7 immutable checks):** IMU healthy, baro healthy, ESKF initialized, flash storage available, battery voltage > threshold, no LAUNCH_ABORT flag, watchdog enabled.
+   - **Tier 2 — Profile-specific (up to 5 per profile):** GPS lock (if GPS-equipped), mag calibrated, pyro continuity (if pyro-equipped), radio link active (if telemetry-equipped), altitude < max ground altitude.
+   - Any Tier 1 failure = hard reject with reason. Any Tier 2 failure = configurable (warn or reject per profile).
+
+3. **Rejection behavior:** Failed CMD_ARM prints all failing checks to CLI and telemetry. No partial arming — all checks must pass.
+
+4. **CMD_ABORT:** Always accepted from any state. No validation (abort is unconditional safety action).
+
+**[GATE]:**
+- CMD_ARM with all checks passing → SIG_ARMED dispatched, state transitions to ARMED
+- CMD_ARM with IMU unhealthy → rejected, reason printed, state stays IDLE
+- CMD_ARM with LAUNCH_ABORT flag → rejected until flag cleared
+- CMD_DISARM from ARMED → returns to IDLE
+- CMD_ABORT from any flight phase → transitions to ABORT via `state_flight` superstate
+- CMD_RESET from LANDED or ABORT → returns to IDLE, clears flight markers
+- CLI shows pre-arm check results: `[PRE-ARM] 7/7 platform OK, 4/5 profile OK (GPS: NO LOCK)`
+
+**[DIAG]:** Arming despite failed check = validation bypassed. Abort not working = SIG_ABORT not handled in current state's handler chain. Pre-arm always fails = check reading stale sensor state.
+
+---
+
+### IVP-70: Core Guard Functions
+
+**Prerequisites:** IVP-68 (phase skeleton), IVP-48 (ESKF provides acceleration/altitude/velocity)
+
+**Implement:** Condition evaluator — compiled guard functions that read FusedState (via seqlock, read-only from Core 0) and produce detection events for the state machine.
+
+1. **Guard function table (from deprecated RESEARCH.md):** Each guard is a function with signature `bool guard_xxx(const FusedState& fs, const GuardConfig& cfg)`. Guards indexed by ID for profile-driven selection.
+
+2. **Core guards for rocket profile:**
+   - `guard_accel_body_z()` — launch detection: body-Z accel > threshold for N consecutive samples
+   - `guard_accel_magnitude()` — burnout detection: |A| drops below threshold (drag-only)
+   - `guard_velocity_zero_cross()` — apogee detection: vertical velocity sign change
+   - `guard_baro_peak()` — apogee backup: baro altitude derivative goes negative
+   - `guard_altitude_agl()` — main deploy: altitude below threshold
+   - `guard_stationary()` — landing detection: low velocity + low altitude change for T seconds
+
+3. **Sustain timing.** Each guard has a configurable sustain duration — condition must hold for N consecutive evaluations before triggering. Prevents single-sample false positives.
+
+4. **`compare_field` helper.** Generic comparator: `compare_field(value, op, threshold)` where op ∈ {GT, LT, GE, LE, EQ, ABS_GT}. Guards compose from this primitive.
+
+**[GATE]:**
+- Launch detection: hand-shake/toss triggers SIG_LAUNCH after sustain period
+- Apogee detection (velocity): simulated via CLI data injection, fires SIG_APOGEE
+- Apogee detection (baro backup): baro peak detected within `⚠️ VALIDATE 2s` of actual peak
 - Landing detection: no false positives during 5-minute bench soak
-- Missed apogee fallback: timer-based deploy fires after `⚠️ VALIDATE 15s` coast timeout
+- Sustain timing: guard with 10-sample sustain doesn't trigger on 9-sample spike
+- Guard functions execute in < `⚠️ VALIDATE 50µs` total per tick at 100Hz
 
-**[DIAG]:** False launch = vibration/handling triggers threshold; raise threshold or add debounce. Missed apogee = velocity noise prevents clean sign change; use baro peak detection as primary.
+**[DIAG]:** False launch = vibration/handling triggers threshold; raise threshold or increase sustain. Missed apogee = velocity noise prevents clean sign change; tune baro backup. Guards too slow = too many guards active or FusedState read contention.
 
 ---
 
-### IVP-69: Action Executor — *TBD after IVP-68*
+### IVP-71: Multi-Method Detection Logic
 
-**Prerequisites:** IVP-68, IVP-57 (radio for telemetry status), IVP-52 (logging for event recording)
+**Prerequisites:** IVP-70 (core guards working)
 
-**Implement:** Maps state transitions to hardware actions. Actions: NeoPixel patterns (status indication), buzzer beep sequences, telemetry flag updates, logging triggers. Pyro channel actions deferred to IVP-73 (confidence-gated) and require explicit safety review before any wiring.
+**Implement:** Combinators for guard functions and edge detection logic. Multiple guards can be combined for robust event detection.
+
+1. **Combinators:**
+   - **AND** — conservative: all guards must pass (e.g., velocity zero-cross AND baro peak for apogee)
+   - **OR** — aggressive: any guard triggers (e.g., velocity OR baro for apogee backup)
+   - **PRIMARY_PLUS_TIMEOUT** — primary guard with timer fallback (e.g., velocity zero-cross primary, 15s coast timeout fallback)
+
+2. **Edge detection.** Guards evaluate continuously at 100Hz but events fire only on rising edge (condition becomes true, not while true). Prevents repeated event generation.
+
+3. **Validity policy.** Per-guard validity window: guard is only evaluated during specific flight phases. `guard_velocity_zero_cross` is only valid during COAST (not during BOOST where velocity is still positive but noisy). Phase-validity prevents false positives from guards evaluated in wrong context.
+
+4. **Missed apogee fallback.** PRIMARY_PLUS_TIMEOUT combinator: if primary apogee guard (velocity zero-cross) doesn't fire within `⚠️ VALIDATE 15s` of COAST entry, timeout fires SIG_APOGEE anyway. Safety net for noisy sensors.
 
 **[GATE]:**
-- ARMED state entry: NeoPixel solid orange, telemetry ARMED flag set
-- BOOST state entry: NeoPixel solid red, log marker written
-- LANDED state entry: NeoPixel slow green blink, buzzer recovery pattern
+- AND combinator: both velocity AND baro must agree before SIG_APOGEE
+- OR combinator: either velocity OR baro triggers SIG_APOGEE
+- PRIMARY_PLUS_TIMEOUT: normal case fires on primary; with primary disabled, timeout fires after 15s
+- Edge detection: guard staying true doesn't re-fire event
+- Phase-validity: apogee guard in BOOST phase does not trigger
+- Missed apogee fallback fires correctly after coast timeout
+
+**[DIAG]:** AND never triggers = one guard consistently false; check individual guards. OR too sensitive = false positives from weakest guard. Timeout fires prematurely = timer started too early or duration too short. Edge detection broken = flag not reset after phase transition.
+
+---
+
+### IVP-72: Action Executor
+
+**Prerequisites:** IVP-71, IVP-57 (radio for telemetry status), IVP-52 (logging for event recording)
+
+**Implement:** Maps state entry/exit actions and transition actions to hardware outputs. UML statechart action semantics — entry actions are state-invariant (execute on any entry), transition actions are path-specific (execute between exit and entry).
+
+1. **Entry actions (Moore — execute on any entry to state):**
+   - LED patterns: ARMED=solid amber, BOOST=solid red, COAST=solid yellow, DESCENT=red flash, LANDED=slow green blink, ABORT=fast red flash
+   - Telemetry flags: phase enum in telemetry packet
+   - Logging: flight event markers (EVT_LAUNCH, EVT_BURNOUT, EVT_APOGEE, etc.)
+   - Phase-specific config: update ESKF Q/R hint for Phase-Scheduled Q/R (Stage 10, IVP-81)
+
+2. **Transition actions (Mealy — path-specific, execute between exit and entry):**
+   - **COAST→DESCENT.DROGUE:** `fire_drogue_pyro()` — **IRREVERSIBLE, transition-gated (safety architecture)**
+   - **DESCENT.DROGUE→DESCENT.MAIN:** `fire_main_pyro()` — **IRREVERSIBLE, transition-gated**
+   - **state_flight→ABORT:** source-phase-specific abort actions (safe pyros during BOOST, continue logging during DESCENT)
+   - Pyro actions gated by confidence flag (wired at Stage 10 IVP-83)
+
+3. **Exit actions (cleanup):**
+   - `state_flight` exit: safe all outputs, stop active timers
+   - Phase-specific: flush log buffer, mark phase end timestamp
+
+**[GATE]:**
+- ARMED entry: NeoPixel solid amber, telemetry ARMED flag set
+- BOOST entry: NeoPixel solid red, log marker EVT_LAUNCH written
+- COAST→DESCENT.DROGUE transition: drogue pyro action logged (no actual pyro wiring yet — action executor logs intent)
+- LANDED entry: NeoPixel slow green blink, buzzer recovery pattern
 - Actions execute within 1 tick of state transition
+- Transition actions execute BETWEEN exit and entry (verify ordering via log timestamps)
+- Abort from BOOST vs abort from COAST produce different logged actions
 
-**[DIAG]:** NeoPixel not changing = action executor not wired to state machine callbacks. Telemetry flag stale = radio tick not reading current flight state.
+**[DIAG]:** NeoPixel not changing = entry action not wired or LED Engine not processing. Telemetry flag stale = radio tick not reading current FlightState. Transition action in wrong order = QEP dispatch bug (unlikely with stock QEP). Pyro intent logged from wrong path = transition action on wrong transition.
 
 ---
 
-### IVP-70: Mission Configuration — *TBD after IVP-69*
+### IVP-73: Bench Flight Simulation (SITL)
 
-**Prerequisites:** IVP-69, IVP-14 (flash storage)
+**Prerequisites:** IVP-72 (action executor working), all guard functions and combinators working
 
-**Implement:** Load mission definitions from flash at boot. Definitions specify vehicle type (rocket, HAB, freeform), enabling the appropriate event thresholds and action mappings for IVP-68 and IVP-69. Stored as structured data in flash alongside calibration. CLI command to select/preview active mission.
+**Rationale:** End-to-end integration test of the complete Flight Director pipeline before mission configuration. Validates the full IDLE→ARMED→BOOST→COAST→DESCENT.DROGUE→DESCENT.MAIN→LANDED sequence using CLI-injected stimuli, without requiring actual flight hardware (accelerometer toss, pyro channels, etc.).
+
+**Implement:**
+
+1. **Simulated flight sequence.** Python script (`scripts/bench_flight_sim.py`) sends CLI commands over serial to walk the state machine through a complete flight:
+   - Send CMD_ARM → verify ARMED
+   - Inject SIG_LAUNCH (or simulate accel spike via data injection) → verify BOOST
+   - Inject SIG_BURNOUT → verify COAST
+   - Wait for apogee timeout or inject SIG_APOGEE → verify DESCENT.DROGUE + drogue action logged
+   - Inject SIG_MAIN_DEPLOY → verify DESCENT.MAIN + main action logged
+   - Inject SIG_LANDING → verify LANDED
+   - Send CMD_RESET → verify return to IDLE
+
+2. **Abort paths.** Test abort from each flight phase:
+   - BOOST abort → verify source-specific abort actions
+   - COAST abort → verify different abort actions
+   - DESCENT abort → verify descent-specific abort actions
+
+3. **Error injection.** Test recovery and edge cases:
+   - CMD_ARM with failed pre-arm → stays IDLE
+   - Double CMD_ARM → ignored (already armed)
+   - CMD_ABORT from IDLE → rejected (not in flight)
+   - WDT recovery boot flag → correct post-reboot behavior per IVP-66
+
+4. **Flight timeline validation.** Script logs all state transitions with timestamps. Post-test analysis verifies: correct sequence, correct timing (sustain periods, timeouts), correct actions per transition.
 
 **[GATE]:**
-- Three mission definitions compile and load correctly: model rocket, HAB, freeform
-- CLI shows active mission name and key parameters
-- Mission selection persists across power cycle
-- Freeform mission: single phase, default thresholds, no regime switching
+- Complete IDLE→LANDED sequence succeeds via scripted stimuli
+- All 7 phases + 2 sub-phases visited in correct order
+- Abort tested from BOOST, COAST, and DESCENT — each produces correct phase-specific actions
+- Error injection: all invalid commands correctly rejected
+- Flight timeline matches expected sequence and timing
+- No unexpected state transitions during entire test
+- Script runs unattended and produces pass/fail summary
 
-**[DIAG]:** Load fails after flash write = struct version mismatch; bump version and re-init. Wrong thresholds in active mission = selection logic not reading correct profile index.
+**[DIAG]:** Sequence stalls = guard not triggering on injected stimulus; check injection mechanism. Wrong phase order = transition table error. Abort actions wrong = source-phase detection in abort handler incorrect. Script hangs = serial timeout; check USB CDC connection.
 
 ---
 
-## Stage 9: Adaptive Estimation & Safety
+### IVP-74: Mission Configuration
 
-**Purpose:** Phase-aware ESKF tuning and confidence-gated safety. Integrates with the state machine (IVP-67) for flight phase detection and with the Flight Director (Stage 8) for safety-gated actions.
+**Prerequisites:** IVP-73 (bench flight sim validates the engine works)
+
+**Implement:** Mission profile as a `const` data structure (FEMA principle — minimize failure modes). One hardcoded rocket profile for Stage 8, designed for future flash/SD serialization.
+
+1. **Profile structure (from deprecated RESEARCH.md):**
+   ```cpp
+   struct MissionProfile {
+       const char* name;                    // "model_rocket"
+       uint8_t num_phases;
+       PhaseDefinition phases[kMaxPhases];  // guards, actions, timeouts per phase
+       PreArmCheck profile_checks[5];       // Tier 2 checks
+       AbortAction abort_actions[kMaxPhases]; // per-phase abort behavior
+   };
+   ```
+   No pointers in serializable fields — use indices. Designed for future `flash_safe_execute()` storage.
+
+2. **Initial profiles (const, compiled-in):**
+   - **Model rocket:** IDLE→ARMED→BOOST→COAST→DESCENT(DROGUE/MAIN)→LANDED. Full dual-deploy with guards from IVP-70/71.
+   - **HAB (high-altitude balloon):** IDLE→ARMED→ASCENT→FLOAT→DESCENT→LANDED. Different Q/R, no pyro, altitude-based phase detection.
+   - **Freeform:** Single flight phase, default thresholds, logging only. For non-rocket applications.
+
+3. **Profile selection.** CLI command to select active profile. Selection stored as index — persists across power cycle via flash. Default: model rocket.
+
+4. **CLI preview.** `'m'` key shows active profile: name, phase count, guard config per phase, pre-arm checks, abort behavior. Allows verification before arming.
+
+**[GATE]:**
+- Three profiles compile and are selectable via CLI
+- CLI shows active profile name and key parameters per phase
+- Profile selection persists across power cycle
+- Bench flight sim (IVP-73 script) passes with rocket profile
+- Freeform profile: single phase, no phase detection, logging only
+- Profile struct has no pointers (serialization-ready)
+
+**[DIAG]:** Load fails after flash write = struct version mismatch; bump version and re-init. Wrong thresholds = profile index incorrect. HAB profile triggers rocket guards = profile not correctly switching guard table.
+
+---
+
+### IVP-75: Active Object Migration Planning
+
+**Prerequisites:** IVP-74 (Flight Director complete and working)
+
+**Rationale:** The council confirmed QF+QV as the target architecture (Stage 9). This IVP validates that the upgrade path is viable and documents the migration plan, without migrating anything. State handler code written in IVP-68 through IVP-74 is identical to what runs inside Active Objects — zero throwaway code.
+
+**Implement:**
+
+1. **QF+QV compile gate.** Extend `lib/qep/` to include QF and QV source files from QP/C. Write BSP (Board Support Package): `QF_onStartup()` (configure tick interrupt), `QV_onIdle()` (WFI for power savings), critical section macros using Pico SDK primitives. Compile and link. Does NOT replace the superloop yet.
+
+2. **Active Object boundary design.** Document which modules become Active Objects and their event interfaces:
+   - `AO_FlightDirector` — wraps existing QEP state machine, receives SIG_TICK and command events
+   - `AO_LedEngine` — owns NeoPixel exclusively, receives EVT_LED_PATTERN events
+   - `AO_Logger` — owns flash writes, receives EVT_LOG events
+   - `AO_Telemetry` — owns radio TX, receives EVT_TELEM events
+   - `AO_ErrorHandler` — monitors health, publishes EVT_ERROR/EVT_WARNING
+
+3. **Event catalog.** Define typed event structs for inter-AO communication. Published events (pub-sub) vs direct events. Event pool sizing (static arrays, no heap).
+
+4. **Dual-core constraint documentation.** Confirm: QF+QV stays entirely on Core 0. Core 1 sensor loop unchanged. Seqlock boundary unchanged. No QP code crosses the core boundary.
+
+5. **Migration plan document.** `docs/flight_director/ACTIVE_OBJECT_MIGRATION.md` — step-by-step plan for Stage 9 with dependencies, risks, and rollback strategy.
+
+**[GATE]:**
+- QF+QV compiles and links against Pico SDK (does not need to run — compile gate only)
+- Trivial 2-Active-Object demo links (can run on hardware if time permits)
+- Migration plan document written and reviewed
+- Event catalog documented with types and pub-sub topology
+- No regressions — existing Flight Director still works from superloop
+
+**[DIAG]:** QF won't compile = port macros missing or C/C++ linkage. Link fails = QV idle callback not implemented. Demo crashes = BSP tick configuration wrong.
+
+---
+
+## Stage 9: Active Object Architecture
+
+**Purpose:** Migrate subsystems from the superloop to QF+QV Active Objects. Each module becomes an independent actor with a private event queue, communicating exclusively via typed events. Eliminates scattered state mutations (the "why is the LED solid green" problem) and provides formal inter-module interfaces. See `docs/flight_director/QP_APPLICATION_GUIDE.md` Section 4 for migration details.
+
+**Prerequisites:** IVP-75 (QF+QV compiles, migration plan documented). Stage 8 Flight Director fully working from superloop.
+
+**Constraints:**
+- **QF+QV stays entirely on Core 0.** Core 1 remains the deterministic sensor sampling loop. Seqlock boundary unchanged. No QP code crosses the core boundary.
+- **State handler code is identical.** QEP handlers from Stage 8 move inside Active Objects unchanged. The change is how events arrive (QF queue vs manual dispatch), not what the handlers do.
+- **No new features.** This is a pure architecture refactor. Feature behavior before and after must be identical — verified by re-running IVP-73 bench flight sim.
+
+**Deferred evaluation:** QS (QP/Spy) binary tracing is evaluated during this stage as a potential replacement or supplement for current flight event logging. QS logs every state entry, exit, transition, and event dispatch to a ring buffer with ~10x less overhead than printf-style logging. Adoption decision made during or after IVP-76 based on integration effort and tracing utility. See council Decision 8.
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| IVP-76 | QF+QV BSP Integration | Board support package, tick interrupt, QV idle callback, 2-AO demo on hardware |
+| IVP-77 | LED Engine Active Object | AO_LedEngine owns NeoPixel exclusively, pattern state machine, typed events |
+| IVP-78 | Flight Director Active Object | Wrap Stage 8 QEP state machine in QF Active Object |
+| IVP-79 | Logger + Telemetry Active Objects | AO_Logger owns flash writes, AO_Telemetry owns radio TX scheduling |
+| IVP-80 | Superloop → QV Transition | Remove superloop `_due` flags, QV cooperative scheduler replaces `while(true)` |
+
+---
+
+### IVP-76: QF+QV BSP Integration
+
+**Prerequisites:** IVP-75 (QF+QV compiles)
+
+**Implement:** Board Support Package for QF+QV on RP2350 bare-metal Pico SDK. This makes QF+QV operational on hardware without migrating any existing modules.
+
+1. **BSP implementation (`bsp.cpp`):**
+   - `QF_onStartup()` — configure SysTick or alarm-based tick interrupt for QF time events
+   - `QV_onIdle()` — call `__wfi()` for power savings when all event queues empty (replaces manual WFI in current superloop)
+   - `Q_onAssert()` — route to existing `ROCKETCHIP_ASSERT` / panic handler
+   - Critical section macros using `save_and_disable_interrupts()` / `restore_interrupts()`
+
+2. **Trivial 2-Active-Object demo.** `AO_Blinker` (toggles LED on timer event) + `AO_Counter` (counts events, prints to serial). Validates: event delivery, time events, priority scheduling, QV idle. Runs alongside existing superloop (QV does not replace it yet).
+
+3. **Static event pools.** Configure QF event pools as static arrays — no heap allocation. Size pools based on worst-case event burst (initial: 16 small events, 8 medium events).
+
+**[GATE]:**
+- QF initializes without crash on RP2350 hardware
+- 2-AO demo: LED blinks at correct rate, counter prints to serial
+- QV idle callback executes between events (verify via GPIO toggle or timing measurement)
+- No interference with existing superloop modules (sensor sampling, ESKF, CLI all still work)
+- No heap allocation (verify with `mallinfo()` or BSS size check)
+
+**[DIAG]:** Crash at QF_init = BSP tick not configured. Events not delivered = pool exhausted or priority inversion. Interferes with superloop = tick interrupt conflicting with existing timer.
+
+---
+
+### IVP-77: LED Engine Active Object
+
+**Prerequisites:** IVP-76 (QF+QV operational on hardware)
+
+**Rationale:** The LED Engine is the most obvious Active Object beneficiary. Currently, NeoPixel state is set from multiple call sites across multiple files (`neo_set_if_changed()` scattered throughout). This makes LED behavior hard to trace and debug. As an Active Object, only `AO_LedEngine` touches the NeoPixel — all other modules send typed pattern-change events.
+
+**Implement:**
+
+1. **AO_LedEngine state machine.** QEP HSM managing NeoPixel patterns:
+   - States: IDLE_PATTERN, ARMED_PATTERN, FLIGHT_PATTERN, LANDED_PATTERN, ERROR_PATTERN, CUSTOM
+   - Each state handles its own animation (solid, blink, breathe, chase) via SIG_TICK
+   - Transitions on EVT_LED_PATTERN events from other Active Objects
+
+2. **Event interface:**
+   ```cpp
+   struct LedPatternEvt : QEvt {
+       LedPattern pattern;  // enum: SOLID_AMBER, RED_FLASH, SLOW_GREEN_BLINK, etc.
+   };
+   ```
+   Other modules publish `EVT_LED_PATTERN` — they never call NeoPixel functions directly.
+
+3. **Migration.** Replace all direct `neo_set_if_changed()` / `g_statusLed->fill()` / `g_statusLed->show()` calls with `QF_PUBLISH(&led_evt)`. The NeoPixel hardware pointer moves inside `AO_LedEngine` — no other module holds a reference.
+
+**[GATE]:**
+- NeoPixel behavior identical to pre-migration (ARMED=amber, BOOST=red, LANDED=green blink, etc.)
+- No direct NeoPixel calls outside AO_LedEngine (grep verification)
+- LED state traceable: CLI can query AO_LedEngine's current pattern state
+- Animation timing correct (blink rates, transition smoothness)
+- Re-run IVP-73 bench flight sim — LED patterns match expected sequence
+
+**[DIAG]:** LED stuck = event not published or AO_LedEngine priority too low. Wrong pattern = event payload incorrect. Animation jittery = tick rate mismatch or QV scheduling delay.
+
+---
+
+### IVP-78: Flight Director Active Object
+
+**Prerequisites:** IVP-77 (LED Engine migrated, proving AO pattern works)
+
+**Implement:** Wrap the existing QEP Flight Director state machine (from Stage 8) in a QF Active Object. State handler code is unchanged — the migration is purely structural.
+
+1. **AO_FlightDirector.** Receives events from QF queue instead of manual `QHSM_DISPATCH()` in `run_flight_director()`. SIG_TICK delivered via QF time event (periodic timer). Command events (SIG_ARMED, SIG_ABORT) published by CLI/radio handlers.
+
+2. **Remove `run_flight_director()` from superloop.** The superloop no longer calls the Flight Director directly — QV dispatches it based on priority and queue status.
+
+3. **Inter-AO communication.** Flight Director publishes:
+   - `EVT_LED_PATTERN` → consumed by AO_LedEngine
+   - `EVT_FLIGHT_STATE` → consumed by AO_Logger, AO_Telemetry
+   - `EVT_PYRO_CMD` → future: consumed by pyro safety layer
+
+**[GATE]:**
+- Full bench flight sim (IVP-73) passes with AO_FlightDirector — identical behavior to superloop version
+- State transitions logged correctly
+- LED patterns change via published events (not direct calls)
+- No regression in dispatch timing (<5µs per event)
+- Superloop `director_due` flag removed
+
+**[DIAG]:** Events not arriving = queue too small or subscription missing. Timing different = QV priority incorrect. Regression = state handler accidentally modified during migration.
+
+---
+
+### IVP-79: Logger + Telemetry Active Objects
+
+**Prerequisites:** IVP-78 (Flight Director as AO, proving event-driven pattern)
+
+**Implement:** Migrate the remaining high-value modules to Active Objects.
+
+1. **AO_Logger.** Owns flash write scheduling. Receives EVT_LOG events (flight markers, sensor snapshots). Manages write buffer, page flushes, `flash_safe_execute()` coordination. No other module calls flash write functions directly.
+
+2. **AO_Telemetry.** Owns radio TX scheduling. Receives EVT_TELEM events (state updates, sensor data). Manages packet encoding (CCSDS or MAVLink per Mission Profile), transmission timing, and downlink priority. No other module calls radio TX functions directly.
+
+3. **AO_ErrorHandler (optional, if scope permits).** Monitors subsystem health via published EVT_ERROR/EVT_WARNING events. Centralizes error counting, degradation decisions, and CLI health display. If scope is too large, defer to a whiteboard item.
+
+**[GATE]:**
+- Flight data logged correctly through AO_Logger (compare log output to pre-migration)
+- Telemetry packets transmitted correctly through AO_Telemetry
+- No direct flash write or radio TX calls outside their respective AOs (grep verification)
+- Flash write coordination: `flash_safe_execute()` + `i2c_bus_reset()` still called correctly (LL Entry 31)
+- Re-run IVP-73 bench flight sim — full pipeline works through Active Objects
+
+**[DIAG]:** Log data missing = EVT_LOG not published or AO_Logger priority too low. Telemetry gaps = AO_Telemetry queue overflow. Flash corruption = `flash_safe_execute()` not called from correct context.
+
+---
+
+### IVP-80: Superloop → QV Transition
+
+**Prerequisites:** IVP-79 (all major modules are Active Objects)
+
+**Implement:** Remove the remaining superloop infrastructure. QV's cooperative scheduler fully replaces `while(true)`.
+
+1. **Replace superloop with QF_run().** The `while(true)` loop in `main()` becomes:
+   ```cpp
+   return QF_run();  // never returns — QV cooperative scheduler
+   ```
+   QV checks each Active Object's queue in priority order, dispatches one event at a time (run-to-completion), and calls `QV_onIdle()` (WFI) when all queues are empty.
+
+2. **Remove `_due` flags and tick dividers.** Replace with QF time events:
+   - `fusion_due` → QF periodic timer on AO_FlightDirector (or fusion module)
+   - `logger_due` → QF periodic timer on AO_Logger
+   - `telem_due` → QF periodic timer on AO_Telemetry
+   - `ui_due` → QF periodic timer on CLI handler (if migrated) or kept as polled
+
+3. **Core 1 boundary unchanged.** Core 1's `core1_sensor_loop()` is still a pure bare-metal loop. The seqlock read in the condition evaluator (AO_FlightDirector) is unchanged — it's a read-only Core 0 operation.
+
+4. **Regression verification.** Full system bench test: sensor sampling rates, ESKF timing, LED behavior, logging, telemetry — all must match pre-migration performance.
+
+**[GATE]:**
+- `main()` calls `QF_run()` instead of `while(true)` loop
+- No `_due` flags remain in `main.cpp`
+- All Active Objects process events at correct rates (verified via timing instrumentation)
+- Core 1 sensor sampling rate unchanged (999-1000 Hz)
+- ESKF predict timing unchanged (~111µs codegen, ~486µs hybrid Bierman)
+- Power consumption: QV_onIdle() WFI equivalent to or better than previous manual WFI
+- Full IVP-73 bench flight sim passes
+- 10-minute soak: zero sensor errors, zero unexpected state transitions
+
+**[DIAG]:** Timing regression = priority ordering wrong or tick rate mismatch. Core 1 affected = QF code accidentally crossed core boundary. WFI not working = QV_onIdle() not calling `__wfi()`. Event queue overflow = pool sizing too small for burst.
+
+---
+
+## Stage 10: Adaptive Estimation & Safety
+
+**Purpose:** Phase-aware ESKF tuning and confidence-gated safety. Integrates with the state machine (IVP-68) for flight phase detection and with the Flight Director (Stage 8) for safety-gated actions.
 
 **Background:** Extended research (2026-02-24) demonstrated that MMAE/IMM is the wrong tool for RocketChip's flight regime switching. Real aerospace navigation (X-43A, SpaceX Grasshopper, ArduPilot EKF3, PX4 ECL) universally uses single kinematic filters with deterministic regime adaptation — not multi-model banks. Simple phase-scheduled Q/R captures the same benefit at near-zero computational cost. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for full rationale and benchmark data.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-71 | Phase-Scheduled Q/R + Innovation Adaptation | Per-phase noise models tied to state machine, innovation ratio fine-tuning, optional Bierman measurement updates |
-| IVP-72 | Confidence Gate | ESKF health + AHRS cross-check → binary confidence flag for Flight Director |
-| IVP-73 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
-| IVP-74 | Vehicle Parameter Profiles | Mission-specific Q/R presets per vehicle type (rocket, HAB, drone) |
+| IVP-81 | Phase-Scheduled Q/R + Innovation Adaptation | Per-phase noise models tied to state machine, innovation ratio fine-tuning, optional Bierman measurement updates |
+| IVP-82 | Confidence Gate | ESKF health + AHRS cross-check → binary confidence flag for Flight Director |
+| IVP-83 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
+| IVP-84 | Vehicle Parameter Profiles | Mission-specific Q/R presets per vehicle type (rocket, HAB, drone) |
 
 ---
 
-### IVP-71: Phase-Scheduled Q/R + Innovation Adaptation
+### IVP-81: Phase-Scheduled Q/R + Innovation Adaptation
 
-**Prerequisites:** IVP-67 (state machine provides flight phase detection), IVP-48 (ESKF tuned)
+**Prerequisites:** IVP-68 (state machine provides flight phase detection), IVP-48 (ESKF tuned)
 
 **Implement:** Per-phase Q and R matrices selected from vehicle-specific parameter profiles, with thin innovation-ratio adaptation layer for fine-tuning.
 
@@ -2096,9 +2539,9 @@ Resolve SAD Open Question #4 (Mealy vs Moore) before implementation — the answ
 
 ---
 
-### IVP-72: Confidence Gate
+### IVP-82: Confidence Gate
 
-**Prerequisites:** IVP-71, IVP-45 (Mahony AHRS)
+**Prerequisites:** IVP-81, IVP-45 (Mahony AHRS)
 
 **Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates ESKF innovation consistency and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director. This is the platform safety layer — NOT configurable by Mission Profiles.
 
@@ -2134,9 +2577,9 @@ Resolve SAD Open Question #4 (Mealy vs Moore) before implementation — the answ
 
 ---
 
-### IVP-73: Confidence-Gated Actions
+### IVP-83: Confidence-Gated Actions
 
-**Prerequisites:** IVP-72 (confidence gate), IVP-69 (action executor)
+**Prerequisites:** IVP-82 (confidence gate), IVP-72 (action executor)
 
 **Implement:** Wire confidence gate output into the Flight Director's action executor. When `confident = false`:
 - Pyro channels LOCKED (cannot fire)
@@ -2155,11 +2598,11 @@ Resolve SAD Open Question #4 (Mealy vs Moore) before implementation — the answ
 
 ---
 
-### IVP-74: Vehicle Parameter Profiles
+### IVP-84: Vehicle Parameter Profiles
 
-**Prerequisites:** IVP-71 (phase-scheduled Q/R framework)
+**Prerequisites:** IVP-81 (phase-scheduled Q/R framework)
 
-**Implement:** Mission-specific Q/R presets per vehicle type. The Q/R scheduling (IVP-71) selects values per flight phase — this step provides the actual phase definitions and noise parameters per vehicle type.
+**Implement:** Mission-specific Q/R presets per vehicle type. The Q/R scheduling (IVP-81) selects values per flight phase — this step provides the actual phase definitions and noise parameters per vehicle type.
 
 1. **Profile structure:**
    ```cpp
@@ -2189,34 +2632,34 @@ Resolve SAD Open Question #4 (Mealy vs Moore) before implementation — the answ
 
 ---
 
-## Stage 10: Ground Station
+## Stage 11: Ground Station
 
-**Purpose:** Dedicated ground station platform on Raspberry Pi or PC. Everything beyond the RX RocketChip board. Independent of vehicle firmware once Stage 7 packet format is stable. Can be developed in parallel with Stages 8–9.
+**Purpose:** Dedicated ground station platform on Raspberry Pi or PC. Everything beyond the RX RocketChip board. Independent of vehicle firmware once Stage 7 packet format is stable. Can be developed in parallel with Stages 8–10.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-75 | Yamcs Instance & XTCE | *(placeholder)* XTCE dictionary for CCSDS packets, Yamcs on RPi |
-| IVP-76 | OpenMCT Integration | *(placeholder)* OpenMCT via openmct-yamcs plugin, custom layouts |
-| IVP-77 | Ground Station Pi Image | *(placeholder)* Pre-built RPi OS image, turnkey operation |
-| IVP-78 | Post-Flight Analysis Tools | *(placeholder)* PCM to CCSDS replay, flight timeline, multi-flight overlay |
-| IVP-79 | Web Dashboard | *(placeholder)* Browser-based telemetry for field use |
-| IVP-80 | Mobile / Remote Access | *(placeholder)* WiFi AP on ground station Pi for phone/tablet |
+| IVP-85 | Yamcs Instance & XTCE | *(placeholder)* XTCE dictionary for CCSDS packets, Yamcs on RPi |
+| IVP-86 | OpenMCT Integration | *(placeholder)* OpenMCT via openmct-yamcs plugin, custom layouts |
+| IVP-87 | Ground Station Pi Image | *(placeholder)* Pre-built RPi OS image, turnkey operation |
+| IVP-88 | Post-Flight Analysis Tools | *(placeholder)* PCM to CCSDS replay, flight timeline, multi-flight overlay |
+| IVP-89 | Web Dashboard | *(placeholder)* Browser-based telemetry for field use |
+| IVP-90 | Mobile / Remote Access | *(placeholder)* WiFi AP on ground station Pi for phone/tablet |
 
 ---
 
-## Stage 11: System Integration
+## Stage 12: System Integration
 
 **Purpose:** Full system verification and flight readiness.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-81 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
-| IVP-82 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
-| IVP-83 | Power Budget Validation | Battery runtime validation under flight load |
-| IVP-84 | Environmental Stress | Temperature range, vibration (if available) |
-| IVP-85 | Flight Test | Bungee-launched glider: full data capture + telemetry |
+| IVP-91 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
+| IVP-92 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
+| IVP-93 | Power Budget Validation | Battery runtime validation under flight load |
+| IVP-94 | Environmental Stress | Temperature range, vibration (if available) |
+| IVP-95 | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
-> **Milestone:** IVP-85 — **Flight Ready**.
+> **Milestone:** IVP-95 — **Flight Ready**.
 
 ---
 
@@ -2238,11 +2681,12 @@ Tests to re-run after changes to specific areas.
 | Fusion algorithm change | IVP-39 — IVP-48 | Filter correctness |
 | Data logging change | IVP-49 — IVP-54 | Data model, frames, buffer, flash |
 | Radio/telemetry change | IVP-57 — IVP-62 | Encoder, service, translation |
-| Adaptive estimation change | IVP-71 — IVP-74 | Q/R scheduling, confidence gate |
+| Adaptive estimation change | IVP-81 — IVP-84 | Q/R scheduling, confidence gate |
 | Watchdog policy change | IVP-66, IVP-30 | Recovery behavior + mechanism |
-| Flight Director change | IVP-67 — IVP-70 | State machine correctness |
+| Flight Director change | IVP-67 — IVP-75 | State machine, guards, actions, mission config |
+| Active Object change | IVP-76 — IVP-80, IVP-73 | AO migration, bench flight sim regression |
 | **Major refactor** | **All Stage 1-3** | Full regression |
-| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-66, IVP-81 | Release qualification (build, USB, flash, watchdog, recovery, bench test) |
+| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-66, IVP-73, IVP-91 | Release qualification (build, USB, flash, watchdog, recovery, bench flight sim, full bench test) |
 
 ---
 

@@ -1,7 +1,15 @@
 # Mission Engine Research: Profiles vs. State Machine
 
+> **⚠️ DEPRECATED (2026-03-14)** — The "Remaining Design Questions" section (Section 4, Mealy vs Moore) is fully resolved by:
+> - `docs/flight_director/STATE_MACHINE_FORMALISM_RESEARCH.md` — UML statecharts as formalism, corrected phase topology
+> - `docs/decisions/flight_director/council_state_machine_formalism.md` — Council decisions with rationale
+>
+> **What's still valuable here:** Prior art survey (ArduPilot, PX4, SparkyVT, BPS.space, NASA cFS), sensor-based phase detection methods (including Mach-immune apogee detection), command/event/state separation, FEMA profile approach. These findings informed the new documents and remain valid reference material.
+>
+> **Retained for reference.** Do not use for new implementation decisions on state machine formalism or phase topology.
+
 **For:** RocketChip (RP2350 bare-metal Pico SDK, dual-core AMP)
-**Date:** 2026-02-13
+**Date:** 2026-02-13 (deprecated 2026-03-14)
 
 ---
 
