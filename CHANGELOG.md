@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-14-001 | Claude Code CLI | architecture, council, documentation
+
+**Stage 8 restructure: UML statecharts + QEP adoption.** Integrated three council-reviewed documents (formalism research, council decisions, QP/C application guide) into `docs/flight_director/` and `docs/decisions/flight_director/`. Deprecated old `FLIGHT_DIRECTOR_DESIGN.md` and `RESEARCH.md`. Restructured IVP Stage 8 from 5 to 10 steps (IVP-66–75) reflecting council decisions: UML statecharts as formalism, QEP dispatch engine, STARS toolchain gate, apogee reclassified as event, transition-gated pyro safety architecture. Added new Stage 9: Active Object Architecture (IVP-76–80) for QF+QV migration. Renumbered Stages 10–12, total 95 IVP steps across 12 stages. (`docs/IVP.md`, `docs/flight_director/`, `docs/decisions/flight_director/`)
+
+---
+
 ### 2026-03-08-002 | Claude Code CLI | documentation, tooling
 
 **CLA + RBM pre-Stage 8 audit.** Computational Load Analysis from 270s HW soak (zero firmware changes — serial CLI data collection only). Runtime Behavior Map covering boot sequence, Core 0/Core 1 dispatch, CLI state machine, NeoPixel priority, error recovery (6 gaps documented). Graphviz `.dot` diagrams for boot sequence, cross-core timeline, error recovery. Repeatable via `scripts/cla_collect.py`, `scripts/rbm_check.py`, `scripts/render_dot.sh`. Cross-reference added to `HARDWARE_BUDGETS.md`. (`docs/audits/cla_rbm/`, `scripts/`)
