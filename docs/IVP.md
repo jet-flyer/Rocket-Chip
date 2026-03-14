@@ -15,8 +15,8 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stages 1-4** (Foundation, Sensors, Dual-Core, GPS): Fully detailed
 - **Phase M** (Magnetometer Calibration): Fully detailed — added out-of-sequence to correct a missed Phase 3 dependency (see note below)
 - **Stage 5** (Sensor Fusion): Fully detailed
-- **Stage 6** (Data Logging): Preliminary — pulled forward from original Stage 9 (dependency for telemetry)
-- **Stage 7** (Radio & Telemetry): IVP-57 verified, IVP-58–62 preliminary, IVP-63–65 placeholders
+- **Stage 6** (Data Logging): Core items (IVP-49–54) HW verified. IVP-55–56 deferred (stretch goals).
+- **Stage 7** (Radio & Telemetry): Core items (IVP-57–61) HW verified. IVP-62 deferred (`ivp62-wip` branch). IVP-63–65 deferred (stretch goals).
 - **Stage 8** (Flight Director): Fully detailed — restructured per council review (UML statecharts, QEP, 10 IVPs)
 - **Stage 9** (Active Object Architecture): Fully detailed — QF+QV migration from superloop
 - **Stages 10-12** (Adaptive Estimation, Ground Station, Integration): Placeholders expanded as earlier stages complete
@@ -98,8 +98,8 @@ cmake --build build/
 | 4 | GPS Navigation | Phase 3 | IVP-31 — IVP-33 | Full | |
 | **M** | **Magnetometer Calibration** | **Phase 3** | **IVP-34 — IVP-38** | **Full** | **(out-of-sequence)** |
 | 5 | Sensor Fusion | Phase 4 | IVP-39 — IVP-48 | Full | |
-| **6** | **Data Logging** | **Phase 5** | **IVP-49 — IVP-56** | **Preliminary** | **(pulled forward)** |
-| **7** | **Radio & Telemetry** | **Phase 5** | **IVP-57 — IVP-65** | **IVP-57 verified** | |
+| **6** | **Data Logging** | **Phase 5** | **IVP-49 — IVP-56** | **Core complete** | **(pulled forward)** |
+| **7** | **Radio & Telemetry** | **Phase 5** | **IVP-57 — IVP-65** | **Core complete** | |
 | 8 | Flight Director | Phase 6 | IVP-66 — IVP-75 | Full | **Crowdfunding Demo Ready** |
 | **9** | **Active Object Architecture** | **Phase 6** | **IVP-76 — IVP-80** | **Full** | |
 | 10 | Adaptive Estimation & Safety | Phase 6 | IVP-81 — IVP-84 | Placeholder | |
@@ -1614,14 +1614,14 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-49 | Data Model & ICD | FusedState, TelemetryState, SensorSnapshot struct definitions |
-| IVP-50 | Timestamp Architecture | MET + UTC epoch anchor from GPS/RTC |
-| IVP-51 | PCM Frame Format | Sync word, header, frame type byte, decommutation table |
-| IVP-52 | PSRAM Ring Buffer | Configurable rate logging (1–200 Hz, 50 Hz default) |
-| IVP-53 | Flash Storage & Flight Table | Post-landing flush, flight log table, pre-erase pool |
-| IVP-54 | USB Log Download | CLI flight listing + raw download + Python CSV decoder |
-| IVP-55 | Raw Sensor Logging | *(placeholder — deferred)* SensorSnapshot in log frames, Research Mode |
-| IVP-56 | Economy Tier & HAB Flush | *(placeholder — deferred)* 1–2 Hz reduced logging, periodic flash flush |
+| IVP-49 | Data Model & ICD | FusedState, TelemetryState, SensorSnapshot struct definitions ✓ |
+| IVP-50 | Timestamp Architecture | MET + UTC epoch anchor from GPS/RTC ✓ |
+| IVP-51 | PCM Frame Format | Sync word, header, frame type byte, decommutation table ✓ |
+| IVP-52 | PSRAM Ring Buffer | Configurable rate logging (1–200 Hz, 50 Hz default) ✓ |
+| IVP-53 | Flash Storage & Flight Table | Post-landing flush, flight log table, pre-erase pool ✓ |
+| IVP-54 | USB Log Download | CLI flight listing + raw download + Python CSV decoder ✓ |
+| IVP-55 | Raw Sensor Logging | *(deferred)* SensorSnapshot in log frames, Research Mode |
+| IVP-56 | Economy Tier & HAB Flush | *(deferred)* 1–2 Hz reduced logging, periodic flash flush |
 
 **[GATE]:** Flight log captured to PSRAM at 50 Hz during simulated flight, flushed to flash after landing, downloaded via USB, decoded to CSV with correct timestamps and plausible values. Pre-launch data (5+ sec before trigger) preserved.
 
@@ -1761,14 +1761,14 @@ Flash flush requires `flash_safe_execute()` — both cores paused during sector 
 | Step | Title | Brief Description |
 |------|-------|------------------|
 | IVP-57 | RFM95W Radio Driver | SPI bus init, LoRa TX/RX, polling ✓ |
-| IVP-58 | Telemetry Encoder | CCSDS/MAVLink strategy interface, Mission Profile selects encoder |
-| IVP-59 | Telemetry Service | Configurable TX rate, APID prioritization, duty cycle management |
-| IVP-60 | RX Mode + CCSDS Decode | Compile-time RX mode — CCSDS decode, CSV output, NeoPixel link quality |
-| IVP-61 | QGC Validation | End-to-end TX→RX→QGC display verification |
-| IVP-62 | Bidirectional Commands | Command reception/parsing, ACK/NACK (execution depends on Stage 8) |
-| IVP-63 | FSK Continuous Bitstream | *(placeholder — deferred)* |
-| IVP-64 | Radio Mode Profiles | *(placeholder — deferred)* |
-| IVP-65 | Native MAVLink TX | *(placeholder — deferred)* |
+| IVP-58 | Telemetry Encoder | CCSDS/MAVLink strategy interface, Mission Profile selects encoder ✓ |
+| IVP-59 | Telemetry Service | Configurable TX rate, APID prioritization, duty cycle management ✓ |
+| IVP-60 | RX Mode + CCSDS Decode | Compile-time RX mode — CCSDS decode, CSV output, NeoPixel link quality ✓ |
+| IVP-61 | QGC Validation | End-to-end TX→RX→QGC display verification ✓ |
+| IVP-62 | Bidirectional Commands | *(deferred — `ivp62-wip` branch)* Command dispatch complete, QGC USB CDC blocker |
+| IVP-63 | FSK Continuous Bitstream | *(deferred)* |
+| IVP-64 | Radio Mode Profiles | *(deferred)* |
+| IVP-65 | Native MAVLink TX | *(deferred)* |
 
 **Gate:** TX RocketChip transmits, RX RocketChip receives and translates, QGC/Mission Planner displays live attitude + map + flight state. Stable 10+ min at SF7/BW125.
 
@@ -1938,7 +1938,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 - IVP-66 (Watchdog Recovery Policy) must be completed first.
 - Prior art carried forward from deprecated `docs/flight_director/RESEARCH.md` (condition evaluator, pre-arm checks, command handler, abort matrix) and `docs/flight_director/FLIGHT_DIRECTOR_DESIGN.md` (action executor, FlightState struct).
 
-**Pending doc work (council Action Items #1, #2):** SAD.md Open Question #4 must be closed with "UML statecharts — see council review." The deprecated `FLIGHT_DIRECTOR_DESIGN.md` should be rewritten from the council findings and new research once Stage 8 implementation validates the design against hardware. The deprecated doc is retained as reference until then.
+**Pending doc work (council Action Items #1, #2):** ~~SAD.md Open Question #4 must be closed~~ **DONE** (2026-03-14, moved to Resolved). The deprecated `FLIGHT_DIRECTOR_DESIGN.md` should be rewritten from the council findings and new research once Stage 8 implementation validates the design against hardware (Stage 9 prerequisite). The deprecated doc is retained as reference until then.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|

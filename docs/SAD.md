@@ -1220,7 +1220,9 @@ Quick reference for which SAD sections are critical for each development phase. 
 
 3. **USB command protocol**: Text-based CLI, or binary protocol, or both?
 
-4. **State machine formalism**: Is FlightDirector a Mealy machine (actions on transitions) or Moore machine (actions on state entry)? Section 6.2 suggests Moore ("Actions on Entry"), but 6.3 event-condition-action syntax implies Mealy. Clarify before Phase 3 implementation.
+### Resolved (2026-03-14)
+
+4. **State machine formalism**: UML statecharts (Harel formalism) — hybrid of Moore and Mealy. Entry/exit actions for state-invariant behavior, transition actions for source-dependent irreversible operations (safety architecture for pyro firing). Council reviewed (9 unanimous decisions). QEP dispatch engine selected. See `docs/flight_director/STATE_MACHINE_FORMALISM_RESEARCH.md` and `docs/decisions/flight_director/council_state_machine_formalism.md`.
 
 ---
 

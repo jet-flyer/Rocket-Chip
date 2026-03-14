@@ -83,7 +83,7 @@
 - **RC GCS: GPS-free 3D Flight Path Reconstruction (user request, 2026-02-13):** Post-processing feature for RC GCS. Uses raw IMU+baro+mag flight logs with forward-backward RTS smoother and known boundary conditions (launch point = origin, v=0 at ignition and landing, landing point from recovery GPS/manual entry). Reconstructs full 3D flight path without real-time GPS. Core tier ships without GPS — this makes 3D visualization viable for all tiers. Natural companion to IVP-44b ZUPT (stationary constraint) and IVP-46 (GPS when available). Reference: ArduPilot `tools/replay/`, PX4 `ecl/EKF/ekf_helper.cpp` smoother.
 - **Flight Erase Protection (post-Stage 6):** Current erase (`x` key) requires typing "yes" + Enter. Future improvement: password-protected erase or per-flight delete instead of erase-all. Prevents accidental data loss in field use.
 - **USB Download Speed Optimization (post-Stage 6):** Current USB CDC download runs ~9 KB/s (limited by Python serial read loop + fwrite through stdio layer). TinyUSB `tud_cdc_write()` direct calls and larger USB transfer chunks could reach ~200-500 KB/s (USB Full Speed theoretical). Not blocking — current speed downloads a typical flight in 20-30s.
-- **Pre-commit hook function decomposition (deferred):** 8 functions exceed size/complexity thresholds in the pre-commit hook. Deferred until end of Stage 6. Commits use `--no-verify` until addressed.
+- ~~**Pre-commit hook function decomposition:**~~ **DONE** (P5c, 2026-02-20). All 8 functions decomposed. Pre-commit hook passes clean — no `--no-verify` needed.
 
 ---
 
