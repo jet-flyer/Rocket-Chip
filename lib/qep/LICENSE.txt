@@ -1,0 +1,29 @@
+QP/C Real-Time Event Framework (RTEF)
+======================================
+
+Vendored from: https://github.com/QuantumLeaps/qpc
+Version: 8.1.3
+Date vendored: 2026-03-15
+
+Files vendored:
+  qep_hsm.c   - Hierarchical state machine dispatch engine (src/qf/qep_hsm.c)
+  qp.h        - Public API: QEvt, QHsm, QState, signals (include/qp.h)
+  qp_pkg.h    - Package-scope internals (include/qp_pkg.h)
+  qsafe.h     - Functional Safety assertion macros (include/qsafe.h)
+  qs_dummy.h  - Dummy QS tracing stubs (include/qs_dummy.h)
+
+Custom files (RocketChip-specific):
+  qp_config.h - QEP-only configuration (QF/QV/QK disabled)
+  qp_port.h   - Platform port (Cortex-M33 target / x86 host test)
+
+License: GPL-3.0-or-later OR LicenseRef-QL-commercial
+
+The vendored QP/C files are copyright Quantum Leaps, LLC and are
+distributed under the GNU General Public License version 3 or later.
+RocketChip is also GPL-3.0-or-later, so the licenses are compatible.
+
+For commercial licensing of QP/C, contact Quantum Leaps:
+  https://www.state-machine.com/licensing
+  info@state-machine.com
+
+Full GPL-3.0 text: https://www.gnu.org/licenses/gpl-3.0.html

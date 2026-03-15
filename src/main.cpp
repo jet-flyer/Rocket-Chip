@@ -41,6 +41,8 @@
 #include "rocketchip/telemetry_service.h"
 #include "cli/rc_os.h"
 #include "watchdog/watchdog_recovery.h"
+#include "qp_port.h"   // QP/C QEP (IVP-67): Q_onError, QHsm types
+#include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
 #include "hardware/sync.h"
 #include "hardware/exception.h"
@@ -468,6 +470,25 @@ static void memmanage_fault_handler() {
         for (int32_t d = 0; d < kFaultBlinkSlowLoops; d++) { __asm volatile(""); }
         *ledOff = ledMask;
         for (int32_t d = 0; d < kFaultBlinkSlowLoops; d++) { __asm volatile(""); }
+    }
+}
+
+// ============================================================================
+// QP/C Assertion Handler (IVP-67)
+// ============================================================================
+// Called by QEP when a state machine invariant is violated (null state handler,
+// nesting depth overflow, etc.). Logs the failure and halts — the watchdog
+// will reset the device and the recovery policy (IVP-66) will track it.
+extern "C" Q_NORETURN Q_onError(
+    char const * const module,
+    int_t const id)
+{
+    __asm volatile("cpsid i");  // Disable interrupts
+    printf("[QP ASSERT] module=%s, id=%d\n", module, id);
+    // Spin until watchdog resets us — recovery scratch registers are fresh
+    // from the last watchdog_kick_tick().
+    while (true) {
+        __asm volatile("nop");
     }
 }
 

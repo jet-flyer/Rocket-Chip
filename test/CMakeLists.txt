@@ -129,3 +129,8 @@ gtest_discover_tests(test_telemetry_encoder)
 add_executable(test_watchdog_recovery test_watchdog_recovery.cpp)
 target_link_libraries(test_watchdog_recovery PRIVATE rc_watchdog GTest::gtest_main)
 gtest_discover_tests(test_watchdog_recovery)
+
+# IVP-67: QEP smoke test (vendored QP/C 8.1.3 dispatch engine)
+add_executable(test_qep_smoke test_qep_smoke.cpp)
+target_link_libraries(test_qep_smoke PRIVATE qep GTest::gtest_main)
+gtest_discover_tests(test_qep_smoke)

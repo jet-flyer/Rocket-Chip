@@ -106,6 +106,20 @@ if(BUILD_TESTS)
     target_compile_definitions(rc_watchdog PUBLIC ROCKETCHIP_HOST_TEST=1)
 
     # ------------------------------------------------------------------
+    # QEP library (IVP-67, vendored QP/C 8.1.3 HSM dispatch engine)
+    # Portable C99 — compiles on host and target.
+    # ROCKETCHIP_HOST_TEST selects no-op critical sections for testing.
+    # ------------------------------------------------------------------
+    add_library(qep STATIC
+        lib/qep/qep_hsm.c
+        lib/qep/qp_app.c
+    )
+    target_include_directories(qep PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/lib/qep
+    )
+    target_compile_definitions(qep PUBLIC ROCKETCHIP_HOST_TEST=1)
+
+    # ------------------------------------------------------------------
     # Tests
     # ------------------------------------------------------------------
     enable_testing()
@@ -267,6 +281,10 @@ else()
         # Stage 8: Flight Director (IVP-66+)
         # -------------------------------------------------------------------------
         src/watchdog/watchdog_recovery.cpp
+
+        # IVP-67: QEP hierarchical state machine dispatch (vendored QP/C 8.1.3)
+        lib/qep/qep_hsm.c
+        lib/qep/qp_app.c
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -321,6 +339,7 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/src/logging          # IVP-49
         ${CMAKE_CURRENT_LIST_DIR}/src/telemetry        # IVP-58
         ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink            # IVP-61
+        ${CMAKE_CURRENT_LIST_DIR}/lib/qep                # IVP-67
         ${RUUVI_DPS310_DIR}                            # IVP-11
         ${LWGPS_DIR}/include                             # IVP-31
     )
