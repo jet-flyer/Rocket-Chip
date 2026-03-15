@@ -40,6 +40,7 @@
 #include "rocketchip/fused_state.h"
 #include "rocketchip/telemetry_service.h"
 #include "cli/rc_os.h"
+#include "watchdog/watchdog_recovery.h"
 #include "pico/multicore.h"
 #include "hardware/sync.h"
 #include "hardware/exception.h"
@@ -55,7 +56,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = board::kNeoPixelPin;
-static constexpr const char* kBuildTag = "ivp63-complete";
+static constexpr const char* kBuildTag = "ivp66-recovery-1";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -259,6 +260,10 @@ struct gps_session_stats_t {
 static gps_session_stats_t g_gpsSess = {
     0.0F, 0.0F, 0.0F, 0.0F, 0, kGpsNisSentinel, 0.0F
 };
+
+// IVP-66: Watchdog recovery policy — persists flight state across WDT resets.
+// Tracks reboot count, safe-mode lockout, ESKF failure backoff.
+static rc::WatchdogRecovery g_recovery;
 
 // IVP-42d: ESKF 15-state error-state Kalman filter (Core 0 at 200Hz)
 // Static per LL Entry 1: ESKF struct is ~970 bytes (Mat15 P = 900 bytes).
@@ -1838,6 +1843,7 @@ static void init_peripherals() {
 
 static bool init_hardware() {
     bool watchdogReboot = check_watchdog_reboot();
+    rc::watchdog_recovery_init(&g_recovery, watchdogReboot);
     init_early_hw();
 
     // PSRAM init — MUST be before Core 1 launch because psram_init()
@@ -1853,6 +1859,11 @@ static bool init_hardware() {
 
     // Launch Core 1 early so NeoPixel blinks immediately (no USB dependency)
     multicore_launch_core1(core1_entry);
+
+    // IVP-66: Safe mode — solid red NeoPixel to signal critical state
+    if (g_recovery.launch_abort && g_neopixelInitialized) {
+        ws2812_set_mode(WS2812_MODE_SOLID, kColorRed);
+    }
 
     // I2C bus init (before USB per LL Entry 4/12)
     g_i2cInitialized = i2c_bus_init();
@@ -1880,6 +1891,15 @@ static void print_boot_status() {
 
     if (g_watchdogReboot) {
         printf("[WARN] *** PREVIOUS REBOOT WAS CAUSED BY WATCHDOG RESET ***\n");
+        if (g_recovery.boot_state.valid) {
+            printf("[WARN] Reboot #%u, last tick: %u, flight phase: %u\n",
+                   static_cast<unsigned>(g_recovery.boot_state.reboot_count),
+                   static_cast<unsigned>(g_recovery.boot_state.last_tick_fn),
+                   static_cast<unsigned>(g_recovery.boot_state.flight_phase));
+        }
+        if (g_recovery.launch_abort) {
+            printf("[WARN] *** LAUNCH_ABORT: too many rapid reboots (safe mode) ***\n");
+        }
         printf("[INFO] Re-enabling watchdog (%lu ms)\n\n",
                (unsigned long)kWatchdogTimeoutMs);
     }
@@ -2004,6 +2024,10 @@ static void watchdog_kick_tick() {
         return;
     }
 
+    // IVP-66: Update scratch registers with current state before kicking.
+    // If the next kick is missed, recovery data is fresh.
+    rc::watchdog_recovery_update_scratch(&g_recovery);
+
     g_wdtCore0Alive.store(true, std::memory_order_relaxed);
     if (g_wdtCore0Alive.load(std::memory_order_relaxed) &&
         g_wdtCore1Alive.load(std::memory_order_relaxed)) {
@@ -2109,6 +2133,7 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
     // CR-1: stop propagation if filter diverges
     if (!g_eskf.healthy()) {
         g_eskfInitialized = false;
+        rc::watchdog_recovery_eskf_failed(&g_recovery);  // IVP-66: backoff
         return;
     }
 
@@ -2276,6 +2301,11 @@ static void eskf_tick() {
         return;
     }
 
+    // IVP-66: ESKF failure backoff — skip if disabled after too many failures
+    if (g_recovery.eskf_disabled) {
+        return;
+    }
+
     // CR-4: seqlock failure is a separate early return from data validity
     shared_sensor_data_t snap = {};
     if (!seqlock_read(&g_sensorSeqlock, &snap)) {
@@ -2303,6 +2333,7 @@ static void eskf_tick() {
     // P-growth check: catch slow divergence before velocity hits 500 m/s
     if (!g_eskf.check_p_growth(time_us_32())) {
         g_eskfInitialized = false;  // CR-1 reset
+        rc::watchdog_recovery_eskf_failed(&g_recovery);  // IVP-66: backoff
         return;
     }
 
@@ -2856,27 +2887,35 @@ int main() {
         uint32_t nowMs = to_ms_since_boot(get_absolute_time());
 
         g_lastTickFunction = "heartbeat";
+        g_recovery.current_tick_fn = rc::TickFnId::kHeartbeat;
         heartbeat_tick(nowMs);
 
         g_lastTickFunction = "watchdog";
+        g_recovery.current_tick_fn = rc::TickFnId::kWatchdog;
         watchdog_kick_tick();
 
         g_lastTickFunction = "eskf";
+        g_recovery.current_tick_fn = rc::TickFnId::kEskf;
         eskf_tick();
 
         g_lastTickFunction = "logging";
+        g_recovery.current_tick_fn = rc::TickFnId::kLogging;
         logging_tick();
 
         g_lastTickFunction = "radio";
+        g_recovery.current_tick_fn = rc::TickFnId::kRadio;
         telemetry_radio_tick(nowMs);
 
         g_lastTickFunction = "mavlink";
+        g_recovery.current_tick_fn = rc::TickFnId::kMavlink;
         mavlink_direct_tick(nowMs);
 
         g_lastTickFunction = "cli";
+        g_recovery.current_tick_fn = rc::TickFnId::kCli;
         cli_update_tick();
 
         g_lastTickFunction = "sleep";
+        g_recovery.current_tick_fn = rc::TickFnId::kSleep;
         sleep_ms(1);
     }
 

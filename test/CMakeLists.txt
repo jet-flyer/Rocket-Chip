@@ -124,3 +124,8 @@ gtest_discover_tests(test_eskf_reset)
 add_executable(test_telemetry_encoder test_telemetry_encoder.cpp)
 target_link_libraries(test_telemetry_encoder PRIVATE rc_telemetry GTest::gtest_main)
 gtest_discover_tests(test_telemetry_encoder)
+
+# IVP-66: Watchdog recovery policy
+add_executable(test_watchdog_recovery test_watchdog_recovery.cpp)
+target_link_libraries(test_watchdog_recovery PRIVATE rc_watchdog GTest::gtest_main)
+gtest_discover_tests(test_watchdog_recovery)

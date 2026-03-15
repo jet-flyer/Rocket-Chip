@@ -93,6 +93,19 @@ if(BUILD_TESTS)
     )
 
     # ------------------------------------------------------------------
+    # Watchdog recovery library (IVP-66, no SDK dependencies)
+    # ROCKETCHIP_HOST_TEST enables fake scratch registers for testing.
+    # ------------------------------------------------------------------
+    add_library(rc_watchdog STATIC
+        src/watchdog/watchdog_recovery.cpp
+    )
+    target_include_directories(rc_watchdog PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/include
+        ${CMAKE_CURRENT_LIST_DIR}/src
+    )
+    target_compile_definitions(rc_watchdog PUBLIC ROCKETCHIP_HOST_TEST=1)
+
+    # ------------------------------------------------------------------
     # Tests
     # ------------------------------------------------------------------
     enable_testing()
@@ -249,6 +262,11 @@ else()
         src/drivers/rfm95w.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp
+
+        # -------------------------------------------------------------------------
+        # Stage 8: Flight Director (IVP-66+)
+        # -------------------------------------------------------------------------
+        src/watchdog/watchdog_recovery.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -282,6 +300,7 @@ else()
         src/drivers/rfm95w.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp
+        src/watchdog/watchdog_recovery.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
