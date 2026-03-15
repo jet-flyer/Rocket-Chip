@@ -186,11 +186,11 @@ struct ESKF {
 
     // =================================================================
     // Barometric altitude measurement — IVP-43
-    // DPS310 @ 16x oversampling noise (same as BaroKF)
+    // DPS310 @ 8x oversampling: 0.4 Pa × 0.083 m/Pa = 0.033 m
     // =================================================================
 
-    static constexpr float kSigmaBaro = 0.029f;                        // m
-    static constexpr float kRBaro = kSigmaBaro * kSigmaBaro;           // ~0.000841 m²
+    static constexpr float kSigmaBaro = 0.033f;                        // m
+    static constexpr float kRBaro = kSigmaBaro * kSigmaBaro;           // ~0.001089 m²
     static constexpr float kBaroInnovationGate = 3.0f;                 // 3σ gate
 
     // =================================================================

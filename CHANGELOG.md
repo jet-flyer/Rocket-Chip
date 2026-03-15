@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-14-002 | Claude Code CLI | hardware, council
+
+**DPS310 baro: independent P/T config, 8x OS, R correction.** Council-reviewed DPS310 measurement rate and oversampling selection. Key findings: (1) previous 16x OS / 32 SPS config ran at 88% duty cycle in CONT_BOTH mode (P+T interleaved, sharing measurement budget); (2) 64 SPS attempts failed HW verification at both 8x and 4x OS — DPS310 enforces MaxRate limits stricter than measurement-time math suggests; (3) P and T channels can be configured independently. New config: pressure at 8x OS / 32 SPS, temperature at 1x OS / 2 Hz (compensation only). Duty cycle drops from 88% to 48% with better noise match. Updated `kSigmaBaro` from 0.029m (matched 16x OS) to 0.033m (matches actual 8x OS) in ESKF and BaroKF — the R value was previously too tight for the hardware config. HW verified: 60s soak, 2029 baro reads, 0 errors, bNIS=0.01. (`src/drivers/baro_dps310.{h,cpp}`, `src/fusion/eskf.{h,cpp}`, `src/fusion/baro_kf.h`, `src/main.cpp`, `docs/hardware/HARDWARE.md`)
+
+---
+
 ### 2026-03-14-001 | Claude Code CLI | architecture, council, documentation
 
 **Stage 8 restructure: UML statecharts + QEP adoption.** Integrated three council-reviewed documents (formalism research, council decisions, QP/C application guide) into `docs/flight_director/` and `docs/decisions/flight_director/`. Deprecated old `FLIGHT_DIRECTOR_DESIGN.md` and `RESEARCH.md`. Restructured IVP Stage 8 from 5 to 10 steps (IVP-66–75) reflecting council decisions: UML statecharts as formalism, QEP dispatch engine, STARS toolchain gate, apogee reclassified as event, transition-gated pyro safety architecture. Added new Stage 9: Active Object Architecture (IVP-76–80) for QF+QV migration. Renumbered Stages 10–12, total 95 IVP steps across 12 stages. (`docs/IVP.md`, `docs/flight_director/`, `docs/decisions/flight_director/`)

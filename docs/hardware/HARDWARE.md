@@ -81,9 +81,10 @@ Verified datasheet values used by ESKF and calibration code. All ICM-20948 value
 
 | Parameter | Value | Units | Condition |
 |-----------|-------|-------|-----------|
-| Pressure Noise | 0.35 | Pa RMS | 16× oversampling |
-| → Altitude Noise | 0.029 | m | Via 0.083 m/Pa conversion |
-| Measurement Rate | 32 | Hz | ArduPilot parity (kBaroDps310MeasRate) |
+| Pressure Noise | 0.4 | Pa RMS | 8× oversampling (DPS310 datasheet Table 16) |
+| → Altitude Noise | 0.033 | m | Via 0.083 m/Pa conversion |
+| Pressure Rate | 32 | Hz | kBaroDps310PresMeasRate (8× OS, 14.8ms meas, 48% duty) |
+| Temperature Rate | 2 | Hz | kBaroDps310TempMeasRate (1× OS, compensation only) |
 
 Cross-reference: `src/drivers/baro_dps310.h`, `src/fusion/eskf.h` (ESKF baro update).
 

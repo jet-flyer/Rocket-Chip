@@ -672,7 +672,7 @@ void ESKF::bierman_kalman_update(int32_t hIdx, float hValue,
 //   z = altitudeAglM (positive up)
 //   h(x) = -p.z + baro_bias (NED down negated + bias when enabled)
 //   H = [0 0 0 | 0 0 -1 | 0...0 | 0...0 | 0 0 | +1]  (1×24, +1 at [23] when enabled)
-//   R = kRBaro = 0.029² ≈ 0.000841 m²
+//   R = kRBaro = 0.033² ≈ 0.001089 m²
 //
 // Sequential scalar update — no matrix inverse needed.
 // Joseph form P update for numerical stability (Bucy & Joseph, 1968).

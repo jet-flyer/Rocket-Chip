@@ -130,17 +130,19 @@ bool baro_dps310_init(uint8_t addr) {
         return false;
     }
 
-    // Configure oversampling and measurement rate from header constants.
-    // See baro_dps310.h for the full tradeoff table (precision vs latency vs power).
-    const dps310_mr_t mr = mr_from_int(kBaroDps310MeasRate);
-    const dps310_os_t os = os_from_int(kBaroDps310Oversampling);
-
-    status = dps310_config_temp(&g_dps310Ctx, mr, os);
+    // Configure pressure and temperature independently.
+    // Pressure gets full rate budget; temperature only needs ~2 Hz for compensation.
+    // See baro_dps310.h for duty cycle model and tradeoff table.
+    status = dps310_config_temp(&g_dps310Ctx,
+                                mr_from_int(kBaroDps310TempMeasRate),
+                                os_from_int(kBaroDps310TempOversampling));
     if (status != DPS310_SUCCESS) {
         return false;
     }
 
-    status = dps310_config_pres(&g_dps310Ctx, mr, os);
+    status = dps310_config_pres(&g_dps310Ctx,
+                                mr_from_int(kBaroDps310PresMeasRate),
+                                os_from_int(kBaroDps310PresOversampling));
     return (status == DPS310_SUCCESS);
 }
 

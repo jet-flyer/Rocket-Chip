@@ -39,15 +39,20 @@ constexpr uint8_t kBaroDps310AddrAlt        = 0x76;
 // Ground testing: up to 64x is fine if latency isn't critical.
 //
 // Ruuvi driver enums: DPS310_OS_1 .. DPS310_OS_128, DPS310_MR_1 .. DPS310_MR_128
-// To change: edit these two constants. One-line change, no other code affected.
-// Default: 16x @ 8Hz (ArduPilot parity). Change per application:
-//   Boost/coast: 8x (fast response for rapid altitude change)
-//   Descent:     16-32x (higher precision, slower dynamics)
-//   Ground cal:  64x (max precision for reference pressure)
+// Pressure and temperature are configured independently. Temperature compensation
+// needs ~1-2 Hz (thermal time constant of sensor package is 5-15s). Pressure gets
+// the full rate budget.
+//
+// Duty cycle model (CONT_BOTH mode):
+//   total = P_rate × P_meas_time + T_rate × T_meas_time ≤ 1000ms
+//   Current: 32×14.8ms + 2×3.6ms = 481ms (52% margin)
+//
 // Runtime reconfiguration is supported — DPS310 accepts new config
-// mid-measurement. Future: MMAE hypothesis-driven OS switching (IVP-47).
-constexpr uint8_t kBaroDps310Oversampling   = 16;  // 1,2,4,8,16,32,64,128
-constexpr uint8_t kBaroDps310MeasRate       = 32;  // Measurements per second (ArduPilot parity)
+// mid-measurement. Future: phase-scheduled OS switching (Stage 10).
+constexpr uint8_t kBaroDps310PresOversampling = 8;   // 8x: 0.4 Pa noise, 14.8ms meas time
+constexpr uint8_t kBaroDps310PresMeasRate     = 32;  // 32 pressure readings/sec (proven rate)
+constexpr uint8_t kBaroDps310TempOversampling = 1;   // 1x: minimal (compensation only)
+constexpr uint8_t kBaroDps310TempMeasRate     = 2;   // 2 Hz (covers worst-case thermal transients)
 
 // ============================================================================
 // Types

@@ -12,7 +12,7 @@
 // Uses Joseph form for covariance update (numerically stable).
 //
 // Reference: standard linear KF, practice for full ESKF.
-// DPS310 noise @ 16x oversampling: 0.35 Pa RMS = ~0.029m altitude noise.
+// DPS310 noise @ 8x oversampling: 0.4 Pa RMS = ~0.033m altitude noise.
 // (See baro_dps310.h for full oversampling tradeoff table.)
 
 #include <cstdint>
@@ -28,10 +28,10 @@ struct BaroKF {
 
     // Tuning parameters (all with k prefix, justified by source)
 
-    // DPS310 datasheet Table 16: 0.35 Pa RMS @ 16x oversampling
-    // Converted: 0.35 Pa * 0.083 m/Pa = 0.029 m altitude noise
-    static constexpr float kSigmaBaro = 0.029f;
-    static constexpr float kRBaro = kSigmaBaro * kSigmaBaro;  // ~0.000841 m^2
+    // DPS310 datasheet Table 16: 0.4 Pa RMS @ 8x oversampling
+    // Converted: 0.4 Pa * 0.083 m/Pa = 0.033 m altitude noise
+    static constexpr float kSigmaBaro = 0.033f;
+    static constexpr float kRBaro = kSigmaBaro * kSigmaBaro;  // ~0.001089 m^2
 
     // Process noise PSD for vertical acceleration.
     // No datasheet value — empirical starting point. Represents expected
