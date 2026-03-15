@@ -50,12 +50,6 @@
 
 ---
 
-### DPS310 Baro Rate — Consider Increasing Above 32 SPS
-
-**Added 2026-03-09.** DPS310 currently configured at 32 SPS (`kBaroDps310MeasRate` in `baro_dps310.h`). DPS310 supports up to 128 SPS (with reduced oversampling). Higher rate would improve baro altitude responsiveness for the Flight Director. **64 SPS is the sweet spot:** doubles rate with only ~0.02m more altitude noise (0.7 Pa vs 0.5 Pa at 8× oversampling). 128 SPS drops to 1× oversampling (~2.5 Pa / ~20cm noise). Changes needed: `kBaroDps310MeasRate=64` in `baro_dps310.h`, `kCore1BaroDivider=16` in `main.cpp` (1000Hz/16=62.5Hz poll). DPS310 datasheet Table 6 has the full rate/oversampling matrix.
-
----
-
 ### Protected File Updates Pending Approval
 
 *None currently.*
@@ -88,6 +82,12 @@
 ---
 
 ## Resolved
+
+### DPS310 Baro Rate Optimization — RESOLVED (2026-03-14)
+
+Council-reviewed P/T rate configuration. 64 SPS failed HW verification (DPS310 enforces MaxRate limits in CONT_BOTH mode). Settled on independent P/T config: pressure 8x OS / 32 SPS, temperature 1x OS / 2 Hz. Duty cycle dropped from 88% → 48%. `kSigmaBaro` corrected from 0.029m → 0.033m (was mismatched to 16x OS). HW verified: 2029 reads, 0 errors, bNIS=0.01.
+
+---
 
 ### DPS310 Baro Read Count Freezes — FIXED (2026-03-09)
 
