@@ -51,6 +51,7 @@ extern "C" {
 #include "mission_profile.h"
 #include "guard_evaluator.h"
 #include "guard_combinator.h"
+#include "action_executor.h"
 
 namespace rc {
 
@@ -97,6 +98,10 @@ struct FlightDirector {
     CombinatorSet combinator_set;   // Guard combinators + lockouts (IVP-71)
     uint32_t tick_ms;               // Current tick timestamp (set each tick)
     bool guards_enabled;            // False in IDLE/LANDED, true in flight phases
+
+    // Action callbacks (IVP-72) — set by main.cpp, stubbed in host tests
+    void (*set_led_cb)(uint8_t led_value);      // NeoPixel override
+    void (*log_pyro_cb)(PyroChannel channel);   // Pyro intent logging
 };
 
 // Lifecycle

@@ -154,3 +154,8 @@ gtest_discover_tests(test_guards)
 add_executable(test_guard_combinator test_guard_combinator.cpp)
 target_link_libraries(test_guard_combinator PRIVATE rc_flight_director GTest::gtest_main)
 gtest_discover_tests(test_guard_combinator)
+
+# IVP-72: Action executor + flight actions tests
+add_executable(test_action_executor test_action_executor.cpp)
+target_link_libraries(test_action_executor PRIVATE rc_flight_director GTest::gtest_main)
+gtest_discover_tests(test_action_executor)

@@ -4,6 +4,7 @@
 // Flight Director — QEP State Machine Implementation
 //
 // IVP-68: QEP Integration + Phase Skeleton (Stage 8: Flight Director)
+// IVP-72: Action Executor — entry/exit/transition actions wired into handlers
 //
 // Nine state handler functions implementing the flight phase statechart.
 // Each handler processes QEP signals (Q_ENTRY_SIG, Q_EXIT_SIG, user signals)
@@ -18,6 +19,7 @@
 //============================================================================
 
 #include "flight_director.h"
+#include "flight_actions.h"
 #include <cmath>
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -62,6 +64,41 @@ static void log_transition(const FlightDirector* me,
     printf("[FD] %s -> %s\n",
            flight_phase_name(from),
            flight_phase_name(to));
+}
+
+// ============================================================================
+// Helper: build ActionContext from FlightDirector state (IVP-72)
+// ============================================================================
+static ActionContext make_action_ctx(FlightDirector* me,
+                                      FlightPhase from, FlightPhase to) {
+    ActionContext ctx{};
+    ctx.markers = &me->state.markers;
+    ctx.now_ms = me->tick_ms;
+    ctx.from_phase = from;
+    ctx.to_phase = to;
+    ctx.set_led = me->set_led_cb;
+    ctx.log_pyro = me->log_pyro_cb;
+    return ctx;
+}
+
+// Helper: execute entry actions for a phase
+static void run_entry_actions(FlightDirector* me, FlightPhase phase,
+                               FlightPhase from) {
+    uint8_t idx = static_cast<uint8_t>(phase);
+    if (idx < static_cast<uint8_t>(FlightPhase::kCount)) {
+        ActionContext ctx = make_action_ctx(me, from, phase);
+        action_execute_list(kPhaseEntryActions[idx].entries,
+                            kPhaseEntryActions[idx].count, &ctx);
+    }
+}
+
+// Helper: execute transition actions (e.g. pyro fire)
+static void run_transition_actions(FlightDirector* me,
+                                    const ActionEntry* actions,
+                                    uint32_t count,
+                                    FlightPhase from, FlightPhase to) {
+    ActionContext ctx = make_action_ctx(me, from, to);
+    action_execute_list(actions, count, &ctx);
 }
 
 // ============================================================================
@@ -119,6 +156,8 @@ void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
     me->profile = profile;
     me->tick_ms = 0;
     me->guards_enabled = false;
+    me->set_led_cb = nullptr;
+    me->log_pyro_cb = nullptr;
     // Init guard evaluator: 10ms tick period (100Hz)
     guard_evaluator_init(&me->guard_eval, *profile, 10);
     // Init combinator set from profile (IVP-71)
@@ -213,6 +252,7 @@ static QState state_idle(FlightDirector * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             FlightPhase prev = me->state.current_phase;
             enter_phase(me, FlightPhase::kIdle);
+            run_entry_actions(me, FlightPhase::kIdle, prev);
             if (me->state.transition_count > 1) {
                 log_transition(me, prev, FlightPhase::kIdle);
             }
@@ -241,7 +281,7 @@ static QState state_armed(FlightDirector * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             FlightPhase prev = me->state.current_phase;
             enter_phase(me, FlightPhase::kArmed);
-            me->state.markers.armed_ms = me->tick_ms;
+            run_entry_actions(me, FlightPhase::kArmed, prev);
             log_transition(me, prev, FlightPhase::kArmed);
             return Q_HANDLED();
         }
@@ -277,7 +317,7 @@ static QState state_boost(FlightDirector * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             FlightPhase prev = me->state.current_phase;
             enter_phase(me, FlightPhase::kBoost);
-            me->state.markers.launch_ms = me->tick_ms;
+            run_entry_actions(me, FlightPhase::kBoost, prev);
             log_transition(me, prev, FlightPhase::kBoost);
             return Q_HANDLED();
         }
@@ -305,11 +345,17 @@ static QState state_coast(FlightDirector * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             FlightPhase prev = me->state.current_phase;
             enter_phase(me, FlightPhase::kCoast);
-            me->state.markers.burnout_ms = me->tick_ms;
+            run_entry_actions(me, FlightPhase::kCoast, prev);
             log_transition(me, prev, FlightPhase::kCoast);
             return Q_HANDLED();
         }
         case SIG_APOGEE:
+            // Transition action: fire drogue pyro (if profile has pyro)
+            if (me->profile->has_pyro) {
+                run_transition_actions(me, kTransitionFireDrogue,
+                    action_count(kTransitionFireDrogue),
+                    FlightPhase::kCoast, FlightPhase::kDrogueDescent);
+            }
             return Q_TRAN(&state_descent);
         case SIG_ABORT:
             return Q_TRAN(&state_abort);
@@ -318,6 +364,12 @@ static QState state_coast(FlightDirector * const me, QEvt const * const e) {
             uint32_t elapsed = me->tick_ms - me->state.phase_entry_ms;
             if (elapsed >= me->profile->coast_timeout_ms) {
                 printf("[FD] Coast timeout — forced apogee\n");
+                // Fire drogue pyro on timeout-forced apogee (same as SIG_APOGEE)
+                if (me->profile->has_pyro) {
+                    run_transition_actions(me, kTransitionFireDrogue,
+                        action_count(kTransitionFireDrogue),
+                        FlightPhase::kCoast, FlightPhase::kDrogueDescent);
+                }
                 return Q_TRAN(&state_descent);
             }
             return Q_HANDLED();
@@ -360,12 +412,17 @@ static QState state_drogue_descent(FlightDirector * const me, QEvt const * const
         case Q_ENTRY_SIG: {
             FlightPhase prev = me->state.current_phase;
             enter_phase(me, FlightPhase::kDrogueDescent);
-            me->state.markers.apogee_ms = me->tick_ms;
-            me->state.markers.drogue_deploy_ms = me->tick_ms;
+            run_entry_actions(me, FlightPhase::kDrogueDescent, prev);
             log_transition(me, prev, FlightPhase::kDrogueDescent);
             return Q_HANDLED();
         }
         case SIG_MAIN_DEPLOY:
+            // Transition action: fire main pyro (if profile has pyro)
+            if (me->profile->has_pyro) {
+                run_transition_actions(me, kTransitionFireMain,
+                    action_count(kTransitionFireMain),
+                    FlightPhase::kDrogueDescent, FlightPhase::kMainDescent);
+            }
             return Q_TRAN(&state_main_descent);
         case SIG_LANDING:
             return Q_TRAN(&state_landed);
@@ -387,7 +444,7 @@ static QState state_main_descent(FlightDirector * const me, QEvt const * const e
         case Q_ENTRY_SIG: {
             FlightPhase prev = me->state.current_phase;
             enter_phase(me, FlightPhase::kMainDescent);
-            me->state.markers.main_deploy_ms = me->tick_ms;
+            run_entry_actions(me, FlightPhase::kMainDescent, prev);
             log_transition(me, prev, FlightPhase::kMainDescent);
             return Q_HANDLED();
         }
@@ -411,7 +468,7 @@ static QState state_landed(FlightDirector * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             FlightPhase prev = me->state.current_phase;
             enter_phase(me, FlightPhase::kLanded);
-            me->state.markers.landing_ms = me->tick_ms;
+            run_entry_actions(me, FlightPhase::kLanded, prev);
             log_transition(me, prev, FlightPhase::kLanded);
             return Q_HANDLED();
         }
@@ -437,13 +494,21 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e) {
         case Q_ENTRY_SIG: {
             FlightPhase prev = me->state.current_phase;
             enter_phase(me, FlightPhase::kAbort);
-            me->state.markers.abort_ms = me->tick_ms;
+            run_entry_actions(me, FlightPhase::kAbort, prev);
             log_transition(me, prev, FlightPhase::kAbort);
 
-            // ABORT actions depend on source phase (Amendment #1)
-            if (prev == FlightPhase::kBoost) {
+            // ABORT transition actions depend on source phase (Amendment #1)
+            if (prev == FlightPhase::kBoost &&
+                me->profile->abort_fires_drogue_from_boost) {
+                run_transition_actions(me, kTransitionFireDrogue,
+                    action_count(kTransitionFireDrogue),
+                    prev, FlightPhase::kAbort);
                 printf("[FD] ABORT from BOOST — drogue pyro intent\n");
-            } else if (prev == FlightPhase::kCoast) {
+            } else if (prev == FlightPhase::kCoast &&
+                       me->profile->abort_fires_drogue_from_coast) {
+                run_transition_actions(me, kTransitionFireDrogue,
+                    action_count(kTransitionFireDrogue),
+                    prev, FlightPhase::kAbort);
                 printf("[FD] ABORT from COAST — drogue pyro intent\n");
             }
             // ABORT from ARMED: no pyro action (still on pad)

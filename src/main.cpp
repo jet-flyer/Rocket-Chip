@@ -60,7 +60,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = board::kNeoPixelPin;
-static constexpr const char* kBuildTag = "ivp68-fd-1";
+static constexpr const char* kBuildTag = "ivp72-action-1";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -173,6 +173,16 @@ static constexpr uint8_t kCalNeoFail        = 8;  // Red blink fast (step failed
 static constexpr uint8_t kRxNeoReceiving   = 9;  // Green solid (packets arriving)
 static constexpr uint8_t kRxNeoGap         = 10; // Yellow blink (>1s gap)
 static constexpr uint8_t kRxNeoLost        = 11; // Red blink fast (>5s gap)
+// Flight phase NeoPixel overlay (IVP-72, set by Flight Director actions)
+// Values match LedPhaseValue enum in action_executor.h (start at 20)
+static constexpr uint8_t kFdNeoArmed       = 20; // Amber solid
+static constexpr uint8_t kFdNeoBoost       = 21; // Red solid
+static constexpr uint8_t kFdNeoCoast       = 22; // Yellow solid
+static constexpr uint8_t kFdNeoDrogue      = 23; // Red blink
+static constexpr uint8_t kFdNeoMain        = 24; // Red blink
+static constexpr uint8_t kFdNeoLanded      = 25; // Green blink
+static constexpr uint8_t kFdNeoAbort       = 26; // Red fast blink
+static constexpr uint8_t kFdNeoBeacon      = 27; // White blink (post-landing locator)
 
 // Tracks last NeoPixel mode/color so we only call ws2812_set_mode()
 // on transitions, not every cycle (which would reset animation state).
@@ -824,29 +834,42 @@ static void neo_set_if_changed(ws2812_mode_t mode, ws2812_rgb_t color) {
     }
 }
 
+// Map NeoPixel override value to mode + color.
+// Covers calibration (kCalNeo*), RX (kRxNeo*), and flight (kFdNeo*) overlays.
+static void neo_apply_override(uint8_t val) {
+    switch (val) {
+        case kCalNeoGyro:        // fall through
+        case kCalNeoLevel:       neo_set_if_changed(WS2812_MODE_BREATHE, kColorBlue); break;
+        case kCalNeoBaro:        neo_set_if_changed(WS2812_MODE_BREATHE, kColorCyan); break;
+        case kCalNeoAccelWait:   neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow); break;
+        case kCalNeoAccelSample: neo_set_if_changed(WS2812_MODE_SOLID, kColorYellow); break;
+        case kCalNeoMag:         neo_set_if_changed(WS2812_MODE_RAINBOW, kColorWhite); break;
+        case kCalNeoSuccess:     neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen); break;
+        case kCalNeoFail:        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
+        case kRxNeoReceiving:    neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen); break;
+        case kRxNeoGap:          neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow); break;
+        case kRxNeoLost:         neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
+        case kFdNeoArmed:        neo_set_if_changed(WS2812_MODE_SOLID, kColorOrange); break;
+        case kFdNeoBoost:        neo_set_if_changed(WS2812_MODE_SOLID, kColorRed); break;
+        case kFdNeoCoast:        neo_set_if_changed(WS2812_MODE_SOLID, kColorYellow); break;
+        case kFdNeoDrogue:       neo_set_if_changed(WS2812_MODE_BLINK, kColorRed); break;
+        case kFdNeoMain:         neo_set_if_changed(WS2812_MODE_BLINK, kColorRed); break;
+        case kFdNeoLanded:       neo_set_if_changed(WS2812_MODE_BLINK, kColorGreen); break;
+        case kFdNeoAbort:        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
+        case kFdNeoBeacon:       neo_set_if_changed(WS2812_MODE_BLINK, kColorWhite); break;
+        default:                 break;
+    }
+}
+
 static void core1_neopixel_update(shared_sensor_data_t* localData,
                                    uint32_t nowMs, uint32_t sensorPhaseStartMs) {
-    // INTERIM: Calibration NeoPixel override (Phase M.5).
-    // When Core 0 CLI is running a calibration, it sets the override to
-    // indicate the desired LED pattern. Replace with AP_Notify state machine.
+    // INTERIM: NeoPixel overlay (Phase M.5). Calibration, RX, and flight
+    // phase overlays set by Core 0. Replace with AP_Notify (IVP-77).
     uint8_t calOverride = g_calNeoPixelOverride.load(std::memory_order_relaxed);
     if (calOverride != kCalNeoOff) {
         if (calOverride != g_lastCalNeoOverride) {
             g_lastCalNeoOverride = calOverride;
-            switch (calOverride) {
-                case kCalNeoGyro:        // fall through
-                case kCalNeoLevel:       neo_set_if_changed(WS2812_MODE_BREATHE, kColorBlue); break;
-                case kCalNeoBaro:        neo_set_if_changed(WS2812_MODE_BREATHE, kColorCyan); break;
-                case kCalNeoAccelWait:   neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow); break;
-                case kCalNeoAccelSample: neo_set_if_changed(WS2812_MODE_SOLID, kColorYellow); break;
-                case kCalNeoMag:         neo_set_if_changed(WS2812_MODE_RAINBOW, kColorWhite); break;
-                case kCalNeoSuccess:     neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen); break;
-                case kCalNeoFail:        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
-                case kRxNeoReceiving:    neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen); break;
-                case kRxNeoGap:          neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow); break;
-                case kRxNeoLost:         neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
-                default:                 break;
-            }
+            neo_apply_override(calOverride);
         }
         ws2812_update();
         return;
@@ -1912,7 +1935,7 @@ static bool init_hardware() {
 static void print_boot_status() {
     printf("\n");
     printf("==============================================\n");
-    printf("  RocketChip v%s  Build: ivp71-combo-1\n", kVersionString);
+    printf("  RocketChip v%s  Build: ivp72-action-1\n", kVersionString);
     printf("  Board: %s\n", board::kBoardName);
     printf("==============================================\n\n");
 
@@ -2029,6 +2052,14 @@ static void init_application(bool watchdogReboot) {
 
     // IVP-68: Initialize Flight Director HSM
     rc::flight_director_ctor(&g_director, &rc::kDefaultRocketProfile);
+    // IVP-72: Wire action callbacks (NeoPixel + pyro intent logging)
+    g_director.set_led_cb = [](uint8_t val) {
+        g_calNeoPixelOverride.store(val, std::memory_order_relaxed);
+    };
+    g_director.log_pyro_cb = [](rc::PyroChannel ch) {
+        printf("[FD] PYRO INTENT: %s\n",
+               ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
+    };
     rc::flight_director_init(&g_director);
     g_directorInitialized = true;
 
