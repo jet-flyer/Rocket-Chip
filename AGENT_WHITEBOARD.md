@@ -37,7 +37,9 @@
 - **IVP-73:** Bench Flight Simulation — pyserial script (`scripts/bench_flight_sim.py`), 9 automated test cases, prompt-sync serial, 9/9 PASS in 10s. Council-reviewed (A1-A5).
 - **IVP-74:** Mission Profile Configuration — user-editable `.cfg` files (`profiles/rocket.cfg`, `profiles/hab.cfg`), Python generator (`scripts/generate_profile.py`), generated C++ header, field guide README. Council-reviewed (A1-A4). HAB profile swap HW-verified (lower launch threshold triggered auto-launch from desk vibration, confirming behavioral change). 23 new tests.
 
-**Next:** IVP-75 (Active Object Migration Planning — QF+QV vendor, compile gate, migration doc).
+- **IVP-75:** Active Object Migration Planning — QF+QV vendored (10 source files + 3 headers), BSP shim, compile gate passes, migration doc written. Stage 8 complete.
+
+**Stage 8 COMPLETE.** 10 IVPs (IVP-66 through IVP-75), 552 host tests, bench sim 9/9.
 
 **Rollback point:** Tag `pre-stage8` → commit `504bb0e` (last commit before Stage 8 IVP work). All work on main.
 

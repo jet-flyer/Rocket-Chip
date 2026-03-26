@@ -53,6 +53,8 @@
 
 #ifdef ROCKETCHIP_HOST_TEST
     // Host test build: no interrupts, no critical sections needed
+    #define QF_INT_DISABLE() ((void)0)
+    #define QF_INT_ENABLE()  ((void)0)
     #define QF_CRIT_STAT
     #define QF_CRIT_ENTRY()  ((void)0)
     #define QF_CRIT_EXIT()   ((void)0)
@@ -64,6 +66,14 @@
     // PRIMASK disables all interrupts except NMI and HardFault.
     // We save and restore to support nested critical sections.
     #include "pico/critical_section.h"
+    #include "hardware/sync.h"
+
+    // QF interrupt disable/enable — PRIMASK-based (simplest for QV)
+    #define QF_INT_DISABLE() __asm volatile ("cpsid i" ::: "memory")
+    #define QF_INT_ENABLE()  __asm volatile ("cpsie i" ::: "memory")
+
+    // Fast LOG2 via CLZ instruction (ARMv8-M Cortex-M33 has CLZ)
+    #define QF_LOG2(n_) ((uint_fast8_t)(32U - __builtin_clz((unsigned)(n_))))
 
     // QF_CRIT_STAT: declares local variable for saving interrupt state.
     // QF_CRIT_ENTRY/EXIT: save/restore pair (used together with QF_CRIT_STAT).
@@ -76,8 +86,31 @@
 #endif
 
 // ============================================================================
-// QP Framework Port — Load main QP header
+// QV Port — Active Object configuration for QV cooperative kernel
+//
+// IVP-75: Compile gate for QF+QV. Stage 9 (IVP-76) activates.
+// Reference: QP/C 8.1.3 ports/arm-cm/qv/gnu/qp_port.h
 // ============================================================================
-#include "qp.h"  // QP/C public API (QEvt, QHsm, QState, etc.)
+
+// QV uses QEQueue as the built-in event queue for Active Objects.
+// Must be defined before qp.h so QActive struct includes the eQueue member.
+#define QACTIVE_EQUEUE_TYPE  QEQueue
+
+// QV is cooperative (no preemption) — no thread or OS object needed
+// QACTIVE_THREAD_TYPE not defined (single stack, run-to-completion)
+// QACTIVE_OS_OBJ_TYPE not defined (no OS primitives)
+
+// ============================================================================
+// QP Framework Port — Load headers in dependency order
+//
+// Order matters: qequeue.h and qmpool.h define the types used by
+// QACTIVE_EQUEUE_TYPE and QF_EPOOL_TYPE_ macros. These must be included
+// BEFORE qp.h which uses them in the QActive struct definition.
+// Reference: QP/C 8.1.3 ports/arm-cm/qv/gnu/qp_port.h
+// ============================================================================
+#include "qequeue.h"  // QEQueue — event queue (before qp.h)
+#include "qmpool.h"   // QMPool — memory pool (before qp.h)
+#include "qp.h"       // QP/C public API (QEvt, QHsm, QActive, etc.)
+#include "qv.h"       // QV — cooperative scheduler
 
 #endif // QP_PORT_H_

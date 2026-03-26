@@ -113,6 +113,18 @@ if(BUILD_TESTS)
     add_library(qep STATIC
         lib/qep/qep_hsm.c
         lib/qep/qp_app.c
+        # IVP-75: QF Active Object framework + QV cooperative scheduler
+        lib/qep/qf_act.c
+        lib/qep/qf_actq.c
+        lib/qep/qf_defer.c
+        lib/qep/qf_dyn.c
+        lib/qep/qf_mem.c
+        lib/qep/qf_ps.c
+        lib/qep/qf_qact.c
+        lib/qep/qf_qeq.c
+        lib/qep/qf_time.c
+        lib/qep/qv.c
+        lib/qep/bsp_qv.c
     )
     target_include_directories(qep PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/lib/qep
@@ -307,6 +319,18 @@ else()
         # IVP-67: QEP hierarchical state machine dispatch (vendored QP/C 8.1.3)
         lib/qep/qep_hsm.c
         lib/qep/qp_app.c
+        # IVP-75: QF Active Object framework + QV cooperative scheduler
+        lib/qep/qf_act.c
+        lib/qep/qf_actq.c
+        lib/qep/qf_defer.c
+        lib/qep/qf_dyn.c
+        lib/qep/qf_mem.c
+        lib/qep/qf_ps.c
+        lib/qep/qf_qact.c
+        lib/qep/qf_qeq.c
+        lib/qep/qf_time.c
+        lib/qep/qv.c
+        lib/qep/bsp_qv.c
 
         # IVP-68: Flight Director HSM + phase tracking
         src/flight_director/flight_director.cpp

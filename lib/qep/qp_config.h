@@ -3,8 +3,8 @@
 //============================================================================
 // QP/C Configuration for RocketChip
 //
-// QEP-only integration for Stage 8 (Flight Director HSM).
-// QF Active Objects and QV scheduler added in Stage 9 (IVP-76+).
+// Stage 8: QEP dispatch + QF/QV compile gate (IVP-75).
+// Stage 9: QF Active Objects replace superloop (IVP-76+).
 //
 // Reference: QP/C 8.1.3 ports/config/qp_config.h
 //============================================================================
