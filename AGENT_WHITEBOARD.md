@@ -22,9 +22,9 @@
 
 ---
 
-### Stage 8 — IVP-66 through IVP-71 Complete, IVP-72 Next
+### Stage 8 — IVP-66 through IVP-74 Complete, IVP-75 Next
 
-**Updated 2026-03-26.** Six IVPs complete, merged to main. 497/497 host tests, all HW gates passed.
+**Updated 2026-03-26.** Nine IVPs complete on main. 552/552 host tests, all HW gates passed.
 
 **Complete:**
 - **IVP-66:** Watchdog recovery policy
@@ -33,14 +33,13 @@
 - **IVP-69:** Go/No-Go pre-arm checks + command handler (NASA-style readiness poll)
 - **IVP-70:** Guard functions + evaluator (6 guards, sustain timers, phase validity, auto-detection)
 - **IVP-71:** Guard combinators + three-layer safety (lockouts + AND/OR combinators + timer backup). Council-reviewed, 6 amendments incorporated.
+- **IVP-72:** Action Executor — constexpr action arrays per phase, NeoPixel colors per flight state, pyro intent logging via callbacks, Council Amendment #2 pyro negative tests. 32 new tests.
+- **IVP-73:** Bench Flight Simulation — pyserial script (`scripts/bench_flight_sim.py`), 9 automated test cases, prompt-sync serial, 9/9 PASS in 10s. Council-reviewed (A1-A5).
+- **IVP-74:** Mission Profile Configuration — user-editable `.cfg` files (`profiles/rocket.cfg`, `profiles/hab.cfg`), Python generator (`scripts/generate_profile.py`), generated C++ header, field guide README. Council-reviewed (A1-A4). HAB profile swap HW-verified (lower launch threshold triggered auto-launch from desk vibration, confirming behavioral change). 23 new tests.
 
-**Next:** IVP-72 (Action Executor — NeoPixel colors per phase, event markers, pyro intent logging). Plan in `docs/plans/STAGE8_FLIGHT_DIRECTOR.md` lines 130-146. Plan mode file for IVP-71 council review at `.claude/plans/velvety-seeking-flame.md`.
+**Next:** IVP-75 (Active Object Migration Planning — QF+QV vendor, compile gate, migration doc).
 
-**Rollback point:** Tag `pre-stage8` → commit `504bb0e` (last commit before Stage 8 IVP work). Branch deleted, all work on main now.
-
-**HW gate plan:** Flash via probe, verify build tag `ivp68-fd-1`, walk all 9 phases via CLI `f` menu, verify ABORT paths per Amendment #1, check `'s'` status output, 60s soak with 0 errors + ESKF stable, coast timeout (15s wait). See conversation for full gate checklist.
-
-**Branch:** `stage8/flight-director` (commits: `fae9237` IVP-66, `bd9c1c0` IVP-67, IVP-68 uncommitted)
+**Rollback point:** Tag `pre-stage8` → commit `504bb0e` (last commit before Stage 8 IVP work). All work on main.
 
 ---
 
@@ -72,6 +71,8 @@
 
 *Items noted for future stages — not blocking, no action needed now.*
 
+- **Flight Log Metadata Header (post-Stage 8):** Flight logs (PCM frames) should include a one-time metadata header at the start of each flight recording containing: firmware version, build tag, mission profile name, profile hash, board type, calibration flags, and sensor configuration. Currently these are only shown on serial (boot banner + CLI status). Adding them to the log file ensures post-flight analysis tools always know which firmware+profile produced the data. Natural integration point: when flight log format is extended for post-processing tools.
+- **Mission Profile Boot-Load (Stage 11):** Currently profiles are compile-time only (`.cfg` → Python generator → C++ header). Future upgrade: `.cfg` → binary serializer → flash/SD blob → load at boot. Requires: config parser or binary serializer in firmware, CRC32 integrity check, known-good fallback profile, validation on load. Deferred until ground station (Stage 11) provides validated upload infrastructure. The `.cfg` format is the permanent user-facing contract — only the delivery mechanism changes. See `profiles/README.md` "Configuration Delivery Roadmap".
 - **5-NeoPixel RSSI Bar for Station (post-Stage 7):** Re-add the 5-LED RSSI bar feedback from the bespoke ground station code (`ground_station/radio_rx.cpp`). The old code used all 5 NeoPixels as an RSSI signal strength bar. Current IVP-60 RX overlay uses a single NeoPixel (green/yellow/red). After Stage 7 is complete, expand to use all 5 NeoPixels on boards that have them (Fruit Jam has 5) for a proper RSSI bar visualization in station mode.
 - **ESKF Readability/Optimization Pass (post-Stage 10):** `reset_covariance_attitude()` is 52 lines (threshold 60) — close to limit and will grow with phase-scheduled Q/R transitions. `clamp_extended_covariance()` uses if/else chains per state block — a table-driven pattern (`{idx, count, clamp, inhibit_flag}` array) would scale better as more blocks are added. Not blocking — all functions pass the pre-commit hook now, but a deeper pass would improve readability and prepare for phase-scheduled Q/R. Note: `scalar_kalman_update()` (Joseph form) is now bypassed on target by Bierman path (`ESKF_USE_BIERMAN=1`, 2026-02-24); Joseph retained behind `#ifdef` for host-side A/B testing.
 - **3-Axis Magnetometer Model (Titan tier):** Current `update_mag_heading()` uses yaw-only scalar H (heading + WMM declination). Mag states (earth_mag indices 15-17, body_mag_bias 18-20) are **unobservable** with this model — no F coupling (identity propagation), no H entries at 15-20. States MUST remain inhibited until a proper 3-axis measurement model is implemented: `z_predicted = R(q) * earth_mag_NED + body_mag_bias`, with H entries at attitude (0-2), earth_mag (15-17), body_mag_bias (18-20). WMM table already has field data — needs inclination + magnitude extraction in addition to current declination-only use. ArduPilot reference: `fuseMagnetometer()` in `NavEKF3_MagFusion.cpp`. Once implemented, flip `inhibit_mag_states_` to enable.

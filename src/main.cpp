@@ -60,7 +60,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = board::kNeoPixelPin;
-static constexpr const char* kBuildTag = "ivp72-action-1";
+static constexpr const char* kBuildTag = "ivp74-profile-1";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -1935,8 +1935,9 @@ static bool init_hardware() {
 static void print_boot_status() {
     printf("\n");
     printf("==============================================\n");
-    printf("  RocketChip v%s  Build: ivp72-action-1\n", kVersionString);
+    printf("  RocketChip v%s  Build: ivp74-profile-1\n", kVersionString);
     printf("  Board: %s\n", board::kBoardName);
+    printf("  Profile: %s\n", rc::kDefaultRocketProfile.name);
     printf("==============================================\n\n");
 
     if (g_watchdogReboot) {
@@ -2529,6 +2530,7 @@ static void cli_print_flight_status() {
     uint32_t phaseMs = nowMs - st.phase_entry_ms;
 
     printf("\n--- Flight Director Status ---\n");
+    printf("  Profile:     %s\n", g_director.profile->name);
     printf("  Phase:       %s\n", rc::flight_phase_name(st.current_phase));
     printf("  Previous:    %s\n", rc::flight_phase_name(st.previous_phase));
     printf("  In-phase:    %lu ms\n", (unsigned long)phaseMs);

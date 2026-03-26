@@ -153,6 +153,7 @@ static void print_system_status() {
     printf("========================================\n");
     printf("  Version: %s\n", kVersionString);
     printf("  Board: %s\n", board::kBoardName);
+    printf("  Profile: %s\n", rc::kDefaultRocketProfile.name);
     printf("  Uptime: %lu ms\n", (unsigned long)to_ms_since_boot(get_absolute_time()));
 
     // Calibration status

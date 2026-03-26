@@ -108,71 +108,10 @@ struct MissionProfile {
     bool has_pyro;                      // Profile includes pyro channels
 };
 
-// ============================================================================
-// Default Rocket Profile (Council Amendment #6)
-//
-// Guard sustain values sourced from ArduPilot (Council Amendment #4):
-//   launch:     50ms (5 samples @ 100Hz) — AP_InertialNav accel spike filter
-//   burnout:    100ms (10 samples) — motor burnout is gradual
-//   apogee:     30ms (3 samples) — velocity sign change is clean
-//   baro peak:  200ms (20 samples) — baro noise needs longer window
-//   main deploy: 50ms (5 samples) — altitude is smooth
-//   landing:    2000ms (200 samples) — AP LAND_SPEED timeout pattern
-//
-// All thresholds marked VALIDATE — starting points for flight-data tuning.
-// ============================================================================
-inline constexpr MissionProfile kDefaultRocketProfile = {
-    .id                         = ProfileId::kRocket,
-    .name                       = "Rocket",
-
-    .armed_timeout_ms           = 5 * 60 * 1000,   // 5 minutes (Amendment #5)
-    .abort_timeout_ms           = 5 * 60 * 1000,   // 5 minutes
-    .coast_timeout_ms           = 15 * 1000,        // 15 seconds (Amendment #7)
-
-    // VALIDATE — launch detection: body-Z accel > 20 m/s^2 for 50ms
-    .launch_accel_threshold     = 20.0f,
-    .launch_sustain_ms          = 50,
-
-    // VALIDATE — burnout: accel magnitude < 5 m/s^2 for 100ms
-    .burnout_accel_threshold    = 5.0f,
-    .burnout_sustain_ms         = 100,
-
-    // VALIDATE — apogee: vertical velocity < 0.5 m/s for 30ms
-    .apogee_velocity_threshold  = 0.5f,
-    .apogee_sustain_ms          = 30,
-
-    // VALIDATE — baro peak: altitude derivative for backup apogee
-    .baro_peak_sustain_ms       = 200,
-
-    // VALIDATE — main deploy: AGL altitude < 150m for 50ms
-    .main_deploy_altitude_m     = 150.0f,
-    .main_deploy_sustain_ms     = 50,
-
-    // VALIDATE — landing: velocity norm < 0.5 m/s for 2000ms
-    .landing_velocity_threshold = 0.5f,
-    .landing_sustain_ms         = 2000,
-
-    // VALIDATE — safety lockouts (Council A1: dynamic pressure protection)
-    .deploy_lockout_mps         = 80.0f,    // ~Mach 0.24, typical HPR drogue limit
-    .apogee_lockout_ms          = 3000,     // 3s after launch (belt-and-suspenders)
-
-    // VALIDATE — timer backups (Council A6: tuned for HPR H+ motors)
-    .burnout_backup_ms          = 10 * 1000,    // 10s max in BOOST
-    .main_backup_ms             = 120 * 1000,   // 120s max in DROGUE
-
-    .apogee_require_both        = true,     // AND: velocity + baro must agree
-    .emergency_deploy_anytime   = false,    // Rocket: respect lockout gates
-
-    .abort_fires_drogue_from_boost = true,   // Amendment #1
-    .abort_fires_drogue_from_coast = true,   // Amendment #1
-
-    .require_gps_lock           = false,    // Tier 2, optional for rocket
-    .require_mag_cal            = false,    // Tier 2, optional
-    .require_radio              = false,    // Tier 2, optional
-
-    .has_pyro                   = true,
-};
-
 } // namespace rc
+
+// Active profile — generated from profiles/*.cfg by scripts/generate_profile.py
+// To change: edit the .cfg file, run the generator, rebuild.
+#include "mission_profile_data.h"
 
 #endif // ROCKETCHIP_MISSION_PROFILE_H
