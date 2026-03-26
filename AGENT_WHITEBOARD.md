@@ -24,7 +24,7 @@
 
 ### Stage 8 — IVP-66 through IVP-71 Complete, IVP-72 Next
 
-**Updated 2026-03-25.** Six IVPs complete on `stage8/flight-director` branch. 497/497 host tests, all HW gates passed.
+**Updated 2026-03-26.** Six IVPs complete, merged to main. 497/497 host tests, all HW gates passed.
 
 **Complete:**
 - **IVP-66:** Watchdog recovery policy
@@ -36,7 +36,7 @@
 
 **Next:** IVP-72 (Action Executor — NeoPixel colors per phase, event markers, pyro intent logging). Plan in `docs/plans/STAGE8_FLIGHT_DIRECTOR.md` lines 130-146. Plan mode file for IVP-71 council review at `.claude/plans/velvety-seeking-flame.md`.
 
-**Branch:** `stage8/flight-director` (7 commits ahead of main)
+**Rollback point:** Tag `pre-stage8` → commit `504bb0e` (last commit before Stage 8 IVP work). Branch deleted, all work on main now.
 
 **HW gate plan:** Flash via probe, verify build tag `ivp68-fd-1`, walk all 9 phases via CLI `f` menu, verify ABORT paths per Amendment #1, check `'s'` status output, 60s soak with 0 errors + ESKF stable, coast timeout (15s wait). See conversation for full gate checklist.
 
