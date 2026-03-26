@@ -20,6 +20,20 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-25-001 | Claude Code CLI | feature, architecture
+
+**Stage 8 Flight Director — IVP-66 through IVP-68 complete.** ~10 day gap between sessions (machine powered off and relocated). HW gate re-verified from clean boot — all sensors init OK, 60s soak 0 new errors, ESKF stable. No regressions from the gap.
+
+**IVP-66:** Watchdog recovery policy — `WatchdogRecoveryState` struct with boot state preservation, `TickFnId` enum for identifying which tick function was running when watchdog fired, flight phase saved across reboot.
+
+**IVP-67:** QP/C 8.1.3 QEP vendored (646 lines portable C99 dispatch engine). STARS/QM/SPIN toolchain evaluation documented in `docs/flight_director/TOOLCHAIN_EVALUATION.md` — STARS not adopted (commercial), QM deferred (statechart too small), SPIN deferred to Stage 9 AOs. 12 QEP smoke tests passing.
+
+**IVP-68:** Flight Director QHsm skeleton — 9 state handlers (idle, armed, boost, coast, descent superstate, drogue_descent, main_descent, landed, abort). Source-specific ABORT per Council Amendment #1 (armed=no pyro, boost/coast=drogue intent, descent=ignored). MissionProfile struct with `kDefaultRocketProfile` (guard thresholds, sustain times, timeouts). `mission.h` renamed to `job.h` ("job"=device role, "MissionProfile"=flight config). CLI `RC_OS_MENU_FLIGHT` sub-menu with bench signal injection, grouped main menu layout, `[main]`/`[cal]`/`[flight]` context prompts. Fixed prompt spam on unrecognized keys and double prompt at boot. 29 FD tests, 412/412 total. HW gate: all 9 phases reachable, all 4 abort paths correct, coast timeout verified.
+
+(`src/flight_director/`, `include/rocketchip/job*.h`, `src/main.cpp`, `src/cli/rc_os.{cpp,h}`, `src/watchdog/watchdog_recovery.h`, `test/test_flight_director.cpp`, `docs/ROCKETCHIP_OS.md`)
+
+---
+
 ### 2026-03-14-002 | Claude Code CLI | hardware, council
 
 **DPS310 baro: independent P/T config, 8x OS, R correction.** Council-reviewed DPS310 measurement rate and oversampling selection. Key findings: (1) previous 16x OS / 32 SPS config ran at 88% duty cycle in CONT_BOTH mode (P+T interleaved, sharing measurement budget); (2) 64 SPS attempts failed HW verification at both 8x and 4x OS — DPS310 enforces MaxRate limits stricter than measurement-time math suggests; (3) P and T channels can be configured independently. New config: pressure at 8x OS / 32 SPS, temperature at 1x OS / 2 Hz (compensation only). Duty cycle drops from 88% to 48% with better noise match. Updated `kSigmaBaro` from 0.029m (matched 16x OS) to 0.033m (matches actual 8x OS) in ESKF and BaroKF — the R value was previously too tight for the hardware config. HW verified: 60s soak, 2029 baro reads, 0 errors, bNIS=0.01. (`src/drivers/baro_dps310.{h,cpp}`, `src/fusion/eskf.{h,cpp}`, `src/fusion/baro_kf.h`, `src/main.cpp`, `docs/hardware/HARDWARE.md`)
