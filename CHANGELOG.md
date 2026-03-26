@@ -20,6 +20,22 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-26-001 | Claude Code CLI | feature, architecture, council, tooling
+
+**Stage 8 Flight Director — IVP-72 through IVP-75 complete. Stage 8 done.**
+
+**IVP-72:** Action Executor. `ActionType` enum (SET_LED, MARK_EVENT, REPORT_STATE, FIRE_PYRO, SET_BEACON), constexpr action arrays per phase in `flight_actions.h`, callbacks wired into QEP state handlers. NeoPixel colors per flight state (ARMED=amber, BOOST=red, COAST=yellow, DESCENT=red blink, LANDED=green blink, ABORT=red fast blink). Pyro intent logging via callbacks. Council Amendment #2 (pyro negative tests) enforced. NeoPixel override switch extracted to `neo_apply_override()`. 32 tests, 529/529 total.
+
+**IVP-73:** Bench Flight Simulation. Python pyserial script (`scripts/bench_flight_sim.py`) automates Flight Director HW gate — 9 test cases (happy path, 4 abort paths, 3 rejection cases). Data-driven `TestCase` architecture (council A3), prompt-sync serial (A1), rejection tests first (A2). 9/9 PASS in 10s. Council-reviewed.
+
+**IVP-74:** Mission Profile Configuration. User-editable `.cfg` files (`profiles/rocket.cfg`, `profiles/hab.cfg`) with ArduPilot `.param`-inspired `NAME VALUE` format. Python generator (`scripts/generate_profile.py`) produces C++ header with `static_assert` validation (council A3) and source hash traceability (A2). Field guide README with safe ranges (A4). Profile name shown in boot banner, system status, and FD status. HAB profile swap HW-verified (lower launch threshold caused behavioral change). Compile-time only; boot-load deferred to Stage 11. Council-reviewed (unanimous). 23 tests, 552/552 total.
+
+**IVP-75:** Active Object Migration Planning. QP/C 8.1.3 QF framework (10 source files) and QV cooperative scheduler vendored. BSP shim with `QF_onStartup()`, `QV_onIdle()` (WFI), port header with QEQueue/QMPool/QV includes. Compile gate passes — QF+QV links alongside existing superloop with no runtime behavior change. Preliminary migration doc in `docs/flight_director/ACTIVE_OBJECT_MIGRATION.md` (needs full plan + council review before Stage 9 implementation).
+
+(`src/flight_director/`, `src/main.cpp`, `src/cli/rc_os.cpp`, `lib/qep/`, `profiles/`, `scripts/`, `test/`, `docs/flight_director/`)
+
+---
+
 ### 2026-03-25-002 | Claude Code CLI | feature, architecture, council
 
 **Stage 8 Flight Director — IVP-69 through IVP-71 complete.** Continued same session after IVP-66–68 changelog entry.

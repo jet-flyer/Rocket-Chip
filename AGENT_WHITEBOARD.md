@@ -53,9 +53,9 @@
 
 ---
 
-### Mission Profile Expansion — Partially Done (IVP-68/74)
+### Mission Profile Configuration — COMPLETE (IVP-74)
 
-**Updated 2026-03-15.** Device role infrastructure renamed from `mission.h` to `job.h` (IVP-68). `MissionProfile` struct created in `src/flight_director/mission_profile.h` with `kDefaultRocketProfile` — contains guard thresholds, sustain times, timeouts, abort behavior, pre-arm requirements. IVP-74 will add HAB and freeform profiles, flash persistence, and CLI profile selection. Job headers (`job_vehicle.h`/`job_station.h`) still define `namespace job` constexpr values for device role config (`kRadioModeRx`, `kDefaultMavlinkOutput`). Full behavioral profile system (sensor policy, logging, NeoPixel) will expand naturally as MissionProfile grows through Stage 8.
+**Updated 2026-03-26.** Two-layer config: user-editable `.cfg` files (`profiles/rocket.cfg`, `profiles/hab.cfg`) → Python generator → compiled C++ header. ArduPilot `.param` inspired format. Profile name shown in boot banner + CLI status. Compile-time only; boot-load deferred to Stage 11 (see deferred notes). Field guide in `profiles/README.md`.
 
 ---
 
