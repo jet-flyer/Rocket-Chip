@@ -1912,7 +1912,7 @@ static bool init_hardware() {
 static void print_boot_status() {
     printf("\n");
     printf("==============================================\n");
-    printf("  RocketChip v%s  Build: ivp69-gng-1\n", kVersionString);
+    printf("  RocketChip v%s  Build: ivp70-guard-1\n", kVersionString);
     printf("  Board: %s\n", board::kBoardName);
     printf("==============================================\n\n");
 
@@ -1943,6 +1943,8 @@ static void handle_unhandled_key(int key);
 static void cli_dispatch_flight_signal(int signal);
 static bool cli_process_flight_command(int cmd);
 static void cli_print_flight_status();
+static void populate_fused_state(rc::FusedState& fused,
+                                  const shared_sensor_data_t& snap);
 
 static void init_rc_os_hooks() {
     rc_os_init();
@@ -2416,6 +2418,19 @@ static void flight_director_tick() {
     g_lastFdTickMs = nowMs;
 
     rc::flight_director_dispatch_tick(&g_director, nowMs);
+
+    // Guard evaluation — read sensor snapshot and evaluate guards
+    shared_sensor_data_t snap{};
+    if (seqlock_read(&g_sensorSeqlock, &snap)) {
+        rc::FusedState fused{};
+        populate_fused_state(fused, snap);
+
+        float accel_mag = sqrtf(snap.accel_x * snap.accel_x +
+                                snap.accel_y * snap.accel_y +
+                                snap.accel_z * snap.accel_z);
+        rc::flight_director_evaluate_guards(&g_director, fused,
+                                             snap.accel_z, accel_mag);
+    }
 }
 
 // CLI callback: dispatch a flight signal from the Flight Director sub-menu

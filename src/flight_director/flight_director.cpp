@@ -117,6 +117,9 @@ void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
     me->state.init();
     me->profile = profile;
     me->tick_ms = 0;
+    me->guards_enabled = false;
+    // Init guard evaluator: 10ms tick period (100Hz)
+    guard_evaluator_init(&me->guard_eval, *profile, 10);
 }
 
 void flight_director_init(FlightDirector* me) {
@@ -140,6 +143,25 @@ void flight_director_dispatch_signal(FlightDirector* me, uint16_t sig) {
 
 FlightPhase flight_director_phase(const FlightDirector* me) {
     return me->state.current_phase;
+}
+
+void flight_director_evaluate_guards(FlightDirector* me,
+                                      const FusedState& fused,
+                                      float accel_z,
+                                      float accel_mag) {
+    // Guards only active in flight phases (ARMED through DESCENT)
+    FlightPhase phase = me->state.current_phase;
+    if (phase == FlightPhase::kIdle || phase == FlightPhase::kLanded ||
+        phase == FlightPhase::kAbort) {
+        return;
+    }
+
+    uint16_t sig = guard_evaluator_tick(
+        &me->guard_eval, phase, fused, accel_z, accel_mag);
+
+    if (sig != SIG_MAX) {
+        flight_director_dispatch_signal(me, sig);
+    }
 }
 
 // ============================================================================

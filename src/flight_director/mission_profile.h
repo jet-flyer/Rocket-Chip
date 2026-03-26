@@ -52,12 +52,21 @@ struct MissionProfile {
     uint32_t abort_timeout_ms;          // ABORT → LANDED auto-transition
     uint32_t coast_timeout_ms;          // Missed apogee fallback (Amendment #7)
 
-    // --- Guard thresholds (VALIDATE — starting points) ---
+    // --- Guard thresholds ---
+    // ⚠️  ALL values below are PRELIMINARY — sourced from ArduPilot patterns
+    // and engineering estimates. Must be validated with real flight data
+    // before any flight that depends on automatic detection.
+    // See STANDARDS_DEVIATIONS.md if deploying unvalidated.
     float launch_accel_threshold;       // Body-Z accel for launch detect (m/s^2)
     uint32_t launch_sustain_ms;         // Sustain time for launch accel
 
     float burnout_accel_threshold;      // Accel magnitude for burnout (m/s^2)
     uint32_t burnout_sustain_ms;
+
+    float apogee_velocity_threshold;    // Vertical velocity for zero-cross (m/s)
+    uint32_t apogee_sustain_ms;
+
+    uint32_t baro_peak_sustain_ms;      // Baro derivative window for backup apogee
 
     float main_deploy_altitude_m;       // AGL altitude for main chute (m)
     uint32_t main_deploy_sustain_ms;
@@ -84,6 +93,8 @@ struct MissionProfile {
 // Guard sustain values sourced from ArduPilot (Council Amendment #4):
 //   launch:     50ms (5 samples @ 100Hz) — AP_InertialNav accel spike filter
 //   burnout:    100ms (10 samples) — motor burnout is gradual
+//   apogee:     30ms (3 samples) — velocity sign change is clean
+//   baro peak:  200ms (20 samples) — baro noise needs longer window
 //   main deploy: 50ms (5 samples) — altitude is smooth
 //   landing:    2000ms (200 samples) — AP LAND_SPEED timeout pattern
 //
@@ -104,6 +115,13 @@ inline constexpr MissionProfile kDefaultRocketProfile = {
     // VALIDATE — burnout: accel magnitude < 5 m/s^2 for 100ms
     .burnout_accel_threshold    = 5.0f,
     .burnout_sustain_ms         = 100,
+
+    // VALIDATE — apogee: vertical velocity < 0.5 m/s for 30ms
+    .apogee_velocity_threshold  = 0.5f,
+    .apogee_sustain_ms          = 30,
+
+    // VALIDATE — baro peak: altitude derivative for backup apogee
+    .baro_peak_sustain_ms       = 200,
 
     // VALIDATE — main deploy: AGL altitude < 150m for 50ms
     .main_deploy_altitude_m     = 150.0f,

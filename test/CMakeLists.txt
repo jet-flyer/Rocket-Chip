@@ -144,3 +144,8 @@ gtest_discover_tests(test_flight_director)
 add_executable(test_go_nogo test_go_nogo.cpp)
 target_link_libraries(test_go_nogo PRIVATE rc_flight_director GTest::gtest_main)
 gtest_discover_tests(test_go_nogo)
+
+# IVP-70: Guard functions + evaluator tests
+add_executable(test_guards test_guards.cpp)
+target_link_libraries(test_guards PRIVATE rc_flight_director GTest::gtest_main)
+gtest_discover_tests(test_guards)

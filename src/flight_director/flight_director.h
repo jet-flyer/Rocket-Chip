@@ -49,6 +49,7 @@ extern "C" {
 
 #include "flight_state.h"
 #include "mission_profile.h"
+#include "guard_evaluator.h"
 
 namespace rc {
 
@@ -91,7 +92,9 @@ struct FlightDirector {
     QHsm super;                     // QEP base class (must be first member)
     FlightState state;              // Runtime phase tracking
     const MissionProfile* profile;  // Active flight profile (boot-locked)
+    GuardEvaluator guard_eval;      // Guard sustain evaluator (IVP-70)
     uint32_t tick_ms;               // Current tick timestamp (set each tick)
+    bool guards_enabled;            // False in IDLE/LANDED, true in flight phases
 };
 
 // Lifecycle
@@ -101,6 +104,14 @@ void flight_director_init(FlightDirector* me);
 // Dispatch
 void flight_director_dispatch_tick(FlightDirector* me, uint32_t now_ms);
 void flight_director_dispatch_signal(FlightDirector* me, uint16_t sig);
+
+// Guard evaluation — call after dispatch_tick with current sensor data.
+// Runs guard evaluator and auto-dispatches any fired signal.
+// accel_z: calibrated body-Z accel (m/s^2), accel_mag: |A| (m/s^2)
+void flight_director_evaluate_guards(FlightDirector* me,
+                                      const FusedState& fused,
+                                      float accel_z,
+                                      float accel_mag);
 
 // Query
 FlightPhase flight_director_phase(const FlightDirector* me);
