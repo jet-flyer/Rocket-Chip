@@ -1,7 +1,9 @@
 # Active Object Migration Plan (Stage 9)
 
-**Status:** Planning document — Stage 9 (IVP-76 through IVP-80)
+**Status:** PRELIMINARY — high-level outline only. Requires detailed plan
+mode + council review before implementation begins in Stage 9.
 **Prerequisite:** IVP-75 compile gate (QF+QV linked, BSP written)
+**Last Updated:** 2026-03-26 (IVP-75, initial draft)
 
 ## Overview
 
