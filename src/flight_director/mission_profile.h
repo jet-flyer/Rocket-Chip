@@ -74,6 +74,27 @@ struct MissionProfile {
     float landing_velocity_threshold;   // Velocity norm for stationary (m/s)
     uint32_t landing_sustain_ms;
 
+    // --- Safety lockouts (IVP-71, Council A1) ---
+    // Protects parachute from high dynamic pressure deployment.
+    // Phase gating (COAST/DROGUE only) is primary powered-flight protection.
+    // ⚠️  PRELIMINARY — tune per parachute rated deployment speed.
+    float deploy_lockout_mps;           // Velocity lockout for deployment (m/s)
+    uint32_t apogee_lockout_ms;         // Min time after launch before apogee
+
+    // --- Timer backups (IVP-71, Council A6) ---
+    // Tuned for HPR (H+ motors). HAB/low-power profiles need different values.
+    // ⚠️  PRELIMINARY
+    uint32_t burnout_backup_ms;         // Max time in BOOST before forced COAST
+    uint32_t main_backup_ms;            // Max time in DROGUE before forced MAIN
+
+    // --- Combinator config (IVP-71) ---
+    bool apogee_require_both;           // true=AND (vel+baro), false=OR
+
+    // --- Emergency override (IVP-71) ---
+    // HAB: emergency chute always available (skip lockouts for ABORT pyro)
+    // Rocket: ABORT respects lockout gates
+    bool emergency_deploy_anytime;
+
     // --- Abort behavior ---
     bool abort_fires_drogue_from_boost; // ABORT-from-BOOST fires drogue
     bool abort_fires_drogue_from_coast; // ABORT-from-COAST fires drogue
@@ -130,6 +151,17 @@ inline constexpr MissionProfile kDefaultRocketProfile = {
     // VALIDATE — landing: velocity norm < 0.5 m/s for 2000ms
     .landing_velocity_threshold = 0.5f,
     .landing_sustain_ms         = 2000,
+
+    // VALIDATE — safety lockouts (Council A1: dynamic pressure protection)
+    .deploy_lockout_mps         = 80.0f,    // ~Mach 0.24, typical HPR drogue limit
+    .apogee_lockout_ms          = 3000,     // 3s after launch (belt-and-suspenders)
+
+    // VALIDATE — timer backups (Council A6: tuned for HPR H+ motors)
+    .burnout_backup_ms          = 10 * 1000,    // 10s max in BOOST
+    .main_backup_ms             = 120 * 1000,   // 120s max in DROGUE
+
+    .apogee_require_both        = true,     // AND: velocity + baro must agree
+    .emergency_deploy_anytime   = false,    // Rocket: respect lockout gates
 
     .abort_fires_drogue_from_boost = true,   // Amendment #1
     .abort_fires_drogue_from_coast = true,   // Amendment #1

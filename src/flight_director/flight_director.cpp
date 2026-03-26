@@ -18,6 +18,7 @@
 //============================================================================
 
 #include "flight_director.h"
+#include <cmath>
 
 #ifndef ROCKETCHIP_HOST_TEST
     #include "pico/time.h"
@@ -120,6 +121,8 @@ void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
     me->guards_enabled = false;
     // Init guard evaluator: 10ms tick period (100Hz)
     guard_evaluator_init(&me->guard_eval, *profile, 10);
+    // Init combinator set from profile (IVP-71)
+    combinator_set_init(&me->combinator_set, *profile);
 }
 
 void flight_director_init(FlightDirector* me) {
@@ -156,11 +159,38 @@ void flight_director_evaluate_guards(FlightDirector* me,
         return;
     }
 
-    uint16_t sig = guard_evaluator_tick(
+    // Step 1: Update all guard sustain counters.
+    // Unmanaged guards auto-dispatch; managed guards set sustained flag.
+    uint16_t unmanaged_sig = guard_evaluator_tick(
         &me->guard_eval, phase, fused, accel_z, accel_mag);
 
-    if (sig != SIG_MAX) {
-        flight_director_dispatch_signal(me, sig);
+    if (unmanaged_sig != SIG_MAX) {
+        flight_director_dispatch_signal(me, unmanaged_sig);
+        return;
+    }
+
+    // Step 2: Build lockout snapshot for combinator
+    float vel_mag = sqrtf(fused.vel_n * fused.vel_n +
+                          fused.vel_e * fused.vel_e +
+                          fused.vel_d * fused.vel_d);
+    uint32_t ms_since_launch = 0;
+    if (me->state.markers.launch_ms > 0) {
+        ms_since_launch = me->tick_ms - me->state.markers.launch_ms;
+    }
+
+    SafetyLockout lockout{};
+    lockout.current_velocity_mps = vel_mag;
+    lockout.ms_since_launch = ms_since_launch;
+    lockout.deploy_lockout_mps = me->profile->deploy_lockout_mps;
+    lockout.apogee_lockout_ms = me->profile->apogee_lockout_ms;
+    lockout.eskf_healthy = fused.eskf_healthy;
+
+    // Step 3: Evaluate combinators (managed guards + lockouts + timer backup)
+    uint16_t combo_sig = combinator_set_evaluate(
+        &me->combinator_set, phase, &me->guard_eval, lockout, 10);
+
+    if (combo_sig != SIG_MAX) {
+        flight_director_dispatch_signal(me, combo_sig);
     }
 }
 

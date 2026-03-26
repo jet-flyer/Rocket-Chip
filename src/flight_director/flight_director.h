@@ -50,6 +50,7 @@ extern "C" {
 #include "flight_state.h"
 #include "mission_profile.h"
 #include "guard_evaluator.h"
+#include "guard_combinator.h"
 
 namespace rc {
 
@@ -93,6 +94,7 @@ struct FlightDirector {
     FlightState state;              // Runtime phase tracking
     const MissionProfile* profile;  // Active flight profile (boot-locked)
     GuardEvaluator guard_eval;      // Guard sustain evaluator (IVP-70)
+    CombinatorSet combinator_set;   // Guard combinators + lockouts (IVP-71)
     uint32_t tick_ms;               // Current tick timestamp (set each tick)
     bool guards_enabled;            // False in IDLE/LANDED, true in flight phases
 };

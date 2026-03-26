@@ -129,6 +129,7 @@ if(BUILD_TESTS)
         src/flight_director/command_handler.cpp
         src/flight_director/guard_functions.cpp
         src/flight_director/guard_evaluator.cpp
+        src/flight_director/guard_combinator.cpp
     )
     target_include_directories(rc_flight_director PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/include
@@ -316,6 +317,9 @@ else()
         # IVP-70: Guard functions + evaluator
         src/flight_director/guard_functions.cpp
         src/flight_director/guard_evaluator.cpp
+
+        # IVP-71: Guard combinator + safety lockouts
+        src/flight_director/guard_combinator.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -355,6 +359,7 @@ else()
         src/flight_director/command_handler.cpp
         src/flight_director/guard_functions.cpp
         src/flight_director/guard_evaluator.cpp
+        src/flight_director/guard_combinator.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 

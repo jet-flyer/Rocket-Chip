@@ -202,17 +202,21 @@ TEST_F(GuardEvaluatorTest, BurnoutFiresInBoost) {
     EXPECT_EQ(sig, SIG_BURNOUT);
 }
 
-TEST_F(GuardEvaluatorTest, ApogeeFiresInCoast) {
+TEST_F(GuardEvaluatorTest, ApogeeSustainsInCoast) {
     FusedState f = make_fused();
     f.vel_d = 1.0f;  // Descending (positive in NED)
 
-    // Need 3 ticks (30ms / 10ms)
+    // Apogee velocity is managed — won't auto-dispatch, sets sustained flag
     for (int i = 0; i < 2; ++i) {
-        uint16_t sig = guard_evaluator_tick(&ev, FlightPhase::kCoast, f, 0.0f, 9.8f);
-        EXPECT_EQ(sig, SIG_MAX);
+        guard_evaluator_tick(&ev, FlightPhase::kCoast, f, 0.0f, 9.8f);
+        EXPECT_FALSE(guard_evaluator_is_sustained(&ev, GuardId::kApogeeVelocity));
     }
+    // 3rd tick — sustained
+    guard_evaluator_tick(&ev, FlightPhase::kCoast, f, 0.0f, 9.8f);
+    EXPECT_TRUE(guard_evaluator_is_sustained(&ev, GuardId::kApogeeVelocity));
+    // But no auto-dispatch (managed)
     uint16_t sig = guard_evaluator_tick(&ev, FlightPhase::kCoast, f, 0.0f, 9.8f);
-    EXPECT_EQ(sig, SIG_APOGEE);
+    EXPECT_EQ(sig, SIG_MAX);
 }
 
 TEST_F(GuardEvaluatorTest, ApogeeDoesNotFireWhileAscending) {
@@ -297,17 +301,21 @@ TEST_F(GuardEvaluatorTest, LandingFromDrogueAlsoWorks) {
     EXPECT_EQ(sig, SIG_LANDING);
 }
 
-TEST_F(GuardEvaluatorTest, MainDeployFiresInDrogue) {
+TEST_F(GuardEvaluatorTest, MainDeploySustainsInDrogue) {
     FusedState f = make_fused();
     f.baro_alt_agl = 100.0f;  // Below 150m threshold
     f.vel_n = 5.0f;           // Moving — prevents landing guard
 
+    // Main deploy is managed — sets sustained, no auto-dispatch
     for (int i = 0; i < 4; ++i) {
-        uint16_t sig = guard_evaluator_tick(&ev, FlightPhase::kDrogueDescent, f, 0.0f, 9.8f);
-        EXPECT_EQ(sig, SIG_MAX);
+        guard_evaluator_tick(&ev, FlightPhase::kDrogueDescent, f, 0.0f, 9.8f);
+        EXPECT_FALSE(guard_evaluator_is_sustained(&ev, GuardId::kMainDeploy));
     }
+    guard_evaluator_tick(&ev, FlightPhase::kDrogueDescent, f, 0.0f, 9.8f);
+    EXPECT_TRUE(guard_evaluator_is_sustained(&ev, GuardId::kMainDeploy));
+    // No auto-dispatch (managed)
     uint16_t sig = guard_evaluator_tick(&ev, FlightPhase::kDrogueDescent, f, 0.0f, 9.8f);
-    EXPECT_EQ(sig, SIG_MAIN_DEPLOY);
+    EXPECT_EQ(sig, SIG_MAX);
 }
 
 TEST_F(GuardEvaluatorTest, ResetClearsAllState) {

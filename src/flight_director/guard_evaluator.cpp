@@ -71,7 +71,12 @@ void guard_evaluator_reset(GuardEvaluator* ev) {
     for (uint8_t i = 0; i < static_cast<uint8_t>(GuardId::kCount); ++i) {
         ev->guards[i].sustain_count = 0;
         ev->guards[i].fired = false;
+        ev->guards[i].sustained = false;
     }
+}
+
+bool guard_evaluator_is_sustained(const GuardEvaluator* ev, GuardId id) {
+    return ev->guards[static_cast<uint8_t>(id)].sustained;
 }
 
 uint16_t guard_evaluator_tick(GuardEvaluator* ev,
@@ -115,21 +120,29 @@ uint16_t guard_evaluator_tick(GuardEvaluator* ev,
 
         // Skip if not valid for current phase or already fired
         if ((gs.valid_phases & phase_mask) == 0 || gs.fired) {
+            gs.sustained = false;
             continue;
         }
 
         if (conditions[i]) {
             ++gs.sustain_count;
             if (gs.sustain_count >= gs.sustain_required) {
+                gs.sustained = true;
+                // Managed guards: don't auto-dispatch, combinator decides
+                if (kGuardManaged[i]) {
+                    continue;
+                }
+                // Unmanaged guards: auto-dispatch (IVP-70 behavior)
                 gs.fired = true;
                 return gs.signal;
             }
         } else {
             gs.sustain_count = 0;
+            gs.sustained = false;
         }
     }
 
-    return SIG_MAX;  // No guard fired
+    return SIG_MAX;  // No unmanaged guard fired
 }
 
 } // namespace rc

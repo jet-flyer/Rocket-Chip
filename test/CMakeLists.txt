@@ -149,3 +149,8 @@ gtest_discover_tests(test_go_nogo)
 add_executable(test_guards test_guards.cpp)
 target_link_libraries(test_guards PRIVATE rc_flight_director GTest::gtest_main)
 gtest_discover_tests(test_guards)
+
+# IVP-71: Guard combinator + safety lockout tests
+add_executable(test_guard_combinator test_guard_combinator.cpp)
+target_link_libraries(test_guard_combinator PRIVATE rc_flight_director GTest::gtest_main)
+gtest_discover_tests(test_guard_combinator)

@@ -1912,7 +1912,7 @@ static bool init_hardware() {
 static void print_boot_status() {
     printf("\n");
     printf("==============================================\n");
-    printf("  RocketChip v%s  Build: ivp70-guard-1\n", kVersionString);
+    printf("  RocketChip v%s  Build: ivp71-combo-1\n", kVersionString);
     printf("  Board: %s\n", board::kBoardName);
     printf("==============================================\n\n");
 
