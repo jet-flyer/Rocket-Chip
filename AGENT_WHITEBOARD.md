@@ -52,20 +52,6 @@
 
 ---
 
-### Stage 8 Progress — IVP-66 Complete, IVP-67 In Progress
-
-**Updated 2026-03-15.** IVP-66 (Watchdog Recovery Policy) complete and HW verified. IVP-67 (Toolchain Validation) in progress — QEP vendored, compiles clean for host and target, host tests pass (371/371).
-
-**Stage renumber (2026-03-14):** Data Logging Stage 6 (IVP-49–56). Radio & Telemetry Stage 7 (IVP-57–65). Flight Director Stage 8 (IVP-66–75, expanded: QEP/STARS toolchain, HSM skeleton, command handler, guard functions, detection logic, action executor, bench SITL, mission config, AO migration planning). Active Object Architecture Stage 9 (IVP-76–80, NEW: QF+QV BSP, LED AO, Flight Director AO, Logger+Telem AOs, superloop→QV). Adaptive Estimation Stage 10 (IVP-81–84). Ground Station Stage 11 (IVP-85–90). System Integration Stage 12 (IVP-91–95). Total: 95 IVP steps, 12 stages. UML statecharts (Harel) formalism adopted per council review (9 unanimous decisions). QP/C framework selected. See `docs/flight_director/STATE_MACHINE_FORMALISM_RESEARCH.md`.
-
-### STARS/QM/SPIN Toolchain Evaluation — IVP-67 (2026-03-15)
-
-QEP adopted and vendored. STARS (commercial, not adopted), QM (deferred — statechart too small), SPIN (deferred — no concurrency until Stage 9 AOs). Hand-authored state handlers for IVP-68+. Full evaluation with rationale and revisit criteria in `docs/flight_director/TOOLCHAIN_EVALUATION.md`.
-
----
-
----
-
 ### Mission Profile Expansion — Partially Done (IVP-68/74)
 
 **Updated 2026-03-15.** Device role infrastructure renamed from `mission.h` to `job.h` (IVP-68). `MissionProfile` struct created in `src/flight_director/mission_profile.h` with `kDefaultRocketProfile` — contains guard thresholds, sustain times, timeouts, abort behavior, pre-arm requirements. IVP-74 will add HAB and freeform profiles, flash persistence, and CLI profile selection. Job headers (`job_vehicle.h`/`job_station.h`) still define `namespace job` constexpr values for device role config (`kRadioModeRx`, `kDefaultMavlinkOutput`). Full behavioral profile system (sensor policy, logging, NeoPixel) will expand naturally as MissionProfile grows through Stage 8.
