@@ -41,6 +41,7 @@
 #include "rocketchip/telemetry_service.h"
 #include "cli/rc_os.h"
 #include "watchdog/watchdog_recovery.h"
+#include "flight_director/flight_director.h"
 #include "qp_port.h"   // QP/C QEP (IVP-67): Q_onError, QHsm types
 #include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
@@ -58,7 +59,7 @@
 // ============================================================================
 
 static constexpr uint kNeoPixelPin = board::kNeoPixelPin;
-static constexpr const char* kBuildTag = "ivp66-recovery-1";
+static constexpr const char* kBuildTag = "ivp68-fd-1";
 
 // Heartbeat: 100ms on, 900ms off
 static constexpr uint32_t kHeartbeatOnMs = 100;
@@ -279,6 +280,10 @@ static uint32_t g_eskfEpoch = 0;        // Incremented on each ESKF propagation
 static rc::MahonyAHRS g_mahony;
 static bool g_mahonyInitialized = false;
 static uint32_t g_lastMahonyTimestampUs = 0;
+
+// IVP-68: Flight Director HSM (Stage 8)
+static rc::FlightDirector g_director;
+static bool g_directorInitialized = false;
 
 // Compact ESKF state for circular buffer (no P matrix — R-6 council requirement)
 // 68 bytes per sample. At 200Hz for 5s = 1000 samples = 68KB static in SRAM.
@@ -1906,7 +1911,7 @@ static bool init_hardware() {
 static void print_boot_status() {
     printf("\n");
     printf("==============================================\n");
-    printf("  RocketChip v%s\n", kVersionString);
+    printf("  RocketChip v%s  Build: ivp68-fd-1\n", kVersionString);
     printf("  Board: %s\n", board::kBoardName);
     printf("==============================================\n\n");
 
@@ -1932,8 +1937,10 @@ static void print_boot_status() {
 // Init: RC_OS setup, Core 1 sensor phase start, watchdog enable
 // ============================================================================
 
-// Forward declaration for CLI key handler (defined after logging_tick)
+// Forward declarations for CLI callbacks (defined after logging_tick)
 static void handle_unhandled_key(int key);
+static void cli_dispatch_flight_signal(int signal);
+static void cli_print_flight_status();
 
 static void init_rc_os_hooks() {
     rc_os_init();
@@ -1951,6 +1958,8 @@ static void init_rc_os_hooks() {
     rc_os_feed_cal = feed_active_calibration;
     rc_os_print_eskf_live = print_eskf_live;
     rc_os_on_unhandled_key = handle_unhandled_key;
+    rc_os_dispatch_flight_signal = cli_dispatch_flight_signal;
+    rc_os_print_flight_status = cli_print_flight_status;
 }
 
 static void init_logging_ring() {
@@ -2012,6 +2021,11 @@ static void init_application(bool watchdogReboot) {
     if (g_baroContinuous) {
         calibration_start_baro();
     }
+
+    // IVP-68: Initialize Flight Director HSM
+    rc::flight_director_ctor(&g_director, &rc::kDefaultRocketProfile);
+    rc::flight_director_init(&g_director);
+    g_directorInitialized = true;
 
     // Enable watchdog (council critical fix: must be unconditional).
     // Write sentinel to scratch[0] so next boot can distinguish a genuine
@@ -2379,6 +2393,84 @@ static void eskf_tick() {
 }
 
 // ============================================================================
+// Flight Director Tick (IVP-68)
+// ============================================================================
+// Runs at ESKF rate (~200Hz) but dispatches SIG_TICK at 100Hz via divider.
+// Guards and detection logic will be added in IVP-70/71.
+
+static uint32_t g_lastFdTickMs = 0;
+
+static void flight_director_tick() {
+    if (!g_directorInitialized) {
+        return;
+    }
+
+    uint32_t nowMs = to_ms_since_boot(get_absolute_time());
+    // 100Hz tick (10ms period) — matches guard evaluation rate per plan
+    if (nowMs - g_lastFdTickMs < 10) {
+        return;
+    }
+    g_lastFdTickMs = nowMs;
+
+    rc::flight_director_dispatch_tick(&g_director, nowMs);
+}
+
+// CLI callback: dispatch a flight signal from the Flight Director sub-menu
+static void cli_dispatch_flight_signal(int signal) {
+    if (!g_directorInitialized) {
+        printf("[FD] Flight Director not initialized.\n");
+        return;
+    }
+    rc::flight_director_dispatch_signal(&g_director,
+                                         static_cast<rc::FlightSignal>(signal));
+}
+
+// CLI callback: print flight director status
+static void cli_print_flight_status() {
+    if (!g_directorInitialized) {
+        printf("[FD] Flight Director not initialized.\n");
+        return;
+    }
+    const rc::FlightState& st = g_director.state;
+    uint32_t nowMs = to_ms_since_boot(get_absolute_time());
+    uint32_t phaseMs = nowMs - st.phase_entry_ms;
+
+    printf("\n--- Flight Director Status ---\n");
+    printf("  Phase:       %s\n", rc::flight_phase_name(st.current_phase));
+    printf("  Previous:    %s\n", rc::flight_phase_name(st.previous_phase));
+    printf("  In-phase:    %lu ms\n", (unsigned long)phaseMs);
+    printf("  Transitions: %lu\n", (unsigned long)st.transition_count);
+
+    // Markers
+    const rc::FlightMarkers& mk = st.markers;
+    if (mk.armed_ms > 0) {
+        printf("  Armed:       T+%lu ms\n", (unsigned long)mk.armed_ms);
+    }
+    if (mk.launch_ms > 0) {
+        printf("  Launch:      T+%lu ms\n", (unsigned long)mk.launch_ms);
+    }
+    if (mk.burnout_ms > 0) {
+        printf("  Burnout:     T+%lu ms\n", (unsigned long)mk.burnout_ms);
+    }
+    if (mk.apogee_ms > 0) {
+        printf("  Apogee:      T+%lu ms\n", (unsigned long)mk.apogee_ms);
+    }
+    if (mk.drogue_deploy_ms > 0) {
+        printf("  Drogue:      T+%lu ms\n", (unsigned long)mk.drogue_deploy_ms);
+    }
+    if (mk.main_deploy_ms > 0) {
+        printf("  Main:        T+%lu ms\n", (unsigned long)mk.main_deploy_ms);
+    }
+    if (mk.landing_ms > 0) {
+        printf("  Landing:     T+%lu ms\n", (unsigned long)mk.landing_ms);
+    }
+    if (mk.abort_ms > 0) {
+        printf("  Abort:       T+%lu ms\n", (unsigned long)mk.abort_ms);
+    }
+    printf("-----------------------------\n");
+}
+
+// ============================================================================
 // Logging Tick (IVP-52c)
 // ============================================================================
 // Flash Flush + Erase (IVP-53b)
@@ -2673,8 +2765,8 @@ static void handle_unhandled_key(int key) {
     switch (key) {
     case 'l': case 'L': cmd_flush_log(); break;
     case 'x': case 'X': cmd_erase_all_flights(); break;
-    case 'f': case 'F': cmd_list_flights(); break;
     case 'd': case 'D': cmd_download_flight(); break;
+    case 'g': case 'G': cmd_list_flights(); break;  // Was 'f', now 'g' (flight list)
     case 't': case 'T': cmd_radio_status(); break;
     case 'r':
         if (g_radioInitialized && !kRadioModeRx) {
@@ -2768,7 +2860,9 @@ static void populate_fused_state(rc::FusedState& fused,
     fused.gps_fix_type = snap.gps_fix_type;
     fused.gps_satellites = snap.gps_satellites;
 
-    fused.flight_state = 0;  // IDLE until IVP-67
+    fused.flight_state = g_directorInitialized
+        ? static_cast<uint8_t>(g_director.state.current_phase)
+        : 0;
     fused.met_ms = to_ms_since_boot(get_absolute_time());
 }
 
@@ -2918,6 +3012,10 @@ int main() {
         g_lastTickFunction = "eskf";
         g_recovery.current_tick_fn = rc::TickFnId::kEskf;
         eskf_tick();
+
+        g_lastTickFunction = "flight_director";
+        g_recovery.current_tick_fn = rc::TickFnId::kFlightDirector;
+        flight_director_tick();
 
         g_lastTickFunction = "logging";
         g_recovery.current_tick_fn = rc::TickFnId::kLogging;

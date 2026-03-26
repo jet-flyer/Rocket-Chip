@@ -27,6 +27,7 @@
 typedef enum {
     RC_OS_MENU_MAIN = 0,
     RC_OS_MENU_CALIBRATION,
+    RC_OS_MENU_FLIGHT,
 } rc_os_menu_t;
 
 // ============================================================================
@@ -254,5 +255,27 @@ extern rc_os_eskf_live_fn rc_os_print_eskf_live;
  */
 typedef void (*rc_os_feed_cal_fn)(void);
 extern rc_os_feed_cal_fn rc_os_feed_cal;
+
+// ============================================================================
+// Flight Director Callbacks (IVP-68)
+// ============================================================================
+
+/**
+ * @brief Callback to dispatch a flight signal (ARM, DISARM, LAUNCH, etc.)
+ *
+ * Set by main.cpp. Called from Flight Director CLI sub-menu.
+ * Dispatches a QEP signal to the flight director HSM.
+ * @param signal FlightSignal enum value
+ */
+typedef void (*rc_os_flight_signal_fn)(int signal);
+extern rc_os_flight_signal_fn rc_os_dispatch_flight_signal;
+
+/**
+ * @brief Callback to print flight director status.
+ *
+ * Called when user presses 's' in flight sub-menu.
+ */
+typedef void (*rc_os_flight_status_fn)(void);
+extern rc_os_flight_status_fn rc_os_print_flight_status;
 
 #endif // ROCKETCHIP_RC_OS_H

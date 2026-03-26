@@ -17,8 +17,34 @@
 **Updated 2026-03-08.** IVP-57 through IVP-61 complete. Full telemetry pipeline working: CCSDS over LoRa → station MAVLink re-encode → QGC High Latency mode with live data. IVP-62 (bidirectional MAVLink commands) fully implemented but deferred — QGC direct USB connection unstable due to USB CDC buffer timing (heartbeat lost in buffer dump on connect). Work preserved on `ivp62-wip` branch (mavlink_rx handler, flight_state.h, 14 host tests, param/command/mission dispatch).
 
 - **Key insight:** No `gcs_main.cpp` needed. Probe-first detection handles absent sensors. ESKF doesn't run without IMU. GCS compute (Haversine, RSSI bar, MAVLink re-encode) is trivial. Same binary, different hardware, different Mission Profile.
-- **Mission Profile pattern:** `mission.h` selector includes `mission_vehicle.h` or `mission_station.h` based on `ROCKETCHIP_MISSION_STATION` CMake define. Parallel to `board.h` but for behavioral config (radio mode, sensor policy, etc.). Expandable for future profiles.
+- **Job/Mission naming (IVP-68 rename):** `mission.h` renamed to `job.h` (`job_vehicle.h`/`job_station.h`). CMake define `ROCKETCHIP_JOB_STATION=1`. "Job" = device role (vehicle vs station). "MissionProfile" = flight config data (guards, thresholds, abort actions). Namespace `job::`, not `mission::`.
 - **QGC USB CDC issue (IVP-62 blocker):** When vehicle streams MAVLink in sticky mode, USB CDC buffers accumulate. On QGC connect, buffered data dumps all at once, overwhelming the parser. QGC's 3.5s heartbeat timeout fires before the next live heartbeat arrives. The FJ LoRa bridge works because radio link naturally drops old packets. Fix approaches: (1) circular output buffer with timestamp-based discard, (2) flush USB CDC buffer on connect detect, (3) heartbeat-only mode until GCS heartbeat received.
+
+---
+
+### Stage 8 — IVP-68 In Progress (HW Gate Pending)
+
+**Updated 2026-03-15.** IVP-66 (watchdog recovery) and IVP-67 (QEP toolchain + STARS/QM/SPIN eval) complete. IVP-68 (QEP Integration + Phase Skeleton) code complete, 412/412 host tests pass, target builds clean. **HW gate NOT yet run.**
+
+**What's done in IVP-68:**
+- `job.h` rename (was `mission.h`) — device role vs flight profile naming distinction
+- `flight_state.h` — FlightPhase enum (8 phases), FlightMarkers, FlightState structs
+- `flight_director.h/.cpp` — Full QHsm with 9 state handlers, Descent superstate, timeouts (armed/coast/abort), ABORT per Amendment #1
+- `mission_profile.h` — MissionProfile struct + `kDefaultRocketProfile` (Amendment #6)
+- `main.cpp` — `g_director` instance, `flight_director_tick()` at 100Hz, `populate_fused_state()` reads phase, CLI callbacks wired
+- `rc_os.h/.cpp` — `RC_OS_MENU_FLIGHT` sub-menu, grouped main menu layout, `[main]`/`[cal]`/`[flight]` context prompts, `'f'` key → FD menu (flight list moved to `'g'`)
+- `test_flight_director.cpp` — 29 tests covering all transitions, timeouts, abort paths, markers
+- `docs/ROCKETCHIP_OS.md` — fully updated for current CLI state
+- TickFnId enum updated with `kFlightDirector`
+
+**What's NOT done:**
+- HW gate verification (flash + interactive CLI test, see plan for gate items)
+- Recovery boot routing to correct FD initial state (deferred to IVP-69 — needs command handler)
+- Commit (waiting on HW gate)
+
+**HW gate plan:** Flash via probe, verify build tag `ivp68-fd-1`, walk all 9 phases via CLI `f` menu, verify ABORT paths per Amendment #1, check `'s'` status output, 60s soak with 0 errors + ESKF stable, coast timeout (15s wait). See conversation for full gate checklist.
+
+**Branch:** `stage8/flight-director` (commits: `fae9237` IVP-66, `bd9c1c0` IVP-67, IVP-68 uncommitted)
 
 ---
 
@@ -44,9 +70,9 @@ QEP adopted and vendored. STARS (commercial, not adopted), QM (deferred — stat
 
 ---
 
-### Mission Profile Expansion — Dedicated Session Needed
+### Mission Profile Expansion — Partially Done (IVP-68/74)
 
-**Added 2026-03-07.** Mission profile infrastructure is in place (`include/rocketchip/mission.h` selector, `mission_vehicle.h`, `mission_station.h`). Currently only defines `mission::kRadioModeRx`. Needs a dedicated session to flesh out the full profile system: sensor enable/disable policy, logging behavior, CLI feature set, telemetry rates, ESKF mode, NeoPixel behavior, etc. Each profile header defines constexpr values that `config.h` imports via `using`. Same pattern as `board.h` (hardware) but for behavioral configuration. Natural integration point: Stage 8 (Flight Director / Mission Profiles). Convention: `mission_<name>.h` naming, `ROCKETCHIP_MISSION_<NAME>=1` CMake define.
+**Updated 2026-03-15.** Device role infrastructure renamed from `mission.h` to `job.h` (IVP-68). `MissionProfile` struct created in `src/flight_director/mission_profile.h` with `kDefaultRocketProfile` — contains guard thresholds, sustain times, timeouts, abort behavior, pre-arm requirements. IVP-74 will add HAB and freeform profiles, flash persistence, and CLI profile selection. Job headers (`job_vehicle.h`/`job_station.h`) still define `namespace job` constexpr values for device role config (`kRadioModeRx`, `kDefaultMavlinkOutput`). Full behavioral profile system (sensor policy, logging, NeoPixel) will expand naturally as MissionProfile grows through Stage 8.
 
 ---
 

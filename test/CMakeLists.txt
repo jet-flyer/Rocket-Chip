@@ -134,3 +134,8 @@ gtest_discover_tests(test_watchdog_recovery)
 add_executable(test_qep_smoke test_qep_smoke.cpp)
 target_link_libraries(test_qep_smoke PRIVATE qep GTest::gtest_main)
 gtest_discover_tests(test_qep_smoke)
+
+# IVP-68: Flight Director HSM tests
+add_executable(test_flight_director test_flight_director.cpp)
+target_link_libraries(test_flight_director PRIVATE rc_flight_director GTest::gtest_main)
+gtest_discover_tests(test_flight_director)

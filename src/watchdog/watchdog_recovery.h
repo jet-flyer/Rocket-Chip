@@ -44,15 +44,16 @@ static constexpr uint8_t kEskfMaxFailCycles = 5;
 // Tick function IDs for crash diagnostics — identifies which tick was
 // running when the watchdog fired.
 enum class TickFnId : uint8_t {
-    kInit       = 0,
-    kHeartbeat  = 1,
-    kWatchdog   = 2,
-    kEskf       = 3,
-    kLogging    = 4,
-    kRadio      = 5,
-    kMavlink    = 6,
-    kCli        = 7,
-    kSleep      = 8,
+    kInit           = 0,
+    kHeartbeat      = 1,
+    kWatchdog       = 2,
+    kEskf           = 3,
+    kFlightDirector = 4,
+    kLogging        = 5,
+    kRadio          = 6,
+    kMavlink        = 7,
+    kCli            = 8,
+    kSleep          = 9,
 };
 
 // Recovery state read from scratch registers at boot.

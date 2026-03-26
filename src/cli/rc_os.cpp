@@ -16,6 +16,7 @@
 #include "calibration/calibration_data.h"
 #include "drivers/i2c_bus.h"
 #include "rocketchip/config.h"
+#include "flight_director/flight_director.h"
 #include "hardware/watchdog.h"
 #include <stdio.h>
 #include <string.h>
@@ -111,6 +112,10 @@ rc_os_feed_cal_fn rc_os_feed_cal = nullptr;
 // ESKF live output callback (set by main.cpp)
 rc_os_eskf_live_fn rc_os_print_eskf_live = nullptr;
 
+// Flight Director callbacks (IVP-68, set by main.cpp)
+rc_os_flight_signal_fn rc_os_dispatch_flight_signal = nullptr;
+rc_os_flight_status_fn rc_os_print_flight_status = nullptr;
+
 // Live ESKF mode state
 static bool g_eskfLiveActive = false;
 static uint32_t g_eskfLiveLastPrintUs = 0;
@@ -128,6 +133,16 @@ static void print_banner() {
     printf("========================================\n\n");
 }
 
+// Menu prompt — shows current context after each command
+static void print_prompt() {
+    switch (g_menu) {
+        case RC_OS_MENU_MAIN:        printf("[main] "); break;
+        case RC_OS_MENU_CALIBRATION: printf("[cal] "); break;
+        case RC_OS_MENU_FLIGHT:      printf("[flight] "); break;
+        default:                     printf("> "); break;
+    }
+}
+
 static void print_system_status() {
     printf("\n========================================\n");
     printf("  RocketChip System Status\n");
@@ -139,50 +154,47 @@ static void print_system_status() {
     // Calibration status
     const calibration_store_t* cal = calibration_manager_get();
     printf("----------------------------------------\n");
-    printf("Calibration Status:\n");
-    printf("  Gyro:  %s\n", (cal->cal_flags & CAL_STATUS_GYRO) != 0 ? "OK" : "NOT DONE");
+    printf("Calibration:\n");
+    printf("  Gyro:  %s\n", (cal->cal_flags & CAL_STATUS_GYRO) != 0 ? "OK" : "--");
     if ((cal->cal_flags & CAL_STATUS_ACCEL_6POS) != 0) {
         printf("  Accel: 6POS\n");
     } else if ((cal->cal_flags & CAL_STATUS_LEVEL) != 0) {
         printf("  Accel: LEVEL\n");
     } else {
-        printf("  Accel: NOT DONE\n");
+        printf("  Accel: --\n");
     }
-    printf("  Baro:  %s\n", (cal->cal_flags & CAL_STATUS_BARO) != 0 ? "OK" : "NOT DONE");
-    printf("  Mag:   %s\n", (cal->cal_flags & CAL_STATUS_MAG) != 0 ? "OK" : "NOT DONE");
+    printf("  Baro:  %s\n", (cal->cal_flags & CAL_STATUS_BARO) != 0 ? "OK" : "--");
+    printf("  Mag:   %s\n", (cal->cal_flags & CAL_STATUS_MAG) != 0 ? "OK" : "--");
 
     printf("----------------------------------------\n");
-    printf("Commands:\n");
-    printf("  h - This help\n");
-    printf("  s - Sensor status\n");
-    printf("  e - ESKF live (1Hz, any key stops)\n");
-    printf("  b - Boot summary (reprint)\n");
-    printf("  i - I2C bus rescan\n");
-    printf("  c - Calibration menu\n");
-    printf("  t - Telemetry status (TX or RX)\n");
-    printf("  r - Cycle TX rate (2/5/10 Hz)\n");
-    printf("  m - Toggle MAVLink/CSV output (RX)\n");
-    printf("  f - List stored flights\n");
-    printf("  d - Download flight (binary)\n");
-    printf("  l - Flush log to flash\n");
-    printf("  x - Erase all flights\n");
-    printf("========================================\n\n");
+    printf("Status:  h-Help  s-Sensor  e-ESKF  b-Boot\n");
+    printf("Menus:   c-Calibration  f-Flight Director\n");
+    printf("Data:    g-Flights  d-Download  l-Flush  x-Erase\n");
+    printf("Radio:   t-Status  r-Rate  m-MAVLink  i-I2C\n");
+    printf("========================================\n");
 }
 
 static void print_calibration_menu() {
     printf("\n========================================\n");
     printf("  Calibration Menu\n");
     printf("========================================\n");
-    printf("  g - Gyro calibration (keep still)\n");
-    printf("  l - Level calibration (keep flat)\n");
-    printf("  b - Baro calibration (ground ref)\n");
-    printf("  a - 6-position accel calibration\n");
-    printf("  m - Compass calibration\n");
-    printf("  w - Full wizard (all in sequence)\n");
-    printf("  r - Reset all calibration\n");
-    printf("  v - Save calibration to flash\n");
-    printf("  x - Return to main menu\n");
-    printf("========================================\n\n");
+    printf("  g-Gyro (keep still)   l-Level (keep flat)\n");
+    printf("  b-Baro (ground ref)   a-Accel 6-position\n");
+    printf("  m-Compass             w-Full wizard\n");
+    printf("  r-Reset all           v-Save to flash\n");
+    printf("  h-Help                x/ESC-Back\n");
+    printf("========================================\n");
+}
+
+static void print_flight_menu() {
+    printf("\n========================================\n");
+    printf("  Flight Director Menu\n");
+    printf("========================================\n");
+    printf("  Commands:  a-ARM  d-DISARM  x-ABORT  r-RESET\n");
+    printf("  Events:    l-LAUNCH  b-BURNOUT  p-APOGEE\n");
+    printf("             m-MAIN    n-LANDING\n");
+    printf("  Info:      s-Status  h-Help  z/ESC-Back\n");
+    printf("========================================\n");
 }
 
 // ============================================================================
@@ -1124,7 +1136,7 @@ static void update_calibration_progress() {
 // ============================================================================
 
 // NOLINTNEXTLINE(readability-function-size) — pure key dispatcher, splitting adds indirection
-static void handle_main_menu(int c) {
+static bool handle_main_menu(int c) {
     switch (c) {
         case 'h':
         case 'H':
@@ -1177,17 +1189,20 @@ static void handle_main_menu(int c) {
             }
             break;
 
-        case '\r':
-        case '\n':
-            // Ignore line endings
+        case 'f':
+        case 'F':
+            g_menu = RC_OS_MENU_FLIGHT;
+            print_flight_menu();
             break;
 
         default:
             if (rc_os_on_unhandled_key != nullptr) {
                 rc_os_on_unhandled_key(c);
+                break;
             }
-            break;
+            return false;
     }
+    return true;
 }
 
 // ============================================================================
@@ -1195,7 +1210,7 @@ static void handle_main_menu(int c) {
 // ============================================================================
 
 // NOLINTNEXTLINE(readability-function-size) — pure key dispatcher, splitting adds indirection
-static void handle_calibration_menu(int c) {
+static bool handle_calibration_menu(int c) {
     switch (c) {
         case 'g':
         case 'G':
@@ -1254,11 +1269,64 @@ static void handle_calibration_menu(int c) {
             print_calibration_menu();
             break;
 
-        case '\r':
-        case '\n':
         default:
-            break;
+            return false;
     }
+    return true;
+}
+
+// ============================================================================
+// Flight Director Menu Handler (IVP-68)
+// ============================================================================
+
+static void dispatch_flight_signal(int sig) {
+    if (rc_os_dispatch_flight_signal != nullptr) {
+        rc_os_dispatch_flight_signal(sig);
+    } else {
+        printf("Flight Director not initialized.\n");
+    }
+}
+
+// NOLINTNEXTLINE(readability-function-size) — pure key dispatcher
+static bool handle_flight_menu(int c) {
+    switch (c) {
+        // Commands
+        case 'a': case 'A': dispatch_flight_signal(rc::SIG_ARM); break;
+        case 'd': case 'D': dispatch_flight_signal(rc::SIG_DISARM); break;
+        case 'x': case 'X': dispatch_flight_signal(rc::SIG_ABORT); break;
+        case 'r': case 'R': dispatch_flight_signal(rc::SIG_RESET); break;
+
+        // Sensor event injection (bench testing)
+        case 'l': case 'L': dispatch_flight_signal(rc::SIG_LAUNCH); break;
+        case 'b': case 'B': dispatch_flight_signal(rc::SIG_BURNOUT); break;
+        case 'p': case 'P': dispatch_flight_signal(rc::SIG_APOGEE); break;
+        case 'm': case 'M': dispatch_flight_signal(rc::SIG_MAIN_DEPLOY); break;
+        case 'n': case 'N': dispatch_flight_signal(rc::SIG_LANDING); break;
+
+        // Status
+        case 's': case 'S':
+            if (rc_os_print_flight_status != nullptr) {
+                rc_os_print_flight_status();
+            } else {
+                printf("Flight status not available.\n");
+            }
+            break;
+
+        // Help
+        case 'h': case 'H': case '?':
+            print_flight_menu();
+            break;
+
+        // Return to main menu
+        case 'z': case 'Z': case kEscChar:
+            printf("Returning to main menu.\n");
+            g_menu = RC_OS_MENU_MAIN;
+            break;
+
+        default:
+            return false;
+    }
+    return true;
 }
 
 // ============================================================================
@@ -1305,9 +1373,9 @@ bool rc_os_update() {
         g_bannerPrinted = true;
 
         // Show initial status
-        print_system_status();
-
         g_menu = RC_OS_MENU_MAIN;
+        print_system_status();
+        print_prompt();
     }
 
     // Update calibration progress display
@@ -1319,6 +1387,7 @@ bool rc_os_update() {
         if (c != PICO_ERROR_TIMEOUT) {
             g_eskfLiveActive = false;
             printf("\n--- ESKF live stopped ---\n");
+            print_prompt();
             return true;
         }
         uint32_t nowUs = time_us_32();
@@ -1338,10 +1407,18 @@ bool rc_os_update() {
     }
 
     // Route to appropriate handler
+    bool handled = false;
     if (g_menu == RC_OS_MENU_MAIN) {
-        handle_main_menu(c);
+        handled = handle_main_menu(c);
     } else if (g_menu == RC_OS_MENU_CALIBRATION) {
-        handle_calibration_menu(c);
+        handled = handle_calibration_menu(c);
+    } else if (g_menu == RC_OS_MENU_FLIGHT) {
+        handled = handle_flight_menu(c);
+    }
+
+    // Show context prompt only after recognized commands
+    if (handled && !g_eskfLiveActive) {
+        print_prompt();
     }
 
     return true;

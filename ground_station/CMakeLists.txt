@@ -59,8 +59,8 @@ endif()
 add_compile_definitions(PICO_USE_STACK_GUARDS=1)
 add_compile_definitions(PICO_STACK_SIZE=0x1000)
 
-# Station mission profile: RX mode (compile-time behavioral selection)
-add_compile_definitions(ROCKETCHIP_MISSION_STATION=1)
+# Station job role: RX mode (compile-time behavioral selection)
+add_compile_definitions(ROCKETCHIP_JOB_STATION=1)
 
 add_compile_options(
     -Wall

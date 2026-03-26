@@ -120,6 +120,22 @@ if(BUILD_TESTS)
     target_compile_definitions(qep PUBLIC ROCKETCHIP_HOST_TEST=1)
 
     # ------------------------------------------------------------------
+    # Flight Director library (IVP-68, QEP-based HSM + flight state)
+    # Pure C++ — no Pico SDK. Links QEP for host-side HSM dispatch tests.
+    # ------------------------------------------------------------------
+    add_library(rc_flight_director STATIC
+        src/flight_director/flight_director.cpp
+    )
+    target_include_directories(rc_flight_director PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/include
+        ${CMAKE_CURRENT_LIST_DIR}/src
+        ${CMAKE_CURRENT_LIST_DIR}/src/flight_director
+        ${CMAKE_CURRENT_LIST_DIR}/lib/qep
+    )
+    target_link_libraries(rc_flight_director PUBLIC qep)
+    target_compile_definitions(rc_flight_director PUBLIC ROCKETCHIP_HOST_TEST=1)
+
+    # ------------------------------------------------------------------
     # Tests
     # ------------------------------------------------------------------
     enable_testing()
@@ -285,6 +301,9 @@ else()
         # IVP-67: QEP hierarchical state machine dispatch (vendored QP/C 8.1.3)
         lib/qep/qep_hsm.c
         lib/qep/qp_app.c
+
+        # IVP-68: Flight Director HSM + phase tracking
+        src/flight_director/flight_director.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -319,6 +338,7 @@ else()
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp
         src/watchdog/watchdog_recovery.cpp
+        src/flight_director/flight_director.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
@@ -340,6 +360,7 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/src/telemetry        # IVP-58
         ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink            # IVP-61
         ${CMAKE_CURRENT_LIST_DIR}/lib/qep                # IVP-67
+        ${CMAKE_CURRENT_LIST_DIR}/src/flight_director  # IVP-68
         ${RUUVI_DPS310_DIR}                            # IVP-11
         ${LWGPS_DIR}/include                             # IVP-31
     )

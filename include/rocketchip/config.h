@@ -14,7 +14,7 @@
 
 #include "pico/stdlib.h"
 #include "rocketchip/board.h"
-#include "rocketchip/mission.h"
+#include "rocketchip/job.h"
 
 // ============================================================================
 // Runtime Assertions (P10-5 / LOC-3.1 / JSF AV Env 15)
@@ -70,11 +70,12 @@ constexpr const char* kVersionString = "0.2.0";
 #define ROCKETCHIP_FEATURE_SPI          1   // SPI bus (radio, high-rate sensors)
 #define ROCKETCHIP_FEATURE_RADIO        1   // LoRa telemetry (RFM95W)
 
-// Mission profile — behavioral configuration (radio mode, sensor policy, etc.)
-// Selected by ROCKETCHIP_MISSION_STATION define in CMakeLists.txt.
-// Default: vehicle (TX telemetry downlink). See mission.h for details.
-using mission::kRadioModeRx;
-using mission::kDefaultMavlinkOutput;
+// Device role — behavioral configuration (radio mode, sensor policy, etc.)
+// Selected by ROCKETCHIP_JOB_STATION define in CMakeLists.txt.
+// Default: vehicle (TX telemetry downlink). See job.h for details.
+// "Job" = device role. Distinct from "MissionProfile" (flight profile data).
+using job::kRadioModeRx;
+using job::kDefaultMavlinkOutput;
 
 // ============================================================================
 // Pin Definitions (from HARDWARE.md)

@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
- * @file mission_station.h
- * @brief Station mission profile — ground receiver configuration
+ * @file job_station.h
+ * @brief Station role — ground receiver configuration
  *
  * RX telemetry reception, CCSDS decode, MAVLink re-encode over USB serial.
  * Sensors and ESKF are inert if hardware is absent (same binary,
  * just different behavioral defaults).
+ *
+ * Renamed from mission_station.h in IVP-68 to distinguish device role
+ * ("job") from flight profile data ("MissionProfile").
  */
 
-#ifndef ROCKETCHIP_MISSION_STATION_H
-#define ROCKETCHIP_MISSION_STATION_H
+#ifndef ROCKETCHIP_JOB_STATION_H
+#define ROCKETCHIP_JOB_STATION_H
 
-namespace mission {
+namespace job {
 
 // Radio mode: RX (telemetry reception)
 inline constexpr bool kRadioModeRx = true;
@@ -20,6 +23,6 @@ inline constexpr bool kRadioModeRx = true;
 // Default output: MAVLink binary for QGC/Mission Planner
 inline constexpr bool kDefaultMavlinkOutput = true;
 
-} // namespace mission
+} // namespace job
 
-#endif // ROCKETCHIP_MISSION_STATION_H
+#endif // ROCKETCHIP_JOB_STATION_H
