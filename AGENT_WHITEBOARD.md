@@ -22,25 +22,21 @@
 
 ---
 
-### Stage 8 — IVP-68 In Progress (HW Gate Pending)
+### Stage 8 — IVP-66 through IVP-71 Complete, IVP-72 Next
 
-**Updated 2026-03-15.** IVP-66 (watchdog recovery) and IVP-67 (QEP toolchain + STARS/QM/SPIN eval) complete. IVP-68 (QEP Integration + Phase Skeleton) code complete, 412/412 host tests pass, target builds clean. **HW gate NOT yet run.**
+**Updated 2026-03-25.** Six IVPs complete on `stage8/flight-director` branch. 497/497 host tests, all HW gates passed.
 
-**What's done in IVP-68:**
-- `job.h` rename (was `mission.h`) — device role vs flight profile naming distinction
-- `flight_state.h` — FlightPhase enum (8 phases), FlightMarkers, FlightState structs
-- `flight_director.h/.cpp` — Full QHsm with 9 state handlers, Descent superstate, timeouts (armed/coast/abort), ABORT per Amendment #1
-- `mission_profile.h` — MissionProfile struct + `kDefaultRocketProfile` (Amendment #6)
-- `main.cpp` — `g_director` instance, `flight_director_tick()` at 100Hz, `populate_fused_state()` reads phase, CLI callbacks wired
-- `rc_os.h/.cpp` — `RC_OS_MENU_FLIGHT` sub-menu, grouped main menu layout, `[main]`/`[cal]`/`[flight]` context prompts, `'f'` key → FD menu (flight list moved to `'g'`)
-- `test_flight_director.cpp` — 29 tests covering all transitions, timeouts, abort paths, markers
-- `docs/ROCKETCHIP_OS.md` — fully updated for current CLI state
-- TickFnId enum updated with `kFlightDirector`
+**Complete:**
+- **IVP-66:** Watchdog recovery policy
+- **IVP-67:** QEP 8.1.3 vendored, STARS/QM/SPIN evaluation
+- **IVP-68:** Flight Director QHsm skeleton (9 states, Descent superstate, job.h rename, CLI sub-menu)
+- **IVP-69:** Go/No-Go pre-arm checks + command handler (NASA-style readiness poll)
+- **IVP-70:** Guard functions + evaluator (6 guards, sustain timers, phase validity, auto-detection)
+- **IVP-71:** Guard combinators + three-layer safety (lockouts + AND/OR combinators + timer backup). Council-reviewed, 6 amendments incorporated.
 
-**What's NOT done:**
-- HW gate verification (flash + interactive CLI test, see plan for gate items)
-- Recovery boot routing to correct FD initial state (deferred to IVP-69 — needs command handler)
-- Commit (waiting on HW gate)
+**Next:** IVP-72 (Action Executor — NeoPixel colors per phase, event markers, pyro intent logging). Plan in `docs/plans/STAGE8_FLIGHT_DIRECTOR.md` lines 130-146. Plan mode file for IVP-71 council review at `.claude/plans/velvety-seeking-flame.md`.
+
+**Branch:** `stage8/flight-director` (7 commits ahead of main)
 
 **HW gate plan:** Flash via probe, verify build tag `ivp68-fd-1`, walk all 9 phases via CLI `f` menu, verify ABORT paths per Amendment #1, check `'s'` status output, 60s soak with 0 errors + ESKF stable, coast timeout (15s wait). See conversation for full gate checklist.
 

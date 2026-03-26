@@ -20,6 +20,20 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-25-002 | Claude Code CLI | feature, architecture, council
+
+**Stage 8 Flight Director — IVP-69 through IVP-71 complete.** Continued same session after IVP-66–68 changelog entry.
+
+**IVP-69:** Go/No-Go pre-arm checks + command handler. NASA-style readiness poll: Tier 1 (6 platform stations: IMU, Baro, ESKF, Flash, Safety, Watchdog — all must GO) + Tier 2 (4 profile stations: GPS, Mag, Radio, Battery — warn only). CLI ARM/DISARM/ABORT/RESET routed through command handler with phase validation. Sensor event keys bypass for bench testing. 32 tests, 444/444 total.
+
+**IVP-70:** Guard functions + evaluator. 6 guard functions (launch accel, burnout accel, apogee velocity, baro peak, main deploy altitude, stationary) with sustain timers and phase-validity bitmasks. All thresholds from MissionProfile. Wired into main.cpp at 100Hz via seqlock snapshot. Hand shake triggered automatic ARMED→BOOST. 31 tests, 475/475 total.
+
+**IVP-71:** Guard combinators + three-layer safety architecture. Council-reviewed (NASA/JPL, ArduPilot, Professor, Rocketeer — unanimous APPROVE, 6 amendments). Industry research: timer backups standard at every level (NASA primary for sounding rockets), velocity lockout universal. Three layers: (1) lockout gates (velocity 80 m/s + 3s min-time), (2) sensor combinators (AND for apogee: velocity + baro must agree), (3) timer backup (gated by lockouts). ESKF-unhealthy bypasses velocity lockout for timer only (Council A2). Managed/unmanaged guard split via constexpr array (Council A4). Per-profile `emergency_deploy_anytime` for HAB. MissionProfile expanded with lockout, backup, combinator fields. 22 combinator tests, 497/497 total.
+
+(`src/flight_director/`, `src/main.cpp`, `src/cli/rc_os.{cpp,h}`, `include/rocketchip/config.h`, `test/test_go_nogo.cpp`, `test/test_guards.cpp`, `test/test_guard_combinator.cpp`)
+
+---
+
 ### 2026-03-25-001 | Claude Code CLI | feature, architecture
 
 **Stage 8 Flight Director — IVP-66 through IVP-68 complete.** ~10 day gap between sessions (machine powered off and relocated). HW gate re-verified from clean boot — all sensors init OK, 60s soak 0 new errors, ESKF stable. No regressions from the gap.
