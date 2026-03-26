@@ -17,6 +17,7 @@
 #include "drivers/i2c_bus.h"
 #include "rocketchip/config.h"
 #include "flight_director/flight_director.h"
+#include "flight_director/command_handler.h"
 #include "hardware/watchdog.h"
 #include <stdio.h>
 #include <string.h>
@@ -115,6 +116,9 @@ rc_os_eskf_live_fn rc_os_print_eskf_live = nullptr;
 // Flight Director callbacks (IVP-68, set by main.cpp)
 rc_os_flight_signal_fn rc_os_dispatch_flight_signal = nullptr;
 rc_os_flight_status_fn rc_os_print_flight_status = nullptr;
+
+// Go/No-Go + command handler callback (IVP-69, set by main.cpp)
+rc_os_flight_command_fn rc_os_process_flight_command = nullptr;
 
 // Live ESKF mode state
 static bool g_eskfLiveActive = false;
@@ -1287,14 +1291,22 @@ static void dispatch_flight_signal(int sig) {
     }
 }
 
+static void dispatch_flight_command(int cmd) {
+    if (rc_os_process_flight_command != nullptr) {
+        rc_os_process_flight_command(cmd);
+    } else {
+        printf("Command handler not initialized.\n");
+    }
+}
+
 // NOLINTNEXTLINE(readability-function-size) — pure key dispatcher
 static bool handle_flight_menu(int c) {
     switch (c) {
-        // Commands
-        case 'a': case 'A': dispatch_flight_signal(rc::SIG_ARM); break;
-        case 'd': case 'D': dispatch_flight_signal(rc::SIG_DISARM); break;
-        case 'x': case 'X': dispatch_flight_signal(rc::SIG_ABORT); break;
-        case 'r': case 'R': dispatch_flight_signal(rc::SIG_RESET); break;
+        // Commands — routed through command handler (Go/No-Go for ARM)
+        case 'a': case 'A': dispatch_flight_command(static_cast<int>(rc::CommandType::kArm)); break;
+        case 'd': case 'D': dispatch_flight_command(static_cast<int>(rc::CommandType::kDisarm)); break;
+        case 'x': case 'X': dispatch_flight_command(static_cast<int>(rc::CommandType::kAbort)); break;
+        case 'r': case 'R': dispatch_flight_command(static_cast<int>(rc::CommandType::kReset)); break;
 
         // Sensor event injection (bench testing)
         case 'l': case 'L': dispatch_flight_signal(rc::SIG_LAUNCH); break;

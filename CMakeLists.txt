@@ -125,6 +125,8 @@ if(BUILD_TESTS)
     # ------------------------------------------------------------------
     add_library(rc_flight_director STATIC
         src/flight_director/flight_director.cpp
+        src/flight_director/go_nogo_checks.cpp
+        src/flight_director/command_handler.cpp
     )
     target_include_directories(rc_flight_director PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/include
@@ -304,6 +306,10 @@ else()
 
         # IVP-68: Flight Director HSM + phase tracking
         src/flight_director/flight_director.cpp
+
+        # IVP-69: Go/No-Go checks + command handler
+        src/flight_director/go_nogo_checks.cpp
+        src/flight_director/command_handler.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -339,6 +345,8 @@ else()
         src/telemetry/telemetry_service.cpp
         src/watchdog/watchdog_recovery.cpp
         src/flight_director/flight_director.cpp
+        src/flight_director/go_nogo_checks.cpp
+        src/flight_director/command_handler.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 

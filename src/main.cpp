@@ -42,6 +42,7 @@
 #include "cli/rc_os.h"
 #include "watchdog/watchdog_recovery.h"
 #include "flight_director/flight_director.h"
+#include "flight_director/command_handler.h"
 #include "qp_port.h"   // QP/C QEP (IVP-67): Q_onError, QHsm types
 #include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
@@ -1911,7 +1912,7 @@ static bool init_hardware() {
 static void print_boot_status() {
     printf("\n");
     printf("==============================================\n");
-    printf("  RocketChip v%s  Build: ivp68-fd-1\n", kVersionString);
+    printf("  RocketChip v%s  Build: ivp69-gng-1\n", kVersionString);
     printf("  Board: %s\n", board::kBoardName);
     printf("==============================================\n\n");
 
@@ -1940,6 +1941,7 @@ static void print_boot_status() {
 // Forward declarations for CLI callbacks (defined after logging_tick)
 static void handle_unhandled_key(int key);
 static void cli_dispatch_flight_signal(int signal);
+static bool cli_process_flight_command(int cmd);
 static void cli_print_flight_status();
 
 static void init_rc_os_hooks() {
@@ -1960,6 +1962,7 @@ static void init_rc_os_hooks() {
     rc_os_on_unhandled_key = handle_unhandled_key;
     rc_os_dispatch_flight_signal = cli_dispatch_flight_signal;
     rc_os_print_flight_status = cli_print_flight_status;
+    rc_os_process_flight_command = cli_process_flight_command;
 }
 
 static void init_logging_ring() {
@@ -2423,6 +2426,50 @@ static void cli_dispatch_flight_signal(int signal) {
     }
     rc::flight_director_dispatch_signal(&g_director,
                                          static_cast<rc::FlightSignal>(signal));
+}
+
+// CLI callback: process a validated flight command (IVP-69)
+static bool cli_process_flight_command(int cmd) {
+    if (!g_directorInitialized) {
+        printf("[FD] Flight Director not initialized.\n");
+        return false;
+    }
+
+    auto cmdType = static_cast<rc::CommandType>(cmd);
+    rc::FlightPhase phase = rc::flight_director_phase(&g_director);
+
+    // Build Go/No-Go input from current system state
+    shared_sensor_data_t snap{};
+    seqlock_read(&g_sensorSeqlock, &snap);
+
+    rc::GoNoGoInput gng{};
+    // Tier 1: Platform
+    gng.imu_healthy = g_imuInitialized && snap.accel_valid;
+    gng.baro_healthy = g_baroInitialized && snap.baro_valid;
+    gng.eskf_healthy = g_eskfInitialized && g_eskf.healthy();
+    gng.flash_available = g_flightTable.loaded &&
+                          (rc::flight_table_count(&g_flightTable) <
+                           rc::kMaxFlightEntries);
+    gng.launch_abort = g_recovery.launch_abort;
+    gng.watchdog_ok = !g_recovery.boot_state.safe_mode &&
+                      !g_recovery.eskf_disabled;
+    // Tier 2: Profile
+    gng.gps_has_lock = g_gpsInitialized &&
+                       snap.gps_fix_type >= 2 &&
+                       snap.gps_satellites >= 4;
+    const calibration_store_t* cal = calibration_manager_get();
+    gng.mag_calibrated = (cal->cal_flags & CAL_STATUS_MAG) != 0;
+    gng.radio_linked = g_radioInitialized;
+
+    rc::CommandResult result = rc::command_handler_validate(
+        cmdType, phase, &gng);
+
+    if (result.accepted) {
+        rc::flight_director_dispatch_signal(&g_director, result.signal);
+    } else {
+        printf("[FD] Command rejected: %s\n", result.reason);
+    }
+    return result.accepted;
 }
 
 // CLI callback: print flight director status

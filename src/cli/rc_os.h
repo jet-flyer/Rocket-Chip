@@ -278,4 +278,17 @@ extern rc_os_flight_signal_fn rc_os_dispatch_flight_signal;
 typedef void (*rc_os_flight_status_fn)(void);
 extern rc_os_flight_status_fn rc_os_print_flight_status;
 
+// ============================================================================
+// Go/No-Go + Command Handler Callbacks (IVP-69)
+// ============================================================================
+
+/**
+ * @brief Callback to process a validated flight command (ARM, DISARM, ABORT, RESET).
+ *
+ * Routes through Go/No-Go checks for ARM. Returns true if command was accepted.
+ * @param cmd CommandType enum value (cast to int for C linkage)
+ */
+typedef bool (*rc_os_flight_command_fn)(int cmd);
+extern rc_os_flight_command_fn rc_os_process_flight_command;
+
 #endif // ROCKETCHIP_RC_OS_H
