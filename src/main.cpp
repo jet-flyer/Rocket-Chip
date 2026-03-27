@@ -92,6 +92,12 @@ static constexpr uint32_t kCore1PauseAckMaxMs = 100;
 
 // MPU stack guard
 static constexpr uint32_t kMpuGuardSizeBytes = 64;              // Guard region at bottom of stack
+// MPU region config: ARM v8-M attribute index for Device-nGnRE
+static constexpr uint32_t kMpuAttrIndex = 7;                    // MAIR slot for guard region
+static constexpr uint32_t kMpuAttrDeviceNgnre = 0x00;           // Device-nGnRE: fault on stack overflow
+// RP2350 SRAM base (10MB region containing stack)
+static constexpr uint32_t kSramRegionBase = 0x20000000U;
+static constexpr uint32_t kSramRegionLimit = 0x20FFFFFFU;       // 16MB minus 1
 
 // Fault handler blink pattern
 static constexpr int32_t kFaultBlinkFastLoops = 200000;         // ~100ms at 150MHz
@@ -114,6 +120,9 @@ static constexpr uint32_t kGpsSdaSettleUs = 500;
 // Seqlock parameters
 static constexpr uint32_t kSeqlockMaxRetries = 4;
 
+// ESKF propagation rate (Hz) — derived from IMU rate / divider
+static constexpr uint32_t kEskfRateHz = 200;
+
 // IVP-42d: ESKF propagation — every 5th IMU sample = 200Hz
 // Note: count divider discards 4/5 IMU samples. For flight with high vibration,
 // compound integration of all samples or higher rate propagation may be needed (R-5).
@@ -123,6 +132,22 @@ static constexpr uint32_t kEskfImuDivider = 5;
 static constexpr float kRadToDeg = 180.0F / 3.14159265F;
 static constexpr double kDeg2Rad = 3.14159265358979323846 / 180.0;
 static constexpr float kFullCircleDeg = 360.0F;           // Heading wrap-around
+
+// IMU config readback bitmask: DLPF_CFG is bits [5:3] of ACCEL/GYRO_CONFIG register
+static constexpr uint8_t kDlpfCfgMask = 0x07U;
+
+// Flight director tick period
+static constexpr uint32_t kFlightDirectorPeriodMs = 10;         // 100Hz
+
+// Erase confirmation input
+static constexpr int32_t kEraseInputMaxChars = 7;               // Max input chars before enter
+static constexpr uint32_t kEraseInputTimeoutUs = 10000000;       // 10 second input timeout
+
+// Flight number input timeout
+static constexpr uint32_t kFlightNumTimeoutUs = 3000000;         // 3 second timeout
+
+// CRC-32 init/finalize value
+static constexpr uint32_t kCrc32InitXor = 0xFFFFFFFFU;
 
 // Microsecond-to-second conversion
 static constexpr float kUsToSec = 1e-6F;
@@ -1588,9 +1613,9 @@ static void hw_validate_sensors() {
         if (icm20948_read_config_registers(&g_imu, &accelCfg, &gyroCfg1, &gyroDiv)) {
             // ACCEL_CONFIG[5:3]=DLPF_CFG, [2:1]=FS_SEL, [0]=DLPF_EN
             // GYRO_CONFIG_1[5:3]=DLPF_CFG, [2:1]=FS_SEL, [0]=DLPF_EN
-            uint8_t accelDlpf = (accelCfg >> 3) & 0x07U;
+            uint8_t accelDlpf = (accelCfg >> 3) & kDlpfCfgMask;
             bool accelDlpfEn  = (accelCfg & 0x01U) != 0;
-            uint8_t gyroDlpf  = (gyroCfg1 >> 3) & 0x07U;
+            uint8_t gyroDlpf  = (gyroCfg1 >> 3) & kDlpfCfgMask;
             bool gyroDlpfEn   = (gyroCfg1 & 0x01U) != 0;
             printf("  IMU config: accelDLPF=%u(%s) gyroDLPF=%u(%s) gyroDiv=%u\n",
                    accelDlpf, accelDlpfEn ? "on" : "off",
@@ -1646,7 +1671,7 @@ static void print_psram_status() {
 static void print_logging_status() {
     if (g_loggingInitialized) {
         bool isPsram = (g_psramSize > 0 && g_psramSelfTestPassed);
-        uint32_t rate = isPsram ? (200 / kDecimationPsram) : (200 / kDecimationSram);
+        uint32_t rate = isPsram ? (kEskfRateHz / kDecimationPsram) : (kEskfRateHz / kDecimationSram);
         printf("[PASS] Logging: %s ring, %luHz, %lu frames capacity, %lu stored\n",
                isPsram ? "PSRAM" : "SRAM",
                (unsigned long)rate,
@@ -2444,7 +2469,7 @@ static void flight_director_tick() {
 
     uint32_t nowMs = to_ms_since_boot(get_absolute_time());
     // 100Hz tick (10ms period) — matches guard evaluation rate per plan
-    if (nowMs - g_lastFdTickMs < 10) {
+    if (nowMs - g_lastFdTickMs < kFlightDirectorPeriodMs) {
         return;
     }
     g_lastFdTickMs = nowMs;
@@ -2596,8 +2621,8 @@ static void cmd_flush_log() {
 
     bool isPsram = (g_psramSize > 0 && g_psramSelfTestPassed);
     uint8_t rate = isPsram
-        ? static_cast<uint8_t>(200U / kDecimationPsram)
-        : static_cast<uint8_t>(200U / kDecimationSram);
+        ? static_cast<uint8_t>(kEskfRateHz / kDecimationPsram)
+        : static_cast<uint8_t>(kEskfRateHz / kDecimationSram);
 
     printf("Flushing %lu frames to flash...\n", (unsigned long)stored);
 
@@ -2656,8 +2681,8 @@ static void cmd_erase_all_flights() {
     // Read up to 8 chars with 10s timeout (blocking — acceptable for destructive op)
     char buf[8] = {};
     int pos = 0;
-    while (pos < 7) {
-        int ch = getchar_timeout_us(10000000);  // 10s timeout
+    while (pos < kEraseInputMaxChars) {
+        int ch = getchar_timeout_us(kEraseInputTimeoutUs);
         if (ch == PICO_ERROR_TIMEOUT) {
             break;
         }
@@ -2735,7 +2760,7 @@ static int read_flight_number() {
     int num = 0;
     bool gotDigit = false;
     for (int i = 0; i < 3; ++i) {  // max 2 digits + enter
-        int c = getchar_timeout_us(3000000);
+        int c = getchar_timeout_us(kFlightNumTimeoutUs);
         if (c == PICO_ERROR_TIMEOUT) {
             break;
         }
@@ -2761,7 +2786,7 @@ static uint32_t stream_flight_binary(const rc::FlightLogEntry& entry) {
     // Disable CRLF translation for raw binary output — SDK converts 0x0A→0x0D0A
     stdio_set_translate_crlf(&stdio_usb, false);
 
-    uint32_t running_crc = 0xFFFFFFFFU;
+    uint32_t running_crc = kCrc32InitXor;
     uint32_t frames_sent = 0;
 
     while (frames_sent < entry.frame_count) {
@@ -2786,7 +2811,7 @@ static uint32_t stream_flight_binary(const rc::FlightLogEntry& entry) {
     }
 
     stdio_set_translate_crlf(&stdio_usb, true);
-    return running_crc ^ 0xFFFFFFFFU;
+    return running_crc ^ kCrc32InitXor;
 }
 
 static void cmd_download_flight() {
@@ -2910,19 +2935,23 @@ static void fused_copy_eskf_state(rc::FusedState& fused) {
     fused.gyro_bias_z = g_eskf.gyro_bias.z;
 
     // Covariance diagnostics (max diagonal in each block)
-    float patt = g_eskf.P(0, 0);
-    if (g_eskf.P(1, 1) > patt) { patt = g_eskf.P(1, 1); }
-    if (g_eskf.P(2, 2) > patt) { patt = g_eskf.P(2, 2); }
+    using rc::eskf::kIdxAttitude;
+    using rc::eskf::kIdxPosition;
+    using rc::eskf::kIdxVelocity;
+
+    float patt = g_eskf.P(kIdxAttitude + 0, kIdxAttitude + 0);
+    if (g_eskf.P(kIdxAttitude + 1, kIdxAttitude + 1) > patt) { patt = g_eskf.P(kIdxAttitude + 1, kIdxAttitude + 1); }
+    if (g_eskf.P(kIdxAttitude + 2, kIdxAttitude + 2) > patt) { patt = g_eskf.P(kIdxAttitude + 2, kIdxAttitude + 2); }
     fused.sig_att = patt;
 
-    float ppos = g_eskf.P(3, 3);
-    if (g_eskf.P(4, 4) > ppos) { ppos = g_eskf.P(4, 4); }
-    if (g_eskf.P(5, 5) > ppos) { ppos = g_eskf.P(5, 5); }
+    float ppos = g_eskf.P(kIdxPosition + 0, kIdxPosition + 0);
+    if (g_eskf.P(kIdxPosition + 1, kIdxPosition + 1) > ppos) { ppos = g_eskf.P(kIdxPosition + 1, kIdxPosition + 1); }
+    if (g_eskf.P(kIdxPosition + 2, kIdxPosition + 2) > ppos) { ppos = g_eskf.P(kIdxPosition + 2, kIdxPosition + 2); }
     fused.sig_pos = ppos;
 
-    float pvel = g_eskf.P(6, 6);
-    if (g_eskf.P(7, 7) > pvel) { pvel = g_eskf.P(7, 7); }
-    if (g_eskf.P(8, 8) > pvel) { pvel = g_eskf.P(8, 8); }
+    float pvel = g_eskf.P(kIdxVelocity + 0, kIdxVelocity + 0);
+    if (g_eskf.P(kIdxVelocity + 1, kIdxVelocity + 1) > pvel) { pvel = g_eskf.P(kIdxVelocity + 1, kIdxVelocity + 1); }
+    if (g_eskf.P(kIdxVelocity + 2, kIdxVelocity + 2) > pvel) { pvel = g_eskf.P(kIdxVelocity + 2, kIdxVelocity + 2); }
     fused.sig_vel = pvel;
 
     fused.eskf_healthy = g_eskf.healthy();

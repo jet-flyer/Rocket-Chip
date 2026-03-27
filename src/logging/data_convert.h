@@ -33,7 +33,7 @@ void fused_to_telemetry(const FusedState& fused, TelemetryState& out);
  *
  * Not bit-exact — quantization is lossy. Used for test validation only.
  */
-void telemetry_to_fused_approx(const TelemetryState& telem, FusedState& out);
+void telemetry_to_fused_approx(const TelemetryState& t, FusedState& f);
 
 } // namespace rc
 

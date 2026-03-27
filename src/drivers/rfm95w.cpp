@@ -4,10 +4,10 @@
  * @file rfm95w.cpp
  * @brief RFM95W (SX1276) LoRa radio driver implementation
  *
- * Init sequence and register usage based on:
- * - SX1276 datasheet (Semtech DS_SX1276-7-8-9_W_APP_V7)
- * - RadioHead RH_RF95 (airspayce.com)
- * - Adafruit CircuitPython adafruit_rfm9x
+ * Prior Art:
+ *   - SX1276 datasheet (Semtech DS_SX1276-7-8-9_W_APP_V7)
+ *   - RadioHead RH_RF95 (airspayce.com)
+ *   - Adafruit CircuitPython adafruit_rfm9x
  *
  * Council amendments incorporated:
  * #1: 64-bit freq calculation, 100ms TX timeout
@@ -23,6 +23,58 @@
 #include "rocketchip/config.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
+
+// ============================================================================
+// File-scope constants (JSF AV Rule 151)
+// ============================================================================
+
+// Hardware reset timing (SX1276 datasheet Section 7.2.2)
+static constexpr uint32_t kResetPulseLowMs  = 10;  // RST low duration
+static constexpr uint32_t kResetPulseHighMs = 10;  // RST high settle
+
+// Mode transition settling time
+static constexpr uint32_t kModeSettleMs = 10;
+
+// ISM band frequency (US, FCC Part 15)
+static constexpr uint32_t kDefaultFreqHz = 915000000U;
+
+// SX1276 crystal oscillator frequency (datasheet Section 3)
+static constexpr uint64_t kFxoscHz = 32000000ULL;
+
+// Frequency register shift (2^19 per SX1276 datasheet Section 4.1.4)
+static constexpr uint32_t kFreqRegShift = 19;
+
+// ModemConfig1: BW=125kHz[7:4]=0111, CR=4/5[3:1]=001, ImplicitHdr=0
+static constexpr uint8_t kModemCfg1Default = 0x72;
+
+// ModemConfig2: SF7[7:4]=0111, CRC on[2]=1
+static constexpr uint8_t kModemCfg2Default = 0x74;
+
+// Default TX power (dBm)
+static constexpr int8_t kDefaultTxPowerDbm = 20;
+
+// Private sync word (SX1276 default LoRa sync)
+static constexpr uint8_t kSyncWordDefault = 0x12;
+
+// RSSI offset for HF port (868/915 MHz) per SX1276 datasheet Section 5.5.5
+static constexpr int16_t kRssiOffsetHf = -157;
+
+// PA_BOOST power configuration (SX1276 datasheet Section 5.4.3)
+static constexpr int8_t kPaBoostMinDbm     = 2;   // Minimum PA_BOOST output
+static constexpr int8_t kPaBoostMaxDbm     = 20;  // Maximum PA_BOOST output
+static constexpr int8_t kPaDacThreshDbm    = 17;  // Above this, use PA_DAC high-power mode
+static constexpr uint8_t kPaDacHighPower   = 0x87; // PA_DAC: +20 dBm mode
+static constexpr uint8_t kPaDacNormal      = 0x84; // PA_DAC: default (normal mode)
+static constexpr uint8_t kPaBoostBit       = 0x80; // PA_SELECT = PA_BOOST
+static constexpr uint8_t kMaxPowerBits     = 0x70; // MaxPower=7 (bits[6:4])
+static constexpr int8_t kPaOffsetHighPower = 5;    // OutputPower = dbm - 5 in high-power mode
+static constexpr int8_t kPaOffsetNormal    = 2;    // OutputPower = dbm - 2 in normal mode
+
+// Bandwidth register mask: lower nibble preserved (CR + header bits)
+static constexpr uint8_t kBwLowerNibbleMask = 0x0F;
+
+// SNR register divisor (SX1276: SNR = RegPktSnrValue / 4)
+static constexpr int8_t kSnrDivisor = 4;
 
 // ============================================================================
 // Internal Helpers
@@ -50,9 +102,9 @@ static void init_gpio_and_reset(uint8_t cs, uint8_t rst, uint8_t irq) {
 
     // SX1276 datasheet Section 7.2.2 — POR after reset
     gpio_put(rst, 0);
-    sleep_ms(10);
+    sleep_ms(kResetPulseLowMs);
     gpio_put(rst, 1);
-    sleep_ms(10);
+    sleep_ms(kResetPulseHighMs);
 }
 
 // Configure LoRa modem parameters: SF7, BW 125kHz, CR 4/5, CRC on,
@@ -60,22 +112,22 @@ static void init_gpio_and_reset(uint8_t cs, uint8_t rst, uint8_t irq) {
 static void configure_modem(rfm95w_t* dev) {
     uint8_t cs = dev->cs_pin;
 
-    rfm95w_set_frequency(dev, 915000000u);
+    rfm95w_set_frequency(dev, kDefaultFreqHz);
 
     // FIFO base addresses: TX at 0x80, RX at 0x00 (RadioHead default)
     spi_bus_write_reg(cs, rfm95w::reg::kFifoTxBase, 0x80);
     spi_bus_write_reg(cs, rfm95w::reg::kFifoRxBase, 0x00);
 
     // RegModemConfig1: BW[7:4]=0111 (125kHz), CR[3:1]=001 (4/5), ImplicitHeader=0
-    spi_bus_write_reg(cs, rfm95w::reg::kModemConfig1, 0x72);
+    spi_bus_write_reg(cs, rfm95w::reg::kModemConfig1, kModemCfg1Default);
     // RegModemConfig2: SF7[7:4]=0111, CRC on[2]=1
-    spi_bus_write_reg(cs, rfm95w::reg::kModemConfig2, 0x74);
+    spi_bus_write_reg(cs, rfm95w::reg::kModemConfig2, kModemCfg2Default);
 
     spi_bus_write_reg(cs, rfm95w::reg::kPreambleMsb, 0x00);
     spi_bus_write_reg(cs, rfm95w::reg::kPreambleLsb, 0x08);
 
-    rfm95w_set_tx_power(dev, 20);  // Field power (was 5 for IVP-57 bench)
-    spi_bus_write_reg(cs, rfm95w::reg::kSyncWord, 0x12);
+    rfm95w_set_tx_power(dev, kDefaultTxPowerDbm);
+    spi_bus_write_reg(cs, rfm95w::reg::kSyncWord, kSyncWordDefault);
     spi_bus_write_reg(cs, rfm95w::reg::kDioMapping1, 0x00);
 }
 
@@ -103,9 +155,9 @@ bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq) {
 
     // Enter Sleep → LoRa mode (must set LoRa bit while in Sleep)
     spi_bus_write_reg(cs, rfm95w::reg::kOpMode, rfm95w::mode::kSleep);
-    sleep_ms(10);
+    sleep_ms(kModeSettleMs);
     set_mode(dev, rfm95w::mode::kSleep);
-    sleep_ms(10);
+    sleep_ms(kModeSettleMs);
 
     configure_modem(dev);
     set_mode(dev, rfm95w::mode::kStandby);
@@ -197,12 +249,12 @@ uint8_t rfm95w_recv(rfm95w_t* dev, uint8_t* buf, uint8_t max_len) {
     // (SX1276 datasheet Section 5.5.5)
     uint8_t raw_rssi = spi_bus_read_reg(dev->cs_pin,
                                         rfm95w::reg::kPktRssiValue);
-    dev->last_rssi = static_cast<int16_t>(-157 + raw_rssi);
+    dev->last_rssi = static_cast<int16_t>(kRssiOffsetHf + raw_rssi);
 
     // Record SNR: SNR(dB) = RegPktSnrValue / 4 (signed, 2's complement)
     int8_t raw_snr = static_cast<int8_t>(
         spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kPktSnrValue));
-    dev->last_snr = static_cast<int8_t>(raw_snr / 4);
+    dev->last_snr = static_cast<int8_t>(raw_snr / kSnrDivisor);
 
     return nb_bytes;
 }
@@ -231,7 +283,7 @@ bool rfm95w_poll_irq(rfm95w_t* dev) {
 void rfm95w_set_frequency(rfm95w_t* dev, uint32_t freq_hz) {
     // Council #1: Use 64-bit arithmetic — 32-bit overflows at 915 MHz
     // Frf = (freq_hz * 2^19) / F_XOSC, where F_XOSC = 32 MHz
-    uint64_t frf = (static_cast<uint64_t>(freq_hz) << 19) / 32000000ULL;
+    uint64_t frf = (static_cast<uint64_t>(freq_hz) << kFreqRegShift) / kFxoscHz;
 
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kFrMsb,
                       static_cast<uint8_t>((frf >> 16) & 0xFF));
@@ -243,23 +295,21 @@ void rfm95w_set_frequency(rfm95w_t* dev, uint32_t freq_hz) {
 
 void rfm95w_set_tx_power(rfm95w_t* dev, int8_t dbm) {
     // Clamp to valid range for PA_BOOST
-    if (dbm < 2) { dbm = 2; }
-    if (dbm > 20) { dbm = 20; }
+    if (dbm < kPaBoostMinDbm) { dbm = kPaBoostMinDbm; }
+    if (dbm > kPaBoostMaxDbm) { dbm = kPaBoostMaxDbm; }
 
-    if (dbm > 17) {
+    if (dbm > kPaDacThreshDbm) {
         // High power mode: enable PA_DAC for +20 dBm
-        // RegPaDac: 0x87 = +20 dBm mode (SX1276 datasheet Section 5.4.3)
-        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaDac, 0x87);
+        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaDac, kPaDacHighPower);
         // RegPaConfig: PA_BOOST=1, MaxPower=7, OutputPower = dbm - 5
         spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaConfig,
-                          static_cast<uint8_t>(0x80 | 0x70 | (dbm - 5)));
+                          static_cast<uint8_t>(kPaBoostBit | kMaxPowerBits | (dbm - kPaOffsetHighPower)));
     } else {
         // Normal mode: disable PA_DAC
-        // RegPaDac: 0x84 = default (normal mode)
-        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaDac, 0x84);
+        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaDac, kPaDacNormal);
         // RegPaConfig: PA_BOOST=1, MaxPower=7, OutputPower = dbm - 2
         spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kPaConfig,
-                          static_cast<uint8_t>(0x80 | 0x70 | (dbm - 2)));
+                          static_cast<uint8_t>(kPaBoostBit | kMaxPowerBits | (dbm - kPaOffsetNormal)));
     }
 }
 
@@ -272,7 +322,7 @@ void rfm95w_set_bandwidth(rfm95w_t* dev, uint8_t bw) {
 
     // Read current RegModemConfig1, replace BW bits [7:4], preserve CR and header bits
     uint8_t cfg1 = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kModemConfig1);
-    cfg1 = static_cast<uint8_t>((cfg1 & 0x0F) | (bw << 4));
+    cfg1 = static_cast<uint8_t>((cfg1 & kBwLowerNibbleMask) | (bw << 4));
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kModemConfig1, cfg1);
 }
 

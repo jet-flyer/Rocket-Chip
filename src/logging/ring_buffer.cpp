@@ -92,7 +92,7 @@ bool ring_read(const RingBuffer* rb, uint32_t index_from_newest,
     // With wraparound.
     uint32_t ring_size = rb->max_frames * rb->frame_size;
     uint32_t offset_from_head = (index_from_newest + 1) * rb->frame_size;
-    uint32_t pos;
+    uint32_t pos = 0;
     if (rb->head >= offset_from_head) {
         pos = rb->head - offset_from_head;
     } else {

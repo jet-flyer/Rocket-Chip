@@ -24,9 +24,10 @@
  *   -> gps_uart_drain() on Core 1 (drains ring buffer -> lwGPS)
  *   -> gps_uart_update() at 10Hz (drain + extract gps_data_t)
  *
- * Ref: Adafruit Ultimate GPS FeatherWing product page, MT3339 datasheet.
- *      ArduPilot AP_HAL::UARTDriver (DMA + ring buffer pattern).
- *      Pico SDK stdio_uart.c (IRQ handler pattern).
+ * Prior Art:
+ *   - Adafruit Ultimate GPS FeatherWing product page, MT3339 datasheet
+ *   - ArduPilot AP_HAL::UARTDriver (DMA + ring buffer pattern)
+ *   - Pico SDK stdio_uart.c (IRQ handler pattern)
  */
 
 #include "gps_uart.h"

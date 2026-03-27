@@ -4,7 +4,10 @@
  * @file icm20948.cpp
  * @brief ICM-20948 9-axis IMU driver implementation
  *
- * Reference: ICM-20948 datasheet, AK09916 datasheet
+ * Prior Art:
+ *   - ICM-20948 datasheet (TDK InvenSense DS-000189 Rev 1.6)
+ *   - AK09916 datasheet (AKM AKD09916 Rev 2.0)
+ *   - ArduPilot AP_InertialSensor_Invensensev2.cpp (bypass mode pattern)
  *
  * Note: ICM-20948 uses a bank-switching register architecture.
  * Registers 0x00-0x7F exist in each of 4 banks (0-3).

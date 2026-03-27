@@ -5,6 +5,11 @@
  * @brief PA1010D GPS module driver using lwGPS library
  *
  * Reads NMEA sentences from PA1010D via I2C and parses with lwGPS.
+ *
+ * Prior Art:
+ *   - CDTop PA1010D datasheet (MT3333 chipset)
+ *   - Adafruit PA1010D Arduino/CircuitPython GPS library (I2C chunked reads)
+ *   - lwGPS library (vendored in lib/lwgps/) — NMEA parser
  */
 
 #include "gps_pa1010d.h"

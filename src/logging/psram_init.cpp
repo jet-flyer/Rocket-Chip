@@ -44,6 +44,34 @@ static size_t g_psramSize = 0;
 // APS6404L Known Good Die byte
 static constexpr uint8_t kAps6404Kgd = 0x5D;
 
+// APS6404L SPI commands (datasheet Table 4)
+static constexpr uint8_t kCmdExitQpi  = 0xF5U;  // Return to SPI mode
+static constexpr uint8_t kCmdReadId   = 0x9FU;  // JEDEC Read ID
+static constexpr uint8_t kCmdEnterQpi = 0x35U;  // Enter QPI mode
+
+// APS6404L QPI read/write commands (datasheet Table 3)
+static constexpr uint8_t kCmdFastReadQuad = 0xEBU;  // Fast Read Quad I/O
+static constexpr uint8_t kCmdQuadWrite    = 0x38U;  // Quad Write
+
+// SPI ID read: 1 cmd + 3 addr + 1 dummy + 1 KGD + 1 EID = 7 bytes
+static constexpr uint32_t kIdReadLen    = 7;
+static constexpr uint32_t kIdKgdIndex   = 5;  // KGD byte position in response
+static constexpr uint32_t kIdEidIndex   = 6;  // EID byte position in response
+
+// EID decoding (datasheet Section 2.2)
+static constexpr uint32_t kEidSizeShift = 5;     // size_id = eid >> 5
+static constexpr uint8_t  kEid8mb       = 0x26;  // EID value for 8MB variant
+
+// Clock dividers for QMI direct mode
+static constexpr uint32_t kDetectClkDiv = 30U;  // Slow clock for SPI detection
+static constexpr uint32_t kQpiClkDiv    = 10U;  // Clock for QPI enable command
+
+// QPI read format: 6 dummy cycles for Fast Read Quad I/O
+static constexpr uint32_t kQpiReadDummyCycles = 6U;
+
+// Frequency threshold for rxdelay adjustment (100 MHz)
+static constexpr uint32_t kRxDelayThresholdHz = 100000000U;
+
 static size_t __no_inline_not_in_flash_func(psram_detect)(uint32_t cs_pin) {
     // Assign GPIO to XIP CS1 function
     gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
@@ -51,7 +79,7 @@ static size_t __no_inline_not_in_flash_func(psram_detect)(uint32_t cs_pin) {
     uint32_t intr_stash = save_and_disable_interrupts();
 
     // Enter direct mode with slow clock for detection
-    qmi_hw->direct_csr = 30U << QMI_DIRECT_CSR_CLKDIV_LSB |
+    qmi_hw->direct_csr = kDetectClkDiv << QMI_DIRECT_CSR_CLKDIV_LSB |
                           QMI_DIRECT_CSR_EN_BITS;
 
     // Wait for any prior XIP transfer cooldown
@@ -61,7 +89,7 @@ static size_t __no_inline_not_in_flash_func(psram_detect)(uint32_t cs_pin) {
     qmi_hw->direct_csr |= QMI_DIRECT_CSR_ASSERT_CS1N_BITS;
     qmi_hw->direct_tx = QMI_DIRECT_TX_OE_BITS |
                          (QMI_DIRECT_TX_IWIDTH_VALUE_Q << QMI_DIRECT_TX_IWIDTH_LSB) |
-                         0xF5U;  // Exit QPI command
+                         kCmdExitQpi;
     while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS) != 0) {}
     (void)qmi_hw->direct_rx;
     qmi_hw->direct_csr &= ~QMI_DIRECT_CSR_ASSERT_CS1N_BITS;
@@ -71,14 +99,14 @@ static size_t __no_inline_not_in_flash_func(psram_detect)(uint32_t cs_pin) {
     uint8_t kgd = 0;
     uint8_t eid = 0;
 
-    for (uint32_t i = 0; i < 7; ++i) {
-        qmi_hw->direct_tx = (i == 0) ? 0x9FU : 0xFFU;
+    for (uint32_t i = 0; i < kIdReadLen; ++i) {
+        qmi_hw->direct_tx = (i == 0) ? static_cast<uint32_t>(kCmdReadId) : 0xFFU;
         while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_TXEMPTY_BITS) == 0) {}
         while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS) != 0) {}
 
-        if (i == 5) {
+        if (i == kIdKgdIndex) {
             kgd = static_cast<uint8_t>(qmi_hw->direct_rx);
-        } else if (i == 6) {
+        } else if (i == kIdEidIndex) {
             eid = static_cast<uint8_t>(qmi_hw->direct_rx);
         } else {
             (void)qmi_hw->direct_rx;
@@ -92,8 +120,8 @@ static size_t __no_inline_not_in_flash_func(psram_detect)(uint32_t cs_pin) {
     size_t psram_size = 0;
     if (kgd == kAps6404Kgd) {
         psram_size = 1024U * 1024U;  // Base 1MB
-        uint8_t size_id = eid >> 5;
-        if (eid == 0x26 || size_id == 2) {
+        uint8_t size_id = eid >> kEidSizeShift;
+        if (eid == kEid8mb || size_id == 2) {
             psram_size *= 8;  // 8MB
         } else if (size_id == 0) {
             psram_size *= 2;  // 2MB
@@ -107,33 +135,23 @@ static size_t __no_inline_not_in_flash_func(psram_detect)(uint32_t cs_pin) {
 }
 
 // ============================================================================
-// QMI M1 configuration for APS6404L QSPI mode
+// QMI M1 timing calculation for APS6404L
 // ============================================================================
 
-static void __no_inline_not_in_flash_func(psram_configure_qmi)() {
-    // Enable direct mode with auto-CS for QPI enable command
-    qmi_hw->direct_csr = 10U << QMI_DIRECT_CSR_CLKDIV_LSB |
-                          QMI_DIRECT_CSR_EN_BITS |
-                          QMI_DIRECT_CSR_AUTO_CS1N_BITS;
-    while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS) != 0) {}
+// APS6404L max freq: 133 MHz (datasheet). Conservative implementations
+// use 109 MHz; we follow the reference implementations at 133 MHz.
+// Source: APS6404L-3SQR datasheet, SparkFun/AudioMorphology implementations.
+static constexpr uint32_t kMaxPsramFreq = 133000000U;
 
-    // Enable QPI mode on PSRAM (cmd 0x35)
-    qmi_hw->direct_tx = QMI_DIRECT_TX_NOPUSH_BITS | 0x35U;
-    while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS) != 0) {}
-
-    // Calculate timing parameters
-    // APS6404L max freq: 133 MHz (datasheet). Conservative implementations
-    // use 109 MHz; we follow the reference implementations at 133 MHz.
-    // Source: APS6404L-3SQR datasheet, SparkFun/AudioMorphology implementations.
-    static constexpr uint32_t kMaxPsramFreq = 133000000U;
+static uint32_t __no_inline_not_in_flash_func(psram_calc_timing)() {
     const uint32_t clock_hz = clock_get_hz(clk_sys);
 
     uint32_t divisor = (clock_hz + kMaxPsramFreq - 1) / kMaxPsramFreq;
-    if (divisor == 1 && clock_hz > 100000000U) {
+    if (divisor == 1 && clock_hz > kRxDelayThresholdHz) {
         divisor = 2;
     }
     uint32_t rxdelay = divisor;
-    if (clock_hz / divisor > 100000000U) {
+    if (clock_hz / divisor > kRxDelayThresholdHz) {
         rxdelay += 1;
     }
 
@@ -146,15 +164,32 @@ static void __no_inline_not_in_flash_func(psram_configure_qmi)() {
         (18ULL * 1000000ULL + clock_period_fs - 1) / clock_period_fs) -
         static_cast<int32_t>((divisor + 1) / 2);
 
-    // Set timing register
-    qmi_hw->m[1].timing =
-        1U << QMI_M1_TIMING_COOLDOWN_LSB |
+    return 1U << QMI_M1_TIMING_COOLDOWN_LSB |
         QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB |
         (static_cast<uint32_t>(max_select) << QMI_M1_TIMING_MAX_SELECT_LSB) |
         (static_cast<uint32_t>(min_deselect > 0 ? min_deselect : 0)
             << QMI_M1_TIMING_MIN_DESELECT_LSB) |
         rxdelay << QMI_M1_TIMING_RXDELAY_LSB |
         divisor << QMI_M1_TIMING_CLKDIV_LSB;
+}
+
+// ============================================================================
+// QMI M1 configuration for APS6404L QSPI mode
+// ============================================================================
+
+static void __no_inline_not_in_flash_func(psram_configure_qmi)() {
+    // Enable direct mode with auto-CS for QPI enable command
+    qmi_hw->direct_csr = kQpiClkDiv << QMI_DIRECT_CSR_CLKDIV_LSB |
+                          QMI_DIRECT_CSR_EN_BITS |
+                          QMI_DIRECT_CSR_AUTO_CS1N_BITS;
+    while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS) != 0) {}
+
+    // Enable QPI mode on PSRAM
+    qmi_hw->direct_tx = QMI_DIRECT_TX_NOPUSH_BITS | kCmdEnterQpi;
+    while ((qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS) != 0) {}
+
+    // Set timing register
+    qmi_hw->m[1].timing = psram_calc_timing();
 
     // Read format: QPI with 6 dummy cycles (Fast Read Quad I/O 0xEB)
     qmi_hw->m[1].rfmt =
@@ -164,8 +199,8 @@ static void __no_inline_not_in_flash_func(psram_configure_qmi)() {
         QMI_M1_RFMT_DUMMY_WIDTH_VALUE_Q  << QMI_M1_RFMT_DUMMY_WIDTH_LSB |
         QMI_M1_RFMT_DATA_WIDTH_VALUE_Q   << QMI_M1_RFMT_DATA_WIDTH_LSB |
         QMI_M1_RFMT_PREFIX_LEN_VALUE_8   << QMI_M1_RFMT_PREFIX_LEN_LSB |
-        6U << QMI_M1_RFMT_DUMMY_LEN_LSB;
-    qmi_hw->m[1].rcmd = 0xEBU;
+        kQpiReadDummyCycles << QMI_M1_RFMT_DUMMY_LEN_LSB;
+    qmi_hw->m[1].rcmd = kCmdFastReadQuad;
 
     // Write format: QPI (Quad Write 0x38, no dummy cycles)
     qmi_hw->m[1].wfmt =
@@ -175,7 +210,7 @@ static void __no_inline_not_in_flash_func(psram_configure_qmi)() {
         QMI_M1_WFMT_DUMMY_WIDTH_VALUE_Q  << QMI_M1_WFMT_DUMMY_WIDTH_LSB |
         QMI_M1_WFMT_DATA_WIDTH_VALUE_Q   << QMI_M1_WFMT_DATA_WIDTH_LSB |
         QMI_M1_WFMT_PREFIX_LEN_VALUE_8   << QMI_M1_WFMT_PREFIX_LEN_LSB;
-    qmi_hw->m[1].wcmd = 0x38U;
+    qmi_hw->m[1].wcmd = kCmdQuadWrite;
 
     // Disable direct mode (return to XIP)
     qmi_hw->direct_csr = 0;

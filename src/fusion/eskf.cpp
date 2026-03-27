@@ -42,6 +42,13 @@ constexpr float kMinInnovationVariance = 1e-12F;
 // Used in set_origin() to zero cross-covariance terms for both blocks.
 constexpr int32_t kPosVelBlockSpan = 6;
 
+// Mag state block span: earth_mag(3) + body_mag_bias(3) = 6
+constexpr int32_t kMagBlockSpan = 6;
+
+// Minimum baseline P diagonal for growth ratio check.
+// Below this, baseline is too small for meaningful ratio comparison.
+constexpr float kPGrowthBaselineEpsilon = 1e-6F;
+
 // Quaternion norm deviation tolerance for healthy() check.
 // |norm(q) - 1| > this indicates numerical drift or corruption.
 constexpr float kQuatNormTolerance = 1e-3F;
@@ -1269,7 +1276,7 @@ void ESKF::clamp_extended_covariance() {
     // Codegen adds Q_d to all states. Inhibited blocks must be re-zeroed
     // here — the codegen doesn't know about inhibit flags.
     if (inhibit_mag_states_) {
-        zero_p_block(eskf::kIdxEarthMag, 6);  // earth_mag(3) + body_mag_bias(3)
+        zero_p_block(eskf::kIdxEarthMag, kMagBlockSpan);  // earth_mag(3) + body_mag_bias(3)
     } else {
         for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
             if (P(eskf::kIdxEarthMag + i, eskf::kIdxEarthMag + i) > kClampPEarthMag) {
@@ -1335,7 +1342,7 @@ bool ESKF::healthy() const {
 
     // Extended states: only check diagonal when NOT inhibited
     if (!inhibit_mag_states_) {
-        for (int32_t i = eskf::kIdxEarthMag; i < eskf::kIdxEarthMag + 6; ++i) {
+        for (int32_t i = eskf::kIdxEarthMag; i < eskf::kIdxEarthMag + kMagBlockSpan; ++i) {
             if (P.data[i][i] <= 0.0F) {
                 return false;
             }
@@ -1428,12 +1435,12 @@ bool ESKF::check_p_growth(uint32_t nowUs) {
         float posP = P.data[eskf::kIdxPosition + i][eskf::kIdxPosition + i];
         float velP = P.data[eskf::kIdxVelocity + i][eskf::kIdxVelocity + i];
 
-        if (p_growth_baseline_pos_[i] > 1e-6F &&
+        if (p_growth_baseline_pos_[i] > kPGrowthBaselineEpsilon &&
             posP > p_growth_baseline_pos_[i] * kPGrowthRatioThreshold) {
             record_p_growth_reset(nowUs);
             return false;
         }
-        if (p_growth_baseline_vel_[i] > 1e-6F &&
+        if (p_growth_baseline_vel_[i] > kPGrowthBaselineEpsilon &&
             velP > p_growth_baseline_vel_[i] * kPGrowthRatioThreshold) {
             record_p_growth_reset(nowUs);
             return false;
@@ -1479,12 +1486,12 @@ void ESKF::set_inhibit_mag(bool inhibit) {
     inhibit_mag_states_ = inhibit;
     if (inhibit) {
         // Disabling: zero P block + nominal states
-        zero_p_block(eskf::kIdxEarthMag, 6);
+        zero_p_block(eskf::kIdxEarthMag, kMagBlockSpan);
         earth_mag = Vec3();
         body_mag_bias = Vec3();
     } else {
         // Enabling: set P diagonal to initial variance
-        zero_p_block(eskf::kIdxEarthMag, 6);  // Clear any stale cross-covariances
+        zero_p_block(eskf::kIdxEarthMag, kMagBlockSpan);  // Clear any stale cross-covariances
         for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
             P(eskf::kIdxEarthMag + i, eskf::kIdxEarthMag + i) = kInitPEarthMag;
             P(eskf::kIdxBodyMagBias + i, eskf::kIdxBodyMagBias + i) = kInitPBodyMagBias;

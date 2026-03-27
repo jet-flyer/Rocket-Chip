@@ -3,6 +3,11 @@
 /**
  * @file ws2812_status.c
  * @brief WS2812 NeoPixel status LED driver implementation
+ *
+ * Prior Art:
+ *   - Pico SDK examples/pio/ws2812 (PIO program for WS2812 protocol)
+ *   - WS2812B datasheet (timing requirements: T0H/T1H/T0L/T1L)
+ *   - Adafruit NeoPixel library (color format, brightness scaling)
  */
 
 #include "ws2812_status.h"

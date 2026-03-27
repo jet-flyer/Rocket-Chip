@@ -21,11 +21,16 @@ namespace rc {
 // N = 24 (state size) used throughout.
 static constexpr int32_t N = 24;
 
+// Minimum D-element guard for numerical stability.
+// Below this threshold, the U column is zeroed to avoid division by near-zero.
+static constexpr float  kMinDFloat  = 1e-30f;
+static constexpr double kMinDDouble = 1e-30;
+
 // =========================================================================
 // Utility functions
 // =========================================================================
 
-void ud_from_diagonal(UD24& ud, const float diag[24]) {
+void ud_from_diagonal(UD24& ud, const float diag[24]) {  // NOLINT(readability-magic-numbers) — matches UD24 struct dimension
     std::memset(ud.U, 0, sizeof(ud.U));
     for (int32_t i = 0; i < N; ++i) {
         ud.U[i][i] = 1.0f;  // Unit diagonal
@@ -33,7 +38,7 @@ void ud_from_diagonal(UD24& ud, const float diag[24]) {
     }
 }
 
-void ud_to_dense(const UD24& ud, float P[24][24]) {
+void ud_to_dense(const UD24& ud, float P[24][24]) {  // NOLINT(readability-magic-numbers)
     // P = U * D * U^T
     // P[i][j] = sum_k( U[i][k] * D[k] * U[j][k] )
     // Only need k >= max(i,j) since U is upper triangular.
@@ -62,7 +67,7 @@ bool ud_all_positive(const UD24& ud) {
     return true;
 }
 
-bool ud_factorize(UD24& ud, const float P[24][24]) {
+bool ud_factorize(UD24& ud, const float P[24][24]) {  // NOLINT(readability-magic-numbers)
     // Modified Cholesky: P = U * D * U^T (UDU^T decomposition).
     // Process columns from right to left.
     //
@@ -114,7 +119,7 @@ static float g_W[N][N];
 static float g_D_old[N];
 
 __attribute__((section(".time_critical.thornton_f32")))
-void thornton_f32(UD24& ud, const float F[24][24], const float Qd[24]) {
+void thornton_f32(UD24& ud, const float F[24][24], const float Qd[24]) {  // NOLINT(readability-magic-numbers)
     // Step 1: W = F * U  (U is upper triangular: U[r][c] nonzero for r <= c)
     for (int32_t i = 0; i < N; ++i) {
         for (int32_t j = 0; j < N; ++j) {
@@ -139,7 +144,7 @@ void thornton_f32(UD24& ud, const float F[24][24], const float Qd[24]) {
         }
         ud.D[j] = dj;
 
-        if (dj < 1e-30f) {
+        if (dj < kMinDFloat) {
             for (int32_t i = 0; i < j; ++i) {
                 ud.U[i][j] = 0.0f;
             }
@@ -177,7 +182,7 @@ static float g_W_mixed[N][N];
 static float g_D_old_mixed[N];
 
 __attribute__((section(".time_critical.thornton_mixed")))
-void thornton_mixed(UD24& ud, const float F[24][24], const float Qd[24]) {
+void thornton_mixed(UD24& ud, const float F[24][24], const float Qd[24]) {  // NOLINT(readability-magic-numbers)
     for (int32_t i = 0; i < N; ++i) {
         for (int32_t j = 0; j < N; ++j) {
             float sum = 0.0f;
@@ -199,7 +204,7 @@ void thornton_mixed(UD24& ud, const float F[24][24], const float Qd[24]) {
         }
         ud.D[j] = static_cast<float>(dj);
 
-        if (dj < 1e-30) {
+        if (dj < kMinDDouble) {
             for (int32_t i = 0; i < j; ++i) {
                 ud.U[i][j] = 0.0f;
             }
@@ -237,7 +242,7 @@ static float g_W_f64[N][N];
 static float g_D_old_f64[N];
 
 __attribute__((section(".time_critical.thornton_f64")))
-void thornton_f64(UD24& ud, const float F[24][24], const float Qd[24]) {
+void thornton_f64(UD24& ud, const float F[24][24], const float Qd[24]) {  // NOLINT(readability-magic-numbers)
     for (int32_t i = 0; i < N; ++i) {
         for (int32_t j = 0; j < N; ++j) {
             double sum = 0.0;
@@ -260,7 +265,7 @@ void thornton_f64(UD24& ud, const float F[24][24], const float Qd[24]) {
         }
         ud.D[j] = static_cast<float>(dj);
 
-        if (dj < 1e-30) {
+        if (dj < kMinDDouble) {
             for (int32_t i = 0; i < j; ++i) {
                 ud.U[i][j] = 0.0f;
             }
@@ -324,7 +329,7 @@ static void bierman_forward_pass(UD24& ud, float r) {
     for (int32_t j = 1; j < N; ++j) {
         g_balpha[j] = g_balpha[j - 1] + g_bf[j] * g_bg[j];
 
-        if (g_balpha[j - 1] < 1e-30f) {
+        if (g_balpha[j - 1] < kMinDFloat) {
             g_bK[j] = g_bg[j];
             continue;
         }
@@ -348,7 +353,7 @@ static void bierman_forward_pass(UD24& ud, float r) {
 
 __attribute__((section(".time_critical.bierman")))
 void bierman_scalar_update(UD24& ud, int32_t hIdx, float hValue,
-                           float innovation, float r, float dx[24]) {
+                           float innovation, float r, float dx[24]) {  // NOLINT(readability-magic-numbers)
     bierman_compute_fg(ud, hIdx, hValue);
     bierman_forward_pass(ud, r);
 

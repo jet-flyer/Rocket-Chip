@@ -100,7 +100,7 @@ bool decimator_push(LogDecimator* dec, const FusedState& input, FusedState& out)
                     dec->accum.q_x * input.q_x +
                     dec->accum.q_y * input.q_y +
                     dec->accum.q_z * input.q_z;
-        float sign = (dot < 0.0f) ? -1.0f : 1.0f;
+        float sign = (dot < 0.0F) ? -1.0F : 1.0F;
         dec->accum.q_w += sign * input.q_w;
         dec->accum.q_x += sign * input.q_x;
         dec->accum.q_y += sign * input.q_y;
@@ -116,7 +116,7 @@ bool decimator_push(LogDecimator* dec, const FusedState& input, FusedState& out)
     }
 
     // Output: average all accumulated fields
-    float inv = 1.0f / static_cast<float>(dec->count);
+    float inv = 1.0F / static_cast<float>(dec->count);
     out = dec->accum;
 
     // Quaternion: divide then normalize
@@ -126,8 +126,9 @@ bool decimator_push(LogDecimator* dec, const FusedState& input, FusedState& out)
     out.q_z *= inv;
     float qnorm = std::sqrt(out.q_w * out.q_w + out.q_x * out.q_x +
                              out.q_y * out.q_y + out.q_z * out.q_z);
-    if (qnorm > 1e-6f) {
-        float qinv = 1.0f / qnorm;
+    static constexpr float kQuatNormEpsilon = 1e-6F;  // Guard against zero-norm quaternion
+    if (qnorm > kQuatNormEpsilon) {
+        float qinv = 1.0F / qnorm;
         out.q_w *= qinv;
         out.q_x *= qinv;
         out.q_y *= qinv;

@@ -6,12 +6,21 @@
  *
  * GPIO-controlled chip select for SX1276 burst FIFO compatibility.
  * See spi_bus.h for rationale.
+ *
+ * Prior Art:
+ *   - Pico SDK hardware/spi.h (SPI peripheral interface)
+ *   - SX1276 datasheet (burst FIFO access requires CS held low)
  */
 
 #include "spi_bus.h"
 #include "rocketchip/config.h"
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
+
+// SPI register address masks
+// Bit 7: 0 = read, 1 = write (SX1276 datasheet Section 4.2)
+static constexpr uint8_t kSpiReadMask  = 0x7Fu;  // Clear bit 7 for read
+static constexpr uint8_t kSpiWriteFlag = 0x80u;   // Set bit 7 for write
 
 bool spi_bus_init(void) {
     // Init SPI — instance selected by board header (SPI_BUS_INSTANCE from spi_bus.h)
@@ -29,7 +38,7 @@ bool spi_bus_init(void) {
 }
 
 uint8_t spi_bus_read_reg(uint8_t cs_pin, uint8_t reg) {
-    uint8_t tx[2] = { static_cast<uint8_t>(reg & 0x7Fu), 0x00 };
+    uint8_t tx[2] = { static_cast<uint8_t>(reg & kSpiReadMask), 0x00 };
     uint8_t rx[2] = { 0, 0 };
 
     gpio_put(cs_pin, 0);
@@ -40,7 +49,7 @@ uint8_t spi_bus_read_reg(uint8_t cs_pin, uint8_t reg) {
 }
 
 void spi_bus_write_reg(uint8_t cs_pin, uint8_t reg, uint8_t val) {
-    uint8_t tx[2] = { static_cast<uint8_t>(reg | 0x80u), val };
+    uint8_t tx[2] = { static_cast<uint8_t>(reg | kSpiWriteFlag), val };
 
     gpio_put(cs_pin, 0);
     spi_write_blocking(SPI_BUS_INSTANCE, tx, 2);
@@ -48,7 +57,7 @@ void spi_bus_write_reg(uint8_t cs_pin, uint8_t reg, uint8_t val) {
 }
 
 void spi_bus_read_burst(uint8_t cs_pin, uint8_t reg, uint8_t* buf, size_t len) {
-    uint8_t cmd = static_cast<uint8_t>(reg & 0x7Fu);
+    uint8_t cmd = static_cast<uint8_t>(reg & kSpiReadMask);
 
     gpio_put(cs_pin, 0);
     spi_write_blocking(SPI_BUS_INSTANCE, &cmd, 1);
@@ -58,7 +67,7 @@ void spi_bus_read_burst(uint8_t cs_pin, uint8_t reg, uint8_t* buf, size_t len) {
 
 void spi_bus_write_burst(uint8_t cs_pin, uint8_t reg, const uint8_t* buf,
                          size_t len) {
-    uint8_t cmd = static_cast<uint8_t>(reg | 0x80u);
+    uint8_t cmd = static_cast<uint8_t>(reg | kSpiWriteFlag);
 
     gpio_put(cs_pin, 0);
     spi_write_blocking(SPI_BUS_INSTANCE, &cmd, 1);

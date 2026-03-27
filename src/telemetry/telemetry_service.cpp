@@ -144,19 +144,25 @@ void telemetry_service_stop_rx(TelemetryServiceState* state) {
     // Radio returns to standby — rfm95w_send() handles mode transitions
 }
 
+// Unit conversion constants for wire-format → display values
+static constexpr float kQ15Scale   = 32767.0F;  // INT16_MAX as float (Q15 fixed-point)
+static constexpr float kDegE7ToF   = 1e-7F;     // degE7 → degrees
+static constexpr float kMmToM      = 0.001F;    // millimeters → meters
+static constexpr float kCmsToMs    = 0.01F;     // cm/s → m/s
+
 static void print_rx_csv(const TelemetryState& telem, uint16_t seq,
                          uint32_t met_ms, int16_t rssi, float snr) {
-    float lat = static_cast<float>(telem.lat_1e7) * 1e-7F;
-    float lon = static_cast<float>(telem.lon_1e7) * 1e-7F;
-    float alt_m = static_cast<float>(telem.alt_mm) * 0.001F;
-    float vel_n = static_cast<float>(telem.vel_n_cms) * 0.01F;
-    float vel_e = static_cast<float>(telem.vel_e_cms) * 0.01F;
-    float vel_d = static_cast<float>(telem.vel_d_cms) * 0.01F;
-    float baro_alt = static_cast<float>(telem.baro_alt_mm) * 0.001F;
-    float q_w = static_cast<float>(telem.q_w) / 32767.0F;
-    float q_x = static_cast<float>(telem.q_x) / 32767.0F;
-    float q_y = static_cast<float>(telem.q_y) / 32767.0F;
-    float q_z = static_cast<float>(telem.q_z) / 32767.0F;
+    float lat = static_cast<float>(telem.lat_1e7) * kDegE7ToF;
+    float lon = static_cast<float>(telem.lon_1e7) * kDegE7ToF;
+    float alt_m = static_cast<float>(telem.alt_mm) * kMmToM;
+    float vel_n = static_cast<float>(telem.vel_n_cms) * kCmsToMs;
+    float vel_e = static_cast<float>(telem.vel_e_cms) * kCmsToMs;
+    float vel_d = static_cast<float>(telem.vel_d_cms) * kCmsToMs;
+    float baro_alt = static_cast<float>(telem.baro_alt_mm) * kMmToM;
+    float q_w = static_cast<float>(telem.q_w) / kQ15Scale;
+    float q_x = static_cast<float>(telem.q_x) / kQ15Scale;
+    float q_y = static_cast<float>(telem.q_y) / kQ15Scale;
+    float q_z = static_cast<float>(telem.q_z) / kQ15Scale;
 
     printf("RX,%u,%d,%.1f,%.7f,%.7f,%.3f,%.2f,%.2f,%.2f,%.3f,%.4f,%.4f,%.4f,%.4f,%u,%lu\n",
            static_cast<unsigned>(seq),

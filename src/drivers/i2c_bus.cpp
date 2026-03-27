@@ -3,6 +3,11 @@
 /**
  * @file i2c_bus.c
  * @brief I2C bus driver implementation
+ *
+ * Prior Art:
+ *   - NXP UM10204 I2C-bus specification (bus recovery, Section 3.1.16)
+ *   - Linux kernel i2c-algo-bit.c (9-clock recovery, per-pulse SDA check)
+ *   - Pico SDK hardware/i2c.h (DW_apb_i2c peripheral interface)
  */
 
 #include "i2c_bus.h"

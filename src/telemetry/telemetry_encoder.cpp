@@ -32,9 +32,32 @@ extern "C" {
 
 namespace rc {
 
+// Q15 fixed-point scale factor (INT16_MAX as float)
+static constexpr float kQ15Scale = 32767.0F;
+
+// Radian/degree conversion constants
+static constexpr float kRadToDeg = 180.0F / 3.14159265F;
+static constexpr float kFullCircleDeg = 360.0F;
+static constexpr float kCdegPerDeg = 100.0F;  // centidegrees per degree
+
 // ============================================================================
 // CCSDS Encoder
 // ============================================================================
+
+// CCSDS primary header bitmasks (CCSDS 133.0-B-2 Section 4.1.1)
+static constexpr uint16_t kCcsdsSecHdrFlag   = 0x0800U;  // Version=000, Type=0, SecHdrFlag=1
+static constexpr uint16_t kCcsdsApidMask     = 0x07FFU;  // 11-bit APID field
+static constexpr uint16_t kCcsdsSeqUnseg     = 0xC000U;  // SeqFlags=11 (unsegmented)
+static constexpr uint16_t kCcsdsSeqCountMask = 0x3FFFU;  // 14-bit sequence counter
+static constexpr uint8_t  kCcsdsPriHdrDataLenIdx = 5;    // Byte index of data_len low byte
+
+// CCSDS secondary header bit shift
+static constexpr uint8_t kMetShift24 = 24;
+
+// Nav payload layout: first 40 bytes of TelemetryState (q_w through battery_mv)
+static constexpr uint8_t kTelemPayloadBytes = 40;
+static constexpr uint8_t kTelemPadding1Idx  = 40;  // Padding byte 1 offset within payload
+static constexpr uint8_t kTelemPadding2Idx  = 41;  // Padding byte 2 offset within payload
 
 void CcsdsEncoder::init() {
     seq_count = 0;
@@ -46,24 +69,24 @@ static void build_primary_header(uint8_t* buf, uint16_t apid,
     // Word 0 (bytes 0-1): Version(3) | Type(1) | SecHdrFlag(1) | APID(11)
     //   Version = 000, Type = 0 (telemetry), SecHdrFlag = 1
     //   Bits: 000 0 1 AAAAAAAAAAA
-    uint16_t word0 = static_cast<uint16_t>(0x0800U | (apid & 0x07FFU));
+    uint16_t word0 = static_cast<uint16_t>(kCcsdsSecHdrFlag | (apid & kCcsdsApidMask));
     buf[0] = static_cast<uint8_t>(word0 >> 8);
     buf[1] = static_cast<uint8_t>(word0 & 0xFF);
 
     // Word 1 (bytes 2-3): SeqFlags(2) | SeqCount(14)
     //   SeqFlags = 11 (unsegmented)
-    uint16_t word1 = static_cast<uint16_t>(0xC000U | (seq_count & 0x3FFFU));
+    uint16_t word1 = static_cast<uint16_t>(kCcsdsSeqUnseg | (seq_count & kCcsdsSeqCountMask));
     buf[2] = static_cast<uint8_t>(word1 >> 8);
     buf[3] = static_cast<uint8_t>(word1 & 0xFF);
 
     // Word 2 (bytes 4-5): Data Length = (total octets after primary header) - 1
     buf[4] = static_cast<uint8_t>(data_len >> 8);
-    buf[5] = static_cast<uint8_t>(data_len & 0xFF);
+    buf[kCcsdsPriHdrDataLenIdx] = static_cast<uint8_t>(data_len & 0xFF);
 }
 
 // Build 4-byte secondary header (MET ms, big-endian)
 static void build_secondary_header(uint8_t* buf, uint32_t met_ms) {
-    buf[0] = static_cast<uint8_t>((met_ms >> 24) & 0xFF);
+    buf[0] = static_cast<uint8_t>((met_ms >> kMetShift24) & 0xFF);
     buf[1] = static_cast<uint8_t>((met_ms >> 16) & 0xFF);
     buf[2] = static_cast<uint8_t>((met_ms >>  8) & 0xFF);
     buf[3] = static_cast<uint8_t>( met_ms        & 0xFF);
@@ -97,9 +120,9 @@ void CcsdsEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
     // We send 42 bytes: the first 40 bytes of TelemetryState + 2 bytes padding
     // to maintain fixed payload size. The padding bytes are zeroed.
     const uint8_t* telem_bytes = reinterpret_cast<const uint8_t*>(&telem);
-    memcpy(p, telem_bytes, 40);
-    p[40] = 0;    // Padding byte 1
-    p[41] = 0;    // Padding byte 2
+    memcpy(p, telem_bytes, kTelemPayloadBytes);
+    p[kTelemPadding1Idx] = 0;    // Padding byte 1
+    p[kTelemPadding2Idx] = 0;    // Padding byte 2
     p += ccsds::kNavPayloadLen;
 
     // CRC-16-CCITT over everything before the CRC (primary + secondary + payload)
@@ -113,7 +136,7 @@ void CcsdsEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
     result.ok  = true;
 
     // Advance 14-bit sequence counter (wraps at 16383)
-    seq_count = static_cast<uint16_t>((seq_count + 1) & 0x3FFFU);
+    seq_count = static_cast<uint16_t>((seq_count + 1) & kCcsdsSeqCountMask);
 }
 
 // ============================================================================
@@ -122,16 +145,20 @@ void CcsdsEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
 
 // Flight state → MAV_STATE mapping
 // IDLE/LANDED=STANDBY, ARMED/BOOST/COAST/DESCENT=ACTIVE, ERROR=CRITICAL, other=BOOT
+// Wire-format flight state values (telemetry_state.h encoding)
+static constexpr uint8_t kFlightStateLanded = 5;
+static constexpr uint8_t kFlightStateError  = 6;
+
 uint8_t flight_state_to_mav_state(uint8_t flight_state) {
     switch (flight_state) {
-        case 0: return MAV_STATE_STANDBY;   // IDLE
-        case 1: return MAV_STATE_ACTIVE;    // ARMED
-        case 2: return MAV_STATE_ACTIVE;    // BOOST
-        case 3: return MAV_STATE_ACTIVE;    // COAST
-        case 4: return MAV_STATE_ACTIVE;    // DESCENT
-        case 5: return MAV_STATE_STANDBY;   // LANDED
-        case 6: return MAV_STATE_CRITICAL;  // ERROR
-        default: return MAV_STATE_BOOT;     // pre-convergence
+        case 0: return MAV_STATE_STANDBY;                // IDLE
+        case 1: return MAV_STATE_ACTIVE;                 // ARMED
+        case 2: return MAV_STATE_ACTIVE;                 // BOOST
+        case 3: return MAV_STATE_ACTIVE;                 // COAST
+        case 4: return MAV_STATE_ACTIVE;                 // DESCENT
+        case kFlightStateLanded: return MAV_STATE_STANDBY;   // LANDED
+        case kFlightStateError:  return MAV_STATE_CRITICAL;  // ERROR
+        default: return MAV_STATE_BOOT;                  // pre-convergence
     }
 }
 
@@ -186,10 +213,10 @@ uint16_t MavlinkEncoder::encode_sys_status(const TelemetryState& telem,
 uint16_t MavlinkEncoder::encode_attitude(const TelemetryState& telem,
                                           uint32_t boot_ms, uint8_t* buf) {
     // Q15 quaternion → Euler angles
-    float qw = static_cast<float>(telem.q_w) / 32767.0F;
-    float qx = static_cast<float>(telem.q_x) / 32767.0F;
-    float qy = static_cast<float>(telem.q_y) / 32767.0F;
-    float qz = static_cast<float>(telem.q_z) / 32767.0F;
+    float qw = static_cast<float>(telem.q_w) / kQ15Scale;
+    float qx = static_cast<float>(telem.q_x) / kQ15Scale;
+    float qy = static_cast<float>(telem.q_y) / kQ15Scale;
+    float qz = static_cast<float>(telem.q_z) / kQ15Scale;
 
     float roll  = atan2f(2.0F * (qw * qx + qy * qz),
                          1.0F - 2.0F * (qx * qx + qy * qy));
@@ -214,7 +241,8 @@ uint16_t MavlinkEncoder::encode_attitude(const TelemetryState& telem,
 uint16_t MavlinkEncoder::encode_global_pos(const TelemetryState& telem,
                                             uint32_t boot_ms, uint8_t* buf) {
     // GPS fix type from upper nibble of gps_fix_sats
-    uint8_t fix_type = (telem.gps_fix_sats >> 4) & 0x0F;
+    static constexpr uint8_t kGpsFixNibbleMask = 0x0F;  // upper nibble after shift
+    uint8_t fix_type = (telem.gps_fix_sats >> 4) & kGpsFixNibbleMask;
 
     int32_t lat = telem.lat_1e7;
     int32_t lon = telem.lon_1e7;
@@ -237,16 +265,16 @@ uint16_t MavlinkEncoder::encode_global_pos(const TelemetryState& telem,
         hdg = UINT16_MAX;
     } else {
         // Heading from yaw (same Euler conversion as ATTITUDE)
-        float qw = static_cast<float>(telem.q_w) / 32767.0F;
-        float qx = static_cast<float>(telem.q_x) / 32767.0F;
-        float qy = static_cast<float>(telem.q_y) / 32767.0F;
-        float qz = static_cast<float>(telem.q_z) / 32767.0F;
+        float qw = static_cast<float>(telem.q_w) / kQ15Scale;
+        float qx = static_cast<float>(telem.q_x) / kQ15Scale;
+        float qy = static_cast<float>(telem.q_y) / kQ15Scale;
+        float qz = static_cast<float>(telem.q_z) / kQ15Scale;
         float yaw = atan2f(2.0F * (qw * qz + qx * qy),
                            1.0F - 2.0F * (qy * qy + qz * qz));
         // Convert rad to centidegrees (0-36000), wrap to positive
-        float yaw_deg = yaw * (180.0F / 3.14159265F);
-        if (yaw_deg < 0.0F) { yaw_deg += 360.0F; }
-        hdg = static_cast<uint16_t>(yaw_deg * 100.0F);
+        float yaw_deg = yaw * kRadToDeg;
+        if (yaw_deg < 0.0F) { yaw_deg += kFullCircleDeg; }
+        hdg = static_cast<uint16_t>(yaw_deg * kCdegPerDeg);
     }
 
     mavlink_message_t msg;
@@ -315,6 +343,20 @@ uint8_t TelemetryEncoderState::max_packet_size() const {
 // CCSDS Decoder (IVP-60: RX mode)
 // ============================================================================
 
+// Decoder bitmasks for primary header validation
+static constexpr uint8_t  kCcsdsVersionMask    = 0xF8;  // upper 5 bits: VVV T S
+static constexpr uint8_t  kCcsdsVersionExpect  = 0x08;  // 000 0 1 = telemetry + sec hdr
+static constexpr uint8_t  kCcsdsApidHiMask     = 0x07;  // APID upper 3 bits in byte 0
+static constexpr uint8_t  kCcsdsSeqHiMask      = 0x3F;  // Seq count upper 6 bits in byte 2
+
+// Byte offsets within a CCSDS nav packet
+static constexpr uint8_t kCrcOffset            = 52;    // CRC starts at byte 52 (also CRC high byte)
+static constexpr uint8_t kCrcLoIdx             = 53;    // CRC low byte
+static constexpr uint8_t kSecHdrIdx            = 6;     // Secondary header starts at byte 6
+static constexpr uint8_t kSecHdrByte1          = 7;
+static constexpr uint8_t kSecHdrByte3          = 9;
+static constexpr uint8_t kPayloadIdx           = 10;    // Nav payload starts at byte 10
+
 bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
                       TelemetryState& telem, uint16_t& seq_out,
                       uint32_t& met_ms_out) {
@@ -325,38 +367,38 @@ bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
 
     // Validate primary header: Version=000, Type=0, SecHdrFlag=1
     // Byte 0 upper 5 bits: VVV T S = 000 0 1 = 0x08
-    if ((buf[0] & 0xF8) != 0x08) {
+    if ((buf[0] & kCcsdsVersionMask) != kCcsdsVersionExpect) {
         return false;
     }
 
     // APID check
     uint16_t apid = static_cast<uint16_t>(
-        ((buf[0] & 0x07) << 8) | buf[1]);
+        ((buf[0] & kCcsdsApidHiMask) << 8) | buf[1]);
     if (apid != ccsds::kApidNav) {
         return false;
     }
 
     // CRC-16 verification: CRC covers bytes 0..51, stored big-endian in 52..53
-    uint16_t computed_crc = crc16_ccitt(buf, 52);
+    uint16_t computed_crc = crc16_ccitt(buf, kCrcOffset);
     uint16_t stored_crc = static_cast<uint16_t>(
-        (buf[52] << 8) | buf[53]);
+        (buf[kCrcOffset] << 8) | buf[kCrcLoIdx]);
     if (computed_crc != stored_crc) {
         return false;
     }
 
     // Extract 14-bit sequence counter from bytes 2-3
     seq_out = static_cast<uint16_t>(
-        ((buf[2] & 0x3F) << 8) | buf[3]);
+        ((buf[2] & kCcsdsSeqHiMask) << 8) | buf[3]);
 
     // Extract MET from secondary header (bytes 6-9, big-endian)
-    met_ms_out = (static_cast<uint32_t>(buf[6]) << 24) |
-                 (static_cast<uint32_t>(buf[7]) << 16) |
+    met_ms_out = (static_cast<uint32_t>(buf[kSecHdrIdx]) << kMetShift24) |
+                 (static_cast<uint32_t>(buf[kSecHdrByte1]) << 16) |
                  (static_cast<uint32_t>(buf[8]) <<  8) |
-                  static_cast<uint32_t>(buf[9]);
+                  static_cast<uint32_t>(buf[kSecHdrByte3]);
 
     // Copy 40-byte nav payload (bytes 10-49) into TelemetryState
     memset(&telem, 0, sizeof(telem));
-    memcpy(&telem, &buf[10], 40);
+    memcpy(&telem, &buf[kPayloadIdx], kTelemPayloadBytes);
 
     // Restore met_ms from secondary header
     telem.met_ms = met_ms_out;
