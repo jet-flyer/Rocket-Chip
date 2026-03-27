@@ -44,8 +44,12 @@
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
 #include "rocketchip/ao_signals.h"  // IVP-76: system-wide signal catalog
-#include "ao_blinker.h"            // IVP-76: demo AO (heartbeat LED)
+// ao_blinker.h removed — AO_LedEngine (IVP-77) replaces AO_Blinker's role
 #include "ao_counter.h"            // IVP-76: demo AO (jitter measurement)
+#include "ao_led_engine.h"         // IVP-77: NeoPixel LED AO
+#include "ao_flight_director.h"    // IVP-78: Flight Director AO
+#include "ao_logger.h"             // IVP-79: Logger AO
+#include "ao_telemetry.h"          // IVP-80: Telemetry AO
 #include "qp_port.h"   // QP/C QEP (IVP-67): Q_onError, QHsm types
 #include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
@@ -209,11 +213,7 @@ static constexpr uint8_t kFdNeoLanded      = 25; // Green blink
 static constexpr uint8_t kFdNeoAbort       = 26; // Red fast blink
 static constexpr uint8_t kFdNeoBeacon      = 27; // White blink (post-landing locator)
 
-// Tracks last NeoPixel mode/color so we only call ws2812_set_mode()
-// on transitions, not every cycle (which would reset animation state).
-static uint8_t g_lastCalNeoOverride = kCalNeoOff;
-static ws2812_mode_t  g_lastNeoMode  = WS2812_MODE_OFF;
-static ws2812_rgb_t   g_lastNeoColor = kColorOff;
+// NeoPixel state caching moved to AO_LedEngine (IVP-77)
 
 
 // ============================================================================
@@ -425,10 +425,8 @@ static std::atomic<bool> g_core1PauseI2C{false};
 static std::atomic<bool> g_core1I2CPaused{false};
 static std::atomic<bool> g_core1LockoutReady{false};  // Core 1 has called multicore_lockout_victim_init()
 
-// INTERIM: NeoPixel calibration override (Phase M.5).
-// Replace with proper AP_Notify-style status state machine when implemented.
-// Core 0 (CLI) writes, Core 1 reads in core1_neopixel_update().
-static std::atomic<uint8_t> g_calNeoPixelOverride{kCalNeoOff};
+// g_calNeoPixelOverride removed — AO_LedEngine (IVP-77) owns NeoPixel state.
+// All LED pattern changes are now events, not cross-core atomics.
 
 // Dual-core watchdog kick flags — std::atomic per MULTICORE_RULES.md
 // volatile is NOT sufficient for cross-core visibility on ARM (no hardware barrier)
@@ -846,90 +844,10 @@ static void core1_read_gps(shared_sensor_data_t* localData,
 // ============================================================================
 
 // Helper: call ws2812_set_mode() only when mode or color changes.
-// Calling ws2812_set_mode() every tick resets phaseStartMs, blinkState,
-// and rainbowHue, which prevents breathe/blink/rainbow from animating.
-static void neo_set_if_changed(ws2812_mode_t mode, ws2812_rgb_t color) {
-    if (mode != g_lastNeoMode ||
-        color.r != g_lastNeoColor.r ||
-        color.g != g_lastNeoColor.g ||
-        color.b != g_lastNeoColor.b) {
-        g_lastNeoMode  = mode;
-        g_lastNeoColor = color;
-        ws2812_set_mode(mode, color);
-    }
-}
-
-// Map NeoPixel override value to mode + color.
-// Covers calibration (kCalNeo*), RX (kRxNeo*), and flight (kFdNeo*) overlays.
-static void neo_apply_override(uint8_t val) {
-    switch (val) {
-        case kCalNeoGyro:        // fall through
-        case kCalNeoLevel:       neo_set_if_changed(WS2812_MODE_BREATHE, kColorBlue); break;
-        case kCalNeoBaro:        neo_set_if_changed(WS2812_MODE_BREATHE, kColorCyan); break;
-        case kCalNeoAccelWait:   neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow); break;
-        case kCalNeoAccelSample: neo_set_if_changed(WS2812_MODE_SOLID, kColorYellow); break;
-        case kCalNeoMag:         neo_set_if_changed(WS2812_MODE_RAINBOW, kColorWhite); break;
-        case kCalNeoSuccess:     neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen); break;
-        case kCalNeoFail:        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
-        case kRxNeoReceiving:    neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen); break;
-        case kRxNeoGap:          neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow); break;
-        case kRxNeoLost:         neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
-        case kFdNeoArmed:        neo_set_if_changed(WS2812_MODE_SOLID, kColorOrange); break;
-        case kFdNeoBoost:        neo_set_if_changed(WS2812_MODE_SOLID, kColorRed); break;
-        case kFdNeoCoast:        neo_set_if_changed(WS2812_MODE_SOLID, kColorYellow); break;
-        case kFdNeoDrogue:       neo_set_if_changed(WS2812_MODE_BLINK, kColorRed); break;
-        case kFdNeoMain:         neo_set_if_changed(WS2812_MODE_BLINK, kColorRed); break;
-        case kFdNeoLanded:       neo_set_if_changed(WS2812_MODE_BLINK, kColorGreen); break;
-        case kFdNeoAbort:        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
-        case kFdNeoBeacon:       neo_set_if_changed(WS2812_MODE_BLINK, kColorWhite); break;
-        default:                 break;
-    }
-}
-
-static void core1_neopixel_update(shared_sensor_data_t* localData,
-                                   uint32_t nowMs, uint32_t sensorPhaseStartMs) {
-    // INTERIM: NeoPixel overlay (Phase M.5). Calibration, RX, and flight
-    // phase overlays set by Core 0. Replace with AP_Notify (IVP-77).
-    uint8_t calOverride = g_calNeoPixelOverride.load(std::memory_order_relaxed);
-    if (calOverride != kCalNeoOff) {
-        if (calOverride != g_lastCalNeoOverride) {
-            g_lastCalNeoOverride = calOverride;
-            neo_apply_override(calOverride);
-        }
-        ws2812_update();
-        return;
-    }
-    g_lastCalNeoOverride = kCalNeoOff;
-
-    // Normal status NeoPixel logic — use neo_set_if_changed() so animations
-    // aren't reset every tick.
-    if ((nowMs - sensorPhaseStartMs) >= kSensorPhaseTimeoutMs) {
-        neo_set_if_changed(WS2812_MODE_SOLID, kColorMagenta);
-    } else if (!g_eskfInitialized) {
-        // ESKF waiting for stationary init — fast red blink ("hold still").
-        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed);
-    } else if (g_gpsInitialized) {
-        if (localData->gps_fix_type >= 3) {
-            // 3D fix — solid green
-            neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen);
-        } else if (localData->gps_fix_type == 2) {
-            // 2D fix — blink green
-            neo_set_if_changed(WS2812_MODE_BLINK, kColorGreen);
-        } else if (localData->gps_read_count > 0) {
-            // Searching (NMEA flowing, no fix) — blink yellow
-            neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow);
-        } else {
-            // GPS init but no NMEA yet — fast blink cyan
-            neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorCyan);
-        }
-    } else if (g_sensorPhaseDone.load(std::memory_order_acquire)) {
-        neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen);
-    } else {
-        // ESKF running, no GPS — slow blink blue
-        neo_set_if_changed(WS2812_MODE_BLINK, kColorBlue);
-    }
-    ws2812_update();
-}
+// neo_set_if_changed(), neo_apply_override(), core1_neopixel_update() removed — AO_LedEngine (IVP-77) owns NeoPixel on Core 0.
+// neo_set_if_changed() and neo_apply_override() also removed — logic is in
+// ao_led_engine.cpp. Base status (GPS/ESKF state → LED pattern) is now driven
+// by Flight Director action executor phase overlays.
 
 // ============================================================================
 // Core 1: Sensor Loop
@@ -987,7 +905,7 @@ static void core1_sensor_loop() {
     uint32_t imuConsecFail = 0;
     uint32_t gpsCycle = 0;
     uint32_t lastGpsReadUs = 0;
-    uint32_t sensorPhaseStartMs = to_ms_since_boot(get_absolute_time());
+    // sensorPhaseStartMs removed — was only used by core1_neopixel_update (IVP-77)
 
     while (true) {
         uint32_t cycleStartUs = time_us_32();
@@ -1026,8 +944,8 @@ static void core1_sensor_loop() {
 
         g_wdtCore1Alive.store(true, std::memory_order_relaxed);
 
-        uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-        core1_neopixel_update(&localData, nowMs, sensorPhaseStartMs);
+        // IVP-77: NeoPixel update moved to AO_LedEngine on Core 0.
+        // Core 1 no longer touches the NeoPixel.
 
         uint32_t elapsed = time_us_32() - cycleStartUs;
         if (elapsed < kCore1TargetCycleUs) {
@@ -1167,7 +1085,8 @@ static void cal_post_hook() {
 // ============================================================================
 
 static void set_cal_neo_override(uint8_t mode) {
-    g_calNeoPixelOverride.store(mode, std::memory_order_relaxed);
+    // IVP-77: Route to AO_LedEngine instead of cross-core atomic
+    AO_LedEngine_post_pattern(mode);
 }
 
 // ============================================================================
@@ -2080,7 +1999,8 @@ static void init_application(bool watchdogReboot) {
     rc::flight_director_ctor(&g_director, &rc::kDefaultRocketProfile);
     // IVP-72: Wire action callbacks (NeoPixel + pyro intent logging)
     g_director.set_led_cb = [](uint8_t val) {
-        g_calNeoPixelOverride.store(val, std::memory_order_relaxed);
+        // IVP-77: Route to AO_LedEngine instead of cross-core atomic
+        AO_LedEngine_post_pattern(val);
     };
     g_director.log_pyro_cb = [](rc::PyroChannel ch) {
         printf("[FD] PYRO INTENT: %s\n",
@@ -2455,7 +2375,8 @@ static void eskf_tick() {
 
 static uint32_t g_lastFdTickMs = 0;
 
-static void flight_director_tick() {
+// IVP-78: Called by AO_FlightDirector via extern "C" bridge
+extern "C" void flight_director_tick() {
     if (!g_directorInitialized) {
         return;
     }
@@ -2983,7 +2904,8 @@ static void populate_fused_state(rc::FusedState& fused,
     fused.met_ms = to_ms_since_boot(get_absolute_time());
 }
 
-static void logging_tick() {
+// IVP-79: Called by AO_Logger via extern "C" bridge
+extern "C" void logging_tick() {
     if (!g_loggingInitialized || !g_eskfInitialized) {
         return;
     }
@@ -3034,7 +2956,8 @@ static constexpr uint32_t kMavDirectIntervalMs = 100;  // 10 Hz output
 static constexpr uint8_t  kMavFrameBufSize     = 64;
 static uint32_t g_lastMavDirectMs = 0;
 
-static void mavlink_direct_tick(uint32_t nowMs) {
+// IVP-80: Called by AO_Telemetry via extern "C" bridge
+extern "C" void mavlink_direct_tick(uint32_t nowMs) {
     if (!g_telemService.mavlink_output) { return; }
     if constexpr (kRadioModeRx) { return; }  // Station uses RX path
     if (!g_latestTelemValid) { return; }
@@ -3079,21 +3002,19 @@ static void mavlink_direct_tick(uint32_t nowMs) {
 static constexpr uint32_t kRxGapWarningMs = 1000;   // Yellow blink after 1s
 static constexpr uint32_t kRxGapLostMs    = 5000;   // Red blink after 5s
 
-static void telemetry_radio_tick(uint32_t nowMs) {
+// IVP-80: Called by AO_Telemetry via extern "C" bridge
+extern "C" void telemetry_radio_tick(uint32_t nowMs) {
     if (!g_radioInitialized) { return; }
 
     if (g_telemService.mode == rc::RadioMode::kTx) {
         if (!g_latestTelemValid) { return; }
         rc::telemetry_service_tick(&g_telemService, &g_latestTelem, nowMs);
-        // Clear RX NeoPixel override when in TX mode
-        uint8_t cur = g_calNeoPixelOverride.load(std::memory_order_relaxed);
-        if (cur >= kRxNeoReceiving && cur <= kRxNeoLost) {
-            g_calNeoPixelOverride.store(kCalNeoOff, std::memory_order_relaxed);
-        }
+        // IVP-77: Clear RX NeoPixel overlay via AO_LedEngine
+        AO_LedEngine_post_pattern(kCalNeoOff);
     } else {
         rc::telemetry_service_rx_tick(&g_telemService, nowMs);
 
-        // RX NeoPixel overlay — signal link quality to Core 1
+        // IVP-77: RX NeoPixel overlay via AO_LedEngine
         uint32_t gap = nowMs - g_telemService.last_rx_ms;
         uint8_t neoVal;
         if (g_telemService.rx_count == 0 || gap >= kRxGapLostMs) {
@@ -3103,7 +3024,7 @@ static void telemetry_radio_tick(uint32_t nowMs) {
         } else {
             neoVal = kRxNeoReceiving;
         }
-        g_calNeoPixelOverride.store(neoVal, std::memory_order_relaxed);
+        AO_LedEngine_post_pattern(neoVal);
     }
 }
 
@@ -3124,37 +3045,28 @@ static QSubscrList g_subscrList[rc::SIG_AO_MAX];
 // Council A4: No __wfi() — tick functions require polling every iteration.
 //             __wfi() only after IVP-81 when all work is event-driven.
 extern "C" void qv_idle_bridge(void) {
-    uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-
-    // heartbeat_tick removed — AO_Blinker owns LED heartbeat (IVP-76)
-
+    // Council A2: watchdog_kick_tick() stays here PERMANENTLY — never an AO.
     g_lastTickFunction = "watchdog";
     g_recovery.current_tick_fn = rc::TickFnId::kWatchdog;
     watchdog_kick_tick();
 
+    // ESKF stays in idle — reads seqlock from Core 0, feeds data to AOs.
+    // Not an AO because it's the seqlock→Core0 bridge and runs at variable
+    // rate (200Hz gated on IMU read count, not a fixed timer).
     g_lastTickFunction = "eskf";
     g_recovery.current_tick_fn = rc::TickFnId::kEskf;
     eskf_tick();
 
-    g_lastTickFunction = "flight_director";
-    g_recovery.current_tick_fn = rc::TickFnId::kFlightDirector;
-    flight_director_tick();
-
-    g_lastTickFunction = "logging";
-    g_recovery.current_tick_fn = rc::TickFnId::kLogging;
-    logging_tick();
-
-    g_lastTickFunction = "radio";
-    g_recovery.current_tick_fn = rc::TickFnId::kRadio;
-    telemetry_radio_tick(nowMs);
-
-    g_lastTickFunction = "mavlink";
-    g_recovery.current_tick_fn = rc::TickFnId::kMavlink;
-    mavlink_direct_tick(nowMs);
-
+    // CLI stays polled in idle (IVP-76 D8). Decision on AO vs permanent
+    // idle-poll made at IVP-81.
     g_lastTickFunction = "cli";
     g_recovery.current_tick_fn = rc::TickFnId::kCli;
     cli_update_tick();
+
+    // IVP-77: NeoPixel → AO_LedEngine
+    // IVP-78: Flight Director → AO_FlightDirector
+    // IVP-79: Logger → AO_Logger
+    // IVP-80: Telemetry → AO_Telemetry
 
     g_lastTickFunction = "idle";
     g_recovery.current_tick_fn = rc::TickFnId::kSleep;
@@ -3172,9 +3084,12 @@ int main() {
     QF_init();
     QActive_psInit(g_subscrList, Q_DIM(g_subscrList));
 
-    // Start demo Active Objects (priorities per D4 table, demo AOs at low prio)
-    AO_Blinker_start(2U);   // Priority 2: heartbeat LED
-    AO_Counter_start(1U);   // Priority 1: jitter measurement
+    // Start Active Objects (priorities per D4 table, council-reviewed)
+    AO_FlightDirector_start(5U);  // Priority 5: safety-critical state transitions
+    AO_Logger_start(4U);          // Priority 4: capture state changes before overwrite
+    AO_Telemetry_start(3U);       // Priority 3: downlink after logging
+    AO_LedEngine_start(2U);       // Priority 2: visual feedback (replaces AO_Blinker)
+    AO_Counter_start(1U);         // Priority 1: jitter measurement (regression test)
 
     // QF_run() replaces while(true) — never returns.
     // QV cooperative scheduler dispatches AOs, calls QV_onIdle() (which runs
