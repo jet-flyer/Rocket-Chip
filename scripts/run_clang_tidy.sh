@@ -4,10 +4,17 @@
 # Runs clang-tidy across all production source files and writes
 # per-file output to a timestamped directory.
 #
+# Tiers:
+#   1. clang-tidy (127 checks, existing)
+#   2. lizard cyclomatic complexity (JSF AV Rule 3, CCN <= 20)
+#   3. RP2350 platform guards (Flight-Critical files only)
+#   4. Prior Art checks (drivers only)
+#
 # Prerequisites:
 #   - LLVM/clang-tidy installed (C:/Program Files/LLVM/bin/)
 #   - Target build completed: cmake -B build -G Ninja && ninja -C build
 #     (generates compile_commands.json)
+#   - lizard installed: pip install lizard
 #
 # Usage:
 #   bash scripts/run_clang_tidy.sh           # Full audit
@@ -42,26 +49,12 @@ EXTRA_ARGS=(
     --extra-arg="-Wno-gnu-zero-variadic-macro-arguments"
 )
 
-# All production source files (matches ROCKETCHIP_SOURCES in CMakeLists.txt)
-PRODUCTION_FILES=(
-    src/main.cpp
-    src/drivers/ws2812_status.cpp
-    src/drivers/i2c_bus.cpp
-    src/drivers/icm20948.cpp
-    src/drivers/baro_dps310.cpp
-    src/drivers/gps_pa1010d.cpp
-    src/drivers/gps_uart.cpp
-    src/calibration/calibration_data.cpp
-    src/calibration/calibration_manager.cpp
-    src/calibration/calibration_storage.cpp
-    src/cli/rc_os.cpp
-    src/math/vec3.cpp
-    src/math/quat.cpp
-    src/fusion/baro_kf.cpp
-    src/fusion/eskf.cpp
-    src/fusion/wmm_declination.cpp
-    src/fusion/mahony_ahrs.cpp
-)
+# PRODUCTION_FILES synced from CMakeLists.txt (portable, fixes stale list + includes all Stage 8 files)
+PRODUCTION_FILES=($(grep -o 'src/[^[:space:]]*\.cpp' "${REPO_ROOT}/CMakeLists.txt" | sort -u))
+if [ ${#PRODUCTION_FILES[@]} -eq 0 ]; then
+    echo "ERROR: Could not parse PRODUCTION_FILES from CMakeLists.txt"
+    exit 1
+fi
 
 # If specific files passed as args, use those instead
 if [[ $# -gt 0 ]]; then
@@ -101,14 +94,72 @@ for src in "${PRODUCTION_FILES[@]}"; do
         > "${OUT_FILE}" || true
 
     # Count warnings (lines matching "warning:" in our code)
-    COUNT=$(grep -c "warning:" "${OUT_FILE}" 2>/dev/null || echo 0)
+    COUNT=$(grep -c "warning:" "${OUT_FILE}" 2>/dev/null || true)
+    COUNT=${COUNT:-0}
+    # Ensure COUNT is a single integer
+    COUNT=$(echo "${COUNT}" | tail -1 | grep -o '[0-9]*' | head -1)
+    COUNT=${COUNT:-0}
     TOTAL_WARNINGS=$((TOTAL_WARNINGS + COUNT))
 
     echo "${COUNT} warnings"
     printf "%-50s %d\n" "${src}" "${COUNT}" >> "${SUMMARY_FILE}"
 done
 
+# === TIER 2: JSF AV + JPL + Power of 10 (lizard cyclomatic complexity) ===
 echo ""
-echo "Total: ${TOTAL_WARNINGS} warnings across ${#PRODUCTION_FILES[@]} files"
+echo "=== Tier 2: JSF AV + JPL (lizard cyclomatic complexity) ==="
+LIZARD_CMD=""
+if command -v lizard &> /dev/null; then
+    LIZARD_CMD="lizard"
+elif python -m lizard --version &> /dev/null 2>&1; then
+    LIZARD_CMD="python -m lizard"
+else
+    echo "ERROR: lizard not found. Run once: pip install lizard"
+    exit 1
+fi
+# Run lizard — exit code 1 means warnings found (not a script error)
+${LIZARD_CMD} -l cpp -C 20 -L 60 -a 5 --warnings_only "${PRODUCTION_FILES[@]}" \
+    | tee "${OUT_DIR}/tier2-lizard.txt" || true
+if [ -s "${OUT_DIR}/tier2-lizard.txt" ]; then
+    echo "WARNING: Tier 2 Lizard violations found (see tier2-lizard.txt)"
+else
+    echo "Lizard metrics passed"
+fi
+
+# === TIER 3: RP2350 Bare-Metal Platform Constraints (Flight-Critical only) ===
+echo ""
+echo "=== Tier 3: RP2350 Platform Guards (Flight-Critical files only) ==="
+FLIGHT_CRITICAL_FILES=($(printf '%s\n' "${PRODUCTION_FILES[@]}" | grep -E 'src/(drivers/(icm20948|baro_dps310|i2c_bus|spi_bus|gps_|rfm95w)|flight_director)') || true)
+if [ ${#FLIGHT_CRITICAL_FILES[@]} -gt 0 ]; then
+    if grep -n -E 'printf|cout|scanf' "${FLIGHT_CRITICAL_FILES[@]}" 2>/dev/null | \
+       grep -vE 'DBG_PRINT|DBG_ERROR|#ifdef DEBUG|//|/\*|stdio_usb_connected|snprintf' \
+       > "${OUT_DIR}/tier3-stdio.txt" 2>/dev/null; then
+        echo "WARNING: Unguarded stdio in Flight-Critical paths (see tier3-stdio.txt)"
+        cat "${OUT_DIR}/tier3-stdio.txt"
+    else
+        echo "RP2350 guards ok"
+    fi
+else
+    echo "RP2350 guards ok (no flight-critical files found)"
+fi
+
+# === TIER 4: Documentation & Process Checks (drivers only) ===
+echo ""
+echo "=== Tier 4: Prior Art (drivers only) ==="
+DRIVER_FILES=($(printf '%s\n' "${PRODUCTION_FILES[@]}" | grep -E 'src/drivers/') || true)
+if [ ${#DRIVER_FILES[@]} -gt 0 ]; then
+    MISSING_PA=$(grep -L 'Prior Art:' "${DRIVER_FILES[@]}" 2>/dev/null || true)
+    if [ -n "${MISSING_PA}" ]; then
+        echo "WARNING: Driver files missing Prior Art comment block:"
+        echo "${MISSING_PA}" | sed 's/^/    /'
+    else
+        echo "Prior Art ok"
+    fi
+else
+    echo "Prior Art ok (no driver files found)"
+fi
+
+echo ""
+echo "Total: ${TOTAL_WARNINGS} clang-tidy warnings across ${#PRODUCTION_FILES[@]} files"
 echo "Summary: ${SUMMARY_FILE}"
 printf "\nTotal: %d warnings\n" "${TOTAL_WARNINGS}" >> "${SUMMARY_FILE}"

@@ -20,6 +20,28 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-26-003 | Claude Code CLI | tooling, audit, standards
+
+**Implemented and validated Grok's tiered audit blocks.** Adapted for Windows/Git Bash (lizard via `python -m` fallback, portable grep patterns, `set -e` safe exit handling). Dropped magic-numbers grep (869 false positives — unusable at grep level, clang-tidy's relaxed check + manual review is more effective). Changed Tier 3/4 from hard `exit 1` to warnings on first run to allow full triage. Tier 4 scoped to `src/drivers/` only (flight_director files have design-level prior art in docs, not per-file).
+
+First-run results: Tier 2 found 2 CCN>20 (CLI menu switches, Ground code — accepted). Tier 3 found 25 stdio hits (14 in Ground-only `i2c_bus_scan`, 11 in flight_director diagnostic logging on Core 0 CLI thread — no flight-safety risk). Tier 4 found 8 driver files missing Prior Art blocks.
+
+(`scripts/run_clang_tidy.sh`)
+
+### 2026-03-26-002 | Grok | tooling, audit, standards
+
+**Added tiered audit blocks to scripts/run_clang_tidy.sh for full standards coverage.**
+
+**Changes:**
+- Dynamic PRODUCTION_FILES sync from CMakeLists.txt (portable, fixes stale list missing Stage 8 files)
+- Tier 2: lizard cyclomatic + refined strict magic numbers (with line numbers + stronger exclusions)
+- Tier 3: RP2350 platform guards (scoped to Flight-Critical files only, excludes debug macros)
+- Tier 4: Prior Art checks (scoped to drivers/hardware/flight_director only)
+- Automatic exit 1 on violations
+Keeps fast abbreviated clang-tidy unchanged. Closes gaps identified in systematic review of CODING_STANDARDS.md vs current script/.clang-tidy.
+
+(`scripts/run_clang_tidy.sh`)
+
 ### 2026-03-26-001 | Claude Code CLI | feature, architecture, council, tooling
 
 **Stage 8 Flight Director — IVP-72 through IVP-75 complete. Stage 8 done.**
