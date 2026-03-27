@@ -2393,6 +2393,18 @@ static void eskf_tick_mahony(const shared_sensor_data_t& snap) {
 }
 
 // IVP-42d: ESKF tick — runs at 200Hz via IMU count divider.
+// IVP-44b: Zero-velocity pseudo-measurement (ZUPT).
+// When on pad (IDLE/ARMED), the flight state machine guarantees stationarity
+// — skip IMU check, use tight R. ArduPilot EKF3 onGround, PX4 vehicle_at_rest.
+static void eskf_tick_zupt(const shared_sensor_data_t& snap) {
+    rc::Vec3 accel = sensor_to_ned_accel(snap);
+    rc::Vec3 gyro = sensor_to_ned_gyro(snap);
+    bool on_pad = g_directorInitialized &&
+        (g_director.state.current_phase == rc::FlightPhase::kIdle ||
+         g_director.state.current_phase == rc::FlightPhase::kArmed);
+    g_eskf.update_zupt(accel, gyro, on_pad);
+}
+
 static void eskf_tick() {
     if (!g_sensorPhaseActive) {
         return;
@@ -2436,18 +2448,7 @@ static void eskf_tick() {
 
     eskf_tick_baro(snap);
     eskf_tick_mag(snap);
-
-    // IVP-44b: Zero-velocity pseudo-measurement (ZUPT).
-    // Runs at predict rate (200Hz). Stationarity check is cheap — the ESKF
-    // internally checks accel magnitude ≈ g and gyro < threshold.
-    // When stationary, injects v=[0,0,0] to prevent horizontal velocity
-    // divergence that occurs without GPS or velocity aiding.
-    {
-        rc::Vec3 accel = sensor_to_ned_accel(snap);
-        rc::Vec3 gyro = sensor_to_ned_gyro(snap);
-        g_eskf.update_zupt(accel, gyro);
-    }
-
+    eskf_tick_zupt(snap);
     eskf_tick_gps(snap);
     eskf_tick_mahony(snap);
 

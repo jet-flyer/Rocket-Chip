@@ -260,6 +260,8 @@ struct ESKF {
     // PX4 ECL uses similar order. We match ArduPilot.
     static constexpr float kSigmaZupt = 0.5f;                           // m/s
     static constexpr float kRZupt = kSigmaZupt * kSigmaZupt;            // 0.25 m²/s²
+    static constexpr float kSigmaZuptOnPad = 0.1f;                      // m/s (tighter when state machine confirms stationary)
+    static constexpr float kRZuptOnPad = kSigmaZuptOnPad * kSigmaZuptOnPad; // 0.01 m²/s²
     static constexpr float kZuptInnovationGate = 5.0f;                   // 5σ gate (generous)
 
     // =================================================================
@@ -397,6 +399,12 @@ struct ESKF {
     // Returns false if not stationary or innovation gated out.
     // Call at predict() rate (200Hz) — stationarity check is cheap.
     bool update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas);
+
+    // State-aware ZUPT: when on_pad is true (IDLE/ARMED), skips IMU
+    // stationarity check (guaranteed stationary) and uses tighter R.
+    // ArduPilot EKF3 onGround flag, PX4 ECL vehicle_at_rest.
+    bool update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas,
+                     bool on_pad);
 
     // Error state reset with Jacobian G after measurement update.
     // Absorbs error state into nominal, resets error to zero.

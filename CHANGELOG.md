@@ -20,6 +20,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-26-005 | Claude Code CLI | feature
+
+**State-aware ZUPT.** When Flight Director phase is IDLE or ARMED, skip IMU stationarity check and use tighter R (0.01 m/s^2 vs 0.25 m/s^2) for stronger velocity constraint on pad. ArduPilot EKF3 `onGround` / PX4 ECL `vehicle_at_rest` pattern. HW verified: zNIS=0.01, vh=0.01 m/s. Resolves whiteboard deferred item.
+
+(`src/fusion/eskf.h`, `src/fusion/eskf.cpp`, `src/main.cpp`)
+
+### 2026-03-26-004 | Claude Code CLI | documentation
+
+**IVP restructure: Stage 9 expanded 5→7 IVPs.** Split Logger+Telemetry IVP into separate AOs (IVP-79, IVP-80). Added SPIN formal verification (IVP-82). Clarified stack-allocated events in IVP-76, noted LED consolidation in IVP-77, noted audit printf deferral in IVP-78. Stages 10-12 renumbered (IVP-83–97). Total: 97 IVPs across 12 stages.
+
+(`docs/IVP.md`)
+
 ### 2026-03-26-003 | Claude Code CLI | audit, standards, refactor
 
 **Full standards audit + remediation.** Ran tiered audit across 40 production files (2,315 clang-tidy warnings, 26 lizard, 25 Tier 3, 8 Tier 4). Audit report in `standards/STANDARDS_AUDIT_2026-03-26.md`.

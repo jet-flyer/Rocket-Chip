@@ -970,6 +970,62 @@ bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas) {
 }
 
 // ============================================================================
+// update_zupt (state-aware overload): When on_pad is true, skips IMU
+// stationarity check and uses tighter R. The flight state machine guarantees
+// stationarity in IDLE/ARMED — no need to infer it from sensor data.
+// ArduPilot EKF3 onGround, PX4 ECL vehicle_at_rest.
+// ============================================================================
+bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas,
+                        bool on_pad) {
+    if (!on_pad) {
+        return update_zupt(accelMeas, gyroMeas);
+    }
+
+    // On pad: skip stationarity check, use tight R
+    if (!std::isfinite(accelMeas.x) || !std::isfinite(gyroMeas.x)) {
+        last_zupt_active_ = false;
+        return false;
+    }
+
+    last_zupt_active_ = true;
+
+    float maxNis = 0.0F;
+    const float vComponents[3] = { v.x, v.y, v.z };
+
+    for (int32_t axis = 0; axis < 3; ++axis) {
+        const int32_t kHIdx = eskf::kIdxVelocity + axis;
+        const float innovation = -vComponents[axis];
+        const float s = P(kHIdx, kHIdx) + kRZuptOnPad;
+        if (s < kMinInnovationVariance) {
+            continue;
+        }
+
+        const float nis = (innovation * innovation) / s;
+        if (nis > maxNis) {
+            maxNis = nis;
+        }
+
+        const float gateThreshold = kZuptInnovationGate * sqrtf(s);
+        if (fabsf(innovation) > gateThreshold) {
+            continue;
+        }
+
+#ifdef ESKF_USE_BIERMAN
+        bierman_kalman_update(kHIdx, 1.0F, innovation, kRZuptOnPad);
+#else
+        scalar_kalman_update(kHIdx, 1.0F, innovation, kRZuptOnPad);
+#endif
+    }
+
+    last_zupt_nis_ = maxNis;
+    ++zupt_total_accepts_;
+#ifndef ESKF_USE_BIERMAN
+    clamp_covariance();
+#endif
+    return true;
+}
+
+// ============================================================================
 // set_origin: Establish NED frame origin from first quality GPS fix
 // Council condition C-4: HDOP must be <= kGpsMaxHdopForOrigin.
 // Council fix: Reset position/velocity P to GPS-derived uncertainty.
