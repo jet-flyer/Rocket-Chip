@@ -8,6 +8,10 @@
 
 IVP-76 complete: QF+QV BSP integration. QF_run() replaces while(true) in main(). Existing tick functions run from QV_onIdle bridge during migration. 2 demo AOs (Blinker + Counter) validated on hardware. System-wide signal catalog (`ao_signals.h`) and pub-sub infrastructure established. Council-reviewed (8 amendments). All 7 gates pass. 552/552 host tests. 60s HW soak: 128K IMU reads, ESKF healthy.
 
+**Architecture note:** QV (cooperative scheduler) chosen over FreeRTOS/ChibiOS because the dual-core AMP architecture already isolates deterministic sensor sampling on Core 1 — the primary reason for a preemptive RTOS is already handled by hardware. QV gives decoupled modules, typed events, and priority scheduling without per-task stacks, mutexes, or context-switch overhead.
+
+**QS (QP/Spy) tracing: DEFERRED.** QS source not vendored (only dummy header), no spare UART for trace output. IVP-82 (SPIN formal verification) covers AO interaction verification via exhaustive model checking. Vendor QS later if AO debugging proves difficult — route to PSRAM ring buffer for post-hoc dump.
+
 **Next: IVP-77** — LED Engine Active Object. First real module migration (NeoPixel ownership moves from scattered calls to a single AO).
 
 ## Completed
