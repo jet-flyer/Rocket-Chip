@@ -20,6 +20,23 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-26-003 | Claude Code CLI | audit, standards, refactor
+
+**Full standards audit + remediation.** Ran tiered audit across 40 production files (2,315 clang-tidy warnings, 26 lizard, 25 Tier 3, 8 Tier 4). Audit report in `standards/STANDARDS_AUDIT_2026-03-26.md`.
+
+**Remediated:**
+- 1 potential bug: `ring_buffer.cpp` uninitialized `pos` (false positive, added `= 0`)
+- 8 driver files: Prior Art comment blocks added (3 retagged, 5 new)
+- ~60 magic numbers: replaced with named `constexpr` constants across 13 files (telemetry, data_convert, rfm95w, spi_bus, eskf, ud_factor, psram_init, log_decimator, main)
+- `psram_configure_qmi` decomposed (timing calc extracted to stay under 60-line threshold)
+- Audit script: excluded auto-generated + benchmark files from PRODUCTION_FILES
+
+**Deferred:** Flight Director diagnostic `printf` calls (10 hits) — deferred to Stage 9 IVP-78 (AO migration, diagnostic output moves to event-based logging).
+
+**Accepted:** 2 CCN>20 CLI menu handlers (Ground code), QEP C-style casts (framework), ~40 snake_case parameter names (matches project convention).
+
+(`standards/STANDARDS_AUDIT_2026-03-26.md`, 20 source files)
+
 ### 2026-03-26-002B | Claude Code CLI | tooling, audit, standards
 
 **Implemented and validated Grok's tiered audit blocks.** Adapted for Windows/Git Bash (lizard via `python -m` fallback, portable grep patterns, `set -e` safe exit handling). Dropped magic-numbers grep (869 false positives — unusable at grep level, clang-tidy's relaxed check + manual review is more effective). Changed Tier 3/4 from hard `exit 1` to warnings on first run to allow full triage. Tier 4 scoped to `src/drivers/` only (flight_director files have design-level prior art in docs, not per-file).
