@@ -2362,6 +2362,8 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 4. **QS (QP/Spy) evaluation gate.** Evaluate QS binary tracing for flight event logging. Build with `Q_SPY` defined, measure code size and SRAM overhead, assess tracing utility vs current `[FD]` printf logging. Decision: adopt, defer, or reject. See council Decision 8 and `docs/flight_director/TOOLCHAIN_EVALUATION.md`.
 
+**QS Decision (2026-03-27): DEFERRED.** QS source (`qs.c`, `qs_rx.c`) is not vendored — only the dummy header (`qs_dummy.h`). QS requires a dedicated output channel (UART or memory buffer) and we have no spare UART (GPS uses the one available). Overhead assessment requires vendoring additional QP/C files. **Not blocking:** IVP-82 (SPIN formal verification) covers the AO interaction verification that QS tracing would have assisted with, using exhaustive model checking rather than runtime tracing. If AO debugging becomes difficult during IVP-77–81, vendor QS source and route output to PSRAM ring buffer for post-hoc dump.
+
 **[GATE]:**
 - QF initializes without crash on RP2350 hardware
 - 2-AO demo: LED blinks at correct rate, counter prints to serial
@@ -2369,6 +2371,8 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 - No interference with existing superloop modules (sensor sampling, ESKF, CLI all still work)
 - No heap allocation (verify with `mallinfo()` or BSS size check)
 - QS evaluation documented (adopt/defer/reject with rationale)
+
+**[VERIFIED 2026-03-27]:** All gates pass. QF_init clean, AO_Blinker 1Hz LED, AO_Counter avg=100,000µs (10Hz exact), ESKF running (20K predicts), 128K IMU reads / 4 errors (boot-only), CLI responsive, logging active. BSS delta ~200B (queue buffers + AO structs). Council plan: `harmonic-watching-wall.md`.
 
 **[DIAG]:** Crash at QF_init = BSP tick not configured. Events not delivered = priority inversion or stack-allocated event used after scope exit. Interferes with superloop = tick interrupt conflicting with existing timer.
 

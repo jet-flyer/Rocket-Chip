@@ -47,6 +47,7 @@ extern "C" {
 #include "qsafe.h"
 }
 
+#include "rocketchip/ao_signals.h"  // System-wide signal catalog (IVP-76)
 #include "flight_state.h"
 #include "mission_profile.h"
 #include "guard_evaluator.h"
@@ -55,25 +56,9 @@ extern "C" {
 
 namespace rc {
 
-// ============================================================================
-// Flight Director Signals
-//
-// Start at Q_USER_SIG (4) to avoid collision with QEP reserved signals.
-// Order matters for documentation; values are arbitrary above Q_USER_SIG.
-// ============================================================================
-enum FlightSignal : uint16_t {
-    SIG_TICK        = Q_USER_SIG,   // 4: 100Hz tick
-    SIG_ARM,                         // 5: Arm command
-    SIG_DISARM,                      // 6: Disarm command
-    SIG_LAUNCH,                      // 7: Launch detected
-    SIG_BURNOUT,                     // 8: Motor burnout
-    SIG_APOGEE,                      // 9: Apogee detected
-    SIG_MAIN_DEPLOY,                 // 10: Main chute altitude
-    SIG_LANDING,                     // 11: Landing detected
-    SIG_ABORT,                       // 12: Abort command
-    SIG_RESET,                       // 13: Reset to IDLE
-    SIG_MAX                          // Sentinel
-};
+// Flight Director signals are now defined in ao_signals.h as part of the
+// system-wide RcSignal enum. FlightSignal is a backward-compatible alias.
+// Signal values (SIG_TICK=4 through SIG_RESET=13) are unchanged.
 
 // Signal name strings for logging
 const char* flight_signal_name(uint16_t sig);

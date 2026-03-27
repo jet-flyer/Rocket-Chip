@@ -5,6 +5,7 @@
 //
 // Stage 8: QEP dispatch + QF/QV compile gate (IVP-75).
 // Stage 9: QF Active Objects replace superloop (IVP-76+).
+// Council-reviewed 2026-03-27 (amendments A1-A8 incorporated).
 //
 // Reference: QP/C 8.1.3 ports/config/qp_config.h
 //============================================================================
@@ -24,17 +25,19 @@
 // avoids dead code in the build.
 // ============================================================================
 
-// Active objects: 1 minimum (QEP doesn't use AOs, but qp.h requires > 0)
-// Will be increased in Stage 9 (IVP-76) when AO architecture is added.
-#define QF_MAX_ACTIVE       1U
+// Active objects: 8 (headroom for Stage 9 AOs + future expansion)
+// IVP-76: FlightDirector(5), Logger(4), Telemetry(3), LedEngine(2), reserved(1)
+#define QF_MAX_ACTIVE       8U
 
-// Event pools: 0 (all events are stack-allocated or static in Stage 8)
-// Will be increased in Stage 9 if dynamic event allocation is needed.
-#define QF_MAX_EPOOL        0U
+// Event pools: 1 (pre-wired for future pool readiness, Council A3)
+// Pool memory NOT allocated and QF_poolInit() NOT called until needed.
+// All events are currently stack-allocated (QV run-to-completion guarantee).
+#define QF_MAX_EPOOL        1U
 
-// Time events: 0 (Flight Director uses its own tick timing via superloop)
-// Will be reconsidered in Stage 9 when QF time events may replace manual timers.
-#define QF_MAX_TICK_RATE    0U
+// Time events: 1 tick rate at 100Hz (Pico SDK repeating timer, IVP-76)
+// AOs use QF time events with periods relative to this base:
+//   FD: every 1 tick (100Hz), Logger: 2 (50Hz), Telem: 10 (10Hz), LED: 3 (~33Hz)
+#define QF_MAX_TICK_RATE    1U
 
 // ============================================================================
 // Safety Configuration

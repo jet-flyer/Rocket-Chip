@@ -43,6 +43,9 @@
 #include "watchdog/watchdog_recovery.h"
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
+#include "rocketchip/ao_signals.h"  // IVP-76: system-wide signal catalog
+#include "ao_blinker.h"            // IVP-76: demo AO (heartbeat LED)
+#include "ao_counter.h"            // IVP-76: demo AO (jitter measurement)
 #include "qp_port.h"   // QP/C QEP (IVP-67): Q_onError, QHsm types
 #include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
@@ -62,10 +65,7 @@
 static constexpr uint kNeoPixelPin = board::kNeoPixelPin;
 static constexpr const char* kBuildTag = "ivp74-profile-1";
 
-// Heartbeat: 100ms on, 900ms off
-static constexpr uint32_t kHeartbeatOnMs = 100;
-static constexpr uint32_t kHeartbeatOffMs = 900;
-static constexpr uint32_t kHeartbeatPeriodMs = kHeartbeatOnMs + kHeartbeatOffMs;
+// Heartbeat constants removed — AO_Blinker owns LED heartbeat (IVP-76)
 
 // Core 1 sensor loop timing
 static constexpr uint32_t kCore1TargetCycleUs = 1000;           // ~1kHz target
@@ -2106,15 +2106,7 @@ static void init_application(bool watchdogReboot) {
 // Council recommendation: track which tick was running when watchdog fires.
 static const char* g_lastTickFunction = "init";
 
-static void heartbeat_tick(uint32_t nowMs) {
-    static bool g_ledState = false;
-    uint32_t phase = nowMs % kHeartbeatPeriodMs;
-    bool shouldBeOn = (phase < kHeartbeatOnMs);
-    if (shouldBeOn != g_ledState) {
-        g_ledState = shouldBeOn;
-        board::board_led_set(g_ledState);
-    }
-}
+// heartbeat_tick() removed — AO_Blinker owns LED heartbeat (IVP-76)
 
 static void watchdog_kick_tick() {
     if (!g_watchdogEnabled) {
@@ -3116,6 +3108,59 @@ static void telemetry_radio_tick(uint32_t nowMs) {
 }
 
 // ============================================================================
+// QF+QV Active Object Infrastructure (IVP-76)
+//
+// Pub-sub subscriber array sized to system-wide signal catalog.
+// QV_onIdle bridge: runs existing tick functions during migration.
+// ============================================================================
+
+static QSubscrList g_subscrList[rc::SIG_AO_MAX];
+
+// QV_onIdle bridge — called from bsp_qv.c when all AO queues are empty.
+// During Stage 9 migration (IVP-76 through IVP-80), this runs the existing
+// tick functions. As modules migrate to AOs, their calls are removed here.
+//
+// Council A2: watchdog_kick_tick() stays here PERMANENTLY — never an AO.
+// Council A4: No __wfi() — tick functions require polling every iteration.
+//             __wfi() only after IVP-81 when all work is event-driven.
+extern "C" void qv_idle_bridge(void) {
+    uint32_t nowMs = to_ms_since_boot(get_absolute_time());
+
+    // heartbeat_tick removed — AO_Blinker owns LED heartbeat (IVP-76)
+
+    g_lastTickFunction = "watchdog";
+    g_recovery.current_tick_fn = rc::TickFnId::kWatchdog;
+    watchdog_kick_tick();
+
+    g_lastTickFunction = "eskf";
+    g_recovery.current_tick_fn = rc::TickFnId::kEskf;
+    eskf_tick();
+
+    g_lastTickFunction = "flight_director";
+    g_recovery.current_tick_fn = rc::TickFnId::kFlightDirector;
+    flight_director_tick();
+
+    g_lastTickFunction = "logging";
+    g_recovery.current_tick_fn = rc::TickFnId::kLogging;
+    logging_tick();
+
+    g_lastTickFunction = "radio";
+    g_recovery.current_tick_fn = rc::TickFnId::kRadio;
+    telemetry_radio_tick(nowMs);
+
+    g_lastTickFunction = "mavlink";
+    g_recovery.current_tick_fn = rc::TickFnId::kMavlink;
+    mavlink_direct_tick(nowMs);
+
+    g_lastTickFunction = "cli";
+    g_recovery.current_tick_fn = rc::TickFnId::kCli;
+    cli_update_tick();
+
+    g_lastTickFunction = "idle";
+    g_recovery.current_tick_fn = rc::TickFnId::kSleep;
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -3123,45 +3168,16 @@ int main() {
     bool watchdogReboot = init_hardware();
     init_application(watchdogReboot);
 
-    while (true) {
-        uint32_t nowMs = to_ms_since_boot(get_absolute_time());
+    // --- IVP-76: QF+QV Active Object initialization ---
+    QF_init();
+    QActive_psInit(g_subscrList, Q_DIM(g_subscrList));
 
-        g_lastTickFunction = "heartbeat";
-        g_recovery.current_tick_fn = rc::TickFnId::kHeartbeat;
-        heartbeat_tick(nowMs);
+    // Start demo Active Objects (priorities per D4 table, demo AOs at low prio)
+    AO_Blinker_start(2U);   // Priority 2: heartbeat LED
+    AO_Counter_start(1U);   // Priority 1: jitter measurement
 
-        g_lastTickFunction = "watchdog";
-        g_recovery.current_tick_fn = rc::TickFnId::kWatchdog;
-        watchdog_kick_tick();
-
-        g_lastTickFunction = "eskf";
-        g_recovery.current_tick_fn = rc::TickFnId::kEskf;
-        eskf_tick();
-
-        g_lastTickFunction = "flight_director";
-        g_recovery.current_tick_fn = rc::TickFnId::kFlightDirector;
-        flight_director_tick();
-
-        g_lastTickFunction = "logging";
-        g_recovery.current_tick_fn = rc::TickFnId::kLogging;
-        logging_tick();
-
-        g_lastTickFunction = "radio";
-        g_recovery.current_tick_fn = rc::TickFnId::kRadio;
-        telemetry_radio_tick(nowMs);
-
-        g_lastTickFunction = "mavlink";
-        g_recovery.current_tick_fn = rc::TickFnId::kMavlink;
-        mavlink_direct_tick(nowMs);
-
-        g_lastTickFunction = "cli";
-        g_recovery.current_tick_fn = rc::TickFnId::kCli;
-        cli_update_tick();
-
-        g_lastTickFunction = "sleep";
-        g_recovery.current_tick_fn = rc::TickFnId::kSleep;
-        sleep_ms(1);
-    }
-
-    return 0;
+    // QF_run() replaces while(true) — never returns.
+    // QV cooperative scheduler dispatches AOs, calls QV_onIdle() (which runs
+    // the bridge tick functions) when all queues are empty.
+    return static_cast<int>(QF_run());
 }

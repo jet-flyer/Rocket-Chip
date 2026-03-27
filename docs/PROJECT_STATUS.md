@@ -1,14 +1,14 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-03-26 (Stage 8 complete, audit remediated)
+**Last Updated:** 2026-03-27 (Stage 9 started, IVP-76 complete)
 
 ## Current Phase
 
-**Stage 8 COMPLETE** — Flight Director (IVP-66–75)
+**Stage 9 IN PROGRESS** — Active Object Architecture (IVP-76–82)
 
-10 IVPs: QEP hierarchical state machine, guard functions + combinators, Go/No-Go pre-arm, action executor, bench flight sim script, user-editable mission profiles (.cfg), QF+QV Active Object compile gate. 552/552 host tests, bench sim 9/9 PASS. Standards audit completed and remediated (2026-03-26).
+IVP-76 complete: QF+QV BSP integration. QF_run() replaces while(true) in main(). Existing tick functions run from QV_onIdle bridge during migration. 2 demo AOs (Blinker + Counter) validated on hardware. System-wide signal catalog (`ao_signals.h`) and pub-sub infrastructure established. Council-reviewed (8 amendments). All 7 gates pass. 552/552 host tests. 60s HW soak: 128K IMU reads, ESKF healthy.
 
-**Next: Stage 9** — Active Object Architecture (IVP-76–80). Preliminary migration plan in `docs/flight_director/ACTIVE_OBJECT_MIGRATION.md` (needs full plan + council review before implementation).
+**Next: IVP-77** — LED Engine Active Object. First real module migration (NeoPixel ownership moves from scattered calls to a single AO).
 
 ## Completed
 
@@ -46,12 +46,13 @@
 
 | 8: Flight Director | IVP-66–75 | 2026-03-26 | QEP HSM (9 states, descent superstate), guard functions + combinators + three-layer safety, Go/No-Go pre-arm, action executor (NeoPixel + pyro intent), bench flight sim (9/9 PASS), mission profile .cfg + generator, QF+QV compile gate. Council-reviewed (IVP-71, IVP-73, IVP-74). 552 host tests |
 | Standards Audit | — | 2026-03-26 | Tiered audit (clang-tidy + lizard + RP2350 guards + Prior Art). ~60 magic numbers remediated, 8 Prior Art blocks added, ring_buffer init fixed. See `standards/STANDARDS_AUDIT_2026-03-26.md` |
+| 9: AO Foundation | IVP-76 | 2026-03-27 | QF+QV BSP integration. 100Hz tick timer, QV_onIdle bridge, system-wide RcSignal catalog (ao_signals.h), pub-sub infrastructure, 2 demo AOs (Blinker + Counter with jitter measurement). QF_run() replaces while(true). Council-reviewed (8 amendments). 552/552 host tests, 60s HW soak clean |
 
 ## In Progress
 
-**Next: Stage 9 (Active Object Architecture)** — IVP-76 through IVP-80. QF+QV BSP activation, LED Engine AO, Flight Director AO, Logger + Telemetry AOs, superloop removal. Preliminary plan in `docs/flight_director/ACTIVE_OBJECT_MIGRATION.md`.
+**Stage 9 (Active Object Architecture)** — IVP-76 done, IVP-77 next. LED Engine AO (IVP-77), Flight Director AO (IVP-78), Logger AO (IVP-79), Telemetry AO (IVP-80), superloop removal (IVP-81), SPIN formal verification (IVP-82). Council plan: `harmonic-watching-wall.md`.
 
-**Then: Stage 10 (Adaptive Estimation)** — IVP-81 through IVP-84. Phase-scheduled Q/R matrices tied to flight phases, innovation-ratio adaptation layer. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`.
+**Then: Stage 10 (Adaptive Estimation)** — IVP-83 through IVP-86. Phase-scheduled Q/R matrices tied to flight phases, innovation-ratio adaptation layer. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`.
 
 ## Blockers
 

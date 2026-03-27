@@ -3,19 +3,21 @@
 //============================================================================
 // QV BSP (Board Support Package) — RP2350 Pico SDK
 //
-// IVP-75: Active Object Migration Planning (Stage 8)
+// IVP-76: QF+QV BSP Integration (Stage 9: Active Object Architecture)
+// Council-reviewed 2026-03-27 (Amendments A1, A2, A4)
 //
-// Minimal BSP for QP/C QV cooperative scheduler on RP2350. Provides the
-// required callbacks that QF and QV call during initialization and idle.
+// QV cooperative scheduler BSP for RP2350. Provides:
+//   - QF_onStartup(): 100Hz tick via Pico SDK repeating timer (D1)
+//   - QV_onIdle(): Bridge to existing superloop tick functions (D10)
+//   - QF_onCleanup(): No-op (bare-metal never exits)
 //
-// This file is compiled but NOT called in Stage 8 — the superloop remains
-// the runtime model. Stage 9 (IVP-76) will wire QV_onIdle into the main
-// loop and replace the superloop with QF_run().
+// The tick timer fires from hardware alarm IRQ on Core 0. Callback posts
+// QF time events via QTIMEEVT_TICK_X(). QV dispatches AOs in the main
+// loop, then calls QV_onIdle() when all queues are empty.
 //
-// QV is the simplest QP/C kernel: cooperative, non-preemptive, single-stack.
-// Active Objects run to completion in priority order. QV_onIdle is called
-// when no events are pending — we use WFI (Wait For Interrupt) for power
-// savings on RP2350.
+// During Stage 9 migration (IVP-76 through IVP-80), QV_onIdle runs the
+// existing superloop tick functions. As modules migrate to Active Objects,
+// their tick calls are removed from idle. IVP-81 makes idle pure __wfi().
 //
 // Reference: QP/C 8.1.3 examples/arm-cm/blinky_nucleo-c031c6/qv/bsp.c
 //============================================================================
@@ -25,29 +27,64 @@
 #ifndef ROCKETCHIP_HOST_TEST
 
 #include "pico/stdlib.h"
+#include "pico/time.h"
 #include "hardware/sync.h"
+
+//----------------------------------------------------------------------------
+// Tick timer — 100Hz repeating timer via Pico SDK alarm pool (D1)
+
+static repeating_timer_t s_qfTickTimer;
+
+// Tick callback — runs in hardware timer IRQ context on Core 0.
+// Posts QF time events to AO queues. QV dispatches them from main context.
+static bool qf_tick_cb(repeating_timer_t *rt) {
+    (void)rt;
+    QTIMEEVT_TICK_X(0U, (void *)0);
+    return true;  // Keep repeating
+}
 
 //----------------------------------------------------------------------------
 // QF callbacks
 
 void QF_onStartup(void) {
-    // Called by QF_run() before entering the event loop.
-    // Stage 9: configure SysTick or alarm for QF tick source.
-    // Stage 8: no-op (superloop handles timing).
+    // Configure 100Hz tick timer. Negative delay = edge-aligned (period
+    // measured from start-to-start, not end-to-start). 10000us = 100Hz.
+    // Return value checked per Council Amendment A1.
+    bool ok = add_repeating_timer_us(-10000, qf_tick_cb, (void *)0,
+                                      &s_qfTickTimer);
+    if (!ok) {
+        // Timer allocation failed — no tick, no AO scheduling.
+        // Enter hard fault: disable interrupts and spin for watchdog reset.
+        __asm volatile("cpsid i");
+        while (1) { __asm volatile("nop"); }
+    }
 }
 
 void QF_onCleanup(void) {
-    // Called by QF_run() on exit (never on bare-metal).
+    // Never called on bare-metal.
 }
 
 //----------------------------------------------------------------------------
-// QV callbacks
+// QV idle callback
+//
+// Called by QV scheduler when all Active Object event queues are empty.
+// QV disables interrupts before calling — we must re-enable them.
+//
+// IMPORTANT (Council A4): No __wfi() while tick functions remain in the
+// idle body. Tick functions require polling every iteration. __wfi() is
+// only correct after IVP-81 when all work is event-driven.
+//
+// IMPORTANT (Council A2): watchdog_kick_tick() stays here PERMANENTLY.
+// It never moves into an AO. This is a system-level invariant — if QV
+// scheduling stalls, the watchdog fires.
+//
+// Bridge function is provided by main.cpp (application-specific).
+// Signature: void qv_idle_bridge(void);
+extern void qv_idle_bridge(void);
 
 void QV_onIdle(void) {
-    // Called by QV scheduler when all event queues are empty.
-    // WFI suspends the core until the next interrupt (timer, USB, I2C, etc.)
-    // Power savings: ~15-25mA active → ~1-5mA WFI on RP2350.
-    __wfi();
+    QF_INT_ENABLE();
+    qv_idle_bridge();
 }
 
 // Q_onError: provided by main.cpp (target) or qp_app.c (host tests)

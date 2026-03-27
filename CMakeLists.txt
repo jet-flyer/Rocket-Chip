@@ -348,6 +348,12 @@ else()
 
         # IVP-72: Action executor
         src/flight_director/action_executor.cpp
+
+        # -------------------------------------------------------------------------
+        # Stage 9: Active Object Architecture (IVP-76+)
+        # -------------------------------------------------------------------------
+        src/active_objects/ao_blinker.cpp
+        src/active_objects/ao_counter.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -389,6 +395,8 @@ else()
         src/flight_director/guard_evaluator.cpp
         src/flight_director/guard_combinator.cpp
         src/flight_director/action_executor.cpp
+        src/active_objects/ao_blinker.cpp
+        src/active_objects/ao_counter.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
@@ -411,6 +419,7 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink            # IVP-61
         ${CMAKE_CURRENT_LIST_DIR}/lib/qep                # IVP-67
         ${CMAKE_CURRENT_LIST_DIR}/src/flight_director  # IVP-68
+        ${CMAKE_CURRENT_LIST_DIR}/src/active_objects   # IVP-76
         ${RUUVI_DPS310_DIR}                            # IVP-11
         ${LWGPS_DIR}/include                             # IVP-31
     )

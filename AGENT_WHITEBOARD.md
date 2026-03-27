@@ -22,9 +22,19 @@
 
 ---
 
-### Stage 8 — IVP-66 through IVP-74 Complete, IVP-75 Next
+### Stage 9 (Active Object Architecture) — IVP-76 Complete
 
-**Updated 2026-03-26.** Nine IVPs complete on main. 552/552 host tests, all HW gates passed.
+**Updated 2026-03-27.** IVP-76 QF+QV BSP integration complete. Council-reviewed (8 amendments). All 7 gates pass. Git tag `pre-qv-main` on `cedea7f`.
+
+- **QF_run() replaces while(true) in main().** Existing tick functions run from QV_onIdle bridge. AO_Blinker owns LED heartbeat. AO_Counter measures dispatch jitter (avg=100,000µs, 10Hz exact).
+- **System-wide signal catalog** in `ao_signals.h` (RcSignal enum). Ready for IVPs 77-80.
+- **QS (QP/Spy) DEFERRED** — source not vendored, no spare UART. IVP-82 (SPIN) covers AO interaction verification via formal model checking. Vendor QS later if AO debugging proves difficult.
+- **Watchdog stays in QV_onIdle permanently** (Council A2). Never an AO.
+- **Next:** IVP-77 (LED Engine AO) — first real module migration.
+
+### Stage 8 — IVP-66 through IVP-75 Complete
+
+**Updated 2026-03-26.** Ten IVPs complete on main. 552/552 host tests, all HW gates passed.
 
 **Complete:**
 - **IVP-66:** Watchdog recovery policy
