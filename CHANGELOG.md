@@ -20,7 +20,7 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
-### 2026-03-26-003 | Claude Code CLI | tooling, audit, standards
+### 2026-03-26-002B | Claude Code CLI | tooling, audit, standards
 
 **Implemented and validated Grok's tiered audit blocks.** Adapted for Windows/Git Bash (lizard via `python -m` fallback, portable grep patterns, `set -e` safe exit handling). Dropped magic-numbers grep (869 false positives — unusable at grep level, clang-tidy's relaxed check + manual review is more effective). Changed Tier 3/4 from hard `exit 1` to warnings on first run to allow full triage. Tier 4 scoped to `src/drivers/` only (flight_director files have design-level prior art in docs, not per-file).
 
@@ -28,7 +28,7 @@ First-run results: Tier 2 found 2 CCN>20 (CLI menu switches, Ground code — acc
 
 (`scripts/run_clang_tidy.sh`)
 
-### 2026-03-26-002 | Grok | tooling, audit, standards
+### 2026-03-26-002A | Grok | tooling, audit, standards
 
 **Added tiered audit blocks to scripts/run_clang_tidy.sh for full standards coverage.**
 
