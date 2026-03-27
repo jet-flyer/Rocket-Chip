@@ -1,7 +1,7 @@
 # RocketChip Integration and Verification Plan (IVP)
 
 **Status:** ACTIVE — Living document
-**Last Updated:** 2026-03-14
+**Last Updated:** 2026-03-26
 **Target Platform:** RP2350 (Adafruit Feather HSTX w/ 8MB PSRAM)
 **Architecture:** Bare-metal Pico SDK, dual-core AMP (see `docs/decisions/SEQLOCK_DESIGN.md`)
 
@@ -17,8 +17,8 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stage 5** (Sensor Fusion): Fully detailed
 - **Stage 6** (Data Logging): Core items (IVP-49–54) HW verified. IVP-55–56 deferred (stretch goals).
 - **Stage 7** (Radio & Telemetry): Core items (IVP-57–61) HW verified. IVP-62 deferred (`ivp62-wip` branch). IVP-63–65 deferred (stretch goals).
-- **Stage 8** (Flight Director): Fully detailed — restructured per council review (UML statecharts, QEP, 10 IVPs)
-- **Stage 9** (Active Object Architecture): Fully detailed — QF+QV migration from superloop
+- **Stage 8** (Flight Director): COMPLETE — 10 IVPs (IVP-66–75), 552 host tests, bench sim 9/9
+- **Stage 9** (Active Object Architecture): Fully detailed — 7 IVPs (IVP-76–82), QF+QV migration + SPIN verification
 - **Stages 10-12** (Adaptive Estimation, Ground Station, Integration): Placeholders expanded as earlier stages complete
 
 **Key references (not duplicated here):**
@@ -101,10 +101,10 @@ cmake --build build/
 | **6** | **Data Logging** | **Phase 5** | **IVP-49 — IVP-56** | **Core complete** | **(pulled forward)** |
 | **7** | **Radio & Telemetry** | **Phase 5** | **IVP-57 — IVP-65** | **Core complete** | |
 | 8 | Flight Director | Phase 6 | IVP-66 — IVP-75 | Full | **Crowdfunding Demo Ready** |
-| **9** | **Active Object Architecture** | **Phase 6** | **IVP-76 — IVP-80** | **Full** | |
-| 10 | Adaptive Estimation & Safety | Phase 6 | IVP-81 — IVP-84 | Placeholder | |
-| **11** | **Ground Station** | **Phase 7** | **IVP-85 — IVP-90** | **Placeholder** | |
-| 12 | System Integration | Phase 9 | IVP-91 — IVP-95 | Placeholder | **Flight Ready** |
+| **9** | **Active Object Architecture** | **Phase 6** | **IVP-76 — IVP-82** | **Full** | |
+| 10 | Adaptive Estimation & Safety | Phase 6 | IVP-83 — IVP-86 | Placeholder | |
+| **11** | **Ground Station** | **Phase 7** | **IVP-87 — IVP-92** | **Placeholder** | |
+| 12 | System Integration | Phase 9 | IVP-93 — IVP-97 | Placeholder | **Flight Ready** |
 
 > **Stage 6 pull-forward rationale:** Data Logging was originally Stage 9 but is a dependency for the telemetry encoder — the encoder reads from data structures (FusedState, TelemetryState, SensorSnapshot) defined by the logging architecture. Pulling logging forward establishes the canonical data model that all downstream consumers (telemetry encoder, flight director, GCS) read from. IVP numbers were renumbered sequentially. See council reviews: `docs/decisions/Telem+logging/council_data_logging.md` and `council_telemetry_protocol.md`.
 
@@ -1443,7 +1443,7 @@ ArduPilot's compass calibration uses a two-step process. Both steps use the same
 
 **Prerequisites:** IVP-42
 
-**Implement:** `src/fusion/mahony_ahrs.h/.cpp` — independent attitude estimator running alongside ESKF. Lightweight PI controller on orientation error. Uses same IMU data from seqlock but maintains its own quaternion. Provides the independent cross-check required by the confidence gate (IVP-82).
+**Implement:** `src/fusion/mahony_ahrs.h/.cpp` — independent attitude estimator running alongside ESKF. Lightweight PI controller on orientation error. Uses same IMU data from seqlock but maintains its own quaternion. Provides the independent cross-check required by the confidence gate (IVP-84).
 
 1. **Algorithm (Mahony 2008):**
    ```
@@ -2178,13 +2178,13 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
    - LED patterns: ARMED=solid amber, BOOST=solid red, COAST=solid yellow, DESCENT=red flash, LANDED=slow green blink, ABORT=fast red flash
    - Telemetry flags: phase enum in telemetry packet
    - Logging: flight event markers (EVT_LAUNCH, EVT_BURNOUT, EVT_APOGEE, etc.)
-   - Phase-specific config: update ESKF Q/R hint for Phase-Scheduled Q/R (Stage 10, IVP-81)
+   - Phase-specific config: update ESKF Q/R hint for Phase-Scheduled Q/R (Stage 10, IVP-83)
 
 2. **Transition actions (Mealy — path-specific, execute between exit and entry):**
    - **COAST→DESCENT.DROGUE:** `fire_drogue_pyro()` — **IRREVERSIBLE, transition-gated (safety architecture)**
    - **DESCENT.DROGUE→DESCENT.MAIN:** `fire_main_pyro()` — **IRREVERSIBLE, transition-gated**
    - **state_flight→ABORT:** source-phase-specific abort actions (safe pyros during BOOST, continue logging during DESCENT)
-   - Pyro actions gated by confidence flag (wired at Stage 10 IVP-83)
+   - Pyro actions gated by confidence flag (wired at Stage 10 IVP-85)
 
 3. **Exit actions (cleanup):**
    - `state_flight` exit: safe all outputs, stop active timers
@@ -2334,11 +2334,13 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-76 | QF+QV BSP Integration | Board support package, tick interrupt, QV idle callback, 2-AO demo on hardware |
-| IVP-77 | LED Engine Active Object | AO_LedEngine owns NeoPixel exclusively, pattern state machine, typed events |
-| IVP-78 | Flight Director Active Object | Wrap Stage 8 QEP state machine in QF Active Object |
-| IVP-79 | Logger + Telemetry Active Objects | AO_Logger owns flash writes, AO_Telemetry owns radio TX scheduling |
-| IVP-80 | Superloop → QV Transition | Remove superloop `_due` flags, QV cooperative scheduler replaces `while(true)` |
+| IVP-76 | QF+QV BSP Integration | Board support package, tick interrupt, QV idle, stack-allocated events, QS evaluation |
+| IVP-77 | LED Engine Active Object | AO_LedEngine owns NeoPixel exclusively, consolidates 19-case overlay switch |
+| IVP-78 | Flight Director Active Object | Wrap Stage 8 QEP HSM in QF Active Object, replaces diagnostic printf with events |
+| IVP-79 | Logger Active Object | AO_Logger owns flash writes, flash_safe_execute coordination |
+| IVP-80 | Telemetry Active Object | AO_Telemetry owns radio TX scheduling, CCSDS/MAVLink encoding |
+| IVP-81 | Superloop → QV Transition | Remove superloop `_due` flags, QV cooperative scheduler replaces `while(true)` |
+| IVP-82 | SPIN Formal Verification | Promela model of AO event topology, deadlock/liveness verification |
 
 ---
 
@@ -2356,7 +2358,9 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 2. **Trivial 2-Active-Object demo.** `AO_Blinker` (toggles LED on timer event) + `AO_Counter` (counts events, prints to serial). Validates: event delivery, time events, priority scheduling, QV idle. Runs alongside existing superloop (QV does not replace it yet).
 
-3. **Static event pools.** Configure QF event pools as static arrays — no heap allocation. Size pools based on worst-case event burst (initial: 16 small events, 8 medium events).
+3. **Stack-allocated events (`QF_MAX_EPOOL = 0`).** All events are local variables on the caller's stack. QV cooperative scheduling guarantees run-to-completion — the event is fully processed before the caller's stack frame exits. No event pools, no reference counting, no pool exhaustion risk. If deferred events are needed later, upgrade to pool allocation at that point.
+
+4. **QS (QP/Spy) evaluation gate.** Evaluate QS binary tracing for flight event logging. Build with `Q_SPY` defined, measure code size and SRAM overhead, assess tracing utility vs current `[FD]` printf logging. Decision: adopt, defer, or reject. See council Decision 8 and `docs/flight_director/TOOLCHAIN_EVALUATION.md`.
 
 **[GATE]:**
 - QF initializes without crash on RP2350 hardware
@@ -2364,8 +2368,9 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 - QV idle callback executes between events (verify via GPIO toggle or timing measurement)
 - No interference with existing superloop modules (sensor sampling, ESKF, CLI all still work)
 - No heap allocation (verify with `mallinfo()` or BSS size check)
+- QS evaluation documented (adopt/defer/reject with rationale)
 
-**[DIAG]:** Crash at QF_init = BSP tick not configured. Events not delivered = pool exhausted or priority inversion. Interferes with superloop = tick interrupt conflicting with existing timer.
+**[DIAG]:** Crash at QF_init = BSP tick not configured. Events not delivered = priority inversion or stack-allocated event used after scope exit. Interferes with superloop = tick interrupt conflicting with existing timer.
 
 ---
 
@@ -2373,7 +2378,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Prerequisites:** IVP-76 (QF+QV operational on hardware)
 
-**Rationale:** The LED Engine is the most obvious Active Object beneficiary. Currently, NeoPixel state is set from multiple call sites across multiple files (`neo_set_if_changed()` scattered throughout). This makes LED behavior hard to trace and debug. As an Active Object, only `AO_LedEngine` touches the NeoPixel — all other modules send typed pattern-change events.
+**Rationale:** The LED Engine is the most obvious Active Object beneficiary. Currently, NeoPixel state is set from multiple call sites across multiple files (`neo_set_if_changed()` scattered throughout) via the `g_calNeoPixelOverride` atomic overlay pattern. The `neo_apply_override()` function (IVP-72) has grown to a 19-case switch covering calibration, RX, and flight phase overlays — this consolidates into a proper pattern state machine. As an Active Object, only `AO_LedEngine` touches the NeoPixel — all other modules send typed pattern-change events.
 
 **Implement:**
 
@@ -2409,6 +2414,8 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Implement:** Wrap the existing QEP Flight Director state machine (from Stage 8) in a QF Active Object. State handler code is unchanged — the migration is purely structural.
 
+**Audit deferral (2026-03-26):** The standards audit found 10 diagnostic `printf` calls in `flight_director.cpp` and `go_nogo_checks.cpp` (Tier 3 findings). These are `[FD]` transition logs currently parsed by `bench_flight_sim.py`. When the FD becomes an AO, replace these with published `EVT_FLIGHT_STATE` events — the bench sim subscribes to events instead of parsing serial output. This eliminates naked `printf` from the Flight Director entirely.
+
 1. **AO_FlightDirector.** Receives events from QF queue instead of manual `QHSM_DISPATCH()` in `run_flight_director()`. SIG_TICK delivered via QF time event (periodic timer). Command events (SIG_ARMED, SIG_ABORT) published by CLI/radio handlers.
 
 2. **Remove `run_flight_director()` from superloop.** The superloop no longer calls the Flight Director directly — QV dispatches it based on priority and queue status.
@@ -2429,32 +2436,49 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-### IVP-79: Logger + Telemetry Active Objects
+### IVP-79: Logger Active Object
 
 **Prerequisites:** IVP-78 (Flight Director as AO, proving event-driven pattern)
 
-**Implement:** Migrate the remaining high-value modules to Active Objects.
+**Implement:** Migrate the flight data logger to an Active Object.
 
 1. **AO_Logger.** Owns flash write scheduling. Receives EVT_LOG events (flight markers, sensor snapshots). Manages write buffer, page flushes, `flash_safe_execute()` coordination. No other module calls flash write functions directly.
 
-2. **AO_Telemetry.** Owns radio TX scheduling. Receives EVT_TELEM events (state updates, sensor data). Manages packet encoding (CCSDS or MAVLink per Mission Profile), transmission timing, and downlink priority. No other module calls radio TX functions directly.
-
-3. **AO_ErrorHandler (optional, if scope permits).** Monitors subsystem health via published EVT_ERROR/EVT_WARNING events. Centralizes error counting, degradation decisions, and CLI health display. If scope is too large, defer to a whiteboard item.
+2. **Flash safety.** `flash_safe_execute()` + `i2c_bus_reset()` (LL Entry 31) must be called from AO_Logger's context. Verify multicore_lockout still works correctly when called from an AO event handler vs superloop tick.
 
 **[GATE]:**
 - Flight data logged correctly through AO_Logger (compare log output to pre-migration)
-- Telemetry packets transmitted correctly through AO_Telemetry
-- No direct flash write or radio TX calls outside their respective AOs (grep verification)
-- Flash write coordination: `flash_safe_execute()` + `i2c_bus_reset()` still called correctly (LL Entry 31)
-- Re-run IVP-73 bench flight sim — full pipeline works through Active Objects
+- No direct flash write calls outside AO_Logger (grep verification)
+- Flash write coordination: `flash_safe_execute()` + `i2c_bus_reset()` still called correctly
+- Re-run IVP-73 bench flight sim — logging pipeline works through AO
 
-**[DIAG]:** Log data missing = EVT_LOG not published or AO_Logger priority too low. Telemetry gaps = AO_Telemetry queue overflow. Flash corruption = `flash_safe_execute()` not called from correct context.
+**[DIAG]:** Log data missing = EVT_LOG not published or AO_Logger priority too low. Flash corruption = `flash_safe_execute()` not called from correct context.
 
 ---
 
-### IVP-80: Superloop → QV Transition
+### IVP-80: Telemetry Active Object
 
-**Prerequisites:** IVP-79 (all major modules are Active Objects)
+**Prerequisites:** IVP-79 (Logger as AO)
+
+**Implement:** Migrate the telemetry encoder and radio TX scheduling to an Active Object.
+
+1. **AO_Telemetry.** Owns radio TX scheduling. Receives EVT_TELEM events (state updates, sensor data). Manages packet encoding (CCSDS or MAVLink per Mission Profile), transmission timing, and downlink priority. No other module calls radio TX functions directly.
+
+2. **AO_ErrorHandler deferred.** Health monitoring (watchdog feed, error counting) remains in the superloop for now. Defer to whiteboard — scope is too broad for this IVP and the watchdog kick must remain deterministic (not event-driven).
+
+**[GATE]:**
+- Telemetry packets transmitted correctly through AO_Telemetry
+- No direct radio TX calls outside AO_Telemetry (grep verification)
+- TX timing matches pre-migration (2Hz CCSDS, no gaps)
+- Re-run IVP-73 bench flight sim — full pipeline works through Active Objects
+
+**[DIAG]:** Telemetry gaps = AO_Telemetry queue overflow or priority too low. Encoding errors = event payload mismatch.
+
+---
+
+### IVP-81: Superloop → QV Transition
+
+**Prerequisites:** IVP-80 (all major modules are Active Objects)
 
 **Implement:** Remove the remaining superloop infrastructure. QV's cooperative scheduler fully replaces `while(true)`.
 
@@ -2484,7 +2508,36 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 - Full IVP-73 bench flight sim passes
 - 10-minute soak: zero sensor errors, zero unexpected state transitions
 
-**[DIAG]:** Timing regression = priority ordering wrong or tick rate mismatch. Core 1 affected = QF code accidentally crossed core boundary. WFI not working = QV_onIdle() not calling `__wfi()`. Event queue overflow = pool sizing too small for burst.
+**[DIAG]:** Timing regression = priority ordering wrong or tick rate mismatch. Core 1 affected = QF code accidentally crossed core boundary. WFI not working = QV_onIdle() not calling `__wfi()`. Event starvation = stack-allocated event scope too narrow.
+
+---
+
+### IVP-82: SPIN Formal Verification
+
+**Prerequisites:** IVP-81 (superloop removed, all AOs running under QV)
+
+**Rationale:** With 4-5 Active Objects communicating via typed events, the interaction state space is large enough that unit tests alone cannot guarantee absence of deadlock or event loss. SPIN exhaustively verifies properties across all possible event interleavings. This was identified in the IVP-67 toolchain evaluation as the right time to adopt SPIN. See `docs/flight_director/TOOLCHAIN_EVALUATION.md` SPIN section.
+
+**Implement:**
+
+1. **Promela model of AO event topology.** Model each Active Object as a Promela process with a bounded channel (event queue). Model the event catalog: SIG_SENSOR_DATA, SIG_PHASE_CHANGE, EVT_LED_PATTERN, EVT_LOG, EVT_TELEM, SIG_CLI_COMMAND. Model pub-sub routing.
+
+2. **Safety properties (LTL assertions):**
+   - No deadlock: all AO processes always eventually consume events
+   - No unbounded queue growth: channel lengths stay within configured bounds
+   - Pyro safety: `[](phase == IDLE -> !pyro_fired)` — pyro never fires in IDLE
+   - Liveness: `<>(phase == LANDED)` — LANDED is always eventually reachable from any flight phase
+   - No simultaneous drogue + main fire in the same tick
+
+3. **Verification output.** Run SPIN exhaustive verification, document state space size, counterexamples (if any), and any model simplifications. Add Promela source to `tools/spin/` or `verification/`.
+
+**[GATE]:**
+- Promela model compiles and runs in SPIN without syntax errors
+- Exhaustive verification completes (state space bounded)
+- All safety properties pass (or counterexamples are analyzed and model/code fixed)
+- Model documented: assumptions, simplifications, what is and isn't modeled
+
+**[DIAG]:** State space explosion = model too detailed (abstract sensor data, focus on event routing). Deadlock found = event subscription missing or circular dependency. Property violation = real bug or model inaccuracy.
 
 ---
 
@@ -2496,14 +2549,14 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-81 | Phase-Scheduled Q/R + Innovation Adaptation | Per-phase noise models tied to state machine, innovation ratio fine-tuning, optional Bierman measurement updates |
-| IVP-82 | Confidence Gate | ESKF health + AHRS cross-check → binary confidence flag for Flight Director |
-| IVP-83 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
-| IVP-84 | Vehicle Parameter Profiles | Mission-specific Q/R presets per vehicle type (rocket, HAB, drone) |
+| IVP-83 | Phase-Scheduled Q/R + Innovation Adaptation | Per-phase noise models tied to state machine, innovation ratio fine-tuning, optional Bierman measurement updates |
+| IVP-84 | Confidence Gate | ESKF health + AHRS cross-check → binary confidence flag for Flight Director |
+| IVP-85 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
+| IVP-86 | Vehicle Parameter Profiles | Mission-specific Q/R presets per vehicle type (rocket, HAB, drone) |
 
 ---
 
-### IVP-81: Phase-Scheduled Q/R + Innovation Adaptation
+### IVP-83: Phase-Scheduled Q/R + Innovation Adaptation
 
 **Prerequisites:** IVP-68 (state machine provides flight phase detection), IVP-48 (ESKF tuned)
 
@@ -2539,9 +2592,9 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-### IVP-82: Confidence Gate
+### IVP-84: Confidence Gate
 
-**Prerequisites:** IVP-81, IVP-45 (Mahony AHRS)
+**Prerequisites:** IVP-83, IVP-45 (Mahony AHRS)
 
 **Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates ESKF innovation consistency and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director. This is the platform safety layer — NOT configurable by Mission Profiles.
 
@@ -2577,9 +2630,9 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-### IVP-83: Confidence-Gated Actions
+### IVP-85: Confidence-Gated Actions
 
-**Prerequisites:** IVP-82 (confidence gate), IVP-72 (action executor)
+**Prerequisites:** IVP-84 (confidence gate), IVP-72 (action executor)
 
 **Implement:** Wire confidence gate output into the Flight Director's action executor. When `confident = false`:
 - Pyro channels LOCKED (cannot fire)
@@ -2598,11 +2651,11 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-### IVP-84: Vehicle Parameter Profiles
+### IVP-86: Vehicle Parameter Profiles
 
-**Prerequisites:** IVP-81 (phase-scheduled Q/R framework)
+**Prerequisites:** IVP-83 (phase-scheduled Q/R framework)
 
-**Implement:** Mission-specific Q/R presets per vehicle type. The Q/R scheduling (IVP-81) selects values per flight phase — this step provides the actual phase definitions and noise parameters per vehicle type.
+**Implement:** Mission-specific Q/R presets per vehicle type. The Q/R scheduling (IVP-83) selects values per flight phase — this step provides the actual phase definitions and noise parameters per vehicle type.
 
 1. **Profile structure:**
    ```cpp
@@ -2638,12 +2691,12 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-85 | Yamcs Instance & XTCE | *(placeholder)* XTCE dictionary for CCSDS packets, Yamcs on RPi |
-| IVP-86 | OpenMCT Integration | *(placeholder)* OpenMCT via openmct-yamcs plugin, custom layouts |
-| IVP-87 | Ground Station Pi Image | *(placeholder)* Pre-built RPi OS image, turnkey operation |
-| IVP-88 | Post-Flight Analysis Tools | *(placeholder)* PCM to CCSDS replay, flight timeline, multi-flight overlay |
-| IVP-89 | Web Dashboard | *(placeholder)* Browser-based telemetry for field use |
-| IVP-90 | Mobile / Remote Access | *(placeholder)* WiFi AP on ground station Pi for phone/tablet |
+| IVP-87 | Yamcs Instance & XTCE | *(placeholder)* XTCE dictionary for CCSDS packets, Yamcs on RPi |
+| IVP-88 | OpenMCT Integration | *(placeholder)* OpenMCT via openmct-yamcs plugin, custom layouts |
+| IVP-89 | Ground Station Pi Image | *(placeholder)* Pre-built RPi OS image, turnkey operation |
+| IVP-90 | Post-Flight Analysis Tools | *(placeholder)* PCM to CCSDS replay, flight timeline, multi-flight overlay |
+| IVP-91 | Web Dashboard | *(placeholder)* Browser-based telemetry for field use |
+| IVP-92 | Mobile / Remote Access | *(placeholder)* WiFi AP on ground station Pi for phone/tablet |
 
 ---
 
@@ -2653,13 +2706,13 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-91 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
-| IVP-92 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
-| IVP-93 | Power Budget Validation | Battery runtime validation under flight load |
-| IVP-94 | Environmental Stress | Temperature range, vibration (if available) |
-| IVP-95 | Flight Test | Bungee-launched glider: full data capture + telemetry |
+| IVP-93 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
+| IVP-94 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
+| IVP-95 | Power Budget Validation | Battery runtime validation under flight load |
+| IVP-96 | Environmental Stress | Temperature range, vibration (if available) |
+| IVP-97 | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
-> **Milestone:** IVP-95 — **Flight Ready**.
+> **Milestone:** IVP-97 — **Flight Ready**.
 
 ---
 
@@ -2681,12 +2734,12 @@ Tests to re-run after changes to specific areas.
 | Fusion algorithm change | IVP-39 — IVP-48 | Filter correctness |
 | Data logging change | IVP-49 — IVP-54 | Data model, frames, buffer, flash |
 | Radio/telemetry change | IVP-57 — IVP-62 | Encoder, service, translation |
-| Adaptive estimation change | IVP-81 — IVP-84 | Q/R scheduling, confidence gate |
+| Adaptive estimation change | IVP-83 — IVP-86 | Q/R scheduling, confidence gate |
 | Watchdog policy change | IVP-66, IVP-30 | Recovery behavior + mechanism |
 | Flight Director change | IVP-67 — IVP-75 | State machine, guards, actions, mission config |
-| Active Object change | IVP-76 — IVP-80, IVP-73 | AO migration, bench flight sim regression |
+| Active Object change | IVP-76 — IVP-82, IVP-73 | AO migration, bench flight sim regression |
 | **Major refactor** | **All Stage 1-3** | Full regression |
-| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-66, IVP-73, IVP-91 | Release qualification (build, USB, flash, watchdog, recovery, bench flight sim, full bench test) |
+| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-66, IVP-73, IVP-93 | Release qualification (build, USB, flash, watchdog, recovery, bench flight sim, full bench test) |
 
 ---
 
