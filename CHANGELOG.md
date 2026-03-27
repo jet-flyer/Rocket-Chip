@@ -35,7 +35,11 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 **Accepted:** 2 CCN>20 CLI menu handlers (Ground code), QEP C-style casts (framework), ~40 snake_case parameter names (matches project convention).
 
-(`standards/STANDARDS_AUDIT_2026-03-26.md`, 20 source files)
+**Whiteboard:** Added deferred note — flash layout should derive from `PICO_FLASH_SIZE_BYTES` instead of hardcoding 8MB. Currently non-portable to boards with different flash sizes (e.g., Pimoroni Tiny2350, 4MB). Side project, not blocking.
+
+Session wrap-up: updated `docs/PROJECT_STATUS.md` (Stage 8 complete → Stage 9 next), `docs/SCAFFOLDING.md` (added profiles/, flight_director/, logging/, telemetry/, watchdog/, lib/qep/, new scripts), `.claude/SESSION_CHECKLIST.md` (fixed PROJECT_STATUS.md path reference).
+
+(`standards/STANDARDS_AUDIT_2026-03-26.md`, `docs/PROJECT_STATUS.md`, `docs/SCAFFOLDING.md`, `.claude/SESSION_CHECKLIST.md`, 20 source files)
 
 ### 2026-03-26-002B | Claude Code CLI | tooling, audit, standards
 

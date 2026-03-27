@@ -1,9 +1,9 @@
 # RocketChip Directory Structure
 
 **Created:** 2026-01-09
-**Updated:** 2026-02-24
+**Updated:** 2026-03-26
 
-**Status:** Reflects actual filesystem as of Stage 5 (Sensor Fusion). Previous ArduPilot integration archived in `AP_FreeRTOS` and `AP_ChibiOS` branches.
+**Status:** Reflects actual filesystem as of Stage 8 (Flight Director). Previous ArduPilot integration archived in `AP_FreeRTOS` and `AP_ChibiOS` branches.
 
 ## Build System
 
@@ -77,6 +77,7 @@ rocketchip/
 │   ├── VENDOR_GUIDELINES.md       # Hardware vendor constraints and datasheets
 │   ├── STANDARDS_AUDIT.md         # Audit template
 │   ├── STANDARDS_AUDIT_2026-02-07.md  # Manual audit (249 rules, 90% compliant)
+│   ├── STANDARDS_AUDIT_2026-03-26.md  # Tiered audit (Stage 8, 40 files, remediated)
 │   ├── AUDIT_REMEDIATION.md       # Line-level fix tracking
 │   ├── STANDARDS_DEVIATIONS.md    # Accepted deviation log
 │   └── protocols/
@@ -124,6 +125,35 @@ rocketchip/
 │   ├── cli/                       # CLI / Local GCS (Ground classification)
 │   │   └── rc_os.cpp/.h           # Serial menu, command dispatch, CLI hooks
 │   │
+│   ├── logging/                   # Data Logging (Stage 6)
+│   │   ├── data_convert.cpp/.h    # TelemetryState <-> FusedState conversion
+│   │   ├── pcm_frame.cpp/.h       # PCM frame encode/decode with CRC-16
+│   │   ├── ring_buffer.cpp/.h     # PSRAM ring buffer (50Hz, 152K frame capacity)
+│   │   ├── log_decimator.cpp/.h   # Box-car decimation (200→50Hz)
+│   │   ├── flight_table.cpp/.h    # Flash flight table (dual-sector, CRC-32)
+│   │   ├── flash_flush.cpp/.h     # Flash flush engine (PSRAM→flash)
+│   │   └── psram_init.cpp/.h      # APS6404L PSRAM detection + QPI configuration
+│   │
+│   ├── telemetry/                 # Telemetry (Stage 7)
+│   │   ├── telemetry_encoder.cpp/.h  # CCSDS + MAVLink v2 encoders
+│   │   └── telemetry_service.cpp/.h  # TX scheduling, station RX decode
+│   │
+│   ├── watchdog/                  # Watchdog Recovery (Stage 8)
+│   │   └── watchdog_recovery.cpp/.h  # Scratch register policy, safe mode
+│   │
+│   ├── flight_director/           # Flight Director (Stage 8)
+│   │   ├── flight_director.cpp/.h    # QEP HSM (9 states, descent superstate)
+│   │   ├── flight_state.h            # FlightPhase enum, FlightMarkers
+│   │   ├── mission_profile.h         # MissionProfile struct + ProfileId
+│   │   ├── mission_profile_data.h    # Generated from profiles/*.cfg
+│   │   ├── command_handler.cpp/.h    # ARM/DISARM/ABORT/RESET validation
+│   │   ├── go_nogo_checks.cpp/.h     # NASA-style Go/No-Go pre-arm poll
+│   │   ├── guard_functions.cpp/.h    # 6 guard functions (launch through landing)
+│   │   ├── guard_evaluator.cpp/.h    # Sustain counters + phase-validity
+│   │   ├── guard_combinator.cpp/.h   # AND/OR combinators + lockouts + timer backup
+│   │   ├── action_executor.cpp/.h    # Phase entry/exit/transition actions
+│   │   └── flight_actions.h          # Constexpr action arrays per phase
+│   │
 │   └── tools/
 │       └── mat_benchmark.cpp      # Matrix math benchmark (standalone target)
 │
@@ -160,13 +190,28 @@ rocketchip/
 │   ├── eskf_gps_soak.py           # ESKF GPS soak test
 │   ├── codegen_soak_test.py       # Binary change soak comparison
 │   ├── generate_fpft.py           # SymPy codegen for ESKF FPFT (CSE optimization)
-│   └── run_clang_tidy.sh          # clang-tidy runner with project config
+│   ├── generate_profile.py        # Mission profile .cfg → C++ header generator
+│   ├── bench_flight_sim.py        # Automated bench flight test (9 test cases)
+│   └── run_clang_tidy.sh          # Tiered audit: clang-tidy + lizard + RP2350 guards + Prior Art
 │
-├── lib/                           # External libraries (git submodules)
+├── lib/                           # External libraries (vendored / git submodules)
 │   ├── icm20948/                  # Vendor reference library
 │   ├── lwgps/                     # Lightweight GPS NMEA parser
 │   ├── ruuvi.dps310.c/            # Ruuvi DPS310 C driver
-│   └── ws2812b-animation/         # WS2812 animation library
+│   ├── ws2812b-animation/         # WS2812 animation library
+│   └── qep/                      # QP/C 8.1.3 (vendored, GPL-3.0)
+│       ├── qep_hsm.c             # QEP HSM dispatch engine (IVP-67)
+│       ├── qf_*.c                # QF Active Object framework (IVP-75)
+│       ├── qv.c                  # QV cooperative scheduler (IVP-75)
+│       ├── bsp_qv.c              # BSP shim (WFI idle, critical sections)
+│       ├── qp.h                  # QP/C public API
+│       ├── qp_port.h             # RP2350 port (PRIMASK, QEQueue, QV)
+│       └── qp_config.h           # QF_MAX_ACTIVE, QF_MAX_EPOOL config
+│
+├── profiles/                      # Mission Profile configuration (IVP-74)
+│   ├── rocket.cfg                 # Default rocket profile (user-editable)
+│   ├── hab.cfg                    # HAB example profile
+│   └── README.md                  # Field guide with safe ranges + delivery roadmap
 │
 ├── ground_station/                # Ground station (Fruit Jam + RFM95W breakout)
 │   ├── CMakeLists.txt             # Standalone Pico SDK build (adafruit_fruit_jam)

@@ -1,12 +1,14 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-03-08 (Stage 7 core complete, remaining IVPs deferred)
+**Last Updated:** 2026-03-26 (Stage 8 complete, audit remediated)
 
 ## Current Phase
 
-**Stage 7 COMPLETE** (core pipeline) — Radio & Telemetry (IVP-57–61)
+**Stage 8 COMPLETE** — Flight Director (IVP-66–75)
 
-Full telemetry pipeline working: vehicle encodes CCSDS over LoRa → Fruit Jam station receives and re-encodes as MAVLink → QGC connects via USB (High Latency mode) with live attitude data. Remaining Stage 7 IVPs deferred: IVP-62 (bidirectional commands, on `ivp62-wip` branch), IVP-63 (FSK + range, needs GCS UI), IVP-64 (rate tuning, deferred to post-Mission Profile), IVP-65 (native MAVLink radio, dropped — only useful with AP telem radios). Next: Stage 8 (Flight Director).
+10 IVPs: QEP hierarchical state machine, guard functions + combinators, Go/No-Go pre-arm, action executor, bench flight sim script, user-editable mission profiles (.cfg), QF+QV Active Object compile gate. 552/552 host tests, bench sim 9/9 PASS. Standards audit completed and remediated (2026-03-26).
+
+**Next: Stage 9** — Active Object Architecture (IVP-76–80). Preliminary migration plan in `docs/flight_director/ACTIVE_OBJECT_MIGRATION.md` (needs full plan + council review before implementation).
 
 ## Completed
 
@@ -42,11 +44,14 @@ Full telemetry pipeline working: vehicle encodes CCSDS over LoRa → Fruit Jam s
 | J: Fruit Jam HAL | J.1-J.3 | 2026-03-07 | Compile-time board abstraction (BSP). board.h selector, board_feather_rp2350.h, board_fruit_jam.h. All drivers use board:: constants. 15/15 parity gate items passed on Fruit Jam HW. Core 1 absent-sensor guards added |
 | 7: Telemetry Pipeline | IVP-58–61 | 2026-03-08 | CCSDS encoder, telemetry service, station RX+decode, Mission Profile infra, MAVLink v2 encoder (c_library_v2). QGC connected via FJ bridge (High Latency). 5-min soak: 607 pkts, 0 CRC, 98.7% delivery. IVP-62 deferred (USB CDC timing) |
 
+| 8: Flight Director | IVP-66–75 | 2026-03-26 | QEP HSM (9 states, descent superstate), guard functions + combinators + three-layer safety, Go/No-Go pre-arm, action executor (NeoPixel + pyro intent), bench flight sim (9/9 PASS), mission profile .cfg + generator, QF+QV compile gate. Council-reviewed (IVP-71, IVP-73, IVP-74). 552 host tests |
+| Standards Audit | — | 2026-03-26 | Tiered audit (clang-tidy + lizard + RP2350 guards + Prior Art). ~60 magic numbers remediated, 8 Prior Art blocks added, ring_buffer init fixed. See `standards/STANDARDS_AUDIT_2026-03-26.md` |
+
 ## In Progress
 
-**Next: Stage 8 (Flight Director)** — IVP-66 through IVP-70. Watchdog recovery policy, state machine core, event engine, action executor, mission configuration. Prerequisite: SAD Open Question #4 (Mealy vs Moore state machine) must be resolved before IVP-67.
+**Next: Stage 9 (Active Object Architecture)** — IVP-76 through IVP-80. QF+QV BSP activation, LED Engine AO, Flight Director AO, Logger + Telemetry AOs, superloop removal. Preliminary plan in `docs/flight_director/ACTIVE_OBJECT_MIGRATION.md`.
 
-**Then: Stage 9 (Adaptive Estimation & Safety)** — IVP-71 through IVP-74. Phase-scheduled Q/R (replaces MMAE — see `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`), confidence gate, confidence-gated actions, vehicle parameter profiles.
+**Then: Stage 10 (Adaptive Estimation)** — IVP-81 through IVP-84. Phase-scheduled Q/R matrices tied to flight phases, innovation-ratio adaptation layer. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`.
 
 ## Blockers
 

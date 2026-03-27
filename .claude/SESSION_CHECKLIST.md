@@ -29,7 +29,7 @@ Before committing and pushing:
 
 1. **Verify build compiles clean** — `cmake --build build/` with no errors
 2. **Update CHANGELOG.md** — What changed, who (which agent), why
-3. **Update PROJECT_STATUS.md** — Current phase, what's done, what's next, any new blockers
+3. **Update `docs/PROJECT_STATUS.md`** — Current phase, what's done, what's next, any new blockers
 4. **No orphaned work** — Every file change should be committed. No half-finished edits left in the working tree
 5. **No unintended deletions** — Run `git diff --stat` and verify the diff matches what you intended to change. If files were deleted, confirm that was intentional
 6. **Check AGENT_WHITEBOARD.md** — Update with current state, clear resolved items, add any new flags or open items discovered during the session
@@ -56,7 +56,7 @@ All of the above, plus:
 
 All of the normal completion items, plus:
 
-12. **Update PROJECT_STATUS.md** with milestone completion and next phase
+12. **Update `docs/PROJECT_STATUS.md`** with milestone completion and next phase
 13. **Review SCAFFOLDING.md** — If directory structure changed, update it
 14. **Consider LESSONS_LEARNED.md** — If significant debugging occurred, document it
 
