@@ -22,15 +22,14 @@
 
 ---
 
-### Stage 9 (Active Object Architecture) — IVP-76 Complete
+### Stage 9 (Active Object Architecture) — IVP-76 Verified, IVP-77-80 In Progress
 
-**Updated 2026-03-27.** IVP-76 QF+QV BSP integration complete. Council-reviewed (8 amendments). All 7 gates pass. Git tag `pre-qv-main` on `cedea7f`.
+**Updated 2026-03-27.** IVP-76 verified on hardware. IVP-77-80 attempted as batch — hit persistent `qf_actq id=130` (queue overflow). Reverted to IVP-76 baseline. Now re-adding AOs one at a time to isolate the trigger. AO source files preserved in `src/active_objects/`.
 
-- **QF_run() replaces while(true) in main().** Existing tick functions run from QV_onIdle bridge. AO_Blinker owns LED heartbeat. AO_Counter measures dispatch jitter (avg=100,000µs, 10Hz exact).
-- **System-wide signal catalog** in `ao_signals.h` (RcSignal enum). Ready for IVPs 77-80.
-- **QS (QP/Spy) DEFERRED** — source not vendored, no spare UART. IVP-82 (SPIN) covers AO interaction verification via formal model checking. Vendor QS later if AO debugging proves difficult.
-- **Watchdog stays in QV_onIdle permanently** (Council A2). Never an AO.
-- **Next:** IVP-77 (LED Engine AO) — first real module migration.
+- **Root cause investigation:** `rfm95w_send()` blocks 50-150ms (LoRa airtime). Timer ISR posts events during the block, overflowing queues. Council-reviewed fix: non-blocking driver (`send_start`/`send_poll`), deferred until telemetry behavior is fully designed (variable TX rates, bitstream modes). But the assert fires even with telemetry in idle — isolating which AO is the actual trigger.
+- **Incremental plan:** Add AO_LedEngine → verify → add AO_FlightDirector → verify → etc. Each must pass before the next is added.
+- **QS DEFERRED**, **Watchdog permanent in idle (A2)**, git tag `pre-qv-main` on `cedea7f`.
+- **AO_Telemetry (IVP-80):** will be deferred until non-blocking LoRa driver. Telemetry stays in idle.
 
 ### Stage 8 — IVP-66 through IVP-75 Complete
 
