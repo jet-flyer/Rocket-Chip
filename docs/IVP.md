@@ -18,7 +18,7 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stage 6** (Data Logging): Core items (IVP-49–54) HW verified. IVP-55–56 deferred (stretch goals).
 - **Stage 7** (Radio & Telemetry): Core items (IVP-57–61) HW verified. IVP-62 deferred (`ivp62-wip` branch). IVP-63–65 deferred (stretch goals).
 - **Stage 8** (Flight Director): COMPLETE — 10 IVPs (IVP-66–75), 552 host tests, bench sim 9/9
-- **Stage 9** (Active Object Architecture): Fully detailed — 7 IVPs (IVP-76–82), QF+QV migration + SPIN verification
+- **Stage 9** (Active Object Architecture): IVP-76–81 COMPLETE (6 AOs, QV scheduler, all gates passed). IVP-82a/82b (SPIN formal verification) remaining — council-reviewed, split into toolchain+FD model (82a) and full safety model (82b)
 - **Stages 10-12** (Adaptive Estimation, Ground Station, Integration): Placeholders expanded as earlier stages complete
 
 **Key references (not duplicated here):**
@@ -101,7 +101,7 @@ cmake --build build/
 | **6** | **Data Logging** | **Phase 5** | **IVP-49 — IVP-56** | **Core complete** | **(pulled forward)** |
 | **7** | **Radio & Telemetry** | **Phase 5** | **IVP-57 — IVP-65** | **Core complete** | |
 | 8 | Flight Director | Phase 6 | IVP-66 — IVP-75 | Full | **Crowdfunding Demo Ready** |
-| **9** | **Active Object Architecture** | **Phase 6** | **IVP-76 — IVP-82** | **Full** | |
+| **9** | **Active Object Architecture** | **Phase 6** | **IVP-76 — IVP-82b** | **Full** | |
 | 10 | Adaptive Estimation & Safety | Phase 6 | IVP-83 — IVP-86 | Placeholder | |
 | **11** | **Ground Station** | **Phase 7** | **IVP-87 — IVP-92** | **Placeholder** | |
 | 12 | System Integration | Phase 9 | IVP-93 — IVP-97 | Placeholder | **Flight Ready** |
@@ -2516,30 +2516,65 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-### IVP-82: SPIN Formal Verification
+### IVP-82a: SPIN Toolchain + Flight Director Model
 
 **Prerequisites:** IVP-81 (superloop removed, all AOs running under QV)
 
-**Rationale:** With 4-5 Active Objects communicating via typed events, the interaction state space is large enough that unit tests alone cannot guarantee absence of deadlock or event loss. SPIN exhaustively verifies properties across all possible event interleavings. This was identified in the IVP-67 toolchain evaluation as the right time to adopt SPIN. See `docs/flight_director/TOOLCHAIN_EVALUATION.md` SPIN section.
+**Rationale:** With 6 Active Objects communicating via typed events, the interaction state space is large enough that unit tests alone cannot guarantee absence of deadlock or event loss. SPIN exhaustively verifies properties across all possible event interleavings. This was identified in the IVP-67 toolchain evaluation as the right time to adopt SPIN. See `docs/flight_director/TOOLCHAIN_EVALUATION.md` SPIN section. Council-reviewed 2026-03-27 (Professor, JPL, Cubesat, ArduPilot — unanimous proceed with modifications).
 
 **Implement:**
 
-1. **Promela model of AO event topology.** Model each Active Object as a Promela process with a bounded channel (event queue). Model the event catalog: SIG_SENSOR_DATA, SIG_PHASE_CHANGE, EVT_LED_PATTERN, EVT_LOG, EVT_TELEM, SIG_CLI_COMMAND. Model pub-sub routing.
+1. **Install SPIN + MinGW-w64 GCC.** SPIN generates C code from Promela; GCC compiles the verifier. Sanity check with trivial 2-process model. Create `tools/spin/` directory.
 
-2. **Safety properties (LTL assertions):**
-   - No deadlock: all AO processes always eventually consume events
-   - No unbounded queue growth: channel lengths stay within configured bounds
-   - Pyro safety: `[](phase == IDLE -> !pyro_fired)` — pyro never fires in IDLE
-   - Liveness: `<>(phase == LANDED)` — LANDED is always eventually reachable from any flight phase
-   - No simultaneous drogue + main fire in the same tick
+2. **Flight Director HSM Promela model.** Model the FD as a single process with 10 states, guard signals as non-deterministic input, timer ticks as periodic input, pyro actions as variable writes + assertions. No sensor math, no floating-point.
 
-3. **Verification output.** Run SPIN exhaustive verification, document state space size, counterexamples (if any), and any model simplifications. Add Promela source to `tools/spin/` or `verification/`.
+3. **Basic safety properties:**
+   - No deadlock (built-in SPIN check)
+   - Pyro never fires in IDLE or LANDED
+   - No simultaneous drogue + main fire
 
 **[GATE]:**
-- Promela model compiles and runs in SPIN without syntax errors
-- Exhaustive verification completes (state space bounded)
-- All safety properties pass (or counterexamples are analyzed and model/code fixed)
-- Model documented: assumptions, simplifications, what is and isn't modeled
+- SPIN installed and working on Windows (MinGW GCC)
+- FD model compiles, runs, passes basic properties
+- State space documented
+
+---
+
+### IVP-82b: Full Safety Model + Mission-Critical Verification
+
+**Prerequisites:** IVP-82a (SPIN working, FD model verified)
+
+**Implement:**
+
+1. **Expand to 4 safety-critical processes.** FlightDirector (10-state HSM), GuardEvaluator (non-deterministic signal generation), ActionExecutor (pyro fire tracking), TickTimer (periodic tick delivery + timeout modeling). Council amendment: Logger/Telemetry/LED excluded from safety model (cannot cause pyro misfire).
+
+2. **Full safety properties (10 total, 5 from council):**
+   - No deadlock, no queue overflow
+   - Pyro never in IDLE/LANDED
+   - No simultaneous drogue + main fire
+   - Pyro requires prior ARMED state (Council: JPL)
+   - Pyro idempotent — no double-fire (Council: JPL)
+   - Guard timeout does not deadlock FD (Council: ArduPilot)
+   - Phase timeout always reachable (Council: ArduPilot)
+   - Monotonic phase progression — no backward except ABORT (Council: Professor)
+   - Liveness: LANDED always reachable
+
+3. **Mission-critical AO pass.** Add Logger, Telemetry, LedEngine as simple receiver processes. Verify: all SIG_PHASE_CHANGE events reach Logger and Telemetry (no silent drop), no queue overflow under launch burst, no AO starved indefinitely. Use bitstate hashing if state space too large.
+
+4. **Model-to-code mapping document** (Council: ArduPilot). Maps each Promela construct to C++ source. Required for model maintenance.
+
+5. **User guide** (`tools/spin/README.md`). Standalone documentation: install SPIN, run verification, interpret results, update model after code changes.
+
+**[GATE]:**
+- Full model (4 safety + 3 mission-critical processes) compiles and verifies
+- All 10 safety properties pass exhaustively
+- Mission-critical liveness properties pass (exhaustive or bitstate)
+- State space bounded and documented
+- Model-to-code mapping complete
+- User guide complete
+- Any counterexamples analyzed and resolved
+
+**[DIAG]:** State space explosion = model too detailed (abstract sensor data, focus on event routing). Deadlock found = event subscription missing or circular dependency. Property violation = real bug or model inaccuracy.
 
 **[DIAG]:** State space explosion = model too detailed (abstract sensor data, focus on event routing). Deadlock found = event subscription missing or circular dependency. Property violation = real bug or model inaccuracy.
 
