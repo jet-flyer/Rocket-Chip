@@ -354,10 +354,6 @@ else()
         # -------------------------------------------------------------------------
         src/active_objects/ao_blinker.cpp
         src/active_objects/ao_counter.cpp
-        src/active_objects/ao_led_engine.cpp
-        src/active_objects/ao_flight_director.cpp
-        src/active_objects/ao_logger.cpp
-        src/active_objects/ao_telemetry.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -401,10 +397,6 @@ else()
         src/flight_director/action_executor.cpp
         src/active_objects/ao_blinker.cpp
         src/active_objects/ao_counter.cpp
-        src/active_objects/ao_led_engine.cpp
-        src/active_objects/ao_flight_director.cpp
-        src/active_objects/ao_logger.cpp
-        src/active_objects/ao_telemetry.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 

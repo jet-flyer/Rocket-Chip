@@ -22,24 +22,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ### 2026-03-27-001 | Claude Code CLI | architecture, council
 
-**IVP-76 through IVP-80: Active Object Architecture (Stage 9).** Full superloop-to-AO migration in one session. Council-reviewed plan with 8 amendments.
+**IVP-76: QF+QV BSP Integration (Stage 9 start).** QF_run() replaces while(true) in main(). Existing tick functions run from QV_onIdle bridge during incremental migration. 100Hz tick via Pico SDK repeating timer (alarm IRQ). Two demo Active Objects: AO_Blinker (1Hz heartbeat LED, replaces heartbeat_tick) and AO_Counter (10Hz jitter measurement — standing regression test for migration). System-wide signal catalog (`ao_signals.h`) with RcSignal enum consolidating Flight Director signals + 9 new AO signals. Pub-sub infrastructure initialized. Council-reviewed with 8 amendments (A1: timer failure check, A2: watchdog permanently in idle, A3: event pool pre-wired, A4: no WFI during migration, A5: jitter regression test, A6: queue depth rationale, A7: signal enum rename, A8: git tag). QS (QP/Spy) tracing deferred — source not vendored, no spare UART; IVP-82 SPIN covers AO verification via formal model checking. All 7 gates pass. 552/552 host tests. 60s HW soak: 128K IMU reads, 4 errors (boot-only), ESKF healthy. Git tag `pre-qv-main` on `cedea7f`.
 
-**IVP-76 (BSP):** QF_run() replaces while(true) in main(). 100Hz tick via Pico SDK repeating timer (alarm IRQ). System-wide signal catalog (`ao_signals.h`, RcSignal enum). Pub-sub infrastructure. AO_Counter (10Hz jitter regression test). QS tracing deferred (source not vendored, no spare UART; IVP-82 SPIN covers AO verification). Git tag `pre-qv-main` on `cedea7f`.
-
-**IVP-77 (LED Engine AO):** NeoPixel ownership moved from Core 1 to Core 0 AO. `core1_neopixel_update()`, `neo_apply_override()`, `neo_set_if_changed()` removed from main.cpp. `g_calNeoPixelOverride` cross-core atomic eliminated — all LED state changes via events. Pattern deduplication prevents queue overflow from high-rate callers.
-
-**IVP-78 (Flight Director AO):** 100Hz time event wraps `flight_director_tick()`. Queue depth 16 (sized for ISR tick accumulation during blocking SPI sends).
-
-**IVP-79 (Logger AO):** 50Hz time event wraps `logging_tick()`. Queue depth 16.
-
-**IVP-80 (Telemetry AO):** 10Hz time event wraps `telemetry_radio_tick()` + `mavlink_direct_tick()`.
-
-`qv_idle_bridge()` reduced to: watchdog (permanent per A2), eskf (seqlock bridge), cli (polled input). main.cpp net -77 lines. 552/552 host tests. GDB-verified: all init flags true, QF_run dispatching, Core 1 sensor loop healthy.
-
-*Rationale: QV cooperative scheduler over FreeRTOS/ChibiOS — the dual-core architecture already isolates deterministic sensor sampling on Core 1, diminishing the primary advantage of a preemptive RTOS. QV provides decoupled modules, typed events, and priority-based scheduling without per-task stacks, mutexes, or context-switch overhead.*
+*Rationale: QV cooperative scheduler over FreeRTOS/ChibiOS — the dual-core architecture already isolates deterministic sensor sampling on Core 1, diminishing the primary advantage of a preemptive RTOS. QV provides decoupled modules, typed events, and priority-based scheduling without per-task stacks, mutexes, or context-switch overhead. Worst-case AO dispatch latency (~850µs from eskf_tick) is well within the 10ms budget at 100Hz.*
 
 (`lib/qep/qp_config.h`, `lib/qep/bsp_qv.c`, `src/main.cpp`, `src/flight_director/flight_director.h`, `CMakeLists.txt`)
-(**New:** `include/rocketchip/ao_signals.h`, `src/active_objects/ao_*.{h,cpp}` — 12 files)
+(**New:** `include/rocketchip/ao_signals.h`, `src/active_objects/ao_blinker.cpp`, `src/active_objects/ao_counter.cpp`)
 
 ### 2026-03-26-005 | Claude Code CLI | feature
 
