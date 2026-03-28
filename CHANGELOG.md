@@ -22,7 +22,25 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ### 2026-03-27-001 | Claude Code CLI | architecture, council
 
-**IVP-76: QF+QV BSP Integration (Stage 9 start).** QF_run() replaces while(true) in main(). Existing tick functions run from QV_onIdle bridge during incremental migration. 100Hz tick via Pico SDK repeating timer (alarm IRQ). Two demo Active Objects: AO_Blinker (1Hz heartbeat LED, replaces heartbeat_tick) and AO_Counter (10Hz jitter measurement — standing regression test for migration). System-wide signal catalog (`ao_signals.h`) with RcSignal enum consolidating Flight Director signals + 9 new AO signals. Pub-sub infrastructure initialized. Council-reviewed with 8 amendments (A1: timer failure check, A2: watchdog permanently in idle, A3: event pool pre-wired, A4: no WFI during migration, A5: jitter regression test, A6: queue depth rationale, A7: signal enum rename, A8: git tag). QS (QP/Spy) tracing deferred — source not vendored, no spare UART; IVP-82 SPIN covers AO verification via formal model checking. All 7 gates pass. 552/552 host tests. 60s HW soak: 128K IMU reads, 4 errors (boot-only), ESKF healthy. Git tag `pre-qv-main` on `cedea7f`.
+**IVP-76 through IVP-81: Active Object Architecture (Stage 9).** Full superloop-to-AO migration. Two council reviews (8 + 5 amendments). 6 Active Objects running under QV cooperative scheduler.
+
+**IVP-76 (BSP):** QF_run() replaces while(true). 100Hz tick timer, system-wide RcSignal catalog (`ao_signals.h`), pub-sub infrastructure. QS tracing deferred (source not vendored, no spare UART). Git tag `pre-qv-main`.
+
+**IVP-77 (LED Engine):** AO_LedEngine owns NeoPixel pattern state. ws2812 calls from Core 0 (33Hz tick). Static event race fixed (Council C5 — stack-local instead of static).
+
+**IVP-78 (Flight Director):** 100Hz time event wraps flight_director_tick(). Queue depth 32 to handle LoRa TX blocking (LL Entry 32).
+
+**IVP-79 (Logger):** 50Hz time event wraps logging_tick(). Queue depth 32.
+
+**IVP-80 (Telemetry):** 10Hz time event wraps telemetry_radio_tick() + mavlink_direct_tick(). Queue depth 32. Blocking rfm95w_send() (50-150ms LoRa airtime) inside AO handler is the root cause of queue overflow — pragmatic fix via depth 32, architectural fix (non-blocking driver) deferred.
+
+**IVP-81 (Superloop removal):** QV_onIdle reduced to watchdog (permanent, Council A2), ESKF (seqlock bridge), CLI (polled). sleep_ms(1) for USB CDC yield.
+
+**Blocking driver lesson (LL Entry 32):** Cooperative schedulers amplify blocking. `rfm95w_send()` was invisible in the superloop but caused `qf_actq id=130` assertion under QV — timer ISR posts events to all AO queues during the block. Incremental AO addition isolated AO_FlightDirector (100Hz = fastest queue fill) as the first victim. Queue depth 32 handles 320ms worst-case. Non-blocking driver (`send_start`/`send_poll`) is the proper long-term fix.
+
+*Rationale: QV cooperative scheduler over FreeRTOS/ChibiOS — the dual-core architecture isolates deterministic sensor sampling on Core 1, diminishing the primary RTOS advantage. QV gives decoupled modules, typed events, and priority scheduling without per-task stacks, mutexes, or context-switch overhead.*
+
+552/552 host tests. 60s HW soak: 288K IMU reads, 2 errors (boot-only), ESKF healthy, AO_Counter avg=100ms.
 
 *Rationale: QV cooperative scheduler over FreeRTOS/ChibiOS — the dual-core architecture already isolates deterministic sensor sampling on Core 1, diminishing the primary advantage of a preemptive RTOS. QV provides decoupled modules, typed events, and priority-based scheduling without per-task stacks, mutexes, or context-switch overhead. Worst-case AO dispatch latency (~850µs from eskf_tick) is well within the 10ms budget at 100Hz.*
 

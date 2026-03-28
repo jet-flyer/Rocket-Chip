@@ -6,13 +6,15 @@
 
 **Stage 9 IN PROGRESS** — Active Object Architecture (IVP-76–82)
 
-IVP-76 complete: QF+QV BSP integration. QF_run() replaces while(true) in main(). Existing tick functions run from QV_onIdle bridge during migration. 2 demo AOs (Blinker + Counter) validated on hardware. System-wide signal catalog (`ao_signals.h`) and pub-sub infrastructure established. Council-reviewed (8 amendments). All 7 gates pass. 552/552 host tests. 60s HW soak: 128K IMU reads, ESKF healthy.
+IVP-76 through IVP-81 complete. 6 Active Objects: FlightDirector (100Hz), Logger (50Hz), Telemetry (10Hz), LedEngine (33Hz), Blinker (1Hz), Counter (10Hz). QV_onIdle: watchdog (permanent), ESKF (seqlock bridge), CLI (polled). 552/552 host tests. 60s HW soak: 288K IMU reads, 2 errors (boot-only), ESKF healthy.
 
-**Architecture note:** QV (cooperative scheduler) chosen over FreeRTOS/ChibiOS because the dual-core AMP architecture already isolates deterministic sensor sampling on Core 1 — the primary reason for a preemptive RTOS is already handled by hardware. QV gives decoupled modules, typed events, and priority scheduling without per-task stacks, mutexes, or context-switch overhead.
+**Architecture note:** QV cooperative scheduler chosen over FreeRTOS/ChibiOS — dual-core AMP isolates deterministic sensor sampling on Core 1, diminishing the primary RTOS advantage. QV gives decoupled modules, typed events, priority scheduling without per-task stacks or mutexes.
 
-**QS (QP/Spy) tracing: DEFERRED.** QS source not vendored (only dummy header), no spare UART for trace output. IVP-82 (SPIN formal verification) covers AO interaction verification via exhaustive model checking. Vendor QS later if AO debugging proves difficult — route to PSRAM ring buffer for post-hoc dump.
+**Blocking driver lesson (LL Entry 32):** `rfm95w_send()` blocks 50-150ms on LoRa TX, starving QV dispatch. Pragmatic fix: queue depth 32 (handles 320ms worst-case). Proper fix: non-blocking driver (`send_start`/`send_poll`), deferred to telemetry overhaul which should also address variable TX rates and bitstream modes. See whiteboard deferred notes.
 
-**Next: IVP-77** — LED Engine Active Object. First real module migration (NeoPixel ownership moves from scattered calls to a single AO).
+**QS tracing: DEFERRED.** QS source not vendored, no spare UART. IVP-82 (SPIN) covers AO verification.
+
+**Next: IVP-82** — SPIN Formal Verification (needs dedicated plan).
 
 ## Completed
 
@@ -50,11 +52,11 @@ IVP-76 complete: QF+QV BSP integration. QF_run() replaces while(true) in main().
 
 | 8: Flight Director | IVP-66–75 | 2026-03-26 | QEP HSM (9 states, descent superstate), guard functions + combinators + three-layer safety, Go/No-Go pre-arm, action executor (NeoPixel + pyro intent), bench flight sim (9/9 PASS), mission profile .cfg + generator, QF+QV compile gate. Council-reviewed (IVP-71, IVP-73, IVP-74). 552 host tests |
 | Standards Audit | — | 2026-03-26 | Tiered audit (clang-tidy + lizard + RP2350 guards + Prior Art). ~60 magic numbers remediated, 8 Prior Art blocks added, ring_buffer init fixed. See `standards/STANDARDS_AUDIT_2026-03-26.md` |
-| 9: AO Foundation | IVP-76 | 2026-03-27 | QF+QV BSP integration. 100Hz tick timer, QV_onIdle bridge, system-wide RcSignal catalog (ao_signals.h), pub-sub infrastructure, 2 demo AOs (Blinker + Counter with jitter measurement). QF_run() replaces while(true). Council-reviewed (8 amendments). 552/552 host tests, 60s HW soak clean |
+| 9: Active Objects | IVP-76–81 | 2026-03-27 | QF+QV BSP, 6 AOs (FD/Logger/Telem/LED/Blinker/Counter), superloop removal. Council-reviewed (2 reviews, 13 amendments). Queue depth 32 for LoRa blocking (LL Entry 32). 552/552 host tests, 60s soak: 288K reads, 0 runtime errors |
 
 ## In Progress
 
-**Stage 9 (Active Object Architecture)** — IVP-76 done, IVP-77 next. LED Engine AO (IVP-77), Flight Director AO (IVP-78), Logger AO (IVP-79), Telemetry AO (IVP-80), superloop removal (IVP-81), SPIN formal verification (IVP-82). Council plan: `harmonic-watching-wall.md`.
+**Stage 9 (Active Object Architecture)** — IVP-76–81 complete. IVP-82 (SPIN formal verification) remains — needs dedicated plan.
 
 **Then: Stage 10 (Adaptive Estimation)** — IVP-83 through IVP-86. Phase-scheduled Q/R matrices tied to flight phases, innovation-ratio adaptation layer. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`.
 

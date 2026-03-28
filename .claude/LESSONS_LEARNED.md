@@ -984,6 +984,48 @@ The PA1010D's inability to acquire satellites while I2C SDA is held LOW was unex
 
 ---
 
+## Entry 32: Blocking Peripheral Drivers Violate QV Cooperative Scheduler Contract
+
+**Date:** 2026-03-27
+**Time Spent:** ~3 hours (multiple failed fix attempts before root cause identified)
+**Severity:** Critical — persistent crash (`qf_actq id=130`) on every boot
+
+### Problem
+After migrating superloop tick functions to QP/C QV Active Objects (Stage 9), the system crashed immediately with `[QP ASSERT] module=qf_actq, id=130` — AO event queue overflow. The crash persisted through multiple fix attempts (queue depth increases, sleep_ms, busy_wait, __wfi, static event fixes).
+
+### Symptoms
+- `[QP ASSERT] module=qf_actq, id=130` printed on serial within 1-3 seconds of boot
+- USB CDC disconnects and reconnects repeatedly (watchdog reset cycle)
+- GDB backtrace showed the timer ISR posting to AO_FlightDirector's queue during a telemetry handler's blocking SPI call
+
+### Root Cause
+**`rfm95w_send()` polls DIO0 for LoRa TxDone with a 150ms timeout.** LoRa SF7/125kHz airtime is 50-100ms per packet. This blocking call inside an AO handler (or QV_onIdle) prevents QV from dispatching any other AO for the duration.
+
+Meanwhile, the 100Hz QF tick timer fires from a hardware alarm ISR and posts time events to ALL AO queues. At 100Hz, a 150ms block generates 15 events. The Flight Director queue (initially depth 16) overflowed on the 17th event.
+
+**The fundamental issue:** A cooperative scheduler's contract is **run-to-completion in bounded time**. Any handler that blocks for longer than `queue_depth / event_rate` milliseconds will overflow other AOs' queues. This is not specific to LoRa — any blocking peripheral driver (SPI flash erase, GPS UART drain, I2C slow device) has the same potential.
+
+### Why This Didn't Happen in the Superloop
+The superloop called tick functions sequentially. While `rfm95w_send()` blocked, no timer ISR was posting to AO queues because there were no AOs. The blocking was invisible — it just delayed the next loop iteration. The transition to QV made the blocking visible by adding a timer ISR that keeps the system's event clock ticking regardless of what any single handler is doing.
+
+### Solution (Pragmatic)
+Increased ALL AO queue depths to 32. At 100Hz tick rate, depth 32 handles 320ms of blocking with margin. The LoRa worst case is 150ms (15 events at 100Hz), so 32 provides 2× headroom.
+
+### Solution (Architectural — Deferred)
+Split `rfm95w_send()` into non-blocking `rfm95w_send_start()` (write FIFO, set TX mode, return immediately) and `rfm95w_send_poll()` (read RegIrqFlags for TxDone). The telemetry AO calls start on one tick, polls on subsequent ticks. No handler blocks for more than ~1ms. Council-reviewed amendments: (C1) read RegIrqFlags register not GPIO pin — latched; (C2) 200ms timeout in TX_ACTIVE state; (C3) drop new packets during TX-in-progress.
+
+### Prevention
+1. **No blocking calls inside AO event handlers.** If a peripheral operation takes >1ms, use a start/poll split pattern (non-blocking TX, non-blocking flash erase, etc.). The QV handler must return within one tick period (10ms at 100Hz).
+2. **Size AO queues for the worst-case blocking in QV_onIdle.** If idle contains a blocking function (which it shouldn't long-term), ALL AO queues must be deep enough to absorb events for the duration: `depth >= (block_time_ms / tick_period_ms) × 2`.
+3. **The incremental approach works.** When migrating modules, add one AO at a time and verify. Batch migration hid the trigger — it took reverting to baseline and adding AOs one-by-one to isolate AO_FlightDirector (100Hz = fastest queue fill) as the first victim.
+4. **Cooperative schedulers amplify blocking.** Any code path that was "fine" in a superloop can become a crasher under QV. Audit ALL tick functions for blocking calls before wrapping in AOs.
+
+### Related
+- Council review (2026-03-27): Unanimous on non-blocking driver as architectural fix
+- ArduPilot SX1280 driver: Same pattern — start_transmit + completion poll
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here

@@ -22,14 +22,13 @@
 
 ---
 
-### Stage 9 (Active Object Architecture) — IVP-76 Verified, IVP-77-80 In Progress
+### Stage 9 (Active Object Architecture) — IVP-76–81 Complete, IVP-82 Next
 
-**Updated 2026-03-27.** IVP-76 verified on hardware. IVP-77-80 attempted as batch — hit persistent `qf_actq id=130` (queue overflow). Reverted to IVP-76 baseline. Now re-adding AOs one at a time to isolate the trigger. AO source files preserved in `src/active_objects/`.
+**Updated 2026-03-27.** 6 AOs running: FD(100Hz), Logger(50Hz), Telem(10Hz), LED(33Hz), Blinker(1Hz), Counter(10Hz). QV_onIdle: watchdog + ESKF + CLI. 60s soak: 288K IMU reads, 0 runtime errors.
 
-- **Root cause investigation:** `rfm95w_send()` blocks 50-150ms (LoRa airtime). Timer ISR posts events during the block, overflowing queues. Council-reviewed fix: non-blocking driver (`send_start`/`send_poll`), deferred until telemetry behavior is fully designed (variable TX rates, bitstream modes). But the assert fires even with telemetry in idle — isolating which AO is the actual trigger.
-- **Incremental plan:** Add AO_LedEngine → verify → add AO_FlightDirector → verify → etc. Each must pass before the next is added.
+- **Blocking LoRa TX resolved (LL Entry 32):** `rfm95w_send()` blocks 50-150ms, starving QV dispatch. Pragmatic fix: queue depth 32 (all AOs). Non-blocking driver deferred to telemetry overhaul (variable TX rates, bitstream modes). See deferred notes.
 - **QS DEFERRED**, **Watchdog permanent in idle (A2)**, git tag `pre-qv-main` on `cedea7f`.
-- **AO_Telemetry (IVP-80):** will be deferred until non-blocking LoRa driver. Telemetry stays in idle.
+- **Next:** IVP-82 (SPIN Formal Verification) — needs dedicated plan.
 
 ### Stage 8 — IVP-66 through IVP-75 Complete
 
