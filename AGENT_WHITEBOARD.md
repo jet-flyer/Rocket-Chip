@@ -28,7 +28,8 @@
 
 - **Blocking LoRa TX resolved (LL Entry 32):** `rfm95w_send()` blocks 50-150ms, starving QV dispatch. Pragmatic fix: queue depth 32 (all AOs). Non-blocking driver deferred to telemetry overhaul (variable TX rates, bitstream modes). See deferred notes.
 - **QS DEFERRED**, **Watchdog permanent in idle (A2)**, git tag `pre-qv-main` on `cedea7f`.
-- **Next:** IVP-82 (SPIN Formal Verification) — needs dedicated plan.
+- **IVP-82a COMPLETE:** SPIN 6.5.2 installed (Cygwin + MinGW GCC). FD-only Promela model verified exhaustively — 6 safety properties pass (73 states, 0 errors). Pyro never in IDLE, drogue-before-main, requires-ARMED, idempotent.
+- **IVP-82b IN PROGRESS:** Multi-process model (5 processes: Environment + FD + Logger + Telem + LED) written but state space too large for exhaustive verification even with bounded events (MAX_EVENTS=10). **Needs research** into SPIN best practices for message-passing systems: Holzmann's bounded modeling techniques, partial order reduction tuning, channel abstraction patterns. The FD-only model already covers the critical pyro safety properties.
 
 ### Stage 8 — IVP-66 through IVP-75 Complete
 
