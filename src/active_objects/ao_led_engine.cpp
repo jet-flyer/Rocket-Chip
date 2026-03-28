@@ -125,9 +125,11 @@ static QState LedEngine_initial(LedEngine * const me, QEvt const * const e) {
 static QState LedEngine_running(LedEngine * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_LED_TICK:
-        // TODO(IVP-77): Animation update disabled during incremental test.
-        // Core 1 still owns ws2812 — re-enable when NeoPixel migration completes.
-        (void)me;
+        // Animation update — drive ws2812 animation frame
+        if (me->current_pattern != kPatternOff) {
+            led_apply_pattern(me, me->current_pattern);
+        }
+        ws2812_update();
         return Q_HANDLED();
 
     case rc::SIG_LED_PATTERN:
@@ -190,9 +192,9 @@ void AO_LedEngine_post_pattern(uint8_t pattern) {
     s_lastPostedPattern = pattern;
 
     // Direct-post a pattern event to the LED engine.
-    // Stack-allocated — QV run-to-completion guarantees event is consumed
-    // before this frame exits.
-    static rc::LedPatternEvt evt;
+    // Stack-local — QV copies event into queue. Static was unsafe due to
+    // ISR preemption race (Council C5).
+    rc::LedPatternEvt evt;
     evt.super = QEVT_INITIALIZER(rc::SIG_LED_PATTERN);
     evt.pattern = pattern;
     QACTIVE_POST(&l_ledEngine.super, &evt.super, (void *)0);

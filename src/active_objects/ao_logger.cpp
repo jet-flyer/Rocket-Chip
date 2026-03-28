@@ -23,9 +23,9 @@ struct LoggerAo {
 
 static LoggerAo l_loggerAo;
 
-// Queue depth 16: tick events at 50Hz accumulate during blocking operations
-// (telemetry SPI ~5ms, flash writes). Need headroom for bursts. (A6, revised)
-static QEvtPtr l_loggerAoQueue[16];
+// Queue depth 32: tick events at 50Hz accumulate during LoRa TX blocking in
+// idle (50-150ms). At 50Hz, 150ms = ~8 events. Depth 32 gives ample margin.
+static QEvtPtr l_loggerAoQueue[32];
 
 static QState LoggerAo_initial(LoggerAo * const me, QEvt const * const e);
 static QState LoggerAo_running(LoggerAo * const me, QEvt const * const e);

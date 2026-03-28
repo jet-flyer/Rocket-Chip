@@ -48,6 +48,7 @@
 #include "ao_counter.h"            // IVP-76: demo AO (jitter measurement)
 #include "ao_led_engine.h"         // IVP-77: NeoPixel LED AO (incremental test)
 #include "ao_flight_director.h"    // IVP-78: Flight Director AO (incremental test)
+#include "ao_logger.h"             // IVP-79: Logger AO (incremental test)
 #include "qp_port.h"   // QP/C QEP (IVP-67): Q_onError, QHsm types
 #include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
@@ -2986,7 +2987,8 @@ static void populate_fused_state(rc::FusedState& fused,
     fused.met_ms = to_ms_since_boot(get_absolute_time());
 }
 
-static void logging_tick() {
+// Non-static for AO_Logger extern "C" bridge (IVP-79 incremental test)
+extern "C" void logging_tick() {
     if (!g_loggingInitialized || !g_eskfInitialized) {
         return;
     }
@@ -3180,10 +3182,11 @@ int main() {
     QActive_psInit(g_subscrList, Q_DIM(g_subscrList));
 
     // Start Active Objects — incremental add, one at a time
-    AO_FlightDirector_start(5U); // IVP-78: FD AO (idle also calls FD tick — deduped by rate limiter)
-    AO_LedEngine_start(3U);  // IVP-77: LED engine (no migration yet, just AO running)
-    AO_Blinker_start(2U);    // IVP-76: heartbeat LED
-    AO_Counter_start(1U);    // IVP-76: jitter measurement
+    AO_FlightDirector_start(5U); // IVP-78: FD AO
+    AO_Logger_start(4U);         // IVP-79: Logger AO
+    AO_LedEngine_start(3U);     // IVP-77: LED engine
+    AO_Blinker_start(2U);       // IVP-76: heartbeat LED
+    AO_Counter_start(1U);       // IVP-76: jitter measurement
 
     // QF_run() replaces while(true) — never returns.
     // QV cooperative scheduler dispatches AOs, calls QV_onIdle() (which runs
