@@ -47,6 +47,7 @@
 #include "ao_blinker.h"            // IVP-76: demo AO (heartbeat LED)
 #include "ao_counter.h"            // IVP-76: demo AO (jitter measurement)
 #include "ao_led_engine.h"         // IVP-77: NeoPixel LED AO (incremental test)
+#include "ao_flight_director.h"    // IVP-78: Flight Director AO (incremental test)
 #include "qp_port.h"   // QP/C QEP (IVP-67): Q_onError, QHsm types
 #include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
@@ -2456,7 +2457,8 @@ static void eskf_tick() {
 
 static uint32_t g_lastFdTickMs = 0;
 
-static void flight_director_tick() {
+// Non-static for AO_FlightDirector extern "C" bridge (IVP-78 incremental test)
+extern "C" void flight_director_tick() {
     if (!g_directorInitialized) {
         return;
     }
@@ -3159,6 +3161,10 @@ extern "C" void qv_idle_bridge(void) {
 
     g_lastTickFunction = "idle";
     g_recovery.current_tick_fn = rc::TickFnId::kSleep;
+    // Yield — telemetry_radio_tick blocks 50-150ms on LoRa TX. Without yield,
+    // QV can't dispatch AO events during the block, overflowing queues.
+    // sleep_ms(1) matches original superloop and gives QV dispatch opportunities.
+    sleep_ms(1);
 }
 
 // ============================================================================
@@ -3174,6 +3180,7 @@ int main() {
     QActive_psInit(g_subscrList, Q_DIM(g_subscrList));
 
     // Start Active Objects — incremental add, one at a time
+    AO_FlightDirector_start(5U); // IVP-78: FD AO (idle also calls FD tick — deduped by rate limiter)
     AO_LedEngine_start(3U);  // IVP-77: LED engine (no migration yet, just AO running)
     AO_Blinker_start(2U);    // IVP-76: heartbeat LED
     AO_Counter_start(1U);    // IVP-76: jitter measurement

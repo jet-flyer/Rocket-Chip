@@ -27,10 +27,11 @@ struct FdAo {
 
 static FdAo l_fdAo;
 
-// Queue depth 16: tick events accumulate while lower-priority AOs block the
-// QV scheduler (e.g., telemetry SPI send ~5ms). At 100Hz, need headroom for
-// ~5-10 ticks during a single blocking operation. (A6, revised after HW test)
-static QEvtPtr l_fdAoQueue[16];
+// Queue depth 32: tick events accumulate while telemetry_radio_tick() blocks
+// in QV_onIdle (rfm95w_send polls DIO0 for 50-150ms LoRa airtime). At 100Hz,
+// 150ms = 15 events. Depth 32 gives 2x margin. Real fix: non-blocking LoRa
+// driver (see whiteboard deferred notes). (A6, revised after HW test)
+static QEvtPtr l_fdAoQueue[32];
 
 // Forward declarations
 static QState FdAo_initial(FdAo * const me, QEvt const * const e);

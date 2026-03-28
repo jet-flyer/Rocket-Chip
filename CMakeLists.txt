@@ -355,6 +355,7 @@ else()
         src/active_objects/ao_blinker.cpp
         src/active_objects/ao_counter.cpp
         src/active_objects/ao_led_engine.cpp
+        src/active_objects/ao_flight_director.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
