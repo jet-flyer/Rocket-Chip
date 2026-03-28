@@ -46,6 +46,7 @@
 #include "rocketchip/ao_signals.h"  // IVP-76: system-wide signal catalog
 #include "ao_blinker.h"            // IVP-76: demo AO (heartbeat LED)
 #include "ao_counter.h"            // IVP-76: demo AO (jitter measurement)
+#include "ao_led_engine.h"         // IVP-77: NeoPixel LED AO (incremental test)
 #include "qp_port.h"   // QP/C QEP (IVP-67): Q_onError, QHsm types
 #include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
@@ -3172,9 +3173,10 @@ int main() {
     QF_init();
     QActive_psInit(g_subscrList, Q_DIM(g_subscrList));
 
-    // Start demo Active Objects (priorities per D4 table, demo AOs at low prio)
-    AO_Blinker_start(2U);   // Priority 2: heartbeat LED
-    AO_Counter_start(1U);   // Priority 1: jitter measurement
+    // Start Active Objects — incremental add, one at a time
+    AO_LedEngine_start(3U);  // IVP-77: LED engine (no migration yet, just AO running)
+    AO_Blinker_start(2U);    // IVP-76: heartbeat LED
+    AO_Counter_start(1U);    // IVP-76: jitter measurement
 
     // QF_run() replaces while(true) — never returns.
     // QV cooperative scheduler dispatches AOs, calls QV_onIdle() (which runs

@@ -125,11 +125,9 @@ static QState LedEngine_initial(LedEngine * const me, QEvt const * const e) {
 static QState LedEngine_running(LedEngine * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_LED_TICK:
-        // Animation update — drive ws2812 animation frame
-        if (me->current_pattern != kPatternOff) {
-            led_apply_pattern(me, me->current_pattern);
-        }
-        ws2812_update();
+        // TODO(IVP-77): Animation update disabled during incremental test.
+        // Core 1 still owns ws2812 — re-enable when NeoPixel migration completes.
+        (void)me;
         return Q_HANDLED();
 
     case rc::SIG_LED_PATTERN:
