@@ -49,6 +49,7 @@
 #include "ao_led_engine.h"         // IVP-77: NeoPixel LED AO (incremental test)
 #include "ao_flight_director.h"    // IVP-78: Flight Director AO (incremental test)
 #include "ao_logger.h"             // IVP-79: Logger AO (incremental test)
+#include "ao_telemetry.h"          // IVP-80: Telemetry AO
 #include "qp_port.h"   // QP/C QEP (IVP-67): Q_onError, QHsm types
 #include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
@@ -3039,7 +3040,8 @@ static constexpr uint32_t kMavDirectIntervalMs = 100;  // 10 Hz output
 static constexpr uint8_t  kMavFrameBufSize     = 64;
 static uint32_t g_lastMavDirectMs = 0;
 
-static void mavlink_direct_tick(uint32_t nowMs) {
+// Non-static for AO_Telemetry extern "C" bridge (IVP-80)
+extern "C" void mavlink_direct_tick(uint32_t nowMs) {
     if (!g_telemService.mavlink_output) { return; }
     if constexpr (kRadioModeRx) { return; }  // Station uses RX path
     if (!g_latestTelemValid) { return; }
@@ -3084,7 +3086,8 @@ static void mavlink_direct_tick(uint32_t nowMs) {
 static constexpr uint32_t kRxGapWarningMs = 1000;   // Yellow blink after 1s
 static constexpr uint32_t kRxGapLostMs    = 5000;   // Red blink after 5s
 
-static void telemetry_radio_tick(uint32_t nowMs) {
+// Non-static for AO_Telemetry extern "C" bridge (IVP-80)
+extern "C" void telemetry_radio_tick(uint32_t nowMs) {
     if (!g_radioInitialized) { return; }
 
     if (g_telemService.mode == rc::RadioMode::kTx) {
@@ -3129,9 +3132,11 @@ static QSubscrList g_subscrList[rc::SIG_AO_MAX];
 // Council A4: No __wfi() — tick functions require polling every iteration.
 //             __wfi() only after IVP-81 when all work is event-driven.
 extern "C" void qv_idle_bridge(void) {
-    uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-
-    // heartbeat_tick removed — AO_Blinker owns LED heartbeat (IVP-76)
+    // Watchdog (Council A2: permanent), ESKF (seqlock bridge), CLI (polled).
+    // FD → AO_FlightDirector (IVP-78)
+    // Logger → AO_Logger (IVP-79)
+    // Telemetry → AO_Telemetry (IVP-80)
+    // LED → AO_LedEngine (IVP-77)
 
     g_lastTickFunction = "watchdog";
     g_recovery.current_tick_fn = rc::TickFnId::kWatchdog;
@@ -3140,22 +3145,6 @@ extern "C" void qv_idle_bridge(void) {
     g_lastTickFunction = "eskf";
     g_recovery.current_tick_fn = rc::TickFnId::kEskf;
     eskf_tick();
-
-    g_lastTickFunction = "flight_director";
-    g_recovery.current_tick_fn = rc::TickFnId::kFlightDirector;
-    flight_director_tick();
-
-    g_lastTickFunction = "logging";
-    g_recovery.current_tick_fn = rc::TickFnId::kLogging;
-    logging_tick();
-
-    g_lastTickFunction = "radio";
-    g_recovery.current_tick_fn = rc::TickFnId::kRadio;
-    telemetry_radio_tick(nowMs);
-
-    g_lastTickFunction = "mavlink";
-    g_recovery.current_tick_fn = rc::TickFnId::kMavlink;
-    mavlink_direct_tick(nowMs);
 
     g_lastTickFunction = "cli";
     g_recovery.current_tick_fn = rc::TickFnId::kCli;
@@ -3182,11 +3171,11 @@ int main() {
     QActive_psInit(g_subscrList, Q_DIM(g_subscrList));
 
     // Start Active Objects — incremental add, one at a time
-    AO_FlightDirector_start(5U); // IVP-78: FD AO
-    AO_Logger_start(4U);         // IVP-79: Logger AO
-    AO_LedEngine_start(3U);     // IVP-77: LED engine
-    AO_Blinker_start(2U);       // IVP-76: heartbeat LED
-    AO_Counter_start(1U);       // IVP-76: jitter measurement
+    AO_FlightDirector_start(5U); // IVP-78: FD AO (100Hz)
+    AO_Logger_start(4U);         // IVP-79: Logger AO (50Hz)
+    AO_Telemetry_start(3U);     // IVP-80: Telemetry AO (10Hz)
+    AO_LedEngine_start(2U);     // IVP-77: LED engine (33Hz)
+    AO_Counter_start(1U);       // IVP-76: jitter measurement (10Hz)
 
     // QF_run() replaces while(true) — never returns.
     // QV cooperative scheduler dispatches AOs, calls QV_onIdle() (which runs

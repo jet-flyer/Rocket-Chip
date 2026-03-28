@@ -26,8 +26,11 @@ struct TelemAo {
 
 static TelemAo l_telemAo;
 
-// Queue depth 4: tick events only, max 1 pending at a time. (A6)
-static QEvtPtr l_telemAoQueue[4];
+// Queue depth 32: telemetry handler blocks on rfm95w_send (50-150ms LoRa
+// airtime). During the block, timer ISR posts events to all AO queues.
+// At 10Hz, the telem queue itself only gets ~1 event per 100ms — but the
+// depth matches other AOs for consistency. (A6, revised)
+static QEvtPtr l_telemAoQueue[32];
 
 static QState TelemAo_initial(TelemAo * const me, QEvt const * const e);
 static QState TelemAo_running(TelemAo * const me, QEvt const * const e);
