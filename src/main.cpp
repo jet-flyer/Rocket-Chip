@@ -3152,10 +3152,13 @@ extern "C" void qv_idle_bridge(void) {
 
     g_lastTickFunction = "idle";
     g_recovery.current_tick_fn = rc::TickFnId::kSleep;
-    // Yield — telemetry_radio_tick blocks 50-150ms on LoRa TX. Without yield,
-    // QV can't dispatch AO events during the block, overflowing queues.
-    // sleep_ms(1) matches original superloop and gives QV dispatch opportunities.
-    sleep_ms(1);
+    // WFI: sleep until next interrupt (100Hz QF tick, USB CDC, etc.).
+    // Correct QV idle pattern per Samek. Tick functions above run once per
+    // idle call, then WFI suspends until next event source fires.
+    // Power: ~45mW (WFI) vs ~140mW (busy loop). Significant for ground ops.
+    // Previous sleep_ms(1) was a workaround for misdiagnosed OpenOCD
+    // interference — WFI is safe with USB CDC (USB IRQs wake the core).
+    __wfi();
 }
 
 // ============================================================================

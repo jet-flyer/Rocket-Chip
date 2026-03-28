@@ -70,9 +70,10 @@ void QF_onCleanup(void) {
 // Called by QV scheduler when all Active Object event queues are empty.
 // QV disables interrupts before calling — we must re-enable them.
 //
-// IMPORTANT (Council A4): No __wfi() while tick functions remain in the
-// idle body. Tick functions require polling every iteration. __wfi() is
-// only correct after IVP-81 when all work is event-driven.
+// Council A4 resolved (IVP-81): __wfi() active in bridge after tick
+// functions. Tick functions run once per idle call, then WFI suspends
+// until next interrupt (100Hz QF tick, USB CDC, etc.). Previous
+// sleep_ms(1) was a workaround for misdiagnosed OpenOCD interference.
 //
 // IMPORTANT (Council A2): watchdog_kick_tick() stays here PERMANENTLY.
 // It never moves into an AO. This is a system-level invariant — if QV
