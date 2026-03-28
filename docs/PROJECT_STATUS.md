@@ -1,20 +1,14 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-03-27 (Stage 9 started, IVP-76 complete)
+**Last Updated:** 2026-03-27 (Stage 9 COMPLETE)
 
 ## Current Phase
 
-**Stage 9 IN PROGRESS** — Active Object Architecture (IVP-76–82)
+**Stage 9 COMPLETE** — Active Object Architecture (IVP-76–82b)
 
-IVP-76 through IVP-81 complete. 6 Active Objects: FlightDirector (100Hz), Logger (50Hz), Telemetry (10Hz), LedEngine (33Hz), Blinker (1Hz), Counter (10Hz). QV_onIdle: watchdog (permanent), ESKF (seqlock bridge), CLI (polled). 552/552 host tests. 60s HW soak: 288K IMU reads, 2 errors (boot-only), ESKF healthy.
+6 Active Objects under QV cooperative scheduler, SPIN formal verification of pyro safety + event delivery. 552/552 host tests, bench sim 9/9, 10-min soak clean, 8 SPIN properties verified exhaustively (107,818 states, 0 errors).
 
-**Architecture note:** QV cooperative scheduler chosen over FreeRTOS/ChibiOS — dual-core AMP isolates deterministic sensor sampling on Core 1, diminishing the primary RTOS advantage. QV gives decoupled modules, typed events, priority scheduling without per-task stacks or mutexes.
-
-**Blocking driver lesson (LL Entry 32):** `rfm95w_send()` blocks 50-150ms on LoRa TX, starving QV dispatch. Pragmatic fix: queue depth 32 (handles 320ms worst-case). Proper fix: non-blocking driver (`send_start`/`send_poll`), deferred to telemetry overhaul which should also address variable TX rates and bitstream modes. See whiteboard deferred notes.
-
-**QS tracing: DEFERRED.** QS source not vendored, no spare UART. IVP-82 (SPIN) covers AO verification.
-
-**Next: IVP-82** — SPIN Formal Verification (needs dedicated plan).
+**Next: Stage 10** — Adaptive Estimation & Safety (IVP-83–86). Phase-scheduled Q/R matrices tied to flight phases, innovation-ratio adaptation layer.
 
 ## Completed
 
@@ -52,13 +46,11 @@ IVP-76 through IVP-81 complete. 6 Active Objects: FlightDirector (100Hz), Logger
 
 | 8: Flight Director | IVP-66–75 | 2026-03-26 | QEP HSM (9 states, descent superstate), guard functions + combinators + three-layer safety, Go/No-Go pre-arm, action executor (NeoPixel + pyro intent), bench flight sim (9/9 PASS), mission profile .cfg + generator, QF+QV compile gate. Council-reviewed (IVP-71, IVP-73, IVP-74). 552 host tests |
 | Standards Audit | — | 2026-03-26 | Tiered audit (clang-tidy + lizard + RP2350 guards + Prior Art). ~60 magic numbers remediated, 8 Prior Art blocks added, ring_buffer init fixed. See `standards/STANDARDS_AUDIT_2026-03-26.md` |
-| 9: Active Objects | IVP-76–81 | 2026-03-27 | QF+QV BSP, 6 AOs (FD/Logger/Telem/LED/Blinker/Counter), superloop removal. Council-reviewed (2 reviews, 13 amendments). Queue depth 32 for LoRa blocking (LL Entry 32). 552/552 host tests, 60s soak: 288K reads, 0 runtime errors |
+| 9: Active Objects | IVP-76–82b | 2026-03-27 | QF+QV BSP, 6 AOs, superloop removal, SPIN formal verification. Council-reviewed (3 reviews, 18 amendments total). Queue depth 32 for LoRa blocking (LL Entry 32). 8 SPIN properties verified (107K states, 0 errors). 552/552 host tests, bench sim 9/9, 10-min soak clean. Verification overview doc added |
 
 ## In Progress
 
-**Stage 9 (Active Object Architecture)** — IVP-76–81 complete. IVP-82 (SPIN formal verification) remains — needs dedicated plan.
-
-**Then: Stage 10 (Adaptive Estimation)** — IVP-83 through IVP-86. Phase-scheduled Q/R matrices tied to flight phases, innovation-ratio adaptation layer. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`.
+**Stage 10 (Adaptive Estimation & Safety)** — IVP-83 through IVP-86. Phase-scheduled Q/R matrices tied to flight phases, innovation-ratio adaptation layer. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`.
 
 ## Blockers
 

@@ -22,14 +22,14 @@
 
 ---
 
-### Stage 9 (Active Object Architecture) — IVP-76–81 Complete, IVP-82 Next
+### Stage 9 (Active Object Architecture) — COMPLETE
 
-**Updated 2026-03-27.** 6 AOs running: FD(100Hz), Logger(50Hz), Telem(10Hz), LED(33Hz), Blinker(1Hz), Counter(10Hz). QV_onIdle: watchdog + ESKF + CLI. 60s soak: 288K IMU reads, 0 runtime errors.
+**Updated 2026-03-27.** IVP-76 through IVP-82b complete. 6 AOs running, SPIN formal verification passing all 8 properties (107,818 states, 0 errors, 37ms each). 552/552 host tests, bench sim 9/9, 10-min soak clean.
 
-- **Blocking LoRa TX resolved (LL Entry 32):** `rfm95w_send()` blocks 50-150ms, starving QV dispatch. Pragmatic fix: queue depth 32 (all AOs). Non-blocking driver deferred to telemetry overhaul (variable TX rates, bitstream modes). See deferred notes.
+- **Blocking LoRa TX (LL Entry 32):** Queue depth 32 handles 150ms blocking. Non-blocking driver deferred to telemetry overhaul. See deferred notes.
+- **SPIN verification:** 5 safety properties (pyro never in IDLE, drogue-before-main, requires-ARMED, idempotent) + 3 mission-critical (event delivery to Logger/Telem/LED). Runs in <1s — suitable as pre-commit check on any state machine change.
+- **Verification Overview:** `docs/VERIFICATION_OVERVIEW.md` — unified guide to all 5 verification layers.
 - **QS DEFERRED**, **Watchdog permanent in idle (A2)**, git tag `pre-qv-main` on `cedea7f`.
-- **IVP-82a COMPLETE:** SPIN 6.5.2 installed (Cygwin + MinGW GCC). FD-only Promela model verified exhaustively — 6 safety properties pass (73 states, 0 errors). Pyro never in IDLE, drogue-before-main, requires-ARMED, idempotent.
-- **IVP-82b IN PROGRESS:** Multi-process model (5 processes: Environment + FD + Logger + Telem + LED) written but state space too large for exhaustive verification even with bounded events (MAX_EVENTS=10). **Needs research** into SPIN best practices for message-passing systems: Holzmann's bounded modeling techniques, partial order reduction tuning, channel abstraction patterns. The FD-only model already covers the critical pyro safety properties.
 
 ### Stage 8 — IVP-66 through IVP-75 Complete
 

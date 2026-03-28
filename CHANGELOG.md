@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-27-002 | Claude Code CLI | architecture, council
+
+**IVP-82a/82b: SPIN Formal Verification (Stage 9 completion).** SPIN 6.5.2 + MinGW GCC + Cygwin toolchain installed. Two Promela models: FD-only (73 states) and full AO topology (107,818 states). 8 properties verified exhaustively in 37ms each — 5 safety (pyro-never-in-IDLE, drogue-before-main, requires-ARMED, drogue-once, main-once) + 3 mission-critical (event delivery to Logger/Telem/LED). Council-reviewed (4 panelists, 5 amendments). Key optimization: `atomic{}` blocks simulate QV run-to-completion, channel depth [1] (safety depends on ordering not buffering). Verification overview doc added (`docs/VERIFICATION_OVERVIEW.md`) unifying all 5 verification layers.
+
+(`tools/spin/rocketchip_fd.pml`, `tools/spin/rocketchip_ao.pml`, `tools/spin/README.md`, `docs/VERIFICATION_OVERVIEW.md`)
+
 ### 2026-03-27-001 | Claude Code CLI | architecture, council
 
 **IVP-76 through IVP-81: Active Object Architecture (Stage 9).** Full superloop-to-AO migration. Two council reviews (8 + 5 amendments). 6 Active Objects running under QV cooperative scheduler.
