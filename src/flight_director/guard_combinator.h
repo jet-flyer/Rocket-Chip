@@ -38,6 +38,7 @@ struct SafetyLockout {
     float deploy_lockout_mps;       // From MissionProfile
     uint32_t apogee_lockout_ms;     // From MissionProfile
     bool eskf_healthy;              // ESKF health flag (Council A2)
+    bool confident;                 // Confidence gate flag (IVP-85)
 };
 
 // Guard combinator configuration (one per managed transition)

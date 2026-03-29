@@ -128,6 +128,12 @@ uint16_t combinator_set_evaluate(CombinatorSet* cs,
         bool vel_locked = velocity_locked(lockout);
         bool t_locked = time_locked(lockout);
 
+        // Confidence gate (IVP-85): when uncertain, block all pyro-bearing signals.
+        // No fallback — when uncertain, the safest action is no action.
+        if (!lockout.confident) {
+            continue;
+        }
+
         // Layer 2: Sensor detection (requires lockouts clear)
         if (!vel_locked && !t_locked) {
             if (evaluate_sensors(c, ev)) {

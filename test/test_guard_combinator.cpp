@@ -24,6 +24,7 @@ static SafetyLockout make_lockout_clear() {
     lo.deploy_lockout_mps = kDefaultRocketProfile.deploy_lockout_mps;
     lo.apogee_lockout_ms = kDefaultRocketProfile.apogee_lockout_ms;
     lo.eskf_healthy = true;
+    lo.confident = true;         // IVP-85: confident by default
     return lo;
 }
 
@@ -331,4 +332,58 @@ TEST_F(CombinatorTest, CombinatorNotActiveInWrongPhase) {
     // Apogee combinator only valid in COAST, not ARMED
     uint16_t sig = combinator_set_evaluate(&cs, FlightPhase::kArmed, &ev, lo, kTickMs);
     EXPECT_EQ(sig, SIG_MAX);
+}
+
+// ============================================================================
+// IVP-85: Confidence-gated actions
+// ============================================================================
+
+TEST_F(CombinatorTest, ConfidenceFalseBlocksSensorFire) {
+    set_sustained(GuardId::kApogeeVelocity, true);
+    set_sustained(GuardId::kBaroPeak, true);
+    SafetyLockout lo = make_lockout_clear();
+    lo.confident = false;  // Uncertain
+
+    uint16_t sig = combinator_set_evaluate(&cs, FlightPhase::kCoast, &ev, lo, kTickMs);
+    EXPECT_EQ(sig, SIG_MAX) << "Pyro should be blocked when uncertain";
+}
+
+TEST_F(CombinatorTest, ConfidenceFalseBlocksTimerBackup) {
+    SafetyLockout lo = make_lockout_clear();
+    lo.confident = false;
+
+    // Advance elapsed time past backup timeout
+    for (uint32_t i = 0; i < 2000; ++i) {
+        combinator_set_evaluate(&cs, FlightPhase::kCoast, &ev, lo, kTickMs);
+    }
+
+    // Timer backup should NOT fire when uncertain
+    uint16_t sig = combinator_set_evaluate(&cs, FlightPhase::kCoast, &ev, lo, kTickMs);
+    EXPECT_EQ(sig, SIG_MAX) << "Timer backup blocked when uncertain";
+}
+
+TEST_F(CombinatorTest, ConfidenceRecoveryAllowsFire) {
+    set_sustained(GuardId::kApogeeVelocity, true);
+    set_sustained(GuardId::kBaroPeak, true);
+    SafetyLockout lo = make_lockout_clear();
+    lo.confident = false;
+
+    // Blocked
+    uint16_t sig = combinator_set_evaluate(&cs, FlightPhase::kCoast, &ev, lo, kTickMs);
+    EXPECT_EQ(sig, SIG_MAX);
+
+    // Confidence recovers
+    lo.confident = true;
+    sig = combinator_set_evaluate(&cs, FlightPhase::kCoast, &ev, lo, kTickMs);
+    EXPECT_EQ(sig, SIG_APOGEE) << "Should fire after confidence recovery";
+}
+
+TEST_F(CombinatorTest, ConfidenceTrueDoesNotBlockNormal) {
+    set_sustained(GuardId::kApogeeVelocity, true);
+    set_sustained(GuardId::kBaroPeak, true);
+    SafetyLockout lo = make_lockout_clear();
+    lo.confident = true;
+
+    uint16_t sig = combinator_set_evaluate(&cs, FlightPhase::kCoast, &ev, lo, kTickMs);
+    EXPECT_EQ(sig, SIG_APOGEE) << "Normal firing when confident";
 }

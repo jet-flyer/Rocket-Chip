@@ -27,6 +27,8 @@ The Cygwin-compiled `spin.exe` needs Cygwin's `gcc` for preprocessing.
 
 ## Quick Start
 
+**CRITICAL:** All SPIN commands MUST run via **Cygwin bash**, not Git Bash. SPIN is a Cygwin binary that calls `gcc` via the Cygwin environment. Git Bash cannot resolve the Cygwin gcc.
+
 All commands run from `tools/spin/` via Cygwin bash:
 
 ```bash

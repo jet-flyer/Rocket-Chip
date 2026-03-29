@@ -399,8 +399,8 @@ TEST_F(FlightDirectorTest, DefaultProfileValues) {
     EXPECT_EQ(rc::kDefaultRocketProfile.armed_timeout_ms, 300000u);
     EXPECT_EQ(rc::kDefaultRocketProfile.abort_timeout_ms, 300000u);
     EXPECT_EQ(rc::kDefaultRocketProfile.coast_timeout_ms, 15000u);
-    EXPECT_TRUE(rc::kDefaultRocketProfile.abort_fires_drogue_from_boost);
-    EXPECT_TRUE(rc::kDefaultRocketProfile.abort_fires_drogue_from_coast);
+    EXPECT_FALSE(rc::kDefaultRocketProfile.abort_fires_drogue_from_boost);
+    EXPECT_FALSE(rc::kDefaultRocketProfile.abort_fires_drogue_from_coast);
     EXPECT_TRUE(rc::kDefaultRocketProfile.has_pyro);
 }
 

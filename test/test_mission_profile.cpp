@@ -32,9 +32,11 @@ TEST(MissionProfileRocket, HasPyro) {
     EXPECT_TRUE(rc::kDefaultRocketProfile.has_pyro);
 }
 
-TEST(MissionProfileRocket, AbortFiresDrogueFromBoth) {
-    EXPECT_TRUE(rc::kDefaultRocketProfile.abort_fires_drogue_from_boost);
-    EXPECT_TRUE(rc::kDefaultRocketProfile.abort_fires_drogue_from_coast);
+TEST(MissionProfileRocket, AbortDoesNotFireDrogueByDefault) {
+    // ABORT is a safety command, not a deployment trigger.
+    // User can enable via .cfg if desired.
+    EXPECT_FALSE(rc::kDefaultRocketProfile.abort_fires_drogue_from_boost);
+    EXPECT_FALSE(rc::kDefaultRocketProfile.abort_fires_drogue_from_coast);
 }
 
 TEST(MissionProfileRocket, RespectsLockouts) {

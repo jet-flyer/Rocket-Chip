@@ -349,26 +349,26 @@ TEST_F(ActionIntegrationTest, HappyPathFiresDrogueAndMainPyro) {
     EXPECT_EQ(s_last_led_value, rc::kLedPhaseMainDescent);
 }
 
-TEST_F(ActionIntegrationTest, AbortFromBoostFiresDrogue) {
+TEST_F(ActionIntegrationTest, AbortFromBoostNoPyro) {
+    // Default profile: ABORT does not fire drogue (abort is not a deployment trigger)
     dispatch(rc::SIG_ARM);
     dispatch(rc::SIG_LAUNCH);
 
     reset_stubs();
     dispatch(rc::SIG_ABORT);
-    EXPECT_EQ(s_pyro_call_count, 1);
-    EXPECT_EQ(s_last_pyro_channel, rc::PyroChannel::kDrogue);
+    EXPECT_EQ(s_pyro_call_count, 0);
     EXPECT_EQ(s_last_led_value, rc::kLedPhaseAbort);
 }
 
-TEST_F(ActionIntegrationTest, AbortFromCoastFiresDrogue) {
+TEST_F(ActionIntegrationTest, AbortFromCoastNoPyro) {
+    // Default profile: ABORT does not fire drogue
     dispatch(rc::SIG_ARM);
     dispatch(rc::SIG_LAUNCH);
     dispatch(rc::SIG_BURNOUT);
 
     reset_stubs();
     dispatch(rc::SIG_ABORT);
-    EXPECT_EQ(s_pyro_call_count, 1);
-    EXPECT_EQ(s_last_pyro_channel, rc::PyroChannel::kDrogue);
+    EXPECT_EQ(s_pyro_call_count, 0);
 }
 
 TEST_F(ActionIntegrationTest, AbortFromArmedNoPyro) {

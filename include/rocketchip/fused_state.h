@@ -73,6 +73,11 @@ struct FusedState {
     bool eskf_healthy;
     bool zupt_active;
 
+    // Confidence gate (IVP-85)
+    bool confident;                     // true = safe for irreversible actions
+    float confidence_div_deg;           // AHRS divergence at last eval
+    uint32_t uncertain_ms;              // 0 when confident, time since last confident
+
     // Flight state (0 = IDLE until IVP-67 state machine)
     uint8_t flight_state;
 
