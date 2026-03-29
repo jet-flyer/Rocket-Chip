@@ -56,6 +56,7 @@ if(BUILD_TESTS)
         src/fusion/ud_factor.cpp
         src/fusion/wmm_declination.cpp
         src/fusion/mahony_ahrs.cpp
+        src/fusion/innovation_monitor.cpp
     )
     target_link_libraries(rc_fusion PUBLIC rc_math)
 

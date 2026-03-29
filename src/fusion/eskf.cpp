@@ -375,6 +375,13 @@ void ESKF::predict(const Vec3& accelMeas, const Vec3& gyroMeas, float dt) {
                  accelBody.x, accelBody.y, accelBody.z,
                  gyroBody.x, gyroBody.y, gyroBody.z, dt);
     P.force_symmetric();
+
+    // Phase Q delta: add (phase_scale - 1.0) * baseline_sigma^2 * dt to P diagonal.
+    // Applied after codegen (which bakes baseline Q_d) and before clamp.
+    if (phase_qr_) {
+        apply_phase_q_delta(dt);
+    }
+
     clamp_covariance();
 
     last_propagation_dt_ = dt;
@@ -711,8 +718,11 @@ bool ESKF::update_baro(float altitudeAglM) {
     const float predicted = -p.z + (inhibit_baro_bias_ ? 0.0F : baro_bias_);
     const float innovation = altitudeAglM - predicted;
 
+    // Phase-aware R (IVP-83): use phase R when configured, baseline otherwise
+    const float r = phase_qr_ ? r_active_.r_baro : kRBaro;
+
     // Innovation covariance: S = H²*P[5][5] + R
-    const float s = P(kHIdx, kHIdx) + kRBaro;
+    const float s = P(kHIdx, kHIdx) + r;
 
     // Council condition 2: reject degenerate covariance
     if (s < kMinInnovationVariance) {
@@ -721,6 +731,11 @@ bool ESKF::update_baro(float altitudeAglM) {
 
     // NIS for diagnostics
     last_baro_nis_ = (innovation * innovation) / s;
+
+    // Push NIS to innovation monitor (IVP-83)
+    if (phase_qr_) {
+        innovation_channel_push(&innov_baro_, last_baro_nis_);
+    }
 
     // Innovation gate
     const float gateThreshold = kBaroInnovationGate * sqrtf(s);
@@ -731,9 +746,9 @@ bool ESKF::update_baro(float altitudeAglM) {
 
     ++baro_total_accepts_;
 #ifdef ESKF_USE_BIERMAN
-    bierman_kalman_update(kHIdx, kHValue, innovation, kRBaro);
+    bierman_kalman_update(kHIdx, kHValue, innovation, r);
 #else
-    scalar_kalman_update(kHIdx, kHValue, innovation, kRBaro);
+    scalar_kalman_update(kHIdx, kHValue, innovation, r);
     clamp_covariance();
 #endif
     return true;
@@ -800,6 +815,29 @@ static float mag_interference_r(float magNorm, float expectedMagnitude) {
     return rEffective;
 }
 
+// Compute effective mag R: interference → phase R → tilt inflation.
+// Returns negative if hard-rejected (>50% interference or >60° tilt).
+float ESKF::compute_mag_r(float magNorm, float expectedMagnitude,
+                          float tilt) const {
+    float r = mag_interference_r(magNorm, expectedMagnitude);
+    if (r < 0.0F) { return -1.0F; }
+
+    // Phase-aware R baseline (IVP-83)
+    if (phase_qr_) {
+        const float ratio = r / kRMagHeading;
+        r = r_active_.r_mag * ratio;
+    }
+
+    // Tilt-conditional R inflation (IVP-47)
+    if (tilt > kMagTiltMaxRad) { return -1.0F; }
+    if (tilt > kMagTiltThresholdRad) {
+        const float frac = (tilt - kMagTiltThresholdRad)
+                         / (kMagTiltMaxRad - kMagTiltThresholdRad);
+        r *= (1.0F + kMagTiltRInflationMax * frac);
+    }
+    return r;
+}
+
 bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
                               float declinationRad) {
     if (!std::isfinite(magBody.x) || !std::isfinite(magBody.y) ||
@@ -809,23 +847,13 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
     const float magNorm = magBody.norm();
     if (magNorm < kMagMinMagnitude) { return false; }
 
-    float rEffective = mag_interference_r(magNorm, expectedMagnitude);
-    if (rEffective < 0.0F) { return false; }
-
-    // Zero-yaw tilt compensation: rotate magBody to level frame preserving yaw signal
     const Vec3 euler = q.to_euler();
-
-    // Tilt-conditional R inflation (IVP-47): H≈[0,0,1] cross-couples at tilt
     const float tilt = sqrtf(euler.x * euler.x + euler.y * euler.y);
-    if (tilt > kMagTiltMaxRad) {  // >60°: heading extraction unreliable
+    const float rEffective = compute_mag_r(magNorm, expectedMagnitude, tilt);
+    if (rEffective < 0.0F) {
         ++mag_consecutive_rejects_;
         ++mag_total_rejects_;
         return false;
-    }
-    if (tilt > kMagTiltThresholdRad) {
-        const float tiltFrac = (tilt - kMagTiltThresholdRad)
-                             / (kMagTiltMaxRad - kMagTiltThresholdRad);
-        rEffective *= (1.0F + kMagTiltRInflationMax * tiltFrac);
     }
 
     const Quat qZeroYaw = Quat::from_euler(euler.x, euler.y, 0.0F);
@@ -841,6 +869,11 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
     if (s < kMinInnovationVariance) { return false; }
 
     last_mag_nis_ = (innovation * innovation) / s;
+
+    // Push NIS to innovation monitor (IVP-83)
+    if (phase_qr_) {
+        innovation_channel_push(&innov_mag_, last_mag_nis_);
+    }
 
     // 300σ gate (ArduPilot EKF3 match). Physically untriggerable since
     // max innovation (π rad) < 300×√R ≈ 26 rad. Kept for symmetry with
@@ -1191,9 +1224,10 @@ bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
     if (!has_origin_) { return false; }
 
     // Compute R per axis: horizontal from HDOP, vertical from VDOP or scaled horiz
+    // Phase-aware R (IVP-83): phase R replaces baseline before HDOP scaling
+    const float rBase = phase_qr_ ? r_active_.r_gps_pos : kRGpsPosDefault;
     const float hdopClamped = (hdop > 1.0F) ? hdop : 1.0F;
-    const float sigmaH = kSigmaGpsPosBase * hdopClamped;
-    const float rHoriz = sigmaH * sigmaH;
+    const float rHoriz = rBase * hdopClamped * hdopClamped;
     float rVert = 0.0F;
     if (vdop > 0.0F) {
         const float vdopClamped = (vdop > 1.0F) ? vdop : 1.0F;
@@ -1229,6 +1263,12 @@ bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
     }
 
     last_gps_pos_nis_ = maxNis;
+
+    // Push NIS to innovation monitor (IVP-83)
+    if (phase_qr_) {
+        innovation_channel_push(&innov_gps_pos_, last_gps_pos_nis_);
+    }
+
     ++gps_pos_total_accepts_;
 #ifndef ESKF_USE_BIERMAN
     clamp_covariance();
@@ -1261,8 +1301,11 @@ bool ESKF::update_gps_velocity(float vNorth, float vEast) {
         // Innovation: y = z - h(x) = gpsVel[axis] - v[axis]
         const float innovation = gpsVel[axis] - vComponents[axis];
 
+        // Phase-aware R (IVP-83)
+        const float r = phase_qr_ ? r_active_.r_gps_vel : kRGpsVel;
+
         // Innovation covariance: S = P[idx][idx] + R
-        const float s = P(kHIdx, kHIdx) + kRGpsVel;
+        const float s = P(kHIdx, kHIdx) + r;
         if (s < kMinInnovationVariance) {
             continue;
         }
@@ -1280,13 +1323,19 @@ bool ESKF::update_gps_velocity(float vNorth, float vEast) {
         }
 
 #ifdef ESKF_USE_BIERMAN
-        bierman_kalman_update(kHIdx, 1.0F, innovation, kRGpsVel);
+        bierman_kalman_update(kHIdx, 1.0F, innovation, r);
 #else
-        scalar_kalman_update(kHIdx, 1.0F, innovation, kRGpsVel);
+        scalar_kalman_update(kHIdx, 1.0F, innovation, r);
 #endif
     }
 
     last_gps_vel_nis_ = maxNis;
+
+    // Push NIS to innovation monitor (IVP-83)
+    if (phase_qr_) {
+        innovation_channel_push(&innov_gps_vel_, last_gps_vel_nis_);
+    }
+
     ++gps_vel_total_accepts_;
 #ifndef ESKF_USE_BIERMAN
     clamp_covariance();
@@ -1594,6 +1643,114 @@ void ESKF::set_inhibit_baro_bias(bool inhibit) {
     } else {
         zero_p_block(eskf::kIdxBaroBias, 1);
         P(eskf::kIdxBaroBias, eskf::kIdxBaroBias) = kInitPBaroBias;
+    }
+}
+
+// ============================================================================
+// Phase-aware Q/R (IVP-83)
+// ============================================================================
+
+void ESKF::set_phase_qr(const PhaseQRTable* table) {
+    phase_qr_ = table;
+    if (table) {
+        current_phase_ = 0;
+        prev_phase_ = 0;
+        q_ramp_alpha_ = 1.0f;
+        q_ramp_remaining_ = 0;
+        update_active_qr();
+        innovation_channel_init(&innov_baro_);
+        innovation_channel_init(&innov_mag_);
+        innovation_channel_init(&innov_gps_pos_);
+        innovation_channel_init(&innov_gps_vel_);
+    }
+}
+
+void ESKF::notify_phase_change(uint8_t new_phase) {
+    if (!phase_qr_ || new_phase >= kPhaseCount) {
+        return;
+    }
+    if (new_phase == current_phase_) {
+        return;
+    }
+    prev_phase_ = current_phase_;
+    current_phase_ = new_phase;
+    q_ramp_remaining_ = phase_qr_->ramp_steps;
+    q_ramp_alpha_ = 0.0f;
+    update_active_qr();
+}
+
+void ESKF::update_active_qr() {
+    if (!phase_qr_) { return; }
+
+    const auto& curr = phase_qr_->phases[current_phase_];
+    const auto& prev = phase_qr_->phases[prev_phase_];
+    const float a = q_ramp_alpha_;
+
+    // Lerp Q scales
+    q_active_.attitude   = prev.q_scale.attitude   + a * (curr.q_scale.attitude   - prev.q_scale.attitude);
+    q_active_.velocity   = prev.q_scale.velocity   + a * (curr.q_scale.velocity   - prev.q_scale.velocity);
+    q_active_.accel_bias = prev.q_scale.accel_bias + a * (curr.q_scale.accel_bias - prev.q_scale.accel_bias);
+    q_active_.gyro_bias  = prev.q_scale.gyro_bias  + a * (curr.q_scale.gyro_bias  - prev.q_scale.gyro_bias);
+
+    // Lerp R values
+    r_active_.r_baro    = prev.r.r_baro    + a * (curr.r.r_baro    - prev.r.r_baro);
+    r_active_.r_mag     = prev.r.r_mag     + a * (curr.r.r_mag     - prev.r.r_mag);
+    r_active_.r_gps_pos = prev.r.r_gps_pos + a * (curr.r.r_gps_pos - prev.r.r_gps_pos);
+    r_active_.r_gps_vel = prev.r.r_gps_vel + a * (curr.r.r_gps_vel - prev.r.r_gps_vel);
+}
+
+void ESKF::apply_phase_q_delta(float dt) {
+    // Advance ramp
+    if (q_ramp_remaining_ > 0) {
+        --q_ramp_remaining_;
+        const uint8_t total = phase_qr_->ramp_steps;
+        q_ramp_alpha_ = 1.0f - static_cast<float>(q_ramp_remaining_)
+                              / static_cast<float>(total);
+        update_active_qr();
+    }
+
+    // Innovation adaptation: multiply Q scale by innovation-driven factor.
+    // Freeze adaptation during ramp (Council A4 — avoid reacting to transition transients).
+    float innov_scale_att = 1.0f;
+    float innov_scale_vel = 1.0f;
+    if (q_ramp_remaining_ == 0) {
+        // Use max of relevant channels for each Q group
+        innov_scale_att = innovation_channel_q_scale(&innov_mag_);
+        const float baro_s = innovation_channel_q_scale(&innov_baro_);
+        const float gps_s = innovation_channel_q_scale(&innov_gps_pos_);
+        innov_scale_vel = (baro_s > gps_s) ? baro_s : gps_s;
+    }
+
+    // Additive delta: P[i][i] += baseline_sigma^2 * (effective_scale - 1.0) * dt
+    // Only add when scale > 1.0 (delta > 0) — cannot reduce P diagonal.
+    const float eff_att = q_active_.attitude * innov_scale_att;
+    const float eff_vel = q_active_.velocity * innov_scale_vel;
+    const float eff_ab  = q_active_.accel_bias;
+    const float eff_gb  = q_active_.gyro_bias;
+
+    if (eff_att > 1.0f) {
+        const float delta = kSigmaGyro * kSigmaGyro * (eff_att - 1.0f) * dt;
+        for (int32_t i = eskf::kIdxAttitude; i < eskf::kIdxAttitude + 3; ++i) {
+            P(i, i) += delta;
+        }
+    }
+    if (eff_vel > 1.0f) {
+        const float delta = kSigmaAccel * kSigmaAccel * (eff_vel - 1.0f) * dt;
+        for (int32_t i = eskf::kIdxVelocity; i < eskf::kIdxVelocity + 3; ++i) {
+            P(i, i) += delta;
+        }
+    }
+    if (eff_ab > 1.0f) {
+        const float delta = kSigmaAccelBiasWalk * kSigmaAccelBiasWalk * (eff_ab - 1.0f) * dt;
+        for (int32_t i = eskf::kIdxAccelBias; i < eskf::kIdxAccelBias + 3; ++i) {
+            P(i, i) += delta;
+        }
+    }
+    if (eff_gb > 1.0f) {
+        const float delta = kSigmaGyroBiasWalk * kSigmaGyroBiasWalk * (eff_gb - 1.0f) * dt;
+        for (int32_t i = eskf::kIdxGyroBias; i < eskf::kIdxGyroBias + 3; ++i) {
+            P(i, i) += delta;
+        }
     }
 }
 

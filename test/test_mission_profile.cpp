@@ -132,7 +132,8 @@ TEST(MissionProfileStruct, NoPointers) {
     // Struct must be position-independent for future serialization.
     // A struct with pointers would be larger than the sum of its fields.
     // This is a heuristic check — if sizeof grows unexpectedly, investigate.
-    EXPECT_LE(sizeof(rc::MissionProfile), 128u);
+    // IVP-83: PhaseQRTable adds ~257 bytes (8 phases × 32 bytes + ramp_steps)
+    EXPECT_LE(sizeof(rc::MissionProfile), 384u);
 }
 
 TEST(MissionProfileStruct, AllTimeoutsPositive) {

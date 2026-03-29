@@ -82,6 +82,7 @@ add_library(rc_fusion_bierman STATIC
     ${CMAKE_SOURCE_DIR}/src/fusion/ud_factor.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/wmm_declination.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/mahony_ahrs.cpp
+    ${CMAKE_SOURCE_DIR}/src/fusion/innovation_monitor.cpp
 )
 target_link_libraries(rc_fusion_bierman PUBLIC rc_math)
 target_compile_definitions(rc_fusion_bierman PUBLIC ESKF_USE_BIERMAN=1)
@@ -159,6 +160,16 @@ gtest_discover_tests(test_guard_combinator)
 add_executable(test_action_executor test_action_executor.cpp)
 target_link_libraries(test_action_executor PRIVATE rc_flight_director GTest::gtest_main)
 gtest_discover_tests(test_action_executor)
+
+# IVP-83: Phase-scheduled Q/R tests
+add_executable(test_phase_qr test_phase_qr.cpp)
+target_link_libraries(test_phase_qr PRIVATE rc_fusion GTest::gtest_main)
+gtest_discover_tests(test_phase_qr)
+
+# IVP-83: Innovation monitor tests
+add_executable(test_innovation_monitor test_innovation_monitor.cpp)
+target_link_libraries(test_innovation_monitor PRIVATE rc_fusion GTest::gtest_main)
+gtest_discover_tests(test_innovation_monitor)
 
 # IVP-74: Mission profile configuration tests
 add_executable(test_mission_profile test_mission_profile.cpp)

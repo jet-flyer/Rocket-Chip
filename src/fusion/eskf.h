@@ -20,6 +20,8 @@
 // unless noted as empirical. Every constant has a source citation.
 
 #include "fusion/eskf_state.h"
+#include "fusion/innovation_monitor.h"
+#include "fusion/phase_qr.h"
 #include "math/mat.h"
 #include "math/quat.h"
 #include "math/vec3.h"
@@ -434,6 +436,16 @@ struct ESKF {
     void reset_p_growth_baseline();
 
     // =================================================================
+    // Phase-aware Q/R API (IVP-83)
+    // =================================================================
+
+    // Set phase Q/R table from Mission Profile. Pass nullptr to disable.
+    void set_phase_qr(const PhaseQRTable* table);
+
+    // Notify ESKF of a flight phase change. Starts transition ramp.
+    void notify_phase_change(uint8_t new_phase);
+
+    // =================================================================
     // Inhibit flag control — ArduPilot pattern
     // When enabling (inhibit=false): sets P diagonal to initial variance (R-7).
     // When disabling (inhibit=true): zeros P diagonal + cross-covariances.
@@ -467,6 +479,26 @@ struct ESKF {
     uint32_t zupt_total_accepts_{};
     uint32_t zupt_total_rejects_{};
     bool initialized_{};
+
+    // =================================================================
+    // Phase-aware Q/R (IVP-83)
+    // When phase_qr_ is non-null, per-phase Q scaling and R values are
+    // applied in predict() and measurement updates. When null, all
+    // behavior is identical to pre-Stage-10 (backward compatible).
+    // =================================================================
+    const PhaseQRTable* phase_qr_{nullptr};
+    uint8_t current_phase_{};
+    uint8_t prev_phase_{};
+    float q_ramp_alpha_{1.0f};       // 0→1 during phase transition
+    uint8_t q_ramp_remaining_{};
+    PhaseQScale q_active_{1.0f, 1.0f, 1.0f, 1.0f};
+    PhaseR r_active_{kRBaro, kRMagHeading, kRGpsPosDefault, kRGpsVel};
+
+    // Innovation monitors (per-channel NIS trackers)
+    InnovationChannel innov_baro_{};
+    InnovationChannel innov_mag_{};
+    InnovationChannel innov_gps_pos_{};
+    InnovationChannel innov_gps_vel_{};
 
     // Build the error-state transition matrix F_x (24×24).
     // F_x = I + dt * F_delta, where F_delta encodes the linearized dynamics.
@@ -541,6 +573,14 @@ private:
 
     void snapshot_p_growth_baseline();
     void record_p_growth_reset(uint32_t nowUs);
+
+    // Phase Q/R helpers (IVP-83)
+    void apply_phase_q_delta(float dt);
+    void update_active_qr();
+
+    // Compute effective mag R after interference detection, phase R, and tilt inflation.
+    // Returns negative if hard-rejected. tilt is combined roll/pitch magnitude (rad).
+    float compute_mag_r(float magNorm, float expectedMagnitude, float tilt) const;
 };
 
 } // namespace rc

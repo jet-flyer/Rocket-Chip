@@ -23,6 +23,7 @@
 #define ROCKETCHIP_MISSION_PROFILE_H
 
 #include <stdint.h>
+#include "../fusion/phase_qr.h"
 
 namespace rc {
 
@@ -106,6 +107,13 @@ struct MissionProfile {
 
     // --- Pyro ---
     bool has_pyro;                      // Profile includes pyro channels
+
+    // --- Phase Q/R (IVP-83) ---
+    // Per-phase noise model for ESKF adaptive estimation.
+    // Q scales are multipliers on baseline sigma^2 values (>= 1.0).
+    // R values are absolute measurement noise (> 0.0).
+    // Generated from Q_*/R_* fields in .cfg by generate_profile.py.
+    PhaseQRTable phase_qr;
 };
 
 } // namespace rc

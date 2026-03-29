@@ -62,9 +62,28 @@ FIELDS = [
     ('REQUIRE_GPS',         'require_gps_lock',           'bool',   None),
     ('REQUIRE_MAG',         'require_mag_cal',            'bool',   None),
     ('REQUIRE_RADIO',       'require_radio',              'bool',   None),
-    # Pyro (last in struct)
+    # Pyro
     ('HAS_PYRO',            'has_pyro',                   'bool',   None),
 ]
+
+# Phase Q/R fields — 8-value rows (one value per flight phase).
+# Order: IDLE ARMED BOOST COAST DROGUE_DESC MAIN_DESC LANDED ABORT
+# These map to MissionProfile.phase_qr (PhaseQRTable struct).
+QR_FIELDS = [
+    # (cfg_name, struct_path, bounds)
+    # Q scales — multipliers on baseline sigma^2 (must be >= 1.0)
+    ('Q_ATT_SCALE',   'q_scale.attitude',   (1.0, 1000.0)),
+    ('Q_VEL_SCALE',   'q_scale.velocity',   (1.0, 1000.0)),
+    ('Q_ABIAS_SCALE', 'q_scale.accel_bias', (1.0, 1000.0)),
+    ('Q_GBIAS_SCALE', 'q_scale.gyro_bias',  (1.0, 1000.0)),
+    # R values — absolute measurement noise (must be > 0)
+    ('R_BARO',        'r.r_baro',           (1e-6, 1e6)),
+    ('R_MAG',         'r.r_mag',            (1e-6, 1e6)),
+    ('R_GPS_POS',     'r.r_gps_pos',        (1e-6, 1e6)),
+    ('R_GPS_VEL',     'r.r_gps_vel',        (1e-6, 1e6)),
+]
+
+NUM_PHASES = 8  # matches FlightPhase::kCount
 
 # Profile ID mapping
 PROFILE_IDS = {
@@ -95,20 +114,20 @@ def parse_cfg(filepath):
                 continue
 
             key = parts[0]
-            val = parts[1]
 
             if key == 'PROFILE_NAME':
-                name = val
+                name = parts[1]
             else:
                 if key in params:
                     print(f'WARNING: line {lineno}: duplicate key {key}')
-                params[key] = val
+                # Store all values (multi-value for Q/R rows, single for others)
+                params[key] = parts[1:]
 
     return name, params
 
 
 def validate_and_convert(params):
-    """Validate all fields and convert to typed values. Returns dict or exits."""
+    """Validate all fields and convert to typed values. Returns (scalars, qr) or exits."""
     result = {}
     errors = []
 
@@ -117,7 +136,7 @@ def validate_and_convert(params):
             errors.append(f'Missing required field: {cfg_name}')
             continue
 
-        raw = params[cfg_name]
+        raw = params[cfg_name][0]  # scalar fields: first (only) value
 
         try:
             if ftype == 'float':
@@ -147,8 +166,47 @@ def validate_and_convert(params):
         except ValueError:
             errors.append(f'{cfg_name} = {raw}: invalid {ftype} value')
 
+    # Validate Q/R phase fields (8 values per row)
+    qr_data = {}  # cfg_name -> [float; 8]
+    for cfg_name, struct_path, bounds in QR_FIELDS:
+        if cfg_name not in params:
+            errors.append(f'Missing required Q/R field: {cfg_name}')
+            continue
+
+        raw_vals = params[cfg_name]
+        if len(raw_vals) != NUM_PHASES:
+            errors.append(
+                f'{cfg_name}: expected {NUM_PHASES} values, got {len(raw_vals)}')
+            continue
+
+        try:
+            vals = [float(v) for v in raw_vals]
+        except ValueError:
+            errors.append(f'{cfg_name}: non-numeric value in row')
+            continue
+
+        for i, v in enumerate(vals):
+            if v < bounds[0] or v > bounds[1]:
+                errors.append(
+                    f'{cfg_name}[{i}] = {v}: out of range '
+                    f'[{bounds[0]}, {bounds[1]}]')
+        qr_data[cfg_name] = vals
+
+    # Validate QR_RAMP_STEPS (scalar)
+    ramp_steps = 20  # default
+    if 'QR_RAMP_STEPS' in params:
+        try:
+            ramp_steps = int(params['QR_RAMP_STEPS'][0])
+            if ramp_steps < 1 or ramp_steps > 100:
+                errors.append(
+                    f'QR_RAMP_STEPS = {ramp_steps}: out of range [1, 100]')
+        except ValueError:
+            errors.append(f'QR_RAMP_STEPS: invalid integer')
+
     # Check for unknown fields
     known = {f[0] for f in FIELDS}
+    known.update(f[0] for f in QR_FIELDS)
+    known.add('QR_RAMP_STEPS')
     for key in params:
         if key not in known:
             print(f'WARNING: unknown field: {key} (ignored)')
@@ -159,10 +217,40 @@ def validate_and_convert(params):
             print(f'  - {e}')
         sys.exit(1)
 
-    return result
+    return result, qr_data, ramp_steps
 
 
-def generate_header(name, values, cfg_path, symbol, output_path):
+def _emit_phase_qr(qr_data, ramp_steps):
+    """Emit PhaseQRTable designated initializer block."""
+    # Phase names for comments
+    phase_names = ['IDLE', 'ARMED', 'BOOST', 'COAST',
+                   'DROGUE_DESC', 'MAIN_DESC', 'LANDED', 'ABORT']
+
+    # Build per-phase entries from the row data
+    # QR_FIELDS order: Q_ATT, Q_VEL, Q_ABIAS, Q_GBIAS, R_BARO, R_MAG, R_GPS_POS, R_GPS_VEL
+    q_att   = qr_data.get('Q_ATT_SCALE',   [1.0] * NUM_PHASES)
+    q_vel   = qr_data.get('Q_VEL_SCALE',   [1.0] * NUM_PHASES)
+    q_abias = qr_data.get('Q_ABIAS_SCALE', [1.0] * NUM_PHASES)
+    q_gbias = qr_data.get('Q_GBIAS_SCALE', [1.0] * NUM_PHASES)
+    r_baro  = qr_data.get('R_BARO',        [0.001] * NUM_PHASES)
+    r_mag   = qr_data.get('R_MAG',         [0.008] * NUM_PHASES)
+    r_gpos  = qr_data.get('R_GPS_POS',     [12.25] * NUM_PHASES)
+    r_gvel  = qr_data.get('R_GPS_VEL',     [0.25] * NUM_PHASES)
+
+    lines = []
+    lines.append('    .phase_qr = {.phases = {')
+    for i in range(NUM_PHASES):
+        lines.append(f'        // {phase_names[i]} ({i})')
+        lines.append(f'        {{.q_scale = {{{q_att[i]}f, {q_vel[i]}f, '
+                     f'{q_abias[i]}f, {q_gbias[i]}f}},')
+        lines.append(f'         .r = {{{r_baro[i]}f, {r_mag[i]}f, '
+                     f'{r_gpos[i]}f, {r_gvel[i]}f}}}},')
+    lines.append(f'    }}, .ramp_steps = {ramp_steps}}},')
+    return lines
+
+
+def generate_header(name, values, qr_data, ramp_steps, cfg_path, symbol,
+                    output_path):
     """Generate the C++ header file."""
     # Compute source file hash for traceability (A2)
     with open(cfg_path, 'rb') as f:
@@ -190,7 +278,7 @@ def generate_header(name, values, cfg_path, symbol, output_path):
     lines.append(f'    .name = "{safe_name}",')
     lines.append('')
 
-    # Emit fields in struct order
+    # Emit scalar fields in struct order
     for _, cpp_field, _, _ in FIELDS:
         ftype, val = values[cpp_field]
         if ftype == 'float':
@@ -199,6 +287,10 @@ def generate_header(name, values, cfg_path, symbol, output_path):
             lines.append(f'    .{cpp_field} = {val},')
         elif ftype == 'bool':
             lines.append(f'    .{cpp_field} = {"true" if val else "false"},')
+
+    # Emit phase Q/R table
+    lines.append('')
+    lines.extend(_emit_phase_qr(qr_data, ramp_steps))
 
     lines.append('};')
     lines.append('')
@@ -213,6 +305,8 @@ def generate_header(name, values, cfg_path, symbol, output_path):
     lines.append(f'              "ARMED_TIMEOUT_MS must be positive");')
     lines.append(f'static_assert({symbol}.landing_sustain_ms >= 100,')
     lines.append(f'              "LAND_HOLD_MS must be at least 100ms");')
+    lines.append(f'static_assert({symbol}.phase_qr.ramp_steps >= 1,')
+    lines.append(f'              "QR_RAMP_STEPS must be >= 1");')
     lines.append('')
     lines.append('} // namespace rc')
     lines.append('')
@@ -243,9 +337,10 @@ def main():
         print('ERROR: PROFILE_NAME not found in config')
         sys.exit(1)
 
-    values = validate_and_convert(params)
+    values, qr_data, ramp_steps = validate_and_convert(params)
 
-    generate_header(name, values, args.config, args.symbol, args.output)
+    generate_header(name, values, qr_data, ramp_steps, args.config,
+                    args.symbol, args.output)
 
     print(f'Generated {args.output}')
     print(f'  Profile: {name}')

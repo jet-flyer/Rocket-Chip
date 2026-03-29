@@ -407,7 +407,8 @@ TEST_F(FlightDirectorTest, DefaultProfileValues) {
 TEST_F(FlightDirectorTest, ProfileStructNoPointers) {
     // MissionProfile must be serialization-ready (no pointers)
     // sizeof check: struct is compact, no vtable
-    EXPECT_LE(sizeof(rc::MissionProfile), 128u);
+    // IVP-83: PhaseQRTable adds ~257 bytes (8 phases × 32 bytes + ramp_steps)
+    EXPECT_LE(sizeof(rc::MissionProfile), 384u);
 }
 
 // ============================================================================

@@ -102,9 +102,10 @@ cmake --build build/
 | **7** | **Radio & Telemetry** | **Phase 5** | **IVP-57 — IVP-65** | **Core complete** | |
 | 8 | Flight Director | Phase 6 | IVP-66 — IVP-75 | Full | **Crowdfunding Demo Ready** |
 | **9** | **Active Object Architecture** | **Phase 6** | **IVP-76 — IVP-82b** | **Full** | |
-| 10 | Adaptive Estimation & Safety | Phase 6 | IVP-83 — IVP-86 | Placeholder | |
+| 10 | Adaptive Estimation & Safety | Phase 6 | IVP-83 — IVP-85 | Placeholder | |
 | **11** | **Ground Station** | **Phase 7** | **IVP-87 — IVP-92** | **Placeholder** | |
-| 12 | System Integration | Phase 9 | IVP-93 — IVP-97 | Placeholder | **Flight Ready** |
+| 12 | Pre-Flight Polish | Phase 9 | IVP-93 — IVP-97 | Placeholder | **Flight Ready** |
+| **13** | **Field Tuning & Validation** | **Phase 9** | **TBD** | **Placeholder** | |
 
 > **Stage 6 pull-forward rationale:** Data Logging was originally Stage 9 but is a dependency for the telemetry encoder — the encoder reads from data structures (FusedState, TelemetryState, SensorSnapshot) defined by the logging architecture. Pulling logging forward establishes the canonical data model that all downstream consumers (telemetry encoder, flight director, GCS) read from. IVP numbers were renumbered sequentially. See council reviews: `docs/decisions/Telem+logging/council_data_logging.md` and `council_telemetry_protocol.md`.
 
@@ -2582,52 +2583,48 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ## Stage 10: Adaptive Estimation & Safety
 
-**Purpose:** Phase-aware ESKF tuning and confidence-gated safety. Integrates with the state machine (IVP-68) for flight phase detection and with the Flight Director (Stage 8) for safety-gated actions.
+**Purpose:** Phase-aware ESKF tuning framework and confidence-gated safety. Builds the plumbing for per-phase Q/R scheduling and a confidence gate that controls irreversible actions (pyro). All numerical thresholds use conservative `VALIDATE` defaults — actual tuning deferred to Stage 13 (Field Tuning).
 
 **Background:** Extended research (2026-02-24) demonstrated that MMAE/IMM is the wrong tool for RocketChip's flight regime switching. Real aerospace navigation (X-43A, SpaceX Grasshopper, ArduPilot EKF3, PX4 ECL) universally uses single kinematic filters with deterministic regime adaptation — not multi-model banks. Simple phase-scheduled Q/R captures the same benefit at near-zero computational cost. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for full rationale and benchmark data.
 
+**Council review (2026-03-29):** Unanimous approval, 7 amendments incorporated (A1-A7). Key decisions: additive Q delta post-codegen approved, Bierman unchanged (Option A), 30s fallback hardcoded + phase-guarded + requires was_armed, innovation adaptation one-directional with 10× cap.
+
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-83 | Phase-Scheduled Q/R + Innovation Adaptation | Per-phase noise models tied to state machine, innovation ratio fine-tuning, optional Bierman measurement updates |
+| IVP-83 | Phase-Scheduled Q/R Framework | Per-phase noise model framework via Mission Profile `.cfg`, innovation ratio monitor, transition smoothing |
 | IVP-84 | Confidence Gate | ESKF health + AHRS cross-check → binary confidence flag for Flight Director |
-| IVP-85 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low |
-| IVP-86 | Vehicle Parameter Profiles | Mission-specific Q/R presets per vehicle type (rocket, HAB, drone) |
+| IVP-85 | Confidence-Gated Actions | Irreversible actions (pyro) held when confidence flag low, 30s descent fallback |
+| ~~IVP-86~~ | ~~Vehicle Parameter Profiles~~ | **RETIRED** — folded into IVP-83 via existing Mission Profile `.cfg` system (2026-03-29) |
 
 ---
 
-### IVP-83: Phase-Scheduled Q/R + Innovation Adaptation
+### IVP-83: Phase-Scheduled Q/R Framework
 
-**Prerequisites:** IVP-68 (state machine provides flight phase detection), IVP-48 (ESKF tuned)
+**Prerequisites:** IVP-68 (state machine provides flight phase detection), IVP-48 (ESKF tuned), IVP-74 (Mission Profile `.cfg` system)
 
-**Implement:** Per-phase Q and R matrices selected from vehicle-specific parameter profiles, with thin innovation-ratio adaptation layer for fine-tuning.
+**Implement:** Phase-aware Q and R selection framework integrated with the existing Mission Profile `.cfg` system. Q/R values per flight phase are user-editable in `.cfg` files. Additive Q delta applied post-codegen (O(24) diagonal additions — codegen FPFT unchanged). Innovation ratio monitor provides adaptive Q inflation layer on top. All threshold values are `VALIDATE` defaults — tuning deferred to Stage 13.
 
-1. **Q/R profiles per flight phase:**
-   - **IDLE/ARMED:** Low Q_velocity, low Q_position (stationary), tight R_baro, normal R_mag
-   - **BOOST:** High Q_velocity (rapid acceleration), increased R_baro (vibration/transonic effects), relaxed R_mag
-   - **COAST:** Moderate Q_velocity (drag deceleration), gate R_baro during transonic transition, normal R_mag
-   - **DESCENT:** Moderate Q, restore R_baro trust, enable accel corrections for attitude (1g gate passes)
+1. **Phase Q/R in Mission Profile `.cfg`:** Add Q scale multipliers (per phase × 4 groups: attitude, velocity, accel_bias, gyro_bias) and absolute R values (per phase × 4 sensors: baro, mag, GPS position, GPS velocity) to `profiles/rocket.cfg` and `profiles/hab.cfg`. Generator validates Q scales >= 1.0, R values > 0.
 
-2. **Transition smoothing:** Exponential ramp between Q/R values over `⚠️ VALIDATE 5-10` filter steps during detected phase transitions. Avoids covariance discontinuities from hard switching.
+2. **Additive Q delta post-codegen:** `codegen_fpft()` bakes baseline Q_d. Phase-specific Q applied as `P[i][i] += baseline_sigma² × (phase_scale - 1.0) × dt` after codegen runs. Only adds positive values to diagonal — cannot break positive-definiteness.
 
-3. **Innovation ratio adaptation (thin layer on top):** Per-channel scalar monitor: compute α = ν²/S over a `⚠️ VALIDATE 50-100` sample sliding window. If α consistently exceeds 1.0, scale up relevant Q diagonal elements. Constraints:
-   - Adapt only Q, never R simultaneously (ill-conditioned)
-   - Only diagonal Q elements
-   - Floor at 10% of phase-scheduled Q value
-   - Freeze adaptation for `⚠️ VALIDATE 0.5-1s` around phase transitions
+3. **Phase R substitution:** Each measurement update (`update_baro`, `update_mag_heading`, `update_gps_*`) uses phase-specific R when phase Q/R is configured, falling back to baseline `kR*` constants when not (backward compatible).
 
-4. **Bierman measurement updates (optional, GPS-conditional):** When GPS is detected at boot, use Bierman scalar measurement updates instead of Joseph form (43µs vs 81µs per scalar update, benchmarked on hardware). Factorize P→UD before measurement epoch, Bierman updates on U/D, reconstruct after. Only activated when GPS provides ≥6 scalar measurements per epoch (break-even point for factorize overhead). Boot-time flag — not per-measurement switching. Implementation in `ud_factor.h/.cpp` already benchmarked.
+4. **Transition smoothing:** Lerp between previous and current phase Q/R values over `⚠️ VALIDATE 20` filter steps during detected phase transitions. Avoids covariance discontinuities from hard switching.
+
+5. **Innovation ratio monitor:** Per-channel sliding-window NIS tracker (baro, mag, GPS pos, GPS vel). Compute α = mean(ν²/S) over `⚠️ VALIDATE 20` sample window. When α > 1.0, scale Q diagonal by `min(α, ⚠️ VALIDATE 10.0)`. One-directional: inflates Q only, never deflates below phase-scheduled value (deliberate safety property). Freeze adaptation during phase transition ramp.
 
 **[GATE]:**
 - Static bench: IDLE Q/R active, innovation ratios near 1.0
-- Simulated boost (accel stimulus): Q transitions to boost profile within 1-2 filter steps
-- Return to rest: Q transitions back within 5-10 steps
-- Innovation adaptation: artificially increase sensor noise → adaptation increases Q → innovations return to ~1.0
-- No discontinuities in state estimates during phase transitions (smooth ramp)
-- Benchmark: phase-scheduled Q/R adds <5µs overhead per predict
-- CLI shows: current phase, active Q/R profile name, innovation ratios per channel, adaptation state
-- If Bierman enabled: verify cycle time improvement matches benchmark (486µs hybrid vs 851µs Joseph)
+- Phase Q delta: BOOST profile → P diagonals grow faster than baseline (host test)
+- Phase R: larger R → weaker measurement correction (host test)
+- Transition ramp: Q/R interpolates smoothly over ramp_steps (host test)
+- Innovation adaptation: high NIS → Q inflation → innovations decrease (host test)
+- Backward compatibility: `phase_qr=nullptr` → behavior identical to pre-Stage-10 (regression test)
+- Benchmark: phase Q/R adds <5µs overhead per predict
+- CLI shows: current phase Q/R multipliers, innovation ratios per channel, adaptation state
 
-**[DIAG]:** Innovation ratios stuck high = Q too low for actual sensor noise. Phase transitions cause state jumps = ramp too fast or Q/R delta too large. Adaptation oscillates = window too short or floor too low. Bierman slower than Joseph = measurement count below break-even threshold (disable Bierman for that epoch pattern).
+**[DIAG]:** Innovation ratios stuck high = Q too low for actual sensor noise (Stage 13 tuning). Phase transitions cause state jumps = ramp too fast or Q/R delta too large. Adaptation oscillates = window too short or cap too low.
 
 ---
 
@@ -2635,37 +2632,28 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Prerequisites:** IVP-83, IVP-45 (Mahony AHRS)
 
-**Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates ESKF innovation consistency and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director. This is the platform safety layer — NOT configurable by Mission Profiles.
+**Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates ESKF health signals and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director. This is the **platform safety layer — NOT configurable by Mission Profiles**. All thresholds are `VALIDATE` defaults — tuning deferred to Stage 13.
 
 1. **Confidence conditions (ALL must be true for `confident = true`):**
    - **AHRS agreement:** quaternion angular distance between ESKF and Mahony AHRS < `⚠️ VALIDATE 15°`
-   - **Covariance health:** max diagonal of P < `⚠️ VALIDATE` threshold (position < 100m², velocity < 10 m²/s², attitude < 0.5 rad²)
-   - **Innovation consistency:** no sensor channel has sustained innovation > 3σ for more than `⚠️ VALIDATE 5 seconds`
-   - **Phase agreement:** ESKF innovation behavior is consistent with state machine's detected phase (e.g., if state machine says BOOST but baro innovations suggest stationary, flag disagreement)
+   - **Covariance health:** max P diagonal attitude < `⚠️ VALIDATE 0.5 rad²`, velocity < `⚠️ VALIDATE 50 m²/s²`
+   - **Innovation consistency:** max innovation ratio α across all channels < `⚠️ VALIDATE 5.0`
+   - **ESKF healthy:** `ESKF::healthy()` returns true
+   - **Phase agreement:** ESKF innovation behavior consistent with state machine's detected phase (secondary flag, not a veto)
 
-2. **Output:**
-   ```cpp
-   struct confidence_output_t {
-       bool confident;                   // safe to execute irreversible actions
-       float ahrs_divergence_deg;        // ESKF vs Mahony angle
-       uint32_t time_since_confident_ms; // 0 when confident, counts up when not
-       bool phase_agreement;             // sensor behavior matches detected phase
-   };
-   ```
+2. **Hysteresis:** Loss debounce `⚠️ VALIDATE 500ms` (must stay bad continuously before declaring uncertain). Recovery debounce `⚠️ VALIDATE 2000ms` (must stay good continuously before restoring confidence).
 
-3. **Hysteresis:** Transition from confident→uncertain requires `⚠️ VALIDATE 3` consecutive failing evaluations (debounce). Transition back requires `⚠️ VALIDATE 5` consecutive passing evaluations (conservative).
+3. **Output:** `ConfidenceState` struct with `confident` bool, `ahrs_divergence_deg`, `time_since_confident_ms`, `phase_agreement`.
 
 **[GATE]:**
 - Normal operation: confidence flag = true
-- Cover baro port: innovation consistency fails, confidence drops. Actions locked
-- Uncover: confidence recovers within `⚠️ VALIDATE 15 seconds`
-- Bring magnet near: AHRS divergence grows, may trip confidence gate
-- Both ESKF and Mahony normal: confident = true
-- Introduce sustained innovation outlier: confidence transitions to false after debounce
+- AHRS divergence exceeds threshold → after loss debounce, confident=false
+- Transient spike within debounce → no loss (hysteresis works)
+- Recovery → after recovery debounce, confident=true
 - CLI shows confidence state, AHRS divergence, time since last confident, phase agreement
 - **No false confidence losses** during normal bench operation over 10 minutes
 
-**[DIAG]:** Always uncertain = thresholds too tight. Never uncertain = thresholds too loose or test conditions not anomalous enough. Flapping = hysteresis too short.
+**[DIAG]:** Always uncertain = thresholds too tight (Stage 13 tuning). Never uncertain = thresholds too loose or test conditions not anomalous enough. Flapping = debounce too short.
 
 ---
 
@@ -2673,54 +2661,26 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Prerequisites:** IVP-84 (confidence gate), IVP-72 (action executor)
 
-**Implement:** Wire confidence gate output into the Flight Director's action executor. When `confident = false`:
-- Pyro channels LOCKED (cannot fire)
-- TVC commands ZEROED (neutral position)
-- Status LED: orange pulsing
-- Telemetry: UNCERTAIN flag set
-- If uncertain for > `⚠️ VALIDATE 30 seconds` during descent: execute safe fallback (deploy drogue if not already deployed)
+**Implement:** Wire confidence gate output into the Flight Director's guard combinator safety layer. When `confident = false`:
+- Pyro channels LOCKED (cannot fire) — via `SafetyLockout.confident` field
+- Status LED: orange pulsing (`kLedPhaseUncertain`)
+- Telemetry: UNCERTAIN flag set in FusedState
+- **No fallback pyro firing.** When uncertain, the safest action is no action — do not fire pyros based on data you don't trust. On a cleared test range, lawn-darting is recoverable; deploying at the wrong time can cause worse damage. The filter will likely recover naturally.
+- SPIN formal verification: add `confident` boolean to model, verify P8 (no pyro when uncertain)
 
 **[GATE]:**
 - Confidence loss → pyro locked within 1 tick
 - Recovery → pyro re-enabled after hysteresis window
-- Safe fallback triggers after timeout during simulated descent
 - No pyro firing possible when `confident = false`
+- SPIN: all 7 existing + 1 new LTL property pass (P8: no pyro when uncertain)
 
-**[DIAG]:** Safe fallback doesn't trigger = Flight Director not consuming the flag. Pyro fires despite low confidence = action executor not checking gate.
+**[DIAG]:** Pyro fires despite low confidence = guard combinator not checking `SafetyLockout.confident`. Confidence never recovers = thresholds too tight (Stage 13 tuning).
 
 ---
 
-### IVP-86: Vehicle Parameter Profiles
+### IVP-86: Vehicle Parameter Profiles — RETIRED
 
-**Prerequisites:** IVP-83 (phase-scheduled Q/R framework)
-
-**Implement:** Mission-specific Q/R presets per vehicle type. The Q/R scheduling (IVP-83) selects values per flight phase — this step provides the actual phase definitions and noise parameters per vehicle type.
-
-1. **Profile structure:**
-   ```cpp
-   struct vehicle_profile_t {
-       const char* name;                           // e.g., "model_rocket"
-       phase_qr_params_t phase_params[kMaxPhases]; // Q/R per phase
-       uint8_t num_phases;
-       float boost_accel_threshold;                // |A| to detect boost
-       float coast_accel_threshold;                // |A| to detect coast
-   };
-   ```
-
-2. **Initial profiles:**
-   - **Model rocket:** IDLE, ARMED, BOOST, COAST, DESCENT, LANDED
-   - **HAB:** IDLE, ARMED, ASCENT, BURST, DESCENT, LANDED (different Q — slow ascent, no motor)
-   - **Freeform:** Single phase, default Q/R (no regime switching)
-
-3. **Selection:** Via CLI command or compile-time default. Profile is const data — no runtime allocation.
-
-**[GATE]:**
-- Switch vehicle profile: Q/R presets change accordingly
-- CLI shows active profile name
-- Each profile's phase definitions match the state machine's phase detection logic
-- Model rocket profile validated with bench soak (IDLE phase)
-
-**[DIAG]:** Phase definitions don't trigger = threshold mismatch between profile and state machine. All profiles identical = profiles not differentiated enough for vehicle type.
+**Retired 2026-03-29.** Folded into IVP-83 via the existing Mission Profile `.cfg` system (IVP-74). Per-vehicle Q/R presets are now fields in `profiles/rocket.cfg` and `profiles/hab.cfg`, processed by `scripts/generate_profile.py` into the `MissionProfile` struct. No separate `vehicle_profile_t` needed.
 
 ---
 
@@ -2739,9 +2699,9 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-## Stage 12: System Integration
+## Stage 12: Pre-Flight Polish
 
-**Purpose:** Full system verification and flight readiness.
+**Purpose:** Full system verification and flight readiness. All subsystems integrated, all tests passing, all hardware validated under realistic conditions.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
@@ -2752,6 +2712,29 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 | IVP-97 | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
 > **Milestone:** IVP-97 — **Flight Ready**.
+
+---
+
+## Stage 13: Field Tuning & Validation
+
+**Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. This stage requires a flight-ready system (Stage 12 complete) to collect meaningful data for tuning.
+
+**Scope:** All `VALIDATE`-marked thresholds from Stages 8-10, including:
+- Phase-scheduled Q/R values per vehicle type (IVP-83)
+- Confidence gate thresholds: AHRS divergence, covariance bounds, innovation ratio limit, debounce timing (IVP-84)
+- Innovation monitor window size and Q inflation cap (IVP-83)
+- Guard sustain timing and phase detection thresholds (IVP-70, IVP-74)
+
+**Methodology:** See `docs/DYNAMIC_VALIDATION.md` for physical test methods (Allan variance, turntable, pendulum, elevator, data logging + replay, vehicle GPS-vs-INS).
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| TBD | Data Collection Infrastructure | Flight log replay + parameter sweep tooling |
+| TBD | Q/R Phase Tuning | Per-vehicle-type Q/R optimization from flight data |
+| TBD | Confidence Gate Tuning | Threshold validation from anomaly injection + field data |
+| TBD | Guard Timing Tuning | Sustain/debounce timing from flight profiles |
+
+> IVP numbers assigned when Stage 12 is complete and tuning methodology is finalized.
 
 ---
 
@@ -2773,7 +2756,7 @@ Tests to re-run after changes to specific areas.
 | Fusion algorithm change | IVP-39 — IVP-48 | Filter correctness |
 | Data logging change | IVP-49 — IVP-54 | Data model, frames, buffer, flash |
 | Radio/telemetry change | IVP-57 — IVP-62 | Encoder, service, translation |
-| Adaptive estimation change | IVP-83 — IVP-86 | Q/R scheduling, confidence gate |
+| Adaptive estimation change | IVP-83 — IVP-85 | Q/R scheduling, confidence gate, gated actions |
 | Watchdog policy change | IVP-66, IVP-30 | Recovery behavior + mechanism |
 | Flight Director change | IVP-67 — IVP-75 | State machine, guards, actions, mission config |
 | Active Object change | IVP-76 — IVP-82, IVP-73 | AO migration, bench flight sim regression |
