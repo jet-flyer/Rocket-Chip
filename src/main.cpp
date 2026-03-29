@@ -25,6 +25,7 @@
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
 #include "fusion/eskf.h"
+#include "fusion/confidence_gate.h"
 #include "fusion/mahony_ahrs.h"
 #include "fusion/wmm_declination.h"
 #include "drivers/spi_bus.h"
@@ -320,6 +321,9 @@ static uint32_t g_eskfEpoch = 0;        // Incremented on each ESKF propagation
 static rc::MahonyAHRS g_mahony;
 static bool g_mahonyInitialized = false;
 static uint32_t g_lastMahonyTimestampUs = 0;
+
+// IVP-84: Confidence gate (IVP-85 feeds into SafetyLockout)
+static rc::ConfidenceState g_confidence;
 
 // IVP-68: Flight Director HSM (Stage 8)
 static rc::FlightDirector g_director;
@@ -1263,6 +1267,20 @@ static void print_eskf_gates_and_diags() {
     if (!g_eskf.inhibit_baro_bias_) {
         printf("      bBias=%.3f m\n", (double)g_eskf.baro_bias_);
     }
+    // IVP-83/84: Phase Q/R + confidence gate status
+    if (g_eskf.phase_qr_) {
+        printf("      phQ: att=%.1f vel=%.1f  innov: b=%.2f m=%.2f gp=%.2f gv=%.2f\n",
+               (double)g_eskf.q_active_.attitude,
+               (double)g_eskf.q_active_.velocity,
+               (double)g_eskf.innov_baro_.alpha,
+               (double)g_eskf.innov_mag_.alpha,
+               (double)g_eskf.innov_gps_pos_.alpha,
+               (double)g_eskf.innov_gps_vel_.alpha);
+    }
+    printf("      conf=%c div=%.1f° unc=%lums\n",
+           g_confidence.confident ? 'Y' : 'N',
+           (double)g_confidence.ahrs_divergence_deg,
+           (unsigned long)g_confidence.time_since_confident_ms);
 }
 // NOLINTEND(readability-magic-numbers)
 
@@ -2199,6 +2217,13 @@ static bool eskf_try_init(const shared_sensor_data_t& snap) {
     g_eskfInitialized = true;
     g_eskf.reset_p_growth_baseline();
     g_lastEskfTimestampUs = snap.imu_timestamp_us;  // CR-2: set for first predict dt
+
+    // IVP-83: Wire phase Q/R from active mission profile
+    g_eskf.set_phase_qr(&rc::kDefaultRocketProfile.phase_qr);
+
+    // IVP-84: Initialize confidence gate
+    rc::confidence_gate_init(&g_confidence);
+
     return true;
 }
 
@@ -2401,6 +2426,44 @@ static void eskf_tick_zupt(const shared_sensor_data_t& snap) {
     g_eskf.update_zupt(accel, gyro, on_pad);
 }
 
+// IVP-83/84: Phase notification + confidence gate evaluation
+static void eskf_tick_phase_and_confidence() {
+    // IVP-83: Notify ESKF of flight phase changes for Q/R scheduling
+    if (g_directorInitialized) {
+        static uint8_t s_lastPhase = 0;
+        uint8_t phase = static_cast<uint8_t>(
+            rc::flight_director_phase(&g_director));
+        if (phase != s_lastPhase) {
+            g_eskf.notify_phase_change(phase);
+            s_lastPhase = phase;
+        }
+    }
+
+    // IVP-84: Evaluate confidence gate
+    rc::ConfidenceInput ci{};
+    ci.eskf_healthy = g_eskf.healthy();
+    ci.mahony_div_deg = (g_mahonyInitialized && g_mahony.healthy())
+        ? rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg
+        : 0.0f;
+    // Max innovation ratio across all channels
+    float maxAlpha = g_eskf.innov_baro_.alpha;
+    if (g_eskf.innov_mag_.alpha > maxAlpha) maxAlpha = g_eskf.innov_mag_.alpha;
+    if (g_eskf.innov_gps_pos_.alpha > maxAlpha) maxAlpha = g_eskf.innov_gps_pos_.alpha;
+    if (g_eskf.innov_gps_vel_.alpha > maxAlpha) maxAlpha = g_eskf.innov_gps_vel_.alpha;
+    ci.max_innov_ratio = maxAlpha;
+    // Max P diagonal for attitude and velocity
+    ci.p_att_max = g_eskf.P(0, 0);
+    for (int32_t i = 1; i < 3; ++i) {
+        if (g_eskf.P(i, i) > ci.p_att_max) ci.p_att_max = g_eskf.P(i, i);
+    }
+    ci.p_vel_max = g_eskf.P(6, 6);
+    for (int32_t i = 7; i < 9; ++i) {
+        if (g_eskf.P(i, i) > ci.p_vel_max) ci.p_vel_max = g_eskf.P(i, i);
+    }
+    ci.now_ms = to_ms_since_boot(get_absolute_time());
+    rc::confidence_gate_evaluate(&g_confidence, ci);
+}
+
 static void eskf_tick() {
     if (!g_sensorPhaseActive) {
         return;
@@ -2447,6 +2510,8 @@ static void eskf_tick() {
     eskf_tick_zupt(snap);
     eskf_tick_gps(snap);
     eskf_tick_mahony(snap);
+
+    eskf_tick_phase_and_confidence();
 
     g_eskfEpoch++;
 }
@@ -2981,6 +3046,11 @@ static void populate_fused_state(rc::FusedState& fused,
     fused.gps_ground_speed_mps = snap.gps_ground_speed_mps;
     fused.gps_fix_type = snap.gps_fix_type;
     fused.gps_satellites = snap.gps_satellites;
+
+    // Confidence gate (IVP-85)
+    fused.confident = g_confidence.confident;
+    fused.confidence_div_deg = g_confidence.ahrs_divergence_deg;
+    fused.uncertain_ms = g_confidence.time_since_confident_ms;
 
     fused.flight_state = g_directorInitialized
         ? static_cast<uint8_t>(g_director.state.current_phase)

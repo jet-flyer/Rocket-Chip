@@ -223,6 +223,7 @@ void flight_director_evaluate_guards(FlightDirector* me,
     lockout.deploy_lockout_mps = me->profile->deploy_lockout_mps;
     lockout.apogee_lockout_ms = me->profile->apogee_lockout_ms;
     lockout.eskf_healthy = fused.eskf_healthy;
+    lockout.confident = fused.confident;    // IVP-85: confidence gate
 
     // Step 3: Evaluate combinators (managed guards + lockouts + timer backup)
     uint16_t combo_sig = combinator_set_evaluate(

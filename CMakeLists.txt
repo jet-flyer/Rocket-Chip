@@ -294,6 +294,10 @@ else()
         # UD factorization (Bierman measurement update path)
         src/fusion/ud_factor.cpp
 
+        # IVP-83: Innovation monitor + IVP-84: Confidence gate
+        src/fusion/innovation_monitor.cpp
+        src/fusion/confidence_gate.cpp
+
         # -------------------------------------------------------------------------
         # Stage 6: Data Logging (IVP-49/50/51, IVP-52a/b/c, IVP-53a/b)
         # -------------------------------------------------------------------------
@@ -510,6 +514,7 @@ else()
         src/fusion/ud_factor.cpp
         src/fusion/eskf.cpp
         src/fusion/eskf_codegen.cpp
+        src/fusion/innovation_monitor.cpp
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/baro_kf.cpp
