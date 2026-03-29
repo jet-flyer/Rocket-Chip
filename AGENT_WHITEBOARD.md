@@ -114,7 +114,8 @@
 - **Cycle Performance Benchmark on Hardware (post-Stage 10):** IVP-86 retired. Measure actual per-tick CPU budget with phase-scheduled Q/R + confidence gate + innovation monitor overhead. Profile `eskf_tick()` end-to-end on target. Not blocking — 65s HW soak showed no timing issues.
 - **Passive Ejection Charge Mission Profile (post-Stage 10):** Estes-style motors with integrated ejection charge. No active pyro firing needed — Flight Director logs events and tracks state but does not command deployment. Natural `.cfg` profile variant.
 - **AP_Notify-Style Notification Engine (post-Stage 10):** Evaluate ArduPilot's `AP_Notify` pattern for unifying LED, buzzer, and other status indicators behind a single notification interface. Natural successor to current `neo_set_if_changed()` pattern.
-- **Watchdog Behavior for Flight Safety (post-Stage 10):** Evaluate graceful degradation vs hard reboot on watchdog timeout during flight. Current policy: always reboot. Alternative: degrade to safe mode (close chutes, disable pyro) without full reboot if possible. Requires analysis of what state survives a watchdog reset on RP2350.
+- **Watchdog Safety Architecture (council-reviewed 2026-03-29):** Current reboot-always policy is wrong for flight. Council-approved 3-layer architecture: (1) Smart Path, (2) Health Monitor with phase-dependent degrade, (3) PIO Dead Man's Switch timer. Safe mode behavior profile-configurable (`SAFE_MODE_ACTION` in `.cfg`). Decision doc: `docs/decisions/WATCHDOG_SAFETY_ARCHITECTURE.md`. Needs IVPs for PIO timer, watchdog policy refactor, cross-core heartbeat, and pyro hardware update. **Pre-Stage 11 priority.**
+- **Code Comments Audit / Cleanup (low priority):** Review all source files for stale comments, TODO markers, misleading descriptions, and missing "why" explanations. Housekeeping pass — no functional changes.
 
 ---
 
