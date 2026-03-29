@@ -732,16 +732,16 @@ bool ESKF::update_baro(float altitudeAglM) {
     // NIS for diagnostics
     last_baro_nis_ = (innovation * innovation) / s;
 
-    // Push NIS to innovation monitor (IVP-83)
-    if (phase_qr_) {
-        innovation_channel_push(&innov_baro_, last_baro_nis_);
-    }
-
     // Innovation gate
     const float gateThreshold = kBaroInnovationGate * sqrtf(s);
     if (fabsf(innovation) > gateThreshold) {
         ++baro_total_rejects_;
         return false;
+    }
+
+    // Push NIS AFTER gate — gated readings have enormous NIS that corrupt the monitor
+    if (phase_qr_) {
+        innovation_channel_push(&innov_baro_, last_baro_nis_);
     }
 
     ++baro_total_accepts_;
@@ -870,11 +870,6 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
 
     last_mag_nis_ = (innovation * innovation) / s;
 
-    // Push NIS to innovation monitor (IVP-83)
-    if (phase_qr_) {
-        innovation_channel_push(&innov_mag_, last_mag_nis_);
-    }
-
     // 300σ gate (ArduPilot EKF3 match). Physically untriggerable since
     // max innovation (π rad) < 300×√R ≈ 26 rad. Kept for symmetry with
     // baro/GPS/ZUPT update pattern.
@@ -882,6 +877,11 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
         ++mag_consecutive_rejects_;
         ++mag_total_rejects_;
         return false;
+    }
+
+    // Push NIS AFTER gate
+    if (phase_qr_) {
+        innovation_channel_push(&innov_mag_, last_mag_nis_);
     }
 
     mag_consecutive_rejects_ = 0;
@@ -1251,9 +1251,11 @@ bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
         if (s < kMinInnovationVariance) { continue; }
 
         const float nis = (innovation * innovation) / s;
-        if (nis > maxNis) { maxNis = nis; }
 
         if (fabsf(innovation) > kGpsPositionGate * sqrtf(s)) { continue; }
+
+        // Track max NIS only from accepted readings
+        if (nis > maxNis) { maxNis = nis; }
 
 #ifdef ESKF_USE_BIERMAN
         bierman_kalman_update(kHIdx, 1.0F, innovation, rNoise);
@@ -1264,8 +1266,8 @@ bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
 
     last_gps_pos_nis_ = maxNis;
 
-    // Push NIS to innovation monitor (IVP-83)
-    if (phase_qr_) {
+    // Push NIS AFTER gate
+    if (phase_qr_ && maxNis > 0.0F) {
         innovation_channel_push(&innov_gps_pos_, last_gps_pos_nis_);
     }
 
@@ -1312,14 +1314,16 @@ bool ESKF::update_gps_velocity(float vNorth, float vEast) {
 
         // NIS
         const float nis = (innovation * innovation) / s;
-        if (nis > maxNis) {
-            maxNis = nis;
-        }
 
         // Innovation gate
         const float gateThreshold = kGpsVelocityGate * sqrtf(s);
         if (fabsf(innovation) > gateThreshold) {
             continue;
+        }
+
+        // Track max NIS only from accepted readings
+        if (nis > maxNis) {
+            maxNis = nis;
         }
 
 #ifdef ESKF_USE_BIERMAN
@@ -1331,8 +1335,8 @@ bool ESKF::update_gps_velocity(float vNorth, float vEast) {
 
     last_gps_vel_nis_ = maxNis;
 
-    // Push NIS to innovation monitor (IVP-83)
-    if (phase_qr_) {
+    // Push NIS AFTER gate
+    if (phase_qr_ && maxNis > 0.0F) {
         innovation_channel_push(&innov_gps_vel_, last_gps_vel_nis_);
     }
 
