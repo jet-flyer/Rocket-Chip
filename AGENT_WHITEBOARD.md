@@ -22,6 +22,16 @@
 
 ---
 
+### Stage 10 (Adaptive Estimation & Safety) — COMPLETE
+
+**Updated 2026-03-29.** IVP-83 through IVP-85 complete, IVP-86 retired. Council-reviewed (unanimous, 7 amendments incorporated). 598/598 host tests, 65s HW soak clean (85K IMU reads, 0 errors, conf=Y). 5 commits pushed to main.
+
+- **IVP-83 (Phase-Scheduled Q/R + Innovation Monitor):** Per-phase Q scaling and R values via Mission Profile `.cfg`. Additive Q delta post-codegen. Sliding-window NIS tracker with 10x cap. NIS push-after-gate fix (gated readings corrupted innovation windows).
+- **IVP-84 (Confidence Gate):** Binary ESKF trust flag, 500ms loss / 2s recovery hysteresis. Platform safety, not profile-configurable.
+- **IVP-85 (Confidence-Gated Actions):** SafetyLockout + guard combinator wired. Pyro locked when uncertain. SPIN model updated. Abort no longer fires pyro by default.
+- **IVP-86 (retired):** Cycle-performance benchmark deferred to post-stage hardware validation.
+- **IVP.md restructured:** Stage 12 renamed "Pre-Flight Polish", Stage 13 added (Field Tuning placeholder).
+
 ### Stage 9 (Active Object Architecture) — COMPLETE
 
 **Updated 2026-03-27.** IVP-76 through IVP-82b complete. 6 AOs running, SPIN formal verification passing all 8 properties (107,818 states, 0 errors, 37ms each). 552/552 host tests, bench sim 9/9, 10-min soak clean.
@@ -101,6 +111,10 @@
 - **Flight Erase Protection (post-Stage 6):** Current erase (`x` key) requires typing "yes" + Enter. Future improvement: password-protected erase or per-flight delete instead of erase-all. Prevents accidental data loss in field use.
 - **USB Download Speed Optimization (post-Stage 6):** Current USB CDC download runs ~9 KB/s (limited by Python serial read loop + fwrite through stdio layer). TinyUSB `tud_cdc_write()` direct calls and larger USB transfer chunks could reach ~200-500 KB/s (USB Full Speed theoretical). Not blocking — current speed downloads a typical flight in 20-30s.
 - ~~**Pre-commit hook function decomposition:**~~ **DONE** (P5c, 2026-02-20). All 8 functions decomposed. Pre-commit hook passes clean — no `--no-verify` needed.
+- **Cycle Performance Benchmark on Hardware (post-Stage 10):** IVP-86 retired. Measure actual per-tick CPU budget with phase-scheduled Q/R + confidence gate + innovation monitor overhead. Profile `eskf_tick()` end-to-end on target. Not blocking — 65s HW soak showed no timing issues.
+- **Passive Ejection Charge Mission Profile (post-Stage 10):** Estes-style motors with integrated ejection charge. No active pyro firing needed — Flight Director logs events and tracks state but does not command deployment. Natural `.cfg` profile variant.
+- **AP_Notify-Style Notification Engine (post-Stage 10):** Evaluate ArduPilot's `AP_Notify` pattern for unifying LED, buzzer, and other status indicators behind a single notification interface. Natural successor to current `neo_set_if_changed()` pattern.
+- **Watchdog Behavior for Flight Safety (post-Stage 10):** Evaluate graceful degradation vs hard reboot on watchdog timeout during flight. Current policy: always reboot. Alternative: degrade to safe mode (close chutes, disable pyro) without full reboot if possible. Requires analysis of what state survives a watchdog reset on RP2350.
 
 ---
 
@@ -180,9 +194,9 @@ Replaced Joseph scalar measurement updates with Bierman on UD-factored covarianc
 
 Research across 4 phases proved MMAE/IMM is the wrong tool for RocketChip's flight regime switching. Real aerospace navigation (X-43A, SpaceX, ArduPilot EKF3, PX4 ECL) uses single kinematic filters with deterministic regime adaptation — not multi-model banks. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for full analysis.
 
-**New architecture (Stage 10, IVP-81):** Phase-scheduled Q/R matrices tied to state machine flight phases (IDLE→ARMED→BOOST→COAST→DESCENT→LANDED) + thin innovation-ratio adaptation layer + optional Bierman scalar measurement updates (GPS-conditional, boot-time detection). Captures 80-90% of IMM's benefit at near-zero complexity cost. Software identical across all tiers — Titan differs only in hardware.
+**New architecture (Stage 10, IVP-83–85):** Phase-scheduled Q/R matrices tied to state machine flight phases (IDLE→ARMED→BOOST→COAST→DESCENT→LANDED) + sliding-window NIS innovation monitor + confidence gate with hysteresis + confidence-gated pyro lockout. Captures 80-90% of IMM's benefit at near-zero complexity cost. Software identical across all tiers — Titan differs only in hardware. **Stage 10 COMPLETE (2026-03-29).**
 
-**IVP restructuring (2026-03-14):** 12 stages, 95 IVPs. Stage 8: Flight Director (IVP-66–75, QEP+STARS). Stage 9: Active Object Architecture (IVP-76–80, QF+QV). Stage 10: Adaptive Estimation (IVP-81–84). Stage 11: Ground Station (IVP-85–90). Stage 12: System Integration (IVP-91–95).
+**IVP restructuring (2026-03-29):** 13 stages. Stage 10: Adaptive Estimation (IVP-83–85, IVP-86 retired). Stage 11: Ground Station. Stage 12: Pre-Flight Polish. Stage 13: Field Tuning (placeholder).
 
 ---
 

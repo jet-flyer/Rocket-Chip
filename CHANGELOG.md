@@ -20,6 +20,22 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-29-001 | Claude Code CLI | feature, architecture, council
+
+**Stage 10 COMPLETE: Adaptive Estimation & Safety (IVP-83–85).** Three IVPs, IVP-86 retired. Council-reviewed (unanimous, 7 amendments incorporated). 598/598 host tests, 65s HW soak clean (85K IMU reads, 0 errors, conf=Y).
+
+**IVP-83 (Phase-Scheduled Q/R + Innovation Monitor):** Per-phase Q scaling and R values sourced from Mission Profile `.cfg`. Additive Q delta applied post-codegen FPFT. Per-channel sliding-window NIS tracker with 10x cap. NIS push-after-gate fix: gated (rejected) readings were corrupting innovation monitor windows. 28 new tests.
+
+**IVP-84 (Confidence Gate):** Binary ESKF trust flag with hysteresis (500ms loss, 2s recovery debounce). Platform safety, not profile-configurable. Wired into `eskf_tick()`, `FusedState`, CLI display. 14 new tests.
+
+**IVP-85 (Confidence-Gated Actions):** Wired into SafetyLockout/guard combinator. Pyro locked when ESKF uncertain, no fallback. SPIN model updated with confidence property. Abort action no longer fires pyro by default. 4 new tests.
+
+**IVP-86 (retired):** Originally planned cycle-performance benchmark; deferred to post-stage hardware validation.
+
+**IVP.md restructured:** Stage 12 renamed "Pre-Flight Polish", Stage 13 added (Field Tuning placeholder).
+
+(`src/fusion/eskf.h`, `src/fusion/eskf.cpp`, `src/fusion/innovation_monitor.h`, `src/fusion/innovation_monitor.cpp`, `src/flight_director/safety_lockout.cpp`, `src/flight_director/guard_functions.cpp`, `tools/spin/rocketchip_ao.pml`, `profiles/rocket.cfg`, `profiles/hab.cfg`)
+
 ### 2026-03-27-002 | Claude Code CLI | architecture, council
 
 **IVP-82a/82b: SPIN Formal Verification (Stage 9 completion).** SPIN 6.5.2 + MinGW GCC + Cygwin toolchain installed. Two Promela models: FD-only (73 states) and full AO topology (107,818 states). 8 properties verified exhaustively in 37ms each — 5 safety (pyro-never-in-IDLE, drogue-before-main, requires-ARMED, drogue-once, main-once) + 3 mission-critical (event delivery to Logger/Telem/LED). Council-reviewed (4 panelists, 5 amendments). Key optimization: `atomic{}` blocks simulate QV run-to-completion, channel depth [1] (safety depends on ordering not buffering). Verification overview doc added (`docs/VERIFICATION_OVERVIEW.md`) unifying all 5 verification layers.

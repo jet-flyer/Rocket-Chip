@@ -1,14 +1,14 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-03-27 (Stage 9 COMPLETE)
+**Last Updated:** 2026-03-29 (Stage 10 COMPLETE)
 
 ## Current Phase
 
-**Stage 9 COMPLETE** — Active Object Architecture (IVP-76–82b)
+**Stage 10 COMPLETE** — Adaptive Estimation & Safety (IVP-83–85, IVP-86 retired)
 
-6 Active Objects under QV cooperative scheduler, SPIN formal verification of pyro safety + event delivery. 552/552 host tests, bench sim 9/9, 10-min soak clean, 8 SPIN properties verified exhaustively (107,818 states, 0 errors).
+Phase-scheduled Q/R framework with per-phase scaling from Mission Profile `.cfg`, sliding-window NIS innovation monitor, binary confidence gate with hysteresis, confidence-gated pyro lockout. SPIN model updated. Council-reviewed (unanimous, 7 amendments). 598/598 host tests, 65s HW soak clean (85K IMU reads, 0 errors, conf=Y).
 
-**Next: Stage 10** — Adaptive Estimation & Safety (IVP-83–86). Phase-scheduled Q/R matrices tied to flight phases, innovation-ratio adaptation layer.
+**Next: Stage 11** — Ground Station (IVP-87–92). Ground station infrastructure, validated upload, GCS integration.
 
 ## Completed
 
@@ -47,10 +47,11 @@
 | 8: Flight Director | IVP-66–75 | 2026-03-26 | QEP HSM (9 states, descent superstate), guard functions + combinators + three-layer safety, Go/No-Go pre-arm, action executor (NeoPixel + pyro intent), bench flight sim (9/9 PASS), mission profile .cfg + generator, QF+QV compile gate. Council-reviewed (IVP-71, IVP-73, IVP-74). 552 host tests |
 | Standards Audit | — | 2026-03-26 | Tiered audit (clang-tidy + lizard + RP2350 guards + Prior Art). ~60 magic numbers remediated, 8 Prior Art blocks added, ring_buffer init fixed. See `standards/STANDARDS_AUDIT_2026-03-26.md` |
 | 9: Active Objects | IVP-76–82b | 2026-03-27 | QF+QV BSP, 6 AOs, superloop removal, SPIN formal verification. Council-reviewed (3 reviews, 18 amendments total). Queue depth 32 for LoRa blocking (LL Entry 32). 8 SPIN properties verified (107K states, 0 errors). 552/552 host tests, bench sim 9/9, 10-min soak clean. Verification overview doc added |
+| 10: Adaptive Estimation | IVP-83–85 | 2026-03-29 | Phase-scheduled Q/R (Mission Profile `.cfg`), sliding-window NIS innovation monitor, confidence gate (500ms loss / 2s recovery hysteresis), confidence-gated pyro lockout. SPIN model updated. IVP-86 retired. Council-reviewed (7 amendments). 598/598 host tests, 65s HW soak clean |
 
 ## In Progress
 
-**Stage 10 (Adaptive Estimation & Safety)** — IVP-83 through IVP-86. Phase-scheduled Q/R matrices tied to flight phases, innovation-ratio adaptation layer. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`.
+*None currently. Next: Stage 11 (Ground Station).*
 
 ## Blockers
 
@@ -63,7 +64,7 @@ None currently.
 
 ## Reference
 
-- `docs/IVP.md` — Full 85-step integration plan with verification gates (includes Phase M mag cal)
+- `docs/IVP.md` — Full integration plan with verification gates (includes Phase M mag cal)
 - `docs/SAD.md` — Software Architecture Document
 - `docs/SCAFFOLDING.md` — Directory structure and file listing
 - `standards/CODING_STANDARDS.md` — Platform constraints
