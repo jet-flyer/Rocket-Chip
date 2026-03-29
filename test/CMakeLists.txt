@@ -83,6 +83,7 @@ add_library(rc_fusion_bierman STATIC
     ${CMAKE_SOURCE_DIR}/src/fusion/wmm_declination.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/mahony_ahrs.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/innovation_monitor.cpp
+    ${CMAKE_SOURCE_DIR}/src/fusion/confidence_gate.cpp
 )
 target_link_libraries(rc_fusion_bierman PUBLIC rc_math)
 target_compile_definitions(rc_fusion_bierman PUBLIC ESKF_USE_BIERMAN=1)
@@ -165,6 +166,11 @@ gtest_discover_tests(test_action_executor)
 add_executable(test_phase_qr test_phase_qr.cpp)
 target_link_libraries(test_phase_qr PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_phase_qr)
+
+# IVP-84: Confidence gate tests
+add_executable(test_confidence_gate test_confidence_gate.cpp)
+target_link_libraries(test_confidence_gate PRIVATE rc_fusion GTest::gtest_main)
+gtest_discover_tests(test_confidence_gate)
 
 # IVP-83: Innovation monitor tests
 add_executable(test_innovation_monitor test_innovation_monitor.cpp)
