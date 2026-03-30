@@ -442,9 +442,8 @@ static std::atomic<uint8_t> g_calNeoPixelOverride{kCalNeoOff};
 
 // Dual-core watchdog kick flags — std::atomic per MULTICORE_RULES.md
 // volatile is NOT sufficient for cross-core visibility on ARM (no hardware barrier)
-static std::atomic<bool> g_wdtCore0Alive{false};
-static std::atomic<bool> g_wdtCore1Alive{false};
-static bool g_watchdogEnabled = false;
+// IVP-90: SDK watchdog globals removed. PIO heartbeat is sole health monitor.
+// g_wdtCore0Alive, g_wdtCore1Alive, g_watchdogEnabled — deleted.
 static bool g_watchdogReboot = false;
 
 // Sensor phase active — set by Core 0 when Core 1 enters sensor loop.
@@ -1034,7 +1033,8 @@ static void core1_sensor_loop() {
         localData.core1_loop_count = loopCount;
         seqlock_write(&g_sensorSeqlock, &localData);
 
-        g_wdtCore1Alive.store(true, std::memory_order_relaxed);
+        // IVP-90: Core 1 heartbeat removed (was g_wdtCore1Alive).
+        // PIO heartbeat watchdog monitors both cores via FIFO feed from Core 0.
 
         uint32_t nowMs = to_ms_since_boot(get_absolute_time());
         core1_neopixel_update(&localData, nowMs, sensorPhaseStartMs);
@@ -2134,12 +2134,11 @@ static void init_application(bool watchdogReboot) {
     rc::flight_director_init(&g_director);
     g_directorInitialized = true;
 
-    // Enable watchdog (council critical fix: must be unconditional).
-    // Write sentinel to scratch[0] so next boot can distinguish a genuine
-    // watchdog timeout from SWD/picotool resets (see kWatchdogSentinel comment).
-    g_watchdogEnabled = true;
+    // IVP-90: SDK hardware watchdog REMOVED from production.
+    // PIO heartbeat watchdog (init_pio_safety) is the sole health monitor.
+    // No automatic MCU reset — ever — without user command.
+    // Recovery scratch still written for boot diagnostics.
     watchdog_hw->scratch[0] = kWatchdogSentinel;
-    watchdog_enable(kWatchdogTimeoutMs, true);
 
     init_pio_safety();
 }
@@ -2155,23 +2154,12 @@ static const char* g_lastTickFunction = "init";
 
 // heartbeat_tick() removed — AO_Blinker owns LED heartbeat (IVP-76)
 
+// IVP-90: PIO watchdog feed replaces SDK watchdog.
+// No MCU reset — PIO heartbeat is the sole health monitor.
+// Recovery scratch still updated for boot diagnostics.
 static void watchdog_kick_tick() {
-    if (!g_watchdogEnabled) {
-        return;
-    }
-
-    // IVP-66: Update scratch registers with current state before kicking.
-    // If the next kick is missed, recovery data is fresh.
     rc::watchdog_recovery_update_scratch(&g_recovery);
-
-    g_wdtCore0Alive.store(true, std::memory_order_relaxed);
-    if (g_wdtCore0Alive.load(std::memory_order_relaxed) &&
-        g_wdtCore1Alive.load(std::memory_order_relaxed)) {
-        watchdog_update();
-        rc::pio_watchdog_feed();  // IVP-88: feed PIO watchdog alongside SDK WD
-        g_wdtCore0Alive.store(false, std::memory_order_relaxed);
-        g_wdtCore1Alive.store(false, std::memory_order_relaxed);
-    }
+    rc::pio_watchdog_feed();
 }
 
 static void cli_update_tick() {
@@ -2700,9 +2688,9 @@ static void cli_print_flight_status() {
 
 // Watchdog kick callback for flash operations.
 // During multi-sector flash writes, the main loop is blocked.
-// The watchdog (5s) must be kicked between sectors (~45ms each).
+// Feed PIO watchdog between sectors (~45ms each) to prevent timeout.
 static void flush_kick_watchdog() {
-    watchdog_update();
+    rc::pio_watchdog_feed();
 }
 
 static void cmd_flush_log() {
@@ -2909,7 +2897,7 @@ static uint32_t stream_flight_binary(const rc::FlightLogEntry& entry) {
         running_crc = rc::crc32_update(running_crc,
                                        xip_base + offset, batch_bytes);
         frames_sent += batch;
-        watchdog_update();
+        rc::pio_watchdog_feed();
     }
 
     stdio_set_translate_crlf(&stdio_usb, true);

@@ -18,7 +18,7 @@
 #include "rocketchip/config.h"
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
-#include "hardware/watchdog.h"
+#include "safety/pio_watchdog.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -414,7 +414,7 @@ static bool wait_for_enter_or_esc() {
         if (!stdio_usb_connected()) {
             return false;
         }
-        watchdog_update();
+        rc::pio_watchdog_feed();
         sleep_ms(kRcOsPollMs);
         elapsedMs += kRcOsPollMs;
     }
@@ -706,7 +706,7 @@ static bool mag_cal_collect_samples(uint16_t* outFinalCount,
             printf("\nUSB disconnected — aborting.\n");
             return false;
         }
-        watchdog_update();
+        rc::pio_watchdog_feed();
 
         // Read mag sample from seqlock
         float mx = 0.0F;
@@ -931,7 +931,7 @@ static bool wait_for_async_cal() {
         }
 
         update_calibration_progress();
-        watchdog_update();
+        rc::pio_watchdog_feed();
         sleep_ms(kCalFeedPollMs);
     }
 
