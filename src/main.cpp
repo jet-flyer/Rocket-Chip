@@ -2124,10 +2124,12 @@ static void init_application(bool watchdogReboot) {
     g_director.log_pyro_cb = [](rc::PyroChannel ch) {
         printf("[FD] PYRO INTENT: %s\n",
                ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
-        // IVP-89: Cancel PIO backup timer on successful smart deploy
+        // Set persistent pyro-fired flag
         if (ch == rc::PyroChannel::kDrogue) {
+            g_director.state.drogue_fired = true;
             rc::pio_backup_timer_cancel(rc::BackupTimerId::kDrogue);
         } else {
+            g_director.state.main_fired = true;
             rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
         }
     };

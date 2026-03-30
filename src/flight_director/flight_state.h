@@ -92,12 +92,20 @@ struct FlightState {
     uint32_t phase_entry_ms;        // When current phase was entered (ms since boot)
     uint32_t transition_count;      // Total number of phase transitions (diagnostic)
 
+    // Persistent pyro-fired flags — latched on fire, never cleared until RESET.
+    // Set by both smart path (Action Executor) and PIO backup timers.
+    // Queried by CLI, telemetry, and SPIN model (!drogue_fired guard).
+    bool drogue_fired;
+    bool main_fired;
+
     void init() {
         current_phase = FlightPhase::kIdle;
         previous_phase = FlightPhase::kIdle;
         markers.clear();
         phase_entry_ms = 0;
         transition_count = 0;
+        drogue_fired = false;
+        main_fired = false;
     }
 };
 
