@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-29-003 | Claude Code CLI | feature
+
+**Event logging framework.** PCM event frame (type=3, 15 bytes) for discrete flight events: pyro fire, abort, confidence gate transitions. Logged to ring buffer with MET timestamp alongside periodic telemetry frames. Designed for future Mission Profile toggles. Persistent pyro-fired flags added to FlightState.
+
+---
+
 ### 2026-03-29-002 | Claude Code CLI | feature, architecture, council
 
 **Stage 11 COMPLETE: PIO Safety Architecture (IVP-87–91).** Five IVPs. Two council reviews (watchdog architecture + plan review, 5 panelists each). SPIN model updated — 6/6 safety properties pass. 598/598 host tests, 65s HW soak clean.
