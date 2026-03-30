@@ -1026,6 +1026,60 @@ Split `rfm95w_send()` into non-blocking `rfm95w_send_start()` (write FIFO, set T
 
 ---
 
+## Entry 33: PIO GPIO Init Causes I2C Bus Interference on Adjacent Pins
+
+**Date:** 2026-03-29
+**Time Spent:** ~1 hour
+**Severity:** Critical — IMU init fails, ESKF never starts
+
+### Problem
+Initializing a PIO2 state machine with a GPIO safety pin (GPIO 4 or GPIO 25) caused ICM-20948 I2C init to fail. The I2C bus is on GPIO 2/3. The IMU worked without PIO init, failed with it, every time.
+
+### Root Cause
+`pio_gpio_init()` + `pio_sm_set_consecutive_pindirs()` configures a GPIO as a PIO output, which clears the RP2350 pad ISO bit and sets FUNCSEL to PIO2. On adjacent GPIO pins (GPIO 4 is next to GPIO 3/SCL), this can cause electrical coupling that interferes with I2C transactions during sensor init.
+
+Additionally, `pio_claim_free_sm_and_add_program_for_gpio_range()` searches PIO2 first (highest to lowest). The NeoPixel driver may claim PIO2 SM0 instead of the intended PIO0, leaving less room on PIO2 and creating unexpected PIO block sharing.
+
+### Solution
+Use PIO IRQ flags for fault signaling instead of GPIO pins. The PIO sets `irq 0` on timeout; the ARM reads `pio_interrupt_get(pio, 0)`. No GPIO pins touched, no FUNCSEL changes, no electrical coupling.
+
+### Prevention
+1. **Never use PIO GPIO outputs on pins adjacent to I2C.** GPIO 2/3 (I2C) should have at least 2 pins of separation from any PIO-driven output.
+2. **Use `pio_claim_unused_sm()` instead of hardcoding SM numbers.** The SDK's auto-claim for NeoPixel may take unexpected SMs.
+3. **Prefer PIO IRQ flags over GPIO for inter-PIO-ARM signaling.** No pin allocation, no electrical side effects.
+4. **Always verify which PIO block the NeoPixel actually claimed** — add a diagnostic print after `ws2812_status_init()`.
+
+---
+
+## Entry 34: PC Cooling Fan Turbulence Causes Baro Drift → ESKF P-Growth Failure
+
+**Date:** 2026-03-29
+**Time Spent:** ~2 hours (misdiagnosed as code regression)
+**Severity:** High — ESKF disables after ~30s, watchdog reboot
+
+### Problem
+During HW verification of Stage 10/11 code, the device consistently crashed/rebooted after ~30-45 seconds. Initially attributed to Stage 10 code changes (phase Q/R, confidence gate). The crash was actually the `check_p_growth()` 30-second timer detecting P divergence from baro turbulence.
+
+### Symptoms
+- ESKF healthy at 15-20s, crashes at 30-45s
+- `check_p_growth()` returns false → CR-1 reset → `watchdog_recovery_eskf_failed()`
+- `bA=41/1066` — 96% baro rejection rate
+- Appeared to be a code regression from Stage 10
+
+### Root Cause
+The board was sitting on top of a PC case with cooling fans running. Fan airflow creates pressure turbulence at the DPS310 baro port, causing rapid pressure fluctuations. These fluctuations produce large innovations that the 3σ gate rejects (96% rejection rate). Without baro corrections, the ESKF vertical position estimate drifts, eventually triggering the P-growth check.
+
+### Solution
+Move the board away from any air currents during bench testing. The baro is extremely sensitive to turbulent airflow — even AC vents can cause issues.
+
+### Prevention
+1. **Bench test in still air.** No fans, no AC vents, no open windows with breeze.
+2. **When debugging ESKF divergence, check the baro rejection rate first.** `bA=X/Y` in CLI — if rejection rate >50%, the environment is the problem, not the code.
+3. **Don't assume code changes caused the crash.** The same binary that passed a 65s soak in one location failed in 30s in another — same code, different airflow.
+4. **Consider covering the baro port with foam for bench testing** if the environment can't be controlled.
+
+---
+
 ## How to Use This Document
 
 1. **Before debugging crashes:** Check if symptoms match any entry here
