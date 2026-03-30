@@ -102,10 +102,11 @@ cmake --build build/
 | **7** | **Radio & Telemetry** | **Phase 5** | **IVP-57 — IVP-65** | **Core complete** | |
 | 8 | Flight Director | Phase 6 | IVP-66 — IVP-75 | Full | **Crowdfunding Demo Ready** |
 | **9** | **Active Object Architecture** | **Phase 6** | **IVP-76 — IVP-82b** | **Full** | |
-| 10 | Adaptive Estimation & Safety | Phase 6 | IVP-83 — IVP-85 | Placeholder | |
-| **11** | **Ground Station** | **Phase 7** | **IVP-87 — IVP-92** | **Placeholder** | |
-| 12 | Pre-Flight Polish | Phase 9 | IVP-93 — IVP-97 | Placeholder | **Flight Ready** |
-| **13** | **Field Tuning & Validation** | **Phase 9** | **TBD** | **Placeholder** | |
+| 10 | Adaptive Estimation & Safety | Phase 6 | IVP-83 — IVP-85 | Full | |
+| **11** | **PIO Safety Architecture** | **Phase 6** | **IVP-87 — IVP-91** | **Placeholder** | |
+| 12 | Ground Station | Phase 7 | IVP-92 — IVP-97 | Placeholder | |
+| 13 | Pre-Flight Polish | Phase 9 | IVP-98 — IVP-102 | Placeholder | **Flight Ready** |
+| **14** | **Field Tuning & Validation** | **Phase 9** | **IVP-103+** | **Placeholder** | |
 
 > **Stage 6 pull-forward rationale:** Data Logging was originally Stage 9 but is a dependency for the telemetry encoder — the encoder reads from data structures (FusedState, TelemetryState, SensorSnapshot) defined by the logging architecture. Pulling logging forward establishes the canonical data model that all downstream consumers (telemetry encoder, flight director, GCS) read from. IVP numbers were renumbered sequentially. See council reviews: `docs/decisions/Telem+logging/council_data_logging.md` and `council_telemetry_protocol.md`.
 
@@ -2684,57 +2685,72 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-## Stage 11: Ground Station
+## Stage 11: PIO Safety Architecture
 
-**Purpose:** Dedicated ground station platform on Raspberry Pi or PC. Everything beyond the RX RocketChip board. Independent of vehicle firmware once Stage 7 packet format is stable. Can be developed in parallel with Stages 8–10.
+**Purpose:** Replace the SDK hardware watchdog (which reboots the MCU) with a PIO-based safety architecture. PIO state machines are autonomous hardware that continues executing during ARM core hardfaults, deadlocks, and crashes. Three layers: Smart Path (normal ESKF/FD) + Health Monitor (PIO heartbeat → safe mode) + PIO Dead Man's Switch (autonomous backup deployment timers). No automatic MCU reset — ever — without user command.
+
+**Background:** Council review (2026-03-29, 5 panelists, unanimous) found the current reboot-on-watchdog policy is wrong for flight. Research across JSF, ArduPilot, NASA/JPL, and every hobby rocket FC confirmed: no flight computer should reboot mid-flight. Decision doc: `docs/decisions/WATCHDOG_SAFETY_ARCHITECTURE.md`.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-87 | Yamcs Instance & XTCE | *(placeholder)* XTCE dictionary for CCSDS packets, Yamcs on RPi |
-| IVP-88 | OpenMCT Integration | *(placeholder)* OpenMCT via openmct-yamcs plugin, custom layouts |
-| IVP-89 | Ground Station Pi Image | *(placeholder)* Pre-built RPi OS image, turnkey operation |
-| IVP-90 | Post-Flight Analysis Tools | *(placeholder)* PCM to CCSDS replay, flight timeline, multi-flight overlay |
-| IVP-91 | Web Dashboard | *(placeholder)* Browser-based telemetry for field use |
-| IVP-92 | Mobile / Remote Access | *(placeholder)* WiFi AP on ground station Pi for phone/tablet |
+| IVP-87 | Cycle Performance Baseline | Pre-change timing benchmark (eskf_tick end-to-end, binary size) |
+| IVP-88 | PIO Heartbeat Watchdog | PIO2-based health monitor, safe mode (no reboot), cross-core heartbeat |
+| IVP-89 | PIO Backup Deployment Timers | Autonomous drogue/main timers, profile-configurable actions, ARM/DISARM hooks |
+| IVP-90 | Watchdog Policy Refactor | Remove old SDK watchdog, integrate PIO system, CLI reset command |
+| IVP-91 | Post-Change Benchmark | Performance comparison vs IVP-87 baseline, binary size audit |
 
 ---
 
-## Stage 12: Pre-Flight Polish
+## Stage 12: Ground Station
+
+**Purpose:** Dedicated ground station platform on Raspberry Pi or PC. Everything beyond the RX RocketChip board. Independent of vehicle firmware once Stage 7 packet format is stable.
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| IVP-92 | Yamcs Instance & XTCE | *(placeholder)* XTCE dictionary for CCSDS packets, Yamcs on RPi |
+| IVP-93 | OpenMCT Integration | *(placeholder)* OpenMCT via openmct-yamcs plugin, custom layouts |
+| IVP-94 | Ground Station Pi Image | *(placeholder)* Pre-built RPi OS image, turnkey operation |
+| IVP-95 | Post-Flight Analysis Tools | *(placeholder)* PCM to CCSDS replay, flight timeline, multi-flight overlay |
+| IVP-96 | Web Dashboard | *(placeholder)* Browser-based telemetry for field use |
+| IVP-97 | Mobile / Remote Access | *(placeholder)* WiFi AP on ground station Pi for phone/tablet |
+
+---
+
+## Stage 13: Pre-Flight Polish
 
 **Purpose:** Full system verification and flight readiness. All subsystems integrated, all tests passing, all hardware validated under realistic conditions.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-93 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
-| IVP-94 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
-| IVP-95 | Power Budget Validation | Battery runtime validation under flight load |
-| IVP-96 | Environmental Stress | Temperature range, vibration (if available) |
-| IVP-97 | Flight Test | Bungee-launched glider: full data capture + telemetry |
+| IVP-98 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
+| IVP-99 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
+| IVP-100 | Power Budget Validation | Battery runtime validation under flight load |
+| IVP-101 | Environmental Stress | Temperature range, vibration (if available) |
+| IVP-102 | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
-> **Milestone:** IVP-97 — **Flight Ready**.
+> **Milestone:** IVP-102 — **Flight Ready**.
 
 ---
 
-## Stage 13: Field Tuning & Validation
+## Stage 14: Field Tuning & Validation
 
-**Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. This stage requires a flight-ready system (Stage 12 complete) to collect meaningful data for tuning.
+**Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. This stage requires a flight-ready system (Stage 13 complete) to collect meaningful data for tuning.
 
-**Scope:** All `VALIDATE`-marked thresholds from Stages 8-10, including:
+**Scope:** All `VALIDATE`-marked thresholds from Stages 8-11, including:
 - Phase-scheduled Q/R values per vehicle type (IVP-83)
 - Confidence gate thresholds: AHRS divergence, covariance bounds, innovation ratio limit, debounce timing (IVP-84)
 - Innovation monitor window size and Q inflation cap (IVP-83)
 - Guard sustain timing and phase detection thresholds (IVP-70, IVP-74)
+- PIO backup timer values per vehicle type (IVP-89)
 
 **Methodology:** See `docs/DYNAMIC_VALIDATION.md` for physical test methods (Allan variance, turntable, pendulum, elevator, data logging + replay, vehicle GPS-vs-INS).
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| TBD | Data Collection Infrastructure | Flight log replay + parameter sweep tooling |
-| TBD | Q/R Phase Tuning | Per-vehicle-type Q/R optimization from flight data |
-| TBD | Confidence Gate Tuning | Threshold validation from anomaly injection + field data |
-| TBD | Guard Timing Tuning | Sustain/debounce timing from flight profiles |
-
-> IVP numbers assigned when Stage 12 is complete and tuning methodology is finalized.
+| IVP-103 | Data Collection Infrastructure | Flight log replay + parameter sweep tooling |
+| IVP-104 | Q/R Phase Tuning | Per-vehicle-type Q/R optimization from flight data |
+| IVP-105 | Confidence Gate Tuning | Threshold validation from anomaly injection + field data |
+| IVP-106 | Guard Timing Tuning | Sustain/debounce timing from flight profiles |
 
 ---
 
@@ -2757,11 +2773,11 @@ Tests to re-run after changes to specific areas.
 | Data logging change | IVP-49 — IVP-54 | Data model, frames, buffer, flash |
 | Radio/telemetry change | IVP-57 — IVP-62 | Encoder, service, translation |
 | Adaptive estimation change | IVP-83 — IVP-85 | Q/R scheduling, confidence gate, gated actions |
-| Watchdog policy change | IVP-66, IVP-30 | Recovery behavior + mechanism |
+| Watchdog / PIO safety change | IVP-87 — IVP-91 | PIO watchdog, backup timers, safe mode |
 | Flight Director change | IVP-67 — IVP-75 | State machine, guards, actions, mission config |
 | Active Object change | IVP-76 — IVP-82, IVP-73 | AO migration, bench flight sim regression |
 | **Major refactor** | **All Stage 1-3** | Full regression |
-| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-30, IVP-66, IVP-73, IVP-93 | Release qualification (build, USB, flash, watchdog, recovery, bench flight sim, full bench test) |
+| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-88, IVP-73, IVP-98 | Release qualification (build, USB, flash, PIO safety, bench flight sim, full bench test) |
 
 ---
 
