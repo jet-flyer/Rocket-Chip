@@ -26,6 +26,7 @@
 #include "calibration/calibration_manager.h"
 #include "fusion/eskf.h"
 #include "fusion/confidence_gate.h"
+#include "safety/pio_watchdog.h"
 #include "fusion/mahony_ahrs.h"
 #include "fusion/wmm_declination.h"
 #include "drivers/spi_bus.h"
@@ -2117,6 +2118,12 @@ static void init_application(bool watchdogReboot) {
     g_watchdogEnabled = true;
     watchdog_hw->scratch[0] = kWatchdogSentinel;
     watchdog_enable(kWatchdogTimeoutMs, true);
+
+    // IVP-88: PIO heartbeat watchdog (runs alongside SDK watchdog during transition)
+    // No GPIO pin — uses PIO2 IRQ flag 0 for fault signaling.
+    if (!rc::pio_watchdog_init()) {
+        DBG_ERROR("PIO watchdog init failed — PIO2 SM unavailable");
+    }
 }
 
 // ============================================================================
@@ -2143,6 +2150,7 @@ static void watchdog_kick_tick() {
     if (g_wdtCore0Alive.load(std::memory_order_relaxed) &&
         g_wdtCore1Alive.load(std::memory_order_relaxed)) {
         watchdog_update();
+        rc::pio_watchdog_feed();  // IVP-88: feed PIO watchdog alongside SDK WD
         g_wdtCore0Alive.store(false, std::memory_order_relaxed);
         g_wdtCore1Alive.store(false, std::memory_order_relaxed);
     }

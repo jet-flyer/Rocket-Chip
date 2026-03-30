@@ -298,6 +298,9 @@ else()
         src/fusion/innovation_monitor.cpp
         src/fusion/confidence_gate.cpp
 
+        # IVP-88: PIO heartbeat watchdog
+        src/safety/pio_watchdog.cpp
+
         # -------------------------------------------------------------------------
         # Stage 6: Data Logging (IVP-49/50/51, IVP-52a/b/c, IVP-53a/b)
         # -------------------------------------------------------------------------
@@ -437,6 +440,11 @@ else()
     # Generate WS2812 PIO header from SDK's pio file
     pico_generate_pio_header(rocketchip
         ${PICO_SDK_PATH}/src/rp2_common/pico_status_led/ws2812.pio
+    )
+
+    # IVP-88: PIO heartbeat watchdog
+    pico_generate_pio_header(rocketchip
+        ${CMAKE_CURRENT_LIST_DIR}/pio/heartbeat_watchdog.pio
     )
 
     # Link libraries

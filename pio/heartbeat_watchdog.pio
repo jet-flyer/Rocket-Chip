@@ -1,0 +1,66 @@
+; SPDX-License-Identifier: GPL-3.0-or-later
+; Copyright (c) 2025-2026 Rocket Chip Project
+;
+; PIO Heartbeat Watchdog — IRQ-based (IVP-88)
+;
+; Countdown timer that sets a PIO IRQ flag on timeout (no GPIO needed).
+; ARM feeds by writing to TX FIFO. Each write reloads the counter.
+; If ARM stops writing, counter reaches zero and IRQ flag 0 is set.
+; ARM checks fault state by reading PIO IRQ flags — no GPIO pin used.
+;
+; This avoids GPIO pin allocation, FUNCSEL changes, and any possible
+; electrical coupling to adjacent I2C pins.
+;
+; Protocol:
+;   1. ARM writes countdown value to TX FIFO (pio_sm_put)
+;   2. PIO loads value, counts down
+;   3. If countdown reaches 0: sets IRQ flag 0 (fault detected)
+;   4. ARM detects fault via pio_interrupt_get(pio, 0)
+;   5. ARM writes new value to recover: PIO clears IRQ, reloads
+;
+; The inner loop is 1 instruction per iteration (jmp x--).
+; Timeout = countdown_value / sm_clock_hz
+; At div=150 (1MHz): countdown=2000000 → 2s timeout
+
+.program heartbeat_watchdog
+
+public entry_point:
+    pull block              ; Wait for ARM to write initial countdown
+    irq clear 0             ; Clear fault flag
+    mov x, osr              ; X = countdown value
+
+.wrap_target
+    jmp x-- no_timeout      ; Decrement X; if > 0, continue
+    ; X reached zero — ARM is dead
+    irq set 0               ; Set fault flag (ARM reads this)
+    pull block              ; Wait for ARM recovery
+    irq clear 0             ; ARM recovered — clear fault
+    mov x, osr              ; Reload countdown
+    ; falls through to .wrap → back to top of loop
+
+no_timeout:
+    pull noblock            ; Try to read new value from FIFO
+    mov x, osr              ; If FIFO had data: X = new countdown (reload)
+                            ; If FIFO empty: OSR unchanged, X = old value
+                            ; (continues countdown from where it was)
+.wrap
+
+% c-sdk {
+static inline void heartbeat_watchdog_program_init(PIO pio, uint sm,
+                                                    uint offset) {
+    pio_sm_config c = heartbeat_watchdog_program_get_default_config(offset);
+
+    // No GPIO pins needed — uses IRQ flag 0 for fault signaling
+
+    // Clock divider: 150 gives 1MHz SM clock at 150MHz sys clock
+    // Each countdown iteration = 3 instructions = 3us
+    // countdown=666666 → ~2s timeout
+    sm_config_set_clkdiv(&c, 150.0f);
+
+    // Disable autopull — we use manual pull
+    sm_config_set_out_shift(&c, true, false, 32);
+
+    pio_sm_init(pio, sm, offset + heartbeat_watchdog_offset_entry_point, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
