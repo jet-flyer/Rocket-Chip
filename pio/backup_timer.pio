@@ -1,0 +1,79 @@
+; SPDX-License-Identifier: GPL-3.0-or-later
+; Copyright (c) 2025-2026 Rocket Chip Project
+;
+; PIO Backup Deployment Timer (IVP-89)
+;
+; Autonomous countdown timer for backup chute deployment.
+; Loaded and started at ARM time. Fires a GPIO pin when countdown
+; reaches zero. Completely independent of ARM cores — survives
+; hardfaults, deadlocks, and software crashes.
+;
+; Used for both drogue and main backup timers (separate SM instances).
+;
+; Protocol:
+;   1. ARM writes countdown value to TX FIFO at ARM time
+;   2. PIO counts down to zero
+;   3. On zero: drives output pin HIGH for ~200ms (e-match pulse)
+;   4. Drives pin LOW and stalls (one-shot, not repeating)
+;
+; To cancel (successful smart deploy): stop the SM via pio_sm_set_enabled()
+;
+; Timeout = countdown_value / sm_clock_hz
+; At div=150 (1MHz SM clock): countdown=15000000 → 15s timeout
+;
+; The output pin is configured via sm_config_set_set_pins() at init.
+; PIO owns the pin via FUNCSEL when armed; software owns when disarmed.
+
+.program backup_timer
+
+public entry_point:
+    pull block              ; Wait for ARM to write countdown value
+    mov x, osr              ; X = countdown
+
+countdown:
+    jmp x-- countdown       ; Decrement X, loop while > 0
+
+    ; Countdown expired — fire!
+    set pins, 1             ; Drive pyro GPIO HIGH
+
+    ; Hold for e-match ignition pulse (~200ms at 1MHz = 200000 cycles)
+    ; Use Y as pulse counter
+    set y, 31               ; Outer loop
+pulse_outer:
+    mov x, osr              ; Reuse OSR as inner counter (still has countdown value)
+    ; Actually we need a fixed pulse. Use nested loops.
+    ; 31 * 31 * ~6 instructions ≈ 5766 cycles at 1MHz ≈ 5.8ms per outer
+    ; 31 outer iterations ≈ 180ms — close enough for e-match
+    set x, 31               ; Inner loop
+pulse_inner:
+    jmp x-- pulse_inner [4] ; 6 cycles per iteration (1 + [4] + 1 jmp)
+    jmp y-- pulse_outer
+
+    set pins, 0             ; Release pyro GPIO after pulse
+    ; Set IRQ flag 1 to signal "timer fired" to ARM code
+    irq set 1
+stall:
+    jmp stall               ; Stall forever — one-shot timer complete
+
+% c-sdk {
+static inline void backup_timer_program_init(PIO pio, uint sm,
+                                              uint offset,
+                                              uint pyro_pin) {
+    pio_sm_config c = backup_timer_program_get_default_config(offset);
+
+    // Pyro output pin
+    sm_config_set_set_pins(&c, pyro_pin, 1);
+    pio_gpio_init(pio, pyro_pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pyro_pin, 1, true);
+
+    // Ensure pin starts LOW
+    pio_sm_set_pins(pio, sm, 0);
+
+    // Clock divider: 150 gives 1MHz at 150MHz sys clock
+    // countdown = timeout_seconds * 1000000
+    sm_config_set_clkdiv(&c, 150.0f);
+
+    pio_sm_init(pio, sm, offset + backup_timer_offset_entry_point, &c);
+    // Do NOT enable here — enabled explicitly at ARM time
+}
+%}

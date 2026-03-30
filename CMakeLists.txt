@@ -298,8 +298,9 @@ else()
         src/fusion/innovation_monitor.cpp
         src/fusion/confidence_gate.cpp
 
-        # IVP-88: PIO heartbeat watchdog
+        # IVP-88: PIO heartbeat watchdog + IVP-89: Backup timers
         src/safety/pio_watchdog.cpp
+        src/safety/pio_backup_timer.cpp
 
         # -------------------------------------------------------------------------
         # Stage 6: Data Logging (IVP-49/50/51, IVP-52a/b/c, IVP-53a/b)
@@ -445,6 +446,11 @@ else()
     # IVP-88: PIO heartbeat watchdog
     pico_generate_pio_header(rocketchip
         ${CMAKE_CURRENT_LIST_DIR}/pio/heartbeat_watchdog.pio
+    )
+
+    # IVP-89: PIO backup deployment timer
+    pico_generate_pio_header(rocketchip
+        ${CMAKE_CURRENT_LIST_DIR}/pio/backup_timer.pio
     )
 
     # Link libraries

@@ -27,6 +27,7 @@
 #include "fusion/eskf.h"
 #include "fusion/confidence_gate.h"
 #include "safety/pio_watchdog.h"
+#include "safety/pio_backup_timer.h"
 #include "fusion/mahony_ahrs.h"
 #include "fusion/wmm_declination.h"
 #include "drivers/spi_bus.h"
@@ -2067,6 +2068,21 @@ static void init_logging_ring() {
     }
 }
 
+// IVP-88/89: Initialize PIO safety systems on PIO2
+static void init_pio_safety() {
+    // Heartbeat watchdog — IRQ-based, no GPIO
+    if (!rc::pio_watchdog_init()) {
+        DBG_ERROR("PIO watchdog init failed — PIO2 SM unavailable");
+    }
+    // Backup deployment timers (drogue=GPIO12, main=GPIO13)
+    // Bench test pins — not connected to pyro hardware yet
+    static constexpr uint8_t kPioDroguePin = 12;
+    static constexpr uint8_t kPioMainPin = 13;
+    if (!rc::pio_backup_timer_init(kPioDroguePin, kPioMainPin)) {
+        DBG_ERROR("PIO backup timer init failed");
+    }
+}
+
 static void init_application(bool watchdogReboot) {
     g_watchdogReboot = watchdogReboot;
     init_rc_os_hooks();
@@ -2108,6 +2124,12 @@ static void init_application(bool watchdogReboot) {
     g_director.log_pyro_cb = [](rc::PyroChannel ch) {
         printf("[FD] PYRO INTENT: %s\n",
                ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
+        // IVP-89: Cancel PIO backup timer on successful smart deploy
+        if (ch == rc::PyroChannel::kDrogue) {
+            rc::pio_backup_timer_cancel(rc::BackupTimerId::kDrogue);
+        } else {
+            rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
+        }
     };
     rc::flight_director_init(&g_director);
     g_directorInitialized = true;
@@ -2119,11 +2141,7 @@ static void init_application(bool watchdogReboot) {
     watchdog_hw->scratch[0] = kWatchdogSentinel;
     watchdog_enable(kWatchdogTimeoutMs, true);
 
-    // IVP-88: PIO heartbeat watchdog (runs alongside SDK watchdog during transition)
-    // No GPIO pin — uses PIO2 IRQ flag 0 for fault signaling.
-    if (!rc::pio_watchdog_init()) {
-        DBG_ERROR("PIO watchdog init failed — PIO2 SM unavailable");
-    }
+    init_pio_safety();
 }
 
 // ============================================================================
@@ -2609,6 +2627,19 @@ static bool cli_process_flight_command(int cmd) {
 
     if (result.accepted) {
         rc::flight_director_dispatch_signal(&g_director, result.signal);
+
+        // IVP-89: PIO backup timer arm/disarm hooks
+        if (result.signal == rc::SIG_ARM) {
+            // Start backup timers with profile values
+            // TODO: read from Mission Profile once fields are wired
+            // TODO: read from Mission Profile once fields are wired
+            rc::pio_backup_timer_arm(15.0f, 45.0f);  // VALIDATE defaults
+            printf("[PIO] Backup timers armed: drogue=15s main=45s\n");
+        } else if (result.signal == rc::SIG_DISARM ||
+                   result.signal == rc::SIG_RESET) {
+            rc::pio_backup_timer_disarm();
+            printf("[PIO] Backup timers disarmed\n");
+        }
     } else {
         printf("[FD] Command rejected: %s\n", result.reason);
     }
