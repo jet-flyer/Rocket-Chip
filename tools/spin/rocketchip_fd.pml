@@ -36,11 +36,15 @@ byte drogue_count = 0;
 byte main_count = 0;
 bool coast_timeout_fired = false;
 
-/* Confidence gate (IVP-85): non-deterministic toggle models arbitrary
- * confidence loss/recovery. Over-approximation: the real gate has
- * debounce hysteresis, but safety properties must hold even under
- * arbitrarily fast confidence flips. */
+/* Confidence gate (IVP-85): non-deterministic toggle */
 bool confident = true;
+
+/* PIO backup timer (IVP-89): non-deterministic "timer expired" flag.
+ * Models the autonomous PIO countdown timer that fires regardless of
+ * ARM core state or confidence. Timer is NOT confidence-gated.
+ * Fires only in COAST (drogue) and DROGUE_DESCENT (main). */
+bool pio_drogue_timer_expired = false;
+bool pio_main_timer_expired = false;
 
 /* ========================================================================
  * Single Flight Director process with non-deterministic environment.
@@ -106,6 +110,15 @@ active proctype FlightDirector() {
             drogue_count = drogue_count + 1;
             coast_timeout_fired = true;
             phase = DROGUE_DESCENT
+        :: true ->                                   /* PIO backup timer (IVP-89): fires drogue regardless of confidence */
+            if :: true -> pio_drogue_timer_expired = true :: true -> skip fi;
+            if
+            :: pio_drogue_timer_expired && !drogue_fired ->
+                drogue_fired = true;
+                drogue_count = drogue_count + 1;
+                phase = DROGUE_DESCENT
+            :: else -> skip
+            fi
         :: true -> skip                              /* SIG_TICK: timeout not elapsed or not confident */
         fi
 
@@ -120,6 +133,15 @@ active proctype FlightDirector() {
             phase = MAIN_DESCENT
         :: true -> phase = LANDED                    /* SIG_LANDING (skip main) */
         :: true -> skip                              /* SIG_ABORT: ignored (descent) */
+        :: true ->                                   /* PIO backup timer (IVP-89): fires main regardless of confidence */
+            if :: true -> pio_main_timer_expired = true :: true -> skip fi;
+            if
+            :: pio_main_timer_expired && !main_fired ->
+                main_fired = true;
+                main_count = main_count + 1;
+                phase = MAIN_DESCENT
+            :: else -> skip
+            fi
         :: true -> skip                              /* SIG_TICK: no-op */
         fi
 
