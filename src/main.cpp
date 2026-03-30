@@ -444,6 +444,10 @@ static std::atomic<uint8_t> g_calNeoPixelOverride{kCalNeoOff};
 // volatile is NOT sufficient for cross-core visibility on ARM (no hardware barrier)
 // IVP-90: SDK watchdog globals removed. PIO heartbeat is sole health monitor.
 // g_wdtCore0Alive, g_wdtCore1Alive, g_watchdogEnabled — deleted.
+
+// Forward declaration: event logging to ring buffer (defined after logging_tick)
+static void log_flight_event(rc::LogEventId id, uint8_t d0 = 0, uint8_t d1 = 0,
+                              uint8_t d2 = 0, uint8_t d3 = 0);
 static bool g_watchdogReboot = false;
 
 // Sensor phase active — set by Core 0 when Core 1 enters sensor loop.
@@ -2068,6 +2072,29 @@ static void init_logging_ring() {
     }
 }
 
+// IVP-68/72: Initialize Flight Director + wire callbacks
+static void init_flight_director() {
+    rc::flight_director_ctor(&g_director, &rc::kDefaultRocketProfile);
+    g_director.set_led_cb = [](uint8_t val) {
+        g_calNeoPixelOverride.store(val, std::memory_order_relaxed);
+    };
+    g_director.log_pyro_cb = [](rc::PyroChannel ch) {
+        printf("[FD] PYRO INTENT: %s\n",
+               ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
+        if (ch == rc::PyroChannel::kDrogue) {
+            g_director.state.drogue_fired = true;
+            log_flight_event(rc::LogEventId::kPyroFiredDrogue);
+            rc::pio_backup_timer_cancel(rc::BackupTimerId::kDrogue);
+        } else {
+            g_director.state.main_fired = true;
+            log_flight_event(rc::LogEventId::kPyroFiredMain);
+            rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
+        }
+    };
+    rc::flight_director_init(&g_director);
+    g_directorInitialized = true;
+}
+
 // IVP-88/89: Initialize PIO safety systems on PIO2
 static void init_pio_safety() {
     // Heartbeat watchdog — IRQ-based, no GPIO
@@ -2115,26 +2142,7 @@ static void init_application(bool watchdogReboot) {
         calibration_start_baro();
     }
 
-    // IVP-68: Initialize Flight Director HSM
-    rc::flight_director_ctor(&g_director, &rc::kDefaultRocketProfile);
-    // IVP-72: Wire action callbacks (NeoPixel + pyro intent logging)
-    g_director.set_led_cb = [](uint8_t val) {
-        g_calNeoPixelOverride.store(val, std::memory_order_relaxed);
-    };
-    g_director.log_pyro_cb = [](rc::PyroChannel ch) {
-        printf("[FD] PYRO INTENT: %s\n",
-               ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
-        // Set persistent pyro-fired flag
-        if (ch == rc::PyroChannel::kDrogue) {
-            g_director.state.drogue_fired = true;
-            rc::pio_backup_timer_cancel(rc::BackupTimerId::kDrogue);
-        } else {
-            g_director.state.main_fired = true;
-            rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
-        }
-    };
-    rc::flight_director_init(&g_director);
-    g_directorInitialized = true;
+    init_flight_director();
 
     // IVP-90: SDK hardware watchdog REMOVED from production.
     // PIO heartbeat watchdog (init_pio_safety) is the sole health monitor.
@@ -2477,7 +2485,17 @@ static void eskf_tick_phase_and_confidence() {
         if (g_eskf.P(i, i) > ci.p_vel_max) ci.p_vel_max = g_eskf.P(i, i);
     }
     ci.now_ms = to_ms_since_boot(get_absolute_time());
+
+    // Track previous confidence state for transition logging
+    bool was_confident = g_confidence.confident;
     rc::confidence_gate_evaluate(&g_confidence, ci);
+
+    // Log confidence transitions
+    if (was_confident && !g_confidence.confident) {
+        log_flight_event(rc::LogEventId::kConfidenceLost);
+    } else if (!was_confident && g_confidence.confident) {
+        log_flight_event(rc::LogEventId::kConfidenceRecovered);
+    }
 }
 
 static void eskf_tick() {
@@ -2625,6 +2643,9 @@ static bool cli_process_flight_command(int cmd) {
             // TODO: read from Mission Profile once fields are wired
             rc::pio_backup_timer_arm(15.0f, 45.0f);  // VALIDATE defaults
             printf("[PIO] Backup timers armed: drogue=15s main=45s\n");
+        } else if (result.signal == rc::SIG_ABORT) {
+            log_flight_event(rc::LogEventId::kAbortTriggered,
+                             static_cast<uint8_t>(phase));  // log which phase abort came from
         } else if (result.signal == rc::SIG_DISARM ||
                    result.signal == rc::SIG_RESET) {
             rc::pio_backup_timer_disarm();
@@ -3085,6 +3106,27 @@ static void populate_fused_state(rc::FusedState& fused,
         ? static_cast<uint8_t>(g_director.state.current_phase)
         : 0;
     fused.met_ms = to_ms_since_boot(get_absolute_time());
+}
+
+// Log a discrete flight event to the ring buffer as a PCM event frame.
+// Called from pyro callback, abort handler, safe mode entry, etc.
+// Small (15 bytes) — minimal ring buffer impact.
+__attribute__((used))
+static void log_flight_event(rc::LogEventId id,
+                              uint8_t d0, uint8_t d1,
+                              uint8_t d2, uint8_t d3) {
+#ifndef ROCKETCHIP_HOST_TEST
+    if (!g_loggingInitialized) {
+        return;
+    }
+    rc::PcmFrameEvent frame{};
+    uint8_t data[4] = {d0, d1, d2, d3};
+    uint32_t met = to_ms_since_boot(get_absolute_time());
+    rc::pcm_encode_event(static_cast<uint8_t>(id), data, met, frame);
+    rc::ring_push(&g_ringBuffer, &frame);
+#else
+    (void)id;
+#endif
 }
 
 // Non-static for AO_Logger extern "C" bridge (IVP-79 incremental test)

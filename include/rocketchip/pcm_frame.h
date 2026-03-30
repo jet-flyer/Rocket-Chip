@@ -38,9 +38,41 @@ static constexpr uint8_t kPcmSyncLow  = 0x90;
 static constexpr uint8_t kPcmFrameTypeEconomy  = 0;
 static constexpr uint8_t kPcmFrameTypeStandard = 1;
 static constexpr uint8_t kPcmFrameTypeResearch = 2;
+static constexpr uint8_t kPcmFrameTypeEvent    = 3;  // Discrete event marker
 
 // Standard frame payload size
 static constexpr uint8_t kPcmStandardPayloadLen = 45;
+
+// Event frame payload (5 bytes: event_id + 4 bytes context)
+static constexpr uint8_t kPcmEventPayloadLen = 5;
+static constexpr uint32_t kPcmFrameEventSize = 15;  // 8 header + 5 payload + 2 CRC
+
+// Event IDs for discrete logged events
+enum class LogEventId : uint8_t {
+    kPyroFiredDrogue   = 1,   // Drogue pyro fired (smart path or PIO backup)
+    kPyroFiredMain     = 2,   // Main pyro fired
+    kAbortTriggered    = 3,   // ABORT command accepted
+    kSafeModeEntry     = 4,   // PIO watchdog detected fault, entered safe mode
+    kSafeModeExit      = 5,   // Recovered from safe mode
+    kPhaseChange       = 6,   // Flight phase transition (data: from, to)
+    kConfidenceLost    = 7,   // Confidence gate: confident → uncertain
+    kConfidenceRecovered = 8, // Confidence gate: uncertain → confident
+    // Future: kPioTimerArmed, kPioTimerDisarmed, kPioTimerFired, etc.
+};
+
+// Event frame — 15 bytes total (flat layout to avoid nested packed struct issues)
+struct __attribute__((packed)) PcmFrameEvent {
+    uint8_t  sync_high;          // 0xEB
+    uint8_t  sync_low;           // 0x90
+    uint32_t met_ms;             // MET
+    uint8_t  frame_type;         // 3 = Event
+    uint8_t  payload_len;        // 5
+    uint8_t  event_id;           // LogEventId
+    uint8_t  data[4];            // Event-specific context
+    uint16_t crc16;              // CRC-16-CCITT
+};
+static_assert(sizeof(PcmFrameEvent) == kPcmFrameEventSize,
+              "PcmFrameEvent must be 15 bytes");
 
 // PCM frame header — 8 bytes packed
 struct __attribute__((packed)) PcmFrameHeader {
@@ -93,6 +125,16 @@ extern const uint32_t   kStandardDecomTableLen;
  */
 void pcm_encode_standard(const TelemetryState& telem, uint32_t met_ms,
                           PcmFrameStandard& frame);
+
+/**
+ * @brief Encode an event PCM frame
+ * @param event_id  Event type (LogEventId)
+ * @param data      4 bytes of event-specific context (zeroed if unused)
+ * @param met_ms    Mission elapsed time in milliseconds
+ * @param frame     Output frame (15 bytes)
+ */
+void pcm_encode_event(uint8_t event_id, const uint8_t data[4],
+                       uint32_t met_ms, PcmFrameEvent& frame);
 
 /**
  * @brief Decode and validate a standard PCM frame

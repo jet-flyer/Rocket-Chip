@@ -117,4 +117,24 @@ bool pcm_find_sync(const uint8_t* data, uint32_t len, uint32_t& offset) {
     return false;
 }
 
+// ============================================================================
+// Event frame encoding
+// ============================================================================
+
+void pcm_encode_event(uint8_t event_id, const uint8_t data[4],
+                       uint32_t met_ms, PcmFrameEvent& frame) {
+    frame.sync_high   = kPcmSyncHigh;
+    frame.sync_low    = kPcmSyncLow;
+    frame.met_ms      = met_ms;
+    frame.frame_type  = kPcmFrameTypeEvent;
+    frame.payload_len = kPcmEventPayloadLen;
+
+    frame.event_id = event_id;
+    std::memcpy(frame.data, data, 4);
+
+    // CRC over header + payload (13 bytes: 8 header + 5 payload)
+    static constexpr uint32_t kCrcLen = 13;
+    frame.crc16 = crc16_ccitt(reinterpret_cast<const uint8_t*>(&frame), kCrcLen);
+}
+
 } // namespace rc

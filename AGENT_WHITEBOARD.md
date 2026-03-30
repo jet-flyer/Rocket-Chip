@@ -29,9 +29,16 @@
 
 *None currently.*
 
-### AO/State Engine Logging Evaluation
+### AO/State Engine Logging — Evaluated (2026-03-29)
 
-Evaluate what logging changes are needed for the AO architecture. The Logger AO receives `SIG_PHASE_CHANGE` but does NOT receive pyro-fired events. May need `SIG_PYRO_FIRED`, confidence gate state changes, PIO backup timer events. Evaluate scope — full refactor vs targeted event additions.
+**Audit complete.** Logger AO is timer-only (50Hz periodic) with zero event subscriptions. `SIG_PHASE_CHANGE` and `SIG_PYRO_INTENT` are defined but unwired. TelemetryState is full at 45B (PCM frame limit). Confidence/innovation/mahony fields are computed but dropped in `fused_to_telemetry()`.
+
+**Quick fixes done:** Wire existing signals (SIG_PYRO_INTENT publish, Logger subscribes to SIG_PHASE_CHANGE). No frame expansion yet.
+
+**Deferred (QOL, not blocking):**
+- **MP-configurable logged events:** Add Mission Profile flags for user-selectable event logging (pyro fire, abort, safe mode, confidence transitions, phase changes). Each flag enables/disables that event type being written to the ring buffer. Keeps logging lightweight for simple flights, verbose for diagnostics.
+- **Verbose/experimental logging modes:** High-fidelity logging (innovation alphas, Q/R parameters, P-diagonals), bitstream mode, extended PCM frame. Potential future stage but more QOL than safety-critical.
+- **PCM frame expansion:** Current 55B frame is full. Need either extended frame type, research frame, or event-based logging alongside periodic frames. Natural integration point: Stage 12 (GCS) since ground station needs to decode whatever format we use.
 
 ---
 
