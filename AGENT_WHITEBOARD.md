@@ -2,11 +2,14 @@
 
 **Purpose:** Communication across context windows and between agents.
 
+**Stages 1-11 COMPLETE.** Next: Stage 12 (Ground Station, IVP-92-97). 598 host tests, SPIN 6/6. PIO safety architecture replaces SDK watchdog — no auto MCU reset.
+
 ## Use Cases
 1. **Cross-agent review** - Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
 2. **Cross-context handoff** - Notes for future Claude sessions when context is lost
 3. **Work-in-progress tracking** - Track incomplete tasks spanning multiple sessions
 4. **Hardware decisions pending** - Flag items needing user input before code changes
+5. **This is a whiteboard** - Erase completed items. Only keep active flags and deferred work.
 
 ---
 
@@ -22,69 +25,13 @@
 
 ---
 
-### Stage 10 (Adaptive Estimation & Safety) — COMPLETE
-
-**Updated 2026-03-29.** IVP-83 through IVP-85 complete, IVP-86 retired. Council-reviewed (unanimous, 7 amendments incorporated). 598/598 host tests, 65s HW soak clean (85K IMU reads, 0 errors, conf=Y). 5 commits pushed to main.
-
-- **IVP-83 (Phase-Scheduled Q/R + Innovation Monitor):** Per-phase Q scaling and R values via Mission Profile `.cfg`. Additive Q delta post-codegen. Sliding-window NIS tracker with 10x cap. NIS push-after-gate fix (gated readings corrupted innovation windows).
-- **IVP-84 (Confidence Gate):** Binary ESKF trust flag, 500ms loss / 2s recovery hysteresis. Platform safety, not profile-configurable.
-- **IVP-85 (Confidence-Gated Actions):** SafetyLockout + guard combinator wired. Pyro locked when uncertain. SPIN model updated. Abort no longer fires pyro by default.
-- **IVP-86 (retired):** Cycle-performance benchmark deferred to post-stage hardware validation.
-- **IVP.md restructured:** Stage 12 renamed "Pre-Flight Polish", Stage 13 added (Field Tuning placeholder).
-
-### Stage 9 (Active Object Architecture) — COMPLETE
-
-**Updated 2026-03-27.** IVP-76 through IVP-82b complete. 6 AOs running, SPIN formal verification passing all 8 properties (107,818 states, 0 errors, 37ms each). 552/552 host tests, bench sim 9/9, 10-min soak clean.
-
-- **Blocking LoRa TX (LL Entry 32):** Queue depth 32 handles 150ms blocking. Non-blocking driver deferred to telemetry overhaul. See deferred notes.
-- **SPIN verification:** 5 safety properties (pyro never in IDLE, drogue-before-main, requires-ARMED, idempotent) + 3 mission-critical (event delivery to Logger/Telem/LED). Runs in <1s — suitable as pre-commit check on any state machine change.
-- **Verification Overview:** `docs/VERIFICATION_OVERVIEW.md` — unified guide to all 5 verification layers.
-- **QS DEFERRED**, **Watchdog permanent in idle (A2)**, git tag `pre-qv-main` on `cedea7f`.
-
-### Stage 8 — IVP-66 through IVP-75 Complete
-
-**Updated 2026-03-26.** Ten IVPs complete on main. 552/552 host tests, all HW gates passed.
-
-**Complete:**
-- **IVP-66:** Watchdog recovery policy
-- **IVP-67:** QEP 8.1.3 vendored, STARS/QM/SPIN evaluation
-- **IVP-68:** Flight Director QHsm skeleton (9 states, Descent superstate, job.h rename, CLI sub-menu)
-- **IVP-69:** Go/No-Go pre-arm checks + command handler (NASA-style readiness poll)
-- **IVP-70:** Guard functions + evaluator (6 guards, sustain timers, phase validity, auto-detection)
-- **IVP-71:** Guard combinators + three-layer safety (lockouts + AND/OR combinators + timer backup). Council-reviewed, 6 amendments incorporated.
-- **IVP-72:** Action Executor — constexpr action arrays per phase, NeoPixel colors per flight state, pyro intent logging via callbacks, Council Amendment #2 pyro negative tests. 32 new tests.
-- **IVP-73:** Bench Flight Simulation — pyserial script (`scripts/bench_flight_sim.py`), 9 automated test cases, prompt-sync serial, 9/9 PASS in 10s. Council-reviewed (A1-A5).
-- **IVP-74:** Mission Profile Configuration — user-editable `.cfg` files (`profiles/rocket.cfg`, `profiles/hab.cfg`), Python generator (`scripts/generate_profile.py`), generated C++ header, field guide README. Council-reviewed (A1-A4). HAB profile swap HW-verified (lower launch threshold triggered auto-launch from desk vibration, confirming behavioral change). 23 new tests.
-
-- **IVP-75:** Active Object Migration Planning — QF+QV vendored (10 source files + 3 headers), BSP shim, compile gate passes, migration doc written. Stage 8 complete.
-
-**Stage 8 COMPLETE.** 10 IVPs (IVP-66 through IVP-75), 552 host tests, bench sim 9/9.
-
-**Rollback point:** Tag `pre-stage8` → commit `504bb0e` (last commit before Stage 8 IVP work). All work on main.
-
----
-
-### Dynamic Validation Methods Document — New (2026-02-23)
-
-`docs/DYNAMIC_VALIDATION.md` — Six repeatable physical test methods for ESKF accuracy verification: Allan variance, turntable rotation, pendulum, elevator (baro), data logging + replay, vehicle GPS-vs-INS. Priority order documented. Allan variance is the logical first step (validates Q tuning). Data logging + replay is the highest-value infrastructure investment (enables all other tests to become regression-testable). Complements `docs/ESKF_TESTING_GUIDE.md` (host-side) and `docs/IVP.md` (integration gates).
-
----
-
----
-
-### Mission Profile Configuration — COMPLETE (IVP-74)
-
-**Updated 2026-03-26.** Two-layer config: user-editable `.cfg` files (`profiles/rocket.cfg`, `profiles/hab.cfg`) → Python generator → compiled C++ header. ArduPilot `.param` inspired format. Profile name shown in boot banner + CLI status. Compile-time only; boot-load deferred to Stage 11 (see deferred notes). Field guide in `profiles/README.md`.
-
----
-
----
-
 ### Protected File Updates Pending Approval
 
 *None currently.*
 
----
+### AO/State Engine Logging Evaluation
+
+Evaluate what logging changes are needed for the AO architecture. The Logger AO receives `SIG_PHASE_CHANGE` but does NOT receive pyro-fired events. May need `SIG_PYRO_FIRED`, confidence gate state changes, PIO backup timer events. Evaluate scope — full refactor vs targeted event additions.
 
 ---
 
@@ -94,7 +41,7 @@
 
 - **Flash Layout: Derive from `PICO_FLASH_SIZE_BYTES` (side project):** Currently `calibration_storage.cpp`, `flight_table.h`, and `psram_init.cpp` hardcode `8 * 1024 * 1024` for flash size, placing calibration at `0x7FE000`, flight table at `0x7FC000`, etc. These addresses are only valid on 8MB flash parts. The firmware will eventually run on many boards before a final hardware config is locked down — the flash layout should derive from the SDK's `PICO_FLASH_SIZE_BYTES` so calibration/flight-table/log regions anchor to the top of whatever flash is present. Genesis: Pimoroni Tiny2350 (4MB flash, no PSRAM, lighter/smaller form factor for weight-sensitive rockets) confirmed the layout is non-portable. Also needs a `board_tiny2350.h` (I2C0 on GPIO 12/13, no WS2812 — discrete RGB LED on 18/19/20) and an RGB LED status adapter or NeoPixel skip path. PSRAM-absent fallback (200KB SRAM ring buffer) already works. Not blocking any current IVP work.
 - **Flight Log Metadata Header (post-Stage 8):** Flight logs (PCM frames) should include a one-time metadata header at the start of each flight recording containing: firmware version, build tag, mission profile name, profile hash, board type, calibration flags, and sensor configuration. Currently these are only shown on serial (boot banner + CLI status). Adding them to the log file ensures post-flight analysis tools always know which firmware+profile produced the data. Natural integration point: when flight log format is extended for post-processing tools.
-- **Mission Profile Boot-Load (Stage 11):** Currently profiles are compile-time only (`.cfg` → Python generator → C++ header). Future upgrade: `.cfg` → binary serializer → flash/SD blob → load at boot. Requires: config parser or binary serializer in firmware, CRC32 integrity check, known-good fallback profile, validation on load. Deferred until ground station (Stage 11) provides validated upload infrastructure. The `.cfg` format is the permanent user-facing contract — only the delivery mechanism changes. See `profiles/README.md` "Configuration Delivery Roadmap".
+- **Mission Profile Boot-Load (Stage 12):** Currently profiles are compile-time only (`.cfg` → Python generator → C++ header). Future upgrade: `.cfg` → binary serializer → flash/SD blob → load at boot. Requires: config parser or binary serializer in firmware, CRC32 integrity check, known-good fallback profile, validation on load. Deferred until ground station (Stage 12) provides validated upload infrastructure. The `.cfg` format is the permanent user-facing contract — only the delivery mechanism changes. See `profiles/README.md` "Configuration Delivery Roadmap".
 - **5-NeoPixel RSSI Bar for Station (post-Stage 7):** Re-add the 5-LED RSSI bar feedback from the bespoke ground station code (`ground_station/radio_rx.cpp`). The old code used all 5 NeoPixels as an RSSI signal strength bar. Current IVP-60 RX overlay uses a single NeoPixel (green/yellow/red). After Stage 7 is complete, expand to use all 5 NeoPixels on boards that have them (Fruit Jam has 5) for a proper RSSI bar visualization in station mode.
 - **ESKF Readability/Optimization Pass (post-Stage 10):** `reset_covariance_attitude()` is 52 lines (threshold 60) — close to limit and will grow with phase-scheduled Q/R transitions. `clamp_extended_covariance()` uses if/else chains per state block — a table-driven pattern (`{idx, count, clamp, inhibit_flag}` array) would scale better as more blocks are added. Not blocking — all functions pass the pre-commit hook now, but a deeper pass would improve readability and prepare for phase-scheduled Q/R. Note: `scalar_kalman_update()` (Joseph form) is now bypassed on target by Bierman path (`ESKF_USE_BIERMAN=1`, 2026-02-24); Joseph retained behind `#ifdef` for host-side A/B testing.
 - **3-Axis Magnetometer Model (Titan tier):** Current `update_mag_heading()` uses yaw-only scalar H (heading + WMM declination). Mag states (earth_mag indices 15-17, body_mag_bias 18-20) are **unobservable** with this model — no F coupling (identity propagation), no H entries at 15-20. States MUST remain inhibited until a proper 3-axis measurement model is implemented: `z_predicted = R(q) * earth_mag_NED + body_mag_bias`, with H entries at attitude (0-2), earth_mag (15-17), body_mag_bias (18-20). WMM table already has field data — needs inclination + magnitude extraction in addition to current declination-only use. ArduPilot reference: `fuseMagnetometer()` in `NavEKF3_MagFusion.cpp`. Once implemented, flip `inhibit_mag_states_` to enable.
@@ -111,11 +58,12 @@
 - **Flight Erase Protection (post-Stage 6):** Current erase (`x` key) requires typing "yes" + Enter. Future improvement: password-protected erase or per-flight delete instead of erase-all. Prevents accidental data loss in field use.
 - **USB Download Speed Optimization (post-Stage 6):** Current USB CDC download runs ~9 KB/s (limited by Python serial read loop + fwrite through stdio layer). TinyUSB `tud_cdc_write()` direct calls and larger USB transfer chunks could reach ~200-500 KB/s (USB Full Speed theoretical). Not blocking — current speed downloads a typical flight in 20-30s.
 - ~~**Pre-commit hook function decomposition:**~~ **DONE** (P5c, 2026-02-20). All 8 functions decomposed. Pre-commit hook passes clean — no `--no-verify` needed.
-- **Cycle Performance Benchmark on Hardware (post-Stage 10):** IVP-86 retired. Measure actual per-tick CPU budget with phase-scheduled Q/R + confidence gate + innovation monitor overhead. Profile `eskf_tick()` end-to-end on target. Not blocking — 65s HW soak showed no timing issues.
-- **Passive Ejection Charge Mission Profile (post-Stage 10):** Estes-style motors with integrated ejection charge. No active pyro firing needed — Flight Director logs events and tracks state but does not command deployment. Natural `.cfg` profile variant.
-- **AP_Notify-Style Notification Engine (post-Stage 10):** Evaluate ArduPilot's `AP_Notify` pattern for unifying LED, buzzer, and other status indicators behind a single notification interface. Natural successor to current `neo_set_if_changed()` pattern.
-- **Watchdog Safety Architecture (council-reviewed 2026-03-29):** Current reboot-always policy is wrong for flight. Council-approved 3-layer architecture: (1) Smart Path, (2) Health Monitor with phase-dependent degrade, (3) PIO Dead Man's Switch timer. Safe mode behavior profile-configurable (`SAFE_MODE_ACTION` in `.cfg`). Decision doc: `docs/decisions/WATCHDOG_SAFETY_ARCHITECTURE.md`. Needs IVPs for PIO timer, watchdog policy refactor, cross-core heartbeat, and pyro hardware update. **Pre-Stage 11 priority.**
+- ~~**Cycle Performance Benchmark on Hardware (post-Stage 10):**~~ **DONE** (2026-03-29). IVP-87 baseline + IVP-91 post-change benchmark completed in Stage 11. No regression.
+- **SIG_PYRO_FIRED Event for Logger AO (post-Stage 11):** Logger AO should receive a `SIG_PYRO_FIRED` event for flight data recording when PIO backup timers fire or primary pyro fires. Currently pyro-fired flags are in FlightState but Logger isn't notified via the AO event system.
+- **Passive Ejection Charge Mission Profile (post-Stage 11):** Estes-style motors with integrated ejection charge. No active pyro firing — Flight Director logs events and tracks state but does not command deployment. Natural `.cfg` profile variant.
+- **AP_Notify-Style Notification Engine (post-Stage 11):** Evaluate ArduPilot's `AP_Notify` pattern for unifying LED, buzzer, and other status indicators behind a single notification interface. Natural successor to current `neo_set_if_changed()` pattern.
 - **Code Comments Audit / Cleanup (low priority):** Review all source files for stale comments, TODO markers, misleading descriptions, and missing "why" explanations. Housekeeping pass — no functional changes.
+- **PIO Backup Timer Exhaustive Shakedown (Stage 13):** Full shakedown of PIO backup deployment timers under various failure scenarios. Deferred from Stage 11 to pre-flight polish stage.
 
 ---
 
@@ -197,7 +145,7 @@ Research across 4 phases proved MMAE/IMM is the wrong tool for RocketChip's flig
 
 **New architecture (Stage 10, IVP-83–85):** Phase-scheduled Q/R matrices tied to state machine flight phases (IDLE→ARMED→BOOST→COAST→DESCENT→LANDED) + sliding-window NIS innovation monitor + confidence gate with hysteresis + confidence-gated pyro lockout. Captures 80-90% of IMM's benefit at near-zero complexity cost. Software identical across all tiers — Titan differs only in hardware. **Stage 10 COMPLETE (2026-03-29).**
 
-**IVP restructuring (2026-03-29):** 13 stages. Stage 10: Adaptive Estimation (IVP-83–85, IVP-86 retired). Stage 11: Ground Station. Stage 12: Pre-Flight Polish. Stage 13: Field Tuning (placeholder).
+**IVP restructuring (2026-03-29):** 14 stages. Stage 10: Adaptive Estimation (IVP-83–85, IVP-86 retired). Stage 11: PIO Safety Architecture (IVP-87–91). Stage 12: Ground Station (IVP-92–97). Stage 13: Pre-Flight Polish (IVP-98–102). Stage 14: Field Tuning & Validation (IVP-103+).
 
 ---
 

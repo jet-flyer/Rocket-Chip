@@ -1,14 +1,14 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-03-29 (Stage 10 COMPLETE)
+**Last Updated:** 2026-03-29 (Stage 11 COMPLETE)
 
 ## Current Phase
 
-**Stage 10 COMPLETE** — Adaptive Estimation & Safety (IVP-83–85, IVP-86 retired)
+**Stage 11 COMPLETE** — PIO Safety Architecture (IVP-87–91)
 
-Phase-scheduled Q/R framework with per-phase scaling from Mission Profile `.cfg`, sliding-window NIS innovation monitor, binary confidence gate with hysteresis, confidence-gated pyro lockout. SPIN model updated. Council-reviewed (unanimous, 7 amendments). 598/598 host tests, 65s HW soak clean (85K IMU reads, 0 errors, conf=Y).
+PIO2 heartbeat watchdog (IRQ-based, no GPIO interference), PIO backup deployment timers (drogue + main, HW verified), SDK watchdog removed — PIO is sole health monitor. Persistent pyro-fired flags in FlightState. SPIN model updated with PIO timer paths — 6/6 safety properties pass. Baseline + post-change benchmarks show no regression (+2.5% predict, +1.8KB text). 2 council reviews (5 panelists each). 598/598 host tests, 65s HW soak clean.
 
-**Next: Stage 11** — Ground Station (IVP-87–92). Ground station infrastructure, validated upload, GCS integration.
+**Next: Stage 12** — Ground Station (IVP-92–97). Ground station infrastructure, validated upload, GCS integration.
 
 ## Completed
 
@@ -48,10 +48,11 @@ Phase-scheduled Q/R framework with per-phase scaling from Mission Profile `.cfg`
 | Standards Audit | — | 2026-03-26 | Tiered audit (clang-tidy + lizard + RP2350 guards + Prior Art). ~60 magic numbers remediated, 8 Prior Art blocks added, ring_buffer init fixed. See `standards/STANDARDS_AUDIT_2026-03-26.md` |
 | 9: Active Objects | IVP-76–82b | 2026-03-27 | QF+QV BSP, 6 AOs, superloop removal, SPIN formal verification. Council-reviewed (3 reviews, 18 amendments total). Queue depth 32 for LoRa blocking (LL Entry 32). 8 SPIN properties verified (107K states, 0 errors). 552/552 host tests, bench sim 9/9, 10-min soak clean. Verification overview doc added |
 | 10: Adaptive Estimation | IVP-83–85 | 2026-03-29 | Phase-scheduled Q/R (Mission Profile `.cfg`), sliding-window NIS innovation monitor, confidence gate (500ms loss / 2s recovery hysteresis), confidence-gated pyro lockout. SPIN model updated. IVP-86 retired. Council-reviewed (7 amendments). 598/598 host tests, 65s HW soak clean |
+| 11: PIO Safety Architecture | IVP-87–91 | 2026-03-29 | Baseline benchmark, PIO2 heartbeat watchdog (IRQ-based), PIO backup deployment timers (drogue + main, HW verified), SDK watchdog removed, post-change benchmark (no regression). SPIN updated (6/6 safety). Persistent pyro-fired flags. 2 council reviews. LL 33 + LL 34 |
 
 ## In Progress
 
-*None currently. Next: Stage 11 (Ground Station).*
+*None currently. Next: Stage 12 (Ground Station).*
 
 ## Blockers
 

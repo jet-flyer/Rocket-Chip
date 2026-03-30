@@ -20,6 +20,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-29-002 | Claude Code CLI | feature, architecture, council
+
+**Stage 11 COMPLETE: PIO Safety Architecture (IVP-87–91).** Five IVPs. Two council reviews (watchdog architecture + plan review, 5 panelists each). SPIN model updated — 6/6 safety properties pass. 598/598 host tests, 65s HW soak clean.
+
+**IVP-87 (Baseline Benchmark):** Recorded pre-change performance numbers for regression comparison.
+
+**IVP-88 (PIO Heartbeat Watchdog):** PIO2 heartbeat watchdog replaces SDK software watchdog concept. IRQ-based, no GPIO pin interference with I2C/SPI. LL Entry 33: PIO GPIO/I2C interference discovery.
+
+**IVP-89 (PIO Backup Deployment Timers):** Independent PIO-driven drogue + main backup timers. HW verified via GPIO read. LL Entry 34: baro fan turbulence during bench testing.
+
+**IVP-90 (SDK Watchdog Removal):** SDK `watchdog_enable()` removed — PIO is sole health monitor. No auto MCU reset; phase-dependent degrade instead.
+
+**IVP-91 (Post-Change Benchmark):** No regression: +2.5% predict time, +1.8KB text. Within acceptable margins.
+
+Persistent pyro-fired flags added to FlightState. Watchdog safety architecture decision doc + research sources archived (`docs/decisions/WATCHDOG_SAFETY_ARCHITECTURE.md`).
+
+**IVP renumbering:** Stage 12: Ground Station (IVP-92–97). Stage 13: Pre-Flight Polish (IVP-98–102). Stage 14: Field Tuning & Validation (IVP-103+).
+
+(`src/pio/pio_heartbeat.cpp`, `src/pio/pio_backup_timer.cpp`, `src/main.cpp`, `src/flight_director/flight_state.h`, `tools/spin/rocketchip_ao.pml`, `CMakeLists.txt`)
+
 ### 2026-03-29-001 | Claude Code CLI | feature, architecture, council
 
 **Stage 10 COMPLETE: Adaptive Estimation & Safety (IVP-83–85).** Three IVPs, IVP-86 retired. Council-reviewed (unanimous, 7 amendments incorporated). 598/598 host tests, 65s HW soak clean (85K IMU reads, 0 errors, conf=Y).
