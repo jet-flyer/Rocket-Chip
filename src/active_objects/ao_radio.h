@@ -30,6 +30,9 @@ struct RadioAoState {
     bool               initialized;
     uint8_t            tx_consec_fail;   // TX failure escalation counter
     uint8_t            tx_bw_mode;       // 0=BW125, 1=BW250, 2=BW500
+    int16_t            last_rx_rssi;     // RSSI of last received packet (dBm)
+    uint32_t           last_rx_ms;       // Timestamp of last valid RX
+    uint32_t           rx_count;         // Total valid packets received
 };
 
 const RadioAoState* AO_Radio_get_state();

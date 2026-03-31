@@ -18,6 +18,7 @@
 #include "rocketchip/config.h"
 #include "rocketchip/job.h"
 #include "drivers/spi_bus.h"
+#include "drivers/ws2812_status.h"
 #include "crc16_ccitt.h"
 #include <string.h>
 
@@ -159,6 +160,11 @@ static void handle_rx_poll(RadioAo* me) {
     int16_t rssi = rfm95w_rssi(&s.radio);
     int8_t  snr  = s.radio.last_snr;
 
+    // Track RX stats for RSSI bar + CLI
+    s.last_rx_rssi = rssi;
+    s.last_rx_ms = now_ms();
+    s.rx_count++;
+
     // Relay mode: validate CRC + dedup → re-TX [C3-R2, IVP-98]
     if constexpr (job::kRole == job::DeviceRole::kRelay) {
         if (!validate_ccsds_crc(buf, len)) {
@@ -252,6 +258,18 @@ static QState RadioAo_running(RadioAo * const me, QEvt const * const e) {
         // RX poll (kRxWindow or kRxContinuous)
         if (s.scheduler.rx_active()) {
             handle_rx_poll(me);
+        }
+
+        // RSSI bar update at ~10Hz (every 10th tick of 100Hz)
+        // Station/Relay only — vehicle uses flight-phase LED patterns
+        if constexpr (job::kRole != job::DeviceRole::kVehicle) {
+            static uint8_t rssi_div = 0;
+            if (++rssi_div >= 10) {
+                rssi_div = 0;
+                uint32_t gap = now_ms() - s.last_rx_ms;
+                bool no_signal = (s.rx_count == 0 || gap >= 5000);
+                ws2812_set_rssi_bar(s.last_rx_rssi, no_signal);
+            }
         }
 
         return Q_HANDLED();
