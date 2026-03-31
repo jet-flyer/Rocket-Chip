@@ -3194,12 +3194,18 @@ int main() {
     QActive_psInit(g_subscrList, Q_DIM(g_subscrList));
 
     // Start Active Objects — incremental add, one at a time
-    AO_FlightDirector_start(5U); // IVP-78: FD AO (100Hz)
-    AO_Logger_start(4U);         // IVP-79: Logger AO (50Hz)
-    AO_Telemetry_start(3U);     // IVP-80: Telemetry AO (10Hz)
-    AO_Radio_start(6U);         // IVP-93: Radio AO (100Hz, highest priority — non-blocking)
-    AO_LedEngine_start(2U);     // IVP-77: LED engine (33Hz)
-    AO_Counter_start(1U);       // IVP-76: jitter measurement (10Hz)
+    // Start Active Objects based on device role (IVP-95)
+    // Vehicle: all AOs. Station: no FD/Logger. Relay: Radio + LED only.
+    if constexpr (job::kRole == job::DeviceRole::kVehicle) {
+        AO_FlightDirector_start(5U); // 100Hz
+        AO_Logger_start(4U);         // 50Hz
+    }
+    if constexpr (job::kRole != job::DeviceRole::kRelay) {
+        AO_Telemetry_start(3U);      // 10Hz (Vehicle + Station, not Relay)
+    }
+    AO_Radio_start(6U);             // 100Hz — all roles
+    AO_LedEngine_start(2U);         // 33Hz — all roles
+    AO_Counter_start(1U);           // 10Hz — all roles (jitter measurement)
 
     // QF_run() replaces while(true) — never returns.
     // QV cooperative scheduler dispatches AOs, calls QV_onIdle() (which runs

@@ -17,6 +17,8 @@
 
 namespace job {
 
+inline constexpr DeviceRole kRole = DeviceRole::kStation;
+
 // Radio mode: RX (telemetry reception)
 inline constexpr bool kRadioModeRx = true;
 

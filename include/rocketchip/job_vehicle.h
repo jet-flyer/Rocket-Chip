@@ -16,6 +16,8 @@
 
 namespace job {
 
+inline constexpr DeviceRole kRole = DeviceRole::kVehicle;
+
 // Radio mode: TX (telemetry downlink)
 inline constexpr bool kRadioModeRx = false;
 
