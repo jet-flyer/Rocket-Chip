@@ -53,6 +53,7 @@
 #include "ao_flight_director.h"    // IVP-78: Flight Director AO (incremental test)
 #include "ao_logger.h"             // IVP-79: Logger AO (incremental test)
 #include "ao_telemetry.h"          // IVP-80: Telemetry AO
+#include "ao_radio.h"              // IVP-93: Radio AO
 #include "qp_port.h"   // QP/C QEP (IVP-67): Q_onError, QHsm types
 #include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
@@ -235,8 +236,8 @@ static bool g_baroContinuous = false;
 static bool g_gpsInitialized = false;
 static gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;
 static bool g_spiInitialized = false;
-static bool g_radioInitialized = false;
-static rfm95w_t g_radio;
+bool g_radioInitialized = false;  // Non-static: AO_Radio reads (IVP-93 transitional)
+rfm95w_t g_radio;                 // Non-static: AO_Radio borrows (IVP-93 transitional)
 
 // Runtime BW mode: 0=BW125, 1=BW250, 2=BW500 (switchable via RX command)
 static uint8_t g_txBwMode = 0;
@@ -3318,6 +3319,7 @@ int main() {
     AO_FlightDirector_start(5U); // IVP-78: FD AO (100Hz)
     AO_Logger_start(4U);         // IVP-79: Logger AO (50Hz)
     AO_Telemetry_start(3U);     // IVP-80: Telemetry AO (10Hz)
+    AO_Radio_start(6U);         // IVP-93: Radio AO (100Hz, highest priority — non-blocking)
     AO_LedEngine_start(2U);     // IVP-77: LED engine (33Hz)
     AO_Counter_start(1U);       // IVP-76: jitter measurement (10Hz)
 

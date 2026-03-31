@@ -61,7 +61,14 @@ enum RcSignal : uint16_t {
     SIG_LED_OVERRIDE,                // 20: Calibration/RX LED override (CLI → LedEngine)
     SIG_CLI_COMMAND,                 // 21: CLI command dispatch (CLI → FD)
     SIG_HEALTH_CHECK,                // 22: Periodic health ping (timer → ErrorHandler)
-    SIG_AO_MAX                       // 23: Sentinel — pub-sub array size
+
+    // --- Stage 12A: Radio Module (IVP-92+) ---
+    SIG_RADIO_TX,                    // 23: Encoded packet ready for TX (Telem → Radio)
+    SIG_RADIO_RX,                    // 24: Raw packet received (Radio → Telem)
+    SIG_RADIO_STATUS,                // 25: Link quality update (Radio → LED, CLI)
+    SIG_GCS_CMD,                     // 26: Uplink command from GCS (Telem → FD) [C3-A4]
+
+    SIG_AO_MAX                       // 27: Sentinel — pub-sub array size
 };
 
 // Backward compatibility aliases
@@ -95,6 +102,37 @@ struct LedPatternEvt {
 struct SensorDataEvt {
     QEvt super;
     uint32_t eskf_epoch;  // Which ESKF propagation epoch this represents
+};
+
+// Radio TX event — encoded packet ready to transmit (IVP-93)
+// Allocated from QP/C dynamic event pool [C3-A1]
+struct RadioTxEvt {
+    QEvt super;
+    uint8_t buf[128];    // Encoded packet (CCSDS 54B or MAVLink ~144B)
+    uint8_t len;
+};
+
+// Radio RX event — raw packet received from radio (IVP-93)
+// Allocated from QP/C dynamic event pool [C3-A1]
+struct RadioRxEvt {
+    QEvt super;
+    uint8_t buf[128];    // Raw received bytes
+    uint8_t len;
+    int16_t rssi;        // dBm
+    int8_t  snr;         // dB
+};
+
+// Radio link quality status (IVP-93)
+struct RadioStatusEvt {
+    QEvt super;
+    uint8_t link_quality;   // 0=no radio, 1=lost, 2=gap, 3=receiving
+};
+
+// GCS uplink command (IVP-94, stub for 12A) [C3-A4]
+struct GcsCmdEvt {
+    QEvt super;
+    uint8_t cmd_type;       // Future: arm, disarm, abort, param, etc.
+    uint32_t param;
 };
 
 // Signal name lookup (extends flight_signal_name for system-wide signals)
