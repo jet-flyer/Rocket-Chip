@@ -2948,19 +2948,36 @@ static void cmd_radio_status() {
         printf("Radio not initialized.\n");
         return;
     }
-    // Radio status now from AO_Radio state (IVP-94)
-    printf("Radio: %s, phase=%d, tx_fail=%u\n",
-           rs->initialized ? "OK" : "ABSENT",
+    printf("Radio: phase=%d, tx_fail=%u\n",
            static_cast<int>(rs->scheduler.phase),
            static_cast<unsigned>(rs->tx_consec_fail));
+}
+
+// Station-only CLI commands (IVP-97)
+static void cmd_station_gps() {
+    if constexpr (!kRadioModeRx) { return; }
+    // GPS status on station (reads from shared GPS state if available)
+    printf("Station GPS: not implemented yet (IVP-97c)\n");
+}
+
+static void cmd_station_distance() {
+    if constexpr (!kRadioModeRx) { return; }
+    // Distance-to-rocket using ground GPS vs received vehicle position
+    printf("Distance: not implemented yet (IVP-97c)\n");
 }
 
 static void handle_unhandled_key(int key) {
     switch (key) {
     case 'l': case 'L': cmd_flush_log(); break;
     case 'x': case 'X': cmd_erase_all_flights(); break;
-    case 'd': case 'D': cmd_download_flight(); break;
-    case 'g': case 'G': cmd_list_flights(); break;  // Was 'f', now 'g' (flight list)
+    case 'd': case 'D':
+        if constexpr (kRadioModeRx) { cmd_station_distance(); }
+        else { cmd_download_flight(); }
+        break;
+    case 'g': case 'G':
+        if constexpr (kRadioModeRx) { cmd_station_gps(); }
+        else { cmd_list_flights(); }
+        break;
     case 't': case 'T': cmd_radio_status(); break;
     case 'r':
         if (AO_Radio_get_state()->initialized && !kRadioModeRx) {

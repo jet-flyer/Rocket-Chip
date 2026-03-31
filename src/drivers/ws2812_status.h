@@ -92,6 +92,32 @@ void ws2812_set_hex(uint32_t hex);
  */
 void ws2812_off(void);
 
+/**
+ * @brief Set individual pixel color (IVP-97: RSSI bar)
+ * @param index Pixel index (0 = first LED in chain)
+ * @param r Red (0-255)
+ * @param g Green (0-255)
+ * @param b Blue (0-255)
+ */
+void ws2812_set_pixel_rgb(uint8_t index, uint8_t r, uint8_t g, uint8_t b);
+
+/**
+ * @brief Flush pixel buffer to LEDs (call after setting individual pixels)
+ */
+void ws2812_show(void);
+
+/**
+ * @brief Set RSSI bar pattern on multi-LED strip (IVP-97)
+ *
+ * Maps RSSI value (-120 to -40 dBm) to 1-5 lit pixels.
+ * Strong (>-70): green. Marginal (-70 to -90): yellow. Weak (<-90): red.
+ * No signal: all off with slow red pulse.
+ *
+ * @param rssi   RSSI in dBm (negative, e.g., -80)
+ * @param no_signal true if no packets received recently (>5s gap)
+ */
+void ws2812_set_rssi_bar(int16_t rssi, bool no_signal);
+
 // ============================================================================
 // Pattern Modes
 // ============================================================================

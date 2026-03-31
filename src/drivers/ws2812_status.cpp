@@ -47,6 +47,9 @@ static struct {
     bool initialized;
     uint8_t numLeds;       // Number of LEDs in chain (board::kNeoPixelCount)
 
+    // Per-pixel buffer for multi-LED patterns (RSSI bar, etc.) — IVP-97
+    ws2812_rgb_t pixels[8];            // Max 8 LEDs per chain
+
     // Current mode and color
     ws2812_mode_t mode;
     ws2812_rgb_t baseColor;
@@ -68,6 +71,7 @@ static struct {
     .offset = 0,
     .initialized = false,
     .numLeds = 1,
+    .pixels = {},
     .mode = WS2812_MODE_OFF,
     .baseColor = {0, 0, 0},
     .brightness = 255,
@@ -107,6 +111,78 @@ static void send_pixel(uint8_t r, uint8_t g, uint8_t b) {
     for (uint8_t i = 0; i < g_state.numLeds; ++i) {
         pio_sm_put_blocking(g_state.pio, g_state.sm, grb);
     }
+}
+
+// ============================================================================
+// Per-Pixel Functions (IVP-97: RSSI bar for Fruit Jam 5-LED strip)
+// ============================================================================
+
+void ws2812_set_pixel_rgb(uint8_t index, uint8_t r, uint8_t g, uint8_t b) {
+    if (!g_state.initialized || index >= g_state.numLeds) { return; }
+    g_state.pixels[index] = {r, g, b};
+}
+
+void ws2812_show() {
+    if (!g_state.initialized) { return; }
+
+    for (uint8_t i = 0; i < g_state.numLeds; ++i) {
+        ws2812_rgb_t px = g_state.pixels[i];
+        // Apply global brightness
+        if (g_state.brightness < 255) {
+            px.r = (px.r * g_state.brightness) >> 8;
+            px.g = (px.g * g_state.brightness) >> 8;
+            px.b = (px.b * g_state.brightness) >> 8;
+        }
+        uint32_t grb = (static_cast<uint32_t>(px.g) << kGrbGreenShift)
+                      | (static_cast<uint32_t>(px.r) << 16)
+                      | (static_cast<uint32_t>(px.b) << 8);
+        pio_sm_put_blocking(g_state.pio, g_state.sm, grb);
+    }
+}
+
+void ws2812_set_rssi_bar(int16_t rssi, bool no_signal) {
+    if (!g_state.initialized) { return; }
+
+    // Clear all pixels
+    for (uint8_t i = 0; i < g_state.numLeds; ++i) {
+        g_state.pixels[i] = kColorOff;
+    }
+
+    if (no_signal) {
+        // No signal: pixel 0 = dim red
+        g_state.pixels[0] = {0x10, 0x00, 0x00};
+        ws2812_show();
+        return;
+    }
+
+    // Map RSSI to lit pixel count (1-5 for 5-LED strip)
+    // -40 dBm = excellent (5 pixels), -120 dBm = barely detectable (1 pixel)
+    uint8_t max_px = g_state.numLeds;
+    uint8_t lit;
+    if (rssi >= -60) {
+        lit = max_px;        // 5/5: excellent
+    } else if (rssi >= -70) {
+        lit = (max_px >= 4) ? 4 : max_px;  // 4/5: good
+    } else if (rssi >= -80) {
+        lit = (max_px >= 3) ? 3 : max_px;  // 3/5: ok
+    } else if (rssi >= -95) {
+        lit = (max_px >= 2) ? 2 : max_px;  // 2/5: weak
+    } else {
+        lit = 1;             // 1/5: very weak
+    }
+
+    // Color: green (strong) → yellow (mid) → red (weak)
+    for (uint8_t i = 0; i < lit; ++i) {
+        if (i < (lit / 2)) {
+            g_state.pixels[i] = kColorGreen;   // Lower LEDs green
+        } else if (i == lit - 1 && rssi < -80) {
+            g_state.pixels[i] = kColorRed;     // Top LED red when weak
+        } else {
+            g_state.pixels[i] = (rssi < -70) ? kColorYellow : kColorGreen;
+        }
+    }
+
+    ws2812_show();
 }
 
 /**
