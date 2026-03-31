@@ -89,17 +89,28 @@ constexpr uint8_t kBw500  = 0x09;    // 500 kHz
 } // namespace rfm95w
 
 // ============================================================================
+// TX Poll Result (IVP-92: non-blocking send)
+// ============================================================================
+
+enum class TxPollResult : uint8_t {
+    kBusy    = 0,   // TX still in progress
+    kDone    = 1,   // TX complete (TxDone IRQ flag set)
+    kTimeout = 2,   // TX exceeded expected airtime (150ms)
+};
+
+// ============================================================================
 // Device Handle
 // ============================================================================
 
 struct rfm95w_t {
-    uint8_t cs_pin;
-    uint8_t rst_pin;
-    uint8_t irq_pin;        // DIO0
-    bool    initialized;
-    uint8_t mode;           // Current operating mode
-    int16_t last_rssi;      // RSSI of last received packet (dBm)
-    int8_t  last_snr;       // SNR of last received packet (dB)
+    uint8_t  cs_pin;
+    uint8_t  rst_pin;
+    uint8_t  irq_pin;        // DIO0
+    bool     initialized;
+    uint8_t  mode;           // Current operating mode
+    int16_t  last_rssi;      // RSSI of last received packet (dBm)
+    int8_t   last_snr;       // SNR of last received packet (dB)
+    uint64_t tx_start_us;    // Timestamp of send_start() for timeout (IVP-92)
 };
 
 // ============================================================================
@@ -135,6 +146,46 @@ bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq);
  * @return true if TxDone received within timeout
  */
 bool rfm95w_send(rfm95w_t* dev, const uint8_t* data, uint8_t len);
+
+// ============================================================================
+// Non-Blocking TX API (IVP-92)
+//
+// Split rfm95w_send() into start + poll for use inside AO handlers where
+// blocking for 50-150ms causes QP/C queue overflow (LL Entry 32).
+//
+// Usage:
+//   if (rfm95w_send_start(dev, data, len)) {
+//       // ... on subsequent ticks:
+//       TxPollResult r = rfm95w_send_poll(dev);
+//       if (r == TxPollResult::kDone)    { /* success */ }
+//       if (r == TxPollResult::kTimeout) { /* handle failure */ }
+//   }
+// ============================================================================
+
+/**
+ * @brief Start a non-blocking packet transmission
+ *
+ * Writes payload to FIFO, sets TX mode, returns immediately (~200µs).
+ * Call rfm95w_send_poll() on subsequent ticks to check completion.
+ *
+ * @param dev Initialized device handle
+ * @param data Payload data
+ * @param len Payload length (max 128 bytes)
+ * @return true if TX started, false if not initialized or len invalid
+ */
+bool rfm95w_send_start(rfm95w_t* dev, const uint8_t* data, uint8_t len);
+
+/**
+ * @brief Poll for TX completion (non-blocking)
+ *
+ * Reads RegIrqFlags register (latched, not GPIO DIO0 — Council C3-R3).
+ * Returns kBusy until TxDone flag sets, or kTimeout after 150ms.
+ * On kDone/kTimeout: clears IRQ flags, restores Standby mode.
+ *
+ * @param dev Device handle (must have called send_start first)
+ * @return TxPollResult: kBusy, kDone, or kTimeout
+ */
+TxPollResult rfm95w_send_poll(rfm95w_t* dev);
 
 /**
  * @brief Receive a packet (call after rfm95w_available returns true)
@@ -206,6 +257,27 @@ int16_t rfm95w_rssi(const rfm95w_t* dev);
  * @param bw  Bandwidth code: rfm95w::kBw125, kBw250, or kBw500
  */
 void rfm95w_set_bandwidth(rfm95w_t* dev, uint8_t bw);
+
+/**
+ * @brief Set LoRa spreading factor (IVP-92)
+ *
+ * Modifies RegModemConfig2[7:4]. Must be called while in Standby or Sleep.
+ * Both TX and RX must use the same SF to communicate.
+ *
+ * @param dev Initialized device handle
+ * @param sf  Spreading factor: 6-12
+ */
+void rfm95w_set_spreading_factor(rfm95w_t* dev, uint8_t sf);
+
+/**
+ * @brief Set LoRa coding rate (IVP-92)
+ *
+ * Modifies RegModemConfig1[3:1]. Must be called while in Standby or Sleep.
+ *
+ * @param dev Initialized device handle
+ * @param cr  Coding rate denominator: 5-8 (meaning CR 4/5 through 4/8)
+ */
+void rfm95w_set_coding_rate(rfm95w_t* dev, uint8_t cr);
 
 /**
  * @brief Set radio to RX continuous mode

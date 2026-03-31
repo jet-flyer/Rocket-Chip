@@ -166,7 +166,11 @@ bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq) {
     return true;
 }
 
-bool rfm95w_send(rfm95w_t* dev, const uint8_t* data, uint8_t len) {
+// ============================================================================
+// Non-Blocking TX (IVP-92)
+// ============================================================================
+
+bool rfm95w_send_start(rfm95w_t* dev, const uint8_t* data, uint8_t len) {
     if (!dev->initialized || len == 0 || len > rfm95w::kMaxPayload) {
         return false;
     }
@@ -175,7 +179,6 @@ bool rfm95w_send(rfm95w_t* dev, const uint8_t* data, uint8_t len) {
     set_mode(dev, rfm95w::mode::kStandby);
 
     // Council #4: Set FIFO pointer to TX base before every write
-    // Stale RX pointer corrupts TX data if not reset
     uint8_t tx_base = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kFifoTxBase);
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kFifoAddrPtr, tx_base);
 
@@ -191,28 +194,62 @@ bool rfm95w_send(rfm95w_t* dev, const uint8_t* data, uint8_t len) {
     // Map DIO0 to TxDone (bits [7:6] = 01)
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kDioMapping1, 0x40);
 
-    // Set TX mode
+    // Record start time for timeout detection in send_poll()
+    dev->tx_start_us = time_us_64();
+
+    // Set TX mode — returns immediately, radio transmits autonomously
     set_mode(dev, rfm95w::mode::kTx);
 
-    // Poll DIO0 for TxDone with timeout (Council #1: no bare while(!DIO0))
-    uint64_t start = time_us_64();
-    while (!rfm95w_poll_irq(dev)) {
-        if ((time_us_64() - start) > rfm95w::kTxTimeoutUs) {
-            // Timeout — restore DIO0 mapping and return to Standby
-            spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kDioMapping1, 0x00);
-            set_mode(dev, rfm95w::mode::kStandby);
-            return false;
-        }
+    return true;
+}
+
+TxPollResult rfm95w_send_poll(rfm95w_t* dev) {
+    if (!dev->initialized) {
+        return TxPollResult::kTimeout;
     }
 
-    // Clear IRQ flags and restore DIO0 to RxDone
-    spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kIrqFlags, rfm95w::irq::kAll);
-    spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kDioMapping1, 0x00);
+    // Read IRQ flags register (latched — Council C3-R3: not GPIO DIO0)
+    uint8_t irq_flags = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kIrqFlags);
 
-    // Return to Standby
-    set_mode(dev, rfm95w::mode::kStandby);
+    if (irq_flags & rfm95w::irq::kTxDone) {
+        // TX complete — clear flags, restore DIO0 mapping, return to Standby
+        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kIrqFlags, rfm95w::irq::kAll);
+        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kDioMapping1, 0x00);
+        set_mode(dev, rfm95w::mode::kStandby);
+        return TxPollResult::kDone;
+    }
 
-    return true;
+    // Check timeout
+    if ((time_us_64() - dev->tx_start_us) > rfm95w::kTxTimeoutUs) {
+        // Timeout — clear flags, restore DIO0 mapping, return to Standby
+        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kIrqFlags, rfm95w::irq::kAll);
+        spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kDioMapping1, 0x00);
+        set_mode(dev, rfm95w::mode::kStandby);
+        return TxPollResult::kTimeout;
+    }
+
+    return TxPollResult::kBusy;
+}
+
+// ============================================================================
+// Blocking TX (convenience wrapper — calls send_start + busy-waits send_poll)
+// ============================================================================
+
+bool rfm95w_send(rfm95w_t* dev, const uint8_t* data, uint8_t len) {
+    if (!rfm95w_send_start(dev, data, len)) {
+        return false;
+    }
+
+    for (;;) {
+        TxPollResult result = rfm95w_send_poll(dev);
+        if (result == TxPollResult::kDone) {
+            return true;
+        }
+        if (result == TxPollResult::kTimeout) {
+            return false;
+        }
+        // kBusy — continue polling
+    }
 }
 
 uint8_t rfm95w_recv(rfm95w_t* dev, uint8_t* buf, uint8_t max_len) {
@@ -323,6 +360,31 @@ void rfm95w_set_bandwidth(rfm95w_t* dev, uint8_t bw) {
     // Read current RegModemConfig1, replace BW bits [7:4], preserve CR and header bits
     uint8_t cfg1 = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kModemConfig1);
     cfg1 = static_cast<uint8_t>((cfg1 & kBwLowerNibbleMask) | (bw << 4));
+    spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kModemConfig1, cfg1);
+}
+
+void rfm95w_set_spreading_factor(rfm95w_t* dev, uint8_t sf) {
+    if (!dev->initialized) { return; }
+    if (sf < 6) { sf = 6; }
+    if (sf > 12) { sf = 12; }
+
+    // RegModemConfig2[7:4] = SF, preserve CRC and other bits [3:0]
+    uint8_t cfg2 = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kModemConfig2);
+    cfg2 = static_cast<uint8_t>((cfg2 & 0x0F) | (sf << 4));
+    spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kModemConfig2, cfg2);
+}
+
+void rfm95w_set_coding_rate(rfm95w_t* dev, uint8_t cr) {
+    if (!dev->initialized) { return; }
+    // cr = denominator: 5-8 (CR 4/5 through 4/8)
+    if (cr < 5) { cr = 5; }
+    if (cr > 8) { cr = 8; }
+
+    // RegModemConfig1[3:1] = CR (1=4/5, 2=4/6, 3=4/7, 4=4/8)
+    // Encoding: register value = cr - 4
+    uint8_t cr_bits = static_cast<uint8_t>(cr - 4);
+    uint8_t cfg1 = spi_bus_read_reg(dev->cs_pin, rfm95w::reg::kModemConfig1);
+    cfg1 = static_cast<uint8_t>((cfg1 & 0xF1) | (cr_bits << 1));
     spi_bus_write_reg(dev->cs_pin, rfm95w::reg::kModemConfig1, cfg1);
 }
 
