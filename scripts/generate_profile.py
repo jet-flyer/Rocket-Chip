@@ -86,6 +86,7 @@ QR_FIELDS = [
 # Radio config fields (IVP-96) — optional, defaults used if absent
 RADIO_FIELDS = [
     # (cfg_name, default_value, type, validation)
+    ('RADIO_MODE',      0,  'uint8',  (0, 2)),     # 0=TX, 1=RX, 2=relay
     ('RADIO_PROTOCOL',  0,  'uint8',  (0, 1)),     # 0=CCSDS, 1=MAVLink
     ('RADIO_RATE_HZ',   2,  'uint8',  (1, 10)),    # 1-10 Hz
     ('RADIO_POWER_DBM', 20, 'uint8',  (2, 20)),    # 2-20 dBm
@@ -373,7 +374,11 @@ def generate_header(name, values, qr_data, ramp_steps, cfg_path, symbol,
         radio_symbol = symbol + 'Radio'
 
     lines.append('')
+    mode_map = {0: 'RadioRole::kTx', 1: 'RadioRole::kRx', 2: 'RadioRole::kRelay'}
+    mode_enum = mode_map.get(radio_cfg['RADIO_MODE'], 'RadioRole::kTx')
+
     lines.append(f'inline constexpr RadioConfig {radio_symbol} = {{')
+    lines.append(f'    .mode             = {mode_enum},')
     lines.append(f'    .protocol         = {protocol_enum},')
     lines.append(f'    .nav_rate_hz      = {radio_cfg["RADIO_RATE_HZ"]},')
     lines.append(f'    .power_dbm        = {radio_cfg["RADIO_POWER_DBM"]},')

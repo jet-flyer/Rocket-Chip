@@ -18,7 +18,16 @@
 
 namespace rc {
 
+// Radio role in config context — mirrors job::DeviceRole values.
+// Currently compile-time (Job system). Future: runtime role switching.
+enum class RadioRole : uint8_t {
+    kTx    = 0,   // Vehicle: transmit telemetry
+    kRx    = 1,   // Station: receive + decode
+    kRelay = 2,   // Relay: receive + forward
+};
+
 struct RadioConfig {
+    RadioRole   mode;           // TX, RX, or Relay
     EncoderType protocol;       // kCcsds or kMavlink
     uint8_t     nav_rate_hz;    // 2, 5, or 10
     uint8_t     power_dbm;      // 2-20
@@ -29,6 +38,7 @@ struct RadioConfig {
 
 // Default radio config — used when no profile [radio] section exists
 inline constexpr RadioConfig kDefaultRadioConfig = {
+    .mode             = RadioRole::kTx,
     .protocol         = EncoderType::kCcsds,
     .nav_rate_hz      = 2,
     .power_dbm        = 20,

@@ -2954,16 +2954,54 @@ static void cmd_radio_status() {
 }
 
 // Station-only CLI commands (IVP-97)
+
+// Haversine distance (meters) between two lat/lon points in 1e-7 degrees
+[[maybe_unused]]
+static float haversine_m(int32_t lat1_e7, int32_t lon1_e7,
+                          int32_t lat2_e7, int32_t lon2_e7) {
+    static constexpr float kDegToRad = 3.14159265f / 180.0f;
+    static constexpr float kEarthR   = 6371000.0f;
+    static constexpr float kScale    = 1e-7f;
+
+    float lat1 = static_cast<float>(lat1_e7) * kScale * kDegToRad;
+    float lat2 = static_cast<float>(lat2_e7) * kScale * kDegToRad;
+    float dlat = lat2 - lat1;
+    float dlon = (static_cast<float>(lon2_e7 - lon1_e7)) * kScale * kDegToRad;
+
+    float a = sinf(dlat * 0.5f) * sinf(dlat * 0.5f)
+            + cosf(lat1) * cosf(lat2) * sinf(dlon * 0.5f) * sinf(dlon * 0.5f);
+    float c = 2.0f * atan2f(sqrtf(a), sqrtf(1.0f - a));
+    return kEarthR * c;
+}
+
 static void cmd_station_gps() {
     if constexpr (!kRadioModeRx) { return; }
-    // GPS status on station (reads from shared GPS state if available)
-    printf("Station GPS: not implemented yet (IVP-97c)\n");
+    if (!g_gpsInitialized) {
+        printf("Station GPS: not connected\n");
+        return;
+    }
+    printf("Station GPS: fix=%u sats=%u hdop=%.1f\n",
+           g_bestGpsFix.fix_type, g_bestGpsFix.satellites,
+           static_cast<double>(g_bestGpsFix.hdop));
+    printf("  Lat=%.7f Lon=%.7f Alt=%.1fm\n",
+           static_cast<double>(g_bestGpsFix.lat_1e7) / 1e7,
+           static_cast<double>(g_bestGpsFix.lon_1e7) / 1e7,
+           static_cast<double>(g_bestGpsFix.alt_msl_m));
 }
 
 static void cmd_station_distance() {
     if constexpr (!kRadioModeRx) { return; }
-    // Distance-to-rocket using ground GPS vs received vehicle position
-    printf("Distance: not implemented yet (IVP-97c)\n");
+    if (!g_gpsInitialized || g_bestGpsFix.fix_type < 2) {
+        printf("Distance: station GPS has no fix\n");
+        return;
+    }
+    // TODO: read last received vehicle position from AO_Telemetry
+    // For now, show station position only
+    printf("Station: %.7f, %.7f, %.1fm MSL\n",
+           static_cast<double>(g_bestGpsFix.lat_1e7) / 1e7,
+           static_cast<double>(g_bestGpsFix.lon_1e7) / 1e7,
+           static_cast<double>(g_bestGpsFix.alt_msl_m));
+    printf("Vehicle distance: needs received position (IVP-97c)\n");
 }
 
 static void handle_unhandled_key(int key) {
