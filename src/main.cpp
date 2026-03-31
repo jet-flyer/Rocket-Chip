@@ -239,17 +239,7 @@ static bool g_spiInitialized = false;
 bool g_radioInitialized = false;  // Non-static: AO_Radio reads (IVP-93 transitional)
 rfm95w_t g_radio;                 // Non-static: AO_Radio borrows (IVP-93 transitional)
 
-// Runtime BW mode: 0=BW125, 1=BW250, 2=BW500 (switchable via RX command)
-static uint8_t g_txBwMode = 0;
-static const uint8_t kTxBwValues[3] = {
-    rfm95w::kBw125, rfm95w::kBw250, rfm95w::kBw500
-};
-static const char* const kTxBwLabels[3] = { "BW125", "BW250", "BW500" };
-
-// Telemetry service (IVP-59) — replaces radio_test_tx_tick()
-static rc::TelemetryServiceState g_telemService;
-static rc::TelemetryState g_latestTelem = {};      // Updated by logging_tick()
-static bool g_latestTelemValid = false;
+// Radio/telemetry globals removed (IVP-94). State now in AO_Telemetry + AO_Radio.
 
 static size_t g_psramSize = 0;
 static bool g_psramSelfTestPassed = false;
@@ -1779,18 +1769,16 @@ static void print_hw_status() {
     hw_validate_sensors();
 
     if (g_radioInitialized) {
-        printf("[PASS] Radio: RFM95W LoRa 915 MHz SF7/%s 20dBm (CS=%d RST=%d IRQ=%d)\n",
-               kTxBwLabels[g_txBwMode],
+        printf("[PASS] Radio: RFM95W LoRa 915 MHz SF7 20dBm (CS=%d RST=%d IRQ=%d)\n",
                rocketchip::pins::kRadioCs, rocketchip::pins::kRadioRst,
                rocketchip::pins::kRadioIrq);
         if constexpr (kRadioModeRx) {
             printf("[MODE] RX — %s output ('m' to toggle)\n",
-                   g_telemService.mavlink_output ? "MAVLink" : "CSV");
+                   AO_Telemetry_get_mavlink_output() ? "MAVLink" : "CSV");
         } else {
-            printf("[MODE] TX %dHz CCSDS %dB%s\n",
-                   static_cast<int>(g_telemService.rate_hz),
+            printf("[MODE] TX CCSDS %dB%s\n",
                    static_cast<int>(rc::ccsds::kNavPacketLen),
-                   g_telemService.mavlink_output ? " + USB MAVLink" : "");
+                   AO_Telemetry_get_mavlink_output() ? " + USB MAVLink" : "");
         }
     } else if (g_spiInitialized) {
         printf("[----] Radio: not detected (FeatherWing not stacked?)\n");
@@ -1920,20 +1908,9 @@ static void init_peripherals() {
             rocketchip::pins::kRadioIrq);
     }
 
-    // Telemetry service init (IVP-59/60/61)
-    // Radio mode is compile-time: kRadioModeRx selects RX (ground station),
-    // default is TX (flight downlink). Will be set by Mission Profile.
-    if (g_radioInitialized) {
-        rc::telemetry_service_init(&g_telemService, &g_radio, 2);
-        if constexpr (kRadioModeRx) {
-            rc::telemetry_service_start_rx(&g_telemService);
-        }
-    }
-
-    // MAVLink encoder init — needed for both RX relay and vehicle direct output.
-    // Init regardless of radio — direct USB MAVLink doesn't need LoRa.
-    g_telemService.mav_encoder.init();
-    g_telemService.mavlink_output = kDefaultMavlinkOutput;
+    // Telemetry service init removed (IVP-94) — AO_Telemetry + AO_Radio own this now.
+    // Radio init stays in init_peripherals (SPI bus + rfm95w_init).
+    // AO_Radio borrows g_radio handle at startup (IVP-93 transitional).
 
     // Calibration storage init (before USB per LL Entry 4/12)
     g_calStorageInitialized = calibration_storage_init();
@@ -2179,12 +2156,12 @@ static void cli_update_tick() {
     // Drain ALL pending USB input — GCS sends heartbeats, param requests,
     // etc. that must be consumed or the USB CDC TX buffer backs up and
     // the host's serial writes time out.
-    if (g_telemService.mavlink_output) {
+    if (AO_Telemetry_get_mavlink_output()) {
         if (stdio_usb_connected()) {
             int ch;
             while ((ch = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
                 if (ch == 'm' || ch == 'M') {
-                    g_telemService.mavlink_output = false;
+                    AO_Telemetry_toggle_mavlink();
                     printf("\n[%s] Output: CLI\n",
                            kRadioModeRx ? "RX" : "USB");
                     return;
@@ -2966,33 +2943,16 @@ static void cmd_download_flight() {
 }
 
 static void cmd_radio_status() {
-    if (!g_radioInitialized) {
+    const auto* rs = AO_Radio_get_state();
+    if (!rs->initialized) {
         printf("Radio not initialized.\n");
         return;
     }
-    if (g_telemService.mode == rc::RadioMode::kRx) {
-        uint32_t now = to_ms_since_boot(get_absolute_time());
-        uint32_t gap = (g_telemService.rx_count > 0) ?
-            (now - g_telemService.last_rx_ms) : 0;
-        printf("RX: %lu pkts, %ddBm, %d.%ddB SNR, %lu CRC err, last %lu.%lus ago\n",
-               (unsigned long)g_telemService.rx_count,
-               static_cast<int>(g_telemService.last_rx_rssi),
-               static_cast<int>(g_telemService.last_rx_snr),
-               0,
-               (unsigned long)g_telemService.rx_crc_errors,
-               (unsigned long)(gap / 1000),
-               (unsigned long)((gap % 1000) / 100));
-    } else {
-        uint32_t now = to_ms_since_boot(get_absolute_time());
-        uint8_t duty = rc::telemetry_service_duty_pct(&g_telemService, now);
-        printf("TX: %dHz CCSDS %dB %lums/pkt duty=%u%% seq=%lu drop=%lu\n",
-               static_cast<int>(g_telemService.rate_hz),
-               static_cast<int>(rc::ccsds::kNavPacketLen),
-               (unsigned long)g_telemService.last_airtime_us / 1000,
-               static_cast<unsigned>(duty),
-               (unsigned long)g_telemService.tx_count,
-               (unsigned long)g_telemService.tx_fail_count);
-    }
+    // Radio status now from AO_Radio state (IVP-94)
+    printf("Radio: %s, phase=%d, tx_fail=%u\n",
+           rs->initialized ? "OK" : "ABSENT",
+           static_cast<int>(rs->scheduler.phase),
+           static_cast<unsigned>(rs->tx_consec_fail));
 }
 
 static void handle_unhandled_key(int key) {
@@ -3003,16 +2963,16 @@ static void handle_unhandled_key(int key) {
     case 'g': case 'G': cmd_list_flights(); break;  // Was 'f', now 'g' (flight list)
     case 't': case 'T': cmd_radio_status(); break;
     case 'r':
-        if (g_radioInitialized && !kRadioModeRx) {
-            uint8_t newRate = rc::telemetry_service_cycle_rate(&g_telemService);
+        if (AO_Radio_get_state()->initialized && !kRadioModeRx) {
+            uint8_t newRate = AO_Telemetry_cycle_rate();
             printf("[TX] Rate changed to %dHz\n", static_cast<int>(newRate));
         }
         break;
     case 'm': case 'M':
-        g_telemService.mavlink_output = !g_telemService.mavlink_output;
+        AO_Telemetry_toggle_mavlink();
         printf("[%s] Output: %s\n",
                kRadioModeRx ? "RX" : "USB",
-               g_telemService.mavlink_output ? "MAVLink" : "CLI");
+               AO_Telemetry_get_mavlink_output() ? "MAVLink" : "CLI");
         break;
     default: break;
     }
@@ -3166,96 +3126,14 @@ extern "C" void logging_tick() {
 
     rc::ring_push(&g_ringBuffer, &frame);
 
-    // Stash for telemetry service (IVP-59)
-    g_latestTelem = telem;
-    g_latestTelemValid = true;
+    // Push to AO_Telemetry for radio TX encoding (IVP-94)
+    AO_Telemetry_set_telem_snapshot(telem);
 }
 
 // ============================================================================
-// Direct USB MAVLink Output (IVP-61)
+// mavlink_direct_tick and telemetry_radio_tick removed (IVP-94)
+// Now handled by AO_Telemetry (protocol) and AO_Radio (hardware).
 // ============================================================================
-// Vehicle direct mode: encode TelemetryState → MAVLink v2 frames → USB.
-// Same as station relay but skips LoRa — like plugging an ArduPilot board
-// directly into QGC/Mission Planner via USB.
-
-static constexpr uint32_t kMavDirectIntervalMs = 100;  // 10 Hz output
-static constexpr uint8_t  kMavFrameBufSize     = 64;
-static uint32_t g_lastMavDirectMs = 0;
-
-// Non-static for AO_Telemetry extern "C" bridge (IVP-80)
-extern "C" void mavlink_direct_tick(uint32_t nowMs) {
-    if (!g_telemService.mavlink_output) { return; }
-    if constexpr (kRadioModeRx) { return; }  // Station uses RX path
-    if (!g_latestTelemValid) { return; }
-    if (!stdio_usb_connected()) { return; }
-
-    // Rate limit — 10 Hz nav + 1 Hz heartbeat/sys_status
-    uint8_t frame[kMavFrameBufSize];
-    uint16_t len = 0;
-
-    // 1 Hz heartbeat + SYS_STATUS
-    if (nowMs - g_telemService.last_heartbeat_ms >= 1000) {
-        g_telemService.last_heartbeat_ms = nowMs;
-        len = g_telemService.mav_encoder.encode_heartbeat(
-            g_latestTelem.flight_state, frame);
-        fwrite(frame, 1, len, stdout);
-
-        len = g_telemService.mav_encoder.encode_sys_status(
-            g_latestTelem, frame);
-        fwrite(frame, 1, len, stdout);
-    }
-
-    // 10 Hz ATTITUDE + GLOBAL_POSITION_INT
-    if (nowMs - g_lastMavDirectMs < kMavDirectIntervalMs) { return; }
-    g_lastMavDirectMs = nowMs;
-
-    len = g_telemService.mav_encoder.encode_attitude(
-        g_latestTelem, nowMs, frame);
-    fwrite(frame, 1, len, stdout);
-
-    len = g_telemService.mav_encoder.encode_global_pos(
-        g_latestTelem, nowMs, frame);
-    fwrite(frame, 1, len, stdout);
-
-    fflush(stdout);
-}
-
-// ============================================================================
-// Telemetry Radio Tick (IVP-59 TX, IVP-60 RX)
-// ============================================================================
-
-// RX NeoPixel gap thresholds
-static constexpr uint32_t kRxGapWarningMs = 1000;   // Yellow blink after 1s
-static constexpr uint32_t kRxGapLostMs    = 5000;   // Red blink after 5s
-
-// Non-static for AO_Telemetry extern "C" bridge (IVP-80)
-extern "C" void telemetry_radio_tick(uint32_t nowMs) {
-    if (!g_radioInitialized) { return; }
-
-    if (g_telemService.mode == rc::RadioMode::kTx) {
-        if (!g_latestTelemValid) { return; }
-        rc::telemetry_service_tick(&g_telemService, &g_latestTelem, nowMs);
-        // Clear RX NeoPixel override when in TX mode
-        uint8_t cur = g_calNeoPixelOverride.load(std::memory_order_relaxed);
-        if (cur >= kRxNeoReceiving && cur <= kRxNeoLost) {
-            g_calNeoPixelOverride.store(kCalNeoOff, std::memory_order_relaxed);
-        }
-    } else {
-        rc::telemetry_service_rx_tick(&g_telemService, nowMs);
-
-        // RX NeoPixel overlay — signal link quality to Core 1
-        uint32_t gap = nowMs - g_telemService.last_rx_ms;
-        uint8_t neoVal;
-        if (g_telemService.rx_count == 0 || gap >= kRxGapLostMs) {
-            neoVal = kRxNeoLost;
-        } else if (gap >= kRxGapWarningMs) {
-            neoVal = kRxNeoGap;
-        } else {
-            neoVal = kRxNeoReceiving;
-        }
-        g_calNeoPixelOverride.store(neoVal, std::memory_order_relaxed);
-    }
-}
 
 // ============================================================================
 // QF+QV Active Object Infrastructure (IVP-76)
