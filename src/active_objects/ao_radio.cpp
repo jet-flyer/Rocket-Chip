@@ -16,7 +16,9 @@
 #include "ao_radio.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/config.h"
+#include "rocketchip/job.h"
 #include "drivers/spi_bus.h"
+#include "crc16_ccitt.h"
 #include <string.h>
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -118,6 +120,28 @@ static void handle_tx_poll(RadioAo* me) {
     // kBusy — continue polling next tick
 }
 
+// CCSDS packet constants for relay CRC validation (IVP-98)
+static constexpr uint8_t  kCcsdsMinLen  = 54;   // Nav packet size
+static constexpr uint8_t  kCcsdsCrcOff  = 52;   // CRC starts at byte 52
+
+// Relay dedup: last relayed sequence counter
+static uint16_t g_lastRelaySeq = 0xFFFF;
+
+// Validate CCSDS packet integrity without decoding payload [C3-R2]
+static bool validate_ccsds_crc(const uint8_t* buf, uint8_t len) {
+    if (len < kCcsdsMinLen) { return false; }
+    uint16_t computed = rc::crc16_ccitt(buf, kCcsdsCrcOff);
+    uint16_t stored = static_cast<uint16_t>(
+        (buf[kCcsdsCrcOff] << 8) | buf[kCcsdsCrcOff + 1]);
+    return computed == stored;
+}
+
+// Extract 14-bit CCSDS sequence counter from primary header
+static uint16_t extract_ccsds_seq(const uint8_t* buf) {
+    return static_cast<uint16_t>(
+        ((buf[2] & 0x3F) << 8) | buf[3]);
+}
+
 static void handle_rx_poll(RadioAo* me) {
     RadioAoState& s = me->state;
 
@@ -132,17 +156,36 @@ static void handle_rx_poll(RadioAo* me) {
         return;
     }
 
-    // Post SIG_RADIO_RX to AO_Telemetry with raw bytes
-    // Stack-allocated event — QV cooperative scheduling guarantees
-    // the event is consumed before this handler returns.
+    int16_t rssi = rfm95w_rssi(&s.radio);
+    int8_t  snr  = s.radio.last_snr;
+
+    // Relay mode: validate CRC + dedup → re-TX [C3-R2, IVP-98]
+    if constexpr (job::kRole == job::DeviceRole::kRelay) {
+        if (!validate_ccsds_crc(buf, len)) {
+            return;  // Bad CRC — drop silently
+        }
+        uint16_t seq = extract_ccsds_seq(buf);
+        if (seq == g_lastRelaySeq) {
+            return;  // Duplicate — drop
+        }
+        g_lastRelaySeq = seq;
+
+        // Re-TX: call send_start directly (we're in kRxContinuous)
+        if (s.scheduler.phase != rc::RadioPhase::kTxActive) {
+            rfm95w_send_start(&s.radio, buf, len);
+            s.scheduler.on_tx_start(now_ms());
+        }
+        return;  // Relay doesn't post to AO_Telemetry
+    }
+
+    // Normal mode (Vehicle/Station): post SIG_RADIO_RX to AO_Telemetry
     rc::RadioRxEvt rxEvt;
     rxEvt.super.sig = rc::SIG_RADIO_RX;
     memcpy(rxEvt.buf, buf, len);
     rxEvt.len = len;
-    rxEvt.rssi = rfm95w_rssi(&s.radio);
-    rxEvt.snr = s.radio.last_snr;
+    rxEvt.rssi = rssi;
+    rxEvt.snr = snr;
 
-    // Direct post to AO_Telemetry
     extern QActive * const AO_Telemetry;
     QACTIVE_POST(AO_Telemetry, &rxEvt.super, me);
 }
@@ -166,9 +209,19 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
     if (g_radioInitialized) {
         s.radio = g_radio;  // Copy device handle (just pin config + flags)
         s.initialized = true;
-        // Default: vehicle TX mode at 2Hz. Station/Relay overrides at Job level.
-        s.scheduler.init(500, false);  // 2Hz = 500ms interval, TX+RX mode
-        DBG_PRINT("RADIO: AO_Radio active (borrowed from init_peripherals)");
+
+        // Mode selection based on device role (IVP-95/98)
+        bool rx_continuous = (job::kRole == job::DeviceRole::kStation ||
+                              job::kRole == job::DeviceRole::kRelay);
+        s.scheduler.init(500, rx_continuous);  // 2Hz for vehicle, RX continuous for station/relay
+
+        if (rx_continuous) {
+            rfm95w_start_rx(&s.radio);
+            DBG_PRINT("RADIO: AO_Radio RX continuous (%s)",
+                       job::kRole == job::DeviceRole::kRelay ? "relay" : "station");
+        } else {
+            DBG_PRINT("RADIO: AO_Radio TX+RX (vehicle)");
+        }
     } else {
         s.initialized = false;
         s.scheduler.phase = rc::RadioPhase::kIdle;
