@@ -2701,18 +2701,42 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-## Stage 12: Ground Station
+## Stage 12A: Radio Module + Fruit Jam GCS
 
-**Purpose:** Dedicated ground station platform on Raspberry Pi or PC. Everything beyond the RX RocketChip board. Independent of vehicle firmware once Stage 7 packet format is stable.
+**Purpose:** Extract radio/telemetry code into proper Active Objects, implement non-blocking TX, and enable the Fruit Jam board as a dedicated ground station. Foundational work that benefits both vehicle firmware and the Linux GCS (Stage 12B).
+
+**Background:** Three council reviews (2026-03-30, all unanimous). Radio capability is universal — any board with LoRa can TX, RX, or both. AO_Radio (hardware layer) separated from AO_Telemetry (protocol layer) to support future radio hardware (RFM69, SX1280, ESP32 WiFi). Non-blocking TX fixes AO queue overflow crash (LL Entry 32). See `docs/RADIO_TELEMETRY_STATUS.md` for full tracking and decision references.
+
+**Dependencies:** Stage 11 complete, Stage 7 (IVP-57–61) verified
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-92 | Yamcs Instance & XTCE | *(placeholder)* XTCE dictionary for CCSDS packets, Yamcs on RPi |
-| IVP-93 | OpenMCT Integration | *(placeholder)* OpenMCT via openmct-yamcs plugin, custom layouts |
-| IVP-94 | Ground Station Pi Image | *(placeholder)* Pre-built RPi OS image, turnkey operation |
-| IVP-95 | Post-Flight Analysis Tools | *(placeholder)* PCM to CCSDS replay, flight timeline, multi-flight overlay |
-| IVP-96 | Web Dashboard | *(placeholder)* Browser-based telemetry for field use |
-| IVP-97 | Mobile / Remote Access | *(placeholder)* WiFi AP on ground station Pi for phone/tablet |
+| IVP-92 | Non-Blocking Radio TX | Split rfm95w_send() into send_start/send_poll. TX failure escalation. Runtime config setters. |
+| IVP-93 | AO_Radio Extraction | New AO_Radio with RadioScheduler half-duplex SM. Vehicle: TX-priority with RX windows. |
+| IVP-94 | AO_Telemetry Protocol Refactor | Protocol-only AO. SIG_RADIO_TX/RX event flow. SIG_GCS_CMD stub. submit_packet() API. |
+| IVP-95 | Three-Job Device Role | DeviceRole enum (Vehicle/Station/Relay). Compile-time Job selection. Conditional AO startup. |
+| IVP-96 | RadioConfig in Mission Profile | [radio] section in .cfg. Generator derives SF/BW/CR. GCS-initiated config changes primary. |
+| IVP-97 | Fruit Jam Station Enhancements | 5x NeoPixel RSSI bar, station CLI, GPS distance-to-rocket, altitude cross-reference. |
+| IVP-98 | Relay Job | Link-layer relay in AO_Radio. CCSDS CRC validation, seq dedup. LED feedback. |
+
+**Gate:** Fruit Jam receives CCSDS over LoRa, re-encodes to MAVLink, QGC displays live data. Vehicle TX non-blocking (AO queue depth < 4). Relay extends range. All 598+ host tests pass.
+
+---
+
+## Stage 12B: Linux GCS
+
+**Purpose:** Dedicated ground station platform on Raspberry Pi or PC. Everything beyond the RX RocketChip board. Independent of vehicle firmware once Stage 7 packet format is stable.
+
+*IVP numbers assigned when this stage is planned.*
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| — | Yamcs Instance & XTCE | *(placeholder)* XTCE dictionary for CCSDS packets, Yamcs on RPi |
+| — | OpenMCT Integration | *(placeholder)* OpenMCT via openmct-yamcs plugin, custom layouts |
+| — | Ground Station Pi Image | *(placeholder)* Pre-built RPi OS image, turnkey operation |
+| — | Post-Flight Analysis Tools | *(placeholder)* PCM to CCSDS replay, flight timeline, multi-flight overlay |
+| — | Web Dashboard | *(placeholder)* Browser-based telemetry for field use |
+| — | Mobile / Remote Access | *(placeholder)* WiFi AP on ground station Pi for phone/tablet |
 
 ---
 
@@ -2720,15 +2744,17 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Purpose:** Full system verification and flight readiness. All subsystems integrated, all tests passing, all hardware validated under realistic conditions.
 
+*IVP numbers assigned when this stage is planned.*
+
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-98 | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
-| IVP-99 | Simulated Flight Profile | Replay recorded accel/baro through state machine |
-| IVP-100 | Power Budget Validation | Battery runtime validation under flight load |
-| IVP-101 | Environmental Stress | Temperature range, vibration (if available) |
-| IVP-102 | Flight Test | Bungee-launched glider: full data capture + telemetry |
+| — | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
+| — | Simulated Flight Profile | Replay recorded accel/baro through state machine |
+| — | Power Budget Validation | Battery runtime validation under flight load |
+| — | Environmental Stress | Temperature range, vibration (if available) |
+| — | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
-> **Milestone:** IVP-102 — **Flight Ready**.
+> **Milestone:** Flight Test — **Flight Ready**.
 
 ---
 
@@ -2745,12 +2771,14 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Methodology:** See `docs/DYNAMIC_VALIDATION.md` for physical test methods (Allan variance, turntable, pendulum, elevator, data logging + replay, vehicle GPS-vs-INS).
 
+*IVP numbers assigned when this stage is planned.*
+
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-103 | Data Collection Infrastructure | Flight log replay + parameter sweep tooling |
-| IVP-104 | Q/R Phase Tuning | Per-vehicle-type Q/R optimization from flight data |
-| IVP-105 | Confidence Gate Tuning | Threshold validation from anomaly injection + field data |
-| IVP-106 | Guard Timing Tuning | Sustain/debounce timing from flight profiles |
+| — | Data Collection Infrastructure | Flight log replay + parameter sweep tooling |
+| — | Q/R Phase Tuning | Per-vehicle-type Q/R optimization from flight data |
+| — | Confidence Gate Tuning | Threshold validation from anomaly injection + field data |
+| — | Guard Timing Tuning | Sustain/debounce timing from flight profiles |
 
 ---
 
@@ -2776,8 +2804,9 @@ Tests to re-run after changes to specific areas.
 | Watchdog / PIO safety change | IVP-87 — IVP-91 | PIO watchdog, backup timers, safe mode |
 | Flight Director change | IVP-67 — IVP-75 | State machine, guards, actions, mission config |
 | Active Object change | IVP-76 — IVP-82, IVP-73 | AO migration, bench flight sim regression |
+| Radio module / AO_Radio change | IVP-92 — IVP-98, IVP-57 — IVP-62 | Radio driver, scheduler, AO split, telemetry |
 | **Major refactor** | **All Stage 1-3** | Full regression |
-| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-88, IVP-73, IVP-98 | Release qualification (build, USB, flash, PIO safety, bench flight sim, full bench test) |
+| **Before any release** | IVP-01, IVP-27, IVP-28, IVP-88, IVP-73, Stage 13 Full Bench Test | Release qualification (build, USB, flash, PIO safety, bench flight sim, full bench test) |
 
 ---
 

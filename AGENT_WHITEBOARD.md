@@ -2,7 +2,7 @@
 
 **Purpose:** Communication across context windows and between agents.
 
-**Stages 1-11 COMPLETE.** Next: Stage 12 (Ground Station, IVP-92-97). 598 host tests, SPIN 6/6. PIO safety architecture replaces SDK watchdog — no auto MCU reset.
+**Stages 1-11 COMPLETE.** Active: Stage 12A (Radio Module + Fruit Jam GCS, IVP-92-98). 598 host tests, SPIN 6/6. Plan: `docs/plans/STAGE12A_RADIO_MODULE.md`. Tracking: `docs/RADIO_TELEMETRY_STATUS.md`.
 
 ## Use Cases
 1. **Cross-agent review** - Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
@@ -152,7 +152,7 @@ Research across 4 phases proved MMAE/IMM is the wrong tool for RocketChip's flig
 
 **New architecture (Stage 10, IVP-83–85):** Phase-scheduled Q/R matrices tied to state machine flight phases (IDLE→ARMED→BOOST→COAST→DESCENT→LANDED) + sliding-window NIS innovation monitor + confidence gate with hysteresis + confidence-gated pyro lockout. Captures 80-90% of IMM's benefit at near-zero complexity cost. Software identical across all tiers — Titan differs only in hardware. **Stage 10 COMPLETE (2026-03-29).**
 
-**IVP restructuring (2026-03-29):** 14 stages. Stage 10: Adaptive Estimation (IVP-83–85, IVP-86 retired). Stage 11: PIO Safety Architecture (IVP-87–91). Stage 12: Ground Station (IVP-92–97). Stage 13: Pre-Flight Polish (IVP-98–102). Stage 14: Field Tuning & Validation (IVP-103+).
+**IVP restructuring (2026-03-30):** 14 stages. Stage 10: Adaptive Estimation (IVP-83–85, IVP-86 retired). Stage 11: PIO Safety Architecture (IVP-87–91). Stage 12A: Radio Module + Fruit Jam GCS (IVP-92–98). Stage 12B: Linux GCS (unnumbered placeholders). Stages 13-14: steps preserved, IVP numbers assigned when planned.
 
 ---
 
