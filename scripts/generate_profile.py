@@ -83,6 +83,14 @@ QR_FIELDS = [
     ('R_GPS_VEL',     'r.r_gps_vel',        (1e-6, 1e6)),
 ]
 
+# Radio config fields (IVP-96) — optional, defaults used if absent
+RADIO_FIELDS = [
+    # (cfg_name, default_value, type, validation)
+    ('RADIO_PROTOCOL',  0,  'uint8',  (0, 1)),     # 0=CCSDS, 1=MAVLink
+    ('RADIO_RATE_HZ',   2,  'uint8',  (1, 10)),    # 1-10 Hz
+    ('RADIO_POWER_DBM', 20, 'uint8',  (2, 20)),    # 2-20 dBm
+]
+
 NUM_PHASES = 8  # matches FlightPhase::kCount
 
 # Profile ID mapping
@@ -203,9 +211,27 @@ def validate_and_convert(params):
         except ValueError:
             errors.append(f'QR_RAMP_STEPS: invalid integer')
 
+    # Parse radio config fields (optional, defaults used if absent)
+    radio_cfg = {}
+    for cfg_name, default_val, ftype, bounds in RADIO_FIELDS:
+        if cfg_name in params:
+            try:
+                val = int(params[cfg_name][0])
+                if bounds and (val < bounds[0] or val > bounds[1]):
+                    errors.append(
+                        f'{cfg_name} = {val}: out of range '
+                        f'[{bounds[0]}, {bounds[1]}]')
+                radio_cfg[cfg_name] = val
+            except ValueError:
+                errors.append(f'{cfg_name}: invalid integer')
+                radio_cfg[cfg_name] = default_val
+        else:
+            radio_cfg[cfg_name] = default_val
+
     # Check for unknown fields
     known = {f[0] for f in FIELDS}
     known.update(f[0] for f in QR_FIELDS)
+    known.update(f[0] for f in RADIO_FIELDS)
     known.add('QR_RAMP_STEPS')
     for key in params:
         if key not in known:
@@ -217,7 +243,7 @@ def validate_and_convert(params):
             print(f'  - {e}')
         sys.exit(1)
 
-    return result, qr_data, ramp_steps
+    return result, qr_data, ramp_steps, radio_cfg
 
 
 def _emit_phase_qr(qr_data, ramp_steps):
@@ -249,8 +275,39 @@ def _emit_phase_qr(qr_data, ramp_steps):
     return lines
 
 
+def _derive_rf_params(radio_cfg):
+    """Derive SF/BW/CR from protocol + rate."""
+    protocol = radio_cfg['RADIO_PROTOCOL']
+    rate = radio_cfg['RADIO_RATE_HZ']
+
+    # Packet size: CCSDS=54B, MAVLink=105B
+    pkt_size = 54 if protocol == 0 else 105
+
+    # At SF7, airtime per packet:
+    #   BW125: ~100ms (54B), ~200ms (105B)
+    #   BW250: ~50ms (54B),  ~100ms (105B)
+    #   BW500: ~25ms (54B),  ~50ms (105B)
+    # Max duty cycle target: 50% → max rate = 1000 / (2 * airtime_ms)
+
+    # Start with BW125 (longest range), increase if rate requires it
+    if protocol == 0:  # CCSDS 54B
+        if rate <= 5:
+            bw = 125  # airtime ~100ms, 5Hz = 50% duty
+        else:
+            bw = 250  # airtime ~50ms, 10Hz = 50% duty
+    else:  # MAVLink 105B
+        if rate <= 2:
+            bw = 125  # airtime ~200ms, 2Hz = 40% duty
+        elif rate <= 5:
+            bw = 250  # airtime ~100ms, 5Hz = 50% duty
+        else:
+            bw = 500  # airtime ~50ms, 10Hz = 50% duty
+
+    return 7, bw, 5  # SF7, derived BW, CR 4/5
+
+
 def generate_header(name, values, qr_data, ramp_steps, cfg_path, symbol,
-                    output_path):
+                    radio_cfg, output_path):
     """Generate the C++ header file."""
     # Compute source file hash for traceability (A2)
     with open(cfg_path, 'rb') as f:
@@ -267,6 +324,7 @@ def generate_header(name, values, qr_data, ramp_steps, cfg_path, symbol,
     lines.append('')
     lines.append('#pragma once')
     lines.append('#include "mission_profile.h"')
+    lines.append('#include "rocketchip/radio_config.h"')
     lines.append('')
     lines.append('namespace rc {')
     lines.append('')
@@ -307,6 +365,23 @@ def generate_header(name, values, qr_data, ramp_steps, cfg_path, symbol,
     lines.append(f'              "LAND_HOLD_MS must be at least 100ms");')
     lines.append(f'static_assert({symbol}.phase_qr.ramp_steps >= 1,')
     lines.append(f'              "QR_RAMP_STEPS must be >= 1");')
+    # Emit RadioConfig (IVP-96)
+    sf, bw, cr = _derive_rf_params(radio_cfg)
+    protocol_enum = 'EncoderType::kCcsds' if radio_cfg['RADIO_PROTOCOL'] == 0 else 'EncoderType::kMavlink'
+    radio_symbol = symbol.replace('Profile', 'RadioConfig').replace('profile', 'radio_config')
+    if radio_symbol == symbol:
+        radio_symbol = symbol + 'Radio'
+
+    lines.append('')
+    lines.append(f'inline constexpr RadioConfig {radio_symbol} = {{')
+    lines.append(f'    .protocol         = {protocol_enum},')
+    lines.append(f'    .nav_rate_hz      = {radio_cfg["RADIO_RATE_HZ"]},')
+    lines.append(f'    .power_dbm        = {radio_cfg["RADIO_POWER_DBM"]},')
+    lines.append(f'    .spreading_factor = {sf},')
+    lines.append(f'    .bandwidth_khz    = {bw},')
+    lines.append(f'    .coding_rate      = {cr},')
+    lines.append('};')
+
     lines.append('')
     lines.append('} // namespace rc')
     lines.append('')
@@ -337,10 +412,10 @@ def main():
         print('ERROR: PROFILE_NAME not found in config')
         sys.exit(1)
 
-    values, qr_data, ramp_steps = validate_and_convert(params)
+    values, qr_data, ramp_steps, radio_cfg = validate_and_convert(params)
 
     generate_header(name, values, qr_data, ramp_steps, args.config,
-                    args.symbol, args.output)
+                    args.symbol, radio_cfg, args.output)
 
     print(f'Generated {args.output}')
     print(f'  Profile: {name}')
