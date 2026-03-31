@@ -260,17 +260,10 @@ static QState RadioAo_running(RadioAo * const me, QEvt const * const e) {
             handle_rx_poll(me);
         }
 
-        // RSSI bar update at ~10Hz (every 10th tick of 100Hz)
-        // Station/Relay only — vehicle uses flight-phase LED patterns
-        if constexpr (job::kRole != job::DeviceRole::kVehicle) {
-            static uint8_t rssi_div = 0;
-            if (++rssi_div >= 10) {
-                rssi_div = 0;
-                uint32_t gap = now_ms() - s.last_rx_ms;
-                bool no_signal = (s.rx_count == 0 || gap >= 5000);
-                ws2812_set_rssi_bar(s.last_rx_rssi, no_signal);
-            }
-        }
+        // RSSI bar: deferred — PIO contention with AO_LedEngine causes
+        // pio_sm_put_blocking() hang → queue overflow (qf_actq id=130).
+        // Needs LED engine refactor: per-pixel mode in ws2812_update(),
+        // or AO_LedEngine disabled in station mode. Tracked as follow-up.
 
         return Q_HANDLED();
     }
