@@ -1,14 +1,16 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-03-29 (Stage 11 COMPLETE)
+**Last Updated:** 2026-03-31 (Stage 12A COMPLETE)
 
 ## Current Phase
 
-**Stage 11 COMPLETE** — PIO Safety Architecture (IVP-87–91)
+**Stage 12A COMPLETE** — Radio Module + Fruit Jam GCS (IVP-92–98)
 
-PIO2 heartbeat watchdog (IRQ-based, no GPIO interference), PIO backup deployment timers (drogue + main, HW verified), SDK watchdog removed — PIO is sole health monitor. Persistent pyro-fired flags in FlightState. SPIN model updated with PIO timer paths — 6/6 safety properties pass. Baseline + post-change benchmarks show no regression (+2.5% predict, +1.8KB text). 2 council reviews (5 panelists each). 598/598 host tests, 65s HW soak clean.
+Radio code extracted from main.cpp into AO_Radio (hardware) + AO_Telemetry (protocol) split. Non-blocking TX, RadioScheduler half-duplex SM, three-Job system (Vehicle/Station/Relay), RadioConfig in Mission Profile, RSSI bar, relay forwarding. 3 council reviews (all unanimous). HW verified on 3 boards: Feather TX, Fruit Jam RX, Feather Relay. 598/598 host tests.
 
-**Next: Stage 12** — Ground Station (IVP-92–97). Ground station infrastructure, validated upload, GCS integration.
+**RP2350B finding:** GPIO pads start isolated (ISO=1) on RP2350B — breaks I2C bus recovery if called before gpio_set_function(). Fixed in i2c_bus_init(). Documented in BOARD_COMPARISON.md.
+
+**Next: Stage 12B** — Linux GCS (Yamcs, OpenMCT, Pi image). IVP numbers assigned when planned.
 
 ## Completed
 
@@ -49,6 +51,7 @@ PIO2 heartbeat watchdog (IRQ-based, no GPIO interference), PIO backup deployment
 | 9: Active Objects | IVP-76–82b | 2026-03-27 | QF+QV BSP, 6 AOs, superloop removal, SPIN formal verification. Council-reviewed (3 reviews, 18 amendments total). Queue depth 32 for LoRa blocking (LL Entry 32). 8 SPIN properties verified (107K states, 0 errors). 552/552 host tests, bench sim 9/9, 10-min soak clean. Verification overview doc added |
 | 10: Adaptive Estimation | IVP-83–85 | 2026-03-29 | Phase-scheduled Q/R (Mission Profile `.cfg`), sliding-window NIS innovation monitor, confidence gate (500ms loss / 2s recovery hysteresis), confidence-gated pyro lockout. SPIN model updated. IVP-86 retired. Council-reviewed (7 amendments). 598/598 host tests, 65s HW soak clean |
 | 11: PIO Safety Architecture | IVP-87–91 | 2026-03-29 | Baseline benchmark, PIO2 heartbeat watchdog (IRQ-based), PIO backup deployment timers (drogue + main, HW verified), SDK watchdog removed, post-change benchmark (no regression). SPIN updated (6/6 safety). Persistent pyro-fired flags. 2 council reviews. LL 33 + LL 34 |
+| 12A: Radio Module + FJ GCS | IVP-92–98 | 2026-03-31 | Non-blocking TX, AO_Radio + AO_Telemetry split, RadioScheduler, 3-Job system (Vehicle/Station/Relay), RadioConfig in .cfg, RSSI bar (5 NeoPixels), relay forwarding. RP2350B I2C pad isolation fix. 3 council reviews. HW verified: TX→RX 296+ pkts 0 CRC, relay confirmed, GPS on FJ |
 
 ## In Progress
 

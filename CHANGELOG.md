@@ -20,6 +20,27 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-03-31-001 | Claude Code CLI | feature, architecture, council
+
+**Stage 12A COMPLETE: Radio Module + Fruit Jam GCS (IVP-92–98).** Seven IVPs. Three council reviews (radio universality, RadioScheduler, final plan — all unanimous). HW verified on 3 boards: Vehicle TX (Feather RP2350), Station RX (Fruit Jam), Relay (Feather RP2350).
+
+**IVP-92:** Non-blocking TX split (`send_start`/`send_poll`). Runtime config setters for SF, BW, CR.
+**IVP-93:** AO_Radio extraction with RadioScheduler half-duplex state machine (100Hz, protocol-agnostic).
+**IVP-94:** AO_Telemetry refactored to protocol-only. SIG_RADIO_TX/RX event flow. ~120 lines removed from main.cpp.
+**IVP-95:** Three-Job DeviceRole system (Vehicle/Station/Relay) with conditional AO startup.
+**IVP-96:** RadioConfig in Mission Profile `.cfg` with auto-derived RF parameters.
+**IVP-97:** Fruit Jam station: 5-NeoPixel RSSI bar, station CLI (GPS status, distance-to-rocket stubs).
+**IVP-98:** Link-layer relay in AO_Radio (CCSDS CRC validation, seq dedup, re-TX).
+
+**Bugs found during HW verification:**
+- RP2350B I2C pad isolation: GPIO pads start isolated on RP2350B, breaks bus recovery (LL Entry 35 candidate)
+- QP/C static event pattern: stack-allocated events crash on refCtr assert
+- PIO contention: AO_LedEngine + RSSI bar on same PIO SM → queue overflow. Fix: disable LedEngine in station mode.
+
+**HW test results:** TX→RX 296+ pkts, 0 CRC errors, continuous seq. Relay confirmed via duplicate seq at different RSSI. RSSI bar gradient working. GPS detected on FJ after I2C fix.
+
+---
+
 ### 2026-03-29-003 | Claude Code CLI | feature
 
 **Event logging framework.** PCM event frame (type=3, 15 bytes) for discrete flight events: pyro fire, abort, confidence gate transitions. Logged to ring buffer with MET timestamp alongside periodic telemetry frames. Designed for future Mission Profile toggles. Persistent pyro-fired flags added to FlightState.
