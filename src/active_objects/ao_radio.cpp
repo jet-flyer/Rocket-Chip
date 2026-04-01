@@ -55,7 +55,7 @@ struct RadioAo {
 };
 
 static RadioAo l_radioAo;
-static QEvtPtr  l_radioAoQueue[8]; // Non-blocking handlers complete in <1ms
+static QEvtPtr  l_radioAoQueue[32]; // Match other AOs — 100Hz tick needs headroom
 
 // Forward declarations
 static QState RadioAo_initial(RadioAo * const me, QEvt const * const e);
@@ -98,6 +98,7 @@ static void handle_tx_poll(RadioAo* me) {
 
     if (result == TxPollResult::kDone) {
         s.tx_consec_fail = 0;
+        s.tx_count++;
         s.scheduler.on_tx_complete(now_ms());
     } else if (result == TxPollResult::kTimeout) {
         s.tx_consec_fail++;
@@ -143,54 +144,59 @@ static uint16_t extract_ccsds_seq(const uint8_t* buf) {
         ((buf[2] & 0x3F) << 8) | buf[3]);
 }
 
-static void handle_rx_poll(RadioAo* me) {
-    RadioAoState& s = me->state;
-
-    if (!rfm95w_available(&s.radio)) {
-        return;
-    }
-
-    // Read packet from radio
-    uint8_t buf[128];
-    uint8_t len = rfm95w_recv(&s.radio, buf, sizeof(buf));
-    if (len == 0) {
-        return;
-    }
-
-    int16_t rssi = rfm95w_rssi(&s.radio);
-    int8_t  snr  = s.radio.last_snr;
-
-    // Track RX stats for RSSI bar + CLI
-    s.last_rx_rssi = rssi;
+// Validate and track a received packet. Returns false if CRC fails.
+static bool validate_rx_packet(RadioAoState& s, const uint8_t* buf, uint8_t len) {
+    s.last_rx_rssi = rfm95w_rssi(&s.radio);
+    s.last_rx_snr = s.radio.last_snr;
     s.last_rx_ms = now_ms();
     s.rx_count++;
 
-    // Relay mode: validate CRC + dedup → re-TX [C3-R2, IVP-98]
-    if constexpr (job::kRole == job::DeviceRole::kRelay) {
+    if (len >= kCcsdsMinLen) {
+        s.last_rx_seq = extract_ccsds_seq(buf);
         if (!validate_ccsds_crc(buf, len)) {
-            return;  // Bad CRC — drop silently
+            s.rx_crc_errors++;
+            return false;
         }
-        uint16_t seq = extract_ccsds_seq(buf);
-        if (seq == g_lastRelaySeq) {
-            return;  // Duplicate — drop
-        }
-        g_lastRelaySeq = seq;
+    }
+    return true;
+}
 
-        // Re-TX: call send_start directly (we're in kRxContinuous)
-        if (s.scheduler.phase != rc::RadioPhase::kTxActive) {
-            rfm95w_send_start(&s.radio, buf, len);
-            s.scheduler.on_tx_start(now_ms());
-        }
-        return;  // Relay doesn't post to AO_Telemetry
+// Relay: dedup + re-TX without decoding payload
+static void handle_relay_forward(RadioAo* me, const uint8_t* buf, uint8_t len) {
+    RadioAoState& s = me->state;
+    uint16_t seq = extract_ccsds_seq(buf);
+    if (seq == g_lastRelaySeq) { return; }
+    g_lastRelaySeq = seq;
+
+    if (s.scheduler.phase != rc::RadioPhase::kTxActive) {
+        rfm95w_send_start(&s.radio, buf, len);
+        s.scheduler.on_tx_start(now_ms());
+        s.relay_count++;
+    }
+}
+
+static void handle_rx_poll(RadioAo* me) {
+    RadioAoState& s = me->state;
+    if (!rfm95w_available(&s.radio)) { return; }
+
+    uint8_t buf[128];
+    uint8_t len = rfm95w_recv(&s.radio, buf, sizeof(buf));
+    if (len == 0) { return; }
+
+    if (!validate_rx_packet(s, buf, len)) { return; }
+
+    if constexpr (job::kRole == job::DeviceRole::kRelay) {
+        handle_relay_forward(me, buf, len);
+        return;
     }
 
-    // Normal mode (Vehicle/Station): post SIG_RADIO_RX to AO_Telemetry
+    // Station/Vehicle: post to AO_Telemetry for decode
     rc::RadioRxEvt rxEvt;
     rxEvt.super.sig = rc::SIG_RADIO_RX;
     memcpy(rxEvt.buf, buf, len);
     rxEvt.len = len;
-    rxEvt.rssi = rssi;
-    rxEvt.snr = snr;
+    rxEvt.rssi = s.last_rx_rssi;
+    rxEvt.snr = s.last_rx_snr;
 
     extern QActive * const AO_Telemetry;
     QACTIVE_POST(AO_Telemetry, &rxEvt.super, me);

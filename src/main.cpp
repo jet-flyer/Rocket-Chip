@@ -1048,13 +1048,17 @@ static void core1_sensor_loop() {
 static void core1_entry() {
     mpu_setup_stack_guard(reinterpret_cast<uint32_t>(&__StackOneBottom));
 
-    // Wait for Core 0 to signal sensor phase start
-    while (!g_startSensorPhase.load(std::memory_order_acquire)) {
-        sleep_ms(1);
-    }
-
+    // Always register as lockout victim — flash_safe_execute() needs this
+    // even in station/relay mode (calibration storage init uses flash).
     multicore_lockout_victim_init();
     g_core1LockoutReady.store(true, std::memory_order_release);
+
+    // Wait for Core 0 to signal sensor phase start (Vehicle only).
+    // Station/Relay never set this flag — Core 1 idles here.
+    while (!g_startSensorPhase.load(std::memory_order_acquire)) {
+        sleep_ms(10);
+    }
+
     core1_sensor_loop();
 }
 
@@ -2092,15 +2096,21 @@ static void init_application(bool watchdogReboot) {
     g_watchdogReboot = watchdogReboot;
     init_rc_os_hooks();
 
-    // Signal Core 1 to start sensor phase
-    g_sensorPhaseActive = true;
-    g_startSensorPhase.store(true, std::memory_order_release);
-    rc_os_i2c_scan_allowed = false;  // LL Entry 23: prevent CLI I2C scan from corrupting bus
+    // Signal Core 1 to start sensor phase — Vehicle only.
+    // Station/Relay have no sensors on Core 1. Keep I2C available for GPS.
+    if constexpr (job::kRole == job::DeviceRole::kVehicle) {
+        g_sensorPhaseActive = true;
+        g_startSensorPhase.store(true, std::memory_order_release);
+        rc_os_i2c_scan_allowed = false;  // LL Entry 23: prevent CLI I2C scan
 
-    // Wait for Core 1 to call multicore_lockout_victim_init() — required before
-    // any flash_safe_execute() call. Deterministic flag instead of sleep_ms().
-    while (!g_core1LockoutReady.load(std::memory_order_acquire)) {
-        sleep_ms(1);
+        // Wait for Core 1 to call multicore_lockout_victim_init() — required
+        // before any flash_safe_execute() call.
+        while (!g_core1LockoutReady.load(std::memory_order_acquire)) {
+            sleep_ms(1);
+        }
+    } else {
+        // Station/Relay: Core 1 idle, I2C scan allowed, no sensor phase
+        rc_os_i2c_scan_allowed = true;
     }
 
     // PSRAM flash-safe test (deferred from init_hardware).
@@ -2948,9 +2958,32 @@ static void cmd_radio_status() {
         printf("Radio not initialized.\n");
         return;
     }
-    printf("Radio: phase=%d, tx_fail=%u\n",
-           static_cast<int>(rs->scheduler.phase),
-           static_cast<unsigned>(rs->tx_consec_fail));
+
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+
+    if constexpr (kRadioModeRx) {
+        // Station/Relay RX display
+        uint32_t gap = (rs->rx_count > 0) ? (now - rs->last_rx_ms) : 0;
+        printf("RX: %lu pkts  seq=%u  %ddBm  %ddB SNR  %lu CRC err\n",
+               (unsigned long)rs->rx_count,
+               static_cast<unsigned>(rs->last_rx_seq),
+               static_cast<int>(rs->last_rx_rssi),
+               static_cast<int>(rs->last_rx_snr),
+               (unsigned long)rs->rx_crc_errors);
+        printf("    last=%lu.%lus ago  phase=%d\n",
+               (unsigned long)(gap / 1000),
+               (unsigned long)((gap % 1000) / 100),
+               static_cast<int>(rs->scheduler.phase));
+        if constexpr (job::kRole == job::DeviceRole::kRelay) {
+            printf("    relayed=%lu\n", (unsigned long)rs->relay_count);
+        }
+    } else {
+        // Vehicle TX display
+        printf("TX: %lu sent  %u fail  phase=%d\n",
+               (unsigned long)rs->tx_count,
+               static_cast<unsigned>(rs->tx_consec_fail),
+               static_cast<int>(rs->scheduler.phase));
+    }
 }
 
 // Station-only CLI commands (IVP-97)
