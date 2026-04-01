@@ -203,4 +203,30 @@ To be verified during J.2 parity gate: `psram_init(47)` must detect 8MB.
 
 ---
 
-*Last updated: 2026-03-07. Source: Adafruit product pages + learn.adafruit.com pinout guides.*
+## RP2350A vs RP2350B Silicon Differences (Discovered)
+
+Behavioral differences between the RP2350A (Feather) and RP2350B (Fruit Jam) packages
+discovered during RocketChip development. These are NOT documented in the Raspberry Pi
+datasheet differences — they were found empirically.
+
+### GPIO Pad Isolation at Reset (2026-03-31)
+
+**Issue:** On RP2350B, GPIO pads 20/21 (I2C0 STEMMA QT) start with `ISO=1` (pad isolated),
+`PDE=1` (pull-down enabled), `IE=0` (input disabled). On RP2350A, GPIO 2/3 (I2C1) do NOT
+start isolated — they are immediately usable after reset.
+
+**Impact:** `i2c_bus_recover()` was called before `gpio_set_function()`, which clears the
+ISO bit. On RP2350A this worked fine (pads not isolated). On RP2350B, the recovery bit-banged
+on electrically isolated pads — SDA/SCL appeared high from pull-ups but no I2C transactions
+actually reached the bus. All device probes returned NACK.
+
+**Fix:** Configure GPIO pads (SIO function + pull-ups) before calling `i2c_bus_recover()`,
+then set I2C function after recovery. See commit `f7c5cce` (2026-03-31).
+
+**Applicability:** Any RP2350B board using GPIO pins that start isolated. The Pico SDK's
+`gpio_set_function()` clears the ISO bit, but code that touches GPIO before calling
+`gpio_set_function()` (bit-bang recovery, probe, etc.) must de-isolate first.
+
+---
+
+*Last updated: 2026-03-31. Source: Adafruit product pages + learn.adafruit.com pinout guides + empirical testing.*
