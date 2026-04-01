@@ -3292,8 +3292,14 @@ int main() {
         AO_Telemetry_start(3U);      // 10Hz (Vehicle + Station, not Relay)
     }
     AO_Radio_start(6U);             // 100Hz — all roles
-    AO_LedEngine_start(2U);         // 33Hz — all roles
-    AO_Counter_start(1U);           // 10Hz — all roles (jitter measurement)
+    if constexpr (job::kRole == job::DeviceRole::kVehicle) {
+        AO_LedEngine_start(2U);     // 33Hz — Vehicle only (flight phase patterns)
+    }
+    // Station/Relay: AO_Radio owns NeoPixels exclusively (RSSI bar).
+    // AO_LedEngine disabled to prevent PIO contention (LL Entry 32 pattern).
+    // AO_Counter: jitter measurement diagnostic. Disabled — prints every 5s,
+    // clutters serial. Re-enable for scheduler debugging.
+    // AO_Counter_start(1U);
 
     // QF_run() replaces while(true) — never returns.
     // QV cooperative scheduler dispatches AOs, calls QV_onIdle() (which runs

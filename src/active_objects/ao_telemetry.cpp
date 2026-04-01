@@ -86,9 +86,12 @@ static void encode_and_send(TelemAo* me) {
     me->ccsds_encoder.encode_nav(me->latest_telem, me->latest_telem.met_ms, result);
     if (!result.ok || result.len == 0) { return; }
 
-    // Post SIG_RADIO_TX to AO_Radio — stack-allocated under QV cooperative scheduling
-    rc::RadioTxEvt txEvt;
+    // Post SIG_RADIO_TX to AO_Radio — file-scope static event.
+    // QV cooperative scheduling: handler runs to completion before any other
+    // AO processes it, so one static instance is safe (no concurrent access).
+    static rc::RadioTxEvt txEvt;
     txEvt.super.sig = rc::SIG_RADIO_TX;
+    txEvt.super.refCtr_ = 0;  // Reset ref counter (QP/C static event pattern)
     memcpy(txEvt.buf, result.buf, result.len);
     txEvt.len = static_cast<uint8_t>(result.len);
 

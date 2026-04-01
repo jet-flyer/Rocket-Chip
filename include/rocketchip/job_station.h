@@ -22,8 +22,10 @@ inline constexpr DeviceRole kRole = DeviceRole::kStation;
 // Radio mode: RX (telemetry reception)
 inline constexpr bool kRadioModeRx = true;
 
-// Default output: MAVLink binary for QGC/Mission Planner
-inline constexpr bool kDefaultMavlinkOutput = true;
+// Default output: CLI text (press 'm' to switch to MAVLink for QGC).
+// MAVLink binary on startup floods serial with unparseable data when
+// no QGC is connected, making CLI inaccessible.
+inline constexpr bool kDefaultMavlinkOutput = false;
 
 } // namespace job
 

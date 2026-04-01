@@ -191,8 +191,10 @@ static void handle_rx_poll(RadioAo* me) {
     }
 
     // Station/Vehicle: post to AO_Telemetry for decode
-    rc::RadioRxEvt rxEvt;
+    // File-scope static — safe under QV cooperative scheduling (one at a time)
+    static rc::RadioRxEvt rxEvt;
     rxEvt.super.sig = rc::SIG_RADIO_RX;
+    rxEvt.super.refCtr_ = 0;
     memcpy(rxEvt.buf, buf, len);
     rxEvt.len = len;
     rxEvt.rssi = s.last_rx_rssi;
@@ -266,10 +268,16 @@ static QState RadioAo_running(RadioAo * const me, QEvt const * const e) {
             handle_rx_poll(me);
         }
 
-        // RSSI bar: deferred — PIO contention with AO_LedEngine causes
-        // pio_sm_put_blocking() hang → queue overflow (qf_actq id=130).
-        // Needs LED engine refactor: per-pixel mode in ws2812_update(),
-        // or AO_LedEngine disabled in station mode. Tracked as follow-up.
+        // RSSI bar — station/relay only (AO_LedEngine disabled for these roles)
+        if constexpr (job::kRole != job::DeviceRole::kVehicle) {
+            static uint8_t rssi_div = 0;
+            if (++rssi_div >= 50) {  // ~2Hz update
+                rssi_div = 0;
+                uint32_t gap = now_ms() - s.last_rx_ms;
+                bool no_signal = (s.rx_count == 0 || gap >= 5000);
+                ws2812_set_rssi_bar(s.last_rx_rssi, no_signal);
+            }
+        }
 
         return Q_HANDLED();
     }
