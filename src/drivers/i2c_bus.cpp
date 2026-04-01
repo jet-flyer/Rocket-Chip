@@ -42,9 +42,20 @@ bool i2c_bus_init() {
         return true;
     }
 
-    // Bus recovery BEFORE i2c_init: if a previous session was interrupted
-    // (e.g., picotool --force reboot), a sensor may be holding SDA low
-    // mid-transaction. Clock out the stuck byte per I2C spec.
+    // Configure GPIO pins FIRST — on RP2350B, pads start isolated (ISO=1)
+    // with pull-downs (PDE=1) and input disabled (IE=0). gpio_set_function()
+    // clears the ISO bit and enables the pad. Without this, i2c_bus_recover()
+    // bit-bangs on isolated pads and subsequent I2C transactions fail silently.
+    // Discovered on Fruit Jam (RP2350B) — Feather (RP2350A) was unaffected
+    // because its GPIO 2/3 don't start isolated.
+    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_SIO);
+    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
+    gpio_pull_up(kI2cBusSdaPin);
+    gpio_pull_up(kI2cBusSclPin);
+
+    // Bus recovery AFTER pad de-isolation: if a previous session was
+    // interrupted (e.g., picotool --force reboot), a sensor may be holding
+    // SDA low mid-transaction. Clock out the stuck byte per I2C spec.
     i2c_bus_recover();
 
     // Initialize I2C peripheral
@@ -53,7 +64,7 @@ bool i2c_bus_init() {
         return false;
     }
 
-    // Configure GPIO pins for I2C function
+    // Set GPIO to I2C function (clears ISO again, configures for I2C peripheral)
     gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_I2C);
     gpio_set_function(kI2cBusSclPin, GPIO_FUNC_I2C);
 

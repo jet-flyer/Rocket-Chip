@@ -488,6 +488,18 @@ else()
         ESKF_USE_BIERMAN=1
     )
 
+    # Device role selection (IVP-95)
+    # Pass -DROCKETCHIP_JOB_STATION=1 or -DROCKETCHIP_JOB_RELAY=1 to cmake
+    if(ROCKETCHIP_JOB_STATION)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_JOB_STATION=1)
+        message(STATUS "Job: STATION (RX mode)")
+    elseif(ROCKETCHIP_JOB_RELAY)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_JOB_RELAY=1)
+        message(STATUS "Job: RELAY")
+    else()
+        message(STATUS "Job: VEHICLE (default)")
+    endif()
+
     # USB configuration
     # BOOTSEL LED uses PICO_DEFAULT_LED_PIN (SDK provides per board)
     target_compile_definitions(rocketchip PRIVATE
