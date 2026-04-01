@@ -2,7 +2,7 @@
 
 **Purpose:** Communication across context windows and between agents.
 
-**Stages 1-11 COMPLETE. Stage 12A HW VERIFIED.** IVP-92-98 implemented + bench tested. 598 host tests, SPIN 6/6. TX→RX→Relay all confirmed. Plan: `docs/plans/STAGE12A_RADIO_MODULE.md`. Tracking: `docs/RADIO_TELEMETRY_STATUS.md`.
+**Stages 1-12A COMPLETE.** 598 host tests, SPIN 6/6. Next: Stage 12B (Linux GCS). Tracking: `docs/RADIO_TELEMETRY_STATUS.md`.
 
 ## Use Cases
 1. **Cross-agent review** - Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)

@@ -85,7 +85,21 @@ rocketchip/
 │
 ├── include/
 │   └── rocketchip/
-│       └── config.h               # DBG_* macros, build-type config, feature flags
+│       ├── config.h               # DBG_* macros, build-type config, feature flags
+│       ├── board.h                # Compile-time board selector (Feather/FruitJam/Tiny)
+│       ├── board_feather_rp2350.h # Feather RP2350 HSTX pin config
+│       ├── board_fruit_jam.h      # Fruit Jam pin config (I2C0, SPI1, 5 NeoPixels)
+│       ├── job.h                  # Device role selector (Vehicle/Station/Relay)
+│       ├── job_vehicle.h          # Vehicle role constants
+│       ├── job_station.h          # Station role constants
+│       ├── job_relay.h            # Relay role constants
+│       ├── ao_signals.h           # System-wide AO signal catalog + event structs
+│       ├── radio_scheduler.h      # Half-duplex TX-priority state machine
+│       ├── radio_config.h         # RadioConfig struct (from Mission Profile .cfg)
+│       ├── telemetry_state.h      # 45-byte packed wire format
+│       ├── telemetry_encoder.h    # CCSDS + MAVLink encoder API
+│       ├── telemetry_service.h    # TX/RX service state + API
+│       └── fused_state.h          # ESKF output snapshot
 │
 ├── src/
 │   ├── main.cpp                   # Entry point: Core 0 superloop + Core 1 sensor loop
@@ -134,9 +148,18 @@ rocketchip/
 │   │   ├── flash_flush.cpp/.h     # Flash flush engine (PSRAM→flash)
 │   │   └── psram_init.cpp/.h      # APS6404L PSRAM detection + QPI configuration
 │   │
-│   ├── telemetry/                 # Telemetry (Stage 7)
+│   ├── telemetry/                 # Telemetry (Stage 7 + 12A)
 │   │   ├── telemetry_encoder.cpp/.h  # CCSDS + MAVLink v2 encoders
 │   │   └── telemetry_service.cpp/.h  # TX scheduling, station RX decode
+│   │
+│   ├── active_objects/            # QP/C Active Objects (Stage 9 + 12A)
+│   │   ├── ao_flight_director.cpp/.h # Flight Director AO (100Hz)
+│   │   ├── ao_logger.cpp/.h         # Logger AO (50Hz)
+│   │   ├── ao_telemetry.cpp/.h      # Telemetry protocol AO (10Hz, radio-agnostic)
+│   │   ├── ao_radio.cpp/.h          # Radio hardware AO (100Hz, protocol-agnostic)
+│   │   ├── ao_led_engine.cpp/.h     # NeoPixel animation AO (33Hz)
+│   │   ├── ao_counter.cpp/.h        # Jitter measurement AO (disabled)
+│   │   └── ao_blinker.cpp/.h        # Blinker demo AO (disabled)
 │   │
 │   ├── watchdog/                  # Watchdog Recovery (Stage 8)
 │   │   └── watchdog_recovery.cpp/.h  # Scratch register policy, safe mode
@@ -213,12 +236,11 @@ rocketchip/
 │   ├── hab.cfg                    # HAB example profile
 │   └── README.md                  # Field guide with safe ranges + delivery roadmap
 │
-├── ground_station/                # Ground station (Fruit Jam + RFM95W breakout)
-│   ├── CMakeLists.txt             # Standalone Pico SDK build (adafruit_fruit_jam)
-│   ├── radio_rx.cpp               # LoRa RX bridge: packets → USB serial + NeoPixel RSSI bar
-│   ├── gs_spi.cpp                 # SPI1 bus for Fruit Jam (replaces flight spi_bus.cpp)
-│   ├── lora_rx_simple/            # LoRa receiver (Arduino, deprecated — M0 has RFM69)
-│   └── rfm69_rx_simple/           # RFM69 receiver (Arduino)
+├── ground_station/                # Legacy ground station (pre-Stage 12A, deprecated)
+│   ├── lora_rx_simple/            # LoRa receiver (Arduino, deprecated)
+│   └── rfm69_rx_simple/           # RFM69 receiver (Arduino, deprecated)
+│   # NOTE: Station firmware is now the main rocketchip binary built with
+│   # -DROCKETCHIP_JOB_STATION=1 -DPICO_BOARD=adafruit_fruit_jam (Stage 12A)
 │
 ├── tools/
 │   └── state_to_dot.py            # State machine DOT graph generator
@@ -259,6 +281,11 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 | **calibration_manager** | Gyro bias, level cal, 6-position accel cal, magnetometer ellipsoid fit |
 | **calibration_storage** | Dual-sector flash persistence for calibration data |
 | **rc_os** | CLI menu system — "local GCS" translating keystrokes to commands |
+| **ao_radio** | Radio hardware AO — RadioScheduler, non-blocking TX, RX polling, RSSI bar, relay |
+| **ao_telemetry** | Telemetry protocol AO — CCSDS/MAVLink encoding, APID mux, USB MAVLink output |
+| **ao_flight_director** | Flight Director AO — HSM dispatch at 100Hz |
+| **ao_led_engine** | NeoPixel animation AO — flight phase patterns (Vehicle only) |
+| **radio_scheduler** | Half-duplex TX-priority state machine (protocol-agnostic) |
 
 ## Execution Architecture
 
@@ -272,17 +299,24 @@ Bare-metal dual-core AMP (Asymmetric Multiprocessing) on RP2350:
 
 | Target | Type | Description |
 |--------|------|-------------|
-| `rocketchip` | Prod | Main firmware (RP2350 target) |
-| `rocketchip_tests` | Dev | Host-side Google Test suite (194+ tests) |
+| `rocketchip` | Prod | Main firmware (RP2350 target, role selected by CMake defines) |
+| `rocketchip_tests` | Dev | Host-side Google Test suite (598 tests) |
 | `mat_benchmark` | Dev | Matrix math performance benchmark |
+| `ud_benchmark` | Dev | UD factorization benchmark |
 
 Build commands:
 ```bash
-# Firmware (RP2350)
+# Vehicle firmware (Feather RP2350, default)
 cmake -B build -G Ninja && cmake --build build
 
+# Station firmware (Fruit Jam)
+cmake -B build -G Ninja -DPICO_BOARD=adafruit_fruit_jam -DROCKETCHIP_JOB_STATION=1 && cmake --build build
+
+# Relay firmware (Feather RP2350)
+cmake -B build -G Ninja -DROCKETCHIP_JOB_RELAY=1 && cmake --build build
+
 # Host tests
-cmake -B build_host -G Ninja -DBUILD_HOST_TESTS=ON && cmake --build build_host
+cmake -B build_host -G Ninja -DBUILD_TESTS=ON && cmake --build build_host
 ```
 
 ## Implementation Status
@@ -298,11 +332,17 @@ For current focus and blockers, see **`docs/PROJECT_STATUS.md`**.
 | 4: GPS Integration | 31–33 | Complete | PA1010D on Core 1, outdoor fix validated |
 | Phase M: Mag Cal | 34–38 | Complete | Data structures, LM ellipsoid solver, CLI wizard, live apply |
 | 5: Sensor Fusion | 39–48 | Complete | 24-state ESKF, codegen FPFT, health tuning, Mahony AHRS |
-| 6: Flight Director | 49–53 | Planned | Watchdog recovery, state machine, event engine, action executor, mission config |
-| 7: Adaptive Estimation | 54–57 | Planned | Phase-scheduled Q/R, confidence gate, confidence-gated actions, vehicle profiles |
-| 8: Data Logging | 58–62 | Planned | LittleFS, logger service, pre-launch buffer |
-| 9: Telemetry | 63–67 | Planned | RFM95W, MAVLink, GCS compatibility |
-| 10: System Integration | 68–72 | Planned | Bench test, flight test, environmental |
+| 6: Data Logging | 49–54b | Complete | TelemetryState, PCM frames, PSRAM ring buffer, flash flight table, download/erase |
+| 7: Radio & Telemetry | 57–61 | Complete | RFM95W driver, CCSDS/MAVLink encoders, TX/RX service, QGC via FJ bridge |
+| J: Fruit Jam HAL | J.1–J.3 | Complete | Board abstraction, pin config, 15/15 parity gate |
+| 8: Flight Director | 67–75 | Complete | HSM state machine, guards, actions, mission profiles, Go/No-Go |
+| 9: Active Objects | 76–82 | Complete | QP/C QV migration, AO architecture, SPIN model |
+| 10: Adaptive Estimation | 83–85 | Complete | Phase-scheduled Q/R, confidence gate, gated actions |
+| 11: PIO Safety | 87–91 | Complete | PIO heartbeat watchdog, backup deployment timers |
+| 12A: Radio Module + FJ GCS | 92–98 | Complete | AO_Radio/AO_Telemetry split, RadioScheduler, 3-Job, RSSI bar, relay |
+| 12B: Linux GCS | — | Planned | Yamcs, OpenMCT, Pi image |
+| 13: Pre-Flight Polish | — | Planned | Full system bench test, flight test |
+| 14: Field Tuning | — | Planned | Q/R tuning, confidence gate tuning |
 
 **Archived Work:**
 Previous ArduPilot integration preserved in `AP_FreeRTOS` and `AP_ChibiOS` branches.
