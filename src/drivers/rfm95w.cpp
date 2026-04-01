@@ -50,7 +50,7 @@ static constexpr uint8_t kModemCfg1Default = 0x72;
 // ModemConfig2: SF7[7:4]=0111, CRC on[2]=1
 static constexpr uint8_t kModemCfg2Default = 0x74;
 
-// Default TX power (dBm)
+// Default TX power (dBm) — overridden by RadioConfig from Mission Profile
 static constexpr int8_t kDefaultTxPowerDbm = 20;
 
 // Private sync word (SX1276 default LoRa sync)
