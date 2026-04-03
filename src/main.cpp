@@ -2005,11 +2005,18 @@ static void cli_print_flight_status();
 static void populate_fused_state(rc::FusedState& fused,
                                   const shared_sensor_data_t& snap);
 
+// Forward declaration — defined with other station commands below (IVP-99)
+[[maybe_unused]] static void print_station_status();
+
 static void init_rc_os_hooks() {
     rc_os_init();
     rc_os_imu_available = g_imuInitialized;
     rc_os_baro_available = g_baroContinuous;
-    rc_os_print_sensor_status = print_sensor_status;
+    if constexpr (job::kRadioModeRx) {
+        rc_os_print_sensor_status = print_station_status;
+    } else {
+        rc_os_print_sensor_status = print_sensor_status;
+    }
     rc_os_print_boot_summary = print_hw_status;
     rc_os_print_boot_status = print_boot_status;
     rc_os_read_accel = read_accel_for_cal;
@@ -2984,6 +2991,77 @@ static void cmd_radio_status() {
                static_cast<unsigned>(rs->tx_consec_fail),
                static_cast<int>(rs->scheduler.phase));
     }
+}
+
+// ============================================================================
+// Station RX Telemetry Display (IVP-99: Station CLI)
+// ============================================================================
+
+// Print decoded vehicle telemetry fields (helper for print_station_status)
+static void print_station_rx_fields(const rc::TelemetryState& t,
+                                     const RadioAoState* rs,
+                                     uint32_t met_ms, uint16_t seq) {
+    static constexpr float kMmToM  = 0.001f;
+    static constexpr float kMmToFt = 0.00328084f;
+    static constexpr float kCmsToMs = 0.01f;
+
+    float alt_m  = static_cast<float>(t.baro_alt_mm) * kMmToM;
+    float alt_ft = static_cast<float>(t.baro_alt_mm) * kMmToFt;
+    float vvel   = static_cast<float>(t.baro_vvel_cms) * kCmsToMs;
+    uint8_t fix  = (t.gps_fix_sats >> 4) & 0x0F;
+    uint8_t sats = t.gps_fix_sats & 0x0F;
+    bool eskf_ok = (t.health & rc::kHealthEskfHealthy) != 0;
+
+    uint32_t age_ms = to_ms_since_boot(get_absolute_time()) - rs->last_rx_ms;
+    uint32_t lost = 0;
+    if (rs->rx_count > 1) {
+        uint32_t expected = static_cast<uint32_t>(rs->last_rx_seq) + 1;
+        if (expected > rs->rx_count) { lost = expected - rs->rx_count; }
+    }
+
+    const char* phase = rc::flight_phase_name(
+        static_cast<rc::FlightPhase>(t.flight_state));
+
+    printf("State: %-8s  Pkts: %lu (%lu lost)\n", phase,
+           (unsigned long)rs->rx_count, (unsigned long)lost);
+    printf("Alt:   %.1f m (%.0f ft)  Vvel: %.1f m/s\n",
+           static_cast<double>(alt_m), static_cast<double>(alt_ft),
+           static_cast<double>(vvel));
+    printf("RSSI:  %d dBm  SNR: %d dB\n",
+           static_cast<int>(rs->last_rx_rssi),
+           static_cast<int>(rs->last_rx_snr));
+    printf("GPS:   fix=%u sats=%u  Batt: %.2f V\n",
+           static_cast<unsigned>(fix), static_cast<unsigned>(sats),
+           static_cast<double>(t.battery_mv) * 0.001);
+    printf("ESKF:  %s  Temp: %d C\n",
+           eskf_ok ? "HEALTHY" : "UNHEALTHY",
+           static_cast<int>(t.temperature_c));
+    printf("Last:  %lu.%lus ago  MET: %lu.%lus  seq=%u\n",
+           (unsigned long)(age_ms / 1000), (unsigned long)((age_ms % 1000) / 100),
+           (unsigned long)(met_ms / 1000), (unsigned long)((met_ms % 1000) / 100),
+           static_cast<unsigned>(seq));
+    if (rs->rx_crc_errors > 0) {
+        printf("CRC errors: %lu\n", (unsigned long)rs->rx_crc_errors);
+    }
+}
+
+[[maybe_unused]]
+static void print_station_status() {
+    const auto* rs = AO_Radio_get_state();
+    const auto* rx = AO_Telemetry_get_rx_state();
+
+    printf("\n=== RocketChip Station ===\n");
+    if (!rs->initialized) {
+        printf("Radio: not initialized\n");
+        return;
+    }
+    if (!rx->valid) {
+        printf("Waiting for vehicle packets...\n");
+        printf("RX: %lu pkts  %lu CRC err\n",
+               (unsigned long)rs->rx_count, (unsigned long)rs->rx_crc_errors);
+        return;
+    }
+    print_station_rx_fields(rx->telem, rs, rx->met_ms, rx->seq);
 }
 
 // Station-only CLI commands (IVP-97)

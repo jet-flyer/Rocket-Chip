@@ -50,6 +50,9 @@ struct TelemAo {
     uint32_t            interval_ms;
     uint32_t            last_tx_ms;
     uint32_t            last_heartbeat_ms;
+
+    // Station RX: latest decoded telemetry for CLI/WiFi access (IVP-99)
+    RxTelemSnapshot     rx_snapshot;
 };
 
 static TelemAo l_telemAo;
@@ -107,6 +110,12 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
     if (!rc::ccsds_decode_nav(rxEvt->buf, rxEvt->len, telem, seq, met_ms)) {
         return;  // CRC or header error
     }
+
+    // Store for CLI/WiFi access (IVP-99)
+    me->rx_snapshot.telem = telem;
+    me->rx_snapshot.met_ms = met_ms;
+    me->rx_snapshot.seq = seq;
+    me->rx_snapshot.valid = true;
 
 #ifndef ROCKETCHIP_HOST_TEST
     if (me->mavlink_output) {
@@ -259,6 +268,10 @@ uint8_t AO_Telemetry_cycle_rate() {
     return 2;
 }
 
+const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
+    return &l_telemAo.rx_snapshot;
+}
+
 void AO_Telemetry_start(uint8_t prio) {
     QActive_ctor(&l_telemAo.super,
                  Q_STATE_CAST(&TelemAo_initial));
@@ -268,6 +281,7 @@ void AO_Telemetry_start(uint8_t prio) {
 
     memset(&l_telemAo.latest_telem, 0, sizeof(l_telemAo.latest_telem));
     l_telemAo.telem_valid = false;
+    memset(&l_telemAo.rx_snapshot, 0, sizeof(l_telemAo.rx_snapshot));
 
     QActive_start(&l_telemAo.super,
                   Q_PRIO(prio, 0U),

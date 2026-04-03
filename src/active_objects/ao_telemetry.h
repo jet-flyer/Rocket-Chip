@@ -26,4 +26,13 @@ bool AO_Telemetry_get_mavlink_output();
 void AO_Telemetry_toggle_mavlink();
 uint8_t AO_Telemetry_cycle_rate();
 
+// Station RX telemetry access (IVP-99: station CLI display)
+struct RxTelemSnapshot {
+    rc::TelemetryState telem;
+    uint32_t met_ms;        // MET from CCSDS secondary header
+    uint16_t seq;           // CCSDS sequence counter
+    bool     valid;         // At least one packet successfully decoded
+};
+const RxTelemSnapshot* AO_Telemetry_get_rx_state();
+
 #endif // ROCKETCHIP_AO_TELEMETRY_H
