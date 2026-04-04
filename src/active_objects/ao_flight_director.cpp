@@ -12,6 +12,7 @@
 //============================================================================
 
 #include "ao_flight_director.h"
+#include "ao_logger.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/fused_state.h"
@@ -75,18 +76,7 @@ extern std::atomic<uint8_t> g_calNeoPixelOverride;
 extern rc::WatchdogRecovery g_recovery;
 extern bool g_radioInitialized;  // NOLINT(readability-redundant-declaration)
 
-// Flight table (owned by main.cpp, moves to AO_Logger in Phase 4)
-extern rc::FlightTableState g_flightTable;
-extern bool g_flightTableLoaded;
-
-// populate_fused_state: shared helper in main.cpp (used by both FD and Logger)
-extern void populate_fused_state(rc::FusedState& fused,
-                                 const shared_sensor_data_t& snap);
-
-// log_flight_event: event logging to ring buffer (defined in main.cpp)
-extern void log_flight_event(rc::LogEventId id,
-                             uint8_t d0, uint8_t d1,
-                             uint8_t d2, uint8_t d3);
+// Phase 4: Flight table, populate_fused_state, log_flight_event moved to AO_Logger.
 
 // ============================================================================
 // Forward declarations (QP state handlers)
@@ -115,7 +105,7 @@ static void fd_tick(FdAo* me) {
     shared_sensor_data_t snap{};
     if (seqlock_read(&g_sensorSeqlock, &snap)) {
         rc::FusedState fused{};
-        populate_fused_state(fused, snap);
+        AO_Logger_populate_fused_state(fused, snap);
 
         float accel_mag = sqrtf(snap.accel_x * snap.accel_x +
                                 snap.accel_y * snap.accel_y +
@@ -166,11 +156,11 @@ void AO_FlightDirector_start(uint8_t prio) {
                ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
         if (ch == rc::PyroChannel::kDrogue) {
             l_fdAo.director.state.drogue_fired = true;
-            log_flight_event(rc::LogEventId::kPyroFiredDrogue, 0, 0, 0, 0);
+            AO_Logger_log_event(rc::LogEventId::kPyroFiredDrogue, 0, 0, 0, 0);
             rc::pio_backup_timer_cancel(rc::BackupTimerId::kDrogue);
         } else {
             l_fdAo.director.state.main_fired = true;
-            log_flight_event(rc::LogEventId::kPyroFiredMain, 0, 0, 0, 0);
+            AO_Logger_log_event(rc::LogEventId::kPyroFiredMain, 0, 0, 0, 0);
             rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
         }
     };
@@ -219,9 +209,12 @@ bool AO_FlightDirector_process_command(int cmd) {
     gng.imu_healthy = g_imuInitialized && snap.accel_valid;
     gng.baro_healthy = g_baroInitialized && snap.baro_valid;
     gng.eskf_healthy = g_eskfInitialized && eskf_runner_get_eskf()->healthy();
-    gng.flash_available = g_flightTable.loaded &&
-                          (rc::flight_table_count(&g_flightTable) <
-                           rc::kMaxFlightEntries);
+    {
+        const rc::FlightTableState* ft = AO_Logger_get_flight_table();
+        gng.flash_available = ft->loaded &&
+                              (rc::flight_table_count(ft) <
+                               rc::kMaxFlightEntries);
+    }
     gng.launch_abort = g_recovery.launch_abort;
     gng.watchdog_ok = !g_recovery.boot_state.safe_mode &&
                       !g_recovery.eskf_disabled;
@@ -246,7 +239,7 @@ bool AO_FlightDirector_process_command(int cmd) {
             rc::pio_backup_timer_arm(15.0f, 45.0f);  // VALIDATE defaults
             printf("[PIO] Backup timers armed: drogue=15s main=45s\n");
         } else if (result.signal == rc::SIG_ABORT) {
-            log_flight_event(rc::LogEventId::kAbortTriggered,
+            AO_Logger_log_event(rc::LogEventId::kAbortTriggered,
                              static_cast<uint8_t>(phase), 0, 0, 0);
         } else if (result.signal == rc::SIG_DISARM ||
                    result.signal == rc::SIG_RESET) {

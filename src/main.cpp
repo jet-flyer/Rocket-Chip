@@ -37,9 +37,7 @@
 #include "drivers/spi_bus.h"
 #include "drivers/rfm95w.h"
 #include "logging/psram_init.h"
-#include "logging/log_decimator.h"
 #include "logging/ring_buffer.h"
-#include "logging/data_convert.h"
 #include "logging/flash_flush.h"
 #include "logging/flight_table.h"
 #include "logging/crc32.h"
@@ -203,25 +201,9 @@ static size_t g_psramSize = 0;
 static bool g_psramSelfTestPassed = false;
 static bool g_psramFlashSafePassed = false;
 
-// Logging subsystem (IVP-52c)
-static rc::RingBuffer g_ringBuffer;
-static rc::LogDecimator g_decimator;
-static bool g_loggingInitialized = false;
-// SRAM fallback: 200KB ring buffer at 25Hz if PSRAM unavailable.
-// 200KB / 55B = 3636 frames / 25Hz = 145 seconds.
-static constexpr uint32_t kSramRingSize = 200U * 1024U;
-static uint8_t g_sramRingBuf[kSramRingSize];
-// Decimation: 4:1 for PSRAM (200→50Hz), 8:1 for SRAM (200→25Hz)
-static constexpr uint32_t kDecimationPsram = 4;
-static constexpr uint32_t kDecimationSram = 8;
-// Header sync: every 50 frames (~1 second at 50Hz)
-static constexpr uint32_t kHeaderSyncDiv = 50;
-
-// Flight table (IVP-53b) — flash-persistent flight log index.
-// Non-static: AO_FlightDirector reads for Go/No-Go check (Phase 3).
-// Moves to AO_Logger in Phase 4.
-rc::FlightTableState g_flightTable;
-bool g_flightTableLoaded = false;
+// Logging subsystem (IVP-52c) — moved to ao_logger.cpp (Phase 4).
+// Ring buffer, decimator, flight table, SRAM fallback buffer, decimation
+// constants all owned by AO_Logger. Access via ao_logger.h accessors.
 
 // Transport-neutral GPS function pointers — set once during init_sensors().
 // Avoids if/else on every Core 1 GPS poll cycle.
@@ -267,10 +249,7 @@ std::atomic<uint8_t> g_calNeoPixelOverride{kCalNeoOff};
 // IVP-90: SDK watchdog globals removed. PIO heartbeat is sole health monitor.
 // g_wdtCore0Alive, g_wdtCore1Alive, g_watchdogEnabled — deleted.
 
-// Forward declaration: event logging to ring buffer (defined after logging_tick).
-// Non-static: called from ao_flight_director.cpp (Phase 3) for pyro/abort events.
-void log_flight_event(rc::LogEventId id, uint8_t d0 = 0, uint8_t d1 = 0,
-                      uint8_t d2 = 0, uint8_t d3 = 0);
+// log_flight_event moved to AO_Logger (Phase 4). Use AO_Logger_log_event().
 static bool g_watchdogReboot = false;
 
 // Sensor phase active — set by Core 0 when Core 1 enters sensor loop.
@@ -714,15 +693,19 @@ static void print_sensor_counts(const shared_sensor_data_t& snap) {
            (unsigned long)snap.imu_error_count,
            (unsigned long)snap.baro_error_count,
            (unsigned long)snap.gps_error_count);
-    if (g_loggingInitialized) {
+    if (AO_Logger_is_initialized()) {
+        const rc::RingBuffer* ring = AO_Logger_get_ring();
         printf("  Log: %lu frames stored, %lu capacity\n",
-               (unsigned long)rc::ring_stored_count(&g_ringBuffer),
-               (unsigned long)rc::ring_capacity_frames(&g_ringBuffer));
+               (unsigned long)rc::ring_stored_count(ring),
+               (unsigned long)rc::ring_capacity_frames(ring));
     }
-    if (g_flightTable.loaded) {
-        printf("  Flash: %lu flights, %.1f%% used\n",
-               (unsigned long)rc::flight_table_count(&g_flightTable),
-               static_cast<double>(rc::flight_table_used_pct(&g_flightTable)));
+    {
+        const rc::FlightTableState* ft = AO_Logger_get_flight_table();
+        if (ft->loaded) {
+            printf("  Flash: %lu flights, %.1f%% used\n",
+                   (unsigned long)rc::flight_table_count(ft),
+                   static_cast<double>(rc::flight_table_used_pct(ft)));
+        }
     }
 }
 
@@ -1009,25 +992,28 @@ static void print_psram_status() {
 }
 
 static void print_logging_status() {
-    if (g_loggingInitialized) {
+    if (AO_Logger_is_initialized()) {
         bool isPsram = (g_psramSize > 0 && g_psramSelfTestPassed);
-        uint32_t rate = isPsram ? (kEskfRateHz / kDecimationPsram) : (kEskfRateHz / kDecimationSram);
+        // Display rate: 200Hz / 4 = 50Hz (PSRAM), 200Hz / 8 = 25Hz (SRAM)
+        uint32_t rate = isPsram ? 50U : 25U;
+        const rc::RingBuffer* ring = AO_Logger_get_ring();
         printf("[PASS] Logging: %s ring, %luHz, %lu frames capacity, %lu stored\n",
                isPsram ? "PSRAM" : "SRAM",
                (unsigned long)rate,
-               (unsigned long)rc::ring_capacity_frames(&g_ringBuffer),
-               (unsigned long)rc::ring_stored_count(&g_ringBuffer));
+               (unsigned long)rc::ring_capacity_frames(ring),
+               (unsigned long)rc::ring_stored_count(ring));
     } else {
         printf("[----] Logging: not initialized\n");
     }
 }
 
 static void print_flash_status() {
-    if (g_flightTable.loaded) {
-        uint32_t nFlights = rc::flight_table_count(&g_flightTable);
-        float usedPct = rc::flight_table_used_pct(&g_flightTable);
+    const rc::FlightTableState* ft = AO_Logger_get_flight_table();
+    if (ft->loaded) {
+        uint32_t nFlights = rc::flight_table_count(ft);
+        float usedPct = rc::flight_table_used_pct(ft);
         uint32_t freeSectors = rc::flight_table_capacity_sectors() -
-                               rc::flight_table_used_sectors(&g_flightTable);
+                               rc::flight_table_used_sectors(ft);
         uint32_t freeMB = (freeSectors * rc::kFlashSectorSize) / (1024U * 1024U);
         printf("[PASS] Flash: %.1f%% used (%lu flights, %luMB free)\n",
                static_cast<double>(usedPct),
@@ -1317,12 +1303,10 @@ static void print_boot_status() {
 // Init: RC_OS setup, Core 1 sensor phase start, watchdog enable
 // ============================================================================
 
-// Forward declarations for CLI callbacks (defined after logging_tick)
+// Forward declarations for CLI callbacks
 static void handle_unhandled_key(int key);
 // Flight Director CLI callbacks moved to ao_flight_director.cpp (Phase 3).
-// populate_fused_state is non-static — shared between AO_FD and logging_tick.
-void populate_fused_state(rc::FusedState& fused,
-                          const shared_sensor_data_t& snap);
+// populate_fused_state moved to ao_logger.cpp (Phase 4). Use AO_Logger_populate_fused_state().
 
 // Forward declaration — defined with other station commands below (IVP-99)
 [[maybe_unused]] static void print_station_status();
@@ -1352,33 +1336,8 @@ static void init_rc_os_hooks() {
     rc_os_process_flight_command = AO_FlightDirector_process_command;
 }
 
-static void init_logging_ring() {
-    // Initialize logging ring buffer (IVP-52c).
-    // Uses PSRAM if available (8MB at 50Hz = ~48 min), SRAM fallback otherwise
-    // (200KB at 25Hz = ~145 sec). Ring buffer init writes header to memory.
-    uint8_t* ringMem = nullptr;
-    uint32_t ringSize = 0;
-    uint32_t decRatio = kDecimationSram;
-
-    if (g_psramSize > 0 && g_psramSelfTestPassed) {
-        ringMem = rc::psram_base_ptr();
-        ringSize = static_cast<uint32_t>(g_psramSize);
-        decRatio = kDecimationPsram;
-    } else {
-        ringMem = g_sramRingBuf;
-        ringSize = kSramRingSize;
-        decRatio = kDecimationSram;
-    }
-
-    if (ringMem != nullptr) {
-        g_loggingInitialized =
-            rc::ring_init(&g_ringBuffer, ringMem, ringSize,
-                          rc::kPcmFrameStandardSize, kHeaderSyncDiv);
-        if (g_loggingInitialized) {
-            rc::decimator_init(&g_decimator, decRatio);
-        }
-    }
-}
+// init_logging_ring() moved to ao_logger.cpp (Phase 4).
+// Called from AO_Logger_start().
 
 // init_flight_director() moved to AO_FlightDirector_start() (Phase 3).
 
@@ -1425,10 +1384,7 @@ static void init_application(bool watchdogReboot) {
         g_psramFlashSafePassed = rc::psram_flash_safe_test();
     }
 
-    init_logging_ring();
-
-    // Load flight table from flash (IVP-53b).
-    g_flightTableLoaded = rc::flight_table_load(&g_flightTable);
+    // Logging ring buffer and flight table init moved to AO_Logger_start() (Phase 4).
 
     // Auto-calibrate baro ground reference at boot.
     if (g_baroContinuous) {
@@ -1439,9 +1395,10 @@ static void init_application(bool watchdogReboot) {
     // AO_FlightDirector_start() is called from the AO startup sequence below.
 
     // Phase 2: Initialize ESKF runner with mission profile and event log callback.
+    // Phase 4: callback routes to AO_Logger_log_event (ao_logger.cpp).
     eskf_runner_init(&rc::kDefaultRocketProfile,
                      [](uint8_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3) {
-                         log_flight_event(static_cast<rc::LogEventId>(id), d0, d1, d2, d3);
+                         AO_Logger_log_event(static_cast<rc::LogEventId>(id), d0, d1, d2, d3);
                      });
 
     // IVP-90: SDK hardware watchdog REMOVED from production.
@@ -1495,25 +1452,26 @@ static void flush_kick_watchdog() {
 }
 
 static void cmd_flush_log() {
-    if (!g_loggingInitialized) {
+    if (!AO_Logger_is_initialized()) {
         printf("Logging not initialized.\n");
         return;
     }
-    if (!g_flightTable.loaded) {
+    rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
+    if (!ft->loaded) {
         printf("Flight table not loaded.\n");
         return;
     }
 
-    uint32_t stored = rc::ring_stored_count(&g_ringBuffer);
+    rc::RingBuffer* ring = AO_Logger_get_ring_mut();
+    uint32_t stored = rc::ring_stored_count(ring);
     if (stored == 0) {
         printf("No frames in ring buffer.\n");
         return;
     }
 
     bool isPsram = (g_psramSize > 0 && g_psramSelfTestPassed);
-    uint8_t rate = isPsram
-        ? static_cast<uint8_t>(kEskfRateHz / kDecimationPsram)
-        : static_cast<uint8_t>(kEskfRateHz / kDecimationSram);
+    // Display rate: 200Hz / 4 = 50Hz (PSRAM), 200Hz / 8 = 25Hz (SRAM)
+    uint8_t rate = isPsram ? 50U : 25U;
 
     printf("Flushing %lu frames to flash...\n", (unsigned long)stored);
 
@@ -1523,12 +1481,12 @@ static void cmd_flush_log() {
     summ.frame_count = stored;
 
     rc::FlushResult result = rc::flush_ring_to_flash(
-        &g_ringBuffer, &g_flightTable, &meta, &summ, rate, flush_kick_watchdog);
+        ring, ft, &meta, &summ, rate, flush_kick_watchdog);
 
     switch (result) {
     case rc::FlushResult::kOk:
         printf("Flush OK. Flight #%lu saved (%lu frames, %lu sectors).\n",
-               (unsigned long)rc::flight_table_count(&g_flightTable),
+               (unsigned long)rc::flight_table_count(ft),
                (unsigned long)stored,
                (unsigned long)(stored * rc::kPcmFrameStandardSize + rc::kFlashSectorSize - 1)
                    / rc::kFlashSectorSize);
@@ -1555,12 +1513,13 @@ static void cmd_flush_log() {
 }
 
 static void cmd_erase_all_flights() {
-    if (!g_flightTable.loaded) {
+    rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
+    if (!ft->loaded) {
         printf("Flight table not loaded.\n");
         return;
     }
 
-    uint32_t count = rc::flight_table_count(&g_flightTable);
+    uint32_t count = rc::flight_table_count(ft);
     if (count == 0) {
         printf("No flights to erase.\n");
         return;
@@ -1592,7 +1551,7 @@ static void cmd_erase_all_flights() {
     }
 
     printf("Erasing flight log sectors...\n");
-    if (!rc::flight_log_erase_all(&g_flightTable, flush_kick_watchdog)) {
+    if (!rc::flight_log_erase_all(ft, flush_kick_watchdog)) {
         printf("Flash erase error.\n");
         return;
     }
@@ -1604,11 +1563,11 @@ static void cmd_erase_all_flights() {
     }
 
     // Reset in-memory table
-    rc::flight_table_erase_all(&g_flightTable);
-    g_flightTable.loaded = true;
+    rc::flight_table_erase_all(ft);
+    ft->loaded = true;
 
     // Save fresh empty table
-    rc::flight_table_save(&g_flightTable);
+    rc::flight_table_save(ft);
 
     printf("All flights erased.\n");
 }
@@ -1618,11 +1577,12 @@ static void cmd_erase_all_flights() {
 // ============================================================================
 
 static void cmd_list_flights() {
-    if (!g_flightTable.loaded) {
+    const rc::FlightTableState* ft = AO_Logger_get_flight_table();
+    if (!ft->loaded) {
         printf("Flight table not loaded.\n");
         return;
     }
-    uint32_t count = rc::flight_table_count(&g_flightTable);
+    uint32_t count = rc::flight_table_count(ft);
     if (count == 0) {
         printf("No flights stored.\n");
         return;
@@ -1631,7 +1591,7 @@ static void cmd_list_flights() {
     printf("  -- ------  ----  -------  --------\n");
     for (uint32_t i = 0; i < count; ++i) {
         rc::FlightLogEntry entry = {};
-        if (rc::flight_table_get_entry(&g_flightTable, i, &entry)) {
+        if (rc::flight_table_get_entry(ft, i, &entry)) {
             uint32_t sizeKb = (entry.sector_count * rc::kFlashSectorSize) / 1024;
             printf("  %2lu %6lu  %3uHz  %5lu  %6lu\n",
                    (unsigned long)(i + 1),
@@ -1642,7 +1602,7 @@ static void cmd_list_flights() {
         }
     }
     printf("\n  Flash: %.1f%% used (%lu flights)\n\n",
-           static_cast<double>(rc::flight_table_used_pct(&g_flightTable)),
+           static_cast<double>(rc::flight_table_used_pct(ft)),
            (unsigned long)count);
 }
 
@@ -1706,11 +1666,12 @@ static uint32_t stream_flight_binary(const rc::FlightLogEntry& entry) {
 }
 
 static void cmd_download_flight() {
-    if (!g_flightTable.loaded) {
+    const rc::FlightTableState* ft = AO_Logger_get_flight_table();
+    if (!ft->loaded) {
         printf("Flight table not loaded.\n");
         return;
     }
-    uint32_t count = rc::flight_table_count(&g_flightTable);
+    uint32_t count = rc::flight_table_count(ft);
     if (count == 0) {
         printf("No flights stored.\n");
         return;
@@ -1725,7 +1686,7 @@ static void cmd_download_flight() {
     printf("%d\n", num);
 
     rc::FlightLogEntry entry = {};
-    if (!rc::flight_table_get_entry(&g_flightTable, static_cast<uint32_t>(num - 1),
+    if (!rc::flight_table_get_entry(ft, static_cast<uint32_t>(num - 1),
                                      &entry)) {
         printf("Failed to read flight entry.\n");
         return;
@@ -1935,162 +1896,10 @@ static void handle_unhandled_key(int key) {
 }
 
 // ============================================================================
-// Logging Tick (IVP-52c)
+// Logging Tick, populate_fused_state, log_flight_event — moved to
+// ao_logger.cpp (Phase 4). AO_Logger owns ring buffer, decimator,
+// FusedState builder, and event logging.
 // ============================================================================
-// Runs at main loop rate (~1kHz), but only produces output when ESKF has
-// advanced (200Hz). Decimator further reduces to 50Hz (PSRAM) or 25Hz (SRAM).
-
-static uint32_t g_lastLogEpoch = 0;
-
-static void fused_copy_eskf_state(rc::FusedState& fused) {
-    fused.q_w = g_eskf.q.w;
-    fused.q_x = g_eskf.q.x;
-    fused.q_y = g_eskf.q.y;
-    fused.q_z = g_eskf.q.z;
-
-    fused.pos_n = g_eskf.p.x;
-    fused.pos_e = g_eskf.p.y;
-    fused.pos_d = g_eskf.p.z;
-
-    fused.vel_n = g_eskf.v.x;
-    fused.vel_e = g_eskf.v.y;
-    fused.vel_d = g_eskf.v.z;
-
-    fused.accel_bias_x = g_eskf.accel_bias.x;
-    fused.accel_bias_y = g_eskf.accel_bias.y;
-    fused.accel_bias_z = g_eskf.accel_bias.z;
-
-    fused.gyro_bias_x = g_eskf.gyro_bias.x;
-    fused.gyro_bias_y = g_eskf.gyro_bias.y;
-    fused.gyro_bias_z = g_eskf.gyro_bias.z;
-
-    // Covariance diagnostics (max diagonal in each block)
-    using rc::eskf::kIdxAttitude;
-    using rc::eskf::kIdxPosition;
-    using rc::eskf::kIdxVelocity;
-
-    float patt = g_eskf.P(kIdxAttitude + 0, kIdxAttitude + 0);
-    if (g_eskf.P(kIdxAttitude + 1, kIdxAttitude + 1) > patt) { patt = g_eskf.P(kIdxAttitude + 1, kIdxAttitude + 1); }
-    if (g_eskf.P(kIdxAttitude + 2, kIdxAttitude + 2) > patt) { patt = g_eskf.P(kIdxAttitude + 2, kIdxAttitude + 2); }
-    fused.sig_att = patt;
-
-    float ppos = g_eskf.P(kIdxPosition + 0, kIdxPosition + 0);
-    if (g_eskf.P(kIdxPosition + 1, kIdxPosition + 1) > ppos) { ppos = g_eskf.P(kIdxPosition + 1, kIdxPosition + 1); }
-    if (g_eskf.P(kIdxPosition + 2, kIdxPosition + 2) > ppos) { ppos = g_eskf.P(kIdxPosition + 2, kIdxPosition + 2); }
-    fused.sig_pos = ppos;
-
-    float pvel = g_eskf.P(kIdxVelocity + 0, kIdxVelocity + 0);
-    if (g_eskf.P(kIdxVelocity + 1, kIdxVelocity + 1) > pvel) { pvel = g_eskf.P(kIdxVelocity + 1, kIdxVelocity + 1); }
-    if (g_eskf.P(kIdxVelocity + 2, kIdxVelocity + 2) > pvel) { pvel = g_eskf.P(kIdxVelocity + 2, kIdxVelocity + 2); }
-    fused.sig_vel = pvel;
-
-    fused.eskf_healthy = g_eskf.healthy();
-    fused.zupt_active = g_eskf.last_zupt_active_;
-}
-
-// Non-static: shared between AO_FlightDirector (guard evaluation) and
-// logging_tick (PCM frame encoding). Declared extern in ao_flight_director.cpp.
-void populate_fused_state(rc::FusedState& fused,
-                          const shared_sensor_data_t& snap) {
-    fused_copy_eskf_state(fused);
-
-    // Baro AGL and vertical velocity
-    if (snap.baro_valid) {
-        fused.baro_alt_agl = calibration_get_altitude_agl(snap.pressure_pa);
-        fused.baro_vvel = g_eskf.v.z;  // NED down = positive descent
-    }
-
-    fused.baro_temperature_c = snap.baro_temperature_c;
-    fused.imu_temperature_c = snap.imu_temperature_c;
-
-    // Mahony divergence
-    const rc::MahonyAHRS* mahony_fused = eskf_runner_get_mahony();
-    fused.mahony_div_deg = (eskf_runner_is_mahony_initialized() && mahony_fused->healthy())
-        ? rc::MahonyAHRS::divergence_rad(g_eskf.q, mahony_fused->q) * kRadToDeg
-        : -1.0f;
-
-    // GPS from sensor snapshot
-    fused.gps_lat_1e7 = snap.gps_lat_1e7;
-    fused.gps_lon_1e7 = snap.gps_lon_1e7;
-    fused.gps_alt_msl_m = snap.gps_alt_msl_m;
-    fused.gps_ground_speed_mps = snap.gps_ground_speed_mps;
-    fused.gps_fix_type = snap.gps_fix_type;
-    fused.gps_satellites = snap.gps_satellites;
-
-    // Confidence gate (IVP-85)
-    const rc::ConfidenceState* conf_fused = eskf_runner_get_confidence();
-    fused.confident = conf_fused->confident;
-    fused.confidence_div_deg = conf_fused->ahrs_divergence_deg;
-    fused.uncertain_ms = conf_fused->time_since_confident_ms;
-
-    fused.flight_state = AO_FlightDirector_is_initialized()
-        ? static_cast<uint8_t>(AO_FlightDirector_get_director()->state.current_phase)
-        : 0;
-    fused.met_ms = to_ms_since_boot(get_absolute_time());
-}
-
-// Log a discrete flight event to the ring buffer as a PCM event frame.
-// Called from pyro callback, abort handler, safe mode entry, etc.
-// Small (15 bytes) — minimal ring buffer impact.
-// Non-static: called from ao_flight_director.cpp (Phase 3) for pyro/abort events.
-__attribute__((used))
-void log_flight_event(rc::LogEventId id,
-                      uint8_t d0, uint8_t d1,
-                      uint8_t d2, uint8_t d3) {
-#ifndef ROCKETCHIP_HOST_TEST
-    if (!g_loggingInitialized) {
-        return;
-    }
-    rc::PcmFrameEvent frame{};
-    uint8_t data[4] = {d0, d1, d2, d3};
-    uint32_t met = to_ms_since_boot(get_absolute_time());
-    rc::pcm_encode_event(static_cast<uint8_t>(id), data, met, frame);
-    rc::ring_push(&g_ringBuffer, &frame);
-#else
-    (void)id;
-#endif
-}
-
-// Non-static for AO_Logger extern "C" bridge (IVP-79 incremental test)
-extern "C" void logging_tick() {
-    if (!g_loggingInitialized || !g_eskfInitialized) {
-        return;
-    }
-
-    // Only run when ESKF has produced a new propagation
-    uint32_t currentEpoch = eskf_runner_get_epoch();
-    if (currentEpoch == g_lastLogEpoch) {
-        return;
-    }
-    g_lastLogEpoch = currentEpoch;
-
-    // Read sensor snapshot for GPS/baro/temp fields
-    shared_sensor_data_t snap = {};
-    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
-        return;  // Seqlock contention — skip this cycle
-    }
-
-    rc::FusedState fused = {};
-    populate_fused_state(fused, snap);
-
-    // Feed to decimator
-    rc::FusedState averaged = {};
-    if (!rc::decimator_push(&g_decimator, fused, averaged)) {
-        return;  // Not enough samples yet
-    }
-
-    // Convert to wire format and push to ring buffer
-    rc::TelemetryState telem = {};
-    rc::fused_to_telemetry(averaged, telem);
-
-    rc::PcmFrameStandard frame = {};
-    rc::pcm_encode_standard(telem, averaged.met_ms, frame);
-
-    rc::ring_push(&g_ringBuffer, &frame);
-
-    // Push to AO_Telemetry for radio TX encoding (IVP-94)
-    AO_Telemetry_set_telem_snapshot(telem);
-}
 
 // ============================================================================
 // mavlink_direct_tick and telemetry_radio_tick removed (IVP-94)
@@ -2167,7 +1976,7 @@ int main() {
     // Vehicle: all AOs. Station: no FD/Logger. Relay: Radio + LED only.
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         AO_FlightDirector_start(5U); // 100Hz
-        AO_Logger_start(4U);         // 50Hz
+        AO_Logger_start(4U, g_psramSize, g_psramSelfTestPassed);  // 50Hz
     }
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
         AO_Telemetry_start(3U);      // 10Hz (Vehicle + Station, not Relay)
