@@ -246,6 +246,7 @@ else()
         # Stage 1: Foundation (IVP-01 through IVP-08)
         # -------------------------------------------------------------------------
         src/main.cpp
+        src/core1/sensor_core1.cpp
         src/drivers/ws2812_status.cpp
         src/drivers/i2c_bus.cpp
 
@@ -376,6 +377,7 @@ else()
     # -Wpedantic for our source files only (SDK sources are excluded)
     set(ROCKETCHIP_SOURCES
         src/main.cpp
+        src/core1/sensor_core1.cpp
         src/drivers/ws2812_status.cpp
         src/drivers/i2c_bus.cpp
         src/drivers/icm20948.cpp
@@ -432,6 +434,7 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/src/drivers
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/src/calibration    # IVP-14
+        ${CMAKE_CURRENT_LIST_DIR}/src/core1           # Stage 13: Core 1 sensor loop
         ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
         ${CMAKE_CURRENT_LIST_DIR}/src/logging          # IVP-49
         ${CMAKE_CURRENT_LIST_DIR}/src/telemetry        # IVP-58
