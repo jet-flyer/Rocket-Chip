@@ -13,6 +13,7 @@
 
 #include "rocketchip/config.h"
 #include "rocketchip/sensor_seqlock.h"
+#include "rocketchip/led_patterns.h"
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 #include "pico/time.h"
@@ -193,31 +194,8 @@ static constexpr uint32_t kEskfMaxDtUs = 100000;    // 100ms
 // NeoPixel timing (Core 1 sensor phase)
 static constexpr uint32_t kSensorPhaseTimeoutMs = 300000;       // 5 min — switch to magenta
 
-// NeoPixel calibration override values (set by Core 0 CLI, read by Core 1)
-// Core 1 checks this atomic; when non-zero, overrides normal NeoPixel status.
-static constexpr uint8_t kCalNeoOff         = 0;  // Normal NeoPixel behavior
-static constexpr uint8_t kCalNeoGyro        = 1;  // Blue breathe (keep still)
-static constexpr uint8_t kCalNeoLevel       = 2;  // Blue breathe (keep flat)
-static constexpr uint8_t kCalNeoBaro        = 3;  // Cyan breathe (sampling)
-static constexpr uint8_t kCalNeoAccelWait   = 4;  // Yellow blink (position board)
-static constexpr uint8_t kCalNeoAccelSample = 5;  // Yellow solid (hold still)
-static constexpr uint8_t kCalNeoMag         = 6;  // Rainbow (rotate freely)
-static constexpr uint8_t kCalNeoSuccess     = 7;  // Green solid (step passed)
-static constexpr uint8_t kCalNeoFail        = 8;  // Red blink fast (step failed)
-// RX mode NeoPixel overlay (set by Core 0 RX tick, read by Core 1)
-static constexpr uint8_t kRxNeoReceiving   = 9;  // Green solid (packets arriving)
-static constexpr uint8_t kRxNeoGap         = 10; // Yellow blink (>1s gap)
-static constexpr uint8_t kRxNeoLost        = 11; // Red blink fast (>5s gap)
-// Flight phase NeoPixel overlay (IVP-72, set by Flight Director actions)
-// Values match LedPhaseValue enum in action_executor.h (start at 20)
-static constexpr uint8_t kFdNeoArmed       = 20; // Amber solid
-static constexpr uint8_t kFdNeoBoost       = 21; // Red solid
-static constexpr uint8_t kFdNeoCoast       = 22; // Yellow solid
-static constexpr uint8_t kFdNeoDrogue      = 23; // Red blink
-static constexpr uint8_t kFdNeoMain        = 24; // Red blink
-static constexpr uint8_t kFdNeoLanded      = 25; // Green blink
-static constexpr uint8_t kFdNeoAbort       = 26; // Red fast blink
-static constexpr uint8_t kFdNeoBeacon      = 27; // White blink (post-landing locator)
+// NeoPixel pattern constants moved to include/rocketchip/led_patterns.h (Phase 0B).
+// Backward-compat aliases (kCalNeo*, kRxNeo*, kFdNeo*) provided by that header.
 
 // Tracks last NeoPixel mode/color so we only call ws2812_set_mode()
 // on transitions, not every cycle (which would reset animation state).

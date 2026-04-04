@@ -16,6 +16,7 @@
 #include "calibration/calibration_data.h"
 #include "drivers/i2c_bus.h"
 #include "rocketchip/config.h"
+#include "rocketchip/led_patterns.h"
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
 #include "safety/pio_watchdog.h"
@@ -40,17 +41,8 @@ constexpr size_t   kResetConfirmMaxIdx   = 7;            // Buffer max index
 constexpr uint8_t  kVerifySampleCount    = 10;           // Live samples for post-cal check
 constexpr uint32_t kUsbSettleMs          = 200;          // USB CDC settle time after connect
 
-// INTERIM: NeoPixel calibration override values (Phase M.5).
-// Must match kCalNeo* constants in main.cpp. Replace when AP_Notify state machine is implemented.
-constexpr uint8_t kCalNeoOff         = 0;
-constexpr uint8_t kCalNeoGyro        = 1;
-constexpr uint8_t kCalNeoLevel       = 2;
-constexpr uint8_t kCalNeoBaro        = 3;
-constexpr uint8_t kCalNeoAccelWait   = 4;
-constexpr uint8_t kCalNeoAccelSample = 5;
-constexpr uint8_t kCalNeoMag         = 6;
-constexpr uint8_t kCalNeoSuccess     = 7;
-constexpr uint8_t kCalNeoFail        = 8;
+// NeoPixel pattern constants now in include/rocketchip/led_patterns.h (Phase 0B).
+// Backward-compat aliases (kCalNeo*) provided by that header.
 constexpr uint32_t kNeoFlashDurationMs = 1000;           // Green/red flash after step
 
 // 6-position calibration
