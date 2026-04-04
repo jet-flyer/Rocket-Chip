@@ -28,6 +28,7 @@
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
 #include "fusion/eskf.h"
+#include "fusion/eskf_runner.h"
 #include "fusion/confidence_gate.h"
 #include "safety/pio_watchdog.h"
 #include "safety/pio_backup_timer.h"
@@ -231,71 +232,21 @@ bool (*g_gpsFnHasFix)()                    = nullptr;
 // best_gps_fix_t, g_bestGpsFix, g_bestGpsValid moved to sensor_core1.h/.cpp.
 // Extern declarations provided by core1/sensor_core1.h.
 
-// IVP-46 outdoor session stats — accumulated while GPS is active, printed on
-// reconnect via 's'. Lets the user verify movement gates without a live terminal.
-struct gps_session_stats_t {
-    float max_dist_from_origin_m;    // Furthest ESKF position from origin (10m gate)
-    float last_pos_n_m;              // ESKF N position at last GPS fix (square gate)
-    float last_pos_e_m;              // ESKF E position at last GPS fix (square gate)
-    float last_dist_from_origin_m;   // Distance from origin at last GPS fix (closure)
-    uint32_t gps_updates;            // Total GPS position updates applied
-    float min_gps_nis;               // Min GPS NIS seen (innovation health)
-    float max_gps_nis;               // Max GPS NIS seen
-};
-static gps_session_stats_t g_gpsSess = {
-    0.0F, 0.0F, 0.0F, 0.0F, 0, kGpsNisSentinel, 0.0F
-};
-
 // IVP-66: Watchdog recovery policy — persists flight state across WDT resets.
 // Tracks reboot count, safe-mode lockout, ESKF failure backoff.
-static rc::WatchdogRecovery g_recovery;
-
-// IVP-42d: ESKF 15-state error-state Kalman filter (Core 0 at 200Hz)
-// Non-static: Core 1 reads g_eskf.v for GPS staleness heuristic (sensor_core1.cpp).
-// Per LL Entry 1: ESKF struct is ~970 bytes — file-scope, not stack.
-rc::ESKF g_eskf;
-bool g_eskfInitialized = false;
-static uint32_t g_lastEskfImuCount = 0;
-static uint32_t g_lastEskfTimestampUs = 0;
-static uint32_t g_eskfEpoch = 0;        // Incremented on each ESKF propagation
-
-// IVP-45: Mahony AHRS cross-check (~33 bytes, no stack overflow risk)
-static rc::MahonyAHRS g_mahony;
-static bool g_mahonyInitialized = false;
-static uint32_t g_lastMahonyTimestampUs = 0;
-
-// IVP-84: Confidence gate (IVP-85 feeds into SafetyLockout)
-static rc::ConfidenceState g_confidence;
+// Non-static: eskf_runner reads g_recovery.eskf_disabled for backoff.
+rc::WatchdogRecovery g_recovery;
 
 // IVP-68: Flight Director HSM (Stage 8)
-static rc::FlightDirector g_director;
-static bool g_directorInitialized = false;
+// Non-static: eskf_runner reads for ZUPT on-pad check and phase notification.
+// Moves to AO_FlightDirector in Phase 3.
+rc::FlightDirector g_director;
+bool g_directorInitialized = false;
 
-// Compact ESKF state for circular buffer (no P matrix — R-6 council requirement)
-// 68 bytes per sample. At 200Hz for 5s = 1000 samples = 68KB static in SRAM.
-struct eskf_state_snap_t {
-    uint32_t timestamp_us;          // 4B
-    float qw, qx, qy, qz;         // 16B — quaternion
-    float px, py, pz;              // 12B — position NED (m)
-    float vx, vy, vz;              // 12B — velocity NED (m/s)
-    float abx, aby, abz;           // 12B — accel bias (m/s²)
-    float gbx, gby, gbz;           // 12B — gyro bias (rad/s)
-};
-static_assert(sizeof(eskf_state_snap_t) == 68, "ESKF snap size changed"); // NOLINT(readability-magic-numbers)
-
-static eskf_state_snap_t g_eskfBuffer[kEskfBufferSamples];
-static uint32_t g_eskfBufferIndex = 0;
-static uint32_t g_eskfBufferCount = 0;
-
-// ESKF benchmark timing (wall-clock us per predict() call)
-static uint32_t g_eskfBenchMin = UINT32_MAX;
-static uint32_t g_eskfBenchMax = 0;
-static uint32_t g_eskfBenchSum = 0;
-static uint32_t g_eskfBenchCount = 0;
-// BENCH: predict timing histogram — comment out for production builds
-// static constexpr uint32_t kHistBuckets = 8;
-// static constexpr uint32_t kHistStep = 100;  // µs per bucket
-// static uint32_t g_eskfBenchHist[kHistBuckets] = {};
+// ESKF globals moved to src/fusion/eskf_runner.cpp (Phase 2).
+// Access via eskf_runner_get_eskf(), eskf_runner_get_mahony(), etc.
+// g_eskf and g_eskfInitialized are extern-declared in sensor_core1.h
+// and defined in eskf_runner.cpp.
 
 // Sensor data types, seqlock protocol, and cross-core signaling
 // are defined in include/rocketchip/sensor_seqlock.h (Phase 0A extraction).
@@ -323,9 +274,10 @@ static void log_flight_event(rc::LogEventId id, uint8_t d0 = 0, uint8_t d1 = 0,
 static bool g_watchdogReboot = false;
 
 // Sensor phase active — set by Core 0 when Core 1 enters sensor loop.
-// Read only by Core 0 (cal hooks, print_sensor_status). Plain bool is correct —
-// single-core write/read, no cross-core visibility needed.
-static bool g_sensorPhaseActive = false;
+// Read by Core 0 (cal hooks, print_sensor_status, eskf_runner). Plain bool is
+// correct — single-core write/read, no cross-core visibility needed.
+// Non-static: eskf_runner reads for tick gating.
+bool g_sensorPhaseActive = false;
 
 // Calibration storage state
 static bool g_calStorageInitialized = false;
@@ -649,10 +601,11 @@ static void print_eskf_gates_and_diags() {
                (double)g_eskf.innov_gps_pos_.alpha,
                (double)g_eskf.innov_gps_vel_.alpha);
     }
+    const rc::ConfidenceState* conf = eskf_runner_get_confidence();
     printf("      conf=%c div=%.1f° unc=%lums\n",
-           g_confidence.confident ? 'Y' : 'N',
-           (double)g_confidence.ahrs_divergence_deg,
-           (unsigned long)g_confidence.time_since_confident_ms);
+           conf->confident ? 'Y' : 'N',
+           (double)conf->ahrs_divergence_deg,
+           (unsigned long)conf->time_since_confident_ms);
 }
 // NOLINTEND(readability-magic-numbers)
 
@@ -673,35 +626,27 @@ static void print_eskf_status() {
                (double)g_eskf.last_baro_nis_,
                (double)g_eskf.last_mag_nis_);
         print_eskf_gates_and_diags();
-        if (g_mahonyInitialized && g_mahony.healthy()) {
-            rc::Vec3 meuler = g_mahony.q.to_euler();
-            float mdivDeg = rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg;
+        const rc::MahonyAHRS* mahony = eskf_runner_get_mahony();
+        if (eskf_runner_is_mahony_initialized() && mahony->healthy()) {
+            rc::Vec3 meuler = mahony->q.to_euler();
+            float mdivDeg = rc::MahonyAHRS::divergence_rad(g_eskf.q, mahony->q) * kRadToDeg;
             printf("Mahony: R=%6.2f P=%6.2f Y=%6.2f deg  Mdiv=%.1f deg\n",
                    (double)(meuler.x * kRadToDeg),
                    (double)(meuler.y * kRadToDeg),
                    (double)(meuler.z * kRadToDeg),
                    (double)mdivDeg);
         }
-        if (g_eskfBenchCount > 0) {
-            uint32_t avg = g_eskfBenchSum / g_eskfBenchCount;
-            printf("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
-                   (unsigned long)avg, (unsigned long)g_eskfBenchMin,
-                   (unsigned long)g_eskfBenchMax, (unsigned long)g_eskfBenchCount);
-            // BENCH: histogram display — uncomment with declarations above
-            // printf("      hist(us): ");
-            // for (uint32_t i = 0; i < kHistBuckets; i++) {
-            //     if (i < kHistBuckets - 1) {
-            //         printf("<%lu=%lu ", (unsigned long)((i + 1) * kHistStep),
-            //                (unsigned long)g_eskfBenchHist[i]);
-            //     } else {
-            //         printf(">%lu=%lu", (unsigned long)(i * kHistStep),
-            //                (unsigned long)g_eskfBenchHist[i]);
-            //     }
-            // }
-            // printf("\n");
+        {
+            uint32_t benchAvg = 0, benchMin = 0, benchMax = 0, benchCount = 0;
+            eskf_runner_get_bench(&benchAvg, &benchMin, &benchMax, &benchCount);
+            if (benchCount > 0) {
+                printf("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
+                       (unsigned long)benchAvg, (unsigned long)benchMin,
+                       (unsigned long)benchMax, (unsigned long)benchCount);
+            }
         }
         printf("      buf: %lu/%lu samples\n",
-               (unsigned long)g_eskfBufferCount, (unsigned long)kEskfBufferSamples);
+               (unsigned long)eskf_runner_get_buffer_count(), (unsigned long)kEskfBufferSamples);
     } else if (g_eskfInitialized) {
         printf("ESKF: UNHEALTHY (stopped, awaiting re-init)\n");
     } else {
@@ -815,8 +760,9 @@ static void print_eskf_live() {
     rc::Vec3 euler = g_eskf.q.to_euler();
     float yawDeg = euler.z * kRadToDeg;
 
-    float mdivDeg = (g_mahonyInitialized && g_mahony.healthy())
-                    ? rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg
+    const rc::MahonyAHRS* mahony_live = eskf_runner_get_mahony();
+    float mdivDeg = (eskf_runner_is_mahony_initialized() && mahony_live->healthy())
+                    ? rc::MahonyAHRS::divergence_rad(g_eskf.q, mahony_live->q) * kRadToDeg
                     : -1.0F;
     printf("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f mA=%lu/%lu Z=%c zNIS=%.2f G=%c gNIS=%.2f Mdiv=%.1f B=%lu\n",
            (double)alt, (double)vz, (double)vh, (double)yawDeg,
@@ -1105,16 +1051,17 @@ static void print_gps_status() {
         printf("  Best GPS: no fix acquired yet\n");
     }
 
-    if (g_gpsSess.gps_updates > 0) {
+    const gps_session_stats_t* gpsSess = eskf_runner_get_gps_session();
+    if (gpsSess->gps_updates > 0) {
         printf("  GPS session: %lu updates, max_dist=%.1fm, last_dist=%.1fm\n",
-               (unsigned long)g_gpsSess.gps_updates,
-               (double)g_gpsSess.max_dist_from_origin_m,
-               (double)g_gpsSess.last_dist_from_origin_m);
+               (unsigned long)gpsSess->gps_updates,
+               (double)gpsSess->max_dist_from_origin_m,
+               (double)gpsSess->last_dist_from_origin_m);
         printf("              last_pos N=%.1f E=%.1f m  gNIS=[%.2f, %.2f]\n",
-               (double)g_gpsSess.last_pos_n_m,
-               (double)g_gpsSess.last_pos_e_m,
-               (double)g_gpsSess.min_gps_nis,
-               (double)g_gpsSess.max_gps_nis);
+               (double)gpsSess->last_pos_n_m,
+               (double)gpsSess->last_pos_e_m,
+               (double)gpsSess->min_gps_nis,
+               (double)gpsSess->max_gps_nis);
     }
 }
 
@@ -1512,6 +1459,12 @@ static void init_application(bool watchdogReboot) {
 
     init_flight_director();
 
+    // Phase 2: Initialize ESKF runner with mission profile and event log callback.
+    eskf_runner_init(&rc::kDefaultRocketProfile,
+                     [](uint8_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3) {
+                         log_flight_event(static_cast<rc::LogEventId>(id), d0, d1, d2, d3);
+                     });
+
     // IVP-90: SDK hardware watchdog REMOVED from production.
     // PIO heartbeat watchdog (init_pio_safety) is the sole health monitor.
     // No automatic MCU reset — ever — without user command.
@@ -1543,359 +1496,8 @@ static void watchdog_kick_tick() {
 // CLI and ANSI dashboard moved to AO_RCOS (Stage 12B Phase 2).
 // Calibration bridge: blocking wizards stay here, triggered by g_pending_cal.
 
-// INTERIM: Adafruit ICM-20948 breakout has sensor Z-up convention.
-// ESKF expects NED (Z-down). Negate Z for accel, gyro, and mag at
-// the ESKF feed boundary. Proper fix: set board_rotation matrix with
-// Z-negate (needs level cal redo and council review for axis mapping).
-// X→X, Y→Y, Z→-Z preserves right-handedness for rotation about Z.
-static rc::Vec3 sensor_to_ned_accel(const shared_sensor_data_t& snap) {
-    return rc::Vec3(snap.accel_x, snap.accel_y, -snap.accel_z);
-}
-static rc::Vec3 sensor_to_ned_gyro(const shared_sensor_data_t& snap) {
-    return rc::Vec3(snap.gyro_x, snap.gyro_y, -snap.gyro_z);
-}
-static rc::Vec3 sensor_to_ned_mag(const shared_sensor_data_t& snap) {
-    return rc::Vec3(snap.mag_x, snap.mag_y, -snap.mag_z);
-}
-
-// IVP-42d: ESKF init from first stable accel/gyro reading.
-// IVP-44: If mag is available, set initial yaw from tilt-compensated heading.
-// Returns true if init succeeded.
-static bool eskf_try_init(const shared_sensor_data_t& snap) {
-    rc::Vec3 accel = sensor_to_ned_accel(snap);
-    rc::Vec3 gyro = sensor_to_ned_gyro(snap);
-
-    if (!g_eskf.init(accel, gyro)) {
-        return false;  // Stationarity check failed — try again next tick
-    }
-
-    // IVP-44: Set initial yaw from magnetometer heading if available.
-    // Without this, yaw starts at 0° and the mag gate rejects updates
-    // if actual heading is far from 0° (innovation >> 3σ).
-    // Same approach as ArduPilot EKF3 InitialiseFilterBootstrap().
-    if (snap.mag_valid) {
-        rc::Vec3 mag = sensor_to_ned_mag(snap);
-        // Tilt-compensate using roll/pitch from current quaternion (yaw=0)
-        rc::Vec3 euler = g_eskf.q.to_euler();
-        rc::Quat qZeroYaw = rc::Quat::from_euler(euler.x, euler.y, 0.0F);
-        rc::Vec3 magLevel = qZeroYaw.rotate(mag);
-        float initialYaw = -atan2f(magLevel.y, magLevel.x);
-        // Rebuild quaternion with mag-derived yaw
-        g_eskf.q = rc::Quat::from_euler(euler.x, euler.y, initialYaw);
-        g_eskf.q.normalize();
-    }
-
-    g_eskfInitialized = true;
-    g_eskf.reset_p_growth_baseline();
-    g_lastEskfTimestampUs = snap.imu_timestamp_us;  // CR-2: set for first predict dt
-
-    // IVP-83: Wire phase Q/R from active mission profile
-    g_eskf.set_phase_qr(&rc::kDefaultRocketProfile.phase_qr);
-
-    // IVP-84: Initialize confidence gate
-    rc::confidence_gate_init(&g_confidence);
-
-    return true;
-}
-
-// IVP-42d: ESKF predict step with benchmark + state buffer write.
-static void eskf_run_predict(const shared_sensor_data_t& snap) {
-    // Compute dt from IMU timestamps (unsigned subtraction handles 32-bit wrap)
-    uint32_t dtUs = snap.imu_timestamp_us - g_lastEskfTimestampUs;
-    g_lastEskfTimestampUs = snap.imu_timestamp_us;  // CR-3: always update timestamp
-
-    // Sanity-check dt — reject if too fast or too slow
-    if (dtUs < kEskfMinDtUs || dtUs > kEskfMaxDtUs) {
-        return;
-    }
-
-    float dt = static_cast<float>(dtUs) * kUsToSec;
-
-    rc::Vec3 accel = sensor_to_ned_accel(snap);
-    rc::Vec3 gyro = sensor_to_ned_gyro(snap);
-
-    // Benchmark: wall-clock time for predict()
-    uint32_t t0 = time_us_32();
-    g_eskf.predict(accel, gyro, dt);
-    uint32_t elapsed = time_us_32() - t0;
-
-    // CR-1: stop propagation if filter diverges
-    if (!g_eskf.healthy()) {
-        g_eskfInitialized = false;
-        rc::watchdog_recovery_eskf_failed(&g_recovery);  // IVP-66: backoff
-        return;
-    }
-
-    // Update benchmark stats
-    if (elapsed < g_eskfBenchMin) { g_eskfBenchMin = elapsed; }
-    if (elapsed > g_eskfBenchMax) { g_eskfBenchMax = elapsed; }
-    g_eskfBenchSum += elapsed;
-    g_eskfBenchCount++;
-    // BENCH: histogram recording — uncomment with declarations above
-    // uint32_t bucket = elapsed / kHistStep;
-    // if (bucket >= kHistBuckets) { bucket = kHistBuckets - 1; }
-    // g_eskfBenchHist[bucket]++;
-
-    // Write compact state to circular buffer
-    eskf_state_snap_t& s = g_eskfBuffer[g_eskfBufferIndex];
-    s.timestamp_us = snap.imu_timestamp_us;
-    s.qw = g_eskf.q.w;  s.qx = g_eskf.q.x;
-    s.qy = g_eskf.q.y;  s.qz = g_eskf.q.z;
-    s.px = g_eskf.p.x;  s.py = g_eskf.p.y;  s.pz = g_eskf.p.z;
-    s.vx = g_eskf.v.x;  s.vy = g_eskf.v.y;  s.vz = g_eskf.v.z;
-    s.abx = g_eskf.accel_bias.x;  s.aby = g_eskf.accel_bias.y;
-    s.abz = g_eskf.accel_bias.z;
-    s.gbx = g_eskf.gyro_bias.x;   s.gby = g_eskf.gyro_bias.y;
-    s.gbz = g_eskf.gyro_bias.z;
-    g_eskfBufferIndex = (g_eskfBufferIndex + 1) % kEskfBufferSamples;
-    if (g_eskfBufferCount < kEskfBufferSamples) {
-        g_eskfBufferCount++;
-    }
-}
-
-// IVP-43: Baro altitude measurement update (~32Hz DPS310 rate, on new data)
-static void eskf_tick_baro(const shared_sensor_data_t& snap) {
-    if (snap.baro_valid && g_baroContinuous) {
-        static uint32_t g_lastEskfBaroCount = 0;
-        if (snap.baro_read_count != g_lastEskfBaroCount) {
-            g_lastEskfBaroCount = snap.baro_read_count;
-            float alt = calibration_get_altitude_agl(snap.pressure_pa);
-            g_eskf.update_baro(alt);
-        }
-    }
-}
-
-// IVP-44: Mag heading measurement update (~10Hz from AK09916 via seqlock)
-static void eskf_tick_mag(const shared_sensor_data_t& snap) {
-    if (snap.mag_valid) {
-        static uint32_t g_lastEskfMagCount = 0;
-        if (snap.mag_read_count != g_lastEskfMagCount) {
-            g_lastEskfMagCount = snap.mag_read_count;
-            rc::Vec3 magBody = sensor_to_ned_mag(snap);
-            // Get expected magnitude from calibration for interference detection.
-            // If mag not calibrated (expected_radius == 0), skip interference check.
-            const calibration_store_t* cal = calibration_manager_get();
-            float expectedMag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
-                                ? cal->mag.expected_radius : 0.0F;
-            // WMM declination: use GPS position if available, else 0 (magnetic heading).
-            float declinationRad = 0.0F;
-            if (snap.gps_valid && snap.gps_fix_type >= 2) {
-                float latDeg = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
-                float lonDeg = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
-                declinationRad = rc::wmm_get_declination(latDeg, lonDeg);
-            }
-            g_eskf.update_mag_heading(magBody, expectedMag, declinationRad);
-        }
-    }
-}
-
-// Accumulate GPS session stats for post-session review via 's'.
-static void eskf_tick_gps_stats() {
-    g_gpsSess.gps_updates++;
-    float dist = sqrtf(g_eskf.p.x * g_eskf.p.x +
-                       g_eskf.p.y * g_eskf.p.y);
-    if (dist > g_gpsSess.max_dist_from_origin_m) {
-        g_gpsSess.max_dist_from_origin_m = dist;
-    }
-    g_gpsSess.last_pos_n_m = g_eskf.p.x;
-    g_gpsSess.last_pos_e_m = g_eskf.p.y;
-    g_gpsSess.last_dist_from_origin_m = dist;
-    float nis = g_eskf.last_gps_pos_nis_;
-    if (nis < g_gpsSess.min_gps_nis) { g_gpsSess.min_gps_nis = nis; }
-    if (nis > g_gpsSess.max_gps_nis) { g_gpsSess.max_gps_nis = nis; }
-}
-
-// IVP-46: GPS position + velocity measurement update.
-// Gated on 3D fix with new data. On first quality fix, sets NED origin
-// and resets p/v to zero. Subsequent fixes convert geodetic to NED and
-// inject position + velocity. Velocity gated on speed >= 0.5 m/s to
-// suppress noisy updates at rest (known limitation until IVP-67 state machine).
-static void eskf_tick_gps(const shared_sensor_data_t& snap) {
-    if (snap.gps_valid && snap.gps_fix_type >= 3) {
-        static uint32_t g_lastGpsCount = 0;
-        if (snap.gps_read_count != g_lastGpsCount) {
-            g_lastGpsCount = snap.gps_read_count;
-
-            double latRad = static_cast<double>(snap.gps_lat_1e7) * kGps1e7ToDegrees * kDeg2Rad;
-            double lonRad = static_cast<double>(snap.gps_lon_1e7) * kGps1e7ToDegrees * kDeg2Rad;
-            float altM = snap.gps_alt_msl_m;
-            float hdop = snap.gps_hdop;
-
-            // First 3D fix: set origin + reset p/v
-            if (!g_eskf.has_origin_) {
-                if (g_eskf.set_origin(latRad, lonRad, altM, hdop)) {
-                    g_eskf.p = rc::Vec3();
-                    g_eskf.v = rc::Vec3();
-                }
-            } else {
-                // Re-center origin if position drifts > 10km (HAB flights)
-                float distXy = sqrtf(g_eskf.p.x * g_eskf.p.x +
-                                     g_eskf.p.y * g_eskf.p.y);
-                if (distXy > rc::ESKF::kOriginResetDistance) {
-                    g_eskf.reset_origin(latRad, lonRad, altM);
-                }
-
-                // GPS position update (3 sequential scalar updates N/E/D)
-                rc::Vec3 gpsNed = g_eskf.geodetic_to_ned(latRad, lonRad, altM);
-                g_eskf.update_gps_position(gpsNed, hdop);
-
-                // GPS velocity update — only when moving (>= 0.5 m/s)
-                if (snap.gps_ground_speed_mps >= rc::ESKF::kGpsMinSpeedForVel) {
-                    float courseRad = snap.gps_course_deg * static_cast<float>(kDeg2Rad);
-                    float vNorth = snap.gps_ground_speed_mps * cosf(courseRad);
-                    float vEast  = snap.gps_ground_speed_mps * sinf(courseRad);
-                    g_eskf.update_gps_velocity(vNorth, vEast);
-                }
-
-                eskf_tick_gps_stats();
-            }
-        }
-    }
-}
-
-// IVP-45: Mahony AHRS cross-check — independent attitude estimator.
-// Runs at same 200Hz tick as ESKF. Uses its own dt tracking so it
-// remains independent of the ESKF timestamp variable.
-static void eskf_tick_mahony(const shared_sensor_data_t& snap) {
-    rc::Vec3 accel = sensor_to_ned_accel(snap);
-    rc::Vec3 gyro  = sensor_to_ned_gyro(snap);
-
-    if (!g_mahonyInitialized) {
-        rc::Vec3 magBody = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
-        if (g_mahony.init(accel, magBody)) {
-            g_mahonyInitialized = true;
-            g_lastMahonyTimestampUs = snap.imu_timestamp_us;
-        }
-    } else {
-        uint32_t dtUs = snap.imu_timestamp_us - g_lastMahonyTimestampUs;
-        g_lastMahonyTimestampUs = snap.imu_timestamp_us;
-        if (dtUs >= kEskfMinDtUs && dtUs <= kEskfMaxDtUs) {
-            float dt = static_cast<float>(dtUs) * kUsToSec;
-            rc::Vec3 magBody = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
-            const calibration_store_t* cal = calibration_manager_get();
-            float expectedMag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
-                                ? cal->mag.expected_radius : 0.0F;
-            bool magCalValid = (cal->cal_flags & CAL_STATUS_MAG) != 0;
-            g_mahony.update(accel, gyro, magBody, expectedMag, magCalValid, dt);
-            if (!g_mahony.healthy()) {
-                g_mahonyInitialized = false;
-            }
-        }
-    }
-}
-
-// IVP-42d: ESKF tick — runs at 200Hz via IMU count divider.
-// IVP-44b: Zero-velocity pseudo-measurement (ZUPT).
-// When on pad (IDLE/ARMED), the flight state machine guarantees stationarity
-// — skip IMU check, use tight R. ArduPilot EKF3 onGround, PX4 vehicle_at_rest.
-static void eskf_tick_zupt(const shared_sensor_data_t& snap) {
-    rc::Vec3 accel = sensor_to_ned_accel(snap);
-    rc::Vec3 gyro = sensor_to_ned_gyro(snap);
-    bool on_pad = g_directorInitialized &&
-        (g_director.state.current_phase == rc::FlightPhase::kIdle ||
-         g_director.state.current_phase == rc::FlightPhase::kArmed);
-    g_eskf.update_zupt(accel, gyro, on_pad);
-}
-
-// IVP-83/84: Phase notification + confidence gate evaluation
-static void eskf_tick_phase_and_confidence() {
-    // IVP-83: Notify ESKF of flight phase changes for Q/R scheduling
-    if (g_directorInitialized) {
-        static uint8_t s_lastPhase = 0;
-        uint8_t phase = static_cast<uint8_t>(
-            rc::flight_director_phase(&g_director));
-        if (phase != s_lastPhase) {
-            g_eskf.notify_phase_change(phase);
-            s_lastPhase = phase;
-        }
-    }
-
-    // IVP-84: Evaluate confidence gate
-    rc::ConfidenceInput ci{};
-    ci.eskf_healthy = g_eskf.healthy();
-    ci.mahony_div_deg = (g_mahonyInitialized && g_mahony.healthy())
-        ? rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg
-        : 0.0f;
-    // Max innovation ratio across all channels
-    float maxAlpha = g_eskf.innov_baro_.alpha;
-    if (g_eskf.innov_mag_.alpha > maxAlpha) maxAlpha = g_eskf.innov_mag_.alpha;
-    if (g_eskf.innov_gps_pos_.alpha > maxAlpha) maxAlpha = g_eskf.innov_gps_pos_.alpha;
-    if (g_eskf.innov_gps_vel_.alpha > maxAlpha) maxAlpha = g_eskf.innov_gps_vel_.alpha;
-    ci.max_innov_ratio = maxAlpha;
-    // Max P diagonal for attitude and velocity
-    ci.p_att_max = g_eskf.P(0, 0);
-    for (int32_t i = 1; i < 3; ++i) {
-        if (g_eskf.P(i, i) > ci.p_att_max) ci.p_att_max = g_eskf.P(i, i);
-    }
-    ci.p_vel_max = g_eskf.P(6, 6);
-    for (int32_t i = 7; i < 9; ++i) {
-        if (g_eskf.P(i, i) > ci.p_vel_max) ci.p_vel_max = g_eskf.P(i, i);
-    }
-    ci.now_ms = to_ms_since_boot(get_absolute_time());
-
-    // Track previous confidence state for transition logging
-    bool was_confident = g_confidence.confident;
-    rc::confidence_gate_evaluate(&g_confidence, ci);
-
-    // Log confidence transitions
-    if (was_confident && !g_confidence.confident) {
-        log_flight_event(rc::LogEventId::kConfidenceLost);
-    } else if (!was_confident && g_confidence.confident) {
-        log_flight_event(rc::LogEventId::kConfidenceRecovered);
-    }
-}
-
-static void eskf_tick() {
-    if (!g_sensorPhaseActive) {
-        return;
-    }
-
-    // IVP-66: ESKF failure backoff — skip if disabled after too many failures
-    if (g_recovery.eskf_disabled) {
-        return;
-    }
-
-    // CR-4: seqlock failure is a separate early return from data validity
-    shared_sensor_data_t snap = {};
-    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
-        return;  // Seqlock contention — skip this cycle
-    }
-
-    if (!snap.accel_valid || !snap.gyro_valid) {
-        return;
-    }
-
-    // Run every kEskfImuDivider-th new IMU sample (200Hz at 1kHz IMU rate)
-    uint32_t newSamples = snap.imu_read_count - g_lastEskfImuCount;
-    if (newSamples < kEskfImuDivider) {
-        return;
-    }
-    g_lastEskfImuCount = snap.imu_read_count;
-
-    if (!g_eskfInitialized) {
-        eskf_try_init(snap);
-        return;
-    }
-
-    eskf_run_predict(snap);
-
-    // P-growth check: catch slow divergence before velocity hits 500 m/s
-    if (!g_eskf.check_p_growth(time_us_32())) {
-        g_eskfInitialized = false;  // CR-1 reset
-        rc::watchdog_recovery_eskf_failed(&g_recovery);  // IVP-66: backoff
-        return;
-    }
-
-    eskf_tick_baro(snap);
-    eskf_tick_mag(snap);
-    eskf_tick_zupt(snap);
-    eskf_tick_gps(snap);
-    eskf_tick_mahony(snap);
-
-    eskf_tick_phase_and_confidence();
-
-    g_eskfEpoch++;
-}
+// ESKF tick functions moved to src/fusion/eskf_runner.cpp (Phase 2).
+// eskf_runner_tick() is called from qv_idle_bridge() below.
 
 // ============================================================================
 // Flight Director Tick (IVP-68)
@@ -2571,8 +2173,9 @@ static void populate_fused_state(rc::FusedState& fused,
     fused.imu_temperature_c = snap.imu_temperature_c;
 
     // Mahony divergence
-    fused.mahony_div_deg = (g_mahonyInitialized && g_mahony.healthy())
-        ? rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg
+    const rc::MahonyAHRS* mahony_fused = eskf_runner_get_mahony();
+    fused.mahony_div_deg = (eskf_runner_is_mahony_initialized() && mahony_fused->healthy())
+        ? rc::MahonyAHRS::divergence_rad(g_eskf.q, mahony_fused->q) * kRadToDeg
         : -1.0f;
 
     // GPS from sensor snapshot
@@ -2584,9 +2187,10 @@ static void populate_fused_state(rc::FusedState& fused,
     fused.gps_satellites = snap.gps_satellites;
 
     // Confidence gate (IVP-85)
-    fused.confident = g_confidence.confident;
-    fused.confidence_div_deg = g_confidence.ahrs_divergence_deg;
-    fused.uncertain_ms = g_confidence.time_since_confident_ms;
+    const rc::ConfidenceState* conf_fused = eskf_runner_get_confidence();
+    fused.confident = conf_fused->confident;
+    fused.confidence_div_deg = conf_fused->ahrs_divergence_deg;
+    fused.uncertain_ms = conf_fused->time_since_confident_ms;
 
     fused.flight_state = g_directorInitialized
         ? static_cast<uint8_t>(g_director.state.current_phase)
@@ -2622,10 +2226,11 @@ extern "C" void logging_tick() {
     }
 
     // Only run when ESKF has produced a new propagation
-    if (g_eskfEpoch == g_lastLogEpoch) {
+    uint32_t currentEpoch = eskf_runner_get_epoch();
+    if (currentEpoch == g_lastLogEpoch) {
         return;
     }
-    g_lastLogEpoch = g_eskfEpoch;
+    g_lastLogEpoch = currentEpoch;
 
     // Read sensor snapshot for GPS/baro/temp fields
     shared_sensor_data_t snap = {};
@@ -2689,7 +2294,7 @@ extern "C" void qv_idle_bridge(void) {
 
     g_lastTickFunction = "eskf";
     g_recovery.current_tick_fn = rc::TickFnId::kEskf;
-    eskf_tick();
+    eskf_runner_tick();
 
     // CLI key dispatch + calibration wizards: still in idle bridge.
     // AO_RCOS handles output mode + ANSI render only.

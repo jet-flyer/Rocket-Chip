@@ -286,6 +286,7 @@ else()
         # IVP-42a: ESKF core propagation
         src/fusion/eskf.cpp
         src/fusion/eskf_codegen.cpp
+        src/fusion/eskf_runner.cpp
 
         # IVP-44: WMM declination lookup table
         src/fusion/wmm_declination.cpp
@@ -394,6 +395,7 @@ else()
         src/math/quat.cpp
         src/fusion/eskf.cpp
         src/fusion/eskf_codegen.cpp
+        src/fusion/eskf_runner.cpp
         src/fusion/wmm_declination.cpp
         src/fusion/mahony_ahrs.cpp
         src/fusion/ud_factor.cpp
