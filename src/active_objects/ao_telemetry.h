@@ -20,8 +20,21 @@ extern QActive * const AO_Telemetry;
 
 void AO_Telemetry_start(uint8_t prio);
 
+// Station output mode — cycles with 'm' key.
+// Future: boot default will be user-configurable via advanced settings menu.
+enum class StationOutputMode : uint8_t {
+    kAnsi,      // Live ANSI dashboard (boot default)
+    kCsv,       // Machine-readable CSV lines
+    kMavlink,   // Binary MAVLink v2
+    kMenu,      // CLI menu — telemetry output suppressed
+};
+
 // CLI access — safe under QV cooperative scheduling
 void AO_Telemetry_set_telem_snapshot(const rc::TelemetryState& telem);
+StationOutputMode AO_Telemetry_get_output_mode();
+void AO_Telemetry_set_output_mode(StationOutputMode mode);
+void AO_Telemetry_cycle_output_mode();
+// Legacy compat for vehicle mode (TX)
 bool AO_Telemetry_get_mavlink_output();
 void AO_Telemetry_toggle_mavlink();
 uint8_t AO_Telemetry_cycle_rate();

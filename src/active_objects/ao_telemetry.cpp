@@ -45,7 +45,7 @@ struct TelemAo {
     rc::MavlinkEncoder  mav_encoder;
     rc::TelemetryState  latest_telem;
     bool                telem_valid;
-    bool                mavlink_output;   // true = MAVLink binary, false = CSV text
+    StationOutputMode   output_mode;      // ANSI/CSV/MAVLink
     uint8_t             rate_hz;
     uint32_t            interval_ms;
     uint32_t            last_tx_ms;
@@ -118,7 +118,8 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
     me->rx_snapshot.valid = true;
 
 #ifndef ROCKETCHIP_HOST_TEST
-    if (me->mavlink_output) {
+    switch (me->output_mode) {
+    case StationOutputMode::kMavlink: {
         // MAVLink binary output on USB
         uint8_t frame[64];
         uint16_t len = 0;
@@ -139,13 +140,18 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
         len = me->mav_encoder.encode_global_pos(telem, t, frame);
         fwrite(frame, 1, len, stdout);
         fflush(stdout);
-    } else {
-        // CSV text output — minimal for now, full format in telemetry_service
-        // (Reuse the existing print_rx_csv pattern from telemetry_service.cpp)
+        break;
+    }
+    case StationOutputMode::kCsv:
         printf("RX,%u,%d,%d\n",
                static_cast<unsigned>(seq),
                static_cast<int>(rxEvt->rssi),
                static_cast<int>(rxEvt->snr));
+        break;
+    case StationOutputMode::kAnsi:
+    case StationOutputMode::kMenu:
+        // ANSI: rendered from main loop. Menu: output suppressed.
+        break;
     }
 #else
     (void)me;
@@ -155,7 +161,7 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
 // Direct USB MAVLink output for Vehicle mode (same data, no radio)
 static void mavlink_direct_tick(TelemAo* me) {
 #ifndef ROCKETCHIP_HOST_TEST
-    if (!me->mavlink_output) { return; }
+    if (me->output_mode != StationOutputMode::kMavlink) { return; }
     if constexpr (kRadioModeRx) { return; }  // Station uses RX path
     if (!me->telem_valid) { return; }
     if (!stdio_usb_connected()) { return; }
@@ -195,7 +201,7 @@ static QState TelemAo_initial(TelemAo * const me, QEvt const * const e) {
     me->ccsds_encoder.init();
     me->mav_encoder.init();
     me->telem_valid = false;
-    me->mavlink_output = kDefaultMavlinkOutput;
+    me->output_mode = StationOutputMode::kAnsi;  // Boot default
     me->rate_hz = 2;
     me->interval_ms = 500;
     me->last_tx_ms = 0;
@@ -245,12 +251,34 @@ void AO_Telemetry_set_telem_snapshot(const rc::TelemetryState& telem) {
     l_telemAo.telem_valid = true;
 }
 
+StationOutputMode AO_Telemetry_get_output_mode() {
+    return l_telemAo.output_mode;
+}
+
+void AO_Telemetry_set_output_mode(StationOutputMode mode) {
+    l_telemAo.output_mode = mode;
+}
+
+void AO_Telemetry_cycle_output_mode() {
+    switch (l_telemAo.output_mode) {
+    case StationOutputMode::kAnsi:    l_telemAo.output_mode = StationOutputMode::kCsv;     break;
+    case StationOutputMode::kCsv:     l_telemAo.output_mode = StationOutputMode::kMavlink;  break;
+    case StationOutputMode::kMavlink: l_telemAo.output_mode = StationOutputMode::kAnsi;     break;
+    case StationOutputMode::kMenu:    l_telemAo.output_mode = StationOutputMode::kAnsi;     break;
+    }
+}
+
+// Legacy compat for vehicle mode (TX)
 bool AO_Telemetry_get_mavlink_output() {
-    return l_telemAo.mavlink_output;
+    return l_telemAo.output_mode == StationOutputMode::kMavlink;
 }
 
 void AO_Telemetry_toggle_mavlink() {
-    l_telemAo.mavlink_output = !l_telemAo.mavlink_output;
+    if (l_telemAo.output_mode == StationOutputMode::kMavlink) {
+        l_telemAo.output_mode = StationOutputMode::kCsv;
+    } else {
+        l_telemAo.output_mode = StationOutputMode::kMavlink;
+    }
 }
 
 uint8_t AO_Telemetry_cycle_rate() {
