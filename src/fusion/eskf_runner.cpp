@@ -74,10 +74,9 @@ extern bool g_baroContinuous;     // NOLINT(readability-redundant-declaration)
 // Watchdog recovery (owned by main.cpp, read for ESKF backoff)
 extern rc::WatchdogRecovery g_recovery;
 
-// Flight Director (owned by main.cpp, read for ZUPT on-pad check
-// and phase notification). Moves to AO_FlightDirector in Phase 3.
-extern rc::FlightDirector g_director;
-extern bool g_directorInitialized;
+// Flight Director (owned by AO_FlightDirector, Phase 3).
+// Access via read-only accessors in ao_flight_director.h.
+#include "active_objects/ao_flight_director.h"
 
 // ============================================================================
 // ESKF Module State (moved from main.cpp)
@@ -349,9 +348,10 @@ static void eskf_tick_gps(const shared_sensor_data_t& snap) {
 static void eskf_tick_zupt(const shared_sensor_data_t& snap) {
     rc::Vec3 accel = sensor_to_ned_accel(snap);
     rc::Vec3 gyro = sensor_to_ned_gyro(snap);
-    bool on_pad = g_directorInitialized &&
-        (g_director.state.current_phase == rc::FlightPhase::kIdle ||
-         g_director.state.current_phase == rc::FlightPhase::kArmed);
+    const rc::FlightDirector* fd = AO_FlightDirector_get_director();
+    bool on_pad = AO_FlightDirector_is_initialized() &&
+        (fd->state.current_phase == rc::FlightPhase::kIdle ||
+         fd->state.current_phase == rc::FlightPhase::kArmed);
     g_eskf.update_zupt(accel, gyro, on_pad);
 }
 
@@ -389,10 +389,10 @@ static void eskf_tick_mahony(const shared_sensor_data_t& snap) {
 // IVP-83/84: Phase notification + confidence gate evaluation
 static void eskf_tick_phase_and_confidence() {
     // IVP-83: Notify ESKF of flight phase changes for Q/R scheduling
-    if (g_directorInitialized) {
+    if (AO_FlightDirector_is_initialized()) {
         static uint8_t s_lastPhase = 0;
         uint8_t phase = static_cast<uint8_t>(
-            rc::flight_director_phase(&g_director));
+            rc::flight_director_phase(AO_FlightDirector_get_director()));
         if (phase != s_lastPhase) {
             g_eskf.notify_phase_change(phase);
             s_lastPhase = phase;

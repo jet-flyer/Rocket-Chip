@@ -132,8 +132,7 @@ static constexpr float kFullCircleDeg = 360.0F;           // Heading wrap-around
 // IMU config readback bitmask: DLPF_CFG is bits [5:3] of ACCEL/GYRO_CONFIG register
 static constexpr uint8_t kDlpfCfgMask = 0x07U;
 
-// Flight director tick period
-static constexpr uint32_t kFlightDirectorPeriodMs = 10;         // 100Hz
+// Flight director tick period moved to ao_flight_director.cpp (Phase 3).
 
 // Erase confirmation input
 static constexpr int32_t kEraseInputMaxChars = 7;               // Max input chars before enter
@@ -218,9 +217,11 @@ static constexpr uint32_t kDecimationSram = 8;
 // Header sync: every 50 frames (~1 second at 50Hz)
 static constexpr uint32_t kHeaderSyncDiv = 50;
 
-// Flight table (IVP-53b) — flash-persistent flight log index
-static rc::FlightTableState g_flightTable;
-static bool g_flightTableLoaded = false;
+// Flight table (IVP-53b) — flash-persistent flight log index.
+// Non-static: AO_FlightDirector reads for Go/No-Go check (Phase 3).
+// Moves to AO_Logger in Phase 4.
+rc::FlightTableState g_flightTable;
+bool g_flightTableLoaded = false;
 
 // Transport-neutral GPS function pointers — set once during init_sensors().
 // Avoids if/else on every Core 1 GPS poll cycle.
@@ -238,10 +239,8 @@ bool (*g_gpsFnHasFix)()                    = nullptr;
 rc::WatchdogRecovery g_recovery;
 
 // IVP-68: Flight Director HSM (Stage 8)
-// Non-static: eskf_runner reads for ZUPT on-pad check and phase notification.
-// Moves to AO_FlightDirector in Phase 3.
-rc::FlightDirector g_director;
-bool g_directorInitialized = false;
+// Moved to AO_FlightDirector (Phase 3). Access via ao_flight_director.h.
+// g_director and g_directorInitialized are now internal to ao_flight_director.cpp.
 
 // ESKF globals moved to src/fusion/eskf_runner.cpp (Phase 2).
 // Access via eskf_runner_get_eskf(), eskf_runner_get_mahony(), etc.
@@ -268,9 +267,10 @@ std::atomic<uint8_t> g_calNeoPixelOverride{kCalNeoOff};
 // IVP-90: SDK watchdog globals removed. PIO heartbeat is sole health monitor.
 // g_wdtCore0Alive, g_wdtCore1Alive, g_watchdogEnabled — deleted.
 
-// Forward declaration: event logging to ring buffer (defined after logging_tick)
-static void log_flight_event(rc::LogEventId id, uint8_t d0 = 0, uint8_t d1 = 0,
-                              uint8_t d2 = 0, uint8_t d3 = 0);
+// Forward declaration: event logging to ring buffer (defined after logging_tick).
+// Non-static: called from ao_flight_director.cpp (Phase 3) for pyro/abort events.
+void log_flight_event(rc::LogEventId id, uint8_t d0 = 0, uint8_t d1 = 0,
+                      uint8_t d2 = 0, uint8_t d3 = 0);
 static bool g_watchdogReboot = false;
 
 // Sensor phase active — set by Core 0 when Core 1 enters sensor loop.
@@ -1319,11 +1319,10 @@ static void print_boot_status() {
 
 // Forward declarations for CLI callbacks (defined after logging_tick)
 static void handle_unhandled_key(int key);
-static void cli_dispatch_flight_signal(int signal);
-static bool cli_process_flight_command(int cmd);
-static void cli_print_flight_status();
-static void populate_fused_state(rc::FusedState& fused,
-                                  const shared_sensor_data_t& snap);
+// Flight Director CLI callbacks moved to ao_flight_director.cpp (Phase 3).
+// populate_fused_state is non-static — shared between AO_FD and logging_tick.
+void populate_fused_state(rc::FusedState& fused,
+                          const shared_sensor_data_t& snap);
 
 // Forward declaration — defined with other station commands below (IVP-99)
 [[maybe_unused]] static void print_station_status();
@@ -1348,9 +1347,9 @@ static void init_rc_os_hooks() {
     rc_os_feed_cal = feed_active_calibration;
     rc_os_print_eskf_live = print_eskf_live;
     rc_os_on_unhandled_key = handle_unhandled_key;
-    rc_os_dispatch_flight_signal = cli_dispatch_flight_signal;
-    rc_os_print_flight_status = cli_print_flight_status;
-    rc_os_process_flight_command = cli_process_flight_command;
+    rc_os_dispatch_flight_signal = AO_FlightDirector_dispatch_signal;
+    rc_os_print_flight_status = AO_FlightDirector_print_status;
+    rc_os_process_flight_command = AO_FlightDirector_process_command;
 }
 
 static void init_logging_ring() {
@@ -1381,28 +1380,7 @@ static void init_logging_ring() {
     }
 }
 
-// IVP-68/72: Initialize Flight Director + wire callbacks
-static void init_flight_director() {
-    rc::flight_director_ctor(&g_director, &rc::kDefaultRocketProfile);
-    g_director.set_led_cb = [](uint8_t val) {
-        g_calNeoPixelOverride.store(val, std::memory_order_relaxed);
-    };
-    g_director.log_pyro_cb = [](rc::PyroChannel ch) {
-        printf("[FD] PYRO INTENT: %s\n",
-               ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
-        if (ch == rc::PyroChannel::kDrogue) {
-            g_director.state.drogue_fired = true;
-            log_flight_event(rc::LogEventId::kPyroFiredDrogue);
-            rc::pio_backup_timer_cancel(rc::BackupTimerId::kDrogue);
-        } else {
-            g_director.state.main_fired = true;
-            log_flight_event(rc::LogEventId::kPyroFiredMain);
-            rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
-        }
-    };
-    rc::flight_director_init(&g_director);
-    g_directorInitialized = true;
-}
+// init_flight_director() moved to AO_FlightDirector_start() (Phase 3).
 
 // IVP-88/89: Initialize PIO safety systems on PIO2
 static void init_pio_safety() {
@@ -1457,7 +1435,8 @@ static void init_application(bool watchdogReboot) {
         calibration_start_baro();
     }
 
-    init_flight_director();
+    // init_flight_director() moved to AO_FlightDirector_start() (Phase 3).
+    // AO_FlightDirector_start() is called from the AO startup sequence below.
 
     // Phase 2: Initialize ESKF runner with mission profile and event log callback.
     eskf_runner_init(&rc::kDefaultRocketProfile,
@@ -1499,158 +1478,8 @@ static void watchdog_kick_tick() {
 // ESKF tick functions moved to src/fusion/eskf_runner.cpp (Phase 2).
 // eskf_runner_tick() is called from qv_idle_bridge() below.
 
-// ============================================================================
-// Flight Director Tick (IVP-68)
-// ============================================================================
-// Runs at ESKF rate (~200Hz) but dispatches SIG_TICK at 100Hz via divider.
-// Guards and detection logic will be added in IVP-70/71.
-
-static uint32_t g_lastFdTickMs = 0;
-
-// Non-static for AO_FlightDirector extern "C" bridge (IVP-78 incremental test)
-extern "C" void flight_director_tick() {
-    if (!g_directorInitialized) {
-        return;
-    }
-
-    uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-    // 100Hz tick (10ms period) — matches guard evaluation rate per plan
-    if (nowMs - g_lastFdTickMs < kFlightDirectorPeriodMs) {
-        return;
-    }
-    g_lastFdTickMs = nowMs;
-
-    rc::flight_director_dispatch_tick(&g_director, nowMs);
-
-    // Guard evaluation — read sensor snapshot and evaluate guards
-    shared_sensor_data_t snap{};
-    if (seqlock_read(&g_sensorSeqlock, &snap)) {
-        rc::FusedState fused{};
-        populate_fused_state(fused, snap);
-
-        float accel_mag = sqrtf(snap.accel_x * snap.accel_x +
-                                snap.accel_y * snap.accel_y +
-                                snap.accel_z * snap.accel_z);
-        rc::flight_director_evaluate_guards(&g_director, fused,
-                                             snap.accel_z, accel_mag);
-    }
-}
-
-// CLI callback: dispatch a flight signal from the Flight Director sub-menu
-static void cli_dispatch_flight_signal(int signal) {
-    if (!g_directorInitialized) {
-        printf("[FD] Flight Director not initialized.\n");
-        return;
-    }
-    rc::flight_director_dispatch_signal(&g_director,
-                                         static_cast<rc::FlightSignal>(signal));
-}
-
-// CLI callback: process a validated flight command (IVP-69)
-static bool cli_process_flight_command(int cmd) {
-    if (!g_directorInitialized) {
-        printf("[FD] Flight Director not initialized.\n");
-        return false;
-    }
-
-    auto cmdType = static_cast<rc::CommandType>(cmd);
-    rc::FlightPhase phase = rc::flight_director_phase(&g_director);
-
-    // Build Go/No-Go input from current system state
-    shared_sensor_data_t snap{};
-    seqlock_read(&g_sensorSeqlock, &snap);
-
-    rc::GoNoGoInput gng{};
-    // Tier 1: Platform
-    gng.imu_healthy = g_imuInitialized && snap.accel_valid;
-    gng.baro_healthy = g_baroInitialized && snap.baro_valid;
-    gng.eskf_healthy = g_eskfInitialized && g_eskf.healthy();
-    gng.flash_available = g_flightTable.loaded &&
-                          (rc::flight_table_count(&g_flightTable) <
-                           rc::kMaxFlightEntries);
-    gng.launch_abort = g_recovery.launch_abort;
-    gng.watchdog_ok = !g_recovery.boot_state.safe_mode &&
-                      !g_recovery.eskf_disabled;
-    // Tier 2: Profile
-    gng.gps_has_lock = g_gpsInitialized &&
-                       snap.gps_fix_type >= 2 &&
-                       snap.gps_satellites >= 4;
-    const calibration_store_t* cal = calibration_manager_get();
-    gng.mag_calibrated = (cal->cal_flags & CAL_STATUS_MAG) != 0;
-    gng.radio_linked = g_radioInitialized;
-
-    rc::CommandResult result = rc::command_handler_validate(
-        cmdType, phase, &gng);
-
-    if (result.accepted) {
-        rc::flight_director_dispatch_signal(&g_director, result.signal);
-
-        // IVP-89: PIO backup timer arm/disarm hooks
-        if (result.signal == rc::SIG_ARM) {
-            // Start backup timers with profile values
-            // TODO: read from Mission Profile once fields are wired
-            // TODO: read from Mission Profile once fields are wired
-            rc::pio_backup_timer_arm(15.0f, 45.0f);  // VALIDATE defaults
-            printf("[PIO] Backup timers armed: drogue=15s main=45s\n");
-        } else if (result.signal == rc::SIG_ABORT) {
-            log_flight_event(rc::LogEventId::kAbortTriggered,
-                             static_cast<uint8_t>(phase));  // log which phase abort came from
-        } else if (result.signal == rc::SIG_DISARM ||
-                   result.signal == rc::SIG_RESET) {
-            rc::pio_backup_timer_disarm();
-            printf("[PIO] Backup timers disarmed\n");
-        }
-    } else {
-        printf("[FD] Command rejected: %s\n", result.reason);
-    }
-    return result.accepted;
-}
-
-// CLI callback: print flight director status
-static void cli_print_flight_status() {
-    if (!g_directorInitialized) {
-        printf("[FD] Flight Director not initialized.\n");
-        return;
-    }
-    const rc::FlightState& st = g_director.state;
-    uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-    uint32_t phaseMs = nowMs - st.phase_entry_ms;
-
-    printf("\n--- Flight Director Status ---\n");
-    printf("  Profile:     %s\n", g_director.profile->name);
-    printf("  Phase:       %s\n", rc::flight_phase_name(st.current_phase));
-    printf("  Previous:    %s\n", rc::flight_phase_name(st.previous_phase));
-    printf("  In-phase:    %lu ms\n", (unsigned long)phaseMs);
-    printf("  Transitions: %lu\n", (unsigned long)st.transition_count);
-
-    // Markers
-    const rc::FlightMarkers& mk = st.markers;
-    if (mk.armed_ms > 0) {
-        printf("  Armed:       T+%lu ms\n", (unsigned long)mk.armed_ms);
-    }
-    if (mk.launch_ms > 0) {
-        printf("  Launch:      T+%lu ms\n", (unsigned long)mk.launch_ms);
-    }
-    if (mk.burnout_ms > 0) {
-        printf("  Burnout:     T+%lu ms\n", (unsigned long)mk.burnout_ms);
-    }
-    if (mk.apogee_ms > 0) {
-        printf("  Apogee:      T+%lu ms\n", (unsigned long)mk.apogee_ms);
-    }
-    if (mk.drogue_deploy_ms > 0) {
-        printf("  Drogue:      T+%lu ms\n", (unsigned long)mk.drogue_deploy_ms);
-    }
-    if (mk.main_deploy_ms > 0) {
-        printf("  Main:        T+%lu ms\n", (unsigned long)mk.main_deploy_ms);
-    }
-    if (mk.landing_ms > 0) {
-        printf("  Landing:     T+%lu ms\n", (unsigned long)mk.landing_ms);
-    }
-    if (mk.abort_ms > 0) {
-        printf("  Abort:       T+%lu ms\n", (unsigned long)mk.abort_ms);
-    }
-    printf("-----------------------------\n");
-}
+// Flight Director tick, CLI callbacks, and init moved to
+// ao_flight_director.cpp (Phase 3). Access via ao_flight_director.h.
 
 // ============================================================================
 // Logging Tick (IVP-52c)
@@ -2159,8 +1988,10 @@ static void fused_copy_eskf_state(rc::FusedState& fused) {
     fused.zupt_active = g_eskf.last_zupt_active_;
 }
 
-static void populate_fused_state(rc::FusedState& fused,
-                                 const shared_sensor_data_t& snap) {
+// Non-static: shared between AO_FlightDirector (guard evaluation) and
+// logging_tick (PCM frame encoding). Declared extern in ao_flight_director.cpp.
+void populate_fused_state(rc::FusedState& fused,
+                          const shared_sensor_data_t& snap) {
     fused_copy_eskf_state(fused);
 
     // Baro AGL and vertical velocity
@@ -2192,8 +2023,8 @@ static void populate_fused_state(rc::FusedState& fused,
     fused.confidence_div_deg = conf_fused->ahrs_divergence_deg;
     fused.uncertain_ms = conf_fused->time_since_confident_ms;
 
-    fused.flight_state = g_directorInitialized
-        ? static_cast<uint8_t>(g_director.state.current_phase)
+    fused.flight_state = AO_FlightDirector_is_initialized()
+        ? static_cast<uint8_t>(AO_FlightDirector_get_director()->state.current_phase)
         : 0;
     fused.met_ms = to_ms_since_boot(get_absolute_time());
 }
@@ -2201,10 +2032,11 @@ static void populate_fused_state(rc::FusedState& fused,
 // Log a discrete flight event to the ring buffer as a PCM event frame.
 // Called from pyro callback, abort handler, safe mode entry, etc.
 // Small (15 bytes) — minimal ring buffer impact.
+// Non-static: called from ao_flight_director.cpp (Phase 3) for pyro/abort events.
 __attribute__((used))
-static void log_flight_event(rc::LogEventId id,
-                              uint8_t d0, uint8_t d1,
-                              uint8_t d2, uint8_t d3) {
+void log_flight_event(rc::LogEventId id,
+                      uint8_t d0, uint8_t d1,
+                      uint8_t d2, uint8_t d3) {
 #ifndef ROCKETCHIP_HOST_TEST
     if (!g_loggingInitialized) {
         return;
