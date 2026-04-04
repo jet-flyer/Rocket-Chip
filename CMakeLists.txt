@@ -305,6 +305,9 @@ else()
         src/safety/pio_watchdog.cpp
         src/safety/pio_backup_timer.cpp
 
+        # Phase 6: Health Monitor (called from AO_FlightDirector at 10Hz)
+        src/safety/health_monitor.cpp
+
         # -------------------------------------------------------------------------
         # Stage 6: Data Logging (IVP-49/50/51, IVP-52a/b/c, IVP-53a/b)
         # -------------------------------------------------------------------------
@@ -418,6 +421,7 @@ else()
         src/flight_director/guard_evaluator.cpp
         src/flight_director/guard_combinator.cpp
         src/flight_director/action_executor.cpp
+        src/safety/health_monitor.cpp
         src/active_objects/ao_blinker.cpp
         src/active_objects/ao_counter.cpp
     )

@@ -24,12 +24,7 @@
 #include "flight_director/go_nogo_checks.h"
 #include "flight_director/mission_profile_data.h"
 #include "safety/pio_backup_timer.h"
-#include "calibration/calibration_manager.h"
-#include "calibration/calibration_data.h"
-#include "logging/flight_table.h"
-#include "core1/sensor_core1.h"         // g_imuInitialized, g_baroInitialized, etc.
-#include "fusion/eskf_runner.h"         // eskf_runner_get_eskf() etc.
-#include "watchdog/watchdog_recovery.h" // rc::WatchdogRecovery
+#include "safety/health_monitor.h"
 
 #include "pico/time.h"
 #include <stdio.h>
@@ -46,6 +41,7 @@ enum : uint16_t {
 // Flight Director period
 // ============================================================================
 static constexpr uint32_t kFlightDirectorPeriodMs = 10;  // 100Hz
+static constexpr uint8_t kHealthTickDivider = 10;        // 100Hz / 10 = 10Hz
 
 // ============================================================================
 // FdAo struct — owns the FlightDirector instance
@@ -56,6 +52,7 @@ struct FdAo {
     rc::FlightDirector director;    // Flight Director QHsm (Phase 3: owned here)
     bool initialized;               // true after ctor + init + callback wiring
     uint32_t last_tick_ms;          // Rate limiter for 100Hz tick
+    uint8_t health_tick_count;      // Divider counter for 10Hz health monitor
 };
 
 static FdAo l_fdAo;
@@ -72,8 +69,6 @@ static QEvtPtr l_fdAoQueue[32];
 // ============================================================================
 
 extern sensor_seqlock_t g_sensorSeqlock;
-extern rc::WatchdogRecovery g_recovery;
-extern bool g_radioInitialized;  // NOLINT(readability-redundant-declaration)
 
 // Phase 4: Flight table, populate_fused_state, log_flight_event moved to AO_Logger.
 
@@ -111,6 +106,21 @@ static void fd_tick(FdAo* me) {
                                 snap.accel_z * snap.accel_z);
         rc::flight_director_evaluate_guards(&me->director, fused,
                                              snap.accel_z, accel_mag);
+    }
+
+    // Health monitor at 10Hz (every 10th tick)
+    me->health_tick_count++;
+    if (me->health_tick_count >= kHealthTickDivider) {
+        me->health_tick_count = 0;
+        if (rc::health_monitor_tick()) {
+            // Health flags changed — publish SIG_HEALTH_STATUS
+            static rc::HealthStatusEvt healthEvt;
+            healthEvt.super.sig = rc::SIG_HEALTH_STATUS;
+            healthEvt.health_flags =
+                rc::health_monitor_get_state()->flags;
+            QActive_publish_(&healthEvt.super,
+                             &me->super, me->super.prio);
+        }
     }
 }
 
@@ -166,6 +176,10 @@ void AO_FlightDirector_start(uint8_t prio) {
     rc::flight_director_init(&me->director);
     me->initialized = true;
     me->last_tick_ms = 0;
+    me->health_tick_count = 0;
+
+    // Phase 6: Initialize health monitor
+    rc::health_monitor_init();
 
     // --- Start QP Active Object ---
     QActive_ctor(&me->super, Q_STATE_CAST(&FdAo_initial));
@@ -199,31 +213,9 @@ bool AO_FlightDirector_process_command(int cmd) {
     auto cmdType = static_cast<rc::CommandType>(cmd);
     rc::FlightPhase phase = rc::flight_director_phase(&l_fdAo.director);
 
-    // Build Go/No-Go input from current system state
-    shared_sensor_data_t snap{};
-    seqlock_read(&g_sensorSeqlock, &snap);
-
+    // Build Go/No-Go input from health monitor (Phase 6)
     rc::GoNoGoInput gng{};
-    // Tier 1: Platform
-    gng.imu_healthy = g_imuInitialized && snap.accel_valid;
-    gng.baro_healthy = g_baroInitialized && snap.baro_valid;
-    gng.eskf_healthy = g_eskfInitialized && eskf_runner_get_eskf()->healthy();
-    {
-        const rc::FlightTableState* ft = AO_Logger_get_flight_table();
-        gng.flash_available = ft->loaded &&
-                              (rc::flight_table_count(ft) <
-                               rc::kMaxFlightEntries);
-    }
-    gng.launch_abort = g_recovery.launch_abort;
-    gng.watchdog_ok = !g_recovery.boot_state.safe_mode &&
-                      !g_recovery.eskf_disabled;
-    // Tier 2: Profile
-    gng.gps_has_lock = g_gpsInitialized &&
-                       snap.gps_fix_type >= 2 &&
-                       snap.gps_satellites >= 4;
-    const calibration_store_t* cal = calibration_manager_get();
-    gng.mag_calibrated = (cal->cal_flags & CAL_STATUS_MAG) != 0;
-    gng.radio_linked = g_radioInitialized;
+    rc::health_monitor_fill_go_nogo(&gng);
 
     rc::CommandResult result = rc::command_handler_validate(
         cmdType, phase, &gng);

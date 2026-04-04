@@ -67,8 +67,9 @@ enum RcSignal : uint16_t {
     SIG_RADIO_RX,                    // 24: Raw packet received (Radio → Telem)
     SIG_RADIO_STATUS,                // 25: Link quality update (Radio → LED, CLI)
     SIG_GCS_CMD,                     // 26: Uplink command from GCS (Telem → FD) [C3-A4]
+    SIG_HEALTH_STATUS,               // 27: Health flags changed (HealthMonitor → AOs)
 
-    SIG_AO_MAX                       // 27: Sentinel — pub-sub array size
+    SIG_AO_MAX                       // 28: Sentinel — pub-sub array size
 };
 
 // Backward compatibility aliases
@@ -133,6 +134,12 @@ struct GcsCmdEvt {
     QEvt super;
     uint8_t cmd_type;       // Future: arm, disarm, abort, param, etc.
     uint32_t param;
+};
+
+// Health status change (Phase 6: health_monitor_tick detected flag change)
+struct HealthStatusEvt {
+    QEvt super;
+    uint8_t health_flags;   // Bitfield of rc::HealthFlag
 };
 
 // Signal name lookup (extends flight_signal_name for system-wide signals)
