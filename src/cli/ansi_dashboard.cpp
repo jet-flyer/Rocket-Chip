@@ -273,7 +273,7 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
         "RX: %lu pkts  CRC err: %lu%s\n"
         "Uptime: %lus%s\n"
         "%s\n"
-        "'m' mode cycle  'h' help%s\n",
+        "'m' mode  'x' menu%s\n",
         kHome,
         kClrEol,
         sig_msg, kClrEol,

@@ -370,6 +370,7 @@ else()
         src/active_objects/ao_logger.cpp
         src/active_objects/ao_telemetry.cpp
         src/active_objects/ao_radio.cpp
+        src/active_objects/ao_rcos.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -386,6 +387,7 @@ else()
         src/calibration/calibration_storage.cpp
         src/cli/rc_os.cpp
         src/cli/ansi_dashboard.cpp
+        src/active_objects/ao_rcos.cpp
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/eskf.cpp

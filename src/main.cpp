@@ -44,6 +44,7 @@
 #include "rocketchip/telemetry_service.h"
 #include "cli/rc_os.h"
 #include "cli/ansi_dashboard.h"
+#include "active_objects/ao_rcos.h"
 #include "watchdog/watchdog_recovery.h"
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
@@ -1778,7 +1779,7 @@ static void print_hw_status() {
                rocketchip::pins::kRadioCs, rocketchip::pins::kRadioRst,
                rocketchip::pins::kRadioIrq);
         if constexpr (kRadioModeRx) {
-            auto mode = AO_Telemetry_get_output_mode();
+            auto mode = AO_RCOS_get_output_mode();
             const char* mode_name = (mode == StationOutputMode::kAnsi) ? "ANSI dashboard" :
                                     (mode == StationOutputMode::kCsv)  ? "CSV" : "MAVLink";
             printf("[MODE] RX — %s output ('m' to cycle)\n", mode_name);
@@ -2170,94 +2171,8 @@ static void watchdog_kick_tick() {
     rc::pio_watchdog_feed();
 }
 
-// Enter CLI menu from dashboard — show banner + help
-static void enter_cli_menu() {
-    AO_Telemetry_set_output_mode(StationOutputMode::kMenu);
-    printf("\033[2J\033[H");
-    printf("========================================\n");
-    printf("  RocketChip OS v0.4.0 — Station RX\n");
-    printf("  Board: %s\n", board::kBoardName);
-    printf("========================================\n\n");
-    printf("Status:  h-Help  s-Sensor  b-Boot\n");
-    printf("Radio:   t-Status  r-Rate\n");
-    printf("Station: g-GPS  d-Distance\n");
-    printf("Output:  m-Dashboard\n");
-    printf("========================================\n");
-    printf("[main] ");
-}
-
-// Handle mode cycle ('m' key) for station RX
-static void handle_mode_cycle() {
-    if constexpr (kRadioModeRx) {
-        AO_Telemetry_cycle_output_mode();
-        auto new_mode = AO_Telemetry_get_output_mode();
-        const char* name = (new_mode == StationOutputMode::kAnsi) ? "ANSI" :
-                           (new_mode == StationOutputMode::kCsv)  ? "CSV" : "MAVLink";
-        if (new_mode == StationOutputMode::kAnsi) {
-            printf("\033[2J\033[H");
-        } else {
-            printf("\n[RX] Output: %s\n", name);
-        }
-    } else {
-        AO_Telemetry_toggle_mavlink();
-        printf("\n[USB] Output: CLI\n");
-    }
-}
-
-// Poll keys in dashboard/MAVLink mode — only 'm' and 'x' accepted
-static bool poll_dashboard_keys() {
-    if (!stdio_usb_connected()) { return false; }
-    int ch;
-    while ((ch = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
-        if (ch == 'x' || ch == 'X') { enter_cli_menu(); return true; }
-        if (ch == 'm' || ch == 'M') { handle_mode_cycle(); return true; }
-    }
-    return false;
-}
-
-static void cli_update_tick() {
-    auto mode = AO_Telemetry_get_output_mode();
-
-    if (mode == StationOutputMode::kMenu) {
-        rc_os_update();
-        feed_active_calibration();
-        return;
-    }
-
-    if (mode == StationOutputMode::kMavlink || mode == StationOutputMode::kAnsi) {
-        poll_dashboard_keys();
-        return;
-    }
-
-    // CSV mode: normal CLI
-    rc_os_update();
-    feed_active_calibration();
-}
-
-// Station ANSI dashboard tick — renders on new RX packet or 1Hz idle.
-// Runs from QV idle bridge, non-blocking (<2ms per render).
-static uint32_t s_last_ansi_rx_count = 0;
-static uint32_t s_last_ansi_render_ms = 0;
-
-static void ansi_dashboard_tick() {
-    if constexpr (!kRadioModeRx) { return; }
-    if (AO_Telemetry_get_output_mode() != StationOutputMode::kAnsi) { return; }
-    if (!stdio_usb_connected()) { return; }
-
-    const auto* rs = AO_Radio_get_state();
-    const auto* rx = AO_Telemetry_get_rx_state();
-    uint32_t now = to_ms_since_boot(get_absolute_time());
-
-    // Redraw on new packet, or 1Hz for waiting/stale screen
-    bool new_packet = (rs->rx_count != s_last_ansi_rx_count);
-    bool timer_expired = (now - s_last_ansi_render_ms >= 1000);
-    if (!new_packet && !timer_expired) { return; }
-
-    s_last_ansi_rx_count = rs->rx_count;
-    s_last_ansi_render_ms = now;
-
-    ansi_dashboard_render(rx->telem, rs, rx->met_ms, rx->seq, rx->valid);
-}
+// CLI and ANSI dashboard moved to AO_RCOS (Stage 12B Phase 2).
+// Calibration bridge: blocking wizards stay here, triggered by g_pending_cal.
 
 // INTERIM: Adafruit ICM-20948 breakout has sensor Z-up convention.
 // ESKF expects NED (Z-down). Negate Z for accel, gyro, and mag at
@@ -3203,7 +3118,17 @@ static void handle_unhandled_key(int key) {
         }
         break;
     case 'm': case 'M':
-        handle_mode_cycle();
+        AO_RCOS_cycle_output_mode();
+        {
+            auto mode = AO_RCOS_get_output_mode();
+            const char* name = (mode == StationOutputMode::kAnsi) ? "ANSI" :
+                               (mode == StationOutputMode::kCsv)  ? "CSV" : "MAVLink";
+            if (mode == StationOutputMode::kAnsi) {
+                printf("\033[2J\033[H");
+            } else {
+                printf("\n[RX] Output: %s\n", name);
+            }
+        }
         break;
     default: break;
     }
@@ -3397,10 +3322,16 @@ extern "C" void qv_idle_bridge(void) {
     g_recovery.current_tick_fn = rc::TickFnId::kEskf;
     eskf_tick();
 
+    // CLI key dispatch + calibration wizards: still in idle bridge.
+    // AO_RCOS handles output mode + ANSI render only.
+    // rc_os_update() stays here because blocking cal wizards run inside it.
     g_lastTickFunction = "cli";
     g_recovery.current_tick_fn = rc::TickFnId::kCli;
-    cli_update_tick();
-    ansi_dashboard_tick();
+    if (AO_RCOS_get_output_mode() == StationOutputMode::kMenu ||
+        AO_RCOS_get_output_mode() == StationOutputMode::kCsv) {
+        rc_os_update();
+        feed_active_calibration();
+    }
 
     g_lastTickFunction = "idle";
     g_recovery.current_tick_fn = rc::TickFnId::kSleep;
@@ -3441,6 +3372,7 @@ int main() {
     }
     // Station/Relay: AO_Radio owns NeoPixels exclusively (RSSI bar).
     // AO_LedEngine disabled to prevent PIO contention (LL Entry 32 pattern).
+    AO_RCOS_start(1U);              // 20Hz — CLI/dashboard, all roles
     // AO_Counter: jitter measurement diagnostic. Disabled — prints every 5s,
     // clutters serial. Re-enable for scheduler debugging.
     // AO_Counter_start(1U);
