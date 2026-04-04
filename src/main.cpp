@@ -12,6 +12,7 @@
  */
 
 #include "rocketchip/config.h"
+#include "rocketchip/sensor_seqlock.h"
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 #include "pico/time.h"
@@ -127,8 +128,7 @@ static constexpr double kGpsCoordScale = 1e7;                   // Degrees to 1e
 // PA1010D SDA settling delay (LL Entry 24)
 static constexpr uint32_t kGpsSdaSettleUs = 500;
 
-// Seqlock parameters
-static constexpr uint32_t kSeqlockMaxRetries = 4;
+// Seqlock parameters: kSeqlockMaxRetries moved to sensor_seqlock.h
 
 // ESKF propagation rate (Hz) — derived from IMU rate / divider
 static constexpr uint32_t kEskfRateHz = 200;
@@ -350,88 +350,20 @@ static uint32_t g_eskfBenchCount = 0;
 // static constexpr uint32_t kHistStep = 100;  // µs per bucket
 // static uint32_t g_eskfBenchHist[kHistBuckets] = {};
 
-// Shared sensor data struct (per SEQLOCK_DESIGN.md, council-approved)
-// All values calibration-applied, body frame, SI units. 128 bytes in SRAM.
-struct shared_sensor_data_t {
-    // IMU (68 bytes: 13 floats + 3 uint32_t + 3 bool + 1 pad)
-    float accel_x;                          // m/s^2
-    float accel_y;
-    float accel_z;
-    float gyro_x;                           // rad/s
-    float gyro_y;
-    float gyro_z;
-    float mag_x;                            // uT calibrated (when mag_valid)
-    float mag_y;
-    float mag_z;
-    float mag_raw_x;                        // uT raw (for mag recalibration)
-    float mag_raw_y;
-    float mag_raw_z;
-    float imu_temperature_c;
-    uint32_t imu_timestamp_us;
-    uint32_t imu_read_count;                // Monotonic
-    uint32_t mag_read_count;                // Increments only on new mag data
-    bool accel_valid;
-    bool gyro_valid;
-    bool mag_valid;
-    uint8_t _pad_imu;
+// Sensor data types, seqlock protocol, and cross-core signaling
+// are defined in include/rocketchip/sensor_seqlock.h (Phase 0A extraction).
+// Global instances defined here, will migrate to owning modules in later phases.
 
-    // Barometer (20 bytes)
-    float pressure_pa;
-    float baro_temperature_c;
-    uint32_t baro_timestamp_us;
-    uint32_t baro_read_count;
-    bool baro_valid;
-    uint8_t _pad_baro[3];
+sensor_seqlock_t g_sensorSeqlock;
 
-    // GPS (32 bytes)
-    int32_t gps_lat_1e7;
-    int32_t gps_lon_1e7;
-    float gps_alt_msl_m;
-    float gps_ground_speed_mps;
-    float gps_course_deg;
-    uint32_t gps_timestamp_us;
-    uint32_t gps_read_count;
-    uint8_t gps_fix_type;
-    uint8_t gps_satellites;
-    bool gps_valid;
-    // Diagnostic: raw lwGPS fields for debugging fix detection
-    uint8_t gps_gga_fix;       // GGA fix quality (0=none, 1=GPS, 2=DGPS)
-    uint8_t gps_gsa_fix_mode;  // GSA fix mode (1=none, 2=2D, 3=3D)
-    bool gps_rmc_valid;        // RMC status ('A')
-    uint8_t _pad_gps[2];
-    float gps_hdop;            // Horizontal DOP (0 = unknown)
-    float gps_vdop;            // Vertical DOP (0 = unknown)
+std::atomic<bool> g_startSensorPhase{false};
+std::atomic<bool> g_sensorPhaseDone{false};
+std::atomic<bool> g_calReloadPending{false};
+std::atomic<bool> g_core1PauseI2C{false};
+std::atomic<bool> g_core1I2CPaused{false};
+std::atomic<bool> g_core1LockoutReady{false};
 
-    // Health (16 bytes)
-    uint32_t imu_error_count;
-    uint32_t baro_error_count;
-    uint32_t gps_error_count;
-    uint32_t core1_loop_count;              // For watchdog/stall detection
-};
-
-static_assert(sizeof(shared_sensor_data_t) == 148, "Struct size changed — update SEQLOCK_DESIGN.md"); // NOLINT(readability-magic-numbers)
-static_assert(sizeof(shared_sensor_data_t) % 4 == 0, "Struct must be 4-byte aligned for memcpy");
-
-// Seqlock wrapper — single buffer with sequence counter
-struct sensor_seqlock_t {
-    std::atomic<uint32_t> sequence{0};      // Odd = write in progress
-    shared_sensor_data_t data = {};
-};
-
-static sensor_seqlock_t g_sensorSeqlock;
-
-// Cross-core signaling (atomic flags — FIFO reserved by multicore_lockout)
-static std::atomic<bool> g_startSensorPhase{false};
-static std::atomic<bool> g_sensorPhaseDone{false};
-static std::atomic<bool> g_calReloadPending{false};
-static std::atomic<bool> g_core1PauseI2C{false};
-static std::atomic<bool> g_core1I2CPaused{false};
-static std::atomic<bool> g_core1LockoutReady{false};  // Core 1 has called multicore_lockout_victim_init()
-
-// INTERIM: NeoPixel calibration override (Phase M.5).
-// Replace with proper AP_Notify-style status state machine when implemented.
-// Core 0 (CLI) writes, Core 1 reads in core1_neopixel_update().
-static std::atomic<uint8_t> g_calNeoPixelOverride{kCalNeoOff};
+std::atomic<uint8_t> g_calNeoPixelOverride{kCalNeoOff};
 
 // Dual-core watchdog kick flags — std::atomic per MULTICORE_RULES.md
 // volatile is NOT sufficient for cross-core visibility on ARM (no hardware barrier)
@@ -455,38 +387,7 @@ static bool g_calStorageInitialized = false;
 // IMU device handle (static per LL Entry 1 — avoid large objects on stack)
 static icm20948_t g_imu;
 
-// ============================================================================
-// Seqlock Read/Write API
-// ============================================================================
-// Per SEQLOCK_DESIGN.md: explicit __dmb() required because memory_order_release
-// only orders the atomic store itself, not the non-atomic memcpy data.
-
-static void seqlock_write(sensor_seqlock_t* sl, const shared_sensor_data_t* src) {
-    uint32_t seq = sl->sequence.load(std::memory_order_relaxed);
-    // Signal write-in-progress (odd)
-    sl->sequence.store(seq + 1, std::memory_order_release);
-    __dmb();  // Ensure odd counter visible before data writes
-    memcpy(&sl->data, src, sizeof(shared_sensor_data_t));
-    __dmb();  // Ensure all data writes complete before even counter
-    sl->sequence.store(seq + 2, std::memory_order_release);
-}
-
-static bool seqlock_read(sensor_seqlock_t* sl, shared_sensor_data_t* dst) {
-    for (uint32_t attempt = 0; attempt < kSeqlockMaxRetries; attempt++) {
-        uint32_t seq1 = sl->sequence.load(std::memory_order_acquire);
-        if ((seq1 & 1U) != 0U) {
-            continue;  // Write in progress, retry
-        }
-        __dmb();  // Ensure counter read committed before data reads
-        memcpy(dst, &sl->data, sizeof(shared_sensor_data_t));
-        __dmb();  // Ensure all data loads complete before re-reading counter
-        uint32_t seq2 = sl->sequence.load(std::memory_order_acquire);
-        if (seq1 == seq2) {
-            return true;  // Consistent snapshot
-        }
-    }
-    return false;  // All retries collided — caller uses previous data
-}
+// Seqlock read/write API moved to sensor_seqlock.h (Phase 0A).
 
 // ============================================================================
 // MemManage / HardFault Handler
