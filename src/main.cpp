@@ -242,7 +242,8 @@ std::atomic<bool> g_core1PauseI2C{false};
 std::atomic<bool> g_core1I2CPaused{false};
 std::atomic<bool> g_core1LockoutReady{false};
 
-std::atomic<uint8_t> g_calNeoPixelOverride{kCalNeoOff};
+// g_calNeoPixelOverride removed (Phase 5). CLI uses AO_LedEngine_post_override(),
+// FD uses AO_LedEngine_post_pattern(). No cross-core atomic needed.
 
 // Dual-core watchdog kick flags — std::atomic per MULTICORE_RULES.md
 // volatile is NOT sufficient for cross-core visibility on ARM (no hardware barrier)
@@ -473,12 +474,12 @@ static void cal_post_hook() {
 }
 
 // ============================================================================
-// INTERIM: NeoPixel override callback (Phase M.5)
-// Replace with AP_Notify state machine when full status module is implemented.
+// NeoPixel calibration override callback (Phase 5)
+// Routes CLI calibration overlays to AO_LedEngine's calibration layer.
 // ============================================================================
 
 static void set_cal_neo_override(uint8_t mode) {
-    g_calNeoPixelOverride.store(mode, std::memory_order_relaxed);
+    AO_LedEngine_post_override(mode);
 }
 
 // ============================================================================

@@ -153,9 +153,7 @@ extern std::atomic<bool> g_core1PauseI2C;
 extern std::atomic<bool> g_core1I2CPaused;
 extern std::atomic<bool> g_core1LockoutReady;
 
-// NeoPixel calibration override (Phase M.5 interim).
-// Core 0 (CLI) writes, Core 1 reads. Will be replaced by SIG_LED_OVERRIDE
-// events in Phase 5 (LED Engine priority compositor).
-extern std::atomic<uint8_t> g_calNeoPixelOverride;
+// g_calNeoPixelOverride removed (Phase 5). CLI uses AO_LedEngine_post_override(),
+// FD uses AO_LedEngine_post_pattern(). No cross-core atomic needed.
 
 #endif // ROCKETCHIP_SENSOR_SEQLOCK_H

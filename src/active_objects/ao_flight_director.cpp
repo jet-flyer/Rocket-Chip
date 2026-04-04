@@ -12,6 +12,7 @@
 //============================================================================
 
 #include "ao_flight_director.h"
+#include "ao_led_engine.h"
 #include "ao_logger.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/sensor_seqlock.h"
@@ -31,7 +32,6 @@
 #include "watchdog/watchdog_recovery.h" // rc::WatchdogRecovery
 
 #include "pico/time.h"
-#include <atomic>
 #include <stdio.h>
 #include <math.h>
 
@@ -72,7 +72,6 @@ static QEvtPtr l_fdAoQueue[32];
 // ============================================================================
 
 extern sensor_seqlock_t g_sensorSeqlock;
-extern std::atomic<uint8_t> g_calNeoPixelOverride;
 extern rc::WatchdogRecovery g_recovery;
 extern bool g_radioInitialized;  // NOLINT(readability-redundant-declaration)
 
@@ -149,7 +148,7 @@ void AO_FlightDirector_start(uint8_t prio) {
     // --- Initialize FlightDirector QHsm (moved from init_flight_director) ---
     rc::flight_director_ctor(&me->director, &rc::kDefaultRocketProfile);
     me->director.set_led_cb = [](uint8_t val) {
-        g_calNeoPixelOverride.store(val, std::memory_order_relaxed);
+        AO_LedEngine_post_pattern(val);
     };
     me->director.log_pyro_cb = [](rc::PyroChannel ch) {
         printf("[FD] PYRO INTENT: %s\n",

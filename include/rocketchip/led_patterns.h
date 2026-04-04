@@ -6,9 +6,8 @@
 // NeoPixel override values used by calibration, RX overlay, and flight
 // phase subsystems. Replaces duplicate definitions in main.cpp and rc_os.cpp.
 //
-// Values are uint8_t pattern codes written to g_calNeoPixelOverride (interim)
-// or posted as LedPatternEvt (target architecture). The LED engine maps
-// each code to a (mode, color) pair.
+// Values are uint8_t pattern codes posted as LedPatternEvt or LedOverrideEvt
+// to AO_LedEngine. The LED engine maps each code to a (mode, color) pair.
 //
 // Value ranges:
 //   0       = no override (normal status logic)
@@ -59,6 +58,22 @@ static constexpr uint8_t kFdLanded    = 25;  // Green blink
 static constexpr uint8_t kFdAbort     = 26;  // Red fast blink
 static constexpr uint8_t kFdBeacon    = 27;  // White blink (post-landing locator)
 
+// ============================================================================
+// Sensor status patterns (evaluated by AO_LedEngine priority compositor)
+// ============================================================================
+static constexpr uint8_t kSensorEskfInit  = 30;  // Red fast blink (hold still)
+static constexpr uint8_t kSensorGps3d     = 31;  // Green solid (3D fix)
+static constexpr uint8_t kSensorGps2d     = 32;  // Green blink (2D fix)
+static constexpr uint8_t kSensorGpsSearch = 33;  // Yellow blink (NMEA, no fix)
+static constexpr uint8_t kSensorGpsNoNmea = 34;  // Cyan fast blink (init, no data)
+static constexpr uint8_t kSensorNoGps     = 35;  // Blue blink (ESKF, no GPS)
+static constexpr uint8_t kSensorTimeout   = 36;  // Magenta solid (5min timeout)
+
+// ============================================================================
+// Fault patterns (highest priority — AO_LedEngine fault layer)
+// ============================================================================
+static constexpr uint8_t kFaultCore1Stall = 40;  // Magenta solid (Core 1 stalled)
+
 } // namespace led
 } // namespace rc
 
@@ -66,7 +81,7 @@ static constexpr uint8_t kFdBeacon    = 27;  // White blink (post-landing locato
 // Backward-compatibility aliases (non-namespaced)
 //
 // Used throughout main.cpp, rc_os.cpp, ao_led_engine.cpp until those files
-// are migrated to use rc::led:: namespace directly. Remove after Phase 5.
+// are migrated to use rc::led:: namespace directly.
 // ============================================================================
 static constexpr uint8_t kCalNeoOff         = rc::led::kOff;
 static constexpr uint8_t kCalNeoGyro        = rc::led::kCalGyro;
@@ -90,5 +105,14 @@ static constexpr uint8_t kFdNeoMain         = rc::led::kFdMain;
 static constexpr uint8_t kFdNeoLanded       = rc::led::kFdLanded;
 static constexpr uint8_t kFdNeoAbort        = rc::led::kFdAbort;
 static constexpr uint8_t kFdNeoBeacon       = rc::led::kFdBeacon;
+
+static constexpr uint8_t kSensorNeoEskfInit  = rc::led::kSensorEskfInit;
+static constexpr uint8_t kSensorNeoGps3d     = rc::led::kSensorGps3d;
+static constexpr uint8_t kSensorNeoGps2d     = rc::led::kSensorGps2d;
+static constexpr uint8_t kSensorNeoGpsSearch = rc::led::kSensorGpsSearch;
+static constexpr uint8_t kSensorNeoGpsNoNmea = rc::led::kSensorGpsNoNmea;
+static constexpr uint8_t kSensorNeoNoGps     = rc::led::kSensorNoGps;
+static constexpr uint8_t kSensorNeoTimeout   = rc::led::kSensorTimeout;
+static constexpr uint8_t kFaultNeoCore1Stall = rc::led::kFaultCore1Stall;
 
 #endif // ROCKETCHIP_LED_PATTERNS_H

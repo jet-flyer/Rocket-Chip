@@ -15,7 +15,6 @@
 
 #include "rocketchip/config.h"
 #include "rocketchip/sensor_seqlock.h"
-#include "rocketchip/led_patterns.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/multicore.h"
@@ -56,9 +55,6 @@ static constexpr uint32_t kGpsSdaSettleUs = 500;
 
 // kCore1PauseAckMaxMs stays in main.cpp — used by Core 0 wait loop, not Core 1.
 
-// NeoPixel timing (Core 1 sensor phase)
-static constexpr uint32_t kSensorPhaseTimeoutMs = 300000;       // 5 min -- switch to magenta
-
 // GPS coordinate bounds (WGS-84)
 static constexpr double kLatMaxDeg  =  90.0;
 static constexpr double kLatMinDeg  = -90.0;
@@ -71,16 +67,6 @@ static constexpr uint32_t kGpsStalenessTimeoutUs = 10000000;    // 10s
 // Velocity threshold for "probably flying" heuristic (flight state gate).
 // Prevents UART reinit mid-flight. Replaced by real state machine in IVP-67.
 static constexpr float kGpsFlyingVelocityThreshold = 5.0F;      // m/s
-
-// ============================================================================
-// Core 1 Private Globals
-// ============================================================================
-
-// Tracks last NeoPixel mode/color so we only call ws2812_set_mode()
-// on transitions, not every cycle (which would reset animation state).
-static uint8_t g_lastCalNeoOverride = kCalNeoOff;
-static ws2812_mode_t  g_lastNeoMode  = WS2812_MODE_OFF;
-static ws2812_rgb_t   g_lastNeoColor = kColorOff;
 
 // ============================================================================
 // Cross-Core Globals (written by Core 1, read by Core 0)
@@ -386,96 +372,6 @@ static void core1_read_gps(shared_sensor_data_t* localData,
 }
 
 // ============================================================================
-// Core 1: NeoPixel State Update
-// ============================================================================
-
-// Helper: call ws2812_set_mode() only when mode or color changes.
-// Calling ws2812_set_mode() every tick resets phaseStartMs, blinkState,
-// and rainbowHue, which prevents breathe/blink/rainbow from animating.
-static void neo_set_if_changed(ws2812_mode_t mode, ws2812_rgb_t color) {
-    if (mode != g_lastNeoMode ||
-        color.r != g_lastNeoColor.r ||
-        color.g != g_lastNeoColor.g ||
-        color.b != g_lastNeoColor.b) {
-        g_lastNeoMode  = mode;
-        g_lastNeoColor = color;
-        ws2812_set_mode(mode, color);
-    }
-}
-
-// Map NeoPixel override value to mode + color.
-// Covers calibration (kCalNeo*), RX (kRxNeo*), and flight (kFdNeo*) overlays.
-static void neo_apply_override(uint8_t val) {
-    switch (val) {
-        case kCalNeoGyro:        // fall through
-        case kCalNeoLevel:       neo_set_if_changed(WS2812_MODE_BREATHE, kColorBlue); break;
-        case kCalNeoBaro:        neo_set_if_changed(WS2812_MODE_BREATHE, kColorCyan); break;
-        case kCalNeoAccelWait:   neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow); break;
-        case kCalNeoAccelSample: neo_set_if_changed(WS2812_MODE_SOLID, kColorYellow); break;
-        case kCalNeoMag:         neo_set_if_changed(WS2812_MODE_RAINBOW, kColorWhite); break;
-        case kCalNeoSuccess:     neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen); break;
-        case kCalNeoFail:        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
-        case kRxNeoReceiving:    neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen); break;
-        case kRxNeoGap:          neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow); break;
-        case kRxNeoLost:         neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
-        case kFdNeoArmed:        neo_set_if_changed(WS2812_MODE_SOLID, kColorOrange); break;
-        case kFdNeoBoost:        neo_set_if_changed(WS2812_MODE_SOLID, kColorRed); break;
-        case kFdNeoCoast:        neo_set_if_changed(WS2812_MODE_SOLID, kColorYellow); break;
-        case kFdNeoDrogue:       neo_set_if_changed(WS2812_MODE_BLINK, kColorRed); break;
-        case kFdNeoMain:         neo_set_if_changed(WS2812_MODE_BLINK, kColorRed); break;
-        case kFdNeoLanded:       neo_set_if_changed(WS2812_MODE_BLINK, kColorGreen); break;
-        case kFdNeoAbort:        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed); break;
-        case kFdNeoBeacon:       neo_set_if_changed(WS2812_MODE_BLINK, kColorWhite); break;
-        default:                 break;
-    }
-}
-
-static void core1_neopixel_update(shared_sensor_data_t* localData,
-                                   uint32_t nowMs, uint32_t sensorPhaseStartMs) {
-    // INTERIM: NeoPixel overlay (Phase M.5). Calibration, RX, and flight
-    // phase overlays set by Core 0. Replace with AP_Notify (IVP-77).
-    uint8_t calOverride = g_calNeoPixelOverride.load(std::memory_order_relaxed);
-    if (calOverride != kCalNeoOff) {
-        if (calOverride != g_lastCalNeoOverride) {
-            g_lastCalNeoOverride = calOverride;
-            neo_apply_override(calOverride);
-        }
-        ws2812_update();
-        return;
-    }
-    g_lastCalNeoOverride = kCalNeoOff;
-
-    // Normal status NeoPixel logic -- use neo_set_if_changed() so animations
-    // aren't reset every tick.
-    if ((nowMs - sensorPhaseStartMs) >= kSensorPhaseTimeoutMs) {
-        neo_set_if_changed(WS2812_MODE_SOLID, kColorMagenta);
-    } else if (!g_eskfInitialized) {
-        // ESKF waiting for stationary init -- fast red blink ("hold still").
-        neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorRed);
-    } else if (g_gpsInitialized) {
-        if (localData->gps_fix_type >= 3) {
-            // 3D fix -- solid green
-            neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen);
-        } else if (localData->gps_fix_type == 2) {
-            // 2D fix -- blink green
-            neo_set_if_changed(WS2812_MODE_BLINK, kColorGreen);
-        } else if (localData->gps_read_count > 0) {
-            // Searching (NMEA flowing, no fix) -- blink yellow
-            neo_set_if_changed(WS2812_MODE_BLINK, kColorYellow);
-        } else {
-            // GPS init but no NMEA yet -- fast blink cyan
-            neo_set_if_changed(WS2812_MODE_BLINK_FAST, kColorCyan);
-        }
-    } else if (g_sensorPhaseDone.load(std::memory_order_acquire)) {
-        neo_set_if_changed(WS2812_MODE_SOLID, kColorGreen);
-    } else {
-        // ESKF running, no GPS -- slow blink blue
-        neo_set_if_changed(WS2812_MODE_BLINK, kColorBlue);
-    }
-    ws2812_update();
-}
-
-// ============================================================================
 // Core 1: Sensor Loop
 // ============================================================================
 // INVARIANT: Core 0 must NOT call icm20948_*() or baro_dps310_*() unless
@@ -531,7 +427,6 @@ static void core1_sensor_loop() {
     uint32_t imuConsecFail = 0;
     uint32_t gpsCycle = 0;
     uint32_t lastGpsReadUs = 0;
-    uint32_t sensorPhaseStartMs = to_ms_since_boot(get_absolute_time());
 
     while (true) {
         uint32_t cycleStartUs = time_us_32();
@@ -571,8 +466,8 @@ static void core1_sensor_loop() {
         // IVP-90: Core 1 heartbeat removed (was g_wdtCore1Alive).
         // PIO heartbeat watchdog monitors both cores via FIFO feed from Core 0.
 
-        uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-        core1_neopixel_update(&localData, nowMs, sensorPhaseStartMs);
+        // NeoPixel update migrated to AO_LedEngine (Phase 5). Core 1 only
+        // does sensor reads + seqlock publish. LED state evaluated on Core 0.
 
         uint32_t elapsed = time_us_32() - cycleStartUs;
         if (elapsed < kCore1TargetCycleUs) {
