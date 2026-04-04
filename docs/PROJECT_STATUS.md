@@ -1,16 +1,20 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-03-31 (Stage 12A COMPLETE)
+**Last Updated:** 2026-04-03 (Stage 12B in progress)
 
 ## Current Phase
 
-**Stage 12A COMPLETE** — Radio Module + Fruit Jam GCS (IVP-92–98)
+**Stage 12B IN PROGRESS** — Ground Station Dashboard + AO_RCOS
 
-Radio code extracted from main.cpp into AO_Radio (hardware) + AO_Telemetry (protocol) split. Non-blocking TX, RadioScheduler half-duplex SM, three-Job system (Vehicle/Station/Relay), RadioConfig in Mission Profile, RSSI bar, relay forwarding. 3 council reviews (all unanimous). HW verified on 3 boards: Feather TX, Fruit Jam RX, Feather Relay. 598/598 host tests.
+Phase 1 (ANSI dashboard) and Phase 2 (AO_RCOS extraction) committed and HW verified. WiFi browser dashboard deferred (NINA TCP write bug). Next: session close docs, then Stage 13 planning.
 
-**RP2350B finding:** GPIO pads start isolated (ISO=1) on RP2350B — breaks I2C bus recovery if called before gpio_set_function(). Fixed in i2c_bus_init(). Documented in BOARD_COMPARISON.md.
+**Done this stage:**
+- ANSI terminal dashboard: firmware-rendered, color-coded, in-place update at RX rate
+- AO_RCOS: CLI output mode + dashboard rendering extracted into Active Object (20Hz)
+- StationOutputMode in shared header, cal bridge pattern ready
+- 598/598 SPIN tests pass, HW verified on Fruit Jam + Feather
 
-**Next: Stage 12B** — Linux GCS (Yamcs, OpenMCT, Pi image). IVP numbers assigned when planned.
+**Deferred:** WiFi HTTP dashboard (code on `claude/stage-12b-wifi-dashboard` branch)
 
 ## Completed
 

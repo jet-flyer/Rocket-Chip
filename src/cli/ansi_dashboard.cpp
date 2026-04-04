@@ -211,7 +211,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         "Batt: %.2fV  Temp: %dC  ESKF: %s%s%s  Seq: %u%s\n"
         "Lat: %.7f  Lon: %.7f%s\n"
         "%s\n"
-        "'m' mode  'x' menu%s\n",
+        "'m' mode cycle  'x' menu%s\n",
         kHome,
         kClrEol,
         d.phase_clr, d.phase, kReset,
@@ -273,7 +273,7 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
         "RX: %lu pkts  CRC err: %lu%s\n"
         "Uptime: %lus%s\n"
         "%s\n"
-        "'m' mode  'x' menu%s\n",
+        "'m' mode cycle  'x' menu%s\n",
         kHome,
         kClrEol,
         sig_msg, kClrEol,

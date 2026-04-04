@@ -20,6 +20,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-03-001 | Claude Code CLI | feature, architecture, council
+
+**Stage 12B: ANSI Terminal Dashboard + AO_RCOS extraction.** Two commits. Two council reviews (both unanimous).
+
+**ANSI Dashboard:** Firmware-rendered live dashboard over USB serial. Color-coded telemetry (flight state, RSSI bar, signal age). Cursor-home + clear-to-EOL rendering (no flicker). ANSI-by-default, `m` cycles modes (ANSI→CSV→MAVLink), `x` enters CLI menu. No companion app needed. HW verified on Fruit Jam + Feather TX.
+
+**AO_RCOS:** Extracted CLI output mode management and ANSI rendering from qv_idle_bridge into dedicated Active Object (20Hz). StationOutputMode enum in shared header (council A3). Cal bridge pattern for blocking wizards (council A2). rc_os_update() stays in idle bridge. 598/598 SPIN tests pass.
+
+**WiFi dashboard deferred:** NINA SPI TCP server write bug unresolved. Code preserved on `claude/stage-12b-wifi-dashboard` branch + stash.
+
+---
+
 ### 2026-03-31-001 | Claude Code CLI | feature, architecture, council
 
 **Stage 12A COMPLETE: Radio Module + Fruit Jam GCS (IVP-92–98).** Seven IVPs. Three council reviews (radio universality, RadioScheduler, final plan — all unanimous). HW verified on 3 boards: Vehicle TX (Feather RP2350), Station RX (Fruit Jam), Relay (Feather RP2350).
