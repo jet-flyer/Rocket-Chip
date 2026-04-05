@@ -166,16 +166,16 @@ Items 1-2 are system invariants. Item 3 moves to non-blocking when calibration s
 
 | Phase | Description | Status | Commit | Lines Moved | Binary Delta |
 |-------|-------------|--------|--------|-------------|-------------|
-| 0A | sensor_seqlock.h | **done** | (uncommitted) | 99 | ~0 |
-| 0B | led_patterns.h | pending | -- | ~50 | -- |
-| 1 | sensor_core1.cpp | pending | -- | ~450 | -- |
-| 2 | eskf_runner.cpp | pending | -- | ~400 | -- |
-| 3 | Complete AO_FD | pending | -- | ~200 | -- |
-| 4 | Complete AO_Logger | pending | -- | ~250 | -- |
-| 5 | LED priority compositor | pending | -- | ~150 | -- |
-| 6 | health_monitor.cpp | pending | -- | ~180 | -- |
-| 7 | cli_commands.cpp | pending | -- | ~840 | -- |
-| 8 | cal_hooks.cpp | pending | -- | ~120 | -- |
+| 0A | sensor_seqlock.h | **done** | `5f2df6d` | 99 | ~0 |
+| 0B | led_patterns.h | **done** | `26be55d` | 22 | ~0 |
+| 1 | sensor_core1.cpp | **done** | `6171231` | 510 | ~0 |
+| 2 | eskf_runner.cpp | **done** | `2dd1644` | 395 | ~0 |
+| 3 | Complete AO_FD | **done** | `46662e1` | 168 | ~0 |
+| 4 | Complete AO_Logger | **done** | `7fdabfe` | 191 | ~0 |
+| 5 | LED priority compositor | **done** | `3c328e9` | ~100 (from core1) | +134 |
+| 6 | health_monitor.cpp | **done** | `1c6568b` | ~30 (from FD) | +224 |
+| 7 | cli_commands.cpp | **done** | `a72878a` | 1159 | +54 |
+| 8 | cal_hooks.cpp | **done** | `4986d5b` | 135 | +33 |
 
 **Target:** main.cpp < 600 lines after all phases complete.
 

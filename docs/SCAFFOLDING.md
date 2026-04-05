@@ -99,7 +99,9 @@ rocketchip/
 │       ├── telemetry_state.h      # 45-byte packed wire format
 │       ├── telemetry_encoder.h    # CCSDS + MAVLink encoder API
 │       ├── telemetry_service.h    # TX/RX service state + API
-│       └── fused_state.h          # ESKF output snapshot
+│       ├── fused_state.h          # ESKF output snapshot
+│       ├── sensor_seqlock.h       # Cross-core sensor data types + seqlock protocol
+│       └── led_patterns.h         # LED pattern constants (single source of truth)
 │
 ├── src/
 │   ├── main.cpp                   # Entry point: Core 0 superloop + Core 1 sensor loop
@@ -116,15 +118,19 @@ rocketchip/
 │   │   ├── ws2812_status.cpp/.h   # WS2812 NeoPixel status LED
 │   │   └── lwgps_opts.h           # lwGPS config overrides
 │   │
-│   ├── fusion/                    # Sensor Fusion (Stage 5)
+│   ├── core1/                     # Core 1 Sensor Loop (Stage 13 Phase 1)
+│   │   └── sensor_core1.cpp/.h    # IMU/baro/GPS reads, seqlock write, cal feed
+│   │
+│   ├── fusion/                    # Sensor Fusion (Stage 5 + Stage 13)
 │   │   ├── eskf.cpp/.h            # 24-state Error-State Kalman Filter
 │   │   ├── eskf_codegen.cpp/.h    # SymPy-generated FPFT (SRAM, .time_critical)
+│   │   ├── eskf_runner.cpp/.h     # ESKF fusion runner module (idle bridge, 200Hz)
 │   │   ├── eskf_state.h           # ESKF state vector definitions
 │   │   ├── mahony_ahrs.cpp/.h     # Independent Mahony AHRS cross-check
+│   │   ├── confidence_gate.cpp/.h # Innovation + AHRS divergence confidence gate
 │   │   ├── baro_kf.cpp/.h         # 1D baro Kalman filter (host tests only, not in firmware)
 │   │   ├── ud_factor.cpp/.h       # UD factorization (benchmark only, not in firmware)
-│   │   ├── wmm_declination.cpp/.h # World Magnetic Model declination lookup
-│   │   └── (future: confidence_gate.* — Stage 7)
+│   │   └── wmm_declination.cpp/.h # World Magnetic Model declination lookup
 │   │
 │   ├── math/                      # Math utilities (header-heavy)
 │   │   ├── mat.h                  # NxM matrix template (header-only)
@@ -134,10 +140,14 @@ rocketchip/
 │   ├── calibration/               # Calibration (Ground classification)
 │   │   ├── calibration_data.cpp/.h      # Calibration data structures
 │   │   ├── calibration_manager.cpp/.h   # 6-pos accel cal, mag cal algorithms
-│   │   └── calibration_storage.cpp/.h   # Flash persistence (dual-sector)
+│   │   ├── calibration_storage.cpp/.h   # Flash persistence (dual-sector)
+│   │   └── cal_hooks.cpp/.h             # Cross-core I2C pause/resume + sensor read callbacks
 │   │
 │   ├── cli/                       # CLI / Local GCS (Ground classification)
-│   │   └── rc_os.cpp/.h           # Serial menu, command dispatch, CLI hooks
+│   │   ├── rc_os.cpp/.h           # Serial menu, command dispatch, calibration wizards
+│   │   ├── ao_rcos.cpp/.h         # CLI Active Object (20Hz tick, output mode, ANSI render)
+│   │   ├── cli_commands.cpp/.h    # Display formatters + command handlers (→ rc_os_commands.cpp)
+│   │   └── ansi_dashboard.cpp/.h  # Ground station ANSI telemetry display (→ rc_os_dashboard.cpp)
 │   │
 │   ├── logging/                   # Data Logging (Stage 6)
 │   │   ├── data_convert.cpp/.h    # TelemetryState <-> FusedState conversion
@@ -160,6 +170,11 @@ rocketchip/
 │   │   ├── ao_led_engine.cpp/.h     # NeoPixel animation AO (33Hz)
 │   │   ├── ao_counter.cpp/.h        # Jitter measurement AO (disabled)
 │   │   └── ao_blinker.cpp/.h        # Blinker demo AO (disabled)
+│   │
+│   ├── safety/                    # Safety Systems (Stage 11 + Stage 13)
+│   │   ├── pio_watchdog.cpp/.h       # PIO heartbeat watchdog (IRQ-based)
+│   │   ├── pio_backup_timer.cpp/.h   # PIO backup deployment timers
+│   │   └── health_monitor.cpp/.h     # Centralized health state (10Hz from AO_FD)
 │   │
 │   ├── watchdog/                  # Watchdog Recovery (Stage 8)
 │   │   └── watchdog_recovery.cpp/.h  # Scratch register policy, safe mode

@@ -2,7 +2,7 @@
 
 **Purpose:** Communication across context windows and between agents.
 
-**Stages 1-12A COMPLETE.** 598 host tests, SPIN 6/6. Next: Stage 12B (Linux GCS). Tracking: `docs/RADIO_TELEMETRY_STATUS.md`.
+**Stages 1-13 COMPLETE.** 598 host tests, SPIN 6/6. Stage 13: AO architecture (main.cpp 3384→706). RC_OS consolidation in progress. Tracking: `docs/AO_ARCHITECTURE.md`.
 
 ## Use Cases
 1. **Cross-agent review** - Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
@@ -55,7 +55,9 @@
 - **F' Evaluation:** Three Titan paths identified (A: STM32H7+F'/Zephyr, B: Pi Zero 2 W+F'/Linux, C: Hybrid). Research complete in `docs/decisions/TITAN_BOARD_ANALYSIS.md`. Decision deferred until Titan development begins.
 - ~~**FeatherWing UART GPS:**~~ **DONE** (2026-02-18). `gps_uart.cpp` driver complete with interrupt-driven ring buffer. Outdoor validated.
 - **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
-- **LED Engine Refactor (back burner):** Current ws2812 driver is a solid animation engine but callers must manage transition-only `set_mode()` calls manually (fixed 2026-02-19 with `neo_set_if_changed()`). Refactor to a proper declarative state machine where flight/status states map to LED patterns — the engine handles transitions internally. Natural integration point: IVP-77 (LED Engine Active Object, Stage 9) when mapping to ArduPilot AP_Notify standard codes. Outdoor LED verification pending with GPS fix test.
+- ~~**LED Engine Refactor:**~~ **DONE** (2026-04-04, Stage 13 Phase 5). AO_LedEngine has 6-layer priority compositor (fault > flight > cal > radio > sensor > idle). Core 1 vitality check. All LED code consolidated — no more scattered callers.
+- **Notification Engine (post-Stage 13):** AP_Notify-style intent layer above AO_LedEngine. Subsystems report state to notification engine, engine decides visual representation (LED, buzzer, OLED). Decouples "what the system state is" from "how to display it." AO_LedEngine priority compositor is the display backend. See memory: `project_notification_engine.md`.
+- **RC_OS Calibration Separation (in progress):** Blocking calibration wizards in rc_os.cpp have execution logic embedded in CLI handlers. Target: calibration_manager owns async execution, AO_RCOS 20Hz tick drives UI state machine, rc_os.cpp becomes pure trigger+display. Must complete before flight with live pyrotechnics (Council A1).
 - **clang-tidy Integration:** LLVM installed, 127-check config active, full audit clean (2026-02-20, P5c complete). **All code fully remediated** across 6 phases (P1-P5c, 1,501 total findings + 24 function decompositions). Pre-commit hook active for function-size + cognitive complexity gate. Full 127-check pre-commit enforcement deferred (too slow for every commit). **Post-dev caveat:** clang-tidy has no native cyclomatic complexity check — the cognitive complexity gate is a proxy, not equivalent. JSF AV Rule 3 requires cyclomatic CC <= 20. **RESOLVED (2026-03-26):** `lizard` added to tiered audit script (`run_clang_tidy.sh` Tier 2). 2 CCN>20 violations found (CLI menu switches, Ground code — accepted). See `standards/STANDARDS_AUDIT_2026-03-26.md`.
 - **Dynamic Peripheral Detection + OTA Drivers (Crowdfunding Goal):** Boot-time probe-first detection implemented (2026-02-10). Runtime hot-plug, driver registry, and OTA firmware downloads for unrecognized devices are stretch goals. Full architecture documented in SAD Section 13.2. Flipper Zero-style: plug in a sensor, RC identifies it, prompts for driver. WiFi/BT OTA for Core/Middle tiers.
 - ~~**State-Aware ZUPT for State Machine (IVP-68):**~~ **DONE** (2026-03-26). Tighter R (0.01 vs 0.25) when IDLE/ARMED, skip IMU stationarity check. HW verified: zNIS=0.01.

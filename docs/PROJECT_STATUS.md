@@ -1,20 +1,28 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-03 (Stage 12B in progress)
+**Last Updated:** 2026-04-04 (Stage 13 complete, RC_OS consolidation in progress)
 
 ## Current Phase
 
-**Stage 12B IN PROGRESS** — Ground Station Dashboard + AO_RCOS
+**Stage 13 COMPLETE** — AO Architecture Completion
 
-Phase 1 (ANSI dashboard) and Phase 2 (AO_RCOS extraction) committed and HW verified. WiFi browser dashboard deferred (NINA TCP write bug). Next: session close docs, then Stage 13 planning.
+8-phase migration: main.cpp 3384→706 lines (79% reduction). All subsystems extracted into own modules/AOs with explicit interfaces. Council-reviewed (5 personas). All phases HW verified on Feather RP2350.
+
+**In progress:** RC_OS consolidation — eliminating callback indirection, renaming CLI files to rc_os_* convention, separating calibration execution from CLI into async state machine in AO_RCOS.
 
 **Done this stage:**
-- ANSI terminal dashboard: firmware-rendered, color-coded, in-place update at RX rate
-- AO_RCOS: CLI output mode + dashboard rendering extracted into Active Object (20Hz)
-- StationOutputMode in shared header, cal bridge pattern ready
-- 598/598 SPIN tests pass, HW verified on Fruit Jam + Feather
+- sensor_seqlock.h, led_patterns.h (shared headers)
+- sensor_core1.cpp (Core 1 sensor loop module)
+- eskf_runner.cpp (ESKF fusion module, stays in idle bridge)
+- AO_FlightDirector completed (owns FD HSM, guard eval, Go/No-Go)
+- AO_Logger completed (owns ring buffer, flight table, FusedState)
+- AO_LedEngine priority compositor (6 layers, Core 1 vitality check)
+- health_monitor.cpp (centralized health state, called from FD at 10Hz)
+- cli_commands.cpp (display/command handlers extracted from main.cpp)
+- cal_hooks.cpp (calibration cross-core protocol)
+- docs/AO_ARCHITECTURE.md (inventory, event flow, signal catalog)
 
-**Deferred:** WiFi HTTP dashboard (code on `claude/stage-12b-wifi-dashboard` branch)
+**Next:** RC_OS callback elimination, file renames, calibration async state machine
 
 ## Completed
 

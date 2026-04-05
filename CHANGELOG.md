@@ -20,6 +20,20 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-04-001 | Claude Code CLI | architecture, refactor, council
+
+**Stage 13: AO Architecture Completion.** 10 commits across 8 phases. Council review (5 personas, unanimous with amendments).
+
+main.cpp reduced from 3,384 to 706 lines (79%). Every subsystem extracted into its own module or AO with explicit interfaces. New files: sensor_seqlock.h (cross-core data types), led_patterns.h (single source of truth for LED constants), sensor_core1.cpp (Core 1 sensor loop), eskf_runner.cpp (ESKF fusion module, idle bridge), health_monitor.cpp (centralized health state), cli_commands.cpp (display/command handlers), cal_hooks.cpp (calibration cross-core protocol).
+
+Existing AOs completed: AO_FlightDirector now owns FlightDirector HSM + guard eval + Go/No-Go. AO_Logger now owns ring buffer + flight table + FusedState builder + event logging. AO_LedEngine now has 6-layer priority compositor (fault > flight > cal > radio > sensor > idle) with Core 1 vitality check.
+
+ESKF stays in idle bridge (Council A1: 100Hz QF tick can't match 200Hz rate). HealthMonitor is a module called from AO_FD at 10Hz (Council A2: doesn't justify own AO). SIG_HEALTH_STATUS (27) added, SIG_AO_MAX bumped to 28. New doc: docs/AO_ARCHITECTURE.md.
+
+598/598 host tests pass on every phase. All phases HW verified on Feather RP2350.
+
+---
+
 ### 2026-04-03-001 | Claude Code CLI | feature, architecture, council
 
 **Stage 12B: ANSI Terminal Dashboard + AO_RCOS extraction.** Two commits. Two council reviews (both unanimous).
