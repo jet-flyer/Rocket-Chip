@@ -535,8 +535,16 @@ static void init_application(bool watchdogReboot) {
     // Logging ring buffer and flight table init moved to AO_Logger_start() (Phase 4).
 
     // Auto-calibrate baro ground reference at boot.
+    // Blocks until complete (~1s at 32Hz DPS310 rate) so cal state returns
+    // to IDLE before AO_RCOS starts. Without this wait, g_calState stays at
+    // CAL_STATE_COMPLETE and subsequent cal triggers fail with BUSY.
     if (g_baroContinuous) {
         calibration_start_baro();
+        // Wait for Core 1 to feed enough baro samples (~32 at 32Hz = ~1s)
+        while (calibration_is_active()) {
+            sleep_ms(50);
+        }
+        calibration_reset_state();
     }
 
     // init_flight_director() moved to AO_FlightDirector_start() (Phase 3).
@@ -577,8 +585,7 @@ static void watchdog_kick_tick() {
     rc::pio_watchdog_feed();
 }
 
-// CLI and ANSI dashboard moved to AO_RCOS (Stage 12B Phase 2).
-// Calibration bridge: blocking wizards stay here, triggered by g_pending_cal.
+// CLI, ANSI dashboard, and calibration UI moved to AO_RCOS (Phase D).
 
 // ESKF tick functions moved to src/fusion/eskf_runner.cpp (Phase 2).
 // eskf_runner_tick() is called from qv_idle_bridge() below.
@@ -630,15 +637,8 @@ extern "C" void qv_idle_bridge(void) {
     g_recovery.current_tick_fn = rc::TickFnId::kEskf;
     eskf_runner_tick();
 
-    // CLI key dispatch + calibration wizards: still in idle bridge.
-    // AO_RCOS handles output mode + ANSI render only.
-    // rc_os_update() stays here because blocking cal wizards run inside it.
-    g_lastTickFunction = "cli";
-    g_recovery.current_tick_fn = rc::TickFnId::kCli;
-    if (AO_RCOS_get_output_mode() == StationOutputMode::kMenu ||
-        AO_RCOS_get_output_mode() == StationOutputMode::kCsv) {
-        rc_os_update();
-    }
+    // CLI fully handled by AO_RCOS 20Hz tick (Phase D5).
+    // rc_os_update() called from AO tick, not idle bridge.
 
     g_lastTickFunction = "idle";
     g_recovery.current_tick_fn = rc::TickFnId::kSleep;

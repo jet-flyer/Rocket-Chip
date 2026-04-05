@@ -210,7 +210,8 @@ static void core1_read_imu(shared_sensor_data_t* localData,
         if (calState == CAL_STATE_GYRO_SAMPLING) {
             calibration_feed_gyro(imuData.gyro.x, imuData.gyro.y,
                                   imuData.gyro.z, imuData.temperature_c);
-        } else if (calState == CAL_STATE_ACCEL_LEVEL_SAMPLING) {
+        } else if (calState == CAL_STATE_ACCEL_LEVEL_SAMPLING ||
+                   calState == CAL_STATE_ACCEL_6POS_SAMPLING) {
             calibration_feed_accel(imuData.accel.x, imuData.accel.y,
                                    imuData.accel.z, imuData.temperature_c);
         }

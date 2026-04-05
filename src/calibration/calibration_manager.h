@@ -25,6 +25,7 @@ typedef enum {
     CAL_STATE_GYRO_SAMPLING,
     CAL_STATE_ACCEL_LEVEL_SAMPLING,
     CAL_STATE_BARO_SAMPLING,
+    CAL_STATE_ACCEL_6POS_SAMPLING,      // Collecting samples for one 6-pos position
     CAL_STATE_COMPLETE,
     CAL_STATE_FAILED,
 } cal_state_t;
@@ -155,10 +156,11 @@ cal_result_t calibration_get_result(void);
 // ============================================================================
 
 /**
- * @brief Collect samples for one position of 6-pos calibration
+ * @brief Collect samples for one position of 6-pos calibration (BLOCKING)
  *
  * Blocking function: reads 50 samples via callback, checks motion
  * and orientation. Positions must be collected in order 0-5.
+ * DEPRECATED: prefer async API (start/feed/finalize) below.
  *
  * @param pos Position index (0-5)
  * @param read_fn Callback that reads one accel sample (blocks ~10ms)
@@ -167,6 +169,37 @@ cal_result_t calibration_get_result(void);
  *         CAL_RESULT_INVALID_DATA if orientation doesn't match expected
  */
 cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn readFn);
+
+/**
+ * @brief Start async sample collection for one 6-pos position.
+ *
+ * Sets state to CAL_STATE_ACCEL_6POS_SAMPLING. Core 1 feeds samples
+ * via calibration_feed_accel(). Call calibration_6pos_position_done()
+ * to check completion, then calibration_finalize_6pos_position() to
+ * compute the average and mark the position collected.
+ *
+ * @param pos Position index (0-5)
+ * @return CAL_RESULT_OK on success, CAL_RESULT_BUSY if cal active,
+ *         CAL_RESULT_INVALID_DATA if pos out of range or already collected
+ */
+cal_result_t calibration_start_6pos_position(uint8_t pos);
+
+/**
+ * @brief Check if enough samples collected for current async 6-pos position
+ */
+bool calibration_6pos_position_done(void);
+
+/**
+ * @brief Get number of samples collected for current async 6-pos position
+ */
+uint16_t calibration_6pos_position_sample_count(void);
+
+/**
+ * @brief Finalize current async 6-pos position (compute average, mark collected).
+ *
+ * @return CAL_RESULT_OK on success, CAL_RESULT_NO_DATA if not enough samples
+ */
+cal_result_t calibration_finalize_6pos_position(void);
 
 /**
  * @brief Run Gauss-Newton ellipsoid fit on collected 6-pos data

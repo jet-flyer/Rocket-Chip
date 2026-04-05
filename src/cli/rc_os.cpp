@@ -16,16 +16,13 @@
 #include "calibration/calibration_data.h"
 #include "drivers/i2c_bus.h"
 #include "rocketchip/config.h"
-#include "rocketchip/led_patterns.h"
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
-#include "safety/pio_watchdog.h"
 #include "cli/rc_os_commands.h"
 #include "ao_flight_director.h"
-#include "ao_led_engine.h"
+#include "ao_rcos.h"
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 
 // ============================================================================
 // Configuration
@@ -40,26 +37,7 @@ constexpr uint32_t kResetConfirmTimeoutUs = 10000000;    // 10 seconds for reset
 constexpr size_t   kResetConfirmBufSize  = 8;            // "YES\0" + margin
 constexpr size_t   kResetConfirmMaxIdx   = 7;            // Buffer max index
 
-// Verification constants
-constexpr uint8_t  kVerifySampleCount    = 10;           // Live samples for post-cal check
 constexpr uint32_t kUsbSettleMs          = 200;          // USB CDC settle time after connect
-
-// NeoPixel pattern constants now in include/rocketchip/led_patterns.h (Phase 0B).
-// Backward-compat aliases (kCalNeo*) provided by that header.
-constexpr uint32_t kNeoFlashDurationMs = 1000;           // Green/red flash after step
-
-// 6-position calibration
-constexpr uint8_t  kAccel6posNumPositions = 6;           // Orthogonal orientations for gravity fit
-
-// Mag calibration (IVP-37)
-constexpr uint32_t kMagCalPollMs          = 50;           // ~20Hz mag sample rate
-constexpr uint16_t kMagCalProgressInterval = 25;          // Print every N accepted samples
-constexpr uint16_t kMagCalMinSamples      = 50;           // Minimum for reliable fit
-constexpr uint32_t kMagCalDiagIntervalMs  = 3000;         // Diagnostic print interval (no data)
-constexpr uint32_t kMagCalSlowDiagMs      = 5000;         // Diagnostic print interval (slow progress)
-constexpr uint16_t kMagCalMinForSlow      = 10;           // Minimum samples before slow diagnostic
-constexpr uint32_t kCalFeedPollMs         = 10;           // Calibration feed poll interval
-constexpr uint8_t  kProgressPercentStep   = 10;           // Calibration progress print granularity (%)
 
 // ============================================================================
 // State
@@ -172,120 +150,10 @@ static void print_flight_menu() {
 }
 
 // ============================================================================
-// Forward Declarations
+// Calibration Commands (blocking wizards removed — Phase D4)
+// Calibration UI state machine now in AO_RCOS (ao_rcos.cpp).
+// Retained: cmd_save_cal (fast sync), cmd_reset_cal (blocking confirm).
 // ============================================================================
-
-static void update_calibration_progress();
-static bool wait_for_enter_or_esc();
-static bool wait_for_async_cal();
-
-// ============================================================================
-// NeoPixel Calibration Helpers (INTERIM — Phase M.5)
-// ============================================================================
-
-static void cal_neo(uint8_t mode) {
-    AO_LedEngine_post_override(mode);
-}
-
-static void cal_neo_flash_result(bool success) {
-    cal_neo(success ? kCalNeoSuccess : kCalNeoFail);
-    sleep_ms(kNeoFlashDurationMs);
-    cal_neo(kCalNeoOff);
-}
-
-// ============================================================================
-// Calibration Commands
-// ============================================================================
-
-static void cmd_gyro_cal() {
-    if (!rc_os_imu_available) {
-        printf("\nERROR: IMU not available\n");
-        return;
-    }
-
-    printf("\nGyro Calibration — keep device STILL for ~2s.\n");
-    printf("Press ENTER to start, 'x' to cancel.\n");
-    cal_neo(kCalNeoGyro);
-    if (!wait_for_enter_or_esc()) {
-        cal_neo(kCalNeoOff);
-        return;
-    }
-
-    cal_result_t result = calibration_start_gyro();
-    if (result != CAL_RESULT_OK) {
-        printf("ERROR: Failed to start gyro cal (%d)\n", result);
-        cal_neo(kCalNeoOff);
-        return;
-    }
-
-    printf("Sampling");
-    (void)fflush(stdout);
-    if (wait_for_async_cal()) {
-        cal_neo_flash_result(true);
-    } else {
-        cal_neo_flash_result(false);
-    }
-}
-
-static void cmd_level_cal() {
-    if (!rc_os_imu_available) {
-        printf("\nERROR: IMU not available\n");
-        return;
-    }
-
-    printf("\nLevel Calibration — keep device FLAT and STILL for ~1s.\n");
-    printf("Press ENTER to start, 'x' to cancel.\n");
-    cal_neo(kCalNeoLevel);
-    if (!wait_for_enter_or_esc()) {
-        cal_neo(kCalNeoOff);
-        return;
-    }
-
-    cal_result_t result = calibration_start_accel_level();
-    if (result != CAL_RESULT_OK) {
-        printf("ERROR: Failed to start level cal (%d)\n", result);
-        cal_neo(kCalNeoOff);
-        return;
-    }
-
-    printf("Sampling");
-    (void)fflush(stdout);
-    if (wait_for_async_cal()) {
-        cal_neo_flash_result(true);
-    } else {
-        cal_neo_flash_result(false);
-    }
-}
-
-static void cmd_baro_cal() {
-    if (!rc_os_baro_available) {
-        printf("\nERROR: Barometer not available\n");
-        return;
-    }
-
-    printf("\nBaro Calibration — setting ground reference (~1s).\n");
-    printf("Press ENTER to start, 'x' to cancel.\n");
-    cal_neo(kCalNeoBaro);
-    if (!wait_for_enter_or_esc()) {
-        cal_neo(kCalNeoOff);
-        return;
-    }
-
-    cal_result_t result = calibration_start_baro();
-    if (result != CAL_RESULT_OK) {
-        printf("ERROR: Failed to start baro cal (%d)\n", result);
-        cal_neo(kCalNeoOff);
-        return;
-    }
-
-    printf("Sampling");
-    (void)fflush(stdout);
-    if (wait_for_async_cal()) {
-        cal_neo_flash_result(true);
-    } else {
-        cal_neo_flash_result(false);
-    }
-}
 
 static void cmd_save_cal() {
     printf("\nSaving calibration to flash...");
@@ -341,762 +209,15 @@ static void cmd_reset_cal() {
     }
 }
 
-// Per-position instructions for the user
-// Order matches calibration_manager.c kPositionNames (QGroundControl order)
-static const char* const kPositionInstructions[kAccel6posNumPositions] = {
-    "Place board FLAT on table, component side UP",
-    "Stand board on its LEFT edge",
-    "Stand board on its RIGHT edge",
-    "Stand board on USB connector end (nose down)",
-    "Stand board on opposite end from USB (nose up)",
-    "Place board FLAT on table, component side DOWN (inverted)"
-};
-
-constexpr uint8_t  kAccel6posMaxRetries     = 3;
-constexpr uint32_t kAccel6posWaitTimeoutUs  = 30000000;     // 30 seconds
-constexpr float    kAccel6posGravityNominal = 9.80665F;     // m/s² (WGS-84 standard)
-constexpr float    kAccel6posVerifyTolerance = 0.02F;       // m/s² (6-pos calibration gate)
-
-// Helper: wait for ENTER key with timeout, ESC cancels. Returns true on ENTER.
-static bool wait_for_enter_or_esc() {
-    // Drain stale input (leftover \r\n from menu or prior prompt).
-    // Two passes with a gap — USB CDC delivers in packets, so in-flight
-    // bytes may not be available on the first drain.
-    while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
-    sleep_ms(100);
-    while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
-
-    uint32_t elapsedMs = 0;
-    uint32_t timeoutMs = kAccel6posWaitTimeoutUs / 1000;
-
-    while (elapsedMs < timeoutMs) {
-        int ch = getchar_timeout_us(0);
-        if (ch == kEscChar || ch == 'x' || ch == 'X') {
-            printf("\nCancelled.\n");
-            return false;
-        }
-        if (ch == '\r' || ch == '\n') {
-            return true;
-        }
-        if (!stdio_usb_connected()) {
-            return false;
-        }
-        rc::pio_watchdog_feed();
-        sleep_ms(kRcOsPollMs);
-        elapsedMs += kRcOsPollMs;
-    }
-
-    printf("\nTimeout - calibration cancelled.\n");
-    return false;
-}
-
-// Collect one position with retries. Returns true on success, false on abort/failure.
-static bool collect_6pos_position(uint8_t pos) {
-    printf("--- Position %d/%d: %s ---\n", pos + 1, kAccel6posNumPositions,
-           calibration_get_6pos_name(pos));
-    printf("  %s\n", kPositionInstructions[pos]);
-    printf("  Press ENTER when ready...\n");
-    (void)fflush(stdout);
-    cal_neo(kCalNeoAccelWait);
-
-    if (!wait_for_enter_or_esc()) {
-        return false;
-    }
-
-    printf("  Sampling... hold still");
-    (void)fflush(stdout);
-    cal_neo(kCalNeoAccelSample);
-
-    for (uint8_t retry = 0; retry < kAccel6posMaxRetries; retry++) {
-        cal_result_t result = calibration_collect_6pos_position(pos, rc_os_read_accel);
-
-        if (result == CAL_RESULT_OK) {
-            const float* avg = calibration_get_6pos_avg(pos);
-            printf(" OK!\n");
-            printf("  Avg: X=%.2f Y=%.2f Z=%.2f\n",
-                   (double)avg[0], (double)avg[1], (double)avg[2]);
-            cal_neo_flash_result(true);
-            return true;
-        }
-
-        const char* errMsg = nullptr;
-        if (result == CAL_RESULT_MOTION_DETECTED) {
-            errMsg = "Motion detected! Hold still and try again.";
-        } else if (result == CAL_RESULT_INVALID_DATA) {
-            printf("\n  Orientation doesn't match expected: %s\n",
-                   calibration_get_6pos_name(pos));
-            errMsg = "Please reposition the board correctly.";
-        } else {
-            printf("\n  ERROR: Failed to read sensor (%d)\n", result);
-            cal_neo_flash_result(false);
-            return false;
-        }
-
-        printf("\n  %s\n", errMsg);
-        if (retry < kAccel6posMaxRetries - 1) {
-            printf("  Press ENTER to retry (%d/%d)...\n",
-                   retry + 2, kAccel6posMaxRetries);
-            (void)fflush(stdout);
-            cal_neo(kCalNeoAccelWait);
-            if (!wait_for_enter_or_esc()) {
-                return false;
-            }
-            printf("  Sampling... hold still");
-            (void)fflush(stdout);
-            cal_neo(kCalNeoAccelSample);
-        }
-    }
-
-    printf("  Failed after %d attempts.\n", kAccel6posMaxRetries);
-    cal_neo_flash_result(false);
-    return false;
-}
-
-// Print 6-pos calibration results and verify with live samples.
-static void print_6pos_results() {
-    const calibration_store_t* cal = calibration_manager_get();
-    printf("Results:\n");
-    printf("  Offset: X=%.4f Y=%.4f Z=%.4f\n",
-           (double)cal->accel.offset.x,
-           (double)cal->accel.offset.y,
-           (double)cal->accel.offset.z);
-    printf("  Scale:  X=%.4f Y=%.4f Z=%.4f\n",
-           (double)cal->accel.scale.x,
-           (double)cal->accel.scale.y,
-           (double)cal->accel.scale.z);
-    printf("  Offdiag: XY=%.4f XZ=%.4f YZ=%.4f\n",
-           (double)cal->accel.offdiag.x,
-           (double)cal->accel.offdiag.y,
-           (double)cal->accel.offdiag.z);
-
-    printf("\nVerification (%d live samples):\n", kVerifySampleCount);
-    float magSum = 0.0F;
-    uint8_t goodReads = 0;
-    for (uint8_t i = 0; i < kVerifySampleCount; i++) {
-        float ax = 0.0F;
-        float ay = 0.0F;
-        float az = 0.0F;
-        float temp = 0.0F;
-        if (rc_os_read_accel(&ax, &ay, &az, &temp)) {
-            float cx = 0.0F;
-            float cy = 0.0F;
-            float cz = 0.0F;
-            calibration_apply_accel(ax, ay, az, &cx, &cy, &cz);
-            float mag = sqrtf(cx*cx + cy*cy + cz*cz);
-            magSum += mag;
-            goodReads++;
-        }
-    }
-    if (goodReads > 0) {
-        float avgMag = magSum / static_cast<float>(goodReads);
-        printf("  Avg gravity magnitude: %.4f m/s^2 (expected 9.8067)\n",
-               (double)avgMag);
-        float error = fabsf(avgMag - kAccel6posGravityNominal);
-        if (error < kAccel6posVerifyTolerance) {
-            printf("  PASS (error %.4f < %.2f)\n",
-                   (double)error, (double)kAccel6posVerifyTolerance);
-        } else {
-            printf("  WARNING: error %.4f > %.2f threshold\n",
-                   (double)error, (double)kAccel6posVerifyTolerance);
-        }
-    }
-}
-
-// Inner body of 6-position calibration. Returns on error or completion.
-// Caller (cmd_accel_6pos_cal) guarantees pre/post hook execution.
-static void cmd_accel_6pos_cal_inner() {
-    calibration_reset_6pos();
-
-    for (uint8_t pos = 0; pos < kAccel6posNumPositions; pos++) {
-        if (!collect_6pos_position(pos)) {
-            calibration_reset_6pos();
-            printf("Calibration aborted.\n");
-            return;
-        }
-        printf("\n");
-    }
-
-    // All 6 positions collected — run the fit
-    printf("All 6 positions collected!\n");
-    printf("Computing ellipsoid fit...");
-    (void)fflush(stdout);
-
-    cal_result_t fitResult = calibration_compute_6pos();
-    if (fitResult != CAL_RESULT_OK) {
-        printf(" FAILED (%d)\n", fitResult);
-        printf("Fit failed — params out of range.\n");
-        printf("Common cause: board not held at true cardinal orientations.\n");
-        printf("Use a flat surface or box edge for precise positioning.\n");
-        calibration_reset_6pos();
-        return;
-    }
-    printf(" OK!\n\n");
-
-    print_6pos_results();
-
-    // Auto-save to flash
-    printf("\nSaving to flash...");
-    (void)fflush(stdout);
-    cal_result_t saveResult = calibration_save();
-    if (saveResult == CAL_RESULT_OK) {
-        printf(" OK!\n");
-        if (!i2c_bus_reset()) {
-            printf("[WARN] I2C bus reset failed after save\n");
-        }
-    } else {
-        printf(" FAILED (%d)\n", saveResult);
-    }
-
-    printf("\n6-position accel calibration complete.\n");
-    calibration_reset_6pos();
-}
-
-static void cmd_accel_6pos_cal() {
-    if (!rc_os_imu_available) {
-        printf("\nERROR: IMU not available\n");
-        return;
-    }
-    if (rc_os_read_accel == nullptr) {
-        printf("\nERROR: Accel read callback not set\n");
-        return;
-    }
-
-    printf("\n========================================\n");
-    printf("  6-Position Accelerometer Calibration\n");
-    printf("========================================\n");
-    printf("Calibrates accel offset, scale, and\n");
-    printf("cross-axis coupling by measuring gravity\n");
-    printf("in 6 orientations.\n\n");
-    printf("Hold the board still in each position,\n");
-    printf("then press ENTER to sample.\n");
-    printf("Press ENTER to start, 'x' to cancel.\n");
-    printf("========================================\n\n");
-    cal_neo(kCalNeoAccelWait);
-
-    if (!wait_for_enter_or_esc()) {
-        cal_neo(kCalNeoOff);
-        return;
-    }
-
-    // Disable I2C master before rapid accel reads (prevents bank-switching race)
-    if (rc_os_cal_pre_hook != nullptr) { rc_os_cal_pre_hook(); }
-
-    cmd_accel_6pos_cal_inner();
-    cal_neo(kCalNeoOff);
-
-    // Re-enable I2C master for normal operation (mag reads)
-    if (rc_os_cal_post_hook != nullptr) { rc_os_cal_post_hook(); }
-}
-
-// Print progress and diagnostics during mag sample collection.
-// Called once per accepted or processed sample inside the collection loop.
-static void mag_cal_print_progress(mag_feed_result_t result,
-                                   uint16_t count,
-                                   float mx, float my, float mz,
-                                   uint32_t totalReads,
-                                   uint32_t rejectClose,
-                                   uint32_t rejectRange,
-                                   uint16_t* lastPrintedCount,
-                                   uint32_t* lastDiagMs) {
-    // Print first accepted sample immediately for feedback
-    if (result == mag_feed_result_t::ACCEPTED && count == 1) {
-        float mag = sqrtf(mx*mx + my*my + mz*mz);
-        printf("  First sample: |M|=%.1f uT (read %lu)\n",
-               (double)mag, (unsigned long)totalReads);
-        (void)fflush(stdout);
-    }
-
-    // Print progress at intervals
-    if (result == mag_feed_result_t::ACCEPTED &&
-        count >= *lastPrintedCount + kMagCalProgressInterval) {
-        *lastPrintedCount = count;
-        uint8_t coverage = calibration_get_mag_coverage_pct();
-        printf("  Samples: %u  Coverage: %u%%  (read %lu, close:%lu range:%lu)\n",
-               count, coverage, (unsigned long)totalReads,
-               (unsigned long)rejectClose, (unsigned long)rejectRange);
-        (void)fflush(stdout);
-    }
-
-    // Periodic diagnostic when collecting but no new acceptances
-    uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-    if (count > 0 && count < kMagCalMinForSlow && (nowMs - *lastDiagMs) >= kMagCalSlowDiagMs) {
-        *lastDiagMs = nowMs;
-        printf("  [%u accepted, read %lu, close:%lu range:%lu — rotate device!]\n",
-               count, (unsigned long)totalReads,
-               (unsigned long)rejectClose, (unsigned long)rejectRange);
-        (void)fflush(stdout);
-    }
-}
-
-// Track rejection counts and print diagnostics for rejected samples.
-static void mag_cal_track_reject(mag_feed_result_t result,
-                                 float mx, float my, float mz,
-                                 uint32_t* outRejectClose,
-                                 uint32_t* outRejectRange) {
-    if (result == mag_feed_result_t::REJECTED_CLOSE) {
-        (*outRejectClose)++;
-    } else if (result == mag_feed_result_t::REJECTED_RANGE) {
-        (*outRejectRange)++;
-        // Debug: print first 3 range rejects to diagnose out-of-range values
-        if (*outRejectRange <= 3) {
-            float rawMag = sqrtf(mx*mx + my*my + mz*mz);
-            printf("  [range reject #%lu: raw=%.1f,%.1f,%.1f |M|=%.1f uT]\n",
-                   (unsigned long)*outRejectRange, (double)mx, (double)my,
-                   (double)mz, (double)rawMag);
-            (void)fflush(stdout);
-        }
-    }
-}
-
-// Collect mag samples until buffer full or user cancels.
-// Returns true if collection completed (buffer full), false if cancelled/disconnected.
-static bool mag_cal_collect_samples(uint16_t* outFinalCount,
-                                    uint8_t* outFinalCoverage) {
-    uint16_t lastPrintedCount = 0;
-    uint32_t totalReads = 0;
-    uint32_t readFailCount = 0;
-    uint32_t rejectClose = 0;
-    uint32_t rejectRange = 0;
-    uint32_t lastDiagMs = 0;
-    while (true) {
-        int ch = getchar_timeout_us(0);
-        if (ch == 'x' || ch == 'X' || ch == kEscChar) {
-            printf("\nCalibration cancelled. (accepted=%lu, read=%lu, readFail=%lu, close=%lu, range=%lu)\n",
-                   (unsigned long)calibration_get_mag_sample_count(),
-                   (unsigned long)totalReads,
-                   (unsigned long)readFailCount,
-                   (unsigned long)rejectClose,
-                   (unsigned long)rejectRange);
-            return false;
-        }
-        if (!stdio_usb_connected()) {
-            printf("\nUSB disconnected — aborting.\n");
-            return false;
-        }
-        rc::pio_watchdog_feed();
-
-        // Read mag sample from seqlock
-        float mx = 0.0F;
-        float my = 0.0F;
-        float mz = 0.0F;
-        if (!rc_os_read_mag(&mx, &my, &mz)) {
-            readFailCount++;
-            sleep_ms(kMagCalPollMs);
-            uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-            if (totalReads == 0 && readFailCount > 0 &&
-                (nowMs - lastDiagMs) >= kMagCalDiagIntervalMs) {
-                lastDiagMs = nowMs;
-                printf("  [waiting for mag data... %lu reads failed]\n",
-                       (unsigned long)readFailCount);
-                (void)fflush(stdout);
-            }
-            continue;
-        }
-        totalReads++;
-
-        mag_feed_result_t result = calibration_feed_mag_sample(mx, my, mz);
-        uint16_t count = calibration_get_mag_sample_count();
-
-        mag_cal_track_reject(result, mx, my, mz, &rejectClose, &rejectRange);
-        mag_cal_print_progress(result, count, mx, my, mz,
-                               totalReads, rejectClose, rejectRange,
-                               &lastPrintedCount, &lastDiagMs);
-
-        if (result == mag_feed_result_t::BUFFER_FULL) {
-            break;
-        }
-        sleep_ms(kMagCalPollMs);
-    }
-
-    *outFinalCount = calibration_get_mag_sample_count();
-    *outFinalCoverage = calibration_get_mag_coverage_pct();
-    return true;
-}
-
-// Verify calibration with live samples, save to flash, run post-hook.
-// Returns true on successful save.
-static bool mag_cal_verify_and_save() {
-    // Verification: 10 live samples
-    printf("\nVerification (%d live samples):\n", kVerifySampleCount);
-    float magSum = 0.0F;
-    uint8_t goodReads = 0;
-    for (uint8_t i = 0; i < kVerifySampleCount; i++) {
-        float mx = 0.0F;
-        float my = 0.0F;
-        float mz = 0.0F;
-        if (rc_os_read_mag(&mx, &my, &mz)) {
-            float cx = 0.0F;
-            float cy = 0.0F;
-            float cz = 0.0F;
-            calibration_apply_mag(mx, my, mz, &cx, &cy, &cz);
-            float mag = sqrtf(cx*cx + cy*cy + cz*cz);
-            magSum += mag;
-            goodReads++;
-        }
-        sleep_ms(kMagCalPollMs);
-    }
-    const calibration_store_t* cal = calibration_manager_get();
-    if (goodReads > 0) {
-        float avgMag = magSum / static_cast<float>(goodReads);
-        printf("  Avg calibrated magnitude: %.2f uT (expected %.2f)\n",
-               (double)avgMag, (double)cal->mag.expected_radius);
-    } else {
-        printf("  WARNING: No valid mag reads during verification\n");
-    }
-
-    // Auto-save to flash
-    printf("\nSaving to flash...");
-    (void)fflush(stdout);
-    cal_result_t saveResult = calibration_save();
-    if (saveResult == CAL_RESULT_OK) {
-        printf(" OK!\n");
-        if (!i2c_bus_reset()) {
-            printf("[WARN] I2C bus reset failed after save\n");
-        }
-    } else {
-        printf(" FAILED (%d)\n", saveResult);
-    }
-
-    // Signal Core 1 to reload calibration
-    if (rc_os_cal_post_hook != nullptr) { rc_os_cal_post_hook(); }
-
-    printf("\nCompass calibration complete.\n");
-    return saveResult == CAL_RESULT_OK;
-}
-
-// Print ellipsoid fit results (offset, scale, offdiag, radius, fitness).
-static void mag_cal_print_results() {
-    const calibration_store_t* cal = calibration_manager_get();
-    printf("Results:\n");
-    printf("  Offset: X=%.2f Y=%.2f Z=%.2f uT\n",
-           (double)cal->mag.offset.x,
-           (double)cal->mag.offset.y,
-           (double)cal->mag.offset.z);
-    printf("  Scale:  X=%.4f Y=%.4f Z=%.4f\n",
-           (double)cal->mag.scale.x,
-           (double)cal->mag.scale.y,
-           (double)cal->mag.scale.z);
-    printf("  Offdiag: XY=%.4f XZ=%.4f YZ=%.4f\n",
-           (double)cal->mag.offdiag.x,
-           (double)cal->mag.offdiag.y,
-           (double)cal->mag.offdiag.z);
-    printf("  Expected radius: %.2f uT\n",
-           (double)cal->mag.expected_radius);
-    printf("  Fitness (RMS): %.3f uT\n",
-           (double)calibration_get_mag_fitness());
-}
-
-// Inner body of compass calibration. Returns true on success.
-// Shared by cmd_mag_cal() and cmd_wizard().
-static bool mag_cal_inner() {
-    calibration_reset_mag_cal();
-    if (rc_os_reset_mag_staleness != nullptr) {
-        rc_os_reset_mag_staleness();
-    }
-    cal_neo(kCalNeoMag);
-
-    // Phase 1: Collect samples
-    uint16_t finalCount = 0;
-    uint8_t finalCoverage = 0;
-    if (!mag_cal_collect_samples(&finalCount, &finalCoverage)) {
-        calibration_reset_mag_cal();
-        cal_neo(kCalNeoOff);
-        return false;
-    }
-
-    printf("\nCollection complete: %u samples, %u%% coverage\n",
-           finalCount, finalCoverage);
-
-    // Phase 2: Validate sample count
-    if (finalCount < kMagCalMinSamples) {
-        printf("ERROR: Not enough samples (%u < %u)\n",
-               finalCount, kMagCalMinSamples);
-        calibration_reset_mag_cal();
-        cal_neo_flash_result(false);
-        return false;
-    }
-
-    // Phase 3: Compute ellipsoid fit
-    printf("Computing ellipsoid fit...");
-    (void)fflush(stdout);
-
-    cal_result_t fitResult = calibration_compute_mag_cal();
-    if (fitResult != CAL_RESULT_OK) {
-        printf(" FAILED (%d)\n", fitResult);
-        if (fitResult == CAL_RESULT_FIT_FAILED) {
-            printf("Ellipsoid fit did not converge or params out of range.\n");
-        }
-        calibration_reset_mag_cal();
-        cal_neo_flash_result(false);
-        return false;
-    }
-    printf(" OK!\n\n");
-
-    // Phase 4: Print results
-    mag_cal_print_results();
-
-    // Phase 5: Verify with live samples, save to flash
-    mag_cal_verify_and_save();
-
-    calibration_reset_mag_cal();
-    cal_neo_flash_result(true);
-    return true;
-}
-
-static void cmd_mag_cal() {
-    if (rc_os_read_mag == nullptr) {
-        printf("\nERROR: Mag read callback not set\n");
-        return;
-    }
-
-    printf("\n========================================\n");
-    printf("  Compass Calibration\n");
-    printf("========================================\n");
-    printf("Rotate the device slowly through all\n");
-    printf("orientations to cover the full sphere.\n");
-    printf("Press ENTER to start, 'x' to cancel.\n");
-    printf("========================================\n\n");
-    cal_neo(kCalNeoMag);
-
-    if (!wait_for_enter_or_esc()) {
-        cal_neo(kCalNeoOff);
-        return;
-    }
-
-    rc_os_mag_cal_active.store(true, std::memory_order_release);   // Pause GPS on Core 1
-    mag_cal_inner();
-    rc_os_mag_cal_active.store(false, std::memory_order_release);  // Resume GPS
-    cal_neo(kCalNeoOff);
-}
-
-// ============================================================================
-// Wizard: Async calibration wait helper
-// ============================================================================
-// Blocks until the active async calibration (gyro/level/baro) completes.
-// Feeds sensor samples via callback, kicks watchdog, checks ESC/USB.
-// Returns true on successful completion, false on cancel/failure/disconnect.
-
-static bool wait_for_async_cal() {
-    while (calibration_is_active()) {
-        // Check for cancel (x or ESC)
-        int ch = getchar_timeout_us(0);
-        if (ch == kEscChar || ch == 'x' || ch == 'X') {
-            calibration_cancel();
-            printf("\nCancelled.\n");
-            return false;
-        }
-
-        // USB disconnect check
-        if (!stdio_usb_connected()) {
-            calibration_cancel();
-            return false;
-        }
-
-        update_calibration_progress();
-        rc::pio_watchdog_feed();
-        sleep_ms(kCalFeedPollMs);
-    }
-
-    // Check result
-    cal_state_t state = calibration_manager_get_state();
-    update_calibration_progress();  // Print final OK/FAIL
-    calibration_reset_state();
-
-    return (state == CAL_STATE_COMPLETE);
-}
-
-// ============================================================================
-// Unified Calibration Wizard
-// ============================================================================
-
-// Run an async calibration step (gyro or level).
-// Returns: 0=passed, 1=failed, 2=skipped
-static uint8_t wizard_async_step(const char* stepLabel,
-                                  const char* instructions,
-                                  uint8_t calNeo,
-                                  cal_result_t (*startFn)()) {
-    printf("\n--- %s ---\n", stepLabel);
-    if (!rc_os_imu_available) {
-        printf("  SKIPPED (IMU not available)\n");
-        return 2;
-    }
-    printf("%s\n", instructions);
-    printf("ENTER to start, 'x' to skip.\n");
-    cal_neo(calNeo);
-    if (!wait_for_enter_or_esc()) {
-        printf("  SKIPPED by user\n");
-        cal_neo(kCalNeoOff);
-        return 2;
-    }
-    cal_result_t result = startFn();
-    if (result != CAL_RESULT_OK) {
-        printf("ERROR: Failed to start cal (%d)\n", result);
-        cal_neo_flash_result(false);
-        return 1;
-    }
-    printf("Sampling");
-    (void)fflush(stdout);
-    if (wait_for_async_cal()) {
-        calibration_save();
-        i2c_bus_reset();
-        cal_neo_flash_result(true);
-        return 0;
-    }
-    cal_neo_flash_result(false);
-    return 1;
-}
-
-// Run 6-position accel calibration step with pre/post hooks.
-// Returns: 0=passed, 1=failed, 2=skipped.
-static uint8_t wizard_6pos_step() {
-    printf("\n--- Step 3/4: 6-Position Accel Calibration ---\n");
-    if (!rc_os_imu_available || rc_os_read_accel == nullptr) {
-        printf("  SKIPPED (IMU or accel callback not available)\n");
-        return 2;
-    }
-    printf("Calibrates offset, scale, and cross-axis coupling.\n");
-    printf("ENTER to start, 'x' to skip.\n");
-    cal_neo(kCalNeoAccelWait);
-    if (!wait_for_enter_or_esc()) {
-        printf("  SKIPPED by user\n");
-        cal_neo(kCalNeoOff);
-        return 2;
-    }
-    if (rc_os_cal_pre_hook != nullptr) { rc_os_cal_pre_hook(); }
-    cmd_accel_6pos_cal_inner();
-    cal_neo(kCalNeoOff);
-    if (rc_os_cal_post_hook != nullptr) { rc_os_cal_post_hook(); }
-    const calibration_store_t* calCheck = calibration_manager_get();
-    return ((calCheck->cal_flags & CAL_STATUS_ACCEL_6POS) != 0) ? 0 : 1;
-}
-
-// Run compass calibration step with GPS pause.
-// Returns: 0=passed, 1=failed, 2=skipped.
-static uint8_t wizard_compass_step() {
-    printf("\n--- Step 4/4: Compass Calibration ---\n");
-    if (rc_os_read_mag == nullptr) {
-        printf("  SKIPPED (mag read callback not set)\n");
-        return 2;
-    }
-    printf("Rotate device through all orientations.\n");
-    printf("ENTER to start, 'x' to skip.\n");
-    cal_neo(kCalNeoMag);
-    if (!wait_for_enter_or_esc()) {
-        printf("  SKIPPED by user\n");
-        cal_neo(kCalNeoOff);
-        return 2;
-    }
-    rc_os_mag_cal_active.store(true, std::memory_order_release);
-    uint8_t result = mag_cal_inner() ? 0 : 1;
-    rc_os_mag_cal_active.store(false, std::memory_order_release);
-    return result;
-}
-
-static void wizard_print_summary(uint8_t passed, uint8_t failed, uint8_t skipped) {
-    const calibration_store_t* calFinal = calibration_manager_get();
-    printf("\n========================================\n");
-    printf("  Wizard Complete\n");
-    printf("========================================\n");
-    printf("  Passed:  %d\n", passed);
-    printf("  Failed:  %d\n", failed);
-    printf("  Skipped: %d\n", skipped);
-    printf("\nCalibration flags: 0x%02lX\n", (unsigned long)calFinal->cal_flags);
-    printf("  Gyro:  %s\n", (calFinal->cal_flags & CAL_STATUS_GYRO) != 0 ? "OK" : "--");
-    printf("  Level: %s\n", (calFinal->cal_flags & CAL_STATUS_LEVEL) != 0 ? "OK" : "--");
-    printf("  Baro:  %s\n", (calFinal->cal_flags & CAL_STATUS_BARO) != 0 ? "OK" : "--");
-    printf("  Accel: %s\n", (calFinal->cal_flags & CAL_STATUS_ACCEL_6POS) != 0 ? "6POS" : "--");
-    printf("  Mag:   %s\n", (calFinal->cal_flags & CAL_STATUS_MAG) != 0 ? "OK" : "--");
-    printf("========================================\n\n");
-}
-
-static void cmd_wizard() {
-    printf("\n========================================\n");
-    printf("  Full Calibration Wizard\n");
-    printf("========================================\n");
-    printf("This wizard runs all calibrations:\n");
-    printf("  1. Gyro (keep still, ~2s)\n");
-    printf("  2. Level (keep flat, ~1s)\n");
-    printf("  3. 6-position accel\n");
-    printf("  4. Compass calibration\n");
-    printf("(Baro ground ref runs automatically at boot)\n");
-    printf("Press ENTER to begin, 'x' to cancel.\n");
-    printf("========================================\n\n");
-
-    if (!wait_for_enter_or_esc()) {
-        return;
-    }
-
-    uint8_t passed = 0;
-    uint8_t failed = 0;
-    uint8_t skipped = 0;
-
-    // --- Step 1: Gyro ---
-    { uint8_t r = wizard_async_step("Step 1/4: Gyro Calibration",
-                                     "Keep device STILL for ~2s.",
-                                     kCalNeoGyro, calibration_start_gyro);
-      if (r == 0) { passed++; } else if (r == 1) { failed++; } else { skipped++; }
-    }
-
-    // --- Step 2: Level ---
-    { uint8_t r = wizard_async_step("Step 2/4: Level Calibration",
-                                     "Keep device FLAT and STILL for ~1s.",
-                                     kCalNeoLevel, calibration_start_accel_level);
-      if (r == 0) { passed++; } else if (r == 1) { failed++; } else { skipped++; }
-    }
-
-    // --- Step 3: 6-Position Accel ---
-    { uint8_t r = wizard_6pos_step();
-      if (r == 0) { passed++; } else if (r == 1) { failed++; } else { skipped++; }
-    }
-
-    // --- Step 4: Compass ---
-    { uint8_t r = wizard_compass_step();
-      if (r == 0) { passed++; } else if (r == 1) { failed++; } else { skipped++; }
-    }
-
-    cal_neo(kCalNeoOff);
-    wizard_print_summary(passed, failed, skipped);
-}
-
-// ============================================================================
-// Calibration Progress Monitoring
-// ============================================================================
-
-static void update_calibration_progress() {
-    static uint8_t g_lastProgress = 0;
-    static bool g_wasActive = false;
-
-    cal_state_t state = calibration_manager_get_state();
-    uint8_t progress = calibration_get_progress();
-    bool isActive = calibration_is_active();
-
-    // Print dots for progress (every 10%)
-    if (isActive && progress / kProgressPercentStep > g_lastProgress / kProgressPercentStep) {
-        printf(".");
-        (void)fflush(stdout);
-    }
-    g_lastProgress = progress;
-
-    // Detect completion: was active, now complete or failed
-    if (g_wasActive && !isActive) {
-        if (state == CAL_STATE_COMPLETE) {
-            printf(" OK!\n");
-            cal_neo_flash_result(true);
-        } else if (state == CAL_STATE_FAILED) {
-            cal_result_t result = calibration_get_result();
-            if (result == CAL_RESULT_MOTION_DETECTED) {
-                printf(" FAILED - motion detected!\n");
-            } else {
-                printf(" FAILED (%d)\n", result);
-            }
-            cal_neo_flash_result(false);
-        }
-        calibration_reset_state();
-        g_lastProgress = 0;
-    }
-
-    g_wasActive = isActive;
-}
+// Blocking calibration functions (cmd_gyro_cal, cmd_level_cal, cmd_baro_cal,
+// cmd_accel_6pos_cal, cmd_mag_cal, cmd_wizard, wait_for_async_cal,
+// wait_for_enter_or_esc, collect_6pos_position, mag_cal_*, wizard_*,
+// update_calibration_progress) removed in Phase D4.
+// All calibration UI now driven by AO_RCOS cal_ui_tick() state machine.
+
+
+// [Phase D4: blocking functions removed — see ao_rcos.cpp cal_ui_tick()]
+// Remaining here: only cmd_save_cal() and cmd_reset_cal() above.
 
 // ============================================================================
 // Main Menu Handler
@@ -1167,35 +288,40 @@ static bool handle_main_menu(int c) {
 
 // NOLINTNEXTLINE(readability-function-size) — pure key dispatcher, splitting adds indirection
 static bool handle_calibration_menu(int c) {
+    // Block menu keys while a calibration UI sequence is running
+    if (AO_RCOS_cal_active() && c != 'x' && c != 'X' && c != kEscChar) {
+        return false;
+    }
+
     switch (c) {
         case 'g':
         case 'G':
-            cmd_gyro_cal();
+            AO_RCOS_start_cal_gyro();
             break;
 
         case 'l':
         case 'L':
-            cmd_level_cal();
+            AO_RCOS_start_cal_level();
             break;
 
         case 'b':
         case 'B':
-            cmd_baro_cal();
+            AO_RCOS_start_cal_baro();
             break;
 
         case 'a':
         case 'A':
-            cmd_accel_6pos_cal();
+            AO_RCOS_start_cal_6pos();
             break;
 
         case 'm':
         case 'M':
-            cmd_mag_cal();
+            AO_RCOS_start_cal_mag();
             break;
 
         case 'w':
         case 'W':
-            cmd_wizard();
+            AO_RCOS_start_cal_wizard();
             break;
 
         case 'v':
@@ -1211,6 +337,11 @@ static bool handle_calibration_menu(int c) {
         case 'x':
         case 'X':
         case kEscChar:
+            if (AO_RCOS_cal_active()) {
+                // Cancel is handled by the cal UI state machine reading ESC
+                // Just let it pass through
+                break;
+            }
             if (calibration_is_active()) {
                 calibration_cancel();
                 printf("\nCalibration cancelled.\n");
@@ -1330,8 +461,7 @@ bool rc_os_update() {
         print_prompt();
     }
 
-    // Update calibration progress display
-    update_calibration_progress();
+    // Calibration progress now driven by AO_RCOS cal_ui_tick() (Phase D4).
 
     // Live ESKF mode: periodic print at 1Hz, any key stops
     if (g_eskfLiveActive) {

@@ -113,6 +113,11 @@ static float g_6posAvg[kAccel6posPositions][3];           // 72 bytes
 static uint16_t g_6posSampleCount;
 static uint8_t g_6posCollected;    // Bitmask of completed positions
 
+// Async 6-pos sampling state (D1: non-blocking 6-pos collection)
+static uint8_t  g_6posAsyncPos;         // Current position being sampled (0-5)
+static uint16_t g_6posAsyncCount;       // Samples collected for current position
+static float    g_6posAsyncSum[3];      // Running sum for average computation
+
 // Gauss-Newton working arrays (shared between 6-pos accel and mag ellipsoid — never concurrent)
 // Sized for largest user: mag ellipsoid (9x9). Accel 6-pos uses 6x6 subset.
 static float g_jtj[kMagEllipsoidParams * kMagEllipsoidParams];      // 324 bytes
@@ -310,51 +315,54 @@ cal_result_t calibration_start_accel_level() {
     return CAL_RESULT_OK;
 }
 
-void calibration_feed_accel(float ax, float ay, float az, float temperatureC) {
-    if (g_calState != CAL_STATE_ACCEL_LEVEL_SAMPLING) {
-        return;
+// Async 6-pos: accumulate sample into current position buffer
+static void feed_accel_6pos(float ax, float ay, float az) {
+    if (g_6posAsyncCount < kAccel6posSamplesPerPos) {
+        uint16_t baseIdx = g_6posAsyncPos * kAccel6posSamplesPerPos;
+        g_6posSamples[baseIdx + g_6posAsyncCount][0] = ax;
+        g_6posSamples[baseIdx + g_6posAsyncCount][1] = ay;
+        g_6posSamples[baseIdx + g_6posAsyncCount][2] = az;
+        g_6posAsyncSum[0] += ax;
+        g_6posAsyncSum[1] += ay;
+        g_6posAsyncSum[2] += az;
+        g_6posAsyncCount++;
     }
+}
 
-    // Accumulate
+// Level cal: accumulate sample and check completion
+static void feed_accel_level(float ax, float ay, float az,
+                             float temperatureC) {
     g_sampleAcc.sum_x += ax;
     g_sampleAcc.sum_y += ay;
     g_sampleAcc.sum_z += az;
     g_sampleAcc.sum_temp += temperatureC;
 
-    // Track min/max
-    if (ax < g_sampleAcc.min_x) {
-        g_sampleAcc.min_x = ax;
-    }
-    if (ax > g_sampleAcc.max_x) {
-        g_sampleAcc.max_x = ax;
-    }
-    if (ay < g_sampleAcc.min_y) {
-        g_sampleAcc.min_y = ay;
-    }
-    if (ay > g_sampleAcc.max_y) {
-        g_sampleAcc.max_y = ay;
-    }
-    if (az < g_sampleAcc.min_z) {
-        g_sampleAcc.min_z = az;
-    }
-    if (az > g_sampleAcc.max_z) {
-        g_sampleAcc.max_z = az;
-    }
+    if (ax < g_sampleAcc.min_x) { g_sampleAcc.min_x = ax; }
+    if (ax > g_sampleAcc.max_x) { g_sampleAcc.max_x = ax; }
+    if (ay < g_sampleAcc.min_y) { g_sampleAcc.min_y = ay; }
+    if (ay > g_sampleAcc.max_y) { g_sampleAcc.max_y = ay; }
+    if (az < g_sampleAcc.min_z) { g_sampleAcc.min_z = az; }
+    if (az > g_sampleAcc.max_z) { g_sampleAcc.max_z = az; }
 
     g_sampleAcc.count++;
 
-    // Check completion
     if (g_sampleAcc.count >= g_sampleAcc.target_count) {
         if (check_accel_motion()) {
             g_calState = CAL_STATE_FAILED;
             g_calResult = CAL_RESULT_MOTION_DETECTED;
             return;
         }
-
         compute_level_offset();
-
         g_calState = CAL_STATE_COMPLETE;
         g_calResult = CAL_RESULT_OK;
+    }
+}
+
+void calibration_feed_accel(float ax, float ay, float az, float temperatureC) {
+    if (g_calState == CAL_STATE_ACCEL_6POS_SAMPLING) {
+        feed_accel_6pos(ax, ay, az);
+    } else if (g_calState == CAL_STATE_ACCEL_LEVEL_SAMPLING) {
+        feed_accel_level(ax, ay, az, temperatureC);
     }
 }
 
@@ -549,6 +557,72 @@ void calibration_reset_6pos() {
     memset(g_6posAvg, 0, sizeof(g_6posAvg));
     g_6posSampleCount = 0;
     g_6posCollected = 0;
+    g_6posAsyncPos = 0;
+    g_6posAsyncCount = 0;
+    memset(g_6posAsyncSum, 0, sizeof(g_6posAsyncSum));
+    if (g_calState == CAL_STATE_ACCEL_6POS_SAMPLING) {
+        g_calState = CAL_STATE_IDLE;
+    }
+}
+
+// ============================================================================
+// Async 6-Position API (Phase D1)
+// ============================================================================
+
+cal_result_t calibration_start_6pos_position(uint8_t pos) {
+    if (pos >= kAccel6posPositions) {
+        return CAL_RESULT_INVALID_DATA;
+    }
+    if (g_calState != CAL_STATE_IDLE) {
+        return CAL_RESULT_BUSY;
+    }
+    if ((g_6posCollected & (1U << pos)) != 0) {
+        return CAL_RESULT_INVALID_DATA;  // Already collected
+    }
+
+    g_6posAsyncPos = pos;
+    g_6posAsyncCount = 0;
+    memset(g_6posAsyncSum, 0, sizeof(g_6posAsyncSum));
+    g_calState = CAL_STATE_ACCEL_6POS_SAMPLING;
+    g_calResult = CAL_RESULT_OK;
+    return CAL_RESULT_OK;
+}
+
+bool calibration_6pos_position_done() {
+    return g_6posAsyncCount >= kAccel6posSamplesPerPos;
+}
+
+uint16_t calibration_6pos_position_sample_count() {
+    return g_6posAsyncCount;
+}
+
+cal_result_t calibration_finalize_6pos_position() {
+    if (g_calState != CAL_STATE_ACCEL_6POS_SAMPLING) {
+        return CAL_RESULT_NO_DATA;
+    }
+    if (g_6posAsyncCount < kAccel6posSamplesPerPos) {
+        return CAL_RESULT_NO_DATA;
+    }
+
+    uint8_t pos = g_6posAsyncPos;
+    float n = static_cast<float>(kAccel6posSamplesPerPos);
+    g_6posAvg[pos][0] = g_6posAsyncSum[0] / n;
+    g_6posAvg[pos][1] = g_6posAsyncSum[1] / n;
+    g_6posAvg[pos][2] = g_6posAsyncSum[2] / n;
+
+    g_6posCollected |= (1U << pos);
+
+    // Recount total samples across all collected positions
+    g_6posSampleCount = 0;
+    for (uint8_t p = 0; p < kAccel6posPositions; p++) {
+        if ((g_6posCollected & (1U << p)) != 0) {
+            g_6posSampleCount += kAccel6posSamplesPerPos;
+        }
+    }
+
+    g_calState = CAL_STATE_IDLE;
+    g_calResult = CAL_RESULT_OK;
+    return CAL_RESULT_OK;
 }
 
 const char* calibration_get_6pos_name(uint8_t pos) {
