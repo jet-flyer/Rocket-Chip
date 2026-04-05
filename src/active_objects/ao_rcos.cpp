@@ -90,6 +90,7 @@ enum class CalUiState : uint8_t {
     k6posSampling,       // Collecting, show progress
     k6posValidating,     // Finalize position, check result
     // Compass
+    kMagPrompt,          // "ENTER to start, ESC to cancel" for mag
     kMagCollecting,      // Collecting mag samples, show progress/coverage
     // Common
     kComputing,          // Running fit (6pos or mag)
@@ -549,6 +550,36 @@ static void cal_ui_mag_process_sample(RcosAo* me,
     }
 }
 
+// ---- Mag prompt: wait for ENTER before starting collection ----
+static void cal_ui_begin_mag_collection(RcosAo* me) {
+    printf("Collecting...\n");
+    (void)fflush(stdout);
+    calibration_reset_mag_cal();
+    if (rc_os_reset_mag_staleness != nullptr) {
+        rc_os_reset_mag_staleness();
+    }
+    rc_os_mag_cal_active.store(true, std::memory_order_release);
+    cal_neo(kCalNeoMag);
+    me->mag_last_printed_count = 0;
+    me->mag_total_reads = 0;
+    me->mag_reject_close = 0;
+    me->mag_reject_range = 0;
+    me->cal_ui_state = CalUiState::kMagCollecting;
+}
+
+static void cal_ui_handle_mag_prompt(RcosAo* me) {
+    int ch = cal_ui_read_key();
+    if (ch == 27 || ch == 'x' || ch == 'X') {
+        printf("Skipped.\n");
+        cal_ui_next_or_idle(me);
+        return;
+    }
+    if (ch == '\r' || ch == '\n') {
+        cal_ui_begin_mag_collection(me);
+        return;
+    }
+}
+
 // ---- Mag collecting ----
 static void cal_ui_handle_mag_collecting(RcosAo* me) {
     int ch = cal_ui_read_key();
@@ -741,19 +772,8 @@ static void cal_ui_wizard_start_mag(RcosAo* me) {
         return;
     }
     printf("Rotate device through all orientations.\n");
-    printf("Collecting...\n");
-    (void)fflush(stdout);
-    calibration_reset_mag_cal();
-    if (rc_os_reset_mag_staleness != nullptr) {
-        rc_os_reset_mag_staleness();
-    }
-    rc_os_mag_cal_active.store(true, std::memory_order_release);
-    cal_neo(kCalNeoMag);
-    me->mag_last_printed_count = 0;
-    me->mag_total_reads = 0;
-    me->mag_reject_close = 0;
-    me->mag_reject_range = 0;
-    me->cal_ui_state = CalUiState::kMagCollecting;
+    printf("ENTER to start, 'x' to skip.\n");
+    me->cal_ui_state = CalUiState::kMagPrompt;
 }
 
 // Dispatch to the appropriate wizard step handler
@@ -909,6 +929,7 @@ static void cal_ui_tick(RcosAo* me) {
     case CalUiState::k6posPrompt:     cal_ui_handle_6pos_prompt(me);      break;
     case CalUiState::k6posSampling:   cal_ui_handle_6pos_sampling(me);    break;
     case CalUiState::k6posValidating: cal_ui_handle_6pos_validating(me);  break;
+    case CalUiState::kMagPrompt:      cal_ui_handle_mag_prompt(me);       break;
     case CalUiState::kMagCollecting:  cal_ui_handle_mag_collecting(me);   break;
     case CalUiState::kComputing:      cal_ui_handle_computing(me);        break;
     case CalUiState::kResult:         cal_ui_handle_result(me);           break;
@@ -959,11 +980,10 @@ static QState RcosAo_running(RcosAo * const me, QEvt const * const e) {
         cli_dispatch();
         ansi_render_tick(me);
 
-        // Menu/CSV: rc_os_update() handles USB connect, banner, key dispatch
-        auto mode = AO_RCOS_get_output_mode();
-        if (mode == StationOutputMode::kMenu || mode == StationOutputMode::kCsv) {
-            rc_os_update();
-        }
+        // rc_os_update() handles USB connect detection, boot banner, and
+        // menu key dispatch. Called every tick regardless of output mode —
+        // USB connect/banner must work in ANSI mode too.
+        rc_os_update();
 
         // Calibration UI state machine
         cal_ui_tick(me);
@@ -1101,25 +1121,12 @@ void AO_RCOS_start_cal_mag() {
     printf("========================================\n");
     printf("Rotate the device slowly through all\n");
     printf("orientations to cover the full sphere.\n");
-    printf("Press ESC/'x' to cancel.\n");
-    printf("========================================\n\n");
-    printf("Collecting...\n");
-    (void)fflush(stdout);
-
-    calibration_reset_mag_cal();
-    if (rc_os_reset_mag_staleness != nullptr) {
-        rc_os_reset_mag_staleness();
-    }
-    rc_os_mag_cal_active.store(true, std::memory_order_release);
-    cal_neo(kCalNeoMag);
+    printf("ENTER to start, ESC/'x' to cancel.\n");
+    printf("========================================\n");
 
     l_rcosAo.cal_wizard_active = false;
     l_rcosAo.cal_is_6pos = false;
-    l_rcosAo.mag_last_printed_count = 0;
-    l_rcosAo.mag_total_reads = 0;
-    l_rcosAo.mag_reject_close = 0;
-    l_rcosAo.mag_reject_range = 0;
-    l_rcosAo.cal_ui_state = CalUiState::kMagCollecting;
+    l_rcosAo.cal_ui_state = CalUiState::kMagPrompt;
 }
 
 void AO_RCOS_start_cal_wizard() {

@@ -378,26 +378,33 @@ bool rc_os_update() {
         return false;
     }
 
-    // Just connected - print boot status + banner
-    if (!g_wasConnected) {
-        g_wasConnected = true;
+    // Just connected — USB settle + boot banner (tick-based, non-blocking)
+    // State machine: disconnected → settling (4 ticks) → banner → connected
+    static uint8_t s_settleCount = 0;
 
-        // Brief settle: skip 4 ticks (~200ms at 20Hz) instead of blocking sleep.
-        // sleep_ms(200) would block the QV scheduler and overflow AO queues.
-        static uint8_t s_settleCount = 0;
-        if (s_settleCount < 4) {
-            s_settleCount++;
-            return false;
-        }
-        s_settleCount = 0;
+    if (!g_wasConnected) {
+        // First tick after connect detected — start settling
+        s_settleCount = 1;
+        g_wasConnected = true;
+        return false;
+    }
+
+    if (s_settleCount > 0 && s_settleCount < 5) {
+        // Settling — skip 4 ticks (~200ms at 20Hz)
+        s_settleCount++;
+        return false;
+    }
+
+    if (s_settleCount == 5) {
+        // Settle complete — print boot banner
+        s_settleCount = 0;  // Done settling
 
         // Drain any garbage from input buffer (per LL Entry 15)
         while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
             // Discard
         }
 
-        // Print full boot status on first-ever connect (non-blocking USB:
-        // boot output deferred until terminal connects)
+        // Print full boot status on first-ever connect
         if (!g_bannerPrinted) {
             cli_print_boot_status();
         }
