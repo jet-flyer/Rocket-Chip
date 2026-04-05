@@ -454,7 +454,7 @@ static void core1_sensor_loop() {
 
         gpsCycle++;
         if (gpsCycle >= kCore1GpsDivider && g_gpsInitialized
-            && !rc_os_mag_cal_active) {
+            && !rc_os_mag_cal_active.load(std::memory_order_acquire)) {
             gpsCycle = 0;
             core1_read_gps(&localData, &lastGpsReadUs);
         }

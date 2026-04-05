@@ -477,25 +477,11 @@ static void init_rc_os_hooks() {
     rc_os_init();
     rc_os_imu_available = g_imuInitialized;
     rc_os_baro_available = g_baroContinuous;
-    if constexpr (job::kRadioModeRx) {
-        rc_os_print_sensor_status = cli_print_station_status;
-    } else {
-        rc_os_print_sensor_status = cli_print_sensor_status;
-    }
-    rc_os_print_boot_summary = cli_print_hw_status;
-    rc_os_print_boot_status = cli_print_boot_status;
     rc_os_read_accel = cal_read_accel;
     rc_os_read_mag = cal_read_mag;
     rc_os_reset_mag_staleness = cal_reset_mag_staleness;
     rc_os_cal_pre_hook = cal_pre_hook;
     rc_os_cal_post_hook = cal_post_hook;
-    rc_os_set_cal_neo = cal_set_neo_override;
-    rc_os_feed_cal = cal_feed_active;
-    rc_os_print_eskf_live = cli_print_eskf_live;
-    rc_os_on_unhandled_key = cli_handle_unhandled_key;
-    rc_os_dispatch_flight_signal = AO_FlightDirector_dispatch_signal;
-    rc_os_print_flight_status = AO_FlightDirector_print_status;
-    rc_os_process_flight_command = AO_FlightDirector_process_command;
 }
 
 // init_logging_ring() moved to ao_logger.cpp (Phase 4).
@@ -652,7 +638,6 @@ extern "C" void qv_idle_bridge(void) {
     if (AO_RCOS_get_output_mode() == StationOutputMode::kMenu ||
         AO_RCOS_get_output_mode() == StationOutputMode::kCsv) {
         rc_os_update();
-        cal_feed_active();
     }
 
     g_lastTickFunction = "idle";

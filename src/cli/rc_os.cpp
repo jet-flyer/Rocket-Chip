@@ -20,6 +20,9 @@
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
 #include "safety/pio_watchdog.h"
+#include "cli/cli_commands.h"
+#include "ao_flight_director.h"
+#include "ao_led_engine.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -67,20 +70,11 @@ static bool g_wasConnected = false;
 static bool g_bannerPrinted = false;
 // (no extra state needed — reset confirmation is blocking)
 
-// Callback for sensor status (set by main.cpp)
-rc_os_sensor_status_fn rc_os_print_sensor_status = nullptr;
-
-// Callback for boot summary reprint (set by main.cpp)
-rc_os_boot_summary_fn rc_os_print_boot_summary = nullptr;
-
-// Callback for full boot status on first connect (set by main.cpp)
-rc_os_boot_status_fn rc_os_print_boot_status = nullptr;
-
 // Sensor availability flags (set by main.cpp)
 bool rc_os_imu_available = false;
 bool rc_os_baro_available = false;
 bool rc_os_i2c_scan_allowed = true;
-volatile bool rc_os_mag_cal_active = false;
+std::atomic<bool> rc_os_mag_cal_active{false};
 
 // Accel read callback for 6-pos calibration (set by main.cpp)
 rc_os_read_accel_fn rc_os_read_accel = nullptr;
@@ -93,24 +87,7 @@ rc_os_read_mag_fn rc_os_read_mag = nullptr;
 // Mag staleness reset callback (set by main.cpp)
 rc_os_reset_mag_staleness_fn rc_os_reset_mag_staleness = nullptr;
 
-// Unhandled key callback (set by main.cpp for extensible key handling)
-rc_os_unhandled_key_fn rc_os_on_unhandled_key = nullptr;
 
-// INTERIM: NeoPixel calibration override callback (Phase M.5)
-rc_os_set_cal_neo_fn rc_os_set_cal_neo = nullptr;
-
-// Calibration sensor feed callback (set by main.cpp)
-rc_os_feed_cal_fn rc_os_feed_cal = nullptr;
-
-// ESKF live output callback (set by main.cpp)
-rc_os_eskf_live_fn rc_os_print_eskf_live = nullptr;
-
-// Flight Director callbacks (IVP-68, set by main.cpp)
-rc_os_flight_signal_fn rc_os_dispatch_flight_signal = nullptr;
-rc_os_flight_status_fn rc_os_print_flight_status = nullptr;
-
-// Go/No-Go + command handler callback (IVP-69, set by main.cpp)
-rc_os_flight_command_fn rc_os_process_flight_command = nullptr;
 
 // Live ESKF mode state
 static bool g_eskfLiveActive = false;
@@ -207,9 +184,7 @@ static bool wait_for_async_cal();
 // ============================================================================
 
 static void cal_neo(uint8_t mode) {
-    if (rc_os_set_cal_neo != nullptr) {
-        rc_os_set_cal_neo(mode);
-    }
+    AO_LedEngine_post_override(mode);
 }
 
 static void cal_neo_flash_result(bool success) {
@@ -888,9 +863,9 @@ static void cmd_mag_cal() {
         return;
     }
 
-    rc_os_mag_cal_active = true;   // Pause GPS on Core 1
+    rc_os_mag_cal_active.store(true, std::memory_order_release);   // Pause GPS on Core 1
     mag_cal_inner();
-    rc_os_mag_cal_active = false;  // Resume GPS
+    rc_os_mag_cal_active.store(false, std::memory_order_release);  // Resume GPS
     cal_neo(kCalNeoOff);
 }
 
@@ -915,11 +890,6 @@ static bool wait_for_async_cal() {
         if (!stdio_usb_connected()) {
             calibration_cancel();
             return false;
-        }
-
-        // Feed sensor samples to the active calibration
-        if (rc_os_feed_cal != nullptr) {
-            rc_os_feed_cal();
         }
 
         update_calibration_progress();
@@ -1016,9 +986,9 @@ static uint8_t wizard_compass_step() {
         cal_neo(kCalNeoOff);
         return 2;
     }
-    rc_os_mag_cal_active = true;
+    rc_os_mag_cal_active.store(true, std::memory_order_release);
     uint8_t result = mag_cal_inner() ? 0 : 1;
-    rc_os_mag_cal_active = false;
+    rc_os_mag_cal_active.store(false, std::memory_order_release);
     return result;
 }
 
@@ -1143,10 +1113,10 @@ static bool handle_main_menu(int c) {
 
         case 's':
         case 'S':
-            if (rc_os_print_sensor_status != nullptr) {
-                rc_os_print_sensor_status();
+            if constexpr (kRadioModeRx) {
+                cli_print_station_status();
             } else {
-                printf("Sensor status not available.\n");
+                cli_print_sensor_status();
             }
             break;
 
@@ -1162,11 +1132,7 @@ static bool handle_main_menu(int c) {
 
         case 'b':
         case 'B':
-            if (rc_os_print_boot_summary != nullptr) {
-                rc_os_print_boot_summary();
-            } else {
-                printf("Boot summary not available.\n");
-            }
+            cli_print_hw_status();
             break;
 
         case 'c':
@@ -1176,14 +1142,10 @@ static bool handle_main_menu(int c) {
             break;
 
         case 'e':
-            if (rc_os_print_eskf_live != nullptr) {
-                g_eskfLiveActive = true;
-                g_eskfLiveLastPrintUs = time_us_32();
-                printf("\n--- ESKF live (1Hz) --- any key to stop ---\n");
-                rc_os_print_eskf_live();
-            } else {
-                printf("ESKF not available.\n");
-            }
+            g_eskfLiveActive = true;
+            g_eskfLiveLastPrintUs = time_us_32();
+            printf("\n--- ESKF live (1Hz) --- any key to stop ---\n");
+            cli_print_eskf_live();
             break;
 
         case 'f':
@@ -1193,11 +1155,8 @@ static bool handle_main_menu(int c) {
             break;
 
         default:
-            if (rc_os_on_unhandled_key != nullptr) {
-                rc_os_on_unhandled_key(c);
-                break;
-            }
-            return false;
+            cli_handle_unhandled_key(c);
+            break;
     }
     return true;
 }
@@ -1277,19 +1236,11 @@ static bool handle_calibration_menu(int c) {
 // ============================================================================
 
 static void dispatch_flight_signal(int sig) {
-    if (rc_os_dispatch_flight_signal != nullptr) {
-        rc_os_dispatch_flight_signal(sig);
-    } else {
-        printf("Flight Director not initialized.\n");
-    }
+    AO_FlightDirector_dispatch_signal(sig);
 }
 
 static void dispatch_flight_command(int cmd) {
-    if (rc_os_process_flight_command != nullptr) {
-        rc_os_process_flight_command(cmd);
-    } else {
-        printf("Command handler not initialized.\n");
-    }
+    AO_FlightDirector_process_command(cmd);
 }
 
 // NOLINTNEXTLINE(readability-function-size) — pure key dispatcher
@@ -1310,11 +1261,7 @@ static bool handle_flight_menu(int c) {
 
         // Status
         case 's': case 'S':
-            if (rc_os_print_flight_status != nullptr) {
-                rc_os_print_flight_status();
-            } else {
-                printf("Flight status not available.\n");
-            }
+            AO_FlightDirector_print_status();
             break;
 
         // Help
@@ -1369,8 +1316,8 @@ bool rc_os_update() {
 
         // Print full boot status on first-ever connect (non-blocking USB:
         // boot output deferred until terminal connects)
-        if (!g_bannerPrinted && rc_os_print_boot_status != nullptr) {
-            rc_os_print_boot_status();
+        if (!g_bannerPrinted) {
+            cli_print_boot_status();
         }
 
         // Print CLI banner
@@ -1398,9 +1345,7 @@ bool rc_os_update() {
         uint32_t nowUs = time_us_32();
         if (nowUs - g_eskfLiveLastPrintUs >= kEskfLivePeriodUs) {
             g_eskfLiveLastPrintUs = nowUs;
-            if (rc_os_print_eskf_live != nullptr) {
-                rc_os_print_eskf_live();
-            }
+            cli_print_eskf_live();
         }
         return false;
     }

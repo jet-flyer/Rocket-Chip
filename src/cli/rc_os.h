@@ -19,6 +19,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <atomic>
 
 // ============================================================================
 // Menu State
@@ -77,44 +78,6 @@ bool rc_os_is_calibrating(void);
 rc_os_menu_t rc_os_get_menu(void);
 
 // ============================================================================
-// Sensor Status Callback (set by main)
-// ============================================================================
-
-/**
- * @brief Function pointer for sensor status printing
- *
- * Set this to your sensor status print function.
- * Called when user presses 's' in main menu.
- */
-typedef void (*rc_os_sensor_status_fn)(void);
-extern rc_os_sensor_status_fn rc_os_print_sensor_status;
-
-// ============================================================================
-// Boot Summary Callback (set by main)
-// ============================================================================
-
-/**
- * @brief Function pointer for boot/init summary reprint
- *
- * Set this to your HW validation print function.
- * Called when user presses 'b' in main menu (late-connect reprint).
- * Per DEBUG_OUTPUT.md: "Boot button can trigger result reprint"
- */
-typedef void (*rc_os_boot_summary_fn)(void);
-extern rc_os_boot_summary_fn rc_os_print_boot_summary;
-
-/**
- * @brief Function pointer for full boot status (banner + HW validation).
- *
- * Called once on first terminal connection. Prints the full boot banner
- * including version, board info, watchdog status, and HW validation.
- * Enables non-blocking USB: firmware runs without terminal, boot output
- * is deferred until a terminal connects.
- */
-typedef void (*rc_os_boot_status_fn)(void);
-extern rc_os_boot_status_fn rc_os_print_boot_status;
-
-// ============================================================================
 // Sensor Availability Flags (set by main)
 // ============================================================================
 
@@ -160,20 +123,7 @@ extern bool rc_os_i2c_scan_allowed;
  * with AK09916 mag reads (0x0C). Core 1 checks this flag before
  * calling core1_read_gps().
  */
-extern volatile bool rc_os_mag_cal_active;
-
-// ============================================================================
-// Unhandled Key Callback (set by main)
-// ============================================================================
-
-/**
- * @brief Callback for keys not handled by the main menu.
- *
- * Set this to handle additional key commands without modifying
- * the CLI menu structure. Called with the character code.
- */
-typedef void (*rc_os_unhandled_key_fn)(int key);
-extern rc_os_unhandled_key_fn rc_os_on_unhandled_key;
+extern std::atomic<bool> rc_os_mag_cal_active;
 
 // ============================================================================
 // Mag Read Callback (set by main, used by mag cal)
@@ -212,83 +162,5 @@ extern rc_os_reset_mag_staleness_fn rc_os_reset_mag_staleness;
 typedef void (*rc_os_cal_hook_fn)(void);
 extern rc_os_cal_hook_fn rc_os_cal_pre_hook;
 extern rc_os_cal_hook_fn rc_os_cal_post_hook;
-
-// ============================================================================
-// INTERIM: NeoPixel Calibration Override (Phase M.5)
-// Replace with AP_Notify-style status state machine when implemented.
-// ============================================================================
-
-/**
- * @brief NeoPixel override mode values (set by CLI during calibration).
- *
- * 0 = off (normal NeoPixel behavior), 1-8 = calibration states.
- * Defined as constexpr in main.cpp. Values listed here for reference:
- *   0=off, 1=gyro, 2=level, 3=baro, 4=accel_wait, 5=accel_sample,
- *   6=mag, 7=success, 8=fail
- */
-typedef void (*rc_os_set_cal_neo_fn)(uint8_t mode);
-extern rc_os_set_cal_neo_fn rc_os_set_cal_neo;
-
-// ============================================================================
-// ESKF Live Output Callback (set by main)
-// ============================================================================
-
-/**
- * @brief Function pointer for compact ESKF status line.
- *
- * Called at 1Hz when live ESKF mode is active (user pressed 'e').
- * Should print a single compact line (no trailing newline).
- */
-typedef void (*rc_os_eskf_live_fn)(void);
-extern rc_os_eskf_live_fn rc_os_print_eskf_live;
-
-// ============================================================================
-// Calibration Feed Callback (set by main)
-// ============================================================================
-
-/**
- * @brief Wizard polling loop callback.
- *
- * Called from the wizard's blocking loop. Core 1 feeds sensor samples
- * directly (no I2C from Core 0). This callback exists for the wizard's
- * wait loop to call — main.cpp provides a no-op since Core 1 handles feeds.
- */
-typedef void (*rc_os_feed_cal_fn)(void);
-extern rc_os_feed_cal_fn rc_os_feed_cal;
-
-// ============================================================================
-// Flight Director Callbacks (IVP-68)
-// ============================================================================
-
-/**
- * @brief Callback to dispatch a flight signal (ARM, DISARM, LAUNCH, etc.)
- *
- * Set by main.cpp. Called from Flight Director CLI sub-menu.
- * Dispatches a QEP signal to the flight director HSM.
- * @param signal FlightSignal enum value
- */
-typedef void (*rc_os_flight_signal_fn)(int signal);
-extern rc_os_flight_signal_fn rc_os_dispatch_flight_signal;
-
-/**
- * @brief Callback to print flight director status.
- *
- * Called when user presses 's' in flight sub-menu.
- */
-typedef void (*rc_os_flight_status_fn)(void);
-extern rc_os_flight_status_fn rc_os_print_flight_status;
-
-// ============================================================================
-// Go/No-Go + Command Handler Callbacks (IVP-69)
-// ============================================================================
-
-/**
- * @brief Callback to process a validated flight command (ARM, DISARM, ABORT, RESET).
- *
- * Routes through Go/No-Go checks for ARM. Returns true if command was accepted.
- * @param cmd CommandType enum value (cast to int for C linkage)
- */
-typedef bool (*rc_os_flight_command_fn)(int cmd);
-extern rc_os_flight_command_fn rc_os_process_flight_command;
 
 #endif // ROCKETCHIP_RC_OS_H

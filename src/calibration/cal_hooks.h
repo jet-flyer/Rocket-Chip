@@ -7,8 +7,6 @@
 // - Accel read (pauses Core 1, reads IMU directly)
 // - Mag read (reads from seqlock, no I2C contention)
 // - Pre/post hooks (pause/resume Core 1 I2C ownership)
-// - NeoPixel calibration overlay (routes to AO_LedEngine)
-// - Feed callback (no-op, Core 1 feeds directly)
 //
 // Stage 13 AO Architecture: Phase 8 extraction from main.cpp.
 //============================================================================
@@ -23,7 +21,5 @@ bool cal_read_mag(float* mx, float* my, float* mz);
 void cal_reset_mag_staleness();
 void cal_pre_hook();
 void cal_post_hook();
-void cal_set_neo_override(uint8_t mode);
-void cal_feed_active();
 
 #endif // ROCKETCHIP_CAL_HOOKS_H

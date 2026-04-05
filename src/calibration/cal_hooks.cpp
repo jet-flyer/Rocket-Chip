@@ -9,7 +9,6 @@
 #include "cal_hooks.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "drivers/icm20948.h"
-#include "ao_led_engine.h"
 #include "pico/stdlib.h"
 #include <stdio.h>
 
@@ -122,16 +121,4 @@ void cal_post_hook() {
         g_calReloadPending.store(true, std::memory_order_release);
         g_core1PauseI2C.store(false, std::memory_order_release);
     }
-}
-
-// ============================================================================
-// NeoPixel + Feed Callbacks
-// ============================================================================
-
-void cal_set_neo_override(uint8_t mode) {
-    AO_LedEngine_post_override(mode);
-}
-
-void cal_feed_active() {
-    // Core 1 handles all sensor feeds. Nothing to do here.
 }
