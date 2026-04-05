@@ -8,7 +8,7 @@
 
 8-phase migration: main.cpp 3384→706 lines (79% reduction). All subsystems extracted into own modules/AOs with explicit interfaces. Council-reviewed (5 personas). All phases HW verified on Feather RP2350.
 
-**In progress:** RC_OS consolidation — eliminating callback indirection, renaming CLI files to rc_os_* convention, separating calibration execution from CLI into async state machine in AO_RCOS.
+**RC_OS consolidation complete:** Callback indirection eliminated (15→5), CLI files renamed to rc_os_* convention, calibration wizards converted to non-blocking async state machine in AO_RCOS (20Hz tick-driven). Idle bridge reduced to watchdog + ESKF + WFI.
 
 **Done this stage:**
 - sensor_seqlock.h, led_patterns.h (shared headers)
