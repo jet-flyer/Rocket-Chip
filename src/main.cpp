@@ -27,6 +27,7 @@
 #include "drivers/gps_uart.h"
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
+#include "calibration/cal_hooks.h"
 #include "fusion/eskf.h"
 #include "fusion/eskf_runner.h"
 #include "fusion/confidence_gate.h"
@@ -77,9 +78,6 @@
 
 static constexpr uint kNeoPixelPin = board::kNeoPixelPin;
 
-// Core 1 pause ACK timeout — also used by Core 0 CLI wait loop
-static constexpr uint32_t kCore1PauseAckMaxMs = 100;
-
 // MPU stack guard
 static constexpr uint32_t kMpuGuardSizeBytes = 64;              // Guard region at bottom of stack
 
@@ -95,11 +93,7 @@ static constexpr uint32_t kWatchdogTimeoutMs = 5000;            // 5 second time
 // ESKF constants moved to eskf_runner.cpp (Phase 2).
 // DPS310 data-ready constants moved to sensor_core1.cpp (Phase 1).
 
-// Calibration read rate (~100Hz for accel cal)
-static constexpr uint32_t kCalReadDelayMs = 10;
-
-// Mag diagnostic print modulus (every N failures)
-static constexpr uint32_t kMagDiagPrintModulus = 200;
+// Calibration constants moved to src/calibration/cal_hooks.cpp (Phase 8).
 
 // Sensor power-up settling time (generous margin over ICM-20948 11ms + DPS310 40ms)
 static constexpr uint32_t kSensorSettleMs = 200;
@@ -297,136 +291,7 @@ static void mpu_setup_stack_guard(uint32_t stackBottom) {
 // Public entry point: core1_entry() — declared in core1/sensor_core1.h.
 // ============================================================================
 
-// ============================================================================
-// Accel Read Callback (for 6-pos calibration via CLI)
-// ============================================================================
-
-static bool read_accel_for_cal(float* ax, float* ay, float* az, float* tempC) {
-    sleep_ms(kCalReadDelayMs);  // ~100Hz sampling rate
-    // Use full icm20948_read() instead of icm20948_read_accel() — the accel-only
-    // read (6 bytes from ACCEL_XOUT_H) does NOT read through TEMP_OUT_L, so the
-    // data-ready flag is never cleared. After ~200 reads the output registers
-    // stop updating (all zeros). The full 14-byte read clears data-ready.
-    icm20948_data_t data;
-    if (!icm20948_read(&g_imu, &data) || !data.accel_valid) {
-        return false;
-    }
-    *ax = data.accel.x;
-    *ay = data.accel.y;
-    *az = data.accel.z;
-    *tempC = data.temperature_c;
-    return true;
-}
-
-// ============================================================================
-// Mag Read Callback (for compass calibration via CLI)
-// ============================================================================
-// Reads from seqlock — Core 1 keeps running, no I2C contention.
-// Bus-agnostic: reads from shared data regardless of sensor transport.
-
-// Staleness gate — only accept mag data with a new mag_read_count.
-// Reset before each calibration run so 2nd attempt doesn't inherit stale counter.
-static uint32_t g_lastMagReadCount = 0;
-
-// Diagnostic counters for mag read failures (debug mag cal freeze)
-static uint32_t g_magDiagSeqlockFail = 0;
-static uint32_t g_magDiagNotValid = 0;
-static uint32_t g_magDiagStale = 0;
-static uint32_t g_magDiagLastSeenCount = 0;
-
-static void reset_mag_read_staleness() {
-    g_lastMagReadCount = 0;
-    g_magDiagSeqlockFail = 0;
-    g_magDiagNotValid = 0;
-    g_magDiagStale = 0;
-    g_magDiagLastSeenCount = 0;
-}
-
-static bool read_mag_from_seqlock(float* mx, float* my, float* mz) {
-    shared_sensor_data_t snap = {};
-    if (!seqlock_read(&g_sensorSeqlock, &snap)) {
-        g_magDiagSeqlockFail++;
-        return false;
-    }
-    g_magDiagLastSeenCount = snap.mag_read_count;
-    if (!snap.mag_valid) {
-        g_magDiagNotValid++;
-        // Periodic diagnostic — print every 200 failures to show what's happening
-        if (g_magDiagNotValid == 1 || g_magDiagNotValid % kMagDiagPrintModulus == 0) {
-            (void)printf("  [mag_valid=false, mag_read_count=%lu, lastAccepted=%lu]\n",
-                        (unsigned long)snap.mag_read_count,
-                        (unsigned long)g_lastMagReadCount);
-            (void)fflush(stdout);
-        }
-        return false;
-    }
-    // Only return genuinely new mag data — AK09916 updates at ~100Hz,
-    // but the seqlock is written at ~1kHz. Without this check, the mag cal
-    // feeds identical samples that get REJECTED_CLOSE by the angular filter.
-    if (snap.mag_read_count == g_lastMagReadCount) {
-        g_magDiagStale++;
-        return false;
-    }
-    g_lastMagReadCount = snap.mag_read_count;
-
-    // Return RAW mag data for calibration — the ellipsoid solver needs
-    // uncorrected samples to compute offset/scale/offdiag corrections.
-    *mx = snap.mag_raw_x;
-    *my = snap.mag_raw_y;
-    *mz = snap.mag_raw_z;
-    return true;
-}
-
-// ============================================================================
-// Calibration Hooks — pause Core 1 during rapid accel reads
-// ============================================================================
-// Bypass mode eliminates the I2C master race condition (LL Entry 21).
-// Hooks only need to pause/unpause Core 1 for bus ownership.
-
-static void cal_pre_hook() {
-    // If Core 1 is running sensors, pause it and take I2C ownership
-    if (g_sensorPhaseActive && !g_core1I2CPaused.load(std::memory_order_acquire)) {
-        g_core1PauseI2C.store(true, std::memory_order_release);
-        // Wait for Core 1 to acknowledge pause (max 100ms)
-        for (uint32_t i = 0; i < kCore1PauseAckMaxMs; i++) {
-            if (g_core1I2CPaused.load(std::memory_order_acquire)) {
-                break;
-            }
-            sleep_ms(1);
-        }
-    }
-}
-
-static void cal_post_hook() {
-    // Tell Core 1 to reload calibration and resume sensors
-    if (g_sensorPhaseActive) {
-        g_calReloadPending.store(true, std::memory_order_release);
-        g_core1PauseI2C.store(false, std::memory_order_release);
-    }
-}
-
-// ============================================================================
-// NeoPixel calibration override callback (Phase 5)
-// Routes CLI calibration overlays to AO_LedEngine's calibration layer.
-// ============================================================================
-
-static void set_cal_neo_override(uint8_t mode) {
-    AO_LedEngine_post_override(mode);
-}
-
-// ============================================================================
-// Calibration Sensor Feed Helper (no-op — Core 1 feeds directly)
-// ============================================================================
-// Async calibration samples (gyro/level/baro) are now fed by Core 1 in
-// core1_read_imu() and core1_read_baro(), using raw sensor data with no
-// I2C bus contention. This function exists as the rc_os_feed_cal callback
-// target — the wizard's wait loop calls it for watchdog kicking.
-// Core 0 must NOT call icm20948_read() or baro_dps310_read() while Core 1
-// owns the I2C bus (per MULTICORE_RULES.md invariant at core1_sensor_loop).
-
-static void feed_active_calibration() {
-    // Core 1 handles all sensor feeds. Nothing to do here.
-}
+// Calibration hooks moved to src/calibration/cal_hooks.cpp (Phase 8).
 
 // Display functions moved to src/cli/cli_commands.cpp (Phase 7).
 
@@ -619,13 +484,13 @@ static void init_rc_os_hooks() {
     }
     rc_os_print_boot_summary = cli_print_hw_status;
     rc_os_print_boot_status = cli_print_boot_status;
-    rc_os_read_accel = read_accel_for_cal;
-    rc_os_read_mag = read_mag_from_seqlock;
-    rc_os_reset_mag_staleness = reset_mag_read_staleness;
+    rc_os_read_accel = cal_read_accel;
+    rc_os_read_mag = cal_read_mag;
+    rc_os_reset_mag_staleness = cal_reset_mag_staleness;
     rc_os_cal_pre_hook = cal_pre_hook;
     rc_os_cal_post_hook = cal_post_hook;
-    rc_os_set_cal_neo = set_cal_neo_override;
-    rc_os_feed_cal = feed_active_calibration;
+    rc_os_set_cal_neo = cal_set_neo_override;
+    rc_os_feed_cal = cal_feed_active;
     rc_os_print_eskf_live = cli_print_eskf_live;
     rc_os_on_unhandled_key = cli_handle_unhandled_key;
     rc_os_dispatch_flight_signal = AO_FlightDirector_dispatch_signal;
@@ -787,7 +652,7 @@ extern "C" void qv_idle_bridge(void) {
     if (AO_RCOS_get_output_mode() == StationOutputMode::kMenu ||
         AO_RCOS_get_output_mode() == StationOutputMode::kCsv) {
         rc_os_update();
-        feed_active_calibration();
+        cal_feed_active();
     }
 
     g_lastTickFunction = "idle";

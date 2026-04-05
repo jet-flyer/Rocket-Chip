@@ -270,6 +270,7 @@ else()
         src/calibration/calibration_data.cpp
         src/calibration/calibration_manager.cpp
         src/calibration/calibration_storage.cpp
+        src/calibration/cal_hooks.cpp
 
         # IVP-18: RC_OS CLI
         src/cli/rc_os.cpp
@@ -392,6 +393,7 @@ else()
         src/calibration/calibration_data.cpp
         src/calibration/calibration_manager.cpp
         src/calibration/calibration_storage.cpp
+        src/calibration/cal_hooks.cpp
         src/cli/rc_os.cpp
         src/cli/ansi_dashboard.cpp
         src/cli/cli_commands.cpp
