@@ -16,7 +16,7 @@
 #include "rocketchip/board.h"
 #include "rocketchip/config.h"
 #include "rocketchip/job.h"
-#include "cli/ansi_dashboard.h"
+#include "cli/rc_os_dashboard.h"
 #include "cli/rc_os.h"
 
 #ifndef ROCKETCHIP_HOST_TEST

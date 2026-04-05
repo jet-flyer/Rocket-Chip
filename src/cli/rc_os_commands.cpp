@@ -9,7 +9,7 @@
  * sensor seqlock, owns no state.
  */
 
-#include "cli/cli_commands.h"
+#include "cli/rc_os_commands.h"
 
 #include "rocketchip/config.h"
 #include "rocketchip/sensor_seqlock.h"

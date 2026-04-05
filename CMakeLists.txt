@@ -274,8 +274,8 @@ else()
 
         # IVP-18: RC_OS CLI
         src/cli/rc_os.cpp
-        src/cli/ansi_dashboard.cpp
-        src/cli/cli_commands.cpp
+        src/cli/rc_os_dashboard.cpp
+        src/cli/rc_os_commands.cpp
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -395,8 +395,8 @@ else()
         src/calibration/calibration_storage.cpp
         src/calibration/cal_hooks.cpp
         src/cli/rc_os.cpp
-        src/cli/ansi_dashboard.cpp
-        src/cli/cli_commands.cpp
+        src/cli/rc_os_dashboard.cpp
+        src/cli/rc_os_commands.cpp
         src/active_objects/ao_rcos.cpp
         src/math/vec3.cpp
         src/math/quat.cpp

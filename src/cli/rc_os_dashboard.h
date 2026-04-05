@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
- * @file ansi_dashboard.h
+ * @file rc_os_dashboard.h
  * @brief Live-updating ANSI terminal dashboard for ground station mode
  *
  * Renders a color-coded telemetry dashboard using ANSI escape codes.
@@ -12,8 +12,8 @@
  * Stage 12B Phase 1: Firmware ANSI dashboard (no companion app needed).
  */
 
-#ifndef ROCKETCHIP_ANSI_DASHBOARD_H
-#define ROCKETCHIP_ANSI_DASHBOARD_H
+#ifndef ROCKETCHIP_RC_OS_DASHBOARD_H
+#define ROCKETCHIP_RC_OS_DASHBOARD_H
 
 #include "rocketchip/telemetry_state.h"
 #include <stdint.h>
@@ -41,4 +41,4 @@ void ansi_dashboard_render(const rc::TelemetryState& telem,
  */
 void ansi_dashboard_render_waiting(const RadioAoState* rs);
 
-#endif // ROCKETCHIP_ANSI_DASHBOARD_H
+#endif // ROCKETCHIP_RC_OS_DASHBOARD_H

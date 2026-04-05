@@ -20,7 +20,7 @@
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
 #include "safety/pio_watchdog.h"
-#include "cli/cli_commands.h"
+#include "cli/rc_os_commands.h"
 #include "ao_flight_director.h"
 #include "ao_led_engine.h"
 #include <stdio.h>

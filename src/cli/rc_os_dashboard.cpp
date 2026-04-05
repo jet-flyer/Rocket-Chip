@@ -13,7 +13,7 @@
  * Colors: green/yellow/red/cyan/default. No bold, no background.
  */
 
-#include "ansi_dashboard.h"
+#include "rc_os_dashboard.h"
 #include "rocketchip/config.h"
 #include "active_objects/ao_radio.h"
 #include "flight_director/flight_state.h"
