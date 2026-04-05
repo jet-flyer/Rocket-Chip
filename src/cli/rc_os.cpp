@@ -152,62 +152,8 @@ static void print_flight_menu() {
 // ============================================================================
 // Calibration Commands (blocking wizards removed — Phase D4)
 // Calibration UI state machine now in AO_RCOS (ao_rcos.cpp).
-// Retained: cmd_save_cal (fast sync), cmd_reset_cal (blocking confirm).
-// ============================================================================
-
-static void cmd_save_cal() {
-    printf("\nSaving calibration to flash...");
-    (void)fflush(stdout);
-
-    cal_result_t result = calibration_save();
-    if (result == CAL_RESULT_OK) {
-        printf(" OK!\n");
-        if (!i2c_bus_reset()) {  // Flash ops can disrupt I2C
-            printf("[WARN] I2C bus reset failed after save\n");
-        }
-    } else {
-        printf(" FAILED (%d)\n", result);
-    }
-}
-
-static void cmd_reset_cal() {
-    printf("\n*** RESET ALL CALIBRATION ***\n");
-    printf("This will erase all calibration data!\n");
-    printf("Type 'YES' + ENTER to confirm: ");
-    (void)fflush(stdout);
-
-    char confirm[kResetConfirmBufSize] = {0};
-    int idx = 0;
-    bool gotEnter = false;
-    while (idx < (int)kResetConfirmMaxIdx) {
-        int ch = getchar_timeout_us(kResetConfirmTimeoutUs);
-        if (ch == PICO_ERROR_TIMEOUT) {
-            printf("\nTimeout - cancelled.\n");
-            return;
-        }
-        if (ch == '\r' || ch == '\n') {
-            gotEnter = true;
-            break;
-        }
-        confirm[idx++] = (char)ch;
-        printf("%c", ch);
-        (void)fflush(stdout);
-    }
-    printf("\n");
-
-    if (gotEnter && strcmp(confirm, "YES") == 0) {
-        printf("Resetting all calibration data...");
-        (void)fflush(stdout);
-        cal_result_t result = calibration_reset();
-        if (result == CAL_RESULT_OK) {
-            printf(" OK!\n");
-        } else {
-            printf(" FAILED (%d)\n", result);
-        }
-    } else {
-        printf("Cancelled (need to type 'YES' then ENTER).\n");
-    }
-}
+// cmd_save_cal and cmd_reset_cal moved to AO_RCOS (non-blocking).
+// Triggered via AO_RCOS_start_cal_save() and AO_RCOS_start_cal_reset().
 
 // Blocking calibration functions (cmd_gyro_cal, cmd_level_cal, cmd_baro_cal,
 // cmd_accel_6pos_cal, cmd_mag_cal, cmd_wizard, wait_for_async_cal,
@@ -216,8 +162,7 @@ static void cmd_reset_cal() {
 // All calibration UI now driven by AO_RCOS cal_ui_tick() state machine.
 
 
-// [Phase D4: blocking functions removed — see ao_rcos.cpp cal_ui_tick()]
-// Remaining here: only cmd_save_cal() and cmd_reset_cal() above.
+// [Phase D: all blocking functions removed — see ao_rcos.cpp cal_ui_tick()]
 
 // ============================================================================
 // Main Menu Handler
@@ -326,12 +271,12 @@ static bool handle_calibration_menu(int c) {
 
         case 'v':
         case 'V':
-            cmd_save_cal();
+            AO_RCOS_start_cal_save();
             break;
 
         case 'r':
         case 'R':
-            cmd_reset_cal();
+            AO_RCOS_start_cal_reset();
             break;
 
         case 'x':
@@ -437,8 +382,14 @@ bool rc_os_update() {
     if (!g_wasConnected) {
         g_wasConnected = true;
 
-        // Brief settle time
-        sleep_ms(kUsbSettleMs);
+        // Brief settle: skip 4 ticks (~200ms at 20Hz) instead of blocking sleep.
+        // sleep_ms(200) would block the QV scheduler and overflow AO queues.
+        static uint8_t s_settleCount = 0;
+        if (s_settleCount < 4) {
+            s_settleCount++;
+            return false;
+        }
+        s_settleCount = 0;
 
         // Drain any garbage from input buffer (per LL Entry 15)
         while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
@@ -477,6 +428,12 @@ bool rc_os_update() {
             g_eskfLiveLastPrintUs = nowUs;
             cli_print_eskf_live();
         }
+        return false;
+    }
+
+    // When a cal/input UI sequence is active, the AO_RCOS cal_ui_tick()
+    // handles all key input. Don't read here or we steal characters.
+    if (AO_RCOS_cal_active()) {
         return false;
     }
 

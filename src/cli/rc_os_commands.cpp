@@ -11,6 +11,7 @@
 
 #include "cli/rc_os_commands.h"
 
+#include "ao_rcos.h"
 #include "rocketchip/config.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/pcm_frame.h"
@@ -81,9 +82,7 @@ static constexpr float kFullCircleDeg = 360.0F;
 static constexpr double kGpsCoordScale = 1e7;
 static constexpr float kGps1e7ToDegreesF = 1e-7F;  // NOLINT(readability-identifier-naming)
 static constexpr double kGps1e7ToDegrees = 1e-7;    // NOLINT(readability-identifier-naming)
-static constexpr int32_t kEraseInputMaxChars = 7;
-static constexpr uint32_t kEraseInputTimeoutUs = 10000000;
-static constexpr uint32_t kFlightNumTimeoutUs = 3000000;
+// Erase/download input constants removed — blocking input now in AO_RCOS.
 static constexpr uint32_t kCrc32InitXor = 0xFFFFFFFFU;
 static constexpr uint8_t kDlpfCfgMask = 0x07U;
 
@@ -869,59 +868,22 @@ static void cmd_flush_log() {
     }
 }
 
-static void cmd_erase_all_flights() {
+// Erase confirmation prompt + input now in AO_RCOS (non-blocking).
+// This function is the completion callback — does the actual erase.
+void cli_do_erase_flights() {
     rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
-    if (!ft->loaded) {
-        printf("Flight table not loaded.\n");
-        return;
-    }
-
-    uint32_t count = rc::flight_table_count(ft);
-    if (count == 0) {
-        printf("No flights to erase.\n");
-        return;
-    }
-
-    printf("Erase ALL %lu flights? Type 'yes' + Enter to confirm: ",
-           (unsigned long)count);
-
-    char buf[8] = {};
-    int pos = 0;
-    while (pos < kEraseInputMaxChars) {
-        int ch = getchar_timeout_us(kEraseInputTimeoutUs);
-        if (ch == PICO_ERROR_TIMEOUT) {
-            break;
-        }
-        if (ch == '\r' || ch == '\n') {
-            break;
-        }
-        buf[pos++] = static_cast<char>(ch);
-        putchar(ch);
-    }
-    buf[pos] = '\0';
-    printf("\n");
-
-    if (pos != 3 || buf[0] != 'y' || buf[1] != 'e' || buf[2] != 's') {
-        printf("Erase cancelled.\n");
-        return;
-    }
-
     printf("Erasing flight log sectors...\n");
     if (!rc::flight_log_erase_all(ft, flush_kick_watchdog)) {
         printf("Flash erase error.\n");
         return;
     }
-
     if (!rc::flight_table_erase_flash()) {
         printf("Table erase error.\n");
         return;
     }
-
     rc::flight_table_erase_all(ft);
     ft->loaded = true;
-
     rc::flight_table_save(ft);
-
     printf("All flights erased.\n");
 }
 
@@ -959,23 +921,8 @@ static void cmd_list_flights() {
            (unsigned long)count);
 }
 
-static int read_flight_number() {
-    int num = 0;
-    bool gotDigit = false;
-    for (int i = 0; i < 3; ++i) {
-        int c = getchar_timeout_us(kFlightNumTimeoutUs);
-        if (c == PICO_ERROR_TIMEOUT) {
-            break;
-        }
-        if (c >= '0' && c <= '9') {
-            num = num * 10 + (c - '0');
-            gotDigit = true;
-        } else if (c == '\r' || c == '\n') {
-            break;
-        }
-    }
-    return gotDigit ? num : -1;
-}
+// read_flight_number() removed — blocking input now in AO_RCOS (non-blocking).
+// Flight number input via AO_RCOS_start_download_flight() → cal_ui_handle_flight_num().
 
 static uint32_t stream_flight_binary(const rc::FlightLogEntry& entry) {
     uint32_t frame_size = entry.frame_size;
@@ -1014,25 +961,15 @@ static uint32_t stream_flight_binary(const rc::FlightLogEntry& entry) {
     return running_crc ^ kCrc32InitXor;
 }
 
-static void cmd_download_flight() {
+// Download prompt + flight number input now in AO_RCOS (non-blocking).
+// This function is the completion callback — does the actual download.
+void cli_do_download_flight(int num) {
     const rc::FlightTableState* ft = AO_Logger_get_flight_table();
-    if (!ft->loaded) {
-        printf("Flight table not loaded.\n");
-        return;
-    }
     uint32_t count = rc::flight_table_count(ft);
-    if (count == 0) {
-        printf("No flights stored.\n");
-        return;
-    }
-
-    printf("Flight # (1-%lu): ", (unsigned long)count);
-    int num = read_flight_number();
     if (num < 1 || static_cast<uint32_t>(num) > count) {
-        printf("\nInvalid flight number.\n");
+        printf("Invalid flight number.\n");
         return;
     }
-    printf("%d\n", num);
 
     rc::FlightLogEntry entry = {};
     if (!rc::flight_table_get_entry(ft, static_cast<uint32_t>(num - 1),
@@ -1144,10 +1081,10 @@ static void cmd_station_distance() {
 void cli_handle_unhandled_key(int key) {
     switch (key) {
     case 'l': case 'L': cmd_flush_log(); break;
-    case 'x': case 'X': cmd_erase_all_flights(); break;
+    case 'x': case 'X': AO_RCOS_start_erase_flights(); break;
     case 'd': case 'D':
         if constexpr (kRadioModeRx) { cmd_station_distance(); }
-        else { cmd_download_flight(); }
+        else { AO_RCOS_start_download_flight(); }
         break;
     case 'g': case 'G':
         if constexpr (kRadioModeRx) { cmd_station_gps(); }

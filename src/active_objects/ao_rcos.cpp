@@ -26,11 +26,20 @@
 #include "calibration/calibration_manager.h"
 #include "calibration/cal_hooks.h"
 #include "drivers/i2c_bus.h"
+#include "ao_logger.h"
+#include "logging/flight_table.h"
+#include "logging/flash_flush.h"
+
+// Forward declarations for non-blocking erase/download completion
+// (actual implementations in rc_os_commands.cpp)
+void cli_do_erase_flights();
+void cli_do_download_flight(int flight_num);
 
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
 #include "pico/stdio_usb.h"
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 #endif
 
@@ -74,6 +83,7 @@ void AO_RCOS_cycle_output_mode() {
 enum class CalUiState : uint8_t {
     kIdle = 0,
     // Async cals (gyro, level, baro) — Core 1 feeds, poll completion
+    kAsyncPrompt,        // "ENTER to start, ESC to cancel" — wait for keypress
     kAsyncWaiting,
     // 6-position accel
     k6posPrompt,         // Print "Place in position N, press Enter"
@@ -84,6 +94,10 @@ enum class CalUiState : uint8_t {
     // Common
     kComputing,          // Running fit (6pos or mag)
     kResult,             // Show pass/fail, auto-save
+    // Blocking-replacement states (non-blocking char-by-char input)
+    kResetConfirm,       // Reading "YES" + Enter for cal reset
+    kEraseConfirm,       // Reading "yes" + Enter for flight erase
+    kFlightNumInput,     // Reading flight number for download
     // Wizard mode
     kWizardNext,         // Advance to next wizard step
 };
@@ -130,6 +144,7 @@ struct RcosAo {
 
     // Calibration UI state
     CalUiState cal_ui_state;
+    uint8_t    cal_async_type;       // 0=gyro, 1=level, 2=baro (for kAsyncPrompt)
     uint8_t    cal_6pos_position;     // 0-5 for current position
     uint8_t    cal_wizard_step;       // 0-3 for wizard sequence
     bool       cal_wizard_active;     // Running full wizard vs single cal
@@ -141,6 +156,11 @@ struct RcosAo {
     uint32_t   mag_total_reads;
     uint32_t   mag_reject_close;
     uint32_t   mag_reject_range;
+
+    // Reset confirmation state
+    char       confirm_buf[8];
+    uint8_t    confirm_idx;
+    uint8_t    confirm_timeout_ticks;   // 10s at 20Hz = 200 ticks
 
     // Wizard counters
     uint8_t    wizard_passed;
@@ -275,6 +295,54 @@ static int cal_ui_read_key() {
 // Transition helper: go to wizard next step or idle
 static CalUiState cal_ui_next_or_idle(RcosAo* me) {
     return me->cal_wizard_active ? CalUiState::kWizardNext : CalUiState::kIdle;
+}
+
+// ---- Async cal prompt: wait for ENTER before starting ----
+static constexpr uint8_t kAsyncGyro  = 0;
+static constexpr uint8_t kAsyncLevel = 1;
+static constexpr uint8_t kAsyncBaro  = 2;
+
+static void cal_ui_start_async_cal(RcosAo* me) {
+    cal_result_t r = CAL_RESULT_BUSY;
+    uint8_t neo = kCalNeoOff;
+    switch (me->cal_async_type) {
+    case kAsyncGyro:
+        r = calibration_start_gyro();
+        neo = kCalNeoGyro;
+        break;
+    case kAsyncLevel:
+        r = calibration_start_accel_level();
+        neo = kCalNeoLevel;
+        break;
+    case kAsyncBaro:
+        r = calibration_start_baro();
+        neo = kCalNeoBaro;
+        break;
+    }
+    if (r != CAL_RESULT_OK) {
+        printf("ERROR: Failed to start cal (%d)\n", static_cast<int>(r));
+        cal_ui_next_or_idle(me);
+        return;
+    }
+    printf("Sampling");
+    (void)fflush(stdout);
+    cal_neo(neo);
+    me->cal_last_progress = 0;
+    me->cal_ui_state = CalUiState::kAsyncWaiting;
+}
+
+static void cal_ui_handle_async_prompt(RcosAo* me) {
+    int ch = cal_ui_read_key();
+    if (ch == 27 || ch == 'x' || ch == 'X') {
+        printf("Skipped.\n");
+        cal_ui_next_or_idle(me);
+        return;
+    }
+    if (ch == '\r' || ch == '\n') {
+        cal_ui_start_async_cal(me);
+        return;
+    }
+    // Ignore other keys — keep waiting
 }
 
 // ---- Async cals (gyro, level, baro) ----
@@ -625,17 +693,8 @@ static void cal_ui_wizard_start_gyro(RcosAo* me) {
     }
     printf("Keep device STILL for ~2s.\n");
     printf("ENTER to start, 'x' to skip.\n");
-    cal_neo(kCalNeoGyro);
-    cal_result_t r = calibration_start_gyro();
-    if (r != CAL_RESULT_OK) {
-        printf("ERROR: Failed to start gyro cal (%d)\n", r);
-        me->wizard_failed++;
-        return;  // stays in kWizardNext
-    }
-    printf("Sampling");
-    (void)fflush(stdout);
-    me->cal_last_progress = 0;
-    me->cal_ui_state = CalUiState::kAsyncWaiting;
+    me->cal_async_type = kAsyncGyro;
+    me->cal_ui_state = CalUiState::kAsyncPrompt;
 }
 
 // Start wizard step: level
@@ -647,17 +706,9 @@ static void cal_ui_wizard_start_level(RcosAo* me) {
         return;
     }
     printf("Keep device FLAT and STILL for ~1s.\n");
-    printf("Sampling");
-    (void)fflush(stdout);
-    cal_neo(kCalNeoLevel);
-    cal_result_t r = calibration_start_accel_level();
-    if (r != CAL_RESULT_OK) {
-        printf("ERROR: Failed to start level cal (%d)\n", r);
-        me->wizard_failed++;
-        return;
-    }
-    me->cal_last_progress = 0;
-    me->cal_ui_state = CalUiState::kAsyncWaiting;
+    printf("ENTER to start, 'x' to skip.\n");
+    me->cal_async_type = kAsyncLevel;
+    me->cal_ui_state = CalUiState::kAsyncPrompt;
 }
 
 // Start wizard step: 6-position accel
@@ -728,18 +779,143 @@ static void cal_ui_handle_wizard_next(RcosAo* me) {
     cal_ui_wizard_start_step(me);
 }
 
+// ---- Reset confirmation (non-blocking, one char per tick) ----
+static constexpr uint8_t kResetTimeoutTicks = 200;  // 10s at 20Hz
+
+static void cal_ui_handle_reset_confirm(RcosAo* me) {
+    me->confirm_timeout_ticks++;
+    if (me->confirm_timeout_ticks >= kResetTimeoutTicks) {
+        printf("\nTimeout - cancelled.\n");
+        me->cal_ui_state = CalUiState::kIdle;
+        return;
+    }
+
+    int ch = getchar_timeout_us(0);
+    if (ch == PICO_ERROR_TIMEOUT) {
+        return;  // No input this tick — keep waiting
+    }
+    if (ch == 27) {  // ESC
+        printf("\nCancelled.\n");
+        me->cal_ui_state = CalUiState::kIdle;
+        return;
+    }
+    if (ch == '\r' || ch == '\n') {
+        me->confirm_buf[me->confirm_idx] = '\0';
+        printf("\n");
+        if (strcmp(me->confirm_buf, "YES") == 0) {
+            printf("Resetting all calibration data...");
+            (void)fflush(stdout);
+            cal_result_t result = calibration_reset();
+            if (result == CAL_RESULT_OK) {
+                printf(" OK!\n");
+            } else {
+                printf(" FAILED (%d)\n", static_cast<int>(result));
+            }
+        } else {
+            printf("Cancelled (need to type 'YES' then ENTER).\n");
+        }
+        me->cal_ui_state = CalUiState::kIdle;
+        return;
+    }
+    if (me->confirm_idx < 7) {
+        me->confirm_buf[me->confirm_idx++] = static_cast<char>(ch);
+        putchar(ch);
+        (void)fflush(stdout);
+    }
+}
+
+// ---- Erase-all-flights confirmation (non-blocking) ----
+static void cal_ui_handle_erase_confirm(RcosAo* me) {
+    me->confirm_timeout_ticks++;
+    if (me->confirm_timeout_ticks >= kResetTimeoutTicks) {
+        printf("\nTimeout - erase cancelled.\n");
+        me->cal_ui_state = CalUiState::kIdle;
+        return;
+    }
+    int ch = getchar_timeout_us(0);
+    if (ch == PICO_ERROR_TIMEOUT) { return; }
+    if (ch == 27) {
+        printf("\nErase cancelled.\n");
+        me->cal_ui_state = CalUiState::kIdle;
+        return;
+    }
+    if (ch == '\r' || ch == '\n') {
+        me->confirm_buf[me->confirm_idx] = '\0';
+        printf("\n");
+        if (me->confirm_idx == 3 &&
+            me->confirm_buf[0] == 'y' &&
+            me->confirm_buf[1] == 'e' &&
+            me->confirm_buf[2] == 's') {
+            // Perform the erase — this calls flash_safe_execute internally
+            cli_do_erase_flights();
+        } else {
+            printf("Erase cancelled.\n");
+        }
+        me->cal_ui_state = CalUiState::kIdle;
+        return;
+    }
+    if (me->confirm_idx < 7) {
+        me->confirm_buf[me->confirm_idx++] = static_cast<char>(ch);
+        putchar(ch);
+        (void)fflush(stdout);
+    }
+}
+
+// ---- Flight number input for download (non-blocking) ----
+static void cal_ui_handle_flight_num(RcosAo* me) {
+    me->confirm_timeout_ticks++;
+    if (me->confirm_timeout_ticks >= 60) {  // 3s at 20Hz
+        printf("\nTimeout.\n");
+        me->cal_ui_state = CalUiState::kIdle;
+        return;
+    }
+    int ch = getchar_timeout_us(0);
+    if (ch == PICO_ERROR_TIMEOUT) { return; }
+    if (ch == 27) {
+        printf("\nCancelled.\n");
+        me->cal_ui_state = CalUiState::kIdle;
+        return;
+    }
+    if (ch == '\r' || ch == '\n') {
+        me->confirm_buf[me->confirm_idx] = '\0';
+        printf("\n");
+        int num = 0;
+        for (uint8_t i = 0; i < me->confirm_idx; i++) {
+            if (me->confirm_buf[i] >= '0' && me->confirm_buf[i] <= '9') {
+                num = num * 10 + (me->confirm_buf[i] - '0');
+            }
+        }
+        if (num > 0) {
+            cli_do_download_flight(num);
+        } else {
+            printf("Invalid flight number.\n");
+        }
+        me->cal_ui_state = CalUiState::kIdle;
+        return;
+    }
+    if (ch >= '0' && ch <= '9' && me->confirm_idx < 3) {
+        me->confirm_buf[me->confirm_idx++] = static_cast<char>(ch);
+        putchar(ch);
+        (void)fflush(stdout);
+    }
+}
+
 // ---- Cal UI dispatcher (20Hz) ----
 static void cal_ui_tick(RcosAo* me) {
     switch (me->cal_ui_state) {
-    case CalUiState::kIdle:          break;
-    case CalUiState::kAsyncWaiting:  cal_ui_handle_async_waiting(me);  break;
-    case CalUiState::k6posPrompt:    cal_ui_handle_6pos_prompt(me);    break;
-    case CalUiState::k6posSampling:  cal_ui_handle_6pos_sampling(me);  break;
-    case CalUiState::k6posValidating:cal_ui_handle_6pos_validating(me);break;
-    case CalUiState::kMagCollecting: cal_ui_handle_mag_collecting(me); break;
-    case CalUiState::kComputing:     cal_ui_handle_computing(me);      break;
-    case CalUiState::kResult:        cal_ui_handle_result(me);         break;
-    case CalUiState::kWizardNext:    cal_ui_handle_wizard_next(me);    break;
+    case CalUiState::kIdle:           break;
+    case CalUiState::kAsyncPrompt:    cal_ui_handle_async_prompt(me);     break;
+    case CalUiState::kAsyncWaiting:   cal_ui_handle_async_waiting(me);    break;
+    case CalUiState::k6posPrompt:     cal_ui_handle_6pos_prompt(me);      break;
+    case CalUiState::k6posSampling:   cal_ui_handle_6pos_sampling(me);    break;
+    case CalUiState::k6posValidating: cal_ui_handle_6pos_validating(me);  break;
+    case CalUiState::kMagCollecting:  cal_ui_handle_mag_collecting(me);   break;
+    case CalUiState::kComputing:      cal_ui_handle_computing(me);        break;
+    case CalUiState::kResult:         cal_ui_handle_result(me);           break;
+    case CalUiState::kResetConfirm:   cal_ui_handle_reset_confirm(me);    break;
+    case CalUiState::kEraseConfirm:   cal_ui_handle_erase_confirm(me);    break;
+    case CalUiState::kFlightNumInput: cal_ui_handle_flight_num(me);       break;
+    case CalUiState::kWizardNext:     cal_ui_handle_wizard_next(me);      break;
     }
 }
 
@@ -842,17 +1018,10 @@ void AO_RCOS_start_cal_gyro() {
         return;
     }
     printf("\nGyro Calibration — keep device STILL for ~2s.\n");
-    cal_result_t r = calibration_start_gyro();
-    if (r != CAL_RESULT_OK) {
-        printf("ERROR: Failed to start gyro cal (%d)\n", r);
-        return;
-    }
-    printf("Sampling");
-    (void)fflush(stdout);
-    cal_neo(kCalNeoGyro);
-    l_rcosAo.cal_last_progress = 0;
+    printf("ENTER to start, 'x' to skip.\n");
+    l_rcosAo.cal_async_type = kAsyncGyro;
     l_rcosAo.cal_wizard_active = false;
-    l_rcosAo.cal_ui_state = CalUiState::kAsyncWaiting;
+    l_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
 }
 
 void AO_RCOS_start_cal_level() {
@@ -865,17 +1034,10 @@ void AO_RCOS_start_cal_level() {
         return;
     }
     printf("\nLevel Calibration — keep device FLAT and STILL for ~1s.\n");
-    cal_result_t r = calibration_start_accel_level();
-    if (r != CAL_RESULT_OK) {
-        printf("ERROR: Failed to start level cal (%d)\n", r);
-        return;
-    }
-    printf("Sampling");
-    (void)fflush(stdout);
-    cal_neo(kCalNeoLevel);
-    l_rcosAo.cal_last_progress = 0;
+    printf("ENTER to start, 'x' to skip.\n");
+    l_rcosAo.cal_async_type = kAsyncLevel;
     l_rcosAo.cal_wizard_active = false;
-    l_rcosAo.cal_ui_state = CalUiState::kAsyncWaiting;
+    l_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
 }
 
 void AO_RCOS_start_cal_baro() {
@@ -888,17 +1050,10 @@ void AO_RCOS_start_cal_baro() {
         return;
     }
     printf("\nBaro Calibration — setting ground reference (~1s).\n");
-    cal_result_t r = calibration_start_baro();
-    if (r != CAL_RESULT_OK) {
-        printf("ERROR: Failed to start baro cal (%d)\n", r);
-        return;
-    }
-    printf("Sampling");
-    (void)fflush(stdout);
-    cal_neo(kCalNeoBaro);
-    l_rcosAo.cal_last_progress = 0;
+    printf("ENTER to start, 'x' to skip.\n");
+    l_rcosAo.cal_async_type = kAsyncBaro;
     l_rcosAo.cal_wizard_active = false;
-    l_rcosAo.cal_ui_state = CalUiState::kAsyncWaiting;
+    l_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
 }
 
 void AO_RCOS_start_cal_6pos() {
@@ -1008,6 +1163,77 @@ bool AO_RCOS_cal_active() {
     return l_rcosAo.cal_ui_state != CalUiState::kIdle;
 }
 
+void AO_RCOS_start_erase_flights() {
+    if (AO_RCOS_cal_active()) { return; }
+    rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
+    if (!ft->loaded) {
+        printf("Flight table not loaded.\n");
+        return;
+    }
+    uint32_t count = rc::flight_table_count(ft);
+    if (count == 0) {
+        printf("No flights to erase.\n");
+        return;
+    }
+    printf("Erase ALL %lu flights? Type 'yes' + Enter to confirm: ",
+           (unsigned long)count);
+    (void)fflush(stdout);
+    memset(l_rcosAo.confirm_buf, 0, sizeof(l_rcosAo.confirm_buf));
+    l_rcosAo.confirm_idx = 0;
+    l_rcosAo.confirm_timeout_ticks = 0;
+    l_rcosAo.cal_ui_state = CalUiState::kEraseConfirm;
+}
+
+void AO_RCOS_start_download_flight() {
+    if (AO_RCOS_cal_active()) { return; }
+    const rc::FlightTableState* ft = AO_Logger_get_flight_table();
+    if (!ft->loaded) {
+        printf("Flight table not loaded.\n");
+        return;
+    }
+    uint32_t count = rc::flight_table_count(ft);
+    if (count == 0) {
+        printf("No flights stored.\n");
+        return;
+    }
+    printf("Flight # (1-%lu): ", (unsigned long)count);
+    (void)fflush(stdout);
+    memset(l_rcosAo.confirm_buf, 0, sizeof(l_rcosAo.confirm_buf));
+    l_rcosAo.confirm_idx = 0;
+    l_rcosAo.confirm_timeout_ticks = 0;
+    l_rcosAo.cal_ui_state = CalUiState::kFlightNumInput;
+}
+
+void AO_RCOS_start_cal_reset() {
+    if (AO_RCOS_cal_active()) { return; }
+    printf("\n*** RESET ALL CALIBRATION ***\n");
+    printf("This will erase all calibration data!\n");
+    printf("Type 'YES' + ENTER to confirm: ");
+    (void)fflush(stdout);
+    memset(l_rcosAo.confirm_buf, 0, sizeof(l_rcosAo.confirm_buf));
+    l_rcosAo.confirm_idx = 0;
+    l_rcosAo.confirm_timeout_ticks = 0;
+    l_rcosAo.cal_ui_state = CalUiState::kResetConfirm;
+}
+
+void AO_RCOS_start_cal_save() {
+    if (AO_RCOS_cal_active()) { return; }
+    printf("\nSaving calibration to flash...");
+    (void)fflush(stdout);
+    cal_result_t result = calibration_save();
+    if (result == CAL_RESULT_OK) {
+        printf(" OK!\n");
+        if (!i2c_bus_reset()) {
+            printf("[WARN] I2C bus reset failed after save\n");
+        }
+    } else {
+        printf(" FAILED (%d)\n", static_cast<int>(result));
+    }
+    // Note: calibration_save() calls flash_safe_execute() which blocks
+    // ~100-500ms. At 100Hz tick rate with queue depth 32, the 320ms
+    // headroom is tight but sufficient for typical flash writes (~200ms).
+}
+
 #else
 // Host test stubs
 void AO_RCOS_start_cal_gyro() {}
@@ -1016,5 +1242,9 @@ void AO_RCOS_start_cal_baro() {}
 void AO_RCOS_start_cal_6pos() {}
 void AO_RCOS_start_cal_mag() {}
 void AO_RCOS_start_cal_wizard() {}
+void AO_RCOS_start_cal_reset() {}
+void AO_RCOS_start_cal_save() {}
+void AO_RCOS_start_erase_flights() {}
+void AO_RCOS_start_download_flight() {}
 bool AO_RCOS_cal_active() { return false; }
 #endif

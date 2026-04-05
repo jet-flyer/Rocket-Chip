@@ -42,7 +42,19 @@ void AO_RCOS_start_cal_6pos();
 void AO_RCOS_start_cal_mag();
 void AO_RCOS_start_cal_wizard();
 
-// Is a calibration UI sequence currently running?
+// Reset all calibration (non-blocking YES/ENTER confirmation)
+void AO_RCOS_start_cal_reset();
+
+// Save calibration to flash (synchronous but fast <500ms)
+void AO_RCOS_start_cal_save();
+
+// Non-blocking erase-all-flights (confirmation via AO tick)
+void AO_RCOS_start_erase_flights();
+
+// Non-blocking flight download (flight number input via AO tick)
+void AO_RCOS_start_download_flight();
+
+// Is a calibration or input UI sequence currently running?
 bool AO_RCOS_cal_active();
 
 #endif // ROCKETCHIP_AO_RCOS_H
