@@ -86,6 +86,7 @@ if(BUILD_TESTS)
     # ------------------------------------------------------------------
     add_library(rc_telemetry STATIC
         src/telemetry/telemetry_encoder.cpp
+        src/telemetry/mavlink_rx.cpp
     )
     target_include_directories(rc_telemetry PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/include
@@ -328,6 +329,7 @@ else()
         src/drivers/rfm95w.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp
+        src/telemetry/mavlink_rx.cpp
 
         # -------------------------------------------------------------------------
         # Stage 8: Flight Director (IVP-66+)
@@ -417,6 +419,7 @@ else()
         src/drivers/rfm95w.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp
+        src/telemetry/mavlink_rx.cpp
         src/watchdog/watchdog_recovery.cpp
         src/flight_director/flight_director.cpp
         src/flight_director/go_nogo_checks.cpp

@@ -132,7 +132,12 @@ add_executable(test_telemetry_encoder test_telemetry_encoder.cpp)
 target_link_libraries(test_telemetry_encoder PRIVATE rc_telemetry GTest::gtest_main)
 gtest_discover_tests(test_telemetry_encoder)
 
-# IVP-66: Watchdog recovery policy
+# IVP-62b: MAVLink RX parser
+add_executable(test_mavlink_rx test_mavlink_rx.cpp)
+target_link_libraries(test_mavlink_rx PRIVATE rc_telemetry GTest::gtest_main)
+gtest_discover_tests(test_mavlink_rx)
+
+# Watchdog recovery policy
 add_executable(test_watchdog_recovery test_watchdog_recovery.cpp)
 target_link_libraries(test_watchdog_recovery PRIVATE rc_watchdog GTest::gtest_main)
 gtest_discover_tests(test_watchdog_recovery)
