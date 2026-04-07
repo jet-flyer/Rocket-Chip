@@ -2,7 +2,7 @@
 
 **Purpose:** Communication across context windows and between agents.
 
-**Stages 1-13 COMPLETE.** 598 host tests, SPIN 6/6. Stage 13: AO architecture (main.cpp 3384→683) + RC_OS consolidation (async cal, 15→5 callbacks, rc_os_* naming). Both vehicle and station HW verified. Tracking: `docs/AO_ARCHITECTURE.md`.
+**Stages 1-13 COMPLETE.** 598 host tests, SPIN 6/6. Post-Stage 13 side items complete (2026-04-06): AO signal audit, flash layout portability, flight log metadata header, passive ejection profile, code comments audit (213 lines net reduction), buried TODO resolution (PIO timer/Mahony ARM/radio ownership). Tracking: `docs/AO_ARCHITECTURE.md`.
 
 ## Use Cases
 1. **Cross-agent review** - Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
@@ -68,10 +68,10 @@
 - **USB Download Speed Optimization (post-Stage 6):** Current USB CDC download runs ~9 KB/s (limited by Python serial read loop + fwrite through stdio layer). TinyUSB `tud_cdc_write()` direct calls and larger USB transfer chunks could reach ~200-500 KB/s (USB Full Speed theoretical). Not blocking — current speed downloads a typical flight in 20-30s.
 - ~~**Pre-commit hook function decomposition:**~~ **DONE** (P5c, 2026-02-20). All 8 functions decomposed. Pre-commit hook passes clean — no `--no-verify` needed.
 - ~~**Cycle Performance Benchmark on Hardware (post-Stage 10):**~~ **DONE** (2026-03-29). IVP-87 baseline + IVP-91 post-change benchmark completed in Stage 11. No regression.
-- **SIG_PYRO_FIRED Event for Logger AO (post-Stage 11):** Logger AO should receive a `SIG_PYRO_FIRED` event for flight data recording when PIO backup timers fire or primary pyro fires. Currently pyro-fired flags are in FlightState but Logger isn't notified via the AO event system.
-- **Passive Ejection Charge Mission Profile (post-Stage 11):** Estes-style motors with integrated ejection charge. No active pyro firing — Flight Director logs events and tracks state but does not command deployment. Natural `.cfg` profile variant.
+- ~~**SIG_PYRO_FIRED Event for Logger AO (post-Stage 11):**~~ **DONE** (2026-04-06). SIG_PYRO_FIRED added with PyroFiredEvt (channel + source). Published from both FD primary path and PIO backup detection. Logger subscribes.
+- ~~**Passive Ejection Charge Mission Profile (post-Stage 11):**~~ **DONE** (2026-04-06). `profiles/passive.cfg` — HAS_PYRO=0, PIO timers disabled, data-logging only.
 - **AP_Notify-Style Notification Engine (post-Stage 11):** Evaluate ArduPilot's `AP_Notify` pattern for unifying LED, buzzer, and other status indicators behind a single notification interface. Natural successor to current `neo_set_if_changed()` pattern.
-- **Code Comments Audit / Cleanup (low priority):** Review all source files for stale comments, TODO markers, misleading descriptions, and missing "why" explanations. Housekeeping pass — no functional changes.
+- ~~**Code Comments Audit / Cleanup (low priority):**~~ **DONE** (2026-04-06). 76 files, 213 lines net reduction. IVP refs stripped, migration history removed, 6 buried action items surfaced to `docs/UNIQUE_COMMENT_ITEMS.md`. Council-reviewed (4 personas).
 - **PIO Backup Timer Exhaustive Shakedown (Stage 13):** Full shakedown of PIO backup deployment timers under various failure scenarios. Deferred from Stage 11 to pre-flight polish stage.
 - **Battery ADC Monitoring (pre-flight polish):** No battery voltage measurement implemented. Needs ADC pin wiring + driver + telemetry field. Surfaced from buried code comment in `data_convert.cpp:106`. Low-battery warning for field use.
 

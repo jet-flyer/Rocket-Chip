@@ -20,6 +20,24 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-06-001 | Claude Code CLI | architecture, refactor, council
+
+**Post-Stage 13 side items.** 6 commits. Council review (4 personas, unanimous with 5 amendments).
+
+AO signal audit: wired SIG_PHASE_CHANGE (FD→Logger with exact timestamp), SIG_RADIO_STATUS (AO_Radio→LedEngine with change detection), added SIG_PYRO_FIRED (channel + source, primary + PIO paths). Removed 3 dead signals (LOG_FRAME, TELEM_FRAME, HEALTH_CHECK) with enum stability. AO_ARCHITECTURE.md updated to match reality.
+
+Flash layout portability: new `flash_layout.h` derives all flash addresses from `PICO_FLASH_SIZE_BYTES`. Enables Tiny2350 (4MB) and other boards. Compile-time static_assert validates no overlap.
+
+Flight log metadata header: 64-byte `FlightLogHeader` (magic 0x52434C47, version, firmware/board/profile info) written at start of each flight's flash region.
+
+Passive ejection mission profile: `profiles/passive.cfg` for motor-eject rockets (HAS_PYRO=0, no PIO timers).
+
+Code comments audit: 76 files, 213 lines net reduction. Stripped all IVP ticket numbers, migration history, future-tense promises. Preserved council refs, VALIDATE markers, numerical justifications. Created `docs/UNIQUE_COMMENT_ITEMS.md` tracking 6 buried action items.
+
+Buried TODO resolution: PIO timer values wired from MissionProfile (was hardcoded 15/45s). Mahony ARM termination (force_end_startup on ARM). Radio ownership transferred from main.cpp externs to AO_Radio (owns init lifecycle). VALIDATE values audited against ArduPilot/PX4 norms. Removed unused config.h compatibility aliases.
+
+---
+
 ### 2026-04-04-001 | Claude Code CLI | architecture, refactor, council
 
 **Stage 13: AO Architecture Completion.** 10 commits across 8 phases. Council review (5 personas, unanimous with amendments).

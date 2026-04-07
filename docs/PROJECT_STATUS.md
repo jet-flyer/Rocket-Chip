@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-04 (Stage 13 complete, RC_OS consolidation in progress)
+**Last Updated:** 2026-04-06 (Post-Stage 13 side items complete)
 
 ## Current Phase
 
@@ -22,7 +22,15 @@
 - cal_hooks.cpp (calibration cross-core protocol)
 - docs/AO_ARCHITECTURE.md (inventory, event flow, signal catalog)
 
-**Next:** RC_OS callback elimination, file renames, calibration async state machine
+**Post-Stage 13 side items (2026-04-06):**
+- AO signal audit: wired SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_PYRO_FIRED. Removed 3 dead signals.
+- Flash layout portability (flash_layout.h, PICO_FLASH_SIZE_BYTES)
+- Flight log metadata header (64B FlightLogHeader)
+- Passive ejection mission profile (profiles/passive.cfg)
+- Code comments audit: 76 files, 213 lines net reduction, 6 buried action items surfaced
+- PIO timer values wired from MissionProfile, Mahony ARM termination, radio ownership to AO_Radio
+
+**Next:** Stage 12B (Ground Station) or pre-flight polish items
 
 ## Completed
 
