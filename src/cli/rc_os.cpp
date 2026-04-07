@@ -418,7 +418,11 @@ bool rc_os_update() {
         return false;
     }
 
-    // MAVLink mode: feed USB bytes to RX parser instead of CLI
+    // Always feed USB bytes to MAVLink parser for GCS heartbeat detection.
+    // Parser ignores non-MAVLink bytes (CLI keypresses pass through harmlessly).
+    AO_Telemetry_feed_usb_byte(static_cast<uint8_t>(c));
+
+    // MAVLink mode: consume all bytes (don't route to CLI)
     if (handle_mavlink_input(c)) { return true; }
 
     // Route to appropriate handler

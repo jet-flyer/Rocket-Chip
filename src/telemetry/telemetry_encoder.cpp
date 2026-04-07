@@ -171,7 +171,7 @@ uint16_t MavlinkEncoder::encode_heartbeat(uint8_t flight_state, uint8_t* buf) {
     mavlink_message_t msg;
     mavlink_msg_heartbeat_pack(
         system_id, component_id, &msg,
-        MAV_TYPE_ROCKET,
+        MAV_TYPE_GENERIC,  // QGC handles GENERIC better than ROCKET (type 37)
         MAV_AUTOPILOT_GENERIC,
         MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
         static_cast<uint32_t>(flight_state),
