@@ -16,6 +16,8 @@
 #include "ao_radio.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/config.h"  // rocketchip::pins::kRadioCs/Rst/Irq
+#include "rocketchip/radio_config.h"
+#include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include "rocketchip/job.h"
 #include "drivers/spi_bus.h"
 #include "drivers/ws2812_status.h"
@@ -225,10 +227,22 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
             rocketchip::pins::kRadioIrq)) {
         s.initialized = true;
 
+        // Apply RadioConfig from Mission Profile (IVP-64)
+        const auto& rc = rc::kDefaultRocketRadioConfig;
+        rfm95w_set_spreading_factor(&s.radio, rc.spreading_factor);
+        rfm95w_set_coding_rate(&s.radio, rc.coding_rate);
+        rfm95w_set_tx_power(&s.radio, rc.power_dbm);
+        // BW: SX1276 register encoding (7=125kHz, 8=250kHz, 9=500kHz)
+        uint8_t bw_reg = (rc.bandwidth_khz >= 500) ? rfm95w::kBw500 :
+                         (rc.bandwidth_khz >= 250) ? rfm95w::kBw250 :
+                                                     rfm95w::kBw125;
+        rfm95w_set_bandwidth(&s.radio, bw_reg);
+
         // Mode selection based on device role
         bool rx_continuous = (job::kRole == job::DeviceRole::kStation ||
                               job::kRole == job::DeviceRole::kRelay);
-        s.scheduler.init(500, rx_continuous);  // 2Hz for vehicle, RX continuous for station/relay
+        uint32_t interval = 1000 / rc.nav_rate_hz;
+        s.scheduler.init(interval, rx_continuous);
 
         if (rx_continuous) {
             rfm95w_start_rx(&s.radio);

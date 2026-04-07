@@ -15,7 +15,9 @@
 #include "rocketchip/telemetry_encoder.h"
 #include "rocketchip/telemetry_service.h"
 #include "rocketchip/mavlink_rx.h"
+#include "rocketchip/radio_config.h"
 #include "rocketchip/job.h"
+#include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
@@ -99,9 +101,24 @@ static void encode_and_send(TelemAo* me) {
     if (t - me->last_tx_ms < me->interval_ms) { return; }
     me->last_tx_ms = t;
 
-    // Encode CCSDS nav packet
+    // Encode packet based on RadioConfig protocol selection (IVP-65)
     rc::EncodeResult result = {};
-    me->ccsds_encoder.encode_nav(me->latest_telem, me->latest_telem.met_ms, result);
+    if (rc::kDefaultRocketRadioConfig.protocol == rc::EncoderType::kMavlink) {
+        // MAVLink native TX — encode heartbeat + attitude + position into single packet
+        uint8_t frame[128];
+        uint16_t pos = 0;
+        uint16_t len;
+        len = me->mav_encoder.encode_heartbeat(me->latest_telem.flight_state, frame + pos);
+        pos += len;
+        len = me->mav_encoder.encode_attitude(me->latest_telem, t, frame + pos);
+        pos += len;
+        result.ok = (pos > 0);
+        result.len = pos;
+        memcpy(result.buf, frame, pos);
+    } else {
+        // CCSDS (default)
+        me->ccsds_encoder.encode_nav(me->latest_telem, me->latest_telem.met_ms, result);
+    }
     if (!result.ok || result.len == 0) { return; }
 
     // Post SIG_RADIO_TX to AO_Radio — file-scope static event.
