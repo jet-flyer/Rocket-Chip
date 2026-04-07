@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-07-001 | Claude Code CLI | feature
+
+**WMM2025 geomagnetic tables.** Replaced expired ArduPilot IGRF13 declination-only table with WMM2025 three-component tables (declination, inclination, total intensity) generated directly from NOAA coefficients via BGS API. Removes ArduPilot dependency. New `wmm_get_field()` / `wmm_get_earth_field_ned()` API. Default location (Dallas TX 33N 97W) in Mission Profile for Core tier no-GPS WMM lookup. Stage 3D (3-axis mag model) defined as dedicated IVP stage for future implementation.
+
+---
+
 ### 2026-04-06-001 | Claude Code CLI | architecture, refactor, council
 
 **Post-Stage 13 side items.** 6 commits. Council review (4 personas, unanimous with 5 amendments).

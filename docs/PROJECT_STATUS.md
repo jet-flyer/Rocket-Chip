@@ -30,7 +30,13 @@
 - Code comments audit: 76 files, 213 lines net reduction, 6 buried action items surfaced
 - PIO timer values wired from MissionProfile, Mahony ARM termination, radio ownership to AO_Radio
 
-**Next:** Stage 12B (Ground Station) or pre-flight polish items
+**WMM2025 update (2026-04-07):**
+- Replaced expired IGRF13 table with WMM2025 (valid 2025-2030)
+- Three-component tables: declination + inclination + intensity
+- Default location in Mission Profile for no-GPS mag heading
+- Stage 3D (3-axis mag model) defined in IVP.md
+
+**Next:** Stage 3D (3-axis mag), Stage 12B (GCS), or Stage 13 (pre-flight polish)
 
 ## Completed
 
