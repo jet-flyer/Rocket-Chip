@@ -105,6 +105,8 @@ static void handle_tx_poll(RadioAo* me) {
         s.tx_consec_fail = 0;
         s.tx_count++;
         s.scheduler.on_tx_complete(now_ms());
+        // Enter RX mode between TX slots to receive commands from station
+        rfm95w_start_rx(&s.radio);
     } else if (result == TxPollResult::kTimeout) {
         s.tx_consec_fail++;
 
@@ -149,14 +151,17 @@ static uint16_t extract_ccsds_seq(const uint8_t* buf) {
         ((buf[2] & 0x3F) << 8) | buf[3]);
 }
 
-// Validate and track a received packet. Returns false if CRC fails.
+// Track received packet metadata. CCSDS CRC checked if packet looks like CCSDS.
+// Non-CCSDS packets (MAVLink commands) are passed through — AO_Telemetry decides.
 static bool validate_rx_packet(RadioAoState& s, const uint8_t* buf, uint8_t len) {
     s.last_rx_rssi = rfm95w_rssi(&s.radio);
     s.last_rx_snr = s.radio.last_snr;
     s.last_rx_ms = now_ms();
     s.rx_count++;
 
-    if (len >= kCcsdsMinLen) {
+    // CCSDS validation: check CRC only if it looks like a CCSDS packet
+    // (version bits 000 in first byte). MAVLink starts with 0xFD (v2).
+    if (len >= kCcsdsMinLen && (buf[0] & 0xE0) == 0x00) {
         s.last_rx_seq = extract_ccsds_seq(buf);
         if (!validate_ccsds_crc(buf, len)) {
             s.rx_crc_errors++;

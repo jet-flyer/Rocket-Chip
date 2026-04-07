@@ -27,6 +27,13 @@
 #include "active_objects/ao_flight_director.h"
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h"
+#include "rocketchip/sensor_seqlock.h"
+
+// MAVLink command IDs for station command menu (IVP-62c)
+// Values from common/common.h — avoids pulling full mavlink.h with packed struct warnings
+static constexpr uint16_t kMavCmdArmDisarm = 400;        // MAV_CMD_COMPONENT_ARM_DISARM
+static constexpr uint16_t kMavCmdFlightTermination = 185; // MAV_CMD_DO_FLIGHTTERMINATION
+static constexpr uint16_t kMavCmdSetHome = 179;           // MAV_CMD_DO_SET_HOME
 #include "active_objects/ao_rcos.h"
 #include "active_objects/ao_led_engine.h"
 #include "calibration/calibration_manager.h"
@@ -1168,6 +1175,21 @@ static void cmd_station_distance() {
 // Unhandled Key Dispatcher
 // ============================================================================
 
+// Station GPS position push to vehicle over LoRa
+static void cmd_station_gps_push() {
+    shared_sensor_data_t snap = {};
+    if (seqlock_read(&g_sensorSeqlock, &snap) &&
+        snap.gps_valid && snap.gps_fix_type >= 3) {
+        float lat = static_cast<float>(snap.gps_lat_1e7) * 1e-7f;
+        float lon = static_cast<float>(snap.gps_lon_1e7) * 1e-7f;
+        AO_Telemetry_send_command(kMavCmdSetHome, 0, 0, 0, 0, lat, lon, 0);
+        printf("GPS push: %.5f, %.5f\n",
+               static_cast<double>(lat), static_cast<double>(lon));
+    } else {
+        printf("No GPS 3D fix on station\n");
+    }
+}
+
 void cli_handle_unhandled_key(int key) {
     switch (key) {
     case 'l': case 'L': cmd_flush_log(); break;
@@ -1198,6 +1220,18 @@ void cli_handle_unhandled_key(int key) {
             } else {
                 printf("\n[RX] Output: %s\n", name);
             }
+        }
+        break;
+    case 'a': case 'A':
+        if constexpr (kRadioModeRx) {
+            // Direct single-key station commands — no submenu, no blocking
+            AO_Telemetry_send_command(kMavCmdArmDisarm, 1.0f);
+            printf("[CMD] ARM sent\n");
+        }
+        break;
+    case 'p': case 'P':
+        if constexpr (kRadioModeRx) {
+            cmd_station_gps_push();
         }
         break;
     default: break;

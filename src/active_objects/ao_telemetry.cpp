@@ -15,6 +15,14 @@
 #include "rocketchip/telemetry_encoder.h"
 #include "rocketchip/telemetry_service.h"
 #include "rocketchip/mavlink_rx.h"
+// c_library_v2 (third-party, auto-generated) has a packed struct warning
+// in mavlink_msg_obstacle_distance.h — we don't use that message.
+// Suppressing here is standard practice for this library (ArduPilot does the same).
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+#include "common/mavlink.h"
+#pragma GCC diagnostic pop
+#include "common/mavlink.h"        // MAVLink c_library_v2 (COMMAND_LONG encoding)
 #include "rocketchip/radio_config.h"
 #include "rocketchip/job.h"
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
@@ -133,14 +141,41 @@ static void encode_and_send(TelemAo* me) {
     QACTIVE_POST(AO_Radio, &txEvt.super, me);
 }
 
-// Handle received packet from AO_Radio (Station RX path)
+// Try MAVLink parsing on LoRa RX packet (vehicle receives commands, station receives telemetry)
+static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
+    for (uint8_t i = 0; i < len; ++i) {
+        rc::MavlinkRxResult result = {};
+        if (rc::mavlink_rx_feed_byte(&me->mavlink_rx, buf[i],
+                                      me->latest_telem.flight_state,
+                                      now_ms(), &result)) {
+            if (me->mavlink_rx.gcs_seen) {
+                AO_Telemetry_notify_gcs_heartbeat();
+            }
+        }
+        // Send response back over LoRa (ACK packets)
+        if (result.len > 0) {
+            static rc::RadioTxEvt ackEvt;
+            ackEvt.super.sig = rc::SIG_RADIO_TX;
+            ackEvt.super.refCtr_ = 0;
+            uint8_t copyLen = (result.len <= sizeof(ackEvt.buf))
+                ? static_cast<uint8_t>(result.len) : sizeof(ackEvt.buf);
+            memcpy(ackEvt.buf, result.buf, copyLen);
+            ackEvt.len = copyLen;
+            QACTIVE_POST(AO_Radio, &ackEvt.super, &l_telemAo.super);
+        }
+    }
+}
+
+// Handle received packet from AO_Radio
 static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
-    // Decode CCSDS
+    // Try CCSDS decode first (telemetry packets)
     rc::TelemetryState telem = {};
     uint16_t seq = 0;
     uint32_t met_ms = 0;
     if (!rc::ccsds_decode_nav(rxEvt->buf, rxEvt->len, telem, seq, met_ms)) {
-        return;  // CRC or header error
+        // Not CCSDS — try MAVLink (command packets from station)
+        try_mavlink_rx(me, rxEvt->buf, rxEvt->len);
+        return;
     }
 
     // Store for CLI/WiFi access

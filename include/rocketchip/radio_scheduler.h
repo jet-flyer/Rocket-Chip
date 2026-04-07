@@ -28,11 +28,13 @@ struct RadioScheduler {
     RadioPhase phase;
     uint32_t   tx_interval_ms;      // 1000 / rate_hz
     uint32_t   next_tx_deadline_ms;  // When next TX slot opens
+    bool       rx_continuous_;       // Station/relay: always return to kRxContinuous after TX
 
     void init(uint32_t interval_ms, bool rx_continuous) {
         phase = rx_continuous ? RadioPhase::kRxContinuous : RadioPhase::kRxWindow;
         tx_interval_ms = interval_ms;
         next_tx_deadline_ms = 0;
+        rx_continuous_ = rx_continuous;
     }
 
     // Should we start a TX now? (Vehicle mode: checks deadline)
@@ -58,10 +60,8 @@ struct RadioScheduler {
     // TX timeout transitions to kRxWindow (not kIdle) [C3-A3]
     void on_tx_complete(uint32_t now_ms) {
         next_tx_deadline_ms = now_ms + tx_interval_ms;
-        // Return to the appropriate RX mode based on initial config
-        // For relay/station: kRxContinuous is sticky (set at init)
-        // For vehicle: kRxWindow between TX slots
-        phase = RadioPhase::kRxWindow;
+        // Restore appropriate RX mode: station/relay → continuous, vehicle → window
+        phase = rx_continuous_ ? RadioPhase::kRxContinuous : RadioPhase::kRxWindow;
     }
 
     // Set TX rate (called when config changes)
