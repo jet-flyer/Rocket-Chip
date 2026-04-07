@@ -36,7 +36,14 @@
 - Default location in Mission Profile for no-GPS mag heading
 - Stage 3D (3-axis mag model) defined in IVP.md
 
-**Next:** Stage 3D (3-axis mag), Stage 12B (GCS), or Stage 13 (pre-flight polish)
+**Stage 3D: 3-Axis Magnetometer (2026-04-07):**
+- IVP-99 through IVP-102 complete. IVP-103 (station GPS push) deferred.
+- update_mag_3axis(): 6 sequential scalar updates, magnitude gating
+- Auto-enable on mag cal + WMM field (GPS/stored/default position)
+- WMM position persisted in cal storage v4
+- 610/610 host tests. HW verified.
+
+**Next:** IVP-103 (needs radio commands), Stage 12B (GCS), or Stage 13 (pre-flight polish)
 
 ## Completed
 

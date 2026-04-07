@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-07-002 | Claude Code CLI | feature, council
+
+**Stage 3D: 3-Axis Magnetometer Model (IVP-99 through IVP-102).** Council-reviewed (JPL, ArduPilot, Cubesat, Rocketeer, unanimous).
+
+IVP-99: `update_mag_3axis()` — 6 sequential scalar updates (3 earth_mag + 3 body_mag_bias), same pattern as GPS position. Magnitude pre-gate ±25%, per-axis 5σ gate. `kRMag3dPerAxis = 0.36` µT² (AK09916 datasheet). IVP-100: Auto-enable when mag calibrated + WMM field available (GPS 3D fix or stored or profile default). IVP-101: WMM info in sensor status ('s' key) with source tracking (GPS/stored/default), 12 new host tests (610/610 total). IVP-102: WMM position persisted in cal storage v4, auto-upgrades from stored/default to GPS on first fix. IVP-103 (station GPS push) deferred — needs radio command path.
+
+Boot banner slimmed from 45→12 lines. Advanced settings tracking doc created. WMM2025 tables generated from NOAA via BGS API.
+
+---
+
 ### 2026-04-07-001 | Claude Code CLI | feature
 
 **WMM2025 geomagnetic tables.** Replaced expired ArduPilot IGRF13 declination-only table with WMM2025 three-component tables (declination, inclination, total intensity) generated directly from NOAA coefficients via BGS API. Removes ArduPilot dependency. New `wmm_get_field()` / `wmm_get_earth_field_ned()` API. Default location (Dallas TX 33N 97W) in Mission Profile for Core tier no-GPS WMM lookup. Stage 3D (3-axis mag model) defined as dedicated IVP stage for future implementation.
