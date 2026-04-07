@@ -98,7 +98,7 @@ add_executable(rocketchip
     ${CMAKE_CURRENT_LIST_DIR}/../src/math/quat.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/eskf.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/eskf_codegen.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/wmm_declination.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/wmm_tables.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/mahony_ahrs.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/ud_factor.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/logging/data_convert.cpp
@@ -182,7 +182,7 @@ set(ROCKETCHIP_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/../src/math/quat.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/eskf.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/eskf_codegen.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/wmm_declination.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/wmm_tables.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/mahony_ahrs.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/fusion/ud_factor.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../src/logging/data_convert.cpp

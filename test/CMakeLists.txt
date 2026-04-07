@@ -58,7 +58,7 @@ add_executable(test_eskf_zupt test_eskf_zupt.cpp)
 target_link_libraries(test_eskf_zupt PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_eskf_zupt)
 
-# IVP-44: WMM magnetic declination lookup table
+# WMM geomagnetic field lookup tables (declination + inclination + intensity)
 add_executable(test_wmm_declination test_wmm_declination.cpp)
 target_link_libraries(test_wmm_declination PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_wmm_declination)
@@ -80,7 +80,7 @@ add_library(rc_fusion_bierman STATIC
     ${CMAKE_SOURCE_DIR}/src/fusion/eskf.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/eskf_codegen.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/ud_factor.cpp
-    ${CMAKE_SOURCE_DIR}/src/fusion/wmm_declination.cpp
+    ${CMAKE_SOURCE_DIR}/src/fusion/wmm_tables.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/mahony_ahrs.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/innovation_monitor.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/confidence_gate.cpp

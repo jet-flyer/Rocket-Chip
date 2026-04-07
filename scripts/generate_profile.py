@@ -67,6 +67,9 @@ FIELDS = [
     # PIO backup timers
     ('DROGUE_TIMER_S',      'drogue_timer_s',             'float',  None),
     ('MAIN_TIMER_S',        'main_timer_s',               'float',  None),
+    # Default location for WMM lookup (Core tier, no GPS)
+    ('DEFAULT_LAT',         'default_lat_deg',            'float',  None),
+    ('DEFAULT_LON',         'default_lon_deg',            'float',  None),
 ]
 
 # Phase Q/R fields — 8-value rows (one value per flight phase).

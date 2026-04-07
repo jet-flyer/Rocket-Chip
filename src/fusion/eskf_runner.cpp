@@ -11,7 +11,7 @@
 #include "rocketchip/config.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/ao_signals.h"
-#include "fusion/wmm_declination.h"
+#include "fusion/wmm_tables.h"
 #include "calibration/calibration_manager.h"
 #include "flight_director/flight_director.h"
 #include "flight_director/mission_profile.h"
@@ -263,13 +263,14 @@ static void eskf_tick_mag(const shared_sensor_data_t& snap) {
             const calibration_store_t* cal = calibration_manager_get();
             float expectedMag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
                                 ? cal->mag.expected_radius : 0.0F;
-            // WMM declination: use GPS position if available, else 0 (magnetic heading).
-            float declinationRad = 0.0F;
+            // WMM declination: GPS position if available, else Mission Profile default.
+            float latDeg = g_profile->default_lat_deg;
+            float lonDeg = g_profile->default_lon_deg;
             if (snap.gps_valid && snap.gps_fix_type >= 2) {
-                float latDeg = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
-                float lonDeg = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
-                declinationRad = rc::wmm_get_declination(latDeg, lonDeg);
+                latDeg = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
+                lonDeg = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
             }
+            float declinationRad = rc::wmm_get_declination(latDeg, lonDeg);
             g_eskf.update_mag_heading(magBody, expectedMag, declinationRad);
         }
     }

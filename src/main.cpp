@@ -33,7 +33,7 @@
 #include "safety/pio_watchdog.h"
 #include "safety/pio_backup_timer.h"
 #include "fusion/mahony_ahrs.h"
-#include "fusion/wmm_declination.h"
+#include "fusion/wmm_tables.h"
 #include "drivers/spi_bus.h"
 #include "drivers/rfm95w.h"
 #include "logging/psram_init.h"

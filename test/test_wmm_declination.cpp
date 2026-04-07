@@ -8,7 +8,7 @@
 
 #include <cmath>
 
-#include "fusion/wmm_declination.h"
+#include "fusion/wmm_tables.h"
 
 namespace {
 

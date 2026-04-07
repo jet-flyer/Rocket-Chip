@@ -54,7 +54,7 @@ if(BUILD_TESTS)
         src/fusion/eskf.cpp
         src/fusion/eskf_codegen.cpp
         src/fusion/ud_factor.cpp
-        src/fusion/wmm_declination.cpp
+        src/fusion/wmm_tables.cpp
         src/fusion/mahony_ahrs.cpp
         src/fusion/innovation_monitor.cpp
         src/fusion/confidence_gate.cpp
@@ -291,7 +291,7 @@ else()
         src/fusion/eskf_runner.cpp
 
         # IVP-44: WMM declination lookup table
-        src/fusion/wmm_declination.cpp
+        src/fusion/wmm_tables.cpp
 
         # IVP-45: Mahony AHRS cross-check
         src/fusion/mahony_ahrs.cpp
@@ -403,7 +403,7 @@ else()
         src/fusion/eskf.cpp
         src/fusion/eskf_codegen.cpp
         src/fusion/eskf_runner.cpp
-        src/fusion/wmm_declination.cpp
+        src/fusion/wmm_tables.cpp
         src/fusion/mahony_ahrs.cpp
         src/fusion/ud_factor.cpp
         src/logging/data_convert.cpp

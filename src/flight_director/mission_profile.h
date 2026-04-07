@@ -106,6 +106,10 @@ struct MissionProfile {
     float drogue_timer_s;               // Backup drogue timer (seconds from ARM, 0=disabled)
     float main_timer_s;                 // Backup main timer (seconds from ARM, 0=disabled)
 
+    // --- Default location for WMM lookup (Core tier, no GPS) ---
+    float default_lat_deg;              // Latitude for no-GPS WMM lookup (Dallas TX default)
+    float default_lon_deg;              // Longitude for no-GPS WMM lookup
+
     // --- Phase Q/R ---
     // Per-phase noise model for ESKF adaptive estimation.
     // Q scales are multipliers on baseline sigma^2 values (>= 1.0).
