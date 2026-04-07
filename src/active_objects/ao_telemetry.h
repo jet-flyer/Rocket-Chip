@@ -36,4 +36,7 @@ struct RxTelemSnapshot {
 };
 const RxTelemSnapshot* AO_Telemetry_get_rx_state();
 
+// IVP-62a: notify GCS heartbeat received (transitions to full telemetry output)
+void AO_Telemetry_notify_gcs_heartbeat();
+
 #endif // ROCKETCHIP_AO_TELEMETRY_H

@@ -35,6 +35,15 @@ enum : uint16_t {
 // AO State
 // ============================================================================
 
+// GCS connection state (IVP-62a)
+enum class GcsState : uint8_t {
+    kWaitingForGcs = 0,  // Send heartbeat only — no full telemetry
+    kGcsConnected  = 1,  // GCS detected — full telemetry streaming
+    kGcsLost       = 2,  // GCS heartbeat timeout — back to heartbeat-only
+};
+
+static constexpr uint32_t kGcsTimeoutMs = 5000;  // 5s without GCS heartbeat → lost
+
 struct TelemAo {
     QActive super;
     QTimeEvt tick_timer;    // 10Hz (every 10 ticks at 100Hz base)
@@ -44,11 +53,14 @@ struct TelemAo {
     rc::MavlinkEncoder  mav_encoder;
     rc::TelemetryState  latest_telem;
     bool                telem_valid;
-    // output_mode moved to AO_RCOS (station_output_mode.h)
     uint8_t             rate_hz;
     uint32_t            interval_ms;
     uint32_t            last_tx_ms;
     uint32_t            last_heartbeat_ms;
+
+    // GCS connection tracking (IVP-62a)
+    GcsState            gcs_state;
+    uint32_t            last_gcs_heartbeat_ms;
 
     // Station RX: latest decoded telemetry for CLI/WiFi access
     RxTelemSnapshot     rx_snapshot;
@@ -157,7 +169,16 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
 #endif
 }
 
-// Direct USB MAVLink output for Vehicle mode (same data, no radio)
+// GCS connection state update (IVP-62a)
+static void update_gcs_state(TelemAo* me, uint32_t t) {
+    if (me->gcs_state == GcsState::kGcsConnected) {
+        if (t - me->last_gcs_heartbeat_ms > kGcsTimeoutMs) {
+            me->gcs_state = GcsState::kGcsLost;
+        }
+    }
+}
+
+// Direct USB MAVLink output for Vehicle mode (IVP-62a: heartbeat-only until GCS detected)
 static void mavlink_direct_tick(TelemAo* me) {
 #ifndef ROCKETCHIP_HOST_TEST
     if (AO_RCOS_get_output_mode() != StationOutputMode::kMavlink) { return; }
@@ -169,7 +190,9 @@ static void mavlink_direct_tick(TelemAo* me) {
     uint16_t len = 0;
     uint32_t t = now_ms();
 
-    // 1 Hz heartbeat + SYS_STATUS
+    update_gcs_state(me, t);
+
+    // Always send heartbeat at 1Hz (even before GCS detection)
     if (t - me->last_heartbeat_ms >= 1000) {
         me->last_heartbeat_ms = t;
         len = me->mav_encoder.encode_heartbeat(
@@ -177,7 +200,11 @@ static void mavlink_direct_tick(TelemAo* me) {
         fwrite(frame, 1, len, stdout);
         len = me->mav_encoder.encode_sys_status(me->latest_telem, frame);
         fwrite(frame, 1, len, stdout);
+        fflush(stdout);
     }
+
+    // Full telemetry only when GCS is connected
+    if (me->gcs_state != GcsState::kGcsConnected) { return; }
 
     // 10 Hz ATTITUDE + GLOBAL_POSITION_INT
     len = me->mav_encoder.encode_attitude(me->latest_telem, t, frame);
@@ -205,6 +232,8 @@ static QState TelemAo_initial(TelemAo * const me, QEvt const * const e) {
     me->interval_ms = 500;
     me->last_tx_ms = 0;
     me->last_heartbeat_ms = 0;
+    me->gcs_state = GcsState::kWaitingForGcs;
+    me->last_gcs_heartbeat_ms = 0;
 
     // Subscribe to SIG_RADIO_RX from AO_Radio
     QActive_subscribe(&me->super, rc::SIG_RADIO_RX);
@@ -280,6 +309,14 @@ uint8_t AO_Telemetry_cycle_rate() {
 
 const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
     return &l_telemAo.rx_snapshot;
+}
+
+// IVP-62a: notify that a GCS heartbeat was received (USB or LoRa)
+void AO_Telemetry_notify_gcs_heartbeat() {
+    l_telemAo.last_gcs_heartbeat_ms = now_ms();
+    if (l_telemAo.gcs_state != GcsState::kGcsConnected) {
+        l_telemAo.gcs_state = GcsState::kGcsConnected;
+    }
 }
 
 void AO_Telemetry_start(uint8_t prio) {
