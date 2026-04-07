@@ -102,6 +102,10 @@ struct MissionProfile {
     // --- Pyro ---
     bool has_pyro;                      // Profile includes pyro channels
 
+    // --- PIO backup deployment timers ---
+    float drogue_timer_s;               // Backup drogue timer (seconds from ARM, 0=disabled)
+    float main_timer_s;                 // Backup main timer (seconds from ARM, 0=disabled)
+
     // --- Phase Q/R ---
     // Per-phase noise model for ESKF adaptive estimation.
     // Q scales are multipliers on baseline sigma^2 values (>= 1.0).

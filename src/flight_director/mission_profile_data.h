@@ -40,6 +40,8 @@ inline constexpr MissionProfile kDefaultRocketProfile = {
     .require_mag_cal = false,
     .require_radio = false,
     .has_pyro = true,
+    .drogue_timer_s = 15.0f,
+    .main_timer_s = 45.0f,
 
     .phase_qr = {.phases = {
         // IDLE (0)

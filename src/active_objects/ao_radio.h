@@ -19,7 +19,8 @@ extern "C" {
 
 extern QActive * const AO_Radio;
 
-void AO_Radio_start(uint8_t prio);
+/// Start AO_Radio. spi_ok: whether SPI bus was initialized successfully.
+void AO_Radio_start(uint8_t prio, bool spi_ok);
 
 // CLI access — safe under QV cooperative scheduling (no preemption on Core 0)
 struct RadioAoState {

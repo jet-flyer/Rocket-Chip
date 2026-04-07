@@ -57,7 +57,6 @@
 
 // NOLINTBEGIN(readability-redundant-declaration) — cross-TU externs
 extern bool g_neopixelInitialized;
-extern bool g_radioInitialized;
 extern bool g_sensorPhaseActive;
 extern sensor_seqlock_t g_sensorSeqlock;
 extern rc::WatchdogRecovery g_recovery;
@@ -624,7 +623,7 @@ void cli_print_hw_status() {
     hw_validate_i2c_devices();
     hw_validate_sensors();
 
-    if (g_radioInitialized) {
+    if (AO_Radio_get_state()->initialized) {
         printf("[PASS] Radio: RFM95W LoRa 915 MHz SF7 20dBm (CS=%d RST=%d IRQ=%d)\n",
                rocketchip::pins::kRadioCs, rocketchip::pins::kRadioRst,
                rocketchip::pins::kRadioIrq);

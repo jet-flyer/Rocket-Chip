@@ -13,7 +13,7 @@
 | 2 | `mahony_ahrs.h:52` | `Also terminate on ARM state transition` — Mahony startup 10x Kp only uses time-based decay, no ARM awareness | **Open** | Plumb FD arm state to Mahony to end startup boost on ARM. Currently only time-based (20s). |
 | 3 | `config.h:110` | `Old names kept for call-site compatibility — will be removed in a future cleanup` — kI2c1Sda, kI2c1Scl, kSpi0Miso, kSpi0Sck aliases | **Open** | Check if old names still have callers; remove if not |
 | 4 | `ao_radio.cpp:211-222`, `main.cpp:121-122,417` | `IVP-93 transitional — removed in IVP-94` — AO_Radio borrows g_radio from main.cpp | **Architecture debt** | IVP-94 was deferred; decide if radio ownership transfer is worth doing |
-| 5 | `confidence_gate.h:51`, `phase_qr.h:60` | `tuning deferred to Stage 13` — Stage 13 is complete but these values were not explicitly tuned | **Open** | Verify VALIDATE values were reviewed; update comment or tune |
+| 5 | `confidence_gate.h:51`, `phase_qr.h:60` | `tuning deferred to Stage 13` — Stage 13 is complete but these values were not explicitly tuned | **Reviewed** | All VALIDATE values are within ArduPilot/PX4 norms. Conservative defaults — won't cause dangerous behavior. Need flight data to optimize. Comments updated to remove stale Stage 13 reference. |
 | 6 | `data_convert.cpp:106` | `Battery: not measured yet (future ADC integration)` | **Open** | Battery monitoring via ADC — tracked nowhere else |
 
 ## VALIDATE Values (Need Flight Testing)

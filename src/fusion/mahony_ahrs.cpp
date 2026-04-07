@@ -98,10 +98,9 @@ void MahonyAHRS::update(const Vec3& accel, const Vec3& gyro,
         return;
     }
 
-    // -- Effective Kp: startup 10x for first kStartupDurationS --
-    const float kpEff = (elapsed_s < kStartupDurationS)
-                        ? kKp * kStartupKpMultiplier
-                        : kKp;
+    // Effective Kp: startup 10x boost until time expires or ARM forces end
+    const bool in_startup = !startup_ended_ && elapsed_s < kStartupDurationS;
+    const float kpEff = in_startup ? kKp * kStartupKpMultiplier : kKp;
 
     const Vec3 eAccel = compute_accel_error(accel);
     const Vec3 eMag = compute_mag_error(magBody, expectedMag, magCalValid);

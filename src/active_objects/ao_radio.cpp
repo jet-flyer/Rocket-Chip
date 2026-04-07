@@ -15,7 +15,7 @@
 
 #include "ao_radio.h"
 #include "rocketchip/ao_signals.h"
-#include "rocketchip/config.h"
+#include "rocketchip/config.h"  // rocketchip::pins::kRadioCs/Rst/Irq
 #include "rocketchip/job.h"
 #include "drivers/spi_bus.h"
 #include "drivers/ws2812_status.h"
@@ -43,6 +43,9 @@ enum : uint16_t {
 static constexpr uint8_t kTxFailLogThresh   = 1;   // Log after 1 consecutive timeout
 static constexpr uint8_t kTxFailReinitThresh = 3;  // Reinit radio after 3
 static constexpr uint8_t kTxFailErrorThresh  = 5;  // Set error flag after 5
+
+// SPI bus status — set by AO_Radio_start(), read by RadioAo_initial()
+static bool g_spiOk = false;
 
 // ============================================================================
 // AO State
@@ -208,10 +211,6 @@ static void handle_rx_poll(RadioAo* me) {
 // State Handlers
 // ============================================================================
 
-// AO_Radio borrows the radio handle initialized by init_peripherals().
-extern bool g_radioInitialized;
-extern rfm95w_t g_radio;
-
 static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
     (void)e;
     RadioAoState& s = me->state;
@@ -219,9 +218,11 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
     s.tx_bw_mode = 0;
     s.link_quality = 0;
 
-    // AO_Radio borrows the radio handle initialized by init_peripherals().
-    if (g_radioInitialized) {
-        s.radio = g_radio;  // Copy device handle (just pin config + flags)
+    // Initialize radio hardware (owned by this AO)
+    if (g_spiOk && rfm95w_init(&s.radio,
+            rocketchip::pins::kRadioCs,
+            rocketchip::pins::kRadioRst,
+            rocketchip::pins::kRadioIrq)) {
         s.initialized = true;
 
         // Mode selection based on device role
@@ -323,7 +324,8 @@ const RadioAoState* AO_Radio_get_state() {
     return &l_radioAo.state;
 }
 
-void AO_Radio_start(uint8_t prio) {
+void AO_Radio_start(uint8_t prio, bool spi_ok) {
+    g_spiOk = spi_ok;
     QActive_ctor(&l_radioAo.super,
                  Q_STATE_CAST(&RadioAo_initial));
 

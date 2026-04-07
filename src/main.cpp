@@ -105,8 +105,7 @@ bool g_baroContinuous = false;                // Non-static: Core 1 reads (senso
 bool g_gpsInitialized = false;                // Non-static: Core 1 reads/writes (sensor_core1.cpp)
 gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;  // Non-static: Core 1 reads
 bool g_spiInitialized = false;  // Non-static: cli_commands.cpp reads
-bool g_radioInitialized = false;  // Non-static: AO_Radio reads
-rfm95w_t g_radio;                 // Non-static: AO_Radio borrows handle
+// Radio init moved to AO_Radio (owns hardware lifecycle)
 
 size_t g_psramSize = 0;                  // Non-static: cli_commands.cpp reads
 bool g_psramSelfTestPassed = false;      // Non-static: cli_commands.cpp reads
@@ -353,14 +352,7 @@ static void init_peripherals() {
     // SPI bus + radio init (before USB per LL Entry 4/12)
     // Optional peripheral: absent FeatherWing detected at init time
     g_spiInitialized = spi_bus_init();
-    if (g_spiInitialized) {
-        g_radioInitialized = rfm95w_init(&g_radio,
-            rocketchip::pins::kRadioCs,
-            rocketchip::pins::kRadioRst,
-            rocketchip::pins::kRadioIrq);
-    }
-
-    // AO_Radio borrows the radio handle initialized by init_peripherals().
+    // Radio hardware init moved to AO_Radio_start() — owns its own lifecycle.
 
     // Calibration storage init (before USB per LL Entry 4/12)
     g_calStorageInitialized = calibration_storage_init();
@@ -568,7 +560,7 @@ int main() {
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
         AO_Telemetry_start(3U);      // 10Hz (Vehicle + Station, not Relay)
     }
-    AO_Radio_start(6U);             // 100Hz — all roles
+    AO_Radio_start(6U, g_spiInitialized);  // 100Hz — owns radio hardware init
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         AO_LedEngine_start(2U);     // 33Hz — Vehicle only (flight phase patterns)
     }

@@ -14,6 +14,7 @@
 #include "core1/sensor_core1.h"           // g_imuInitialized, g_baroInitialized, etc.
 #include "fusion/eskf_runner.h"           // eskf_runner_get_eskf(), eskf_runner_is_initialized()
 #include "active_objects/ao_logger.h"     // AO_Logger_get_flight_table()
+#include "active_objects/ao_radio.h"      // AO_Radio_get_state()
 #include "logging/flight_table.h"         // flight_table_count, kMaxFlightEntries
 #include "calibration/calibration_manager.h"
 #include "calibration/calibration_data.h" // CAL_STATUS_MAG
@@ -25,7 +26,7 @@
 
 extern sensor_seqlock_t g_sensorSeqlock;
 extern rc::WatchdogRecovery g_recovery;
-extern bool g_radioInitialized;  // NOLINT(readability-redundant-declaration)
+// Radio init state accessed via AO_Radio_get_state()->initialized
 
 namespace rc {
 
@@ -46,7 +47,7 @@ void health_monitor_init() {
     if (g_imuInitialized)  { flags |= kHealthImuOk; }
     if (g_baroInitialized) { flags |= kHealthBaroOk; }
     if (g_gpsInitialized)  { flags |= kHealthGpsOk; }
-    if (g_radioInitialized){ flags |= kHealthRadioOk; }
+    if (AO_Radio_get_state()->initialized){ flags |= kHealthRadioOk; }
     if (eskf_runner_is_initialized() &&
         eskf_runner_get_eskf()->healthy()) {
         flags |= kHealthEskfOk;
@@ -93,7 +94,7 @@ bool health_monitor_tick() {
     }
 
     // Radio: init OK
-    if (g_radioInitialized) {
+    if (AO_Radio_get_state()->initialized) {
         flags |= kHealthRadioOk;
     }
 

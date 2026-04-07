@@ -36,6 +36,7 @@ struct MahonyAHRS {
     float elapsed_s{};
 
     bool initialized_{};
+    bool startup_ended_{};  // True after ARM or elapsed > kStartupDurationS
 
     // =================================================================
     // Council-approved parameters (arXiv:0811.4303 + 3-stack consensus)
@@ -93,6 +94,10 @@ struct MahonyAHRS {
 
     // Health check: NaN/Inf detection in quaternion components.
     bool healthy() const;
+
+    // End startup boost immediately (called on ARM transition).
+    // Snaps Kp from 10× to nominal to avoid aggressive corrections in flight.
+    void force_end_startup() { startup_ended_ = true; }
 
 private:
     // Accel gravity-reference error: cross product of measured vs predicted down.

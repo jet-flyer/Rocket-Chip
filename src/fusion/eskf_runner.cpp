@@ -546,6 +546,10 @@ const gps_session_stats_t* eskf_runner_get_gps_session() {
     return &g_gpsSess;
 }
 
+void eskf_runner_end_mahony_startup() {
+    g_mahony.force_end_startup();
+}
+
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
                            uint32_t* max_us, uint32_t* count) {
     if (g_eskfBenchCount > 0 && avg != nullptr) {

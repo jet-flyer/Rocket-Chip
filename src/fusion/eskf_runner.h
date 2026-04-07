@@ -102,4 +102,7 @@ const gps_session_stats_t* eskf_runner_get_gps_session();
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
                            uint32_t* max_us, uint32_t* count);
 
+/// End Mahony startup Kp boost (called on ARM transition).
+void eskf_runner_end_mahony_startup();
+
 #endif // ROCKETCHIP_FUSION_ESKF_RUNNER_H

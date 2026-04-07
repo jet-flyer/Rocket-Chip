@@ -20,6 +20,7 @@
 #include "flight_director/mission_profile_data.h"
 #include "safety/pio_backup_timer.h"
 #include "safety/health_monitor.h"
+#include "fusion/eskf_runner.h"
 
 #include "pico/time.h"
 #include <stdio.h>
@@ -266,10 +267,12 @@ bool AO_FlightDirector_process_command(int cmd) {
 
         // PIO backup timer arm/disarm hooks
         if (result.signal == rc::SIG_ARM) {
-            // Start backup timers with profile values
-            // TODO: read from Mission Profile once fields are wired
-            rc::pio_backup_timer_arm(15.0f, 45.0f);  // VALIDATE defaults
-            printf("[PIO] Backup timers armed: drogue=15s main=45s\n");
+            const auto* p = l_fdAo.director.profile;
+            rc::pio_backup_timer_arm(p->drogue_timer_s, p->main_timer_s);
+            printf("[PIO] Backup timers armed: drogue=%.0fs main=%.0fs\n",
+                   static_cast<double>(p->drogue_timer_s),
+                   static_cast<double>(p->main_timer_s));
+            eskf_runner_end_mahony_startup();
         } else if (result.signal == rc::SIG_ABORT) {
             AO_Logger_log_event(rc::LogEventId::kAbortTriggered,
                              static_cast<uint8_t>(phase), 0, 0, 0);

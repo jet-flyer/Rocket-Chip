@@ -73,6 +73,7 @@
 - **AP_Notify-Style Notification Engine (post-Stage 11):** Evaluate ArduPilot's `AP_Notify` pattern for unifying LED, buzzer, and other status indicators behind a single notification interface. Natural successor to current `neo_set_if_changed()` pattern.
 - **Code Comments Audit / Cleanup (low priority):** Review all source files for stale comments, TODO markers, misleading descriptions, and missing "why" explanations. Housekeeping pass — no functional changes.
 - **PIO Backup Timer Exhaustive Shakedown (Stage 13):** Full shakedown of PIO backup deployment timers under various failure scenarios. Deferred from Stage 11 to pre-flight polish stage.
+- **Battery ADC Monitoring (pre-flight polish):** No battery voltage measurement implemented. Needs ADC pin wiring + driver + telemetry field. Surfaced from buried code comment in `data_convert.cpp:106`. Low-battery warning for field use.
 
 ---
 

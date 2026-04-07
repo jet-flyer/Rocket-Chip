@@ -64,6 +64,9 @@ FIELDS = [
     ('REQUIRE_RADIO',       'require_radio',              'bool',   None),
     # Pyro
     ('HAS_PYRO',            'has_pyro',                   'bool',   None),
+    # PIO backup timers
+    ('DROGUE_TIMER_S',      'drogue_timer_s',             'float',  None),
+    ('MAIN_TIMER_S',        'main_timer_s',               'float',  None),
 ]
 
 # Phase Q/R fields — 8-value rows (one value per flight phase).
