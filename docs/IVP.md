@@ -2751,15 +2751,70 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Council-reviewed 2026-04-06:** JPL, ArduPilot, Cubesat, Rocketeer (unanimous). Plan: `.claude/plans/streamed-foraging-hartmanis.md`
 
-| Step | Title | Brief Description |
-|------|-------|------------------|
-| IVP-99 | 3-Axis Measurement Model | `update_mag_3axis()` — rotate body mag to NED, 6 sequential scalar updates against earth_mag[15-17] and body_mag_bias[18-20]. `kRMag3dPerAxis = 0.36f` µT² (AK09916 datasheet). Magnitude pre-gate: reject if |B| deviates >25% from WMM expected. Per-axis 5σ innovation gate. |
-| IVP-100 | Auto-Enable Logic | `eskf_tick_mag()` auto-enables mag states when: (1) mag calibrated, (2) WMM field available (GPS or default location). Initialize earth_mag from `wmm_get_earth_field_ned()`. Switch from `update_mag_heading()` to `update_mag_3axis()`. Heading-only fallback when inhibited. |
-| IVP-101 | Sensor Status Display | WMM source (GPS/default) + declination + inclination + intensity in 's' status output. Earth mag state + body bias values when enabled. |
-| IVP-102 | Host Tests | Known-field convergence test. Body bias injection + convergence. Magnitude gating (interference rejection). Auto-enable gate verification. Regression: all existing 598+ tests pass. |
-| IVP-103 | HW Verification | Flash vehicle firmware. Verify mag states auto-enable at boot (cal + default location). 60s stationary soak: ESKF healthy, earth_mag converges to WMM values. Movement test: body_mag_bias tracks correctly. |
+---
 
-**[GATE]:** IVP-103 soak: 60s stationary, ESKF healthy, earth_mag within 5 µT of WMM expected, 0 sensor errors.
+### IVP-99: 3-Axis Measurement Model
+
+**Prerequisites:** WMM2025 tables (done), mag calibration (done), ESKF states 15-20 (done)
+
+**Implement:** `update_mag_3axis()` in eskf.cpp. Rotate body-frame mag to NED via current attitude, compare against earth_mag state. 6 sequential scalar updates (3 earth_mag[15-17] + 3 body_mag_bias[18-20]) using existing `scalar_kalman_update()`. `kRMag3dPerAxis = 0.36f` µT² (AK09916 datasheet: 0.6 µT RMS). Magnitude pre-gate: reject entire reading if |B| deviates >25% from WMM expected intensity. Per-axis 5σ innovation gate.
+
+**[GATE]:**
+- All three build targets compile clean
+- `update_mag_heading()` still works when mag states inhibited (backward compat)
+
+---
+
+### IVP-100: Auto-Enable Logic + WMM Field Init
+
+**Prerequisites:** IVP-99
+
+**Implement:** Update `eskf_tick_mag()` to auto-enable mag states when: (1) mag calibrated (`CAL_STATUS_MAG`), (2) WMM field available. On first GPS 3D fix, do WMM lookup and use that position. Without GPS, use stored cal position or Mission Profile `DEFAULT_LAT`/`DEFAULT_LON`. Initialize `earth_mag` from `wmm_get_earth_field_ned()`. Switch from `update_mag_heading()` to `update_mag_3axis()`. Heading-only fallback when mag states remain inhibited.
+
+**[GATE]:**
+- Flash vehicle firmware
+- Boot with mag calibrated + default location: mag states auto-enable
+- 60s stationary soak: ESKF healthy, earth_mag within 5 µT of WMM expected, 0 sensor errors
+
+---
+
+### IVP-101: Sensor Status Display + Host Tests
+
+**Prerequisites:** IVP-100
+
+**Implement:** Update `cli_print_sensor_status()` ('s' key) to show WMM source (GPS / stored / default) with lat/lon used, declination, inclination, intensity. Show earth_mag state and body_mag_bias values when mag states enabled. Add host tests: known-field convergence, body bias injection + convergence, magnitude gating (interference rejection), auto-enable gate verification, WMM field persistence round-trip.
+
+**[GATE]:**
+- All existing 598+ host tests pass (no regression)
+- New mag 3-axis tests pass
+- All three build targets compile clean
+
+---
+
+### IVP-102: WMM Field Persistence in Calibration Storage
+
+**Prerequisites:** IVP-100
+
+**Implement:** Add `wmm_lat_deg`, `wmm_lon_deg`, `wmm_field_ned[3]` to calibration storage struct. Updated on first GPS 3D fix. Loaded at boot before mag states enable — returning users get correct local field without GPS. First-ever boot with no stored data falls back to Mission Profile default.
+
+**[GATE]:**
+- Flash, acquire GPS fix, verify WMM field stored
+- Power cycle (no GPS), verify stored field loads and mag states enable
+- Cal storage backward compatibility: old cal data still loads correctly
+
+---
+
+### IVP-103: Station GPS Position Push
+
+**Prerequisites:** IVP-102, Stage 12A radio link
+
+**Implement:** Advanced station command (FJ station RCOS menu): send station's GPS position to GPS-less vehicle over LoRa. Vehicle receives position, does WMM lookup, stores in cal, sets ESKF origin. One-time on-demand command, not automatic. Linux GCS (Stage 12B) gets same capability.
+
+**[GATE]:**
+- Station sends position command, vehicle receives
+- Vehicle WMM field updates from received position
+- earth_mag re-initializes to correct local field
+- Position persists in cal storage across reboot
 
 ---
 
