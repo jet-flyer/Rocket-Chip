@@ -18,7 +18,6 @@
  *   HEARTBEAT + SYS_STATUS + ATTITUDE + GLOBAL_POSITION_INT
  *   = ~144 bytes total (4 messages per tick)
  *
- * IVP-58: Telemetry Encoder (Stage 7: Radio & Telemetry)
  */
 
 #ifndef ROCKETCHIP_TELEMETRY_ENCODER_H
@@ -46,7 +45,7 @@ namespace ccsds {
 
 // Application Process Identifiers
 constexpr uint16_t kApidNav  = 0x001;    // Navigation telemetry
-constexpr uint16_t kApidDiag = 0x002;    // Diagnostics (future APID 2)
+constexpr uint16_t kApidDiag = 0x002;    // Diagnostics (defined, not yet used)
 
 // Packet sizes
 constexpr uint8_t kPrimaryHeaderLen   = 6;
@@ -183,7 +182,7 @@ struct TelemetryEncoderState {
 };
 
 // ============================================================================
-// CCSDS Decoder (IVP-60: RX mode)
+// CCSDS Decoder (RX mode)
 // ============================================================================
 
 /**

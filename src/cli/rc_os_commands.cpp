@@ -4,7 +4,6 @@
  * @file cli_commands.cpp
  * @brief CLI command handlers and display functions
  *
- * Extracted from main.cpp (Phase 7 AO architecture migration).
  * Pure command/display code — reads state from AO public APIs and
  * sensor seqlock, owns no state.
  */
@@ -64,7 +63,7 @@ extern sensor_seqlock_t g_sensorSeqlock;
 extern rc::WatchdogRecovery g_recovery;
 // NOLINTEND(readability-redundant-declaration)
 
-// main.cpp statics made non-static for CLI access (Phase 7)
+// main.cpp statics made non-static for CLI access
 extern size_t g_psramSize;
 extern bool   g_psramSelfTestPassed;
 extern bool   g_psramFlashSafePassed;
@@ -74,7 +73,7 @@ extern bool   g_watchdogReboot;
 extern bool   g_calStorageInitialized;
 
 // ============================================================================
-// Constants (moved from main.cpp — used only by CLI display/commands)
+// Constants
 // ============================================================================
 
 static constexpr float kRadToDeg = 180.0F / 3.14159265F;
@@ -167,7 +166,7 @@ static void print_eskf_gates_and_diags() {
     if (!g_eskf.inhibit_baro_bias_) {
         printf("      bBias=%.3f m\n", (double)g_eskf.baro_bias_);
     }
-    // IVP-83/84: Phase Q/R + confidence gate status
+    // Phase Q/R + confidence gate status
     if (g_eskf.phase_qr_) {
         printf("      phQ: att=%.1f vel=%.1f  innov: b=%.2f m=%.2f gp=%.2f gv=%.2f\n",
                (double)g_eskf.q_active_.attitude,
@@ -732,7 +731,7 @@ void cli_print_eskf_live() {
 }
 
 // ============================================================================
-// Station RX Telemetry Display (IVP-99)
+// Station RX Telemetry Display
 // ============================================================================
 
 static void print_station_rx_fields(const rc::TelemetryState& t,
@@ -1025,7 +1024,7 @@ static void cmd_radio_status() {
 }
 
 // ============================================================================
-// Station GPS Commands (IVP-97)
+// Station GPS Commands
 // ============================================================================
 
 [[maybe_unused]]
@@ -1071,7 +1070,7 @@ static void cmd_station_distance() {
            static_cast<double>(g_bestGpsFix.lat_1e7) / 1e7,
            static_cast<double>(g_bestGpsFix.lon_1e7) / 1e7,
            static_cast<double>(g_bestGpsFix.alt_msl_m));
-    printf("Vehicle distance: needs received position (IVP-97c)\n");
+    printf("Vehicle distance: needs received position\n");
 }
 
 // ============================================================================

@@ -11,7 +11,6 @@
  * Also defines FlightMetadata (UTC epoch anchor) and FlightSummary
  * (per-flight running statistics).
  *
- * IVP-49: Data Model & ICD (Stage 6: Data Logging)
  */
 
 #ifndef ROCKETCHIP_TELEMETRY_STATE_H

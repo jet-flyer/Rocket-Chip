@@ -24,7 +24,7 @@ constexpr float    kGravityNominal        = 9.80665F;
 
 constexpr uint16_t kBaroCalSamples        = 50;       // ~1 second at 50Hz
 
-// 6-position accel calibration (IVP-17)
+// 6-position accel calibration
 constexpr uint16_t kAccel6posSamplesPerPos = 50;
 constexpr uint8_t  kAccel6posPositions     = 6;
 constexpr uint16_t kAccel6posTotalSamples  = kAccel6posSamplesPerPos * kAccel6posPositions;
@@ -44,7 +44,7 @@ constexpr uint8_t  kAccel6posDiagEnd       = 6;       // params[3..5] = diagonal
 constexpr uint8_t  kParamDiagZ             = 5;       // Index of diagonal Z scale in params[]
 constexpr uint8_t  kAccel6posAllMask       = 0x3F;    // Bitmask: all 6 positions collected
 
-// Magnetometer calibration (IVP-35/36)
+// Magnetometer calibration
 // Field magnitude bounds (µT) — Earth's field ranges ~25-65 µT, allow margin for distortion
 constexpr float    kMagMinFieldUt         = 15.0F;    // Reject samples below this magnitude
 constexpr float    kMagMaxFieldUt         = 95.0F;    // Reject samples above this magnitude
@@ -406,7 +406,7 @@ void calibration_feed_baro(float pressurePa, float temperatureC) {
 }
 
 // ============================================================================
-// 6-Position Accelerometer Calibration (IVP-17)
+// 6-Position Accelerometer Calibration
 // ============================================================================
 
 // Gauss-Newton helper: compute residual for one sample
@@ -810,7 +810,7 @@ cal_result_t calibration_compute_6pos() {
 }
 
 // ============================================================================
-// Magnetometer Calibration (IVP-35/36)
+// Magnetometer Calibration
 // ============================================================================
 
 // Coverage grid: map a unit vector to a lat/lon section index (0-79)

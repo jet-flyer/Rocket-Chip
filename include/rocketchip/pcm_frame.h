@@ -19,7 +19,6 @@
  *   2. Verify payload_len matches frame type
  *   3. Verify CRC-16 over header + payload
  *
- * IVP-51: PCM Frame Format (Stage 6: Data Logging)
  */
 
 #ifndef ROCKETCHIP_PCM_FRAME_H
@@ -57,7 +56,7 @@ enum class LogEventId : uint8_t {
     kPhaseChange       = 6,   // Flight phase transition (data: from, to)
     kConfidenceLost    = 7,   // Confidence gate: confident → uncertain
     kConfidenceRecovered = 8, // Confidence gate: uncertain → confident
-    // Future: kPioTimerArmed, kPioTimerDisarmed, kPioTimerFired, etc.
+    // kPioTimerArmed, kPioTimerDisarmed, kPioTimerFired, etc.
 };
 
 // Event frame — 15 bytes total (flat layout to avoid nested packed struct issues)

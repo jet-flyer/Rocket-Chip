@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_Radio — Radio Hardware Active Object (IVP-93)
+// AO_Radio — Radio Hardware Active Object
 //
 // Owns RFM95W radio driver + RadioScheduler half-duplex state machine.
 // Protocol-agnostic: receives encoded packets via SIG_RADIO_TX, posts
 // raw received bytes via SIG_RADIO_RX. Never inspects packet contents.
-//
-// Council 1 (universality) + Council 2 (scheduler) + Council 3 (final).
 //============================================================================
 #ifndef ROCKETCHIP_AO_RADIO_H
 #define ROCKETCHIP_AO_RADIO_H

@@ -3,7 +3,7 @@
 #ifndef ROCKETCHIP_SAFETY_PIO_BACKUP_TIMER_H
 #define ROCKETCHIP_SAFETY_PIO_BACKUP_TIMER_H
 
-// PIO-based backup deployment timers (IVP-89).
+// PIO-based backup deployment timers.
 //
 // Two autonomous countdown timers (drogue + main) on PIO2.
 // Loaded at ARM time, fire pyro GPIOs on expiry.

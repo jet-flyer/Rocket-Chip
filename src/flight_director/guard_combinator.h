@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file guard_combinator.h
- * @brief Guard combinator + safety lockout gates (IVP-71)
+ * @brief Guard combinator + safety lockout gates
  *
  * Three-layer safety architecture for deployment-critical transitions:
  *   Layer 1: Lockout gates (velocity + min-time) — block if unsafe
@@ -38,7 +38,7 @@ struct SafetyLockout {
     float deploy_lockout_mps;       // From MissionProfile
     uint32_t apogee_lockout_ms;     // From MissionProfile
     bool eskf_healthy;              // ESKF health flag (Council A2)
-    bool confident;                 // Confidence gate flag (IVP-85)
+    bool confident;                 // Confidence gate flag
 };
 
 // Guard combinator configuration (one per managed transition)

@@ -123,7 +123,6 @@ typedef struct {
  *
  * Applied after sensor calibration: final = R * calibrated.
  * Identity matrix = no rotation (board axes = reference axes).
- * Future: user sets roll/pitch/yaw mount angles → converted to this matrix.
  */
 typedef struct {
     float m[9];  ///< Row-major 3x3: [R00 R01 R02 R10 R11 R12 R20 R21 R22]
@@ -156,7 +155,6 @@ typedef struct {
     // Board orientation (set via config, applied after sensor cal)
     board_rotation_t board_rotation;  // 36 bytes
 
-    // Reserved for future expansion
     uint8_t reserved[8];
 } calibration_store_t;
 

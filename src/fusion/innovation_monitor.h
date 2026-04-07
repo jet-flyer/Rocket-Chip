@@ -3,7 +3,7 @@
 #ifndef ROCKETCHIP_FUSION_INNOVATION_MONITOR_H
 #define ROCKETCHIP_FUSION_INNOVATION_MONITOR_H
 
-// Per-channel innovation ratio (NIS) sliding-window tracker (IVP-83).
+// Per-channel innovation ratio (NIS) sliding-window tracker.
 // Pure C++ — no Pico SDK dependencies.
 //
 // Tracks alpha = mean(nu^2 / S) over a sliding window. When alpha > 1.0,

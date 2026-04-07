@@ -7,8 +7,7 @@
  * Hardware init, Core 1 sensor loop (~1kHz IMU, ~50Hz baro, ~10Hz GPS),
  * Core 0 CLI dispatch, dual-core watchdog, MPU stack guard.
  *
- * IVP test code (Stages 1-4) stripped after hardware verification.
- * See git history for IVP gate checks, soak ticks, and test dispatchers.
+ * See git history for prior IVP gate checks and test dispatchers.
  */
 
 #include "rocketchip/config.h"
@@ -52,15 +51,15 @@
 #include "watchdog/watchdog_recovery.h"
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
-#include "rocketchip/ao_signals.h"  // IVP-76: system-wide signal catalog
-#include "ao_blinker.h"            // IVP-76: demo AO (heartbeat LED)
-#include "ao_counter.h"            // IVP-76: demo AO (jitter measurement)
-#include "ao_led_engine.h"         // IVP-77: NeoPixel LED AO (incremental test)
-#include "ao_flight_director.h"    // IVP-78: Flight Director AO (incremental test)
-#include "ao_logger.h"             // IVP-79: Logger AO (incremental test)
-#include "ao_telemetry.h"          // IVP-80: Telemetry AO
-#include "ao_radio.h"              // IVP-93: Radio AO
-#include "qp_port.h"   // QP/C QEP (IVP-67): Q_onError, QHsm types
+#include "rocketchip/ao_signals.h"
+#include "ao_blinker.h"
+#include "ao_counter.h"
+#include "ao_led_engine.h"
+#include "ao_flight_director.h"
+#include "ao_logger.h"
+#include "ao_telemetry.h"
+#include "ao_radio.h"
+#include "qp_port.h"
 #include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
 #include "hardware/sync.h"
@@ -89,21 +88,9 @@ static constexpr uint8_t kFaultFastBlinks = 3;                  // Fast blinks b
 // Watchdog
 static constexpr uint32_t kWatchdogTimeoutMs = 5000;            // 5 second timeout
 
-// CLI display constants moved to cli_commands.cpp (Phase 7).
-// ESKF constants moved to eskf_runner.cpp (Phase 2).
-// DPS310 data-ready constants moved to sensor_core1.cpp (Phase 1).
-
-// Calibration constants moved to src/calibration/cal_hooks.cpp (Phase 8).
 
 // Sensor power-up settling time (generous margin over ICM-20948 11ms + DPS310 40ms)
 static constexpr uint32_t kSensorSettleMs = 200;
-
-// NeoPixel timing moved to sensor_core1.cpp (Core 1 private).
-
-// NeoPixel pattern constants moved to include/rocketchip/led_patterns.h (Phase 0B).
-// Backward-compat aliases (kCalNeo*, kRxNeo*, kFdNeo*) provided by that header.
-
-// NeoPixel mode/color tracking moved to sensor_core1.cpp (Core 1 private).
 
 
 // ============================================================================
@@ -111,25 +98,19 @@ static constexpr uint32_t kSensorSettleMs = 200;
 // ============================================================================
 
 bool g_neopixelInitialized = false;           // Non-static: Core 1 reads (sensor_core1.cpp)
-bool g_i2cInitialized = false;  // Non-static: cli_commands.cpp reads (Phase 7)
+bool g_i2cInitialized = false;  // Non-static: cli_commands.cpp reads
 bool g_imuInitialized = false;                // Non-static: Core 1 reads (sensor_core1.cpp)
 bool g_baroInitialized = false;               // Non-static: Core 1 reads/writes (sensor_core1.cpp)
 bool g_baroContinuous = false;                // Non-static: Core 1 reads (sensor_core1.cpp)
 bool g_gpsInitialized = false;                // Non-static: Core 1 reads/writes (sensor_core1.cpp)
 gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;  // Non-static: Core 1 reads
-bool g_spiInitialized = false;  // Non-static: cli_commands.cpp reads (Phase 7)
-bool g_radioInitialized = false;  // Non-static: AO_Radio reads (IVP-93 transitional)
-rfm95w_t g_radio;                 // Non-static: AO_Radio borrows (IVP-93 transitional)
+bool g_spiInitialized = false;  // Non-static: cli_commands.cpp reads
+bool g_radioInitialized = false;  // Non-static: AO_Radio reads
+rfm95w_t g_radio;                 // Non-static: AO_Radio borrows handle
 
-// Radio/telemetry globals removed (IVP-94). State now in AO_Telemetry + AO_Radio.
-
-size_t g_psramSize = 0;                  // Non-static: cli_commands.cpp reads (Phase 7)
-bool g_psramSelfTestPassed = false;      // Non-static: cli_commands.cpp reads (Phase 7)
-bool g_psramFlashSafePassed = false;     // Non-static: cli_commands.cpp reads (Phase 7)
-
-// Logging subsystem (IVP-52c) — moved to ao_logger.cpp (Phase 4).
-// Ring buffer, decimator, flight table, SRAM fallback buffer, decimation
-// constants all owned by AO_Logger. Access via ao_logger.h accessors.
+size_t g_psramSize = 0;                  // Non-static: cli_commands.cpp reads
+bool g_psramSelfTestPassed = false;      // Non-static: cli_commands.cpp reads
+bool g_psramFlashSafePassed = false;     // Non-static: cli_commands.cpp reads
 
 // Transport-neutral GPS function pointers — set once during init_sensors().
 // Avoids if/else on every Core 1 GPS poll cycle.
@@ -138,26 +119,12 @@ bool (*g_gpsFnUpdate)()                    = nullptr;
 bool (*g_gpsFnGetData)(gps_data_t*)       = nullptr;
 bool (*g_gpsFnHasFix)()                    = nullptr;
 
-// best_gps_fix_t, g_bestGpsFix, g_bestGpsValid moved to sensor_core1.h/.cpp.
-// Extern declarations provided by core1/sensor_core1.h.
-
-// IVP-66: Watchdog recovery policy — persists flight state across WDT resets.
+// Watchdog recovery policy — persists flight state across WDT resets.
 // Tracks reboot count, safe-mode lockout, ESKF failure backoff.
 // Non-static: eskf_runner reads g_recovery.eskf_disabled for backoff.
 rc::WatchdogRecovery g_recovery;
 
-// IVP-68: Flight Director HSM (Stage 8)
-// Moved to AO_FlightDirector (Phase 3). Access via ao_flight_director.h.
-// g_director and g_directorInitialized are now internal to ao_flight_director.cpp.
-
-// ESKF globals moved to src/fusion/eskf_runner.cpp (Phase 2).
-// Access via eskf_runner_get_eskf(), eskf_runner_get_mahony(), etc.
-// g_eskf and g_eskfInitialized are extern-declared in sensor_core1.h
-// and defined in eskf_runner.cpp.
-
-// Sensor data types, seqlock protocol, and cross-core signaling
-// are defined in include/rocketchip/sensor_seqlock.h (Phase 0A extraction).
-// Global instances defined here, will migrate to owning modules in later phases.
+// Sensor data seqlock — cross-core data sharing between Core 1 (writer) and Core 0 (reader).
 
 sensor_seqlock_t g_sensorSeqlock;
 
@@ -168,16 +135,9 @@ std::atomic<bool> g_core1PauseI2C{false};
 std::atomic<bool> g_core1I2CPaused{false};
 std::atomic<bool> g_core1LockoutReady{false};
 
-// g_calNeoPixelOverride removed (Phase 5). CLI uses AO_LedEngine_post_override(),
-// FD uses AO_LedEngine_post_pattern(). No cross-core atomic needed.
-
 // Dual-core watchdog kick flags — std::atomic per MULTICORE_RULES.md
 // volatile is NOT sufficient for cross-core visibility on ARM (no hardware barrier)
-// IVP-90: SDK watchdog globals removed. PIO heartbeat is sole health monitor.
-// g_wdtCore0Alive, g_wdtCore1Alive, g_watchdogEnabled — deleted.
-
-// log_flight_event moved to AO_Logger (Phase 4). Use AO_Logger_log_event().
-bool g_watchdogReboot = false;  // Non-static: cli_commands.cpp reads (Phase 7)
+bool g_watchdogReboot = false;  // Non-static: cli_commands.cpp reads
 
 // Sensor phase active — set by Core 0 when Core 1 enters sensor loop.
 // Read by Core 0 (cal hooks, print_sensor_status, eskf_runner). Plain bool is
@@ -186,13 +146,10 @@ bool g_watchdogReboot = false;  // Non-static: cli_commands.cpp reads (Phase 7)
 bool g_sensorPhaseActive = false;
 
 // Calibration storage state
-bool g_calStorageInitialized = false;  // Non-static: cli_commands.cpp reads (Phase 7)
-
+bool g_calStorageInitialized = false;  // Non-static: cli_commands.cpp reads
 
 // IMU device handle (non-static: Core 1 reads via sensor_core1.cpp, per LL Entry 1)
 icm20948_t g_imu;
-
-// Seqlock read/write API moved to sensor_seqlock.h (Phase 0A).
 
 // ============================================================================
 // MemManage / HardFault Handler
@@ -227,11 +184,11 @@ static void memmanage_fault_handler() {
 }
 
 // ============================================================================
-// QP/C Assertion Handler (IVP-67)
+// QP/C Assertion Handler
 // ============================================================================
 // Called by QEP when a state machine invariant is violated (null state handler,
 // nesting depth overflow, etc.). Logs the failure and halts — the watchdog
-// will reset the device and the recovery policy (IVP-66) will track it.
+// will reset the device and the recovery policy will track it.
 extern "C" Q_NORETURN Q_onError(
     char const * const module,
     int_t const id)
@@ -253,7 +210,7 @@ extern "C" Q_NORETURN Q_onError(
 
 // NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" uint32_t __StackBottom;     // Core 0 stack bottom (SCRATCH_Y, linker-defined)
-// __StackOneBottom declaration moved to sensor_core1.cpp (Core 1 uses it).
+// __StackOneBottom declared in sensor_core1.cpp (Core 1 uses it).
 
 static void mpu_setup_stack_guard(uint32_t stackBottom) {
     // Disable MPU during configuration
@@ -285,15 +242,6 @@ static void mpu_setup_stack_guard(uint32_t stackBottom) {
     __dsb();
     __isb();
 }
-
-// ============================================================================
-// Core 1 sensor loop extracted to src/core1/sensor_core1.cpp (Phase 1).
-// Public entry point: core1_entry() — declared in core1/sensor_core1.h.
-// ============================================================================
-
-// Calibration hooks moved to src/calibration/cal_hooks.cpp (Phase 8).
-
-// Display functions moved to src/cli/cli_commands.cpp (Phase 7).
 
 
 // ============================================================================
@@ -412,9 +360,7 @@ static void init_peripherals() {
             rocketchip::pins::kRadioIrq);
     }
 
-    // Telemetry service init removed (IVP-94) — AO_Telemetry + AO_Radio own this now.
-    // Radio init stays in init_peripherals (SPI bus + rfm95w_init).
-    // AO_Radio borrows g_radio handle at startup (IVP-93 transitional).
+    // AO_Radio borrows the radio handle initialized by init_peripherals().
 
     // Calibration storage init (before USB per LL Entry 4/12)
     g_calStorageInitialized = calibration_storage_init();
@@ -445,7 +391,7 @@ static bool init_hardware() {
     // Launch Core 1 early so NeoPixel blinks immediately (no USB dependency)
     multicore_launch_core1(core1_entry);
 
-    // IVP-66: Safe mode — solid red NeoPixel to signal critical state
+    // Safe mode — solid red NeoPixel to signal critical state
     if (g_recovery.launch_abort && g_neopixelInitialized) {
         ws2812_set_mode(WS2812_MODE_SOLID, kColorRed);
     }
@@ -463,14 +409,9 @@ static bool init_hardware() {
     return watchdogReboot;
 }
 
-// print_boot_status moved to src/cli/cli_commands.cpp (Phase 7).
-
-
 // ============================================================================
 // Init: RC_OS setup, Core 1 sensor phase start, watchdog enable
 // ============================================================================
-
-// CLI forward declarations removed � functions now in cli_commands.cpp (Phase 7).
 
 
 static void init_rc_os_hooks() {
@@ -484,12 +425,7 @@ static void init_rc_os_hooks() {
     rc_os_cal_post_hook = cal_post_hook;
 }
 
-// init_logging_ring() moved to ao_logger.cpp (Phase 4).
-// Called from AO_Logger_start().
-
-// init_flight_director() moved to AO_FlightDirector_start() (Phase 3).
-
-// IVP-88/89: Initialize PIO safety systems on PIO2
+// Initialize PIO safety systems on PIO2
 static void init_pio_safety() {
     // Heartbeat watchdog — IRQ-based, no GPIO
     if (!rc::pio_watchdog_init()) {
@@ -532,8 +468,6 @@ static void init_application(bool watchdogReboot) {
         g_psramFlashSafePassed = rc::psram_flash_safe_test();
     }
 
-    // Logging ring buffer and flight table init moved to AO_Logger_start() (Phase 4).
-
     // Auto-calibrate baro ground reference at boot.
     // Blocks until complete (~1s at 32Hz DPS310 rate) so cal state returns
     // to IDLE before AO_RCOS starts. Without this wait, g_calState stays at
@@ -547,17 +481,13 @@ static void init_application(bool watchdogReboot) {
         calibration_reset_state();
     }
 
-    // init_flight_director() moved to AO_FlightDirector_start() (Phase 3).
-    // AO_FlightDirector_start() is called from the AO startup sequence below.
-
-    // Phase 2: Initialize ESKF runner with mission profile and event log callback.
-    // Phase 4: callback routes to AO_Logger_log_event (ao_logger.cpp).
+    // Initialize ESKF runner with mission profile and event log callback.
     eskf_runner_init(&rc::kDefaultRocketProfile,
                      [](uint8_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3) {
                          AO_Logger_log_event(static_cast<rc::LogEventId>(id), d0, d1, d2, d3);
                      });
 
-    // IVP-90: SDK hardware watchdog REMOVED from production.
+    // SDK hardware watchdog removed from production.
     // PIO heartbeat watchdog (init_pio_safety) is the sole health monitor.
     // No automatic MCU reset — ever — without user command.
     // Recovery scratch still written for boot diagnostics.
@@ -575,9 +505,7 @@ static void init_application(bool watchdogReboot) {
 // Council recommendation: track which tick was running when watchdog fires.
 static const char* g_lastTickFunction = "init";
 
-// heartbeat_tick() removed — AO_Blinker owns LED heartbeat (IVP-76)
-
-// IVP-90: PIO watchdog feed replaces SDK watchdog.
+// PIO watchdog feed replaces SDK watchdog.
 // No MCU reset — PIO heartbeat is the sole health monitor.
 // Recovery scratch still updated for boot diagnostics.
 static void watchdog_kick_tick() {
@@ -585,49 +513,20 @@ static void watchdog_kick_tick() {
     rc::pio_watchdog_feed();
 }
 
-// CLI, ANSI dashboard, and calibration UI moved to AO_RCOS (Phase D).
-
-// ESKF tick functions moved to src/fusion/eskf_runner.cpp (Phase 2).
-// eskf_runner_tick() is called from qv_idle_bridge() below.
-
-// Flight Director tick, CLI callbacks, and init moved to
-// ao_flight_director.cpp (Phase 3). Access via ao_flight_director.h.
-// CLI command handlers moved to src/cli/cli_commands.cpp (Phase 7).
-
-
 // ============================================================================
-// Logging Tick, populate_fused_state, log_flight_event — moved to
-// ao_logger.cpp (Phase 4). AO_Logger owns ring buffer, decimator,
-// FusedState builder, and event logging.
-// ============================================================================
-
-// ============================================================================
-// mavlink_direct_tick and telemetry_radio_tick removed (IVP-94)
-// Now handled by AO_Telemetry (protocol) and AO_Radio (hardware).
-// ============================================================================
-
-// ============================================================================
-// QF+QV Active Object Infrastructure (IVP-76)
+// QF+QV Active Object Infrastructure
 //
 // Pub-sub subscriber array sized to system-wide signal catalog.
-// QV_onIdle bridge: runs existing tick functions during migration.
 // ============================================================================
 
 static QSubscrList g_subscrList[rc::SIG_AO_MAX];
 
 // QV_onIdle bridge — called from bsp_qv.c when all AO queues are empty.
-// During Stage 9 migration (IVP-76 through IVP-80), this runs the existing
-// tick functions. As modules migrate to AOs, their calls are removed here.
+// Runs watchdog feed and ESKF propagation (seqlock bridge).
 //
-// Council A2: watchdog_kick_tick() stays here PERMANENTLY — never an AO.
-// Council A4: No __wfi() — tick functions require polling every iteration.
-//             __wfi() only after IVP-81 when all work is event-driven.
+// Council A2: watchdog_kick_tick() stays here permanently — never an AO.
 extern "C" void qv_idle_bridge(void) {
-    // Watchdog (Council A2: permanent), ESKF (seqlock bridge), CLI (polled).
-    // FD → AO_FlightDirector (IVP-78)
-    // Logger → AO_Logger (IVP-79)
-    // Telemetry → AO_Telemetry (IVP-80)
-    // LED → AO_LedEngine (IVP-77)
+    // Watchdog (Council A2: permanent), ESKF (seqlock bridge).
 
     g_lastTickFunction = "watchdog";
     g_recovery.current_tick_fn = rc::TickFnId::kWatchdog;
@@ -636,9 +535,6 @@ extern "C" void qv_idle_bridge(void) {
     g_lastTickFunction = "eskf";
     g_recovery.current_tick_fn = rc::TickFnId::kEskf;
     eskf_runner_tick();
-
-    // CLI fully handled by AO_RCOS 20Hz tick (Phase D5).
-    // rc_os_update() called from AO tick, not idle bridge.
 
     g_lastTickFunction = "idle";
     g_recovery.current_tick_fn = rc::TickFnId::kSleep;
@@ -659,12 +555,11 @@ int main() {
     bool watchdogReboot = init_hardware();
     init_application(watchdogReboot);
 
-    // --- IVP-76: QF+QV Active Object initialization ---
+    // --- QF+QV Active Object initialization ---
     QF_init();
     QActive_psInit(g_subscrList, Q_DIM(g_subscrList));
 
-    // Start Active Objects — incremental add, one at a time
-    // Start Active Objects based on device role (IVP-95)
+    // Start Active Objects based on device role
     // Vehicle: all AOs. Station: no FD/Logger. Relay: Radio + LED only.
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         AO_FlightDirector_start(5U); // 100Hz

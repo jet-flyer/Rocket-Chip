@@ -72,9 +72,9 @@ struct ESKF {
 
     // =================================================================
     // IMU noise parameters — ICM-20948 DS-000189 v1.3
-    // Reviewed IVP-47 Step 6: all values verified correct.
+    // All values verified correct.
     // Bias walk values conservative for stationary/low-vibration.
-    // IVP-67 note: may need 10-100× increase during boost/coast phases.
+    // May need 10-100× increase during boost/coast phases (handled by phase Q/R).
     // =================================================================
 
     // Gyro noise spectral density: 0.015 dps/√Hz (Table 1, BW=10Hz, FS_SEL=0)
@@ -176,7 +176,7 @@ struct ESKF {
     static constexpr float kStationaryGyroMax = 0.02f;  // rad/s (~1.1°/s)
 
     // =================================================================
-    // Health sentinel — IVP-48 (velocity divergence guard)
+    // Health sentinel — velocity divergence guard
     // Max plausible velocity: above hobby rocket burnout (~Mach 1.5 ≈ 510 m/s)
     // but well below any divergence trajectory (1688 m/s after ~3 min of accel-bias
     // at 9.8 m/s²). Catches silent ICM-20948 zero-output fault before vel grows
@@ -187,7 +187,7 @@ struct ESKF {
     static constexpr float kMaxHealthyVelocity = 500.0f;  // m/s
 
     // =================================================================
-    // Barometric altitude measurement — IVP-43
+    // Barometric altitude measurement
     // DPS310 @ 8x oversampling: 0.4 Pa × 0.083 m/Pa = 0.033 m
     // =================================================================
 
@@ -196,7 +196,7 @@ struct ESKF {
     static constexpr float kBaroInnovationGate = 3.0f;                 // 3σ gate
 
     // =================================================================
-    // Magnetometer heading measurement — IVP-44
+    // Magnetometer heading measurement
     // AK09916 noise: 0.1 µT RMS at ~45 µT total field → ~0.002 rad.
     // Soft iron residuals dominate — start conservative at 5°.
     // Source: PHASE5_ESKF_PLAN.md, ArduPilot EKF3 MAG_NOISE.
@@ -205,7 +205,7 @@ struct ESKF {
     // Valid while roll/pitch < ~45°. Above that, cross-coupling from
     // roll/pitch into heading exceeds kSigmaMagHeading and the update
     // effectively becomes a slow correction rather than a tight lock.
-    // Full attitude-dependent H deferred to Titan tier.
+    // Full attitude-dependent H is a Titan tier enhancement.
     //
     // Max trackable spin rate at 10Hz mag update: ~5 rev/s (900°/s).
     // Beyond this, wrap_pi() on the innovation aliases. The ESKF
@@ -225,12 +225,12 @@ struct ESKF {
     static constexpr float kMagInterferenceRScale = 10.0f;              // R inflation factor (25-50% band)
     static constexpr float kMagMinMagnitude = 1.0f;                     // µT — below this, reject
 
-    // Consecutive rejection threshold for state machine use (IVP-67).
+    // Consecutive rejection threshold for state machine use.
     // With 300σ gate, automatic reset is unnecessary (gate never fires).
     // The state machine can call reset_mag_heading() when this is exceeded.
     static constexpr uint32_t kMagResetAfterRejects = 50;  // ~5s at 10Hz mag
 
-    // Tilt-conditional R inflation (IVP-47, ArduPilot fuseEulerYaw pattern).
+    // Tilt-conditional R inflation (ArduPilot fuseEulerYaw pattern).
     // At large tilt, the H≈[0,0,1] linearization has cross-coupling from
     // roll/pitch uncertainty into heading. Inflate R proportionally between
     // threshold and max; hard-reject above max.
@@ -241,7 +241,7 @@ struct ESKF {
     static constexpr float kMagTiltRInflationMax = 100.0f;
 
     // =================================================================
-    // Zero-velocity pseudo-measurement (ZUPT) — IVP-44b
+    // Zero-velocity pseudo-measurement (ZUPT)
     // Constrains horizontal velocity when stationary. Without GPS or
     // ZUPT, horizontal v/p states are unobservable and diverge within
     // ~30s, corrupting accel bias estimation via positive feedback.
@@ -267,7 +267,7 @@ struct ESKF {
     static constexpr float kZuptInnovationGate = 5.0f;                   // 5σ gate (generous)
 
     // =================================================================
-    // GPS position measurement — IVP-46
+    // GPS position measurement
     // MT3333 CEP50 = 3m (PA1010D datasheet). σ ≈ CEP50 / 0.833 ≈ 3.6m.
     // Use 3.5m base, scaled by HDOP. Council condition C-1.
     // ArduPilot EK3_GPS_POS_NOISE default 0.5m is for u-blox M8/M9 with SBAS.
@@ -281,7 +281,7 @@ struct ESKF {
     static constexpr float kRGpsPosDefault = kSigmaGpsPosBase * kSigmaGpsPosBase;  // 12.25 m²
 
     // GPS velocity noise — ArduPilot EK3_VELNE_M_NSE default = 0.5 m/s.
-    // Fixed R (no sAcc from NMEA). Scale with sAcc when UBX available (IVP-48).
+    // Fixed R (no sAcc from NMEA). Scale with sAcc when UBX available.
     static constexpr float kSigmaGpsVel = 0.5f;               // m/s
     static constexpr float kRGpsVel = kSigmaGpsVel * kSigmaGpsVel;  // 0.25 m²/s²
 
@@ -350,21 +350,21 @@ struct ESKF {
     // Same result as predict() but slower — used to validate sparse path.
     void predict_dense(const Vec3& accelMeas, const Vec3& gyroMeas, float dt);
 
-    // Barometric altitude measurement update (IVP-43).
+    // Barometric altitude measurement update.
     // z = altitude_agl_m (positive up, from calibration_get_altitude_agl).
     // h(x) = -p.z (NED down negated). H = [0 0 0 | 0 0 -1 | 0...].
     // Returns false if input is non-finite or innovation is gated out.
     // Solà (2017) §7.2, Joseph form for P update.
     bool update_baro(float altitudeAglM);
 
-    // Magnetometer heading measurement update (IVP-44).
+    // Magnetometer heading measurement update.
     // mag_body: calibrated magnetometer reading in body frame (µT).
     // expected_magnitude: expected field magnitude from cal (µT, 0 = skip
     //   interference check). Two-tier interference detection (council):
     //   >25% deviation inflates R by 10x, >50% hard rejects.
     // declination_rad: magnetic declination (rad, East-positive). Added to
     //   measured magnetic heading so the ESKF tracks true heading.
-    //   GPS-derived WMM lookup (IVP-46) or user parameter. 0 = magnetic heading.
+    //   GPS-derived WMM lookup or user parameter. 0 = magnetic heading.
     //   ArduPilot: MagDeclination(), PX4: get_mag_declination().
     // h(x) = -atan2(m_level.y, m_level.x) + declination.
     // H ≈ [0, 0, 1, 0...0] (yaw-only approximation — see constants block).
@@ -373,10 +373,10 @@ struct ESKF {
     bool update_mag_heading(const Vec3& magBody, float expectedMagnitude,
                             float declinationRad = 0.0f);
 
-    // Force-reset yaw to measured heading (IVP-47).
+    // Force-reset yaw to measured heading.
     // Resets q yaw, P[yaw,yaw] = kInitPAttitude, zeros yaw cross-covariances.
     // Navigation states may briefly wobble; settles in 2-3s with GPS.
-    // Public API for state machine (IVP-67) and explicit heading alignment.
+    // Public API for state machine and explicit heading alignment.
     void reset_mag_heading(float headingMeasured);
 
     // Reset velocity to zero with covariance reset (Flight Director API).
@@ -394,7 +394,7 @@ struct ESKF {
     // Same Bierman/bias notes as reset_velocity().
     void reset_position();
 
-    // Zero-velocity pseudo-measurement update (IVP-44b).
+    // Zero-velocity pseudo-measurement update.
     // Checks stationarity from raw IMU data (accel magnitude ≈ g,
     // gyro rates < threshold). If stationary, applies v=[0,0,0] as
     // three sequential scalar measurements on velocity states [6..8].
@@ -436,7 +436,7 @@ struct ESKF {
     void reset_p_growth_baseline();
 
     // =================================================================
-    // Phase-aware Q/R API (IVP-83)
+    // Phase-aware Q/R API
     // =================================================================
 
     // Set phase Q/R table from Mission Profile. Pass nullptr to disable.
@@ -458,18 +458,18 @@ struct ESKF {
     // Diagnostics
     // =================================================================
     float last_propagation_dt_{};
-    float last_baro_nis_{};        // IVP-43: Normalized Innovation Squared
-    float last_mag_nis_{};         // IVP-44: Normalized Innovation Squared
-    uint32_t mag_consecutive_rejects_{};  // IVP-47: heading reset trigger counter
-    uint32_t mag_total_rejects_{};        // IVP-47: lifetime reject count
-    uint32_t mag_total_accepts_{};        // IVP-47: lifetime accept count
-    uint32_t mag_resets_{};               // IVP-47: heading reset count
-    float last_zupt_nis_{};        // IVP-44b: max ZUPT NIS across 3 axes
-    float last_gps_pos_nis_{};     // IVP-46: max NIS across 3 position axes
-    float last_gps_vel_nis_{};     // IVP-46: max NIS across 2 velocity axes
-    bool last_zupt_active_{};      // IVP-44b: true when stationarity detected
+    float last_baro_nis_{};        // Normalized Innovation Squared
+    float last_mag_nis_{};         // Normalized Innovation Squared
+    uint32_t mag_consecutive_rejects_{};  // Heading reset trigger counter
+    uint32_t mag_total_rejects_{};        // Lifetime reject count
+    uint32_t mag_total_accepts_{};        // Lifetime accept count
+    uint32_t mag_resets_{};               // Heading reset count
+    float last_zupt_nis_{};        // Max ZUPT NIS across 3 axes
+    float last_gps_pos_nis_{};     // Max NIS across 3 position axes
+    float last_gps_vel_nis_{};     // Max NIS across 2 velocity axes
+    bool last_zupt_active_{};      // True when stationarity detected
 
-    // Per-sensor diagnostic counters (IVP-47)
+    // Per-sensor diagnostic counters
     uint32_t baro_total_accepts_{};
     uint32_t baro_total_rejects_{};
     uint32_t gps_pos_total_accepts_{};
@@ -481,10 +481,10 @@ struct ESKF {
     bool initialized_{};
 
     // =================================================================
-    // Phase-aware Q/R (IVP-83)
+    // Phase-aware Q/R
     // When phase_qr_ is non-null, per-phase Q scaling and R values are
-    // applied in predict() and measurement updates. When null, all
-    // behavior is identical to pre-Stage-10 (backward compatible).
+    // applied in predict() and measurement updates. When null,
+    // baseline constants are used (backward compatible).
     // =================================================================
     const PhaseQRTable* phase_qr_{nullptr};
     uint8_t current_phase_{};
@@ -574,7 +574,7 @@ private:
     void snapshot_p_growth_baseline();
     void record_p_growth_reset(uint32_t nowUs);
 
-    // Phase Q/R helpers (IVP-83)
+    // Phase Q/R helpers
     void apply_phase_q_delta(float dt);
     void update_active_qr();
 

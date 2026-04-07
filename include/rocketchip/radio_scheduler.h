@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// RadioScheduler — Half-duplex TX-priority state machine (IVP-93)
+// RadioScheduler — Half-duplex TX-priority state machine
 //
 // Protocol-agnostic: never inspects packet contents [C2-4].
 // Council 2 + Council 3 unanimous.

@@ -11,7 +11,6 @@
  * Council req. #1: xip_cache_clean_all() before flush to write-back
  * dirty PSRAM cache lines.
  *
- * IVP-53b: Flash Flush (Stage 6: Data Logging)
  */
 
 #ifndef ROCKETCHIP_FLASH_FLUSH_H

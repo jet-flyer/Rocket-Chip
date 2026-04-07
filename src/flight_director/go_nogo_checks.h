@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file go_nogo_checks.h
- * @brief Go/No-Go pre-arm poll (IVP-69)
+ * @brief Go/No-Go pre-arm poll
  *
  * Two-tier Go/No-Go readiness poll (NASA launch terminology):
  *   Tier 1 (platform): IMU, baro, ESKF, flash, LAUNCH_ABORT, watchdog

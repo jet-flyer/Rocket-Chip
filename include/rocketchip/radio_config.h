@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// RadioConfig — Radio configuration (IVP-96)
+// RadioConfig — Radio configuration
 //
 // Sibling to MissionProfile — generated alongside it by generate_profile.py.
 // MissionProfile is flight behavior. RadioConfig is radio parameters.
@@ -19,7 +19,7 @@
 namespace rc {
 
 // Radio role in config context — mirrors job::DeviceRole values.
-// Currently compile-time (Job system). Future: runtime role switching.
+// Currently compile-time (Job system).
 enum class RadioRole : uint8_t {
     kTx    = 0,   // Vehicle: transmit telemetry
     kRx    = 1,   // Station: receive + decode

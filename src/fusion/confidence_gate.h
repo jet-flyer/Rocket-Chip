@@ -3,14 +3,14 @@
 #ifndef ROCKETCHIP_FUSION_CONFIDENCE_GATE_H
 #define ROCKETCHIP_FUSION_CONFIDENCE_GATE_H
 
-// Confidence gate — binary "trust my estimates" flag (IVP-84).
+// Confidence gate — binary "trust my estimates" flag.
 // Pure C++ — no Pico SDK dependencies.
 //
 // Evaluates ESKF health signals and Mahony AHRS cross-check to produce
 // a binary confident/uncertain flag consumed by the Flight Director.
 //
 // This is a PLATFORM SAFETY layer — NOT configurable by Mission Profiles.
-// All thresholds are VALIDATE defaults for Stage 13 field tuning.
+// All thresholds are VALIDATE defaults for field tuning.
 //
 // When confident=false, the Flight Director locks pyro channels.
 // No fallback pyro firing — when uncertain, the safest action is no action.
@@ -39,7 +39,7 @@ struct ConfidenceState {
     bool confident;                     // safe to execute irreversible actions
     float ahrs_divergence_deg;          // ESKF vs Mahony angle at last eval
     uint32_t time_since_confident_ms;   // 0 when confident, counts up when not
-    bool phase_agreement;               // reserved for future use (IVP-84)
+    bool phase_agreement;               // reserved for cross-check expansion
 
     // Internal hysteresis state
     uint32_t bad_since_ms;              // 0 = not in bad period
@@ -48,7 +48,7 @@ struct ConfidenceState {
 };
 
 // Platform safety thresholds — NOT user-tunable, NOT in MissionProfile.
-// All values VALIDATE — tuning deferred to Stage 13.
+// All values VALIDATE — tune with flight data.
 namespace confidence {
     constexpr float kAhrsDivMaxDeg       = 15.0f;   // VALIDATE: max AHRS divergence
     constexpr float kInnovRatioMax       = 5.0f;    // VALIDATE: max innovation ratio

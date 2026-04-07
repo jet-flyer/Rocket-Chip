@@ -3,8 +3,6 @@
 /**
  * @file data_convert.cpp
  * @brief FusedState <-> TelemetryState conversion implementations
- *
- * IVP-49: Data Model & ICD (Stage 6: Data Logging)
  */
 
 #include "data_convert.h"
@@ -103,7 +101,7 @@ void fused_to_telemetry(const FusedState& f, TelemetryState& t) {
     // Temperature (DPS310 baro, rounded to nearest degree)
     t.temperature_c = clamp_round_i8(f.baro_temperature_c);
 
-    // Battery: not measured yet (future ADC integration)
+    // Battery: not measured (no ADC wired)
     t.battery_mv = 0;
 
     t.met_ms = f.met_ms;

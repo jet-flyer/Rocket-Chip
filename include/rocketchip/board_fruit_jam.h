@@ -60,7 +60,7 @@ inline void board_led_set(bool on) {
 
 // --- PSRAM ---
 // GPIO 47 — RP2350B standard PSRAM CS (from Adafruit schematic).
-// Verify during J.2 parity gate: psram_init(47) must detect 8MB.
+// RP2350B standard PSRAM CS. psram_init(47) must detect 8MB.
 inline constexpr uint8_t kPsramCsPin       = 47;
 
 // --- UART GPS ---
@@ -73,7 +73,7 @@ inline constexpr uint8_t kUartGpsRxPin     = 0;   // Unused — guard prevents i
 // --- Board identity ---
 inline constexpr const char* kBoardName = "Adafruit Fruit Jam";
 
-// --- Fruit Jam extras (not used by Stage J, documented for future) ---
+// --- Fruit Jam extras ---
 // ESP32-C6 WiFi: CS=GPIO 46, ACK=GPIO 3, RESET=GPIO 22
 // SD card: SPI0 (GPIO 34/35/36), CS=GPIO 39, Detect=GPIO 33
 // Buttons: Boot=GPIO 0, Button2=GPIO 4, Button3=GPIO 5 (shared with radio IRQ)

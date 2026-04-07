@@ -331,7 +331,7 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
         return false;
     }
 
-    // Set default ranges (per IVP-09: ±4g, ±500dps)
+    // Set default ranges (±4g, ±500dps)
     dev->accel_fs = ICM20948_ACCEL_FS_4G;
     dev->gyro_fs = ICM20948_GYRO_FS_500DPS;
 

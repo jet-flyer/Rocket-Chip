@@ -3,12 +3,9 @@
 //============================================================================
 // Flight Director — QEP Hierarchical State Machine
 //
-// IVP-68: QEP Integration + Phase Skeleton (Stage 8: Flight Director)
-//
 // The Flight Director is a QHsm (hierarchical state machine) that tracks
 // flight phase from IDLE through LANDED. It processes signals generated
-// by guard functions (IVP-70), CLI commands (IVP-69), and internal
-// timers.
+// by guard functions, CLI commands, and internal timers.
 //
 // HSM hierarchy:
 //   [top]
@@ -47,7 +44,7 @@ extern "C" {
 #include "qsafe.h"
 }
 
-#include "rocketchip/ao_signals.h"  // System-wide signal catalog (IVP-76)
+#include "rocketchip/ao_signals.h"  // System-wide signal catalog
 #include "flight_state.h"
 #include "mission_profile.h"
 #include "guard_evaluator.h"
@@ -79,12 +76,12 @@ struct FlightDirector {
     QHsm super;                     // QEP base class (must be first member)
     FlightState state;              // Runtime phase tracking
     const MissionProfile* profile;  // Active flight profile (boot-locked)
-    GuardEvaluator guard_eval;      // Guard sustain evaluator (IVP-70)
-    CombinatorSet combinator_set;   // Guard combinators + lockouts (IVP-71)
+    GuardEvaluator guard_eval;      // Guard sustain evaluator
+    CombinatorSet combinator_set;   // Guard combinators + lockouts
     uint32_t tick_ms;               // Current tick timestamp (set each tick)
     bool guards_enabled;            // False in IDLE/LANDED, true in flight phases
 
-    // Action callbacks (IVP-72) — set by main.cpp, stubbed in host tests
+    // Action callbacks — set by main.cpp, stubbed in host tests
     void (*set_led_cb)(uint8_t led_value);      // NeoPixel override
     void (*log_pyro_cb)(PyroChannel channel);   // Pyro intent logging
     void (*phase_change_cb)(FlightPhase phase, uint32_t timestamp_ms);  // Phase transition notify

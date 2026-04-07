@@ -4,8 +4,8 @@
  * @file sensor_core1.cpp
  * @brief Core 1 sensor loop — high-rate sampling + seqlock publish
  *
- * Extracted from main.cpp (Stage 13 Phase 1). All functions are static
- * except core1_entry() which is the public interface.
+ * All functions are static except core1_entry() which is the public
+ * interface.
  *
  * Core 1 owns I2C during sensor phase. Core 0 must NOT call icm20948_*()
  * or baro_dps310_*() unless g_core1I2CPaused == true.
@@ -65,7 +65,7 @@ static constexpr double kGpsCoordScale = 1e7;                   // Degrees to 1e
 // GPS staleness watchdog
 static constexpr uint32_t kGpsStalenessTimeoutUs = 10000000;    // 10s
 // Velocity threshold for "probably flying" heuristic (flight state gate).
-// Prevents UART reinit mid-flight. Replaced by real state machine in IVP-67.
+// Prevents UART reinit mid-flight.
 static constexpr float kGpsFlyingVelocityThreshold = 5.0F;      // m/s
 
 // ============================================================================
@@ -76,7 +76,7 @@ best_gps_fix_t g_bestGpsFix = {};
 std::atomic<bool> g_bestGpsValid{false};
 
 // ============================================================================
-// MPU Stack Guard (per-core, PMSAv8) — duplicated from main.cpp
+// MPU Stack Guard (per-core, PMSAv8)
 // Each core has its own MPU. This is called from Core 1's entry point.
 // ============================================================================
 
@@ -300,7 +300,7 @@ static void core1_gps_staleness_check(bool parsed, uint32_t nowUs) {
         return;
     }
 
-    // Flight state gate: proxy heuristic until real state machine in IVP-67.
+    // Flight state gate: proxy heuristic.
     bool probablyFlying = g_eskfInitialized &&
                           g_eskf.v.norm() > kGpsFlyingVelocityThreshold;
     if (probablyFlying) {
@@ -464,11 +464,8 @@ static void core1_sensor_loop() {
         localData.core1_loop_count = loopCount;
         seqlock_write(&g_sensorSeqlock, &localData);
 
-        // IVP-90: Core 1 heartbeat removed (was g_wdtCore1Alive).
         // PIO heartbeat watchdog monitors both cores via FIFO feed from Core 0.
-
-        // NeoPixel update migrated to AO_LedEngine (Phase 5). Core 1 only
-        // does sensor reads + seqlock publish. LED state evaluated on Core 0.
+        // LED state evaluated on Core 0 via AO_LedEngine.
 
         uint32_t elapsed = time_us_32() - cycleStartUs;
         if (elapsed < kCore1TargetCycleUs) {

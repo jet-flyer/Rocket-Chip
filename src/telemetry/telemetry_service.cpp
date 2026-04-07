@@ -3,10 +3,6 @@
 /**
  * @file telemetry_service.cpp
  * @brief Radio telemetry TX scheduling + RX decode
- *
- * IVP-59: TX service (CCSDS encoder + rfm95w_send)
- * IVP-60: RX service (rfm95w_recv + CCSDS decode + CSV output)
- * IVP-61: MAVLink v2 re-encode (RX → MAVLink binary on USB)
  */
 
 #include "rocketchip/telemetry_service.h"
@@ -129,7 +125,7 @@ uint8_t telemetry_service_duty_pct(const TelemetryServiceState* state,
 }
 
 // ============================================================================
-// RX Mode (IVP-60)
+// RX Mode
 // ============================================================================
 
 void telemetry_service_start_rx(TelemetryServiceState* state) {
@@ -184,7 +180,7 @@ static void print_rx_csv(const TelemetryState& telem, uint16_t seq,
 }
 
 // ============================================================================
-// MAVLink binary output helpers (IVP-61)
+// MAVLink binary output helpers
 // ============================================================================
 
 static constexpr uint32_t kHeartbeatIntervalMs = 1000;  // 1 Hz heartbeat
@@ -233,7 +229,7 @@ static void mavlink_emit_nav(TelemetryServiceState* state,
 }
 
 // ============================================================================
-// RX tick (IVP-60 + IVP-61)
+// RX tick
 // ============================================================================
 
 void telemetry_service_rx_tick(TelemetryServiceState* state, uint32_t now_ms) {

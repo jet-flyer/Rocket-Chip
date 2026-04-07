@@ -3,7 +3,6 @@
 //============================================================================
 // System-Wide Active Object Signal Catalog
 //
-// IVP-76: QF+QV BSP Integration (Stage 9: Active Object Architecture)
 // Council-reviewed 2026-03-27 (Amendment A7: renamed from FlightSignal)
 //
 // All QP/C event signals for the RocketChip system. Signals are contiguous
@@ -34,11 +33,11 @@ namespace rc {
 // ============================================================================
 // RcSignal — system-wide event signal catalog
 //
-// Flight Director signals (4-13) are unchanged from IVP-68.
+// Flight Director signals (4-13).
 // System-wide AO signals start at SIG_MAX (14).
 // ============================================================================
 enum RcSignal : uint16_t {
-    // --- Flight Director signals (values preserved from IVP-68) ---
+    // --- Flight Director signals ---
     SIG_TICK        = Q_USER_SIG,   // 4: 100Hz periodic tick
     SIG_ARM,                         // 5: Arm command (CLI/radio)
     SIG_DISARM,                      // 6: Disarm command
@@ -51,7 +50,7 @@ enum RcSignal : uint16_t {
     SIG_RESET,                       // 13: Reset to IDLE
     SIG_FD_MAX,                      // 14: FD sentinel (do not use as signal)
 
-    // --- System-wide Active Object signals (IVP-76+) ---
+    // --- System-wide Active Object signals ---
     SIG_SENSOR_DATA = SIG_FD_MAX,   // 14: Sensor snapshot ready (eskf_tick → AOs)
     SIG_PHASE_CHANGE,                // 15: Flight phase transition (FD → Logger, LED)
     SIG_LED_PATTERN,                 // 16: LED pattern request (any → LedEngine)
@@ -61,7 +60,7 @@ enum RcSignal : uint16_t {
     SIG_CLI_COMMAND,                 // 21: CLI command dispatch (CLI → FD, synchronous)
     // 22: removed (HEALTH_CHECK — health monitor is FD module, not separate AO)
 
-    // --- Stage 12A: Radio Module (IVP-92+) ---
+    // --- Radio Module ---
     SIG_RADIO_TX,                    // 23: Encoded packet ready for TX (Telem → Radio)
     SIG_RADIO_RX,                    // 24: Raw packet received (Radio → Telem)
     SIG_RADIO_STATUS,                // 25: Link quality update (Radio → LED, CLI)
@@ -105,7 +104,7 @@ struct SensorDataEvt {
     uint32_t eskf_epoch;  // Which ESKF propagation epoch this represents
 };
 
-// Radio TX event — encoded packet ready to transmit (IVP-93)
+// Radio TX event — encoded packet ready to transmit
 // Allocated from QP/C dynamic event pool [C3-A1]
 struct RadioTxEvt {
     QEvt super;
@@ -113,7 +112,7 @@ struct RadioTxEvt {
     uint8_t len;
 };
 
-// Radio RX event — raw packet received from radio (IVP-93)
+// Radio RX event — raw packet received from radio
 // Allocated from QP/C dynamic event pool [C3-A1]
 struct RadioRxEvt {
     QEvt super;
@@ -123,20 +122,20 @@ struct RadioRxEvt {
     int8_t  snr;         // dB
 };
 
-// Radio link quality status (IVP-93)
+// Radio link quality status
 struct RadioStatusEvt {
     QEvt super;
     uint8_t link_quality;   // 0=no radio, 1=lost, 2=gap, 3=receiving
 };
 
-// GCS uplink command (IVP-94, stub for 12A) [C3-A4]
+// GCS uplink command [C3-A4]
 struct GcsCmdEvt {
     QEvt super;
-    uint8_t cmd_type;       // Future: arm, disarm, abort, param, etc.
+    uint8_t cmd_type;       // arm, disarm, abort, param, etc.
     uint32_t param;
 };
 
-// Health status change (Phase 6: health_monitor_tick detected flag change)
+// Health status change (health_monitor_tick detected flag change)
 struct HealthStatusEvt {
     QEvt super;
     uint8_t health_flags;   // Bitfield of rc::HealthFlag

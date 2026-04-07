@@ -6,8 +6,6 @@
 // Part of the RC_OS CLI subsystem. Pure command/display code — reads
 // state from AO public APIs and sensor seqlock, owns no state.
 // Called directly from rc_os.cpp menu handlers.
-//
-// Stage 13 Phase 7 extraction, Phase C rename.
 //============================================================================
 #ifndef ROCKETCHIP_RC_OS_COMMANDS_H
 #define ROCKETCHIP_RC_OS_COMMANDS_H

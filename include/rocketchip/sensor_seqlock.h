@@ -11,7 +11,7 @@
 // because memory_order_release only orders the atomic store itself,
 // not the non-atomic memcpy data.
 //
-// Stage 13 AO Architecture: Phase 0A extraction from main.cpp.
+// Extracted from main.cpp for AO Architecture.
 //============================================================================
 #ifndef ROCKETCHIP_SENSOR_SEQLOCK_H
 #define ROCKETCHIP_SENSOR_SEQLOCK_H
@@ -139,8 +139,6 @@ inline bool seqlock_read(sensor_seqlock_t* sl, shared_sensor_data_t* dst) {
 
 // ============================================================================
 // Global Seqlock Instance + Cross-Core Signaling
-//
-// Defined in main.cpp. Will migrate to owning modules in later phases.
 // ============================================================================
 
 extern sensor_seqlock_t g_sensorSeqlock;
@@ -153,7 +151,7 @@ extern std::atomic<bool> g_core1PauseI2C;
 extern std::atomic<bool> g_core1I2CPaused;
 extern std::atomic<bool> g_core1LockoutReady;
 
-// g_calNeoPixelOverride removed (Phase 5). CLI uses AO_LedEngine_post_override(),
+// g_calNeoPixelOverride removed. CLI uses AO_LedEngine_post_override(),
 // FD uses AO_LedEngine_post_pattern(). No cross-core atomic needed.
 
 #endif // ROCKETCHIP_SENSOR_SEQLOCK_H

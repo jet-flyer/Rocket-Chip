@@ -3,8 +3,6 @@
 //============================================================================
 // Action Executor — Phase Transition Actions
 //
-// IVP-72: Action Executor (Stage 8: Flight Director)
-//
 // Executes actions on state entry, exit, and transitions. Actions are
 // defined as constexpr arrays in flight_actions.h and dispatched by
 // the QEP state handlers in flight_director.cpp.

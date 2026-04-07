@@ -3,8 +3,6 @@
 //============================================================================
 // Flight Actions — Constexpr Action Arrays per Phase
 //
-// IVP-72: Action Executor (Stage 8: Flight Director)
-//
 // Defines entry, exit, and transition action lists for each flight phase.
 // These are executed by the QEP state handlers via action_execute_list().
 //
@@ -155,8 +153,7 @@ inline constexpr PhaseActions kPhaseEntryActions[] = {
     {kAbortEntry,         action_count(kAbortEntry)},          // kAbort
 };
 
-// Exit actions — currently none for any phase, but the infrastructure
-// is ready for future use. All counts are 0.
+// Exit actions — currently none for any phase. All counts are 0.
 inline constexpr PhaseActions kPhaseExitActions[] = {
     {nullptr, 0},  // kIdle
     {nullptr, 0},  // kArmed

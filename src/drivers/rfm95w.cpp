@@ -167,7 +167,7 @@ bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq) {
 }
 
 // ============================================================================
-// Non-Blocking TX (IVP-92)
+// Non-Blocking TX
 // ============================================================================
 
 bool rfm95w_send_start(rfm95w_t* dev, const uint8_t* data, uint8_t len) {

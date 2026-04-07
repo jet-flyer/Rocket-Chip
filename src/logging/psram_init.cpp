@@ -13,7 +13,6 @@
  * All init functions run from SRAM (__no_inline_not_in_flash_func) because
  * they manipulate QMI registers that control XIP flash execution.
  *
- * IVP-52a: PSRAM Init + Self-Test (Stage 6: Data Logging)
  */
 
 #include "psram_init.h"

@@ -354,7 +354,7 @@ static void dense_fpft_add(Mat24& pMat, const Mat24& fMat, const Mat24& qdMat) {
 // CSE eliminates redundant sub-expressions. Q_d baked into generated code.
 // Dense predict_dense() retained as verification reference (Test 8).
 //
-// IVP-47 history: Block-sparse tried first, 31% SLOWER (712us vs 542us).
+// History: Block-sparse tried first, 31% SLOWER (712us vs 542us).
 // Codegen is the correct path (PX4/ArduPilot pattern).
 // ============================================================================
 void ESKF::predict(const Vec3& accelMeas, const Vec3& gyroMeas, float dt) {
@@ -680,7 +680,7 @@ void ESKF::bierman_kalman_update(int32_t hIdx, float hValue,
 #endif // ESKF_USE_BIERMAN
 
 // ============================================================================
-// update_baro: Barometric altitude measurement update (IVP-43)
+// update_baro: Barometric altitude measurement update
 //
 // Measurement model:
 //   z = altitudeAglM (positive up)
@@ -718,7 +718,7 @@ bool ESKF::update_baro(float altitudeAglM) {
     const float predicted = -p.z + (inhibit_baro_bias_ ? 0.0F : baro_bias_);
     const float innovation = altitudeAglM - predicted;
 
-    // Phase-aware R (IVP-83): use phase R when configured, baseline otherwise
+    // Phase-aware R: use phase R when configured, baseline otherwise
     const float r = phase_qr_ ? r_active_.r_baro : kRBaro;
 
     // Innovation covariance: S = H²*P[5][5] + R
@@ -769,7 +769,7 @@ static float wrap_pi(float angle) {
 }
 
 // ============================================================================
-// update_mag_heading: Magnetometer heading measurement update (IVP-44)
+// update_mag_heading: Magnetometer heading measurement update
 //
 // Measurement model (ArduPilot/PX4 zero-yaw rotation approach):
 //   1. Extract roll, pitch from current q (well-observed by accel)
@@ -822,13 +822,13 @@ float ESKF::compute_mag_r(float magNorm, float expectedMagnitude,
     float r = mag_interference_r(magNorm, expectedMagnitude);
     if (r < 0.0F) { return -1.0F; }
 
-    // Phase-aware R baseline (IVP-83)
+    // Phase-aware R baseline
     if (phase_qr_) {
         const float ratio = r / kRMagHeading;
         r = r_active_.r_mag * ratio;
     }
 
-    // Tilt-conditional R inflation (IVP-47)
+    // Tilt-conditional R inflation
     if (tilt > kMagTiltMaxRad) { return -1.0F; }
     if (tilt > kMagTiltThresholdRad) {
         const float frac = (tilt - kMagTiltThresholdRad)
@@ -896,7 +896,7 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
 }
 
 // ============================================================================
-// reset_mag_heading: Force-reset yaw after sustained rejection (IVP-47).
+// reset_mag_heading: Force-reset yaw after sustained rejection.
 // ArduPilot alignYawAngle() / PX4 resetMagHeading() pattern.
 // Zeroes yaw cross-covariances to prevent stale correlations from
 // corrupting subsequent updates. Navigation states may briefly wobble
@@ -925,7 +925,7 @@ void ESKF::reset_mag_heading(float headingMeasured) {
 }
 
 // ============================================================================
-// update_zupt: Zero-velocity pseudo-measurement (IVP-44b)
+// update_zupt: Zero-velocity pseudo-measurement
 //
 // Checks stationarity from raw IMU data, then applies v=[0,0,0] as
 // three sequential scalar updates on velocity states [6..8].
@@ -1139,7 +1139,7 @@ void ESKF::reset_origin(double newLatRad, double newLonRad, float newAltM) {
 
 // ============================================================================
 // reset_velocity: Zero velocity + reset P velocity block.
-// Flight Director API for state transitions (IVP-67).
+// Flight Director API for state transitions.
 // Pattern: same as set_origin() P-reset for velocity block (lines 996-1010).
 // ============================================================================
 void ESKF::reset_velocity() {
@@ -1163,7 +1163,7 @@ void ESKF::reset_velocity() {
 
 // ============================================================================
 // reset_position: Zero position + reset P position block.
-// Flight Director API for state transitions (IVP-67).
+// Flight Director API for state transitions.
 // ============================================================================
 void ESKF::reset_position() {
 #ifdef ESKF_USE_BIERMAN
@@ -1224,7 +1224,7 @@ bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
     if (!has_origin_) { return false; }
 
     // Compute R per axis: horizontal from HDOP, vertical from VDOP or scaled horiz
-    // Phase-aware R (IVP-83): phase R replaces baseline before HDOP scaling
+    // Phase-aware R: phase R replaces baseline before HDOP scaling
     const float rBase = phase_qr_ ? r_active_.r_gps_pos : kRGpsPosDefault;
     const float hdopClamped = (hdop > 1.0F) ? hdop : 1.0F;
     const float rHoriz = rBase * hdopClamped * hdopClamped;
@@ -1303,7 +1303,7 @@ bool ESKF::update_gps_velocity(float vNorth, float vEast) {
         // Innovation: y = z - h(x) = gpsVel[axis] - v[axis]
         const float innovation = gpsVel[axis] - vComponents[axis];
 
-        // Phase-aware R (IVP-83)
+        // Phase-aware R
         const float r = phase_qr_ ? r_active_.r_gps_vel : kRGpsVel;
 
         // Innovation covariance: S = P[idx][idx] + R
@@ -1651,7 +1651,7 @@ void ESKF::set_inhibit_baro_bias(bool inhibit) {
 }
 
 // ============================================================================
-// Phase-aware Q/R (IVP-83)
+// Phase-aware Q/R
 // ============================================================================
 
 void ESKF::set_phase_qr(const PhaseQRTable* table) {

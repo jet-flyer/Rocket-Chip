@@ -3,8 +3,6 @@
 /**
  * @file flash_flush.cpp
  * @brief PSRAM/SRAM ring buffer → flash flush engine + flight table I/O
- *
- * IVP-53b: Flash Flush (Stage 6: Data Logging)
  */
 
 #include "flash_flush.h"

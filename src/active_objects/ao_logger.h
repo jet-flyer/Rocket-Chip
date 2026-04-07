@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_Logger — Flight Data Logger Active Object (IVP-79, Phase 4)
+// AO_Logger — Flight Data Logger Active Object
 //
 // Owns the logging ring buffer, decimator, flight table, FusedState builder,
 // and event logging. Publishes PCM frames to the ring buffer at decimated
 // rate (50Hz PSRAM / 25Hz SRAM). CLI commands access state through
 // read-only accessors (Council A6 pattern).
-//
-// Phase 4 migration: logging_tick(), populate_fused_state(),
-// fused_copy_eskf_state(), log_flight_event(), init_logging_ring(),
-// ring buffer globals, decimation constants all moved here from main.cpp.
 //============================================================================
 #ifndef ROCKETCHIP_AO_LOGGER_H
 #define ROCKETCHIP_AO_LOGGER_H
@@ -44,7 +40,7 @@ void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_self_test_passe
 const rc::RingBuffer* AO_Logger_get_ring();
 
 /// Mutable access to the ring buffer — needed by CLI flush command
-/// (flush_ring_to_flash modifies head). Phase 7 will encapsulate behind AO commands.
+/// (flush_ring_to_flash modifies head).
 rc::RingBuffer* AO_Logger_get_ring_mut();
 
 /// Read-only access to the flight table (Council A6).
@@ -52,7 +48,7 @@ rc::RingBuffer* AO_Logger_get_ring_mut();
 const rc::FlightTableState* AO_Logger_get_flight_table();
 
 /// Mutable access to the flight table — needed by CLI flush/erase commands
-/// that write to flash. Phase 7 will encapsulate these behind AO commands.
+/// that write to flash.
 rc::FlightTableState* AO_Logger_get_flight_table_mut();
 
 /// Whether the logging ring buffer has been initialized.

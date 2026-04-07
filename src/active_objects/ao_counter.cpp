@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_Counter — Demo Active Object: Jitter-Measuring Event Counter (IVP-76)
+// AO_Counter — Jitter-Measuring Event Counter Active Object
 //
 // Measures inter-dispatch timing of 10Hz QF time events. Every 50 events
 // (~5 seconds), prints count + jitter statistics to serial. Jitter > 1ms

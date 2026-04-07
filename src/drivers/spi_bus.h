@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file spi_bus.h
- * @brief SPI bus driver for LoRa FeatherWing and future SPI peripherals
+ * @brief SPI bus driver for LoRa FeatherWing
  *
  * Thin wrapper over Pico SDK SPI functions, mirrors i2c_bus.h pattern.
  * SPI instance and pins are board-abstracted (see board.h).

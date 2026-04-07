@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file job.h
- * @brief Compile-time device role selector (IVP-95)
+ * @brief Compile-time device role selector
  *
  * Selects behavioral configuration based on CMake defines.
  * Board hardware (pins, peripherals) is handled separately by board.h.

@@ -3,8 +3,6 @@
 /**
  * @file pcm_frame.cpp
  * @brief PCM frame encode/decode/resync implementation
- *
- * IVP-51: PCM Frame Format (Stage 6: Data Logging)
  */
 
 #include "rocketchip/pcm_frame.h"

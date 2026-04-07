@@ -14,8 +14,8 @@
 // Valid through ~2028-2029 (IGRF13 secular variation extrapolation).
 // Refresh when WMM2030 is published (NOAA, every 5 years).
 //
-// Future: generate directly from NOAA WMM.COF coefficients to remove
-// ArduPilot dependency (see AGENT_WHITEBOARD.md deferred notes).
+// Long-term: generate directly from NOAA WMM.COF coefficients to remove
+// ArduPilot dependency.
 //
 // Reference: ArduPilot AP_Declination, PX4 geo_mag_declination.
 

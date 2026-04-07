@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file guard_combinator.cpp
- * @brief Guard combinator + safety lockout implementation (IVP-71)
+ * @brief Guard combinator + safety lockout implementation
  */
 
 #include "guard_combinator.h"
@@ -128,7 +128,7 @@ uint16_t combinator_set_evaluate(CombinatorSet* cs,
         bool vel_locked = velocity_locked(lockout);
         bool t_locked = time_locked(lockout);
 
-        // Confidence gate (IVP-85): when uncertain, block all pyro-bearing signals.
+        // Confidence gate: when uncertain, block all pyro-bearing signals.
         // No fallback — when uncertain, the safest action is no action.
         if (!lockout.confident) {
             continue;

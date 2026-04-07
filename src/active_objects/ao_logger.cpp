@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_Logger — Flight Data Logger Active Object (IVP-79, Phase 4)
+// AO_Logger — Flight Data Logger Active Object
 //
-// Phase 4 migration: owns ring buffer, decimator, flight table, FusedState
-// builder, and event logging. 50Hz time event drives logging_tick() which
-// reads ESKF epoch, builds FusedState, decimates, encodes PCM frame, and
-// pushes to ring buffer.
-//
-// CLI commands (cmd_flush_log, cmd_erase_all_flights, etc.) remain in
-// main.cpp — they call AO_Logger public accessors. Phase 7 will move
-// CLI commands to cli_commands.cpp.
+// Owns ring buffer, decimator, flight table, FusedState builder, and event
+// logging. 50Hz time event drives logging_tick() which reads ESKF epoch,
+// builds FusedState, decimates, encodes PCM frame, and pushes to ring buffer.
 //============================================================================
 
 #include "ao_logger.h"
@@ -49,7 +44,7 @@ enum : uint16_t {
 };
 
 // ============================================================================
-// Constants (moved from main.cpp)
+// Constants
 // ============================================================================
 
 // ESKF propagation rate (Hz)
@@ -70,7 +65,7 @@ static constexpr uint32_t kDecimationSram = 8;
 static constexpr uint32_t kHeaderSyncDiv = 50;
 
 // ============================================================================
-// Module-scoped globals (moved from main.cpp)
+// Module-scoped globals
 // ============================================================================
 
 static rc::RingBuffer g_ringBuffer;
@@ -78,7 +73,7 @@ static rc::LogDecimator g_decimator;
 static bool g_loggingInitialized = false;
 static uint8_t g_sramRingBuf[kSramRingSize];
 
-// Flight table (IVP-53b) — flash-persistent flight log index.
+// Flight table — flash-persistent flight log index.
 static rc::FlightTableState g_flightTable;
 
 // Epoch tracking — only produce output when ESKF has advanced.
@@ -89,12 +84,12 @@ static size_t g_loggerPsramSize = 0;
 static bool g_loggerPsramSelfTestPassed = false;
 
 // ============================================================================
-// Extern declarations — globals still owned by main.cpp / other modules.
+// Extern declarations
 // ============================================================================
 extern sensor_seqlock_t g_sensorSeqlock;
 
 // ============================================================================
-// FusedState builder (moved from main.cpp)
+// FusedState builder
 // ============================================================================
 
 static void fused_copy_eskf_state(rc::FusedState& fused) {
@@ -172,7 +167,7 @@ void AO_Logger_populate_fused_state(rc::FusedState& fused,
     fused.gps_fix_type = snap.gps_fix_type;
     fused.gps_satellites = snap.gps_satellites;
 
-    // Confidence gate (IVP-85)
+    // Confidence gate
     const rc::ConfidenceState* conf_fused = eskf_runner_get_confidence();
     fused.confident = conf_fused->confident;
     fused.confidence_div_deg = conf_fused->ahrs_divergence_deg;
@@ -189,7 +184,7 @@ void AO_Logger_populate_fused_state(rc::FusedState& fused,
 }
 
 // ============================================================================
-// Event logging (moved from main.cpp)
+// Event logging
 // ============================================================================
 
 void AO_Logger_log_event(rc::LogEventId id,
@@ -210,11 +205,11 @@ void AO_Logger_log_event(rc::LogEventId id,
 }
 
 // ============================================================================
-// Ring buffer init (moved from main.cpp init_logging_ring)
+// Ring buffer init
 // ============================================================================
 
 static void init_logging_ring() {
-    // Initialize logging ring buffer (IVP-52c).
+    // Initialize logging ring buffer.
     // Uses PSRAM if available (8MB at 50Hz = ~48 min), SRAM fallback otherwise
     // (200KB at 25Hz = ~145 sec). Ring buffer init writes header to memory.
     uint8_t* ringMem = nullptr;
@@ -242,7 +237,7 @@ static void init_logging_ring() {
 }
 
 // ============================================================================
-// Logging tick (moved from main.cpp logging_tick)
+// Logging tick
 // ============================================================================
 
 static void logging_tick() {
@@ -281,7 +276,7 @@ static void logging_tick() {
 
     rc::ring_push(&g_ringBuffer, &frame);
 
-    // Push to AO_Telemetry for radio TX encoding (IVP-94)
+    // Push to AO_Telemetry for radio TX encoding
     AO_Telemetry_set_telem_snapshot(telem);
 }
 
@@ -357,7 +352,7 @@ void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_self_test_passe
     // Initialize ring buffer and decimator
     init_logging_ring();
 
-    // Load flight table from flash (IVP-53b)
+    // Load flight table from flash
     rc::flight_table_load(&g_flightTable);
 
     QActive_ctor(&l_loggerAo.super,

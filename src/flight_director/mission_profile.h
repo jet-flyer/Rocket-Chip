@@ -3,9 +3,6 @@
 //============================================================================
 // Mission Profile — Flight Configuration Data
 //
-// IVP-68: QEP Integration + Phase Skeleton (Stage 8: Flight Director)
-// IVP-74: Mission Configuration (HAB, freeform profiles + flash persistence)
-//
 // MissionProfile is the configuration data that feeds the Flight Director.
 // It defines thresholds, timeouts, guard parameters, and abort behavior
 // for a specific vehicle type. The Flight Director reads from a
@@ -16,8 +13,6 @@
 // (rocket vs HAB vs freeform).
 //
 // The struct is final and serialization-ready (no pointers, no vtable).
-// Profile values marked with "VALIDATE" are starting points to be tuned
-// with flight data.
 //============================================================================
 #ifndef ROCKETCHIP_MISSION_PROFILE_H
 #define ROCKETCHIP_MISSION_PROFILE_H
@@ -42,7 +37,6 @@ enum class ProfileId : uint8_t {
 //
 // All thresholds use SI units (m, m/s, m/s^2, ms).
 // Profile is boot-locked: read from flash at boot, immutable for session.
-// IVP-74 adds HAB + freeform profiles and CLI selection.
 // ============================================================================
 struct MissionProfile {
     ProfileId id;
@@ -75,23 +69,23 @@ struct MissionProfile {
     float landing_velocity_threshold;   // Velocity norm for stationary (m/s)
     uint32_t landing_sustain_ms;
 
-    // --- Safety lockouts (IVP-71, Council A1) ---
+    // --- Safety lockouts (Council A1) ---
     // Protects parachute from high dynamic pressure deployment.
     // Phase gating (COAST/DROGUE only) is primary powered-flight protection.
     // ⚠️  PRELIMINARY — tune per parachute rated deployment speed.
     float deploy_lockout_mps;           // Velocity lockout for deployment (m/s)
     uint32_t apogee_lockout_ms;         // Min time after launch before apogee
 
-    // --- Timer backups (IVP-71, Council A6) ---
+    // --- Timer backups (Council A6) ---
     // Tuned for HPR (H+ motors). HAB/low-power profiles need different values.
     // ⚠️  PRELIMINARY
     uint32_t burnout_backup_ms;         // Max time in BOOST before forced COAST
     uint32_t main_backup_ms;            // Max time in DROGUE before forced MAIN
 
-    // --- Combinator config (IVP-71) ---
+    // --- Combinator config ---
     bool apogee_require_both;           // true=AND (vel+baro), false=OR
 
-    // --- Emergency override (IVP-71) ---
+    // --- Emergency override ---
     // HAB: emergency chute always available (skip lockouts for ABORT pyro)
     // Rocket: ABORT respects lockout gates
     bool emergency_deploy_anytime;
@@ -108,7 +102,7 @@ struct MissionProfile {
     // --- Pyro ---
     bool has_pyro;                      // Profile includes pyro channels
 
-    // --- Phase Q/R (IVP-83) ---
+    // --- Phase Q/R ---
     // Per-phase noise model for ESKF adaptive estimation.
     // Q scales are multipliers on baseline sigma^2 values (>= 1.0).
     // R values are absolute measurement noise (> 0.0).

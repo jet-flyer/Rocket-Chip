@@ -8,7 +8,6 @@
  * Populated by eskf_to_fused_state() on Core 0 after each propagation.
  * Source data: ESKF nominal state + shared_sensor_data_t seqlock fields.
  *
- * IVP-49: Data Model & ICD (Stage 6: Data Logging)
  */
 
 #ifndef ROCKETCHIP_FUSED_STATE_H
@@ -73,12 +72,12 @@ struct FusedState {
     bool eskf_healthy;
     bool zupt_active;
 
-    // Confidence gate (IVP-85)
+    // Confidence gate
     bool confident;                     // true = safe for irreversible actions
     float confidence_div_deg;           // AHRS divergence at last eval
     uint32_t uncertain_ms;              // 0 when confident, time since last confident
 
-    // Flight state (0 = IDLE until IVP-67 state machine)
+    // Flight state (0 = IDLE)
     uint8_t flight_state;
 
     // Mission Elapsed Time (milliseconds from time_us_64()/1000)

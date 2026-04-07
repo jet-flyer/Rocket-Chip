@@ -3,7 +3,7 @@
 #ifndef ROCKETCHIP_FUSION_PHASE_QR_H
 #define ROCKETCHIP_FUSION_PHASE_QR_H
 
-// Phase-scheduled Q/R types for ESKF adaptive estimation (IVP-83).
+// Phase-scheduled Q/R types for ESKF adaptive estimation.
 // Pure C++ — no Pico SDK dependencies.
 //
 // Q scale multipliers are applied as additive diagonal deltas AFTER codegen_fpft()
@@ -57,7 +57,7 @@ struct PhaseQRTable {
 };
 
 // Default phase Q/R table.
-// All values are VALIDATE defaults — actual tuning deferred to Stage 13.
+// All values VALIDATE — tune with flight data.
 // Q scales: 1.0 = baseline (no additional noise).
 // R values: match eskf.h baseline constants.
 //

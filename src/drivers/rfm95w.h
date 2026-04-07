@@ -89,7 +89,7 @@ constexpr uint8_t kBw500  = 0x09;    // 500 kHz
 } // namespace rfm95w
 
 // ============================================================================
-// TX Poll Result (IVP-92: non-blocking send)
+// TX Poll Result (non-blocking send)
 // ============================================================================
 
 enum class TxPollResult : uint8_t {
@@ -110,7 +110,7 @@ struct rfm95w_t {
     uint8_t  mode;           // Current operating mode
     int16_t  last_rssi;      // RSSI of last received packet (dBm)
     int8_t   last_snr;       // SNR of last received packet (dB)
-    uint64_t tx_start_us;    // Timestamp of send_start() for timeout (IVP-92)
+    uint64_t tx_start_us;    // Timestamp of send_start() for timeout
 };
 
 // ============================================================================
@@ -148,7 +148,7 @@ bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq);
 bool rfm95w_send(rfm95w_t* dev, const uint8_t* data, uint8_t len);
 
 // ============================================================================
-// Non-Blocking TX API (IVP-92)
+// Non-Blocking TX API
 //
 // Split rfm95w_send() into start + poll for use inside AO handlers where
 // blocking for 50-150ms causes QP/C queue overflow (LL Entry 32).
@@ -259,7 +259,7 @@ int16_t rfm95w_rssi(const rfm95w_t* dev);
 void rfm95w_set_bandwidth(rfm95w_t* dev, uint8_t bw);
 
 /**
- * @brief Set LoRa spreading factor (IVP-92)
+ * @brief Set LoRa spreading factor
  *
  * Modifies RegModemConfig2[7:4]. Must be called while in Standby or Sleep.
  * Both TX and RX must use the same SF to communicate.
@@ -270,7 +270,7 @@ void rfm95w_set_bandwidth(rfm95w_t* dev, uint8_t bw);
 void rfm95w_set_spreading_factor(rfm95w_t* dev, uint8_t sf);
 
 /**
- * @brief Set LoRa coding rate (IVP-92)
+ * @brief Set LoRa coding rate
  *
  * Modifies RegModemConfig1[3:1]. Must be called while in Standby or Sleep.
  *

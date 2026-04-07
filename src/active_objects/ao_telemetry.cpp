@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_Telemetry — Telemetry Protocol Active Object (IVP-94)
+// AO_Telemetry — Telemetry Protocol Active Object
 //
 // Protocol-only: CCSDS/MAVLink encoding, APID mux, rate dividers.
 // No radio hardware references. Posts SIG_RADIO_TX to AO_Radio.
 // Receives SIG_RADIO_RX for decode + output.
-//
-// Replaces IVP-80 thin wrapper with proper protocol/hardware separation.
 //============================================================================
 
 #include "ao_telemetry.h"
@@ -41,7 +39,7 @@ struct TelemAo {
     QActive super;
     QTimeEvt tick_timer;    // 10Hz (every 10 ticks at 100Hz base)
 
-    // Protocol state (moved from main.cpp g_telemService)
+    // Protocol state
     rc::CcsdsEncoder    ccsds_encoder;
     rc::MavlinkEncoder  mav_encoder;
     rc::TelemetryState  latest_telem;
@@ -52,7 +50,7 @@ struct TelemAo {
     uint32_t            last_tx_ms;
     uint32_t            last_heartbeat_ms;
 
-    // Station RX: latest decoded telemetry for CLI/WiFi access (IVP-99)
+    // Station RX: latest decoded telemetry for CLI/WiFi access
     RxTelemSnapshot     rx_snapshot;
 };
 
@@ -112,7 +110,7 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
         return;  // CRC or header error
     }
 
-    // Store for CLI/WiFi access (IVP-99)
+    // Store for CLI/WiFi access
     me->rx_snapshot.telem = telem;
     me->rx_snapshot.met_ms = met_ms;
     me->rx_snapshot.seq = seq;

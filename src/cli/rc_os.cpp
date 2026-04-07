@@ -149,20 +149,8 @@ static void print_flight_menu() {
     printf("========================================\n");
 }
 
-// ============================================================================
-// Calibration Commands (blocking wizards removed — Phase D4)
-// Calibration UI state machine now in AO_RCOS (ao_rcos.cpp).
-// cmd_save_cal and cmd_reset_cal moved to AO_RCOS (non-blocking).
-// Triggered via AO_RCOS_start_cal_save() and AO_RCOS_start_cal_reset().
-
-// Blocking calibration functions (cmd_gyro_cal, cmd_level_cal, cmd_baro_cal,
-// cmd_accel_6pos_cal, cmd_mag_cal, cmd_wizard, wait_for_async_cal,
-// wait_for_enter_or_esc, collect_6pos_position, mag_cal_*, wizard_*,
-// update_calibration_progress) removed in Phase D4.
-// All calibration UI now driven by AO_RCOS cal_ui_tick() state machine.
-
-
-// [Phase D: all blocking functions removed — see ao_rcos.cpp cal_ui_tick()]
+// Calibration UI driven by AO_RCOS cal_ui_tick() state machine (ao_rcos.cpp).
+// Calibration save/reset triggered via AO_RCOS_start_cal_save() / AO_RCOS_start_cal_reset().
 
 // ============================================================================
 // Main Menu Handler
@@ -308,7 +296,7 @@ static bool handle_calibration_menu(int c) {
 }
 
 // ============================================================================
-// Flight Director Menu Handler (IVP-68)
+// Flight Director Menu Handler
 // ============================================================================
 
 static void dispatch_flight_signal(int sig) {
@@ -418,8 +406,6 @@ bool rc_os_update() {
         print_system_status();
         print_prompt();
     }
-
-    // Calibration progress now driven by AO_RCOS cal_ui_tick() (Phase D4).
 
     // Live ESKF mode: periodic print at 1Hz, any key stops
     if (g_eskfLiveActive) {

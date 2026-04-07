@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file guard_evaluator.cpp
- * @brief Guard sustain evaluator implementation (IVP-70)
+ * @brief Guard sustain evaluator implementation
  */
 
 #include "guard_evaluator.h"
@@ -132,7 +132,7 @@ uint16_t guard_evaluator_tick(GuardEvaluator* ev,
                 if (kGuardManaged[i]) {
                     continue;
                 }
-                // Unmanaged guards: auto-dispatch (IVP-70 behavior)
+                // Unmanaged guards: auto-dispatch on first sustain
                 gs.fired = true;
                 return gs.signal;
             }

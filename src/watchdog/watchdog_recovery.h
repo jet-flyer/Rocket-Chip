@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file watchdog_recovery.h
- * @brief Watchdog recovery policy (IVP-66)
+ * @brief Watchdog recovery policy
  *
  * Persists flight state and reboot history across watchdog resets using
  * RP2350 scratch registers. Implements safe-mode detection (>3 rapid
@@ -12,7 +12,7 @@
  *   scratch[0] — watchdog sentinel (existing, 0x52435754 "RCWT")
  *   scratch[1] — recovery data word: flight_state[7:0] | tick_fn_id[15:8] | reserved[31:16]
  *   scratch[2] — reboot counter (lower 16 bits) | magic validator (upper 16 bits)
- *   scratch[3] — reserved for future use
+ *   scratch[3] — unused
  *   scratch[4-7] — used by bootrom (do not touch)
  *
  * The magic validator in scratch[2] upper half (0x5243 = "RC") ensures we

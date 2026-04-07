@@ -218,7 +218,7 @@ int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
 }
 
 // ============================================================================
-// Bus Recovery (IVP-13a)
+// Bus Recovery
 // ============================================================================
 
 // SCL-stuck check + 9-pulse clock recovery (NXP UM10204 3.1.16).

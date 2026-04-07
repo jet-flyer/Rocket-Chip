@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file command_handler.cpp
- * @brief Flight Director command validation (IVP-69)
+ * @brief Flight Director command validation
  */
 
 #include "command_handler.h"

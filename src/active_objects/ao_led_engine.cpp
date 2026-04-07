@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_LedEngine — NeoPixel Status LED Active Object (IVP-77, Phase 5)
+// AO_LedEngine — NeoPixel Status LED Active Object
 //
 // Priority layer compositor. Each tick: iterate layers from highest priority
 // (fault) to lowest (idle). First non-zero layer determines the LED pattern.
@@ -115,7 +115,7 @@ static void led_apply_pattern(LedEngine * const me, uint8_t val) {
         case kFdNeoLanded:       led_set_if_changed(me, WS2812_MODE_BLINK, kColorGreen); break;
         case kFdNeoAbort:        led_set_if_changed(me, WS2812_MODE_BLINK_FAST, kColorRed); break;
         case kFdNeoBeacon:       led_set_if_changed(me, WS2812_MODE_BLINK, kColorWhite); break;
-        // Sensor status patterns (migrated from core1_neopixel_update)
+        // Sensor status patterns
         case kSensorNeoEskfInit: led_set_if_changed(me, WS2812_MODE_BLINK_FAST, kColorRed); break;
         case kSensorNeoGps3d:    led_set_if_changed(me, WS2812_MODE_SOLID, kColorGreen); break;
         case kSensorNeoGps2d:    led_set_if_changed(me, WS2812_MODE_BLINK, kColorGreen); break;
@@ -130,7 +130,7 @@ static void led_apply_pattern(LedEngine * const me, uint8_t val) {
 }
 
 //----------------------------------------------------------------------------
-// Sensor status evaluation (migrated from core1_neopixel_update)
+// Sensor status evaluation
 //
 // Reads seqlock snapshot and ESKF state to determine base sensor status.
 // Sets layers[kLayerSensorStatus].

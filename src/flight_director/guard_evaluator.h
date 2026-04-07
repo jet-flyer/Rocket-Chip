@@ -2,13 +2,13 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file guard_evaluator.h
- * @brief Guard sustain evaluator (IVP-70, updated IVP-71)
+ * @brief Guard sustain evaluator
  *
  * Manages sustain counters for each guard. A guard "fires" (returns a
  * signal) only when its condition is true for N consecutive ticks.
  * One false tick resets the counter to zero.
  *
- * IVP-71: Guards are either "unmanaged" (auto-dispatch on sustain) or
+ * Guards are either "unmanaged" (auto-dispatch on sustain) or
  * "managed" (combinator reads sustained[] and decides dispatch).
  * Managed/unmanaged is a compile-time property (Council A4).
  *
@@ -41,7 +41,7 @@ enum class GuardId : uint8_t {
 // Compile-time managed flag (Council A4).
 // Managed guards track sustain but don't auto-dispatch — the combinator
 // layer reads their sustained status and decides when to fire.
-// Unmanaged guards auto-dispatch on first sustain (IVP-70 behavior).
+// Unmanaged guards auto-dispatch on first sustain.
 //
 // DO NOT modify at runtime. This array is the contract between the
 // evaluator and the combinator.
@@ -62,7 +62,7 @@ struct GuardState {
     uint16_t signal;            // Signal to emit when sustained
     uint8_t valid_phases;       // Bitmask: (1 << FlightPhase) for active phases
     bool fired;                 // Edge detection: true after first fire, reset on phase change
-    bool sustained;             // True when sustain_count >= sustain_required (IVP-71)
+    bool sustained;             // True when sustain_count >= sustain_required
 };
 
 // Guard evaluator — holds state for all guards, evaluates per tick

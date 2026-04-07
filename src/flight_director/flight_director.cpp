@@ -3,9 +3,6 @@
 //============================================================================
 // Flight Director — QEP State Machine Implementation
 //
-// IVP-68: QEP Integration + Phase Skeleton (Stage 8: Flight Director)
-// IVP-72: Action Executor — entry/exit/transition actions wired into handlers
-//
 // Nine state handler functions implementing the flight phase statechart.
 // Each handler processes QEP signals (Q_ENTRY_SIG, Q_EXIT_SIG, user signals)
 // and returns Q_HANDLED(), Q_TRAN(), or Q_SUPER().
@@ -70,7 +67,7 @@ static void log_transition(const FlightDirector* me,
 }
 
 // ============================================================================
-// Helper: build ActionContext from FlightDirector state (IVP-72)
+// Helper: build ActionContext from FlightDirector state
 // ============================================================================
 static ActionContext make_action_ctx(FlightDirector* me,
                                       FlightPhase from, FlightPhase to) {
@@ -164,7 +161,7 @@ void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
     me->phase_change_cb = nullptr;
     // Init guard evaluator: 10ms tick period (100Hz)
     guard_evaluator_init(&me->guard_eval, *profile, 10);
-    // Init combinator set from profile (IVP-71)
+    // Init combinator set from profile
     combinator_set_init(&me->combinator_set, *profile);
 }
 
@@ -227,7 +224,7 @@ void flight_director_evaluate_guards(FlightDirector* me,
     lockout.deploy_lockout_mps = me->profile->deploy_lockout_mps;
     lockout.apogee_lockout_ms = me->profile->apogee_lockout_ms;
     lockout.eskf_healthy = fused.eskf_healthy;
-    lockout.confident = fused.confident;    // IVP-85: confidence gate
+    lockout.confident = fused.confident;    // Confidence gate
 
     // Step 3: Evaluate combinators (managed guards + lockouts + timer backup)
     uint16_t combo_sig = combinator_set_evaluate(

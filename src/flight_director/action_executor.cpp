@@ -2,8 +2,6 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
 // Action Executor — Implementation
-//
-// IVP-72: Action Executor (Stage 8: Flight Director)
 //============================================================================
 
 #include "action_executor.h"

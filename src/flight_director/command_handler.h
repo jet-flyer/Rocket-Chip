@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
  * @file command_handler.h
- * @brief Flight Director command validation (IVP-69)
+ * @brief Flight Director command validation
  *
  * Validates user commands against current flight phase and Go/No-Go
  * readiness. CLI ARM/DISARM/RESET/ABORT route through here. Sensor

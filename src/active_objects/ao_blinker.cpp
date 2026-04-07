@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_Blinker — Demo Active Object: Heartbeat LED (IVP-76)
+// AO_Blinker — Heartbeat LED Active Object
 //
 // 2-state HSM: LED_OFF ↔ LED_ON, toggling on SIG_BLINKER_TIMEOUT (1Hz).
-// Replaces heartbeat_tick() as the first module migrated to an AO.
 //============================================================================
 
 #include "ao_blinker.h"

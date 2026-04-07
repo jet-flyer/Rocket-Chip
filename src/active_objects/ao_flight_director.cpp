@@ -1,14 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_FlightDirector — Flight Director Active Object (IVP-78, Phase 3)
+// AO_FlightDirector — Flight Director Active Object
 //
-// Phase 3 migration: owns the FlightDirector QHsm instance, tick logic,
-// guard evaluation, and CLI-facing command/status functions. Moved from
-// main.cpp where these were extern "C" bridge functions.
-//
-// Dependencies on main.cpp globals use extern declarations. These will
-// migrate to their owning AOs in later phases.
+// Owns FlightDirector QHsm, tick logic, guard evaluation, CLI commands.
 //============================================================================
 
 #include "ao_flight_director.h"
@@ -49,7 +44,7 @@ static constexpr uint8_t kHealthTickDivider = 10;        // 100Hz / 10 = 10Hz
 struct FdAo {
     QActive super;
     QTimeEvt tick_timer;            // 100Hz (every 1 tick at 100Hz base)
-    rc::FlightDirector director;    // Flight Director QHsm (Phase 3: owned here)
+    rc::FlightDirector director;    // Flight Director QHsm
     bool initialized;               // true after ctor + init + callback wiring
     uint32_t last_tick_ms;          // Rate limiter for 100Hz tick
     uint8_t health_tick_count;      // Divider counter for 10Hz health monitor
@@ -67,12 +62,9 @@ static QEvtPtr l_fdAoQueue[32];
 
 // ============================================================================
 // Extern declarations — globals owned by main.cpp, read here.
-// These will migrate to their owning AOs in later phases.
 // ============================================================================
 
 extern sensor_seqlock_t g_sensorSeqlock;
-
-// Phase 4: Flight table, populate_fused_state, log_flight_event moved to AO_Logger.
 
 // ============================================================================
 // Forward declarations (QP state handlers)
@@ -109,7 +101,7 @@ static void fd_check_pio_backup(FdAo* me) {
 }
 
 // ============================================================================
-// Tick logic (moved from main.cpp flight_director_tick)
+// Tick logic
 // ============================================================================
 static void fd_tick(FdAo* me) {
     if (!me->initialized) {
@@ -187,7 +179,7 @@ QActive * const AO_FlightDirector = &l_fdAo.super;
 void AO_FlightDirector_start(uint8_t prio) {
     FdAo* me = &l_fdAo;
 
-    // --- Initialize FlightDirector QHsm (moved from init_flight_director) ---
+    // --- Initialize FlightDirector QHsm ---
     rc::flight_director_ctor(&me->director, &rc::kDefaultRocketProfile);
     me->director.set_led_cb = [](uint8_t val) {
         AO_LedEngine_post_pattern(val);
@@ -227,7 +219,7 @@ void AO_FlightDirector_start(uint8_t prio) {
     me->pio_drogue_reported = false;
     me->pio_main_reported = false;
 
-    // Phase 6: Initialize health monitor
+    // Initialize health monitor
     rc::health_monitor_init();
 
     // --- Start QP Active Object ---
@@ -262,7 +254,7 @@ bool AO_FlightDirector_process_command(int cmd) {
     auto cmdType = static_cast<rc::CommandType>(cmd);
     rc::FlightPhase phase = rc::flight_director_phase(&l_fdAo.director);
 
-    // Build Go/No-Go input from health monitor (Phase 6)
+    // Build Go/No-Go input from health monitor
     rc::GoNoGoInput gng{};
     rc::health_monitor_fill_go_nogo(&gng);
 
@@ -272,7 +264,7 @@ bool AO_FlightDirector_process_command(int cmd) {
     if (result.accepted) {
         rc::flight_director_dispatch_signal(&l_fdAo.director, result.signal);
 
-        // IVP-89: PIO backup timer arm/disarm hooks
+        // PIO backup timer arm/disarm hooks
         if (result.signal == rc::SIG_ARM) {
             // Start backup timers with profile values
             // TODO: read from Mission Profile once fields are wired

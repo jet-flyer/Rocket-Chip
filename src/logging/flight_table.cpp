@@ -4,10 +4,8 @@
  * @file flight_table.cpp
  * @brief Flight log table management — pure logic, no flash I/O
  *
- * Flash read/write is handled by a separate target-only module (IVP-53b).
+ * Flash read/write is handled by a separate target-only module.
  * This file contains only the data manipulation logic for host testability.
- *
- * IVP-53a: Flash Storage & Flight Table (Stage 6: Data Logging)
  */
 
 #include "flight_table.h"

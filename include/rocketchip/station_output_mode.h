@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 // Station output mode — cycles with 'm' key.
-// Future: boot default will be user-configurable via advanced settings menu.
+// Boot default can be made user-configurable via advanced settings menu.
 enum class StationOutputMode : uint8_t {
     kAnsi,      // Live ANSI dashboard (boot default)
     kCsv,       // Machine-readable CSV lines

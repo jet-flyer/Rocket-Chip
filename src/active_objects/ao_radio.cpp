@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_Radio — Radio Hardware Active Object (IVP-93)
+// AO_Radio — Radio Hardware Active Object
 //
 // Owns radio hardware (RFM95W) and RadioScheduler half-duplex SM.
 // Protocol-agnostic: posts SIG_RADIO_RX with raw bytes, receives
@@ -37,7 +37,7 @@ enum : uint16_t {
 };
 
 // ============================================================================
-// TX failure escalation thresholds (IVP-92 plan)
+// TX failure escalation thresholds
 // ============================================================================
 
 static constexpr uint8_t kTxFailLogThresh   = 1;   // Log after 1 consecutive timeout
@@ -122,7 +122,7 @@ static void handle_tx_poll(RadioAo* me) {
     // kBusy — continue polling next tick
 }
 
-// CCSDS packet constants for relay CRC validation (IVP-98)
+// CCSDS packet constants for relay CRC validation
 static constexpr uint8_t  kCcsdsMinLen  = 54;   // Nav packet size
 static constexpr uint8_t  kCcsdsCrcOff  = 52;   // CRC starts at byte 52
 
@@ -208,7 +208,7 @@ static void handle_rx_poll(RadioAo* me) {
 // State Handlers
 // ============================================================================
 
-// Extern references to main.cpp radio state (IVP-93 transitional — removed in IVP-94)
+// AO_Radio borrows the radio handle initialized by init_peripherals().
 extern bool g_radioInitialized;
 extern rfm95w_t g_radio;
 
@@ -219,13 +219,12 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
     s.tx_bw_mode = 0;
     s.link_quality = 0;
 
-    // IVP-93 transitional: radio is initialized by init_peripherals() in main.cpp.
-    // AO_Radio borrows the existing g_radio handle. Full ownership transfer in IVP-94.
+    // AO_Radio borrows the radio handle initialized by init_peripherals().
     if (g_radioInitialized) {
         s.radio = g_radio;  // Copy device handle (just pin config + flags)
         s.initialized = true;
 
-        // Mode selection based on device role (IVP-95/98)
+        // Mode selection based on device role
         bool rx_continuous = (job::kRole == job::DeviceRole::kStation ||
                               job::kRole == job::DeviceRole::kRelay);
         s.scheduler.init(500, rx_continuous);  // 2Hz for vehicle, RX continuous for station/relay

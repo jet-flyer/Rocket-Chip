@@ -5,8 +5,6 @@
 //
 // Entry point for Core 1: high-rate sensor sampling (~1kHz IMU, ~31Hz baro,
 // ~10Hz GPS). Publishes calibrated data via seqlock to Core 0.
-//
-// Stage 13 AO Architecture: Phase 1 extraction from main.cpp.
 //============================================================================
 #ifndef ROCKETCHIP_SENSOR_CORE1_H
 #define ROCKETCHIP_SENSOR_CORE1_H

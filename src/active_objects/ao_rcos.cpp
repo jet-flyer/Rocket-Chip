@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// AO_RCOS — CLI / Terminal Active Object (Phase D: non-blocking cal UI)
+// AO_RCOS — CLI / Terminal Active Object
 //
 // 20Hz tick handler: polls USB key input, dispatches to rc_os menu system,
 // renders ANSI dashboard, manages output mode cycling, and drives the
@@ -75,7 +75,7 @@ void AO_RCOS_cycle_output_mode() {
 }
 
 // ============================================================================
-// Calibration UI State Machine (Phase D3)
+// Calibration UI State Machine
 // ============================================================================
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -178,7 +178,7 @@ static QState RcosAo_running(RcosAo * const me, QEvt const * const e);
 static void cal_ui_tick(RcosAo* me);
 
 // ============================================================================
-// Helpers (moved from main.cpp)
+// Helpers
 // ============================================================================
 
 // Enter CLI menu from dashboard

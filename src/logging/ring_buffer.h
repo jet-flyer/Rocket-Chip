@@ -16,7 +16,7 @@
  *   On reboot, ring_recover() reads the header and restores write state.
  *
  *   IMPORTANT: PSRAM is volatile. Power loss erases all data.
- *   The flash flight table (IVP-53) is the durable record.
+ *   The flash flight table is the durable record.
  *   This crash recovery only protects against watchdog resets and
  *   software faults where Vcc is maintained.
  *
@@ -25,7 +25,6 @@
  * coherency issues. The ring_buffer itself is cache-agnostic — the
  * caller provides the memory pointer.
  *
- * IVP-52b: Ring Buffer (Stage 6: Data Logging)
  */
 
 #ifndef ROCKETCHIP_RING_BUFFER_H

@@ -8,8 +8,7 @@
  * Sensors and ESKF are inert if hardware is absent (same binary,
  * just different behavioral defaults).
  *
- * Renamed from mission_station.h in IVP-68 to distinguish device role
- * ("job") from flight profile data ("MissionProfile").
+ * "Job" = device role, distinct from "MissionProfile" (flight profile data).
  */
 
 #ifndef ROCKETCHIP_JOB_STATION_H

@@ -14,7 +14,6 @@
  * Sector A at 0x7FC000, Sector B at 0x7FD000. Alternate writes,
  * higher sequence number wins. CRC-32 over entire table.
  *
- * IVP-53a: Flash Storage & Flight Table (Stage 6: Data Logging)
  */
 
 #ifndef ROCKETCHIP_FLIGHT_TABLE_H

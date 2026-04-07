@@ -107,13 +107,6 @@ constexpr uint8_t kRadioCs      = board::kRadioCsPin;
 constexpr uint8_t kRadioRst     = board::kRadioRstPin;
 constexpr uint8_t kRadioIrq     = board::kRadioIrqPin;
 
-// Old names kept for call-site compatibility — will be removed in a future cleanup
-constexpr uint8_t kI2c1Sda      = board::kI2cSdaPin;
-constexpr uint8_t kI2c1Scl      = board::kI2cSclPin;
-constexpr uint8_t kSpi0Miso     = board::kSpiMisoPin;
-constexpr uint8_t kSpi0Sck      = board::kSpiSckPin;
-constexpr uint8_t kSpi0Mosi     = board::kSpiMosiPin;
-
 } // namespace pins
 
 // ============================================================================

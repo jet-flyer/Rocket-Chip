@@ -4,11 +4,8 @@
  * @file sensor_snapshot.h
  * @brief Raw pre-calibration sensor data — 40 bytes packed
  *
- * Defined now for ICD completeness. Used by IVP-55 (Raw Sensor Logging)
- * when that step is implemented. Contains ADC counts and raw values
- * before calibration offset/scale application.
- *
- * IVP-49: Data Model & ICD (Stage 6: Data Logging)
+ * Contains ADC counts and raw values before calibration offset/scale
+ * application. Used for raw sensor logging.
  */
 
 #ifndef ROCKETCHIP_SENSOR_SNAPSHOT_H

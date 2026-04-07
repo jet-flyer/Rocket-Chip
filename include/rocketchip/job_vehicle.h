@@ -7,8 +7,7 @@
  * TX telemetry downlink, sensors active, ESKF active, logging active.
  * This is the default role when no job is specified.
  *
- * Renamed from mission_vehicle.h in IVP-68 to distinguish device role
- * ("job") from flight profile data ("MissionProfile").
+ * "Job" = device role, distinct from "MissionProfile" (flight profile data).
  */
 
 #ifndef ROCKETCHIP_JOB_VEHICLE_H

@@ -47,7 +47,7 @@ static struct {
     bool initialized;
     uint8_t numLeds;       // Number of LEDs in chain (board::kNeoPixelCount)
 
-    // Per-pixel buffer for multi-LED patterns (RSSI bar, etc.) — IVP-97
+    // Per-pixel buffer for multi-LED patterns (RSSI bar, etc.)
     ws2812_rgb_t pixels[8];            // Max 8 LEDs per chain
 
     // Current mode and color
@@ -114,7 +114,7 @@ static void send_pixel(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 // ============================================================================
-// Per-Pixel Functions (IVP-97: RSSI bar for Fruit Jam 5-LED strip)
+// Per-Pixel Functions (RSSI bar for Fruit Jam 5-LED strip)
 // ============================================================================
 
 void ws2812_set_pixel_rgb(uint8_t index, uint8_t r, uint8_t g, uint8_t b) {

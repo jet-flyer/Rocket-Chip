@@ -3,8 +3,6 @@
 //============================================================================
 // ESKF Runner — Fusion Tick Module
 //
-// Stage 13 AO Architecture: Phase 2 extraction from main.cpp.
-//
 // Owns the ESKF instance, Mahony AHRS cross-check, confidence gate,
 // GPS session stats, state circular buffer, and benchmark timing.
 // Called from qv_idle_bridge() at ~200Hz via seqlock sensor data.

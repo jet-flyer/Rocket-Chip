@@ -12,7 +12,6 @@
  * CRC-16-CCITT covers primary header + secondary header + payload
  * (same polynomial as PCM frames).
  *
- * IVP-58: Telemetry Encoder (Stage 7: Radio & Telemetry)
  */
 
 #include "rocketchip/telemetry_encoder.h"
@@ -140,7 +139,7 @@ void CcsdsEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
 }
 
 // ============================================================================
-// MAVLink Encoder (c_library_v2 — IVP-61)
+// MAVLink Encoder (c_library_v2)
 // ============================================================================
 
 // Flight state → MAV_STATE mapping
@@ -340,7 +339,7 @@ uint8_t TelemetryEncoderState::max_packet_size() const {
 }
 
 // ============================================================================
-// CCSDS Decoder (IVP-60: RX mode)
+// CCSDS Decoder
 // ============================================================================
 
 // Decoder bitmasks for primary header validation

@@ -3,8 +3,6 @@
 //============================================================================
 // ESKF Runner — Fusion Tick Module (Implementation)
 //
-// Stage 13 AO Architecture: Phase 2 extraction from main.cpp.
-//
 // All ESKF-related state and tick functions live here. The public API
 // (eskf_runner.h) exposes read-only accessors per Council A6.
 //============================================================================
@@ -39,7 +37,7 @@ static inline uint32_t time_us_32() { return 0; }
 // ESKF propagation rate (Hz) — derived from IMU rate / divider
 static constexpr uint32_t kEskfRateHz_local = 200;
 
-// IVP-42d: ESKF propagation — every 5th IMU sample = 200Hz
+// ESKF propagation — every 5th IMU sample = 200Hz
 static constexpr uint32_t kEskfImuDivider = 5;
 
 // Rad/deg conversion for CLI display and geodetic conversion
@@ -63,7 +61,7 @@ static constexpr float kGpsNisSentinel = 1e9F;
 
 // ============================================================================
 // Extern declarations — globals owned by main.cpp, read/written here.
-// These will migrate to their owning AOs in later phases.
+// Accessed from eskf_runner, owned elsewhere.
 // ============================================================================
 
 // Seqlock and sensor phase (owned by main.cpp)
@@ -74,7 +72,7 @@ extern bool g_baroContinuous;     // NOLINT(readability-redundant-declaration)
 // Watchdog recovery (owned by main.cpp, read for ESKF backoff)
 extern rc::WatchdogRecovery g_recovery;
 
-// Flight Director (owned by AO_FlightDirector, Phase 3).
+// Flight Director (owned by AO_FlightDirector).
 // Access via read-only accessors in ao_flight_director.h.
 #include "active_objects/ao_flight_director.h"
 
@@ -82,7 +80,7 @@ extern rc::WatchdogRecovery g_recovery;
 // ESKF Module State (moved from main.cpp)
 // ============================================================================
 
-// IVP-42d: ESKF 15-state error-state Kalman filter (Core 0 at 200Hz)
+// ESKF error-state Kalman filter (Core 0 at 200Hz)
 // Non-static: Core 1 reads g_eskf.v for GPS staleness heuristic (sensor_core1.cpp).
 // Per LL Entry 1: ESKF struct is ~970 bytes — file-scope, not stack.
 rc::ESKF g_eskf;
@@ -91,12 +89,12 @@ static uint32_t g_lastEskfImuCount = 0;
 static uint32_t g_lastEskfTimestampUs = 0;
 static uint32_t g_eskfEpoch = 0;        // Incremented on each ESKF propagation
 
-// IVP-45: Mahony AHRS cross-check (~33 bytes, no stack overflow risk)
+// Mahony AHRS cross-check (~33 bytes, no stack overflow risk)
 static rc::MahonyAHRS g_mahony;
 static bool g_mahonyInitialized = false;
 static uint32_t g_lastMahonyTimestampUs = 0;
 
-// IVP-84: Confidence gate (IVP-85 feeds into SafetyLockout)
+// Confidence gate (feeds into SafetyLockout)
 static rc::ConfidenceState g_confidence;
 
 // GPS outdoor session stats
@@ -144,8 +142,8 @@ static rc::Vec3 sensor_to_ned_mag(const shared_sensor_data_t& snap) {
 // ESKF Init and Predict
 // ============================================================================
 
-// IVP-42d: ESKF init from first stable accel/gyro reading.
-// IVP-44: If mag is available, set initial yaw from tilt-compensated heading.
+// ESKF init from first stable accel/gyro reading.
+// If mag is available, set initial yaw from tilt-compensated heading.
 // Returns true if init succeeded.
 static bool eskf_try_init(const shared_sensor_data_t& snap) {
     rc::Vec3 accel = sensor_to_ned_accel(snap);
@@ -155,7 +153,7 @@ static bool eskf_try_init(const shared_sensor_data_t& snap) {
         return false;  // Stationarity check failed — try again next tick
     }
 
-    // IVP-44: Set initial yaw from magnetometer heading if available.
+    // Set initial yaw from magnetometer heading if available.
     // Without this, yaw starts at 0 deg and the mag gate rejects updates
     // if actual heading is far from 0 deg (innovation >> 3 sigma).
     // Same approach as ArduPilot EKF3 InitialiseFilterBootstrap().
@@ -175,18 +173,18 @@ static bool eskf_try_init(const shared_sensor_data_t& snap) {
     g_eskf.reset_p_growth_baseline();
     g_lastEskfTimestampUs = snap.imu_timestamp_us;  // CR-2: set for first predict dt
 
-    // IVP-83: Wire phase Q/R from active mission profile
+    // Wire phase Q/R from active mission profile
     if (g_profile != nullptr) {
         g_eskf.set_phase_qr(&g_profile->phase_qr);
     }
 
-    // IVP-84: Initialize confidence gate
+    // Initialize confidence gate
     rc::confidence_gate_init(&g_confidence);
 
     return true;
 }
 
-// IVP-42d: ESKF predict step with benchmark + state buffer write.
+// ESKF predict step with benchmark + state buffer write.
 static void eskf_run_predict(const shared_sensor_data_t& snap) {
     // Compute dt from IMU timestamps (unsigned subtraction handles 32-bit wrap)
     uint32_t dtUs = snap.imu_timestamp_us - g_lastEskfTimestampUs;
@@ -210,7 +208,7 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
     // CR-1: stop propagation if filter diverges
     if (!g_eskf.healthy()) {
         g_eskfInitialized = false;
-        rc::watchdog_recovery_eskf_failed(&g_recovery);  // IVP-66: backoff
+        rc::watchdog_recovery_eskf_failed(&g_recovery);  // backoff
         return;
     }
 
@@ -241,7 +239,7 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
 // Measurement Updates
 // ============================================================================
 
-// IVP-43: Baro altitude measurement update (~32Hz DPS310 rate, on new data)
+// Baro altitude measurement update (~32Hz DPS310 rate, on new data)
 static void eskf_tick_baro(const shared_sensor_data_t& snap) {
     if (snap.baro_valid && g_baroContinuous) {
         static uint32_t s_lastEskfBaroCount = 0;
@@ -253,7 +251,7 @@ static void eskf_tick_baro(const shared_sensor_data_t& snap) {
     }
 }
 
-// IVP-44: Mag heading measurement update (~10Hz from AK09916 via seqlock)
+// Mag heading measurement update (~10Hz from AK09916 via seqlock)
 static void eskf_tick_mag(const shared_sensor_data_t& snap) {
     if (snap.mag_valid) {
         static uint32_t s_lastEskfMagCount = 0;
@@ -293,7 +291,7 @@ static void eskf_tick_gps_stats() {
     if (nis > g_gpsSess.max_gps_nis) { g_gpsSess.max_gps_nis = nis; }
 }
 
-// IVP-46: GPS position + velocity measurement update.
+// GPS position + velocity measurement update.
 // Gated on 3D fix with new data. On first quality fix, sets NED origin
 // and resets p/v to zero. Subsequent fixes convert geodetic to NED and
 // inject position + velocity. Velocity gated on speed >= 0.5 m/s to
@@ -341,8 +339,8 @@ static void eskf_tick_gps(const shared_sensor_data_t& snap) {
     }
 }
 
-// IVP-42d: ESKF tick — ZUPT zero-velocity pseudo-measurement.
-// IVP-44b: When on pad (IDLE/ARMED), the flight state machine guarantees
+// ESKF tick — ZUPT zero-velocity pseudo-measurement.
+// When on pad (IDLE/ARMED), the flight state machine guarantees
 // stationarity — skip IMU check, use tight R. ArduPilot EKF3 onGround,
 // PX4 vehicle_at_rest.
 static void eskf_tick_zupt(const shared_sensor_data_t& snap) {
@@ -355,7 +353,7 @@ static void eskf_tick_zupt(const shared_sensor_data_t& snap) {
     g_eskf.update_zupt(accel, gyro, on_pad);
 }
 
-// IVP-45: Mahony AHRS cross-check — independent attitude estimator.
+// Mahony AHRS cross-check — independent attitude estimator.
 // Runs at same 200Hz tick as ESKF. Uses its own dt tracking so it
 // remains independent of the ESKF timestamp variable.
 static void eskf_tick_mahony(const shared_sensor_data_t& snap) {
@@ -386,9 +384,9 @@ static void eskf_tick_mahony(const shared_sensor_data_t& snap) {
     }
 }
 
-// IVP-83/84: Phase notification + confidence gate evaluation
+// Phase notification + confidence gate evaluation
 static void eskf_tick_phase_and_confidence() {
-    // IVP-83: Notify ESKF of flight phase changes for Q/R scheduling
+    // Notify ESKF of flight phase changes for Q/R scheduling
     if (AO_FlightDirector_is_initialized()) {
         static uint8_t s_lastPhase = 0;
         uint8_t phase = static_cast<uint8_t>(
@@ -399,7 +397,7 @@ static void eskf_tick_phase_and_confidence() {
         }
     }
 
-    // IVP-84: Evaluate confidence gate
+    // Evaluate confidence gate
     rc::ConfidenceInput ci{};
     ci.eskf_healthy = g_eskf.healthy();
     ci.mahony_div_deg = (g_mahonyInitialized && g_mahony.healthy())
@@ -451,7 +449,7 @@ void eskf_runner_tick() {
         return;
     }
 
-    // IVP-66: ESKF failure backoff — skip if disabled after too many failures
+    // ESKF failure backoff — skip if disabled after too many failures
     if (g_recovery.eskf_disabled) {
         return;
     }
@@ -483,7 +481,7 @@ void eskf_runner_tick() {
     // P-growth check: catch slow divergence before velocity hits 500 m/s
     if (!g_eskf.check_p_growth(time_us_32())) {
         g_eskfInitialized = false;  // CR-1 reset
-        rc::watchdog_recovery_eskf_failed(&g_recovery);  // IVP-66: backoff
+        rc::watchdog_recovery_eskf_failed(&g_recovery);  // backoff
         return;
     }
 
