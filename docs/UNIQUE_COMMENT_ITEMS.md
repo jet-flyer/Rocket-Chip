@@ -9,12 +9,12 @@
 
 | # | Source | Comment | Status | Action Needed |
 |---|--------|---------|--------|---------------|
-| 1 | `ao_flight_director.cpp:278` | `TODO: read from Mission Profile once fields are wired` — PIO timer arm uses hardcoded 15.0/45.0s | **Open** | Add `drogue_timer_s` / `main_timer_s` fields to MissionProfile struct, update generator, wire here. Fields exist in .cfg but generator doesn't emit them. |
-| 2 | `mahony_ahrs.h:52` | `Also terminate on ARM state transition` — Mahony startup 10x Kp only uses time-based decay, no ARM awareness | **Open** | Plumb FD arm state to Mahony to end startup boost on ARM. Currently only time-based (20s). |
-| 3 | `config.h:110` | `Old names kept for call-site compatibility — will be removed in a future cleanup` — kI2c1Sda, kI2c1Scl, kSpi0Miso, kSpi0Sck aliases | **Open** | Check if old names still have callers; remove if not |
-| 4 | `ao_radio.cpp:211-222`, `main.cpp:121-122,417` | `IVP-93 transitional — removed in IVP-94` — AO_Radio borrows g_radio from main.cpp | **Architecture debt** | IVP-94 was deferred; decide if radio ownership transfer is worth doing |
-| 5 | `confidence_gate.h:51`, `phase_qr.h:60` | `tuning deferred to Stage 13` — Stage 13 is complete but these values were not explicitly tuned | **Reviewed** | All VALIDATE values are within ArduPilot/PX4 norms. Conservative defaults — won't cause dangerous behavior. Need flight data to optimize. Comments updated to remove stale Stage 13 reference. |
-| 6 | `data_convert.cpp:106` | `Battery: not measured yet (future ADC integration)` | **Open** | Battery monitoring via ADC — tracked nowhere else |
+| 1 | `ao_flight_director.cpp:278` | `TODO: read from Mission Profile once fields are wired` | **DONE** (2026-04-06) | Added drogue_timer_s/main_timer_s to MissionProfile, updated generator, wired in FD ARM path. |
+| 2 | `mahony_ahrs.h:52` | `Also terminate on ARM state transition` | **DONE** (2026-04-06) | Added force_end_startup() to MahonyAHRS, called from FD ARM path via eskf_runner_end_mahony_startup(). |
+| 3 | `config.h:110` | `Old names kept for call-site compatibility` | **DONE** (2026-04-06) | Verified no callers. Removed kI2c1Sda, kI2c1Scl, kSpi0Miso, kSpi0Sck, kSpi0Mosi. |
+| 4 | `ao_radio.cpp:211-222`, `main.cpp:121-122,417` | `IVP-93 transitional` — AO_Radio borrows g_radio | **DONE** (2026-04-06) | Radio init moved into AO_Radio_start(). Removed g_radioInitialized/g_radio externs. All callers use AO_Radio_get_state()->initialized. |
+| 5 | `confidence_gate.h:51`, `phase_qr.h:60` | `tuning deferred to Stage 13` | **Reviewed** (2026-04-06) | All VALIDATE values within ArduPilot/PX4 norms. Conservative defaults. Need flight data to optimize. Comments updated. |
+| 6 | `data_convert.cpp:106` | `Battery: not measured yet` | **Deferred** | Battery ADC monitoring — needs hardware wiring. Added to whiteboard deferred list. |
 
 ## VALIDATE Values (Need Flight Testing)
 
