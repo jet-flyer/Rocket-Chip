@@ -251,28 +251,86 @@ static void eskf_tick_baro(const shared_sensor_data_t& snap) {
     }
 }
 
-// Mag heading measurement update (~10Hz from AK09916 via seqlock)
-static void eskf_tick_mag(const shared_sensor_data_t& snap) {
-    if (snap.mag_valid) {
-        static uint32_t s_lastEskfMagCount = 0;
-        if (snap.mag_read_count != s_lastEskfMagCount) {
-            s_lastEskfMagCount = snap.mag_read_count;
-            rc::Vec3 magBody = sensor_to_ned_mag(snap);
-            // Get expected magnitude from calibration for interference detection.
-            // If mag not calibrated (expected_radius == 0), skip interference check.
-            const calibration_store_t* cal = calibration_manager_get();
-            float expectedMag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
-                                ? cal->mag.expected_radius : 0.0F;
-            // WMM declination: GPS position if available, else Mission Profile default.
-            float latDeg = g_profile->default_lat_deg;
-            float lonDeg = g_profile->default_lon_deg;
-            if (snap.gps_valid && snap.gps_fix_type >= 2) {
-                latDeg = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
-                lonDeg = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
-            }
-            float declinationRad = rc::wmm_get_declination(latDeg, lonDeg);
-            g_eskf.update_mag_heading(magBody, expectedMag, declinationRad);
+// WMM field state — initialized once from GPS or default location
+static bool g_wmmFieldValid = false;
+static rc::Vec3 g_wmmFieldNed;   // Earth field NED from WMM (µT)
+static float g_wmmLatDeg = 0.0f;
+static float g_wmmLonDeg = 0.0f;
+
+// Auto-enable 3-axis mag: requires cal + WMM field
+static bool g_mag3dEnabled = false;
+
+// Initialize WMM field from a position (GPS or default)
+static void init_wmm_field(float latDeg, float lonDeg) {
+    g_wmmFieldNed = rc::wmm_get_earth_field_ned(latDeg, lonDeg);
+    g_wmmLatDeg = latDeg;
+    g_wmmLonDeg = lonDeg;
+    g_wmmFieldValid = true;
+}
+
+// Try to auto-enable 3-axis mag states
+static void try_enable_mag_3axis(const shared_sensor_data_t& snap) {
+    if (g_mag3dEnabled) { return; }
+
+    const calibration_store_t* cal = calibration_manager_get();
+    if ((cal->cal_flags & CAL_STATUS_MAG) == 0) { return; }
+
+    // Get WMM field: prefer GPS 3D fix, else use profile default
+    if (!g_wmmFieldValid) {
+        if (snap.gps_valid && snap.gps_fix_type >= 3) {
+            float lat = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
+            float lon = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
+            init_wmm_field(lat, lon);
+        } else if (g_profile->default_lat_deg != 0.0f ||
+                   g_profile->default_lon_deg != 0.0f) {
+            init_wmm_field(g_profile->default_lat_deg, g_profile->default_lon_deg);
+        } else {
+            return;  // No position available
         }
+    }
+
+    // Enable mag states and initialize earth_mag from WMM
+    g_eskf.earth_mag = g_wmmFieldNed;
+    g_eskf.set_inhibit_mag(false);
+    g_mag3dEnabled = true;
+}
+
+// Mag measurement update (~10Hz from AK09916 via seqlock)
+static void eskf_tick_mag(const shared_sensor_data_t& snap) {
+    if (!snap.mag_valid) { return; }
+
+    static uint32_t s_lastEskfMagCount = 0;
+    if (snap.mag_read_count == s_lastEskfMagCount) { return; }
+    s_lastEskfMagCount = snap.mag_read_count;
+
+    rc::Vec3 magBody = sensor_to_ned_mag(snap);
+
+    // Update WMM position on first GPS 3D fix (even if 3-axis already enabled)
+    if (snap.gps_valid && snap.gps_fix_type >= 3 && !g_wmmFieldValid) {
+        float lat = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
+        float lon = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
+        init_wmm_field(lat, lon);
+    }
+
+    // Try to enable 3-axis mag if not already
+    try_enable_mag_3axis(snap);
+
+    if (g_mag3dEnabled) {
+        // 3-axis fusion — uses earth_mag + body_mag_bias states
+        g_eskf.update_mag_3axis(magBody, g_wmmFieldNed);
+    } else {
+        // Heading-only fallback — uses yaw state only
+        const calibration_store_t* cal = calibration_manager_get();
+        float expectedMag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
+                            ? cal->mag.expected_radius : 0.0F;
+        float latDeg = g_profile->default_lat_deg;
+        float lonDeg = g_profile->default_lon_deg;
+        if (snap.gps_valid && snap.gps_fix_type >= 2) {
+            latDeg = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
+            lonDeg = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
+        }
+        float declinationRad = rc::wmm_get_declination(latDeg, lonDeg);
+        g_eskf.update_mag_heading(magBody, expectedMag, declinationRad);
     }
 }
 
@@ -549,6 +607,17 @@ const gps_session_stats_t* eskf_runner_get_gps_session() {
 
 void eskf_runner_end_mahony_startup() {
     g_mahony.force_end_startup();
+}
+
+bool eskf_runner_mag_3d_active() {
+    return g_mag3dEnabled;
+}
+
+bool eskf_runner_get_wmm_position(float* lat_deg, float* lon_deg) {
+    if (!g_wmmFieldValid) { return false; }
+    if (lat_deg != nullptr) { *lat_deg = g_wmmLatDeg; }
+    if (lon_deg != nullptr) { *lon_deg = g_wmmLonDeg; }
+    return true;
 }
 
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,

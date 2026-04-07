@@ -105,4 +105,11 @@ void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
 /// End Mahony startup Kp boost (called on ARM transition).
 void eskf_runner_end_mahony_startup();
 
+/// Whether 3-axis mag fusion is active (mag states un-inhibited).
+bool eskf_runner_mag_3d_active();
+
+/// WMM field position used for mag initialization (lat, lon in degrees).
+/// Returns false if WMM field not yet initialized.
+bool eskf_runner_get_wmm_position(float* lat_deg, float* lon_deg);
+
 #endif // ROCKETCHIP_FUSION_ESKF_RUNNER_H
