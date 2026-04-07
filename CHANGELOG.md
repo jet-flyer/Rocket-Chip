@@ -20,6 +20,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-07-003 | Claude Code CLI | feature, council
+
+**Stage 7 Take 2: Complete deferred radio/telemetry IVPs.** Council-reviewed (NASA, ArduPilot, Professor, Cubesat).
+
+IVP-62a: GCS connection state machine — heartbeat-only until QGC detected, 5s timeout. IVP-62b: MAVLink RX parser ported from ivp62-wip branch (14 tests, 624 total). USB + LoRa input paths with separate parser channels (COMM_1/COMM_2). IVP-62c: Station→vehicle ARM command over LoRa — full path verified on hardware (FD IDLE→ARMED). MAVLink COMMAND_LONG parsed, dispatched via Flight Director. Fixed: vehicle RX after TX, CCSDS/MAVLink packet discrimination, RadioScheduler rx_continuous_ restore. IVP-62d: QGC direct USB deferred — causes QGC freeze (USB CDC transport issue, not content). IVP-64: RadioConfig SF/BW/CR wired to RFM95W driver. IVP-65: Native MAVLink TX via protocol selection. ivp62-wip branch deleted (code merged). Stage 13 items added: half-duplex ACK, CCSDS SDLS auth, QGC USB CDC investigation.
+
+---
+
 ### 2026-04-07-002 | Claude Code CLI | feature, council
 
 **Stage 3D: 3-Axis Magnetometer Model (IVP-99 through IVP-102).** Council-reviewed (JPL, ArduPilot, Cubesat, Rocketeer, unanimous).
