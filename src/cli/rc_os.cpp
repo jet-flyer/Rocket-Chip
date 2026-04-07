@@ -9,6 +9,7 @@
  */
 
 #include "rc_os.h"
+#include "active_objects/ao_telemetry.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "hardware/gpio.h"
@@ -336,72 +337,74 @@ void rc_os_init() {
 }
 
 // NOLINTNEXTLINE(readability-function-size) — USB state machine, splitting breaks state tracking
-bool rc_os_update() {
-    bool isConnected = stdio_usb_connected();
-
-    // Not connected - do nothing (per LL Entry 15)
-    if (!isConnected) {
-        g_wasConnected = false;
-        g_bannerPrinted = false;
-        return false;
+// MAVLink mode input handler — returns true if byte was consumed
+static bool handle_mavlink_input(int c) {
+    if (AO_RCOS_get_output_mode() != StationOutputMode::kMavlink) { return false; }
+    if (g_menu != RC_OS_MENU_MAIN) { return false; }
+    if (c == 'm' || c == 'M') {
+        AO_RCOS_set_output_mode(StationOutputMode::kMenu);
+        printf("\nMAVLink mode off. CLI active.\n");
+        print_prompt();
+        return true;
     }
+    AO_Telemetry_feed_usb_byte(static_cast<uint8_t>(c));
+    return true;
+}
 
-    // Just connected — USB settle + boot banner (tick-based, non-blocking)
-    // State machine: disconnected → settling (4 ticks) → banner → connected
-    static uint8_t s_settleCount = 0;
+// USB connect/disconnect + settle + banner state machine
+static uint8_t s_settleCount = 0;
 
+static bool handle_usb_connect() {
     if (!g_wasConnected) {
-        // First tick after connect detected — start settling
         s_settleCount = 1;
         g_wasConnected = true;
         return false;
     }
-
     if (s_settleCount > 0 && s_settleCount < 5) {
-        // Settling — skip 4 ticks (~200ms at 20Hz)
         s_settleCount++;
         return false;
     }
-
     if (s_settleCount == 5) {
-        // Settle complete — print boot banner
-        s_settleCount = 0;  // Done settling
-
-        // Drain any garbage from input buffer (per LL Entry 15)
-        while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {
-            // Discard
-        }
-
-        // Print compact boot summary + help menu
+        s_settleCount = 0;
+        while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
         cli_print_boot_summary();
-
         if (!g_bannerPrinted) {
-            // First connect: show help menu
             printf("\n");
             print_help_menu();
             g_bannerPrinted = true;
         }
-
         g_menu = RC_OS_MENU_MAIN;
         print_prompt();
     }
+    return true;  // Connected and settled
+}
 
-    // Live ESKF mode: periodic print at 1Hz, any key stops
-    if (g_eskfLiveActive) {
-        int c = getchar_timeout_us(0);
-        if (c != PICO_ERROR_TIMEOUT) {
-            g_eskfLiveActive = false;
-            printf("\n--- ESKF live stopped ---\n");
-            print_prompt();
-            return true;
-        }
+// ESKF live mode handler — returns true if in live mode (consumes input)
+static bool handle_eskf_live() {
+    if (!g_eskfLiveActive) { return false; }
+    int c = getchar_timeout_us(0);
+    if (c != PICO_ERROR_TIMEOUT) {
+        g_eskfLiveActive = false;
+        printf("\n--- ESKF live stopped ---\n");
+        print_prompt();
+    } else {
         uint32_t nowUs = time_us_32();
         if (nowUs - g_eskfLiveLastPrintUs >= kEskfLivePeriodUs) {
             g_eskfLiveLastPrintUs = nowUs;
             cli_print_eskf_live();
         }
+    }
+    return true;
+}
+
+bool rc_os_update() {
+    if (!stdio_usb_connected()) {
+        g_wasConnected = false;
+        g_bannerPrinted = false;
         return false;
     }
+    if (!handle_usb_connect()) { return false; }
+    if (handle_eskf_live()) { return false; }
 
     // When a cal/input UI sequence is active, the AO_RCOS cal_ui_tick()
     // handles all key input. Don't read here or we steal characters.
@@ -414,6 +417,9 @@ bool rc_os_update() {
     if (c == PICO_ERROR_TIMEOUT) {
         return false;
     }
+
+    // MAVLink mode: feed USB bytes to RX parser instead of CLI
+    if (handle_mavlink_input(c)) { return true; }
 
     // Route to appropriate handler
     bool handled = false;

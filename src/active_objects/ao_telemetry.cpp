@@ -14,6 +14,7 @@
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/telemetry_encoder.h"
 #include "rocketchip/telemetry_service.h"
+#include "rocketchip/mavlink_rx.h"
 #include "rocketchip/job.h"
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -61,6 +62,9 @@ struct TelemAo {
     // GCS connection tracking (IVP-62a)
     GcsState            gcs_state;
     uint32_t            last_gcs_heartbeat_ms;
+
+    // MAVLink RX parser (IVP-62b)
+    rc::MavlinkRxState  mavlink_rx;
 
     // Station RX: latest decoded telemetry for CLI/WiFi access
     RxTelemSnapshot     rx_snapshot;
@@ -234,6 +238,7 @@ static QState TelemAo_initial(TelemAo * const me, QEvt const * const e) {
     me->last_heartbeat_ms = 0;
     me->gcs_state = GcsState::kWaitingForGcs;
     me->last_gcs_heartbeat_ms = 0;
+    rc::mavlink_rx_init(&me->mavlink_rx, &me->mav_encoder);
 
     // Subscribe to SIG_RADIO_RX from AO_Radio
     QActive_subscribe(&me->super, rc::SIG_RADIO_RX);
@@ -309,6 +314,29 @@ uint8_t AO_Telemetry_cycle_rate() {
 
 const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
     return &l_telemAo.rx_snapshot;
+}
+
+// IVP-62b: feed USB input byte to MAVLink RX parser
+void AO_Telemetry_feed_usb_byte(uint8_t byte) {
+#ifndef ROCKETCHIP_HOST_TEST
+    rc::MavlinkRxResult result = {};
+    uint8_t flight_state = l_telemAo.latest_telem.flight_state;
+
+    if (rc::mavlink_rx_feed_byte(&l_telemAo.mavlink_rx, byte,
+                                  flight_state, now_ms(), &result)) {
+        // Check if this was a GCS heartbeat
+        if (l_telemAo.mavlink_rx.gcs_seen) {
+            AO_Telemetry_notify_gcs_heartbeat();
+        }
+    }
+    // Write response bytes back to USB
+    if (result.len > 0) {
+        fwrite(result.buf, 1, result.len, stdout);
+        fflush(stdout);
+    }
+#else
+    (void)byte;
+#endif
 }
 
 // IVP-62a: notify that a GCS heartbeat was received (USB or LoRa)

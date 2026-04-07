@@ -39,4 +39,7 @@ const RxTelemSnapshot* AO_Telemetry_get_rx_state();
 // IVP-62a: notify GCS heartbeat received (transitions to full telemetry output)
 void AO_Telemetry_notify_gcs_heartbeat();
 
+// IVP-62b: feed USB input byte to MAVLink RX parser (called from rc_os.cpp)
+void AO_Telemetry_feed_usb_byte(uint8_t byte);
+
 #endif // ROCKETCHIP_AO_TELEMETRY_H
