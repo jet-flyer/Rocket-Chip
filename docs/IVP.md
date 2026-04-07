@@ -2874,6 +2874,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 | — | CCSDS SDLS Command Authentication | CCSDS 355.0-B-2 telecommand authentication. ON for Rocket profile, OFF for Passive. Shared key pairing between vehicle and station. |
 | — | PIO Backup Timer Exhaustive Shakedown | Full failure scenario testing of PIO deployment timers |
 | — | USB Download Speed Optimization | Bypass stdio for bulk download, target 200+ KB/s |
+| — | Half-Duplex ACK + Command Result | Piggyback command ACK on next telemetry frame. Retry-until-ACK on station. Proper TX/RX time slicing in RadioScheduler. |
 | — | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
 > **Milestone:** Flight Test — **Flight Ready**.
