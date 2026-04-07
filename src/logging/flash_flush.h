@@ -66,7 +66,7 @@ bool flight_table_save(FlightTableState* state);
 bool flight_table_erase_flash();
 
 /**
- * @brief Erase all flight log data sectors (0x080000–0x7FBFFF)
+ * @brief Erase all flight log data sectors (kFlashLogStart–kFlashLogEnd)
  * @param table           Flight table state (used to determine how many sectors to erase)
  * @param kick_watchdog  Callback to kick watchdog between sectors (may be nullptr)
  * @return true on success

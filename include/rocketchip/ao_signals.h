@@ -53,14 +53,13 @@ enum RcSignal : uint16_t {
 
     // --- System-wide Active Object signals (IVP-76+) ---
     SIG_SENSOR_DATA = SIG_FD_MAX,   // 14: Sensor snapshot ready (eskf_tick → AOs)
-    SIG_PHASE_CHANGE,                // 15: Flight phase transition (FD → Logger, Telem, LED)
+    SIG_PHASE_CHANGE,                // 15: Flight phase transition (FD → Logger, LED)
     SIG_LED_PATTERN,                 // 16: LED pattern request (any → LedEngine)
-    SIG_LOG_FRAME,                   // 17: Log data ready (Logger internal)
-    SIG_TELEM_FRAME,                 // 18: Telemetry data ready (Logger → Telemetry)
-    SIG_PYRO_INTENT,                 // 19: Pyro fire intent (FD → Logger for recording)
+    // 17-18: removed (LOG_FRAME, TELEM_FRAME — never wired, direct API used)
+    SIG_PYRO_INTENT = 19,            // 19: Pyro fire intent (FD → Logger via callback)
     SIG_LED_OVERRIDE,                // 20: Calibration/RX LED override (CLI → LedEngine)
-    SIG_CLI_COMMAND,                 // 21: CLI command dispatch (CLI → FD)
-    SIG_HEALTH_CHECK,                // 22: Periodic health ping (timer → ErrorHandler)
+    SIG_CLI_COMMAND,                 // 21: CLI command dispatch (CLI → FD, synchronous)
+    // 22: removed (HEALTH_CHECK — health monitor is FD module, not separate AO)
 
     // --- Stage 12A: Radio Module (IVP-92+) ---
     SIG_RADIO_TX,                    // 23: Encoded packet ready for TX (Telem → Radio)
@@ -68,8 +67,9 @@ enum RcSignal : uint16_t {
     SIG_RADIO_STATUS,                // 25: Link quality update (Radio → LED, CLI)
     SIG_GCS_CMD,                     // 26: Uplink command from GCS (Telem → FD) [C3-A4]
     SIG_HEALTH_STATUS,               // 27: Health flags changed (HealthMonitor → AOs)
+    SIG_PYRO_FIRED,                  // 28: Pyro channel fired (FD/PIO → Logger)
 
-    SIG_AO_MAX                       // 28: Sentinel — pub-sub array size
+    SIG_AO_MAX                       // 29: Sentinel — pub-sub array size
 };
 
 // Backward compatibility aliases
@@ -140,6 +140,14 @@ struct GcsCmdEvt {
 struct HealthStatusEvt {
     QEvt super;
     uint8_t health_flags;   // Bitfield of rc::HealthFlag
+};
+
+// Pyro fired confirmation (FD smart path or PIO backup → Logger)
+// [Council C-A1]: includes channel and source for diagnostics
+struct PyroFiredEvt {
+    QEvt super;
+    uint8_t channel;        // 0=drogue, 1=main (matches PyroChannel enum)
+    uint8_t source;         // 0=primary (FD-commanded), 1=PIO backup timeout
 };
 
 // Signal name lookup (extends flight_signal_name for system-wide signals)

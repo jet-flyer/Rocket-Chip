@@ -17,6 +17,7 @@
  */
 
 #include "psram_init.h"
+#include "rocketchip/flash_layout.h"
 
 #include "hardware/structs/qmi.h"
 #include "hardware/structs/xip_ctrl.h"
@@ -300,7 +301,7 @@ size_t psram_get_size() {
 // QMI M1 save/restore in flash_safe_execute() for our case (CS1 not in
 // FLASH_DEVINFO → timing/rcmd/rfmt restored, wfmt/wcmd untouched).
 
-static constexpr uint32_t kFlashTestOffset = 0x7FB000U;  // Last sector before flight table
+static constexpr uint32_t kFlashTestOffset = rc::kFlashSafeTestOffset;
 static constexpr uint32_t kFlashSafeTimeoutMs = 1000U;
 static constexpr uint32_t kPsramTestSize = 256U;  // Bytes to test
 static constexpr uint32_t kPsramTestPattern = 0xA5B6C7D8U;

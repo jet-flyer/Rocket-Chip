@@ -22,8 +22,8 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 | AO | File | Rate | Prio | Queue | Owns | Publishes | Subscribes |
 |----|------|------|------|-------|------|-----------|------------|
 | AO_Radio | `ao_radio.cpp` | 100Hz | 8 | 32 | rfm95w_t, RadioScheduler, RadioAoState | SIG_RADIO_RX, SIG_RADIO_STATUS | SIG_RADIO_TX |
-| AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 6 | 32 | FlightDirector HSM, guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_INTENT, SIG_LED_PATTERN, SIG_HEALTH_STATUS | SIG_SENSOR_DATA, SIG_CLI_COMMAND |
-| AO_Logger | `ao_logger.cpp` | 50Hz | 5 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_SENSOR_DATA, SIG_PHASE_CHANGE, SIG_PYRO_INTENT |
+| AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 6 | 32 | FlightDirector HSM, guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_LED_PATTERN, SIG_HEALTH_STATUS | SIG_SENSOR_DATA |
+| AO_Logger | `ao_logger.cpp` | 50Hz | 5 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_PHASE_CHANGE, SIG_PYRO_FIRED |
 | AO_Telemetry | `ao_telemetry.cpp` | 10Hz | 4 | 8 | CCSDS/MAVLink encode, TelemetryState snapshot, RX decode | SIG_RADIO_TX | SIG_RADIO_RX, SIG_SENSOR_DATA |
 | AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 3 | 8 | ws2812 driver, priority layer table, animation state, pattern constants | (none) | SIG_LED_PATTERN, SIG_LED_OVERRIDE, SIG_RADIO_STATUS, SIG_SENSOR_DATA, SIG_PHASE_CHANGE, SIG_HEALTH_STATUS |
 | AO_RCOS | `cli/ao_rcos.cpp` | 20Hz | 2 | 16 | CLI output mode, ANSI dashboard, key dispatch | SIG_CLI_COMMAND, SIG_LED_OVERRIDE | (none) |
@@ -130,20 +130,21 @@ Core 1 vitality check (Council A4): `core1_loop_count` stall for 500ms forces FA
 | SIG_ABORT | 12 | QEvt | CLI/Radio | AO_FlightDirector |
 | SIG_RESET | 13 | QEvt | CLI | AO_FlightDirector |
 | SIG_SENSOR_DATA | 14 | SensorDataEvt | eskf_runner | AO_FD, AO_Logger, AO_Telem, AO_LedEngine |
-| SIG_PHASE_CHANGE | 15 | PhaseChangeEvt | AO_FlightDirector | AO_Logger, AO_Telem, AO_LedEngine |
+| SIG_PHASE_CHANGE | 15 | PhaseChangeEvt | AO_FlightDirector | AO_Logger |
 | SIG_LED_PATTERN | 16 | LedPatternEvt | AO_FlightDirector | AO_LedEngine |
-| SIG_LOG_FRAME | 17 | QEvt | AO_Logger (internal) | AO_Logger |
-| SIG_TELEM_FRAME | 18 | QEvt | AO_Logger (internal) | AO_Telemetry |
-| SIG_PYRO_INTENT | 19 | QEvt | AO_FlightDirector | AO_Logger |
+| ~~SIG_LOG_FRAME~~ | 17 | -- | removed | -- |
+| ~~SIG_TELEM_FRAME~~ | 18 | -- | removed | -- |
+| SIG_PYRO_INTENT | 19 | QEvt | AO_FlightDirector (callback) | AO_Logger (callback) |
 | SIG_LED_OVERRIDE | 20 | LedPatternEvt | AO_RCOS | AO_LedEngine |
-| SIG_CLI_COMMAND | 21 | QEvt | AO_RCOS | AO_FlightDirector |
-| SIG_HEALTH_CHECK | 22 | QEvt | (reserved) | (reserved) |
+| SIG_CLI_COMMAND | 21 | QEvt | AO_RCOS (sync call) | AO_FlightDirector (sync call) |
+| ~~SIG_HEALTH_CHECK~~ | 22 | -- | removed | -- |
 | SIG_RADIO_TX | 23 | RadioTxEvt | AO_Telemetry | AO_Radio |
 | SIG_RADIO_RX | 24 | RadioRxEvt | AO_Radio | AO_Telemetry |
 | SIG_RADIO_STATUS | 25 | RadioStatusEvt | AO_Radio | AO_LedEngine |
 | SIG_GCS_CMD | 26 | GcsCmdEvt | AO_Telemetry | AO_FlightDirector |
 | SIG_HEALTH_STATUS | 27 | HealthStatusEvt | AO_FlightDirector | AO_LedEngine, AO_Telemetry |
-| SIG_AO_MAX | 28 | -- | -- | -- |
+| SIG_PYRO_FIRED | 28 | PyroFiredEvt | AO_FlightDirector | AO_Logger |
+| SIG_AO_MAX | 29 | -- | -- | -- |
 
 Private signals (per-AO, not in catalog): `SIG_AO_MAX + offset` (0=Blinker, 1=Counter, 2=LedEngine, 3=FD, 4=Logger, 5=Telem, 10=Radio).
 

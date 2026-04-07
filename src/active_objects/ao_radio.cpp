@@ -217,6 +217,7 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
     RadioAoState& s = me->state;
     s.tx_consec_fail = 0;
     s.tx_bw_mode = 0;
+    s.link_quality = 0;
 
     // IVP-93 transitional: radio is initialized by init_peripherals() in main.cpp.
     // AO_Radio borrows the existing g_radio handle. Full ownership transfer in IVP-94.
@@ -266,6 +267,25 @@ static QState RadioAo_running(RadioAo * const me, QEvt const * const e) {
         // RX poll (kRxWindow or kRxContinuous)
         if (s.scheduler.rx_active()) {
             handle_rx_poll(me);
+        }
+
+        // Link quality computation → publish SIG_RADIO_STATUS on change
+        {
+            static constexpr uint32_t kLinkLostMs  = 5000;  // 5s = lost
+            static constexpr uint32_t kLinkGapMs   = 2000;  // 2s = gap
+            uint32_t age = now_ms() - s.last_rx_ms;
+            uint8_t lq;
+            if (s.rx_count == 0)         { lq = 0; }  // No radio / never received
+            else if (age >= kLinkLostMs) { lq = 1; }  // Lost
+            else if (age >= kLinkGapMs)  { lq = 2; }  // Gap
+            else                         { lq = 3; }  // Receiving
+            if (lq != s.link_quality) {
+                s.link_quality = lq;
+                static rc::RadioStatusEvt statusEvt;
+                statusEvt.super.sig = rc::SIG_RADIO_STATUS;
+                statusEvt.link_quality = lq;
+                QActive_publish_(&statusEvt.super, &me->super, me->super.prio);
+            }
         }
 
         // RSSI bar — station/relay only (AO_LedEngine disabled for these roles)

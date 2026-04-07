@@ -22,23 +22,23 @@
 
 #include <stdint.h>
 #include "rocketchip/telemetry_state.h"
+#include "rocketchip/flash_layout.h"
 
 namespace rc {
 
 // ============================================================================
-// Flash layout constants
+// Flash layout constants — derived from flash_layout.h
 // ============================================================================
 
-static constexpr uint32_t kFirmwareReserve     = 512U * 1024U;           // 0x000000-0x07FFFF
-static constexpr uint32_t kFlightLogStart      = kFirmwareReserve;       // 0x080000
-static constexpr uint32_t kFlightLogEnd        = 0x7FC000U;              // End of log region
-static constexpr uint32_t kFlightLogSize       = kFlightLogEnd - kFlightLogStart;  // ~7.48MB
-static constexpr uint32_t kFlashSectorSize     = 4096U;
-static constexpr uint32_t kFlightLogSectors    = kFlightLogSize / kFlashSectorSize; // 1912
+static constexpr uint32_t kFirmwareReserve     = kFlashFirmwareReserve;
+static constexpr uint32_t kFlightLogStart      = kFlashLogStart;
+static constexpr uint32_t kFlightLogEnd        = kFlashLogEnd;
+static constexpr uint32_t kFlightLogSize       = kFlashLogSize;
+static constexpr uint32_t kFlashSectorSize     = FLASH_SECTOR_SIZE;
+static constexpr uint32_t kFlightLogSectors    = kFlashLogSectors;
 
-static constexpr uint32_t kFlightTableSectorA  = 0x7FC000U;
-static constexpr uint32_t kFlightTableSectorB  = 0x7FD000U;
-// 0x7FE000-0x7FFFFF = calibration (existing)
+static constexpr uint32_t kFlightTableSectorA  = kFlashTableSectorA;
+static constexpr uint32_t kFlightTableSectorB  = kFlashTableSectorB;
 
 // ============================================================================
 // Flight log table structures

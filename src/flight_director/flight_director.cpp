@@ -57,6 +57,9 @@ static void enter_phase(FlightDirector* me, FlightPhase phase) {
     me->state.current_phase = phase;
     me->state.phase_entry_ms = me->tick_ms;
     ++me->state.transition_count;
+    if (me->phase_change_cb) {
+        me->phase_change_cb(phase, me->tick_ms);
+    }
 }
 
 static void log_transition(const FlightDirector* me,
@@ -158,6 +161,7 @@ void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
     me->guards_enabled = false;
     me->set_led_cb = nullptr;
     me->log_pyro_cb = nullptr;
+    me->phase_change_cb = nullptr;
     // Init guard evaluator: 10ms tick period (100Hz)
     guard_evaluator_init(&me->guard_eval, *profile, 10);
     // Init combinator set from profile (IVP-71)

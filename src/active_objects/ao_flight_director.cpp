@@ -53,6 +53,8 @@ struct FdAo {
     bool initialized;               // true after ctor + init + callback wiring
     uint32_t last_tick_ms;          // Rate limiter for 100Hz tick
     uint8_t health_tick_count;      // Divider counter for 10Hz health monitor
+    bool pio_drogue_reported;       // PIO backup drogue fire already published
+    bool pio_main_reported;         // PIO backup main fire already published
 };
 
 static FdAo l_fdAo;
@@ -77,6 +79,34 @@ extern sensor_seqlock_t g_sensorSeqlock;
 // ============================================================================
 static QState FdAo_initial(FdAo * const me, QEvt const * const e);
 static QState FdAo_running(FdAo * const me, QEvt const * const e);
+
+// ============================================================================
+// PIO backup timer fire detection — publish SIG_PYRO_FIRED (source=1: PIO)
+// ============================================================================
+static void fd_check_pio_backup(FdAo* me) {
+    if (!me->pio_drogue_reported &&
+        rc::pio_backup_timer_fired(rc::BackupTimerId::kDrogue)) {
+        me->pio_drogue_reported = true;
+        me->director.state.drogue_fired = true;
+        static rc::PyroFiredEvt pioDrogueEvt;
+        pioDrogueEvt.super.sig = rc::SIG_PYRO_FIRED;
+        pioDrogueEvt.channel = 0;  // Drogue
+        pioDrogueEvt.source = 1;   // PIO backup
+        QActive_publish_(&pioDrogueEvt.super, &me->super, me->super.prio);
+        printf("[PIO] Backup drogue fired — SIG_PYRO_FIRED published\n");
+    }
+    if (!me->pio_main_reported &&
+        rc::pio_backup_timer_fired(rc::BackupTimerId::kMain)) {
+        me->pio_main_reported = true;
+        me->director.state.main_fired = true;
+        static rc::PyroFiredEvt pioMainEvt;
+        pioMainEvt.super.sig = rc::SIG_PYRO_FIRED;
+        pioMainEvt.channel = 1;  // Main
+        pioMainEvt.source = 1;   // PIO backup
+        QActive_publish_(&pioMainEvt.super, &me->super, me->super.prio);
+        printf("[PIO] Backup main fired — SIG_PYRO_FIRED published\n");
+    }
+}
 
 // ============================================================================
 // Tick logic (moved from main.cpp flight_director_tick)
@@ -122,6 +152,8 @@ static void fd_tick(FdAo* me) {
                              &me->super, me->super.prio);
         }
     }
+
+    fd_check_pio_backup(me);
 }
 
 // ============================================================================
@@ -160,8 +192,16 @@ void AO_FlightDirector_start(uint8_t prio) {
     me->director.set_led_cb = [](uint8_t val) {
         AO_LedEngine_post_pattern(val);
     };
+    me->director.phase_change_cb = [](rc::FlightPhase phase, uint32_t ts_ms) {
+        static rc::PhaseChangeEvt evt;
+        evt.super.sig = rc::SIG_PHASE_CHANGE;
+        evt.phase = static_cast<uint8_t>(phase);
+        evt.timestamp_ms = ts_ms;
+        QActive_publish_(&evt.super,
+                         &l_fdAo.super, l_fdAo.super.prio);
+    };
     me->director.log_pyro_cb = [](rc::PyroChannel ch) {
-        printf("[FD] PYRO INTENT: %s\n",
+        printf("[FD] PYRO FIRED: %s (primary)\n",
                ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
         if (ch == rc::PyroChannel::kDrogue) {
             l_fdAo.director.state.drogue_fired = true;
@@ -172,11 +212,20 @@ void AO_FlightDirector_start(uint8_t prio) {
             AO_Logger_log_event(rc::LogEventId::kPyroFiredMain, 0, 0, 0, 0);
             rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
         }
+        // Publish SIG_PYRO_FIRED for AO subscribers (source=0: FD primary)
+        static rc::PyroFiredEvt pyroEvt;
+        pyroEvt.super.sig = rc::SIG_PYRO_FIRED;
+        pyroEvt.channel = static_cast<uint8_t>(ch);
+        pyroEvt.source = 0;  // Primary (FD-commanded)
+        QActive_publish_(&pyroEvt.super,
+                         &l_fdAo.super, l_fdAo.super.prio);
     };
     rc::flight_director_init(&me->director);
     me->initialized = true;
     me->last_tick_ms = 0;
     me->health_tick_count = 0;
+    me->pio_drogue_reported = false;
+    me->pio_main_reported = false;
 
     // Phase 6: Initialize health monitor
     rc::health_monitor_init();

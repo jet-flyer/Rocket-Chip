@@ -41,7 +41,7 @@
 
 /* Signals */
 mtype = {
-    SIG_PHASE_CHANGE, SIG_PYRO_INTENT, SIG_LED_PATTERN, SIG_TELEM_FRAME
+    SIG_PHASE_CHANGE, SIG_PYRO_INTENT, SIG_LED_PATTERN, SIG_PYRO_FIRED
 };
 
 /* ========================================================================

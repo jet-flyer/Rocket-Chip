@@ -13,22 +13,21 @@
  */
 
 #include "calibration_storage.h"
+#include "rocketchip/flash_layout.h"
 #include "pico/flash.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
 #include <string.h>
 
 // ============================================================================
-// Flash Layout Configuration
+// Flash Layout Configuration — derived from flash_layout.h
 // ============================================================================
 
-// Use last 8KB of 8MB flash for calibration storage
-constexpr uint32_t kFlashSize        = 8 * 1024 * 1024;
-constexpr uint32_t kStorageSize      = 2 * FLASH_SECTOR_SIZE;           // 8KB total
-constexpr uint32_t kStorageOffset    = kFlashSize - kStorageSize;       // 0x7FE000
+constexpr uint32_t kStorageSize      = rc::kFlashCalSize;
+constexpr uint32_t kStorageOffset    = rc::kFlashCalSectorA;
 
-constexpr uint32_t kSectorAOffset    = kStorageOffset;
-constexpr uint32_t kSectorBOffset    = kStorageOffset + FLASH_SECTOR_SIZE;
+constexpr uint32_t kSectorAOffset    = rc::kFlashCalSectorA;
+constexpr uint32_t kSectorBOffset    = rc::kFlashCalSectorB;
 
 // ============================================================================
 // Sector Header

@@ -305,6 +305,9 @@ static QState LoggerAo_running(LoggerAo * const me, QEvt const * const e);
 
 static QState LoggerAo_initial(LoggerAo * const me, QEvt const * const e) {
     (void)e;
+    // Subscribe to flight events from Flight Director
+    QActive_subscribe(&me->super, rc::SIG_PHASE_CHANGE);
+    QActive_subscribe(&me->super, rc::SIG_PYRO_FIRED);
     // 50Hz tick (every 2 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 2U, 2U);
     return Q_TRAN(&LoggerAo_running);
@@ -316,6 +319,24 @@ static QState LoggerAo_running(LoggerAo * const me, QEvt const * const e) {
     case SIG_LOG_TICK:
         logging_tick();
         return Q_HANDLED();
+    case rc::SIG_PHASE_CHANGE: {
+        const rc::PhaseChangeEvt* pe =
+            reinterpret_cast<const rc::PhaseChangeEvt*>(e);
+        // Log phase transition with exact FD timestamp
+        AO_Logger_log_event(rc::LogEventId::kPhaseChange,
+                            pe->phase, 0, 0, 0);
+        return Q_HANDLED();
+    }
+    case rc::SIG_PYRO_FIRED: {
+        const rc::PyroFiredEvt* pe =
+            reinterpret_cast<const rc::PyroFiredEvt*>(e);
+        // Log pyro firing with channel and source
+        rc::LogEventId id = (pe->channel == 0)
+            ? rc::LogEventId::kPyroFiredDrogue
+            : rc::LogEventId::kPyroFiredMain;
+        AO_Logger_log_event(id, pe->source, 0, 0, 0);
+        return Q_HANDLED();
+    }
     default:
         break;
     }

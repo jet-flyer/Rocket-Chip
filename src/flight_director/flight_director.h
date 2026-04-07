@@ -87,6 +87,7 @@ struct FlightDirector {
     // Action callbacks (IVP-72) — set by main.cpp, stubbed in host tests
     void (*set_led_cb)(uint8_t led_value);      // NeoPixel override
     void (*log_pyro_cb)(PyroChannel channel);   // Pyro intent logging
+    void (*phase_change_cb)(FlightPhase phase, uint32_t timestamp_ms);  // Phase transition notify
 };
 
 // Lifecycle

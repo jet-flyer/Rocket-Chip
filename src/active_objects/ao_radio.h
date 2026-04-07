@@ -38,6 +38,7 @@ struct RadioAoState {
     uint16_t           last_rx_seq;      // Last received CCSDS seq counter
     uint32_t           tx_count;         // Total packets sent (vehicle mode)
     uint32_t           relay_count;      // Packets relayed (relay mode)
+    uint8_t            link_quality;     // 0=no radio, 1=lost, 2=gap, 3=receiving
 };
 
 const RadioAoState* AO_Radio_get_state();
