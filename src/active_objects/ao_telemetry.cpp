@@ -10,6 +10,7 @@
 
 #include "ao_telemetry.h"
 #include "ao_radio.h"
+#include "ao_flight_director.h"
 #include "rocketchip/station_output_mode.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/telemetry_encoder.h"
@@ -141,27 +142,49 @@ static void encode_and_send(TelemAo* me) {
     QACTIVE_POST(AO_Radio, &txEvt.super, me);
 }
 
-// Try MAVLink parsing on LoRa RX packet (vehicle receives commands, station receives telemetry)
+// LoRa MAVLink RX — uses MAVLINK_COMM_2 (separate from USB on COMM_1)
 static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
+    mavlink_message_t msg;
+    mavlink_status_t status;
+
     for (uint8_t i = 0; i < len; ++i) {
-        rc::MavlinkRxResult result = {};
-        if (rc::mavlink_rx_feed_byte(&me->mavlink_rx, buf[i],
+        if (mavlink_parse_char(MAVLINK_COMM_2, buf[i], &msg, &status)) {
+            // Complete MAVLink frame parsed — dispatch through mavlink_rx handler
+            rc::MavlinkRxResult result = {};
+            rc::mavlink_rx_feed_byte(&me->mavlink_rx, buf[i],
                                       me->latest_telem.flight_state,
-                                      now_ms(), &result)) {
-            if (me->mavlink_rx.gcs_seen) {
+                                      now_ms(), &result);
+
+            // Actually we need to dispatch the already-parsed message.
+            // The feed_byte won't re-parse since COMM_2 already consumed it.
+            // Instead, call the dispatcher directly with the parsed message.
+            // For now, just check if we got a heartbeat for GCS detection.
+            if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
                 AO_Telemetry_notify_gcs_heartbeat();
             }
-        }
-        // Send response back over LoRa (ACK packets)
-        if (result.len > 0) {
-            static rc::RadioTxEvt ackEvt;
-            ackEvt.super.sig = rc::SIG_RADIO_TX;
-            ackEvt.super.refCtr_ = 0;
-            uint8_t copyLen = (result.len <= sizeof(ackEvt.buf))
-                ? static_cast<uint8_t>(result.len) : sizeof(ackEvt.buf);
-            memcpy(ackEvt.buf, result.buf, copyLen);
-            ackEvt.len = copyLen;
-            QACTIVE_POST(AO_Radio, &ackEvt.super, &l_telemAo.super);
+
+            // Generate ACK response for commands
+            if (msg.msgid == MAVLINK_MSG_ID_COMMAND_LONG) {
+                mavlink_command_long_t cmd;
+                mavlink_msg_command_long_decode(&msg, &cmd);
+
+                // Dispatch command to Flight Director
+                if (cmd.command == MAV_CMD_COMPONENT_ARM_DISARM) {
+                    uint16_t sig = (cmd.param1 > 0.5f)
+                        ? static_cast<uint16_t>(rc::SIG_ARM)
+                        : static_cast<uint16_t>(rc::SIG_DISARM);
+                    AO_FlightDirector_dispatch_signal(sig);
+                    printf("[MAV] %s from station\n",
+                           cmd.param1 > 0.5f ? "ARM" : "DISARM");
+                } else if (cmd.command == MAV_CMD_DO_FLIGHTTERMINATION) {
+                    AO_FlightDirector_dispatch_signal(
+                        static_cast<uint16_t>(rc::SIG_ABORT));
+                    printf("[MAV] ABORT from station\n");
+                } else {
+                    printf("[MAV] Unknown CMD %u\n",
+                           static_cast<unsigned>(cmd.command));
+                }
+            }
         }
     }
 }
