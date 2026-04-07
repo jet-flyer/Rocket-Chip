@@ -333,6 +333,36 @@ const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
     return &l_telemAo.rx_snapshot;
 }
 
+// IVP-62c: encode + send MAVLink COMMAND_LONG over LoRa
+void AO_Telemetry_send_command(uint16_t command, float p1, float p2,
+                               float p3, float p4, float p5,
+                               float p6, float p7) {
+#ifndef ROCKETCHIP_HOST_TEST
+    mavlink_message_t msg;
+    mavlink_msg_command_long_pack(
+        255, 0,  // GCS sysid=255, compid=0
+        &msg,
+        1, 1,    // Target sysid=1, compid=1 (vehicle)
+        command,
+        0,       // Confirmation
+        p1, p2, p3, p4, p5, p6, p7);
+
+    uint8_t buf[MAVLINK_MAX_PACKET_LEN];
+    uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
+
+    static rc::RadioTxEvt txEvt;
+    txEvt.super.sig = rc::SIG_RADIO_TX;
+    txEvt.super.refCtr_ = 0;
+    if (len <= sizeof(txEvt.buf)) {
+        memcpy(txEvt.buf, buf, len);
+        txEvt.len = static_cast<uint8_t>(len);
+        QACTIVE_POST(AO_Radio, &txEvt.super, &l_telemAo.super);
+    }
+#else
+    (void)command; (void)p1; (void)p2; (void)p3; (void)p4; (void)p5; (void)p6; (void)p7;
+#endif
+}
+
 // IVP-62b: feed USB input byte to MAVLink RX parser
 void AO_Telemetry_feed_usb_byte(uint8_t byte) {
 #ifndef ROCKETCHIP_HOST_TEST

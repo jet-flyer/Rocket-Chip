@@ -42,4 +42,9 @@ void AO_Telemetry_notify_gcs_heartbeat();
 // IVP-62b: feed USB input byte to MAVLink RX parser (called from rc_os.cpp)
 void AO_Telemetry_feed_usb_byte(uint8_t byte);
 
+// IVP-62c: send MAVLink COMMAND_LONG to vehicle over LoRa (station only)
+void AO_Telemetry_send_command(uint16_t command, float p1 = 0, float p2 = 0,
+                               float p3 = 0, float p4 = 0, float p5 = 0,
+                               float p6 = 0, float p7 = 0);
+
 #endif // ROCKETCHIP_AO_TELEMETRY_H
