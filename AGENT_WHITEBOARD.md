@@ -15,7 +15,7 @@
 
 ## Open Flags
 
-### Stage 7 (Radio & Telemetry) — IVP-57–61 Complete, IVP-62 Deferred
+### Stage 7 (Radio & Telemetry) — IVP-57–61 Complete, IVP-62a–b Done, 62c–d + 64 + 65 Pending HW
 
 **Updated 2026-03-08.** IVP-57 through IVP-61 complete. Full telemetry pipeline working: CCSDS over LoRa → station MAVLink re-encode → QGC High Latency mode with live data. IVP-62 (bidirectional MAVLink commands) fully implemented but deferred — QGC direct USB connection unstable due to USB CDC buffer timing (heartbeat lost in buffer dump on connect). Work preserved on `ivp62-wip` branch (mavlink_rx handler, flight_state.h, 14 host tests, param/command/mission dispatch).
 
