@@ -10,6 +10,8 @@
 #include "flash_flush.h"
 #include "crc32.h"
 #include "rocketchip/pcm_frame.h"
+#include "ao_flight_director.h"
+#include "flight_director/flight_director.h"  // Full FlightDirector for profile name
 
 #include "pico/flash.h"
 #include "hardware/flash.h"
@@ -224,9 +226,11 @@ bool flight_log_erase_all(const FlightTableState* table, void (*kick_watchdog)()
 // Ring → Flash flush engine
 // ============================================================================
 
-// Write ring buffer frames to flash, one sector at a time
+// Write ring buffer frames to flash, one sector at a time.
+// If header is non-null, it is written at the start of the first sector.
 static FlushResult flush_sectors(const RingBuffer* rb, uint32_t stored,
                                  uint32_t start_sector, uint32_t sectors_needed,
+                                 const FlightLogHeader* header,
                                  void (*kick_watchdog)()) {
     static uint8_t g_sectorBuf[FLASH_SECTOR_SIZE] __attribute__((aligned(4)));
     uint32_t frame_idx = 0;
@@ -235,6 +239,12 @@ static FlushResult flush_sectors(const RingBuffer* rb, uint32_t stored,
     for (uint32_t s = 0; s < sectors_needed; ++s) {
         memset(g_sectorBuf, 0xFF, sizeof(g_sectorBuf));
         uint32_t buf_pos = 0;
+
+        // Write flight log header at the start of the first sector
+        if (s == 0 && header != nullptr) {
+            memcpy(g_sectorBuf, header, sizeof(FlightLogHeader));
+            buf_pos = kFlightLogHeaderSize;
+        }
 
         while (frame_idx < stored && buf_pos + frame_size <= kFlashSectorSize) {
             if (!ring_read_sequential(rb, frame_idx, g_sectorBuf + buf_pos)) {
@@ -307,19 +317,33 @@ FlushResult flush_ring_to_flash(RingBuffer* rb,
     }
 
     uint32_t frame_size = rb->frame_size;
+    // First sector loses kFlightLogHeaderSize bytes to the metadata header
+    uint32_t frames_first_sector = (kFlashSectorSize - kFlightLogHeaderSize) / frame_size;
     uint32_t frames_per_sector = kFlashSectorSize / frame_size;
-    uint32_t sectors_needed = (stored + frames_per_sector - 1) / frames_per_sector;
+    uint32_t remaining = (stored > frames_first_sector)
+        ? stored - frames_first_sector : 0;
+    uint32_t sectors_needed = 1 + (remaining > 0
+        ? (remaining + frames_per_sector - 1) / frames_per_sector : 0);
 
     uint32_t start_sector = flight_table_next_free_sector(table);
     if (start_sector + sectors_needed > kFlightLogEnd / kFlashSectorSize) {
         return FlushResult::kFlashFull;
     }
 
+    // Build flight log metadata header [C-A3]
+    FlightLogHeader header;
+    const char* prof_name = nullptr;
+    const rc::FlightDirector* fd = AO_FlightDirector_get_director();
+    if (fd != nullptr && fd->profile != nullptr) {
+        prof_name = fd->profile->name;
+    }
+    flight_log_header_fill(header, kPcmFrameTypeStandard, log_rate_hz, prof_name);
+
     // Council req. #1: flush dirty PSRAM cache lines before reading
     xip_cache_clean_all();
 
     FlushResult result = flush_sectors(rb, stored, start_sector, sectors_needed,
-                                       kick_watchdog);
+                                       &header, kick_watchdog);
     if (result != FlushResult::kOk) {
         return result;
     }

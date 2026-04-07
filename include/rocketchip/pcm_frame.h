@@ -155,6 +155,36 @@ bool pcm_decode_standard(const PcmFrameStandard& frame, TelemetryState& telem);
  */
 bool pcm_find_sync(const uint8_t* data, uint32_t len, uint32_t& offset);
 
+// ============================================================================
+// Flight Log Header — written once at the start of each flight's flash region
+//
+// Fixed 64-byte struct with magic number and version for forward
+// compatibility. Decoders check magic + version before parsing.
+// [Council C-A3]
+// ============================================================================
+
+static constexpr uint32_t kFlightLogHeaderMagic   = 0x52434C47U;  // "RCLG"
+static constexpr uint8_t  kFlightLogHeaderVersion  = 1;
+static constexpr uint32_t kFlightLogHeaderSize     = 64;
+
+struct __attribute__((packed)) FlightLogHeader {
+    uint32_t magic;              // 0x52434C47 "RCLG"
+    uint8_t  header_version;     // Header format version (1)
+    uint8_t  frame_type;         // PCM frame type used in this log
+    uint8_t  log_rate_hz;        // Logging rate
+    uint8_t  cal_flags;          // Calibration status: bit0=gyro, bit1=accel, bit2=baro, bit3=mag
+    char     firmware_version[8]; // e.g. "0.2.0\0"
+    char     build_tag[16];      // e.g. "ivp74-profile-1"
+    char     board_name[16];     // e.g. "Feather RP2350"
+    char     profile_name[16];   // Mission profile name
+};
+static_assert(sizeof(FlightLogHeader) == kFlightLogHeaderSize,
+              "FlightLogHeader must be 64 bytes");
+
+/// Populate a FlightLogHeader with current firmware/board/profile info
+void flight_log_header_fill(FlightLogHeader& hdr, uint8_t frame_type,
+                            uint8_t log_rate_hz, const char* profile_name);
+
 } // namespace rc
 
 #endif // ROCKETCHIP_PCM_FRAME_H
