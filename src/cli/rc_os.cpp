@@ -76,14 +76,6 @@ static constexpr uint32_t kEskfLivePeriodUs = 1000000;  // 1Hz
 // Menu Printing
 // ============================================================================
 
-static void print_banner() {
-    printf("\n");
-    printf("========================================\n");
-    printf("  RocketChip OS v%s\n", kRcOsVersion);
-    printf("  Press 'h' for help\n");
-    printf("========================================\n\n");
-}
-
 // Menu prompt — shows current context after each command
 static void print_prompt() {
     switch (g_menu) {
@@ -94,19 +86,18 @@ static void print_prompt() {
     }
 }
 
-static void print_system_status() {
-    printf("\n========================================\n");
-    printf("  RocketChip System Status\n");
-    printf("========================================\n");
-    printf("  Version: %s\n", kVersionString);
-    printf("  Board: %s\n", board::kBoardName);
-    printf("  Profile: %s\n", rc::kDefaultRocketProfile.name);
-    printf("  Uptime: %lu ms\n", (unsigned long)to_ms_since_boot(get_absolute_time()));
+static void print_help_menu() {
+    printf("h-Help  s-Status  e-ESKF  b-Boot Log\n");
+    printf("c-Calibration  f-Flight Director\n");
+    printf("g-Flights  d-Download  l-Flush  x-Erase\n");
+    printf("t-Radio  r-Rate  m-MAVLink  i-I2C\n");
+}
 
-    // Calibration status
+static void print_calibration_menu() {
     const calibration_store_t* cal = calibration_manager_get();
+    printf("\n========================================\n");
+    printf("  Calibration Menu\n");
     printf("----------------------------------------\n");
-    printf("Calibration:\n");
     printf("  Gyro:  %s\n", (cal->cal_flags & CAL_STATUS_GYRO) != 0 ? "OK" : "--");
     if ((cal->cal_flags & CAL_STATUS_ACCEL_6POS) != 0) {
         printf("  Accel: 6POS\n");
@@ -117,19 +108,7 @@ static void print_system_status() {
     }
     printf("  Baro:  %s\n", (cal->cal_flags & CAL_STATUS_BARO) != 0 ? "OK" : "--");
     printf("  Mag:   %s\n", (cal->cal_flags & CAL_STATUS_MAG) != 0 ? "OK" : "--");
-
     printf("----------------------------------------\n");
-    printf("Status:  h-Help  s-Sensor  e-ESKF  b-Boot\n");
-    printf("Menus:   c-Calibration  f-Flight Director\n");
-    printf("Data:    g-Flights  d-Download  l-Flush  x-Erase\n");
-    printf("Radio:   t-Status  r-Rate  m-MAVLink  i-I2C\n");
-    printf("========================================\n");
-}
-
-static void print_calibration_menu() {
-    printf("\n========================================\n");
-    printf("  Calibration Menu\n");
-    printf("========================================\n");
     printf("  g-Gyro (keep still)   l-Level (keep flat)\n");
     printf("  b-Baro (ground ref)   a-Accel 6-position\n");
     printf("  m-Compass             w-Full wizard\n");
@@ -162,7 +141,8 @@ static bool handle_main_menu(int c) {
         case 'h':
         case 'H':
         case '?':
-            print_system_status();
+            printf("\n--- Help ---\n");
+            print_help_menu();
             break;
 
         case 's':
@@ -392,18 +372,17 @@ bool rc_os_update() {
             // Discard
         }
 
-        // Print full boot status on first-ever connect
+        // Print compact boot summary + help menu
+        cli_print_boot_summary();
+
         if (!g_bannerPrinted) {
-            cli_print_boot_status();
+            // First connect: show help menu
+            printf("\n");
+            print_help_menu();
+            g_bannerPrinted = true;
         }
 
-        // Print CLI banner
-        print_banner();
-        g_bannerPrinted = true;
-
-        // Show initial status
         g_menu = RC_OS_MENU_MAIN;
-        print_system_status();
         print_prompt();
     }
 

@@ -16,10 +16,13 @@ void cli_print_sensor_status();
 /// Station RX telemetry display (station mode 's' key)
 void cli_print_station_status();
 
-/// Hardware status summary ('b' key reprint)
+/// Compact boot summary (auto-printed on connect)
+void cli_print_boot_summary();
+
+/// Full hardware init detail ('b' Boot Log key)
 void cli_print_hw_status();
 
-/// Full boot banner (first terminal connection)
+/// Full boot output (summary + HW detail, first connect only)
 void cli_print_boot_status();
 
 /// Compact ESKF live output (1Hz, 'e' key)

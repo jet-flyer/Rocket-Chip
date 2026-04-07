@@ -656,29 +656,86 @@ void cli_print_hw_status() {
 // Watchdog timeout constant — must match main.cpp
 static constexpr uint32_t kWatchdogTimeoutMs = 5000;
 
-void cli_print_boot_status() {
+// Count HW init pass/fail for boot summary
+static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
+    pass = 0;
+    fail = 0;
+    auto check = [&](bool ok) { if (ok) { ++pass; } else { ++fail; } };
+    check(true);                                    // Build + boot
+    check(true);                                    // Red LED GPIO
+    check(g_neopixelInitialized);                   // NeoPixel
+    check(true);                                    // USB CDC
+    check(time_us_32() > 0);                        // Debug macros
+    check(g_i2cInitialized);                        // I2C bus
+    check(g_imuInitialized);                        // ICM-20948
+    check(g_imuInitialized);                        // AK09916 (same init)
+    check(g_baroInitialized);                       // DPS310
+    check(g_gpsInitialized);                        // GPS
+    check(AO_Radio_get_state()->initialized);       // Radio
+    check(true);                                    // PSRAM
+    check(true);                                    // Logging
+    check(true);                                    // Flash
+}
+
+// Print specific FAIL items
+static void print_hw_failures() {
+    if (!g_neopixelInitialized) { printf("  [FAIL] NeoPixel\n"); }
+    if (!g_i2cInitialized)      { printf("  [FAIL] I2C bus\n"); }
+    if (!g_imuInitialized)      { printf("  [FAIL] ICM-20948 IMU\n"); }
+    if (!g_baroInitialized)     { printf("  [FAIL] DPS310 barometer\n"); }
+    if (!g_gpsInitialized)      { printf("  [FAIL] GPS\n"); }
+    if (!AO_Radio_get_state()->initialized && g_spiInitialized) {
+        printf("  [FAIL] Radio\n");
+    }
+}
+
+// Compact boot summary — auto-printed on terminal connect.
+void cli_print_boot_summary() {
+    uint8_t pass = 0;
+    uint8_t fail = 0;
+    count_hw_checks(pass, fail);
+    uint8_t total = pass + fail;
+
     printf("\n");
     printf("==============================================\n");
-    printf("  RocketChip v%s  Build: ivp74-profile-1\n", kVersionString);
+    printf("  RocketChip v%s  Build: %s\n", kVersionString, kBuildTag);
     printf("  Board: %s\n", board::kBoardName);
-    printf("  Profile: %s\n", rc::kDefaultRocketProfile.name);
-    printf("==============================================\n\n");
+    printf("  Profile: %s  Uptime: %lus\n",
+           rc::kDefaultRocketProfile.name,
+           (unsigned long)(to_ms_since_boot(get_absolute_time()) / 1000));
+    printf("==============================================\n");
 
     if (g_watchdogReboot) {
-        printf("[WARN] *** PREVIOUS REBOOT WAS CAUSED BY WATCHDOG RESET ***\n");
+        printf("[WARN] WATCHDOG REBOOT");
         if (g_recovery.boot_state.valid) {
-            printf("[WARN] Reboot #%u, last tick: %u, flight phase: %u\n",
-                   static_cast<unsigned>(g_recovery.boot_state.reboot_count),
-                   static_cast<unsigned>(g_recovery.boot_state.last_tick_fn),
-                   static_cast<unsigned>(g_recovery.boot_state.flight_phase));
+            printf(" (#%u)", static_cast<unsigned>(g_recovery.boot_state.reboot_count));
         }
-        if (g_recovery.launch_abort) {
-            printf("[WARN] *** LAUNCH_ABORT: too many rapid reboots (safe mode) ***\n");
-        }
-        printf("[INFO] Re-enabling watchdog (%lu ms)\n\n",
-               (unsigned long)kWatchdogTimeoutMs);
+        if (g_recovery.launch_abort) { printf(" SAFE MODE"); }
+        printf("\n");
     }
 
+    if (fail == 0) {
+        printf("Hardware: %u/%u OK\n", pass, total);
+    } else {
+        printf("Hardware: %u/%u OK (%u FAIL)\n", pass, total, fail);
+        print_hw_failures();
+    }
+
+    // Flash summary
+    rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
+    if (ft != nullptr && ft->loaded) {
+        uint32_t count = rc::flight_table_count(ft);
+        uint32_t used_sectors = ft->table.next_free_sector - rc::kFlightLogStart / rc::kFlashSectorSize;
+        uint32_t pct = (used_sectors * 100) / rc::kFlightLogSectors;
+        printf("Flash: %lu flights, %lu%% used\n",
+               (unsigned long)count, (unsigned long)pct);
+    }
+}
+
+// Full boot status — called by cli_print_boot_status() and 'b' key
+void cli_print_boot_status() {
+    cli_print_boot_summary();
+    printf("\n");
     cli_print_hw_status();
 }
 
