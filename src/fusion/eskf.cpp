@@ -896,6 +896,91 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
 }
 
 // ============================================================================
+// update_mag_3axis: Full 3D magnetometer fusion (Stage 3D, IVP-99)
+//
+// Measurement model:
+//   z_observed = magBody (calibrated, body frame)
+//   z_predicted = R(q) * earth_mag + body_mag_bias (body frame)
+//   innovation = magBody - z_predicted (per axis)
+//
+// Sequential scalar updates: 3 for earth_mag NED (rotated to body),
+// then 3 for body_mag_bias. Same pattern as GPS position/velocity.
+// ============================================================================
+// Sequential 3-axis scalar updates for mag states.
+// Returns max NIS across all accepted axes.
+float ESKF::fuse_mag_axes(const float innov[3], float R_per_axis) {
+    float maxNis = 0.0f;
+    // Earth mag states [15-17]
+    for (int32_t axis = 0; axis < 3; ++axis) {
+        const int32_t hIdx = eskf::kIdxEarthMag + axis;
+        const float s = P(hIdx, hIdx) + R_per_axis;
+        if (s < kMinInnovationVariance) { continue; }
+        if (fabsf(innov[axis]) > 5.0f * sqrtf(s)) { continue; }
+        const float nis = (innov[axis] * innov[axis]) / s;
+        if (nis > maxNis) { maxNis = nis; }
+#ifdef ESKF_USE_BIERMAN
+        bierman_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+#else
+        scalar_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+#endif
+    }
+    // Body mag bias states [18-20]
+    for (int32_t axis = 0; axis < 3; ++axis) {
+        const int32_t hIdx = eskf::kIdxBodyMagBias + axis;
+        const float s = P(hIdx, hIdx) + R_per_axis;
+        if (s < kMinInnovationVariance) { continue; }
+        if (fabsf(innov[axis]) > 5.0f * sqrtf(s)) { continue; }
+#ifdef ESKF_USE_BIERMAN
+        bierman_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+#else
+        scalar_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+#endif
+    }
+    return maxNis;
+}
+
+// Magnitude pre-check: reject if measured |B| deviates >25% from expected
+static bool mag_magnitude_ok(const Vec3& magBody, const Vec3& earthFieldNed) {
+    const float expectedMag = earthFieldNed.norm();
+    if (expectedMag < 1.0f) { return true; }  // No expected field to compare
+    const float ratio = magBody.norm() / expectedMag;
+    return (ratio >= 0.75f && ratio <= 1.25f);
+}
+
+bool ESKF::update_mag_3axis(const Vec3& magBody, const Vec3& earthFieldNed,
+                            float R_per_axis) {
+    if (inhibit_mag_states_) { return false; }
+    if (!std::isfinite(magBody.x) || !std::isfinite(magBody.y) ||
+        !std::isfinite(magBody.z)) { return false; }
+
+    if (!mag_magnitude_ok(magBody, earthFieldNed)) {
+        ++mag_consecutive_rejects_;
+        ++mag_total_rejects_;
+        return false;
+    }
+
+    // Predicted body-frame mag: R(q) * earth_mag + body_mag_bias
+    const Vec3 magPredBody = q.rotate(earth_mag) + body_mag_bias;
+
+    // Innovation in body frame (measured - predicted)
+    const float innov[3] = {
+        magBody.x - magPredBody.x,
+        magBody.y - magPredBody.y,
+        magBody.z - magPredBody.z
+    };
+
+    // Fuse 3 earth_mag + 3 body_mag_bias via sequential scalar updates
+    last_mag_nis_ = fuse_mag_axes(innov, R_per_axis);
+    mag_consecutive_rejects_ = 0;
+    ++mag_total_accepts_;
+
+#ifndef ESKF_USE_BIERMAN
+    clamp_covariance();
+#endif
+    return true;
+}
+
+// ============================================================================
 // reset_mag_heading: Force-reset yaw after sustained rejection.
 // ArduPilot alignYawAngle() / PX4 resetMagHeading() pattern.
 // Zeroes yaw cross-covariances to prevent stale correlations from

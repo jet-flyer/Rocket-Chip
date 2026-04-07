@@ -126,6 +126,10 @@ struct ESKF {
     // DPS310 temperature coefficient: ±0.5 Pa/K → ~0.04 m/K.
     static constexpr float kSigmaBaroBiasWalk = 0.01f;  // m/s
 
+    // 3-axis mag measurement noise per axis (µT²).
+    // AK09916 datasheet: 0.6 µT RMS → R = 0.6² = 0.36 µT².
+    static constexpr float kRMag3dPerAxis = 0.36f;
+
     // =================================================================
     // P initialization — Solà (2017) typical values + ICM-20948 ZRO specs
     // =================================================================
@@ -373,6 +377,13 @@ struct ESKF {
     bool update_mag_heading(const Vec3& magBody, float expectedMagnitude,
                             float declinationRad = 0.0f);
 
+    // 3-axis magnetometer fusion (Stage 3D, IVP-99).
+    // Sequential scalar updates on earth_mag[15-17] and body_mag_bias[18-20].
+    // Requires mag states un-inhibited. earthFieldNed from WMM tables.
+    // R_per_axis: measurement noise per axis in µT² (AK09916: 0.36).
+    bool update_mag_3axis(const Vec3& magBody, const Vec3& earthFieldNed,
+                          float R_per_axis = kRMag3dPerAxis);
+
     // Force-reset yaw to measured heading.
     // Resets q yaw, P[yaw,yaw] = kInitPAttitude, zeros yaw cross-covariances.
     // Navigation states may briefly wobble; settles in 2-3s with GPS.
@@ -524,6 +535,9 @@ private:
     // Clamp sub-functions (decomposed for readability-function-cognitive-complexity)
     void clamp_core_covariance();
     void clamp_extended_covariance();
+
+    // Sequential scalar updates for 3-axis mag fusion (IVP-99 helper)
+    float fuse_mag_axes(const float innov[3], float R_per_axis);
 
     // Common propagation logic shared by predict() and predict_dense().
     void propagate_nominal(const Vec3& accelMeas, const Vec3& gyroMeas,
