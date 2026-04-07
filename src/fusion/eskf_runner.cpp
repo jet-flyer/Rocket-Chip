@@ -251,8 +251,16 @@ static void eskf_tick_baro(const shared_sensor_data_t& snap) {
     }
 }
 
-// WMM field state — initialized once from GPS or default location
-static bool g_wmmFieldValid = false;
+// WMM field source — tracks how the position was obtained
+enum class WmmSource : uint8_t {
+    kNone    = 0,  // Not yet initialized
+    kDefault = 1,  // Mission Profile DEFAULT_LAT/LON
+    kStored  = 2,  // Loaded from cal storage (previous GPS fix)
+    kGps     = 3,  // Live GPS 3D fix (most accurate)
+};
+
+// WMM field state
+static WmmSource g_wmmSource = WmmSource::kNone;
 static rc::Vec3 g_wmmFieldNed;   // Earth field NED from WMM (µT)
 static float g_wmmLatDeg = 0.0f;
 static float g_wmmLonDeg = 0.0f;
@@ -260,12 +268,21 @@ static float g_wmmLonDeg = 0.0f;
 // Auto-enable 3-axis mag: requires cal + WMM field
 static bool g_mag3dEnabled = false;
 
-// Initialize WMM field from a position (GPS or default)
-static void init_wmm_field(float latDeg, float lonDeg) {
+// Initialize WMM field from a position (GPS, stored, or default)
+static void init_wmm_field(float latDeg, float lonDeg, WmmSource source) {
     g_wmmFieldNed = rc::wmm_get_earth_field_ned(latDeg, lonDeg);
     g_wmmLatDeg = latDeg;
     g_wmmLonDeg = lonDeg;
-    g_wmmFieldValid = true;
+    g_wmmSource = source;
+}
+
+// Persist WMM position to cal storage (survives reboot)
+static void save_wmm_position(float latDeg, float lonDeg) {
+    calibration_store_t* cal =
+        const_cast<calibration_store_t*>(calibration_manager_get());
+    cal->wmm_lat_deg = latDeg;
+    cal->wmm_lon_deg = lonDeg;
+    calibration_save();
 }
 
 // Try to auto-enable 3-axis mag states
@@ -275,17 +292,21 @@ static void try_enable_mag_3axis(const shared_sensor_data_t& snap) {
     const calibration_store_t* cal = calibration_manager_get();
     if ((cal->cal_flags & CAL_STATUS_MAG) == 0) { return; }
 
-    // Get WMM field: prefer GPS 3D fix, else use profile default
-    if (!g_wmmFieldValid) {
+    // WMM position priority: GPS 3D fix → stored cal → profile default
+    if (g_wmmSource == WmmSource::kNone) {
         if (snap.gps_valid && snap.gps_fix_type >= 3) {
             float lat = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
             float lon = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
-            init_wmm_field(lat, lon);
+            init_wmm_field(lat, lon, WmmSource::kGps);
+            save_wmm_position(lat, lon);
+        } else if (cal->wmm_lat_deg != 0.0f || cal->wmm_lon_deg != 0.0f) {
+            init_wmm_field(cal->wmm_lat_deg, cal->wmm_lon_deg, WmmSource::kStored);
         } else if (g_profile->default_lat_deg != 0.0f ||
                    g_profile->default_lon_deg != 0.0f) {
-            init_wmm_field(g_profile->default_lat_deg, g_profile->default_lon_deg);
+            init_wmm_field(g_profile->default_lat_deg, g_profile->default_lon_deg,
+                           WmmSource::kDefault);
         } else {
-            return;  // No position available
+            return;
         }
     }
 
@@ -305,11 +326,12 @@ static void eskf_tick_mag(const shared_sensor_data_t& snap) {
 
     rc::Vec3 magBody = sensor_to_ned_mag(snap);
 
-    // Update WMM position on first GPS 3D fix (even if 3-axis already enabled)
-    if (snap.gps_valid && snap.gps_fix_type >= 3 && !g_wmmFieldValid) {
+    // Upgrade WMM source to GPS on first 3D fix (even if already using stored/default)
+    if (snap.gps_valid && snap.gps_fix_type >= 3 && g_wmmSource != WmmSource::kGps) {
         float lat = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
         float lon = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
-        init_wmm_field(lat, lon);
+        init_wmm_field(lat, lon, WmmSource::kGps);
+        save_wmm_position(lat, lon);
     }
 
     // Try to enable 3-axis mag if not already
@@ -614,10 +636,14 @@ bool eskf_runner_mag_3d_active() {
 }
 
 bool eskf_runner_get_wmm_position(float* lat_deg, float* lon_deg) {
-    if (!g_wmmFieldValid) { return false; }
+    if (g_wmmSource == WmmSource::kNone) { return false; }
     if (lat_deg != nullptr) { *lat_deg = g_wmmLatDeg; }
     if (lon_deg != nullptr) { *lon_deg = g_wmmLonDeg; }
     return true;
+}
+
+uint8_t eskf_runner_get_wmm_source() {
+    return static_cast<uint8_t>(g_wmmSource);
 }
 
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,

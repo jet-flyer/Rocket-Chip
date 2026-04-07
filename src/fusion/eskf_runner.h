@@ -112,4 +112,7 @@ bool eskf_runner_mag_3d_active();
 /// Returns false if WMM field not yet initialized.
 bool eskf_runner_get_wmm_position(float* lat_deg, float* lon_deg);
 
+/// WMM position source: 0=none, 1=default, 2=stored, 3=GPS
+uint8_t eskf_runner_get_wmm_source();
+
 #endif // ROCKETCHIP_FUSION_ESKF_RUNNER_H

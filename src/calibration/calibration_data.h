@@ -19,7 +19,7 @@
 // ============================================================================
 
 constexpr uint32_t kCalibrationMagic   = 0x52434341;  // "RCCA" - RocketChip Calibration
-constexpr uint16_t kCalibrationVersion = 3;
+constexpr uint16_t kCalibrationVersion = 4;  // v4: added WMM position
 
 // ============================================================================
 // Calibration Status Flags
@@ -155,7 +155,10 @@ typedef struct {
     // Board orientation (set via config, applied after sensor cal)
     board_rotation_t board_rotation;  // 36 bytes
 
-    uint8_t reserved[8];
+    // WMM geomagnetic field position (v4) — persisted for no-GPS boots.
+    // Field vector recomputed from tables at boot — only position stored.
+    float wmm_lat_deg;               // Latitude of last WMM lookup (0 = not set)
+    float wmm_lon_deg;               // Longitude of last WMM lookup
 } calibration_store_t;
 
 // Verify size fits in a flash page

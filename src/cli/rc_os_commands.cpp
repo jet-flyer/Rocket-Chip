@@ -434,8 +434,11 @@ void cli_print_sensor_status() {
     float wmmLon = 0.0f;
     bool wmmValid = eskf_runner_get_wmm_position(&wmmLat, &wmmLon);
     if (wmmValid) {
+        static constexpr const char* kWmmSrc[] = {"?", "default", "stored", "GPS"};
+        uint8_t src = eskf_runner_get_wmm_source();
         rc::WmmField field = rc::wmm_get_field(wmmLat, wmmLon);
-        printf("WMM: %.1f%c %.1f%c  D=%.1f%c I=%.1f%c F=%.1fuT\n",
+        printf("WMM(%s): %.1f%c %.1f%c  D=%.1f%c I=%.1f%c F=%.1fuT\n",
+               kWmmSrc[src < 4 ? src : 0],
                fabsf(wmmLat), wmmLat >= 0 ? 'N' : 'S',
                fabsf(wmmLon), wmmLon >= 0 ? 'E' : 'W',
                fabsf(field.declination_rad * 180.0f / 3.14159265f),
