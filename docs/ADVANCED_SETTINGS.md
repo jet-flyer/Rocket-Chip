@@ -69,7 +69,9 @@ Runtime-accessible settings via a future advanced menu key.
 
 | Item | Description | Dependency |
 |------|-------------|------------|
-| WMM table OTA update | Download WMM.COF via WiFi, regenerate tables on device | ESP32-C6 (Stage 12B) |
+| WMM table OTA update | Download WMM.COF via WiFi, regenerate tables (every 5 years) | ESP32-C6 (Stage 12B) |
+| WMM distance-triggered refresh | Re-lookup WMM field when GPS moves >50km from last lookup. Off by default — GPS errors could corrupt field. Opt-in via profile flag. HAB/drone only. | HAB/drone profiles |
+| Station GPS position push | FJ station sends GPS position to GPS-less vehicle (advanced command). Vehicle does WMM lookup + stores + sets ESKF origin. | Stage 3D (IVP-103) |
 | Mag fusion mode toggle | Force heading-only vs 3D auto vs disabled | Stage 3D |
 | ESKF state inspector | Full 24-state vector + P diagonals display | Developer tool |
 | Debug log verbosity | Runtime DBG_PRINT level control | Currently compile-time DEBUG flag |
