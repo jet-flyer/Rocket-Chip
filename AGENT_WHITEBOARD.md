@@ -15,7 +15,14 @@
 
 ## Open Flags
 
-### Stage 7 (Radio & Telemetry) — IVP-57–61 Complete, 62a–b + 64 + 65 Done, 62c–d Pending HW Test
+### Stage 7 (Radio & Telemetry) — IVP-57–65 In Progress
+
+**Updated 2026-04-07.** IVP-62a (GCS state machine), 62b (MAVLink RX parser), 64 (RadioConfig wiring), 65 (native MAVLink TX) complete. IVP-62c (station command menu) infrastructure working — station sends MAVLink COMMAND_LONG over LoRa, vehicle receives packet (rx_count increments, CRC passes). Two bugs blocking full command dispatch:
+
+1. **MAVLink parser not completing frame:** Vehicle's `try_mavlink_rx()` feeds received bytes to parser but `mavlink_rx_feed_byte()` doesn't produce a parsed message. Parser buffer shows valid 0xFD start byte at correct offset. Needs debug trace to find why frame isn't completing.
+2. **Half-duplex RX window timing:** Vehicle only catches station commands ~50% of the time (depends on whether station TX aligns with vehicle's RX window between its own TX slots). Fix: retry-until-ACK with MAVLink confirmation field (standard pattern, QGC does 3 retries at 1s).
+
+IVP-62d (QGC direct USB validation) pending — needs parser fix first.
 
 **Updated 2026-03-08.** IVP-57 through IVP-61 complete. Full telemetry pipeline working: CCSDS over LoRa → station MAVLink re-encode → QGC High Latency mode with live data. IVP-62 (bidirectional MAVLink commands) fully implemented but deferred — QGC direct USB connection unstable due to USB CDC buffer timing (heartbeat lost in buffer dump on connect). Work preserved on `ivp62-wip` branch (mavlink_rx handler, flight_state.h, 14 host tests, param/command/mission dispatch).
 
