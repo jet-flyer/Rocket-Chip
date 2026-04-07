@@ -105,9 +105,9 @@ TEST(WMMDeclination, ReturnsRadians) {
 
 TEST(WMMDeclination, ExactGridPoint) {
     // At an exact grid point, interpolation should return that point's value
-    // Grid point: lat=0 (row 9), lon=0 (col 18) = -4.15177°
+    // Grid point: lat=0 (row 9), lon=0 (col 18) — WMM2025: -3.713°
     float d = decl_deg(0.0f, 0.0f);
-    EXPECT_NEAR(d, -4.15177f, 0.01f);
+    EXPECT_NEAR(d, -3.713f, 0.01f);
 }
 
 TEST(WMMDeclination, LatClampSouth) {
@@ -124,14 +124,16 @@ TEST(WMMDeclination, LatClampNorth) {
     EXPECT_FLOAT_EQ(d1, d2);
 }
 
-TEST(WMMDeclination, LonClampWest) {
-    float d1 = rc::wmm_get_declination(0.0f, -180.0f);
+TEST(WMMDeclination, LonWrapWest) {
+    // -200 wraps to +160 (not clamped to -180)
+    float d1 = rc::wmm_get_declination(0.0f, 160.0f);
     float d2 = rc::wmm_get_declination(0.0f, -200.0f);
     EXPECT_FLOAT_EQ(d1, d2);
 }
 
-TEST(WMMDeclination, LonClampEast) {
-    float d1 = rc::wmm_get_declination(0.0f, 180.0f);
+TEST(WMMDeclination, LonWrapEast) {
+    // +200 wraps to -160 (not clamped to +180)
+    float d1 = rc::wmm_get_declination(0.0f, -160.0f);
     float d2 = rc::wmm_get_declination(0.0f, 200.0f);
     EXPECT_FLOAT_EQ(d1, d2);
 }

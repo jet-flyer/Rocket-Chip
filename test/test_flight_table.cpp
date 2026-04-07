@@ -82,8 +82,9 @@ TEST(FlashLayout, NonOverlapping) {
 }
 
 TEST(FlashLayout, SectorCount) {
-    // (0x7FC000 - 0x080000) / 4096 = 1916 sectors (~7.67MB)
-    EXPECT_EQ(rc::kFlightLogSectors, 1916U);
+    // Log region: firmware reserve to flash-safe test sector
+    // (8MB - 20KB - 512KB) / 4096 = 1915 sectors
+    EXPECT_EQ(rc::kFlightLogSectors, 1915U);
 }
 
 TEST(FlashLayout, LogCapacity) {
@@ -270,7 +271,7 @@ TEST(FlightTable, CapacityEmpty) {
     rc::FlightTableState state{};
     rc::flight_table_init(&state);
 
-    EXPECT_EQ(rc::flight_table_capacity_sectors(), 1916U);
+    EXPECT_EQ(rc::flight_table_capacity_sectors(), 1915U);
     EXPECT_EQ(rc::flight_table_used_sectors(&state), 0U);
     EXPECT_FLOAT_EQ(rc::flight_table_used_pct(&state), 0.0F);
 }

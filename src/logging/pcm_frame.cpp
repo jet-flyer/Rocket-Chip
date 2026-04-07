@@ -6,8 +6,10 @@
  */
 
 #include "rocketchip/pcm_frame.h"
+#ifdef PICO_ON_DEVICE
 #include "rocketchip/config.h"    // kVersionString
 #include "rocketchip/board.h"     // board::kBoardName
+#endif
 #include "crc16_ccitt.h"
 #include <cstring>
 
@@ -138,9 +140,10 @@ void pcm_encode_event(uint8_t event_id, const uint8_t data[4],
 }
 
 // ============================================================================
-// Flight log header population
+// Flight log header population (target only — needs config.h and board.h)
 // ============================================================================
 
+#ifdef PICO_ON_DEVICE
 void flight_log_header_fill(FlightLogHeader& hdr, uint8_t frame_type,
                             uint8_t log_rate_hz, const char* profile_name) {
     std::memset(&hdr, 0, sizeof(hdr));
@@ -148,18 +151,13 @@ void flight_log_header_fill(FlightLogHeader& hdr, uint8_t frame_type,
     hdr.header_version = kFlightLogHeaderVersion;
     hdr.frame_type = frame_type;
     hdr.log_rate_hz = log_rate_hz;
+    hdr.cal_flags = 0;
 
-    // Calibration flags: read from calibration manager
-    // bit0=gyro, bit1=accel, bit2=baro, bit3=mag
-    hdr.cal_flags = 0;  // Populated by caller if cal state is available
-
-    // Helper: safe copy into fixed-size field (always null-terminated)
     auto copy_field = [](char* dst, size_t dst_size, const char* src) {
         if (src == nullptr) { return; }
         size_t len = std::strlen(src);
         if (len >= dst_size) { len = dst_size - 1; }
         std::memcpy(dst, src, len);
-        // dst already zeroed by memset above
     };
 
     copy_field(hdr.firmware_version, sizeof(hdr.firmware_version), kVersionString);
@@ -167,5 +165,6 @@ void flight_log_header_fill(FlightLogHeader& hdr, uint8_t frame_type,
     copy_field(hdr.board_name, sizeof(hdr.board_name), board::kBoardName);
     copy_field(hdr.profile_name, sizeof(hdr.profile_name), profile_name);
 }
+#endif
 
 } // namespace rc

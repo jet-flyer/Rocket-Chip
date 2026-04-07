@@ -19,10 +19,20 @@
 #define ROCKETCHIP_FLASH_LAYOUT_H
 
 #include <stdint.h>
-#include "hardware/flash.h"  // FLASH_SECTOR_SIZE
 
+#ifndef PICO_ON_DEVICE
+// Host test / non-device build — provide defaults
+#ifndef FLASH_SECTOR_SIZE
+#define FLASH_SECTOR_SIZE 4096U
+#endif
+#ifndef PICO_FLASH_SIZE_BYTES
+#define PICO_FLASH_SIZE_BYTES (8 * 1024 * 1024)
+#endif
+#else
+#include "hardware/flash.h"  // FLASH_SECTOR_SIZE
 #ifndef PICO_FLASH_SIZE_BYTES
 #error "PICO_FLASH_SIZE_BYTES must be defined (provided by board header)"
+#endif
 #endif
 
 namespace rc {

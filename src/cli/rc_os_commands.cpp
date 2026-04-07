@@ -20,6 +20,7 @@
 #include "core1/sensor_core1.h"
 #include "fusion/eskf.h"
 #include "fusion/eskf_runner.h"
+#include "fusion/wmm_tables.h"
 #include "fusion/confidence_gate.h"
 #include "fusion/mahony_ahrs.h"
 #include "active_objects/ao_logger.h"
@@ -427,6 +428,37 @@ void cli_print_sensor_status() {
     }
 
     print_cal_params();
+
+    // WMM geomagnetic field info
+    float wmmLat = 0.0f;
+    float wmmLon = 0.0f;
+    bool wmmValid = eskf_runner_get_wmm_position(&wmmLat, &wmmLon);
+    if (wmmValid) {
+        rc::WmmField field = rc::wmm_get_field(wmmLat, wmmLon);
+        printf("WMM: %.1f%c %.1f%c  D=%.1f%c I=%.1f%c F=%.1fuT\n",
+               fabsf(wmmLat), wmmLat >= 0 ? 'N' : 'S',
+               fabsf(wmmLon), wmmLon >= 0 ? 'E' : 'W',
+               fabsf(field.declination_rad * 180.0f / 3.14159265f),
+               field.declination_rad >= 0 ? 'E' : 'W',
+               fabsf(field.inclination_rad * 180.0f / 3.14159265f),
+               field.inclination_rad >= 0 ? 'D' : 'U',
+               field.intensity_ut);
+        printf("Mag3D: %s", eskf_runner_mag_3d_active() ? "ON" : "OFF");
+        if (eskf_runner_mag_3d_active()) {
+            const rc::ESKF* eskf = eskf_runner_get_eskf();
+            printf("  eM=[%.1f %.1f %.1f] bB=[%.1f %.1f %.1f]",
+                   static_cast<double>(eskf->earth_mag.x),
+                   static_cast<double>(eskf->earth_mag.y),
+                   static_cast<double>(eskf->earth_mag.z),
+                   static_cast<double>(eskf->body_mag_bias.x),
+                   static_cast<double>(eskf->body_mag_bias.y),
+                   static_cast<double>(eskf->body_mag_bias.z));
+        }
+        printf("\n");
+    } else {
+        printf("WMM: no position (waiting for GPS or default)\n");
+    }
+
     printf("========================================\n\n");
 }
 
