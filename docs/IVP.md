@@ -1885,43 +1885,84 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-### IVP-62: Bidirectional Commands — *preliminary*
+### IVP-62a: GCS Connection State Machine + USB CDC Fix
 
-**Prerequisites:** IVP-61 (GCS link verified)
+**Prerequisites:** IVP-61, Stage 9 AO architecture
 
-**Implement:** Uplink command channel from GCS to flight computer. Commands: calibrate, arm/disarm, parameter get/set. Each command requires an acknowledge packet in response. Partial — reception and ACK/NACK implemented here; full command execution depends on Stage 8 state machine for arm/disarm. Command authentication TBD (simple sequence number or HMAC for production).
+**Implement:** GCS connection state machine in AO_Telemetry. Vehicle sends heartbeat-only until GCS heartbeat received, then ramps to full telemetry. States: kWaitingForGcs → kGcsConnected → kGcsLost (5s timeout). Resolves USB CDC buffer timing issue that blocked original IVP-62 (buffered data dump overwhelmed QGC parser on connect). Council-reviewed 2026-04-07 [JPL-1].
 
 **[GATE]:**
-- Calibrate command received and acknowledged; ACK sent back to GCS
-- Arm command received; ACK sent (execution deferred to Stage 8)
-- Parameter set received; value updated and verified via subsequent parameter get
-- Unrecognized command: NACK sent, no state change
-
-**[DIAG]:** ACK not received = uplink packet lost or GCS not listening on RX. Parameter changes don't persist = not saved to flash after update.
+- QGC connects to vehicle via USB — heartbeat within 3.5s, "Connected" status
+- No "Communication Lost" on first connect
+- Disconnect/reconnect cycle: re-enters heartbeat-only, ramps again on GCS heartbeat
 
 ---
 
-### IVP-63: FSK Continuous Bitstream — *(placeholder — deferred)*
+### IVP-62b: MAVLink RX Parser Integration
+
+**Prerequisites:** IVP-62a
+
+**Implement:** Port `mavlink_rx.cpp/.h` from `ivp62-wip` branch into `src/telemetry/`. Parser is self-contained — zero changes needed. Integration: `AO_Telemetry_feed_usb_byte()` public function called by rc_os.cpp [AP-1]. LoRa RX path feeds MAVLink packets to same parser. SIG_GCS_CMD published to AO_FlightDirector for arm/disarm/abort. Port 14 host tests from branch.
+
+**[GATE]:**
+- 610+ existing tests pass, 14 ported MAVLink RX tests pass
+- QGC param exchange works (15 params returned)
+- ARM command dispatches via SIG_GCS_CMD
+
+---
+
+### IVP-62c: Station Command Menu + GPS Push
+
+**Prerequisites:** IVP-62b, Stage 12A radio link
+
+**Implement:** Advanced RCOS menu on FJ station: ARM/DISARM/ABORT + GPS position push to vehicle over LoRa. GPS push: vehicle does WMM lookup + stores in cal + sets ESKF origin (absorbs Stage 3D IVP-103). Encodes as MAVLink COMMAND_LONG via SIG_RADIO_TX.
+
+**[GATE]:**
+- Station sends ARM command over LoRa, vehicle arms
+- Station sends GPS position, vehicle updates WMM field and ESKF origin
+
+---
+
+### IVP-62d: QGC Direct USB Validation
+
+**Prerequisites:** IVP-62a, IVP-62b
+
+**Implement:** Full QGC integration test with USB CDC fix. Connect, param exchange, command dispatch (ARM/DISARM via QGC buttons), telemetry streaming, disconnect/reconnect.
+
+**[GATE]:**
+- 10-minute QGC direct USB session, zero Communication Lost events
+- Param exchange, command dispatch, telemetry all functional
+
+---
+
+### IVP-63: FSK Continuous Bitstream — *(deferred — Research Mode / Titan tier)*
 
 **Prerequisites:** IVP-57
 
-**Implement:** SX1276 FSK continuous mode for IRIG-heritage PCM telemetry transport. Ground-side software sync detection, bit-slip correction, and frame alignment. Research Mode gated.
+**Implement:** SX1276 FSK continuous mode for IRIG-heritage PCM telemetry transport. Ground-side software sync detection, bit-slip correction, and frame alignment. Research Mode gated. Council unanimous: orthogonal to LoRa, don't mix with RadioScheduler.
 
 ---
 
-### IVP-64: Radio Mode Profiles — *(placeholder — deferred)*
+### IVP-64: Radio Mode Profiles
 
-**Prerequisites:** IVP-59
+**Prerequisites:** IVP-57, Stage 12A RadioConfig
 
-**Implement:** Mission Profile-driven radio configuration: SF7/BW125 default, SF9-12 HAB long range, SF6/BW500 short-range high-rate, FSK packet high-rate. Same hardware, register config changes only.
+**Implement:** Wire RadioConfig `spreading_factor`, `bandwidth_khz`, `coding_rate` fields to RFM95W driver at init. Currently hardcoded SF7/BW125/CR5. RadioConfig already generated from `.cfg` — just needs driver wiring. Both vehicle and station must match (profile-based ensures this) [CS-1].
+
+**[GATE]:**
+- Change SF/BW in .cfg, rebuild both vehicle and station
+- TX↔RX verified at new settings (e.g., SF10/BW125 for HPR long range)
 
 ---
 
-### IVP-65: Native MAVLink TX — *(placeholder — deferred)*
+### IVP-65: Native MAVLink TX — *(verify first)*
 
-**Prerequisites:** IVP-58
+**Prerequisites:** IVP-58, Stage 12A RadioConfig
 
-**Implement:** Transmit MAVLink natively over LoRa for drone profiles or direct QGC connection without translation layer. Mission Profile option — bypasses CCSDS encoding for simplicity on profiles that don't need it.
+**Implement:** AO_Telemetry already has MavlinkEncoder. RadioConfig has `EncoderType::kMavlink`. Verify if selecting `RADIO_PROTOCOL 1` in `.cfg` already produces MAVLink frames over LoRa [P-1]. If working, just needs test gate. If not, wire the protocol selection in AO_Telemetry's encode path.
+
+**[GATE]:**
+- Vehicle TX MAVLink over LoRa, station RX decodes, QGC displays data via FJ bridge
 
 ---
 
@@ -2830,6 +2871,9 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 | — | Simulated Flight Profile | Replay recorded accel/baro through state machine |
 | — | Power Budget Validation | Battery runtime validation under flight load |
 | — | Environmental Stress | Temperature range, vibration (if available) |
+| — | CCSDS SDLS Command Authentication | CCSDS 355.0-B-2 telecommand authentication. ON for Rocket profile, OFF for Passive. Shared key pairing between vehicle and station. |
+| — | PIO Backup Timer Exhaustive Shakedown | Full failure scenario testing of PIO deployment timers |
+| — | USB Download Speed Optimization | Bypass stdio for bulk download, target 200+ KB/s |
 | — | Flight Test | Bungee-launched glider: full data capture + telemetry |
 
 > **Milestone:** Flight Test — **Flight Ready**.
