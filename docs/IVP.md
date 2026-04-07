@@ -104,9 +104,10 @@ cmake --build build/
 | **9** | **Active Object Architecture** | **Phase 6** | **IVP-76 — IVP-82b** | **Full** | |
 | 10 | Adaptive Estimation & Safety | Phase 6 | IVP-83 — IVP-85 | Full | |
 | **11** | **PIO Safety Architecture** | **Phase 6** | **IVP-87 — IVP-91** | **Placeholder** | |
-| 12 | Ground Station | Phase 7 | IVP-92 — IVP-97 | Placeholder | |
-| 13 | Pre-Flight Polish | Phase 9 | IVP-98 — IVP-102 | Placeholder | **Flight Ready** |
-| **14** | **Field Tuning & Validation** | **Phase 9** | **IVP-103+** | **Placeholder** | |
+| 12 | Ground Station | Phase 7 | IVP-92 — IVP-98 | Placeholder | |
+| **3D** | **3-Axis Magnetometer** | — | **IVP-99 — IVP-103** | **Planned** | |
+| 13 | Pre-Flight Polish | Phase 9 | — | Placeholder | **Flight Ready** |
+| **14** | **Field Tuning & Validation** | **Phase 9** | **—** | **Placeholder** | |
 
 > **Stage 6 pull-forward rationale:** Data Logging was originally Stage 9 but is a dependency for the telemetry encoder — the encoder reads from data structures (FusedState, TelemetryState, SensorSnapshot) defined by the logging architecture. Pulling logging forward establishes the canonical data model that all downstream consumers (telemetry encoder, flight director, GCS) read from. IVP numbers were renumbered sequentially. See council reviews: `docs/decisions/Telem+logging/council_data_logging.md` and `council_telemetry_protocol.md`.
 
@@ -2740,32 +2741,25 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-## Stage 3D: 3-Axis Magnetometer Model
+## Stage 3D: 3-Axis Magnetometer Model (IVP-99 — IVP-103)
 
 **Purpose:** Enable full 3-axis magnetometer fusion in the ESKF, making earth_mag and body_mag_bias states (15-20) observable. Currently inhibited — only yaw-only heading model is active.
 
 **Prerequisites:** WMM2025 tables with inclination + intensity (done). Mag calibration infrastructure (done). ESKF states 15-20 defined with Q noise values (done, ArduPilot EKF3 defaults).
 
-**Key implementation:**
-- `scalar_kalman_update_sparse()` — generalized measurement update supporting multi-entry H rows (currently only single-entry supported)
-- `update_mag_3axis()` — measurement model: `z_pred = R(q) * earth_mag_NED + body_mag_bias`, H entries at attitude(0-2), earth_mag(15-17), body_mag_bias(18-20)
-- Sequential X/Y/Z axis fusion (ArduPilot `fuseMagnetometer()` pattern)
-- Auto-enable when mag calibrated + WMM field available (GPS or default location)
-- Magnitude gating: reject readings where |B_measured| deviates >25% from WMM expected intensity
-- `kRMag3dPerAxis = 0.36f` µT² (AK09916 datasheet: 0.6 µT RMS)
+**Approach:** Sequential single-entry H scalar updates (same pattern as GPS position/velocity). No changes needed to `scalar_kalman_update()` or Bierman path. Body-frame mag rotated to NED via current attitude, compared against earth_mag state. 6 scalar updates per mag sample (3 earth_mag + 3 body_mag_bias).
 
-**Council-reviewed plan:** `.claude/plans/streamed-foraging-hartmanis.md`
-
-*IVP numbers assigned when this stage is planned.*
+**Council-reviewed 2026-04-06:** JPL, ArduPilot, Cubesat, Rocketeer (unanimous). Plan: `.claude/plans/streamed-foraging-hartmanis.md`
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| — | Sparse Scalar Update | `scalar_kalman_update_sparse()` for multi-entry H rows |
-| — | 3-Axis Measurement Model | `update_mag_3axis()` with sequential X/Y/Z fusion |
-| — | State Initialization | Auto-enable mag states from WMM + cal data |
-| — | Magnitude Gating | Interference rejection via WMM expected intensity |
-| — | Host Tests | Observability, convergence, interference rejection |
-| — | HW Verification | Stationary + movement soak with mag states enabled |
+| IVP-99 | 3-Axis Measurement Model | `update_mag_3axis()` — rotate body mag to NED, 6 sequential scalar updates against earth_mag[15-17] and body_mag_bias[18-20]. `kRMag3dPerAxis = 0.36f` µT² (AK09916 datasheet). Magnitude pre-gate: reject if |B| deviates >25% from WMM expected. Per-axis 5σ innovation gate. |
+| IVP-100 | Auto-Enable Logic | `eskf_tick_mag()` auto-enables mag states when: (1) mag calibrated, (2) WMM field available (GPS or default location). Initialize earth_mag from `wmm_get_earth_field_ned()`. Switch from `update_mag_heading()` to `update_mag_3axis()`. Heading-only fallback when inhibited. |
+| IVP-101 | Sensor Status Display | WMM source (GPS/default) + declination + inclination + intensity in 's' status output. Earth mag state + body bias values when enabled. |
+| IVP-102 | Host Tests | Known-field convergence test. Body bias injection + convergence. Magnitude gating (interference rejection). Auto-enable gate verification. Regression: all existing 598+ tests pass. |
+| IVP-103 | HW Verification | Flash vehicle firmware. Verify mag states auto-enable at boot (cal + default location). 60s stationary soak: ESKF healthy, earth_mag converges to WMM values. Movement test: body_mag_bias tracks correctly. |
+
+**[GATE]:** IVP-103 soak: 60s stationary, ESKF healthy, earth_mag within 5 µT of WMM expected, 0 sensor errors.
 
 ---
 
