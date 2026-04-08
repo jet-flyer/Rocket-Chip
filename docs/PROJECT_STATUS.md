@@ -43,7 +43,14 @@
 - WMM position persisted in cal storage v4
 - 610/610 host tests. HW verified.
 
-**Next:** IVP-103 (needs radio commands), Stage 12B (GCS), or Stage 13 (pre-flight polish)
+**Stage 7 Take 2 (2026-04-07):**
+- IVP-62a–d, 64, 65 complete. Station→vehicle ARM over LoRa verified.
+- QGC direct USB: connected, HSI responsive, recovers from stutters.
+  Remaining instability needs USB protocol analysis (Stage 13 polish).
+- Root cause found: QGC MAVLink bytes triggered CLI commands (flash erase crash).
+  Fixed with 0xFD lockout + CDC buffer 1024B + CRLF disable + 10ms timeout.
+
+**Next:** Stage 12B (GCS), Stage 13 (pre-flight polish)
 
 ## Completed
 

@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-08-001 | Claude Code CLI | bugfix, feature
+
+**IVP-62d: QGC direct USB connection fixed.** Root cause: QGC sends binary MAVLink frames containing arbitrary byte values — bytes like 0x4C ('L') triggered CLI flash erase command, blocking for >1s and crashing the AO scheduler (queue overflow). Fix: CLI lockout on first 0xFD byte detection (ESC exits). Supporting fixes: CDC TX buffer 64→1024B, CRLF translation disabled for binary MAVLink, stdout timeout 500ms→10ms, direct tud_cdc_write bypassing stdio for MAVLink output, COMM_0 parser for USB input. QGC connects <10s, HSI responsive, recovers from occasional jitter. Remaining USB jitter deferred to Stage 13 polish.
+
+---
+
 ### 2026-04-07-003 | Claude Code CLI | feature, council
 
 **Stage 7 Take 2: Complete deferred radio/telemetry IVPs.** Council-reviewed (NASA, ArduPilot, Professor, Cubesat).
