@@ -337,6 +337,28 @@ void rc_os_init() {
 }
 
 // NOLINTNEXTLINE(readability-function-size) — USB state machine, splitting breaks state tracking
+// MAVLink binary lockout: once 0xFD seen on USB, suppress all CLI routing.
+// QGC sends binary frames containing arbitrary bytes (0x4C='L' triggers
+// flash erase, crashing AO scheduler). ESC exits lockout.
+static bool s_mavlinkDetected = false;
+
+static bool handle_mavlink_lockout(int c) {
+    if (static_cast<uint8_t>(c) == 0xFD) { s_mavlinkDetected = true; }
+
+    if (s_mavlinkDetected ||
+        AO_Telemetry_is_gcs_connected() ||
+        AO_RCOS_get_output_mode() == StationOutputMode::kMavlink) {
+        if (c == 27) {
+            s_mavlinkDetected = false;
+            AO_RCOS_set_output_mode(StationOutputMode::kMenu);
+            printf("\n[GCS mode exited]\n");
+            print_prompt();
+        }
+        return true;
+    }
+    return false;
+}
+
 // MAVLink mode input handler — returns true if byte was consumed
 static bool handle_mavlink_input(int c) {
     if (AO_RCOS_get_output_mode() != StationOutputMode::kMavlink) { return false; }
@@ -418,11 +440,11 @@ bool rc_os_update() {
         return false;
     }
 
-    // Always feed USB bytes to MAVLink parser for GCS heartbeat detection.
-    // Parser ignores non-MAVLink bytes (CLI keypresses pass through harmlessly).
     AO_Telemetry_feed_usb_byte(static_cast<uint8_t>(c));
 
-    // MAVLink mode: consume all bytes (don't route to CLI)
+    // MAVLink binary lockout — suppress CLI when GCS detected or suspected
+    if (handle_mavlink_lockout(c)) { return true; }
+
     if (handle_mavlink_input(c)) { return true; }
 
     // Route to appropriate handler

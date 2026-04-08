@@ -213,11 +213,15 @@ else()
     # IVP-29: SDK-level stack limit registers (belt-and-suspenders with MPU guard)
     add_compile_definitions(PICO_USE_STACK_GUARDS=1)
 
-    # Increase USB CDC TX buffer from 64 to 512 bytes.
-    # Default 64B overflows with MAVLink telemetry (~150B per 10Hz tick),
-    # causing stdio_usb_out_chars() to enter a 500ms blocking retry loop.
+    # Increase USB CDC TX buffer from 64 to 1024 bytes.
+    # Default 64B overflows with MAVLink telemetry (~150B per 10Hz tick).
     add_compile_definitions(CFG_TUD_CDC_TX_BUFSIZE=1024)
     add_compile_definitions(CFG_TUD_CDC_RX_BUFSIZE=256)
+
+    # Reduce stdio USB stdout timeout from 500ms to 10ms.
+    # Default 500ms blocks the QF scheduler when QGC pauses reading,
+    # causing missed heartbeats and QGC "Communication Lost" after ~10s.
+    add_compile_definitions(PICO_STDIO_USB_STDOUT_TIMEOUT_US=10000)
 
     # Core 0 stack: 4KB (SDK default is 2KB = 0x800, insufficient for ESKF call chain).
     # SCRATCH_Y is 4KB total with 0 bytes of .scratch_y data — full 4KB available.

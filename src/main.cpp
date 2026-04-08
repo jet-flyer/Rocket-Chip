@@ -309,6 +309,10 @@ static void init_sensors() {
 // by rc_os_update() which prints banner on first connect (LL Entry 15).
 static void init_usb() {
     stdio_init_all();
+    // Disable CR/LF translation for binary MAVLink output.
+    // Without this, every 0x0A in a MAVLink frame gets expanded to 0x0D 0x0A,
+    // corrupting the binary protocol and causing QGC to fail parsing.
+    stdio_set_translate_crlf(&stdio_usb, false);
 }
 
 // Watchdog sentinel in scratch[0]. We write this before watchdog_enable() and

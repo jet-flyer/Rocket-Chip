@@ -31,7 +31,7 @@
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
 #include "pico/stdio_usb.h"
-// tusb.h not needed — use stdio fwrite (shares mutex with getchar)
+#include "tusb.h"
 #include <stdio.h>
 #endif
 
@@ -97,13 +97,17 @@ static QState TelemAo_running(TelemAo * const me, QEvt const * const e);
 // Helpers
 // ============================================================================
 
-// Non-blocking USB CDC write — uses stdio_usb mutex to avoid FIFO corruption
-// with printf/getchar on the same CDC interface. Drops entire message if
-// mutex busy or buffer insufficient (like lost radio packets).
+// USB CDC write — direct TinyUSB, bypasses stdio entirely.
+// Drops data if buffer full (like lost radio packet). Never blocks.
+// Safe to call from AO tick handlers.
 static void usb_write_nonblocking(const uint8_t* buf, uint16_t len) {
 #ifndef ROCKETCHIP_HOST_TEST
-    if (!stdio_usb_connected()) { return; }
-    fwrite(buf, 1, len, stdout);
+    if (!tud_cdc_connected()) { return; }
+    if (tud_cdc_write_available() < len) { return; }  // Drop if won't fit
+    tud_cdc_write(buf, len);
+    // Don't call tud_cdc_write_flush() — it competes with stdio's tud_task().
+    // Data flushes when stdio's background IRQ next calls tud_task().
+    // With 1024B TX buffer, multiple frames accumulate and flush together.
 #else
     (void)buf; (void)len;
 #endif
@@ -189,16 +193,11 @@ static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
                         ? static_cast<uint16_t>(rc::SIG_ARM)
                         : static_cast<uint16_t>(rc::SIG_DISARM);
                     AO_FlightDirector_dispatch_signal(sig);
-                    printf("[MAV] %s from station\n",
-                           cmd.param1 > 0.5f ? "ARM" : "DISARM");
                 } else if (cmd.command == MAV_CMD_DO_FLIGHTTERMINATION) {
                     AO_FlightDirector_dispatch_signal(
                         static_cast<uint16_t>(rc::SIG_ABORT));
-                    printf("[MAV] ABORT from station\n");
-                } else {
-                    printf("[MAV] Unknown CMD %u\n",
-                           static_cast<unsigned>(cmd.command));
                 }
+                // No printf here — ASCII text corrupts binary MAVLink stream
             }
         }
     }
@@ -313,7 +312,7 @@ static void mavlink_direct_tick(TelemAo* me) {
         usb_write_nonblocking(frame, len);
         len = me->mav_encoder.encode_sys_status(me->latest_telem, frame);
         usb_write_nonblocking(frame, len);
-        fflush(stdout);
+        // No flush here — single fflush at end of tick
     }
 
     // Full telemetry — always stream when in MAVLink mode
@@ -324,7 +323,8 @@ static void mavlink_direct_tick(TelemAo* me) {
     usb_write_nonblocking(frame, len);
     len = me->mav_encoder.encode_global_pos(me->latest_telem, t, frame);
     usb_write_nonblocking(frame, len);
-    fflush(stdout);  // Push all messages out this tick
+    // No fflush — SDK background IRQ flushes CDC buffer automatically.
+    // fflush blocks inside AO handler → queue overflow crash (LL Entry 32).
 #else
     (void)me;
 #endif
@@ -457,33 +457,48 @@ void AO_Telemetry_send_command(uint16_t command, float p1, float p2,
 #endif
 }
 
-// IVP-62b: feed USB input byte to MAVLink RX parser for GCS detection + commands.
-// Uses mavlink_rx module on COMM_1. Responses NOT written here (deadlock).
-// Param responses deferred to mavlink_direct_tick().
+// IVP-62b: feed USB input byte to MAVLink parser for GCS detection + commands.
+// Uses COMM_0 (dedicated to USB input) — not COMM_1 (mavlink_rx module) which
+// gets corrupted by CLI bytes. CRLF translation disabled so binary frames parse correctly.
 void AO_Telemetry_feed_usb_byte(uint8_t byte) {
 #ifndef ROCKETCHIP_HOST_TEST
-    rc::MavlinkRxResult result = {};
-    uint8_t flight_state = l_telemAo.latest_telem.flight_state;
+    mavlink_message_t msg;
+    mavlink_status_t status;
 
-    if (rc::mavlink_rx_feed_byte(&l_telemAo.mavlink_rx, byte,
-                                  flight_state, now_ms(), &result)) {
-        if (l_telemAo.mavlink_rx.gcs_seen) {
+    if (mavlink_parse_char(MAVLINK_COMM_0, byte, &msg, &status)) {
+        // GCS heartbeat detection
+        if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT && msg.sysid != 0) {
             AO_Telemetry_notify_gcs_heartbeat();
             l_telemAo.gcs_heartbeat_count++;
-            if (l_telemAo.gcs_heartbeat_count >= 2 &&
-                AO_RCOS_get_output_mode() != StationOutputMode::kMavlink) {
-                AO_RCOS_set_output_mode(StationOutputMode::kMavlink);
-            }
+            AO_RCOS_set_output_mode(StationOutputMode::kMavlink);
         }
-        // Trigger deferred param send (written from tick, not here)
-        if (result.len > 0 && l_telemAo.param_send_idx < 0) {
+        // Param request — defer to tick handler
+        if (msg.msgid == MAVLINK_MSG_ID_PARAM_REQUEST_LIST &&
+            l_telemAo.param_send_idx < 0) {
             l_telemAo.param_send_idx = 0;
         }
+        // Command dispatch (ARM/DISARM/ABORT from QGC)
+        if (msg.msgid == MAVLINK_MSG_ID_COMMAND_LONG) {
+            mavlink_command_long_t cmd;
+            mavlink_msg_command_long_decode(&msg, &cmd);
+            if (cmd.command == MAV_CMD_COMPONENT_ARM_DISARM) {
+                uint16_t sig = (cmd.param1 > 0.5f)
+                    ? static_cast<uint16_t>(rc::SIG_ARM)
+                    : static_cast<uint16_t>(rc::SIG_DISARM);
+                AO_FlightDirector_dispatch_signal(sig);
+            } else if (cmd.command == MAV_CMD_DO_FLIGHTTERMINATION) {
+                AO_FlightDirector_dispatch_signal(
+                    static_cast<uint16_t>(rc::SIG_ABORT));
+            }
+        }
     }
-    // Never fwrite from input handler — responses dropped, params deferred to tick
 #else
     (void)byte;
 #endif
+}
+
+bool AO_Telemetry_is_gcs_connected() {
+    return l_telemAo.gcs_state == GcsState::kGcsConnected;
 }
 
 // IVP-62a: notify that a GCS heartbeat was received (USB or LoRa)
