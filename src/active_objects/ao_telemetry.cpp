@@ -31,6 +31,7 @@
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
 #include "pico/stdio_usb.h"
+// tusb.h not needed — use stdio fwrite (shares mutex with getchar)
 #include <stdio.h>
 #endif
 
@@ -95,6 +96,18 @@ static QState TelemAo_running(TelemAo * const me, QEvt const * const e);
 // ============================================================================
 // Helpers
 // ============================================================================
+
+// Non-blocking USB CDC write — uses stdio_usb mutex to avoid FIFO corruption
+// with printf/getchar on the same CDC interface. Drops entire message if
+// mutex busy or buffer insufficient (like lost radio packets).
+static void usb_write_nonblocking(const uint8_t* buf, uint16_t len) {
+#ifndef ROCKETCHIP_HOST_TEST
+    if (!stdio_usb_connected()) { return; }
+    fwrite(buf, 1, len, stdout);
+#else
+    (void)buf; (void)len;
+#endif
+}
 
 static uint32_t now_ms() {
 #ifndef ROCKETCHIP_HOST_TEST
@@ -221,17 +234,17 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
         if (t - me->last_heartbeat_ms >= 1000) {
             me->last_heartbeat_ms = t;
             len = me->mav_encoder.encode_heartbeat(telem.flight_state, frame);
-            fwrite(frame, 1, len, stdout);
+            usb_write_nonblocking(frame, len);
             len = me->mav_encoder.encode_sys_status(telem, frame);
-            fwrite(frame, 1, len, stdout);
+            usb_write_nonblocking(frame, len);
         }
 
         // ATTITUDE + GLOBAL_POSITION_INT per packet
         len = me->mav_encoder.encode_attitude(telem, t, frame);
-        fwrite(frame, 1, len, stdout);
+        usb_write_nonblocking(frame, len);
         len = me->mav_encoder.encode_global_pos(telem, t, frame);
-        fwrite(frame, 1, len, stdout);
-        fflush(stdout);
+        usb_write_nonblocking(frame, len);
+        // No flush — usb_write_nonblocking handles it
         break;
     }
     case StationOutputMode::kCsv:
@@ -285,7 +298,7 @@ static void mavlink_direct_tick(TelemAo* me) {
             static_cast<uint16_t>(me->param_send_idx));
         uint8_t pbuf[MAVLINK_MAX_PACKET_LEN];
         uint16_t plen = mavlink_msg_to_send_buffer(pbuf, &pmsg);
-        fwrite(pbuf, 1, plen, stdout);
+        usb_write_nonblocking(pbuf, plen);
         me->param_send_idx++;
         if (me->param_send_idx >= static_cast<int16_t>(rc::mavlink_rx_param_count())) {
             me->param_send_idx = -1;  // Done
@@ -297,21 +310,21 @@ static void mavlink_direct_tick(TelemAo* me) {
         me->last_heartbeat_ms = t;
         len = me->mav_encoder.encode_heartbeat(
             me->latest_telem.flight_state, frame);
-        fwrite(frame, 1, len, stdout);
+        usb_write_nonblocking(frame, len);
         len = me->mav_encoder.encode_sys_status(me->latest_telem, frame);
-        fwrite(frame, 1, len, stdout);
+        usb_write_nonblocking(frame, len);
         fflush(stdout);
     }
 
-    // Full telemetry only when GCS is connected
-    if (me->gcs_state != GcsState::kGcsConnected) { return; }
+    // Full telemetry — always stream when in MAVLink mode
+    // (GCS state machine deferred — IVP-61 worked without it)
 
     // 10 Hz ATTITUDE + GLOBAL_POSITION_INT
     len = me->mav_encoder.encode_attitude(me->latest_telem, t, frame);
-    fwrite(frame, 1, len, stdout);
+    usb_write_nonblocking(frame, len);
     len = me->mav_encoder.encode_global_pos(me->latest_telem, t, frame);
-    fwrite(frame, 1, len, stdout);
-    fflush(stdout);
+    usb_write_nonblocking(frame, len);
+    fflush(stdout);  // Push all messages out this tick
 #else
     (void)me;
 #endif
@@ -444,21 +457,17 @@ void AO_Telemetry_send_command(uint16_t command, float p1, float p2,
 #endif
 }
 
-// IVP-62b: feed USB input byte to MAVLink parser for GCS detection.
-// Uses MAVLINK_COMM_0 (dedicated to USB input — separate from COMM_1 used
-// by mavlink_rx module and COMM_2 used by LoRa RX). This prevents CLI
-// keypress bytes from corrupting the mavlink_rx parser state.
+// IVP-62b: feed USB input byte to MAVLink RX parser for GCS detection + commands.
+// Uses mavlink_rx module on COMM_1. Responses NOT written here (deadlock).
+// Param responses deferred to mavlink_direct_tick().
 void AO_Telemetry_feed_usb_byte(uint8_t byte) {
 #ifndef ROCKETCHIP_HOST_TEST
-    mavlink_message_t msg;
-    mavlink_status_t status;
+    rc::MavlinkRxResult result = {};
+    uint8_t flight_state = l_telemAo.latest_telem.flight_state;
 
-    // Parse on dedicated COMM_0 channel — immune to CLI byte corruption
-    bool parsed = (mavlink_parse_char(MAVLINK_COMM_0, byte, &msg, &status) != 0);
-    if (parsed) {
-        // Detect GCS heartbeat
-        if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT && msg.sysid != 0) {
-            l_telemAo.mavlink_rx.gcs_seen = true;
+    if (rc::mavlink_rx_feed_byte(&l_telemAo.mavlink_rx, byte,
+                                  flight_state, now_ms(), &result)) {
+        if (l_telemAo.mavlink_rx.gcs_seen) {
             AO_Telemetry_notify_gcs_heartbeat();
             l_telemAo.gcs_heartbeat_count++;
             if (l_telemAo.gcs_heartbeat_count >= 2 &&
@@ -466,12 +475,12 @@ void AO_Telemetry_feed_usb_byte(uint8_t byte) {
                 AO_RCOS_set_output_mode(StationOutputMode::kMavlink);
             }
         }
-        // Trigger param send if PARAM_REQUEST_LIST received
-        if (msg.msgid == MAVLINK_MSG_ID_PARAM_REQUEST_LIST &&
-            l_telemAo.param_send_idx < 0) {
+        // Trigger deferred param send (written from tick, not here)
+        if (result.len > 0 && l_telemAo.param_send_idx < 0) {
             l_telemAo.param_send_idx = 0;
         }
     }
+    // Never fwrite from input handler — responses dropped, params deferred to tick
 #else
     (void)byte;
 #endif
