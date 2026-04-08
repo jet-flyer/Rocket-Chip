@@ -76,6 +76,8 @@ struct TelemAo {
 
     // MAVLink RX parser (IVP-62b)
     rc::MavlinkRxState  mavlink_rx;
+    uint8_t             gcs_heartbeat_count;    // Consecutive GCS heartbeats seen [JPL-1]
+    int16_t             param_send_idx;         // >=0: send param at this index on next tick (-1=idle)
 
     // Station RX: latest decoded telemetry for CLI/WiFi access
     RxTelemSnapshot     rx_snapshot;
@@ -271,6 +273,25 @@ static void mavlink_direct_tick(TelemAo* me) {
 
     update_gcs_state(me, t);
 
+    // Send deferred params one per tick (spread load, no blocking)
+    if (me->param_send_idx >= 0 &&
+        me->param_send_idx < static_cast<int16_t>(rc::mavlink_rx_param_count())) {
+        const rc::MavParam* p = &rc::mavlink_rx_param_table()[me->param_send_idx];
+        mavlink_message_t pmsg;
+        mavlink_msg_param_value_pack(
+            me->mav_encoder.system_id, me->mav_encoder.component_id, &pmsg,
+            p->name, p->value, MAV_PARAM_TYPE_REAL32,
+            static_cast<uint16_t>(rc::mavlink_rx_param_count()),
+            static_cast<uint16_t>(me->param_send_idx));
+        uint8_t pbuf[MAVLINK_MAX_PACKET_LEN];
+        uint16_t plen = mavlink_msg_to_send_buffer(pbuf, &pmsg);
+        fwrite(pbuf, 1, plen, stdout);
+        me->param_send_idx++;
+        if (me->param_send_idx >= static_cast<int16_t>(rc::mavlink_rx_param_count())) {
+            me->param_send_idx = -1;  // Done
+        }
+    }
+
     // Always send heartbeat at 1Hz (even before GCS detection)
     if (t - me->last_heartbeat_ms >= 1000) {
         me->last_heartbeat_ms = t;
@@ -314,6 +335,8 @@ static QState TelemAo_initial(TelemAo * const me, QEvt const * const e) {
     me->gcs_state = GcsState::kWaitingForGcs;
     me->last_gcs_heartbeat_ms = 0;
     rc::mavlink_rx_init(&me->mavlink_rx, &me->mav_encoder);
+    me->gcs_heartbeat_count = 0;
+    me->param_send_idx = -1;
 
     // Subscribe to SIG_RADIO_RX from AO_Radio
     QActive_subscribe(&me->super, rc::SIG_RADIO_RX);
@@ -421,23 +444,33 @@ void AO_Telemetry_send_command(uint16_t command, float p1, float p2,
 #endif
 }
 
-// IVP-62b: feed USB input byte to MAVLink RX parser
+// IVP-62b: feed USB input byte to MAVLink parser for GCS detection.
+// Uses MAVLINK_COMM_0 (dedicated to USB input — separate from COMM_1 used
+// by mavlink_rx module and COMM_2 used by LoRa RX). This prevents CLI
+// keypress bytes from corrupting the mavlink_rx parser state.
 void AO_Telemetry_feed_usb_byte(uint8_t byte) {
 #ifndef ROCKETCHIP_HOST_TEST
-    rc::MavlinkRxResult result = {};
-    uint8_t flight_state = l_telemAo.latest_telem.flight_state;
+    mavlink_message_t msg;
+    mavlink_status_t status;
 
-    if (rc::mavlink_rx_feed_byte(&l_telemAo.mavlink_rx, byte,
-                                  flight_state, now_ms(), &result)) {
-        // Check if this was a GCS heartbeat
-        if (l_telemAo.mavlink_rx.gcs_seen) {
+    // Parse on dedicated COMM_0 channel — immune to CLI byte corruption
+    bool parsed = (mavlink_parse_char(MAVLINK_COMM_0, byte, &msg, &status) != 0);
+    if (parsed) {
+        // Detect GCS heartbeat
+        if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT && msg.sysid != 0) {
+            l_telemAo.mavlink_rx.gcs_seen = true;
             AO_Telemetry_notify_gcs_heartbeat();
+            l_telemAo.gcs_heartbeat_count++;
+            if (l_telemAo.gcs_heartbeat_count >= 2 &&
+                AO_RCOS_get_output_mode() != StationOutputMode::kMavlink) {
+                AO_RCOS_set_output_mode(StationOutputMode::kMavlink);
+            }
         }
-    }
-    // Write response bytes back to USB
-    if (result.len > 0) {
-        fwrite(result.buf, 1, result.len, stdout);
-        fflush(stdout);
+        // Trigger param send if PARAM_REQUEST_LIST received
+        if (msg.msgid == MAVLINK_MSG_ID_PARAM_REQUEST_LIST &&
+            l_telemAo.param_send_idx < 0) {
+            l_telemAo.param_send_idx = 0;
+        }
     }
 #else
     (void)byte;
