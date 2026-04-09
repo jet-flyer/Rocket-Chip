@@ -316,7 +316,6 @@ static void mavlink_direct_tick(TelemAo* me) {
     }
 
     // Full telemetry — always stream when in MAVLink mode
-    // (GCS state machine deferred — IVP-61 worked without it)
 
     // 10 Hz ATTITUDE + GLOBAL_POSITION_INT
     len = me->mav_encoder.encode_attitude(me->latest_telem, t, frame);

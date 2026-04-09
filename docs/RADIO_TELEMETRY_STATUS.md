@@ -118,24 +118,16 @@ User-facing: protocol (ccsds/mavlink), nav_rate_hz (2/5/10), power_dbm (2-20). G
 | RX APID routing dispatch | Council 2026-03-30 | Switch on APID in telemetry service. Trivial when second APID exists. |
 | `submit_packet(apid, priority)` API | Council 2026-03-30 | Design now (Stage 12A), implement trivially. Full queue in 13/14. |
 
-### IVP-62: Bidirectional MAVLink Commands (Branch: ivp62-wip)
+### IVP-62: Bidirectional MAVLink Commands — COMPLETE (2026-04-08)
 
-**Fully implemented, deferred due to QGC USB CDC buffer timing issue.**
+IVP-62a–d all complete on main. `ivp62-wip` branch deleted (content ported).
 
-What exists on branch:
-- mavlink_rx handler
-- Command dispatch (param/command/mission)
-- flight_state.h updates
-- 14 host tests
+- IVP-62a: GCS connection state machine + USB CDC output gating
+- IVP-62b: MAVLink RX parser (14 host tests, param/command/mission dispatch)
+- IVP-62c: Station→vehicle ARM command over LoRa (HW verified)
+- IVP-62d: QGC direct USB working (0xFD CLI lockout, CDC TX buffer 1024B, CRLF disable, 10ms stdout timeout)
 
-Blocker: When vehicle streams MAVLink sticky, USB CDC buffers accumulate. On QGC connect, buffered data dumps, overwhelming parser. QGC 3.5s heartbeat timeout fires before next live heartbeat.
-
-Fix approaches:
-1. Circular output buffer with timestamp-based discard
-2. Flush USB CDC buffer on connect detect
-3. Heartbeat-only mode until GCS heartbeat received
-
-Fruit Jam LoRa bridge works (radio naturally drops old packets).
+Remaining: QGC USB jitter polish (Stage 14A).
 
 ### IVP-63: FSK Continuous Bitstream (Titan Tier)
 
@@ -194,7 +186,7 @@ When bidirectional comms are wired up:
 | Range test results | IVP-61 gate | `docs/benchmarks/RANGE_TEST_RESULTS.md` not yet created |
 | XTCE dictionary template | Council 2026-02-27 | For Yamcs (Stage 12B) |
 | PCM frame expansion | Whiteboard | Current 55B full. Extended frame for Stage 12 GCS decode. |
-| Mission Profile boot-load | Whiteboard | `.cfg` → binary blob → flash. Deferred to Stage 12 GCS infra. |
+| Mission Profile OTA boot-load | PROJECT_STATUS | `.cfg` → binary blob → flash. Future — compile-time is intentional safety path. |
 | Flash-stored DeviceRole | Council 2026-03-30 | CLI `role` command, persists across reboots |
 
 ---

@@ -84,7 +84,7 @@
 | 6: Data Logging | IVP-49–54b | 2026-03-04 | FusedState/TelemetryState data model, PCM frames, CRC-16/CRC-32, PSRAM ring buffer (8MB, 50Hz), box-car decimation (200→50Hz), flash flight table (dual-sector), flash flush engine, CLI flight list/download/erase, Python decoder script. End-to-end: 3733 frames, 0 corrupt, CRC-32 OK |
 | 7: Radio Driver | IVP-57 | 2026-02-25 | RFM95W LoRa driver (SPI bus, GPIO-controlled CS, TX/RX polling). Ground station RX bridge on Fruit Jam (#6200) + RFM95W breakout (#3072) via SPI1. All 8 verification gates passed: init, absent HW, TX, RX, RSSI, loopback (100%, 0 gaps), range (through walls at 5 dBm), integration soak (120K IMU reads, 0 errors at 10Hz TX) |
 | J: Fruit Jam HAL | J.1-J.3 | 2026-03-07 | Compile-time board abstraction (BSP). board.h selector, board_feather_rp2350.h, board_fruit_jam.h. All drivers use board:: constants. 15/15 parity gate items passed on Fruit Jam HW. Core 1 absent-sensor guards added |
-| 7: Telemetry Pipeline | IVP-58–61 | 2026-03-08 | CCSDS encoder, telemetry service, station RX+decode, Mission Profile infra, MAVLink v2 encoder (c_library_v2). QGC connected via FJ bridge (High Latency). 5-min soak: 607 pkts, 0 CRC, 98.7% delivery. IVP-62 deferred (USB CDC timing) |
+| 7: Telemetry Pipeline | IVP-57–65 | 2026-04-08 | CCSDS encoder, telemetry service, station RX+decode, Mission Profile infra, MAVLink v2 encoder (c_library_v2). QGC connected via FJ bridge + direct USB. IVP-62a–d complete (MAVLink RX, station→vehicle ARM, QGC USB fix). IVP-64/65 complete. IVP-63 deferred (Titan) |
 
 | 8: Flight Director | IVP-66–75 | 2026-03-26 | QEP HSM (9 states, descent superstate), guard functions + combinators + three-layer safety, Go/No-Go pre-arm, action executor (NeoPixel + pyro intent), bench flight sim (9/9 PASS), mission profile .cfg + generator, QF+QV compile gate. Council-reviewed (IVP-71, IVP-73, IVP-74). 552 host tests |
 | Standards Audit | — | 2026-03-26 | Tiered audit (clang-tidy + lizard + RP2350 guards + Prior Art). ~60 magic numbers remediated, 8 Prior Art blocks added, ring_buffer init fixed. See `standards/STANDARDS_AUDIT_2026-03-26.md` |
@@ -95,7 +95,9 @@
 
 ## In Progress
 
-*None currently. Next: Stage 12 (Ground Station).*
+*None currently.*
+
+**Next:** Stage 13 (Health Monitor) → Stage 14 (Pre-Flight Polish) → Stage 15 (Field Tuning)
 
 ## Blockers
 
@@ -103,8 +105,13 @@ None currently.
 
 ## Future Features (Tracked)
 
-- **MATLAB .mat v5 export for flight logs** — Target research/educational users who standardize on MATLAB. Compatible with GNU Octave. Post-flight analysis workflow: convert downloaded PCM log to MATLAB via Python script. Implementation deferred until flight logging is active (Stage 6).
-- **GPS-free 3D flight path reconstruction (RC GCS)** — Forward-backward RTS smoother using IMU+baro+mag logs with known boundary conditions (zero velocity at launch/landing, launch site position). Enables full 3D trajectory for Core tier without GPS. Deferred to GCS development.
+- **MATLAB .mat v5 export for flight logs** — Target research/educational users who standardize on MATLAB. Compatible with GNU Octave. Post-flight analysis workflow: convert downloaded PCM log to MATLAB via Python script.
+- **GPS-free 3D flight path reconstruction (RC GCS)** — Forward-backward RTS smoother using IMU+baro+mag logs with known boundary conditions (zero velocity at launch/landing, launch site position). Enables full 3D trajectory for Core tier without GPS.
+- **Mission Profile OTA/runtime loading** — GCS-pushed profile updates with proper lockouts. Compile-time `.cfg` → Python generator → C++ header is the intentional safety path. Runtime loading requires binary serializer, CRC32, fallback profile, and validated GCS upload infrastructure.
+- **F' Evaluation (Titan tier)** — Three paths: STM32H7+F'/Zephyr, Pi Zero 2W+F'/Linux, Hybrid. Research in `docs/decisions/TITAN_BOARD_ANALYSIS.md`. Deferred until Titan development begins.
+- **u-blox GPS (Matek M8Q-5883)** — UART + QMC5883L compass. UBX binary protocol. Production/flight hardware upgrade.
+- **Dynamic Peripheral Detection + OTA Drivers** — Runtime hot-plug, driver registry, OTA firmware downloads. Crowdfunding stretch goal. Boot-time probe-first already implemented.
+- **FSK Continuous Bitstream (IVP-63)** — SX1276 FSK mode for IRIG-heritage PCM telemetry. Titan tier only. Requires separate driver from LoRa.
 
 ## Reference
 

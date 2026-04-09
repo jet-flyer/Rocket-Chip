@@ -16,7 +16,7 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Phase M** (Magnetometer Calibration): Fully detailed — added out-of-sequence to correct a missed Phase 3 dependency (see note below)
 - **Stage 5** (Sensor Fusion): Fully detailed
 - **Stage 6** (Data Logging): Core items (IVP-49–54) HW verified. IVP-55–56 deferred (stretch goals).
-- **Stage 7** (Radio & Telemetry): Core items (IVP-57–61) HW verified. IVP-62 deferred (`ivp62-wip` branch). IVP-63–65 deferred (stretch goals).
+- **Stage 7** (Radio & Telemetry): Core items (IVP-57–65) complete. IVP-62a–d on main (QGC direct USB working). IVP-63 deferred (Titan tier). IVP-64/65 complete.
 - **Stage 8** (Flight Director): COMPLETE — 10 IVPs (IVP-66–75), 552 host tests, bench sim 9/9
 - **Stage 9** (Active Object Architecture): IVP-76–81 COMPLETE (6 AOs, QV scheduler, all gates passed). IVP-82a/82b (SPIN formal verification) remaining — council-reviewed, split into toolchain+FD model (82a) and full safety model (82b)
 - **Stages 10-12** (Adaptive Estimation, Ground Station, Integration): Placeholders expanded as earlier stages complete
@@ -1768,10 +1768,10 @@ Flash flush requires `flash_safe_execute()` — both cores paused during sector 
 | IVP-59 | Telemetry Service | Configurable TX rate, APID prioritization, duty cycle management ✓ |
 | IVP-60 | RX Mode + CCSDS Decode | Compile-time RX mode — CCSDS decode, CSV output, NeoPixel link quality ✓ |
 | IVP-61 | QGC Validation | End-to-end TX→RX→QGC display verification ✓ |
-| IVP-62 | Bidirectional Commands | *(deferred — `ivp62-wip` branch)* Command dispatch complete, QGC USB CDC blocker |
-| IVP-63 | FSK Continuous Bitstream | *(deferred)* |
-| IVP-64 | Radio Mode Profiles | *(deferred)* |
-| IVP-65 | Native MAVLink TX | *(deferred)* |
+| IVP-62 | Bidirectional Commands | IVP-62a–d complete. GCS state machine, MAVLink RX parser, station→vehicle ARM over LoRa, QGC direct USB (0xFD lockout fix). ✓ |
+| IVP-63 | FSK Continuous Bitstream | *(deferred — Titan tier)* |
+| IVP-64 | Radio Mode Profiles | RadioConfig SF/BW/CR wired to RFM95W driver ✓ |
+| IVP-65 | Native MAVLink TX | Protocol selection in RadioConfig ✓ |
 
 **Gate:** TX RocketChip transmits, RX RocketChip receives and translates, QGC/Mission Planner displays live attitude + map + flight state. Stable 10+ min at SF7/BW125.
 
@@ -1902,7 +1902,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Prerequisites:** IVP-62a
 
-**Implement:** Port `mavlink_rx.cpp/.h` from `ivp62-wip` branch into `src/telemetry/`. Parser is self-contained — zero changes needed. Integration: `AO_Telemetry_feed_usb_byte()` public function called by rc_os.cpp [AP-1]. LoRa RX path feeds MAVLink packets to same parser. SIG_GCS_CMD published to AO_FlightDirector for arm/disarm/abort. Port 14 host tests from branch.
+**Implement:** *(Complete — 2026-04-07)* Ported `mavlink_rx.cpp/.h` from `ivp62-wip` branch (now deleted) into `src/telemetry/`. Parser self-contained. Integration: `AO_Telemetry_feed_usb_byte()` called by rc_os.cpp. LoRa RX path feeds MAVLink packets to same parser. SIG_GCS_CMD published to AO_FlightDirector for arm/disarm/abort. 14 host tests ported.
 
 **[GATE]:**
 - 610+ existing tests pass, 14 ported MAVLink RX tests pass
@@ -2626,7 +2626,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ## Stage 10: Adaptive Estimation & Safety
 
-**Purpose:** Phase-aware ESKF tuning framework and confidence-gated safety. Builds the plumbing for per-phase Q/R scheduling and a confidence gate that controls irreversible actions (pyro). All numerical thresholds use conservative `VALIDATE` defaults — actual tuning deferred to Stage 13 (Field Tuning).
+**Purpose:** Phase-aware ESKF tuning framework and confidence-gated safety. Builds the plumbing for per-phase Q/R scheduling and a confidence gate that controls irreversible actions (pyro). All numerical thresholds use conservative `VALIDATE` defaults — actual tuning deferred to Stage 15 (Field Tuning).
 
 **Background:** Extended research (2026-02-24) demonstrated that MMAE/IMM is the wrong tool for RocketChip's flight regime switching. Real aerospace navigation (X-43A, SpaceX Grasshopper, ArduPilot EKF3, PX4 ECL) universally uses single kinematic filters with deterministic regime adaptation — not multi-model banks. Simple phase-scheduled Q/R captures the same benefit at near-zero computational cost. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for full rationale and benchmark data.
 
@@ -2645,7 +2645,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Prerequisites:** IVP-68 (state machine provides flight phase detection), IVP-48 (ESKF tuned), IVP-74 (Mission Profile `.cfg` system)
 
-**Implement:** Phase-aware Q and R selection framework integrated with the existing Mission Profile `.cfg` system. Q/R values per flight phase are user-editable in `.cfg` files. Additive Q delta applied post-codegen (O(24) diagonal additions — codegen FPFT unchanged). Innovation ratio monitor provides adaptive Q inflation layer on top. All threshold values are `VALIDATE` defaults — tuning deferred to Stage 13.
+**Implement:** Phase-aware Q and R selection framework integrated with the existing Mission Profile `.cfg` system. Q/R values per flight phase are user-editable in `.cfg` files. Additive Q delta applied post-codegen (O(24) diagonal additions — codegen FPFT unchanged). Innovation ratio monitor provides adaptive Q inflation layer on top. All threshold values are `VALIDATE` defaults — tuning deferred to Stage 15.
 
 1. **Phase Q/R in Mission Profile `.cfg`:** Add Q scale multipliers (per phase × 4 groups: attitude, velocity, accel_bias, gyro_bias) and absolute R values (per phase × 4 sensors: baro, mag, GPS position, GPS velocity) to `profiles/rocket.cfg` and `profiles/hab.cfg`. Generator validates Q scales >= 1.0, R values > 0.
 
@@ -2675,7 +2675,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Prerequisites:** IVP-83, IVP-45 (Mahony AHRS)
 
-**Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates ESKF health signals and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director. This is the **platform safety layer — NOT configurable by Mission Profiles**. All thresholds are `VALIDATE` defaults — tuning deferred to Stage 13.
+**Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates ESKF health signals and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director. This is the **platform safety layer — NOT configurable by Mission Profiles**. All thresholds are `VALIDATE` defaults — tuning deferred to Stage 15.
 
 1. **Confidence conditions (ALL must be true for `confident = true`):**
    - **AHRS agreement:** quaternion angular distance between ESKF and Mahony AHRS < `⚠️ VALIDATE 15°`
@@ -2859,7 +2859,15 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-## Stage 13: Pre-Flight Polish
+## Stage 13: Health Monitor
+
+**Purpose:** Build a proper centralized health monitoring system. Current `health_monitor.cpp` is fragments from AO extraction — SIG_HEALTH_STATUS is orphaned (zero subscribers), LED engine bypasses health, TelemetryState health byte is 2/8 bits used. This stage defines the health contract, wires all consumers, and adds the `preflight` CLI command.
+
+*IVP numbers assigned when this stage is planned.*
+
+---
+
+## Stage 14: Pre-Flight Polish
 
 **Purpose:** Full system verification and flight readiness. All subsystems integrated, all tests passing, all hardware validated under realistic conditions.
 
@@ -2881,9 +2889,9 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-## Stage 14: Field Tuning & Validation
+## Stage 15: Field Tuning & Validation
 
-**Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. This stage requires a flight-ready system (Stage 13 complete) to collect meaningful data for tuning.
+**Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. This stage requires a flight-ready system (Stage 14 complete) to collect meaningful data for tuning.
 
 **Scope:** All `VALIDATE`-marked thresholds from Stages 8-11, including:
 - Phase-scheduled Q/R values per vehicle type (IVP-83)

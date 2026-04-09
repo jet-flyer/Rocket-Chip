@@ -29,15 +29,14 @@ mechanism changes over time:
 | Phase | Delivery | When |
 |-------|----------|------|
 | **Current** | `.cfg` -> Python generator -> C++ header -> compile | Now (IVP-74) |
-| **Boot-load** | `.cfg` -> serializer -> binary blob on flash/SD -> load at boot | Stage 11 (GCS infrastructure) |
-| **Wizard** | GCS app edits `.cfg` -> upload -> rebuild/flash (one button) | Post-Stage 11 |
+| **OTA Boot-load** | `.cfg` -> serializer -> binary blob on flash/SD -> load at boot | Future (GCS-pushed with lockouts) |
+| **Wizard** | GCS app edits `.cfg` -> upload -> rebuild/flash (one button) | Future (post-GCS) |
 
-Boot-load requires: config parser or binary serializer in firmware, CRC32
-integrity check, known-good fallback profile, and validation on load. These
-are deferred until the ground station (Stage 11) provides the infrastructure
-for validated upload. Until then, compile-time is the safer path — the Python
-generator validates values before they reach the compiler, and the generated
-header includes `static_assert` range checks.
+OTA boot-load requires: config parser or binary serializer in firmware, CRC32
+integrity check, known-good fallback profile, validated GCS upload with lockouts,
+and proper authentication. Compile-time is the intentional safety path — the
+Python generator validates values before they reach the compiler, and the
+generated header includes `static_assert` range checks.
 
 ## Available Profiles
 

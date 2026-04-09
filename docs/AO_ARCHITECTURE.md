@@ -25,7 +25,7 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 | AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 6 | 32 | FlightDirector HSM, guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_LED_PATTERN, SIG_HEALTH_STATUS | SIG_SENSOR_DATA |
 | AO_Logger | `ao_logger.cpp` | 50Hz | 5 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_PHASE_CHANGE, SIG_PYRO_FIRED |
 | AO_Telemetry | `ao_telemetry.cpp` | 10Hz | 4 | 8 | CCSDS/MAVLink encode, TelemetryState snapshot, RX decode | SIG_RADIO_TX | SIG_RADIO_RX, SIG_SENSOR_DATA |
-| AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 3 | 8 | ws2812 driver, priority layer table, animation state, pattern constants | (none) | SIG_LED_PATTERN, SIG_LED_OVERRIDE, SIG_RADIO_STATUS, SIG_SENSOR_DATA, SIG_PHASE_CHANGE, SIG_HEALTH_STATUS |
+| AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 3 | 8 | ws2812 driver, priority layer table, animation state, pattern constants | (none) | SIG_LED_PATTERN, SIG_LED_OVERRIDE, SIG_RADIO_STATUS, SIG_SENSOR_DATA, SIG_PHASE_CHANGE |
 | AO_RCOS | `cli/ao_rcos.cpp` | 20Hz | 2 | 16 | CLI output mode, ANSI dashboard, key dispatch | SIG_CLI_COMMAND, SIG_LED_OVERRIDE | (none) |
 | AO_Blinker | `ao_blinker.cpp` | 1Hz | 1 | 4 | Board LED heartbeat | (none) | (none) |
 
@@ -142,7 +142,7 @@ Core 1 vitality check (Council A4): `core1_loop_count` stall for 500ms forces FA
 | SIG_RADIO_RX | 24 | RadioRxEvt | AO_Radio | AO_Telemetry |
 | SIG_RADIO_STATUS | 25 | RadioStatusEvt | AO_Radio | AO_LedEngine |
 | SIG_GCS_CMD | 26 | GcsCmdEvt | AO_Telemetry | AO_FlightDirector |
-| SIG_HEALTH_STATUS | 27 | HealthStatusEvt | AO_FlightDirector | AO_LedEngine, AO_Telemetry |
+| SIG_HEALTH_STATUS | 27 | HealthStatusEvt | AO_FlightDirector | *(orphaned — zero subscribers. Stage 13 will wire LED, Logger, Telemetry)* |
 | SIG_PYRO_FIRED | 28 | PyroFiredEvt | AO_FlightDirector | AO_Logger |
 | SIG_AO_MAX | 29 | -- | -- | -- |
 

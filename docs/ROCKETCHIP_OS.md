@@ -174,7 +174,7 @@ RC_OS uses function pointer callbacks set by `main.cpp` to decouple CLI from app
 ## Known Limitations
 
 1. **Input lag** - CLI polled at 20Hz; up to 50ms latency on keypress
-2. **No parameter editing** - View-only; parameter modification planned for Stage 11
+2. **No parameter editing** - View-only; runtime parameter modification is a future feature
 3. **No flight state lockout** - Calibration can run even when armed (safety gap — IVP-69 will add pre-arm lockout)
 4. **Pre-connect output lost** - Messages before terminal connection are not buffered
 5. **Single-key only** - No arrow key or typed-command navigation (standard embedded CLI pattern)

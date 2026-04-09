@@ -2,7 +2,7 @@
 
 **Purpose:** Communication across context windows and between agents.
 
-**Stages 1-13 COMPLETE.** 598 host tests, SPIN 6/6. Post-Stage 13 side items complete (2026-04-06): AO signal audit, flash layout portability, flight log metadata header, passive ejection profile, code comments audit (213 lines net reduction), buried TODO resolution (PIO timer/Mahony ARM/radio ownership). Tracking: `docs/AO_ARCHITECTURE.md`.
+**Stages 1-13 COMPLETE.** 598+ host tests, SPIN 6/6. Stage 3D (3-axis mag) complete. Stage 7 Take 2 complete. All post-Stage 13 side items resolved (2026-04-06). Tracking: `docs/AO_ARCHITECTURE.md`.
 
 ## Use Cases
 1. **Cross-agent review** - Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
@@ -15,215 +15,64 @@
 
 ## Open Flags
 
-### Stage 7 (Radio & Telemetry) — IVP-57–65 Complete
-
-**Updated 2026-04-08.** All Stage 7 IVPs complete.
-
-IVP-62a–c verified: GCS state machine, MAVLink RX parser (COMM_0 for USB, COMM_2 for LoRa), station→vehicle ARM command dispatched over LoRa (FD transitions IDLE→ARMED). Vehicle enters RX mode between TX slots (rfm95w_start_rx after TX complete).
-
-IVP-62d: QGC direct USB working. Root cause: QGC MAVLink bytes (e.g. 0x4C='L') triggered CLI commands (flash erase → AO queue overflow crash). Fixed: 0xFD CLI lockout, CDC TX buffer 64→1024B, CRLF disable, stdout timeout 10ms. Connected <10s, HSI responsive, recovers from stutters. Remaining jitter is Stage 13 polish.
-
-IVP-64: RadioConfig SF/BW/CR wired to RFM95W driver. IVP-65: native MAVLink TX path via RadioConfig.protocol selection.
-
-**Half-duplex ACK:** Deferred to Stage 13 (piggyback ACK on telemetry frame).
-
-**Updated 2026-03-08.** IVP-57 through IVP-61 complete. Full telemetry pipeline working: CCSDS over LoRa → station MAVLink re-encode → QGC High Latency mode with live data. IVP-62 (bidirectional MAVLink commands) fully implemented but deferred — QGC direct USB connection unstable due to USB CDC buffer timing (heartbeat lost in buffer dump on connect). Work preserved on `ivp62-wip` branch (mavlink_rx handler, flight_state.h, 14 host tests, param/command/mission dispatch).
-
-- **Key insight:** No `gcs_main.cpp` needed. Probe-first detection handles absent sensors. ESKF doesn't run without IMU. GCS compute (Haversine, RSSI bar, MAVLink re-encode) is trivial. Same binary, different hardware, different Mission Profile.
-- **Job/Mission naming (IVP-68 rename):** `mission.h` renamed to `job.h` (`job_vehicle.h`/`job_station.h`). CMake define `ROCKETCHIP_JOB_STATION=1`. "Job" = device role (vehicle vs station). "MissionProfile" = flight config data (guards, thresholds, abort actions). Namespace `job::`, not `mission::`.
-- **QGC USB CDC issue (IVP-62 blocker):** When vehicle streams MAVLink in sticky mode, USB CDC buffers accumulate. On QGC connect, buffered data dumps all at once, overwhelming the parser. QGC's 3.5s heartbeat timeout fires before the next live heartbeat arrives. The FJ LoRa bridge works because radio link naturally drops old packets. Fix approaches: (1) circular output buffer with timestamp-based discard, (2) flush USB CDC buffer on connect detect, (3) heartbeat-only mode until GCS heartbeat received.
-
----
+*None currently. Beginning Stage 13 (Pre-Flight Polish).*
 
 ### Protected File Updates Pending Approval
 
 *None currently.*
 
-### AO/State Engine Logging — Evaluated (2026-03-29)
-
-**Audit complete.** Logger AO is timer-only (50Hz periodic) with zero event subscriptions. `SIG_PHASE_CHANGE` and `SIG_PYRO_INTENT` are defined but unwired. TelemetryState is full at 45B (PCM frame limit). Confidence/innovation/mahony fields are computed but dropped in `fused_to_telemetry()`.
-
-**Quick fixes done:** Wire existing signals (SIG_PYRO_INTENT publish, Logger subscribes to SIG_PHASE_CHANGE). No frame expansion yet.
-
-**Deferred (QOL, not blocking):**
-- **MP-configurable logged events:** Add Mission Profile flags for user-selectable event logging (pyro fire, abort, safe mode, confidence transitions, phase changes). Each flag enables/disables that event type being written to the ring buffer. Keeps logging lightweight for simple flights, verbose for diagnostics.
-- **Verbose/experimental logging modes:** High-fidelity logging (innovation alphas, Q/R parameters, P-diagonals), bitstream mode, extended PCM frame. Potential future stage but more QOL than safety-critical.
-- **PCM frame expansion:** Current 55B frame is full. Need either extended frame type, research frame, or event-based logging alongside periodic frames. Natural integration point: Stage 12 (GCS) since ground station needs to decode whatever format we use.
-
 ---
 
-## Deferred Notes
+## Upcoming Stages
 
-*Items noted for future stages — not blocking, no action needed now.*
+**Stage 13: Health Monitor** — Dedicated stage. Building centralized health monitoring from scratch (not patching fragments). Council-reviewed plan in `.claude/plans/rosy-dazzling-charm.md`.
 
-- ~~**Flash Layout: Derive from `PICO_FLASH_SIZE_BYTES`:**~~ **DONE** (2026-04-06). New `flash_layout.h` derives all addresses from SDK. Compile-time static_assert validation.
-- ~~**Flight Log Metadata Header:**~~ **DONE** (2026-04-06). 64-byte FlightLogHeader with magic 0x52434C47, version byte, firmware/board/profile info.
-- **Mission Profile Boot-Load (Stage 12):** Currently profiles are compile-time only (`.cfg` → Python generator → C++ header). Future upgrade: `.cfg` → binary serializer → flash/SD blob → load at boot. Requires: config parser or binary serializer in firmware, CRC32 integrity check, known-good fallback profile, validation on load. Deferred until ground station (Stage 12) provides validated upload infrastructure. The `.cfg` format is the permanent user-facing contract — only the delivery mechanism changes. See `profiles/README.md` "Configuration Delivery Roadmap".
-- ~~**5-NeoPixel RSSI Bar for Station:**~~ **DONE** (Stage 12A). Full 5-LED RSSI bar on Fruit Jam.
-- **ESKF Readability/Optimization Pass (post-Stage 10):** `reset_covariance_attitude()` is 52 lines (threshold 60) — close to limit and will grow with phase-scheduled Q/R transitions. `clamp_extended_covariance()` uses if/else chains per state block — a table-driven pattern (`{idx, count, clamp, inhibit_flag}` array) would scale better as more blocks are added. Not blocking — all functions pass the pre-commit hook now, but a deeper pass would improve readability and prepare for phase-scheduled Q/R. Note: `scalar_kalman_update()` (Joseph form) is now bypassed on target by Bierman path (`ESKF_USE_BIERMAN=1`, 2026-02-24); Joseph retained behind `#ifdef` for host-side A/B testing.
-- **3-Axis Magnetometer Model (Stage 3D):** Dedicated IVP stage defined in IVP.md. WMM2025 inclination + intensity tables now available. Needs: `scalar_kalman_update_sparse()` for multi-entry H rows, `update_mag_3axis()` with sequential X/Y/Z fusion, auto-enable logic. Council-reviewed plan in `.claude/plans/streamed-foraging-hartmanis.md`. No longer Titan-only — benefits all tiers.
-- **F' Evaluation:** Three Titan paths identified (A: STM32H7+F'/Zephyr, B: Pi Zero 2 W+F'/Linux, C: Hybrid). Research complete in `docs/decisions/TITAN_BOARD_ANALYSIS.md`. Decision deferred until Titan development begins.
-- ~~**FeatherWing UART GPS:**~~ **DONE** (2026-02-18). `gps_uart.cpp` driver complete with interrupt-driven ring buffer. Outdoor validated.
-- **u-blox GPS (Matek M8Q-5883):** UART + QMC5883L compass. UBX binary protocol. For production/flight builds, not current IVP.
-- ~~**LED Engine Refactor:**~~ **DONE** (2026-04-04, Stage 13 Phase 5). AO_LedEngine has 6-layer priority compositor (fault > flight > cal > radio > sensor > idle). Core 1 vitality check. All LED code consolidated — no more scattered callers.
-- **Notification Engine (post-Stage 13):** AP_Notify-style intent layer above AO_LedEngine. Subsystems report state to notification engine, engine decides visual representation (LED, buzzer, OLED). Decouples "what the system state is" from "how to display it." AO_LedEngine priority compositor is the display backend. See memory: `project_notification_engine.md`.
-- ~~**RC_OS Calibration Separation:**~~ **DONE** (2026-04-05). Blocking cal wizards replaced with async state machine in AO_RCOS. 20Hz tick drives UI (prompt→sample→validate→compute→save). rc_os.cpp 1387→517 lines. All cal types HW verified (wizard: gyro+level+6pos+compass). Idle bridge reduced to watchdog+ESKF+WFI.
-- **clang-tidy Integration:** LLVM installed, 127-check config active, full audit clean (2026-02-20, P5c complete). **All code fully remediated** across 6 phases (P1-P5c, 1,501 total findings + 24 function decompositions). Pre-commit hook active for function-size + cognitive complexity gate. Full 127-check pre-commit enforcement deferred (too slow for every commit). **Post-dev caveat:** clang-tidy has no native cyclomatic complexity check — the cognitive complexity gate is a proxy, not equivalent. JSF AV Rule 3 requires cyclomatic CC <= 20. **RESOLVED (2026-03-26):** `lizard` added to tiered audit script (`run_clang_tidy.sh` Tier 2). 2 CCN>20 violations found (CLI menu switches, Ground code — accepted). See `standards/STANDARDS_AUDIT_2026-03-26.md`.
-- **Dynamic Peripheral Detection + OTA Drivers (Crowdfunding Goal):** Boot-time probe-first detection implemented (2026-02-10). Runtime hot-plug, driver registry, and OTA firmware downloads for unrecognized devices are stretch goals. Full architecture documented in SAD Section 13.2. Flipper Zero-style: plug in a sensor, RC identifies it, prompts for driver. WiFi/BT OTA for Core/Middle tiers.
-- ~~**State-Aware ZUPT for State Machine (IVP-68):**~~ **DONE** (2026-03-26). Tighter R (0.01 vs 0.25) when IDLE/ARMED, skip IMU stationarity check. HW verified: zNIS=0.01.
-- ~~**Direct NOAA/IGRF WMM Table Generation:**~~ **DONE** (2026-04-07). WMM2025 tables generated from NOAA coefficients via BGS API. Three components (declination, inclination, intensity). ArduPilot dependency removed.
-- **Power Optimization: Codegen FPFT is mandatory (2026-02-23).** Dense+SRAM benchmark proved dense is 15.7× slower (1,747µs vs 111µs) — not viable at 24 states even from SRAM. Codegen is the only feasible path. For future power work: codegen allows 4,889µs WFI sleep per 5,000µs tick (2.2% active). Sensors dominate power budget (IMU ~3mA, GPS ~25mA, NeoPixel ~5-8mA). RP2350 Cortex-M33: ~15-25mA active, ~1-5mA WFI sleep. Revisit only if state count grows beyond 24 or if FPU-accelerated dense becomes available on a future MCU.
-- **RC GCS: GPS-free 3D Flight Path Reconstruction (user request, 2026-02-13):** Post-processing feature for RC GCS. Uses raw IMU+baro+mag flight logs with forward-backward RTS smoother and known boundary conditions (launch point = origin, v=0 at ignition and landing, landing point from recovery GPS/manual entry). Reconstructs full 3D flight path without real-time GPS. Core tier ships without GPS — this makes 3D visualization viable for all tiers. Natural companion to IVP-44b ZUPT (stationary constraint) and IVP-46 (GPS when available). Reference: ArduPilot `tools/replay/`, PX4 `ecl/EKF/ekf_helper.cpp` smoother.
-- **Flight Erase Protection (post-Stage 6):** Current erase (`x` key) requires typing "yes" + Enter. Future improvement: password-protected erase or per-flight delete instead of erase-all. Prevents accidental data loss in field use.
-- **USB Download Speed Optimization (post-Stage 6):** Current USB CDC download runs ~9 KB/s (limited by Python serial read loop + fwrite through stdio layer). TinyUSB `tud_cdc_write()` direct calls and larger USB transfer chunks could reach ~200-500 KB/s (USB Full Speed theoretical). Not blocking — current speed downloads a typical flight in 20-30s.
-- ~~**Pre-commit hook function decomposition:**~~ **DONE** (P5c, 2026-02-20). All 8 functions decomposed. Pre-commit hook passes clean — no `--no-verify` needed.
-- ~~**Cycle Performance Benchmark on Hardware (post-Stage 10):**~~ **DONE** (2026-03-29). IVP-87 baseline + IVP-91 post-change benchmark completed in Stage 11. No regression.
-- ~~**SIG_PYRO_FIRED Event for Logger AO (post-Stage 11):**~~ **DONE** (2026-04-06). SIG_PYRO_FIRED added with PyroFiredEvt (channel + source). Published from both FD primary path and PIO backup detection. Logger subscribes.
-- ~~**Passive Ejection Charge Mission Profile (post-Stage 11):**~~ **DONE** (2026-04-06). `profiles/passive.cfg` — HAS_PYRO=0, PIO timers disabled, data-logging only.
-- **AP_Notify-Style Notification Engine (post-Stage 11):** Evaluate ArduPilot's `AP_Notify` pattern for unifying LED, buzzer, and other status indicators behind a single notification interface. Natural successor to current `neo_set_if_changed()` pattern.
-- ~~**Code Comments Audit / Cleanup (low priority):**~~ **DONE** (2026-04-06). 76 files, 213 lines net reduction. IVP refs stripped, migration history removed, 6 buried action items surfaced to `docs/UNIQUE_COMMENT_ITEMS.md`. Council-reviewed (4 personas).
-- **PIO Backup Timer Exhaustive Shakedown (Stage 13):** Full shakedown of PIO backup deployment timers under various failure scenarios. Deferred from Stage 11 to pre-flight polish stage.
-- **Battery ADC Monitoring (pre-flight polish):** No battery voltage measurement implemented. Needs ADC pin wiring + driver + telemetry field. Surfaced from buried code comment in `data_convert.cpp:106`. Low-battery warning for field use.
+**Stage 14: Pre-Flight Polish** (14A Telemetry Polish, 14B System Polish, 14C Verification)
+
+**Stage 15: Field Tuning** — All VALIDATE parameters. Needs flight data.
+
+See plan file for full breakdown.
+
+### Deferred (near-term, post-Stage 14)
+
+- **Battery ADC Monitoring** — Hardware not wired. ADC pin + driver + telemetry field.
+- **CCSDS SDLS Command Authentication** — Telecommand auth for Rocket profile.
+- **Notification Engine** — Evaluate during Stage 13; AP_Notify-style intent layer above LED Engine.
+- **IVP-103 Station GPS Push** — Needs radio command path.
+
+### Far-future (moved to PROJECT_STATUS)
+
+Mission Profile OTA, F' Evaluation, u-blox GPS, OTA drivers, GPS-free 3D reconstruction, FSK bitstream, MATLAB export — all moved to `docs/PROJECT_STATUS.md` future features.
+
+### Recorded Elsewhere (Removed from Whiteboard)
+
+These completed/resolved items are preserved in their canonical locations:
+
+| Item | Recorded In |
+|------|-------------|
+| All Stage 1-12A completion details | `docs/PROJECT_STATUS.md` completed table |
+| Stage 7 IVP-57-65 details | CHANGELOG 2026-04-07/08, PROJECT_STATUS |
+| AO/State Engine Logging audit | `docs/ADVANCED_SETTINGS.md` (verbose/MP-configurable logging) |
+| PCM frame expansion | `docs/ADVANCED_SETTINGS.md` Research Mode |
+| DPS310 baro rate optimization | CHANGELOG, baro driver code |
+| DPS310 baro read count fix | CHANGELOG, baro driver code |
+| SRAM execution audit | `docs/benchmarks/` |
+| Dense FPFT benchmark | `docs/benchmarks/`, whiteboard resolved (archived) |
+| UD factorization benchmark | `docs/benchmarks/UD_BENCHMARK_RESULTS.md` |
+| Bierman measurement update | CHANGELOG, ESKF code |
+| MMAE/IMM pivot | `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` |
+| 24-state ESKF expansion | CHANGELOG, PROJECT_STATUS |
+| Codegen FPFT (IVP-47) | CHANGELOG, PROJECT_STATUS |
+| BSS/codegen sensitivity disproved | `LESSONS_LEARNED.md` Entry 27 |
+| All strikethrough DONE items | CHANGELOG entries, PROJECT_STATUS |
+| VALIDATE values inventory | `docs/UNIQUE_COMMENT_ITEMS.md` |
+| Power optimization notes | Codegen is mandatory (benchmarked). Revisit if state count > 24 |
+| clang-tidy status | Full audit clean. lizard CCN in tiered audit. `standards/STANDARDS_AUDIT_2026-03-26.md` |
+| Job/Mission naming | Code uses `job.h` namespace. Settled. |
+| ivp62-wip branch | Deleted 2026-04-09. All content ported to main. |
 
 ---
 
 ## Resolved
 
-### DPS310 Baro Rate Optimization — RESOLVED (2026-03-14)
-
-Council-reviewed P/T rate configuration. 64 SPS failed HW verification (DPS310 enforces MaxRate limits in CONT_BOTH mode). Settled on independent P/T config: pressure 8x OS / 32 SPS, temperature 1x OS / 2 Hz. Duty cycle dropped from 88% → 48%. `kSigmaBaro` corrected from 0.029m → 0.033m (was mismatched to 16x OS). HW verified: 2029 reads, 0 errors, bNIS=0.01.
-
----
-
-### DPS310 Baro Read Count Freezes — FIXED (2026-03-09)
-
-Recovery mechanism added: consecutive fail counter → bus recovery at 10 → re-init continuous mode at 50 (capped at 3 attempts). Also fixed false error inflation: removed MEAS_CFG PRS_RDY|TMP_RDY pre-check (both flags don't set simultaneously in continuous mode), aligned poll divider to 32 (matches 32 SPS output rate). HW verified: 60s soak, 2333 baro reads, 0 errors.
-
----
-
-### SRAM Execution Audit — CLOSED (2026-02-24)
-
-All hot-path functions audited via `arm-none-eabi-nm --size-sort`. Only `codegen_fpft` (20,124B) exceeds the 2KB XIP cache — already in `.time_critical` SRAM section. All others well under threshold: `core1_read_gps` 352B, `propagate_nominal` 324B, `core1_sensor_loop` 272B, `core1_read_imu` 164B, `core1_read_baro` 116B. No further SRAM placements needed.
-
----
-
-### Dense FPFT + SRAM Benchmark — NOT VIABLE (2026-02-23)
-
-Dense O(N³) at 24 states is not viable even from SRAM. Codegen stays.
-
-| Metric | Codegen + SRAM | Dense + SRAM | Dense + Flash |
-|--------|---------------|-------------|---------------|
-| avg µs | 111 | 1,747 | ~unresponsive |
-| min µs | 101 | 1,737 | — |
-| max µs | 156 | 1,883 | — |
-| CPU @ 200Hz | 2.2% | 34.9% | — |
-| text | 137,732 | 118,604 (-14%) | — |
-| bss | 88,268 | 97,484 (+10%) | — |
-| Sensor errors | 0 | 0 | — |
-
-SRAM eliminated XIP cache thrashing (tight min/max, device runs) but O(24³)=13,824 MACs per call is the fundamental bottleneck. Codegen eliminates ~90% of those by expanding only non-zero symbolic terms at build time. Math is identical (verified Test 8 @ 1e-4, Test 15 @ 1e-6)
-
----
-
-### UD Factorization Benchmark — Phase 1 Gate PASS (2026-02-24)
-
-Full 5-test benchmark suite completed. See `docs/benchmarks/UD_BENCHMARK_RESULTS.md` for full results.
-
-**Phase 1 Gate: PASS** — P is rock-stable at 100K steps with codegen FPFT + force_symmetric + clamp_covariance. No negative diagonals, zero raw asymmetry, condition number bounded at ~3.42e7. UD factorization not needed for numerical stability. Software is identical across all tiers — Titan differs only in hardware.
-
-**Key numbers:**
-- DCP float64: 55.8 cyc/op vs f32 FPU 7.2 cyc/op (7.8× overhead)
-- Thornton f32 predict: 1,420µs vs codegen 48µs (29.6× slower)
-- Bierman scalar update: 43µs vs Joseph 81µs (1.9× faster)
-- Hybrid codegen+Bierman: 486µs/cycle vs current 851µs (43% faster — Bierman advantage)
-
-**Implementation issues fixed:** Thornton D-array in-place corruption (algorithm requires old D values during WMGS sweep), NaN detection in `ud_all_positive()` (IEEE 754 `NaN <= 0` returns false).
-
-**Bierman advantage noted.** Bierman is consistently faster than Joseph for scalar updates. If measurement update becomes a bottleneck at higher sensor rates, Bierman with factorize/reconstruct around codegen predict is a viable hybrid path (486µs vs 851µs per epoch)
-
-### Bierman Measurement Update Adoption — COMPLETE (2026-02-24)
-
-Replaced Joseph scalar measurement updates with Bierman on UD-factored covariance behind `ESKF_USE_BIERMAN=1` (target only). Hybrid architecture: codegen FPFT predict (dense P) → lazy factorize → Bierman scalar updates → reconstruct on next predict. 43% faster per measurement epoch (486µs vs 851µs).
-
-**Implementation:** P representation state machine (`PRepr` enum + `ensure_dense()`/`ensure_ud()`). File-scope `g_bierman_ud` (UD24, 2,400B BSS). All 5 measurement update call sites switched (baro, mag, ZUPT, GPS position, GPS velocity). `ensure_dense()` guards on `set_inhibit_*()`, `reset_mag_heading()`, `set_origin()`, `healthy()`.
-
-**Alpha precision canary (Council Req. #4):** f32 relErr=1.37e-08 vs f64 reference — 6 OOM below 1e-4 threshold. DCP Phase 2 deferred indefinitely.
-
-**SRAM DCP benchmark (Phase 0):** DCP overhead is intrinsic register shuffling (~58 cyc/op from SRAM vs ~63 from flash, 7.8× f32). No datasheet tricks to improve.
-
-**Test:** 207/207 host tests (199 original + 8 Bierman). Binary: text +1,368B, BSS +2,692B.
-
-**HW soak (60s):** 87,756 IMU reads, 0 errors, ESKF HEALTHY throughout. Predict 561µs avg (106µs min, 735µs max — includes factorize/reconstruct overhead). qnorm=1.000000, Mdiv=0.0°.
-
-**Bug fixed:** `healthy()` had a PRepr guard returning false when P was in UD form. CLI status print could call `healthy()` between measurement (UD) and next predict (dense), causing false UNHEALTHY reports. Guard removed — stale dense P diagonals are valid for health checks since Bierman preserves positive-definiteness.
-
----
-
-### MMAE/IMM Pivot — Phase-Scheduled Q/R Replaces MMAE (2026-02-24)
-
-Research across 4 phases proved MMAE/IMM is the wrong tool for RocketChip's flight regime switching. Real aerospace navigation (X-43A, SpaceX, ArduPilot EKF3, PX4 ECL) uses single kinematic filters with deterministic regime adaptation — not multi-model banks. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for full analysis.
-
-**New architecture (Stage 10, IVP-83–85):** Phase-scheduled Q/R matrices tied to state machine flight phases (IDLE→ARMED→BOOST→COAST→DESCENT→LANDED) + sliding-window NIS innovation monitor + confidence gate with hysteresis + confidence-gated pyro lockout. Captures 80-90% of IMM's benefit at near-zero complexity cost. Software identical across all tiers — Titan differs only in hardware. **Stage 10 COMPLETE (2026-03-29).**
-
-**IVP restructuring (2026-03-30):** 14 stages. Stage 10: Adaptive Estimation (IVP-83–85, IVP-86 retired). Stage 11: PIO Safety Architecture (IVP-87–91). Stage 12A: Radio Module + Fruit Jam GCS (IVP-92–98). Stage 12B: Linux GCS (unnumbered placeholders). Stages 13-14: steps preserved, IVP numbers assigned when planned.
-
----
-
-### 24-State ESKF Expansion — COMPLETE (2026-02-21)
-
-15→24 error states: earth_mag NED (3), body_mag_bias (3), wind_NE (2), baro_bias (1). Runtime inhibit flags (ArduPilot EKF3 pattern) — all new states inhibited by default. Codegen regenerated for 24 states (111µs avg, was 59µs at 15-state). O(N²) rank-1 Joseph form replaced O(N³) dense triple product in measurement updates. Sparse reset exploiting G=I except 3×3 attitude block (~450 MACs vs ~27,648 dense). 199/199 host tests, 0 sensor errors on target. CLI shows `inhib: mag=Y wind=Y bbias=Y` + conditional extended state display. 18 files changed.
-
-### IVP-47 Codegen FPFT — COMPLETE (2026-02-21)
-
-SymPy codegen (`scripts/generate_fpft.py`) generates flat scalar C++ for F*P*F^T + Q_d. 199 CSE intermediates, SRAM execution (`.time_critical` section). Block-sparse tried first (31% slower, reverted). Codegen: **9.1× speedup, 538µs → 59µs avg** (50µs min, 113µs max). 194/194 host tests, 0 sensor errors on target. Binary +21KB text, +10KB .data. Standards deviation CG-1 logged. Joseph-form measurement updates (`scalar_kalman_update()`) remain dense — lower rate (8-10Hz), profile when expanding to 24 states.
-
-### IVP-48 ESKF Health Tuning — COMPLETE (2026-02-20)
-
-Fixed mNIS=124.99 death spiral: tilt R inflation (30-60°, ArduPilot `fuseEulerYaw`), hard reject >60°, 300σ gate (ArduPilot EKF3 match), public `reset_mag_heading()` for IVP-67 state machine. Per-sensor accept/reject counters, CLI health dashboard (`s` gate counters + P diags, `e` mA + zNIS). Q review: all values correct. 192/192 host tests. HW verified: mNIS 0.00–0.52, zero errors.
-
-### P5c clang-tidy Function Decomposition — COMPLETE (2026-02-20)
-
-24 function-size/CC warnings decomposed to zero across 4 batches. Pre-commit hook added for function-size + CC gate. Binary: text=114,144, BSS=96,524. HW verified: 60s soak, 0 errors, ESKF stable.
-
-### GPS 57600 Baud + 10Hz — COMPLETE (2026-02-20)
-
-`gps_uart_init()` negotiates 57600 baud and 10Hz. HW verified: ~127 GPS reads/10s, rxOvf=0, IMUerr=0.
-
-### IVP-45 Mahony AHRS — COMPLETE (2026-02-19)
-
-`mahony_ahrs.h/.cpp` + 14 host tests (187/187). Wired into `eskf_tick()` at 200Hz. `Mdiv` in both `e` and `s` CLI output. HW verified: 60s soak, movement tracking, zero sensor errors. Committed `a120e6f`. Standards audit complete (P5c, 2026-02-20).
-
-### Foundational Features Gate — COMPLETE (2026-02-10)
-
-All 5 prerequisites for ESKF completed: soak baseline (536K reads/0 errors), mag cal wizard (300 samples, 81% coverage), non-blocking USB (boot banner deferred), boot-time peripheral detection, unified 5-step calibration wizard. Qwiic chain order finding: GPS must be first in chain.
-
-### Non-Blocking USB — COMPLETE (2026-02-10)
-
-Replaced blocking `wait_for_usb_connection()` with non-blocking `stdio_init_all()`. Boot banner deferred to first terminal connect. Soak verified: 536K reads, 0 errors.
-
-### Stage 4 GPS (IVP-46) — COMPLETE (2026-02-18)
-
-9-step incremental plan fully executed and outdoor-validated. bNIS explosion from previous session was caused by missing P covariance reset in `set_origin()` (fixed in Step 3). UART FIFO overflow fixed with interrupt-driven ring buffer (Step 9). ESKF init NeoPixel (fast red blink) prevents user-error divergence from resetting while moving. 60s soak: bNIS 0.00–2.13, zero UNHEALTHY, G=Y. 173/173 host tests pass.
-
-### ICM-20948 I2C Bypass Mode Migration — COMPLETE (2026-02-10)
-
-Migrated from I2C master mode to bypass mode (`BYPASS_EN=1`). AK09916 reads directly at 0x0C. Removed ~120 lines of I2C master code (Bank 3, SLV0, master clock). Added mag read divider (100Hz), two-level device recovery, lazy mag re-init, GPS pause during mag cal. Council-approved (unanimous). HW verified: mag cal 300 samples, 72% coverage, RMS 0.878 uT with GPS on bus. Build tag: bypass-5.
-
-### D3 main.cpp Refactoring + IVP Strip — COMPLETE (2026-02-09)
-
-`main()` 992→65 lines, `core1_entry()` 367→15 lines. Tick-function dispatcher pattern. Clang-tidy audit (127 checks, 1,251 findings). IVP test code stripped: 3,623→1,073 lines (33 functions, ~2,550 lines removed). Binary 198,144→155,648 bytes (-21.4%). RC-1 and BM-6 deviations resolved. IVP scripts deleted.
-
-### BSS Layout / Codegen Sensitivity — DISPROVED (2026-02-09)
-
-**The "codegen sensitivity" hypothesis was false.** All prior evidence was contaminated by picotool `--force` bus corruption during rapid flash cycles (LL Entry 25).
-
-**Definitive test (2026-02-09):** Three 6-minute soak tests via debug probe (SWD), all zero I2C errors:
-1. Baseline (`prod-1`): 398,665 IMU reads, 0 errors
-2. `constexpr` added to i2c_bus.cpp: 369,604 reads, 0 errors
-3. `static volatile` added to i2c_bus.cpp (BSS layout change): 369,549 reads, 0 errors
-
-**Root cause of all prior "codegen sensitivity" observations:** picotool `--force` reboot interrupts in-progress I2C transactions. Rapid flash cycles accumulate bus corruption that bus recovery can't clear. Debug probe halts both cores cleanly via SWD before flashing — no mid-transaction interruption.
-
-**Impact:** No special BSS isolation, `__attribute__((section))`, separate `.cpp` files, or BUSCTRL investigation needed. Changes to any source file are safe when flashed via probe. See LL Entry 27.
-
-*Previous deferred notes about `.map` diffs, BUSCTRL perf counters, and BSS isolation are obsoleted.*
+*Cleared 2026-04-09. All resolved items recorded in PROJECT_STATUS.md, CHANGELOG.md, and LESSONS_LEARNED.md.*
