@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-09-001 | Claude Code CLI | documentation, refactor
+
+**Whiteboard cleanup + stage restructuring.** Full audit of all tracking documents — no orphaned items. Deleted `ivp62-wip` branch (fully superseded, content ported to main). Cleared whiteboard resolved section (14 DONE items, all recorded in canonical docs). Fixed stale references across 8 files: AO_ARCHITECTURE (SIG_HEALTH_STATUS marked orphaned — zero subscribers despite doc claiming two), IVP.md (IVP-62/64/65 marked complete, Stage 13 inserted as Health Monitor), RADIO_TELEMETRY_STATUS (IVP-62 updated to complete), profiles/README (boot-load → future with lockouts). Restructured stages: 13=Health Monitor, 14=Pre-Flight Polish (14A/14B/14C), 15=Field Tuning. Far-future items moved to PROJECT_STATUS. Council review (5 personas, unanimous) with 24 amendments attached to plan file.
+
+---
+
 ### 2026-04-08-001 | Claude Code CLI | bugfix, feature
 
 **IVP-62d: QGC direct USB connection fixed.** Root cause: QGC sends binary MAVLink frames containing arbitrary byte values — bytes like 0x4C ('L') triggered CLI flash erase command, blocking for >1s and crashing the AO scheduler (queue overflow). Fix: CLI lockout on first 0xFD byte detection (ESC exits). Supporting fixes: CDC TX buffer 64→1024B, CRLF translation disabled for binary MAVLink, stdout timeout 500ms→10ms, direct tud_cdc_write bypassing stdio for MAVLink output, COMM_0 parser for USB input. QGC connects <10s, HSI responsive, recovers from occasional jitter. Remaining USB jitter deferred to Stage 13 polish.
