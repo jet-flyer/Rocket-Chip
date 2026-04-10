@@ -93,9 +93,11 @@
 | 11: PIO Safety Architecture | IVP-87–91 | 2026-03-29 | Baseline benchmark, PIO2 heartbeat watchdog (IRQ-based), PIO backup deployment timers (drogue + main, HW verified), SDK watchdog removed, post-change benchmark (no regression). SPIN updated (6/6 safety). Persistent pyro-fired flags. 2 council reviews. LL 33 + LL 34 |
 | 12A: Radio Module + FJ GCS | IVP-92–98 | 2026-03-31 | Non-blocking TX, AO_Radio + AO_Telemetry split, RadioScheduler, 3-Job system (Vehicle/Station/Relay), RadioConfig in .cfg, RSSI bar (5 NeoPixels), relay forwarding. RP2350B I2C pad isolation fix. 3 council reviews. HW verified: TX→RX 296+ pkts 0 CRC, relay confirmed, GPS on FJ |
 
+| 13: Health Monitor | IVP-104–112 | 2026-04-09 | AO_HealthMonitor (standalone), 2-bit encoding (absent/fault/degraded/healthy), sliding window degraded, fault latch (pre-launch + mid-flight), auto-DISARM on critical fault, LED fault patterns (6), preflight Go/No-Go CLI, debug sub-menu. SPIN 11/11. 647 host tests. v0.3.0 |
+
 ## In Progress
 
-**Stage 13: Health Monitor** — Building centralized health monitoring as standalone AO. 2-bit health encoding (absent/fault/degraded/healthy), SIG_HEALTH_STATUS wired to LED/Logger/Telemetry, preflight Go/No-Go command, CLI debug sub-menu. Council-reviewed (5 personas, unanimous GO). IVP-104 through IVP-112.
+*None currently.*
 
 **Next:** Stage 14 (Notification Engine) → Stage 15 (Pre-Flight Polish) → Stage 16 (Field Tuning)
 
