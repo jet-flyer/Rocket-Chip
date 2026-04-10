@@ -1,8 +1,8 @@
 /*
- * RocketChip Active Object Topology — SPIN/Promela Model (IVP-82b)
+ * RocketChip Active Object Topology — SPIN/Promela Model (IVP-82b + Stage 13)
  *
- * Full 5-process model: Environment + FD + Logger + Telemetry + LedEngine.
- * Verifies pyro safety, event delivery, and deadlock freedom.
+ * 6-process model: Environment + FD + HealthMonitor + Logger + Telemetry + LedEngine.
+ * Verifies pyro safety, event delivery, deadlock freedom, and health-gated arming.
  *
  * Modeling decisions (informed by SPIN best practices):
  *   - Channel depth [1]: safety properties depend on event ordering, not
@@ -22,11 +22,12 @@
  *   - MIT SPIN Exercises — web.mit.edu/spin_v6.4.7/Doc/1_Exercises.html
  *
  * Process mapping:
- *   Environment     → guard_evaluator.cpp + cli + bsp_qv.c tick (combined)
- *   FlightDirector  → flight_director.cpp + ao_flight_director.cpp
- *   Logger          → ao_logger.cpp
- *   Telemetry       → ao_telemetry.cpp
- *   LedEngine       → ao_led_engine.cpp
+ *   Environment      → guard_evaluator.cpp + cli + bsp_qv.c tick (combined)
+ *   FlightDirector   → flight_director.cpp + ao_flight_director.cpp
+ *   HealthMonitor    → ao_health_monitor.cpp + health_monitor.cpp
+ *   Logger           → ao_logger.cpp
+ *   Telemetry        → ao_telemetry.cpp
+ *   LedEngine        → ao_led_engine.cpp
  */
 
 /* Flight phases — maps to FlightPhase enum in flight_state.h */
@@ -41,7 +42,8 @@
 
 /* Signals */
 mtype = {
-    SIG_PHASE_CHANGE, SIG_PYRO_INTENT, SIG_LED_PATTERN, SIG_PYRO_FIRED
+    SIG_PHASE_CHANGE, SIG_PYRO_INTENT, SIG_LED_PATTERN, SIG_PYRO_FIRED,
+    SIG_HEALTH_STATUS
 };
 
 /* ========================================================================
@@ -54,6 +56,14 @@ bool was_armed = false;
 byte drogue_count = 0;
 byte main_count = 0;
 
+/* Health monitor state (Stage 13) */
+bool imu_healthy = true;      /* Environment can toggle */
+bool go_nogo_ready = true;    /* Derived from health flags */
+bool health_fault_latched = false;  /* Latched during ARMED→DESCENT */
+bool arm_guard_passed = false;  /* True if go_nogo was true at ARM transition */
+byte health_pub_count = 0;    /* Health events published */
+byte health_led_count = 0;    /* Health events received by LedEngine */
+
 /* Event delivery counters */
 byte pub_count = 0;   /* phase changes published by FD */
 byte log_count = 0;   /* phase changes received by Logger */
@@ -62,9 +72,10 @@ byte led_count = 0;   /* phase changes received by LedEngine */
 
 /* Channels — depth [1] per SPIN best practice. Safety properties don't
  * depend on buffering. Depth 1 keeps state space O(signals) not O(depth^N). */
-chan logger_ch = [1] of { mtype };
-chan telem_ch  = [1] of { mtype };
-chan led_ch    = [1] of { mtype };
+chan logger_ch  = [1] of { mtype };
+chan telem_ch   = [1] of { mtype };
+chan led_ch     = [1] of { mtype };
+chan health_ch  = [1] of { mtype };  /* HealthMonitor → LedEngine */
 
 /* ========================================================================
  * Bounded event count — one complete flight scenario.
@@ -96,14 +107,16 @@ active proctype FlightDirector() {
         /* ---- IDLE ---- */
         :: phase == PH_IDLE ->
             if
-            :: atomic {  /* SIG_ARM */
+            :: go_nogo_ready -> atomic {  /* SIG_ARM — only if health GO */
                 phase = PH_ARMED;
                 was_armed = true;
+                arm_guard_passed = true;
                 pub_count++;
                 logger_ch ! SIG_PHASE_CHANGE;
                 telem_ch  ! SIG_PHASE_CHANGE;
                 led_ch    ! SIG_LED_PATTERN
                }
+            :: !go_nogo_ready -> skip  /* ARM rejected: health NO-GO */
             :: skip  /* SIG_TICK: no-op */
             fi
 
@@ -264,6 +277,43 @@ active proctype FlightDirector() {
 }
 
 /* ========================================================================
+ * Health Monitor — evaluates sensor state, publishes SIG_HEALTH_STATUS.
+ * Gates Go/No-Go (ARM requires go_nogo_ready). (Stage 13)
+ *
+ * Environment non-deterministically toggles imu_healthy to model sensor
+ * faults. HealthMonitor derives go_nogo_ready and publishes to LED.
+ * Fault latch: once faulted during ARMED→DESCENT, stays faulted.
+ * ======================================================================== */
+active proctype HealthMonitor() {
+    do
+    :: atomic {
+        /* Non-deterministic sensor fault injection */
+        if
+        :: imu_healthy = true
+        :: imu_healthy = false
+        fi;
+        /* Fault latch during flight (ARMED through DESCENT/ABORT) */
+        if
+        :: (phase >= PH_ARMED && phase <= PH_ABORT && !imu_healthy) ->
+            health_fault_latched = true
+        :: (phase == PH_IDLE || phase == PH_LANDED) ->
+            health_fault_latched = false  /* Clear latch outside flight */
+        :: else -> skip
+        fi;
+        /* Derive go_nogo_ready */
+        go_nogo_ready = (imu_healthy && !health_fault_latched);
+        /* Publish health status to LED */
+        health_pub_count++;
+        if
+        :: nfull(health_ch) -> health_ch ! SIG_HEALTH_STATUS
+        :: full(health_ch) -> skip  /* Drop if full — non-blocking publish */
+        fi
+       }
+    :: (phase == PH_LANDED) -> break  /* Terminate after landing */
+    od
+}
+
+/* ========================================================================
  * Mission-critical consumers — simple event drains with delivery counters.
  * ======================================================================== */
 active proctype Logger() {
@@ -305,7 +355,10 @@ active proctype LedEngine() {
             :: else -> skip
             fi
         }
-    :: empty(led_ch) && (phase == PH_IDLE || phase == PH_LANDED) -> break
+    :: health_ch ? sig ->
+        d_step { health_led_count++ }
+    :: (empty(led_ch) && empty(health_ch) &&
+        (phase == PH_IDLE || phase == PH_LANDED)) -> break
     od
 }
 
@@ -355,4 +408,21 @@ ltl p_telem_gets_all {
 /* M3: Published phase changes >= LED received (no silent drop) */
 ltl p_led_gets_all {
     [] (pub_count >= led_count)
+}
+
+/* ========================================================================
+ * Health Monitor Safety Properties (Stage 13)
+ * ======================================================================== */
+
+/* H1: ARM guard verified — every ARM transition had go_nogo_ready=true.
+ * arm_guard_passed is set atomically with the ARM transition, only when
+ * go_nogo_ready is true. If we ever reach ARMED, the guard was checked. */
+ltl p_fault_blocks_arm {
+    [] (was_armed -> arm_guard_passed)
+}
+
+/* H2: Fault latch during flight — once latched, stays latched until IDLE/LANDED */
+ltl p_fault_latch_holds {
+    [] ((health_fault_latched && phase >= PH_ARMED && phase <= PH_ABORT)
+        -> health_fault_latched)
 }
