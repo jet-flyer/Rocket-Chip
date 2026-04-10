@@ -365,8 +365,11 @@ void health_monitor_clear_latches() {
 
 bool health_monitor_critical_fault() {
     HealthLevel imu = health_imu(g_health.primary);
+    HealthLevel baro = health_baro(g_health.primary);
     HealthLevel eskf = health_eskf(g_health.primary);
-    return (imu == kHealthFault) || (eskf == kHealthFault);
+    // Baro is critical: without it, no altitude-gated main deploy and ESKF
+    // vertical axis drifts (LL Entry 34). Same scrub criteria as IMU/ESKF.
+    return (imu == kHealthFault) || (baro == kHealthFault) || (eskf == kHealthFault);
 }
 
 // ============================================================================

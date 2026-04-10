@@ -79,6 +79,7 @@ Full Active Object topology. 5 processes: FlightDirector + Logger + Telemetry + 
 | P3 | Pyro requires ARMED | `[]((drogue\|\|main) -> was_armed)` | Shortcut path bypassing ARM |
 | P4 | Drogue fires once | `[](drogue_count <= 1)` | Duplicate fire (hardware damage) |
 | P5 | Main fires once | `[](main_count <= 1)` | Duplicate fire |
+| P9 | No LANDED without launch | `[](phase==LANDED -> has_launched)` | Pad abort entering LANDED state |
 | M1 | Logger gets all phases | `[](pub >= log)` | Silent event drop to logger |
 | M2 | Telem gets all phases | `[](pub >= tel)` | Telemetry data loss |
 | M3 | LED gets all phases | `[](pub >= led)` | LED not reflecting flight state |

@@ -11,7 +11,8 @@
 //   ABORT-from-BOOST:   fire drogue pyro (safety)
 //   ABORT-from-COAST:   fire drogue pyro
 //   ABORT-from-DESCENT: no-op (chutes already deployed)
-//   ABORT has 5-min timeout → auto-transition to LANDED
+//   Pad abort timeout:  → IDLE (never launched)
+//   In-flight abort:    beacon after timeout, stays in ABORT (no LANDED)
 //   Re-ARM from ABORT requires explicit RESET first
 //============================================================================
 
@@ -486,11 +487,16 @@ static QState state_landed(FlightDirector * const me, QEvt const * const e) {
 }
 
 // ============================================================================
-// ABORT — Emergency state. Has 5-min timeout → LANDED.
-// Requires RESET before re-ARM (no direct ABORT → ARMED).
+// ABORT — Emergency state. Terminal for this flight — no transition to LANDED.
+//
+// ABORT is a sink state: stays in ABORT until manual RESET → IDLE.
+// Pad abort (from ARMED): timeout → IDLE (auto-safe, never launched).
+// In-flight abort (from BOOST/COAST): activates beacon after timeout for
+//   recovery tracking. Stays in ABORT — landing moment determined in
+//   post-processing from flight log. RESET required to return to IDLE.
 //
 // Accepts: SIG_RESET → IDLE
-//          SIG_TICK — abort timeout check
+//          SIG_TICK — pad abort timeout, in-flight beacon activation
 // ============================================================================
 static QState state_abort(FlightDirector * const me, QEvt const * const e) {
     switch (e->sig) {
@@ -520,11 +526,23 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e) {
         case SIG_RESET:
             return Q_TRAN(&state_idle);
         case SIG_TICK: {
-            // Abort timeout → auto-transition to LANDED
             uint32_t elapsed = me->tick_ms - me->state.phase_entry_ms;
             if (elapsed >= me->profile->abort_timeout_ms) {
-                printf("[FD] ABORT timeout — auto-LANDED\n");
-                return Q_TRAN(&state_landed);
+                if (me->state.markers.launch_ms == 0) {
+                    // Pad abort: never launched — auto-return to IDLE
+                    printf("[FD] ABORT timeout (pad) — auto-IDLE\n");
+                    return Q_TRAN(&state_idle);
+                }
+                // In-flight abort: activate beacon for recovery, stay in ABORT.
+                // Use marker as one-shot flag — landing_ms is otherwise unused
+                // in ABORT (landing time determined in post-processing).
+                if (me->state.markers.landing_ms == 0) {
+                    me->state.markers.landing_ms = me->tick_ms;
+                    if (me->set_led_cb) {
+                        me->set_led_cb(kLedPhaseBeacon);
+                    }
+                    printf("[FD] ABORT timeout (in-flight) — beacon active\n");
+                }
             }
             return Q_HANDLED();
         }

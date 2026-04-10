@@ -117,7 +117,7 @@ void health_monitor_set_phase(uint8_t phase);
 // Only works in IDLE — ignored during flight phases.
 void health_monitor_clear_latches();
 
-// Check if critical subsystems are faulted (IMU or ESKF).
+// Check if critical subsystems are faulted (IMU, baro, or ESKF).
 // Used by FD for auto-DISARM while ARMED.
 bool health_monitor_critical_fault();
 

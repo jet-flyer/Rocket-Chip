@@ -311,20 +311,47 @@ TEST_F(FlightDirectorTest, ArmedTimeoutAutoDisarm) {
     EXPECT_EQ(phase(), rc::FlightPhase::kIdle);
 }
 
-TEST_F(FlightDirectorTest, AbortTimeoutAutoLand) {
-    // Abort timeout = 5 minutes (300,000 ms)
+TEST_F(FlightDirectorTest, PadAbortTimeoutReturnsToIdle) {
+    // Pad abort (from ARMED, never launched): timeout → IDLE, not LANDED.
+    // A vehicle that never left the pad is not "landed."
     dispatch(rc::SIG_ARM);
     set_time(1000);
     dispatch(rc::SIG_ABORT);
     EXPECT_EQ(phase(), rc::FlightPhase::kAbort);
 
-    // Tick at 200,000 ms — should NOT auto-land yet
+    // Tick at 200,000 ms — should NOT exit yet
     tick(201000);
     EXPECT_EQ(phase(), rc::FlightPhase::kAbort);
 
-    // Tick at 301,000 ms — should auto-transition to LANDED
+    // Tick at 301,000 ms — pad abort timeout → IDLE
     tick(301000);
-    EXPECT_EQ(phase(), rc::FlightPhase::kLanded);
+    EXPECT_EQ(phase(), rc::FlightPhase::kIdle);
+}
+
+TEST_F(FlightDirectorTest, InFlightAbortStaysAbortWithBeacon) {
+    // In-flight abort (from BOOST): stays in ABORT, activates beacon.
+    // ABORT is a sink state — no transition to LANDED.
+    dispatch(rc::SIG_ARM);
+    set_time(1000);  // Non-zero so BOOST entry records launch_ms != 0
+    dispatch(rc::SIG_LAUNCH);
+    EXPECT_EQ(phase(), rc::FlightPhase::kBoost);
+    EXPECT_NE(fd_.state.markers.launch_ms, 0u);
+
+    set_time(2000);
+    dispatch(rc::SIG_ABORT);
+    EXPECT_EQ(phase(), rc::FlightPhase::kAbort);
+
+    // Tick at 200,000 ms — still ABORT
+    tick(202000);
+    EXPECT_EQ(phase(), rc::FlightPhase::kAbort);
+
+    // Tick past abort timeout — beacon activates but stays in ABORT
+    tick(302000);
+    EXPECT_EQ(phase(), rc::FlightPhase::kAbort);
+
+    // Only SIG_RESET exits to IDLE
+    dispatch(rc::SIG_RESET);
+    EXPECT_EQ(phase(), rc::FlightPhase::kIdle);
 }
 
 TEST_F(FlightDirectorTest, CoastTimeoutForcedApogee) {

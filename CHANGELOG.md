@@ -20,6 +20,22 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-09-003 | Claude Code CLI | bugfix, architecture
+
+**Launch procedure audit: ABORT rework + baro critical fault.** Compared FD state machine against NASA/SpaceX/NAR launch procedures. Three safety fixes:
+
+1. **ABORT is now a sink state** — no transition to LANDED. Pad abort (never launched): timeout → IDLE. In-flight abort: beacon activates after timeout, stays in ABORT. Landing moment determined in post-processing. Fixes bug where a pad-aborted rocket could enter LANDED (clearing fault latches, signaling "mission complete").
+
+2. **Baro added to critical fault check** — `health_monitor_critical_fault()` now includes baro. A baro fault while ARMED triggers auto-DISARM + safe mode, same as IMU/ESKF. Without baro: no altitude-gated main deploy, ESKF vertical drift.
+
+3. **SPIN P9: `p_no_landed_without_launch`** — new property verifying LANDED requires prior launch. `has_launched` variable tracks ARMED→BOOST. 7/7 safety properties pass. P7 liveness is a known pre-existing failure (MAIN_DESCENT needs timeout fallback — tracked on whiteboard).
+
+648 host tests (was 647: +1 new in-flight abort test, 1 renamed). Device build clean.
+
+(AGENT_WHITEBOARD.md, flight_director.cpp, health_monitor.cpp/h, test_flight_director.cpp, rocketchip_fd.pml, spin/README.md)
+
+---
+
 ### 2026-04-09-002 | Claude Code CLI | feature, architecture, council
 
 **Stage 13: Health Monitor complete (IVP-104–112).** New standalone AO_HealthMonitor with 2-bit per-subsystem encoding (absent/fault/degraded/healthy), sliding window degraded detection, fault latch. SIG_HEALTH_STATUS wired to LED/Logger/Telemetry (was orphaned). LED engine: 6 fault patterns with max() priority compositor. Telemetry health byte expanded to 4x2-bit, MAVLink SYS_STATUS fixed (was all-or-nothing). CLI restructured: debug sub-menu (`q`), preflight Go/No-Go (`p`). Vehicle output mode fix (kAnsi default was eating CLI input). Version bump v0.3.0, RC_OS v0.5.0.

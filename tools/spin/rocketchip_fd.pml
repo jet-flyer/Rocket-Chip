@@ -32,6 +32,7 @@ byte phase = IDLE;
 bool drogue_fired = false;
 bool main_fired = false;
 bool was_armed = false;
+bool has_launched = false;     /* Set on ARMED→BOOST, tracks whether flight occurred */
 byte drogue_count = 0;
 byte main_count = 0;
 bool coast_timeout_fired = false;
@@ -70,14 +71,14 @@ active proctype FlightDirector() {
     /* ---- ARMED ---- */
     :: phase == ARMED ->
         if
-        :: true -> phase = BOOST                     /* SIG_LAUNCH (guard) */
+        :: true -> phase = BOOST; has_launched = true /* SIG_LAUNCH (guard) */
         :: true ->                                   /* SIG_DISARM (CLI) → IDLE */
             atomic { phase = IDLE; drogue_fired = false; main_fired = false;
-                     drogue_count = 0; main_count = 0 }
+                     has_launched = false; drogue_count = 0; main_count = 0 }
         :: true -> phase = ABORT_PHASE               /* SIG_ABORT (CLI) — no pyro on pad */
         :: true ->                                   /* SIG_TICK: armed timeout → IDLE */
             atomic { phase = IDLE; drogue_fired = false; main_fired = false;
-                     drogue_count = 0; main_count = 0 }
+                     has_launched = false; drogue_count = 0; main_count = 0 }
         :: true -> skip                              /* SIG_TICK: timeout not elapsed */
         fi
 
@@ -158,18 +159,23 @@ active proctype FlightDirector() {
         if
         :: true ->                                   /* SIG_RESET (CLI) */
             atomic { phase = IDLE; drogue_fired = false; main_fired = false;
-                     drogue_count = 0; main_count = 0 }
+                     has_launched = false; drogue_count = 0; main_count = 0 }
         :: true -> skip                              /* SIG_TICK: no-op */
         fi
 
     /* ---- ABORT ---- */
+    /* ABORT is a sink state for this flight. No transition to LANDED.
+     * Pad abort: timeout → IDLE. In-flight abort: beacon activates, stays ABORT.
+     * Only SIG_RESET exits to IDLE. */
     :: phase == ABORT_PHASE ->
         if
-        :: true ->                                   /* SIG_RESET (CLI) */
+        :: true ->                                   /* SIG_RESET (CLI) → IDLE */
+            atomic { phase = IDLE; drogue_fired = false; main_fired = false;
+                     has_launched = false; drogue_count = 0; main_count = 0 }
+        :: !has_launched ->                           /* SIG_TICK: pad abort timeout → IDLE */
             atomic { phase = IDLE; drogue_fired = false; main_fired = false;
                      drogue_count = 0; main_count = 0 }
-        :: true -> phase = LANDED                    /* SIG_TICK: abort timeout */
-        :: true -> skip                              /* SIG_TICK: timeout not elapsed */
+        :: true -> skip                              /* SIG_TICK: in-flight beacon or not elapsed */
         fi
 
     od
@@ -211,15 +217,40 @@ ltl p_main_once {
     [] (main_count <= 1)
 }
 
-/* P7: Liveness — once flight begins (BOOST), LANDED is always eventually reached.
- * The system may stay in IDLE or ARMED indefinitely (user choice) — that's valid.
- * But once committed to flight (BOOST), there's no dead-end state.
- * Note: with confidence gating, liveness is maintained because:
- *   (1) ABORT fires drogue regardless of confidence (operator override)
- *   (2) Confidence is non-deterministic, so the model explores paths where
- *       confidence recovers and guard-driven pyro fires normally */
+/* P7: Liveness — once flight begins (BOOST), a terminal state is always
+ * eventually reached. Terminal states: LANDED (nominal) or ABORT (emergency).
+ * ABORT is a sink state for the flight — no transition to LANDED.
+ * The system may stay in IDLE or ARMED indefinitely (user choice).
+ * Note: with non-deterministic model, this requires weak fairness to hold
+ * (MAIN_DESCENT can loop on skip forever). Verified structurally — all
+ * flight phases have at least one exit transition. */
+/* P7: Liveness — KNOWN FAILING (pre-existing).
+ * Once flight begins (BOOST), a terminal state (LANDED or ABORT) should
+ * always eventually be reached. Currently fails because MAIN_DESCENT has
+ * no timeout fallback — the stationary guard is the only exit, and the
+ * non-deterministic model can avoid it forever.
+ *
+ * This represents a REAL GAP: if the ESKF dies during descent, the
+ * stationary guard never fires, and the system stays in MAIN_DESCENT
+ * forever. Also affects HAB (balloon doesn't cut → float indefinitely).
+ *
+ * Fix: add descent_timeout_ms to MissionProfile and a fallback in
+ * MAIN_DESCENT's SIG_TICK handler. Once that timeout exists in the model,
+ * P7 will pass under weak fairness (-f flag).
+ *
+ * OPEN ITEM — tracked on AGENT_WHITEBOARD. */
 ltl p_liveness_flight_completes {
-    [] (phase == BOOST -> <> (phase == LANDED))
+    [] (phase == BOOST -> <> (phase == LANDED || phase == ABORT_PHASE))
+}
+
+/* P9: No LANDED state without prior launch.
+ * A vehicle that never left the pad (pad abort, armed timeout, disarm)
+ * must return to IDLE, never LANDED. LANDED implies the vehicle flew
+ * and is now on the ground — entering LANDED on the pad would clear
+ * fault latches and signal "mission complete" incorrectly.
+ * Analog: no launch vehicle declares "landing" after a pad abort. */
+ltl p_no_landed_without_launch {
+    [] (phase == LANDED -> has_launched)
 }
 
 /* P8 (IVP-85): Guard-driven pyro never fires when not confident.

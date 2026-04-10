@@ -17,6 +17,30 @@
 
 *Stage 13 (Health Monitor) COMPLETE. SPIN 11/11. Health-gated safety implemented.*
 
+### Launch Procedure Audit Findings — Future Safety Items
+
+Items identified by comparing NASA/SpaceX/NAR launch procedures against RocketChip FD logic. All are future work requiring Mission Profile or hardware support.
+
+1. **Angle-rate abort guard** — If vehicle exceeds bank angle threshold during BOOST (e.g., 2/3 engines lit, off-axis thrust), trigger ABORT. Real analog: range safety corridor violation / AFTS auto-destruct. Critical for multi-engine and air-dropped configurations. Needs IMU attitude estimate in BOOST phase.
+
+2. **No-pyro-after-impact guard** — If stationary/impact detected while in BOOST or COAST (lawn dart), do NOT fire pyro charges. A rocket that hit the ground and then fires an ejection charge is a hazard. Guard: if landing guard fires before apogee guard, suppress pyro.
+
+3. **Hung fire / ignition timeout** — Track time from ARM (or igniter command from station) to launch detection. If no launch within expected motor ignition window, throw HUNG_FIRE warning. NAR: wait 60s before approach after misfire. Station could enforce exclusion timer.
+
+4. **Igniter continuity check** — Station-side check of igniter circuit continuity before arming. Standard practice in all commercial launch controllers and HPR altimeters. Could be built into station ↔ vehicle radio command path.
+
+5. **Air-dropped vehicle profile** — Different abort timing: no pad, no "stay on ground" option. Engine failure after drop = glider or ballistic. Needs Mission Profile variant with altitude-aware abort logic.
+
+6. **Multi-engine / staging support** — Partial engine light detection, inter-stage hold points, TRA Rule 13-9 (staging devices armed after recovery). Future Mission Profile work.
+
+### MAIN_DESCENT Has No Timeout Fallback — SPIN P7 Fails
+
+MAIN_DESCENT relies entirely on the stationary guard (`SIG_LANDING`) to exit. If ESKF is dead (no velocity estimate), the guard never fires and the system stays in MAIN_DESCENT forever. Also affects HAB profile (balloon float, no descent). Every other flight phase has a timeout fallback; this one doesn't.
+
+**Fix:** Add `descent_timeout_ms` to `MissionProfile` (e.g., 600s rocket, longer for HAB). Add fallback in `state_main_descent` SIG_TICK handler: if elapsed > timeout → auto-LANDED. Update SPIN model with the timeout path — P7 liveness will then pass with weak fairness.
+
+**SPIN status:** P7 (`p_liveness_flight_completes`) currently fails — this is the root cause, not a modeling limitation.
+
 ### Protected File Updates Pending Approval
 
 *None currently.*
