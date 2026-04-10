@@ -192,3 +192,11 @@ add_executable(test_mission_profile test_mission_profile.cpp)
 target_link_libraries(test_mission_profile PRIVATE rc_flight_director GTest::gtest_main)
 target_include_directories(test_mission_profile PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 gtest_discover_tests(test_mission_profile)
+
+# IVP-111: Health monitor encoding + contract tests
+add_executable(test_health_monitor test_health_monitor.cpp)
+target_link_libraries(test_health_monitor PRIVATE GTest::gtest_main)
+target_include_directories(test_health_monitor PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_health_monitor)
