@@ -55,7 +55,10 @@ enum : uint16_t {
 // Output mode state (shared via station_output_mode.h)
 // ============================================================================
 
-static StationOutputMode s_output_mode = StationOutputMode::kAnsi;
+// Vehicle defaults to kMenu (CLI). Station defaults to kAnsi (dashboard).
+// kAnsi causes poll_dashboard_keys() to eat all input — must not be default on vehicle.
+static StationOutputMode s_output_mode = kRadioModeRx ? StationOutputMode::kAnsi
+                                                       : StationOutputMode::kMenu;
 
 StationOutputMode AO_RCOS_get_output_mode() {
     return s_output_mode;

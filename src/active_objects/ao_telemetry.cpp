@@ -352,6 +352,7 @@ static QState TelemAo_initial(TelemAo * const me, QEvt const * const e) {
 
     // Subscribe to SIG_RADIO_RX from AO_Radio
     QActive_subscribe(&me->super, rc::SIG_RADIO_RX);
+    QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);  // IVP-105: health byte
 
     // 10Hz tick (every 10 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 10U, 10U);

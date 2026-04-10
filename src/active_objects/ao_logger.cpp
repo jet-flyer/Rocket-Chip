@@ -10,6 +10,7 @@
 
 #include "ao_logger.h"
 #include "rocketchip/ao_signals.h"
+#include "safety/health_monitor.h"       // IVP-107: health_primary in FusedState
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/fused_state.h"
 #include "rocketchip/pcm_frame.h"
@@ -134,7 +135,7 @@ static void fused_copy_eskf_state(rc::FusedState& fused) {
     if (g_eskf.P(kIdxVelocity + 2, kIdxVelocity + 2) > pvel) { pvel = g_eskf.P(kIdxVelocity + 2, kIdxVelocity + 2); }
     fused.sig_vel = pvel;
 
-    fused.eskf_healthy = g_eskf.healthy();
+    fused.health_primary = rc::health_monitor_get_state()->primary;
     fused.zupt_active = g_eskf.last_zupt_active_;
 }
 
@@ -303,6 +304,7 @@ static QState LoggerAo_initial(LoggerAo * const me, QEvt const * const e) {
     // Subscribe to flight events from Flight Director
     QActive_subscribe(&me->super, rc::SIG_PHASE_CHANGE);
     QActive_subscribe(&me->super, rc::SIG_PYRO_FIRED);
+    QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);  // IVP-105: health in FusedState
     // 50Hz tick (every 2 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 2U, 2U);
     return Q_TRAN(&LoggerAo_running);

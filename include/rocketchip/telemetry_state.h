@@ -49,17 +49,23 @@ struct __attribute__((packed)) TelemetryState {
     uint16_t gps_speed_cms;     // 2B  ground speed, cm/s
     uint8_t  gps_fix_sats;      // 1B  [7:4]=fix_type, [3:0]=sats (capped at 15)
     uint8_t  flight_state;      // 1B
-    uint8_t  health;            // 1B  bitfield: [0]=eskf_healthy, [1]=zupt_active
+    uint8_t  health;            // 1B  4 subsystems x 2-bit: IMU[1:0] Baro[3:2] ESKF[5:4] GPS[7:6]
     int8_t   temperature_c;     // 1B  DPS310 baro temp, rounded to nearest C
     uint16_t battery_mv;        // 2B  0 = not measured
     uint32_t met_ms;            // 4B
-    uint8_t  _reserved;         // 1B  pad to 45
+    uint8_t  flags;             // 1B  [0]=zupt_active, [1-7]=reserved
 };
 static_assert(sizeof(TelemetryState) == 45, "TelemetryState must be 45 bytes");
 
-// Health bitfield definitions
-static constexpr uint8_t kHealthEskfHealthy = (1U << 0);
-static constexpr uint8_t kHealthZuptActive  = (1U << 1);
+// Health byte: 2-bit encoding per subsystem (matches HealthFlags2 primary byte)
+// Use rc::health_imu(), rc::health_baro(), etc. from health_monitor.h to decode.
+
+// Flags byte definitions
+static constexpr uint8_t kFlagsZuptActive = (1U << 0);
+
+// Legacy aliases — remove after all consumers migrated (IVP-107)
+static constexpr uint8_t kHealthEskfHealthy = (1U << 0);  // DEPRECATED
+static constexpr uint8_t kHealthZuptActive  = (1U << 1);   // DEPRECATED
 
 /**
  * @brief UTC epoch anchor — captured on first GPS fix

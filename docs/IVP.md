@@ -20,6 +20,9 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stage 8** (Flight Director): COMPLETE — 10 IVPs (IVP-66–75), 552 host tests, bench sim 9/9
 - **Stage 9** (Active Object Architecture): IVP-76–81 COMPLETE (6 AOs, QV scheduler, all gates passed). IVP-82a/82b (SPIN formal verification) remaining — council-reviewed, split into toolchain+FD model (82a) and full safety model (82b)
 - **Stages 10-12** (Adaptive Estimation, Ground Station, Integration): Placeholders expanded as earlier stages complete
+- **Stage 13** (Health Monitor): IN PROGRESS — IVP-104 through IVP-112. Council-reviewed.
+- **Stage 14** (Notification Engine): NEW — AP_Notify-style intent→display. Placeholder.
+- **Stages 15-16** (Pre-Flight Polish, Field Tuning): Renumbered from 14-15. Placeholders.
 
 **Key references (not duplicated here):**
 - `docs/SAD.md` — System architecture, data structures, module responsibilities
@@ -106,8 +109,10 @@ cmake --build build/
 | **11** | **PIO Safety Architecture** | **Phase 6** | **IVP-87 — IVP-91** | **Placeholder** | |
 | 12 | Ground Station | Phase 7 | IVP-92 — IVP-98 | Placeholder | |
 | **3D** | **3-Axis Magnetometer** | — | **IVP-99 — IVP-103** | **Planned** | |
-| 13 | Pre-Flight Polish | Phase 9 | — | Placeholder | **Flight Ready** |
-| **14** | **Field Tuning & Validation** | **Phase 9** | **—** | **Placeholder** | |
+| **13** | **Health Monitor** | **Phase 9** | **IVP-104 — IVP-112** | **Full** | |
+| 14 | Notification Engine | Phase 9 | — | Placeholder | |
+| 15 | Pre-Flight Polish | Phase 9 | — | Placeholder | **Flight Ready** |
+| **16** | **Field Tuning & Validation** | **Phase 9** | **—** | **Placeholder** | |
 
 > **Stage 6 pull-forward rationale:** Data Logging was originally Stage 9 but is a dependency for the telemetry encoder — the encoder reads from data structures (FusedState, TelemetryState, SensorSnapshot) defined by the logging architecture. Pulling logging forward establishes the canonical data model that all downstream consumers (telemetry encoder, flight director, GCS) read from. IVP numbers were renumbered sequentially. See council reviews: `docs/decisions/Telem+logging/council_data_logging.md` and `council_telemetry_protocol.md`.
 
@@ -2861,13 +2866,155 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ## Stage 13: Health Monitor
 
-**Purpose:** Build a proper centralized health monitoring system. Current `health_monitor.cpp` is fragments from AO extraction — SIG_HEALTH_STATUS is orphaned (zero subscribers), LED engine bypasses health, TelemetryState health byte is 2/8 bits used. This stage defines the health contract, wires all consumers, and adds the `preflight` CLI command.
+**Purpose:** Build a proper centralized health monitoring system as a standalone Active Object. Current `health_monitor.cpp` is fragments from AO extraction — SIG_HEALTH_STATUS is orphaned (zero subscribers), LED engine bypasses health, TelemetryState health byte is 2/8 bits used. This stage: promotes health monitor to AO, defines 2-bit health contract (absent/fault/degraded/healthy), wires all consumers, adds preflight CLI command and debug sub-menu.
+
+**Council review:** 5 personas (NASA/JPL, Professor, ArduPilot, Hobbyist, Cubesat), unanimous GO. Plan: `.claude/plans/wild-wishing-pinwheel.md`.
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| IVP-104 | Health State Contract | 2-bit encoding, HealthFlags2 struct, sliding windows, fault latch, decision record |
+| IVP-105 | AO_HealthMonitor + Subscribers | Standalone AO, wire LED/Logger/Telemetry, 1Hz re-publish, staleness counter |
+| IVP-106 | LED Fault Patterns | 6 fault patterns, max() priority compositor, SIG_HEALTH_STATUS handler |
+| IVP-107 | Telemetry Health Expansion | 4x2-bit health byte, per-sensor MAVLink SYS_STATUS, FusedState expansion |
+| IVP-108 | PIO Watchdog Integration | kHealthPioOk bit, distinct from kHealthWatchdogOk |
+| IVP-109 | CLI Debug Sub-Menu | `d` key debug menu (sensor/I2C/HW/ESKF moved from main menu) |
+| IVP-110 | Preflight Go/No-Go | `p` key preflight poll, concise GO/NO-GO per subsystem |
+| IVP-111 | Host Tests | 15-20 tests: 4-state per subsystem, fault propagation, LED, fault latch |
+| IVP-112 | Fault Propagation Verification | LL Entry 29 scenario end-to-end, latency ≤100ms, fault latch during ARMED |
+
+---
+
+### IVP-104: Health State Contract + 2-Bit Encoding
+
+**Prerequisites:** none
+
+**Implement:** Define 2-bit health encoding in `health_monitor.h`: `kHealthAbsent=0b00` (fail-safe default), `kHealthFault=0b01`, `kHealthDegraded=0b10`, `kHealthOk=0b11`. New `HealthFlags2` struct packing 4 subsystems (IMU, Baro, ESKF, GPS) into `uint8_t primary` (2 bits each). Secondary `uint8_t` for 1-bit flags: radio, flash, watchdog, PIO watchdog. Update `HealthStatusEvt` to carry both bytes. Implement degraded-state logic with sliding windows: IMU degraded at 5/10 `accel_valid==false` ticks, baro at 3/10. ESKF degraded = `healthy()` true but confidence gate uncertain; ESKF fault = `healthy()` false. GPS fault = initialized but `gps_read_count==0`. Fault latch during ARMED→DESCENT (auto-recover in IDLE/LANDED). Fault-to-healthy transitions emit log event. Health staleness counter (`uint8_t`). Produce `docs/decisions/HEALTH_CONTRACT.md` with state machine, transition rules, encoding spec. Document AO priority mismatch (code vs `AO_ARCHITECTURE.md`).
+
+**[GATE]:**
+- `HealthFlags2` compiles, all 4 states distinguishable per subsystem
+- Sliding window thresholds produce correct degraded state
+- Fault latch verified: fault during ARMED does not auto-recover
+- Decision record written
+- Host tests: 4 subsystems x 4 states = 16 state tests
+
+---
+
+### IVP-105: AO_HealthMonitor + Wire Subscribers
+
+**Prerequisites:** IVP-104
+
+**Implement:** Create `src/active_objects/ao_health_monitor.cpp/.h` as standalone AO with QActive struct, queue depth 8, QTimeEvt for 10Hz self-tick. Priority between FD and Logger. Owns `health_monitor_tick()` and `SIG_HEALTH_STATUS` publication. Remove health tick logic from `ao_flight_director.cpp`. Add 1Hz periodic re-publish (every 10th tick regardless of change). Add staleness detection (degrade sensors if no seqlock update for 500ms). Wire subscribers: `QActive_subscribe(me, SIG_HEALTH_STATUS)` in AO_LedEngine, AO_Telemetry, AO_Logger. Each gets `case SIG_HEALTH_STATUS:` handler caching the 2-byte payload. Register in `main.cpp`. Update `AO_ARCHITECTURE.md` and `ao_signals.h` comment.
+
+**[GATE]:**
+- AO_HealthMonitor ticks at 10Hz independently of FD
+- All 3 consumer AOs receive SIG_HEALTH_STATUS events
+- 1Hz re-publish verified
+- FD no longer contains health tick logic
+- Clean compile, existing tests pass
+
+---
+
+### IVP-106: LED Engine Health Fault Patterns
+
+**Prerequisites:** IVP-105
+
+**Implement:** Add fault patterns to `led_patterns.h` in ascending priority: `kFaultPioWdt=41` (orange solid), `kFaultBaroFail=42` (orange fast blink), `kFaultEskfFail=43` (red/yellow alternating), `kFaultImuFail=44` (red fast blink), `kFaultSafeMode=45` (red solid), `kFaultCore1Stall=46` (magenta solid, renumbered). `ao_led_engine.cpp` SIG_HEALTH_STATUS handler: decode 2-bit primary → fault patterns, secondary → PIO/SafeMode. Fault layer stores `max(active_fault_codes)`. Only `kHealthFault` sets pattern; OK/degraded/absent clear it. Keep existing Core 1 vitality check and `led_evaluate_sensor_status()`.
+
+**[GATE]:**
+- IMU fault → red fast blink (host test + HW verify)
+- Multiple faults → highest priority pattern wins
+- Fault clears on health recovery
+- Core 1 stall and GPS sensor status unaffected
+
+---
+
+### IVP-107: Telemetry + FusedState Health Expansion
+
+**Prerequisites:** IVP-105
+
+**Implement:** Redefine `telemetry_state.h` `health` byte as 4x2-bit (IMU/Baro/ESKF/GPS matching `HealthFlags2.primary`). Move ZUPT to `_reserved` → `flags` byte. Update `fused_state.h`: `uint8_t health_primary` replaces `bool eskf_healthy`. Update `data_convert.cpp` encode/decode. Fix `telemetry_encoder.cpp` `encode_sys_status()` for per-sensor MAVLink health bits (currently broken: all-or-nothing). Update `ao_logger.cpp` and `ao_telemetry.cpp` to populate from cached SIG_HEALTH_STATUS. Update `scripts/decode_pcm.py` and `rc_os_dashboard.cpp`.
+
+**[GATE]:**
+- PCM frame health byte carries 4 subsystem 2-bit states
+- MAVLink SYS_STATUS per-sensor health correct
+- Python decoder parses new format
+- Host tests: encode/decode roundtrip
+
+---
+
+### IVP-108: PIO Watchdog Integration
+
+**Prerequisites:** IVP-104
+
+**Implement:** New `kHealthPioOk` bit in secondary flags (distinct from `kHealthWatchdogOk`). Check `pio_watchdog_fault_detected()` in `health_monitor_tick()`. Update Go/No-Go if appropriate.
+
+**[GATE]:**
+- PIO fault → `kHealthPioOk` clears
+- Distinct from `kHealthWatchdogOk`
+- Host test passes
+
+---
+
+### IVP-109: CLI Restructure — Debug Sub-Menu
+
+**Prerequisites:** none
+
+**Implement:** New `d` key in main menu → debug sub-menu. Move `s` (sensor status), `i` (I2C scan), `b` (HW status), `e` (ESKF live) from main menu into debug sub-menu. Same pattern as calibration/flight sub-menus (`z`/ESC to return). Main menu becomes: `h`=help, `c`=calibration, `f`=flight, `d`=debug (+ `p` in IVP-110). Update help menu text.
+
+**[GATE]:**
+- Debug sub-menu accessible, all diagnostic commands work
+- Main menu decluttered
+- HW verified
+
+---
+
+### IVP-110: Preflight Go/No-Go Command
+
+**Prerequisites:** IVP-104, IVP-109
+
+**Implement:** New `p` key in main menu. Reads `health_monitor_get_state()`. Compact Go/No-Go poll: GO items are one word, NO-GO/DEGRADED/FAULT/ABSENT items include brief reason. Verdict line at bottom.
+
+**[GATE]:**
+- `p` produces concise Go/No-Go preflight poll
+- NO-GO items show reason, GO items are clean
+- HW verified
+
+---
+
+### IVP-111: Host Tests (15-20)
+
+**Prerequisites:** IVP-104, IVP-105, IVP-106, IVP-107
+
+**Implement:** `tests/test_health_monitor.cpp`. Per-subsystem 4-state tests (16). Sliding window thresholds. Fault propagation to TelemetryState. LED fault activation with max() priority. 1Hz re-publish. Staleness counter. Fault latch during ARMED. Go/No-Go integration.
+
+**[GATE]:**
+- 15+ host tests pass
+- All 4 states per subsystem covered
+
+---
+
+### IVP-112: Mid-Flight Fault Propagation Verification
+
+**Prerequisites:** IVP-106, IVP-107, IVP-111
+
+**Implement:** Test LL Entry 29 scenario: ICM-20948 zero-output → `core1_read_imu` error → sliding window 5/10 → IMU fault → SIG_HEALTH_STATUS → LED red fast blink + telemetry health byte update. Verify ≤100ms propagation. Verify fault latch during ARMED. HW verify if feasible (Qwiic unplug).
+
+**[GATE]:**
+- Host test: full chain verified
+- Propagation ≤100ms
+- Fault latch holds during ARMED
+
+---
+
+## Stage 14: Notification Engine
+
+**Purpose:** AP_Notify-style intent layer. Subsystems report state (armed, IMU fault, GPS searching), notification engine translates to display commands across output devices (NeoPixel, future buzzer, future OLED). Decouples "what state is" from "how to display it." Scope document produced at end of Stage 13.
 
 *IVP numbers assigned when this stage is planned.*
 
 ---
 
-## Stage 14: Pre-Flight Polish
+## Stage 15: Pre-Flight Polish (was Stage 14)
 
 **Purpose:** Full system verification and flight readiness. All subsystems integrated, all tests passing, all hardware validated under realistic conditions.
 
@@ -2889,7 +3036,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-## Stage 15: Field Tuning & Validation
+## Stage 16: Field Tuning & Validation (was Stage 15)
 
 **Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. This stage requires a flight-ready system (Stage 14 complete) to collect meaningful data for tuning.
 

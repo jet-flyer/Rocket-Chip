@@ -42,11 +42,11 @@ static TelemetryState make_test_telem() {
     t.gps_speed_cms = 100;    // 1 m/s ground speed
     t.gps_fix_sats  = 0x3C;  // fix=3, sats=12
     t.flight_state  = 0;      // IDLE
-    t.health        = 0x01;   // ESKF healthy
+    t.health        = 0xFF;   // All 4 subsystems healthy (0b11 each)
     t.temperature_c = 22;
     t.battery_mv    = 3700;
     t.met_ms        = 12345;
-    t._reserved     = 0;
+    t.flags         = 0;
     return t;
 }
 

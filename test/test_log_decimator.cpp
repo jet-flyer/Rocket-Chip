@@ -45,7 +45,7 @@ static FusedState make_fused(float val, uint32_t met_ms = 1000) {
     f.gps_ground_speed_mps = val;
     f.gps_fix_type = 3;
     f.gps_satellites = 8;
-    f.eskf_healthy = true;
+    f.health_primary = 0xFF;  // All healthy
     f.zupt_active = false;
     f.flight_state = 0;
     f.met_ms = met_ms;
@@ -244,7 +244,7 @@ TEST(LogDecimator, IntegerFieldsFromFinalSample) {
         f.gps_lon_1e7 = static_cast<int32_t>((i + 1) * 5000000);
         f.gps_fix_type = static_cast<uint8_t>(i);
         f.gps_satellites = static_cast<uint8_t>(5 + i);
-        f.eskf_healthy = (i == 3);
+        f.health_primary = (i == 3) ? static_cast<uint8_t>(0xFF) : static_cast<uint8_t>(0);
         f.zupt_active = (i == 3);
         f.flight_state = static_cast<uint8_t>(i);
         decimator_push(&dec, f, out);
@@ -255,7 +255,7 @@ TEST(LogDecimator, IntegerFieldsFromFinalSample) {
     EXPECT_EQ(out.gps_lon_1e7, 20000000);
     EXPECT_EQ(out.gps_fix_type, 3);
     EXPECT_EQ(out.gps_satellites, 8);
-    EXPECT_TRUE(out.eskf_healthy);
+    EXPECT_EQ(out.health_primary, 0xFF);
     EXPECT_TRUE(out.zupt_active);
     EXPECT_EQ(out.flight_state, 3);
     EXPECT_EQ(out.met_ms, 400U);

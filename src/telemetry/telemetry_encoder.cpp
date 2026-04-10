@@ -15,6 +15,7 @@
  */
 
 #include "rocketchip/telemetry_encoder.h"
+#include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "crc16_ccitt.h"
 #include <string.h>
 #include <math.h>
@@ -182,15 +183,21 @@ uint16_t MavlinkEncoder::encode_heartbeat(uint8_t flight_state, uint8_t* buf) {
 
 uint16_t MavlinkEncoder::encode_sys_status(const TelemetryState& telem,
                                             uint8_t* buf) {
-    // Sensor present/enabled/health bitmasks
-    // Report 3D_ACCEL + 3D_GYRO + 3D_MAG + ABSOLUTE_PRESSURE
+    // Sensor present/enabled/health bitmasks — per-sensor from 2-bit encoding (IVP-107)
     uint32_t sensors = MAV_SYS_STATUS_SENSOR_3D_ACCEL
                      | MAV_SYS_STATUS_SENSOR_3D_GYRO
                      | MAV_SYS_STATUS_SENSOR_3D_MAG
                      | MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE;
-    uint32_t health = sensors;  // All healthy (simplified)
-    if ((telem.health & kHealthEskfHealthy) == 0) {
-        health = 0;  // ESKF unhealthy — report no sensors healthy
+    uint32_t health = 0;
+    // IMU health → accel + gyro + mag (same physical device: ICM-20948)
+    if (rc::health_imu(telem.health) != rc::kHealthFault) {
+        health |= MAV_SYS_STATUS_SENSOR_3D_ACCEL
+                | MAV_SYS_STATUS_SENSOR_3D_GYRO
+                | MAV_SYS_STATUS_SENSOR_3D_MAG;
+    }
+    // Baro health → absolute pressure
+    if (rc::health_baro(telem.health) != rc::kHealthFault) {
+        health |= MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE;
     }
 
     mavlink_message_t msg;

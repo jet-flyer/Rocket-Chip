@@ -17,6 +17,7 @@
 
 #include "flight_director.h"
 #include "flight_actions.h"
+#include "safety/health_monitor.h"   // IVP-107: health_eskf() for lockout
 #include <cmath>
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -223,7 +224,7 @@ void flight_director_evaluate_guards(FlightDirector* me,
     lockout.ms_since_launch = ms_since_launch;
     lockout.deploy_lockout_mps = me->profile->deploy_lockout_mps;
     lockout.apogee_lockout_ms = me->profile->apogee_lockout_ms;
-    lockout.eskf_healthy = fused.eskf_healthy;
+    lockout.eskf_healthy = (rc::health_eskf(fused.health_primary) >= rc::kHealthDegraded);
     lockout.confident = fused.confident;    // Confidence gate
 
     // Step 3: Evaluate combinators (managed guards + lockouts + timer backup)

@@ -93,10 +93,8 @@ void fused_to_telemetry(const FusedState& f, TelemetryState& t) {
 
     t.flight_state = f.flight_state;
 
-    // Health bitfield
-    t.health = 0;
-    if (f.eskf_healthy) { t.health |= kHealthEskfHealthy; }
-    if (f.zupt_active)  { t.health |= kHealthZuptActive; }
+    // Health: direct copy of 2-bit packed primary byte (IVP-107)
+    t.health = f.health_primary;
 
     // Temperature (DPS310 baro, rounded to nearest degree)
     t.temperature_c = clamp_round_i8(f.baro_temperature_c);
@@ -105,7 +103,8 @@ void fused_to_telemetry(const FusedState& f, TelemetryState& t) {
     t.battery_mv = 0;
 
     t.met_ms = f.met_ms;
-    t._reserved = 0;
+    t.flags = 0;
+    if (f.zupt_active) { t.flags |= kFlagsZuptActive; }
 }
 
 void telemetry_to_fused_approx(const TelemetryState& t, FusedState& f) {
@@ -138,8 +137,8 @@ void telemetry_to_fused_approx(const TelemetryState& t, FusedState& f) {
     f.gps_satellites = t.gps_fix_sats & kNibbleMask;
 
     f.flight_state = t.flight_state;
-    f.eskf_healthy = (t.health & kHealthEskfHealthy) != 0;
-    f.zupt_active = (t.health & kHealthZuptActive) != 0;
+    f.health_primary = t.health;  // Direct copy of 2-bit packed byte (IVP-107)
+    f.zupt_active = (t.flags & kFlagsZuptActive) != 0;
 
     f.baro_temperature_c = static_cast<float>(t.temperature_c);
     f.met_ms = t.met_ms;

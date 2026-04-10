@@ -80,7 +80,7 @@ static void copy_discrete_fields(FusedState& accum, const FusedState& input) {
     accum.gps_lon_1e7 = input.gps_lon_1e7;
     accum.gps_fix_type = input.gps_fix_type;
     accum.gps_satellites = input.gps_satellites;
-    accum.eskf_healthy = input.eskf_healthy;
+    accum.health_primary = input.health_primary;
     accum.zupt_active = input.zupt_active;
     accum.flight_state = input.flight_state;
     accum.met_ms = input.met_ms;

@@ -71,8 +71,15 @@ static constexpr uint8_t kSensorTimeout   = 36;  // Magenta solid (5min timeout)
 
 // ============================================================================
 // Fault patterns (highest priority — AO_LedEngine fault layer)
+// Ascending code = ascending priority. Fault layer uses max() compositor.
+// Council: Core1Stall > SafeMode > IMU > ESKF > Baro > PIO (IVP-106)
 // ============================================================================
-static constexpr uint8_t kFaultCore1Stall = 40;  // Magenta solid (Core 1 stalled)
+static constexpr uint8_t kFaultPioWdt     = 41;  // Orange solid (PIO watchdog fired)
+static constexpr uint8_t kFaultBaroFail   = 42;  // Orange fast blink (baro fault)
+static constexpr uint8_t kFaultEskfFail   = 43;  // Red blink (ESKF fault)
+static constexpr uint8_t kFaultImuFail    = 44;  // Red fast blink (IMU fault)
+static constexpr uint8_t kFaultSafeMode   = 45;  // Red solid (watchdog safe mode)
+static constexpr uint8_t kFaultCore1Stall = 46;  // Magenta solid (Core 1 stalled)
 
 } // namespace led
 } // namespace rc
@@ -113,6 +120,11 @@ static constexpr uint8_t kSensorNeoGpsSearch = rc::led::kSensorGpsSearch;
 static constexpr uint8_t kSensorNeoGpsNoNmea = rc::led::kSensorGpsNoNmea;
 static constexpr uint8_t kSensorNeoNoGps     = rc::led::kSensorNoGps;
 static constexpr uint8_t kSensorNeoTimeout   = rc::led::kSensorTimeout;
+static constexpr uint8_t kFaultNeoPioWdt     = rc::led::kFaultPioWdt;
+static constexpr uint8_t kFaultNeoBaroFail   = rc::led::kFaultBaroFail;
+static constexpr uint8_t kFaultNeoEskfFail   = rc::led::kFaultEskfFail;
+static constexpr uint8_t kFaultNeoImuFail    = rc::led::kFaultImuFail;
+static constexpr uint8_t kFaultNeoSafeMode   = rc::led::kFaultSafeMode;
 static constexpr uint8_t kFaultNeoCore1Stall = rc::led::kFaultCore1Stall;
 
 #endif // ROCKETCHIP_LED_PATTERNS_H

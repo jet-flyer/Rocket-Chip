@@ -67,7 +67,7 @@ protected:
         fused.gps_fix_type = 3;
         fused.gps_satellites = 12;
 
-        fused.eskf_healthy = true;
+        fused.health_primary = 0xFF;  // All 4 subsystems healthy (0b11 each)
         fused.zupt_active = false;
         fused.flight_state = 2;  // BOOST
         fused.met_ms = 15000;
@@ -127,7 +127,7 @@ TEST_F(DataModelRoundtrip, GpsFixSatsPreserved) {
 }
 
 TEST_F(DataModelRoundtrip, HealthBitsPreserved) {
-    EXPECT_EQ(approx.eskf_healthy, fused.eskf_healthy);
+    EXPECT_EQ(approx.health_primary, fused.health_primary);
     EXPECT_EQ(approx.zupt_active, fused.zupt_active);
 }
 

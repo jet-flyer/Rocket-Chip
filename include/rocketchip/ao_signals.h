@@ -58,7 +58,7 @@ enum RcSignal : uint16_t {
     SIG_PYRO_INTENT = 19,            // 19: Pyro fire intent (FD → Logger via callback)
     SIG_LED_OVERRIDE,                // 20: Calibration/RX LED override (CLI → LedEngine)
     SIG_CLI_COMMAND,                 // 21: CLI command dispatch (CLI → FD, synchronous)
-    // 22: removed (HEALTH_CHECK — health monitor is FD module, not separate AO)
+    // 22: removed (HEALTH_CHECK — health monitor promoted to AO_HealthMonitor, Stage 13)
 
     // --- Radio Module ---
     SIG_RADIO_TX,                    // 23: Encoded packet ready for TX (Telem → Radio)
@@ -136,9 +136,12 @@ struct GcsCmdEvt {
 };
 
 // Health status change (health_monitor_tick detected flag change)
+// Primary: 4 subsystems x 2-bit (IMU[1:0], Baro[3:2], ESKF[5:4], GPS[7:6])
+// Secondary: 1-bit flags (radio, flash, watchdog, PIO)
 struct HealthStatusEvt {
     QEvt super;
-    uint8_t health_flags;   // Bitfield of rc::HealthFlag
+    uint8_t primary;        // 2-bit HealthLevel per subsystem
+    uint8_t secondary;      // 1-bit HealthSecondary flags
 };
 
 // Pyro fired confirmation (FD smart path or PIO backup → Logger)

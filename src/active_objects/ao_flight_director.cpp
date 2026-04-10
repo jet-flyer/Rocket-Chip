@@ -37,7 +37,7 @@ enum : uint16_t {
 // Flight Director period
 // ============================================================================
 static constexpr uint32_t kFlightDirectorPeriodMs = 10;  // 100Hz
-static constexpr uint8_t kHealthTickDivider = 10;        // 100Hz / 10 = 10Hz
+// Health monitor moved to AO_HealthMonitor (IVP-105)
 
 // ============================================================================
 // FdAo struct — owns the FlightDirector instance
@@ -48,7 +48,7 @@ struct FdAo {
     rc::FlightDirector director;    // Flight Director QHsm
     bool initialized;               // true after ctor + init + callback wiring
     uint32_t last_tick_ms;          // Rate limiter for 100Hz tick
-    uint8_t health_tick_count;      // Divider counter for 10Hz health monitor
+    // health_tick_count removed — health monitor is now AO_HealthMonitor (IVP-105)
     bool pio_drogue_reported;       // PIO backup drogue fire already published
     bool pio_main_reported;         // PIO backup main fire already published
 };
@@ -131,20 +131,7 @@ static void fd_tick(FdAo* me) {
                                              snap.accel_z, accel_mag);
     }
 
-    // Health monitor at 10Hz (every 10th tick)
-    me->health_tick_count++;
-    if (me->health_tick_count >= kHealthTickDivider) {
-        me->health_tick_count = 0;
-        if (rc::health_monitor_tick()) {
-            // Health flags changed — publish SIG_HEALTH_STATUS
-            static rc::HealthStatusEvt healthEvt;
-            healthEvt.super.sig = rc::SIG_HEALTH_STATUS;
-            healthEvt.health_flags =
-                rc::health_monitor_get_state()->flags;
-            QActive_publish_(&healthEvt.super,
-                             &me->super, me->super.prio);
-        }
-    }
+    // Health monitor moved to AO_HealthMonitor (IVP-105)
 
     fd_check_pio_backup(me);
 }
@@ -216,12 +203,9 @@ void AO_FlightDirector_start(uint8_t prio) {
     rc::flight_director_init(&me->director);
     me->initialized = true;
     me->last_tick_ms = 0;
-    me->health_tick_count = 0;
+    // health_tick_count removed — AO_HealthMonitor owns health (IVP-105)
     me->pio_drogue_reported = false;
     me->pio_main_reported = false;
-
-    // Initialize health monitor
-    rc::health_monitor_init();
 
     // --- Start QP Active Object ---
     QActive_ctor(&me->super, Q_STATE_CAST(&FdAo_initial));

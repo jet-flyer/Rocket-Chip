@@ -2,7 +2,7 @@
 
 **Purpose:** Communication across context windows and between agents.
 
-**Stages 1-13 COMPLETE.** 598+ host tests, SPIN 6/6. Stage 3D (3-axis mag) complete. Stage 7 Take 2 complete. All post-Stage 13 side items resolved (2026-04-06). Tracking: `docs/AO_ARCHITECTURE.md`.
+**Stages 1-12A COMPLETE.** 610+ host tests, SPIN 6/6. **Stage 13 (Health Monitor) IN PROGRESS.** Tracking: `docs/AO_ARCHITECTURE.md`.
 
 ## Use Cases
 1. **Cross-agent review** - Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
@@ -15,7 +15,7 @@
 
 ## Open Flags
 
-*None currently. Beginning Stage 13 (Pre-Flight Polish).*
+*Stage 13 (Health Monitor) in progress. IVP-104 through IVP-112.*
 
 ### Protected File Updates Pending Approval
 
@@ -25,19 +25,20 @@
 
 ## Upcoming Stages
 
-**Stage 13: Health Monitor** — Dedicated stage. Building centralized health monitoring from scratch (not patching fragments). Council-reviewed plan in `.claude/plans/rosy-dazzling-charm.md`.
+**Stage 13: Health Monitor** (IN PROGRESS) — AO_HealthMonitor, 2-bit encoding, fault patterns, preflight CLI, debug sub-menu. Council-reviewed plan in `.claude/plans/wild-wishing-pinwheel.md`.
 
-**Stage 14: Pre-Flight Polish** (14A Telemetry Polish, 14B System Polish, 14C Verification)
+**Stage 14: Notification Engine** (NEW) — AP_Notify-style intent→display routing. Scope doc produced at end of Stage 13.
 
-**Stage 15: Field Tuning** — All VALIDATE parameters. Needs flight data.
+**Stage 15: Pre-Flight Polish** (was 14) — 15A Telemetry Polish, 15B System Polish, 15C Verification
+
+**Stage 16: Field Tuning** (was 15) — All VALIDATE parameters. Needs flight data.
 
 See plan file for full breakdown.
 
-### Deferred (near-term, post-Stage 14)
+### Deferred (near-term, post-Stage 15)
 
 - **Battery ADC Monitoring** — Hardware not wired. ADC pin + driver + telemetry field.
 - **CCSDS SDLS Command Authentication** — Telecommand auth for Rocket profile.
-- **Notification Engine** — Evaluate during Stage 13; AP_Notify-style intent layer above LED Engine.
 - **IVP-103 Station GPS Push** — Needs radio command path.
 
 ### Far-future (moved to PROJECT_STATUS)

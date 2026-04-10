@@ -95,9 +95,11 @@
 
 ## In Progress
 
-*None currently.*
+**Stage 13: Health Monitor** — Building centralized health monitoring as standalone AO. 2-bit health encoding (absent/fault/degraded/healthy), SIG_HEALTH_STATUS wired to LED/Logger/Telemetry, preflight Go/No-Go command, CLI debug sub-menu. Council-reviewed (5 personas, unanimous GO). IVP-104 through IVP-112.
 
-**Next:** Stage 13 (Health Monitor) → Stage 14 (Pre-Flight Polish) → Stage 15 (Field Tuning)
+**Next:** Stage 14 (Notification Engine) → Stage 15 (Pre-Flight Polish) → Stage 16 (Field Tuning)
+
+*Stage renumbering: Stage 14 = Notification Engine (NEW, AP_Notify-style), Stage 15 = Pre-Flight Polish (was 14), Stage 16 = Field Tuning (was 15).*
 
 ## Blockers
 

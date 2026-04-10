@@ -15,6 +15,7 @@
 
 #include "rc_os_dashboard.h"
 #include "rocketchip/config.h"
+#include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "active_objects/ao_radio.h"
 #include "flight_director/flight_state.h"
 #include <stdio.h>
@@ -140,7 +141,7 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     d.speed   = sqrtf(vel_n * vel_n + vel_e * vel_e + vel_d * vel_d);
     d.fix     = (t.gps_fix_sats >> 4) & 0x0F;
     d.sats    = t.gps_fix_sats & 0x0F;
-    d.eskf_ok = (t.health & rc::kHealthEskfHealthy) != 0;
+    d.eskf_ok = (rc::health_eskf(t.health) >= rc::kHealthDegraded);
     d.batt_v  = static_cast<float>(t.battery_mv) * 0.001f;
     d.lat     = static_cast<double>(t.lat_1e7) * 1e-7;
     d.lon     = static_cast<double>(t.lon_1e7) * 1e-7;

@@ -28,6 +28,9 @@ void cli_print_boot_status();
 /// Compact ESKF live output (1Hz, 'e' key)
 void cli_print_eskf_live();
 
+/// Preflight Go/No-Go poll ('p' key, IVP-110)
+void cli_print_preflight();
+
 /// Unhandled key dispatcher (logging, radio, download commands)
 void cli_handle_unhandled_key(int key);
 

@@ -386,6 +386,7 @@ else()
         src/active_objects/ao_counter.cpp
         src/active_objects/ao_led_engine.cpp
         src/active_objects/ao_flight_director.cpp
+        src/active_objects/ao_health_monitor.cpp
         src/active_objects/ao_logger.cpp
         src/active_objects/ao_telemetry.cpp
         src/active_objects/ao_radio.cpp

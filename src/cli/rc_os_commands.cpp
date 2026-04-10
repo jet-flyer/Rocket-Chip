@@ -12,6 +12,7 @@
 
 #include "ao_rcos.h"
 #include "rocketchip/config.h"
+#include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/pcm_frame.h"
 #include "rocketchip/telemetry_state.h"
@@ -638,7 +639,7 @@ static void print_gps_status_boot() {
 }
 
 // Build tag constant — must match main.cpp
-static constexpr const char* kBuildTag = "ivp74-profile-1";
+static constexpr const char* kBuildTag = "stage13-health-1";
 
 void cli_print_hw_status() {
     printf("\n=== Hardware Status ===\n");
@@ -844,7 +845,7 @@ static void print_station_rx_fields(const rc::TelemetryState& t,
     float vvel   = static_cast<float>(t.baro_vvel_cms) * kCmsToMs;
     uint8_t fix  = (t.gps_fix_sats >> 4) & 0x0F;
     uint8_t sats = t.gps_fix_sats & 0x0F;
-    bool eskf_ok = (t.health & rc::kHealthEskfHealthy) != 0;
+    bool eskf_ok = (rc::health_eskf(t.health) >= rc::kHealthDegraded);
 
     uint32_t age_ms = to_ms_since_boot(get_absolute_time()) - rs->last_rx_ms;
     uint32_t lost = 0;
@@ -1188,6 +1189,72 @@ static void cmd_station_gps_push() {
     } else {
         printf("No GPS 3D fix on station\n");
     }
+}
+
+// ============================================================================
+// Preflight Go/No-Go Poll (IVP-110)
+// ============================================================================
+
+static const char* health_level_str(rc::HealthLevel level) {
+    switch (level) {
+        case rc::kHealthOk:       return "GO";
+        case rc::kHealthDegraded: return "DEGRADED";
+        case rc::kHealthFault:    return "FAULT";
+        case rc::kHealthAbsent:   return "ABSENT";
+        default:                  return "?";
+    }
+}
+
+static bool is_go(rc::HealthLevel level) {
+    return level >= rc::kHealthDegraded;  // OK or degraded = GO
+}
+
+void cli_print_preflight() {
+    const rc::HealthState* hs = rc::health_monitor_get_state();
+
+    rc::HealthLevel imu  = rc::health_imu(hs->primary);
+    rc::HealthLevel baro = rc::health_baro(hs->primary);
+    rc::HealthLevel eskf = rc::health_eskf(hs->primary);
+    rc::HealthLevel gps  = rc::health_gps(hs->primary);
+
+    bool radioOk = (hs->secondary & rc::kHealthRadioOk) != 0;
+    bool flashOk = (hs->secondary & rc::kHealthFlashOk) != 0;
+    bool wdtOk   = (hs->secondary & rc::kHealthWatchdogOk) != 0;
+    bool pioOk   = (hs->secondary & rc::kHealthPioOk) != 0;
+
+    printf("\n=== PREFLIGHT ===\n");
+
+    // Primary subsystems (2-bit)
+    if (is_go(imu))  { printf("IMU:      GO\n"); }
+    else { printf("IMU:      %s\n", health_level_str(imu)); }
+
+    if (is_go(baro)) { printf("Baro:     GO\n"); }
+    else { printf("Baro:     %s\n", health_level_str(baro)); }
+
+    if (is_go(eskf)) { printf("ESKF:     GO\n"); }
+    else { printf("ESKF:     %s\n", health_level_str(eskf)); }
+
+    // GPS: show fix detail on non-GO
+    if (is_go(gps)) {
+        printf("GPS:      GO\n");
+    } else {
+        shared_sensor_data_t snap{};
+        seqlock_read(&g_sensorSeqlock, &snap);
+        printf("GPS:      %s  fix=%u sats=%u\n",
+               health_level_str(gps),
+               static_cast<unsigned>(snap.gps_fix_type),
+               static_cast<unsigned>(snap.gps_satellites));
+    }
+
+    // Secondary flags (1-bit)
+    printf("Radio:    %s\n", radioOk ? "GO" : "ABSENT");
+    printf("Flash:    %s\n", flashOk ? "GO" : "FAULT");
+    printf("Watchdog: %s\n", wdtOk ? "GO" : "FAULT");
+    printf("PIO WDT:  %s\n", pioOk ? "GO" : "FAULT");
+
+    // Verdict
+    printf("----------------\n");
+    printf("VERDICT:  %s\n", hs->go_nogo_ready ? "GO" : "NO-GO");
 }
 
 void cli_handle_unhandled_key(int key) {

@@ -29,6 +29,7 @@ typedef enum {
     RC_OS_MENU_MAIN = 0,
     RC_OS_MENU_CALIBRATION,
     RC_OS_MENU_FLIGHT,
+    RC_OS_MENU_DEBUG,           // IVP-109: debug sub-menu
 } rc_os_menu_t;
 
 // ============================================================================

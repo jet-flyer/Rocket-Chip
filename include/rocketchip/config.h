@@ -50,9 +50,9 @@
 // ============================================================================
 
 constexpr uint8_t     kVersionMajor  = 0;
-constexpr uint8_t     kVersionMinor  = 2;
+constexpr uint8_t     kVersionMinor  = 3;
 constexpr uint8_t     kVersionPatch  = 0;
-constexpr const char* kVersionString = "0.2.0";
+constexpr const char* kVersionString = "0.3.0";
 
 // ============================================================================
 // Feature Flags

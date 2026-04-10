@@ -29,7 +29,7 @@
 // Configuration
 // ============================================================================
 
-constexpr const char* kRcOsVersion = "0.4.0";
+constexpr const char* kRcOsVersion = "0.5.0";  // Stage 13: health AO, debug sub-menu
 constexpr uint32_t kRcOsPollMs     = 50;   // 20Hz polling
 
 // CLI input constants
@@ -83,15 +83,15 @@ static void print_prompt() {
         case RC_OS_MENU_MAIN:        printf("[main] "); break;
         case RC_OS_MENU_CALIBRATION: printf("[cal] "); break;
         case RC_OS_MENU_FLIGHT:      printf("[flight] "); break;
+        case RC_OS_MENU_DEBUG:       printf("[debug] "); break;
         default:                     printf("> "); break;
     }
 }
 
 static void print_help_menu() {
-    printf("h-Help  s-Status  e-ESKF  b-Boot Log\n");
-    printf("c-Calibration  f-Flight Director\n");
+    printf("h-Help  p-Preflight  c-Calibration  f-Flight\n");
     printf("g-Flights  d-Download  l-Flush  x-Erase\n");
-    printf("t-Radio  r-Rate  m-MAVLink  i-I2C\n");
+    printf("t-Radio  r-Rate  m-MAVLink  q-Debug\n");
 }
 
 static void print_calibration_menu() {
@@ -146,6 +146,46 @@ static bool handle_main_menu(int c) {
             print_help_menu();
             break;
 
+        case 'c':
+        case 'C':
+            g_menu = RC_OS_MENU_CALIBRATION;
+            print_calibration_menu();
+            break;
+
+        case 'f':
+        case 'F':
+            g_menu = RC_OS_MENU_FLIGHT;
+            print_flight_menu();
+            break;
+
+        case 'p':
+        case 'P':
+            if constexpr (!kRadioModeRx) {
+                cli_print_preflight();
+            }
+            break;
+
+        case 'q':
+        case 'Q':
+            g_menu = RC_OS_MENU_DEBUG;
+            printf("\n--- Debug ---\n");
+            printf("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
+            printf("h-Help  z-Back\n");
+            break;
+
+        default:
+            cli_handle_unhandled_key(c);
+            break;
+    }
+    return true;
+}
+
+// ============================================================================
+// Debug Menu Handler (IVP-109)
+// ============================================================================
+
+static bool handle_debug_menu(int c) {
+    switch (c) {
         case 's':
         case 'S':
             if constexpr (kRadioModeRx) {
@@ -170,12 +210,6 @@ static bool handle_main_menu(int c) {
             cli_print_hw_status();
             break;
 
-        case 'c':
-        case 'C':
-            g_menu = RC_OS_MENU_CALIBRATION;
-            print_calibration_menu();
-            break;
-
         case 'e':
             g_eskfLiveActive = true;
             g_eskfLiveLastPrintUs = time_us_32();
@@ -183,14 +217,20 @@ static bool handle_main_menu(int c) {
             cli_print_eskf_live();
             break;
 
-        case 'f':
-        case 'F':
-            g_menu = RC_OS_MENU_FLIGHT;
-            print_flight_menu();
+        case 'h':
+        case 'H':
+        case '?':
+            printf("\n--- Debug Menu ---\n");
+            printf("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
+            printf("z-Back to main\n");
+            break;
+
+        case 'z': case 'Z': case kEscChar:
+            printf("Returning to main menu.\n");
+            g_menu = RC_OS_MENU_MAIN;
             break;
 
         default:
-            cli_handle_unhandled_key(c);
             break;
     }
     return true;
@@ -455,6 +495,8 @@ bool rc_os_update() {
         handled = handle_calibration_menu(c);
     } else if (g_menu == RC_OS_MENU_FLIGHT) {
         handled = handle_flight_menu(c);
+    } else if (g_menu == RC_OS_MENU_DEBUG) {
+        handled = handle_debug_menu(c);
     }
 
     // Show context prompt only after recognized commands

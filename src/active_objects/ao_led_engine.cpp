@@ -17,6 +17,7 @@
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/led_patterns.h"
 #include "rocketchip/sensor_seqlock.h"
+#include "safety/health_monitor.h"       // IVP-106: 2-bit health decoding
 #include "drivers/ws2812_status.h"
 #include "fusion/eskf_runner.h"
 #include "core1/sensor_core1.h"
@@ -61,6 +62,7 @@ struct LedEngine {
     uint32_t sensor_phase_start_ms;  // For 5-minute timeout
     uint32_t last_core1_count;       // Last seen core1_loop_count
     uint8_t core1_stall_ticks;       // Consecutive ticks without core1 progress
+    uint8_t health_fault_code;       // IVP-106: max fault from SIG_HEALTH_STATUS
 };
 
 static LedEngine l_ledEngine;
@@ -123,7 +125,12 @@ static void led_apply_pattern(LedEngine * const me, uint8_t val) {
         case kSensorNeoGpsNoNmea: led_set_if_changed(me, WS2812_MODE_BLINK_FAST, kColorCyan); break;
         case kSensorNeoNoGps:    led_set_if_changed(me, WS2812_MODE_BLINK, kColorBlue); break;
         case kSensorNeoTimeout:  led_set_if_changed(me, WS2812_MODE_SOLID, kColorMagenta); break;
-        // Fault patterns
+        // Fault patterns (ascending priority — IVP-106)
+        case kFaultNeoPioWdt:     led_set_if_changed(me, WS2812_MODE_SOLID, kColorOrange); break;
+        case kFaultNeoBaroFail:   led_set_if_changed(me, WS2812_MODE_BLINK_FAST, kColorOrange); break;
+        case kFaultNeoEskfFail:   led_set_if_changed(me, WS2812_MODE_BLINK, kColorRed); break;
+        case kFaultNeoImuFail:    led_set_if_changed(me, WS2812_MODE_BLINK_FAST, kColorRed); break;
+        case kFaultNeoSafeMode:   led_set_if_changed(me, WS2812_MODE_SOLID, kColorRed); break;
         case kFaultNeoCore1Stall: led_set_if_changed(me, WS2812_MODE_SOLID, kColorMagenta); break;
         default: break;
     }
@@ -166,18 +173,44 @@ static void led_evaluate_sensor_status(LedEngine * const me,
 
 static void led_check_core1_vitality(LedEngine * const me,
                                       const shared_sensor_data_t* snap) {
+    uint8_t core1Fault = 0;
     if (snap->core1_loop_count != me->last_core1_count) {
         me->last_core1_count = snap->core1_loop_count;
         me->core1_stall_ticks = 0;
-        me->layers[kLayerFault] = 0;  // Clear fault
     } else {
         if (me->core1_stall_ticks < kCore1StallThreshold) {
             me->core1_stall_ticks++;
         }
         if (me->core1_stall_ticks >= kCore1StallThreshold) {
-            me->layers[kLayerFault] = kFaultNeoCore1Stall;
+            core1Fault = kFaultNeoCore1Stall;  // 46 = highest priority
         }
     }
+    // Fault layer = max(health faults, core1 stall) — highest code wins (IVP-106)
+    uint8_t maxFault = me->health_fault_code;
+    if (core1Fault > maxFault) { maxFault = core1Fault; }
+    me->layers[kLayerFault] = maxFault;
+}
+
+//----------------------------------------------------------------------------
+// Decode SIG_HEALTH_STATUS into max fault pattern code (IVP-106)
+// Returns 0 if no faults active; otherwise the highest-priority fault code.
+
+static uint8_t led_decode_health_faults(uint8_t primary, uint8_t secondary) {
+    uint8_t maxFault = 0;
+    if (rc::health_imu(primary) == rc::kHealthFault)  { maxFault = kFaultNeoImuFail; }
+    if (rc::health_eskf(primary) == rc::kHealthFault && kFaultNeoEskfFail > maxFault) {
+        maxFault = kFaultNeoEskfFail;
+    }
+    if (rc::health_baro(primary) == rc::kHealthFault && kFaultNeoBaroFail > maxFault) {
+        maxFault = kFaultNeoBaroFail;
+    }
+    if ((secondary & rc::kHealthPioOk) == 0 && kFaultNeoPioWdt > maxFault) {
+        maxFault = kFaultNeoPioWdt;
+    }
+    if ((secondary & rc::kHealthWatchdogOk) == 0 && kFaultNeoSafeMode > maxFault) {
+        maxFault = kFaultNeoSafeMode;
+    }
+    return maxFault;
 }
 
 //----------------------------------------------------------------------------
@@ -216,6 +249,7 @@ static QState LedEngine_initial(LedEngine * const me, QEvt const * const e) {
     QActive_subscribe(&me->super, rc::SIG_LED_PATTERN);
     QActive_subscribe(&me->super, rc::SIG_LED_OVERRIDE);
     QActive_subscribe(&me->super, rc::SIG_RADIO_STATUS);
+    QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);  // IVP-105: fault layer
 
     // ~33Hz animation tick (every 3 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 3U, 3U);
@@ -264,6 +298,12 @@ static QState LedEngine_running(LedEngine * const me, QEvt const * const e) {
             case 3: me->layers[kLayerRadioStatus] = kRxNeoReceiving; break;
             default: me->layers[kLayerRadioStatus] = 0; break;  // Clear layer
         }
+        return Q_HANDLED();
+    }
+
+    case rc::SIG_HEALTH_STATUS: {
+        const auto* he = reinterpret_cast<const rc::HealthStatusEvt*>(e);
+        me->health_fault_code = led_decode_health_faults(he->primary, he->secondary);
         return Q_HANDLED();
     }
 

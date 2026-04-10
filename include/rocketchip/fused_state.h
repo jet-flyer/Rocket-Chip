@@ -68,8 +68,8 @@ struct FusedState {
     uint8_t gps_fix_type;
     uint8_t gps_satellites;
 
-    // Health flags
-    bool eskf_healthy;
+    // Health: 2-bit packed primary (matches TelemetryState.health wire format)
+    uint8_t health_primary;   // IMU[1:0] Baro[3:2] ESKF[5:4] GPS[7:6]
     bool zupt_active;
 
     // Confidence gate
