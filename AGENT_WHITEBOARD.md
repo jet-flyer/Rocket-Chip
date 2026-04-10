@@ -15,15 +15,7 @@
 
 ## Open Flags
 
-*Stage 13 (Health Monitor) IVP-104–112 complete. Pending: SPIN update, session close docs.*
-
-### Health-Gated Safety — Pending Implementation (Council Review Needed)
-
-Two related items:
-
-1. **Auto-DISARM on critical fault while ARMED.** If IMU or ESKF faults while ARMED (on the pad), FD should auto-DISARM back to IDLE. Sitting armed with dead sensors is unsafe — launch detect guard could fire from vibration with no inertial reference. FD subscribes to SIG_HEALTH_STATUS, checks critical subsystems, dispatches SIG_DISARM internally.
-
-2. **Pre-launch fault latch in IDLE.** Hardware faults in IDLE should latch until manually cleared (CLI reset or reboot). A sensor that faults and "recovers" may have a loose connection — silent recovery gives false confidence. Post-landing auto-recovery stays (GPS beacon). Can't check for loose wire mid-flight, only pre-launch.
+*Stage 13 (Health Monitor) COMPLETE. SPIN 11/11. Health-gated safety implemented.*
 
 ### Protected File Updates Pending Approval
 
