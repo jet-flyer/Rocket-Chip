@@ -20,6 +20,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-10-001 | Claude Code CLI | feature, tooling
+
+**Configuration Wizard prototype (Phase A).** Python-based terminal wizard that generates mission profile .cfg files from human-understandable questions. Council-reviewed (5 personas, unanimous GO).
+
+Architecture: `scripts/config_wizard/` — core logic (taxonomy, derivation, validation, emitter) separated from UI (terminal, future GUI API). Wizard generates .cfg files that feed into existing `generate_profile.py` pipeline.
+
+Features: 6 vehicle categories + custom (rocket/balloon/ground/aircraft/station/passive), sub-vehicle types, recovery types + methods, peripherals by bus (FeatherWing/I2C/GPIO), motor impulse-to-threshold derivation, certification checks (NAR/TRA L1-L3, HAM) with inline advisories, YOLO mode to bypass gates, back navigation, profile naming, auto code generation. 22 wizard tests + 648 host tests passing.
+
+(scripts/config_wizard/*, AGENT_WHITEBOARD.md, CHANGELOG.md)
+
+---
+
 ### 2026-04-09-003 | Claude Code CLI | bugfix, architecture
 
 **Launch procedure audit: ABORT rework + baro critical fault.** Compared FD state machine against NASA/SpaceX/NAR launch procedures. Three safety fixes:

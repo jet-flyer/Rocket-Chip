@@ -15,7 +15,7 @@
 
 ## Open Flags
 
-*Stage 13 (Health Monitor) COMPLETE. SPIN 11/11. Health-gated safety implemented.*
+*Stage 13 (Health Monitor) COMPLETE. Config Wizard Phase A COMPLETE (prototype).*
 
 ### Launch Procedure Audit Findings — Future Safety Items
 
