@@ -25,11 +25,13 @@
 
 ## Upcoming Stages
 
-**Stage 13: Health Monitor** (IN PROGRESS) — AO_HealthMonitor, 2-bit encoding, fault patterns, preflight CLI, debug sub-menu. Council-reviewed plan in `.claude/plans/wild-wishing-pinwheel.md`.
+**Stage 13: Health Monitor** — COMPLETE. AO_HealthMonitor, 2-bit encoding, fault patterns, preflight CLI, debug sub-menu, auto-DISARM, pre-launch latch. SPIN 11/11.
 
-**Stage 14: Notification Engine** (NEW) — AP_Notify-style intent→display routing. Scope doc produced at end of Stage 13.
+**Stage 14: Notification Engine** (NEW) — AP_Notify-style intent→display routing. Scope doc needed before starting.
 
 **Stage 15: Pre-Flight Polish** (was 14) — 15A Telemetry Polish, 15B System Polish, 15C Verification
+- **User Guide** — operational procedures (launch abort clear, menu flow, preflight checklist, sensor fault troubleshooting). Full CLI menu flowchart. Must exist before anyone else uses the board.
+- **Runtime Behavior Map** — update RBM flowchart for AO architecture (currently Stage 7 era, pre-AO)
 
 **Stage 16: Field Tuning** (was 15) — All VALIDATE parameters. Needs flight data.
 
