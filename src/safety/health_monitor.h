@@ -113,6 +113,14 @@ void health_monitor_fill_go_nogo(GoNoGoInput* gng);
 // Called by AO_HealthMonitor when SIG_PHASE_CHANGE received.
 void health_monitor_set_phase(uint8_t phase);
 
+// Manual fault latch clear (CLI reset command or reboot).
+// Only works in IDLE — ignored during flight phases.
+void health_monitor_clear_latches();
+
+// Check if critical subsystems are faulted (IMU or ESKF).
+// Used by FD for auto-DISARM while ARMED.
+bool health_monitor_critical_fault();
+
 // ============================================================================
 // Legacy HealthFlag — kept temporarily for Go/No-Go compatibility
 // Remove after IVP-107 completes telemetry migration.

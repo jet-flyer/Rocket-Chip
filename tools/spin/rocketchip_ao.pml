@@ -135,6 +135,12 @@ active proctype FlightDirector() {
                 drogue_fired = false; main_fired = false;
                 drogue_count = 0; main_count = 0
                }
+            :: !imu_healthy -> d_step {  /* Auto-DISARM: critical fault + safe mode */
+                phase = PH_IDLE;
+                drogue_fired = false; main_fired = false;
+                drogue_count = 0; main_count = 0;
+                health_fault_latched = true  /* launch_abort = safe mode */
+               }
             :: atomic {  /* SIG_ABORT — no pyro on pad */
                 phase = PH_ABORT;
                 pub_count++;
@@ -292,12 +298,12 @@ active proctype HealthMonitor() {
         :: imu_healthy = true
         :: imu_healthy = false
         fi;
-        /* Fault latch during flight (ARMED through DESCENT/ABORT) */
+        /* Fault latch — all phases except LANDED. Pre-launch faults persist. */
         if
-        :: (phase >= PH_ARMED && phase <= PH_ABORT && !imu_healthy) ->
+        :: (phase != PH_LANDED && !imu_healthy) ->
             health_fault_latched = true
-        :: (phase == PH_IDLE || phase == PH_LANDED) ->
-            health_fault_latched = false  /* Clear latch outside flight */
+        :: (phase == PH_LANDED) ->
+            health_fault_latched = false  /* Clear latch post-landing only */
         :: else -> skip
         fi;
         /* Derive go_nogo_ready */
@@ -421,8 +427,13 @@ ltl p_fault_blocks_arm {
     [] (was_armed -> arm_guard_passed)
 }
 
-/* H2: Fault latch during flight — once latched, stays latched until IDLE/LANDED */
+/* H2: Fault latch persists in all non-LANDED phases */
 ltl p_fault_latch_holds {
-    [] ((health_fault_latched && phase >= PH_ARMED && phase <= PH_ABORT)
+    [] ((health_fault_latched && phase != PH_LANDED)
         -> health_fault_latched)
+}
+
+/* H3: Critical fault while ARMED triggers safe mode (launch_abort) */
+ltl p_armed_fault_safe_mode {
+    [] ((phase == PH_ARMED && !imu_healthy) -> <>health_fault_latched)
 }

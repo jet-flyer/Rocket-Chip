@@ -20,6 +20,7 @@
 #include "flight_director/mission_profile_data.h"
 #include "safety/pio_backup_timer.h"
 #include "safety/health_monitor.h"
+#include "watchdog/watchdog_recovery.h"   // g_recovery.launch_abort
 #include "fusion/eskf_runner.h"
 
 #include "pico/time.h"
@@ -66,6 +67,7 @@ static QEvtPtr l_fdAoQueue[32];
 // ============================================================================
 
 extern sensor_seqlock_t g_sensorSeqlock;
+extern rc::WatchdogRecovery g_recovery;
 
 // ============================================================================
 // Forward declarations (QP state handlers)
@@ -131,7 +133,14 @@ static void fd_tick(FdAo* me) {
                                              snap.accel_z, accel_mag);
     }
 
-    // Health monitor moved to AO_HealthMonitor (IVP-105)
+    // Auto-DISARM on critical sensor fault while ARMED (Stage 13 safety)
+    // If IMU or ESKF faults on the pad, disarm and set launch_abort (safe mode).
+    if (rc::flight_director_phase(&me->director) == rc::FlightPhase::kArmed &&
+        rc::health_monitor_critical_fault()) {
+        printf("[FD] CRITICAL FAULT while ARMED — auto-DISARM + safe mode\n");
+        rc::flight_director_dispatch_signal(&me->director, rc::SIG_DISARM);
+        g_recovery.launch_abort = true;
+    }
 
     fd_check_pio_backup(me);
 }

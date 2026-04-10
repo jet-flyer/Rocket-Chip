@@ -55,14 +55,12 @@ static uint8_t g_latchedPrimary = 0;  // bits set = fault latched for that subsy
 // ============================================================================
 
 static bool phase_requires_fault_latch() {
-    // Latch faults during ARMED through DESCENT (not IDLE, not LANDED)
+    // Latch faults in IDLE (pre-launch) and ARMED through DESCENT.
+    // Only LANDED clears latches (or explicit manual reset).
+    // Rationale: a sensor that faults pre-launch may have a loose connector —
+    // silent recovery gives false confidence. Can't check mid-flight.
     auto phase = static_cast<FlightPhase>(g_currentPhase);
-    return phase == FlightPhase::kArmed ||
-           phase == FlightPhase::kBoost ||
-           phase == FlightPhase::kCoast ||
-           phase == FlightPhase::kDrogueDescent ||
-           phase == FlightPhase::kMainDescent ||
-           phase == FlightPhase::kAbort;
+    return phase != FlightPhase::kLanded;
 }
 
 // ============================================================================
@@ -331,9 +329,10 @@ void health_monitor_set_phase(uint8_t phase) {
     uint8_t prevPhase = g_currentPhase;
     g_currentPhase = phase;
 
-    // Clear fault latches when transitioning to IDLE or LANDED
+    // Clear fault latches only on LANDED (post-flight recovery, GPS beacon).
+    // IDLE latches persist until manual clear or reboot — pre-launch safety.
     auto p = static_cast<FlightPhase>(phase);
-    if (p == FlightPhase::kIdle || p == FlightPhase::kLanded) {
+    if (p == FlightPhase::kLanded) {
         if (g_latchedPrimary != 0) {
             DBG_PRINT("HEALTH: clearing fault latches (phase=%s)",
                       flight_phase_name(p));
@@ -341,6 +340,33 @@ void health_monitor_set_phase(uint8_t phase) {
         g_latchedPrimary = 0;
     }
     (void)prevPhase;  // Available for future logging
+}
+
+// ============================================================================
+// health_monitor_clear_latches()
+// ============================================================================
+
+void health_monitor_clear_latches() {
+    auto phase = static_cast<FlightPhase>(g_currentPhase);
+    if (phase != FlightPhase::kIdle) {
+        DBG_PRINT("HEALTH: latch clear ignored (phase=%s)",
+                  flight_phase_name(phase));
+        return;
+    }
+    if (g_latchedPrimary != 0) {
+        DBG_PRINT("HEALTH: latches cleared by manual reset");
+    }
+    g_latchedPrimary = 0;
+}
+
+// ============================================================================
+// health_monitor_critical_fault()
+// ============================================================================
+
+bool health_monitor_critical_fault() {
+    HealthLevel imu = health_imu(g_health.primary);
+    HealthLevel eskf = health_eskf(g_health.primary);
+    return (imu == kHealthFault) || (eskf == kHealthFault);
 }
 
 // ============================================================================
