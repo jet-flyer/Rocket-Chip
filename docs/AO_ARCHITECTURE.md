@@ -21,15 +21,15 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 
 | AO | File | Rate | Prio | Queue | Owns | Publishes | Subscribes |
 |----|------|------|------|-------|------|-----------|------------|
-| AO_Radio | `ao_radio.cpp` | 100Hz | 8 | 32 | rfm95w_t, RadioScheduler, RadioAoState | SIG_RADIO_RX, SIG_RADIO_STATUS | SIG_RADIO_TX |
-| AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 6 | 32 | FlightDirector HSM, guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_LED_PATTERN, SIG_HEALTH_STATUS | SIG_SENSOR_DATA |
-| AO_Logger | `ao_logger.cpp` | 50Hz | 5 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_PHASE_CHANGE, SIG_PYRO_FIRED |
-| AO_Telemetry | `ao_telemetry.cpp` | 10Hz | 4 | 8 | CCSDS/MAVLink encode, TelemetryState snapshot, RX decode | SIG_RADIO_TX | SIG_RADIO_RX, SIG_SENSOR_DATA |
-| AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 3 | 8 | ws2812 driver, priority layer table, animation state, pattern constants | (none) | SIG_LED_PATTERN, SIG_LED_OVERRIDE, SIG_RADIO_STATUS, SIG_SENSOR_DATA, SIG_PHASE_CHANGE |
-| AO_RCOS | `cli/ao_rcos.cpp` | 20Hz | 2 | 16 | CLI output mode, ANSI dashboard, key dispatch | SIG_CLI_COMMAND, SIG_LED_OVERRIDE | (none) |
-| AO_Blinker | `ao_blinker.cpp` | 1Hz | 1 | 4 | Board LED heartbeat | (none) | (none) |
+| AO_Radio | `ao_radio.cpp` | 100Hz | 7 | 32 | rfm95w_t, RadioScheduler, RadioAoState | SIG_RADIO_RX, SIG_RADIO_STATUS | SIG_RADIO_TX |
+| AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 6 | 32 | FlightDirector HSM, guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_LED_PATTERN | SIG_SENSOR_DATA |
+| AO_HealthMonitor | `ao_health_monitor.cpp` | 10Hz | 5 | 8 | HealthState, sliding windows, fault latch, staleness counter | SIG_HEALTH_STATUS | SIG_PHASE_CHANGE |
+| AO_Logger | `ao_logger.cpp` | 50Hz | 4 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_HEALTH_STATUS |
+| AO_Telemetry | `ao_telemetry.cpp` | 10Hz | 3 | 8 | CCSDS/MAVLink encode, TelemetryState snapshot, RX decode | SIG_RADIO_TX | SIG_RADIO_RX, SIG_SENSOR_DATA, SIG_HEALTH_STATUS |
+| AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 2 | 8 | ws2812 driver, priority layer table, animation state, pattern constants | (none) | SIG_LED_PATTERN, SIG_LED_OVERRIDE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS |
+| AO_RCOS | `cli/ao_rcos.cpp` | 20Hz | 1 | 16 | CLI output mode, ANSI dashboard, key dispatch | SIG_CLI_COMMAND, SIG_LED_OVERRIDE | (none) |
 
-*AO_Counter (disabled): jitter measurement diagnostic. Priority 7 reserved for future use.*
+*AO_Blinker (disabled): heartbeat LED demo. AO_Counter (disabled): jitter measurement diagnostic.*
 
 ---
 
@@ -38,7 +38,7 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 | Module | File | Interface | Called By | Owns |
 |--------|------|-----------|----------|------|
 | eskf_runner | `src/fusion/eskf_runner.cpp` | `eskf_runner_tick()`, `eskf_runner_get_*()` | Idle bridge (200Hz effective) | ESKF, Mahony, ConfidenceGate, bench stats, epoch, state buffer |
-| health_monitor | `src/safety/health_monitor.cpp` | `health_monitor_tick()`, `health_monitor_get_state()` | AO_FlightDirector (10Hz divider) | Health flags, error counters, escalation state, Go/No-Go |
+| health_monitor | `src/safety/health_monitor.cpp` | `health_monitor_tick()`, `health_monitor_get_state()` | AO_HealthMonitor (10Hz) | 2-bit health state, sliding windows, fault latch, Go/No-Go |
 | sensor_core1 | `src/core1/sensor_core1.cpp` | `core1_entry()` | main.cpp (multicore_launch) | Core 1 sensor loop, seqlock write, IMU/baro/GPS reads |
 | sensor_seqlock | `include/rocketchip/sensor_seqlock.h` | `seqlock_read()`, `seqlock_write()`, types | sensor_core1 (write), eskf_runner + AOs (read) | shared_sensor_data_t, cross-core atomics |
 | led_patterns | `include/rocketchip/led_patterns.h` | Pattern constants, LedLayer enum | AO_LedEngine, rc_os.cpp, flight_actions.h | kCalNeo*, kRxNeo*, kFdNeo* constants |
@@ -64,21 +64,21 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
               |               |                |
               v               v                v
         AO_FlightDir    AO_Logger       AO_LedEngine
-        (100Hz, P6)     (50Hz, P5)      (33Hz, P3)
+        (100Hz, P6)     (50Hz, P4)      (33Hz, P2)
               |               |                ^
      SIG_PHASE_CHANGE   writes ring      SIG_LED_PATTERN
      SIG_LED_PATTERN    SIG_PYRO_INTENT  SIG_RADIO_STATUS
-              |                          SIG_PHASE_CHANGE
               |                          SIG_HEALTH_STATUS
               |                                ^
-              |  health_monitor_tick()          |
-              |  (10Hz divider inside FD)       |
-              |       |                        |
-              |       +-- SIG_HEALTH_STATUS ---+
+              |                                |
+        AO_HealthMonitor (10Hz, P5) -----------+
+              reads seqlock + ESKF + confidence gate
+              publishes SIG_HEALTH_STATUS --> LED, Logger, Telem
+              subscribes SIG_PHASE_CHANGE (fault latch)
               |                                 
               v                                
         AO_Telemetry ----SIG_RADIO_TX----> AO_Radio
-        (10Hz, P4)   <---SIG_RADIO_RX---- (100Hz, P8)
+        (10Hz, P3)   <---SIG_RADIO_RX---- (100Hz, P7)
                                                |
                                         SIG_RADIO_STATUS
                                                |
@@ -142,11 +142,11 @@ Core 1 vitality check (Council A4): `core1_loop_count` stall for 500ms forces FA
 | SIG_RADIO_RX | 24 | RadioRxEvt | AO_Radio | AO_Telemetry |
 | SIG_RADIO_STATUS | 25 | RadioStatusEvt | AO_Radio | AO_LedEngine |
 | SIG_GCS_CMD | 26 | GcsCmdEvt | AO_Telemetry | AO_FlightDirector |
-| SIG_HEALTH_STATUS | 27 | HealthStatusEvt | AO_FlightDirector | *(orphaned — zero subscribers. Stage 13 will wire LED, Logger, Telemetry)* |
+| SIG_HEALTH_STATUS | 27 | HealthStatusEvt | AO_HealthMonitor | AO_LedEngine, AO_Logger, AO_Telemetry |
 | SIG_PYRO_FIRED | 28 | PyroFiredEvt | AO_FlightDirector | AO_Logger |
 | SIG_AO_MAX | 29 | -- | -- | -- |
 
-Private signals (per-AO, not in catalog): `SIG_AO_MAX + offset` (0=Blinker, 1=Counter, 2=LedEngine, 3=FD, 4=Logger, 5=Telem, 10=Radio).
+Private signals (per-AO, not in catalog): `SIG_AO_MAX + offset` (0=Blinker, 1=Counter+HealthMon, 2=LedEngine, 3=FD, 4=Logger, 5=Telem, 10=Radio).
 
 ---
 
@@ -187,8 +187,8 @@ Items 1-2 are system invariants. Item 3 moves to non-blocking when calibration s
 ### Why ESKF is a Module, Not an AO (Council A1)
 The QF base tick is 100Hz. ESKF needs 200Hz effective rate (every 5th IMU sample at 1kHz). A 100Hz AO tick would reduce propagation rate to 100Hz during boost, doubling attitude drift per step. The idle bridge provides zero-latency seqlock polling. ESKF publishes SIG_SENSOR_DATA via `QActive_publish_()` after each predict, getting event-driven downstream benefits without timing penalty.
 
-### Why Health Monitor is a Module, Not an AO (Council A2)
-10Hz health checks don't justify a separate AO queue (128 bytes) and priority slot. Called from AO_FlightDirector at a divider. FD publishes SIG_HEALTH_STATUS when health changes.
+### Health Monitor Promoted to AO (Stage 13, IVP-105)
+Originally a module called from FD at 10Hz (Council A2). Promoted to standalone AO_HealthMonitor in Stage 13 after council re-review (5 personas, unanimous). Rationale: health monitor has its own tick rate, state, and consumers — textbook AO pattern. Decoupled from FD so health reporting survives FD handler overruns. Queue depth 8, priority 5 (between FD and Logger). Publishes SIG_HEALTH_STATUS with 2-bit per-subsystem encoding. See `docs/decisions/HEALTH_CONTRACT.md`.
 
 ### Read-Only Accessor Pattern (Council A6)
 All module/AO public APIs that return `const*` to internal state are safe under QV cooperative scheduling (single-threaded Core 0). If the project ever migrates to QK preemptive scheduling, these accessors become data races and must be replaced with event-based request/reply or protected with critical sections. Each header documents which functions are read-only accessors.

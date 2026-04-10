@@ -15,7 +15,11 @@
 
 ## Open Flags
 
-*Stage 13 (Health Monitor) in progress. IVP-104 through IVP-112.*
+*Stage 13 (Health Monitor) IVP-104–112 complete. Pending: SPIN update, session close docs.*
+
+### Fault Latch Policy — Pending Implementation
+
+Pre-launch (IDLE) hardware faults should latch until manually cleared (CLI command or reboot). A sensor that faults and "recovers" may have a loose connection — silent recovery hides the root cause and gives false confidence before launch. Post-landing auto-recovery is fine (GPS beacon). Current code: faults latch during ARMED→DESCENT, auto-recover in IDLE. Change needed: IDLE faults also latch, clear via explicit `reset` or reboot only.
 
 ### Protected File Updates Pending Approval
 
