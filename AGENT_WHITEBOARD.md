@@ -17,9 +17,13 @@
 
 *Stage 13 (Health Monitor) IVP-104–112 complete. Pending: SPIN update, session close docs.*
 
-### Fault Latch Policy — Pending Implementation
+### Health-Gated Safety — Pending Implementation (Council Review Needed)
 
-Pre-launch (IDLE) hardware faults should latch until manually cleared (CLI command or reboot). A sensor that faults and "recovers" may have a loose connection — silent recovery hides the root cause and gives false confidence before launch. Post-landing auto-recovery is fine (GPS beacon). Current code: faults latch during ARMED→DESCENT, auto-recover in IDLE. Change needed: IDLE faults also latch, clear via explicit `reset` or reboot only.
+Two related items:
+
+1. **Auto-DISARM on critical fault while ARMED.** If IMU or ESKF faults while ARMED (on the pad), FD should auto-DISARM back to IDLE. Sitting armed with dead sensors is unsafe — launch detect guard could fire from vibration with no inertial reference. FD subscribes to SIG_HEALTH_STATUS, checks critical subsystems, dispatches SIG_DISARM internally.
+
+2. **Pre-launch fault latch in IDLE.** Hardware faults in IDLE should latch until manually cleared (CLI reset or reboot). A sensor that faults and "recovers" may have a loose connection — silent recovery gives false confidence. Post-landing auto-recovery stays (GPS beacon). Can't check for loose wire mid-flight, only pre-launch.
 
 ### Protected File Updates Pending Approval
 
