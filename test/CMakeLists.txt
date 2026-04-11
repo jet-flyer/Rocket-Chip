@@ -200,3 +200,16 @@ target_include_directories(test_health_monitor PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/include)
 gtest_discover_tests(test_health_monitor)
+
+# IVP-115: Notification engine resolver tests
+add_executable(test_notify
+    test_notify.cpp
+    ${CMAKE_SOURCE_DIR}/src/notify/notify_backend_led.cpp
+)
+target_link_libraries(test_notify PRIVATE GTest::gtest_main)
+target_include_directories(test_notify PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/notify
+    ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(test_notify PRIVATE ROCKETCHIP_HOST_TEST=1)
+gtest_discover_tests(test_notify)
