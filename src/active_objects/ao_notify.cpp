@@ -15,17 +15,24 @@
 
 #include "ao_notify.h"
 #include "rocketchip/ao_signals.h"
-#include "rocketchip/led_patterns.h"
+#include "rocketchip/notify_backend.h"
 #include "safety/health_monitor.h"
 #include "pico/time.h"
 
 using namespace rc::notify;
 
 // ============================================================================
-// Private tick signal
+// Private signals (offsets from SIG_AO_MAX to avoid collision with other AOs)
 // ============================================================================
 enum : uint16_t {
-    SIG_NOTIFY_TICK = rc::SIG_AO_MAX + 6
+    SIG_NOTIFY_TICK        = rc::SIG_AO_MAX + 6,
+    SIG_NOTIFY_CAL_INTENT  = rc::SIG_AO_MAX + 7,  // Direct post from AO_RCOS
+};
+
+// Direct-post event from AO_RCOS carrying a typed CalIntent
+struct CalIntentEvt {
+    QEvt super;
+    CalIntent intent;
 };
 
 // ============================================================================
@@ -44,6 +51,7 @@ struct NotifyAo {
 
 static NotifyAo l_notifyAo;
 static QEvtPtr  l_notifyQueue[16];
+static bool     s_notifyStarted = false;
 
 // Forward declarations
 static QState Notify_initial(NotifyAo * const me, QEvt const * const e);
@@ -104,21 +112,6 @@ static FaultIntent notify_decode_health_faults(uint8_t primary, uint8_t secondar
     return max_fault;
 }
 
-static CalIntent cal_intent_from_pattern(uint8_t pattern) {
-    switch (pattern) {
-        case rc::led::kCalGyro:        return CalIntent::kGyro;
-        case rc::led::kCalLevel:       return CalIntent::kLevel;
-        case rc::led::kCalBaro:        return CalIntent::kBaro;
-        case rc::led::kCalAccelWait:   return CalIntent::kAccelWait;
-        case rc::led::kCalAccelSample: return CalIntent::kAccelSample;
-        case rc::led::kCalMag:         return CalIntent::kMag;
-        case rc::led::kCalSuccess:     return CalIntent::kSuccess;
-        case rc::led::kCalFail:        return CalIntent::kFail;
-        case rc::led::kOff:
-        default:                       return CalIntent::kNone;
-    }
-}
-
 // ============================================================================
 // State handlers
 // ============================================================================
@@ -136,8 +129,9 @@ static QState Notify_initial(NotifyAo * const me, QEvt const * const e) {
     QActive_subscribe(&me->super, rc::SIG_PHASE_CHANGE);
     QActive_subscribe(&me->super, rc::SIG_RADIO_STATUS);
     QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);
-    QActive_subscribe(&me->super, rc::SIG_LED_OVERRIDE);    // Bridge until IVP-116
     QActive_subscribe(&me->super, rc::SIG_BEACON_ACTIVE);
+    // IVP-116: SIG_LED_OVERRIDE subscription removed. RCOS now posts
+    // CalIntentEvt directly via AO_Notify_post_cal_intent().
 
     // 33Hz animation tick (every 3 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 3U, 3U);
@@ -166,10 +160,10 @@ static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
         return Q_HANDLED();
     }
 
-    case rc::SIG_LED_OVERRIDE: {
-        // Bridge: RCOS still posts old kCalNeo* pattern codes until IVP-116
-        const auto* pe = reinterpret_cast<const rc::LedPatternEvt*>(e);
-        me->state.cal = cal_intent_from_pattern(pe->pattern);
+    case SIG_NOTIFY_CAL_INTENT: {
+        // Direct post from AO_RCOS via AO_Notify_post_cal_intent()
+        const auto* ce = reinterpret_cast<const CalIntentEvt*>(e);
+        me->state.cal = ce->intent;
         return Q_HANDLED();
     }
 
@@ -179,8 +173,10 @@ static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
     }
 
     case SIG_NOTIFY_TICK: {
-        // IVP-114: no-op — resolver wired in IVP-116
-        // IVP-117 will add seqlock read for sensor status here
+        // IVP-116: run resolver and dispatch to output backends.
+        // IVP-117 will add seqlock read for sensor status before dispatch.
+        rc::notify::notify_backend_led_update(me->state);
+        rc::notify::notify_backend_audio_update(me->state);
         return Q_HANDLED();
     }
 
@@ -197,6 +193,7 @@ static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
 QActive * const AO_Notify = &l_notifyAo.super;
 
 void AO_Notify_start(uint8_t prio) {
+    s_notifyStarted = true;
     QActive_ctor(&l_notifyAo.super,
                  Q_STATE_CAST(&Notify_initial));
 
@@ -211,10 +208,22 @@ void AO_Notify_start(uint8_t prio) {
                   (void *)0);
 }
 
+static CalIntent s_lastCalIntent = CalIntent::kNone;
+
 void AO_Notify_post_cal_intent(CalIntent intent) {
-    // IVP-114: stub. RCOS still posts SIG_LED_OVERRIDE directly to LedEngine.
-    // AO_Notify receives it via subscription bridge (SIG_LED_OVERRIDE → cal_intent_from_pattern).
-    // IVP-116 will rewire RCOS to call this function, which will post a
-    // CalIntentEvt directly to AO_Notify's queue.
-    (void)intent;
+    // No-op on builds where AO_Notify isn't started (Station/Relay roles).
+    if (!s_notifyStarted) {
+        return;
+    }
+    // Deduplicate — avoid queue spam from repeated posts of the same intent
+    if (intent == s_lastCalIntent) {
+        return;
+    }
+    s_lastCalIntent = intent;
+
+    // Stack-local event — QV copies into AO_Notify's queue.
+    CalIntentEvt evt;
+    evt.super = QEVT_INITIALIZER(SIG_NOTIFY_CAL_INTENT);
+    evt.intent = intent;
+    QACTIVE_POST(&l_notifyAo.super, &evt.super, (void *)0);
 }

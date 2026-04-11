@@ -15,7 +15,7 @@
 #include "ao_rcos.h"
 #include "ao_telemetry.h"
 #include "ao_radio.h"
-#include "ao_led_engine.h"
+#include "ao_notify.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/board.h"
 #include "rocketchip/config.h"
@@ -264,7 +264,24 @@ static void ansi_render_tick(RcosAo* me) {
 // ============================================================================
 
 static void cal_neo(uint8_t mode) {
-    AO_LedEngine_post_override(mode);
+    // IVP-116: translate legacy kCalNeo* pattern codes to CalIntent.
+    // Caller sites still use the kCalNeo* constants for readability; this
+    // shim maps them to the typed intent posted to AO_Notify.
+    using rc::notify::CalIntent;
+    CalIntent intent;
+    switch (mode) {
+        case kCalNeoGyro:        intent = CalIntent::kGyro;        break;
+        case kCalNeoLevel:       intent = CalIntent::kLevel;       break;
+        case kCalNeoBaro:        intent = CalIntent::kBaro;        break;
+        case kCalNeoAccelWait:   intent = CalIntent::kAccelWait;   break;
+        case kCalNeoAccelSample: intent = CalIntent::kAccelSample; break;
+        case kCalNeoMag:         intent = CalIntent::kMag;         break;
+        case kCalNeoSuccess:     intent = CalIntent::kSuccess;     break;
+        case kCalNeoFail:        intent = CalIntent::kFail;        break;
+        case kCalNeoOff:
+        default:                 intent = CalIntent::kNone;        break;
+    }
+    AO_Notify_post_cal_intent(intent);
 }
 
 // ============================================================================

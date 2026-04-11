@@ -17,7 +17,6 @@
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/led_patterns.h"
 #include "rocketchip/sensor_seqlock.h"
-#include "safety/health_monitor.h"       // IVP-106: 2-bit health decoding
 #include "drivers/ws2812_status.h"
 #include "fusion/eskf_runner.h"
 #include "core1/sensor_core1.h"
@@ -30,13 +29,24 @@ enum : uint16_t {
 
 // ============================================================================
 // Priority Layer Indices (highest priority = lowest index)
+//
+// IVP-116: simplified from 6 layers to 4. AO_Notify owns flight phase,
+// calibration, radio, and fault intent resolution — those are folded into
+// a single resolved pattern code posted via SIG_LED_PATTERN.
+//
+//   - kLayerFault: Core 1 vitality stall (defense-in-depth per Council A1,
+//     evaluated locally in the LedEngine tick as a fallback if AO_Notify
+//     or AO_HealthMonitor crash)
+//   - kLayerNotify: resolved pattern from AO_Notify via SIG_LED_PATTERN
+//   - kLayerSensorStatus: GPS/ESKF state from seqlock (IVP-117 migrates
+//     this to AO_Notify; in IVP-116 it remains here as AO_Notify does not
+//     yet have sensor evaluation logic)
+//   - kLayerIdle: blue-blink fallback
 // ============================================================================
 enum LedLayerIdx : uint8_t {
-    kLayerFault = 0,        // Highest — Core 1 stall, health errors
-    kLayerFlightPhase,      // FD phase patterns (armed/boost/coast/etc)
-    kLayerCalibration,      // CLI calibration overlays
-    kLayerRadioStatus,      // RX link quality
-    kLayerSensorStatus,     // GPS fix, ESKF health, idle status
+    kLayerFault = 0,        // Highest — Core 1 vitality stall (A1 fallback)
+    kLayerNotify,           // Resolved pattern from AO_Notify
+    kLayerSensorStatus,     // GPS/ESKF state (IVP-117 migrates to AO_Notify)
     kLayerIdle,             // Default — slow blue blink
     kLayerCount
 };
@@ -59,10 +69,10 @@ struct LedEngine {
     uint8_t layers[kLayerCount]; // Pattern code per layer (0 = inactive)
     ws2812_mode_t last_mode;
     ws2812_rgb_t last_color;
-    uint32_t sensor_phase_start_ms;  // For 5-minute timeout
-    uint32_t last_core1_count;       // Last seen core1_loop_count
+    uint32_t sensor_phase_start_ms;  // IVP-117: migrates to AO_Notify
+    uint32_t last_core1_count;       // Core1 vitality defense-in-depth (A1)
     uint8_t core1_stall_ticks;       // Consecutive ticks without core1 progress
-    uint8_t health_fault_code;       // IVP-106: max fault from SIG_HEALTH_STATUS
+    // IVP-116: health_fault_code removed — AO_Notify owns health fault routing.
 };
 
 static LedEngine l_ledEngine;
@@ -166,51 +176,29 @@ static void led_evaluate_sensor_status(LedEngine * const me,
 }
 
 //----------------------------------------------------------------------------
-// Core 1 vitality check (Council A4)
+// Core 1 vitality check (Council A1 defense-in-depth)
+//
+// IVP-116: health fault decoding moved to AO_Notify. LedEngine retains
+// only the Core 1 vitality check as a local safety net — if AO_Notify
+// or AO_HealthMonitor crash, this still fires the Core1 stall pattern.
 //
 // Reads core1_loop_count from seqlock snapshot. If unchanged for
 // kCore1StallThreshold consecutive ticks (~500ms), sets fault layer.
 
 static void led_check_core1_vitality(LedEngine * const me,
                                       const shared_sensor_data_t* snap) {
-    uint8_t core1Fault = 0;
     if (snap->core1_loop_count != me->last_core1_count) {
         me->last_core1_count = snap->core1_loop_count;
         me->core1_stall_ticks = 0;
+        me->layers[kLayerFault] = 0;  // Clear fault when Core 1 recovers
     } else {
         if (me->core1_stall_ticks < kCore1StallThreshold) {
             me->core1_stall_ticks++;
         }
         if (me->core1_stall_ticks >= kCore1StallThreshold) {
-            core1Fault = kFaultNeoCore1Stall;  // 46 = highest priority
+            me->layers[kLayerFault] = kFaultNeoCore1Stall;
         }
     }
-    // Fault layer = max(health faults, core1 stall) — highest code wins (IVP-106)
-    uint8_t maxFault = me->health_fault_code;
-    if (core1Fault > maxFault) { maxFault = core1Fault; }
-    me->layers[kLayerFault] = maxFault;
-}
-
-//----------------------------------------------------------------------------
-// Decode SIG_HEALTH_STATUS into max fault pattern code (IVP-106)
-// Returns 0 if no faults active; otherwise the highest-priority fault code.
-
-static uint8_t led_decode_health_faults(uint8_t primary, uint8_t secondary) {
-    uint8_t maxFault = 0;
-    if (rc::health_imu(primary) == rc::kHealthFault)  { maxFault = kFaultNeoImuFail; }
-    if (rc::health_eskf(primary) == rc::kHealthFault && kFaultNeoEskfFail > maxFault) {
-        maxFault = kFaultNeoEskfFail;
-    }
-    if (rc::health_baro(primary) == rc::kHealthFault && kFaultNeoBaroFail > maxFault) {
-        maxFault = kFaultNeoBaroFail;
-    }
-    if ((secondary & rc::kHealthPioOk) == 0 && kFaultNeoPioWdt > maxFault) {
-        maxFault = kFaultNeoPioWdt;
-    }
-    if ((secondary & rc::kHealthWatchdogOk) == 0 && kFaultNeoSafeMode > maxFault) {
-        maxFault = kFaultNeoSafeMode;
-    }
-    return maxFault;
 }
 
 //----------------------------------------------------------------------------
@@ -245,11 +233,10 @@ static QState LedEngine_initial(LedEngine * const me, QEvt const * const e) {
     me->last_core1_count = 0;
     me->core1_stall_ticks = 0;
 
-    // Subscribe to LED events
+    // Subscribe to LED events (IVP-116: only SIG_LED_PATTERN, from AO_Notify)
+    // SIG_LED_OVERRIDE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS subscriptions
+    // removed — AO_Notify owns those intents and posts resolved patterns.
     QActive_subscribe(&me->super, rc::SIG_LED_PATTERN);
-    QActive_subscribe(&me->super, rc::SIG_LED_OVERRIDE);
-    QActive_subscribe(&me->super, rc::SIG_RADIO_STATUS);
-    QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);  // IVP-105: fault layer
 
     // ~33Hz animation tick (every 3 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 3U, 3U);
@@ -273,37 +260,10 @@ static QState LedEngine_running(LedEngine * const me, QEvt const * const e) {
     }
 
     case rc::SIG_LED_PATTERN: {
-        // Flight phase pattern from FD
+        // IVP-116: resolved pattern from AO_Notify's LED backend.
         const rc::LedPatternEvt* pe =
             reinterpret_cast<const rc::LedPatternEvt*>(e);
-        me->layers[kLayerFlightPhase] = pe->pattern;  // 0 clears the layer
-        return Q_HANDLED();
-    }
-
-    case rc::SIG_LED_OVERRIDE: {
-        // Calibration overlay from CLI
-        const rc::LedPatternEvt* pe =
-            reinterpret_cast<const rc::LedPatternEvt*>(e);
-        me->layers[kLayerCalibration] = pe->pattern;  // 0 clears the layer
-        return Q_HANDLED();
-    }
-
-    case rc::SIG_RADIO_STATUS: {
-        // Radio link quality from AO_Radio
-        const rc::RadioStatusEvt* re =
-            reinterpret_cast<const rc::RadioStatusEvt*>(e);
-        switch (re->link_quality) {
-            case 1: me->layers[kLayerRadioStatus] = kRxNeoLost; break;
-            case 2: me->layers[kLayerRadioStatus] = kRxNeoGap; break;
-            case 3: me->layers[kLayerRadioStatus] = kRxNeoReceiving; break;
-            default: me->layers[kLayerRadioStatus] = 0; break;  // Clear layer
-        }
-        return Q_HANDLED();
-    }
-
-    case rc::SIG_HEALTH_STATUS: {
-        const auto* he = reinterpret_cast<const rc::HealthStatusEvt*>(e);
-        me->health_fault_code = led_decode_health_faults(he->primary, he->secondary);
+        me->layers[kLayerNotify] = pe->pattern;  // 0 clears the layer
         return Q_HANDLED();
     }
 
@@ -358,19 +318,5 @@ void AO_LedEngine_post_pattern(uint8_t pattern) {
     QACTIVE_POST(&l_ledEngine.super, &evt.super, (void *)0);
 }
 
-static uint8_t s_lastPostedOverride = 0;
-
-void AO_LedEngine_post_override(uint8_t pattern) {
-    if (!s_ledEngineStarted) {
-        return;
-    }
-    if (pattern == s_lastPostedOverride) {
-        return;
-    }
-    s_lastPostedOverride = pattern;
-
-    rc::LedPatternEvt evt;
-    evt.super = QEVT_INITIALIZER(rc::SIG_LED_OVERRIDE);
-    evt.pattern = pattern;
-    QACTIVE_POST(&l_ledEngine.super, &evt.super, (void *)0);
-}
+// IVP-116: AO_LedEngine_post_override() removed — RCOS now calls
+// AO_Notify_post_cal_intent() instead.

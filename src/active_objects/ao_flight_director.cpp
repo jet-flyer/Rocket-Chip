@@ -7,13 +7,12 @@
 //============================================================================
 
 #include "ao_flight_director.h"
-#include "ao_led_engine.h"
 #include "ao_logger.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/fused_state.h"
 #include "rocketchip/pcm_frame.h"       // LogEventId
-#include "rocketchip/led_patterns.h"    // kCalNeoOff etc.
+#include "flight_director/action_executor.h"  // kLedPhaseBeacon
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
 #include "flight_director/go_nogo_checks.h"
@@ -173,13 +172,45 @@ static QState FdAo_running(FdAo * const me, QEvt const * const e) {
 
 QActive * const AO_FlightDirector = &l_fdAo.super;
 
+// Pyro fired callback — extracted to keep AO_FlightDirector_start under
+// the function-size limit.
+static void fd_on_pyro_fired(rc::PyroChannel ch) {
+    printf("[FD] PYRO FIRED: %s (primary)\n",
+           ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
+    if (ch == rc::PyroChannel::kDrogue) {
+        l_fdAo.director.state.drogue_fired = true;
+        AO_Logger_log_event(rc::LogEventId::kPyroFiredDrogue, 0, 0, 0, 0);
+        rc::pio_backup_timer_cancel(rc::BackupTimerId::kDrogue);
+    } else {
+        l_fdAo.director.state.main_fired = true;
+        AO_Logger_log_event(rc::LogEventId::kPyroFiredMain, 0, 0, 0, 0);
+        rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
+    }
+    // Publish SIG_PYRO_FIRED for AO subscribers (source=0: FD primary)
+    static rc::PyroFiredEvt pyroEvt;
+    pyroEvt.super.sig = rc::SIG_PYRO_FIRED;
+    pyroEvt.channel = static_cast<uint8_t>(ch);
+    pyroEvt.source = 0;  // Primary (FD-commanded)
+    QActive_publish_(&pyroEvt.super,
+                     &l_fdAo.super, l_fdAo.super.prio);
+}
+
 void AO_FlightDirector_start(uint8_t prio) {
     FdAo* me = &l_fdAo;
 
     // --- Initialize FlightDirector QHsm ---
     rc::flight_director_ctor(&me->director, &rc::kDefaultRocketProfile);
+    // IVP-116: LED pattern routing moved to AO_Notify via SIG_PHASE_CHANGE.
+    // set_led_cb retained ONLY for the beacon one-shot (kSetBeacon action
+    // + ABORT timeout), which is not a phase transition. Other kSetLed
+    // action values are ignored (redundant with phase_change_cb).
     me->director.set_led_cb = [](uint8_t val) {
-        AO_LedEngine_post_pattern(val);
+        if (val == rc::kLedPhaseBeacon) {
+            static QEvt beaconEvt;
+            beaconEvt.sig = rc::SIG_BEACON_ACTIVE;
+            QActive_publish_(&beaconEvt,
+                             &l_fdAo.super, l_fdAo.super.prio);
+        }
     };
     me->director.phase_change_cb = [](rc::FlightPhase phase, uint32_t ts_ms) {
         static rc::PhaseChangeEvt evt;
@@ -189,39 +220,17 @@ void AO_FlightDirector_start(uint8_t prio) {
         QActive_publish_(&evt.super,
                          &l_fdAo.super, l_fdAo.super.prio);
     };
-    me->director.log_pyro_cb = [](rc::PyroChannel ch) {
-        printf("[FD] PYRO FIRED: %s (primary)\n",
-               ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
-        if (ch == rc::PyroChannel::kDrogue) {
-            l_fdAo.director.state.drogue_fired = true;
-            AO_Logger_log_event(rc::LogEventId::kPyroFiredDrogue, 0, 0, 0, 0);
-            rc::pio_backup_timer_cancel(rc::BackupTimerId::kDrogue);
-        } else {
-            l_fdAo.director.state.main_fired = true;
-            AO_Logger_log_event(rc::LogEventId::kPyroFiredMain, 0, 0, 0, 0);
-            rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
-        }
-        // Publish SIG_PYRO_FIRED for AO subscribers (source=0: FD primary)
-        static rc::PyroFiredEvt pyroEvt;
-        pyroEvt.super.sig = rc::SIG_PYRO_FIRED;
-        pyroEvt.channel = static_cast<uint8_t>(ch);
-        pyroEvt.source = 0;  // Primary (FD-commanded)
-        QActive_publish_(&pyroEvt.super,
-                         &l_fdAo.super, l_fdAo.super.prio);
-    };
+    me->director.log_pyro_cb = fd_on_pyro_fired;
     rc::flight_director_init(&me->director);
     me->initialized = true;
     me->last_tick_ms = 0;
-    // health_tick_count removed — AO_HealthMonitor owns health (IVP-105)
     me->pio_drogue_reported = false;
     me->pio_main_reported = false;
 
     // --- Start QP Active Object ---
     QActive_ctor(&me->super, Q_STATE_CAST(&FdAo_initial));
-
     QTimeEvt_ctorX(&me->tick_timer, &me->super,
                    SIG_FD_TICK_TIMER, 0U);
-
     QActive_start(&me->super,
                   Q_PRIO(prio, 0U),
                   l_fdAoQueue,

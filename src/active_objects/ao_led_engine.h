@@ -24,10 +24,14 @@ extern QActive * const AO_LedEngine;
 
 void AO_LedEngine_start(uint8_t prio);
 
-// Post a flight-phase pattern to the LED engine (FD → kLayerFlightPhase)
+// Post a resolved pattern to the LED engine (AO_Notify → kLayerNotify).
+// IVP-116: now the sole public API — all state-to-display routing
+// happens via AO_Notify's backend, which calls this to update the
+// Notify layer. See NOTIFY_CONTRACT.md.
 void AO_LedEngine_post_pattern(uint8_t pattern);
 
-// Post a calibration override to the LED engine (CLI → kLayerCalibration)
-void AO_LedEngine_post_override(uint8_t pattern);
+// IVP-116: AO_LedEngine_post_override() removed. CLI calibration now
+// calls AO_Notify_post_cal_intent() which updates NotifyState and the
+// resolver picks the correct calibration pattern.
 
 #endif // ROCKETCHIP_AO_LED_ENGINE_H
