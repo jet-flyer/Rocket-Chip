@@ -15,27 +15,7 @@
 
 ## Open Flags
 
-*Stage 13 (Health Monitor) COMPLETE. Config Wizard Phase A COMPLETE (prototype). Stage 14 (Notification Engine) COMPLETE — IVP-113 through IVP-118, all gates passed, HW verified via GDB memory inspection.*
-
-### Stage 14 — SPIN Safety Analysis (for NOTIFY_CONTRACT.md)
-
-NOTIFY_CONTRACT.md is in `docs/decisions/` (protected). The following
-safety analysis note should be appended when the user reviews the doc:
-
-> **SPIN Safety Analysis (IVP-118)**
->
-> AO_Notify is output-only and subscribes to state-producing signals
-> (SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE).
-> It does NOT publish any signal that is consumed by flight-critical AOs.
-> It does NOT modify flight state, guard conditions, or pyro logic. It
-> does NOT read or write calibration data.
->
-> The SPIN formal model is unchanged by Stage 14 (still 11/11 passing).
-> AO_Notify has no representation in the safety model because it cannot
-> affect flight safety. Verified by subscriber-count audit during IVP-118:
-> no flight-critical AO subscribes to any signal that AO_Notify publishes.
->
-> Stage 14 verified: 2026-04-10.
+*Stage 13 (Health Monitor) COMPLETE. Config Wizard Phase A COMPLETE (prototype). Stage 14 (Notification Engine) COMPLETE — IVP-113 through IVP-118, all gates passed, HW verified via GDB memory inspection. SPIN safety analysis appended to NOTIFY_CONTRACT.md by user-approved one-time exception 2026-04-10.*
 
 ### QP Posted Events Must Be Static (LL Entry 35)
 

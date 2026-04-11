@@ -136,3 +136,82 @@ The SPIN formal model is unchanged by Stage 14. AO_Notify has no representation 
 | A4 | HW soak must include ARM/DISARM cycle and beacon regression check | Rocketeer |
 | P1 | Compile-time AO priority uniqueness check in main.cpp | NASA/JPL (plan review) |
 | P2 | Intent-to-LED visual reference table in this document | Rocketeer (plan review) |
+
+---
+
+## IVP-118 Verification Amendment (2026-04-10)
+
+*Added during Stage 14 final audit. Original document dated 2026-04-10 (IVP-113).
+This section records the runtime subscriber audit and refines the safety
+classification. Content above this line was NOT modified — amendment only.*
+
+### Subscriber Routing Audit (via GDB memory inspection)
+
+Verified on the running vehicle build at Stage 14 completion. All subscriber
+bitmaps in `g_subscrList[]` match the plan:
+
+| Signal | Subscribers | Bitmap |
+|--------|-------------|--------|
+| `SIG_PHASE_CHANGE` | Logger, Notify, HealthMonitor | 0x38 (prios 4,5,6) |
+| `SIG_LED_PATTERN` | LedEngine (sole) | 0x02 (prio 2) |
+| `SIG_BEACON_ACTIVE` | Notify (sole) | 0x10 (prio 5) |
+| `SIG_RADIO_STATUS` | Notify (sole; NOT LedEngine) | 0x10 (prio 5) |
+| `SIG_HEALTH_STATUS` | Telemetry, Logger, Notify (NOT LedEngine) | 0x1C (prios 3,4,5) |
+
+### Flight Safety Analysis (Refinement of Earlier Statement)
+
+The "Safety Analysis" section earlier in this document understates the role
+of AO_Notify. AO_Notify is **Flight-Support** classification: it runs during
+flight and is the primary display path for fault indication. The earlier
+statement that it "cannot affect flight safety" is only partially correct —
+AO_Notify cannot *cause* a flight safety failure, but it can *fail to
+indicate* one, which is a safety concern in its own right.
+
+The precise architectural boundary is:
+
+- **Subscribes to** state-producing signals from flight-critical AOs
+  (SIG_PHASE_CHANGE, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE) and status
+  signals (SIG_RADIO_STATUS).
+- **Publishes** only SIG_LED_PATTERN (via the LED backend), which has
+  exactly one subscriber: AO_LedEngine. LedEngine is a display driver
+  with no outputs into flight state.
+- **Does not modify** flight state, guard conditions, pyro logic, or
+  calibration data.
+- **Does not publish** any signal consumed by AO_FlightDirector,
+  AO_HealthMonitor, or AO_Logger's pyro/phase tracking path.
+
+The SPIN formal model (11 properties, all passing) has no representation
+of AO_Notify because AO_Notify has no code path that can cause a
+flight-safety-relevant state transition. The model remains unchanged and
+the 11/11 pass count is preserved. This is a property of the architectural
+boundary above, not a claim that AO_Notify is inconsequential.
+
+### Defense-in-Depth for Display Failure
+
+Because AO_Notify is the primary display path for fault indication, a
+silent AO_Notify crash would deny the pilot visual warnings before the
+hardware watchdog eventually resets the system. Mitigation (Council A1):
+AO_LedEngine retains a local Core 1 vitality check as a fallback that
+fires the stall pattern even if AO_Notify or AO_HealthMonitor have
+crashed. The hardware watchdog (5s timeout) is the ultimate safety net.
+
+Core 1 vitality is therefore checked in three places:
+1. **Primary:** AO_HealthMonitor at 10Hz — emits via `kHealthCore1Ok` bit
+   in SIG_HEALTH_STATUS (IVP-117).
+2. **Secondary:** AO_Notify decodes that bit and sets `FaultIntent::kCore1Stall`
+   if clear.
+3. **Tertiary / fallback:** AO_LedEngine local check — runs in its own
+   tick handler, sets the fault layer directly if Core 1 stalls, bypasses
+   AO_Notify entirely.
+
+This redundancy is specifically for visual fault indication and is not
+reflected in the SPIN model (display-only layer). Whether this pattern
+should be extended to other critical checks is tracked on the whiteboard
+(IVP-118 notes) for post-Stage-14 evaluation.
+
+### Completion Record
+
+Stage 14 completed: 2026-04-10. All six IVPs (IVP-113 through IVP-118)
+passed their gates. Plan: `.claude/plans/encapsulated-pondering-sparkle.md`.
+Latent QP use-after-free bug discovered and fixed during IVP-117 HW verify
+(see LESSONS_LEARNED.md Entry 35).
