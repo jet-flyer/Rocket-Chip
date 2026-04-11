@@ -1,10 +1,10 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-09 (Whiteboard cleanup, stage restructuring)
+**Last Updated:** 2026-04-10 (Stage 14 Notification Engine complete)
 
 ## Current Phase
 
-**Stages 1-12A COMPLETE** — AO Architecture Completion
+**Stages 1-14 COMPLETE** — Notification Engine + Display Decoupling
 
 8-phase migration: main.cpp 3384→706 lines (79% reduction). All subsystems extracted into own modules/AOs with explicit interfaces. Council-reviewed (5 personas). All phases HW verified on Feather RP2350.
 
@@ -50,7 +50,14 @@
 - Root cause found: QGC MAVLink bytes triggered CLI commands (flash erase crash).
   Fixed with 0xFD lockout + CDC buffer 1024B + CRLF disable + 10ms timeout.
 
-**Next:** Stage 12B (GCS), Stage 13 (pre-flight polish)
+**Stage 14 (2026-04-10):**
+- IVP-113–118 complete. AO_Notify intent layer with 5 per-category typed enums, priority resolver, direct-call output backends (no vtable per JSF AV Rule 170).
+- All 5 direct LED callers (FD, CLI, Radio, Health, LedEngine seqlock) rewired through the intent API. LedEngine slimmed to 3-layer pure display driver.
+- Core 1 vitality check moved to AO_HealthMonitor primary + LedEngine fallback (Council A1 defense-in-depth). Fixes Stage 13 gap.
+- Latent QP use-after-free bug fixed (LL Entry 35) — `AO_LedEngine_post_pattern()` had stack-local events passed to `QACTIVE_POST` since Stage 7, worked by luck until IVP-117 stack usage exposed it.
+- 669/669 host tests. Council-reviewed. HW verified via GDB memory inspection. SPIN 11/11 unchanged. NOTIFY_CONTRACT.md with IVP-118 verification amendment.
+
+**Next:** Stage 15 (Pre-Flight Polish: AO audit, audio output, user guide, RBM refresh), Stage 16 (Field Tuning)
 
 ## Completed
 
@@ -94,14 +101,13 @@
 | 12A: Radio Module + FJ GCS | IVP-92–98 | 2026-03-31 | Non-blocking TX, AO_Radio + AO_Telemetry split, RadioScheduler, 3-Job system (Vehicle/Station/Relay), RadioConfig in .cfg, RSSI bar (5 NeoPixels), relay forwarding. RP2350B I2C pad isolation fix. 3 council reviews. HW verified: TX→RX 296+ pkts 0 CRC, relay confirmed, GPS on FJ |
 
 | 13: Health Monitor | IVP-104–112 | 2026-04-09 | AO_HealthMonitor (standalone), 2-bit encoding (absent/fault/degraded/healthy), sliding window degraded, fault latch (pre-launch + mid-flight), auto-DISARM on critical fault, LED fault patterns (6), preflight Go/No-Go CLI, debug sub-menu. SPIN 11/11. 647 host tests. v0.3.0 |
+| 14: Notification Engine | IVP-113–118 | 2026-04-10 | AO_Notify intent layer (per-category typed enums, priority resolver, direct-call backends — no vtable). Rewires 5 direct LED callers through intent API. LedEngine → pure 3-layer display driver. Core 1 vitality moved to HealthMonitor primary + LedEngine fallback (A1). Latent QP stack-local event bug fixed (LL Entry 35). Council-reviewed. 669 host tests. SPIN 11/11 unchanged. Audio backend stubbed for future I2S DAC. NOTIFY_CONTRACT.md with IVP-118 amendment |
 
 ## In Progress
 
 *None currently.*
 
-**Next:** Stage 14 (Notification Engine) → Stage 15 (Pre-Flight Polish) → Stage 16 (Field Tuning)
-
-*Stage renumbering: Stage 14 = Notification Engine (NEW, AP_Notify-style), Stage 15 = Pre-Flight Polish (was 14), Stage 16 = Field Tuning (was 15).*
+**Next:** Stage 15 (Pre-Flight Polish) → Stage 16 (Field Tuning)
 
 ## Blockers
 

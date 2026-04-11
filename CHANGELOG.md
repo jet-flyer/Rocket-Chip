@@ -20,6 +20,20 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-10-002 | Claude Code CLI | architecture, feature, bugfix
+
+**Stage 14: Notification Engine complete (IVP-113 through IVP-118).** New AO_Notify intent layer sits between state producers and display consumers. Subsystems report typed intents; AO_Notify's priority resolver produces a single LED pattern posted to AO_LedEngine. Rewires 5 direct LED callers through the intent API. Also fixes a Stage 13 gap by moving Core 1 vitality check from AO_LedEngine to AO_HealthMonitor.
+
+Architecture: `include/rocketchip/notify_intents.h` (per-category typed enums — Phase, Cal, Radio, Sensor, Fault — for compile-time category enforcement), `src/active_objects/ao_notify.{h,cpp}` (33Hz AO, priority 5, queue depth 16), `src/notify/notify_backend_led.cpp` (pure-function priority resolver, no vtable per JSF AV Rule 170), `src/notify/notify_backend_audio.cpp` (I2S DAC stub for future Fruit Jam audio stage), `docs/decisions/NOTIFY_CONTRACT.md` (decision doc + IVP-118 verification amendment). Priority reshuffle: all AOs shifted +1 to insert Notify at 5 (Radio=8, FD=7, HealthMon=6, Notify=5, Logger=4, Telem=3, LedEngine=2, RCOS=1). LedEngine simplified from 6-layer compositor to 3 layers (Fault/Notify/Idle) — pure display driver. SIG_BEACON_ACTIVE (slot 17) added for FD ABORT timeout beacon one-shot. SIG_HEALTH_STATUS now carries kHealthCore1Ok secondary bit.
+
+Council-reviewed (NASA/JPL, ArduPilot, Professor, Rocketeer) with 4 amendments (A1-A4) + 2 plan-review additions (P1-P2). 669 host tests (30 new in `test/test_notify.cpp`). HW verified via GDB memory inspection: subscriber bitmaps match plan, Core 1 alive, resolver output visible in LedEngine layers. SPIN model unchanged (11/11 passing) — AO_Notify cannot cause flight-safety failures. User-approved one-time exception to append IVP-118 verification record to NOTIFY_CONTRACT.md.
+
+**Latent bug found and fixed (LL Entry 35):** `AO_LedEngine_post_pattern()` had been using stack-local `QEvt` subclasses passed to `QACTIVE_POST` since Stage 7 (IVP-77). QP stores the pointer, NOT a copy — when the caller returned, the stack frame was reclaimed and subsequent calls overwrote the event memory before QV could dispatch it. Worked for months by luck; IVP-117's added stack usage in AO_Notify's tick handler finally exposed it as a `qf_dyn` id=750 assertion. Fixed by using static event storage in both `AO_LedEngine_post_pattern()` and new `AO_Notify_post_cal_intent()`. Audited existing posts — HealthMonitor, FD phase/pyro/beacon, and Radio RX all already use static. LedEngine was the odd one out. Documented in LESSONS_LEARNED Entry 35, feedback memory, code comments.
+
+(include/rocketchip/{notify_intents,notify_backend,ao_signals}.h, src/active_objects/{ao_notify,ao_led_engine,ao_flight_director,ao_rcos,ao_health_monitor}.{h,cpp}, src/notify/*, src/safety/health_monitor.{h,cpp}, src/main.cpp, test/test_notify.cpp, test/CMakeLists.txt, CMakeLists.txt, docs/decisions/NOTIFY_CONTRACT.md, docs/AO_ARCHITECTURE.md, docs/IVP.md, .claude/LESSONS_LEARNED.md, AGENT_WHITEBOARD.md)
+
+---
+
 ### 2026-04-10-001 | Claude Code CLI | feature, tooling
 
 **Configuration Wizard prototype (Phase A).** Python-based terminal wizard that generates mission profile .cfg files from human-understandable questions. Council-reviewed (5 personas, unanimous GO).

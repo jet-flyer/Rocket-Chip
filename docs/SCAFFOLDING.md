@@ -162,19 +162,27 @@ rocketchip/
 │   │   ├── telemetry_encoder.cpp/.h  # CCSDS + MAVLink v2 encoders
 │   │   └── telemetry_service.cpp/.h  # TX scheduling, station RX decode
 │   │
-│   ├── active_objects/            # QP/C Active Objects (Stage 9 + 12A)
-│   │   ├── ao_flight_director.cpp/.h # Flight Director AO (100Hz)
-│   │   ├── ao_logger.cpp/.h         # Logger AO (50Hz)
-│   │   ├── ao_telemetry.cpp/.h      # Telemetry protocol AO (10Hz, radio-agnostic)
-│   │   ├── ao_radio.cpp/.h          # Radio hardware AO (100Hz, protocol-agnostic)
-│   │   ├── ao_led_engine.cpp/.h     # NeoPixel animation AO (33Hz)
-│   │   ├── ao_counter.cpp/.h        # Jitter measurement AO (disabled)
-│   │   └── ao_blinker.cpp/.h        # Blinker demo AO (disabled)
+│   ├── active_objects/            # QP/C Active Objects (Stage 9 + 12A + 13 + 14)
+│   │   ├── ao_flight_director.cpp/.h # Flight Director AO (100Hz, prio 7)
+│   │   ├── ao_health_monitor.cpp/.h  # Health Monitor AO (10Hz, prio 6) — Stage 13
+│   │   ├── ao_notify.cpp/.h          # Notification hub AO (33Hz, prio 5) — Stage 14
+│   │   ├── ao_logger.cpp/.h          # Logger AO (50Hz, prio 4)
+│   │   ├── ao_telemetry.cpp/.h       # Telemetry protocol AO (10Hz, prio 3, radio-agnostic)
+│   │   ├── ao_radio.cpp/.h           # Radio hardware AO (100Hz, prio 8, protocol-agnostic)
+│   │   ├── ao_led_engine.cpp/.h      # NeoPixel display driver AO (33Hz, prio 2) — Stage 14: 3-layer
+│   │   ├── ao_rcos.cpp/.h            # CLI/dashboard AO (20Hz, prio 1)
+│   │   ├── ao_counter.cpp/.h         # Jitter measurement AO (disabled)
+│   │   └── ao_blinker.cpp/.h         # Blinker demo AO (disabled)
 │   │
-│   ├── safety/                    # Safety Systems (Stage 11 + Stage 13)
+│   ├── notify/                    # Notification Engine Backends (Stage 14)
+│   │   ├── notify_resolver.h         # Internal header: resolve_led_pattern() + decode_health_faults() inline
+│   │   ├── notify_backend_led.cpp    # Priority resolver + LED backend adapter
+│   │   └── notify_backend_audio.cpp  # I2S DAC audio backend stub (Fruit Jam future stage)
+│   │
+│   ├── safety/                    # Safety Systems (Stage 11 + Stage 13 + Stage 14)
 │   │   ├── pio_watchdog.cpp/.h       # PIO heartbeat watchdog (IRQ-based)
 │   │   ├── pio_backup_timer.cpp/.h   # PIO backup deployment timers
-│   │   └── health_monitor.cpp/.h     # Centralized health state (10Hz from AO_FD)
+│   │   └── health_monitor.cpp/.h     # Centralized health state (10Hz via AO_HealthMonitor) + Core 1 vitality (Stage 14)
 │   │
 │   ├── watchdog/                  # Watchdog Recovery (Stage 8)
 │   │   └── watchdog_recovery.cpp/.h  # Scratch register policy, safe mode
