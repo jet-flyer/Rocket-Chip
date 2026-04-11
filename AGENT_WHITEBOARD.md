@@ -2,7 +2,7 @@
 
 **Purpose:** Communication across context windows and between agents.
 
-**Stages 1-13 COMPLETE.** 610+ host tests, SPIN 11/11. **Stage 14 (Notification Engine) IN PROGRESS.** Tracking: `docs/AO_ARCHITECTURE.md`.
+**Stages 1-14 COMPLETE.** 669 host tests, SPIN 11/11 (unchanged — AO_Notify is output-only). Tracking: `docs/AO_ARCHITECTURE.md`.
 
 ## Use Cases
 1. **Cross-agent review** - Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
@@ -15,7 +15,27 @@
 
 ## Open Flags
 
-*Stage 13 (Health Monitor) COMPLETE. Config Wizard Phase A COMPLETE (prototype). Stage 14 (Notification Engine) IN PROGRESS — IVP-113 through IVP-118.*
+*Stage 13 (Health Monitor) COMPLETE. Config Wizard Phase A COMPLETE (prototype). Stage 14 (Notification Engine) COMPLETE — IVP-113 through IVP-118, all gates passed, HW verified via GDB memory inspection.*
+
+### Stage 14 — SPIN Safety Analysis (for NOTIFY_CONTRACT.md)
+
+NOTIFY_CONTRACT.md is in `docs/decisions/` (protected). The following
+safety analysis note should be appended when the user reviews the doc:
+
+> **SPIN Safety Analysis (IVP-118)**
+>
+> AO_Notify is output-only and subscribes to state-producing signals
+> (SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE).
+> It does NOT publish any signal that is consumed by flight-critical AOs.
+> It does NOT modify flight state, guard conditions, or pyro logic. It
+> does NOT read or write calibration data.
+>
+> The SPIN formal model is unchanged by Stage 14 (still 11/11 passing).
+> AO_Notify has no representation in the safety model because it cannot
+> affect flight safety. Verified by subscriber-count audit during IVP-118:
+> no flight-critical AO subscribes to any signal that AO_Notify publishes.
+>
+> Stage 14 verified: 2026-04-10.
 
 ### QP Posted Events Must Be Static (LL Entry 35)
 
@@ -58,7 +78,7 @@ MAIN_DESCENT relies entirely on the stationary guard (`SIG_LANDING`) to exit. If
 
 **Stage 13: Health Monitor** — COMPLETE. AO_HealthMonitor, 2-bit encoding, fault patterns, preflight CLI, debug sub-menu, auto-DISARM, pre-launch latch. SPIN 11/11.
 
-**Stage 14: Notification Engine** — IN PROGRESS. IVP-113 through IVP-118. AO_Notify intent layer, output backends, caller rewiring. Council-reviewed (NASA/JPL, ArduPilot, Professor, Rocketeer). Plan: `.claude/plans/encapsulated-pondering-sparkle.md`.
+**Stage 14: Notification Engine** — COMPLETE. IVP-113 through IVP-118. AO_Notify intent layer, output backends, caller rewiring, sensor + Core1 vitality migration, static-event bug fix (LL Entry 35). Council-reviewed (NASA/JPL, ArduPilot, Professor, Rocketeer). 30 new host tests. HW verified via GDB memory inspection. Plan: `.claude/plans/encapsulated-pondering-sparkle.md`.
 
 **Stage 15: Pre-Flight Polish** (was 14) — includes:
 - **AO Responsibility Audit** — verify health/safety logic in correct AOs (Stage 13 Core1 gap)

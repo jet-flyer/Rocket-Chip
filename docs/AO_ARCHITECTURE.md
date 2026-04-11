@@ -21,16 +21,14 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 
 | AO | File | Rate | Prio | Queue | Owns | Publishes | Subscribes |
 |----|------|------|------|-------|------|-----------|------------|
-| AO_Radio | `ao_radio.cpp` | 100Hz | 7 | 32 | rfm95w_t, RadioScheduler, RadioAoState | SIG_RADIO_RX, SIG_RADIO_STATUS | SIG_RADIO_TX |
-| AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 6 | 32 | FlightDirector HSM, guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_LED_PATTERN | SIG_SENSOR_DATA |
-| AO_HealthMonitor | `ao_health_monitor.cpp` | 10Hz | 6* | 8 | HealthState, sliding windows, fault latch, staleness counter, Core1 vitality (IVP-117) | SIG_HEALTH_STATUS | SIG_PHASE_CHANGE |
-| **AO_Notify** | **`ao_notify.cpp`** | **33Hz** | **5*** | **16** | **NotifyState, intent resolver, output backend dispatch (Stage 14)** | **(none)** | **SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE** |
+| AO_Radio | `ao_radio.cpp` | 100Hz | 8 | 32 | rfm95w_t, RadioScheduler, RadioAoState | SIG_RADIO_RX, SIG_RADIO_STATUS | SIG_RADIO_TX |
+| AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 7 | 32 | FlightDirector HSM, guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_BEACON_ACTIVE | SIG_SENSOR_DATA |
+| AO_HealthMonitor | `ao_health_monitor.cpp` | 10Hz | 6 | 8 | HealthState, sliding windows, fault latch, staleness counter, Core1 vitality primary check (IVP-117) | SIG_HEALTH_STATUS | SIG_PHASE_CHANGE |
+| AO_Notify | `ao_notify.cpp` | 33Hz | 5 | 16 | NotifyState, intent resolver, output backend dispatch, sensor status evaluation (Stage 14) | SIG_LED_PATTERN (via backend) | SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE |
 | AO_Logger | `ao_logger.cpp` | 50Hz | 4 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_HEALTH_STATUS |
 | AO_Telemetry | `ao_telemetry.cpp` | 10Hz | 3 | 8 | CCSDS/MAVLink encode, TelemetryState snapshot, RX decode | SIG_RADIO_TX | SIG_RADIO_RX, SIG_SENSOR_DATA, SIG_HEALTH_STATUS |
-| AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 2 | 8 | ws2812 driver, 3-layer compositor, animation state (Stage 14: pure display driver) | (none) | SIG_LED_PATTERN |
-| AO_RCOS | `cli/ao_rcos.cpp` | 20Hz | 1 | 16 | CLI output mode, ANSI dashboard, key dispatch | SIG_CLI_COMMAND | (none) |
-
-*Priorities marked with \* are planned values for IVP-114 reshuffle (+1 to all existing AOs). Radio→8, FD→7.*
+| AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 2 | 8 | ws2812 driver, 3-layer compositor (Fault/Notify/Idle), Core1 vitality fallback (A1) | (none) | SIG_LED_PATTERN |
+| AO_RCOS | `cli/ao_rcos.cpp` | 20Hz | 1 | 16 | CLI output mode, ANSI dashboard, key dispatch, cal intent posting | SIG_CLI_COMMAND | (none) |
 
 *AO_Blinker (disabled): heartbeat LED demo. AO_Counter (disabled): jitter measurement diagnostic.*
 
@@ -55,38 +53,50 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 ```
   Core 1                    Core 0 (QV Scheduler + Idle Bridge)
   --------                  ------------------------------------
-  sensor_core1              
-    |                       
-    | seqlock write         
-    v                       
+  sensor_core1
+    |
+    | seqlock write
+    v
   [seqlock] ----read----> eskf_runner (idle bridge, 200Hz)
                               |
                     publish SIG_SENSOR_DATA
                               |
-              +---------------+----------------+
-              |               |                |
-              v               v                v
-        AO_FlightDir    AO_Logger       AO_LedEngine
-        (100Hz, P6)     (50Hz, P4)      (33Hz, P2)
-              |               |                ^
-     SIG_PHASE_CHANGE   writes ring      SIG_LED_PATTERN
-     SIG_LED_PATTERN    SIG_PYRO_INTENT  SIG_RADIO_STATUS
-              |                          SIG_HEALTH_STATUS
-              |                                ^
-              |                                |
-        AO_HealthMonitor (10Hz, P5) -----------+
-              reads seqlock + ESKF + confidence gate
-              publishes SIG_HEALTH_STATUS --> LED, Logger, Telem
-              subscribes SIG_PHASE_CHANGE (fault latch)
-              |                                 
-              v                                
-        AO_Telemetry ----SIG_RADIO_TX----> AO_Radio
-        (10Hz, P3)   <---SIG_RADIO_RX---- (100Hz, P7)
-                                               |
-                                        SIG_RADIO_STATUS
-                                               |
-                                               v
-                                         AO_LedEngine
+              +---------------+-----------+
+              |               |           |
+              v               v           v
+        AO_FlightDir    AO_Logger   AO_Telemetry
+        (100Hz, P7)     (50Hz, P4)  (10Hz, P3)
+              |               |           ^
+     SIG_PHASE_CHANGE   writes ring       | SIG_RADIO_TX
+     SIG_PYRO_FIRED     SIG_PYRO_INTENT   v
+     SIG_BEACON_ACTIVE                AO_Radio
+              |                       (100Hz, P8)
+              |                           |
+              v                   SIG_RADIO_STATUS
+  AO_HealthMonitor (10Hz, P6)             |
+      reads seqlock + ESKF + confidence   |
+      reads Core 1 vitality (IVP-117)     |
+      publishes SIG_HEALTH_STATUS         |
+        --> Logger, Telemetry, Notify     |
+              |                           |
+              |  SIG_HEALTH_STATUS        |
+              v                           v
+        +---------- AO_Notify (33Hz, P5) -------+
+        |   - subscribes PHASE_CHANGE,          |
+        |     RADIO_STATUS, HEALTH_STATUS,      |
+        |     BEACON_ACTIVE                     |
+        |   - reads seqlock for sensor status   |
+        |   - maintains NotifyState             |
+        |   - runs priority resolver            |
+        |   - posts via output backends         |
+        +---------------------+-----------------+
+                              | SIG_LED_PATTERN
+                              v
+                        AO_LedEngine (33Hz, P2)
+                          - display driver only
+                          - 3 layers: Fault / Notify / Idle
+                          - Core 1 vitality fallback (A1)
+                          - drives ws2812
 
   Idle Bridge (runs when all AO queues empty):
     1. watchdog_kick_tick()     -- permanent
@@ -94,27 +104,36 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
     3. rc_os_update()           -- blocking cal wizards only (conditional)
     4. __wfi()                  -- sleep until next interrupt
 
-  AO_RCOS (20Hz, P2, CLI)
+  AO_RCOS (20Hz, P1, CLI)
     reads: all module/AO public APIs for display
-    posts: SIG_CLI_COMMAND, SIG_LED_OVERRIDE
+    posts: SIG_CLI_COMMAND (to FD), AO_Notify_post_cal_intent() (to Notify)
 ```
 
 ---
 
-## LED Engine Priority Layers
+## LED Engine Priority Layers (Post Stage 14)
 
-AO_LedEngine evaluates layers top-to-bottom each tick. First active layer wins.
+Stage 14 simplified AO_LedEngine from a 6-layer compositor into a pure
+display driver with only 3 layers. All intent resolution (flight phase,
+calibration, radio, sensor, fault) now lives in AO_Notify's resolver,
+which posts a single resolved pattern via SIG_LED_PATTERN.
 
 | Layer | Priority | Source | Example |
 |-------|----------|--------|---------|
-| FAULT | 0 (highest) | SIG_HEALTH_STATUS | Critical sensor failure: red fast blink |
-| FLIGHT_PHASE | 1 | SIG_PHASE_CHANGE | Armed: orange solid. Boost: red solid |
-| CALIBRATION | 2 | SIG_LED_OVERRIDE | Gyro cal: blue breathe. Mag cal: rainbow |
-| RADIO_STATUS | 3 | SIG_RADIO_STATUS | RX receiving: green. Lost: red fast blink |
-| SENSOR_STATUS | 4 | SIG_SENSOR_DATA | GPS 3D fix: green solid. Searching: yellow blink |
-| IDLE | 5 (lowest) | Default | Blue breathe (ESKF running, no GPS) |
+| FAULT  | 0 (highest) | Core 1 vitality check (local, A1 fallback) | Core 1 stall: magenta solid |
+| NOTIFY | 1 | SIG_LED_PATTERN from AO_Notify backend | Whatever AO_Notify's resolver picked |
+| IDLE   | 2 (lowest) | Default | Blue blink (kSensorNeoNoGps) |
 
-Core 1 vitality check (Council A4): `core1_loop_count` stall for 500ms forces FAULT layer.
+AO_Notify's resolver (`src/notify/notify_backend_led.cpp`) iterates its
+own intent categories in priority order: Fault > Calibration > Flight >
+Radio > Sensor > Idle. See `docs/decisions/NOTIFY_CONTRACT.md`.
+
+**Core 1 vitality defense-in-depth (Council A1):** The primary Core 1
+vitality check lives in AO_HealthMonitor (10Hz, emits via SIG_HEALTH_STATUS
+secondary byte bit `kHealthCore1Ok`). AO_LedEngine ALSO evaluates it
+locally at 33Hz as a fallback in case AO_HealthMonitor or AO_Notify
+crash — the local FAULT layer still lights the stall pattern in that
+scenario, so visual fault indication survives a single AO failure.
 
 ---
 
@@ -132,24 +151,27 @@ Core 1 vitality check (Council A4): `core1_loop_count` stall for 500ms forces FA
 | SIG_LANDING | 11 | QEvt | Guard eval | AO_FlightDirector |
 | SIG_ABORT | 12 | QEvt | CLI/Radio | AO_FlightDirector |
 | SIG_RESET | 13 | QEvt | CLI | AO_FlightDirector |
-| SIG_SENSOR_DATA | 14 | SensorDataEvt | eskf_runner | AO_FD, AO_Logger, AO_Telem, AO_LedEngine |
-| SIG_PHASE_CHANGE | 15 | PhaseChangeEvt | AO_FlightDirector | AO_Logger |
-| SIG_LED_PATTERN | 16 | LedPatternEvt | AO_FlightDirector | AO_LedEngine |
-| ~~SIG_LOG_FRAME~~ | 17 | -- | removed | -- |
-| ~~SIG_TELEM_FRAME~~ | 18 | -- | removed | -- |
+| SIG_SENSOR_DATA | 14 | SensorDataEvt | eskf_runner | AO_FD, AO_Logger, AO_Telem |
+| SIG_PHASE_CHANGE | 15 | PhaseChangeEvt | AO_FlightDirector | AO_Logger, AO_HealthMonitor, AO_Notify |
+| SIG_LED_PATTERN | 16 | LedPatternEvt | AO_Notify (via backend) | AO_LedEngine |
+| SIG_BEACON_ACTIVE | 17 | QEvt | AO_FlightDirector (ABORT timeout + LANDED action) | AO_Notify |
 | SIG_PYRO_INTENT | 19 | QEvt | AO_FlightDirector (callback) | AO_Logger (callback) |
-| SIG_LED_OVERRIDE | 20 | LedPatternEvt | AO_RCOS | AO_LedEngine |
+| ~~SIG_LED_OVERRIDE~~ | 20 | -- | legacy slot (IVP-116 unused) | -- |
 | SIG_CLI_COMMAND | 21 | QEvt | AO_RCOS (sync call) | AO_FlightDirector (sync call) |
-| ~~SIG_HEALTH_CHECK~~ | 22 | -- | removed | -- |
-| SIG_RADIO_TX | 23 | RadioTxEvt | AO_Telemetry | AO_Radio |
-| SIG_RADIO_RX | 24 | RadioRxEvt | AO_Radio | AO_Telemetry |
-| SIG_RADIO_STATUS | 25 | RadioStatusEvt | AO_Radio | AO_LedEngine |
-| SIG_GCS_CMD | 26 | GcsCmdEvt | AO_Telemetry | AO_FlightDirector |
-| SIG_HEALTH_STATUS | 27 | HealthStatusEvt | AO_HealthMonitor | AO_LedEngine, AO_Logger, AO_Telemetry |
-| SIG_PYRO_FIRED | 28 | PyroFiredEvt | AO_FlightDirector | AO_Logger |
-| SIG_AO_MAX | 29 | -- | -- | -- |
+| SIG_RADIO_TX | 22 | RadioTxEvt | AO_Telemetry | AO_Radio |
+| SIG_RADIO_RX | 23 | RadioRxEvt | AO_Radio | AO_Telemetry |
+| SIG_RADIO_STATUS | 24 | RadioStatusEvt | AO_Radio | AO_Notify |
+| SIG_GCS_CMD | 25 | GcsCmdEvt | AO_Telemetry | AO_FlightDirector |
+| SIG_HEALTH_STATUS | 26 | HealthStatusEvt | AO_HealthMonitor | AO_Notify, AO_Logger, AO_Telemetry |
+| SIG_PYRO_FIRED | 27 | PyroFiredEvt | AO_FlightDirector | AO_Logger |
+| SIG_AO_MAX | 28 | -- | -- | -- |
 
-Private signals (per-AO, not in catalog): `SIG_AO_MAX + offset` (0=Blinker, 1=Counter+HealthMon, 2=LedEngine, 3=FD, 4=Logger, 5=Telem, 10=Radio).
+Note: "removed" historical slots (LOG_FRAME, TELEM_FRAME, HEALTH_CHECK) do NOT
+create numeric gaps in the enum — the table reflects ACTUAL runtime values.
+
+Private signals (per-AO, not in catalog): `SIG_AO_MAX + offset` (0=Blinker,
+1=Counter+HealthMon, 2=LedEngine, 3=FD, 4=Logger, 5=Telem, 6=Notify tick,
+7=Notify cal intent, 10=Radio, 20=RCOS).
 
 ---
 

@@ -51,25 +51,31 @@ enum RcSignal : uint16_t {
     SIG_FD_MAX,                      // 14: FD sentinel (do not use as signal)
 
     // --- System-wide Active Object signals ---
+    //
+    // Note on numbering: "removed" comments below are historical context
+    // (which signals used to live at which slots). In C++ enums, removed
+    // values do NOT create numeric gaps — the next enumerator just takes
+    // the next value. Only explicit `= N` reassignments create gaps. The
+    // numeric comments on each line reflect the ACTUAL runtime value.
     SIG_SENSOR_DATA = SIG_FD_MAX,   // 14: Sensor snapshot ready (eskf_tick → AOs)
-    SIG_PHASE_CHANGE,                // 15: Flight phase transition (FD → Logger, LED)
-    SIG_LED_PATTERN,                 // 16: LED pattern request (any → LedEngine)
-    SIG_BEACON_ACTIVE,               // 17: Post-landing beacon activated (FD ABORT timeout → Notify)
-    // 18: removed (TELEM_FRAME — never wired, direct API used)
+    SIG_PHASE_CHANGE,                // 15: Flight phase transition (FD → Notify, Logger, HealthMon)
+    SIG_LED_PATTERN,                 // 16: LED pattern request (Notify → LedEngine)
+    SIG_BEACON_ACTIVE,               // 17: Post-landing beacon activated (FD ABORT timeout → Notify) [IVP-113]
+    // Historically 17-18 held LOG_FRAME/TELEM_FRAME (removed — direct API used)
     SIG_PYRO_INTENT = 19,            // 19: Pyro fire intent (FD → Logger via callback)
-    SIG_LED_OVERRIDE,                // 20: Calibration/RX LED override (CLI → LedEngine)
+    SIG_LED_OVERRIDE,                // 20: LEGACY — unused after IVP-116 (calibration now via AO_Notify_post_cal_intent)
     SIG_CLI_COMMAND,                 // 21: CLI command dispatch (CLI → FD, synchronous)
-    // 22: removed (HEALTH_CHECK — health monitor promoted to AO_HealthMonitor, Stage 13)
+    // Historically 22 held HEALTH_CHECK (removed — HealthMonitor promoted to AO, Stage 13)
 
     // --- Radio Module ---
-    SIG_RADIO_TX,                    // 23: Encoded packet ready for TX (Telem → Radio)
-    SIG_RADIO_RX,                    // 24: Raw packet received (Radio → Telem)
-    SIG_RADIO_STATUS,                // 25: Link quality update (Radio → LED, CLI)
-    SIG_GCS_CMD,                     // 26: Uplink command from GCS (Telem → FD) [C3-A4]
-    SIG_HEALTH_STATUS,               // 27: Health flags changed (HealthMonitor → AOs)
-    SIG_PYRO_FIRED,                  // 28: Pyro channel fired (FD/PIO → Logger)
+    SIG_RADIO_TX,                    // 22: Encoded packet ready for TX (Telem → Radio)
+    SIG_RADIO_RX,                    // 23: Raw packet received (Radio → Telem)
+    SIG_RADIO_STATUS,                // 24: Link quality update (Radio → Notify)
+    SIG_GCS_CMD,                     // 25: Uplink command from GCS (Telem → FD) [C3-A4]
+    SIG_HEALTH_STATUS,               // 26: Health flags changed (HealthMonitor → Notify, Logger, Telemetry)
+    SIG_PYRO_FIRED,                  // 27: Pyro channel fired (FD/PIO → Logger)
 
-    SIG_AO_MAX                       // 29: Sentinel — pub-sub array size
+    SIG_AO_MAX                       // 28: Sentinel — pub-sub array size
 };
 
 // Backward compatibility aliases
