@@ -22,7 +22,9 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stages 10-12** (Adaptive Estimation, Ground Station, Integration): Placeholders expanded as earlier stages complete
 - **Stage 13** (Health Monitor): IN PROGRESS — IVP-104 through IVP-112. Council-reviewed.
 - **Stage 14** (Notification Engine): IVP-113 through IVP-118. Council-reviewed.
-- **Stages 15-16** (Pre-Flight Polish, Field Tuning): Renumbered from 14-15. Placeholders.
+- **Stage 15** (Pre-Flight Radio + Station): Placeholder — station UX hardening, half-duplex ACK, MAIN_DESCENT timeout.
+- **Stage 16** (Pre-Flight Polish): Placeholder — phases A (docs/cleanup), B (bench testing), C (field testing).
+- **Stage 17** (Field Tuning & Validation): Placeholder — VALIDATE parameter tuning from flight data.
 
 **Key references (not duplicated here):**
 - `docs/SAD.md` — System architecture, data structures, module responsibilities
@@ -111,8 +113,9 @@ cmake --build build/
 | **3D** | **3-Axis Magnetometer** | — | **IVP-99 — IVP-103** | **Planned** | |
 | **13** | **Health Monitor** | **Phase 9** | **IVP-104 — IVP-112** | **Full** | |
 | **14** | **Notification Engine** | **Phase 9** | **IVP-113 — IVP-118** | **Full** | |
-| 15 | Pre-Flight Polish | Phase 9 | — | Placeholder | **Flight Ready** |
-| **16** | **Field Tuning & Validation** | **Phase 9** | **—** | **Placeholder** | |
+| 15 | Pre-Flight Radio + Station | Phase 9 | — | Placeholder | |
+| **16** | **Pre-Flight Polish** | **Phase 9** | **—** | **Placeholder** | **Flight Ready** |
+| 17 | Field Tuning & Validation | Phase 9 | — | Placeholder | |
 
 > **Stage 6 pull-forward rationale:** Data Logging was originally Stage 9 but is a dependency for the telemetry encoder — the encoder reads from data structures (FusedState, TelemetryState, SensorSnapshot) defined by the logging architecture. Pulling logging forward establishes the canonical data model that all downstream consumers (telemetry encoder, flight director, GCS) read from. IVP numbers were renumbered sequentially. See council reviews: `docs/decisions/Telem+logging/council_data_logging.md` and `council_telemetry_protocol.md`.
 
@@ -2631,7 +2634,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ## Stage 10: Adaptive Estimation & Safety
 
-**Purpose:** Phase-aware ESKF tuning framework and confidence-gated safety. Builds the plumbing for per-phase Q/R scheduling and a confidence gate that controls irreversible actions (pyro). All numerical thresholds use conservative `VALIDATE` defaults — actual tuning deferred to Stage 15 (Field Tuning).
+**Purpose:** Phase-aware ESKF tuning framework and confidence-gated safety. Builds the plumbing for per-phase Q/R scheduling and a confidence gate that controls irreversible actions (pyro). All numerical thresholds use conservative `VALIDATE` defaults — actual tuning deferred to Stage 17 (Field Tuning).
 
 **Background:** Extended research (2026-02-24) demonstrated that MMAE/IMM is the wrong tool for RocketChip's flight regime switching. Real aerospace navigation (X-43A, SpaceX Grasshopper, ArduPilot EKF3, PX4 ECL) universally uses single kinematic filters with deterministic regime adaptation — not multi-model banks. Simple phase-scheduled Q/R captures the same benefit at near-zero computational cost. See `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` for full rationale and benchmark data.
 
@@ -2650,7 +2653,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Prerequisites:** IVP-68 (state machine provides flight phase detection), IVP-48 (ESKF tuned), IVP-74 (Mission Profile `.cfg` system)
 
-**Implement:** Phase-aware Q and R selection framework integrated with the existing Mission Profile `.cfg` system. Q/R values per flight phase are user-editable in `.cfg` files. Additive Q delta applied post-codegen (O(24) diagonal additions — codegen FPFT unchanged). Innovation ratio monitor provides adaptive Q inflation layer on top. All threshold values are `VALIDATE` defaults — tuning deferred to Stage 15.
+**Implement:** Phase-aware Q and R selection framework integrated with the existing Mission Profile `.cfg` system. Q/R values per flight phase are user-editable in `.cfg` files. Additive Q delta applied post-codegen (O(24) diagonal additions — codegen FPFT unchanged). Innovation ratio monitor provides adaptive Q inflation layer on top. All threshold values are `VALIDATE` defaults — tuning deferred to Stage 17.
 
 1. **Phase Q/R in Mission Profile `.cfg`:** Add Q scale multipliers (per phase × 4 groups: attitude, velocity, accel_bias, gyro_bias) and absolute R values (per phase × 4 sensors: baro, mag, GPS position, GPS velocity) to `profiles/rocket.cfg` and `profiles/hab.cfg`. Generator validates Q scales >= 1.0, R values > 0.
 
@@ -2680,7 +2683,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Prerequisites:** IVP-83, IVP-45 (Mahony AHRS)
 
-**Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates ESKF health signals and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director. This is the **platform safety layer — NOT configurable by Mission Profiles**. All thresholds are `VALIDATE` defaults — tuning deferred to Stage 15.
+**Implement:** `src/fusion/confidence_gate.h/.cpp` — evaluates ESKF health signals and AHRS cross-check to produce a binary confidence flag consumed by the Flight Director. This is the **platform safety layer — NOT configurable by Mission Profiles**. All thresholds are `VALIDATE` defaults — tuning deferred to Stage 17.
 
 1. **Confidence conditions (ALL must be true for `confident = true`):**
    - **AHRS agreement:** quaternion angular distance between ESKF and Mahony AHRS < `⚠️ VALIDATE 15°`
@@ -3207,33 +3210,68 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-## Stage 15: Pre-Flight Polish (was Stage 14)
+## Stage 15: Pre-Flight Radio + Station
 
-**Purpose:** Full system verification and flight readiness. All subsystems integrated, all tests passing, all hardware validated under realistic conditions.
+**Purpose:** Harden the station UX and radio command path before any field testing. Currently station ARM is single-key fire-and-forget with no acknowledgement, distance-to-rocket is a stub, and SPIN property P7 (flight completes) fails because MAIN_DESCENT has no timeout fallback. This stage closes all three gaps so the vehicle and ground station are ready for a real ARM→LAUNCH→RECOVERY cycle.
+
+**Prerequisites:** Stage 14 complete (Notification Engine).
 
 *IVP numbers assigned when this stage is planned.*
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| — | AO Responsibility Audit | Verify all health/safety logic lives in correct AOs (Stage 13 Core1 gap pattern) |
-| — | Audio Output (I2S DAC) | TLV320DAC3100 codec driver, pico-extras I2S, AP tone parser, AO_Audio (~10-12 IVPs). Fruit Jam only. Fills Stage 14 audio backend stub. |
-| — | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
-| — | Simulated Flight Profile | Replay recorded accel/baro through state machine |
-| — | Power Budget Validation | Battery runtime validation under flight load |
-| — | Environmental Stress | Temperature range, vibration (if available) |
-| — | CCSDS SDLS Command Authentication | CCSDS 355.0-B-2 telecommand authentication. ON for Rocket profile, OFF for Passive. Shared key pairing between vehicle and station. |
-| — | PIO Backup Timer Exhaustive Shakedown | Full failure scenario testing of PIO deployment timers |
-| — | USB Download Speed Optimization | Bypass stdio for bulk download, target 200+ KB/s |
-| — | Half-Duplex ACK + Command Result | Piggyback command ACK on next telemetry frame. Retry-until-ACK on station. Proper TX/RX time slicing in RadioScheduler. |
-| — | Flight Test | Bungee-launched glider: full data capture + telemetry |
-
-> **Milestone:** Flight Test — **Flight Ready**.
+| — | MAIN_DESCENT Timeout Fallback | Add `descent_timeout_ms` to MissionProfile. SIG_TICK fallback in `state_main_descent` forces transition to LANDED if elapsed > timeout and stationary guard hasn't fired. Update SPIN model — P7 liveness should pass. Covers HAB profile (balloon float, no descent signal) and ESKF-dead failure modes. |
+| — | Half-Duplex ACK + Station ARM UX | **Council design first** (piggyback on next nav frame vs dedicated ACK packet). Vehicle acknowledges command sequence number; station retries until ACK or timeout. Station ARM flow changes from single-key `a` to `a` (pre-arm) → type `ARM` in caps → Enter → send → show `ARM ACK'd` or `ARM timeout`. One IVP — vehicle + station + HW integration test. |
+| — | Distance-to-Rocket Finish | Cache last received vehicle position in station (currently stubbed at `rc_os_commands.cpp:1172`). Compute haversine distance from cached station GPS, display on dashboard and `d` CLI command. `haversine_m()` helper already exists in the same file. |
+| — | Station Help Menu + Whiteboard Cleanup | Refresh station help from `Station: g-GPS  d-Distance` to the full key list (`g d p a m t r`). Clear stale `IVP-103 Station GPS Push` whiteboard entry — already implemented as `cmd_station_gps_push()`. Audit for other stale station-related items. |
 
 ---
 
-## Stage 16: Field Tuning & Validation (was Stage 15)
+## Stage 16: Pre-Flight Polish
 
-**Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. This stage requires a flight-ready system (Stage 14 complete) to collect meaningful data for tuning.
+**Purpose:** Full system verification and flight readiness. Three phases: documentation/code cleanup (16A), bench testing (16B), and field testing (16C). Audio output (I2S DAC, ~10-12 IVPs) is deliberately deferred to a later stage — it's Fruit Jam ground-station only and doesn't block flight readiness. Battery ADC monitoring is also deferred pending custom hardware decisions.
+
+**Prerequisites:** Stage 15 complete.
+
+*IVP numbers assigned when this stage is planned.*
+
+### Stage 16A: Documentation & Cleanup
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| — | SAD Superloop Purge | `docs/SAD.md` still references the removed superloop at multiple locations. Rewrite to the QV/AO dispatcher model (post-Stage-9 architecture). |
+| — | SCAFFOLDING Refresh | `docs/SCAFFOLDING.md` has lingering superloop references at lines 107, 293, 317. Sync to current AO layout including Stage 14 AO_Notify and Stage 15 radio changes. |
+| — | Runtime Behavior Map Refresh | `docs/audits/cla_rbm/RUNTIME_BEHAVIOR_MAP.md` is dated 2026-03-08 (pre-Stage-14). Update for AO_Notify intent layer, HealthMonitor-primary Core1 vitality (IVP-117), and Stage 15 radio command path. |
+| — | TBD Placeholder Purge | Fill in or remove TBD markers: `PROJECT_OVERVIEW.md` Main tier, `HARDWARE_BUDGETS.md` memory + power sections, `RADIO_TELEMETRY_STATUS.md:116` diagnostics packet, four SAD.md TBDs (flash layout, power budget, mission plugins, driver packages). |
+| — | User / Operations Guide | New document. Pre-flight flow, CLI cheat sheet, field deployment procedures, log download workflow, troubleshooting tree. Does not currently exist. |
+| — | AO Architecture Audit | Verify all health/safety logic lives in the correct AOs (post-Stage-14 Core1 vitality is checked in 3 places — evaluate justified defense-in-depth vs. bloat). Update `docs/AO_ARCHITECTURE.md`. |
+
+### Stage 16B: Bench Testing
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| — | Hardware Budget Measurement Sweep | Fill in `HARDWARE_BUDGETS.md` with actual numbers: SRAM/flash usage from `.map` file, peak power draw under flight profile, peak current during pyro fire. Required before Stage 16C field test. |
+| — | Full System 30-Minute Soak | Repeatable soak using `bench_flight_sim.py` (IVP-73). Watchdog reset tracking, memory leak check, health monitor panel audit, QP queue depth audit. Goal: zero crashes, zero unexpected state transitions. |
+| — | Simulated Flight Profile Replay Harness | New harness (distinct from CLI-driven `bench_flight_sim.py`). Inject recorded accel/baro/GPS samples directly into Core 1 seqlock path to exercise full ESKF → FD → Notify pipeline with known ground-truth inputs. |
+| — | PIO Backup Timer Shakedown | Exhaustive failure scenario testing of the PIO deployment timers from Stage 11. Simulate ESKF death, Core 0 hang, watchdog stall — verify PIO backup fires drogue and main at configured timeouts regardless. |
+| — | Environmental Bench Stress | Temperature soak: freezer → ambient → warm (feasible at home without specialized equipment). Verify sensors, ESKF, radio, flash work across range. Vibration deferred unless shaker table available. |
+| — | USB Download Speed Optimization | *(Opportunistic)* Bypass stdio for bulk flight log download. Target 200+ KB/s. Not flight-critical but improves post-flight workflow. |
+
+### Stage 16C: Field Testing
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| — | Pre-Flight Checklist Document | Formalize the `p` command (IVP-110 Go/No-Go) into a written pre-flight procedure. Pass/fail gates, fallback actions on NO-GO, station-side verification steps. |
+| — | Ground Test (Static) | Static ARM → DISARM cycles. GPS lock acquisition time. Radio link budget measurement at distance (line-of-sight + light obstruction). Half-duplex ACK verification in realistic RF environment. Log download round-trip. |
+| — | Low-Altitude Flight Test | Bungee-launched glider or low-power rocket. Full data capture: flight log + live telemetry + station dashboard. Post-flight replay analysis. First real flight validation. |
+
+> **Milestone:** Low-Altitude Flight Test — **Flight Ready**.
+
+---
+
+## Stage 17: Field Tuning & Validation
+
+**Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. This stage requires a flight-ready system (Stage 16 complete) to collect meaningful data for tuning.
 
 **Scope:** All `VALIDATE`-marked thresholds from Stages 8-11, including:
 - Phase-scheduled Q/R values per vehicle type (IVP-83)

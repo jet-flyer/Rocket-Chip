@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-10-003 | Claude Code CLI | documentation
+
+**Stage 15/16/17 reorganization in IVP.md.** Split old Stage 15 "Pre-Flight Polish" into two stages after scope re-evaluation: new Stage 15 "Pre-Flight Radio + Station" (MAIN_DESCENT P7 timeout fix, half-duplex ACK + ARM confirmation UX, distance-to-rocket finish, station help/whiteboard cleanup) runs before the polish pass. Old Stage 15 becomes Stage 16 "Pre-Flight Polish" with three phases: 16A Documentation & Cleanup, 16B Bench Testing, 16C Field Testing. Old Stage 16 "Field Tuning & Validation" renumbered to Stage 17. Audio output (I2S DAC, ~10-12 IVPs) and battery ADC monitoring explicitly deferred — audio is ground-station only, battery ADC pending custom hardware. Removed "(was Stage X)" suffixes throughout. Updated three Stage 10 cross-references from "Stage 15 (Field Tuning)" to "Stage 17". No IVP numbers assigned yet per reorg-only scope.
+
+---
+
 ### 2026-04-10-002 | Claude Code CLI | architecture, feature, bugfix
 
 **Stage 14: Notification Engine complete (IVP-113 through IVP-118).** New AO_Notify intent layer sits between state producers and display consumers. Subsystems report typed intents; AO_Notify's priority resolver produces a single LED pattern posted to AO_LedEngine. Rewires 5 direct LED callers through the intent API. Also fixes a Stage 13 gap by moving Core 1 vitality check from AO_LedEngine to AO_HealthMonitor.
