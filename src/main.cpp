@@ -60,6 +60,7 @@
 #include "ao_telemetry.h"
 #include "ao_radio.h"
 #include "ao_health_monitor.h"
+#include "ao_notify.h"
 #include "qp_port.h"
 #include "qsafe.h"     // QP/C FuSa assertions
 #include "pico/multicore.h"
@@ -557,13 +558,15 @@ int main() {
     QActive_psInit(g_subscrList, Q_DIM(g_subscrList));
 
     // Start Active Objects based on device role
-    // Vehicle: all AOs. Station: no FD/Logger/HealthMon. Relay: Radio + LED only.
+    // Vehicle: all AOs. Station: no FD/Logger/HealthMon/Notify. Relay: Radio + LED only.
     // Priorities (higher = dispatched first under QV):
-    //   Radio=7, FD=6, HealthMon=5, Logger=4, Telem=3, LED=2, RCOS=1
-    AO_Radio_start(7U, g_spiInitialized);  // 100Hz — owns radio hardware init
+    //   Radio=8, FD=7, HealthMon=6, Notify=5, Logger=4, Telem=3, LED=2, RCOS=1
+    // IVP-114: all priorities shifted +1 to insert AO_Notify at 5.
+    AO_Radio_start(8U, g_spiInitialized);  // 100Hz — owns radio hardware init
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
-        AO_FlightDirector_start(6U); // 100Hz
-        AO_HealthMonitor_start(5U);  // 10Hz — between FD and Logger (IVP-105)
+        AO_FlightDirector_start(7U); // 100Hz
+        AO_HealthMonitor_start(6U);  // 10Hz — between FD and Notify (IVP-105, IVP-114)
+        AO_Notify_start(5U);         // 33Hz — notification intent hub (IVP-114)
         AO_Logger_start(4U, g_psramSize, g_psramSelfTestPassed);  // 50Hz
     }
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
