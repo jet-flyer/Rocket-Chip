@@ -22,7 +22,8 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stages 10-12** (Adaptive Estimation, Ground Station, Integration): Placeholders expanded as earlier stages complete
 - **Stage 13** (Health Monitor): IN PROGRESS — IVP-104 through IVP-112. Council-reviewed.
 - **Stage 14** (Notification Engine): IVP-113 through IVP-118. Council-reviewed.
-- **Stage 15** (Pre-Flight Radio + Station): Placeholder — station UX hardening, half-duplex ACK, MAIN_DESCENT timeout.
+- **Stage P7** (MAIN_DESCENT Liveness Fix): IVP-119 through IVP-121. Out-of-sequence safety pass — multi-channel voted landing detection closing SPIN property P7. Council-reviewed (two rounds).
+- **Stage 15** (Pre-Flight Radio + Station): IVP-122 through IVP-124. Half-duplex ACK + ARM confirm UX, distance-to-rocket finish, station help/whiteboard cleanup.
 - **Stage 16** (Pre-Flight Polish): Placeholder — phases A (docs/cleanup), B (bench testing), C (field testing).
 - **Stage 17** (Field Tuning & Validation): Placeholder — VALIDATE parameter tuning from flight data.
 
@@ -113,7 +114,8 @@ cmake --build build/
 | **3D** | **3-Axis Magnetometer** | — | **IVP-99 — IVP-103** | **Planned** | |
 | **13** | **Health Monitor** | **Phase 9** | **IVP-104 — IVP-112** | **Full** | |
 | **14** | **Notification Engine** | **Phase 9** | **IVP-113 — IVP-118** | **Full** | |
-| 15 | Pre-Flight Radio + Station | Phase 9 | — | Placeholder | |
+| **P7** | **MAIN_DESCENT Liveness Fix** | **Phase 9** | **IVP-119 — IVP-121** | **Planned** | **(out-of-sequence)** |
+| 15 | Pre-Flight Radio + Station | Phase 9 | IVP-122 — IVP-124 | Planned | |
 | **16** | **Pre-Flight Polish** | **Phase 9** | **—** | **Placeholder** | **Flight Ready** |
 | 17 | Field Tuning & Validation | Phase 9 | — | Placeholder | |
 
@@ -3210,20 +3212,208 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ---
 
-## Stage 15: Pre-Flight Radio + Station
+## Stage P7: MAIN_DESCENT Liveness Fix (out-of-sequence)
 
-**Purpose:** Harden the station UX and radio command path before any field testing. Currently station ARM is single-key fire-and-forget with no acknowledgement, distance-to-rocket is a stub, and SPIN property P7 (flight completes) fails because MAIN_DESCENT has no timeout fallback. This stage closes all three gaps so the vehicle and ground station are ready for a real ARM→LAUNCH→RECOVERY cycle.
+**Purpose:** Close the SPIN P7 liveness gap — currently `state_main_descent` only exits via `SIG_LANDING`, which is fired by a stationary guard based on ESKF velocity. If the ESKF dies mid-descent, the velocity estimate freezes, the guard never fires, and the FD sits in MAIN_DESCENT until battery death. Stage P7 adds a physically independent secondary channel (raw baro pressure derivative), an ESKF-fault-confirmed-by-baro conjunction path, and a last-resort backstop that fires `SIG_BEACON_ACTIVE` for recovery signaling. Also fixes a latent `fused.baro_vvel` misnomer bug discovered during design.
 
-**Prerequisites:** Stage 14 complete (Notification Engine).
+**Council review (two rounds):** Four personas (NASA/JPL, ArduPilot, Professor, Rocketeer). Round 1 proposed a blind wall-clock timer; user rejected because mission duration is variable. Round 2 produced the multi-channel voted design in use here. ArduPilot cited Copter's `land_complete_maybe()` as prior art. Round 3 final pass caught two blocking issues (stack-local QEvt LL Entry 35, missing `kGuardManaged` array entry) and clarified the `flight_director_evaluate_guards()` call path is where the conjunction/backstop logic belongs, not inside `state_main_descent()`.
 
-*IVP numbers assigned when this stage is planned.*
+**Design principle:** Landed detection is a voted multi-channel problem with physically independent signals. ESKF velocity (primary) + raw baro altitude derivative (new, independent of ESKF) + last-resort time backstop with distress beacon. The PIO backup timers from Stage 11 remain the final safety net for pyro-deploy transitions. See `.claude/plans/rustling-skipping-castle.md` for full design rationale and the post-Stage-15 generalization candidates for other critical flight regimes.
+
+**Prerequisites:** Stage 14 complete (Notification Engine), Stage 11 complete (PIO Safety), Stage 8 complete (Flight Director HSM).
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| — | MAIN_DESCENT Timeout Fallback | Add `descent_timeout_ms` to MissionProfile. SIG_TICK fallback in `state_main_descent` forces transition to LANDED if elapsed > timeout and stationary guard hasn't fired. Update SPIN model — P7 liveness should pass. Covers HAB profile (balloon float, no descent signal) and ESKF-dead failure modes. |
-| — | Half-Duplex ACK + Station ARM UX | **Council design first** (piggyback on next nav frame vs dedicated ACK packet). Vehicle acknowledges command sequence number; station retries until ACK or timeout. Station ARM flow changes from single-key `a` to `a` (pre-arm) → type `ARM` in caps → Enter → send → show `ARM ACK'd` or `ARM timeout`. One IVP — vehicle + station + HW integration test. |
-| — | Distance-to-Rocket Finish | Cache last received vehicle position in station (currently stubbed at `rc_os_commands.cpp:1172`). Compute haversine distance from cached station GPS, display on dashboard and `d` CLI command. `haversine_m()` helper already exists in the same file. |
-| — | Station Help Menu + Whiteboard Cleanup | Refresh station help from `Station: g-GPS  d-Distance` to the full key list (`g d p a m t r`). Clear stale `IVP-103 Station GPS Push` whiteboard entry — already implemented as `cmd_station_gps_push()`. Audit for other stale station-related items. |
+| IVP-119 | FusedState Baro Field Fix | Rename `baro_vvel` → `vert_vel_eskf`, add raw `baro_pressure_pa` field, update `guard_baro_peak()` comments. Small bug-fix commit; no behavioral change. |
+| IVP-120 | Baro-Stationary Guard | New `guard_baro_stationary()` reading `fused.baro_alt_rate_mps` (computed in `ao_logger` from raw pressure). Sustain counter, MissionProfile parameters, `kGuardManaged[]` array extension, guard + rate-math unit tests. |
+| IVP-121 | MAIN_DESCENT Liveness Fix | `flight_director_evaluate_guards()` adds ESKF-fault-conjunction path and last-resort backstop with beacon publish. SPIN model counter transitions. 5 host tests. Closes SPIN P7. |
+
+---
+
+### IVP-119: FusedState Baro Field Fix
+
+**Prerequisites:** None (foundation for IVP-120)
+
+**Implement:** Rename the misleading `baro_vvel` field in `FusedState` and add a true raw-baro field for downstream use. This is a bug fix — `fused.baro_vvel` is currently assigned directly from `g_eskf.v.z` at `ao_logger.cpp:151`, making the field name a trap. `guard_baro_peak()` uses it as if it were independent of ESKF when it isn't.
+
+1. **Rename in `include/rocketchip/fused_state.h`:** `float baro_vvel;` → `float vert_vel_eskf;` with inline comment clarifying ESKF dependency.
+
+2. **Add raw baro pressure field:** `float baro_pressure_pa;` with comment `// Raw DPS310 pressure, independent of ESKF`.
+
+3. **Populate in `src/active_objects/ao_logger.cpp` `AO_Logger_populate_fused_state()`:** `fused.vert_vel_eskf = g_eskf.v.z;` and `fused.baro_pressure_pa = snap.pressure_pa;`.
+
+4. **Update every reader of the old field.** Grep for `baro_vvel` across `src/` and rename. Primary call site is `guard_baro_peak()` in `src/flight_director/guard_functions.cpp`.
+
+5. **Update `guard_baro_peak()` comment block** to explicitly note: *"Uses ESKF-propagated vertical velocity (`vert_vel_eskf`). NOT independent of ESKF. For ESKF-independent descent detection, see `guard_baro_stationary()` (IVP-120)."*
+
+6. **Update telemetry encoding if present.** Grep telemetry encoder + Python decoder for `baro_vvel` — rename the symbol (wire format unchanged).
+
+**[GATE]:**
+- Clean target compile, zero warnings
+- Clean host test compile, all existing tests pass (669/669 from Stage 14)
+- `grep -r baro_vvel src/ include/ test/` returns zero matches
+- No behavioral change in `guard_baro_peak()` — existing tests still pass
+
+**[HW VERIFY — required before commit]:**
+- Flash via debug probe to Feather RP2350 (not picotool — LL Entry 25)
+- Boot cleanly, full boot banner, no ERR/FAIL markers
+- CLI `s` output shows sensors online (IMU, baro, GPS all reporting)
+- GDB break after `AO_Logger_populate_fused_state()` runs; inspect `fused.baro_pressure_pa` — must be nonzero, within ±10 Pa of raw DPS310 reading
+- CLI `e` output shows ESKF velocity unchanged from pre-IVP baseline
+- `scripts/bench_flight_sim.py` — 9/9 PASS (confirms `guard_baro_peak()` still fires correctly through the rename)
+- 2-minute idle soak: no crash, no watchdog reset, 0 IMU/baro errors
+
+**[DIAG]:** Existing baro_peak tests fail → rename wasn't mechanical, check for accidental logic changes. `baro_pressure_pa` shows zero → check seqlock read path in `AO_Logger_populate_fused_state()`. Bench flight sim fails at apogee → `guard_baro_peak()` using renamed field but logic didn't follow; double-check every reader.
+
+---
+
+### IVP-120: Baro-Stationary Guard
+
+**Prerequisites:** IVP-119
+
+**Implement:** Add a new guard, `guard_baro_stationary()`, that detects sustained near-zero baro altitude rate. Physically independent of ESKF. Per-sample temporal cache lives in `AO_Logger_populate_fused_state()` (not in `GuardState`) — the guard itself is stateless like `guard_baro_peak()`.
+
+1. **Add `GuardId::kBaroStationary`** to `src/flight_director/guard_evaluator.h` — append to existing enum. Bumps `GuardId::kCount` by 1.
+
+2. **Update `kGuardManaged[]` array** in `src/flight_director/guard_evaluator.cpp` — append one entry (`false` — unmanaged). The array is sized to `kCount` at compile time; omitting this is a silent out-of-bounds read. **MUST be in the same commit as step 1.**
+
+3. **Add `float baro_alt_rate_mps;` to `FusedState`** in `include/rocketchip/fused_state.h` — comment: `// Raw baro altitude rate (m/s), ESKF-independent.`
+
+4. **Compute `baro_alt_rate_mps` in `AO_Logger_populate_fused_state()`** — file-scope cache `static float s_prev_pressure_pa; static uint32_t s_prev_sample_ms;`. On first call, cache and return zero. `dt_s = (now_ms - s_prev_sample_ms) * 0.001f`. Skip if `dt_s < 0.05`. Hydrostatic: `dalt_dt = -(snap.pressure_pa - s_prev_pressure_pa) / (dt_s * kRhoAir * kGravity)` with named constants `kRhoAir = 1.225f`, `kGravity = 9.81f`. Write to `fused.baro_alt_rate_mps`. Update cache.
+
+5. **Implement `guard_baro_stationary(const FusedState& fused, const MissionProfile& profile, GuardState& state)`** in `src/flight_director/guard_functions.cpp` — stateless, identical pattern to `guard_baro_peak()`. Use `update_sustain()` helper (verify actual name in codebase).
+
+6. **Register guard** in `src/flight_director/guard_evaluator.cpp`: dispatch table, valid phases `(1 << kDrogueDescent) | (1 << kMainDescent)`, signal `SIG_LANDING`.
+
+7. **Add accessor** `bool guard_evaluator_is_sustained(const GuardEvaluator*, GuardId)` — read-only wrapper returning the `sustained` flag. Needed by IVP-121.
+
+8. **Add MissionProfile parameters** in `src/flight_director/mission_profile.h`:
+   - `float baro_landing_rate_threshold_mps;` — default 0.3 m/s
+   - `uint32_t baro_landing_sustain_ms;` — default 5000 ms
+   - `uint32_t descent_max_duration_ms;` — default 900000 ms (for IVP-121)
+
+9. **Update profile configs** `profiles/rocket.cfg` and `profiles/passive.cfg` with the three new fields. Skip `hab.cfg` — doesn't exist yet.
+
+10. **Update generator** `scripts/generate_profile.py`, regenerate `mission_profile_data.h`.
+
+11. **Guard unit tests** in `test/test_guards.cpp` — 5 tests varying `fused.baro_alt_rate_mps` directly (below threshold single tick, sustained, above threshold, sustain resets on breach, boundary).
+
+12. **Rate-computation tests** — 4 tests in new `test/test_ao_logger_baro_rate.cpp` or similar (first sample zero, descending pressure → positive rate, stationary pressure → zero rate, short-dt skip).
+
+**[GATE]:**
+- `grep -rn "kBaroStationary" src/flight_director/guard_evaluator.cpp` shows `kGuardManaged` array entry added
+- 9 new unit tests pass (5 guard + 4 rate-math)
+- Target build compiles clean, zero warnings
+- 680+ host tests pass
+
+**[HW VERIFY — required before commit]:**
+- Flash via debug probe, boot cleanly, CLI `s` shows sensors online
+- **Rate math live test:** lift device off desk smoothly — watch `fused.baro_alt_rate_mps` via GDB; value should transition positive → negative → near-zero
+- **Guard firing test:** manually set phase to `kMainDescent` via GDB or debug CLI key; place device on desk; confirm `guard_evaluator_is_sustained(&eval, kBaroStationary)` returns true within `baro_landing_sustain_ms + one tick`
+- **Guard non-firing during simulated descent:** move device up-down at >0.5 m/s for 10 s; sustain counter never reaches threshold
+- `scripts/bench_flight_sim.py` — 9/9 PASS (new guard is additive, phase-gated to descent only)
+- 2-minute idle soak: no false LANDED in IDLE phase (bitmask must exclude IDLE)
+
+**[DIAG]:** Guard never fires → check threshold vs observed rate via `DBG_PRINT fused.baro_alt_rate_mps`. Guard fires immediately → check `sustain_ms` isn't zero; check `s_prev_sample_ms` init. Guard fires during descent → raise threshold OR lengthen sustain window (don't tighten threshold). Rate sign wrong → hydrostatic formula sign flipped. Guard fires in IDLE → phase bitmask wrong. Out-of-bounds crash on boot → `kGuardManaged` not extended.
+
+---
+
+### IVP-121: MAIN_DESCENT Liveness Fix
+
+**Prerequisites:** IVP-119, IVP-120
+
+**Implement:** Wire the baro-stationary guard into `flight_director_evaluate_guards()` and add the last-resort backstop. Note: conjunction + backstop logic lives in `flight_director_evaluate_guards()` (NOT inside `state_main_descent()`) — `state_main_descent` is a QHsm state handler with no `fused` in scope. The existing pattern at `flight_director.cpp:193-234` is where guard evaluation happens with the `fused` snapshot.
+
+1. **Add conjunction + backstop logic to `flight_director_evaluate_guards()`** gated on `phase == kMainDescent`, after `guard_evaluator_tick()` and `combinator_set_evaluate()` return. The beacon publish uses **static storage** (LL Entry 35 — stack-local `QEvt` with `QACTIVE_PUBLISH` is a use-after-free):
+   ```cpp
+   // File-scope:
+   static QEvt s_beacon_evt;  // Must be static — LL Entry 35
+
+   // Inside flight_director_evaluate_guards() after existing guard tick:
+   if (phase == FlightPhase::kMainDescent) {
+       uint32_t elapsed = me->tick_ms - me->state.phase_entry_ms;
+
+       // Path 1: ESKF-fault + baro confirmation
+       if (rc::health_eskf(fused.health_primary) == rc::kHealthFault &&
+           guard_evaluator_is_sustained(&me->guard_eval, GuardId::kBaroStationary)) {
+           printf("[FD] MAIN_DESCENT: ESKF fault + baro stationary → LANDED\n");
+           flight_director_dispatch_signal(me, SIG_LANDING);
+           return;
+       }
+
+       // Path 2: Last-resort backstop (distress — beacon publish)
+       if (elapsed >= me->profile->descent_max_duration_ms) {
+           printf("[FD] MAIN_DESCENT: max duration elapsed → LANDED (distress)\n");
+           s_beacon_evt.sig = rc::SIG_BEACON_ACTIVE;
+           QACTIVE_PUBLISH(&s_beacon_evt, me);
+           flight_director_dispatch_signal(me, SIG_LANDING);
+           return;
+       }
+   }
+   ```
+   `state_main_descent()` itself needs NO changes — its existing `case SIG_LANDING` handler handles all paths uniformly.
+
+2. **ESKF health source:** Read `fused.health_primary` directly from the `fused` parameter (same pattern as `flight_director.cpp:228`). No new struct members needed.
+
+3. **`guard_evaluator_is_sustained()` accessor** must already exist from IVP-120 step 7.
+
+4. **SPIN model** `tools/spin/rocketchip_fd.pml:149-155` — replace MAIN_DESCENT block:
+   ```promela
+   :: phase == MAIN_DESCENT ->
+       if
+       :: true -> phase = LANDED                     /* SIG_LANDING (primary: ESKF stationary) */
+       :: true -> phase = LANDED                     /* SIG_LANDING (secondary: raw baro stationary) */
+       :: descent_ticks >= DESCENT_BACKSTOP_TICKS ->
+           atomic { beacon_active = true; phase = LANDED }
+       :: true -> descent_ticks = descent_ticks + 1  /* SIG_TICK: increment counter */
+       :: true -> skip                               /* SIG_ABORT: ignored */
+       fi
+   ```
+   Add `#define DESCENT_BACKSTOP_TICKS 10`, `byte descent_ticks = 0;`, `bool beacon_active = false;` declarations. Reset `descent_ticks = 0` on MAIN_DESCENT entry.
+
+5. **Update P7 comment** at `rocketchip_fd.pml:227-241` — remove "KNOWN FAILING", mark resolved, cite IVP-121.
+
+6. **Host tests** in `test/test_flight_director.cpp` — 5 tests modeled on `CoastTimeoutForcedApogee` pattern:
+   - `MainDescentBaroStationaryFiresLanding`
+   - `MainDescentEskfFaultAloneStaysInDescent` (conjunction requires both)
+   - `MainDescentEskfFaultPlusBaroStationaryFiresLanding` (no beacon — nominal)
+   - `MainDescentBackstopFiresLandingWithBeacon`
+   - `MainDescentBackstopDoesNotFireBeforeTimeout`
+
+7. **Whiteboard cleanup deferred to IVP-124** — the P7 open flag at `AGENT_WHITEBOARD.md:43-49` will be removed alongside other stale entries in IVP-124. Commit message should cite "closes whiteboard MAIN_DESCENT P7 flag — removal in IVP-124".
+
+**[GATE]:**
+- 5 new host tests pass
+- SPIN re-run: all 11 existing properties + P7 pass under weak fairness (`-f`)
+- Promela model compiles in `pan.exe` cleanly
+- Bench flight sim regression: 9/9 PASS
+
+**[HW VERIFY — required before commit]:**
+- Flash via debug probe
+- HW verify 1 (nominal): run bench flight sim to MAIN_DESCENT, place device on desk, verify transition to LANDED within ~5 s via baro-stationary (no beacon)
+- HW verify 2 (ESKF fault conjunction): GDB break in `flight_director_evaluate_guards` on MAIN_DESCENT entry, inject `kHealthEskfFault` into `fused.health_primary` via `set var`, verify LANDED only transitions after `guard_evaluator_is_sustained(kBaroStationary)` also returns true
+- HW verify 3 (backstop): enter MAIN_DESCENT with a short test profile (`descent_max_duration_ms=60000`), verify backstop fires after timeout + beacon LED pattern activates
+- 10-min post-IVP soak with bench flight sim in loop: no crash, no spurious LANDED transitions
+
+**[DIAG]:** Backstop fires during nominal bench sim → `descent_max_duration_ms` too short. ESKF-fault path fires when it shouldn't → conjunction logic wrong, verify both conditions checked. SPIN P7 still fails → check counter increments and phase-entry reset; run `./pan -a -f -N p_liveness_flight_completes` for targeted check. Nominal path fails → `guard_baro_stationary` not registered with `SIG_LANDING` (IVP-120 regression). Beacon doesn't activate → check `s_beacon_evt` is file-scope static, not stack-local (LL Entry 35).
+
+---
+
+## Stage 15: Pre-Flight Radio + Station
+
+**Purpose:** Harden the station UX and radio command path before any field testing. Station ARM was single-key fire-and-forget with no LoRa acknowledgement; distance-to-rocket was stubbed; station had no DISARM key wired at all. This stage closes all three gaps so the vehicle and ground station are ready for a real ARM→LAUNCH→RECOVERY cycle.
+
+**Council review:** Four personas (NASA/JPL, ArduPilot, Professor, Rocketeer). Decisions: Option 2 (dedicated CCSDS APID) for ACK protocol, ARM requires confirm (`a` → type `ARM` caps + Enter), DISARM single-key but ACK-tracked, persistent dashboard ARM state indicator. Plan: `.claude/plans/rustling-skipping-castle.md`.
+
+**Prerequisites:** Stage P7 complete.
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| IVP-122 | Half-Duplex ACK + ARM Confirm UX | Dedicated CCSDS APID for command ACK (Option 2). Station ARM flow: `a` → type `ARM` caps + Enter → send → retry 3× wait ACK. Station `X`-DISARM key added (ACK-tracked, no confirm). Persistent ARM state indicator on dashboard. |
+| IVP-123 | Distance-to-Rocket Finish | Fill `cmd_station_distance()` stub using cached RX nav + haversine. Add bearing. Freshness check. Dashboard row. Host test for distance/bearing math. |
+| IVP-124 | Station Help + Whiteboard Cleanup | Refresh station help text to match actual wired keys (including new `X`-DISARM from IVP-122). Remove stale IVP-103 whiteboard entry + closed P7 whiteboard flag. Add forward-looking multi-channel audit entry. |
+
+*Full IVP-122, IVP-123, IVP-124 detail in `.claude/plans/rustling-skipping-castle.md`. Copied into this document when the previous stage completes to avoid duplicate maintenance.*
 
 ---
 
@@ -3318,6 +3508,8 @@ Tests to re-run after changes to specific areas.
 | Radio module / AO_Radio change | IVP-92 — IVP-98, IVP-57 — IVP-62 | Radio driver, scheduler, AO split, telemetry |
 | Health monitor change | IVP-104 — IVP-112, IVP-117 | Health encoding, fault propagation, Core1 vitality |
 | Notification / LED engine change | IVP-113 — IVP-118 | Intent resolver, backend dispatch, LED patterns |
+| MAIN_DESCENT guard change | IVP-119 — IVP-121 | Baro field rename, baro-stationary guard, conjunction + backstop, SPIN P7 |
+| Station UX / ACK change | IVP-122 — IVP-124 | Half-duplex ACK, ARM/DISARM flows, distance, help menu |
 | **Major refactor** | **All Stage 1-3** | Full regression |
 | **Before any release** | IVP-01, IVP-27, IVP-28, IVP-88, IVP-73, Stage 13 Full Bench Test | Release qualification (build, USB, flash, PIO safety, bench flight sim, full bench test) |
 
