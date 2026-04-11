@@ -2,7 +2,7 @@
 
 **Purpose:** Communication across context windows and between agents.
 
-**Stages 1-12A COMPLETE.** 610+ host tests, SPIN 6/6. **Stage 13 (Health Monitor) IN PROGRESS.** Tracking: `docs/AO_ARCHITECTURE.md`.
+**Stages 1-13 COMPLETE.** 610+ host tests, SPIN 11/11. **Stage 14 (Notification Engine) IN PROGRESS.** Tracking: `docs/AO_ARCHITECTURE.md`.
 
 ## Use Cases
 1. **Cross-agent review** - Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
@@ -15,7 +15,7 @@
 
 ## Open Flags
 
-*Stage 13 (Health Monitor) COMPLETE. Config Wizard Phase A COMPLETE (prototype).*
+*Stage 13 (Health Monitor) COMPLETE. Config Wizard Phase A COMPLETE (prototype). Stage 14 (Notification Engine) IN PROGRESS — IVP-113 through IVP-118.*
 
 ### Launch Procedure Audit Findings — Future Safety Items
 
@@ -51,11 +51,14 @@ MAIN_DESCENT relies entirely on the stationary guard (`SIG_LANDING`) to exit. If
 
 **Stage 13: Health Monitor** — COMPLETE. AO_HealthMonitor, 2-bit encoding, fault patterns, preflight CLI, debug sub-menu, auto-DISARM, pre-launch latch. SPIN 11/11.
 
-**Stage 14: Notification Engine** (NEW) — AP_Notify-style intent→display routing. Scope doc needed before starting.
+**Stage 14: Notification Engine** — IN PROGRESS. IVP-113 through IVP-118. AO_Notify intent layer, output backends, caller rewiring. Council-reviewed (NASA/JPL, ArduPilot, Professor, Rocketeer). Plan: `.claude/plans/encapsulated-pondering-sparkle.md`.
 
-**Stage 15: Pre-Flight Polish** (was 14) — 15A Telemetry Polish, 15B System Polish, 15C Verification
-- **User Guide** — operational procedures (launch abort clear, menu flow, preflight checklist, sensor fault troubleshooting). Full CLI menu flowchart. Must exist before anyone else uses the board.
-- **Runtime Behavior Map** — update RBM flowchart for AO architecture (currently Stage 7 era, pre-AO)
+**Stage 15: Pre-Flight Polish** (was 14) — includes:
+- **AO Responsibility Audit** — verify health/safety logic in correct AOs (Stage 13 Core1 gap)
+- **Audio Output (I2S DAC)** — TLV320DAC3100, pico-extras, AP tone parser, ~10-12 IVPs. Fills Stage 14 audio backend stub.
+- **User Guide** — operational procedures, CLI flowchart
+- **Runtime Behavior Map** — update for AO architecture
+- **Defense-in-depth evaluation** — Core1 stall checked in 3 places post-Stage-14. Evaluate justified vs. bloat.
 
 **Stage 16: Field Tuning** (was 15) — All VALIDATE parameters. Needs flight data.
 

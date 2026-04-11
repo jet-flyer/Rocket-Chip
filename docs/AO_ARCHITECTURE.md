@@ -23,11 +23,14 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 |----|------|------|------|-------|------|-----------|------------|
 | AO_Radio | `ao_radio.cpp` | 100Hz | 7 | 32 | rfm95w_t, RadioScheduler, RadioAoState | SIG_RADIO_RX, SIG_RADIO_STATUS | SIG_RADIO_TX |
 | AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 6 | 32 | FlightDirector HSM, guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_LED_PATTERN | SIG_SENSOR_DATA |
-| AO_HealthMonitor | `ao_health_monitor.cpp` | 10Hz | 5 | 8 | HealthState, sliding windows, fault latch, staleness counter | SIG_HEALTH_STATUS | SIG_PHASE_CHANGE |
+| AO_HealthMonitor | `ao_health_monitor.cpp` | 10Hz | 6* | 8 | HealthState, sliding windows, fault latch, staleness counter, Core1 vitality (IVP-117) | SIG_HEALTH_STATUS | SIG_PHASE_CHANGE |
+| **AO_Notify** | **`ao_notify.cpp`** | **33Hz** | **5*** | **16** | **NotifyState, intent resolver, output backend dispatch (Stage 14)** | **(none)** | **SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE** |
 | AO_Logger | `ao_logger.cpp` | 50Hz | 4 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_HEALTH_STATUS |
 | AO_Telemetry | `ao_telemetry.cpp` | 10Hz | 3 | 8 | CCSDS/MAVLink encode, TelemetryState snapshot, RX decode | SIG_RADIO_TX | SIG_RADIO_RX, SIG_SENSOR_DATA, SIG_HEALTH_STATUS |
-| AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 2 | 8 | ws2812 driver, priority layer table, animation state, pattern constants | (none) | SIG_LED_PATTERN, SIG_LED_OVERRIDE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS |
-| AO_RCOS | `cli/ao_rcos.cpp` | 20Hz | 1 | 16 | CLI output mode, ANSI dashboard, key dispatch | SIG_CLI_COMMAND, SIG_LED_OVERRIDE | (none) |
+| AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 2 | 8 | ws2812 driver, 3-layer compositor, animation state (Stage 14: pure display driver) | (none) | SIG_LED_PATTERN |
+| AO_RCOS | `cli/ao_rcos.cpp` | 20Hz | 1 | 16 | CLI output mode, ANSI dashboard, key dispatch | SIG_CLI_COMMAND | (none) |
+
+*Priorities marked with \* are planned values for IVP-114 reshuffle (+1 to all existing AOs). Radio→8, FD→7.*
 
 *AO_Blinker (disabled): heartbeat LED demo. AO_Counter (disabled): jitter measurement diagnostic.*
 

@@ -21,7 +21,7 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stage 9** (Active Object Architecture): IVP-76–81 COMPLETE (6 AOs, QV scheduler, all gates passed). IVP-82a/82b (SPIN formal verification) remaining — council-reviewed, split into toolchain+FD model (82a) and full safety model (82b)
 - **Stages 10-12** (Adaptive Estimation, Ground Station, Integration): Placeholders expanded as earlier stages complete
 - **Stage 13** (Health Monitor): IN PROGRESS — IVP-104 through IVP-112. Council-reviewed.
-- **Stage 14** (Notification Engine): NEW — AP_Notify-style intent→display. Placeholder.
+- **Stage 14** (Notification Engine): IVP-113 through IVP-118. Council-reviewed.
 - **Stages 15-16** (Pre-Flight Polish, Field Tuning): Renumbered from 14-15. Placeholders.
 
 **Key references (not duplicated here):**
@@ -110,7 +110,7 @@ cmake --build build/
 | 12 | Ground Station | Phase 7 | IVP-92 — IVP-98 | Placeholder | |
 | **3D** | **3-Axis Magnetometer** | — | **IVP-99 — IVP-103** | **Planned** | |
 | **13** | **Health Monitor** | **Phase 9** | **IVP-104 — IVP-112** | **Full** | |
-| 14 | Notification Engine | Phase 9 | — | Placeholder | |
+| **14** | **Notification Engine** | **Phase 9** | **IVP-113 — IVP-118** | **Full** | |
 | 15 | Pre-Flight Polish | Phase 9 | — | Placeholder | **Flight Ready** |
 | **16** | **Field Tuning & Validation** | **Phase 9** | **—** | **Placeholder** | |
 
@@ -3008,9 +3008,202 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ## Stage 14: Notification Engine
 
-**Purpose:** AP_Notify-style intent layer. Subsystems report state (armed, IMU fault, GPS searching), notification engine translates to display commands across output devices (NeoPixel, future buzzer, future OLED). Decouples "what state is" from "how to display it." Scope document produced at end of Stage 13.
+**Purpose:** AP_Notify-style intent layer. Subsystems report state (armed, IMU fault, GPS searching, calibrating), the notification engine resolves priorities and dispatches to output backends (LED, future audio, future OLED). Decouples "what the system state is" from "how to display it." Currently ~5 callers post LED patterns directly — this centralizes all display logic behind a single intent API, making new output devices trivial to add. Also fixes Stage 13 gap: moves Core 1 vitality check from AO_LedEngine to AO_HealthMonitor.
 
-*IVP numbers assigned when this stage is planned.*
+**Council review:** 4 personas (NASA/JPL, ArduPilot, Professor, Rocketeer), unanimous GO. Amendments: A1 (Core1 defense-in-depth), A2 (preserve Logger/Telem health subscriptions), A3 (per-category typed enums), A4 (ARM/DISARM soak). Plan: `.claude/plans/encapsulated-pondering-sparkle.md`.
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| IVP-113 | Notification Intent Contract | Per-category typed enums, NotifyState, SIG_BEACON_ACTIVE, decision doc |
+| IVP-114 | AO_Notify Core | Standalone AO, signal subscriptions, priority reshuffle, HW boot verify |
+| IVP-115 | Backend Interface + Resolver | Direct-call backends, LED resolver, audio stub, host tests for resolver |
+| IVP-116 | Rewire Callers | Switchover: FD/CLI/Radio/Health rewired, LedEngine simplified, HW soak, SPIN |
+| IVP-117 | Sensor + Core1 Migration | Seqlock eval to AO_Notify, Core1 to HealthMonitor, HW verify |
+| IVP-118 | Final Audit | Subscriber counts, decision doc safety note, AO_ARCHITECTURE update |
+
+---
+
+### IVP-113: Notification Intent Contract
+
+**Prerequisites:** IVP-104 (Health State Contract), IVP-77 (AO_LedEngine)
+
+**Implement:** Define the notification intent vocabulary in `include/rocketchip/notify_intents.h`. Per-category typed enums (Council A3) for compile-time category enforcement — cannot accidentally put a flight intent into the calibration category.
+
+1. **Per-category `enum class` types:** `PhaseIntent` (10 values: kNone through kBeacon), `CalIntent` (9 values: kNone through kFail), `RadioIntent` (4 values), `SensorIntent` (8 values), `FaultIntent` (7 values). All have `kNone = 0` so zero-initialized `NotifyState` means no active intents.
+
+2. **`NotifyState` struct:** 5 typed fields (`PhaseIntent phase`, `CalIntent cal`, `RadioIntent radio`, `SensorIntent sensor`, `FaultIntent fault`). Categories have fixed priority order: Fault > Calibration > Flight > Radio > Sensor > Idle. Note: Calibration promoted above Flight vs existing LED layer stack — when calibrating, the cal overlay must be visible regardless of flight phase. Documented in decision record.
+
+3. **Signal addition to `ao_signals.h`:** `SIG_BEACON_ACTIVE = 17` (free slot) for FD ABORT timeout beacon one-shot. `SIG_AO_MAX` becomes 30.
+
+4. **Decision document:** `docs/decisions/NOTIFY_CONTRACT.md` — intent taxonomy, category priority order with rationale (cal-above-flight change documented), no function-pointer vtable (JSF AV Rule 170), code classification (Flight-Support), AP_Notify comparison, intent→LED visual reference table.
+
+**[GATE]:**
+- `NotifyIntent` enums cover all 35+ current LED pattern triggers (1:1 mapping verified against `led_patterns.h`)
+- `NotifyState` compiles, zero-init produces no active intents
+- Per-category typed enums prevent cross-category assignment at compile time
+- `SIG_BEACON_ACTIVE` added at slot 17, `SIG_AO_MAX` updated
+- Decision record written with visual reference table
+- Target build compiles clean
+
+**[DIAG]:** If intent count doesn't match pattern count, diff the enum values against `led_patterns.h` — every `rc::led::k*` constant must map to exactly one intent.
+
+---
+
+### IVP-114: AO_Notify Core
+
+**Prerequisites:** IVP-113
+
+**Implement:** Create `src/active_objects/ao_notify.cpp/.h` as a standalone QP/C Active Object. Owns the `NotifyState` and will own the resolver dispatch loop (wired in IVP-116).
+
+1. **AO structure:** `NotifyAo` with QActive, QTimeEvt for 33Hz tick (every 3 ticks at 100Hz base), `NotifyState state`, `sensor_phase_start_ms` (for 5-min timeout, set at boot), `last_core1_count` and `core1_stall_ticks` (for IVP-117 sensor migration). Queue depth 16.
+
+2. **Priority reshuffle in `main.cpp`** — all existing AOs shift up by 1 to make room for AO_Notify at priority 5: `Radio=8, FD=7, HealthMon=6, Notify=5(new), Logger=4, Telem=3, LedEngine=2, RCOS=1`. Atomic change — all 8 `_start()` calls updated in one commit. Add compile-time AO priority uniqueness check.
+
+3. **Signal subscriptions:** `SIG_PHASE_CHANGE`, `SIG_RADIO_STATUS`, `SIG_HEALTH_STATUS`, `SIG_LED_OVERRIDE` (temporary bridge for IVP-114–115), `SIG_BEACON_ACTIVE`.
+
+4. **Signal handlers** (update NotifyState only, no output dispatch yet):
+   - `SIG_PHASE_CHANGE` → `phase_from_flight_phase(pce->phase)` maps FlightPhase to PhaseIntent
+   - `SIG_RADIO_STATUS` → `radio_intent_from_lq(re->link_quality)` maps link quality to RadioIntent
+   - `SIG_HEALTH_STATUS` → `notify_decode_health_faults(primary, secondary)` decodes 2-bit health to FaultIntent
+   - `SIG_LED_OVERRIDE` → `cal_intent_from_pattern(pattern)` backward-compat bridge from kCalNeo* codes to CalIntent
+   - `SIG_BEACON_ACTIVE` → `state.phase = PhaseIntent::kBeacon`
+   - 33Hz tick → no-op (resolver wired in IVP-116)
+
+5. **Public API:** `AO_Notify_start(uint8_t prio)`, `AO_Notify_post_cal_intent(CalIntent intent)`.
+
+6. **Register in `main.cpp`.** Add to `CMakeLists.txt`. Update `ao_signals.h` comments.
+
+**[GATE]:**
+- AO_Notify starts and ticks at 33Hz
+- Priority reshuffle: all 8 AOs boot with unique priorities, no QP assertion
+- Receives all 5 signal types (verify via DBG_PRINT or GDB)
+- NotifyState updated correctly from each signal handler
+- Clean compile, existing host tests pass
+- **HW verify:** Flash to device, LED still works identically via old path
+
+**[DIAG]:** Queue overflow (`qf_actq id=130`) → check queue depth vs event rate. At 33Hz tick + ~10Hz health + ~1Hz radio + rare phase/cal ≈ 45 events/s, depth 16 handles 350ms buffering. If priority assert fires → duplicate priority value in `main.cpp`.
+
+---
+
+### IVP-115: Backend Interface + Resolver
+
+**Prerequisites:** IVP-113, IVP-114
+
+**Implement:** Define output backend abstraction, implement LED resolver, create audio stub. Backend + resolver are one IVP because the resolver can't be tested without the backend interface and vice versa.
+
+1. **`include/rocketchip/notify_backend.h`:** Declares `notify_backend_led_update(const NotifyState&)` and `notify_backend_audio_update(const NotifyState&)`. No function pointers — direct calls with `#if defined(NOTIFY_BACKEND_AUDIO)` compile guard for platform selection.
+
+2. **`src/notify/notify_backend_led.cpp`:** Full resolver implementation. `resolve_led_pattern(const NotifyState&) → uint8_t` iterates categories in priority order (Fault > Cal > Flight > Radio > Sensor > Idle). Each category is a switch over its typed enum, returning the corresponding `rc::led::k*` pattern code. First non-kNone category wins. Idle fallback returns `rc::led::kSensorNoGps` (blue blink). `notify_backend_led_update()` calls resolver then `AO_LedEngine_post_pattern()`.
+
+3. **`src/notify/notify_resolver.h`:** Internal header declaring `resolve_led_pattern()` as non-static so host tests can call it directly without QP dependencies.
+
+4. **`src/notify/notify_backend_audio.cpp`:** No-op stub. Defines AP tone string constants as data (no parser): `kToneArmed`, `kToneDisarmed`, `kToneError`, `kToneLanded`, `kToneBoot`. Format: AP-compatible RTTTL-like strings. Parser deferred to audio stage.
+
+5. **Host tests in `tests/test_notify.cpp`:**
+   - Zero-init safety (5): `static_assert` kNone==0 for all categories, NotifyState{} clean
+   - Resolver priority (6): Fault beats phase, fault beats cal, cal beats flight, flight beats radio, radio beats sensor, beacon suppressed by fault but not by lower layers
+   - Signal-to-intent mapping (4): `phase_from_flight_phase()`, `radio_intent_from_lq()`, `notify_decode_health_faults()` (IMU + Core1)
+   - CalIntent backward compat (2): `cal_intent_from_pattern()` mapping
+
+6. **Not wired to AO_Notify tick yet** — resolver and backend exist but the tick handler still no-ops. Wire-up happens in IVP-116 simultaneously with removing old path.
+
+**[GATE]:**
+- `resolve_led_pattern()` returns correct pattern code for every intent combination
+- Every `rc::led::k*` constant reachable from exactly one intent
+- 17+ host tests pass
+- Audio stub compiles, no-ops, AP tone constants accessible
+- Target build compiles clean (resolver not wired — old LED path still works)
+
+**[DIAG]:** Host test link errors → check `rc_notify_resolver` library links without QP symbols. Use `ROCKETCHIP_HOST_TEST=1` to stub out `AO_LedEngine_post_pattern()`. If pattern codes don't match → diff resolver switch against `led_patterns.h`.
+
+---
+
+### IVP-116: Rewire Callers (Switchover)
+
+**Prerequisites:** IVP-115
+
+**Implement:** Atomic cutover — all old direct callers removed, new AO_Notify path becomes live. One commit. This is the highest-risk IVP in Stage 14.
+
+1. **`ao_flight_director.cpp`:** Replace `set_led_cb` lambda — instead of calling `AO_LedEngine_post_pattern(val)`, publish `SIG_BEACON_ACTIVE` for beacon case only. All other LED patterns flow via `SIG_PHASE_CHANGE` → AO_Notify. The `kSetBeacon` action in `action_executor.cpp` still calls `ctx->set_led` — the new lambda publishes `SIG_BEACON_ACTIVE` for the beacon value, ignores all others. Remove `#include "ao_led_engine.h"`.
+
+2. **`ao_rcos.cpp`:** Replace `cal_neo()` body — maps `kCalNeo*` pattern codes to `CalIntent` enum, calls `AO_Notify_post_cal_intent(intent)`. Remove `#include "ao_led_engine.h"`, add `#include "ao_notify.h"`.
+
+3. **`ao_led_engine.cpp`:** Remove `SIG_RADIO_STATUS`, `SIG_HEALTH_STATUS`, `SIG_LED_OVERRIDE` subscriptions and handlers. Remove `health_fault_code` field and `led_decode_health_faults()`. Reduce layers to 3: `kLayerFault` (Core1 stall only, A1 defense-in-depth), `kLayerNotify` (resolved pattern from AO_Notify via `SIG_LED_PATTERN`), `kLayerIdle`. Keep: `SIG_LED_PATTERN` handler (now sole input from AO_Notify), `led_check_core1_vitality()` (A1), `ws2812_update()`, `led_apply_pattern()` switch.
+
+4. **`ao_notify.cpp`:** Wire tick handler to call `notify_backend_led_update(me->state)` and `notify_backend_audio_update(me->state)`. Remove `SIG_LED_OVERRIDE` subscription (RCOS now posts `CalIntentEvt` directly).
+
+5. **Remove `AO_LedEngine_post_override()`** from header and implementation — no callers remain.
+
+6. **Preserved (A2):** `AO_Telemetry` and `AO_Logger` `SIG_HEALTH_STATUS` subscriptions unchanged.
+
+7. **Rewiring regression host tests** added to `test_notify.cpp`: simulate FD phase change → verify LED backend receives correct pattern. Simulate health fault → verify fault intent → LED fault pattern.
+
+**[GATE]:**
+- AO_LedEngine no longer subscribes to health/radio/cal signals
+- FD callback no longer calls `AO_LedEngine_post_pattern` directly
+- CLI calibration no longer calls `AO_LedEngine_post_override` directly
+- `AO_LedEngine_post_override` removed from public API
+- Clean compile, no orphaned includes, no undefined references
+- All host tests pass (including new rewiring regression tests)
+- **HW verify: 5-minute soak** — boot idle, ARM/DISARM cycle (A4), calibration overlay, all patterns visually identical to pre-Stage-14
+- **SPIN audit:** AO_Notify confirmed output-only — cannot influence flight state transitions, guard conditions, or pyro logic. Model unchanged.
+
+**[DIAG]:** LED patterns break → intent→pattern mapping in resolver missing a case; diff resolver switch against `led_patterns.h`. Beacon not activating in ABORT timeout → check `SIG_BEACON_ACTIVE` subscription in AO_Notify and FD lambda publishes it.
+
+---
+
+### IVP-117: Sensor + Core1 Vitality Migration
+
+**Prerequisites:** IVP-116
+
+**Implement:** Move sensor status evaluation from AO_LedEngine to AO_Notify. Move primary Core 1 vitality check from AO_LedEngine to AO_HealthMonitor. Retain Core1 fallback in AO_LedEngine per A1.
+
+1. **`ao_health_monitor.cpp`:** Add Core1 vitality check to health tick (10Hz). Read seqlock `core1_loop_count`, detect stall at 6 consecutive ticks (~600ms at 10Hz). Add `kHealthCore1Ok = (1 << 4)` to `HealthSecondary` in `health_monitor.h`. Core1 stall clears `kHealthCore1Ok` in secondary byte → `SIG_HEALTH_STATUS` carries it → AO_Notify decodes as `FaultIntent::kCore1Stall`.
+
+2. **`ao_notify.cpp`:** Add seqlock read to 33Hz tick handler. `notify_evaluate_sensor_status()` mirrors old `led_evaluate_sensor_status()` but writes `SensorIntent` to `NotifyState` (reads GPS fix type, ESKF init state, sensor phase timeout). `notify_check_core1_vitality()` as secondary Core1 check (primary now in HealthMonitor).
+
+3. **`ao_led_engine.cpp`:** Remove `led_evaluate_sensor_status()`, `sensor_phase_start_ms`, `g_gpsInitialized` and `eskf_runner_is_initialized()` references. **Keep** `led_check_core1_vitality()` and `last_core1_count`/`core1_stall_ticks` as defense-in-depth fallback (A1). LedEngine struct slimmed to: `layers[]`, `last_mode`, `last_color`, `last_core1_count`, `core1_stall_ticks`.
+
+4. **Host tests** added to `test_notify.cpp`: sensor evaluation (mock seqlock data → verify GPS/ESKF/timeout intents), Core1 stall (secondary byte decoding).
+
+**[GATE]:**
+- AO_LedEngine has zero seqlock reads for sensor status, zero sensor logic
+- GPS fix patterns still work (3D/2D/search/no-NMEA/no-GPS) — via AO_Notify
+- Core 1 stall detection triggers via AO_HealthMonitor → SIG_HEALTH_STATUS path
+- Core 1 stall also triggers via AO_LedEngine fallback (A1 defense-in-depth)
+- Sensor phase 5-min timeout still triggers magenta solid — via AO_Notify
+- All host tests pass (including new sensor + Core1 tests)
+- **HW verify:** Flash, verify GPS/sensor status patterns work, verify Core1 stall detection (if testable)
+
+**[DIAG]:** Sensor patterns disappear → verify AO_Notify tick reads seqlock *before* calling resolver (order: `seqlock_read()` → `notify_evaluate_sensor_status()` → `notify_backend_led_update()`). Core1 stall doesn't propagate via health → check `kHealthCore1Ok` bit encoding in `health_monitor.h`.
+
+---
+
+### IVP-118: Final Audit
+
+**Prerequisites:** IVP-117
+
+**Implement:** One-time verification that all signal routing is correct and documentation is final.
+
+1. **Subscriber count verification** (via GDB or DBG_PRINT):
+   - `SIG_HEALTH_STATUS`: 3 subscribers (Logger, Telemetry, Notify) — NOT LedEngine
+   - `SIG_RADIO_STATUS`: 1 subscriber (Notify) — NOT LedEngine
+   - `SIG_PHASE_CHANGE`: subscribers include Notify
+   - `SIG_BEACON_ACTIVE`: 1 subscriber (Notify)
+
+2. **Update `docs/decisions/NOTIFY_CONTRACT.md`** with SPIN safety note: "AO_Notify is output-only, cannot influence flight state transitions, guard conditions, or pyro logic. SPIN model unchanged."
+
+3. **Update `docs/AO_ARCHITECTURE.md`** with final AO_Notify state: priority, tick rate, queue depth, subscribers, signal routing changes from Stage 14.
+
+4. **Update `AGENT_WHITEBOARD.md`** — Stage 14 complete, whiteboard items for Stage 15.
+
+**[GATE]:**
+- Subscriber counts match expected values
+- `NOTIFY_CONTRACT.md` has safety analysis
+- `AO_ARCHITECTURE.md` reflects final state
+- No stale references to old signal routing in any doc
+
+**[DIAG]:** Subscriber count mismatch → grep for `QActive_subscribe` with the signal name across all AO source files.
 
 ---
 
@@ -3022,6 +3215,8 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
+| — | AO Responsibility Audit | Verify all health/safety logic lives in correct AOs (Stage 13 Core1 gap pattern) |
+| — | Audio Output (I2S DAC) | TLV320DAC3100 codec driver, pico-extras I2S, AP tone parser, AO_Audio (~10-12 IVPs). Fruit Jam only. Fills Stage 14 audio backend stub. |
 | — | Full System Bench Test | All subsystems running `⚠️ VALIDATE 30 minutes`, no crashes |
 | — | Simulated Flight Profile | Replay recorded accel/baro through state machine |
 | — | Power Budget Validation | Battery runtime validation under flight load |
@@ -3083,6 +3278,8 @@ Tests to re-run after changes to specific areas.
 | Flight Director change | IVP-67 — IVP-75 | State machine, guards, actions, mission config |
 | Active Object change | IVP-76 — IVP-82, IVP-73 | AO migration, bench flight sim regression |
 | Radio module / AO_Radio change | IVP-92 — IVP-98, IVP-57 — IVP-62 | Radio driver, scheduler, AO split, telemetry |
+| Health monitor change | IVP-104 — IVP-112, IVP-117 | Health encoding, fault propagation, Core1 vitality |
+| Notification / LED engine change | IVP-113 — IVP-118 | Intent resolver, backend dispatch, LED patterns |
 | **Major refactor** | **All Stage 1-3** | Full regression |
 | **Before any release** | IVP-01, IVP-27, IVP-28, IVP-88, IVP-73, Stage 13 Full Bench Test | Release qualification (build, USB, flash, PIO safety, bench flight sim, full bench test) |
 
