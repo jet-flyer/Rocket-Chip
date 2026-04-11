@@ -18,9 +18,10 @@
 #include "rocketchip/led_patterns.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "drivers/ws2812_status.h"
-#include "fusion/eskf_runner.h"
-#include "core1/sensor_core1.h"
 #include "pico/time.h"
+// IVP-117: eskf_runner.h and core1/sensor_core1.h removed — sensor status
+// evaluation migrated to AO_Notify. LedEngine only reads the seqlock for
+// Core 1 vitality fallback (Council A1).
 
 // Internal signal for animation tick (private to this AO)
 enum : uint16_t {
@@ -30,35 +31,28 @@ enum : uint16_t {
 // ============================================================================
 // Priority Layer Indices (highest priority = lowest index)
 //
-// IVP-116: simplified from 6 layers to 4. AO_Notify owns flight phase,
-// calibration, radio, and fault intent resolution — those are folded into
-// a single resolved pattern code posted via SIG_LED_PATTERN.
+// IVP-117: simplified to 3 layers. Sensor status evaluation moved to
+// AO_Notify. LedEngine is now a pure display driver with only the
+// Core 1 vitality fallback (Council A1 defense-in-depth).
 //
-//   - kLayerFault: Core 1 vitality stall (defense-in-depth per Council A1,
-//     evaluated locally in the LedEngine tick as a fallback if AO_Notify
-//     or AO_HealthMonitor crash)
+//   - kLayerFault: Core 1 vitality stall — defense-in-depth per A1.
+//     Primary check lives in AO_HealthMonitor; this is the local
+//     fallback in case AO_Notify or AO_HealthMonitor crash.
 //   - kLayerNotify: resolved pattern from AO_Notify via SIG_LED_PATTERN
-//   - kLayerSensorStatus: GPS/ESKF state from seqlock (IVP-117 migrates
-//     this to AO_Notify; in IVP-116 it remains here as AO_Notify does not
-//     yet have sensor evaluation logic)
 //   - kLayerIdle: blue-blink fallback
 // ============================================================================
 enum LedLayerIdx : uint8_t {
     kLayerFault = 0,        // Highest — Core 1 vitality stall (A1 fallback)
     kLayerNotify,           // Resolved pattern from AO_Notify
-    kLayerSensorStatus,     // GPS/ESKF state (IVP-117 migrates to AO_Notify)
     kLayerIdle,             // Default — slow blue blink
     kLayerCount
 };
 
 // ============================================================================
-// Core 1 vitality check parameters (Council A4)
+// Core 1 vitality check parameters (Council A1 defense-in-depth fallback)
 // ============================================================================
 // At 33Hz ticks, 500ms = ~16 ticks without a core1_loop_count increment.
 static constexpr uint8_t kCore1StallThreshold = 17;
-
-// Sensor phase timeout — matches Core 1's former kSensorPhaseTimeoutMs
-static constexpr uint32_t kSensorPhaseTimeoutMs = 300000;  // 5 min
 
 // ============================================================================
 // LedEngine struct
@@ -69,10 +63,11 @@ struct LedEngine {
     uint8_t layers[kLayerCount]; // Pattern code per layer (0 = inactive)
     ws2812_mode_t last_mode;
     ws2812_rgb_t last_color;
-    uint32_t sensor_phase_start_ms;  // IVP-117: migrates to AO_Notify
-    uint32_t last_core1_count;       // Core1 vitality defense-in-depth (A1)
-    uint8_t core1_stall_ticks;       // Consecutive ticks without core1 progress
-    // IVP-116: health_fault_code removed — AO_Notify owns health fault routing.
+    uint32_t last_core1_count;  // Core1 vitality defense-in-depth (A1)
+    uint8_t core1_stall_ticks;  // Consecutive ticks without core1 progress
+    // IVP-117: sensor_phase_start_ms removed — sensor evaluation migrated
+    //          to AO_Notify.
+    // IVP-116: health_fault_code removed — AO_Notify owns health faults.
 };
 
 static LedEngine l_ledEngine;
@@ -147,35 +142,6 @@ static void led_apply_pattern(LedEngine * const me, uint8_t val) {
 }
 
 //----------------------------------------------------------------------------
-// Sensor status evaluation
-//
-// Reads seqlock snapshot and ESKF state to determine base sensor status.
-// Sets layers[kLayerSensorStatus].
-
-static void led_evaluate_sensor_status(LedEngine * const me,
-                                        const shared_sensor_data_t* snap) {
-    uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-
-    if ((nowMs - me->sensor_phase_start_ms) >= kSensorPhaseTimeoutMs) {
-        me->layers[kLayerSensorStatus] = kSensorNeoTimeout;
-    } else if (!eskf_runner_is_initialized()) {
-        me->layers[kLayerSensorStatus] = kSensorNeoEskfInit;
-    } else if (g_gpsInitialized) {
-        if (snap->gps_fix_type >= 3) {
-            me->layers[kLayerSensorStatus] = kSensorNeoGps3d;
-        } else if (snap->gps_fix_type == 2) {
-            me->layers[kLayerSensorStatus] = kSensorNeoGps2d;
-        } else if (snap->gps_read_count > 0) {
-            me->layers[kLayerSensorStatus] = kSensorNeoGpsSearch;
-        } else {
-            me->layers[kLayerSensorStatus] = kSensorNeoGpsNoNmea;
-        }
-    } else {
-        me->layers[kLayerSensorStatus] = kSensorNeoNoGps;
-    }
-}
-
-//----------------------------------------------------------------------------
 // Core 1 vitality check (Council A1 defense-in-depth)
 //
 // IVP-116: health fault decoding moved to AO_Notify. LedEngine retains
@@ -229,13 +195,10 @@ static QState LedEngine_initial(LedEngine * const me, QEvt const * const e) {
     }
     me->last_mode = WS2812_MODE_OFF;
     me->last_color = kColorOff;
-    me->sensor_phase_start_ms = to_ms_since_boot(get_absolute_time());
     me->last_core1_count = 0;
     me->core1_stall_ticks = 0;
 
     // Subscribe to LED events (IVP-116: only SIG_LED_PATTERN, from AO_Notify)
-    // SIG_LED_OVERRIDE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS subscriptions
-    // removed — AO_Notify owns those intents and posts resolved patterns.
     QActive_subscribe(&me->super, rc::SIG_LED_PATTERN);
 
     // ~33Hz animation tick (every 3 ticks at 100Hz base)
@@ -246,10 +209,10 @@ static QState LedEngine_initial(LedEngine * const me, QEvt const * const e) {
 static QState LedEngine_running(LedEngine * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_LED_TICK: {
-        // Read sensor snapshot for status evaluation + Core 1 vitality
+        // IVP-117: only Core 1 vitality fallback reads the seqlock now.
+        // Sensor status + GPS/ESKF evaluation moved to AO_Notify.
         shared_sensor_data_t snap{};
         if (seqlock_read(&g_sensorSeqlock, &snap)) {
-            led_evaluate_sensor_status(me, &snap);
             led_check_core1_vitality(me, &snap);
         }
 
@@ -309,13 +272,18 @@ void AO_LedEngine_post_pattern(uint8_t pattern) {
     }
     s_lastPostedPattern = pattern;
 
-    // Direct-post a pattern event to the LED engine.
-    // Stack-local -- QV copies event into queue. Static was unsafe due to
-    // ISR preemption race (Council C5).
-    rc::LedPatternEvt evt;
-    evt.super = QEVT_INITIALIZER(rc::SIG_LED_PATTERN);
-    evt.pattern = pattern;
-    QACTIVE_POST(&l_ledEngine.super, &evt.super, (void *)0);
+    // Static event — QV does NOT copy posted events; the queue stores
+    // the pointer. A stack-local event becomes a use-after-free once the
+    // caller returns (QV dispatches the receiver later in its while loop
+    // after the caller's stack has been reclaimed). Static storage is
+    // safe here because this function is only called from handler context
+    // on Core 0 under the cooperative QV scheduler — no ISR posts the
+    // same event, and dedup prevents overlapping posts within one tick.
+    // (Discovered during IVP-117 HW verify — see LESSONS_LEARNED.)
+    static rc::LedPatternEvt s_evt;
+    s_evt.super = QEVT_INITIALIZER(rc::SIG_LED_PATTERN);
+    s_evt.pattern = pattern;
+    QACTIVE_POST(&l_ledEngine.super, &s_evt.super, (void *)0);
 }
 
 // IVP-116: AO_LedEngine_post_override() removed — RCOS now calls

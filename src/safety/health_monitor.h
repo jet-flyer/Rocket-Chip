@@ -50,6 +50,7 @@ enum HealthSecondary : uint8_t {
     kHealthFlashOk    = (1 << 1),
     kHealthWatchdogOk = (1 << 2),
     kHealthPioOk      = (1 << 3),
+    kHealthCore1Ok    = (1 << 4),  // IVP-117: Core 1 vitality (primary check)
 };
 
 // ============================================================================

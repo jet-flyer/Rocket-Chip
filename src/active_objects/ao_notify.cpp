@@ -16,7 +16,11 @@
 #include "ao_notify.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/notify_backend.h"
+#include "rocketchip/sensor_seqlock.h"
+#include "notify/notify_resolver.h"        // decode_health_faults()
 #include "safety/health_monitor.h"
+#include "core1/sensor_core1.h"            // g_gpsInitialized
+#include "fusion/eskf_runner.h"            // eskf_runner_is_initialized()
 #include "pico/time.h"
 
 using namespace rc::notify;
@@ -86,30 +90,40 @@ static RadioIntent radio_intent_from_lq(uint8_t lq) {
     }
 }
 
-static FaultIntent notify_decode_health_faults(uint8_t primary, uint8_t secondary) {
-    FaultIntent max_fault = FaultIntent::kNone;
+// IVP-117: notify_decode_health_faults() moved to notify_resolver.h as
+// an inline function so host tests can use it without AO dependencies.
 
-    if (rc::health_imu(primary) == rc::kHealthFault) {
-        max_fault = FaultIntent::kImuFail;
+// ============================================================================
+// Sensor status evaluation (IVP-117: migrated from AO_LedEngine)
+//
+// Reads the current sensor seqlock snapshot and maps to SensorIntent.
+// Called from the 33Hz tick handler.
+// ============================================================================
+
+// Sensor phase 5-min timeout — matches the pre-IVP-117 value in LedEngine.
+static constexpr uint32_t kSensorPhaseTimeoutMs = 300000U;
+
+static void notify_evaluate_sensor_status(NotifyAo * const me,
+                                           const shared_sensor_data_t* snap) {
+    const uint32_t nowMs = to_ms_since_boot(get_absolute_time());
+
+    if ((nowMs - me->sensor_phase_start_ms) >= kSensorPhaseTimeoutMs) {
+        me->state.sensor = SensorIntent::kTimeout;
+    } else if (!eskf_runner_is_initialized()) {
+        me->state.sensor = SensorIntent::kEskfInit;
+    } else if (g_gpsInitialized) {
+        if (snap->gps_fix_type >= 3) {
+            me->state.sensor = SensorIntent::kGps3d;
+        } else if (snap->gps_fix_type == 2) {
+            me->state.sensor = SensorIntent::kGps2d;
+        } else if (snap->gps_read_count > 0) {
+            me->state.sensor = SensorIntent::kGpsSearch;
+        } else {
+            me->state.sensor = SensorIntent::kGpsNoNmea;
+        }
+    } else {
+        me->state.sensor = SensorIntent::kNoGps;
     }
-    if (rc::health_eskf(primary) == rc::kHealthFault &&
-        FaultIntent::kEskfFail > max_fault) {
-        max_fault = FaultIntent::kEskfFail;
-    }
-    if (rc::health_baro(primary) == rc::kHealthFault &&
-        FaultIntent::kBaroFail > max_fault) {
-        max_fault = FaultIntent::kBaroFail;
-    }
-    if ((secondary & rc::kHealthPioOk) == 0 &&
-        FaultIntent::kPioWdt > max_fault) {
-        max_fault = FaultIntent::kPioWdt;
-    }
-    if ((secondary & rc::kHealthWatchdogOk) == 0 &&
-        FaultIntent::kSafeMode > max_fault) {
-        max_fault = FaultIntent::kSafeMode;
-    }
-    // Core1 stall: will be added to secondary in IVP-117 (kHealthCore1Ok bit)
-    return max_fault;
 }
 
 // ============================================================================
@@ -156,7 +170,7 @@ static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
 
     case rc::SIG_HEALTH_STATUS: {
         const auto* he = reinterpret_cast<const rc::HealthStatusEvt*>(e);
-        me->state.fault = notify_decode_health_faults(he->primary, he->secondary);
+        me->state.fault = decode_health_faults(he->primary, he->secondary);
         return Q_HANDLED();
     }
 
@@ -173,8 +187,13 @@ static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
     }
 
     case SIG_NOTIFY_TICK: {
-        // IVP-116: run resolver and dispatch to output backends.
-        // IVP-117 will add seqlock read for sensor status before dispatch.
+        // IVP-117: read sensor snapshot and update sensor intent before
+        // dispatching to backends. Core 1 vitality is primary-checked in
+        // AO_HealthMonitor and arrives via SIG_HEALTH_STATUS.
+        shared_sensor_data_t snap{};
+        if (seqlock_read(&g_sensorSeqlock, &snap)) {
+            notify_evaluate_sensor_status(me, &snap);
+        }
         rc::notify::notify_backend_led_update(me->state);
         rc::notify::notify_backend_audio_update(me->state);
         return Q_HANDLED();
@@ -221,9 +240,14 @@ void AO_Notify_post_cal_intent(CalIntent intent) {
     }
     s_lastCalIntent = intent;
 
-    // Stack-local event — QV copies into AO_Notify's queue.
-    CalIntentEvt evt;
-    evt.super = QEVT_INITIALIZER(SIG_NOTIFY_CAL_INTENT);
-    evt.intent = intent;
-    QACTIVE_POST(&l_notifyAo.super, &evt.super, (void *)0);
+    // Static event — QV does NOT copy posted events; it stores the pointer.
+    // A stack-local event becomes a use-after-free once this function
+    // returns (QV dispatches AO_Notify later in its while loop, after the
+    // caller's stack has been reclaimed). Static is safe: this is only
+    // called from handler context on Core 0 under cooperative QV, and the
+    // dedup above prevents overlapping posts within one tick.
+    static CalIntentEvt s_evt;
+    s_evt.super = QEVT_INITIALIZER(SIG_NOTIFY_CAL_INTENT);
+    s_evt.intent = intent;
+    QACTIVE_POST(&l_notifyAo.super, &s_evt.super, (void *)0);
 }

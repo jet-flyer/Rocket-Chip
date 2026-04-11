@@ -17,6 +17,13 @@
 
 *Stage 13 (Health Monitor) COMPLETE. Config Wizard Phase A COMPLETE (prototype). Stage 14 (Notification Engine) IN PROGRESS — IVP-113 through IVP-118.*
 
+### QP Posted Events Must Be Static (LL Entry 35)
+
+Discovered during IVP-117 HW verify: `AO_LedEngine_post_pattern()` had a latent use-after-free bug from Stage 7 (IVP-77). Declaring `QEvt` subclasses as stack-local before `QACTIVE_POST` is broken — QP stores the pointer, NOT a copy. When the caller returns, the event memory gets overwritten. Manifests as `Q_onError(qf_dyn, 750)` assertion.
+
+Fixed in both `AO_LedEngine_post_pattern()` and `AO_Notify_post_cal_intent()` by switching to static event storage. Other existing posts (HealthMonitor, FD phase/pyro, Radio RX) were already correct. If any future AO adds a new post site, verify the event is static — see LL Entry 35 for the detection pattern via GDB.
+
+
 ### Launch Procedure Audit Findings — Future Safety Items
 
 Items identified by comparing NASA/SpaceX/NAR launch procedures against RocketChip FD logic. All are future work requiring Mission Profile or hardware support.

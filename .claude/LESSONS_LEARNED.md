@@ -1051,6 +1051,73 @@ Use PIO IRQ flags for fault signaling instead of GPIO pins. The PIO sets `irq 0`
 
 ---
 
+## Entry 35: Stack-Local QP Events Are Use-After-Free — Always Use `static`
+
+**Date:** 2026-04-10
+**Time Spent:** ~2 hours (IVP-117 HW verify bisect)
+**Severity:** Critical — QP assertion on boot (`qf_dyn` id=750). Latent bug in `AO_LedEngine_post_pattern()` that had shipped for months.
+
+### Problem
+After IVP-117 flashed cleanly, the board hit a QP assertion `Q_onError(qf_dyn, 750)` in `QF_gc()`. Assertion fired when the garbage collector saw an event with `poolNum_ > maxPool`. The event in question had `sig=51367, poolNum_=1, refCtr_=16, filler_=0` at stack address `0x20081eec` — that's not a valid event, it's corrupted memory that happened to be a stack slot at the time QF tried to inspect it.
+
+### Symptoms
+- Board boots, Core 1 samples sensors successfully for ~11K iterations
+- Then QP assertion at `qf_dyn.c:298` (`poolNum <= maxPool`)
+- Backtrace: `QF_run` → `QF_gc(e=0x20081eec)` → assertion
+- The event address is on the stack below the current MSP
+- `maxPool_ = 0` (we don't use event pools), so any event with `poolNum_ > 0` trips the assert
+
+### Root Cause
+`AO_LedEngine_post_pattern()` was declaring the event on the stack:
+```cpp
+rc::LedPatternEvt evt;                     // STACK-LOCAL!
+evt.super = QEVT_INITIALIZER(rc::SIG_LED_PATTERN);
+evt.pattern = pattern;
+QACTIVE_POST(&l_ledEngine.super, &evt.super, (void *)0);
+```
+
+**QP does NOT copy posted events.** `QACTIVE_POST` → `QActive_post_` → `QActive_postFIFO_` stores the raw pointer into `me->eQueue.frontEvt`. The event memory belongs to the caller's stack frame. When the caller returns, the stack is reclaimed and reused by `QF_run`'s while loop. Later, when QV dispatches the receiver AO, it reads the event pointer — pointing at memory that has been overwritten by subsequent function calls.
+
+The comment in the old code said "QV copies event into queue" — **this was wrong**. It worked for months by pure luck: the stack memory wasn't reused aggressively enough in the common call pattern, so the bytes at the event location were usually still "correct" when dispatched.
+
+**Why IVP-117 exposed it:** IVP-117 added seqlock read + sensor evaluation + Core 1 vitality check to AO_Notify's tick handler. Previously AO_Notify's tick was nearly empty. The new work pushed the stack deeper, reliably overwriting the bytes where `AO_LedEngine_post_pattern()` had written its stack-local event. The existing LedEngine pattern had been a landmine since Stage 7 (IVP-77); IVP-117 just stepped on it.
+
+### Solution
+Use `static` events at file scope inside the post function. The "Static was unsafe due to ISR preemption race (Council C5)" comment from the old code was a concern about ISRs posting the same event while a handler was also posting it. These post functions are only called from handler context on Core 0 under QV cooperative scheduling — no ISR ever calls them, and dedup guards prevent back-to-back posts of the same event within one tick. Static is safe here.
+
+```cpp
+// CORRECT: static event, survives until overwritten by next post
+static rc::LedPatternEvt s_evt;
+s_evt.super = QEVT_INITIALIZER(rc::SIG_LED_PATTERN);
+s_evt.pattern = pattern;
+QACTIVE_POST(&l_ledEngine.super, &s_evt.super, (void *)0);
+```
+
+### Prevention
+1. **Never use a stack-local `QEvt`/`QActiveEvt` subclass as the argument to `QACTIVE_POST` or `QActive_publish_`.** QP takes a pointer, not a copy.
+2. **Always use `static` storage for posted events.** File-scope or function-scope static is fine under QV cooperative scheduling. Safe because handlers are never preempted by other handlers, and the next post overwrites the same static buffer after the previous dispatch completed.
+3. **Exception: if the post is made from an ISR or from Core 1, use a QP event pool** (allocated with `Q_NEW`) so each event has its own dedicated memory. We do not currently use pools — add one only if cross-core/ISR posting is needed.
+4. **Audit any new `QEvt` subclass declared inside a post function.** Grep: `QACTIVE_POST` followed by a non-static local variable. This bug is easy to introduce and hard to diagnose.
+5. **Search for all existing post callsites** and verify they use static (or dedicated pool-allocated) storage. See IVP-117 commit for the fix pattern.
+6. **The QP comment pattern that misled us** ("QV copies event into queue. Static was unsafe due to ISR preemption race") should be corrected everywhere it appears — QV does NOT copy, and ISR races do not apply to handler-context posts on a single core.
+
+### Related
+- Stage 7 IVP-77 introduced `AO_LedEngine_post_pattern()` with the latent bug
+- Stage 14 IVP-117 added stack usage that exposed it
+- Existing code already uses the correct static pattern in `ao_health_monitor.cpp:56`, `ao_flight_director.cpp:85/96/190` (pyro events + phase change), and `ao_radio.cpp:205` (RX event). The LedEngine was the odd one out.
+
+### Detection via GDB
+When a `qf_dyn` assertion fires with id=750 or id=740:
+```
+(gdb) frame 1
+(gdb) print *e
+(gdb) print e->sig
+(gdb) print e->poolNum_
+```
+If `sig` looks like random bits and `poolNum_` is nonzero in a system with no event pools, you've got a use-after-free on a posted event.
+
+---
+
 ## Entry 34: PC Cooling Fan Turbulence Causes Baro Drift → ESKF P-Growth Failure
 
 **Date:** 2026-03-29

@@ -198,3 +198,71 @@ TEST(NotifyResolver, AllSensorIntentsMapCorrectly) {
     s.sensor = SensorIntent::kEskfInit;   EXPECT_EQ(resolve_led_pattern(s), rc::led::kSensorEskfInit);
     s.sensor = SensorIntent::kTimeout;    EXPECT_EQ(resolve_led_pattern(s), rc::led::kSensorTimeout);
 }
+
+// ============================================================================
+// IVP-117: Health-status decoder tests (decode_health_faults inline helper)
+// ============================================================================
+
+// All subsystems healthy: primary = 0xFF (all kHealthOk), all secondary bits set
+static constexpr uint8_t kAllSecondaryOk =
+    rc::kHealthRadioOk | rc::kHealthFlashOk | rc::kHealthWatchdogOk |
+    rc::kHealthPioOk | rc::kHealthCore1Ok;
+
+TEST(NotifyDecodeHealth, AllHealthyReturnsNone) {
+    // All 4 primary subsystems kHealthOk (binary 11 = 3)
+    uint8_t primary = 0;
+    primary = rc::health_set_subsystem(primary, rc::kHealthShiftImu,  rc::kHealthOk);
+    primary = rc::health_set_subsystem(primary, rc::kHealthShiftBaro, rc::kHealthOk);
+    primary = rc::health_set_subsystem(primary, rc::kHealthShiftEskf, rc::kHealthOk);
+    primary = rc::health_set_subsystem(primary, rc::kHealthShiftGps,  rc::kHealthOk);
+    EXPECT_EQ(decode_health_faults(primary, kAllSecondaryOk), FaultIntent::kNone);
+}
+
+TEST(NotifyDecodeHealth, ImuFaultMapsToImuFail) {
+    uint8_t primary = 0;
+    primary = rc::health_set_subsystem(primary, rc::kHealthShiftImu, rc::kHealthFault);
+    EXPECT_EQ(decode_health_faults(primary, kAllSecondaryOk), FaultIntent::kImuFail);
+}
+
+TEST(NotifyDecodeHealth, BaroFaultMapsToBaroFail) {
+    uint8_t primary = 0;
+    primary = rc::health_set_subsystem(primary, rc::kHealthShiftBaro, rc::kHealthFault);
+    EXPECT_EQ(decode_health_faults(primary, kAllSecondaryOk), FaultIntent::kBaroFail);
+}
+
+TEST(NotifyDecodeHealth, EskfFaultMapsToEskfFail) {
+    uint8_t primary = 0;
+    primary = rc::health_set_subsystem(primary, rc::kHealthShiftEskf, rc::kHealthFault);
+    EXPECT_EQ(decode_health_faults(primary, kAllSecondaryOk), FaultIntent::kEskfFail);
+}
+
+TEST(NotifyDecodeHealth, PioWdtMissingMapsToPioWdt) {
+    uint8_t secondary = kAllSecondaryOk & ~rc::kHealthPioOk;
+    EXPECT_EQ(decode_health_faults(0xFF, secondary), FaultIntent::kPioWdt);
+}
+
+TEST(NotifyDecodeHealth, WatchdogMissingMapsToSafeMode) {
+    uint8_t secondary = kAllSecondaryOk & ~rc::kHealthWatchdogOk;
+    EXPECT_EQ(decode_health_faults(0xFF, secondary), FaultIntent::kSafeMode);
+}
+
+TEST(NotifyDecodeHealth, Core1MissingMapsToCore1Stall) {
+    uint8_t secondary = kAllSecondaryOk & ~rc::kHealthCore1Ok;
+    EXPECT_EQ(decode_health_faults(0xFF, secondary), FaultIntent::kCore1Stall);
+}
+
+TEST(NotifyDecodeHealth, Core1StallBeatsImuFault) {
+    // IMU fault + Core1 stall → Core1 stall wins (highest fault priority)
+    uint8_t primary = 0;
+    primary = rc::health_set_subsystem(primary, rc::kHealthShiftImu, rc::kHealthFault);
+    uint8_t secondary = kAllSecondaryOk & ~rc::kHealthCore1Ok;
+    EXPECT_EQ(decode_health_faults(primary, secondary), FaultIntent::kCore1Stall);
+}
+
+TEST(NotifyDecodeHealth, ImuFaultBeatsBaroFault) {
+    // Both faulted → IMU wins (higher ascending priority)
+    uint8_t primary = 0;
+    primary = rc::health_set_subsystem(primary, rc::kHealthShiftImu,  rc::kHealthFault);
+    primary = rc::health_set_subsystem(primary, rc::kHealthShiftBaro, rc::kHealthFault);
+    EXPECT_EQ(decode_health_faults(primary, kAllSecondaryOk), FaultIntent::kImuFail);
+}
