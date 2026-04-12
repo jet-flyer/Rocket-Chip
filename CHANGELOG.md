@@ -20,6 +20,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-12-001 | Claude Code CLI | tooling, architecture, bugfix
+
+**Bench sim retirement + IVP-119 FusedState baro field rename.** Two council-reviewed plans executed across two sessions.
+
+**Bench sim retirement:** Old `bench_flight_sim.py` (479 lines, IVP-73) retired after discovery of 5-day silent bit-rot (2026-04-06 to 2026-04-11). Replaced by `scripts/bench_sim.py` (~200 lines, 2 tests: happy path + abort-from-BOOST). SPIN-provable state machine safety not re-tested (redundant). New script auto-detects serial port (threaded probe with 3s timeout per port), connect retry (5 attempts), 120s deadline, health wait before test. New `test/test_command_handler.cpp` (8 host tests) fills the accept/reject matrix gap. LL Entry 36 documents root-cause pattern: "soft gate presented as hard gate." Pre-commit hook extended with `ctest` gate + needs-based HW bench sim gate (runs bench_sim.py when staged diff touches flight-critical paths and probe is available; loud prompt when probe unavailable). Session-start canary added to SESSION_CHECKLIST.md item 6.
+
+**IVP-119 (Stage P7):** `FusedState::baro_vvel` renamed to `vert_vel_eskf` (was actually `g_eskf.v.z`, not a raw baro derivative). New `baro_pressure_pa` field added for ESKF-independent baro sensing (foundation for IVP-120 `guard_baro_stationary`). Mechanical rename across 12 files. `guard_baro_peak()` parameter renamed; no body/logic change. Wire format `TelemetryState::baro_vvel_cms` deliberately preserved. HW verified: bench_sim 2/2 PASS, GDB confirmed `baro_pressure_pa` = 100398 Pa (live DPS310).
+
+**SPIN model inaccuracy discovered:** `rocketchip_fd.pml` unconditionally fires drogue on ABORT from BOOST/COAST, but firmware gates this on `MissionProfile::abort_fires_drogue_from_boost/coast` (default `false`). Firing drogue at high speed is a shred event — the profile default is physically correct. SPIN model + code comment update tracked on whiteboard for IVP-120/121.
+
+---
+
 ### 2026-04-10-003 | Claude Code CLI | documentation
 
 **Stage 15/16/17 reorganization in IVP.md.** Split old Stage 15 "Pre-Flight Polish" into two stages after scope re-evaluation: new Stage 15 "Pre-Flight Radio + Station" (MAIN_DESCENT P7 timeout fix, half-duplex ACK + ARM confirmation UX, distance-to-rocket finish, station help/whiteboard cleanup) runs before the polish pass. Old Stage 15 becomes Stage 16 "Pre-Flight Polish" with three phases: 16A Documentation & Cleanup, 16B Bench Testing, 16C Field Testing. Old Stage 16 "Field Tuning & Validation" renumbered to Stage 17. Audio output (I2S DAC, ~10-12 IVPs) and battery ADC monitoring explicitly deferred — audio is ground-station only, battery ADC pending custom hardware. Removed "(was Stage X)" suffixes throughout. Updated three Stage 10 cross-references from "Stage 15 (Field Tuning)" to "Stage 17". No IVP numbers assigned yet per reorg-only scope.

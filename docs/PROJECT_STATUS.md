@@ -105,9 +105,15 @@
 
 ## In Progress
 
-*None currently.*
+**Stage P7: MAIN_DESCENT Liveness Fix** (out-of-sequence safety pass, IVP-119 through IVP-121)
 
-**Next:** Stage 15 (Pre-Flight Polish) → Stage 16 (Field Tuning)
+- IVP-119 COMPLETE (2026-04-12): FusedState `baro_vvel` → `vert_vel_eskf` rename + `baro_pressure_pa` field. 686/686 host tests. HW verified: bench_sim 2/2 PASS.
+- IVP-120 next: `guard_baro_stationary` + MissionProfile parameters + guard/rate-math unit tests
+- IVP-121: `state_main_descent` conjunction path + backstop + SPIN model + host tests
+
+**Bench sim retired + replaced** (2026-04-12): Old 479-line `bench_flight_sim.py` replaced by 200-line `bench_sim.py` (2 tests). Pre-commit hook gates ctest + needs-based HW bench sim. See LL Entry 36.
+
+**Next:** Stage P7 IVP-120/121 → Stage 15 (Pre-Flight Radio + Station, IVP-122–124) → Stage 16 (Pre-Flight Polish) → Stage 17 (Field Tuning)
 
 ## Blockers
 
