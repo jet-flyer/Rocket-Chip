@@ -114,9 +114,11 @@ cmake --build build/
 | **3D** | **3-Axis Magnetometer** | — | **IVP-99 — IVP-103** | **Planned** | |
 | **13** | **Health Monitor** | **Phase 9** | **IVP-104 — IVP-112** | **Full** | |
 | **14** | **Notification Engine** | **Phase 9** | **IVP-113 — IVP-118** | **Full** | |
-| **P7** | **MAIN_DESCENT Liveness Fix** | **Phase 9** | **IVP-119 — IVP-121** | **Planned** | **(out-of-sequence)** |
+| **P7** | **MAIN_DESCENT Liveness Fix** | **Phase 9** | **IVP-119 — IVP-121** | **Full** | **(out-of-sequence)** |
 | 15 | Pre-Flight Radio + Station | Phase 9 | IVP-122 — IVP-124 | Planned | |
-| **16** | **Pre-Flight Polish** | **Phase 9** | **—** | **Placeholder** | **Flight Ready** |
+| **16A** | **Documentation & Cleanup** | **Phase 9** | **IVP-125 — IVP-130** | **Planned** | |
+| 16B | Bench Testing | Phase 9 | — | Placeholder | |
+| 16C | Field Testing | Phase 9 | — | Placeholder | **Flight Ready** |
 | 17 | Field Tuning & Validation | Phase 9 | — | Placeholder | |
 
 > **Stage 6 pull-forward rationale:** Data Logging was originally Stage 9 but is a dependency for the telemetry encoder — the encoder reads from data structures (FusedState, TelemetryState, SensorSnapshot) defined by the logging architecture. Pulling logging forward establishes the canonical data model that all downstream consumers (telemetry encoder, flight director, GCS) read from. IVP numbers were renumbered sequentially. See council reviews: `docs/decisions/Telem+logging/council_data_logging.md` and `council_telemetry_protocol.md`.

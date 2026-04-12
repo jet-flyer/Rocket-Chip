@@ -20,6 +20,22 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-12-002 | Claude Code CLI | architecture, safety, verification
+
+**Stage P7 complete: MAIN_DESCENT Liveness Fix (IVP-119 through IVP-121).** Out-of-sequence safety pass closing SPIN property P7 (flight-completes liveness), which had been known-failing since Stage 9.
+
+**IVP-120: Baro-stationary guard.** New `guard_baro_stationary()` fires `SIG_LANDING` when raw baro altitude rate stays below 0.3 m/s for 5 seconds. ESKF-independent — reads `baro_alt_rate_mps` computed from raw DPS310 pressure delta via hydrostatic approximation in `AO_Logger_populate_fused_state()`. Three new MissionProfile fields: `baro_landing_rate_threshold_mps`, `baro_landing_sustain_ms`, `descent_max_duration_ms`. 8 new guard tests, 694/694 total. HW verified: GDB `baro_alt_rate_mps = -0.208 m/s` stationary (DPS310 noise floor). bench_sim 2/2 PASS.
+
+**IVP-121: Multi-channel landing detection + SPIN P7 resolved.** Two new paths in `flight_director_evaluate_guards()`: (1) ESKF-fault + baro-stationary conjunction — ESKF must be confirmed dead AND raw baro must agree we're stationary. Conjunction, not disjunction. (2) Last-resort backstop — `descent_max_duration_ms` elapsed, all physical channels silent, fires `SIG_BEACON_ACTIVE` for recovery. Beacon callback (`beacon_cb`) wired through `ao_flight_director.cpp` using static `QEvt` (LL Entry 35 safe).
+
+**SPIN model rework: Discrete-Time Promela (Tripakis & Courcoubetis, 1996).** Bounded tick counters added to ALL flight phases (BOOST, COAST, DROGUE_DESCENT, MAIN_DESCENT) modeling physical inevitability: motors burn out (finite propellant), PIO timers fire (hardware countdown), backstops expire (wall-clock). When counter >= limit, exit transition is forced with no skip option. This is the accepted pattern for timed liveness in SPIN, consistent with NASA JPL DS1 flight software verification (Gluck & Holzmann, 2001). **All 8 SPIN properties pass (0 errors) including P7 liveness.** SPIN README updated with DT-Promela references, P7 documentation, and Cygwin gcc DLL dependency note.
+
+5 new host tests for MAIN_DESCENT paths (conjunction, backstop, conjunction-alone-stays, backstop-before-timeout, baro-stationary-nominal). 699/699 total. HW verified: bench_sim 2/2 PASS.
+
+**SPIN abort-pyro model inaccuracy discovered.** `rocketchip_fd.pml` unconditionally fires drogue on ABORT from BOOST/COAST, but firmware gates this on `MissionProfile::abort_fires_drogue_from_boost/coast` (default `false`). Firing drogue at high speed is a shred event — the profile default is physically correct. Flagged on whiteboard for future model update.
+
+---
+
 ### 2026-04-12-001 | Claude Code CLI | tooling, architecture, bugfix
 
 **Bench sim retirement + IVP-119 FusedState baro field rename.** Two council-reviewed plans executed across two sessions.
