@@ -145,11 +145,42 @@ void AO_Logger_populate_fused_state(rc::FusedState& fused,
                                     const shared_sensor_data_t& snap) {
     fused_copy_eskf_state(fused);
 
-    // Baro AGL and vertical velocity
+    // Baro AGL, vertical velocity, and raw baro altitude rate
     if (snap.baro_valid) {
         fused.baro_alt_agl = calibration_get_altitude_agl(snap.pressure_pa);
         fused.vert_vel_eskf = g_eskf.v.z;  // NED down = positive descent
         fused.baro_pressure_pa = snap.pressure_pa;
+
+        // Raw baro altitude rate (ESKF-independent, IVP-120)
+        // 2-point pressure delta → altitude rate via hydrostatic approximation.
+        // Cache lives at file scope so it persists across calls.
+        static float s_prev_pressure_pa = 0.0f;
+        static uint32_t s_prev_sample_ms = 0;
+#ifndef ROCKETCHIP_HOST_TEST
+        uint32_t now_ms = to_ms_since_boot(get_absolute_time());
+#else
+        uint32_t now_ms = 0;
+#endif
+        if (s_prev_sample_ms == 0) {
+            // First sample — cache and return zero rate
+            s_prev_pressure_pa = snap.pressure_pa;
+            s_prev_sample_ms = now_ms;
+            fused.baro_alt_rate_mps = 0.0f;
+        } else {
+            float dt_s = static_cast<float>(now_ms - s_prev_sample_ms) * 0.001f;
+            if (dt_s >= 0.05f) {
+                // Hydrostatic: dalt = -dP / (rho * g)
+                // kRhoAir = 1.225 kg/m³ (sea level standard atmosphere)
+                // kGravity = 9.81 m/s² (standard gravity)
+                static constexpr float kRhoAir = 1.225f;
+                static constexpr float kGravity = 9.81f;
+                float dp = snap.pressure_pa - s_prev_pressure_pa;
+                fused.baro_alt_rate_mps = -dp / (dt_s * kRhoAir * kGravity);
+                s_prev_pressure_pa = snap.pressure_pa;
+                s_prev_sample_ms = now_ms;
+            }
+            // If dt_s < 0.05, keep previous rate (noise-dominated interval)
+        }
     }
 
     fused.baro_temperature_c = snap.baro_temperature_c;

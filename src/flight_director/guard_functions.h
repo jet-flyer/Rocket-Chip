@@ -68,6 +68,16 @@ bool guard_main_deploy_altitude(float baro_alt_agl, float threshold);
 // @param threshold MissionProfile::landing_velocity_threshold
 bool guard_stationary(float vel_n, float vel_e, float vel_d, float threshold);
 
+// Landing detection: raw baro altitude rate near zero (IVP-120).
+// ESKF-independent — reads FusedState::baro_alt_rate_mps directly.
+// The rate is computed from raw DPS310 pressure in ao_logger, not from ESKF.
+// When the ESKF is dead, this guard still fires, providing a secondary
+// landing detection channel for the MAIN_DESCENT liveness fix (IVP-121).
+//
+// @param baro_alt_rate_mps Raw baro altitude rate (m/s) from FusedState
+// @param threshold MissionProfile::baro_landing_rate_threshold_mps
+bool guard_baro_stationary(float baro_alt_rate_mps, float threshold);
+
 } // namespace rc
 
 #endif // ROCKETCHIP_GUARD_FUNCTIONS_H

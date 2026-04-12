@@ -42,4 +42,8 @@ bool guard_stationary(float vel_n, float vel_e, float vel_d, float threshold) {
     return vel_mag < threshold;
 }
 
+bool guard_baro_stationary(float baro_alt_rate_mps, float threshold) {
+    return fabsf(baro_alt_rate_mps) < threshold;
+}
+
 } // namespace rc

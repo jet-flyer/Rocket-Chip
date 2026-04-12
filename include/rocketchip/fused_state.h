@@ -55,6 +55,10 @@ struct FusedState {
     float vert_vel_eskf;
     // Raw DPS310 pressure, independent of ESKF
     float baro_pressure_pa;
+    // Raw baro altitude rate (m/s), ESKF-independent. Computed from 2-point
+    // pressure delta in AO_Logger_populate_fused_state(). Primary input to
+    // guard_baro_stationary() (IVP-120).
+    float baro_alt_rate_mps;
 
     // Temperature sensors (both flow through seqlock pipeline)
     float baro_temperature_c;      // DPS310 — best ambient proxy

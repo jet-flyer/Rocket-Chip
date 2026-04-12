@@ -102,6 +102,24 @@ TEST_F(GuardFunctionsTest, StationaryExactlyAtThreshold) {
     EXPECT_FALSE(guard_stationary(0.5f, 0.0f, 0.0f, 0.5f));
 }
 
+// IVP-120: guard_baro_stationary standalone function tests
+TEST_F(GuardFunctionsTest, BaroStationaryBelowThreshold) {
+    EXPECT_TRUE(guard_baro_stationary(0.1f, 0.3f));
+    EXPECT_TRUE(guard_baro_stationary(-0.1f, 0.3f));  // negative rate also below
+    EXPECT_TRUE(guard_baro_stationary(0.0f, 0.3f));
+}
+
+TEST_F(GuardFunctionsTest, BaroStationaryAboveThreshold) {
+    EXPECT_FALSE(guard_baro_stationary(0.5f, 0.3f));
+    EXPECT_FALSE(guard_baro_stationary(-0.5f, 0.3f));
+}
+
+TEST_F(GuardFunctionsTest, BaroStationaryExactlyAtThreshold) {
+    // |0.3| < 0.3 is false (not strictly less)
+    EXPECT_FALSE(guard_baro_stationary(0.3f, 0.3f));
+    EXPECT_FALSE(guard_baro_stationary(-0.3f, 0.3f));
+}
+
 // ============================================================================
 // Guard Evaluator Tests
 // ============================================================================
@@ -330,4 +348,85 @@ TEST_F(GuardEvaluatorTest, ResetClearsAllState) {
     guard_evaluator_reset(&ev);
     EXPECT_EQ(ev.guards[static_cast<uint8_t>(GuardId::kLaunchAccel)].sustain_count, 0u);
     EXPECT_FALSE(ev.guards[static_cast<uint8_t>(GuardId::kLaunchAccel)].fired);
+}
+
+// ============================================================================
+// IVP-120: guard_baro_stationary tests
+// ============================================================================
+
+TEST_F(GuardEvaluatorTest, BaroStationary_RateBelowThresholdNotSustainedYet) {
+    FusedState f = make_fused();
+    f.baro_alt_rate_mps = 0.1f;  // Below 0.3 threshold
+    f.vel_d = -5.0f;  // Prevent kStationary from interfering
+
+    // Single tick — not sustained yet
+    uint16_t sig = guard_evaluator_tick(&ev, FlightPhase::kMainDescent, f, 0.0f, 9.8f);
+    EXPECT_EQ(sig, SIG_MAX);
+    EXPECT_FALSE(guard_evaluator_is_sustained(&ev, GuardId::kBaroStationary));
+}
+
+TEST_F(GuardEvaluatorTest, BaroStationary_RateBelowThresholdSustainedFires) {
+    FusedState f = make_fused();
+    f.baro_alt_rate_mps = 0.1f;  // Below 0.3 threshold
+    f.vel_d = -5.0f;  // Prevent kStationary from interfering
+
+    // Sustain for the full window (5000ms / 10ms tick = 500 ticks)
+    uint16_t sig = SIG_MAX;
+    for (int i = 0; i < 500; ++i) {
+        sig = guard_evaluator_tick(&ev, FlightPhase::kMainDescent, f, 0.0f, 9.8f);
+        if (sig != SIG_MAX) break;
+    }
+    // Should auto-dispatch SIG_LANDING (unmanaged guard)
+    EXPECT_EQ(sig, SIG_LANDING);
+}
+
+TEST_F(GuardEvaluatorTest, BaroStationary_RateAboveThresholdNeverFires) {
+    FusedState f = make_fused();
+    f.baro_alt_rate_mps = 3.0f;  // Well above 0.3 threshold
+    // Set non-zero ESKF velocity so kStationary doesn't fire SIG_LANDING
+    // before we can check kBaroStationary's behavior
+    f.vel_d = -5.0f;
+
+    for (int i = 0; i < 600; ++i) {
+        uint16_t sig = guard_evaluator_tick(&ev, FlightPhase::kMainDescent, f, 0.0f, 9.8f);
+        EXPECT_EQ(sig, SIG_MAX);
+    }
+    EXPECT_FALSE(guard_evaluator_is_sustained(&ev, GuardId::kBaroStationary));
+}
+
+TEST_F(GuardEvaluatorTest, BaroStationary_SustainResetsOnBreach) {
+    FusedState f = make_fused();
+    f.vel_d = -5.0f;  // Prevent kStationary from firing in MAIN_DESCENT
+
+    // Build partial sustain
+    f.baro_alt_rate_mps = 0.1f;
+    for (int i = 0; i < 250; ++i) {  // Half the window
+        guard_evaluator_tick(&ev, FlightPhase::kMainDescent, f, 0.0f, 9.8f);
+    }
+    uint32_t count_before = ev.guards[static_cast<uint8_t>(GuardId::kBaroStationary)].sustain_count;
+    EXPECT_GT(count_before, 0u);
+
+    // Breach threshold — sustain resets
+    f.baro_alt_rate_mps = 2.0f;
+    guard_evaluator_tick(&ev, FlightPhase::kMainDescent, f, 0.0f, 9.8f);
+    EXPECT_EQ(ev.guards[static_cast<uint8_t>(GuardId::kBaroStationary)].sustain_count, 0u);
+
+    // Resume below threshold — needs full window again
+    f.baro_alt_rate_mps = 0.1f;
+    uint16_t sig = SIG_MAX;
+    for (int i = 0; i < 499; ++i) {
+        sig = guard_evaluator_tick(&ev, FlightPhase::kMainDescent, f, 0.0f, 9.8f);
+    }
+    EXPECT_EQ(sig, SIG_MAX);  // Not yet — needs 500 total
+}
+
+TEST_F(GuardEvaluatorTest, BaroStationary_NotActiveInIdlePhase) {
+    FusedState f = make_fused();
+    f.baro_alt_rate_mps = 0.0f;  // Perfect stationary
+
+    // Baro stationary should only be active in descent phases
+    for (int i = 0; i < 600; ++i) {
+        uint16_t sig = guard_evaluator_tick(&ev, FlightPhase::kIdle, f, 0.0f, 9.8f);
+        EXPECT_EQ(sig, SIG_MAX);
+    }
 }

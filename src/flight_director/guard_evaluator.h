@@ -29,13 +29,14 @@ namespace rc {
 
 // Guard identifiers
 enum class GuardId : uint8_t {
-    kLaunchAccel    = 0,
-    kBurnoutAccel   = 1,
-    kApogeeVelocity = 2,
-    kBaroPeak       = 3,
-    kMainDeploy     = 4,
-    kStationary     = 5,
-    kCount          = 6,
+    kLaunchAccel     = 0,
+    kBurnoutAccel    = 1,
+    kApogeeVelocity  = 2,
+    kBaroPeak        = 3,
+    kMainDeploy      = 4,
+    kStationary      = 5,
+    kBaroStationary  = 6,  // IVP-120: raw baro alt rate near zero (ESKF-independent)
+    kCount           = 7,
 };
 
 // Compile-time managed flag (Council A4).
@@ -52,6 +53,7 @@ inline constexpr bool kGuardManaged[static_cast<uint8_t>(GuardId::kCount)] = {
     true,   // kBaroPeak       — managed (AND combinator with velocity)
     true,   // kMainDeploy     — managed (lockout-gated)
     false,  // kStationary     — unmanaged (single guard, long sustain)
+    false,  // kBaroStationary — unmanaged (ESKF-independent landing detect, IVP-120)
 };
 
 // Per-guard runtime state

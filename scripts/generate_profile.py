@@ -45,6 +45,10 @@ FIELDS = [
     ('MAIN_HOLD_MS',        'main_deploy_sustain_ms',     'uint32', (10, 5000)),
     ('LAND_VEL',            'landing_velocity_threshold', 'float',  (0.01, 10.0)),
     ('LAND_HOLD_MS',        'landing_sustain_ms',         'uint32', (100, 30000)),
+    # Baro-stationary landing detection (IVP-120)
+    ('BARO_LAND_RATE_MPS',  'baro_landing_rate_threshold_mps', 'float',  (0.05, 5.0)),
+    ('BARO_LAND_HOLD_MS',   'baro_landing_sustain_ms',        'uint32', (500, 60000)),
+    ('DESCENT_MAX_MS',      'descent_max_duration_ms',        'uint32', (0, 36000000)),
     # Safety lockouts
     ('DEPLOY_LOCKOUT_MPS',  'deploy_lockout_mps',         'float',  (1.0, 1000.0)),
     ('APOGEE_LOCKOUT_MS',   'apogee_lockout_ms',          'uint32', (0, 60000)),

@@ -42,6 +42,7 @@ static void accumulate_floats(FusedState& accum, const FusedState& input) {
     accum.baro_alt_agl += input.baro_alt_agl;
     accum.vert_vel_eskf += input.vert_vel_eskf;
     accum.baro_pressure_pa += input.baro_pressure_pa;
+    accum.baro_alt_rate_mps += input.baro_alt_rate_mps;
     accum.baro_temperature_c += input.baro_temperature_c;
     accum.imu_temperature_c += input.imu_temperature_c;
     accum.mahony_div_deg += input.mahony_div_deg;
@@ -69,6 +70,7 @@ static void average_floats(FusedState& out, float inv) {
     out.baro_alt_agl *= inv;
     out.vert_vel_eskf *= inv;
     out.baro_pressure_pa *= inv;
+    out.baro_alt_rate_mps *= inv;
     out.baro_temperature_c *= inv;
     out.imu_temperature_c *= inv;
     out.mahony_div_deg *= inv;

@@ -69,6 +69,11 @@ struct MissionProfile {
     float landing_velocity_threshold;   // Velocity norm for stationary (m/s)
     uint32_t landing_sustain_ms;
 
+    // --- Baro-stationary landing detection (IVP-120, ESKF-independent) ---
+    float baro_landing_rate_threshold_mps;  // |alt rate| threshold for stationary (m/s)
+    uint32_t baro_landing_sustain_ms;       // Sustain window for baro-stationary guard
+    uint32_t descent_max_duration_ms;       // Last-resort backstop (IVP-121), 0=disabled
+
     // --- Safety lockouts (Council A1) ---
     // Protects parachute from high dynamic pressure deployment.
     // Phase gating (COAST/DROGUE only) is primary powered-flight protection.

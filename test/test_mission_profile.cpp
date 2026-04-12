@@ -135,7 +135,8 @@ TEST(MissionProfileStruct, NoPointers) {
     // A struct with pointers would be larger than the sum of its fields.
     // This is a heuristic check — if sizeof grows unexpectedly, investigate.
     // IVP-83: PhaseQRTable adds ~257 bytes (8 phases × 32 bytes + ramp_steps)
-    EXPECT_LE(sizeof(rc::MissionProfile), 384u);
+    // IVP-120: +12 bytes (baro landing + backstop fields)
+    EXPECT_LE(sizeof(rc::MissionProfile), 400u);
 }
 
 TEST(MissionProfileStruct, AllTimeoutsPositive) {

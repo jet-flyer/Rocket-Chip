@@ -64,6 +64,12 @@ void guard_evaluator_init(GuardEvaluator* ev,
                phase_bit(FlightPhase::kDrogueDescent) |
                phase_bit(FlightPhase::kMainDescent));
 
+    init_guard(g[static_cast<uint8_t>(GuardId::kBaroStationary)],
+               profile.baro_landing_sustain_ms, tick_period_ms,
+               profile.baro_landing_rate_threshold_mps, SIG_LANDING,
+               phase_bit(FlightPhase::kDrogueDescent) |
+               phase_bit(FlightPhase::kMainDescent));
+
     ev->last_phase = FlightPhase::kIdle;
 }
 
@@ -113,6 +119,9 @@ uint16_t guard_evaluator_tick(GuardEvaluator* ev,
     conditions[static_cast<uint8_t>(GuardId::kStationary)] =
         guard_stationary(fused.vel_n, fused.vel_e, fused.vel_d,
                          g[static_cast<uint8_t>(GuardId::kStationary)].threshold);
+    conditions[static_cast<uint8_t>(GuardId::kBaroStationary)] =
+        guard_baro_stationary(fused.baro_alt_rate_mps,
+                              g[static_cast<uint8_t>(GuardId::kBaroStationary)].threshold);
 
     // Process sustain counters
     for (uint8_t i = 0; i < static_cast<uint8_t>(GuardId::kCount); ++i) {
