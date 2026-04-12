@@ -157,6 +157,11 @@ add_executable(test_go_nogo test_go_nogo.cpp)
 target_link_libraries(test_go_nogo PRIVATE rc_flight_director GTest::gtest_main)
 gtest_discover_tests(test_go_nogo)
 
+# Bench sim retirement (2026-04-11): command handler accept/reject matrix
+add_executable(test_command_handler test_command_handler.cpp)
+target_link_libraries(test_command_handler PRIVATE rc_flight_director GTest::gtest_main)
+gtest_discover_tests(test_command_handler)
+
 # IVP-70: Guard functions + evaluator tests
 add_executable(test_guards test_guards.cpp)
 target_link_libraries(test_guards PRIVATE rc_flight_director GTest::gtest_main)

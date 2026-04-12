@@ -1153,3 +1153,90 @@ Move the board away from any air currents during bench testing. The baro is extr
 2. **After significant debugging:** Add new entry with lessons learned
 3. **During context recovery:** Read this to restore debugging knowledge
 4. **When writing new code:** Apply prevention measures from relevant entries
+
+---
+
+## Entry 36: Test Artifact vs. Infrastructure — bench_flight_sim.py Silent Rot
+
+**Date:** 2026-04-11
+**Time spent:** ~1 full session diagnosing, including shelving Stage P7/15
+**Severity:** High — 5 days of commits falsely claimed "bench sim 9/9 PASS"
+
+### Problem
+
+`scripts/bench_flight_sim.py` (IVP-73, created 2026-03-26) silently bit-rotted
+starting 2026-04-06 when commit `2254b16` ("AO signal audit") renamed the
+firmware log `[FD] PYRO INTENT: DROGUE` → `[FD] PYRO FIRED: DROGUE (primary)`
+without updating the test script's `RE_PYRO` regex. For 5 days and across
+approximately 4 commits (IVP-113 through IVP-118 and Stage 14 wrap-up), every
+commit message claimed "bench sim 9/9 PASS" as a gate without anyone actually
+running the script. The rot was discovered 2026-04-11 when Stage P7 IVP-119
+was the first IVP since the rename to actually attempt running the gate.
+
+Secondary rot also found: `RE_BUILD_TAG` had been silently broken for an
+unknown duration — `send_main('b')` has no handler in the current main menu
+because build info was moved to the `q → b` debug submenu (two keystrokes).
+
+### Root Cause — "Treated as infrastructure when it was actually a test artifact"
+
+Council review (NASA/JPL, Professor, ArduPilot, Student) converged on the
+following framing:
+
+- The tool was **treated as infrastructure** (named in plan gates, cited in
+  commit messages, referenced as though it ran automatically) but was
+  **structured as a test artifact** (required a human to run, had no
+  self-consistency check, no automated execution, no CI coverage).
+  Infrastructure runs automatically and fails loudly; artifacts need a
+  human, and when the human is under time pressure or context-switching,
+  artifacts rot.
+
+- Any gate requiring an external tool to pass is a **soft gate** unless the
+  tool's self-consistency is verified before the gate is checked. The bench
+  sim was a soft gate presented as a hard gate. That is the architectural
+  defect — not the stale regex, not the missing retry logic, not the honor
+  system itself. It is the category confusion between infrastructure
+  classification and artifact structure.
+
+### Solution
+
+1. **Retire the old bench sim.** 479 lines testing things SPIN already
+   proves + a few things SPIN can't. Replaced with `scripts/bench_sim.py`
+   (~100 lines) covering only the unique-value HW tests (CLI dispatch path +
+   log format + real-time tick + action callbacks). Two tests: happy path +
+   abort-with-drogue.
+2. **Host tests for command_handler rejection paths.** The retired bench sim's
+   rejection tests (Tests 1-3, 9) filled by `test/test_command_handler.cpp`
+   (8 tests covering the full accept/reject matrix). Runs in pre-commit; can't
+   silently rot.
+3. **Pre-commit HW gate (needs-based).** The `.git/hooks/pre-commit` hook
+   runs `bench_sim.py` automatically when the staged diff touches flight-
+   critical paths and the debug probe is attached. Skips silently for non-
+   flight-critical commits. Loud prompt when HW verification is needed but
+   the probe isn't available.
+4. **Session-start canary** — item 6 in `.claude/SESSION_CHECKLIST.md`. Run
+   `bench_sim.py` before making any changes when the session will touch
+   flight-critical paths. Catches rot introduced by previous sessions that
+   committed via `--no-verify` when the probe was not available.
+5. **`ctest` in pre-commit hook** — gates commits on host test success.
+6. **Visible regex-constant block** at the top of the new script with an
+   annotation: "If you change a log line in the firmware, update the regex
+   here."
+
+### Prevention
+
+Classify every verification gate in plan documents (IVP.md, plan files) as
+**hard** or **soft** explicitly. Hard gates are mechanically enforced (SPIN,
+host tests via pre-commit, clang-tidy via pre-commit). Soft gates require a
+human to run and must be verified for self-consistency before their output is
+trusted. Plan language should be honest about which category each gate is in.
+
+A useful heuristic: if a gate's tool can silently pass without being run, it
+is a soft gate. If the tool can silently pass without being correct, it is a
+rotted soft gate.
+
+### Related
+
+- LL Entry 25: Use Debug Probe for Flashing (similar "honor-system gate"
+  pattern — picotool was preferred until its silent corruption was discovered)
+- LL Entry 27: "Codegen Sensitivity" Was Picotool Bus Corruption All Along
+  (another case where a hypothesis was built on flawed test methodology)

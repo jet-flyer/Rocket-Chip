@@ -60,3 +60,6 @@ tmpclaude-*
 
 # Generated Graphviz SVGs (render from .dot sources)
 docs/audits/cla_rbm/dot/*.svg
+
+# Bench sim auto-detect port cache (per-developer, not checked in)
+scripts/.bench_sim_last_port
