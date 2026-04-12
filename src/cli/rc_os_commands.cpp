@@ -1159,17 +1159,53 @@ static void cmd_station_gps() {
            static_cast<double>(g_bestGpsFix.alt_msl_m));
 }
 
+// IVP-123: bearing from station to vehicle (degrees, 0-360)
+[[maybe_unused]]
+static float bearing_deg(int32_t lat1_e7, int32_t lon1_e7,
+                          int32_t lat2_e7, int32_t lon2_e7) {
+    static constexpr float kDegToRad = 3.14159265f / 180.0f;
+    static constexpr float kRadToDeg = 180.0f / 3.14159265f;
+    static constexpr float kScale    = 1e-7f;
+
+    float lat1 = static_cast<float>(lat1_e7) * kScale * kDegToRad;
+    float lat2 = static_cast<float>(lat2_e7) * kScale * kDegToRad;
+    float dlon = static_cast<float>(lon2_e7 - lon1_e7) * kScale * kDegToRad;
+
+    float y = sinf(dlon) * cosf(lat2);
+    float x = cosf(lat1) * sinf(lat2) - sinf(lat1) * cosf(lat2) * cosf(dlon);
+    float bearing = atan2f(y, x) * kRadToDeg;
+    return fmodf(bearing + 360.0f, 360.0f);
+}
+
 static void cmd_station_distance() {
     if constexpr (!kRadioModeRx) { return; }
     if (!g_gpsInitialized || g_bestGpsFix.fix_type < 2) {
         printf("Distance: station GPS has no fix\n");
         return;
     }
-    printf("Station: %.7f, %.7f, %.1fm MSL\n",
-           static_cast<double>(g_bestGpsFix.lat_1e7) / 1e7,
-           static_cast<double>(g_bestGpsFix.lon_1e7) / 1e7,
-           static_cast<double>(g_bestGpsFix.alt_msl_m));
-    printf("Vehicle distance: needs received position\n");
+    const RxTelemSnapshot* rx = AO_Telemetry_get_rx_state();
+    if (!rx || !rx->valid) {
+        printf("Distance: no vehicle telemetry received\n");
+        return;
+    }
+#ifndef ROCKETCHIP_HOST_TEST
+    uint32_t age_ms = to_ms_since_boot(get_absolute_time()) - rx->met_ms;
+    if (age_ms > 5000) {
+        printf("Distance: telemetry stale (%lu ms)\n", static_cast<unsigned long>(age_ms));
+        return;
+    }
+#endif
+    if (rx->telem.lat_1e7 == 0 && rx->telem.lon_1e7 == 0) {
+        printf("Distance: no vehicle GPS\n");
+        return;
+    }
+
+    float dist = haversine_m(g_bestGpsFix.lat_1e7, g_bestGpsFix.lon_1e7,
+                             rx->telem.lat_1e7, rx->telem.lon_1e7);
+    float brg = bearing_deg(g_bestGpsFix.lat_1e7, g_bestGpsFix.lon_1e7,
+                            rx->telem.lat_1e7, rx->telem.lon_1e7);
+    printf("Distance: %.0f m  Bearing: %.0f deg\n",
+           static_cast<double>(dist), static_cast<double>(brg));
 }
 
 // ============================================================================

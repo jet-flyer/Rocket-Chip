@@ -162,6 +162,11 @@ add_executable(test_command_handler test_command_handler.cpp)
 target_link_libraries(test_command_handler PRIVATE rc_flight_director GTest::gtest_main)
 gtest_discover_tests(test_command_handler)
 
+# IVP-123: haversine distance + bearing math
+add_executable(test_haversine test_haversine.cpp)
+target_link_libraries(test_haversine PRIVATE GTest::gtest_main)
+gtest_discover_tests(test_haversine)
+
 # IVP-70: Guard functions + evaluator tests
 add_executable(test_guards test_guards.cpp)
 target_link_libraries(test_guards PRIVATE rc_flight_director GTest::gtest_main)
