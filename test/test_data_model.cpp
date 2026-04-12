@@ -56,7 +56,7 @@ protected:
         fused.vel_d = -85.0F;
 
         fused.baro_alt_agl = 450.3F;
-        fused.baro_vvel = -2.5F;
+        fused.vert_vel_eskf = -2.5F;
         fused.baro_temperature_c = 22.7F;
         fused.imu_temperature_c = 35.1F;
 
@@ -103,7 +103,7 @@ TEST_F(DataModelRoundtrip, AltitudeMmWithinBounds) {
 
 TEST_F(DataModelRoundtrip, BaroVvelCmsWithinBounds) {
     static constexpr float kVvelTol = 0.005F;
-    EXPECT_NEAR(approx.baro_vvel, fused.baro_vvel, kVvelTol);
+    EXPECT_NEAR(approx.vert_vel_eskf, fused.vert_vel_eskf, kVvelTol);
 }
 
 TEST_F(DataModelRoundtrip, TemperatureWithinHalfDegree) {

@@ -106,7 +106,7 @@ uint16_t guard_evaluator_tick(GuardEvaluator* ev,
         guard_apogee_velocity(fused.vel_d,
                               g[static_cast<uint8_t>(GuardId::kApogeeVelocity)].threshold);
     conditions[static_cast<uint8_t>(GuardId::kBaroPeak)] =
-        guard_baro_peak(fused.baro_vvel);
+        guard_baro_peak(fused.vert_vel_eskf);
     conditions[static_cast<uint8_t>(GuardId::kMainDeploy)] =
         guard_main_deploy_altitude(fused.baro_alt_agl,
                                    g[static_cast<uint8_t>(GuardId::kMainDeploy)].threshold);

@@ -48,11 +48,11 @@ bool guard_burnout_accel(float accel_mag, float threshold);
 bool guard_apogee_velocity(float vel_d, float threshold);
 
 // Backup apogee: barometric altitude rate is non-positive.
-// If baro_vvel <= 0 for sustained period, rocket is descending.
+// If vert_vel <= 0 for sustained period, rocket is descending.
 // Uses baro vertical velocity from BaroKF, not ESKF.
 //
-// @param baro_vvel Baro-derived vertical velocity (m/s), positive = ascending
-bool guard_baro_peak(float baro_vvel);
+// @param vert_vel Baro-derived vertical velocity (m/s), positive = ascending
+bool guard_baro_peak(float vert_vel);
 
 // Main deploy: altitude AGL below threshold.
 // Rocket is descending through the main chute deployment altitude.

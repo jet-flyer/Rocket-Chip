@@ -283,7 +283,7 @@ TEST_F(CombinatorTest, ManagedGuardsNoAutoDispatch) {
     FusedState f{};
     f.q_w = 1.0f;
     f.vel_d = 1.0f;      // Descending — apogee velocity would fire
-    f.baro_vvel = -1.0f;  // Baro descending — baro peak would fire
+    f.vert_vel_eskf = -1.0f;  // Baro descending — baro peak would fire
 
     // Run enough ticks to sustain
     for (int i = 0; i < 30; ++i) {

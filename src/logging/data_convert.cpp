@@ -80,7 +80,7 @@ void fused_to_telemetry(const FusedState& f, TelemetryState& t) {
     t.baro_alt_mm = clamp_round_i32(f.baro_alt_agl * 1000.0F);
 
     // Baro vertical velocity in cm/s
-    t.baro_vvel_cms = clamp_round_i16(f.baro_vvel * kMsToCms);
+    t.baro_vvel_cms = clamp_round_i16(f.vert_vel_eskf * kMsToCms);
 
     // GPS ground speed in cm/s (unsigned)
     t.gps_speed_cms = clamp_round_u16(f.gps_ground_speed_mps * kMsToCms);
@@ -129,7 +129,7 @@ void telemetry_to_fused_approx(const TelemetryState& t, FusedState& f) {
     f.vel_d = static_cast<float>(t.vel_d_cms) * kCmsToMs;
 
     f.baro_alt_agl = static_cast<float>(t.baro_alt_mm) * kMmToM;
-    f.baro_vvel = static_cast<float>(t.baro_vvel_cms) * kCmsToMs;
+    f.vert_vel_eskf = static_cast<float>(t.baro_vvel_cms) * kCmsToMs;
     f.gps_ground_speed_mps = static_cast<float>(t.gps_speed_cms) * kCmsToMs;
 
     static constexpr uint8_t kNibbleMask = 0x0F;  // 4-bit field mask

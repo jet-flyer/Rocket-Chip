@@ -51,7 +51,10 @@ struct FusedState {
 
     // Barometric altitude (AGL, m) and vertical velocity (m/s)
     float baro_alt_agl;
-    float baro_vvel;
+    // ESKF-propagated vertical velocity (NOT raw baro — see ao_logger.cpp)
+    float vert_vel_eskf;
+    // Raw DPS310 pressure, independent of ESKF
+    float baro_pressure_pa;
 
     // Temperature sensors (both flow through seqlock pipeline)
     float baro_temperature_c;      // DPS310 — best ambient proxy

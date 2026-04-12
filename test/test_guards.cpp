@@ -222,7 +222,7 @@ TEST_F(GuardEvaluatorTest, ApogeeSustainsInCoast) {
 TEST_F(GuardEvaluatorTest, ApogeeDoesNotFireWhileAscending) {
     FusedState f = make_fused();
     f.vel_d = -10.0f;      // Ascending fast (NED)
-    f.baro_vvel = 10.0f;   // Baro also shows ascending
+    f.vert_vel_eskf = 10.0f;   // ESKF v.z also shows ascending
 
     for (int i = 0; i < 20; ++i) {
         uint16_t sig = guard_evaluator_tick(&ev, FlightPhase::kCoast, f, 0.0f, 9.8f);

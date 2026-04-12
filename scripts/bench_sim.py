@@ -134,41 +134,46 @@ def auto_detect_port(verbose=False):
 def _probe_port(port, verbose=False):
     """Try to open a port and check for RocketChip response.
 
-    Uses a short timeout on both open and read to avoid hanging on ports
-    held by other processes (e.g., the debug probe's CDC interface held by
-    OpenOCD). On Windows, serial.Serial() can block indefinitely if the
-    port is held; the write_timeout=0.5 doesn't help with the open itself,
-    but catching OSError/PermissionError on open prevents the hang.
+    Uses a thread with a join timeout to prevent hanging on ports held by
+    other processes (e.g., the debug probe's CDC interface held by OpenOCD).
+    On Windows, serial.Serial() can block indefinitely if the port is held
+    by another process; Python's timeout parameter only applies to reads,
+    not to the open itself. The thread approach is the only reliable way to
+    bound the open time.
     """
-    try:
-        p = serial.Serial(port, 115200, timeout=0.5, write_timeout=0.5)
-    except (serial.SerialException, OSError, PermissionError) as e:
-        if verbose:
-            print(f'  auto-detect: {port} cannot open: {e}')
-        return False
+    import threading
 
-    try:
-        time.sleep(0.3)
-        p.read(4096)  # drain
-        p.write(b'h')  # help command
-        time.sleep(0.5)
-        data = p.read(4096).decode('utf-8', errors='replace')
-        p.close()
-        if 'RocketChip' in data or '[main]' in data or '[flight]' in data:
-            if verbose:
-                print(f'  auto-detect: {port} responded with RocketChip signature')
-            return True
-        if verbose:
-            print(f'  auto-detect: {port} no RocketChip response')
-        return False
-    except (serial.SerialException, OSError) as e:
-        if verbose:
-            print(f'  auto-detect: {port} error: {e}')
+    result = [False]
+
+    def _try_open():
         try:
+            p = serial.Serial(port, 115200, timeout=0.5, write_timeout=0.5)
+            time.sleep(0.3)
+            p.read(4096)  # drain
+            p.write(b'h')  # help command
+            time.sleep(0.5)
+            data = p.read(4096).decode('utf-8', errors='replace')
             p.close()
-        except Exception:
+            if 'RocketChip' in data or '[main]' in data or '[flight]' in data:
+                result[0] = True
+        except (serial.SerialException, OSError, PermissionError):
             pass
-        return False
+
+    t = threading.Thread(target=_try_open, daemon=True)
+    t.start()
+    t.join(timeout=3.0)  # 3s max per port — generous but bounded
+
+    if t.is_alive():
+        if verbose:
+            print(f'  auto-detect: {port} timed out (likely held by another process)')
+        return False  # Thread still running = hung on open. Daemon thread dies with process.
+
+    if result[0] and verbose:
+        print(f'  auto-detect: {port} responded with RocketChip signature')
+    elif verbose:
+        print(f'  auto-detect: {port} no response or error')
+
+    return result[0]
 
 
 def connect(port, retries=5, retry_delay=1.5):

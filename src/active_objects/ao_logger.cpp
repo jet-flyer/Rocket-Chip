@@ -148,7 +148,8 @@ void AO_Logger_populate_fused_state(rc::FusedState& fused,
     // Baro AGL and vertical velocity
     if (snap.baro_valid) {
         fused.baro_alt_agl = calibration_get_altitude_agl(snap.pressure_pa);
-        fused.baro_vvel = g_eskf.v.z;  // NED down = positive descent
+        fused.vert_vel_eskf = g_eskf.v.z;  // NED down = positive descent
+        fused.baro_pressure_pa = snap.pressure_pa;
     }
 
     fused.baro_temperature_c = snap.baro_temperature_c;
