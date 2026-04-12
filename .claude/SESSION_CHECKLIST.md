@@ -11,6 +11,11 @@
 3. Check `CHANGELOG.md` for recent changes
 4. Check `AGENT_WHITEBOARD.md` for flags from previous sessions
 5. If resuming interrupted work: read whiteboard notes and verify repo state matches expectations
+6. **If this session will touch flight-critical paths** (`src/flight_director/`, `src/active_objects/ao_flight_director.cpp`, `src/active_objects/ao_logger.cpp`, `src/cli/rc_os.cpp`, or firmware `[FD]` log messages), run the bench sim canary before making any changes:
+
+       python scripts/bench_sim.py
+
+   If the canary fails on unchanged main, the tool has rotted — fix the tool first, not the firmware. See LESSONS_LEARNED.md Entry 36. The pre-commit hook runs the same test automatically when the probe is available and the staged diff touches these paths; the session-start canary catches rot introduced by previous sessions that committed via `--no-verify` when the probe was not available.
 
 ---
 
