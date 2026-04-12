@@ -240,9 +240,17 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         kClrEol);
 }
 
+// IVP-122: Dashboard pause for ARM confirm flow
+static bool s_dashboard_paused = false;
+
+void rc_os_dashboard_pause()  { s_dashboard_paused = true; }
+void rc_os_dashboard_resume() { s_dashboard_paused = false; }
+
 void ansi_dashboard_render(const rc::TelemetryState& t,
                             const RadioAoState* rs,
                             uint32_t met_ms, uint16_t seq, bool valid) {
+    if (s_dashboard_paused) return;  // IVP-122: suppress during ARM confirm
+
     if (!valid) {
         ansi_dashboard_render_waiting(rs);
         return;

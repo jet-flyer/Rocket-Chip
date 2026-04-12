@@ -9,6 +9,7 @@
  */
 
 #include "rc_os.h"
+#include "rc_os_dashboard.h"
 #include "active_objects/ao_telemetry.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
@@ -382,6 +383,23 @@ void rc_os_init() {
 // flash erase, crashing AO scheduler). ESC exits lockout.
 static bool s_mavlinkDetected = false;
 
+// IVP-122: ARM confirm state machine (file-scope for rc_os_start_arm_confirm)
+static constexpr uint16_t kMavCmdArmDisarm = 400;
+static bool s_arm_confirm_active = false;
+static char s_arm_buf[4] = {};
+static uint8_t s_arm_buf_pos = 0;
+static uint32_t s_arm_start_ms = 0;
+
+void rc_os_start_arm_confirm() {
+#ifndef ROCKETCHIP_HOST_TEST
+    s_arm_confirm_active = true;
+    s_arm_buf_pos = 0;
+    s_arm_start_ms = to_ms_since_boot(get_absolute_time());
+    rc_os_dashboard_pause();
+    printf("Type ARM in caps then Enter to confirm (5s): ");
+#endif
+}
+
 static bool handle_mavlink_lockout(int c) {
     if (static_cast<uint8_t>(c) == 0xFD) { s_mavlinkDetected = true; }
 
@@ -467,6 +485,46 @@ bool rc_os_update() {
     }
     if (!handle_usb_connect()) { return false; }
     if (handle_eskf_live()) { return false; }
+
+    // IVP-122: ARM confirm state machine (state is file-scope for rc_os_start_arm_confirm)
+
+    if (s_arm_confirm_active) {
+        uint32_t now = to_ms_since_boot(get_absolute_time());
+        if (now - s_arm_start_ms > 5000) {
+            printf("ARM aborted (timeout)\n");
+            s_arm_confirm_active = false;
+            rc_os_dashboard_resume();
+            print_prompt();
+            return true;
+        }
+        int ac = getchar_timeout_us(0);
+        if (ac == PICO_ERROR_TIMEOUT) return false;
+        if (ac == '\r' || ac == '\n') {
+            s_arm_buf[s_arm_buf_pos] = '\0';
+            if (s_arm_buf_pos == 3 &&
+                s_arm_buf[0] == 'A' && s_arm_buf[1] == 'R' && s_arm_buf[2] == 'M') {
+                AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 1.0f);
+                printf("[CMD] ARM sent, waiting for ACK...\n");
+            } else {
+                printf("ARM aborted (bad input: '%s')\n", s_arm_buf);
+            }
+            s_arm_confirm_active = false;
+            rc_os_dashboard_resume();
+            print_prompt();
+            return true;
+        }
+        if (s_arm_buf_pos < 3) {
+            putchar(ac);  // Echo typed character
+            s_arm_buf[s_arm_buf_pos++] = static_cast<char>(ac);
+        } else {
+            printf("ARM aborted (overflow)\n");
+            s_arm_confirm_active = false;
+            rc_os_dashboard_resume();
+            print_prompt();
+            return true;
+        }
+        return true;
+    }
 
     // When a cal/input UI sequence is active, the AO_RCOS cal_ui_tick()
     // handles all key input. Don't read here or we steal characters.

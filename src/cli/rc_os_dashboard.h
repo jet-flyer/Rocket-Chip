@@ -41,4 +41,11 @@ void ansi_dashboard_render(const rc::TelemetryState& telem,
  */
 void ansi_dashboard_render_waiting(const RadioAoState* rs);
 
+/**
+ * @brief IVP-122: Pause/resume dashboard rendering during ARM confirm flow.
+ * When paused, ansi_dashboard_render() returns immediately without writing.
+ */
+void rc_os_dashboard_pause();
+void rc_os_dashboard_resume();
+
 #endif // ROCKETCHIP_RC_OS_DASHBOARD_H

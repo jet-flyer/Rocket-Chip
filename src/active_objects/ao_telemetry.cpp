@@ -121,9 +121,38 @@ static uint32_t now_ms() {
 #endif
 }
 
+// IVP-122: Vehicle-side pending ACK (queued for next TX opportunity)
+static rc::ccsds::CommandAckPayload s_pending_ack = {};
+static bool s_pending_ack_valid = false;
+static uint16_t s_ack_seq = 0;
+
+// IVP-122: Send pending command ACK before nav frame
+static void send_pending_ack_if_any() {
+    if (!s_pending_ack_valid) return;
+    s_pending_ack_valid = false;
+
+    uint8_t ack_buf[rc::ccsds::kCmdAckPacketLen];
+    uint8_t ack_len = rc::ccsds_encode_cmd_ack(s_pending_ack, s_ack_seq, ack_buf);
+    s_ack_seq = static_cast<uint16_t>((s_ack_seq + 1) & 0x3FFF);
+
+    // Separate static event for ACK (can't reuse nav's txEvt — both in queue)
+    static rc::RadioTxEvt s_ackTxEvt;
+    s_ackTxEvt.super.sig = rc::SIG_RADIO_TX;
+    s_ackTxEvt.super.refCtr_ = 0;
+    if (ack_len <= sizeof(s_ackTxEvt.buf)) {
+        memcpy(s_ackTxEvt.buf, ack_buf, ack_len);
+        s_ackTxEvt.len = ack_len;
+        QACTIVE_POST(AO_Radio, &s_ackTxEvt.super, AO_Telemetry);
+    }
+}
+
 // Encode and post SIG_RADIO_TX to AO_Radio (Vehicle TX path)
 static void encode_and_send(TelemAo* me) {
     if (!me->telem_valid) { return; }
+
+    // Send pending ACK first (IVP-122) — before rate limiting check
+    // so ACK goes out ASAP even if nav frame isn't due yet
+    send_pending_ack_if_any();
 
     uint32_t t = now_ms();
     if (t - me->last_tx_ms < me->interval_ms) { return; }
@@ -188,6 +217,7 @@ static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
                 mavlink_msg_command_long_decode(&msg, &cmd);
 
                 // Dispatch command to Flight Director
+                uint8_t ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted);
                 if (cmd.command == MAV_CMD_COMPONENT_ARM_DISARM) {
                     uint16_t sig = (cmd.param1 > 0.5f)
                         ? static_cast<uint16_t>(rc::SIG_ARM)
@@ -196,20 +226,58 @@ static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
                 } else if (cmd.command == MAV_CMD_DO_FLIGHTTERMINATION) {
                     AO_FlightDirector_dispatch_signal(
                         static_cast<uint16_t>(rc::SIG_ABORT));
+                } else {
+                    ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
                 }
-                // No printf here — ASCII text corrupts binary MAVLink stream
+
+                // IVP-122: Queue CCSDS command ACK for next TX slot.
+                // Don't post directly — radio may be TX-busy (C3-A2 drops busy TX).
+                // Store in pending buffer; the telemetry tick sends it on next opportunity.
+                s_pending_ack.cmd_seq = static_cast<uint8_t>(cmd.confirmation);
+                s_pending_ack.cmd_id = cmd.command;
+                s_pending_ack.result = ack_result;
+                s_pending_ack.reserved = 0;
+                s_pending_ack_valid = true;
+                // No printf — binary MAVLink/CCSDS stream
             }
         }
     }
 }
 
+// IVP-122: Station-side pending command state (ACK tracking)
+static struct {
+    bool pending;
+    uint8_t seq;
+    uint16_t cmd_id;
+    uint32_t sent_ms;
+    uint8_t retries_left;
+} s_pending_cmd = {};
+
 // Handle received packet from AO_Radio
 static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
-    // Try CCSDS decode first (telemetry packets)
+    // Try CCSDS nav decode first (telemetry packets)
     rc::TelemetryState telem = {};
     uint16_t seq = 0;
     uint32_t met_ms = 0;
-    if (!rc::ccsds_decode_nav(rxEvt->buf, rxEvt->len, telem, seq, met_ms)) {
+    if (rc::ccsds_decode_nav(rxEvt->buf, rxEvt->len, telem, seq, met_ms)) {
+        // Nav packet — fall through to existing processing below
+    } else {
+        // Try CCSDS command ACK (IVP-122)
+        rc::ccsds::CommandAckPayload ack{};
+        if (rc::ccsds_decode_cmd_ack(rxEvt->buf, rxEvt->len, ack)) {
+            // Match against pending command
+            if (s_pending_cmd.pending &&
+                ack.cmd_seq == s_pending_cmd.seq &&
+                ack.cmd_id == s_pending_cmd.cmd_id) {
+                s_pending_cmd.pending = false;
+                const char* result_str =
+                    (ack.result == static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted))
+                    ? "ACK'd" : "DENIED";
+                printf("[CMD] %s (seq=%u)\n", result_str, ack.cmd_seq);
+            }
+            return;
+        }
+
         // Not CCSDS — try MAVLink (command packets from station)
         try_mavlink_rx(me, rxEvt->buf, rxEvt->len);
         return;
@@ -454,6 +522,96 @@ void AO_Telemetry_send_command(uint16_t command, float p1, float p2,
     }
 #else
     (void)command; (void)p1; (void)p2; (void)p3; (void)p4; (void)p5; (void)p6; (void)p7;
+#endif
+}
+
+// IVP-122: Send a tracked command — populates pending-cmd state for ACK tracking.
+static uint8_t s_cmd_seq = 0;
+
+void AO_Telemetry_send_tracked_command(uint16_t command, float p1) {
+#ifndef ROCKETCHIP_HOST_TEST
+    uint8_t seq = s_cmd_seq++;
+
+    mavlink_message_t msg;
+    mavlink_msg_command_long_pack(
+        255, 0,
+        &msg,
+        1, 1,
+        command,
+        seq,       // Confirmation field carries our sequence number
+        p1, 0, 0, 0, 0, 0, 0);
+
+    uint8_t buf[MAVLINK_MAX_PACKET_LEN];
+    uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
+
+    static rc::RadioTxEvt txEvt;
+    txEvt.super.sig = rc::SIG_RADIO_TX;
+    txEvt.super.refCtr_ = 0;
+    if (len <= sizeof(txEvt.buf)) {
+        memcpy(txEvt.buf, buf, len);
+        txEvt.len = static_cast<uint8_t>(len);
+        QACTIVE_POST(AO_Radio, &txEvt.super, &l_telemAo.super);
+    }
+
+    // Populate pending command state for ACK tracking
+    s_pending_cmd.pending = true;
+    s_pending_cmd.seq = seq;
+    s_pending_cmd.cmd_id = command;
+    s_pending_cmd.sent_ms = to_ms_since_boot(get_absolute_time());
+    s_pending_cmd.retries_left = 3;
+#else
+    (void)command; (void)p1;
+#endif
+}
+
+bool AO_Telemetry_is_cmd_pending() {
+    return s_pending_cmd.pending;
+}
+
+// Internal: re-send pending command with same seq (for retries)
+static void resend_pending_cmd() {
+#ifndef ROCKETCHIP_HOST_TEST
+    mavlink_message_t msg;
+    float p1 = (s_pending_cmd.cmd_id == MAV_CMD_COMPONENT_ARM_DISARM) ? 1.0f : 0.0f;
+    mavlink_msg_command_long_pack(
+        255, 0, &msg, 1, 1,
+        s_pending_cmd.cmd_id,
+        s_pending_cmd.seq,  // Same seq as original
+        p1, 0, 0, 0, 0, 0, 0);
+
+    uint8_t buf[MAVLINK_MAX_PACKET_LEN];
+    uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
+
+    static rc::RadioTxEvt txEvt;
+    txEvt.super.sig = rc::SIG_RADIO_TX;
+    txEvt.super.refCtr_ = 0;
+    if (len <= sizeof(txEvt.buf)) {
+        memcpy(txEvt.buf, buf, len);
+        txEvt.len = static_cast<uint8_t>(len);
+        QACTIVE_POST(AO_Radio, &txEvt.super, &l_telemAo.super);
+    }
+    s_pending_cmd.sent_ms = to_ms_since_boot(get_absolute_time());
+#endif
+}
+
+void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
+#ifndef ROCKETCHIP_HOST_TEST
+    if (!s_pending_cmd.pending) return;
+
+    uint32_t elapsed = now_ms - s_pending_cmd.sent_ms;
+    if (elapsed >= 3000) {
+        if (s_pending_cmd.retries_left > 0) {
+            s_pending_cmd.retries_left--;
+            printf("[CMD] Retry %u (seq=%u)\n",
+                   3 - s_pending_cmd.retries_left, s_pending_cmd.seq);
+            resend_pending_cmd();
+        } else {
+            s_pending_cmd.pending = false;
+            printf("[CMD] No ACK after 3 retries\n");
+        }
+    }
+#else
+    (void)now_ms;
 #endif
 }
 

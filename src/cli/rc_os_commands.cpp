@@ -1260,7 +1260,7 @@ void cli_print_preflight() {
 void cli_handle_unhandled_key(int key) {
     switch (key) {
     case 'l': case 'L': cmd_flush_log(); break;
-    case 'x': case 'X': AO_RCOS_start_erase_flights(); break;
+    case 'x': AO_RCOS_start_erase_flights(); break;
     case 'd': case 'D':
         if constexpr (kRadioModeRx) { cmd_station_distance(); }
         else { AO_RCOS_start_download_flight(); }
@@ -1289,11 +1289,18 @@ void cli_handle_unhandled_key(int key) {
             }
         }
         break;
-    case 'a': case 'A':
+    case 'a':
         if constexpr (kRadioModeRx) {
-            // Direct single-key station commands — no submenu, no blocking
-            AO_Telemetry_send_command(kMavCmdArmDisarm, 1.0f);
-            printf("[CMD] ARM sent\n");
+            // IVP-122: ARM confirm flow — enter multi-char confirm state
+            rc_os_start_arm_confirm();
+        }
+        break;
+    case 'X':
+        if constexpr (kRadioModeRx) {
+            // IVP-122: Station DISARM — single-key, no confirm, ACK-tracked.
+            // Capital X only (lowercase x is erase-flights in TX mode).
+            AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0f);
+            printf("[CMD] DISARM sent, waiting for ACK...\n");
         }
         break;
     case 'p': case 'P':

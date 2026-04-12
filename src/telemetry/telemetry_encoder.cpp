@@ -412,4 +412,77 @@ bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
     return true;
 }
 
+// ============================================================================
+// CCSDS Command ACK Encoder/Decoder (IVP-122)
+// ============================================================================
+
+uint8_t ccsds_encode_cmd_ack(const ccsds::CommandAckPayload& ack,
+                              uint16_t seq, uint8_t* out) {
+    // Data length = payload + CRC - 1 (no secondary header)
+    // But we include secondary header (4 bytes, zeroed) for decoder consistency
+    // since build_primary_header sets SecHdrFlag=1.
+    uint16_t data_len = static_cast<uint16_t>(
+        ccsds::kSecondaryHeaderLen + ccsds::kCmdAckPayloadLen + ccsds::kCrcLen - 1);
+
+    uint8_t* p = out;
+
+    // Primary header (6 bytes)
+    build_primary_header(p, ccsds::kApidCmdAck, seq, data_len);
+    p += ccsds::kPrimaryHeaderLen;
+
+    // Secondary header (4 bytes, zeroed — ACK has no MET semantics)
+    build_secondary_header(p, 0);
+    p += ccsds::kSecondaryHeaderLen;
+
+    // Payload (5 bytes)
+    memcpy(p, &ack, ccsds::kCmdAckPayloadLen);
+    p += ccsds::kCmdAckPayloadLen;
+
+    // CRC-16-CCITT over everything before CRC
+    uint32_t crc_len = static_cast<uint32_t>(p - out);
+    uint16_t crc = crc16_ccitt(out, crc_len);
+    p[0] = static_cast<uint8_t>(crc >> 8);
+    p[1] = static_cast<uint8_t>(crc & 0xFF);
+    p += ccsds::kCrcLen;
+
+    return static_cast<uint8_t>(p - out);
+}
+
+bool ccsds_decode_cmd_ack(const uint8_t* buf, uint8_t len,
+                           ccsds::CommandAckPayload& ack_out) {
+    // Expected length: primary(6) + secondary(4) + payload(5) + CRC(2) = 17
+    constexpr uint8_t kExpectedLen = ccsds::kPrimaryHeaderLen +
+        ccsds::kSecondaryHeaderLen + ccsds::kCmdAckPayloadLen + ccsds::kCrcLen;
+    if (len != kExpectedLen) {
+        return false;
+    }
+
+    // Validate primary header version/type/SecHdrFlag
+    if ((buf[0] & kCcsdsVersionMask) != kCcsdsVersionExpect) {
+        return false;
+    }
+
+    // APID check
+    uint16_t apid = static_cast<uint16_t>(
+        ((buf[0] & kCcsdsApidHiMask) << 8) | buf[1]);
+    if (apid != ccsds::kApidCmdAck) {
+        return false;
+    }
+
+    // CRC-16 verification
+    constexpr uint8_t kCrcIdx = kExpectedLen - ccsds::kCrcLen;
+    uint16_t computed_crc = crc16_ccitt(buf, kCrcIdx);
+    uint16_t stored_crc = static_cast<uint16_t>(
+        (buf[kCrcIdx] << 8) | buf[kCrcIdx + 1]);
+    if (computed_crc != stored_crc) {
+        return false;
+    }
+
+    // Extract payload (after primary + secondary header)
+    constexpr uint8_t kPayloadStart = ccsds::kPrimaryHeaderLen + ccsds::kSecondaryHeaderLen;
+    memcpy(&ack_out, &buf[kPayloadStart], ccsds::kCmdAckPayloadLen);
+
+    return true;
+}
+
 } // namespace rc

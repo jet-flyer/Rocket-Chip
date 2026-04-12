@@ -50,4 +50,15 @@ void AO_Telemetry_send_command(uint16_t command, float p1 = 0, float p2 = 0,
                                float p3 = 0, float p4 = 0, float p5 = 0,
                                float p6 = 0, float p7 = 0);
 
+// IVP-122: send a tracked command — populates pending-cmd state for ACK
+// tracking. Uses the MAVLink COMMAND_LONG `confirmation` field to carry the
+// station's command sequence number. 3 retries at 3-second intervals.
+void AO_Telemetry_send_tracked_command(uint16_t command, float p1 = 0);
+
+// IVP-122: check if a tracked command ACK is still pending
+bool AO_Telemetry_is_cmd_pending();
+
+// IVP-122: tick the pending command retry timer (called from station tick loop)
+void AO_Telemetry_cmd_retry_tick(uint32_t now_ms);
+
 #endif // ROCKETCHIP_AO_TELEMETRY_H

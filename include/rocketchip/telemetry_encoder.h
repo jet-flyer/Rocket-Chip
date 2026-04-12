@@ -46,6 +46,25 @@ namespace ccsds {
 // Application Process Identifiers
 constexpr uint16_t kApidNav  = 0x001;    // Navigation telemetry
 constexpr uint16_t kApidDiag = 0x002;    // Diagnostics (defined, not yet used)
+constexpr uint16_t kApidCmdAck = 0x003;  // Command ACK (IVP-122: half-duplex ACK)
+
+// Command ACK result codes (IVP-122)
+enum class CmdAckResult : uint8_t {
+    kAccepted = 0,
+    kDenied   = 1,
+    kFailed   = 2,
+};
+
+// Command ACK payload (IVP-122) — sent from vehicle to station over LoRa
+// after dispatching a received command (ARM, DISARM, ABORT).
+struct __attribute__((packed)) CommandAckPayload {
+    uint8_t  cmd_seq;      // Sequence number echoed from COMMAND_LONG confirmation field
+    uint16_t cmd_id;       // MAVLink command ID (e.g., MAV_CMD_COMPONENT_ARM_DISARM = 400)
+    uint8_t  result;       // CmdAckResult
+    uint8_t  reserved;     // Pad to even size
+};  // 5 bytes
+
+constexpr uint8_t kCmdAckPayloadLen = sizeof(CommandAckPayload);
 
 // Packet sizes
 constexpr uint8_t kPrimaryHeaderLen   = 6;
@@ -56,6 +75,11 @@ constexpr uint8_t kNavPacketLen       = kPrimaryHeaderLen + kSecondaryHeaderLen
                                       + kNavPayloadLen + kCrcLen;  // = 54
 
 static_assert(kNavPacketLen == 54, "CCSDS nav packet must be 54 bytes");
+
+// ACK packet: primary(6) + secondary(4) + payload(5) + CRC(2) = 17
+constexpr uint8_t kCmdAckPacketLen = kPrimaryHeaderLen + kSecondaryHeaderLen
+                                   + kCmdAckPayloadLen + kCrcLen;
+static_assert(kCmdAckPacketLen == 17, "CCSDS cmd ACK packet must be 17 bytes");
 
 // Primary header bit layout (big-endian, 48 bits = 6 bytes):
 //   [2:0]  Version          = 000
@@ -204,6 +228,30 @@ struct TelemetryEncoderState {
 bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
                       TelemetryState& telem, uint16_t& seq_out,
                       uint32_t& met_ms_out);
+
+/**
+ * Encode a CCSDS command ACK packet (IVP-122).
+ * No secondary header — just primary header + payload + CRC-16.
+ *
+ * @param ack       ACK payload to encode
+ * @param seq       14-bit sequence counter (caller manages)
+ * @param out       Output buffer (must be >= kCmdAckPacketLen bytes)
+ * @return          Encoded packet length (kCmdAckPacketLen)
+ */
+uint8_t ccsds_encode_cmd_ack(const ccsds::CommandAckPayload& ack,
+                              uint16_t seq, uint8_t* out);
+
+/**
+ * Decode a CCSDS command ACK packet (IVP-122).
+ * Validates APID, length, and CRC.
+ *
+ * @param buf       Raw packet bytes
+ * @param len       Packet length
+ * @param ack_out   Output: decoded ACK payload
+ * @return true if valid command ACK packet, false on any error
+ */
+bool ccsds_decode_cmd_ack(const uint8_t* buf, uint8_t len,
+                           ccsds::CommandAckPayload& ack_out);
 
 } // namespace rc
 

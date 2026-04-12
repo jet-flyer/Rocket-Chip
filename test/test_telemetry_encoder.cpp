@@ -596,3 +596,73 @@ TEST_F(CcsdsDecoderTest, RejectWrongVersion) {
     uint32_t met = 0;
     EXPECT_FALSE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
 }
+
+// ============================================================================
+// IVP-122: CCSDS Command ACK Encode/Decode
+// ============================================================================
+
+TEST(CcsdsCommandAck, EncodeDecodeRoundtrip) {
+    rc::ccsds::CommandAckPayload ack{};
+    ack.cmd_seq = 42;
+    ack.cmd_id = 400;  // MAV_CMD_COMPONENT_ARM_DISARM
+    ack.result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted);
+    ack.reserved = 0;
+
+    uint8_t buf[rc::ccsds::kCmdAckPacketLen];
+    uint8_t len = rc::ccsds_encode_cmd_ack(ack, 7, buf);
+    EXPECT_EQ(len, rc::ccsds::kCmdAckPacketLen);
+
+    rc::ccsds::CommandAckPayload decoded{};
+    EXPECT_TRUE(rc::ccsds_decode_cmd_ack(buf, len, decoded));
+    EXPECT_EQ(decoded.cmd_seq, 42);
+    EXPECT_EQ(decoded.cmd_id, 400);
+    EXPECT_EQ(decoded.result, static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted));
+}
+
+TEST(CcsdsCommandAck, WrongApidRejected) {
+    rc::ccsds::CommandAckPayload ack{};
+    ack.cmd_seq = 1;
+    ack.cmd_id = 400;
+    ack.result = 0;
+
+    uint8_t buf[rc::ccsds::kCmdAckPacketLen];
+    rc::ccsds_encode_cmd_ack(ack, 0, buf);
+
+    // Corrupt APID to kApidNav
+    buf[1] = 0x01;  // kApidNav low byte
+    // Recompute CRC to make header valid but wrong APID
+    constexpr uint8_t kCrcIdx = rc::ccsds::kCmdAckPacketLen - 2;
+    uint16_t crc = crc16_ccitt(buf, kCrcIdx);
+    buf[kCrcIdx] = static_cast<uint8_t>(crc >> 8);
+    buf[kCrcIdx + 1] = static_cast<uint8_t>(crc & 0xFF);
+
+    rc::ccsds::CommandAckPayload decoded{};
+    EXPECT_FALSE(rc::ccsds_decode_cmd_ack(buf, rc::ccsds::kCmdAckPacketLen, decoded));
+}
+
+TEST(CcsdsCommandAck, WrongLengthRejected) {
+    rc::ccsds::CommandAckPayload ack{};
+    uint8_t buf[rc::ccsds::kCmdAckPacketLen + 1];
+    rc::ccsds_encode_cmd_ack(ack, 0, buf);
+
+    rc::ccsds::CommandAckPayload decoded{};
+    // Too long
+    EXPECT_FALSE(rc::ccsds_decode_cmd_ack(buf, rc::ccsds::kCmdAckPacketLen + 1, decoded));
+    // Too short
+    EXPECT_FALSE(rc::ccsds_decode_cmd_ack(buf, rc::ccsds::kCmdAckPacketLen - 1, decoded));
+}
+
+TEST(CcsdsCommandAck, CorruptCrcRejected) {
+    rc::ccsds::CommandAckPayload ack{};
+    ack.cmd_seq = 5;
+    ack.cmd_id = 400;
+
+    uint8_t buf[rc::ccsds::kCmdAckPacketLen];
+    rc::ccsds_encode_cmd_ack(ack, 0, buf);
+
+    // Flip a payload bit
+    buf[12] ^= 0x01;
+
+    rc::ccsds::CommandAckPayload decoded{};
+    EXPECT_FALSE(rc::ccsds_decode_cmd_ack(buf, rc::ccsds::kCmdAckPacketLen, decoded));
+}

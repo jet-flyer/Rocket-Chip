@@ -534,6 +534,11 @@ extern "C" void qv_idle_bridge(void) {
     g_recovery.current_tick_fn = rc::TickFnId::kEskf;
     eskf_runner_tick();
 
+    // IVP-122: Station command ACK retry tick (lightweight, <1us when no cmd pending)
+    if constexpr (kRadioModeRx) {
+        AO_Telemetry_cmd_retry_tick(to_ms_since_boot(get_absolute_time()));
+    }
+
     g_lastTickFunction = "idle";
     g_recovery.current_tick_fn = rc::TickFnId::kSleep;
     // WFI: sleep until next interrupt (100Hz QF tick, USB CDC, etc.).

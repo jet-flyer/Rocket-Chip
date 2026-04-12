@@ -78,6 +78,9 @@ bool rc_os_is_calibrating(void);
  */
 rc_os_menu_t rc_os_get_menu(void);
 
+// IVP-122: ARM confirm state machine trigger
+void rc_os_start_arm_confirm(void);
+
 // ============================================================================
 // Sensor Availability Flags (set by main)
 // ============================================================================
