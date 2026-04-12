@@ -17,24 +17,15 @@
 
 *Stage 13 (Health Monitor) COMPLETE. Config Wizard Phase A COMPLETE (prototype). Stage 14 (Notification Engine) COMPLETE — IVP-113 through IVP-118, all gates passed, HW verified via GDB memory inspection. SPIN safety analysis appended to NOTIFY_CONTRACT.md by user-approved one-time exception 2026-04-10.*
 
-### ⚠️ BENCH SIM BROKEN — Stage P7 + Stage 15 SHELVED (2026-04-11)
+### BENCH SIM RETIREMENT — RESOLVED (2026-04-12)
 
-**`scripts/bench_flight_sim.py` has been silently broken since 2026-04-06.** Commit `2254b16` renamed the firmware log from `[FD] PYRO INTENT: DROGUE` to `[FD] PYRO FIRED: DROGUE (primary)` without updating the test script's `RE_PYRO` regex. Tests 5, 6, 9 all fail on baseline firmware. The script also has a structural hang in `reset_to_idle()` after a failing test that eats minutes — no per-test deadline exists.
+Old `bench_flight_sim.py` (479 lines, IVP-73) retired and replaced by `bench_sim.py` (~200 lines, 2 tests) in commit `5fbea19`. IVP-119 FusedState rename committed (`010f305`). Stage P7 + Stage 15 un-shelved. See LL Entry 36 for full root-cause analysis. Pre-commit hook now gates `ctest` + needs-based HW bench sim on flight-critical commits. Session-start canary added to SESSION_CHECKLIST.md item 6.
 
-**Every commit since 2026-04-06 that claimed "bench sim 9/9 PASS" in its gate was unverified.** Honor-system gate was never actually enforced.
+### SPIN Model Inaccuracy — Abort Pyro (discovered 2026-04-12)
 
-**Stage P7** (MAIN_DESCENT Liveness Fix, IVP-119–121) and **Stage 15** (Pre-Flight Radio + Station, IVP-122–124) are shelved pending bench sim diagnosis.
+`rocketchip_fd.pml` lines 89-92 and 105-108 unconditionally fire `drogue_fired = true` on ABORT from BOOST/COAST. The firmware gates this on `MissionProfile::abort_fires_drogue_from_boost/coast`, which default to `false` in `rocket.cfg`. The SPIN model is more aggressive than the firmware. Firing drogue at high speed (during BOOST) would be a shred event — the profile flag being `false` is physically correct for rockets. The SPIN model should be updated to gate drogue-on-abort behind a boolean. The code comment at `flight_director.cpp:317` ("fires drogue — Amendment #1") should say "fires drogue if profile flag is set."
 
-- Plan preserved at `docs/plans/STAGE_P7_15_SHELVED_2026-04-11.md` (commit `c5cc7a4`)
-- `stash@{0}` — partial `bench_flight_sim.py` fixes (PYRO regex + connect retry + incomplete timeout). May be reused or dropped.
-- `stash@{1}` — IVP-119 `FusedState` rename (12 files). Code-complete, host tests 678/678, GDB confirmed live `baro_pressure_pa`. Ready to unstash once HW gate is available.
-- `docs/IVP.md` Stage P7 + Stage 15 insertion is committed at `be37b9d` and still accurate.
-
-**Latent bug discovered during attempt (separate from bench sim):** `fused.baro_vvel` in `FusedState` is misleadingly named — it's actually `g_eskf.v.z`, not a raw baro derivative. `guard_baro_peak()` reads it as if independent of ESKF. IVP-119 rename fixes this once committable.
-
-**Root-cause pattern to investigate:** both the latent `baro_vvel` misnomer and the bench sim rot share a root cause — **verification gates claimed in commits but never actually run**. Plans list "HW verify" as a gate, commits cite it in messages, but running it is honor-system and can be skipped silently. When skipped, downstream bit-rot accumulates until someone actually runs the gate. The fix is probably not just "run the bench sim once" — it's some form of mechanical enforcement so this class of skip can't happen again. Consider as part of the dedicated bench sim fix session, not deferred.
-
-See feedback memory files `feedback_hw_verify.md`, `feedback_hw_verify_capability.md`.
+**Action:** Update SPIN model + code comment when Stage P7 IVP-120/121 work touches the FD. Not urgent — firmware behavior is correct.
 
 ### QP Posted Events Must Be Static (LL Entry 35)
 
