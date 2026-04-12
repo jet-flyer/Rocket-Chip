@@ -101,7 +101,7 @@ See plan file for full breakdown.
 
 - **Battery ADC Monitoring** — Hardware not wired. ADC pin + driver + telemetry field.
 - **CCSDS SDLS Command Authentication** — Telecommand auth for Rocket profile.
-- **IVP-103 Station GPS Push** — Needs radio command path.
+- ~~IVP-103 Station GPS Push~~ — **RESOLVED.** `cmd_station_gps_push()` implemented since Stage 7 Take 2 at `rc_os_commands.cpp:1218`. Bound to `p` key in station dispatcher.
 
 ### Far-future (moved to PROJECT_STATUS)
 

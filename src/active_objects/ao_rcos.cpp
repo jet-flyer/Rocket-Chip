@@ -192,10 +192,11 @@ static void enter_cli_menu() {
     printf("  RocketChip OS v0.4.0 — Station RX\n");
     printf("  Board: %s\n", board::kBoardName);
     printf("========================================\n\n");
-    printf("Status:  h-Help  s-Sensor  b-Boot\n");
-    printf("Radio:   t-Status  r-Rate\n");
-    printf("Station: g-GPS  d-Distance\n");
-    printf("Output:  m-Dashboard\n");
+    printf("Status:  h-Help  s-Sensor  b-Boot  p-Preflight\n");
+    printf("Radio:   t-Status  r-Rate  m-Mode(ANSI/CSV/MAVLink)\n");
+    printf("Station: g-GPS  d-Distance  p-GPS-Push\n");
+    printf("Command: a-ARM(confirm)  X-DISARM\n");
+    printf("Flight:  l-FlushLog  x-Erase\n");
     printf("========================================\n");
     printf("[main] ");
 }
