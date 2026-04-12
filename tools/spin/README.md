@@ -21,9 +21,11 @@ SPIN generates C code; GCC compiles the verifier.
 **Verify:** `gcc --version` (may need shell restart for PATH)
 
 ### Cygwin GCC
-The Cygwin-compiled `spin.exe` needs Cygwin's `gcc` for preprocessing.
+The Cygwin-compiled `spin.exe` needs Cygwin's `gcc` for preprocessing. SPIN calls `gcc` as a subprocess and requires Cygwin DLLs (`cygintl-8.dll` etc.) to be loadable.
 
 **Install:** `C:\tools\cygwin\cygwinsetup.exe --packages gcc-core --quiet-mode --site https://mirrors.kernel.org/sourceware/cygwin/`
+
+**CRITICAL:** If SPIN reports "preprocessing failed," verify that the `gcc` in PATH is the Cygwin version (not MinGW) and that `/c/tools/cygwin/bin` is in PATH for the DLL dependencies. The Cygwin gcc at `~/bin/gcc` requires `cygintl-8.dll` from `/c/tools/cygwin/bin/`. See also: `PATH="/c/tools/cygwin/bin:$PATH" spin -a model.pml`
 
 ## Quick Start
 
@@ -51,8 +53,12 @@ Expected: `errors: 0` for all 8 properties. Runtime: ~0.3 seconds total.
 
 ## Models
 
-### `rocketchip_fd.pml` (IVP-82a)
-Flight Director HSM only. Single process, non-deterministic environment. 73 reachable states. Verifies 6 safety properties. Use for quick pyro safety checks.
+### `rocketchip_fd.pml` (IVP-82a, updated IVP-121)
+Flight Director HSM only. Single process, non-deterministic environment. Verifies 7 safety properties + 1 liveness property (P7). Use for quick pyro safety checks and flight-completes liveness proof.
+
+**Bounded tick counters (IVP-121):** The model uses the Discrete-Time Promela pattern (Tripakis & Courcoubetis, TACAS 1996) to model physical time progression. Each flight phase has a bounded tick counter that increments unconditionally on every iteration. When the counter reaches the phase's limit, the exit transition is forced with no `skip` option. This encodes environmental inevitability: motors burn out (finite propellant), PIO timers fire (hardware countdown), backstops expire (wall-clock). The bounded counter is the Promela encoding of these physical assumptions. NASA JPL used the same pattern for DS1 flight software verification (Gluck & Holzmann, 2001).
+
+**Liveness verification requires weak fairness:** Run `./pan -a -f -N p_liveness_flight_completes`. The `-f` flag enables weak process fairness. Without bounded counters, weak fairness is insufficient for single-process liveness (it applies at process granularity, not branch granularity). With bounded counters, the counter increment is unconditional and the exit guard eventually becomes the only option, making liveness provable under weak fairness.
 
 ### `rocketchip_ao.pml` (IVP-82b)
 Full Active Object topology. 5 processes: FlightDirector + Logger + Telemetry + LedEngine (+ implicit Environment via non-deterministic choice). 107,818 reachable states. Verifies 5 safety + 3 mission-critical properties.
@@ -79,6 +85,7 @@ Full Active Object topology. 5 processes: FlightDirector + Logger + Telemetry + 
 | P3 | Pyro requires ARMED | `[]((drogue\|\|main) -> was_armed)` | Shortcut path bypassing ARM |
 | P4 | Drogue fires once | `[](drogue_count <= 1)` | Duplicate fire (hardware damage) |
 | P5 | Main fires once | `[](main_count <= 1)` | Duplicate fire |
+| P7 | Flight completes (liveness) | `[](phase==BOOST -> <>(phase==LANDED \|\| phase==ABORT))` | Stuck flight phase — requires `-f` flag and bounded counters |
 | P9 | No LANDED without launch | `[](phase==LANDED -> has_launched)` | Pad abort entering LANDED state |
 | M1 | Logger gets all phases | `[](pub >= log)` | Silent event drop to logger |
 | M2 | Telem gets all phases | `[](pub >= tel)` | Telemetry data loss |
@@ -104,12 +111,20 @@ spin -t -p rocketchip_ao.pml      # replay with step-by-step output
 spin -u100 -p -l rocketchip_ao.pml
 ```
 
-### FD-only quick check
+### FD-only quick check (safety)
 ```bash
 spin -a rocketchip_fd.pml
 gcc -O2 -o pan pan.c
 ./pan -a -N p_no_pyro_idle
 ```
+
+### FD liveness check (P7 — requires weak fairness)
+```bash
+spin -a rocketchip_fd.pml
+gcc -O2 -o pan pan.c -DMEMLIM=512
+./pan -a -f -N p_liveness_flight_completes
+```
+Note: the `-f` flag enables weak fairness. Without it, P7 cannot be proven even with bounded counters.
 
 ## Interpreting Results
 
@@ -157,7 +172,7 @@ gcc -O2 -o pan pan.c
 ## Limitations
 
 SPIN does **NOT** verify:
-- **Timing** — no wall-clock. "Coast timeout" is modeled as non-deterministic, not as "after N milliseconds"
+- **Exact timing** — no wall-clock. Phase durations are modeled as bounded tick counts (Discrete-Time Promela), not as "after N milliseconds." The model proves liveness (flight eventually completes) but not that specific timeouts fire at their configured millisecond values
 - **Sensor data values** — guard evaluation is non-deterministic, not based on accel/baro/GPS thresholds
 - **Queue overflow** — channels are depth [1]. Actual overflow behavior validated empirically (LL Entry 32, 10-min soak)
 - **Hardware faults** — I2C corruption, USB CDC timing, flash failures, radio brownout
@@ -168,6 +183,13 @@ These are verified through other means: 552 host tests, bench flight sim (9/9 PA
 
 ## References
 
+### Discrete-Time Promela and Liveness (IVP-121)
+- [Extending Promela and Spin for Real Time (Tripakis & Courcoubetis, TACAS 1996)](https://link.springer.com/chapter/10.1007/3-540-61042-1_53) — the bounded-counter pattern we use for liveness
+- [Using SPIN for Flight Software Verification (Gluck & Holzmann, DS1, 2001)](https://www.academia.edu/19258496/Using_SPIN_model_checking_for_flight_software_verification) — NASA JPL verified DS1 flight software liveness with bounded time constraints
+- [Liveness Checking as Safety Checking (Biere et al., FMICS 2002)](https://fmv.jku.at/papers/BiereArthoSchuppan-FMICS02.pdf) — K-liveness: reduce liveness to bounded safety
+- [Modeling and Validating Launch Vehicle Onboard Software (AIAA)](https://doi.org/10.2514/1.I010876) — launch vehicle SPIN verification
+
+### General SPIN
 - [Basic SPIN Manual (Holzmann)](https://spinroot.com/spin/Man/Manual.html)
 - [SPIN Beginners' Tutorial (Ruys)](https://spinroot.com/spin/Doc/SpinTutorial.pdf)
 - [RTEMS Promela Modeling Guide](https://docs.rtems.org/docs/main/eng/fv/promela.html)
