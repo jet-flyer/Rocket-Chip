@@ -18,6 +18,9 @@
 
 #include <gtest/gtest.h>
 #include "flight_director.h"
+#include "guard_evaluator.h"
+#include "safety/health_monitor.h"
+#include "rocketchip/fused_state.h"
 
 // Host test helper declared in flight_director.cpp
 namespace rc {
@@ -454,4 +457,135 @@ TEST_F(FlightDirectorTest, PreviousPhaseTracked) {
 
     dispatch(rc::SIG_BURNOUT);
     EXPECT_EQ(fd_.state.previous_phase, rc::FlightPhase::kBoost);
+}
+
+// ============================================================================
+// IVP-121: MAIN_DESCENT Multi-Channel Landing Detection
+// ============================================================================
+
+// Helper: build a FusedState with all-healthy primary and high velocity
+// (prevents kStationary guard from firing before our test completes)
+static rc::FusedState make_descent_fused() {
+    rc::FusedState f{};
+    f.q_w = 1.0f;
+    f.vel_d = -5.0f;        // Descending fast — kStationary won't fire
+    f.health_primary = 0xFF; // All subsystems healthy
+    f.baro_alt_rate_mps = 3.0f;  // Moving — kBaroStationary won't fire
+    return f;
+}
+
+TEST_F(FlightDirectorTest, MainDescentBaroStationaryFiresLanding) {
+    dispatch(rc::SIG_ARM);
+    dispatch(rc::SIG_LAUNCH);
+    dispatch(rc::SIG_BURNOUT);
+    dispatch(rc::SIG_APOGEE);
+    dispatch(rc::SIG_MAIN_DEPLOY);
+    EXPECT_EQ(phase(), rc::FlightPhase::kMainDescent);
+
+    // The baro-stationary guard (IVP-120) is registered as unmanaged and
+    // fires SIG_LANDING on its own via guard_evaluator_tick(). We simulate
+    // this by setting baro_alt_rate_mps below threshold and ticking enough
+    // times for the sustain window to fill.
+    rc::FusedState f = make_descent_fused();
+    f.baro_alt_rate_mps = 0.0f;  // Stationary baro
+    f.vel_d = -5.0f;             // ESKF still moving (only baro is quiet)
+
+    set_time(10000);
+    for (int i = 0; i < 600; ++i) {
+        set_time(10000 + i * 10);
+        rc::flight_director_evaluate_guards(&fd_, f, 0.0f, 9.8f);
+        if (phase() == rc::FlightPhase::kLanded) break;
+    }
+    EXPECT_EQ(phase(), rc::FlightPhase::kLanded);
+}
+
+TEST_F(FlightDirectorTest, MainDescentEskfFaultAloneStaysInDescent) {
+    dispatch(rc::SIG_ARM);
+    dispatch(rc::SIG_LAUNCH);
+    dispatch(rc::SIG_BURNOUT);
+    dispatch(rc::SIG_APOGEE);
+    dispatch(rc::SIG_MAIN_DEPLOY);
+    EXPECT_EQ(phase(), rc::FlightPhase::kMainDescent);
+
+    // ESKF fault but baro still moving — conjunction requires BOTH
+    rc::FusedState f = make_descent_fused();
+    f.health_primary = rc::health_set_subsystem(
+        0xFF, rc::kHealthShiftEskf, rc::kHealthFault);
+    f.baro_alt_rate_mps = 3.0f;  // Baro says we're moving
+    f.vel_d = -5.0f;
+
+    set_time(10000);
+    for (int i = 0; i < 200; ++i) {
+        set_time(10000 + i * 10);
+        rc::flight_director_evaluate_guards(&fd_, f, 0.0f, 9.8f);
+    }
+    // Should NOT have transitioned — conjunction not met
+    EXPECT_EQ(phase(), rc::FlightPhase::kMainDescent);
+}
+
+TEST_F(FlightDirectorTest, MainDescentEskfFaultPlusBaroStationaryFiresLanding) {
+    dispatch(rc::SIG_ARM);
+    dispatch(rc::SIG_LAUNCH);
+    dispatch(rc::SIG_BURNOUT);
+    dispatch(rc::SIG_APOGEE);
+    dispatch(rc::SIG_MAIN_DEPLOY);
+    EXPECT_EQ(phase(), rc::FlightPhase::kMainDescent);
+
+    // ESKF fault AND baro stationary — conjunction met
+    rc::FusedState f = make_descent_fused();
+    f.health_primary = rc::health_set_subsystem(
+        0xFF, rc::kHealthShiftEskf, rc::kHealthFault);
+    f.baro_alt_rate_mps = 0.0f;  // Baro says stationary
+    f.vel_d = -5.0f;             // ESKF velocity irrelevant (ESKF is fault)
+
+    set_time(10000);
+    for (int i = 0; i < 600; ++i) {
+        set_time(10000 + i * 10);
+        rc::flight_director_evaluate_guards(&fd_, f, 0.0f, 9.8f);
+        if (phase() == rc::FlightPhase::kLanded) break;
+    }
+    EXPECT_EQ(phase(), rc::FlightPhase::kLanded);
+}
+
+TEST_F(FlightDirectorTest, MainDescentBackstopFiresLanding) {
+    dispatch(rc::SIG_ARM);
+    dispatch(rc::SIG_LAUNCH);
+    dispatch(rc::SIG_BURNOUT);
+    dispatch(rc::SIG_APOGEE);
+    dispatch(rc::SIG_MAIN_DEPLOY);
+    EXPECT_EQ(phase(), rc::FlightPhase::kMainDescent);
+
+    // All sensors moving — no guard fires. Only backstop should trigger.
+    rc::FusedState f = make_descent_fused();
+    f.baro_alt_rate_mps = 3.0f;  // Moving
+    f.vel_d = -5.0f;             // Moving
+
+    // Advance time past descent_max_duration_ms (900,000 ms in rocket profile)
+    // Set phase_entry_ms via the time we entered MAIN_DESCENT (which was
+    // whenever dispatch(SIG_MAIN_DEPLOY) ran).
+    uint32_t entry = fd_.state.phase_entry_ms;
+    uint32_t past_backstop = entry + 900001;
+    set_time(past_backstop);
+    rc::flight_director_evaluate_guards(&fd_, f, 0.0f, 9.8f);
+    EXPECT_EQ(phase(), rc::FlightPhase::kLanded);
+}
+
+TEST_F(FlightDirectorTest, MainDescentBackstopDoesNotFireBeforeTimeout) {
+    dispatch(rc::SIG_ARM);
+    dispatch(rc::SIG_LAUNCH);
+    dispatch(rc::SIG_BURNOUT);
+    dispatch(rc::SIG_APOGEE);
+    dispatch(rc::SIG_MAIN_DEPLOY);
+    EXPECT_EQ(phase(), rc::FlightPhase::kMainDescent);
+
+    // All sensors moving. Time is before backstop.
+    rc::FusedState f = make_descent_fused();
+    f.baro_alt_rate_mps = 3.0f;
+    f.vel_d = -5.0f;
+
+    uint32_t entry = fd_.state.phase_entry_ms;
+    uint32_t before_backstop = entry + 899999;
+    set_time(before_backstop);
+    rc::flight_director_evaluate_guards(&fd_, f, 0.0f, 9.8f);
+    EXPECT_EQ(phase(), rc::FlightPhase::kMainDescent);
 }

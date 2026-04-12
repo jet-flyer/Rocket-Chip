@@ -85,6 +85,7 @@ struct FlightDirector {
     void (*set_led_cb)(uint8_t led_value);      // NeoPixel override
     void (*log_pyro_cb)(PyroChannel channel);   // Pyro intent logging
     void (*phase_change_cb)(FlightPhase phase, uint32_t timestamp_ms);  // Phase transition notify
+    void (*beacon_cb)();                        // Distress beacon activation (IVP-121 backstop)
 };
 
 // Lifecycle

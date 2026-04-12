@@ -161,6 +161,7 @@ void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
     me->set_led_cb = nullptr;
     me->log_pyro_cb = nullptr;
     me->phase_change_cb = nullptr;
+    me->beacon_cb = nullptr;
     // Init guard evaluator: 10ms tick period (100Hz)
     guard_evaluator_init(&me->guard_eval, *profile, 10);
     // Init combinator set from profile
@@ -234,6 +235,38 @@ void flight_director_evaluate_guards(FlightDirector* me,
 
     if (combo_sig != SIG_MAX) {
         flight_director_dispatch_signal(me, combo_sig);
+        return;
+    }
+
+    // Step 4 (IVP-121): MAIN_DESCENT multi-channel landing detection
+    // Two additional paths beyond the primary baro-stationary guard (IVP-120):
+    //   Path 1: ESKF-fault-confirmed-by-baro (conjunction — not disjunction)
+    //   Path 2: Last-resort backstop (time-based, distress beacon)
+    if (phase == FlightPhase::kMainDescent) {
+        uint32_t elapsed = me->tick_ms - me->state.phase_entry_ms;
+
+        // Path 1: ESKF dead AND raw baro agrees we're stationary → LANDED.
+        // ESKF fault alone is a health alert, not a landing. The conjunction
+        // ensures we don't auto-LAND mid-descent just because the ESKF crashed.
+        if (rc::health_eskf(fused.health_primary) == rc::kHealthFault &&
+            guard_evaluator_is_sustained(&me->guard_eval, GuardId::kBaroStationary)) {
+            printf("[FD] MAIN_DESCENT: ESKF fault + baro stationary -> LANDED\n");
+            flight_director_dispatch_signal(me, SIG_LANDING);
+            return;
+        }
+
+        // Path 2: Last-resort backstop. Fires only when ALL physical channels
+        // have been silent for descent_max_duration_ms. This is a system-level
+        // watchdog, not a landing detector. Distress beacon for recovery.
+        if (me->profile->descent_max_duration_ms > 0 &&
+            elapsed >= me->profile->descent_max_duration_ms) {
+            printf("[FD] MAIN_DESCENT: max duration elapsed -> LANDED (distress)\n");
+            if (me->beacon_cb) {
+                me->beacon_cb();
+            }
+            flight_director_dispatch_signal(me, SIG_LANDING);
+            return;
+        }
     }
 }
 

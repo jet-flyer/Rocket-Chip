@@ -221,6 +221,15 @@ void AO_FlightDirector_start(uint8_t prio) {
                          &l_fdAo.super, l_fdAo.super.prio);
     };
     me->director.log_pyro_cb = fd_on_pyro_fired;
+    me->director.beacon_cb = []() {
+        // IVP-121: distress beacon on MAIN_DESCENT backstop timeout.
+        // Static event — LL Entry 35.
+        static QEvt s_beacon_evt;
+        s_beacon_evt.sig = rc::SIG_BEACON_ACTIVE;
+        QActive_publish_(&s_beacon_evt,
+                         &l_fdAo.super, l_fdAo.super.prio);
+        printf("[FD] Distress beacon published (SIG_BEACON_ACTIVE)\n");
+    };
     rc::flight_director_init(&me->director);
     me->initialized = true;
     me->last_tick_ms = 0;

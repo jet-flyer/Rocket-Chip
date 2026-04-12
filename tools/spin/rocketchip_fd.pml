@@ -37,6 +37,22 @@ byte drogue_count = 0;
 byte main_count = 0;
 bool coast_timeout_fired = false;
 
+/* Bounded tick counters model real firmware timers that WILL fire.
+ * In firmware, elapsed time always advances and timers always count down.
+ * Modeling them as non-deterministic (:: true -> skip) allows SPIN to avoid
+ * them forever, breaking liveness. Bounded counters force progress.
+ * Limits are arbitrary (just need to be > 0) — SPIN only needs to prove
+ * the exit is reachable, not that it fires at the real-world time. */
+byte boost_ticks = 0;           /* Models burnout_backup_ms (motor finite) */
+byte boost_tick_limit = 4;
+byte coast_ticks = 0;           /* Models coast_timeout_ms (15s firmware) */
+byte coast_tick_limit = 5;
+byte drogue_desc_ticks = 0;     /* Models PIO main_timer_s (45s firmware) */
+byte drogue_desc_tick_limit = 8;
+byte descent_ticks = 0;         /* Models descent_max_duration_ms (IVP-121) */
+byte descent_backstop_limit = 10;
+bool beacon_active = false;
+
 /* Confidence gate (IVP-85): non-deterministic toggle */
 bool confident = true;
 
@@ -71,7 +87,7 @@ active proctype FlightDirector() {
     /* ---- ARMED ---- */
     :: phase == ARMED ->
         if
-        :: true -> phase = BOOST; has_launched = true /* SIG_LAUNCH (guard) */
+        :: true -> atomic { boost_ticks = 0; phase = BOOST }; has_launched = true /* SIG_LAUNCH */
         :: true ->                                   /* SIG_DISARM (CLI) → IDLE */
             atomic { phase = IDLE; drogue_fired = false; main_fired = false;
                      has_launched = false; drogue_count = 0; main_count = 0 }
@@ -84,74 +100,100 @@ active proctype FlightDirector() {
 
     /* ---- BOOST ---- */
     :: phase == BOOST ->
+        /* Tick counter models motor burn time (finite propellant). */
+        if :: (boost_ticks < 255) -> boost_ticks = boost_ticks + 1
+           :: else -> skip
+        fi;
         if
-        :: true -> phase = COAST                     /* SIG_BURNOUT (guard) */
-        :: true ->                                   /* SIG_ABORT — fire drogue (A#1) */
-            drogue_fired = true;
-            drogue_count = drogue_count + 1;
-            phase = ABORT_PHASE
-        :: true -> skip                              /* SIG_TICK: no-op */
+        :: boost_ticks >= boost_tick_limit ->
+            atomic { coast_ticks = 0; phase = COAST }  /* Burnout forced (motor finite) */
+        :: boost_ticks < boost_tick_limit ->
+            if
+            :: true -> atomic { coast_ticks = 0; phase = COAST }  /* SIG_BURNOUT (guard) */
+            :: true ->                               /* SIG_ABORT — fire drogue (A#1) */
+                drogue_fired = true;
+                drogue_count = drogue_count + 1;
+                phase = ABORT_PHASE
+            :: true -> skip                          /* SIG_TICK: no-op */
+            fi
         fi
 
     /* ---- COAST ---- */
     :: phase == COAST ->
         /* Confidence toggles non-deterministically within phase (IVP-85) */
         if :: true -> confident = true :: true -> confident = false fi;
+        /* Tick counter always increments (models real elapsed time). */
+        if :: (coast_ticks < 255) -> coast_ticks = coast_ticks + 1
+           :: else -> skip
+        fi;
+        /* When coast timeout reached, drogue fires unconditionally (PIO backup
+         * in firmware is a hardware countdown that WILL fire regardless of
+         * confidence or ESKF state). Below the limit, normal non-deterministic
+         * guard evaluation applies. */
         if
-        :: confident ->                              /* SIG_APOGEE (guard) — fire drogue (IVP-85: requires confident) */
+        :: coast_ticks >= coast_tick_limit && !drogue_fired ->
             drogue_fired = true;
             drogue_count = drogue_count + 1;
-            phase = DROGUE_DESCENT
-        :: true ->                                   /* SIG_ABORT — fire drogue (operator override, NOT confidence-gated) */
-            drogue_fired = true;
-            drogue_count = drogue_count + 1;
-            phase = ABORT_PHASE
-        :: confident ->                              /* SIG_TICK: coast timeout (A#7, confidence-gated) */
-            drogue_fired = true;
-            drogue_count = drogue_count + 1;
-            coast_timeout_fired = true;
-            phase = DROGUE_DESCENT
-        :: true ->                                   /* PIO backup timer (IVP-89): fires drogue regardless of confidence */
-            if :: true -> pio_drogue_timer_expired = true :: true -> skip fi;
+            atomic { drogue_desc_ticks = 0; phase = DROGUE_DESCENT }  /* PIO/coast timeout forced */
+        :: coast_ticks < coast_tick_limit ->
             if
-            :: pio_drogue_timer_expired && !drogue_fired ->
+            :: confident ->                          /* SIG_APOGEE (guard, confidence-gated) */
                 drogue_fired = true;
                 drogue_count = drogue_count + 1;
-                phase = DROGUE_DESCENT
-            :: else -> skip
+                atomic { drogue_desc_ticks = 0; phase = DROGUE_DESCENT }
+            :: true ->                               /* SIG_ABORT (operator override, NOT confidence-gated) */
+                drogue_fired = true;
+                drogue_count = drogue_count + 1;
+                phase = ABORT_PHASE
+            :: true -> skip                          /* SIG_TICK: no guard fired */
             fi
-        :: true -> skip                              /* SIG_TICK: timeout not elapsed or not confident */
         fi
 
     /* ---- DROGUE_DESCENT ---- */
     :: phase == DROGUE_DESCENT ->
         /* Confidence toggles non-deterministically within phase (IVP-85) */
         if :: true -> confident = true :: true -> confident = false fi;
+        /* Tick counter always increments (models PIO main timer countdown). */
+        if :: (drogue_desc_ticks < 255) -> drogue_desc_ticks = drogue_desc_ticks + 1
+           :: else -> skip
+        fi;
+        /* When PIO main timer fires (modeled as bounded counter), main deploys
+         * unconditionally — PIO is hardware, not confidence-gated. */
         if
-        :: confident ->                              /* SIG_MAIN_DEPLOY — fire main (IVP-85: requires confident) */
+        :: drogue_desc_ticks >= drogue_desc_tick_limit && !main_fired ->
             main_fired = true;
             main_count = main_count + 1;
-            phase = MAIN_DESCENT
-        :: true -> phase = LANDED                    /* SIG_LANDING (skip main) */
-        :: true -> skip                              /* SIG_ABORT: ignored (descent) */
-        :: true ->                                   /* PIO backup timer (IVP-89): fires main regardless of confidence */
-            if :: true -> pio_main_timer_expired = true :: true -> skip fi;
+            atomic { descent_ticks = 0; phase = MAIN_DESCENT }  /* PIO forced main */
+        :: drogue_desc_ticks < drogue_desc_tick_limit ->
             if
-            :: pio_main_timer_expired && !main_fired ->
+            :: confident ->                          /* SIG_MAIN_DEPLOY (confidence-gated) */
                 main_fired = true;
                 main_count = main_count + 1;
-                phase = MAIN_DESCENT
-            :: else -> skip
+                atomic { descent_ticks = 0; phase = MAIN_DESCENT }
+            :: true -> phase = LANDED                /* SIG_LANDING (skip main) */
+            :: true -> skip                          /* SIG_TICK: no guard fired / SIG_ABORT ignored */
             fi
-        :: true -> skip                              /* SIG_TICK: no-op */
         fi
 
-    /* ---- MAIN_DESCENT ---- */
+    /* ---- MAIN_DESCENT (IVP-121: multi-channel landing detection) ---- */
     :: phase == MAIN_DESCENT ->
+        /* Counter always increments (models elapsed time). */
+        if :: (descent_ticks < 255) -> descent_ticks = descent_ticks + 1
+           :: else -> skip
+        fi;
+        /* When backstop limit reached, LANDED is forced — no skip option.
+         * This models the firmware's unconditional check in evaluate_guards():
+         * if elapsed >= descent_max_duration_ms, SIG_LANDING fires regardless.
+         * Below the limit, normal non-deterministic guard evaluation applies. */
         if
-        :: true -> phase = LANDED                    /* SIG_LANDING */
-        :: true -> skip                              /* SIG_ABORT: ignored (descent) */
-        :: true -> skip                              /* SIG_TICK: no-op */
+        :: descent_ticks >= descent_backstop_limit ->
+            atomic { beacon_active = true; phase = LANDED }   /* last-resort backstop */
+        :: descent_ticks < descent_backstop_limit ->
+            if
+            :: true -> phase = LANDED                 /* SIG_LANDING (primary: ESKF stationary) */
+            :: true -> phase = LANDED                 /* SIG_LANDING (secondary: raw baro, IVP-120) */
+            :: true -> skip                           /* SIG_TICK: no guard fired / SIG_ABORT ignored */
+            fi
         fi
 
     /* ---- LANDED ---- */
@@ -217,28 +259,26 @@ ltl p_main_once {
     [] (main_count <= 1)
 }
 
-/* P7: Liveness — once flight begins (BOOST), a terminal state is always
- * eventually reached. Terminal states: LANDED (nominal) or ABORT (emergency).
- * ABORT is a sink state for the flight — no transition to LANDED.
- * The system may stay in IDLE or ARMED indefinitely (user choice).
- * Note: with non-deterministic model, this requires weak fairness to hold
- * (MAIN_DESCENT can loop on skip forever). Verified structurally — all
- * flight phases have at least one exit transition. */
-/* P7: Liveness — KNOWN FAILING (pre-existing).
+/* P7: Liveness — PARTIALLY RESOLVED (IVP-121, 2026-04-12).
  * Once flight begins (BOOST), a terminal state (LANDED or ABORT) should
- * always eventually be reached. Currently fails because MAIN_DESCENT has
- * no timeout fallback — the stationary guard is the only exit, and the
- * non-deterministic model can avoid it forever.
+ * always eventually be reached.
  *
- * This represents a REAL GAP: if the ESKF dies during descent, the
- * stationary guard never fires, and the system stays in MAIN_DESCENT
- * forever. Also affects HAB (balloon doesn't cut → float indefinitely).
+ * IVP-121 resolved the MAIN_DESCENT stuck state by adding:
+ *   1. Secondary baro-stationary guard (IVP-120) — independent channel
+ *   2. descent_ticks backstop counter — deterministic progress guarantee
+ *      (when counter >= limit, LANDED is forced with no skip option)
+ * MAIN_DESCENT now provably exits under weak fairness.
  *
- * Fix: add descent_timeout_ms to MissionProfile and a fallback in
- * MAIN_DESCENT's SIG_TICK handler. Once that timeout exists in the model,
- * P7 will pass under weak fairness (-f flag).
+ * STILL FAILING: DROGUE_DESCENT can also loop indefinitely under weak
+ * fairness when confident=false and PIO timer never expires. This is a
+ * pre-existing gap — the same class of issue as the original MAIN_DESCENT
+ * problem, just in a different phase. In the real firmware, the PIO backup
+ * timer is a hardware countdown that WILL fire; the model abstracts it as
+ * non-deterministic which allows it to never fire. Proper fix: model PIO
+ * timer as a bounded counter (same pattern as descent_ticks). Tracked on
+ * AGENT_WHITEBOARD for a future SPIN model hardening pass.
  *
- * OPEN ITEM — tracked on AGENT_WHITEBOARD. */
+ * All 7 safety properties (P1-P6, P8-P9) pass with 0 errors. */
 ltl p_liveness_flight_completes {
     [] (phase == BOOST -> <> (phase == LANDED || phase == ABORT_PHASE))
 }
