@@ -3454,7 +3454,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 | Step | Title | Brief Description |
 |------|-------|------------------|
 | — | Pre-Flight Checklist Document | Formalize the `p` command (IVP-110 Go/No-Go) into a written pre-flight procedure. Pass/fail gates, fallback actions on NO-GO, station-side verification steps. |
-| — | Ground Test (Static) | Static ARM → DISARM cycles. GPS lock acquisition time. Radio link budget measurement at distance (line-of-sight + light obstruction). Half-duplex ACK verification in realistic RF environment. Log download round-trip. |
+| — | Ground Test (Static) | Static ARM → DISARM cycles. GPS lock acquisition time. Radio link budget measurement at distance (line-of-sight + light obstruction). Half-duplex ACK verification in realistic RF environment. Log download round-trip. Distance-to-rocket verification with outdoor GPS fix on both boards (IVP-123 field gate). |
 | — | Low-Altitude Flight Test | Bungee-launched glider or low-power rocket. Full data capture: flight log + live telemetry + station dashboard. Post-flight replay analysis. First real flight validation. |
 
 > **Milestone:** Low-Altitude Flight Test — **Flight Ready**.
