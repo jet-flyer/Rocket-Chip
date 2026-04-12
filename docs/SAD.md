@@ -924,7 +924,7 @@ RocketChip uses a multi-tier storage model:
 0x10800000  +-----------------+  (End of 8MB)
 ```
 
-**Note:** Exact addresses TBD during implementation. Firmware size and LittleFS partition will be finalized when build is functional.
+**Measured (Stage 16A, 2026-04-12):** Firmware occupies ~152 KB of flash (.text 118 KB + .rodata 33 KB + metadata). With 16 MB total flash, ~15.85 MB remains for LittleFS flight log partition. Calibration storage uses the first 4 KB sector via `flash_safe_execute()`.
 
 ### 9.4 Tier 1 Storage Layout
 
@@ -1002,7 +1002,7 @@ Development builds include serial debug output via USB-CDC for diagnosing timing
 
 > **[PLACEHOLDER — To be completed during Phase 4 (Fusion) when power profiling is possible]**
 
-- Budget: 400mAh for 30min — detailed power table TBD after hardware validation
+- Budget: 400mAh for 30min — detailed power table in `docs/HARDWARE_BUDGETS.md` (datasheet estimates, actual measurement pending Stage 16C)
 - WCET: Analyze Sensor/Control tasks during Phase 2 implementation
 - Buffer overflow policy: Define per-buffer behavior (drop oldest/drop newest) — evaluate during implementation
 
@@ -1016,7 +1016,7 @@ Feature sets are controlled at compile time via `ROCKETCHIP_TIER_*` defines:
 
 - **Core/Middle tiers**: Qwiic I2C expansion, USB configuration, optional WiFi/BT (Pico 2 W)
 - **Titan tier**: Full sensor suite, SPI high-rate mode, advanced fusion, dedicated expansion bus
-- Mission plugins: User-defined missions loadable at runtime (format TBD post-MVP)
+- Mission plugins: User-defined missions loadable at runtime (format TBD — far-future, post-crowdfunding)
 
 ### 13.2 I2C Peripheral Detection and Driver Management
 
@@ -1092,7 +1092,7 @@ When an unrecognized device is detected, RocketChip can acquire driver support t
 This mirrors the Flipper Zero model where plugging in new hardware prompts a firmware update that adds support for it.
 
 **Implementation considerations:**
-- Driver packages: pre-compiled modules or interpreted config blocks (TBD)
+- Driver packages: pre-compiled modules or interpreted config blocks (TBD — far-future, post-crowdfunding)
 - Peripheral catalog: static JSON index + binary blobs, hosted with minimal infrastructure
 - Security: signed packages with version pinning
 - Titan tier ships with comprehensive built-in driver set; Core/Middle tiers rely on catalog for expanded peripheral support

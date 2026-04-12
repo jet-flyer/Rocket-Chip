@@ -113,7 +113,7 @@ User-facing: protocol (ccsds/mavlink), nav_rate_hz (2/5/10), power_dbm (2-20). G
 | Item | Source | Notes |
 |------|--------|-------|
 | APID 0x002 diagnostics packet | Council 2026-02-27 | Nav at 5-10Hz, Diag at 0.5-1Hz. APID field already in header. |
-| Diagnostics packet definition | Council 2026-02-27 | Content TBD: ESKF P-diagonals, innovation stats, confidence |
+| Diagnostics packet definition | Council 2026-02-27 | Candidate fields: ESKF P-diagonals (24 floats), baro/GPS innovation NIS, confidence gate state, health_primary/secondary bytes, Core1 loop count, ESKF reset count. Exact packing deferred to implementation. |
 | TX packet queue (rate dividers) | Council 2026-03-30 | Nav-priority tiebreak, depth 2+1. Not a priority queue DS. |
 | RX APID routing dispatch | Council 2026-03-30 | Switch on APID in telemetry service. Trivial when second APID exists. |
 | `submit_packet(apid, priority)` API | Council 2026-03-30 | Design now (Stage 12A), implement trivially. Full queue in 13/14. |

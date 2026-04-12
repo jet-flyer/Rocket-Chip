@@ -11,7 +11,7 @@ Open-source. Modular. Built to be extended.
 | Tier | Name | Description |
 |------|------|-------------|
 | Base | **Core** | Bare-bones, lightweight board. Local data logging only. Minimal sensors, maximum hackability. |
-| Main | *TBD* | Full sensor suite with local logging. Optional telemetry and peripherals via Booster Packs. |
+| Main | *TBD (name pending product launch)* | Full sensor suite with local logging. Optional telemetry and peripherals via Booster Packs. |
 | Advanced | **Titan** | High-performance sensors, pyro channel triggering, deterministic control loops, TVC support. |
 
 *Note: Nova reserved for future product (potentially space-rated hardware).*

@@ -53,26 +53,34 @@ RP2350 has 3 PIO blocks x 4 state machines = 12 total.
 
 ---
 
-## Memory (TBD)
+## Memory
 
-Track stack usage, heap, and PSRAM allocation as firmware grows.
+Measured from `arm-none-eabi-size -A build/rocketchip.elf` (post-Stage 16A, 2026-04-12).
 
 | Resource | Used | Available | Notes |
 |----------|------|-----------|-------|
-| Flash (text) | 60.6 KB | 16 MB | As of IVP-13 |
-| SRAM (data+bss) | 3.9 KB | 520 KB | RP2350 internal |
-| PSRAM | 0 | 8 MB | Adafruit Feather HSTX |
-| Stack (Core 0) | TBD | Default | Monitor for large locals (LL Entry 1) |
+| Flash (.text) | 118 KB | 16 MB | Executable code (XIP) |
+| Flash (.rodata) | 33 KB | (shared) | Constants, strings, lookup tables |
+| Flash (total firmware) | ~152 KB | 16 MB | .text + .rodata + .binary_info |
+| SRAM (.data) | 31 KB | 520 KB | Initialized globals (includes .time_critical codegen) |
+| SRAM (.bss) | 100 KB | 520 KB | Zero-initialized globals (QP AO queues, ESKF state, ring buffers) |
+| SRAM (heap) | 2 KB | (allocated) | Pico SDK heap (unused post-init) |
+| SRAM (total) | ~134 KB | 520 KB | 26% utilization |
+| Stack (Core 0) | 4 KB | 4 KB | Linker-allocated (.stack_dummy). Monitor for large locals (LL Entry 1) |
+| Stack (Core 1) | 4 KB | 4 KB | Linker-allocated (.stack1_dummy) |
+| PSRAM | 0 | 8 MB | Adafruit Feather HSTX. Reserved for flight log ring buffer (future) |
 
 ---
 
-## Power (TBD)
+## Power
 
-Measure current draw at various states once hardware is stable.
+Not yet measured — requires ammeter on LiPo supply line. Values below are
+datasheet estimates for planning. Actual measurement is a Stage 16C field test item.
 
-| State | Current (mA) | Notes |
-|-------|-------------|-------|
-| Idle (LED off, sensors sleeping) | TBD | |
-| Active polling (IMU 100Hz + baro 50Hz) | TBD | |
-| GPS active | TBD | |
-| All sensors + telemetry | TBD | |
+| State | Estimated (mA) | Source | Notes |
+|-------|---------------|--------|-------|
+| Idle (LED off, sensors sleeping) | ~25 | RP2350 datasheet (active, no peripherals) | Excludes NeoPixel quiescent |
+| Active polling (IMU 1kHz + baro 50Hz) | ~45 | ICM-20948 DS (3.5mA) + DPS310 DS (0.5mA) + RP2350 | Core 1 sensor loop |
+| GPS active | ~55 | PA1010D DS (25mA) + above | I2C or UART mode |
+| All sensors + LoRa TX | ~175 | RFM95W DS (+120mA @ +20dBm TX) | Peak during TX burst |
+| NeoPixel (1 LED, white, full) | +60 | WS2812B DS (60mA max) | Actual usage much lower (dim patterns) |
