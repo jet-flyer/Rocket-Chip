@@ -128,12 +128,22 @@ AO_Notify's resolver (`src/notify/notify_backend_led.cpp`) iterates its
 own intent categories in priority order: Fault > Calibration > Flight >
 Radio > Sensor > Idle. See `docs/decisions/NOTIFY_CONTRACT.md`.
 
-**Core 1 vitality defense-in-depth (Council A1):** The primary Core 1
-vitality check lives in AO_HealthMonitor (10Hz, emits via SIG_HEALTH_STATUS
-secondary byte bit `kHealthCore1Ok`). AO_LedEngine ALSO evaluates it
-locally at 33Hz as a fallback in case AO_HealthMonitor or AO_Notify
-crash — the local FAULT layer still lights the stall pattern in that
-scenario, so visual fault indication survives a single AO failure.
+**Core 1 vitality — 2-layer model (IVP-130 audit, 2026-04-12):** Core 1
+vitality is checked in exactly 2 places:
+
+1. **AO_HealthMonitor** (primary, 10Hz): reads seqlock `core1_loop_count`,
+   detects stall at 6 consecutive stale ticks (~600ms), sets `kHealthCore1Ok`
+   in secondary health byte → `SIG_HEALTH_STATUS` → AO_Notify decodes as
+   `FaultIntent::kCore1Stall` → LED fault pattern.
+
+2. **AO_LedEngine** (Council A1 fallback, 33Hz): local seqlock read +
+   `kCore1StallThreshold` (17 ticks, ~500ms) → FAULT layer magenta solid.
+   Survives AO_HealthMonitor crash.
+
+AO_Notify had unused Core1 vitality fields from IVP-117 (declared but never
+wired). Removed in IVP-130. Core1 stall is recoverable via watchdog —
+single-fault tolerance (2 independent checks) is sufficient. A third
+redundant check was accidental complexity from iterative development.
 
 ---
 

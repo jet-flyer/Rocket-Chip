@@ -49,8 +49,6 @@ struct NotifyAo {
 
     // Sensor evaluation fields (used in IVP-117 migration)
     uint32_t sensor_phase_start_ms;
-    uint32_t last_core1_count;
-    uint8_t  core1_stall_ticks;
 };
 
 static NotifyAo l_notifyAo;
@@ -136,8 +134,6 @@ static QState Notify_initial(NotifyAo * const me, QEvt const * const e) {
     // Zero-init intent state
     me->state = {};
     me->sensor_phase_start_ms = to_ms_since_boot(get_absolute_time());
-    me->last_core1_count = 0;
-    me->core1_stall_ticks = 0;
 
     // Subscribe to state-producing signals
     QActive_subscribe(&me->super, rc::SIG_PHASE_CHANGE);
