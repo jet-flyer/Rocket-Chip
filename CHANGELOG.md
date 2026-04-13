@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-12-003 | Claude Code CLI | documentation, architecture
+
+**Stage 15 complete (IVP-122–124) + Stage 16A pre-bench (IVP-127–130).** Station radio hardening and documentation refresh.
+
+**Stage 15 (IVP-122–124):** Half-duplex ACK protocol (CCSDS APID 0x003 CommandAckPayload, station ARM confirm UX: `a` → type ARM → Enter, `X`-DISARM with ACK tracking, 3 retries × 3s). Distance-to-rocket (haversine + bearing, freshness check). Station help refresh. Radio command delivery is unreliable due to RX window timing — RadioScheduler sync IVP needed. 709/709 host tests.
+
+**Stage 16A pre-bench (IVP-127–130):** AO architecture audit — removed dead Core1 vitality fields from AO_Notify (IVP-117 leftovers never wired), documented 2-layer model in AO_ARCHITECTURE.md. TBD placeholder purge — filled memory budget (flash 152KB, SRAM 134KB/520KB), power estimates from datasheets, diagnostics packet candidates. Runtime Behavior Map complete rewrite for QV architecture (superloop→8 AOs, idle bridge, event flow, health escalation, multi-channel landing, station CLI). All 3 Graphviz diagrams regenerated. User Guide quick-reference card (LED states, ARM/DISARM, troubleshooting). IVP-125/126 (SAD/SCAFFOLDING superloop purge) deferred to post-bench per council sequencing.
+
+---
+
 ### 2026-04-12-002 | Claude Code CLI | architecture, safety, verification
 
 **Stage P7 complete: MAIN_DESCENT Liveness Fix (IVP-119 through IVP-121).** Out-of-sequence safety pass closing SPIN property P7 (flight-completes liveness), which had been known-failing since Stage 9.

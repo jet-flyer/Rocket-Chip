@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-10 (Stage 14 Notification Engine complete)
+**Last Updated:** 2026-04-12 (Stage 16A pre-bench complete)
 
 ## Current Phase
 
@@ -102,14 +102,15 @@
 
 | 13: Health Monitor | IVP-104–112 | 2026-04-09 | AO_HealthMonitor (standalone), 2-bit encoding (absent/fault/degraded/healthy), sliding window degraded, fault latch (pre-launch + mid-flight), auto-DISARM on critical fault, LED fault patterns (6), preflight Go/No-Go CLI, debug sub-menu. SPIN 11/11. 647 host tests. v0.3.0 |
 | 14: Notification Engine | IVP-113–118 | 2026-04-10 | AO_Notify intent layer (per-category typed enums, priority resolver, direct-call backends — no vtable). Rewires 5 direct LED callers through intent API. LedEngine → pure 3-layer display driver. Core 1 vitality moved to HealthMonitor primary + LedEngine fallback (A1). Latent QP stack-local event bug fixed (LL Entry 35). Council-reviewed. 669 host tests. SPIN 11/11 unchanged. Audio backend stubbed for future I2S DAC. NOTIFY_CONTRACT.md with IVP-118 amendment |
+| P7: MAIN_DESCENT Liveness | IVP-119–121 | 2026-04-12 | Multi-channel landing detection (ESKF + raw baro + conjunction + backstop with beacon). DT-Promela bounded counters for all flight phases. All 8 SPIN properties pass (0 errors). 699 host tests. Bench sim 2/2 PASS. LL Entry 36 (bench sim rot). Pre-commit hook gates ctest + needs-based HW bench sim |
+| 15: Radio + Station | IVP-122–124 | 2026-04-12 | Half-duplex ACK (CCSDS APID 0x003), ARM confirm UX, X-DISARM, distance-to-rocket (haversine+bearing), station help refresh. Command delivery partial — RadioScheduler sync IVP needed. 709 host tests |
+| 16A: Docs (pre-bench) | IVP-127–130 | 2026-04-12 | AO audit (removed dead Notify Core1 fields, 2-layer model). TBD purge (memory/power from build + datasheets). RBM complete rewrite for QV. Graphviz diagrams regenerated. User Guide quick-reference card. IVP-125/126 deferred to post-bench. 709 host tests |
 
 ## In Progress
 
 *None currently.*
 
-**Stage P7 COMPLETE** (2026-04-12): MAIN_DESCENT liveness fix. IVP-119 (FusedState baro rename), IVP-120 (baro-stationary guard), IVP-121 (conjunction + backstop + SPIN P7 resolved). All 8 SPIN properties pass (0 errors). 699/699 host tests. Bench sim 2/2 PASS. Discrete-Time Promela bounded counters for all flight phases. LL Entry 36 (bench sim rot root cause). Pre-commit hook gates ctest + needs-based HW bench sim.
-
-**Next:** Stage 15 (Pre-Flight Radio + Station, IVP-122–124) → Stage 16A (Documentation Cleanup, IVP-125–130) → Stage 16B (Bench Testing) → Stage 16C (Field Testing) → Stage 17 (Field Tuning)
+**Next:** Stage 16B (Bench Testing: 30-min soak, PIO shakedown) → Stage 16A' (IVP-125 + IVP-126: SAD/SCAFFOLDING superloop purge) → Stage 16C (Field Testing) → Stage 17 (Field Tuning)
 
 ## Blockers
 
