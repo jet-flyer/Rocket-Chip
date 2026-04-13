@@ -1,4 +1,5 @@
 // RocketChip Cross-Core Communication Map
+// Post-Stage 16A: QP/C QV Active Object architecture
 // Shows all atomic flags, seqlock, and lockout interactions between Core 0 and Core 1
 // Render: dot -Tsvg cross_core.dot -o cross_core.svg
 
@@ -9,24 +10,25 @@ digraph cross_core {
 
     // Core 0 functions
     subgraph cluster_core0 {
-        label="Core 0";
+        label="Core 0 (QV Scheduler)";
         style=filled;
         fillcolor="#E3F2FD";
         color="#1565C0";
         fontcolor="#1565C0";
 
         c0_init [label="init_application()", shape=box];
-        c0_eskf [label="eskf_tick()\n200Hz", shape=box];
-        c0_wdt [label="watchdog_kick_tick()\n1Hz", shape=box];
-        c0_cli [label="cli_update_tick()\n20Hz", shape=box];
-        c0_cal [label="calibration commands\n(rare)", shape=box];
+        c0_eskf [label="eskf_runner_tick()\nidle bridge, 200Hz", shape=box];
+        c0_wdt [label="watchdog_kick_tick()\nidle bridge", shape=box];
+        c0_health [label="AO_HealthMonitor\n10Hz, P6", shape=box];
+        c0_led [label="AO_LedEngine\n33Hz, P2", shape=box];
+        c0_rcos [label="AO_RCOS\n20Hz, P1", shape=box];
+        c0_cal [label="cal_pre/post_hook()\n(rare)", shape=box];
         c0_flash [label="flash_safe_execute()\n(rare)", shape=box];
-        c0_logging [label="logging_tick()\n50Hz", shape=box];
     }
 
     // Core 1 functions
     subgraph cluster_core1 {
-        label="Core 1";
+        label="Core 1 (Sensor Loop)";
         style=filled;
         fillcolor="#F3E5F5";
         color="#6A1B9A";
@@ -38,7 +40,6 @@ digraph cross_core {
         c1_gps [label="core1_read_gps()\n10Hz", shape=box];
         c1_seqlock [label="seqlock_write()\n1kHz", shape=box];
         c1_wdt [label="g_wdtCore1Alive\nstore(true)", shape=box];
-        c1_neo [label="core1_neopixel_update()", shape=box];
         c1_pause [label="core1_check_pause()", shape=box];
     }
 
@@ -58,7 +59,6 @@ digraph cross_core {
         paused [label="g_core1I2CPaused\n(atomic bool)"];
         reload [label="g_calReloadPending\n(atomic bool)"];
         lockout [label="g_core1LockoutReady\n(atomic bool)"];
-        neoov [label="g_calNeoPixelOverride\n(atomic u8)"];
     }
 
     // Data flow edges
@@ -67,6 +67,8 @@ digraph cross_core {
 
     c1_seqlock -> seq [label="write @1kHz", color="#1565C0"];
     seq -> c0_eskf [label="read @200Hz", color="#1565C0"];
+    seq -> c0_health [label="read @10Hz\n(Core1 vitality)", color="#1565C0"];
+    seq -> c0_led [label="read @33Hz\n(A1 vitality fallback)", color="#1565C0"];
 
     c1_wdt -> wdt1 [label="store true @1kHz", color="#FF6F00"];
     wdt1 -> c0_wdt [label="read + clear @1Hz", color="#FF6F00"];
@@ -78,9 +80,6 @@ digraph cross_core {
 
     c0_cal -> reload [label="set true", color="#7B1FA2"];
     reload -> c1_pause [label="read, reload cal", color="#7B1FA2"];
-
-    c0_cli -> neoov [label="set override", color="#00695C"];
-    neoov -> c1_neo [label="read @1kHz", color="#00695C"];
 
     c0_flash -> c1_pause [label="multicore_lockout\n(stalls Core 1)", color="#D32F2F", style=dashed];
 

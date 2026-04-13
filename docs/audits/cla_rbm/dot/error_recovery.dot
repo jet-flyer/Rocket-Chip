@@ -1,4 +1,5 @@
 // RocketChip Error Recovery Paths
+// Post-Stage 16A: QP/C QV Active Object architecture
 // Each path terminates in: (a) Recovered, (b) Degraded, (c) Watchdog Reset
 // Render: dot -Tsvg error_recovery.dot -o error_recovery.svg
 
@@ -14,21 +15,21 @@ digraph error_recovery {
 
     // IMU error path
     subgraph cluster_imu {
-        label="IMU (ICM-20948)";
+        label="IMU (ICM-20948) — Core 1";
         style=dashed;
         color="#1565C0";
 
         imu_nack [label="I2C NACK\n(read failure)"];
         imu_zeros [label="Zero-output fault\n|A| < 3.0 m/s²"];
         imu_consec [label="Consecutive fail\ncounter++"];
-        imu_recover [label="i2c_bus_reset()\n9-clock recovery"];
+        imu_recover [label="i2c_bus_recover()\n9-clock recovery"];
         imu_reinit [label="icm20948_reinit()\nfull device reset"];
         imu_ok [label="Read succeeds\ncounter = 0"];
 
         imu_nack -> imu_consec;
         imu_zeros -> imu_consec;
-        imu_consec -> imu_recover [label="≥ 3 fails"];
-        imu_consec -> imu_reinit [label="≥ 10 fails"];
+        imu_consec -> imu_recover [label=">=10 fails\n(every 10th)"];
+        imu_consec -> imu_reinit [label=">=50 fails"];
         imu_recover -> imu_ok [label="bus cleared"];
         imu_reinit -> imu_ok [label="device reset"];
     }
@@ -36,7 +37,7 @@ digraph error_recovery {
 
     // Baro error path
     subgraph cluster_baro {
-        label="Baro (DPS310)";
+        label="Baro (DPS310) — Core 1";
         style=dashed;
         color="#F57F17";
 
@@ -50,7 +51,7 @@ digraph error_recovery {
 
     // GPS error path
     subgraph cluster_gps {
-        label="GPS (PA1010D)";
+        label="GPS (PA1010D / UART) — Core 1";
         style=dashed;
         color="#2E7D32";
 
@@ -67,25 +68,58 @@ digraph error_recovery {
 
     // ESKF error path
     subgraph cluster_eskf {
-        label="ESKF Filter";
+        label="ESKF Filter — Idle Bridge";
         style=dashed;
         color="#6A1B9A";
 
-        eskf_health [label="5 health sentinels:\nNaN, ∞, qnorm, P diag,\nvelocity > 500 m/s"];
-        eskf_coast [label="Coast mode\nskip measurement updates"];
-        eskf_reinit [label="Filter reset\nidentity P, zero state"];
-        eskf_degrade [label="No nav solution\nNeoPixel = UNHEALTHY"];
+        eskf_health [label="5 health sentinels:\nNaN/Inf, P diag, qnorm,\nbias limits, v > 500 m/s"];
+        eskf_reset [label="CR-1: filter reset\neskf_initialized = false"];
+        eskf_reinit [label="eskf_try_init()\nwait for stationarity"];
 
-        eskf_health -> eskf_coast [label="1 sentinel fails"];
-        eskf_coast -> eskf_reinit [label="sustained"];
-        eskf_reinit -> recovered [label="sensor data valid"];
-        eskf_reinit -> eskf_degrade [label="sensors also failed"];
+        eskf_health -> eskf_reset [label="any sentinel fails"];
+        eskf_reset -> eskf_reinit;
     }
-    eskf_degrade -> degraded [label="Loss: attitude, position,\nvelocity estimates"];
+    eskf_reinit -> recovered [label="sensor data valid"];
+
+    // Health Monitor escalation
+    subgraph cluster_health {
+        label="AO_HealthMonitor (10Hz, P6)";
+        style=dashed;
+        color="#D84315";
+
+        health_check [label="2-bit per-subsystem\nhealth encoding"];
+        health_fault [label="SIG_HEALTH_STATUS\n→ Notify + Logger + Telem"];
+        health_disarm [label="Auto-DISARM\n(blocks ARM in IDLE)"];
+        health_core1 [label="Core 1 stall detect\n6 stale ticks (~600ms)"];
+
+        health_check -> health_fault [label="any fault"];
+        health_fault -> health_disarm [label="multiple faults\nin IDLE phase"];
+        health_check -> health_core1 [label="core1_loop_count\nnot advancing"];
+        health_core1 -> health_fault;
+    }
+    health_fault -> degraded [label="Fault LED pattern"];
+
+    // Flight Director landing detection
+    subgraph cluster_landing {
+        label="MAIN_DESCENT Landing — AO_FlightDirector";
+        style=dashed;
+        color="#00695C";
+
+        fd_primary [label="Path 0: ESKF stationary\n+ baro peak guard"];
+        fd_conj [label="Path 1: ESKF fault\nAND baro stationary"];
+        fd_backstop [label="Path 2: Backstop\ndescent_max_duration_ms"];
+        fd_landed [label="SIG_LANDING\n→ LANDED"];
+        fd_beacon [label="SIG_BEACON_ACTIVE\n→ distress beacon"];
+
+        fd_primary -> fd_landed [label="ESKF healthy\nboth guards fire"];
+        fd_conj -> fd_landed [label="ESKF dead\nbaro confirms"];
+        fd_backstop -> fd_landed;
+        fd_backstop -> fd_beacon [label="backstop fires\nbeacon callback"];
+    }
 
     // Watchdog path
     subgraph cluster_wdt {
-        label="Watchdog";
+        label="Watchdog — Idle Bridge";
         style=dashed;
         color="#D32F2F";
 
@@ -100,25 +134,9 @@ digraph error_recovery {
     }
     wdt_timeout -> watchdog;
 
-    // USB path
-    subgraph cluster_usb {
-        label="USB CDC";
-        style=dashed;
-        color="#00695C";
-
-        usb_disconnect [label="Terminal disconnects"];
-        usb_connect [label="Terminal connects"];
-        usb_drain [label="Drain input buffer\n(garbage bytes)"];
-        usb_banner [label="Print boot banner"];
-
-        usb_disconnect -> usb_connect [label="reconnect"];
-        usb_connect -> usb_drain -> usb_banner;
-    }
-    usb_banner -> recovered;
-
     // I2C bus recovery
     subgraph cluster_i2c {
-        label="I2C Bus";
+        label="I2C Bus — Core 1";
         style=dashed;
         color="#795548";
 
@@ -130,4 +148,22 @@ digraph error_recovery {
         i2c_scl_check -> i2c_recover [label="SCL free"];
     }
     i2c_recover -> recovered;
+    i2c_scl_check -> degraded [label="SCL stuck\nbus unusable"];
+
+    // Radio
+    subgraph cluster_radio {
+        label="Radio (LoRa RFM95W) — AO_Radio";
+        style=dashed;
+        color="#0277BD";
+
+        radio_busy [label="TX busy\n(DIO0 not TxDone)"];
+        radio_skip [label="Skip packet\nretry next slot"];
+        radio_ack [label="Command ACK timeout\n3 retries × 3s"];
+        radio_fail [label="Command not confirmed"];
+
+        radio_busy -> radio_skip;
+        radio_ack -> radio_fail [label="all retries exhausted"];
+    }
+    radio_skip -> degraded [label="Dropped telemetry frame"];
+    radio_fail -> degraded [label="Station shows failure"];
 }

@@ -1,4 +1,5 @@
-// RocketChip Boot Sequence — init_hardware() → init_application() → main loop
+// RocketChip Boot Sequence — init_hardware() → init_application() → QF_run()
+// Post-Stage 16A: QP/C QV Active Object architecture
 // Render: dot -Tsvg boot_sequence.dot -o boot_sequence.svg
 
 digraph boot_sequence {
@@ -35,6 +36,8 @@ digraph boot_sequence {
         color="#2E7D32";
         fontcolor="#2E7D32";
 
+        qf_init [label="QF_init()\nQActive_psInit()\nsubscriber list"];
+        ao_start [label="AO start (8 AOs)\nP8:Radio P7:FD P6:Health\nP5:Notify P4:Logger\nP3:Telem P2:LED P1:RCOS"];
         hooks_init [label="init_rc_os_hooks()\nwire CLI callbacks"];
         signal_core1 [label="g_startSensorPhase=true\n+ rc_os_i2c_scan_allowed=false"];
         wait_lockout [label="Wait for\ng_core1LockoutReady"];
@@ -43,7 +46,7 @@ digraph boot_sequence {
         flight_load [label="flight_table_load()\n+ calibration_start_baro()"];
         wdt_enable [label="watchdog sentinel\n+ watchdog_enable(5000ms)"];
 
-        hooks_init -> signal_core1 -> wait_lockout -> psram_test;
+        qf_init -> ao_start -> hooks_init -> signal_core1 -> wait_lockout -> psram_test;
         psram_test -> logging_init -> flight_load -> wdt_enable;
     }
 
@@ -88,13 +91,13 @@ digraph boot_sequence {
         c1_entry -> c1_wait -> c1_lockout -> c1_ready -> c1_loop;
     }
 
-    // Main loop
-    main_loop [label="Main Loop\nwhile(true)", shape=ellipse, style=filled, fillcolor="#FFF9C4"];
+    // QV scheduler
+    qf_run [label="QF_run()\nQV cooperative scheduler\n(never returns)", shape=ellipse, style=filled, fillcolor="#FFF9C4"];
 
     // Edges
     main -> wdt_check;
-    periph_init -> hooks_init;
-    wdt_enable -> main_loop;
+    periph_init -> qf_init;
+    wdt_enable -> qf_run;
     core1_launch -> c1_entry [style=dashed, label="Core 1 launched"];
     signal_core1 -> c1_wait [style=dashed, label="signal"];
     wait_lockout -> c1_ready [style=dashed, dir=back, label="ack"];
