@@ -4,6 +4,14 @@
 **Firmware:** Post-Stage 16A (QP/C QV Active Object architecture, 8 AOs)
 **Diagrams:** Graphviz `.dot` sources in `docs/audits/cla_rbm/dot/` — render with `dot -Tsvg <file>.dot -o <file>.svg`
 
+| Diagram | File | Description |
+|---------|------|-------------|
+| Boot Sequence | `dot/boot_sequence.dot` | init_hardware → init_application → QF_run |
+| AO Event Flow | `dot/ao_event_flow.dot` | All 8 AOs, signals, seqlock, idle bridge |
+| Flight Director HSM | `dot/flight_director_hsm.dot` | 9-state HSM with descent superstate, multi-channel landing |
+| Cross-Core Comms | `dot/cross_core.dot` | Atomics, seqlock, lockout between Core 0 and Core 1 |
+| Error Recovery | `dot/error_recovery.dot` | All fault paths → recovered / degraded / watchdog reset |
+
 ---
 
 ## 1. Overview

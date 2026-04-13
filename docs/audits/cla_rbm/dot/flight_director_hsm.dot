@@ -1,0 +1,104 @@
+// RocketChip Flight Director Hierarchical State Machine
+// 9 states, descent superstate, multi-channel landing (Stage P7)
+// Render: dot -Tsvg flight_director_hsm.dot -o flight_director_hsm.svg
+
+digraph flight_director_hsm {
+    rankdir=TB;
+    node [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled"];
+    edge [fontname="Helvetica", fontsize=9];
+    compound=true;
+    nodesep=0.8;
+    ranksep=1.0;
+
+    // Start
+    start [label="", shape=circle, style=filled, fillcolor=black, width=0.2];
+
+    // === GROUND STATES ===
+
+    idle [label="IDLE\n(phase 0)\nDefault state\nNo pyro armed", fillcolor="#E8F5E9"];
+    armed [label="ARMED\n(phase 1)\nPIO backup timers started\nGuards enabled", fillcolor="#FFF9C4"];
+
+    // === FLIGHT STATES ===
+
+    boost [label="BOOST\n(phase 2)\nLaunch detected\nMotor burning", fillcolor="#FFCDD2"];
+    coast [label="COAST\n(phase 3)\nBurnout detected\nBallistic arc", fillcolor="#FFCDD2"];
+
+    // === DESCENT SUPERSTATE ===
+
+    subgraph cluster_descent {
+        label="DESCENT (superstate)\nABORT in descent = no-op\n(chutes already deployed)";
+        style="rounded,dashed";
+        color="#1565C0";
+        fontcolor="#1565C0";
+        fontsize=10;
+        penwidth=2;
+
+        drogue [label="DROGUE_DESCENT\n(phase 4)\nDrogue deployed\nAwaiting main alt", fillcolor="#BBDEFB"];
+        main_desc [label="MAIN_DESCENT\n(phase 5)\nMain deployed\nMulti-channel landing detect", fillcolor="#BBDEFB"];
+    }
+
+    // === TERMINAL STATES ===
+
+    landed [label="LANDED\n(phase 6)\nFlight complete\nLog finalized", fillcolor="#C8E6C9"];
+    abort [label="ABORT\n(phase 7)\nSafety state\nBeacon after timeout", fillcolor="#FFCDD2"];
+
+    // === TRANSITIONS ===
+
+    // Start
+    start -> idle;
+
+    // IDLE ↔ ARMED
+    idle -> armed [label="SIG_ARM\n(Go/No-Go passes)", color="#2E7D32", penwidth=1.5];
+    armed -> idle [label="SIG_DISARM\nor timeout\n(auto-disarm)", color="#757575"];
+
+    // ARMED → BOOST
+    armed -> boost [label="SIG_LAUNCH\n(accel guard fires)", color="#C62828", penwidth=1.5];
+
+    // BOOST → COAST
+    boost -> coast [label="SIG_BURNOUT\n(accel guard fires)", color="#C62828", penwidth=1.5];
+
+    // COAST → DESCENT
+    coast -> drogue [label="SIG_APOGEE\n(baro peak guard)\nFire drogue if has_pyro", color="#C62828", penwidth=1.5, lhead=cluster_descent];
+    coast -> drogue [label="Coast timeout\nForced apogee\nFire drogue", color="#E65100", style=dashed];
+
+    // DROGUE → MAIN
+    drogue -> main_desc [label="SIG_MAIN_DEPLOY\n(altitude guard)\nFire main if has_pyro", color="#1565C0", penwidth=1.5];
+
+    // Landing paths from DROGUE
+    drogue -> landed [label="SIG_LANDING\n(no main chute config)", color="#2E7D32", style=dashed];
+
+    // === MAIN_DESCENT MULTI-CHANNEL LANDING (Stage P7) ===
+
+    // Path 0: Primary
+    main_desc -> landed [label="Path 0: ESKF stationary\n+ baro peak guard", color="#2E7D32", penwidth=2];
+
+    // Path 1: Conjunction
+    main_desc -> landed [label="Path 1: ESKF fault\nAND baro stationary", color="#E65100", penwidth=1.5];
+
+    // Path 2: Backstop
+    main_desc -> landed [label="Path 2: Backstop timeout\n+ SIG_BEACON_ACTIVE", color="#D32F2F", style=dashed, penwidth=1.5];
+
+    // LANDED / ABORT → IDLE (reset)
+    landed -> idle [label="SIG_RESET", color="#757575"];
+    abort -> idle [label="SIG_RESET\nor pad-abort timeout", color="#757575"];
+
+    // ABORT transitions
+    armed -> abort [label="SIG_ABORT", color="#D32F2F"];
+    boost -> abort [label="SIG_ABORT\nFire drogue if\nprofile flag set", color="#D32F2F"];
+    coast -> abort [label="SIG_ABORT\nFire drogue if\nprofile flag set", color="#D32F2F"];
+
+    // ABORT beacon
+    abort -> abort [label="In-flight timeout\nbeacon_cb()\nSIG_BEACON_ACTIVE", color="#D32F2F", style=dashed];
+
+    // === LEGEND ===
+
+    subgraph cluster_legend {
+        label="Legend";
+        style=rounded;
+        color="#9E9E9E";
+        fontcolor="#9E9E9E";
+        fontsize=9;
+
+        legend [label="Solid = guard-driven transition\nDashed = timeout / fallback\nBold = primary flight path\nRed = abort paths\nGreen = nominal landing", shape=note, style=filled, fillcolor="#FAFAFA", fontsize=8];
+    }
+}

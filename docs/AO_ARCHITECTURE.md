@@ -22,7 +22,7 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 | AO | File | Rate | Prio | Queue | Owns | Publishes | Subscribes |
 |----|------|------|------|-------|------|-----------|------------|
 | AO_Radio | `ao_radio.cpp` | 100Hz | 8 | 32 | rfm95w_t, RadioScheduler, RadioAoState | SIG_RADIO_RX, SIG_RADIO_STATUS | SIG_RADIO_TX |
-| AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 7 | 32 | FlightDirector HSM, guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_BEACON_ACTIVE | SIG_SENSOR_DATA |
+| AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 7 | 32 | FlightDirector HSM ([diagram](../audits/cla_rbm/dot/flight_director_hsm.dot)), guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_BEACON_ACTIVE | SIG_SENSOR_DATA |
 | AO_HealthMonitor | `ao_health_monitor.cpp` | 10Hz | 6 | 8 | HealthState, sliding windows, fault latch, staleness counter, Core1 vitality primary check (IVP-117) | SIG_HEALTH_STATUS | SIG_PHASE_CHANGE |
 | AO_Notify | `ao_notify.cpp` | 33Hz | 5 | 16 | NotifyState, intent resolver, output backend dispatch, sensor status evaluation (Stage 14) | SIG_LED_PATTERN (via backend) | SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE |
 | AO_Logger | `ao_logger.cpp` | 50Hz | 4 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_HEALTH_STATUS |
@@ -49,6 +49,8 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 ---
 
 ## Event Flow
+
+**Diagram:** `docs/audits/cla_rbm/dot/ao_event_flow.dot` — render with `dot -Tsvg ao_event_flow.dot -o ao_event_flow.svg`
 
 ```
   Core 1                    Core 0 (QV Scheduler + Idle Bridge)

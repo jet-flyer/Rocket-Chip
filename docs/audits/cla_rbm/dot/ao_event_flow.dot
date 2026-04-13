@@ -1,0 +1,106 @@
+// RocketChip Active Object Event Flow
+// Shows all AOs, signals, idle bridge, and Core 1 interactions
+// Render: dot -Tsvg ao_event_flow.dot -o ao_event_flow.svg
+
+digraph ao_event_flow {
+    rankdir=LR;
+    node [fontname="Helvetica", fontsize=10];
+    edge [fontname="Helvetica", fontsize=9];
+    newrank=true;
+    splines=polyline;
+    nodesep=0.6;
+    ranksep=1.2;
+
+    // === SOURCE LAYER (left) ===
+
+    subgraph cluster_core1 {
+        label="Core 1\n(1kHz Sensor Loop)";
+        style=filled;
+        fillcolor="#F3E5F5";
+        color="#6A1B9A";
+        fontcolor="#6A1B9A";
+        fontsize=11;
+
+        sensor_core1 [label="sensor_core1\nIMU | Baro | GPS | Mag", shape=box, style=rounded];
+    }
+
+    seqlock [label="seqlock\n(148B)", shape=diamond, style=filled, fillcolor="#FFF3E0", width=1.2];
+
+    subgraph cluster_idle {
+        label="Idle Bridge";
+        style=filled;
+        fillcolor="#E8F5E9";
+        color="#2E7D32";
+        fontcolor="#2E7D32";
+        fontsize=11;
+
+        eskf [label="eskf_runner\n200Hz\npredict+measure\npublish SENSOR_DATA", shape=box, style=rounded];
+        watchdog [label="watchdog_kick", shape=box, style=rounded];
+    }
+
+    // === FLIGHT-CRITICAL LAYER ===
+
+    ao_radio [label="AO_Radio\nP8 | 100Hz\nLoRa TX/RX", shape=box, style="rounded,filled", fillcolor="#FFCDD2"];
+    ao_fd [label="AO_FlightDirector\nP7 | 100Hz\nHSM, guards\npyro, phases", shape=box, style="rounded,filled", fillcolor="#FFCDD2"];
+    ao_health [label="AO_HealthMonitor\nP6 | 10Hz\n2-bit health\nCore1 vitality", shape=box, style="rounded,filled", fillcolor="#FFCDD2"];
+
+    // === DATA LAYER ===
+
+    ao_notify [label="AO_Notify\nP5 | 33Hz\nIntent resolver\nLED+audio backends", shape=box, style="rounded,filled", fillcolor="#FFE0B2"];
+    ao_logger [label="AO_Logger\nP4 | 50Hz\nRing buffer\nFusedState", shape=box, style="rounded,filled", fillcolor="#FFE0B2"];
+    ao_telem [label="AO_Telemetry\nP3 | 10Hz\nCCSDS encode\nACK tracking", shape=box, style="rounded,filled", fillcolor="#FFE0B2"];
+
+    // === DISPLAY LAYER (right) ===
+
+    ao_led [label="AO_LedEngine\nP2 | 33Hz\nWS2812 driver\n3-layer compositor", shape=box, style="rounded,filled", fillcolor="#BBDEFB"];
+    ao_rcos [label="AO_RCOS\nP1 | 20Hz\nCLI + dashboard", shape=box, style="rounded,filled", fillcolor="#BBDEFB"];
+
+    // === RANK HINTS ===
+    { rank=same; sensor_core1; }
+    { rank=same; seqlock; }
+    { rank=same; eskf; watchdog; }
+    { rank=same; ao_fd; ao_radio; ao_health; }
+    { rank=same; ao_notify; ao_logger; ao_telem; }
+    { rank=same; ao_led; ao_rcos; }
+
+    // === EDGES ===
+
+    // Core 1 → seqlock → ESKF
+    sensor_core1 -> seqlock [label="write\n1kHz", color="#6A1B9A", penwidth=2];
+    seqlock -> eskf [label="read\n200Hz", color="#2E7D32", penwidth=2];
+
+    // ESKF → subscribers (SIG_SENSOR_DATA)
+    eskf -> ao_fd [label="SENSOR_DATA", color="#2E7D32"];
+    eskf -> ao_logger [label="SENSOR_DATA", color="#2E7D32"];
+    eskf -> ao_telem [label="SENSOR_DATA", color="#2E7D32"];
+
+    // FD publishes
+    ao_fd -> ao_notify [label="PHASE_CHANGE\nBEACON_ACTIVE", color="#C62828"];
+    ao_fd -> ao_health [label="PHASE_CHANGE", color="#C62828"];
+    ao_fd -> ao_logger [label="PHASE_CHANGE\nPYRO_FIRED", color="#C62828"];
+
+    // Health publishes
+    ao_health -> ao_notify [label="HEALTH_STATUS", color="#D84315"];
+    ao_health -> ao_logger [label="HEALTH_STATUS", color="#D84315"];
+    ao_health -> ao_telem [label="HEALTH_STATUS", color="#D84315"];
+
+    // Notify → LedEngine
+    ao_notify -> ao_led [label="LED_PATTERN", color="#E65100", penwidth=2];
+
+    // Radio ↔ Telemetry
+    ao_telem -> ao_radio [label="RADIO_TX", color="#0277BD"];
+    ao_radio -> ao_telem [label="RADIO_RX", color="#0277BD"];
+    ao_radio -> ao_notify [label="RADIO_STATUS", color="#0277BD"];
+
+    // GCS commands
+    ao_telem -> ao_fd [label="GCS_CMD", color="#0277BD", style=dashed];
+
+    // RCOS commands
+    ao_rcos -> ao_fd [label="CLI_COMMAND", color="#1565C0", style=dashed];
+    ao_rcos -> ao_notify [label="CalIntentEvt", color="#1565C0", style=dashed];
+
+    // Direct seqlock reads (dashed, no signal)
+    seqlock -> ao_health [label="vitality\n10Hz", color="#6A1B9A", style=dashed];
+    seqlock -> ao_notify [label="sensor\n33Hz", color="#6A1B9A", style=dashed];
+    seqlock -> ao_led [label="A1 fallback\n33Hz", color="#6A1B9A", style=dashed];
+}
