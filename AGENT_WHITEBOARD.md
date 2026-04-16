@@ -74,6 +74,10 @@ MAIN_DESCENT relies entirely on the stationary guard (`SIG_LANDING`) to exit. If
 
 **SPIN status:** P7 (`p_liveness_flight_completes`) currently fails — this is the root cause, not a modeling limitation.
 
+### CMake Source List Cleanup Needed
+
+`CMakeLists.txt` lists `src/cli/rc_os.cpp` twice (once in the Stage 2 section at line 287, once in Stage 9 at line 416). CMake deduplicates silently so no build error, but it's sloppy. Same may apply to other source files. Should do a full dedup pass — not blocking any work, just housekeeping.
+
 ### Protected File Updates Pending Approval
 
 *None currently.*

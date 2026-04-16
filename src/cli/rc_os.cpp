@@ -23,6 +23,7 @@
 #include "cli/rc_os_commands.h"
 #include "ao_flight_director.h"
 #include "ao_rcos.h"
+#include "dev/dev_cli.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -69,10 +70,7 @@ rc_os_reset_mag_staleness_fn rc_os_reset_mag_staleness = nullptr;
 
 
 
-// Live ESKF mode state
-static bool g_eskfLiveActive = false;
-static uint32_t g_eskfLiveLastPrintUs = 0;
-static constexpr uint32_t kEskfLivePeriodUs = 1000000;  // 1Hz
+// ESKF live mode state moved to src/dev/dev_cli.cpp (bench-only)
 
 // ============================================================================
 // Menu Printing
@@ -168,10 +166,9 @@ static bool handle_main_menu(int c) {
 
         case 'q':
         case 'Q':
-            g_menu = RC_OS_MENU_DEBUG;
-            printf("\n--- Debug ---\n");
-            printf("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
-            printf("h-Help  z-Back\n");
+            if (dev_debug_menu_enter()) {
+                g_menu = RC_OS_MENU_DEBUG;
+            }
             break;
 
         default:
@@ -181,61 +178,7 @@ static bool handle_main_menu(int c) {
     return true;
 }
 
-// ============================================================================
-// Debug Menu Handler (IVP-109)
-// ============================================================================
-
-static bool handle_debug_menu(int c) {
-    switch (c) {
-        case 's':
-        case 'S':
-            if constexpr (kRadioModeRx) {
-                cli_print_station_status();
-            } else {
-                cli_print_sensor_status();
-            }
-            break;
-
-        case 'i':
-        case 'I':
-            if (rc_os_i2c_scan_allowed) {
-                printf("\nRescanning I2C bus...\n");
-                i2c_bus_scan();
-            } else {
-                printf("\nI2C scan disabled (Core 1 owns bus)\n");
-            }
-            break;
-
-        case 'b':
-        case 'B':
-            cli_print_hw_status();
-            break;
-
-        case 'e':
-            g_eskfLiveActive = true;
-            g_eskfLiveLastPrintUs = time_us_32();
-            printf("\n--- ESKF live (1Hz) --- any key to stop ---\n");
-            cli_print_eskf_live();
-            break;
-
-        case 'h':
-        case 'H':
-        case '?':
-            printf("\n--- Debug Menu ---\n");
-            printf("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
-            printf("z-Back to main\n");
-            break;
-
-        case 'z': case 'Z': case kEscChar:
-            printf("Returning to main menu.\n");
-            g_menu = RC_OS_MENU_MAIN;
-            break;
-
-        default:
-            break;
-    }
-    return true;
-}
+// Debug Menu Handler — moved to src/dev/dev_cli.cpp (bench-only)
 
 // ============================================================================
 // Calibration Menu Handler
@@ -459,22 +402,47 @@ static bool handle_usb_connect() {
     return true;  // Connected and settled
 }
 
-// ESKF live mode handler — returns true if in live mode (consumes input)
-static bool handle_eskf_live() {
-    if (!g_eskfLiveActive) { return false; }
-    int c = getchar_timeout_us(0);
-    if (c != PICO_ERROR_TIMEOUT) {
-        g_eskfLiveActive = false;
-        printf("\n--- ESKF live stopped ---\n");
+// ESKF live mode — moved to src/dev/dev_cli.cpp (bench-only)
+
+// IVP-122: ARM confirm state machine — returns -1 if not active,
+// 0 if active but no input, 1 if active and consumed input.
+static int handle_arm_confirm() {
+    if (!s_arm_confirm_active) { return -1; }
+
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+    if (now - s_arm_start_ms > 5000) {
+        printf("ARM aborted (timeout)\n");
+        s_arm_confirm_active = false;
+        rc_os_dashboard_resume();
         print_prompt();
-    } else {
-        uint32_t nowUs = time_us_32();
-        if (nowUs - g_eskfLiveLastPrintUs >= kEskfLivePeriodUs) {
-            g_eskfLiveLastPrintUs = nowUs;
-            cli_print_eskf_live();
-        }
+        return 1;
     }
-    return true;
+    int ac = getchar_timeout_us(0);
+    if (ac == PICO_ERROR_TIMEOUT) { return 0; }
+    if (ac == '\r' || ac == '\n') {
+        s_arm_buf[s_arm_buf_pos] = '\0';
+        if (s_arm_buf_pos == 3 &&
+            s_arm_buf[0] == 'A' && s_arm_buf[1] == 'R' && s_arm_buf[2] == 'M') {
+            AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 1.0f);
+            printf("[CMD] ARM sent, waiting for ACK...\n");
+        } else {
+            printf("ARM aborted (bad input: '%s')\n", s_arm_buf);
+        }
+        s_arm_confirm_active = false;
+        rc_os_dashboard_resume();
+        print_prompt();
+        return 1;
+    }
+    if (s_arm_buf_pos < 3) {
+        putchar(ac);
+        s_arm_buf[s_arm_buf_pos++] = static_cast<char>(ac);
+    } else {
+        printf("ARM aborted (overflow)\n");
+        s_arm_confirm_active = false;
+        rc_os_dashboard_resume();
+        print_prompt();
+    }
+    return 1;
 }
 
 bool rc_os_update() {
@@ -484,68 +452,22 @@ bool rc_os_update() {
         return false;
     }
     if (!handle_usb_connect()) { return false; }
-    if (handle_eskf_live()) { return false; }
+    if (dev_eskf_live_poll()) { return false; }
 
-    // IVP-122: ARM confirm state machine (state is file-scope for rc_os_start_arm_confirm)
+    int arm_result = handle_arm_confirm();
+    if (arm_result == 0) { return false; }
+    if (arm_result == 1) { return true; }
 
-    if (s_arm_confirm_active) {
-        uint32_t now = to_ms_since_boot(get_absolute_time());
-        if (now - s_arm_start_ms > 5000) {
-            printf("ARM aborted (timeout)\n");
-            s_arm_confirm_active = false;
-            rc_os_dashboard_resume();
-            print_prompt();
-            return true;
-        }
-        int ac = getchar_timeout_us(0);
-        if (ac == PICO_ERROR_TIMEOUT) return false;
-        if (ac == '\r' || ac == '\n') {
-            s_arm_buf[s_arm_buf_pos] = '\0';
-            if (s_arm_buf_pos == 3 &&
-                s_arm_buf[0] == 'A' && s_arm_buf[1] == 'R' && s_arm_buf[2] == 'M') {
-                AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 1.0f);
-                printf("[CMD] ARM sent, waiting for ACK...\n");
-            } else {
-                printf("ARM aborted (bad input: '%s')\n", s_arm_buf);
-            }
-            s_arm_confirm_active = false;
-            rc_os_dashboard_resume();
-            print_prompt();
-            return true;
-        }
-        if (s_arm_buf_pos < 3) {
-            putchar(ac);  // Echo typed character
-            s_arm_buf[s_arm_buf_pos++] = static_cast<char>(ac);
-        } else {
-            printf("ARM aborted (overflow)\n");
-            s_arm_confirm_active = false;
-            rc_os_dashboard_resume();
-            print_prompt();
-            return true;
-        }
-        return true;
-    }
+    if (AO_RCOS_cal_active()) { return false; }
 
-    // When a cal/input UI sequence is active, the AO_RCOS cal_ui_tick()
-    // handles all key input. Don't read here or we steal characters.
-    if (AO_RCOS_cal_active()) {
-        return false;
-    }
-
-    // Check for input (non-blocking)
     int c = getchar_timeout_us(0);
-    if (c == PICO_ERROR_TIMEOUT) {
-        return false;
-    }
+    if (c == PICO_ERROR_TIMEOUT) { return false; }
 
     AO_Telemetry_feed_usb_byte(static_cast<uint8_t>(c));
 
-    // MAVLink binary lockout — suppress CLI when GCS detected or suspected
     if (handle_mavlink_lockout(c)) { return true; }
-
     if (handle_mavlink_input(c)) { return true; }
 
-    // Route to appropriate handler
     bool handled = false;
     if (g_menu == RC_OS_MENU_MAIN) {
         handled = handle_main_menu(c);
@@ -554,11 +476,13 @@ bool rc_os_update() {
     } else if (g_menu == RC_OS_MENU_FLIGHT) {
         handled = handle_flight_menu(c);
     } else if (g_menu == RC_OS_MENU_DEBUG) {
-        handled = handle_debug_menu(c);
+        if (!dev_debug_menu_dispatch(c)) {
+            g_menu = RC_OS_MENU_MAIN;
+        }
+        handled = true;
     }
 
-    // Show context prompt only after recognized commands
-    if (handled && !g_eskfLiveActive) {
+    if (handled) {
         print_prompt();
     }
 

@@ -220,6 +220,7 @@ static void print_eskf_status() {
                    (double)(meuler.z * kRadToDeg),
                    (double)mdivDeg);
         }
+#ifndef BUILD_FOR_FLIGHT
         {
             uint32_t benchAvg = 0, benchMin = 0, benchMax = 0, benchCount = 0;
             eskf_runner_get_bench(&benchAvg, &benchMin, &benchMax, &benchCount);
@@ -229,6 +230,7 @@ static void print_eskf_status() {
                        (unsigned long)benchMax, (unsigned long)benchCount);
             }
         }
+#endif
         printf("      buf: %lu/%lu samples\n",
                (unsigned long)eskf_runner_get_buffer_count(), (unsigned long)kEskfBufferSamples);
     } else if (g_eskfInitialized) {

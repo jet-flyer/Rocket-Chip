@@ -98,9 +98,10 @@ uint32_t eskf_runner_get_buffer_count();
 /// Read-only access to GPS session stats.
 const gps_session_stats_t* eskf_runner_get_gps_session();
 
-/// Benchmark stats: average, min, max predict time in microseconds.
+#ifndef BUILD_FOR_FLIGHT
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
                            uint32_t* max_us, uint32_t* count);
+#endif
 
 /// End Mahony startup Kp boost (called on ARM transition).
 void eskf_runner_end_mahony_startup();

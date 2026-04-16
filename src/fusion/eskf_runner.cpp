@@ -107,11 +107,12 @@ static eskf_state_snap_t g_eskfBuffer[kEskfBufferSamples];
 static uint32_t g_eskfBufferIndex = 0;
 static uint32_t g_eskfBufferCount = 0;
 
-// ESKF benchmark timing (wall-clock us per predict() call)
+#ifndef BUILD_FOR_FLIGHT
 static uint32_t g_eskfBenchMin = UINT32_MAX;
 static uint32_t g_eskfBenchMax = 0;
 static uint32_t g_eskfBenchSum = 0;
 static uint32_t g_eskfBenchCount = 0;
+#endif
 
 // Mission profile pointer for phase Q/R wiring
 static const rc::MissionProfile* g_profile = nullptr;
@@ -200,10 +201,10 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
     rc::Vec3 accel = sensor_to_ned_accel(snap);
     rc::Vec3 gyro = sensor_to_ned_gyro(snap);
 
-    // Benchmark: wall-clock time for predict()
+#ifndef BUILD_FOR_FLIGHT
     uint32_t t0 = time_us_32();
+#endif
     g_eskf.predict(accel, gyro, dt);
-    uint32_t elapsed = time_us_32() - t0;
 
     // CR-1: stop propagation if filter diverges
     if (!g_eskf.healthy()) {
@@ -212,11 +213,13 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
         return;
     }
 
-    // Update benchmark stats
+#ifndef BUILD_FOR_FLIGHT
+    uint32_t elapsed = time_us_32() - t0;
     if (elapsed < g_eskfBenchMin) { g_eskfBenchMin = elapsed; }
     if (elapsed > g_eskfBenchMax) { g_eskfBenchMax = elapsed; }
     g_eskfBenchSum += elapsed;
     g_eskfBenchCount++;
+#endif
 
     // Write compact state to circular buffer
     eskf_state_snap_t& s = g_eskfBuffer[g_eskfBufferIndex];
@@ -646,6 +649,7 @@ uint8_t eskf_runner_get_wmm_source() {
     return static_cast<uint8_t>(g_wmmSource);
 }
 
+#ifndef BUILD_FOR_FLIGHT
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
                            uint32_t* max_us, uint32_t* count) {
     if (g_eskfBenchCount > 0 && avg != nullptr) {
@@ -657,3 +661,4 @@ void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
     if (max_us != nullptr) { *max_us = g_eskfBenchMax; }
     if (count != nullptr) { *count = g_eskfBenchCount; }
 }
+#endif

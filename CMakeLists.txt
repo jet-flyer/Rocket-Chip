@@ -288,6 +288,9 @@ else()
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
 
+        # Dev diagnostics (excluded from flight builds)
+        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/dev_cli.cpp>
+
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
         # Pure C++ — no SDK dependencies. Compiles on host and target.
@@ -532,6 +535,16 @@ else()
         message(STATUS "Job: RELAY")
     else()
         message(STATUS "Job: VEHICLE (default)")
+    endif()
+
+    # Flight build: exclude dev diagnostics (bench stats, debug menu)
+    # Usage: cmake -DBUILD_FOR_FLIGHT=ON ..
+    option(BUILD_FOR_FLIGHT "Exclude dev diagnostics from binary" OFF)
+    if(BUILD_FOR_FLIGHT)
+        target_compile_definitions(rocketchip PRIVATE BUILD_FOR_FLIGHT=1)
+        message(STATUS "Build tier: FLIGHT (dev diagnostics excluded)")
+    else()
+        message(STATUS "Build tier: BENCH (dev diagnostics included)")
     endif()
 
     # USB configuration
