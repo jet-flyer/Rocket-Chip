@@ -17,6 +17,22 @@
 
 *Stage 13 (Health Monitor) COMPLETE. Config Wizard Phase A COMPLETE (prototype). Stage 14 (Notification Engine) COMPLETE — IVP-113 through IVP-118, all gates passed, HW verified via GDB memory inspection. SPIN safety analysis appended to NOTIFY_CONTRACT.md by user-approved one-time exception 2026-04-10.*
 
+### Session Handoff (2026-04-15 → 2026-04-16)
+
+**State:** Build compiles clean (bench + flight tiers). 709/709 host tests pass. OpenOCD may still be running in background (`taskkill //F //IM openocd.exe` to clean).
+
+**Completed this session:** IVP-124a through IVP-131 (9 of 11 Stage 16B IVPs). Doc refresh, dev code audit, build-tier split, fault injection harness, PIO shakedown (5/5), sensor replay harness (5/5 profiles pass).
+
+**Next:** IVP-132 (HW budgets + two-tier soak) then IVP-132a (station bench tests). Plan: `.claude/plans/stateless-hopping-allen.md`.
+
+**Concerns:**
+- Session-start canary was NOT run at the beginning of this session (missed checklist item 6). The pre-commit hook deferred HW verify on IVP-127a and IVP-127b. Run `python scripts/bench_sim.py` as first action next session.
+- Serial replay via Python has USB CDC throughput issues — the `dev_replay_poll()` drain loop (256 bytes/poll) fixed it, but serial-based tests are slow (~150s per profile). GDB is more reliable for state verification.
+- GDB locale warning (CP1252→UTF-32) on every `call` — cosmetic, Windows-only, doesn't affect functionality.
+- `__pycache__` was briefly committed, now cleaned + `.gitignore` updated.
+
+**Files being worked on:** `src/dev/`, `scripts/`, `tests/replay_profiles/`, `docs/FAULT_INJECTION.md`
+
 ### BENCH SIM RETIREMENT — RESOLVED (2026-04-12)
 
 Old `bench_flight_sim.py` (479 lines, IVP-73) retired and replaced by `bench_sim.py` (~200 lines, 2 tests) in commit `5fbea19`. IVP-119 FusedState rename committed (`010f305`). Stage P7 + Stage 15 un-shelved. See LL Entry 36 for full root-cause analysis. Pre-commit hook now gates `ctest` + needs-based HW bench sim on flight-critical commits. Session-start canary added to SESSION_CHECKLIST.md item 6.
