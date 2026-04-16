@@ -292,6 +292,7 @@ else()
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/dev_cli.cpp>
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/fault_inject.cpp>
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/replay_inject.cpp>
+        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/diag_stats.cpp>
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -532,6 +533,7 @@ else()
             -Wl,--undefined=replay_inject_start
             -Wl,--undefined=replay_inject_stop
             -Wl,--undefined=replay_inject_sample
+            -Wl,--undefined=diag_stats_dump
         )
     endif()
 

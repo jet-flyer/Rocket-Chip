@@ -33,6 +33,7 @@
 #include "safety/pio_watchdog.h"
 #include "safety/pio_backup_timer.h"
 #include "safety/pyro_edge_logger.h"
+#include "dev/diag_stats.h"
 #include "fusion/mahony_ahrs.h"
 #include "fusion/wmm_tables.h"
 #include "drivers/spi_bus.h"
@@ -555,6 +556,7 @@ extern "C" void qv_idle_bridge(void) {
 
     g_lastTickFunction = "idle";
     g_recovery.current_tick_fn = rc::TickFnId::kSleep;
+    diag_stats_msp_tick();
     // WFI: sleep until next interrupt (100Hz QF tick, USB CDC, etc.).
     // Correct QV idle pattern per Samek. Tick functions above run once per
     // idle call, then WFI suspends until next event source fires.
