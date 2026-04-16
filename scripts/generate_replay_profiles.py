@@ -168,7 +168,7 @@ def simulate_flight(dt=0.001, max_time=180.0, early_burnout_t=None):
         if launched and alt <= 0 and vel < 0:
             alt = 0
             vel = 0
-            for _ in range(int(3.0 / dt)):
+            for _ in range(int(10.0 / dt)):
                 t += dt
                 results.append((t, 0, 0, G, 'landed'))
             break
