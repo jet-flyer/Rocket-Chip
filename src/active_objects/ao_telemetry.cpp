@@ -408,8 +408,8 @@ static QState TelemAo_initial(TelemAo * const me, QEvt const * const e) {
     me->mav_encoder.init();
     me->telem_valid = false;
     // Output mode owned by AO_RCOS (station_output_mode.h)
-    me->rate_hz = 2;
-    me->interval_ms = 500;
+    me->rate_hz = 5;
+    me->interval_ms = 200;
     me->last_tx_ms = 0;
     me->last_heartbeat_ms = 0;
     me->gcs_state = GcsState::kWaitingForGcs;
@@ -486,9 +486,9 @@ uint8_t AO_Telemetry_cycle_rate() {
             return next;
         }
     }
-    l_telemAo.rate_hz = 2;
-    l_telemAo.interval_ms = 500;
-    return 2;
+    l_telemAo.rate_hz = 5;
+    l_telemAo.interval_ms = 200;
+    return 5;
 }
 
 const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
