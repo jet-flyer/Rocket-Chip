@@ -429,7 +429,7 @@ public:
 
 In the bare-metal dual-core architecture, inter-module communication uses two patterns:
 
-**Same-core (Core 0):** Direct function calls and global structs. Modules in the Core 0 superloop (fusion, mission, logger, telemetry, UI) share data through global data structures accessed synchronously — no locking needed since they execute cooperatively in a single loop.
+**Same-core (Core 0):** Event-driven Active Objects (AOs) under the QP/C QV cooperative scheduler. AOs communicate via publish-subscribe signals dispatched by QV — handlers run to completion, no preemption, no locking between AOs. Non-AO modules (ESKF runner, health monitor tick, sensor seqlock reader) execute in the QV idle callback between AO dispatches. See `docs/AO_ARCHITECTURE.md` for the complete AO list, signal map, and priority ordering.
 
 **Cross-core (Core 1 → Core 0):** Seqlock double-buffer for sensor data. See `docs/decisions/SEQLOCK_DESIGN.md` for the full design rationale. See `docs/MULTICORE_RULES.md` for RP2350-specific inter-core rules.
 
@@ -521,28 +521,33 @@ struct LogMessage {
 
 RocketChip uses a bare-metal dual-core AMP (Asymmetric Multiprocessing) architecture. This replaces the previous FreeRTOS task model with a simpler, more deterministic approach. See `docs/decisions/SEQLOCK_DESIGN.md` for the council decision rationale.
 
-> **Naming convention:** Module names like "SensorTask" and "FusionTask" are logical module names, not RTOS tasks. In the bare-metal architecture, Core 0 modules are functions called from a cooperative superloop. Core 1 runs a dedicated polling loop. The "Task" suffix is retained for continuity with the module decomposition in Section 3.2.
+> **Architecture:** Core 0 runs the QP/C QV cooperative scheduler (`QF_run`). Eight Active Objects (AOs) process events via run-to-completion handlers — no preemption, deterministic dispatch order by priority. Non-AO modules (ESKF runner, health monitor tick, CLI poll) execute in the QV idle callback. Core 1 runs a dedicated sensor polling loop. See `docs/AO_ARCHITECTURE.md` for full details.
 
 > **Numerical values below are preliminary targets** — each must be validated empirically during implementation. See `docs/IVP.md` for verification gates. Actual achievable rates depend on I2C transaction times, computation costs, and bus contention measured during bringup.
 
-| Module | Target Rate | Core | Trigger | Notes |
-|--------|-------------|------|---------|-------|
-| Sensor sampling (IMU) | 1kHz | Core 1 | Tight polling loop (`time_us_64()`) | Rate limited by I2C transaction time — validate in IVP-25 |
-| Sensor sampling (Baro) | 50Hz | Core 1 | Rate divider on IMU loop | Validate in IVP-26 |
-| Sensor sampling (GPS) | 10Hz | Core 1 or Core 0 | Rate divider | GPS I2C reads are long — validate fit in IVP-33 |
-| Control loop | 500Hz | Core 1 | Derived from sensor tick | Only active during BOOST (Titan) |
-| Sensor fusion | 200Hz | Core 0 | Main loop polling | ESKF propagation + measurement updates |
-| Flight Director | 100Hz | Core 0 | Main loop polling | State machine, events |
-| Data logger | 50Hz | Core 0 | Main loop polling | Buffered writes |
-| Telemetry | 10Hz | Core 0 | Main loop polling | MAVLink over LoRa |
-| UI/CLI | 30Hz | Core 0 | Main loop polling | Display, LEDs, buttons |
+| Module | Rate | Core | Dispatch | Notes |
+|--------|------|------|----------|-------|
+| Sensor sampling (IMU) | 1kHz | Core 1 | Tight polling loop (`time_us_64()`) | Rate limited by I2C transaction time |
+| Sensor sampling (Baro) | 50Hz | Core 1 | Rate divider on IMU loop | |
+| Sensor sampling (GPS) | 10Hz | Core 1 | Rate divider | GPS I2C reads are long |
+| AO_Radio | 100Hz | Core 0 | QV tick (priority 8) | LoRa SPI TX/RX, ACK state machine |
+| AO_FlightDirector | 100Hz | Core 0 | QV tick (priority 7) | HSM: IDLE→ARMED→BOOST→...→LANDED |
+| AO_HealthMonitor | 10Hz | Core 0 | QV tick (priority 6) | 2-bit subsystem health, fault escalation |
+| AO_Notify | 33Hz | Core 0 | QV tick (priority 5) | Intent→backend resolution (LED, audio, radio) |
+| AO_Logger | 50Hz | Core 0 | QV tick (priority 4) | PSRAM buffer → flash page flush |
+| AO_Telemetry | 10Hz | Core 0 | QV tick (priority 3) | CCSDS frame encode → SIG_RADIO_TX |
+| AO_LedEngine | 33Hz | Core 0 | QV tick (priority 2) | WS2812 pattern render |
+| AO_RCOS | 20Hz | Core 0 | QV tick (priority 1) | CLI command dispatch, USB CDC |
+| ESKF runner | 200Hz | Core 0 | QV idle callback | ESKF propagation + measurement updates |
+| Health monitor tick | 10Hz | Core 0 | QV idle callback | Subsystem health evaluation |
 
 ### 5.2 Dual-Core Strategy
 
 The RP2350's dual Cortex-M33 cores enable clean separation via AMP (Asymmetric Multiprocessing):
 
-**Core 0 (Main Loop + USB):**
-- Cooperative time-sliced superloop: fusion, mission, logging, telemetry, UI
+**Core 0 (QV Scheduler + USB):**
+- QP/C QV cooperative scheduler dispatches 8 Active Objects by priority (the QV scheduler itself runs inside a bare-metal `QF_run` main loop)
+- Non-AO work (ESKF propagation, health tick, CLI poll) runs in the QV idle callback between AO dispatches
 - USB CDC serial (SDK-managed IRQ handlers registered on Core 0 by `stdio_init_all()`)
 - All `printf`/USB I/O guarded by `stdio_usb_connected()`
 
@@ -561,29 +566,40 @@ The RP2350's dual Cortex-M33 cores enable clean separation via AMP (Asymmetric M
                     ┌─────────────────────────────────────────┐
                     │              CORE 1                     │
                     │  ┌──────────────────────────────────┐   │
-                    │  │  Timer-Driven Sensor Sampling    │   │
-                    │  │  1kHz repeating_timer callback   │   │
+                    │  │  Sensor Polling Loop             │   │
+                    │  │  1kHz IMU, 50Hz baro, 10Hz GPS   │   │
+                    │  │  → seqlock publish                │   │
                     │  └──────────────┬───────────────────┘   │
                     │                 │                        │
                     └─────────────────┼────────────────────────┘
-                                      │
+                                      │ seqlock
                                       ▼
                     ┌─────────────────────────────────────────┐
-                    │      SHARED DATA (global structs)       │
-                    │   SensorData | FusedState | MissionState│
+                    │      SHARED DATA (seqlock buffers)      │
+                    │   SensorSnapshot | FusedState            │
                     └─────────────────────────────────────────┘
                                       │
                     ┌─────────────────┴────────────────────────┐
                     │              CORE 0                       │
                     │                                           │
                     │  ┌────────────────────────────────────┐   │
-                    │  │        Polling Main Loop           │   │
+                    │  │  QF_run (QP/C QV scheduler)       │   │
                     │  │                                    │   │
-                    │  │  if (fusion_due)   run_fusion();   │   │
-                    │  │  if (mission_due)  run_mission();  │   │
-                    │  │  if (logger_due)   run_logger();   │   │
-                    │  │  if (telem_due)    run_telemetry();│   │
-                    │  │  if (ui_due)       run_ui();       │   │
+                    │  │  100Hz tick ISR → time events      │   │
+                    │  │  ┌──────────────────────────────┐  │   │
+                    │  │  │ AO dispatch (by priority):   │  │   │
+                    │  │  │  8: AO_Radio                 │  │   │
+                    │  │  │  7: AO_FlightDirector (HSM)  │  │   │
+                    │  │  │  6: AO_HealthMonitor         │  │   │
+                    │  │  │  5: AO_Notify                │  │   │
+                    │  │  │  4: AO_Logger                │  │   │
+                    │  │  │  3: AO_Telemetry             │  │   │
+                    │  │  │  2: AO_LedEngine             │  │   │
+                    │  │  │  1: AO_RCOS (CLI)            │  │   │
+                    │  │  └──────────────────────────────┘  │   │
+                    │  │  QV_onIdle:                        │   │
+                    │  │    eskf_tick()  health_tick()      │   │
+                    │  │    cli_poll()   seqlock_read()     │   │
                     │  └────────────────────────────────────┘   │
                     │                                           │
                     └───────────────────────────────────────────┘
