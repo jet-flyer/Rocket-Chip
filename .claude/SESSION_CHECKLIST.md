@@ -38,8 +38,9 @@ Before committing and pushing:
 4. **No orphaned work** — Every file change should be committed. No half-finished edits left in the working tree
 5. **No unintended deletions** — Run `git diff --stat` and verify the diff matches what you intended to change. If files were deleted, confirm that was intentional
 6. **Check AGENT_WHITEBOARD.md** — Update with current state, clear resolved items, add any new flags or open items discovered during the session
-7. **Commit with descriptive message** — Format: `[agent] brief description of what and why`
-8. **Push to remote** — `git push` so work is not stranded locally
+7. **Architecture doc drift check** — If this session changed any AO (added, removed, renamed, re-prioritized), signal (new, renamed, rerouted), or queue depth: run `grep -n "superloop\|core 0 cooperative" docs/SAD.md docs/SCAFFOLDING.md` and verify zero stale hits. Also verify the AO list in `docs/AO_ARCHITECTURE.md`, `docs/SAD.md` Section 5.1, and `docs/SCAFFOLDING.md` Module Responsibilities table all match `src/active_objects/`. Patch any drift before committing.
+8. **Commit with descriptive message** — Format: `[agent] brief description of what and why`
+9. **Push to remote** — `git push` so work is not stranded locally
 
 ---
 
@@ -47,13 +48,13 @@ Before committing and pushing:
 
 All of the above, plus:
 
-9. **Expand AGENT_WHITEBOARD.md** with handoff-specific details:
-   - What was in progress
-   - What's blocked and why
-   - Any concerns or open questions
-   - Specific files that were being worked on
-10. **Don't leave broken code on main** — If work is incomplete, either stash it or commit to a feature branch
-11. **Note the exact state** — "Build compiles, sensor reads work, CLI untested" is better than "made progress"
+10. **Expand AGENT_WHITEBOARD.md** with handoff-specific details:
+    - What was in progress
+    - What's blocked and why
+    - Any concerns or open questions
+    - Specific files that were being worked on
+11. **Don't leave broken code on main** — If work is incomplete, either stash it or commit to a feature branch
+12. **Note the exact state** — "Build compiles, sensor reads work, CLI untested" is better than "made progress"
 
 ---
 
@@ -61,9 +62,9 @@ All of the above, plus:
 
 All of the normal completion items, plus:
 
-12. **Update `docs/PROJECT_STATUS.md`** with milestone completion and next phase
-13. **Review SCAFFOLDING.md** — If directory structure changed, update it
-14. **Consider LESSONS_LEARNED.md** — If significant debugging occurred, document it
+13. **Update `docs/PROJECT_STATUS.md`** with milestone completion and next phase
+14. **Review SCAFFOLDING.md** — If directory structure changed, update it
+15. **Consider LESSONS_LEARNED.md** — If significant debugging occurred, document it
 
 ---
 
