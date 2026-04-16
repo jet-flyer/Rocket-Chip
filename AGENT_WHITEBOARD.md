@@ -35,6 +35,16 @@ IVP-122 half-duplex ACK protocol is implemented and works when timing aligns (AR
 
 PIO backup timer shakedown (Scenario 5) confirmed: external PIO SM halt is undetectable by firmware. The PIO watchdog IRQ flag is only set by the PIO program itself — if the SM is disabled or corrupted, no flag is raised. ARM-side monitoring reintroduces the dependency chain the PIO was designed to avoid. The correct mitigation is physical redundancy: a second independent timer on a separate MCU. This is a Gemini-tier feature (dual-core carrier board for redundancy). Not a firmware defect — accepted gap for Core/Titan tiers.
 
+### IVP-131 Replay Harness — Deferred to Grok (2026-04-15)
+
+Profile generator `scripts/generate_replay_profiles.py` produces 5 sensor-rate CSVs. Sim now uses real F15-6 NAR thrust curve (ThrustCurve.org RASP data), correct Estes dry mass (70g, not .rkt's 160g), Cd=0.50. Output: **347m apogee at t=7.6s, chute at 13.6s, landed 83.4s.** Physically reasonable.
+
+**Council improvements incorporated:** progressive thrust curve, chute deployment, early_burnout (not CATO), physical phase labels.
+
+**Still needed for Grok:** firmware-side replay inject hook (`_replay_inject` CLI + Core 1 seqlock injection), `scripts/replay_harness.py` orchestration (CSV→serial→verify FD states), plot script (Space Camp Counselor suggestion), intermittent IMU fault variant (NASA/JPL suggestion).
+
+**Files in repo:** `scripts/generate_replay_profiles.py`, `tests/replay_profiles/estes_big_daddy.rkt`, 5 CSV profiles (f15_nominal, early_burnout, imu_zero_fault, baro_dropout, gps_dropout_descent).
+
 ### ELRS on RP2350 — Research Item (2026-04-12)
 
 ExpressLRS is fully open source ([github.com/ExpressLRS](https://github.com/ExpressLRS/ExpressLRS)). The 900MHz version uses SX1276 with custom frequency hopping and tight packet timing. Currently ELRS runs on ESP8285/STM32 paired with SX chips. Running ELRS natively on RP2350 with PIO-assisted modulation timing is a research question worth exploring — the RP2350 has plenty of headroom and PIO could handle the frequency hopping timing constraints.
