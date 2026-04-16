@@ -11,12 +11,14 @@
 static inline bool dev_debug_menu_enter()            { return false; }
 static inline bool dev_debug_menu_dispatch(int)       { return false; }
 static inline bool dev_eskf_live_poll()               { return false; }
+static inline bool dev_replay_poll()                  { return false; }
 
 #else
 
 bool dev_debug_menu_enter();
 bool dev_debug_menu_dispatch(int c);
 bool dev_eskf_live_poll();
+bool dev_replay_poll();
 
 #endif
 

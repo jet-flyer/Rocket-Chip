@@ -291,6 +291,7 @@ else()
         # Dev diagnostics (excluded from flight builds)
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/dev_cli.cpp>
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/fault_inject.cpp>
+        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/replay_inject.cpp>
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -528,6 +529,9 @@ else()
             -Wl,--undefined=fault_force_health_fail
             -Wl,--undefined=fault_force_ao_queue_flood
             -Wl,--undefined=fault_force_pio_sm_halt
+            -Wl,--undefined=replay_inject_start
+            -Wl,--undefined=replay_inject_stop
+            -Wl,--undefined=replay_inject_sample
         )
     endif()
 
