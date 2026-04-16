@@ -32,6 +32,7 @@
 #include "fusion/confidence_gate.h"
 #include "safety/pio_watchdog.h"
 #include "safety/pio_backup_timer.h"
+#include "safety/pyro_edge_logger.h"
 #include "fusion/mahony_ahrs.h"
 #include "fusion/wmm_tables.h"
 #include "drivers/spi_bus.h"
@@ -436,6 +437,7 @@ static void init_pio_safety() {
     if (!rc::pio_backup_timer_init(kPioDroguePin, kPioMainPin)) {
         DBG_ERROR("PIO backup timer init failed");
     }
+    rc::pyro_edge_logger_init(kPioDroguePin, kPioMainPin);
 }
 
 static void init_application(bool watchdogReboot) {

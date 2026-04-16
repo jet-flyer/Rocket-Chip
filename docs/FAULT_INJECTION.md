@@ -63,7 +63,7 @@ See `.claude/DEBUG_PROBE_NOTES.md` for full setup, known issues, and GDB version
 
 ```
 (gdb) monitor halt
-(gdb) set *0x50300000 = (*0x50300000) & ~(1 << 2)
+(gdb) set *0x50400000 = (*0x50400000) & ~(1 << 2)
 (gdb) continue
 ```
 
@@ -133,7 +133,7 @@ These are compiled into the bench binary only. See `docs/audits/DEV_CODE_AUDIT.m
 
 ## PIO Backup Timer — Hardware Details
 
-**PIO block:** PIO2 (`0x50300000` base on RP2350)
+**PIO block:** PIO2 (`0x50400000` base on RP2350)
 **State machines:** Two dynamically claimed SMs (`g_drogue_sm`, `g_main_sm`)
 **Clock:** 1 MHz (divider 150 from 150 MHz system clock)
 **Countdown:** `timeout_s * 1_000_000` cycles loaded via `pio_sm_put_blocking()`
@@ -141,12 +141,12 @@ These are compiled into the bench binary only. See `docs/audits/DEV_CODE_AUDIT.m
 
 To halt a PIO SM from GDB without calling C code:
 ```
-set *0x50300000 = (*0x50300000) & ~(1 << SM_NUMBER)
+set *0x50400000 = (*0x50400000) & ~(1 << SM_NUMBER)
 ```
 
 To read which SMs are enabled:
 ```
-print/x *0x50300000
+print/x *0x50400000
 ```
 Bits [3:0] are SM3..SM0 enable flags.
 

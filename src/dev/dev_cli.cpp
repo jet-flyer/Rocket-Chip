@@ -10,6 +10,7 @@
 #include "cli/rc_os.h"
 #include "cli/rc_os_commands.h"
 #include "drivers/i2c_bus.h"
+#include "safety/pyro_edge_logger.h"
 #include "rocketchip/config.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
@@ -21,7 +22,7 @@ static constexpr uint32_t kEskfLivePeriodUs = 1000000;
 
 bool dev_debug_menu_enter() {
     printf("\n--- Debug ---\n");
-    printf("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
+    printf("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live  y-Pyro log\n");
     printf("h-Help  z-Back\n");
     return true;
 }
@@ -52,9 +53,12 @@ bool dev_debug_menu_dispatch(int c) {
             printf("\n--- ESKF live (1Hz) --- any key to stop ---\n");
             cli_print_eskf_live();
             break;
+        case 'y': case 'Y':
+            rc::pyro_edge_logger_dump_cli();
+            break;
         case 'h': case 'H': case '?':
             printf("\n--- Debug Menu ---\n");
-            printf("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
+            printf("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live  y-Pyro log\n");
             printf("z-Back to main\n");
             break;
         case 'z': case 'Z': case 27:

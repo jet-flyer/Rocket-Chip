@@ -321,6 +321,7 @@ else()
         # IVP-88: PIO heartbeat watchdog + IVP-89: Backup timers
         src/safety/pio_watchdog.cpp
         src/safety/pio_backup_timer.cpp
+        src/safety/pyro_edge_logger.cpp
 
         # Phase 6: Health Monitor (called from AO_FlightDirector at 10Hz)
         src/safety/health_monitor.cpp
