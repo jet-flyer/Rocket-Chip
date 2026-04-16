@@ -108,9 +108,9 @@
 
 ## In Progress
 
-*None currently.*
+**Stage 16B Bench Testing** — IVP-124a through IVP-131 complete. IVP-132 (HW budgets + soak) and IVP-132a (station bench tests) remaining.
 
-**Next:** Stage 16B (Bench Testing: 30-min soak, PIO shakedown) → Stage 16A' (IVP-125 + IVP-126: SAD/SCAFFOLDING superloop purge) → Stage 16C (Field Testing) → Stage 17 (Field Tuning)
+**Next:** IVP-132 → IVP-132a → Stage 17 (Field Testing) → Stage 18 (Field Tuning)
 
 ## Blockers
 

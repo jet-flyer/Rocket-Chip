@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-15-002 | Claude Code CLI | testing, safety, tooling
+
+**Stage 16B bench testing (IVP-129, 130, 131).** GDB fault injection harness with 7 hook functions (`src/dev/fault_inject.{h,cpp}`), procedure guide (`docs/FAULT_INJECTION.md`), 5 GDB scripts. PIO backup timer shakedown — all 5 scenarios HW verified (Core 0 stall proven independent of PIO timers, PIO SM halt gap documented for Gemini tier). Pyro edge logger in flight binary (`src/safety/pyro_edge_logger.{h,cpp}`). Sensor replay harness — 5 Big Daddy F15-6 profiles (nominal, early burnout, IMU fault, baro dropout, GPS dropout) all reach kLanded via full FD state sequence. Real NAR thrust curve from ThrustCurve.org. Council reviewed (NASA/JPL, Rocketeer, Space Camp Counselor, Professor, ArduPilot).
+
+---
+
 ### 2026-04-15-001 | Claude Code CLI | documentation, refactor, tooling
 
 **Stage 16B front-loaded cleanup (IVP-124a, 125, 126, 127, 127a, 127b).** IVP.md restructured into Stage 16B/17/18. SAD + SCAFFOLDING superloop purge (AO-first rewrite). Doc-drift checkpoint in SESSION_CHECKLIST. Dev code audit + build-tier split (`BUILD_FOR_FLIGHT` CMake option, `src/dev/` directory). Version string consolidation into `version.h` (firmware 0.16.0, RCOS 0.5.0, git hash). Council-reviewed plan: `.claude/plans/stateless-hopping-allen.md`. 709/709 host tests.

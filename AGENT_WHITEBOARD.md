@@ -51,6 +51,10 @@ ExpressLRS is fully open source ([github.com/ExpressLRS](https://github.com/Expr
 
 **Not blocking any current work.** This is a future investigation item for potential radio protocol upgrade. The current RFM95W hardware (bare SX1276 on SPI) may be compatible if the ELRS packet format and hopping schedule can be implemented in RP2350 firmware. The Telstar Booster Pack (`docs/hardware/TELSTAR_BOOSTER_PACK.md`) already describes ELRS via CRSF/UART to a dedicated module as an alternative path.
 
+### Landing Beacon LED — White Flash 2Hz (user request, 2026-04-15)
+
+LANDED state LED pattern should be white flashing at ~2Hz. White is brightest/most visible for recovery. 2Hz is attention-getting without being excessive. Update the LANDED pattern in AO_LedEngine (color + period).
+
 ### SPIN Model Inaccuracy — Abort Pyro (discovered 2026-04-12)
 
 `rocketchip_fd.pml` lines 89-92 and 105-108 unconditionally fire `drogue_fired = true` on ABORT from BOOST/COAST. The firmware gates this on `MissionProfile::abort_fires_drogue_from_boost/coast`, which default to `false` in `rocket.cfg`. The SPIN model is more aggressive than the firmware. Firing drogue at high speed (during BOOST) would be a shred event — the profile flag being `false` is physically correct for rockets. The SPIN model should be updated to gate drogue-on-abort behind a boolean. The code comment at `flight_director.cpp:317` ("fires drogue — Amendment #1") should say "fires drogue if profile flag is set."
