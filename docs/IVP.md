@@ -24,8 +24,9 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stage 14** (Notification Engine): IVP-113 through IVP-118. Council-reviewed.
 - **Stage P7** (MAIN_DESCENT Liveness Fix): IVP-119 through IVP-121. Out-of-sequence safety pass — multi-channel voted landing detection closing SPIN property P7. Council-reviewed (two rounds).
 - **Stage 15** (Pre-Flight Radio + Station): IVP-122 through IVP-124. Half-duplex ACK + ARM confirm UX, distance-to-rocket finish, station help/whiteboard cleanup.
-- **Stage 16** (Pre-Flight Polish): Placeholder — phases A (docs/cleanup), B (bench testing), C (field testing).
-- **Stage 17** (Field Tuning & Validation): Placeholder — VALIDATE parameter tuning from flight data.
+- **Stage 16** (Pre-Flight Polish): 16A (docs/cleanup) COMPLETE 2026-04-12. 16B (bench testing — vehicle + Fruit Jam station) Planned per `.claude/plans/stateless-hopping-allen.md`.
+- **Stage 17** (Field Testing & Avionics Airworthiness): Planned. Big Daddy airframe, ground test, low-altitude flight test → **Flight Test Ready** milestone.
+- **Stage 18** (Field Tuning & Validation): Placeholder — VALIDATE parameter tuning from Stage 17 flight data. (Was old Stage 17, renumbered 2026-04-15.)
 
 **Key references (not duplicated here):**
 - `docs/SAD.md` — System architecture, data structures, module responsibilities
@@ -115,11 +116,11 @@ cmake --build build/
 | **13** | **Health Monitor** | **Phase 9** | **IVP-104 — IVP-112** | **Full** | |
 | **14** | **Notification Engine** | **Phase 9** | **IVP-113 — IVP-118** | **Full** | |
 | **P7** | **MAIN_DESCENT Liveness Fix** | **Phase 9** | **IVP-119 — IVP-121** | **Full** | **(out-of-sequence)** |
-| 15 | Pre-Flight Radio + Station | Phase 9 | IVP-122 — IVP-124 | Planned | |
-| **16A** | **Documentation & Cleanup** | **Phase 9** | **IVP-125 — IVP-130** | **Planned** | |
-| 16B | Bench Testing | Phase 9 | — | Placeholder | |
-| 16C | Field Testing | Phase 9 | — | Placeholder | **Flight Ready** |
-| 17 | Field Tuning & Validation | Phase 9 | — | Placeholder | |
+| 15 | Pre-Flight Radio + Station | Phase 9 | IVP-122 — IVP-124 | Full | |
+| **16A** | **Documentation & Cleanup (pre-bench)** | **Phase 9** | *(historical IVP-127–130 reassigned per 2026-04-15 restructure; see Stage 16A note)* | **Full** | IVP-125/126 deferred → front-loaded into 16B |
+| **16B** | **Bench Testing (vehicle + station)** | **Phase 9** | **IVP-124a, 125, 126, 127a, 127b, 129–132a** | **Planned** | **Bench Validated** |
+| **17** | **Field Testing & Avionics Airworthiness** | **Phase 9** | **IVP-134 — IVP-138** | **Planned** | **Flight Test Ready** |
+| 18 | Field Tuning & Validation | Phase 9 | — | Placeholder | (was old Stage 17; renumbered) |
 
 > **Stage 6 pull-forward rationale:** Data Logging was originally Stage 9 but is a dependency for the telemetry encoder — the encoder reads from data structures (FusedState, TelemetryState, SensorSnapshot) defined by the logging architecture. Pulling logging forward establishes the canonical data model that all downstream consumers (telemetry encoder, flight director, GCS) read from. IVP numbers were renumbered sequentially. See council reviews: `docs/decisions/Telem+logging/council_data_logging.md` and `council_telemetry_protocol.md`.
 
@@ -3421,49 +3422,66 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 ## Stage 16: Pre-Flight Polish
 
-**Purpose:** Full system verification and flight readiness. Three phases: documentation/code cleanup (16A), bench testing (16B), and field testing (16C). Audio output (I2S DAC, ~10-12 IVPs) is deliberately deferred to a later stage — it's Fruit Jam ground-station only and doesn't block flight readiness. Battery ADC monitoring is also deferred pending custom hardware decisions.
+**Purpose:** Full system verification and flight readiness. Restructured 2026-04-15 into 16A (doc cleanup, complete) + 16B (bench testing, vehicle + station) + Stage 17 (field testing, separate stage). Audio output (I2S DAC, ~10-12 IVPs) is deliberately deferred to a later stage. Battery ADC monitoring is also deferred pending custom hardware decisions.
 
 **Prerequisites:** Stage 15 complete.
 
-*IVP numbers assigned when this stage is planned.*
+### Stage 16A: Documentation & Cleanup (pre-bench) — COMPLETE 2026-04-12
 
-### Stage 16A: Documentation & Cleanup
+Four documentation items completed: AO Architecture Audit (removed dead Core1 vitality fields from AO_Notify, documented 2-layer notification model in `docs/AO_ARCHITECTURE.md`), TBD Placeholder Purge (filled memory + power budgets in `HARDWARE_BUDGETS.md` from `.map` file + datasheets), Runtime Behavior Map full rewrite (`docs/audits/cla_rbm/RUNTIME_BEHAVIOR_MAP.md` updated for QV architecture, 5 Graphviz diagrams regenerated), and User Guide quick-reference card (new `docs/USER_GUIDE.md`).
 
-| Step | Title | Brief Description |
-|------|-------|------------------|
-| — | SAD Superloop Purge | `docs/SAD.md` still references the removed superloop at multiple locations. Rewrite to the QV/AO dispatcher model (post-Stage-9 architecture). |
-| — | SCAFFOLDING Refresh | `docs/SCAFFOLDING.md` has lingering superloop references at lines 107, 293, 317. Sync to current AO layout including Stage 14 AO_Notify and Stage 15 radio changes. |
-| — | Runtime Behavior Map Refresh | `docs/audits/cla_rbm/RUNTIME_BEHAVIOR_MAP.md` is dated 2026-03-08 (pre-Stage-14). Update for AO_Notify intent layer, HealthMonitor-primary Core1 vitality (IVP-117), and Stage 15 radio command path. |
-| — | TBD Placeholder Purge | Fill in or remove TBD markers: `PROJECT_OVERVIEW.md` Main tier, `HARDWARE_BUDGETS.md` memory + power sections, `RADIO_TELEMETRY_STATUS.md:116` diagnostics packet, four SAD.md TBDs (flash layout, power budget, mission plugins, driver packages). |
-| — | User / Operations Guide | New document. Pre-flight flow, CLI cheat sheet, field deployment procedures, log download workflow, troubleshooting tree. Does not currently exist. |
-| — | AO Architecture Audit | Verify all health/safety logic lives in the correct AOs (post-Stage-14 Core1 vitality is checked in 3 places — evaluate justified defense-in-depth vs. bloat). Update `docs/AO_ARCHITECTURE.md`. |
+> **Numbering note:** Stage 16A's completed work was originally tracked as IVP-127 through IVP-130 in CHANGELOG and PROJECT_STATUS. The 2026-04-15 restructure (`.claude/plans/stateless-hopping-allen.md`) reassigned those numbers to new Stage 16B work because the original IVP-125/126 (SAD/SCAFFOLDING superloop purge) were deferred and needed to be front-loaded into 16B. The Stage 16A completion record remains in CHANGELOG and PROJECT_STATUS as historical narrative; this table no longer carries those IVP numbers.
 
-### Stage 16B: Bench Testing
+### Stage 16B: Bench Testing (vehicle + Fruit Jam station)
+
+**Plan:** `.claude/plans/stateless-hopping-allen.md` (council-reviewed 2026-04-15: NASA/JPL Lead, Embedded Systems Professor, Advanced Hobbyist Rocketeer, Cubesat Startup Engineer).
+
+**End state:** **Bench Validated** — both vehicle and station soak-tested under fault injection, replay harness exercises full ESKF→FD→Notify pipeline against deterministic inputs, PIO backup safety paths verified.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| — | Hardware Budget Measurement Sweep | Fill in `HARDWARE_BUDGETS.md` with actual numbers: SRAM/flash usage from `.map` file, peak power draw under flight profile, peak current during pyro fire. Required before Stage 16C field test. |
-| — | Full System 30-Minute Soak | Repeatable soak using `bench_flight_sim.py` (IVP-73). Watchdog reset tracking, memory leak check, health monitor panel audit, QP queue depth audit. Goal: zero crashes, zero unexpected state transitions. |
-| — | Simulated Flight Profile Replay Harness | New harness (distinct from CLI-driven `bench_flight_sim.py`). Inject recorded accel/baro/GPS samples directly into Core 1 seqlock path to exercise full ESKF → FD → Notify pipeline with known ground-truth inputs. |
-| — | PIO Backup Timer Shakedown | Exhaustive failure scenario testing of the PIO deployment timers from Stage 11. Simulate ESKF death, Core 0 hang, watchdog stall — verify PIO backup fires drogue and main at configured timeouts regardless. |
-| — | Environmental Bench Stress | Temperature soak: freezer → ambient → warm (feasible at home without specialized equipment). Verify sensors, ESKF, radio, flash work across range. Vibration deferred unless shaker table available. |
-| — | USB Download Speed Optimization | *(Opportunistic)* Bypass stdio for bulk flight log download. Target 200+ KB/s. Not flight-critical but improves post-flight workflow. |
+| IVP-124a | IVP.md Stage 16/17/18 Plan Entry | Update IVP.md status table + Stage 16/17/18 detail sections to match the restructured plan. Source-of-truth alignment before any IVP-numbered work begins. |
+| IVP-125 | SAD Superloop Purge | Full rewrite of `docs/SAD.md` Sections 3.2/3.3 to AO-first language. "Superloop" demoted to one-line implementation note. Module names rewritten as Active Object names. Front-loaded from 16A deferral. |
+| IVP-126 | SCAFFOLDING Superloop Purge | Sync `docs/SCAFFOLDING.md` to current AO layout. `main.cpp` description = "boot init + `QF_run` entry"; module table reflects AO ownership; Stage 14 AO_Notify and Stage 15 radio path included. Front-loaded from 16A deferral. |
+| IVP-127a | Dev Code Audit + Build-Tier Consolidation | Audit `src/` for dev/test/diagnostic code in flight binary. Establish `src/dev/` directory + CMake target split (`rocketchip_flight` / `rocketchip_bench`, `fruitjam_flight` / `fruitjam_bench`). Migrate findings. Verify with `nm`. |
+| IVP-127b | Build/Version String Audit + Single Source of Truth | Audit all printed version strings (boot banner, CLI, telemetry frame, log header). Consolidate to `include/rocketchip/version.h` + `version_string()` formatter. Per LL Entry 2 — version strings are load-bearing during debugging. |
+| IVP-129 | GDB Fault Injection Harness | Procedure doc `docs/FAULT_INJECTION.md` synthesized from CMSIS-DAP + OpenOCD references. Vehicle hook functions in `src/dev/fault_inject.{h,cpp}`: `fault_force_eskf_unhealthy`, `fault_force_core0_hang`, `fault_force_watchdog_stall`, `fault_force_health_subsystem_fail`, `fault_force_ao_queue_flood`. Checked-in `.gdb` scripts in `scripts/fault_injection/`. |
+| IVP-130 | PIO Backup Timer Shakedown | 5-scenario fault matrix using IVP-129 hooks: ESKF death during BOOST, Core 0 hang during COAST, watchdog stall, AO queue flood, PIO state machine halt. Pyro GPIO capture via ISR edge logger (`src/safety/pyro_edge_logger.{h,cpp}`) — no logic analyzer required. |
+| IVP-131 | Sensor Replay Harness — Big Daddy Profile | OpenRocket `.ork` for Estes Big Daddy → CSV at native sensor rates. Hand-authored edge cases (motor CATO, late drogue, baro dropout, IMU zero fault, GPS dropout during MAIN_DESCENT). Replay injects samples into Core 1 seqlock via `_replay_inject` CLI. Compares actual FD/Notify behavior to documented ground-truth oracle. |
+| IVP-132 | HW Budgets + Two-Tier Soak | `_diag_stats` CLI dumps per-AO QP queue stats, MSP high-water, flash page count, sensor temps. SRAM/flash from `.map`, peak current measured. 5-min diagnostic soak (USB powered, per code change). 30-min integration soak (battery powered, FLIGHT BINARY, gate before Stage 17). |
+| IVP-132a | Station (Fruit Jam) Bench Tests | Station-side parity: `fault_force_station_rx_drop`, `fault_force_station_ack_timeout`, `fault_force_station_gps_loss` hooks. `scripts/station_replay_harness.py` replays vehicle telemetry into station RX. 30-min station soak on `fruitjam_flight`. ACK protocol stress (RadioScheduler-sync findings appended to AGENT_WHITEBOARD). |
 
-### Stage 16C: Field Testing
-
-| Step | Title | Brief Description |
-|------|-------|------------------|
-| — | Pre-Flight Checklist Document | Formalize the `p` command (IVP-110 Go/No-Go) into a written pre-flight procedure. Pass/fail gates, fallback actions on NO-GO, station-side verification steps. |
-| — | Ground Test (Static) | Static ARM → DISARM cycles. GPS lock acquisition time. Radio link budget measurement at distance (line-of-sight + light obstruction). Half-duplex ACK verification in realistic RF environment. Log download round-trip. Distance-to-rocket verification with outdoor GPS fix on both boards (IVP-123 field gate). |
-| — | Low-Altitude Flight Test | Bungee-launched glider or low-power rocket. Full data capture: flight log + live telemetry + station dashboard. Post-flight replay analysis. First real flight validation. |
-
-> **Milestone:** Low-Altitude Flight Test — **Flight Ready**.
+### Stage 17 — see dedicated section below.
 
 ---
 
-## Stage 17: Field Tuning & Validation
+## Stage 17: Field Testing & Avionics Airworthiness
 
-**Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. This stage requires a flight-ready system (Stage 16 complete) to collect meaningful data for tuning.
+**Purpose:** Extend Stage 16B bench validation to real-world airframe + outdoor RF + airframe-mounted operation. Estes Big Daddy with prototype in nose cone, station operated outdoors at distance. Verify state transitions, logging, telemetry, and pyro *triggering* (no live charges) survive a real flight environment.
+
+**Plan:** `.claude/plans/stateless-hopping-allen.md` (council-reviewed 2026-04-15).
+
+**End state:** **Flight Test Ready** — avionics validated for **repeat flights of the same class only** (low-power passive recovery, F-class motor, stock chute, no live pyro, hand-launched glider, or equivalent). Does NOT cover: H+ motors, dual-deploy with live charges, new untested airframes, or any mission-class flight.
+
+**Prerequisites:** Stage 16B complete.
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| IVP-134 | Pre-Flight Checklist Document | Formalize `p` command (IVP-110 Go/No-Go) into a written pre-flight procedure. Pass/fail gates, fallback actions on NO-GO, station-side verification, field kit checklist. |
+| IVP-135 | Big Daddy Airframe Integration | Build/modify Big Daddy for prototype in nose cone. W&B measurement, stability ≥1.0 caliber via OpenRocket. Mounting bracket (3D printed if needed). **Motor selected post-IVP-131 simulation results** — F44 (gentle), F67, or alternative; 1010 rail launch. |
+| IVP-136 | Static Ground Test | Powered on at launch site (not bench). Outdoor GPS lock time, radio link budget at incremental distances, half-duplex ACK in real RF environment, distance display verified, ARM/DISARM cycles, log download round-trip. |
+| IVP-137 | Low-Altitude Flight Test | Bungee glider OR low-power Big Daddy on F/G motor. Telemetry quality criterion: <2% frame loss within 200m LOS; >5% triggers post-flight investigation. Per-frame RSSI + SNR (RegPktSnrValue) logged. Pyro fire timing within ±100ms of expected (logged via IVP-130 ISR edge logger; no live charges). |
+| IVP-138 | Stage 17 Exit Gate | "Flight Test Ready" milestone with documented scope limits. Combined report. CHANGELOG, PROJECT_STATUS, AGENT_WHITEBOARD updated. Stage 18 (Field Tuning) IVP list drafted from VALIDATE-marked findings. |
+
+> **Milestone:** IVP-137 + IVP-138 — **Flight Test Ready** (avionics airworthy for repeat flights of same class).
+
+---
+
+## Stage 18: Field Tuning & Validation
+
+**Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. (Was Stage 17 — renumbered when Stage 17 became Field Testing per `.claude/plans/stateless-hopping-allen.md`.)
+
+**Prerequisites:** Stage 17 complete (Flight Test Ready).
 
 **Scope:** All `VALIDATE`-marked thresholds from Stages 8-11, including:
 - Phase-scheduled Q/R values per vehicle type (IVP-83)
@@ -3474,7 +3492,7 @@ Both always compiled in (~4.5 KB total). Strategy pattern — no `#ifdef`, no re
 
 **Methodology:** See `docs/DYNAMIC_VALIDATION.md` for physical test methods (Allan variance, turntable, pendulum, elevator, data logging + replay, vehicle GPS-vs-INS).
 
-*IVP numbers assigned when this stage is planned.*
+*IVP numbers assigned post-Stage-17 from VALIDATE-marked findings in the Stage 17 report.*
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
