@@ -104,7 +104,7 @@ rocketchip/
 │       └── led_patterns.h         # LED pattern constants (single source of truth)
 │
 ├── src/
-│   ├── main.cpp                   # Entry point: Core 0 superloop + Core 1 sensor loop
+│   ├── main.cpp                   # Entry point: boot init, QF_run (QV scheduler), Core 1 sensor loop
 │   │
 │   ├── drivers/                   # Hardware drivers (Flight-Critical)
 │   │   ├── i2c_bus.cpp/.h         # I2C bus init, read/write, probe, recovery
@@ -290,7 +290,7 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 
 | Module | Responsibility |
 |--------|----------------|
-| **main.cpp** | Core 0 superloop (fusion, CLI, USB), Core 1 sensor loop (IMU/baro/GPS/mag reads), boot init |
+| **main.cpp** | Boot init, `QF_run` entry (QV scheduler), Core 1 sensor loop launch, QV idle callback (ESKF, health tick, CLI poll) |
 | **i2c_bus** | I2C peripheral init, bus read/write/probe, 9-clock bit-bang recovery |
 | **icm20948** | ICM-20948 IMU driver — accel/gyro/temp reads, AK09916 mag via I2C bypass mode |
 | **baro_dps310** | DPS310 barometer driver — pressure/temperature reads |
@@ -303,18 +303,22 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 | **wmm_declination** | World Magnetic Model — declination lookup by lat/lon |
 | **calibration_manager** | Gyro bias, level cal, 6-position accel cal, magnetometer ellipsoid fit |
 | **calibration_storage** | Dual-sector flash persistence for calibration data |
-| **rc_os** | CLI menu system — "local GCS" translating keystrokes to commands |
-| **ao_radio** | Radio hardware AO — RadioScheduler, non-blocking TX, RX polling, RSSI bar, relay |
-| **ao_telemetry** | Telemetry protocol AO — CCSDS/MAVLink encoding, APID mux, USB MAVLink output |
-| **ao_flight_director** | Flight Director AO — HSM dispatch at 100Hz |
-| **ao_led_engine** | NeoPixel animation AO — flight phase patterns (Vehicle only) |
+| **rc_os** | CLI command handlers — "local GCS" translating keystrokes to commands |
+| **ao_radio** | AO priority 8 — RadioScheduler, non-blocking TX, RX polling, RSSI bar, relay |
+| **ao_flight_director** | AO priority 7 — HSM: IDLE→ARMED→BOOST→...→LANDED, pyro commands |
+| **ao_health_monitor** | AO priority 6 — 2-bit subsystem health encoding, fault escalation, auto-DISARM |
+| **ao_notify** | AO priority 5 — Notification intent → backend resolution (LED, audio, radio) |
+| **ao_logger** | AO priority 4 — PSRAM buffer → flash page flush, flight log lifecycle |
+| **ao_telemetry** | AO priority 3 — CCSDS/MAVLink encoding, APID mux, USB MAVLink output |
+| **ao_led_engine** | AO priority 2 — NeoPixel animation rendering (Vehicle only) |
+| **ao_rcos** | AO priority 1 — CLI dispatch, USB CDC poll, serial I/O |
 | **radio_scheduler** | Half-duplex TX-priority state machine (protocol-agnostic) |
 
 ## Execution Architecture
 
 Bare-metal dual-core AMP (Asymmetric Multiprocessing) on RP2350:
 
-- **Core 0:** Cooperative superloop — ESKF fusion (200Hz), Mahony AHRS (200Hz), CLI/USB I/O, calibration commands
+- **Core 0:** QP/C QV cooperative scheduler dispatches 8 Active Objects by priority (8→1). Non-AO work (ESKF 200Hz, Mahony AHRS 200Hz, health tick, CLI poll) runs in the QV idle callback. USB CDC on Core 0 (SDK-managed IRQ).
 - **Core 1:** Tight sensor polling loop — IMU (~1kHz), baro (~8Hz), GPS (10Hz), mag (100Hz via ICM-20948 bypass)
 - **Cross-core:** Seqlock double-buffer (Core 1 writes, Core 0 reads). See `docs/decisions/SEQLOCK_DESIGN.md`.
 
