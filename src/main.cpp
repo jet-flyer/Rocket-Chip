@@ -524,11 +524,23 @@ static QSubscrList g_subscrList[rc::SIG_AO_MAX];
 //
 // Council A2: watchdog_kick_tick() stays here permanently — never an AO.
 extern "C" void qv_idle_bridge(void) {
-    // Watchdog (Council A2: permanent), ESKF (seqlock bridge).
+#ifndef BUILD_FOR_FLIGHT
+    // Fault injection: Core 0 stall — spin here, skip all work including watchdog
+    extern volatile bool g_fault_core0_stall;
+    if (g_fault_core0_stall) { return; }
 
+    // Fault injection: watchdog skip — don't feed watchdog for N iterations
+    extern volatile uint32_t g_fault_watchdog_skip;
+    if (g_fault_watchdog_skip > 0) {
+        g_fault_watchdog_skip = g_fault_watchdog_skip - 1;
+    } else {
+#endif
     g_lastTickFunction = "watchdog";
     g_recovery.current_tick_fn = rc::TickFnId::kWatchdog;
     watchdog_kick_tick();
+#ifndef BUILD_FOR_FLIGHT
+    }
+#endif
 
     g_lastTickFunction = "eskf";
     g_recovery.current_tick_fn = rc::TickFnId::kEskf;

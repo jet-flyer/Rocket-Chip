@@ -290,6 +290,7 @@ else()
 
         # Dev diagnostics (excluded from flight builds)
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/dev_cli.cpp>
+        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/fault_inject.cpp>
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -515,6 +516,19 @@ else()
         # IVP-53b: XIP cache clean for PSRAM flush (council req. #1)
         hardware_xip_cache
     )
+
+    # Keep fault injection symbols for GDB `call` (--gc-sections strips uncalled functions)
+    if(NOT BUILD_FOR_FLIGHT)
+        target_link_options(rocketchip PRIVATE
+            -Wl,--undefined=fault_force_eskf_unhealthy
+            -Wl,--undefined=fault_force_core0_stall
+            -Wl,--undefined=fault_force_core0_stall_clear
+            -Wl,--undefined=fault_force_watchdog_stall
+            -Wl,--undefined=fault_force_health_fail
+            -Wl,--undefined=fault_force_ao_queue_flood
+            -Wl,--undefined=fault_force_pio_sm_halt
+        )
+    endif()
 
     # Enable USB CDC for stdio (not UART)
     pico_enable_stdio_usb(rocketchip 1)
