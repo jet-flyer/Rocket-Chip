@@ -20,6 +20,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-15-001 | Claude Code CLI | documentation, refactor, tooling
+
+**Stage 16B front-loaded cleanup (IVP-124a, 125, 126, 127, 127a, 127b).** IVP.md restructured into Stage 16B/17/18. SAD + SCAFFOLDING superloop purge (AO-first rewrite). Doc-drift checkpoint in SESSION_CHECKLIST. Dev code audit + build-tier split (`BUILD_FOR_FLIGHT` CMake option, `src/dev/` directory). Version string consolidation into `version.h` (firmware 0.16.0, RCOS 0.5.0, git hash). Council-reviewed plan: `.claude/plans/stateless-hopping-allen.md`. 709/709 host tests.
+
+---
+
 ### 2026-04-12-003 | Claude Code CLI | documentation, architecture
 
 **Stage 15 complete (IVP-122–124) + Stage 16A pre-bench (IVP-127–130).** Station radio hardening and documentation refresh.
