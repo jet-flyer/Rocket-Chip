@@ -547,6 +547,19 @@ else()
         message(STATUS "Build tier: BENCH (dev diagnostics included)")
     endif()
 
+    # Git hash injection for version.h
+    execute_process(
+        COMMAND git rev-parse --short HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_HASH_RAW
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(NOT GIT_HASH_RAW)
+        set(GIT_HASH_RAW "unknown")
+    endif()
+    target_compile_definitions(rocketchip PRIVATE GIT_HASH="${GIT_HASH_RAW}")
+
     # USB configuration
     # BOOTSEL LED uses PICO_DEFAULT_LED_PIN (SDK provides per board)
     target_compile_definitions(rocketchip PRIVATE

@@ -189,7 +189,7 @@ static void enter_cli_menu() {
     AO_RCOS_set_output_mode(StationOutputMode::kMenu);
     printf("\033[2J\033[H");
     printf("========================================\n");
-    printf("  RocketChip OS v0.4.0 — Station RX\n");
+    printf("  RocketChip v%s  RCOS v%s — Station RX\n", kFirmwareVersion, kRcOsVersion);
     printf("  Board: %s\n", board::kBoardName);
     printf("========================================\n\n");
     printf("Status:  h-Help  s-Sensor  b-Boot  p-Preflight\n");

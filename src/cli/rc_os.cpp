@@ -31,7 +31,6 @@
 // Configuration
 // ============================================================================
 
-constexpr const char* kRcOsVersion = "0.5.0";  // Stage 13: health AO, debug sub-menu
 constexpr uint32_t kRcOsPollMs     = 50;   // 20Hz polling
 
 // CLI input constants

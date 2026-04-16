@@ -49,10 +49,10 @@
 // Version Information
 // ============================================================================
 
-constexpr uint8_t     kVersionMajor  = 0;
-constexpr uint8_t     kVersionMinor  = 3;
-constexpr uint8_t     kVersionPatch  = 0;
-constexpr const char* kVersionString = "0.3.0";
+// Version constants — single source of truth in version.h
+#include "rocketchip/version.h"
+// Legacy alias (used by pcm_frame.cpp, telemetry, etc.)
+constexpr const char* kVersionString = kFirmwareVersion;
 
 // ============================================================================
 // Feature Flags

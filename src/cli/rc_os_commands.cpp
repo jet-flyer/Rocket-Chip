@@ -641,11 +641,12 @@ static void print_gps_status_boot() {
 }
 
 // Build tag constant — must match main.cpp
-static constexpr const char* kBuildTag = "stage13-health-1";
+// Build tag from version.h (single source of truth)
 
 void cli_print_hw_status() {
     printf("\n=== Hardware Status ===\n");
-    printf("  Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
+    printf("  Build: %s-%s-%s (%s %s)\n",
+           kFirmwareVersion, kBuildConfig, kGitHash, __DATE__, __TIME__);
 
     printf("[PASS] Build + boot (you're reading this)\n");
     printf("[PASS] Red LED GPIO initialized (pin %d, %s)\n",
@@ -743,7 +744,8 @@ void cli_print_boot_summary() {
 
     printf("\n");
     printf("==============================================\n");
-    printf("  RocketChip v%s  Build: %s\n", kVersionString, kBuildTag);
+    printf("  RocketChip v%s  RCOS v%s  %s-%s\n",
+           kFirmwareVersion, kRcOsVersion, kBuildConfig, kGitHash);
     printf("  Board: %s\n", board::kBoardName);
     printf("  Profile: %s  Uptime: %lus\n",
            rc::kDefaultRocketProfile.name,
