@@ -31,6 +31,10 @@ IVP-122 half-duplex ACK protocol is implemented and works when timing aligns (AR
 
 **Scope:** Affects all bidirectional communication (ACK, station GPS push, future config upload). Should be a dedicated RadioScheduler sync IVP before IVP-122 can be marked fully resolved.
 
+### PIO Hardware Failure Gap — Gemini Tier (IVP-130 finding, 2026-04-15)
+
+PIO backup timer shakedown (Scenario 5) confirmed: external PIO SM halt is undetectable by firmware. The PIO watchdog IRQ flag is only set by the PIO program itself — if the SM is disabled or corrupted, no flag is raised. ARM-side monitoring reintroduces the dependency chain the PIO was designed to avoid. The correct mitigation is physical redundancy: a second independent timer on a separate MCU. This is a Gemini-tier feature (dual-core carrier board for redundancy). Not a firmware defect — accepted gap for Core/Titan tiers.
+
 ### ELRS on RP2350 — Research Item (2026-04-12)
 
 ExpressLRS is fully open source ([github.com/ExpressLRS](https://github.com/ExpressLRS/ExpressLRS)). The 900MHz version uses SX1276 with custom frequency hopping and tight packet timing. Currently ELRS runs on ESP8285/STM32 paired with SX chips. Running ELRS natively on RP2350 with PIO-assisted modulation timing is a research question worth exploring — the RP2350 has plenty of headroom and PIO could handle the frequency hopping timing constraints.
