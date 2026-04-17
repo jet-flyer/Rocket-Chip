@@ -81,11 +81,15 @@ At each snapshot after T=0, verify something that's supposed to grow has
 actually grown:
 
 - Uptime (time_us_32 or equivalent) — catches frozen target
-- Per-AO `events_handled` counter (Professor #1, new firmware): each AO
-  must have `events_handled_T5 > events_handled_T0`. Catches "AO starved
-  but scheduler alive" — the partial-liveness case that pure uptime and
-  MSP miss. Full-freeze = all AOs flat. Single-AO starvation = one AO
-  flat while others grow.
+- Per-AO queue-activity check (Professor #1, script-only, zero firmware
+  cost): at each snapshot record `eQueue.head` and `eQueue.tail` for
+  every AO. Between snapshots, if *both* indices are unchanged for an AO,
+  that AO's queue had no activity in the window. Full-freeze = all AOs
+  flat. Single-AO starvation = one AO flat with a non-empty queue
+  (`nUsed > 0` sustained) while others show activity. This catches the
+  partial-liveness case Professor flagged without needing to modify
+  vendored QP/C. A proper per-AO counter is deferred to the next pass
+  if the ring-index proxy turns out to be insufficient.
 - If vehicle is transmitting during soak (ArduPilot #1, tightened): 
   `AO_Radio->state.rx_count > 1000` by T=5min. At 5Hz vehicle TX, that's
   1500 packets expected × 0.67 margin for indoor loss. `rx_count > 0` is
@@ -172,11 +176,11 @@ issues).
    at T=0 to confirm the radio chip is physically reachable and
    responding with 0x12 (SX1276).
 
-4. **Per-AO `events_handled` counter** (Professor #1). 8 AOs. Options:
-   (a) add field to each AO struct, increment in each AO's dispatch
-   entry; (b) single hook in QV dispatch loop. Prefer (b) for
-   minimally-invasive. Counter monotonic, readable by GDB at each
-   snapshot.
+4. ~~Per-AO `events_handled` counter~~ — Replaced by a script-side
+   check that reads `eQueue.head` + `eQueue.tail` per AO at each
+   snapshot and detects AOs with unchanged ring indices while their
+   queue shows `nUsed > 0` (starvation). Zero firmware cost. Proper
+   counter deferred if this proxy proves insufficient.
 
 5. **`g_spi_error_count`** (ArduPilot #4). Atomic counter in
    `spi_bus.cpp`. Increment when SPI HW transaction indicates error
