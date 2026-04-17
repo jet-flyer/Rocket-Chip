@@ -191,6 +191,46 @@ exercise the decoupling — same vehicle firmware, smaller board, no PSRAM.
 
 **Stage 16: Field Tuning** (was 15) — All VALIDATE parameters. Needs flight data.
 
+### IVP-132a.4a DIO0 Test Removed — Premise Mismatched Firmware Architecture (2026-04-16)
+
+JPL council originally required a "forced-edge DIO0 IRQ bring-up test"
+as a separate IVP (132a.4a) to catch "init-flag-true + IRQ-never-fires"
+failures. The test was implemented (commits b204b80, d9cb5e5) and
+attempted HW verification. **Removed this session after discovering the
+firmware architecture doesn't match the failure mode the test targets.**
+
+**Architectural finding:** `rfm95w.cpp` polls `RegIrqFlags` over SPI
+from `handle_rx_poll()` in `AO_Radio`. It does NOT register a GPIO edge
+interrupt on DIO0. No IRQ handler is installed. The ARM-side IRQ path
+that JPL's test was meant to validate **doesn't exist in this firmware.**
+Reference: LL Entry 32 (RadioScheduler non-blocking split) explicitly
+chose polling over IRQ for LoRa RxDone to avoid blocking the QV
+cooperative scheduler.
+
+**What JPL's concern maps to in our architecture:**
+
+| JPL concern | Equivalent failure in our firmware | Existing coverage |
+|---|---|---|
+| IRQ pin not wired to SX1276 | DIO0 can't assert, but firmware doesn't check DIO0 as ARM IRQ | (none — not a failure mode we're exposed to) |
+| IRQ disabled in NVIC | N/A — no IRQ registered | N/A |
+| Wrong pins (Frankenstein) | SPI reads garbage for RegVersion | **Covered**: `rfm95w_read_version() == 0x12` in `diag_stats_t0_preconditions()` |
+| Radio init true but no packets through | SPI polling returns no RxDone OR decoder fails | **Covered**: Variant B soak `rx_count > 1000` gate |
+
+**What was kept:** `diag_stats_t0_preconditions()` with RegVersion
+readback, passive IRQ evidence (gpio_get + NVIC_ISPR raw dump), and
+Variant B's `rx_count > 1000` gate. These collectively cover the
+failure modes actually reachable in our architecture.
+
+**What's deferred to Stage 16C:** if the radio driver is later
+refactored to use GPIO IRQs for RxDone (current polling approach has
+SPI bandwidth cost), then a DIO0 IRQ-wired test becomes meaningful.
+Until then, the test's premise doesn't apply.
+
+**Process lesson logged to memory:** before implementing a test based
+on a council recommendation, verify the failure mode the test targets
+actually exists in the current firmware. JPL's ask was valid in the
+abstract but needed architecture-specific adaptation I skipped.
+
 ### Real-World Accuracy Tests — Dedicated Plan Needed (2026-04-16)
 
 User surfaced during Stage 16B wrap-up: bench-side accuracy validation is

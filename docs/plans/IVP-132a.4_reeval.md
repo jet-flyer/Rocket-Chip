@@ -66,14 +66,21 @@ Hard-fail the soak if any of these read false at T=0. No proceeding.
   garbage and this fails.
 
 **Passive IRQ wiring evidence (NASA/JPL revised verdict 2026-04-16):**
-The active DIO0 forced-edge test is NOT in this soak — JPL council
-requires it as a separate bring-up IVP-132a.4a (split verdict:
-"don't bundle coverage gaps into soak tests"). For this soak, strengthen
-passive coverage by logging per growth window:
+Log per growth window:
 - `gpio_get(kRadioIrqPin)` — raw pin state
 - `NVIC->ISPR[...]` — interrupt pending register for the radio IRQ line
 These catch "IRQ disabled in NVIC" and "pin stuck low" without forcing
 edges. Logged as raw values in the precondition blob.
+
+**Active DIO0 forced-edge test — REMOVED 2026-04-16 (post-implementation).**
+After implementing it (IVP-132a.4a), HW debug revealed the firmware's
+radio driver polls `RegIrqFlags` over SPI and does NOT register a GPIO
+IRQ on DIO0 (LL Entry 32 non-blocking pattern). JPL's concern maps to
+"SPI polling fails to return RxDone" in our architecture, which is
+already covered by Variant B's `rx_count > 1000` gate and the T=0
+RegVersion readback. See AGENT_WHITEBOARD "DIO0 Test Removed" entry.
+If firmware is refactored to GPIO-IRQ-driven RxDone in Stage 16C, an
+IRQ-wired test can be added then.
 
 ### Liveness growth checks (block 2, must hold across intervals)
 
