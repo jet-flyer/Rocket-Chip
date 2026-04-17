@@ -504,7 +504,6 @@ else()
         hardware_pio         # For NeoPixel/WS2812 PIO driver
         hardware_clocks      # For clock_get_hz()
         hardware_i2c         # For I2C/QWIIC sensors
-        hardware_adc         # For RP2350 on-die temp sensor (Core 1, ~1Hz)
         hardware_uart        # For UART GPS (IVP-46)
         # IVP-14: Calibration storage
         hardware_flash       # For flash_range_erase/program
