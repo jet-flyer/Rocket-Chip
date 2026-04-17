@@ -24,8 +24,8 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stage 14** (Notification Engine): IVP-113 through IVP-118. Council-reviewed.
 - **Stage P7** (MAIN_DESCENT Liveness Fix): IVP-119 through IVP-121. Out-of-sequence safety pass — multi-channel voted landing detection closing SPIN property P7. Council-reviewed (two rounds).
 - **Stage 15** (Pre-Flight Radio + Station): IVP-122 through IVP-124. Half-duplex ACK + ARM confirm UX, distance-to-rocket finish, station help/whiteboard cleanup.
-- **Stage 16** (Pre-Flight Polish): 16A (docs/cleanup) COMPLETE 2026-04-12. 16B (bench testing — vehicle + Fruit Jam station) Planned per `.claude/plans/stateless-hopping-allen.md`.
-- **Stage 17** (Field Testing & Avionics Airworthiness): Planned. Big Daddy airframe, ground test, low-altitude flight test → **Flight Test Ready** milestone.
+- **Stage 16** (Pre-Flight Polish): 16A (docs/cleanup) COMPLETE 2026-04-12. 16B (bench testing — vehicle + Fruit Jam station) Planned per `.claude/plans/stateless-hopping-allen.md`. 16C (station re-work) added 2026-04-16 — DEFERRED, non-blocking for Stage 17.
+- **Stage 17** (Field Testing & Avionics Airworthiness): DEFERRED 2026-04-16 — awaits airframe + launch window. IVP-134 (pre-flight checklist) completed early and bridges into this stage. Remaining IVPs: Big Daddy airframe, ground test, low-altitude flight test → **Flight Test Ready** milestone.
 - **Stage 18** (Field Tuning & Validation): Placeholder — VALIDATE parameter tuning from Stage 17 flight data. (Was old Stage 17, renumbered 2026-04-15.)
 
 **Key references (not duplicated here):**
@@ -119,7 +119,8 @@ cmake --build build/
 | 15 | Pre-Flight Radio + Station | Phase 9 | IVP-122 — IVP-124 | Full | |
 | **16A** | **Documentation & Cleanup (pre-bench)** | **Phase 9** | *(historical IVP-127–130 reassigned per 2026-04-15 restructure; see Stage 16A note)* | **Full** | IVP-125/126 deferred → front-loaded into 16B |
 | **16B** | **Bench Testing (vehicle + station)** | **Phase 9** | **IVP-124a, 125, 126, 127a, 127b, 129–132a** | **Planned** | **Bench Validated** |
-| **17** | **Field Testing & Avionics Airworthiness** | **Phase 9** | **IVP-134 — IVP-138** | **Planned** | **Flight Test Ready** |
+| **16C** | **Station Re-Work (decoupling + MCU temp + sensor path)** | **Phase 9** | TBD | Deferred | Non-blocking for Stage 17; see Stage 16C section |
+| **17** | **Field Testing & Avionics Airworthiness** | **Phase 9** | **IVP-134 — IVP-138** | **Deferred** | **Flight Test Ready** (awaits airframe + launch window) |
 | 18 | Field Tuning & Validation | Phase 9 | — | Placeholder | (was old Stage 17; renumbered) |
 
 > **Stage 6 pull-forward rationale:** Data Logging was originally Stage 9 but is a dependency for the telemetry encoder — the encoder reads from data structures (FusedState, TelemetryState, SensorSnapshot) defined by the logging architecture. Pulling logging forward establishes the canonical data model that all downstream consumers (telemetry encoder, flight director, GCS) read from. IVP numbers were renumbered sequentially. See council reviews: `docs/decisions/Telem+logging/council_data_logging.md` and `council_telemetry_protocol.md`.
@@ -3450,6 +3451,37 @@ Four documentation items completed: AO Architecture Audit (removed dead Core1 vi
 | IVP-131 | Sensor Replay Harness — Big Daddy Profile | OpenRocket `.ork` for Estes Big Daddy → CSV at native sensor rates. Hand-authored edge cases (motor CATO, late drogue, baro dropout, IMU zero fault, GPS dropout during MAIN_DESCENT). Replay injects samples into Core 1 seqlock via `_replay_inject` CLI. Compares actual FD/Notify behavior to documented ground-truth oracle. |
 | IVP-132 | HW Budgets + Two-Tier Soak | `_diag_stats` CLI dumps per-AO QP queue stats, MSP high-water, flash page count, sensor temps. SRAM/flash from `.map`, peak current measured. 5-min diagnostic soak (USB powered, per code change). 30-min integration soak (battery powered, FLIGHT BINARY, gate before Stage 17). |
 | IVP-132a | Station (Fruit Jam) Bench Tests | Station-side parity: `fault_force_station_rx_drop`, `fault_force_station_ack_timeout`, `fault_force_station_gps_loss` hooks. `scripts/station_replay_harness.py` replays vehicle telemetry into station RX. 30-min station soak on `fruitjam_flight`. ACK protocol stress (RadioScheduler-sync findings appended to AGENT_WHITEBOARD). |
+
+### Stage 16C: Station Re-Work — DEFERRED (added 2026-04-16)
+
+**Purpose:** Dedicated rebuild of the station-role firmware to decouple
+"station" from "vehicle-with-idle-Core-1" and from "Fruit Jam board." Surfaced
+during IVP-132a bench testing: the station runtime shape is fundamentally
+different from vehicle, and the current code treats station as a degenerate
+vehicle profile rather than a distinct role. This blocks station-side
+periodic work (GPS polling, MCU die temp, future battery ADC, etc.) by
+construction.
+
+**Status:** DEFERRED. Non-blocking for Field Testing (vehicle-side is
+complete). Can run in parallel with or after field-test flight data
+analysis.
+
+**Scope (must all land together — same underlying problem):**
+1. Station/vehicle runtime decoupling (station needs its own Core 1 sensor
+   path or Core 0 tick cycle).
+2. Station role / board decoupling (Fruit Jam hardcoding in print strings,
+   pin assumptions, display output).
+3. Station Core 1 periodic work (GPS update, MCU die temp, future battery
+   ADC). Keep seqlock layout shared.
+4. MCU die temperature capture (deferred from IVP-132a; needs the
+   station sensor path first).
+5. Tiny 2350 port validates the decoupling.
+
+**Council review required** before starting — architectural shape change,
+not a refactor.
+
+**See:** `AGENT_WHITEBOARD.md` "Stage 16C (planned, post-Stage-17): Station
+Re-Work" for full scope and rationale.
 
 ### Stage 17 — see dedicated section below.
 

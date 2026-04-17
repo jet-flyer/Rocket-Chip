@@ -191,6 +191,77 @@ exercise the decoupling — same vehicle firmware, smaller board, no PSRAM.
 
 **Stage 16: Field Tuning** (was 15) — All VALIDATE parameters. Needs flight data.
 
+### Real-World Accuracy Tests — Dedicated Plan Needed (2026-04-16)
+
+User surfaced during Stage 16B wrap-up: bench-side accuracy validation is
+doable now (doesn't need the launch window or airframe), but needs its own
+dedicated plan. Scope is broader than any one IVP — it's a whole class of
+ground-truth correlation tests.
+
+**What "accuracy tests" should cover (to be refined in the plan):**
+
+1. **IMU accuracy under controlled motion**
+   - Known-angle tilts (use a machinist's angle block or protractor) —
+     verify accel + ESKF attitude estimate within X degrees of truth.
+   - Hand-swung arc of known radius — verify velocity/acceleration
+     magnitudes vs analytical expectation.
+   - Constant-velocity translation on a linear rail (if available).
+   - What ArduPilot / PX4 teams typically do: log + replay in a notebook,
+     overlay ground truth.
+
+2. **Barometer altitude accuracy**
+   - Known elevation changes (stairwell, drive around town with a
+     reference altimeter or surveyed benchmark).
+   - Compare ESKF vertical position estimate vs. external reference.
+   - Rate-of-climb accuracy at sustained rates.
+
+3. **GPS fix quality characterization**
+   - Stationary log over multiple hours — distribution of lat/lon scatter,
+     altitude noise, HDOP correlation.
+   - Moving baseline (short walk/drive with known path).
+   - Cold start time to 3D fix — how long after power-on is fix trustworthy.
+
+4. **Sensor-fusion accuracy (ESKF)**
+   - Replay profiles (IVP-131 already set this up) with synthetic ground
+     truth, verify position/velocity/attitude estimate error stays within
+     expected bounds.
+   - Allan variance of gyro / accel at rest — characterize bias stability
+     and white noise. This feeds back into ESKF Q-matrix tuning (Stage 18
+     field tuning).
+
+5. **Timing / rate accuracy**
+   - Sample-rate jitter (IMU nominal 1kHz — what's the actual min/max
+     interval over an hour?).
+   - Loop-time determinism for ESKF tick (100Hz nominal).
+
+**Prior art to research:**
+- ArduPilot EKF tuning docs — standard bench validation matrix
+- PX4 sensor calibration and validation pages
+- Allan variance tooling (NIST script, gpstk, or handwritten Python)
+- IMU Noise Model (Rehbinder & Hu 2004, commonly cited)
+- VectorNav / LORD / Bosch BNO085 datasheet accuracy specs for comparison
+
+**Equipment needed (to assess before plan drafted):**
+- Angle reference (machinist square, digital angle gauge, or level
+  combined with smartphone gyro for cross-check)
+- Altitude reference (stairwell with known floor heights, or multimeter
+  with ref baro)
+- Surveyed GPS benchmark (NOAA NGS publishes these; might have one nearby)
+
+**Research tasks before plan finalization:**
+- Which specific ground-truth instruments are worth buying vs. free/DIY
+- Expected accuracy bounds per subsystem (what does "good" look like)
+- Data-capture format — extend PCM frame? Separate CSV via USB?
+- Post-processing — Python/Jupyter notebooks or MATLAB
+
+**Not Stage 16C (station rework) scope.** This is a vehicle-side
+validation effort that could happen any time post-Stage-16B. Likely
+complementary to Stage 18 (Field Tuning) — accuracy bench test is the
+"what does bad look like" baseline; flight tuning is the "can we make
+real flight match expected."
+
+---
+
 **Field Testing (IVP-134, 135, 136, 137, 138) — DEFERRED 2026-04-16** to a
 dedicated stage (likely Stage 17) when user has time + airframe ready +
 launch window. IVP-134 (pre-flight checklist doc) already written and
