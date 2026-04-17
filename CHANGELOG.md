@@ -20,6 +20,41 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-17-001 | Claude Code CLI | testing, architecture, tooling, council
+
+**Stage 16B bench validation COMPLETE (IVP-132, 132a).** Vehicle 30-min
+flight-binary battery soak GATE PASS (IMU 997 Hz, 0 errors across 2.25M
+reads, MSP 0 drift). Station (Fruit Jam) bench test suite: fault
+injection hooks, diag_stats extensions, replay harness, idle + integration
+soaks. IVP-132a.4c 30-min station flight-binary integration soak GATE
+PASS (9023 packets / 0 CRC errors / 0 SPI errors / MSP 0 drift, 5.01 Hz
+sustained). IVP-134 pre-flight checklist document written. Council
+review (NASA/JPL, Professor, ArduPilot) added council-required
+preconditions: `diag_stats_t0_preconditions()` (RegVersion readback,
+identity strings, NVIC ISPR), `g_spi_error_count` hot-path counter,
+per-AO ring-index activity proxy. Frankenstein-build guidance added to
+`docs/BENCH_TEST_PROCEDURE.md`.
+
+**Process lessons committed to memory:** (1) verify council test premises
+against current firmware architecture before implementing — IVP-132a.4a
+DIO0 IRQ test premise didn't match our polling radio driver and was
+removed after implementation; (2) "absence of signal is not proof of
+health" — a test that watches derivative metrics (queue watermarks)
+without verifying the peripheral is actually engaged can claim PASS on a
+non-functional binary.
+
+**Known gap flagged:** IVP-132a.5 ACK stress characterized the
+RadioScheduler-sync issue — 6.7% first-try ACK rate because station TX
+isn't aligned with vehicle RX windows. Fix scheduled for Stage 16C.
+
+**Deferred:** Stage 16C (station rework — runtime decoupling, board
+decoupling, RadioScheduler sync, MCU die temp sensor), Stage 17 (field
+testing — airframe + launch window dependent), real-world accuracy tests
+(dedicated plan TBD). All recorded in `AGENT_WHITEBOARD.md` and
+`docs/IVP.md`.
+
+---
+
 ### 2026-04-15-002 | Claude Code CLI | testing, safety, tooling
 
 **Stage 16B bench testing (IVP-129, 130, 131).** GDB fault injection harness with 7 hook functions (`src/dev/fault_inject.{h,cpp}`), procedure guide (`docs/FAULT_INJECTION.md`), 5 GDB scripts. PIO backup timer shakedown — all 5 scenarios HW verified (Core 0 stall proven independent of PIO timers, PIO SM halt gap documented for Gemini tier). Pyro edge logger in flight binary (`src/safety/pyro_edge_logger.{h,cpp}`). Sensor replay harness — 5 Big Daddy F15-6 profiles (nominal, early burnout, IMU fault, baro dropout, GPS dropout) all reach kLanded via full FD state sequence. Real NAR thrust curve from ThrustCurve.org. Council reviewed (NASA/JPL, Rocketeer, Space Camp Counselor, Professor, ArduPilot).

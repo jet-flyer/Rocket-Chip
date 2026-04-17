@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-12 (Stage 16A pre-bench complete)
+**Last Updated:** 2026-04-17 (Stage 16B bench validation complete)
 
 ## Current Phase
 
@@ -57,7 +57,9 @@
 - Latent QP use-after-free bug fixed (LL Entry 35) — `AO_LedEngine_post_pattern()` had stack-local events passed to `QACTIVE_POST` since Stage 7, worked by luck until IVP-117 stack usage exposed it.
 - 669/669 host tests. Council-reviewed. HW verified via GDB memory inspection. SPIN 11/11 unchanged. NOTIFY_CONTRACT.md with IVP-118 verification amendment.
 
-**Next:** Stage 15 (Pre-Flight Polish: AO audit, audio output, user guide, RBM refresh), Stage 16 (Field Tuning)
+**Stage 16B bench validation COMPLETE (2026-04-17):** Vehicle + station both passed 30-min flight-binary integration soaks on hardware with council-required T=0 preconditions (RegVersion readback, identity strings, SPI error counter, per-AO ring-index activity proxy). All bench IVPs closed except IVP-132a.5 which produced a characterization result (not gate) confirming the RadioScheduler-sync issue, deferred to Stage 16C.
+
+**Next:** Stage 16C (station re-work — DEFERRED, non-blocking), Stage 17 (Field Testing — DEFERRED, awaits airframe + launch window), Stage 18 (Field Tuning — awaits flight data).
 
 ## Completed
 
@@ -105,12 +107,13 @@
 | P7: MAIN_DESCENT Liveness | IVP-119–121 | 2026-04-12 | Multi-channel landing detection (ESKF + raw baro + conjunction + backstop with beacon). DT-Promela bounded counters for all flight phases. All 8 SPIN properties pass (0 errors). 699 host tests. Bench sim 2/2 PASS. LL Entry 36 (bench sim rot). Pre-commit hook gates ctest + needs-based HW bench sim |
 | 15: Radio + Station | IVP-122–124 | 2026-04-12 | Half-duplex ACK (CCSDS APID 0x003), ARM confirm UX, X-DISARM, distance-to-rocket (haversine+bearing), station help refresh. Command delivery partial — RadioScheduler sync IVP needed. 709 host tests |
 | 16A: Docs (pre-bench) | IVP-127–130 | 2026-04-12 | AO audit (removed dead Notify Core1 fields, 2-layer model). TBD purge (memory/power from build + datasheets). RBM complete rewrite for QV. Graphviz diagrams regenerated. User Guide quick-reference card. IVP-125/126 deferred to post-bench. 709 host tests |
+| 16B: Bench Validation | IVP-124a, 125, 126, 127a, 127b, 129–132, 132a, 134 | 2026-04-17 | SAD/SCAFFOLDING AO-first rewrites. Dev code audit + build-tier split (bench vs flight). Version string single source of truth. GDB fault injection harness (7 hooks, 5 scripts). PIO backup timer shakedown (5/5 scenarios). Sensor replay harness (5/5 F15-6 profiles → kLanded). **Vehicle 30-min flight-binary battery soak GATE PASS** (2.25M IMU reads, 0 errors). Station bench tests: fault hooks, diag_stats, replay harness, **idle + integration soaks GATE PASS** on flight binary (9023 packets / 0 CRC errors / MSP 0 drift). Pre-flight checklist document. Council-required T=0 preconditions block (RegVersion readback, identity strings, SPI error counter). IVP-132a.5 ACK stress characterized RadioScheduler-sync gap (6.7% first-try ACK) — fix deferred to Stage 16C |
 
 ## In Progress
 
-**Stage 16B Bench Testing** — IVP-124a through IVP-131 complete. IVP-132 (HW budgets + soak) and IVP-132a (station bench tests) remaining.
+None. Stage 16B bench validation complete.
 
-**Next:** IVP-132 → IVP-132a → Stage 17 (Field Testing) → Stage 18 (Field Tuning)
+**Next:** Stage 16C (station re-work) when user is ready; Stage 17 (Field Testing) awaits airframe + launch window. Both deferred per `docs/IVP.md` and `AGENT_WHITEBOARD.md`.
 
 ## Blockers
 

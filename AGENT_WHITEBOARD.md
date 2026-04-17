@@ -15,51 +15,56 @@
 
 ## Open Flags
 
-*Stage 13 (Health Monitor) COMPLETE. Config Wizard Phase A COMPLETE (prototype). Stage 14 (Notification Engine) COMPLETE — IVP-113 through IVP-118, all gates passed, HW verified via GDB memory inspection. SPIN safety analysis appended to NOTIFY_CONTRACT.md by user-approved one-time exception 2026-04-10.*
+*Stages 1-14 COMPLETE. Stage 16B bench validation COMPLETE 2026-04-17 — both vehicle and station roles passed 30-min flight-binary integration soaks with council-required T=0 preconditions. Field Testing and Stage 16C both DEFERRED per plan.*
 
-### Session Handoff (2026-04-15 → 2026-04-16)
+### Session Handoff (2026-04-17)
 
-**State:** Build compiles clean (bench + flight tiers). 709/709 host tests pass. OpenOCD may still be running in background (`taskkill //F //IM openocd.exe` to clean).
+**State:** Stage 16B bench validation complete. All 4 build combos clean (build, build_flight, build_station, build_station_flight). Host tests unchanged (709/709). Station is currently flashed with `build_station_flight/rocketchip.elf`; vehicle with `build_flight/rocketchip.elf`. Probe on Fruit Jam (station). OpenOCD may still be running (`taskkill //F //IM openocd.exe` to clean).
 
-**Completed this session:** IVP-124a through IVP-131 (9 of 11 Stage 16B IVPs). Doc refresh, dev code audit, build-tier split, fault injection harness, PIO shakedown (5/5), sensor replay harness (5/5 profiles pass).
+**Completed this session (2026-04-16 → 2026-04-17):**
+- IVP-132 Phase 4: Vehicle 30-min flight-binary battery soak GATE PASS
+- IVP-132a.1–.3: Station fault injection hooks, diag_stats, replay harness
+- IVP-132a.4 Variants A+B: station idle + integration soaks GATE PASS (bench)
+- IVP-132a.4a: REMOVED — active DIO0 test premise mismatched firmware
+  (rfm95w.cpp polls RegIrqFlags over SPI, no GPIO IRQ; see removed entry below)
+- IVP-132a.4c: Station integration soak on FLIGHT binary GATE PASS (9023 packets / 0 CRC)
+- IVP-132a.5 CHARACTERIZATION: ACK stress → 6.7% first-try ACK rate
+  (RadioScheduler-sync gap confirmed quantitatively — see Stage 16C)
+- IVP-134: Pre-flight checklist doc (bridges into Stage 17)
+- Council-reviewed plan at `docs/plans/IVP-132a.4_reeval.md` (NASA/JPL,
+  Professor, ArduPilot, unanimous approval)
+- Frankenstein-build guidance added to `docs/BENCH_TEST_PROCEDURE.md`
 
-**Next:** IVP-132 (HW budgets + two-tier soak) then IVP-132a (station bench tests). Plan: `.claude/plans/stateless-hopping-allen.md`.
+**Concerns for next session:**
+- **Vehicle NeoPixel was flashing red during IVP-132a.4c soak** while
+  preflight returned all GO. Likely stale LedEngine state from a
+  transient Core 1 hiccup. Worth investigating: enter debug menu,
+  check LED layer state, trace which AO posted a fault pattern.
+  Not blocking, not recurring visibly in sensor data.
+- ACK stress test revealed 93% of commands never get a matched ACK at
+  the station — this is the known RadioScheduler-sync issue, not a
+  new regression. Commands might still be executing on the vehicle
+  (vehicle-side dispatch works); station just doesn't see the ACK.
 
-**Concerns:**
-- Session-start canary was NOT run at the beginning of this session (missed checklist item 6). The pre-commit hook deferred HW verify on IVP-127a and IVP-127b. Run `python scripts/bench_sim.py` as first action next session.
-- Serial replay via Python has USB CDC throughput issues — the `dev_replay_poll()` drain loop (256 bytes/poll) fixed it, but serial-based tests are slow (~150s per profile). GDB is more reliable for state verification.
-- GDB locale warning (CP1252→UTF-32) on every `call` — cosmetic, Windows-only, doesn't affect functionality.
-- `__pycache__` was briefly committed, now cleaned + `.gitignore` updated.
+### RadioScheduler Sync — Quantified Gap (2026-04-17)
 
-**Files being worked on:** `src/dev/`, `scripts/`, `tests/replay_profiles/`, `docs/FAULT_INJECTION.md`
+IVP-132a.5 ran 30 DISARM commands at 0.1Hz over 5 min. Results from
+firmware transcript (logs/ack_stress_20260416_234244.log):
+- `[CMD] ACK'd` matched: 2  (6.7%)
+- Went through Retry 1→2→3 without match: 27 commands
+- Explicit `No ACK after 3 retries`: 1 command (timing-related, test end)
+- TX hardware fine: `tx_consec_fail = 0` throughout
 
-### BENCH SIM RETIREMENT — RESOLVED (2026-04-12)
-
-Old `bench_flight_sim.py` (479 lines, IVP-73) retired and replaced by `bench_sim.py` (~200 lines, 2 tests) in commit `5fbea19`. IVP-119 FusedState rename committed (`010f305`). Stage P7 + Stage 15 un-shelved. See LL Entry 36 for full root-cause analysis. Pre-commit hook now gates `ctest` + needs-based HW bench sim on flight-critical commits. Session-start canary added to SESSION_CHECKLIST.md item 6.
-
-### ⚠️ RadioScheduler Sync — IVP-122 Command Delivery Unreliable (2026-04-12)
-
-IVP-122 half-duplex ACK protocol is implemented and works when timing aligns (ARM ACK'd on first try during HW test), but command delivery is unreliable. DISARM failed 3 retries in the same test session. Root cause: the station sends commands at arbitrary times, but the vehicle only listens in brief RX windows between TX slots (~500ms cycle at 2Hz). The station needs to synchronize its TX to the vehicle's RX window.
-
-**Research findings (LoRaWAN Class A, SiK TDMA, Altus Metrum poll-response):** The standard pattern is "listen-before-talk" — station sends a command immediately after receiving a vehicle packet, when the vehicle's RX window is guaranteed open. The SX1276 mode switch (TX→RX) takes ~100µs; the station's SPI FIFO write + TX start takes ~300-500µs. At SF7/BW125 this is well within the preamble detection window.
-
-**Proposed fix:** In the station's `handle_rx_packet()`, when a vehicle nav packet is received AND a pending command exists, post `SIG_RADIO_TX` immediately (same tick). This uses the vehicle's natural post-TX RX window without new timing machinery. Requires a new IVP — this is a RadioScheduler architecture change, not an IVP-122 patch.
-
-**Scope:** Affects all bidirectional communication (ACK, station GPS push, future config upload). Should be a dedicated RadioScheduler sync IVP before IVP-122 can be marked fully resolved.
+Root cause (already flagged 2026-04-12, confirmed quantitatively today):
+station TX timing is not synchronized to vehicle RX windows. The
+"listen-before-talk" fix (station posts `SIG_RADIO_TX` in
+`handle_rx_packet()` when a pending command exists) remains the proposed
+solution. **Load-bearing for any reliable command path — scheduled for
+Stage 16C.**
 
 ### PIO Hardware Failure Gap — Gemini Tier (IVP-130 finding, 2026-04-15)
 
 PIO backup timer shakedown (Scenario 5) confirmed: external PIO SM halt is undetectable by firmware. The PIO watchdog IRQ flag is only set by the PIO program itself — if the SM is disabled or corrupted, no flag is raised. ARM-side monitoring reintroduces the dependency chain the PIO was designed to avoid. The correct mitigation is physical redundancy: a second independent timer on a separate MCU. This is a Gemini-tier feature (dual-core carrier board for redundancy). Not a firmware defect — accepted gap for Core/Titan tiers.
-
-### IVP-131 Replay Harness — Deferred to Grok (2026-04-15)
-
-Profile generator `scripts/generate_replay_profiles.py` produces 5 sensor-rate CSVs. Sim now uses real F15-6 NAR thrust curve (ThrustCurve.org RASP data), correct Estes dry mass (70g, not .rkt's 160g), Cd=0.50. Output: **347m apogee at t=7.6s, chute at 13.6s, landed 83.4s.** Physically reasonable.
-
-**Council improvements incorporated:** progressive thrust curve, chute deployment, early_burnout (not CATO), physical phase labels.
-
-**Still needed for Grok:** firmware-side replay inject hook (`_replay_inject` CLI + Core 1 seqlock injection), `scripts/replay_harness.py` orchestration (CSV→serial→verify FD states), plot script (Space Camp Counselor suggestion), intermittent IMU fault variant (NASA/JPL suggestion).
-
-**Files in repo:** `scripts/generate_replay_profiles.py`, `tests/replay_profiles/estes_big_daddy.rkt`, 5 CSV profiles (f15_nominal, early_burnout, imu_zero_fault, baro_dropout, gps_dropout_descent).
 
 ### ELRS on RP2350 — Research Item (2026-04-12)
 
