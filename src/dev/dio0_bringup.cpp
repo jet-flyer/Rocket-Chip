@@ -9,8 +9,15 @@
 #include "drivers/rfm95w.h"
 #include "rocketchip/config.h"
 #include "hardware/gpio.h"
-#include "pico/time.h"
 #include <stdio.h>
+#include <stdint.h>
+
+// NOTE: Previously used busy_wait_ms() for the observation window.
+// That hangs under GDB `call` because the SDK timer infrastructure
+// isn't guaranteed to be serviced while the target is in the special
+// call-injected state. Replaced with a bounded spin counter that
+// doesn't depend on SDK timer state. See LL Entry 37 (TBD) for full
+// GDB-call-safe function guidelines.
 
 // Edge counter incremented from GPIO IRQ callback during the test.
 static volatile uint32_t s_edge_count = 0;
@@ -45,33 +52,36 @@ extern "C" int dio0_bringup_test() {
     gpio_set_irq_enabled_with_callback(
         irq, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, dio0_irq_cb);
 
-    // Simpler implementation: drive a short busy_wait then check edge count.
-    // If the radio was left in RxContinuous by normal station init, DIO0
-    // may already be actively indicating RX state (asserted when a packet
-    // is being received). In pure idle it should sit low.
+    // Observation window: bounded spin, no SDK timer dependency.
+    // Spin for kSpinLimit iterations, polling the edge counter. If any
+    // edge fires during the window, return PASS. This is GDB-call-safe
+    // because it doesn't touch the SDK timer subsystem.
     //
-    // Strategy: just wait 500 ms with IRQ enabled and observe if any edge
-    // happened. If not, the line is likely quiet (expected in an RF-quiet
-    // room). That's NOT a fail — it's inconclusive. We escalate by
-    // forcing a register-level DIO0 output toggle via RegTest (undocumented)
-    // — out of scope for a first pass.
-    //
-    // For this iteration, report observation-only and let the caller decide.
-    busy_wait_ms(500);
+    // kSpinLimit tuning: ~10-50 million iterations on RP2350 Cortex-M33
+    // at 150 MHz is roughly 0.1-0.5 seconds. Exact timing doesn't matter
+    // — we just need enough headroom for at least one vehicle TX cycle
+    // (at 5Hz that's 200ms per packet).
+    constexpr uint32_t kSpinLimit = 30000000;
+    uint32_t spin = 0;
+    while (spin < kSpinLimit && s_edge_count == 0) {
+        __asm volatile("nop");
+        spin++;
+    }
     uint32_t n1 = s_edge_count;
-    printf("  edges in 500ms window: %lu\n", (unsigned long)n1);
+    printf("  edges observed: %lu (spin=%lu)\n",
+           (unsigned long)n1, (unsigned long)spin);
 
     // Step 4: detach callback, do NOT destroy radio state.
     gpio_set_irq_enabled(irq, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, false);
 
     if (n1 == 0) {
-        printf("  INCONCLUSIVE: no edges observed. Could mean IRQ-dead\n");
-        printf("  or just RF-quiet. Run again with vehicle transmitting\n");
-        printf("  to force RxDone edges.\n");
+        printf("  INCONCLUSIVE: no edges observed in spin window.\n");
+        printf("  Could mean IRQ-dead or just RF-quiet. Run with vehicle\n");
+        printf("  transmitting to force RxDone edges.\n");
         return 3;
     }
 
-    printf("  PASS: %lu edges observed — DIO0 -> RP2350 wiring live\n",
+    printf("  PASS: %lu edges observed -- DIO0 -> RP2350 wiring live\n",
            (unsigned long)n1);
     return 0;
 }
