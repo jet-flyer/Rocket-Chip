@@ -119,7 +119,7 @@ cmake --build build/
 | 15 | Pre-Flight Radio + Station | Phase 9 | IVP-122 — IVP-124 | Full | |
 | **16A** | **Documentation & Cleanup (pre-bench)** | **Phase 9** | *(historical IVP-127–130 reassigned per 2026-04-15 restructure; see Stage 16A note)* | **Full** | IVP-125/126 deferred → front-loaded into 16B |
 | **16B** | **Bench Testing (vehicle + station)** | **Phase 9** | **IVP-124a, 125, 126, 127a, 127b, 129–132a** | **Full** | **Bench Validated** |
-| **16C** | **Station Runtime Decoupling + MCU Die Temp + Board Scaffolding** | **Phase 9** | **IVP-139a, 140, 141, 142a, 142b, 143, 144, 145** | **In Progress** | Items 1-3 of original scope + MCU die temp + Tiny_2350+/Pico 2 scaffolding; items 4-5 deferred |
+| **16C** | **Station Runtime Decoupling + MCU Die Temp + Board Scaffolding** | **Phase 9** | **IVP-139, 140, 141, 142a, 142b, 143, 144, 145** | **In Progress** | Items 1-3 of original scope + MCU die temp + Tiny_2350+/Pico 2 scaffolding; items 4-5 deferred |
 | **17** | **Field Testing & Avionics Airworthiness** | **Phase 9** | **IVP-134 — IVP-138** | **Deferred** | **Flight Test Ready** (awaits airframe + launch window) |
 | 18 | Field Tuning & Validation | Phase 9 | — | Placeholder | (was old Stage 17; renumbered) |
 
@@ -3458,6 +3458,8 @@ Four documentation items completed: AO Architecture Audit (removed dead Core1 vi
 
 **Plan:** `.claude/plans/sunny-hugging-pumpkin.md` (council-reviewed 2026-04-17: NASA/JPL Avionics Lead, Embedded Systems Professor, Cubesat Startup Engineer — unanimous approval with 5 amendments incorporated).
 
+**Numbering note:** IVP-133 is unassigned (gap in original numbering, predates Stage 16). IVP-134–138 belong to Stage 17. Stage 16C therefore picks up at IVP-139.
+
 **End state:** Station role polls its own GPS at ~10 Hz on every supported board by reusing vehicle GPS driver + function pointers unchanged (no second GPS code path). MCU die temp captured ~1 Hz on both roles, integrated into `AO_HealthMonitor` with datasheet-sourced thresholds (warn 70 °C, fault 85 °C, safe-mode 105 °C from RP2350 §1.4.3 + §12.4.6). At safe-mode, `SIG_MCU_OVERTEMP` posted to AO_FlightDirector — auto-ABORT if ARMED, blocks ARM otherwise. Board capability flags (`kPsramAvailable`, `kDvmAvailable`, `kSdCardAvailable`, `kI2cStemmaAvailable`) replace hardcoded board checks. `board_tiny_2350_common.h` + `board_tiny_2350_plus.h` + `board_pico2.h` land as `#error`-guarded placeholders requiring `*_BRINGUP_OK` macro at compile time.
 
 **Prerequisites:** Stage 16B complete.
@@ -3472,7 +3474,7 @@ Four documentation items completed: AO Architecture Audit (removed dead Core1 vi
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-139a | IVP.md Stage 16C Table Entry | Update IVP.md status + Stage 16C detail to match the council-reviewed plan. Source-of-truth alignment before implementation-numbered work begins (same pattern as Stage 16B's IVP-124a). This IVP. |
+| IVP-139 | IVP.md Stage 16C Table Entry | Update IVP.md status + Stage 16C detail to match the council-reviewed plan. Source-of-truth alignment before implementation-numbered work begins. This IVP. |
 | IVP-140 | Station Idle-Tick Adapter Scaffolding | Create `src/station/station_idle_tick.{h,cpp}` as a no-op tick. Wire into `qv_idle_bridge()` under `if constexpr (kRadioModeRx)`, adjacent to `AO_Telemetry_cmd_retry_tick`. Reuses existing non-AO tick pattern. |
 | IVP-141 | Station GPS Poll via Idle Bridge | Implement `station_idle_tick()` to reuse existing `g_gpsFnUpdate`/`g_gpsFnGetData` function pointers + `seqlock_write` unchanged. Zero new GPS code; transport-agnostic (UART on Feather/Pico 2, I2C PA1010D on Fruit Jam). Extract `core1_update_best_gps_fix()` to shared helper. |
 | IVP-142a | MCU Die Temp Driver + Seqlock Field | New `src/drivers/mcu_temp.{h,cpp}` using RP2350 ADC input 4 per datasheet §12.4.6. Add `mcu_die_temp_c` + `mcu_temp_read_count` to `shared_sensor_data_t` with static_assert size bump. Capture ~1 Hz both roles. `diag_stats_dump` line. Seqlock-size grep gate on commit. |
