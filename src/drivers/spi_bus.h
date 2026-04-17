@@ -98,4 +98,13 @@ void spi_bus_read_burst(uint8_t cs_pin, uint8_t reg, uint8_t* buf, size_t len);
 void spi_bus_write_burst(uint8_t cs_pin, uint8_t reg, const uint8_t* buf,
                          size_t len);
 
+// IVP-132a.4 (ArduPilot council #4): SPI hot-path error counter.
+// Incremented whenever an SPI HW call returns a short byte count
+// (timeout / DMA error / etc). Expected 0 indoors with good wiring.
+// Readable by GDB at T=0 and at each soak snapshot.
+#ifdef __cplusplus
+#include <atomic>
+extern std::atomic<uint32_t> g_spi_error_count;
+#endif
+
 #endif // ROCKETCHIP_SPI_BUS_H

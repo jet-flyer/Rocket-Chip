@@ -292,7 +292,10 @@ else()
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/dev_cli.cpp>
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/fault_inject.cpp>
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/replay_inject.cpp>
-        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/diag_stats.cpp>
+        # diag_stats.cpp has both bench and flight tier content:
+        # - Always: diag_stats_t0_preconditions() for soak Frankenstein checks
+        # - Bench only (internal guard): diag_stats_dump() + msp_tick()
+        src/dev/diag_stats.cpp
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/station_fault_inject.cpp>
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/station_replay.cpp>
 
@@ -520,6 +523,13 @@ else()
         hardware_spi
         # IVP-53b: XIP cache clean for PSRAM flush (council req. #1)
         hardware_xip_cache
+    )
+
+    # Always-on soak preconditions symbol — present in both bench and
+    # flight binaries so soaks can validate identity/board/radio at T=0.
+    target_link_options(rocketchip PRIVATE
+        -Wl,--undefined=diag_stats_t0_preconditions
+        -Wl,--undefined=rfm95w_read_version
     )
 
     # Keep fault injection symbols for GDB `call` (--gc-sections strips uncalled functions)

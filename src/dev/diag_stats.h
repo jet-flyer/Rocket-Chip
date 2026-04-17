@@ -10,9 +10,21 @@
 
 #include <stdint.h>
 
+// IVP-132a.4 T=0 precondition block — ALWAYS compiled (both bench and
+// flight). Prints build/role/board identity, SX1276 RegVersion readback,
+// IRQ pin state, SPI error counter. Required before any soak to catch
+// Frankenstein builds. Readable by GDB via `call diag_stats_t0_preconditions()`.
+extern "C" {
+void diag_stats_t0_preconditions();
+}
+
 #ifdef BUILD_FOR_FLIGHT
 
-static inline void diag_stats_dump()     {}
+static inline void diag_stats_dump()     {
+    // Flight tier: only the T=0 block is available. Full stats dump is
+    // bench-only.
+    diag_stats_t0_preconditions();
+}
 static inline void diag_stats_msp_tick() {}
 
 #else

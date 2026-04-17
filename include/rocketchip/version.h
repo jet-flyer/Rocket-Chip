@@ -18,9 +18,29 @@ constexpr const char* kRcOsVersion = "0.5.0";
 
 #ifndef BUILD_FOR_FLIGHT
 constexpr const char* kBuildConfig = "bench";
+constexpr bool kBuildForFlight = false;
 #else
 constexpr const char* kBuildConfig = "flight";
+constexpr bool kBuildForFlight = true;
 #endif
+
+// Job role identity — for T=0 soak preconditions (IVP-132a.4 re-eval).
+// Must match ROCKETCHIP_JOB_STATION / kRole. Readable by GDB.
+#ifdef ROCKETCHIP_JOB_STATION
+constexpr const char* kJobRole = "station";
+#elif defined(ROCKETCHIP_JOB_RELAY)
+constexpr const char* kJobRole = "relay";
+#else
+constexpr const char* kJobRole = "vehicle";
+#endif
+
+// Board identity — set by PICO_BOARD at CMake config time, exposed as
+// a C string so GDB can read it at T=0 to catch Frankenstein builds.
+// PICO_BOARD is a C preprocessor string (e.g., "adafruit_fruit_jam").
+#ifndef PICO_BOARD
+#define PICO_BOARD "unknown"
+#endif
+constexpr const char* kBoardName = PICO_BOARD;
 
 // Git hash injected by CMake (-DGIT_HASH="..."). Falls back to "unknown".
 #ifndef GIT_HASH

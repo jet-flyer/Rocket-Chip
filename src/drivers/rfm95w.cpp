@@ -135,6 +135,13 @@ static void configure_modem(rfm95w_t* dev) {
 // Public API
 // ============================================================================
 
+uint8_t rfm95w_read_version(uint8_t cs) {
+    // Raw SPI read of RegVersion (0x42). No state, no setup beyond
+    // whatever SPI bus init already happened. Used as T=0 precondition
+    // check — "is the radio physically reachable and SPI wiring correct?"
+    return spi_bus_read_reg(cs, rfm95w::reg::kVersion);
+}
+
 bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq) {
     dev->cs_pin      = cs;
     dev->rst_pin     = rst;

@@ -2,6 +2,66 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
 // Diagnostic statistics dump for soak testing (IVP-132).
+//
+// Two-tier structure:
+//   - diag_stats_t0_preconditions()  — ALWAYS compiled (both bench and
+//     flight binaries). Prints build/role/board identity, radio
+//     RegVersion readback, IRQ pin state, SPI error counter. Used at
+//     T=0 of every soak to catch Frankenstein builds.
+//   - diag_stats_dump() + msp_tick()  — bench-only (depends on AO dev
+//     scaffolding). Full per-AO queue + MSP watermark + sensor snapshot.
+
+// -------------------------------------------------------------------
+// ALWAYS-ON block: T=0 preconditions for soak procedures
+// -------------------------------------------------------------------
+
+#include "rocketchip/version.h"
+#include "drivers/spi_bus.h"
+#include "drivers/rfm95w.h"
+#include "rocketchip/config.h"  // rocketchip::pins::kRadioCs
+#include "hardware/gpio.h"
+#include <stdio.h>
+#include <stdint.h>
+
+extern "C" __attribute__((used))
+void diag_stats_t0_preconditions() {
+    printf("\n=== T=0 Preconditions ===\n");
+
+    // Build / role / board identity (catches Frankenstein builds)
+    printf("[Identity]\n");
+    printf("  fw_version=%s\n", kFirmwareVersion);
+    printf("  build_config=%s flight=%d\n",
+           kBuildConfig, kBuildForFlight ? 1 : 0);
+    printf("  job_role=%s\n", kJobRole);
+    printf("  board=%s\n", kBoardName);
+    printf("  git=%s build_tag=%s\n", kGitHash, kBuildIterationTag);
+
+    // Radio direct readback — catches original Frankenstein bug directly.
+    uint8_t radio_version = rfm95w_read_version(
+        rocketchip::pins::kRadioCs);
+    printf("[Radio]\n");
+    printf("  RegVersion=0x%02x (expect 0x12)\n",
+           (unsigned)radio_version);
+
+    // Passive IRQ wiring evidence (NASA/JPL)
+    int irq_pin = rocketchip::pins::kRadioIrq;
+    int irq_pin_state = gpio_get(irq_pin) ? 1 : 0;
+    printf("  radio_irq_pin=%d state=%d\n", irq_pin, irq_pin_state);
+    const volatile uint32_t* ispr =
+        reinterpret_cast<const volatile uint32_t*>(0xE000E200);
+    printf("  NVIC_ISPR[0]=0x%08lx [1]=0x%08lx\n",
+           (unsigned long)ispr[0], (unsigned long)ispr[1]);
+
+    // SPI hot-path error counter (ArduPilot)
+    printf("[SPI] error_count=%lu\n",
+           (unsigned long)g_spi_error_count.load());
+
+    printf("========================\n\n");
+}
+
+// -------------------------------------------------------------------
+// Bench-only block: full diag_stats_dump() for soak snapshots
+// -------------------------------------------------------------------
 
 #ifndef BUILD_FOR_FLIGHT
 
@@ -19,7 +79,6 @@
 #include "rocketchip/job.h"
 #include "pico/time.h"
 #include "hardware/structs/scb.h"
-#include <stdio.h>
 
 #ifdef ROCKETCHIP_JOB_STATION
 #include "core1/sensor_core1.h"
@@ -66,6 +125,10 @@ static void dump_ao_queue(const char* name, QActive* ao) {
 
 extern "C" __attribute__((used))
 void diag_stats_dump() {
+    // T=0 precondition block always runs first — callers using this for
+    // ongoing snapshots just ignore redundant identity lines.
+    diag_stats_t0_preconditions();
+
     printf("\n=== Diagnostic Stats ===\n");
 
     printf("[MSP] initial=0x%08lx min=0x%08lx depth=%lu bytes\n",

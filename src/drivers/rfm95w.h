@@ -135,6 +135,24 @@ struct rfm95w_t {
 bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq);
 
 /**
+ * @brief Read SX1276 RegVersion (0x42) directly.
+ *
+ * GDB-callable diagnostic helper (IVP-132a.4 re-eval). Reads RegVersion
+ * over SPI using the given CS pin. Returns 0x12 if an SX1276 is
+ * physically present and responding; 0x00 or 0xFF if SPI line is dead
+ * or no chip present. Does NOT require rfm95w_init() to have been
+ * called first — uses the raw SPI bus.
+ *
+ * Use from GDB as the T=0 precondition "is the radio physically
+ * reachable" check:
+ *   (gdb) call rfm95w_read_version(10)  // Fruit Jam CS pin
+ *
+ * @param cs CS pin for the radio (board-specific)
+ * @return 8-bit version register value (0x12 expected for SX1276)
+ */
+uint8_t rfm95w_read_version(uint8_t cs);
+
+/**
  * @brief Send a packet
  *
  * Writes payload to FIFO, sets TX mode, polls DIO0 for TxDone with
