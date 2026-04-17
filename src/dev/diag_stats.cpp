@@ -16,9 +16,14 @@
 #include "active_objects/ao_telemetry.h"
 #include "safety/health_monitor.h"
 #include "rocketchip/sensor_seqlock.h"
+#include "rocketchip/job.h"
 #include "pico/time.h"
 #include "hardware/structs/scb.h"
 #include <stdio.h>
+
+#ifdef ROCKETCHIP_JOB_STATION
+#include "core1/sensor_core1.h"
+#endif
 
 extern "C" {
 #include "qp_port.h"
@@ -87,7 +92,30 @@ void diag_stats_dump() {
                (unsigned long)radio->rx_crc_errors,
                (unsigned)radio->tx_consec_fail,
                (unsigned long)radio->relay_count);
+        if constexpr (job::kRole == job::DeviceRole::kStation) {
+            printf("  last_rssi=%d dBm last_snr=%d dB\n",
+                   (int)radio->last_rx_rssi,
+                   (int)radio->last_rx_snr);
+        }
     }
+
+#ifdef ROCKETCHIP_JOB_STATION
+    // IVP-132a: station-specific diagnostics
+    printf("[Station]\n");
+    const RxTelemSnapshot* rx = AO_Telemetry_get_rx_state();
+    if (rx != nullptr) {
+        printf("  rx_valid=%s last_seq=%u met_ms=%lu\n",
+               rx->valid ? "YES" : "NO",
+               (unsigned)rx->seq,
+               (unsigned long)rx->met_ms);
+    }
+    printf("  cmd_pending=%s\n",
+           AO_Telemetry_is_cmd_pending() ? "YES" : "NO");
+    printf("  station_gps: valid=%s sats=%u fix_type=%u\n",
+           g_bestGpsValid.load() ? "YES" : "NO",
+           (unsigned)g_bestGpsFix.satellites,
+           (unsigned)g_bestGpsFix.fix_type);
+#endif
 
     printf("[Health]\n");
     const rc::HealthState* h = rc::health_monitor_get_state();
