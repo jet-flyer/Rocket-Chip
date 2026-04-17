@@ -27,6 +27,9 @@
 #include "rocketchip/radio_config.h"
 #include "rocketchip/job.h"
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
+#if defined(ROCKETCHIP_JOB_STATION) && !defined(BUILD_FOR_FLIGHT)
+#include "dev/station_fault_inject.h"
+#endif
 
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
@@ -255,6 +258,13 @@ static struct {
 
 // Handle received packet from AO_Radio
 static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
+#if defined(ROCKETCHIP_JOB_STATION) && !defined(BUILD_FOR_FLIGHT)
+    // IVP-132a: fault-inject RX drop (bench binary only, station only)
+    if (g_fault_station_rx_drop_remaining > 0) {
+        g_fault_station_rx_drop_remaining = g_fault_station_rx_drop_remaining - 1;
+        return;
+    }
+#endif
     // Try CCSDS nav decode first (telemetry packets)
     rc::TelemetryState telem = {};
     uint16_t seq = 0;
@@ -265,6 +275,14 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
         // Try CCSDS command ACK (IVP-122)
         rc::ccsds::CommandAckPayload ack{};
         if (rc::ccsds_decode_cmd_ack(rxEvt->buf, rxEvt->len, ack)) {
+#if defined(ROCKETCHIP_JOB_STATION) && !defined(BUILD_FOR_FLIGHT)
+            // IVP-132a: fault-inject ACK suppression — forces station retry path
+            if (g_fault_station_ack_suppress_remaining > 0) {
+                g_fault_station_ack_suppress_remaining =
+                    g_fault_station_ack_suppress_remaining - 1;
+                return;
+            }
+#endif
             // Match against pending command
             if (s_pending_cmd.pending &&
                 ack.cmd_seq == s_pending_cmd.seq &&
