@@ -191,6 +191,14 @@ exercise the decoupling — same vehicle firmware, smaller board, no PSRAM.
 
 **Stage 16: Field Tuning** (was 15) — All VALIDATE parameters. Needs flight data.
 
+**Field Testing (IVP-134, 135, 136, 137, 138) — DEFERRED 2026-04-16** to a
+dedicated stage (likely Stage 17) when user has time + airframe ready +
+launch window. IVP-134 (pre-flight checklist doc) already written and
+committed; remaining IVPs (airframe integration, ground test, flight test,
+exit gate) need hardware access and weather. No blocker for Stage 16B
+closure — field testing has always been a separate effort from bench
+validation.
+
 **Stage 16C (planned, post-Stage-17): Station Re-Work** — dedicated rebuild of the
 station-role firmware. Surfaced during IVP-132a bench testing (2026-04-16).
 
