@@ -294,6 +294,7 @@ else()
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/replay_inject.cpp>
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/diag_stats.cpp>
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/station_fault_inject.cpp>
+        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/station_replay.cpp>
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -539,6 +540,11 @@ else()
             -Wl,--undefined=fault_force_station_ack_suppress
             -Wl,--undefined=fault_force_station_gps_loss
             -Wl,--undefined=fault_force_station_gps_restore
+            -Wl,--undefined=station_replay_inject_bytes
+            -Wl,--undefined=station_replay_get_inject_count
+            -Wl,--undefined=station_replay_start
+            -Wl,--undefined=station_replay_stop
+            -Wl,--undefined=station_replay_active
         )
     endif()
 

@@ -453,6 +453,7 @@ bool rc_os_update() {
     if (!handle_usb_connect()) { return false; }
     if (dev_eskf_live_poll()) { return false; }
     if (dev_replay_poll()) { return false; }
+    if (dev_station_replay_poll()) { return false; }
 
     int arm_result = handle_arm_confirm();
     if (arm_result == 0) { return false; }

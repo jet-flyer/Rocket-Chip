@@ -112,6 +112,34 @@ MAIN_DESCENT relies entirely on the stationary guard (`SIG_LANDING`) to exit. If
 
 `CMakeLists.txt` lists `src/cli/rc_os.cpp` twice (once in the Stage 2 section at line 287, once in Stage 9 at line 416). CMake deduplicates silently so no build error, but it's sloppy. Same may apply to other source files. Should do a full dedup pass — not blocking any work, just housekeeping.
 
+### Station Role vs. Fruit Jam Board — Decoupling Audit (2026-04-16)
+
+User flagged a latent coupling concern during IVP-132a work: "station mode"
+(RX role, ground station behavior — `ROCKETCHIP_JOB_STATION=1`, `kRadioModeRx`)
+must NOT be conflated with "Fruit Jam board" (Adafruit RP2350B-based SBC).
+Station role should be runnable on any RP2350 variant — future Tiny 2350 port,
+custom carrier boards, or even the flight Feather repurposed as a relay/GCS.
+
+**Currently known conflations to audit:**
+- `build_station/` cmake invocation may hardcode `PICO_BOARD=adafruit_fruit_jam`
+  via environment. Board selection should be orthogonal to role selection.
+- `rc_os_commands.cpp` station-specific CLI sometimes refers to "Fruit Jam"
+  in print strings (`grep -n "Fruit Jam\|fruitjam" src/`).
+- Display output assumes Fruit Jam's HSTX/DVI output. If a station-role
+  device has no display, output should fall back to USB/serial gracefully.
+- Pin allocations in `board_*.h` — station-role needs radio SPI and GPS UART
+  wired, but other pins (DVI, SD card) are Fruit-Jam-only and should be
+  optional.
+
+**Action:** Post-IVP-132a audit task. Not blocking current work — IVP-132a
+is validating station *behavior*, and it happens to run on Fruit Jam. The
+decoupling cleanup is a separate pass where we grep for board-specific
+references in station code paths and either gate with `#ifdef PICO_BOARD_*`
+or move board-specifics to `board_*.h`.
+
+**Related future work:** Tiny 2350 port (user mentioned upcoming) will
+exercise the decoupling — same vehicle firmware, smaller board, no PSRAM.
+
 ### Protected File Updates Pending Approval
 
 *None currently.*
