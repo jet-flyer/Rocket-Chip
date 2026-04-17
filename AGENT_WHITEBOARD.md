@@ -112,6 +112,36 @@ MAIN_DESCENT relies entirely on the stationary guard (`SIG_LANDING`) to exit. If
 
 `CMakeLists.txt` lists `src/cli/rc_os.cpp` twice (once in the Stage 2 section at line 287, once in Stage 9 at line 416). CMake deduplicates silently so no build error, but it's sloppy. Same may apply to other source files. Should do a full dedup pass — not blocking any work, just housekeeping.
 
+### Vehicle Board Running Warm During Long Soak (2026-04-16)
+
+During IVP-132 Phase 4 (30-min battery soak on vehicle flight binary),
+user noticed the Feather RP2350 HSTX was noticeably warm to the touch
+after the soak (not hot, not concerning — but above ambient).
+
+**Next long-duration soak should capture MCU die temperature.** The
+RP2350 has an internal temperature sensor on ADC input 4 (per RP2350
+datasheet §12.4.6). Access pattern:
+
+```cpp
+adc_init();
+adc_set_temp_sensor_enabled(true);
+adc_select_input(4);
+uint16_t raw = adc_read();
+// Conversion per SDK: T_c = 27.0f - (raw * 3.3f / 4096 - 0.706f) / 0.001721f
+```
+
+Add to `shared_sensor_data_t` (seqlock): `float mcu_temp_c`. Core 1
+sensor loop reads it at ~1 Hz (slow-changing signal). Extend
+`diag_stats_dump()` and the soak GDB scripts to include it.
+
+**Why this matters:** Thermal drift could affect ESKF baseline noise,
+XIP cache behavior, and crystal frequency (PPM drift). A warm baseline
+at idle might not be concerning, but the data is free and catches
+thermal runaway scenarios (e.g., stuck-on regulator, PIO thrashing).
+
+**Not blocking IVP-132a.** Log this for the next full-system soak
+(likely IVP-132a.4 station soak or the Stage 17 ground test).
+
 ### Station Role vs. Fruit Jam Board — Decoupling Audit (2026-04-16)
 
 User flagged a latent coupling concern during IVP-132a work: "station mode"
