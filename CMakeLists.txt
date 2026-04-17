@@ -298,6 +298,7 @@ else()
         src/dev/diag_stats.cpp
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/station_fault_inject.cpp>
         $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/station_replay.cpp>
+        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/dio0_bringup.cpp>
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -555,6 +556,8 @@ else()
             -Wl,--undefined=station_replay_start
             -Wl,--undefined=station_replay_stop
             -Wl,--undefined=station_replay_active
+            -Wl,--undefined=dio0_bringup_test
+            -Wl,--undefined=dio0_bringup_edge_count
         )
     endif()
 
