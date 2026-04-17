@@ -191,6 +191,45 @@ exercise the decoupling — same vehicle firmware, smaller board, no PSRAM.
 
 **Stage 16: Field Tuning** (was 15) — All VALIDATE parameters. Needs flight data.
 
+**Stage 16C (planned, post-Stage-17): Station Re-Work** — dedicated rebuild of the
+station-role firmware. Surfaced during IVP-132a bench testing (2026-04-16).
+
+Scope (must all land together — they're the same underlying problem):
+
+1. **Station/vehicle runtime decoupling.** Today "station profile" is implemented
+   as "vehicle profile with Core 1 idle" — Core 1 `core1_entry()` waits forever
+   on `g_startSensorPhase` when `kRole != kVehicle`. This means any periodic
+   work (GPS polling, MCU temp, battery ADC, future sensors) is vehicle-only
+   by construction. Station GPS is initialized but never read. MCU die temp
+   can't be added without a Core 0 path. See "Station Runtime Shape Is
+   Fundamentally Different from Vehicle" flag below.
+
+2. **Station role / board decoupling.** Today "station mode" is entangled with
+   Adafruit Fruit Jam board specifics (hardcoded `PICO_BOARD`, HSTX/DVI
+   display assumptions, Fruit Jam print strings). Station role should run on
+   any RP2350 variant — flight Feather as relay, future Tiny 2350 port,
+   custom carrier. See "Station Role vs. Fruit Jam Board — Decoupling Audit"
+   flag below.
+
+3. **Station Core 1 sensor path.** Give station its own minimal Core 1 loop
+   (or Core 0 tick cycle) for its own periodic sensors: GPS update, MCU temp,
+   eventual battery ADC. Keep seqlock layout shared — station populates
+   fewer fields.
+
+4. **MCU die temperature capture** (deferred from IVP-132a). Add to both
+   roles once the sensor path exists. User noted 2026-04-16 that the vehicle
+   Feather ran warm during the 30-min battery soak; worth monitoring long
+   term. See "Vehicle Board Running Warm" flag below.
+
+5. **Tiny 2350 port** (user mentioned upcoming) — validates the decoupling
+   work. Different RP2350 variant, no PSRAM, same role capabilities.
+
+Council review required before starting — this is an architectural shape
+change, not a refactor.
+
+**Blocking:** None for Stage 17 field testing (vehicle-side is complete).
+Stage 16C can run in parallel or after Stage 17 flight data informs tuning.
+
 See plan file for full breakdown.
 
 ### Deferred (near-term, post-Stage 15)
