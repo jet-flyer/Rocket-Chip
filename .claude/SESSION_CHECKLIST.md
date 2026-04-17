@@ -39,8 +39,16 @@ Before committing and pushing:
 5. **No unintended deletions** — Run `git diff --stat` and verify the diff matches what you intended to change. If files were deleted, confirm that was intentional
 6. **Check AGENT_WHITEBOARD.md** — Update with current state, clear resolved items, add any new flags or open items discovered during the session
 7. **Architecture doc drift check** — If this session changed any AO (added, removed, renamed, re-prioritized), signal (new, renamed, rerouted), or queue depth: run `grep -n "superloop\|core 0 cooperative" docs/SAD.md docs/SCAFFOLDING.md` and verify zero stale hits. Also verify the AO list in `docs/AO_ARCHITECTURE.md`, `docs/SAD.md` Section 5.1, and `docs/SCAFFOLDING.md` Module Responsibilities table all match `src/active_objects/`. Patch any drift before committing.
-8. **Commit with descriptive message** — Format: `[agent] brief description of what and why`
-9. **Push to remote** — `git push` so work is not stranded locally
+8. **Station/vehicle build parity check** — If this session modified CMakeLists.txt, any `src/active_objects/`, `src/cli/`, `src/telemetry/`, or `src/drivers/rfm95w.cpp`, rebuild BOTH tiers for BOTH roles to confirm no build is broken:
+   ```
+   cmake --build build/              # vehicle bench
+   cmake --build build_flight/       # vehicle flight  (-DBUILD_FOR_FLIGHT=ON)
+   cmake --build build_station/      # station bench   (-DROCKETCHIP_JOB_STATION=1)
+   cmake --build build_station_flight/  # station flight (both flags)
+   ```
+   Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION` / `kRadioModeRx` — a change that compiles on one role can silently break the other. If any build directory doesn't exist yet, create it with the appropriate `cmake -DROCKETCHIP_JOB_STATION=1 -DBUILD_FOR_FLIGHT=ON ..` flags (see `docs/BENCH_TEST_PROCEDURE.md`). When hardware-verifying, both the vehicle Feather and the Fruit Jam station should exercise the changed path before the session closes.
+9. **Commit with descriptive message** — Format: `[agent] brief description of what and why`
+10. **Push to remote** — `git push` so work is not stranded locally
 
 ---
 
@@ -48,13 +56,13 @@ Before committing and pushing:
 
 All of the above, plus:
 
-10. **Expand AGENT_WHITEBOARD.md** with handoff-specific details:
+11. **Expand AGENT_WHITEBOARD.md** with handoff-specific details:
     - What was in progress
     - What's blocked and why
     - Any concerns or open questions
     - Specific files that were being worked on
-11. **Don't leave broken code on main** — If work is incomplete, either stash it or commit to a feature branch
-12. **Note the exact state** — "Build compiles, sensor reads work, CLI untested" is better than "made progress"
+12. **Don't leave broken code on main** — If work is incomplete, either stash it or commit to a feature branch
+13. **Note the exact state** — "Build compiles, sensor reads work, CLI untested" is better than "made progress"
 
 ---
 
@@ -62,9 +70,9 @@ All of the above, plus:
 
 All of the normal completion items, plus:
 
-13. **Update `docs/PROJECT_STATUS.md`** with milestone completion and next phase
-14. **Review SCAFFOLDING.md** — If directory structure changed, update it
-15. **Consider LESSONS_LEARNED.md** — If significant debugging occurred, document it
+14. **Update `docs/PROJECT_STATUS.md`** with milestone completion and next phase
+15. **Review SCAFFOLDING.md** — If directory structure changed, update it
+16. **Consider LESSONS_LEARNED.md** — If significant debugging occurred, document it
 
 ---
 
