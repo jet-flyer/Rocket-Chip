@@ -129,9 +129,10 @@ void diag_stats_dump() {
     printf("[Sensors]\n");
     shared_sensor_data_t snap;
     seqlock_read(&g_sensorSeqlock, &snap);
-    printf("  IMU temp=%.2fC baro temp=%.2fC\n",
+    printf("  IMU temp=%.2fC baro temp=%.2fC mcu temp=%.2fC\n",
            (double)snap.imu_temperature_c,
-           (double)snap.baro_temperature_c);
+           (double)snap.baro_temperature_c,
+           (double)snap.mcu_temperature_c);
     printf("  IMU reads=%lu errs=%lu  baro reads=%lu errs=%lu  gps reads=%lu errs=%lu\n",
            (unsigned long)snap.imu_read_count,
            (unsigned long)snap.imu_error_count,

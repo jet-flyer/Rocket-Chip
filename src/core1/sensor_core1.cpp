@@ -19,6 +19,7 @@
 #include "pico/time.h"
 #include "pico/multicore.h"
 #include "hardware/sync.h"
+#include "hardware/adc.h"
 #include "hardware/structs/mpu.h"
 #include "drivers/ws2812_status.h"
 #include "drivers/i2c_bus.h"
@@ -115,6 +116,16 @@ static void mpu_setup_stack_guard(uint32_t stackBottom) {
 // ============================================================================
 // Each helper writes into localData (passed by pointer). The seqlock_write()
 // call stays in the sensor loop -- NOT inside these helpers (council rule).
+
+// RP2350 on-die temperature via ADC input 4 (datasheet §12.4.6).
+// Conversion per Pico SDK: T_c = 27 - (V - 0.706) / 0.001721, V = raw * 3.3 / 4096.
+// Called at ~1Hz from Core 1 loop (slow signal, ~10°C/min max realistic change).
+static float core1_read_mcu_temp_c() {
+    adc_select_input(4);  // temp sensor channel
+    uint16_t raw = adc_read();
+    float voltage = static_cast<float>(raw) * 3.3F / 4096.0F;
+    return 27.0F - (voltage - 0.706F) / 0.001721F;
+}
 
 // IMU error path: increment fail counter, invalidate accel/gyro, attempt recovery.
 static void core1_imu_error_recovery(uint32_t* imuConsecFail,
@@ -421,6 +432,10 @@ static void core1_sensor_loop() {
     calibration_store_t localCal;
     core1_load_cal_or_defaults(&localCal);
 
+    // MCU temp sensor: init ADC once, enable temp channel. No-op if already init'd elsewhere.
+    adc_init();
+    adc_set_temp_sensor_enabled(true);
+
     shared_sensor_data_t localData = {};
     uint32_t loopCount = 0;
     uint32_t baroCycle = 0;
@@ -428,6 +443,7 @@ static void core1_sensor_loop() {
     uint32_t imuConsecFail = 0;
     uint32_t gpsCycle = 0;
     uint32_t lastGpsReadUs = 0;
+    uint32_t mcuTempCycle = 0;
 
     while (true) {
         uint32_t cycleStartUs = time_us_32();
@@ -458,6 +474,13 @@ static void core1_sensor_loop() {
             && !rc_os_mag_cal_active.load(std::memory_order_acquire)) {
             gpsCycle = 0;
             core1_read_gps(&localData, &lastGpsReadUs);
+        }
+
+        // MCU die temp: read at ~1Hz (Core 1 runs at ~1kHz, divider = 1000)
+        mcuTempCycle++;
+        if (mcuTempCycle >= 1000) {
+            mcuTempCycle = 0;
+            localData.mcu_temperature_c = core1_read_mcu_temp_c();
         }
 
         // Seqlock publish (always write, even on IMU failure -- council mod #4)

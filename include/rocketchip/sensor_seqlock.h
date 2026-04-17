@@ -88,9 +88,12 @@ struct shared_sensor_data_t {
     uint32_t baro_error_count;
     uint32_t gps_error_count;
     uint32_t core1_loop_count;              // For watchdog/stall detection
+
+    // MCU die temperature (4 bytes) — RP2350 ADC ch 4, ~1Hz update
+    float mcu_temperature_c;
 };
 
-static_assert(sizeof(shared_sensor_data_t) == 148, // NOLINT(readability-magic-numbers)
+static_assert(sizeof(shared_sensor_data_t) == 152, // NOLINT(readability-magic-numbers)
               "Struct size changed - update SEQLOCK_DESIGN.md");
 static_assert(sizeof(shared_sensor_data_t) % 4 == 0,
               "Struct must be 4-byte aligned for memcpy");
