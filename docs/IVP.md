@@ -24,7 +24,7 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stage 14** (Notification Engine): IVP-113 through IVP-118. Council-reviewed.
 - **Stage P7** (MAIN_DESCENT Liveness Fix): IVP-119 through IVP-121. Out-of-sequence safety pass — multi-channel voted landing detection closing SPIN property P7. Council-reviewed (two rounds).
 - **Stage 15** (Pre-Flight Radio + Station): IVP-122 through IVP-124. Half-duplex ACK + ARM confirm UX, distance-to-rocket finish, station help/whiteboard cleanup.
-- **Stage 16** (Pre-Flight Polish): 16A (docs/cleanup) COMPLETE 2026-04-12. 16B (bench testing — vehicle + Fruit Jam station) Planned per `.claude/plans/stateless-hopping-allen.md`. 16C (station re-work) added 2026-04-16 — DEFERRED, non-blocking for Stage 17.
+- **Stage 16** (Pre-Flight Polish): 16A (docs/cleanup) COMPLETE 2026-04-12. 16B (bench testing — vehicle + Fruit Jam station) COMPLETE 2026-04-17. 16C (station runtime decoupling + MCU die temp + Tiny_2350+/Pico 2 scaffolding) IN PROGRESS 2026-04-17 — IVP-139a through IVP-145 per `.claude/plans/sunny-hugging-pumpkin.md`, council-reviewed.
 - **Stage 17** (Field Testing & Avionics Airworthiness): DEFERRED 2026-04-16 — awaits airframe + launch window. IVP-134 (pre-flight checklist) completed early and bridges into this stage. Remaining IVPs: Big Daddy airframe, ground test, low-altitude flight test → **Flight Test Ready** milestone.
 - **Stage 18** (Field Tuning & Validation): Placeholder — VALIDATE parameter tuning from Stage 17 flight data. (Was old Stage 17, renumbered 2026-04-15.)
 
@@ -118,8 +118,8 @@ cmake --build build/
 | **P7** | **MAIN_DESCENT Liveness Fix** | **Phase 9** | **IVP-119 — IVP-121** | **Full** | **(out-of-sequence)** |
 | 15 | Pre-Flight Radio + Station | Phase 9 | IVP-122 — IVP-124 | Full | |
 | **16A** | **Documentation & Cleanup (pre-bench)** | **Phase 9** | *(historical IVP-127–130 reassigned per 2026-04-15 restructure; see Stage 16A note)* | **Full** | IVP-125/126 deferred → front-loaded into 16B |
-| **16B** | **Bench Testing (vehicle + station)** | **Phase 9** | **IVP-124a, 125, 126, 127a, 127b, 129–132a** | **Planned** | **Bench Validated** |
-| **16C** | **Station Re-Work (decoupling + MCU temp + sensor path)** | **Phase 9** | TBD | Deferred | Non-blocking for Stage 17; see Stage 16C section |
+| **16B** | **Bench Testing (vehicle + station)** | **Phase 9** | **IVP-124a, 125, 126, 127a, 127b, 129–132a** | **Full** | **Bench Validated** |
+| **16C** | **Station Runtime Decoupling + MCU Die Temp + Board Scaffolding** | **Phase 9** | **IVP-139a, 140, 141, 142a, 142b, 143, 144, 145** | **In Progress** | Items 1-3 of original scope + MCU die temp + Tiny_2350+/Pico 2 scaffolding; items 4-5 deferred |
 | **17** | **Field Testing & Avionics Airworthiness** | **Phase 9** | **IVP-134 — IVP-138** | **Deferred** | **Flight Test Ready** (awaits airframe + launch window) |
 | 18 | Field Tuning & Validation | Phase 9 | — | Placeholder | (was old Stage 17; renumbered) |
 
@@ -3452,36 +3452,36 @@ Four documentation items completed: AO Architecture Audit (removed dead Core1 vi
 | IVP-132 | HW Budgets + Two-Tier Soak | `_diag_stats` CLI dumps per-AO QP queue stats, MSP high-water, flash page count, sensor temps. SRAM/flash from `.map`, peak current measured. 5-min diagnostic soak (USB powered, per code change). 30-min integration soak (battery powered, FLIGHT BINARY, gate before Stage 17). |
 | IVP-132a | Station (Fruit Jam) Bench Tests | Station-side parity: `fault_force_station_rx_drop`, `fault_force_station_ack_timeout`, `fault_force_station_gps_loss` hooks. `scripts/station_replay_harness.py` replays vehicle telemetry into station RX. 30-min station soak on `fruitjam_flight`. ACK protocol stress (RadioScheduler-sync findings appended to AGENT_WHITEBOARD). |
 
-### Stage 16C: Station Re-Work — DEFERRED (added 2026-04-16)
+### Stage 16C: Station Runtime Decoupling + MCU Die Temp + Board Scaffolding — In Progress (added 2026-04-16, activated 2026-04-17)
 
-**Purpose:** Dedicated rebuild of the station-role firmware to decouple
-"station" from "vehicle-with-idle-Core-1" and from "Fruit Jam board." Surfaced
-during IVP-132a bench testing: the station runtime shape is fundamentally
-different from vehicle, and the current code treats station as a degenerate
-vehicle profile rather than a distinct role. This blocks station-side
-periodic work (GPS polling, MCU die temp, future battery ADC, etc.) by
-construction.
+**Purpose:** Close the station/vehicle runtime gap surfaced by IVP-132a (station Core 1 idles, station GPS initialized but never polled, `cmd_station_gps_push` reads stale zeros) and add MCU die-temperature health monitoring across both roles. Lay forward-compatible scaffolding for Tiny_2350+ and Raspberry Pi Pico 2 as additional RP2350 boards (no hardware bring-up this stage; future IVP).
 
-**Status:** DEFERRED. Non-blocking for Field Testing (vehicle-side is
-complete). Can run in parallel with or after field-test flight data
-analysis.
+**Plan:** `.claude/plans/sunny-hugging-pumpkin.md` (council-reviewed 2026-04-17: NASA/JPL Avionics Lead, Embedded Systems Professor, Cubesat Startup Engineer — unanimous approval with 5 amendments incorporated).
 
-**Scope (must all land together — same underlying problem):**
-1. Station/vehicle runtime decoupling (station needs its own Core 1 sensor
-   path or Core 0 tick cycle).
-2. Station role / board decoupling (Fruit Jam hardcoding in print strings,
-   pin assumptions, display output).
-3. Station Core 1 periodic work (GPS update, MCU die temp, future battery
-   ADC). Keep seqlock layout shared.
-4. MCU die temperature capture (deferred from IVP-132a; needs the
-   station sensor path first).
-5. Tiny 2350 port validates the decoupling.
+**End state:** Station role polls its own GPS at ~10 Hz on every supported board by reusing vehicle GPS driver + function pointers unchanged (no second GPS code path). MCU die temp captured ~1 Hz on both roles, integrated into `AO_HealthMonitor` with datasheet-sourced thresholds (warn 70 °C, fault 85 °C, safe-mode 105 °C from RP2350 §1.4.3 + §12.4.6). At safe-mode, `SIG_MCU_OVERTEMP` posted to AO_FlightDirector — auto-ABORT if ARMED, blocks ARM otherwise. Board capability flags (`kPsramAvailable`, `kDvmAvailable`, `kSdCardAvailable`, `kI2cStemmaAvailable`) replace hardcoded board checks. `board_tiny_2350_common.h` + `board_tiny_2350_plus.h` + `board_pico2.h` land as `#error`-guarded placeholders requiring `*_BRINGUP_OK` macro at compile time.
 
-**Council review required** before starting — architectural shape change,
-not a refactor.
+**Prerequisites:** Stage 16B complete.
 
-**See:** `AGENT_WHITEBOARD.md` "Stage 16C (planned, post-Stage-17): Station
-Re-Work" for full scope and rationale.
+**Scope — items 1-3 of original Stage 16C + MCU die temp + HealthMonitor integration + additional-board scaffolding.**
+
+**Deferred from Stage 16C original scope** (separate future stages):
+- Item 4: RadioScheduler ACK synchronization fix — quantified at 6.7% ACK rate in IVP-132a.5. Separate architectural concern. Future stage.
+- Item 5 (full): Tiny 2350 full hardware bring-up. This stage lands scaffolding only; actual HW bring-up is a future IVP when the user verifies pin assignments against hardware.
+
+**Architectural decision:** idle-bridge extension (`qv_idle_bridge()` hosts `station_idle_tick()` alongside existing `AO_Telemetry_cmd_retry_tick`). Station Core 1 stays idle — Core 0 sole I2C client invariant preserved. Safe for ~6 ms GPS I2C (idle bridge is not an AO; LL Entry 32 does not apply). Vehicle unchanged.
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| IVP-139a | IVP.md Stage 16C Table Entry | Update IVP.md status + Stage 16C detail to match the council-reviewed plan. Source-of-truth alignment before implementation-numbered work begins (same pattern as Stage 16B's IVP-124a). This IVP. |
+| IVP-140 | Station Idle-Tick Adapter Scaffolding | Create `src/station/station_idle_tick.{h,cpp}` as a no-op tick. Wire into `qv_idle_bridge()` under `if constexpr (kRadioModeRx)`, adjacent to `AO_Telemetry_cmd_retry_tick`. Reuses existing non-AO tick pattern. |
+| IVP-141 | Station GPS Poll via Idle Bridge | Implement `station_idle_tick()` to reuse existing `g_gpsFnUpdate`/`g_gpsFnGetData` function pointers + `seqlock_write` unchanged. Zero new GPS code; transport-agnostic (UART on Feather/Pico 2, I2C PA1010D on Fruit Jam). Extract `core1_update_best_gps_fix()` to shared helper. |
+| IVP-142a | MCU Die Temp Driver + Seqlock Field | New `src/drivers/mcu_temp.{h,cpp}` using RP2350 ADC input 4 per datasheet §12.4.6. Add `mcu_die_temp_c` + `mcu_temp_read_count` to `shared_sensor_data_t` with static_assert size bump. Capture ~1 Hz both roles. `diag_stats_dump` line. Seqlock-size grep gate on commit. |
+| IVP-142b | MCU Over-Temp in AO_HealthMonitor + Safe-Mode Trigger | Extend `HealthState::primary` to 16-bit (MCU slot at bits [9:8]). Datasheet-sourced thresholds (70/85/105 °C) with 2 °C hysteresis. `SIG_MCU_OVERTEMP` posted to AO_FlightDirector at safe-mode — ABORT if ARMED, blocks ARM otherwise. Host tests cover 4 states + hysteresis boundaries. |
+| IVP-143 | Capability Flags + Tiny_2350+ / Pico 2 Scaffolding + CMakePresets | Add `kPsramAvailable` / `kDvmAvailable` / `kSdCardAvailable` / `kI2cStemmaAvailable` flags to all `board_*.h`. Land `board_tiny_2350_common.h` + `board_tiny_2350_plus.h` + `board_pico2.h` with `#error` guards (`TINY_2350_BRINGUP_OK` / `PICO2_BRINGUP_OK`). `CMakePresets.json` encoding 4 current build combos. Comment/string hygiene. |
+| IVP-144 | `cmd_station_*` Decoupling Audit | Grep-validated audit of `src/cli/rc_os_commands.cpp` and `src/cli/` station paths for hardcoded "Fruit Jam"/`PICO_BOARD` references. Expected clean per Phase-1; audit proves it or exposes drift. Audit-only IVP; fixes any drift in same commit. |
+| IVP-145 | Stage 16C Exit Gate + Stage-End Docs | Full verification matrix: all 4 builds clean, host tests pass, SPIN pass (11/11 or 12/12 if `SIG_MCU_OVERTEMP` path adds a gate), 5-min + 30-min soaks both roles, over-temp force-test via GDB variable override (72/90/110 °C → warn/fault/safe-mode). Stage-end doc updates to `CHANGELOG.md` / `PROJECT_STATUS.md` / `AGENT_WHITEBOARD.md` / `BENCH_TEST_PROCEDURE.md`. |
+
+**See:** `AGENT_WHITEBOARD.md` "Stage 16C (planned, post-Stage-17): Station Re-Work" for original scope and rationale.
 
 ### Stage 17 — see dedicated section below.
 
