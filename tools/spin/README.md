@@ -63,6 +63,25 @@ Flight Director HSM only. Single process, non-deterministic environment. Verifie
 ### `rocketchip_ao.pml` (IVP-82b)
 Full Active Object topology. 5 processes: FlightDirector + Logger + Telemetry + LedEngine (+ implicit Environment via non-deterministic choice). 107,818 reachable states. Verifies 5 safety + 3 mission-critical properties.
 
+### `rocketchip_station.pml` (IVP-147, Stage 16C)
+Station-side command delivery channel — the RX/ACK/retry protocol that neither vehicle model covers. Two processes: Station + Vehicle, with lossy bidirectional channels. Initial scaffolding scope: single command in flight (seq=1), no MAVLink parser modelling, no RadioScheduler TX-window arbitration. Verifies:
+
+- **P_TERMINATION** (liveness, requires `-f`): every pending command eventually terminates (either acked or all 3 retries exhausted).
+- **P_NO_DOUBLE_CLEAR** (safety): the pending bit cannot be cleared twice for the same sequence number — guards against a race between ACK arrival and retry-exhaustion clear.
+
+Run:
+```bash
+/c/tools/cygwin/bin/bash.exe -lc '
+cd /cygdrive/c/Users/pow-w/Documents/Rocket-Chip/tools/spin
+spin -a rocketchip_station.pml
+gcc -O2 -o pan_station pan.c
+./pan_station -a -N p_no_double_clear
+./pan_station -a -f -N p_termination
+'
+```
+
+Expected: `errors: 0` for both. Runtime <1s total. Future extensions (multi-pending-in-flight, RadioScheduler TX-window, MAVLink-parser state) are queued as whiteboard follow-ups when firmware gains the supporting behaviors.
+
 ## What's Modeled
 
 | Real System | Promela Model | Abstraction |
