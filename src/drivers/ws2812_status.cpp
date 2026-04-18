@@ -23,6 +23,14 @@ constexpr uint32_t kDefaultBlinkOnMs    = 500;
 constexpr uint32_t kDefaultBlinkOffMs   = 500;
 constexpr uint32_t kFastBlinkPeriodMs   = 200;  // 5Hz = 100ms on + 100ms off
 constexpr uint32_t kFastBlinkOnMs       = 100;
+constexpr uint32_t kDefaultAlternateHalfMs = 250;  // Stage L: 250ms each = 2Hz toggle
+// Double-flash: 100ms on, 100ms off, 100ms on, 700ms off = 1s full cycle (Stage L, AP-parity pre-arm-fail shape)
+constexpr uint32_t kDoubleFlashP0OnMs   = 100;   // first pulse on
+constexpr uint32_t kDoubleFlashP1OffMs  = 100;   // gap between pulses
+constexpr uint32_t kDoubleFlashP2OnMs   = 100;   // second pulse on
+constexpr uint32_t kDoubleFlashP3OffMs  = 700;   // long pause
+constexpr uint32_t kDoubleFlashPeriodMs = kDoubleFlashP0OnMs + kDoubleFlashP1OffMs +
+                                           kDoubleFlashP2OnMs + kDoubleFlashP3OffMs;
 constexpr float    kRainbowCyclePeriodMs = 6000.0F;  // Full HSV rotation period
 constexpr float    kRainbowSaturation   = 100.0F;
 constexpr float    kRainbowValue        = 25.0F;     // Max brightness for rainbow mode
@@ -53,12 +61,14 @@ static struct {
     // Current mode and color
     ws2812_mode_t mode;
     ws2812_rgb_t baseColor;
+    ws2812_rgb_t altColor;   // Stage L: secondary color for MODE_ALTERNATE
     uint8_t brightness;
 
     // Pattern timing
     uint32_t breathePeriodMs;
     uint32_t blinkOnMs;
     uint32_t blinkOffMs;
+    uint32_t alternateHalfMs;  // Stage L: time each color shows in MODE_ALTERNATE
 
     // Animation state
     uint32_t lastUpdateMs;
@@ -74,10 +84,12 @@ static struct {
     .pixels = {},
     .mode = WS2812_MODE_OFF,
     .baseColor = {0, 0, 0},
+    .altColor = {0, 0, 0},
     .brightness = 255,
     .breathePeriodMs = kDefaultBreathePeriodMs,
     .blinkOnMs = kDefaultBlinkOnMs,
     .blinkOffMs = kDefaultBlinkOffMs,
+    .alternateHalfMs = kDefaultAlternateHalfMs,
     .lastUpdateMs = 0,
     .phaseStartMs = 0,
     .blinkState = false,
@@ -294,11 +306,25 @@ void ws2812_set_mode(ws2812_mode_t mode, ws2812_rgb_t color) {
         case WS2812_MODE_SOLID:
         case WS2812_MODE_BLINK:
         case WS2812_MODE_BLINK_FAST:
+        case WS2812_MODE_ALTERNATE:
+        case WS2812_MODE_DOUBLE_FLASH:
             send_pixel(color.r, color.g, color.b);
             break;
         default:
             break;
     }
+}
+
+void ws2812_set_mode_alternate(ws2812_rgb_t a, ws2812_rgb_t b,
+                               uint32_t halfPeriodMs) {
+    g_state.mode = WS2812_MODE_ALTERNATE;
+    g_state.baseColor = a;
+    g_state.altColor = b;
+    g_state.alternateHalfMs = (halfPeriodMs > 0U) ? halfPeriodMs
+                                                  : kDefaultAlternateHalfMs;
+    g_state.phaseStartMs = to_ms_since_boot(get_absolute_time());
+    g_state.blinkState = true;   // true = showing baseColor
+    send_pixel(a.r, a.g, a.b);
 }
 
 void ws2812_set_breathe_period(uint32_t periodMs) {
@@ -348,6 +374,44 @@ static void update_rainbow(uint32_t elapsed) {
     send_pixel(color.r, color.g, color.b);
 }
 
+// Stage L: two-color alternation. `blinkState` true = showing baseColor,
+// false = showing altColor. Edge-triggered (only sends when boundary crossed)
+// to avoid hammering the PIO FIFO every tick.
+static void update_alternate(uint32_t elapsed, uint32_t halfMs) {
+    uint32_t period = halfMs * 2U;
+    if (period == 0U) return;
+    bool showBase = ((elapsed % period) < halfMs);
+    if (showBase != g_state.blinkState) {
+        g_state.blinkState = showBase;
+        const ws2812_rgb_t& c = showBase ? g_state.baseColor : g_state.altColor;
+        send_pixel(c.r, c.g, c.b);
+    }
+}
+
+// Stage L: double-flash for pre-arm fail. 100ms on, 100ms off, 100ms on, 700ms off.
+// Edge-triggered like update_blink. Uses baseColor for the on-frames.
+static void update_double_flash(uint32_t elapsed) {
+    uint32_t phase = elapsed % kDoubleFlashPeriodMs;
+    bool shouldBeOn;
+    if (phase < kDoubleFlashP0OnMs) {
+        shouldBeOn = true;
+    } else if (phase < kDoubleFlashP0OnMs + kDoubleFlashP1OffMs) {
+        shouldBeOn = false;
+    } else if (phase < kDoubleFlashP0OnMs + kDoubleFlashP1OffMs + kDoubleFlashP2OnMs) {
+        shouldBeOn = true;
+    } else {
+        shouldBeOn = false;
+    }
+    if (shouldBeOn != g_state.blinkState) {
+        g_state.blinkState = shouldBeOn;
+        if (shouldBeOn) {
+            send_pixel(g_state.baseColor.r, g_state.baseColor.g, g_state.baseColor.b);
+        } else {
+            send_pixel(0, 0, 0);
+        }
+    }
+}
+
 // ============================================================================
 // Update
 // ============================================================================
@@ -380,6 +444,14 @@ void ws2812_update() {
 
         case WS2812_MODE_RAINBOW:
             update_rainbow(elapsed);
+            break;
+
+        case WS2812_MODE_ALTERNATE:
+            update_alternate(elapsed, g_state.alternateHalfMs);
+            break;
+
+        case WS2812_MODE_DOUBLE_FLASH:
+            update_double_flash(elapsed);
             break;
     }
 

@@ -34,4 +34,10 @@ void AO_LedEngine_post_pattern(uint8_t pattern);
 // calls AO_Notify_post_cal_intent() which updates NotifyState and the
 // resolver picks the correct calibration pattern.
 
+// Stage L IVP-L1 dev helper: force a pattern into the Fault layer so it
+// wins over AO_Notify's continuous re-publishes. Pass 0 to clear and
+// restore normal resolver output. Only used by the LED-test debug CLI
+// (dev_cli.cpp). Not for flight code.
+void AO_LedEngine_dev_force_fault_layer(uint8_t pattern);
+
 #endif // ROCKETCHIP_AO_LED_ENGINE_H

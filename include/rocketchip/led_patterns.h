@@ -13,9 +13,14 @@
 //   0       = no override (normal status logic)
 //   1-8     = calibration overlays
 //   9-11    = RX link quality overlays
+//   12-19   = Stage L beacon-overlay composed patterns (flight phase + white)
 //   20-27   = flight phase overlays (match LedPhaseValue in action_executor.h)
+//   28-29   = Stage L: pre-arm fail (28), boot init rainbow (29)
+//   30-36   = sensor status
+//   41-46   = faults
 //
 // Stage 13 AO Architecture: Phase 0B extraction.
+// Stage L: beacon overlay codes + AP-parity color swaps (ARMED, cal gyro/level).
 //============================================================================
 #ifndef ROCKETCHIP_LED_PATTERNS_H
 #define ROCKETCHIP_LED_PATTERNS_H
@@ -29,8 +34,8 @@ namespace led {
 // Calibration overlays (set by CLI calibration wizards)
 // ============================================================================
 static constexpr uint8_t kOff         = 0;  // Normal NeoPixel behavior
-static constexpr uint8_t kCalGyro     = 1;  // Blue breathe (keep still)
-static constexpr uint8_t kCalLevel    = 2;  // Blue breathe (keep flat)
+static constexpr uint8_t kCalGyro     = 1;  // Yellow blink (AP parity, Stage L — was blue breathe)
+static constexpr uint8_t kCalLevel    = 2;  // Yellow blink (AP parity, Stage L — was blue breathe)
 static constexpr uint8_t kCalBaro     = 3;  // Cyan breathe (sampling)
 static constexpr uint8_t kCalAccelWait   = 4;  // Yellow blink (position board)
 static constexpr uint8_t kCalAccelSample = 5;  // Yellow solid (hold still)
@@ -46,17 +51,34 @@ static constexpr uint8_t kRxGap       = 10;  // Yellow blink (>1s gap)
 static constexpr uint8_t kRxLost      = 11;  // Red blink fast (>5s gap)
 
 // ============================================================================
+// Beacon-overlay composed patterns (Stage L)
+// Two-color 2Hz alternation — base-phase color swapped with white every 250ms.
+// Posted by AO_Notify's resolver when NotifyState.beacon_active is true and
+// the base-phase pattern is one of {Landed, Abort, SafeMode}. Other bases
+// (including faults) degrade to white-only kFdBeacon (physical-locator
+// priority; fault diagnosis remains via serial/telemetry/health status).
+// ============================================================================
+static constexpr uint8_t kFdLandedBeacon    = 12;  // Green + White alt 2Hz
+static constexpr uint8_t kFdAbortBeacon     = 13;  // Red   + White alt 2Hz
+
+// ============================================================================
 // Flight phase overlays (set by Flight Director actions)
 // Values match LedPhaseValue enum in action_executor.h
 // ============================================================================
-static constexpr uint8_t kFdArmed     = 20;  // Amber solid
+static constexpr uint8_t kFdArmed     = 20;  // Red solid (AP parity, Stage L — was amber)
 static constexpr uint8_t kFdBoost     = 21;  // Red solid
 static constexpr uint8_t kFdCoast     = 22;  // Yellow solid
 static constexpr uint8_t kFdDrogue    = 23;  // Red blink
 static constexpr uint8_t kFdMain      = 24;  // Red blink
 static constexpr uint8_t kFdLanded    = 25;  // Green blink
 static constexpr uint8_t kFdAbort     = 26;  // Red fast blink
-static constexpr uint8_t kFdBeacon    = 27;  // White blink (post-landing locator)
+static constexpr uint8_t kFdBeacon    = 27;  // White blink (distress / find-me locator)
+
+// ============================================================================
+// Stage L additions — pre-arm fail and boot init
+// ============================================================================
+static constexpr uint8_t kFdPreArmFail = 28;  // Yellow double-flash (AP parity, Stage L)
+static constexpr uint8_t kFdBootInit   = 29;  // Rainbow (AP parity, Stage L — boot/init warmup)
 
 // ============================================================================
 // Sensor status patterns (evaluated by AO_LedEngine priority compositor)
@@ -78,7 +100,7 @@ static constexpr uint8_t kFaultPioWdt     = 41;  // Orange solid (PIO watchdog f
 static constexpr uint8_t kFaultBaroFail   = 42;  // Orange fast blink (baro fault)
 static constexpr uint8_t kFaultEskfFail   = 43;  // Red blink (ESKF fault)
 static constexpr uint8_t kFaultImuFail    = 44;  // Red fast blink (IMU fault)
-static constexpr uint8_t kFaultSafeMode   = 45;  // Red solid (watchdog safe mode)
+static constexpr uint8_t kFaultSafeMode   = 45;  // Blue + White alt 2Hz (Stage L — was red solid; already recovery-visible, no separate beacon overlay)
 static constexpr uint8_t kFaultCore1Stall = 46;  // Magenta solid (Core 1 stalled)
 
 } // namespace led
@@ -112,6 +134,10 @@ static constexpr uint8_t kFdNeoMain         = rc::led::kFdMain;
 static constexpr uint8_t kFdNeoLanded       = rc::led::kFdLanded;
 static constexpr uint8_t kFdNeoAbort        = rc::led::kFdAbort;
 static constexpr uint8_t kFdNeoBeacon       = rc::led::kFdBeacon;
+static constexpr uint8_t kFdNeoLandedBeacon = rc::led::kFdLandedBeacon;   // Stage L
+static constexpr uint8_t kFdNeoAbortBeacon  = rc::led::kFdAbortBeacon;    // Stage L
+static constexpr uint8_t kFdNeoPreArmFail   = rc::led::kFdPreArmFail;     // Stage L
+static constexpr uint8_t kFdNeoBootInit     = rc::led::kFdBootInit;       // Stage L
 
 static constexpr uint8_t kSensorNeoEskfInit  = rc::led::kSensorEskfInit;
 static constexpr uint8_t kSensorNeoGps3d     = rc::led::kSensorGps3d;

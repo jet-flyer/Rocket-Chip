@@ -477,7 +477,12 @@ bool rc_os_update() {
     } else if (g_menu == RC_OS_MENU_FLIGHT) {
         handled = handle_flight_menu(c);
     } else if (g_menu == RC_OS_MENU_DEBUG) {
-        if (!dev_debug_menu_dispatch(c)) {
+        // Stage L IVP-L1: if the LED-test submenu is waiting for a pick,
+        // route this keystroke there instead of through the normal debug
+        // dispatcher. Non-blocking (LL Entry 32).
+        if (dev_led_test_pending()) {
+            dev_led_test_feed(c);
+        } else if (!dev_debug_menu_dispatch(c)) {
             g_menu = RC_OS_MENU_MAIN;
         }
         handled = true;

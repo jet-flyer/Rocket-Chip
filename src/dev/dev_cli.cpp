@@ -14,6 +14,8 @@
 #include "drivers/i2c_bus.h"
 #include "safety/pyro_edge_logger.h"
 #include "dev/diag_stats.h"
+#include "active_objects/ao_led_engine.h"
+#include "rocketchip/led_patterns.h"
 #include "rocketchip/config.h"
 #include "rocketchip/job.h"
 #include "pico/stdlib.h"
@@ -29,8 +31,59 @@ static constexpr uint32_t kEskfLivePeriodUs = 1000000;
 bool dev_debug_menu_enter() {
     printf("\n--- Debug ---\n");
     printf("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
-    printf("y-Pyro log  r-Replay  d-Diag stats  h-Help  z-Back\n");
+    printf("y-Pyro log  r-Replay  d-Diag stats  l-LED test  h-Help  z-Back\n");
     return true;
+}
+
+// Stage L IVP-L1 HW verify: force a specific LED pattern code for visual check.
+// Blocking input is unsafe in a handler — it would overflow AO event queues
+// (LL Entry 32). Instead, set a "LED test pending" flag; the next keypress
+// received by the main dispatcher falls through to dev_led_test_poll().
+static bool s_ledTestPending = false;
+
+static void dev_led_test_force(uint8_t code) {
+    printf("[led_test] forcing pattern code %u (dev override)\n", code);
+    // Use the dev-override path, not post_pattern, to beat AO_Notify's
+    // continuous re-publish of SIG_LED_PATTERN. Pass 0 to clear.
+    AO_LedEngine_dev_force_fault_layer(code);
+}
+
+static void dev_led_test_menu() {
+    printf("\n--- LED pattern test (Stage L IVP-L1) ---\n");
+    printf("Pick one (press the digit):\n");
+    printf("  1 = kCalGyro            (yellow blink, AP)\n");
+    printf("  2 = kFdArmed            (red solid, AP)\n");
+    printf("  3 = kFdLandedBeacon     (green+white alt 2Hz)\n");
+    printf("  4 = kFdAbortBeacon      (red+white   alt 2Hz)\n");
+    printf("  5 = kFaultSafeMode      (blue+white  alt 2Hz)\n");
+    printf("  6 = kFdPreArmFail       (yellow double-flash)\n");
+    printf("  7 = kFdBootInit         (rainbow)\n");
+    printf("  8 = kFdBeacon           (white blink - distress)\n");
+    printf("  9 = kFdLanded           (green blink - no beacon baseline)\n");
+    printf("  0 = clear (return to normal resolver)\n");
+    printf("  any other key = cancel\n");
+    printf("[led_test] > ");
+    s_ledTestPending = true;
+}
+
+bool dev_led_test_pending() { return s_ledTestPending; }
+
+void dev_led_test_feed(int c) {
+    s_ledTestPending = false;
+    printf("%c\n", (char)c);
+    switch (c) {
+        case '1': dev_led_test_force(rc::led::kCalGyro);        break;
+        case '2': dev_led_test_force(rc::led::kFdArmed);        break;
+        case '3': dev_led_test_force(rc::led::kFdLandedBeacon); break;
+        case '4': dev_led_test_force(rc::led::kFdAbortBeacon);  break;
+        case '5': dev_led_test_force(rc::led::kFaultSafeMode);  break;
+        case '6': dev_led_test_force(rc::led::kFdPreArmFail);   break;
+        case '7': dev_led_test_force(rc::led::kFdBootInit);     break;
+        case '8': dev_led_test_force(rc::led::kFdBeacon);       break;
+        case '9': dev_led_test_force(rc::led::kFdLanded);       break;
+        case '0': dev_led_test_force(0);                        break;
+        default: printf("[led_test] cancelled\n"); break;
+    }
 }
 
 bool dev_debug_menu_dispatch(int c) {
@@ -73,10 +126,13 @@ bool dev_debug_menu_dispatch(int c) {
         case 'd': case 'D':
             diag_stats_dump();
             break;
+        case 'l': case 'L':
+            dev_led_test_menu();
+            break;
         case 'h': case 'H': case '?':
             printf("\n--- Debug Menu ---\n");
             printf("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
-            printf("y-Pyro log  r-Replay inject  d-Diag stats  z-Back\n");
+            printf("y-Pyro log  r-Replay inject  d-Diag stats  l-LED test  z-Back\n");
             break;
         case 'z': case 'Z': case 27:
             printf("Returning to main menu.\n");

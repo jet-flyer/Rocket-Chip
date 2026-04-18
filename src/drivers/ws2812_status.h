@@ -41,6 +41,8 @@ typedef enum {
     WS2812_MODE_BLINK,      ///< On/off blinking
     WS2812_MODE_BLINK_FAST, ///< Fast blinking (error indication)
     WS2812_MODE_RAINBOW,    ///< Smooth rainbow cycle
+    WS2812_MODE_ALTERNATE,  ///< Two-color alternation (Stage L — beacon overlay)
+    WS2812_MODE_DOUBLE_FLASH, ///< Two short pulses + long pause (Stage L — pre-arm fail)
 } ws2812_mode_t;
 
 // ============================================================================
@@ -141,6 +143,20 @@ void ws2812_set_breathe_period(uint32_t periodMs);
  * @param offMs Off time in milliseconds
  */
 void ws2812_set_blink_timing(uint32_t onMs, uint32_t offMs);
+
+/**
+ * @brief Set alternate-color mode (Stage L — beacon overlay)
+ *
+ * Swaps between `a` (primary / baseColor) and `b` (altColor) every
+ * `halfPeriodMs` milliseconds. Default is 250ms each = true 2Hz toggle
+ * (one full cycle per second). Visually reads as "2 flashes per second."
+ *
+ * @param a Primary color (shown first, after `halfPeriodMs` swaps to `b`)
+ * @param b Secondary color
+ * @param halfPeriodMs Time each color is displayed, in ms (default 250)
+ */
+void ws2812_set_mode_alternate(ws2812_rgb_t a, ws2812_rgb_t b,
+                               uint32_t halfPeriodMs);
 
 /**
  * @brief Set global brightness (dimming)

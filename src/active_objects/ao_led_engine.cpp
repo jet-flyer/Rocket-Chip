@@ -63,6 +63,7 @@ struct LedEngine {
     uint8_t layers[kLayerCount]; // Pattern code per layer (0 = inactive)
     ws2812_mode_t last_mode;
     ws2812_rgb_t last_color;
+    ws2812_rgb_t last_alt_color;   // Stage L: tracked for MODE_ALTERNATE dedup
     uint32_t last_core1_count;  // Core1 vitality defense-in-depth (A1)
     uint8_t core1_stall_ticks;  // Consecutive ticks without core1 progress
     // IVP-117: sensor_phase_start_ms removed — sensor evaluation migrated
@@ -72,6 +73,11 @@ struct LedEngine {
 
 static LedEngine l_ledEngine;
 static bool s_ledEngineStarted = false;
+
+// Stage L IVP-L1 dev override: non-zero value wins over all layers.
+// Set via AO_LedEngine_dev_force_fault_layer() from the LED-test debug CLI.
+// 0 = inactive (normal layer compositor applies).
+static uint8_t s_devOverridePattern = 0;
 
 // Queue depth 8: pattern change events + tick events. Callers should
 // deduplicate before posting (see AO_LedEngine_post_pattern). (A6)
@@ -97,12 +103,29 @@ static void led_set_if_changed(LedEngine * const me,
     }
 }
 
+// Stage L: dedup helper for two-color alternating mode.
+static bool rgb_eq(ws2812_rgb_t a, ws2812_rgb_t b) {
+    return a.r == b.r && a.g == b.g && a.b == b.b;
+}
+
+static void led_set_alternate_if_changed(LedEngine * const me,
+                                          ws2812_rgb_t a, ws2812_rgb_t b) {
+    if (me->last_mode != WS2812_MODE_ALTERNATE ||
+        !rgb_eq(a, me->last_color) ||
+        !rgb_eq(b, me->last_alt_color)) {
+        me->last_mode = WS2812_MODE_ALTERNATE;
+        me->last_color = a;
+        me->last_alt_color = b;
+        ws2812_set_mode_alternate(a, b, 250U);  // 250ms each = 2Hz toggle
+    }
+}
+
 // Map pattern value -> mode + color
 static void led_apply_pattern(LedEngine * const me, uint8_t val) {
     switch (val) {
         // Calibration overlays
         case kCalNeoGyro:
-        case kCalNeoLevel:       led_set_if_changed(me, WS2812_MODE_BREATHE, kColorBlue); break;
+        case kCalNeoLevel:       led_set_if_changed(me, WS2812_MODE_BLINK, kColorYellow); break;  // Stage L AP parity (was BREATHE+Blue)
         case kCalNeoBaro:        led_set_if_changed(me, WS2812_MODE_BREATHE, kColorCyan); break;
         case kCalNeoAccelWait:   led_set_if_changed(me, WS2812_MODE_BLINK, kColorYellow); break;
         case kCalNeoAccelSample: led_set_if_changed(me, WS2812_MODE_SOLID, kColorYellow); break;
@@ -113,8 +136,11 @@ static void led_apply_pattern(LedEngine * const me, uint8_t val) {
         case kRxNeoReceiving:    led_set_if_changed(me, WS2812_MODE_SOLID, kColorGreen); break;
         case kRxNeoGap:          led_set_if_changed(me, WS2812_MODE_BLINK, kColorYellow); break;
         case kRxNeoLost:         led_set_if_changed(me, WS2812_MODE_BLINK_FAST, kColorRed); break;
+        // Stage L: beacon-overlay composed patterns (phase color + white alt 2Hz)
+        case kFdNeoLandedBeacon: led_set_alternate_if_changed(me, kColorGreen, kColorWhite); break;
+        case kFdNeoAbortBeacon:  led_set_alternate_if_changed(me, kColorRed,   kColorWhite); break;
         // Flight phase overlays
-        case kFdNeoArmed:        led_set_if_changed(me, WS2812_MODE_SOLID, kColorOrange); break;
+        case kFdNeoArmed:        led_set_if_changed(me, WS2812_MODE_SOLID, kColorRed); break;      // Stage L AP parity (was Orange)
         case kFdNeoBoost:        led_set_if_changed(me, WS2812_MODE_SOLID, kColorRed); break;
         case kFdNeoCoast:        led_set_if_changed(me, WS2812_MODE_SOLID, kColorYellow); break;
         case kFdNeoDrogue:       led_set_if_changed(me, WS2812_MODE_BLINK, kColorRed); break;
@@ -122,6 +148,12 @@ static void led_apply_pattern(LedEngine * const me, uint8_t val) {
         case kFdNeoLanded:       led_set_if_changed(me, WS2812_MODE_BLINK, kColorGreen); break;
         case kFdNeoAbort:        led_set_if_changed(me, WS2812_MODE_BLINK_FAST, kColorRed); break;
         case kFdNeoBeacon:       led_set_if_changed(me, WS2812_MODE_BLINK, kColorWhite); break;
+        // Stage L: pre-arm fail = yellow double-flash (100/100/100/700 ms).
+        // Driver WS2812_MODE_DOUBLE_FLASH handles frame stepping.
+        case kFdNeoPreArmFail:   led_set_if_changed(me, WS2812_MODE_DOUBLE_FLASH, kColorYellow); break;
+        // Stage L: boot init rainbow (shares MODE_RAINBOW with mag-cal;
+        // time-separated so no collision — mag-cal is explicit post-boot action).
+        case kFdNeoBootInit:     led_set_if_changed(me, WS2812_MODE_RAINBOW, kColorWhite); break;
         // Sensor status patterns
         case kSensorNeoEskfInit: led_set_if_changed(me, WS2812_MODE_BLINK_FAST, kColorRed); break;
         case kSensorNeoGps3d:    led_set_if_changed(me, WS2812_MODE_SOLID, kColorGreen); break;
@@ -135,7 +167,7 @@ static void led_apply_pattern(LedEngine * const me, uint8_t val) {
         case kFaultNeoBaroFail:   led_set_if_changed(me, WS2812_MODE_BLINK_FAST, kColorOrange); break;
         case kFaultNeoEskfFail:   led_set_if_changed(me, WS2812_MODE_BLINK, kColorRed); break;
         case kFaultNeoImuFail:    led_set_if_changed(me, WS2812_MODE_BLINK_FAST, kColorRed); break;
-        case kFaultNeoSafeMode:   led_set_if_changed(me, WS2812_MODE_SOLID, kColorRed); break;
+        case kFaultNeoSafeMode:   led_set_alternate_if_changed(me, kColorBlue, kColorWhite); break;  // Stage L: blue+white 2Hz (was SOLID+Red)
         case kFaultNeoCore1Stall: led_set_if_changed(me, WS2812_MODE_SOLID, kColorMagenta); break;
         default: break;
     }
@@ -172,6 +204,12 @@ static void led_check_core1_vitality(LedEngine * const me,
 // First non-zero layer wins. If all zero, default blue blink (idle layer).
 
 static void led_apply_compositor(LedEngine * const me) {
+    // Stage L IVP-L1: dev override beats all layers (for LED pattern test CLI).
+    if (s_devOverridePattern != 0) {
+        led_apply_pattern(me, s_devOverridePattern);
+        return;
+    }
+
     // Idle layer is always set as fallback
     me->layers[kLayerIdle] = kSensorNeoNoGps;  // Blue blink default
 
@@ -195,6 +233,7 @@ static QState LedEngine_initial(LedEngine * const me, QEvt const * const e) {
     }
     me->last_mode = WS2812_MODE_OFF;
     me->last_color = kColorOff;
+    me->last_alt_color = kColorOff;
     me->last_core1_count = 0;
     me->core1_stall_ticks = 0;
 
@@ -288,3 +327,10 @@ void AO_LedEngine_post_pattern(uint8_t pattern) {
 
 // IVP-116: AO_LedEngine_post_override() removed — RCOS now calls
 // AO_Notify_post_cal_intent() instead.
+
+// Stage L IVP-L1: dev-only forced pattern (for LED test CLI).
+// Writes a single static variable that the compositor checks first.
+// Safe from Core 0 handler context; not intended for flight code.
+void AO_LedEngine_dev_force_fault_layer(uint8_t pattern) {
+    s_devOverridePattern = pattern;
+}
