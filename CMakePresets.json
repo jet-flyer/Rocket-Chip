@@ -1,0 +1,52 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {"major": 3, "minor": 21, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "vehicle-bench",
+      "displayName": "Vehicle — bench (Feather)",
+      "description": "Flight computer on Adafruit Feather RP2350 HSTX, bench build (BUILD_FOR_FLIGHT=OFF).",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "BUILD_FOR_FLIGHT": "OFF"
+      }
+    },
+    {
+      "name": "vehicle-flight",
+      "displayName": "Vehicle — flight (Feather, BUILD_FOR_FLIGHT=ON)",
+      "description": "Flight binary on Adafruit Feather RP2350 HSTX. Diagnostic paths compiled out.",
+      "binaryDir": "${sourceDir}/build_flight",
+      "cacheVariables": {
+        "BUILD_FOR_FLIGHT": "ON"
+      }
+    },
+    {
+      "name": "station-bench",
+      "displayName": "Station — bench (Fruit Jam)",
+      "description": "Ground receiver on Adafruit Fruit Jam, bench build.",
+      "binaryDir": "${sourceDir}/build_station",
+      "cacheVariables": {
+        "PICO_BOARD": "adafruit_fruit_jam",
+        "ROCKETCHIP_JOB_STATION": "1",
+        "BUILD_FOR_FLIGHT": "OFF"
+      }
+    },
+    {
+      "name": "station-flight",
+      "displayName": "Station — flight (Fruit Jam, BUILD_FOR_FLIGHT=ON)",
+      "description": "Flight binary of ground receiver on Adafruit Fruit Jam.",
+      "binaryDir": "${sourceDir}/build_station_flight",
+      "cacheVariables": {
+        "PICO_BOARD": "adafruit_fruit_jam",
+        "ROCKETCHIP_JOB_STATION": "1",
+        "BUILD_FOR_FLIGHT": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {"name": "vehicle-bench",   "configurePreset": "vehicle-bench"},
+    {"name": "vehicle-flight",  "configurePreset": "vehicle-flight"},
+    {"name": "station-bench",   "configurePreset": "station-bench"},
+    {"name": "station-flight",  "configurePreset": "station-flight"}
+  ]
+}

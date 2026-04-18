@@ -25,6 +25,8 @@
 #include "pico/time.h"
 #include "hardware/structs/systick.h"
 
+#include "rocketchip/board.h"  // board::kBoardName
+
 #include "fusion/eskf.h"
 #include "fusion/eskf_codegen.h"
 #include "fusion/eskf_state.h"
@@ -917,7 +919,7 @@ int main() {
 
     printf("\n=== UD FACTORIZATION BENCHMARK ===\n");
     printf("Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
-    printf("Board: RP2350 HSTX Feather @ 150MHz\n");
+    printf("Board: %s @ 150MHz\n", board::kBoardName);
     printf("Optimization: -O2\n");
     printf("Phase 0: DCP SRAM vs Flash throughput comparison\n");
     printf("Phase 1: DCP throughput + P stability (100K steps)\n");

@@ -27,6 +27,15 @@
     #include "board_fruit_jam.h"
 #elif defined(ADAFRUIT_FEATHER_RP2350)
     #include "board_feather_rp2350.h"
+#elif defined(PIMORONI_TINY2350)
+    // Pimoroni Tiny 2350+ — scaffolding, gated by TINY_2350_BRINGUP_OK
+    // (Stage 16C IVP-143). Base Tiny 2350 variant (board_tiny_2350.h)
+    // deferred until Plus variant completes hardware bring-up.
+    #include "board_tiny_2350_plus.h"
+#elif defined(RASPBERRYPI_PICO2)
+    // Raspberry Pi Pico 2 — scaffolding, gated by PICO2_BRINGUP_OK
+    // (Stage 16C IVP-143).
+    #include "board_pico2.h"
 #else
     // Default to Feather RP2350 HSTX — the original flight board
     #include "board_feather_rp2350.h"

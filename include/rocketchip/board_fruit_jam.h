@@ -88,6 +88,16 @@ inline constexpr bool    kUartGpsAvailable = false;
 inline constexpr uint8_t kUartGpsTxPin     = 0;   // Unused — guard prevents init
 inline constexpr uint8_t kUartGpsRxPin     = 0;   // Unused — guard prevents init
 
+// --- Capability flags (Stage 16C IVP-143) ---
+// Peripheral presence flags consumed by role-agnostic shared code
+// (health monitor, CLI, telemetry). Let call sites branch on capability
+// rather than board identity — makes future board ports drop-in
+// without touching shared code.
+inline constexpr bool    kPsramAvailable       = true;   // 8 MB
+inline constexpr bool    kDvmAvailable         = true;   // HSTX DVI output
+inline constexpr bool    kSdCardAvailable      = true;   // SPI0 SD slot
+inline constexpr bool    kI2cStemmaAvailable   = true;   // STEMMA QT on I2C0
+
 // --- Board identity ---
 inline constexpr const char* kBoardName = "Adafruit Fruit Jam";
 

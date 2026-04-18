@@ -705,7 +705,7 @@ void cli_print_hw_status() {
                    AO_Telemetry_get_mavlink_output() ? " + USB MAVLink" : "");
         }
     } else if (g_spiInitialized) {
-        printf("[----] Radio: not detected (FeatherWing not stacked?)\n");
+        printf("[----] Radio: not detected (module unpopulated?)\n");
     }
 
     print_psram_status();

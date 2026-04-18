@@ -66,6 +66,16 @@ inline constexpr bool    kUartGpsAvailable = true;
 inline constexpr uint8_t kUartGpsTxPin     = 0;
 inline constexpr uint8_t kUartGpsRxPin     = 1;
 
+// --- Capability flags (Stage 16C IVP-143) ---
+// Peripheral presence flags consumed by role-agnostic shared code
+// (health monitor, CLI, telemetry). Let call sites branch on capability
+// rather than board identity — makes future board ports (Tiny 2350,
+// Pico 2) drop-in without touching shared code.
+inline constexpr bool    kPsramAvailable       = true;   // 8 MB APS6404L
+inline constexpr bool    kDvmAvailable         = false;  // HSTX not wired
+inline constexpr bool    kSdCardAvailable      = false;  // no onboard SD
+inline constexpr bool    kI2cStemmaAvailable   = true;   // STEMMA QT on I2C1
+
 // --- Board identity ---
 inline constexpr const char* kBoardName = "Adafruit Feather RP2350 HSTX";
 
