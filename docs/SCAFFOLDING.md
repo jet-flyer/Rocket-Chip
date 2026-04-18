@@ -1,9 +1,9 @@
 # RocketChip Directory Structure
 
 **Created:** 2026-01-09
-**Updated:** 2026-03-26
+**Updated:** 2026-04-18
 
-**Status:** Reflects actual filesystem as of Stage 8 (Flight Director). Previous ArduPilot integration archived in `AP_FreeRTOS` and `AP_ChibiOS` branches.
+**Status:** Reflects actual filesystem through Stage 16C (station runtime decoupling + MCU die-temp + station HealthMonitor parity + Tiny 2350+ / Pico 2 board scaffolding + station bench sim + station SPIN model). Previous ArduPilot integration archived in `AP_FreeRTOS` and `AP_ChibiOS` branches.
 
 ## Build System
 
@@ -14,6 +14,7 @@ Pure CMake + Pico SDK (bare-metal, C++20). All source files are `.cpp`. Third-pa
 ```
 rocketchip/
 ├── CMakeLists.txt                 # Primary build system (Pico SDK + Ninja)
+├── CMakePresets.json              # 4 build combos (vehicle/station × bench/flight)
 ├── pico_sdk_import.cmake          # Pico SDK integration
 ├── README.md                      # Agent instructions
 ├── CHANGELOG.md                   # Development history
@@ -86,13 +87,17 @@ rocketchip/
 ├── include/
 │   └── rocketchip/
 │       ├── config.h               # DBG_* macros, build-type config, feature flags
-│       ├── board.h                # Compile-time board selector (Feather/FruitJam/Tiny)
+│       ├── board.h                # Compile-time board selector (Feather/FruitJam/Tiny/Pico2)
 │       ├── board_feather_rp2350.h # Feather RP2350 HSTX pin config
 │       ├── board_fruit_jam.h      # Fruit Jam pin config (I2C0, SPI1, 5 NeoPixels)
+│       ├── board_tiny_2350_common.h  # Pimoroni Tiny 2350 family shared pin map (scaffolding)
+│       ├── board_tiny_2350_plus.h    # Tiny 2350+ variant overrides (gated by TINY_2350_BRINGUP_OK)
+│       ├── board_pico2.h          # Raspberry Pi Pico 2 pin map (gated by PICO2_BRINGUP_OK)
 │       ├── job.h                  # Device role selector (Vehicle/Station/Relay)
 │       ├── job_vehicle.h          # Vehicle role constants
 │       ├── job_station.h          # Station role constants
 │       ├── job_relay.h            # Relay role constants
+│       ├── job_capabilities.h     # Role-scoped capability predicates (IVP-142c)
 │       ├── ao_signals.h           # System-wide AO signal catalog + event structs
 │       ├── radio_scheduler.h      # Half-duplex TX-priority state machine
 │       ├── radio_config.h         # RadioConfig struct (from Mission Profile .cfg)
@@ -116,10 +121,14 @@ rocketchip/
 │   │   ├── gps_uart.cpp/.h        # GPS UART backend (preferred, 57600 baud / 10Hz)
 │   │   ├── gps.h                  # Transport-neutral GPS interface
 │   │   ├── ws2812_status.cpp/.h   # WS2812 NeoPixel status LED
+│   │   ├── mcu_temp.cpp/.h        # RP2350 on-die temperature sensor (IVP-142a)
 │   │   └── lwgps_opts.h           # lwGPS config overrides
 │   │
 │   ├── core1/                     # Core 1 Sensor Loop (Stage 13 Phase 1)
 │   │   └── sensor_core1.cpp/.h    # IMU/baro/GPS reads, seqlock write, cal feed
+│   │
+│   ├── station/                   # Station-role idle-bridge path (Stage 16C)
+│   │   └── station_idle_tick.cpp/.h  # Core 0 idle-bridge GPS poll + MCU temp capture (IVP-140/141/142a)
 │   │
 │   ├── fusion/                    # Sensor Fusion (Stage 5 + Stage 13)
 │   │   ├── eskf.cpp/.h            # 24-state Error-State Kalman Filter
@@ -237,7 +246,8 @@ rocketchip/
 │   ├── codegen_soak_test.py       # Binary change soak comparison
 │   ├── generate_fpft.py           # SymPy codegen for ESKF FPFT (CSE optimization)
 │   ├── generate_profile.py        # Mission profile .cfg → C++ header generator
-│   ├── bench_flight_sim.py        # Automated bench flight test (9 test cases)
+│   ├── bench_sim.py               # Vehicle flight-path regression detector (LL Entry 36 replacement)
+│   ├── station_bench_sim.py       # Station-role regression detector (IVP-146)
 │   └── run_clang_tidy.sh          # Tiered audit: clang-tidy + lizard + RP2350 guards + Prior Art
 │
 ├── lib/                           # External libraries (vendored / git submodules)
@@ -266,7 +276,12 @@ rocketchip/
 │   # -DROCKETCHIP_JOB_STATION=1 -DPICO_BOARD=adafruit_fruit_jam (Stage 12A)
 │
 ├── tools/
-│   └── state_to_dot.py            # State machine DOT graph generator
+│   ├── state_to_dot.py            # State machine DOT graph generator
+│   └── spin/                      # SPIN formal verification models
+│       ├── rocketchip_fd.pml         # Flight Director HSM only (7 safety + 1 liveness)
+│       ├── rocketchip_ao.pml         # Full AO topology (5 safety + 3 mission)
+│       ├── rocketchip_station.pml    # Station RX/ACK/retry (IVP-147: 2/2)
+│       └── README.md                 # SPIN usage, model mapping, run recipes
 │
 ├── pico-sdk/                      # Pico SDK (git submodule)
 │
