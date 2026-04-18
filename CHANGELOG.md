@@ -20,6 +20,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-18-001 | Claude Opus 4.7 | feature, architecture, council
+
+**Stage 16C COMPLETE — station runtime decoupling + MCU die-temp + station HealthMonitor parity + board scaffolding.**
+
+IVP-142b-3 refactored `health_monitor_critical_fault()` with per-subsystem 5-tick persistence counters + phase gate. Primary-byte faults count as critical for auto-action only after 500 ms consecutive fault AND phase != IDLE; prevents false auto-DISARM from transient noise (dust in baro vent, transient I2C NACK). Threshold-bound critical byte bits (MCU over-temp) propagate regardless of phase. 6 new host tests. Council-reviewed (NASA/JPL + Professor + ArduPilot + Rocketeer).
+
+IVP-142c added **station HealthMonitor parity** via capability-masking (not role-gating). Council-reviewed (NASA/JPL + Professor + Rocketeer). New `include/rocketchip/job_capabilities.h` with `kRoleSamplesCore1` / `kRoleRunsLogger` / `kRoleHasFullGoNogo` predicates. `check_core1_vitality()` short-circuits to true on roles that don't sample Core 1 (station, relay). `evaluate_secondary()` masks `kHealthFlashOk` when Logger isn't expected. `AO_HealthMonitor` now starts unconditionally on every non-Relay role. New `g_imuInitAttempted`/`baroInitAttempted`/`gpsInitAttempted` flags drive `[FAIL]` vs `[N/A]` presentation for uninstalled-sensors case. `evaluate_gps()` startup race fixed (read_count==0 now `kHealthAbsent`, was `kHealthFault`). Station HW gate PASS (no QP assertions over 5 min, correct health state).
+
+IVP-143 landed capability flags (`kPsramAvailable` / `kDvmAvailable` / `kSdCardAvailable` / `kI2cStemmaAvailable`) on existing boards + scaffolding for Pimoroni Tiny 2350+ (`board_tiny_2350_common.h` + `board_tiny_2350_plus.h`) and Raspberry Pi Pico 2 (`board_pico2.h`) with `#error` bring-up guards (`TINY_2350_BRINGUP_OK` / `PICO2_BRINGUP_OK`). `CMakePresets.json` encoding the 4 current build combos. Comment/string hygiene in `ud_benchmark.cpp` (uses `board::kBoardName`) and `rc_os_commands.cpp` (generic "module unpopulated?" vs FeatherWing-specific).
+
+IVP-144 audit-only: grep-validated `cmd_station_*` paths clean of hardcoded board names.
+
+IVP-145 exit gate: 4 builds clean, 724/724 host tests, bench_sim.py 2/2 PASS, vehicle 5-min soak PASS (IMU 1153/s, baro 36/s, 0 errors, health primary=0xaf secondary=0x1f critical=0x00 mcu=OK go_nogo=READY), station 5-min soak PASS (covered in IVP-142c HW gate).
+
+Station/vehicle disparities tracked for follow-up in `AGENT_WHITEBOARD.md`: bench_sim asymmetry (new IVP-146 to land `station_bench_sim.py`), station SPIN model gap (new IVP-147), pre-commit complexity thresholds not classification-aware (Ground CLI held to Flight standard), pre-commit bench_sim gate not role-aware (station-only diffs trigger vehicle probe requirement).
+
+Files: `src/safety/health_monitor.{h,cpp}`, `src/main.cpp`, `src/cli/rc_os_commands.cpp`, `src/core1/sensor_core1.h`, `src/benchmark/ud_benchmark.cpp`, `test/test_health_monitor.cpp`, `include/rocketchip/job_capabilities.h` (new), `include/rocketchip/board.h`, `include/rocketchip/board_feather_rp2350.h`, `include/rocketchip/board_fruit_jam.h`, `include/rocketchip/board_tiny_2350_common.h` (new), `include/rocketchip/board_tiny_2350_plus.h` (new), `include/rocketchip/board_pico2.h` (new), `CMakePresets.json` (new), `docs/IVP.md`, `docs/PROJECT_STATUS.md`, `AGENT_WHITEBOARD.md`.
+
+---
+
 ### 2026-04-17-002 | Grok 4.2 (dev) Claude CLI (QA) | bugfix, hardware
 
 **Stage 16C Fruit Jam PA1010D GPS I2C detection restored.**

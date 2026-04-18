@@ -59,7 +59,9 @@
 
 **Stage 16B bench validation COMPLETE (2026-04-17):** Vehicle + station both passed 30-min flight-binary integration soaks on hardware with council-required T=0 preconditions (RegVersion readback, identity strings, SPI error counter, per-AO ring-index activity proxy). All bench IVPs closed except IVP-132a.5 which produced a characterization result (not gate) confirming the RadioScheduler-sync issue, deferred to Stage 16C.
 
-**Next:** Stage 16C (station re-work — DEFERRED, non-blocking), Stage 17 (Field Testing — DEFERRED, awaits airframe + launch window), Stage 18 (Field Tuning — awaits flight data).
+**Stage 16C COMPLETE (2026-04-18):** Station runtime decoupling (IVP-140/141 station_idle_tick for GPS + MCU temp), MCU die-temp pipeline (142a driver, 142b-1 hysteresis FSM, 142b-2 HealthCritical byte, 142b-3 persistence + phase-gated critical_fault), **station HealthMonitor parity** (142c — capability-masking lets station run the same health pipeline as vehicle; `[FAIL]` vs `[N/A]` distinction for uninstalled sensors; evaluate_gps startup-race fix), Tiny 2350+/Pico 2 board scaffolding (143 with `#error` bring-up guards), `cmd_station_*` decoupling audit (144, clean), exit gate (145). 724/724 host tests, bench_sim 2/2 PASS, vehicle + station 5-min soaks PASS. Station/vehicle disparity followups tracked in AGENT_WHITEBOARD.md.
+
+**Next:** Stage 17 (Field Testing — DEFERRED, awaits airframe + launch window), Stage 18 (Field Tuning — awaits flight data). New station-verification IVPs (station_bench_sim.py + station SPIN model) queued in AGENT_WHITEBOARD.md.
 
 ## Completed
 
@@ -108,12 +110,13 @@
 | 15: Radio + Station | IVP-122–124 | 2026-04-12 | Half-duplex ACK (CCSDS APID 0x003), ARM confirm UX, X-DISARM, distance-to-rocket (haversine+bearing), station help refresh. Command delivery partial — RadioScheduler sync IVP needed. 709 host tests |
 | 16A: Docs (pre-bench) | IVP-127–130 | 2026-04-12 | AO audit (removed dead Notify Core1 fields, 2-layer model). TBD purge (memory/power from build + datasheets). RBM complete rewrite for QV. Graphviz diagrams regenerated. User Guide quick-reference card. IVP-125/126 deferred to post-bench. 709 host tests |
 | 16B: Bench Validation | IVP-124a, 125, 126, 127a, 127b, 129–132, 132a, 134 | 2026-04-17 | SAD/SCAFFOLDING AO-first rewrites. Dev code audit + build-tier split (bench vs flight). Version string single source of truth. GDB fault injection harness (7 hooks, 5 scripts). PIO backup timer shakedown (5/5 scenarios). Sensor replay harness (5/5 F15-6 profiles → kLanded). **Vehicle 30-min flight-binary battery soak GATE PASS** (2.25M IMU reads, 0 errors). Station bench tests: fault hooks, diag_stats, replay harness, **idle + integration soaks GATE PASS** on flight binary (9023 packets / 0 CRC errors / MSP 0 drift). Pre-flight checklist document. Council-required T=0 preconditions block (RegVersion readback, identity strings, SPI error counter). IVP-132a.5 ACK stress characterized RadioScheduler-sync gap (6.7% first-try ACK) — fix deferred to Stage 16C |
+| 16C: Station Decoupling + MCU Temp + Board Scaffolding | IVP-139, 140, 141, 142a, 142b-1, 142b-2, 142b-3, 142c, 143, 144, 145 | 2026-04-18 | Station runtime decoupling: station_idle_tick drives GPS poll + MCU temp capture on Core 0 idle bridge (was vehicle-Core-1-only). MCU die-temp driver with package-aware AINSEL (4 for RP2350A, 8 for RP2350B). MCU HealthLevel hysteresis FSM + HealthCritical byte (visibility-only, no dead safe-mode path per council) + persistence + phase-gated critical_fault (5-tick × 100 ms hysteresis to suppress transient-noise false auto-DISARM). **Station HealthMonitor parity** (142c) — capability-masking (kRoleSamplesCore1, kRoleRunsLogger) + `[FAIL]` vs `[N/A]` for uninstalled sensors + evaluate_gps startup-race fix. Tiny 2350+/Pico 2 scaffolding with #error bring-up guards. CMakePresets.json. 724/724 host tests, bench_sim 2/2, vehicle 5-min soak (IMU 1153/s, 0 errors, health READY) + station 5-min soak PASS |
 
 ## In Progress
 
-None. Stage 16B bench validation complete.
+None. Stage 16C complete.
 
-**Next:** Stage 16C (station re-work) when user is ready; Stage 17 (Field Testing) awaits airframe + launch window. Both deferred per `docs/IVP.md` and `AGENT_WHITEBOARD.md`.
+**Next:** Stage 17 (Field Testing) awaits airframe + launch window. Station verification IVPs (station_bench_sim.py + station SPIN model) queued in `AGENT_WHITEBOARD.md`. Per-session/vehicle-disparity tracker also in whiteboard.
 
 ## Blockers
 

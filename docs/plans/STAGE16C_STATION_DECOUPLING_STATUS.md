@@ -1,18 +1,25 @@
 # Stage 16C — Status Snapshot
 
-**Last updated:** 2026-04-17 (late) — session close
-**Plan:** `docs/plans/STAGE16C_STATION_DECOUPLING.md` (mirrored from
-`.claude/plans/sunny-hugging-pumpkin.md`; council-reviewed 2026-04-17:
-NASA/JPL, Professor, Cubesat).
+**Last updated:** 2026-04-18 — **STAGE COMPLETE**
+**Plan:** `docs/plans/STAGE16C_STATION_DECOUPLING.md` (council-reviewed
+2026-04-17: NASA/JPL, Professor, Cubesat; IVP-142c council 2026-04-18:
+NASA/JPL, Professor, Rocketeer).
 
 ## Current state
 
-**Stage 16C implementation is RESET.** Only IVP-139 (`docs/IVP.md` table
-activation) remains committed; IVP-140 (`26b83d4`) was reverted this
-session after its gate claim was discovered to be a false positive —
-station I2C was broken at the time of that commit and the no-op tick
-"verification" did not exercise that path. Restart from a clean, proven-
-working base to follow in a future session.
+**Stage 16C COMPLETE.** All IVPs closed:
+
+- **IVP-139** `fd088df` — IVP.md Stage 16C table activation
+- **IVP-140** `b54cb07` — station_idle_tick scaffolding + positive-control gate (redo after original `26b83d4` reverted)
+- **IVP-141** — station GPS poll via idle bridge; `core1_update_best_gps_fix` + `core1_read_gps` promoted to shared helpers
+- **IVP-142a** — MCU die-temp driver with package-aware AINSEL (RP2350A=4, RP2350B=8); seqlock field + static_assert size bump
+- **IVP-142b-1** — MCU HealthLevel hysteresis FSM, pure `mcu_temp_classify()` for host tests
+- **IVP-142b-2** — HealthCritical byte, visibility-only operator alerts (council: no dead safe-mode paths)
+- **IVP-142b-3** `56a5834` — persistence + phase gate on `critical_fault()`
+- **IVP-142c** `dadcbf1` — **station HealthMonitor parity via capability-masking**
+- **IVP-143** — capability flags + Tiny 2350+ / Pico 2 scaffolding + CMakePresets.json
+- **IVP-144** `753aa64` — `cmd_station_*` decoupling audit (clean)
+- **IVP-145** — exit gate: 4 builds clean, 724/724 host tests, bench_sim 2/2 PASS, vehicle+station 5-min soaks PASS
 
 ## Session outcome (2026-04-17)
 
