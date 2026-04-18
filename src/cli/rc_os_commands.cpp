@@ -516,7 +516,7 @@ static void hw_validate_i2c_devices() {
     }
 }
 
-static void hw_validate_sensors() {
+static void print_imu_status() {
     if (g_imuInitialized) {
         printf("[PASS] ICM-20948 init (WHO_AM_I=0xEA)\n");
         printf("[%s] AK09916 magnetometer %s\n",
@@ -536,26 +536,33 @@ static void hw_validate_sensors() {
                    gyroDlpf, gyroDlpfEn ? "on" : "off",
                    gyroDiv);
         }
-    } else {
-        printf("[FAIL] ICM-20948 init failed\n");
+        return;
     }
+    printf(g_imuInitAttempted ? "[FAIL] ICM-20948 init failed\n"
+                              : "[N/A ] ICM-20948 not installed\n");
+}
 
+static void print_baro_status() {
     if (g_baroInitialized && g_baroContinuous) {
         printf("[PASS] DPS310 init OK, continuous mode active\n");
-    } else if (g_baroInitialized) {
-        printf("[WARN] DPS310 init OK, continuous mode failed\n");
-    } else {
-        printf("[FAIL] DPS310 init failed\n");
+        return;
     }
+    if (g_baroInitialized) {
+        printf("[WARN] DPS310 init OK, continuous mode failed\n");
+        return;
+    }
+    printf(g_baroInitAttempted ? "[FAIL] DPS310 init failed\n"
+                               : "[N/A ] DPS310 not installed\n");
+}
 
+static void print_gps_status() {
     if (g_gpsInitialized) {
-        if (g_gpsTransport == GPS_TRANSPORT_UART) {
-            printf("[PASS] GPS init (UART on GPIO0/1, 9600 baud)\n");
-        } else {
-            printf("[PASS] GPS init (I2C at 0x10, 500us settling delay)\n");
-        }
+        printf(g_gpsTransport == GPS_TRANSPORT_UART
+                   ? "[PASS] GPS init (UART on GPIO0/1, 9600 baud)\n"
+                   : "[PASS] GPS init (I2C at 0x10, 500us settling delay)\n");
     } else {
-        printf("[----] GPS not detected (UART or I2C)\n");
+        printf(g_gpsInitAttempted ? "[FAIL] GPS init failed\n"
+                                  : "[N/A ] GPS not installed\n");
     }
 
     // Grok-triage debug: show PMTK write return codes + window-hit flag
@@ -564,6 +571,12 @@ static void hw_validate_sensors() {
     char gpsDbg[96] = { 0 };
     gps_pa1010d_get_debug_status(gpsDbg, sizeof(gpsDbg));
     printf("[DBG ] GPS early-init: %s\n", gpsDbg);
+}
+
+static void hw_validate_sensors() {
+    print_imu_status();
+    print_baro_status();
+    print_gps_status();
 }
 
 static void print_psram_status() {
@@ -721,23 +734,32 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
     check(true);                                    // USB CDC
     check(time_us_32() > 0);                        // Debug macros
     check(g_i2cInitialized);                        // I2C bus
-    check(g_imuInitialized);                        // ICM-20948
-    check(g_imuInitialized);                        // AK09916 (same init)
-    check(g_baroInitialized);                       // DPS310
-    check(g_gpsInitialized);                        // GPS
+    // Sensors: "OK" == initialized, or "not counted at all" == not
+    // installed (IVP-142c A2). A sensor the role doesn't use (station
+    // IMU/baro) shouldn't flag as FAIL in the boot summary.
+    auto check_sensor = [&](bool attempted, bool initialized) {
+        if (!attempted) { return; }             // not counted
+        if (initialized) { ++pass; } else { ++fail; }
+    };
+    check_sensor(g_imuInitAttempted, g_imuInitialized);   // ICM-20948
+    check_sensor(g_imuInitAttempted, g_imuInitialized);   // AK09916 (same init)
+    check_sensor(g_baroInitAttempted, g_baroInitialized); // DPS310
+    check_sensor(g_gpsInitAttempted, g_gpsInitialized);   // GPS
     check(AO_Radio_get_state()->initialized);       // Radio
     check(true);                                    // PSRAM
     check(true);                                    // Logging
     check(true);                                    // Flash
 }
 
-// Print specific FAIL items
+// Print specific FAIL items. Sensors only flag as FAIL when attempted
+// AND init returned false (IVP-142c A2) — uninstalled sensors on this
+// role are silent.
 static void print_hw_failures() {
     if (!g_neopixelInitialized) { printf("  [FAIL] NeoPixel\n"); }
     if (!g_i2cInitialized)      { printf("  [FAIL] I2C bus\n"); }
-    if (!g_imuInitialized)      { printf("  [FAIL] ICM-20948 IMU\n"); }
-    if (!g_baroInitialized)     { printf("  [FAIL] DPS310 barometer\n"); }
-    if (!g_gpsInitialized)      { printf("  [FAIL] GPS\n"); }
+    if (g_imuInitAttempted  && !g_imuInitialized)  { printf("  [FAIL] ICM-20948 IMU\n"); }
+    if (g_baroInitAttempted && !g_baroInitialized) { printf("  [FAIL] DPS310 barometer\n"); }
+    if (g_gpsInitAttempted  && !g_gpsInitialized)  { printf("  [FAIL] GPS\n"); }
     if (!AO_Radio_get_state()->initialized && g_spiInitialized) {
         printf("  [FAIL] Radio\n");
     }
@@ -1257,30 +1279,15 @@ static bool is_go(rc::HealthLevel level) {
     return level >= rc::kHealthDegraded;  // OK or degraded = GO
 }
 
-void cli_print_preflight() {
-    const rc::HealthState* hs = rc::health_monitor_get_state();
-
+static void preflight_print_primary(const rc::HealthState* hs) {
     rc::HealthLevel imu  = rc::health_imu(hs->primary);
     rc::HealthLevel baro = rc::health_baro(hs->primary);
     rc::HealthLevel eskf = rc::health_eskf(hs->primary);
     rc::HealthLevel gps  = rc::health_gps(hs->primary);
 
-    bool radioOk = (hs->secondary & rc::kHealthRadioOk) != 0;
-    bool flashOk = (hs->secondary & rc::kHealthFlashOk) != 0;
-    bool wdtOk   = (hs->secondary & rc::kHealthWatchdogOk) != 0;
-    bool pioOk   = (hs->secondary & rc::kHealthPioOk) != 0;
-
-    printf("\n=== PREFLIGHT ===\n");
-
-    // Primary subsystems (2-bit)
-    if (is_go(imu))  { printf("IMU:      GO\n"); }
-    else { printf("IMU:      %s\n", health_level_str(imu)); }
-
-    if (is_go(baro)) { printf("Baro:     GO\n"); }
-    else { printf("Baro:     %s\n", health_level_str(baro)); }
-
-    if (is_go(eskf)) { printf("ESKF:     GO\n"); }
-    else { printf("ESKF:     %s\n", health_level_str(eskf)); }
+    printf("IMU:      %s\n", is_go(imu)  ? "GO" : health_level_str(imu));
+    printf("Baro:     %s\n", is_go(baro) ? "GO" : health_level_str(baro));
+    printf("ESKF:     %s\n", is_go(eskf) ? "GO" : health_level_str(eskf));
 
     // GPS: show fix detail on non-GO
     if (is_go(gps)) {
@@ -1293,24 +1300,25 @@ void cli_print_preflight() {
                static_cast<unsigned>(snap.gps_fix_type),
                static_cast<unsigned>(snap.gps_satellites));
     }
+}
 
-    // Secondary flags (1-bit)
-    printf("Radio:    %s\n", radioOk ? "GO" : "ABSENT");
-    printf("Flash:    %s\n", flashOk ? "GO" : "FAULT");
-    printf("Watchdog: %s\n", wdtOk ? "GO" : "FAULT");
-    printf("PIO WDT:  %s\n", pioOk ? "GO" : "FAULT");
+static void preflight_print_secondary(const rc::HealthState* hs) {
+    printf("Radio:    %s\n", (hs->secondary & rc::kHealthRadioOk)    ? "GO" : "ABSENT");
+    printf("Flash:    %s\n", (hs->secondary & rc::kHealthFlashOk)    ? "GO" : "FAULT");
+    printf("Watchdog: %s\n", (hs->secondary & rc::kHealthWatchdogOk) ? "GO" : "FAULT");
+    printf("PIO WDT:  %s\n", (hs->secondary & rc::kHealthPioOk)      ? "GO" : "FAULT");
+}
 
+static void preflight_print_mcu_and_critical(const rc::HealthState* hs) {
     // MCU die temp (Stage 16C IVP-142b-1) — separate field, not in primary.
-    {
-        shared_sensor_data_t snap{};
-        seqlock_read(&g_sensorSeqlock, &snap);
-        if (hs->mcu == rc::kHealthAbsent || snap.mcu_die_temp_c < -100.0F) {
-            printf("MCU temp: --- (sensor not ready)\n");
-        } else {
-            printf("MCU temp: %s  %.1fC\n",
-                   health_level_str(hs->mcu),
-                   static_cast<double>(snap.mcu_die_temp_c));
-        }
+    shared_sensor_data_t snap{};
+    seqlock_read(&g_sensorSeqlock, &snap);
+    if (hs->mcu == rc::kHealthAbsent || snap.mcu_die_temp_c < -100.0F) {
+        printf("MCU temp: --- (sensor not ready)\n");
+    } else {
+        printf("MCU temp: %s  %.1fC\n",
+               health_level_str(hs->mcu),
+               static_cast<double>(snap.mcu_die_temp_c));
     }
 
     // Critical conditions (IVP-142b-2) — threshold-bound invariants that
@@ -1323,8 +1331,15 @@ void cli_print_preflight() {
         }
         printf(" (manual abort recommended)\n");
     }
+}
 
-    // Verdict
+void cli_print_preflight() {
+    const rc::HealthState* hs = rc::health_monitor_get_state();
+
+    printf("\n=== PREFLIGHT ===\n");
+    preflight_print_primary(hs);
+    preflight_print_secondary(hs);
+    preflight_print_mcu_and_critical(hs);
     printf("----------------\n");
     printf("VERDICT:  %s\n", hs->go_nogo_ready ? "GO" : "NO-GO");
 }

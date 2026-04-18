@@ -71,6 +71,14 @@ extern bool g_gpsInitialized;
 extern bool g_baroContinuous;
 extern bool g_neopixelInitialized;
 extern bool g_eskfInitialized;
+// Init-attempted flags (IVP-142c A2) — distinguishes "attempted and
+// failed" (FAIL) from "not installed / not attempted on this role" (N/A)
+// for banner and preflight presentation. Set true at the first
+// icm20948_init/baro_dps310_init/gps_*_init call site, regardless of
+// outcome.
+extern bool g_imuInitAttempted;
+extern bool g_baroInitAttempted;
+extern bool g_gpsInitAttempted;
 
 // IMU device handle -- init'd on Core 0, used on Core 1 for reads.
 extern icm20948_t g_imu;

@@ -26,6 +26,7 @@
 #include "calibration/calibration_data.h" // CAL_STATUS_MAG
 #include "watchdog/watchdog_recovery.h"   // rc::WatchdogRecovery
 #include "rocketchip/config.h"            // DBG_PRINT
+#include "rocketchip/job_capabilities.h"  // job::kRoleSamplesCore1, kRoleRunsLogger
 
 // ============================================================================
 // Extern declarations -- globals owned by main.cpp (global namespace)
@@ -240,9 +241,17 @@ static HealthLevel evaluate_gps(const shared_sensor_data_t& snap) {
         return kHealthAbsent;
     }
 
-    // Init but no NMEA data at all = fault (council amendment 4)
+    // Init but no NMEA data yet = absent (not fault). IVP-142c revisits
+    // Stage 13 council amendment 4: calling read_count==0 a "fault"
+    // conflated "no data yet" with "data stopped." The station's GPS
+    // update runs in the idle bridge on Core 0 and seeds the seqlock
+    // slightly after the first AO_HealthMonitor tick; naming that
+    // startup race a fault was latching GPS stuck at fault on station
+    // boot. The real fault case ("had data, stopped") is caught by
+    // the persistence counter in health_monitor_critical_fault()
+    // (IVP-142b-3) once it's been running.
     if (snap.gps_read_count == 0) {
-        return kHealthFault;
+        return kHealthAbsent;
     }
 
     // Degraded = NMEA flowing but no usable fix
@@ -294,6 +303,15 @@ static uint8_t  g_core1StallTicks = 0;
 // ============================================================================
 
 static bool check_core1_vitality() {
+    // Capability gate (IVP-142c A1, council 2026-04-18): on roles that
+    // don't drive Core 1 into a sampling loop (station, relay), the
+    // stall check is meaningless — core1_loop_count never advances by
+    // design. Return true so kHealthCore1Ok doesn't oscillate off and
+    // pollute secondary/notify consumers.
+    if constexpr (!job::kRoleSamplesCore1) {
+        return true;
+    }
+
     shared_sensor_data_t snap{};
     if (!seqlock_read(&g_sensorSeqlock, &snap)) {
         return true;  // Can't read — assume alive (seqlock race, transient)
@@ -318,11 +336,20 @@ static uint8_t evaluate_secondary() {
     if (AO_Radio_get_state()->initialized) {
         secondary |= kHealthRadioOk;
     }
-    {
+    // Capability gate (IVP-142c A1): only assert kHealthFlashOk when
+    // this role actually runs AO_Logger. On roles that don't
+    // (station, relay), the flight-table struct stays zero-initialized
+    // and ft->loaded is perpetually false — that's a zero-init artifact,
+    // not a real fault. Returning "OK by default" when Logger isn't
+    // expected keeps secondary byte meaningful for notify/preflight
+    // consumers without widening the bit layout.
+    if constexpr (job::kRoleRunsLogger) {
         const FlightTableState* ft = AO_Logger_get_flight_table();
         if (ft->loaded && (flight_table_count(ft) < kMaxFlightEntries)) {
             secondary |= kHealthFlashOk;
         }
+    } else {
+        secondary |= kHealthFlashOk;
     }
     if (!g_recovery.boot_state.safe_mode && !g_recovery.eskf_disabled) {
         secondary |= kHealthWatchdogOk;

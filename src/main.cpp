@@ -109,6 +109,13 @@ bool g_imuInitialized = false;                // Non-static: Core 1 reads (senso
 bool g_baroInitialized = false;               // Non-static: Core 1 reads/writes (sensor_core1.cpp)
 bool g_baroContinuous = false;                // Non-static: Core 1 reads (sensor_core1.cpp)
 bool g_gpsInitialized = false;                // Non-static: Core 1 reads/writes (sensor_core1.cpp)
+// Init-attempted flags (IVP-142c A2). Set true when hardware was
+// detected and init was attempted, regardless of init outcome. The
+// banner/preflight path distinguishes "attempted and failed" (FAIL)
+// from "not present / not attempted" (N/A). Non-static for CLI reads.
+bool g_imuInitAttempted = false;
+bool g_baroInitAttempted = false;
+bool g_gpsInitAttempted = false;
 gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;  // Non-static: Core 1 reads
 bool g_spiInitialized = false;  // Non-static: cli_commands.cpp reads
 // Radio init moved to AO_Radio (owns hardware lifecycle)
@@ -255,6 +262,39 @@ static void mpu_setup_stack_guard(uint32_t stackBottom) {
 // ============================================================================
 
 // Initialize I2C sensors (IMU, baro, GPS). Requires I2C bus already initialized.
+static void init_gps() {
+    // UART first (FeatherWing on GPIO0/1), I2C fallback.
+    // UART GPS has no I2C bus contention (LL Entry 24), preferred
+    // for production. [M3] UART GPS unavailable on Fruit Jam (GPIO
+    // 0/1 = Boot button + USB Host D+).
+    if (board::kUartGpsAvailable) {
+        g_gpsInitAttempted = true;
+        if (gps_uart_init()) {
+            g_gpsInitialized = true;
+            g_gpsTransport = GPS_TRANSPORT_UART;
+            g_gpsFnUpdate  = gps_uart_update;
+            g_gpsFnGetData = gps_uart_get_data;
+            g_gpsFnHasFix  = gps_uart_has_fix;
+            return;
+        }
+    }
+    // I2C fallback — probe + init AFTER IMU bypass mode is stable.
+    // PA1010D streams NMEA autonomously after any I2C read (LL Entry 20).
+    if (!i2c_bus_probe(kGpsPa1010dAddr)) {
+        return;
+    }
+    g_gpsInitAttempted = true;
+    uint8_t gpsDrain[255];
+    i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
+    if (gps_pa1010d_init()) {
+        g_gpsInitialized = true;
+        g_gpsTransport = GPS_TRANSPORT_I2C;
+        g_gpsFnUpdate  = gps_pa1010d_update;
+        g_gpsFnGetData = gps_pa1010d_get_data;
+        g_gpsFnHasFix  = gps_pa1010d_has_fix;
+    }
+}
+
 static void init_sensors() {
     // Probe-first peripheral detection: only init drivers for devices that
     // are physically present on the bus. Prevents wasted init attempts and
@@ -274,40 +314,20 @@ static void init_sensors() {
 
     // Init IMU first — establishes bypass mode for AK09916 at 0x0C
     if (imuDetected) {
+        g_imuInitAttempted = true;
         g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
     }
 
     if (baroDetected) {
+        g_baroInitAttempted = true;
         g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
         if (g_baroInitialized) {
             g_baroContinuous = baro_dps310_start_continuous();
         }
     }
 
-    // GPS detection — UART first (FeatherWing on GPIO0/1), I2C fallback.
-    // UART GPS has no I2C bus contention (LL Entry 24), preferred for production.
-    // [M3] UART GPS unavailable on Fruit Jam (GPIO 0/1 = Boot button + USB Host D+)
-    if (board::kUartGpsAvailable && gps_uart_init()) {
-        g_gpsInitialized = true;
-        g_gpsTransport = GPS_TRANSPORT_UART;
-        g_gpsFnUpdate   = gps_uart_update;
-        g_gpsFnGetData = gps_uart_get_data;
-        g_gpsFnHasFix  = gps_uart_has_fix;
-    } else {
-        // I2C fallback — probe + init AFTER IMU bypass mode is stable.
-        // PA1010D streams NMEA autonomously after any I2C read (LL Entry 20).
-        bool gpsDetected = i2c_bus_probe(kGpsPa1010dAddr);
-        if (gpsDetected) {
-            uint8_t gpsDrain[255];
-            i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
-            if (gps_pa1010d_init()) {
-                g_gpsInitialized = true;
-                g_gpsTransport = GPS_TRANSPORT_I2C;
-                g_gpsFnUpdate   = gps_pa1010d_update;
-                g_gpsFnGetData = gps_pa1010d_get_data;
-                g_gpsFnHasFix  = gps_pa1010d_has_fix;
-            }
-        }
+    if (!g_gpsInitialized) {
+        init_gps();
     }
 }
 
@@ -371,12 +391,15 @@ static void init_early_hw() {
     // If the early init succeeds, set g_gpsInitialized + function pointers
     // here so init_sensors() later is a no-op for GPS.
     g_i2cInitialized = i2c_bus_init();
-    if (g_i2cInitialized && gps_pa1010d_init()) {
-        g_gpsInitialized = true;
-        g_gpsTransport  = GPS_TRANSPORT_I2C;
-        g_gpsFnUpdate   = gps_pa1010d_update;
-        g_gpsFnGetData  = gps_pa1010d_get_data;
-        g_gpsFnHasFix   = gps_pa1010d_has_fix;
+    if (g_i2cInitialized) {
+        g_gpsInitAttempted = true;
+        if (gps_pa1010d_init()) {
+            g_gpsInitialized = true;
+            g_gpsTransport  = GPS_TRANSPORT_I2C;
+            g_gpsFnUpdate   = gps_pa1010d_update;
+            g_gpsFnGetData  = gps_pa1010d_get_data;
+            g_gpsFnHasFix   = gps_pa1010d_has_fix;
+        }
     }
 
     // NeoPixel init
@@ -627,7 +650,16 @@ int main() {
     AO_Radio_start(8U, g_spiInitialized);  // 100Hz — owns radio hardware init
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         AO_FlightDirector_start(7U); // 100Hz
-        AO_HealthMonitor_start(6U);  // 10Hz — between FD and Notify (IVP-105, IVP-114)
+    }
+    // Stage 16C IVP-142c: HealthMonitor runs on every role that has a
+    // health pipeline to populate. Station's AO uses capability-masked
+    // paths (see job_capabilities.h) so Core1/Flash bits aren't stuck
+    // off, and un-installed sensors report kHealthAbsent cleanly.
+    // Relay stays out — it's link-layer only.
+    if constexpr (job::kRole != job::DeviceRole::kRelay) {
+        AO_HealthMonitor_start(6U);  // 10Hz — between FD and Notify
+    }
+    if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         AO_Notify_start(5U);         // 33Hz — notification intent hub (IVP-114)
         AO_Logger_start(4U, g_psramSize, g_psramSelfTestPassed);  // 50Hz
     }
