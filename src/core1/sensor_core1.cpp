@@ -26,6 +26,7 @@
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_pa1010d.h"
 #include "drivers/gps_uart.h"
+#include "drivers/mcu_temp.h"
 #include "calibration/calibration_manager.h"
 #include "cli/rc_os.h"
 
@@ -40,6 +41,7 @@
 static constexpr uint32_t kCore1TargetCycleUs = 1000;           // ~1kHz target
 static constexpr uint32_t kCore1BaroDivider = 32;               // Baro at ~31Hz (DPS310 continuous = 32 SPS)
 static constexpr uint32_t kCore1GpsDivider = 100;               // GPS at ~10Hz
+static constexpr uint32_t kCore1McuTempDivider = 1000;          // MCU temp at ~1Hz (Stage 16C IVP-142a)
 static constexpr uint32_t kGpsMinIntervalUs = 2000;             // MT3333 buffer refill time
 static constexpr uint32_t kCore1CalFeedDivider = 10;            // Cal feed at ~100Hz
 static constexpr uint32_t kCore1ConsecFailBusRecover = 10;      // I2C bus recovery threshold
@@ -430,6 +432,11 @@ static void core1_sensor_loop() {
     uint32_t imuConsecFail = 0;
     uint32_t gpsCycle = 0;
     uint32_t lastGpsReadUs = 0;
+    uint32_t mcuTempCycle = 0;
+
+    // Initial MCU temp sentinel so seqlock readers don't see an
+    // all-zeros 0.0°C before the first capture.
+    localData.mcu_die_temp_c = -999.0F;
 
     while (true) {
         uint32_t cycleStartUs = time_us_32();
@@ -460,6 +467,13 @@ static void core1_sensor_loop() {
             && !rc_os_mag_cal_active.load(std::memory_order_acquire)) {
             gpsCycle = 0;
             core1_read_gps(&localData, &lastGpsReadUs);
+        }
+
+        mcuTempCycle++;
+        if (mcuTempCycle >= kCore1McuTempDivider && rc::mcu_temp_available()) {
+            mcuTempCycle = 0;
+            localData.mcu_die_temp_c = rc::mcu_temp_read_c();
+            localData.mcu_temp_read_count++;
         }
 
         // Seqlock publish (always write, even on IMU failure -- council mod #4)

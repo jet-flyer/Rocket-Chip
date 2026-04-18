@@ -88,9 +88,16 @@ struct shared_sensor_data_t {
     uint32_t baro_error_count;
     uint32_t gps_error_count;
     uint32_t core1_loop_count;              // For watchdog/stall detection
+
+    // MCU die temperature (8 bytes) — Stage 16C IVP-142a
+    // On-die sensor (RP2350 §12.4.6). Captured ~1 Hz from vehicle Core 1
+    // loop and station idle-bridge tick. Sentinel -999.0 means the
+    // sensor has not been initialized on this boot.
+    float mcu_die_temp_c;
+    uint32_t mcu_temp_read_count;           // Monotonic for soak gates
 };
 
-static_assert(sizeof(shared_sensor_data_t) == 148, // NOLINT(readability-magic-numbers)
+static_assert(sizeof(shared_sensor_data_t) == 156, // NOLINT(readability-magic-numbers)
               "Struct size changed - update SEQLOCK_DESIGN.md");
 static_assert(sizeof(shared_sensor_data_t) % 4 == 0,
               "Struct must be 4-byte aligned for memcpy");

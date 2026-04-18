@@ -24,6 +24,7 @@
 #include "drivers/icm20948.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_pa1010d.h"
+#include "drivers/mcu_temp.h"
 #include "drivers/gps_uart.h"
 #include "calibration/calibration_storage.h"
 #include "calibration/calibration_manager.h"
@@ -381,6 +382,11 @@ static void init_early_hw() {
     // NeoPixel init
     g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin,
                                                 board::kNeoPixelCount);
+
+    // MCU die-temperature sensor — on-die ADC ch 4, available on every
+    // RP2350 variant. Captured ~1 Hz by the sensor paths on both roles.
+    // Stage 16C IVP-142a.
+    (void)rc::mcu_temp_init();
 }
 
 static void init_peripherals() {

@@ -66,6 +66,7 @@ void diag_stats_t0_preconditions() {
 #ifndef BUILD_FOR_FLIGHT
 
 #include "dev/diag_stats.h"
+#include "drivers/mcu_temp.h"
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_flight_director.h"
 #include "active_objects/ao_health_monitor.h"
@@ -203,6 +204,19 @@ void diag_stats_dump() {
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.gps_error_count);
     printf("  core1 loops=%lu\n", (unsigned long)snap.core1_loop_count);
+    // MCU die temp (Stage 16C IVP-142a) — sentinel -999 means sensor not
+    // yet captured on this boot; print '---' instead of a bogus number.
+    if (snap.mcu_die_temp_c > -100.0F) {
+        const uint32_t stuckN = rc::mcu_temp_stuck_count();
+        const bool     stuck  = rc::mcu_temp_is_stuck();
+        printf("  MCU temp=%.2fC (reads=%lu, stuck=%s%lu)\n",
+               (double)snap.mcu_die_temp_c,
+               (unsigned long)snap.mcu_temp_read_count,
+               stuck ? "YES " : "",
+               (unsigned long)stuckN);
+    } else {
+        printf("  MCU temp=---\n");
+    }
 
     printf("[Uptime] %lu ms\n",
            (unsigned long)to_ms_since_boot(get_absolute_time()));

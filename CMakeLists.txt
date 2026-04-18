@@ -277,6 +277,9 @@ else()
         src/drivers/gps_pa1010d.cpp
         src/drivers/gps_uart.cpp
 
+        # Stage 16C IVP-142a: MCU die-temperature sensor
+        src/drivers/mcu_temp.cpp
+
         # IVP-14: Calibration system
         src/calibration/calibration_data.cpp
         src/calibration/calibration_manager.cpp
@@ -423,6 +426,7 @@ else()
         src/drivers/baro_dps310.cpp
         src/drivers/gps_pa1010d.cpp
         src/drivers/gps_uart.cpp
+        src/drivers/mcu_temp.cpp
         src/calibration/calibration_data.cpp
         src/calibration/calibration_manager.cpp
         src/calibration/calibration_storage.cpp
@@ -529,6 +533,8 @@ else()
         hardware_spi
         # IVP-53b: XIP cache clean for PSRAM flush (council req. #1)
         hardware_xip_cache
+        # Stage 16C IVP-142a: MCU die-temperature sensor on ADC ch 4
+        hardware_adc
     )
 
     # Always-on soak preconditions symbol — present in both bench and

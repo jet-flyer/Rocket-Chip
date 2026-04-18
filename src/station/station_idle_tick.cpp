@@ -32,6 +32,7 @@
 #include "pico/time.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "core1/sensor_core1.h"
+#include "drivers/mcu_temp.h"
 
 namespace rc {
 
@@ -54,10 +55,17 @@ static uint32_t s_lastGpsReadUs = 0;
 // more often than ~10 Hz.
 static uint32_t s_lastTickUs = 0;
 
+// MCU temp capture cadence — every 10th GPS tick = ~1 Hz.
+// IVP-142a: on-die RP2350 temp sensor, captured on both roles.
+static constexpr uint32_t kStationMcuTempDivider = 10;
+static uint32_t s_mcuTempCycle = 0;
+
 void station_idle_tick_init() {
     s_lastGpsReadUs = 0;
     s_lastTickUs = 0;
-    // s_localData zero-initialized at program startup (BSS).
+    s_mcuTempCycle = 0;
+    // Sentinel so seqlock readers don't see 0.0°C before first capture.
+    s_localData.mcu_die_temp_c = -999.0F;
 }
 
 void station_idle_tick() {
@@ -76,6 +84,14 @@ void station_idle_tick() {
     // hold-on-valid pattern for burst-then-silent NMEA cadence, and
     // updates the best-fix diagnostic.
     core1_read_gps(&s_localData, &s_lastGpsReadUs);
+
+    // MCU temp at ~1 Hz (every 10th GPS tick at 10 Hz).
+    s_mcuTempCycle++;
+    if (s_mcuTempCycle >= kStationMcuTempDivider && mcu_temp_available()) {
+        s_mcuTempCycle = 0;
+        s_localData.mcu_die_temp_c = mcu_temp_read_c();
+        s_localData.mcu_temp_read_count++;
+    }
 
     // Publish to seqlock so Core 0 readers see fresh GPS state.
     // Same-core writer/reader on station — seqlock ordering still
