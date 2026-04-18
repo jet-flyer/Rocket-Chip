@@ -15,6 +15,7 @@
 #include "drivers/icm20948.h"         // icm20948_t
 #include "drivers/gps.h"             // gps_data_t, gps_transport_t
 #include "fusion/eskf.h"             // rc::ESKF
+#include "rocketchip/sensor_seqlock.h"  // shared_sensor_data_t (GPS helper arg)
 
 // ============================================================================
 // Core 1 Entry Point
@@ -43,6 +44,21 @@ struct best_gps_fix_t {
 
 extern best_gps_fix_t g_bestGpsFix;
 extern std::atomic<bool> g_bestGpsValid;
+
+/// Update best-fix diagnostic when satellite count or HDOP improves.
+/// Shared by vehicle Core 1 sensor loop and station idle-bridge tick
+/// (Stage 16C IVP-141) so both roles maintain one authoritative
+/// implementation. Safe to call with invalid fix — no-op in that case.
+void core1_update_best_gps_fix(const shared_sensor_data_t* localData);
+
+/// Poll GPS via transport-neutral function pointers and populate seqlock-
+/// shape GPS fields in localData. Internally rate-limited by
+/// *lastGpsReadUs (caller owns the state). Same body used by vehicle
+/// Core 1 loop and station idle-bridge tick. Caller is responsible for
+/// seqlock_write on localData after calling this — this helper only
+/// updates the local struct and invokes update_best_gps_fix.
+void core1_read_gps(shared_sensor_data_t* localData,
+                    uint32_t* lastGpsReadUs);
 
 // ============================================================================
 // Extern Globals (owned by main.cpp, accessed by Core 1)

@@ -264,7 +264,8 @@ static void core1_read_baro(shared_sensor_data_t* localData) {
 }
 
 // Update best-fix diagnostic when satellite count or HDOP improves.
-static void core1_update_best_gps_fix(const shared_sensor_data_t* localData) {
+// Public (sensor_core1.h) — shared with station idle-bridge tick (IVP-141).
+void core1_update_best_gps_fix(const shared_sensor_data_t* localData) {
     if (localData->gps_valid && localData->gps_fix_type >= 2) {
         bool better = !g_bestGpsValid.load(std::memory_order_relaxed)
                       || (localData->gps_satellites > g_bestGpsFix.satellites)
@@ -313,8 +314,9 @@ static void core1_gps_staleness_check(bool parsed, uint32_t nowUs) {
     lastValidGpsUs = time_us_32();  // Reset timer after attempt
 }
 
-static void core1_read_gps(shared_sensor_data_t* localData,
-                            uint32_t* lastGpsReadUs) {
+// Public (sensor_core1.h) — shared with station idle-bridge tick (IVP-141).
+void core1_read_gps(shared_sensor_data_t* localData,
+                    uint32_t* lastGpsReadUs) {
     uint32_t gpsNowUs = time_us_32();
     if (gpsNowUs - *lastGpsReadUs < kGpsMinIntervalUs) {
         return;
