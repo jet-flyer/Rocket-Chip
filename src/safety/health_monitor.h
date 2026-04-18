@@ -35,6 +35,12 @@ enum HealthLevel : uint8_t {
 // Primary health byte: 4 subsystems x 2 bits
 //
 // bits [1:0] = IMU, [3:2] = Baro, [5:4] = ESKF, [7:6] = GPS
+//
+// MCU die-temp health (IVP-142b-1) is tracked separately in
+// HealthState::mcu rather than widened into primary, to avoid rippling
+// the 8-bit assumption through FusedState / PCM log frame /
+// telemetry wire format / replay harness. Consumers that care about
+// MCU read HealthState::mcu directly.
 // ============================================================================
 static constexpr uint8_t kHealthShiftImu  = 0;
 static constexpr uint8_t kHealthShiftBaro = 2;
@@ -57,10 +63,14 @@ enum HealthSecondary : uint8_t {
 // HealthState — full system health snapshot
 // ============================================================================
 struct HealthState {
-    uint8_t primary;          // 4 subsystems x 2-bit (HealthLevel)
+    uint8_t primary;          // 4 subsystems x 2-bit (HealthLevel) — IMU/Baro/ESKF/GPS
     uint8_t secondary;        // 1-bit flags (HealthSecondary)
     uint8_t prev_primary;     // Previous tick (change detection)
     uint8_t prev_secondary;
+    HealthLevel mcu;          // MCU die-temp (IVP-142b-1) — separate from
+                              //   primary to keep FusedState/telemetry/PCM
+                              //   layouts unchanged.
+    HealthLevel prev_mcu;
     bool go_nogo_ready;       // All tier-1 checks pass
     uint8_t tick_counter;     // Staleness: incremented each tick, watchdog-readable
 };
@@ -93,6 +103,21 @@ static constexpr uint8_t kImuDegradeThreshold      = 5;    // 5/10 invalid → d
 static constexpr uint8_t kBaroDegradeThreshold     = 3;    // 3/10 invalid → degraded
 
 // ============================================================================
+// MCU die-temp thresholds (Stage 16C IVP-142b-1)
+// Sources:
+//   - RP2350 datasheet §1.4.3 Absolute Maximum Ratings: Tj max 125 °C
+//   - Industrial-grade silicon operating range spec: -40 to +85 °C
+//   - 105 °C safe-mode threshold = 20 °C margin below abs-max
+// Flight-data validation of the WARN threshold may refine it downward
+// in Stage 18 (airframe thermal profile); FAULT/SAFE are datasheet
+// ceilings and do not move.
+// ============================================================================
+static constexpr float kMcuTempWarnC      = 70.0F;   // enter DEGRADED
+static constexpr float kMcuTempFaultC     = 85.0F;   // enter FAULT
+static constexpr float kMcuTempSafeModeC  = 105.0F;  // trigger safe-mode (IVP-142b-2)
+static constexpr float kMcuTempHysteresisC = 2.0F;   // clean exit / re-entry gap
+
+// ============================================================================
 // API
 // ============================================================================
 
@@ -121,6 +146,41 @@ void health_monitor_clear_latches();
 // Check if critical subsystems are faulted (IMU, baro, or ESKF).
 // Used by FD for auto-DISARM while ARMED.
 bool health_monitor_critical_fault();
+
+// Pure hysteresis FSM for MCU die-temp (IVP-142b-1).
+// Given the previous level and a new temperature reading, returns the
+// next HealthLevel using the WARN/FAULT thresholds with 2 °C hysteresis
+// on fall-back. Exposed for host-test coverage of state transitions.
+//
+// Does NOT consult mcu_temp_is_stuck() — caller layers that on top.
+//   prev=kHealthAbsent seeds to kHealthOk on first valid sample (>= -100).
+//   temp_c < -100 is treated as sentinel -> kHealthAbsent.
+inline HealthLevel mcu_temp_classify(HealthLevel prev, float temp_c) {
+    if (temp_c < -100.0F) {
+        return kHealthAbsent;
+    }
+    HealthLevel base = (prev == kHealthAbsent) ? kHealthOk : prev;
+
+    if (temp_c >= kMcuTempFaultC) {
+        return kHealthFault;
+    }
+    if (temp_c >= kMcuTempWarnC) {
+        if (base == kHealthFault &&
+            temp_c >= (kMcuTempFaultC - kMcuTempHysteresisC)) {
+            return kHealthFault;
+        }
+        return kHealthDegraded;
+    }
+    if (base == kHealthFault &&
+        temp_c >= (kMcuTempFaultC - kMcuTempHysteresisC)) {
+        return kHealthFault;
+    }
+    if (base == kHealthDegraded &&
+        temp_c >= (kMcuTempWarnC - kMcuTempHysteresisC)) {
+        return kHealthDegraded;
+    }
+    return kHealthOk;
+}
 
 // ============================================================================
 // Legacy HealthFlag — kept temporarily for Go/No-Go compatibility

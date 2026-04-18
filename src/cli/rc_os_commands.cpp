@@ -1300,6 +1300,21 @@ void cli_print_preflight() {
     printf("Watchdog: %s\n", wdtOk ? "GO" : "FAULT");
     printf("PIO WDT:  %s\n", pioOk ? "GO" : "FAULT");
 
+    // MCU die temp (Stage 16C IVP-142b-1) — separate field, not in primary.
+    // Info-only in preflight: hot silicon isn't a launch-gate on its own
+    // (the FD auto-ABORT wiring at ≥105 °C lives in IVP-142b-2).
+    {
+        shared_sensor_data_t snap{};
+        seqlock_read(&g_sensorSeqlock, &snap);
+        if (hs->mcu == rc::kHealthAbsent || snap.mcu_die_temp_c < -100.0F) {
+            printf("MCU temp: --- (sensor not ready)\n");
+        } else {
+            printf("MCU temp: %s  %.1fC\n",
+                   health_level_str(hs->mcu),
+                   static_cast<double>(snap.mcu_die_temp_c));
+        }
+    }
+
     // Verdict
     printf("----------------\n");
     printf("VERDICT:  %s\n", hs->go_nogo_ready ? "GO" : "NO-GO");

@@ -226,6 +226,81 @@ TEST(HealthState, DefaultInitAllAbsent) {
     EXPECT_EQ(hs.secondary, 0);
     EXPECT_EQ(hs.prev_primary, 0);
     EXPECT_EQ(hs.prev_secondary, 0);
+    EXPECT_EQ(hs.mcu, kHealthAbsent);
+    EXPECT_EQ(hs.prev_mcu, kHealthAbsent);
     EXPECT_FALSE(hs.go_nogo_ready);
     EXPECT_EQ(hs.tick_counter, 0);
+}
+
+// ============================================================================
+// MCU die-temp classifier (IVP-142b-1)
+// Pure hysteresis FSM tests — no globals, no hardware.
+// Thresholds (from health_monitor.h):
+//   WARN=70, FAULT=85, SAFE=105, HYST=2
+// ============================================================================
+
+TEST(McuTempClassify, SentinelValueReturnsAbsent) {
+    EXPECT_EQ(mcu_temp_classify(kHealthAbsent, -999.0F), kHealthAbsent);
+    EXPECT_EQ(mcu_temp_classify(kHealthOk,     -150.0F), kHealthAbsent);
+}
+
+TEST(McuTempClassify, FirstValidReadingSeedsFromAbsentToOk) {
+    // From absent, any non-sentinel sub-WARN value → OK
+    EXPECT_EQ(mcu_temp_classify(kHealthAbsent, 25.0F), kHealthOk);
+    EXPECT_EQ(mcu_temp_classify(kHealthAbsent, 50.0F), kHealthOk);
+    // Except if first reading is already past WARN
+    EXPECT_EQ(mcu_temp_classify(kHealthAbsent, 75.0F), kHealthDegraded);
+    EXPECT_EQ(mcu_temp_classify(kHealthAbsent, 90.0F), kHealthFault);
+}
+
+TEST(McuTempClassify, RisingEdgeThresholds) {
+    // OK → DEGRADED at WARN=70
+    EXPECT_EQ(mcu_temp_classify(kHealthOk, 69.9F), kHealthOk);
+    EXPECT_EQ(mcu_temp_classify(kHealthOk, 70.0F), kHealthDegraded);
+    EXPECT_EQ(mcu_temp_classify(kHealthOk, 84.9F), kHealthDegraded);
+    // DEGRADED → FAULT at FAULT=85
+    EXPECT_EQ(mcu_temp_classify(kHealthDegraded, 85.0F), kHealthFault);
+    EXPECT_EQ(mcu_temp_classify(kHealthDegraded, 104.9F), kHealthFault);
+    EXPECT_EQ(mcu_temp_classify(kHealthDegraded, 105.0F), kHealthFault);
+}
+
+TEST(McuTempClassify, FallingEdgeHysteresis) {
+    // FAULT → stays FAULT until temp < (85 - 2) = 83
+    EXPECT_EQ(mcu_temp_classify(kHealthFault, 84.0F), kHealthFault);
+    EXPECT_EQ(mcu_temp_classify(kHealthFault, 83.1F), kHealthFault);
+    // Exits FAULT below 83
+    EXPECT_EQ(mcu_temp_classify(kHealthFault, 82.9F), kHealthDegraded);
+    // FAULT → can fall all the way to OK if temp drops below
+    // FAULT-hyst AND below WARN (not below WARN-hyst strictly though,
+    // since once out of FAULT we check WARN-hyst against prev=FAULT).
+    // Verified behavior: FAULT@60 → OK (cleanly below all thresholds)
+    EXPECT_EQ(mcu_temp_classify(kHealthFault, 60.0F), kHealthOk);
+
+    // DEGRADED → stays DEGRADED until temp < (70 - 2) = 68
+    EXPECT_EQ(mcu_temp_classify(kHealthDegraded, 69.0F), kHealthDegraded);
+    EXPECT_EQ(mcu_temp_classify(kHealthDegraded, 68.1F), kHealthDegraded);
+    // Exits DEGRADED below 68
+    EXPECT_EQ(mcu_temp_classify(kHealthDegraded, 67.9F), kHealthOk);
+}
+
+TEST(McuTempClassify, FlickerProtectionRisingAndFalling) {
+    // Simulate noise right at WARN boundary: 69.9 - 70.1 - 69.9 - 70.1 ...
+    // From OK, any sample >= 70 → DEGRADED. From DEGRADED, must drop
+    // below 68 to return to OK. So a 69.9 sample while DEGRADED stays
+    // DEGRADED — exactly the flicker-guard goal.
+    HealthLevel l = kHealthOk;
+    l = mcu_temp_classify(l, 70.1F);
+    EXPECT_EQ(l, kHealthDegraded);
+    l = mcu_temp_classify(l, 69.9F);
+    EXPECT_EQ(l, kHealthDegraded);  // does NOT flip back to OK
+    l = mcu_temp_classify(l, 67.9F);
+    EXPECT_EQ(l, kHealthOk);        // only goes OK below 68.0
+}
+
+TEST(McuTempClassify, SafeModeTemperatureIsFault) {
+    // 105°C and above is FAULT (IVP-142b-2 will layer SIG_MCU_OVERTEMP
+    // post on top; the classifier itself only knows FAULT).
+    EXPECT_EQ(mcu_temp_classify(kHealthOk,       105.0F), kHealthFault);
+    EXPECT_EQ(mcu_temp_classify(kHealthDegraded, 110.0F), kHealthFault);
+    EXPECT_EQ(mcu_temp_classify(kHealthFault,    120.0F), kHealthFault);
 }

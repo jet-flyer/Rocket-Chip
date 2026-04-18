@@ -11,6 +11,7 @@
 //============================================================================
 
 #include "safety/health_monitor.h"
+#include "drivers/mcu_temp.h"
 #include "safety/pio_watchdog.h"
 #include "flight_director/go_nogo_checks.h"
 #include "flight_director/flight_state.h"
@@ -49,6 +50,12 @@ static uint8_t g_windowIndex = 0;
 
 // Latched fault state (per subsystem, during ARMED→DESCENT)
 static uint8_t g_latchedPrimary = 0;  // bits set = fault latched for that subsystem
+static bool g_mcuFaultLatched = false;  // MCU has its own latch bit (out-of-band)
+
+// MCU temp hysteresis state — current HealthLevel we're holding onto
+// for the MCU slot. Re-evaluated each tick with 2 °C hysteresis windows
+// around each threshold so noise near a boundary doesn't flicker.
+static HealthLevel g_mcuTempLevel = kHealthAbsent;
 
 // ============================================================================
 // Internal: check if current phase requires fault latch
@@ -97,6 +104,21 @@ static HealthLevel apply_fault_latch(HealthLevel measured, uint8_t shift) {
         g_latchedPrimary &= static_cast<uint8_t>(~mask);
     }
 
+    return measured;
+}
+
+// MCU has its own latch path since it lives outside the primary byte.
+// Same semantics as apply_fault_latch but with a dedicated bool.
+static HealthLevel apply_mcu_fault_latch(HealthLevel measured) {
+    if (measured == kHealthFault) {
+        g_mcuFaultLatched = true;
+    }
+    if (phase_requires_fault_latch() && g_mcuFaultLatched) {
+        return kHealthFault;
+    }
+    if (!phase_requires_fault_latch()) {
+        g_mcuFaultLatched = false;
+    }
     return measured;
 }
 
@@ -171,6 +193,38 @@ static HealthLevel evaluate_eskf() {
 }
 
 // ============================================================================
+// Internal: evaluate MCU die-temp health (Stage 16C IVP-142b-1)
+//
+// Hysteresis: 2 °C below each threshold for the fall-back edge.
+//   Rising:   OK -> DEGRADED at  70.0,  DEGRADED -> FAULT at  85.0
+//   Falling:  FAULT -> DEGRADED at 83.0, DEGRADED -> OK at    68.0
+// Safe-mode threshold (105 °C) is evaluated here as FAULT; the actual
+// SIG_MCU_OVERTEMP post + FD ABORT wiring lives in IVP-142b-2.
+//
+// Stuck sensor (mcu_temp_is_stuck() true) -> DEGRADED, never OK. Does
+// not escalate to FAULT because a stuck reading is an instrumentation
+// issue, not a real over-temperature condition.
+// ============================================================================
+// Stateful wrapper — pulls prev from g_mcuTempLevel, calls the pure
+// classifier in the header, and layers stuck-sensor clamp on top.
+static HealthLevel evaluate_mcu_temp(const shared_sensor_data_t& snap) {
+    if (!mcu_temp_available() || snap.mcu_temp_read_count == 0) {
+        return kHealthAbsent;
+    }
+
+    HealthLevel next = mcu_temp_classify(g_mcuTempLevel, snap.mcu_die_temp_c);
+
+    // Stuck sensor clamps to at most DEGRADED — never promote a frozen
+    // reading to OK even if the value happens to sit below WARN.
+    if (mcu_temp_is_stuck() && next == kHealthOk) {
+        next = kHealthDegraded;
+    }
+
+    g_mcuTempLevel = next;
+    return next;
+}
+
+// ============================================================================
 // Internal: evaluate GPS health
 // ============================================================================
 
@@ -201,6 +255,8 @@ void health_monitor_init() {
     g_currentPhase = 0;
     g_windowIndex = 0;
     g_latchedPrimary = 0;
+    g_mcuFaultLatched = false;
+    g_mcuTempLevel = kHealthAbsent;
 
     // Pre-fill sliding windows as valid (optimistic at boot)
     for (uint8_t i = 0; i < kHealthWindowSize; ++i) {
@@ -293,6 +349,18 @@ static void log_health_transitions(uint8_t prev, uint8_t curr) {
     }
 }
 
+static void log_mcu_transition(HealthLevel prev, HealthLevel curr) {
+    if (prev == curr) return;
+    if (prev == kHealthFault && curr >= kHealthDegraded) {
+        DBG_PRINT("HEALTH: MCU fault cleared -> %s",
+                  curr == kHealthOk ? "OK" : "DEGRADED");
+    } else if (prev >= kHealthDegraded && curr == kHealthFault) {
+        DBG_PRINT("HEALTH: MCU -> FAULT");
+    } else if (prev == kHealthOk && curr == kHealthDegraded) {
+        DBG_PRINT("HEALTH: MCU -> DEGRADED");
+    }
+}
+
 // ============================================================================
 // health_monitor_tick()
 // ============================================================================
@@ -300,13 +368,14 @@ static void log_health_transitions(uint8_t prev, uint8_t curr) {
 bool health_monitor_tick() {
     g_health.prev_primary = g_health.primary;
     g_health.prev_secondary = g_health.secondary;
+    g_health.prev_mcu = g_health.mcu;
     g_health.tick_counter++;
 
     // Read sensor snapshot
     shared_sensor_data_t snap{};
     seqlock_read(&g_sensorSeqlock, &snap);
 
-    // --- Primary: 4 subsystems x 2-bit ---
+    // --- Primary: 4 subsystems x 2-bit (uint8_t) ---
 
     uint8_t primary = 0;
 
@@ -322,6 +391,9 @@ bool health_monitor_tick() {
     HealthLevel gpsLevel = apply_fault_latch(evaluate_gps(snap), kHealthShiftGps);
     primary = health_set_subsystem(primary, kHealthShiftGps, gpsLevel);
 
+    // MCU die-temp lives in HealthState::mcu, not packed into primary.
+    HealthLevel mcuLevel = apply_mcu_fault_latch(evaluate_mcu_temp(snap));
+
     // Advance sliding window index
     g_windowIndex = static_cast<uint8_t>((g_windowIndex + 1U) % kHealthWindowSize);
 
@@ -329,6 +401,7 @@ bool health_monitor_tick() {
 
     g_health.primary = primary;
     g_health.secondary = secondary;
+    g_health.mcu = mcuLevel;
 
     // Go/No-Go: IMU + baro + ESKF must be OK or degraded, flash + watchdog OK
     g_health.go_nogo_ready =
@@ -343,9 +416,11 @@ bool health_monitor_tick() {
     if (g_health.primary != g_health.prev_primary) {
         log_health_transitions(g_health.prev_primary, primary);
     }
+    log_mcu_transition(g_health.prev_mcu, g_health.mcu);
 
     bool changed = (g_health.primary != g_health.prev_primary) ||
-                   (g_health.secondary != g_health.prev_secondary);
+                   (g_health.secondary != g_health.prev_secondary) ||
+                   (g_health.mcu != g_health.prev_mcu);
     return changed;
 }
 
@@ -369,11 +444,12 @@ void health_monitor_set_phase(uint8_t phase) {
     // IDLE latches persist until manual clear or reboot — pre-launch safety.
     auto p = static_cast<FlightPhase>(phase);
     if (p == FlightPhase::kLanded) {
-        if (g_latchedPrimary != 0) {
+        if (g_latchedPrimary != 0 || g_mcuFaultLatched) {
             DBG_PRINT("HEALTH: clearing fault latches (phase=%s)",
                       flight_phase_name(p));
         }
         g_latchedPrimary = 0;
+        g_mcuFaultLatched = false;
     }
     (void)prevPhase;  // Available for future logging
 }
@@ -389,10 +465,11 @@ void health_monitor_clear_latches() {
                   flight_phase_name(phase));
         return;
     }
-    if (g_latchedPrimary != 0) {
+    if (g_latchedPrimary != 0 || g_mcuFaultLatched) {
         DBG_PRINT("HEALTH: latches cleared by manual reset");
     }
     g_latchedPrimary = 0;
+    g_mcuFaultLatched = false;
 }
 
 // ============================================================================
