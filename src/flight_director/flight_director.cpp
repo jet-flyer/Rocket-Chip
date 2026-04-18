@@ -191,6 +191,64 @@ FlightPhase flight_director_phase(const FlightDirector* me) {
     return me->state.current_phase;
 }
 
+// Build the SafetyLockout snapshot used by the combinator evaluator.
+// Extracted from flight_director_evaluate_guards for JSF AV rule 1 compliance.
+static SafetyLockout build_safety_lockout(const FlightDirector* me,
+                                           const FusedState& fused) {
+    float vel_mag = sqrtf(fused.vel_n * fused.vel_n +
+                          fused.vel_e * fused.vel_e +
+                          fused.vel_d * fused.vel_d);
+    uint32_t ms_since_launch = 0;
+    if (me->state.markers.launch_ms > 0) {
+        ms_since_launch = me->tick_ms - me->state.markers.launch_ms;
+    }
+
+    SafetyLockout lockout{};
+    lockout.current_velocity_mps = vel_mag;
+    lockout.ms_since_launch = ms_since_launch;
+    lockout.deploy_lockout_mps = me->profile->deploy_lockout_mps;
+    lockout.apogee_lockout_ms = me->profile->apogee_lockout_ms;
+    lockout.eskf_healthy = (rc::health_eskf(fused.health_primary) >= rc::kHealthDegraded);
+    lockout.confident = fused.confident;
+    return lockout;
+}
+
+// IVP-121 MAIN_DESCENT multi-channel landing detection.
+// Returns true if a LANDING dispatch was made (caller should bail).
+// Two paths beyond the primary baro-stationary guard (IVP-120):
+//   Path 1: ESKF-fault-confirmed-by-baro (conjunction, not disjunction)
+//   Path 2: Last-resort backstop (time-based, fires distress beacon)
+// Extracted from flight_director_evaluate_guards for JSF AV rule 1 compliance.
+static bool handle_main_descent_landing(FlightDirector* me,
+                                         const FusedState& fused) {
+    uint32_t elapsed = me->tick_ms - me->state.phase_entry_ms;
+
+    // Path 1: ESKF dead AND raw baro agrees we're stationary → LANDED.
+    // ESKF fault alone is a health alert, not a landing. The conjunction
+    // ensures we don't auto-LAND mid-descent just because the ESKF crashed.
+    if (rc::health_eskf(fused.health_primary) == rc::kHealthFault &&
+        guard_evaluator_is_sustained(&me->guard_eval, GuardId::kBaroStationary)) {
+        printf("[FD] MAIN_DESCENT: ESKF fault + baro stationary -> LANDED\n");
+        flight_director_dispatch_signal(me, SIG_LANDING);
+        return true;
+    }
+
+    // Path 2: Last-resort backstop. Fires only when ALL physical channels
+    // have been silent for descent_max_duration_ms. System-level watchdog,
+    // not a landing detector. Distress beacon for recovery.
+    if (me->profile->descent_max_duration_ms > 0 &&
+        elapsed >= me->profile->descent_max_duration_ms) {
+        printf("[FD] MAIN_DESCENT: max duration elapsed -> LANDED (distress)\n");
+        if (me->beacon_cb) {
+            me->beacon_cb();
+        }
+        flight_director_dispatch_signal(me, SIG_LANDING);
+        return true;
+    }
+
+    return false;
+}
+
 void flight_director_evaluate_guards(FlightDirector* me,
                                       const FusedState& fused,
                                       float accel_z,
@@ -206,67 +264,23 @@ void flight_director_evaluate_guards(FlightDirector* me,
     // Unmanaged guards auto-dispatch; managed guards set sustained flag.
     uint16_t unmanaged_sig = guard_evaluator_tick(
         &me->guard_eval, phase, fused, accel_z, accel_mag);
-
     if (unmanaged_sig != SIG_MAX) {
         flight_director_dispatch_signal(me, unmanaged_sig);
         return;
     }
 
-    // Step 2: Build lockout snapshot for combinator
-    float vel_mag = sqrtf(fused.vel_n * fused.vel_n +
-                          fused.vel_e * fused.vel_e +
-                          fused.vel_d * fused.vel_d);
-    uint32_t ms_since_launch = 0;
-    if (me->state.markers.launch_ms > 0) {
-        ms_since_launch = me->tick_ms - me->state.markers.launch_ms;
-    }
-
-    SafetyLockout lockout{};
-    lockout.current_velocity_mps = vel_mag;
-    lockout.ms_since_launch = ms_since_launch;
-    lockout.deploy_lockout_mps = me->profile->deploy_lockout_mps;
-    lockout.apogee_lockout_ms = me->profile->apogee_lockout_ms;
-    lockout.eskf_healthy = (rc::health_eskf(fused.health_primary) >= rc::kHealthDegraded);
-    lockout.confident = fused.confident;    // Confidence gate
-
-    // Step 3: Evaluate combinators (managed guards + lockouts + timer backup)
+    // Step 2: Evaluate combinators (managed guards + lockouts + timer backup)
+    SafetyLockout lockout = build_safety_lockout(me, fused);
     uint16_t combo_sig = combinator_set_evaluate(
         &me->combinator_set, phase, &me->guard_eval, lockout, 10);
-
     if (combo_sig != SIG_MAX) {
         flight_director_dispatch_signal(me, combo_sig);
         return;
     }
 
-    // Step 4 (IVP-121): MAIN_DESCENT multi-channel landing detection
-    // Two additional paths beyond the primary baro-stationary guard (IVP-120):
-    //   Path 1: ESKF-fault-confirmed-by-baro (conjunction — not disjunction)
-    //   Path 2: Last-resort backstop (time-based, distress beacon)
+    // Step 3: MAIN_DESCENT multi-channel landing detection (IVP-121)
     if (phase == FlightPhase::kMainDescent) {
-        uint32_t elapsed = me->tick_ms - me->state.phase_entry_ms;
-
-        // Path 1: ESKF dead AND raw baro agrees we're stationary → LANDED.
-        // ESKF fault alone is a health alert, not a landing. The conjunction
-        // ensures we don't auto-LAND mid-descent just because the ESKF crashed.
-        if (rc::health_eskf(fused.health_primary) == rc::kHealthFault &&
-            guard_evaluator_is_sustained(&me->guard_eval, GuardId::kBaroStationary)) {
-            printf("[FD] MAIN_DESCENT: ESKF fault + baro stationary -> LANDED\n");
-            flight_director_dispatch_signal(me, SIG_LANDING);
-            return;
-        }
-
-        // Path 2: Last-resort backstop. Fires only when ALL physical channels
-        // have been silent for descent_max_duration_ms. This is a system-level
-        // watchdog, not a landing detector. Distress beacon for recovery.
-        if (me->profile->descent_max_duration_ms > 0 &&
-            elapsed >= me->profile->descent_max_duration_ms) {
-            printf("[FD] MAIN_DESCENT: max duration elapsed -> LANDED (distress)\n");
-            if (me->beacon_cb) {
-                me->beacon_cb();
-            }
-            flight_director_dispatch_signal(me, SIG_LANDING);
-            return;
-        }
+        (void)handle_main_descent_landing(me, fused);
     }
 }
 
