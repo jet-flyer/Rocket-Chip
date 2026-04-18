@@ -73,6 +73,23 @@ All of the normal completion items, plus:
 14. **Update `docs/PROJECT_STATUS.md`** with milestone completion and next phase
 15. **Review SCAFFOLDING.md** — If directory structure changed, update it
 16. **Consider LESSONS_LEARNED.md** — If significant debugging occurred, document it
+17. **Full-tree clang-tidy sweep** — The pre-commit hook only gates staged files, so latent JSF AV Rule 1 violations (function size > 60 lines) can accumulate in files that aren't touched stage-by-stage. At milestone/stage close, run the same checks the hook runs against EVERY `src/**/*.cpp` not on the exemption list (exemptions: `src/cli/**`, `src/dev/**`, `eskf_codegen.cpp`). Zero warnings required for milestone closure — any new violations must be decomposed or logged as an accepted deviation in `standards/STANDARDS_DEVIATIONS.md` before the stage can close. Pattern (Git Bash, adjust toolchain path if needed):
+
+        for f in $(git ls-files 'src/*.cpp' | grep -v 'src/cli/' | grep -v 'src/dev/' | grep -v eskf_codegen.cpp); do
+          "C:/Program Files/LLVM/bin/clang-tidy.exe" "$f" -p build/ \
+            --checks="-*,readability-function-size,readability-function-cognitive-complexity" \
+            --extra-arg="--sysroot=C:/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/arm-none-eabi" \
+            --extra-arg="--target=armv8m.main-none-eabi" \
+            --extra-arg="-isystem" \
+            --extra-arg="C:/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/arm-none-eabi/include/c++/14.2.1" \
+            --extra-arg="-isystem" \
+            --extra-arg="C:/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/arm-none-eabi/include/c++/14.2.1/arm-none-eabi/thumb/v8-m.main+fp/softfp" \
+            --extra-arg="-Wno-format-security" \
+            --extra-arg="-Wno-gnu-zero-variadic-macro-arguments" 2>&1 \
+            | grep -E "warning:.*readability-function-(size|cognitive-complexity)"
+        done
+
+   Added 2026-04-18 after Stage L surfaced 5 latent violations (ao_logger, ao_telemetry, core1_sensor_loop, guard_evaluator_tick, flight_director_evaluate_guards) that had accumulated silently across earlier stages. See LL Entry 36 discipline — "gates that only check incremental change cannot catch pre-existing rot."
 
 ---
 
