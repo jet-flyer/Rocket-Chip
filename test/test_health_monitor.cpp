@@ -333,3 +333,67 @@ TEST(HealthCritical, MultipleBitsCoexist) {
     EXPECT_NE(crit & kHealthCriticalMcu, 0);
     EXPECT_EQ(crit, 0x01);  // Only MCU set so far — no accidental stray bits
 }
+
+// ============================================================================
+// Critical-fault persistence counter (IVP-142b-3)
+//
+// Rule (per 2026-04-18 council): a primary-byte fault counts as
+// "critical" for auto-action purposes only after N consecutive ticks
+// of fault, to prevent single-tick noise (dust, transient NACK) from
+// tripping false auto-DISARMs mid-flight.
+// ============================================================================
+
+TEST(CriticalFaultPersistence, ThresholdIsFiveTicks) {
+    // 500 ms at 10 Hz — changing this must be council-reviewed.
+    EXPECT_EQ(kCriticalFaultPersistTicks, 5);
+}
+
+TEST(CriticalFaultPersistence, FaultIncrementsCounter) {
+    uint8_t ctr = 0;
+    ctr = critical_fault_ticks_next(ctr, kHealthFault);
+    EXPECT_EQ(ctr, 1);
+    ctr = critical_fault_ticks_next(ctr, kHealthFault);
+    EXPECT_EQ(ctr, 2);
+}
+
+TEST(CriticalFaultPersistence, NonFaultResetsCounter) {
+    uint8_t ctr = 3;
+    EXPECT_EQ(critical_fault_ticks_next(ctr, kHealthOk),       0);
+    EXPECT_EQ(critical_fault_ticks_next(ctr, kHealthDegraded), 0);
+    EXPECT_EQ(critical_fault_ticks_next(ctr, kHealthAbsent),   0);
+}
+
+TEST(CriticalFaultPersistence, CounterSaturatesAtThreshold) {
+    // Sustained fault should not wrap uint8_t — saturates at the
+    // threshold so consumers can reliably test `ctr >= threshold`.
+    uint8_t ctr = 0;
+    for (int i = 0; i < 20; ++i) {
+        ctr = critical_fault_ticks_next(ctr, kHealthFault);
+    }
+    EXPECT_EQ(ctr, kCriticalFaultPersistTicks);
+}
+
+TEST(CriticalFaultPersistence, IntermittentFaultNeverReachesThreshold) {
+    // The core rocketeer scenario: baro flutters (fault/ok/fault/ok)
+    // from dust or pressure pulse. Counter must not accumulate.
+    uint8_t ctr = 0;
+    for (int i = 0; i < 20; ++i) {
+        ctr = critical_fault_ticks_next(ctr, kHealthFault);
+        ctr = critical_fault_ticks_next(ctr, kHealthOk);
+    }
+    EXPECT_EQ(ctr, 0);
+    EXPECT_LT(ctr, kCriticalFaultPersistTicks);
+}
+
+TEST(CriticalFaultPersistence, SingleRecoveryClearsAccumulatedTicks) {
+    // 4 ticks of fault, one ok tick — counter must reset completely.
+    // Prevents "close but not quite" scenarios from sneaking into
+    // critical-fault territory after a brief recovery.
+    uint8_t ctr = 0;
+    for (int i = 0; i < 4; ++i) {
+        ctr = critical_fault_ticks_next(ctr, kHealthFault);
+    }
+    EXPECT_EQ(ctr, 4);
+    ctr = critical_fault_ticks_next(ctr, kHealthOk);
+    EXPECT_EQ(ctr, 0);
+}

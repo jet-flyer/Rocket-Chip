@@ -135,6 +135,44 @@ static constexpr uint8_t kImuDegradeThreshold      = 5;    // 5/10 invalid → d
 static constexpr uint8_t kBaroDegradeThreshold     = 3;    // 3/10 invalid → degraded
 
 // ============================================================================
+// Critical-fault persistence (Stage 16C IVP-142b-3)
+//
+// Council rationale (2026-04-18): a single-tick health_monitor_critical_fault()
+// returning true on any kHealthFault triggers false auto-DISARMs on noise
+// events — dust in the baro vent, transient I2C NACKs, IMU sample drops.
+// Rocketeer's field-experience: closing a door near the pad pressure-pulses
+// the baro and a naive fault-means-abort path aborts the rocket.
+//
+// Fix: require N consecutive ticks of fault AND phase != IDLE before a
+// primary-byte fault counts as "critical" for auto-action purposes.
+// At 10 Hz tick rate, kCriticalFaultPersistTicks = 5 = 500 ms.
+//
+// Phases:
+//   IDLE: go/no-go NO-GO already blocks ARM. auto-DISARM is a no-op by
+//         definition (not armed). No persistence check needed — return
+//         false so callers don't think they need to act.
+//   ARMED / BOOST / COAST / DESCENT / LANDED: persistence-gated. A fault
+//         only counts as critical after N consecutive ticks.
+//   LANDED: same as flight phases — if a sensor dies mid-descent the
+//         health status still reports critical for post-flight review.
+// ============================================================================
+static constexpr uint8_t kCriticalFaultPersistTicks = 5;  // 500 ms at 10 Hz
+
+// Pure bump helper for the persistence counter — extracted so the
+// algorithm is testable at host level without the full health_monitor
+// hardware-dep surface. Increments on kHealthFault (saturating at
+// kCriticalFaultPersistTicks); resets to 0 on any other level.
+inline uint8_t critical_fault_ticks_next(uint8_t prev, HealthLevel lvl) {
+    if (lvl != kHealthFault) {
+        return 0;
+    }
+    if (prev < kCriticalFaultPersistTicks) {
+        return static_cast<uint8_t>(prev + 1U);
+    }
+    return kCriticalFaultPersistTicks;
+}
+
+// ============================================================================
 // MCU die-temp thresholds (Stage 16C IVP-142b-1)
 // Sources:
 //   - RP2350 datasheet §1.4.3 Absolute Maximum Ratings: Tj max 125 °C

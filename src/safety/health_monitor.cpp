@@ -57,6 +57,13 @@ static bool g_mcuFaultLatched = false;  // MCU has its own latch bit (out-of-ban
 // around each threshold so noise near a boundary doesn't flicker.
 static HealthLevel g_mcuTempLevel = kHealthAbsent;
 
+// Consecutive-fault persistence counters (IVP-142b-3). Incremented each
+// tick a subsystem is in kHealthFault; reset to 0 on any non-Fault tick.
+// Saturate at kCriticalFaultPersistTicks so the counters don't wrap.
+static uint8_t g_imuFaultTicks  = 0;
+static uint8_t g_baroFaultTicks = 0;
+static uint8_t g_eskfFaultTicks = 0;
+
 // ============================================================================
 // Internal: check if current phase requires fault latch
 // ============================================================================
@@ -257,6 +264,9 @@ void health_monitor_init() {
     g_latchedPrimary = 0;
     g_mcuFaultLatched = false;
     g_mcuTempLevel = kHealthAbsent;
+    g_imuFaultTicks = 0;
+    g_baroFaultTicks = 0;
+    g_eskfFaultTicks = 0;
 
     // Pre-fill sliding windows as valid (optimistic at boot)
     for (uint8_t i = 0; i < kHealthWindowSize; ++i) {
@@ -401,6 +411,50 @@ static void log_mcu_transition(HealthLevel prev, HealthLevel curr) {
 }
 
 // ============================================================================
+// Internal: evaluate all 4 primary-byte subsystems with fault-latch applied.
+// Returns packed primary byte; out-params expose the individual levels the
+// caller needs for persistence counters and go/no-go.
+// ============================================================================
+
+struct PrimaryLevels {
+    HealthLevel imu;
+    HealthLevel baro;
+    HealthLevel eskf;
+    HealthLevel gps;
+};
+
+static uint8_t evaluate_primary_byte(const shared_sensor_data_t& snap,
+                                     PrimaryLevels& out) {
+    uint8_t primary = 0;
+    out.imu = apply_fault_latch(evaluate_imu(snap), kHealthShiftImu);
+    primary = health_set_subsystem(primary, kHealthShiftImu, out.imu);
+    out.baro = apply_fault_latch(evaluate_baro(snap), kHealthShiftBaro);
+    primary = health_set_subsystem(primary, kHealthShiftBaro, out.baro);
+    out.eskf = apply_fault_latch(evaluate_eskf(), kHealthShiftEskf);
+    primary = health_set_subsystem(primary, kHealthShiftEskf, out.eskf);
+    out.gps = apply_fault_latch(evaluate_gps(snap), kHealthShiftGps);
+    primary = health_set_subsystem(primary, kHealthShiftGps, out.gps);
+    return primary;
+}
+
+// ============================================================================
+// Internal: log all transitions and return `changed` boolean for tick().
+// ============================================================================
+
+static bool finalize_tick_logging() {
+    if (g_health.primary != g_health.prev_primary) {
+        log_health_transitions(g_health.prev_primary, g_health.primary);
+    }
+    log_mcu_transition(g_health.prev_mcu, g_health.mcu);
+    log_critical_transitions(g_health.prev_critical, g_health.critical);
+
+    return (g_health.primary != g_health.prev_primary) ||
+           (g_health.secondary != g_health.prev_secondary) ||
+           (g_health.critical != g_health.prev_critical) ||
+           (g_health.mcu != g_health.prev_mcu);
+}
+
+// ============================================================================
 // health_monitor_tick()
 // ============================================================================
 
@@ -411,30 +465,22 @@ bool health_monitor_tick() {
     g_health.prev_mcu = g_health.mcu;
     g_health.tick_counter++;
 
-    // Read sensor snapshot
     shared_sensor_data_t snap{};
     seqlock_read(&g_sensorSeqlock, &snap);
 
-    // --- Primary: 4 subsystems x 2-bit (uint8_t) ---
-
-    uint8_t primary = 0;
-
-    HealthLevel imuLevel = apply_fault_latch(evaluate_imu(snap), kHealthShiftImu);
-    primary = health_set_subsystem(primary, kHealthShiftImu, imuLevel);
-
-    HealthLevel baroLevel = apply_fault_latch(evaluate_baro(snap), kHealthShiftBaro);
-    primary = health_set_subsystem(primary, kHealthShiftBaro, baroLevel);
-
-    HealthLevel eskfLevel = apply_fault_latch(evaluate_eskf(), kHealthShiftEskf);
-    primary = health_set_subsystem(primary, kHealthShiftEskf, eskfLevel);
-
-    HealthLevel gpsLevel = apply_fault_latch(evaluate_gps(snap), kHealthShiftGps);
-    primary = health_set_subsystem(primary, kHealthShiftGps, gpsLevel);
+    PrimaryLevels lvl{};
+    uint8_t primary = evaluate_primary_byte(snap, lvl);
 
     // MCU die-temp lives in HealthState::mcu, not packed into primary.
     HealthLevel mcuLevel = apply_mcu_fault_latch(evaluate_mcu_temp(snap));
 
-    // Advance sliding window index
+    // Per-subsystem persistence counters (IVP-142b-3). Delegates to the
+    // pure helper in the header so host tests cover the rule without
+    // needing the full hardware-dep surface of this TU.
+    g_imuFaultTicks  = critical_fault_ticks_next(g_imuFaultTicks,  lvl.imu);
+    g_baroFaultTicks = critical_fault_ticks_next(g_baroFaultTicks, lvl.baro);
+    g_eskfFaultTicks = critical_fault_ticks_next(g_eskfFaultTicks, lvl.eskf);
+
     g_windowIndex = static_cast<uint8_t>((g_windowIndex + 1U) % kHealthWindowSize);
 
     uint8_t secondary = evaluate_secondary();
@@ -444,27 +490,15 @@ bool health_monitor_tick() {
     g_health.critical = evaluate_critical(snap);
     g_health.mcu = mcuLevel;
 
-    // Go/No-Go: IMU + baro + ESKF must be OK or degraded, flash + watchdog OK
     g_health.go_nogo_ready =
-        (imuLevel >= kHealthDegraded) &&
-        (baroLevel >= kHealthDegraded) &&
-        (eskfLevel >= kHealthDegraded) &&
+        (lvl.imu  >= kHealthDegraded) &&
+        (lvl.baro >= kHealthDegraded) &&
+        (lvl.eskf >= kHealthDegraded) &&
         ((secondary & kHealthFlashOk) != 0) &&
         ((secondary & kHealthWatchdogOk) != 0) &&
         !g_recovery.launch_abort;
 
-    // Log fault transitions (council: JPL + Cubesat)
-    if (g_health.primary != g_health.prev_primary) {
-        log_health_transitions(g_health.prev_primary, primary);
-    }
-    log_mcu_transition(g_health.prev_mcu, g_health.mcu);
-    log_critical_transitions(g_health.prev_critical, g_health.critical);
-
-    bool changed = (g_health.primary != g_health.prev_primary) ||
-                   (g_health.secondary != g_health.prev_secondary) ||
-                   (g_health.critical != g_health.prev_critical) ||
-                   (g_health.mcu != g_health.prev_mcu);
-    return changed;
+    return finalize_tick_logging();
 }
 
 // ============================================================================
@@ -493,6 +527,12 @@ void health_monitor_set_phase(uint8_t phase) {
         }
         g_latchedPrimary = 0;
         g_mcuFaultLatched = false;
+        // Persistence counters reset on LANDED too — a sensor that
+        // faulted in DESCENT shouldn't keep post-landing consumers
+        // (beacon LED, GPS-only telemetry) in a critical-fault state.
+        g_imuFaultTicks  = 0;
+        g_baroFaultTicks = 0;
+        g_eskfFaultTicks = 0;
     }
     (void)prevPhase;  // Available for future logging
 }
@@ -513,6 +553,9 @@ void health_monitor_clear_latches() {
     }
     g_latchedPrimary = 0;
     g_mcuFaultLatched = false;
+    g_imuFaultTicks  = 0;
+    g_baroFaultTicks = 0;
+    g_eskfFaultTicks = 0;
 }
 
 // ============================================================================
@@ -520,24 +563,35 @@ void health_monitor_clear_latches() {
 // ============================================================================
 
 bool health_monitor_critical_fault() {
-    HealthLevel imu = health_imu(g_health.primary);
-    HealthLevel baro = health_baro(g_health.primary);
-    HealthLevel eskf = health_eskf(g_health.primary);
-    // Baro is critical: without it, no altitude-gated main deploy and ESKF
-    // vertical axis drifts (LL Entry 34). Same scrub criteria as IMU/ESKF.
-    //
-    // IVP-142b-3 follow-up: these primary-byte checks are currently
-    // single-tick — an intermittent fault reports as critical.
-    // Persistence + phase gating refactor (Option D from 2026-04-18
-    // council) lives in the next IVP.
-    //
-    // IVP-142b-2: any bit set in HealthState::critical also counts as
-    // a critical condition. Doesn't auto-transition state — consumers
-    // (notify/LED/telemetry/preflight) make it visible; humans decide.
-    return (imu == kHealthFault) ||
-           (baro == kHealthFault) ||
-           (eskf == kHealthFault) ||
-           (g_health.critical != 0);
+    // Phase gate: in IDLE the go/no-go NO-GO already blocks ARM, and
+    // auto-DISARM is a no-op (not armed). Return false so callers can
+    // trust this signal as "fault that demands auto-action." IVP-142b
+    // bits in HealthState::critical still propagate via the explicit
+    // checks below — those are visibility-only and do not auto-trigger
+    // state transitions, so the phase gate doesn't suppress them for
+    // the humans-in-the-loop paths (preflight, telemetry, LED, log).
+    auto phase = static_cast<FlightPhase>(g_currentPhase);
+
+    // HealthState::critical bits (MCU over-temp, …) always count as a
+    // critical condition — they're threshold-bound and don't benefit
+    // from persistence smoothing. Keeps preflight/LED/log visibility
+    // identical regardless of phase.
+    if (g_health.critical != 0) {
+        return true;
+    }
+
+    // Primary-byte IMU/baro/ESKF faults are persistence-gated in flight
+    // phases (ARMED through LANDED) so transient noise (dust in baro
+    // vent, closing a door near the pad, transient I2C NACK) doesn't
+    // flash "critical" and trip false auto-DISARMs. kCriticalFaultPersistTicks
+    // consecutive ticks at 10 Hz = 500 ms.
+    if (phase == FlightPhase::kIdle) {
+        return false;
+    }
+
+    return (g_imuFaultTicks  >= kCriticalFaultPersistTicks) ||
+           (g_baroFaultTicks >= kCriticalFaultPersistTicks) ||
+           (g_eskfFaultTicks >= kCriticalFaultPersistTicks);
 }
 
 // ============================================================================
