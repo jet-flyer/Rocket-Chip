@@ -13,6 +13,7 @@
 #include "rocketchip/config.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "core1/sensor_core1.h"
+#include "station/station_idle_tick.h"
 #include "rocketchip/led_patterns.h"
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
@@ -486,6 +487,11 @@ static void init_application(bool watchdogReboot) {
     } else {
         // Station/Relay: Core 1 idle, I2C scan allowed, no sensor phase
         rc_os_i2c_scan_allowed = true;
+        // Stage 16C IVP-140: station-role Core 0 periodic work lives in the
+        // idle bridge. Init state here; tick fires from qv_idle_bridge().
+        if constexpr (kRadioModeRx) {
+            rc::station_idle_tick_init();
+        }
     }
 
     // PSRAM flash-safe test (deferred from init_hardware).
@@ -578,6 +584,9 @@ extern "C" void qv_idle_bridge(void) {
     // IVP-122: Station command ACK retry tick (lightweight, <1us when no cmd pending)
     if constexpr (kRadioModeRx) {
         AO_Telemetry_cmd_retry_tick(to_ms_since_boot(get_absolute_time()));
+        // Stage 16C IVP-140: station periodic work (GPS poll, MCU temp).
+        // No-op until IVP-141 adds the GPS body. Safe-in-idle by design.
+        rc::station_idle_tick();
     }
 
     g_lastTickFunction = "idle";

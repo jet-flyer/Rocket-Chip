@@ -36,6 +36,44 @@
 
 **Status doc:** `docs/plans/STAGE16C_STATION_DECOUPLING_STATUS.md` has full detail.
 
+### HW Fault Testing Discipline — Needed (user ask 2026-04-17)
+
+**Problem.** Two recurring failure modes this week have the same meta-
+pattern: a gate or diagnostic path claimed to verify something it
+didn't actually exercise. LL Entry 36 (bench-sim silent rot) was
+mechanical — the script pretended to run but didn't. The IVP-140
+false-positive gate was conceptual — the "5-min soak, MSP stable"
+check ran fine while station I2C was completely broken, because the
+no-op tick didn't actually touch the sensors it was scaffolding for.
+The Fruit Jam GPS bad-cable episode compounded it: the firmware
+looked plausibly right for hours because the positive-control signal
+(DAC at 0x18) was also silent due to GPIO 22 being held low.
+
+**What we need.** An explicit discipline for HW gates such that:
+1. Every gate must name an **independent positive-control signal**
+   that proves the hardware is actually delivering its part (e.g.,
+   "DAC 0x18 ACKs" as proof of bus health, separate from the
+   device-under-test).
+2. When a HW fault is suspected but not confirmed, a **robust
+   "unplug/replug to confirm behavior is exactly the same" protocol**
+   — specifically: full power cycle + cable reseat both ends, then
+   observe the suspected signal across at least 3 independent boots.
+   Anything that varies across those boots points at state, not
+   hardware.
+3. Gate claims in commit messages must cite the specific positive-
+   control signal observed, not just "build clean + MSP stable".
+
+**Candidate deliverable.** `standards/HW_GATE_DISCIPLINE.md` + an
+amendment to `SESSION_CHECKLIST.md`. Should include a rubric, a
+"positive control first" doctrine (e.g., when debugging I2C, verify
+the onboard DAC before blaming the external device), and a standing
+reminder that probe-based SWD verification is not equivalent to
+picotool/USB verification on RP2350B — LL Entry 37 territory.
+
+**Not started; tracked here so next session picks it up.** Related:
+LL Entry 25 (picotool rapid-flash corruption), LL Entry 36 (silent-
+rotted gates).
+
 ### Session Handoff (2026-04-17)
 
 **State:** Stage 16B bench validation complete. All 4 build combos clean (build, build_flight, build_station, build_station_flight). Host tests unchanged (709/709). Station is currently flashed with `build_station_flight/rocketchip.elf`; vehicle with `build_flight/rocketchip.elf`. Probe on Fruit Jam (station). OpenOCD may still be running (`taskkill //F //IM openocd.exe` to clean).
