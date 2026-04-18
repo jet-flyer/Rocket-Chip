@@ -9,7 +9,9 @@
  *   - Guard evaluation: non-deterministic signal arrival
  *   - Timing: non-deterministic timeout (no wall-clock)
  *   - has_pyro: assumed true (worst case for safety)
- *   - abort_fires_drogue_from_boost/coast: assumed true
+ *   - abort_fires_drogue_from_boost/coast: modeled non-deterministically
+ *     (see `:: true ->` alternatives in BOOST and COAST abort branches)
+ *     to cover both MissionProfile defaults (rocket = false, air-drop = true)
  *
  * Maps to: src/flight_director/flight_director.cpp
  *          src/flight_director/action_executor.cpp
@@ -110,10 +112,11 @@ active proctype FlightDirector() {
         :: boost_ticks < boost_tick_limit ->
             if
             :: true -> atomic { coast_ticks = 0; phase = COAST }  /* SIG_BURNOUT (guard) */
-            :: true ->                               /* SIG_ABORT — fire drogue (A#1) */
+            :: true ->                               /* SIG_ABORT, profile.abort_fires_drogue_from_boost = true (A#1) */
                 drogue_fired = true;
                 drogue_count = drogue_count + 1;
                 phase = ABORT_PHASE
+            :: true -> phase = ABORT_PHASE           /* SIG_ABORT, profile.abort_fires_drogue_from_boost = false (rocket default) */
             :: true -> skip                          /* SIG_TICK: no-op */
             fi
         fi
@@ -141,10 +144,11 @@ active proctype FlightDirector() {
                 drogue_fired = true;
                 drogue_count = drogue_count + 1;
                 atomic { drogue_desc_ticks = 0; phase = DROGUE_DESCENT }
-            :: true ->                               /* SIG_ABORT (operator override, NOT confidence-gated) */
+            :: true ->                               /* SIG_ABORT, profile.abort_fires_drogue_from_coast = true (A#1, NOT confidence-gated) */
                 drogue_fired = true;
                 drogue_count = drogue_count + 1;
                 phase = ABORT_PHASE
+            :: true -> phase = ABORT_PHASE           /* SIG_ABORT, profile.abort_fires_drogue_from_coast = false (rocket default) */
             :: true -> skip                          /* SIG_TICK: no guard fired */
             fi
         fi

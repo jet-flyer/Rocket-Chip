@@ -347,7 +347,7 @@ static QState state_armed(FlightDirector * const me, QEvt const * const e) {
 // BOOST — Motor burning. Waiting for burnout.
 //
 // Accepts: SIG_BURNOUT → COAST
-//          SIG_ABORT → ABORT (fires drogue — Amendment #1)
+//          SIG_ABORT → ABORT (fires drogue if profile flag set — Amendment #1)
 // ============================================================================
 static QState state_boost(FlightDirector * const me, QEvt const * const e) {
     switch (e->sig) {
@@ -374,7 +374,7 @@ static QState state_boost(FlightDirector * const me, QEvt const * const e) {
 // COAST — Unpowered ascent. Waiting for apogee.
 //
 // Accepts: SIG_APOGEE → DESCENT (drogue)
-//          SIG_ABORT → ABORT (fires drogue — Amendment #1)
+//          SIG_ABORT → ABORT (fires drogue if profile flag set — Amendment #1)
 //          SIG_TICK — coast timeout fallback (Amendment #7)
 // ============================================================================
 static QState state_coast(FlightDirector * const me, QEvt const * const e) {
