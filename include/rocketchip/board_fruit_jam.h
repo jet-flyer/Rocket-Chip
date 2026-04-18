@@ -23,6 +23,8 @@
 
 #include "hardware/i2c.h"
 #include "hardware/spi.h"
+#include "hardware/gpio.h"
+#include "pico/time.h"
 
 namespace board {
 
@@ -56,6 +58,22 @@ inline constexpr bool    kLedActiveHigh    = false;
 inline void board_led_set(bool on) {
     // Active-low: on=true → pin LOW
     gpio_put(kLedPin, !on);
+}
+
+// --- Shared peripheral RESET ---
+// GPIO 22 is the shared active-low RESET line for both the ESP32-C6
+// WiFi coprocessor and the TLV320DAC3100 audio DAC. Must be HIGH before
+// any I2C scan or the DAC (0x18) and any onboard I2C devices sharing
+// this reset will NACK. See BOARD_COMPARISON.md:117,150.
+inline constexpr uint8_t kPeripheralResetPin = 22;
+
+inline void board_release_peripheral_reset() {
+    // Release shared DAC/ESP32-C6 RESET (active-low). Must be HIGH
+    // before any I2C scan.
+    gpio_init(kPeripheralResetPin);
+    gpio_set_dir(kPeripheralResetPin, GPIO_OUT);
+    gpio_put(kPeripheralResetPin, 1);   // release reset → DAC 0x18 appears
+    sleep_ms(50);  // minimal stabilization before I2C devices see bus
 }
 
 // --- PSRAM ---

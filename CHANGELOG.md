@@ -20,6 +20,19 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-17-002 | Grok 4.2 (dev) Claude CLI (QA) | bugfix, hardware
+
+**Stage 16C Fruit Jam PA1010D GPS I2C detection restored.**
+
+- Fixed regression on adafruit_fruit_jam: PA1010D (0x10) never ACK'd on STEMMA QT I2C0 (GPIO 20/21) while DAC (0x18) was also silent.
+- Root cause: original STEMMA QT cable had broken SDA/SCL (power/GND intact → GPS power LED solid, masking fault).
+- Added `kPeripheralResetPin = 22` + `board_release_peripheral_reset()` in `include/rocketchip/board_fruit_jam.h` (releases shared DAC/ESP32-C6 RESET active-low).
+- `gps_pa1010d_init()` moved ultra-early into `init_early_hw()` (`src/main.cpp`) with blind PMTK314/PMTK220 sequence, 20 ms settle, aggressive 8× retry probe loop, and static PMTK write-result buffer (shown in `b` Hardware Status).
+- Reverted Stage 16C IVP-140 scaffolding commit (`26b83d4`) — gate claim was false-positive (station I2C broken at time of that commit, issue not surfaced). Stage 16C restart to follow with more robust HW-gate verification.
+- Verified: `[PASS] GPS init (I2C at 0x10, 500 µs settling delay)`, PMTK writes return full byte counts `[51,18,51]`, `window_hit:1`, NMEA streaming, stable alongside DAC. i2c scan still skips 0x10 per LL Entry 20.
+
+(`include/rocketchip/board_fruit_jam.h`, `include/rocketchip/board_feather_rp2350.h`, `src/drivers/gps_pa1010d.cpp`, `src/drivers/gps_pa1010d.h`, `src/cli/rc_os_commands.cpp`, `src/main.cpp`, `CMakeLists.txt`, `src/station/station_idle_tick.{h,cpp}` deleted)
+
 ### 2026-04-17-001 | Claude Code CLI | testing, architecture, tooling, council
 
 **Stage 16B bench validation COMPLETE (IVP-132, 132a).** Vehicle 30-min

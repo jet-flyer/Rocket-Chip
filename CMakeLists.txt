@@ -406,11 +406,6 @@ else()
         src/active_objects/ao_telemetry.cpp
         src/active_objects/ao_radio.cpp
         src/active_objects/ao_rcos.cpp
-
-        # -------------------------------------------------------------------------
-        # Stage 16C: Station Runtime Decoupling (IVP-140+)
-        # -------------------------------------------------------------------------
-        src/station/station_idle_tick.cpp
     )
 
     # -Wpedantic for our source files only (SDK sources are excluded)
@@ -462,7 +457,6 @@ else()
         src/safety/health_monitor.cpp
         src/active_objects/ao_blinker.cpp
         src/active_objects/ao_counter.cpp
-        src/station/station_idle_tick.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 

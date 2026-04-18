@@ -13,7 +13,6 @@
 #include "rocketchip/config.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "core1/sensor_core1.h"
-#include "station/station_idle_tick.h"
 #include "rocketchip/led_patterns.h"
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
@@ -352,6 +351,32 @@ static void init_early_hw() {
     gpio_init(board::kLedPin);
     gpio_set_dir(board::kLedPin, true);  // GPIO_OUT
 
+    // Release shared peripheral RESET (Fruit Jam: GPIO 22 gates both
+    // ESP32-C6 and TLV320DAC3100 audio DAC). No-op on Feather.
+    // Must run before any I2C scan — without it, DAC NACKs and the
+    // bus looks empty even when wiring is correct.
+    board::board_release_peripheral_reset();
+
+    // Bring up I2C and send blind PMTK config to PA1010D GPS NOW, before
+    // the normal init_sensors() path. The MT3333 chipset on the PA1010D
+    // exposes a brief I2C slave window after cold boot; if no PMTK
+    // commands arrive in that window, it drops silent until full power
+    // cycle. The later init_sensors() probe-then-init flow misses that
+    // window by hundreds of milliseconds. Grok triage — the window is
+    // real and closes fast. gps_pa1010d_init() below does the blind
+    // PMTK dance and aggressive retry.
+    //
+    // If the early init succeeds, set g_gpsInitialized + function pointers
+    // here so init_sensors() later is a no-op for GPS.
+    g_i2cInitialized = i2c_bus_init();
+    if (g_i2cInitialized && gps_pa1010d_init()) {
+        g_gpsInitialized = true;
+        g_gpsTransport  = GPS_TRANSPORT_I2C;
+        g_gpsFnUpdate   = gps_pa1010d_update;
+        g_gpsFnGetData  = gps_pa1010d_get_data;
+        g_gpsFnHasFix   = gps_pa1010d_has_fix;
+    }
+
     // NeoPixel init
     g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin,
                                                 board::kNeoPixelCount);
@@ -461,11 +486,6 @@ static void init_application(bool watchdogReboot) {
     } else {
         // Station/Relay: Core 1 idle, I2C scan allowed, no sensor phase
         rc_os_i2c_scan_allowed = true;
-        // Stage 16C IVP-140: station-role Core 0 periodic work lives in the
-        // idle bridge. Init state here; tick fires from qv_idle_bridge().
-        if constexpr (kRadioModeRx) {
-            rc::station_idle_tick_init();
-        }
     }
 
     // PSRAM flash-safe test (deferred from init_hardware).
@@ -558,9 +578,6 @@ extern "C" void qv_idle_bridge(void) {
     // IVP-122: Station command ACK retry tick (lightweight, <1us when no cmd pending)
     if constexpr (kRadioModeRx) {
         AO_Telemetry_cmd_retry_tick(to_ms_since_boot(get_absolute_time()));
-        // Stage 16C IVP-140: station periodic work (GPS poll, MCU temp).
-        // No-op until IVP-141 adds the GPS body. Safe-in-idle by design.
-        rc::station_idle_tick();
     }
 
     g_lastTickFunction = "idle";

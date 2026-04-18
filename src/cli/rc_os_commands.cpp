@@ -43,6 +43,7 @@ static constexpr uint16_t kMavCmdSetHome = 179;           // MAV_CMD_DO_SET_HOME
 #include "drivers/icm20948.h"
 #include "drivers/baro_dps310.h"
 #include "drivers/gps_uart.h"
+#include "drivers/gps_pa1010d.h"
 #include "logging/psram_init.h"
 #include "logging/ring_buffer.h"
 #include "logging/flash_flush.h"
@@ -556,6 +557,13 @@ static void hw_validate_sensors() {
     } else {
         printf("[----] GPS not detected (UART or I2C)\n");
     }
+
+    // Grok-triage debug: show PMTK write return codes + window-hit flag
+    // captured by the ultra-early gps_pa1010d_init() call in init_early_hw()
+    // (printf from there is dropped because USB CDC is not up yet).
+    char gpsDbg[96] = { 0 };
+    gps_pa1010d_get_debug_status(gpsDbg, sizeof(gpsDbg));
+    printf("[DBG ] GPS early-init: %s\n", gpsDbg);
 }
 
 static void print_psram_status() {

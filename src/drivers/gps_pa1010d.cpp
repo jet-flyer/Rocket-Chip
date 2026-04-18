@@ -49,6 +49,13 @@ constexpr size_t   kNmeaChecksumLen  = 5;       // "*XX\r\n" checksum + CRLF roo
 // ============================================================================
 
 static bool g_initialized = false;
+
+// Grok-triage instrumentation: capture blind-PMTK write return codes and
+// whether the post-config probe hit. Rendered by gps_pa1010d_get_debug_status()
+// for display in Hardware Status (`b`) since init_early_hw() runs before
+// USB CDC, so any printf() from init is dropped.
+static int  g_pmtkWriteResults[3] = { -999, -999, -999 };
+static bool g_pmtkWindowHit = false;
 static lwgps_t g_gps;
 static gps_data_t g_data;
 
@@ -182,6 +189,20 @@ static void update_data_from_lwgps() {
 // Public API
 // ============================================================================
 
+// Helper: build PMTK sentence with checksum and write blind (bypassing the
+// g_initialized guard that gps_pa1010d_send_command has). Returns i2c_bus_write
+// return code so caller can log it.
+static int gps_pa1010d_blind_write(const char* cmd) {
+    if (cmd == nullptr) return -1;
+    char sentence[kNmeaCmdBufSize];
+    int len = snprintf(sentence, sizeof(sentence) - kNmeaChecksumLen, "$%s*", cmd);
+    if (len < 0 || len >= (int)(sizeof(sentence) - kNmeaChecksumLen)) return -1;
+    uint8_t cs = nmea_checksum(sentence);
+    (void)snprintf(sentence + len, kNmeaChecksumLen, "%02X\r\n", cs);
+    len += 4;
+    return i2c_bus_write(kGpsPa1010dAddr, reinterpret_cast<const uint8_t*>(sentence), len);
+}
+
 bool gps_pa1010d_init() {
     // Initialize lwGPS parser
     lwgps_init(&g_gps);
@@ -189,38 +210,57 @@ bool gps_pa1010d_init() {
     // Clear data
     memset(&g_data, 0, sizeof(g_data));
 
-    // Presence check: read a full buffer instead of single-byte probe.
-    // The PA1010D is a UART-over-I2C device — it doesn't ACK single-byte
-    // probes reliably. All reference implementations (pico-examples,
-    // Adafruit, SparkFun) skip probing and go straight to data reads.
-    // A successful 255-byte read with any '$' character confirms presence.
-    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead);
-    if (ret <= 0) {
-        return false;
-    }
+    // Fresh bus state right before GPS (Grok triage — window is tiny).
+    i2c_bus_recover();
+    sleep_ms(20);
 
-    // Check for NMEA start character anywhere in the buffer
+    // BLIND PMTK config — send the full sequence even if probe fails.
+    // This is the fix for the "GPS never detected" regression: the PA1010D
+    // exposes a transient ACK window at cold boot, then drops to low-power
+    // if no command arrives. Probing first misses that window.
+    // Bypass g_initialized guard via gps_pa1010d_blind_write() so the
+    // writes actually hit the bus before we've set the flag.
+    g_pmtkWriteResults[0] = gps_pa1010d_blind_write("PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+    sleep_ms(50);
+    g_pmtkWriteResults[1] = gps_pa1010d_blind_write("PMTK220,1000");   // 1 Hz update rate
+    sleep_ms(50);
+    g_pmtkWriteResults[2] = gps_pa1010d_blind_write("PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+    sleep_ms(50);
+
+    // Aggressive probe retry — now that the module should be locked into
+    // full-power mode by blind PMTK, read a full buffer and look for NMEA.
     bool foundNmea = false;
-    for (int32_t i = 0; i < ret; i++) {
-        if (g_buffer[i] == kNmeaStart) {
-            foundNmea = true;
-            break;
+    for (int retry = 0; retry < 8 && !foundNmea; retry++) {
+        int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead);
+        if (ret > 0) {
+            for (int32_t i = 0; i < ret; i++) {
+                if (g_buffer[i] == kNmeaStart) {
+                    foundNmea = true;
+                    break;
+                }
+            }
+        }
+        if (!foundNmea) {
+            sleep_ms(150);
         }
     }
     if (!foundNmea) {
         return false;
     }
 
+    g_pmtkWindowHit = true;
     g_initialized = true;
-
-    // Configure NMEA output: enable RMC + GGA + GSA sentences.
-    // RMC: speed, course, date/time. GGA: position, altitude, fix quality.
-    // GSA: fix mode (2D/3D) and DOP values — required for gps_valid flag.
-    // Output ~180 bytes/sec (vs ~449 default with all sentences).
-    // PMTK314 fields: GLL,RMC,VTG,GGA,GSA,GSV,...
-    gps_pa1010d_send_command("PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
-
     return true;
+}
+
+void gps_pa1010d_get_debug_status(char* buf, size_t len) {
+    if (buf == nullptr || len == 0) return;
+    snprintf(buf, len,
+             "PMTK writes: [%d,%d,%d]  window_hit:%d  init:%d",
+             g_pmtkWriteResults[0], g_pmtkWriteResults[1],
+             g_pmtkWriteResults[2],
+             g_pmtkWindowHit ? 1 : 0,
+             g_initialized ? 1 : 0);
 }
 
 bool gps_pa1010d_ready() {

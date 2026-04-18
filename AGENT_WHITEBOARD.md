@@ -17,6 +17,25 @@
 
 *Stages 1-14 COMPLETE. Stage 16B bench validation COMPLETE 2026-04-17 — both vehicle and station roles passed 30-min flight-binary integration soaks with council-required T=0 preconditions. Field Testing and Stage 16C both DEFERRED per plan.*
 
+### Session Close (2026-04-17 late) — Stage 16C RESET + GPS fix landed
+
+**Stage 16C implementation reset back to post-IVP-139 baseline.** IVP-140 (`26b83d4`) was reverted after its "gate pass" claim turned out to be a false positive — station I2C was broken at the time of that commit and the no-op-tick verification didn't exercise that path. `src/station/station_idle_tick.{h,cpp}` deleted; `main.cpp` + `CMakeLists.txt` reverted to pre-140 state. Only IVP-139 (`fd088df`, docs/IVP.md activation) and the Stage 16C plan/status docs (`10d78fe`) remain from the stage.
+
+**Station GPS hardware issue resolved.** Root cause was a marginal/broken STEMMA QT cable (power/GND intact so GPS power LED stayed lit — masking the fault). Swapping cables unblocked; the reseat itself was enough to clear the issue. Productive firmware changes committed in the same session:
+- `board::board_release_peripheral_reset()` — drives GPIO 22 HIGH to release shared ESP32-C6 + TLV320DAC3100 active-low RESET. Without this the DAC at 0x18 stays silent too, eliminating the positive-control signal that would have isolated the cable fault much earlier.
+- `gps_pa1010d_init()` moved ultra-early into `init_early_hw()` with blind PMTK config sequence + aggressive retry. Keeps the MT3333 in full-power I2C mode after cold boot.
+- `[DBG ] GPS early-init:` instrumentation in Hardware Status (`b`) — PMTK write return codes + `window_hit` + `init` flag. Future bad-cable regressions self-diagnose from this line.
+
+**Items carried forward for next session:**
+- Redo IVP-140 with a stricter gate (verify no-op tick actually runs + station soak passes with I2C working).
+- Continue Stage 16C IVP-141..145 from the committed plan.
+- Draft `standards/HW_GATE_DISCIPLINE.md` (user ask — gate definitions must include a positive-control signal, not just "firmware didn't crash").
+- Investigate whether RP2350B / Fruit Jam exhibits bus-corruption state that persists across power cycles (user hunch; one boot this session had a transition we can't fully explain by the cable theory alone).
+- Bare-metal I2C test at `tools/i2c_bare_test/` left uncommitted; decide whether to keep as a reusable HW-triage artifact.
+- `/tmp/stage-j-test` worktree still present; `git worktree remove` when no longer needed.
+
+**Status doc:** `docs/plans/STAGE16C_STATION_DECOUPLING_STATUS.md` has full detail.
+
 ### Session Handoff (2026-04-17)
 
 **State:** Stage 16B bench validation complete. All 4 build combos clean (build, build_flight, build_station, build_station_flight). Host tests unchanged (709/709). Station is currently flashed with `build_station_flight/rocketchip.elf`; vehicle with `build_flight/rocketchip.elf`. Probe on Fruit Jam (station). OpenOCD may still be running (`taskkill //F //IM openocd.exe` to clean).

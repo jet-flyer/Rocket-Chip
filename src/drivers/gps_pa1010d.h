@@ -81,4 +81,14 @@ bool gps_pa1010d_set_rate(uint8_t rateHz);
  */
 bool gps_pa1010d_get_last_raw(const uint8_t** buf, size_t* len);
 
+/**
+ * @brief Format Grok-triage debug status into caller buffer
+ *
+ * Contents: PMTK write return codes from the ultra-early init path
+ * (captured in init_early_hw() before USB CDC is up), plus window-hit
+ * flag and init flag. Used by the Hardware Status (`b`) CLI handler
+ * so those early-init observations survive to post-USB display time.
+ */
+void gps_pa1010d_get_debug_status(char* buf, size_t len);
+
 #endif // ROCKETCHIP_GPS_PA1010D_H

@@ -48,6 +48,15 @@ inline void board_led_set(bool on) {
     gpio_put(kLedPin, on);
 }
 
+// --- Shared peripheral RESET ---
+// Feather has no shared peripheral RESET line like the Fruit Jam's
+// GPIO 22 (ESP32-C6 + DAC). This is a no-op on this board so role-
+// agnostic init code can call board::board_release_peripheral_reset()
+// unconditionally.
+inline void board_release_peripheral_reset() {
+    // no-op on Feather
+}
+
 // --- PSRAM ---
 inline constexpr uint8_t kPsramCsPin       = 8;
 
