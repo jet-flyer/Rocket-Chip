@@ -1301,8 +1301,6 @@ void cli_print_preflight() {
     printf("PIO WDT:  %s\n", pioOk ? "GO" : "FAULT");
 
     // MCU die temp (Stage 16C IVP-142b-1) — separate field, not in primary.
-    // Info-only in preflight: hot silicon isn't a launch-gate on its own
-    // (the FD auto-ABORT wiring at ≥105 °C lives in IVP-142b-2).
     {
         shared_sensor_data_t snap{};
         seqlock_read(&g_sensorSeqlock, &snap);
@@ -1313,6 +1311,17 @@ void cli_print_preflight() {
                    health_level_str(hs->mcu),
                    static_cast<double>(snap.mcu_die_temp_c));
         }
+    }
+
+    // Critical conditions (IVP-142b-2) — threshold-bound invariants that
+    // warrant loud operator attention. Does NOT auto-abort; operator
+    // must manually command abort if they decide to act on the flag.
+    if (hs->critical != 0) {
+        printf("CRITICAL: ");
+        if (hs->critical & rc::kHealthCriticalMcu) {
+            printf("MCU>=%.0fC ", static_cast<double>(rc::kMcuTempSafeModeC));
+        }
+        printf(" (manual abort recommended)\n");
     }
 
     // Verdict

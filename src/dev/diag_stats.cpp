@@ -185,9 +185,10 @@ void diag_stats_dump() {
     const rc::HealthState* h = rc::health_monitor_get_state();
     if (h != nullptr) {
         static constexpr const char* kLevelStr[] = {"abs", "FLT", "deg", "OK"};
-        printf("  primary=0x%02x secondary=0x%02x mcu=%s go_nogo=%s\n",
+        printf("  primary=0x%02x secondary=0x%02x critical=0x%02x mcu=%s go_nogo=%s\n",
                (unsigned)h->primary,
                (unsigned)h->secondary,
+               (unsigned)h->critical,
                kLevelStr[static_cast<int>(h->mcu) & 0x03],
                h->go_nogo_ready ? "READY" : "NOT_READY");
     }

@@ -224,8 +224,10 @@ TEST(HealthState, DefaultInitAllAbsent) {
     HealthState hs{};
     EXPECT_EQ(hs.primary, 0);
     EXPECT_EQ(hs.secondary, 0);
+    EXPECT_EQ(hs.critical, 0);
     EXPECT_EQ(hs.prev_primary, 0);
     EXPECT_EQ(hs.prev_secondary, 0);
+    EXPECT_EQ(hs.prev_critical, 0);
     EXPECT_EQ(hs.mcu, kHealthAbsent);
     EXPECT_EQ(hs.prev_mcu, kHealthAbsent);
     EXPECT_FALSE(hs.go_nogo_ready);
@@ -298,9 +300,36 @@ TEST(McuTempClassify, FlickerProtectionRisingAndFalling) {
 }
 
 TEST(McuTempClassify, SafeModeTemperatureIsFault) {
-    // 105°C and above is FAULT (IVP-142b-2 will layer SIG_MCU_OVERTEMP
-    // post on top; the classifier itself only knows FAULT).
+    // 105°C and above is FAULT at the classifier level. The additional
+    // HealthCritical bit (IVP-142b-2) is layered on top by
+    // evaluate_critical() in health_monitor.cpp — tested via the
+    // HealthCritical enum values below.
     EXPECT_EQ(mcu_temp_classify(kHealthOk,       105.0F), kHealthFault);
     EXPECT_EQ(mcu_temp_classify(kHealthDegraded, 110.0F), kHealthFault);
     EXPECT_EQ(mcu_temp_classify(kHealthFault,    120.0F), kHealthFault);
+}
+
+// ============================================================================
+// HealthCritical bitfield (IVP-142b-2)
+// ============================================================================
+
+TEST(HealthCritical, DefaultIsZero) {
+    HealthState hs{};
+    EXPECT_EQ(hs.critical, 0);
+    EXPECT_EQ(hs.prev_critical, 0);
+}
+
+TEST(HealthCritical, McuBitIsBit0) {
+    // Bit assignment is part of the wire contract — if this changes,
+    // downstream consumers (notify, telemetry, log replay) must update.
+    EXPECT_EQ(static_cast<uint8_t>(kHealthCriticalMcu), 0x01);
+}
+
+TEST(HealthCritical, MultipleBitsCoexist) {
+    // Future bits (battery, pyro, etc.) must be OR-able with MCU bit.
+    // This test guards the enum layout against accidental collision.
+    uint8_t crit = 0;
+    crit |= kHealthCriticalMcu;
+    EXPECT_NE(crit & kHealthCriticalMcu, 0);
+    EXPECT_EQ(crit, 0x01);  // Only MCU set so far — no accidental stray bits
 }

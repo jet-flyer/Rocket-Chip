@@ -60,13 +60,45 @@ enum HealthSecondary : uint8_t {
 };
 
 // ============================================================================
+// Critical flags byte: 1-bit per threshold-bound critical condition
+//
+// Distinct from HealthSecondary (which is "1-bit OK/not-OK" for absent-able
+// subsystems) and distinct from HealthLevel (which is 4-state severity for
+// per-subsystem quality). A bit in HealthCritical means "system-wide
+// invariant violated, about to damage hardware or lose safety margin."
+//
+// Encoding: 0 = nominal, 1 = critical. 0x00 default = no criticals = still
+// fail-safe since readers check bits individually.
+//
+// Writer: health_monitor_tick() only, recomputed fresh each tick from the
+// underlying signals (materialized for PCM/MAVLink/FD snapshot determinism).
+//
+// Consumers do NOT auto-trigger state transitions from these bits — bits
+// exist so humans (pilot, RSO, ground ops) see the condition via LED/audio/
+// telemetry/preflight and can abort manually. Wiring automatic responses
+// requires flight-data evidence that the condition is reachable (council
+// 2026-04-18: "no dead safe-mode paths").
+// ============================================================================
+enum HealthCritical : uint8_t {
+    // MCU die temperature ≥ kMcuTempSafeModeC (105 °C). RP2350 silicon
+    // is at 20 °C margin below absolute-max junction temp (125 °C);
+    // continued operation risks permanent damage.
+    kHealthCriticalMcu         = (1 << 0),
+    // Reserved for future critical conditions (pyro-continuity short,
+    // battery undervolt/overvolt, flash-write failure, stack overrun).
+    // See docs/decisions/HEALTH_CONTRACT.md pending council note.
+};
+
+// ============================================================================
 // HealthState — full system health snapshot
 // ============================================================================
 struct HealthState {
     uint8_t primary;          // 4 subsystems x 2-bit (HealthLevel) — IMU/Baro/ESKF/GPS
     uint8_t secondary;        // 1-bit flags (HealthSecondary)
+    uint8_t critical;         // 1-bit flags (HealthCritical) — IVP-142b-2
     uint8_t prev_primary;     // Previous tick (change detection)
     uint8_t prev_secondary;
+    uint8_t prev_critical;
     HealthLevel mcu;          // MCU die-temp (IVP-142b-1) — separate from
                               //   primary to keep FusedState/telemetry/PCM
                               //   layouts unchanged.

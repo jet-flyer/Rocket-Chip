@@ -349,6 +349,45 @@ static void log_health_transitions(uint8_t prev, uint8_t curr) {
     }
 }
 
+// ============================================================================
+// Internal: evaluate HealthCritical byte (IVP-142b-2)
+//
+// Recomputed fresh each tick. 0x00 = no criticals.
+// Bits set here are visible to downstream consumers (notify/LED, telemetry,
+// preflight, log) but DO NOT trigger automatic state transitions —
+// manual abort is the intentional path until flight data justifies
+// wiring automatic responses.
+// ============================================================================
+
+static uint8_t evaluate_critical(const shared_sensor_data_t& snap) {
+    uint8_t critical = 0;
+
+    // MCU die temp at/above safe-mode threshold (RP2350 datasheet §1.4.3
+    // abs-max junction temp 125 °C; 105 °C chosen as 20 °C margin).
+    // Requires an actual sampled reading — sentinel / not-yet-captured
+    // doesn't count.
+    if (mcu_temp_available() &&
+        snap.mcu_temp_read_count > 0 &&
+        snap.mcu_die_temp_c >= kMcuTempSafeModeC) {
+        critical |= kHealthCriticalMcu;
+    }
+
+    return critical;
+}
+
+static void log_critical_transitions(uint8_t prev, uint8_t curr) {
+    if (prev == curr) return;
+    const uint8_t rising  = static_cast<uint8_t>(curr & ~prev);
+    const uint8_t falling = static_cast<uint8_t>(prev & ~curr);
+    if (rising & kHealthCriticalMcu) {
+        DBG_PRINT("HEALTH: MCU CRITICAL (>=%.0fC) — manual abort recommended",
+                  static_cast<double>(kMcuTempSafeModeC));
+    }
+    if (falling & kHealthCriticalMcu) {
+        DBG_PRINT("HEALTH: MCU critical cleared");
+    }
+}
+
 static void log_mcu_transition(HealthLevel prev, HealthLevel curr) {
     if (prev == curr) return;
     if (prev == kHealthFault && curr >= kHealthDegraded) {
@@ -368,6 +407,7 @@ static void log_mcu_transition(HealthLevel prev, HealthLevel curr) {
 bool health_monitor_tick() {
     g_health.prev_primary = g_health.primary;
     g_health.prev_secondary = g_health.secondary;
+    g_health.prev_critical = g_health.critical;
     g_health.prev_mcu = g_health.mcu;
     g_health.tick_counter++;
 
@@ -401,6 +441,7 @@ bool health_monitor_tick() {
 
     g_health.primary = primary;
     g_health.secondary = secondary;
+    g_health.critical = evaluate_critical(snap);
     g_health.mcu = mcuLevel;
 
     // Go/No-Go: IMU + baro + ESKF must be OK or degraded, flash + watchdog OK
@@ -417,9 +458,11 @@ bool health_monitor_tick() {
         log_health_transitions(g_health.prev_primary, primary);
     }
     log_mcu_transition(g_health.prev_mcu, g_health.mcu);
+    log_critical_transitions(g_health.prev_critical, g_health.critical);
 
     bool changed = (g_health.primary != g_health.prev_primary) ||
                    (g_health.secondary != g_health.prev_secondary) ||
+                   (g_health.critical != g_health.prev_critical) ||
                    (g_health.mcu != g_health.prev_mcu);
     return changed;
 }
@@ -482,7 +525,19 @@ bool health_monitor_critical_fault() {
     HealthLevel eskf = health_eskf(g_health.primary);
     // Baro is critical: without it, no altitude-gated main deploy and ESKF
     // vertical axis drifts (LL Entry 34). Same scrub criteria as IMU/ESKF.
-    return (imu == kHealthFault) || (baro == kHealthFault) || (eskf == kHealthFault);
+    //
+    // IVP-142b-3 follow-up: these primary-byte checks are currently
+    // single-tick — an intermittent fault reports as critical.
+    // Persistence + phase gating refactor (Option D from 2026-04-18
+    // council) lives in the next IVP.
+    //
+    // IVP-142b-2: any bit set in HealthState::critical also counts as
+    // a critical condition. Doesn't auto-transition state — consumers
+    // (notify/LED/telemetry/preflight) make it visible; humans decide.
+    return (imu == kHealthFault) ||
+           (baro == kHealthFault) ||
+           (eskf == kHealthFault) ||
+           (g_health.critical != 0);
 }
 
 // ============================================================================
