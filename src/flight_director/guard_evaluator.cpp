@@ -85,22 +85,13 @@ bool guard_evaluator_is_sustained(const GuardEvaluator* ev, GuardId id) {
     return ev->guards[static_cast<uint8_t>(id)].sustained;
 }
 
-uint16_t guard_evaluator_tick(GuardEvaluator* ev,
-                                   FlightPhase phase,
-                                   const FusedState& fused,
-                                   float accel_z,
-                                   float accel_mag) {
-    // Phase transition: reset all counters and fired flags
-    if (phase != ev->last_phase) {
-        guard_evaluator_reset(ev);
-        ev->last_phase = phase;
-    }
-
-    uint8_t phase_mask = phase_bit(phase);
-
-    // Evaluate each guard condition using thresholds from MissionProfile
-    bool conditions[static_cast<uint8_t>(GuardId::kCount)];
-
+// Evaluate each guard condition using thresholds from MissionProfile.
+// Extracted from guard_evaluator_tick for JSF AV rule 1 compliance.
+static void evaluate_guard_conditions(const GuardEvaluator* ev,
+                                      const FusedState& fused,
+                                      float accel_z,
+                                      float accel_mag,
+                                      bool conditions[]) {
     const auto& g = ev->guards;
     conditions[static_cast<uint8_t>(GuardId::kLaunchAccel)] =
         guard_launch_accel(accel_z,
@@ -122,6 +113,23 @@ uint16_t guard_evaluator_tick(GuardEvaluator* ev,
     conditions[static_cast<uint8_t>(GuardId::kBaroStationary)] =
         guard_baro_stationary(fused.baro_alt_rate_mps,
                               g[static_cast<uint8_t>(GuardId::kBaroStationary)].threshold);
+}
+
+uint16_t guard_evaluator_tick(GuardEvaluator* ev,
+                                   FlightPhase phase,
+                                   const FusedState& fused,
+                                   float accel_z,
+                                   float accel_mag) {
+    // Phase transition: reset all counters and fired flags
+    if (phase != ev->last_phase) {
+        guard_evaluator_reset(ev);
+        ev->last_phase = phase;
+    }
+
+    uint8_t phase_mask = phase_bit(phase);
+
+    bool conditions[static_cast<uint8_t>(GuardId::kCount)];
+    evaluate_guard_conditions(ev, fused, accel_z, accel_mag, conditions);
 
     // Process sustain counters
     for (uint8_t i = 0; i < static_cast<uint8_t>(GuardId::kCount); ++i) {

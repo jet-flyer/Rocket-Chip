@@ -421,22 +421,64 @@ static void core1_load_cal_or_defaults(calibration_store_t* localCal) {
     }
 }
 
+// Per-sensor rate dividers and consecutive-failure counter shared across
+// every iteration of the Core 1 sensor loop. Extracted from
+// core1_sensor_loop() for JSF AV rule 1 compliance; pure state container.
+struct Core1SensorCycle {
+    uint32_t baroCycle     = 0;
+    uint32_t calFeedCycle  = 0;
+    uint32_t imuConsecFail = 0;
+    uint32_t gpsCycle      = 0;
+    uint32_t lastGpsReadUs = 0;
+    uint32_t mcuTempCycle  = 0;
+};
+
+// Run one pass of each sensor (rate-divided) into localData. Mirrors the
+// dispatch that used to live inline in core1_sensor_loop().
+static void core1_sensor_pass(shared_sensor_data_t* localData,
+                               calibration_store_t* localCal,
+                               Core1SensorCycle* cyc) {
+    cyc->calFeedCycle++;
+    bool feedCal = (cyc->calFeedCycle >= kCore1CalFeedDivider);
+    if (feedCal) {
+        cyc->calFeedCycle = 0;
+    }
+    if (g_imuInitialized) {
+        core1_read_imu(localData, localCal, &cyc->imuConsecFail, feedCal);
+    }
+
+    cyc->baroCycle++;
+    if (cyc->baroCycle >= kCore1BaroDivider && g_baroInitialized) {
+        cyc->baroCycle = 0;
+        core1_read_baro(localData);
+    }
+
+    cyc->gpsCycle++;
+    if (cyc->gpsCycle >= kCore1GpsDivider && g_gpsInitialized
+        && !rc_os_mag_cal_active.load(std::memory_order_acquire)) {
+        cyc->gpsCycle = 0;
+        core1_read_gps(localData, &cyc->lastGpsReadUs);
+    }
+
+    cyc->mcuTempCycle++;
+    if (cyc->mcuTempCycle >= kCore1McuTempDivider && rc::mcu_temp_available()) {
+        cyc->mcuTempCycle = 0;
+        localData->mcu_die_temp_c = rc::mcu_temp_read_c();
+        localData->mcu_temp_read_count++;
+    }
+}
+
 static void core1_sensor_loop() {
     calibration_store_t localCal;
     core1_load_cal_or_defaults(&localCal);
 
     shared_sensor_data_t localData = {};
-    uint32_t loopCount = 0;
-    uint32_t baroCycle = 0;
-    uint32_t calFeedCycle = 0;
-    uint32_t imuConsecFail = 0;
-    uint32_t gpsCycle = 0;
-    uint32_t lastGpsReadUs = 0;
-    uint32_t mcuTempCycle = 0;
-
     // Initial MCU temp sentinel so seqlock readers don't see an
     // all-zeros 0.0°C before the first capture.
     localData.mcu_die_temp_c = -999.0F;
+
+    Core1SensorCycle cyc{};
+    uint32_t loopCount = 0;
 
     while (true) {
         uint32_t cycleStartUs = time_us_32();
@@ -446,37 +488,9 @@ static void core1_sensor_loop() {
             continue;
         }
 
-        // Sensor reads -- each writes into localData by pointer
-        calFeedCycle++;
-        bool feedCal = (calFeedCycle >= kCore1CalFeedDivider);
-        if (feedCal) {
-            calFeedCycle = 0;
-        }
-        if (g_imuInitialized) {
-            core1_read_imu(&localData, &localCal, &imuConsecFail, feedCal);
-        }
+        core1_sensor_pass(&localData, &localCal, &cyc);
 
-        baroCycle++;
-        if (baroCycle >= kCore1BaroDivider && g_baroInitialized) {
-            baroCycle = 0;
-            core1_read_baro(&localData);
-        }
-
-        gpsCycle++;
-        if (gpsCycle >= kCore1GpsDivider && g_gpsInitialized
-            && !rc_os_mag_cal_active.load(std::memory_order_acquire)) {
-            gpsCycle = 0;
-            core1_read_gps(&localData, &lastGpsReadUs);
-        }
-
-        mcuTempCycle++;
-        if (mcuTempCycle >= kCore1McuTempDivider && rc::mcu_temp_available()) {
-            mcuTempCycle = 0;
-            localData.mcu_die_temp_c = rc::mcu_temp_read_c();
-            localData.mcu_temp_read_count++;
-        }
-
-        // Seqlock publish (always write, even on IMU failure -- council mod #4)
+        // Seqlock publish (always write, even on IMU failure — council mod #4)
         localData.core1_loop_count = loopCount;
         seqlock_write(&g_sensorSeqlock, &localData);
 

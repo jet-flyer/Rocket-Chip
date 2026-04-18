@@ -257,57 +257,43 @@ static struct {
 } s_pending_cmd = {};
 
 // Handle received packet from AO_Radio
-static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
+// Handle a received CCSDS command ACK (IVP-122): match against the station-
+// side pending command and clear if matched. Returns true if the buffer
+// decoded as a CmdAck (caller returns immediately on true).
+// Extracted from handle_rx_packet for JSF AV rule 1 compliance.
+static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
+    rc::ccsds::CommandAckPayload ack{};
+    if (!rc::ccsds_decode_cmd_ack(rxEvt->buf, rxEvt->len, ack)) {
+        return false;
+    }
 #if defined(ROCKETCHIP_JOB_STATION) && !defined(BUILD_FOR_FLIGHT)
-    // IVP-132a: fault-inject RX drop (bench binary only, station only)
-    if (g_fault_station_rx_drop_remaining > 0) {
-        g_fault_station_rx_drop_remaining = g_fault_station_rx_drop_remaining - 1;
-        return;
+    // IVP-132a: fault-inject ACK suppression — forces station retry path
+    if (g_fault_station_ack_suppress_remaining > 0) {
+        g_fault_station_ack_suppress_remaining =
+            g_fault_station_ack_suppress_remaining - 1;
+        return true;
     }
 #endif
-    // Try CCSDS nav decode first (telemetry packets)
-    rc::TelemetryState telem = {};
-    uint16_t seq = 0;
-    uint32_t met_ms = 0;
-    if (rc::ccsds_decode_nav(rxEvt->buf, rxEvt->len, telem, seq, met_ms)) {
-        // Nav packet — fall through to existing processing below
-    } else {
-        // Try CCSDS command ACK (IVP-122)
-        rc::ccsds::CommandAckPayload ack{};
-        if (rc::ccsds_decode_cmd_ack(rxEvt->buf, rxEvt->len, ack)) {
-#if defined(ROCKETCHIP_JOB_STATION) && !defined(BUILD_FOR_FLIGHT)
-            // IVP-132a: fault-inject ACK suppression — forces station retry path
-            if (g_fault_station_ack_suppress_remaining > 0) {
-                g_fault_station_ack_suppress_remaining =
-                    g_fault_station_ack_suppress_remaining - 1;
-                return;
-            }
-#endif
-            // Match against pending command
-            if (s_pending_cmd.pending &&
-                ack.cmd_seq == s_pending_cmd.seq &&
-                ack.cmd_id == s_pending_cmd.cmd_id) {
-                s_pending_cmd.pending = false;
-                const char* result_str =
-                    (ack.result == static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted))
-                    ? "ACK'd" : "DENIED";
-                printf("[CMD] %s (seq=%u)\n", result_str, ack.cmd_seq);
-            }
-            return;
-        }
-
-        // Not CCSDS — try MAVLink (command packets from station)
-        try_mavlink_rx(me, rxEvt->buf, rxEvt->len);
-        return;
+    if (s_pending_cmd.pending &&
+        ack.cmd_seq == s_pending_cmd.seq &&
+        ack.cmd_id == s_pending_cmd.cmd_id) {
+        s_pending_cmd.pending = false;
+        const char* result_str =
+            (ack.result == static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted))
+            ? "ACK'd" : "DENIED";
+        printf("[CMD] %s (seq=%u)\n", result_str, ack.cmd_seq);
     }
+    return true;
+}
 
-    // Store for CLI/WiFi access
-    me->rx_snapshot.telem = telem;
-    me->rx_snapshot.met_ms = met_ms;
-    me->rx_snapshot.seq = seq;
-    me->rx_snapshot.valid = true;
-
+// Dispatch a decoded Nav packet to the station-side output mode (MAVLink,
+// CSV, ANSI, Menu). Extracted from handle_rx_packet for JSF AV rule 1
+// compliance. Host-test builds skip the switch entirely.
 #ifndef ROCKETCHIP_HOST_TEST
+static void dispatch_nav_output(TelemAo* me,
+                                 const rc::TelemetryState& telem,
+                                 const rc::RadioRxEvt* rxEvt,
+                                 uint16_t seq) {
     switch (AO_RCOS_get_output_mode()) {
     case StationOutputMode::kMavlink: {
         // MAVLink binary output on USB
@@ -329,7 +315,6 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
         usb_write_nonblocking(frame, len);
         len = me->mav_encoder.encode_global_pos(telem, t, frame);
         usb_write_nonblocking(frame, len);
-        // No flush — usb_write_nonblocking handles it
         break;
     }
     case StationOutputMode::kCsv:
@@ -343,6 +328,38 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
         // ANSI: rendered from main loop. Menu: output suppressed.
         break;
     }
+}
+#endif
+
+static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
+#if defined(ROCKETCHIP_JOB_STATION) && !defined(BUILD_FOR_FLIGHT)
+    // IVP-132a: fault-inject RX drop (bench binary only, station only)
+    if (g_fault_station_rx_drop_remaining > 0) {
+        g_fault_station_rx_drop_remaining = g_fault_station_rx_drop_remaining - 1;
+        return;
+    }
+#endif
+    // Try CCSDS nav decode first (telemetry packets)
+    rc::TelemetryState telem = {};
+    uint16_t seq = 0;
+    uint32_t met_ms = 0;
+    if (!rc::ccsds_decode_nav(rxEvt->buf, rxEvt->len, telem, seq, met_ms)) {
+        // Not nav — try command ACK, then MAVLink command fallback
+        if (try_handle_cmd_ack(rxEvt)) {
+            return;
+        }
+        try_mavlink_rx(me, rxEvt->buf, rxEvt->len);
+        return;
+    }
+
+    // Store for CLI/WiFi access
+    me->rx_snapshot.telem = telem;
+    me->rx_snapshot.met_ms = met_ms;
+    me->rx_snapshot.seq = seq;
+    me->rx_snapshot.valid = true;
+
+#ifndef ROCKETCHIP_HOST_TEST
+    dispatch_nav_output(me, telem, rxEvt, seq);
 #else
     (void)me;
 #endif
