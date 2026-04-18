@@ -34,4 +34,10 @@ void cli_print_preflight();
 /// Unhandled key dispatcher (logging, radio, download commands)
 void cli_handle_unhandled_key(int key);
 
+/// Stage L — manual beacon ('b' key). Publishes SIG_BEACON_MANUAL;
+/// AO_Notify flips beacon_manual → resolver returns pure-white 2Hz.
+/// Non-destructive: valid in any phase, auto-clears on next non-recovery
+/// phase transition.
+void cmd_findme_beacon();
+
 #endif // ROCKETCHIP_RC_OS_COMMANDS_H

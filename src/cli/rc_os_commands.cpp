@@ -11,6 +11,7 @@
 #include "cli/rc_os_commands.h"
 
 #include "ao_rcos.h"
+#include "rocketchip/ao_signals.h"
 #include "rocketchip/config.h"
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "rocketchip/sensor_seqlock.h"
@@ -1397,4 +1398,20 @@ void cli_handle_unhandled_key(int key) {
         break;
     default: break;
     }
+}
+
+// ============================================================================
+// Stage L — manual beacon ('b' / find-me)
+// ============================================================================
+// Publishes SIG_BEACON_MANUAL so AO_Notify sets NotifyState.beacon_manual,
+// which the resolver overlay turns into pure-white 2Hz (kFdBeacon).
+// Valid in any phase — non-destructive. Clears automatically on the next
+// SIG_PHASE_CHANGE out of {LANDED, ABORT}.
+//
+// Static event per LL Entry 35: QP stores the pointer, not a copy.
+void cmd_findme_beacon() {
+    static QEvt s_findme_evt;
+    s_findme_evt.sig = rc::SIG_BEACON_MANUAL;
+    QActive_publish_(&s_findme_evt, AO_RCOS, AO_RCOS->prio);
+    printf("[CMD] find-me beacon ON (manual) — white 2Hz until state change\n");
 }

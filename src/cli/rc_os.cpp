@@ -89,7 +89,7 @@ static void print_prompt() {
 static void print_help_menu() {
     printf("h-Help  p-Preflight  c-Calibration  f-Flight\n");
     printf("g-Flights  d-Download  l-Flush  x-Erase\n");
-    printf("t-Radio  r-Rate  m-MAVLink  q-Debug\n");
+    printf("t-Radio  r-Rate  m-MAVLink  b-Beacon  q-Debug\n");
 }
 
 static void print_calibration_menu() {
@@ -168,6 +168,15 @@ static bool handle_main_menu(int c) {
             if (dev_debug_menu_enter()) {
                 g_menu = RC_OS_MENU_DEBUG;
             }
+            break;
+
+        case 'b':
+        case 'B':
+            // Stage L — manual beacon (CLI find-me). Publishes SIG_BEACON_MANUAL
+            // directly. AO_Notify sets NotifyState.beacon_manual; resolver forces
+            // pure-white 2Hz regardless of state. Clears on SIG_PHASE_CHANGE out
+            // of LANDED/ABORT.
+            cmd_findme_beacon();
             break;
 
         default:

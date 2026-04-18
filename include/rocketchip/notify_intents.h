@@ -101,6 +101,17 @@ enum class FaultIntent : uint8_t {
 // Zero-initialized = no active intents (safe default).
 // One active intent per category. The resolver iterates categories in
 // priority order and picks the first non-kNone.
+//
+// Stage L — beacon overlay flags (orthogonal to the 5 category slots):
+//   beacon_auto   set on auto triggers (MAIN_DESCENT backstop, LANDED
+//                 entry, safe-mode entry). Composes with the state color:
+//                 LANDED → green+white, ABORT → red+white, faults keep
+//                 their color + white.
+//   beacon_manual set by CLI `findme` or a GCS beacon command. Forces
+//                 pure-white 2Hz blink regardless of underlying state —
+//                 maximum physical visibility "I don't care about state,
+//                 just find me." Wins over beacon_auto if both are set.
+// Both clear on SIG_PHASE_CHANGE to a phase other than LANDED/ABORT.
 // ============================================================================
 struct NotifyState {
     PhaseIntent  phase;
@@ -108,6 +119,8 @@ struct NotifyState {
     RadioIntent  radio;
     SensorIntent sensor;
     FaultIntent  fault;
+    bool         beacon_auto;
+    bool         beacon_manual;
 };
 
 } // namespace notify

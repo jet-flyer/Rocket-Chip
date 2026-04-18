@@ -99,18 +99,46 @@ static uint8_t sensor_to_pattern(SensorIntent s) {
 }
 
 // ============================================================================
+// Stage L: beacon overlay remap — applied to the base pattern after priority
+// resolution. beacon_manual forces pure white (max visibility). beacon_auto
+// preserves the state color so a recovery crew sees good/fault/safe-mode at
+// a glance. Any base pattern not explicitly remapped (IDLE, BOOST/COAST,
+// sensor states, calibration overlays) falls through to pure white when a
+// beacon is active — beacon > any non-recovery-relevant state.
+// ============================================================================
+static uint8_t apply_beacon_overlay(uint8_t base, const NotifyState& s) {
+    if (s.beacon_manual) {
+        return rc::led::kFdBeacon;  // Pure white 2Hz — CLI findme / GCS beacon
+    }
+    if (!s.beacon_auto) {
+        return base;
+    }
+    switch (base) {
+        case rc::led::kFdLanded:        return rc::led::kFdLandedBeacon;
+        case rc::led::kFdAbort:         return rc::led::kFdAbortBeacon;
+        case rc::led::kFaultImuFail:    return rc::led::kFaultImuFailBeacon;
+        case rc::led::kFaultEskfFail:   return rc::led::kFaultEskfFailBeacon;
+        case rc::led::kFaultBaroFail:   return rc::led::kFaultBaroFailBeacon;
+        case rc::led::kFaultPioWdt:     return rc::led::kFaultPioWdtBeacon;
+        case rc::led::kFaultCore1Stall: return rc::led::kFaultCore1StallBeacon;
+        case rc::led::kFaultSafeMode:   return rc::led::kFaultSafeMode;  // Already blue+white
+        default:                        return rc::led::kFdBeacon;       // Pure white fallback
+    }
+}
+
+// ============================================================================
 // Priority resolver — pure function
 // Iterates categories in order: Fault > Cal > Flight > Radio > Sensor > Idle.
-// First non-zero result wins.
+// First non-zero result wins. Stage L: beacon overlay applied after resolution.
 // ============================================================================
 uint8_t resolve_led_pattern(const NotifyState& s) {
-    uint8_t p;
-    if ((p = fault_to_pattern(s.fault))   != 0) return p;
-    if ((p = cal_to_pattern(s.cal))       != 0) return p;
-    if ((p = phase_to_pattern(s.phase))   != 0) return p;
-    if ((p = radio_to_pattern(s.radio))   != 0) return p;
-    if ((p = sensor_to_pattern(s.sensor)) != 0) return p;
-    return rc::led::kSensorNoGps;  // Idle fallback — blue blink
+    uint8_t p = 0;
+    if ((p = fault_to_pattern(s.fault))   != 0) { return apply_beacon_overlay(p, s); }
+    if ((p = cal_to_pattern(s.cal))       != 0) { return apply_beacon_overlay(p, s); }
+    if ((p = phase_to_pattern(s.phase))   != 0) { return apply_beacon_overlay(p, s); }
+    if ((p = radio_to_pattern(s.radio))   != 0) { return apply_beacon_overlay(p, s); }
+    if ((p = sensor_to_pattern(s.sensor)) != 0) { return apply_beacon_overlay(p, s); }
+    return apply_beacon_overlay(rc::led::kSensorNoGps, s);  // Idle fallback
 }
 
 // ============================================================================

@@ -266,3 +266,125 @@ TEST(NotifyDecodeHealth, ImuFaultBeatsBaroFault) {
     primary = rc::health_set_subsystem(primary, rc::kHealthShiftBaro, rc::kHealthFault);
     EXPECT_EQ(decode_health_faults(primary, kAllSecondaryOk), FaultIntent::kImuFail);
 }
+
+// ============================================================================
+// Stage L — beacon overlay tests
+//
+// Two orthogonal flags in NotifyState:
+//   beacon_manual — CLI findme / GCS beacon command. Forces pure white 2Hz
+//                   regardless of state. Wins over beacon_auto.
+//   beacon_auto   — FD MAIN_DESCENT backstop / kSetBeacon. Preserves state
+//                   color by remapping the resolved base pattern to its
+//                   "+white alternate" sibling (LANDED→LandedBeacon, etc.).
+// ============================================================================
+
+TEST(StageLBeacon, ManualOverLandedIsPureWhite) {
+    NotifyState s{};
+    s.phase = PhaseIntent::kLanded;
+    s.beacon_manual = true;
+    // Manual wins even when we'd otherwise compose with state color.
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFdBeacon);
+}
+
+TEST(StageLBeacon, ManualOverFaultIsPureWhite) {
+    NotifyState s{};
+    s.fault = FaultIntent::kImuFail;
+    s.beacon_manual = true;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFdBeacon);
+}
+
+TEST(StageLBeacon, ManualOverridesBeaconAuto) {
+    NotifyState s{};
+    s.phase = PhaseIntent::kLanded;
+    s.beacon_auto = true;
+    s.beacon_manual = true;
+    // Manual wins. Auto would have given green+white; manual gives pure white.
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFdBeacon);
+}
+
+TEST(StageLBeacon, AutoOnLandedIsGreenWhite) {
+    NotifyState s{};
+    s.phase = PhaseIntent::kLanded;
+    s.beacon_auto = true;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFdLandedBeacon);
+}
+
+TEST(StageLBeacon, AutoOnAbortIsRedWhite) {
+    NotifyState s{};
+    s.phase = PhaseIntent::kAbort;
+    s.beacon_auto = true;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFdAbortBeacon);
+}
+
+TEST(StageLBeacon, AutoOnImuFaultPreservesRed) {
+    NotifyState s{};
+    s.fault = FaultIntent::kImuFail;
+    s.beacon_auto = true;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFaultImuFailBeacon);
+}
+
+TEST(StageLBeacon, AutoOnEskfFaultPreservesRed) {
+    NotifyState s{};
+    s.fault = FaultIntent::kEskfFail;
+    s.beacon_auto = true;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFaultEskfFailBeacon);
+}
+
+TEST(StageLBeacon, AutoOnBaroFaultPreservesOrange) {
+    NotifyState s{};
+    s.fault = FaultIntent::kBaroFail;
+    s.beacon_auto = true;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFaultBaroFailBeacon);
+}
+
+TEST(StageLBeacon, AutoOnPioWdtPreservesOrange) {
+    NotifyState s{};
+    s.fault = FaultIntent::kPioWdt;
+    s.beacon_auto = true;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFaultPioWdtBeacon);
+}
+
+TEST(StageLBeacon, AutoOnCore1StallPreservesMagenta) {
+    NotifyState s{};
+    s.fault = FaultIntent::kCore1Stall;
+    s.beacon_auto = true;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFaultCore1StallBeacon);
+}
+
+TEST(StageLBeacon, AutoOnSafeModeStaysSafeMode) {
+    // kFaultSafeMode is already blue+white alt — no separate beacon code needed.
+    // The overlay just returns it as-is.
+    NotifyState s{};
+    s.fault = FaultIntent::kSafeMode;
+    s.beacon_auto = true;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFaultSafeMode);
+}
+
+TEST(StageLBeacon, AutoOnUnremappedBaseFallsBackToPureWhite) {
+    // Boost, coast, GPS-search, etc. — any state without an explicit fault+white
+    // sibling falls back to pure white. Recovery crew sees "it's alive and
+    // beaconing" even if the state wasn't landed/aborted.
+    NotifyState s{};
+    s.phase = PhaseIntent::kCoast;
+    s.beacon_auto = true;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFdBeacon);
+}
+
+TEST(StageLBeacon, NoBeaconFlagsLeavesBaseAlone) {
+    // Sanity: state-color-only path unchanged when neither flag is set.
+    NotifyState s{};
+    s.phase = PhaseIntent::kLanded;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFdLanded);
+
+    s = {};
+    s.fault = FaultIntent::kImuFail;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFaultImuFail);
+}
+
+TEST(StageLBeacon, BeaconFlagsAreDefaultFalse) {
+    // Zero-init safety: new fields must default to false so existing tests
+    // keep working without explicit initialization.
+    NotifyState s{};
+    EXPECT_FALSE(s.beacon_auto);
+    EXPECT_FALSE(s.beacon_manual);
+}

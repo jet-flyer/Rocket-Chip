@@ -13,7 +13,8 @@
 //   0       = no override (normal status logic)
 //   1-8     = calibration overlays
 //   9-11    = RX link quality overlays
-//   12-19   = Stage L beacon-overlay composed patterns (flight phase + white)
+//   12-18   = Stage L beacon-overlay composed patterns (flight phase + white;
+//             fault + white — preserves fault color for recovery triage)
 //   20-27   = flight phase overlays (match LedPhaseValue in action_executor.h)
 //   28-29   = Stage L: pre-arm fail (28), boot init rainbow (29)
 //   30-36   = sensor status
@@ -52,14 +53,22 @@ static constexpr uint8_t kRxLost      = 11;  // Red blink fast (>5s gap)
 
 // ============================================================================
 // Beacon-overlay composed patterns (Stage L)
-// Two-color 2Hz alternation — base-phase color swapped with white every 250ms.
-// Posted by AO_Notify's resolver when NotifyState.beacon_active is true and
-// the base-phase pattern is one of {Landed, Abort, SafeMode}. Other bases
-// (including faults) degrade to white-only kFdBeacon (physical-locator
-// priority; fault diagnosis remains via serial/telemetry/health status).
+// Two-color 2Hz alternation — base-state color swapped with white every 250ms.
+// Posted by AO_Notify's resolver when NotifyState.beacon_auto is true; the
+// resolver preserves the base color so a recovery crew sees good / fault /
+// safe-mode at a glance. beacon_manual (CLI `findme` or GCS beacon command)
+// is a separate case that forces pure-white 2Hz (kFdBeacon) regardless of
+// state — maximum physical visibility.
+// kFaultSafeMode (code 45) is already blue+white alt and doesn't need a
+// separate beacon overlay code (its base visual is already recovery-ready).
 // ============================================================================
-static constexpr uint8_t kFdLandedBeacon    = 12;  // Green + White alt 2Hz
-static constexpr uint8_t kFdAbortBeacon     = 13;  // Red   + White alt 2Hz
+static constexpr uint8_t kFdLandedBeacon        = 12;  // Green   + White alt 2Hz
+static constexpr uint8_t kFdAbortBeacon         = 13;  // Red     + White alt 2Hz
+static constexpr uint8_t kFaultImuFailBeacon    = 14;  // Red     + White alt 2Hz (IMU fault)
+static constexpr uint8_t kFaultEskfFailBeacon   = 15;  // Red     + White alt 2Hz (ESKF fault)
+static constexpr uint8_t kFaultBaroFailBeacon   = 16;  // Orange  + White alt 2Hz (baro fault)
+static constexpr uint8_t kFaultPioWdtBeacon     = 17;  // Orange  + White alt 2Hz (PIO wdt)
+static constexpr uint8_t kFaultCore1StallBeacon = 18;  // Magenta + White alt 2Hz (Core 1 stall)
 
 // ============================================================================
 // Flight phase overlays (set by Flight Director actions)
@@ -134,10 +143,15 @@ static constexpr uint8_t kFdNeoMain         = rc::led::kFdMain;
 static constexpr uint8_t kFdNeoLanded       = rc::led::kFdLanded;
 static constexpr uint8_t kFdNeoAbort        = rc::led::kFdAbort;
 static constexpr uint8_t kFdNeoBeacon       = rc::led::kFdBeacon;
-static constexpr uint8_t kFdNeoLandedBeacon = rc::led::kFdLandedBeacon;   // Stage L
-static constexpr uint8_t kFdNeoAbortBeacon  = rc::led::kFdAbortBeacon;    // Stage L
-static constexpr uint8_t kFdNeoPreArmFail   = rc::led::kFdPreArmFail;     // Stage L
-static constexpr uint8_t kFdNeoBootInit     = rc::led::kFdBootInit;       // Stage L
+static constexpr uint8_t kFdNeoLandedBeacon     = rc::led::kFdLandedBeacon;      // Stage L
+static constexpr uint8_t kFdNeoAbortBeacon      = rc::led::kFdAbortBeacon;       // Stage L
+static constexpr uint8_t kFdNeoPreArmFail       = rc::led::kFdPreArmFail;        // Stage L
+static constexpr uint8_t kFdNeoBootInit         = rc::led::kFdBootInit;          // Stage L
+static constexpr uint8_t kFaultNeoImuFailBeacon    = rc::led::kFaultImuFailBeacon;    // Stage L
+static constexpr uint8_t kFaultNeoEskfFailBeacon   = rc::led::kFaultEskfFailBeacon;   // Stage L
+static constexpr uint8_t kFaultNeoBaroFailBeacon   = rc::led::kFaultBaroFailBeacon;   // Stage L
+static constexpr uint8_t kFaultNeoPioWdtBeacon     = rc::led::kFaultPioWdtBeacon;     // Stage L
+static constexpr uint8_t kFaultNeoCore1StallBeacon = rc::led::kFaultCore1StallBeacon; // Stage L
 
 static constexpr uint8_t kSensorNeoEskfInit  = rc::led::kSensorEskfInit;
 static constexpr uint8_t kSensorNeoGps3d     = rc::led::kSensorGps3d;

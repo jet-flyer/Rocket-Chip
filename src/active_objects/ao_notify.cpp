@@ -140,6 +140,7 @@ static QState Notify_initial(NotifyAo * const me, QEvt const * const e) {
     QActive_subscribe(&me->super, rc::SIG_RADIO_STATUS);
     QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);
     QActive_subscribe(&me->super, rc::SIG_BEACON_ACTIVE);
+    QActive_subscribe(&me->super, rc::SIG_BEACON_MANUAL);  // Stage L
     // IVP-116: SIG_LED_OVERRIDE subscription removed. RCOS now posts
     // CalIntentEvt directly via AO_Notify_post_cal_intent().
 
@@ -149,14 +150,36 @@ static QState Notify_initial(NotifyAo * const me, QEvt const * const e) {
     return Q_TRAN(&Notify_running);
 }
 
+// Apply a phase-change event to NotifyState. Extracted for JSF AV rule 1
+// compliance. Stage L: also clears both beacon flags on exit from recovery-
+// relevant phases — beacon stays active across LANDED and ABORT (the two
+// phases where a recovery beacon is meaningful), any other transition clears.
+static void handle_phase_change(NotifyAo * const me, QEvt const * const e) {
+    const auto* pce = reinterpret_cast<const rc::PhaseChangeEvt*>(e);
+    me->state.phase = phase_from_flight_phase(pce->phase);
+    if (me->state.phase != PhaseIntent::kLanded &&
+        me->state.phase != PhaseIntent::kAbort) {
+        me->state.beacon_auto = false;
+        me->state.beacon_manual = false;
+    }
+}
+
+// 33Hz tick: refresh sensor intent from seqlock + dispatch resolved pattern
+// to both output backends. Extracted from Notify_running for JSF AV rule 1.
+static void handle_notify_tick(NotifyAo * const me) {
+    shared_sensor_data_t snap{};
+    if (seqlock_read(&g_sensorSeqlock, &snap)) {
+        notify_evaluate_sensor_status(me, &snap);
+    }
+    rc::notify::notify_backend_led_update(me->state);
+    rc::notify::notify_backend_audio_update(me->state);
+}
+
 static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
     switch (e->sig) {
-
-    case rc::SIG_PHASE_CHANGE: {
-        const auto* pce = reinterpret_cast<const rc::PhaseChangeEvt*>(e);
-        me->state.phase = phase_from_flight_phase(pce->phase);
+    case rc::SIG_PHASE_CHANGE:
+        handle_phase_change(me, e);
         return Q_HANDLED();
-    }
 
     case rc::SIG_RADIO_STATUS: {
         const auto* re = reinterpret_cast<const rc::RadioStatusEvt*>(e);
@@ -177,23 +200,21 @@ static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
         return Q_HANDLED();
     }
 
-    case rc::SIG_BEACON_ACTIVE: {
-        me->state.phase = PhaseIntent::kBeacon;
+    case rc::SIG_BEACON_ACTIVE:
+        // Stage L: auto-beacon (FD MAIN_DESCENT backstop or kSetBeacon action).
+        // beacon_auto composes with state color in the resolver overlay.
+        me->state.beacon_auto = true;
         return Q_HANDLED();
-    }
 
-    case SIG_NOTIFY_TICK: {
-        // IVP-117: read sensor snapshot and update sensor intent before
-        // dispatching to backends. Core 1 vitality is primary-checked in
-        // AO_HealthMonitor and arrives via SIG_HEALTH_STATUS.
-        shared_sensor_data_t snap{};
-        if (seqlock_read(&g_sensorSeqlock, &snap)) {
-            notify_evaluate_sensor_status(me, &snap);
-        }
-        rc::notify::notify_backend_led_update(me->state);
-        rc::notify::notify_backend_audio_update(me->state);
+    case rc::SIG_BEACON_MANUAL:
+        // Stage L: manual beacon (CLI `findme` or GCS beacon command).
+        // beacon_manual forces pure white — wins over beacon_auto.
+        me->state.beacon_manual = true;
         return Q_HANDLED();
-    }
+
+    case SIG_NOTIFY_TICK:
+        handle_notify_tick(me);
+        return Q_HANDLED();
 
     default:
         break;

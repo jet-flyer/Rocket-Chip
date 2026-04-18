@@ -136,9 +136,14 @@ static void led_apply_pattern(LedEngine * const me, uint8_t val) {
         case kRxNeoReceiving:    led_set_if_changed(me, WS2812_MODE_SOLID, kColorGreen); break;
         case kRxNeoGap:          led_set_if_changed(me, WS2812_MODE_BLINK, kColorYellow); break;
         case kRxNeoLost:         led_set_if_changed(me, WS2812_MODE_BLINK_FAST, kColorRed); break;
-        // Stage L: beacon-overlay composed patterns (phase color + white alt 2Hz)
-        case kFdNeoLandedBeacon: led_set_alternate_if_changed(me, kColorGreen, kColorWhite); break;
-        case kFdNeoAbortBeacon:  led_set_alternate_if_changed(me, kColorRed,   kColorWhite); break;
+        // Stage L: beacon-overlay composed patterns (state color + white alt 2Hz)
+        case kFdNeoLandedBeacon:         led_set_alternate_if_changed(me, kColorGreen,   kColorWhite); break;
+        case kFdNeoAbortBeacon:          led_set_alternate_if_changed(me, kColorRed,     kColorWhite); break;
+        case kFaultNeoImuFailBeacon:     led_set_alternate_if_changed(me, kColorRed,     kColorWhite); break;
+        case kFaultNeoEskfFailBeacon:    led_set_alternate_if_changed(me, kColorRed,     kColorWhite); break;
+        case kFaultNeoBaroFailBeacon:    led_set_alternate_if_changed(me, kColorOrange,  kColorWhite); break;
+        case kFaultNeoPioWdtBeacon:      led_set_alternate_if_changed(me, kColorOrange,  kColorWhite); break;
+        case kFaultNeoCore1StallBeacon:  led_set_alternate_if_changed(me, kColorMagenta, kColorWhite); break;
         // Flight phase overlays
         case kFdNeoArmed:        led_set_if_changed(me, WS2812_MODE_SOLID, kColorRed); break;      // Stage L AP parity (was Orange)
         case kFdNeoBoost:        led_set_if_changed(me, WS2812_MODE_SOLID, kColorRed); break;

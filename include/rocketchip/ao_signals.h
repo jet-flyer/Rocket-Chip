@@ -61,6 +61,7 @@ enum RcSignal : uint16_t {
     SIG_PHASE_CHANGE,                // 15: Flight phase transition (FD → Notify, Logger, HealthMon)
     SIG_LED_PATTERN,                 // 16: LED pattern request (Notify → LedEngine)
     SIG_BEACON_ACTIVE,               // 17: Post-landing beacon activated (FD ABORT timeout → Notify) [IVP-113]
+                                     //     Sets NotifyState.beacon_auto — state-color + white overlay [Stage L]
     // Historically 17-18 held LOG_FRAME/TELEM_FRAME (removed — direct API used)
     SIG_PYRO_INTENT = 19,            // 19: Pyro fire intent (FD → Logger via callback)
     SIG_LED_OVERRIDE,                // 20: LEGACY — unused after IVP-116 (calibration now via AO_Notify_post_cal_intent)
@@ -74,8 +75,10 @@ enum RcSignal : uint16_t {
     SIG_GCS_CMD,                     // 25: Uplink command from GCS (Telem → FD) [C3-A4]
     SIG_HEALTH_STATUS,               // 26: Health flags changed (HealthMonitor → Notify, Logger, Telemetry)
     SIG_PYRO_FIRED,                  // 27: Pyro channel fired (FD/PIO → Logger)
+    SIG_BEACON_MANUAL,               // 28: Manual CLI `findme` or GCS beacon command (RCOS/Telem → Notify) [Stage L]
+                                     //     Sets NotifyState.beacon_manual — pure-white 2Hz (wins over beacon_auto)
 
-    SIG_AO_MAX                       // 28: Sentinel — pub-sub array size
+    SIG_AO_MAX                       // 29: Sentinel — pub-sub array size
 };
 
 // Backward compatibility aliases
