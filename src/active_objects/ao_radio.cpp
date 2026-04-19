@@ -78,6 +78,38 @@ static uint32_t now_ms() {
 #endif
 }
 
+// Stage T (IVP-T1) — RadioScheduler timing diagnostics.
+// Off unless built with -DROCKETCHIP_STAGE_T_LOGGING=ON. Never in flight builds.
+#if defined(ROCKETCHIP_STAGE_T_LOGGING) && !defined(ROCKETCHIP_HOST_TEST)
+static uint32_t stage_t_now_us() { return time_us_32(); }
+static const char* phase_name(rc::RadioPhase p) {
+    switch (p) {
+        case rc::RadioPhase::kIdle:         return "IDLE";
+        case rc::RadioPhase::kTxActive:     return "TX";
+        case rc::RadioPhase::kRxWindow:     return "RXW";
+        case rc::RadioPhase::kRxContinuous: return "RXC";
+    }
+    return "?";
+}
+static void stage_t_log_state(rc::RadioPhase old_phase, rc::RadioPhase new_phase) {
+    if (old_phase == new_phase) { return; }
+    printf("[STAGE_T] state %s->%s t=%lu\n",
+           phase_name(old_phase), phase_name(new_phase),
+           static_cast<unsigned long>(stage_t_now_us()));
+}
+static void stage_t_log_rx(rc::RadioPhase state_at_rx, int rssi, int snr,
+                           bool crc_ok, uint8_t len, uint16_t seq) {
+    printf("[STAGE_T] rx state=%s rssi=%d snr=%d crc=%s len=%u seq=%u t=%lu\n",
+           phase_name(state_at_rx), rssi, snr, crc_ok ? "ok" : "err",
+           static_cast<unsigned>(len), static_cast<unsigned>(seq),
+           static_cast<unsigned long>(stage_t_now_us()));
+}
+#else
+static inline void stage_t_log_state(rc::RadioPhase, rc::RadioPhase) {}
+static inline void stage_t_log_rx(rc::RadioPhase, int, int, bool,
+                                  uint8_t, uint16_t) {}
+#endif
+
 static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* txEvt) {
     RadioAoState& s = me->state;
 
@@ -193,7 +225,16 @@ static void handle_rx_poll(RadioAo* me) {
     uint8_t len = rfm95w_recv(&s.radio, buf, sizeof(buf));
     if (len == 0) { return; }
 
-    if (!validate_rx_packet(s, buf, len)) { return; }
+    // Stage T — capture state at arrival BEFORE validate (we want CRC errors).
+    rc::RadioPhase state_at_rx = s.scheduler.phase;
+    bool crc_ok = validate_rx_packet(s, buf, len);
+    uint16_t seq = 0;
+    if (len >= kCcsdsMinLen && (buf[0] & 0xE0) == 0x00) {
+        seq = extract_ccsds_seq(buf);
+    }
+    stage_t_log_rx(state_at_rx, rfm95w_rssi(&s.radio), s.radio.last_snr,
+                   crc_ok, len, seq);
+    if (!crc_ok) { return; }
 
     if constexpr (job::kRole == job::DeviceRole::kRelay) {
         handle_relay_forward(me, buf, len);
@@ -271,53 +312,69 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
     return Q_TRAN(&RadioAo_running);
 }
 
-static QState RadioAo_running(RadioAo * const me, QEvt const * const e) {
+static void handle_link_quality(RadioAo* me) {
     RadioAoState& s = me->state;
+    static constexpr uint32_t kLinkLostMs  = 5000;  // 5s = lost
+    static constexpr uint32_t kLinkGapMs   = 2000;  // 2s = gap
+    uint32_t age = now_ms() - s.last_rx_ms;
+    uint8_t lq;
+    if (s.rx_count == 0)         { lq = 0; }
+    else if (age >= kLinkLostMs) { lq = 1; }
+    else if (age >= kLinkGapMs)  { lq = 2; }
+    else                         { lq = 3; }
+    if (lq != s.link_quality) {
+        s.link_quality = lq;
+        static rc::RadioStatusEvt statusEvt;
+        statusEvt.super.sig = rc::SIG_RADIO_STATUS;
+        statusEvt.link_quality = lq;
+        QActive_publish_(&statusEvt.super, &me->super, me->super.prio);
+    }
+}
 
+static void handle_rssi_bar(RadioAo* me) {
+    // Station/relay only — vehicle's AO_LedEngine owns the NeoPixel.
+    if constexpr (job::kRole != job::DeviceRole::kVehicle) {
+        RadioAoState& s = me->state;
+        static uint8_t rssi_div = 0;
+        if (++rssi_div >= 50) {  // ~2Hz update
+            rssi_div = 0;
+            uint32_t gap = now_ms() - s.last_rx_ms;
+            bool no_signal = (s.rx_count == 0 || gap >= 5000);
+            ws2812_set_rssi_bar(s.last_rx_rssi, no_signal);
+        }
+    } else {
+        (void)me;
+    }
+}
+
+static void handle_radio_tick(RadioAo* me) {
+    RadioAoState& s = me->state;
+    if (!s.initialized) { return; }
+
+    // Stage T (IVP-T1) — log any phase change since last tick.
+    // Captures transitions triggered by SIG_RADIO_TX between ticks.
+    static rc::RadioPhase s_stage_t_prev_phase = rc::RadioPhase::kIdle;
+    stage_t_log_state(s_stage_t_prev_phase, s.scheduler.phase);
+
+    if (s.scheduler.phase == rc::RadioPhase::kTxActive) {
+        handle_tx_poll(me);
+    }
+    if (s.scheduler.rx_active()) {
+        handle_rx_poll(me);
+    }
+
+    // Stage T — capture any transition that happened during this tick's work
+    stage_t_log_state(s_stage_t_prev_phase, s.scheduler.phase);
+    s_stage_t_prev_phase = s.scheduler.phase;
+
+    handle_link_quality(me);
+    handle_rssi_bar(me);
+}
+
+static QState RadioAo_running(RadioAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_RADIO_TICK: {
-        if (!s.initialized) { return Q_HANDLED(); }
-
-        // kTxActive: poll for TX completion
-        if (s.scheduler.phase == rc::RadioPhase::kTxActive) {
-            handle_tx_poll(me);
-        }
-
-        // RX poll (kRxWindow or kRxContinuous)
-        if (s.scheduler.rx_active()) {
-            handle_rx_poll(me);
-        }
-
-        // Link quality computation → publish SIG_RADIO_STATUS on change
-        {
-            static constexpr uint32_t kLinkLostMs  = 5000;  // 5s = lost
-            static constexpr uint32_t kLinkGapMs   = 2000;  // 2s = gap
-            uint32_t age = now_ms() - s.last_rx_ms;
-            uint8_t lq;
-            if (s.rx_count == 0)         { lq = 0; }  // No radio / never received
-            else if (age >= kLinkLostMs) { lq = 1; }  // Lost
-            else if (age >= kLinkGapMs)  { lq = 2; }  // Gap
-            else                         { lq = 3; }  // Receiving
-            if (lq != s.link_quality) {
-                s.link_quality = lq;
-                static rc::RadioStatusEvt statusEvt;
-                statusEvt.super.sig = rc::SIG_RADIO_STATUS;
-                statusEvt.link_quality = lq;
-                QActive_publish_(&statusEvt.super, &me->super, me->super.prio);
-            }
-        }
-
-        // RSSI bar — station/relay only (AO_LedEngine disabled for these roles)
-        if constexpr (job::kRole != job::DeviceRole::kVehicle) {
-            static uint8_t rssi_div = 0;
-            if (++rssi_div >= 50) {  // ~2Hz update
-                rssi_div = 0;
-                uint32_t gap = now_ms() - s.last_rx_ms;
-                bool no_signal = (s.rx_count == 0 || gap >= 5000);
-                ws2812_set_rssi_bar(s.last_rx_rssi, no_signal);
-            }
-        }
-
+        handle_radio_tick(me);
         return Q_HANDLED();
     }
 

@@ -2,7 +2,7 @@
 
 **Purpose:** Communication across context windows and between agents.
 
-**Stages 1-14 + 16A + 16B + 16C + L COMPLETE.** 755 host tests, SPIN 11/11. Tracking: `docs/AO_ARCHITECTURE.md`. Field Testing (Stage 17) deferred — awaits airframe + launch window. **Stage M planned** (RadioScheduler TX-window sync, load-bearing for reliable station→vehicle commands — see `docs/IVP.md`).
+**Stages 1-14 + 16A + 16B + 16C + L COMPLETE.** 755 host tests, SPIN 11/11. Tracking: `docs/AO_ARCHITECTURE.md`. Field Testing (Stage 17) deferred — awaits airframe + launch window. **Stage T in progress** (RadioScheduler timing diagnostics — 4 IVPs of data collection before fix design; plan: `docs/plans/STAGE_T_RADIO_DIAGNOSTICS.md`).
 
 ## Use Cases
 1. **Cross-agent review** — Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
@@ -36,7 +36,7 @@ Scope is clear but touches multiple files, needs verification, or has small desi
 
 Needs council review or planning doc before starting.
 
-- **RadioScheduler TX-window sync fix — now Stage M.** Promoted to dedicated stage in `docs/IVP.md` 2026-04-18 during Stage L exit. Station commands only match ACKs 6.7% of the time (IVP-132a.5: 2/30 first-try, 27 went through all 3 retries). TX hardware fine (`tx_consec_fail = 0`) — root cause is station TX timing not synchronized to vehicle RX windows. Proposed fix: "listen-before-talk" — station posts `SIG_RADIO_TX` in `handle_rx_packet()` when a pending command exists. Load-bearing for any reliable command path; blocks end-to-end verification of Stage L beacon roundtrip and any future GCS-initiated command. Needs plan + council review.
+- **RadioScheduler TX-window sync — Stage T (plan: `docs/plans/STAGE_T_RADIO_DIAGNOSTICS.md`).** Renamed from M → T on 2026-04-18. Stage T is **diagnostics only** (4 IVPs: T1 baseline + failure classification, T2 cheat-mode upper-bound, T3 protocol A/B, T4 CAD feasibility + ambient RSSI). Fix plan comes in a second council session once T1/T2/T4 CSVs land in `logs/stage_t/`. Station commands only match ACKs 6.7% of the time (IVP-132a.5: 2/30 first-try, 27 went through all 3 retries). TX hardware fine (`tx_consec_fail = 0`). Candidate fixes being evaluated: CCSDS COP-1 + CLCW (leading), SX1276 CAD listen-before-talk, vehicle-side RX-window announcement, hybrid. Load-bearing for reliable station→vehicle command path.
 - **Station→vehicle radio health channel.** Council A3 asked for condensing station readiness to a single bit the vehicle's GO/NO-GO consumes via radio. Current channel is command-only, no periodic telemetry-back. Dedicated IVP when telemetry-back direction is wired.
 - **Real-World Accuracy Tests plan.** Bench-side ground-truth validation — IMU known-angle tilts, baro altitude vs reference, GPS stationary/moving baseline characterization, ESKF replay vs synthetic truth, Allan variance for gyro/accel. Doesn't need launch window or airframe. Complements Stage 18 field tuning. Needs dedicated plan doc with prior-art research (ArduPilot EKF tuning, PX4 calibration) and equipment assessment.
 - **Launch procedure audit items.** Six future safety items from NASA/SpaceX/NAR procedure comparison, all requiring Mission Profile or hardware support:

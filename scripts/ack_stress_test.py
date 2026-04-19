@@ -43,11 +43,13 @@ WARNING: serial port handling — see
 """
 
 import argparse
+import csv
+import os
 import re
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 try:
     import serial
@@ -77,13 +79,38 @@ RE_FAILED = re.compile(r"\[CMD\]\s+No ACK after")
 
 
 @dataclass
+class CommandRecord:
+    """Per-command state for IVP-T1 CSV output.
+    Seq assigned from firmware log lines. sent_host_t filled in FIFO order
+    as host sends match up with firmware-reported seqs (DISARM is serial)."""
+    seq: int = -1
+    sent_host_t: float = 0.0  # host timestamp (s since epoch)
+    ack_host_t: Optional[float] = None
+    ack_retry_slot: int = -1  # 0 = first-try, 1/2/3 = retry slot that ACK'd; -1 = none
+    denied: bool = False
+    failed: bool = False  # "No ACK after 3 retries"
+    retry_count: int = 0  # max retry attempt number seen
+
+
+@dataclass
 class TestResult:
     sent: int = 0
     acked: int = 0
     denied: int = 0
     retries: int = 0
     failed: int = 0
+    # Per-retry-slot success (IVP-T1 piggyback data; subsumes former T5)
+    first_try_success: int = 0  # ACK with no prior retry
+    retry_1_success: int = 0
+    retry_2_success: int = 0
+    retry_3_success: int = 0
     raw_lines: List[str] = field(default_factory=list)
+    # Per-command records keyed by firmware seq
+    by_seq: Dict[int, CommandRecord] = field(default_factory=dict)
+    # FIFO queue of host send timestamps waiting to be matched to a seq
+    unmatched_send_times: List[float] = field(default_factory=list)
+    # Seq ordering as observed from firmware (for FIFO host-send matching)
+    seq_order: List[int] = field(default_factory=list)
 
 
 def drain_and_classify(ser, result: TestResult, timeout_s: float = 0.2):
@@ -99,6 +126,18 @@ def drain_and_classify(ser, result: TestResult, timeout_s: float = 0.2):
         if b"\n" in buf:
             break
 
+    def ensure_rec(seq: int) -> CommandRecord:
+        """Get or create CommandRecord for seq. First time we see a seq,
+        match it to the oldest unmatched host-send timestamp (FIFO)."""
+        rec = result.by_seq.get(seq)
+        if rec is None:
+            rec = CommandRecord(seq=seq)
+            if result.unmatched_send_times:
+                rec.sent_host_t = result.unmatched_send_times.pop(0)
+            result.by_seq[seq] = rec
+            result.seq_order.append(seq)
+        return rec
+
     for line_bytes in buf.splitlines():
         try:
             line = line_bytes.decode("utf-8", errors="replace").strip()
@@ -107,21 +146,56 @@ def drain_and_classify(ser, result: TestResult, timeout_s: float = 0.2):
         if not line:
             continue
         result.raw_lines.append(line)
-        if RE_ACK.search(line):
+        now = time.time()
+
+        m = RE_ACK.search(line)
+        if m:
             result.acked += 1
+            seq = int(m.group(1))
+            rec = ensure_rec(seq)
+            rec.ack_host_t = now
+            rec.ack_retry_slot = rec.retry_count
+            if rec.retry_count == 0:
+                result.first_try_success += 1
+            elif rec.retry_count == 1:
+                result.retry_1_success += 1
+            elif rec.retry_count == 2:
+                result.retry_2_success += 1
+            elif rec.retry_count == 3:
+                result.retry_3_success += 1
             print(f"  [ACK] {line}")
-        elif RE_DENIED.search(line):
+            continue
+        m = RE_DENIED.search(line)
+        if m:
             result.denied += 1
+            seq = int(m.group(1))
+            rec = ensure_rec(seq)
+            rec.denied = True
             print(f"  [DENIED] {line}")
-        elif RE_RETRY.search(line):
+            continue
+        m = RE_RETRY.search(line)
+        if m:
             result.retries += 1
+            attempt = int(m.group(1))
+            seq = int(m.group(2))
+            rec = ensure_rec(seq)
+            rec.retry_count = max(rec.retry_count, attempt)
             print(f"  [RETRY] {line}")
-        elif RE_FAILED.search(line):
+            continue
+        if RE_FAILED.search(line):
             result.failed += 1
+            # Attribute to oldest pending (sent but unresolved) record.
+            # Scan seq_order from oldest for one not ACK'd/denied/failed.
+            for seq in result.seq_order:
+                rec = result.by_seq[seq]
+                if rec.ack_host_t is None and not rec.denied and not rec.failed:
+                    rec.failed = True
+                    break
             print(f"  [FAILED] {line}")
 
 
-def run(port: str, duration_s: float, interval_s: float, inject_drops: int):
+def run(port: str, duration_s: float, interval_s: float, inject_drops: int,
+        max_commands: int, csv_path: Optional[str]):
     if inject_drops > 0:
         print("NOTE: --inject-drops requires the debug probe on the station + "
               "OpenOCD running. This script does NOT drive GDB automatically; "
@@ -141,7 +215,9 @@ def run(port: str, duration_s: float, interval_s: float, inject_drops: int):
     next_send = start
 
     try:
-        while time.time() - start < duration_s:
+        n_sent = 0
+        while time.time() - start < duration_s and (
+                max_commands == 0 or n_sent < max_commands):
             now = time.time()
             if now >= next_send:
                 if inject_drops > 0:
@@ -151,6 +227,8 @@ def run(port: str, duration_s: float, interval_s: float, inject_drops: int):
                 print(f"[t={now-start:5.1f}s] SEND DISARM")
                 ser.write(b"X")
                 result.sent += 1
+                result.unmatched_send_times.append(now)
+                n_sent += 1
                 next_send += interval_s
                 # Give firmware a chance to process before draining output
                 time.sleep(0.1)
@@ -170,20 +248,27 @@ def run(port: str, duration_s: float, interval_s: float, inject_drops: int):
     print(f"Duration:    {elapsed:.1f} s")
     print(f"Sent:        {result.sent}")
     print(f"ACK'd:       {result.acked}")
+    print(f"  first-try:   {result.first_try_success}")
+    print(f"  retry 1:     {result.retry_1_success}")
+    print(f"  retry 2:     {result.retry_2_success}")
+    print(f"  retry 3:     {result.retry_3_success}")
     print(f"DENIED:      {result.denied}")
-    print(f"Retries:     {result.retries}")
+    print(f"Retries:     {result.retries} (total retry log lines)")
     print(f"Failed:      {result.failed}")
     if result.sent > 0:
         pct_ack = 100.0 * result.acked / result.sent
+        pct_first = 100.0 * result.first_try_success / result.sent
         pct_fail = 100.0 * result.failed / result.sent
-        print(f"ACK rate:    {pct_ack:.1f}%")
-        print(f"Fail rate:   {pct_fail:.1f}%")
+        print(f"ACK rate:       {pct_ack:.1f}%")
+        print(f"First-try rate: {pct_first:.1f}%  (IVP-T1 headline metric)")
+        print(f"Fail rate:      {pct_fail:.1f}%")
     print("=" * 60)
 
     # Save raw transcript for debug
     ts = time.strftime("%Y%m%d_%H%M%S")
     log_path = f"logs/ack_stress_{ts}.log"
     try:
+        os.makedirs("logs", exist_ok=True)
         with open(log_path, "w") as f:
             for line in result.raw_lines:
                 f.write(line + "\n")
@@ -191,19 +276,53 @@ def run(port: str, duration_s: float, interval_s: float, inject_drops: int):
     except Exception as e:
         print(f"(could not save transcript: {e})")
 
+    # IVP-T1 CSV output — per-command record
+    if csv_path:
+        try:
+            os.makedirs(os.path.dirname(csv_path) or ".", exist_ok=True)
+            with open(csv_path, "w", newline="") as f:
+                w = csv.writer(f)
+                w.writerow([
+                    "seq", "sent_host_t", "ack_host_t",
+                    "ack_retry_slot", "retry_count",
+                    "denied", "failed",
+                ])
+                for seq in result.seq_order:
+                    rec = result.by_seq[seq]
+                    w.writerow([
+                        rec.seq,
+                        f"{rec.sent_host_t:.3f}" if rec.sent_host_t else "",
+                        f"{rec.ack_host_t:.3f}" if rec.ack_host_t else "",
+                        rec.ack_retry_slot,
+                        rec.retry_count,
+                        int(rec.denied),
+                        int(rec.failed),
+                    ])
+            print(f"CSV saved to: {csv_path}")
+        except Exception as e:
+            print(f"(could not save CSV: {e})")
+
 
 def main():
-    ap = argparse.ArgumentParser(description="IVP-132a.5 ACK stress test")
+    ap = argparse.ArgumentParser(description="ACK stress test (IVP-132a.5 + Stage T)")
     ap.add_argument("--port", default="COM7", help="Station serial port (default COM7)")
     ap.add_argument("--duration", type=float, default=300.0,
-                    help="Test duration in seconds (default 300 = 5 min)")
+                    help="Test duration in seconds (default 300 = 5 min). "
+                         "Set very high when using --count to cap by count.")
     ap.add_argument("--interval", type=float, default=10.0,
-                    help="Send interval in seconds (default 10 = 0.1 Hz)")
+                    help="Send interval in seconds (default 10 = 0.1 Hz; "
+                         "Stage T IVP-T1 uses 1.0 = 1 Hz)")
+    ap.add_argument("--count", type=int, default=0,
+                    help="Max commands to send (0 = run to --duration). "
+                         "Stage T IVP-T1 uses 100.")
+    ap.add_argument("--csv", default=None,
+                    help="Write per-command CSV to this path (IVP-T1 output).")
     ap.add_argument("--inject-drops", type=int, default=0,
                     help="N for fault_force_station_rx_drop(N) reminder "
                          "per send (requires probe + manual GDB)")
     args = ap.parse_args()
-    run(args.port, args.duration, args.interval, args.inject_drops)
+    run(args.port, args.duration, args.interval, args.inject_drops,
+        args.count, args.csv)
 
 
 if __name__ == "__main__":

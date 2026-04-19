@@ -601,6 +601,16 @@ else()
         message(STATUS "Build tier: BENCH (dev diagnostics included)")
     endif()
 
+    # Stage T — RadioScheduler timing diagnostics (IVP-T1)
+    # Usage: cmake -DROCKETCHIP_STAGE_T_LOGGING=ON ..
+    # Emits [STAGE_T] state-transition and per-RX metadata lines on vehicle.
+    # Off by default; compiled out for flight builds.
+    option(ROCKETCHIP_STAGE_T_LOGGING "Enable Stage T RadioScheduler diagnostics" OFF)
+    if(ROCKETCHIP_STAGE_T_LOGGING AND NOT BUILD_FOR_FLIGHT)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T_LOGGING=1)
+        message(STATUS "Stage T diagnostics: ENABLED")
+    endif()
+
     # Git hash injection for version.h
     execute_process(
         COMMAND git rev-parse --short HEAD
