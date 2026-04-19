@@ -36,6 +36,7 @@
 static constexpr uint16_t kMavCmdArmDisarm = 400;        // MAV_CMD_COMPONENT_ARM_DISARM
 static constexpr uint16_t kMavCmdFlightTermination = 185; // MAV_CMD_DO_FLIGHTTERMINATION
 static constexpr uint16_t kMavCmdSetHome = 179;           // MAV_CMD_DO_SET_HOME
+static constexpr uint16_t kMavCmdBeacon = 31010;          // MAV_CMD_USER_1 — Stage L manual beacon
 #include "active_objects/ao_rcos.h"
 #include "active_objects/ao_led_engine.h"
 #include "calibration/calibration_manager.h"
@@ -1409,9 +1410,23 @@ void cli_handle_unhandled_key(int key) {
 // SIG_PHASE_CHANGE out of {LANDED, ABORT}.
 //
 // Static event per LL Entry 35: QP stores the pointer, not a copy.
+//
+// Stage L IVP-L5: role-gated. On vehicle, publish SIG_BEACON_MANUAL locally
+// (AO_Notify flips beacon_manual, resolver returns pure white). On station,
+// send MAV_CMD_USER_1 over the radio — the vehicle's ao_telemetry.cpp command
+// handler turns that into the same SIG_BEACON_MANUAL publish, so the visual
+// behavior is identical from either side.
 void cmd_findme_beacon() {
-    static QEvt s_findme_evt;
-    s_findme_evt.sig = rc::SIG_BEACON_MANUAL;
-    QActive_publish_(&s_findme_evt, AO_RCOS, AO_RCOS->prio);
-    printf("[CMD] find-me beacon ON (manual) — white 2Hz until state change\n");
+    if constexpr (kRadioModeRx) {
+        // Station — send beacon command to vehicle via tracked command (IVP-122
+        // ACK protocol). cmd.param1 unused by MAV_CMD_USER_1 receiver.
+        AO_Telemetry_send_tracked_command(kMavCmdBeacon, 0.0f);
+        printf("[CMD] find-me beacon command sent, waiting for ACK...\n");
+    } else {
+        // Vehicle — publish directly to local AO_Notify.
+        static QEvt s_findme_evt;
+        s_findme_evt.sig = rc::SIG_BEACON_MANUAL;
+        QActive_publish_(&s_findme_evt, AO_RCOS, AO_RCOS->prio);
+        printf("[CMD] find-me beacon ON (manual) — white 2Hz until state change\n");
+    }
 }

@@ -229,6 +229,15 @@ static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
                 } else if (cmd.command == MAV_CMD_DO_FLIGHTTERMINATION) {
                     AO_FlightDirector_dispatch_signal(
                         static_cast<uint16_t>(rc::SIG_ABORT));
+                } else if (cmd.command == MAV_CMD_USER_1) {
+                    // Stage L IVP-L5: GCS-initiated manual beacon. Equivalent
+                    // to the vehicle-local CLI `b` key, but triggered over
+                    // the radio link. Publishes SIG_BEACON_MANUAL which
+                    // AO_Notify turns into pure-white 2Hz regardless of
+                    // state. Static event per LL Entry 35.
+                    static QEvt s_beacon_cmd_evt;
+                    s_beacon_cmd_evt.sig = rc::SIG_BEACON_MANUAL;
+                    QActive_publish_(&s_beacon_cmd_evt, &me->super, me->super.prio);
                 } else {
                     ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
                 }
