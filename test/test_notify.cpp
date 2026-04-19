@@ -429,3 +429,27 @@ TEST(StageLPreArmFail, EnumValueIsTen) {
     // Locked-in value — used as a contract from AO_Notify and CLI paths.
     EXPECT_EQ(static_cast<uint8_t>(PhaseIntent::kPreArmFail), 10);
 }
+
+// ============================================================================
+// Stage L IVP-L4 — PhaseIntent::kInit (boot rainbow) resolver tests
+// ============================================================================
+
+TEST(StageLBootInit, ResolverMapsToRainbow) {
+    NotifyState s{};
+    s.phase = PhaseIntent::kInit;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFdBootInit);
+}
+
+TEST(StageLBootInit, FaultBeatsKInit) {
+    // Hardware fault during init (e.g., IMU boot failure) must win over
+    // the rainbow so operator sees the fault color instead of "just
+    // still warming up."
+    NotifyState s{};
+    s.phase = PhaseIntent::kInit;
+    s.fault = FaultIntent::kImuFail;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFaultImuFail);
+}
+
+TEST(StageLBootInit, EnumValueIsEleven) {
+    EXPECT_EQ(static_cast<uint8_t>(PhaseIntent::kInit), 11);
+}

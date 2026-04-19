@@ -56,7 +56,16 @@ struct NotifyAo {
     // 0 = cleared; 1..kPreArmFailTicks = active. Decremented each 33Hz tick
     // via the pure helper in include/rocketchip/prearm_fail_ticks.h.
     uint32_t prearm_fail_ticks;
+
+    // Stage L IVP-L4 — boot init rainbow minimum visibility. Counts the
+    // first ~3s of kInit so the rainbow is seen even when ESKF + IMU are
+    // already ready by the time Notify starts ticking (typical on warm
+    // resets). At 33 Hz, 99 ticks ≈ 3.0 s.
+    uint32_t init_min_ticks;
 };
+
+// Minimum boot-rainbow visibility before kInit can auto-clear (ticks at 33Hz).
+static constexpr uint32_t kInitMinTicks = 99U;
 
 static NotifyAo l_notifyAo;
 static QEvtPtr  l_notifyQueue[16];
@@ -138,10 +147,15 @@ static void notify_evaluate_sensor_status(NotifyAo * const me,
 static QState Notify_initial(NotifyAo * const me, QEvt const * const e) {
     (void)e;
 
-    // Zero-init intent state
+    // Zero-init intent state, then default to kInit so boot shows the
+    // rainbow warmup visual until ESKF + IMU are both ready (Stage L).
+    // Gets overridden by any higher-priority intent (fault, cal); gets
+    // cleared by notify_evaluate_sensor_status() once ESKF is up.
     me->state = {};
+    me->state.phase = PhaseIntent::kInit;
     me->sensor_phase_start_ms = to_ms_since_boot(get_absolute_time());
     me->prearm_fail_ticks = 0U;  // Stage L
+    me->init_min_ticks = kInitMinTicks;  // Stage L IVP-L4
 
     // Subscribe to state-producing signals
     QActive_subscribe(&me->super, rc::SIG_PHASE_CHANGE);
@@ -183,8 +197,29 @@ static void handle_phase_change(NotifyAo * const me, QEvt const * const e) {
 // backends. Extracted from Notify_running for JSF AV rule 1.
 static void handle_notify_tick(NotifyAo * const me) {
     shared_sensor_data_t snap{};
-    if (seqlock_read(&g_sensorSeqlock, &snap)) {
+    bool snap_ok = seqlock_read(&g_sensorSeqlock, &snap);
+    if (snap_ok) {
         notify_evaluate_sensor_status(me, &snap);
+    }
+    // Stage L IVP-L4: boot-init rainbow auto-clear. Two gates must both be
+    // satisfied before kInit flips to kIdle:
+    //   1. Minimum visibility window elapsed (init_min_ticks counted down
+    //      to 0 — ~3 s at 33Hz). ESKF + IMU are typically already ready
+    //      by the time AO_Notify starts ticking, so this guarantees the
+    //      rainbow is always seen at boot regardless of sensor-ready time.
+    //   2. ESKF is initialized AND at least one IMU read is published.
+    //      This keeps the rainbow up if the sensors aren't actually ready
+    //      yet (cold start, ICM in a fault state, etc.).
+    // Any explicit FD phase transition via handle_phase_change would have
+    // already overridden state.phase directly.
+    if (me->init_min_ticks > 0U) {
+        --me->init_min_ticks;
+    }
+    if (me->state.phase == PhaseIntent::kInit &&
+        me->init_min_ticks == 0U &&
+        snap_ok && eskf_runner_is_initialized() &&
+        snap.imu_read_count > 0U) {
+        me->state.phase = PhaseIntent::kIdle;
     }
     // Stage L: tick the pre-arm-fail counter. When it hits 0, flip the
     // PhaseIntent back to kIdle (pre-arm fail can only be triggered from

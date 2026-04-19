@@ -41,6 +41,7 @@ enum class PhaseIntent : uint8_t {
     kAbort      = 8,
     kBeacon     = 9,   // Post-landing/abort recovery beacon (white blink)
     kPreArmFail = 10,  // Stage L — ARM rejected (yellow double-flash, ~3s auto-clear)
+    kInit       = 11,  // Stage L — boot/init warmup (rainbow; auto-clear on ESKF+IMU ready)
 };
 
 // ============================================================================

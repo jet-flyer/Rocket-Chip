@@ -69,6 +69,7 @@ static uint8_t phase_to_pattern(PhaseIntent p) {
         case PhaseIntent::kBoost:      return rc::led::kFdBoost;
         case PhaseIntent::kArmed:      return rc::led::kFdArmed;
         case PhaseIntent::kPreArmFail: return rc::led::kFdPreArmFail;  // Stage L
+        case PhaseIntent::kInit:       return rc::led::kFdBootInit;    // Stage L
         case PhaseIntent::kIdle:       return 0;  // Fall through
         case PhaseIntent::kNone:       return 0;
     }
