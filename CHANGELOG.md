@@ -20,6 +20,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-18-002 | Claude Opus 4.7 | feature, architecture, council, refactor
+
+**Stage L COMPLETE — LED engine + notification polish (AP parity, beacon overlay, pre-arm fail, boot init rainbow, GCS beacon command).**
+
+Seven IVPs + one full-tree JSF-AV sweep. Plan `.claude/plans/shimmering-twirling-thimble.md` council-reviewed before implementation (NASA/JPL, ArduPilot, Rocketeer, Cubesat — unanimous).
+
+Two new driver modes (`WS2812_MODE_ALTERNATE` for beacon overlays, `WS2812_MODE_DOUBLE_FLASH` for pre-arm fail, AP parity). Five new pattern codes for fault-beacon composition (kFault{Imu,Eskf,Baro,PioWdt,Core1Stall}Beacon). Two orthogonal flags on `NotifyState`: `beacon_manual` forces pure-white 2Hz (CLI `b` key + `MAV_CMD_USER_1` over radio); `beacon_auto` preserves state color via +white alternate (automatic triggers). Both clear on `SIG_PHASE_CHANGE` out of {LANDED, ABORT}. New `PhaseIntent::kPreArmFail` (yellow double-flash, 3s auto-clear via pure helper `include/rocketchip/prearm_fail_ticks.h`). New `PhaseIntent::kInit` (boot rainbow with min-visibility gate essential for warm resets). AP-parity color swaps: ARMED amber→red, cal gyro/level blue-breathe→yellow-blink. Station/vehicle LED role divergence preserved and documented (station RSSI bar vs vehicle flight-state display, LL Entry 32).
+
+Full-tree clang-tidy sweep (LL Entry 36 discipline) surfaced 5 latent JSF-AV rule-1 function-size violations — decomposed `flight_director_evaluate_guards`, `AO_Logger_populate_fused_state`, `handle_rx_packet`, `core1_sensor_loop`, `guard_evaluator_tick`. Added `src/dev/**` to pre-commit hook whitelist alongside `src/cli/**`. `SESSION_CHECKLIST.md` item 17 added to run full-tree sweep at milestone close so the next accumulation gets caught on the way in, not after it's compounded.
+
+755/755 host tests (up from 724; 31 new — 9 prearm-helper, 14 beacon overlay, 5 pre-arm resolver, 3 boot-init). 4 builds clean, SPIN FD 7/7 errors=0, bench_sim 2/2 + 3/3 (station requires `--port COM9`; auto-detect script limitation tracked in whiteboard), vehicle 5-min soak PASS (1.04M IMU reads, 1 transient I2C error, 0 baro errors, MCU 36.5 °C stable).
+
+Station→vehicle end-to-end beacon roundtrip not verified: vehicle-side resolver chain proven via GDB `set var beacon_manual=true` → pure-white 2Hz confirmed, but live radio test showed vehicle `rx_count=0` from station TX attempts. Consistent with the pre-existing RadioScheduler TX-window sync issue (IVP-132a.5 quantified 6.7% first-try ACK rate in Stage 16B). Tracked as new **Stage M** — "RadioScheduler TX-Window Synchronization" — with proposed "listen-before-talk" fix requiring plan + council review.
+
+Documentation: `docs/AO_ARCHITECTURE.md` LED section + SIG_BEACON_MANUAL row; `docs/SCAFFOLDING.md` module rows for ws2812_status + ao_notify; `docs/decisions/NOTIFY_CONTRACT.md` full Stage-L extensions section (composition table, AP-parity table, signal catalog); `docs/IVP.md` new Stage L + Stage M stub sections.
+
+Commits: `1d231b1` (IVP-L1), `a9f538a`+`9fe8061`+`58575e8` (sweep), `7a26beb` (IVP-L2), `d559703` (IVP-L3), `57d266a` (IVP-L4), `c449e6b` (IVP-L5), and the L7 exit commit (this changelog entry).
+
+---
+
 ### 2026-04-18-001 | Claude Opus 4.7 | feature, architecture, council
 
 **Stage 16C COMPLETE — station runtime decoupling + MCU die-temp + station HealthMonitor parity + board scaffolding.**

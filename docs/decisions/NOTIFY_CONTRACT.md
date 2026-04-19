@@ -215,3 +215,153 @@ Stage 14 completed: 2026-04-10. All six IVPs (IVP-113 through IVP-118)
 passed their gates. Plan: `.claude/plans/encapsulated-pondering-sparkle.md`.
 Latent QP use-after-free bug discovered and fixed during IVP-117 HW verify
 (see LESSONS_LEARNED.md Entry 35).
+
+---
+
+## Stage L Extensions (IVP-L1 … IVP-L7, 2026-04-18)
+
+Stage L polished the LED+notify system with AP-parity color nudges, a
+beacon-overlay composition layer, a pre-arm-fail visual, a boot-init
+rainbow, and vehicle/GCS manual beacon triggers. Plan:
+`.claude/plans/shimmering-twirling-thimble.md`.
+
+### Beacon Overlay Composition
+
+Two orthogonal flags on `NotifyState` (added Stage L IVP-L2):
+
+- `beacon_auto`   — set by automatic triggers (FD MAIN_DESCENT backstop,
+  `kSetBeacon` action). Preserves the state color via the resolver
+  overlay so a recovery crew sees good / fault-class / safe-mode from
+  distance.
+- `beacon_manual` — set by CLI `b` (find-me) or GCS `MAV_CMD_USER_1`.
+  Forces pure-white 2Hz regardless of state. Wins over `beacon_auto`.
+
+Both clear on `SIG_PHASE_CHANGE` out of `{kLanded, kAbort}`. The
+overlay runs in `apply_beacon_overlay()` after the normal priority loop
+in `resolve_led_pattern()`. Composition table:
+
+| Base resolved pattern  | + beacon_auto                  | + beacon_manual |
+|------------------------|--------------------------------|-----------------|
+| kFdLanded              | kFdLandedBeacon (green+white)  | kFdBeacon (pure white) |
+| kFdAbort               | kFdAbortBeacon  (red+white)    | kFdBeacon |
+| kFaultImuFail          | kFaultImuFailBeacon (red+white)| kFdBeacon |
+| kFaultEskfFail         | kFaultEskfFailBeacon           | kFdBeacon |
+| kFaultBaroFail         | kFaultBaroFailBeacon (orange+w)| kFdBeacon |
+| kFaultPioWdt           | kFaultPioWdtBeacon             | kFdBeacon |
+| kFaultCore1Stall       | kFaultCore1StallBeacon (mag+w) | kFdBeacon |
+| kFaultSafeMode         | (unchanged — already blue+white) | kFdBeacon |
+| anything else          | kFdBeacon (pure white fallback)| kFdBeacon |
+
+**Rationale for preserving fault color under beacon_auto:** a recovery
+crew walking up to the vehicle wants to know at a glance whether the
+vehicle is good, faulted, or in safe-mode. State-color retention is
+more diagnostically useful than pure white when the beacon was
+triggered automatically (the vehicle decided on its own it needed
+locating). Under `beacon_manual`, the operator explicitly requested
+maximum visibility — they already know the state from telemetry and
+want pure white for range.
+
+**Fault diagnostics not in LED when beacon_manual wins:** intentional
+loss. Full fault state remains available via serial CLI, MAVLink
+telemetry, and the health-status bitfield. LED is a locator, not a
+debugger.
+
+### PhaseIntent Extensions (Stage L)
+
+- `kPreArmFail = 10` — ARM rejection visual. Yellow double-flash
+  (100/100/100/700 ms, AP parity). Auto-clears after 99 ticks
+  (~3 s at 33 Hz). Each repost of `SIG_NOTIFY_PREARM_FAIL` resets the
+  counter to full (per JPL council 2026-04-18) — rapid-fire rejections
+  refresh the window rather than decrement. Phase transitions
+  immediately invalidate the visual. Pure helper
+  `prearm_fail_tick_next()` in `include/rocketchip/prearm_fail_ticks.h`
+  is host-testable separately.
+- `kInit = 11` — boot-init warmup visual. Rainbow (shares
+  `WS2812_MODE_RAINBOW` with mag-cal; time-separated by construction —
+  mag-cal is operator action, kInit runs once at boot). Auto-clears
+  when all three gates satisfied: (a) minimum 99-tick visibility window
+  (~3 s at 33Hz) elapsed, (b) `eskf_runner_is_initialized()`, and
+  (c) `seqlock.imu_read_count > 0`. The min-ticks gate ensures the
+  rainbow is visible even on warm resets where ESKF+IMU are ready
+  before AO_Notify's first tick.
+
+### New Signals (Stage L)
+
+- `SIG_BEACON_MANUAL` (28) — added to `RcSignal` enum. Bumps
+  `SIG_AO_MAX` from 28 to 29. Published by:
+  - `cmd_findme_beacon()` on vehicle (local CLI `b` key)
+  - `handle_rx_mavlink_msg()` on vehicle when `MAV_CMD_USER_1`
+    (id 31010) arrives over radio
+  - Station-side `cmd_findme_beacon()` role-gates to send
+    `MAV_CMD_USER_1` over radio via `AO_Telemetry_send_tracked_command`
+    (reuses IVP-122 ACK ladder)
+- `SIG_BEACON_ACTIVE` (existing) — semantics **changed**: now sets
+  `NotifyState.beacon_auto` instead of overwriting `state.phase = kBeacon`.
+  Publishers unchanged (FD `kSetBeacon` action + MAIN_DESCENT backstop).
+- `SIG_NOTIFY_PREARM_FAIL` (private to AO_Notify) — direct post from
+  `AO_Notify_post_prearm_fail()` shim, called by
+  `dispatch_flight_command()` on ARM rejection.
+
+### AP-Parity Color Swaps (Stage L IVP-L1)
+
+Deliberate alignment with ArduPilot LED defaults where semantics are
+shared:
+
+| Element              | Before IVP-L1          | After IVP-L1         | AP parity |
+|----------------------|------------------------|----------------------|-----------|
+| kFdArmed             | Orange solid           | Red solid            | ✅ match  |
+| kCalGyro             | Blue breathe           | Yellow blink         | ✅ match  |
+| kCalLevel            | Blue breathe           | Yellow blink         | ✅ match  |
+| kCalMag              | Rainbow                | Rainbow (unchanged)  | ✅ AP also uses rainbow for compass cal |
+| kFdPreArmFail (new)  | —                      | Yellow double-flash  | ✅ match  |
+| kFdBootInit (new)    | —                      | Rainbow              | ✅ match  |
+| kFaultSafeMode       | Red solid              | Blue+white 2Hz alt   | 🎯 rocketry-specific (locator-ready) |
+
+### AP-Parity Comparison Table (Stage L)
+
+Single source of truth for "where are we vs AP": see gap analysis in
+plan file §8. Summary: all shared AP concepts have matching colors;
+rocketry-specific phases (BOOST/COAST/DROGUE/MAIN/LANDED/ABORT/BEACON)
+are deliberate deviations with no AP analog. GPS-glitch intent not yet
+implemented (deferred).
+
+### Driver-Layer Modes Added (Stage L IVP-L1)
+
+- `WS2812_MODE_ALTERNATE` — two-color toggle at a configurable
+  half-period (default 250 ms each = 2 Hz visual). Used by all
+  beacon-overlay patterns. Edge-triggered in `update_alternate()` to
+  avoid hammering the PIO FIFO.
+- `WS2812_MODE_DOUBLE_FLASH` — hardcoded 100/100/100/700 ms pulse
+  pattern for pre-arm-fail. AP-parity shape.
+
+### Station/Vehicle LED Role Divergence
+
+Station runs no `AO_LedEngine` — the Fruit Jam's multi-LED strip is
+owned by `AO_Radio` as an RSSI bar (see LL Entry 32 for PIO-contention
+rationale). Vehicle uses `AO_LedEngine` for flight-state visualization.
+This is intentional role-specific UX: station is a ground device
+showing radio link health; vehicle is a flight device showing phase.
+Council-reviewed 2026-04-18.
+
+When `cmd_findme_beacon()` runs on station, it's role-gated to skip
+the local publish path (no AO_Notify to receive it) and instead send
+`MAV_CMD_USER_1` over radio to the vehicle. The vehicle's
+`handle_rx_mavlink_msg()` MAVLink command switch maps `MAV_CMD_USER_1`
+to `SIG_BEACON_MANUAL` publish — so the visual effect is identical
+from the operator's perspective whether the beacon was triggered
+locally (vehicle CLI `b`) or over radio (station `b`).
+
+### Completion Record (Stage L)
+
+Stage L completed: 2026-04-18. Seven IVPs (IVP-L1 … IVP-L7) + one
+full-tree JSF-AV-rule-1 sweep + one SESSION_CHECKLIST update. Plan:
+`.claude/plans/shimmering-twirling-thimble.md`. Council review (4
+panels) approved before implementation.
+
+Station→vehicle end-to-end beacon roundtrip not verified during this
+stage: the station TX path sends correctly but vehicle radio RX
+receives 0 packets due to the pre-existing RadioScheduler TX-window
+sync issue (quantified 2026-04-16 at 6.7% first-try ACK rate, IVP-132a.5).
+This is tracked as a dedicated future stage — the Stage L code path is
+architecturally sound and verified via GDB `set var beacon_manual=true`
+showing the resolver + LED driver chain works correctly.

@@ -311,7 +311,7 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 | **baro_dps310** | DPS310 barometer driver — pressure/temperature reads |
 | **gps_pa1010d** | PA1010D GPS driver — I2C backend with 32-byte chunked reads |
 | **gps_uart** | GPS UART backend — interrupt-driven ring buffer, baud negotiation, 10Hz rate |
-| **ws2812_status** | NeoPixel status LED — animation engine with mode-based patterns |
+| **ws2812_status** | NeoPixel status LED — animation engine with mode-based patterns (Stage L: MODE_ALTERNATE 2-color + MODE_DOUBLE_FLASH) |
 | **eskf** | 24-state Error-State Kalman Filter — propagation + baro/mag/GPS/ZUPT updates |
 | **eskf_codegen** | SymPy-generated FPFT covariance prediction — SRAM execution (.time_critical) |
 | **mahony_ahrs** | Independent Mahony AHRS — 200Hz attitude cross-check for ESKF |
@@ -322,7 +322,7 @@ See `docs/SAD.md` Section 3.2 for the planned production architecture. Below ref
 | **ao_radio** | AO priority 8 — RadioScheduler, non-blocking TX, RX polling, RSSI bar, relay |
 | **ao_flight_director** | AO priority 7 — HSM: IDLE→ARMED→BOOST→...→LANDED, pyro commands |
 | **ao_health_monitor** | AO priority 6 — 2-bit subsystem health encoding, fault escalation, auto-DISARM |
-| **ao_notify** | AO priority 5 — Notification intent → backend resolution (LED, audio, radio) |
+| **ao_notify** | AO priority 5 — Notification intent → backend resolution (LED, audio, radio); Stage L adds beacon overlay, pre-arm-fail + boot-init visuals |
 | **ao_logger** | AO priority 4 — PSRAM buffer → flash page flush, flight log lifecycle |
 | **ao_telemetry** | AO priority 3 — CCSDS/MAVLink encoding, APID mux, USB MAVLink output |
 | **ao_led_engine** | AO priority 2 — NeoPixel animation rendering (Vehicle only) |

@@ -3495,6 +3495,66 @@ Four documentation items completed: AO Architecture Audit (removed dead Core1 vi
 
 **See:** `AGENT_WHITEBOARD.md` "Stage 16C (planned, post-Stage-17): Station Re-Work" for original scope and rationale.
 
+---
+
+## Stage L: LED Engine & Notification Polish — COMPLETE 2026-04-18
+
+**Purpose:** Polish the LED + notification system with ArduPilot-parity color nudges, a beacon-overlay composition layer, a pre-arm-fail visual, a boot-init rainbow, and vehicle-local + GCS-initiated manual-beacon triggers. Out-of-sequence stage between 16C and 17, mirroring Stage P7's letter-stage convention.
+
+**Plan:** `.claude/plans/shimmering-twirling-thimble.md` (council-reviewed 2026-04-18: NASA/JPL, ArduPilot, Rocketeer, Cubesat — unanimous approval with plan-agent revisions folded in).
+
+**Prerequisites:** Stage 16C complete.
+
+**End state:** NeoPixel visuals match AP defaults where semantics are shared (ARMED red, cal gyro/level yellow-blink, pre-arm fail yellow double-flash, boot rainbow, EKF red, etc.) while preserving rocketry-specific deviations (BOOST/COAST/DROGUE/MAIN/LANDED/ABORT/BEACON). Two beacon flags in `NotifyState`: `beacon_auto` (preserves state color via +white alternate) and `beacon_manual` (pure white, wins over auto). CLI `b` key posts local `SIG_BEACON_MANUAL`; GCS can trigger via `MAV_CMD_USER_1` over radio. Pre-arm fail auto-clears via a host-testable pure helper. Boot-init rainbow has a min-visibility gate (~3s) so it's seen even when ESKF+IMU are already ready on warm reset.
+
+| Step | Title | Brief Description |
+|------|-------|------------------|
+| IVP-L1 | MODE_ALTERNATE + Patterns + Color Swaps | Driver `WS2812_MODE_ALTERNATE` (two-color, 250ms each = 2Hz) + `WS2812_MODE_DOUBLE_FLASH` (100/100/100/700 ms). Pattern constants 12, 13, 28, 29, 45, 47 in `led_patterns.h`. `led_apply_pattern()` wired. ARMED color swap amber→red (AP parity). Cal gyro/level blue-breathe→yellow-blink (AP parity). **COMPLETE `1d231b1`**. |
+| Sweep | Full-tree JSF-AV rule-1 refactor | Pre-commit hook surfaced 5 latent function-size violations on the IVP-L1 edits. Decomposed `flight_director_evaluate_guards`, `AO_Logger_populate_fused_state`, `handle_rx_packet`, `core1_sensor_loop`, `guard_evaluator_tick`. Added `src/dev/**` to hook whitelist. Added full-tree clang-tidy sweep to SESSION_CHECKLIST milestone block. **COMPLETE `a9f538a`, `9fe8061`, `58575e8`**. |
+| IVP-L2 | Beacon Overlay + findme CLI | `bool beacon_auto, beacon_manual` in `NotifyState`. Resolver `apply_beacon_overlay()` remaps 8 base patterns + fallback. 5 new fault-beacon pattern codes (14-18). `SIG_BEACON_MANUAL` signal (28, `SIG_AO_MAX` bumped to 29). Vehicle CLI `b` key + `cmd_findme_beacon()` publish. AO_Notify subscribes to new signal, clears both flags on phase change out of {LANDED, ABORT}. 14 new host tests. **COMPLETE `7a26beb`**. |
+| IVP-L3 | Pre-arm fail intent + helper | `PhaseIntent::kPreArmFail = 10`. New pure helper `include/rocketchip/prearm_fail_ticks.h` (99 ticks = ~3s at 33Hz). `AO_Notify_post_prearm_fail()` shim resets counter to full each call (JPL council — rapid-fire rejections refresh). `dispatch_flight_command()` posts on ARM reject. Phase change clears counter. 23 new host tests (9 helper, 5 resolver + 9 coverage in test_notify). **COMPLETE `d559703`**. |
+| IVP-L4 | Boot-init rainbow | `PhaseIntent::kInit = 11`. AO_Notify defaults to kInit on start; tick handler clears when ESKF ready + `imu_read_count > 0` + min-visibility window elapsed (99 ticks ≈ 3s — essential on warm resets). 3 new host tests. **COMPLETE `57d266a`**. |
+| IVP-L5 | GCS beacon command | Vehicle RX: `handle_rx_mavlink_msg()` switch extended with `MAV_CMD_USER_1` → publishes `SIG_BEACON_MANUAL`. Station TX: `cmd_findme_beacon()` role-gated — on station sends `MAV_CMD_USER_1` via `AO_Telemetry_send_tracked_command` (reuses IVP-122 ACK ladder). Protocol-agnostic by construction — future CCSDS uplink mirrors this commit's case. **COMPLETE `c449e6b`**. Station→vehicle end-to-end roundtrip not verified: vehicle radio `rx_count=0` from station TX, consistent with the pre-existing RadioScheduler TX-window sync issue (IVP-132a.5 quantified 6.7% first-try ACK rate). Vehicle-side resolver chain verified by GDB `set var beacon_manual=true` → LED went pure white. Tracked as future stage. |
+| IVP-L6 | Documentation sync (rolled into IVP-L7 per user 2026-04-18) | N/A — see IVP-L7. |
+| IVP-L7 | Stage L exit + IVP.md + docs | 4 builds clean. 755/755 host tests. Full-tree clang-tidy zero warnings (Sweep discipline). SPIN FD 7/7. Bench_sim vehicle 2/2 + station 3/3 (with --port COM9). Vehicle 5-min soak PASS. Doc updates: `docs/AO_ARCHITECTURE.md` LED section, `docs/SCAFFOLDING.md` module rows, `docs/decisions/NOTIFY_CONTRACT.md` Stage-L extensions section + AP-parity table + station/vehicle divergence rationale, `include/rocketchip/led_patterns.h` header comments, `CHANGELOG.md` + `PROJECT_STATUS.md` stage entries. IVP.md Stage L section (this table) + Stage M RadioScheduler stub added. |
+
+**[GATE PASS]:**
+- 4 builds clean
+- 755/755 host tests pass (up from 724 pre-Stage-L)
+- Full-tree clang-tidy zero warnings on `readability-function-size` + `readability-function-cognitive-complexity` (SESSION_CHECKLIST item 17)
+- SPIN FD: 7/7 safety properties, `errors: 0`
+- Bench_sim vehicle: 2/2 PASS
+- Bench_sim station: 3/3 PASS (requires `--port COM9` — auto-detect picks vehicle when both roles enumerated)
+- 5-min vehicle soak: PASS (no QP asserts, IMU error_count 0, MCU temp stable)
+- All Stage L CHANGELOG entries present
+
+**[HW VERIFY — per-IVP, aggregated]:**
+- IVP-L1: 8 Stage L pattern codes rendered correctly via `led_test` debug menu. BLINK↔ALTERNATE transition clean.
+- IVP-L2: `b` key → pure white 2Hz. LANDED/ABORT/fault overlays composed correctly. Clear-on-phase-change verified (ARM transition cleared beacon_manual).
+- IVP-L3: Pattern code 28 yellow double-flash verified via `led_test`. Live ARM-reject path not bench-triggerable (Platform 6/6 GO — GPS-no-lock is WARN not critical).
+- IVP-L4: Rainbow visible for ~3s on cold boot then clears to sensor status. Min-ticks gate verified by second boot also showing rainbow (was invisible pre-gate).
+- IVP-L5: Vehicle local path verified (cmd_findme_beacon publishes). Station TX verified (`[CMD] find-me beacon command sent, waiting for ACK...`). Station→vehicle roundtrip blocked by pre-existing RadioScheduler sync issue (see Stage M).
+
+**[DIAG]:** Station auto-detect always picks vehicle → use `--port COM9` explicitly (script limitation, tracked in whiteboard). Rainbow not visible at boot → ensure min-ticks gate is in place; check `init_min_ticks` reaches 0. Beacon not clearing on phase change → verify `handle_phase_change` sets both flags false when leaving LANDED/ABORT. ARM-reject LED not showing → confirm `dispatch_flight_command` inspects bool return from `AO_FlightDirector_process_command`. MAV_CMD_USER_1 not triggering beacon on vehicle → check that `handle_rx_mavlink_msg` switch path actually receives the command (radio RX path, not USB MAVLink). Pre-commit bench_sim failing with COM7 auto-detected as "station" → vehicle is misidentified because script sees only one port; same root cause as the auto-detect limitation.
+
+---
+
+## Stage M: RadioScheduler TX-Window Synchronization (planned)
+
+**Purpose:** Fix the station→vehicle command delivery gap quantified in IVP-132a.5 (2026-04-16): 6.7% first-try ACK rate, 93% of commands going through all 3 retries, 1/30 explicitly timing out. TX hardware proven healthy (`tx_consec_fail = 0`); root cause is station TX timing not synchronized to vehicle RX windows in the half-duplex RadioScheduler.
+
+**Proposed approach:** "listen-before-talk" — station posts `SIG_RADIO_TX` in `handle_rx_packet()` when a pending command exists, so the TX attempt is cued off the vehicle's TX completion (when the vehicle is guaranteed to be in RX mode). Council review required before architectural change.
+
+**Unblocks:** Station→vehicle end-to-end verification of any command path — including Stage L's manual beacon (IVP-L5), all future GCS-initiated commands, and any MAVLink-over-radio command workflow. Load-bearing for reliable field operation.
+
+**Prerequisites:** None — can run in parallel with Stage 17.
+
+**End state:** Station first-try ACK rate > 80% under the same conditions that measured 6.7% pre-fix. No regression in vehicle telemetry TX path.
+
+**Not yet planned in detail.** Tracked in `AGENT_WHITEBOARD.md` under "Large (multi-session, architectural)." Will need its own plan file + council review.
+
+---
+
 ### Stage 17 — see dedicated section below.
 
 ---

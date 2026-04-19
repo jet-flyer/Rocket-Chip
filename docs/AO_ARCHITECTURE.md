@@ -24,7 +24,7 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 | AO_Radio | `ao_radio.cpp` | 100Hz | 8 | 32 | rfm95w_t, RadioScheduler, RadioAoState | SIG_RADIO_RX, SIG_RADIO_STATUS | SIG_RADIO_TX |
 | AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 7 | 32 | FlightDirector HSM ([diagram](../audits/cla_rbm/dot/flight_director_hsm.dot)), guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_BEACON_ACTIVE | SIG_SENSOR_DATA |
 | AO_HealthMonitor | `ao_health_monitor.cpp` | 10Hz | 6 | 8 | HealthState, sliding windows, fault latch, staleness counter, Core1 vitality primary check (IVP-117) | SIG_HEALTH_STATUS | SIG_PHASE_CHANGE |
-| AO_Notify | `ao_notify.cpp` | 33Hz | 5 | 16 | NotifyState, intent resolver, output backend dispatch, sensor status evaluation (Stage 14) | SIG_LED_PATTERN (via backend) | SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE |
+| AO_Notify | `ao_notify.cpp` | 33Hz | 5 | 16 | NotifyState, intent resolver, output backend dispatch, sensor status evaluation (Stage 14), beacon overlay + pre-arm fail + boot-init rainbow (Stage L) | SIG_LED_PATTERN (via backend) | SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE, SIG_BEACON_MANUAL |
 | AO_Logger | `ao_logger.cpp` | 50Hz | 4 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_HEALTH_STATUS |
 | AO_Telemetry | `ao_telemetry.cpp` | 10Hz | 3 | 8 | CCSDS/MAVLink encode, TelemetryState snapshot, RX decode | SIG_RADIO_TX | SIG_RADIO_RX, SIG_SENSOR_DATA, SIG_HEALTH_STATUS |
 | AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 2 | 8 | ws2812 driver, 3-layer compositor (Fault/Notify/Idle), Core1 vitality fallback (A1) | (none) | SIG_LED_PATTERN |
@@ -147,6 +147,48 @@ wired). Removed in IVP-130. Core1 stall is recoverable via watchdog —
 single-fault tolerance (2 independent checks) is sufficient. A third
 redundant check was accidental complexity from iterative development.
 
+### Stage L Extensions (IVP-L1 … IVP-L7, 2026-04-18)
+
+Stage L added three visual-only features that don't change the layer
+model but extend AO_Notify's `NotifyState` and the resolver:
+
+- **Beacon overlay** — two orthogonal flags `beacon_auto` + `beacon_manual`
+  applied by `apply_beacon_overlay()` after the normal priority loop.
+  See `docs/decisions/NOTIFY_CONTRACT.md` for the composition table.
+  Manual wins over auto; manual forces pure-white 2Hz; auto preserves
+  state color by remapping to a +white-alternate sibling pattern.
+- **Pre-arm-fail visual** — `PhaseIntent::kPreArmFail` with a pure
+  auto-clear helper in `include/rocketchip/prearm_fail_ticks.h`.
+  `AO_Notify_post_prearm_fail()` shim is called by
+  `dispatch_flight_command()` on ARM rejection. Counter resets to
+  full on each repost (rapid-fire rejections refresh the window).
+- **Boot-init rainbow** — `PhaseIntent::kInit` default on AO_Notify
+  startup. Cleared by the tick handler when ESKF ready AND IMU reads
+  published AND a minimum 99-tick (~3s) visibility window has elapsed.
+  The min-tick gate is load-bearing on warm resets where the other
+  two gates are satisfied by the time Notify starts ticking.
+
+Two new driver modes in `ws2812_status.cpp`:
+
+- `WS2812_MODE_ALTERNATE` — two-color 2Hz toggle with configurable
+  half-period. Powers all the `+White` beacon patterns (12, 13, 14-18,
+  45).
+- `WS2812_MODE_DOUBLE_FLASH` — AP-parity pre-arm-fail shape
+  (100/100/100/700 ms). Hardcoded timing.
+
+**Station/vehicle LED role divergence (Stage L council decision):**
+Station runs no AO_LedEngine — the Fruit Jam's 5-LED NeoPixel strip is
+owned by AO_Radio as an RSSI bar, per LL Entry 32 (PIO contention
+avoidance). Station's role is link-quality display; vehicle's role is
+flight-state display. Intentional role-specific UX, not a candidate
+for future unification.
+
+`cmd_findme_beacon()` on station role-gates to skip the local publish
+path and instead send `MAV_CMD_USER_1` over radio — vehicle's
+`handle_rx_mavlink_msg()` maps it to `SIG_BEACON_MANUAL` publish, so
+the operator sees identical visual behavior whether triggered locally
+or over radio.
+
 ---
 
 ## Signal Catalog
@@ -176,7 +218,8 @@ redundant check was accidental complexity from iterative development.
 | SIG_GCS_CMD | 25 | GcsCmdEvt | AO_Telemetry | AO_FlightDirector |
 | SIG_HEALTH_STATUS | 26 | HealthStatusEvt | AO_HealthMonitor | AO_Notify, AO_Logger, AO_Telemetry |
 | SIG_PYRO_FIRED | 27 | PyroFiredEvt | AO_FlightDirector | AO_Logger |
-| SIG_AO_MAX | 28 | -- | -- | -- |
+| SIG_BEACON_MANUAL | 28 | QEvt | CLI `b` (vehicle) / MAV_CMD_USER_1 dispatch (vehicle from radio) | AO_Notify (Stage L) |
+| SIG_AO_MAX | 29 | -- | -- | -- |
 
 Note: "removed" historical slots (LOG_FRAME, TELEM_FRAME, HEALTH_CHECK) do NOT
 create numeric gaps in the enum — the table reflects ACTUAL runtime values.
