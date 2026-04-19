@@ -1,0 +1,132 @@
+IVP-132a.5 ACK stress test — port=COM9 duration=450.0s interval=10.0s inject_drops=0
+------------------------------------------------------------
+[t=  0.0s] SEND DISARM
+[t= 10.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=29)
+  [RETRY] [CMD] Retry 2 (seq=29)
+  [RETRY] [CMD] Retry 3 (seq=29)
+[t= 20.4s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=30)
+  [RETRY] [CMD] Retry 2 (seq=30)
+  [RETRY] [CMD] Retry 3 (seq=30)
+[t= 30.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=31)
+  [RETRY] [CMD] Retry 2 (seq=31)
+  [RETRY] [CMD] Retry 3 (seq=31)
+[t= 40.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=32)
+  [RETRY] [CMD] Retry 2 (seq=32)
+  [RETRY] [CMD] Retry 3 (seq=32)
+[t= 50.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=33)
+  [RETRY] [CMD] Retry 2 (seq=33)
+  [RETRY] [CMD] Retry 3 (seq=33)
+[t= 60.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=34)
+  [RETRY] [CMD] Retry 2 (seq=34)
+  [RETRY] [CMD] Retry 3 (seq=34)
+[t= 70.0s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=35)
+  [RETRY] [CMD] Retry 2 (seq=35)
+  [RETRY] [CMD] Retry 3 (seq=35)
+[t= 80.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=36)
+  [ACK] [CMD] ACK'd (seq=36)
+[t= 90.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=37)
+  [RETRY] [CMD] Retry 2 (seq=37)
+  [RETRY] [CMD] Retry 3 (seq=37)
+[t=100.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=38)
+  [RETRY] [CMD] Retry 2 (seq=38)
+  [RETRY] [CMD] Retry 3 (seq=38)
+  [ACK] [CMD] ACK'd (seq=38)
+[t=110.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=39)
+  [RETRY] [CMD] Retry 2 (seq=39)
+  [RETRY] [CMD] Retry 3 (seq=39)
+[t=120.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=40)
+  [RETRY] [CMD] Retry 2 (seq=40)
+  [ACK] [CMD] ACK'd (seq=40)
+[t=130.4s] SEND DISARM
+  [ACK] [CMD] ACK'd (seq=41)
+[t=140.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=42)
+  [RETRY] [CMD] Retry 2 (seq=42)
+  [ACK] [CMD] ACK'd (seq=42)
+[t=150.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=43)
+  [RETRY] [CMD] Retry 2 (seq=43)
+  [ACK] [CMD] ACK'd (seq=43)
+[t=160.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=44)
+  [RETRY] [CMD] Retry 2 (seq=44)
+  [RETRY] [CMD] Retry 3 (seq=44)
+[t=170.0s] SEND DISARM
+  [ACK] [CMD] ACK'd (seq=45)
+[t=180.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=46)
+  [RETRY] [CMD] Retry 2 (seq=46)
+  [ACK] [CMD] ACK'd (seq=46)
+[t=190.4s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=47)
+  [RETRY] [CMD] Retry 2 (seq=47)
+  [RETRY] [CMD] Retry 3 (seq=47)
+[t=200.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=48)
+  [RETRY] [CMD] Retry 2 (seq=48)
+  [RETRY] [CMD] Retry 3 (seq=48)
+  [ACK] [CMD] ACK'd (seq=48)
+[t=210.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=49)
+  [RETRY] [CMD] Retry 2 (seq=49)
+  [RETRY] [CMD] Retry 3 (seq=49)
+[t=220.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=50)
+  [ACK] [CMD] ACK'd (seq=50)
+[t=230.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=51)
+  [RETRY] [CMD] Retry 2 (seq=51)
+  [RETRY] [CMD] Retry 3 (seq=51)
+[t=240.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=52)
+  [RETRY] [CMD] Retry 2 (seq=52)
+  [RETRY] [CMD] Retry 3 (seq=52)
+  [ACK] [CMD] ACK'd (seq=52)
+[t=250.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=53)
+  [RETRY] [CMD] Retry 2 (seq=53)
+  [RETRY] [CMD] Retry 3 (seq=53)
+[t=260.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=54)
+  [RETRY] [CMD] Retry 2 (seq=54)
+  [ACK] [CMD] ACK'd (seq=54)
+[t=270.2s] SEND DISARM
+  [ACK] [CMD] ACK'd (seq=55)
+[t=280.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=56)
+  [RETRY] [CMD] Retry 2 (seq=56)
+  [RETRY] [CMD] Retry 3 (seq=56)
+  [ACK] [CMD] ACK'd (seq=56)
+[t=290.1s] SEND DISARM
+
+============================================================
+RESULTS
+============================================================
+Duration:    292.4 s
+Sent:        30
+ACK'd:       14
+  first-try:   3
+  retry 1:     2
+  retry 2:     5
+  retry 3:     4
+DENIED:      0
+Retries:     66 (total retry log lines)
+Failed:      0
+ACK rate:       46.7%
+First-try rate: 10.0%  (IVP-T1 headline metric)
+Fail rate:      0.0%
+============================================================
+Raw transcript saved to: logs/ack_stress_20260418_231534.log
+CSV saved to: logs/stage_t/t1_run3.csv

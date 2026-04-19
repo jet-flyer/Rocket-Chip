@@ -30,7 +30,10 @@ desktop.ini
 
 # Logs and temps
 *.log
-logs/
+logs/*
+# Exception: Stage T diagnostic CSVs are committed for fix-council review
+!logs/stage_t/
+!logs/stage_t/**
 temp/
 tmp/
 *.tmp

@@ -1,0 +1,137 @@
+IVP-132a.5 ACK stress test — port=COM9 duration=450.0s interval=10.0s inject_drops=0
+------------------------------------------------------------
+[t=  0.0s] SEND DISARM
+  [RETRY] [main] [CMD] Retry 3 (seq=57)
+  [FAILED] [CMD] No ACK after 3 retries
+[t= 10.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=58)
+  [RETRY] [CMD] Retry 2 (seq=58)
+  [RETRY] [CMD] Retry 3 (seq=58)
+[t= 20.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=59)
+  [RETRY] [CMD] Retry 2 (seq=59)
+  [RETRY] [CMD] Retry 3 (seq=59)
+[t= 30.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=60)
+  [RETRY] [CMD] Retry 2 (seq=60)
+  [RETRY] [CMD] Retry 3 (seq=60)
+[t= 40.0s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=61)
+  [RETRY] [CMD] Retry 2 (seq=61)
+  [ACK] [CMD] ACK'd (seq=61)
+[t= 50.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=62)
+  [RETRY] [CMD] Retry 2 (seq=62)
+  [RETRY] [CMD] Retry 3 (seq=62)
+  [ACK] [CMD] ACK'd (seq=62)
+[t= 60.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=63)
+  [RETRY] [CMD] Retry 2 (seq=63)
+  [RETRY] [CMD] Retry 3 (seq=63)
+[t= 70.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=64)
+  [RETRY] [CMD] Retry 2 (seq=64)
+  [RETRY] [CMD] Retry 3 (seq=64)
+[t= 80.0s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=65)
+  [RETRY] [CMD] Retry 2 (seq=65)
+  [RETRY] [CMD] Retry 3 (seq=65)
+[t= 90.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=66)
+  [RETRY] [CMD] Retry 2 (seq=66)
+  [ACK] [CMD] ACK'd (seq=66)
+[t=100.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=67)
+  [RETRY] [CMD] Retry 2 (seq=67)
+  [RETRY] [CMD] Retry 3 (seq=67)
+[t=110.4s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=68)
+  [RETRY] [CMD] Retry 2 (seq=68)
+  [RETRY] [CMD] Retry 3 (seq=68)
+[t=120.2s] SEND DISARM
+  [ACK] [CMD] ACK'd (seq=69)
+[t=130.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=70)
+  [RETRY] [CMD] Retry 2 (seq=70)
+  [RETRY] [CMD] Retry 3 (seq=70)
+[t=140.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=71)
+  [RETRY] [CMD] Retry 2 (seq=71)
+  [RETRY] [CMD] Retry 3 (seq=71)
+[t=150.0s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=72)
+  [RETRY] [CMD] Retry 2 (seq=72)
+  [RETRY] [CMD] Retry 3 (seq=72)
+[t=160.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=73)
+  [RETRY] [CMD] Retry 2 (seq=73)
+  [RETRY] [CMD] Retry 3 (seq=73)
+[t=170.4s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=74)
+  [RETRY] [CMD] Retry 2 (seq=74)
+  [RETRY] [CMD] Retry 3 (seq=74)
+[t=180.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=75)
+  [RETRY] [CMD] Retry 2 (seq=75)
+  [ACK] [CMD] ACK'd (seq=75)
+[t=190.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=76)
+  [RETRY] [CMD] Retry 2 (seq=76)
+  [RETRY] [CMD] Retry 3 (seq=76)
+[t=200.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=77)
+  [RETRY] [CMD] Retry 2 (seq=77)
+  [RETRY] [CMD] Retry 3 (seq=77)
+[t=210.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=78)
+  [RETRY] [CMD] Retry 2 (seq=78)
+  [RETRY] [CMD] Retry 3 (seq=78)
+[t=220.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=79)
+  [RETRY] [CMD] Retry 2 (seq=79)
+  [RETRY] [CMD] Retry 3 (seq=79)
+[t=230.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=80)
+  [RETRY] [CMD] Retry 2 (seq=80)
+  [RETRY] [CMD] Retry 3 (seq=80)
+[t=240.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=81)
+  [RETRY] [CMD] Retry 2 (seq=81)
+  [RETRY] [CMD] Retry 3 (seq=81)
+[t=250.0s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=82)
+  [RETRY] [CMD] Retry 2 (seq=82)
+  [RETRY] [CMD] Retry 3 (seq=82)
+[t=260.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=83)
+  [RETRY] [CMD] Retry 2 (seq=83)
+  [RETRY] [CMD] Retry 3 (seq=83)
+[t=270.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=84)
+  [RETRY] [CMD] Retry 2 (seq=84)
+  [RETRY] [CMD] Retry 3 (seq=84)
+[t=280.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=85)
+  [RETRY] [CMD] Retry 2 (seq=85)
+  [RETRY] [CMD] Retry 3 (seq=85)
+[t=290.3s] SEND DISARM
+
+============================================================
+RESULTS
+============================================================
+Duration:    292.6 s
+Sent:        30
+ACK'd:       5
+  first-try:   1
+  retry 1:     0
+  retry 2:     3
+  retry 3:     1
+DENIED:      0
+Retries:     79 (total retry log lines)
+Failed:      1
+ACK rate:       16.7%
+First-try rate: 3.3%  (IVP-T1 headline metric)
+Fail rate:      3.3%
+============================================================
+Raw transcript saved to: logs/ack_stress_20260418_232033.log
+CSV saved to: logs/stage_t/t1_run4.csv

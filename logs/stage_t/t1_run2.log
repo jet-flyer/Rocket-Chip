@@ -1,0 +1,136 @@
+IVP-132a.5 ACK stress test — port=COM9 duration=450.0s interval=10.0s inject_drops=0
+------------------------------------------------------------
+[t=  0.0s] SEND DISARM
+[t= 10.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=0)
+  [RETRY] [CMD] Retry 2 (seq=0)
+  [RETRY] [CMD] Retry 3 (seq=0)
+[t= 20.4s] SEND DISARM
+  [ACK] [main] [CMD] ACK'd (seq=1)
+[t= 30.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=2)
+  [RETRY] [CMD] Retry 2 (seq=2)
+  [RETRY] [CMD] Retry 3 (seq=2)
+[t= 40.4s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=3)
+  [RETRY] [CMD] Retry 2 (seq=3)
+  [RETRY] [CMD] Retry 3 (seq=3)
+[t= 50.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=4)
+  [RETRY] [CMD] Retry 2 (seq=4)
+  [RETRY] [CMD] Retry 3 (seq=4)
+[t= 60.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=5)
+  [RETRY] [CMD] Retry 2 (seq=5)
+  [RETRY] [CMD] Retry 3 (seq=5)
+[t= 70.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=6)
+  [RETRY] [CMD] Retry 2 (seq=6)
+  [RETRY] [CMD] Retry 3 (seq=6)
+[t= 80.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=7)
+  [RETRY] [CMD] Retry 2 (seq=7)
+  [RETRY] [CMD] Retry 3 (seq=7)
+[t= 90.0s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=8)
+  [RETRY] [CMD] Retry 2 (seq=8)
+  [RETRY] [CMD] Retry 3 (seq=8)
+  [ACK] [CMD] ACK'd (seq=8)
+[t=100.0s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=9)
+  [RETRY] [CMD] Retry 2 (seq=9)
+  [RETRY] [CMD] Retry 3 (seq=9)
+  [ACK] [CMD] ACK'd (seq=9)
+[t=110.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=10)
+  [RETRY] [CMD] Retry 2 (seq=10)
+  [RETRY] [CMD] Retry 3 (seq=10)
+[t=120.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=11)
+  [RETRY] [CMD] Retry 2 (seq=11)
+  [RETRY] [CMD] Retry 3 (seq=11)
+[t=130.4s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=12)
+  [ACK] [CMD] ACK'd (seq=12)
+[t=140.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=13)
+  [RETRY] [CMD] Retry 2 (seq=13)
+  [RETRY] [CMD] Retry 3 (seq=13)
+[t=150.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=14)
+  [RETRY] [CMD] Retry 2 (seq=14)
+  [RETRY] [CMD] Retry 3 (seq=14)
+[t=160.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=15)
+  [RETRY] [CMD] Retry 2 (seq=15)
+  [RETRY] [CMD] Retry 3 (seq=15)
+[t=170.0s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=16)
+  [RETRY] [CMD] Retry 2 (seq=16)
+  [RETRY] [CMD] Retry 3 (seq=16)
+[t=180.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=17)
+  [RETRY] [CMD] Retry 2 (seq=17)
+  [RETRY] [CMD] Retry 3 (seq=17)
+[t=190.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=18)
+  [RETRY] [CMD] Retry 2 (seq=18)
+  [RETRY] [CMD] Retry 3 (seq=18)
+[t=200.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=19)
+  [ACK] [CMD] ACK'd (seq=19)
+[t=210.0s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=20)
+  [RETRY] [CMD] Retry 2 (seq=20)
+  [RETRY] [CMD] Retry 3 (seq=20)
+  [ACK] [CMD] ACK'd (seq=20)
+[t=220.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=21)
+  [RETRY] [CMD] Retry 2 (seq=21)
+  [RETRY] [CMD] Retry 3 (seq=21)
+[t=230.2s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=22)
+  [RETRY] [CMD] Retry 2 (seq=22)
+  [RETRY] [CMD] Retry 3 (seq=22)
+[t=240.0s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=23)
+  [RETRY] [CMD] Retry 2 (seq=23)
+  [ACK] [CMD] ACK'd (seq=23)
+[t=250.0s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=24)
+  [RETRY] [CMD] Retry 2 (seq=24)
+  [ACK] [CMD] ACK'd (seq=24)
+[t=260.3s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=25)
+  [RETRY] [CMD] Retry 2 (seq=25)
+  [RETRY] [CMD] Retry 3 (seq=25)
+[t=270.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=26)
+  [RETRY] [CMD] Retry 2 (seq=26)
+  [RETRY] [CMD] Retry 3 (seq=26)
+  [ACK] [CMD] ACK'd (seq=26)
+[t=280.1s] SEND DISARM
+  [RETRY] [CMD] Retry 1 (seq=27)
+  [RETRY] [CMD] Retry 2 (seq=27)
+  [RETRY] [CMD] Retry 3 (seq=27)
+[t=290.3s] SEND DISARM
+
+============================================================
+RESULTS
+============================================================
+Duration:    292.6 s
+Sent:        30
+ACK'd:       9
+  first-try:   1
+  retry 1:     2
+  retry 2:     2
+  retry 3:     4
+DENIED:      0
+Retries:     75 (total retry log lines)
+Failed:      0
+ACK rate:       30.0%
+First-try rate: 3.3%  (IVP-T1 headline metric)
+Fail rate:      0.0%
+============================================================
+Raw transcript saved to: logs/ack_stress_20260418_231025.log
+CSV saved to: logs/stage_t/t1_run2.csv
