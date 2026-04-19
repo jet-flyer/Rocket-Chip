@@ -90,7 +90,11 @@ static_assert(kDefaultRocketProfile.phase_qr.ramp_steps >= 1,
 
 inline constexpr RadioConfig kDefaultRocketRadioConfig = {
     .mode             = RadioRole::kTx,
+#ifdef ROCKETCHIP_STAGE_T3_MAVLINK
+    .protocol         = EncoderType::kMavlink,  // Stage T IVP-T3 A/B
+#else
     .protocol         = EncoderType::kCcsds,
+#endif
     .nav_rate_hz      = 5,
     .power_dbm        = 20,
     .spreading_factor = 7,

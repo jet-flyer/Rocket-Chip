@@ -622,6 +622,16 @@ else()
         message(STATUS "Stage T2 cheat-mode: ENABLED")
     endif()
 
+    # Stage T3 — CCSDS vs MAVLink protocol A/B (IVP-T3)
+    # Usage: cmake -DROCKETCHIP_STAGE_T3_MAVLINK=ON ..
+    # When ON, kDefaultRocketRadioConfig.protocol = kMavlink instead of kCcsds.
+    # Must rebuild AND reflash BOTH vehicle and station with the same setting.
+    option(ROCKETCHIP_STAGE_T3_MAVLINK "Use MAVLink framing over LoRa (T3 A/B)" OFF)
+    if(ROCKETCHIP_STAGE_T3_MAVLINK)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T3_MAVLINK=1)
+        message(STATUS "Stage T3 protocol: MAVLink")
+    endif()
+
     # Git hash injection for version.h
     execute_process(
         COMMAND git rev-parse --short HEAD
