@@ -611,6 +611,17 @@ else()
         message(STATUS "Stage T diagnostics: ENABLED")
     endif()
 
+    # Stage T2 — cheat-mode sync ceiling (IVP-T2)
+    # Usage: cmake -DROCKETCHIP_STAGE_T2_CHEAT=ON -DROCKETCHIP_JOB_STATION=1 ..
+    # Queues X presses on station and fires on next vehicle RX — measures the
+    # upper bound on achievable success rate with perfect sync. THROWAWAY
+    # DIAGNOSTIC. Revert after data collection.
+    option(ROCKETCHIP_STAGE_T2_CHEAT "Enable Stage T2 station cheat-mode sync" OFF)
+    if(ROCKETCHIP_STAGE_T2_CHEAT AND NOT BUILD_FOR_FLIGHT)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T2_CHEAT=1)
+        message(STATUS "Stage T2 cheat-mode: ENABLED")
+    endif()
+
     # Git hash injection for version.h
     execute_process(
         COMMAND git rev-parse --short HEAD

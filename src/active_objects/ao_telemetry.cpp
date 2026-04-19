@@ -367,6 +367,14 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
     me->rx_snapshot.seq = seq;
     me->rx_snapshot.valid = true;
 
+#ifdef ROCKETCHIP_STAGE_T2_CHEAT
+    // Stage T2 cheat-mode: fire pending command now that we know the vehicle
+    // just completed TX and is entering kRxWindow. Decoupled from normal
+    // X-press dispatch. Station build only.
+    extern void stage_t2_fire_pending_if_any();
+    stage_t2_fire_pending_if_any();
+#endif
+
 #ifndef ROCKETCHIP_HOST_TEST
     dispatch_nav_output(me, telem, rxEvt, seq);
 #else

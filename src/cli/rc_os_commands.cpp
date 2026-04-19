@@ -37,6 +37,39 @@ static constexpr uint16_t kMavCmdArmDisarm = 400;        // MAV_CMD_COMPONENT_AR
 static constexpr uint16_t kMavCmdFlightTermination = 185; // MAV_CMD_DO_FLIGHTTERMINATION
 static constexpr uint16_t kMavCmdSetHome = 179;           // MAV_CMD_DO_SET_HOME
 static constexpr uint16_t kMavCmdBeacon = 31010;          // MAV_CMD_USER_1 — Stage L manual beacon
+
+// ============================================================================
+// Stage T2 cheat-mode — throwaway code, revertible in one commit.
+// Gated behind -DROCKETCHIP_STAGE_T2_CHEAT=ON (station build only).
+// Queues X presses and fires tracked_command when a vehicle nav packet
+// is received (station is now guaranteed to be just after vehicle TX,
+// which means vehicle is entering kRxWindow).
+// ============================================================================
+#ifdef ROCKETCHIP_STAGE_T2_CHEAT
+static volatile bool g_t2_pending = false;
+static volatile uint16_t g_t2_cmd = 0;
+static volatile float g_t2_p1 = 0.0f;
+
+void stage_t2_queue_command(uint16_t cmd, float p1) {
+    g_t2_cmd = cmd;
+    g_t2_p1 = p1;
+    g_t2_pending = true;
+    printf("[STAGE_T2] queued cmd=%u pending fire on next vehicle RX\n", cmd);
+}
+
+// Called from handle_rx_packet when a CCSDS nav packet decodes successfully.
+// Fires any pending command immediately — we know the vehicle just completed
+// TX and is entering kRxWindow within a few ms.
+void stage_t2_fire_pending_if_any() {
+    if (g_t2_pending) {
+        g_t2_pending = false;
+        uint16_t cmd = g_t2_cmd;
+        float p1 = g_t2_p1;
+        AO_Telemetry_send_tracked_command(cmd, p1);
+        printf("[STAGE_T2] fired cmd=%u on vehicle RX\n", cmd);
+    }
+}
+#endif  // ROCKETCHIP_STAGE_T2_CHEAT
 #include "active_objects/ao_rcos.h"
 #include "active_objects/ao_led_engine.h"
 #include "calibration/calibration_manager.h"
@@ -1388,8 +1421,13 @@ void cli_handle_unhandled_key(int key) {
         if constexpr (kRadioModeRx) {
             // IVP-122: Station DISARM — single-key, no confirm, ACK-tracked.
             // Capital X only (lowercase x is erase-flights in TX mode).
+#ifdef ROCKETCHIP_STAGE_T2_CHEAT
+            stage_t2_queue_command(kMavCmdArmDisarm, 0.0f);
+            printf("[CMD] DISARM sent, waiting for ACK...\n");
+#else
             AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0f);
             printf("[CMD] DISARM sent, waiting for ACK...\n");
+#endif
         }
         break;
     case 'p': case 'P':

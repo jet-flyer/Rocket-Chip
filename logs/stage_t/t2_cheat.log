@@ -1,0 +1,174 @@
+[H=== RocketChip Ground Station ===[K
+State: [32mIDLE    [0m     MET: 2:37.7[K
+-------------------------------------------[K
+Alt:     -0.3 m            Max: 0.0 m[K
+Vvel:   +0.0 m/s          Spd: 0.0 m/s[K
+Baro:    -0.3 m            GPS: None (0sat
+)[K
+-------------------------------------------[K
+RSSI: [32m-65 dBm[0m  SNR: 9 dB  [32m[######    ][0m  68%[K
+Pkts: 141    Lost: 0     [32mLast: 0.0s[0m[K
+-------------------------------------------[K
+Batt: 0.00V  Temp: 0C  ESKF: [32mOK[0m  Se
+q: 760[K
+Lat: 0.0000000  Lon: 0.0000000[K
+[K
+'m' mode cycle  'x' menu[K
+[2J[H========================================
+RocketChip v0.16.0  RCOS v0.5.0 — Station RX
+Board: Adafruit Fruit Jam
+========================================
+Status:  h-Help  s-Sensor  b-Boot  p-Preflight
+Radio:   t-Status  r-Rate  m-Mode(ANSI/CSV
+/MAVLink)
+Station: g-GPS  d-Distance  p-GPS-Push
+Command: a-ARM(confirm)  X-DISARM
+Flight:  l-FlushLog  x-Erase
+========================================
+[main]
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=0)
+[CMD] Retry 2 (seq=0)
+[CMD] Retry 3 (seq=0)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=1)
+[CMD] Retry 2 (seq=1)
+[CMD] Retry 3 (seq=1)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=2)
+[CMD] Retry 2 (seq=2)
+[CMD] Retry 3 (seq=2)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=3)
+[CMD] Retry 2 (seq=3)
+[CMD] Retry 3 (seq=3)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=4)
+[CMD] Retry 2 (seq=4)
+[CMD] Retry 3 (seq=4)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=5)
+[CMD] Retry 2 (seq=5)
+[CMD] Retry 3 (seq=5)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=6)
+[CMD] Retry 2 (seq=6)
+[CMD] Retry 3 (seq=6)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=7)
+[CMD] Retry 2 (seq=7)
+[CMD] ACK'd (seq=7)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=8)
+[CMD] Retry 2 (seq=8)
+[CMD] Retry 3 (seq=8)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=9)
+[CMD] Retry 2 (seq=9)
+[CMD] Retry 3 (seq=9)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=10)
+[CMD] Retry 2 (seq=10)
+[CMD] Retry 3 (seq=10)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=11)
+[CMD] Retry 2 (seq=11)
+[CMD] Retry 3 (seq=11)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=12)
+[CMD] Retry 2 (seq=12)
+[CMD] Retry 3 (seq=12)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=13)
+[CMD] Retry 2 (seq=13)
+[CMD] Retry 3 (seq=13)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=14)
+[CMD] Retry 2 (seq=14)
+[CMD] Retry 3 (seq=14)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=15)
+[CMD] Retry 2 (seq=15)
+[CMD] Retry 3 (seq=15)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=16)
+[CMD] Retry 2 (seq=16)
+[CMD] Retry 3 (seq=16)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=17)
+[CMD] Retry 2 (seq=17)
+[CMD] Retry 3 (seq=17)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=18)
+[CMD] Retry 2 (seq=18)
+[CMD] Retry 3 (seq=18)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=19)
+[CMD] Retry 2 (seq=19)
+[CMD] Retry 3 (seq=19)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=20)
+[CMD] Retry 2 (seq=20)
+[CMD] Retry 3 (seq=20)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=21)
+[CMD] Retry 2 (seq=21)
+[CMD] Retry 3 (seq=21)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=22)
+[CMD] Retry 2 (seq=22)
+[CMD] Retry 3 (seq=22)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=23)
+[CMD] Retry 2 (seq=23)
+[CMD] Retry 3 (seq=23)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=24)
+[CMD] Retry 2 (seq=24)
+[CMD] Retry 3 (seq=24)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=25)
+[CMD] Retry 2 (seq=25)
+[CMD] Retry 3 (seq=25)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=26)
+[CMD] Retry 2 (seq=26)
+[CMD] Retry 3 (seq=26)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=27)
+[CMD] Retry 2 (seq=27)
+[CMD] Retry 3 (seq=27)
+[CMD] DISARM sent, waiting for ACK...
+[main]
+[CMD] Retry 1 (seq=28)
+[CMD] Retry 2 (seq=28)
+[CMD] Retry 3 (seq=28)
+[CMD] No ACK after 3 retries
