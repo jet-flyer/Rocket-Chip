@@ -60,16 +60,17 @@ static uint8_t cal_to_pattern(CalIntent c) {
 
 static uint8_t phase_to_pattern(PhaseIntent p) {
     switch (p) {
-        case PhaseIntent::kBeacon: return rc::led::kFdBeacon;
-        case PhaseIntent::kAbort:  return rc::led::kFdAbort;
-        case PhaseIntent::kLanded: return rc::led::kFdLanded;
-        case PhaseIntent::kMain:   return rc::led::kFdMain;
-        case PhaseIntent::kDrogue: return rc::led::kFdDrogue;
-        case PhaseIntent::kCoast:  return rc::led::kFdCoast;
-        case PhaseIntent::kBoost:  return rc::led::kFdBoost;
-        case PhaseIntent::kArmed:  return rc::led::kFdArmed;
-        case PhaseIntent::kIdle:   return 0;  // Fall through
-        case PhaseIntent::kNone:   return 0;
+        case PhaseIntent::kBeacon:     return rc::led::kFdBeacon;
+        case PhaseIntent::kAbort:      return rc::led::kFdAbort;
+        case PhaseIntent::kLanded:     return rc::led::kFdLanded;
+        case PhaseIntent::kMain:       return rc::led::kFdMain;
+        case PhaseIntent::kDrogue:     return rc::led::kFdDrogue;
+        case PhaseIntent::kCoast:      return rc::led::kFdCoast;
+        case PhaseIntent::kBoost:      return rc::led::kFdBoost;
+        case PhaseIntent::kArmed:      return rc::led::kFdArmed;
+        case PhaseIntent::kPreArmFail: return rc::led::kFdPreArmFail;  // Stage L
+        case PhaseIntent::kIdle:       return 0;  // Fall through
+        case PhaseIntent::kNone:       return 0;
     }
     return 0;
 }

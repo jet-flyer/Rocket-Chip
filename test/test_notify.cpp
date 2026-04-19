@@ -388,3 +388,44 @@ TEST(StageLBeacon, BeaconFlagsAreDefaultFalse) {
     EXPECT_FALSE(s.beacon_auto);
     EXPECT_FALSE(s.beacon_manual);
 }
+
+// ============================================================================
+// Stage L IVP-L3 — PhaseIntent::kPreArmFail resolver tests
+// ============================================================================
+
+TEST(StageLPreArmFail, ResolverMapsToYellowDoubleFlash) {
+    NotifyState s{};
+    s.phase = PhaseIntent::kPreArmFail;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFdPreArmFail);
+}
+
+TEST(StageLPreArmFail, FaultStillBeatsPreArmFail) {
+    // A hardware fault must still win — ARM reject is informational, fault
+    // is urgent. Resolver priority is Fault > Cal > Phase.
+    NotifyState s{};
+    s.phase = PhaseIntent::kPreArmFail;
+    s.fault = FaultIntent::kImuFail;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFaultImuFail);
+}
+
+TEST(StageLPreArmFail, CalStillBeatsPreArmFail) {
+    // Running calibration also beats the pre-arm reject.
+    NotifyState s{};
+    s.phase = PhaseIntent::kPreArmFail;
+    s.cal = CalIntent::kGyro;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kCalGyro);
+}
+
+TEST(StageLPreArmFail, ManualBeaconOverridesPreArmFail) {
+    // Find-me beacon wins over pre-arm-fail (beacon overlay is applied after
+    // the priority loop).
+    NotifyState s{};
+    s.phase = PhaseIntent::kPreArmFail;
+    s.beacon_manual = true;
+    EXPECT_EQ(resolve_led_pattern(s), rc::led::kFdBeacon);
+}
+
+TEST(StageLPreArmFail, EnumValueIsTen) {
+    // Locked-in value — used as a contract from AO_Notify and CLI paths.
+    EXPECT_EQ(static_cast<uint8_t>(PhaseIntent::kPreArmFail), 10);
+}

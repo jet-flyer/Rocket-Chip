@@ -223,3 +223,10 @@ target_include_directories(test_notify PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 target_compile_definitions(test_notify PRIVATE ROCKETCHIP_HOST_TEST=1)
 gtest_discover_tests(test_notify)
+
+# Stage L IVP-L3: pre-arm fail auto-clear helper (pure, header-only)
+add_executable(test_prearm_fail_ticks test_prearm_fail_ticks.cpp)
+target_link_libraries(test_prearm_fail_ticks PRIVATE GTest::gtest_main)
+target_include_directories(test_prearm_fail_ticks PRIVATE
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_prearm_fail_ticks)

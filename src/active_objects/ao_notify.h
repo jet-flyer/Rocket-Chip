@@ -26,4 +26,10 @@ void AO_Notify_start(uint8_t prio);
 // Called by AO_RCOS when calibration wizards activate/deactivate overlays.
 void AO_Notify_post_cal_intent(rc::notify::CalIntent intent);
 
+// Stage L — post pre-arm-fail visual (yellow double-flash, ~3s auto-clear).
+// Called by AO_RCOS after command_handler rejects an ARM. Each call
+// resets the counter to full (per JPL council — rapid-fire rejections
+// refresh the window rather than decrement the existing count).
+void AO_Notify_post_prearm_fail();
+
 #endif // ROCKETCHIP_AO_NOTIFY_H

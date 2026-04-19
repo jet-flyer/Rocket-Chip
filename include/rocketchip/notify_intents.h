@@ -30,16 +30,17 @@ namespace notify {
 // post-landing/abort recovery beacon (via SIG_BEACON_ACTIVE).
 // ============================================================================
 enum class PhaseIntent : uint8_t {
-    kNone    = 0,
-    kIdle    = 1,
-    kArmed   = 2,
-    kBoost   = 3,
-    kCoast   = 4,
-    kDrogue  = 5,
-    kMain    = 6,
-    kLanded  = 7,
-    kAbort   = 8,
-    kBeacon  = 9,   // Post-landing/abort recovery beacon (white blink)
+    kNone       = 0,
+    kIdle       = 1,
+    kArmed      = 2,
+    kBoost      = 3,
+    kCoast      = 4,
+    kDrogue     = 5,
+    kMain       = 6,
+    kLanded     = 7,
+    kAbort      = 8,
+    kBeacon     = 9,   // Post-landing/abort recovery beacon (white blink)
+    kPreArmFail = 10,  // Stage L — ARM rejected (yellow double-flash, ~3s auto-clear)
 };
 
 // ============================================================================

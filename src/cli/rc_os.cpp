@@ -22,6 +22,7 @@
 #include "flight_director/command_handler.h"
 #include "cli/rc_os_commands.h"
 #include "ao_flight_director.h"
+#include "ao_notify.h"              // Stage L — AO_Notify_post_prearm_fail
 #include "ao_rcos.h"
 #include "dev/dev_cli.h"
 #include <stdio.h>
@@ -277,7 +278,13 @@ static void dispatch_flight_signal(int sig) {
 }
 
 static void dispatch_flight_command(int cmd) {
-    AO_FlightDirector_process_command(cmd);
+    bool accepted = AO_FlightDirector_process_command(cmd);
+    // Stage L IVP-L3: on ARM rejection, post kPreArmFail so the LED shows
+    // yellow double-flash for ~3s. Each repost refreshes the counter; a
+    // successful arm (or any phase change) clears it via handle_phase_change.
+    if (!accepted && cmd == static_cast<int>(rc::CommandType::kArm)) {
+        AO_Notify_post_prearm_fail();
+    }
 }
 
 // NOLINTNEXTLINE(readability-function-size) — pure key dispatcher

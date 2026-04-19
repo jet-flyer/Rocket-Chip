@@ -16,6 +16,7 @@
 #include "ao_notify.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/notify_backend.h"
+#include "rocketchip/prearm_fail_ticks.h"   // Stage L — pure helper
 #include "rocketchip/sensor_seqlock.h"
 #include "notify/notify_resolver.h"        // decode_health_faults()
 #include "safety/health_monitor.h"
@@ -29,8 +30,9 @@ using namespace rc::notify;
 // Private signals (offsets from SIG_AO_MAX to avoid collision with other AOs)
 // ============================================================================
 enum : uint16_t {
-    SIG_NOTIFY_TICK        = rc::SIG_AO_MAX + 6,
-    SIG_NOTIFY_CAL_INTENT  = rc::SIG_AO_MAX + 7,  // Direct post from AO_RCOS
+    SIG_NOTIFY_TICK         = rc::SIG_AO_MAX + 6,
+    SIG_NOTIFY_CAL_INTENT   = rc::SIG_AO_MAX + 7,  // Direct post from AO_RCOS
+    SIG_NOTIFY_PREARM_FAIL  = rc::SIG_AO_MAX + 8,  // Stage L — ARM rejected
 };
 
 // Direct-post event from AO_RCOS carrying a typed CalIntent
@@ -49,6 +51,11 @@ struct NotifyAo {
 
     // Sensor evaluation fields (used in IVP-117 migration)
     uint32_t sensor_phase_start_ms;
+
+    // Stage L — pre-arm-fail auto-clear counter (ticks remaining).
+    // 0 = cleared; 1..kPreArmFailTicks = active. Decremented each 33Hz tick
+    // via the pure helper in include/rocketchip/prearm_fail_ticks.h.
+    uint32_t prearm_fail_ticks;
 };
 
 static NotifyAo l_notifyAo;
@@ -134,6 +141,7 @@ static QState Notify_initial(NotifyAo * const me, QEvt const * const e) {
     // Zero-init intent state
     me->state = {};
     me->sensor_phase_start_ms = to_ms_since_boot(get_absolute_time());
+    me->prearm_fail_ticks = 0U;  // Stage L
 
     // Subscribe to state-producing signals
     QActive_subscribe(&me->super, rc::SIG_PHASE_CHANGE);
@@ -154,6 +162,8 @@ static QState Notify_initial(NotifyAo * const me, QEvt const * const e) {
 // compliance. Stage L: also clears both beacon flags on exit from recovery-
 // relevant phases — beacon stays active across LANDED and ABORT (the two
 // phases where a recovery beacon is meaningful), any other transition clears.
+// Stage L also clears the pre-arm-fail visual (any phase change invalidates
+// the "ARM rejected" message).
 static void handle_phase_change(NotifyAo * const me, QEvt const * const e) {
     const auto* pce = reinterpret_cast<const rc::PhaseChangeEvt*>(e);
     me->state.phase = phase_from_flight_phase(pce->phase);
@@ -162,14 +172,29 @@ static void handle_phase_change(NotifyAo * const me, QEvt const * const e) {
         me->state.beacon_auto = false;
         me->state.beacon_manual = false;
     }
+    // Stage L: phase change always invalidates an in-progress pre-arm-fail
+    // flash. The FD override already replaced state.phase; clearing the
+    // counter prevents a future tick from re-stamping kPreArmFail.
+    me->prearm_fail_ticks = 0;
 }
 
-// 33Hz tick: refresh sensor intent from seqlock + dispatch resolved pattern
-// to both output backends. Extracted from Notify_running for JSF AV rule 1.
+// 33Hz tick: refresh sensor intent from seqlock, run the pre-arm-fail
+// auto-clear helper, and dispatch resolved pattern to both output
+// backends. Extracted from Notify_running for JSF AV rule 1.
 static void handle_notify_tick(NotifyAo * const me) {
     shared_sensor_data_t snap{};
     if (seqlock_read(&g_sensorSeqlock, &snap)) {
         notify_evaluate_sensor_status(me, &snap);
+    }
+    // Stage L: tick the pre-arm-fail counter. When it hits 0, flip the
+    // PhaseIntent back to kIdle (pre-arm fail can only be triggered from
+    // IDLE — if we were elsewhere, handle_phase_change already updated
+    // state.phase and zeroed the counter).
+    me->prearm_fail_ticks =
+        rc::prearm_fail_tick_next(me->prearm_fail_ticks, /*state_changed=*/false);
+    if (me->prearm_fail_ticks == 0U &&
+        me->state.phase == PhaseIntent::kPreArmFail) {
+        me->state.phase = PhaseIntent::kIdle;
     }
     rc::notify::notify_backend_led_update(me->state);
     rc::notify::notify_backend_audio_update(me->state);
@@ -197,6 +222,17 @@ static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
         // Direct post from AO_RCOS via AO_Notify_post_cal_intent()
         const auto* ce = reinterpret_cast<const CalIntentEvt*>(e);
         me->state.cal = ce->intent;
+        return Q_HANDLED();
+    }
+
+    case SIG_NOTIFY_PREARM_FAIL: {
+        // Stage L: ARM command was rejected. Flip phase intent to kPreArmFail
+        // (yellow double-flash) and arm the auto-clear counter. Each repost
+        // resets the counter to full — rapid-fire rejections refresh the
+        // window instead of decrementing from the existing count
+        // (JPL council 2026-04-18).
+        me->state.phase = PhaseIntent::kPreArmFail;
+        me->prearm_fail_ticks = rc::kPreArmFailTicks;
         return Q_HANDLED();
     }
 
@@ -267,4 +303,21 @@ void AO_Notify_post_cal_intent(CalIntent intent) {
     s_evt.super = QEVT_INITIALIZER(SIG_NOTIFY_CAL_INTENT);
     s_evt.intent = intent;
     QACTIVE_POST(&l_notifyAo.super, &s_evt.super, (void *)0);
+}
+
+// ============================================================================
+// Stage L — pre-arm fail post (IVP-L3)
+// Called by AO_RCOS (rc_os.cpp:dispatch_flight_command) after
+// command_handler rejects a kArm command. Each call resets the counter
+// to full — rapid-fire rejections refresh the window (JPL council).
+// No dedup: intentional, so repeat rejections re-arm the visual.
+// ============================================================================
+void AO_Notify_post_prearm_fail() {
+    if (!s_notifyStarted) {
+        return;
+    }
+    // Static event per LL Entry 35. No QEvt subclass payload needed.
+    static QEvt s_evt;
+    s_evt = QEVT_INITIALIZER(SIG_NOTIFY_PREARM_FAIL);
+    QACTIVE_POST(&l_notifyAo.super, &s_evt, (void *)0);
 }
