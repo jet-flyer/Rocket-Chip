@@ -34,19 +34,26 @@ the root cause, so T4's value drops to ambient-interference verification.
 
 ## Results
 
+Re-run with vehicle off long enough for live RSSI decay (the first run's
+RSSI was stale -58 dBm from the last vehicle packet; this second run
+caught the station's RSSI register after it had dropped to real noise
+floor).
+
 All 23 samples, 60 seconds total:
 
 | Metric                  | Value        |
 |-------------------------|--------------|
-| Station pkts (start)    | 1073         |
-| Station pkts (end)      | 1073         |
+| Station pkts (start)    | 1074         |
+| Station pkts (end)      | 1074         |
 | Packets received in 60s | **0**        |
-| Stale last_rx_rssi      | -58 dBm      |
-| Stale last_rx_snr       | ~10 dB       |
+| Live last_rx_rssi       | **-114 dBm** |
+| Live last_rx_snr        | -12 dB       |
 
-`last_rx_rssi` stays frozen at -58 dBm because it's the RSSI of the
-last decoded packet from BEFORE the vehicle was unplugged. It's not
-live ambient RSSI.
+**-114 dBm is right at SF7/BW125 sensitivity threshold.** That's the
+true noise floor — no decodable LoRa carrier, not even weak ones at
+fringe range. SX1276 datasheet quotes SF7/BW125 sensitivity around
+-123 dBm; at -114 dBm we're 9 dB above threshold with no packet decoding
+at all. Consistent with no preamble-compatible transmitters on band.
 
 ## Interpretation
 
