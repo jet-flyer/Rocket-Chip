@@ -166,3 +166,79 @@ because it doesn't depend on that AO succeeding.
 - **Probe disconnect mid-soak:** OpenOCD session can be restarted; target keeps running on battery. But halting the target mid-codegen_fpft-push can leave MSP momentarily below MSPLIM, triggering a spurious STKOF fault. Observed once during IVP-132 setup; did not reproduce on reset. If a soak fault fires and the last-known MSP was fine, try one clean reset before investigating the binary.
 - **COM7 stuck after serial test:** See `C:\Users\pow-w\.claude\projects\c--Users-pow-w-Documents-Rocket-Chip\memory\feedback_com7_stuck.md`. Soak procedure deliberately avoids Python serial to sidestep this.
 - **GDB locale warning (CP1252 → UTF-32):** Cosmetic, Windows-only. Ignore.
+
+## USB/GDB fallback when RF telemetry is unreliable
+
+**When to use it.** If over-the-air delivery is currently unreliable (the
+problem Stage T is built to fix produces ~6% station→vehicle first-try
+ACK at SF7/BW125), a feature that relies on commands reaching the vehicle
+can still be validated via USB/GDB without waiting for the RF path to
+be fixed. The code paths that fire on receipt of a command are the same
+paths that fire when you drive them directly from GDB — state mutation
+is state mutation.
+
+**How.**
+1. Identify the state the RF command would have mutated (e.g., a pending-
+   config buffer, a flag, a counter).
+2. Use GDB `set variable` to mutate that state directly.
+3. Observe the downstream behavior (timer fires, apply handler runs,
+   flash write lands, etc.).
+
+**Worked example — Stage T IVP-T5.5 sub-persist (2026-04-20):**
+
+Goal: verify debounced flash-write path end-to-end.
+
+```
+# 1. Halt vehicle via OpenOCD+GDB
+monitor halt
+
+# 2. Force the state a successful SET_RADIO_CONFIG would have produced
+set variable l_radioAo.state.runtime_config.bandwidth_khz = 500
+set variable l_radioAo.state.runtime_config.nav_rate_hz = 10
+set variable s_persist_requested = true
+set variable s_persist_debounce_count = 1  # fires next tick
+
+# 3. Resume
+monitor resume
+
+# 4. Wait 2-3 s, re-halt, read state
+monitor halt
+print s_persist_requested     # expect false (write completed)
+print s_persist_debounce_count  # expect 0
+
+# 5. Reset vehicle without reflashing (preserves flash)
+monitor reset halt
+monitor resume
+
+# 6. Verify boot-read pulled the persisted value
+monitor halt
+print l_radioAo.state.runtime_config.bandwidth_khz  # expect 500
+print l_radioAo.state.runtime_config.nav_rate_hz    # expect 10
+```
+
+**Caveats.**
+
+- The mutation bypasses validation gates that would run if the command
+  came over the air (whitelist check, ground-state check, power-delta
+  limit). You're testing the DOWNSTREAM behavior only. Upstream gating
+  needs separate verification — host tests usually suffice for logic
+  gates; RF validation is the only way to confirm end-to-end packet
+  handling.
+- Symbol name mangling: C++ static file-scope variables may show up as
+  `rc::AO_Radio::l_radioAo` or similar, not the plain `l_radioAo` the
+  source declares. Let GDB's completion suggest names if you're unsure.
+- GDB locale warning about encoding is cosmetic — mutation still works.
+
+**When this is NOT enough.** RF round-trip timing, collision behavior,
+cross-core race conditions, and station-vehicle handshake protocols
+all require real-radio validation. USB/GDB fallback is for:
+- Unblocking bench testing of downstream code paths when the upstream
+  trigger is unreliable (this Stage T case).
+- Inducing rare state transitions for coverage (fault injection where
+  fault_inject hooks don't exist yet).
+- Debugging state after a test has already exercised the upstream path
+  (read-only inspection — halt, print, resume).
+
+Mark each such validation as "USB-validated" in the test log with the
+exact GDB commands used, so any real-radio revalidation at stage exit
+knows what's been covered and what still needs the RF path.
