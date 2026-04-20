@@ -91,7 +91,7 @@ static_assert(kDefaultRocketProfile.phase_qr.ramp_steps >= 1,
 inline constexpr RadioConfig kDefaultRocketRadioConfig = {
     .mode             = RadioRole::kTx,
 #ifdef ROCKETCHIP_STAGE_T3_MAVLINK
-    .protocol         = EncoderType::kMavlink,  // Stage T IVP-T3 A/B
+    .protocol         = EncoderType::kMavlink,  // Stage T IVP-T3 A/B (informational; compile-flag kept for deferred T9 retest)
 #else
     .protocol         = EncoderType::kCcsds,
 #endif
@@ -100,6 +100,8 @@ inline constexpr RadioConfig kDefaultRocketRadioConfig = {
     .spreading_factor = 7,
     .bandwidth_khz    = 125,
     .coding_rate      = 5,
+    // Stage T IVP-T6 sweep: runtime via IVP-T5.5 SET_RADIO_CONFIG command,
+    // not compile-flag rebuilds. See docs/plans/STAGE_T_FIX_PLAN.md.
 };
 
 } // namespace rc

@@ -632,6 +632,9 @@ else()
         message(STATUS "Stage T3 protocol: MAVLink")
     endif()
 
+    # Stage T6 is now a RUNTIME sweep via IVP-T5.5's SET_RADIO_CONFIG command,
+    # NOT compile-flag rebuilds. See docs/plans/STAGE_T_FIX_PLAN.md §IVP-T6.
+
     # Git hash injection for version.h
     execute_process(
         COMMAND git rev-parse --short HEAD

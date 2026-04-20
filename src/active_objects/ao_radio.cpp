@@ -65,6 +65,7 @@ static QEvtPtr  l_radioAoQueue[32]; // Match other AOs — 100Hz tick needs head
 // Forward declarations
 static QState RadioAo_initial(RadioAo * const me, QEvt const * const e);
 static QState RadioAo_running(RadioAo * const me, QEvt const * const e);
+static void ao_radio_apply_runtime_config(RadioAoState& s);  // T5.5 prereq #1
 
 // ============================================================================
 // Helpers
@@ -150,6 +151,12 @@ static void handle_tx_poll(RadioAo* me) {
                       static_cast<unsigned>(s.tx_consec_fail));
             rfm95w_init(&s.radio,
                         s.radio.cs_pin, s.radio.rst_pin, s.radio.irq_pin);
+            // Stage T IVP-T5.5 prereq #1: rfm95w_init() writes
+            // configure_modem() compile-time defaults (SF7/BW125/CR5/+20dBm).
+            // Reapply runtime_config so a runtime-SET config survives the
+            // recovery. Before this fix, post-recovery radio silently snapped
+            // back to defaults while station expected new config → zero RX.
+            ao_radio_apply_runtime_config(s);
         } else if (s.tx_consec_fail >= kTxFailLogThresh) {
             DBG_ERROR("RADIO: TX timeout (%u consecutive)",
                       static_cast<unsigned>(s.tx_consec_fail));
@@ -159,6 +166,28 @@ static void handle_tx_poll(RadioAo* me) {
         s.scheduler.on_tx_complete(now_ms());
     }
     // kBusy — continue polling next tick
+}
+
+// Stage T IVP-T5.5 prereq #1: apply runtime radio config to the SX1276.
+// Called from BOTH RadioAo_initial (fresh boot) AND the reinit-recovery branch
+// in handle_tx_poll() — without this, rfm95w_init() during TX-fail recovery
+// silently snapped radio back to configure_modem() compile-time defaults
+// (SF7/BW125/CR5/+20dBm) while RuntimeRadioConfig tracked something else.
+// Setters only, no reinit. Does NOT enter RX mode — caller handles RX/TX mode.
+static void ao_radio_apply_runtime_config(RadioAoState& s) {
+    const rc::RadioConfig& rc = s.runtime_config;
+    rfm95w_set_spreading_factor(&s.radio, rc.spreading_factor);
+    rfm95w_set_coding_rate(&s.radio, rc.coding_rate);
+    rfm95w_set_tx_power(&s.radio, rc.power_dbm);
+    // BW: SX1276 register encoding (7=125kHz, 8=250kHz, 9=500kHz)
+    uint8_t bw_reg = (rc.bandwidth_khz >= 500) ? rfm95w::kBw500 :
+                     (rc.bandwidth_khz >= 250) ? rfm95w::kBw250 :
+                                                 rfm95w::kBw125;
+    rfm95w_set_bandwidth(&s.radio, bw_reg);
+    // Scheduler rate follows nav_rate_hz; caller owns RX-mode transition.
+    if (rc.nav_rate_hz != 0) {
+        s.scheduler.set_rate(rc.nav_rate_hz);
+    }
 }
 
 // CCSDS packet constants for relay CRC validation
@@ -266,6 +295,10 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
     s.tx_bw_mode = 0;
     s.link_quality = 0;
 
+    // Stage T IVP-T5.5 prereq #1: seed runtime_config from the mission profile
+    // default. Future SET_RADIO_CONFIG (IVP-T5.5 core) will mutate this field.
+    s.runtime_config = rc::kDefaultRocketRadioConfig;
+
     // Initialize radio hardware (owned by this AO)
     if (g_spiOk && rfm95w_init(&s.radio,
             rocketchip::pins::kRadioCs,
@@ -273,21 +306,13 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
             rocketchip::pins::kRadioIrq)) {
         s.initialized = true;
 
-        // Apply RadioConfig from Mission Profile (IVP-64)
-        const auto& rc = rc::kDefaultRocketRadioConfig;
-        rfm95w_set_spreading_factor(&s.radio, rc.spreading_factor);
-        rfm95w_set_coding_rate(&s.radio, rc.coding_rate);
-        rfm95w_set_tx_power(&s.radio, rc.power_dbm);
-        // BW: SX1276 register encoding (7=125kHz, 8=250kHz, 9=500kHz)
-        uint8_t bw_reg = (rc.bandwidth_khz >= 500) ? rfm95w::kBw500 :
-                         (rc.bandwidth_khz >= 250) ? rfm95w::kBw250 :
-                                                     rfm95w::kBw125;
-        rfm95w_set_bandwidth(&s.radio, bw_reg);
+        // Apply RadioConfig from Mission Profile (IVP-64 / T5.5 prereq #1)
+        ao_radio_apply_runtime_config(s);
 
         // Mode selection based on device role
         bool rx_continuous = (job::kRole == job::DeviceRole::kStation ||
                               job::kRole == job::DeviceRole::kRelay);
-        uint32_t interval = 1000 / rc.nav_rate_hz;
+        uint32_t interval = 1000 / s.runtime_config.nav_rate_hz;
         s.scheduler.init(interval, rx_continuous);
 
         if (rx_continuous) {

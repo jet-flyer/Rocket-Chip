@@ -15,6 +15,7 @@ extern "C" {
 }
 
 #include "rocketchip/radio_scheduler.h"
+#include "rocketchip/radio_config.h"
 #include "drivers/rfm95w.h"
 
 extern QActive * const AO_Radio;
@@ -38,6 +39,11 @@ struct RadioAoState {
     uint32_t           tx_count;         // Total packets sent (vehicle mode)
     uint32_t           relay_count;      // Packets relayed (relay mode)
     uint8_t            link_quality;     // 0=no radio, 1=lost, 2=gap, 3=receiving
+    // Stage T IVP-T5.5 prereq #1: mutable current config. Initialized to
+    // kDefaultRocketRadioConfig at boot. Survives rfm95w_init() reinit-recovery
+    // via ao_radio_apply_runtime_config() — without this, the recovery path at
+    // :148-152 silently snapped radio back to compile-time defaults.
+    rc::RadioConfig    runtime_config;
 };
 
 const RadioAoState* AO_Radio_get_state();
