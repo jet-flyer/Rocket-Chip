@@ -78,7 +78,13 @@ enum RcSignal : uint16_t {
     SIG_BEACON_MANUAL,               // 28: Manual CLI `findme` or GCS beacon command (RCOS/Telem → Notify) [Stage L]
                                      //     Sets NotifyState.beacon_manual — pure-white 2Hz (wins over beacon_auto)
 
-    SIG_AO_MAX                       // 29: Sentinel — pub-sub array size
+    // --- Stage T IVP-T5.5: runtime radio config push signals ---
+    SIG_RADIO_CONFIG_APPLY,          // 29: Apply pending config to SX1276 (Telem → Radio, after TxDone)
+    SIG_RADIO_CONFIG_REVERT,         // 30: Revert to prev_config (LOS watchdog timeout / safety)
+    SIG_RADIO_QUERY_CONFIG,          // 31: Synchronous probe — vehicle reports current config in ACK
+    SIG_RADIO_CONFIG_CHANGED,        // 32: Published to notify subscribers that runtime_config mutated
+
+    SIG_AO_MAX                       // 33: Sentinel — pub-sub array size
 };
 
 // Backward compatibility aliases

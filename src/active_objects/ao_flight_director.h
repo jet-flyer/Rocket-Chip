@@ -49,4 +49,10 @@ const rc::FlightDirector* AO_FlightDirector_get_director();
 /// Whether the FlightDirector has been initialized.
 bool AO_FlightDirector_is_initialized();
 
+/// Stage T IVP-T5.5: is the FD in a phase where runtime radio config
+/// changes are safe? Returns true iff current phase == kIdle. Armed,
+/// in-flight, landed, and abort states all return false — operator must
+/// DISARM first. Used by SET_RADIO_CONFIG dispatcher + apply handler.
+bool AO_FlightDirector_is_ground_state();
+
 #endif // ROCKETCHIP_AO_FLIGHT_DIRECTOR_H

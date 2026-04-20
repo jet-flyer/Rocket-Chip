@@ -350,3 +350,12 @@ const rc::FlightDirector* AO_FlightDirector_get_director() {
 bool AO_FlightDirector_is_initialized() {
     return l_fdAo.initialized;
 }
+
+bool AO_FlightDirector_is_ground_state() {
+    if (!l_fdAo.initialized) {
+        // Pre-init: whatever the FD will eventually be, we're definitely
+        // not in flight. Treat as ground.
+        return true;
+    }
+    return rc::flight_director_phase(&l_fdAo.director) == rc::FlightPhase::kIdle;
+}

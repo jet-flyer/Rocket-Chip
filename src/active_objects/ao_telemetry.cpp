@@ -25,8 +25,10 @@
 #pragma GCC diagnostic pop
 #include "common/mavlink.h"        // MAVLink c_library_v2 (COMMAND_LONG encoding)
 #include "rocketchip/radio_config.h"
+#include "rocketchip/radio_config_table.h"          // T5.5: SET whitelist
 #include "rocketchip/job.h"
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
+#include <math.h>                                   // lroundf (T5.5: float->int)
 #if defined(ROCKETCHIP_JOB_STATION) && !defined(BUILD_FOR_FLIGHT)
 #include "dev/station_fault_inject.h"
 #endif
@@ -128,6 +130,14 @@ static uint32_t now_ms() {
 static rc::ccsds::CommandAckPayload s_pending_ack = {};
 static bool s_pending_ack_valid = false;
 static uint16_t s_ack_seq = 0;
+
+// Stage T IVP-T5.5: vehicle-side pending radio config (applied after ACK TxDone).
+// SET_RADIO_CONFIG handler validates + stashes here; the apply is triggered
+// separately (TxDone-keyed in AO_Radio — wired in a subsequent sub-IVP).
+// Until then `s_pending_config_valid` is set but no actual radio reconfigure
+// happens — ACK still goes out as kAccepted for tuples that pass validation.
+static rc::RadioConfig s_pending_config = {};
+static bool s_pending_config_valid = false;
 
 // IVP-122: Send pending command ACK before nav frame
 static void send_pending_ack_if_any() {
@@ -241,6 +251,74 @@ static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
                     static QEvt s_beacon_cmd_evt;
                     s_beacon_cmd_evt.sig = rc::SIG_BEACON_MANUAL;
                     QActive_publish_(&s_beacon_cmd_evt, &me->super, me->super.prio);
+                } else if (cmd.command == MAV_CMD_USER_2) {
+                    // Stage T IVP-T5.5: SET_RADIO_CONFIG
+                    // param1 = bw_khz (125/250/500)
+                    // param2 = nav_rate_hz (2/5/10)
+                    // param3 = sf (currently 7 only)
+                    // param4 = cr (currently 5 only — CR 4/5)
+                    // param5 = power_dbm (2..20)
+                    // Float->int via lroundf() for robust cast
+                    // (smell-test A.7: 125.0f round-trip safety).
+                    uint16_t new_bw   = static_cast<uint16_t>(lroundf(cmd.param1));
+                    uint8_t  new_nav  = static_cast<uint8_t> (lroundf(cmd.param2));
+                    uint8_t  new_sf   = static_cast<uint8_t> (lroundf(cmd.param3));
+                    uint8_t  new_cr   = static_cast<uint8_t> (lroundf(cmd.param4));
+                    uint8_t  new_pwr  = static_cast<uint8_t> (lroundf(cmd.param5));
+
+                    // Gate #1 (correctness council edit #3): flight state.
+                    // Only accept config changes in kIdle — armed/flight/landed
+                    // all reject. Re-validated again at apply time to close
+                    // the ARM-during-pending-apply race.
+                    bool ground = AO_FlightDirector_is_ground_state();
+                    // Gate #2 (correctness council edit #2): whitelist.
+                    // Reject unknown tuples — prevents arbitrary/invalid combos
+                    // (e.g., SF12/BW500) from bricking the link.
+                    bool in_whitelist = rc::radio_config_in_whitelist(
+                        new_bw, new_nav, new_sf, new_cr, new_pwr);
+                    // Gate #3 (correctness council edit #3 item 3):
+                    // power step limit ±6 dB per command.
+                    const rc::RadioConfig* cur = &rc::kDefaultRocketRadioConfig;
+                    // TODO(T5.5 sub-IVP 2b): read cur from AO_Radio's
+                    // runtime_config instead of the compile-time default,
+                    // once SIG_RADIO_CONFIG_APPLY wiring lands.
+                    int pwr_delta = static_cast<int>(new_pwr) -
+                                     static_cast<int>(cur->power_dbm);
+                    if (pwr_delta < 0) { pwr_delta = -pwr_delta; }
+                    bool power_ok = (pwr_delta <= 6);
+
+                    if (!ground) {
+                        ack_result = static_cast<uint8_t>(
+                            rc::ccsds::CmdAckResult::kDenied);
+                    } else if (!in_whitelist) {
+                        ack_result = static_cast<uint8_t>(
+                            rc::ccsds::CmdAckResult::kDenied);
+                    } else if (!power_ok) {
+                        ack_result = static_cast<uint8_t>(
+                            rc::ccsds::CmdAckResult::kDenied);
+                    } else {
+                        // Validation passed. Stash pending config for the
+                        // TxDone-keyed apply (wired in sub-IVP 2b). For now
+                        // the ACK will go out as kAccepted but actual radio
+                        // reconfigure is stub — apply path not yet active.
+                        s_pending_config.mode             = rc::RadioRole::kTx;
+                        s_pending_config.protocol         = cur->protocol;
+                        s_pending_config.nav_rate_hz      = new_nav;
+                        s_pending_config.power_dbm        = new_pwr;
+                        s_pending_config.spreading_factor = new_sf;
+                        s_pending_config.bandwidth_khz    = new_bw;
+                        s_pending_config.coding_rate      = new_cr;
+                        s_pending_config_valid = true;
+                    }
+                } else if (cmd.command == MAV_CMD_USER_3) {
+                    // Stage T IVP-T5.5: QUERY_RADIO_CONFIG — synchronous probe.
+                    // No state change; response reuses the normal ACK path.
+                    // The config echo in the reply is wired in sub-IVP 2e
+                    // (ACK payload extension). For now, just accept the query
+                    // — the nav-packet config echo (APID 0x101, sub-IVP 2f)
+                    // provides the same information passively.
+                    // Intentional no-op: ACK-accepted is all the station needs
+                    // until 2e/2f land.
                 } else {
                     ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
                 }
