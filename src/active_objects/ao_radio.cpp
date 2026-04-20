@@ -18,6 +18,7 @@
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/config.h"  // rocketchip::pins::kRadioCs/Rst/Irq
 #include "rocketchip/radio_config.h"
+#include "logging/radio_config_storage.h"  // T5.5 sub persist: boot read + debounced write
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include "rocketchip/job.h"
 #include "drivers/spi_bus.h"
@@ -74,6 +75,16 @@ static bool            s_pending_radio_config_valid = false;
 // ~20 ticks at 100 Hz = 200 ms. Per smell-test A.1 + correctness council.
 static constexpr uint32_t kPendingApplyBackstopTicks = 20;
 static uint32_t s_pending_apply_backstop_count = 0;
+
+// Sub-persist (Option C): debounced flash-write trigger. Set to a countdown
+// on successful apply; decrements each tick; when it hits 0 AND the apply
+// watchdog has cleared (apply_in_progress == false), we flush the current
+// runtime_config to flash. Skipped if the debounce starts while another
+// apply is still in flight (any new SET resets the counter).
+// 5 s at 100 Hz = 500 ticks.
+static constexpr uint32_t kPersistDebounceTicks = 500;
+static uint32_t s_persist_debounce_count = 0;
+static bool     s_persist_requested = false;
 
 // Forward declarations
 static QState RadioAo_initial(RadioAo * const me, QEvt const * const e);
@@ -256,6 +267,11 @@ static void ao_radio_commit_pending_config(RadioAoState& s) {
               static_cast<unsigned>(s.runtime_config.spreading_factor),
               static_cast<unsigned>(s.runtime_config.coding_rate),
               static_cast<unsigned>(s.runtime_config.power_dbm));
+    // Sub-persist: arm (or rearm) the debounced-write timer. If a second
+    // apply lands inside the window, the counter just resets here — only
+    // the final settled config gets written to flash.
+    s_persist_requested = true;
+    s_persist_debounce_count = kPersistDebounceTicks;
 }
 
 // Sub 2d: symmetric revert. Restore prev_config when the vehicle's
@@ -269,6 +285,12 @@ static void ao_radio_revert_to_prev_config(RadioAoState& s) {
     ao_radio_apply_runtime_config(s);
     s.apply_in_progress = false;
     s.tx_since_apply = 0;
+    // Sub-persist: revert-to-prev is a stable state worth persisting. Arm
+    // the debounce so the recovered config lands in flash (matches user
+    // intent: "a glitch or bug triggers the change" should settle with
+    // the known-working prev config persisted, not the broken one).
+    s_persist_requested = true;
+    s_persist_debounce_count = kPersistDebounceTicks;
     DBG_PRINT("RADIO: reverted to BW=%u nav=%u SF=%u CR=%u pwr=%u",
               static_cast<unsigned>(s.runtime_config.bandwidth_khz),
               static_cast<unsigned>(s.runtime_config.nav_rate_hz),
@@ -384,7 +406,20 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
 
     // Stage T IVP-T5.5 prereq #1: seed runtime_config from the mission profile
     // default. Future SET_RADIO_CONFIG (IVP-T5.5 core) will mutate this field.
+    // Sub-persist: if a validated config is persisted in flash, use it as
+    // the boot override (overrides kDefaultRocketRadioConfig only when
+    // storage says "yes I have a valid one for you").
     s.runtime_config = rc::kDefaultRocketRadioConfig;
+    {
+        rc::RadioConfig persisted{};
+        if (radio_config_storage_read(&persisted)) {
+            s.runtime_config = persisted;
+            DBG_PRINT("RADIO: boot config from flash — BW=%u nav=%u SF=%u",
+                      static_cast<unsigned>(persisted.bandwidth_khz),
+                      static_cast<unsigned>(persisted.nav_rate_hz),
+                      static_cast<unsigned>(persisted.spreading_factor));
+        }
+    }
 
     // Initialize radio hardware (owned by this AO)
     if (g_spiOk && rfm95w_init(&s.radio,
@@ -507,6 +542,30 @@ static void handle_radio_tick(RadioAo* me) {
             if (threshold < 15U) { threshold = 15U; }
             if (s.tx_since_apply >= threshold) {
                 ao_radio_revert_to_prev_config(s);
+            }
+        }
+    }
+
+    // Sub-persist: debounced flash write. Tick down only when no config
+    // change is actively in flight (symmetric-revert resolved AND no new
+    // pending apply). When counter reaches zero, commit current runtime_
+    // config to flash. flash_safe_execute() is a blocking call (~100 ms)
+    // but QV cooperative scheduling means it only delays the next tick;
+    // no AO queues can overflow because other AOs aren't racing with us.
+    if (s_persist_requested &&
+        !s.apply_in_progress &&
+        !s_pending_radio_config_valid &&
+        s_persist_debounce_count > 0) {
+        s_persist_debounce_count--;
+        if (s_persist_debounce_count == 0) {
+            s_persist_requested = false;
+            // Write current runtime_config. storage module handles the
+            // no-op skip if the cached value already matches.
+            bool ok = radio_config_storage_write(&s.runtime_config);
+            if (ok) {
+                DBG_PRINT("RADIO: persisted config to flash");
+            } else {
+                DBG_ERROR("RADIO: flash persist FAILED");
             }
         }
     }

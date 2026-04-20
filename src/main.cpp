@@ -27,6 +27,7 @@
 #include "drivers/mcu_temp.h"
 #include "drivers/gps_uart.h"
 #include "calibration/calibration_storage.h"
+#include "logging/radio_config_storage.h"  // Stage T IVP-T5.5
 #include "calibration/calibration_manager.h"
 #include "calibration/cal_hooks.h"
 #include "fusion/eskf.h"
@@ -421,6 +422,12 @@ static void init_peripherals() {
     // Calibration storage init (before USB per LL Entry 4/12)
     g_calStorageInitialized = calibration_storage_init();
     calibration_manager_init();
+
+    // Stage T IVP-T5.5: radio config storage init (before USB, per same rule).
+    // Persisted config read happens later in RadioAo_initial via
+    // radio_config_storage_read() — but the sector scan must happen here
+    // while flash ops are still safe.
+    radio_config_storage_init();
 
     // USB CDC init (after I2C/flash per LL Entry 4/12). Non-blocking —
     // rc_os_update() handles terminal connect/disconnect and prints boot

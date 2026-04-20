@@ -57,9 +57,16 @@ static constexpr uint32_t kFlashTableSectorA =
 static constexpr uint32_t kFlashTableSectorB =
     kFlashCalSectorA - 1U * FLASH_SECTOR_SIZE;
 
-// Flash-safe test: 1 sector below flight table
+// Stage T IVP-T5.5: radio config storage — next 8KB below flight table.
+// Dual-sector wear leveling, same pattern as calibration.
+static constexpr uint32_t kFlashRadioCfgSectorA =
+    kFlashTableSectorA - 2U * FLASH_SECTOR_SIZE;
+static constexpr uint32_t kFlashRadioCfgSectorB =
+    kFlashTableSectorA - 1U * FLASH_SECTOR_SIZE;
+
+// Flash-safe test: 1 sector below radio config
 static constexpr uint32_t kFlashSafeTestOffset =
-    kFlashTableSectorA - FLASH_SECTOR_SIZE;
+    kFlashRadioCfgSectorA - FLASH_SECTOR_SIZE;
 
 // Flight log region: between firmware and flash-safe test sector
 static constexpr uint32_t kFlashLogStart = kFlashFirmwareReserve;

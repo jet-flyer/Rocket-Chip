@@ -286,6 +286,9 @@ else()
         src/calibration/calibration_storage.cpp
         src/calibration/cal_hooks.cpp
 
+        # Stage T IVP-T5.5: radio config persistence
+        src/logging/radio_config_storage.cpp
+
         # IVP-18: RC_OS CLI
         src/cli/rc_os.cpp
         src/cli/rc_os_dashboard.cpp
@@ -431,6 +434,7 @@ else()
         src/calibration/calibration_manager.cpp
         src/calibration/calibration_storage.cpp
         src/calibration/cal_hooks.cpp
+        src/logging/radio_config_storage.cpp
         src/cli/rc_os.cpp
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
