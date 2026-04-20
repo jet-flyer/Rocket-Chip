@@ -118,15 +118,19 @@ struct SensorDataEvt {
 // Allocated from QP/C dynamic event pool [C3-A1]
 struct RadioTxEvt {
     QEvt super;
-    uint8_t buf[128];    // Encoded packet (CCSDS 54B or MAVLink ~144B)
-    uint8_t len;
+    uint8_t buf[256];    // Encoded packet — CCSDS 54B, MAVLink multi-msg ~140B,
+                         // future CCSDS+CLCW 58B. 256 matches EncodeResult.buf
+                         // and SX1276 255-byte FIFO. (Stage T IVP-T5: was 128,
+                         // overrunning on MAVLink encode_nav per findings.)
+    uint8_t len;         // SX1276 FIFO is 255B — uint8_t is sufficient.
+                         // Callers must clamp len <= sizeof(buf) before memcpy.
 };
 
 // Radio RX event — raw packet received from radio
 // Allocated from QP/C dynamic event pool [C3-A1]
 struct RadioRxEvt {
     QEvt super;
-    uint8_t buf[128];    // Raw received bytes
+    uint8_t buf[256];    // Raw received bytes (matches TX for symmetry).
     uint8_t len;
     int16_t rssi;        // dBm
     int8_t  snr;         // dB

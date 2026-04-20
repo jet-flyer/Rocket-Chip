@@ -26,7 +26,9 @@ static rc::RadioRxEvt s_injectEvt;
 
 extern "C" __attribute__((used))
 void station_replay_inject_bytes(const uint8_t* buf, uint8_t len) {
-    if (buf == nullptr || len == 0 || len > sizeof(s_injectEvt.buf)) { return; }
+    // Stage T IVP-T5: RadioRxEvt.buf bumped to 256; uint8_t len can never
+    // exceed it. Keep the null/zero guards.
+    if (buf == nullptr || len == 0) { return; }
 
     s_injectEvt.super.sig = rc::SIG_RADIO_RX;
     s_injectEvt.super.refCtr_ = 0;

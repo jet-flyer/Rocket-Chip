@@ -156,10 +156,19 @@ an isolated test. For now, T6 itself IS the canary.
 
 ## Conclusions
 
-- **T3 MAVLink silent-RX is most likely caused by buffer overrun** when the
-  production MAVLink TX path (`encode_nav` in `telemetry_encoder.cpp`)
-  writes ~139 bytes into the 128-byte `RadioTxEvt.buf`. This is a latent
-  bug independent of T3; T3 exposed it by flipping the protocol at boot.
+- **Buffer overrun bug is REAL and FIXED, but was NOT the T3 silent-RX
+  culprit.** The 128-byte `RadioTxEvt.buf` was overrun by MAVLink
+  `encode_nav` (~139 bytes). Bumping to 256 bytes fixes the latent trap.
+  However, flashing T3 MAVLink (build `build_t3_mav_veh/` + `build_t3_mav_stn/`)
+  with the buffer-fixed version still produces `station rx_count = 0` after
+  6 minutes of vehicle TX'ing 1200+ packets. Hypothesis test: partially
+  falsified for T3-specific cause, fully confirmed for latent bug.
+- **T3 MAVLink silent-RX has a remaining unidentified cause.** Next
+  candidate: MAVLink frame format / preamble compatibility with SX1276's
+  explicit-header LoRa mode. MAVLink packets start with 0xFD; LoRa
+  preamble + explicit-header-CRC contract might be violated somewhere.
+  Deferred to IVP-T9 (MAVLink retest) — needs to happen AFTER T6 sets
+  BW500 anyway.
 - **T2 silent-RX is not root-caused** but is contained by keeping the
   firmware cheat off-by-default and using the host-side cheat instead. The
   symptom is consistent with a queue-saturation or dispatch-cycling
@@ -169,15 +178,24 @@ an isolated test. For now, T6 itself IS the canary.
   bug** — after reinit, RadioConfig overrides are not reapplied, so BW/SF
   snap back to the `configure_modem()` defaults. Flag for future fix,
   doesn't block Stage T.
+- **Transient SPI-init failure observed** during T5 testing: vehicle once
+  booted with `g_spiOk = false`, making the radio totally unresponsive.
+  Reset via probe cleared it. Possible interaction with repeated
+  flash+reset cycles; not reproducible on demand. Flag for future
+  observation.
 
 ## Go/no-go for T8
 
-**GO for T8 with prerequisite:** **bump `RadioTxEvt.buf` and `RadioRxEvt.buf`
-from 128 → 256 bytes and add the size-guard assertion** as the first
-mechanical step in T8. This unblocks CLCW-expanded packets AND fixes the
-latent MAVLink overrun at the same time. Without this, T8's 58-byte CCSDS
-packets are fine but any future MAVLink-over-LoRa will re-expose the
-silent-RX pathology.
+**GO for T8.** The buffer fix (`RadioTxEvt.buf` and `RadioRxEvt.buf` bumped
+from 128 → 256 bytes, plus size-guard at `ao_telemetry.cpp:190`) has been
+applied and committed as part of T5. All 4 standard builds + T3 MAVLink
+variant build clean; 755/755 host tests pass. This unblocks CCSDS packets
+up to the SX1276 FIFO limit of 255 bytes, which accommodates the
+planned 58-byte CCSDS+CLCW for T8.
+
+The buffer fix ALONE does not unblock T3 MAVLink — station RX still shows
+0 packets after 6 minutes with vehicle TX'ing 1200+ MAVLink packets. So
+T9 (MAVLink retest) has a remaining unknown, deferred.
 
 **T6 can proceed immediately** — BW sweep touches only
 `kDefaultRocketRadioConfig.bandwidth_khz` (a numeric-only change). Risk

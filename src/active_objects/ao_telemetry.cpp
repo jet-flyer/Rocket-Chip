@@ -139,14 +139,14 @@ static void send_pending_ack_if_any() {
     s_ack_seq = static_cast<uint16_t>((s_ack_seq + 1) & 0x3FFF);
 
     // Separate static event for ACK (can't reuse nav's txEvt — both in queue)
+    // Stage T IVP-T5: RadioTxEvt.buf bumped to 256; uint8_t ack_len ≤ sizeof
+    // check is now always-true. Removed redundant guard.
     static rc::RadioTxEvt s_ackTxEvt;
     s_ackTxEvt.super.sig = rc::SIG_RADIO_TX;
     s_ackTxEvt.super.refCtr_ = 0;
-    if (ack_len <= sizeof(s_ackTxEvt.buf)) {
-        memcpy(s_ackTxEvt.buf, ack_buf, ack_len);
-        s_ackTxEvt.len = ack_len;
-        QACTIVE_POST(AO_Radio, &s_ackTxEvt.super, AO_Telemetry);
-    }
+    memcpy(s_ackTxEvt.buf, ack_buf, ack_len);
+    s_ackTxEvt.len = ack_len;
+    QACTIVE_POST(AO_Radio, &s_ackTxEvt.super, AO_Telemetry);
 }
 
 // Encode and post SIG_RADIO_TX to AO_Radio (Vehicle TX path)
@@ -187,6 +187,9 @@ static void encode_and_send(TelemAo* me) {
     static rc::RadioTxEvt txEvt;
     txEvt.super.sig = rc::SIG_RADIO_TX;
     txEvt.super.refCtr_ = 0;  // Reset ref counter (QP/C static event pattern)
+    // Stage T IVP-T5: guard against encode_nav output exceeding buf size.
+    // MAVLink encode_nav produces ~140 bytes (4 messages); CCSDS is 54 bytes.
+    if (result.len > sizeof(txEvt.buf)) { return; }
     memcpy(txEvt.buf, result.buf, result.len);
     txEvt.len = static_cast<uint8_t>(result.len);
 
