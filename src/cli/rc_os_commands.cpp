@@ -30,6 +30,7 @@
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h"
 #include "rocketchip/sensor_seqlock.h"
+#include "rocketchip/radio_config_table.h"  // T5.5 sub 2c: SET cycle
 
 // MAVLink command IDs for station command menu (IVP-62c)
 // Values from common/common.h — avoids pulling full mavlink.h with packed struct warnings
@@ -37,6 +38,8 @@ static constexpr uint16_t kMavCmdArmDisarm = 400;        // MAV_CMD_COMPONENT_AR
 static constexpr uint16_t kMavCmdFlightTermination = 185; // MAV_CMD_DO_FLIGHTTERMINATION
 static constexpr uint16_t kMavCmdSetHome = 179;           // MAV_CMD_DO_SET_HOME
 static constexpr uint16_t kMavCmdBeacon = 31010;          // MAV_CMD_USER_1 — Stage L manual beacon
+static constexpr uint16_t kMavCmdSetRadioConfig = 31011;  // MAV_CMD_USER_2 — T5.5 SET
+static constexpr uint16_t kMavCmdQueryRadioConfig = 31012;// MAV_CMD_USER_3 — T5.5 QUERY
 
 // ============================================================================
 // Stage T2 cheat-mode — throwaway code, revertible in one commit.
@@ -70,6 +73,50 @@ void stage_t2_fire_pending_if_any() {
     }
 }
 #endif  // ROCKETCHIP_STAGE_T2_CHEAT
+
+// ============================================================================
+// Stage T IVP-T5.5 sub 2c — station SET_RADIO_CONFIG cycle
+// ============================================================================
+// Operator presses `r` to step to the NEXT entry in kRadioConfigTable. Station
+// issues MAV_CMD_USER_2 with the target config's params. Vehicle validates +
+// ACKs on OLD, applies on TxDone. Station's own radio switch (so it can hear
+// the vehicle on NEW) lands in a follow-up (sub 2c.2 — LOS watchdog +
+// own-radio reconfigure on ACK receipt). For this first step we just send
+// the command and log it — operator verifies on dashboard that the NEW
+// config shows up in the echo.
+static void cmd_radio_config_cycle() {
+    if constexpr (!kRadioModeRx) { return; }  // station-only
+
+    // Find the current station-side target by matching against the whitelist.
+    // On first press we don't know what the vehicle is on — start at index 0
+    // (the default config) and advance from there.
+    static size_t s_cycle_idx = 0;
+    s_cycle_idx = (s_cycle_idx + 1) % rc::kRadioConfigTableSize;
+    const auto& target = rc::kRadioConfigTable[s_cycle_idx];
+
+    printf("[CMD] SET_RADIO_CONFIG BW=%u nav=%u SF=%u CR=%u pwr=%u (idx %u/%u)\n",
+           static_cast<unsigned>(target.bw_khz),
+           static_cast<unsigned>(target.nav_rate_hz),
+           static_cast<unsigned>(target.sf),
+           static_cast<unsigned>(target.cr),
+           static_cast<unsigned>(target.power_dbm),
+           static_cast<unsigned>(s_cycle_idx),
+           static_cast<unsigned>(rc::kRadioConfigTableSize - 1));
+    // Params packed as floats: lroundf() on vehicle side for robust cast.
+    AO_Telemetry_send_tracked_command(
+        kMavCmdSetRadioConfig,
+        static_cast<float>(target.bw_khz),
+        static_cast<float>(target.nav_rate_hz),
+        static_cast<float>(target.sf),
+        static_cast<float>(target.cr),
+        static_cast<float>(target.power_dbm));
+    printf("[CMD] SET_RADIO_CONFIG sent, waiting for ACK...\n");
+    // Station's own radio switch happens in ao_telemetry.cpp's ACK-match
+    // path when ACK-accepted arrives for this command. No LOS watchdog yet
+    // (sub 2d adds symmetric revert on vehicle side; a station-side LOS
+    // watchdog with auto-revert is wired in sub 2e/2f alongside the
+    // dashboard status banner).
+}
 #include "active_objects/ao_rcos.h"
 #include "active_objects/ao_led_engine.h"
 #include "calibration/calibration_manager.h"
@@ -1393,7 +1440,14 @@ void cli_handle_unhandled_key(int key) {
         break;
     case 't': case 'T': cmd_radio_status(); break;
     case 'r':
-        if (AO_Radio_get_state()->initialized && !kRadioModeRx) {
+        if constexpr (kRadioModeRx) {
+            // Stage T IVP-T5.5 sub 2c: station SET_RADIO_CONFIG.
+            // Cycle through kRadioConfigTable entries, sending the next
+            // entry after the current. Operator can press repeatedly to
+            // advance. Station's own radio switches after ACK (wired via
+            // SET's own ACK-handling path — station mirrors the vehicle).
+            cmd_radio_config_cycle();
+        } else if (AO_Radio_get_state()->initialized) {
             uint8_t newRate = AO_Telemetry_cycle_rate();
             printf("[TX] Rate changed to %dHz\n", static_cast<int>(newRate));
         }

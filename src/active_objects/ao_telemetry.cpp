@@ -336,12 +336,19 @@ static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
 }
 
 // IVP-122: Station-side pending command state (ACK tracking)
+// Stage T IVP-T5.5: +p1..p5 so resend_pending_cmd() replays the exact
+// parameters the operator sent for multi-param commands (SET_RADIO_CONFIG).
 static struct {
     bool pending;
     uint8_t seq;
     uint16_t cmd_id;
     uint32_t sent_ms;
     uint8_t retries_left;
+    float p1;
+    float p2;
+    float p3;
+    float p4;
+    float p5;
 } s_pending_cmd = {};
 
 // Handle received packet from AO_Radio
@@ -365,11 +372,46 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
     if (s_pending_cmd.pending &&
         ack.cmd_seq == s_pending_cmd.seq &&
         ack.cmd_id == s_pending_cmd.cmd_id) {
+        // Capture details before clearing — needed below for SET switch.
+        const uint16_t matched_cmd = s_pending_cmd.cmd_id;
+        const float matched_p1 = s_pending_cmd.p1;
+        const float matched_p2 = s_pending_cmd.p2;
+        const float matched_p3 = s_pending_cmd.p3;
+        const float matched_p4 = s_pending_cmd.p4;
+        const float matched_p5 = s_pending_cmd.p5;
         s_pending_cmd.pending = false;
-        const char* result_str =
-            (ack.result == static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted))
-            ? "ACK'd" : "DENIED";
+
+        const bool accepted = (ack.result ==
+            static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted));
+        const char* result_str = accepted ? "ACK'd" : "DENIED";
         printf("[CMD] %s (seq=%u)\n", result_str, ack.cmd_seq);
+
+#ifdef ROCKETCHIP_JOB_STATION
+        // Stage T IVP-T5.5 sub 2c: if the ACK was for SET_RADIO_CONFIG and
+        // accepted, vehicle will apply the new config on its TxDone (i.e.
+        // on this ACK's own TX completion from its side). Switch station's
+        // own radio to match so we can hear the vehicle on the new config.
+        // (void cast to shush the unused-if-non-station warnings.)
+        (void)matched_p1; (void)matched_p2; (void)matched_p3;
+        (void)matched_p4; (void)matched_p5;
+        if (accepted && matched_cmd == 31011 /* MAV_CMD_USER_2 */) {
+            rc::RadioConfig new_cfg = *AO_Radio_get_runtime_config();
+            new_cfg.bandwidth_khz    = static_cast<uint16_t>(lroundf(matched_p1));
+            new_cfg.nav_rate_hz      = static_cast<uint8_t> (lroundf(matched_p2));
+            new_cfg.spreading_factor = static_cast<uint8_t> (lroundf(matched_p3));
+            new_cfg.coding_rate      = static_cast<uint8_t> (lroundf(matched_p4));
+            new_cfg.power_dbm        = static_cast<uint8_t> (lroundf(matched_p5));
+            AO_Radio_set_pending_config(new_cfg);
+            printf("[CMD] station switching radio to BW=%u nav=%u SF=%u\n",
+                   static_cast<unsigned>(new_cfg.bandwidth_khz),
+                   static_cast<unsigned>(new_cfg.nav_rate_hz),
+                   static_cast<unsigned>(new_cfg.spreading_factor));
+        }
+#else
+        (void)matched_cmd;
+        (void)matched_p1; (void)matched_p2; (void)matched_p3;
+        (void)matched_p4; (void)matched_p5;
+#endif
     }
     return true;
 }
@@ -659,7 +701,9 @@ void AO_Telemetry_send_command(uint16_t command, float p1, float p2,
 // IVP-122: Send a tracked command — populates pending-cmd state for ACK tracking.
 static uint8_t s_cmd_seq = 0;
 
-void AO_Telemetry_send_tracked_command(uint16_t command, float p1) {
+void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
+                                       float p2, float p3,
+                                       float p4, float p5) {
 #ifndef ROCKETCHIP_HOST_TEST
     uint8_t seq = s_cmd_seq++;
 
@@ -670,7 +714,7 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1) {
         1, 1,
         command,
         seq,       // Confirmation field carries our sequence number
-        p1, 0, 0, 0, 0, 0, 0);
+        p1, p2, p3, p4, p5, 0, 0);
 
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
@@ -684,14 +728,20 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1) {
         QACTIVE_POST(AO_Radio, &txEvt.super, &l_telemAo.super);
     }
 
-    // Populate pending command state for ACK tracking
+    // Populate pending command state for ACK tracking. Cache the sent
+    // params so resend_pending_cmd() can replay the command verbatim.
     s_pending_cmd.pending = true;
     s_pending_cmd.seq = seq;
     s_pending_cmd.cmd_id = command;
     s_pending_cmd.sent_ms = to_ms_since_boot(get_absolute_time());
     s_pending_cmd.retries_left = 3;
+    s_pending_cmd.p1 = p1;  // T5.5: preserve all 5 params for retries
+    s_pending_cmd.p2 = p2;
+    s_pending_cmd.p3 = p3;
+    s_pending_cmd.p4 = p4;
+    s_pending_cmd.p5 = p5;
 #else
-    (void)command; (void)p1;
+    (void)command; (void)p1; (void)p2; (void)p3; (void)p4; (void)p5;
 #endif
 }
 
@@ -703,12 +753,14 @@ bool AO_Telemetry_is_cmd_pending() {
 static void resend_pending_cmd() {
 #ifndef ROCKETCHIP_HOST_TEST
     mavlink_message_t msg;
-    float p1 = (s_pending_cmd.cmd_id == MAV_CMD_COMPONENT_ARM_DISARM) ? 1.0f : 0.0f;
+    // Stage T IVP-T5.5: replay ALL cached params (was p1-only, hard-coded
+    // for ARM). Multi-param commands like SET_RADIO_CONFIG depend on this.
     mavlink_msg_command_long_pack(
         255, 0, &msg, 1, 1,
         s_pending_cmd.cmd_id,
         s_pending_cmd.seq,  // Same seq as original
-        p1, 0, 0, 0, 0, 0, 0);
+        s_pending_cmd.p1, s_pending_cmd.p2, s_pending_cmd.p3,
+        s_pending_cmd.p4, s_pending_cmd.p5, 0, 0);
 
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);

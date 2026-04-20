@@ -53,7 +53,11 @@ void AO_Telemetry_send_command(uint16_t command, float p1 = 0, float p2 = 0,
 // IVP-122: send a tracked command — populates pending-cmd state for ACK
 // tracking. Uses the MAVLink COMMAND_LONG `confirmation` field to carry the
 // station's command sequence number. 3 retries at 3-second intervals.
-void AO_Telemetry_send_tracked_command(uint16_t command, float p1 = 0);
+// Stage T IVP-T5.5: extended to take up to 5 params for SET_RADIO_CONFIG
+// (bw, nav_hz, sf, cr, power_dbm). Defaults keep existing callers working.
+void AO_Telemetry_send_tracked_command(uint16_t command, float p1 = 0,
+                                       float p2 = 0, float p3 = 0,
+                                       float p4 = 0, float p5 = 0);
 
 // IVP-122: check if a tracked command ACK is still pending
 bool AO_Telemetry_is_cmd_pending();
