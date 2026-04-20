@@ -131,13 +131,12 @@ static rc::ccsds::CommandAckPayload s_pending_ack = {};
 static bool s_pending_ack_valid = false;
 static uint16_t s_ack_seq = 0;
 
-// Stage T IVP-T5.5: vehicle-side pending radio config (applied after ACK TxDone).
-// SET_RADIO_CONFIG handler validates + stashes here; the apply is triggered
-// separately (TxDone-keyed in AO_Radio — wired in a subsequent sub-IVP).
-// Until then `s_pending_config_valid` is set but no actual radio reconfigure
-// happens — ACK still goes out as kAccepted for tuples that pass validation.
-static rc::RadioConfig s_pending_config = {};
-static bool s_pending_config_valid = false;
+// Stage T IVP-T5.5: pending radio config storage lives in AO_Radio.
+// This AO (Telemetry) owns ACK buffering and command dispatch; AO_Radio
+// owns the actual radio reconfigure. After SET_RADIO_CONFIG validates,
+// we call AO_Radio_set_pending_config() which queues the apply to fire
+// on the next TxDone (which will be our outgoing ACK for this very
+// command — per smell-test A.1 "apply on confirmed egress").
 
 // IVP-122: Send pending command ACK before nav frame
 static void send_pending_ack_if_any() {
@@ -277,11 +276,10 @@ static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
                     bool in_whitelist = rc::radio_config_in_whitelist(
                         new_bw, new_nav, new_sf, new_cr, new_pwr);
                     // Gate #3 (correctness council edit #3 item 3):
-                    // power step limit ±6 dB per command.
-                    const rc::RadioConfig* cur = &rc::kDefaultRocketRadioConfig;
-                    // TODO(T5.5 sub-IVP 2b): read cur from AO_Radio's
-                    // runtime_config instead of the compile-time default,
-                    // once SIG_RADIO_CONFIG_APPLY wiring lands.
+                    // power step limit ±6 dB per command. Read CURRENT
+                    // runtime config from AO_Radio (not the compile-time
+                    // default) so the delta is meaningful after prior SETs.
+                    const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
                     int pwr_delta = static_cast<int>(new_pwr) -
                                      static_cast<int>(cur->power_dbm);
                     if (pwr_delta < 0) { pwr_delta = -pwr_delta; }
@@ -297,18 +295,18 @@ static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
                         ack_result = static_cast<uint8_t>(
                             rc::ccsds::CmdAckResult::kDenied);
                     } else {
-                        // Validation passed. Stash pending config for the
-                        // TxDone-keyed apply (wired in sub-IVP 2b). For now
-                        // the ACK will go out as kAccepted but actual radio
-                        // reconfigure is stub — apply path not yet active.
-                        s_pending_config.mode             = rc::RadioRole::kTx;
-                        s_pending_config.protocol         = cur->protocol;
-                        s_pending_config.nav_rate_hz      = new_nav;
-                        s_pending_config.power_dbm        = new_pwr;
-                        s_pending_config.spreading_factor = new_sf;
-                        s_pending_config.bandwidth_khz    = new_bw;
-                        s_pending_config.coding_rate      = new_cr;
-                        s_pending_config_valid = true;
+                        // Validation passed. Build the target config and
+                        // queue it in AO_Radio — applied on next TxDone
+                        // (the ACK we're about to queue) per smell-test
+                        // A.1. Symmetric-revert and station-side switch
+                        // are wired in sub-IVPs 2c/2d.
+                        rc::RadioConfig new_cfg = *cur;  // inherit mode/protocol
+                        new_cfg.nav_rate_hz      = new_nav;
+                        new_cfg.power_dbm        = new_pwr;
+                        new_cfg.spreading_factor = new_sf;
+                        new_cfg.bandwidth_khz    = new_bw;
+                        new_cfg.coding_rate      = new_cr;
+                        AO_Radio_set_pending_config(new_cfg);
                     }
                 } else if (cmd.command == MAV_CMD_USER_3) {
                     // Stage T IVP-T5.5: QUERY_RADIO_CONFIG — synchronous probe.

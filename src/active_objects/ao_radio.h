@@ -48,4 +48,16 @@ struct RadioAoState {
 
 const RadioAoState* AO_Radio_get_state();
 
+/// Stage T IVP-T5.5: queue a pending radio config. Applied by AO_Radio
+/// after the next TX-poll reports kDone (TxDone IRQ equivalent) — i.e.
+/// immediately after the ACK packet has physically left the antenna.
+/// If no TX is outstanding, applied on the next tick.
+/// A ~200 ms backstop timer guards against TxDone never firing.
+/// Caller is responsible for validating the config BEFORE calling this.
+void AO_Radio_set_pending_config(const rc::RadioConfig& cfg);
+
+/// Stage T IVP-T5.5: read-only access to the AO's current runtime config.
+/// Used by SET dispatch to compute power-delta for the +/-6 dB gate.
+const rc::RadioConfig* AO_Radio_get_runtime_config();
+
 #endif // ROCKETCHIP_AO_RADIO_H

@@ -14,6 +14,7 @@
 //============================================================================
 
 #include "ao_radio.h"
+#include "ao_flight_director.h"  // AO_FlightDirector_is_ground_state (T5.5)
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/config.h"  // rocketchip::pins::kRadioCs/Rst/Irq
 #include "rocketchip/radio_config.h"
@@ -62,10 +63,23 @@ struct RadioAo {
 static RadioAo l_radioAo;
 static QEvtPtr  l_radioAoQueue[32]; // Match other AOs — 100Hz tick needs headroom
 
+// Stage T IVP-T5.5: pending radio config (set by AO_Radio_set_pending_config,
+// applied after next TX-poll kDone). File-scope static — safe under QV
+// cooperative scheduling (no preemption on Core 0).
+static rc::RadioConfig s_pending_radio_config = {};
+static bool            s_pending_radio_config_valid = false;
+// Backstop: tick count at which a pending apply must fire even if no
+// TxDone arrives. Guards against stale pending state if TX was never
+// actually in progress when set_pending_config was called.
+// ~20 ticks at 100 Hz = 200 ms. Per smell-test A.1 + correctness council.
+static constexpr uint32_t kPendingApplyBackstopTicks = 20;
+static uint32_t s_pending_apply_backstop_count = 0;
+
 // Forward declarations
 static QState RadioAo_initial(RadioAo * const me, QEvt const * const e);
 static QState RadioAo_running(RadioAo * const me, QEvt const * const e);
-static void ao_radio_apply_runtime_config(RadioAoState& s);  // T5.5 prereq #1
+static void ao_radio_apply_runtime_config(RadioAoState& s);       // T5.5 prereq #1
+static void ao_radio_commit_pending_config(RadioAoState& s);      // T5.5 sub 2b
 
 // ============================================================================
 // Helpers
@@ -138,6 +152,10 @@ static void handle_tx_poll(RadioAo* me) {
         s.tx_consec_fail = 0;
         s.tx_count++;
         s.scheduler.on_tx_complete(now_ms());
+        // Stage T IVP-T5.5 sub 2b: if a config change is pending, the ACK
+        // we just finished transmitting was its last carrier on the OLD
+        // config — safe to reconfigure now.
+        ao_radio_commit_pending_config(s);
         // Enter RX mode between TX slots to receive commands from station
         rfm95w_start_rx(&s.radio);
     } else if (result == TxPollResult::kTimeout) {
@@ -174,20 +192,57 @@ static void handle_tx_poll(RadioAo* me) {
 // silently snapped radio back to configure_modem() compile-time defaults
 // (SF7/BW125/CR5/+20dBm) while RuntimeRadioConfig tracked something else.
 // Setters only, no reinit. Does NOT enter RX mode — caller handles RX/TX mode.
+//
+// Per correctness council edit #3: power_dbm setter is called LAST so a
+// power increase or decrease doesn't affect the ACK transmission we just
+// finished. (Edit: matters most when called mid-stream, e.g. from the
+// pending-apply path. At boot order doesn't matter since no ACK is pending.)
 static void ao_radio_apply_runtime_config(RadioAoState& s) {
     const rc::RadioConfig& rc = s.runtime_config;
-    rfm95w_set_spreading_factor(&s.radio, rc.spreading_factor);
-    rfm95w_set_coding_rate(&s.radio, rc.coding_rate);
-    rfm95w_set_tx_power(&s.radio, rc.power_dbm);
     // BW: SX1276 register encoding (7=125kHz, 8=250kHz, 9=500kHz)
     uint8_t bw_reg = (rc.bandwidth_khz >= 500) ? rfm95w::kBw500 :
                      (rc.bandwidth_khz >= 250) ? rfm95w::kBw250 :
                                                  rfm95w::kBw125;
     rfm95w_set_bandwidth(&s.radio, bw_reg);
+    rfm95w_set_spreading_factor(&s.radio, rc.spreading_factor);
+    rfm95w_set_coding_rate(&s.radio, rc.coding_rate);
     // Scheduler rate follows nav_rate_hz; caller owns RX-mode transition.
     if (rc.nav_rate_hz != 0) {
         s.scheduler.set_rate(rc.nav_rate_hz);
     }
+    // Power LAST — per correctness council edit #3 item 3.
+    rfm95w_set_tx_power(&s.radio, rc.power_dbm);
+}
+
+// Stage T IVP-T5.5 sub 2b: commit a pending config to the radio.
+// Called from handle_tx_poll() when TxDone fires (TX has physically left
+// the antenna — safe to reconfigure) OR from the tick handler via the
+// backstop timer if no TX was ever in progress.
+//
+// Per correctness council: re-validate ground-state at apply time (not
+// just at receive time). If the vehicle transitioned out of IDLE during
+// the apply window, abort the config change — leaves old config intact.
+static void ao_radio_commit_pending_config(RadioAoState& s) {
+    if (!s_pending_radio_config_valid) { return; }
+    s_pending_radio_config_valid = false;
+    s_pending_apply_backstop_count = 0;
+
+    // Re-validate ground state at apply (closes the ARM-during-pending race).
+    if (!AO_FlightDirector_is_ground_state()) {
+        DBG_ERROR("RADIO: pending config apply aborted — not in IDLE");
+        return;
+    }
+
+    // Cache current as prev_config for symmetric-revert (wired in sub 2d).
+    // For 2b we just apply; revert logic comes later.
+    s.runtime_config = s_pending_radio_config;
+    ao_radio_apply_runtime_config(s);
+    DBG_PRINT("RADIO: config applied — BW=%u nav=%u SF=%u CR=%u pwr=%u",
+              static_cast<unsigned>(s.runtime_config.bandwidth_khz),
+              static_cast<unsigned>(s.runtime_config.nav_rate_hz),
+              static_cast<unsigned>(s.runtime_config.spreading_factor),
+              static_cast<unsigned>(s.runtime_config.coding_rate),
+              static_cast<unsigned>(s.runtime_config.power_dbm));
 }
 
 // CCSDS packet constants for relay CRC validation
@@ -388,6 +443,20 @@ static void handle_radio_tick(RadioAo* me) {
         handle_rx_poll(me);
     }
 
+    // Stage T IVP-T5.5 sub 2b: backstop for pending-config-apply.
+    // If a config change was queued but no TxDone has fired within
+    // kPendingApplyBackstopTicks (~200 ms), apply it anyway. Guards
+    // against a stashed pending config going stale if no ACK was in
+    // flight when set_pending_config was called, or if TxDone IRQ
+    // never fires for some reason.
+    if (s_pending_radio_config_valid) {
+        s_pending_apply_backstop_count++;
+        if (s_pending_apply_backstop_count >= kPendingApplyBackstopTicks) {
+            DBG_PRINT("RADIO: backstop fired — applying pending config");
+            ao_radio_commit_pending_config(s);
+        }
+    }
+
     // Stage T — capture any transition that happened during this tick's work
     stage_t_log_state(s_stage_t_prev_phase, s.scheduler.phase);
     s_stage_t_prev_phase = s.scheduler.phase;
@@ -423,6 +492,20 @@ QActive * const AO_Radio = &l_radioAo.super;
 
 const RadioAoState* AO_Radio_get_state() {
     return &l_radioAo.state;
+}
+
+// Stage T IVP-T5.5 sub 2b: queue a runtime radio config change.
+// The apply fires on the next TxDone (from handle_tx_poll) or via the
+// backstop timer (~200 ms). Caller validates the config BEFORE calling.
+// Safe under QV cooperative scheduling — file-scope statics, no preemption.
+void AO_Radio_set_pending_config(const rc::RadioConfig& cfg) {
+    s_pending_radio_config = cfg;
+    s_pending_radio_config_valid = true;
+    s_pending_apply_backstop_count = 0;
+}
+
+const rc::RadioConfig* AO_Radio_get_runtime_config() {
+    return &l_radioAo.state.runtime_config;
 }
 
 void AO_Radio_start(uint8_t prio, bool spi_ok) {
