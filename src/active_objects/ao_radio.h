@@ -44,6 +44,19 @@ struct RadioAoState {
     // via ao_radio_apply_runtime_config() — without this, the recovery path at
     // :148-152 silently snapped radio back to compile-time defaults.
     rc::RadioConfig    runtime_config;
+
+    // Stage T IVP-T5.5 sub 2d: symmetric-revert support. When a config apply
+    // happens, `runtime_config` before apply is cached here. `tx_since_apply`
+    // counts our own TXes on the new config; if it reaches the revert
+    // threshold with no RX from the station, we self-revert to prev_config.
+    // Threshold = max(15, ceil(3 * nav_hz)). At nav_hz=10 -> 30 TXes ≈ 3 s.
+    // Station's own revert window is SHORTER (max(6, ceil(1.5 * nav_hz)))
+    // so the station gives up first visually; vehicle is the final fallback
+    // (smell-test A.2 asymmetric revert).
+    rc::RadioConfig    prev_config;
+    uint32_t           tx_since_apply;   // our-TX count since last apply
+    uint32_t           rx_at_apply;      // rx_count snapshot at apply time
+    bool               apply_in_progress;// true while waiting for NEW-config RX
 };
 
 const RadioAoState* AO_Radio_get_state();

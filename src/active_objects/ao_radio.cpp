@@ -80,6 +80,7 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e);
 static QState RadioAo_running(RadioAo * const me, QEvt const * const e);
 static void ao_radio_apply_runtime_config(RadioAoState& s);       // T5.5 prereq #1
 static void ao_radio_commit_pending_config(RadioAoState& s);      // T5.5 sub 2b
+static void ao_radio_revert_to_prev_config(RadioAoState& s);      // T5.5 sub 2d
 
 // ============================================================================
 // Helpers
@@ -156,6 +157,13 @@ static void handle_tx_poll(RadioAo* me) {
         // we just finished transmitting was its last carrier on the OLD
         // config — safe to reconfigure now.
         ao_radio_commit_pending_config(s);
+        // Sub 2d: if we're in the post-apply "waiting for station RX" window,
+        // count this TX toward the revert threshold. Threshold check itself
+        // happens in handle_radio_tick so a revert is never triggered from
+        // inside a TX-completion handler.
+        if (s.apply_in_progress) {
+            s.tx_since_apply++;
+        }
         // Enter RX mode between TX slots to receive commands from station
         rfm95w_start_rx(&s.radio);
     } else if (result == TxPollResult::kTimeout) {
@@ -214,7 +222,7 @@ static void ao_radio_apply_runtime_config(RadioAoState& s) {
     rfm95w_set_tx_power(&s.radio, rc.power_dbm);
 }
 
-// Stage T IVP-T5.5 sub 2b: commit a pending config to the radio.
+// Stage T IVP-T5.5 sub 2b/2d: commit a pending config to the radio.
 // Called from handle_tx_poll() when TxDone fires (TX has physically left
 // the antenna — safe to reconfigure) OR from the tick handler via the
 // backstop timer if no TX was ever in progress.
@@ -222,6 +230,7 @@ static void ao_radio_apply_runtime_config(RadioAoState& s) {
 // Per correctness council: re-validate ground-state at apply time (not
 // just at receive time). If the vehicle transitioned out of IDLE during
 // the apply window, abort the config change — leaves old config intact.
+// Sub 2d: cache prev_config and arm the symmetric-revert watchdog.
 static void ao_radio_commit_pending_config(RadioAoState& s) {
     if (!s_pending_radio_config_valid) { return; }
     s_pending_radio_config_valid = false;
@@ -233,11 +242,34 @@ static void ao_radio_commit_pending_config(RadioAoState& s) {
         return;
     }
 
-    // Cache current as prev_config for symmetric-revert (wired in sub 2d).
-    // For 2b we just apply; revert logic comes later.
+    // Sub 2d: cache current config and arm symmetric-revert watchdog.
+    s.prev_config = s.runtime_config;
+    s.rx_at_apply = s.rx_count;
+    s.tx_since_apply = 0;
+    s.apply_in_progress = true;
+
     s.runtime_config = s_pending_radio_config;
     ao_radio_apply_runtime_config(s);
     DBG_PRINT("RADIO: config applied — BW=%u nav=%u SF=%u CR=%u pwr=%u",
+              static_cast<unsigned>(s.runtime_config.bandwidth_khz),
+              static_cast<unsigned>(s.runtime_config.nav_rate_hz),
+              static_cast<unsigned>(s.runtime_config.spreading_factor),
+              static_cast<unsigned>(s.runtime_config.coding_rate),
+              static_cast<unsigned>(s.runtime_config.power_dbm));
+}
+
+// Sub 2d: symmetric revert. Restore prev_config when the vehicle's
+// post-apply TX count exceeds the threshold without receiving any
+// station packet on the new config. Uses the setter-only apply path
+// (same as a fresh SET) so recovery is clean.
+static void ao_radio_revert_to_prev_config(RadioAoState& s) {
+    DBG_ERROR("RADIO: symmetric revert — no station RX in %u TXes",
+              static_cast<unsigned>(s.tx_since_apply));
+    s.runtime_config = s.prev_config;
+    ao_radio_apply_runtime_config(s);
+    s.apply_in_progress = false;
+    s.tx_since_apply = 0;
+    DBG_PRINT("RADIO: reverted to BW=%u nav=%u SF=%u CR=%u pwr=%u",
               static_cast<unsigned>(s.runtime_config.bandwidth_khz),
               static_cast<unsigned>(s.runtime_config.nav_rate_hz),
               static_cast<unsigned>(s.runtime_config.spreading_factor),
@@ -454,6 +486,28 @@ static void handle_radio_tick(RadioAo* me) {
         if (s_pending_apply_backstop_count >= kPendingApplyBackstopTicks) {
             DBG_PRINT("RADIO: backstop fired — applying pending config");
             ao_radio_commit_pending_config(s);
+        }
+    }
+
+    // Sub 2d: symmetric-revert watchdog. While apply_in_progress, any RX
+    // after the apply moment means the station is reaching us on the new
+    // config — clear the watchdog. If we hit the threshold without RX,
+    // revert to prev_config. Station uses a shorter threshold (sub 2f)
+    // so the operator sees failure first; vehicle is the final fallback.
+    if (s.apply_in_progress) {
+        // Any new RX since apply means link is alive on new config.
+        if (s.rx_count > s.rx_at_apply) {
+            s.apply_in_progress = false;
+            s.tx_since_apply = 0;
+        } else {
+            // Threshold: max(15, ceil(3 * nav_hz)). At 2 Hz -> 15 TXes
+            // (~7.5 s). At 5 Hz -> 15 (~3 s). At 10 Hz -> 30 (~3 s).
+            uint8_t nav_hz = s.runtime_config.nav_rate_hz;
+            uint32_t threshold = (3U * static_cast<uint32_t>(nav_hz));
+            if (threshold < 15U) { threshold = 15U; }
+            if (s.tx_since_apply >= threshold) {
+                ao_radio_revert_to_prev_config(s);
+            }
         }
     }
 
