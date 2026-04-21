@@ -20,6 +20,24 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-20-001 | Claude Opus 4.7 | feature, architecture, refactor
+
+**Stage T IVP-T5.5 sub 2e/2f/2g — runtime radio config push completes: QUERY echo, APID 0x004 nav-with-config, dashboard row, station auto-revert, WS2812 KITT sweep.**
+
+Closes out the T5.5 feature block that started with the sub 2a-2d apply/revert machinery and sub-persist flash write. All load-bearing pieces of the "station commands vehicle to change LoRa config at runtime" path are now in tree.
+
+**sub 2e — QUERY_RADIO_CONFIG** extends `CommandAckPayload` from 5→10 bytes with cfg echo (bw/nav/sf/cr). Populated only on accepted USER_3 responses, zeroed otherwise. `kCmdAckPacketLen` bumped 17→22. Pattern is flight-heritage (CCSDS CLCW, MAVLink COMMAND_ACK progress, CFDP FIN PDU) — ACK stays the same APID, payload grows with metadata. Station prints `[CMD] vehicle config: BW=.. nav=.. SF=.. CR=..` on matched ACK.
+
+**sub 2f — APID 0x004 nav-with-config + dashboard + station revert.** New APID `kApidNavWithConfig = 0x004` (vehicle always emits it now; legacy 0x001 decoder path kept for cross-version graceful reject). Payload grows 42→46 B (packet 54→58 B). 4-byte config tail: `[bw_hi bw_lo] [sf<<4|nav] [cr<<4|flags]` with `kCfgFlagJustChanged` bit 3. New `s_config_just_changed` latch — set by commit and revert, consumed once by encoder via `AO_Radio_consume_just_changed()`. Dashboard gets "Radio: ..." row showing both station and vehicle configs with yellow-on-mismatch and cyan-`[CHANGED]` for the single-frame transition marker. Station auto-revert threshold is role-aware: vehicle keeps `max(15, 3×nav_hz)`, station/relay uses `max(6, ceil(1.5×nav_hz))` so the operator sees failure first visually while vehicle is the final fallback. Fixed latent rot in `validate_ccsds_crc` (hardcoded CRC offset 52 → length-aware `len-2`, works for both packet sizes).
+
+**sub 2g — WS2812 KITT sweep during LOS watchdog.** New `ws2812_set_sweep_bar(color)` — single pixel walks back-and-forth at caller-throttled cadence, handles 1-LED strip + 0-LED edge. `handle_rssi_bar()` dispatches dim-yellow sweep at 20 Hz while `apply_in_progress`, falls back to 2 Hz RSSI bar once watchdog clears.
+
+JSF-AV rule-1 decomposition landed as part of the same commit: `handle_radio_tick` split into 3 tick helpers; `try_handle_cmd_ack` early-returns on non-match with 2 station-side extractions; `try_mavlink_rx` split into `dispatch_set_radio_config` / `dispatch_command` / `stage_cmd_ack` / `handle_parsed_mavlink`. `scripts/bench_sim.py` + `scripts/station_bench_sim.py` taught to distinguish vehicle vs station by banner text (fixes spurious pre-commit gate failures when both boards are plugged in — the Stage T dev pattern).
+
+Live-verified over RF: APID 0x004 round-trip (station Pkts climbing 3265→3269, zero CRC errors after the validate_ccsds_crc fix), dashboard Radio row renders both configs with mismatch highlight, `[CHANGED]` marker appears for exactly 1 frame (50 captured → 1 showed CHANGED) when `s_config_just_changed` flipped on vehicle via GDB, vehicle apply+commit path verified BW125→BW250 via break in `ao_radio_commit_pending_config`. USB-deferred (pending T6/T7 reliable SET delivery): station-side auto-revert triggered end-to-end, WS2812 KITT sweep eyeball confirmation on Fruit Jam. Host tests 757/759 (2 pre-existing unrelated failures). 4 new APID 0x004 round-trip tests.
+
+Tracking detail in `logs/stage_t/t5.5_revalidation_list.md`. Phase T continues — T6 (BW sweep via runtime push instead of compile-flag rebuilds) and T7 (retry-timer compression) next.
+
 ### 2026-04-18-002 | Claude Opus 4.7 | feature, architecture, council, refactor
 
 **Stage L COMPLETE — LED engine + notification polish (AP parity, beacon overlay, pre-arm fail, boot init rainbow, GCS beacon command).**
