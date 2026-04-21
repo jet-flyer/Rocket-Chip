@@ -1236,6 +1236,22 @@ static void cmd_radio_status() {
                static_cast<unsigned>(rs->tx_consec_fail),
                static_cast<int>(rs->scheduler.phase));
     }
+
+    // IVP-T11 boot-register audit. Printed on every `t` so the Batch A
+    // gate ("RegInvertIQ=0x27, CRC on, LNA=0x23, CFG3=0x04") is always
+    // verifiable post-boot.
+    if (rs->boot_audit_valid) {
+        const rfm95w_audit_t& a = rs->boot_audit;
+        bool iq_ok   = (a.invert_iq == kAuditInvertIqExpected);
+        bool crc_ok  = (a.modem_config2 & kAuditModemCfg2CrcBitMask) != 0;
+        bool lna_ok  = (a.lna == kAuditLnaExpected);
+        bool cfg3_ok = (a.modem_config3 == kAuditModemCfg3Expected);
+        printf("Audit: IQ=0x%02x(%s) CFG2=0x%02x CRC=%s LNA=0x%02x(%s) CFG3=0x%02x(%s)\n",
+               a.invert_iq,     iq_ok   ? "OK" : "MISMATCH",
+               a.modem_config2, crc_ok  ? "on" : "OFF",
+               a.lna,           lna_ok  ? "OK" : "MISMATCH",
+               a.modem_config3, cfg3_ok ? "OK" : "MISMATCH");
+    }
 }
 
 // ============================================================================

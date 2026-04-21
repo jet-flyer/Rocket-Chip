@@ -50,6 +50,15 @@ static constexpr uint8_t kModemCfg1Default = 0x72;
 // ModemConfig2: SF7[7:4]=0111, CRC on[2]=1
 static constexpr uint8_t kModemCfg2Default = 0x74;
 
+// IVP-T11: RegLna (0x0C). LnaGain[7:5]=001 (G1 max), LnaBoostLf[4:3]=00,
+// LnaBoostHf[1:0]=11 (+3 dB on 868/915 MHz HF port). SX1276 datasheet §5.5.3.
+// Matches ArduPilot AP_Radio default since 2018.
+static constexpr uint8_t kLnaDefault = 0x23;
+
+// IVP-T11: RegModemConfig3 (0x26). LowDataRateOptimize[3]=0 (off for SF<=10 at
+// BW>=125), AgcAutoOn[2]=1 (LNA gain set adaptively). SX1276 datasheet §5.4.3.
+static constexpr uint8_t kModemCfg3Default = 0x04;
+
 // Default TX power (dBm) — overridden by RadioConfig from Mission Profile
 static constexpr int8_t kDefaultTxPowerDbm = 20;
 
@@ -123,6 +132,11 @@ static void configure_modem(rfm95w_t* dev) {
     // RegModemConfig2: SF7[7:4]=0111, CRC on[2]=1
     spi_bus_write_reg(cs, rfm95w::reg::kModemConfig2, kModemCfg2Default);
 
+    // IVP-T11: RegLna LnaBoostHf=11 (+3 dB sensitivity on 915 MHz HF port).
+    spi_bus_write_reg(cs, rfm95w::reg::kLna, kLnaDefault);
+    // IVP-T11: RegModemConfig3 AgcAutoOn=1 (adaptive LNA gain).
+    spi_bus_write_reg(cs, rfm95w::reg::kModemConfig3, kModemCfg3Default);
+
     spi_bus_write_reg(cs, rfm95w::reg::kPreambleMsb, 0x00);
     spi_bus_write_reg(cs, rfm95w::reg::kPreambleLsb, 0x08);
 
@@ -140,6 +154,15 @@ uint8_t rfm95w_read_version(uint8_t cs) {
     // whatever SPI bus init already happened. Used as T=0 precondition
     // check — "is the radio physically reachable and SPI wiring correct?"
     return spi_bus_read_reg(cs, rfm95w::reg::kVersion);
+}
+
+void rfm95w_read_audit(rfm95w_t* dev, rfm95w_audit_t* audit) {
+    // IVP-T11: caller logs and compares against kAudit*Expected in rfm95w.h.
+    uint8_t cs = dev->cs_pin;
+    audit->invert_iq     = spi_bus_read_reg(cs, rfm95w::reg::kInvertIQ);
+    audit->modem_config2 = spi_bus_read_reg(cs, rfm95w::reg::kModemConfig2);
+    audit->lna           = spi_bus_read_reg(cs, rfm95w::reg::kLna);
+    audit->modem_config3 = spi_bus_read_reg(cs, rfm95w::reg::kModemConfig3);
 }
 
 bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq) {

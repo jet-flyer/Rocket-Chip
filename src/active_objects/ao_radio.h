@@ -57,6 +57,13 @@ struct RadioAoState {
     uint32_t           tx_since_apply;   // our-TX count since last apply
     uint32_t           rx_at_apply;      // rx_count snapshot at apply time
     bool               apply_in_progress;// true while waiting for NEW-config RX
+
+    // IVP-T11: boot-time register audit snapshot. Populated once post-init.
+    // Values match kAudit*Expected constants when the driver configured the
+    // radio correctly. Exposed via cmd_radio_status() so the Batch A gate
+    // ("RegInvertIQ=0x27, CRC on, LNA=0x23, CFG3=0x04") is visible via `t`.
+    rfm95w_audit_t     boot_audit;
+    bool               boot_audit_valid;
 };
 
 const RadioAoState* AO_Radio_get_state();

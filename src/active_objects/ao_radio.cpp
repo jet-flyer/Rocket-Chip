@@ -443,6 +443,7 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
     s.tx_consec_fail = 0;
     s.tx_bw_mode = 0;
     s.link_quality = 0;
+    s.boot_audit_valid = false;
 
     // T5.5 prereq #1: seed runtime_config. Default is the mission-profile
     // value; persistence-on may override from flash. SET_RADIO_CONFIG
@@ -459,6 +460,13 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
 
         // Apply RadioConfig from Mission Profile (IVP-64 / T5.5 prereq #1)
         ao_radio_apply_runtime_config(s);
+
+        // IVP-T11 boot audit: read registers that must match between vehicle
+        // and station. Snapshot into state for cmd_radio_status() display
+        // (`t` command) — DBG_PRINT at this point in boot isn't visible on
+        // USB CDC because the terminal isn't yet connected.
+        rfm95w_read_audit(&s.radio, &s.boot_audit);
+        s.boot_audit_valid = true;
 
         // Mode selection based on device role
         bool rx_continuous = (job::kRole == job::DeviceRole::kStation ||

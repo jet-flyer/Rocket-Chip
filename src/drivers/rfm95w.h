@@ -33,6 +33,7 @@ namespace reg {
     constexpr uint8_t kFrMid          = 0x07;
     constexpr uint8_t kFrLsb          = 0x08;
     constexpr uint8_t kPaConfig       = 0x09;
+    constexpr uint8_t kLna            = 0x0C;  // IVP-T11: LnaBoostHf +3 dB
     constexpr uint8_t kFifoAddrPtr    = 0x0D;
     constexpr uint8_t kFifoTxBase     = 0x0E;
     constexpr uint8_t kFifoRxBase     = 0x0F;
@@ -47,7 +48,9 @@ namespace reg {
     constexpr uint8_t kPreambleMsb    = 0x20;
     constexpr uint8_t kPreambleLsb    = 0x21;
     constexpr uint8_t kPayloadLength  = 0x22;
+    constexpr uint8_t kModemConfig3   = 0x26;  // IVP-T11: AgcAutoOn adaptive LNA
     constexpr uint8_t kSyncWord       = 0x39;
+    constexpr uint8_t kInvertIQ       = 0x33;  // IVP-T11: boot-time audit only
     constexpr uint8_t kDioMapping1    = 0x40;
     constexpr uint8_t kVersion        = 0x42;
     constexpr uint8_t kPaDac          = 0x4D;
@@ -87,6 +90,27 @@ constexpr uint8_t kBw250  = 0x08;    // 250 kHz
 constexpr uint8_t kBw500  = 0x09;    // 500 kHz
 
 } // namespace rfm95w
+
+// ============================================================================
+// Boot-Time Audit (IVP-T11)
+// ============================================================================
+
+// Snapshot of registers that MUST match between vehicle and station for the
+// link to come up, but are easy to misconfigure silently. Read once post-init
+// and logged by the caller (driver stays stdio-free per Flight-Critical
+// classification).
+struct rfm95w_audit_t {
+    uint8_t invert_iq;        // RegInvertIQ (0x33) — expect 0x27 (non-inverted)
+    uint8_t modem_config2;    // RegModemConfig2 — bit 2 (RxPayloadCrcOn) must be 1
+    uint8_t lna;              // RegLna (0x0C) — post-T11 expect 0x23
+    uint8_t modem_config3;    // RegModemConfig3 (0x26) — post-T11 expect 0x04
+};
+
+// Expected values (for caller's compare-and-log).
+constexpr uint8_t kAuditInvertIqExpected     = 0x27;
+constexpr uint8_t kAuditModemCfg2CrcBitMask  = 0x04;   // RxPayloadCrcOn
+constexpr uint8_t kAuditLnaExpected          = 0x23;
+constexpr uint8_t kAuditModemCfg3Expected    = 0x04;
 
 // ============================================================================
 // TX Poll Result (non-blocking send)
@@ -151,6 +175,21 @@ bool rfm95w_init(rfm95w_t* dev, uint8_t cs, uint8_t rst, uint8_t irq);
  * @return 8-bit version register value (0x12 expected for SX1276)
  */
 uint8_t rfm95w_read_version(uint8_t cs);
+
+/**
+ * @brief Read the audit-register snapshot (IVP-T11).
+ *
+ * Reads RegInvertIQ, RegModemConfig2, RegLna, RegModemConfig3 over SPI and
+ * returns their values in @p audit. Caller is expected to log them and
+ * compare against kAudit*Expected constants. Driver stays stdio-free.
+ *
+ * Call after rfm95w_init(). If the radio is absent, values will be 0x00 or
+ * 0xFF — caller should skip the comparison when radio is not initialized.
+ *
+ * @param dev   Initialized device handle
+ * @param audit Out param, populated on return
+ */
+void rfm95w_read_audit(rfm95w_t* dev, rfm95w_audit_t* audit);
 
 /**
  * @brief Send a packet

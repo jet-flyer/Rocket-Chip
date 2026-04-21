@@ -76,6 +76,56 @@ Event injection keys simulate sensor guard signals for bench testing. In flight,
 
 ---
 
+## Station (Ground Station) UI Modes
+
+Station firmware (`ROCKETCHIP_JOB_STATION=1`) has a different UI from the vehicle: a live ANSI dashboard is the default boot state, and only two keys exit it. This is enforced by `poll_dashboard_keys()` in `src/active_objects/ao_rcos.cpp`.
+
+### Output modes (`StationOutputMode`)
+
+| Mode | Description |
+|------|-------------|
+| `kAnsi` | **Default on clean boot.** Live dashboard with RSSI bar, MET, state, GPS, radio config, ARM indicator. Redraws on each RX packet or 1 Hz idle. |
+| `kCsv`  | Plaintext CSV stream — one line per RX nav packet. For logging / scripted parsing. |
+| `kMavlink` | MAVLink-over-USB passthrough for QGC / Mission Planner. |
+| `kMenu` | Vehicle-style single-key CLI (main menu). Required for any debug-menu operations (`q…z`), calibration, flight-director injection. |
+
+### Keys accepted while in `kAnsi` / `kMavlink` (dashboard active)
+
+Only these two keys are accepted; all others are silently dropped:
+
+| Key | Action |
+|-----|--------|
+| `m` / `M` | Cycle output mode: `kAnsi → kCsv → kMavlink → kAnsi` (or `kMenu → kAnsi` to return). |
+| `x` / `X` | Exit to `kMenu` (enters single-key CLI mode). |
+
+### Keys accepted in `kMenu`
+
+Full single-key CLI (see `enter_cli_menu()` in `ao_rcos.cpp`). Subset reachable only from kMenu:
+
+| Group | Keys | Description |
+|-------|------|-------------|
+| **Status** | `h` `s` `b` `p` | Help, sensor status, boot summary, preflight |
+| **Radio** | `t` `r` `m` | Telemetry status, cycle TX rate, cycle output mode |
+| **Station** | `g` `d` `p` | GPS status, distance-to-vehicle, GPS push |
+| **Commands** | `a` `X` | ARM (with confirm), DISARM |
+| **Flight logs** | `l` `x` | Flush to flash, erase |
+| **Debug submenu** | `q` → `<digit>z` / other | Enter debug submenu, local radio config change, exit back to `[main]` |
+
+### Reaching the debug submenu from dashboard
+
+Scripted example:
+
+1. Assume station is in `kAnsi` (default boot state).
+2. Send `x` → station switches to `kMenu`, prints banner + `[main] ` prompt.
+3. Send `q<idx>z\r` → debug submenu applies local radio config index, exits back to `[main]`.
+4. Send `m` → cycles back to `kAnsi` (dashboard resumes).
+
+### Gotcha
+
+If you send `q<idx>z` while station is still in `kAnsi`, **nothing happens** — the `q` is silently dropped. Sweep scripts and test harnesses must explicitly transition to `kMenu` first (`x`) before issuing debug-menu keys, and restore with `m` afterward if the test expects dashboard output.
+
+---
+
 ## Calibration Wizard
 
 The calibration wizard (`w`) guides users through all sensor calibrations in optimal order:

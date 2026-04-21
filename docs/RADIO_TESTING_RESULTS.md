@@ -246,6 +246,85 @@ Retransmit safety net via CLCW in nav payload tail.
 
 Soft gate — validates CCSDS is not regressing vs MAVLink at BW500.
 
+## Stage T — Continuation (T11-T14)
+
+Plan: `.claude/plans/shimmering-twirling-thimble.md` (also synced to
+`docs/plans/STAGE_T_CONTINUATION.md` at Batch A exit). Council transcript:
+`docs/decisions/STAGE_T_CONTINUATION_COUNCIL.md`.
+
+Supersedes the earlier T5–T10 fix plan. T7's retry-timer change (code in
+tree as commit `1591794`) remains pinned but is now secondary to the
+Batch B architectural fix (T14 RxDone-anchored TX).
+
+### T11 — SX1276 register hygiene (LnaBoost + AgcAutoOn) — **CODE IN TREE** (2026-04-21)
+
+**What changed:** `src/drivers/rfm95w.{h,cpp}` now writes `RegLna` (0x0C)
+and `RegModemConfig3` (0x26) in `configure_modem()`:
+- `RegLna = 0x23`: LnaGain=001 (G1 max), LnaBoostHf=11 (+3 dB on 868/915 MHz
+  HF port). SX1276 datasheet §5.5.3. Matches ArduPilot AP_Radio default
+  since 2018.
+- `RegModemConfig3 = 0x04`: LowDataRateOptimize=0 (off for SF≤10 at
+  BW≥125), AgcAutoOn=1 (adaptive LNA gain). Datasheet §5.4.3.
+
+**Audit:** `rfm95w_read_audit()` reads RegInvertIQ (0x33), RegModemConfig2,
+RegLna, RegModemConfig3 at boot and snapshots them into `RadioAoState`.
+`cmd_radio_status()` (`t` CLI key) displays:
+`Audit: IQ=0x27(OK) CFG2=0x74 CRC=on LNA=0x23(OK) CFG3=0x04(OK)`.
+
+**Verified post-flash (bench-1591794):**
+- Vehicle (Feather, COM7): `IQ=0x27(OK) CFG2=0x74 CRC=on LNA=0x23(OK) CFG3=0x04(OK)`
+- Station runs same driver; no Frankenstein.
+
+### T12 — Regression sweep with T11 firmware (2026-04-21)
+
+**Procedure:** `docs/plans/STAGE_T_IVP_T12_RUNBOOK.md`. Manual via station
+kAnsi→kMenu transition, then `q<idx>z\r` debug-menu local-cfg on both
+boards, then `scripts/ack_stress_test.py` for 30 DISARM commands at 10 s
+interval. Raw transcripts in `logs/ack_stress_20260421_*.log`.
+
+**Single-variable experimental design:**
+
+| Config | BW (kHz) | Nav (Hz) | first-try | eventual | Variable vs previous |
+|--------|---------:|---------:|----------:|---------:|----------------------|
+| C0  | 125 | 5  | **13.3%** | 36.7% | baseline (T1 baseline was 6.1%) |
+| C0P | 125 | 10 | **16.7%** | 30.0% | nav rate only |
+| C1  | 250 | 10 | **53.3%** | 96.7% | BW only |
+| C2  | 500 | 10 | **83.3%** | 96.7% | BW only |
+
+**Findings:**
+- **Bandwidth is dominant.** Nav rate 5→10 Hz at BW125 bumps first-try by
+  only 3.4 pp. BW doubling bumps it by 30–37 pp.
+- **T1 diagnosis confirmed.** Halving airtime (BW125→250) breaks out of
+  the collision regime (16.7→53.3%).
+- **Link works at all 4 configs.** No T7-style brittleness recurring —
+  that was a procedural bug (station wasn't being transitioned to kMenu
+  before `q<idx>z`).
+- **Cross-session variance is large.** T6 session saw C2 at 100%; this
+  session sees 83.3%. Likely candidates: retry-timer overshoot (T7's
+  3000→500 ms still active), RF-environment drift, operator proximity.
+- **T11 contribution not separable from variance.** C0 13.3% vs T1
+  baseline 6.1% could be T11's +3 dB LnaBoostHf effect or could be
+  session variance.
+
+**Batch A gate (C2 ≥ 95% first-try): NOT MET (83.3%).** But this is
+expected — the council agreed going in that T14 (Batch B, RxDone-anchored
+TX windows) is the load-bearing fix, not T11. Batch A lands to main but
+does NOT fly until Batch B's 500 m field gate passes.
+
+CSV: `logs/stage_t/t12_summary.csv`. Runbook: `docs/plans/STAGE_T_IVP_T12_RUNBOOK.md`.
+
+### T13 / T14 / T14a / T14b / T14c — pending (Batch B, Batch C)
+
+See plan for details. T14 design doc comes first, then 2-round council,
+then code.
+
+### T10 — Stage T exit soak (superseded)
+
+Original Stage T exit criterion (100-command soak). Superseded by
+Batch B's 500 m open-field gate (Rocketeer council requirement).
+
+### Historical: T10 entry below preserved for traceability
+
 ### T10 — Stage T exit soak (not started)
 
 Comprehensive 100-command soak at final config. Six exit criteria all

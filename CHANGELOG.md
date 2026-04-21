@@ -20,6 +20,29 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-21-001 | Claude Opus 4.7 | feature, firmware, testing, council, docs
+
+**Stage T continuation Batch A — IVP-T11 SX1276 register hygiene + IVP-T12 manual regression sweep.**
+
+Supersedes the prior T5-T10 fix plan. Council review (NASA/JPL, ArduPilot, Cubesat, Rocketeer) concluded retry-timer changes are not the load-bearing fix; architectural RxDone-anchored TX (T14, Batch B) is. Batch A lands driver hygiene only; Batch B (T14 `AO_LinkHealth` state machine) comes next.
+
+**IVP-T11 driver hygiene.** `src/drivers/rfm95w.{h,cpp}` now writes `RegLna = 0x23` (LnaGain=001 G1 max, LnaBoostHf=11 for +3 dB on 915 MHz HF port — SX1276 datasheet §5.5.3) and `RegModemConfig3 = 0x04` (LowDataRateOptimize=0 for SF≤10 at BW≥125, AgcAutoOn=1 adaptive gain — §5.4.3) in `configure_modem()`. Matches ArduPilot AP_Radio default since 2018; long-standing driver omission on our side. New `rfm95w_read_audit()` reads back RegInvertIQ (0x33), RegModemConfig2, RegLna, RegModemConfig3 and snapshots into `RadioAoState::boot_audit` post-init. `cmd_radio_status()` (the `t` CLI key) displays the audit every call so it's verifiable from any post-boot serial session.
+
+**IVP-T12 regression sweep.** Manual runbook (`docs/plans/STAGE_T_IVP_T12_RUNBOOK.md`) executed 2026-04-21 with both boards on `bench-1591794`. Four configs covering single-variable changes between rows:
+
+| Config | BW | Nav | first-try | eventual | Variable vs previous |
+|--------|---:|----:|----------:|---------:|----------------------|
+| C0  | 125 | 5  | 13.3% | 36.7% | baseline |
+| C0P | 125 | 10 | 16.7% | 30.0% | nav rate only |
+| C1  | 250 | 10 | 53.3% | 96.7% | BW only |
+| C2  | 500 | 10 | 83.3% | 96.7% | BW only |
+
+Clean attribution: bandwidth dominates. Nav rate +5 Hz at BW125 = +3.4 pp first-try; BW doubling = +30-37 pp. T1's "TX airtime > RX window" diagnosis confirmed. No T7-style link brittleness recurred across any config; the earlier "link won't reform at BW250/500" was a procedural bug — the harness wasn't transitioning the station from kAnsi to kMenu before sending `q<idx>z`. Cross-session variance is large (T6 saw C2 at 100%, T12 at 83.3%); not yet explained. Batch A gate C2 ≥ 95% NOT MET (83.3%), as expected per council — T14's RxDone-anchored TX is the architectural fix, not T11.
+
+**Supporting work.** `docs/ROCKETCHIP_OS.md` extended with a station UI-modes section (kAnsi / kCsv / kMavlink / kMenu) documenting the 2-key rule (`m` and `x` only accepted in kAnsi), which is the rule behind several debugging dead-ends this session. Council transcript landed at `docs/decisions/STAGE_T_CONTINUATION_COUNCIL.md`. 4-tier builds clean (vehicle bench, vehicle flight, station bench, station flight). Host tests 757/759 (same pre-existing failures; no new failures).
+
+Batch A lands to main but does NOT fly until Batch B's 500 m field gate passes (per NASA/JPL council direction).
+
 ### 2026-04-20-001 | Claude Opus 4.7 | feature, architecture, refactor
 
 **Stage T IVP-T5.5 sub 2e/2f/2g — runtime radio config push completes: QUERY echo, APID 0x004 nav-with-config, dashboard row, station auto-revert, WS2812 KITT sweep.**
