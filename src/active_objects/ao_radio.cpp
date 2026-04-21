@@ -76,6 +76,11 @@ static bool            s_pending_radio_config_valid = false;
 static constexpr uint32_t kPendingApplyBackstopTicks = 20;
 static uint32_t s_pending_apply_backstop_count = 0;
 
+// Stage T IVP-T5.5 sub 2f: "config just changed" latch. Set by commit and
+// revert, consumed once by the telemetry encoder — gives the station explicit
+// UX confirmation that THIS packet is from the intentional transition.
+static bool s_config_just_changed = false;
+
 // Sub-persist (Option C): debounced flash-write trigger. Set to a countdown
 // on successful apply; decrements each tick; when it hits 0 AND the apply
 // watchdog has cleared (apply_in_progress == false), we flush the current
@@ -261,6 +266,7 @@ static void ao_radio_commit_pending_config(RadioAoState& s) {
 
     s.runtime_config = s_pending_radio_config;
     ao_radio_apply_runtime_config(s);
+    s_config_just_changed = true;   // sub 2f: latch for next nav packet
     DBG_PRINT("RADIO: config applied — BW=%u nav=%u SF=%u CR=%u pwr=%u",
               static_cast<unsigned>(s.runtime_config.bandwidth_khz),
               static_cast<unsigned>(s.runtime_config.nav_rate_hz),
@@ -279,10 +285,11 @@ static void ao_radio_commit_pending_config(RadioAoState& s) {
 // station packet on the new config. Uses the setter-only apply path
 // (same as a fresh SET) so recovery is clean.
 static void ao_radio_revert_to_prev_config(RadioAoState& s) {
-    DBG_ERROR("RADIO: symmetric revert — no station RX in %u TXes",
+    DBG_ERROR("RADIO: symmetric revert — no peer RX in %u TXes",
               static_cast<unsigned>(s.tx_since_apply));
     s.runtime_config = s.prev_config;
     ao_radio_apply_runtime_config(s);
+    s_config_just_changed = true;   // sub 2f: latch for next nav packet
     s.apply_in_progress = false;
     s.tx_since_apply = 0;
     // Sub-persist: revert-to-prev is a stable state worth persisting. Arm
@@ -299,9 +306,11 @@ static void ao_radio_revert_to_prev_config(RadioAoState& s) {
               static_cast<unsigned>(s.runtime_config.power_dbm));
 }
 
-// CCSDS packet constants for relay CRC validation
-static constexpr uint8_t  kCcsdsMinLen  = 54;   // Nav packet size
-static constexpr uint8_t  kCcsdsCrcOff  = 52;   // CRC starts at byte 52
+// CCSDS packet constants for relay CRC validation.
+// Minimum size accepted = legacy 54-byte nav packet (APID 0x001).
+// Stage T IVP-T5.5 sub 2f: nav-with-config is 58 bytes (APID 0x004). CRC
+// offset is now (len - 2) — computed per-packet instead of hard-coded.
+static constexpr uint8_t kCcsdsMinLen = 54;
 
 // Relay dedup: last relayed sequence counter
 static uint16_t g_lastRelaySeq = 0xFFFF;
@@ -309,9 +318,11 @@ static uint16_t g_lastRelaySeq = 0xFFFF;
 // Validate CCSDS packet integrity without decoding payload [C3-R2]
 static bool validate_ccsds_crc(const uint8_t* buf, uint8_t len) {
     if (len < kCcsdsMinLen) { return false; }
-    uint16_t computed = rc::crc16_ccitt(buf, kCcsdsCrcOff);
+    // CRC always occupies the trailing 2 bytes of the packet.
+    const uint8_t crc_off = static_cast<uint8_t>(len - 2);
+    uint16_t computed = rc::crc16_ccitt(buf, crc_off);
     uint16_t stored = static_cast<uint16_t>(
-        (buf[kCcsdsCrcOff] << 8) | buf[kCcsdsCrcOff + 1]);
+        (buf[crc_off] << 8) | buf[crc_off + 1]);
     return computed == stored;
 }
 
@@ -482,6 +493,19 @@ static void handle_rssi_bar(RadioAo* me) {
     // Station/relay only — vehicle's AO_LedEngine owns the NeoPixel.
     if constexpr (job::kRole != job::DeviceRole::kVehicle) {
         RadioAoState& s = me->state;
+        // Sub 2g: while LOS-watchdog is armed (apply_in_progress), show
+        // a KITT sweep at ~20Hz in yellow so the operator sees that a
+        // config change is in flight. Drop back to the normal RSSI bar
+        // (~2Hz) once the watchdog clears.
+        if (s.apply_in_progress) {
+            static uint8_t sweep_div = 0;
+            if (++sweep_div >= 5) {  // 100Hz tick / 5 = 20Hz sweep
+                sweep_div = 0;
+                constexpr ws2812_rgb_t kSweepColor = {0x20, 0x18, 0x00};  // dim yellow
+                ws2812_set_sweep_bar(kSweepColor);
+            }
+            return;
+        }
         static uint8_t rssi_div = 0;
         if (++rssi_div >= 50) {  // ~2Hz update
             rssi_div = 0;
@@ -494,12 +518,67 @@ static void handle_rssi_bar(RadioAo* me) {
     }
 }
 
+// Sub 2b: if a config change is queued but no TxDone fires in ~200 ms,
+// apply anyway. Guards against stale pending state.
+static void tick_apply_backstop(RadioAoState& s) {
+    if (!s_pending_radio_config_valid) { return; }
+    s_pending_apply_backstop_count++;
+    if (s_pending_apply_backstop_count >= kPendingApplyBackstopTicks) {
+        DBG_PRINT("RADIO: backstop fired — applying pending config");
+        ao_radio_commit_pending_config(s);
+    }
+}
+
+// Sub 2d/2f: symmetric-revert watchdog. Station uses shorter threshold
+// than vehicle so operator sees failure first visually.
+static void tick_symmetric_revert(RadioAoState& s) {
+    if (!s.apply_in_progress) { return; }
+    // Any new RX since apply means link is alive on new config.
+    if (s.rx_count > s.rx_at_apply) {
+        s.apply_in_progress = false;
+        s.tx_since_apply = 0;
+        return;
+    }
+    uint8_t nav_hz = s.runtime_config.nav_rate_hz;
+    uint32_t threshold;
+    if constexpr (job::kRole == job::DeviceRole::kVehicle) {
+        threshold = (3U * static_cast<uint32_t>(nav_hz));
+        if (threshold < 15U) { threshold = 15U; }
+    } else {
+        threshold = (3U * static_cast<uint32_t>(nav_hz) + 1U) / 2U;
+        if (threshold < 6U) { threshold = 6U; }
+    }
+    if (s.tx_since_apply >= threshold) {
+        ao_radio_revert_to_prev_config(s);
+    }
+}
+
+// Sub-persist: debounced flash write. flash_safe_execute() is blocking
+// (~100 ms) but QV cooperative scheduling means it only delays the next
+// tick — no AO queues race with us.
+static void tick_persist_debounce(RadioAoState& s) {
+    if (!s_persist_requested ||
+        s.apply_in_progress ||
+        s_pending_radio_config_valid ||
+        s_persist_debounce_count == 0) {
+        return;
+    }
+    s_persist_debounce_count--;
+    if (s_persist_debounce_count != 0) { return; }
+    s_persist_requested = false;
+    bool ok = radio_config_storage_write(&s.runtime_config);
+    if (ok) {
+        DBG_PRINT("RADIO: persisted config to flash");
+    } else {
+        DBG_ERROR("RADIO: flash persist FAILED");
+    }
+}
+
 static void handle_radio_tick(RadioAo* me) {
     RadioAoState& s = me->state;
     if (!s.initialized) { return; }
 
-    // Stage T (IVP-T1) — log any phase change since last tick.
-    // Captures transitions triggered by SIG_RADIO_TX between ticks.
+    // Stage T (IVP-T1) — log phase change since last tick.
     static rc::RadioPhase s_stage_t_prev_phase = rc::RadioPhase::kIdle;
     stage_t_log_state(s_stage_t_prev_phase, s.scheduler.phase);
 
@@ -510,67 +589,10 @@ static void handle_radio_tick(RadioAo* me) {
         handle_rx_poll(me);
     }
 
-    // Stage T IVP-T5.5 sub 2b: backstop for pending-config-apply.
-    // If a config change was queued but no TxDone has fired within
-    // kPendingApplyBackstopTicks (~200 ms), apply it anyway. Guards
-    // against a stashed pending config going stale if no ACK was in
-    // flight when set_pending_config was called, or if TxDone IRQ
-    // never fires for some reason.
-    if (s_pending_radio_config_valid) {
-        s_pending_apply_backstop_count++;
-        if (s_pending_apply_backstop_count >= kPendingApplyBackstopTicks) {
-            DBG_PRINT("RADIO: backstop fired — applying pending config");
-            ao_radio_commit_pending_config(s);
-        }
-    }
+    tick_apply_backstop(s);
+    tick_symmetric_revert(s);
+    tick_persist_debounce(s);
 
-    // Sub 2d: symmetric-revert watchdog. While apply_in_progress, any RX
-    // after the apply moment means the station is reaching us on the new
-    // config — clear the watchdog. If we hit the threshold without RX,
-    // revert to prev_config. Station uses a shorter threshold (sub 2f)
-    // so the operator sees failure first; vehicle is the final fallback.
-    if (s.apply_in_progress) {
-        // Any new RX since apply means link is alive on new config.
-        if (s.rx_count > s.rx_at_apply) {
-            s.apply_in_progress = false;
-            s.tx_since_apply = 0;
-        } else {
-            // Threshold: max(15, ceil(3 * nav_hz)). At 2 Hz -> 15 TXes
-            // (~7.5 s). At 5 Hz -> 15 (~3 s). At 10 Hz -> 30 (~3 s).
-            uint8_t nav_hz = s.runtime_config.nav_rate_hz;
-            uint32_t threshold = (3U * static_cast<uint32_t>(nav_hz));
-            if (threshold < 15U) { threshold = 15U; }
-            if (s.tx_since_apply >= threshold) {
-                ao_radio_revert_to_prev_config(s);
-            }
-        }
-    }
-
-    // Sub-persist: debounced flash write. Tick down only when no config
-    // change is actively in flight (symmetric-revert resolved AND no new
-    // pending apply). When counter reaches zero, commit current runtime_
-    // config to flash. flash_safe_execute() is a blocking call (~100 ms)
-    // but QV cooperative scheduling means it only delays the next tick;
-    // no AO queues can overflow because other AOs aren't racing with us.
-    if (s_persist_requested &&
-        !s.apply_in_progress &&
-        !s_pending_radio_config_valid &&
-        s_persist_debounce_count > 0) {
-        s_persist_debounce_count--;
-        if (s_persist_debounce_count == 0) {
-            s_persist_requested = false;
-            // Write current runtime_config. storage module handles the
-            // no-op skip if the cached value already matches.
-            bool ok = radio_config_storage_write(&s.runtime_config);
-            if (ok) {
-                DBG_PRINT("RADIO: persisted config to flash");
-            } else {
-                DBG_ERROR("RADIO: flash persist FAILED");
-            }
-        }
-    }
-
-    // Stage T — capture any transition that happened during this tick's work
     stage_t_log_state(s_stage_t_prev_phase, s.scheduler.phase);
     s_stage_t_prev_phase = s.scheduler.phase;
 
@@ -619,6 +641,12 @@ void AO_Radio_set_pending_config(const rc::RadioConfig& cfg) {
 
 const rc::RadioConfig* AO_Radio_get_runtime_config() {
     return &l_radioAo.state.runtime_config;
+}
+
+bool AO_Radio_consume_just_changed() {
+    bool was = s_config_just_changed;
+    s_config_just_changed = false;
+    return was;
 }
 
 void AO_Radio_start(uint8_t prio, bool spi_ok) {

@@ -32,9 +32,13 @@ struct RadioAoState;  // forward declaration
  * @param seq    CCSDS sequence counter
  * @param valid  true if at least one packet has been received
  */
+// Forward-decl — avoids pulling ao_telemetry.h into every dashboard user.
+struct RxTelemSnapshot;
+
 void ansi_dashboard_render(const rc::TelemetryState& telem,
                             const RadioAoState* rs,
-                            uint32_t met_ms, uint16_t seq, bool valid);
+                            uint32_t met_ms, uint16_t seq, bool valid,
+                            const RxTelemSnapshot* rx = nullptr);
 
 /**
  * @brief Render "waiting for signal" placeholder when no packets received

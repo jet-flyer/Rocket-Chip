@@ -9,6 +9,7 @@
 
 #include <gtest/gtest.h>
 #include "rocketchip/telemetry_encoder.h"
+#include "rocketchip/radio_config.h"   // T5.5 sub 2f: nav-with-config round-trip tests
 #include "crc16_ccitt.h"
 #include <cstring>
 #include <cmath>
@@ -74,7 +75,9 @@ TEST_F(CcsdsEncoderTest, PacketSize) {
 }
 
 TEST_F(CcsdsEncoderTest, MaxPacketSize) {
-    EXPECT_EQ(CcsdsEncoder::max_packet_size(), 54);
+    // Stage T IVP-T5.5 sub 2f: bumped to 58 when encode_nav_with_config
+    // became the default TX path (nav + 4 B config tail, APID 0x004).
+    EXPECT_EQ(CcsdsEncoder::max_packet_size(), 58);
 }
 
 TEST_F(CcsdsEncoderTest, PrimaryHeaderVersion) {
@@ -448,7 +451,8 @@ TEST(TelemetryEncoderStateTest, MavlinkSelection) {
 TEST(TelemetryEncoderStateTest, MaxPacketSize) {
     TelemetryEncoderState state;
     state.init(EncoderType::kCcsds);
-    EXPECT_EQ(state.max_packet_size(), 54);
+    // Stage T IVP-T5.5 sub 2f: CCSDS max now 58 B (nav-with-config packet).
+    EXPECT_EQ(state.max_packet_size(), 58);
     state.init(EncoderType::kMavlink);
     EXPECT_EQ(state.max_packet_size(), 144);
 }
@@ -595,6 +599,107 @@ TEST_F(CcsdsDecoderTest, RejectWrongVersion) {
     uint16_t seq = 0;
     uint32_t met = 0;
     EXPECT_FALSE(ccsds_decode_nav(encoded.buf, encoded.len, decoded, seq, met));
+}
+
+// ============================================================================
+// Stage T IVP-T5.5 sub 2f: nav-with-config (APID 0x004) round-trip
+// ============================================================================
+
+TEST(CcsdsNavWithConfig, RoundTrip) {
+    using namespace rc;
+    CcsdsEncoder enc{};
+    enc.init();
+
+    TelemetryState telem_in{};
+    telem_in.q_w = 16000;  telem_in.q_x = 8000;
+    telem_in.met_ms = 42000;
+    telem_in.battery_mv = 3800;
+
+    RadioConfig cfg{};
+    cfg.bandwidth_khz = 500;
+    cfg.nav_rate_hz = 10;
+    cfg.spreading_factor = 7;
+    cfg.coding_rate = 5;
+    cfg.power_dbm = 20;
+
+    EncodeResult out{};
+    enc.encode_nav_with_config(telem_in, telem_in.met_ms, cfg,
+                                /*just_changed=*/true, out);
+    ASSERT_TRUE(out.ok);
+    EXPECT_EQ(out.len, ccsds::kNavWithConfigPacketLen);
+
+    TelemetryState telem_out{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    NavConfigEcho echo{};
+    ASSERT_TRUE(ccsds_decode_nav(out.buf, out.len, telem_out, seq, met, echo));
+    EXPECT_EQ(telem_out.q_w, 16000);
+    EXPECT_EQ(telem_out.q_x, 8000);
+    EXPECT_EQ(met, 42000u);
+    EXPECT_EQ(echo.bw_khz, 500);
+    EXPECT_EQ(echo.nav_hz, 10);
+    EXPECT_EQ(echo.sf, 7);
+    EXPECT_EQ(echo.cr, 5);
+    EXPECT_TRUE(echo.just_changed);
+}
+
+TEST(CcsdsNavWithConfig, JustChangedFalse) {
+    using namespace rc;
+    CcsdsEncoder enc{};
+    enc.init();
+    TelemetryState telem_in{};
+    RadioConfig cfg{};
+    cfg.bandwidth_khz = 125; cfg.nav_rate_hz = 5;
+    cfg.spreading_factor = 7; cfg.coding_rate = 5; cfg.power_dbm = 20;
+    EncodeResult out{};
+    enc.encode_nav_with_config(telem_in, 0, cfg, /*just_changed=*/false, out);
+
+    TelemetryState telem_out{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    NavConfigEcho echo{};
+    ASSERT_TRUE(ccsds_decode_nav(out.buf, out.len, telem_out, seq, met, echo));
+    EXPECT_FALSE(echo.just_changed);
+}
+
+TEST(CcsdsNavWithConfig, DecoderStillAcceptsLegacyApid) {
+    // Encode via the legacy 54-byte path, decode via the new signature.
+    using namespace rc;
+    CcsdsEncoder enc{};
+    enc.init();
+    TelemetryState telem_in{};
+    telem_in.met_ms = 7;
+    EncodeResult out{};
+    enc.encode_nav(telem_in, telem_in.met_ms, out);
+    ASSERT_EQ(out.len, ccsds::kNavPacketLen);
+
+    TelemetryState telem_out{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    NavConfigEcho echo{};
+    // Legacy packet decodes fine; echo fields all zero (bw_khz == 0 sentinel).
+    ASSERT_TRUE(ccsds_decode_nav(out.buf, out.len, telem_out, seq, met, echo));
+    EXPECT_EQ(echo.bw_khz, 0);
+    EXPECT_FALSE(echo.just_changed);
+}
+
+TEST(CcsdsNavWithConfig, WrongLengthRejected) {
+    using namespace rc;
+    CcsdsEncoder enc{};
+    enc.init();
+    TelemetryState telem_in{};
+    RadioConfig cfg{};
+    cfg.bandwidth_khz = 250; cfg.nav_rate_hz = 5;
+    cfg.spreading_factor = 7; cfg.coding_rate = 5; cfg.power_dbm = 20;
+    EncodeResult out{};
+    enc.encode_nav_with_config(telem_in, 0, cfg, false, out);
+
+    // Truncate one byte — must be rejected.
+    TelemetryState telem_out{};
+    uint16_t seq = 0;
+    uint32_t met = 0;
+    NavConfigEcho echo{};
+    EXPECT_FALSE(ccsds_decode_nav(out.buf, out.len - 1, telem_out, seq, met, echo));
 }
 
 // ============================================================================

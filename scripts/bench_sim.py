@@ -154,7 +154,12 @@ def _probe_port(port, verbose=False):
             time.sleep(0.5)
             data = p.read(4096).decode('utf-8', errors='replace')
             p.close()
-            if 'RocketChip' in data or '[main]' in data or '[flight]' in data:
+            # Accept any RocketChip banner, but REJECT the station —
+            # bench_sim targets the VEHICLE. Station has its own sim.
+            # Fixes wrong-port-pick when both boards are plugged in.
+            if 'Ground Station' in data or 'Fruit Jam' in data:
+                pass  # station port — skip
+            elif 'RocketChip' in data or '[main]' in data or '[flight]' in data:
                 result[0] = True
         except (serial.SerialException, OSError, PermissionError):
             pass

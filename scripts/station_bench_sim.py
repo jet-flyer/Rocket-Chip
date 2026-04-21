@@ -66,12 +66,39 @@ ROCKETCHIP_USB_PID = 0x0009
 # Serial helpers
 # =============================================================================
 
+def _peek_banner(port_name, timeout=2.0):
+    """Briefly connect + read banner text to identify vehicle vs station.
+    Returns the banner string (lowercase) or '' on failure."""
+    try:
+        s = serial.Serial(port_name, 115200, timeout=0.5)
+        s.write(b'h')
+        time.sleep(timeout)
+        data = s.read(8000)
+        s.close()
+        return data.decode('utf-8', errors='replace').lower()
+    except (serial.SerialException, OSError):
+        return ''
+
+
 def find_port():
-    """Return the first USB CDC port with RocketChip's VID:PID, or None."""
-    for info in serial.tools.list_ports.comports():
-        if info.vid == ROCKETCHIP_USB_VID and info.pid == ROCKETCHIP_USB_PID:
-            return info.device
-    return None
+    """Return the first USB CDC port identifying as the station, else the
+    first RocketChip port at all (backward-compat for single-board setups).
+    Station is identified by 'ground station' or 'fruit jam' in its banner.
+    When both vehicle and station are plugged in (Stage T dev pattern), this
+    ensures we connect to the station, not the vehicle."""
+    candidates = [
+        info.device for info in serial.tools.list_ports.comports()
+        if info.vid == ROCKETCHIP_USB_VID and info.pid == ROCKETCHIP_USB_PID
+    ]
+    if not candidates:
+        return None
+    # Probe each candidate for station banner text.
+    for port in candidates:
+        banner = _peek_banner(port)
+        if 'ground station' in banner or 'fruit jam' in banner:
+            return port
+    # Fallback: no station match — return first candidate (old behavior).
+    return candidates[0]
 
 
 def connect(port, retries=5, retry_delay=1.5):

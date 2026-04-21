@@ -15,6 +15,7 @@
  */
 
 #include "rocketchip/telemetry_encoder.h"
+#include "rocketchip/radio_config.h"     // T5.5 sub 2f: nav-with-config encoder needs full RadioConfig
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "crc16_ccitt.h"
 #include <string.h>
@@ -92,50 +93,86 @@ static void build_secondary_header(uint8_t* buf, uint32_t met_ms) {
     buf[3] = static_cast<uint8_t>( met_ms        & 0xFF);
 }
 
+// Write the 42-byte nav payload (first 40 B of TelemetryState + 2 B padding).
+// Returns advanced pointer.
+//
+// TelemetryState layout:
+//   bytes  0-39: q_w through battery_mv  (40 bytes)
+//   bytes 40-43: met_ms                  (4 bytes — in secondary header)
+//   byte  44:    _reserved               (1 byte — dropped)
+static uint8_t* write_nav_payload_42(uint8_t* p, const TelemetryState& telem) {
+    const uint8_t* telem_bytes = reinterpret_cast<const uint8_t*>(&telem);
+    memcpy(p, telem_bytes, kTelemPayloadBytes);
+    p[kTelemPadding1Idx] = 0;
+    p[kTelemPadding2Idx] = 0;
+    return p + ccsds::kNavPayloadLen;
+}
+
 void CcsdsEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
                                EncodeResult& result) {
-    // Data length field = secondary_header + payload + CRC - 1
     uint16_t data_len = static_cast<uint16_t>(
         ccsds::kSecondaryHeaderLen + ccsds::kNavPayloadLen + ccsds::kCrcLen - 1);
 
     uint8_t* p = result.buf;
 
-    // Primary header (6 bytes)
     build_primary_header(p, ccsds::kApidNav, seq_count, data_len);
     p += ccsds::kPrimaryHeaderLen;
 
-    // Secondary header (4 bytes — MET)
     build_secondary_header(p, met_ms);
     p += ccsds::kSecondaryHeaderLen;
 
-    // Nav payload: TelemetryState excluding met_ms (already in secondary header)
-    // and _reserved. Copy the first 40 bytes (up to and including battery_mv),
-    // which is everything before met_ms.
-    //
-    // TelemetryState layout:
-    //   bytes  0-39: q_w through battery_mv  (40 bytes)
-    //   bytes 40-43: met_ms                  (4 bytes — in secondary header)
-    //   byte  44:    _reserved               (1 byte — dropped)
-    //
-    // We send 42 bytes: the first 40 bytes of TelemetryState + 2 bytes padding
-    // to maintain fixed payload size. The padding bytes are zeroed.
-    const uint8_t* telem_bytes = reinterpret_cast<const uint8_t*>(&telem);
-    memcpy(p, telem_bytes, kTelemPayloadBytes);
-    p[kTelemPadding1Idx] = 0;    // Padding byte 1
-    p[kTelemPadding2Idx] = 0;    // Padding byte 2
-    p += ccsds::kNavPayloadLen;
+    p = write_nav_payload_42(p, telem);
 
-    // CRC-16-CCITT over everything before the CRC (primary + secondary + payload)
     uint32_t crc_len = static_cast<uint32_t>(p - result.buf);
     uint16_t crc = crc16_ccitt(result.buf, crc_len);
-    p[0] = static_cast<uint8_t>(crc >> 8);     // Big-endian CRC
+    p[0] = static_cast<uint8_t>(crc >> 8);
     p[1] = static_cast<uint8_t>(crc & 0xFF);
     p += ccsds::kCrcLen;
 
     result.len = static_cast<uint16_t>(p - result.buf);
     result.ok  = true;
 
-    // Advance 14-bit sequence counter (wraps at 16383)
+    seq_count = static_cast<uint16_t>((seq_count + 1) & kCcsdsSeqCountMask);
+}
+
+// Stage T IVP-T5.5 sub 2f — nav-with-config-echo (46-byte payload, APID 0x004).
+void CcsdsEncoder::encode_nav_with_config(const TelemetryState& telem,
+                                           uint32_t met_ms,
+                                           const RadioConfig& cfg,
+                                           bool just_changed,
+                                           EncodeResult& result) {
+    uint16_t data_len = static_cast<uint16_t>(
+        ccsds::kSecondaryHeaderLen + ccsds::kNavWithConfigPayloadLen + ccsds::kCrcLen - 1);
+
+    uint8_t* p = result.buf;
+
+    build_primary_header(p, ccsds::kApidNavWithConfig, seq_count, data_len);
+    p += ccsds::kPrimaryHeaderLen;
+
+    build_secondary_header(p, met_ms);
+    p += ccsds::kSecondaryHeaderLen;
+
+    p = write_nav_payload_42(p, telem);
+
+    // Config tail (4 bytes). Layout documented in telemetry_encoder.h.
+    p[ccsds::kCfgTailBwHi]    = static_cast<uint8_t>((cfg.bandwidth_khz >> 8) & 0xFF);
+    p[ccsds::kCfgTailBwLo]    = static_cast<uint8_t>( cfg.bandwidth_khz        & 0xFF);
+    p[ccsds::kCfgTailSfNav]   = static_cast<uint8_t>(
+        ((cfg.spreading_factor & 0x0F) << 4) | (cfg.nav_rate_hz & 0x0F));
+    uint8_t flags = just_changed ? ccsds::kCfgFlagJustChanged : 0U;
+    p[ccsds::kCfgTailCrFlags] = static_cast<uint8_t>(
+        ((cfg.coding_rate & 0x0F) << 4) | flags);
+    p += ccsds::kNavConfigTailLen;
+
+    uint32_t crc_len = static_cast<uint32_t>(p - result.buf);
+    uint16_t crc = crc16_ccitt(result.buf, crc_len);
+    p[0] = static_cast<uint8_t>(crc >> 8);
+    p[1] = static_cast<uint8_t>(crc & 0xFF);
+    p += ccsds::kCrcLen;
+
+    result.len = static_cast<uint16_t>(p - result.buf);
+    result.ok  = true;
+
     seq_count = static_cast<uint16_t>((seq_count + 1) & kCcsdsSeqCountMask);
 }
 
@@ -365,49 +402,63 @@ static constexpr uint8_t kPayloadIdx           = 10;    // Nav payload starts at
 
 bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
                       TelemetryState& telem, uint16_t& seq_out,
-                      uint32_t& met_ms_out) {
-    // Length check
-    if (len != ccsds::kNavPacketLen) {
-        return false;
-    }
-
+                      uint32_t& met_ms_out, NavConfigEcho& cfg_out) {
     // Validate primary header: Version=000, Type=0, SecHdrFlag=1
-    // Byte 0 upper 5 bits: VVV T S = 000 0 1 = 0x08
     if ((buf[0] & kCcsdsVersionMask) != kCcsdsVersionExpect) {
         return false;
     }
 
-    // APID check
     uint16_t apid = static_cast<uint16_t>(
         ((buf[0] & kCcsdsApidHiMask) << 8) | buf[1]);
-    if (apid != ccsds::kApidNav) {
+
+    // Dispatch on APID. 0x001 = legacy 54 B, 0x004 = nav-with-config 58 B.
+    const bool is_with_config = (apid == ccsds::kApidNavWithConfig);
+    const bool is_legacy      = (apid == ccsds::kApidNav);
+    if (!is_with_config && !is_legacy) {
+        return false;
+    }
+    const uint8_t expected_len = is_with_config ? ccsds::kNavWithConfigPacketLen
+                                                : ccsds::kNavPacketLen;
+    if (len != expected_len) {
         return false;
     }
 
-    // CRC-16 verification: CRC covers bytes 0..51, stored big-endian in 52..53
-    uint16_t computed_crc = crc16_ccitt(buf, kCrcOffset);
+    // CRC-16 verification: CRC is in the last 2 bytes; covers everything before.
+    const uint8_t crc_off = static_cast<uint8_t>(expected_len - ccsds::kCrcLen);
+    uint16_t computed_crc = crc16_ccitt(buf, crc_off);
     uint16_t stored_crc = static_cast<uint16_t>(
-        (buf[kCrcOffset] << 8) | buf[kCrcLoIdx]);
+        (buf[crc_off] << 8) | buf[crc_off + 1]);
     if (computed_crc != stored_crc) {
         return false;
     }
 
-    // Extract 14-bit sequence counter from bytes 2-3
     seq_out = static_cast<uint16_t>(
         ((buf[2] & kCcsdsSeqHiMask) << 8) | buf[3]);
 
-    // Extract MET from secondary header (bytes 6-9, big-endian)
     met_ms_out = (static_cast<uint32_t>(buf[kSecHdrIdx]) << kMetShift24) |
                  (static_cast<uint32_t>(buf[kSecHdrByte1]) << 16) |
                  (static_cast<uint32_t>(buf[8]) <<  8) |
                   static_cast<uint32_t>(buf[kSecHdrByte3]);
 
-    // Copy 40-byte nav payload (bytes 10-49) into TelemetryState
     memset(&telem, 0, sizeof(telem));
     memcpy(&telem, &buf[kPayloadIdx], kTelemPayloadBytes);
-
-    // Restore met_ms from secondary header
     telem.met_ms = met_ms_out;
+
+    // Config tail (only present in APID 0x004).
+    cfg_out = NavConfigEcho{};
+    if (is_with_config) {
+        const uint8_t* tail = &buf[kPayloadIdx + ccsds::kNavPayloadLen];
+        cfg_out.bw_khz = static_cast<uint16_t>(
+            (tail[ccsds::kCfgTailBwHi] << 8) | tail[ccsds::kCfgTailBwLo]);
+        cfg_out.sf = static_cast<uint8_t>(
+            (tail[ccsds::kCfgTailSfNav] >> 4) & 0x0F);
+        cfg_out.nav_hz = static_cast<uint8_t>(
+            tail[ccsds::kCfgTailSfNav] & 0x0F);
+        cfg_out.cr = static_cast<uint8_t>(
+            (tail[ccsds::kCfgTailCrFlags] >> 4) & 0x0F);
+        cfg_out.just_changed =
+            (tail[ccsds::kCfgTailCrFlags] & ccsds::kCfgFlagJustChanged) != 0;
+    }
 
     return true;
 }

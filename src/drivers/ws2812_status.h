@@ -120,6 +120,22 @@ void ws2812_show(void);
  */
 void ws2812_set_rssi_bar(int16_t rssi, bool no_signal);
 
+/**
+ * @brief Stage T IVP-T5.5 sub 2g — KITT/Cylon sweep on LED bar.
+ *
+ * Single lit pixel walks back and forth across the strip at a fixed cadence,
+ * independent of call frequency. Color is the caller's choice — station uses
+ * yellow during LOS-watchdog (config apply in progress) and cyan during
+ * channel-find (future IVP, deferred).
+ *
+ * Drives the bar directly — caller should throttle to ~20 Hz (every 50 ms)
+ * or similar for smooth motion. Internal static position + direction persist
+ * across calls.
+ *
+ * @param color RGB color of the moving pixel
+ */
+void ws2812_set_sweep_bar(ws2812_rgb_t color);
+
 // ============================================================================
 // Pattern Modes
 // ============================================================================

@@ -33,6 +33,14 @@ struct RxTelemSnapshot {
     uint32_t met_ms;        // MET from CCSDS secondary header
     uint16_t seq;           // CCSDS sequence counter
     bool     valid;         // At least one packet successfully decoded
+    // Stage T IVP-T5.5 sub 2f — config echo from APID 0x004 nav packets.
+    // echo_bw_khz == 0 means last RX was a legacy APID 0x001 packet or
+    // no RX yet; dashboard displays "?" in that case.
+    uint16_t echo_bw_khz;   // vehicle's current BW (from nav config tail)
+    uint8_t  echo_nav_hz;   // vehicle's current nav rate
+    uint8_t  echo_sf;       // vehicle's current SF
+    uint8_t  echo_cr;       // vehicle's current CR
+    bool     echo_just_changed;  // true for one packet after a vehicle-side apply
 };
 const RxTelemSnapshot* AO_Telemetry_get_rx_state();
 

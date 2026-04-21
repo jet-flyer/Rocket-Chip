@@ -185,8 +185,15 @@ static void encode_and_send(TelemAo* me) {
         result.len = pos;
         memcpy(result.buf, frame, pos);
     } else {
-        // CCSDS (default)
-        me->ccsds_encoder.encode_nav(me->latest_telem, me->latest_telem.met_ms, result);
+        // CCSDS (default). Stage T IVP-T5.5 sub 2f: emit nav-with-config (APID
+        // 0x004) so the station gets the vehicle's current RadioConfig in every
+        // packet. Old stations that only know 0x001 drop these packets cleanly;
+        // both ends always ship together so no backward-compat burden in-tree.
+        const rc::RadioConfig* cfg = AO_Radio_get_runtime_config();
+        const bool just_changed = AO_Radio_consume_just_changed();
+        me->ccsds_encoder.encode_nav_with_config(
+            me->latest_telem, me->latest_telem.met_ms,
+            *cfg, just_changed, result);
     }
     if (!result.ok || result.len == 0) { return; }
 
@@ -206,132 +213,121 @@ static void encode_and_send(TelemAo* me) {
 }
 
 // LoRa MAVLink RX — uses MAVLINK_COMM_2 (separate from USB on COMM_1)
+// Stage T IVP-T5.5 sub 2b: SET_RADIO_CONFIG dispatcher. Returns ACK result.
+// 3 validation gates (flight-state, whitelist, ±6 dB power delta) before
+// queuing the new config. Separated out for JSF AV rule 1 compliance.
+static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
+    uint16_t new_bw  = static_cast<uint16_t>(lroundf(cmd.param1));
+    uint8_t  new_nav = static_cast<uint8_t> (lroundf(cmd.param2));
+    uint8_t  new_sf  = static_cast<uint8_t> (lroundf(cmd.param3));
+    uint8_t  new_cr  = static_cast<uint8_t> (lroundf(cmd.param4));
+    uint8_t  new_pwr = static_cast<uint8_t> (lroundf(cmd.param5));
+
+    if (!AO_FlightDirector_is_ground_state()) {
+        return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
+    }
+    if (!rc::radio_config_in_whitelist(new_bw, new_nav, new_sf, new_cr, new_pwr)) {
+        return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
+    }
+    const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
+    int pwr_delta = static_cast<int>(new_pwr) - static_cast<int>(cur->power_dbm);
+    if (pwr_delta < 0) { pwr_delta = -pwr_delta; }
+    if (pwr_delta > 6) {
+        return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
+    }
+
+    rc::RadioConfig new_cfg = *cur;  // inherit mode/protocol
+    new_cfg.nav_rate_hz      = new_nav;
+    new_cfg.power_dbm        = new_pwr;
+    new_cfg.spreading_factor = new_sf;
+    new_cfg.bandwidth_khz    = new_bw;
+    new_cfg.coding_rate      = new_cr;
+    AO_Radio_set_pending_config(new_cfg);
+    return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted);
+}
+
+// Dispatch a single MAVLink COMMAND_LONG. Returns ack_result.
+static uint8_t dispatch_command(TelemAo* me, const mavlink_command_long_t& cmd) {
+    uint8_t ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted);
+    switch (cmd.command) {
+    case MAV_CMD_COMPONENT_ARM_DISARM: {
+        uint16_t sig = (cmd.param1 > 0.5f)
+            ? static_cast<uint16_t>(rc::SIG_ARM)
+            : static_cast<uint16_t>(rc::SIG_DISARM);
+        AO_FlightDirector_dispatch_signal(sig);
+        break;
+    }
+    case MAV_CMD_DO_FLIGHTTERMINATION:
+        AO_FlightDirector_dispatch_signal(static_cast<uint16_t>(rc::SIG_ABORT));
+        break;
+    case MAV_CMD_USER_1: {
+        // Stage L IVP-L5: GCS-initiated manual beacon. Static event per LL Entry 35.
+        static QEvt s_beacon_cmd_evt;
+        s_beacon_cmd_evt.sig = rc::SIG_BEACON_MANUAL;
+        QActive_publish_(&s_beacon_cmd_evt, &me->super, me->super.prio);
+        break;
+    }
+    case MAV_CMD_USER_2:
+        // Stage T IVP-T5.5 sub 2b: SET_RADIO_CONFIG (3 gates inside).
+        ack_result = dispatch_set_radio_config(cmd);
+        break;
+    case MAV_CMD_USER_3:
+        // Sub 2e: QUERY_RADIO_CONFIG — read-only, echo fields populated below.
+        break;
+    default:
+        ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
+        break;
+    }
+    return ack_result;
+}
+
+// Build the pending CCSDS ACK for a dispatched command. Populates cfg-echo
+// fields on QUERY responses (sub 2e).
+static void stage_cmd_ack(const mavlink_command_long_t& cmd, uint8_t ack_result) {
+    s_pending_ack.cmd_seq = static_cast<uint8_t>(cmd.confirmation);
+    s_pending_ack.cmd_id  = cmd.command;
+    s_pending_ack.result  = ack_result;
+    s_pending_ack.reserved = 0;
+    if (cmd.command == MAV_CMD_USER_3) {
+        const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
+        s_pending_ack.cfg_bw_khz = cur->bandwidth_khz;
+        s_pending_ack.cfg_nav_hz = cur->nav_rate_hz;
+        s_pending_ack.cfg_sf     = cur->spreading_factor;
+        s_pending_ack.cfg_cr     = cur->coding_rate;
+    } else {
+        s_pending_ack.cfg_bw_khz = 0;
+        s_pending_ack.cfg_nav_hz = 0;
+        s_pending_ack.cfg_sf     = 0;
+        s_pending_ack.cfg_cr     = 0;
+    }
+    s_pending_ack_valid = true;
+}
+
+static void handle_parsed_mavlink(TelemAo* me, const mavlink_message_t& msg) {
+    if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
+        AO_Telemetry_notify_gcs_heartbeat();
+    }
+    if (msg.msgid != MAVLINK_MSG_ID_COMMAND_LONG) { return; }
+    mavlink_command_long_t cmd;
+    mavlink_msg_command_long_decode(&msg, &cmd);
+    uint8_t ack_result = dispatch_command(me, cmd);
+    stage_cmd_ack(cmd, ack_result);
+}
+
 static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
     mavlink_message_t msg;
     mavlink_status_t status;
 
     for (uint8_t i = 0; i < len; ++i) {
-        if (mavlink_parse_char(MAVLINK_COMM_2, buf[i], &msg, &status)) {
-            // Complete MAVLink frame parsed — dispatch through mavlink_rx handler
-            rc::MavlinkRxResult result = {};
-            rc::mavlink_rx_feed_byte(&me->mavlink_rx, buf[i],
-                                      me->latest_telem.flight_state,
-                                      now_ms(), &result);
-
-            // Actually we need to dispatch the already-parsed message.
-            // The feed_byte won't re-parse since COMM_2 already consumed it.
-            // Instead, call the dispatcher directly with the parsed message.
-            // For now, just check if we got a heartbeat for GCS detection.
-            if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
-                AO_Telemetry_notify_gcs_heartbeat();
-            }
-
-            // Generate ACK response for commands
-            if (msg.msgid == MAVLINK_MSG_ID_COMMAND_LONG) {
-                mavlink_command_long_t cmd;
-                mavlink_msg_command_long_decode(&msg, &cmd);
-
-                // Dispatch command to Flight Director
-                uint8_t ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted);
-                if (cmd.command == MAV_CMD_COMPONENT_ARM_DISARM) {
-                    uint16_t sig = (cmd.param1 > 0.5f)
-                        ? static_cast<uint16_t>(rc::SIG_ARM)
-                        : static_cast<uint16_t>(rc::SIG_DISARM);
-                    AO_FlightDirector_dispatch_signal(sig);
-                } else if (cmd.command == MAV_CMD_DO_FLIGHTTERMINATION) {
-                    AO_FlightDirector_dispatch_signal(
-                        static_cast<uint16_t>(rc::SIG_ABORT));
-                } else if (cmd.command == MAV_CMD_USER_1) {
-                    // Stage L IVP-L5: GCS-initiated manual beacon. Equivalent
-                    // to the vehicle-local CLI `b` key, but triggered over
-                    // the radio link. Publishes SIG_BEACON_MANUAL which
-                    // AO_Notify turns into pure-white 2Hz regardless of
-                    // state. Static event per LL Entry 35.
-                    static QEvt s_beacon_cmd_evt;
-                    s_beacon_cmd_evt.sig = rc::SIG_BEACON_MANUAL;
-                    QActive_publish_(&s_beacon_cmd_evt, &me->super, me->super.prio);
-                } else if (cmd.command == MAV_CMD_USER_2) {
-                    // Stage T IVP-T5.5: SET_RADIO_CONFIG
-                    // param1 = bw_khz (125/250/500)
-                    // param2 = nav_rate_hz (2/5/10)
-                    // param3 = sf (currently 7 only)
-                    // param4 = cr (currently 5 only — CR 4/5)
-                    // param5 = power_dbm (2..20)
-                    // Float->int via lroundf() for robust cast
-                    // (smell-test A.7: 125.0f round-trip safety).
-                    uint16_t new_bw   = static_cast<uint16_t>(lroundf(cmd.param1));
-                    uint8_t  new_nav  = static_cast<uint8_t> (lroundf(cmd.param2));
-                    uint8_t  new_sf   = static_cast<uint8_t> (lroundf(cmd.param3));
-                    uint8_t  new_cr   = static_cast<uint8_t> (lroundf(cmd.param4));
-                    uint8_t  new_pwr  = static_cast<uint8_t> (lroundf(cmd.param5));
-
-                    // Gate #1 (correctness council edit #3): flight state.
-                    // Only accept config changes in kIdle — armed/flight/landed
-                    // all reject. Re-validated again at apply time to close
-                    // the ARM-during-pending-apply race.
-                    bool ground = AO_FlightDirector_is_ground_state();
-                    // Gate #2 (correctness council edit #2): whitelist.
-                    // Reject unknown tuples — prevents arbitrary/invalid combos
-                    // (e.g., SF12/BW500) from bricking the link.
-                    bool in_whitelist = rc::radio_config_in_whitelist(
-                        new_bw, new_nav, new_sf, new_cr, new_pwr);
-                    // Gate #3 (correctness council edit #3 item 3):
-                    // power step limit ±6 dB per command. Read CURRENT
-                    // runtime config from AO_Radio (not the compile-time
-                    // default) so the delta is meaningful after prior SETs.
-                    const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
-                    int pwr_delta = static_cast<int>(new_pwr) -
-                                     static_cast<int>(cur->power_dbm);
-                    if (pwr_delta < 0) { pwr_delta = -pwr_delta; }
-                    bool power_ok = (pwr_delta <= 6);
-
-                    if (!ground) {
-                        ack_result = static_cast<uint8_t>(
-                            rc::ccsds::CmdAckResult::kDenied);
-                    } else if (!in_whitelist) {
-                        ack_result = static_cast<uint8_t>(
-                            rc::ccsds::CmdAckResult::kDenied);
-                    } else if (!power_ok) {
-                        ack_result = static_cast<uint8_t>(
-                            rc::ccsds::CmdAckResult::kDenied);
-                    } else {
-                        // Validation passed. Build the target config and
-                        // queue it in AO_Radio — applied on next TxDone
-                        // (the ACK we're about to queue) per smell-test
-                        // A.1. Symmetric-revert and station-side switch
-                        // are wired in sub-IVPs 2c/2d.
-                        rc::RadioConfig new_cfg = *cur;  // inherit mode/protocol
-                        new_cfg.nav_rate_hz      = new_nav;
-                        new_cfg.power_dbm        = new_pwr;
-                        new_cfg.spreading_factor = new_sf;
-                        new_cfg.bandwidth_khz    = new_bw;
-                        new_cfg.coding_rate      = new_cr;
-                        AO_Radio_set_pending_config(new_cfg);
-                    }
-                } else if (cmd.command == MAV_CMD_USER_3) {
-                    // Stage T IVP-T5.5: QUERY_RADIO_CONFIG — synchronous probe.
-                    // No state change; response reuses the normal ACK path.
-                    // The config echo in the reply is wired in sub-IVP 2e
-                    // (ACK payload extension). For now, just accept the query
-                    // — the nav-packet config echo (APID 0x101, sub-IVP 2f)
-                    // provides the same information passively.
-                    // Intentional no-op: ACK-accepted is all the station needs
-                    // until 2e/2f land.
-                } else {
-                    ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
-                }
-
-                // IVP-122: Queue CCSDS command ACK for next TX slot.
-                // Don't post directly — radio may be TX-busy (C3-A2 drops busy TX).
-                // Store in pending buffer; the telemetry tick sends it on next opportunity.
-                s_pending_ack.cmd_seq = static_cast<uint8_t>(cmd.confirmation);
-                s_pending_ack.cmd_id = cmd.command;
-                s_pending_ack.result = ack_result;
-                s_pending_ack.reserved = 0;
-                s_pending_ack_valid = true;
-                // No printf — binary MAVLink/CCSDS stream
-            }
+        if (!mavlink_parse_char(MAVLINK_COMM_2, buf[i], &msg, &status)) {
+            continue;
         }
+        // Feed parser bookkeeping path — doesn't re-parse (COMM_2 consumed).
+        rc::MavlinkRxResult result = {};
+        rc::mavlink_rx_feed_byte(&me->mavlink_rx, buf[i],
+                                  me->latest_telem.flight_state,
+                                  now_ms(), &result);
+        handle_parsed_mavlink(me, msg);
     }
 }
 
@@ -356,6 +352,34 @@ static struct {
 // side pending command and clear if matched. Returns true if the buffer
 // decoded as a CmdAck (caller returns immediately on true).
 // Extracted from handle_rx_packet for JSF AV rule 1 compliance.
+#ifdef ROCKETCHIP_JOB_STATION
+// Sub 2c: ACK for SET_RADIO_CONFIG — station switches its own radio too.
+static void station_on_set_radio_ack(float p1, float p2, float p3,
+                                      float p4, float p5) {
+    rc::RadioConfig new_cfg = *AO_Radio_get_runtime_config();
+    new_cfg.bandwidth_khz    = static_cast<uint16_t>(lroundf(p1));
+    new_cfg.nav_rate_hz      = static_cast<uint8_t> (lroundf(p2));
+    new_cfg.spreading_factor = static_cast<uint8_t> (lroundf(p3));
+    new_cfg.coding_rate      = static_cast<uint8_t> (lroundf(p4));
+    new_cfg.power_dbm        = static_cast<uint8_t> (lroundf(p5));
+    AO_Radio_set_pending_config(new_cfg);
+    printf("[CMD] station switching radio to BW=%u nav=%u SF=%u\n",
+           static_cast<unsigned>(new_cfg.bandwidth_khz),
+           static_cast<unsigned>(new_cfg.nav_rate_hz),
+           static_cast<unsigned>(new_cfg.spreading_factor));
+}
+
+// Sub 2e: ACK for QUERY_RADIO_CONFIG — print echoed vehicle config.
+static void station_on_query_ack(const rc::ccsds::CommandAckPayload& ack) {
+    if (ack.cfg_bw_khz == 0) { return; }  // vehicle didn't populate
+    printf("[CMD] vehicle config: BW=%u nav=%u SF=%u CR=%u\n",
+           static_cast<unsigned>(ack.cfg_bw_khz),
+           static_cast<unsigned>(ack.cfg_nav_hz),
+           static_cast<unsigned>(ack.cfg_sf),
+           static_cast<unsigned>(ack.cfg_cr));
+}
+#endif
+
 static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
     rc::ccsds::CommandAckPayload ack{};
     if (!rc::ccsds_decode_cmd_ack(rxEvt->buf, rxEvt->len, ack)) {
@@ -369,50 +393,37 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
         return true;
     }
 #endif
-    if (s_pending_cmd.pending &&
-        ack.cmd_seq == s_pending_cmd.seq &&
-        ack.cmd_id == s_pending_cmd.cmd_id) {
-        // Capture details before clearing — needed below for SET switch.
-        const uint16_t matched_cmd = s_pending_cmd.cmd_id;
-        const float matched_p1 = s_pending_cmd.p1;
-        const float matched_p2 = s_pending_cmd.p2;
-        const float matched_p3 = s_pending_cmd.p3;
-        const float matched_p4 = s_pending_cmd.p4;
-        const float matched_p5 = s_pending_cmd.p5;
-        s_pending_cmd.pending = false;
+    if (!s_pending_cmd.pending ||
+        ack.cmd_seq != s_pending_cmd.seq ||
+        ack.cmd_id != s_pending_cmd.cmd_id) {
+        return true;
+    }
+    // Capture details before clearing — needed below for SET switch.
+    const uint16_t matched_cmd = s_pending_cmd.cmd_id;
+    const float matched_p1 = s_pending_cmd.p1;
+    const float matched_p2 = s_pending_cmd.p2;
+    const float matched_p3 = s_pending_cmd.p3;
+    const float matched_p4 = s_pending_cmd.p4;
+    const float matched_p5 = s_pending_cmd.p5;
+    s_pending_cmd.pending = false;
 
-        const bool accepted = (ack.result ==
-            static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted));
-        const char* result_str = accepted ? "ACK'd" : "DENIED";
-        printf("[CMD] %s (seq=%u)\n", result_str, ack.cmd_seq);
+    const bool accepted = (ack.result ==
+        static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted));
+    printf("[CMD] %s (seq=%u)\n", accepted ? "ACK'd" : "DENIED", ack.cmd_seq);
 
 #ifdef ROCKETCHIP_JOB_STATION
-        // Stage T IVP-T5.5 sub 2c: if the ACK was for SET_RADIO_CONFIG and
-        // accepted, vehicle will apply the new config on its TxDone (i.e.
-        // on this ACK's own TX completion from its side). Switch station's
-        // own radio to match so we can hear the vehicle on the new config.
-        // (void cast to shush the unused-if-non-station warnings.)
-        (void)matched_p1; (void)matched_p2; (void)matched_p3;
-        (void)matched_p4; (void)matched_p5;
-        if (accepted && matched_cmd == 31011 /* MAV_CMD_USER_2 */) {
-            rc::RadioConfig new_cfg = *AO_Radio_get_runtime_config();
-            new_cfg.bandwidth_khz    = static_cast<uint16_t>(lroundf(matched_p1));
-            new_cfg.nav_rate_hz      = static_cast<uint8_t> (lroundf(matched_p2));
-            new_cfg.spreading_factor = static_cast<uint8_t> (lroundf(matched_p3));
-            new_cfg.coding_rate      = static_cast<uint8_t> (lroundf(matched_p4));
-            new_cfg.power_dbm        = static_cast<uint8_t> (lroundf(matched_p5));
-            AO_Radio_set_pending_config(new_cfg);
-            printf("[CMD] station switching radio to BW=%u nav=%u SF=%u\n",
-                   static_cast<unsigned>(new_cfg.bandwidth_khz),
-                   static_cast<unsigned>(new_cfg.nav_rate_hz),
-                   static_cast<unsigned>(new_cfg.spreading_factor));
-        }
-#else
-        (void)matched_cmd;
-        (void)matched_p1; (void)matched_p2; (void)matched_p3;
-        (void)matched_p4; (void)matched_p5;
-#endif
+    if (accepted && matched_cmd == 31011 /* MAV_CMD_USER_2 */) {
+        station_on_set_radio_ack(matched_p1, matched_p2, matched_p3,
+                                  matched_p4, matched_p5);
     }
+    if (accepted && matched_cmd == 31012 /* MAV_CMD_USER_3 */) {
+        station_on_query_ack(ack);
+    }
+#else
+    (void)matched_cmd;
+    (void)matched_p1; (void)matched_p2; (void)matched_p3;
+    (void)matched_p4; (void)matched_p5;
+#endif
     return true;
 }
 
@@ -473,7 +484,8 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
     rc::TelemetryState telem = {};
     uint16_t seq = 0;
     uint32_t met_ms = 0;
-    if (!rc::ccsds_decode_nav(rxEvt->buf, rxEvt->len, telem, seq, met_ms)) {
+    rc::NavConfigEcho echo = {};
+    if (!rc::ccsds_decode_nav(rxEvt->buf, rxEvt->len, telem, seq, met_ms, echo)) {
         // Not nav — try command ACK, then MAVLink command fallback
         if (try_handle_cmd_ack(rxEvt)) {
             return;
@@ -487,6 +499,16 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
     me->rx_snapshot.met_ms = met_ms;
     me->rx_snapshot.seq = seq;
     me->rx_snapshot.valid = true;
+    // Sub 2f: config echo. If this was an APID 0x001 legacy packet,
+    // echo.bw_khz == 0 — leave last-known values in place so the
+    // dashboard can still show "last seen" (only overwrite on real echoes).
+    if (echo.bw_khz != 0) {
+        me->rx_snapshot.echo_bw_khz       = echo.bw_khz;
+        me->rx_snapshot.echo_nav_hz       = echo.nav_hz;
+        me->rx_snapshot.echo_sf           = echo.sf;
+        me->rx_snapshot.echo_cr           = echo.cr;
+        me->rx_snapshot.echo_just_changed = echo.just_changed;
+    }
 
 #ifdef ROCKETCHIP_STAGE_T2_CHEAT
     // Stage T2 cheat-mode: fire pending command now that we know the vehicle

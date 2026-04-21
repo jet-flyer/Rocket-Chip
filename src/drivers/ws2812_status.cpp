@@ -197,6 +197,31 @@ void ws2812_set_rssi_bar(int16_t rssi, bool no_signal) {
     ws2812_show();
 }
 
+// Stage T IVP-T5.5 sub 2g — KITT/Cylon sweep on LED bar.
+// Advances one step per call — caller throttles cadence. Position + direction
+// persist in file-scope statics. Lights exactly 1 pixel at a time.
+void ws2812_set_sweep_bar(ws2812_rgb_t color) {
+    if (!g_state.initialized) { return; }
+    static uint8_t s_pos = 0;
+    static int8_t  s_dir = 1;
+    const uint8_t n = g_state.numLeds;
+    if (n == 0) { return; }
+    // Edge guard — single-LED strips just show the color solid.
+    if (n == 1) {
+        g_state.pixels[0] = color;
+        ws2812_show();
+        return;
+    }
+    for (uint8_t i = 0; i < n; ++i) { g_state.pixels[i] = kColorOff; }
+    g_state.pixels[s_pos] = color;
+    ws2812_show();
+    // Advance + bounce at ends.
+    if (s_pos == 0)      { s_dir = 1; }
+    if (s_pos == n - 1U) { s_dir = -1; }
+    s_pos = static_cast<uint8_t>(
+        static_cast<int>(s_pos) + static_cast<int>(s_dir));
+}
+
 /**
  * @brief Apply brightness scaling to a color
  */

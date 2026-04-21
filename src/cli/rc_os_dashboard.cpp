@@ -17,6 +17,7 @@
 #include "rocketchip/config.h"
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "active_objects/ao_radio.h"
+#include "active_objects/ao_telemetry.h" // T5.5 sub 2f: RxTelemSnapshot config echo fields
 #include "flight_director/flight_state.h"
 #include <stdio.h>
 #include <string.h>
@@ -126,6 +127,12 @@ struct DisplayFields {
     const char* rssi_clr;
     const char* fix_str;
     char bar[16];
+    // Stage T IVP-T5.5 sub 2f — radio config row.
+    uint16_t stn_bw;  uint8_t stn_nav;  uint8_t stn_sf;  uint8_t stn_cr;
+    uint16_t veh_bw;  uint8_t veh_nav;  uint8_t veh_sf;  uint8_t veh_cr;
+    bool     veh_cfg_known;    // false -> dashboard shows "?" for vehicle
+    bool     cfg_mismatch;     // true -> yellow-highlight the row
+    bool     cfg_just_changed; // true for one frame after a transition
 };
 
 // Decode telemetry + radio state into display-ready values
@@ -194,9 +201,41 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     else if (d.fix == 2) d.fix_str = "2D";
 }
 
+// Stage T IVP-T5.5 sub 2f — format the "Radio:" row content (no ANSI colour
+// wrappers; caller wraps). Uses "?" for vehicle cfg when not yet known.
+// Returns number of chars written, not including the trailing kClrEol.
+static int format_radio_row(char* out, size_t n, const DisplayFields& d) {
+    if (!d.veh_cfg_known) {
+        return snprintf(out, n,
+            "Radio: BW%u %uHz SF%u CR%u  |  Vehicle: ?",
+            static_cast<unsigned>(d.stn_bw),
+            static_cast<unsigned>(d.stn_nav),
+            static_cast<unsigned>(d.stn_sf),
+            static_cast<unsigned>(d.stn_cr));
+    }
+    return snprintf(out, n,
+        "Radio: BW%u %uHz SF%u CR%u  |  Vehicle: BW%u %uHz SF%u CR%u%s",
+        static_cast<unsigned>(d.stn_bw),
+        static_cast<unsigned>(d.stn_nav),
+        static_cast<unsigned>(d.stn_sf),
+        static_cast<unsigned>(d.stn_cr),
+        static_cast<unsigned>(d.veh_bw),
+        static_cast<unsigned>(d.veh_nav),
+        static_cast<unsigned>(d.veh_sf),
+        static_cast<unsigned>(d.veh_cr),
+        d.cfg_just_changed ? " [CHANGED]" : "");
+}
+
 // Build ANSI frame string into s_frame, return length
 static int build_frame(const DisplayFields& d, const RadioAoState* rs,
                         uint16_t seq) {
+    // Sub 2f — build radio row with colour bracket if mismatched or just-changed.
+    char radio_row[96];
+    format_radio_row(radio_row, sizeof(radio_row), d);
+    const char* radio_clr = kReset;
+    if (d.cfg_just_changed)      { radio_clr = kCyan;   }
+    else if (d.cfg_mismatch)     { radio_clr = kYellow; }
+
     return snprintf(s_frame, sizeof(s_frame),
         "%s"
         "=== RocketChip Ground Station ===%s\n"
@@ -208,6 +247,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         "-------------------------------------------%s\n"
         "RSSI: %s%d dBm%s  SNR: %d dB  %s%s%s  %d%%%s\n"
         "Pkts: %-6lu Lost: %-4lu  %sLast: %lu.%lus%s%s\n"
+        "%s%s%s%s\n"
         "-------------------------------------------%s\n"
         "Batt: %.2fV  Temp: %dC  ESKF: %s%s%s  Seq: %u%s\n"
         "Lat: %.7f  Lon: %.7f%s\n"
@@ -231,6 +271,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         (unsigned long)rs->rx_count, (unsigned long)d.lost,
         d.sig_clr, (unsigned long)d.age_s, (unsigned long)d.age_ds,
         kReset, kClrEol,
+        radio_clr, radio_row, kReset, kClrEol,
         kClrEol,
         static_cast<double>(d.batt_v), static_cast<int>(0),
         d.eskf_ok ? kGreen : kRed, d.eskf_ok ? "OK" : "FAIL", kReset,
@@ -248,7 +289,8 @@ void rc_os_dashboard_resume() { s_dashboard_paused = false; }
 
 void ansi_dashboard_render(const rc::TelemetryState& t,
                             const RadioAoState* rs,
-                            uint32_t met_ms, uint16_t seq, bool valid) {
+                            uint32_t met_ms, uint16_t seq, bool valid,
+                            const RxTelemSnapshot* rx) {
     if (s_dashboard_paused) return;  // IVP-122: suppress during ARM confirm
 
     if (!valid) {
@@ -258,6 +300,24 @@ void ansi_dashboard_render(const rc::TelemetryState& t,
 
     DisplayFields d = {};
     decode_telem_fields(t, rs, met_ms, seq, d);
+
+    // Stage T IVP-T5.5 sub 2f — populate radio config row.
+    d.stn_bw  = rs->runtime_config.bandwidth_khz;
+    d.stn_nav = rs->runtime_config.nav_rate_hz;
+    d.stn_sf  = rs->runtime_config.spreading_factor;
+    d.stn_cr  = rs->runtime_config.coding_rate;
+    d.veh_cfg_known = (rx != nullptr && rx->echo_bw_khz != 0);
+    if (d.veh_cfg_known) {
+        d.veh_bw  = rx->echo_bw_khz;
+        d.veh_nav = rx->echo_nav_hz;
+        d.veh_sf  = rx->echo_sf;
+        d.veh_cr  = rx->echo_cr;
+        d.cfg_mismatch =
+            (d.stn_bw != d.veh_bw) || (d.stn_nav != d.veh_nav) ||
+            (d.stn_sf != d.veh_sf) || (d.stn_cr != d.veh_cr);
+        d.cfg_just_changed = rx->echo_just_changed;
+    }
+
     int pos = build_frame(d, rs, seq);
 
     fwrite(s_frame, 1, static_cast<size_t>(pos), stdout);

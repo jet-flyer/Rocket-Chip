@@ -1452,6 +1452,16 @@ void cli_handle_unhandled_key(int key) {
             printf("[TX] Rate changed to %dHz\n", static_cast<int>(newRate));
         }
         break;
+    case 'q': case 'Q':
+        if constexpr (kRadioModeRx) {
+            // Stage T IVP-T5.5 sub 2e: QUERY_RADIO_CONFIG.
+            // Sync probe — vehicle replies with current config in ACK's
+            // extended payload. Station's ACK-handler prints "vehicle
+            // config: BW=.. nav=.. SF=.. CR=..".
+            printf("[CMD] QUERY_RADIO_CONFIG sent, waiting for ACK...\n");
+            AO_Telemetry_send_tracked_command(kMavCmdQueryRadioConfig);
+        }
+        break;
     case 'm': case 'M':
         AO_RCOS_cycle_output_mode();
         {

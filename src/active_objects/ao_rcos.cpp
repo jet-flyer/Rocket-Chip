@@ -257,7 +257,7 @@ static void ansi_render_tick(RcosAo* me) {
     me->last_ansi_rx_count = rs->rx_count;
     me->last_ansi_render_ms = now;
 
-    ansi_dashboard_render(rx->telem, rs, rx->met_ms, rx->seq, rx->valid);
+    ansi_dashboard_render(rx->telem, rs, rx->met_ms, rx->seq, rx->valid, rx);
 }
 
 // ============================================================================

@@ -73,4 +73,12 @@ void AO_Radio_set_pending_config(const rc::RadioConfig& cfg);
 /// Used by SET dispatch to compute power-delta for the +/-6 dB gate.
 const rc::RadioConfig* AO_Radio_get_runtime_config();
 
+/// Stage T IVP-T5.5 sub 2f: consume the "config just changed" flag.
+/// Returns true ONCE after a ao_radio_commit_pending_config or
+/// ao_radio_revert_to_prev_config, then auto-clears. Telemetry encoder
+/// reads this to set the kCfgFlagJustChanged bit on the first nav-with-
+/// config packet after a transition, giving the station explicit UX
+/// confirmation "yes, THIS packet is from the intentional change".
+bool AO_Radio_consume_just_changed();
+
 #endif // ROCKETCHIP_AO_RADIO_H

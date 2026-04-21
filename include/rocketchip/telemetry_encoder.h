@@ -28,6 +28,11 @@
 
 namespace rc {
 
+// Forward-declared — full def in radio_config.h, which includes this header.
+// Keeping the include one-way prevents circular include.
+struct RadioConfig;
+
+
 // ============================================================================
 // Encoder Type Selection
 // ============================================================================
@@ -44,9 +49,14 @@ enum class EncoderType : uint8_t {
 namespace ccsds {
 
 // Application Process Identifiers
-constexpr uint16_t kApidNav  = 0x001;    // Navigation telemetry
+constexpr uint16_t kApidNav  = 0x001;    // Navigation telemetry (legacy, 42 B payload)
 constexpr uint16_t kApidDiag = 0x002;    // Diagnostics (defined, not yet used)
 constexpr uint16_t kApidCmdAck = 0x003;  // Command ACK (IVP-122: half-duplex ACK)
+// Stage T IVP-T5.5 sub 2f: nav-with-config-echo. 46 B payload = 42 B nav +
+// 4 B config tail. APID chosen distinct from kApidNav so old stations that
+// know only 0x001 drop the packet cleanly instead of misparsing. On new
+// firmware we always emit 0x101; decoder falls back to 0x001 path if seen.
+constexpr uint16_t kApidNavWithConfig = 0x004;
 
 // Command ACK result codes (IVP-122)
 enum class CmdAckResult : uint8_t {
@@ -57,14 +67,29 @@ enum class CmdAckResult : uint8_t {
 
 // Command ACK payload (IVP-122) — sent from vehicle to station over LoRa
 // after dispatching a received command (ARM, DISARM, ABORT).
+//
+// Stage T IVP-T5.5 sub 2e: extended from 5 to 10 bytes. The 5-byte config_echo
+// tail is populated only for QUERY_RADIO_CONFIG (MAV_CMD_USER_3) responses;
+// zeroed for all other commands. Station decodes on cmd_id. CCSDS packet-
+// length field makes the longer frame self-describing so it's backwards-
+// compatible at the decoder level (old stations would just ignore extra
+// bytes — but both sides always upgrade together in this project).
 struct __attribute__((packed)) CommandAckPayload {
     uint8_t  cmd_seq;      // Sequence number echoed from COMMAND_LONG confirmation field
     uint16_t cmd_id;       // MAVLink command ID (e.g., MAV_CMD_COMPONENT_ARM_DISARM = 400)
     uint8_t  result;       // CmdAckResult
     uint8_t  reserved;     // Pad to even size
-};  // 5 bytes
+    // Sub 2e: config echo (QUERY responses only; zero for others)
+    uint16_t cfg_bw_khz;       // 125 / 250 / 500
+    uint8_t  cfg_nav_hz;       // 2 / 5 / 10
+    uint8_t  cfg_sf;           // 7 (only supported)
+    uint8_t  cfg_cr;           // 5 (only supported — CR 4/5)
+    // power_dbm (2-20) deliberately NOT echoed — not a collision/timing-
+    // relevant parameter for the station dashboard. Saves 1 byte.
+};  // 10 bytes
 
 constexpr uint8_t kCmdAckPayloadLen = sizeof(CommandAckPayload);
+static_assert(kCmdAckPayloadLen == 10, "CommandAckPayload layout changed");
 
 // Packet sizes
 constexpr uint8_t kPrimaryHeaderLen   = 6;
@@ -76,10 +101,33 @@ constexpr uint8_t kNavPacketLen       = kPrimaryHeaderLen + kSecondaryHeaderLen
 
 static_assert(kNavPacketLen == 54, "CCSDS nav packet must be 54 bytes");
 
-// ACK packet: primary(6) + secondary(4) + payload(5) + CRC(2) = 17
+// Stage T IVP-T5.5 sub 2f — nav-with-config-echo layout.
+// Config tail is 4 bytes appended after the 42-byte nav payload:
+//   byte 0-1: bw_khz (uint16 big-endian, 125/250/500)
+//   byte 2:   sf_nav_packed — SF in upper nibble, nav_rate_hz in lower
+//             [7:4] sf (7,8,9,10,11,12)  [3:0] nav_hz (2,5,10)
+//   byte 3:   cr_flags_packed — CR in upper nibble, flags in lower
+//             [7:4] cr (5,6,7,8)  [3] config_just_changed  [2:0] reserved
+// power_dbm deliberately NOT echoed — saves a byte; not collision/timing-
+// relevant for station dashboard use (matches CommandAckPayload choice).
+constexpr uint8_t kNavConfigTailLen       = 4;
+constexpr uint8_t kNavWithConfigPayloadLen = kNavPayloadLen + kNavConfigTailLen;  // 46
+constexpr uint8_t kNavWithConfigPacketLen = kPrimaryHeaderLen + kSecondaryHeaderLen
+                                          + kNavWithConfigPayloadLen + kCrcLen;   // 58
+static_assert(kNavWithConfigPacketLen == 58, "CCSDS nav+config packet must be 58 bytes");
+
+// Tail byte offsets relative to start of config tail (not full packet).
+constexpr uint8_t kCfgTailBwHi        = 0;
+constexpr uint8_t kCfgTailBwLo        = 1;
+constexpr uint8_t kCfgTailSfNav       = 2;
+constexpr uint8_t kCfgTailCrFlags     = 3;
+constexpr uint8_t kCfgFlagJustChanged = 0x08;  // bit 3 of cr_flags_packed
+
+// ACK packet: primary(6) + secondary(4) + payload(10) + CRC(2) = 22
+// (T5.5 sub 2e bumped payload from 5 to 10 bytes for config-echo on QUERY.)
 constexpr uint8_t kCmdAckPacketLen = kPrimaryHeaderLen + kSecondaryHeaderLen
                                    + kCmdAckPayloadLen + kCrcLen;
-static_assert(kCmdAckPacketLen == 17, "CCSDS cmd ACK packet must be 17 bytes");
+static_assert(kCmdAckPacketLen == 22, "CCSDS cmd ACK packet must be 22 bytes");
 
 // Primary header bit layout (big-endian, 48 bits = 6 bytes):
 //   [2:0]  Version          = 000
@@ -112,18 +160,28 @@ struct CcsdsEncoder {
     void init();
 
     /**
-     * @brief Encode a navigation telemetry packet
-     * @param telem  Wire-format telemetry state
-     * @param met_ms Mission elapsed time (goes in secondary header)
-     * @param result Output buffer and length
+     * @brief Encode a legacy (42-byte payload) nav packet — APID kApidNav.
+     * Kept for host-test backward-compat; flight TX path uses encode_nav_with_config.
      */
     void encode_nav(const TelemetryState& telem, uint32_t met_ms,
                     EncodeResult& result);
 
     /**
-     * @return Maximum packet size for this encoder
+     * @brief Encode a nav-with-config-echo packet (T5.5 sub 2f) — APID 0x004.
+     * Payload = 42 B nav + 4 B config tail (bw, sf+nav, cr+flags).
+     * @param cfg         Current RadioConfig (runtime_config from AO_Radio)
+     * @param just_changed  True only for the FIRST nav packet after config apply/revert
      */
-    static constexpr uint8_t max_packet_size() { return ccsds::kNavPacketLen; }
+    void encode_nav_with_config(const TelemetryState& telem, uint32_t met_ms,
+                                 const RadioConfig& cfg, bool just_changed,
+                                 EncodeResult& result);
+
+    /**
+     * @return Maximum packet size this encoder ever produces
+     */
+    static constexpr uint8_t max_packet_size() {
+        return ccsds::kNavWithConfigPacketLen;
+    }
 };
 
 // ============================================================================
@@ -209,13 +267,27 @@ struct TelemetryEncoderState {
 // CCSDS Decoder (RX mode)
 // ============================================================================
 
+// Stage T IVP-T5.5 sub 2f: config tail decoded from nav-with-config packets.
+// bw_khz=0 indicates "no config tail present" (packet was legacy APID 0x001).
+struct NavConfigEcho {
+    uint16_t bw_khz;       // 125 / 250 / 500, or 0 if packet was legacy
+    uint8_t  nav_hz;       // 2 / 5 / 10
+    uint8_t  sf;           // 7..12
+    uint8_t  cr;           // 5..8
+    bool     just_changed; // "config just changed" flag from first nav after apply
+};
+
 /**
  * @brief Decode a CCSDS nav packet into TelemetryState
  *
- * Reverse of CcsdsEncoder::encode_nav(). Validates:
- *   - Packet length (must be exactly 54 bytes)
+ * Reverse of CcsdsEncoder::encode_nav(). Handles BOTH:
+ *   - Legacy APID kApidNav (54 B, payload=42 B) — cfg.bw_khz will be 0
+ *   - APID kApidNavWithConfig (58 B, payload=46 B) — cfg populated from tail
+ *
+ * Validates:
+ *   - Packet length matches APID
  *   - Version (000), Type (0), SecHdrFlag (1)
- *   - APID (kApidNav)
+ *   - APID (kApidNav or kApidNavWithConfig)
  *   - CRC-16-CCITT over primary + secondary + payload
  *
  * @param buf       Raw packet bytes
@@ -223,11 +295,20 @@ struct TelemetryEncoderState {
  * @param telem     Output: decoded TelemetryState (met_ms and _reserved zeroed)
  * @param seq_out   Output: 14-bit sequence counter from header
  * @param met_ms_out Output: MET from secondary header
+ * @param cfg_out   Output: config echo (bw_khz=0 if legacy packet)
  * @return true if packet is valid and decoded, false on any error
  */
 bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
                       TelemetryState& telem, uint16_t& seq_out,
-                      uint32_t& met_ms_out);
+                      uint32_t& met_ms_out, NavConfigEcho& cfg_out);
+
+// Backward-compat overload for callers that don't care about config echo.
+inline bool ccsds_decode_nav(const uint8_t* buf, uint8_t len,
+                              TelemetryState& telem, uint16_t& seq_out,
+                              uint32_t& met_ms_out) {
+    NavConfigEcho unused{};
+    return ccsds_decode_nav(buf, len, telem, seq_out, met_ms_out, unused);
+}
 
 /**
  * Encode a CCSDS command ACK packet (IVP-122).
