@@ -14,6 +14,7 @@
 //============================================================================
 
 #include "ao_radio.h"
+#include "ao_telemetry.h"         // AO_Telemetry_set_rate / _set_ack_retry_timeout_ms (Batch B prelim)
 #include "ao_flight_director.h"  // AO_FlightDirector_is_ground_state (T5.5)
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/config.h"  // rocketchip::pins::kRadioCs/Rst/Irq
@@ -138,10 +139,26 @@ static void stage_t_log_rx(rc::RadioPhase state_at_rx, int rssi, int snr,
            static_cast<unsigned>(len), static_cast<unsigned>(seq),
            static_cast<unsigned long>(stage_t_now_us()));
 }
+// T14 pre-Batch-B: TX-start + TxDone instrumentation for ACK-path timing.
+// Plan consensus #2: measure RxDone-to-TX-start jitter + ACK drain.
+static void stage_t_log_tx_start(uint8_t len) {
+    printf("[STAGE_T] tx_start len=%u t=%lu\n",
+           static_cast<unsigned>(len),
+           static_cast<unsigned long>(stage_t_now_us()));
+}
+static void stage_t_log_tx_done(TxPollResult result) {
+    const char* r = (result == TxPollResult::kDone) ? "done"
+                  : (result == TxPollResult::kTimeout) ? "timeout"
+                  : "busy";
+    printf("[STAGE_T] tx_poll result=%s t=%lu\n",
+           r, static_cast<unsigned long>(stage_t_now_us()));
+}
 #else
 static inline void stage_t_log_state(rc::RadioPhase, rc::RadioPhase) {}
 static inline void stage_t_log_rx(rc::RadioPhase, int, int, bool,
                                   uint8_t, uint16_t) {}
+static inline void stage_t_log_tx_start(uint8_t) {}
+static inline void stage_t_log_tx_done(TxPollResult) {}
 #endif
 
 static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* txEvt) {
@@ -159,6 +176,7 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* txEvt) {
 
     if (rfm95w_send_start(&s.radio, txEvt->buf, txEvt->len)) {
         s.scheduler.on_tx_start(now_ms());
+        stage_t_log_tx_start(txEvt->len);
     }
 }
 
@@ -166,6 +184,10 @@ static void handle_tx_poll(RadioAo* me) {
     RadioAoState& s = me->state;
 
     TxPollResult result = rfm95w_send_poll(&s.radio);
+
+    if (result != TxPollResult::kBusy) {
+        stage_t_log_tx_done(result);
+    }
 
     if (result == TxPollResult::kDone) {
         s.tx_consec_fail = 0;
@@ -235,7 +257,37 @@ static void ao_radio_apply_runtime_config(RadioAoState& s) {
     // Scheduler rate follows nav_rate_hz; caller owns RX-mode transition.
     if (rc.nav_rate_hz != 0) {
         s.scheduler.set_rate(rc.nav_rate_hz);
+        // Stage T Batch B prelim: actually wire nav_rate_hz into the vehicle TX
+        // cadence. AO_Telemetry owns the rate-limit check (interval_ms) that
+        // gates encode_and_send(); without this call, SET_RADIO_CONFIG only
+        // updated the RadioConfig struct + dashboard string, not the on-wire
+        // cadence. Bug predates Stage T and made every prior test's nav_rate_hz
+        // cosmetic — discovered 2026-04-21 during IVP-T14 instrumentation when
+        // station inter-arrival PDF showed 5 Hz at "BW500 10Hz" config.
+        AO_Telemetry_set_rate(rc.nav_rate_hz);
     }
+
+    // Stage T Batch B prelim: airtime-scaled TX timeout. Replaces hardcoded
+    // 150 ms kTxTimeoutUs (over-generous for BW500, too tight if SF ever
+    // rises). Use worst-case payload (128 B max per rfm95w::kMaxPayload)
+    // * 2 safety factor. At SF7/BW500/128B: ~70ms * 2 = 140ms; at
+    // SF7/BW125/128B: ~270ms * 2 = 540ms.
+    uint32_t airtime_worst_us = rfm95w_airtime_us(rc.spreading_factor,
+                                                   rc.bandwidth_khz,
+                                                   rfm95w::kMaxPayload);
+    rfm95w_set_tx_timeout_us(&s.radio, airtime_worst_us * 2U);
+    // Also inform AO_Telemetry so its ACK-retry timeout scales with airtime.
+    // ACK-retry should be ≥ 2× round-trip worst case. With current 22 B ACK
+    // the round trip is ~(tx airtime) + (RX decode) + (tx airtime) + margin.
+    // Use 4× single-airtime + 50 ms guard as a coarse scaling, with a
+    // 200 ms floor (for short airtimes) and 1000 ms ceiling (for SF12 edge).
+    uint32_t single_airtime_us = rfm95w_airtime_us(rc.spreading_factor,
+                                                    rc.bandwidth_khz,
+                                                    rfm95w::kMaxPayload);
+    uint32_t ack_retry_ms = (single_airtime_us * 4U) / 1000U + 50U;
+    if (ack_retry_ms < 200U)  { ack_retry_ms = 200U; }
+    if (ack_retry_ms > 1000U) { ack_retry_ms = 1000U; }
+    AO_Telemetry_set_ack_retry_timeout_ms(ack_retry_ms);
     // Power LAST — per correctness council edit #3 item 3.
     rfm95w_set_tx_power(&s.radio, rc.power_dbm);
 }

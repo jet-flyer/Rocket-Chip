@@ -62,11 +62,16 @@ enum class GcsState : uint8_t {
 
 static constexpr uint32_t kGcsTimeoutMs = 5000;  // 5s without GCS heartbeat → lost
 
-// Stage T IVP-T7 — tracked-command retry timeout. Was 3000 ms pre-T6. With
-// BW500 now operational (T6 measured 100% first-try), retries rarely fire,
-// but when they do we want tight recovery: target mean successful-command
-// latency < 2 s. 500 ms × up-to-3 retries = 2 s worst case, inside budget.
-static constexpr uint32_t kAckRetryTimeoutMs = 500U;
+// Stage T Batch B prelim — airtime-scaled tracked-command retry timeout.
+// History:
+//   Pre-T6: hardcoded 3000 ms (chosen for SF7/BW125 + conservative).
+//   IVP-T7: dropped to 500 ms flat (pinned for BW500 collision regime).
+//   Batch B prelim: mutable — AO_Radio pushes a value derived from current
+//   {SF, BW, max payload} airtime on every SET_RADIO_CONFIG apply. Keeps the
+//   retry timeout sensible whether user selects BW500/SF7 (~200ms floor) or
+//   BW125/SF12 long-range preset (~1000ms ceiling).
+// Seeded to 500 ms until first apply runs.
+static uint32_t s_ack_retry_timeout_ms = 500U;
 
 struct TelemAo {
     QActive super;
@@ -232,7 +237,12 @@ static uint8_t dispatch_set_radio_config(const mavlink_command_long_t& cmd) {
     if (!AO_FlightDirector_is_ground_state()) {
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
-    if (!rc::radio_config_in_whitelist(new_bw, new_nav, new_sf, new_cr, new_pwr)) {
+    // Stage T Batch B prelim (2026-04-21): broader validation.
+    // Previously only accepted presets from kRadioConfigTable. User flagged
+    // that presets are just convenient defaults for the debug-menu digit
+    // keys — the advanced-settings path should accept anything legal on
+    // SX1276 hardware. See radio_config_table.h for both validators.
+    if (!rc::radio_config_sx1276_legal(new_bw, new_nav, new_sf, new_cr, new_pwr)) {
         return static_cast<uint8_t>(rc::ccsds::CmdAckResult::kDenied);
     }
     const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
@@ -682,14 +692,34 @@ uint8_t AO_Telemetry_cycle_rate() {
     for (uint8_t i = 0; i < 3; i++) {
         if (kRates[i] == l_telemAo.rate_hz) {
             uint8_t next = kRates[(i + 1) % 3];
-            l_telemAo.rate_hz = next;
-            l_telemAo.interval_ms = 1000 / next;
+            AO_Telemetry_set_rate(next);
             return next;
         }
     }
-    l_telemAo.rate_hz = 5;
-    l_telemAo.interval_ms = 200;
+    AO_Telemetry_set_rate(5);
     return 5;
+}
+
+// Stage T Batch B prelim fix: wire nav_rate_hz into TX interval.
+// Called from AO_Radio::apply_runtime_config() so SET_RADIO_CONFIG actually
+// changes vehicle TX cadence. The radio_config_table whitelist is the policy
+// gate for which rates are acceptable; this setter just computes the interval
+// from whatever value arrived, with a guard against divide-by-zero and a
+// sanity ceiling.
+void AO_Telemetry_set_rate(uint8_t rate_hz) {
+    if (rate_hz == 0) { rate_hz = 5; }
+    if (rate_hz > 50) { rate_hz = 50; }  // sanity: 50 Hz ~ 20ms period
+    l_telemAo.rate_hz = rate_hz;
+    l_telemAo.interval_ms = 1000U / rate_hz;
+}
+
+// Stage T Batch B prelim fix: airtime-scaled ACK-retry timeout.
+// Called from AO_Radio::apply_runtime_config() with a value derived from
+// current {SF, BW, max payload} airtime. Seeds at 500 ms until first apply.
+void AO_Telemetry_set_ack_retry_timeout_ms(uint32_t timeout_ms) {
+    if (timeout_ms < 100U)  { timeout_ms = 100U; }
+    if (timeout_ms > 5000U) { timeout_ms = 5000U; }
+    s_ack_retry_timeout_ms = timeout_ms;
 }
 
 const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
@@ -810,7 +840,7 @@ void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
     if (!s_pending_cmd.pending) return;
 
     uint32_t elapsed = now_ms - s_pending_cmd.sent_ms;
-    if (elapsed >= kAckRetryTimeoutMs) {
+    if (elapsed >= s_ack_retry_timeout_ms) {
         if (s_pending_cmd.retries_left > 0) {
             s_pending_cmd.retries_left--;
             printf("[CMD] Retry %u (seq=%u)\n",

@@ -135,6 +135,9 @@ struct rfm95w_t {
     int16_t  last_rssi;      // RSSI of last received packet (dBm)
     int8_t   last_snr;       // SNR of last received packet (dB)
     uint64_t tx_start_us;    // Timestamp of send_start() for timeout
+    uint32_t tx_timeout_us;  // Abort threshold for TX polling. Scales with
+                             // SF/BW/payload via rfm95w_set_tx_timeout_us().
+                             // Default kTxTimeoutUs until configured.
 };
 
 // ============================================================================
@@ -335,6 +338,36 @@ void rfm95w_set_spreading_factor(rfm95w_t* dev, uint8_t sf);
  * @param cr  Coding rate denominator: 5-8 (meaning CR 4/5 through 4/8)
  */
 void rfm95w_set_coding_rate(rfm95w_t* dev, uint8_t cr);
+
+/**
+ * @brief Set the TX polling abort threshold.
+ *
+ * Stage T Batch B prelim: airtime-scaled TX timeout. Previously hardcoded
+ * to 150 ms (safe for SF7/BW125 worst case, over-generous for BW500,
+ * under-generous for higher SF). Now the caller computes a sensible timeout
+ * from the current radio config's airtime formula and installs it here.
+ *
+ * Rule of thumb: set to ~2× max expected packet airtime at the current
+ * {SF, BW, CR, max payload}. Leaves room for preamble + PLL lock margin.
+ *
+ * @param dev Initialized device handle
+ * @param timeout_us Abort threshold in microseconds
+ */
+void rfm95w_set_tx_timeout_us(rfm95w_t* dev, uint32_t timeout_us);
+
+/**
+ * @brief Compute LoRa packet airtime for a given {SF, BW, payload} config.
+ *
+ * Implements SX1276 datasheet §4.1.1.6 formula: T_preamble + T_payload.
+ * Returns microseconds. Used by callers to set TX timeout and ACK-window
+ * budgets. Assumes explicit header, CRC on, 8-symbol preamble, CR 4/5.
+ *
+ * @param sf Spreading factor 7-12
+ * @param bw_khz Bandwidth in kHz (125, 250, 500 — others fall through to 125)
+ * @param payload_bytes Payload length
+ * @return Airtime in microseconds
+ */
+uint32_t rfm95w_airtime_us(uint8_t sf, uint16_t bw_khz, uint8_t payload_bytes);
 
 /**
  * @brief Set radio to RX continuous mode

@@ -20,6 +20,28 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-21-003 | Claude Opus 4.7 | bugfix, firmware, radio, testing
+
+**Stage T Batch B prelim — runtime radio config actually adapts now. Three hardcoded-to-default values fixed.**
+
+Discovered during T14 pre-Batch-B RX-window instrumentation: **vehicle at "BW500 10Hz" config was actually TXing at 5 Hz.** Dashboard reported 10 Hz on both halves; station inter-arrival PDF showed 5 Hz (4.44 Hz observed, 1 seq per RX, 0 drops). Root cause: `AO_Telemetry::interval_ms` was hardcoded to 200 ms in `TelemAo_initial` and only updated by the CLI `r` (cycle-rate) key — SET_RADIO_CONFIG's apply path updated the `RadioConfig` struct and the dashboard string but never touched the TX cadence gate. Bug predates Stage T; made every previous test's `nav_rate_hz` change cosmetic. Pre-fix T12 C2 "BW500/10Hz" data was BW500 but ~5 Hz.
+
+User direction 2026-04-21: "since the configurable radio settings during runtime were fairly new we need to be sure the things that were previously hard coded under assumptions actually adapt to the settings naturally." Audit found 3 offenders; all fixed:
+
+1. **`AO_Telemetry::interval_ms` now scales with `nav_rate_hz`.** New `AO_Telemetry_set_rate()` setter called from `ao_radio_apply_runtime_config()`. Verified on bench: vehicle at idx 3 (BW500/10Hz) TXes at 9.80 Hz; at idx 4 (BW125/2Hz) TXes at 2.10 Hz. Pre-fix was 5.00 Hz regardless.
+
+2. **`rfm95w::kTxTimeoutUs` (150 ms hardcoded) now airtime-scaled.** New `rfm95w_airtime_us()` implements SX1276 datasheet §4.1.1.6 (T_preamble + T_payload). `rfm95w_set_tx_timeout_us()` sets a per-device threshold = `2 × max-payload airtime`. `ao_radio_apply_runtime_config()` pushes the value whenever config changes. SF7/BW500 worst case ≈140 ms timeout; SF12/BW125 worst case scales appropriately.
+
+3. **`kAckRetryTimeoutMs` (500 ms hardcoded by IVP-T7) now airtime-scaled.** Replaced static constexpr with mutable `s_ack_retry_timeout_ms`. `AO_Telemetry_set_ack_retry_timeout_ms()` setter called from the same apply path; formula is `4 × airtime + 50 ms`, clamped to [200, 1000]. Suits both fast configs (BW500/SF7 ≈ 330 ms) and long-range presets (BW125/SF12 hits the 1 s ceiling).
+
+**Validation boundary also broadened** per user: "the preconfigured data rates are just presets... the user should really be able to change it to anything the radio can do." `radio_config_table.h` now exports two validators:
+- `radio_config_in_whitelist()`: preset-membership check (unchanged). Still used for digit-key debug menu + channel-find scanner + boot seed.
+- `radio_config_sx1276_legal()` (new): broader hardware-legal check for advanced-settings path. `dispatch_set_radio_config` and the flash-storage `validate_entry` now use this.
+
+**Gotcha flagged throughout**: all α-filter / window-width / jitter numbers measured on this prelim are **static bench at room temperature**. Real-rocket thermal swing, vibration, Doppler, antenna motion will shift them. Every numeric value captured here must be re-validated against field data. Explicit marker in design doc; will carry through Round 2 council + Batch B.
+
+Files: `rfm95w.h/cpp` (tx_timeout_us field + `rfm95w_set_tx_timeout_us()` + `rfm95w_airtime_us()`), `ao_telemetry.h/cpp` (set_rate + set_ack_retry_timeout_ms), `ao_radio.cpp` (calls both setters in apply path; T14 instrumentation: `stage_t_log_tx_start/tx_done`), `radio_config_table.h` (sx1276_legal validator), `radio_config_storage.cpp` (broader validator on flash read). 4-tier + 2-tier-instrumented builds clean. Host tests 757/759 (same pre-existing). Bug captures: `logs/stage_t/t14_rxwindow_C0.log`, `t14_rxwindow_C2.log` — C2 shows the 5 Hz bug pre-fix.
+
 ### 2026-04-21-002 | Claude Opus 4.7 | docs, council
 
 **Stage T Batch B prelim — `docs/decisions/AO_COMMANDMENTS.md` + retroactive scan of existing AOs.**

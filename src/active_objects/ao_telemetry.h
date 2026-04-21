@@ -27,6 +27,20 @@ bool AO_Telemetry_get_mavlink_output();
 void AO_Telemetry_toggle_mavlink();
 uint8_t AO_Telemetry_cycle_rate();
 
+/// Stage T Batch B prelim fix: wire nav_rate_hz → TX interval.
+/// Called from ao_radio_apply_runtime_config() so a SET_RADIO_CONFIG apply
+/// actually changes the vehicle's TX cadence (previously only the dashboard
+/// string changed; TX cadence was stuck at the manual `r`-cycled rate or the
+/// 5 Hz default). Only affects vehicle role — station has no TX cadence.
+void AO_Telemetry_set_rate(uint8_t rate_hz);
+
+/// Stage T Batch B prelim fix: airtime-scaled tracked-command retry timeout.
+/// Previously hardcoded `kAckRetryTimeoutMs = 500U` (IVP-T7 pinned for
+/// SF7/BW125 collision regime). Now AO_Radio computes it from current
+/// {SF, BW, max payload} airtime and pushes it here. Only station-side
+/// (tracked commands originate on station).
+void AO_Telemetry_set_ack_retry_timeout_ms(uint32_t timeout_ms);
+
 // Station RX telemetry access (IVP-99: station CLI display)
 struct RxTelemSnapshot {
     rc::TelemetryState telem;
