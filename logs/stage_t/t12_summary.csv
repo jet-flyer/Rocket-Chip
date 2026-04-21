@@ -1,11 +1,26 @@
-config,bw_khz,nav_hz,sent,first_try_ack,eventual_ack,denied,no_ack,first_try_pct,eventual_pct,varies_from_prev
-C0,125,5,30,4,11,0,19,13.33,36.67,baseline
-C0P,125,10,30,5,9,0,21,16.67,30.00,nav_rate_only
-C1,250,10,30,16,29,0,1,53.33,96.67,bw_only
-C2,500,10,30,25,29,0,1,83.33,96.67,bw_only
+config,bw_khz,nav_hz_configured,nav_hz_actual,sent,first_try_ack,eventual_ack,denied,no_ack,first_try_pct,eventual_pct,varies_from_prev
+C0,125,5,5,30,4,11,0,19,13.33,36.67,baseline
+C0P,125,10,5,30,5,9,0,21,16.67,30.00,config_nav_rate_only (no actual change)
+C1,250,10,5,30,16,29,0,1,53.33,96.67,bw_only
+C2,500,10,5,30,25,29,0,1,83.33,96.67,bw_only
 # IVP-T12 manual runbook execution 2026-04-21.
 # Vehicle + station both on bench-1591794 (T11 firmware).
-# Vehicle boot audit: IQ=0x27(OK) CFG2=0x74 CRC=on LNA=0x23(OK) CFG3=0x04(OK)
+#
+# **IMPORTANT — ALL ROWS MEASURED AT ~5 HZ ACTUAL TX CADENCE**
+# Post-hoc discovery (2026-04-21, during Batch B prelim T14 instrumentation):
+# AO_Telemetry::interval_ms was hardcoded to 200 ms in TelemAo_initial and
+# SET_RADIO_CONFIG's apply path never updated it. Every row in this table
+# that claims nav_hz=10 was actually running at ~5 Hz TX cadence. The
+# `nav_hz_actual` column has been added to reflect this.
+#
+# Consequence: C0P (BW125/"10Hz") was a no-variable-change from C0 (BW125/5)
+# at the actual-cadence level. The +3.4 pp first-try delta attributed to
+# "nav rate only" is noise, not signal. C1 and C2 are valid BW-only
+# comparisons at constant 5 Hz TX.
+#
+# Fix landed in commit 35f9591. Re-run of this battery at true nav_hz=10
+# will land alongside Batch B implementation; this CSV preserved as
+# historical data with the bug caveat.
 #
 # Methodology: docs/plans/STAGE_T_IVP_T12_RUNBOOK.md
 #   - Station must transition kAnsi -> kMenu (send 'x') before 'q<idx>z' debug keys.
@@ -13,35 +28,34 @@ C2,500,10,30,25,29,0,1,83.33,96.67,bw_only
 #   - ACK stress via scripts/ack_stress_test.py (30 DISARM, 10s interval).
 #   - Transcripts: logs/ack_stress_20260421_{145521,152059,150239,150916}.log
 #
-# Experimental design (single-variable changes between rows):
-#   C0  -> C0P : nav_rate 5 -> 10 Hz only
+# Experimental design (single-variable changes between rows AS INTENDED,
+# not as actually measured — see bug caveat above):
+#   C0  -> C0P : nav_rate 5 -> 10 Hz only  (ACTUAL: no change)
 #   C0P -> C1  : BW 125 -> 250 kHz only
 #   C1  -> C2  : BW 250 -> 500 kHz only
 #
-# Clean attributions:
-#   Nav rate 5->10 Hz at BW125: first-try +3.3 pp (13.3 -> 16.7%).
-#     Modest improvement. Eventual rate drops (36.7 -> 30%) — possibly
-#     higher nav rate compresses retry timer windows or amplifies collisions.
-#   BW 125->250 at 10 Hz: first-try +36.6 pp (16.7 -> 53.3%).
-#     Huge. Halving airtime breaks the collision regime (T1 diagnosis confirmed).
-#   BW 250->500 at 10 Hz: first-try +30.0 pp (53.3 -> 83.3%).
-#     Another big gain. Asymptoting toward the 95% Batch A gate.
+# Attributions (revised with actual-cadence interpretation):
+#   C0 vs C0P: both were 5 Hz. 13.3% vs 16.7% first-try is session variance
+#              within-config noise, NOT a nav-rate signal.
+#   BW 125->250 at 5 Hz actual: first-try +36.6 pp (16.7 -> 53.3%).
+#     Halving airtime still breaks the collision regime at 5 Hz — T1
+#     diagnosis confirmed. The 5 Hz-vs-10 Hz distinction is moot here.
+#   BW 250->500 at 5 Hz actual: first-try +30.0 pp (53.3 -> 83.3%).
+#     Another big gain. Still asymptoting toward 95%.
 #
-# Cross-session comparison (T6 session results):
-#   T6 C1 (BW250/10Hz) first-try: 97%   [this T12: 53.3%]
-#   T6 C2 (BW500/10Hz) first-try: 100%  [this T12: 83.3%]
-#   Session-to-session variance is substantial. Likely candidates: RF
-#   environment, operator proximity, retry-timer interaction (T7 change
-#   was 3000->500 ms — possibly over-aggressive for BW250 where airtime
-#   is still ~70 ms so retries spam the RX window).
+# Cross-session comparison (T6 session results — ALSO at 5 Hz actual):
+#   T6 C1 (claimed BW250/10Hz, actual 5 Hz) first-try: 97%   [this T12: 53.3%]
+#   T6 C2 (claimed BW500/10Hz, actual 5 Hz) first-try: 100%  [this T12: 83.3%]
+#   Cross-session variance is substantial even with cadence bug explained.
+#   Likely remaining candidate: RF environment drift, retry-timer
+#   interaction (T7 change was 3000->500 ms, now airtime-scaled post-fix).
 #
 # Batch A gate (C2 >= 95% first-try): NOT MET (83.3%).
-# Link brittleness from T7 session is NOT recurring: all 4 configs
-# successfully formed a link. IVP-T11 register adds are architecturally
-# correct and in tree. The gap to 95% is not a driver issue — it's
-# the TX-window sync issue that Batch B (IVP-T14 RxDone-anchored TX)
-# is designed to fix.
+# The 83% vs 95% gap is not a driver-hygiene issue and not a cadence-bug
+# issue — it's the TX-window sync problem Batch B (IVP-T14 RxDone-anchored
+# TX) is designed to fix.
 #
 # T1 baseline (pre-T11, SF7/BW125/5Hz CCSDS): 6.1% first-try, 34.2% eventual.
-#   C0 in this T12: 13.3% first-try / 36.7% eventual. Possibly T11 LnaBoostHf
-#   effect, possibly session variance, possibly both. Not conclusive.
+#   C0 in this T12: 13.3% first-try / 36.7% eventual. Possibly T11
+#   LnaBoostHf effect (+3 dB sensitivity), possibly session variance,
+#   possibly both. Not conclusive.
