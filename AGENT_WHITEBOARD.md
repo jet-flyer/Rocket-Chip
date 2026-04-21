@@ -17,19 +17,6 @@
 
 *(cleared — `tools/i2c_bare_test/` committed 2026-04-18 as `485260b`; landing-beacon design became Stage L.)*
 
-### AO Commandments retroactive scan (2026-04-21, Stage T Batch B prelim)
-
-Scan applied to `src/active_objects/*.cpp` per the procedure in `docs/decisions/AO_COMMANDMENTS.md`. Findings:
-
-- **Commandment IV (no blocking in handler) — documented existing deviations, not escalations:**
-  - `src/active_objects/ao_rcos.cpp:1260` — `calibration_save()` → `flash_safe_execute()` ~200 ms inside AO handler. Already has in-code rationale ("320ms headroom is tight but sufficient"). Interactive user-initiated flow, not hot path. Stays on whiteboard.
-  - `src/active_objects/ao_rcos.cpp:891` — `cli_do_erase_flights()` → `flash_safe_execute()` from cal_ui confirm handler. Same category — interactive, confirmed by user typing "yes". Stays on whiteboard.
-  - `src/active_objects/ao_radio.cpp:602` — `tick_persist_debounce()` guarded by `ROCKETCHIP_RADIO_PERSIST`, currently undef. When defined, blocking ~100 ms. Already has in-code rationale. Stays on whiteboard.
-- **Commandment VI (use-after-free on posted event) — clean.** Every `QACTIVE_POST` in `src/active_objects/` uses `static` events at file or function scope. LL Entry 35 discipline is universally applied.
-- **No LL Entry 32/35-class escalations** — Batch B is not blocked by any pre-existing violation. Commandment IV deviations are operationally acceptable and documented.
-
-Whiteboard future item (low priority, post-Stage-T): promote `docs/decisions/AO_COMMANDMENTS.md` from advisory to normative if the project grows to 10+ AOs or if a Commandment violation is traced to a bug. File would move to `standards/ACTIVE_OBJECT_RULES.md`.
-
 ## Easy (1–3 hours, clear scope)
 
 *(cleared — the IVP-132a.4c red-flash was called a transient 2026-04-18 after a 31-min idle soak showed zero recurrence: 1.86M IMU reads, 0 errors, 0 baro errors, Core 1 healthy, MCU temp 35.6°C stable. Purple at 5+ min is `kSensorNeoTimeout` as designed.)*
@@ -44,6 +31,7 @@ Scope is clear but touches multiple files, needs verification, or has small desi
 - **`standards/HW_GATE_DISCIPLINE.md` + checklist amendment.** User ask 2026-04-17. Gate definitions must name a positive-control signal (e.g., "DAC 0x18 ACKs" proves bus health separately from device-under-test), a 3-boot reseat protocol, and require commit messages to cite the observed control signal — not just "build clean + MSP stable". Motivated by IVP-140 false-positive + Fruit Jam GPS cable episode. Related: LL Entry 25, 36.
 - **Station SPIN model extensions.** Scaffolding landed (IVP-147: P_TERMINATION + P_NO_DOUBLE_CLEAR, both PASS). Extend when corresponding firmware behavior lands: multi-pending-in-flight, RadioScheduler TX-window arbitration (needed for the sync-gap fix), MAVLink parser state, `station_idle_tick` GPS poll interleave.
 - **Station role / board decoupling.** "Station mode" (`ROCKETCHIP_JOB_STATION=1`) is still entangled with Fruit Jam specifics: `PICO_BOARD` hardcoded via environment in `build_station/`, "Fruit Jam" in print strings, HSTX/DVI output assumptions, Fruit-Jam-only pin allocations not gated. Grep `"Fruit Jam\|fruitjam"` in `src/`, gate with `#ifdef PICO_BOARD_*` or move to `board_*.h`. Tiny 2350 port will exercise this.
+- **Full AO audit against `docs/decisions/AO_COMMANDMENTS.md`.** Prelim for Stage T Batch B did only a spot-check sufficient to confirm no LL Entry 32/35-class violations block Batch B (findings: 3 documented blocking-in-handler deviations in `ao_rcos.cpp` / `ao_radio.cpp` with in-code rationale; all `QACTIVE_POST` use static events). A thorough audit across all 7 AOs — Commandments I-XII each checked, violations ranked by severity, remediation plan per violation, decision per violation whether to fix or document-as-deviation — hasn't been done. Should happen post-Stage-T, before any new AO is added (e.g., future dual-mode / Batch B+ additions). Promotion of `AO_COMMANDMENTS.md` to `standards/ACTIVE_OBJECT_RULES.md` (JSF-AV-grade normative) is a possible outcome.
 
 ## Large (multi-session, architectural)
 

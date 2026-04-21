@@ -106,21 +106,6 @@ If fewer than three hold, it's a module.
 
 ---
 
-## Retroactive scan (2026-04-21)
-
-Applied to existing 7 AOs: `AO_FlightDirector`, `AO_Telemetry`, `AO_Radio`, `AO_Logger`, `AO_Notify`, `AO_LedEngine`, `AO_HealthMonitor`.
-
-**Severity threshold (plan consensus #5):** violations matching Commandment III/IV (blocking in handler) or VI (use-after-free on posted event) **escalate to a standalone IVP before Batch B starts**. Advisory-grade violations (naming, documentation gaps) stay on `AGENT_WHITEBOARD.md`.
-
-**Scan procedure:** grep `src/active_objects/` for patterns matching:
-- `sleep_ms\(`, `busy_wait_`, `flash_safe_execute` inside an AO handler → Commandment IV.
-- `QACTIVE_POST\(.*&.*` where the event is declared as a non-`static` local → Commandment VI.
-- AO methods that modify another AO's state → Commandment I / VII.
-
-Results to be recorded in `AGENT_WHITEBOARD.md` under "AO Commandments retroactive scan".
-
----
-
 ## How this doc is used going forward
 
 - **New AO proposals:** cite which Commandments apply. Flag any Commandment the new AO breaks with a documented rationale.
