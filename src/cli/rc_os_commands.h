@@ -40,4 +40,9 @@ void cli_handle_unhandled_key(int key);
 /// phase transition.
 void cmd_findme_beacon();
 
+/// Stage T IVP-T6 — main-menu `!` key: factory-reset radio config
+/// (BW125/5Hz, SF7, CR5, pwr20) + enable test mode (no persist, no revert).
+/// One keystroke recovery from swept-config state. Always safe.
+void cmd_radio_factory_reset();
+
 #endif // ROCKETCHIP_RC_OS_COMMANDS_H

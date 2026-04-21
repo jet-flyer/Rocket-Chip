@@ -81,6 +81,11 @@ static uint32_t s_pending_apply_backstop_count = 0;
 // UX confirmation that THIS packet is from the intentional transition.
 static bool s_config_just_changed = false;
 
+// Stage T IVP-T6 — sweep-test mode. When true, skip persistence and skip
+// the symmetric-revert watchdog. Set via AO_Radio_set_test_mode(). Not
+// flash-persisted — clears on reboot.
+static bool s_test_mode_no_persist = false;
+
 // Sub-persist (Option C): debounced flash-write trigger. Set to a countdown
 // on successful apply; decrements each tick; when it hits 0 AND the apply
 // watchdog has cleared (apply_in_progress == false), we flush the current
@@ -531,25 +536,54 @@ static void tick_apply_backstop(RadioAoState& s) {
 
 // Sub 2d/2f: symmetric-revert watchdog. Station uses shorter threshold
 // than vehicle so operator sees failure first visually.
+//
+// Vehicle counts TXes since apply (nav packets stream out regularly, so
+// TX count is a reliable "time since apply" proxy). Station has no nav TX
+// stream — its TX is sporadic (operator commands). Station uses tick count
+// instead: at 100 Hz tick rate, wait the equivalent number of packet
+// periods, then revert. Equivalent to "N expected-packets of silence".
+static uint32_t s_station_ticks_since_apply = 0;
+
 static void tick_symmetric_revert(RadioAoState& s) {
-    if (!s.apply_in_progress) { return; }
+    if (s_test_mode_no_persist) {
+        // Sweep mode — never revert; hold whatever config was set.
+        s.apply_in_progress = false;
+        s.tx_since_apply = 0;
+        s_station_ticks_since_apply = 0;
+        return;
+    }
+    if (!s.apply_in_progress) {
+        s_station_ticks_since_apply = 0;
+        return;
+    }
     // Any new RX since apply means link is alive on new config.
     if (s.rx_count > s.rx_at_apply) {
         s.apply_in_progress = false;
         s.tx_since_apply = 0;
+        s_station_ticks_since_apply = 0;
         return;
     }
     uint8_t nav_hz = s.runtime_config.nav_rate_hz;
-    uint32_t threshold;
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
-        threshold = (3U * static_cast<uint32_t>(nav_hz));
+        uint32_t threshold = (3U * static_cast<uint32_t>(nav_hz));
         if (threshold < 15U) { threshold = 15U; }
+        if (s.tx_since_apply >= threshold) {
+            ao_radio_revert_to_prev_config(s);
+        }
     } else {
-        threshold = (3U * static_cast<uint32_t>(nav_hz) + 1U) / 2U;
-        if (threshold < 6U) { threshold = 6U; }
-    }
-    if (s.tx_since_apply >= threshold) {
-        ao_radio_revert_to_prev_config(s);
+        // Station/relay — tick-based since there's no nav TX to count.
+        // Threshold: max(6, ceil(1.5 * nav_hz)) EXPECTED packets of silence.
+        // At 100 Hz tick, that's (threshold_packets * 100 / nav_hz) ticks.
+        uint32_t pkt_threshold =
+            (3U * static_cast<uint32_t>(nav_hz) + 1U) / 2U;
+        if (pkt_threshold < 6U) { pkt_threshold = 6U; }
+        uint32_t tick_threshold =
+            (pkt_threshold * 100U) / static_cast<uint32_t>(nav_hz);
+        s_station_ticks_since_apply++;
+        if (s_station_ticks_since_apply >= tick_threshold) {
+            ao_radio_revert_to_prev_config(s);
+            s_station_ticks_since_apply = 0;
+        }
     }
 }
 
@@ -557,6 +591,10 @@ static void tick_symmetric_revert(RadioAoState& s) {
 // (~100 ms) but QV cooperative scheduling means it only delays the next
 // tick — no AO queues race with us.
 static void tick_persist_debounce(RadioAoState& s) {
+    if (s_test_mode_no_persist) {
+        // Sweep mode — never write to flash.
+        return;
+    }
     if (!s_persist_requested ||
         s.apply_in_progress ||
         s_pending_radio_config_valid ||
@@ -647,6 +685,18 @@ bool AO_Radio_consume_just_changed() {
     bool was = s_config_just_changed;
     s_config_just_changed = false;
     return was;
+}
+
+bool AO_Radio_test_mode_enabled() { return s_test_mode_no_persist; }
+void AO_Radio_set_test_mode(bool enabled) {
+    s_test_mode_no_persist = enabled;
+    if (enabled) {
+        // Clear any in-flight apply + persist pending so sweep starts clean.
+        s_persist_requested = false;
+        s_persist_debounce_count = 0;
+        l_radioAo.state.apply_in_progress = false;
+        l_radioAo.state.tx_since_apply = 0;
+    }
 }
 
 void AO_Radio_start(uint8_t prio, bool spi_ok) {

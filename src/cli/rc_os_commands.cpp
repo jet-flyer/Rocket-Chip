@@ -1518,6 +1518,23 @@ void cli_handle_unhandled_key(int key) {
 // send MAV_CMD_USER_1 over the radio — the vehicle's ao_telemetry.cpp command
 // handler turns that into the same SIG_BEACON_MANUAL publish, so the visual
 // behavior is identical from either side.
+// Stage T IVP-T6 — main-menu factory reset. Applies default radio config
+// locally (no RF) + enables test mode to suppress persist + revert. One
+// keystroke recovery when swept configs leave boards misaligned.
+void cmd_radio_factory_reset() {
+    rc::RadioConfig cfg{};
+    cfg.mode             = rc::RadioRole::kTx;
+    cfg.protocol         = rc::EncoderType::kCcsds;
+    cfg.bandwidth_khz    = 125;
+    cfg.nav_rate_hz      = 5;
+    cfg.spreading_factor = 7;
+    cfg.coding_rate      = 5;
+    cfg.power_dbm        = 20;
+    AO_Radio_set_pending_config(cfg);
+    AO_Radio_set_test_mode(true);
+    printf("[cfg] FACTORY RESET: BW125/5Hz SF7 CR5 pwr20, test mode ENABLED\n");
+}
+
 void cmd_findme_beacon() {
     if constexpr (kRadioModeRx) {
         // Station — send beacon command to vehicle via tracked command (IVP-122
