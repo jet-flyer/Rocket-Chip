@@ -1,76 +1,76 @@
-config,bw_khz,nav_hz_configured,nav_hz_actual,sent,first_try_ack,eventual_ack,denied,no_ack,first_try_pct,eventual_pct,varies_from_prev
-C0,125,5,5,30,4,11,0,19,13.33,36.67,baseline
-C0P,125,10,5,30,5,9,0,21,16.67,30.00,config_nav_rate_only (no actual change)
-C1,250,10,5,30,16,29,0,1,53.33,96.67,bw_only
-C2,500,10,5,30,25,29,0,1,83.33,96.67,bw_only
-# IVP-T12 manual runbook execution 2026-04-21.
-# Vehicle + station both on bench-1591794 (T11 firmware).
+config,bw_khz,nav_hz_configured,nav_hz_actual,sent,first_try_ack,eventual_ack,denied,no_ack,first_try_pct,eventual_pct,firmware,notes
+# === Pre-fix run (commit bench-1591794, 2026-04-21 afternoon) ===
+# nav_hz_actual was uniformly ~5 Hz regardless of configured value due to
+# AO_Telemetry::interval_ms being hardcoded 200 ms. Preserved for history.
+C0,125,5,5,30,4,11,0,19,13.33,36.67,pre-fix,baseline
+C0P,125,10,5,30,5,9,0,21,16.67,30.00,pre-fix,"config nav=10 but actual 5 Hz — effectively same as C0"
+C1,250,10,5,30,16,29,0,1,53.33,96.67,pre-fix,"labeled 10 Hz but actual 5 Hz"
+C2,500,10,5,30,25,29,0,1,83.33,96.67,pre-fix,"labeled 10 Hz but actual 5 Hz"
+# === Post-fix run (commit bench-35f9591, 2026-04-21 evening) ===
+# nav_rate_hz now wires to AO_Telemetry::interval_ms correctly.
+# Airtime-scaled TX timeout + airtime-scaled ACK retry timeout also active.
+C0,125,5,5.8,30,1,1,0,27,3.33,3.33,post-fix,"airtime-limited to 5 Hz; ACK retry now 910 ms (airtime*4+50)"
+C0P,125,10,5.8,30,1,2,0,27,3.33,6.67,post-fix,"configured 10 Hz but BW125 airtime caps at ~5 Hz (hardware limit)"
+C1,250,10,11.5,30,0,0,0,28,0.00,0.00,post-fix,"10 Hz at BW250 saturates ACK path — vehicle nav TX blocks its own ACK TX (C3-A2 drop)"
+C2,500,10,11.6,30,12,29,0,0,40.00,96.67,post-fix,"BW500 duty cycle low enough to leave gaps for ACK TX"
 #
-# **IMPORTANT — ALL ROWS MEASURED AT ~5 HZ ACTUAL TX CADENCE**
-# Post-hoc discovery (2026-04-21, during Batch B prelim T14 instrumentation):
-# AO_Telemetry::interval_ms was hardcoded to 200 ms in TelemAo_initial and
-# SET_RADIO_CONFIG's apply path never updated it. Every row in this table
-# that claims nav_hz=10 was actually running at ~5 Hz TX cadence. The
-# `nav_hz_actual` column has been added to reflect this.
-#
-# Consequence: C0P (BW125/"10Hz") was a no-variable-change from C0 (BW125/5)
-# at the actual-cadence level. The +3.4 pp first-try delta attributed to
-# "nav rate only" is noise, not signal. C1 and C2 are valid BW-only
-# comparisons at constant 5 Hz TX.
-#
-# Fix landed in commit 35f9591. Re-run of this battery at true nav_hz=10
-# will land alongside Batch B implementation; this CSV preserved as
-# historical data with the bug caveat.
-#
+# ============================================================================
+# IVP-T12 manual runbook execution history — 2026-04-21.
 # Methodology: docs/plans/STAGE_T_IVP_T12_RUNBOOK.md
-#   - Station must transition kAnsi -> kMenu (send 'x') before 'q<idx>z' debug keys.
-#   - Config switch applied via USB CDC on both boards.
-#   - ACK stress via scripts/ack_stress_test.py (30 DISARM, 10s interval).
-#   - Transcripts: logs/ack_stress_20260421_{145521,152059,150239,150916}.log
+# Transcripts in logs/ack_stress_20260421_*.log
+# ============================================================================
 #
-# Experimental design (single-variable changes between rows AS INTENDED,
-# not as actually measured — see bug caveat above):
-#   C0  -> C0P : nav_rate 5 -> 10 Hz only  (ACTUAL: no change)
-#   C0P -> C1  : BW 125 -> 250 kHz only
-#   C1  -> C2  : BW 250 -> 500 kHz only
+# Bug history (see commit 35f9591 and CHANGELOG 2026-04-21-003):
+# Pre-fix, AO_Telemetry::interval_ms was hardcoded 200 ms in TelemAo_initial
+# and only updated by the CLI 'r' key — SET_RADIO_CONFIG updated the config
+# struct and the dashboard string but never touched the TX cadence gate.
+# Every "10 Hz" config in the pre-fix rows was actually 5 Hz TX cadence.
 #
-# Attributions (revised with actual-cadence interpretation):
-#   C0 vs C0P: both were 5 Hz. 13.3% vs 16.7% first-try is session variance
-#              within-config noise, NOT a nav-rate signal.
-#   BW 125->250 at 5 Hz actual: first-try +36.6 pp (16.7 -> 53.3%).
-#     Halving airtime still breaks the collision regime at 5 Hz — T1
-#     diagnosis confirmed. The 5 Hz-vs-10 Hz distinction is moot here.
-#   BW 250->500 at 5 Hz actual: first-try +30.0 pp (53.3 -> 83.3%).
-#     Another big gain. Still asymptoting toward 95%.
+# Post-fix findings (2026-04-21 evening re-run, bench-35f9591):
+# With actual TX cadence matching configured rate, the collision/ACK-starve
+# problem Batch B is designed to fix becomes clearly visible:
 #
-# Cross-session comparison (T6 session results — ALSO at 5 Hz actual):
-#   T6 C1 (claimed BW250/10Hz, actual 5 Hz) first-try: 97%   [this T12: 53.3%]
-#   T6 C2 (claimed BW500/10Hz, actual 5 Hz) first-try: 100%  [this T12: 83.3%]
-#   Cross-session variance is substantial even with cadence bug explained.
-#   Likely remaining candidate: RF environment drift, retry-timer
-#   interaction (T7 change was 3000->500 ms, now airtime-scaled post-fix).
+# Relative performance ranking (post-fix):
+#   Best:  C2 (BW500/10Hz actual): 40% first-try, 97% eventual, 0 fail
+#   Worst: C1 (BW250/10Hz actual): 0% first-try, 0% eventual, 93% fail
+#   C0/C0P (BW125, airtime-capped to ~5 Hz): 3.3% first-try each
 #
-# Batch A gate (C2 >= 95% first-try): NOT MET (83.3%).
-# The 83% vs 95% gap is not a driver-hygiene issue and not a cadence-bug
-# issue — it's the TX-window sync problem Batch B (IVP-T14 RxDone-anchored
-# TX) is designed to fix.
+# C1's 0% is the architectural smoking gun: at BW250/10Hz the vehicle
+# TX duty cycle is ~70% (70 ms airtime per 100 ms period). Any ACK the
+# vehicle wants to send lands during its own nav TX and gets dropped
+# per the C3-A2 TX-busy policy. Station's DISARM arriving during vehicle
+# nav also drops. The path is nearly always blocked.
 #
-# T1 baseline (pre-T11, SF7/BW125/5Hz CCSDS): 6.1% first-try, 34.2% eventual.
-#   C0 in this T12: 13.3% first-try / 36.7% eventual. Possibly T11
-#   LnaBoostHf effect (+3 dB sensitivity), possibly session variance,
-#   possibly both. Not conclusive.
+# C2 escapes this because BW500 airtime is ~15 ms — 15% duty cycle
+# leaves 85 ms gaps per nav period for bidirectional commands.
 #
-# Post-fix note (2026-04-21, commit 35f9591):
-# A partial re-run at C0 after landing the cadence + airtime-scaled
-# timeout fixes showed 3.3% first-try / 3.3% eventual (1/30 ACK'd,
-# 27/30 failed). Not a fix regression — makes sense with the new
-# constants:
-#   - Retry timeout scaled from 500 ms to 910 ms (airtime × 4 + 50).
-#     That means fewer retry attempts per 10 s send interval.
-#   - BW125/5 is still collision-limited: ~70% TX duty cycle leaves
-#     only ~60 ms gaps per nav period for station commands to land.
-# Longer retry timeouts don't help in a collision-dominated regime;
-# only the TX-window sync (Batch B / T14 RxDone anchoring) will.
-# This partial re-run data is consistent with the architectural
-# diagnosis. Full post-fix T12 re-run deferred until Batch B code
-# lands so we measure the anchored behavior too.
+# C0/C0P at BW125 are airtime-limited (~140 ms airtime) — the radio
+# physically cannot sustain 10 Hz, so they run at ~5 Hz like pre-fix
+# C0 but with the longer airtime-scaled retry timeout (910 ms vs old
+# 500 ms), which means fewer retry attempts per 10 s send interval.
+#
+# Pre-fix vs post-fix at C2: 83.3% -> 40% first-try. Not a regression —
+# pre-fix C2 ran at 5 Hz (low duty), post-fix runs at 11.6 Hz (higher
+# duty). Higher duty = more TX-busy collisions per ACK attempt.
+#
+# Conclusion consistent with pre-Batch-B expectations:
+# The collision problem is real and severe at realistic flight-telemetry
+# rates. T14 RxDone-anchored station TX + vehicle slot-aware ACK
+# scheduling is the architectural fix. Neither driver hygiene (T11) nor
+# airtime-scaled timeouts (this commit 35f9591) are sufficient on their
+# own. They ARE prerequisites for T14 to function — you can't anchor
+# windows correctly if your TX cadence doesn't match the config,
+# nor if TX-timeout is wrong for the current SF/BW.
+#
+# Future re-run: after AO_RfManager lands (Batch B) we should see:
+#   - C2 first-try above 95% (Batch B gate) at actual 10 Hz
+#   - C1 should also rise substantially (anchored TX fixes the starve
+#     pattern even at higher duty cycle)
+#   - C0/C0P will remain airtime-limited — the hardware constraint
+#     isn't a scheduler problem. Users wanting 10 Hz at BW125 need
+#     to reduce SF, reduce payload, or accept 5 Hz.
+#
+# Static-bench caveat: all numbers here are room-temperature, stationary
+# bench geometry. Real flight — thermal swing, vibration, Doppler, antenna
+# motion — will shift results. These measurements establish ordering and
+# orders-of-magnitude, not absolute flight performance.
