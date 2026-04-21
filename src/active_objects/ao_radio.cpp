@@ -96,7 +96,9 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e);
 static QState RadioAo_running(RadioAo * const me, QEvt const * const e);
 static void ao_radio_apply_runtime_config(RadioAoState& s);       // T5.5 prereq #1
 static void ao_radio_commit_pending_config(RadioAoState& s);      // T5.5 sub 2b
+#if defined(ROCKETCHIP_RADIO_PERSIST)
 static void ao_radio_revert_to_prev_config(RadioAoState& s);      // T5.5 sub 2d
+#endif
 
 // ============================================================================
 // Helpers
@@ -280,10 +282,15 @@ static void ao_radio_commit_pending_config(RadioAoState& s) {
     s_persist_debounce_count = kPersistDebounceTicks;
 }
 
+#if defined(ROCKETCHIP_RADIO_PERSIST)
 // Sub 2d: symmetric revert. Restore prev_config when the vehicle's
 // post-apply TX count exceeds the threshold without receiving any
 // station packet on the new config. Uses the setter-only apply path
 // (same as a fresh SET) so recovery is clean.
+// Gated by ROCKETCHIP_RADIO_PERSIST (Stage T IVP-T6): revert is a
+// safety mechanism for operational config changes; during sweep tests
+// with persistence off it would corrupt measurements by bouncing
+// station back to prev_config after a swept BW doesn't link.
 static void ao_radio_revert_to_prev_config(RadioAoState& s) {
     DBG_ERROR("RADIO: symmetric revert — no peer RX in %u TXes",
               static_cast<unsigned>(s.tx_since_apply));
@@ -305,6 +312,7 @@ static void ao_radio_revert_to_prev_config(RadioAoState& s) {
               static_cast<unsigned>(s.runtime_config.coding_rate),
               static_cast<unsigned>(s.runtime_config.power_dbm));
 }
+#endif  // ROCKETCHIP_RADIO_PERSIST
 
 // CCSDS packet constants for relay CRC validation.
 // Minimum size accepted = legacy 54-byte nav packet (APID 0x001).
@@ -408,6 +416,27 @@ static void handle_rx_poll(RadioAo* me) {
 // State Handlers
 // ============================================================================
 
+// Stage T IVP-T5.5 sub-persist + T6: boot-time runtime_config seed.
+// Runtime default is kDefaultRocketRadioConfig (caller sets). If persistence
+// is enabled and flash has a validated config, override to that value.
+// When persistence is disabled (ROCKETCHIP_RADIO_PERSIST undef), every boot
+// is deterministic on the mission-profile default.
+static void ao_radio_boot_seed_runtime_config(RadioAoState& s) {
+#if defined(ROCKETCHIP_RADIO_PERSIST)
+    rc::RadioConfig persisted{};
+    if (radio_config_storage_read(&persisted)) {
+        s.runtime_config = persisted;
+        DBG_PRINT("RADIO: boot config from flash — BW=%u nav=%u SF=%u",
+                  static_cast<unsigned>(persisted.bandwidth_khz),
+                  static_cast<unsigned>(persisted.nav_rate_hz),
+                  static_cast<unsigned>(persisted.spreading_factor));
+    }
+#else
+    (void)s;
+    DBG_PRINT("RADIO: persistence disabled — boot on kDefaultRocketRadioConfig");
+#endif
+}
+
 static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
     (void)e;
     RadioAoState& s = me->state;
@@ -415,22 +444,11 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
     s.tx_bw_mode = 0;
     s.link_quality = 0;
 
-    // Stage T IVP-T5.5 prereq #1: seed runtime_config from the mission profile
-    // default. Future SET_RADIO_CONFIG (IVP-T5.5 core) will mutate this field.
-    // Sub-persist: if a validated config is persisted in flash, use it as
-    // the boot override (overrides kDefaultRocketRadioConfig only when
-    // storage says "yes I have a valid one for you").
+    // T5.5 prereq #1: seed runtime_config. Default is the mission-profile
+    // value; persistence-on may override from flash. SET_RADIO_CONFIG
+    // later mutates the field at runtime.
     s.runtime_config = rc::kDefaultRocketRadioConfig;
-    {
-        rc::RadioConfig persisted{};
-        if (radio_config_storage_read(&persisted)) {
-            s.runtime_config = persisted;
-            DBG_PRINT("RADIO: boot config from flash — BW=%u nav=%u SF=%u",
-                      static_cast<unsigned>(persisted.bandwidth_khz),
-                      static_cast<unsigned>(persisted.nav_rate_hz),
-                      static_cast<unsigned>(persisted.spreading_factor));
-        }
-    }
+    ao_radio_boot_seed_runtime_config(s);
 
     // Initialize radio hardware (owned by this AO)
     if (g_spiOk && rfm95w_init(&s.radio,
@@ -531,7 +549,19 @@ static void tick_apply_backstop(RadioAoState& s) {
 
 // Sub 2d/2f: symmetric-revert watchdog. Station uses shorter threshold
 // than vehicle so operator sees failure first visually.
+// Stage T IVP-T6 — gated by ROCKETCHIP_RADIO_PERSIST. During testing
+// (persistence off) the sweep deliberately drives configs that may not
+// link immediately, and revert would corrupt measurements. When the gate
+// is off, clear any armed state so the post-apply latches still work and
+// skip the revert check entirely.
 static void tick_symmetric_revert(RadioAoState& s) {
+#if !defined(ROCKETCHIP_RADIO_PERSIST)
+    if (s.apply_in_progress) {
+        s.apply_in_progress = false;
+        s.tx_since_apply = 0;
+    }
+    return;
+#else
     if (!s.apply_in_progress) { return; }
     // Any new RX since apply means link is alive on new config.
     if (s.rx_count > s.rx_at_apply) {
@@ -551,12 +581,26 @@ static void tick_symmetric_revert(RadioAoState& s) {
     if (s.tx_since_apply >= threshold) {
         ao_radio_revert_to_prev_config(s);
     }
+#endif  // ROCKETCHIP_RADIO_PERSIST
 }
 
 // Sub-persist: debounced flash write. flash_safe_execute() is blocking
 // (~100 ms) but QV cooperative scheduling means it only delays the next
 // tick — no AO queues race with us.
+// Stage T IVP-T6 — gated by ROCKETCHIP_RADIO_PERSIST. When disabled, any
+// set/apply simply clears the persist-requested state and never reaches
+// flash_safe_execute. Keeps boards deterministic across reboots during
+// testing.
 static void tick_persist_debounce(RadioAoState& s) {
+#if !defined(ROCKETCHIP_RADIO_PERSIST)
+    // Swallow any pending persist request so the state machine can't linger.
+    if (s_persist_requested || s_persist_debounce_count != 0) {
+        s_persist_requested = false;
+        s_persist_debounce_count = 0;
+    }
+    (void)s;
+    return;
+#else
     if (!s_persist_requested ||
         s.apply_in_progress ||
         s_pending_radio_config_valid ||
@@ -572,6 +616,7 @@ static void tick_persist_debounce(RadioAoState& s) {
     } else {
         DBG_ERROR("RADIO: flash persist FAILED");
     }
+#endif  // ROCKETCHIP_RADIO_PERSIST
 }
 
 static void handle_radio_tick(RadioAo* me) {
