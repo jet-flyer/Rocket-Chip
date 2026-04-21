@@ -20,6 +20,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-21-002 | Claude Opus 4.7 | docs, council
+
+**Stage T Batch B prelim — `docs/decisions/AO_COMMANDMENTS.md` + retroactive scan of existing AOs.**
+
+Research pass over Samek PSiCC2, state-machine.com (QP framework), Douglass, NASA F´, and NASA cFS produced the conclusion that no external JSF-AV-grade *application-level* AO ruleset exists — Samek gives 3 principles, F´ adopts JPL Power-of-10 (already our standard), state-machine.com's SRS_QP_AO_* specs cover framework internals not application design. Correct deliverable tier is advisory, not normative.
+
+`AO_COMMANDMENTS.md` codifies 12 rules, each sourced to Samek/QP (with URLs) or to LL Entries 32/35 where external sources are silent. Rules cover data isolation, async messaging, run-to-completion, no-blocking, the `const*` read-only-accessor cooperative-dispatch-only invariant (critical for `AO_RfManager` coming in Batch B), static-event discipline (LL Entry 35), AO boundary / one-responsibility (the rule behind `ok_to_arm()` being in FlightDirector not AO_RfManager), AO promotion criteria, priorities-set-at-boot, boot-time subscriptions, timer-event locality, and AO-decision instrumentation.
+
+Retroactive scan of the 7 existing AOs (AGENT_WHITEBOARD.md): Commandment VI clean (every `QACTIVE_POST` uses `static` events, LL Entry 35 discipline universally applied); Commandment IV has 3 documented deviations (`calibration_save()`, `cli_do_erase_flights()`, `tick_persist_debounce()` when `ROCKETCHIP_RADIO_PERSIST` is defined) — all interactive/infrequent with in-code rationale, none escalated to an IVP. Batch B is not blocked by any pre-existing violation.
+
+Elevation path documented: if the project grows or a Commandment violation is traced to a bug, the file moves to `standards/ACTIVE_OBJECT_RULES.md` and becomes normative.
+
 ### 2026-04-21-001 | Claude Opus 4.7 | feature, firmware, testing, council, docs
 
 **Stage T continuation Batch A — IVP-T11 SX1276 register hygiene + IVP-T12 manual regression sweep.**

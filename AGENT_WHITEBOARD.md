@@ -17,6 +17,19 @@
 
 *(cleared — `tools/i2c_bare_test/` committed 2026-04-18 as `485260b`; landing-beacon design became Stage L.)*
 
+### AO Commandments retroactive scan (2026-04-21, Stage T Batch B prelim)
+
+Scan applied to `src/active_objects/*.cpp` per the procedure in `docs/decisions/AO_COMMANDMENTS.md`. Findings:
+
+- **Commandment IV (no blocking in handler) — documented existing deviations, not escalations:**
+  - `src/active_objects/ao_rcos.cpp:1260` — `calibration_save()` → `flash_safe_execute()` ~200 ms inside AO handler. Already has in-code rationale ("320ms headroom is tight but sufficient"). Interactive user-initiated flow, not hot path. Stays on whiteboard.
+  - `src/active_objects/ao_rcos.cpp:891` — `cli_do_erase_flights()` → `flash_safe_execute()` from cal_ui confirm handler. Same category — interactive, confirmed by user typing "yes". Stays on whiteboard.
+  - `src/active_objects/ao_radio.cpp:602` — `tick_persist_debounce()` guarded by `ROCKETCHIP_RADIO_PERSIST`, currently undef. When defined, blocking ~100 ms. Already has in-code rationale. Stays on whiteboard.
+- **Commandment VI (use-after-free on posted event) — clean.** Every `QACTIVE_POST` in `src/active_objects/` uses `static` events at file or function scope. LL Entry 35 discipline is universally applied.
+- **No LL Entry 32/35-class escalations** — Batch B is not blocked by any pre-existing violation. Commandment IV deviations are operationally acceptable and documented.
+
+Whiteboard future item (low priority, post-Stage-T): promote `docs/decisions/AO_COMMANDMENTS.md` from advisory to normative if the project grows to 10+ AOs or if a Commandment violation is traced to a bug. File would move to `standards/ACTIVE_OBJECT_RULES.md`.
+
 ## Easy (1–3 hours, clear scope)
 
 *(cleared — the IVP-132a.4c red-flash was called a transient 2026-04-18 after a 31-min idle soak showed zero recurrence: 1.86M IMU reads, 0 errors, 0 baro errors, Core 1 healthy, MCU temp 35.6°C stable. Purple at 5+ min is `kSensorNeoTimeout` as designed.)*
