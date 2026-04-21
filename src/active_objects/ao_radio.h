@@ -81,12 +81,4 @@ const rc::RadioConfig* AO_Radio_get_runtime_config();
 /// confirmation "yes, THIS packet is from the intentional change".
 bool AO_Radio_consume_just_changed();
 
-/// Stage T IVP-T6 — sweep-test mode. When enabled, skip persistence AND
-/// skip the symmetric-revert watchdog so each swept config stays stable
-/// for the full ACK-stress measurement window. Clears on reboot (NOT
-/// flash-persisted — you don't want the vehicle stuck without persist/
-/// revert in normal operation).
-bool AO_Radio_test_mode_enabled();
-void AO_Radio_set_test_mode(bool enabled);
-
 #endif // ROCKETCHIP_AO_RADIO_H

@@ -180,13 +180,6 @@ static bool handle_main_menu(int c) {
             cmd_findme_beacon();
             break;
 
-        case '!':
-            // Stage T IVP-T6 — one-key factory reset (radio → default +
-            // test mode ON). Always available from main menu, no submenu
-            // traversal. For sweep harness + operator recovery.
-            cmd_radio_factory_reset();
-            break;
-
         default:
             cli_handle_unhandled_key(c);
             break;

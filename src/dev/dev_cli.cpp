@@ -15,11 +15,9 @@
 #include "safety/pyro_edge_logger.h"
 #include "dev/diag_stats.h"
 #include "active_objects/ao_led_engine.h"
-#include "active_objects/ao_radio.h"
 #include "rocketchip/led_patterns.h"
 #include "rocketchip/config.h"
 #include "rocketchip/job.h"
-#include "rocketchip/radio_config_table.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include <stdio.h>
@@ -131,79 +129,10 @@ bool dev_debug_menu_dispatch(int c) {
         case 'l': case 'L':
             dev_led_test_menu();
             break;
-        case '0': case '1': case '2': case '3': case '4': case '5': {
-            // Stage T IVP-T6 — local radio config set, NO RF involved.
-            // Digit = whitelist index (see rc::kRadioConfigTable).
-            //   0: BW125/5Hz (default)   3: BW500/10Hz
-            //   1: BW125/10Hz            4: BW125/2Hz
-            //   2: BW250/10Hz            5: BW250/5Hz
-            // Applies to THIS board only via AO_Radio_set_pending_config().
-            // Use from sweep harness or manual operator — both vehicle and
-            // station accept the same digits so both sides can be driven
-            // to matching configs over USB.
-            size_t idx = static_cast<size_t>(c - '0');
-            if (idx >= rc::kRadioConfigTableSize) {
-                printf("[cfg] idx %u out of range (max %u)\n",
-                       static_cast<unsigned>(idx),
-                       static_cast<unsigned>(rc::kRadioConfigTableSize - 1));
-                break;
-            }
-            const auto& t = rc::kRadioConfigTable[idx];
-            rc::RadioConfig cfg{};
-            cfg.mode             = rc::RadioRole::kTx;
-            cfg.protocol         = rc::EncoderType::kCcsds;
-            cfg.bandwidth_khz    = t.bw_khz;
-            cfg.nav_rate_hz      = t.nav_rate_hz;
-            cfg.spreading_factor = t.sf;
-            cfg.coding_rate      = t.cr;
-            cfg.power_dbm        = t.power_dbm;
-            AO_Radio_set_pending_config(cfg);
-            printf("[cfg] local radio -> BW%u %uHz SF%u CR%u pwr%u "
-                   "(idx %u) — applies in ~200ms\n",
-                   static_cast<unsigned>(t.bw_khz),
-                   static_cast<unsigned>(t.nav_rate_hz),
-                   static_cast<unsigned>(t.sf),
-                   static_cast<unsigned>(t.cr),
-                   static_cast<unsigned>(t.power_dbm),
-                   static_cast<unsigned>(idx));
-            break;
-        }
-        case 't': case 'T': {
-            // Stage T IVP-T6 — toggle radio test mode (no persist + no revert).
-            // Sweep harness enables before test, disables after.
-            bool new_mode = !AO_Radio_test_mode_enabled();
-            AO_Radio_set_test_mode(new_mode);
-            printf("[cfg] radio test mode %s\n",
-                   new_mode ? "ENABLED" : "DISABLED");
-            break;
-        }
-        case '9': {
-            // Stage T IVP-T6 — "factory reset" radio config: apply default
-            // BW125/5Hz, enable test mode to suppress persist/revert, and
-            // zero any in-flight pending apply. One keystroke, always safe.
-            rc::RadioConfig cfg{};
-            cfg.mode             = rc::RadioRole::kTx;
-            cfg.protocol         = rc::EncoderType::kCcsds;
-            cfg.bandwidth_khz    = 125;
-            cfg.nav_rate_hz      = 5;
-            cfg.spreading_factor = 7;
-            cfg.coding_rate      = 5;
-            cfg.power_dbm        = 20;
-            AO_Radio_set_pending_config(cfg);
-            AO_Radio_set_test_mode(true);
-            printf("[cfg] FACTORY RESET: BW125/5Hz, test mode ENABLED\n");
-            break;
-        }
         case 'h': case 'H': case '?':
             printf("\n--- Debug Menu ---\n");
             printf("s-Sensors  i-I2C scan  b-Boot/HW  e-ESKF live\n");
-            printf("y-Pyro log  r-Replay inject  d-Diag stats  l-LED test\n");
-            printf("0..5 = local radio cfg (no RF — Stage T IVP-T6 sweep)\n");
-            printf("   0:BW125/5Hz 1:BW125/10 2:BW250/10 3:BW500/10\n");
-            printf("   4:BW125/2  5:BW250/5\n");
-            printf("t = toggle radio test mode (no persist, no revert)\n");
-            printf("9 = factory-reset radio + enable test mode (one key)\n");
-            printf("z-Back\n");
+            printf("y-Pyro log  r-Replay inject  d-Diag stats  l-LED test  z-Back\n");
             break;
         case 'z': case 'Z': case 27:
             printf("Returning to main menu.\n");

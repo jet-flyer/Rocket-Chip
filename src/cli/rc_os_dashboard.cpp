@@ -334,16 +334,12 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
     uint32_t uptime_s = 0;
 #endif
 
-    // Stage T — show station's own runtime config so operator can diagnose
-    // a channel mismatch even when no packets are landing. "Vehicle: ?"
-    // because we haven't heard from vehicle yet.
     pos += snprintf(s_frame + pos, sizeof(s_frame) - static_cast<size_t>(pos),
         "%s"
         "=== RocketChip Ground Station ===%s\n"
         "%s%s\n"
         "-------------------------------------------%s\n"
         "RX: %lu pkts  CRC err: %lu%s\n"
-        "Radio: BW%u %uHz SF%u CR%u  |  Vehicle: ?%s\n"
         "Uptime: %lus%s\n"
         "%s\n"
         "'m' mode cycle  'x' menu%s\n",
@@ -352,11 +348,6 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
         sig_msg, kClrEol,
         kClrEol,
         (unsigned long)rs->rx_count, (unsigned long)rs->rx_crc_errors, kClrEol,
-        static_cast<unsigned>(rs->runtime_config.bandwidth_khz),
-        static_cast<unsigned>(rs->runtime_config.nav_rate_hz),
-        static_cast<unsigned>(rs->runtime_config.spreading_factor),
-        static_cast<unsigned>(rs->runtime_config.coding_rate),
-        kClrEol,
         (unsigned long)uptime_s, kClrEol,
         kClrEol,
         kClrEol);

@@ -245,10 +245,6 @@ static void ansi_render_tick(RcosAo* me) {
     if constexpr (!kRadioModeRx) { return; }
     if (AO_RCOS_get_output_mode() != StationOutputMode::kAnsi) { return; }
     if (!stdio_usb_connected()) { return; }
-    // Stage T IVP-T6 — don't render over debug menu output. Dashboard's
-    // ANSI screen-clear was wiping `[cfg]` lines + help text before the
-    // operator (or test harness) could read them.
-    if (rc_os_get_menu() != RC_OS_MENU_MAIN) { return; }
 
     const auto* rs = AO_Radio_get_state();
     const auto* rx = AO_Telemetry_get_rx_state();

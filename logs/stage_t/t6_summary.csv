@@ -1,5 +1,0 @@
-config,bw_khz,nav_hz,sent,first_try_ack,eventual_ack,denied,no_ack,first_try_pct,eventual_pct,mean_lat_ms
-C0,125,5,30,0,6,0,24,0.00,20.00,71914.2
-C0P,125,10,30,0,6,0,24,0.00,20.00,174761.4
-C1,250,10,30,0,14,0,16,0.00,46.67,49535.5
-C2,500,10,30,0,0,0,30,0.00,0.00,0.0
