@@ -24,8 +24,6 @@
 #include "ao_flight_director.h"
 #include "ao_notify.h"              // Stage L — AO_Notify_post_prearm_fail
 #include "ao_rcos.h"
-#include "ao_radio.h"               // T6-local: `!` reset key
-#include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include "dev/dev_cli.h"
 #include <stdio.h>
 #include <string.h>
@@ -181,23 +179,6 @@ static bool handle_main_menu(int c) {
             // of LANDED/ABORT.
             cmd_findme_beacon();
             break;
-
-#ifndef BUILD_FOR_FLIGHT
-        case '!': {
-            // Stage T IVP-T6 — reset radio to kDefaultRocketRadioConfig.
-            // Bench-only; flight firmware does not expose this key.
-            // AO_Radio_set_pending_config applies on next TxDone / backstop.
-            rc::RadioConfig cfg = rc::kDefaultRocketRadioConfig;
-            AO_Radio_set_pending_config(cfg);
-            printf("[cfg] reset radio to BW%u %uHz SF%u CR%u pwr%u\n",
-                   static_cast<unsigned>(cfg.bandwidth_khz),
-                   static_cast<unsigned>(cfg.nav_rate_hz),
-                   static_cast<unsigned>(cfg.spreading_factor),
-                   static_cast<unsigned>(cfg.coding_rate),
-                   static_cast<unsigned>(cfg.power_dbm));
-            break;
-        }
-#endif
 
         default:
             cli_handle_unhandled_key(c);

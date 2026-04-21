@@ -1,0 +1,2 @@
+config,bw_khz,nav_hz,sent,first_try_ack,eventual_ack,denied,no_ack,first_try_pct,eventual_pct,mean_lat_ms
+C1,250,10,30,0,0,0,30,0.00,0.00,0.0

@@ -193,20 +193,50 @@ post-T6 config: BW500/10Hz as operational default.
 
 Artifacts: `logs/stage_t/t6_summary.csv`, `scripts/stage_t6_sweep.py`.
 
-### T7 — Retry timer 3000 → 500 ms (plan: test at C1 AND C2)
+### T7 — Retry timer 3000 → 500 ms (PINNED 2026-04-21, code landed, validation deferred)
 
-**Test order (per operator request 2026-04-21):**
-1. **T7-C1: stress test at BW250/10Hz** — C1 at 97% first-try has a
-   measurable 3% retry-path population. If the retry compression is
-   working, eventual% should hold at ~97% but mean_lat of the "eventual
-   but not first-try" subset should drop from ~3 s per retry to ~500 ms
-   per retry. Good before/after data on the retry timer code change.
-2. **T7-C2: exit-criteria validation at BW500/10Hz** — confirm no
-   regression on the winner config. Should show 100% first-try unchanged
-   and any rare "eventual" retries at the shorter interval.
+**Code change complete.** `src/active_objects/ao_telemetry.cpp`:
+`kAckRetryTimeoutMs = 500U`, replacing the hardcoded `3000` in
+`AO_Telemetry_cmd_retry_tick()`. Logically correct, compiles clean
+across all 4 tiers, host tests 757/759 (pre-existing failures only).
 
-With C2 already at 100% first-try, T7-C2 alone would make the retry
-compression invisible. T7-C1 gives a visible test of the fix.
+**Live validation blocked by RF bench conditions.** Multiple attempted
+sweep runs between T6-PASS (2026-04-21 early session) and T7 validation
+(same day, later session) saw:
+- C0 (BW125/5 default) link remained green, baseline reproduced
+- C1 (BW250/10) and C2 (BW500/10) **link would not come up on switch**,
+  despite the same code-path that achieved 97% and 100% first-try in
+  the earlier T6 session
+
+T6 and T7 had the same firmware config-switch mechanism
+(USB CDC `q<digit>z` → `AO_Radio_set_pending_config` → backstop apply).
+The only firmware difference is the retry-timer constant, which is on
+the ACK reply path, not the config-switch path. So the T7-session
+failures aren't explained by the code change.
+
+**Working hypothesis:** bench RF environment was sensitive to BW250/500
+operation during the T7-validation session — could be a 915 MHz
+neighbor device, microwave interference, or antenna thermal-drift.
+BW125 remained robust throughout. Separate question from "does the T7
+code change work".
+
+**Plan to resume:**
+- Re-run T7 validation at a different time or after physically moving
+  the bench away from potential interferers. Validate at C1 first for
+  visible retry-path improvement, then C2 for exit-criteria re-check.
+- Before re-running, do the LoRa research side-quest (user request
+  2026-04-21) to confirm we're driving the SX1276 according to the
+  chipset's actual best-practice guidance for CCSDS framing and bidirectional
+  sync. If the research surfaces a pattern we're not following, that
+  may explain both the Stage T link brittleness and the T7-session
+  failures without needing to blame the bench RF environment alone.
+
+**Pinned artifacts:**
+- `logs/stage_t/t7_c1.csv` — C1 attempt after T7 code change, 0/30
+  (link never came up on switch; verification-hard-fail triggered
+  before any commands were measured)
+- `scripts/stage_t6_sweep.py` updated with hard-fail switch verification
+  (Radio-row match + Pkts-climb) so no more noise-data runs
 
 ### T8 — CCSDS COP-1 + CLCW (not started)
 

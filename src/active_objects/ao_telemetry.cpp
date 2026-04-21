@@ -62,6 +62,12 @@ enum class GcsState : uint8_t {
 
 static constexpr uint32_t kGcsTimeoutMs = 5000;  // 5s without GCS heartbeat → lost
 
+// Stage T IVP-T7 — tracked-command retry timeout. Was 3000 ms pre-T6. With
+// BW500 now operational (T6 measured 100% first-try), retries rarely fire,
+// but when they do we want tight recovery: target mean successful-command
+// latency < 2 s. 500 ms × up-to-3 retries = 2 s worst case, inside budget.
+static constexpr uint32_t kAckRetryTimeoutMs = 500U;
+
 struct TelemAo {
     QActive super;
     QTimeEvt tick_timer;    // 10Hz (every 10 ticks at 100Hz base)
@@ -804,7 +810,7 @@ void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
     if (!s_pending_cmd.pending) return;
 
     uint32_t elapsed = now_ms - s_pending_cmd.sent_ms;
-    if (elapsed >= 3000) {
+    if (elapsed >= kAckRetryTimeoutMs) {
         if (s_pending_cmd.retries_left > 0) {
             s_pending_cmd.retries_left--;
             printf("[CMD] Retry %u (seq=%u)\n",

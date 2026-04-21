@@ -154,10 +154,16 @@ def set_local_config(ser: serial.Serial, label: str,
 
 
 def switch_both(veh: serial.Serial, stn: serial.Serial,
-                 idx: int, bw: int, nav: int) -> bool:
+                 idx: int, bw: int, nav: int,
+                 verify_timeout_s: float = 20.0) -> bool:
     """Drive both boards to a specific whitelist index over USB.
-    Returns True if both digits were sent + station's dashboard Radio
-    row confirms station+vehicle both on the target config within ~20s."""
+    Returns True only after confirming BOTH:
+      (a) station dashboard Radio row shows station==vehicle==target
+      (b) station Pkts counter has climbed (>=3 packets received on the
+          new config) — proves the link is actually working, not just
+          that configs are reported as matching.
+
+    Returns False if either check fails within verify_timeout_s."""
     print(f"    -> vehicle: local cfg idx {idx} (BW{bw}/{nav}Hz)",
           flush=True)
     set_local_config(veh, "vehicle", idx)
@@ -167,34 +173,65 @@ def switch_both(veh: serial.Serial, stn: serial.Serial,
 
     # Settle — radios need ~200ms for the backstop apply plus time for
     # the first nav packet on the new config to land.
-    print("    -> settle 8s", flush=True)
-    time.sleep(8.0)
+    print("    -> settle 5s", flush=True)
+    time.sleep(5.0)
 
-    # Verify via station dashboard Radio row (station == vehicle == target).
+    # Capture baseline Pkts before verification window.
     stn.reset_input_buffer()
-    deadline = time.time() + 20.0
+    time.sleep(2.0)
+    baseline_data = stn.read(30000).decode("utf-8", errors="replace")
+    baseline_pkts = None
+    for m in RE_PKTS.finditer(baseline_data):
+        baseline_pkts = int(m.group(1))
+    if baseline_pkts is None:
+        # Station not rendering dashboard — try RX: fallback.
+        for m in RE_RX_COUNT.finditer(baseline_data):
+            baseline_pkts = int(m.group(1))
+    if baseline_pkts is None:
+        print("    [FAIL] could not read station Pkts baseline", flush=True)
+        return False
+    print(f"    -> baseline Pkts={baseline_pkts}", flush=True)
+
+    # Verify (a) Radio row match AND (b) Pkts climbed >= 3.
+    row_ok = False
+    pkts_ok = False
+    deadline = time.time() + verify_timeout_s
     while time.time() < deadline:
+        time.sleep(2.0)
         data = stn.read(30000).decode("utf-8", errors="replace")
+        # (a) Radio row match
         for m in RE_RADIO_ROW.finditer(data):
             sbw, snav, ssf, scr, vbw, vnav = map(int, m.groups())
             if (sbw == bw and snav == nav
                     and vbw == bw and vnav == nav):
-                print(f"    -> confirmed: BW{bw}/{nav}Hz on both", flush=True)
-                return True
-        time.sleep(0.5)
-    print(f"    [WARN] Radio row never showed BW{bw}/{nav}Hz match "
-          "end-to-end — running stress anyway", flush=True)
+                row_ok = True
+        # (b) Pkts climb
+        last_pkts = None
+        for m in RE_PKTS.finditer(data):
+            last_pkts = int(m.group(1))
+        if last_pkts is None:
+            for m in RE_RX_COUNT.finditer(data):
+                last_pkts = int(m.group(1))
+        if last_pkts is not None and last_pkts >= baseline_pkts + 3:
+            pkts_ok = True
+        if row_ok and pkts_ok:
+            print(f"    -> link confirmed at BW{bw}/{nav}Hz: "
+                  f"Radio row matches, Pkts {baseline_pkts}->{last_pkts}",
+                  flush=True)
+            return True
+
+    # Failure diagnostics for the operator.
+    print(f"    [FAIL] BW{bw}/{nav}Hz verification failed after "
+          f"{verify_timeout_s:.0f}s:", flush=True)
+    print(f"          Radio row match: {row_ok}", flush=True)
+    print(f"          Pkts climb >=3:  {pkts_ok}", flush=True)
     return False
 
 
-def reset_both_to_default(veh: serial.Serial, stn: serial.Serial) -> None:
-    """Press `!` on both boards — apply kDefaultRocketRadioConfig."""
-    print("    -> vehicle: `!` reset", flush=True)
-    _safe_write(veh, b"!")
-    time.sleep(1.0)
-    print("    -> station: `!` reset", flush=True)
-    _safe_write(stn, b"!")
-    time.sleep(1.0)
+# reset_both_to_default removed — with ROCKETCHIP_RADIO_PERSIST undef
+# (default during Stage T testing), every boot/power-cycle already gives
+# kDefaultRocketRadioConfig. A mid-session "reset to default" is just a
+# switch to whitelist idx 0 (handled by set_local_config).
 
 
 # ----------------------------------------------------------------------------
@@ -286,13 +323,18 @@ def run_ack_stress(stn: serial.Serial, count: int, interval_s: float,
 # ----------------------------------------------------------------------------
 
 def canary(stn: serial.Serial, timeout_s: float = 20.0) -> bool:
-    """Station has seen at least 1 nav packet."""
+    """Station has seen at least 1 nav packet. Station defaults to kAnsi
+    (dashboard) at boot — dashboard frames print every ~1s. Just wait
+    and scrape Pkts/RX from the stream."""
     deadline = time.time() + timeout_s
     stn.reset_input_buffer()
     while time.time() < deadline:
         time.sleep(2.0)
         data = stn.read(40000).decode("utf-8", errors="replace")
         for m in RE_PKTS.finditer(data):
+            if int(m.group(1)) >= 1:
+                return True
+        for m in RE_RX_COUNT.finditer(data):
             if int(m.group(1)) >= 1:
                 return True
     return False
@@ -329,9 +371,12 @@ def main() -> int:
 
     results: list[tuple[str, int, int, AckResult]] = []
     try:
-        # Start clean.
-        print("\n--- Initial reset to default via `!` on both boards ---")
-        reset_both_to_default(veh, stn)
+        # Start clean — drive both boards to idx 0 (default).
+        # Persistence-off means they already boot there, but if the previous
+        # sweep run ended with boards on a different config, this normalises.
+        print("\n--- Initialize both to idx 0 (default) ---")
+        set_local_config(veh, "vehicle", 0)
+        set_local_config(stn, "station", 0)
         time.sleep(5.0)
 
         print("\n--- Canary: station receiving packets? ---")
@@ -344,7 +389,14 @@ def main() -> int:
             print(f"\n=== [{label}] BW{bw} {nav}Hz "
                   f"— {args.count} sends @ {args.interval}s ===")
 
-            switch_both(veh, stn, idx, bw, nav)
+            if not switch_both(veh, stn, idx, bw, nav):
+                print(f"  [ABORT] link not confirmed at BW{bw}/{nav}Hz. "
+                      "Measuring now would produce meaningless data. "
+                      "Stopping sweep.", flush=True)
+                # Best-effort: drop back to idx 0 so boards match again.
+                set_local_config(veh, "vehicle", 0)
+                set_local_config(stn, "station", 0)
+                return 1
             r = run_ack_stress(stn, args.count, args.interval, label)
             print(f"  [{label}] first_try={r.first_try_pct:5.1f}%  "
                   f"eventual={r.eventual_pct:5.1f}%  "
@@ -352,8 +404,9 @@ def main() -> int:
                   f"denied={r.denied} no_ack={r.no_ack}")
             results.append((label, bw, nav, r))
     finally:
-        print("\n--- Reset both boards to default ---")
-        reset_both_to_default(veh, stn)
+        print("\n--- Restore both boards to idx 0 (default) ---")
+        set_local_config(veh, "vehicle", 0)
+        set_local_config(stn, "station", 0)
         veh.close()
         stn.close()
 
