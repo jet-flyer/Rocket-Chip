@@ -59,3 +59,18 @@ C2,500,10,5,30,25,29,0,1,83.33,96.67,bw_only
 #   C0 in this T12: 13.3% first-try / 36.7% eventual. Possibly T11
 #   LnaBoostHf effect (+3 dB sensitivity), possibly session variance,
 #   possibly both. Not conclusive.
+#
+# Post-fix note (2026-04-21, commit 35f9591):
+# A partial re-run at C0 after landing the cadence + airtime-scaled
+# timeout fixes showed 3.3% first-try / 3.3% eventual (1/30 ACK'd,
+# 27/30 failed). Not a fix regression — makes sense with the new
+# constants:
+#   - Retry timeout scaled from 500 ms to 910 ms (airtime × 4 + 50).
+#     That means fewer retry attempts per 10 s send interval.
+#   - BW125/5 is still collision-limited: ~70% TX duty cycle leaves
+#     only ~60 ms gaps per nav period for station commands to land.
+# Longer retry timeouts don't help in a collision-dominated regime;
+# only the TX-window sync (Batch B / T14 RxDone anchoring) will.
+# This partial re-run data is consistent with the architectural
+# diagnosis. Full post-fix T12 re-run deferred until Batch B code
+# lands so we measure the anchored behavior too.
