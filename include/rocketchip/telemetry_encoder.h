@@ -58,6 +58,16 @@ constexpr uint16_t kApidCmdAck = 0x003;  // Command ACK (IVP-122: half-duplex AC
 // firmware we always emit 0x101; decoder falls back to 0x001 path if seen.
 constexpr uint16_t kApidNavWithConfig = 0x004;
 
+// Stage T Batch B IVP-T14d (PARKED 2026-04-22): station→vehicle 1 Hz
+// beacon was planned to populate vehicle's RF Link pre-arm gate, but a
+// continuous uplink beacon collides with vehicle's 5 Hz nav TX on our
+// single shared radio / half-duplex channel. Real CCSDS / smallsat
+// practice is downlink-inferred liveness; uplink activity is bursty /
+// on-demand, not continuous. Replaced by: operator-triggered ping at
+// preflight (reuses kApidCmdAck round trip — no new APID needed).
+// Left as a parked reservation in case future dual-radio tiers revisit.
+// constexpr uint16_t kApidStationBeacon = 0x005;
+
 // Command ACK result codes (IVP-122)
 enum class CmdAckResult : uint8_t {
     kAccepted = 0,
@@ -175,6 +185,14 @@ struct CcsdsEncoder {
     void encode_nav_with_config(const TelemetryState& telem, uint32_t met_ms,
                                  const RadioConfig& cfg, bool just_changed,
                                  EncodeResult& result);
+
+    // Stage T Batch B IVP-T14d (PARKED 2026-04-22): continuous uplink
+    // beacon collides with vehicle's 5 Hz nav TX on our single shared
+    // half-duplex radio. Replaced by preflight-triggered on-demand ping
+    // that reuses the existing kApidCmdAck round-trip — no new APID
+    // needed. Declaration left as a parked reservation.
+    // void encode_station_beacon(uint32_t uptime_ms, uint8_t lq_pct,
+    //                             EncodeResult& result);
 
     /**
      * @return Maximum packet size this encoder ever produces

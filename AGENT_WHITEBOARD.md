@@ -17,6 +17,35 @@
 
 *(cleared — `tools/i2c_bare_test/` committed 2026-04-18 as `485260b`; landing-beacon design became Stage L.)*
 
+## High priority
+
+- **Remove watchdog reboot entirely in favor of safe-mode.** 2026-04-22
+  bench test on vehicle after Stage T Batch B surfaced `[WARN] WATCHDOG
+  REBOOT` in the boot banner — the reboot path is still live. Design
+  intent (from prior stages) was to replace MCU reboot with safe-mode
+  entry so the vehicle fails *in place* with state preserved for
+  diagnosis, not rebooted silently. Audit `src/safety/watchdog_*`,
+  `watchdog_recovery.*`, any `watchdog_enable*` callers, and the
+  boot-reason decode in `main.cpp`. Remove every `watchdog_reboot`
+  code path; replace with `watchdog_recovery_enter_safe_mode()` or
+  equivalent. Update LL / docs / SPIN model if reboot was referenced.
+  **Why high priority:** silent reboots mid-test destroy diagnostic
+  state and hide the root-cause bug.
+
+- **Re-evaluate Stage T "95% first-try" gate with correct baseline.**
+  User observation 2026-04-22: the Stage T diagnostics measured
+  operator-burst ACK rate (10 Hz retry over ~300 ms), which treats "3rd
+  retry succeeded at 300 ms" as a failure. But on a half-duplex LoRa
+  link with sparse station TX (no heartbeat before IVP-T14d), a
+  3rd-retry ACK latency of ~300 ms is within ABORT's 250 ms budget +
+  reasonable operational margin. The 6.7% first-try number conflates
+  "link broken" with "expected half-duplex latency for a burst into a
+  sparse RX window." Once CCSDS station beacon lands, re-measure: (a)
+  steady-state first-try success when station is continuously TXing;
+  (b) actual ACK-latency distribution (p50 / p95 / p99); (c) whether
+  the anchor-station-TX-to-vehicle-RxDone architectural fix is still
+  needed or was over-engineered for our actual link conditions.
+
 ## Easy (1–3 hours, clear scope)
 
 *(cleared — the IVP-132a.4c red-flash was called a transient 2026-04-18 after a 31-min idle soak showed zero recurrence: 1.86M IMU reads, 0 errors, 0 baro errors, Core 1 healthy, MCU temp 35.6°C stable. Purple at 5+ min is `kSensorNeoTimeout` as designed.)*
