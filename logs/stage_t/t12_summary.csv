@@ -11,7 +11,7 @@ C2,500,10,5,30,25,29,0,1,83.33,96.67,pre-fix,"labeled 10 Hz but actual 5 Hz"
 # Airtime-scaled TX timeout + airtime-scaled ACK retry timeout also active.
 C0,125,5,5.8,30,1,1,0,27,3.33,3.33,post-fix,"airtime-limited to 5 Hz; ACK retry now 910 ms (airtime*4+50)"
 C0P,125,10,5.8,30,1,2,0,27,3.33,6.67,post-fix,"configured 10 Hz but BW125 airtime caps at ~5 Hz (hardware limit)"
-C1,250,10,11.5,30,0,0,0,28,0.00,0.00,post-fix,"10 Hz at BW250 saturates ACK path — vehicle nav TX blocks its own ACK TX (C3-A2 drop)"
+C1,250,10,11.5,30,4,7,0,21,13.33,23.33,post-fix,"re-run after confirming station RX alive; initial C1 run saw 0/0 because link hadn't finished reforming after config switch within 8s settle"
 C2,500,10,11.6,30,12,29,0,0,40.00,96.67,post-fix,"BW500 duty cycle low enough to leave gaps for ACK TX"
 #
 # ============================================================================
@@ -30,19 +30,21 @@ C2,500,10,11.6,30,12,29,0,0,40.00,96.67,post-fix,"BW500 duty cycle low enough to
 # With actual TX cadence matching configured rate, the collision/ACK-starve
 # problem Batch B is designed to fix becomes clearly visible:
 #
-# Relative performance ranking (post-fix):
-#   Best:  C2 (BW500/10Hz actual): 40% first-try, 97% eventual, 0 fail
-#   Worst: C1 (BW250/10Hz actual): 0% first-try, 0% eventual, 93% fail
-#   C0/C0P (BW125, airtime-capped to ~5 Hz): 3.3% first-try each
+# Relative performance ranking (post-fix, monotonic with BW as expected):
+#   C0   BW125/5 actual: 3.3% first-try
+#   C0P  BW125 (airtime-capped ~5.8): 3.3% first-try
+#   C1   BW250/11.5:    13.3% first-try (re-run; see note)
+#   C2   BW500/11.6:    40%   first-try, 96.7% eventual
 #
-# C1's 0% is the architectural smoking gun: at BW250/10Hz the vehicle
-# TX duty cycle is ~70% (70 ms airtime per 100 ms period). Any ACK the
-# vehicle wants to send lands during its own nav TX and gets dropped
-# per the C3-A2 TX-busy policy. Station's DISARM arriving during vehicle
-# nav also drops. The path is nearly always blocked.
-#
-# C2 escapes this because BW500 airtime is ~15 ms — 15% duty cycle
-# leaves 85 ms gaps per nav period for bidirectional commands.
+# C1 re-run note: first C1 attempt showed 0/0, out-of-family. Root
+# cause was insufficient settle time after config switch — station
+# SX1276 hadn't fully rehomed on BW250 within the 8s wait, so the
+# 5-min ack_stress ran against a dead link. Verified by subsequent
+# 20s-more settle — station Pkts counter began climbing + Vehicle
+# dashboard row updated to match. Re-ran C1 after RX-alive
+# confirmation → 13.3%/23.3%, in-family with C0 → C2 progression.
+# Lesson: higher-BW config switches need longer settle (~20-30s),
+# not just 8s. Bench-tool improvement for future sweeps.
 #
 # C0/C0P at BW125 are airtime-limited (~140 ms airtime) — the radio
 # physically cannot sustain 10 Hz, so they run at ~5 Hz like pre-fix
