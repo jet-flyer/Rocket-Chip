@@ -227,19 +227,42 @@ else()
     # SCRATCH_Y is 4KB total with 0 bytes of .scratch_y data — full 4KB available.
     add_compile_definitions(PICO_STACK_SIZE=0x1000)
 
-    # RP2350-E2 silicon erratum workaround (SDK 2.2.0 issue).
-    # SW spinlocks use LDAEXB/STREXB which set the ARM global event flag
-    # (equivalent to __sev()), perturbing WFE/sleep state. With certain
-    # binary layouts, this interacts with a boot-time fault path and
-    # deadlocks Core 0 in `sleep_until` → `spin_lock_blocking` on the
-    # timer spinlock (ID 10) before reaching main(). Symptoms: USB CDC
-    # never enumerates, Core 1 stuck at bootrom 0x000000da, Core 0
+    # ============================================================
+    # RP2350-ONLY — silicon erratum E2 workaround (SDK 2.2.0 issue).
+    # ============================================================
+    # Do NOT apply on RP2040 or other non-RP2350 chips — the
+    # PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL flag affects per-core
+    # M33_ACTLR setup during runtime_init, which is specific to
+    # Cortex-M33 / RP2350. On RP2040 (Cortex-M0+) the flag has no
+    # effect but is meaningless.
+    #
+    # RP2350-E2: "SIO SPINLOCK writes are mirrored at +0x80 offset"
+    # (datasheet p.1373). SDK 2.2.0 mitigates by using SW spinlocks
+    # by default on RP2350. But the SW path uses LDAEXB/STREXB which
+    # set the ARM global event flag (equivalent to __sev()),
+    # perturbing WFE/sleep state. With certain binary layouts, this
+    # interacts with a boot-time fault path and deadlocks Core 0 in
+    # `sleep_until` → `spin_lock_blocking` on the timer spinlock
+    # (ID 10) before reaching main(). Symptoms: USB CDC never
+    # enumerates, Core 1 stuck at bootrom 0x000000da, Core 0
     # eventually lockup in HardFault (PC=0xeffffffe, LR=0xffffffe9).
+    #
+    # E2 affects silicon steppings A2/A3/A4 on BOTH RP2350A (Feather
+    # RP2350 HSTX) and RP2350B (Fruit Jam) — the erratum is in SIO
+    # logic shared by both package variants. Not fixed in any
+    # shipping silicon stepping.
+    #
     # Reporter-confirmed fix in pico-sdk #2495, #2706. Disables the
     # EXTEXCLALL bit in M33_ACTLR per-core at runtime_init time.
-    # Discovered 2026-04-22 after tiny code-diff in ao_rcos.cpp shifted
-    # the ELF enough to deterministically trigger the latent bug.
-    add_compile_definitions(PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1)
+    # Discovered 2026-04-22 after tiny code-diff in ao_rcos.cpp
+    # shifted the ELF enough to deterministically trigger the
+    # latent bug. Kept under a PICO_RP2350 guard so non-RP2350
+    # board ports don't inherit the flag.
+    if(PICO_PLATFORM STREQUAL "rp2350" OR PICO_PLATFORM STREQUAL "rp2350-arm-s"
+       OR PICO_PLATFORM STREQUAL "rp2350-riscv")
+        add_compile_definitions(PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1)
+        message(STATUS "RP2350-E2 workaround enabled: PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1")
+    endif()
 
     # Compiler warnings — applied globally (includes SDK sources)
     add_compile_options(
