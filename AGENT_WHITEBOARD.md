@@ -34,6 +34,18 @@
   whether E9 workarounds are needed for any of our GPIO pins (floating
   inputs with pull-downs = leakage).
 
+  **Related SWD-debug quirk (may be upstream-worth):** after SDK
+  runtime_init completes on RP2350 with `PICO_USE_SW_SPIN_LOCKS=1`,
+  halting the target via `monitor halt` during a `spin_lock_blocking`
+  wait appears to lose the exclusive-monitor reservation. On resume,
+  STREXB fails forever, the spinlock never acquires, and Core 0
+  eventually HardFaults (same PC=0xeffffffe / LR=0xffffffe9 lockup
+  signature). Workflow workaround: always follow `monitor halt` with
+  `monitor reset halt` + `load` + `monitor resume` rather than bare
+  `monitor resume` when debugging past a spinlock wait. File as part
+  of the errata sweep — may warrant upstream pico-sdk issue citing
+  #2495 / #2706 line of investigation.
+
 - **Remove watchdog reboot entirely in favor of safe-mode.** 2026-04-22
   bench test on vehicle after Stage T Batch B surfaced `[WARN] WATCHDOG
   REBOOT` in the boot banner — the reboot path is still live. Design
