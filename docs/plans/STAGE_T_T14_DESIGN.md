@@ -259,17 +259,359 @@ Things I may have missed:
 
 ---
 
-## Round 2 — (to be filled in after Round 1 feedback)
+## Round 2 — Revised Design (2026-04-21)
 
-After Round 1 responses come in, I'll revise the design doc with:
-- Concrete values for N, M, LQ thresholds, guard budget (Round 1 only
-  had preliminary).
-- SPIN model LTL formula specifics.
-- Core1 FMEA protocol.
-- ACK-path timing measurement procedure.
-- Any additional features council asks for.
+Round 1 was premise-level; this is the concrete design the Round 2 council reviews. Incorporates:
+- All 11 Round-1 council consensus revisions.
+- All 8 plan-as-whole council tightening items (`shimmering-twirling-thimble.md` §Plan-as-whole Council Review).
+- User corrections (AO name stays `AO_RfManager`; `ok_to_arm()` NOT in gate API — FlightDirector owns arm policy).
+- AO Commandments invariants (`docs/decisions/AO_COMMANDMENTS.md`).
+- Post-fix T12 data (`logs/stage_t/t12_summary.csv` — confirms collision-starve pattern at actual 10 Hz).
 
-Then Round 2 reviews the full revised design. GO from all 4 = code starts.
+### 0. Prereqs already landed
+
+- `35f9591` (Batch B prelim): `nav_rate_hz` now actually wires to TX cadence; `rfm95w::tx_timeout_us` airtime-scaled; `kAckRetryTimeoutMs` airtime-scaled; `radio_config_sx1276_legal()` accepts any hardware-legal combo (advanced user path).
+- `6104da5` + `6196e1e`: AO Commandments advisory doc + retroactive scan (no blocker violations).
+- `acd399d` (Batch A): T11 driver hygiene (`RegLna`, `RegModemConfig3`) + audit display.
+
+T14 Round 2 is the architectural fix on top of all three.
+
+### 1. AO_RfManager ownership boundary
+
+Per **AO Commandments VII ("one AO, one responsibility")** and **V (`const*` accessor cooperative-dispatch-only)**:
+
+- **`AO_RfManager` owns:** link state enum, RSSI, SNR, LQ%, CRC-error rate, packets-lost counter, `last_rx_ms`, filtered `anchor_estimate_us`, per-command-type retry stats (T14b).
+- **`AO_RfManager` does NOT own:** arm policy (FlightDirector), command dispatch (Telemetry), radio hardware (AO_Radio). It reads RxDone via `SIG_RX_DONE` events posted from `AO_Radio`; it exports `next_tx_window(now_us)` that `AO_Radio` consults when scheduling station TX.
+- **Public API (const-accessor pattern, Council A6):**
+  ```cpp
+  // Header-declared invariant: callable only from Core 0 handler context
+  // under cooperative QV dispatch. Never from ISR, never from Core 1.
+  const RfManagerState* AO_RfManager_get_state();
+
+  // Station-only: when is the next safe TX window open?
+  // Returns 0 if anchor stale (deadman fired).
+  uint32_t AO_RfManager_next_tx_window_us(uint32_t now_us);
+
+  // Station retry gate — "is the link healthy enough to bother retrying?"
+  bool AO_RfManager_ok_to_retry();
+  ```
+- **NO `ok_to_arm()`** — arming is FlightDirector's decision. FlightDirector reads `AO_RfManager_get_state()->link == kTrack && ...->lq_pct >= kArmLqThreshold` as **one input** to its own pre-arm aggregator alongside battery, calibration, GPS lock, health. One centralized ARM refusal point, one human-readable reason path.
+
+### 2. State machine — concrete
+
+```
+         +---[1 valid RX]---+
+         |                  v
+     [kAcq] ---> [kTentative]
+        ^  ^       |
+        |  |       | [5 consecutive RX, LQ >= 60%, within 1.5 × nav_period each]
+        |  |       v
+        |  |    [kTrack] <--[LQ >= 60% over last 10 slots]---+
+        |  |       |                                          |
+        |  |       | [LQ in [20, 60)% over last 10 slots]     |
+        |  |       v                                          |
+        |  |    [kTrackDegraded] -------------------+         |
+        |  |       |                                |         |
+        |  |       | [20 missed frames consecutive: |         |
+        |  |       |  2 s at 10 Hz, 10 s at 2 Hz]   |         |
+        |  |       v                                |         |
+        |  |    (transition to kAcq) <--------------+---------+
+        |  |
+        |  +---[idle > max(60 s, 30 × nav_period), clock-drift tripwire]
+        |       regardless of current state
+```
+
+**Transition predicates (concrete, sourced):**
+
+| Transition | Predicate | Source / rationale |
+|---|---|---|
+| `kAcq → kTentative` | 1 valid RX with `crc_ok && len > 0` | ELRS `ACQ` / SiK link-init: any handshake is promotion. |
+| `kTentative → kTrack` | 5 consecutive valid RX with per-RX-LQ ≥ 60% AND inter-arrival ≤ 1.5 × nav_period | 5 = ELRS connection-hysteresis (≈ 500 ms at 10 Hz); 60% LQ floor = ELRS warning-band boundary; 1.5× spacing catches skip-every-other-packet. |
+| `kTrack → kTrackDegraded` | LQ in [20%, 60%) over trailing 10 slots | ELRS `warning` zone; prevents spurious drops during brief RF fades. |
+| `kTrackDegraded → kTrack` | LQ ≥ 60% over trailing 10 slots | Hysteresis; same threshold as entry, requires sustained recovery. |
+| `* → kAcq` | 20 missed frames consecutive | 2 s at 10 Hz = a typical RF fade window. Configurable by nav_rate (20 frames is the unit). |
+| `kTrack* → kAcq` (idle-drift) | `now_us - last_rx_us > max(60 s, 30 × nav_period)` | XOSC ±30 ppm: 30 ppm × 60 s = 1.8 ms drift — half the guard budget. Pre-emptive re-sync before drift crosses 5 ms. |
+
+**⚠️ All thresholds above (5, 10, 60%, 20, 20%, 60 s) are static-bench defaults. Field testing MAY adjust — noted per plan consensus.**
+
+### 3. Re-sync filter — concrete α
+
+Filtered update on every `SIG_RX_DONE`:
+```
+anchor_estimate_us = (1 - α) * anchor_estimate_us
+                   + α * (rx_done_us - expected_nav_period_us)
+```
+
+**α selection (plan consensus #2, deferred to ACK-path timing bench session):**
+- Bench session measures Core1-loaded RxDone-to-RxDone inter-arrival PDF.
+- If σ_jitter ≤ 1 ms: `α = 0.25` (SiK TDMA reference — 4-sample time constant).
+- If σ_jitter in [1, 5] ms: `α = 0.10` (ArduPilot GPS PPS reference — 10-sample time constant).
+- If σ_jitter > 5 ms: bench is broken, halt and investigate. Our XOSC at room temperature shouldn't see > 1 ms without a vibration/thermal source.
+
+Preliminary observation (C0 instrumented bench, 2026-04-21): **σ_jitter < 0.01 ms at room-temp static bench**. Implies `α = 0.25` candidate. Confirmed during bench session with real Core1 load.
+
+**⚠️ α floor is static-bench. Flight thermal/vibration will push jitter higher; field data MAY require a smaller α or switch to adaptive.**
+
+### 4. Deadman check on stale anchor
+
+`AO_RfManager_next_tx_window_us(now_us)` returns **0** (= "no window, don't TX") if:
+```
+now_us - last_rx_us > 3 × nav_period_us
+```
+
+At 10 Hz nav: 300 ms. At 2 Hz: 1.5 s. Caller (`AO_Radio::handle_radio_tick` station-side scheduling) treats 0 as "hold TX, wait for re-sync" rather than falling back to free-running.
+
+**AO Commandment III applied:** deadman test is O(1), no loops, runs within the tick budget.
+
+### 5. `tx_consec_fail` command-class behavior table
+
+On TRACK → forced-ACQ transition triggered by `tx_consec_fail >= 3`:
+
+| Command class | In-flight command fate | Operator visibility |
+|---|---|---|
+| **Safety-critical** (ABORT, DISARM, flight-termination) | **NOT dropped, NOT silently retried.** Dashboard escalation: red `LINK LOST DURING <cmd>` banner + audio alert via `SIG_NOTIFY_VEHICLE_LOST` to AO_Notify. Command moves to `s_pending_safety` buffer; AO_Telemetry re-TXes on first successful TRACK re-acquire (anchored to first good RxDone). | Unmissable. |
+| **Arm** (ARM) | Silently cancel. Operator must re-issue after TRACK re-acquires (indicator turns green). | Dashboard shows ARM-refused status; user re-presses `a` + confirm. |
+| **Config / info** (SET_RADIO_CONFIG, QUERY_RADIO_CONFIG) | Silently cancel. Normal retry flow resumes on TRACK; user/script sees a later ACK or timeout. | Normal CLI/GCS flow. |
+| **Beacon request** | Silently cancel. | No operator visibility needed. |
+
+**Source:** Round 2 cross-talk consensus (ArduPilot opened, NASA/JPL + Rocketeer + Cubesat converged). Safety commands must not silently vanish in a link-loss window.
+
+### 6. Guard budget — concrete numbers
+
+Station TX window guard against boundary-collision with vehicle nav:
+```
+guard_us = 2 × airtime_worst_us
+         + 4_000         // SX1276 PLL lock + preamble wake (datasheet §5.5)
+         + max(5_000, 3σ_jitter)  // slack, floored at 5 ms
+```
+
+At SF7/BW500/128 B worst-case payload: `airtime ≈ 70 ms`, so `guard ≈ 140 + 4 + 5 = 149 ms`.
+At SF7/BW125/128 B worst-case: `airtime ≈ 270 ms`, so `guard ≈ 540 + 4 + 5 = 549 ms` — but at BW125 the whole nav_period is 200 ms at 10 Hz, so guard > period, meaning station can't TX at all (physically correct; BW125 is not suitable for bidirectional 10 Hz and user should downshift).
+
+Station TX scheduler logic:
+```
+now_us;
+next_vehicle_tx_us = anchor_estimate_us + nav_period_us;
+safe_window_start_us = last_rx_us + 2_000;  // ~2 ms after vehicle's TxDone settles
+safe_window_end_us = next_vehicle_tx_us - guard_us;
+
+if (safe_window_end_us <= safe_window_start_us + kMinWindow) {
+    return 0;  // no safe slot exists at this config — refuse
+}
+if (now_us >= safe_window_start_us && now_us + my_airtime_us < safe_window_end_us) {
+    return now_us;  // fire immediately
+} else if (now_us < safe_window_start_us) {
+    return safe_window_start_us;  // defer to window open
+}
+return next_vehicle_tx_us + 2_000;  // missed this slot, wait for next window
+```
+
+### 7. Core1 vibration FMEA protocol
+
+**Scope:** profile worst-case RxDone-to-station-TX-start latency with Core1 at full production I2C load (IMU 1 kHz, baro 30 Hz, GPS 10 Hz, all polled concurrently).
+
+**Procedure (bench, pre-field-test):**
+1. Station flashed with `ROCKETCHIP_STAGE_T_LOGGING=ON` (`stage_t_log_tx_start` + `stage_t_log_rx` already in tree).
+2. Vehicle running nominal Core1 workload at SF7/BW500/10Hz.
+3. Record 1000+ station-side `[STAGE_T] tx_start` events.
+4. For each, compute `δ = tx_start_us - last_preceding_rxdone_us`.
+5. Tabulate δ distribution: mean, stddev, p95, p99, max.
+6. **Pass criterion:** p99 δ ≤ 25 ms (≤ 25% of BW500 nav period). If > 25 ms, T14's anchored TX can't reliably land — Core1 is stealing budget.
+
+**Escalation:** if p99 > 25 ms, mitigation options are:
+- Priority boost for AO_RfManager (currently prio 5-6 planned).
+- Move Core1 sensor polling into interrupt-driven buffers + seqlock handoff (Stage 13+ pattern already established).
+- Reduce nav_rate (user-configurable now, commit 35f9591).
+
+### 8. ACK-path timing bench procedure (plan consensus #2)
+
+**Combined session:** measures α-filter source data + ACK-drain-inside-window + Core1 FMEA + LDO rail (Cubesat #3). One bench afternoon.
+
+**Setup:**
+- Both boards on post-T14 firmware, kAnsi dashboards, `ROCKETCHIP_STAGE_T_LOGGING=ON`.
+- Station ack_stress_test running at C2 (BW500/10Hz), 5 min at 1 Hz inter-send.
+- Vehicle at full Core1 load.
+- Scope probe on station 3.3V rail (plan consensus #3).
+
+**Measurements (all from log correlation):**
+1. **RxDone jitter PDF** (α-filter source): inter-arrival of valid RX on station.
+2. **RxDone-to-next-station-TX** (Core1 FMEA): δ per event, distribution.
+3. **Station-TX-to-vehicle-RxDone** (ACK-path in-bound): how long from station's TxDone to vehicle seeing packet.
+4. **Vehicle-ACK-TX-to-station-RxDone** (ACK-path out-bound): ACK drain — must fit within next anchored window.
+5. **3.3V rail floor** during retry storm (scope, minutely sampled).
+
+**Pass criteria:**
+- RxDone σ_jitter < 5 ms; picks α per §3.
+- Core1 FMEA p99 ≤ 25 ms per §7.
+- ACK drain + next station TX fit within `guard_us` budget per §6.
+- 3.3V rail stays ≥ 2.5 V per plan consensus #3.
+
+**Single deliverable:** `logs/stage_t/t14_bench.md` summarizing all four, with CSVs + scope screenshots.
+
+### 9. ABORT budget verification
+
+Paper budget from the pre-Batch-B section: ~120 ms worst case, ~130 ms margin against 250 ms gate. Round 2 commits to **matching paper against measurement during the ACK-path timing bench session**:
+
+- Bench-measured legs (2-3, 5-7, 9 from the budget table) captured in the same STAGE_T_LOGGING run.
+- Any leg > 50% over paper estimate: flag for review, root-cause before field.
+- If total measured > 250 ms: halt; field test does not start until root-caused.
+
+### 10. SPIN model (LTL properties)
+
+New PROMELA model: `tools/spin/rocketchip_rf_manager.pml`.
+
+**Abstracted model:**
+- States: `kAcq`, `kTentative`, `kTrack`, `kTrackDegraded` as labels.
+- Input events: `rx_good`, `rx_crc_err`, `tick_miss`, `tick_idle_drift`.
+- Output propositions: `can_tx`, `link_healthy`, `notify_lost`.
+
+**LTL properties to check:**
+
+1. **Liveness (eventual-TRACK):**
+   ```
+   ltl track_convergence { [] (healthy_link -> <> (state == kTrack)) }
+   ```
+   "If the input stream is healthy (no CRC, no drops), TRACK is eventually reached." Proves ACQ→TENTATIVE→TRACK is reachable without deadlock.
+
+2. **Safety (never-silent-after-LOST):**
+   ```
+   ltl never_silent { [] ((state == kAcq && prev_state == kTrack) -> <> notify_lost) }
+   ```
+   "After TRACK→ACQ fallback, `notify_lost` is eventually raised." Proves the unmissable indicator always fires.
+
+3. **Safety (no-TX-while-acq):**
+   ```
+   ltl no_tx_in_acq { [] (state == kAcq -> !can_tx) }
+   ```
+   "Station TX is never permitted in ACQ state." Proves the deadman never opens a window during ACQ.
+
+4. **Safety (hysteresis-consistency):**
+   ```
+   ltl hysteresis { [] (state == kTrackDegraded -> (prev_state == kTrack || prev_state == kTrackDegraded)) }
+   ```
+   "kTrackDegraded only reachable from kTrack or itself." No wild jumps.
+
+All properties to pass SPIN verification before Batch B code merges. Exit gate alongside host tests.
+
+### 11. Unmissable VEHICLE-NOT-HEARD indicator (Rocketeer, plan consensus #7)
+
+On `* → kAcq` transition (LOST):
+1. Post `SIG_NOTIFY_VEHICLE_LOST` to AO_Notify (static event per Commandment VI).
+2. AO_Notify → LED red slow-flash (via AO_LedEngine with NotifyIntent::kVehicleLost priority).
+3. AO_Notify → audio alert via existing notify-backend audio path (Stage 14 scaffolding; if audio backend is stubbed, visual-only is acceptable for Batch B — flagged as Batch B+ polish).
+4. Dashboard shows `[!] VEHICLE NOT HEARD — check power/position` in red.
+
+All three channels (LED, audio, text) fire on the SAME event so a distracted operator sees at least one.
+
+### 12. Pre-arm "link OK" glance indicator (Rocketeer, plan consensus)
+
+Dashboard adds a single-color-block indicator separate from the detail RfManager row:
+- Green: `state == kTrack && LQ >= 80%` (comfortable arm)
+- Yellow: `state == kTrack && LQ in [60, 80)%` (arm with caution — dashboard shows why)
+- Red: `state != kTrack || LQ < 60%` (FlightDirector will refuse arm)
+
+FlightDirector pre-arm aggregator uses the same predicates → glance indicator always matches whether an ARM attempt will be accepted.
+
+### 13. Dual-mode radio skeleton
+
+Per user direction + 3/4 panelists: skeleton only, full impl is separate future IVP.
+
+```cpp
+// AO_RfManager-owned:
+enum class RadioMode : uint8_t {
+    kFlight = 0,  // only populated value today
+    // Future: kLanded_Beacon, kGroundIdle, ...
+};
+
+// Safety invariant (documented at point of use):
+// "Mode transitions are forbidden while FlightDirector state is
+// ARMED, BOOST, COAST, or DESCENT." Enforced at the transition
+// dispatcher (stub in Batch B; real logic in future dual-mode IVP).
+```
+
+No transition handler in Batch B — just the type + invariant comment. Prevents a retrofit of the entire state machine later.
+
+### 14. MAV_CMD dedupe (T14a) — concrete
+
+In `AO_Telemetry::send_tracked_command()`:
+```
+if (s_pending_cmd.pending &&
+    s_pending_cmd.cmd_id == incoming_cmd_id) {
+    // In-place replace: keep pending-flag, keep sent_ms (retries still
+    // target the original window), overwrite params + bump seq.
+    s_pending_cmd.seq = next_seq();
+    copy_params(s_pending_cmd, incoming);
+    s_pending_cmd.retries_left = kMaxRetries;
+    return;
+}
+// Normal queue-new path.
+```
+
+~20 LOC. Host test: send 5 `a`=ARM commands in 100 ms, assert pending queue depth = 1 at end with most-recent params.
+
+### 15. Retry instrumentation (T14b) — concrete
+
+Per command-type counters in `AO_Telemetry`:
+```cpp
+struct RetryStats {
+    uint32_t sent_count;
+    uint32_t first_try_ack_count;
+    uint32_t retry_ack_count;    // any retry slot succeeded
+    uint32_t fail_count;          // all retries exhausted
+    uint32_t total_retry_count;   // for mean-retries-per-cmd
+};
+static RetryStats s_retry_stats[kCmdTypeCount] = {};
+```
+
+Exposed via `diag_stats.cpp` for `q → s` CLI dump. Always on in all 4 build tiers (no compile flag — this IS the instrumentation). Fed into:
+- Dashboard live retry indicator (T14c, Batch C).
+- T13 enable decision (Batch C): 3 ground tests showing retry-storm pattern.
+
+### 16. Implementation file list (final)
+
+**New:**
+- `src/active_objects/ao_rf_manager.h` + `.cpp`
+- `tools/spin/rocketchip_rf_manager.pml`
+- `test/test_rf_manager.cpp` (host: state transitions + filter accumulation + deadman + command-class table)
+- `logs/stage_t/t14_bench.md` (bench session summary)
+- `logs/stage_t/t14_field.md` (field test summary)
+- `docs/decisions/COP1_NOT_PURSUED.md` (already planned; written in this batch alongside the others)
+
+**Modified:**
+- `src/active_objects/ao_radio.cpp` (post SIG_RX_DONE; station-TX window delegates to AO_RfManager)
+- `src/active_objects/ao_telemetry.cpp` (consult `ok_to_retry()`; MAV_CMD dedupe T14a; retry instrumentation T14b)
+- `src/active_objects/ao_flight_director.cpp` (reads `AO_RfManager_get_state()` as pre-arm input)
+- `src/active_objects/ao_rcos.cpp` (subscribe AO_RfManager at boot)
+- `src/active_objects/ao_notify.cpp` (handle SIG_NOTIFY_VEHICLE_LOST)
+- `src/cli/rc_os_dashboard.cpp` (RfManager row + glance indicator)
+- `src/dev/diag_stats.cpp` (retry counters dump)
+- `docs/AO_ARCHITECTURE.md` (new AO entry + inventory update)
+- `docs/SAD.md` (data flow)
+
+### 17. Post-fix T12 baseline (reference numbers for Batch B gate comparison)
+
+Actual-cadence baseline post nav_rate fix (commit `35f9591`, 2026-04-21 T12 re-run):
+
+| Config | BW | nav_actual | first-try | eventual | Regime |
+|--------|---:|-----------:|----------:|---------:|--------|
+| C0 | 125 | 5.8 Hz | 3.3% | 3.3% | Collision-saturated |
+| C0P | 125 | 5.8 Hz (capped) | 3.3% | 6.7% | Same as C0 |
+| C1 | 250 | 11.5 Hz | 13.3% | 23.3% | Moderate collision |
+| C2 | 500 | 11.6 Hz | 40.0% | 96.7% | Low-duty, gaps available |
+
+**Batch B gate:** C2 first-try ≥ 95% at bench (Wilson CI lower bound, N=100). Current C2 post-fix baseline is 40% — T14's job is to close the 40 → 95% gap.
+
+Exit the 2-round council with GO on this design and we start implementation.
+
+### 18. Static-bench caveat (flight-testing reminder)
+
+Every numerical value in §2-§10 was picked against **room-temperature, stationary bench** data. Flight will change:
+- XOSC drift (thermal, vibration) — α may need to be adaptive.
+- Airtime jitter under acoustic noise from motor burn — guard budget may need to widen.
+- Multipath during coning — RX jitter p99 may balloon.
+- Doppler shift at Mach — may need frequency correction loop (not in Batch B).
+
+All thresholds in this design are **starting points**, not flight-final values. Field-testing phase (deferred post Batch B field gate) revisits each.
 
 ---
 
