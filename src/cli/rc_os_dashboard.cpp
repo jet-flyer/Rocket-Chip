@@ -18,6 +18,7 @@
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h" // T5.5 sub 2f: RxTelemSnapshot config echo fields
+#include "active_objects/ao_rf_manager.h" // IVP-T14: RfManager row + glance
 #include "flight_director/flight_state.h"
 #include <stdio.h>
 #include <string.h>
@@ -226,6 +227,36 @@ static int format_radio_row(char* out, size_t n, const DisplayFields& d) {
         d.cfg_just_changed ? " [CHANGED]" : "");
 }
 
+// IVP-T14: RF Link glance indicator — green/yellow/red block that matches
+// the FD pre-arm threshold (kTrack + LQ>=65 = green, kTrackDegraded OR
+// LQ<65 in any tracking state = yellow, kAcq/kTentative/no RX = red).
+// Returns pair (color, row text) via out parameters.
+static void format_rf_link_row(char* out, size_t n, const char*& colour) {
+    const rc::RfManagerState* rf = rc::AO_RfManager_get_state();
+    if (rf == nullptr || !rf->anchor_valid) {
+        colour = kRed;
+        snprintf(out, n, "RF Link: NO RX YET                 [  ]");
+        return;
+    }
+    const uint8_t lq  = rf->lq_pct;
+    const int     st  = static_cast<int>(rf->state);
+    const char*   st_name = rc::link_state_name(rf->state);
+    // kTrack=2, kTrackDegraded=3
+    if (st == 2 && lq >= 65U) {
+        colour = kGreen;
+        snprintf(out, n, "RF Link: %-8s LQ %3u%%          [OK]",
+                 st_name, static_cast<unsigned>(lq));
+    } else if (st == 2 || st == 3) {
+        colour = kYellow;
+        snprintf(out, n, "RF Link: %-8s LQ %3u%%          [--]",
+                 st_name, static_cast<unsigned>(lq));
+    } else {
+        colour = kRed;
+        snprintf(out, n, "RF Link: %-8s LQ %3u%%          [!!]",
+                 st_name, static_cast<unsigned>(lq));
+    }
+}
+
 // Build ANSI frame string into s_frame, return length
 static int build_frame(const DisplayFields& d, const RadioAoState* rs,
                         uint16_t seq) {
@@ -235,6 +266,11 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
     const char* radio_clr = kReset;
     if (d.cfg_just_changed)      { radio_clr = kCyan;   }
     else if (d.cfg_mismatch)     { radio_clr = kYellow; }
+
+    // IVP-T14: RF Link row with glance indicator (pre-arm parity).
+    char rflink_row[80];
+    const char* rflink_clr = kReset;
+    format_rf_link_row(rflink_row, sizeof(rflink_row), rflink_clr);
 
     return snprintf(s_frame, sizeof(s_frame),
         "%s"
@@ -247,6 +283,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         "-------------------------------------------%s\n"
         "RSSI: %s%d dBm%s  SNR: %d dB  %s%s%s  %d%%%s\n"
         "Pkts: %-6lu Lost: %-4lu  %sLast: %lu.%lus%s%s\n"
+        "%s%s%s%s\n"
         "%s%s%s%s\n"
         "-------------------------------------------%s\n"
         "Batt: %.2fV  Temp: %dC  ESKF: %s%s%s  Seq: %u%s\n"
@@ -272,6 +309,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         d.sig_clr, (unsigned long)d.age_s, (unsigned long)d.age_ds,
         kReset, kClrEol,
         radio_clr, radio_row, kReset, kClrEol,
+        rflink_clr, rflink_row, kReset, kClrEol,
         kClrEol,
         static_cast<double>(d.batt_v), static_cast<int>(0),
         d.eskf_ok ? kGreen : kRed, d.eskf_ok ? "OK" : "FAIL", kReset,
