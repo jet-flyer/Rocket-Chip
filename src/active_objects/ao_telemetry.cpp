@@ -381,6 +381,17 @@ static struct {
     float p5;
 } s_pending_cmd = {};
 
+// Stage T Batch B IVP-T14c: last-command-result latch for dashboard display.
+// Cleared by send_tracked_command; set on ACK or on retry exhaustion.
+// Dashboard renders this for a brief hold window after result.
+static struct {
+    bool     valid;
+    bool     ok;
+    uint16_t cmd_id;
+    uint16_t rtt_ms;
+    uint32_t at_ms;
+} s_last_cmd_result = {};
+
 // ============================================================================
 // Stage T Batch B T14b: retry instrumentation (always on).
 //
@@ -467,6 +478,31 @@ static void station_on_query_ack(const rc::ccsds::CommandAckPayload& ack) {
 }
 #endif
 
+// Post-ACK bookkeeping: latch dashboard snapshot (IVP-T14c) + update
+// retry stats (IVP-T14b). Extracted to keep try_handle_cmd_ack under
+// the 60-line JSF AV Rule 1 cap.
+static void record_ack_outcome(uint16_t matched_cmd, float matched_p1,
+                               uint8_t retries_left_at_ack,
+                               uint32_t rtt_ms, bool accepted) {
+    // IVP-T14c dashboard latch.
+    s_last_cmd_result.valid  = true;
+    s_last_cmd_result.ok     = accepted;
+    s_last_cmd_result.cmd_id = matched_cmd;
+    s_last_cmd_result.rtt_ms = (rtt_ms > 0xFFFFU) ? 0xFFFFU
+                                                   : static_cast<uint16_t>(rtt_ms);
+    s_last_cmd_result.at_ms  = now_ms();
+
+    // T14b retry stats.
+    CmdClass cls = classify_tracked_cmd(matched_cmd, matched_p1);
+    uint8_t retries_used = kAckMaxRetries - retries_left_at_ack;
+    s_retry_stats[cls].total_retries_used += retries_used;
+    if (retries_used == 0) {
+        s_retry_stats[cls].first_try_ack_count++;
+    } else {
+        s_retry_stats[cls].retry_ack_count++;
+    }
+}
+
 static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
     rc::ccsds::CommandAckPayload ack{};
     if (!rc::ccsds_decode_cmd_ack(rxEvt->buf, rxEvt->len, ack)) {
@@ -493,25 +529,16 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
     const float matched_p4 = s_pending_cmd.p4;
     const float matched_p5 = s_pending_cmd.p5;
     const uint8_t retries_left_at_ack = s_pending_cmd.retries_left;
+    const uint32_t rtt_ms =
+        static_cast<uint32_t>(now_ms() - s_pending_cmd.sent_ms);
     s_pending_cmd.pending = false;
 
     const bool accepted = (ack.result ==
         static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted));
     printf("[CMD] %s (seq=%u)\n", accepted ? "ACK'd" : "DENIED", ack.cmd_seq);
 
-    // T14b: record outcome. 3 = first-try success; <3 = retry-rescued.
-    // Denied counts as "not failed" (the vehicle got it and refused on
-    // policy grounds — that's useful, not a retry scenario).
-    {
-        CmdClass cls = classify_tracked_cmd(matched_cmd, matched_p1);
-        uint8_t retries_used = kAckMaxRetries - retries_left_at_ack;
-        s_retry_stats[cls].total_retries_used += retries_used;
-        if (retries_used == 0) {
-            s_retry_stats[cls].first_try_ack_count++;
-        } else {
-            s_retry_stats[cls].retry_ack_count++;
-        }
-    }
+    record_ack_outcome(matched_cmd, matched_p1, retries_left_at_ack,
+                       rtt_ms, accepted);
 
 #ifdef ROCKETCHIP_JOB_STATION
     if (accepted && matched_cmd == 31011 /* MAV_CMD_USER_2 */) {
@@ -901,6 +928,10 @@ static void populate_pending(uint16_t command, uint8_t seq, float p1,
     // window), so counting it is correct.
     CmdClass c = classify_tracked_cmd(command, p1);
     s_retry_stats[c].sent_count++;
+
+    // IVP-T14c: clear stale last-result latch on new send so dashboard
+    // transitions directly to "Try 0/N (pending)" without stale ACK text.
+    s_last_cmd_result.valid = false;
 }
 #endif
 
@@ -936,6 +967,22 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
 
 bool AO_Telemetry_is_cmd_pending() {
     return s_pending_cmd.pending;
+}
+
+// Stage T Batch B IVP-T14c: dashboard-visible snapshot of pending/recent-ack
+// state. Pure snapshot — Core 0 cooperative dispatch, no locks needed.
+void AO_Telemetry_get_pending_cmd_status(PendingCmdStatus* out) {
+    if (out == nullptr) { return; }
+    out->pending      = s_pending_cmd.pending;
+    out->cmd_id       = s_pending_cmd.cmd_id;
+    out->retries_used = static_cast<uint8_t>(
+        kAckMaxRetries - s_pending_cmd.retries_left);
+    out->max_retries  = kAckMaxRetries;
+    out->last_result_valid = s_last_cmd_result.valid;
+    out->last_result_ok    = s_last_cmd_result.ok;
+    out->last_cmd_id       = s_last_cmd_result.cmd_id;
+    out->last_rtt_ms       = s_last_cmd_result.rtt_ms;
+    out->last_result_ms    = s_last_cmd_result.at_ms;
 }
 
 // Stage T Batch B IVP-T14b: retry-stats snapshot for CLI/diag.
@@ -999,6 +1046,13 @@ void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
                                                  s_pending_cmd.p1);
             s_retry_stats[cls].fail_count++;
             s_retry_stats[cls].total_retries_used += kAckMaxRetries;
+
+            // IVP-T14c: latch failure for dashboard display.
+            s_last_cmd_result.valid  = true;
+            s_last_cmd_result.ok     = false;
+            s_last_cmd_result.cmd_id = s_pending_cmd.cmd_id;
+            s_last_cmd_result.rtt_ms = 0;
+            s_last_cmd_result.at_ms  = now_ms;
 
             s_pending_cmd.pending = false;
             printf("[CMD] No ACK after %u retries\n",

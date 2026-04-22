@@ -257,6 +257,66 @@ static void format_rf_link_row(char* out, size_t n, const char*& colour) {
     }
 }
 
+// IVP-T14c: short command name for dashboard row. Stable across retries.
+static const char* cmd_id_short_name(uint16_t cmd_id) {
+    switch (cmd_id) {
+    case 400:   return "ARM/DISARM";
+    case 185:   return "ABORT";
+    case 31010: return "BEACON";
+    case 31011: return "SET RF";
+    case 31012: return "QUERY RF";
+    default:    return "CMD";
+    }
+}
+
+// IVP-T14c: dashboard CMD row. Three display states:
+//  - pending: "CMD: ARM/DISARM  Try 3/8" (yellow while retrying, reset color on initial send)
+//  - ACK:     "CMD: ARM/DISARM  ACK 180ms" (green, held ~3s after ACK)
+//  - FAIL:    "CMD: ARM/DISARM  FAILED"    (red, held ~5s after exhaustion)
+//  - idle:    "CMD: ---"                   (reset color)
+static void format_cmd_status_row(char* out, size_t n, const char*& colour) {
+    constexpr uint32_t kAckHoldMs  = 3000U;
+    constexpr uint32_t kFailHoldMs = 5000U;
+
+    PendingCmdStatus st{};
+    AO_Telemetry_get_pending_cmd_status(&st);
+
+#ifndef ROCKETCHIP_HOST_TEST
+    const uint32_t now = to_ms_since_boot(get_absolute_time());
+#else
+    const uint32_t now = 0;
+#endif
+
+    if (st.pending) {
+        colour = (st.retries_used == 0) ? kReset : kYellow;
+        snprintf(out, n, "CMD: %-10s Try %u/%u",
+                 cmd_id_short_name(st.cmd_id),
+                 static_cast<unsigned>(st.retries_used + 1),
+                 static_cast<unsigned>(st.max_retries + 1));
+        return;
+    }
+
+    if (st.last_result_valid) {
+        const uint32_t age = now - st.last_result_ms;
+        if (st.last_result_ok && age < kAckHoldMs) {
+            colour = kGreen;
+            snprintf(out, n, "CMD: %-10s ACK %ums",
+                     cmd_id_short_name(st.last_cmd_id),
+                     static_cast<unsigned>(st.last_rtt_ms));
+            return;
+        }
+        if (!st.last_result_ok && age < kFailHoldMs) {
+            colour = kRed;
+            snprintf(out, n, "CMD: %-10s FAILED",
+                     cmd_id_short_name(st.last_cmd_id));
+            return;
+        }
+    }
+
+    colour = kReset;
+    snprintf(out, n, "CMD: ---");
+}
+
 // Build ANSI frame string into s_frame, return length
 static int build_frame(const DisplayFields& d, const RadioAoState* rs,
                         uint16_t seq) {
@@ -272,6 +332,11 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
     const char* rflink_clr = kReset;
     format_rf_link_row(rflink_row, sizeof(rflink_row), rflink_clr);
 
+    // IVP-T14c: CMD row — pending/ACK/FAIL status with auto-clear.
+    char cmd_row[80];
+    const char* cmd_clr = kReset;
+    format_cmd_status_row(cmd_row, sizeof(cmd_row), cmd_clr);
+
     return snprintf(s_frame, sizeof(s_frame),
         "%s"
         "=== RocketChip Ground Station ===%s\n"
@@ -283,6 +348,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         "-------------------------------------------%s\n"
         "RSSI: %s%d dBm%s  SNR: %d dB  %s%s%s  %d%%%s\n"
         "Pkts: %-6lu Lost: %-4lu  %sLast: %lu.%lus%s%s\n"
+        "%s%s%s%s\n"
         "%s%s%s%s\n"
         "%s%s%s%s\n"
         "-------------------------------------------%s\n"
@@ -310,6 +376,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         kReset, kClrEol,
         radio_clr, radio_row, kReset, kClrEol,
         rflink_clr, rflink_row, kReset, kClrEol,
+        cmd_clr, cmd_row, kReset, kClrEol,
         kClrEol,
         static_cast<double>(d.batt_v), static_cast<int>(0),
         d.eskf_ok ? kGreen : kRed, d.eskf_ok ? "OK" : "FAIL", kReset,

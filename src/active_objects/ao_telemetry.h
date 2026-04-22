@@ -101,4 +101,24 @@ bool AO_Telemetry_is_cmd_pending();
 // IVP-122: tick the pending command retry timer (called from station tick loop)
 void AO_Telemetry_cmd_retry_tick(uint32_t now_ms);
 
+// Stage T Batch B IVP-T14c: dashboard-visible pending/recent-ack snapshot.
+// Read by the station dashboard to render a "CMD:" row. Safe from Core 0
+// handler context (cooperative QV dispatch, Commandment V).
+struct PendingCmdStatus {
+    // Pending command state (valid when pending=true).
+    bool     pending;
+    uint16_t cmd_id;
+    uint8_t  retries_used;     // 0..kAckMaxRetries — how many retries sent
+    uint8_t  max_retries;      // Always kAckMaxRetries
+    // Most-recent ACK result (valid when last_result_valid=true), latched
+    // until next send_tracked_command clears it. Dashboard displays this
+    // for a brief "hold" window after ACK before reverting to idle.
+    bool     last_result_valid;
+    bool     last_result_ok;   // true=ACK accepted, false=FAILED (retries exhausted)
+    uint16_t last_cmd_id;
+    uint16_t last_rtt_ms;      // Round-trip time from send to ACK
+    uint32_t last_result_ms;   // to_ms_since_boot at the moment the result was latched
+};
+void AO_Telemetry_get_pending_cmd_status(PendingCmdStatus* out);
+
 #endif // ROCKETCHIP_AO_TELEMETRY_H

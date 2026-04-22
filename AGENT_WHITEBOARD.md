@@ -19,6 +19,19 @@
 
 ## High priority
 
+- **build_station/ CMake should auto-pick `adafruit_fruit_jam` when
+  `ROCKETCHIP_JOB_STATION=1` is set.** 2026-04-22 session I Frankenstein-
+  flashed the station twice because my clean rebuild of `build_station/`
+  only passed `-DROCKETCHIP_JOB_STATION=1` and the root CMakeLists.txt
+  line 185 defaulted `PICO_BOARD` to `adafruit_feather_rp2350`. Station
+  role + Feather pin config = firmware that looks valid via picotool
+  but has wrong LED/I2C/SPI pins for the physical board. Fix in root
+  CMakeLists.txt: when `ROCKETCHIP_JOB_STATION=1` is set and
+  `PICO_BOARD` is not explicitly specified, default to
+  `adafruit_fruit_jam`. Also applies to `build_station_flight/`.
+  Diagnostic hint for this footgun documented in
+  `docs/TROUBLESHOOTING.md`.
+
 - **Deep RP2350 errata sweep + codified watchlist.** 2026-04-22 we tripped
   RP2350-E2 (SIO spinlock mirror writes) as a boot-time deadlock — fix
   was a one-line `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` that we *hadn't
