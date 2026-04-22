@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-17 (Stage 16B bench validation complete)
+**Last Updated:** 2026-04-22 (Stage T complete — RF link-manager AO + pre-arm link-health + aggressive retry)
 
 ## Current Phase
 
@@ -65,9 +65,17 @@
 
 **Stage L COMPLETE (2026-04-18):** LED/notification polish — AP-parity color swaps (ARMED red, cal gyro/level yellow-blink, pre-arm fail yellow double-flash, boot rainbow), beacon-overlay composition layer with two orthogonal flags (beacon_auto preserves state color +white, beacon_manual forces pure white). Vehicle CLI `b` key + GCS `MAV_CMD_USER_1` both publish `SIG_BEACON_MANUAL`. Pre-arm-fail pure-helper auto-clear (`include/rocketchip/prearm_fail_ticks.h`, host-testable). Boot-init rainbow with min-visibility gate (essential on warm resets where ESKF+IMU are ready before Notify ticks). Two new driver modes (MODE_ALTERNATE for beacon overlays, MODE_DOUBLE_FLASH for pre-arm fail). Full-tree JSF-AV rule-1 sweep decomposed 5 latent over-threshold functions that had accumulated silently since they were written (pre-commit hook only gates staged files; `src/dev/**` whitelisted alongside `src/cli/**`). SESSION_CHECKLIST item 17 added to catch future accumulation at milestone close. 755/755 host tests (up from 724), 4 builds clean, SPIN 7/7, bench_sim 2/2+3/3. Station→vehicle end-to-end roundtrip for manual beacon not verified: vehicle-side resolver chain proven via GDB `set var beacon_manual=true`, but live radio test showed vehicle `rx_count=0` due to the pre-existing RadioScheduler TX-window sync issue.
 
-**Stage M planned (not yet started):** RadioScheduler TX-window synchronization fix. Quantified at 6.7% first-try ACK rate in IVP-132a.5; load-bearing for reliable station→vehicle command delivery. Proposed "listen-before-talk" approach: station posts `SIG_RADIO_TX` in `handle_rx_packet()` when a pending command exists, cuing TX off vehicle's guaranteed RX window. Needs plan + council review.
+**Stage T COMPLETE (2026-04-22):** RF link manager architecture, renamed from Stage M. Three batches landed:
 
-**Next:** Stage 17 (Field Testing — DEFERRED, awaits airframe + launch window), Stage 18 (Field Tuning — awaits flight data), Stage M (RadioScheduler sync fix — can run in parallel). Remaining station/vehicle disparity items (pre-commit classification-awareness, pre-commit role-awareness, station→vehicle health channel over radio, hook-portability into tracked scripts/hooks/) tracked in AGENT_WHITEBOARD.md.
+- **Batch A** (`acd399d`): IVP-T11 SX1276 register hygiene (RegLna, RegModemConfig3) + IVP-T12 manual sweep.
+- **Batch B** (2026-04-21/22 chain ending `5adb878`): IVP-T14 `AO_RfManager` — ACQ→Tentative→Track→TrackDegraded state machine, anchored station TX to vehicle RxDone, α-filtered anchor estimate, forced-ACQ on prolonged silence. Pure state-machine helpers in `src/safety/rf_link_health.h` (32 host tests). SPIN model with 5 LTL properties (all pass). IVP-T14a MAV_CMD newest-wins dedupe (ARM safety-class excluded). IVP-T14b retry instrumentation with per-command-class counters. IVP-T14d wrap: aggressive retry 8×250 ms, ARM/DISARM from dashboard (no key overlap), vehicle-lost notify wiring, FD pre-arm aggregator reads AO_RfManager state.
+- **Batch C** (`9f0e04a`): IVP-T14c live retry indicator on dashboard CMD row (Try N/9, ACK Nms, FAILED). IVP-T13 (LQ-adaptive retry) deferred to post-CCSDS-rework at `8fdf951` — parametric tuning on top of a command-layer we've already marked as STOP-GAP.
+
+Stage T surfaced and fixed RP2350-E2 silicon erratum boot deadlock via `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` (commits `e5fd105`, `45ab8a7`). Also marked LL Entry 25 SUPERSEDED and corrected 791 host-test rot from long-stale flash-layout constants.
+
+All Stage T code done. Three scope-bench rigor items (ACK-path timing + α PDF, station LDO rail under retry-storm, station RX-window baseline vs Batch A) dropped from plan — council-approved beyond what's practical for our bench setup. N=100 Wilson 95% CI was an instrumentation-bound non-result; formally deferred to re-measure under the eventual CCSDS command-layer rework.
+
+**Next:** Stage 17 (Field Testing — DEFERRED, awaits airframe + launch window), Stage 18 (Field Tuning — awaits flight data). Pending whiteboard high-priority work: (1) watchdog-reboot → safe-mode refactor; (2) deep RP2350 errata sweep + codified watchlist; (3) Stage T 95% first-try re-baseline after CCSDS layer lands. Remaining station/vehicle disparity items (pre-commit classification-awareness, pre-commit role-awareness, hook-portability into tracked scripts/hooks/) tracked in AGENT_WHITEBOARD.md.
 
 ## Completed
 

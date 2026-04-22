@@ -119,7 +119,12 @@ Scope is clear but touches multiple files, needs verification, or has small desi
 
 Needs council review or planning doc before starting.
 
-- **RadioScheduler TX-window sync — Stage T (plan: `docs/plans/STAGE_T_RADIO_DIAGNOSTICS.md`).** Renamed from M → T on 2026-04-18. Stage T is **diagnostics only** (4 IVPs: T1 baseline + failure classification, T2 cheat-mode upper-bound, T3 protocol A/B, T4 CAD feasibility + ambient RSSI). Fix plan comes in a second council session once T1/T2/T4 CSVs land in `logs/stage_t/`. Station commands only match ACKs 6.7% of the time (IVP-132a.5: 2/30 first-try, 27 went through all 3 retries). TX hardware fine (`tx_consec_fail = 0`). Candidate fixes being evaluated: CCSDS COP-1 + CLCW (leading), SX1276 CAD listen-before-talk, vehicle-side RX-window announcement, hybrid. Load-bearing for reliable station→vehicle command path.
+- **Stage T COMPLETE (2026-04-22).** Batches A+B+C code landed. See
+  `docs/plans/STAGE_T_T14_DESIGN.md` + `PROJECT_STATUS.md` "Stage T
+  COMPLETE" block. Remaining rigor (scope-bench sessions, N=100 CI)
+  dropped or deferred per user decision. Follow-up item here:
+  "Stage T 95% first-try re-baseline" to re-measure once the CCSDS
+  command-layer rework lands.
 - **Station→vehicle radio health channel.** Council A3 asked for condensing station readiness to a single bit the vehicle's GO/NO-GO consumes via radio. Current channel is command-only, no periodic telemetry-back. Dedicated IVP when telemetry-back direction is wired.
 - **Real-World Accuracy Tests plan.** Bench-side ground-truth validation — IMU known-angle tilts, baro altitude vs reference, GPS stationary/moving baseline characterization, ESKF replay vs synthetic truth, Allan variance for gyro/accel. Doesn't need launch window or airframe. Complements Stage 18 field tuning. Needs dedicated plan doc with prior-art research (ArduPilot EKF tuning, PX4 calibration) and equipment assessment.
 - **Launch procedure audit items.** Six future safety items from NASA/SpaceX/NAR procedure comparison, all requiring Mission Profile or hardware support:
