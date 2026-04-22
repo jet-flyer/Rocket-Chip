@@ -20,6 +20,20 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-22-002 | Claude Opus 4.7 | feature, firmware, radio, docs
+
+**Stage T Batch C + close-out.**
+
+IVP-T14c live retry indicator: new `CMD:` row on station dashboard with four display states (idle / `Try N/9` / `ACK Nms` / FAILED) and auto-clear hold windows. IVP-T13 LQ-adaptive retry deferred to post-CCSDS-rework (parametric tuning on top of a STOP-GAP command path is not worth it). ABORT paper-budget addendum added to T14 design doc covering single-shot, retry-fallback, and worst-case round-trips.
+
+N=100 Wilson 95% CI attempted three ways — all instrumentation-bound non-results. Deferred to post-CCSDS-rework where "first-try" becomes meaningful under flow-controlled delivery. Record at `logs/stage_t/t14_wilson_ci_attempts.md`. Scope-bench rigor items (ACK-path timing, LDO rail scope session, RX-window vs Batch A binary) dropped from plan — council-approved beyond what's practical for the current bench setup.
+
+Close-out: PROJECT_STATUS.md + AGENT_WHITEBOARD Stage T block marked COMPLETE; AO_ARCHITECTURE.md table updated (FD prio 9, new AO_RfManager row at prio 7); `docs/IVP.md` Stage M mislabel corrected (the actual Stage M is mag-cal, done long ago; the RF work has always been Stage T) with original framing preserved.
+
+Commits: 59b5192, 9f0e04a, 8fdf951, 9426954, f0552a7, 7138fc0, plus this changelog commit.
+
+---
+
 ### 2026-04-21/22-001 | Claude Opus 4.7 | feature, firmware, radio, hardware, council, docs
 
 **Stage T Batch B implementation — complete. Work spanned 2026-04-21 evening → 2026-04-22 afternoon.**

@@ -30,10 +30,12 @@ was measuring.
 ## Baseline (pre-Stage-T)
 
 Stage 12A had an observed ~6% first-try ACK rate on station→vehicle
-commands at SF7/BW125/CR4-5, 5 Hz nav. This was the trigger for Stage T
-(renamed from Stage M 2026-04-18). Root cause hypothesis going in: TX
-airtime (~140 ms) exceeds vehicle RX-window (~100 ms at 5 Hz), causing
-near-deterministic collision.
+commands at SF7/BW125/CR4-5, 5 Hz nav. This was the trigger for Stage T.
+Root cause hypothesis going in: TX airtime (~140 ms) exceeds vehicle
+RX-window (~100 ms at 5 Hz), causing near-deterministic collision.
+(An earlier whiteboard / IVP.md draft used the label "Stage M" for this
+work — that was a mislabel; the actual Stage M is mag-cal, done long
+ago. The RF work has always been Stage T.)
 
 ---
 

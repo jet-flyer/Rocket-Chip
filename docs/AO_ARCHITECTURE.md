@@ -21,9 +21,10 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 
 | AO | File | Rate | Prio | Queue | Owns | Publishes | Subscribes |
 |----|------|------|------|-------|------|-----------|------------|
-| AO_Radio | `ao_radio.cpp` | 100Hz | 8 | 32 | rfm95w_t, RadioScheduler, RadioAoState | SIG_RADIO_RX, SIG_RADIO_STATUS | SIG_RADIO_TX |
-| AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 7 | 32 | FlightDirector HSM ([diagram](../audits/cla_rbm/dot/flight_director_hsm.dot)), guard eval, Go/No-Go, PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_BEACON_ACTIVE | SIG_SENSOR_DATA |
-| AO_HealthMonitor | `ao_health_monitor.cpp` | 10Hz | 6 | 8 | HealthState, sliding windows, fault latch, staleness counter, Core1 vitality primary check (IVP-117) | SIG_HEALTH_STATUS | SIG_PHASE_CHANGE |
+| AO_FlightDirector | `ao_flight_director.cpp` | 100Hz | 9 | 32 | FlightDirector HSM ([diagram](../audits/cla_rbm/dot/flight_director_hsm.dot)), guard eval, Go/No-Go (incl. RF Link via AO_RfManager state), PIO timer hooks | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_BEACON_ACTIVE | SIG_SENSOR_DATA |
+| AO_Radio | `ao_radio.cpp` | 100Hz | 8 | 32 | rfm95w_t, RadioScheduler, RadioAoState; station-TX gated by `AO_RfManager_next_tx_window_us()` (Stage T IVP-T14) | SIG_RADIO_RX, SIG_RADIO_STATUS | SIG_RADIO_TX |
+| AO_RfManager | `ao_rf_manager.cpp` | 10Hz | 7 | 16 | LinkState (kAcq/kTentative/kTrack/kTrackDegraded), sliding-window LQ%, α-filtered anchor estimate, deadman, forced-ACQ; posts vehicle-lost/found notify on transition edges (Stage T IVP-T14) | SIG_NOTIFY_VEHICLE_LOST, SIG_NOTIFY_VEHICLE_FOUND | SIG_RADIO_RX |
+| AO_HealthMonitor | `ao_health_monitor.cpp` | 10Hz | 6 | 8 | HealthState, sliding windows, fault latch, staleness counter, Core1 vitality primary check (IVP-117); populates GoNoGoInput RF link fields from AO_RfManager (Stage T IVP-T14) | SIG_HEALTH_STATUS | SIG_PHASE_CHANGE |
 | AO_Notify | `ao_notify.cpp` | 33Hz | 5 | 16 | NotifyState, intent resolver, output backend dispatch, sensor status evaluation (Stage 14), beacon overlay + pre-arm fail + boot-init rainbow (Stage L) | SIG_LED_PATTERN (via backend) | SIG_PHASE_CHANGE, SIG_RADIO_STATUS, SIG_HEALTH_STATUS, SIG_BEACON_ACTIVE, SIG_BEACON_MANUAL |
 | AO_Logger | `ao_logger.cpp` | 50Hz | 4 | 32 | RingBuffer, LogDecimator, FlightTable, FusedState builder, SRAM ring | (none) | SIG_PHASE_CHANGE, SIG_PYRO_FIRED, SIG_HEALTH_STATUS |
 | AO_Telemetry | `ao_telemetry.cpp` | 10Hz | 3 | 8 | CCSDS/MAVLink encode, TelemetryState snapshot, RX decode | SIG_RADIO_TX | SIG_RADIO_RX, SIG_SENSOR_DATA, SIG_HEALTH_STATUS |

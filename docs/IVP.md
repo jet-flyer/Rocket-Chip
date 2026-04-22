@@ -3533,25 +3533,38 @@ Four documentation items completed: AO Architecture Audit (removed dead Core1 vi
 - IVP-L2: `b` key → pure white 2Hz. LANDED/ABORT/fault overlays composed correctly. Clear-on-phase-change verified (ARM transition cleared beacon_manual).
 - IVP-L3: Pattern code 28 yellow double-flash verified via `led_test`. Live ARM-reject path not bench-triggerable (Platform 6/6 GO — GPS-no-lock is WARN not critical).
 - IVP-L4: Rainbow visible for ~3s on cold boot then clears to sensor status. Min-ticks gate verified by second boot also showing rainbow (was invisible pre-gate).
-- IVP-L5: Vehicle local path verified (cmd_findme_beacon publishes). Station TX verified (`[CMD] find-me beacon command sent, waiting for ACK...`). Station→vehicle roundtrip blocked by pre-existing RadioScheduler sync issue (see Stage M).
+- IVP-L5: Vehicle local path verified (cmd_findme_beacon publishes). Station TX verified (`[CMD] find-me beacon command sent, waiting for ACK...`). Station→vehicle roundtrip blocked by pre-existing RadioScheduler sync issue (see Stage T, fixed in the Batch B IVP-T14 RxDone-anchored state machine).
 
 **[DIAG]:** Station auto-detect always picks vehicle → use `--port COM9` explicitly (script limitation, tracked in whiteboard). Rainbow not visible at boot → ensure min-ticks gate is in place; check `init_min_ticks` reaches 0. Beacon not clearing on phase change → verify `handle_phase_change` sets both flags false when leaving LANDED/ABORT. ARM-reject LED not showing → confirm `dispatch_flight_command` inspects bool return from `AO_FlightDirector_process_command`. MAV_CMD_USER_1 not triggering beacon on vehicle → check that `handle_rx_mavlink_msg` switch path actually receives the command (radio RX path, not USB MAVLink). Pre-commit bench_sim failing with COM7 auto-detected as "station" → vehicle is misidentified because script sees only one port; same root cause as the auto-detect limitation.
 
 ---
 
-## Stage M: RadioScheduler TX-Window Synchronization (planned)
+## Stage T: RF Link Manager + TX-Window Synchronization (COMPLETE 2026-04-22)
+
+*Note on the label below at line 3519 and line 3536: those "Stage M
+RadioScheduler" references are mislabels from the original drafting
+— the actual Stage M is mag-cal and was done long ago; this work has
+always been Stage T. Corrected here; original language preserved in
+those cross-refs for traceability.*
 
 **Purpose:** Fix the station→vehicle command delivery gap quantified in IVP-132a.5 (2026-04-16): 6.7% first-try ACK rate, 93% of commands going through all 3 retries, 1/30 explicitly timing out. TX hardware proven healthy (`tx_consec_fail = 0`); root cause is station TX timing not synchronized to vehicle RX windows in the half-duplex RadioScheduler.
 
-**Proposed approach:** "listen-before-talk" — station posts `SIG_RADIO_TX` in `handle_rx_packet()` when a pending command exists, so the TX attempt is cued off the vehicle's TX completion (when the vehicle is guaranteed to be in RX mode). Council review required before architectural change.
+**What landed (three batches, 2026-04-21/22):**
+- **Batch A** (`acd399d`): IVP-T11 SX1276 register hygiene + IVP-T12 manual sweep.
+- **Batch B**: IVP-T14 `AO_RfManager` (ACQ→Tentative→Track→TrackDegraded state machine, α-filtered anchor estimate, station-TX anchored to vehicle RxDone, forced-ACQ on silence). IVP-T14a MAV_CMD dedupe (newest-wins, ARM safety-class excluded). IVP-T14b retry instrumentation. IVP-T14d wrap: aggressive retry 8×250 ms, ARM/DISARM from dashboard, vehicle-lost notify wiring, FD pre-arm aggregator reads AO_RfManager state. Pure state-machine helpers in `src/safety/rf_link_health.h` with 32 host tests. SPIN model with 5 LTL properties (all pass).
+- **Batch C** (`9f0e04a`): IVP-T14c live retry indicator on dashboard CMD row. IVP-T13 LQ-adaptive retry deferred to post-CCSDS-rework at `8fdf951` (parametric tuning on top of a command path we've flagged as STOP-GAP).
 
-**Unblocks:** Station→vehicle end-to-end verification of any command path — including Stage L's manual beacon (IVP-L5), all future GCS-initiated commands, and any MAVLink-over-radio command workflow. Load-bearing for reliable field operation.
+**Also landed in Stage T scope:** RP2350-E2 silicon erratum boot-deadlock workaround via `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` (`e5fd105`, `45ab8a7`). LL Entry 25 marked SUPERSEDED. 791 host-test rot fixed.
 
-**Prerequisites:** None — can run in parallel with Stage 17.
+**Dropped from plan (2026-04-22, user retro):** council-approved scope-bench rigor items beyond what's practical for the current bench setup — ACK-path timing + α-filter jitter PDF (needs scope), station 3.3V LDO rail under retry-storm (needs scope + multimeter), station RX-window width vs Batch A binary. Covered link health is demonstrably healthy (RSSI green, TRACK, LQ 100% in routine operation); these measurements would refine α and slack numbers, not change the architecture.
 
-**End state:** Station first-try ACK rate > 80% under the same conditions that measured 6.7% pre-fix. No regression in vehicle telemetry TX path.
+**Deferred:** N=100 Wilson 95% CI on first-try ACK rate. Three attempts produced instrumentation-bound non-results — record at `logs/stage_t/t14_wilson_ci_attempts.md`. Proper re-run waits until the CCSDS command-layer rework lands, where "first-try" becomes a meaningful metric under flow-controlled delivery.
 
-**Not yet planned in detail.** Tracked in `AGENT_WHITEBOARD.md` under "Large (multi-session, architectural)." Will need its own plan file + council review.
+**End state (achieved):** Station-TX collision window with vehicle nav TX addressed via RxDone anchoring. Aggressive retry (8×250 ms ≈ 2 s worst case) carries safety-class commands (ARM/DISARM/ABORT) through typical collision losses. Eventually-ACK rate observed >90% in bench stress testing. First-try Wilson CI deferred until the retry architecture is proper-CCSDS rather than stop-gap MAVLink-over-LoRa.
+
+**Originally-proposed approach (historical, for comparison):** "listen-before-talk" — station posts `SIG_RADIO_TX` in `handle_rx_packet()` when a pending command exists, so the TX attempt is cued off the vehicle's TX completion (when the vehicle is guaranteed to be in RX mode). Council review refined this to the RxDone-anchored `AO_RfManager::next_tx_window_us()` gate that actually shipped.
+
+**Full design record:** `docs/plans/STAGE_T_T14_DESIGN.md`.
 
 ---
 
