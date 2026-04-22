@@ -1,0 +1,11 @@
+metric,value
+n,100
+fw_sent,100
+first_try,0
+retry_rescued,13
+failed,1
+total_retries_used,49
+first_try_rate,0.0000
+wilson_lo,0.0000
+wilson_hi,0.2153
+eventually_ack_rate,0.9286

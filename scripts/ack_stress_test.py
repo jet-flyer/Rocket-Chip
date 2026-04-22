@@ -74,7 +74,7 @@ except ImportError:
 RE_SENT = re.compile(r"\[CMD\]\s+DISARM sent")
 RE_ACK = re.compile(r"\[CMD\]\s+ACK'd\s*\(seq=(\d+)\)")
 RE_DENIED = re.compile(r"\[CMD\]\s+DENIED\s*\(seq=(\d+)\)")
-RE_RETRY = re.compile(r"\[CMD\]\s+Retry\s+(\d+)\s*\(seq=(\d+)\)")
+RE_RETRY = re.compile(r"\[CMD\]\s+Retry\s+(\d+)(?:/\d+)?\s*\(seq=(\d+)\)")
 RE_FAILED = re.compile(r"\[CMD\]\s+No ACK after")
 
 
