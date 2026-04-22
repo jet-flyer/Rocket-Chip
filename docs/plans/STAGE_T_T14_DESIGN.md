@@ -326,10 +326,10 @@ Per **AO Commandments VII ("one AO, one responsibility")** and **V (`const*` acc
 | Transition | Predicate | Source / rationale |
 |---|---|---|
 | `kAcq → kTentative` | 1 valid RX with `crc_ok && len > 0` | ELRS `ACQ` / SiK link-init: any handshake is promotion. |
-| `kTentative → kTrack` | 5 consecutive valid RX with per-RX-LQ ≥ 60% AND inter-arrival ≤ 1.5 × nav_period | 5 = ELRS connection-hysteresis (≈ 500 ms at 10 Hz); 60% LQ floor = ELRS warning-band boundary; 1.5× spacing catches skip-every-other-packet. |
-| `kTrack → kTrackDegraded` | LQ in [20%, 60%) over trailing 10 slots | ELRS `warning` zone; prevents spurious drops during brief RF fades. |
-| `kTrackDegraded → kTrack` | LQ ≥ 60% over trailing 10 slots | Hysteresis; same threshold as entry, requires sustained recovery. |
-| `* → kAcq` | 20 missed frames consecutive | 2 s at 10 Hz = a typical RF fade window. Configurable by nav_rate (20 frames is the unit). |
+| `kTentative → kTrack` | 5 consecutive valid RX with per-RX-LQ ≥ 65% AND inter-arrival ≤ 1.5 × nav_period | 5 = ELRS connection-hysteresis (≈ 500 ms at 10 Hz); 65% LQ floor = above the Schmitt upper bound (§2 revision 1, below); 1.5× spacing catches skip-every-other-packet. |
+| `kTrack → kTrackDegraded` | **LQ < 55%** over trailing 10 slots (with **10 % deadband** vs exit threshold) | Round 2 council consensus #1: separate enter/exit to eliminate Schmitt-trigger livelock at the boundary. Prevents spurious drops AND prevents oscillation when LQ hovers at exactly one threshold. |
+| `kTrackDegraded → kTrack` | **LQ ≥ 65%** over trailing 10 slots | Hysteresis upper rail; 10 pp deadband vs the 55 % lower rail guarantees state is stable when LQ ∈ [55, 65). |
+| `* → kAcq` | `min(20 missed frames, 2 s wall-clock)` consecutive | Round 2 council consensus #2: absolute 2 s cap regardless of nav_rate. At nav=2 Hz, 20 frames = 10 s — too long to wait before re-sync. 2 s cap = typical RF fade; 20-frame cap catches noise without penalizing low-rate configs. |
 | `kTrack* → kAcq` (idle-drift) | `now_us - last_rx_us > max(60 s, 30 × nav_period)` | XOSC ±30 ppm: 30 ppm × 60 s = 1.8 ms drift — half the guard budget. Pre-emptive re-sync before drift crosses 5 ms. |
 
 **⚠️ All thresholds above (5, 10, 60%, 20, 20%, 60 s) are static-bench defaults. Field testing MAY adjust — noted per plan consensus.**
@@ -342,24 +342,38 @@ anchor_estimate_us = (1 - α) * anchor_estimate_us
                    + α * (rx_done_us - expected_nav_period_us)
 ```
 
-**α selection (plan consensus #2, deferred to ACK-path timing bench session):**
-- Bench session measures Core1-loaded RxDone-to-RxDone inter-arrival PDF.
-- If σ_jitter ≤ 1 ms: `α = 0.25` (SiK TDMA reference — 4-sample time constant).
-- If σ_jitter in [1, 5] ms: `α = 0.10` (ArduPilot GPS PPS reference — 10-sample time constant).
-- If σ_jitter > 5 ms: bench is broken, halt and investigate. Our XOSC at room temperature shouldn't see > 1 ms without a vibration/thermal source.
+**α selection (Round 2 council consensus #3, continuous formula):**
 
-Preliminary observation (C0 instrumented bench, 2026-04-21): **σ_jitter < 0.01 ms at room-temp static bench**. Implies `α = 0.25` candidate. Confirmed during bench session with real Core1 load.
+α is chosen so the filter's step response to a 3σ anchor jitter bounds at ≤ 1 ms after one sample. For an exponential filter `y[n] = (1-α)·y[n-1] + α·x[n]`, a single sample's contribution to the estimate is `α · x[n]`. Requirement: `α · 3σ_jitter ≤ 1 ms`, so:
 
-**⚠️ α floor is static-bench. Flight thermal/vibration will push jitter higher; field data MAY require a smaller α or switch to adaptive.**
+```
+α ≤ 1_ms / (3 × σ_jitter_ms)
+```
+
+Clamp α to `[0.05, 0.5]` — below 0.05 the filter is too lazy for real XOSC drift (~30 ppm over minutes); above 0.5 loses smoothing value.
+
+**Bench source:** ACK-path timing bench session measures Core1-loaded RxDone-to-RxDone inter-arrival PDF, computes σ_jitter under worst-case production load (IMU 1 kHz + baro + GPS on station's own Core 1 if applicable). α derived by the formula above.
+
+Reference: ArduPilot GPS PPS uses α ≈ 0.1 on a ±5 ppm TCXO at 1 Hz (σ ≈ 3 ms under vibration). SiK TDMA uses α ≈ 0.25 on a similar clock at 100 Hz. Our ±30 ppm XOSC at 10 Hz under real load is the target regime — σ_jitter from the bench session picks the exact α.
+
+(Note: a preliminary C0 observation of σ < 0.01 ms was captured during early T14 instrumentation but was under **zero Core1 load**, so it is struck from the design — pre-load numbers are not representative of the gated condition. The bench session under production Core1 load is the authoritative source.)
+
+**⚠️ α value picked from this bench session is static-bench. Flight thermal/vibration/Doppler will shift jitter; field data MAY require a smaller α or adaptive formulation. Listed in §18 revisit parameters.**
 
 ### 4. Deadman check on stale anchor
 
 `AO_RfManager_next_tx_window_us(now_us)` returns **0** (= "no window, don't TX") if:
 ```
-now_us - last_rx_us > 3 × nav_period_us
+now_us - last_rx_us > max(500_000, 5 × nav_period_us)
 ```
 
-At 10 Hz nav: 300 ms. At 2 Hz: 1.5 s. Caller (`AO_Radio::handle_radio_tick` station-side scheduling) treats 0 as "hold TX, wait for re-sync" rather than falling back to free-running.
+Round 2 council consensus #4: `3 × nav_period` alone was too aggressive at 10 Hz (300 ms fires on a single RF-fade dropout). Absolute 500 ms floor + 5× scaling gives headroom at low nav rates:
+- At 10 Hz nav: 500 ms (floor dominates)
+- At 5 Hz:      500 ms (floor dominates)
+- At 2 Hz:      max(500, 2500) = 2500 ms
+- At 1 Hz:      max(500, 5000) = 5000 ms
+
+Caller (`AO_Radio::handle_radio_tick` station-side scheduling) treats 0 as "hold TX, wait for re-sync" rather than falling back to free-running. **Dashboard shows `ANCHOR STALE — awaiting re-sync` (yellow) when deadman active**, so operator knows why commands are queued.
 
 **AO Commandment III applied:** deadman test is O(1), no loops, runs within the tick budget.
 
@@ -369,12 +383,11 @@ On TRACK → forced-ACQ transition triggered by `tx_consec_fail >= 3`:
 
 | Command class | In-flight command fate | Operator visibility |
 |---|---|---|
-| **Safety-critical** (ABORT, DISARM, flight-termination) | **NOT dropped, NOT silently retried.** Dashboard escalation: red `LINK LOST DURING <cmd>` banner + audio alert via `SIG_NOTIFY_VEHICLE_LOST` to AO_Notify. Command moves to `s_pending_safety` buffer; AO_Telemetry re-TXes on first successful TRACK re-acquire (anchored to first good RxDone). | Unmissable. |
-| **Arm** (ARM) | Silently cancel. Operator must re-issue after TRACK re-acquires (indicator turns green). | Dashboard shows ARM-refused status; user re-presses `a` + confirm. |
+| **Safety-critical** (ABORT, DISARM, **ARM**, flight-termination) | **NOT dropped, NOT silently retried.** Dashboard escalation: red `LINK LOST DURING <cmd>` banner + audio alert via `SIG_NOTIFY_VEHICLE_LOST` to AO_Notify. Command moves to `s_pending_safety` buffer; AO_Telemetry re-TXes on first successful TRACK re-acquire (anchored to first good RxDone). | Unmissable. |
 | **Config / info** (SET_RADIO_CONFIG, QUERY_RADIO_CONFIG) | Silently cancel. Normal retry flow resumes on TRACK; user/script sees a later ACK or timeout. | Normal CLI/GCS flow. |
 | **Beacon request** | Silently cancel. | No operator visibility needed. |
 
-**Source:** Round 2 cross-talk consensus (ArduPilot opened, NASA/JPL + Rocketeer + Cubesat converged). Safety commands must not silently vanish in a link-loss window.
+**Source:** Round 1 cross-talk (ArduPilot opened, NASA/JPL + Rocketeer + Cubesat converged). Round 2 council consensus #5 promoted **ARM** into the safety-critical row — silent-cancel on ARM is wrong for rocketry. Operator needs to know their ARM was lost so they can re-issue consciously, not discover mid-flight that the ARM never landed because the link was down when the confirm dialog closed.
 
 ### 6. Guard budget — concrete numbers
 
@@ -382,11 +395,15 @@ Station TX window guard against boundary-collision with vehicle nav:
 ```
 guard_us = 2 × airtime_worst_us
          + 4_000         // SX1276 PLL lock + preamble wake (datasheet §5.5)
-         + max(5_000, 3σ_jitter)  // slack, floored at 5 ms
+         + max(5_000, 4σ_jitter)  // slack, floored at 5 ms; 4σ per Round 2 #6
 ```
 
+Round 2 council consensus #6: **4σ instead of 3σ**. At 10 Hz nav × 3600 s = 36000 opportunities/hour to TX, 3σ covers 99.73% → ~98 outliers/hour. 4σ covers 99.994% → ~2 outliers/hour. For a safety-critical command path the extra ~10 ms of slack is worth the 50× reduction in boundary-collision rate.
+
 At SF7/BW500/128 B worst-case payload: `airtime ≈ 70 ms`, so `guard ≈ 140 + 4 + 5 = 149 ms`.
-At SF7/BW125/128 B worst-case: `airtime ≈ 270 ms`, so `guard ≈ 540 + 4 + 5 = 549 ms` — but at BW125 the whole nav_period is 200 ms at 10 Hz, so guard > period, meaning station can't TX at all (physically correct; BW125 is not suitable for bidirectional 10 Hz and user should downshift).
+At SF7/BW125/128 B worst-case: `airtime ≈ 270 ms`, so `guard ≈ 540 + 4 + 5 = 549 ms` — at BW125 the whole nav_period is 200 ms at 10 Hz, so guard > period.
+
+**Round 2 council consensus #7: config-time refusal (loud).** When `radio_config_sx1276_legal()` or `ao_radio_apply_runtime_config()` sees `guard_us > nav_period_us`, the config is **refused at apply time** (not silently failing at TX time). Reason text: `"BW=%u SF=%u nav=%u: airtime×2+guard (%u ms) exceeds nav period (%u ms). Choose higher BW, lower SF, or lower nav rate."` Dashboard shows persistent red banner until operator changes config. SET_RADIO_CONFIG dispatch returns `CmdAckResult::kDenied` with the reason in the ACK payload.
 
 Station TX scheduler logic:
 ```
@@ -416,7 +433,11 @@ return next_vehicle_tx_us + 2_000;  // missed this slot, wait for next window
 3. Record 1000+ station-side `[STAGE_T] tx_start` events.
 4. For each, compute `δ = tx_start_us - last_preceding_rxdone_us`.
 5. Tabulate δ distribution: mean, stddev, p95, p99, max.
-6. **Pass criterion:** p99 δ ≤ 25 ms (≤ 25% of BW500 nav period). If > 25 ms, T14's anchored TX can't reliably land — Core1 is stealing budget.
+6. **Pass criterion (Round 2 council consensus #8, two-tier):**
+   - **Target:** p99 δ ≤ 10 ms.
+   - **Hard pass:** p99 δ ≤ 25 ms. Anchored TX still lands reliably (< 25% of BW500 nav period).
+   - **WATCH zone:** p99 δ in (10, 25] ms. Log a WATCH flag, note in `logs/stage_t/t14_field.md` that this parameter needs post-field re-verify with real flight-load thermal + vibration stress.
+   - **Hard fail:** p99 δ > 25 ms. T14's anchored TX can't reliably land; Core1 is stealing budget. Escalate before proceeding.
 
 **Escalation:** if p99 > 25 ms, mitigation options are:
 - Priority boost for AO_RfManager (currently prio 5-6 planned).
@@ -491,6 +512,12 @@ New PROMELA model: `tools/spin/rocketchip_rf_manager.pml`.
    ```
    "kTrackDegraded only reachable from kTrack or itself." No wild jumps.
 
+5. **Progress-under-partial-loss (Round 2 council consensus #9):**
+   ```
+   ltl progress_partial_loss { [] (intermittent_loss -> <>[] (state == kTrack || state == kTrackDegraded)) }
+   ```
+   "Under intermittent loss (RX flips between good and dropped, but LQ stays ≥ 40%), the machine eventually settles into TRACK or TRACK_DEGRADED and stays there — does NOT livelock between the two." Proves the §2 Schmitt-trigger fix (separate 55% / 65% thresholds) actually eliminates oscillation in the model, not just on paper.
+
 All properties to pass SPIN verification before Batch B code merges. Exit gate alongside host tests.
 
 ### 11. Unmissable VEHICLE-NOT-HEARD indicator (Rocketeer, plan consensus #7)
@@ -498,7 +525,7 @@ All properties to pass SPIN verification before Batch B code merges. Exit gate a
 On `* → kAcq` transition (LOST):
 1. Post `SIG_NOTIFY_VEHICLE_LOST` to AO_Notify (static event per Commandment VI).
 2. AO_Notify → LED red slow-flash (via AO_LedEngine with NotifyIntent::kVehicleLost priority).
-3. AO_Notify → audio alert via existing notify-backend audio path (Stage 14 scaffolding; if audio backend is stubbed, visual-only is acceptable for Batch B — flagged as Batch B+ polish).
+3. AO_Notify → audio tone via `notify_backend_audio` (Round 2 council consensus #10: **single tone ships in Batch B**, ~20 LOC on top of the existing Stage 14 audio-backend stub. Visual-only acceptance explicitly STRUCK — panel said Rocketeer's unmissable-at-pad requirement is not negotiable).
 4. Dashboard shows `[!] VEHICLE NOT HEARD — check power/position` in red.
 
 All three channels (LED, audio, text) fire on the SAME event so a distracted operator sees at least one.
@@ -512,31 +539,26 @@ Dashboard adds a single-color-block indicator separate from the detail RfManager
 
 FlightDirector pre-arm aggregator uses the same predicates → glance indicator always matches whether an ARM attempt will be accepted.
 
-### 13. Dual-mode radio skeleton
+### 13. Dual-mode radio skeleton — REMOVED (user direction 2026-04-21)
 
-Per user direction + 3/4 panelists: skeleton only, full impl is separate future IVP.
+Original Round-2 draft had a `RadioMode` enum with only `kFlight` as a populated value, plus a "safety invariant" comment without any enforcement point. Cubesat flagged this as cargo-cult scaffolding (form without function: a single-value enum degenerates to a `uint8_t`, and a comment without a call site constrains nothing). User agreed:
 
-```cpp
-// AO_RfManager-owned:
-enum class RadioMode : uint8_t {
-    kFlight = 0,  // only populated value today
-    // Future: kLanded_Beacon, kGroundIdle, ...
-};
+> "scaffolding is worth keeping only if it's load-bearing during development. No Batch B code reads/writes the mode, so it's form without function. Going with option (b): delete §13 entirely."
 
-// Safety invariant (documented at point of use):
-// "Mode transitions are forbidden while FlightDirector state is
-// ARMED, BOOST, COAST, or DESCENT." Enforced at the transition
-// dispatcher (stub in Batch B; real logic in future dual-mode IVP).
-```
+The dual-mode radio (flight ↔ post-landing beacon ↔ sleep) remains a valid future IVP. When that IVP lands it introduces the enum, transition API, safety invariant enforcement, and call sites together as one coherent change — not a pre-planted stump that the next implementer will have to restructure anyway.
 
-No transition handler in Batch B — just the type + invariant comment. Prevents a retrofit of the entire state machine later.
+**AGENT_WHITEBOARD item tracks the deferred work.** No code change in Batch B for dual-mode.
 
 ### 14. MAV_CMD dedupe (T14a) — concrete
 
 In `AO_Telemetry::send_tracked_command()`:
 ```
+// Round 2 council consensus #5: ARM is safety-critical and explicitly
+// excluded from dedupe. Operator may mash `a` but each press represents
+// a deliberate decision — we don't collapse them silently.
 if (s_pending_cmd.pending &&
-    s_pending_cmd.cmd_id == incoming_cmd_id) {
+    s_pending_cmd.cmd_id == incoming_cmd_id &&
+    !is_safety_critical(incoming_cmd_id)) {
     // In-place replace: keep pending-flag, keep sent_ms (retries still
     // target the original window), overwrite params + bump seq.
     s_pending_cmd.seq = next_seq();
@@ -599,7 +621,9 @@ Actual-cadence baseline post nav_rate fix (commit `35f9591`, 2026-04-21 T12 re-r
 | C1 | 250 | 11.5 Hz | 13.3% | 23.3% | Moderate collision |
 | C2 | 500 | 11.6 Hz | 40.0% | 96.7% | Low-duty, gaps available |
 
-**Batch B gate:** C2 first-try ≥ 95% at bench (Wilson CI lower bound, N=100). Current C2 post-fix baseline is 40% — T14's job is to close the 40 → 95% gap.
+**Batch B gate (Round 2 council consensus #11):** C2 first-try ≥ 95% at bench (Wilson CI lower bound, N=100) is the **full-pass** criterion. 90–95% with **both §7 Core1 FMEA AND §8 ACK-path timing bench sessions green** is a **WATCH** result — re-verify on field, do not halt. Below 90%, halt regardless of other conditionals.
+
+Current C2 post-fix baseline is 40% — T14's job is to close the 40 → 95% gap.
 
 Exit the 2-round council with GO on this design and we start implementation.
 
@@ -612,6 +636,39 @@ Every numerical value in §2-§10 was picked against **room-temperature, station
 - Doppler shift at Mach — may need frequency correction loop (not in Batch B).
 
 All thresholds in this design are **starting points**, not flight-final values. Field-testing phase (deferred post Batch B field gate) revisits each.
+
+**Round 2 council consensus #12: explicit revisit parameter list.** The following five values MUST be re-validated against field data in a dedicated section of `logs/stage_t/t14_field.md`. Template field names:
+
+1. **α** (re-sync filter coefficient, §3) — bench-picked formula vs. flight σ_jitter.
+2. **Guard slack** (§6, currently `max(5_000, 4σ_jitter)`) — 4σ coverage under flight jitter distribution.
+3. **Hysteresis thresholds** (§2, currently enter-55 / exit-65 with 10 pp deadband) — whether flight jitter falls inside or outside the deadband in practice.
+4. **Deadman threshold** (§4, currently `max(500 ms, 5 × nav_period)`) — whether 500 ms floor fires spuriously or misses real stale-anchor events under flight RF-fade.
+5. **Forced-ACQ frame/wall-clock cap** (§2, currently `min(20 frames, 2 s)`) — whether 2 s is right for typical flight fade windows.
+
+The field-log template must call out each value by name with space for "measured under load", "adjusted to", "rationale", and "follow-up." LL Entry 36 discipline: no honor-system handoff from bench to flight — the revisit is a recorded step, not an assumption.
+
+### 19. Round 2 Final status (2026-04-21)
+
+Round 2 council: **GO-with-changes, unanimous**. 12 consensus revisions applied inline:
+
+| # | Section | Revision |
+|---|---|---|
+| 1 | §2 | Schmitt-trigger fix: enter kTrackDegraded at LQ<55%, exit at LQ≥65%, 10 pp deadband |
+| 2 | §2 | Forced-ACQ cap: `min(2 s, 20 × nav_period)` absolute 2 s upper bound |
+| 3 | §3 | Continuous α formula (1 ms bound on 3σ step response), struck zero-load preliminary observation |
+| 4 | §4 | Deadman threshold: `max(500 ms, 5 × nav_period)` with dashboard ANCHOR STALE indicator |
+| 5 | §5+§14 | ARM promoted to safety-critical; MAV_CMD dedupe excludes ARM |
+| 6 | §6 | Guard slack: 4σ replaces 3σ |
+| 7 | §6 | Config-time refusal when guard > nav_period, with reason text on dashboard |
+| 8 | §7 | Core1 FMEA two-tier gate: target 10 ms, hard pass 25 ms, WATCH in between |
+| 9 | §10 | Progress-under-partial-loss LTL (#5) proves §2 Schmitt fix eliminates oscillation |
+| 10 | §11 | Audio tone for VEHICLE NOT HEARD ships in Batch B (visual-only STRUCK) |
+| 11 | §17 | Gate conditionals: 90-95% at C2 is WATCH if §7+§8 pass; < 90% halt |
+| 12 | §18 | Five-parameter explicit revisit list with field-log template fields |
+
+User disposition on §13 dual-mode: **DELETED** (cargo-cult form-without-function per Cubesat). Dual-mode IVP is deferred; when it lands it introduces enum + API + invariant + call sites together as one coherent change.
+
+**Code start unblocked** conditional on: (a) this final design committed, (b) three pending bench sessions (ACK-path timing + α source, LDO rail, RX-window width) done with recorded pass/fail. Bench sessions can run in parallel with the AO_RfManager skeleton implementation — scaffolding the file structure, subscriptions, state-machine transitions, and host tests does not need the bench numbers. Tight integration (final α value, final deadman numbers if any tuning) waits for bench session data.
 
 ---
 
@@ -886,3 +943,137 @@ Plan consensus item #4. Before any Batch B code change, measure the station's ob
 - ⏳ Station RX-window width — procedure defined, bench session pending.
 
 Three bench sessions. All can be done in one extended bench day with shared instrumentation. Until all four are complete, Batch B code does not start.
+
+---
+
+## Round 2 — Council Review Output (2026-04-21)
+
+Correctness-level review of the revised design (§0-§18). Panelists: NASA/JPL Avionics Lead, ArduPilot Core Contributor, Advanced Hobbyist Rocketeer, Cubesat Startup Engineer. Two-round format per `COUNCIL_PROCESS.md`.
+
+### Sub-round 1 — Independent verdicts
+
+#### NASA/JPL
+
+**GO-with-changes.** The design is substantively correct and the state machine + SPIN properties are now at a rigor I can sign. Three concrete defects: (a) §3 α-selection is piecewise on a σ-bucket but the bench PDF is one draw — write the rule as "α selected such that the filter's 3σ response ≤ 1 ms" and let σ drop out continuously; discrete buckets create cliffs where a session at σ=1.01 ms lands on a different α than σ=0.99 ms for no physical reason. (b) §4 deadman at `3 × nav_period` is too aggressive at 10 Hz (300 ms kills TX after losing 2 frames — a single RF fade during coning does this) and too loose at 2 Hz (1.5 s). Make it `max(500 ms, 5 × nav_period)` floor. (c) §10 LTL set is missing **progress-under-partial-loss**: `[] (state == kTrack && intermittent_loss -> <>[] (state == kTrack || state == kTrackDegraded))` — i.e., never livelock between them. Without this, the hysteresis bands in §2 are asserted, not proven.
+
+#### ArduPilot
+
+**GO-with-changes.** §2 is what SiK would draw. 5-consecutive for promotion matches Crossfire's `LINK_UP_THRESHOLD=5`. 20-missed for forced ACQ is what RFD900 calls "long connection loss." Two specific flags: (a) §5 **`Arm` = silent-cancel is wrong for the rocketry use case.** ELRS and Crossfire both escalate ARM refusal loudly because the operator is standing there expecting it to happen. Promote `Arm` to same treatment as safety-critical (dashboard red + audible). Only `Config / info` and `Beacon request` stay silent. (b) §7's 25 ms p99 gate is sourced as "25% of BW500 nav period" which is arithmetic, not empirical — ArduPilot AP_HAL targets 90% of period available to non-scheduler work, so p99 ≤ 10 ms is the flight-software-grade number. 25 ms should be the pass; 10 ms should be the aspiration and the number that must trend down if not met. Also (c): §2 transition table marks `kTrack → kTrackDegraded` and `kTrackDegraded → kTrack` on the same "trailing 10 slots LQ ≥ 60%" with identical thresholds — that is **not hysteresis, that's a Schmitt trigger with zero deadband** (`[20,60)%` enters degraded, `≥60%` exits). At LQ bouncing around 60% you will livelock. Widen exit to ≥ 70% (or entry to < 55%). This is the concrete edge case the NASA/JPL progress-under-partial-loss LTL will catch.
+
+#### Rocketeer
+
+**GO-with-changes.** §11 unmissable VEHICLE NOT HEARD with LED + audio + text is exactly what I need. §12 glance indicator is in. §17 post-fix 40% → 95% gap is big but credible if you believe anchoring eliminates collision, which I do. Two pushes: (a) §11 says "visual-only is acceptable for Batch B if audio backend is stubbed" — **NO**. This is the "did I actually lose contact with the rocket" moment. If the audio backend is stubbed, finish just the one beep for `SIG_NOTIFY_VEHICLE_LOST` before Batch B ships; a single tone is not Stage 14 scope creep. (b) §6 refuses TX at BW125/10Hz (guard > period). That's correct physics, but I'd bet 30% of my club would pick BW125 without understanding it can't command at 10 Hz. **The refusal must be loud, on-screen, at config time — not silent.** Dashboard should show "BW125/10Hz: station cannot command — reduce to 5 Hz or use BW250+" the moment the config is picked. You've said "accept anything the radio can do" but that isn't the same as failing silent when it's a configuration error. (c) §9 ABORT budget total 120 ms is paper, and leg 1 (50 ms CLI poll) is the single biggest cost — fine, but that's the leg most at risk of growing if Core1 load is heavier than bench. Put an explicit budget-re-verify checkpoint after flight-testing, not just before.
+
+#### Cubesat
+
+**GO-with-changes.** §0 acknowledging 35f9591 + 6104da5 + 6196e1e as prereqs is good — the design is on top of known-fixed cadence + airtime scaling. §7 Core1 FMEA procedure is concrete enough to execute. §18 static-bench caveat is appropriate but not enforceable without explicit re-verify hooks in the plan. Concrete concerns: (a) §3 σ_jitter < 0.01 ms on bench is **suspicious.** Core1 has not yet been loaded during that observation (confirmed by "preliminary observation" wording — it was C0 instrumented, not C2 with full sensor load). Do NOT use 0.01 ms as the α-selection input; use ONLY the measurement from the ACK-path timing session with full Core1 load per §8. The plan already says that, but §3's preliminary observation paragraph will be copy-pasted by someone as justification. Strike that sentence or flag it red. (b) §13 dual-mode skeleton is enum + invariant comment — this is **cargo cult** without a transition dispatcher stub. The whole reason to land a skeleton is to reserve the API shape; an enum with one value and a prose invariant reserves nothing. Either add a `RfManager_request_mode_change(RadioMode)` stub that returns `kRefusedDueToFlightState` unconditionally, or drop the skeleton and land it with the real dual-mode IVP. Half-measure is worse than neither. (c) §6 guard budget uses `3σ_jitter` — 3σ is 99.7% coverage; at 10 Hz nav = 36000 samples per hour, you'll see 108 excursions beyond 3σ per hour. For flight-critical window gating use p99.9 or 4σ.
+
+### Sub-round 2 — Cross-talk
+
+**On §2 livelock (ArduPilot vs NASA/JPL):**
+- ArduPilot: "The §2 table entering kTrackDegraded at LQ<60% and exiting at LQ≥60% IS livelock-bait. Widen to `[20, 55)%` enter / `≥65%` exit — 10-point deadband."
+- NASA/JPL: "Agreed, and that's exactly what my progress LTL would catch. Better to catch it in SPIN now than in field. The asymmetric threshold proposal is standard Schmitt-trigger practice."
+- Cubesat: "+1. Also: the 20-missed-frames forced-ACQ at 10 Hz = 2 s, but at 2 Hz = 10 s. 10 s silent before forced re-sync is a long time for an operator. Make it `min(2 s, 20 × nav_period)` — upper bound 2 s absolute."
+- Rocketeer: "At 10 s I will have already called a no-go and disarmed myself. Cap it at 2 s."
+- **Converges:** §2 table changes: enter kTrackDegraded at `LQ < 55%`, exit at `LQ ≥ 65%`. Forced ACQ at `min(2 s, 20 × nav_period)`. NASA/JPL's progress-under-partial-loss LTL added to §10.
+
+**On §4 deadman threshold (NASA/JPL):**
+- NASA/JPL: "3 × nav_period at 10 Hz = 300 ms = 2 frames. Any fade fires the deadman."
+- ArduPilot: "SiK uses 5 × period with a 500 ms floor. Same logic — prevents spurious fault under a multipath dip."
+- Cubesat: "`max(500 ms, 5 × nav_period)` is the right shape. Worst-case 500 ms of 'no TX' costs one retry slot; it doesn't cost anything safety-relevant."
+- Rocketeer: "If the deadman fires while I'm holding the arm key, dashboard has to show why, not just gray out."
+- **Converges:** §4 deadman becomes `max(500 ms, 5 × nav_period)`. When fired, dashboard shows explicit "ANCHOR STALE — awaiting re-sync" (not just a grayed-out TX indicator).
+
+**On §5 Arm class (ArduPilot vs plan-as-whole):**
+- ArduPilot: "Silent-cancel on ARM during link-loss is an anti-pattern in every RC radio. Operator presses arm, nothing happens, operator presses harder. Our MAV_CMD dedupe turns that into a no-op. Promote ARM to safety-class treatment."
+- NASA/JPL: "Arming is an explicit state-transition request with real consequences — pyro becomes live. Treating it as silent-cancel is a usability bug and a traceability bug (no log of the failed attempt as perceived by operator)."
+- Rocketeer: "If I press ARM and nothing happens I WILL press again. If I press 5 times and then the link comes back, suddenly the vehicle arms — that's the dedupe replacing the last press — and now I'm standing next to an armed rocket that I thought had ignored me. **Hard NO on silent-cancel.**"
+- Cubesat: "Agreed. The §14 MAV_CMD dedupe (newest-wins) combined with §5 silent-cancel on ARM creates exactly the Rocketeer's scenario. Close the loop: ARM refusal during LOST must be visible, and the pending-command buffer MUST NOT silently re-queue an ARM on TRACK re-acquire."
+- **Converges:** §5 table changes: `Arm` moves to **safety-critical** treatment (dashboard red + audible). ARM attempts during non-TRACK state are **refused, logged, and NOT auto-retried on re-acquire** — operator must re-issue. §14 MAV_CMD dedupe scope explicitly excludes ARM from newest-wins: each ARM press is a separate command, each refusal is a separate log line.
+
+**On §7 Core1 FMEA gate (ArduPilot):**
+- ArduPilot: "25 ms p99 is too loose. 10 ms is flight-software-grade."
+- NASA/JPL: "25 ms pass with 10 ms target is reasonable framing. Fail gate > 25 ms halts Batch B. Between 10-25 ms is 'ship with a trend-down TODO.'"
+- Cubesat: "Two thresholds, one gate: `pass ≤ 25 ms p99, target ≤ 10 ms p99, WATCH if 10-25 ms`. Same pattern we use for link margin."
+- **Converges:** §7 pass criterion restated: p99 δ ≤ 25 ms hard-gate, ≤ 10 ms target, 10–25 ms records a WATCH item in `logs/stage_t/t14_bench.md` that is revisited post-field-test.
+
+**On §3 α-filter piecewise vs continuous (NASA/JPL):**
+- NASA/JPL: "Piecewise buckets are cliffs. Continuous: α = min(0.5, k / (σ_jitter_ms × expected_filter_length)) — pick k from the 3σ response requirement."
+- Cubesat: "Continuous is right. Also strike the 'σ_jitter < 0.01 ms at room-temp' preliminary line — that's pre-load and will mislead."
+- ArduPilot: "Practical compromise: compute α continuously from measured σ, round to nearest 0.05 for readability. Same answer, less magic."
+- **Converges:** §3 replaces piecewise table with a one-line formula tied to the 3σ response target (`filter 3σ-step response ≤ 1 ms`). Preliminary "σ < 0.01 ms" sentence STRUCK — replaced with explicit "to be measured with Core1 at full load per §8; do not use bench-C0 numbers as the source."
+
+**On §13 dual-mode skeleton (Cubesat):**
+- Cubesat: "Enum + invariant comment reserves nothing. Cargo cult."
+- NASA/JPL: "Agreed. Stub `RfManager_request_mode_change(mode)` returning `kRefusedNoFlightStateGuard` proves the API shape. Zero-LOC alternative is just delete §13 and land it with dual-mode."
+- ArduPilot: "My Round 1 was 'skeleton stays' on the grounds of preventing refactor. If it's just an enum, refactor cost is zero anyway. Drop skeleton OR add the stub."
+- Rocketeer: "Don't care. Just don't break post-landing beacon when that IVP happens."
+- **Converges:** §13 either (a) adds a `RadioMode AO_RfManager_request_mode_change(RadioMode)` API returning `kRefusedNoFlightGuard` unconditionally in Batch B — proving dispatch surface exists — or (b) is deleted entirely and deferred. Panel prefers (a); user decides.
+
+**On §6 BW125/10Hz silent refusal (Rocketeer):**
+- Rocketeer: "Silent refusal at config time is a misconfiguration trap."
+- ArduPilot: "Dashboard should show the refusal as a persistent banner tied to the config row, not a scrolling line."
+- NASA/JPL: "Guard-budget check runs at config accept; if `guard_us > nav_period_us`, refuse the config at the CLI/GCS entry point, not silently at TX time."
+- Cubesat: "Right — this is a validation-at-entry problem, not a runtime problem. Move guard check to `radio_config_sx1276_legal()` or equivalent."
+- **Converges:** §6 gets a new sub-bullet: "If `guard_us > nav_period_us`, `radio_config_sx1276_legal()` REFUSES the config with reason-text; CLI/GCS surfaces that reason in the current config-apply flow. Dashboard persists a red 'CONFIG INVALID — see RadioCfg' banner until operator changes config."
+
+**On §6 3σ vs 4σ guard (Cubesat):**
+- Cubesat: "At 36000 samples/hour, 3σ is 108 outliers per hour past the guard."
+- NASA/JPL: "4σ is the DO-178 convention for continuous-time safety gates. Accept."
+- ArduPilot: "At 5 ms minimum slack floor, the slack itself usually dominates — but in the BW500 fast-jitter case where σ can be bigger, the 3σ vs 4σ diff is real. 4σ."
+- **Converges:** §6 guard becomes `2 × airtime_worst + 4 ms + max(5 ms, 4σ_jitter)`.
+
+**On §11 audio backend (Rocketeer):**
+- Rocketeer: "One tone for SIG_NOTIFY_VEHICLE_LOST is not Stage 14 scope creep."
+- Cubesat: "If audio backend is stubbed and we ship visual-only, we're one stumbling-operator step from missing the alert."
+- NASA/JPL: "Three-channel redundancy is the whole point. Dropping one to stub is halving the redundancy."
+- ArduPilot: "Single tone is ~20 LOC. Do it."
+- **Converges:** §11 visual-only exception is STRUCK. Batch B ships with at least one audible tone on `SIG_NOTIFY_VEHICLE_LOST`, even if rest of audio backend is stubbed.
+
+**On §17 post-fix baseline plausibility (cross-panel):**
+- ArduPilot: "40 → 95 is 55 percentage points. With collision being the dominant loss mode (confirmed by C0/C1/C2 monotonicity in t12_summary.csv), anchoring closes most of that. Believable."
+- NASA/JPL: "Plausible conditional on ACK-path timing closing (§8) AND Core1 FMEA passing (§7). Stack the conditionals explicitly in the gate statement."
+- Cubesat: "Conditional-on-prereqs is the right framing. If §7 or §8 fail, §17 gate is moot."
+- Rocketeer: "If it's 90% I'll take it. 95 is an aspiration; don't throw the whole field test out for falling short by 2 points if ABORT round-trip is fine."
+- **Converges:** §17 gate statement gets explicit conditionals — "C2 ≥ 95% first-try (Wilson CI lower bound) **conditional on §7 p99 ≤ 25 ms AND §8 ACK-drain-fits**. If 90-95% with conditionals green, WATCH for field behavior before halting Batch B."
+
+**On §18 static-bench caveat enforceability (Cubesat):**
+- Cubesat: "Prose caveat without hook is toothless."
+- NASA/JPL: "Add explicit flight-test revisit checkpoints to the design for: α value, guard slack, hysteresis thresholds, deadman threshold, forced-ACQ miss count."
+- ArduPilot: "Field-test log template in `logs/stage_t/t14_field.md` should have a section `Parameters to revisit post-flight:` with those five items."
+- **Converges:** §18 gets a concrete list of **five flight-test-revisit parameters** (α, guard slack, hysteresis thresholds, deadman threshold, forced-ACQ count). `logs/stage_t/t14_field.md` template includes a dedicated section listing them with columns `bench value / field observation / proposed update`.
+
+### Plan-as-whole verdict
+
+- **NASA/JPL:** GO-with-changes.
+- **ArduPilot:** GO-with-changes.
+- **Rocketeer:** GO-with-changes.
+- **Cubesat:** GO-with-changes.
+
+**Unanimous GO-with-changes. No structural NO-GO.** The design's architecture is sound (RxDone anchoring, AO_RfManager ownership, command-class escalation, SPIN coverage). The changes are numerical tightening and one genuine correctness fix (§2 Schmitt-trigger livelock) that SPIN would catch if the missing LTL progress property is added.
+
+### Consensus summary — agreed revisions before code starts
+
+1. **§2 hysteresis deadband.** Enter `kTrackDegraded` at `LQ < 55%`; exit at `LQ ≥ 65%`. Prevents Schmitt-trigger livelock around LQ=60%.
+2. **§2 forced-ACQ cap.** `min(2 s, 20 × nav_period)` — absolute 2 s upper bound regardless of nav_rate.
+3. **§3 α-selection formula.** Replace piecewise buckets with continuous `α` chosen so filter 3σ-step response ≤ 1 ms. Strike the "σ < 0.01 ms at C0 bench" preliminary observation as misleading.
+4. **§4 deadman threshold.** `max(500 ms, 5 × nav_period)`. Dashboard shows "ANCHOR STALE — awaiting re-sync" when fired.
+5. **§5 Arm class.** Promote `Arm` to safety-critical treatment (red + audible on link-loss refusal). §14 MAV_CMD dedupe explicitly excludes ARM from newest-wins.
+6. **§6 guard budget.** `2 × airtime_worst + 4 ms + max(5 ms, 4σ_jitter)` — 4σ replaces 3σ.
+7. **§6 config-time refusal.** If `guard_us > nav_period_us`, `radio_config_sx1276_legal()` refuses the config with reason-text. Dashboard persistent red banner until operator changes config.
+8. **§7 Core1 FMEA two-tier gate.** Hard pass `p99 ≤ 25 ms`, target `p99 ≤ 10 ms`, 10–25 ms logs a WATCH for post-field revisit.
+9. **§10 SPIN.** Add progress-under-partial-loss LTL (`[] (intermittent_loss -> <>[] (state ∈ {kTrack, kTrackDegraded}))`). Proves the §2 Schmitt-trigger fix landed.
+10. **§11 audio.** Single tone for `SIG_NOTIFY_VEHICLE_LOST` ships in Batch B, even if rest of audio backend is stubbed. Visual-only acceptance STRUCK.
+11. **§17 gate conditionals.** State C2 ≥ 95% is conditional on §7 + §8 both passing. 90–95% with conditionals green → WATCH, not halt.
+12. **§18 revisit list.** Explicit five-parameter revisit list (α, guard slack, hysteresis thresholds, deadman threshold, forced-ACQ count) with dedicated section in `logs/stage_t/t14_field.md` template.
+
+### Unresolved — user break-tie needed
+
+- **§13 dual-mode skeleton disposition.** Panel preference is to replace enum-only with a stub API `AO_RfManager_request_mode_change(RadioMode)` returning `kRefusedNoFlightGuard` unconditionally, OR to delete §13 and defer to the dual-mode IVP. Current enum + invariant comment is cargo-cult per Cubesat, conceded by ArduPilot. User picks (a) stub or (b) delete.
+
+### Final verdict
+
+**GO-with-changes, unanimous.** Code start gated on: (i) all 12 consensus revisions applied to the design doc, (ii) §13 disposition decided by user, (iii) the three pending bench sessions from §Summary-of-pre-Batch-B-work-completeness (ACK-path timing + α source, LDO rail, RX-window width) completed with recorded pass/fail numbers.
+
+No panelist dissents on the premise. This is the same pattern as Round 1: architecture holds, numbers need tightening, hysteresis needs a deadband, one missing LTL catches what field would otherwise surface.
+
