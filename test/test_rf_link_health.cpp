@@ -174,29 +174,58 @@ TEST(RfTransition, DegradedInDeadbandStays) {
 // Forced-ACQ (the bug Round 1 most wanted fixed)
 // ============================================================================
 
-TEST(RfForcedAcq, TriggersAt20MissedFrames) {
+TEST(RfForcedAcq, PrimaryRequiresBothTimeAndMinFrames) {
+    // Per user direction 2026-04-21: LOS is time-primary WITH a frame
+    // minimum to prevent single-dropped-packet false LOS on slow links.
+    // Time alone with fewer than N_min drops must NOT trigger.
     auto in = make_input(LinkState::kTrack);
     in.lq_pct = 100;
     in.lq_window_count = kRfLqWindowSize;
-    in.consec_missed_rx = kRfForcedAcqMaxMissedFrames;  // exactly 20
-    EXPECT_EQ(rf_next_state(in), LinkState::kAcq);
-}
-
-TEST(RfForcedAcq, StaysBelowMissedThreshold) {
-    auto in = make_input(LinkState::kTrack);
-    in.lq_pct = 100;
-    in.lq_window_count = kRfLqWindowSize;
-    in.consec_missed_rx = kRfForcedAcqMaxMissedFrames - 1;  // 19
+    in.consec_missed_rx = kRfForcedAcqMinFrames - 1;  // 4 (below min)
+    in.time_since_last_rx_ms = kRfForcedAcqLosMs + 100;  // past time
     EXPECT_EQ(rf_next_state(in), LinkState::kTrack);
 }
 
-TEST(RfForcedAcq, TriggersAt2SecondsWallclock) {
+TEST(RfForcedAcq, TimeAndMinFramesTogetherTrigger) {
+    // Both conditions met → LOS.
     auto in = make_input(LinkState::kTrack);
     in.lq_pct = 100;
     in.lq_window_count = kRfLqWindowSize;
-    in.consec_missed_rx = 0;  // no frames missed yet
-    in.time_since_last_rx_ms = kRfForcedAcqMaxWallClockMs;
+    in.consec_missed_rx = kRfForcedAcqMinFrames;  // 5
+    in.time_since_last_rx_ms = kRfForcedAcqLosMs;  // 2000 ms
     EXPECT_EQ(rf_next_state(in), LinkState::kAcq);
+}
+
+TEST(RfForcedAcq, MinFramesAloneDoesNotTrigger) {
+    // Frame count without time threshold must not trigger primary LOS
+    // (only the fast-frames accelerator can fire early).
+    auto in = make_input(LinkState::kTrack);
+    in.lq_pct = 100;
+    in.lq_window_count = kRfLqWindowSize;
+    in.consec_missed_rx = kRfForcedAcqMinFrames;  // 5
+    in.time_since_last_rx_ms = 500;  // well under 2 s
+    EXPECT_EQ(rf_next_state(in), LinkState::kTrack);
+}
+
+TEST(RfForcedAcq, FastFramesIsAccelerator) {
+    // Optional accelerator: 20 consecutive missed frames triggers ACQ
+    // even before the 2 s time threshold. Useful at high nav rates where
+    // 20 drops already means something is wrong.
+    auto in = make_input(LinkState::kTrack);
+    in.lq_pct = 100;
+    in.lq_window_count = kRfLqWindowSize;
+    in.consec_missed_rx = kRfForcedAcqFastFrames;  // exactly 20
+    in.time_since_last_rx_ms = 500;  // well under 2 s
+    EXPECT_EQ(rf_next_state(in), LinkState::kAcq);
+}
+
+TEST(RfForcedAcq, StaysBelowBothThresholds) {
+    auto in = make_input(LinkState::kTrack);
+    in.lq_pct = 100;
+    in.lq_window_count = kRfLqWindowSize;
+    in.consec_missed_rx = kRfForcedAcqFastFrames - 1;  // 19
+    in.time_since_last_rx_ms = kRfForcedAcqLosMs - 1;  // 1999 ms
+    EXPECT_EQ(rf_next_state(in), LinkState::kTrack);
 }
 
 TEST(RfForcedAcq, DoesNotTriggerFromAcq) {
@@ -208,15 +237,37 @@ TEST(RfForcedAcq, DoesNotTriggerFromAcq) {
     EXPECT_EQ(rf_next_state(in), LinkState::kAcq);
 }
 
-TEST(RfForcedAcq, LowNavRateProtectedBy2sCap) {
-    // At 1 Hz nav (1000 ms/frame), 20 missed frames = 20 s. User waits
-    // 2.5 s with no RX — 2 missed frames, but 2500 ms wallclock triggers
-    // forced ACQ. Prevents stuck-in-stale-anchor at low rates.
+TEST(RfForcedAcq, LowNavRateFrameMinProtection) {
+    // At 1 Hz nav (1000 ms/frame), frame-min=5 means 5 s of silence before
+    // LOS declares — longer than the 2 s time threshold alone. Prevents
+    // a single dropped packet (1 s silence) from wrongly declaring LOS
+    // just because its time slot is long. User direction 2026-04-21:
+    // "time with a telem frame minimum might make the most sense."
     auto in = make_input(LinkState::kTrackDegraded);
     in.lq_pct = 55;
     in.lq_window_count = kRfLqWindowSize;
-    in.consec_missed_rx = 2;  // well below 20
-    in.time_since_last_rx_ms = 2500;  // well over 2000
+    in.consec_missed_rx = 2;  // 2 missed frames at 1 Hz
+    in.time_since_last_rx_ms = 2500;  // over 2 s but only 2 drops
+    EXPECT_EQ(rf_next_state(in), LinkState::kTrackDegraded)
+        << "2 drops at 1 Hz is not enough to declare LOS — wait for "
+           "frame-min";
+
+    // 5 drops at 1 Hz (5 s elapsed): now both conditions satisfied.
+    in.consec_missed_rx = 5;
+    in.time_since_last_rx_ms = 5000;
+    EXPECT_EQ(rf_next_state(in), LinkState::kAcq)
+        << "5 drops + 5 s elapsed satisfies both conditions";
+}
+
+TEST(RfForcedAcq, HighNavRateTimeTriggers) {
+    // At 10 Hz nav (100 ms/frame), the 2 s time threshold corresponds to
+    // 20 missed frames. Frame-min (5) is satisfied long before the time
+    // threshold, so in practice time dominates at high nav rates.
+    auto in = make_input(LinkState::kTrack);
+    in.lq_pct = 100;
+    in.lq_window_count = kRfLqWindowSize;
+    in.consec_missed_rx = 20;  // 2 s worth at 10 Hz
+    in.time_since_last_rx_ms = kRfForcedAcqLosMs;
     EXPECT_EQ(rf_next_state(in), LinkState::kAcq);
 }
 

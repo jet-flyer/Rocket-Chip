@@ -39,8 +39,39 @@ constexpr uint8_t  kRfTentativeToTrackConsecRx     = 5;   // §2
 constexpr uint8_t  kRfTrackToDegradedLqPct         = 55;  // §2 Schmitt enter
 constexpr uint8_t  kRfDegradedToTrackLqPct         = 65;  // §2 Schmitt exit (10 pp deadband)
 constexpr uint8_t  kRfTentativeLqFloorPct          = 65;  // §2 TENTATIVE→TRACK LQ floor
-constexpr uint8_t  kRfForcedAcqMaxMissedFrames     = 20;  // §2
-constexpr uint32_t kRfForcedAcqMaxWallClockMs      = 2000U;  // §2 absolute 2 s cap
+// §2 Forced-ACQ: LOS is TIME-primary with a telemetry-frame minimum floor.
+//   Both conditions must be true:
+//     (a) time_since_last_rx_ms >= kRfForcedAcqLosMs (universal time axis).
+//     (b) consec_missed_rx >= kRfForcedAcqMinFrames (spurious-single-drop
+//         protection at low nav rates).
+//   Plus an optional accelerator: a long run of consecutive drops triggers
+//   even before the time threshold at high nav rates where that many drops
+//   already exceeds any legitimate fade.
+//
+// Rationale (2026-04-21 user direction): LOS must not be implicitly coupled
+// to radio config. Frame-count-primary was assumption-laden and broke
+// whenever nav_rate_hz changed (pre-fix T12 C1 measured 0% ACK for exactly
+// this reason-class of bug). Time is the universal axis; frame-minimum
+// just prevents single-drop false LOS on slow links. At 10 Hz nav the two
+// conditions coincide trivially; at 0.5 Hz nav the frame-min dominates,
+// keeping a single missed packet from declaring LOS.
+//
+// Tuning rules (all numbers static-bench; field may revisit per §18):
+//   kRfForcedAcqLosMs      = 2000  // typical RF fade upper bound
+//   kRfForcedAcqMinFrames  = 5     // need 5 consecutive drops to trust the
+//                                  //   "something is wrong" signal. User
+//                                  //   direction 2026-04-21: "5 for now."
+//                                  //   Low-nav-rate implications:
+//                                  //     10 Hz: 5 drops = 500 ms  (time dominates)
+//                                  //      5 Hz: 5 drops = 1000 ms (time dominates)
+//                                  //      2 Hz: 5 drops = 2500 ms (frame-min dominates)
+//                                  //      1 Hz: 5 drops = 5000 ms (frame-min dominates)
+//   kRfForcedAcqFastFrames = 20    // rarely fires at >=10 Hz; exists for
+//                                  //   >=20 Hz configs where many drops
+//                                  //   fit inside 2 s
+constexpr uint32_t kRfForcedAcqLosMs               = 2000U;
+constexpr uint8_t  kRfForcedAcqMinFrames           = 5;
+constexpr uint8_t  kRfForcedAcqFastFrames          = 20;
 constexpr uint8_t  kRfLqWindowSize                 = 10;  // §2 sliding-window width
 constexpr uint32_t kRfDeadmanFloorMs               = 500U;     // §4
 constexpr uint32_t kRfDeadmanPeriodMultiple        = 5U;       // §4
@@ -84,14 +115,19 @@ struct RfTransitionInput {
 };
 
 inline LinkState rf_next_state(const RfTransitionInput& in) {
-    // Forced-ACQ applies from any non-ACQ state when either:
-    //   - consec_missed_rx >= 20 frames
-    //   - time_since_last_rx >= 2000 ms wall clock
-    // §2 Round 2 consensus #2.
+    // Forced-ACQ: LOS requires BOTH a time threshold AND a minimum number
+    // of missed frames (prevents single-dropped-packet false LOS on slow
+    // links). A separate fast-frames accelerator triggers early only at
+    // high nav rates where 20 consecutive drops already exceeds any fade.
+    // See kRfForcedAcq* constants above for rationale.
     if (in.current != LinkState::kAcq) {
-        bool frames_exceeded = in.consec_missed_rx >= kRfForcedAcqMaxMissedFrames;
-        bool time_exceeded = in.time_since_last_rx_ms >= kRfForcedAcqMaxWallClockMs;
-        if (frames_exceeded || time_exceeded) {
+        // Primary LOS: time AND frame-minimum both satisfied.
+        if (in.time_since_last_rx_ms >= kRfForcedAcqLosMs &&
+            in.consec_missed_rx >= kRfForcedAcqMinFrames) {
+            return LinkState::kAcq;
+        }
+        // Optional accelerator for high nav rates.
+        if (in.consec_missed_rx >= kRfForcedAcqFastFrames) {
             return LinkState::kAcq;
         }
     }

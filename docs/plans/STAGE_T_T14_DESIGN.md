@@ -329,7 +329,7 @@ Per **AO Commandments VII ("one AO, one responsibility")** and **V (`const*` acc
 | `kTentative → kTrack` | 5 consecutive valid RX with per-RX-LQ ≥ 65% AND inter-arrival ≤ 1.5 × nav_period | 5 = ELRS connection-hysteresis (≈ 500 ms at 10 Hz); 65% LQ floor = above the Schmitt upper bound (§2 revision 1, below); 1.5× spacing catches skip-every-other-packet. |
 | `kTrack → kTrackDegraded` | **LQ < 55%** over trailing 10 slots (with **10 % deadband** vs exit threshold) | Round 2 council consensus #1: separate enter/exit to eliminate Schmitt-trigger livelock at the boundary. Prevents spurious drops AND prevents oscillation when LQ hovers at exactly one threshold. |
 | `kTrackDegraded → kTrack` | **LQ ≥ 65%** over trailing 10 slots | Hysteresis upper rail; 10 pp deadband vs the 55 % lower rail guarantees state is stable when LQ ∈ [55, 65). |
-| `* → kAcq` | `min(20 missed frames, 2 s wall-clock)` consecutive | Round 2 council consensus #2: absolute 2 s cap regardless of nav_rate. At nav=2 Hz, 20 frames = 10 s — too long to wait before re-sync. 2 s cap = typical RF fade; 20-frame cap catches noise without penalizing low-rate configs. |
+| `* → kAcq` | (time ≥ 2 s AND missed ≥ 5 frames) OR missed ≥ 20 frames | **Post-Round-2 refinement 2026-04-21 (user direction):** LOS is time-primary with a telemetry-frame minimum floor. Time alone without enough missed frames cannot declare LOS — protects low-rate configs from single-drop false LOS where one dropped packet already takes >2 s. Missed-frames alone without elapsed time cannot declare LOS either — protects high-rate configs from spurious runs. Both conditions together trigger primary LOS. A separate 20-frame fast-frames path triggers early only at nav rates where 20 drops already exceeds any legitimate fade. Same class of bug as the nav_rate plumbing (commit 35f9591): decisions must not implicitly couple to radio config. Time is the universal axis. |
 | `kTrack* → kAcq` (idle-drift) | `now_us - last_rx_us > max(60 s, 30 × nav_period)` | XOSC ±30 ppm: 30 ppm × 60 s = 1.8 ms drift — half the guard budget. Pre-emptive re-sync before drift crosses 5 ms. |
 
 **⚠️ All thresholds above (5, 10, 60%, 20, 20%, 60 s) are static-bench defaults. Field testing MAY adjust — noted per plan consensus.**
@@ -643,7 +643,7 @@ All thresholds in this design are **starting points**, not flight-final values. 
 2. **Guard slack** (§6, currently `max(5_000, 4σ_jitter)`) — 4σ coverage under flight jitter distribution.
 3. **Hysteresis thresholds** (§2, currently enter-55 / exit-65 with 10 pp deadband) — whether flight jitter falls inside or outside the deadband in practice.
 4. **Deadman threshold** (§4, currently `max(500 ms, 5 × nav_period)`) — whether 500 ms floor fires spuriously or misses real stale-anchor events under flight RF-fade.
-5. **Forced-ACQ frame/wall-clock cap** (§2, currently `min(20 frames, 2 s)`) — whether 2 s is right for typical flight fade windows.
+5. **Forced-ACQ thresholds** (§2, post-2026-04-21 refinement: time-primary 2 s AND frame-min 5, plus 20-frame accelerator) — whether 2 s is right for typical flight fade windows, and whether frame-min 5 is too strict at very low nav rates.
 
 The field-log template must call out each value by name with space for "measured under load", "adjusted to", "rationale", and "follow-up." LL Entry 36 discipline: no honor-system handoff from bench to flight — the revisit is a recorded step, not an assumption.
 
