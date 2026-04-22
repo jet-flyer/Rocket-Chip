@@ -70,8 +70,26 @@ static constexpr uint32_t kGcsTimeoutMs = 5000;  // 5s without GCS heartbeat →
 //   {SF, BW, max payload} airtime on every SET_RADIO_CONFIG apply. Keeps the
 //   retry timeout sensible whether user selects BW500/SF7 (~200ms floor) or
 //   BW125/SF12 long-range preset (~1000ms ceiling).
-// Seeded to 500 ms until first apply runs.
-static uint32_t s_ack_retry_timeout_ms = 500U;
+//   IVP-T14d wrap-up 2026-04-22: dropped seed to 250 ms (paired with retry
+//   count bump to 8) to keep safety-class command round-trip under ~2 s
+//   even in the half-duplex collision regime. This is a STOP-GAP tuning
+//   pending a full CCSDS-compliant link-layer rework (see
+//   docs/decisions/COP1_NOT_PURSUED.md for why COP-1 / FARM / FOP were
+//   deferred, and the "Stage T latency re-baseline" whiteboard item).
+// Seeded to 250 ms until first apply runs.
+static uint32_t s_ack_retry_timeout_ms = 250U;
+
+// Stage T Batch B IVP-T14d wrap-up — tracked-command retry budget.
+// Aggressive retry for ALL tracked commands: latency matters more than
+// airtime cost because (a) we send few commands, (b) half-duplex
+// collisions with the vehicle's 5 Hz nav TX eat ~10-15% of retry slots
+// blindly, so more retries directly buys more delivery probability, and
+// (c) ABORT / ARM / DISARM want fast confirmation.
+// 8 retries × 250 ms = ~2 s round-trip window before give-up.
+// STOP-GAP: proper CCSDS TC-Layer + COP-1 would give us exactly-once
+// delivery semantics without needing retry tuning at all. Parked until
+// full CCSDS rework.
+static constexpr uint8_t kAckMaxRetries = 8U;
 
 struct TelemAo {
     QActive super;
@@ -486,7 +504,7 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
     // policy grounds — that's useful, not a retry scenario).
     {
         CmdClass cls = classify_tracked_cmd(matched_cmd, matched_p1);
-        uint8_t retries_used = 3 - retries_left_at_ack;
+        uint8_t retries_used = kAckMaxRetries - retries_left_at_ack;
         s_retry_stats[cls].total_retries_used += retries_used;
         if (retries_used == 0) {
             s_retry_stats[cls].first_try_ack_count++;
@@ -871,7 +889,7 @@ static void populate_pending(uint16_t command, uint8_t seq, float p1,
     s_pending_cmd.seq = seq;
     s_pending_cmd.cmd_id = command;
     s_pending_cmd.sent_ms = to_ms_since_boot(get_absolute_time());
-    s_pending_cmd.retries_left = 3;
+    s_pending_cmd.retries_left = kAckMaxRetries;
     s_pending_cmd.p1 = p1;
     s_pending_cmd.p2 = p2;
     s_pending_cmd.p3 = p3;
@@ -971,18 +989,20 @@ void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
     if (elapsed >= s_ack_retry_timeout_ms) {
         if (s_pending_cmd.retries_left > 0) {
             s_pending_cmd.retries_left--;
-            printf("[CMD] Retry %u (seq=%u)\n",
-                   3 - s_pending_cmd.retries_left, s_pending_cmd.seq);
+            printf("[CMD] Retry %u/%u (seq=%u)\n",
+                   kAckMaxRetries - s_pending_cmd.retries_left,
+                   kAckMaxRetries, s_pending_cmd.seq);
             resend_pending_cmd();
         } else {
-            // T14b: record fail + retries used (all 3).
+            // T14b: record fail + retries used (all kAckMaxRetries).
             CmdClass cls = classify_tracked_cmd(s_pending_cmd.cmd_id,
                                                  s_pending_cmd.p1);
             s_retry_stats[cls].fail_count++;
-            s_retry_stats[cls].total_retries_used += 3;
+            s_retry_stats[cls].total_retries_used += kAckMaxRetries;
 
             s_pending_cmd.pending = false;
-            printf("[CMD] No ACK after 3 retries\n");
+            printf("[CMD] No ACK after %u retries\n",
+                   static_cast<unsigned>(kAckMaxRetries));
         }
     }
 #else
