@@ -41,6 +41,20 @@ void AO_Telemetry_set_rate(uint8_t rate_hz);
 /// (tracked commands originate on station).
 void AO_Telemetry_set_ack_retry_timeout_ms(uint32_t timeout_ms);
 
+/// Stage T Batch B IVP-T14b: retry-instrumentation accessor for CLI/diag.
+/// Snapshot of per-command-class counters (cumulative since boot).
+struct CmdRetryStatsLine {
+    const char* name;             // "ARM" / "DISARM" / "ABORT" / ...
+    uint32_t    sent;
+    uint32_t    first_try;        // ACK with no retry needed
+    uint32_t    retry_rescued;    // ACK after at least one retry
+    uint32_t    failed;           // all 3 retries exhausted
+    uint32_t    total_retries_used;
+};
+/// Returns count of rows. rows is filled with up to max_rows entries.
+/// Stable row order = CmdClass enum order.
+uint8_t AO_Telemetry_get_retry_stats(CmdRetryStatsLine* rows, uint8_t max_rows);
+
 // Station RX telemetry access (IVP-99: station CLI display)
 struct RxTelemSnapshot {
     rc::TelemetryState telem;

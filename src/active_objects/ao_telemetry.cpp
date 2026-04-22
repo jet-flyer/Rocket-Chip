@@ -363,6 +363,59 @@ static struct {
     float p5;
 } s_pending_cmd = {};
 
+// ============================================================================
+// Stage T Batch B T14b: retry instrumentation (always on).
+//
+// Per-command-type counters so we can distinguish collision regimes from
+// sensitivity regimes and drive Batch C's T13 enable decision (post-field).
+// Counters never reset during a session — cumulative since boot.
+//
+// Indexed by enum below rather than by raw MAV_CMD id to keep the table
+// bounded. "Other" catches the long tail of infrequent/custom commands.
+// ============================================================================
+enum CmdClass : uint8_t {
+    kCmdClassArm          = 0,   // MAV_CMD_COMPONENT_ARM_DISARM param1>0.5
+    kCmdClassDisarm       = 1,   // MAV_CMD_COMPONENT_ARM_DISARM param1<0.5
+    kCmdClassAbort        = 2,   // MAV_CMD_DO_FLIGHTTERMINATION
+    kCmdClassSetConfig    = 3,   // MAV_CMD_USER_2
+    kCmdClassQueryConfig  = 4,   // MAV_CMD_USER_3
+    kCmdClassOther        = 5,   // fallthrough bucket
+    kCmdClassCount        = 6,
+};
+
+struct RetryStats {
+    uint32_t sent_count;
+    uint32_t first_try_ack_count;  // ACK with retries_left == 3 (no retry used)
+    uint32_t retry_ack_count;      // ACK after >=1 retry
+    uint32_t fail_count;           // all retries exhausted
+    uint32_t total_retries_used;   // sum of (3 - retries_left) over all acks+fails
+};
+static RetryStats s_retry_stats[kCmdClassCount] = {};
+
+static CmdClass classify_tracked_cmd(uint16_t cmd_id, float p1) {
+    if (cmd_id == MAV_CMD_COMPONENT_ARM_DISARM) {
+        return p1 > 0.5f ? kCmdClassArm : kCmdClassDisarm;
+    }
+    if (cmd_id == MAV_CMD_DO_FLIGHTTERMINATION) { return kCmdClassAbort; }
+    if (cmd_id == 31011U /* MAV_CMD_USER_2 */)   { return kCmdClassSetConfig; }
+    if (cmd_id == 31012U /* MAV_CMD_USER_3 */)   { return kCmdClassQueryConfig; }
+    return kCmdClassOther;
+}
+
+static const char* cmd_class_name(CmdClass c) {
+    switch (c) {
+    case kCmdClassArm:         return "ARM";
+    case kCmdClassDisarm:      return "DISARM";
+    case kCmdClassAbort:       return "ABORT";
+    case kCmdClassSetConfig:   return "SET_CFG";
+    case kCmdClassQueryConfig: return "QRY_CFG";
+    case kCmdClassOther:       return "OTHER";
+    case kCmdClassCount:       return "?";
+    }
+    return "?";
+}
+
+
 // Handle received packet from AO_Radio
 // Handle a received CCSDS command ACK (IVP-122): match against the station-
 // side pending command and clear if matched. Returns true if the buffer
@@ -421,11 +474,26 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
     const float matched_p3 = s_pending_cmd.p3;
     const float matched_p4 = s_pending_cmd.p4;
     const float matched_p5 = s_pending_cmd.p5;
+    const uint8_t retries_left_at_ack = s_pending_cmd.retries_left;
     s_pending_cmd.pending = false;
 
     const bool accepted = (ack.result ==
         static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted));
     printf("[CMD] %s (seq=%u)\n", accepted ? "ACK'd" : "DENIED", ack.cmd_seq);
+
+    // T14b: record outcome. 3 = first-try success; <3 = retry-rescued.
+    // Denied counts as "not failed" (the vehicle got it and refused on
+    // policy grounds — that's useful, not a retry scenario).
+    {
+        CmdClass cls = classify_tracked_cmd(matched_cmd, matched_p1);
+        uint8_t retries_used = 3 - retries_left_at_ack;
+        s_retry_stats[cls].total_retries_used += retries_used;
+        if (retries_used == 0) {
+            s_retry_stats[cls].first_try_ack_count++;
+        } else {
+            s_retry_stats[cls].retry_ack_count++;
+        }
+    }
 
 #ifdef ROCKETCHIP_JOB_STATION
     if (accepted && matched_cmd == 31011 /* MAV_CMD_USER_2 */) {
@@ -809,6 +877,12 @@ static void populate_pending(uint16_t command, uint8_t seq, float p1,
     s_pending_cmd.p3 = p3;
     s_pending_cmd.p4 = p4;
     s_pending_cmd.p5 = p5;
+
+    // T14b: count a new send. Dedupe-replace path also reuses populate_pending
+    // — but the command is semantically "a new send" (new seq, fresh ACK
+    // window), so counting it is correct.
+    CmdClass c = classify_tracked_cmd(command, p1);
+    s_retry_stats[c].sent_count++;
 }
 #endif
 
@@ -844,6 +918,21 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
 
 bool AO_Telemetry_is_cmd_pending() {
     return s_pending_cmd.pending;
+}
+
+// Stage T Batch B IVP-T14b: retry-stats snapshot for CLI/diag.
+uint8_t AO_Telemetry_get_retry_stats(CmdRetryStatsLine* rows, uint8_t max_rows) {
+    uint8_t n = 0;
+    for (uint8_t i = 0; i < static_cast<uint8_t>(kCmdClassCount) && n < max_rows; ++i) {
+        rows[n].name               = cmd_class_name(static_cast<CmdClass>(i));
+        rows[n].sent               = s_retry_stats[i].sent_count;
+        rows[n].first_try          = s_retry_stats[i].first_try_ack_count;
+        rows[n].retry_rescued      = s_retry_stats[i].retry_ack_count;
+        rows[n].failed             = s_retry_stats[i].fail_count;
+        rows[n].total_retries_used = s_retry_stats[i].total_retries_used;
+        n++;
+    }
+    return n;
 }
 
 // Internal: re-send pending command with same seq (for retries)
@@ -886,6 +975,12 @@ void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
                    3 - s_pending_cmd.retries_left, s_pending_cmd.seq);
             resend_pending_cmd();
         } else {
+            // T14b: record fail + retries used (all 3).
+            CmdClass cls = classify_tracked_cmd(s_pending_cmd.cmd_id,
+                                                 s_pending_cmd.p1);
+            s_retry_stats[cls].fail_count++;
+            s_retry_stats[cls].total_retries_used += 3;
+
             s_pending_cmd.pending = false;
             printf("[CMD] No ACK after 3 retries\n");
         }

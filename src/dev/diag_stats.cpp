@@ -179,6 +179,24 @@ void diag_stats_dump() {
            g_bestGpsValid.load() ? "YES" : "NO",
            (unsigned)g_bestGpsFix.satellites,
            (unsigned)g_bestGpsFix.fix_type);
+
+    // T14b retry-stats per command class. Cumulative since boot.
+    // Columns: sent / first-try / retry-rescued / failed / total-retries
+    printf("[CmdRetryStats]\n");
+    printf("  %-8s %6s %6s %6s %6s %6s\n",
+           "class", "sent", "1st", "retry", "fail", "retries");
+    CmdRetryStatsLine stats[16];
+    uint8_t n = AO_Telemetry_get_retry_stats(stats, 16);
+    for (uint8_t i = 0; i < n; ++i) {
+        if (stats[i].sent == 0) { continue; }  // skip empty buckets
+        printf("  %-8s %6lu %6lu %6lu %6lu %6lu\n",
+               stats[i].name,
+               (unsigned long)stats[i].sent,
+               (unsigned long)stats[i].first_try,
+               (unsigned long)stats[i].retry_rescued,
+               (unsigned long)stats[i].failed,
+               (unsigned long)stats[i].total_retries_used);
+    }
 #endif
 
     printf("[Health]\n");
