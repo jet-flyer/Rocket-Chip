@@ -25,9 +25,18 @@
 // avoids dead code in the build.
 // ============================================================================
 
-// Active objects: 8 (headroom for Stage 9 AOs + future expansion)
-// IVP-76: FlightDirector(5), Logger(4), Telemetry(3), LedEngine(2), reserved(1)
-#define QF_MAX_ACTIVE       8U
+// Active objects: 9 (Stage T Batch B added AO_RfManager)
+// Priorities in use (higher = higher QP dispatch priority):
+//   9: AO_FlightDirector (phase transitions feed every consumer; vehicle-only)
+//   8: AO_Radio (owns radio hardware)
+//   7: AO_RfManager (Stage T Batch B, IVP-T14 — consumes SIG_RADIO_RX)
+//   6: AO_HealthMonitor
+//   5: AO_Notify
+//   4: AO_Logger
+//   3: AO_Telemetry
+//   2: AO_LedEngine
+//   1: AO_RCOS
+#define QF_MAX_ACTIVE       9U
 
 // Event pools: 1 (pre-wired for future pool readiness, Council A3)
 // Pool memory NOT allocated and QF_poolInit() NOT called until needed.

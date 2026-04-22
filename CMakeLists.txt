@@ -405,6 +405,7 @@ else()
         src/active_objects/ao_led_engine.cpp
         src/active_objects/ao_flight_director.cpp
         src/active_objects/ao_health_monitor.cpp
+        src/active_objects/ao_rf_manager.cpp
         src/active_objects/ao_notify.cpp
         src/notify/notify_backend_led.cpp
         src/notify/notify_backend_audio.cpp

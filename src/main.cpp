@@ -65,6 +65,7 @@
 #include "ao_telemetry.h"
 #include "ao_radio.h"
 #include "ao_health_monitor.h"
+#include "ao_rf_manager.h"
 #include "ao_notify.h"
 #include "qp_port.h"
 #include "qsafe.h"     // QP/C FuSa assertions
@@ -638,33 +639,38 @@ extern "C" void qv_idle_bridge(void) {
 }
 
 // ============================================================================
-// Main
+// Active Object startup
+//
+// Start all AOs in priority order (highest first). Priority layout
+// documented in lib/qep/qp_config.h. Roles (Vehicle/Station/Relay) mask
+// which AOs run — see job::DeviceRole gating below.
 // ============================================================================
 
-int main() {
-    bool watchdogReboot = init_hardware();
-    init_application(watchdogReboot);
-
-    // --- QF+QV Active Object initialization ---
-    QF_init();
-    QActive_psInit(g_subscrList, Q_DIM(g_subscrList));
-
-    // Start Active Objects based on device role
-    // Vehicle: all AOs. Station: no FD/Logger/HealthMon/Notify. Relay: Radio + LED only.
-    // Priorities (higher = dispatched first under QV):
-    //   Radio=8, FD=7, HealthMon=6, Notify=5, Logger=4, Telem=3, LED=2, RCOS=1
-    // IVP-114: all priorities shifted +1 to insert AO_Notify at 5.
+static void start_active_objects() {
+    // FD=9 (top: phase transitions feed every consumer), Radio=8 (hardware),
+    // RfManager=7 (consumes SIG_RADIO_RX, gates station TX — between Radio
+    // and HealthMon so it drains same cooperative pass as Radio's posts),
+    // HealthMon=6, Notify=5, Logger=4, Telem=3, LED=2, RCOS=1.
+    // Stage T Batch B: FD moved 7→9 to free 7 for RfManager.
     AO_Radio_start(8U, g_spiInitialized);  // 100Hz — owns radio hardware init
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
-        AO_FlightDirector_start(7U); // 100Hz
+        AO_FlightDirector_start(9U); // 100Hz — top priority; station has no FD
     }
     // Stage 16C IVP-142c: HealthMonitor runs on every role that has a
     // health pipeline to populate. Station's AO uses capability-masked
-    // paths (see job_capabilities.h) so Core1/Flash bits aren't stuck
-    // off, and un-installed sensors report kHealthAbsent cleanly.
+    // paths (see job_capabilities.h) so Core1/Flash bits aren't stuck off,
+    // and un-installed sensors report kHealthAbsent cleanly.
     // Relay stays out — it's link-layer only.
     if constexpr (job::kRole != job::DeviceRole::kRelay) {
         AO_HealthMonitor_start(6U);  // 10Hz — between FD and Notify
+    }
+    // Stage T Batch B IVP-T14: AO_RfManager tracks RF link health +
+    // anchors station TX to vehicle RxDone. Runs on both station and
+    // vehicle. Relay stays out — no nav RX cadence to track.
+    if constexpr (job::kRole != job::DeviceRole::kRelay) {
+        // Initial nav_period_ms = 200 (5 Hz default). Updated via
+        // AO_RfManager_set_nav_period_ms() on SET_RADIO_CONFIG apply.
+        rc::AO_RfManager_start(7U, 200U);  // 10Hz
     }
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         AO_Notify_start(5U);         // 33Hz — notification intent hub (IVP-114)
@@ -679,9 +685,21 @@ int main() {
     // Station/Relay: AO_Radio owns NeoPixels exclusively (RSSI bar).
     // AO_LedEngine disabled to prevent PIO contention (LL Entry 32 pattern).
     AO_RCOS_start(1U);              // 20Hz — CLI/dashboard, all roles
-    // AO_Counter: jitter measurement diagnostic. Disabled — prints every 5s,
-    // clutters serial. Re-enable for scheduler debugging.
-    // AO_Counter_start(1U);
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+int main() {
+    bool watchdogReboot = init_hardware();
+    init_application(watchdogReboot);
+
+    // --- QF+QV Active Object initialization ---
+    QF_init();
+    QActive_psInit(g_subscrList, Q_DIM(g_subscrList));
+
+    start_active_objects();
 
     // QF_run() replaces while(true) — never returns.
     // QV cooperative scheduler dispatches AOs, calls QV_onIdle() (which runs
