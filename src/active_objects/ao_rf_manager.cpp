@@ -17,6 +17,7 @@
 #include "safety/rf_link_health.h"  // pure state-machine helpers (host-testable)
 #include "rocketchip/ao_signals.h"  // rc::RadioRxEvt, rc::SIG_RADIO_RX
 #include "rocketchip/job.h"         // job::kRole
+#include "ao_notify.h"              // IVP-T14 #10: vehicle-lost/found posts
 #include <string.h>
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -111,19 +112,26 @@ static void lq_window_push(RfManager * me, uint8_t good_bit) {
 // Force-drop to kAcq. Called on prolonged RX absence, on tx_consec_fail
 // in TRACK, or on idle-drift tripwire. Does NOT clear per-RX metadata like
 // RSSI (dashboard still shows last-known).
+// Stage T Batch B IVP-T14 Round 2 #10: on the transition edge from a
+// tracking state (kTrack or kTrackDegraded) to kAcq, post the
+// "VEHICLE NOT HEARD" notification. Not posted on startup drops from
+// kTentative (we never had a learned link — no lost verdict yet).
 static void transition_to_acq(RfManager * const me, const char * /*reason*/) {
+    const LinkState prev = me->state.state;
     me->state.state = LinkState::kAcq;
     me->state.anchor_valid = false;
     me->state.consec_good_rx = 0;
     // Leave consec_missed_rx alone — it tracks missed since last good RX,
     // independent of state.
-    // TODO: post SIG_NOTIFY_VEHICLE_LOST to AO_Notify (§11, Round 2 #10).
-    //       Audio tone + LED slow-flash + dashboard banner. Deferred to the
-    //       SIG_NOTIFY_VEHICLE_LOST signal addition task.
+    if (prev == LinkState::kTrack || prev == LinkState::kTrackDegraded) {
+        AO_Notify_post_vehicle_lost();
+    }
 }
 
 // Compute next state per design §2 predicates — delegates to shared pure
 // helper in safety/rf_link_health.h (host-testable).
+// IVP-T14 Round 2 #10: also detects the re-acquisition edge into kTrack
+// and posts SIG_NOTIFY_VEHICLE_FOUND to clear the station's lost-latch.
 static void check_transitions(RfManager * const me) {
     RfManagerState& s = me->state;
     s.lq_pct = rf_lq_compute_pct(me->lq_window, me->lq_window_count);
@@ -140,7 +148,11 @@ static void check_transitions(RfManager * const me) {
     // from the per-RX path, which is correct (no drops during valid RX).
     in.time_since_last_rx_ms = 0;
 
+    const LinkState prev = s.state;
     s.state = rf_next_state(in);
+    if (s.state == LinkState::kTrack && prev != LinkState::kTrack) {
+        AO_Notify_post_vehicle_found();
+    }
 }
 
 // ============================================================================

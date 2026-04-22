@@ -123,6 +123,13 @@ struct NotifyState {
     FaultIntent  fault;
     bool         beacon_auto;
     bool         beacon_manual;
+    // Stage T Batch B IVP-T14 (Round 2 #10): unmissable "VEHICLE NOT HEARD"
+    // indicator on the station. Latched by AO_RfManager on link-lost edge
+    // (kTrack/kTrackDegraded → kAcq), cleared on re-acquire. Orthogonal to
+    // RadioIntent, which is AO_Radio's per-packet heuristic; this flag is
+    // AO_RfManager's learned-link verdict. Audio backend plays the
+    // vehicle-lost tone when audio hardware is wired.
+    bool         vehicle_lost;
 };
 
 } // namespace notify

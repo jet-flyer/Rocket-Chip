@@ -30,9 +30,11 @@ using namespace rc::notify;
 // Private signals (offsets from SIG_AO_MAX to avoid collision with other AOs)
 // ============================================================================
 enum : uint16_t {
-    SIG_NOTIFY_TICK         = rc::SIG_AO_MAX + 6,
-    SIG_NOTIFY_CAL_INTENT   = rc::SIG_AO_MAX + 7,  // Direct post from AO_RCOS
-    SIG_NOTIFY_PREARM_FAIL  = rc::SIG_AO_MAX + 8,  // Stage L — ARM rejected
+    SIG_NOTIFY_TICK           = rc::SIG_AO_MAX + 6,
+    SIG_NOTIFY_CAL_INTENT     = rc::SIG_AO_MAX + 7,  // Direct post from AO_RCOS
+    SIG_NOTIFY_PREARM_FAIL    = rc::SIG_AO_MAX + 8,  // Stage L — ARM rejected
+    SIG_NOTIFY_VEHICLE_LOST   = rc::SIG_AO_MAX + 9,  // IVP-T14 #10 — link lost
+    SIG_NOTIFY_VEHICLE_FOUND  = rc::SIG_AO_MAX + 10, // IVP-T14 #10 — re-acquired
 };
 
 // Direct-post event from AO_RCOS carrying a typed CalIntent
@@ -235,7 +237,39 @@ static void handle_notify_tick(NotifyAo * const me) {
     rc::notify::notify_backend_audio_update(me->state);
 }
 
+// Handle simple single-flag setters to keep Notify_running under the
+// JSF AV Rule 1 60-line cap. All these branches just flip one bool or
+// set one enum field and return — the dispatcher in Notify_running
+// calls this and treats a non-zero return as "handled".
+static bool handle_simple_flag_sig(NotifyAo * const me, QEvt const * const e) {
+    switch (e->sig) {
+    case rc::SIG_BEACON_ACTIVE:
+        me->state.beacon_auto = true;
+        return true;
+    case rc::SIG_BEACON_MANUAL:
+        me->state.beacon_manual = true;
+        return true;
+    case SIG_NOTIFY_VEHICLE_LOST:
+        me->state.vehicle_lost = true;
+        return true;
+    case SIG_NOTIFY_VEHICLE_FOUND:
+        me->state.vehicle_lost = false;
+        return true;
+    case SIG_NOTIFY_PREARM_FAIL:
+        // Stage L — ARM command rejected. Each repost resets the
+        // auto-clear counter to full (JPL council 2026-04-18).
+        me->state.phase = PhaseIntent::kPreArmFail;
+        me->prearm_fail_ticks = rc::kPreArmFailTicks;
+        return true;
+    default:
+        return false;
+    }
+}
+
 static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
+    if (handle_simple_flag_sig(me, e)) {
+        return Q_HANDLED();
+    }
     switch (e->sig) {
     case rc::SIG_PHASE_CHANGE:
         handle_phase_change(me, e);
@@ -259,29 +293,6 @@ static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
         me->state.cal = ce->intent;
         return Q_HANDLED();
     }
-
-    case SIG_NOTIFY_PREARM_FAIL: {
-        // Stage L: ARM command was rejected. Flip phase intent to kPreArmFail
-        // (yellow double-flash) and arm the auto-clear counter. Each repost
-        // resets the counter to full — rapid-fire rejections refresh the
-        // window instead of decrementing from the existing count
-        // (JPL council 2026-04-18).
-        me->state.phase = PhaseIntent::kPreArmFail;
-        me->prearm_fail_ticks = rc::kPreArmFailTicks;
-        return Q_HANDLED();
-    }
-
-    case rc::SIG_BEACON_ACTIVE:
-        // Stage L: auto-beacon (FD MAIN_DESCENT backstop or kSetBeacon action).
-        // beacon_auto composes with state color in the resolver overlay.
-        me->state.beacon_auto = true;
-        return Q_HANDLED();
-
-    case rc::SIG_BEACON_MANUAL:
-        // Stage L: manual beacon (CLI `findme` or GCS beacon command).
-        // beacon_manual forces pure white — wins over beacon_auto.
-        me->state.beacon_manual = true;
-        return Q_HANDLED();
 
     case SIG_NOTIFY_TICK:
         handle_notify_tick(me);
@@ -354,5 +365,26 @@ void AO_Notify_post_prearm_fail() {
     // Static event per LL Entry 35. No QEvt subclass payload needed.
     static QEvt s_evt;
     s_evt = QEVT_INITIALIZER(SIG_NOTIFY_PREARM_FAIL);
+    QACTIVE_POST(&l_notifyAo.super, &s_evt, (void *)0);
+}
+
+// ============================================================================
+// Stage T Batch B IVP-T14 Round 2 #10 — vehicle-lost / -found posts
+// Called by AO_RfManager on the link-state transition edge (kTrack /
+// kTrackDegraded → kAcq on forced-ACQ = lost; kTentative → kTrack on
+// re-acquire = found). Station backends: LED shows unmissable red flash;
+// audio backend plays the vehicle-lost tone once audio hardware is wired.
+// ============================================================================
+void AO_Notify_post_vehicle_lost() {
+    if (!s_notifyStarted) { return; }
+    static QEvt s_evt;
+    s_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_LOST);
+    QACTIVE_POST(&l_notifyAo.super, &s_evt, (void *)0);
+}
+
+void AO_Notify_post_vehicle_found() {
+    if (!s_notifyStarted) { return; }
+    static QEvt s_evt;
+    s_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_FOUND);
     QACTIVE_POST(&l_notifyAo.super, &s_evt, (void *)0);
 }

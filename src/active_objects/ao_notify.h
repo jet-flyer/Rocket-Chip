@@ -32,4 +32,11 @@ void AO_Notify_post_cal_intent(rc::notify::CalIntent intent);
 // refresh the window rather than decrement the existing count).
 void AO_Notify_post_prearm_fail();
 
+// Stage T Batch B IVP-T14 Round 2 #10 — unmissable "VEHICLE NOT HEARD"
+// indicator. Station-side only. Called by AO_RfManager on the
+// link-lost / re-acquired edge. Latches NotifyState::vehicle_lost so
+// backends (LED, audio once wired) surface the condition until cleared.
+void AO_Notify_post_vehicle_lost();
+void AO_Notify_post_vehicle_found();
+
 #endif // ROCKETCHIP_AO_NOTIFY_H
