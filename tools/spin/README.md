@@ -82,6 +82,33 @@ gcc -O2 -o pan_station pan.c
 
 Expected: `errors: 0` for both. Runtime <1s total. Future extensions (multi-pending-in-flight, RadioScheduler TX-window, MAVLink-parser state) are queued as whiteboard follow-ups when firmware gains the supporting behaviors.
 
+### `rocketchip_rf_manager.pml` (IVP-T14, Stage T Batch B)
+AO_RfManager state-machine model. 4-state link-health machine with Schmitt-trigger hysteresis (55/65 LQ bands, 10 pp deadband) and forced-ACQ protection (time-primary + frame-minimum per 2026-04-21 user direction). Two processes: RxProducer (non-deterministic good/miss/crc_err stream) + ModeSetter (picks healthy / partial-loss / fully-nondeterministic stream once). Verifies 5 properties covering the Round 2 design §10 set + plan-as-whole consensus #9:
+
+- **p_eventual_track** (liveness, requires `-f`): healthy input stream reaches `kTrack`.
+- **p_never_silent** (safety): any * → kAcq transition atomically sets `notify_lost`.
+- **p_no_tx_in_acq** (safety): station TX never permitted in `kAcq`.
+- **p_hysteresis** (safety): `kTrackDegraded` reachable only via `kTrack` (never `kTentative`/`kAcq` directly).
+- **p_progress** (safety): Schmitt-trigger fix eliminates `kTrack↔kTrackDegraded` oscillation under partial-loss — exits from that pair only via proper forced-ACQ, never spuriously back to `kTentative`.
+
+Run:
+```bash
+/c/tools/cygwin/bin/bash.exe -lc '
+cd /cygdrive/c/Users/pow-w/Documents/Rocket-Chip/tools/spin
+spin -a rocketchip_rf_manager.pml
+gcc -O2 -o pan_rfm pan.c
+for p in p_no_tx_in_acq p_hysteresis p_never_silent p_progress; do
+    echo "=== $p ==="
+    ./pan_rfm -a -N $p
+    rm -f *.trail
+done
+echo "=== p_eventual_track (liveness, -f) ==="
+./pan_rfm -a -f -N p_eventual_track
+'
+```
+
+Expected: `errors: 0` on all 5. Runtime <1 s total. Abstractions: LQ is bucketed (LOW/BORDER/HIGH) rather than the full 10-slot sliding window — state space tractable while still proving the Schmitt/livelock properties. Filter coefficient arithmetic is host-tested separately (test/test_rf_link_health.cpp 32 tests).
+
 ## What's Modeled
 
 | Real System | Promela Model | Abstraction |
