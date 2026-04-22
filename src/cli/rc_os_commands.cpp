@@ -14,6 +14,7 @@
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/config.h"
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
+#include "flight_director/go_nogo_checks.h"  // IVP-T14: RF Link pre-arm station
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/pcm_frame.h"
 #include "rocketchip/telemetry_state.h"
@@ -1401,7 +1402,7 @@ static void preflight_print_primary(const rc::HealthState* hs) {
 }
 
 static void preflight_print_secondary(const rc::HealthState* hs) {
-    printf("Radio:    %s\n", (hs->secondary & rc::kHealthRadioOk)    ? "GO" : "ABSENT");
+    printf("Radio HW: %s\n", (hs->secondary & rc::kHealthRadioOk)    ? "GO" : "ABSENT");
     printf("Flash:    %s\n", (hs->secondary & rc::kHealthFlashOk)    ? "GO" : "FAULT");
     printf("Watchdog: %s\n", (hs->secondary & rc::kHealthWatchdogOk) ? "GO" : "FAULT");
     printf("PIO WDT:  %s\n", (hs->secondary & rc::kHealthPioOk)      ? "GO" : "FAULT");
@@ -1438,6 +1439,23 @@ void cli_print_preflight() {
     preflight_print_primary(hs);
     preflight_print_secondary(hs);
     preflight_print_mcu_and_critical(hs);
+
+    // Stage T Batch B IVP-T14: show "RF Link" station (learned-link state
+    // from AO_RfManager) alongside the hardware-level Radio health above.
+    // Uses the same go_nogo_evaluate path the ARM-time check uses, so the
+    // operator sees what ARM will see.
+    rc::GoNoGoInput gng{};
+    rc::health_monitor_fill_go_nogo(&gng);
+    rc::GoNoGoResult gngResult = rc::go_nogo_evaluate(gng);
+    for (uint8_t i = 0; i < gngResult.num_checks; ++i) {
+        const rc::GoNoGoCheck& c = gngResult.checks[i];
+        // Only surface the RF-specific stations — the others duplicate the
+        // primary/secondary block above.
+        if (strcmp(c.name, "RF Link") == 0) {
+            printf("RF Link:  %s\n", c.reason);
+        }
+    }
+
     printf("----------------\n");
     printf("VERDICT:  %s\n", hs->go_nogo_ready ? "GO" : "NO-GO");
 }

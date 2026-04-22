@@ -20,6 +20,7 @@
 #include "fusion/eskf_runner.h"           // eskf_runner_get_eskf(), eskf_runner_is_initialized()
 #include "fusion/confidence_gate.h"       // eskf_runner_get_confidence()
 #include "active_objects/ao_logger.h"     // AO_Logger_get_flight_table()
+#include "active_objects/ao_rf_manager.h" // AO_RfManager_get_state (T14 pre-arm)
 #include "active_objects/ao_radio.h"      // AO_Radio_get_state()
 #include "logging/flight_table.h"         // flight_table_count, kMaxFlightEntries
 #include "calibration/calibration_manager.h"
@@ -650,6 +651,21 @@ void health_monitor_fill_go_nogo(GoNoGoInput* gng) {
     const calibration_store_t* cal = calibration_manager_get();
     gng->mag_calibrated = (cal->cal_flags & CAL_STATUS_MAG) != 0;
     gng->radio_linked   = (g_health.secondary & kHealthRadioOk) != 0;
+
+    // Stage T Batch B IVP-T14: RF link-health for pre-arm check.
+    // Reads AO_RfManager's read-only state accessor per AO Commandment V
+    // (cooperative-dispatch-only; this fill_go_nogo path runs on Core 0
+    // from AO_HealthMonitor or CLI tick context, both compliant).
+    const RfManagerState* rf = AO_RfManager_get_state();
+    if (rf != nullptr) {
+        gng->rf_link_state   = static_cast<uint8_t>(rf->state);
+        gng->rf_lq_pct       = rf->lq_pct;
+        gng->rf_anchor_valid = rf->anchor_valid;
+    } else {
+        gng->rf_link_state   = 0;       // ACQ
+        gng->rf_lq_pct       = 0;
+        gng->rf_anchor_valid = false;
+    }
 }
 
 } // namespace rc

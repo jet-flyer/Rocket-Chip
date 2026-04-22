@@ -34,6 +34,35 @@ static void add_station(GoNoGoResult& r, uint8_t tier, const char* name,
     ++r.num_checks;
 }
 
+// Stage T Batch B IVP-T14: add "RF Link" Tier-2 station. GO when link is
+// in kTrack with LQ >= 65% — matches the dashboard glance-indicator green
+// threshold (Round 2 design §12). kTrackDegraded (state 3) is warn-yellow.
+//   state: 0=ACQ, 1=Tentative, 2=Track, 3=TrackDegraded
+static void add_rf_link_station(GoNoGoResult& r, const GoNoGoInput& input) {
+    const bool link_go = input.rf_anchor_valid &&
+                         (input.rf_link_state == 2) &&
+                         (input.rf_lq_pct >= 65U);
+    static char reason[kGoNoGoReasonLen];
+    if (!input.rf_anchor_valid) {
+        std::snprintf(reason, sizeof(reason), "NO-GO NO RX YET");
+    } else if (input.rf_link_state == 0) {
+        std::snprintf(reason, sizeof(reason), "NO-GO LINK ACQ");
+    } else if (input.rf_link_state == 1) {
+        std::snprintf(reason, sizeof(reason), "NO-GO TENTATIVE %u%%",
+                      static_cast<unsigned>(input.rf_lq_pct));
+    } else if (input.rf_link_state == 3) {
+        std::snprintf(reason, sizeof(reason), "NO-GO DEGRADED %u%%",
+                      static_cast<unsigned>(input.rf_lq_pct));
+    } else if (input.rf_lq_pct < 65U) {
+        std::snprintf(reason, sizeof(reason), "NO-GO LQ %u%%",
+                      static_cast<unsigned>(input.rf_lq_pct));
+    } else {
+        std::snprintf(reason, sizeof(reason), "GO LQ %u%%",
+                      static_cast<unsigned>(input.rf_lq_pct));
+    }
+    add_station(r, 2, "RF Link", link_go, reason);
+}
+
 GoNoGoResult go_nogo_evaluate(const GoNoGoInput& input) {
     GoNoGoResult r{};
 
@@ -56,8 +85,11 @@ GoNoGoResult go_nogo_evaluate(const GoNoGoInput& input) {
                 input.gps_has_lock ? "GO" : "NO-GO NO LOCK");
     add_station(r, 2, "Mag Cal", input.mag_calibrated,
                 input.mag_calibrated ? "GO" : "NO-GO NOT CALIBRATED");
-    add_station(r, 2, "Radio", input.radio_linked,
+    // Stage T Batch B: "Radio HW" = SX1276 init / SPI reachable;
+    // "RF Link" below = learned link state from AO_RfManager (IVP-T14).
+    add_station(r, 2, "Radio HW", input.radio_linked,
                 input.radio_linked ? "GO" : "NO-GO NOT INIT");
+    add_rf_link_station(r, input);
     add_station(r, 2, "Battery", true, "GO (not monitored)");
 
     r.all_go = (r.tier1_go == r.tier1_total);

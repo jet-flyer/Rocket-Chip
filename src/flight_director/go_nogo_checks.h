@@ -42,6 +42,14 @@ struct GoNoGoInput {
     bool gps_has_lock;          // fix_type >= 2 && satellites >= 4
     bool mag_calibrated;        // CAL_STATUS_MAG flag set
     bool radio_linked;          // Radio init OK (TX or RX)
+    // Stage T Batch B IVP-T14: RF link-health from AO_RfManager.
+    // Separate from radio_linked (hardware init) — this is the
+    // learned-link state used by the pre-arm glance indicator.
+    // Populated from AO_RfManager_get_state() by the caller.
+    uint8_t rf_link_state;      // rc::LinkState cast to uint8_t
+                                //   0=kAcq, 1=kTentative, 2=kTrack, 3=kTrackDegraded
+    uint8_t rf_lq_pct;          // 0-100, sliding-window link quality
+    bool rf_anchor_valid;       // AO_RfManager has seen at least 1 valid RX
     // Battery: no ADC hardware on Feather RP2350 HSTX — always passes
 };
 
