@@ -140,9 +140,16 @@ All numbers preliminary. Council round 2 revises.
   Skeleton only (enum + safety invariant).
 - **CCSDS COP-1 / CLCW / HMAC auth:** council-killed in the continuation
   review. Dead-path doc already at `docs/decisions/COP1_NOT_PURSUED.md`.
-- **LQ-adaptive retry (T13):** deferred to Batch C behind flag
-  `ROCKETCHIP_LQ_ADAPTIVE_RETRY`, default OFF. Enable decision requires
-  3 ground tests with T14b instrumentation showing retry-storm patterns.
+- **LQ-adaptive retry (T13):** DEFERRED until after the CCSDS command-
+  path rework (2026-04-22 decision). T13 is parametric tuning on top
+  of the current MAVLink-over-LoRa retry loop, which is itself
+  flagged as STOP-GAP pending CCSDS TC-Layer + COP-1/FARM/FOP.
+  Implementing LQ-adaptive on a path we've already marked for
+  replacement is polish misapplied. Revisit after the CCSDS rework
+  lands so T13 can target the right retry architecture, or be
+  superseded entirely (proper COP-1 FOP has its own retransmission
+  semantics). Previously was planned as Batch C behind
+  `ROCKETCHIP_LQ_ADAPTIVE_RETRY` flag-default-off.
 - **Live retry indicator on dashboard (T14c):** moved to Batch C per
   Round 2 of the continuation council (ArduPilot: "UX, not correctness
   — buys Batch B a day").
@@ -952,12 +959,34 @@ Plan consensus item #4. Before any Batch B code change, measure the station's ob
 
 ### Summary of pre-Batch-B work completeness
 
-- ✅ ABORT budget — **on paper, ~120 ms worst case, 130 ms margin against 250 ms gate.** Legs 2-3, 5-7, 9 to be refined by ACK-path timing measurement.
-- ⏳ ACK-path timing + α-filter — procedure defined, bench session pending.
-- ⏳ Station LDO rail — procedure defined, bench session pending.
-- ⏳ Station RX-window width — procedure defined, bench session pending.
+- ✅ ABORT budget — **on paper, ~120 ms worst case, 130 ms margin
+  against 250 ms gate.** Aggressive-retry addendum appended 2026-04-22
+  (commit `59b5192`): single-shot ~120 ms, retry-fallback ~370 ms,
+  worst-case retry-exhaust ~1870 ms.
+- ❌ ACK-path timing + α-filter — **OUT-OF-SCOPE (dropped 2026-04-22).**
+  Requires oscilloscope + instrumented bench session. User retro:
+  council-approved beyond what's practical in our bench environment.
+  α-filter currently uses a reference-radio default; works in practice.
+- ❌ Station LDO rail — **OUT-OF-SCOPE (dropped 2026-04-22).** Same
+  reason: scope-required measurement. Observed RSSI/link health during
+  100+ DISARM retry stress sessions shows no brown-out symptoms; will
+  re-evaluate if field-testing surfaces rail issues.
+- ❌ Station RX-window width vs Batch A binary — **OUT-OF-SCOPE
+  (dropped 2026-04-22).** Requires reflashing pre-T14 firmware to
+  establish baseline for comparison; information value is low now that
+  T14 anchoring is in place and link is demonstrably healthy.
+- ⏸ N=100 Wilson 95% CI on first-try ACK — **DNF (2026-04-22).** Three
+  attempts, instrumentation-bound non-result; deferred to re-measure
+  under the CCSDS-layer rework where "first-try" becomes a meaningful
+  metric. See `logs/stage_t/t14_wilson_ci_attempts.md`.
 
-Three bench sessions. All can be done in one extended bench day with shared instrumentation. Until all four are complete, Batch B code does not start.
+Scope-dropped items were council-approved beyond what's practical for
+the current bench setup. Stage T Batch B code landed in commits
+`3159173` through `5adb878`; Batch C's IVP-T14c landed at `9f0e04a`;
+Batch C's IVP-T13 (LQ-adaptive retry) deferred to the CCSDS-command-
+layer rework per commit `8fdf951`. Remaining concerns fold into the
+whiteboard "Stage T 95% first-try re-baseline" item and the eventual
+CCSDS rework.
 
 ---
 
