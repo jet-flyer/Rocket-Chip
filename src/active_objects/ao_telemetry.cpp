@@ -759,24 +759,33 @@ void AO_Telemetry_send_command(uint16_t command, float p1, float p2,
 // IVP-122: Send a tracked command — populates pending-cmd state for ACK tracking.
 static uint8_t s_cmd_seq = 0;
 
-void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
-                                       float p2, float p3,
-                                       float p4, float p5) {
-#ifndef ROCKETCHIP_HOST_TEST
-    uint8_t seq = s_cmd_seq++;
+// Stage T Batch B T14a: is this command class safety-critical? Per Round 2
+// council consensus #5, ARM (COMPONENT_ARM_DISARM with param1 > 0.5) and
+// flight-termination (ABORT) are safety-class — excluded from newest-wins
+// dedupe so every deliberate operator press is preserved as its own
+// tracked command. DISARM is NOT safety-class (DISARM is safer than ARM;
+// mashing DISARM is a harmless noop if already disarmed).
+static bool is_tracked_command_safety_class(uint16_t cmd_id, float p1) {
+    if (cmd_id == MAV_CMD_DO_FLIGHTTERMINATION) {
+        return true;
+    }
+    if (cmd_id == MAV_CMD_COMPONENT_ARM_DISARM && p1 > 0.5f) {
+        return true;  // ARM only; DISARM (p1 < 0.5) is fine to dedupe.
+    }
+    return false;
+}
 
+#ifndef ROCKETCHIP_HOST_TEST
+// Encode and TX a MAVLink COMMAND_LONG with the given seq/params.
+static void tx_tracked_command_wire(uint16_t command, uint8_t seq, float p1,
+                                    float p2, float p3, float p4, float p5) {
     mavlink_message_t msg;
     mavlink_msg_command_long_pack(
-        255, 0,
-        &msg,
-        1, 1,
-        command,
-        seq,       // Confirmation field carries our sequence number
+        255, 0, &msg, 1, 1,
+        command, seq,
         p1, p2, p3, p4, p5, 0, 0);
-
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
-
     static rc::RadioTxEvt txEvt;
     txEvt.super.sig = rc::SIG_RADIO_TX;
     txEvt.super.refCtr_ = 0;
@@ -785,19 +794,49 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
         txEvt.len = static_cast<uint8_t>(len);
         QACTIVE_POST(AO_Radio, &txEvt.super, &l_telemAo.super);
     }
+}
 
-    // Populate pending command state for ACK tracking. Cache the sent
-    // params so resend_pending_cmd() can replay the command verbatim.
+// Populate s_pending_cmd + params (used by both fresh-send and dedupe-replace).
+static void populate_pending(uint16_t command, uint8_t seq, float p1,
+                             float p2, float p3, float p4, float p5) {
     s_pending_cmd.pending = true;
     s_pending_cmd.seq = seq;
     s_pending_cmd.cmd_id = command;
     s_pending_cmd.sent_ms = to_ms_since_boot(get_absolute_time());
     s_pending_cmd.retries_left = 3;
-    s_pending_cmd.p1 = p1;  // T5.5: preserve all 5 params for retries
+    s_pending_cmd.p1 = p1;
     s_pending_cmd.p2 = p2;
     s_pending_cmd.p3 = p3;
     s_pending_cmd.p4 = p4;
     s_pending_cmd.p5 = p5;
+}
+#endif
+
+void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
+                                       float p2, float p3,
+                                       float p4, float p5) {
+#ifndef ROCKETCHIP_HOST_TEST
+    // Stage T Batch B T14a: MAV_CMD dedupe newest-wins. If a command of the
+    // same cmd_id is already pending and the class is NOT safety-critical,
+    // replace in-place (bump seq, overwrite params, reset retries). Prevents
+    // operator-mashing self-collision: N rapid presses → 1 pending command
+    // with most-recent params, seq monotonic.
+    //
+    // Safety-class commands (ARM, ABORT) bypass dedupe — every deliberate
+    // press is preserved as its own tracked command with its own ACK window.
+    if (s_pending_cmd.pending &&
+        s_pending_cmd.cmd_id == command &&
+        !is_tracked_command_safety_class(command, p1)) {
+        uint8_t seq = s_cmd_seq++;
+        populate_pending(command, seq, p1, p2, p3, p4, p5);
+        tx_tracked_command_wire(command, seq, p1, p2, p3, p4, p5);
+        return;
+    }
+
+    // Fresh send: allocate seq, populate pending, TX on wire.
+    uint8_t seq = s_cmd_seq++;
+    populate_pending(command, seq, p1, p2, p3, p4, p5);
+    tx_tracked_command_wire(command, seq, p1, p2, p3, p4, p5);
 #else
     (void)command; (void)p1; (void)p2; (void)p3; (void)p4; (void)p5;
 #endif
