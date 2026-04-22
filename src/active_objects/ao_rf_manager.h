@@ -26,15 +26,11 @@ extern "C" {
 
 namespace rc {
 
-// ============================================================================
-// LinkState — 4-state link-health machine (design §2)
-// ============================================================================
-enum class LinkState : uint8_t {
-    kAcq            = 0,  // No link (boot, or lost after M missed frames)
-    kTentative      = 1,  // First RX seen — accumulating consecutive valid RX
-    kTrack          = 2,  // Link healthy, anchored TX enabled
-    kTrackDegraded  = 3,  // Marginal: LQ < 55%, awaiting recovery OR further drop
-};
+// LinkState enum + pure state-machine helpers defined in safety/rf_link_health.h.
+// Included here so consumers of AO_RfManager see the enum type.
+} // namespace rc
+#include "safety/rf_link_health.h"
+namespace rc {
 
 // Human-readable label for dashboard/log use.
 const char* link_state_name(LinkState s);

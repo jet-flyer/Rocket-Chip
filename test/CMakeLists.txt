@@ -211,6 +211,14 @@ target_include_directories(test_health_monitor PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 gtest_discover_tests(test_health_monitor)
 
+# Stage T Batch B IVP-T14: RF link-health state machine (pure helpers)
+add_executable(test_rf_link_health test_rf_link_health.cpp)
+target_link_libraries(test_rf_link_health PRIVATE GTest::gtest_main)
+target_include_directories(test_rf_link_health PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include)
+gtest_discover_tests(test_rf_link_health)
+
 # IVP-115: Notification engine resolver tests
 add_executable(test_notify
     test_notify.cpp

@@ -14,6 +14,7 @@
 //============================================================================
 
 #include "ao_rf_manager.h"
+#include "safety/rf_link_health.h"  // pure state-machine helpers (host-testable)
 #include "rocketchip/ao_signals.h"  // rc::RadioRxEvt, rc::SIG_RADIO_RX
 #include "rocketchip/job.h"         // job::kRole
 #include <string.h>
@@ -25,36 +26,13 @@
 namespace rc {
 
 // ============================================================================
-// Constants — Round 2 §2-§4
+// Constants — AO-specific (pure state-machine constants live in
+// safety/rf_link_health.h, shared with host tests).
 // ============================================================================
 
 // 10 Hz internal tick: 100 Hz QF base / 10 = every 10 ticks.
 // Drives the deadman/forced-ACQ checks that fire on absence of RX.
 static constexpr uint16_t kRfTickInterval = 10U;
-
-// §2 Transition predicates
-static constexpr uint8_t kTentativeToTrackConsecRx     = 5;
-static constexpr uint8_t kTrackToDegradedLqThresholdPct = 55;  // enter DEGRADED below this
-static constexpr uint8_t kDegradedToTrackLqThresholdPct = 65;  // exit DEGRADED at or above this
-static constexpr uint8_t kTentativeToTrackLqFloorPct    = 65;  // TENTATIVE→TRACK LQ floor
-static constexpr uint8_t kForcedAcqMaxMissedFrames      = 20;
-static constexpr uint32_t kForcedAcqMaxWallClockMs      = 2000U;  // 2 s absolute cap
-
-// §2 Sliding-window size for LQ computation
-static constexpr uint8_t kLqWindowSize = 10;
-
-// §4 Deadman floor — max(500 ms, 5 × nav_period)
-static constexpr uint32_t kDeadmanFloorMs        = 500U;
-static constexpr uint32_t kDeadmanPeriodMultiple = 5U;
-
-// §3 Alpha filter coefficient bounds — final value picked from bench data.
-// Initial seed: 0.25 (SiK-style, conservative for short time constants).
-// Stored as a 16-bit fixed-point scaled by 10000 to avoid floating point
-// in the AO hot path.
-static constexpr uint16_t kAlphaScale   = 10000U;
-static constexpr uint16_t kAlphaInitial = 2500U;  // 0.25 × 10000
-static constexpr uint16_t kAlphaMin     = 500U;   // 0.05 × 10000 clamp
-static constexpr uint16_t kAlphaMax     = 5000U;  // 0.50 × 10000 clamp
 
 // ============================================================================
 // Private signal — 10 Hz tick
@@ -117,23 +95,11 @@ static uint32_t now_us_impl() {
 #endif
 }
 
-// Compute LQ% from the sliding window (popcount / count).
-static uint8_t compute_lq_pct(const RfManager * me) {
-    if (me->lq_window_count == 0) { return 0; }
-    uint8_t good = 0;
-    uint16_t w = me->lq_window;
-    for (uint8_t i = 0; i < me->lq_window_count; ++i) {
-        if (w & 0x1U) { good++; }
-        w >>= 1;
-    }
-    return static_cast<uint8_t>((100U * good) / me->lq_window_count);
-}
-
 // Advance the LQ window, inserting `good_bit` (1=good RX, 0=miss/crc_err).
+// Delegates bit-shift to shared helper; increments count guard.
 static void lq_window_push(RfManager * me, uint8_t good_bit) {
-    const uint16_t mask = (1U << kLqWindowSize) - 1U;
-    me->lq_window = ((me->lq_window << 1) | (good_bit & 1U)) & mask;
-    if (me->lq_window_count < kLqWindowSize) {
+    me->lq_window = rf_lq_window_push(me->lq_window, good_bit);
+    if (me->lq_window_count < kRfLqWindowSize) {
         me->lq_window_count++;
     }
 }
@@ -156,40 +122,25 @@ static void transition_to_acq(RfManager * const me, const char * /*reason*/) {
     //       SIG_NOTIFY_VEHICLE_LOST signal addition task.
 }
 
-// Compute next state per design §2 predicates.
+// Compute next state per design §2 predicates — delegates to shared pure
+// helper in safety/rf_link_health.h (host-testable).
 static void check_transitions(RfManager * const me) {
     RfManagerState& s = me->state;
-    s.lq_pct = compute_lq_pct(me);
+    s.lq_pct = rf_lq_compute_pct(me->lq_window, me->lq_window_count);
 
-    switch (s.state) {
-    case LinkState::kAcq:
-        // Promotion happens in handle_valid_rx on first RX.
-        break;
+    RfTransitionInput in;
+    in.current            = s.state;
+    in.consec_good_rx     = s.consec_good_rx;
+    in.lq_pct             = s.lq_pct;
+    in.lq_window_count    = me->lq_window_count;
+    in.consec_missed_rx   = s.consec_missed_rx;
+    // Note: forced-ACQ time check is handled in handle_tick (which has
+    // direct access to now_ms). rf_next_state sees 0 here so the wallclock
+    // branch is inactive — only the consec-missed-frames branch can fire
+    // from the per-RX path, which is correct (no drops during valid RX).
+    in.time_since_last_rx_ms = 0;
 
-    case LinkState::kTentative:
-        // Promote to TRACK after N consecutive good RX AND LQ floor.
-        if (s.consec_good_rx >= kTentativeToTrackConsecRx &&
-            s.lq_pct >= kTentativeToTrackLqFloorPct) {
-            s.state = LinkState::kTrack;
-        }
-        break;
-
-    case LinkState::kTrack:
-        // Schmitt-trigger enter: drop to DEGRADED at LQ < 55%.
-        if (s.lq_pct < kTrackToDegradedLqThresholdPct &&
-            me->lq_window_count >= kLqWindowSize) {
-            s.state = LinkState::kTrackDegraded;
-        }
-        break;
-
-    case LinkState::kTrackDegraded:
-        // Schmitt-trigger exit: recover to TRACK at LQ ≥ 65% (10 pp deadband).
-        if (s.lq_pct >= kDegradedToTrackLqThresholdPct &&
-            me->lq_window_count >= kLqWindowSize) {
-            s.state = LinkState::kTrack;
-        }
-        break;
-    }
+    s.state = rf_next_state(in);
 }
 
 // ============================================================================
@@ -221,14 +172,8 @@ static void handle_valid_rx(RfManager * const me, const RadioRxEvt * const rx) {
             int32_t expected_us = s.anchor_estimate_us +
                                   static_cast<int32_t>(me->nav_period_ms) * 1000;
             int32_t error_us = static_cast<int32_t>(now_us) - expected_us;
-            // Filter: new_anchor = anchor + alpha × error
-            // Scaled arithmetic: error × alpha / kAlphaScale.
-            int64_t correction = (static_cast<int64_t>(error_us) *
-                                  static_cast<int64_t>(me->alpha_scaled)) /
-                                 static_cast<int64_t>(kAlphaScale);
-            s.anchor_estimate_us += static_cast<int32_t>(correction);
-            // Keep anchor tracking actual RX time too — for simple deadman math.
-            // (anchor_estimate_us is the filtered offset; last_rx_us is raw.)
+            s.anchor_estimate_us +=
+                rf_anchor_correction_us(error_us, me->alpha_scaled);
         }
 
         s.last_rx_us = now_us;
@@ -274,13 +219,23 @@ static void handle_tick(RfManager * const me) {
             s.consec_good_rx = 0;
             s.packets_missed++;
 
-            // §2 Forced-ACQ cap: whichever comes first — 20 frames or 2 s.
-            bool frames_exceeded = s.consec_missed_rx >= kForcedAcqMaxMissedFrames;
-            bool time_exceeded = since_rx_ms >= kForcedAcqMaxWallClockMs;
-            if (frames_exceeded || time_exceeded) {
-                transition_to_acq(me, frames_exceeded ? "frames" : "wallclock");
+            // §2 Forced-ACQ cap: delegated to shared rf_next_state helper
+            // (wallclock branch active via time_since_last_rx_ms input).
+            RfTransitionInput in;
+            in.current               = s.state;
+            in.consec_good_rx        = s.consec_good_rx;
+            in.lq_pct                = rf_lq_compute_pct(me->lq_window,
+                                                         me->lq_window_count);
+            in.lq_window_count       = me->lq_window_count;
+            in.consec_missed_rx      = s.consec_missed_rx;
+            in.time_since_last_rx_ms = since_rx_ms;
+            s.lq_pct = in.lq_pct;
+
+            LinkState next = rf_next_state(in);
+            if (next == LinkState::kAcq && s.state != LinkState::kAcq) {
+                transition_to_acq(me, "forced");
             } else {
-                check_transitions(me);
+                s.state = next;
             }
         }
     }
@@ -333,7 +288,7 @@ void AO_RfManager_start(uint8_t prio, uint32_t nav_period_ms_init) {
     l_rf.state.state = LinkState::kAcq;
     l_rf.state.anchor_valid = false;
     l_rf.nav_period_ms = (nav_period_ms_init != 0) ? nav_period_ms_init : 200U;
-    l_rf.alpha_scaled = kAlphaInitial;
+    l_rf.alpha_scaled = kRfAlphaInit;
     l_rf.lq_window = 0;
     l_rf.lq_window_count = 0;
 
@@ -363,13 +318,9 @@ uint32_t AO_RfManager_next_tx_window_us(uint32_t now_us) {
         return 0;
     }
 
-    // Deadman check: anchor stale? max(500 ms, 5 × nav_period)
-    uint32_t deadman_us = kDeadmanFloorMs * 1000U;
-    uint32_t period_scaled_us = l_rf.nav_period_ms * kDeadmanPeriodMultiple * 1000U;
-    if (period_scaled_us > deadman_us) { deadman_us = period_scaled_us; }
-
+    // Deadman check: anchor stale? Delegates to shared helper.
     uint32_t elapsed_us = now_us - s.last_rx_us;
-    if (elapsed_us > deadman_us) {
+    if (rf_deadman_fired(elapsed_us, l_rf.nav_period_ms)) {
         return 0;  // Deadman fired — hold TX, wait for re-sync.
     }
 
