@@ -82,16 +82,25 @@ TEST(FlashLayout, NonOverlapping) {
 }
 
 TEST(FlashLayout, SectorCount) {
-    // Log region: firmware reserve to flash-safe test sector
-    // (8MB - 20KB - 512KB) / 4096 = 1915 sectors
-    EXPECT_EQ(rc::kFlightLogSectors, 1915U);
+    // Log region: firmware reserve to flash-safe test sector.
+    // Layout (descending from top of flash):
+    //   Calibration:     2 sectors (dual-sector wear leveling)
+    //   Flight table:    2 sectors
+    //   Radio config:    2 sectors (added Stage T IVP-T5.5)
+    //   Flash-safe test: 1 sector
+    //   ──────────────
+    //   Reserved above log: 7 sectors
+    // Firmware reserve (below log): 512 KB = 128 sectors
+    // At PICO_FLASH_SIZE_BYTES = 8 MB = 2048 sectors:
+    //   2048 - 128 - 7 = 1913 sectors
+    EXPECT_EQ(rc::kFlightLogSectors, 1913U);
 }
 
 TEST(FlashLayout, LogCapacity) {
     // At 55B frames, 50Hz:
-    // 1912 sectors * 4096B = 7,831,552 bytes
-    // 7,831,552 / 55 = 142,391 frames
-    // 142,391 / 50 = 2847 seconds = ~47 minutes
+    // 1913 sectors * 4096B = 7,835,648 bytes
+    // 7,835,648 / 55 = 142,466 frames
+    // 142,466 / 50 = 2849 seconds = ~47 minutes
     uint32_t total_bytes = rc::kFlightLogSectors * rc::kFlashSectorSize;
     uint32_t frames = total_bytes / 55U;
     uint32_t seconds = frames / 50U;
@@ -271,7 +280,7 @@ TEST(FlightTable, CapacityEmpty) {
     rc::FlightTableState state{};
     rc::flight_table_init(&state);
 
-    EXPECT_EQ(rc::flight_table_capacity_sectors(), 1915U);
+    EXPECT_EQ(rc::flight_table_capacity_sectors(), 1913U);  // See FlashLayout.SectorCount
     EXPECT_EQ(rc::flight_table_used_sectors(&state), 0U);
     EXPECT_FLOAT_EQ(rc::flight_table_used_pct(&state), 0.0F);
 }
