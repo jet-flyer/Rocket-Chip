@@ -16,6 +16,7 @@
 #include "ao_radio.h"
 #include "ao_telemetry.h"         // AO_Telemetry_set_rate / _set_ack_retry_timeout_ms (Batch B prelim)
 #include "ao_flight_director.h"  // AO_FlightDirector_is_ground_state (T5.5)
+#include "ao_rf_manager.h"       // AO_RfManager_next_tx_window_us (Batch B IVP-T14)
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/config.h"  // rocketchip::pins::kRadioCs/Rst/Irq
 #include "rocketchip/radio_config.h"
@@ -113,6 +114,17 @@ static uint32_t now_ms() {
 #endif
 }
 
+// Microsecond-resolution counter used by AO_RfManager TX-window anchoring
+// (Stage T Batch B IVP-T14). Always compiled (unlike stage_t_now_us which
+// is gated behind ROCKETCHIP_STAGE_T_LOGGING).
+static uint32_t now_us_rf() {
+#ifndef ROCKETCHIP_HOST_TEST
+    return time_us_32();
+#else
+    return 0;
+#endif
+}
+
 // Stage T (IVP-T1) — RadioScheduler timing diagnostics.
 // Off unless built with -DROCKETCHIP_STAGE_T_LOGGING=ON. Never in flight builds.
 #if defined(ROCKETCHIP_STAGE_T_LOGGING) && !defined(ROCKETCHIP_HOST_TEST)
@@ -172,6 +184,23 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* txEvt) {
 
     if (!s.initialized || txEvt->len == 0) {
         return;
+    }
+
+    // Stage T Batch B IVP-T14: station-side TX is anchored to vehicle RxDone
+    // via AO_RfManager. If the link isn't in a TX-safe state (kAcq or stale
+    // anchor), drop the TX event. AO_Telemetry's airtime-scaled retry timer
+    // will re-fire; on first successful RxDone (post ACQ→TENTATIVE), the
+    // retry lands in a real window instead of firing blind.
+    // Vehicle-role keeps free-running TX (it's the anchor source, not the
+    // follower).
+    if constexpr (kRadioModeRx) {
+        uint32_t window = rc::AO_RfManager_next_tx_window_us(now_us_rf());
+        if (window == 0) {
+            DBG_PRINT("RADIO: station TX held — RfManager window=0 "
+                      "(link ACQ or stale anchor), dropping %u bytes",
+                      txEvt->len);
+            return;
+        }
     }
 
     if (rfm95w_send_start(&s.radio, txEvt->buf, txEvt->len)) {
@@ -450,8 +479,12 @@ static void handle_rx_poll(RadioAo* me) {
         return;
     }
 
-    // Station/Vehicle: post to AO_Telemetry for decode
-    // File-scope static — safe under QV cooperative scheduling (one at a time)
+    // Station/Vehicle: publish SIG_RADIO_RX for decode + link-health tracking.
+    // Consumers: AO_Telemetry (decodes CCSDS/MAVLink), AO_RfManager (updates
+    // link state, anchor estimate, LQ window). Stage T Batch B switched from
+    // direct POST → publish so both AOs receive per AO Commandment X
+    // (publish-subscribe pattern). File-scope static event is safe under QV
+    // cooperative scheduling (Commandment VI).
     static rc::RadioRxEvt rxEvt;
     rxEvt.super.sig = rc::SIG_RADIO_RX;
     rxEvt.super.refCtr_ = 0;
@@ -460,8 +493,7 @@ static void handle_rx_poll(RadioAo* me) {
     rxEvt.rssi = s.last_rx_rssi;
     rxEvt.snr = s.last_rx_snr;
 
-    extern QActive * const AO_Telemetry;
-    QACTIVE_POST(AO_Telemetry, &rxEvt.super, me);
+    QActive_publish_(&rxEvt.super, &me->super, me->super.prio);
 }
 
 // ============================================================================
