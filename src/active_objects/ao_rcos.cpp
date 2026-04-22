@@ -201,6 +201,11 @@ static void enter_cli_menu() {
     printf("[main] ");
 }
 
+// IVP-T14d wrap-up 2026-04-22: handle_mode_cycle removed from dashboard
+// key-poll. The kMenu 'm' handler in rc_os_commands.cpp:cli_handle_unhandled_key
+// remains as the single source of truth for mode cycling. Keeping the
+// helper here would be dead code.
+#if 0
 // Handle 'm' key — cycle output mode
 static void handle_mode_cycle() {
     if constexpr (kRadioModeRx) {
@@ -219,14 +224,49 @@ static void handle_mode_cycle() {
         printf("\n[USB] Output: CLI\n");
     }
 }
+#endif
 
-// Poll keys in dashboard/MAVLink mode — only 'm' and 'x' accepted
+// MAV_CMD_COMPONENT_ARM_DISARM — id 400. Matches the file-scope constant
+// in rc_os.cpp / rc_os_commands.cpp; duplicated here because we don't
+// want to cross-include just for one ID. Keep in sync.
+static constexpr uint16_t kMavCmdArmDisarm = 400;
+
+// Poll keys accepted while the dashboard is the active output:
+//   'x' / 'X'  → exit to kMenu
+//   'a'        → start ARM confirm flow (station only, forwards to
+//                rc_os_start_arm_confirm; handle_arm_confirm then owns
+//                subsequent chars until confirmed/aborted)
+//   'D' (caps) → DISARM (station only, single-key, ACK-tracked)
+// IVP-T14d wrap-up 2026-04-22:
+//   - Removed 'm' / 'M' (mode cycle) from dashboard — now kMenu-only.
+//     Dashboard operator rarely needs to cycle output mode, and
+//     reserving dashboard keys for command-critical bindings is worth
+//     more than the convenience of in-place mode switching.
+//   - Added 'a' / 'D' per the "operator-commands-from-dashboard" UX
+//     decision. ABORT intentionally omitted (NAR High Power Safety
+//     Code §6: in-flight recovery is onboard-sensor driven; range
+//     commands are ground-side only, not in-flight). STOP-GAP pending
+//     full CCSDS-compliant command layer.
+//   - Skips input entirely while ARM-confirm state machine is active
+//     so rc_os_update() can consume A/R/M chars.
 static void poll_dashboard_keys() {
     if (!stdio_usb_connected()) { return; }
+    if (rc_os_arm_confirm_active()) { return; }
     int ch;
     while ((ch = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
         if (ch == 'x' || ch == 'X') { enter_cli_menu(); return; }
-        if (ch == 'm' || ch == 'M') { handle_mode_cycle(); return; }
+        if constexpr (kRadioModeRx) {
+            if (ch == 'a') {
+                rc_os_start_arm_confirm();
+                return;
+            }
+            if (ch == 'D') {
+                // DISARM — single key, no confirm, ACK-tracked.
+                // Reuses the same path as the kMenu 'X' binding.
+                AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0f);
+                return;
+            }
+        }
     }
 }
 

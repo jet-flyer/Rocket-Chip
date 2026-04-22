@@ -348,6 +348,10 @@ static char s_arm_buf[4] = {};
 static uint8_t s_arm_buf_pos = 0;
 static uint32_t s_arm_start_ms = 0;
 
+bool rc_os_arm_confirm_active() {
+    return s_arm_confirm_active;
+}
+
 void rc_os_start_arm_confirm() {
 #ifndef ROCKETCHIP_HOST_TEST
     s_arm_confirm_active = true;

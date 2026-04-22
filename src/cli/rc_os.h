@@ -81,6 +81,12 @@ rc_os_menu_t rc_os_get_menu(void);
 // IVP-122: ARM confirm state machine trigger
 void rc_os_start_arm_confirm(void);
 
+// IVP-T14d wrap-up: ARM confirm state machine is active. While true,
+// callers eating raw input (e.g. station dashboard poll_dashboard_keys)
+// must leave chars alone so rc_os_update() can feed the confirm state
+// machine.
+bool rc_os_arm_confirm_active(void);
+
 // ============================================================================
 // Sensor Availability Flags (set by main)
 // ============================================================================

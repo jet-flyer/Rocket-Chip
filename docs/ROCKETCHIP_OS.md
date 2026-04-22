@@ -91,12 +91,24 @@ Station firmware (`ROCKETCHIP_JOB_STATION=1`) has a different UI from the vehicl
 
 ### Keys accepted while in `kAnsi` / `kMavlink` (dashboard active)
 
-Only these two keys are accepted; all others are silently dropped:
+Stage T Batch B IVP-T14d wrap-up (2026-04-22) moved `m` / `M` out of the
+dashboard and added `a` / `D` for station command-from-dashboard. Mode
+cycling is kMenu-only now. ABORT is deliberately not bound from the
+dashboard — NAR High Power Safety Code §6 treats the rocket as a
+ballistic object post-ignition, so there is no in-flight ABORT channel
+exposed in the fast-access UX. (An advanced / debug-menu ABORT path
+remains for pre-launch safety.) STOP-GAP pending full CCSDS command
+layer.
 
-| Key | Action |
-|-----|--------|
-| `m` / `M` | Cycle output mode: `kAnsi → kCsv → kMavlink → kAnsi` (or `kMenu → kAnsi` to return). |
-| `x` / `X` | Exit to `kMenu` (enters single-key CLI mode). |
+Only these keys are accepted; all others are silently dropped:
+
+| Key | Action | Notes |
+|-----|--------|-------|
+| `x` / `X` | Exit to `kMenu` (enters single-key CLI mode). | — |
+| `a` (station only) | Start ARM confirm flow. | Operator types `A`, `R`, `M` then `Enter` to confirm. ESC cancels. |
+| `D` (station only, caps) | DISARM. | Single-key, ACK-tracked, no confirm. Lowercase `d` reserved for distance-to-vehicle. |
+
+Mode cycle (`m`) is kMenu-only as of 2026-04-22.
 
 ### Keys accepted in `kMenu`
 
