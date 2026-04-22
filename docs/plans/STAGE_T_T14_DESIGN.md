@@ -874,6 +874,21 @@ ACK packet is the same 22-byte layout → `T_ack_tx ≈ 14.14 ms`.
 
 **Tracking:** bench-measured values per leg will be appended to this section or recorded in `logs/stage_t/t14_soak.md` once the instrumented session runs. Any leg measurement > estimate by >50% is a flag for review.
 
+#### 2026-04-22 addendum — aggressive-retry impact on the budget
+
+Post-T14d the tracked-command retry changed from `3 × 500 ms` to
+`8 × 250 ms` (commit `8d2ed74`). Three new rows for the budget table:
+
+| Case | Round-trip | Notes |
+|------|-----------:|-------|
+| Single-shot, anchored-window hit | ~120 ms | **Unchanged.** The 250 ms gate holds when anchoring works. |
+| First TX missed, retry #1 succeeds | ~370 ms | 120 ms budget + 250 ms retry interval. **Over the 250 ms gate** for the second attempt. Operator sees ACK at t+370 ms if first TX landed outside the anchored window or collided. |
+| Worst-case retry exhaustion (8 retries fail) | ~120 + 7 × 250 ≈ 1870 ms | No ACK; command reported failed. ABORT wouldn't be confirmed; operator would re-press. |
+
+**Implication:** the 250 ms gate is a **single-shot** metric. With the new retry config, the effective gate is "first-try lands within 250 ms" — i.e., T14 anchoring must succeed on the first attempt for the gate to hold. If first-try success rate is low, the operator will regularly see ABORT latencies > 250 ms even though each retry is fast. This reinforces the N=100 Wilson CI pre-check as the load-bearing measurement for Batch B: first-try rate is what makes the ABORT gate meaningful, not retry-eventually-succeeds rate.
+
+**Revised gate interpretation:** `N=100 first-try ACK rate ≥ 95%` (Wilson lower bound) is equivalent to "95% of ABORTs confirm within ~120 ms, the remaining ~5% within 370-1870 ms depending on retry count." If first-try < 95%, aggressive retry masks the failure from operator UX but doesn't restore the 250 ms gate for those 5%.
+
 ### ACK-path timing + α-filter jitter PDF — bench measurement procedure
 
 Plan consensus item #2: "α sourced from jitter PDF measured alongside ACK-path timing." One instrumented bench session measures both; ACK drain must fit within next anchored window, and the anchor jitter distribution drives the α-filter coefficient.
