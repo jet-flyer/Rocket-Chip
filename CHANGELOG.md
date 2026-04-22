@@ -20,6 +20,38 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-21/22-001 | Claude Opus 4.7 | feature, firmware, radio, hardware, council, docs
+
+**Stage T Batch B implementation — complete. Work spanned 2026-04-21 evening → 2026-04-22 afternoon.**
+
+*One-time format exception per user request: single entry, two-date header, covering two calendar days since Batch B landed as one continuous push.*
+
+IVP-T14 landed per Round 2 council: station-TX now anchored to vehicle RxDone via `AO_RfManager`, a new AO owning learned-link state (LinkState kAcq/kTentative/kTrack/kTrackDegraded, sliding-window LQ%, anchor filter, deadman, forced-ACQ). Pure state-machine helpers in `src/safety/rf_link_health.h` with 32 host tests; SPIN model with 5 LTL properties (all pass, errors: 0).
+
+IVP-T14a: operator-mashed-command dedupe (newest-wins, ARM excluded per Round 2 #5). IVP-T14b: retry instrumentation always on, surfaced in `q → s` diag dump. IVP-T14d: aggressive retry bumped to 8 × 250 ms for all tracked commands (was 3 × 500 ms); safety-class round-trip under ~2 s worst case.
+
+FlightDirector pre-arm aggregator extended with RF link-health via `AO_RfManager_get_state()` (cooperative-dispatch-only invariant, Commandment V). New "RF Link" Tier-2 warn station; existing "Radio" renamed "Radio HW". Dashboard gains a single-line RF Link row with `[OK]/[--]/[!!]` glance indicator matching pre-arm thresholds.
+
+Vehicle-lost notification wiring (Round 2 #10): `SIG_NOTIFY_VEHICLE_LOST/_FOUND` posted by AO_RfManager on transition edges; AO_Notify latches `NotifyState.vehicle_lost`. Audio backend picks it up automatically when TLV320DAC3100 driver lands.
+
+Dashboard keys: `a` (ARM-confirm) and `D` (DISARM, single-key) accepted in `kAnsi` now, not just `kMenu`. `m`/`M` removed from dashboard. ABORT deliberately not bound from dashboard (NAR High Power Safety Code §6: ballistic post-ignition).
+
+*Rationale — CCSDS station beacon parked rather than built:* planned for T14d as 1 Hz uplink heartbeat, endorsed by a blind 3-panelist council. On re-read, the council's reasoning implicitly assumed separate channels we don't have — continuous uplink collides with vehicle's 5 Hz nav on our single shared half-duplex radio. Correct CCSDS / smallsat practice is downlink-inferred liveness + on-demand operator checks. APID reservation parked with a STOP-GAP marker. All Stage T command-path code flagged as stop-gap pending full CCSDS layer (COP-1 still not-pursued, `docs/decisions/COP1_NOT_PURSUED.md`).
+
+*Rationale — RP2350-E2 silicon erratum fix:* a trivial diff in `ao_rcos.cpp` deterministically triggered a boot-time HardFault. Research identified **RP2350-E2** (SIO spinlock mirror writes, datasheet p.1373) interacting with the SDK's software-spinlock EXTEXCLALL bit. Reporter-confirmed fix `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` applied, `PICO_PLATFORM`-gated. Affects both RP2350A (Feather) and RP2350B (Fruit Jam) — shared SIO logic. References: pico-sdk #2495, #2706, #1812.
+
+Also: LL Entry 25 marked SUPERSEDED (picotool-corrupts-I2C diagnosis no longer accurate; fixes in LL Entries 28 + 31); content preserved. Long-standing host test rot fixed (`FlashLayout.SectorCount`, `FlightTable.CapacityEmpty` — 1915 → 1913 after Stage T IVP-T5.5 added radio-config sectors). Host tests 791/791.
+
+High-priority whiteboard items added: deep RP2350 errata sweep + `docs/hardware/RP2350_ERRATA.md` (E2 slipped through onboarding); remove watchdog reboot in favor of safe-mode; re-evaluate Stage T 95% gate with correct baseline (the 6.7% number may have been operator-burst latency, not link failure).
+
+Stage T Batch B code is complete at this commit. Remaining Batch B plan items are bench-equipment sessions. Field gate deferred to pre-flight tuning stage per user direction. Batch C (LQ-adaptive retry, live retry indicator) code-implementable; flag-default-off.
+
+Commits in this chain (chronological, `git log origin/main..HEAD`): 1748fd9, 35f9591, e78df5e, 494dba0, 774a164, c888743, b2a20d3, ecd90d9, b7c0ae4, 093e29f, 6d6eab2, a4908ab, 64fd99d, a267ff4, e1e5c7f, 031d776, 3159173, 00c173a, 1d9e16f, 63d8a1b, 8d2ed74, e5fd105, 45ab8a7, 5bbe743, 5adb878.
+
+Files: `src/active_objects/{ao_rf_manager,ao_notify,ao_telemetry,ao_radio,ao_rcos,ao_flight_director}.{h,cpp}`, `src/safety/{rf_link_health.h,health_monitor.cpp}`, `src/flight_director/go_nogo_checks.{h,cpp}`, `src/cli/{rc_os.{h,cpp},rc_os_dashboard.cpp}`, `include/rocketchip/{notify_intents.h,telemetry_encoder.h}`, `test/{test_rf_link_health.cpp,test_flight_table.cpp}`, `tools/spin/rocketchip_rf_manager.pml`, `CMakeLists.txt`, `docs/ROCKETCHIP_OS.md`, `docs/plans/STAGE_T_T14_DESIGN.md`, `AGENT_WHITEBOARD.md`, `.claude/LESSONS_LEARNED.md`, `logs/stage_t/t12_summary.csv`.
+
+---
+
 ### 2026-04-21-003 | Claude Opus 4.7 | bugfix, firmware, radio, testing
 
 **Stage T Batch B prelim — runtime radio config actually adapts now. Three hardcoded-to-default values fixed.**
