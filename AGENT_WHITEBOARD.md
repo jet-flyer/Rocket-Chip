@@ -19,6 +19,21 @@
 
 ## High priority
 
+- **Deep RP2350 errata sweep + codified watchlist.** 2026-04-22 we tripped
+  RP2350-E2 (SIO spinlock mirror writes) as a boot-time deadlock — fix
+  was a one-line `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` that we *hadn't
+  applied* because the erratum fell through the cracks during initial
+  Pico-2 / RP2350 onboarding. Adafruit warns about E9 (GPIO pad leakage,
+  A2-only) on product page but E2 slipped past. We need (a) full pass
+  through the RP2350 datasheet errata appendix, (b) a tracked
+  `docs/hardware/RP2350_ERRATA.md` listing every erratum with status
+  (affected? workaround applied? how?), (c) a reference from
+  CMakeLists.txt and CODING_STANDARDS.md so future flag changes are
+  audited against the list, and (d) subscribe to RP2350 errata updates
+  (datasheet revisions bump on new findings). Our chip is A2 — check
+  whether E9 workarounds are needed for any of our GPIO pins (floating
+  inputs with pull-downs = leakage).
+
 - **Remove watchdog reboot entirely in favor of safe-mode.** 2026-04-22
   bench test on vehicle after Stage T Batch B surfaced `[WARN] WATCHDOG
   REBOOT` in the boot banner — the reboot path is still live. Design

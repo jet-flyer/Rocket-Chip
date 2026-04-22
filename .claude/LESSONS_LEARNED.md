@@ -647,7 +647,38 @@ busy_wait_us(500);  // PA1010D SDA settling
 
 ---
 
-## Entry 25: Use Debug Probe for Flashing — picotool Corrupts I2C Bus
+## Entry 25: ~~Use Debug Probe for Flashing — picotool Corrupts I2C Bus~~ (SUPERSEDED 2026-04-22)
+
+**STATUS: SUPERSEDED.** The "picotool corrupts the I2C bus" framing in
+this entry is no longer accurate as a working diagnosis. Both root
+causes have been fixed in-tree:
+
+- LL Entry 28: `i2c_bus_recover()` now deinits/reinits the DW_apb_i2c
+  peripheral around the GPIO function switch, so recovery no longer
+  corrupts the peripheral.
+- LL Entry 31: `flash_safe_execute()` callers call `i2c_bus_reset()`
+  after the flash op, and flash-before-I2C ordering is enforced at
+  boot.
+
+**What to still take from this entry:** the debug probe remains the
+preferred flashing method for iterative development — halting both
+cores cleanly before `load` avoids interrupting any in-progress work
+(flash, I2C, SPI, anything), which is always strictly better than
+`picotool --force`. Use the probe.
+
+**What to stop doing:** don't reach for LL-25 as a default explanation
+when USB enumeration, CLI responsiveness, or sensor init fails in the
+middle of a session. The fixes are in tree. Investigate the actual
+fault state first (GDB `bt`, `info registers`, banner read, build tag
+verification) before blaming the flash method. User called this out
+2026-04-22 after repeated false LL-25 diagnoses in a Stage T session.
+
+Historical content preserved below for the "why the probe is preferred"
+narrative — the failure mode it documents was real at the time and is
+reproducible on older code, so leaving the writeup intact for future
+bisect / archaeology.
+
+---
 
 **Date:** 2026-02-09
 **Time Spent:** ~1.5 hours (wasted on false BSS regression diagnosis)
