@@ -72,6 +72,19 @@
   **Why high priority:** silent reboots mid-test destroy diagnostic
   state and hide the root-cause bug.
 
+- **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
+  layer rework.** Original Stage T Batch C plan was to port the ELRS
+  LQCALC pattern (retry aggressiveness scales U-shape with LQ: fewer
+  retries when LQ is high, more when marginal, pause when LQ is near-
+  dead) behind `ROCKETCHIP_LQ_ADAPTIVE_RETRY`, default OFF. Decision
+  2026-04-22: don't polish parametric tuning on top of a retry
+  architecture we've already marked as STOP-GAP pending proper CCSDS
+  TC-Layer + COP-1. T13 reopens once the CCSDS command path lands —
+  the adaptive algorithm likely maps onto whatever flow-control / FARM
+  machinery the CCSDS layer provides, not onto naive retry counts.
+  `AO_RfManager_ok_to_retry()` API already exists in-tree, ready for
+  use when T13 returns.
+
 - **Re-evaluate Stage T "95% first-try" gate with correct baseline.**
   User observation 2026-04-22: the Stage T diagnostics measured
   operator-burst ACK rate (10 Hz retry over ~300 ms), which treats "3rd
