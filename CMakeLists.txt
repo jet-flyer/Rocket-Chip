@@ -269,6 +269,12 @@ else()
     # shifted the ELF enough to deterministically trigger the
     # latent bug. Kept under a PICO_RP2350 guard so non-RP2350
     # board ports don't inherit the flag.
+    #
+    # Full erratum tracking: standards/RP2350_ERRATA.md (E2 row).
+    # Any new RP2350-specific compile definition added here MUST be
+    # cross-referenced against standards/RP2350_ERRATA.md — if it's
+    # not in the errata matrix, verify it has no errata implications
+    # and add a row there if it does.
     if(PICO_PLATFORM STREQUAL "rp2350" OR PICO_PLATFORM STREQUAL "rp2350-arm-s"
        OR PICO_PLATFORM STREQUAL "rp2350-riscv")
         add_compile_definitions(PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1)

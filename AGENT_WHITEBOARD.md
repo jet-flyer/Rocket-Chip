@@ -39,13 +39,21 @@
   Pico-2 / RP2350 onboarding. Adafruit warns about E9 (GPIO pad leakage,
   A2-only) on product page but E2 slipped past. We need (a) full pass
   through the RP2350 datasheet errata appendix, (b) a tracked
-  `docs/hardware/RP2350_ERRATA.md` listing every erratum with status
-  (affected? workaround applied? how?), (c) a reference from
-  CMakeLists.txt and CODING_STANDARDS.md so future flag changes are
-  audited against the list, and (d) subscribe to RP2350 errata updates
-  (datasheet revisions bump on new findings). Our chip is A2 — check
-  whether E9 workarounds are needed for any of our GPIO pins (floating
-  inputs with pull-downs = leakage).
+  `standards/RP2350_ERRATA.md` listing every erratum with status
+  (affected? workaround applied? how? observable symptom? trigger
+  conditions?) per council-reviewed schema, (c) a reference from
+  CMakeLists.txt (next-to-flag) and one-line pointer in CODING_STANDARDS.md
+  so future flag changes are audited against the list, and (d) subscribe
+  to RP2350 errata updates via concrete watch mechanism (pico-sdk
+  release notes, datasheet revision check cadence — not "keep an eye
+  on it"). Our chip is A2 — check whether E9 workarounds are needed
+  for any of our GPIO pins (floating inputs with pull-downs = leakage).
+  Council (NASA/JPL + Prof, 2026-04-22) also flagged: silicon-stepping
+  column is load-bearing, observable-symptom column for field
+  recognition, SDK-status is non-binary (transparent / flag-gated /
+  acknowledged-only), and regression-test-per-erratum + pre-commit
+  enforcement of doc-update-on-CMake-flag-change are deferred future
+  items.
 
   **Related SWD-debug quirk (may be upstream-worth):** after SDK
   runtime_init completes on RP2350 with `PICO_USE_SW_SPIN_LOCKS=1`,
@@ -58,6 +66,17 @@
   `monitor resume` when debugging past a spinlock wait. File as part
   of the errata sweep — may warrant upstream pico-sdk issue citing
   #2495 / #2706 line of investigation.
+
+  **E2 second trigger path (2026-04-22, tonight):** during the
+  Frankenstein-recovery work, a `picotool info -f --ser <serial>` call
+  rebooted the chip into BOOTSEL + back to app mode, and E2 fired on
+  the next boot despite `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` being
+  applied in-tree (CMakeLists.txt:274). User had to unplug/replug to
+  recover. This means the workaround has a gap case — a reset path via
+  USB vendor-command reboot that doesn't go through the normal SDK
+  runtime_init sequence, or state that survives the BOOTSEL transition
+  in a way the workaround doesn't cover. Capture in the E2 row of the
+  forthcoming errata doc with signature + reproducer.
 
 - **Remove watchdog reboot entirely in favor of safe-mode.** 2026-04-22
   bench test on vehicle after Stage T Batch B surfaced `[WARN] WATCHDOG

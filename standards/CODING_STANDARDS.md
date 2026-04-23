@@ -59,6 +59,8 @@ are locked out at runtime, not compiled out.
 These constraints are non-negotiable. They exist because violations produce silent
 crashes or USB failures that take hours to diagnose.
 See `.claude/LESSONS_LEARNED.md` for the full debugging narratives behind each rule.
+For silicon-errata compliance status (which errata affect us and how each is handled),
+see `standards/RP2350_ERRATA.md`.
 
 #### Memory
 
