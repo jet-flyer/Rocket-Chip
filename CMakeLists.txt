@@ -182,7 +182,18 @@ else()
     endif()
 
     # Board and Platform Configuration (MUST be before pico_sdk_import)
-    set(PICO_BOARD "adafruit_feather_rp2350" CACHE STRING "Board type")
+    # Default PICO_BOARD depends on job role:
+    #   - Station role (ROCKETCHIP_JOB_STATION=1) → Fruit Jam
+    #   - Vehicle role (default)                  → Feather RP2350
+    # Users can still override explicitly with -DPICO_BOARD=...
+    # Rationale: prevents Frankenstein builds where station role runs with
+    # Feather pin config. See AGENT_WHITEBOARD 2026-04-22, LL Entry 36.
+    if(ROCKETCHIP_JOB_STATION AND NOT DEFINED PICO_BOARD AND NOT DEFINED ENV{PICO_BOARD})
+        set(PICO_BOARD "adafruit_fruit_jam" CACHE STRING "Board type")
+        message(STATUS "ROCKETCHIP_JOB_STATION=1 detected, defaulting PICO_BOARD=adafruit_fruit_jam")
+    else()
+        set(PICO_BOARD "adafruit_feather_rp2350" CACHE STRING "Board type")
+    endif()
 
     # Pull in SDK (must be before project())
     include(pico_sdk_import.cmake)
