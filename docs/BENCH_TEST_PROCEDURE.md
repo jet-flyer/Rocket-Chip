@@ -135,36 +135,20 @@ actually grown vs. T=0:
 - Station (vehicle off): document this case explicitly — soak validates
   only Core 0 + QP stability, NOT radio RX path.
 
-### The "Frankenstein Build" Anti-Pattern
+### Board / Firmware Verification
 
-A binary that:
-- compiles and links cleanly,
-- flashes and boots without asserts,
-- Core 0 runs its QV loop normally,
+Before trusting any soak result, confirm the firmware actually running
+on each board is the one it was built for. See `docs/FLASHING.md`
+"Board / Firmware Verification" section — full checklist (Tier 1
+physical observables + Tier 2 binary↔serial consistency + the
+Frankenstein-build anti-pattern this prevents).
 
-...can still have **the wrong hardware abstraction** if the build was
-configured with the wrong `PICO_BOARD`, wrong role flags, wrong mission
-profile, or similar. The firmware doesn't know it's on the wrong board —
-it just tries to drive GPIO 11 as RADIO_RST because that's what
-`kRadioRstPin` was set to at compile time. The peripheral silently fails,
-the AO that owns it silently gives up, and downstream code runs happily
-because it doesn't depend on that AO succeeding.
-
-**Mitigation is procedural until Stage 16C automates it:**
-
-1. Before creating a new `build_*` directory, copy the `cmake` invocation
-   from the closest working build's `CMakeCache.txt` — do not assume
-   defaults are right.
-2. After `cmake -B build_xxx`, `grep -E "PICO_BOARD|ROCKETCHIP_JOB|BUILD_FOR_FLIGHT"
-   build_xxx/CMakeCache.txt` and confirm the values match the target.
-3. After flashing, read the boot banner (or GDB-print the build tag and
-   board name symbols) before starting any soak.
-4. Soak scripts MUST include the T=0 precondition block above.
+Soak scripts MUST include the T=0 precondition block above AND pass
+that checklist before their results are meaningful.
 
 ## Troubleshooting
 
 - **Probe disconnect mid-soak:** OpenOCD session can be restarted; target keeps running on battery. But halting the target mid-codegen_fpft-push can leave MSP momentarily below MSPLIM, triggering a spurious STKOF fault. Observed once during IVP-132 setup; did not reproduce on reset. If a soak fault fires and the last-known MSP was fine, try one clean reset before investigating the binary.
-- **COM7 stuck after serial test:** See `C:\Users\pow-w\.claude\projects\c--Users-pow-w-Documents-Rocket-Chip\memory\feedback_com7_stuck.md`. Soak procedure deliberately avoids Python serial to sidestep this.
 - **GDB locale warning (CP1252 → UTF-32):** Cosmetic, Windows-only. Ignore.
 
 ## USB/GDB fallback when RF telemetry is unreliable
