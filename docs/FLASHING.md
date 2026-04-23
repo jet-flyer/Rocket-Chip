@@ -277,6 +277,19 @@ These practices prevent the mistake at build time:
   — use breakpoints past the spinlock acquisition instead, or
   `monitor reset halt` to re-enter from a known state.
 
+  **Rescue-DP (not our recovery path — noted for completeness).**
+  RP2350 provides a dedicated recovery Access Port (`RP_AP:CTRL`
+  bit 31 `RESCUE_RESTART`) intended for DAP-stuck scenarios.
+  Raspberry Pi's OpenOCD fork exposes it via `target/rp2040-rescue.cfg`
+  (same file used for RP2350). We do not use it as a primary recovery
+  step because physical replug reliably clears our observed R-1/R-2
+  symptoms and Rescue-DP's applicability to them is unverified
+  (it targets DAP state, not the application-level peripheral state
+  we suspect is involved). If physical replug ever *stops* reliably
+  clearing an incident, Rescue-DP is worth trying as a next step —
+  log the attempt and outcome in `standards/RP2350_ERRATA.md` E2
+  incident log.
+
 ---
 
 ## See also
