@@ -107,7 +107,11 @@
 
 ## Easy (1–3 hours, clear scope)
 
-*(cleared — the IVP-132a.4c red-flash was called a transient 2026-04-18 after a 31-min idle soak showed zero recurrence: 1.86M IMU reads, 0 errors, 0 baro errors, Core 1 healthy, MCU temp 35.6°C stable. Purple at 5+ min is `kSensorNeoTimeout` as designed.)*
+- **Rename `BUILD_FOR_FLIGHT` to `NOT_CERTIFIED_FOR_FLIGHT`.** Raised 2026-04-23 during build-system audit. Current flag polarity is inverted — default OFF means dev-diagnostics included, ON strips them. Reading the flag name against the default gives backward safety semantic. `NOT_CERTIFIED_FOR_FLIGHT=OFF` (default, flight-ready / diagnostics stripped) and `NOT_CERTIFIED_FOR_FLIGHT=ON` (dev/bench with uncertified extras) reads correctly and makes it harder to ship dev code by accident. Mechanical rename across CMakeLists.txt, CMakePresets.json, docs/BENCH_TEST_PROCEDURE.md, `#ifdef` call sites in `src/`. Not urgent; separate focused session.
+
+- **First run of toolchain-version audit (P6 of BUILD_SYSTEM_AUDIT.md).** Check Pico SDK, Pico Probe firmware, GCC ARM 14_2_Rel1, OpenOCD 0.12.0+dev, picotool 2.2.0-a4, CMake against current upstream. Document findings and decide whether to upgrade any. Added as audit dimension 2026-04-23; first pass hasn't happened.
+
+- **Evaluate tier consolidation.** Whether `src/dev/*.cpp` could become runtime-disabled (flight state checks) instead of compile-excluded via `BUILD_FOR_FLIGHT`. Same-binary principle (per CODING_STANDARDS.md). Would eliminate the 2-tier-per-role 4-target build matrix. Architectural decision, not urgent, not mid-session.
 
 ## Medium (session-scale, 4–12 hours)
 
