@@ -249,6 +249,33 @@ These practices prevent the mistake at build time:
   after re-enumeration. Don't use COM numbers as identity — identify
   boards by chip serial or firmware banner content per the checklist
   above.
+- **Board becomes unresponsive after `picotool -f` or SWD halt-mid-spinlock (E2 signature):**
+  Both `picotool load -f` / `picotool info -f` (via USB vendor
+  reboot) and OpenOCD `monitor halt` during a spinlock wait can
+  produce the same RP2350-E2 spinlock deadlock. The
+  `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` workaround doesn't cover these
+  paths (see `standards/RP2350_ERRATA.md` E2 row, R-1 / R-2).
+  **Underlying cause** (best current understanding): SIO block state
+  and/or exclusive-monitor state persists across the warm reboot
+  issued by either tool, and SIO isn't reset by the warm boot path.
+  The probe itself isn't the bug — it's that the probe (or picotool)
+  is what *issued* the warm reboot. Any warm-reboot path would hit
+  the same silicon gap.
+
+  **Recovery:** unplug the board VBUS. Whether the probe also needs
+  to be replugged depends on whether OpenOCD's DAP session got stuck
+  — often it does because the target vanished mid-session, so replug
+  both as the reliable option. A target-only reset or a probe-only
+  replug will NOT clear it — the SIO state survives warm reboot and
+  only a full board power cycle brings it back.
+
+  **Prevention:** avoid warm-reboot-inducing actions when you don't
+  need them. For running devices, `picotool info` (no `-f`) reads
+  what it can without rebooting. For flashing, prefer the debug probe
+  (SWD `load` is cleaner than picotool `-f`). For debugging, avoid
+  `monitor halt` while the target is in a `spin_lock_blocking` wait
+  — use breakpoints past the spinlock acquisition instead, or
+  `monitor reset halt` to re-enter from a known state.
 
 ---
 

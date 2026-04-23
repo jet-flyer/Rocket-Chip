@@ -109,15 +109,17 @@ erratum currently differentiates by package: **E3** (QFN-60 only).
 
 ## Summary — Our applicable errata
 
-Of 28 documented errata, three require active attention from our code,
-one is fully handled by the SDK, and 24 are not applicable:
+Of 28 documented errata, one requires active attention from our code
+(with incident tracking for its gap cases), one was audited and found
+to have only low residual risk, two are fully handled by the SDK /
+default clock config, and 24 are not applicable:
 
 | ID | Silicon block | Our status | One-line |
 |---|---|---|---|
-| **E2** | SIO spinlocks | workaround-applied (gap cases) | Spinlock mirror writes — known tonight's boot-deadlock source |
-| **E9** | GPIO | audited, low residual risk (see per-pin audit below) | Bank 0 pad leakage when input-enabled in undefined voltage region |
+| **E2** | SIO spinlocks | workaround-applied (R-1/R-2 incident log) | Spinlock mirror writes — primary path closed, warm-reboot and SWD-halt gap cases tracked |
+| **E9** | GPIO | audited, no functional exposure | Bank 0 pad leakage — per-pin audit clean, one technically-exposed SPI MISO pin but harmless |
 | **E11** | XIP cache | SDK-handles | Cache clean-by-set/way modifies dirty line tag |
-| **E12** | USB | unverified | USB status signal synchronization (datasheet excerpt truncated — needs re-read) |
+| **E12** | USB | SDK-handles (via default clock config) | USB status signal sync — default `clk_sys` > `clk_usb` margin satisfies datasheet workaround |
 
 The remaining 24 errata are listed in the **Not-Applicable Table** at
 the bottom, each with the one-line reason we're not at risk.
@@ -137,13 +139,59 @@ the bottom, each with the one-line reason we're not at risk.
 | **Our stepping** | A2 — **affected** |
 | **Silicon block** | SIO — spinlock hardware |
 | **Description** | SIO address decoder detects writes to spinlocks by decoding bit 7 of the address. Writes in the range 0x128-0x17c (new RP2350 registers: Doorbells, PERL_NONSEC, RISC-V soft IRQ, RISC-V MTIME, TMDS encoder) are spuriously detected as writes to the corresponding spinlock address 128 bytes below (range 0x108-0x17c). Writing to these high-addressed SIO registers silently sets the corresponding lock to unclaimed. Only affects writes to spinlock registers; reads are correctly decoded. |
-| **Trigger conditions** | <ul><li>**Primary:** any code writing to SIO registers at offsets 0x128-0x17c while hardware spinlocks are in use. The SDK's default on RP2350 uses *software* spinlocks (LDAEXB/STREXB on SRAM locations) instead of hardware spinlocks. But the SW-spinlock path itself can interact with boot-time fault paths in a way that deadlocks Core 0 in `spin_lock_blocking` on the timer spinlock (ID 10) before reaching `main()`.</li><li>**Second trigger path (2026-04-22 tonight, R-1):** `picotool info -f --ser <serial>` reboots via USB vendor command into BOOTSEL + back. E2 fired on next boot despite `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` applied. User had to replug to recover. Mechanism unclear — may be state surviving the BOOTSEL transition, or a reset path not going through normal SDK runtime_init. Candidate for upstream report.</li><li>**Third trigger path (R-2):** SWD `monitor halt` during an in-progress `spin_lock_blocking` wait appears to lose the STREXB exclusive-monitor reservation. On `monitor resume`, STREXB fails forever, spinlock never acquires, eventually HardFault with same PC/LR signature. Candidate for upstream report.</li></ul> |
+| **Trigger conditions** | <ul><li>**Primary (datasheet):** any code writing to SIO registers at offsets 0x128-0x17c while hardware spinlocks are in use. SDK 2.2.0 default of SW spinlocks avoids the primary path.</li><li>**Observed in-tree — warm-reboot path (R-1):** After `picotool -f` calls (USB vendor reboot into BOOTSEL + back), the next boot can hit an E2-signature deadlock. Recovery requires full board VBUS cycle + probe depower. Target reset alone does not clear it.</li><li>**Observed in-tree — SWD halt path (R-2):** `monitor halt` during an in-progress `spin_lock_blocking` wait leaves Core 0 unable to resume cleanly. Same full-power-cycle recovery.</li></ul> |
 | **Observable symptom** | Core 0 deadlock at `spin_lock_blocking`, eventual HardFault with **PC=0xeffffffe, LR=0xffffffe9** — canonical lockup signature. USB CDC never enumerates. Core 1 stuck at bootrom `0x000000da` (waiting on a Core-0 cross-core flag that never comes). LED patterns may or may not be visible depending on how early the deadlock fires. |
 | **SDK status** | `flag-gated`: SDK 2.2.0 defaults to SW spinlocks on RP2350 (partial mitigation), but does NOT set `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` by default. This flag disables the EXTEXCLALL bit in `M33_ACTLR` per-core at runtime_init, closing the primary boot-time trigger path. `acknowledged-only` for the picotool/SWD trigger paths — not mitigated. |
 | **Our status** | `workaround-applied` for primary boot-time path; `gap` for picotool and SWD paths. |
-| **Workaround reference** | `CMakeLists.txt:274` — `add_compile_definitions(PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1)` under `PICO_PLATFORM STREQUAL rp2350*` guard. For the SWD gap: `AGENT_WHITEBOARD.md` 2026-04-22 documents the workflow ("follow `monitor halt` with `monitor reset halt` + `load` + `monitor resume`, not bare `monitor resume`"). For the picotool gap: no workaround yet other than power-cycle on recurrence. |
+| **Workaround reference** | `CMakeLists.txt:280` — `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` under `PICO_PLATFORM STREQUAL rp2350*` guard. Closes the primary datasheet path. Operational recovery for R-1/R-2 gaps: unplug board VBUS + replug probe. Avoid warm-reboot triggers (`picotool -f`, `monitor halt` mid-spinlock) where possible — see `docs/FLASHING.md` troubleshooting section. |
 | **Fixed in stepping** | Not fixed in any shipping silicon (A2, A3, A4 all affected). Per pico-sdk issues #2495 and #2706. |
-| **Notes** | Discovered 2026-04-22 during RocketChip onboarding: a tiny code diff in `ao_rcos.cpp` shifted the ELF enough to deterministically trigger the boot-time path. Trigger paths R-1 (picotool) and R-2 (SWD halt) are our discoveries — candidates for upstream pico-sdk issue reports. |
+| **Notes** | Discovered 2026-04-22: a tiny code diff in `ao_rcos.cpp` shifted the ELF enough to deterministically trigger the boot-time path. R-1 / R-2 tracked in the **Incident log** below — collecting occurrence data before deciding whether to file upstream. |
+
+**Incident log (R-1 / R-2 recurrences).** Add a row every time you hit
+an E2-signature deadlock that the `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1`
+workaround didn't prevent. Capture enough detail to let future-us spot
+patterns without re-investigating from scratch.
+
+| Date | Path | What I did right before | Symptom | Recovery action | USB port / hub | Notes |
+|---|---|---|---|---|---|---|
+| 2026-04-22 | R-1 (picotool warm reboot) | During Frankenstein-flash recovery: issued 4+ `picotool info -f --bus X --address Y` and `picotool info -f --ser <serial> -a` calls in under 2 min, interleaved with `sleep 3-5` polling | Board unresponsive after last `-f` call. User observed red/dead RSSI pattern (Frankenstein anti-pattern) — separately from this incident, but the board was also stuck per this trigger | Unplugged board VBUS + probe, replugged both. Target reset alone was insufficient. Probe itself verified fine on re-connect. | unknown (typical dev bench, not checked at time) | First observed-in-tree R-1. Triggered a rethink of flash-verification discipline that led to `docs/FLASHING.md` |
+| (earlier) | R-2 (SWD halt mid-spinlock) | `monitor halt` via GDB during a `spin_lock_blocking` wait | Core 0 never resumes on `monitor resume`. Eventual HardFault with PC=0xeffffffe, LR=0xffffffe9 | Full board power cycle + probe replug. Documented workflow workaround: use `monitor reset halt` + `load` + `monitor resume` instead of bare `monitor halt` mid-run | unknown | Captured in `AGENT_WHITEBOARD.md` 2026-04-22 errata entry before the tracker existed |
+
+**Columns to capture on each new row:**
+
+- **Date** — when it happened.
+- **Path** — R-1 (warm reboot from picotool / debug halt) or R-2 (debug halt during spinlock wait). If it's a new trigger, give it a new R-N ID.
+- **What I did right before** — specific commands, how many, how close together in time, and any recent config / toolchain changes.
+- **Symptom** — what was the observable sign? PC / LR register values via GDB if you can get them, USB enumeration state, LED state, CLI response.
+- **Recovery action** — did board-replug alone work? Probe-replug alone? Both? `taskkill openocd` first? Record what actually cleared it.
+- **USB port / hub** — which USB port on the host the probe + board were plugged into (USB 2 vs 3, powered hub vs direct, etc.). [forum.raspberrypi.com t=393873](https://forums.raspberrypi.com/viewtopic.php?t=393873) reports USB-3-port + newer debugprobe firmware as a real confound for unrelated-but-similar "probe needs replug" cases.
+- **Notes** — anything unusual. Probe firmware version. OpenOCD version. Recent pico-sdk update. Concurrent work on another USB device, etc.
+
+**Why we're tracking rather than upstream-reporting yet.** Online
+search (2026-04-22) found no exact match for our full pattern
+(`picotool -f` × spinlock wait × requires board VBUS + probe replug
+on RP2350). Related issues exist in the family (pico-sdk #1812 / #2495
+/ #2706 for SW-spinlock sticky state, debugprobe #189 for
+flashing-hangs + USB cable replug on RP2350, probe-rs #2950 for
+probe-side sticky state), but none cover our exact intersection. Before
+filing upstream, we want two or three data points from the Incident
+log showing the same signature so the bug report has a clean
+reproducer + statistical confidence. If it turns out we only see it
+when I'm hammering picotool in a tight loop, that's a usage-pattern
+issue and the right answer is changing workflow, not filing a
+datasheet-gap report.
+
+**Related prior art (reference, not corroboration):**
+
+- [pico-sdk #2495](https://github.com/raspberrypi/pico-sdk/issues/2495) — SW spinlocks LDAEXB/STREXB set the ARM event flag, breaks WFE. Source of the `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL` flag as a "big hammer" mitigation.
+- [pico-sdk #2706](https://github.com/raspberrypi/pico-sdk/issues/2706) — Mutex + alarm stalls on RP2350 with SW spinlocks. Symptom-adjacent but self-clears.
+- [pico-sdk #1812](https://github.com/raspberrypi/pico-sdk/issues/1812) — Original thread on RP2350 SW spinlocks setting the event flag.
+- [debugprobe #189](https://github.com/raspberrypi/debugprobe/issues/189) — RP2350 flashing hangs, resolved by USB cable replug (ambiguous on probe vs target).
+- [probe-rs #2950](https://github.com/probe-rs/probe-rs/issues/2950) — Generic probe-side sticky state requiring power cycle.
+- [debugprobe #201](https://github.com/raspberrypi/debugprobe/issues/201) — Probe firmware v2.3.0 regression ("fails to start"). Our probe firmware version should be recorded per-incident.
+- [raspberrypi/openocd #104, #111, #112, #120](https://github.com/raspberrypi/openocd/issues) — RP2350 SWD / reset / multi-core handling changes; "Examination failed" / "cannot read IDR" patterns.
+- [forums.raspberrypi.com viewtopic 393873](https://forums.raspberrypi.com/viewtopic.php?t=393873) — USB-3 port + newer debugprobe firmware confound. Hence the USB-port-and-hub column in the log above.
+- RP2350 datasheet documents an `RP_AP:CTRL:RESCUE_RESTART` bit for DAP-stuck scenarios — Raspberry Pi themselves expect this failure class, though the Pico Probe / OpenOCD typically doesn't invoke it automatically.
 
 ---
 
@@ -267,18 +315,18 @@ GitHub repo (R-designators R7/R15/R16/R17 verified via schematic fetch
 |---|---|
 | **ID** | E12 |
 | **Name** | USB: Inadequate synchronisation of USB status signals |
-| **Datasheet ref** | Appendix E, page 1375 |
-| **Affected steppings** | A2, A3 (mitigated on A3), A4 |
+| **Datasheet ref** | Appendix E, page 1375-1376 |
+| **Affected steppings** | A2, A3 (mitigated on A3 — hardware timing fixes applied but software "must not rely on these fixes"), A4 |
 | **Our stepping** | A2 — **affected** |
 | **Silicon block** | USB |
-| **Description** | **INCOMPLETE.** The extraction pass truncated the datasheet description — needs a targeted re-read of pages 1375-1377 for full description, trigger conditions, observable symptom, and workaround. |
-| **Trigger conditions** | *Unverified — needs datasheet re-read.* |
-| **Observable symptom** | *Unverified.* Historical LL Entries 12, 15, 22 document USB CDC enumeration and disconnect symptoms that may or may not be related to E12. |
-| **SDK status** | *Unverified — needs datasheet re-read to check for SDK references.* |
-| **Our status** | `unverified` |
-| **Workaround reference** | *Pending E12 re-read.* |
-| **Fixed in stepping** | A3 partial mitigation, A4 presumed better. |
-| **Notes** | We use USB CDC continuously on both boards. E12 is a real risk until characterized. **Open item:** targeted re-read of datasheet pages 1375-1377 to complete this row. Suspected related prior incidents: LL Entry 12 (USB CDC init order), LL Entry 22 (Core 1 IMU rate degradation after USB reconnect), LL Entry 15 (CLI stops on terminal connect). These may be explainable by our own init-order bugs, or there may be underlying E12 residue. |
+| **Description** | Certain Host and Device controller events cross from `clk_usb` to `clk_sys` inside the USB peripheral without appropriate synchronisation. Events can be lost when `clk_sys` ≤ `clk_usb` (datasheet: "Many of these signals don't have appropriate synchronisation methods to ensure that they are correctly registered when `clk_sys` is equal to or slower than `clk_usb`"). Affected signals: SIE_STATUS fields (TRANS_COMPLETE, SETUP_REC, STALL_REC, NAK_REC, RX_SHORT_PACKET, ACK_REC, DATA_SEQ_ERROR, RX_OVERFLOW) and INTR fields (HOST_SOF, ERROR_CRC, ERROR_BIT_STUFF, ERROR_RX_OVERFLOW, ERROR_RX_TIMEOUT, ERROR_DATA_SEQ). |
+| **Trigger conditions** | Any USB operation where `clk_sys` ≤ `clk_usb` frequency. Datasheet highlights the USB bootloader as particularly vulnerable because it derives `clk_sys` from `pll_usb` making the two frequencies identical. Quasi-static states (reset, suspend, resume) are unaffected. Not TinyUSB-specific — hardware-level CDC issue. Affects both Host and Device modes. |
+| **Observable symptom** | Lost transaction-complete / setup-received / error events → unreliable USB bootloader, intermittent enumeration failures, CDC data loss if bits are dropped. Datasheet describes it as "unreliable USB bootloader behaviour." |
+| **SDK status** | `flag-gated` in effect. The SDK's default clock setup on RP2350 (133 MHz `clk_sys` with USB PLL at 48 MHz) already satisfies the datasheet's ≥10% margin requirement. No explicit SDK flag named for E12 — the mitigation lives in the default clock config. |
+| **Our status** | `SDK-handles` — we use the SDK default clock configuration, which keeps `clk_sys` (typically 133 MHz) well above `clk_usb` (48 MHz). We do not override clock setup to push `clk_sys` toward or below `clk_usb`. |
+| **Workaround reference** | Datasheet: "Run `clk_sys` faster than `clk_usb` by at least 10% when the peripheral is in use." SDK default satisfies this. No in-tree action required unless we change clock configuration. |
+| **Fixed in stepping** | A3 partial hardware mitigation, but datasheet says software still must not rely on it — the 10% clock-margin rule still applies. A4 presumed further improved but not explicitly stated. |
+| **Notes** | LL entries 12 (USB CDC init order), 15 (CLI stops on terminal connect), 22 (Core 1 IMU rate degrades after USB reconnect on LiPo power) are explained by our own init-order and sync bugs, not by E12 — their root causes are documented in tree. E12 would manifest as *bit-level* event loss (SIE_STATUS or INTR flags missed), not the init-order symptoms we've seen. **If we ever add overclock/underclock support or a low-power mode that drops `clk_sys` near `clk_usb`**, this row must be re-assessed. |
 
 ---
 
@@ -352,35 +400,27 @@ security posture), the row must be re-promoted to the active matrix above.
 
 ## Open items / deferred
 
-Identified during the initial sweep (council review 2026-04-22):
-
-1. **E12 datasheet re-read.** Pages 1375-1377 need targeted extraction
-   to fully populate the E12 row. Until then, the USB erratum is
-   `unverified` even though USB is a daily-used peripheral on both
-   boards. The historical LL entries 12/15/22 (USB CDC quirks) may
-   or may not be explained by E12 — worth knowing.
-
-2. **Silicon-stepping read procedure.** Currently claim A2 based on
+1. **Silicon-stepping read procedure.** Currently claim A2 based on
    Adafruit product pages. Adafruit now ships A4 on the Feather HSTX
    (post 2026-03-20) which fixes E9 and others, so self-verification
    matters more than it did a few weeks ago. Need a documented
    procedure for reading the chip's stepping register.
 
-3. **R-1 and R-2 upstream reports.** The E2 picotool-reboot trigger
-   path (R-1) and SWD halt-during-spinlock trigger path (R-2) are not
-   in the datasheet or the pico-sdk issues we've seen. Candidates for
-   filing as new issues citing the workaround's gap cases.
+2. **E2 incident tracking.** Log every R-1 / R-2 occurrence in the
+   Incident log table above. Re-assess whether to file an upstream
+   issue once we have ≥3 data points showing a consistent reproducer.
 
-4. **Regression test per erratum (where feasible).** For errata with
-   observable symptoms (E2 deadlock signature, E11 cache range), a
-   smoke test or firmware assertion that fails loudly if the
-   workaround's preconditions are violated. Converts "documented
-   assumption" to "enforced assumption." Council-flagged as valuable.
+3. **Regression test per erratum (where feasible).** Deferred per
+   initial sweep council review. For errata with observable symptoms
+   (E2 deadlock signature, E11 cache range), a smoke test or firmware
+   assertion that fails loudly if the workaround's preconditions are
+   violated. Converts "documented assumption" to "enforced assumption."
 
-5. **Pre-commit enforcement of doc update on CMake flag changes.**
-   Any diff touching RP2350-specific `add_compile_definitions` should
-   also touch this document. Mechanical gate instead of honor-system
-   (per LL Entry 36). Tooling-cost vs value is a later scope decision.
+4. **Pre-commit enforcement of doc update on CMake flag changes.**
+   Deferred per initial sweep council review. Any diff touching
+   RP2350-specific `add_compile_definitions` should also touch this
+   document. Mechanical gate instead of honor-system (per LL Entry 36).
+   Tooling-cost vs value is a later scope decision.
 
 ---
 
