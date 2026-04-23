@@ -1,0 +1,31 @@
+build/mat_benchmark.elf  :
+section                 size        addr
+.text                  26484   268435456
+.rodata                 3996   268461944
+.ARM.exidx                 8   268465940
+.binary_info              32   268465948
+.ram_vector_table        272   536870912
+.uninitialized_data        0   536871184
+.data                   4380   536871184
+.tdata                     0   536875564
+.tbss                      0   536875564
+.bss                   44760   536875568
+.heap                   2048   536920328
+.scratch_x                 0   537395200
+.scratch_y                 0   537399296
+.stack_dummy            4096   537399296
+.flash_end                20   268470360
+.ARM.attributes           52           0
+.comment                  69           0
+.debug_info           200378           0
+.debug_abbrev          37084           0
+.debug_loclists        85110           0
+.debug_aranges          4688           0
+.debug_rnglists        14071           0
+.debug_line           117517           0
+.debug_str             38755           0
+.debug_frame           12300           0
+.debug_line_str          656           0
+Total                 596776
+
+

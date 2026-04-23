@@ -1,0 +1,5 @@
+786/786 Test #786: PreArmFailTick.ConstantSanityCheck ........................................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 786
+
+Total Test time (real) =   4.52 sec

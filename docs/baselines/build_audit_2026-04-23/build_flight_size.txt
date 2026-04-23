@@ -1,0 +1,32 @@
+build_flight/rocketchip.elf  :
+section                  size        addr
+.text                  138260   268435456
+.rodata                 33772   268573720
+.ARM.exidx                  8   268607492
+.binary_info               32   268607500
+.ram_vector_table         272   536870912
+.uninitialized_data        16   536871184
+.data                   31848   536871200
+.tdata                      0   536903048
+.tbss                       0   536903048
+.bss                   314556   536903048
+.heap                    2048   537217604
+.scratch_x                  0   537395200
+.scratch_y                  0   537399296
+.stack1_dummy            4096   537395200
+.stack_dummy             4096   537399296
+.flash_end                 20   268639380
+.ARM.attributes            52           0
+.comment                   69           0
+.debug_info           1008265           0
+.debug_abbrev          137956           0
+.debug_loclists        262413           0
+.debug_aranges          17672           0
+.debug_rnglists         21600           0
+.debug_line            408240           0
+.debug_str             159564           0
+.debug_frame            53868           0
+.debug_line_str           796           0
+Total                 2599519
+
+

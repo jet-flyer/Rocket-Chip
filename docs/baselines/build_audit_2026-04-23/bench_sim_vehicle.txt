@@ -1,0 +1,14 @@
+auto-detected serial port: COM7
+waiting for sensor health...
+  sensors healthy — GO
+
+=== RocketChip Bench Sim ===
+  Port: COM7
+  Build: ?
+  Max runtime: 120s
+
+  [PASS]  1. Happy path (nominal flight)
+  [PASS]  2. Abort from BOOST (no pyro under default profile)
+
+  RESULT: 2/2 PASS  (6.5s)
+===============================

@@ -641,39 +641,65 @@ else()
         message(STATUS "Build tier: BENCH (dev diagnostics included)")
     endif()
 
-    # Stage T — RadioScheduler timing diagnostics (IVP-T1)
-    # Usage: cmake -DROCKETCHIP_STAGE_T_LOGGING=ON ..
-    # Emits [STAGE_T] state-transition and per-RX metadata lines on vehicle.
-    # Off by default; compiled out for flight builds.
-    option(ROCKETCHIP_STAGE_T_LOGGING "Enable Stage T RadioScheduler diagnostics" OFF)
-    if(ROCKETCHIP_STAGE_T_LOGGING AND NOT BUILD_FOR_FLIGHT)
-        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T_LOGGING=1)
-        message(STATUS "Stage T diagnostics: ENABLED")
-    endif()
+    # Dev tools — hierarchical gate. Off in production builds (all four
+    # standard presets). See docs/BUILD_SYSTEM_AUDIT.md for the full model.
+    #
+    #   ROCKETCHIP_BUILD_DEV_TOOLS (parent)  — regular dev-tool targets
+    #     └─ ROCKETCHIP_STAGE_ARCHIVE (child) — momentary stage-bounded diagnostics
+    #         └─ ROCKETCHIP_STAGE_T_LOGGING   (individual, opt-in per flag)
+    #         └─ ROCKETCHIP_STAGE_T2_CHEAT    (individual, opt-in per flag)
+    #         └─ ROCKETCHIP_STAGE_T3_MAVLINK  (individual, opt-in per flag)
+    #
+    # Parent on alone: regular dev (mat_benchmark, future bench tools).
+    # Parent + archive child on: stage-bounded options become *visible* but
+    # still default OFF — you must name the specific flag to light it up.
+    # Nested structure prevents accidental activation of archived stage flags
+    # during normal dev work.
+    option(ROCKETCHIP_BUILD_DEV_TOOLS "Parent gate — regular dev-tool targets (mat_benchmark, future bench tools)" OFF)
+    if(ROCKETCHIP_BUILD_DEV_TOOLS)
+        message(STATUS "Dev tools: ENABLED (regular dev targets available)")
 
-    # Stage T2 — cheat-mode sync ceiling (IVP-T2)
-    # Usage: cmake -DROCKETCHIP_STAGE_T2_CHEAT=ON -DROCKETCHIP_JOB_STATION=1 ..
-    # Queues X presses on station and fires on next vehicle RX — measures the
-    # upper bound on achievable success rate with perfect sync. THROWAWAY
-    # DIAGNOSTIC. Revert after data collection.
-    option(ROCKETCHIP_STAGE_T2_CHEAT "Enable Stage T2 station cheat-mode sync" OFF)
-    if(ROCKETCHIP_STAGE_T2_CHEAT AND NOT BUILD_FOR_FLIGHT)
-        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T2_CHEAT=1)
-        message(STATUS "Stage T2 cheat-mode: ENABLED")
-    endif()
+        # Child gate — stage-bounded archive. Unlock the specific individual
+        # stage flags below. Off even with DEV_TOOLS=ON, by design.
+        option(ROCKETCHIP_STAGE_ARCHIVE "Child gate — expose archived stage-bounded diagnostic flags" OFF)
+        if(ROCKETCHIP_STAGE_ARCHIVE)
+            message(STATUS "Stage archive: UNLOCKED (individual stage flags available, still opt-in per flag)")
 
-    # Stage T3 — CCSDS vs MAVLink protocol A/B (IVP-T3)
-    # Usage: cmake -DROCKETCHIP_STAGE_T3_MAVLINK=ON ..
-    # When ON, kDefaultRocketRadioConfig.protocol = kMavlink instead of kCcsds.
-    # Must rebuild AND reflash BOTH vehicle and station with the same setting.
-    option(ROCKETCHIP_STAGE_T3_MAVLINK "Use MAVLink framing over LoRa (T3 A/B)" OFF)
-    if(ROCKETCHIP_STAGE_T3_MAVLINK)
-        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T3_MAVLINK=1)
-        message(STATUS "Stage T3 protocol: MAVLink")
-    endif()
+            # Stage T — RadioScheduler timing diagnostics (IVP-T1)
+            # Emits [STAGE_T] state-transition and per-RX metadata lines on vehicle.
+            # Use when replaying Stage T RadioScheduler investigation.
+            # Usage: cmake -DROCKETCHIP_BUILD_DEV_TOOLS=ON -DROCKETCHIP_STAGE_ARCHIVE=ON -DROCKETCHIP_STAGE_T_LOGGING=ON ..
+            option(ROCKETCHIP_STAGE_T_LOGGING "Enable Stage T RadioScheduler diagnostics" OFF)
+            if(ROCKETCHIP_STAGE_T_LOGGING AND NOT BUILD_FOR_FLIGHT)
+                target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T_LOGGING=1)
+                message(STATUS "Stage T diagnostics: ENABLED")
+            endif()
 
-    # Stage T6 is now a RUNTIME sweep via IVP-T5.5's SET_RADIO_CONFIG command,
-    # NOT compile-flag rebuilds. See docs/plans/STAGE_T_FIX_PLAN.md §IVP-T6.
+            # Stage T2 — cheat-mode sync ceiling (IVP-T2)
+            # Queues X presses on station and fires on next vehicle RX — measures the
+            # upper bound on achievable success rate with perfect sync. Kept for
+            # possible replay during post-CCSDS command-layer work.
+            # Usage: add -DROCKETCHIP_STAGE_T2_CHEAT=ON -DROCKETCHIP_JOB_STATION=1 (alongside parent+archive).
+            option(ROCKETCHIP_STAGE_T2_CHEAT "Enable Stage T2 station cheat-mode sync" OFF)
+            if(ROCKETCHIP_STAGE_T2_CHEAT AND NOT BUILD_FOR_FLIGHT)
+                target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T2_CHEAT=1)
+                message(STATUS "Stage T2 cheat-mode: ENABLED")
+            endif()
+
+            # Stage T3 — CCSDS vs MAVLink protocol A/B (IVP-T3)
+            # When ON, kDefaultRocketRadioConfig.protocol = kMavlink instead of kCcsds.
+            # Must rebuild AND reflash BOTH vehicle and station with the same setting.
+            # Usage: add -DROCKETCHIP_STAGE_T3_MAVLINK=ON (alongside parent+archive).
+            option(ROCKETCHIP_STAGE_T3_MAVLINK "Use MAVLink framing over LoRa (T3 A/B)" OFF)
+            if(ROCKETCHIP_STAGE_T3_MAVLINK)
+                target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T3_MAVLINK=1)
+                message(STATUS "Stage T3 protocol: MAVLink")
+            endif()
+
+            # Stage T6 is a RUNTIME sweep (SET_RADIO_CONFIG command), not a
+            # compile-flag. See docs/plans/STAGE_T_FIX_PLAN.md §IVP-T6.
+        endif()
+    endif()
 
     # Git hash injection for version.h
     execute_process(
@@ -698,55 +724,31 @@ else()
     pico_add_extra_outputs(rocketchip)
 
     # ============================================================================
-    # Standalone Benchmark (IVP-40 gate — not production firmware)
+    # Standalone Benchmark (IVP-40 gate — dev-tool, not production firmware)
+    # Gated behind ROCKETCHIP_BUILD_DEV_TOOLS. Enable with
+    # -DROCKETCHIP_BUILD_DEV_TOOLS=ON to build when re-running the matrix
+    # benchmark. See docs/BUILD_SYSTEM_AUDIT.md.
     # ============================================================================
-
-    add_executable(mat_benchmark
-        src/tools/mat_benchmark.cpp
-        src/math/vec3.cpp          # Required by rc_math (baro_kf dependency)
-        src/fusion/baro_kf.cpp
-    )
-    target_include_directories(mat_benchmark PRIVATE
-        ${CMAKE_CURRENT_LIST_DIR}/include
-        ${CMAKE_CURRENT_LIST_DIR}/src
-    )
-    # Benchmark must use -O2 — Debug (-O0) gives wildly pessimistic numbers.
-    # Flight firmware will also run optimized (Release or RelWithDebInfo).
-    target_compile_options(mat_benchmark PRIVATE -O2)
-    target_link_libraries(mat_benchmark
-        pico_stdlib
-    )
-    pico_enable_stdio_usb(mat_benchmark 1)
-    pico_enable_stdio_uart(mat_benchmark 0)
-    pico_add_extra_outputs(mat_benchmark)
-
-    # ============================================================================
-    # UD Factorization Benchmark (numerical stability investigation)
-    # ============================================================================
-
-    add_executable(ud_benchmark
-        src/benchmark/ud_benchmark.cpp
-        src/fusion/ud_factor.cpp
-        src/fusion/eskf.cpp
-        src/fusion/eskf_codegen.cpp
-        src/fusion/innovation_monitor.cpp
-        src/math/vec3.cpp
-        src/math/quat.cpp
-        src/fusion/baro_kf.cpp
-    )
-    target_include_directories(ud_benchmark PRIVATE
-        ${CMAKE_CURRENT_LIST_DIR}/include
-        ${CMAKE_CURRENT_LIST_DIR}/src
-    )
-    # Benchmark must use -O2 — Debug (-O0) gives wildly pessimistic numbers.
-    target_compile_options(ud_benchmark PRIVATE -O2)
-    target_link_libraries(ud_benchmark
-        pico_stdlib
-        hardware_timer
-    )
-    pico_enable_stdio_usb(ud_benchmark 1)
-    pico_enable_stdio_uart(ud_benchmark 0)
-    pico_add_extra_outputs(ud_benchmark)
+    if(ROCKETCHIP_BUILD_DEV_TOOLS)
+        add_executable(mat_benchmark
+            src/tools/mat_benchmark.cpp
+            src/math/vec3.cpp          # Required by rc_math (baro_kf dependency)
+            src/fusion/baro_kf.cpp
+        )
+        target_include_directories(mat_benchmark PRIVATE
+            ${CMAKE_CURRENT_LIST_DIR}/include
+            ${CMAKE_CURRENT_LIST_DIR}/src
+        )
+        # Benchmark must use -O2 — Debug (-O0) gives wildly pessimistic numbers.
+        # Flight firmware will also run optimized (Release or RelWithDebInfo).
+        target_compile_options(mat_benchmark PRIVATE -O2)
+        target_link_libraries(mat_benchmark
+            pico_stdlib
+        )
+        pico_enable_stdio_usb(mat_benchmark 1)
+        pico_enable_stdio_uart(mat_benchmark 0)
+        pico_add_extra_outputs(mat_benchmark)
+    endif()
 
     # ============================================================================
     # Print Build Info

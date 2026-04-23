@@ -1,0 +1,15 @@
+[22/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/src/rp2_common/pico_float/float_math.c.obj
+[23/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/lib/tinyusb/src/device/usbd_control.c.obj
+[24/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/lib/tinyusb/src/class/hid/hid_device.c.obj
+[25/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/lib/tinyusb/src/class/midi/midi_device.c.obj
+[26/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/lib/tinyusb/src/class/net/ecm_rndis_device.c.obj
+[27/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/lib/tinyusb/src/class/msc/msc_device.c.obj
+[28/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/lib/tinyusb/src/portable/raspberrypi/rp2040/rp2040_usb.c.obj
+[29/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/lib/tinyusb/src/class/net/ncm_device.c.obj
+[30/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/src/rp2_common/pico_printf/printf.c.obj
+[31/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/src/rp2_common/hardware_flash/flash.c.obj
+[32/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/lib/tinyusb/src/class/usbtmc/usbtmc_device.c.obj
+[33/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/lib/tinyusb/src/class/cdc/cdc_device.c.obj
+[34/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/lib/tinyusb/src/portable/raspberrypi/rp2040/dcd_rp2040.c.obj
+[35/41] Building C object CMakeFiles/ud_benchmark.dir/C_/Users/pow-w/.pico-sdk/sdk/2.2.0/lib/tinyusb/src/device/usbd.c.obj
+ninja: build stopped: subcommand failed.

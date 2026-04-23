@@ -1,0 +1,14 @@
+SKIPPED — station board not physically connected at P0 capture time 2026-04-23.
+
+Audit scope: the 14 files getting -Wpedantic coverage in Phase 2 are
+predominantly vehicle-runtime code (active_objects, fusion, notify, safety).
+Station runtime paths are much thinner across these files. Vehicle bench_sim
+runtime verification is sufficient for the primary risk surface of this audit.
+
+If Phase 2 surfaces pedantic warnings whose fixes touch station-specific code
+paths, re-capture station bench_sim baseline then and proceed.
+
+Accepted by user 2026-04-23 prior to Phase 1 start.
+
+Current station bench_sim known-PASS state per prior commit's pre-commit hook:
+  RESULT: 3/3 PASS (16.4s) — at commit 11483a8 (2026-04-22 watchdog deprecation)
