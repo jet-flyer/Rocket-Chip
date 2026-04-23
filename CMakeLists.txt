@@ -125,6 +125,15 @@ if(BUILD_TESTS)
     # ------------------------------------------------------------------
     # Flight Director library (IVP-68, QEP-based HSM + flight state)
     # Pure C++ — no Pico SDK. Links QEP for host-side HSM dispatch tests.
+    #
+    # NOT DUPLICATION — the same flight_director sources also appear in
+    # the target build's add_executable(rocketchip ...) source list below
+    # (around line 420 onward). Host and target builds are in different
+    # if(BUILD_TESTS) branches and compile these files in different
+    # contexts: host defines ROCKETCHIP_HOST_TEST=1 and links pure C++
+    # only; target compiles against the full Pico SDK. DO NOT collapse
+    # into a shared source-list variable without preserving that split.
+    # See docs/BUILD_SYSTEM_AUDIT.md "Host/target CMake split" entry.
     # ------------------------------------------------------------------
     add_library(rc_flight_director STATIC
         src/flight_director/flight_director.cpp
