@@ -134,6 +134,7 @@ rocketchip/
 │   │   ├── eskf.cpp/.h            # 24-state Error-State Kalman Filter
 │   │   ├── eskf_codegen.cpp/.h    # SymPy-generated FPFT (SRAM, .time_critical)
 │   │   ├── eskf_runner.cpp/.h     # ESKF fusion runner module (idle bridge, 200Hz)
+│   │   ├── eskf_brake.cpp         # Runaway-restart brake (5-strikes disable, CLI-clearable)
 │   │   ├── eskf_state.h           # ESKF state vector definitions
 │   │   ├── mahony_ahrs.cpp/.h     # Independent Mahony AHRS cross-check
 │   │   ├── confidence_gate.cpp/.h # Innovation + AHRS divergence confidence gate
@@ -192,9 +193,6 @@ rocketchip/
 │   │   ├── pio_watchdog.cpp/.h       # PIO heartbeat watchdog (IRQ-based)
 │   │   ├── pio_backup_timer.cpp/.h   # PIO backup deployment timers
 │   │   └── health_monitor.cpp/.h     # Centralized health state (10Hz via AO_HealthMonitor) + Core 1 vitality (Stage 14)
-│   │
-│   ├── watchdog/                  # Watchdog Recovery (Stage 8)
-│   │   └── watchdog_recovery.cpp/.h  # Scratch register policy, safe mode
 │   │
 │   ├── flight_director/           # Flight Director (Stage 8)
 │   │   ├── flight_director.cpp/.h    # QEP HSM (9 states, descent superstate)

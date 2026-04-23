@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-22 (Stage T complete — RF link-manager AO + pre-arm link-health + aggressive retry)
+**Last Updated:** 2026-04-22 (whiteboard triage — CMake auto-pick, FLASHING.md, RP2350 errata matrix, watchdog deprecation)
 
 ## Current Phase
 
@@ -75,7 +75,9 @@ Stage T surfaced and fixed RP2350-E2 silicon erratum boot deadlock via `PICO_SW_
 
 All Stage T code done. Three scope-bench rigor items (ACK-path timing + α PDF, station LDO rail under retry-storm, station RX-window baseline vs Batch A) dropped from plan — council-approved beyond what's practical for our bench setup. N=100 Wilson 95% CI was an instrumentation-bound non-result; formally deferred to re-measure under the eventual CCSDS command-layer rework.
 
-**Next:** Stage 17 (Field Testing — DEFERRED, awaits airframe + launch window), Stage 18 (Field Tuning — awaits flight data). Pending whiteboard high-priority work: (1) watchdog-reboot → safe-mode refactor; (2) deep RP2350 errata sweep + codified watchlist; (3) Stage T 95% first-try re-baseline after CCSDS layer lands. Remaining station/vehicle disparity items (pre-commit classification-awareness, pre-commit role-awareness, hook-portability into tracked scripts/hooks/) tracked in AGENT_WHITEBOARD.md.
+**Post-Stage-T whiteboard triage (2026-04-22 evening):** Closed 4 of 6 High-priority items in one session. CMake now auto-picks `adafruit_fruit_jam` when `ROCKETCHIP_JOB_STATION=1` (prevents Frankenstein builds). New `docs/FLASHING.md` centralizes flash method + multi-board chip-serial targeting + Board/Firmware Verification Checklist — obsoletes six scattered memory files that had a swapped chip-serial ↔ board mapping causing repeated wrong-board flash incidents. New `standards/RP2350_ERRATA.md` compliance matrix (28 errata: 1 active-attention E2, 2 SDK-handled E11/E12, 1 audited-clean E9, 24 not-applicable) with E2 incident log for R-1/R-2 trigger path tracking. Watchdog recovery machinery fully removed — SDK watchdog was gone at IVP-90 but the dead recovery module was still producing false-positive `[WARN] WATCHDOG REBOOT` banners on warm reboots; live behaviors (launch_abort safety flag, ESKF runaway-restart brake) migrated to flight_director.cpp and new src/fusion/eskf_brake.cpp. User Guide gained a Safety State Model section (flight hold / safe mode / launch abort). A4-silicon procurement note captured for future Feather HSTX orders (fixes E9).
+
+**Next:** Stage 17 (Field Testing — DEFERRED, awaits airframe + launch window), Stage 18 (Field Tuning — awaits flight data). Remaining High priority: IVP-T13 LQ-adaptive retry + Stage T 95% first-try re-baseline — both explicitly deferred pending CCSDS command-layer rework. Station/vehicle pre-commit discipline items (classification-awareness, role-awareness, hook-portability into tracked scripts/hooks/) tracked in AGENT_WHITEBOARD.md.
 
 ## Completed
 

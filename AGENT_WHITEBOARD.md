@@ -15,7 +15,7 @@
 
 ## Housekeeping (Trivial — do now or on next touch)
 
-*(empty)*
+- **`src/benchmark/ud_benchmark.cpp` — obsolete scaffolding, scheduled for deletion.** Phase 1 gate decision from 2026-02-24 delivered its verdicts (UD not justified, DCP not viable, Bierman adopted). Results preserved in `docs/benchmarks/UD_BENCHMARK_RESULTS.md`. Binary has been broken since `0a57db9` (IVP-143, Stage 16C) because the target's CMake rules don't propagate Pico SDK includes to the `board_feather_rp2350.h` it pulls in. Nobody noticed for 2+ weeks because nobody runs it anymore. Cleanup: delete the .cpp, remove the `ud_benchmark` CMake target block, maybe rmdir `src/benchmark/`. User deferred this to post-session-wrap (2026-04-22).
 
 ## High priority
 

@@ -170,11 +170,12 @@ This document defines the software architecture for RocketChip, a modular motion
 ```
 
 ### 2.4 Fault Handling
-- **Watchdog:** RP2350 HW WDT enabled with 5s timeout via `watchdog_enable(5000, 1)`. Implemented in `main.cpp` (IVP-30).
-- **Watchdog reboot detection:** Custom sentinel in scratch register 0 (`kWatchdogSentinel = 0x52435754`). SDK functions `watchdog_caused_reboot()` and `watchdog_enable_caused_reboot()` are both unreliable for this use case — see `.claude/LESSONS_LEARNED.md` and AGENT_WHITEBOARD.md (IVP-66) for details.
+- **Watchdog:** PIO heartbeat watchdog (`src/safety/pio_watchdog.cpp`, IVP-90 2026-03-29). Sets an IRQ flag on timeout; does NOT reset the chip. HealthMonitor (`health_monitor.cpp:358`) reads the flag for health reporting. Design intent: no automatic MCU reset, ever, without user command. SDK hardware watchdog removed at IVP-90.
+- **Launch abort:** Level-3 safety posture flag — `flight_director_set_launch_abort()` / `flight_director_launch_abort()` in `src/flight_director/flight_director.cpp`. Set by `ao_flight_director.cpp` on critical IMU/ESKF fault while ARMED. Power-cycle-only clear by design. See `docs/USER_GUIDE.md` "Safety State Model" for the three-level classification (flight hold / safe mode / launch abort).
+- **ESKF runaway-restart brake:** `src/fusion/eskf_brake.cpp` caps consecutive CR-1 divergences at `kEskfMaxFailCycles = 5` per session. `eskf_reenable()` CLI command clears it.
 - **Hard fault handler:** `memmanage_fault_handler()` with LED blink pattern and intentional halt.
 - **MPU stack guard:** Custom ARMv8-M MPU region on Core 0 stack bottom (IVP-29).
-- **Recovery policy:** IVP-66 (Stage 8) will define mid-flight recovery: scratch register persistence, reboot counting with safe-mode lockout, ESKF state backoff.
+- **Recovery policy (historical):** IVP-66 introduced scratch-register persistence + reboot counting + safe-mode-on-3-reboots + ESKF state backoff. Removed 2026-04-22 as dead code after IVP-90 eliminated the chip-reset trigger — the reboot-count path can't fire without automatic reset. Live behaviors (launch_abort, ESKF brake) migrated to proper homes above. See `CHANGELOG.md` entry 2026-04-22-005.
 
 ---
 

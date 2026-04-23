@@ -20,7 +20,21 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
-### 2026-04-22-004 | Claude Opus 4.7 | refactor, safety, documentation
+### 2026-04-22-004 | Claude Opus 4.7 | tooling, refactor, documentation, council
+
+**Whiteboard triage session — 4 of 6 High-priority items closed.** CMake auto-pick Fruit Jam board when `ROCKETCHIP_JOB_STATION=1` (prevents Frankenstein station-on-Feather builds); centralized flashing + board-firmware verification into new `docs/FLASHING.md` replacing scattered references across `BENCH_TEST_PROCEDURE.md` / `DEBUG_PROBE_NOTES.md` / deleted memory files; full RP2350 silicon errata sweep producing `standards/RP2350_ERRATA.md` (28 errata, 4 active-attention triaged against our silicon blocks + Adafruit board pulls, 24 not-applicable with reasons); Rescue-DP referenced in FLASHING.md as a secondary recovery option. Four commits: `0a6aae5` (CMake auto-pick), `5685f26` (docs centralization), `27068cb` (errata matrix), `276228a` (E12 re-read + E2 incident tracker), `7902b81` (Rescue-DP note).
+
+Memory purged of six HW-identity files that had stored a swapped chip-serial ↔ board mapping — root cause of repeated Frankenstein-flash incidents. Repo docs (e.g., `docs/plans/STAGE_T_FIX_PLAN.md:339` cites station serial) are now the authoritative source; memory holds only patterns, not identity. Added memory note `feedback_clarifications_in_docs.md` enforcing "conceptual content lives in docs, code comments point to docs."
+
+A4 silicon (Feather HSTX post-2026-03-20) fixes E9 and others — captured as a procurement note for future hardware orders.
+
+R-1 / R-2 E2 trigger paths (`picotool -f` warm reboot, SWD halt mid-`spin_lock_blocking`) have an **Incident log** table in the errata doc for structured recurrence tracking. Online search confirmed no exact-pattern match for our intersection — collect data before filing upstream.
+
+Files: `CMakeLists.txt`, `docs/FLASHING.md` (new), `docs/BOARD_FIRMWARE_VERIFICATION.md` (new, intermediate — kept per user direction for later cleanup), `docs/BENCH_TEST_PROCEDURE.md` (Frankenstein section → pointer), `standards/RP2350_ERRATA.md` (new), `standards/CODING_STANDARDS.md` (one-line errata pointer), `AGENT_WHITEBOARD.md`.
+
+---
+
+### 2026-04-22-005 | Claude Opus 4.7 | refactor, safety, documentation
 
 **Watchdog recovery machinery removed — dead code after IVP-90, producing false-positive `[WARN] WATCHDOG REBOOT` banners on warm reboots.**
 
