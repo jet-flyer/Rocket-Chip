@@ -6,6 +6,35 @@
 
 ---
 
+## Wizard UX Principle (Opt-In, Not Suggested)
+
+The Mission Profile wizard's job is to get a new user — a Space Camp counselor, a 6th-grade student, a first-time hobbyist — to a flyable profile without showing them a single option they don't need. Anything in this document is **opt-in only**.
+
+**Default wizard flow:** walks the user through the safe, essential profile settings. At the end, a single gate:
+
+> **"Enable advanced settings? [y/N]"**
+
+Answer `N` and the wizard exits with a complete, flyable profile. Answer `Y` and the advanced section opens.
+
+**Inside the advanced section** — tiered warnings per setting:
+
+- **Informational** — setting you probably haven't seen before; neutral explanation, safe to try.
+- **"Here be dragons"** — settings that are genuinely dangerous, legally constrained (e.g., RF power limits, duty cycle), or easy to break the vehicle with. Explicit warning before the prompt; user must type through it, not just press Enter.
+
+**Menu shape:**
+
+- **Near-term:** a single flat checklist covering all advanced settings, as long as the count stays manageable. The User Guide is the reference for what each one does.
+- **Later:** if the count grows past what fits in one screen, split into sub-menus by category.
+
+**Not in scope for the wizard:**
+
+- Discoverability lives in the User Guide, not the wizard prompts.
+- Direct `.cfg` editing remains supported for users who already know the key names.
+
+Any future feature added to this document inherits the opt-in principle by default. If a feature is load-bearing enough to belong in the default wizard flow, it does not belong in this document.
+
+---
+
 ## 1. Research Mode (Council-Reviewed Concept)
 
 Gated experimental features — each individually toggleable, all behind a Research Mode acknowledgment. Prevents accidental activation of unstable or risky features.
@@ -19,6 +48,8 @@ Gated experimental features — each individually toggleable, all behind a Resea
 | Unlocked ESKF tuning | Runtime Q/R/gate threshold adjustment | council_data_logging.md | Concept only |
 | Verbose logging mode | Innovation alphas, Q/R params, P-diagonals in log frames | AGENT_WHITEBOARD.md | Deferred |
 | MP-configurable logged events | Per-event-type flags (pyro, abort, confidence, phase changes) | AGENT_WHITEBOARD.md | Deferred |
+| Diagnostic log tier (`LOG_DIAGNOSTICS=1`) | Tier 2 payload: Mahony quaternion, gyro bias, ZUPT state, confidence gate state + ESKF↔Mahony delta, raw+calibrated accel, per-frame RSSI+SNR. Default OFF (Rocket profile). Default ON in new "Validation" profile used for Stage 17 static/dynamic tests. | Stage 17 IVP-135a | Planned |
+| Runtime log rate (`LOG_RATE_HZ`) | Per-profile log rate selector: 10 / 50 / 100 / 400 Hz. Enables single-test-duration budget tuning (statics = 10 Hz long dwell; drop/pendulum = 400 Hz short burst). | Stage 17 IVP-135a | Planned |
 
 ## 2. Hardware Configuration
 
@@ -85,10 +116,11 @@ Runtime-accessible settings via a future advanced menu key.
 
 ## Implementation Path
 
-1. **Stage 12:** Mission Profile boot-load from flash/SD enables runtime profile switching
-2. **Stage 13:** Advanced settings menu in RCOS, Research Mode gate, developer tools
-3. **Stage 14:** VALIDATE parameter tuning from flight data
-4. **Post-launch:** OTA drivers, dynamic peripheral detection, WiFi config
+1. **Stage 12:** Mission Profile boot-load from flash/SD enables runtime profile switching — DONE
+2. **Stage 17 IVP-135a:** Diagnostic log tier + runtime log rate — first concrete opt-in flags land (`LOG_DIAGNOSTICS`, `LOG_RATE_HZ`). Establishes the `.cfg`-opt-in pattern for the rest of the document.
+3. **Future (post-Stage-17, IVP number TBD):** **Flesh out Advanced Settings.** Placeholder for a dedicated IVP, well down the roadmap. Drives every row in this document to Implemented, explicitly cut, or re-scoped. Implements the wizard's `Enable advanced settings? [y/N]` gate and the flat-checklist UX described above. Sub-menu reorg happens here if the count has grown past one screen. User Guide gets a pass for discoverability of every flag that ships. Not scheduled — recorded so it doesn't get forgotten.
+4. **Stage 18:** VALIDATE parameter tuning from flight data (was Stage 14 in old numbering)
+5. **Post-launch:** OTA drivers, dynamic peripheral detection, WiFi config
 
 ---
 

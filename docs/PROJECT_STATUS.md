@@ -128,9 +128,11 @@ All Stage T code done. Three scope-bench rigor items (ACK-path timing + α PDF, 
 
 ## In Progress
 
-None. Stage 16C complete.
+None. Stage 16C + Stage L + Stage T all complete.
 
-**Next:** Stage 17 (Field Testing) awaits airframe + launch window. Station verification IVPs (station_bench_sim.py + station SPIN model) queued in `AGENT_WHITEBOARD.md`. Per-session/vehicle-disparity tracker also in whiteboard.
+**Next:** Stage 17 (Field Testing & Avionics Airworthiness) — **restructured 2026-04-22 from 5 IVPs to 13 IVPs as a tapered buildup** per three council rounds. First motor flight is now step 13 of 14, not step 3 of 5. Plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. Execution awaits future session + airframe + launch window. Starts with IVP-135a (log schema extension) — pure-software IVP that builds the diagnostic instrument the later field tests depend on.
+
+CCSDS TC-Layer + COP-1 rework deferred to post-Stage-17 (unanimous council) — field data will inform scoping; STOP-GAP retry layer is characterized and field-usable.
 
 ## Blockers
 

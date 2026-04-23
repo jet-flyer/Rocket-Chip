@@ -25,7 +25,7 @@ This document defines the step-by-step integration order for RocketChip firmware
 - **Stage P7** (MAIN_DESCENT Liveness Fix): IVP-119 through IVP-121. Out-of-sequence safety pass — multi-channel voted landing detection closing SPIN property P7. Council-reviewed (two rounds).
 - **Stage 15** (Pre-Flight Radio + Station): IVP-122 through IVP-124. Half-duplex ACK + ARM confirm UX, distance-to-rocket finish, station help/whiteboard cleanup.
 - **Stage 16** (Pre-Flight Polish): 16A (docs/cleanup) COMPLETE 2026-04-12. 16B (bench testing — vehicle + Fruit Jam station) COMPLETE 2026-04-17. 16C (station runtime decoupling + MCU die temp + Tiny_2350+/Pico 2 scaffolding + station HealthMonitor parity) **COMPLETE 2026-04-18** — IVP-139 through IVP-145 per `.claude/plans/sunny-hugging-pumpkin.md`, council-reviewed.
-- **Stage 17** (Field Testing & Avionics Airworthiness): DEFERRED 2026-04-16 — awaits airframe + launch window. IVP-134 (pre-flight checklist) completed early and bridges into this stage. Remaining IVPs: Big Daddy airframe, ground test, low-altitude flight test → **Flight Test Ready** milestone.
+- **Stage 17** (Field Testing & Avionics Airworthiness — Tapered Buildup): Restructured 2026-04-22 from 5-IVP direct-to-flight to 13-IVP tapered buildup per three council rounds. IVP-134 (pre-flight checklist) DONE in tree. New IVPs: IVP-135a/b (log schema extension + self-test) → IVP-136/137 (static attitude fixtures) → IVP-138/139 (walk + car-top) → IVP-140/141 (drop + thermal/vib) → IVP-142/143 (RF pattern + optional bungee) → IVP-144/145 (airframe + pad test) → IVP-146 (first motor flight) → IVP-147 (exit gate). Plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`.
 - **Stage 18** (Field Tuning & Validation): Placeholder — VALIDATE parameter tuning from Stage 17 flight data. (Was old Stage 17, renumbered 2026-04-15.)
 
 **Key references (not duplicated here):**
@@ -120,7 +120,7 @@ cmake --build build/
 | **16A** | **Documentation & Cleanup (pre-bench)** | **Phase 9** | *(historical IVP-127–130 reassigned per 2026-04-15 restructure; see Stage 16A note)* | **Full** | IVP-125/126 deferred → front-loaded into 16B |
 | **16B** | **Bench Testing (vehicle + station)** | **Phase 9** | **IVP-124a, 125, 126, 127a, 127b, 129–132a** | **Full** | **Bench Validated** |
 | **16C** | **Station Runtime Decoupling + MCU Die Temp + Board Scaffolding** | **Phase 9** | **IVP-139, 140, 141, 142a, 142b-1, 142b-2, 142b-3, 142c, 143, 144, 145** | **COMPLETE 2026-04-18** | Items 1-3 of original scope + MCU die temp + 142b split into 3 sub-IVPs + new 142c (station HealthMonitor parity) + Tiny_2350+/Pico 2 scaffolding; items 4-5 deferred |
-| **17** | **Field Testing & Avionics Airworthiness** | **Phase 9** | **IVP-134 — IVP-138** | **Deferred** | **Flight Test Ready** (awaits airframe + launch window) |
+| **17** | **Field Testing & Avionics Airworthiness (Tapered Buildup)** | **Phase 9** | **IVP-134, 135a, 135b, 136 — 147** | **Planned** | **Flight Test Ready** (13 IVPs + IVP-134 done; first motor flight is step 13 of 14) |
 | 18 | Field Tuning & Validation | Phase 9 | — | Placeholder | (was old Stage 17; renumbered) |
 
 > **Stage 6 pull-forward rationale:** Data Logging was originally Stage 9 but is a dependency for the telemetry encoder — the encoder reads from data structures (FusedState, TelemetryState, SensorSnapshot) defined by the logging architecture. Pulling logging forward establishes the canonical data model that all downstream consumers (telemetry encoder, flight director, GCS) read from. IVP numbers were renumbered sequentially. See council reviews: `docs/decisions/Telem+logging/council_data_logging.md` and `council_telemetry_protocol.md`.
@@ -3572,31 +3572,56 @@ those cross-refs for traceability.*
 
 ---
 
-## Stage 17: Field Testing & Avionics Airworthiness
+## Stage 17: Field Testing & Avionics Airworthiness (Tapered Buildup)
 
-**Purpose:** Extend Stage 16B bench validation to real-world airframe + outdoor RF + airframe-mounted operation. Estes Big Daddy with prototype in nose cone, station operated outdoors at distance. Verify state transitions, logging, telemetry, and pyro *triggering* (no live charges) survive a real flight environment.
+**Purpose:** Extend Stage 16B bench validation to real-world flight readiness via progressive field validation — the hobby-scale equivalent of "high-speed taxi testing and a runway hop before the full test flight." Hobby rocket integration + first motor flight is the **last** step (13 of 14), not the third. ESKF performance, RCOS robustness, and telemetry quality are validated under progressively harder real-world conditions before anything is bolted to a motor.
 
-**Plan:** `.claude/plans/stateless-hopping-allen.md` (council-reviewed 2026-04-15).
+**Plan:** `docs/plans/STAGE17_TAPERED_BUILDUP.md` (three council rounds: NASA/JPL Avionics Lead, ArduPilot Core Contributor, Advanced Hobbyist Rocketeer, Cubesat Startup Engineer — approved with amendments folded in).
 
 **End state:** **Flight Test Ready** — avionics validated for **repeat flights of the same class only** (low-power passive recovery, F-class motor, stock chute, no live pyro, hand-launched glider, or equivalent). Does NOT cover: H+ motors, dual-deploy with live charges, new untested airframes, or any mission-class flight.
 
-**Prerequisites:** Stage 16B complete.
+**Prerequisites:** Stage 16C complete.
+
+**Numbering note:** IVP-134 (Pre-Flight Checklist Document) is DONE in tree. This stage's new work is IVP-135a, IVP-135b, and IVP-136 through IVP-147.
+
+### Ground Rules (apply to every IVP in this stage)
+
+1. **Three-band acceptance (PASS / MARGINAL / FAIL).** Each IVP declares its bands up front. MARGINAL = criteria met but something odd; document in AGENT_WHITEBOARD, advance with forward-monitoring flag. FAIL = criterion missed OR safety-relevant anomaly (QP assert, watchdog, unexplained latch trip, diverging filter); stop, root-cause, fix, re-run the failed IVP plus any prior IVP sharing the implicated subsystem.
+2. **Retrogression on FAIL.** When a FAIL's root cause implicates a subsystem validated earlier, re-run that earlier IVP after the fix (NASA/ArduPilot pattern: don't trust a fix until the cleanest observable of the failure mode is re-validated).
+3. **Log-only data capture.** Acceptance is evaluated from flash logs, not telemetry. Live telemetry is for operator situational awareness / test-abort decisions only. Any telemetry-observed acceptance criterion must also be logged to flash and cross-checked post-test.
+4. **Universal acceptance criteria** (in addition to per-IVP): log downloads clean, replay harness ingests; ESKF↔GPS residuals logged and within spec where GPS is available; zero QP asserts, watchdog reboots, or unexplained health-latch trips; build tag verified in serial before each test cycle (LL Entry 2).
+5. **Expected to balloon.** Stage 17 is where real-world surprises surface. Schedule best-effort; completeness is the gate. Budget 2–3× the naive IVP count in wall time.
+6. **Retrogression escape hatch.** 3 consecutive retrogression cycles without originating IVP returning to PASS triggers architectural review (council), not further bisection.
 
 | Step | Title | Brief Description |
 |------|-------|------------------|
-| IVP-134 | Pre-Flight Checklist Document | Formalize `p` command (IVP-110 Go/No-Go) into a written pre-flight procedure. Pass/fail gates, fallback actions on NO-GO, station-side verification, field kit checklist. |
-| IVP-135 | Big Daddy Airframe Integration | Build/modify Big Daddy for prototype in nose cone. W&B measurement, stability ≥1.0 caliber via OpenRocket. Mounting bracket (3D printed if needed). **Motor selected post-IVP-131 simulation results** — F44 (gentle), F67, or alternative; 1010 rail launch. |
-| IVP-136 | Static Ground Test | Powered on at launch site (not bench). Outdoor GPS lock time, radio link budget at incremental distances, half-duplex ACK in real RF environment, distance display verified, ARM/DISARM cycles, log download round-trip. |
-| IVP-137 | Low-Altitude Flight Test | Bungee glider OR low-power Big Daddy on F/G motor. Telemetry quality criterion: <2% frame loss within 200m LOS; >5% triggers post-flight investigation. Per-frame RSSI + SNR (RegPktSnrValue) logged. Pyro fire timing within ±100ms of expected (logged via IVP-130 ISR edge logger; no live charges). |
-| IVP-138 | Stage 17 Exit Gate | "Flight Test Ready" milestone with documented scope limits. Combined report. CHANGELOG, PROJECT_STATUS, AGENT_WHITEBOARD updated. Stage 18 (Field Tuning) IVP list drafted from VALIDATE-marked findings. |
+| IVP-134 | Pre-Flight Checklist Document | **DONE** — `docs/PRE_FLIGHT_CHECKLIST.md` in tree. |
+| IVP-135a | Log Schema Extension + Diagnostic Tier + Runtime Rate | Code-change IVP. Tier 1 (production, always-on) audit. Tier 2 (opt-in `LOG_DIAGNOSTICS=1`) adds Mahony quat, gyro bias, ZUPT+still flags, confidence gate state + ESKF↔Mahony delta, raw+calibrated accel, per-frame RSSI+SNR. `LOG_RATE_HZ` selector (10/50/100/400). Phase-gated rate (optional, low-bar-to-defer if buggy). New Validation Mission Profile. Tier 2 adds ~63 B → ~118 B frame → ~22 min @ 50 Hz. |
+| IVP-135b | Log Schema Self-Test | Code-validation IVP. Bench-only. 5 controlled stimuli (tilt 45°, hold still 60s, mag-error, level raw/cal accel, known-distance telemetry burst); verify Tier 2 fields change as documented. Prove the instrument before using it to calibrate the system. |
+| IVP-136 | Static Gravity-Vector Accuracy | Fixture test (~$40: 1-2-3 block + digital angle gauge). Roll/pitch {0, ±30°, ±45°, ±60°} × 60s dwell × 3 runs × cold+warm. **PASS:** \|error\| <1.5°, return-to-level residual <1°, ESKF↔Mahony <3°, run-spread <0.5°, cold/warm delta <0.5°. Differential diagnostic if FAIL disambiguates accel-cal / ESKF / ZUPT / thermal. |
+| IVP-137 | Static Heading Accuracy | Compass rose on non-ferrous surface, 2m+ from steel. Fresh mag cal at location, WMM declination. Headings {0, 90, 180, 270} × 60s × 3 runs. **PASS:** \|error\| <5°, run-spread <2°. |
+| IVP-138 | Parking-Lot Static + Walk | First real outdoor GPS lock. Stationary 2 min + known 100m rectangle × 3 + straight-line reversal. **PASS:** GPS lock <60s, stationary within HDOP, walking velocity ±10% of true pace, path closure <2m, heading reversal within 5° of 180°. |
+| IVP-139 | Car-Top ESKF Shakedown | Highway (~15 min 45-65 mph) + rough road (~15 min) + hard turns (~5 min parking lot). Log @ 100 Hz. **PASS:** position residual <5m smooth / <10m rough, velocity <2 m/s, gyro bias drift <0.5°/s, ESKF↔Mahony <5° except <10° during turns with 5s recovery. ArduPilot EKF3 tuning-culture heritage. |
+| IVP-140 | Drop / Pendulum / Arm-Swing | Arm-swing (3/axis + padded-wall termination variant for ±16g saturation), pendulum (10 × 30° arc), drop (3 × 75 cm onto firm pad — NOT memory foam). Log @ 400 Hz. **PASS:** ESKF healthy throughout, <2° recovery within 5s of each drop, pyro-edge timestamps within ±1 ms, clean free-fall in calibrated accel. |
+| IVP-141 | Thermal + Vibration Bench Soak | Parked car on summer afternoon (preferred 45-60°C environment) + ERM vibration motor. 15 min baseline + 60 min hot + 15 min cool. Log @ 50 Hz; Tier 2 forces **mandatory 3-log split** (~22 min each). **PASS:** gyro bias drift <1°/s, accel tempco <0.1 (m/s²)/°C, no healthy-flag trips, no silent zero-output (LL Entry 29). |
+| IVP-142 | RF Pattern Characterization | Station on tripod at launch site, vehicle walked to 100/300/500m over real terrain at 4 orientations (nose-up/tilted/tumbling/nose-down) × 2 antenna polarizations. **120s window per distance/orientation** (council-revised from 60s — multipath nulls). **PASS:** at 500m worst-case, RSSI > noise+10 dB, packet loss <5%, SNR >0 dB at design apogee range. |
+| IVP-143 | Bungee / Tethered Vertical | **Default: skip. Run only if a rig already exists.** Aggregate coverage from IVP-138+139+140 is sufficient. If run: 3–5 launches, Validation profile, @ 100 Hz. **PASS:** telemetry streams through transient, no asserts, ESKF doesn't diverge. Do not FAIL stage for skipping. |
+| IVP-144 | Big Daddy Airframe Integration | Weigh full avionics, update OpenRocket CG/mass, verify stability ≥1.0 caliber, design/print mounting bracket, motor selection (F44 or F67 per simulation), 1010 rail. **PASS:** ≥1.0 caliber, dry-fit clean, motor procured. Mechanical step, no log / no Tier 2. |
+| IVP-145 | Static Ground Test at Launch Site | Powered at pad (not bench), full `p` Go/No-Go, radio link at 10/50/100/200/500m over real terrain (integration re-check of 142), distance display verified, static ARM/DISARM, **30-min pad-hold battery budget**, log download. **PASS:** all items + no brownout at 30 min + link survives vs IVP-142 baseline. (TRA H+ note: re-budget to 60 min — out of Stage 17 scope.) |
+| IVP-146 | Low-Altitude First Motor Flight | The actual first flight. F/G motor per 144, stock chute, no live pyro (edge-logger-only). Rocket profile with `LOG_DIAGNOSTICS=1` for max diagnosability. Preferred `LOG_RATE_PHASE_GATED=1`: 400 Hz through APOGEE then 50 Hz; fallback = operator-switched rate or truncated 6-min log. **PASS:** full state sequence logged, telemetry loss <2% within 200m / 2-5% beyond, pyro timing ±100 ms, clean log download + replay ingest. |
+| IVP-147 | Stage 17 Exit Gate — "Flight Test Ready" | Docs milestone. Combined report + per-IVP pass/marginal/fail table + MARGINAL-flag forward-monitoring. Stage 18 IVP list drafted from VALIDATE findings. CCSDS-rework scope refined from flight data. CHANGELOG, PROJECT_STATUS, AGENT_WHITEBOARD updated. |
 
-> **Milestone:** IVP-137 + IVP-138 — **Flight Test Ready** (avionics airworthy for repeat flights of same class).
+> **Milestone:** IVP-146 + IVP-147 — **Flight Test Ready** (avionics airworthy for repeat flights of same class; scope explicitly excludes H+ motors, dual-deploy live charges, and mission-class flight).
+
+**Sequence rationale:** Risk grows monotonically. IVP-135a/b + 136–141 cost nothing and risk no hardware. 142 costs a day of outdoor time, no hardware risk. 143 risks a glider, not a rocket. 144–146 risk the airframe. First live motor = step 13 of 14.
+
+**CCSDS question resolved:** Council unanimous — CCSDS TC-Layer + COP-1 rework runs **AFTER** Stage 17. The current STOP-GAP retry layer is characterized (755 host tests, SPIN 11/11, soaks clean) and field-usable. Stacking an unknown command layer with an unknown flight-day behavior makes failures unattributable. Field data from Stage 17 informs what CCSDS actually needs to prioritize (ArduPilot MAVLink v1→v2 pattern). Cubesat Engineer's standing watch: if field data shows the STOP-GAP layer is actively hurting data capture, promote CCSDS-first for the next stage without waiting for Stage 18.
 
 ---
 
 ## Stage 18: Field Tuning & Validation
 
-**Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. (Was Stage 17 — renumbered when Stage 17 became Field Testing per `.claude/plans/stateless-hopping-allen.md`.)
+**Purpose:** Tune all `VALIDATE` parameters using bench simulation data, ground tests, and flight data. (Was original Stage 17 — renumbered when Stage 17 became Field Testing per `docs/plans/STAGE17_TAPERED_BUILDUP.md`.)
 
 **Prerequisites:** Stage 17 complete (Flight Test Ready).
 

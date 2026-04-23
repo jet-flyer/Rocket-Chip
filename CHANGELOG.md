@@ -20,6 +20,24 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-22-003 | Claude Opus 4.7 | docs, council, planning
+
+**Stage 17 restructured from 5-IVP direct-to-flight to 13-IVP tapered buildup.**
+
+User direction: first motor flight must be the **last** step, not the third — the equivalent of high-speed taxi testing and a runway hop before full test flights. Main validation targets: ESKF performance/accuracy, RCOS robustness, telemetry quality, all in progressively harder real-world conditions. Three council rounds (NASA/JPL, ArduPilot, Rocketeer, Cubesat) shaped the plan; final round approved with 6 amendments folded in.
+
+New IVP list: IVP-135a (log schema extension + Tier 2 diagnostic payload + runtime log rate + Validation profile), IVP-135b (instrument self-test), IVP-136 (static gravity-vector accuracy with $40 angle-gauge fixture — addresses user's unresolved QGC return-to-level observation), IVP-137 (static heading accuracy), IVP-138 (parking-lot walk), IVP-139 (car-top ESKF shakedown), IVP-140 (drop/pendulum/arm-swing), IVP-141 (thermal + vibration), IVP-142 (RF pattern characterization), IVP-143 (bungee/tethered — default skip), IVP-144 (airframe integration), IVP-145 (static ground test at pad), IVP-146 (first motor flight), IVP-147 (exit gate).
+
+Ground rules: three-band PASS/MARGINAL/FAIL acceptance, retrogression-on-FAIL with a 3-cycle architectural-review escape hatch, log-only data capture (telemetry is not pass/fail evidence), expected-to-balloon stage budget.
+
+CCSDS rework unanimously deferred to post-Stage-17 — don't stack an unknown command layer with unknown real-world behavior on the same flight day; STOP-GAP retry is characterized (755 host tests, SPIN 11/11) and field-usable. Cubesat Engineer standing watch: promote CCSDS-first if field data shows STOP-GAP is actively hurting data capture.
+
+`docs/ADVANCED_SETTINGS.md` gained the wizard opt-in principle block (single `Enable advanced settings? [y/N]` gate with tiered warnings; direct `.cfg` editing preserved for discoverability), two new Research Mode rows (`LOG_DIAGNOSTICS`, `LOG_RATE_HZ`), and a post-Stage-17 placeholder IVP for full advanced-settings flesh-out.
+
+Files: `docs/IVP.md` (Stage 17 section rewritten + status table updated + stage preamble updated), `docs/ADVANCED_SETTINGS.md` (wizard principle + new rows), `docs/plans/STAGE17_TAPERED_BUILDUP.md` (new — plan stored in repo alongside other stage plans). Working copy of plan in `.claude/plans/tapered-buildup-airworthy.md` preserved. No code changes. Execution deferred to future sessions.
+
+---
+
 ### 2026-04-22-002 | Claude Opus 4.7 | feature, firmware, radio, docs
 
 **Stage T Batch C + close-out.**

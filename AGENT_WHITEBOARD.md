@@ -2,7 +2,7 @@
 
 **Purpose:** Communication across context windows and between agents.
 
-**Stages 1-14 + 16A + 16B + 16C + L COMPLETE.** 755 host tests, SPIN 11/11. Tracking: `docs/AO_ARCHITECTURE.md`. Field Testing (Stage 17) deferred — awaits airframe + launch window. **Stage T in progress** (RadioScheduler timing diagnostics — 4 IVPs of data collection before fix design; plan: `docs/plans/STAGE_T_RADIO_DIAGNOSTICS.md`).
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** 755 host tests, SPIN 11/11. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17 (Field Testing & Avionics Airworthiness) restructured 2026-04-22** from 5-IVP direct-to-flight into 13-IVP tapered buildup (three council rounds, approved with amendments). First motor flight = step 13 of 14. Plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. Execution awaits future session; starts with IVP-135a (pure-software log schema extension). **CCSDS TC-Layer + COP-1 rework deferred to post-Stage-17** (unanimous council) — field data will inform scoping.
 
 ## Use Cases
 1. **Cross-agent review** — Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
