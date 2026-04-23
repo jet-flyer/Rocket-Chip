@@ -137,10 +137,15 @@ add_executable(test_mavlink_rx test_mavlink_rx.cpp)
 target_link_libraries(test_mavlink_rx PRIVATE rc_telemetry GTest::gtest_main)
 gtest_discover_tests(test_mavlink_rx)
 
-# Watchdog recovery policy
-add_executable(test_watchdog_recovery test_watchdog_recovery.cpp)
-target_link_libraries(test_watchdog_recovery PRIVATE rc_watchdog GTest::gtest_main)
-gtest_discover_tests(test_watchdog_recovery)
+# Launch abort — flight_director safety posture flag (2026-04-22)
+add_executable(test_flight_director_launch_abort test_flight_director_launch_abort.cpp)
+target_link_libraries(test_flight_director_launch_abort PRIVATE rc_flight_director GTest::gtest_main)
+gtest_discover_tests(test_flight_director_launch_abort)
+
+# ESKF runaway-restart brake (migrated from watchdog_recovery 2026-04-22)
+add_executable(test_eskf_disable_brake test_eskf_disable_brake.cpp)
+target_link_libraries(test_eskf_disable_brake PRIVATE rc_fusion GTest::gtest_main)
+gtest_discover_tests(test_eskf_disable_brake)
 
 # IVP-67: QEP smoke test (vendored QP/C 8.1.3 dispatch engine)
 add_executable(test_qep_smoke test_qep_smoke.cpp)

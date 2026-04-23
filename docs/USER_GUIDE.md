@@ -105,6 +105,68 @@ Not available from station in current firmware. Vehicle CLI: future IVP.
 
 ---
 
+## Safety State Model
+
+The vehicle has **three distinct safety postures**. Knowing which
+you're in determines what action clears it.
+
+### Flight Hold — transient condition, auto-clears
+
+A normal condition that prevents arming until it resolves. Nothing is
+broken; the vehicle is just waiting.
+
+- **Examples:** GPS not yet locked, IMU still warming up, barometer
+  not yet settled, sensor calibration not yet applied.
+- **How you'll see it:** one or more NO-GO entries in the pre-flight
+  status check, with a reason like "NO-GO 0sat" or "NO-GO UNCALIBRATED."
+- **Clear mechanism:** **automatic.** As soon as the condition resolves
+  (GPS gets a lock, IMU warms up, etc.), the NO-GO turns GO on its own.
+- **Operator action required:** none beyond waiting and verifying the
+  condition resolved.
+
+### Safe Mode — operator-clearable fault *(not currently implemented)*
+
+Reserved for non-irreversible faults the operator acknowledges after
+verifying the condition is resolved. Not used by any in-tree safety
+path today. If added in the future, will have a dedicated CLI command
+to clear.
+
+### Launch Abort — physical intervention required
+
+A fault severe enough that the vehicle has locked itself out of arming
+until someone physically inspects what happened. Treated like a pad
+abort in a real launch: stop, investigate, verify, then restart the
+full pre-flight sequence.
+
+- **Triggers** (in current firmware):
+  - Critical sensor fault during ARMED state (IMU or ESKF fault
+    detected while the vehicle was already armed, before launch).
+    Vehicle auto-DISARMs and latches the abort flag.
+  - Future: pyro fired out of sequence, terminal-sequence interruption,
+    battery anomaly during ARMED.
+- **How you'll see it:** "NO-GO LAUNCH ABORT" in the pre-flight check.
+  Go/No-Go will refuse to arm regardless of any other condition.
+- **Clear mechanism:** **power cycle only.** There is no CLI command
+  to clear a launch abort, by design. You must physically reset the
+  vehicle (disconnect battery, reconnect) and re-run the full pre-flight
+  sequence from scratch.
+- **Operator action required:**
+  1. Disarm if not already disarmed (vehicle does this automatically
+     on critical fault).
+  2. Physically inspect whatever caused the abort — igniter wiring,
+     battery voltage, sensor connections, any visible damage.
+  3. Resolve the underlying condition.
+  4. Power cycle the vehicle.
+  5. Re-run the full pre-flight checklist from step 1.
+
+**Why power-cycle-only:** a keystroke can't verify that the operator
+has actually inspected the hardware. A physical power cycle is the
+software-visible marker that the operator has done the physical work.
+This mirrors pad abort doctrine in crewed/uncrewed launches: after an
+abort, you go back and check, you don't just try again.
+
+---
+
 ## Post-Flight Log Download
 
 1. Connect USB serial to vehicle

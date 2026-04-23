@@ -600,6 +600,29 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e) {
 }
 
 // ============================================================================
+// Launch abort — module-scope safety posture flag
+//
+// See docs/USER_GUIDE.md "Safety State Model" for the three-level
+// classification (flight hold / safe mode / launch abort). Launch
+// abort is level 3 — power-cycle-only clear by design.
+// ============================================================================
+static bool s_launch_abort = false;
+
+void flight_director_set_launch_abort() {
+    s_launch_abort = true;
+}
+
+bool flight_director_launch_abort() {
+    return s_launch_abort;
+}
+
+#ifdef ROCKETCHIP_HOST_TEST
+void flight_director_test_reset_launch_abort() {
+    s_launch_abort = false;
+}
+#endif
+
+// ============================================================================
 // Host test support: set fake time for timeout testing
 // ============================================================================
 #ifdef ROCKETCHIP_HOST_TEST

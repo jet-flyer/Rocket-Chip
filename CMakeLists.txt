@@ -58,6 +58,7 @@ if(BUILD_TESTS)
         src/fusion/mahony_ahrs.cpp
         src/fusion/innovation_monitor.cpp
         src/fusion/confidence_gate.cpp
+        src/fusion/eskf_brake.cpp
     )
     target_link_libraries(rc_fusion PUBLIC rc_math)
 
@@ -94,19 +95,6 @@ if(BUILD_TESTS)
         ${CMAKE_CURRENT_LIST_DIR}/src/logging
         ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink
     )
-
-    # ------------------------------------------------------------------
-    # Watchdog recovery library (IVP-66, no SDK dependencies)
-    # ROCKETCHIP_HOST_TEST enables fake scratch registers for testing.
-    # ------------------------------------------------------------------
-    add_library(rc_watchdog STATIC
-        src/watchdog/watchdog_recovery.cpp
-    )
-    target_include_directories(rc_watchdog PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/include
-        ${CMAKE_CURRENT_LIST_DIR}/src
-    )
-    target_compile_definitions(rc_watchdog PUBLIC ROCKETCHIP_HOST_TEST=1)
 
     # ------------------------------------------------------------------
     # QEP library (IVP-67, vendored QP/C 8.1.3 HSM dispatch engine)
@@ -364,6 +352,7 @@ else()
         src/fusion/eskf.cpp
         src/fusion/eskf_codegen.cpp
         src/fusion/eskf_runner.cpp
+        src/fusion/eskf_brake.cpp
 
         # IVP-44: WMM declination lookup table
         src/fusion/wmm_tables.cpp
@@ -409,7 +398,6 @@ else()
         # -------------------------------------------------------------------------
         # Stage 8: Flight Director (IVP-66+)
         # -------------------------------------------------------------------------
-        src/watchdog/watchdog_recovery.cpp
 
         # IVP-67: QEP hierarchical state machine dispatch (vendored QP/C 8.1.3)
         lib/qep/qep_hsm.c
@@ -492,6 +480,7 @@ else()
         src/fusion/eskf.cpp
         src/fusion/eskf_codegen.cpp
         src/fusion/eskf_runner.cpp
+        src/fusion/eskf_brake.cpp
         src/fusion/wmm_tables.cpp
         src/fusion/mahony_ahrs.cpp
         src/fusion/ud_factor.cpp
@@ -507,7 +496,6 @@ else()
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp
         src/telemetry/mavlink_rx.cpp
-        src/watchdog/watchdog_recovery.cpp
         src/flight_director/flight_director.cpp
         src/flight_director/go_nogo_checks.cpp
         src/flight_director/command_handler.cpp

@@ -133,7 +133,7 @@ static void cmd_radio_config_cycle() {
 #include "logging/flight_table.h"
 #include "logging/crc32.h"
 #include "safety/pio_watchdog.h"
-#include "watchdog/watchdog_recovery.h"
+#include "flight_director/flight_director.h"  // flight_director_launch_abort()
 #include "flight_director/flight_state.h"
 #include "flight_director/mission_profile_data.h"
 #include "cli/rc_os.h"
@@ -152,7 +152,6 @@ static void cmd_radio_config_cycle() {
 extern bool g_neopixelInitialized;
 extern bool g_sensorPhaseActive;
 extern sensor_seqlock_t g_sensorSeqlock;
-extern rc::WatchdogRecovery g_recovery;
 // NOLINTEND(readability-redundant-declaration)
 
 // main.cpp statics made non-static for CLI access
@@ -865,13 +864,8 @@ void cli_print_boot_summary() {
            (unsigned long)(to_ms_since_boot(get_absolute_time()) / 1000));
     printf("==============================================\n");
 
-    if (g_watchdogReboot) {
-        printf("[WARN] WATCHDOG REBOOT");
-        if (g_recovery.boot_state.valid) {
-            printf(" (#%u)", static_cast<unsigned>(g_recovery.boot_state.reboot_count));
-        }
-        if (g_recovery.launch_abort) { printf(" SAFE MODE"); }
-        printf("\n");
+    if (rc::flight_director_launch_abort()) {
+        printf("[WARN] LAUNCH ABORT — power cycle required to clear\n");
     }
 
     if (fail == 0) {

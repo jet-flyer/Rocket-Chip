@@ -26,6 +26,11 @@ static GoNoGoInput all_go_input() {
     gng.gps_has_lock = true;
     gng.mag_calibrated = true;
     gng.radio_linked = true;
+    // Stage T Batch B IVP-T14: RF Link station added to tier 2.
+    // GO requires anchor_valid + state==kTrack(2) + LQ >= 65%.
+    gng.rf_anchor_valid = true;
+    gng.rf_link_state = 2;   // kTrack
+    gng.rf_lq_pct = 100;
     return gng;
 }
 
@@ -43,8 +48,8 @@ TEST_F(GoNoGoTest, AllGoReturnsAllGo) {
     EXPECT_EQ(r.tier1_go, r.tier1_total);
     EXPECT_EQ(r.tier2_go, r.tier2_total);
     EXPECT_EQ(r.tier1_total, 6);
-    EXPECT_EQ(r.tier2_total, 4);  // GPS, Mag, Radio, Battery
-    EXPECT_EQ(r.num_checks, 10);
+    EXPECT_EQ(r.tier2_total, 5);  // RF Link, GPS, Mag, Radio, Battery
+    EXPECT_EQ(r.num_checks, 11);
 }
 
 TEST_F(GoNoGoTest, ImuNoGoBlocksArm) {
@@ -115,7 +120,7 @@ TEST_F(GoNoGoTest, GpsNoGoDoesNotBlockArm) {
     GoNoGoResult r = go_nogo_evaluate(gng);
 
     EXPECT_TRUE(r.all_go);  // Tier 2 doesn't block
-    EXPECT_EQ(r.tier2_go, 3);  // GPS failed, 3/4 pass
+    EXPECT_EQ(r.tier2_go, 4);  // GPS failed, 4/5 pass
 }
 
 TEST_F(GoNoGoTest, MagNoGoDoesNotBlockArm) {
@@ -124,7 +129,7 @@ TEST_F(GoNoGoTest, MagNoGoDoesNotBlockArm) {
     GoNoGoResult r = go_nogo_evaluate(gng);
 
     EXPECT_TRUE(r.all_go);
-    EXPECT_EQ(r.tier2_go, 3);
+    EXPECT_EQ(r.tier2_go, 4);
 }
 
 TEST_F(GoNoGoTest, RadioNoGoDoesNotBlockArm) {
@@ -133,7 +138,7 @@ TEST_F(GoNoGoTest, RadioNoGoDoesNotBlockArm) {
     GoNoGoResult r = go_nogo_evaluate(gng);
 
     EXPECT_TRUE(r.all_go);
-    EXPECT_EQ(r.tier2_go, 3);
+    EXPECT_EQ(r.tier2_go, 4);
 }
 
 TEST_F(GoNoGoTest, BatteryAlwaysGo) {

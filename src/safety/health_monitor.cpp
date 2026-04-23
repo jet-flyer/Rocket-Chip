@@ -25,7 +25,8 @@
 #include "logging/flight_table.h"         // flight_table_count, kMaxFlightEntries
 #include "calibration/calibration_manager.h"
 #include "calibration/calibration_data.h" // CAL_STATUS_MAG
-#include "watchdog/watchdog_recovery.h"   // rc::WatchdogRecovery
+#include "flight_director/flight_director.h"  // flight_director_launch_abort()
+#include "fusion/eskf_runner.h"           // eskf_is_disabled()
 #include "rocketchip/config.h"            // DBG_PRINT
 #include "rocketchip/job_capabilities.h"  // job::kRoleSamplesCore1, kRoleRunsLogger
 
@@ -34,7 +35,6 @@
 // ============================================================================
 
 extern sensor_seqlock_t g_sensorSeqlock;
-extern rc::WatchdogRecovery g_recovery;
 
 namespace rc {
 
@@ -352,7 +352,13 @@ static uint8_t evaluate_secondary() {
     } else {
         secondary |= kHealthFlashOk;
     }
-    if (!g_recovery.boot_state.safe_mode && !g_recovery.eskf_disabled) {
+    // Health contribution: ESKF not runaway-restart-disabled. Station
+    // doesn't run ESKF, so the reader is gated by capability.
+    bool eskfHealthy = true;
+    if constexpr (job::kRoleSamplesCore1) {
+        eskfHealthy = !eskf_is_disabled();
+    }
+    if (eskfHealthy) {
         secondary |= kHealthWatchdogOk;
     }
     if (!pio_watchdog_fault_detected()) {
@@ -524,7 +530,7 @@ bool health_monitor_tick() {
         (lvl.eskf >= kHealthDegraded) &&
         ((secondary & kHealthFlashOk) != 0) &&
         ((secondary & kHealthWatchdogOk) != 0) &&
-        !g_recovery.launch_abort;
+        !flight_director_launch_abort();
 
     return finalize_tick_logging();
 }
@@ -640,7 +646,7 @@ void health_monitor_fill_go_nogo(GoNoGoInput* gng) {
     gng->baro_healthy    = (baro >= kHealthDegraded);
     gng->eskf_healthy    = (eskf >= kHealthDegraded);
     gng->flash_available = (g_health.secondary & kHealthFlashOk) != 0;
-    gng->launch_abort    = g_recovery.launch_abort;
+    gng->launch_abort    = flight_director_launch_abort();
     gng->watchdog_ok     = (g_health.secondary & kHealthWatchdogOk) != 0;
 
     // Tier 2: Profile -- GPS needs fresh snapshot

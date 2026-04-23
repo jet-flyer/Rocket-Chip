@@ -15,7 +15,7 @@
 
 ## Housekeeping (Trivial — do now or on next touch)
 
-*(cleared — `tools/i2c_bare_test/` committed 2026-04-18 as `485260b`; landing-beacon design became Stage L.)*
+*(empty)*
 
 ## High priority
 
@@ -77,19 +77,6 @@
   runtime_init sequence, or state that survives the BOOTSEL transition
   in a way the workaround doesn't cover. Capture in the E2 row of the
   forthcoming errata doc with signature + reproducer.
-
-- **Remove watchdog reboot entirely in favor of safe-mode.** 2026-04-22
-  bench test on vehicle after Stage T Batch B surfaced `[WARN] WATCHDOG
-  REBOOT` in the boot banner — the reboot path is still live. Design
-  intent (from prior stages) was to replace MCU reboot with safe-mode
-  entry so the vehicle fails *in place* with state preserved for
-  diagnosis, not rebooted silently. Audit `src/safety/watchdog_*`,
-  `watchdog_recovery.*`, any `watchdog_enable*` callers, and the
-  boot-reason decode in `main.cpp`. Remove every `watchdog_reboot`
-  code path; replace with `watchdog_recovery_enter_safe_mode()` or
-  equivalent. Update LL / docs / SPIN model if reboot was referenced.
-  **Why high priority:** silent reboots mid-test destroy diagnostic
-  state and hide the root-cause bug.
 
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
@@ -182,7 +169,11 @@ Mission Profile OTA, F' evaluation, u-blox GPS, OTA drivers, GPS-free 3D reconst
 
 ---
 
-## Resolved This Session (2026-04-18)
+## Resolved This Session (2026-04-22)
+
+- **Watchdog recovery machinery removed.** Dead code after IVP-90 SDK-watchdog removal — `src/watchdog/` directory deleted, scratch-register persistence gone, `[WARN] WATCHDOG REBOOT` banner (tonight's false-positive source) gone, `kSafeModeRebootThreshold`/`TickFnId`/reboot counter all deleted. Live behaviors (launch_abort safety flag, ESKF runaway-restart brake) migrated to proper homes: `flight_director.cpp` for launch_abort (level-3 power-cycle-only clear per new `docs/USER_GUIDE.md` Safety State Model), `src/fusion/eskf_brake.cpp` for the ESKF brake. 8 new host tests + GoNoGo test rot fixed in same commit. 786/786 host tests, 4 builds clean, HW boot-clean gate PASS (no false-positive banner, Hardware 14/14 OK). Changelog has the full deletion list for future reconstruction if ever needed.
+
+## Resolved 2026-04-18
 
 Short-lived items cleared from the live board — full detail lives in CHANGELOG / PROJECT_STATUS / docs.
 

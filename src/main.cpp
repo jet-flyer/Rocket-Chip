@@ -53,7 +53,6 @@
 #include "cli/rc_os_dashboard.h"
 #include "cli/rc_os_commands.h"
 #include "active_objects/ao_rcos.h"
-#include "watchdog/watchdog_recovery.h"
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
 #include "rocketchip/ao_signals.h"
@@ -133,11 +132,6 @@ bool (*g_gpsFnUpdate)()                    = nullptr;
 bool (*g_gpsFnGetData)(gps_data_t*)       = nullptr;
 bool (*g_gpsFnHasFix)()                    = nullptr;
 
-// Watchdog recovery policy — persists flight state across WDT resets.
-// Tracks reboot count, safe-mode lockout, ESKF failure backoff.
-// Non-static: eskf_runner reads g_recovery.eskf_disabled for backoff.
-rc::WatchdogRecovery g_recovery;
-
 // Sensor data seqlock — cross-core data sharing between Core 1 (writer) and Core 0 (reader).
 
 sensor_seqlock_t g_sensorSeqlock;
@@ -148,10 +142,6 @@ std::atomic<bool> g_calReloadPending{false};
 std::atomic<bool> g_core1PauseI2C{false};
 std::atomic<bool> g_core1I2CPaused{false};
 std::atomic<bool> g_core1LockoutReady{false};
-
-// Dual-core watchdog kick flags — std::atomic per MULTICORE_RULES.md
-// volatile is NOT sufficient for cross-core visibility on ARM (no hardware barrier)
-bool g_watchdogReboot = false;  // Non-static: cli_commands.cpp reads
 
 // Sensor phase active — set by Core 0 when Core 1 enters sensor loop.
 // Read by Core 0 (cal hooks, print_sensor_status, eskf_runner). Plain bool is
@@ -343,28 +333,6 @@ static void init_usb() {
     stdio_set_translate_crlf(&stdio_usb, false);
 }
 
-// Watchdog sentinel in scratch[0]. We write this before watchdog_enable() and
-// check it at boot. scratch[0] survives watchdog resets (by design) but is
-// cleared by POR and SWD resets. Neither the bootrom nor the SDK touches
-// scratch[0-3] — only scratch[4-7] are used for reboot-to-address.
-//
-// Why not use the SDK functions:
-// - watchdog_caused_reboot(): false positives on SWD `monitor reset run` because
-//   the reason register persists across warm resets and rom_get_last_boot_type()
-//   returns BOOT_TYPE_NORMAL for SWD-loaded boots after a watchdog timeout.
-// - watchdog_enable_caused_reboot(): false negatives on real watchdog timeouts
-//   because the bootrom overwrites scratch[4] during boot.
-static constexpr uint32_t kWatchdogSentinel = 0x52435754;  // "RCWT"
-
-static bool check_watchdog_reboot() {
-    // Check for genuine watchdog timeout: reason register set AND our sentinel
-    // present in scratch[0]. Clear sentinel immediately to avoid stale reads.
-    bool watchdogReboot = (watchdog_hw->reason != 0) &&
-                          (watchdog_hw->scratch[0] == kWatchdogSentinel);
-    watchdog_hw->scratch[0] = 0;
-    return watchdogReboot;
-}
-
 static void init_early_hw() {
     // Register fault handlers early (before any MPU config)
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, memmanage_fault_handler);
@@ -436,9 +404,7 @@ static void init_peripherals() {
     init_usb();
 }
 
-static bool init_hardware() {
-    bool watchdogReboot = check_watchdog_reboot();
-    rc::watchdog_recovery_init(&g_recovery, watchdogReboot);
+static void init_hardware() {
     init_early_hw();
 
     // PSRAM init — MUST be before Core 1 launch because psram_init()
@@ -455,8 +421,11 @@ static bool init_hardware() {
     // Launch Core 1 early so NeoPixel blinks immediately (no USB dependency)
     multicore_launch_core1(core1_entry);
 
-    // Safe mode — solid red NeoPixel to signal critical state
-    if (g_recovery.launch_abort && g_neopixelInitialized) {
+    // Launch abort visual — solid red NeoPixel if flag is latched
+    // (e.g. previous boot within same powered session detected a critical
+    // fault while ARMED). Power cycle clears the flag; see
+    // docs/USER_GUIDE.md "Safety State Model".
+    if (rc::flight_director_launch_abort() && g_neopixelInitialized) {
         ws2812_set_mode(WS2812_MODE_SOLID, kColorRed);
     }
 
@@ -470,7 +439,6 @@ static bool init_hardware() {
     // Core 1 has called multicore_lockout_victim_init().
 
     init_peripherals();
-    return watchdogReboot;
 }
 
 // ============================================================================
@@ -505,8 +473,7 @@ static void init_pio_safety() {
     rc::pyro_edge_logger_init(kPioDroguePin, kPioMainPin);
 }
 
-static void init_application(bool watchdogReboot) {
-    g_watchdogReboot = watchdogReboot;
+static void init_application() {
     init_rc_os_hooks();
 
     // Signal Core 1 to start sensor phase — Vehicle only.
@@ -557,12 +524,11 @@ static void init_application(bool watchdogReboot) {
                          AO_Logger_log_event(static_cast<rc::LogEventId>(id), d0, d1, d2, d3);
                      });
 
-    // SDK hardware watchdog removed from production.
-    // PIO heartbeat watchdog (init_pio_safety) is the sole health monitor.
-    // No automatic MCU reset — ever — without user command.
-    // Recovery scratch still written for boot diagnostics.
-    watchdog_hw->scratch[0] = kWatchdogSentinel;
-
+    // SDK hardware watchdog removed from production (IVP-90, 2026-03-29).
+    // Watchdog recovery machinery removed 2026-04-22. PIO heartbeat
+    // watchdog (init_pio_safety) is the sole health monitor — sets IRQ
+    // flag on timeout, never resets the chip. No automatic MCU reset,
+    // ever, without user command.
     init_pio_safety();
 }
 
@@ -572,14 +538,10 @@ static void init_application(bool watchdogReboot) {
 // Each tick function manages one subsystem. nowMs is computed once per loop
 // iteration and passed to all ticks to prevent temporal skew.
 
-// Council recommendation: track which tick was running when watchdog fires.
-static const char* g_lastTickFunction = "init";
-
-// PIO watchdog feed replaces SDK watchdog.
-// No MCU reset — PIO heartbeat is the sole health monitor.
-// Recovery scratch still updated for boot diagnostics.
+// PIO watchdog feed replaces SDK watchdog (IVP-90). The PIO heartbeat is
+// the sole health monitor — sets an IRQ flag on timeout, never resets
+// the chip. No MCU reset ever without user command.
 static void watchdog_kick_tick() {
-    rc::watchdog_recovery_update_scratch(&g_recovery);
     rc::pio_watchdog_feed();
 }
 
@@ -607,15 +569,11 @@ extern "C" void qv_idle_bridge(void) {
         g_fault_watchdog_skip = g_fault_watchdog_skip - 1;
     } else {
 #endif
-    g_lastTickFunction = "watchdog";
-    g_recovery.current_tick_fn = rc::TickFnId::kWatchdog;
     watchdog_kick_tick();
 #ifndef BUILD_FOR_FLIGHT
     }
 #endif
 
-    g_lastTickFunction = "eskf";
-    g_recovery.current_tick_fn = rc::TickFnId::kEskf;
     eskf_runner_tick();
 
     // IVP-122: Station command ACK retry tick (lightweight, <1us when no cmd pending)
@@ -626,8 +584,6 @@ extern "C" void qv_idle_bridge(void) {
         rc::station_idle_tick();
     }
 
-    g_lastTickFunction = "idle";
-    g_recovery.current_tick_fn = rc::TickFnId::kSleep;
     diag_stats_msp_tick();
     // WFI: sleep until next interrupt (100Hz QF tick, USB CDC, etc.).
     // Correct QV idle pattern per Samek. Tick functions above run once per
@@ -692,8 +648,8 @@ static void start_active_objects() {
 // ============================================================================
 
 int main() {
-    bool watchdogReboot = init_hardware();
-    init_application(watchdogReboot);
+    init_hardware();
+    init_application();
 
     // --- QF+QV Active Object initialization ---
     QF_init();

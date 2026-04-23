@@ -16,7 +16,6 @@
 #include "flight_director/flight_director.h"
 #include "flight_director/mission_profile.h"
 #include "flight_director/mission_profile_data.h"
-#include "watchdog/watchdog_recovery.h"
 
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
@@ -68,9 +67,6 @@ static constexpr float kGpsNisSentinel = 1e9F;
 extern sensor_seqlock_t g_sensorSeqlock;
 extern bool g_sensorPhaseActive;  // NOLINT(readability-redundant-declaration)
 extern bool g_baroContinuous;     // NOLINT(readability-redundant-declaration)
-
-// Watchdog recovery (owned by main.cpp, read for ESKF backoff)
-extern rc::WatchdogRecovery g_recovery;
 
 // Flight Director (owned by AO_FlightDirector).
 // Access via read-only accessors in ao_flight_director.h.
@@ -209,7 +205,7 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
     // CR-1: stop propagation if filter diverges
     if (!g_eskf.healthy()) {
         g_eskfInitialized = false;
-        rc::watchdog_recovery_eskf_failed(&g_recovery);  // backoff
+        eskf_note_divergence();  // backoff (runaway-restart brake)
         return;
     }
 
@@ -534,7 +530,7 @@ void eskf_runner_tick() {
     }
 
     // ESKF failure backoff — skip if disabled after too many failures
-    if (g_recovery.eskf_disabled) {
+    if (eskf_is_disabled()) {
         return;
     }
 
@@ -565,7 +561,7 @@ void eskf_runner_tick() {
     // P-growth check: catch slow divergence before velocity hits 500 m/s
     if (!g_eskf.check_p_growth(time_us_32())) {
         g_eskfInitialized = false;  // CR-1 reset
-        rc::watchdog_recovery_eskf_failed(&g_recovery);  // backoff
+        eskf_note_divergence();  // backoff (runaway-restart brake)
         return;
     }
 
@@ -662,3 +658,6 @@ void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
     if (count != nullptr) { *count = g_eskfBenchCount; }
 }
 #endif
+
+// Runaway-restart brake implementation lives in eskf_brake.cpp so host
+// tests can link it without pulling eskf_runner's SDK dependencies.

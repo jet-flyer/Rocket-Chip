@@ -20,6 +20,30 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-22-004 | Claude Opus 4.7 | refactor, safety, documentation
+
+**Watchdog recovery machinery removed — dead code after IVP-90, producing false-positive `[WARN] WATCHDOG REBOOT` banners on warm reboots.**
+
+IVP-90 (2026-03-29) removed the SDK hardware watchdog with intent "no automatic MCU reset, ever, without user command." The recovery machinery that depended on those resets was never cleaned up, so whenever the bootrom set `watchdog_hw->reason` on a warm reboot (picotool `-f`, SWD reset), `check_watchdog_reboot()` returned true and the CLI printed a `[WARN] WATCHDOG REBOOT` line that had no real meaning. Surfaced on the station after a picotool cycle 2026-04-22; council review (NASA/JPL, ArduPilot, Rocketeer) agreed: remove outright, not rename.
+
+**Removed:** `src/watchdog/` directory, scratch-register persistence (`kRecoveryMagic`, `recovery_pack_*/unpack_*/validate_magic`), reboot counter + `kSafeModeRebootThreshold` (safe-mode-on-3-reboots can't fire without reboot detection), `TickFnId` crash-tickfn diagnostics (only-written-never-read), `check_watchdog_reboot()`, `g_watchdogReboot`, `g_recovery` global, `kWatchdogSentinel` scratch write, `g_lastTickFunction`, `launch_abort_acked` field + `watchdog_recovery_ack_launch_abort()` (aspirational CLI ack, never wired), `rc_watchdog` CMake library, `test_watchdog_recovery.cpp`.
+
+**Migrated (live behaviors preserved):** `launch_abort` → file-local static in `flight_director.cpp` with 2-function API (set + read). Level-3 safety posture per new `docs/USER_GUIDE.md` "Safety State Model" section: power-cycle-only clear. **No CLI command to clear, by design** — user veto on keystroke-clear for safety-critical launch abort (mirrors pad abort doctrine: stop, physically inspect, reset). ESKF runaway-restart brake → new `src/fusion/eskf_brake.cpp` (separate file so host tests link without SDK), 3-function API (`eskf_is_disabled / eskf_reenable / eskf_note_divergence`). HealthMonitor reads `eskf_is_disabled()` behind `job::kRoleSamplesCore1` constexpr guard for station builds.
+
+**User Guide:** added three-level Safety State Model section — flight hold (auto-clears), safe mode (reserved, not implemented), launch abort (physical-intervention-required, power-cycle-only clear). Clarification content lives in docs; code comments cite the doc.
+
+**In-commit cleanup:** `test_go_nogo.cpp` had pre-existing rot from Stage T Batch B (commit 3159173) — `AllGoReturnsAllGo` expected tier2_total=4 but "RF Link" added a 5th check. Fixed here rather than deferred: updated `all_go_input()` to populate `rf_anchor_valid`/`rf_link_state`/`rf_lq_pct`, corrected expected counts in 4 tests.
+
+**Verification:** 786/786 host tests pass (8 new: 3 `LaunchAbortFixture`, 5 `EskfBrakeFixture`). 4 builds clean (vehicle bench, vehicle flight, station bench, station flight). HW boot-clean gate on vehicle via SWD probe: banner shows `Board: Adafruit Feather RP2350 HSTX`, build-hash matches HEAD, `Hardware: 14/14 OK`, no `[WARN] WATCHDOG REBOOT`, no `[WARN] LAUNCH ABORT`, preflight VERDICT GO.
+
+**Reconstruction pointer:** if a future engineer needs the deleted safe-mode-on-rapid-reboot / TickFnId crash diagnostics / scratch persistence machinery, see this commit's parent and earlier. Deletion was deliberate (detect-what-we-can't-cause dead code), not refactoring accident.
+
+`AGENT_WHITEBOARD.md` "Remove watchdog reboot entirely in favor of safe-mode" high-priority item closed.
+
+Files: `src/watchdog/*` (deleted), `src/fusion/eskf_brake.cpp` (new), `test/test_flight_director_launch_abort.cpp` (new), `test/test_eskf_disable_brake.cpp` (new), `test/test_watchdog_recovery.cpp` (deleted), `CMakeLists.txt`, `test/CMakeLists.txt`, `test/test_go_nogo.cpp`, `src/main.cpp`, `src/active_objects/ao_flight_director.cpp`, `src/safety/health_monitor.cpp`, `src/cli/rc_os_commands.cpp`, `src/flight_director/flight_director.{h,cpp}`, `src/fusion/eskf_runner.{h,cpp}`, `docs/USER_GUIDE.md`, `AGENT_WHITEBOARD.md`.
+
+---
+
 ### 2026-04-22-003 | Claude Opus 4.7 | docs, council, planning
 
 **Stage 17 restructured from 5-IVP direct-to-flight to 13-IVP tapered buildup.**

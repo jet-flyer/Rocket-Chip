@@ -116,4 +116,27 @@ bool eskf_runner_get_wmm_position(float* lat_deg, float* lon_deg);
 /// WMM position source: 0=none, 1=default, 2=stored, 3=GPS
 uint8_t eskf_runner_get_wmm_source();
 
+// ============================================================================
+// Runaway-restart brake (ex-watchdog_recovery machinery, now internal)
+//
+// ESKF can diverge via !g_eskf.healthy() or !check_p_growth() and get
+// reinitialized. If the underlying condition persists (LL Entry 29 IMU
+// silent-zero, LL Entry 34 baro turbulence), reinit re-diverges in a
+// loop. kEskfMaxFailCycles=5 caps consecutive divergence events in one
+// session; after that, the filter stays disabled until eskf_reenable()
+// is called from CLI. Runtime-only — no persistence across power cycle.
+// ============================================================================
+
+/// True when the runaway-restart brake has disabled ESKF.
+bool eskf_is_disabled();
+
+/// Re-enable ESKF after the brake has tripped. CLI-callable.
+/// Resets the consecutive-fail counter and clears the disabled flag.
+void eskf_reenable();
+
+/// Record one ESKF divergence event. Increments the consecutive-fail
+/// counter; sets disabled=true when the counter reaches the threshold.
+/// Called internally from eskf_runner.cpp on CR-1 reset paths.
+void eskf_note_divergence();
+
 #endif // ROCKETCHIP_FUSION_ESKF_RUNNER_H
