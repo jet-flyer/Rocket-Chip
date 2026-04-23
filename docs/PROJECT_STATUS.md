@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-22 (whiteboard triage — CMake auto-pick, FLASHING.md, RP2350 errata matrix, watchdog deprecation)
+**Last Updated:** 2026-04-23 (build-system audit — CMake cleanup, ROCKETCHIP_SOURCES coverage fix, dev/stage gate hierarchy, BUILD_SYSTEM_AUDIT.md)
 
 ## Current Phase
 
@@ -77,7 +77,9 @@ All Stage T code done. Three scope-bench rigor items (ACK-path timing + α PDF, 
 
 **Post-Stage-T whiteboard triage (2026-04-22 evening):** Closed 4 of 6 High-priority items in one session. CMake now auto-picks `adafruit_fruit_jam` when `ROCKETCHIP_JOB_STATION=1` (prevents Frankenstein builds). New `docs/FLASHING.md` centralizes flash method + multi-board chip-serial targeting + Board/Firmware Verification Checklist — obsoletes six scattered memory files that had a swapped chip-serial ↔ board mapping causing repeated wrong-board flash incidents. New `standards/RP2350_ERRATA.md` compliance matrix (28 errata: 1 active-attention E2, 2 SDK-handled E11/E12, 1 audited-clean E9, 24 not-applicable) with E2 incident log for R-1/R-2 trigger path tracking. Watchdog recovery machinery fully removed — SDK watchdog was gone at IVP-90 but the dead recovery module was still producing false-positive `[WARN] WATCHDOG REBOOT` banners on warm reboots; live behaviors (launch_abort safety flag, ESKF runaway-restart brake) migrated to flight_director.cpp and new src/fusion/eskf_brake.cpp. User Guide gained a Safety State Model section (flight hold / safe mode / launch abort). A4-silicon procurement note captured for future Feather HSTX orders (fixes E9).
 
-**Next:** Stage 17 (Field Testing — DEFERRED, awaits airframe + launch window), Stage 18 (Field Tuning — awaits flight data). Remaining High priority: IVP-T13 LQ-adaptive retry + Stage T 95% first-try re-baseline — both explicitly deferred pending CCSDS command-layer rework. Station/vehicle pre-commit discipline items (classification-awareness, role-awareness, hook-portability into tracked scripts/hooks/) tracked in AGENT_WHITEBOARD.md.
+**Build-system audit (2026-04-23):** Six-phase structured cleanup of `CMakeLists.txt` + `test/CMakeLists.txt` after a broken `ud_benchmark` target went undetected for 2+ weeks. Code delta: `src/` shrunk by ~1,161 lines (dead watchdog machinery + `ud_benchmark.cpp` deletion), tests by ~97 lines, firmware `.text` ~740 bytes smaller across all 4 configs (GCC optimization side-effect from SYSTEM-classifying vendored include paths). `ROCKETCHIP_BUILD_DEV_TOOLS` hierarchy introduced to gate stage-bounded diagnostics behind explicit opt-in. 14 source files reconnected to `-Wpedantic` coverage after drifting outside `ROCKETCHIP_SOURCES` for months. CMake minimum bumped 3.13 → 3.25. New `docs/BUILD_SYSTEM_AUDIT.md` (296 lines) with 7 check categories, guardrails list, and append-only incident log. `.claude/SESSION_CHECKLIST.md` item 16 added. Baseline artifacts captured under `docs/baselines/build_audit_2026-04-23/` for future audit diff-reference.
+
+**Next:** Stage 17 (Field Testing — DEFERRED, awaits airframe + launch window), Stage 18 (Field Tuning — awaits flight data). Remaining High priority: IVP-T13 LQ-adaptive retry + Stage T 95% first-try re-baseline — both explicitly deferred pending CCSDS command-layer rework. Station/vehicle pre-commit discipline items (classification-awareness, role-awareness, hook-portability into tracked scripts/hooks/) tracked in AGENT_WHITEBOARD.md. Build-system audit follow-ups (BUILD_FOR_FLIGHT polarity rename, first toolchain-version audit run, tier consolidation evaluation) also tracked there.
 
 ## Completed
 

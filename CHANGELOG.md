@@ -34,6 +34,52 @@ Files: `CMakeLists.txt`, `docs/FLASHING.md` (new), `docs/BOARD_FIRMWARE_VERIFICA
 
 ---
 
+### 2026-04-23-001 | Claude Opus 4.7 | refactor, tooling, documentation, audit
+
+**Build-system audit — CMake + toolchain cleanup with `docs/BUILD_SYSTEM_AUDIT.md` as deliverable.**
+
+User flagged CMake accretion as overdue after a broken auxiliary target (`ud_benchmark`) went undetected for 2+ weeks. Session scope expanded from "delete dead targets" to full end-to-end audit. Six phases, seven commits (`5bc463b` through `95de0a4` + `d6bccd2` whiteboard).
+
+**Removed (code):**
+- `ud_benchmark` target + `src/benchmark/ud_benchmark.cpp` (946 lines) — Phase-1 gate decision delivered 2026-02-24, results preserved in `docs/benchmarks/UD_BENCHMARK_RESULTS.md`, Bierman adopted.
+- `src/benchmark/` directory (now empty).
+
+**Gated behind new hierarchical flags (not deleted — preserved for replay):**
+- `ROCKETCHIP_BUILD_DEV_TOOLS` (parent, default OFF) — regular dev-tool targets. `mat_benchmark` now lives here.
+- `ROCKETCHIP_STAGE_ARCHIVE` (child of DEV_TOOLS, default OFF) — stage-bounded diagnostic flags: `STAGE_T_LOGGING`, `STAGE_T2_CHEAT`, `STAGE_T3_MAVLINK`. Each flag still opt-in per-flag after both parents are on. Nested structure prevents accidental activation of archived stage flags during regular dev work.
+
+**Fixed (build coverage):**
+- 14 of our `.cpp` files had drifted outside `ROCKETCHIP_SOURCES`, missing `-Wpedantic` coverage silently for months (active_objects, dev/diag_stats, fusion/{confidence_gate,innovation_monitor}, notify backends, safety/{pio_watchdog,pio_backup_timer,pyro_edge_logger}). All 14 now in the list.
+- Vendored third-party includes (`lib/mavlink`, `lib/qep`, `lib/ruuvi.dps310.c`, `lib/lwgps`) reclassified from `-I` to `-isystem` (SYSTEM PRIVATE target_include_directories).
+- Pico SDK + TinyUSB interface targets marked `SYSTEM TRUE` so transitive includes don't surface vendor-header pedantic errors in our code.
+- `cmake_minimum_required` 3.13 → 3.25 (3.13 was already fictional — CMakePresets.json required 3.21 to parse; 3.25 enables native SYSTEM target property).
+
+**Documented (flight_director host/target split):**
+- `rc_flight_director` library (host build) and `add_executable(rocketchip)` (target build) both list the same flight_director source files. Looks like duplication; actually intentional — two `if(BUILD_TESTS)` branches compile those files in different preprocessor contexts (host vs target). Comment block at `rc_flight_director` added to prevent future audits from collapsing the split.
+
+**Removed (narrative comments):**
+- "Source files added as IVP-39/40 / IVP-41+ are implemented" stage-scaffolding comments.
+- "migrated from watchdog_recovery 2026-04-22" note on `test_eskf_disable_brake` (migration history is in git log, not live tree).
+
+**Deliverable:**
+- `docs/BUILD_SYSTEM_AUDIT.md` (296 lines) — structured audit checklist with 7 check categories (P1-A dev-tool gating, P1-B self-flagged dead code, P2 ROCKETCHIP_SOURCES coverage, P3 host/target split, P4 SYSTEM classification, P5 scaffolding comments, P6 toolchain-version check), guardrails list (what NOT to delete — PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL, diag_stats unconditional inclusion, target_link_options --undefined, per-file -O2 on eskf codegen), and append-only incident log.
+- `.claude/SESSION_CHECKLIST.md` item 16 added cross-referencing the new doc at milestone close.
+
+**Side effect (verified benign, documented in audit doc):** Firmware `.text` ~740 bytes smaller across all 4 configs — GCC optimizes SDK code slightly more aggressively under `-isystem` semantics. Our code `.obj` byte-identical to baseline. Runtime verified.
+
+**Verification gate at each phase:** host tests (786/786 PASS), 4 firmware configs clean link, `nm` symbol diff against Phase 0 baseline at `docs/baselines/build_audit_2026-04-23/`. HW boot-clean gate on vehicle: `Board: Adafruit Feather RP2350 HSTX`, `Hardware: 14/14 OK`, preflight `VERDICT: GO`. Vehicle `bench_sim.py`: 2/2 PASS.
+
+Plan file: `.claude/plans/i-just-put-you-glimmering-elephant.md` (retained).
+
+Open items captured in `AGENT_WHITEBOARD.md` Easy section:
+- `BUILD_FOR_FLIGHT` → `NOT_CERTIFIED_FOR_FLIGHT` polarity rename (reads correct against safety default).
+- First run of toolchain-version audit (P6 — Pico SDK, Pico Probe firmware, GCC ARM, OpenOCD, picotool, CMake).
+- Tier consolidation evaluation (whether `src/dev/*.cpp` could be runtime-gated instead of compile-excluded).
+
+Files: `CMakeLists.txt`, `test/CMakeLists.txt`, `test/test_go_nogo.cpp`, deleted `src/benchmark/ud_benchmark.cpp` + directory, new `docs/BUILD_SYSTEM_AUDIT.md` + `docs/baselines/build_audit_2026-04-23/*`, `.claude/SESSION_CHECKLIST.md`, `AGENT_WHITEBOARD.md`.
+
+---
+
 ### 2026-04-22-005 | Claude Opus 4.7 | refactor, safety, documentation
 
 **Watchdog recovery machinery removed — dead code after IVP-90, producing false-positive `[WARN] WATCHDOG REBOOT` banners on warm reboots.**

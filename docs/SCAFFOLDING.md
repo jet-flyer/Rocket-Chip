@@ -340,9 +340,8 @@ Bare-metal dual-core AMP (Asymmetric Multiprocessing) on RP2350:
 | Target | Type | Description |
 |--------|------|-------------|
 | `rocketchip` | Prod | Main firmware (RP2350 target, role selected by CMake defines) |
-| `rocketchip_tests` | Dev | Host-side Google Test suite (598 tests) |
-| `mat_benchmark` | Dev | Matrix math performance benchmark |
-| `ud_benchmark` | Dev | UD factorization benchmark |
+| `rocketchip_tests` | Dev | Host-side Google Test suite (786 tests) |
+| `mat_benchmark` | Dev | Matrix math performance benchmark (gated behind `-DROCKETCHIP_BUILD_DEV_TOOLS=ON`, default OFF) |
 
 Build commands:
 ```bash
