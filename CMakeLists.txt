@@ -7,7 +7,7 @@
 # The BUILD_TESTS gate selects between Pico SDK target build and
 # host-side test build. They are mutually exclusive.
 
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.25)
 
 option(BUILD_TESTS "Build host-side tests (no Pico SDK)" OFF)
 
@@ -455,7 +455,19 @@ else()
         src/station/station_idle_tick.cpp
     )
 
-    # -Wpedantic for our source files only (SDK sources are excluded)
+    # -Wpedantic applied per-source-file to our code only. Pico SDK .c
+    # sources (hardware_irq, TinyUSB) get pulled in as INTERFACE sources
+    # of the linked SDK libraries and compile under the rocketchip target
+    # options — target-level -Wpedantic would incorrectly pedantic-check
+    # those too. Per-file scoping via set_source_files_properties is the
+    # only pattern that works here.
+    #
+    # Vendor headers our files pull in directly (mavlink, qep, ruuvi,
+    # lwgps) are classified as SYSTEM below — GCC suppresses pedantic in
+    # system headers, so including them in pedantic-checked files is fine.
+    #
+    # ANY new .cpp added under src/ MUST be added to this list. The
+    # audit in docs/BUILD_SYSTEM_AUDIT.md catches drift.
     set(ROCKETCHIP_SOURCES
         src/main.cpp
         src/core1/sensor_core1.cpp
@@ -466,15 +478,33 @@ else()
         src/drivers/gps_pa1010d.cpp
         src/drivers/gps_uart.cpp
         src/drivers/mcu_temp.cpp
+        src/drivers/spi_bus.cpp
+        src/drivers/rfm95w.cpp
         src/calibration/calibration_data.cpp
         src/calibration/calibration_manager.cpp
         src/calibration/calibration_storage.cpp
         src/calibration/cal_hooks.cpp
         src/logging/radio_config_storage.cpp
+        src/logging/data_convert.cpp
+        src/logging/pcm_frame.cpp
+        src/logging/ring_buffer.cpp
+        src/logging/flight_table.cpp
+        src/logging/log_decimator.cpp
+        src/logging/flash_flush.cpp
+        src/logging/psram_init.cpp
         src/cli/rc_os.cpp
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
         src/active_objects/ao_rcos.cpp
+        src/active_objects/ao_blinker.cpp
+        src/active_objects/ao_counter.cpp
+        src/active_objects/ao_flight_director.cpp
+        src/active_objects/ao_health_monitor.cpp
+        src/active_objects/ao_logger.cpp
+        src/active_objects/ao_radio.cpp
+        src/active_objects/ao_rf_manager.cpp
+        src/active_objects/ao_telemetry.cpp
+        src/dev/diag_stats.cpp
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/eskf.cpp
@@ -484,15 +514,14 @@ else()
         src/fusion/wmm_tables.cpp
         src/fusion/mahony_ahrs.cpp
         src/fusion/ud_factor.cpp
-        src/logging/data_convert.cpp
-        src/logging/pcm_frame.cpp
-        src/logging/ring_buffer.cpp
-        src/logging/flight_table.cpp
-        src/logging/log_decimator.cpp
-        src/logging/flash_flush.cpp
-        src/logging/psram_init.cpp
-        src/drivers/spi_bus.cpp
-        src/drivers/rfm95w.cpp
+        src/fusion/confidence_gate.cpp
+        src/fusion/innovation_monitor.cpp
+        src/notify/notify_backend_led.cpp
+        src/notify/notify_backend_audio.cpp
+        src/safety/pio_watchdog.cpp
+        src/safety/pio_backup_timer.cpp
+        src/safety/pyro_edge_logger.cpp
+        src/safety/health_monitor.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp
         src/telemetry/mavlink_rx.cpp
@@ -503,9 +532,6 @@ else()
         src/flight_director/guard_evaluator.cpp
         src/flight_director/guard_combinator.cpp
         src/flight_director/action_executor.cpp
-        src/safety/health_monitor.cpp
-        src/active_objects/ao_blinker.cpp
-        src/active_objects/ao_counter.cpp
         src/station/station_idle_tick.cpp
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
@@ -516,7 +542,8 @@ else()
     set_source_files_properties(src/fusion/eskf.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic")
     set_source_files_properties(src/fusion/eskf_codegen.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic")
 
-    # Include directories
+    # Include directories — split into our code (-I, pedantic-checked) and
+    # vendored third-party code (-isystem, pedantic-suppressed).
     target_include_directories(rocketchip PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_LIST_DIR}/src
@@ -527,12 +554,15 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/src/cli            # IVP-18
         ${CMAKE_CURRENT_LIST_DIR}/src/logging          # IVP-49
         ${CMAKE_CURRENT_LIST_DIR}/src/telemetry        # IVP-58
-        ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink            # IVP-61
-        ${CMAKE_CURRENT_LIST_DIR}/lib/qep                # IVP-67
         ${CMAKE_CURRENT_LIST_DIR}/src/flight_director  # IVP-68
         ${CMAKE_CURRENT_LIST_DIR}/src/active_objects   # IVP-76
-        ${RUUVI_DPS310_DIR}                            # IVP-11
-        ${LWGPS_DIR}/include                             # IVP-31
+    )
+    # Vendored third-party — SYSTEM suppresses -Wpedantic from their headers.
+    target_include_directories(rocketchip SYSTEM PRIVATE
+        ${CMAKE_CURRENT_LIST_DIR}/lib/mavlink          # IVP-61 — third-party telemetry lib
+        ${CMAKE_CURRENT_LIST_DIR}/lib/qep              # IVP-67 — vendored QP/C 8.1.3
+        ${RUUVI_DPS310_DIR}                            # IVP-11 — Ruuvi DPS310 driver
+        ${LWGPS_DIR}/include                           # IVP-31 — lwgps NMEA parser
     )
 
     # Generate WS2812 PIO header from SDK's pio file
@@ -576,6 +606,37 @@ else()
         # Stage 16C IVP-142a: MCU die-temperature sensor on ADC ch 4
         hardware_adc
     )
+
+    # Pico SDK + vendored-in-SDK library INTERFACE_INCLUDE_DIRECTORIES get
+    # marked SYSTEM so downstream consumers (rocketchip) see them as
+    # -isystem. GCC suppresses -Wpedantic in SYSTEM headers, so vendor code
+    # (TinyUSB packed descriptors with flexible array members) doesn't
+    # surface as errors when our pedantic-checked sources include them.
+    # Requires CMake >= 3.25 (enforced at cmake_minimum_required).
+    # See docs/BUILD_SYSTEM_AUDIT.md for the pattern.
+    #
+    # Hit list was discovered empirically — the most common SDK lib API
+    # faces (pico_stdlib, hardware_*) plus the deep vendor targets that
+    # supply tinyusb's includes via INTERFACE chains that bypass SDK-
+    # public lib properties. `tinyusb_common_base` is inside the SDK's
+    # vendored lib/tinyusb tree; `tinyusb_device_unmarked` and
+    # `tinyusb_common` are the SDK-public wrappers. Marking them all
+    # belt-and-suspenders ensures tinyusb never leaks -I into user code.
+    set(PICO_SDK_INTERFACE_LIBS
+        pico_stdlib hardware_gpio hardware_pio hardware_clocks hardware_i2c
+        hardware_uart hardware_flash pico_flash pico_multicore
+        hardware_exception hardware_watchdog pico_rand hardware_spi
+        hardware_xip_cache hardware_adc
+        # TinyUSB chain — marks the deep INTERFACE targets so transitive
+        # includes don't leak through without SYSTEM classification.
+        tinyusb_common_base tinyusb_common tinyusb_device_unmarked
+        tinyusb_device tinyusb_device_base
+    )
+    foreach(lib ${PICO_SDK_INTERFACE_LIBS})
+        if(TARGET ${lib})
+            set_target_properties(${lib} PROPERTIES SYSTEM TRUE)
+        endif()
+    endforeach()
 
     # Always-on soak preconditions symbol — present in both bench and
     # flight binaries so soaks can validate identity/board/radio at T=0.
