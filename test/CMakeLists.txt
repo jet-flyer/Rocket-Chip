@@ -142,7 +142,7 @@ add_executable(test_flight_director_launch_abort test_flight_director_launch_abo
 target_link_libraries(test_flight_director_launch_abort PRIVATE rc_flight_director GTest::gtest_main)
 gtest_discover_tests(test_flight_director_launch_abort)
 
-# ESKF runaway-restart brake (migrated from watchdog_recovery 2026-04-22)
+# ESKF runaway-restart brake — see src/fusion/eskf_brake.cpp
 add_executable(test_eskf_disable_brake test_eskf_disable_brake.cpp)
 target_link_libraries(test_eskf_disable_brake PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_eskf_disable_brake)

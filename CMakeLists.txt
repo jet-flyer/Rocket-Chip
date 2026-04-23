@@ -34,7 +34,6 @@ if(BUILD_TESTS)
 
     # ------------------------------------------------------------------
     # Math library (no SDK dependencies)
-    # Source files added as IVP-39/40 are implemented
     # ------------------------------------------------------------------
     add_library(rc_math STATIC
         src/math/vec3.cpp
@@ -47,7 +46,6 @@ if(BUILD_TESTS)
 
     # ------------------------------------------------------------------
     # Fusion library (no SDK dependencies)
-    # Source files added as IVP-41+ are implemented
     # ------------------------------------------------------------------
     add_library(rc_fusion STATIC
         src/fusion/baro_kf.cpp
