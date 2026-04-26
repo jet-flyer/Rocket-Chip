@@ -20,6 +20,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-26-001 | Codex 5.3 via Cursor | bugfix, refactor
+
+**Startup init cleanup: avoid redundant second I2C bus init on healthy boots.**
+
+`src/main.cpp` now calls `i2c_bus_init()` in `init_hardware()` only if early I2C bring-up did not already succeed. This preserves startup behavior and required baro startup calibration while removing unnecessary duplicate initialization work in the normal path.
+
+Files: `src/main.cpp`
+
+---
+
 ### 2026-04-22-004 | Claude Opus 4.7 | tooling, refactor, documentation, council
 
 **Whiteboard triage session — 4 of 6 High-priority items closed.** CMake auto-pick Fruit Jam board when `ROCKETCHIP_JOB_STATION=1` (prevents Frankenstein station-on-Feather builds); centralized flashing + board-firmware verification into new `docs/FLASHING.md` replacing scattered references across `BENCH_TEST_PROCEDURE.md` / `DEBUG_PROBE_NOTES.md` / deleted memory files; full RP2350 silicon errata sweep producing `standards/RP2350_ERRATA.md` (28 errata, 4 active-attention triaged against our silicon blocks + Adafruit board pulls, 24 not-applicable with reasons); Rescue-DP referenced in FLASHING.md as a secondary recovery option. Four commits: `0a6aae5` (CMake auto-pick), `5685f26` (docs centralization), `27068cb` (errata matrix), `276228a` (E12 re-read + E2 incident tracker), `7902b81` (Rescue-DP note).

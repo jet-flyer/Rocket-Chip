@@ -175,6 +175,8 @@ Mission Profile OTA, F' evaluation, u-blox GPS, OTA drivers, GPS-free 3D reconst
 
 ## Resolved This Session (2026-04-22)
 
+- **Startup I2C duplicate init removed (2026-04-26).** `src/main.cpp` now skips the second `i2c_bus_init()` call when early bring-up already succeeded; still retries from `init_hardware()` if early init fails. Verified on vehicle bench startup path; baro startup calibration flow unchanged.
+
 - **Watchdog recovery machinery removed.** Dead code after IVP-90 SDK-watchdog removal — `src/watchdog/` directory deleted, scratch-register persistence gone, `[WARN] WATCHDOG REBOOT` banner (tonight's false-positive source) gone, `kSafeModeRebootThreshold`/`TickFnId`/reboot counter all deleted. Live behaviors (launch_abort safety flag, ESKF runaway-restart brake) migrated to proper homes: `flight_director.cpp` for launch_abort (level-3 power-cycle-only clear per new `docs/USER_GUIDE.md` Safety State Model), `src/fusion/eskf_brake.cpp` for the ESKF brake. 8 new host tests + GoNoGo test rot fixed in same commit. 786/786 host tests, 4 builds clean, HW boot-clean gate PASS (no false-positive banner, Hardware 14/14 OK). Changelog has the full deletion list for future reconstruction if ever needed.
 
 ## Resolved 2026-04-18
