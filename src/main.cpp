@@ -299,7 +299,6 @@ static void init_sensors() {
     // mode is fully established.
     bool imuDetected  = i2c_bus_probe(kIcm20948AddrDefault);
     bool baroDetected = i2c_bus_probe(kBaroDps310AddrDefault);
-
     // Sensor power-up settling time
     // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
     sleep_ms(kSensorSettleMs);
@@ -430,7 +429,9 @@ static void init_hardware() {
     }
 
     // I2C bus init (before USB per LL Entry 4/12)
-    g_i2cInitialized = i2c_bus_init();
+    if (!g_i2cInitialized) {
+        g_i2cInitialized = i2c_bus_init();
+    }
     if (g_i2cInitialized) {
         init_sensors();
     }
