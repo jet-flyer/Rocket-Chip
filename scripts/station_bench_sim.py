@@ -35,8 +35,10 @@ Wall-clock watchdog: --max-runtime (default 60s) is enforced by a daemon
 thread that calls os._exit(2) when fired. This is the only reliable
 escape from a hung serial.Serial() open on Windows USB CDC.
 
-Port detection: filters USB CDC ports by RocketChip VID:PID. Use --port
-to override; the override is still classified and refused if non-station.
+Port detection: ``find_target_port(TARGET_STATION_BENCH)`` (RocketChip
+VID:PID USB CDC only). ``--port`` overrides but is still banner-classified;
+connection uses ``open_classified_port`` with ``auto_enter_cli_menu=False``
+because ``goto_main_from_anywhere`` performs dashboard→menu navigation.
 
 Exit codes:
     0 = all 3 tests pass, no assertions
@@ -49,7 +51,6 @@ import argparse
 import os
 import re
 import serial
-import serial.tools.list_ports
 import sys
 import threading
 import time
@@ -57,7 +58,18 @@ import time
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_STATION_BENCH  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    Role,
+    classify_banner,
+    find_target_port,
+    open_classified_port,
+    peek_banner,
+    rc_test,
+    ROCKETCHIP_USB_PID,
+    ROCKETCHIP_USB_VID,
+    TARGET_STATION_BENCH,
+)
 
 # =============================================================================
 # Regex constants — TESTED AGAINST FIRMWARE LOG OUTPUT.
@@ -82,19 +94,6 @@ ASSERTION_MARKERS = [
     'Q_onError', 'qf_actq', 'qf_dyn', 'ASSERT',
     'HARDFAULT', 'MEMMANAGE', 'BUSFAULT', 'USAGEFAULT',
 ]
-
-ROCKETCHIP_USB_VID = 0x2E8A
-ROCKETCHIP_USB_PID = 0x0009
-
-# Station identification — strict. Banner peek MUST contain at least one of
-# these case-insensitive substrings before we send any keystrokes. Otherwise
-# we risk sending station-only keys (e.g. 'x' = "exit dashboard to menu" on
-# station) to vehicle firmware, where 'x' is the destructive Erase-Flights
-# confirm. See 2026-04-27 incident: vehicle COM7 fell through the old
-# fallback path and entered "Erase ALL N flights?" prompt.
-STATION_BANNER_TOKENS = ('ground station', 'fruit jam', 'station rx')
-VEHICLE_BANNER_TOKENS = ('profile: rocket', 'erase all',
-                         'h-help  p-preflight  c-calibration  f-flight')
 
 
 # =============================================================================
@@ -122,141 +121,8 @@ def _start_watchdog(deadline_s, label='station_bench_sim'):
 
 
 # =============================================================================
-# Serial helpers
+# Serial helpers (I/O helpers local to tests)
 # =============================================================================
-
-def _peek_banner(port_name, peek_timeout=2.0, open_timeout=3.0):
-    """Briefly connect + read banner text to identify vehicle vs station.
-    Returns the banner string (lowercase) or '' on failure.
-
-    Uses a thread-with-join-timeout so a hung serial.Serial() open (port
-    held by another process, USB CDC stuck) cannot block us indefinitely.
-    Mirrors the pattern used by bench_sim.py:_probe_port. Reads the banner
-    *passively* first (no write) — many station/vehicle builds emit a fresh
-    banner on USB CDC connect — and only sends 'h' if the passive read is
-    empty. This avoids the previous design where we'd send 'h' to whatever
-    firmware was on the line, which on a vehicle in main menu is harmless
-    but on a vehicle stuck in any submenu can produce unhelpful output.
-    """
-    result = ['']
-
-    def _go():
-        try:
-            s = serial.Serial(port_name, 115200, timeout=0.3, write_timeout=0.5)
-            time.sleep(0.5)  # let USB CDC settle
-            passive = s.read(8000)
-            if len(passive) < 64:
-                # No fresh boot/dashboard banner — prod with help.
-                s.write(b'h')
-                s.flush()
-                time.sleep(peek_timeout)
-                passive += s.read(8000)
-            s.close()
-            result[0] = passive.decode('utf-8', errors='replace').lower()
-        except (serial.SerialException, OSError, PermissionError):
-            pass
-
-    t = threading.Thread(target=_go, daemon=True, name=f'peek-{port_name}')
-    t.start()
-    t.join(timeout=open_timeout)
-    if t.is_alive():
-        # Hung on serial.Serial() open. Daemon thread dies with process.
-        return ''
-    return result[0]
-
-
-def _classify_banner(banner):
-    """Return 'station', 'vehicle', or 'unknown' based on banner text."""
-    if any(tok in banner for tok in STATION_BANNER_TOKENS):
-        return 'station'
-    if any(tok in banner for tok in VEHICLE_BANNER_TOKENS):
-        return 'vehicle'
-    return 'unknown'
-
-
-def find_station_port(verbose=False):
-    """Return (port, banner) for a confirmed station, or (None, reason).
-
-    Strict mode — there is no fallback to vehicle firmware. If no port
-    advertises a station signature we exit cleanly so the caller (CI /
-    pre-commit hook) can treat 'no station present' as 'skip', not 'fail'.
-
-    Returns:
-        (device_name, banner_lower) on success
-        (None, 'no candidates')         if no VID:PID match plugged in
-        (None, 'vehicle: <port>')       if only vehicle firmware found
-        (None, 'unknown firmware on <port>') if banner is unrecognisable
-    """
-    candidates = [
-        info.device for info in serial.tools.list_ports.comports()
-        if info.vid == ROCKETCHIP_USB_VID and info.pid == ROCKETCHIP_USB_PID
-    ]
-    if verbose:
-        print(f'  candidates (VID 0x{ROCKETCHIP_USB_VID:04X} PID '
-              f'0x{ROCKETCHIP_USB_PID:04X}): {candidates}')
-    if not candidates:
-        return None, 'no candidates'
-
-    seen_vehicle = None
-    seen_unknown = None
-    for port in candidates:
-        banner = _peek_banner(port)
-        kind = _classify_banner(banner)
-        if verbose:
-            preview = banner.replace('\n', ' ')[:120]
-            print(f'  {port}: {kind} -- {preview!r}')
-        if kind == 'station':
-            return port, banner
-        if kind == 'vehicle' and seen_vehicle is None:
-            seen_vehicle = port
-        if kind == 'unknown' and seen_unknown is None:
-            seen_unknown = port
-
-    if seen_vehicle is not None:
-        return None, f'vehicle firmware on {seen_vehicle}'
-    if seen_unknown is not None:
-        return None, f'unknown firmware on {seen_unknown}'
-    return None, 'no banner from any candidate'
-
-
-def connect(port, retries=5, retry_delay=1.5, open_timeout=3.0):
-    """Open serial port with retry + per-attempt open timeout (Windows USB
-    CDC can hang serial.Serial() in C-library code; bound it via thread).
-    """
-    last_err = None
-    for attempt in range(retries):
-        result = [None]
-
-        def _try_open():
-            try:
-                p = serial.Serial(port, 115200, timeout=0.1)
-                time.sleep(1.0)
-                p.read(10000)
-                time.sleep(0.3)
-                p.read(10000)
-                result[0] = p
-            except (serial.SerialException, OSError, PermissionError) as exc:
-                result[0] = exc
-
-        t = threading.Thread(target=_try_open, daemon=True,
-                             name=f'open-{port}-{attempt}')
-        t.start()
-        t.join(timeout=open_timeout)
-        if t.is_alive():
-            last_err = f'open hung > {open_timeout:.1f}s (port held by another process?)'
-        elif isinstance(result[0], serial.Serial):
-            if attempt > 0:
-                print(f'  (connected on attempt {attempt + 1})')
-            return result[0]
-        else:
-            last_err = result[0]
-
-        if attempt < retries - 1:
-            print(f'  connect attempt {attempt + 1}/{retries}: {last_err}; '
-                  f'retrying in {retry_delay}s')
-            time.sleep(retry_delay)
-    raise RuntimeError(f'Could not open {port} after {retries} attempts: {last_err}')
-
 
 def send_and_read(port, key, wait_s=2.0):
     port.reset_input_buffer()
@@ -326,7 +192,7 @@ def goto_main_from_anywhere(port):
 
 
 # =============================================================================
-# Test cases (STATION FIRMWARE ONLY — guarded by find_station_port())
+# Test cases (STATION FIRMWARE ONLY — guarded by find_target_port)
 # =============================================================================
 
 def test_boot_and_main_menu(port, state, verbose=False):
@@ -407,60 +273,17 @@ TESTS = [
 # Main
 # =============================================================================
 
-@rc_test(target=TARGET_STATION_BENCH)
-def main():
-    parser = argparse.ArgumentParser(
-        description='RocketChip Station Bench Sim (IVP-146, 3 tests)')
-    parser.add_argument('--port', default=None,
-                        help='Serial port (auto-detected via VID:PID + banner)')
-    parser.add_argument('--verbose', action='store_true',
-                        help='Print verbose test output')
-    parser.add_argument('--max-runtime', type=float, default=60.0,
-                        help='Wall-clock deadline (default 60s, hard-killed by watchdog)')
-    parser.add_argument('--allow-non-station', action='store_true',
-                        help=argparse.SUPPRESS)  # debugging only — never set in CI
-    args = parser.parse_args()
-
-    # Wall-clock watchdog: hard kill after deadline, regardless of where
-    # we are in the test (including stuck inside serial.Serial() C calls).
-    _start_watchdog(args.max_runtime)
-
-    if args.port is not None:
-        # Manual override — still classify the banner so we don't send
-        # destructive keys to a misidentified target.
-        banner = _peek_banner(args.port)
-        kind = _classify_banner(banner)
-        if kind != 'station' and not args.allow_non_station:
-            print(f'ERROR: --port {args.port} is {kind} firmware, not station.')
-            print('  This script will refuse to run station-only key sequences')
-            print('  on non-station firmware (e.g. \'x\' = Erase-Flights on vehicle).')
-            print('  Flash build_station/*.uf2 and retry, or pick a different port.')
-            sys.exit(2)
-        port_name = args.port
-    else:
-        port_name, banner_or_reason = find_station_port(verbose=args.verbose)
-        if port_name is None:
-            # Exit code 2 = "tool self-check failed / no station present".
-            # The pre-commit hook should treat this as "skip station verification"
-            # rather than a hard failure (the vehicle bench_sim already ran or
-            # was deemed not needed).
-            print(f'INFO: No station detected — {banner_or_reason}.')
-            print('  Skipping station_bench_sim (this is exit code 2 = '
-                  '"no station to test", not a test failure).')
-            print('  To run: flash build_station/*.uf2 and plug in USB '
-                  f'(VID 0x{ROCKETCHIP_USB_VID:04X} PID 0x{ROCKETCHIP_USB_PID:04X}).')
-            sys.exit(2)
-    print(f'using station port: {port_name}')
-
-    try:
-        ser = connect(port_name)
-    except (RuntimeError, serial.SerialException, OSError) as e:
-        print(f'ERROR: Cannot open {port_name}: {e}')
-        sys.exit(2)
+def _station_bench_run_inner(ser: serial.Serial,
+                             port_name: str,
+                             meta: Banner,
+                             args,
+                             *,
+                             allow_vehicle: bool):
+    """Test body inside ``open_classified_port`` context."""
 
     # Re-confirm we are still on station firmware after open() — defends
     # against the (rare) case where the user hot-swapped boards between
-    # find_station_port() and connect().
+    # port selection and connect().
     ser.write(b'\n')
     time.sleep(0.3)
     ser.read(16000)  # drain
@@ -473,16 +296,15 @@ def main():
     ser.write(b'h')              # request main-menu help
     time.sleep(1.0)
     sanity = ser.read(16000).decode('utf-8', errors='replace')
-    if (_classify_banner(sanity.lower()) == 'vehicle'
-            and not args.allow_non_station):
+    if classify_banner(sanity).role == Role.VEHICLE and not allow_vehicle:
         print('ERROR: post-open sanity check classifies firmware as VEHICLE.')
         print('  Refusing to run station-only key sequences on vehicle firmware.')
         print('  (Did you hot-swap boards? Or is build_station out of date?)')
-        ser.close()
         sys.exit(2)
 
     print(f'\n=== RocketChip Station Bench Sim ===')
     print(f'  Port: {port_name}')
+    print(f'  Classified: {meta.short_summary()}')
     print(f'  Max runtime: {args.max_runtime:.0f}s (hard-killed by watchdog)')
     print()
 
@@ -523,8 +345,63 @@ def main():
     print(f'\n  RESULT: {passed}/{total} PASS  ({elapsed:.1f}s)')
     print('=' * 38)
 
-    ser.close()
-    sys.exit(0 if failed == 0 else 1)
+    return 0 if failed == 0 else 1
+
+
+@rc_test(target=TARGET_STATION_BENCH)
+def main():
+    parser = argparse.ArgumentParser(
+        description='RocketChip Station Bench Sim (IVP-146, 3 tests)')
+    parser.add_argument('--port', default=None,
+                        help='Serial port (auto-detected via VID:PID + banner)')
+    parser.add_argument('--verbose', action='store_true',
+                        help='Print verbose test output')
+    parser.add_argument('--max-runtime', type=float, default=60.0,
+                        help='Wall-clock deadline (default 60s, hard-killed by watchdog)')
+    parser.add_argument('--allow-non-station', action='store_true',
+                        help=argparse.SUPPRESS)  # debugging only — never set in CI
+    args = parser.parse_args()
+
+    # Wall-clock watchdog: hard kill after deadline, regardless of where
+    # we are in the test (including stuck inside serial.Serial() C calls).
+    _start_watchdog(args.max_runtime)
+
+    if args.allow_non_station and args.port is not None:
+        # Unsafe path: manual port without strict target match (debugging).
+        port_name = args.port
+        meta = peek_banner(port_name)
+    else:
+        port_name, reason = find_target_port(
+            TARGET_STATION_BENCH, override=args.port, verbose=args.verbose)
+        if port_name is None:
+            print(f'INFO: No station detected — {reason}.')
+            print('  Skipping station_bench_sim (this is exit code 2 = '
+                  '"no station to test", not a test failure).')
+            print('  To run: flash build_station/*.uf2 and plug in USB '
+                  f'(VID 0x{ROCKETCHIP_USB_VID:04X} PID 0x{ROCKETCHIP_USB_PID:04X}).')
+            sys.exit(2)
+        if not isinstance(reason, Banner):
+            print('ERROR: internal: expected Banner from find_target_port')
+            sys.exit(2)
+        meta = reason
+
+    print(f'using station port: {port_name}')
+    if meta.is_known():
+        print(f'  ({meta.short_summary()})')
+
+    try:
+        with open_classified_port(
+            port_name,
+            target=TARGET_STATION_BENCH,
+            post_open_re_classify=not args.allow_non_station,
+            auto_enter_cli_menu=False,
+        ) as ser:
+            return _station_bench_run_inner(
+                ser, port_name, meta, args,
+                allow_vehicle=args.allow_non_station)
+    except RuntimeError as e:
+        print(f'ERROR: Cannot open {port_name}: {e}')
+        sys.exit(2)
 
 
 if __name__ == '__main__':
