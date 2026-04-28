@@ -3,7 +3,7 @@
 RocketChip CLI Test Script
 
 Uses Python serial to test CLI functionality reliably.
-Run from project root: python scripts/cli_test.py [test_name]
+Run from project root: python scripts/cli_test.py [--port COMn] <test_name>
 
 Available tests:
   status    - Show sensor status
@@ -13,6 +13,7 @@ Available tests:
   all       - Run all non-destructive tests
 """
 
+import argparse
 import serial
 import time
 import sys
@@ -21,18 +22,13 @@ import os
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_VEHICLE_ANY  # noqa: E402
-
-PORT = 'COM6'
-BAUD = 115200
-
-def connect():
-    """Connect to serial port and wait for device"""
-    port = serial.Serial(PORT, BAUD, timeout=1)
-    time.sleep(0.5)  # Let device print banner
-    # Drain any pending data
-    port.read(1000)
-    return port
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_VEHICLE_ANY,
+)
 
 def send_cmd(port, cmd, wait=0.3):
     """Send command and read response"""
@@ -155,42 +151,68 @@ def main():
         'level_cal': test_level_cal,
     }
 
-    if len(sys.argv) < 2:
+    parser = argparse.ArgumentParser(
+        description='RocketChip CLI serial tests (vehicle firmware).')
+    parser.add_argument('--port', default=None,
+                        help='Serial port (auto-detect RocketChip USB CDC if omitted)')
+    parser.add_argument('test_name', nargs='?',
+                        help=f"One of: {', '.join(sorted(tests.keys()))}, all")
+    args = parser.parse_args()
+
+    if args.test_name is None:
         print(__doc__)
-        print(f"\nUsage: python {sys.argv[0]} <test_name>")
+        print(f"\nUsage: python {sys.argv[0]} [--port COMn] <test_name>")
         print(f"Available tests: {', '.join(tests.keys())}, all")
         return 1
 
-    test_name = sys.argv[1].lower()
+    test_name = args.test_name.lower()
+
+    port_name, meta = find_target_port(
+        TARGET_VEHICLE_ANY, override=args.port, verbose=False)
+    if port_name is None:
+        print(f'INFO: no vehicle port — {meta}')
+        print('  Plug the vehicle Feather or pass --port.')
+        sys.exit(2)
+    if not isinstance(meta, Banner):
+        print('ERROR: internal: expected Banner from find_target_port')
+        sys.exit(2)
+
+    print(f'Using {port_name} ({meta.short_summary()})\n')
 
     try:
-        port = connect()
-        print(f"Connected to {PORT}\n")
-    except Exception as e:
-        print(f"Failed to connect to {PORT}: {e}")
-        return 1
+        with open_classified_port(port_name, target=TARGET_VEHICLE_ANY) as port:
+            time.sleep(0.2)
+            try:
+                port.read(1000)
+            except serial.SerialException:
+                pass
 
-    try:
-        if test_name == 'all':
-            results = {}
-            for name, func in tests.items():
-                if name != 'level_cal':  # Skip destructive tests in 'all'
-                    results[name] = func(port)
-                    print()
+            if test_name == 'all':
+                results = {}
+                for name, func in tests.items():
+                    if name != 'level_cal':  # Skip destructive tests in 'all'
+                        results[name] = func(port)
+                        print()
 
-            print("=== SUMMARY ===")
-            for name, passed in results.items():
-                status = "PASS" if passed else "FAIL"
-                print(f"  {name}: {status}")
-        elif test_name in tests:
-            passed = tests[test_name](port)
-            print(f"\nResult: {'PASS' if passed else 'FAIL'}")
-        else:
-            print(f"Unknown test: {test_name}")
-            print(f"Available: {', '.join(tests.keys())}, all")
-            return 1
-    finally:
-        port.close()
+                print("=== SUMMARY ===")
+                for name, passed in results.items():
+                    status = "PASS" if passed else "FAIL"
+                    print(f"  {name}: {status}")
+                if not results or not all(results.values()):
+                    return 1
+            elif test_name in tests:
+                passed = tests[test_name](port)
+                print(f"\nResult: {'PASS' if passed else 'FAIL'}")
+                if not passed:
+                    return 1
+            else:
+                print(f"Unknown test: {test_name}")
+                print(f"Available: {', '.join(tests.keys())}, all")
+                return 1
+
+    except RuntimeError as e:
+        print(f'ERROR: cannot open {port_name}: {e}')
+        sys.exit(2)
 
     return 0
 

@@ -102,11 +102,11 @@ planned in Tier 3+.
 |---------------------------------|--------------------------|---------------------|--------------------------------------------------|:---------:|:------------:|
 | `bench_sim.py`                  | vehicle                  | bench or flight     | ✓ correct, uses flight menu only                 |    ✓      |     ✓        |
 | `station_bench_sim.py`          | station                  | bench (dev menu)    | ✓ correct (post 2026-04-27 hardening)            |    ✓      |     ✓        |
-| `accel_cal_6pos.py`             | vehicle                  | bench or flight     | hardcoded COM6, no guard                         |    ✗      |     ✗        |
+| `accel_cal_6pos.py`             | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
 | `ack_stress_test.py`            | station                  | bench or flight     | hardcoded COM7, no guard                         |    ✗      |     ✗        |
 | `cla_collect.py`                | vehicle                  | bench (uses 'e')    | hardcoded COM7, no guard, breaks on flight build |    ✗      |     ✗        |
-| `cli_test.py`                   | vehicle                  | bench or flight     | hardcoded COM6                                   |    ✗      |     ✗        |
-| `codegen_soak_test.py`          | vehicle                  | bench or flight     | hardcoded COM6, no guard                         |    ✗      |     ✗        |
+| `cli_test.py`                   | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
+| `codegen_soak_test.py`          | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
 | `decode_flight_log.py`          | vehicle                  | bench or flight     | guard ✓ (rejects station)                        |    ✓      |     ✗        |
 | `eskf_gps_soak.py`              | vehicle                  | bench (uses 'e')    | hardcoded COM6, breaks on flight build           |    ✗      |     ✗        |
 | `i2c_soak_test.py`              | vehicle                  | bench or flight     | hardcoded COM6, no guard                         |    ✗      |     ✗        |

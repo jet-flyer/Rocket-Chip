@@ -6,9 +6,9 @@ Human-interactive serial helper for IVP-17 6-position accel calibration.
 YOU move the board; this script handles serial I/O and parses results.
 
 Usage:
-    python scripts/accel_cal_6pos.py [COM_PORT]
+    python scripts/accel_cal_6pos.py [--port COMn]
 
-    Default port: COM6
+    If ``--port`` is omitted, auto-detects a RocketChip vehicle USB CDC port.
 
 IVP-17 Gate Requirements (pass/fail criteria):
     1. All 6 positions collected (progress 100% each)
@@ -19,6 +19,7 @@ IVP-17 Gate Requirements (pass/fail criteria):
     6. Persists across power cycle
 """
 
+import argparse
 import serial
 import time
 import sys
@@ -28,10 +29,13 @@ import os
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_VEHICLE_ANY  # noqa: E402
-
-DEFAULT_PORT = 'COM6'
-BAUD = 115200
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_VEHICLE_ANY,
+)
 
 # Position descriptions for the human operator
 POSITIONS = [
@@ -42,14 +46,6 @@ POSITIONS = [
     "NOSE UP (-X up) - Standing on opposite end from USB",
     "INVERTED (-Z up) - Flat on table, component side DOWN",
 ]
-
-
-def connect(port_name):
-    """Connect to RocketChip serial port."""
-    port = serial.Serial(port_name, BAUD, timeout=2)
-    time.sleep(1.0)  # Let device settle + print banner
-    port.read(4096)  # Drain banner
-    return port
 
 
 def send_and_read(port, data, wait=0.5, max_bytes=4096):
@@ -182,7 +178,11 @@ def check_ivp17_gates(results):
 
 @rc_test(target=TARGET_VEHICLE_ANY)
 def main():
-    port_name = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_PORT
+    parser = argparse.ArgumentParser(
+        description='IVP-17 6-position accelerometer calibration helper (vehicle).')
+    parser.add_argument('--port', default=None,
+                        help='Serial port (auto-detect RocketChip USB CDC if omitted)')
+    args = parser.parse_args()
 
     print("=" * 50)
     print("  RocketChip 6-Position Accel Calibration")
@@ -196,99 +196,113 @@ def main():
     print("for about 1 second when prompted.")
     print()
 
-    try:
-        print(f"Connecting to {port_name}...")
-        port = connect(port_name)
-        print(f"Connected to {port_name}")
-    except Exception as e:
-        print(f"Failed to connect to {port_name}: {e}")
-        print("Is the device plugged in and terminal closed?")
-        return 1
+    port_name, meta = find_target_port(
+        TARGET_VEHICLE_ANY, override=args.port, verbose=False)
+    if port_name is None:
+        print(f'INFO: no vehicle port — {meta}')
+        print('  Plug the vehicle Feather or pass --port.')
+        sys.exit(2)
+    if not isinstance(meta, Banner):
+        print('ERROR: internal: expected Banner from find_target_port')
+        sys.exit(2)
 
     try:
-        # Navigate to calibration menu
-        print("\nNavigating to calibration menu...")
-        if not navigate_to_cal_menu(port):
-            print("ERROR: Could not open calibration menu")
-            return 1
-        print("Calibration menu open.\n")
+        print(f'Using {port_name} ({meta.short_summary()})\n')
+        with open_classified_port(port_name, target=TARGET_VEHICLE_ANY,
+                                   timeout=0.1) as port:
+            try:
+                time.sleep(0.3)
+                try:
+                    port.read(4096)
+                except serial.SerialException:
+                    pass
 
-        # Start 6-pos calibration
-        print("Starting 6-position calibration ('a')...")
-        response = send_and_read(port, 'a', 1.0)
-        print(response)
+                # Navigate to calibration menu
+                print("\nNavigating to calibration menu...")
+                if not navigate_to_cal_menu(port):
+                    print("ERROR: Could not open calibration menu")
+                    return 1
+                print("Calibration menu open.\n")
 
-        if '6-Position Accelerometer Calibration' not in response:
-            print("ERROR: 6-pos calibration did not start")
-            print("Check that IMU is available and callback is wired.")
-            return 1
+                # Start 6-pos calibration
+                print("Starting 6-position calibration ('a')...")
+                response = send_and_read(port, 'a', 1.0)
+                print(response)
 
-        # Collect all firmware output during the calibration
-        all_output = response
+                if '6-Position Accelerometer Calibration' not in response:
+                    print("ERROR: 6-pos calibration did not start")
+                    print("Check that IMU is available and callback is wired.")
+                    return 1
 
-        # Guide user through each position
-        for pos in range(6):
-            print(f"\n{'=' * 40}")
-            print(f"  Position {pos + 1}/6: {POSITIONS[pos]}")
-            print(f"{'=' * 40}")
+                # Collect all firmware output during the calibration
+                all_output = response
 
-            # Read firmware prompt
-            time.sleep(0.5)
-            prompt = port.read(2048).decode('utf-8', errors='replace')
-            all_output += prompt
-            if prompt.strip():
-                print(prompt)
+                # Guide user through each position
+                for pos in range(6):
+                    print(f"\n{'=' * 40}")
+                    print(f"  Position {pos + 1}/6: {POSITIONS[pos]}")
+                    print(f"{'=' * 40}")
 
-            input(">>> Press ENTER here when board is positioned... ")
+                    # Read firmware prompt
+                    time.sleep(0.5)
+                    prompt = port.read(2048).decode('utf-8', errors='replace')
+                    all_output += prompt
+                    if prompt.strip():
+                        print(prompt)
 
-            # Send ENTER to firmware
-            port.write(b'\r')
+                    input(">>> Press ENTER here when board is positioned... ")
 
-            # Wait for sampling to complete (50 samples at ~100Hz = ~500ms + processing)
-            time.sleep(2.0)
-            result = port.read(4096).decode('utf-8', errors='replace')
-            all_output += result
-            print(result)
+                    # Send ENTER to firmware
+                    port.write(b'\r')
 
-            if 'FAILED' in result and 'motion' in result.lower():
-                print("Motion was detected. Try holding more still.")
-                # Firmware handles retries internally, read more output
-                time.sleep(1.0)
-                more = port.read(4096).decode('utf-8', errors='replace')
-                all_output += more
-                if more.strip():
-                    print(more)
+                    # Wait for sampling to complete (50 samples at ~100Hz = ~500ms + processing)
+                    time.sleep(2.0)
+                    result = port.read(4096).decode('utf-8', errors='replace')
+                    all_output += result
+                    print(result)
 
-            if 'aborted' in result.lower() or 'Calibration aborted' in all_output:
-                print("\nCalibration was aborted by firmware.")
+                    if 'FAILED' in result and 'motion' in result.lower():
+                        print("Motion was detected. Try holding more still.")
+                        # Firmware handles retries internally, read more output
+                        time.sleep(1.0)
+                        more = port.read(4096).decode('utf-8', errors='replace')
+                        all_output += more
+                        if more.strip():
+                            print(more)
+
+                    if 'aborted' in result.lower() or 'Calibration aborted' in all_output:
+                        print("\nCalibration was aborted by firmware.")
+                        return 1
+
+                # Wait for fit computation and results
+                print("\nWaiting for ellipsoid fit computation...")
+                time.sleep(3.0)
+                final_output = port.read(8192).decode('utf-8', errors='replace')
+                all_output += final_output
+                print(final_output)
+
+                # Parse and check IVP-17 gates
+                results = parse_results(all_output)
+                passed = check_ivp17_gates(results)
+
+                # Return to main menu
+                send_and_read(port, 'x', 0.3)
+
+                return 0 if passed else 1
+
+            except KeyboardInterrupt:
+                print("\n\nInterrupted by user")
+                try:
+                    port.write(b'\x1b')
+                    time.sleep(0.5)
+                except serial.SerialException:
+                    pass
                 return 1
 
-        # Wait for fit computation and results
-        print("\nWaiting for ellipsoid fit computation...")
-        time.sleep(3.0)
-        final_output = port.read(8192).decode('utf-8', errors='replace')
-        all_output += final_output
-        print(final_output)
-
-        # Parse and check IVP-17 gates
-        results = parse_results(all_output)
-        passed = check_ivp17_gates(results)
-
-        # Return to main menu
-        send_and_read(port, 'x', 0.3)
-
-        return 0 if passed else 1
-
-    except KeyboardInterrupt:
-        print("\n\nInterrupted by user")
-        # Send ESC to cancel any active calibration
-        port.write(b'\x1b')
-        time.sleep(0.5)
-        return 1
-
-    finally:
-        port.close()
-        print("Serial port closed.")
+    except RuntimeError as e:
+        print(f'ERROR: cannot open {port_name}: {e}')
+        print("Is the device plugged in and terminal closed?")
+        sys.exit(2)
 
 
 if __name__ == '__main__':
