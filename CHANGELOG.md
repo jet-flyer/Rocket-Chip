@@ -22,6 +22,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-27-007 | Claude | documentation, refactor
+
+**`.claude/SESSION_CHECKLIST.md` restructured: four-scope hierarchy + Trigger-Driven Documentation Edits.** Surfaced by user observation that the previous structure conflated multiple events — "Session End (Normal Completion)" mixed per-commit hygiene (verification, message format, no-orphans) with per-push gates (CHANGELOG, WB cleanup, build parity), and the absence of an explicit COMMIT layer meant "ready to push" got read as "ready to end the session." Triggered-driven doc edits (CHANGELOG, WB, PROJECT_STATUS, drift checks) were inline as cadence rules rather than as content-driven triggers, which is how they actually work.
+
+**New hierarchy:** `COMMIT ⊂ PUSH ⊂ SESSION_END ⊂ MILESTONE`. Each outer scope inherits inner-scope rules and adds its own. Per-Commit covers build verification, no orphans, no unintended deletions, commit message format + HW gate citation per `HW_GATE_DISCIPLINE.md` Rule 3. Per-Push adds station/vehicle 4-tier parity rebuild, "triggered-doc-edits-are-committed" gate, and CHANGELOG-covers-the-push-window. Session End adds no-broken-code-on-main, push-to-remote, handoff notes (folding what was previously the separate "Session End (Handoff)" section into the default Session-End mode). Session-End: Milestone keeps its existing rot-detection layer (protected-doc drift check, build-system audit, full-tree clang-tidy, lessons-learned consideration) and is now explicitly named as a structurally-authorized retroactive-fix moment.
+
+**New section: Trigger-Driven Documentation Edits.** Captures the principle that a protected/architecture document is edited only when the session's work directly contradicts its current contents — not on cadence, not on stage transitions, not "at session end" by default. The edit rides with the trigger (same commit as the change), so `git log --follow` on the doc and `git bisect` see code + doc atomically consistent.
+
+**Two-category framing for protected docs:**
+
+- **State-of-system docs** (SAD, SCAFFOLDING, AO_ARCHITECTURE, MULTICORE_RULES, CODING_STANDARDS, RP2350_ERRATA, HW_GATE_DISCIPLINE, COUNCIL_PROCESS, .claude/CLAUDE.md, AK_GUIDELINES, PROTECTED_FILES, SESSION_CHECKLIST, README, PROJECT_STATUS, AGENT_WHITEBOARD): forward-going edit applies. When the diff makes the doc wrong, fix it in the same commit that triggered the wrongness.
+- **Historical-record docs** (`docs/decisions/*`, `docs/plans/*`, `docs/audits/*`, `docs/baselines/*`, CHANGELOG, LESSONS_LEARNED, STANDARDS_DEVIATIONS Resolved section): forward-going edit does NOT apply. New entries are new files / new entries. Edits to existing content are typo-correction or supersession-header marking only (e.g., the legitimate "SUPERSEDED 2026-04-22" header on LL Entry 25).
+- **Mixed-mode** (`docs/IVP.md`): per-IVP entries are historical (frozen on IVP commit), stage-list / next-stage sections are state-of-system. Two trigger modes — planning-entry (first step of stage planning) and closing-entry (after divergence from plan).
+
+**Retroactive amendment rule:** drift caught after the trigger event is legitimate to fix **with explicit user approval**, or as part of the milestone-authorized drift-check audit. Otherwise default is to flag the drift on `AGENT_WHITEBOARD.md` and continue. The approval gate exists because retroactive fixes look identical to "decided to start editing protected files" from a diff perspective.
+
+Verified: pure-software change (single doc edit), host ctest 788/788 PASS, no HW reseat required.
+
+Files: `.claude/SESSION_CHECKLIST.md`, `CHANGELOG.md`
+
 ### 2026-04-27-006 | Claude | documentation, council, refactor
 
 **`standards/HW_GATE_DISCIPLINE.md` authored + AO Commandments full-sweep audit.** Two related sweeps closing out the long-standing WB items.
