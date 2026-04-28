@@ -1,7 +1,7 @@
 # RP2350 Platform Notes
 
 **Status:** Reference document
-**Last Updated:** 2026-02-03 (MPU/fault GDB note: 2026-04-28)
+**Last Updated:** 2026-02-03
 **Source:** Pico SDK source (`stdio_usb.c`), RP2350 datasheet, `pico/multicore.h`
 
 ---
@@ -177,11 +177,17 @@ void compute() {
 }
 ```
 
-### MPU stack guard and fault handlers (Stage O, OPT-IVP-01)
+### MPU Stack Guard and Fault Handling
 
-**Single source:** [`src/safety/fault_protection.cpp`](../src/safety/fault_protection.cpp) (and header) — `mpu_setup_stack_guard()`, `memmanage_fault_handler`, `Q_onError`, shared MPU limit constant. **Core 0** installs this from `init_early_hw()`; **Core 1** calls the same guard setup at `core1_entry()` before the sensor loop. Do not fork duplicate handler bodies or guard sizes. Plan hardware gates: GDB stack-overflow exercise and expected fault/LED pattern; see `docs/PROJECT_STATUS.md` (Stage O verification table).
+**Single source of truth:** `src/safety/fault_protection.cpp` (and header). Contains `mpu_setup_stack_guard()`, `memmanage_fault_handler()`, shared MPU limit constant, and `Q_onError`.
 
-**GDB / exception naming:** `init_early_hw()` registers the **same** C function for **both** `HARDFAULT` and `MEMMANAGE` vectors. When debugging, OpenOCD may report **“Handler HardFault”** while the PC is still inside **`memmanage_fault_handler()`** — the label reflects **which architectural fault entry** applies, not two different C implementations. Combined evaluation uses **`SCB->CFSR`** (`0xE000ED28` sticky halves) plus OpenOCD’s **`[rp2350.cm0]` / `[rp2350.cm1]`** thread/handler lines. For a **controlled** MPU/dual-core check without staggered GDB halts, use **`scripts/opt_ivp01_row10_dualcore_watch.gdb`** (fresh `reset`/`load`/passive run/single halt) per Stage O row 10 in the [**runbook**](baselines/stage_o_hw_verification_2026-04-28.md).
+Both cores **must** call the guard setup:
+- Core 0: from `init_early_hw()`
+- Core 1: from `core1_entry()` (before sensor loop)
+
+Do not duplicate handler bodies or guard sizes. For diagnosis use `SCB->CFSR` (`0xE000ED28`). GDB/OpenOCD may report “Handler HardFault” while PC is inside `memmanage_fault_handler()` — the label reflects the vector, not separate C functions.
+
+*(See `docs/FAULT_INJECTION.md` for testing and `docs/baselines/stage_o_hw_verification_2026-04-28.md` for Stage O validation procedure.)*
 
 ### Core 1 Stack
 

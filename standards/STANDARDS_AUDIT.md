@@ -6,9 +6,10 @@
 
 - [STANDARDS_AUDIT_2026-02-07.md](STANDARDS_AUDIT_2026-02-07.md) — Phase 1-3 (P10, flow control, portable code, platform, C++, functions, style, JPL C)
 - [STANDARDS_AUDIT_2026-03-26.md](STANDARDS_AUDIT_2026-03-26.md) — clang-tidy / lizard tiered pass (post-Stage 8)
-- [STANDARDS_AUDIT_2026-04-28.md](STANDARDS_AUDIT_2026-04-28.md) — Stage O subset (OPT-IVP-01/02/05: fault_protection, shared_state, ESKF bench)
 
 ---
+
+
 
 ## Metadata
 
