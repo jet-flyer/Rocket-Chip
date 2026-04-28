@@ -29,7 +29,32 @@ import re
 import serial
 import serial.tools.list_ports
 import sys
+import threading
 import time
+
+
+# =============================================================================
+# Wall-clock watchdog
+#
+# `--max-runtime` is checked between tests, but a hung serial.Serial() open
+# (Windows USB CDC stuck-in-CONFIGURED) can stall in C-library code where
+# the inter-test check never fires. A daemon watchdog thread is the only
+# reliable hard kill: when it fires, it prints to stderr and calls
+# os._exit(2) — bypassing finalizers (intentional — we are already wedged).
+# Mirrors the same primitive in scripts/station_bench_sim.py.
+# =============================================================================
+
+def _start_watchdog(deadline_s, label='bench_sim'):
+    def _bark():
+        time.sleep(deadline_s)
+        sys.stderr.write(
+            f'\n[WATCHDOG] {label} exceeded --max-runtime '
+            f'{deadline_s:.0f}s wall-clock; force-exiting (code 2)\n')
+        sys.stderr.flush()
+        os._exit(2)
+    t = threading.Thread(target=_bark, daemon=True, name='watchdog')
+    t.start()
+    return t
 
 # =============================================================================
 # Regex constants — TESTED AGAINST FIRMWARE LOG OUTPUT.
@@ -330,8 +355,12 @@ def main():
     parser.add_argument('--verbose', action='store_true',
                         help='Print all serial traffic')
     parser.add_argument('--max-runtime', type=float, default=120.0,
-                        help='Top-level wall-clock deadline (default 120s)')
+                        help='Wall-clock deadline (default 120s, hard-killed by watchdog)')
     args = parser.parse_args()
+
+    # Wall-clock watchdog: hard kill after deadline, even if stuck inside
+    # serial.Serial() C calls. See scripts/station_bench_sim.py for context.
+    _start_watchdog(args.max_runtime)
 
     # --- Port detection ---
     port_name = args.port
