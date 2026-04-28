@@ -33,7 +33,13 @@ import serial
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_STATION_BENCH  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_STATION_BENCH,
+)
 
 
 # Line format in [CmdRetryStats] block:
@@ -154,52 +160,45 @@ def ensure_kmenu(ser):
     drain(ser, 0.5)
 
 
-def run(port: str, n: int, interval: float, settle: float, csv_path: str | None):
-    print(f"Stage T Wilson CI — port={port} n={n} interval={interval}s "
-          f"settle={settle}s")
-    with serial.Serial(port, 115200, timeout=0.5) as ser:
-        time.sleep(2.0)
-        drain(ser, 1.0)
+def run(ser: serial.Serial, n: int, interval: float, settle: float,
+        csv_path: str | None):
+    print(f"Stage T Wilson CI — n={n} interval={interval}s settle={settle}s")
 
-        print("\n[1/4] Ensuring kMenu mode...")
-        ensure_kmenu(ser)
+    time.sleep(2.0)
+    drain(ser, 1.0)
 
-        print("\n[1/3] Capturing baseline DISARM stats...")
-        baseline = capture_disarm_stats(ser)
-        print(f"  baseline: sent={baseline.sent} 1st={baseline.first_try} "
-              f"retry={baseline.retry_rescued} fail={baseline.failed}")
+    print("\n[1/4] Ensuring kMenu mode...")
+    ensure_kmenu(ser)
 
-        # Stay in kMenu for the command burst — in kMenu, 'X' is the
-        # tracked-DISARM keystroke (kAnsi 'D' would work too but requires
-        # a mode cycle that can race with dashboard redraw).
-        print(f"\n[2/3] Sending {n} DISARM commands (kMenu 'X') at {interval}s interval...")
-        t_start = time.time()
-        for i in range(n):
-            ser.write(b"X")
-            ser.flush()
-            now = time.time()
-            elapsed = now - t_start
-            next_send = t_start + (i + 1) * interval
-            # Continuously drain serial input during the wait so CDC buffer
-            # on the host doesn't back-pressure our writes. Station emits
-            # [CMD] lines + (if in kAnsi) dashboard frames; in kMenu this
-            # is mostly [CMD] output from retry ticks.
-            while time.time() < next_send:
-                pending = ser.in_waiting
-                if pending:
-                    ser.read(pending)
-                time.sleep(0.05)
-            if (i + 1) % 10 == 0 or i == 0:
-                print(f"  [{elapsed:6.1f}s] sent {i + 1}/{n}")
-        print(f"  all {n} sent in {time.time() - t_start:.1f}s")
+    print("\n[1/3] Capturing baseline DISARM stats...")
+    baseline = capture_disarm_stats(ser)
+    print(f"  baseline: sent={baseline.sent} 1st={baseline.first_try} "
+          f"retry={baseline.retry_rescued} fail={baseline.failed}")
 
-        print(f"\n  settle: waiting {settle}s for final retry windows...")
-        time.sleep(settle)
+    print(f"\n[2/3] Sending {n} DISARM commands (kMenu 'X') at {interval}s interval...")
+    t_start = time.time()
+    for i in range(n):
+        ser.write(b"X")
+        ser.flush()
+        now = time.time()
+        elapsed = now - t_start
+        next_send = t_start + (i + 1) * interval
+        while time.time() < next_send:
+            pending = ser.in_waiting
+            if pending:
+                ser.read(pending)
+            time.sleep(0.05)
+        if (i + 1) % 10 == 0 or i == 0:
+            print(f"  [{elapsed:6.1f}s] sent {i + 1}/{n}")
+    print(f"  all {n} sent in {time.time() - t_start:.1f}s")
 
-        print("\n[3/3] Capturing post-test DISARM stats...")
-        post = capture_disarm_stats(ser)
-        print(f"  post:     sent={post.sent} 1st={post.first_try} "
-              f"retry={post.retry_rescued} fail={post.failed}")
+    print(f"\n  settle: waiting {settle}s for final retry windows...")
+    time.sleep(settle)
+
+    print("\n[3/3] Capturing post-test DISARM stats...")
+    post = capture_disarm_stats(ser)
+    print(f"  post:     sent={post.sent} 1st={post.first_try} "
+          f"retry={post.retry_rescued} fail={post.failed}")
 
     # Diff
     d_sent          = post.sent - baseline.sent
@@ -257,7 +256,8 @@ def run(port: str, n: int, interval: float, settle: float, csv_path: str | None)
 @rc_test(target=TARGET_STATION_BENCH)
 def main():
     ap = argparse.ArgumentParser(description="Stage T Wilson CI for DISARM first-try rate")
-    ap.add_argument("--port", default="COM9", help="Station COM port (default COM9)")
+    ap.add_argument("--port", default=None,
+                    help="Station COM (default: auto-detect VID 0x2E8A Fruit Jam)")
     ap.add_argument("--n", type=int, default=100, help="Number of DISARM commands (default 100)")
     ap.add_argument("--interval", type=float, default=1.0,
                     help="Seconds between sends (default 1.0)")
@@ -265,7 +265,24 @@ def main():
                     help="Seconds to wait after last send before final stats capture (default 5)")
     ap.add_argument("--csv", default=None, help="Write summary CSV to this path")
     args = ap.parse_args()
-    run(args.port, args.n, args.interval, args.settle, args.csv)
+    port_out, meta = find_target_port(
+        TARGET_STATION_BENCH, override=args.port, verbose=True)
+    if port_out is None:
+        print(f'ERROR: {meta}')
+        return 2
+
+    assert isinstance(meta, Banner)
+
+    print(f'Using {port_out} ({meta.short_summary()})')
+
+    try:
+        with open_classified_port(port_out,
+                                  target=TARGET_STATION_BENCH,
+                                  auto_enter_cli_menu=False) as ser:
+            run(ser, args.n, args.interval, args.settle, args.csv)
+    except RuntimeError as e:
+        print(f'ERROR: {e}')
+        return 2
 
 
 if __name__ == "__main__":

@@ -15,14 +15,19 @@ Usage:
 """
 import argparse
 import os
-import serial
 import sys
 import time
 
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_VEHICLE_BENCH  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_VEHICLE_BENCH,
+)
 
 def read_diag_stats(port, timeout=5.0):
     """Send q-d keystrokes, capture diag_stats output."""
@@ -83,7 +88,8 @@ def parse_stats(text):
 @rc_test(target=TARGET_VEHICLE_BENCH)
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--port', default='COM7')
+    parser.add_argument('--port', default=None,
+                        help='Vehicle USB CDC (default: VID 0x2E8A auto-detect)')
     parser.add_argument('--duration', type=int, default=300)
     parser.add_argument('--interval', type=int, default=60,
                         help='Seconds between stats snapshots')
@@ -91,41 +97,52 @@ def main():
 
     print(f'=== IVP-132 Soak Test ({args.duration}s, snapshot every {args.interval}s) ===', flush=True)
 
-    port = serial.Serial(args.port, 115200, timeout=0.5)
-    time.sleep(1.5)
-    port.reset_input_buffer()
+    port_name, meta = find_target_port(
+        TARGET_VEHICLE_BENCH, override=args.port, verbose=True)
+    if port_name is None:
+        print(f'INFO: skip — {meta}', flush=True)
+        return 2
 
-    snapshots = []
-    start = time.time()
-    next_snap = 0
+    assert isinstance(meta, Banner)
+    print(f'target banner: {meta.short_summary()}', flush=True)
 
-    while time.time() - start < args.duration:
-        elapsed = int(time.time() - start)
-        if elapsed >= next_snap:
-            print(f'\n[T={elapsed}s] Capturing stats...', flush=True)
+    try:
+        with open_classified_port(port_name, target=TARGET_VEHICLE_BENCH) as port:
+            port.reset_input_buffer()
+
+            snapshots = []
+            start = time.time()
+            next_snap = 0
+
+            while time.time() - start < args.duration:
+                elapsed = int(time.time() - start)
+                if elapsed >= next_snap:
+                    print(f'\n[T={elapsed}s] Capturing stats...', flush=True)
+                    raw = read_diag_stats(port)
+                    s = parse_stats(raw)
+                    s['_raw'] = raw
+                    s['_wall_time'] = elapsed
+                    snapshots.append(s)
+                    print(f'  uptime={s.get("uptime_ms",0)/1000:.0f}s  '
+                          f'IMU_reads={s.get("sensor_reads","?")}  '
+                          f'radio_tx={s.get("radio_tx","?")}  '
+                          f'health={s.get("health_primary","?")}  '
+                          f'FD_high={s.get("queue_AO_FlightDirector_high","?")}',
+                          flush=True)
+                    next_snap = elapsed + args.interval
+                else:
+                    time.sleep(1)
+
+            print(f'\n[T={int(time.time()-start)}s] Final capture...', flush=True)
             raw = read_diag_stats(port)
-            s = parse_stats(raw)
-            s['_raw'] = raw
-            s['_wall_time'] = elapsed
-            snapshots.append(s)
-            print(f'  uptime={s.get("uptime_ms",0)/1000:.0f}s  '
-                  f'IMU_reads={s.get("sensor_reads","?")}  '
-                  f'radio_tx={s.get("radio_tx","?")}  '
-                  f'health={s.get("health_primary","?")}  '
-                  f'FD_high={s.get("queue_AO_FlightDirector_high","?")}', flush=True)
-            next_snap = elapsed + args.interval
-        else:
-            time.sleep(1)
+            final = parse_stats(raw)
+            final['_raw'] = raw
+            snapshots.append(final)
+    except RuntimeError as e:
+        print(f'ERROR: {e}', flush=True)
+        return 2
 
-    # Final capture
-    print(f'\n[T={int(time.time()-start)}s] Final capture...', flush=True)
-    raw = read_diag_stats(port)
-    final = parse_stats(raw)
-    final['_raw'] = raw
-    snapshots.append(final)
-    port.close()
-
-    # Analysis
+    # Analysis (same as prior: single port closed by context mgr)
     print('\n=== Soak Analysis ===', flush=True)
     if len(snapshots) < 2:
         print('INSUFFICIENT SAMPLES', flush=True)

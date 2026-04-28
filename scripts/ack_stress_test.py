@@ -61,7 +61,13 @@ except ImportError:
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_STATION_ANY  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_STATION_ANY,
+)
 
 
 # Firmware log lines this script watches for.
@@ -200,7 +206,7 @@ def drain_and_classify(ser, result: TestResult, timeout_s: float = 0.2):
             print(f"  [FAILED] {line}")
 
 
-def run(port: str, duration_s: float, interval_s: float, inject_drops: int,
+def run(ser: serial.Serial, duration_s: float, interval_s: float, inject_drops: int,
         max_commands: int, csv_path: Optional[str]):
     if inject_drops > 0:
         print("NOTE: --inject-drops requires the debug probe on the station + "
@@ -208,11 +214,7 @@ def run(port: str, duration_s: float, interval_s: float, inject_drops: int,
               "it assumes you've wired fault_force_station_rx_drop via another "
               "terminal. This iteration: prints a reminder before each send.")
 
-    ser = serial.Serial(port, 115200, timeout=0.1)
-    time.sleep(0.2)
-    ser.reset_input_buffer()
-
-    print(f"IVP-132a.5 ACK stress test — port={port} duration={duration_s}s "
+    print(f"IVP-132a.5 ACK stress test — duration={duration_s}s "
           f"interval={interval_s}s inject_drops={inject_drops}")
     print("-" * 60)
 
@@ -245,7 +247,6 @@ def run(port: str, duration_s: float, interval_s: float, inject_drops: int,
         # Final drain to catch trailing ACKs
         time.sleep(1.0)
         drain_and_classify(ser, result, timeout_s=1.0)
-        ser.close()
 
     elapsed = time.time() - start
     print("\n" + "=" * 60)
@@ -312,7 +313,8 @@ def run(port: str, duration_s: float, interval_s: float, inject_drops: int,
 @rc_test(target=TARGET_STATION_ANY)
 def main():
     ap = argparse.ArgumentParser(description="ACK stress test (IVP-132a.5 + Stage T)")
-    ap.add_argument("--port", default="COM7", help="Station serial port (default COM7)")
+    ap.add_argument("--port", default=None,
+                    help="Station serial (default: auto-detect VID 0x2E8A)")
     ap.add_argument("--duration", type=float, default=300.0,
                     help="Test duration in seconds (default 300 = 5 min). "
                          "Set very high when using --count to cap by count.")
@@ -328,8 +330,24 @@ def main():
                     help="N for fault_force_station_rx_drop(N) reminder "
                          "per send (requires probe + manual GDB)")
     args = ap.parse_args()
-    run(args.port, args.duration, args.interval, args.inject_drops,
-        args.count, args.csv)
+    port_out, meta = find_target_port(TARGET_STATION_ANY, override=args.port,
+                                      verbose=True)
+    if port_out is None:
+        print(f"INFO: skip — {meta}")
+        return 2
+
+    assert isinstance(meta, Banner)
+    print(f"Using {port_out} ({meta.short_summary()})")
+
+    try:
+        with open_classified_port(
+                port_out, target=TARGET_STATION_ANY,
+                auto_enter_cli_menu=False) as ser:
+            run(ser, args.duration, args.interval, args.inject_drops,
+                args.count, args.csv)
+    except RuntimeError as e:
+        print(f"ERROR: {e}")
+        return 2
 
 
 if __name__ == "__main__":

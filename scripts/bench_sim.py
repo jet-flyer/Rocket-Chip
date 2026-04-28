@@ -14,8 +14,10 @@ Two tests:
   1. Happy path: ARM -> launch -> boost -> apogee -> drogue -> main -> land
   2. Abort-with-pyro: ARM -> launch -> BOOST -> ABORT -> drogue fires
 
-Serial port is auto-detected by default (probes for RocketChip boot banner).
-Use --port to override for multi-device setups.
+Port selection uses ``find_target_port`` (RocketChip VID:PID USB CDC only ---
+never picks a bare COM by string alone). Overrides with ``--port`` are still
+banner-classified; station firmware is rejected. Connection uses
+``open_classified_port`` for a post-open re-classify guard.
 
 Exit codes:
     0 = both tests pass
@@ -27,7 +29,6 @@ import argparse
 import os
 import re
 import serial
-import serial.tools.list_ports
 import sys
 import threading
 import time
@@ -35,7 +36,13 @@ import time
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_VEHICLE_ANY  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_VEHICLE_ANY,
+)
 
 
 # =============================================================================
@@ -77,18 +84,11 @@ RE_PYRO = re.compile(r'\[FD\] PYRO FIRED: (DROGUE|MAIN) \(primary\)')
 # Renamed from "PYRO INTENT" in commit 2254b16 (2026-04-06).
 # Verified 2026-04-11.
 
-RE_BOOT_BANNER = re.compile(r'RocketChip v\S+\s+Build:\s+(\S+)')
-# Firmware: "RocketChip v%s  Build: %s\n" at src/cli/rc_os_commands.cpp:744
-# Printed automatically at boot, before any CLI interaction.
-# Verified 2026-04-11.
-
 RE_PHASE = re.compile(r'Phase:\s+(\w+)')
 # Firmware: "  Phase:       %s\n" at src/active_objects/ao_flight_director.cpp:303
 # Verified 2026-04-11.
 
 RE_PROMPT = re.compile(r'\[(main|flight)\]\s*')
-
-LAST_PORT_FILE = os.path.join(os.path.dirname(__file__), '.bench_sim_last_port')
 
 # =============================================================================
 # Test case definitions
@@ -127,111 +127,8 @@ TESTS = [
 ]
 
 # =============================================================================
-# Serial helpers
+# Serial helpers (post-connect)
 # =============================================================================
-
-def auto_detect_port(verbose=False):
-    """Auto-detect the RocketChip serial port by probing for known responses."""
-    # Try cached port first
-    if os.path.exists(LAST_PORT_FILE):
-        try:
-            cached = open(LAST_PORT_FILE).read().strip()
-            if cached and _probe_port(cached, verbose):
-                if verbose:
-                    print(f'  auto-detect: cached port {cached} OK')
-                return cached
-        except (OSError, serial.SerialException):
-            pass
-
-    # Scan all ports
-    ports = [p.device for p in serial.tools.list_ports.comports()]
-    if verbose:
-        print(f'  auto-detect: scanning {len(ports)} ports: {ports}')
-
-    for port in ports:
-        if _probe_port(port, verbose):
-            # Cache for next time
-            try:
-                with open(LAST_PORT_FILE, 'w') as f:
-                    f.write(port)
-            except OSError:
-                pass
-            return port
-
-    return None
-
-
-def _probe_port(port, verbose=False):
-    """Try to open a port and check for RocketChip response.
-
-    Uses a thread with a join timeout to prevent hanging on ports held by
-    other processes (e.g., the debug probe's CDC interface held by OpenOCD).
-    On Windows, serial.Serial() can block indefinitely if the port is held
-    by another process; Python's timeout parameter only applies to reads,
-    not to the open itself. The thread approach is the only reliable way to
-    bound the open time.
-    """
-    import threading
-
-    result = [False]
-
-    def _try_open():
-        try:
-            p = serial.Serial(port, 115200, timeout=0.5, write_timeout=0.5)
-            time.sleep(0.3)
-            p.read(4096)  # drain
-            p.write(b'h')  # help command
-            time.sleep(0.5)
-            data = p.read(4096).decode('utf-8', errors='replace')
-            p.close()
-            # Accept any RocketChip banner, but REJECT the station —
-            # bench_sim targets the VEHICLE. Station has its own sim.
-            # Fixes wrong-port-pick when both boards are plugged in.
-            if 'Ground Station' in data or 'Fruit Jam' in data:
-                pass  # station port — skip
-            elif 'RocketChip' in data or '[main]' in data or '[flight]' in data:
-                result[0] = True
-        except (serial.SerialException, OSError, PermissionError):
-            pass
-
-    t = threading.Thread(target=_try_open, daemon=True)
-    t.start()
-    t.join(timeout=3.0)  # 3s max per port — generous but bounded
-
-    if t.is_alive():
-        if verbose:
-            print(f'  auto-detect: {port} timed out (likely held by another process)')
-        return False  # Thread still running = hung on open. Daemon thread dies with process.
-
-    if result[0] and verbose:
-        print(f'  auto-detect: {port} responded with RocketChip signature')
-    elif verbose:
-        print(f'  auto-detect: {port} no response or error')
-
-    return result[0]
-
-
-def connect(port, retries=5, retry_delay=1.5):
-    """Open serial port with retry for transient USB CDC failures."""
-    last_err = None
-    for attempt in range(retries):
-        try:
-            p = serial.Serial(port, 115200, timeout=0.1)
-            time.sleep(1.0)
-            p.read(10000)  # drain
-            time.sleep(0.5)
-            p.read(10000)  # drain again
-            if attempt > 0:
-                print(f'  (connected on attempt {attempt + 1})')
-            return p
-        except (serial.SerialException, OSError) as e:
-            last_err = e
-            if attempt < retries - 1:
-                print(f'  connect attempt {attempt + 1}/{retries}: {e}; '
-                      f'retrying in {retry_delay}s')
-                time.sleep(retry_delay)
-    raise RuntimeError(f'Could not open {port} after {retries} attempts: {last_err}')
-
 
 def send_key(port, key, timeout_s=2.0):
     """Send a key and collect output until prompt or timeout."""
@@ -368,33 +265,32 @@ def main():
     # serial.Serial() C calls. See scripts/station_bench_sim.py for context.
     _start_watchdog(args.max_runtime)
 
-    # --- Port detection ---
-    port_name = args.port
+    # --- Port detection + connect ---
+    port_name, meta = find_target_port(
+        TARGET_VEHICLE_ANY, override=args.port, verbose=args.verbose)
     if port_name is None:
-        print('auto-detecting serial port...')
-        port_name = auto_detect_port(verbose=args.verbose)
-        if port_name is None:
-            print('ERROR: Could not auto-detect RocketChip serial port.')
-            print('  No port responded with a RocketChip signature.')
-            print('  Ensure the device is powered and connected.')
-            print('  Or specify --port manually.')
-            sys.exit(2)
-    print(f'auto-detected serial port: {port_name}')
+        print('ERROR: No vehicle RocketChip USB CDC port found.')
+        print(f'  {meta}')
+        print('  Plug the vehicle Feather, unplug station-only rigs, or set '
+              '--port.')
+        sys.exit(2)
 
-    # --- Connect ---
+    if not isinstance(meta, Banner):
+        print('ERROR: internal: expected Banner from find_target_port')
+        sys.exit(2)
+
+    print(f'Using {port_name} ({meta.short_summary()})')
+
     try:
-        ser = connect(port_name)
-    except (RuntimeError, serial.SerialException, OSError) as e:
+        with open_classified_port(port_name, target=TARGET_VEHICLE_ANY) as ser:
+            return _bench_sim_run_inner(ser, port_name, meta, args)
+    except RuntimeError as e:
         print(f'ERROR: Cannot open {port_name}: {e}')
         sys.exit(2)
 
-    # --- Capture build tag from boot banner (if visible) ---
-    time.sleep(0.5)
-    banner_data = ser.read(4096).decode('utf-8', errors='replace')
-    build_tag = '?'
-    m = RE_BOOT_BANNER.search(banner_data)
-    if m:
-        build_tag = m.group(1)
+
+def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
+    """Test body inside open_classified_port context."""
 
     # --- Wait for sensor health before testing ---
     # After boot, sensors need a few seconds to report healthy. The Go/No-Go
@@ -426,7 +322,7 @@ def main():
     # --- Run tests ---
     print(f'\n=== RocketChip Bench Sim ===')
     print(f'  Port: {port_name}')
-    print(f'  Build: {build_tag}')
+    print(f'  Classified: {meta.short_summary()}')
     print(f'  Max runtime: {args.max_runtime:.0f}s')
     print()
 
@@ -462,8 +358,7 @@ def main():
     print(f'\n  RESULT: {passed}/{total} PASS  ({elapsed:.1f}s)')
     print(f'={"=" * 30}')
 
-    ser.close()
-    sys.exit(0 if failed == 0 else 1)
+    return 0 if failed == 0 else 1
 
 
 if __name__ == '__main__':

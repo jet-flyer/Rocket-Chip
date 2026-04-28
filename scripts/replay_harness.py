@@ -20,20 +20,25 @@ import argparse
 import csv
 import os
 import re
-import serial
 import sys
 import time
 
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_VEHICLE_BENCH  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_VEHICLE_BENCH,
+)
 
 @rc_test(target=TARGET_VEHICLE_BENCH)
 def main():
     parser = argparse.ArgumentParser(description='RocketChip Replay Harness')
     parser.add_argument('csv_file', help='Path to sensor profile CSV')
-    parser.add_argument('--port', default='COM7', help='Serial port')
+    parser.add_argument('--port', default=None, help='Serial port (auto-detect vehicle)')
     parser.add_argument('--baud', type=int, default=115200)
     parser.add_argument('--use-cli', action='store_true',
                         help='Start replay via CLI keys (default: assume GDB started it)')
@@ -67,70 +72,82 @@ def main():
 
     print(f'Loaded {len(samples)} samples from {args.csv_file}')
 
-    port = serial.Serial(args.port, args.baud, timeout=0.1)
-    time.sleep(0.5)
-    port.reset_input_buffer()  # non-blocking drain
+    port_name, meta = find_target_port(
+        TARGET_VEHICLE_BENCH, override=args.port, verbose=True)
+    if port_name is None:
+        print(f'Cannot run: {meta}')
+        return 2
 
-    if args.use_cli:
-        print('Entering debug menu and starting replay via CLI...')
-        port.write(b'q')
-        time.sleep(0.3)
-        port.write(b'r')
-        time.sleep(0.5)
+    assert isinstance(meta, Banner)
+    print(f'Port {port_name} ({meta.short_summary()})')
 
-    if args.arm_first:
-        print('Sending ARM command...')
-        port.write(b'f')  # flight menu
-        time.sleep(0.2)
-        port.write(b'a')  # ARM
-        time.sleep(1.0)
+    try:
+        with open_classified_port(port_name,
+                                  target=TARGET_VEHICLE_BENCH,
+                                  baud=args.baud,
+                                  timeout=0.1) as port:
+            port.reset_input_buffer()
 
-    # Drain any output
-    port.read(10000)
+            if args.use_cli:
+                print('Entering debug menu and starting replay via CLI...')
+                port.write(b'q')
+                time.sleep(0.3)
+                port.write(b'r')
+                time.sleep(0.5)
 
-    print(f'Streaming {len(samples)} samples...')
-    start_time = time.time()
-    prev_t = 0.0
+            if args.arm_first:
+                print('Sending ARM command...')
+                port.write(b'f')
+                time.sleep(0.2)
+                port.write(b'a')
+                time.sleep(1.0)
 
-    for i, parts in enumerate(samples):
-        t = float(parts[0])
-        ax = parts[1]
-        ay = parts[2]
-        az = parts[3] if parts[3] else '0'
-        gx = parts[4]
-        gy = parts[5]
-        gz = parts[6]
-        press = parts[7] if parts[7] else '0'
-        lat = parts[8] if len(parts) > 8 and parts[8] else '0'
-        lon = parts[9] if len(parts) > 9 and parts[9] else '0'
-        alt = parts[10] if len(parts) > 10 and parts[10] else '0'
+            port.read(10000)
 
-        # Wait for correct timing
-        dt = t - prev_t
-        if dt > 0 and i > 0:
-            time.sleep(dt)
-        prev_t = t
+            print(f'Streaming {len(samples)} samples...')
+            start_time = time.time()
+            prev_t = 0.0
 
-        line = f'S,{ax},{ay},{az},{gx},{gy},{gz},{press},{lat},{lon},{alt}\n'
-        port.write(line.encode())
+            for i, parts in enumerate(samples):
+                t = float(parts[0])
+                ax = parts[1]
+                ay = parts[2]
+                az = parts[3] if parts[3] else '0'
+                gx = parts[4]
+                gy = parts[5]
+                gz = parts[6]
+                press = parts[7] if parts[7] else '0'
+                lat = parts[8] if len(parts) > 8 and parts[8] else '0'
+                lon = parts[9] if len(parts) > 9 and parts[9] else '0'
+                alt = parts[10] if len(parts) > 10 and parts[10] else '0'
 
-        if i % 500 == 0 and i > 0:
-            elapsed = time.time() - start_time
-            print(f'  {i}/{len(samples)} samples sent (sim t={t:.1f}s, wall={elapsed:.1f}s)')
+                dt = t - prev_t
+                if dt > 0 and i > 0:
+                    time.sleep(dt)
+                prev_t = t
 
-    # End replay
-    port.write(b'REPLAY_END\n')
-    time.sleep(1.0)
+                line = (f'S,{ax},{ay},{az},{gx},{gy},{gz},{press},'
+                        f'{lat},{lon},{alt}\n')
+                port.write(line.encode())
 
-    # Read available output (non-blocking)
-    output = b''
-    while True:
-        chunk = port.read(4096)
-        if not chunk:
-            break
-        output += chunk
-    output = output.decode('utf-8', errors='replace')
-    port.close()
+                if i % 500 == 0 and i > 0:
+                    elapsed = time.time() - start_time
+                    print(f'  {i}/{len(samples)} samples sent (sim t={t:.1f}s, '
+                          f'wall={elapsed:.1f}s)')
+
+            port.write(b'REPLAY_END\n')
+            time.sleep(1.0)
+
+            output = b''
+            while True:
+                chunk = port.read(4096)
+                if not chunk:
+                    break
+                output += chunk
+            output = output.decode('utf-8', errors='replace')
+    except RuntimeError as e:
+        print(f'ERROR: {e}')
+        return 2
 
     print(f'\nReplay complete. {len(samples)} samples in {time.time()-start_time:.1f}s')
     print('\n--- Firmware output ---')
