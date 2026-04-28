@@ -446,8 +446,6 @@ else()
         # -------------------------------------------------------------------------
         # Stage 9: Active Object Architecture (IVP-76+)
         # -------------------------------------------------------------------------
-        src/active_objects/ao_blinker.cpp
-        src/active_objects/ao_counter.cpp
         src/active_objects/ao_led_engine.cpp
         src/active_objects/ao_flight_director.cpp
         src/active_objects/ao_health_monitor.cpp
@@ -508,8 +506,6 @@ else()
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
         src/active_objects/ao_rcos.cpp
-        src/active_objects/ao_blinker.cpp
-        src/active_objects/ao_counter.cpp
         src/active_objects/ao_flight_director.cpp
         src/active_objects/ao_health_monitor.cpp
         src/active_objects/ao_logger.cpp

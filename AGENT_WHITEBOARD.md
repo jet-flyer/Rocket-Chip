@@ -63,9 +63,7 @@
 
 Scope is clear but touches multiple files, needs verification, or has small design questions.
 
-- **`standards/HW_GATE_DISCIPLINE.md` + checklist amendment.** User ask 2026-04-17. Gate definitions must name a positive-control signal (e.g., "DAC 0x18 ACKs" proves bus health separately from device-under-test), a 3-boot reseat protocol, and require commit messages to cite the observed control signal — not just "build clean + MSP stable". Motivated by IVP-140 false-positive + Fruit Jam GPS cable episode. Related: LL Entry 25, 36.
 - **Station SPIN model extensions.** Scaffolding landed (IVP-147: P_TERMINATION + P_NO_DOUBLE_CLEAR, both PASS). Extend when corresponding firmware behavior lands: multi-pending-in-flight, RadioScheduler TX-window arbitration (needed for the sync-gap fix), MAVLink parser state, `station_idle_tick` GPS poll interleave.
-- **Full AO audit against `docs/decisions/AO_COMMANDMENTS.md`.** Prelim for Stage T Batch B did only a spot-check sufficient to confirm no LL Entry 32/35-class violations block Batch B (findings: 3 documented blocking-in-handler deviations in `ao_rcos.cpp` / `ao_radio.cpp` with in-code rationale; all `QACTIVE_POST` use static events). A thorough audit across all 7 AOs — Commandments I-XII each checked, violations ranked by severity, remediation plan per violation, decision per violation whether to fix or document-as-deviation — hasn't been done. Should happen post-Stage-T, before any new AO is added (e.g., future dual-mode / Batch B+ additions). Promotion of `AO_COMMANDMENTS.md` to `standards/ACTIVE_OBJECT_RULES.md` (JSF-AV-grade normative) is a possible outcome.
 
 ## Large (multi-session, architectural)
 

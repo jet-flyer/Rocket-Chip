@@ -58,8 +58,6 @@
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
 #include "rocketchip/ao_signals.h"
-#include "ao_blinker.h"
-#include "ao_counter.h"
 #include "ao_led_engine.h"
 #include "ao_flight_director.h"
 #include "ao_logger.h"

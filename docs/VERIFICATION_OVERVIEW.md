@@ -106,7 +106,6 @@ Automated pyserial script that drives the Flight Director through 9 test scenari
 - IMU error count: 0 (after boot transient)
 - Baro error count: 0
 - ESKF: HEALTHY, predict timing ~600µs avg
-- AO_Counter jitter: avg ~100,000µs (10Hz exact)
 - No `[QP ASSERT]` messages
 - USB CDC stable (no disconnect/reconnect)
 

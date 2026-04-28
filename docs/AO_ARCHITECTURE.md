@@ -31,8 +31,6 @@ RocketChip uses the QP/C QV cooperative scheduler for event-driven subsystem man
 | AO_LedEngine | `ao_led_engine.cpp` | 33Hz | 2 | 8 | ws2812 driver, 3-layer compositor (Fault/Notify/Idle), Core1 vitality fallback (A1) | (none) | SIG_LED_PATTERN |
 | AO_RCOS | `cli/ao_rcos.cpp` | 20Hz | 1 | 16 | CLI output mode, ANSI dashboard, key dispatch, cal intent posting | SIG_CLI_COMMAND | (none) |
 
-*AO_Blinker (disabled): heartbeat LED demo. AO_Counter (disabled): jitter measurement diagnostic.*
-
 ---
 
 ## Module Inventory

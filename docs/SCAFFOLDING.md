@@ -179,9 +179,7 @@ rocketchip/
 │   │   ├── ao_telemetry.cpp/.h       # Telemetry protocol AO (10Hz, prio 3, radio-agnostic)
 │   │   ├── ao_radio.cpp/.h           # Radio hardware AO (100Hz, prio 8, protocol-agnostic)
 │   │   ├── ao_led_engine.cpp/.h      # NeoPixel display driver AO (33Hz, prio 2) — Stage 14: 3-layer
-│   │   ├── ao_rcos.cpp/.h            # CLI/dashboard AO (20Hz, prio 1)
-│   │   ├── ao_counter.cpp/.h         # Jitter measurement AO (disabled)
-│   │   └── ao_blinker.cpp/.h         # Blinker demo AO (disabled)
+│   │   └── ao_rcos.cpp/.h            # CLI/dashboard AO (20Hz, prio 1)
 │   │
 │   ├── notify/                    # Notification Engine Backends (Stage 14)
 │   │   ├── notify_resolver.h         # Internal header: resolve_led_pattern() + decode_health_faults() inline
