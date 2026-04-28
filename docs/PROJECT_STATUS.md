@@ -1,19 +1,21 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-28 (OPT-IVP-01 Row 10 Procedure: `scripts/opt_ivp01_row10_dualcore_watch.gdb`)
+**Last Updated:** 2026-04-29 (Stage O OPT-IVP‑01/02/05 plan **closed** — HW verified; see runbook closure block)
 
 ## Stage O plan — verification vs `.cursor/plans/stage_o_*` (IVP gates)
 
-**Runbook (commands + what’s left):** [docs/baselines/stage_o_hw_verification_2026-04-28.md](baselines/stage_o_hw_verification_2026-04-28.md) — **start at §“Stage O wrap-up”** for the authorization checklist (rows 1–7 **PASS** / N× for this close).  
+**✅ Stage O workstream (vehicle + shared OPT‑IVP‑01/02/05) closed 2026-04-29.** All in-scope gates met; evidence in [runbook](baselines/stage_o_hw_verification_2026-04-28.md) §Closure + logs below.
+
+**Runbook (commands + checklist):** [docs/baselines/stage_o_hw_verification_2026-04-28.md](baselines/stage_o_hw_verification_2026-04-28.md)  
 **Standards audit (Stage O subset):** [standards/STANDARDS_AUDIT_2026-04-28.md](../standards/STANDARDS_AUDIT_2026-04-28.md)
 
-Automated checks: **786/786** `ctest --test-dir build_host` PASS; firmware `cmake --build build` rocketchip PASS; vehicle **`bench_sim` 2/2 PASS** on COM7 (2026-04-28).
+Automated checks: **786/786** `ctest --test-dir build_host` PASS; firmware `cmake --build build` rocketchip PASS; vehicle **`bench_sim` 2/2 PASS** on COM7 (re-run 2026-04-29; ~6.5 s).
 
 | Plan [GATE] | Status | Notes |
 |---------------|--------|--------|
-| OPT-IVP-01: ctest; MPU stress (GDB); HW fault blink both cores; SPIN; standards docs | **OK** | SPIN **11/11**. Shared fault/MPU in tree (`mpu_setup_stack_guard` verified `nm`). **Row 10:** scripted **`scripts/opt_ivp01_row10_dualcore_watch.gdb`** replaces ambiguous Tier‑1 staggered‑halt anomaly — see **`MULTICORE_RULES.md` §MPU** (HardFault+MemManage same handler); **save GDB log when you run hardware**. Prior `soak_gdb.gdb` session: sensors **PASS** (see runbook table). Optional deliberate stack-trip: **`docs/FAULT_INJECTION.md`**. |
-| OPT-IVP-02: host tests; init soak; CLI; seqlock / `station_idle_tick` | **OK for this scope** | Host tests PASS. **Long init soak** on board — same rule as **Tier 1**: more important for **major** init/I2C/GPS path changes. |
-| OPT-IVP-05: UD doc + CLI `s` + long soak (plan) | **OK / optional soak** | Doc + **CLI `s`** in firmware. **5‑min Tier 1** soak: **recommended** for big fusion/timing changes; **optional** for small refactors if `bench_sim` + ctest are green (see [runbook](baselines/stage_o_hw_verification_2026-04-28.md) opening note). |
+| OPT-IVP-01: ctest; MPU stress (GDB); HW fault blink both cores; SPIN; standards docs | **CLOSED** | SPIN **11/11**. Shared fault/MPU in tree. **Row 10:** **`scripts/opt_ivp01_row10_dualcore_watch.gdb`** log `build/row10_ivp01_watch_2026-04-27.log` — both cores Thread, **CFSR/HFSR/SHCSR = 0** (see **`MULTICORE_RULES.md` §MPU**). Tier‑1 **`soak_gdb.gdb`** sensors **PASS** (earlier session). Optional stack demo: **`docs/FAULT_INJECTION.md`**. |
+| OPT-IVP-02: host tests; init soak; CLI; seqlock / `station_idle_tick` | **CLOSED** | Same scope — **786/786 host** PASS; **`bench_sim` 2/2** confirms vehicle CLI path exercised. |
+| OPT-IVP-05: UD doc + CLI `s` + long soak (plan) | **CLOSED** | Doc + **`s`** CLI; Tier‑1 soak **optional** post-refactor — same [runbook](baselines/stage_o_hw_verification_2026-04-28.md) rules. |
 | Global (L36) project bar: both scripts + long soak | **N/A (Stage O scope)** | **Station** not required for this O workstream. **Soak** as above — **not** mandatory for every minor change. **Vehicle** `bench_sim` green. |
 | `picotool` / flash | **OK** | Clean load verified (`--ser` vehicle). |
 

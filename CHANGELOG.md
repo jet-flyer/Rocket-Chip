@@ -20,6 +20,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-29-001 | Cursor | documentation, hardware
+
+**Stage O OPT‑IVP‑01/02/05 plan closed — HW verified.**
+
+Closure recorded in **`docs/baselines/stage_o_hw_verification_2026-04-28.md`**: **`bench_sim` 2/2 COM7** (2026-04-29 ~6.5 s), Row 10 evidence `build/row10_ivp01_watch_2026-04-27.log`, prior SPIN / Tier‑1 soak citations unchanged. **`scripts/opt_ivp01_row10_dualcore_watch.gdb`** passive delay uses **`python -c`** so Windows GDB isn’t blocked on POSIX `sleep`. **`docs/PROJECT_STATUS.md`** Stage O table set to **CLOSED**.
+
+Files: `docs/PROJECT_STATUS.md`, `docs/baselines/stage_o_hw_verification_2026-04-28.md`, `scripts/opt_ivp01_row10_dualcore_watch.gdb`, `CHANGELOG.md`
+
 ### 2026-04-28-001 | Cursor | documentation, testing, council
 
 **Stage O gate traceability: HW runbook + standards audit (OPT-IVP-01/02/05).**

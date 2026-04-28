@@ -17,11 +17,13 @@ This section is the **sign-off list** for “Stage O vehicle / shared HW + forma
 | 7 | Tier 1 `soak_gdb.gdb` — **sensor** criteria | Yes | **PASS** — IMU / baro / GPS **error counts 0** at T=300s; `core1_loop_count` tracks IMU; log `build/soak_gdb_2026-04-27.log` |
 | 8 | Station `station_bench_sim.py` | **No** (out of scope) | **N/A** — not required for this workstream (see opening note) |
 | 9 | Global “L36” both-bench + long soak | N/A for minor scope | **N/A** — vehicle bar met; optional soak per opening note |
-| 10 | OPT-IVP-01 **MPU/fault exhaustion** — dual-core passive watch (+ optional stack demo) | Closing bar | **PROCEDURE —** run **`scripts/opt_ivp01_row10_dualcore_watch.gdb`** (OpenOCD on `:3333`, bench `rocketchip.elf`): `reset halt` → `load` → one passive interval → single halt → log OpenOCD **`[rp2350.cm0]` / `[rp2350.cm1]`** lines plus script’s **SCB** reads. **`MULTICORE_RULES.md` §MPU:** one C handler covers **HardFault AND MemManage** — earlier Tier‑1 `soak_gdb.gdb` staggered halts did not prove MPU mis-config; discretionary stack trip remains in **`docs/FAULT_INJECTION.md`** if required. |
+| 10 | OPT-IVP-01 **MPU/fault exhaustion** — dual-core passive watch (+ optional stack demo) | Closing bar | **PASS** — `scripts/opt_ivp01_row10_dualcore_watch.gdb` log `build/row10_ivp01_watch_2026-04-27.log`: both cores **Thread**, **`CFSR`/`HFSR`/`SHCSR`** clear; see **`MULTICORE_RULES.md` §MPU**. Script uses `shell python -c "…time.sleep(140)"` for passive window (Windows-safe). |
 
-**Authorization line for this workstream:** If you accept **rows 1–7** (and 8–9 as N/A) as the Stage O **vehicle + formal** bar, you can **wrap up** Stage O; **close row 10** when the dual-core watch log shows nominal **Thread**/idle context (see script echo) plus non-sticky **`CFSR`** (or investigator-sign-off if borderline)).
+**Closure (2026-04-29):** Stage O vehicle + shared **OPT-IVP‑01/02/05** workstream **complete**. Vehicle **`bench_sim.py` 2/2** re-run on **COM7** (~6.5 s). Formal rows 1–10 satisfied per table; station / full L36 optional bars unchanged N/A for this scope.
 
-Guidance (**`.claude/SESSION_CHECKLIST.md`** §19): for changes like this session’s scope, **`python scripts/bench_sim.py`** on the vehicle (exit **0**, USB connected) is the scripted HW check to prioritize; **`soak_gdb.gdb`** multi-minute soak is recommended for **major** risky paths but **optional** when **ctest** + **bench_sim** are already green (same idea as **`docs/baselines/stage_o_hw_verification_2026-04-28.md`** opening note).
+**Formal acceptance:** Rows 1–10 of the closure table satisfied as of **2026-04-29** (vehicle `bench_sim` + Row 10 log evidence — see Closure block).
+
+Guidance (**`.claude/SESSION_CHECKLIST.md`** §19): for changes like this session’s scope, **`python scripts/bench_sim.py`** on the vehicle (exit **0**, USB connected) is the scripted HW check to prioritize; **`soak_gdb.gdb`** multi-minute soak is recommended for **major** risky paths but **optional** when **ctest** + **bench_sim** are already green.
 
 ---
 

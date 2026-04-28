@@ -15,7 +15,7 @@
 # - OpenOCD lines show rp2350.cm0 and rp2350.cm1 in Thread (or IDLE app code), not stuck in Handler.
 # - CFSR / HFSR reads below are ~0 OR only sticky bits cleared by subsequent fault path review.
 #
-# Typical wall time ~3 min (depends on GDB shell sleep precision).
+# Typical wall time ~3 min. On Windows, GDB's `shell sleep` may be missing — script uses Python delay.
 
 target extended-remote localhost:3333
 
@@ -28,7 +28,7 @@ load
 
 monitor resume
 echo [run] Passive 140s — no intermediate halts (avoid periodic halt artefacts)...\n
-shell sleep 140
+shell python -c "import time; time.sleep(140)"
 
 monitor halt
 echo === After passive run: SCB sticky fault registers (view as hex) ===\n
