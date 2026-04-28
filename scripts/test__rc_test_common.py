@@ -50,7 +50,7 @@ from _rc_test_common import (  # noqa: E402
 
 VEHICLE_BENCH_BANNER = """\
 ==============================================
-  RocketChip v0.16.0  RCOS v0.5.0  bench-b411e3a
+  RocketChip v0.16.0  RCOS v0.5.0  dev-b411e3a
   Board: Adafruit Feather RP2350 HSTX
   Profile: Rocket  Uptime: 33s
 ==============================================
@@ -136,7 +136,7 @@ def test_classify_vehicle_bench() -> None:
     print('test_classify_vehicle_bench')
     b = classify_banner(VEHICLE_BENCH_BANNER)
     check('role is VEHICLE',  b.role is Role.VEHICLE,      f'got {b.role}')
-    check('build is BENCH',   b.build is Build.BENCH,      f'got {b.build}')
+    check('build is DEV',     b.build is Build.DEV,        f'got {b.build}')
     check('version captured', b.version == '0.16.0',       f'got {b.version!r}')
     check('board captured',   b.board is not None
           and 'feather rp2350 hstx' in (b.board or ''),    f'got {b.board!r}')
@@ -276,7 +276,7 @@ def test_target_frozen() -> None:
 def test_target_str() -> None:
     print('test_target_str')
     check('VEHICLE_ANY str',     str(TARGET_VEHICLE_ANY)     == 'vehicle-any')
-    check('VEHICLE_BENCH str',   str(TARGET_VEHICLE_BENCH)   == 'vehicle-bench')
+    check('VEHICLE_DEV str',     str(TARGET_VEHICLE_BENCH)   == 'vehicle-dev')
     check('STATION_FLIGHT str',  str(TARGET_STATION_FLIGHT)  == 'station-flight')
 
 

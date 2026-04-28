@@ -123,9 +123,13 @@ _DASHBOARD_TOKENS = (
     'waiting for vehicle packets',         # dashboard "no telem" state
 )
 
-# Build tag suffix on the boot banner: "RocketChip vX.Y.Z RCOS vA.B.C bench-<sha>"
-# Capture group 1 = build_type ('bench' or 'flight'), group 2 = sha.
-_RE_BUILD_TAG = re.compile(r'\b(bench|flight)-([0-9a-f]{6,12})\b')
+# Build tag suffix on the boot banner:
+#   "RocketChip vX.Y.Z RCOS vA.B.C dev-<sha>"     (NOT_CERTIFIED_FOR_FLIGHT=ON)
+#   "RocketChip vX.Y.Z RCOS vA.B.C flight-<sha>"  (NOT_CERTIFIED_FOR_FLIGHT=OFF, default)
+# Capture group 1 = build_type ('dev' or 'flight'), group 2 = sha.
+# 'bench' is accepted for backward compatibility with old saved transcripts;
+# new firmware emits 'dev' since the 2026-04-27 polarity rename.
+_RE_BUILD_TAG = re.compile(r'\b(dev|bench|flight)-([0-9a-f]{6,12})\b')
 _RE_VERSION = re.compile(r'rocketchip\s+v(\d+\.\d+\.\d+)')
 _RE_BOARD = re.compile(r'board:\s*([^\n\r]+)')
 
@@ -170,7 +174,11 @@ class Role(enum.Enum):
 
 
 class Build(enum.Enum):
-    BENCH   = 'bench'
+    # Renamed from BENCH on 2026-04-27 alongside the BUILD_FOR_FLIGHT ->
+    # NOT_CERTIFIED_FOR_FLIGHT polarity rename. The firmware now emits
+    # 'dev' in the build tag instead of 'bench'. Old transcripts using
+    # 'bench' still classify as DEV via the regex's backward-compat group.
+    DEV     = 'dev'
     FLIGHT  = 'flight'
     ANY     = 'any'
     UNKNOWN = 'unknown'
@@ -222,12 +230,17 @@ class Target:
 
 # Convenience constants --- the targets we actually use.
 TARGET_VEHICLE_ANY    = Target(Role.VEHICLE, Build.ANY)
-TARGET_VEHICLE_BENCH  = Target(Role.VEHICLE, Build.BENCH)
+TARGET_VEHICLE_DEV    = Target(Role.VEHICLE, Build.DEV)
 TARGET_VEHICLE_FLIGHT = Target(Role.VEHICLE, Build.FLIGHT)
 TARGET_STATION_ANY    = Target(Role.STATION, Build.ANY)
-TARGET_STATION_BENCH  = Target(Role.STATION, Build.BENCH)
+TARGET_STATION_DEV    = Target(Role.STATION, Build.DEV)
 TARGET_STATION_FLIGHT = Target(Role.STATION, Build.FLIGHT)
 TARGET_EITHER_ANY     = Target(Role.EITHER,  Build.ANY)
+
+# Backward-compat aliases (2026-04-27): old code may import TARGET_*_BENCH
+# from before the polarity rename. New code should use TARGET_*_DEV.
+TARGET_VEHICLE_BENCH  = TARGET_VEHICLE_DEV
+TARGET_STATION_BENCH  = TARGET_STATION_DEV
 
 
 class Mode(enum.Enum):
@@ -299,7 +312,10 @@ def classify_banner(text: str) -> Banner:
     build = Build.UNKNOWN
     m_build = _RE_BUILD_TAG.search(t)
     if m_build is not None:
-        build = Build.BENCH if m_build.group(1) == 'bench' else Build.FLIGHT
+        # Backward-compat: pre-rename firmware emitted 'bench-<sha>'.
+        # Post-rename (2026-04-27) firmware emits 'dev-<sha>'. Both map to
+        # Build.DEV. 'flight' stays 'flight'.
+        build = Build.FLIGHT if m_build.group(1) == 'flight' else Build.DEV
 
     version: Optional[str] = None
     m_ver = _RE_VERSION.search(t)
