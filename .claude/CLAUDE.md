@@ -6,6 +6,7 @@
 @../standards/CODING_STANDARDS.md
 @../standards/DEBUG_OUTPUT.md
 @../standards/GIT_WORKFLOW.md
+@../standards/HW_GATE_DISCIPLINE.md
 @../standards/STANDARDS_DEVIATIONS.md
 
 # Claude-Specific Context (check on every session)

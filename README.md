@@ -7,6 +7,7 @@ Read these fully on first session. Re-read only if changelog notes updates.
 - **docs/SCAFFOLDING.md** - Directory structure and implementation status
 - **standards/CODING_STANDARDS.md** - Coding standards, communication protocols, data formats, safety requirements
 - **standards/DEBUG_OUTPUT.md** - Debug output conventions and macros
+- **standards/HW_GATE_DISCIPLINE.md** - What HW gates must observe (positive-control signal, 3-boot reseat, commit-message citation) and how they stay unskippable
 - **docs/hardware/HARDWARE.md** - Prototype hardware, GPIO usage, I2C conflicts, product naming
 - **COUNCIL_PROCESS.md** - How to run panel reviews and persona behavior
 - **CROSS_AGENT_REVIEW.md** - Protocol for flagging concerns in other agents' work
