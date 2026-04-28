@@ -91,6 +91,13 @@ Each host script's required target configuration(s), based on what
 keystrokes it sends and what output it parses. **Current state** column
 reflects what the script will actually do today, not what it should do.
 
+**Tier 2 (machine-readable targets):** As of Tier 2, each script listed below wraps
+its `main()` with `@rc_test(target=...)` (`scripts/_rc_test_common.py`) so tools can
+discover required role/build and enforce the shared 0/1/2 exit contract. Table
+columns that say "Has guard: ✗ / no guard" still refer to **banner-based port
+classification** --- migration to shared `find_target_port` / runtime guards are
+planned in Tier 3+.
+
 | Script                          | Required role            | Required build      | Current state                                    | Has guard | Has watchdog |
 |---------------------------------|--------------------------|---------------------|--------------------------------------------------|:---------:|:------------:|
 | `bench_sim.py`                  | vehicle                  | bench or flight     | ✓ correct, uses flight menu only                 |    ✓      |     ✓        |

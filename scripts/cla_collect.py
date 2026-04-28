@@ -28,6 +28,12 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+import os
+
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_VEHICLE_BENCH  # noqa: E402
 
 try:
     import serial
@@ -448,6 +454,7 @@ def format_markdown(samples, gdb_data=None, rates=None):
 
 # --- Main ---
 
+@rc_test(target=TARGET_VEHICLE_BENCH)
 def main():
     parser = argparse.ArgumentParser(description='RocketChip CLA Data Collection')
     parser.add_argument('--port', default=SERIAL_PORT, help='Serial port (default: COM7)')

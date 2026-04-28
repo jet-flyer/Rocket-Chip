@@ -21,6 +21,12 @@ import serial
 import struct
 import sys
 import time
+import os
+
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_STATION_ANY  # noqa: E402
 
 PORT = sys.argv[1] if len(sys.argv) > 1 else "COM9"
 DURATION = int(sys.argv[2]) if len(sys.argv) > 2 else 30
@@ -171,6 +177,7 @@ def decode_global_pos(payload):
     }
 
 
+@rc_test(target=TARGET_STATION_ANY)
 def main():
     print(f"=== MAVLink v2 Wire Format Validator (IVP-61) ===")
     print(f"Port: {PORT}, Baud: {BAUD}, Duration: {DURATION}s")

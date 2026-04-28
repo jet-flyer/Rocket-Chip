@@ -32,6 +32,11 @@ import sys
 import threading
 import time
 
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_VEHICLE_ANY  # noqa: E402
+
 
 # =============================================================================
 # Wall-clock watchdog
@@ -347,6 +352,7 @@ def run_test(port, tc, verbose=False):
     return True, 'OK'
 
 
+@rc_test(target=TARGET_VEHICLE_ANY)
 def main():
     parser = argparse.ArgumentParser(
         description='RocketChip Bench Flight Simulation (minimal, 2 tests)')

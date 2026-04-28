@@ -56,6 +56,12 @@ except ImportError:
     sys.exit(2)
 
 
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_EITHER_ANY  # noqa: E402
+
+
 # (label, whitelist_idx, bw_khz, nav_hz)
 SWEEP = [
     ("C0",  0, 125,  5),
@@ -340,6 +346,7 @@ def canary(stn: serial.Serial, timeout_s: float = 20.0) -> bool:
     return False
 
 
+@rc_test(target=TARGET_EITHER_ANY)
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--count", type=int, default=30)
@@ -437,4 +444,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

@@ -37,6 +37,11 @@ except ImportError:
     print("pyserial required", file=sys.stderr)
     sys.exit(1)
 
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_EITHER_ANY  # noqa: E402
+
 
 RE_TX_RXW = re.compile(r"\[STAGE_T\] state TX->RXW t=(\d+)")
 RE_ACK = re.compile(r"\[CMD\]\s+ACK'd\s*\(seq=(\d+)\)")
@@ -287,6 +292,7 @@ def run(count, delay_ms, cmd_timeout_s, station_port, vehicle_port, csv_path):
     print("=" * 60)
 
 
+@rc_test(target=TARGET_EITHER_ANY)
 def main():
     ap = argparse.ArgumentParser(description="Stage T IVP-T2 cheat-mode (host)")
     ap.add_argument("--count", type=int, default=100,

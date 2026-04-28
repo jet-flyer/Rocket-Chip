@@ -58,6 +58,12 @@ except ImportError:
     sys.exit(1)
 
 
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_STATION_ANY  # noqa: E402
+
+
 # Firmware log lines this script watches for.
 # Format lines from src/active_objects/ao_telemetry.cpp + rc_os_commands.cpp:
 #   "[CMD] DISARM sent, waiting for ACK..."  (on send)
@@ -303,6 +309,7 @@ def run(port: str, duration_s: float, interval_s: float, inject_drops: int,
             print(f"(could not save CSV: {e})")
 
 
+@rc_test(target=TARGET_STATION_ANY)
 def main():
     ap = argparse.ArgumentParser(description="ACK stress test (IVP-132a.5 + Stage T)")
     ap.add_argument("--port", default="COM7", help="Station serial port (default COM7)")

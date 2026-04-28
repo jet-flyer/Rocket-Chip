@@ -13,6 +13,12 @@ import serial
 import sys
 import time
 import re
+import os
+
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_VEHICLE_ANY  # noqa: E402
 
 PORT = sys.argv[1] if len(sys.argv) > 1 else "COM6"
 EXPECTED_TAG = sys.argv[2] if len(sys.argv) > 2 else None
@@ -76,6 +82,7 @@ def parse_reads_errors(text):
         }
     return None
 
+@rc_test(target=TARGET_VEHICLE_ANY)
 def main():
     print(f"=== Codegen Soak Test ===")
     print(f"Port: {PORT}, Duration: {SOAK_DURATION_S}s, Poll: {POLL_INTERVAL_S}s")
@@ -197,4 +204,4 @@ def main():
     return 0 if (not any_errors and stats and stats["imu_reads"] > 0) else 1
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

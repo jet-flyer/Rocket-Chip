@@ -14,6 +14,11 @@ import sys
 import re
 import os
 
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_VEHICLE_BENCH  # noqa: E402
+
 GDB = r'C:\Users\pow-w\.pico-sdk\toolchain\14_2_Rel1\bin\arm-none-eabi-gdb.exe'
 ELF = 'build/rocketchip.elf'
 PORT = 'COM7'
@@ -35,6 +40,7 @@ def gdb_read_var(var):
             return m.group(1).strip()
     return None
 
+@rc_test(target=TARGET_VEHICLE_BENCH)
 def main():
     if len(sys.argv) < 2:
         print(f'Usage: {sys.argv[0]} <csv_file>')

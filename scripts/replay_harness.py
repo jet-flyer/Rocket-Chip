@@ -16,13 +16,20 @@ Protocol:
 The firmware injects each sample into the seqlock, and the ESKF/FD
 pipeline processes it as if it came from real sensors.
 """
+import argparse
 import csv
+import os
+import re
 import serial
 import sys
 import time
-import re
-import argparse
 
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_VEHICLE_BENCH  # noqa: E402
+
+@rc_test(target=TARGET_VEHICLE_BENCH)
 def main():
     parser = argparse.ArgumentParser(description='RocketChip Replay Harness')
     parser.add_argument('csv_file', help='Path to sensor profile CSV')

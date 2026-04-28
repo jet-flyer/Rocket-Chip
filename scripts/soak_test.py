@@ -14,9 +14,15 @@ Usage:
     python scripts/soak_test.py --duration 1800   # 30-min integration
 """
 import argparse
+import os
 import serial
 import sys
 import time
+
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_VEHICLE_BENCH  # noqa: E402
 
 def read_diag_stats(port, timeout=5.0):
     """Send q-d keystrokes, capture diag_stats output."""
@@ -74,6 +80,7 @@ def parse_stats(text):
             stats['uptime_ms'] = int(line.split()[1])
     return stats
 
+@rc_test(target=TARGET_VEHICLE_BENCH)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', default='COM7')
@@ -165,4 +172,4 @@ def main():
     return 0 if ok else 1
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()

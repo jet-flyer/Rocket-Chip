@@ -31,6 +31,12 @@ import sys
 import time
 import re
 import math
+import os
+
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_VEHICLE_BENCH  # noqa: E402
 
 # Defaults
 DEFAULT_PORT = "COM6"
@@ -546,6 +552,7 @@ def run_walk_test(ser, duration_s):
         return False
 
 
+@rc_test(target=TARGET_VEHICLE_BENCH)
 def main():
     port, expected_tag, mode, duration_s, do_reset = parse_args()
 

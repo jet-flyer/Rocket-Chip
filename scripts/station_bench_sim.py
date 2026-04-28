@@ -54,6 +54,11 @@ import sys
 import threading
 import time
 
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_STATION_BENCH  # noqa: E402
+
 # =============================================================================
 # Regex constants — TESTED AGAINST FIRMWARE LOG OUTPUT.
 # If you change a log line in the firmware, UPDATE THE REGEX HERE.
@@ -402,6 +407,7 @@ TESTS = [
 # Main
 # =============================================================================
 
+@rc_test(target=TARGET_STATION_BENCH)
 def main():
     parser = argparse.ArgumentParser(
         description='RocketChip Station Bench Sim (IVP-146, 3 tests)')

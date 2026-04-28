@@ -35,6 +35,11 @@ except ImportError:
     print("pyserial required", file=sys.stderr)
     sys.exit(1)
 
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_STATION_ANY  # noqa: E402
+
 
 RE_PKTS = re.compile(r"Pkts:\s*(\d+)")
 RE_RSSI = re.compile(r"RSSI:\s*(?:\x1b\[\d+m)?(-?\d+)\s*dBm")
@@ -69,6 +74,7 @@ def poll_station(port: str) -> dict:
     return result
 
 
+@rc_test(target=TARGET_STATION_ANY)
 def main():
     ap = argparse.ArgumentParser(description="Stage T IVP-T4 ambient RSSI")
     ap.add_argument("--port", default="COM9")

@@ -22,12 +22,18 @@ Usage:
 """
 import argparse
 import math
+import os
 import re
 import sys
 import time
 from dataclasses import dataclass
 
 import serial
+
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_STATION_BENCH  # noqa: E402
 
 
 # Line format in [CmdRetryStats] block:
@@ -248,6 +254,7 @@ def run(port: str, n: int, interval: float, settle: float, csv_path: str | None)
         print(f"\n  CSV saved: {csv_path}")
 
 
+@rc_test(target=TARGET_STATION_BENCH)
 def main():
     ap = argparse.ArgumentParser(description="Stage T Wilson CI for DISARM first-try rate")
     ap.add_argument("--port", default="COM9", help="Station COM port (default COM9)")

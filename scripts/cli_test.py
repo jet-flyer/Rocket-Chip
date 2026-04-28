@@ -16,6 +16,12 @@ Available tests:
 import serial
 import time
 import sys
+import os
+
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_VEHICLE_ANY  # noqa: E402
 
 PORT = 'COM6'
 BAUD = 115200
@@ -140,6 +146,7 @@ def test_level_cal(port):
     send_cmd(port, 'x', 0.2)
     return passed
 
+@rc_test(target=TARGET_VEHICLE_ANY)
 def main():
     tests = {
         'status': test_status,
@@ -188,4 +195,4 @@ def main():
     return 0
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()

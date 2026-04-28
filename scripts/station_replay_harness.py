@@ -32,6 +32,7 @@ the station via GDB probe: `monitor reset run`.
 
 import argparse
 import struct
+import os
 import sys
 import time
 
@@ -40,6 +41,11 @@ try:
 except ImportError:
     print("pyserial required: pip install pyserial", file=sys.stderr)
     sys.exit(1)
+
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_STATION_BENCH  # noqa: E402
 
 
 # CCSDS packet constants (must match telemetry_encoder.h)
@@ -224,6 +230,7 @@ def run(port: str, scenario: str, count: int, rate_hz: float, dry_run: bool):
             ser.close()
 
 
+@rc_test(target=TARGET_STATION_BENCH)
 def main():
     ap = argparse.ArgumentParser(description="Station replay harness (IVP-132a.3)")
     ap.add_argument("--port", default="COM7", help="Serial port (default COM7)")

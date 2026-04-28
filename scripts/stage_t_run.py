@@ -31,6 +31,12 @@ except ImportError:
     sys.exit(1)
 
 
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import rc_test, TARGET_EITHER_ANY  # noqa: E402
+
+
 def tail_vehicle(port: str, log_path: str, stop_event: threading.Event):
     try:
         ser = serial.Serial(port, 115200, timeout=0.1)
@@ -78,6 +84,7 @@ def tail_vehicle(port: str, log_path: str, stop_event: threading.Event):
         pass
 
 
+@rc_test(target=TARGET_EITHER_ANY)
 def main():
     ap = argparse.ArgumentParser(description="Stage T IVP-T1 runner")
     ap.add_argument("--run", type=int, required=True,
