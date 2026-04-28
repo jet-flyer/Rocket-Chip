@@ -3,10 +3,11 @@
 //
 // Fault injection hooks for bench testing (IVP-129).
 // Callable via GDB `call fault_force_*()` from debug probe.
-// Excluded from flight binary (BUILD_FOR_FLIGHT).
+// Compiled in only when ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS is defined,
+// which the build sets when NOT_CERTIFIED_FOR_FLIGHT=ON.
 // See docs/FAULT_INJECTION.md for usage.
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 #include "dev/fault_inject.h"
 #include "rocketchip/config.h"
@@ -73,4 +74,4 @@ void fault_force_pio_sm_halt() {
     printf("[FAULT] PIO2 all SMs disabled (backup timers halted)\n");
 }
 
-#endif // BUILD_FOR_FLIGHT
+#endif // ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS

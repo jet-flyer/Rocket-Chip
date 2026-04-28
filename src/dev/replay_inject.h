@@ -3,14 +3,15 @@
 //
 // Replay injection: feeds pre-recorded sensor data into the seqlock
 // as if Core 1 produced it. Pauses real sensor reads during replay.
-// Dev-only (excluded from flight binary via BUILD_FOR_FLIGHT).
+// Dev-only (compiled in only when ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS is defined,
+// which the build sets when NOT_CERTIFIED_FOR_FLIGHT=ON).
 #ifndef ROCKETCHIP_DEV_REPLAY_INJECT_H
 #define ROCKETCHIP_DEV_REPLAY_INJECT_H
 
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef BUILD_FOR_FLIGHT
+#ifndef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 static inline void replay_inject_start() {}
 static inline void replay_inject_stop()  {}

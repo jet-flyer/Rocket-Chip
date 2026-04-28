@@ -284,7 +284,7 @@ static void print_eskf_status() {
                    (double)(meuler.z * kRadToDeg),
                    (double)mdivDeg);
         }
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
         {
             uint32_t benchAvg = 0, benchMin = 0, benchMax = 0, benchCount = 0;
             eskf_runner_get_bench(&benchAvg, &benchMin, &benchMax, &benchCount);

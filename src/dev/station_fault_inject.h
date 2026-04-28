@@ -3,7 +3,8 @@
 //
 // Station-side fault injection hooks for bench testing (IVP-132a).
 // Called via GDB `call fault_force_station_*()` from debug probe.
-// Excluded from flight binary (BUILD_FOR_FLIGHT).
+// Compiled in only when ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS is defined,
+// which the build sets when NOT_CERTIFIED_FOR_FLIGHT=ON.
 // Only meaningful when ROCKETCHIP_JOB_STATION=1 — no-ops on vehicle build.
 // See docs/FAULT_INJECTION.md for usage.
 #ifndef ROCKETCHIP_DEV_STATION_FAULT_INJECT_H
@@ -11,7 +12,7 @@
 
 #include <stdint.h>
 
-#ifdef BUILD_FOR_FLIGHT
+#ifndef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 static inline void fault_force_station_rx_drop(uint8_t)       {}
 static inline void fault_force_station_ack_suppress(uint8_t)  {}

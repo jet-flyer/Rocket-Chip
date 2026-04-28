@@ -1,6 +1,23 @@
 # Agent Whiteboard
 
-**Purpose:** Communication across context windows and between agents.
+**Purpose:** Cross-context / cross-agent communication channel for **active work only**.
+
+> **Treat this like an IRL whiteboard — not a record of completed things.**
+> When an item is done, **erase the row**. Don't add a "Resolved" section,
+> don't strike it through, don't leave a "closed" marker. The CHANGELOG is
+> the project's permanent record of what was done; this whiteboard's only
+> job is to surface what's *still active*. A row's continued presence is
+> the signal that it still needs attention. Stale "done" notes dilute that
+> signal and bury the rows that actually matter.
+>
+> Before adding a row: check whether the work is already done elsewhere
+> (CHANGELOG, git log, the relevant doc). Before acting on a row: spot-
+> check it's still real — agent memory of "this needs doing" is exactly
+> the failure mode that drives stale-row accumulation. If you reject an
+> item after consideration, log the rejection rationale in CHANGELOG and
+> erase the row, don't move it to a "rejected" section.
+
+## Project status (one-line snapshot)
 
 **Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **788** host `ctest` entries (786 C++ discovered + **2** Python `scripts/` gates), SPIN 11/11. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17 (Field Testing & Avionics Airworthiness) restructured 2026-04-22** from 5-IVP direct-to-flight into 13-IVP tapered buildup (three council rounds, approved with amendments). First motor flight = step 13 of 14. Plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. Execution awaits future session; starts with IVP-135a (pure-software log schema extension). **CCSDS TC-Layer + COP-1 rework deferred to post-Stage-17** (unanimous council) — field data will inform scoping.
 
@@ -9,63 +26,11 @@
 2. **Cross-context handoff** — Notes for future Claude sessions when context is lost
 3. **Work-in-progress tracking** — Track incomplete tasks spanning multiple sessions
 4. **Hardware decisions pending** — Flag items needing user input before code changes
-5. **This is a whiteboard** — Erase completed items. Only keep active flags and deferred work.
-
----
-
-## Host script hardening — **closed** 2026-04-30
-
-Tiers **1–7**, **`CONFIG_TEST_MATRIX.md`**, council doc **`docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`**, Tier **6b** tracked hooks **`scripts/hooks/`** (set **`git config core.hooksPath scripts/hooks`**). **Deferred superseded:** old “Portable pre-commit hooks” whiteboard row — tracked hook + **README** is the mechanism.
+5. **Deferred items** — Active intent kept visible until acted on (and then erased — see header rule)
 
 ---
 
 ## High priority
-
-- **Deep RP2350 errata sweep + codified watchlist.** 2026-04-22 we tripped
-  RP2350-E2 (SIO spinlock mirror writes) as a boot-time deadlock — fix
-  was a one-line `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` that we *hadn't
-  applied* because the erratum fell through the cracks during initial
-  Pico-2 / RP2350 onboarding. Adafruit warns about E9 (GPIO pad leakage,
-  A2-only) on product page but E2 slipped past. We need (a) full pass
-  through the RP2350 datasheet errata appendix, (b) a tracked
-  `standards/RP2350_ERRATA.md` listing every erratum with status
-  (affected? workaround applied? how? observable symptom? trigger
-  conditions?) per council-reviewed schema, (c) a reference from
-  CMakeLists.txt (next-to-flag) and one-line pointer in CODING_STANDARDS.md
-  so future flag changes are audited against the list, and (d) subscribe
-  to RP2350 errata updates via concrete watch mechanism (pico-sdk
-  release notes, datasheet revision check cadence — not "keep an eye
-  on it"). Our chip is A2 — check whether E9 workarounds are needed
-  for any of our GPIO pins (floating inputs with pull-downs = leakage).
-  Council (NASA/JPL + Prof, 2026-04-22) also flagged: silicon-stepping
-  column is load-bearing, observable-symptom column for field
-  recognition, SDK-status is non-binary (transparent / flag-gated /
-  acknowledged-only), and regression-test-per-erratum + pre-commit
-  enforcement of doc-update-on-CMake-flag-change are deferred future
-  items.
-
-  **Related SWD-debug quirk (may be upstream-worth):** after SDK
-  runtime_init completes on RP2350 with `PICO_USE_SW_SPIN_LOCKS=1`,
-  halting the target via `monitor halt` during a `spin_lock_blocking`
-  wait appears to lose the exclusive-monitor reservation. On resume,
-  STREXB fails forever, the spinlock never acquires, and Core 0
-  eventually HardFaults (same PC=0xeffffffe / LR=0xffffffe9 lockup
-  signature). Workflow workaround: always follow `monitor halt` with
-  `monitor reset halt` + `load` + `monitor resume` rather than bare
-  `monitor resume` when debugging past a spinlock wait. File as part
-  of the errata sweep — may warrant upstream pico-sdk issue citing
-  #2495 / #2706 line of investigation.
-
-  **E2 second trigger path (2026-04-22, tonight):** during the
-  Frankenstein-recovery work, a `picotool info -f --ser <serial>` call
-  rebooted the chip into BOOTSEL + back to app mode, and E2 fired on
-  the next boot despite `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` being
-  applied in-tree (CMakeLists.txt:274). User had to unplug/replug to
-  recover. This means the workaround has a gap case — a reset path via
-  USB vendor-command reboot that doesn't go through the normal SDK
-  runtime_init sequence, or state that survives the BOOTSEL transition
-  in a way the workaround doesn't cover. Capture in the E2 row of the
-  forthcoming errata doc with signature + reproducer.
 
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
@@ -94,21 +59,11 @@ Tiers **1–7**, **`CONFIG_TEST_MATRIX.md`**, council doc **`docs/council/HOST_S
   the anchor-station-TX-to-vehicle-RxDone architectural fix is still
   needed or was over-engineered for our actual link conditions.
 
-## Easy (1–3 hours, clear scope)
-
-- **Rename `BUILD_FOR_FLIGHT` to `NOT_CERTIFIED_FOR_FLIGHT`.** Raised 2026-04-23 during build-system audit. Current flag polarity is inverted — default OFF means dev-diagnostics included, ON strips them. Reading the flag name against the default gives backward safety semantic. `NOT_CERTIFIED_FOR_FLIGHT=OFF` (default, flight-ready / diagnostics stripped) and `NOT_CERTIFIED_FOR_FLIGHT=ON` (dev/bench with uncertified extras) reads correctly and makes it harder to ship dev code by accident. Mechanical rename across CMakeLists.txt, CMakePresets.json, docs/BENCH_TEST_PROCEDURE.md, `#ifdef` call sites in `src/`. Not urgent; separate focused session.
-
-- **First run of toolchain-version audit (P6 of BUILD_SYSTEM_AUDIT.md).** Check Pico SDK, Pico Probe firmware, GCC ARM 14_2_Rel1, OpenOCD 0.12.0+dev, picotool 2.2.0-a4, CMake against current upstream. Document findings and decide whether to upgrade any. Added as audit dimension 2026-04-23; first pass hasn't happened.
-
-- **Evaluate tier consolidation.** Whether `src/dev/*.cpp` could become runtime-disabled (flight state checks) instead of compile-excluded via `BUILD_FOR_FLIGHT`. Same-binary principle (per CODING_STANDARDS.md). Would eliminate the 2-tier-per-role 4-target build matrix. Architectural decision, not urgent, not mid-session.
-
 ## Medium (session-scale, 4–12 hours)
 
 Scope is clear but touches multiple files, needs verification, or has small design questions.
 
-- **Portable pre-commit hooks — superseded.** Tracked hook + **`scripts/hooks/README.md`**. **`git config core.hooksPath scripts/hooks`**. Bench/station gates use **`scripts/ci/pre_commit_matrix.py`** (Tier 6b). Remove stale `.git/hooks/pre-commit` after switching.
 - **Role-aware bench_sim gate.** The pre-commit bench_sim trigger is file-name grep based. Station-only changes to e.g. `src/safety/health_monitor.cpp` that are `if constexpr` compile-outs on vehicle shouldn't require vehicle-probe verification. Needs classification/role-scoped trigger logic.
-- **MAIN_DESCENT timeout fallback (SPIN P7 fix).** Add `descent_timeout_ms` to `MissionProfile` (e.g., 600s rocket, longer for HAB). Fallback in `state_main_descent` SIG_TICK handler: elapsed > timeout → auto-LANDED. Update SPIN model — P7 liveness will pass with weak fairness. Currently the only flight phase with no timeout fallback; HAB float profile also affected.
 - **`standards/HW_GATE_DISCIPLINE.md` + checklist amendment.** User ask 2026-04-17. Gate definitions must name a positive-control signal (e.g., "DAC 0x18 ACKs" proves bus health separately from device-under-test), a 3-boot reseat protocol, and require commit messages to cite the observed control signal — not just "build clean + MSP stable". Motivated by IVP-140 false-positive + Fruit Jam GPS cable episode. Related: LL Entry 25, 36.
 - **Station SPIN model extensions.** Scaffolding landed (IVP-147: P_TERMINATION + P_NO_DOUBLE_CLEAR, both PASS). Extend when corresponding firmware behavior lands: multi-pending-in-flight, RadioScheduler TX-window arbitration (needed for the sync-gap fix), MAVLink parser state, `station_idle_tick` GPS poll interleave.
 - **Station role / board decoupling.** "Station mode" (`ROCKETCHIP_JOB_STATION=1`) is still entangled with Fruit Jam specifics: `PICO_BOARD` hardcoded via environment in `build_station/`, "Fruit Jam" in print strings, HSTX/DVI output assumptions, Fruit-Jam-only pin allocations not gated. Grep `"Fruit Jam\|fruitjam"` in `src/`, gate with `#ifdef PICO_BOARD_*` or move to `board_*.h`. Tiny 2350 port will exercise this.
@@ -118,12 +73,6 @@ Scope is clear but touches multiple files, needs verification, or has small desi
 
 Needs council review or planning doc before starting.
 
-- **Stage T COMPLETE (2026-04-22).** Batches A+B+C code landed. See
-  `docs/plans/STAGE_T_T14_DESIGN.md` + `PROJECT_STATUS.md` "Stage T
-  COMPLETE" block. Remaining rigor (scope-bench sessions, N=100 CI)
-  dropped or deferred per user decision. Follow-up item here:
-  "Stage T 95% first-try re-baseline" to re-measure once the CCSDS
-  command-layer rework lands.
 - **Station→vehicle radio health channel.** Council A3 asked for condensing station readiness to a single bit the vehicle's GO/NO-GO consumes via radio. Current channel is command-only, no periodic telemetry-back. Dedicated IVP when telemetry-back direction is wired.
 - **Real-World Accuracy Tests plan.** Bench-side ground-truth validation — IMU known-angle tilts, baro altitude vs reference, GPS stationary/moving baseline characterization, ESKF replay vs synthetic truth, Allan variance for gyro/accel. Doesn't need launch window or airframe. Complements Stage 18 field tuning. Needs dedicated plan doc with prior-art research (ArduPilot EKF tuning, PX4 calibration) and equipment assessment.
 - **Launch procedure audit items.** Six future safety items from NASA/SpaceX/NAR procedure comparison, all requiring Mission Profile or hardware support:
@@ -141,7 +90,6 @@ No code changes planned — kept as context for future decisions.
 - **ELRS on RP2350 — research item.** Running ExpressLRS natively on RP2350 with PIO-assisted frequency hopping. Current RFM95W (bare SX1276 on SPI) may be compatible if packet format + hopping schedule can be implemented in firmware. Telstar Booster Pack already describes CRSF/UART to a dedicated ELRS module as the alternative path. Future radio protocol investigation.
 - **PIO hardware failure gap — Gemini tier only.** IVP-130 Scenario 5 confirmed: external PIO SM halt is undetectable by firmware (PIO watchdog IRQ only fires from PIO program itself; ARM-side monitoring defeats the independence point). Correct mitigation = physical redundancy (second independent timer on separate MCU). Gemini-tier feature (dual-core carrier board). Accepted gap for Core/Titan.
 - **RP2350B/Fruit Jam persistent bus-corruption hypothesis.** User hunch 2026-04-17: one boot during the Fruit Jam GPS debug had a transition not fully explained by the cable theory alone. Investigate whether RP2350B exhibits bus-corruption state that survives power cycles. Low priority — may be a dead end, keep passive.
-- **Station bench_sim + SPIN model rot detectors.** Both landed this session (IVP-146, IVP-147). Extensions tracked above under Medium (Station SPIN) and Medium (portable hooks).
 
 ## Deferred (near-term, post-Stage 15)
 

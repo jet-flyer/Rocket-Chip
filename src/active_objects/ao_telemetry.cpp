@@ -29,7 +29,7 @@
 #include "rocketchip/job.h"
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include <math.h>                                   // lroundf (T5.5: float->int)
-#if defined(ROCKETCHIP_JOB_STATION) && !defined(BUILD_FOR_FLIGHT)
+#if defined(ROCKETCHIP_JOB_STATION) && defined(ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS)
 #include "dev/station_fault_inject.h"
 #endif
 
@@ -508,7 +508,7 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
     if (!rc::ccsds_decode_cmd_ack(rxEvt->buf, rxEvt->len, ack)) {
         return false;
     }
-#if defined(ROCKETCHIP_JOB_STATION) && !defined(BUILD_FOR_FLIGHT)
+#if defined(ROCKETCHIP_JOB_STATION) && defined(ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS)
     // IVP-132a: fault-inject ACK suppression — forces station retry path
     if (g_fault_station_ack_suppress_remaining > 0) {
         g_fault_station_ack_suppress_remaining =
@@ -602,7 +602,7 @@ static void dispatch_nav_output(TelemAo* me,
 #endif
 
 static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
-#if defined(ROCKETCHIP_JOB_STATION) && !defined(BUILD_FOR_FLIGHT)
+#if defined(ROCKETCHIP_JOB_STATION) && defined(ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS)
     // IVP-132a: fault-inject RX drop (bench binary only, station only)
     if (g_fault_station_rx_drop_remaining > 0) {
         g_fault_station_rx_drop_remaining = g_fault_station_rx_drop_remaining - 1;

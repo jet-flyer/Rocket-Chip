@@ -94,7 +94,7 @@ static eskf_state_snap_t g_eskfBuffer[kEskfBufferSamples];
 static uint32_t g_eskfBufferIndex = 0;
 static uint32_t g_eskfBufferCount = 0;
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 static uint32_t g_eskfBenchMin = UINT32_MAX;
 static uint32_t g_eskfBenchMax = 0;
 static uint32_t g_eskfBenchSum = 0;
@@ -189,7 +189,7 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
     rc::Vec3 accel = sensor_to_ned_accel(snap);
     rc::Vec3 gyro = sensor_to_ned_gyro(snap);
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
     uint32_t t0 = time_us_32();
 #endif
     g_eskf.predict(accel, gyro, dt);
@@ -201,7 +201,7 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
         return;
     }
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
     uint32_t elapsed = time_us_32() - t0;
     if (elapsed < g_eskfBenchMin) { g_eskfBenchMin = elapsed; }
     if (elapsed > g_eskfBenchMax) { g_eskfBenchMax = elapsed; }
@@ -515,7 +515,7 @@ static void eskf_tick_phase_and_confidence() {
 // One fused cycle (predict → updates → phase/conf → bench → publish).
 // Split out so `eskf_runner_tick` stays within pre-commit size limits.
 static void eskf_runner_fusion_cycle(const shared_sensor_data_t& snap) {
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 #ifndef ROCKETCHIP_HOST_TEST
     const uint32_t t_fusion = time_us_32();
 #endif
@@ -538,7 +538,7 @@ static void eskf_runner_fusion_cycle(const shared_sensor_data_t& snap) {
 
     eskf_tick_phase_and_confidence();
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 #ifndef ROCKETCHIP_HOST_TEST
     {
         const uint32_t el = time_us_32() - t_fusion;
@@ -657,7 +657,7 @@ uint8_t eskf_runner_get_wmm_source() {
     return static_cast<uint8_t>(g_wmmSource);
 }
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
                            uint32_t* max_us, uint32_t* count) {
     if (g_eskfBenchCount > 0 && avg != nullptr) {

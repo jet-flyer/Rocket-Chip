@@ -337,16 +337,18 @@ else()
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
 
-        # Dev diagnostics (excluded from flight builds)
-        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/dev_cli.cpp>
-        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/fault_inject.cpp>
-        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/replay_inject.cpp>
+        # Dev diagnostics (included only when NOT_CERTIFIED_FOR_FLIGHT=ON,
+        # i.e. dev/bench builds; the positive mirror flag is
+        # ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS — see option block below).
+        $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/dev_cli.cpp>
+        $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/fault_inject.cpp>
+        $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/replay_inject.cpp>
         # diag_stats.cpp has both bench and flight tier content:
         # - Always: diag_stats_t0_preconditions() for soak Frankenstein checks
         # - Bench only (internal guard): diag_stats_dump() + msp_tick()
         src/dev/diag_stats.cpp
-        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/station_fault_inject.cpp>
-        $<$<NOT:$<BOOL:${BUILD_FOR_FLIGHT}>>:src/dev/station_replay.cpp>
+        $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/station_fault_inject.cpp>
+        $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/station_replay.cpp>
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -657,7 +659,7 @@ else()
     )
 
     # Keep fault injection symbols for GDB `call` (--gc-sections strips uncalled functions)
-    if(NOT BUILD_FOR_FLIGHT)
+    if(NOT_CERTIFIED_FOR_FLIGHT)
         target_link_options(rocketchip PRIVATE
             -Wl,--undefined=fault_force_eskf_unhealthy
             -Wl,--undefined=fault_force_core0_stall
@@ -703,14 +705,39 @@ else()
         message(STATUS "Job: VEHICLE (default)")
     endif()
 
-    # Flight build: exclude dev diagnostics (bench stats, debug menu)
-    # Usage: cmake -DBUILD_FOR_FLIGHT=ON ..
-    option(BUILD_FOR_FLIGHT "Exclude dev diagnostics from binary" OFF)
-    if(BUILD_FOR_FLIGHT)
-        target_compile_definitions(rocketchip PRIVATE BUILD_FOR_FLIGHT=1)
-        message(STATUS "Build tier: FLIGHT (dev diagnostics excluded)")
+    # ============================================================================
+    # Build tier — flight-readiness flag
+    # ============================================================================
+    #
+    # Operator-facing flag (this is the safety property the user reasons about):
+    #   NOT_CERTIFIED_FOR_FLIGHT (default OFF) — when OFF, the binary is
+    #   flight-ready: dev/bench code (debug menu, fault injection, replay
+    #   harness, CLI live ESKF, predict timing) is excluded at compile time.
+    #   When ON, the dev/bench surface is compiled in. The default-OFF
+    #   semantic means an unflagged `cmake -B build` produces a flight-ready
+    #   binary; opting into uncertified extras is an explicit user action.
+    #
+    # Source-side flag (this is what `#ifdef`/`#ifndef` sites in src/ use):
+    #   ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS=1 — defined when (and only when)
+    #   NOT_CERTIFIED_FOR_FLIGHT is ON. Source code reads positively:
+    #     `#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS` → real implementation
+    #     `#ifndef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS` → no-op stub
+    #   The two-name pattern (negative-polarity flag for the operator,
+    #   positive-polarity macro for the source) keeps both audiences reading
+    #   in their natural sense. Do not collapse — see council review
+    #   2026-04-30 for rationale.
+    #
+    # Usage:
+    #   cmake -B build                                   # flight-ready (default)
+    #   cmake -B build -DNOT_CERTIFIED_FOR_FLIGHT=ON     # dev/bench
+    # ============================================================================
+    option(NOT_CERTIFIED_FOR_FLIGHT "Include dev/bench diagnostics in binary (NOT flight-ready)" OFF)
+    if(NOT_CERTIFIED_FOR_FLIGHT)
+        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS=1)
+        set_target_properties(rocketchip PROPERTIES OUTPUT_NAME "rocketchip-dev")
+        message(WARNING "Build tier: NOT_CERTIFIED_FOR_FLIGHT=ON — dev/bench binary, NOT flight-ready. Output: rocketchip-dev.uf2")
     else()
-        message(STATUS "Build tier: BENCH (dev diagnostics included)")
+        message(STATUS "Build tier: flight-ready (default — NOT_CERTIFIED_FOR_FLIGHT=OFF)")
     endif()
 
     # Dev tools — hierarchical gate. Off in production builds (all four
@@ -741,7 +768,7 @@ else()
             # Use when replaying Stage T RadioScheduler investigation.
             # Usage: cmake -DROCKETCHIP_BUILD_DEV_TOOLS=ON -DROCKETCHIP_STAGE_ARCHIVE=ON -DROCKETCHIP_STAGE_T_LOGGING=ON ..
             option(ROCKETCHIP_STAGE_T_LOGGING "Enable Stage T RadioScheduler diagnostics" OFF)
-            if(ROCKETCHIP_STAGE_T_LOGGING AND NOT BUILD_FOR_FLIGHT)
+            if(ROCKETCHIP_STAGE_T_LOGGING AND NOT_CERTIFIED_FOR_FLIGHT)
                 target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T_LOGGING=1)
                 message(STATUS "Stage T diagnostics: ENABLED")
             endif()
@@ -752,7 +779,7 @@ else()
             # possible replay during post-CCSDS command-layer work.
             # Usage: add -DROCKETCHIP_STAGE_T2_CHEAT=ON -DROCKETCHIP_JOB_STATION=1 (alongside parent+archive).
             option(ROCKETCHIP_STAGE_T2_CHEAT "Enable Stage T2 station cheat-mode sync" OFF)
-            if(ROCKETCHIP_STAGE_T2_CHEAT AND NOT BUILD_FOR_FLIGHT)
+            if(ROCKETCHIP_STAGE_T2_CHEAT AND NOT_CERTIFIED_FOR_FLIGHT)
                 target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T2_CHEAT=1)
                 message(STATUS "Stage T2 cheat-mode: ENABLED")
             endif()

@@ -63,7 +63,7 @@ grep -n '^\s*option(' CMakeLists.txt
 ```
 
 **Clean result:** every hit is either (a) a production configuration
-flag (`BUILD_TESTS`, `BUILD_FOR_FLIGHT`, `ROCKETCHIP_JOB_STATION`,
+flag (`BUILD_TESTS`, `NOT_CERTIFIED_FOR_FLIGHT`, `ROCKETCHIP_JOB_STATION`,
 `ROCKETCHIP_JOB_RELAY`, `ROCKETCHIP_BUILD_DEV_TOOLS`) or (b) nested
 inside an `if(ROCKETCHIP_BUILD_DEV_TOOLS)` / `if(ROCKETCHIP_STAGE_ARCHIVE)`
 block.
@@ -221,8 +221,8 @@ them, leave them alone and add a comment-explanation if missing.
    `standards/RP2350_ERRATA.md`.
 
 2. **`diag_stats.cpp` unconditional inclusion** (not gated by
-   `BUILD_FOR_FLIGHT`) — always-on T0 soak preconditions. Compiling
-   it out of flight binaries would kill the at-boot sanity check.
+   `NOT_CERTIFIED_FOR_FLIGHT`) — always-on T0 soak preconditions.
+   Compiling it out of flight binaries would kill the at-boot sanity check.
 
 3. **`target_link_options(rocketchip --undefined=...)`** block —
    `--gc-sections` would otherwise strip symbols needed by

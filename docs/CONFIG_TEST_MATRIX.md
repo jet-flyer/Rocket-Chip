@@ -26,14 +26,15 @@ multi-tier.
 ## The four firmware build configurations
 
 Defined in `CMakePresets.json`. Two axes: **role** (vehicle vs station)
-and **build flag** (`BUILD_FOR_FLIGHT=OFF` aka bench, vs `=ON` aka flight).
+and **build tier** (`NOT_CERTIFIED_FOR_FLIGHT=ON` aka dev/bench, vs `=OFF` aka
+flight-ready — `OFF` is the default).
 
-| Preset           | Role    | Board                          | `BUILD_FOR_FLIGHT` | Binary dir              |
-|------------------|---------|--------------------------------|--------------------|-------------------------|
-| `vehicle-bench`  | vehicle | Adafruit Feather RP2350 HSTX   | `OFF`              | `build/`                |
-| `vehicle-flight` | vehicle | Adafruit Feather RP2350 HSTX   | `ON`               | `build_flight/`         |
-| `station-bench`  | station | Adafruit Fruit Jam             | `OFF`              | `build_station/`        |
-| `station-flight` | station | Adafruit Fruit Jam             | `ON`               | `build_station_flight/` |
+| Preset           | Role    | Board                          | `NOT_CERTIFIED_FOR_FLIGHT` | Binary dir              | Output             |
+|------------------|---------|--------------------------------|----------------------------|-------------------------|--------------------|
+| `vehicle-bench`  | vehicle | Adafruit Feather RP2350 HSTX   | `ON`                       | `build/`                | `rocketchip-dev`   |
+| `vehicle-flight` | vehicle | Adafruit Feather RP2350 HSTX   | `OFF`                      | `build_flight/`         | `rocketchip`       |
+| `station-bench`  | station | Adafruit Fruit Jam             | `ON`                       | `build_station/`        | `rocketchip-dev`   |
+| `station-flight` | station | Adafruit Fruit Jam             | `OFF`                      | `build_station_flight/` | `rocketchip`       |
 
 USB CDC identification (used by host scripts):
 - VID `0x2E8A`, PID `0x0009` for both roles.
@@ -80,7 +81,7 @@ scripts to decide what they can rely on.
 ### Implications for tests
 
 - Any test that uses the **debug menu** (most diag/soak tests) requires
-  `BUILD_FOR_FLIGHT=OFF`. Flight builds will silently mis-execute or hang.
+  `NOT_CERTIFIED_FOR_FLIGHT=ON` (dev/bench). Flight-ready builds will silently mis-execute or hang.
 - `'x'` is the only character bound to a **destructive confirmation prompt**
   on main menu. Scripts that send `'x'` MUST classify the firmware first.
 - Station boots into the dashboard, not the CLI menu. Tests must send
@@ -133,7 +134,7 @@ column means **banner-based classification** before destructive keys are sent.
 - **No test covers `vehicle-flight` exclusively.** Flight-certified vehicle
   binaries get `bench_sim.py` coverage (good), but not the soak/ESKF/replay
   paths.
-- **`station-flight` + `'q'` debug flows** remain unavailable (`BUILD_FOR_FLIGHT` strips **`dev_cli`**).
+- **`station-flight` + `'q'` debug flows** remain unavailable (`NOT_CERTIFIED_FOR_FLIGHT=OFF` strips **`dev_cli`**).
   Main-menu **`'p'` preflight (`cli_print_preflight`)** works on **`station-flight`** (**Tier 5**) for
   high-level parity; scripts that inject **`diag_stats`** via **`q`→`d`** still require **station-bench**.
 - **Three scripts use `'e'` ESKF live mode** (cla_collect, eskf_gps_soak,

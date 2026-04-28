@@ -10,7 +10,7 @@
 
 Fault injection validates that safety paths (PIO backup timers, watchdog, health monitor, ESKF divergence recovery) actually fire under failure conditions. All injection is done via the debug probe — no fault-injection code in the flight binary.
 
-Bench binary (`cmake ..`, default) includes dev hooks in `src/dev/`. Flight binary (`cmake -DBUILD_FOR_FLIGHT=ON`) excludes them. The GDB scripts in this guide work with the **bench binary only**.
+Dev/bench binary (`cmake -DNOT_CERTIFIED_FOR_FLIGHT=ON ..`) includes dev hooks in `src/dev/` and outputs `rocketchip-dev.uf2`. Flight-ready binary (`cmake ..`, the default) excludes them and outputs `rocketchip.uf2`. The GDB scripts in this guide work with the **dev/bench binary only**.
 
 ---
 

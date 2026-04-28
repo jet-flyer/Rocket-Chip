@@ -16,8 +16,12 @@ constexpr const char* kFirmwareVersion = "0.16.0";
 
 constexpr const char* kRcOsVersion = "0.5.0";
 
-#ifndef BUILD_FOR_FLIGHT
-constexpr const char* kBuildConfig = "bench";
+// Build identity: "flight" (default) means flight-ready; "dev" means
+// the binary was built with NOT_CERTIFIED_FOR_FLIGHT=ON (dev/bench).
+// kBuildForFlight retains its name (callers depend on it) but its truth
+// value mirrors the new flag: true when flight-ready, false when dev.
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
+constexpr const char* kBuildConfig = "dev";
 constexpr bool kBuildForFlight = false;
 #else
 constexpr const char* kBuildConfig = "flight";

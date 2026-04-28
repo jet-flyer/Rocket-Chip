@@ -3,14 +3,15 @@
 //
 // Fault injection hooks for bench testing (IVP-129).
 // Called via GDB `call fault_force_*()` from debug probe.
-// Excluded from flight binary (BUILD_FOR_FLIGHT).
+// Compiled in only when ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS is defined,
+// which the build sets when NOT_CERTIFIED_FOR_FLIGHT=ON.
 // See docs/FAULT_INJECTION.md for usage.
 #ifndef ROCKETCHIP_DEV_FAULT_INJECT_H
 #define ROCKETCHIP_DEV_FAULT_INJECT_H
 
 #include <stdint.h>
 
-#ifdef BUILD_FOR_FLIGHT
+#ifndef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 static inline void fault_force_eskf_unhealthy()                     {}
 static inline void fault_force_core0_stall()                        {}

@@ -5,7 +5,7 @@
 // Exercises station's decode pipeline + dashboard + ACK paths without a
 // live vehicle radio. Useful for 30-min soak and ACK protocol stress.
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 #include "dev/station_replay.h"
 #include "active_objects/ao_telemetry.h"
@@ -63,4 +63,4 @@ bool station_replay_active() {
     return s_replayActive;
 }
 
-#endif // BUILD_FOR_FLIGHT
+#endif // ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS

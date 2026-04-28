@@ -63,7 +63,7 @@ void diag_stats_t0_preconditions() {
 // Bench-only block: full diag_stats_dump() for soak snapshots
 // -------------------------------------------------------------------
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 #include "dev/diag_stats.h"
 #include "drivers/mcu_temp.h"
@@ -244,4 +244,4 @@ void diag_stats_dump() {
     printf("========================\n\n");
 }
 
-#endif // BUILD_FOR_FLIGHT
+#endif // ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS

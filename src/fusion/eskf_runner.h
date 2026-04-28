@@ -98,7 +98,7 @@ uint32_t eskf_runner_get_buffer_count();
 /// Read-only access to GPS session stats.
 const gps_session_stats_t* eskf_runner_get_gps_session();
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
                            uint32_t* max_us, uint32_t* count);
 /// Dev-only: predict + all measurement steps + phase/confidence (200 Hz path), µs

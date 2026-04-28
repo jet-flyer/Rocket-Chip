@@ -4,7 +4,7 @@
 // Replay injection — feeds CSV sensor data into seqlock from Core 0.
 // Pauses Core 1 real sensor reads, publishes replay data at caller's rate.
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 #include "dev/replay_inject.h"
 #include "rocketchip/sensor_seqlock.h"
@@ -94,4 +94,4 @@ void replay_inject_sample(
     ++s_sampleCount;
 }
 
-#endif // BUILD_FOR_FLIGHT
+#endif // ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS

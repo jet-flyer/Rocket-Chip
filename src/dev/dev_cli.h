@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef BUILD_FOR_FLIGHT
+#ifndef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 static inline bool dev_debug_menu_enter()             { return false; }
 static inline bool dev_debug_menu_dispatch(int)       { return false; }

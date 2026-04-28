@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// Station-side fault injection (IVP-132a). Excluded from flight binary.
+// Station-side fault injection (IVP-132a). Compiled in only when
+// ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS is defined, which the build sets
+// when NOT_CERTIFIED_FOR_FLIGHT=ON.
 // Hook points are wired in ao_telemetry.cpp (RX path) and drivers/gps_uart.cpp
 // (GPS valid flag). Call from GDB via `call fault_force_station_*()`.
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 #include "dev/station_fault_inject.h"
 
@@ -53,4 +55,4 @@ void fault_station_keep_alive() {
 
 }  // extern "C"
 
-#endif  // !BUILD_FOR_FLIGHT
+#endif  // ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS

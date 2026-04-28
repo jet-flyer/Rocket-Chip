@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-#ifdef BUILD_FOR_FLIGHT
+#ifndef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 static inline void station_replay_inject_bytes(const uint8_t*, uint8_t) {}
 static inline uint32_t station_replay_get_inject_count() { return 0; }

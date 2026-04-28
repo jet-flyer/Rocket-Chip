@@ -41,12 +41,12 @@ Before committing and pushing:
 7. **Architecture doc drift check** — If this session changed any AO (added, removed, renamed, re-prioritized), signal (new, renamed, rerouted), or queue depth: run `grep -n "superloop\|core 0 cooperative" docs/SAD.md docs/SCAFFOLDING.md` and verify zero stale hits. Also verify the AO list in `docs/AO_ARCHITECTURE.md`, `docs/SAD.md` Section 5.1, and `docs/SCAFFOLDING.md` Module Responsibilities table all match `src/active_objects/`. Patch any drift before committing.
 8. **Station/vehicle build parity check** — If this session modified CMakeLists.txt, any `src/active_objects/`, `src/cli/`, `src/telemetry/`, or `src/drivers/rfm95w.cpp`, rebuild BOTH tiers for BOTH roles to confirm no build is broken:
    ```
-   cmake --build build/              # vehicle bench
-   cmake --build build_flight/       # vehicle flight  (-DBUILD_FOR_FLIGHT=ON)
-   cmake --build build_station/      # station bench   (-DROCKETCHIP_JOB_STATION=1)
-   cmake --build build_station_flight/  # station flight (both flags)
+   cmake --build build/              # vehicle bench   (NOT_CERTIFIED_FOR_FLIGHT=ON)
+   cmake --build build_flight/       # vehicle flight  (default — NOT_CERTIFIED_FOR_FLIGHT=OFF)
+   cmake --build build_station/      # station bench   (ROCKETCHIP_JOB_STATION=1, NOT_CERTIFIED_FOR_FLIGHT=ON)
+   cmake --build build_station_flight/  # station flight (ROCKETCHIP_JOB_STATION=1, NOT_CERTIFIED_FOR_FLIGHT defaults OFF)
    ```
-   Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION` / `kRadioModeRx` — a change that compiles on one role can silently break the other. If any build directory doesn't exist yet, create it with the appropriate `cmake -DROCKETCHIP_JOB_STATION=1 -DBUILD_FOR_FLIGHT=ON ..` flags (see `docs/BENCH_TEST_PROCEDURE.md`). When hardware-verifying, both the vehicle Feather and the Fruit Jam station should exercise the changed path before the session closes.
+   Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION` / `kRadioModeRx` — a change that compiles on one role can silently break the other. If any build directory doesn't exist yet, create it with the appropriate `cmake -DROCKETCHIP_JOB_STATION=1 ..` (or add `-DNOT_CERTIFIED_FOR_FLIGHT=ON` for the dev/bench tier) flags (see `docs/BENCH_TEST_PROCEDURE.md`). When hardware-verifying, both the vehicle Feather and the Fruit Jam station should exercise the changed path before the session closes.
 9. **Commit with descriptive message** — Format: `[agent] brief description of what and why`
 10. **Push to remote** — `git push` so work is not stranded locally
 

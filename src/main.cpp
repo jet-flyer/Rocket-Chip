@@ -419,7 +419,7 @@ static QSubscrList g_subscrList[rc::SIG_AO_MAX];
 //
 // Council A2: watchdog_kick_tick() stays here permanently — never an AO.
 extern "C" void qv_idle_bridge(void) {
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
     // Fault injection: Core 0 stall — spin here, skip all work including watchdog
     extern volatile bool g_fault_core0_stall;
     if (g_fault_core0_stall) { return; }
@@ -431,7 +431,7 @@ extern "C" void qv_idle_bridge(void) {
     } else {
 #endif
     watchdog_kick_tick();
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
     }
 #endif
 

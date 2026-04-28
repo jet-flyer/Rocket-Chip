@@ -98,7 +98,7 @@ All Stage T code done. Three scope-bench rigor items (ACK-path timing + α PDF, 
 
 **Startup init follow-up (2026-04-26):** Removed redundant second `i2c_bus_init()` call on healthy boots. `init_hardware()` now retries I2C init only if early bring-up failed. Hardware-verified on vehicle bench path; startup calibration behavior preserved.
 
-**Next:** Stage 17 (Field Testing — DEFERRED, awaits airframe + launch window), Stage 18 (Field Tuning — awaits flight data). Remaining High priority: IVP-T13 LQ-adaptive retry + Stage T 95% first-try re-baseline — both explicitly deferred pending CCSDS command-layer rework. Station/vehicle pre-commit discipline items (classification-awareness, role-awareness, hook-portability into tracked scripts/hooks/) tracked in AGENT_WHITEBOARD.md. Build-system audit follow-ups (BUILD_FOR_FLIGHT polarity rename, first toolchain-version audit run, tier consolidation evaluation) also tracked there.
+**Next:** Stage 17 (Field Testing — DEFERRED, awaits airframe + launch window), Stage 18 (Field Tuning — awaits flight data). Remaining High priority: IVP-T13 LQ-adaptive retry + Stage T 95% first-try re-baseline — both explicitly deferred pending CCSDS command-layer rework. Station/vehicle pre-commit discipline items (classification-awareness, role-awareness, hook-portability into tracked scripts/hooks/) tracked in AGENT_WHITEBOARD.md. Build-system audit follow-ups (the polarity rename has landed as `NOT_CERTIFIED_FOR_FLIGHT`; first toolchain-version audit run completed; tier consolidation evaluated and rejected — see CHANGELOG).
 
 ## Completed
 

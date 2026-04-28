@@ -104,7 +104,7 @@ practices prevent the mistake at build time:
    invocation from the closest working build's `CMakeCache.txt` — do
    not assume defaults are right.
 2. After `cmake -B build_xxx`, run
-   `grep -E "PICO_BOARD|ROCKETCHIP_JOB|BUILD_FOR_FLIGHT" build_xxx/CMakeCache.txt`
+   `grep -E "PICO_BOARD|ROCKETCHIP_JOB|NOT_CERTIFIED_FOR_FLIGHT" build_xxx/CMakeCache.txt`
    and confirm the values match the target role.
 3. After flashing, read the boot banner (or GDB-print the build tag
    and board name symbols) before starting any soak.

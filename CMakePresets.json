@@ -4,42 +4,42 @@
   "configurePresets": [
     {
       "name": "vehicle-bench",
-      "displayName": "Vehicle — bench (Feather)",
-      "description": "Flight computer on Adafruit Feather RP2350 HSTX, bench build (BUILD_FOR_FLIGHT=OFF).",
+      "displayName": "Vehicle — dev/bench (Feather)",
+      "description": "Flight computer on Adafruit Feather RP2350 HSTX, dev/bench build (NOT_CERTIFIED_FOR_FLIGHT=ON). Output: rocketchip-dev.uf2.",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
-        "BUILD_FOR_FLIGHT": "OFF"
+        "NOT_CERTIFIED_FOR_FLIGHT": "ON"
       }
     },
     {
       "name": "vehicle-flight",
-      "displayName": "Vehicle — flight (Feather, BUILD_FOR_FLIGHT=ON)",
-      "description": "Flight binary on Adafruit Feather RP2350 HSTX. Diagnostic paths compiled out.",
+      "displayName": "Vehicle — flight-ready (Feather)",
+      "description": "Flight-ready binary on Adafruit Feather RP2350 HSTX. Diagnostic paths compiled out (NOT_CERTIFIED_FOR_FLIGHT=OFF, the default). Output: rocketchip.uf2.",
       "binaryDir": "${sourceDir}/build_flight",
       "cacheVariables": {
-        "BUILD_FOR_FLIGHT": "ON"
+        "NOT_CERTIFIED_FOR_FLIGHT": "OFF"
       }
     },
     {
       "name": "station-bench",
-      "displayName": "Station — bench (Fruit Jam)",
-      "description": "Ground receiver on Adafruit Fruit Jam, bench build.",
+      "displayName": "Station — dev/bench (Fruit Jam)",
+      "description": "Ground receiver on Adafruit Fruit Jam, dev/bench build (NOT_CERTIFIED_FOR_FLIGHT=ON). Output: rocketchip-dev.uf2.",
       "binaryDir": "${sourceDir}/build_station",
       "cacheVariables": {
         "PICO_BOARD": "adafruit_fruit_jam",
         "ROCKETCHIP_JOB_STATION": "1",
-        "BUILD_FOR_FLIGHT": "OFF"
+        "NOT_CERTIFIED_FOR_FLIGHT": "ON"
       }
     },
     {
       "name": "station-flight",
-      "displayName": "Station — flight (Fruit Jam, BUILD_FOR_FLIGHT=ON)",
-      "description": "Flight binary of ground receiver on Adafruit Fruit Jam.",
+      "displayName": "Station — flight-ready (Fruit Jam)",
+      "description": "Flight-ready binary of ground receiver on Adafruit Fruit Jam (NOT_CERTIFIED_FOR_FLIGHT=OFF, the default). Output: rocketchip.uf2.",
       "binaryDir": "${sourceDir}/build_station_flight",
       "cacheVariables": {
         "PICO_BOARD": "adafruit_fruit_jam",
         "ROCKETCHIP_JOB_STATION": "1",
-        "BUILD_FOR_FLIGHT": "ON"
+        "NOT_CERTIFIED_FOR_FLIGHT": "OFF"
       }
     }
   ],

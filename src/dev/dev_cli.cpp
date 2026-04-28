@@ -2,9 +2,10 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
 // Dev-only CLI: debug sub-menu + ESKF live streaming.
-// Excluded from flight builds via CMake (BUILD_FOR_FLIGHT).
+// Compiled in only when ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS is defined,
+// which the build sets when NOT_CERTIFIED_FOR_FLIGHT=ON.
 
-#ifndef BUILD_FOR_FLIGHT
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 #include "dev/dev_cli.h"
 #include "dev/replay_inject.h"
@@ -300,4 +301,4 @@ bool dev_station_replay_poll() {
     return true;
 }
 
-#endif // BUILD_FOR_FLIGHT
+#endif // ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS

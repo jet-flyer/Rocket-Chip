@@ -4,7 +4,8 @@
 // Diagnostic statistics for IVP-132 soak testing.
 // Dumps per-AO queue depth high-water, MSP high-water, flash page count,
 // radio retry count, health latch state, sensor temps.
-// Dev-only (excluded from flight binary via BUILD_FOR_FLIGHT).
+// Dev-only (compiled in only when ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS is defined,
+// which the build sets when NOT_CERTIFIED_FOR_FLIGHT=ON).
 #ifndef ROCKETCHIP_DEV_DIAG_STATS_H
 #define ROCKETCHIP_DEV_DIAG_STATS_H
 
@@ -18,7 +19,7 @@ extern "C" {
 void diag_stats_t0_preconditions();
 }
 
-#ifdef BUILD_FOR_FLIGHT
+#ifndef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
 static inline void diag_stats_dump()     {
     // Flight tier: only the T=0 block is available. Full stats dump is
