@@ -133,15 +133,61 @@ reflects what the script will actually do today, not what it should do.
 
 When creating a new script under `scripts/`:
 
-1. **Declare the target.** Add a target marker the shared helper recognises
-   (mechanism TBD pending council review — see open question below).
-2. **Use the shared helpers** from `scripts/_rc_test_common.py` (planned)
-   for: port detection, banner classification, watchdog timer.
-3. **Choose exit codes** consistent with the rest of the suite:
+1. **Declare the target** with the `@rc_test` decorator from
+   `scripts/_rc_test_common.py`. Council-approved 2026-04-27 (decorator
+   form chosen over comment header for refactor-safety + entry-point
+   visibility).
+2. **Use the shared helpers** from `scripts/_rc_test_common.py` for: port
+   detection (`find_target_port`), banner classification
+   (`classify_banner`, `peek_banner`), opening + post-open re-classify
+   + auto-enter-kMenu (`open_classified_port`), wall-clock hard kill
+   (`start_watchdog` is wired into `@rc_test`'s `watchdog_s` param).
+3. **Choose exit codes** consistent with the rest of the suite (enforced
+   by `@rc_test`):
    - `0` = pass
    - `1` = real failure (block in CI)
-   - `2` = environment skip (no target present, wrong build, watchdog fired)
+   - `2` = environment skip (no target present, wrong build, watchdog
+     fired, KeyboardInterrupt). Pre-commit treats `2` as SKIP, not block.
 4. **Update this file** when the script lands.
+
+Minimum-template for a new vehicle-bench script:
+
+```python
+#!/usr/bin/env python3
+"""My new test."""
+from __future__ import annotations
+import argparse
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _rc_test_common import (
+    rc_test, find_target_port, open_classified_port,
+    TARGET_VEHICLE_BENCH,
+)
+
+@rc_test(target=TARGET_VEHICLE_BENCH, watchdog_s=120)
+def main():
+    parser = argparse.ArgumentParser(description='...')
+    parser.add_argument('--port', default=None)
+    args = parser.parse_args()
+
+    port, banner = find_target_port(TARGET_VEHICLE_BENCH,
+                                    override=args.port, verbose=True)
+    if port is None:
+        print(f'INFO: skipping --- {banner}')
+        return 2  # skip: no target present
+
+    with open_classified_port(port, target=TARGET_VEHICLE_BENCH) as ser:
+        # ...test body...
+        return 0  # pass
+
+if __name__ == '__main__':
+    main()
+```
+
+For station scripts, replace `TARGET_VEHICLE_BENCH` with `TARGET_STATION_BENCH`
+(or `TARGET_STATION_ANY` if the test works on flight builds too). The
+`open_classified_port` helper auto-transitions station from kAnsi
+dashboard to kMenu so `'q'`, `'h'`, etc. are honored.
 
 ## Open proposals (not yet executed)
 
