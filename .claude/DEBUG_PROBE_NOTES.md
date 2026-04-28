@@ -57,7 +57,17 @@ This command is idempotent - safe to run even if no OpenOCD is running.
 taskkill //F //IM openocd.exe
 ```
 
-**Windows PowerShell (when Cygwin/bash is wrong for your session):** `Start-Process -ArgumentList` often splits `-c "adapter speed 5000"` incorrectly. Use **`scripts/start_openocd_pico_sdk.ps1`** from the repo root (`pwsh -File scripts/start_openocd_pico_sdk.ps1`) — it uses `ProcessStartInfo` with a single `.Arguments` string (same pattern that works for `openocd.exe` on project machines). Then confirm `127.0.0.1:3333` is listening.
+**Windows PowerShell (when Cygwin/bash is wrong for your session):** `Start-Process -ArgumentList` often splits `-c "adapter speed 5000"` incorrectly. From repo root: **`powershell -ExecutionPolicy Bypass -File scripts/start_openocd_pico_sdk.ps1`** — it uses `ProcessStartInfo` with a single `.Arguments` string. Then confirm `127.0.0.1:3333` is listening (`netstat -an | findstr 3333` on Windows).
+
+### Git `pre-commit` hook (flight‑critical paths → `bench_sim.py`)
+
+Some paths (see `.git/hooks/pre-commit`) require **both**:
+
+1. **OpenOCD** listening on **`127.0.0.1:3333`** (probe attached; use **`scripts/start_openocd_pico_sdk.ps1`** or bash idiom above — restart if flaky: `taskkill`, wait, start again).
+
+2. **Vehicle USB CDC** enumerated so **`python scripts/bench_sim.py`** can find the RocketChip port.
+
+Restarting OpenOCD usually fixes `:3333` not listening without re-plugging firmware work. **`git commit --no-verify`** is only for emergencies and **requires explicit repo-owner approval** — autonomous agents **must not** bypass the hook unless the human author instructed it.
 
 ---
 
