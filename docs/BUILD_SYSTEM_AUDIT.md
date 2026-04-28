@@ -48,8 +48,9 @@ must be gated behind `ROCKETCHIP_BUILD_DEV_TOOLS`.** Production builds
 for diagnostic flags.
 
 **The hierarchy** (established 2026-04-23):
-- `ROCKETCHIP_BUILD_DEV_TOOLS` (parent, default OFF) — regular dev-tool
-  targets like `mat_benchmark`, future bench utilities.
+- `ROCKETCHIP_BUILD_DEV_TOOLS` (parent, default OFF) — gate for dev-tool
+  targets and the stage archive. No standing dev-tool targets at present;
+  re-add new bench utilities under this gate.
 - `ROCKETCHIP_STAGE_ARCHIVE` (child, default OFF even when parent is ON)
   — unlocks stage-bounded momentary diagnostics like `STAGE_T_LOGGING`,
   `STAGE_T2_CHEAT`, `STAGE_T3_MAVLINK`.
@@ -246,6 +247,19 @@ them, leave them alone and add a comment-explanation if missing.
 
 Append-only record of what this audit has surfaced and fixed. New
 entries at top.
+
+### 2026-04-30 — One-time scaffolding cleanup
+
+- **Removed:** `mat_benchmark` target + `src/tools/mat_benchmark.cpp` —
+  IVP-40 gate (24-state ESKF state-count decision) closed, results in
+  `docs/benchmarks/`. No documentation called for periodic re-runs.
+  `ROCKETCHIP_BUILD_DEV_TOOLS` parent gate retained for the stage
+  archive children and future dev tools; comment updated.
+- **Removed:** `docs/TOOLCHAIN_VALIDATION.md` — Jan-2026 FreeRTOS SMP +
+  Pico SDK 2.1.0 + "Phase 2" scaffolding, last touched 2026-02-02 and
+  wrong on every axis since the QP/C bare-metal pivot. Build/debug
+  guidance lives in `DEBUG_PROBE_NOTES.md`, `FLASHING.md`,
+  `BENCH_TEST_PROCEDURE.md`, `BOARD_FIRMWARE_VERIFICATION.md`.
 
 ### 2026-04-23 — Initial audit + cleanup
 

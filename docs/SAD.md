@@ -782,7 +782,6 @@ make -j$(nproc)
 **Current targets:**
 - `rocketchip` - Main firmware (RP2350 target)
 - `rocketchip_tests` - Host-side Google Test suite (187+ tests)
-- `mat_benchmark` - Matrix math performance benchmark
 
 **Feature flags:**
 ```cmake

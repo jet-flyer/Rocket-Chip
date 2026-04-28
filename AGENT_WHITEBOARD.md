@@ -19,24 +19,7 @@ Tiers **1–7**, **`CONFIG_TEST_MATRIX.md`**, council doc **`docs/council/HOST_S
 
 ---
 
-## Housekeeping (Trivial — do now or on next touch)
-
-- **`src/benchmark/ud_benchmark.cpp` — obsolete scaffolding, scheduled for deletion.** Phase 1 gate decision from 2026-02-24 delivered its verdicts (UD not justified, DCP not viable, Bierman adopted). Results preserved in `docs/benchmarks/UD_BENCHMARK_RESULTS.md`. Binary has been broken since `0a57db9` (IVP-143, Stage 16C) because the target's CMake rules don't propagate Pico SDK includes to the `board_feather_rp2350.h` it pulls in. Nobody noticed for 2+ weeks because nobody runs it anymore. Cleanup: delete the .cpp, remove the `ud_benchmark` CMake target block, maybe rmdir `src/benchmark/`. User deferred this to post-session-wrap (2026-04-22).
-
 ## High priority
-
-- **build_station/ CMake should auto-pick `adafruit_fruit_jam` when
-  `ROCKETCHIP_JOB_STATION=1` is set.** 2026-04-22 session I Frankenstein-
-  flashed the station twice because my clean rebuild of `build_station/`
-  only passed `-DROCKETCHIP_JOB_STATION=1` and the root CMakeLists.txt
-  line 185 defaulted `PICO_BOARD` to `adafruit_feather_rp2350`. Station
-  role + Feather pin config = firmware that looks valid via picotool
-  but has wrong LED/I2C/SPI pins for the physical board. Fix in root
-  CMakeLists.txt: when `ROCKETCHIP_JOB_STATION=1` is set and
-  `PICO_BOARD` is not explicitly specified, default to
-  `adafruit_fruit_jam`. Also applies to `build_station_flight/`.
-  Diagnostic hint for this footgun documented in
-  `docs/TROUBLESHOOTING.md`.
 
 - **Deep RP2350 errata sweep + codified watchlist.** 2026-04-22 we tripped
   RP2350-E2 (SIO spinlock mirror writes) as a boot-time deadlock — fix
@@ -176,55 +159,3 @@ Mission Profile OTA, F' evaluation, u-blox GPS, OTA drivers, GPS-free 3D reconst
 **Stage 16: Field Tuning** — All VALIDATE parameters. Needs flight data.
 
 **Stage 17: Field Testing** — IVP-135, 136, 137, 138. Airframe integration, ground test, flight test, exit gate. Needs hardware access and weather. IVP-134 (pre-flight checklist) already committed.
-
----
-
-## Resolved 2026-04-30
-
-- **Host script hardening — Tiers 1–7 complete** (`CHANGELOG` 2026-04-30-001): `_rc_test_common` dual-port + `ctest`/GHA/Python gates + `scripts/ci/pre_commit_matrix.py` + tracked **`core.hooksPath=scripts/hooks`**; **`rc_os.cpp`** station main-menu **`p`** → **`cli_print_preflight`**. Verified: **788/788** `ctest`, **`python scripts/test__rc_test_common.py`**, four firmware presets (**vehicle-bench/flight**, **station-bench/flight**) link clean after `rc_os` change.
-
-## Resolved This Session (2026-04-22)
-
-- **Startup I2C duplicate init removed (2026-04-26).** `src/main.cpp` now skips the second `i2c_bus_init()` call when early bring-up already succeeded; still retries from `init_hardware()` if early init fails. Verified on vehicle bench startup path; baro startup calibration flow unchanged.
-
-- **Watchdog recovery machinery removed.** Dead code after IVP-90 SDK-watchdog removal — `src/watchdog/` directory deleted, scratch-register persistence gone, `[WARN] WATCHDOG REBOOT` banner (tonight's false-positive source) gone, `kSafeModeRebootThreshold`/`TickFnId`/reboot counter all deleted. Live behaviors (launch_abort safety flag, ESKF runaway-restart brake) migrated to proper homes: `flight_director.cpp` for launch_abort (level-3 power-cycle-only clear per new `docs/USER_GUIDE.md` Safety State Model), `src/fusion/eskf_brake.cpp` for the ESKF brake. 8 new host tests + GoNoGo test rot fixed in same commit. 786/786 host tests, 4 builds clean, HW boot-clean gate PASS (no false-positive banner, Hardware 14/14 OK). Changelog has the full deletion list for future reconstruction if ever needed.
-
-## Resolved 2026-04-18
-
-Short-lived items cleared from the live board — full detail lives in CHANGELOG / PROJECT_STATUS / docs.
-
-- **Stage 16C COMPLETE.** IVP-139 through IVP-145. Station runtime decoupling via capability-masking (`job::kRoleSamplesCore1` / `kRoleRunsLogger` constexprs), Tiny 2350+ / Pico 2 scaffolding, station HealthMonitor parity, `cmd_station_*` audit (clean). 4 builds clean, 724 host tests, bench_sim 2/2, vehicle+station 5-min soaks PASS.
-- **IVP-146 Station bench_sim landed.** `scripts/station_bench_sim.py` — 3 tests (boot/N-A/health) + QP assertion scan + VID:PID port detection. Pre-commit hook extended locally (portability tracked above under Medium).
-- **IVP-147 Station SPIN scaffolding landed.** `tools/spin/rocketchip_station.pml` with P_TERMINATION (liveness) + P_NO_DOUBLE_CLEAR (safety), both PASS. Extensions tracked above.
-- **IVP-142c HealthMonitor parity done.** Shared code branches on capability, not role identity.
-- **MCU die temperature.** Already landed — `src/drivers/mcu_temp.cpp`, wired into `health_monitor.{cpp,h}` and host tests. Flagged in whiteboard as pending but was already done.
-- **SPIN drogue-on-abort gate + comment fix.** `rocketchip_fd.pml` BOOST and COAST abort branches now model both `MissionProfile::abort_fires_drogue_from_boost/coast` settings non-deterministically. All 7 FD safety LTL properties still pass (errors: 0). Comments at `flight_director.cpp:350,377` updated to "fires drogue if profile flag set".
-- **Pre-commit Ground-code whitelist.** `.git/hooks/pre-commit` now skips `src/cli/**` in the function-size / complexity gate. JSF-AV thresholds applied only to Flight-Critical and Flight-Support code per CODING_STANDARDS.md classification table.
-- **CMake `src/cli/rc_os.cpp` "duplicate" — false alarm.** Both appearances (lines 290, 434) are intentional: one in `add_executable(rocketchip …)` source list, one in the `ROCKETCHIP_SOURCES` variable that scopes `-Wpedantic` to our sources (line 471). Not a dedup bug. Whiteboard was wrong.
-- **Host test audit — clean.** 35 test files (~12.6K LOC). No disabled tests, no GTEST_SKIP, no TODO/FIXME markers, no commented-out cases. The 9 ESKF test files (bierman, gps_update, mag_3axis, mag_update, propagation, reset, update, zupt) each cover distinct APIs — not merge candidates. Test infrastructure (replay harness, synthetic data, CSV reference logs) healthy. No cleanup needed.
-- **`/tmp/stage-j-test` worktree removed.** `git worktree remove --force` — only had untracked `build_fruitjam/` artifacts.
-
-## Resolved (Historical — Recorded Elsewhere)
-
-| Item | Recorded In |
-|------|-------------|
-| All Stage 1-12A completion details | `docs/PROJECT_STATUS.md` completed table |
-| Stage 7 IVP-57-65 details | CHANGELOG 2026-04-07/08, PROJECT_STATUS |
-| AO/State Engine Logging audit | `docs/ADVANCED_SETTINGS.md` |
-| PCM frame expansion | `docs/ADVANCED_SETTINGS.md` Research Mode |
-| DPS310 baro rate + read-count fixes | CHANGELOG, baro driver code |
-| SRAM execution audit, Dense FPFT, UD factorization benchmarks | `docs/benchmarks/` |
-| Bierman measurement update | CHANGELOG, ESKF code |
-| MMAE/IMM pivot | `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md` |
-| 24-state ESKF expansion + Codegen FPFT (IVP-47) | CHANGELOG, PROJECT_STATUS |
-| BSS/codegen sensitivity disproved | `LESSONS_LEARNED.md` Entry 27 |
-| VALIDATE values inventory | `docs/UNIQUE_COMMENT_ITEMS.md` |
-| Power optimization notes | Codegen mandatory (benchmarked). Revisit if state count > 24 |
-| clang-tidy + lizard CCN | `standards/STANDARDS_AUDIT_2026-03-26.md` |
-| Job/Mission naming | Code uses `job.h` namespace. Settled. |
-| ivp62-wip branch | Deleted 2026-04-09 |
-| IVP-103 Station GPS Push | `cmd_station_gps_push()` at `rc_os_commands.cpp:1218`, bound to `p` |
-| IVP-132a.4a DIO0 IRQ test | Removed 2026-04-16 — firmware polls RegIrqFlags, no GPIO IRQ |
-| QP static events (LL Entry 35) | LedEngine + Notify fixed, detection pattern in LL |
-| RP2350 XIP cache vs SRAM | Codegen `.time_critical` section, LL Entry 30 |
-| Station GPS hardware (STEMMA QT cable) | Cable swapped; `board_release_peripheral_reset()` + ultra-early GPS init + `[DBG ] GPS early-init:` instrumentation landed |

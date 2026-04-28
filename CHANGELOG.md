@@ -22,6 +22,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-30-003 | Claude | refactor, documentation
+
+**One-time scaffolding cleanup.** Deleted `src/tools/mat_benchmark.cpp` + its CMake target and removed the empty `src/tools/` directory — the IVP-40 24-state-ESKF gate decision is closed and no documentation calls for periodic re-runs (results preserved in `docs/benchmarks/`). Deleted `docs/TOOLCHAIN_VALIDATION.md` (Jan-2026 FreeRTOS SMP + Pico SDK 2.1.0 scaffolding, last touched 2026-02-02 and wrong on every axis since the QP/C bare-metal pivot; current build/debug guidance lives in `DEBUG_PROBE_NOTES.md`, `FLASHING.md`, `BENCH_TEST_PROCEDURE.md`, `BOARD_FIRMWARE_VERIFICATION.md`). Updated CMakeLists.txt parent-gate comment (`ROCKETCHIP_BUILD_DEV_TOOLS` now exposes only the stage archive — no standing dev-tool targets). Removed mat_benchmark and ud_benchmark exclusions from `scripts/run_clang_tidy.sh`. SCAFFOLDING.md, SAD.md, BUILD_SYSTEM_AUDIT.md updated to match. Erased the `Resolved` sections from `AGENT_WHITEBOARD.md` per its IRL-whiteboard rule (CHANGELOG is the source of truth). Audit confirmed `src/dev/` (6 modules, 1084 lines, all properly `BUILD_FOR_FLIGHT`-gated) has no dead code. Verified: 788/788 host ctest pass, vehicle bench builds clean.
+
+Files: `src/tools/mat_benchmark.cpp` (deleted), `docs/TOOLCHAIN_VALIDATION.md` (deleted), `CMakeLists.txt`, `docs/SCAFFOLDING.md`, `docs/SAD.md`, `docs/BUILD_SYSTEM_AUDIT.md`, `scripts/run_clang_tidy.sh`, `AGENT_WHITEBOARD.md`, `CHANGELOG.md`
+
 ### 2026-04-30-001 | Cursor | tooling, council, documentation
 
 **Host script hardening closure (Tiers 1–7):** `scripts/_rc_test_common.py` gains `find_vehicle_and_station_ports`; Tier 4 Stage T / decode / bench paths use `find_target_port` + `open_classified_port`; `CMakeLists.txt` registers `ctest` targets `scripts_rc_test_common` + `scripts_python_compileall` (`-DBUILD_TESTS=ON`). `.github/workflows/python-scripts-ci.yml` + `scripts/ci/pre_commit_matrix.py`; tracked **`git config core.hooksPath scripts/hooks`** + `scripts/hooks/pre-commit` (prior `.git/hooks/pre-commit` should be removed/renamed to avoid duplication). **`@rc_test(watchdog_s=)`** ceilings on `ack_stress_test`, `soak_test`, `replay_harness`. **Firmware Tier 5:** `src/cli/rc_os.cpp` — main-menu **`p`** runs `cli_print_preflight()` on station (RX). Council review + roadmap: `docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`; matrix + plan stubs updated.

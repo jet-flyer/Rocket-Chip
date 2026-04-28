@@ -716,18 +716,17 @@ else()
     # Dev tools — hierarchical gate. Off in production builds (all four
     # standard presets). See docs/BUILD_SYSTEM_AUDIT.md for the full model.
     #
-    #   ROCKETCHIP_BUILD_DEV_TOOLS (parent)  — regular dev-tool targets
+    #   ROCKETCHIP_BUILD_DEV_TOOLS (parent)  — gate for dev-tool targets
     #     └─ ROCKETCHIP_STAGE_ARCHIVE (child) — momentary stage-bounded diagnostics
     #         └─ ROCKETCHIP_STAGE_T_LOGGING   (individual, opt-in per flag)
     #         └─ ROCKETCHIP_STAGE_T2_CHEAT    (individual, opt-in per flag)
     #         └─ ROCKETCHIP_STAGE_T3_MAVLINK  (individual, opt-in per flag)
     #
-    # Parent on alone: regular dev (mat_benchmark, future bench tools).
     # Parent + archive child on: stage-bounded options become *visible* but
     # still default OFF — you must name the specific flag to light it up.
     # Nested structure prevents accidental activation of archived stage flags
     # during normal dev work.
-    option(ROCKETCHIP_BUILD_DEV_TOOLS "Parent gate — regular dev-tool targets (mat_benchmark, future bench tools)" OFF)
+    option(ROCKETCHIP_BUILD_DEV_TOOLS "Parent gate — exposes dev-tool targets and the stage archive" OFF)
     if(ROCKETCHIP_BUILD_DEV_TOOLS)
         message(STATUS "Dev tools: ENABLED (regular dev targets available)")
 
@@ -794,33 +793,6 @@ else()
 
     # Generate UF2 file for easy flashing
     pico_add_extra_outputs(rocketchip)
-
-    # ============================================================================
-    # Standalone Benchmark (IVP-40 gate — dev-tool, not production firmware)
-    # Gated behind ROCKETCHIP_BUILD_DEV_TOOLS. Enable with
-    # -DROCKETCHIP_BUILD_DEV_TOOLS=ON to build when re-running the matrix
-    # benchmark. See docs/BUILD_SYSTEM_AUDIT.md.
-    # ============================================================================
-    if(ROCKETCHIP_BUILD_DEV_TOOLS)
-        add_executable(mat_benchmark
-            src/tools/mat_benchmark.cpp
-            src/math/vec3.cpp          # Required by rc_math (baro_kf dependency)
-            src/fusion/baro_kf.cpp
-        )
-        target_include_directories(mat_benchmark PRIVATE
-            ${CMAKE_CURRENT_LIST_DIR}/include
-            ${CMAKE_CURRENT_LIST_DIR}/src
-        )
-        # Benchmark must use -O2 — Debug (-O0) gives wildly pessimistic numbers.
-        # Flight firmware will also run optimized (Release or RelWithDebInfo).
-        target_compile_options(mat_benchmark PRIVATE -O2)
-        target_link_libraries(mat_benchmark
-            pico_stdlib
-        )
-        pico_enable_stdio_usb(mat_benchmark 1)
-        pico_enable_stdio_uart(mat_benchmark 0)
-        pico_add_extra_outputs(mat_benchmark)
-    endif()
 
     # ============================================================================
     # Print Build Info

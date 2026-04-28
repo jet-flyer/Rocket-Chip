@@ -37,7 +37,6 @@ rocketchip/
 │   ├── DYNAMIC_VALIDATION.md      # Physical ESKF verification test methods
 │   ├── ESKF_TESTING_GUIDE.md      # ESKF test and replay harness guide
 │   ├── HARDWARE_BUDGETS.md        # Power and weight budgets
-│   ├── TOOLCHAIN_VALIDATION.md    # Build/debug setup guide
 │   ├── AP_CAL.md                  # ArduPilot calibration algorithm reference
 │   ├── CC_HANDOFF.md              # Context handoff notes
 │   ├── PIO/
@@ -206,9 +205,6 @@ rocketchip/
 │   │   ├── guard_combinator.cpp/.h   # AND/OR combinators + lockouts + timer backup
 │   │   ├── action_executor.cpp/.h    # Phase entry/exit/transition actions
 │   │   └── flight_actions.h          # Constexpr action arrays per phase
-│   │
-│   └── tools/
-│       └── mat_benchmark.cpp      # Matrix math benchmark (standalone target)
 │
 ├── test/                          # Host-side tests (Google Test)
 │   ├── CMakeLists.txt
