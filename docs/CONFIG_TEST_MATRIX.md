@@ -108,9 +108,9 @@ planned in Tier 3+.
 | `cli_test.py`                   | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
 | `codegen_soak_test.py`          | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
 | `decode_flight_log.py`          | vehicle                  | bench or flight     | guard ✓ (rejects station)                        |    ✓      |     ✗        |
-| `eskf_gps_soak.py`              | vehicle                  | bench (uses 'e')    | hardcoded COM6, breaks on flight build           |    ✗      |     ✗        |
-| `i2c_soak_test.py`              | vehicle                  | bench or flight     | hardcoded COM6, no guard                         |    ✗      |     ✗        |
-| `mavlink_validate.py`           | station (passive)        | bench or flight     | takes COM as arg, no guard                       |    ✓      |     ✗        |
+| `eskf_gps_soak.py`              | vehicle                  | bench (uses 'e')    | `--port` optional; VID:PID classify (bench target)       | ✓          | ✗ |
+| `i2c_soak_test.py`              | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                       |    ✓      |     ✗        |
+| `mavlink_validate.py`           | station (passive)        | bench or flight     | `--port` optional; classify; no auto kMenu (MAVLink tap)  |    ✓      |     ✗        |
 | `replay_gate_test.py`           | vehicle                  | bench (dev menu)    | hardcoded COM7, no guard, breaks on flight       |    ✗      |     ✗        |
 | `replay_harness.py`             | vehicle                  | bench (dev menu)    | --port=COM7, no guard, breaks on flight          |    ✗      |     ✗        |
 | `soak_test.py`                  | vehicle                  | bench (dev menu)    | --port=COM7, no guard, breaks on flight          |    ✗      |     ✗        |
@@ -119,7 +119,7 @@ planned in Tier 3+.
 | `stage_t6_sweep.py`             | both (dual port)         | bench (dev menu)    | dual port, weak classify                         |    ✓      |     ✗        |
 | `stage_t_run.py`                | both (dual port)         | bench (Stage T log) | dual port, weak classify                         |    ✓      |     ✗        |
 | `stage_t_wilson_ci.py`          | station                  | bench (dev menu)    | --port=COM9, no guard, breaks on flight          |    ✗      |     ✗        |
-| `station_replay_harness.py`     | station                  | bench (dev menu)    | --port=COM7, has classify                        |    ✓      |     ✗        |
+| `station_replay_harness.py`     | station                  | bench (dev menu)    | `--port` optional; STATION_BENCH classify; manual replay prep | ✓ | ✗ |
 
 ### Coverage gaps revealed by the matrix
 

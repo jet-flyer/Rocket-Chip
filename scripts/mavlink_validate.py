@@ -10,13 +10,14 @@ Reads raw bytes from the ground station COM port and validates:
   5. 1 Hz heartbeat timing
 
 Usage:
-  python scripts/mavlink_validate.py [COM_PORT] [DURATION_S]
-  python scripts/mavlink_validate.py COM9        # 30s default
-  python scripts/mavlink_validate.py COM9 60     # 60s run
+  python scripts/mavlink_validate.py [--port COMn] [--duration SEC]
+
+  Duration defaults to 30 seconds.
 
 Requires: pip install pyserial
 """
 
+import argparse
 import serial
 import struct
 import sys
@@ -26,10 +27,14 @@ import os
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_STATION_ANY  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_STATION_ANY,
+)
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else "COM9"
-DURATION = int(sys.argv[2]) if len(sys.argv) > 2 else 30
 BAUD = 115200
 
 # MAVLink v2 CRC-16/MCRF4XX (X.25)
@@ -179,147 +184,195 @@ def decode_global_pos(payload):
 
 @rc_test(target=TARGET_STATION_ANY)
 def main():
+    parser = argparse.ArgumentParser(
+        description='MAVLink v2 wire format validator — station telemetry (IVP-61).')
+    parser.add_argument('--port', default=None,
+                        help='Serial port (auto-detect RocketChip station USB CDC if omitted)')
+    parser.add_argument(
+        '--duration', '-d', type=int, default=30,
+        metavar='SEC',
+        help='Capture duration in seconds (default: 30)')
+    args = parser.parse_args()
+
+    port_name, meta = find_target_port(
+        TARGET_STATION_ANY, override=args.port, verbose=False)
+    if port_name is None:
+        print(f'INFO: no station port — {meta}')
+        print('  Plug station FW or pass --port.')
+        sys.exit(2)
+    if not isinstance(meta, Banner):
+        print('ERROR: internal: expected Banner from find_target_port')
+        sys.exit(2)
+
+    duration = args.duration
+
     print(f"=== MAVLink v2 Wire Format Validator (IVP-61) ===")
-    print(f"Port: {PORT}, Baud: {BAUD}, Duration: {DURATION}s")
+    print(f"Port: {port_name} ({meta.short_summary()}), Baud: {BAUD}, Duration: {duration}s")
     print()
 
     try:
-        port = serial.Serial(PORT, BAUD, timeout=2)
-    except serial.SerialException as e:
-        print(f"ERROR: Cannot open {PORT}: {e}")
-        sys.exit(1)
+        with open_classified_port(
+            port_name,
+            target=TARGET_STATION_ANY,
+            baud=BAUD,
+            timeout=2.0,
+            auto_enter_cli_menu=False,
+        ) as port:
+            time.sleep(0.5)
+            port.reset_input_buffer()
 
-    time.sleep(0.5)
-    port.reset_input_buffer()
+            # Counters
+            msg_counts = {}
+            crc_errors = 0
+            seq_errors = 0
+            last_seq = -1
+            total_frames = 0
+            heartbeat_times = []
+            start = time.time()
+            unknown_msgs = set()
 
-    # Counters
-    msg_counts = {}
-    crc_errors = 0
-    seq_errors = 0
-    last_seq = -1
-    total_frames = 0
-    heartbeat_times = []
-    start = time.time()
-    unknown_msgs = set()
+            print(f"{'Time':>6s}  {'Seq':>4s}  {'MsgID':>5s}  {'Name':<22s}  {'CRC':>5s}  Details")
+            print("-" * 90)
 
-    print(f"{'Time':>6s}  {'Seq':>4s}  {'MsgID':>5s}  {'Name':<22s}  {'CRC':>5s}  Details")
-    print("-" * 90)
+            while time.time() - start < duration:
+                frame = parse_frame(port)
+                if frame is None:
+                    continue
 
-    while time.time() - start < DURATION:
-        frame = parse_frame(port)
-        if frame is None:
-            continue
+                total_frames += 1
+                msgid = frame['msgid']
+                seq = frame['seq']
+                elapsed = time.time() - start
 
-        total_frames += 1
-        msgid = frame['msgid']
-        seq = frame['seq']
-        elapsed = time.time() - start
+                # Count messages
+                msg_counts[msgid] = msg_counts.get(msgid, 0) + 1
 
-        # Count messages
-        msg_counts[msgid] = msg_counts.get(msgid, 0) + 1
+                # CRC check
+                crc_ok, crc_msg = validate_crc(frame)
+                if not crc_ok:
+                    crc_errors += 1
+                crc_str = "OK" if crc_ok else "FAIL"
 
-        # CRC check
-        crc_ok, crc_msg = validate_crc(frame)
-        if not crc_ok:
-            crc_errors += 1
-        crc_str = "OK" if crc_ok else "FAIL"
+                # Sequence check
+                if last_seq >= 0:
+                    expected_seq = (last_seq + 1) & 0xFF
+                    if seq != expected_seq:
+                        seq_errors += 1
+                        crc_str += f" seq_gap({last_seq}->{seq})"
+                last_seq = seq
 
-        # Sequence check
-        if last_seq >= 0:
-            expected_seq = (last_seq + 1) & 0xFF
-            if seq != expected_seq:
-                seq_errors += 1
-                crc_str += f" seq_gap({last_seq}->{seq})"
-        last_seq = seq
+                # Decode details
+                name = MSG_NAMES.get(msgid, f"UNKNOWN({msgid})")
+                details = ""
 
-        # Decode details
-        name = MSG_NAMES.get(msgid, f"UNKNOWN({msgid})")
-        details = ""
+                if msgid == 0:  # HEARTBEAT
+                    heartbeat_times.append(elapsed)
+                    d = decode_heartbeat(frame['payload'])
+                    details = (
+                        f"type={d.get('type', '')} state={d.get('system_status', '')} "
+                        f"mode={d.get('custom_mode', '')}"
+                    )
+                elif msgid == 30:  # ATTITUDE
+                    d = decode_attitude(frame['payload'])
+                    details = (
+                        f"R={d.get('roll_deg', 0):.1f}° "
+                        f"P={d.get('pitch_deg', 0):.1f}° "
+                        f"Y={d.get('yaw_deg', 0):.1f}°"
+                    )
+                elif msgid == 33:  # GLOBAL_POSITION_INT
+                    d = decode_global_pos(frame['payload'])
+                    lat = d.get('lat', 0)
+                    lon = d.get('lon', 0)
+                    alt = d.get('alt_m', 0)
+                    hdg = d.get('hdg', 0)
+                    if lat == 0 and lon == 0:
+                        details = "NO_GPS"
+                    else:
+                        details = (
+                            f"({lat:.7f}, {lon:.7f}) alt={alt:.1f}m hdg={hdg}"
+                        )
+                elif msgid == 1:  # SYS_STATUS
+                    details = f"plen={frame['payload_len']}"
+                else:
+                    unknown_msgs.add(msgid)
+                    details = f"payload_len={frame['payload_len']}"
 
-        if msgid == 0:  # HEARTBEAT
-            heartbeat_times.append(elapsed)
-            d = decode_heartbeat(frame['payload'])
-            details = f"type={d.get('type','')} state={d.get('system_status','')} mode={d.get('custom_mode','')}"
-        elif msgid == 30:  # ATTITUDE
-            d = decode_attitude(frame['payload'])
-            details = f"R={d.get('roll_deg',0):.1f}° P={d.get('pitch_deg',0):.1f}° Y={d.get('yaw_deg',0):.1f}°"
-        elif msgid == 33:  # GLOBAL_POSITION_INT
-            d = decode_global_pos(frame['payload'])
-            lat = d.get('lat', 0)
-            lon = d.get('lon', 0)
-            alt = d.get('alt_m', 0)
-            hdg = d.get('hdg', 0)
-            if lat == 0 and lon == 0:
-                details = "NO_GPS"
-            else:
-                details = f"({lat:.7f}, {lon:.7f}) alt={alt:.1f}m hdg={hdg}"
-        elif msgid == 1:  # SYS_STATUS
-            details = f"plen={frame['payload_len']}"
-        else:
-            unknown_msgs.add(msgid)
-            details = f"payload_len={frame['payload_len']}"
+                # Validate payload lengths (MAVLink v2 truncates trailing zeros)
+                if msgid in MAX_PAYLOAD_LEN:
+                    if frame['payload_len'] > MAX_PAYLOAD_LEN[msgid]:
+                        details += (
+                            f" BAD_LEN(max {MAX_PAYLOAD_LEN[msgid]}, "
+                            f"got {frame['payload_len']})"
+                        )
 
-        # Validate payload lengths (MAVLink v2 truncates trailing zeros)
-        if msgid in MAX_PAYLOAD_LEN:
-            if frame['payload_len'] > MAX_PAYLOAD_LEN[msgid]:
-                details += f" BAD_LEN(max {MAX_PAYLOAD_LEN[msgid]}, got {frame['payload_len']})"
+                # Validate sysid/compid
+                if frame['sysid'] != 1 or frame['compid'] != 1:
+                    details += f" BAD_ID(sys={frame['sysid']},comp={frame['compid']})"
 
-        # Validate sysid/compid
-        if frame['sysid'] != 1 or frame['compid'] != 1:
-            details += f" BAD_ID(sys={frame['sysid']},comp={frame['compid']})"
+                print(
+                    f"{elapsed:6.1f}s  {seq:4d}  {msgid:5d}  {name:<22s}  {crc_str:>5s}  {details}"
+                )
 
-        print(f"{elapsed:6.1f}s  {seq:4d}  {msgid:5d}  {name:<22s}  {crc_str:>5s}  {details}")
+            # Summary
+            print()
+            print("=" * 90)
+            print("SUMMARY")
+            print("=" * 90)
+            print(f"Total frames:    {total_frames}")
+            print(f"CRC errors:      {crc_errors}")
+            print(f"Sequence gaps:   {seq_errors}")
+            print(f"Unknown msgids:  {unknown_msgs if unknown_msgs else 'none'}")
+            print()
 
-    port.close()
+            print("Message counts:")
+            for mid in sorted(msg_counts.keys()):
+                name = MSG_NAMES.get(mid, f"UNKNOWN({mid})")
+                print(f"  {name:<22s} (ID {mid:3d}): {msg_counts[mid]}")
 
-    # Summary
-    print()
-    print("=" * 90)
-    print("SUMMARY")
-    print("=" * 90)
-    print(f"Total frames:    {total_frames}")
-    print(f"CRC errors:      {crc_errors}")
-    print(f"Sequence gaps:   {seq_errors}")
-    print(f"Unknown msgids:  {unknown_msgs if unknown_msgs else 'none'}")
-    print()
+            # Heartbeat interval check
+            if len(heartbeat_times) >= 2:
+                intervals = [
+                    heartbeat_times[i + 1] - heartbeat_times[i]
+                    for i in range(len(heartbeat_times) - 1)
+                ]
+                avg_interval = sum(intervals) / len(intervals)
+                min_interval = min(intervals)
+                max_interval = max(intervals)
+                print(
+                    f"\nHeartbeat interval: avg={avg_interval:.2f}s "
+                    f"min={min_interval:.2f}s max={max_interval:.2f}s"
+                )
+                if 0.8 <= avg_interval <= 1.2:
+                    print("  -> 1 Hz heartbeat: PASS")
+                else:
+                    print(
+                        "  -> 1 Hz heartbeat: FAIL "
+                        f"(expected ~1.0s, got {avg_interval:.2f}s)"
+                    )
 
-    print("Message counts:")
-    for mid in sorted(msg_counts.keys()):
-        name = MSG_NAMES.get(mid, f"UNKNOWN({mid})")
-        print(f"  {name:<22s} (ID {mid:3d}): {msg_counts[mid]}")
+            print()
+            errors = []
+            if crc_errors > 0:
+                errors.append(f"{crc_errors} CRC errors")
+            if seq_errors > 0:
+                errors.append(f"{seq_errors} sequence gaps")
+            if unknown_msgs:
+                errors.append(f"unknown message IDs: {unknown_msgs}")
+            if total_frames == 0:
+                errors.append("no frames received")
+            for mid in [0, 30, 33]:
+                if msg_counts.get(mid, 0) == 0:
+                    errors.append(f"missing {MSG_NAMES[mid]}")
 
-    # Heartbeat interval check
-    if len(heartbeat_times) >= 2:
-        intervals = [heartbeat_times[i+1] - heartbeat_times[i]
-                      for i in range(len(heartbeat_times) - 1)]
-        avg_interval = sum(intervals) / len(intervals)
-        min_interval = min(intervals)
-        max_interval = max(intervals)
-        print(f"\nHeartbeat interval: avg={avg_interval:.2f}s min={min_interval:.2f}s max={max_interval:.2f}s")
-        if 0.8 <= avg_interval <= 1.2:
-            print("  -> 1 Hz heartbeat: PASS")
-        else:
-            print(f"  -> 1 Hz heartbeat: FAIL (expected ~1.0s, got {avg_interval:.2f}s)")
+            if errors:
+                print(f"VERDICT: FAIL — {'; '.join(errors)}")
+                return 1
+            print("VERDICT: PASS — All MAVLink v2 frames valid")
+            return 0
 
-    # Pass/fail verdict
-    print()
-    errors = []
-    if crc_errors > 0:
-        errors.append(f"{crc_errors} CRC errors")
-    if seq_errors > 0:
-        errors.append(f"{seq_errors} sequence gaps")
-    if unknown_msgs:
-        errors.append(f"unknown message IDs: {unknown_msgs}")
-    if total_frames == 0:
-        errors.append("no frames received")
-    for mid in [0, 30, 33]:
-        if msg_counts.get(mid, 0) == 0:
-            errors.append(f"missing {MSG_NAMES[mid]}")
-
-    if errors:
-        print(f"VERDICT: FAIL — {'; '.join(errors)}")
-    else:
-        print("VERDICT: PASS — All MAVLink v2 frames valid")
+    except RuntimeError as e:
+        print(f'ERROR: cannot open {port_name}: {e}')
+        sys.exit(2)
 
 
 if __name__ == '__main__':

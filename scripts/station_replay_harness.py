@@ -35,6 +35,7 @@ import struct
 import os
 import sys
 import time
+from typing import Optional
 
 try:
     import serial
@@ -45,7 +46,13 @@ except ImportError:
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_STATION_BENCH  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_STATION_BENCH,
+)
 
 
 # CCSDS packet constants (must match telemetry_encoder.h)
@@ -178,18 +185,23 @@ def send_packet(ser, packet: bytes):
     ser.write(line.encode("ascii"))
 
 
-def run(port: str, scenario: str, count: int, rate_hz: float, dry_run: bool):
+def run_replay(
+    ser: Optional[serial.Serial],
+    port_label: str,
+    scenario: str,
+    count: int,
+    rate_hz: float,
+    dry_run: bool,
+):
     steps = SCENARIOS.get(scenario)
     if steps is None:
         print(f"unknown scenario: {scenario} (known: {list(SCENARIOS)})", file=sys.stderr)
         sys.exit(2)
 
-    ser = None
     if not dry_run:
-        print(f"Opening {port} @ 115200 ...")
-        ser = serial.Serial(port, 115200, timeout=1)
+        assert ser is not None
+        print(f"Using {port_label} @ 115200 ...")
         time.sleep(0.2)
-        # Drain any pending bytes
         ser.reset_input_buffer()
 
     seq = 0
@@ -223,28 +235,68 @@ def run(port: str, scenario: str, count: int, rate_hz: float, dry_run: bool):
             print(f"Sent {total_sent} packets + REPLAY_END")
     except KeyboardInterrupt:
         print(f"\nInterrupted after {total_sent} packets")
-        if not dry_run:
+        if not dry_run and ser is not None:
             ser.write(b"REPLAY_END\n")
-    finally:
-        if ser is not None:
-            ser.close()
 
 
 @rc_test(target=TARGET_STATION_BENCH)
 def main():
     ap = argparse.ArgumentParser(description="Station replay harness (IVP-132a.3)")
-    ap.add_argument("--port", default="COM7", help="Serial port (default COM7)")
-    ap.add_argument("--scenario", default="nominal",
-                    help=f"Scenario: {', '.join(SCENARIOS)}")
-    ap.add_argument("--count", type=int, default=1,
-                    help="Number of scenario repetitions (default 1)")
-    ap.add_argument("--rate", type=float, default=5.0,
-                    help="Packet rate Hz (default 5)")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Print packets instead of sending")
+    ap.add_argument(
+        "--port",
+        default=None,
+        help="Serial port (auto-detect RocketChip station USB CDC if omitted)",
+    )
+    ap.add_argument(
+        "--scenario",
+        default="nominal",
+        help=f"Scenario: {', '.join(SCENARIOS)}",
+    )
+    ap.add_argument(
+        "--count",
+        type=int,
+        default=1,
+        help="Number of scenario repetitions (default 1)",
+    )
+    ap.add_argument(
+        "--rate",
+        type=float,
+        default=5.0,
+        help="Packet rate Hz (default 5)",
+    )
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print packets instead of sending",
+    )
     args = ap.parse_args()
 
-    run(args.port, args.scenario, args.count, args.rate, args.dry_run)
+    if args.dry_run:
+        run_replay(None, "(dry-run)", args.scenario, args.count, args.rate, True)
+        return 0
+
+    port_name, meta = find_target_port(
+        TARGET_STATION_BENCH, override=args.port, verbose=False
+    )
+    if port_name is None:
+        print(f"INFO: no station-bench port — {meta}", file=sys.stderr)
+        print("  Flash build_station and plug USB, or pass --port.", file=sys.stderr)
+        sys.exit(2)
+    if not isinstance(meta, Banner):
+        print("ERROR: internal: expected Banner from find_target_port", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        with open_classified_port(
+            port_name,
+            target=TARGET_STATION_BENCH,
+            auto_enter_cli_menu=False,
+        ) as ser:
+            run_replay(ser, port_name, args.scenario, args.count, args.rate, False)
+    except RuntimeError as e:
+        print(f"ERROR: cannot open {port_name}: {e}", file=sys.stderr)
+        sys.exit(2)
+    return 0
 
 
 if __name__ == "__main__":

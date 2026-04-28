@@ -9,21 +9,23 @@ PASS  = zero errors after full soak duration
 FAIL  = any sensor errors detected (early exit by default)
 
 Usage:
-  python scripts/i2c_soak_test.py [OPTIONS] [COM_PORT] [EXPECTED_TAG]
+  python scripts/i2c_soak_test.py [OPTIONS] [EXPECTED_TAG]
 
 Options:
+  --port COMn       Serial port (auto-detect RocketChip vehicle USB CDC if omitted)
   --no-early-exit   Run full duration even if errors appear (for data collection)
-  --duration=N      Soak duration in seconds (default: 360)
-  --poll=N          Poll interval in seconds (default: 15)
-  --reset           Reset MCU via SWD debug probe before starting soak
+  --duration N      Soak duration in seconds (default: 360)
+  --poll N          Poll interval in seconds (default: 15)
+  --reset             Reset MCU via SWD debug probe before starting soak
 
 Examples:
-  python scripts/i2c_soak_test.py                          # Defaults
-  python scripts/i2c_soak_test.py --reset COM6 baseline    # Clean reset + soak
-  python scripts/i2c_soak_test.py --no-early-exit COM6     # Collect full data
-  python scripts/i2c_soak_test.py --duration=120 COM6      # Quick 2-min soak
+  python scripts/i2c_soak_test.py
+  python scripts/i2c_soak_test.py --reset --port COM6 baseline
+  python scripts/i2c_soak_test.py --no-early-exit --port COM6
+  python scripts/i2c_soak_test.py --duration 120 --port COM6
 """
 
+import argparse
 import serial
 import subprocess
 import sys
@@ -34,10 +36,15 @@ import os
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_VEHICLE_ANY  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_VEHICLE_ANY,
+)
 
 # Defaults
-DEFAULT_PORT = "COM6"
 DEFAULT_BAUD = 115200
 DEFAULT_POLL_S = 15
 DEFAULT_DURATION_S = 360  # 6 minutes
@@ -54,33 +61,22 @@ ELF_PATH = r"build\rocketchip.elf"
 
 
 def parse_args():
-    """Parse positional and --flag arguments."""
-    early_exit = True
-    duration_s = DEFAULT_DURATION_S
-    poll_s = DEFAULT_POLL_S
-    port = DEFAULT_PORT
-    expected_tag = None
-    do_reset = False
-
-    positional = []
-    for arg in sys.argv[1:]:
-        if arg == "--no-early-exit":
-            early_exit = False
-        elif arg == "--reset":
-            do_reset = True
-        elif arg.startswith("--duration="):
-            duration_s = int(arg.split("=", 1)[1])
-        elif arg.startswith("--poll="):
-            poll_s = int(arg.split("=", 1)[1])
-        else:
-            positional.append(arg)
-
-    if len(positional) >= 1:
-        port = positional[0]
-    if len(positional) >= 2:
-        expected_tag = positional[1]
-
-    return port, expected_tag, early_exit, duration_s, poll_s, do_reset
+    """Parse CLI (argparse)."""
+    p = argparse.ArgumentParser(description='I2C bus soak test (vehicle firmware).')
+    p.add_argument('--port', default=None,
+                   help='Serial port (auto-detect RocketChip USB CDC if omitted)')
+    p.add_argument('--no-early-exit', dest='early_exit', action='store_false',
+                   default=True, help='Run full duration even if errors or stall')
+    p.add_argument('--duration', type=int, default=DEFAULT_DURATION_S,
+                   metavar='N', help='Soak duration in seconds (default: 360)')
+    p.add_argument('--poll', type=int, default=DEFAULT_POLL_S,
+                   metavar='N', help='Poll interval in seconds (default: 15)')
+    p.add_argument('--reset', action='store_true',
+                   help='Reset MCU via SWD debug probe before soak')
+    p.add_argument('expected_tag', nargs='?', default=None,
+                   help='Optional build substring to verify')
+    args = p.parse_args()
+    return args
 
 
 def reset_mcu_via_probe():
@@ -240,11 +236,28 @@ def print_table_row(elapsed, stats, rate, flag=""):
 
 @rc_test(target=TARGET_VEHICLE_ANY)
 def main():
-    port_name, expected_tag, early_exit, duration_s, poll_s, do_reset = parse_args()
+    args = parse_args()
+
+    port_name, meta = find_target_port(
+        TARGET_VEHICLE_ANY, override=args.port, verbose=False)
+    if port_name is None:
+        print(f'INFO: no vehicle port — {meta}')
+        print('  Plug the vehicle Feather or pass --port.')
+        sys.exit(2)
+    if not isinstance(meta, Banner):
+        print('ERROR: internal: expected Banner from find_target_port')
+        sys.exit(2)
+
+    expected_tag = args.expected_tag
+    early_exit = args.early_exit
+    duration_s = args.duration
+    poll_s = args.poll
+    do_reset = args.reset
 
     mode = "early-exit" if early_exit else "full-duration"
     print(f"=== I2C Bus Soak Test ===")
-    print(f"Port: {port_name}, Duration: {duration_s}s, Poll: {poll_s}s, Mode: {mode}")
+    print(f"Port: {port_name} ({meta.short_summary()}), "
+          f"Duration: {duration_s}s, Poll: {poll_s}s, Mode: {mode}")
     if expected_tag:
         print(f"Expected build tag: {expected_tag}")
     print()
@@ -255,51 +268,37 @@ def main():
             print("FAIL: Could not reset MCU via probe. Continuing without reset...")
             # Don't abort — user may want to test anyway
 
-    # Connect
-    print(f"Waiting for {port_name} to enumerate...")
-    port = None
-    for attempt in range(10):
-        try:
-            port = serial.Serial(port_name, DEFAULT_BAUD, timeout=DEFAULT_TIMEOUT)
-            print(f"Connected on {port_name}")
-            break
-        except serial.SerialException:
+    try:
+        with open_classified_port(port_name, target=TARGET_VEHICLE_ANY) as port:
+            time.sleep(2.0)
+            drain(port)
             time.sleep(1.0)
-    if port is None:
-        print(f"FAIL: Cannot open {port_name} after 10 attempts")
-        return 1
+            drain(port)
 
-    time.sleep(2.0)
-    drain(port)
-    time.sleep(1.0)
-    drain(port)
+            print("[1] Checking build tag...")
+            response = send_and_read(port, "b", wait_s=2.0)
+            if "Build:" not in response:
+                response = send_and_read(port, "b", wait_s=3.0)
 
-    # Step 1: Verify build tag
-    print("[1] Checking build tag...")
-    response = send_and_read(port, "b", wait_s=2.0)
-    if "Build:" not in response:
-        response = send_and_read(port, "b", wait_s=3.0)
+            if "Build:" in response:
+                build_line = [l for l in response.splitlines() if "Build:" in l]
+                if build_line:
+                    print(f"    {build_line[0].strip()}")
+                    if expected_tag and expected_tag not in response:
+                        print(f"FAIL: Expected tag '{expected_tag}' not found!")
+                        return 1
+            else:
+                print(f"    WARNING: Could not verify build tag. Response:\n{response[:200]}")
+    except RuntimeError as e:
+        print(f'ERROR: cannot open {port_name}: {e}')
+        sys.exit(2)
 
-    if "Build:" in response:
-        build_line = [l for l in response.splitlines() if "Build:" in l]
-        if build_line:
-            print(f"    {build_line[0].strip()}")
-            if expected_tag and expected_tag not in response:
-                print(f"FAIL: Expected tag '{expected_tag}' not found!")
-                port.close()
-                return 1
-    else:
-        print(f"    WARNING: Could not verify build tag. Response:\n{response[:200]}")
-
-    # Reopen port
-    port.close()
     time.sleep(1.0)
     port = reopen_port(port_name)
     if port is None:
         print("FAIL: Could not reopen port after banner check")
         return 1
 
-    # Step 2: Initial status
     print("[2] Initial sensor status...")
     response = send_and_read(port, "s", wait_s=2.0)
     stats = parse_reads_errors(response)

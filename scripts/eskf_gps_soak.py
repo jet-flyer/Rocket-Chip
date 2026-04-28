@@ -11,20 +11,23 @@ Modes:
   Walk:              Interactive walk test with scripted prompts.
 
 Usage:
-  python scripts/eskf_gps_soak.py [OPTIONS] [COM_PORT] [BUILD_TAG]
+  python scripts/eskf_gps_soak.py [OPTIONS] [EXPECTED_TAG]
 
 Options:
-  --outdoor           Outdoor stationary soak (wait for GPS fix)
-  --walk              Interactive walk test
-  --duration=N        Soak duration in seconds (default: 60 indoor, 300 outdoor)
-  --reset             Reset MCU via SWD debug probe before starting
+  --port COMn        Serial port (auto-detect RocketChip vehicle bench USB CDC if omitted)
+  --outdoor          Outdoor stationary soak (wait for GPS fix)
+  --walk             Interactive walk test
+  --duration N       Soak duration in seconds (defaults: indoor 60, outdoor 300)
+  --reset            Reset MCU via SWD debug probe before starting
 
 Examples:
-  python scripts/eskf_gps_soak.py COM6 ivp46-1
-  python scripts/eskf_gps_soak.py --outdoor --duration=300 COM6 ivp46-1
-  python scripts/eskf_gps_soak.py --walk COM6 ivp46-1
+  python scripts/eskf_gps_soak.py
+  python scripts/eskf_gps_soak.py ivp46-1 --port COM6
+  python scripts/eskf_gps_soak.py --outdoor --duration 300 --port COM6 ivp46-1
+  python scripts/eskf_gps_soak.py --walk --port COM6 ivp46-1
 """
 
+import argparse
 import serial
 import subprocess
 import sys
@@ -36,10 +39,15 @@ import os
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_VEHICLE_BENCH  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_VEHICLE_BENCH,
+)
 
 # Defaults
-DEFAULT_PORT = "COM6"
 DEFAULT_BAUD = 115200
 DEFAULT_TIMEOUT = 1
 DEFAULT_INDOOR_DURATION = 60
@@ -64,34 +72,29 @@ ESKF_LIVE_RE = re.compile(
 
 
 def parse_args():
-    mode = "indoor"
-    duration_s = None
-    port = DEFAULT_PORT
-    expected_tag = None
-    do_reset = False
-
-    positional = []
-    for arg in sys.argv[1:]:
-        if arg == "--outdoor":
-            mode = "outdoor"
-        elif arg == "--walk":
-            mode = "walk"
-        elif arg == "--reset":
-            do_reset = True
-        elif arg.startswith("--duration="):
-            duration_s = int(arg.split("=", 1)[1])
-        else:
-            positional.append(arg)
-
-    if len(positional) >= 1:
-        port = positional[0]
-    if len(positional) >= 2:
-        expected_tag = positional[1]
-
-    if duration_s is None:
-        duration_s = DEFAULT_OUTDOOR_DURATION if mode == "outdoor" else DEFAULT_INDOOR_DURATION
-
-    return port, expected_tag, mode, duration_s, do_reset
+    p = argparse.ArgumentParser(description='ESKF GPS soak (vehicle bench firmware).')
+    p.add_argument('--port', default=None,
+                   help='Serial port (auto-detect RocketChip USB CDC if omitted)')
+    p.add_argument('--outdoor', action='store_true', help='Outdoor stationary soak')
+    p.add_argument('--walk', action='store_true', help='Interactive walk test')
+    p.add_argument('--duration', type=int, default=None, metavar='N',
+                   help='Soak duration in seconds (default: 60 indoor, 300 outdoor)')
+    p.add_argument('--reset', action='store_true', help='Reset MCU via SWD probe first')
+    p.add_argument('expected_tag', nargs='?', default=None,
+                   help='Optional build substring to verify')
+    args = p.parse_args()
+    if args.walk:
+        mode = 'walk'
+    elif args.outdoor:
+        mode = 'outdoor'
+    else:
+        mode = 'indoor'
+    if args.duration is not None:
+        duration_s = args.duration
+    else:
+        duration_s = (
+            DEFAULT_OUTDOOR_DURATION if mode == 'outdoor' else DEFAULT_INDOOR_DURATION
+        )
 
 
 def reset_mcu_via_probe():
@@ -124,14 +127,6 @@ def reset_mcu_via_probe():
     else:
         print(f"[0] WARNING: GDB returned {gdb_result.returncode}")
         print(gdb_result.stderr[:500])
-
-
-def connect_serial(port):
-    print(f"[1] Connecting to {port}...")
-    ser = serial.Serial(port, DEFAULT_BAUD, timeout=DEFAULT_TIMEOUT)
-    time.sleep(0.5)
-    ser.read(4096)  # Drain buffer
-    return ser
 
 
 def verify_build_tag(ser, expected_tag):
@@ -554,34 +549,53 @@ def run_walk_test(ser, duration_s):
 
 @rc_test(target=TARGET_VEHICLE_BENCH)
 def main():
-    port, expected_tag, mode, duration_s, do_reset = parse_args()
+    expected_tag, mode, duration_s, do_reset, port_override = parse_args()
 
-    print(f"ESKF GPS Soak Test — mode={mode}, duration={duration_s}s, port={port}")
+    port_name, meta = find_target_port(
+        TARGET_VEHICLE_BENCH, override=port_override, verbose=False)
+    if port_name is None:
+        print(f'INFO: no matching vehicle bench port — {meta}')
+        print('  Use vehicle bench FW or pass --port.')
+        sys.exit(2)
+    if not isinstance(meta, Banner):
+        print('ERROR: internal: expected Banner from find_target_port')
+        sys.exit(2)
+
+    print(
+        f'ESKF GPS Soak Test — mode={mode}, duration={duration_s}s, '
+        f'port={port_name} ({meta.short_summary()})'
+    )
     print()
 
     if do_reset:
         reset_mcu_via_probe()
 
-    ser = connect_serial(port)
-
     try:
-        if expected_tag:
-            verify_build_tag(ser, expected_tag)
+        with open_classified_port(port_name, target=TARGET_VEHICLE_BENCH) as ser:
+            time.sleep(0.5)
+            try:
+                ser.read(4096)
+            except serial.SerialException:
+                pass
 
-        if mode == "indoor":
-            passed = run_indoor_soak(ser, duration_s)
-        elif mode == "outdoor":
-            passed = run_outdoor_soak(ser, duration_s)
-        elif mode == "walk":
-            passed = run_walk_test(ser, duration_s)
-        else:
-            print(f"Unknown mode: {mode}")
-            passed = False
+            if expected_tag:
+                verify_build_tag(ser, expected_tag)
 
-        sys.exit(0 if passed else 1)
+            if mode == "indoor":
+                passed = run_indoor_soak(ser, duration_s)
+            elif mode == "outdoor":
+                passed = run_outdoor_soak(ser, duration_s)
+            elif mode == "walk":
+                passed = run_walk_test(ser, duration_s)
+            else:
+                print(f"Unknown mode: {mode}")
+                passed = False
 
-    finally:
-        ser.close()
+            return 0 if passed else 1
+
+    except RuntimeError as e:
+        print(f'ERROR: cannot open {port_name}: {e}')
+        sys.exit(2)
 
 
 if __name__ == "__main__":
