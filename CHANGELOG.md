@@ -28,8 +28,13 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 Files: `src/cli/rc_os.cpp`, `test/CMakeLists.txt`, `scripts/**/*.py`, `scripts/ci/pre_commit_matrix.py`, `scripts/hooks/*`, `.github/workflows/python-scripts-ci.yml`, `docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`, `docs/plans/HOST_SCRIPT_HARDENING_PLAN.md`, `docs/CONFIG_TEST_MATRIX.md`, `docs/PROJECT_STATUS.md`, `docs/SCAFFOLDING.md`, `AGENT_WHITEBOARD.md`, `.gitignore`, `CHANGELOG.md`
 
----
+### 2026-04-30-002 | Cursor | documentation
 
+Changelog hygiene: restored the **`### 2026-04-29-003`** section header immediately below; its body text had stayed in the file but was left without a dated heading after the **`2026-04-30-001`** insertion. No retrospective edits to **`2026-04-29-003`** body copy beyond reattaching the header.
+
+Files: CHANGELOG.md
+
+### 2026-04-29-003 | Grok via Cursor | documentation, refactor
 
 **Protected files review:** Reverted unauthorized edits to `.claude/SESSION_CHECKLIST.md` (Stage O policy block), deleted incremental `standards/STANDARDS_AUDIT_2026-04-28.md`, and trimmed overly-specific MPU section from `docs/MULTICORE_RULES.md`. Preserved general single-source fault protection rules, dual-core MPU guard setup, and GDB naming note in MULTICORE_RULES.md (now under Memory section). Kept practical pre-commit guidance in DEBUG_PROBE_NOTES.md. Non-ASCII (mostly em-dashes in comments) has no functional impact.
 
