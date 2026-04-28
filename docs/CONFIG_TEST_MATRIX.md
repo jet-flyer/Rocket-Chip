@@ -104,14 +104,14 @@ planned in Tier 3+.
 | `station_bench_sim.py`          | station                  | bench (dev menu)    | ✓ correct (post 2026-04-27 hardening)            |    ✓      |     ✓        |
 | `accel_cal_6pos.py`             | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
 | `ack_stress_test.py`            | station                  | bench or flight     | hardcoded COM7, no guard                         |    ✗      |     ✗        |
-| `cla_collect.py`                | vehicle                  | bench (uses 'e')    | hardcoded COM7, no guard, breaks on flight build |    ✗      |     ✗        |
+| `cla_collect.py`                | vehicle                  | bench (uses 'e')    | `--port` optional; VID:PID classify (bench target)       | ✓              | ✗        |
 | `cli_test.py`                   | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
 | `codegen_soak_test.py`          | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
 | `decode_flight_log.py`          | vehicle                  | bench or flight     | guard ✓ (rejects station)                        |    ✓      |     ✗        |
 | `eskf_gps_soak.py`              | vehicle                  | bench (uses 'e')    | `--port` optional; VID:PID classify (bench target)       | ✓          | ✗ |
 | `i2c_soak_test.py`              | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                       |    ✓      |     ✗        |
 | `mavlink_validate.py`           | station (passive)        | bench or flight     | `--port` optional; classify; no auto kMenu (MAVLink tap)  |    ✓      |     ✗        |
-| `replay_gate_test.py`           | vehicle                  | bench (dev menu)    | hardcoded COM7, no guard, breaks on flight       |    ✗      |     ✗        |
+| `replay_gate_test.py`           | vehicle                  | bench (dev menu)    | `--port` optional; bench classify; replay UART stream           | ✓ | ✗ |
 | `replay_harness.py`             | vehicle                  | bench (dev menu)    | --port=COM7, no guard, breaks on flight          |    ✗      |     ✗        |
 | `soak_test.py`                  | vehicle                  | bench (dev menu)    | --port=COM7, no guard, breaks on flight          |    ✗      |     ✗        |
 | `stage_t2_cheat.py`             | both (dual port)         | bench (Stage T log) | --vehicle-port + --station-port, no classify     |    ✗      |     ✗        |

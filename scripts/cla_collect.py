@@ -33,7 +33,13 @@ import os
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_VEHICLE_BENCH  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_VEHICLE_BENCH,
+)
 
 try:
     import serial
@@ -42,24 +48,12 @@ except ImportError:
     sys.exit(1)
 
 # --- Configuration ---
-SERIAL_PORT = 'COM7'
 BAUD = 115200
 GDB_PATH = '/c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe'
 ELF_PATH = 'build/rocketchip.elf'
 OPENOCD_PORT = 3333
 
 # --- Serial helpers ---
-
-def serial_connect(port=SERIAL_PORT, baud=BAUD):
-    """Connect to device serial port."""
-    try:
-        s = serial.Serial(port, baud, timeout=2)
-        time.sleep(0.5)
-        s.read(4096)  # Drain buffer
-        return s
-    except serial.SerialException as e:
-        print(f"ERROR: Cannot open {port}: {e}")
-        sys.exit(1)
 
 
 def serial_cmd(port, cmd, wait=1.0, bufsize=8192):
@@ -457,7 +451,8 @@ def format_markdown(samples, gdb_data=None, rates=None):
 @rc_test(target=TARGET_VEHICLE_BENCH)
 def main():
     parser = argparse.ArgumentParser(description='RocketChip CLA Data Collection')
-    parser.add_argument('--port', default=SERIAL_PORT, help='Serial port (default: COM7)')
+    parser.add_argument('--port', default=None,
+                        help='Serial port (auto-detect RocketChip vehicle bench USB CDC if omitted)')
     parser.add_argument('--duration', type=int, default=60,
                         help='Soak duration in seconds (default: 60)')
     parser.add_argument('--interval', type=int, default=10,
@@ -470,22 +465,35 @@ def main():
                         help='Compare against baseline file (not yet implemented)')
     args = parser.parse_args()
 
-    SERIAL_PORT_USED = args.port
+    port_name, meta = find_target_port(
+        TARGET_VEHICLE_BENCH, override=args.port, verbose=False)
+    if port_name is None:
+        print(f'INFO: no vehicle bench port — {meta}')
+        print('  Use bench vehicle FW or pass --port.')
+        sys.exit(2)
+    if not isinstance(meta, Banner):
+        print('ERROR: internal: expected Banner from find_target_port')
+        sys.exit(2)
 
-    print(f"Connecting to {SERIAL_PORT_USED}...")
-    port = serial_connect(SERIAL_PORT_USED)
+    print(f"Connecting to {port_name} ({meta.short_summary()})...")
 
-    # Run soak
-    samples = run_soak(port, args.duration, args.interval)
-
-    # Compute rates
-    rates = compute_rates(samples)
-
-    # Optional GDB analysis
     gdb_data = None
+
+    try:
+        with open_classified_port(port_name, target=TARGET_VEHICLE_BENCH,
+                                   baud=BAUD, timeout=2.0) as port:
+
+            # Run soak
+            samples = run_soak(port, args.duration, args.interval)
+
+            # Compute rates
+            rates = compute_rates(samples)
+    except RuntimeError as e:
+        print(f'ERROR: cannot open {port_name}: {e}')
+        sys.exit(2)
+
     if args.gdb:
         print("Running GDB memory analysis...")
-        port.close()  # Release serial so GDB can work
         gdb_data = collect_gdb_data()
 
     # Format output
@@ -498,8 +506,7 @@ def main():
     else:
         print("\n" + md)
 
-    if not args.gdb:
-        port.close()
+    return 0
 
 
 if __name__ == '__main__':

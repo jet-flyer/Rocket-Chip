@@ -5,8 +5,9 @@ Orchestrates: GDB (probe) for start/stop/verify + serial for data stream.
 Captures FD state transitions and compares to expected oracle.
 
 Usage:
-    python scripts/replay_gate_test.py tests/replay_profiles/big_daddy_f15_nominal.csv
+    python scripts/replay_gate_test.py [--port COMn] tests/replay_profiles/big_daddy_f15_nominal.csv
 """
+import argparse
 import subprocess
 import serial
 import time
@@ -17,11 +18,16 @@ import os
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_VEHICLE_BENCH  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    rc_test,
+    TARGET_VEHICLE_BENCH,
+)
 
 GDB = r'C:\Users\pow-w\.pico-sdk\toolchain\14_2_Rel1\bin\arm-none-eabi-gdb.exe'
 ELF = 'build/rocketchip.elf'
-PORT = 'COM7'
 BAUD = 115200
 
 def gdb_cmd(*commands):
@@ -42,11 +48,13 @@ def gdb_read_var(var):
 
 @rc_test(target=TARGET_VEHICLE_BENCH)
 def main():
-    if len(sys.argv) < 2:
-        print(f'Usage: {sys.argv[0]} <csv_file>')
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description='IVP-131 replay FD gate test')
+    parser.add_argument('csv_file', help='Replay profile CSV')
+    parser.add_argument('--port', default=None,
+                        help='Serial port for replay stream (auto-detect RocketChip bench)')
+    args = parser.parse_args()
 
-    csv_file = sys.argv[1]
+    csv_file = args.csv_file
     print(f'=== IVP-131 Gate Test: {os.path.basename(csv_file)} ===')
 
     # Read oracle from CSV header
@@ -103,45 +111,65 @@ def main():
     gdb_cmd('monitor halt', 'call replay_inject_start()', 'monitor resume')
     time.sleep(1)
 
-    # Step 6: Stream the full profile
-    print(f'[6] Streaming {len(samples)} samples (~{float(samples[-1][0]):.0f}s)...')
-    port = serial.Serial(PORT, BAUD, timeout=0.1, write_timeout=5)
-    port.reset_input_buffer()
+    print(f'\n[6] Streaming {len(samples)} samples (~{float(samples[-1][0]):.0f}s)...')
 
-    start_wall = time.time()
-    prev_t = 0.0
+    port_name, meta = find_target_port(
+        TARGET_VEHICLE_BENCH, override=args.port, verbose=False)
+    if port_name is None:
+        print(f'INFO: no vehicle bench port — {meta}')
+        sys.exit(2)
+    if not isinstance(meta, Banner):
+        print('ERROR: internal: expected Banner from find_target_port')
+        sys.exit(2)
 
-    for i, p in enumerate(samples):
-        t = float(p[0])
-        dt = t - prev_t
-        if dt > 0 and i > 0:
-            time.sleep(dt)
-        prev_t = t
+    print(f'  Serial: {port_name} ({meta.short_summary()})')
 
-        az = p[3] if p[3] else '0'
-        pr = p[7] if p[7] else '0'
-        la = p[8] if len(p) > 8 and p[8] else '0'
-        lo = p[9] if len(p) > 9 and p[9] else '0'
-        al = p[10] if len(p) > 10 and p[10] else '0'
-        msg = f'S,{p[1]},{p[2]},{az},{p[4]},{p[5]},{p[6]},{pr},{la},{lo},{al}\n'
-        try:
-            port.write(msg.encode())
-        except serial.SerialTimeoutException:
-            print(f'  Write timeout at sample {i} (t={t:.1f}s)')
-            break
+    try:
+        with open_classified_port(
+            port_name,
+            target=TARGET_VEHICLE_BENCH,
+            baud=BAUD,
+            timeout=0.1,
+        ) as port:
+            port.write_timeout = 5.0
+            port.reset_input_buffer()
 
-        if i % 1000 == 0 and i > 0:
-            elapsed = time.time() - start_wall
-            print(f'  {i}/{len(samples)} (sim t={t:.1f}s, wall={elapsed:.1f}s)')
+            start_wall = time.time()
+            prev_t = 0.0
 
-    port.write(b'REPLAY_END\n')
-    time.sleep(1.0)
-    port.close()
+            for i, p in enumerate(samples):
+                t = float(p[0])
+                dt = t - prev_t
+                if dt > 0 and i > 0:
+                    time.sleep(dt)
+                prev_t = t
 
-    wall_time = time.time() - start_wall
+                az = p[3] if p[3] else '0'
+                pr = p[7] if p[7] else '0'
+                la = p[8] if len(p) > 8 and p[8] else '0'
+                lo = p[9] if len(p) > 9 and p[9] else '0'
+                al = p[10] if len(p) > 10 and p[10] else '0'
+                msg = f'S,{p[1]},{p[2]},{az},{p[4]},{p[5]},{p[6]},{pr},{la},{lo},{al}\n'
+                try:
+                    port.write(msg.encode())
+                except serial.SerialTimeoutException:
+                    print(f'  Write timeout at sample {i} (t={t:.1f}s)')
+                    break
+
+                if i % 1000 == 0 and i > 0:
+                    elapsed = time.time() - start_wall
+                    print(f'  {i}/{len(samples)} (sim t={t:.1f}s, wall={elapsed:.1f}s)')
+
+            port.write(b'REPLAY_END\n')
+            time.sleep(1.0)
+
+            wall_time = time.time() - start_wall
+    except RuntimeError as e:
+        print(f'ERROR: cannot open {port_name}: {e}')
+        sys.exit(2)
+
     print(f'  Streaming complete: {len(samples)} samples in {wall_time:.1f}s')
 
-    # Step 7: Read final state via GDB
     print('\n[7] Verifying final state via GDB...')
     eskf_final = gdb_read_var('g_eskfInitialized')
     phase_final = gdb_read_var('AO_FlightDirector_get_director()->current_phase')
