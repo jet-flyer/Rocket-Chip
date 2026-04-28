@@ -2,6 +2,16 @@
 
 **Purpose:** Prevent incomplete handoffs, lost work, and undocumented changes between agent sessions.
 
+This checklist is structured as four nested scopes:
+
+```
+COMMIT  ⊂  PUSH  ⊂  SESSION_END  ⊂  MILESTONE
+```
+
+Inheritance flows outward — every PUSH must satisfy every COMMIT rule, every SESSION_END must satisfy every PUSH rule, every MILESTONE must satisfy every SESSION_END rule. Each outer scope adds its own rules on top of the inherited inner-scope rules.
+
+A separate **Trigger-Driven Documentation Edits** section captures rules that don't follow the inheritance pattern — they fire when a session's content directly contradicts a doc, regardless of which scope-event is happening at the time.
+
 ---
 
 ## Session Start
@@ -28,53 +38,68 @@
 
 ---
 
-## Session End (Normal Completion)
+## Per Commit
 
-Before committing and pushing:
+These run on **every** `git commit`. Inherited by PUSH, SESSION_END, and MILESTONE.
 
-1. **Verify build compiles clean** — `cmake --build build/` with no errors
-2. **Update CHANGELOG.md** — What changed, who (which agent), why
-3. **Update `docs/PROJECT_STATUS.md`** — Current phase, what's done, what's next, any new blockers
-4. **No orphaned work** — Every file change should be committed. No half-finished edits left in the working tree
-5. **No unintended deletions** — Run `git diff --stat` and verify the diff matches what you intended to change. If files were deleted, confirm that was intentional
-6. **Check AGENT_WHITEBOARD.md** — Update with current state, clear resolved items, add any new flags or open items discovered during the session
-7. **Architecture doc drift check** — If this session changed any AO (added, removed, renamed, re-prioritized), signal (new, renamed, rerouted), or queue depth: run `grep -n "superloop\|core 0 cooperative" docs/SAD.md docs/SCAFFOLDING.md` and verify zero stale hits. Also verify the AO list in `docs/AO_ARCHITECTURE.md`, `docs/SAD.md` Section 5.1, and `docs/SCAFFOLDING.md` Module Responsibilities table all match `src/active_objects/`. Patch any drift before committing.
-8. **Station/vehicle build parity check** — If this session modified CMakeLists.txt, any `src/active_objects/`, `src/cli/`, `src/telemetry/`, or `src/drivers/rfm95w.cpp`, rebuild BOTH tiers for BOTH roles to confirm no build is broken:
+1. **Verify build compiles clean.** For the relevant tier(s) given the staged paths. The pre-commit hook gates host ctest automatically; target builds (`cmake --build build/`) are the agent's responsibility for changes that affect them.
+2. **No orphaned work.** Every file change being committed should be intentional. No half-finished edits left in the working tree from prior tool calls.
+3. **No unintended deletions.** Run `git diff --stat` (or `git status --short`) and verify the diff matches what the commit is claiming to do. If files are being deleted, confirm that was intentional.
+4. **Commit message.** Format: `[agent] brief description of what and why`. If a HW gate ran for this commit (bench_sim, ctest, soak, post-flash banner read), the message must cite the **observed positive-control signal**, not just the gate name. See `standards/HW_GATE_DISCIPLINE.md` Rule 3. Pure-software changes are exempt — say so explicitly in the commit message ("Verified: pure-software change, host ctest 788/788, no HW reseat required").
+5. **Trigger-driven doc edits ride with the trigger** (see "Trigger-Driven Documentation Edits" section below). If this commit changed a fact a state-of-system protected doc states, the doc edit goes in the same commit, not a separate one.
+
+---
+
+## Per Push
+
+Inherits all Per Commit rules. Adds the rules below — these run **once** before `git push`, regardless of how many commits accumulated since the last push.
+
+6. **Station/vehicle build parity check.** If any commit being pushed modified `CMakeLists.txt`, `src/active_objects/`, `src/cli/`, `src/telemetry/`, or `src/drivers/rfm95w.cpp`, rebuild BOTH tiers for BOTH roles to confirm no build is broken:
    ```
    cmake --build build/              # vehicle bench   (NOT_CERTIFIED_FOR_FLIGHT=ON)
    cmake --build build_flight/       # vehicle flight  (default — NOT_CERTIFIED_FOR_FLIGHT=OFF)
    cmake --build build_station/      # station bench   (ROCKETCHIP_JOB_STATION=1, NOT_CERTIFIED_FOR_FLIGHT=ON)
    cmake --build build_station_flight/  # station flight (ROCKETCHIP_JOB_STATION=1, NOT_CERTIFIED_FOR_FLIGHT defaults OFF)
    ```
-   Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION` / `kRadioModeRx` — a change that compiles on one role can silently break the other. If any build directory doesn't exist yet, create it with the appropriate `cmake -DROCKETCHIP_JOB_STATION=1 ..` (or add `-DNOT_CERTIFIED_FOR_FLIGHT=ON` for the dev/bench tier) flags (see `docs/BENCH_TEST_PROCEDURE.md`). When hardware-verifying, both the vehicle Feather and the Fruit Jam station should exercise the changed path before the session closes.
-9. **Commit with descriptive message** — Format: `[agent] brief description of what and why`. If a HW gate ran (bench_sim, ctest, soak, post-flash banner read), the message must cite the **observed positive-control signal**, not just the gate name. See `standards/HW_GATE_DISCIPLINE.md`. Pure-software changes are exempt — say so in the commit message ("Verified: pure-software change, host ctest 788/788, no HW reseat required").
-10. **Push to remote** — `git push` so work is not stranded locally
+   Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION` / `kRadioModeRx` — a change that compiles on one role can silently break the other. If any build directory doesn't exist yet, create it with the appropriate `cmake -DROCKETCHIP_JOB_STATION=1 ..` (or add `-DNOT_CERTIFIED_FOR_FLIGHT=ON` for the dev/bench tier) flags (see `docs/BENCH_TEST_PROCEDURE.md`). When hardware-verifying, both the vehicle Feather and the Fruit Jam station should exercise the changed path before the push.
+
+7. **Triggered-doc edits are committed, not WIP.** Every CHANGELOG entry, WB row change, PROJECT_STATUS edit, or other trigger-driven doc edit that this push window produced must be in a committed state — not left as unstaged or staged-but-uncommitted edits. (The principle is "the diff and the doc are atomically consistent in git history" — uncommitted edits break that.)
+
+8. **CHANGELOG entry/entries cover the push window.** Each significant unit of work being pushed has a CHANGELOG entry. Routine work commits between meaningful documented changes are fine without their own entry. The frequency rule is in CHANGELOG.md's own header — typically one entry per session, sometimes more if multiple significant units landed.
 
 ---
 
-## Session End (Handoff to Another Session)
+## Session End
 
-All of the above, plus:
+Inherits all Per Push rules. Adds the rules below — these run **once** when the session is closing.
 
-11. **Expand AGENT_WHITEBOARD.md** with handoff-specific details:
+9. **No broken code on main.** If any work in this session is incomplete, either stash it, abandon it, or commit it to a feature branch — never leave broken code on main.
+10. **Push to remote** — `git push` so work is not stranded locally.
+11. **Handoff notes (if applicable).** If the session ends with WIP, blockers discovered, or open questions for the next session, expand `AGENT_WHITEBOARD.md` with:
     - What was in progress
     - What's blocked and why
     - Any concerns or open questions
     - Specific files that were being worked on
-12. **Don't leave broken code on main** — If work is incomplete, either stash it or commit to a feature branch
-13. **Note the exact state** — "Build compiles, sensor reads work, CLI untested" is better than "made progress"
+
+    "Handoff" is the default mode for any session-end with leftover state. A clean session-end with no leftover state doesn't need handoff notes.
+
+12. **Note the exact state.** "Build compiles, sensor reads work, CLI untested" is better than "made progress" in any handoff note.
 
 ---
 
-## Session End (Milestone Completion)
+## Session End: Milestone
 
-All of the normal completion items, plus:
+Inherits all Session End rules. Adds the rules below — these run **only** when a stage closes.
 
-14. **Update `docs/PROJECT_STATUS.md`** with milestone completion and next phase
-15. **Architecture-doc drift check against protected docs.** When a stage closes, grep the protected architecture docs (`docs/SAD.md`, `docs/SCAFFOLDING.md`, `docs/AO_ARCHITECTURE.md`) for symbols and module paths that this stage deleted, renamed, or re-homed. Protected-file rule means these don't get edited during normal per-IVP work, so staleness accumulates silently. Fix any drift — this is explicitly-authorized protected-file editing scoped to "fix what this stage made stale." Pattern: `grep -n "<deleted-symbol>|<old-module-path>" docs/SAD.md docs/SCAFFOLDING.md docs/AO_ARCHITECTURE.md`. Added 2026-04-22 after the watchdog deprecation left `kWatchdogSentinel` + the `watchdog/` directory tree entry in both protected docs — caught at session-end rather than letting it bit-rot.
-16. **Build-system audit.** Run the checks in `docs/BUILD_SYSTEM_AUDIT.md` (P1-A through P6 — dev-tool gating, self-flagged dead code, `ROCKETCHIP_SOURCES` coverage, host/target split, vendor SYSTEM classification, IVP-era scaffolding comments, toolchain versions). Added 2026-04-23 after `ud_benchmark` went undetectedly broken for 2+ weeks and 14 files drifted outside the pedantic-warning gate. Companion to item 15 — both are content-level drift checks on protected or audit-gated infrastructure.
-17. **Consider LESSONS_LEARNED.md** — If significant debugging occurred, document it
-18. **Full-tree clang-tidy sweep** — The pre-commit hook only gates staged files, so latent JSF AV Rule 1 violations (function size > 60 lines) can accumulate in files that aren't touched stage-by-stage. At milestone/stage close, run the same checks the hook runs against EVERY `src/**/*.cpp` not on the exemption list (exemptions: `src/cli/**`, `src/dev/**`, `eskf_codegen.cpp`). Zero warnings required for milestone closure — any new violations must be decomposed or logged as an accepted deviation in `standards/STANDARDS_DEVIATIONS.md` before the stage can close. Pattern (Git Bash, adjust toolchain path if needed):
+13. **Update `docs/PROJECT_STATUS.md`** with milestone completion and next phase (per the trigger map — phase change is a state-of-system trigger).
+
+14. **Architecture-doc drift check against protected docs.** When a stage closes, grep the state-of-system protected architecture docs (`docs/SAD.md`, `docs/SCAFFOLDING.md`, `docs/AO_ARCHITECTURE.md`) for symbols and module paths that this stage deleted, renamed, or re-homed. The Per-Commit trigger-driven edit rule should have kept these current, but **rot detection** at milestone close is the safety net for cases where prior sessions didn't apply the principle. Pattern: `grep -n "<deleted-symbol>|<old-module-path>" docs/SAD.md docs/SCAFFOLDING.md docs/AO_ARCHITECTURE.md`. This is the legitimate retroactive-fix point — if drift is caught here, fixing it as part of stage close is in-scope. Added 2026-04-22 after the watchdog deprecation left `kWatchdogSentinel` + the `watchdog/` directory tree entry in both protected docs.
+
+15. **Build-system audit.** Run the checks in `docs/BUILD_SYSTEM_AUDIT.md` (P1-A through P6 — dev-tool gating, self-flagged dead code, `ROCKETCHIP_SOURCES` coverage, host/target split, vendor SYSTEM classification, IVP-era scaffolding comments, toolchain versions). Added 2026-04-23 after `ud_benchmark` went undetectedly broken for 2+ weeks and 14 files drifted outside the pedantic-warning gate. Companion to item 14 — both are content-level drift checks on protected or audit-gated infrastructure.
+
+16. **Consider `LESSONS_LEARNED.md`.** If significant debugging occurred during the stage, document it. This is trigger-driven (significant content) not cadence-driven, so most stage closes won't add an entry; some will.
+
+17. **Full-tree clang-tidy sweep.** The pre-commit hook only gates staged files, so latent JSF AV Rule 1 violations (function size > 60 lines) can accumulate in files that aren't touched stage-by-stage. At milestone/stage close, run the same checks the hook runs against EVERY `src/**/*.cpp` not on the exemption list (exemptions: `src/cli/**`, `src/dev/**`, `eskf_codegen.cpp`). Zero warnings required for milestone closure — any new violations must be decomposed or logged as an accepted deviation in `standards/STANDARDS_DEVIATIONS.md` before the stage can close. Pattern (Git Bash, adjust toolchain path if needed):
 
         for f in $(git ls-files 'src/*.cpp' | grep -v 'src/cli/' | grep -v 'src/dev/' | grep -v eskf_codegen.cpp); do
           "C:/Program Files/LLVM/bin/clang-tidy.exe" "$f" -p build/ \
@@ -94,6 +119,83 @@ All of the normal completion items, plus:
 
 ---
 
+## Trigger-Driven Documentation Edits
+
+**Principle:** A protected/architecture document is edited only when the session's work directly contradicts its current contents. Not on cadence. Not on stage transitions. Not "at session end" by default. Edit when — and only when — the diff has made the doc wrong.
+
+This is the inverse of "remember to update SAD at the end" which is the pattern that produced the watchdog-deprecation drift incident (2026-04-22) and the `kWatchdogSentinel` staleness in two protected docs. "Remember at the end" relies on memory; "edit only when content-affected" relies on diff-checking, which is mechanical.
+
+**The edit rides with the trigger.** When a code or content change makes a state-of-system doc wrong, the doc edit goes in the **same commit** as the change that triggered it. That way `git log --follow` on the doc shows the same SHA as the code that changed it, and `git bisect` doesn't land on a "code drifted from doc" intermediate state.
+
+### Two categories of protected docs
+
+Protected docs come in two kinds with different edit rules.
+
+**State-of-system docs** — content claims "this is how the system is currently structured." If code changes and the doc still says the old thing, the doc is now wrong. Forward-going edit applies (same commit as the trigger).
+
+**Historical-record docs** — content describes what was decided / planned / audited / completed at a moment in time. New code doesn't make historical statements wrong; it just makes them history. Forward-going edit does **not** apply — write a new entry / new decision doc / supersession note instead. Editing the historical content directly is a special case (typo, factual error, deliberate supersession header marking).
+
+### Per-doc trigger map
+
+#### State-of-system docs (forward-going edit applies)
+
+| Doc | When the edit is forced |
+|---|---|
+| `docs/SAD.md` | Architecture-level facts change: AO added/removed/priorities, signal added/renamed/rerouted, queue depths, fault-handling chain, code classification, build-system identity. Implementation refactors that don't change the architecture statement don't count. |
+| `docs/SCAFFOLDING.md` | Directory structure changes (file/folder added/deleted/renamed/moved). Pure file-content edits don't trigger an edit here. |
+| `docs/AO_ARCHITECTURE.md` | The AO inventory or its facts (rate, priority, queue depth, sub/pub list) change. Internal AO logic refactors don't count. |
+| `docs/MULTICORE_RULES.md` | A multi-core rule changes (new lesson learned, new SDK behavior, new fault pattern). Code that *applies* an existing rule doesn't trigger an update. |
+| `standards/CODING_STANDARDS.md` | A standard or classification changes. New file added to the file-classification table. New deviation added/resolved (with back-reference to `STANDARDS_DEVIATIONS.md`). |
+| `standards/STANDARDS_DEVIATIONS.md` (Active section only) | New active deviation added. Existing deviation's severity / scope / location changes. (Resolved section is historical-record — see below.) |
+| `standards/RP2350_ERRATA.md` | New erratum encountered. Existing erratum's status (workaround applied / gap / verified) changes. |
+| `standards/HW_GATE_DISCIPLINE.md` | A rule changes. New gate type covered. |
+| `COUNCIL_PROCESS.md` | Council protocol changes (new persona, retired persona, process change). |
+| `.claude/CLAUDE.md` | Auto-load index changes (doc added/removed from intake). |
+| `.claude/AK_GUIDELINES.md` | Behavioral guideline changes. |
+| `.claude/PROTECTED_FILES.md` | Protection list changes (file added or removed from protection). |
+| `.claude/SESSION_CHECKLIST.md` | A checklist item changes, the structure changes, or the trigger map gains/loses a doc. |
+| `README.md` | "Read First" / "Each Session" lists change. Key rules change. |
+| `docs/PROJECT_STATUS.md` | Phase changes, new blocker discovered, blocker resolved, next-action changes. **Not** triggered by routine work commits within a stage. |
+| `AGENT_WHITEBOARD.md` | Active state changes — new flag/issue surfaced, row resolved (erase per the IRL-whiteboard rule), or row's status materially changes. **Not** triggered by routine work. |
+
+#### Historical-record docs (forward-going edit does NOT apply)
+
+| Doc | Edit rule |
+|---|---|
+| `docs/decisions/*.md` | Each decision doc is frozen on commit. If a decision is later superseded, write a **new decision doc** that supersedes the old one. Edits to existing decision docs are typo-correction or supersession-header-only. |
+| `docs/plans/*.md` | Per-stage plans freeze on commit. Once a stage executes, the plan is historical even if execution diverged from it. Edits are typo-correction only. |
+| `docs/audits/*.md` | Each audit is dated and frozen. New audits are new files. |
+| `docs/baselines/*` | Each baseline is a frozen snapshot. New baselines are new directories/files. |
+| `CHANGELOG.md` | Append-only historical event log. The current entry being drafted in this commit is state-of-system until it ships; after commit, frozen. |
+| `.claude/LESSONS_LEARNED.md` | Append-only. Each entry is historical. Existing entries get edits only for typo-correction or for explicit supersession headers (e.g., the LL Entry 25 "SUPERSEDED 2026-04-22" header is legitimate because it adds context to the historical record without rewriting it). |
+| `standards/STANDARDS_DEVIATIONS.md` (Resolved section only) | Historical record once a deviation is marked Resolved. The Active section above is state-of-system. |
+
+#### Mixed-mode docs
+
+| Doc | Rule |
+|---|---|
+| `docs/IVP.md` | Two trigger modes: (a) **Planning entry** — when a stage is being planned, the first step of the planning session amends `IVP.md` with per-IVP entries in the project's IVP format. (b) **Closing entry** — if significant changes from the planned scope occurred during execution, amend after all the work has landed. The stage-list and "next stage" sections are state-of-system; the per-IVP entries are historical-record once the IVP ships. |
+
+### How to apply
+
+Before each commit, ask:
+- Did the staged diff change any fact stated in a **state-of-system** protected doc?
+  - If yes → update the doc as part of THIS commit.
+  - If no → leave it alone.
+- Did the work create something new that warrants a **historical-record** entry (CHANGELOG entry, LESSONS_LEARNED entry, decision doc, audit doc)?
+  - If yes → write the new entry as part of THIS commit (or a focused commit dedicated to the documentation, depending on scope).
+  - If no → leave the historical record untouched.
+
+### Retroactive amendment
+
+If drift in a state-of-system protected doc is **caught later** — by a future agent, by a milestone audit, or by the user — a focused retroactive amendment is legitimate **with explicit user approval**. Without approval, the default is: flag the drift on `AGENT_WHITEBOARD.md` and continue. Don't silently fix protected-doc drift outside the trigger event.
+
+The reason for the approval gate is that retroactive fixes look identical to "decided to start editing protected files because I felt like it" from a diff perspective. Requiring approval keeps the scope honest.
+
+The Milestone-only Architecture-doc drift check (item 14) is a structurally-authorized retroactive-fix moment — drift caught during that check is in-scope to fix as part of the stage close, without per-edit approval, because the milestone authorization covers it.
+
+---
+
 ## Red Flags (Stop and Ask)
 
 - You're about to delete files you didn't create
@@ -102,7 +204,7 @@ All of the normal completion items, plus:
 - You're picking numerical values without a source
 - You're "fixing" something adjacent to the actual task
 - You notice a conflict between documentation and code — flag it, don't silently resolve it
-- The task would require changes to a protected file
+- The task would require changes to a protected file (forward-going trigger-driven edits to **state-of-system** protected docs are an exception — they don't require asking, but historical-record protected docs always do)
 
 ---
 
