@@ -449,6 +449,68 @@ def find_target_port(target: Target,
     return None, f'no port matches {target}: {summaries}'
 
 
+def find_vehicle_and_station_ports(
+    station_override: Optional[str] = None,
+    vehicle_override: Optional[str] = None,
+    verbose: bool = False,
+) -> Tuple[Optional[str], Optional[str], Optional[Banner], Optional[Banner], str]:
+    """Resolve two distinct RocketChip USB CDC ports: vehicle + station.
+
+    For Stage T dual-port harnesses. Manual overrides are classified the
+    same way as ``find_target_port``; remaining roles are filled by scanning
+    unplugged candidates (first station + first vehicle that match).
+
+    Returns ``(vehicle_port, station_port, veh_banner, stn_banner, reason)``.
+    On failure all ports and banners are ``None`` and ``reason`` explains why.
+    """
+    st_p: Optional[str] = None
+    st_b: Optional[Banner] = None
+    veh_p: Optional[str] = None
+    veh_b: Optional[Banner] = None
+
+    if station_override is not None:
+        p, br = find_target_port(
+            TARGET_STATION_ANY, override=station_override, verbose=verbose)
+        if p is None or not isinstance(br, Banner):
+            return None, None, None, None, str(br)
+        st_p, st_b = p, br
+
+    if vehicle_override is not None:
+        p, br = find_target_port(
+            TARGET_VEHICLE_ANY, override=vehicle_override, verbose=verbose)
+        if p is None or not isinstance(br, Banner):
+            return None, None, None, None, str(br)
+        veh_p, veh_b = p, br
+
+    if st_p is not None and veh_p is not None and st_p == veh_p:
+        return (None, None, None, None,
+                'station and vehicle cannot be the same port')
+
+    used = {x for x in (st_p, veh_p) if x is not None}
+    for dev in _candidate_ports():
+        if dev in used:
+            continue
+        b = peek_banner(dev)
+        if not b.is_known():
+            continue
+        if st_p is None and TARGET_STATION_ANY.matches(b):
+            st_p, st_b = dev, b
+            used.add(dev)
+            continue
+        if veh_p is None and TARGET_VEHICLE_ANY.matches(b):
+            veh_p, veh_b = dev, b
+            used.add(dev)
+
+    if st_p is None:
+        return (None, None, None, None,
+                'no station port found (plug station or use --station-port)')
+    if veh_p is None:
+        return (None, None, None, None,
+                'no vehicle port found (plug vehicle or use --vehicle-port)')
+
+    return veh_p, st_p, veh_b, st_b, ''
+
+
 def enter_cli_menu(ser: serial.Serial,
                    settle_s: float = 1.0,
                    verify: bool = True) -> bool:
@@ -727,7 +789,8 @@ __all__ = [
     'TARGET_EITHER_ANY',
     'classify_banner',
     # Port probing + navigation
-    'peek_banner', 'find_target_port', 'open_classified_port', 'enter_cli_menu',
+    'peek_banner', 'find_target_port', 'find_vehicle_and_station_ports',
+    'open_classified_port', 'enter_cli_menu',
     'ROCKETCHIP_USB_VID', 'ROCKETCHIP_USB_PID',
     # Decorator
     'rc_test',

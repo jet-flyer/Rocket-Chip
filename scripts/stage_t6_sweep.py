@@ -49,7 +49,6 @@ from typing import Optional
 
 try:
     import serial
-    import serial.tools.list_ports
 except ImportError:
     print("ERROR: pyserial not installed. pip install pyserial",
           file=sys.stderr)
@@ -59,7 +58,14 @@ except ImportError:
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_EITHER_ANY  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    find_vehicle_and_station_ports,
+    rc_test,
+    TARGET_EITHER_ANY,
+    TARGET_STATION_ANY,
+    TARGET_VEHICLE_ANY,
+    open_classified_port,
+)
 
 
 # (label, whitelist_idx, bw_khz, nav_hz)
@@ -70,9 +76,6 @@ SWEEP = [
     ("C2",  3, 500, 10),
 ]
 
-ROCKETCHIP_USB_VID = 0x2E8A
-ROCKETCHIP_USB_PID = 0x0009
-
 RE_DISARM_SENT = re.compile(r"\[CMD\]\s+DISARM sent")
 RE_ACK_OK      = re.compile(r"\[CMD\]\s+ACK'd\s+\(seq=(\d+)\)")
 RE_ACK_DENIED  = re.compile(r"\[CMD\]\s+DENIED\s+\(seq=(\d+)\)")
@@ -82,38 +85,6 @@ RE_RADIO_ROW   = re.compile(
     r"Radio:\s*BW(\d+)\s+(\d+)Hz\s+SF(\d+)\s+CR(\d+)\s*\|\s*"
     r"Vehicle:\s*BW(\d+)\s+(\d+)Hz")
 RE_CFG_LINE    = re.compile(r"\[cfg\] local radio -> BW(\d+) (\d+)Hz")
-
-
-# ----------------------------------------------------------------------------
-# Port discovery — identify vehicle vs station by banner.
-# ----------------------------------------------------------------------------
-
-def _peek_banner(port_name: str) -> str:
-    try:
-        s = serial.Serial(port_name, 115200, timeout=0.5)
-        s.write(b"h")
-        time.sleep(1.5)
-        data = s.read(8000)
-        s.close()
-        return data.decode("utf-8", errors="replace").lower()
-    except (serial.SerialException, OSError):
-        return ""
-
-
-def find_ports() -> tuple[Optional[str], Optional[str]]:
-    cands = [
-        p.device for p in serial.tools.list_ports.comports()
-        if p.vid == ROCKETCHIP_USB_VID and p.pid == ROCKETCHIP_USB_PID
-    ]
-    veh, stn = None, None
-    for p in cands:
-        b = _peek_banner(p)
-        if "ground station" in b or "fruit jam" in b:
-            stn = p
-        elif "feather" in b or "[main]" in b:
-            if "ground station" not in b:
-                veh = p
-    return veh, stn
 
 
 # ----------------------------------------------------------------------------
@@ -353,15 +324,19 @@ def main() -> int:
     ap.add_argument("--interval", type=float, default=10.0)
     ap.add_argument("--configs", default="C0,C0P,C1,C2")
     ap.add_argument("--csv", default="logs/stage_t/t6_summary.csv")
+    ap.add_argument("--station-port", default=None,
+                    help="Station serial port (auto-detect if omitted)")
+    ap.add_argument("--vehicle-port", default=None,
+                    help="Vehicle serial port (auto-detect if omitted)")
     args = ap.parse_args()
 
-    veh_port, stn_port = find_ports()
-    if not (veh_port and stn_port):
-        print(f"ERROR: could not find both ports (veh={veh_port}, "
-              f"stn={stn_port})")
+    veh_port, stn_port, veh_b, st_b, err = find_vehicle_and_station_ports(
+        args.station_port, args.vehicle_port)
+    if err:
+        print(f"ERROR: {err}")
         return 2
-    print(f"Vehicle port: {veh_port}")
-    print(f"Station port: {stn_port}")
+    print(f"Vehicle port: {veh_port} ({veh_b.short_summary()})")
+    print(f"Station port: {stn_port} ({st_b.short_summary()})")
 
     selected = set(args.configs.split(","))
     sweep = [(lbl, idx, bw, nav) for (lbl, idx, bw, nav) in SWEEP
@@ -372,50 +347,56 @@ def main() -> int:
 
     os.makedirs(os.path.dirname(args.csv), exist_ok=True)
 
-    veh = serial.Serial(veh_port, 115200, timeout=0.05)
-    stn = serial.Serial(stn_port, 115200, timeout=0.05)
-    time.sleep(1.0)
-
     results: list[tuple[str, int, int, AckResult]] = []
     try:
-        # Start clean — drive both boards to idx 0 (default).
-        # Persistence-off means they already boot there, but if the previous
-        # sweep run ended with boards on a different config, this normalises.
-        print("\n--- Initialize both to idx 0 (default) ---")
-        set_local_config(veh, "vehicle", 0)
-        set_local_config(stn, "station", 0)
-        time.sleep(5.0)
+        with open_classified_port(
+            veh_port, target=TARGET_VEHICLE_ANY, baud=115200,
+            timeout=0.05, post_open_re_classify=True,
+            auto_enter_cli_menu=None,
+        ) as veh:
+            with open_classified_port(
+                stn_port, target=TARGET_STATION_ANY, baud=115200,
+                timeout=0.05, post_open_re_classify=True,
+                auto_enter_cli_menu=None,
+            ) as stn:
+                time.sleep(1.0)
+                try:
+                    # Start clean — drive both boards to idx 0 (default).
+                    print("\n--- Initialize both to idx 0 (default) ---")
+                    set_local_config(veh, "vehicle", 0)
+                    set_local_config(stn, "station", 0)
+                    time.sleep(5.0)
 
-        print("\n--- Canary: station receiving packets? ---")
-        if not canary(stn):
-            print("CANARY FAIL: station not seeing nav packets.")
-            return 1
-        print("CANARY OK: link healthy")
+                    print("\n--- Canary: station receiving packets? ---")
+                    if not canary(stn):
+                        print("CANARY FAIL: station not seeing nav packets.")
+                        return 1
+                    print("CANARY OK: link healthy")
 
-        for (label, idx, bw, nav) in sweep:
-            print(f"\n=== [{label}] BW{bw} {nav}Hz "
-                  f"— {args.count} sends @ {args.interval}s ===")
+                    for (label, idx, bw, nav) in sweep:
+                        print(f"\n=== [{label}] BW{bw} {nav}Hz "
+                              f"— {args.count} sends @ {args.interval}s ===")
 
-            if not switch_both(veh, stn, idx, bw, nav):
-                print(f"  [ABORT] link not confirmed at BW{bw}/{nav}Hz. "
-                      "Measuring now would produce meaningless data. "
-                      "Stopping sweep.", flush=True)
-                # Best-effort: drop back to idx 0 so boards match again.
-                set_local_config(veh, "vehicle", 0)
-                set_local_config(stn, "station", 0)
-                return 1
-            r = run_ack_stress(stn, args.count, args.interval, label)
-            print(f"  [{label}] first_try={r.first_try_pct:5.1f}%  "
-                  f"eventual={r.eventual_pct:5.1f}%  "
-                  f"mean_lat={r.mean_latency_ms:.0f}ms  "
-                  f"denied={r.denied} no_ack={r.no_ack}")
-            results.append((label, bw, nav, r))
-    finally:
-        print("\n--- Restore both boards to idx 0 (default) ---")
-        set_local_config(veh, "vehicle", 0)
-        set_local_config(stn, "station", 0)
-        veh.close()
-        stn.close()
+                        if not switch_both(veh, stn, idx, bw, nav):
+                            print(f"  [ABORT] link not confirmed at BW{bw}/{nav}Hz. "
+                                  "Measuring now would produce meaningless data. "
+                                  "Stopping sweep.", flush=True)
+                            set_local_config(veh, "vehicle", 0)
+                            set_local_config(stn, "station", 0)
+                            return 1
+                        r = run_ack_stress(stn, args.count, args.interval, label)
+                        print(f"  [{label}] first_try={r.first_try_pct:5.1f}%  "
+                              f"eventual={r.eventual_pct:5.1f}%  "
+                              f"mean_lat={r.mean_latency_ms:.0f}ms  "
+                              f"denied={r.denied} no_ack={r.no_ack}")
+                        results.append((label, bw, nav, r))
+                finally:
+                    print("\n--- Restore both boards to idx 0 (default) ---")
+                    set_local_config(veh, "vehicle", 0)
+                    set_local_config(stn, "station", 0)
+    except RuntimeError as e:
+        print(f"ERROR: cannot open serial: {e}")
+        return 2
 
     # Write CSV.
     with open(args.csv, "w", newline="") as f:

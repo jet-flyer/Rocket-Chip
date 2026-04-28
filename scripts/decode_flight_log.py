@@ -25,6 +25,16 @@ import sys
 import time
 import os
 
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from _rc_test_common import (  # noqa: E402
+    Banner,
+    find_target_port,
+    open_classified_port,
+    TARGET_VEHICLE_ANY,
+)
+
 # ---------------------------------------------------------------------------
 # CRC-16-CCITT (matching firmware src/logging/crc16_ccitt.h)
 # ---------------------------------------------------------------------------
@@ -212,24 +222,8 @@ def decode_binary(data: bytes, output_path: str | None = None) -> tuple[int, int
 # Serial communication
 # ---------------------------------------------------------------------------
 
-def auto_detect_port():
-    """Auto-detect RocketChip serial port."""
-    try:
-        import serial.tools.list_ports
-        ports = serial.tools.list_ports.comports()
-        for p in ports:
-            # Pico CDC: VID 2E8A, PID 0009
-            if p.vid == 0x2E8A and p.pid == 0x0009:
-                return p.device
-    except ImportError:
-        pass
-    return None
-
-
-def serial_list_flights(port_name: str):
-    """Send 'f' to device and print flight list."""
-    import serial
-    port = serial.Serial(port_name, 115200, timeout=3)
+def serial_list_flights(port):
+    """Send 'f' to device and print flight list. `port` is open pyserial handle."""
     time.sleep(0.5)
     port.read(8192)  # drain
     time.sleep(0.1)
@@ -237,26 +231,20 @@ def serial_list_flights(port_name: str):
     time.sleep(1)
     data = port.read(8192)
     text = data.decode('utf-8', errors='replace')
-    # Handle Windows console encoding limitations
     try:
         print(text)
     except UnicodeEncodeError:
         print(text.encode('ascii', errors='replace').decode('ascii'))
-    port.close()
 
 
-def serial_download_flight(port_name: str, flight_num: int,
+def serial_download_flight(port, flight_num: int,
                             output_path: str | None = None,
                             raw_path: str | None = None):
-    """Download flight N via 'd' command, decode to CSV."""
-    import serial
-
-    port = serial.Serial(port_name, 115200, timeout=10)
+    """Download flight N via 'd' command, decode to CSV. `port` is open handle."""
     time.sleep(0.5)
     port.read(8192)  # drain
     time.sleep(0.1)
 
-    # Send 'd' then flight number + enter
     port.write(b'd')
     time.sleep(0.3)
     port.write(f'{flight_num}\r'.encode())
@@ -275,7 +263,6 @@ def serial_download_flight(port_name: str, flight_num: int,
     rcbin_idx = header_text.find('RCBIN:')
     if rcbin_idx < 0:
         print(f"No RCBIN header received. Got: {header_text[:200]}")
-        port.close()
         return
 
     # Parse header
@@ -290,7 +277,6 @@ def serial_download_flight(port_name: str, flight_num: int,
     parts = header_str.split(':')
     if len(parts) < 5:
         print(f"Malformed RCBIN header: {header_str}")
-        port.close()
         return
 
     flight_id = int(parts[1])
@@ -329,7 +315,6 @@ def serial_download_flight(port_name: str, flight_num: int,
         print(f"\r  {len(binary_data)}/{total_bytes} bytes ({pct}%)", end='', flush=True)
 
     print()  # newline after progress
-    port.close()
 
     # Find RCEND footer in the data
     rcend_idx = binary_data.find(b'RCEND:')
@@ -370,19 +355,15 @@ def serial_download_flight(port_name: str, flight_num: int,
     decode_binary(raw_binary, csv_path)
 
 
-def serial_interactive(port_name: str, output_path: str | None = None,
+def serial_interactive(port, output_path: str | None = None,
                        raw_path: str | None = None):
     """List flights on device and prompt user to pick one."""
-    import serial
-
-    port = serial.Serial(port_name, 115200, timeout=3)
     time.sleep(0.5)
     port.read(8192)  # drain
     time.sleep(0.1)
     port.write(b'f')
     time.sleep(1)
     data = port.read(8192)
-    port.close()
 
     text = data.decode('utf-8', errors='replace')
     try:
@@ -407,7 +388,7 @@ def serial_interactive(port_name: str, output_path: str | None = None,
     csv_path = output_path if output_path else f"flight{flight_num}.csv"
     bin_path = raw_path if raw_path else f"flight{flight_num}.bin"
 
-    serial_download_flight(port_name, flight_num, csv_path, bin_path)
+    serial_download_flight(port, flight_num, csv_path, bin_path)
 
 
 # ---------------------------------------------------------------------------
@@ -444,28 +425,40 @@ def main():
         good, corrupt = decode_binary(data, args.output)
         sys.exit(0 if corrupt == 0 else 1)
 
-    # Serial operations
-    port_name = args.port
-    if port_name is None:
-        port_name = auto_detect_port()
-        if port_name is None:
-            print("No port specified and auto-detect failed. Use --port.")
-            sys.exit(1)
-        print(f"Auto-detected: {port_name}")
-
+    # Serial operations — vehicle firmware with stored flights
     try:
         import serial  # noqa: F401
     except ImportError:
         print("pyserial required: pip install pyserial")
         sys.exit(1)
 
-    if args.list:
-        serial_list_flights(port_name)
-    elif args.flight is not None:
-        serial_download_flight(port_name, args.flight, args.output, args.raw)
-    else:
-        # Interactive mode: list flights and prompt for selection
-        serial_interactive(port_name, args.output, args.raw)
+    port_name, meta = find_target_port(
+        TARGET_VEHICLE_ANY, override=args.port, verbose=True)
+    if port_name is None:
+        print(f'No vehicle port: {meta}')
+        print('  Plug the vehicle or pass --port.')
+        sys.exit(2)
+    if not isinstance(meta, Banner):
+        print('ERROR: internal: expected Banner from find_target_port')
+        sys.exit(2)
+
+    print(f'Using {port_name} ({meta.short_summary()})')
+
+    try:
+        with open_classified_port(
+            port_name,
+            target=TARGET_VEHICLE_ANY,
+            timeout=10.0,
+        ) as port:
+            if args.list:
+                serial_list_flights(port)
+            elif args.flight is not None:
+                serial_download_flight(port, args.flight, args.output, args.raw)
+            else:
+                serial_interactive(port, args.output, args.raw)
+    except RuntimeError as e:
+        print(f'ERROR: cannot open {port_name}: {e}')
+        sys.exit(2)
 
 
 if __name__ == '__main__':

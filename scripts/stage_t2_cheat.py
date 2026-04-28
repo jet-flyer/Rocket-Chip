@@ -9,8 +9,8 @@ This puts the station TX reliably inside the vehicle's kRxWindow. The
 success rate measured by this harness is the UPPER BOUND on what any
 sync-based fix could achieve.
 
-Station = COM9 (known-good firmware, unchanged)
-Vehicle = COM7 (Stage T logging build, emits STAGE_T state transitions)
+Station and vehicle ports default to auto-detect (banner classify); override
+with ``--station-port`` / ``--vehicle-port`` if needed.
 
 Requires vehicle built with -DROCKETCHIP_STAGE_T_LOGGING=ON.
 
@@ -40,7 +40,11 @@ except ImportError:
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_EITHER_ANY  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    find_vehicle_and_station_ports,
+    rc_test,
+    TARGET_EITHER_ANY,
+)
 
 
 RE_TX_RXW = re.compile(r"\[STAGE_T\] state TX->RXW t=(\d+)")
@@ -90,20 +94,29 @@ def tail_vehicle(port, shared, log_f):
 
 
 def run(count, delay_ms, cmd_timeout_s, station_port, vehicle_port, csv_path):
+    veh_p, st_p, veh_b, st_b, err = find_vehicle_and_station_ports(
+        station_port, vehicle_port)
+    if err:
+        print(err, file=sys.stderr)
+        sys.exit(2)
+
     os.makedirs("logs/stage_t", exist_ok=True)
     vehicle_log_path = os.path.splitext(csv_path)[0] + "_vehicle.log"
     station_log_path = os.path.splitext(csv_path)[0] + ".log"
 
+    print(f"  Vehicle: {veh_p} ({veh_b.short_summary()})")
+    print(f"  Station: {st_p} ({st_b.short_summary()})")
+
     shared = Shared()
     vehicle_log_f = open(vehicle_log_path, "w", encoding="utf-8")
     veh_thread = threading.Thread(
-        target=tail_vehicle, args=(vehicle_port, shared, vehicle_log_f),
+        target=tail_vehicle, args=(veh_p, shared, vehicle_log_f),
         daemon=True)
     veh_thread.start()
     time.sleep(1.5)  # let vehicle tail get a few TX->RXW samples
 
     # Open station
-    st = serial.Serial(station_port, 115200, timeout=0.1)
+    st = serial.Serial(st_p, 115200, timeout=0.1)
     time.sleep(0.3)
     st.reset_input_buffer()
 
@@ -302,8 +315,8 @@ def main():
                          "(default 10, window is ~100ms)")
     ap.add_argument("--cmd-timeout", type=float, default=10.0,
                     help="Seconds per command (default 10 — retry lifecycle)")
-    ap.add_argument("--station-port", default="COM9")
-    ap.add_argument("--vehicle-port", default="COM7")
+    ap.add_argument("--station-port", default=None)
+    ap.add_argument("--vehicle-port", default=None)
     ap.add_argument("--csv", default="logs/stage_t/t2_cheat.csv")
     args = ap.parse_args()
     run(args.count, args.delay_ms, args.cmd_timeout,

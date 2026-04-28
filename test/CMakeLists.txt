@@ -243,3 +243,34 @@ target_link_libraries(test_prearm_fail_ticks PRIVATE GTest::gtest_main)
 target_include_directories(test_prearm_fail_ticks PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 gtest_discover_tests(test_prearm_fail_ticks)
+
+# -----------------------------------------------------------------------------
+# Host Python: Tier 4 `_rc_test_common` harness + scripts/*.py syntax check.
+#
+# Requires Python 3 with `pip install pyserial` (imports `_rc_test_common`).
+#
+# Run with normal host build (`cmake .. -DBUILD_TESTS=ON`):
+#   ctest -R scripts_
+# or:
+#   ctest -L python
+# -----------------------------------------------------------------------------
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(
+        NAME scripts_rc_test_common
+        COMMAND ${Python3_EXECUTABLE} scripts/test__rc_test_common.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    add_test(
+        NAME scripts_python_compileall
+        COMMAND ${Python3_EXECUTABLE} -m compileall -q scripts
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(
+        scripts_rc_test_common
+        scripts_python_compileall
+        PROPERTIES LABELS "python"
+    )
+else()
+    message(WARNING "Python 3 interpreter not found — skipping scripts/ CMake tests")
+endif()

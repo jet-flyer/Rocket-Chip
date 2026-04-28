@@ -85,7 +85,7 @@ def parse_stats(text):
             stats['uptime_ms'] = int(line.split()[1])
     return stats
 
-@rc_test(target=TARGET_VEHICLE_BENCH)
+@rc_test(target=TARGET_VEHICLE_BENCH, watchdog_s=86400.0)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', default=None,

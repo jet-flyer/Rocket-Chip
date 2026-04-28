@@ -1,0 +1,147 @@
+#!/bin/bash
+# RocketChip pre-commit hook (tracked — set: git config core.hooksPath scripts/hooks)
+#
+# 1) clang-tidy size/complexity on staged flight-classified C++ (see below)
+# 2) Host ctest when build_host/ exists
+# 3) Tier 6b: HW gates driven by scripts/ci/pre_commit_matrix.py (patterns in code + matrix doc)
+#
+# Emergency bypass: git commit --no-verify (repo-owner approval only)
+
+CLANG_TIDY="C:/Program Files/LLVM/bin/clang-tidy.exe"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+BUILD_DIR="${REPO_ROOT}/build"
+TOOLCHAIN="C:/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1"
+
+if [[ ! -x "${CLANG_TIDY}" ]]; then
+    exit 0
+fi
+if [[ ! -f "${BUILD_DIR}/compile_commands.json" ]]; then
+    exit 0
+fi
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep '^src/.*\.cpp$' \
+    | grep -v 'eskf_codegen\.cpp$' \
+    | grep -v '^src/cli/' \
+    | grep -v '^src/dev/')
+
+if [[ -z "${STAGED_FILES}" ]]; then
+    exit 0
+fi
+
+EXTRA_ARGS=(
+    --extra-arg="--sysroot=${TOOLCHAIN}/arm-none-eabi"
+    --extra-arg="--target=armv8m.main-none-eabi"
+    --extra-arg="-isystem"
+    --extra-arg="${TOOLCHAIN}/arm-none-eabi/include/c++/14.2.1"
+    --extra-arg="-isystem"
+    --extra-arg="${TOOLCHAIN}/arm-none-eabi/include/c++/14.2.1/arm-none-eabi/thumb/v8-m.main+fp/softfp"
+    --extra-arg="-Wno-format-security"
+    --extra-arg="-Wno-gnu-zero-variadic-macro-arguments"
+)
+
+FOUND=0
+
+for src in ${STAGED_FILES}; do
+    FILE_PATH="${REPO_ROOT}/${src}"
+
+    OUTPUT=$("${CLANG_TIDY}" "${FILE_PATH}" -p "${BUILD_DIR}/" \
+        --checks="-*,readability-function-size,readability-function-cognitive-complexity" \
+        "${EXTRA_ARGS[@]}" 2>&1 \
+        | grep -E "warning:.*readability-function-(size|cognitive-complexity)")
+
+    if [[ -n "${OUTPUT}" ]]; then
+        if [[ ${FOUND} -eq 0 ]]; then
+            echo ""
+            echo "=== Pre-commit: function size / complexity gate ==="
+            echo ""
+        fi
+        echo "${OUTPUT}"
+        FOUND=1
+    fi
+done
+
+if [[ ${FOUND} -eq 1 ]]; then
+    echo ""
+    echo "Commit blocked: decompose the flagged functions before committing."
+    echo "Bypass only with repo-owner approval: git commit --no-verify"
+    exit 1
+fi
+
+HOST_BUILD="${REPO_ROOT}/build_host"
+if [[ -d "${HOST_BUILD}" ]] && [[ -f "${HOST_BUILD}/CTestTestfile.cmake" ]]; then
+    echo "pre-commit: running host tests..."
+    (cd "${HOST_BUILD}" && ctest --output-on-failure)
+    CTEST_RC=$?
+    if [[ ${CTEST_RC} -ne 0 ]]; then
+        echo ""
+        echo "PRE-COMMIT BLOCKED: host tests failed"
+        exit 1
+    fi
+    echo "pre-commit: host tests OK"
+fi
+
+# Tier 6b — MATRIX-driven triggers (scripts/ci/pre_commit_matrix.py)
+TRIGGER_FLIGHT_BENCH=0
+TRIGGER_STATION_BENCH=0
+eval "$(python "${REPO_ROOT}/scripts/ci/pre_commit_matrix.py")"
+
+if [[ "${TRIGGER_FLIGHT_BENCH}" == "1" ]]; then
+    echo "pre-commit: flight-critical path touched — HW verification needed"
+
+    HW_READY=0
+    if netstat -an 2>/dev/null | grep -q "127.0.0.1:3333.*LISTENING"; then
+        HW_READY=1
+    fi
+
+    if [[ ${HW_READY} -eq 1 ]]; then
+        echo "pre-commit: running bench sim (auto-detecting target port)..."
+        if ! python -u "${REPO_ROOT}/scripts/bench_sim.py"; then
+            echo ""
+            echo "PRE-COMMIT BLOCKED: bench sim HW test failed"
+            exit 1
+        fi
+        echo "pre-commit: bench sim OK"
+    else
+        echo ""
+        echo "HW VERIFICATION NEEDED BUT OPENOCD NOT ON localhost:3333"
+        echo "(bench_sim gate — see docs/CONFIG_TEST_MATRIX.md, LL Entry 36)"
+        exit 1
+    fi
+fi
+
+if [[ "${TRIGGER_STATION_BENCH}" == "1" ]]; then
+    echo "pre-commit: station-relevant path touched — station HW verification needed"
+
+    STATION_PRESENT=0
+    if python -c "
+import serial.tools.list_ports, sys
+for p in serial.tools.list_ports.comports():
+    if p.vid == 0x2E8A and p.pid == 0x0009:
+        sys.exit(0)
+sys.exit(1)
+" 2>/dev/null; then
+        STATION_PRESENT=1
+    fi
+
+    if [[ ${STATION_PRESENT} -eq 1 ]]; then
+        echo "pre-commit: running station bench sim..."
+        python -u "${REPO_ROOT}/scripts/station_bench_sim.py"
+        STATION_RC=$?
+        if [[ ${STATION_RC} -eq 0 ]]; then
+            echo "pre-commit: station bench sim OK"
+        elif [[ ${STATION_RC} -eq 2 ]]; then
+            echo "pre-commit: station bench sim SKIPPED (no station firmware on bus)"
+        else
+            echo ""
+            echo "PRE-COMMIT BLOCKED: station bench sim failed (rc=${STATION_RC})"
+            exit 1
+        fi
+    else
+        echo ""
+        echo "STATION HW VERIFICATION NEEDED BUT BOARD NOT PRESENT"
+        exit 1
+    fi
+fi
+
+exit 0

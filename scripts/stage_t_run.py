@@ -10,8 +10,8 @@ the vehicle's USB-CDC serial for [STAGE_T] log lines. Outputs:
     logs/stage_t/t1_run<N>.log             (full station transcript)
     logs/stage_t/t1_vehicle_run<N>.log     (vehicle STAGE_T + all serial)
 
-Vehicle = COM7 (VID:PID 2E8A:0009 w/ Stage T logging)
-Station = COM9 (VID:PID 2E8A:0009 Fruit Jam)
+Station and vehicle USB CDC ports are resolved via banner classification
+(Vision:PID); use ``--station-port`` / ``--vehicle-port`` to override.
 
 The host harness runs ack_stress_test.py as a subprocess on the station,
 while the main thread drains vehicle serial to the log file. Both
@@ -34,7 +34,11 @@ except ImportError:
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-from _rc_test_common import rc_test, TARGET_EITHER_ANY  # noqa: E402
+from _rc_test_common import (  # noqa: E402
+    find_vehicle_and_station_ports,
+    rc_test,
+    TARGET_EITHER_ANY,
+)
 
 
 def tail_vehicle(port: str, log_path: str, stop_event: threading.Event):
@@ -93,11 +97,18 @@ def main():
                     help="Commands to send (default 100)")
     ap.add_argument("--interval", type=float, default=1.0,
                     help="Send interval seconds (default 1.0 = 1 Hz)")
-    ap.add_argument("--station-port", default="COM9",
-                    help="Station serial port (default COM9)")
-    ap.add_argument("--vehicle-port", default="COM7",
-                    help="Vehicle serial port (default COM7)")
+    ap.add_argument("--station-port", default=None,
+                    help="Station serial port (auto-detect if omitted)")
+    ap.add_argument("--vehicle-port", default=None,
+                    help="Vehicle serial port (auto-detect if omitted)")
     args = ap.parse_args()
+
+    veh_p, st_p, veh_b, st_b, err = find_vehicle_and_station_ports(
+        args.station_port, args.vehicle_port)
+    if err:
+        print(f"[stage_t] {err}", file=sys.stderr)
+        sys.exit(2)
+    assert veh_p is not None and st_p is not None
 
     os.makedirs("logs/stage_t", exist_ok=True)
     station_log = f"logs/stage_t/t1_run{args.run}.log"
@@ -105,15 +116,15 @@ def main():
     vehicle_log = f"logs/stage_t/t1_vehicle_run{args.run}.log"
 
     print(f"=== Stage T IVP-T1 run {args.run} ===")
-    print(f"  Station: {args.station_port} -> {station_csv}")
-    print(f"  Vehicle: {args.vehicle_port} -> {vehicle_log}")
+    print(f"  Station: {st_p} ({st_b.short_summary()}) -> {station_csv}")
+    print(f"  Vehicle: {veh_p} ({veh_b.short_summary()}) -> {vehicle_log}")
     print(f"  {args.count} commands at {1.0/args.interval:.2f} Hz "
           f"(~{args.count * args.interval:.0f}s)")
 
     stop = threading.Event()
     veh_thread = threading.Thread(
         target=tail_vehicle,
-        args=(args.vehicle_port, vehicle_log, stop),
+        args=(veh_p, vehicle_log, stop),
         daemon=True)
     veh_thread.start()
     # Give vehicle serial a moment to start draining
@@ -124,7 +135,7 @@ def main():
     duration = max(args.count * args.interval * 1.5, 300)
     cmd = [
         sys.executable, "scripts/ack_stress_test.py",
-        "--port", args.station_port,
+        "--port", st_p,
         "--count", str(args.count),
         "--interval", str(args.interval),
         "--duration", str(duration),

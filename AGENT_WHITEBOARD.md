@@ -2,7 +2,7 @@
 
 **Purpose:** Communication across context windows and between agents.
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** 755 host tests, SPIN 11/11. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17 (Field Testing & Avionics Airworthiness) restructured 2026-04-22** from 5-IVP direct-to-flight into 13-IVP tapered buildup (three council rounds, approved with amendments). First motor flight = step 13 of 14. Plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. Execution awaits future session; starts with IVP-135a (pure-software log schema extension). **CCSDS TC-Layer + COP-1 rework deferred to post-Stage-17** (unanimous council) — field data will inform scoping.
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **788** host `ctest` entries (786 C++ discovered + **2** Python `scripts/` gates), SPIN 11/11. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17 (Field Testing & Avionics Airworthiness) restructured 2026-04-22** from 5-IVP direct-to-flight into 13-IVP tapered buildup (three council rounds, approved with amendments). First motor flight = step 13 of 14. Plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. Execution awaits future session; starts with IVP-135a (pure-software log schema extension). **CCSDS TC-Layer + COP-1 rework deferred to post-Stage-17** (unanimous council) — field data will inform scoping.
 
 ## Use Cases
 1. **Cross-agent review** — Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
@@ -10,6 +10,12 @@
 3. **Work-in-progress tracking** — Track incomplete tasks spanning multiple sessions
 4. **Hardware decisions pending** — Flag items needing user input before code changes
 5. **This is a whiteboard** — Erase completed items. Only keep active flags and deferred work.
+
+---
+
+## Host script hardening — **closed** 2026-04-30
+
+Tiers **1–7**, **`CONFIG_TEST_MATRIX.md`**, council doc **`docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`**, Tier **6b** tracked hooks **`scripts/hooks/`** (set **`git config core.hooksPath scripts/hooks`**). **Deferred superseded:** old “Portable pre-commit hooks” whiteboard row — tracked hook + **README** is the mechanism.
 
 ---
 
@@ -117,7 +123,7 @@
 
 Scope is clear but touches multiple files, needs verification, or has small design questions.
 
-- **Portable pre-commit hooks.** Port the bench_sim gates (vehicle + station) from `.git/hooks/pre-commit` into a tracked `scripts/hooks/pre-commit` + install script so new clones get the gates automatically. Currently hooks are per-clone — fresh LL-Entry-36-class rot gap.
+- **Portable pre-commit hooks — superseded.** Tracked hook + **`scripts/hooks/README.md`**. **`git config core.hooksPath scripts/hooks`**. Bench/station gates use **`scripts/ci/pre_commit_matrix.py`** (Tier 6b). Remove stale `.git/hooks/pre-commit` after switching.
 - **Role-aware bench_sim gate.** The pre-commit bench_sim trigger is file-name grep based. Station-only changes to e.g. `src/safety/health_monitor.cpp` that are `if constexpr` compile-outs on vehicle shouldn't require vehicle-probe verification. Needs classification/role-scoped trigger logic.
 - **MAIN_DESCENT timeout fallback (SPIN P7 fix).** Add `descent_timeout_ms` to `MissionProfile` (e.g., 600s rocket, longer for HAB). Fallback in `state_main_descent` SIG_TICK handler: elapsed > timeout → auto-LANDED. Update SPIN model — P7 liveness will pass with weak fairness. Currently the only flight phase with no timeout fallback; HAB float profile also affected.
 - **`standards/HW_GATE_DISCIPLINE.md` + checklist amendment.** User ask 2026-04-17. Gate definitions must name a positive-control signal (e.g., "DAC 0x18 ACKs" proves bus health separately from device-under-test), a 3-boot reseat protocol, and require commit messages to cite the observed control signal — not just "build clean + MSP stable". Motivated by IVP-140 false-positive + Fruit Jam GPS cable episode. Related: LL Entry 25, 36.
@@ -172,6 +178,10 @@ Mission Profile OTA, F' evaluation, u-blox GPS, OTA drivers, GPS-free 3D reconst
 **Stage 17: Field Testing** — IVP-135, 136, 137, 138. Airframe integration, ground test, flight test, exit gate. Needs hardware access and weather. IVP-134 (pre-flight checklist) already committed.
 
 ---
+
+## Resolved 2026-04-30
+
+- **Host script hardening — Tiers 1–7 complete** (`CHANGELOG` 2026-04-30-001): `_rc_test_common` dual-port + `ctest`/GHA/Python gates + `scripts/ci/pre_commit_matrix.py` + tracked **`core.hooksPath=scripts/hooks`**; **`rc_os.cpp`** station main-menu **`p`** → **`cli_print_preflight`**. Verified: **788/788** `ctest`, **`python scripts/test__rc_test_common.py`**, four firmware presets (**vehicle-bench/flight**, **station-bench/flight**) link clean after `rc_os` change.
 
 ## Resolved This Session (2026-04-22)
 

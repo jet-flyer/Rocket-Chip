@@ -1,0 +1,39 @@
+# Host-side Python helpers under scripts/ (_rc_test_common + Tier 4 tooling).
+# No firmware build; complements `cmake -DBUILD_TESTS=ON && ctest` on dev machines.
+
+name: Python scripts CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'scripts/**'
+      - 'scripts/ci/**'
+      - 'test/CMakeLists.txt'
+      - '.github/workflows/python-scripts-ci.yml'
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'scripts/ci/**'
+      - 'test/CMakeLists.txt'
+      - '.github/workflows/python-scripts-ci.yml'
+
+jobs:
+  host-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install pyserial
+
+      - name: _rc_test_common host tests
+        run: python scripts/test__rc_test_common.py
+
+      - name: Byte-compile scripts/
+        run: python -m compileall -q scripts

@@ -310,7 +310,7 @@ def run(ser: serial.Serial, duration_s: float, interval_s: float, inject_drops: 
             print(f"(could not save CSV: {e})")
 
 
-@rc_test(target=TARGET_STATION_ANY)
+@rc_test(target=TARGET_STATION_ANY, watchdog_s=7200.0)
 def main():
     ap = argparse.ArgumentParser(description="ACK stress test (IVP-132a.5 + Stage T)")
     ap.add_argument("--port", default=None,

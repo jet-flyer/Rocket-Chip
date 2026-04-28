@@ -17,6 +17,9 @@ Council-required tests (2026-04-27 review):
        - main raises KeyboardInterrupt -> sys.exit(2)
        - main calls sys.exit(N) -> propagates as-is
   7. Decorator stashes target on both wrapper and original function.
+  8. find_vehicle_and_station_ports rejects conflicting dual overrides (mocked).
+  9. find_vehicle_and_station_ports assigns station then vehicle from mock scan.
+  10. pre_commit_matrix matches staged path prefixes like the pre-commit hook.
 
 Exit code: 0 if all tests pass, 1 if any fail.
 """
@@ -415,6 +418,82 @@ def test_watchdog_fires() -> None:
     check('watchdog stderr message', 'WATCHDOG' in err, f'stderr={err!r}')
 
 
+def test_find_vehicle_and_station_rejects_same_port() -> None:
+    """find_vehicle_and_station_ports refuses identical overrides."""
+    print('test_find_vehicle_and_station_rejects_same_port')
+    from unittest.mock import patch
+
+    from _rc_test_common import (
+        TARGET_STATION_ANY,
+        TARGET_VEHICLE_ANY,
+        classify_banner,
+        find_vehicle_and_station_ports,
+    )
+
+    b_st = classify_banner(STATION_KMENU_BANNER)
+    b_v = classify_banner(VEHICLE_BENCH_BANNER)
+
+    def fake_ftp(target, override=None, verbose=False):  # noqa: ARG001
+        if target is TARGET_STATION_ANY:
+            return 'COM99', b_st
+        if target is TARGET_VEHICLE_ANY:
+            return 'COM99', b_v
+        return None, 'bad target'
+
+    with patch('_rc_test_common.find_target_port', side_effect=fake_ftp):
+        vp, sp, vb, sb, reason = find_vehicle_and_station_ports(
+            station_override='COM99', vehicle_override='COM99')
+
+    check('ports None on clash', vp is None and sp is None, f'{vp=} {sp=}')
+    check('same port in reason',
+          'same port' in reason.lower(),
+          reason)
+
+
+def test_find_vehicle_and_station_discovers_pair() -> None:
+    """No overrides: assigns first classified station then vehicle."""
+    print('test_find_vehicle_and_station_discovers_pair')
+    from unittest.mock import patch
+
+    from _rc_test_common import find_vehicle_and_station_ports
+
+    b_st = classify_banner(STATION_KMENU_BANNER)
+    b_v = classify_banner(VEHICLE_BENCH_BANNER)
+
+    with patch('_rc_test_common._candidate_ports',
+               return_value=['COM9', 'COM10']), \
+         patch('_rc_test_common.peek_banner', side_effect=[b_st, b_v]):
+        vp, sp, vb, sb, reason = find_vehicle_and_station_ports()
+
+    check('no error string', reason == '', repr(reason))
+    check('stations COM9',
+          sp == 'COM9' and sb is not None and sb.role.name == 'STATION',
+          f'{sp=} {sb=}')
+    check('vehicle COM10',
+          vp == 'COM10' and vb is not None and vb.role.name == 'VEHICLE',
+          f'{vp=} {vb=}')
+
+def test_pre_commit_matrix_triggers() -> None:
+    print('test_pre_commit_matrix_triggers')
+    ci_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ci')
+    if ci_dir not in sys.path:
+        sys.path.insert(0, ci_dir)
+    from pre_commit_matrix import match  # noqa: E402
+
+    ft, st = match(['README.md'])
+    check('no trigger on unrelated', not ft and not st)
+    ft_f, st_f = match(['src/flight_director/flight_director.cpp'])
+    check('flight_critical', ft_f and not st_f)
+    ft_s, st_s = match(['src/station/main.cpp'])
+    check('station_only', not ft_s and st_s)
+    ft_d, st_d = match(['src/cli/rc_os_dashboard.cpp'])
+    check('dashboard both scopes', ft_d and st_d)
+    ft_os, st_os = match(['src/cli/rc_os_commands.cpp'])
+    check('rc_os_cpp flight_critical', ft_os)
+    ft_c, st_c = match(['CMakeLists.txt'])
+    check('root cmake no gate', not ft_c and not st_c)
+
+
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
@@ -440,6 +519,9 @@ def main() -> int:
         test_decorator_sys_exit_passthrough,
         test_decorator_target_introspection,
         test_watchdog_fires,
+        test_find_vehicle_and_station_rejects_same_port,
+        test_find_vehicle_and_station_discovers_pair,
+        test_pre_commit_matrix_triggers,
     ]
 
     print(f'=== _rc_test_common.py host tests ===')

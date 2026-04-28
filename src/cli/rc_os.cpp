@@ -159,9 +159,10 @@ static bool handle_main_menu(int c) {
 
         case 'p':
         case 'P':
-            if constexpr (!kRadioModeRx) {
-                cli_print_preflight();
-            }
+            // IVP-/matrix Tier 5: station-flight host-script parity — preflight poll
+            // is meaningful on RX (radio HW, MCU temp, RF Link, VERDICT) even when IMU/BARO/GPS primary
+            // stations show ABSENT. Previously `if constexpr (!kRadioModeRx)` made 'p' a no-op on station.
+            cli_print_preflight();
             break;
 
         case 'q':

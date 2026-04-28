@@ -1,5 +1,8 @@
 # CMake build artifacts
 build/
+build_flight/
+build_station/
+build_station_flight/
 build_gs/
 build_host/
 build_test/
@@ -80,3 +83,4 @@ tools/spin/*.trail
 # Bench sim auto-detect port cache (per-developer, not checked in)
 scripts/.bench_sim_last_port
 __pycache__/
+cmake_test_discovery_*.json

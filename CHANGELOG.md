@@ -22,7 +22,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
-### 2026-04-29-003 | Grok via Cursor | documentation, refactor
+### 2026-04-30-001 | Cursor | tooling, council, documentation
+
+**Host script hardening closure (Tiers 1–7):** `scripts/_rc_test_common.py` gains `find_vehicle_and_station_ports`; Tier 4 Stage T / decode / bench paths use `find_target_port` + `open_classified_port`; `CMakeLists.txt` registers `ctest` targets `scripts_rc_test_common` + `scripts_python_compileall` (`-DBUILD_TESTS=ON`). `.github/workflows/python-scripts-ci.yml` + `scripts/ci/pre_commit_matrix.py`; tracked **`git config core.hooksPath scripts/hooks`** + `scripts/hooks/pre-commit` (prior `.git/hooks/pre-commit` should be removed/renamed to avoid duplication). **`@rc_test(watchdog_s=)`** ceilings on `ack_stress_test`, `soak_test`, `replay_harness`. **Firmware Tier 5:** `src/cli/rc_os.cpp` — main-menu **`p`** runs `cli_print_preflight()` on station (RX). Council review + roadmap: `docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`; matrix + plan stubs updated.
+
+Files: `src/cli/rc_os.cpp`, `test/CMakeLists.txt`, `scripts/**/*.py`, `scripts/ci/pre_commit_matrix.py`, `scripts/hooks/*`, `.github/workflows/python-scripts-ci.yml`, `docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`, `docs/plans/HOST_SCRIPT_HARDENING_PLAN.md`, `docs/CONFIG_TEST_MATRIX.md`, `docs/PROJECT_STATUS.md`, `docs/SCAFFOLDING.md`, `AGENT_WHITEBOARD.md`, `.gitignore`, `CHANGELOG.md`
+
+---
+
 
 **Protected files review:** Reverted unauthorized edits to `.claude/SESSION_CHECKLIST.md` (Stage O policy block), deleted incremental `standards/STANDARDS_AUDIT_2026-04-28.md`, and trimmed overly-specific MPU section from `docs/MULTICORE_RULES.md`. Preserved general single-source fault protection rules, dual-core MPU guard setup, and GDB naming note in MULTICORE_RULES.md (now under Memory section). Kept practical pre-commit guidance in DEBUG_PROBE_NOTES.md. Non-ASCII (mostly em-dashes in comments) has no functional impact.
 

@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-29 (Stage O OPT-IVP‑01/02/05 plan **closed** — HW verified; see runbook closure block)
+**Last Updated:** 2026-04-30 (host script hardening Tiers 1–7 + station **`'p'`** preflight parity — see CHANGELOG)
 
 ## Stage O plan — verification vs `.cursor/plans/stage_o_*` (IVP gates)
 
@@ -9,12 +9,12 @@
 **Runbook (commands + checklist):** [docs/baselines/stage_o_hw_verification_2026-04-28.md](baselines/stage_o_hw_verification_2026-04-28.md)  
 **Standards audit (Stage O subset):** [standards/STANDARDS_AUDIT_2026-04-28.md](../standards/STANDARDS_AUDIT_2026-04-28.md)
 
-Automated checks: **786/786** `ctest --test-dir build_host` PASS; firmware `cmake --build build` rocketchip PASS; vehicle **`bench_sim` 2/2 PASS** on COM7 (re-run 2026-04-29; ~6.5 s).
+Automated checks: **788/788** `ctest --test-dir build_host` PASS; firmware `cmake --build build` rocketchip PASS; vehicle **`bench_sim` 2/2 PASS** on COM7 (re-run 2026-04-29; ~6.5 s).
 
 | Plan [GATE] | Status | Notes |
 |---------------|--------|--------|
 | OPT-IVP-01: ctest; MPU stress (GDB); HW fault blink both cores; SPIN; standards docs | **CLOSED** | SPIN **11/11**. Shared fault/MPU in tree. **Row 10:** **`scripts/opt_ivp01_row10_dualcore_watch.gdb`** log `build/row10_ivp01_watch_2026-04-27.log` — both cores Thread, **CFSR/HFSR/SHCSR = 0** (see **`MULTICORE_RULES.md` §MPU**). Tier‑1 **`soak_gdb.gdb`** sensors **PASS** (earlier session). Optional stack demo: **`docs/FAULT_INJECTION.md`**. |
-| OPT-IVP-02: host tests; init soak; CLI; seqlock / `station_idle_tick` | **CLOSED** | Same scope — **786/786 host** PASS; **`bench_sim` 2/2** confirms vehicle CLI path exercised. |
+| OPT-IVP-02: host tests; init soak; CLI; seqlock / `station_idle_tick` | **CLOSED** | Same scope — **788/788 host** PASS; **`bench_sim` 2/2** confirms vehicle CLI path exercised. |
 | OPT-IVP-05: UD doc + CLI `s` + long soak (plan) | **CLOSED** | Doc + **`s`** CLI; Tier‑1 soak **optional** post-refactor — same [runbook](baselines/stage_o_hw_verification_2026-04-28.md) rules. |
 | Global (L36) project bar: both scripts + long soak | **N/A (Stage O scope)** | **Station** not required for this O workstream. **Soak** as above — **not** mandatory for every minor change. **Vehicle** `bench_sim` green. |
 | `picotool` / flash | **OK** | Clean load verified (`--ser` vehicle). |

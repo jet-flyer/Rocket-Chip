@@ -34,7 +34,7 @@ from _rc_test_common import (  # noqa: E402
     TARGET_VEHICLE_BENCH,
 )
 
-@rc_test(target=TARGET_VEHICLE_BENCH)
+@rc_test(target=TARGET_VEHICLE_BENCH, watchdog_s=86400.0)
 def main():
     parser = argparse.ArgumentParser(description='RocketChip Replay Harness')
     parser.add_argument('csv_file', help='Path to sensor profile CSV')

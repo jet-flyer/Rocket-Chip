@@ -4,6 +4,9 @@
 configuration to the host-side test scripts that work against it, plus the
 underlying firmware features each configuration exposes.
 
+**Council review & roadmap:** `docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`  
+**Plan pointer:** `docs/plans/HOST_SCRIPT_HARDENING_PLAN.md`
+
 **When to use:**
 - Before running any host-side script — confirm the script's target matches
   the firmware on the bench.
@@ -49,7 +52,7 @@ scripts to decide what they can rely on.
 |--------------------------------------------------|:-------------:|:--------------:|:-------------:|:--------------:|
 | Boots into kMenu CLI                             |       ✓       |       ✓        |       —       |       —        |
 | Boots into kAnsi dashboard                       |       —       |       —        |       ✓       |       ✓        |
-| `'p'` print preflight (`[Health]` line)          |       ✓       |       ✓        |    no-op¹     |     no-op¹     |
+| `'p'` print preflight (`[Health]` …)             |       ✓       |       ✓        |       ✓       |       ✓        |
 | `'q'` enter debug menu                           |       ✓       |   ✗ (no-op)    |       ✓       | ✗ (sends QUERY)²|
 | `'q'→'b'` cli_print_hw_status                    |       ✓       |       ✗        |       ✓       |       ✗        |
 | `'q'→'d'` `diag_stats_dump()` `[Health]` line    |       ✓       |       ✗        |       ✓       |       ✗        |
@@ -66,7 +69,9 @@ scripts to decide what they can rely on.
 | Flight Director state machine                    |       ✓       |       ✓        |       ✗       |       ✗        |
 | Stage T logging (`-DROCKETCHIP_STAGE_T_LOGGING=ON`)|     opt     |      opt       |      opt      |      opt       |
 
-¹ Station 'p' falls through `if(!kRadioModeRx)` so it does nothing visible.
+¹ Sensor lines on station preflight often **ABSENT** (no onboard IMU/baro/GPS RX path);
+  HW radio / RF Link / MCU / **VERDICT** remain valid. Tier 5 parity: **`rc_os.cpp`**
+  main-menu **`'p'`** calls **`cli_print_preflight()`** on RX as well as vehicle.
 ² On flight builds `dev_debug_menu_enter()` returns `false`, so 'q' falls
   through to `cli_handle_unhandled_key('q')`, which on station sends
   `MAV_CMD_USER_2 / QUERY_RADIO_CONFIG`. On vehicle-flight 'q' is silently
@@ -81,9 +86,10 @@ scripts to decide what they can rely on.
 - Station boots into the dashboard, not the CLI menu. Tests must send
   `'x'` (or another dashboard-recognised key) to enter `kMenu` before
   sending CLI keys.
-- The `[Health]` line (5-field `primary=… secondary=… critical=… mcu=… go_nogo=…`)
-  is **bench-only** on both roles. There is no production-build equivalent
-  on the main menu. Closing this gap is open as a separate proposal.
+- The **`[Health]` summary block (`cli_print_preflight`)** prints from main-menu **`'p'`**
+  on **both roles**, all four presets (**Tier 5**). Scripts parsing **comma-separated
+  `[Health]` log fields** (`primary=…`) remain a **diag / debug-menu** contract — not
+  the same textual format as **`cli_print_preflight()`**.
 
 ## Test compatibility matrix (host scripts)
 
@@ -91,34 +97,35 @@ Each host script's required target configuration(s), based on what
 keystrokes it sends and what output it parses. **Current state** column
 reflects what the script will actually do today, not what it should do.
 
-**Tier 2 (machine-readable targets):** As of Tier 2, each script listed below wraps
-its `main()` with `@rc_test(target=...)` (`scripts/_rc_test_common.py`) so tools can
-discover required role/build and enforce the shared 0/1/2 exit contract. Table
-columns that say "Has guard: ✗ / no guard" still refer to **banner-based port
-classification** --- migration to shared `find_target_port` / runtime guards are
-planned in Tier 3+.
+**Tier 2 (machine-readable targets):** Each script listed below that runs against
+serial wraps `main()` with `@rc_test(target=...)` (`scripts/_rc_test_common.py`) where
+applicable so tools can discover required role/build and enforce the shared 0/1/2
+exit contract. **Tiers 3–4** (shared `find_target_port` / `open_classified_port` /
+`find_vehicle_and_station_ports`) are **landed** for the rows marked accordingly;
+see `docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`. The **Has guard**
+column means **banner-based classification** before destructive keys are sent.
 
 | Script                          | Required role            | Required build      | Current state                                    | Has guard | Has watchdog |
 |---------------------------------|--------------------------|---------------------|--------------------------------------------------|:---------:|:------------:|
 | `bench_sim.py`                  | vehicle                  | bench or flight     | ✓ correct, uses flight menu only                 |    ✓      |     ✓        |
 | `station_bench_sim.py`          | station                  | bench (dev menu)    | ✓ correct (post 2026-04-27 hardening)            |    ✓      |     ✓        |
 | `accel_cal_6pos.py`             | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
-| `ack_stress_test.py`            | station                  | bench or flight     | hardcoded COM7, no guard                         |    ✗      |     ✗        |
+| `ack_stress_test.py`            | station                  | bench or flight     | find_target_port + open_classified_port ✓        |    ✓      |     ✓        |
 | `cla_collect.py`                | vehicle                  | bench (uses 'e')    | `--port` optional; VID:PID classify (bench target)       | ✓              | ✗        |
 | `cli_test.py`                   | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
 | `codegen_soak_test.py`          | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
-| `decode_flight_log.py`          | vehicle                  | bench or flight     | guard ✓ (rejects station)                        |    ✓      |     ✗        |
+| `decode_flight_log.py`          | vehicle                  | bench or flight     | find_target_port + open_classified_port ✓       |    ✓      |     ✗        |
 | `eskf_gps_soak.py`              | vehicle                  | bench (uses 'e')    | `--port` optional; VID:PID classify (bench target)       | ✓          | ✗ |
 | `i2c_soak_test.py`              | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                       |    ✓      |     ✗        |
 | `mavlink_validate.py`           | station (passive)        | bench or flight     | `--port` optional; classify; no auto kMenu (MAVLink tap)  |    ✓      |     ✗        |
 | `replay_gate_test.py`           | vehicle                  | bench (dev menu)    | `--port` optional; bench classify; replay UART stream           | ✓ | ✗ |
-| `replay_harness.py`             | vehicle                  | bench (dev menu)    | --port=COM7, no guard, breaks on flight          |    ✗      |     ✗        |
-| `soak_test.py`                  | vehicle                  | bench (dev menu)    | --port=COM7, no guard, breaks on flight          |    ✗      |     ✗        |
-| `stage_t2_cheat.py`             | both (dual port)         | bench (Stage T log) | --vehicle-port + --station-port, no classify     |    ✗      |     ✗        |
-| `stage_t4_ambient.py`           | station                  | bench or flight     | --port=COM9                                      |    ✓      |     ✗        |
-| `stage_t6_sweep.py`             | both (dual port)         | bench (dev menu)    | dual port, weak classify                         |    ✓      |     ✗        |
-| `stage_t_run.py`                | both (dual port)         | bench (Stage T log) | dual port, weak classify                         |    ✓      |     ✗        |
-| `stage_t_wilson_ci.py`          | station                  | bench (dev menu)    | --port=COM9, no guard, breaks on flight          |    ✗      |     ✗        |
+| `replay_harness.py`             | vehicle                  | bench (dev menu)    | find_target_port + open_classified_port ✓        |    ✓      |     ✓        |
+| `soak_test.py`                  | vehicle                  | bench (dev menu)    | find_target_port + open_classified_port ✓        |    ✓      |     ✓        |
+| `stage_t2_cheat.py`             | both (dual port)         | bench (Stage T log) | find_vehicle_and_station_ports; dual overrides ✓ |    ✓      |     ✓        |
+| `stage_t4_ambient.py`           | station                  | bench or flight     | find_target_port + open_classified_port ✓       |    ✓      |     ✓        |
+| `stage_t6_sweep.py`             | both (dual port)         | bench (dev menu)    | dual port w/ find_vehicle_and_station_ports ✓    |    ✓      |     ✓        |
+| `stage_t_run.py`                | both (dual port)         | bench (Stage T log) | dual port w/ find_vehicle_and_station_ports ✓    |    ✓      |     ✓        |
+| `stage_t_wilson_ci.py`          | station                  | bench (dev menu)    | find_target_port + open_classified_port ✓; STATION_BENCH target |    ✓      |     ✗        |
 | `station_replay_harness.py`     | station                  | bench (dev menu)    | `--port` optional; STATION_BENCH classify; manual replay prep | ✓ | ✗ |
 
 ### Coverage gaps revealed by the matrix
@@ -126,15 +133,14 @@ planned in Tier 3+.
 - **No test covers `vehicle-flight` exclusively.** Flight-certified vehicle
   binaries get `bench_sim.py` coverage (good), but not the soak/ESKF/replay
   paths.
-- **No test covers `station-flight` exclusively.** All station automated
-  tests today depend on the debug menu (`'q'→...`), which is excluded from
-  `BUILD_FOR_FLIGHT=ON` builds. There is no automated regression detector
-  for the production station binary.
+- **`station-flight` + `'q'` debug flows** remain unavailable (`BUILD_FOR_FLIGHT` strips **`dev_cli`**).
+  Main-menu **`'p'` preflight (`cli_print_preflight`)** works on **`station-flight`** (**Tier 5**) for
+  high-level parity; scripts that inject **`diag_stats`** via **`q`→`d`** still require **station-bench**.
 - **Three scripts use `'e'` ESKF live mode** (cla_collect, eskf_gps_soak,
   occasionally others). All require dev menu and therefore bench builds.
-- **The COM-port hardcoding is inconsistent across 16+ scripts.** Defaults
-  vary between COM6/COM7/COM9, set when the bench had different boards
-  attached. Auto-classification is the durable answer.
+- **Legacy COM defaults (COM6/COM7/COM9) in docstrings** may still appear as
+  examples; runtime selection uses **banner classification** with optional
+  `--port` overrides. Prefer the council review doc for migration status.
 
 ## How to add a new test script
 
@@ -145,7 +151,8 @@ When creating a new script under `scripts/`:
    form chosen over comment header for refactor-safety + entry-point
    visibility).
 2. **Use the shared helpers** from `scripts/_rc_test_common.py` for: port
-   detection (`find_target_port`), banner classification
+   detection (`find_target_port`; **dual-board harnesses:**
+   `find_vehicle_and_station_ports`), banner classification
    (`classify_banner`, `peek_banner`), opening + post-open re-classify
    + auto-enter-kMenu (`open_classified_port`), wall-clock hard kill
    (`start_watchdog` is wired into `@rc_test`'s `watchdog_s` param).
@@ -196,19 +203,13 @@ For station scripts, replace `TARGET_VEHICLE_BENCH` with `TARGET_STATION_BENCH`
 `open_classified_port` helper auto-transitions station from kAnsi
 dashboard to kMenu so `'q'`, `'h'`, etc. are honored.
 
-## Open proposals (not yet executed)
+## Roadmap history (completed)
 
-- **Tier 1–4 — host-script hardening**: shared helper module + target
-  declarations + watchdog + classification on every script. Plan drafted
-  and council-reviewed (see `docs/plans/HOST_SCRIPT_HARDENING_PLAN.md`
-  when written).
-- **Tier 5 — firmware-side production health command**: add a station
-  main-menu binding that prints the `[Health]` summary in flight builds,
-  closing the `station-flight` test coverage gap. Bigger design call;
-  separate proposal.
-- **Tier 6 — CI integration**: have CI / pre-commit consume this matrix
-  to choose which tests to run for which staged firmware change. Today
-  the pre-commit hook hard-codes the trigger regexes.
+- **Tier 5 — station `'p'` preflight parity:** **`src/cli/rc_os.cpp`** main-menu `'p'` now calls **`cli_print_preflight()`** on RX (station) as well as vehicle — **`[Health]` / VERDICT** visible without debug menu (`2026-04-30`).
+- **Tier 6b — matrix-driven hooks:** Patterns live in **`scripts/ci/pre_commit_matrix.py`** (evaluated by **`scripts/hooks/pre-commit`**). One-time repo setup: `git config core.hooksPath scripts/hooks` — see **`scripts/hooks/README.md`**.
+- **Tier 7 — watchdog ceilings:** **`@rc_test(..., watchdog_s=…)`** on **`ack_stress_test`** (7200s), **`soak_test`** / **`replay_harness`** (86400s) — escapes hung USB open on Windows beyond intended wall times.
+
+Older Tier 1–4 / 6a notes remain in **`docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`**.
 
 ## Maintenance
 
