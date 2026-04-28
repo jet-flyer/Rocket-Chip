@@ -467,3 +467,16 @@ pay the reconstruct cost (UD→dense), and the ~1.3% predict-only ticks get the
 fast path. The 595µs average is consistent with the benchmark prediction of 486µs
 per measurement epoch (the difference is codegen FPFT scaling from 111µs average
 to the full reconstruct+predict pipeline).
+
+---
+
+## In-app ESKF microbenches (dev firmware, Stage O OPT-IVP-05)
+
+`eskf_runner_get_bench()` reports **predict-only** time (inside `eskf_run_predict()`,
+`g_eskf.predict` path). `eskf_runner_get_bench_full_tick()` reports **predict + all
+200 Hz measurement/cross-check work** that follows a successful p-growth check:
+baro, mag, ZUPT, GPS, Mahony, then phase Q/R and confidence — **excludes** QP publish
+and `SIG_SENSOR_DATA`. Both are dev-build only (`!BUILD_FOR_FLIGHT`); the Hardware
+Status / `s` ESKF block prints them when the respective sample counts are non-zero.
+Typical on-target numbers depend on load; use the CLI output for the board under
+test rather than this document for absolute µs.

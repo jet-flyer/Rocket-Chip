@@ -7,14 +7,10 @@
 //============================================================================
 
 #include "cal_hooks.h"
-#include "rocketchip/sensor_seqlock.h"
+#include "rocketchip/shared_state.h"
 #include "drivers/icm20948.h"
 #include "pico/stdlib.h"
 #include <stdio.h>
-
-// Extern globals from main.cpp and sensor_core1.cpp
-extern icm20948_t g_imu;
-extern bool g_sensorPhaseActive;
 
 // ============================================================================
 // Constants

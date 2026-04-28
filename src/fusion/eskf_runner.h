@@ -101,6 +101,9 @@ const gps_session_stats_t* eskf_runner_get_gps_session();
 #ifndef BUILD_FOR_FLIGHT
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
                            uint32_t* max_us, uint32_t* count);
+/// Dev-only: predict + all measurement steps + phase/confidence (200 Hz path), µs
+void eskf_runner_get_bench_full_tick(uint32_t* avg, uint32_t* min_us,
+                                    uint32_t* max_us, uint32_t* count);
 #endif
 
 /// End Mahony startup Kp boost (called on ARM transition).

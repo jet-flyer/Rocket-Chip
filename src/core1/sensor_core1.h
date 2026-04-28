@@ -12,10 +12,8 @@
 #include <stdint.h>
 #include <atomic>
 
-#include "drivers/icm20948.h"         // icm20948_t
-#include "drivers/gps.h"             // gps_data_t, gps_transport_t
-#include "fusion/eskf.h"             // rc::ESKF
-#include "rocketchip/sensor_seqlock.h"  // shared_sensor_data_t (GPS helper arg)
+#include "rocketchip/shared_state.h"  // cross-core init flags, GPS, seqlock (OPT-IVP-02)
+#include "fusion/eskf.h"              // rc::ESKF
 
 // ============================================================================
 // Core 1 Entry Point
@@ -60,36 +58,9 @@ void core1_update_best_gps_fix(const shared_sensor_data_t* localData);
 void core1_read_gps(shared_sensor_data_t* localData,
                     uint32_t* lastGpsReadUs);
 
-// ============================================================================
-// Extern Globals (owned by main.cpp, accessed by Core 1)
-// ============================================================================
-// Sensor init flags -- written by Core 0 init_sensors(), read by Core 1.
-
-extern bool g_imuInitialized;
-extern bool g_baroInitialized;
-extern bool g_gpsInitialized;
-extern bool g_baroContinuous;
-extern bool g_neopixelInitialized;
-extern bool g_eskfInitialized;
-// Init-attempted flags (IVP-142c A2) — distinguishes "attempted and
-// failed" (FAIL) from "not installed / not attempted on this role" (N/A)
-// for banner and preflight presentation. Set true at the first
-// icm20948_init/baro_dps310_init/gps_*_init call site, regardless of
-// outcome.
-extern bool g_imuInitAttempted;
-extern bool g_baroInitAttempted;
-extern bool g_gpsInitAttempted;
-
-// IMU device handle -- init'd on Core 0, used on Core 1 for reads.
-extern icm20948_t g_imu;
-
-// ESKF instance -- init'd on Core 0, read by Core 1 for GPS staleness heuristic.
+// ESKF instance in eskf_runner.cpp — Core 0 fusion; Core 1 reads for GPS
+// staleness and related diagnostics.
 extern rc::ESKF g_eskf;
-
-// GPS transport-neutral function pointers -- set once during init_sensors().
-extern gps_transport_t g_gpsTransport;
-extern bool (*g_gpsFnUpdate)();
-extern bool (*g_gpsFnGetData)(gps_data_t*);
-extern bool (*g_gpsFnHasFix)();
+extern bool g_eskfInitialized;
 
 #endif // ROCKETCHIP_SENSOR_CORE1_H

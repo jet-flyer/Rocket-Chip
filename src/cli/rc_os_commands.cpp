@@ -13,6 +13,7 @@
 #include "ao_rcos.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/config.h"
+#include "rocketchip/shared_state.h"
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "flight_director/go_nogo_checks.h"  // IVP-T14: RF Link pre-arm station
 #include "rocketchip/sensor_seqlock.h"
@@ -30,7 +31,6 @@
 #include "active_objects/ao_flight_director.h"
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h"
-#include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/radio_config_table.h"  // T5.5 sub 2c: SET cycle
 
 // MAVLink command IDs for station command menu (IVP-62c)
@@ -143,25 +143,6 @@ static void cmd_radio_config_cycle() {
 #include "pico/time.h"
 #include <stdio.h>
 #include <math.h>
-
-// ============================================================================
-// Extern globals from main.cpp (init-time state, not owned here)
-// ============================================================================
-
-// NOLINTBEGIN(readability-redundant-declaration) — cross-TU externs
-extern bool g_neopixelInitialized;
-extern bool g_sensorPhaseActive;
-extern sensor_seqlock_t g_sensorSeqlock;
-// NOLINTEND(readability-redundant-declaration)
-
-// main.cpp statics made non-static for CLI access
-extern size_t g_psramSize;
-extern bool   g_psramSelfTestPassed;
-extern bool   g_psramFlashSafePassed;
-extern bool   g_i2cInitialized;
-extern bool   g_spiInitialized;
-extern bool   g_watchdogReboot;
-extern bool   g_calStorageInitialized;
 
 // ============================================================================
 // Constants
@@ -311,6 +292,13 @@ static void print_eskf_status() {
                 printf("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
                        (unsigned long)benchAvg, (unsigned long)benchMin,
                        (unsigned long)benchMax, (unsigned long)benchCount);
+            }
+            uint32_t fAvg = 0, fMin = 0, fMax = 0, fCount = 0;
+            eskf_runner_get_bench_full_tick(&fAvg, &fMin, &fMax, &fCount);
+            if (fCount > 0) {
+                printf("      full-tick: %luus avg, %luus min, %luus max (%lu calls)\n",
+                       (unsigned long)fAvg, (unsigned long)fMin,
+                       (unsigned long)fMax, (unsigned long)fCount);
             }
         }
 #endif

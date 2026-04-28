@@ -299,6 +299,7 @@ else()
         # Stage 1: Foundation (IVP-01 through IVP-08)
         # -------------------------------------------------------------------------
         src/main.cpp
+        src/shared_state.cpp
         src/core1/sensor_core1.cpp
         src/drivers/ws2812_status.cpp
         src/drivers/i2c_bus.cpp
@@ -378,6 +379,7 @@ else()
         src/safety/pio_watchdog.cpp
         src/safety/pio_backup_timer.cpp
         src/safety/pyro_edge_logger.cpp
+        src/safety/fault_protection.cpp  # OPT-IVP-01: shared MPU + fault handlers
 
         # Phase 6: Health Monitor (called from AO_FlightDirector at 10Hz)
         src/safety/health_monitor.cpp
@@ -477,6 +479,7 @@ else()
     # audit in docs/BUILD_SYSTEM_AUDIT.md catches drift.
     set(ROCKETCHIP_SOURCES
         src/main.cpp
+        src/shared_state.cpp
         src/core1/sensor_core1.cpp
         src/drivers/ws2812_status.cpp
         src/drivers/i2c_bus.cpp
@@ -528,6 +531,7 @@ else()
         src/safety/pio_watchdog.cpp
         src/safety/pio_backup_timer.cpp
         src/safety/pyro_edge_logger.cpp
+        src/safety/fault_protection.cpp  # OPT-IVP-01: shared MPU + fault handlers
         src/safety/health_monitor.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp

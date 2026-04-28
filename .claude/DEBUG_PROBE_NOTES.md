@@ -57,6 +57,8 @@ This command is idempotent - safe to run even if no OpenOCD is running.
 taskkill //F //IM openocd.exe
 ```
 
+**Windows PowerShell (when Cygwin/bash is wrong for your session):** `Start-Process -ArgumentList` often splits `-c "adapter speed 5000"` incorrectly. Use **`scripts/start_openocd_pico_sdk.ps1`** from the repo root (`pwsh -File scripts/start_openocd_pico_sdk.ps1`) — it uses `ProcessStartInfo` with a single `.Arguments` string (same pattern that works for `openocd.exe` on project machines). Then confirm `127.0.0.1:3333` is listening.
+
 ---
 
 ## Issue: USB CDC breaks after flash operations (RESOLVED)

@@ -3,7 +3,10 @@
 **To start a new audit:** Copy this file to `STANDARDS_AUDIT_YYYY-MM-DD.md` and populate findings.
 
 **Previous audits:**
+
 - [STANDARDS_AUDIT_2026-02-07.md](STANDARDS_AUDIT_2026-02-07.md) — Phase 1-3 (P10, flow control, portable code, platform, C++, functions, style, JPL C)
+- [STANDARDS_AUDIT_2026-03-26.md](STANDARDS_AUDIT_2026-03-26.md) — clang-tidy / lizard tiered pass (post-Stage 8)
+- [STANDARDS_AUDIT_2026-04-28.md](STANDARDS_AUDIT_2026-04-28.md) — Stage O subset (OPT-IVP-01/02/05: fault_protection, shared_state, ESKF bench)
 
 ---
 
@@ -20,25 +23,30 @@
 
 **Status codes:**
 
-| Code | Meaning |
-|------|---------|
-| PASS | Compliant with the rule |
-| FAIL | Violation found — see notes |
-| PARTIAL | Some files comply, others don't |
-| NOT CHECKED | Not yet audited |
-| N/A | Not applicable to this codebase |
+
+| Code        | Meaning                         |
+| ----------- | ------------------------------- |
+| PASS        | Compliant with the rule         |
+| FAIL        | Violation found — see notes     |
+| PARTIAL     | Some files comply, others don't |
+| NOT CHECKED | Not yet audited                 |
+| N/A         | Not applicable to this codebase |
+
 
 **Applicability codes:**
 
-| Code | Meaning |
-|------|---------|
-| M | Mandatory — applies directly, must be enforced |
-| R | Recommended — applies in principle, aspirational |
-| N/A | Not Applicable — wrong language feature, platform, etc. |
-| D | Deferred — applies but not relevant until a future feature is implemented |
-| SDK | SDK Interface Constraint — violation occurs at Pico SDK boundary. Documented per-function with safety justification. |
+
+| Code | Meaning                                                                                                              |
+| ---- | -------------------------------------------------------------------------------------------------------------------- |
+| M    | Mandatory — applies directly, must be enforced                                                                       |
+| R    | Recommended — applies in principle, aspirational                                                                     |
+| N/A  | Not Applicable — wrong language feature, platform, etc.                                                              |
+| D    | Deferred — applies but not relevant until a future feature is implemented                                            |
+| SDK  | SDK Interface Constraint — violation occurs at Pico SDK boundary. Documented per-function with safety justification. |
+
 
 **Relationship to other documents:**
+
 - `CODING_STANDARDS.md` — Defines our rules. This document checks compliance.
 - `STANDARDS_DEVIATIONS.md` — Accepted deviations are logged there, referenced here.
 - `LESSONS_LEARNED.md` — Debugging knowledge that informed our platform rules.
@@ -60,16 +68,18 @@ Where JSF AV and JPL C conflict, JPL C takes precedence.
 
 ## Summary Dashboard
 
-| Standard | Total | Applicable | Compliant | Deviations | Not Checked |
-|----------|-------|------------|-----------|------------|-------------|
-| Power of 10 | 10 | 10 | | | |
-| JSF AV C++ | 221 | ~150 | | | |
-| JPL C (LOC-1-6) | ~31 | ~25 | | | |
-| Platform Rules | ~12 | ~12 | | | |
-| Multicore | ~5 | ~5 | | | |
-| Debug Output | ~20 | ~20 | | | |
-| Git Workflow | ~14 | ~14 | | | |
-| Session Checklist | ~12 | ~12 | | | |
+
+| Standard          | Total | Applicable | Compliant | Deviations | Not Checked |
+| ----------------- | ----- | ---------- | --------- | ---------- | ----------- |
+| Power of 10       | 10    | 10         |           |            |             |
+| JSF AV C++        | 221   | ~150       |           |            |             |
+| JPL C (LOC-1-6)   | ~31   | ~25        |           |            |             |
+| Platform Rules    | ~12   | ~12        |           |            |             |
+| Multicore         | ~5    | ~5         |           |            |             |
+| Debug Output      | ~20   | ~20        |           |            |             |
+| Git Workflow      | ~14   | ~14        |           |            |             |
+| Session Checklist | ~12   | ~12        |           |            |             |
+
 
 ---
 
@@ -127,8 +137,11 @@ Where JSF AV and JPL C conflict, JPL C takes precedence.
 
 | Date | Phase | Scope | Auditor | Commit | Notes |
 | 2026-02-07 | Manual | 249 rules (P10, JSF AV, JPL C, platform) | Claude | `5a8...` | 90% compliant, 25 accepted deviations. See `STANDARDS_AUDIT_2026-02-07.md` |
+
+
 | 2026-02-09 | Automated | clang-tidy 127 checks, 10 files | Claude | `2c3b5e6` | 1,251 findings, all remediated across 6 phases. See `docs/audits/CLANG_TIDY_AUDIT_2026-02-09.md` |
-|------|-------|-------|---------|--------|-------|
+| ---------- | --------- | ------------------------------- | ------ | --------- | ------------------------------------------------------------------------------------------------ |
+
 
 ---
 

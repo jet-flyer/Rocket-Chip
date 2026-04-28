@@ -92,6 +92,8 @@ All of the normal completion items, plus:
 
    Added 2026-04-18 after Stage L surfaced 5 latent violations (ao_logger, ao_telemetry, core1_sensor_loop, guard_evaluator_tick, flight_director_evaluate_guards) that had accumulated silently across earlier stages. See LL Entry 36 discipline — "gates that only check incremental change cannot catch pre-existing rot."
 
+19. **Stage O plan (`.cursor/plans/stage_o_*`) hardware / soak gates** — If the session changed `safety/fault_protection*`, `shared_state*`, `main.cpp` init, `core1` bring-up, or `eskf_runner` hot paths, do not claim "all gates pass" until: `python scripts/bench_sim.py` exit 0 (vehicle) with USB connected; **`python scripts/station_bench_sim.py` only if** the diff touches station, `ROCKETCHIP_JOB_STATION` / fruit-jam build, or `src/station/**` / `station_idle_tick*`. SPIN: follow `tools/spin/README.md` in **Cygwin bash** (Quick Start and/or FD models) if AO/FD event routing or phase logic changed. **5+ min on-target soak:** run when the change is **major** or **high-risk** to sensors/init/multicore/flash; for **small** behavior-preserving refactors with full **ctest** + **bench_sim** green, a long soak is **optional** (see `docs/baselines/stage_o_hw_verification_2026-04-28.md`). **GDB MPU/fault** when fault code changes materially. Track status in `docs/PROJECT_STATUS.md` → "Stage O plan — verification" table. Host `ctest --test-dir build_host` is necessary but not sufficient for risky paths alone.
+
 ---
 
 ## Red Flags (Stop and Ask)

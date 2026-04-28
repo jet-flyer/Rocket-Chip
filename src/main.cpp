@@ -12,6 +12,7 @@
 
 #include "rocketchip/config.h"
 #include "rocketchip/sensor_seqlock.h"
+#include "rocketchip/shared_state.h"   // OPT-IVP-02: all globals centralized here
 #include "core1/sensor_core1.h"
 #include "station/station_idle_tick.h"
 #include "rocketchip/led_patterns.h"
@@ -36,6 +37,7 @@
 #include "safety/pio_watchdog.h"
 #include "safety/pio_backup_timer.h"
 #include "safety/pyro_edge_logger.h"
+#include "safety/fault_protection.h"  // OPT-IVP-01
 #include "dev/diag_stats.h"
 #include "fusion/mahony_ahrs.h"
 #include "fusion/wmm_tables.h"
@@ -72,11 +74,13 @@
 #include "hardware/sync.h"
 #include "hardware/exception.h"
 #include "hardware/watchdog.h"
-#include "hardware/structs/mpu.h"
 #include <atomic>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+
+// Linker symbol for end of stack region (Cortex-M33/RISC-V) — used by MPU guard.
+extern "C" uint32_t __StackBottom;
 
 // ============================================================================
 // Constants
@@ -84,169 +88,33 @@
 
 static constexpr uint kNeoPixelPin = board::kNeoPixelPin;
 
-// MPU stack guard
-static constexpr uint32_t kMpuGuardSizeBytes = 64;              // Guard region at bottom of stack
-
-// Fault handler blink pattern
-static constexpr int32_t kFaultBlinkFastLoops = 200000;         // ~100ms at 150MHz
-static constexpr int32_t kFaultBlinkSlowLoops = 800000;         // ~400ms at 150MHz
-static constexpr uint8_t kFaultFastBlinks = 3;                  // Fast blinks before slow
-
-// Watchdog
+// Watchdog (moved to pio_watchdog; see OPT-IVP-01 for fault protection extraction)
 static constexpr uint32_t kWatchdogTimeoutMs = 5000;            // 5 second timeout
 
 
 // Sensor power-up settling time (generous margin over ICM-20948 11ms + DPS310 40ms)
 static constexpr uint32_t kSensorSettleMs = 200;
 
+// All global state is declared in include/rocketchip/shared_state.h and
+// defined in src/shared_state.cpp (OPT-IVP-02).
 
-// ============================================================================
-// Global State
-// ============================================================================
+namespace {
 
-bool g_neopixelInitialized = false;           // Non-static: Core 1 reads (sensor_core1.cpp)
-bool g_i2cInitialized = false;  // Non-static: cli_commands.cpp reads
-bool g_imuInitialized = false;                // Non-static: Core 1 reads (sensor_core1.cpp)
-bool g_baroInitialized = false;               // Non-static: Core 1 reads/writes (sensor_core1.cpp)
-bool g_baroContinuous = false;                // Non-static: Core 1 reads (sensor_core1.cpp)
-bool g_gpsInitialized = false;                // Non-static: Core 1 reads/writes (sensor_core1.cpp)
-// Init-attempted flags (IVP-142c A2). Set true when hardware was
-// detected and init was attempted, regardless of init outcome. The
-// banner/preflight path distinguishes "attempted and failed" (FAIL)
-// from "not present / not attempted" (N/A). Non-static for CLI reads.
-bool g_imuInitAttempted = false;
-bool g_baroInitAttempted = false;
-bool g_gpsInitAttempted = false;
-gps_transport_t g_gpsTransport = GPS_TRANSPORT_NONE;  // Non-static: Core 1 reads
-bool g_spiInitialized = false;  // Non-static: cli_commands.cpp reads
-// Radio init moved to AO_Radio (owns hardware lifecycle)
-
-size_t g_psramSize = 0;                  // Non-static: cli_commands.cpp reads
-bool g_psramSelfTestPassed = false;      // Non-static: cli_commands.cpp reads
-bool g_psramFlashSafePassed = false;     // Non-static: cli_commands.cpp reads
-
-// Transport-neutral GPS function pointers — set once during init_sensors().
-// Avoids if/else on every Core 1 GPS poll cycle.
-// Non-static: Core 1 calls via sensor_core1.cpp.
-bool (*g_gpsFnUpdate)()                    = nullptr;
-bool (*g_gpsFnGetData)(gps_data_t*)       = nullptr;
-bool (*g_gpsFnHasFix)()                    = nullptr;
-
-// Sensor data seqlock — cross-core data sharing between Core 1 (writer) and Core 0 (reader).
-
-sensor_seqlock_t g_sensorSeqlock;
-
-std::atomic<bool> g_startSensorPhase{false};
-std::atomic<bool> g_sensorPhaseDone{false};
-std::atomic<bool> g_calReloadPending{false};
-std::atomic<bool> g_core1PauseI2C{false};
-std::atomic<bool> g_core1I2CPaused{false};
-std::atomic<bool> g_core1LockoutReady{false};
-
-// Sensor phase active — set by Core 0 when Core 1 enters sensor loop.
-// Read by Core 0 (cal hooks, print_sensor_status, eskf_runner). Plain bool is
-// correct — single-core write/read, no cross-core visibility needed.
-// Non-static: eskf_runner reads for tick gating.
-bool g_sensorPhaseActive = false;
-
-// Calibration storage state
-bool g_calStorageInitialized = false;  // Non-static: cli_commands.cpp reads
-
-// IMU device handle (non-static: Core 1 reads via sensor_core1.cpp, per LL Entry 1)
-icm20948_t g_imu;
-
-// ============================================================================
-// MemManage / HardFault Handler
-// ============================================================================
-// Fires when MPU stack guard is hit (stack overflow).
-// Must NOT use stack (it may be overflowed). Uses direct GPIO register writes.
-// Blink pattern: 3 fast + 1 slow on red LED, forever.
-
-static void memmanage_fault_handler() {
-    __asm volatile ("cpsid i");  // Disable interrupts
-
-    // Direct GPIO register writes — no SDK calls that might use stack
-    const uint32_t ledMask = 1U << board::kLedPin;
-
-    // Active-low LED: SET register turns pin HIGH (off), CLR turns LOW (on)
-    // Active-high LED: SET turns on, CLR turns off
-    io_rw_32 *ledOn  = board::kLedActiveHigh ? &sio_hw->gpio_set : &sio_hw->gpio_clr;
-    io_rw_32 *ledOff = board::kLedActiveHigh ? &sio_hw->gpio_clr : &sio_hw->gpio_set;
-
-    while (true) {
-        for (uint8_t i = 0; i < kFaultFastBlinks; i++) {
-            *ledOn = ledMask;
-            for (int32_t d = 0; d < kFaultBlinkFastLoops; d++) { __asm volatile(""); }
-            *ledOff = ledMask;
-            for (int32_t d = 0; d < kFaultBlinkFastLoops; d++) { __asm volatile(""); }
-        }
-        *ledOn = ledMask;
-        for (int32_t d = 0; d < kFaultBlinkSlowLoops; d++) { __asm volatile(""); }
-        *ledOff = ledMask;
-        for (int32_t d = 0; d < kFaultBlinkSlowLoops; d++) { __asm volatile(""); }
-    }
+void bind_gps_uart_backend() {
+    g_gpsTransport = GPS_TRANSPORT_UART;
+    g_gpsFnUpdate  = gps_uart_update;
+    g_gpsFnGetData = gps_uart_get_data;
+    g_gpsFnHasFix  = gps_uart_has_fix;
 }
 
-// ============================================================================
-// QP/C Assertion Handler
-// ============================================================================
-// Called by QEP when a state machine invariant is violated (null state handler,
-// nesting depth overflow, etc.). Logs the failure and halts — the watchdog
-// will reset the device and the recovery policy will track it.
-extern "C" Q_NORETURN Q_onError(
-    char const * const module,
-    int_t const id)
-{
-    __asm volatile("cpsid i");  // Disable interrupts
-    printf("[QP ASSERT] module=%s, id=%d\n", module, id);
-    // Spin until watchdog resets us — recovery scratch registers are fresh
-    // from the last watchdog_kick_tick().
-    while (true) {
-        __asm volatile("nop");
-    }
+void bind_gps_i2c_backend() {
+    g_gpsTransport = GPS_TRANSPORT_I2C;
+    g_gpsFnUpdate  = gps_pa1010d_update;
+    g_gpsFnGetData = gps_pa1010d_get_data;
+    g_gpsFnHasFix  = gps_pa1010d_has_fix;
 }
 
-// ============================================================================
-// MPU Stack Guard Setup (per-core, PMSAv8)
-// ============================================================================
-// Configures MPU region 0 as a no-access guard at the bottom of the stack.
-// Each core has its own MPU — call from the core being protected.
-
-// NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" uint32_t __StackBottom;     // Core 0 stack bottom (SCRATCH_Y, linker-defined)
-// __StackOneBottom declared in sensor_core1.cpp (Core 1 uses it).
-
-static void mpu_setup_stack_guard(uint32_t stackBottom) {
-    // Disable MPU during configuration
-    mpu_hw->ctrl = 0;
-    __dsb();
-    __isb();
-
-    // NOLINTBEGIN(readability-magic-numbers) — PMSAv8 MPU register bit fields per ARMv8-M Architecture Reference Manual
-    // Region 0: Stack guard (no access, execute-never)
-    // PMSAv8 RBAR: [31:5]=BASE, [4:3]=SH(0=non-shareable), [2:1]=AP(0=priv no-access), [0]=XN(1)
-    mpu_hw->rnr = 0;
-    mpu_hw->rbar = (stackBottom & ~0x1FU)
-                  | (0U << 3)   // SH: Non-shareable
-                  | (0U << 1)   // AP: Privileged no-access
-                  | (1U << 0);  // XN: Execute-never
-
-    // PMSAv8 RLAR: [31:5]=LIMIT, [3:1]=ATTRINDX(0), [0]=EN(1)
-    mpu_hw->rlar = ((stackBottom + kMpuGuardSizeBytes - 1) & ~0x1FU)
-                  | (0U << 1)   // ATTRINDX: 0 (uses MAIR0 attr 0)
-                  | (1U << 0);  // EN: Enable region
-
-    // MAIR0 attr 0 = 0x00 = Device-nGnRnE (strictest, no caching)
-    mpu_hw->mair[0] = 0;
-
-    // Enable MPU with PRIVDEFENA=1 (default memory map for unprogrammed regions)
-    mpu_hw->ctrl = (1U << 2)   // PRIVDEFENA
-                 | (1U << 0);  // ENABLE
-    // NOLINTEND(readability-magic-numbers)
-    __dsb();
-    __isb();
-}
-
+}  // namespace
 
 // ============================================================================
 // Init: Hardware (fault handlers, MPU, GPIO, NeoPixel, Core 1, I2C, sensors)
@@ -263,10 +131,7 @@ static void init_gps() {
         g_gpsInitAttempted = true;
         if (gps_uart_init()) {
             g_gpsInitialized = true;
-            g_gpsTransport = GPS_TRANSPORT_UART;
-            g_gpsFnUpdate  = gps_uart_update;
-            g_gpsFnGetData = gps_uart_get_data;
-            g_gpsFnHasFix  = gps_uart_has_fix;
+            bind_gps_uart_backend();
             return;
         }
     }
@@ -280,10 +145,7 @@ static void init_gps() {
     i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
     if (gps_pa1010d_init()) {
         g_gpsInitialized = true;
-        g_gpsTransport = GPS_TRANSPORT_I2C;
-        g_gpsFnUpdate  = gps_pa1010d_update;
-        g_gpsFnGetData = gps_pa1010d_get_data;
-        g_gpsFnHasFix  = gps_pa1010d_has_fix;
+        bind_gps_i2c_backend();
     }
 }
 
@@ -334,6 +196,7 @@ static void init_usb() {
 
 static void init_early_hw() {
     // Register fault handlers early (before any MPU config)
+    // Now using shared implementation from safety/fault_protection.h (OPT-IVP-01)
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, memmanage_fault_handler);
     exception_set_exclusive_handler(MEMMANAGE_EXCEPTION, memmanage_fault_handler);
     mpu_setup_stack_guard(reinterpret_cast<uint32_t>(&__StackBottom));
@@ -364,10 +227,7 @@ static void init_early_hw() {
         g_gpsInitAttempted = true;
         if (gps_pa1010d_init()) {
             g_gpsInitialized = true;
-            g_gpsTransport  = GPS_TRANSPORT_I2C;
-            g_gpsFnUpdate   = gps_pa1010d_update;
-            g_gpsFnGetData  = gps_pa1010d_get_data;
-            g_gpsFnHasFix   = gps_pa1010d_has_fix;
+            bind_gps_i2c_backend();
         }
     }
 

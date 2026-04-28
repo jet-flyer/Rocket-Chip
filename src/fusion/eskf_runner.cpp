@@ -9,6 +9,7 @@
 
 #include "fusion/eskf_runner.h"
 #include "rocketchip/config.h"
+#include "rocketchip/shared_state.h"
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/ao_signals.h"
 #include "fusion/wmm_tables.h"
@@ -16,6 +17,7 @@
 #include "flight_director/flight_director.h"
 #include "flight_director/mission_profile.h"
 #include "flight_director/mission_profile_data.h"
+#include "active_objects/ao_flight_director.h"
 
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
@@ -58,19 +60,8 @@ static constexpr uint32_t kEskfBufferSamples = 1000;
 // GPS session NIS sentinel (larger than any valid NIS)
 static constexpr float kGpsNisSentinel = 1e9F;
 
-// ============================================================================
-// Extern declarations — globals owned by main.cpp, read/written here.
-// Accessed from eskf_runner, owned elsewhere.
-// ============================================================================
-
-// Seqlock and sensor phase (owned by main.cpp)
-extern sensor_seqlock_t g_sensorSeqlock;
-extern bool g_sensorPhaseActive;  // NOLINT(readability-redundant-declaration)
-extern bool g_baroContinuous;     // NOLINT(readability-redundant-declaration)
-
-// Flight Director (owned by AO_FlightDirector).
-// Access via read-only accessors in ao_flight_director.h.
-#include "active_objects/ao_flight_director.h"
+// Mission profile pointer for phase Q/R wiring
+static const rc::MissionProfile* g_profile = nullptr;
 
 // ============================================================================
 // ESKF Module State (moved from main.cpp)
@@ -108,10 +99,11 @@ static uint32_t g_eskfBenchMin = UINT32_MAX;
 static uint32_t g_eskfBenchMax = 0;
 static uint32_t g_eskfBenchSum = 0;
 static uint32_t g_eskfBenchCount = 0;
+static uint32_t g_eskfBenchFullMin = UINT32_MAX;
+static uint32_t g_eskfBenchFullMax = 0;
+static uint32_t g_eskfBenchFullSum = 0;
+static uint32_t g_eskfBenchFullCount = 0;
 #endif
-
-// Mission profile pointer for phase Q/R wiring
-static const rc::MissionProfile* g_profile = nullptr;
 
 // Event logging callback (injected by main.cpp)
 static EskfEventLogFn g_logEventFn = nullptr;
@@ -520,9 +512,54 @@ static void eskf_tick_phase_and_confidence() {
     }
 }
 
-// ============================================================================
-// Main Tick
-// ============================================================================
+// One fused cycle (predict → updates → phase/conf → bench → publish).
+// Split out so `eskf_runner_tick` stays within pre-commit size limits.
+static void eskf_runner_fusion_cycle(const shared_sensor_data_t& snap) {
+#ifndef BUILD_FOR_FLIGHT
+#ifndef ROCKETCHIP_HOST_TEST
+    const uint32_t t_fusion = time_us_32();
+#endif
+#endif
+
+    eskf_run_predict(snap);
+
+    // P-growth check: catch slow divergence before velocity hits 500 m/s
+    if (!g_eskf.check_p_growth(time_us_32())) {
+        g_eskfInitialized = false;  // CR-1 reset
+        eskf_note_divergence();  // backoff (runaway-restart brake)
+        return;
+    }
+
+    eskf_tick_baro(snap);
+    eskf_tick_mag(snap);
+    eskf_tick_zupt(snap);
+    eskf_tick_gps(snap);
+    eskf_tick_mahony(snap);
+
+    eskf_tick_phase_and_confidence();
+
+#ifndef BUILD_FOR_FLIGHT
+#ifndef ROCKETCHIP_HOST_TEST
+    {
+        const uint32_t el = time_us_32() - t_fusion;
+        if (el < g_eskfBenchFullMin) { g_eskfBenchFullMin = el; }
+        if (el > g_eskfBenchFullMax) { g_eskfBenchFullMax = el; }
+        g_eskfBenchFullSum += el;
+        g_eskfBenchFullCount++;
+    }
+#endif
+#endif
+
+    g_eskfEpoch++;
+
+    // Publish SIG_SENSOR_DATA so downstream AOs react to new fusion state
+#ifndef ROCKETCHIP_HOST_TEST
+    rc::SensorDataEvt evt;
+    evt.super = QEVT_INITIALIZER(rc::SIG_SENSOR_DATA);
+    evt.eskf_epoch = g_eskfEpoch;
+    QActive_publish_(&evt.super, nullptr, 0U);
+#endif
+}
 
 void eskf_runner_tick() {
     if (!g_sensorPhaseActive) {
@@ -556,32 +593,7 @@ void eskf_runner_tick() {
         return;
     }
 
-    eskf_run_predict(snap);
-
-    // P-growth check: catch slow divergence before velocity hits 500 m/s
-    if (!g_eskf.check_p_growth(time_us_32())) {
-        g_eskfInitialized = false;  // CR-1 reset
-        eskf_note_divergence();  // backoff (runaway-restart brake)
-        return;
-    }
-
-    eskf_tick_baro(snap);
-    eskf_tick_mag(snap);
-    eskf_tick_zupt(snap);
-    eskf_tick_gps(snap);
-    eskf_tick_mahony(snap);
-
-    eskf_tick_phase_and_confidence();
-
-    g_eskfEpoch++;
-
-    // Publish SIG_SENSOR_DATA so downstream AOs react to new fusion state
-#ifndef ROCKETCHIP_HOST_TEST
-    rc::SensorDataEvt evt;
-    evt.super = QEVT_INITIALIZER(rc::SIG_SENSOR_DATA);
-    evt.eskf_epoch = g_eskfEpoch;
-    QActive_publish_(&evt.super, nullptr, 0U);
-#endif
+    eskf_runner_fusion_cycle(snap);
 }
 
 // ============================================================================
@@ -656,6 +668,18 @@ void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
     if (min_us != nullptr) { *min_us = g_eskfBenchMin; }
     if (max_us != nullptr) { *max_us = g_eskfBenchMax; }
     if (count != nullptr) { *count = g_eskfBenchCount; }
+}
+
+void eskf_runner_get_bench_full_tick(uint32_t* avg, uint32_t* min_us,
+                                    uint32_t* max_us, uint32_t* count) {
+    if (g_eskfBenchFullCount > 0 && avg != nullptr) {
+        *avg = g_eskfBenchFullSum / g_eskfBenchFullCount;
+    } else if (avg != nullptr) {
+        *avg = 0;
+    }
+    if (min_us != nullptr) { *min_us = g_eskfBenchFullMin; }
+    if (max_us != nullptr) { *max_us = g_eskfBenchFullMax; }
+    if (count != nullptr) { *count = g_eskfBenchFullCount; }
 }
 #endif
 

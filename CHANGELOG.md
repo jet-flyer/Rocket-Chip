@@ -20,6 +20,30 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-04-28-001 | Cursor | documentation, testing, council
+
+**Stage O gate traceability: HW runbook + standards audit (OPT-IVP-01/02/05).**
+
+Added `docs/baselines/stage_o_hw_verification_2026-04-28.md` with explicit commands for 5 min GDB soak (`soak_gdb.gdb`), station `station_bench_sim`, SPIN (Cygwin), and MPU notes. Added `standards/STANDARDS_AUDIT_2026-04-28.md` and linked it from `standards/STANDARDS_AUDIT.md`. Updated `docs/PROJECT_STATUS.md` Stage O table. Confirmed 786/786 `build_host` ctest; vehicle `bench_sim` green; station/SPIN/soak require local OpenOCD + hardware.
+
+Files: `docs/baselines/stage_o_hw_verification_2026-04-28.md`, `standards/STANDARDS_AUDIT_2026-04-28.md`, `standards/STANDARDS_AUDIT.md`, `docs/PROJECT_STATUS.md`
+
+### 2026-04-27-001 | Cursor agent | optimization, architecture, documentation
+
+**Stage O (OPT-IVP-02, OPT-IVP-05): Centralized global definitions + ESKF full-tick bench.**
+
+`src/shared_state.cpp` now defines the globals declared in `include/rocketchip/shared_state.h` (init flags, GPS function pointers, seqlock, atomics). `main.cpp` uses small `bind_gps_*_backend()` helpers to avoid three-way duplication of I2C/UART pointer wiring. `sensor_core1.h`, `cal_hooks.cpp`, and `rc_os_commands.cpp` include the shared header and drop redundant `extern` blocks. `eskf_runner` gains dev-only `eskf_runner_get_bench_full_tick()` (min/max/avg, predict through confidence) alongside the existing predict-only bench; CLI `s` + `docs/benchmarks/UD_BENCHMARK_RESULTS.md` document both. Removed stale `g_watchdogReboot` extern (recovery module removed; symbol was never defined).
+
+Files: `src/shared_state.cpp`, `src/main.cpp`, `src/core1/sensor_core1.h`, `src/calibration/cal_hooks.cpp`, `src/fusion/eskf_runner.{h,cpp}`, `src/cli/rc_os_commands.cpp`, `CMakeLists.txt`, `docs/benchmarks/UD_BENCHMARK_RESULTS.md`
+
+### 2026-04-26-002 | Grok via Cursor | refactor, optimization
+
+**Stage O (OPT-IVP-01): Extract shared fault protection module.**
+
+Moved duplicated MPU stack guard (`mpu_setup_stack_guard`, `kMpuGuardSizeBytes`), `memmanage_fault_handler()`, and `Q_onError()` to `safety/fault_protection.{h,cpp}`. Updated `src/main.cpp`, `src/core1/sensor_core1.cpp`, CMakeLists.txt, and includes. Eliminates ~80 LOC duplication while preserving exact behavior, stack-safety, and both-core MPU setup. No linter errors. Full gates passed (ctest, build, manual MPU verification).
+
+Files: `safety/fault_protection.h`, `safety/fault_protection.cpp`, `src/main.cpp`, `src/core1/sensor_core1.cpp`, `CMakeLists.txt`
+
 ### 2026-04-26-001 | Codex 5.3 via Cursor | bugfix, refactor
 
 **Startup init cleanup: avoid redundant second I2C bus init on healthy boots.**

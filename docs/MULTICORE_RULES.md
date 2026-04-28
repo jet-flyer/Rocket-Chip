@@ -1,7 +1,7 @@
 # RP2350 Platform Notes
 
 **Status:** Reference document
-**Last Updated:** 2026-02-03
+**Last Updated:** 2026-02-03 (MPU/fault: 2026-04-27)
 **Source:** Pico SDK source (`stdio_usb.c`), RP2350 datasheet, `pico/multicore.h`
 
 ---
@@ -176,6 +176,10 @@ void compute() {
     float matrix[64][64];  // 16KB on stack -- will overflow
 }
 ```
+
+### MPU stack guard and fault handlers (Stage O, OPT-IVP-01)
+
+**Single source:** [`src/safety/fault_protection.cpp`](../src/safety/fault_protection.cpp) (and header) — `mpu_setup_stack_guard()`, `memmanage_fault_handler`, `Q_onError`, shared MPU limit constant. **Core 0** installs this from `init_early_hw()`; **Core 1** calls the same guard setup at `core1_entry()` before the sensor loop. Do not fork duplicate handler bodies or guard sizes. Plan hardware gates: GDB stack-overflow exercise and expected fault/LED pattern; see `docs/PROJECT_STATUS.md` (Stage O verification table).
 
 ### Core 1 Stack
 

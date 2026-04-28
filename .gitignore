@@ -64,6 +64,19 @@ tmpclaude-*
 # Generated Graphviz SVGs (render from .dot sources)
 docs/audits/cla_rbm/dot/*.svg
 
+# SPIN model checker outputs (spin -a *.pml)
+tools/spin/pan.c
+tools/spin/pan.h
+tools/spin/pan.m
+tools/spin/pan.p
+tools/spin/pan.t
+tools/spin/pan.b
+tools/spin/pan.exe
+tools/spin/pan_station.exe
+tools/spin/pan_rfm.exe
+tools/spin/*_pp.pml
+tools/spin/*.trail
+
 # Bench sim auto-detect port cache (per-developer, not checked in)
 scripts/.bench_sim_last_port
 __pycache__/

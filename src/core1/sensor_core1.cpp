@@ -15,6 +15,7 @@
 
 #include "rocketchip/config.h"
 #include "rocketchip/sensor_seqlock.h"
+#include "safety/fault_protection.h"  // OPT-IVP-01: shared MPU stack guard (removes duplication)
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/multicore.h"
@@ -77,40 +78,8 @@ static constexpr float kGpsFlyingVelocityThreshold = 5.0F;      // m/s
 best_gps_fix_t g_bestGpsFix = {};
 std::atomic<bool> g_bestGpsValid{false};
 
-// ============================================================================
-// MPU Stack Guard (per-core, PMSAv8)
-// Each core has its own MPU. This is called from Core 1's entry point.
-// ============================================================================
-
-static constexpr uint32_t kMpuGuardSizeBytes = 64;
-
-// NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" uint32_t __StackOneBottom;  // Core 1 stack bottom (SCRATCH_X, linker-defined)
-
-static void mpu_setup_stack_guard(uint32_t stackBottom) {
-    mpu_hw->ctrl = 0;
-    __dsb();
-    __isb();
-
-    // NOLINTBEGIN(readability-magic-numbers) -- PMSAv8 MPU register bit fields per ARMv8-M Architecture Reference Manual
-    mpu_hw->rnr = 0;
-    mpu_hw->rbar = (stackBottom & ~0x1FU)
-                  | (0U << 3)   // SH: Non-shareable
-                  | (0U << 1)   // AP: Privileged no-access
-                  | (1U << 0);  // XN: Execute-never
-
-    mpu_hw->rlar = ((stackBottom + kMpuGuardSizeBytes - 1) & ~0x1FU)
-                  | (0U << 1)   // ATTRINDX: 0 (uses MAIR0 attr 0)
-                  | (1U << 0);  // EN: Enable region
-
-    mpu_hw->mair[0] = 0;
-
-    mpu_hw->ctrl = (1U << 2)   // PRIVDEFENA
-                 | (1U << 0);  // ENABLE
-    // NOLINTEND(readability-magic-numbers)
-    __dsb();
-    __isb();
-}
+// Fault protection and MPU stack guard now provided by safety/fault_protection.h
+// (OPT-IVP-01). core1_entry() calls the shared mpu_setup_stack_guard().
 
 // ============================================================================
 // Core 1: Sensor Read Helpers

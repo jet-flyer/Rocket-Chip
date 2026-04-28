@@ -31,7 +31,16 @@ The Cygwin-compiled `spin.exe` needs Cygwin's `gcc` for preprocessing. SPIN call
 
 **CRITICAL:** All SPIN commands MUST run via **Cygwin bash**, not Git Bash. SPIN is a Cygwin binary that calls `gcc` via the Cygwin environment. Git Bash cannot resolve the Cygwin gcc.
 
-All commands run from `tools/spin/` via Cygwin bash:
+**Recommended (full `rocketchip_ao` regression):** from Cygwin bash, repo root:
+
+```bash
+PATH="/c/tools/cygwin/bin:/c/tools/cygwin/usr/bin:$PATH" \
+  bash tools/spin/run_stage_o_ao_spin.sh
+```
+
+This generates `pan`, runs **11** LTLs on `rocketchip_ao.pml` (eight original safety + three fault/HealthMonitor claims; the last uses `./pan -a -f`), removes `.trail` files, and prints `SPIN_OK_ALL_11` if every `pan` run reports `errors: 0` (~tens of seconds; ~1.0 s per property on a typical dev PC). The script file must use **LF** line endings; CRLF breaks Cygwin `bash` (`cd: $'\r': No such file or directory`).
+
+**Minimal (8 safety properties, ~8 s):** from `tools/spin/` via Cygwin bash:
 
 ```bash
 # Generate verifier, compile, run all safety properties
@@ -49,7 +58,7 @@ done
 '
 ```
 
-Expected: `errors: 0` for all 8 properties. Runtime: ~0.3 seconds total.
+Expected: `errors: 0` for all 8 properties. Runtime: ~8 s total on a typical dev PC (≈1 s per property; model explores ~1.8M stored states per run).
 
 ## Models
 
@@ -60,8 +69,8 @@ Flight Director HSM only. Single process, non-deterministic environment. Verifie
 
 **Liveness verification requires weak fairness:** Run `./pan -a -f -N p_liveness_flight_completes`. The `-f` flag enables weak process fairness. Without bounded counters, weak fairness is insufficient for single-process liveness (it applies at process granularity, not branch granularity). With bounded counters, the counter increment is unconditional and the exit guard eventually becomes the only option, making liveness provable under weak fairness.
 
-### `rocketchip_ao.pml` (IVP-82b)
-Full Active Object topology. 5 processes: FlightDirector + Logger + Telemetry + LedEngine (+ implicit Environment via non-deterministic choice). 107,818 reachable states. Verifies 5 safety + 3 mission-critical properties.
+### `rocketchip_ao.pml` (IVP-82b, extended IVP-104+)
+Full Active Object topology. 5 processes: FlightDirector + Logger + Telemetry + LedEngine (+ implicit Environment via non-deterministic choice). **11** never claims: eight legacy safety (pyro, ordering, one-shot, publish ordering) plus three HealthMonitor/fault LTLs (`p_fault_blocks_arm`, `p_fault_latch_holds`, `p_armed_fault_safe_mode` — the last with `-f`). Use **`run_stage_o_ao_spin.sh`** for a full run; exhaustive depth stores on the order of **~1.8M** states per claim on current models.
 
 ### `rocketchip_station.pml` (IVP-147, Stage 16C)
 Station-side command delivery channel — the RX/ACK/retry protocol that neither vehicle model covers. Two processes: Station + Vehicle, with lossy bidirectional channels. Initial scaffolding scope: single command in flight (seq=1), no MAVLink parser modelling, no RadioScheduler TX-window arbitration. Verifies:
