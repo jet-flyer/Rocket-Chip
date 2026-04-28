@@ -18,7 +18,21 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 **Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
 
+**History vs drafting:** Prefer not to revise **older unrelated** dated entries (`### YYYY-MM-DD-NNN`) to fix mistakes—that belongs in **a newer entry** unless the change is a trivial typo. **Drafting:** it’s fine to **edit/refine the entry you’re composing in this commit** until it reads right before you ship it—that isn’t rewriting project history.
+
 ---
+
+### 2026-04-29-002 | Cursor | architecture, refactor, documentation, tooling, hardware
+
+**OPT‑IVP‑01/02/05 backlog — combined changes in `origin/main..f142901` (four commits).**
+
+`src/safety/fault_protection.{h,cpp}` (MPU guard, MemManage, `Q_onError`), `shared_state` + `main.cpp` / `sensor_core1` / calibration / CLI cleanup, `eskf_runner` fusion-cycle + bench updates, baseline/runbook/multicore/fault docs, `.claude/DEBUG_PROBE_NOTES.md`, SPIN helper + `scripts/start_openocd_pico_sdk.ps1` + dual-core GDB watch (Windows-safe delay); `.gitattributes` / `.gitignore` housekeeping. Ordinary IVP/session batch—not a milestone sign-off.
+
+**Policies / cleanup:** **`CHANGELOG.md` Format** (see above)—don’t refactor past dated sections for substantive fixes; drafts of the active entry stay editable.
+
+**Revert:** misplaced **Milestone item 19** (Stage O soak wording) struck from **`.claude/SESSION_CHECKLIST.md`** so that file stays **owner‑approved‑edits‑only** per **`PROTECTED_FILES.md`**; same material lives under **`docs/baselines/stage_o_hw_verification_2026-04-28.md`** and **`.claude/DEBUG_PROBE_NOTES.md`**.
+
+Files: `.claude/DEBUG_PROBE_NOTES.md`, `.claude/SESSION_CHECKLIST.md`, `.gitattributes`, `.gitignore`, `CHANGELOG.md`, `CMakeLists.txt`, `docs/baselines/stage_o_hw_verification_2026-04-28.md`, `docs/benchmarks/UD_BENCHMARK_RESULTS.md`, `docs/FAULT_INJECTION.md`, `docs/MULTICORE_RULES.md`, `docs/PROJECT_STATUS.md`, `include/rocketchip/shared_state.h`, `scripts/opt_ivp01_row10_dualcore_watch.gdb`, `scripts/start_openocd_pico_sdk.ps1`, `src/calibration/cal_hooks.cpp`, `src/cli/rc_os_commands.cpp`, `src/core1/sensor_core1.cpp`, `src/core1/sensor_core1.h`, `src/fusion/eskf_runner.cpp`, `src/fusion/eskf_runner.h`, `src/main.cpp`, `src/safety/fault_protection.cpp`, `src/safety/fault_protection.h`, `src/shared_state.cpp`, `standards/STANDARDS_AUDIT.md`, `standards/STANDARDS_AUDIT_2026-04-28.md`, `tools/spin/README.md`, `tools/spin/run_stage_o_ao_spin.sh`
 
 ### 2026-04-29-001 | Cursor | documentation, hardware
 
