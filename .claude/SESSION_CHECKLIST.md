@@ -47,7 +47,7 @@ Before committing and pushing:
    cmake --build build_station_flight/  # station flight (ROCKETCHIP_JOB_STATION=1, NOT_CERTIFIED_FOR_FLIGHT defaults OFF)
    ```
    Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION` / `kRadioModeRx` — a change that compiles on one role can silently break the other. If any build directory doesn't exist yet, create it with the appropriate `cmake -DROCKETCHIP_JOB_STATION=1 ..` (or add `-DNOT_CERTIFIED_FOR_FLIGHT=ON` for the dev/bench tier) flags (see `docs/BENCH_TEST_PROCEDURE.md`). When hardware-verifying, both the vehicle Feather and the Fruit Jam station should exercise the changed path before the session closes.
-9. **Commit with descriptive message** — Format: `[agent] brief description of what and why`
+9. **Commit with descriptive message** — Format: `[agent] brief description of what and why`. If a HW gate ran (bench_sim, ctest, soak, post-flash banner read), the message must cite the **observed positive-control signal**, not just the gate name. See `standards/HW_GATE_DISCIPLINE.md`. Pure-software changes are exempt — say so in the commit message ("Verified: pure-software change, host ctest 788/788, no HW reseat required").
 10. **Push to remote** — `git push` so work is not stranded locally
 
 ---
