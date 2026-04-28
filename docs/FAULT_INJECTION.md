@@ -129,6 +129,12 @@ These are compiled into the bench binary only. See `docs/audits/DEV_CODE_AUDIT.m
 | `inject_queue_flood.gdb` | Flood AO queues → verify QP assertion or graceful handling |
 | `inject_pio_sm_halt.gdb` | Disable PIO2 SMs → verify upper-layer detection (or document gap) |
 
+**Stage O / OPT‑IVP‑01 (outside `fault_injection/` — not destructive):**
+
+| Script | Scenario |
+|--------|----------|
+| `scripts/opt_ivp01_row10_dualcore_watch.gdb` | Passive dual-core sanity + **`SCB` fault registers** (`reset` → `load` → long free‑run → single halt). Intended to **disambiguate** periodic Tier‑1 `soak_gdb.gdb` halts vs real MPU/stack faults; see **`docs/MULTICORE_RULES.md` §MPU**. |
+
 ---
 
 ## PIO Backup Timer — Hardware Details

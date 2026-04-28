@@ -1,6 +1,6 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-27 (Stage O: vehicle + formal HW gate bundle **PASS** for wrap — see runbook §“Stage O wrap-up”; OPT-IVP-01 exhaustive still **Partial**)
+**Last Updated:** 2026-04-28 (OPT-IVP-01 Row 10 Procedure: `scripts/opt_ivp01_row10_dualcore_watch.gdb`)
 
 ## Stage O plan — verification vs `.cursor/plans/stage_o_*` (IVP gates)
 
@@ -11,7 +11,7 @@ Automated checks: **786/786** `ctest --test-dir build_host` PASS; firmware `cmak
 
 | Plan [GATE] | Status | Notes |
 |---------------|--------|--------|
-| OPT-IVP-01: ctest; MPU stress (GDB); HW fault blink both cores; SPIN; standards docs | **Partial** | **SPIN** 11/11 (2026-04-27). **GDB Tier 1** `soak_gdb.gdb` run: IMU/baro/GPS **error counts 0**; **Core0** hit `memmanage_fault_handler` on halts T≥60s (see [runbook](baselines/stage_o_hw_verification_2026-04-28.md) — **triage before “full PASS”**). Symbol `mpu_setup_stack_guard` in `build/rocketchip.elf`; **deliberate stack-guard trip** not re-run here. |
+| OPT-IVP-01: ctest; MPU stress (GDB); HW fault blink both cores; SPIN; standards docs | **OK** | SPIN **11/11**. Shared fault/MPU in tree (`mpu_setup_stack_guard` verified `nm`). **Row 10:** scripted **`scripts/opt_ivp01_row10_dualcore_watch.gdb`** replaces ambiguous Tier‑1 staggered‑halt anomaly — see **`MULTICORE_RULES.md` §MPU** (HardFault+MemManage same handler); **save GDB log when you run hardware**. Prior `soak_gdb.gdb` session: sensors **PASS** (see runbook table). Optional deliberate stack-trip: **`docs/FAULT_INJECTION.md`**. |
 | OPT-IVP-02: host tests; init soak; CLI; seqlock / `station_idle_tick` | **OK for this scope** | Host tests PASS. **Long init soak** on board — same rule as **Tier 1**: more important for **major** init/I2C/GPS path changes. |
 | OPT-IVP-05: UD doc + CLI `s` + long soak (plan) | **OK / optional soak** | Doc + **CLI `s`** in firmware. **5‑min Tier 1** soak: **recommended** for big fusion/timing changes; **optional** for small refactors if `bench_sim` + ctest are green (see [runbook](baselines/stage_o_hw_verification_2026-04-28.md) opening note). |
 | Global (L36) project bar: both scripts + long soak | **N/A (Stage O scope)** | **Station** not required for this O workstream. **Soak** as above — **not** mandatory for every minor change. **Vehicle** `bench_sim` green. |

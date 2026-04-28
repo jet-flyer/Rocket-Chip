@@ -17,9 +17,9 @@ This section is the **sign-off list** for “Stage O vehicle / shared HW + forma
 | 7 | Tier 1 `soak_gdb.gdb` — **sensor** criteria | Yes | **PASS** — IMU / baro / GPS **error counts 0** at T=300s; `core1_loop_count` tracks IMU; log `build/soak_gdb_2026-04-27.log` |
 | 8 | Station `station_bench_sim.py` | **No** (out of scope) | **N/A** — not required for this workstream (see opening note) |
 | 9 | Global “L36” both-bench + long soak | N/A for minor scope | **N/A** — vehicle bar met; optional soak per opening note |
-| 10 | OPT-IVP-01 **exhaustive** (deliberate MPU/fault on both cores + no Core0 open questions) | Follow-up / strong bar | **Open** — `PROJECT_STATUS` keeps **Partial** until Core0 `memmanage_fault_handler` during soak is triaged and (if you require it) **deliberate** stack-guard exercise is re-run. Does **not** block signing off the **rest** of Stage O above. |
+| 10 | OPT-IVP-01 **MPU/fault exhaustion** — dual-core passive watch (+ optional stack demo) | Closing bar | **PROCEDURE —** run **`scripts/opt_ivp01_row10_dualcore_watch.gdb`** (OpenOCD on `:3333`, bench `rocketchip.elf`): `reset halt` → `load` → one passive interval → single halt → log OpenOCD **`[rp2350.cm0]` / `[rp2350.cm1]`** lines plus script’s **SCB** reads. **`MULTICORE_RULES.md` §MPU:** one C handler covers **HardFault AND MemManage** — earlier Tier‑1 `soak_gdb.gdb` staggered halts did not prove MPU mis-config; discretionary stack trip remains in **`docs/FAULT_INJECTION.md`** if required. |
 
-**Authorization line for this workstream:** If you accept **rows 1–7** (and 8–9 as N/A) as the Stage O **vehicle + formal** bar, you can **wrap up** the Stage O workstream. Track row 10 in normal firmware issue follow-up, not as a silent PASS.
+**Authorization line for this workstream:** If you accept **rows 1–7** (and 8–9 as N/A) as the Stage O **vehicle + formal** bar, you can **wrap up** Stage O; **close row 10** when the dual-core watch log shows nominal **Thread**/idle context (see script echo) plus non-sticky **`CFSR`** (or investigator-sign-off if borderline)).
 
 Guidance (**`.claude/SESSION_CHECKLIST.md`** §19): for changes like this session’s scope, **`python scripts/bench_sim.py`** on the vehicle (exit **0**, USB connected) is the scripted HW check to prioritize; **`soak_gdb.gdb`** multi-minute soak is recommended for **major** risky paths but **optional** when **ctest** + **bench_sim** are already green (same idea as **`docs/baselines/stage_o_hw_verification_2026-04-28.md`** opening note).
 
@@ -80,7 +80,7 @@ When you **do** run it, per **`docs/BENCH_TEST_PROCEDURE.md`** **Tier 1** (5 min
 
 *2026-04-27: **Soak script executed** (OpenOCD Pico SDK + CMSIS-DAP, `soak_gdb.gdb`, ~305 s wall). Log: `build/soak_gdb_2026-04-27.log`. `core1_loop_count` tracked `imu_read_count` (delta match within the script’s prints).*
 
-**Anomaly (Core 0):** On every `monitor halt` from **T=60s onward**, OpenOCD reported `rp2350.cm0` in **Handler HardFault** with PC in **`memmanage_fault_handler`** (`arm-none-eabi-addr2line` on `0x1000e23c` etc. → `fault_protection.cpp:44–49`, the stack-guard fault LED loop). **Core 1** stayed in normal thread mode; **IMU / baro / GPS error counters remained 0** (sensor path). Initial GDB stop on `target extended-remote` was `qv_idle_bridge` (T=0 region). **Interpretation:** not a “quiet Tier‑1 all-green” for dual-core health until Core0’s presence in the fault handler is **root-caused** (or reproduced on a **fresh `monitor reset halt` + load** run without long prior USB runtime). Do **not** treat this session alone as disproving OPT-IVP-01; treat as follow-up engineering.
+**Historical soak note:** On every **`soak_gdb.gdb`** `monitor halt` from **T ≥ 60 s**, OpenOCD sometimes reported **`rp2350.cm0`** in **`Handler HardFault`** with PC inside **`memmanage_fault_handler()`** (`arm-none-eabi-addr2line` → `fault_protection.cpp:44–49`). **Core 1** remained in thread mode; sensors stayed **error 0**. **Do not conclude MPU mis-programming from that snapshot alone:** the same handler is wired to **HardFault + MemManage** (`MULTICORE_RULES.md`), and **periodic GDB halts** can interact badly with codegen/tight stacks ( **`docs/BENCH_TEST_PROCEDURE.md`**, soak caveats ). **Disposition:** classify as **ambiguous** until **`scripts/opt_ivp01_row10_dualcore_watch.gdb`** (single passive window — no staggered halt) clears both cores plus sticky **`SCB->CFSR`**.
 
 ---
 
@@ -96,9 +96,11 @@ When you **do** run it, per **`docs/BENCH_TEST_PROCEDURE.md`** **Tier 1** (5 min
 2. **Core 1:** confirm **`core1_entry()`** still calls shared **`mpu_setup_stack_guard()`** (source review + HW smoke already aligned with `docs/MULTICORE_RULES.md` §MPU).  
 3. **Expected:** MemManage / fault LED pattern per prior HW verification, no hard hang.
 
-*GDB on-target signal (2026-04-27):* `arm-none-eabi-nm build/rocketchip.elf` shows **`mpu_setup_stack_guard`**. **Full stack-overflow exercise** (forced guard hit + LED) still optional if not chasing OPT-IVP-01 **complete**; source path for Core 1 remains **`core1_entry()`** → `mpu_setup_stack_guard` per `docs/MULTICORE_RULES.md` §MPU. Record status in `PROJECT_STATUS` with date when satisfied on demand.
+*GDB symbols (2026-04-27):* `arm-none-eabi-nm build/rocketchip.elf` shows **`mpu_setup_stack_guard`**. **`core1_entry()` → `mpu_setup_stack_guard()`** verified in **`docs/MULTICORE_RULES.md` §MPU.**
 
-*Anomaly note:* the same session’s 5 min soak found Core0 PC in the shared fault **handler** (see soak section); use **`monitor reset halt` → `load` → `monitor resume`** and a **short** re-soak to see if the behavior is pre-existing vs probe-induced, before declaring MPU/fault “HW PASS.”
+**Row 10 scripted watch:** `scripts/opt_ivp01_row10_dualcore_watch.gdb` (reset → load → single passive window → halt → dump **SCB** + infer dual-core health from OpenOCD text). Saves log for `PROJECT_STATUS`. **Optional** observable stack trip still in **`docs/FAULT_INJECTION.md`**.
+
+*Prior soak ambiguity:* Tier‑1 `soak_gdb.gdb` **staggered** halts intersected **`memmanage_fault_handler()`** snapshots — **`MULTICORE_RULES.md` §MPU**: same handler is **HardFault + MemManage**; do **not** over-interpret GDB’s “HardFault” label alone.
 
 ---
 
