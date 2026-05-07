@@ -139,6 +139,27 @@ Full details of scripted vs manual work items are in `AUDIT_CLEANUP_2026-05-06.m
 
 ---
 
+## Hardware Validation Scripts – Usage Classification
+
+**Regular / Periodic Use** (run frequently — pre-flight, milestone, or integration):
+- `soak_test.py` — General passive soak (watchdog, queues, error counts, MSP depth)
+- `i2c_soak_test.py` — Focused I2C/sensor error monitoring (IMU, baro, GPS)
+- `bench_sim.py` + `station_bench_sim.py` — End-to-end flight director + CLI path test
+- `replay_gate_test.py` — Replay-based gate validation
+- `cli_test.py` — Non-destructive CLI command tests
+
+**Specialized / Feature-specific** (run when the relevant subsystem changes):
+- `eskf_gps_soak.py` — ESKF + GPS fusion validation (indoor/outdoor/walk modes)
+- `accel_cal_6pos.py` — 6-position accelerometer calibration
+
+**One-off / Retired** (Stage T specific, experiment-specific, or no longer maintained):
+- All `stage_t_*` scripts
+- `ack_stress_test.py`, `codegen_soak_test.py`, most `generate_*` scripts
+
+New scripted audit tools will only enforce rules already present in `CODING_STANDARDS.md`, `HW_GATE_DISCIPLINE.md`, and platform constraints. No new rules will be invented without explicit council approval.
+
+---
+
 ## File Location Policy & Consolidation
 
 - Master procedure + `STANDARDS_AUDIT.md` template → `standards/`

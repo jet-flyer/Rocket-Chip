@@ -167,3 +167,10 @@ echo ""
 echo "Total: ${TOTAL_WARNINGS} clang-tidy warnings across ${#PRODUCTION_FILES[@]} files"
 echo "Summary: ${SUMMARY_FILE}"
 printf "\nTotal: %d warnings\n" "${TOTAL_WARNINGS}" >> "${SUMMARY_FILE}"
+
+# === Final Verdict (positive-control for master audit) ===
+if [[ $TOTAL_WARNINGS -eq 0 ]]; then
+    echo "VERDICT: PASS — clang-tidy: 0 warnings across ${#PRODUCTION_FILES[@]} files"
+else
+    echo "VERDICT: FAIL — clang-tidy: ${TOTAL_WARNINGS} warnings across ${#PRODUCTION_FILES[@]} files"
+fi
