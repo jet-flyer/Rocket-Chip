@@ -22,6 +22,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-07-001 | Grok 4.3 | tooling, documentation
+
+**Category 2 audit scripts + master guidance updates.** Added five new scripted audit tools with self-verification modes and positive-control verdicts: `analyze_stack_usage.sh`, `run_cppcheck.sh`, `verify_build_parity.sh`, `generate_coverage_report.sh`, and `enhanced_fault_injection.py`. Created `scripts/README.md` with Required Tools section. Updated `AUDIT_GUIDANCE.md` with Hardware Validation Scripts classification and external references. Minor hardening of `run_clang_tidy.sh` for positive-control output.
+
+Verified: pure-software change, host ctest 788/788 PASS, no HW reseat required.
+
+Files: `scripts/`, `standards/AUDIT_GUIDANCE.md`, `scripts/run_clang_tidy.sh`, `CHANGELOG.md`
+
 ### 2026-04-27-007 | Claude | documentation, refactor
 
 **`.claude/SESSION_CHECKLIST.md` restructured: four-scope hierarchy + Trigger-Driven Documentation Edits.** Surfaced by user observation that the previous structure conflated multiple events — "Session End (Normal Completion)" mixed per-commit hygiene (verification, message format, no-orphans) with per-push gates (CHANGELOG, WB cleanup, build parity), and the absence of an explicit COMMIT layer meant "ready to push" got read as "ready to end the session." Triggered-driven doc edits (CHANGELOG, WB, PROJECT_STATUS, drift checks) were inline as cadence rules rather than as content-driven triggers, which is how they actually work.
