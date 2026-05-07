@@ -230,6 +230,7 @@ Document the GPS-absent decision in the flight report.
 - `docs/FAULT_INJECTION.md` — GDB-based fault injection (bench only)
 - `docs/mission_profiles/` — mission profile reference
 - `docs/airframe/big_daddy_integration.md` — airframe build notes (IVP-135)
+- `standards/AUDIT_GUIDANCE.md` — master audit procedure (pre-flight is Step 3)
 
 ---
 

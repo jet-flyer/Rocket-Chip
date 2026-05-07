@@ -154,6 +154,7 @@ Protected docs come in two kinds with different edit rules.
 | `.claude/AK_GUIDELINES.md` | Behavioral guideline changes. |
 | `.claude/PROTECTED_FILES.md` | Protection list changes (file added or removed from protection). |
 | `.claude/SESSION_CHECKLIST.md` | A checklist item changes, the structure changes, or the trigger map gains/loses a doc. |
+| `standards/AUDIT_GUIDANCE.md` | Master audit strategy, scope table, or file-location policy changes. |
 | `README.md` | "Read First" / "Each Session" lists change. Key rules change. |
 | `docs/PROJECT_STATUS.md` | Phase changes, new blocker discovered, blocker resolved, next-action changes. **Not** triggered by routine work commits within a stage. |
 | `AGENT_WHITEBOARD.md` | Active state changes — new flag/issue surfaced, row resolved (erase per the IRL-whiteboard rule), or row's status materially changes. **Not** triggered by routine work. |

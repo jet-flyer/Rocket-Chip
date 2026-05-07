@@ -4,8 +4,8 @@
 
 **Previous audits:**
 
-- [STANDARDS_AUDIT_2026-02-07.md](STANDARDS_AUDIT_2026-02-07.md) — Phase 1-3 (P10, flow control, portable code, platform, C++, functions, style, JPL C)
-- [STANDARDS_AUDIT_2026-03-26.md](STANDARDS_AUDIT_2026-03-26.md) — clang-tidy / lizard tiered pass (post-Stage 8)
+- [STANDARDS_AUDIT_2026-02-07.md](../docs/audits/STANDARDS_AUDIT_2026-02-07.md) — Phase 1-3 (P10, flow control, portable code, platform, C++, functions, style, JPL C)
+- [STANDARDS_AUDIT_2026-03-26.md](../docs/audits/STANDARDS_AUDIT_2026-03-26.md) — clang-tidy / lizard tiered pass (post-Stage 8)
 
 ---
 
