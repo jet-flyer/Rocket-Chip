@@ -99,7 +99,7 @@ Inherits all Session End rules. Adds the rules below — these run **only** when
 
 16. **Consider `LESSONS_LEARNED.md`.** If significant debugging occurred during the stage, document it. This is trigger-driven (significant content) not cadence-driven, so most stage closes won't add an entry; some will.
 
-17. **Full-tree clang-tidy sweep.** The pre-commit hook only gates staged files, so latent JSF AV Rule 1 violations (function size > 60 lines) can accumulate in files that aren't touched stage-by-stage. At milestone/stage close, run the same checks the hook runs against EVERY `src/**/*.cpp` not on the exemption list (exemptions: `src/cli/**`, `src/dev/**`, `eskf_codegen.cpp`). Zero warnings required for milestone closure — any new violations must be decomposed or logged as an accepted deviation in `standards/STANDARDS_DEVIATIONS.md` before the stage can close. Pattern (Git Bash, adjust toolchain path if needed):
+17. **Full-tree clang-tidy sweep.** The pre-commit hook only gates staged files, so latent JSF AV Rule 1 violations (function size > 60 lines) can accumulate in files that aren't touched stage-by-stage. At milestone/stage close, run the same checks the hook runs against EVERY `src/**/*.cpp` not on the exemption list (exemptions: `src/cli/**`, `src/dev/**`, `eskf_codegen.cpp`). Zero warnings required for milestone closure — any new violations must be decomposed or logged as an accepted deviation in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` before the stage can close. Pattern (Git Bash, adjust toolchain path if needed):
 
         for f in $(git ls-files 'src/*.cpp' | grep -v 'src/cli/' | grep -v 'src/dev/' | grep -v eskf_codegen.cpp); do
           "C:/Program Files/LLVM/bin/clang-tidy.exe" "$f" -p build/ \
@@ -145,8 +145,8 @@ Protected docs come in two kinds with different edit rules.
 | `docs/SCAFFOLDING.md` | Directory structure changes (file/folder added/deleted/renamed/moved). Pure file-content edits don't trigger an edit here. |
 | `docs/AO_ARCHITECTURE.md` | The AO inventory or its facts (rate, priority, queue depth, sub/pub list) change. Internal AO logic refactors don't count. |
 | `docs/MULTICORE_RULES.md` | A multi-core rule changes (new lesson learned, new SDK behavior, new fault pattern). Code that *applies* an existing rule doesn't trigger an update. |
-| `standards/CODING_STANDARDS.md` | A standard or classification changes. New file added to the file-classification table. New deviation added/resolved (with back-reference to `STANDARDS_DEVIATIONS.md`). |
-| `standards/STANDARDS_DEVIATIONS.md` (Active section only) | New active deviation added. Existing deviation's severity / scope / location changes. (Resolved section is historical-record — see below.) |
+| `standards/CODING_STANDARDS.md` | A standard or classification changes. New file added to the file-classification table. New deviation added/resolved (with back-reference to `ACCEPTED_STANDARDS_DEVIATIONS.md`). |
+| `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` (Active section only) | New active deviation added (post user-acceptance). Existing deviation's severity / scope / location changes. (Resolved section is historical-record — see below.) |
 | `standards/RP2350_ERRATA.md` | New erratum encountered. Existing erratum's status (workaround applied / gap / verified) changes. |
 | `standards/HW_GATE_DISCIPLINE.md` | A rule changes. New gate type covered. |
 | `COUNCIL_PROCESS.md` | Council protocol changes (new persona, retired persona, process change). |
@@ -169,7 +169,7 @@ Protected docs come in two kinds with different edit rules.
 | `docs/baselines/*` | Each baseline is a frozen snapshot. New baselines are new directories/files. |
 | `CHANGELOG.md` | Append-only historical event log. The current entry being drafted in this commit is state-of-system until it ships; after commit, frozen. |
 | `.claude/LESSONS_LEARNED.md` | Append-only. Each entry is historical. Existing entries get edits only for typo-correction or for explicit supersession headers (e.g., the LL Entry 25 "SUPERSEDED 2026-04-22" header is legitimate because it adds context to the historical record without rewriting it). |
-| `standards/STANDARDS_DEVIATIONS.md` (Resolved section only) | Historical record once a deviation is marked Resolved. The Active section above is state-of-system. |
+| `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` (Resolved section only) | Historical record once a deviation is marked Resolved. The Active section above is state-of-system. |
 
 #### Mixed-mode docs
 

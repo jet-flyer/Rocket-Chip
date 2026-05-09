@@ -49,7 +49,7 @@
 **Relationship to other documents:**
 
 - `CODING_STANDARDS.md` — Defines our rules. This document checks compliance.
-- `STANDARDS_DEVIATIONS.md` — Accepted deviations are logged there, referenced here.
+- `ACCEPTED_STANDARDS_DEVIATIONS.md` — Accepted deviations are logged there, referenced here.
 - `LESSONS_LEARNED.md` — Debugging knowledge that informed our platform rules.
 
 ---

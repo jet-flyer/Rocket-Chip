@@ -981,7 +981,7 @@ static bool lm_compute_step(const float* params, float* newParams,
     return true;
 }
 
-// See STANDARDS_DEVIATIONS.md FP-1.
+// See ACCEPTED_STANDARDS_DEVIATIONS.md FP-1.
 static void lm_solve(float* params, float* bestParams, float* bestFitness,
                      uint8_t numParams, uint16_t numSamples, uint8_t maxIter,
                      ResidualFn residualFn, JacobianFn jacobianFn) {

@@ -113,7 +113,7 @@ are listed for attribution and academic citation, not license obligation.
   patterns (AP_InertialSensor_Invensensev2 bypass mode), and tuning parameters
   (GPS noise, bias process noise). No ArduPilot source code is included in
   this repository. Specific algorithmic deviations from ArduPilot are documented
-  in `standards/STANDARDS_DEVIATIONS.md` (entries AP-1 through AP-4).
+  in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` (entries AP-1 through AP-4).
 
 ### I2C Bus Recovery
 

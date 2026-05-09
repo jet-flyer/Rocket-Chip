@@ -51,7 +51,7 @@ struct MissionProfile {
     // ⚠️  ALL values below are PRELIMINARY — sourced from ArduPilot patterns
     // and engineering estimates. Must be validated with real flight data
     // before any flight that depends on automatic detection.
-    // See STANDARDS_DEVIATIONS.md if deploying unvalidated.
+    // See ACCEPTED_STANDARDS_DEVIATIONS.md if deploying unvalidated.
     float launch_accel_threshold;       // Body-Z accel for launch detect (m/s^2)
     uint32_t launch_sustain_ms;         // Sustain time for launch accel
 

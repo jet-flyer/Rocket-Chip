@@ -155,7 +155,7 @@ see `standards/RP2350_ERRATA.md`.
 
 ### Exceptions and Deviations
 
-Approved deviations from coding standards are tracked in `standards/STANDARDS_DEVIATIONS.md`. Compliance audit results are tracked in `standards/STANDARDS_AUDIT.md`.
+Approved deviations from coding standards are tracked in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`. Compliance audit results are tracked in `standards/STANDARDS_AUDIT.md`.
 
 ---
 
@@ -325,7 +325,7 @@ All code changes must pass the verification checklist before merge to main.
    - [ ] No dynamic allocation after initialization (JSF AV Rule 206) for production code
    - [ ] Fixed-width types used (JSF AV Rule 209): `uint32_t`, `int16_t`, not `int`, `long`
    - [ ] No exceptions, RTTI disabled for embedded targets
-   - [ ] If deviation required, documented in `standards/STANDARDS_DEVIATIONS.md`
+   - [ ] If deviation required, documented in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`
 
 3. **DEBUG_OUTPUT.md Compliance** (for code with serial output)
    - [ ] USB CDC wait pattern followed (visual feedback, settle time)
@@ -345,7 +345,7 @@ All code changes must pass the verification checklist before merge to main.
 
 ### Deviations Tracking
 
-All standards deviations must be logged in `standards/STANDARDS_DEVIATIONS.md` with:
+All standards deviations must be logged in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` with:
 - Location (file:line)
 - Standard violated
 - Severity level (Critical/High/Medium/Low/Accepted)
@@ -353,4 +353,4 @@ All standards deviations must be logged in `standards/STANDARDS_DEVIATIONS.md` w
 - Rationale for deviation
 - Remediation plan (if applicable)
 
-See `standards/STANDARDS_DEVIATIONS.md` for current deviation log and review schedule.
+See `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` for current deviation log and review schedule.

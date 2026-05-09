@@ -1,8 +1,12 @@
-# Standards Deviations Log
+# Accepted Standards Deviations Log
 
-**Purpose**: Track deviations from project coding standards (JSF AV C++, DEBUG_OUTPUT.md, CODING_STANDARDS.md) with severity, remediation difficulty, and rationale.
+**Purpose**: Track deviations from project coding standards (JSF AV C++, DEBUG_OUTPUT.md, CODING_STANDARDS.md) that have been **explicitly accepted** with documented user-signed rationale. Every row in this file represents a deviation that was reviewed and approved as a permanent or long-lived exception, not a fresh audit finding awaiting decision.
 
-**Last Updated**: 2026-02-21 (CG-1 updated: 24-state codegen FPFT function size)
+**A new audit finding does NOT land here automatically.** Findings live in the dated audit report under `docs/audits/`. A finding migrates to this file only after the user explicitly signs off on accepting it as a permanent deviation. See `standards/AUDIT_GUIDANCE.md` Step 8 for the full disposition flow.
+
+**Renamed 2026-05-07** from `STANDARDS_DEVIATIONS.md` to `ACCEPTED_STANDARDS_DEVIATIONS.md` to make the file's purpose unambiguous.
+
+**Last Updated**: 2026-05-07 (rename + clarified purpose)
 
 ---
 

@@ -55,7 +55,7 @@ Run the full procedure only at milestone / stage close. For all other triggers, 
    Verify state machine, ESKF outputs, pyro commands, telemetry fields, safety flags have traceable requirements. Lightweight markdown table or script output.
 
 8. **Remediation & Historical Logging**  
-   Record new deviations in `STANDARDS_DEVIATIONS.md`. Append fixes to `AUDIT_REMEDIATION.md`. Update this document only for strategy changes (state-of-system trigger).
+   Record user-accepted deviations in `ACCEPTED_STANDARDS_DEVIATIONS.md`. Append fixes to the dated audit report's `## Remediation` section (per-audit, self-contained — see file-location policy below). Update this document only for strategy changes (state-of-system trigger).
 
 ---
 

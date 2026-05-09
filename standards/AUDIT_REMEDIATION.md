@@ -1,6 +1,8 @@
-# Audit Remediation Log
+# Audit Remediation Log (LEGACY)
 
-**Purpose:** Track remediation from standards audit findings.
+**Legacy:** Per-audit remediation has moved into each dated audit report's `## Remediation` section starting 2026-05-07. This file remains as the historical remediation log for the 2026-02-07 standards audit. **No further updates.** New audits embed their remediation log directly in the dated report under `docs/audits/MASTER_STANDARDS_AUDIT_YYYY-MM-DD.md`.
+
+**Purpose (historical):** Track remediation from standards audit findings.
 **Source:** `standards/STANDARDS_AUDIT_2026-02-07.md` (44 PARTIAL/FAIL findings)
 **Status:** All tiers complete and build-verified (2026-02-07). Clang-tidy remediation: all production code fixed (2026-02-09).
 
@@ -57,7 +59,7 @@ All IVP test functions, constants, and state variables removed from `main.cpp` a
 
 ## GPS snprintf Mitigation (Fix C17 detail)
 
-Bounded `snprintf` calls for NMEA/PMTK command formatting. Documented MISRA deviation (IO-2 in `STANDARDS_DEVIATIONS.md`). All calls use `sizeof()` bounds.
+Bounded `snprintf` calls for NMEA/PMTK command formatting. Documented MISRA deviation (IO-2 in `ACCEPTED_STANDARDS_DEVIATIONS.md`). All calls use `sizeof()` bounds.
 
 | File | Count | Purpose |
 |------|-------|---------|

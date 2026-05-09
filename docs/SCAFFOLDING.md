@@ -79,7 +79,7 @@ rocketchip/
 │   ├── STANDARDS_AUDIT_2026-02-07.md  # Manual audit (249 rules, 90% compliant)
 │   ├── STANDARDS_AUDIT_2026-03-26.md  # Tiered audit (Stage 8, 40 files, remediated)
 │   ├── AUDIT_REMEDIATION.md       # Line-level fix tracking
-│   ├── STANDARDS_DEVIATIONS.md    # Accepted deviation log
+│   ├── ACCEPTED_STANDARDS_DEVIATIONS.md  # User-accepted deviation log (renamed 2026-05-07)
 │   └── protocols/
 │       └── SPACEWIRE_LITE.md      # SpaceWire-Lite (aspirational)
 │
