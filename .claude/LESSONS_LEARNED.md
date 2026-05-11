@@ -1271,3 +1271,56 @@ rotted soft gate.
   pattern — picotool was preferred until its silent corruption was discovered)
 - LL Entry 27: "Codegen Sensitivity" Was Picotool Bus Corruption All Along
   (another case where a hypothesis was built on flawed test methodology)
+
+---
+
+## Entry 37: JSF AV Rule 170 Misreading — Verify Rule Wording Against Primary Source Before Citing
+
+**Date:** 2026-05-07
+**Context:** Phase A.2 of the 2026-05-07 master standards audit (renaming `STANDARDS_DEVIATIONS.md` → `ACCEPTED_STANDARDS_DEVIATIONS.md` and re-evaluating every accepted-deviation row).
+**Severity:** Medium-process — drove unnecessary architectural rationale in multiple state-of-system docs and a "deviation" entry that was never a deviation.
+
+### Problem
+
+The deviations log contained row FP-1 stating "JSF AV Rule 170 prohibits function pointers." This framing proliferated to source-code comments, a header file, a decision document, the project-status doc, and an IVP entry — six locations in total — and was used as the architectural rationale for "no function pointer vtable" in the notification backend.
+
+When the user prompted me to "re-read the JSF rules — that's not how that rule is worded," I checked the primary source (Stroustrup's PDF mirror of the JSF AV Coding Standards). Findings:
+
+- **Rule 170 actual wording:** *"More than 2 levels of pointer indirection shall not be used."* About `T**` vs `T***`, not function pointers.
+- **Rule 176 actual wording:** *"A typedef will be used to simplify program syntax when declaring function pointers."* Requires typedef-declared function pointers, which our code already does (`using ResidualFn = float (*)(...)`, etc.).
+
+Function pointers are not prohibited by JSF AV. Our calibration `lm_solve()` is fully compliant. The earlier `docs/audits/STANDARDS_AUDIT_2026-02-07.md` already had the correct reading. Somewhere between then and the FP-1 row creation, the wrong reading entered the project and propagated.
+
+### Root Cause
+
+When the FP-1 row was first created, the cited rule's wording was not verified against the JSF primary source. The wrong reading was then quoted into source code comments and decision-doc rationale as authoritative. Once embedded in multiple docs, it became self-reinforcing — future readers (including future me) would see "JSF Rule 170 prohibits function pointers" cited as established fact.
+
+### Solution
+
+Phase A.2 + R-6 cleanup commit removed the false proliferation:
+
+1. FP-1 row deleted from `ACCEPTED_STANDARDS_DEVIATIONS.md` — was never a deviation.
+2. `src/calibration/calibration_manager.cpp` comments corrected to cite Rule 176 (typedef requirement) which we comply with.
+3. `include/rocketchip/notify_backend.h` reframed "no vtable" as an engineering choice (compile-time dispatch), removing the false standards-compliance framing.
+4. `docs/PROJECT_STATUS.md` Stage 14 entry corrected inline (state-of-system).
+5. `docs/decisions/NOTIFY_CONTRACT.md` got a top-of-file supersession correction note; body unedited per historical-record convention.
+6. `docs/IVP.md` IVP-113 entry left as-is — historical record, covered by the NOTIFY_CONTRACT.md supersession chain.
+7. `CHANGELOG.md` and `docs/audits/STANDARDS_AUDIT_2026-02-07.md` left as-is — historical, and the 2026-02-07 audit already had the correct reading.
+
+### Prevention
+
+**Verify rule wording against primary source before citing.** Primary sources to consult:
+
+- JSF AV C++: https://www.stroustrup.com/JSF-AV-rules.pdf (Stroustrup's mirror — the authoritative public copy)
+- NASA/JPL Power of 10: https://spinroot.com/gerard/pdf/P10.pdf (Holzmann's original paper)
+- NASA Software Engineering Handbook: https://swehb.nasa.gov/ (public NASA guidance)
+- MISRA-C 2012 / JPL C: see references in `standards/CODING_STANDARDS.md`
+
+Quote the exact rule wording when citing — don't paraphrase, don't trust an existing citation in our own docs without checking it against the primary source.
+
+If a rule citation will drive an architectural choice or appear in multiple docs, this verification is mandatory. The cost of verification is minutes; the cost of an embedded misreading is hours of cleanup spread across the codebase. This entry exists as a procedural defense against the same pattern recurring with a different rule.
+
+### Related
+
+- Phase A.2 commit: `bf9d393` (deviations re-evaluation + preliminary remediation queue)
+- R-6 cleanup commit (this commit) — false-proliferation correction

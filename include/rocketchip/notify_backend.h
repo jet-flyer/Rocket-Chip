@@ -3,7 +3,11 @@
 //============================================================================
 // Notification Backend Interface (Stage 14, IVP-115)
 //
-// Direct function calls — no function pointer vtable (JSF AV Rule 170).
+// Direct function calls — no function pointer vtable. Engineering choice
+// for compile-time dispatch (zero runtime indirection, smaller binary,
+// easier static analysis). Not a standards-compliance constraint; function
+// pointers are not prohibited by JSF (Rule 176 requires typedef-declared
+// function pointers, which would also be acceptable).
 // Each backend is a free function that receives the resolved NotifyState
 // and updates its hardware output.
 //

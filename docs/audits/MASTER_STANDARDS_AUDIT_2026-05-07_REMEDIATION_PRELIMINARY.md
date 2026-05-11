@@ -19,6 +19,7 @@
 **Recommended remediation:** Add a max-iteration count (e.g., 1000 iterations × 10 ms = 10 s max boot wait — far above the realistic Core 0 boot sequence ≤1 s). If exceeded, halt with a fault that flows through the same FAULT-health-state mechanism used elsewhere (see R-3/R-4 for the broader fault-handler remediation that this should integrate with). Static analyzer can then prove the bound.
 **Estimated effort:** Small — ~10 lines, single function.
 **Dependency:** Best done after R-3/R-4 lands (so the bounded-loop fault path can reuse the new capture-state-then-reset machinery instead of re-inventing a halt pattern).
+**SPIN coverage note (user-flagged 2026-05-07):** The cross-core handshake (Core 0 setting `g_startSensorPhase` before Core 1's bounded wait expires) is exactly the kind of liveness property SPIN was designed for. Our current SPIN models cover the flight-director state machine but not the boot sequence. Consider extending SPIN coverage in a follow-up: model Core 0 + Core 1 as two processes with `g_startSensorPhase` as a shared atomic, verify the liveness property "Core 1 eventually proceeds OR Core 0 never reaches `start_sensor_phase()`." Out of scope for the R-1 code fix itself, but a clean addition to the Phase 6 (Formal Verification + Simulation Coverage) step of the master audit when it runs.
 
 ---
 
@@ -47,7 +48,7 @@
 
 This uses the existing safe-mode / FAULT-health pivot — no new fault state needed; just wires the capture-then-reset path into the path that already exists.
 
-**Estimated effort:** Moderate — ~50–100 lines in `fault_protection.cpp` + small boot-banner code change in `main.cpp`. Worth doing.
+**Safe-mode integration evaluation (user-flagged 2026-05-07):** Before final design, evaluate whether the existing safe-mode / FAULT-health-state pivot can directly absorb the post-reset detection, or whether new infrastructure is needed. The pivot already replaced the deprecated watchdog-reset path with the project's fault-handler logic — the question is whether a "previous-boot-hardfault" event maps cleanly onto an existing health-state transition or needs a new event/state. Two possible outcomes: (a) clean fit — wire the preserved-SRAM read straight into the existing FAULT-health code path, minimal new infrastructure; (b) new fault category needed — add it. Evaluation belongs in the R-3 implementation planning, not in the remediation queue itself. Either way, the architectural goal is "capture state → reset → on next boot, the existing FAULT machinery owns the recovery."
 **Verification:** Use `src/dev/fault_inject.cpp` (already exists for forced MPU faults) to trigger the handler in a bench build, confirm capture record appears in preserved SRAM via GDB, reset proceeds cleanly, post-reset banner reports previous fault.
 **References:**
 - ArduPilot watchdog/crash dump: https://ardupilot.org/copter/docs/common-watchdog.html
