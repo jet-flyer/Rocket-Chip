@@ -6,18 +6,19 @@
 
 ---
 
-> **Correction note (2026-05-07):** Citations of "JSF AV Rule 170" in this
-> document (as rationale for "direct function calls — no function pointer
-> vtable") are based on a misreading. Rule 170's actual wording is "More
-> than 2 levels of pointer indirection shall not be used" — it governs
-> pointer-indirection depth, not function pointer usage. Function pointers
-> are not prohibited by JSF; Rule 176 requires typedef-declared function
-> pointers, which would also have been acceptable. The engineering choice
-> (direct function calls, no vtable) stands on its own merits:
-> compile-time dispatch, no runtime indirection, simpler static analysis.
-> The standards-compliance framing was wrong. Document body is left
-> unedited as historical record; this correction note is the supersession
-> per `.claude/SESSION_CHECKLIST.md` Trigger-Driven Doc Edits convention.
+> **Correction note (2026-05-07, amended):** Citations of "JSF AV Rule 170"
+> in this document are based on a misreading. Rule 170's actual wording is
+> "More than 2 levels of pointer indirection shall not be used" — it
+> governs pointer-indirection depth, not function pointer usage. **The
+> correct citation is Power of 10 Rule 9** ("do not use function pointers"),
+> which the design satisfies. Per the standards-precedence rule in
+> `standards/CODING_STANDARDS.md` (newer overrides older absent explicit
+> override), P10 (2006) takes precedence over JSF Rule 176 (2005) for this
+> case. The design decision (direct function calls, no vtable) is correctly
+> aligned with the actual governing standard. Document body left unedited
+> as historical record per `.claude/SESSION_CHECKLIST.md` Trigger-Driven
+> Doc Edits convention; mentally substitute "P10 Rule 9" wherever the body
+> says "JSF AV Rule 170."
 
 ---
 

@@ -1274,53 +1274,66 @@ rotted soft gate.
 
 ---
 
-## Entry 37: JSF AV Rule 170 Misreading — Verify Rule Wording Against Primary Source Before Citing
+## Entry 37: Rule-Citation Discipline — Verify Wording AND Verify the Correct Standard in the Precedence Chain
 
-**Date:** 2026-05-07
-**Context:** Phase A.2 of the 2026-05-07 master standards audit (renaming `STANDARDS_DEVIATIONS.md` → `ACCEPTED_STANDARDS_DEVIATIONS.md` and re-evaluating every accepted-deviation row).
-**Severity:** Medium-process — drove unnecessary architectural rationale in multiple state-of-system docs and a "deviation" entry that was never a deviation.
+**Date:** 2026-05-07 (amended same day after R-6b finding)
+**Context:** Phase A.2 + R-6 + R-6b of the 2026-05-07 master standards audit (renaming `STANDARDS_DEVIATIONS.md` → `ACCEPTED_STANDARDS_DEVIATIONS.md` and re-evaluating every accepted-deviation row).
+**Severity:** High-process — initial misreading drove unnecessary architectural rationale across six docs, and the *correction* of that misreading nearly inverted the actual finding by deleting a real deviation that was just attributed to the wrong rule.
 
-### Problem
+### Problem (two-layer)
 
-The deviations log contained row FP-1 stating "JSF AV Rule 170 prohibits function pointers." This framing proliferated to source-code comments, a header file, a decision document, the project-status doc, and an IVP entry — six locations in total — and was used as the architectural rationale for "no function pointer vtable" in the notification backend.
+The deviations log contained row FP-1 stating "JSF AV Rule 170 prohibits function pointers." This framing proliferated to source comments, a header file, a decision document, project-status, and an IVP entry — six locations — used as architectural rationale for "no function pointer vtable" in the notification backend.
 
-When the user prompted me to "re-read the JSF rules — that's not how that rule is worded," I checked the primary source (Stroustrup's PDF mirror of the JSF AV Coding Standards). Findings:
+**Layer 1 (R-6):** When the user prompted me to "re-read the JSF rules — that's not how that rule is worded," I checked the JSF primary source (Stroustrup mirror). Findings:
 
-- **Rule 170 actual wording:** *"More than 2 levels of pointer indirection shall not be used."* About `T**` vs `T***`, not function pointers.
-- **Rule 176 actual wording:** *"A typedef will be used to simplify program syntax when declaring function pointers."* Requires typedef-declared function pointers, which our code already does (`using ResidualFn = float (*)(...)`, etc.).
+- **JSF Rule 170 actual wording:** *"More than 2 levels of pointer indirection shall not be used."* About `T**` vs `T***`, not function pointers.
+- **JSF Rule 176 actual wording:** *"A typedef will be used to simplify program syntax when declaring function pointers."* Requires typedef-declared function pointers, which our code already does (`using ResidualFn = float (*)(...)`).
 
-Function pointers are not prohibited by JSF AV. Our calibration `lm_solve()` is fully compliant. The earlier `docs/audits/STANDARDS_AUDIT_2026-02-07.md` already had the correct reading. Somewhere between then and the FP-1 row creation, the wrong reading entered the project and propagated.
+Conclusion of R-6: function pointers are not prohibited by JSF; the FP-1 row was deleted, and the supporting docs were corrected to remove the wrong citation.
+
+**Layer 2 (R-6b — the part I almost missed):** Before drafting Phase B (which would inline P10 verbatim), I cross-checked function pointers against **Power of 10 Rule 9** and found: *"Limit pointer use to a single dereference, and do not use function pointers."* P10 Rule 9 **does** prohibit function pointers, explicitly.
+
+So the FP-1 deviation was real all along — just cited against the wrong standard. R-6 had corrected one misreading and was about to erase the underlying deviation via attribution shuffle. The user's IRL aviation experience supplied the resolution: standards precedence runs **newer-over-older** by default, unless an older standard's text explicitly governs the specific case. P10 (2006) is newer than JSF Rule 176 (2005), so P10 Rule 9 wins. Function pointers in `lm_solve()` ARE an accepted deviation — from P10 Rule 9, not JSF.
 
 ### Root Cause
 
-When the FP-1 row was first created, the cited rule's wording was not verified against the JSF primary source. The wrong reading was then quoted into source code comments and decision-doc rationale as authoritative. Once embedded in multiple docs, it became self-reinforcing — future readers (including future me) would see "JSF Rule 170 prohibits function pointers" cited as established fact.
+Two compounding mistakes:
+
+1. **Wrong rule citation** (original FP-1 creator): cited JSF Rule 170 without verifying it actually prohibits function pointers. Easy to make; cost is the cleanup proliferation.
+2. **Wrong standard in the precedence chain** (R-6, almost): when correcting the wrong-rule mistake, I checked only JSF and concluded "no project-adopted standard prohibits function pointers." Failed to check P10 and JPL C — both also project-adopted, both newer than JSF, and P10 Rule 9 is explicit. The mistake was treating "standards" as a single bucket rather than a chronologically-ordered chain with a precedence rule.
+
+The second mistake is the more dangerous one. The first mistake is just sloppy proofreading; the second mistake is a structural misunderstanding of how the project's standards stack composes.
 
 ### Solution
 
-Phase A.2 + R-6 cleanup commit removed the false proliferation:
+Phase A.2 + R-6 + R-6b cleanup:
 
-1. FP-1 row deleted from `ACCEPTED_STANDARDS_DEVIATIONS.md` — was never a deviation.
-2. `src/calibration/calibration_manager.cpp` comments corrected to cite Rule 176 (typedef requirement) which we comply with.
-3. `include/rocketchip/notify_backend.h` reframed "no vtable" as an engineering choice (compile-time dispatch), removing the false standards-compliance framing.
-4. `docs/PROJECT_STATUS.md` Stage 14 entry corrected inline (state-of-system).
-5. `docs/decisions/NOTIFY_CONTRACT.md` got a top-of-file supersession correction note; body unedited per historical-record convention.
-6. `docs/IVP.md` IVP-113 entry left as-is — historical record, covered by the NOTIFY_CONTRACT.md supersession chain.
-7. `CHANGELOG.md` and `docs/audits/STANDARDS_AUDIT_2026-02-07.md` left as-is — historical, and the 2026-02-07 audit already had the correct reading.
+1. **FP-1 row re-added** to `ACCEPTED_STANDARDS_DEVIATIONS.md` under **P10 Rule 9** (the actually governing standard), with the original rationale (Ground classification, runs once per calibration, eliminates 120 lines of duplication, JSF Rule 176 typedef discipline satisfied) plus the remediation path (template-based dispatch is the long-term fix).
+2. `src/calibration/calibration_manager.cpp` comments re-cited to P10 Rule 9 + reference to FP-1 in the deviations file.
+3. `include/rocketchip/notify_backend.h` re-cited to P10 Rule 9 (the design satisfies it; the "no vtable" choice is correctly aligned with the actual governing standard, not just an "engineering choice with no standards basis").
+4. `docs/PROJECT_STATUS.md` Stage 14 entry corrected to cite P10 Rule 9.
+5. `docs/decisions/NOTIFY_CONTRACT.md` supersession note amended: "the correct citation is P10 Rule 9, not JSF Rule 170."
+6. `standards/CODING_STANDARDS.md` Foundation section rewritten with the explicit standards-precedence rule and chronological ordering of the adopted standards.
 
 ### Prevention
 
-**Verify rule wording against primary source before citing.** Primary sources to consult:
+**Three-step rule-citation discipline (extends the R-6 prevention):**
 
-- JSF AV C++: https://www.stroustrup.com/JSF-AV-rules.pdf (Stroustrup's mirror — the authoritative public copy)
-- NASA/JPL Power of 10: https://spinroot.com/gerard/pdf/P10.pdf (Holzmann's original paper)
-- NASA Software Engineering Handbook: https://swehb.nasa.gov/ (public NASA guidance)
+1. **Verify the rule wording against the primary source.** Don't paraphrase; don't trust existing citations in our own docs. Quote verbatim.
+2. **Verify you're citing the *right* standard in the precedence chain.** Check every project-adopted standard that could plausibly govern the case — JSF, JPL C, P10, MISRA — not just the first one you check. Older standards may be silent where newer ones are explicit (or vice versa).
+3. **Apply the project's standards-precedence rule explicitly when standards disagree.** Per `standards/CODING_STANDARDS.md`: newer overrides older unless the older standard's text explicitly governs; on silent conflict, default to the more recent OR more restrictive (IRL aviation practice). State which rule's text governs and why, in the citation itself.
+
+Primary sources to consult:
+- JSF AV C++: https://www.stroustrup.com/JSF-AV-rules.pdf
+- Power of 10 (Holzmann): https://spinroot.com/gerard/pdf/P10.pdf
+- JPL Institutional C: https://yurichev.com/mirrors/C/JPL_Coding_Standard_C.pdf
+- NASA Software Engineering Handbook: https://swehb.nasa.gov/
 - MISRA-C 2012 / JPL C: see references in `standards/CODING_STANDARDS.md`
 
-Quote the exact rule wording when citing — don't paraphrase, don't trust an existing citation in our own docs without checking it against the primary source.
-
-If a rule citation will drive an architectural choice or appear in multiple docs, this verification is mandatory. The cost of verification is minutes; the cost of an embedded misreading is hours of cleanup spread across the codebase. This entry exists as a procedural defense against the same pattern recurring with a different rule.
+The R-6 → R-6b near-miss demonstrates that step 1 alone is insufficient. The deeper failure mode is "checked the wrong standard" — and that one is invisible until you check all of them.
 
 ### Related
 
 - Phase A.2 commit: `bf9d393` (deviations re-evaluation + preliminary remediation queue)
-- R-6 cleanup commit (this commit) — false-proliferation correction
+- R-6 commit `d186fc9` — false-proliferation correction against JSF (correct as far as it went)
+- R-6b commit (this commit) — P10 Rule 9 reattribution + standards-precedence rule codified in `CODING_STANDARDS.md`

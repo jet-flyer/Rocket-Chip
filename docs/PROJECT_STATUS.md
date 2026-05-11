@@ -68,7 +68,7 @@ Automated checks: **788/788** `ctest --test-dir build_host` PASS; firmware `cmak
   Fixed with 0xFD lockout + CDC buffer 1024B + CRLF disable + 10ms timeout.
 
 **Stage 14 (2026-04-10):**
-- IVP-113–118 complete. AO_Notify intent layer with 5 per-category typed enums, priority resolver, direct-call output backends (no vtable — compile-time-dispatch engineering choice, originally framed as "per JSF AV Rule 170" but that citation was a misreading; corrected 2026-05-07).
+- IVP-113–118 complete. AO_Notify intent layer with 5 per-category typed enums, priority resolver, direct-call output backends (no vtable per P10 Rule 9; originally cited as JSF Rule 170 which was a misreading — corrected 2026-05-07 to the actual governing standard).
 - All 5 direct LED callers (FD, CLI, Radio, Health, LedEngine seqlock) rewired through the intent API. LedEngine slimmed to 3-layer pure display driver.
 - Core 1 vitality check moved to AO_HealthMonitor primary + LedEngine fallback (Council A1 defense-in-depth). Fixes Stage 13 gap.
 - Latent QP use-after-free bug fixed (LL Entry 35) — `AO_LedEngine_post_pattern()` had stack-local events passed to `QACTIVE_POST` since Stage 7, worked by luck until IVP-117 stack usage exposed it.

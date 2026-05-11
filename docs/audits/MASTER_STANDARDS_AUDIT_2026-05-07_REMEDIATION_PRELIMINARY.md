@@ -6,8 +6,9 @@
 
 - 1 row remains accepted (CG-1, auto-generated codegen — only canonical case)
 - 2 rows moved to Resolved (AP-1, AP-3 — code refactored away)
-- 4 rows deleted as non-deviations or misreadings (AP-2, AP-4, FP-1, and the BM-1/BM-3 framing of P10-2 — see "Holzmann inverted-rule exemption" below)
-- 6 items moved here as remediation queue (BM-2, BM-4, BM-5, FP-1 false proliferation, IO-1, IO-2)
+- 3 rows deleted as non-deviations or misreadings (AP-2, AP-4, and the BM-1/BM-3 framing of P10-2 — see "Holzmann inverted-rule exemption" below)
+- 1 row kept active under corrected citation (FP-1 — was wrongly cited as JSF Rule 170, actually a P10 Rule 9 deviation; see R-6/R-6b history)
+- 6 items moved here as remediation queue (BM-2, BM-4, BM-5, FP-1 template-dispatch remediation, IO-1, IO-2)
 
 ---
 
@@ -90,28 +91,48 @@ Plus a categorization pass: for each printf site, classify as (i) dev-only diagn
 
 ---
 
-## R-6 — FP-1 false proliferation cleanup
+## R-6 / R-6b — FP-1 misreading cleanup + reattribution to correct standard (DONE)
 
-**Standard:** N/A (this is a misreading-correction task, not a standards-compliance task)
-**Issue:** JSF AV Rule 170 was misread as "function pointers prohibited" when its actual wording is "More than 2 levels of pointer indirection shall not be used." Function pointers are not prohibited by JSF; the related rule is Rule 176 ("a typedef will be used to simplify program syntax when declaring function pointers"), which we already comply with via the `ResidualFn` / `JacobianFn` typedefs.
+**Status:** COMPLETED 2026-05-07. Documented here for traceability.
 
-**Affected files** (state-of-system — must update):
+**Two-layer issue:**
 
-| File | Issue |
-|---|---|
-| `src/calibration/calibration_manager.cpp:950` | Code comment cites Rule 170 as deviation. Remove citation. |
-| `src/calibration/calibration_manager.cpp:984` | Comment "See ACCEPTED_STANDARDS_DEVIATIONS.md FP-1" — FP-1 deleted, update comment. |
-| `include/rocketchip/notify_backend.h:6` | Header comment cites Rule 170 as rationale for "no function pointer vtable." Reword: the engineering choice stands on compile-time-dispatch merits; the standards-compliance framing was wrong. |
-| `docs/PROJECT_STATUS.md:71` | State-of-system entry mentions Rule 170 rationale. Drop the JSF-170 citation. |
-| `docs/decisions/NOTIFY_CONTRACT.md` (lines 52, 67) | **Historical-record doc** — frozen on commit per `.claude/SESSION_CHECKLIST.md`. Apply a top-of-file supersession note (not a direct edit to body): "2026-05-07 correction: Rule 170 citations in this document are based on a misreading. Rule 170 governs pointer-indirection depth (≤2 levels), not function-pointer prohibition. The engineering choice (direct function calls, no vtable) stands on compile-time-dispatch merits; the standards-compliance framing was wrong." |
-| `docs/IVP.md:3047` (Notify IVP entry) | **Mixed-mode doc**, but the per-IVP entry is historical. Same supersession-note treatment as NOTIFY_CONTRACT.md if needed — or correct in the next IVP entry rather than editing the old one. |
-| `CHANGELOG.md:540` and other historical mentions | **Historical record — DO NOT EDIT.** Future readers will understand the chronology via the supersession note in NOTIFY_CONTRACT.md and the LL entry below. |
+**R-6 (done, commit `d186fc9`):** The deviations file originally cited "JSF AV Rule 170 prohibits function pointers." That's a misreading. JSF Rule 170 actual wording: *"More than 2 levels of pointer indirection shall not be used"* — about indirection depth, not function pointers. Removed the wrong citation across 6 files.
 
-**Add a LESSONS_LEARNED entry** documenting the misreading + the verification discipline (verify rule wording against primary source before citing) so the misreading doesn't recur.
+**R-6b (done, this commit):** R-6's conclusion ("no project-adopted standard prohibits function pointers") was wrong. **Power of 10 Rule 9** (Holzmann/JPL, 2006) explicitly states: *"Limit pointer use to a single dereference, and do not use function pointers."* P10 is project-adopted per `standards/CODING_STANDARDS.md` and is newer than JSF Rule 176 (which only requires typedef discipline). Per the project's standards-precedence rule (newer overrides older absent explicit override), **P10 Rule 9 governs** — function pointers ARE an accepted deviation in our project, just from P10 not JSF.
 
-**Estimated effort:** Small per file (each is a single-line edit), but spans 6+ files. ~1 hour total.
+**Actions applied:**
 
-**Priority:** High. The user flagged this as a high-priority item ("be sure no issues were caused" + "fine-toothed comb"). Done as a focused commit immediately after the Phase A.2 commit, before any other audit work, so the false framing doesn't continue to spread.
+- FP-1 re-added to `ACCEPTED_STANDARDS_DEVIATIONS.md` under P10 Rule 9 with proper rationale (Ground classification, runs once per calibration pre-flight, eliminates 120 lines of duplication, JSF Rule 176 typedef discipline satisfied).
+- Source comments + header + `PROJECT_STATUS.md` + `NOTIFY_CONTRACT.md` supersession note re-cited to P10 Rule 9 (the actually governing standard).
+- LL Entry 37 amended to document the two-layer lesson: verify rule wording AND verify the correct standard in the precedence chain.
+- `standards/CODING_STANDARDS.md` Foundation section rewritten with the explicit standards-precedence rule and chronological ordering. The R-6 → R-6b near-miss demonstrated that the precedence rule needed to be stated openly, not just understood by veterans.
+
+**Remaining FP-1-related work** (template-dispatch remediation to eliminate the deviation entirely): See **R-6c** below.
+
+---
+
+## R-6c — FP-1 template-dispatch remediation (eliminate the deviation)
+
+**Standard:** P10 Rule 9 (no function pointers in safety-critical code)
+**Status:** Accepted deviation while pending remediation. The deviation is bounded (Ground-classified, pre-flight only) but the long-term goal is elimination, per the project's "prefer remediation over acceptance" policy.
+
+**Recommended remediation:** Convert `ResidualFn` / `JacobianFn` from runtime function pointers to **compile-time template parameters**:
+
+```cpp
+template <typename Residual, typename Jacobian>
+void lm_solve(float* params, ..., Residual residual_fn, Jacobian jacobian_fn) {
+    // Same body — calls resolve at compile time
+}
+```
+
+Templates produce identical machine code to the current function-pointer indirection (compile-time-resolved), eliminate the runtime function pointer entirely (P10 Rule 9 satisfied), and preserve the ~120 lines of dedup. Cost: moderate refactor — the `lm_solve()` body and its helpers need to move into a header (or `.inc` file) so template instantiation can resolve, plus careful testing that the math is bit-identical before and after.
+
+**Estimated effort:** Moderate — single file refactor + comprehensive test against existing calibration outputs to confirm numerical equivalence.
+
+**Verification:** Existing 6-pos and ellipsoid calibration tests cover the math. Diff calibration outputs before/after for identical input samples; require bit-identical results.
+
+**Priority:** Medium — the current accepted-deviation state is safe (Ground-only, pre-flight only), so this is improvement not urgency. Good candidate for a focused remediation session after the master audit completes.
 
 ---
 
@@ -139,10 +160,12 @@ Plus reference to Holzmann's paper: https://spinroot.com/gerard/pdf/P10.pdf
 | R-3 | BM-4: capture-state-then-reset hardfault handler | High | Moderate | None |
 | R-4 | BM-5: reuse R-3 machinery for MPU-config failure | Medium | Small | After R-3 |
 | R-5 | IO-1: eliminate stdio.h from flight binary (interim) | High | Multi-commit | R-5a inventory first |
-| R-6 | FP-1 false proliferation cleanup | **High** | Small | Done immediately after Phase A.2 |
+| R-6 | FP-1 false proliferation cleanup (Rule 170 misreading) | **High** | Small | **DONE** — commit `d186fc9` |
+| R-6b | FP-1 reattribution to P10 Rule 9 + precedence rule in CODING_STANDARDS.md | **High** | Small | **DONE** — this commit |
+| R-6c | FP-1 template-dispatch remediation (eliminate the deviation) | Medium | Moderate | After master audit |
 | R-7 | CODING_STANDARDS.md Holzmann exemption note | Low | Trivial | None |
 
-**Total of 7 remediation items.** R-3, R-5, R-6 are the high-priority ones. R-6 should land as a focused commit immediately after Phase A.2's deviations-file edit, because letting the misreading continue to spread is the highest-impact failure mode.
+**Total of 8 remediation items** (R-1, R-2, R-3, R-4, R-5, R-6c, R-7 outstanding; R-6 and R-6b done). R-3 and R-5 are the high-priority outstanding ones. R-6/R-6b shipped during the audit setup phase because letting the misreading continue to spread was the highest-impact failure mode; R-6b corrected R-6's near-miss before any further work compounded it.
 
 ---
 

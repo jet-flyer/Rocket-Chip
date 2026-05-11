@@ -947,11 +947,12 @@ static float lm_mean_sq_residuals(const float* params, uint16_t numSamples,
 // Run LM iterations on params[0..numParams-1] using g_magSamples[0..numSamples-1].
 // Uses g_jtj / g_jtjInv as working buffers (sized for 9x9, sufficient for 4x4).
 // On return, bestParams holds the best fit and bestFitness holds RMS^2.
-// Function-pointer-based dispatch (ResidualFn/JacobianFn typedefs per JSF AV
-// Rule 176) eliminates ~120 lines of duplicated LM iteration between sphere
-// fit (4-param) and ellipsoid fit (9-param). This is JSF-compliant: Rule 170
-// governs pointer-indirection depth (≤2 levels — we use 1), Rule 176 requires
-// typedef for function-pointer declarations (we use `using` aliases).
+// Function-pointer-based dispatch (ResidualFn/JacobianFn typedefs) eliminates
+// ~120 lines of duplicated LM iteration between sphere fit (4-param) and
+// ellipsoid fit (9-param). Accepted deviation FP-1 in ACCEPTED_STANDARDS_DEVIATIONS.md
+// (P10 Rule 9 — no function pointers). Ground classification: runs once per
+// calibration pre-flight, never in the flight loop. JSF Rule 176 typedef
+// discipline satisfied via `using` aliases.
 // Accumulate J^T*J and J^T*residual for one LM iteration
 static void lm_accumulate_jtj(const float* params, uint8_t numParams,
                                uint16_t numSamples, float* jtfi,
@@ -985,7 +986,7 @@ static bool lm_compute_step(const float* params, float* newParams,
     return true;
 }
 
-// See function-pointer rationale on lm_accumulate_jtj() above (JSF Rule 176 compliant).
+// See FP-1 rationale on lm_accumulate_jtj() above. Accepted deviation from P10 Rule 9.
 static void lm_solve(float* params, float* bestParams, float* bestFitness,
                      uint8_t numParams, uint16_t numSamples, uint8_t maxIter,
                      ResidualFn residualFn, JacobianFn jacobianFn) {

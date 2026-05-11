@@ -6,12 +6,34 @@
 
 ### Foundation
 
-This project follows the **JSF AV C++ Coding Standards** (Lockheed Martin, 2005) as the primary reference. JSF is the foundation for NASA/JPL's institutional C++ standard.
+This project draws from multiple safety-critical coding standards. None is treated as the supreme authority; each has a defined scope and the project applies a precedence rule when they conflict.
+
+**Standards-precedence rule:**
+
+Standards apply in chronological order — **newer standards take precedence over older ones** unless an older standard's text explicitly governs the specific case. The chain by publication date:
+
+1. **Power of 10 Rules** (Holzmann/JPL, 2006 → JPL institutional 2008) — newest distilled safety-critical rules. Default authority when it speaks.
+2. **JPL Institutional Coding Standard for C** (2009) — builds on P10, adds C-language-specific guidance. Default authority for C-language matters.
+3. **JSF AV C++ Coding Standards** (Lockheed Martin, December 2005) — foundational catalog of 221 C++ rules. Applies where the newer standards are silent. Some JSF rules have been absorbed into modern C++ practice (C++ Core Guidelines, HIC++ V4, AUTOSAR) and no longer require separate enforcement.
+4. **MISRA C** (1998 / 2004) — C-language foundation, mostly subsumed by JPL C for our use. Cited where it remains the explicit authority (e.g., MISRA-C 2012 accepted safe subset for bounded `snprintf`).
+
+**Conflict resolution:**
+- **Newer standard explicit + older standard silent** → newer applies.
+- **Older standard explicit + newer standard silent** → older applies (default coverage).
+- **Both speak, agree** → either citation works.
+- **Both speak, conflict** → newer wins.
+- **Silent conflict** (one standard's silence vs. another's explicit rule) → **default to the more recent OR more restrictive rule** (IRL aviation-engineering practice). Time is the tiebreaker only when neither document references the other; if Standard B explicitly says "this rule overrides Standard A's section X," that explicit override governs regardless of date.
+
+**Practical examples:**
+- P10 Rule 9 (no function pointers, 2006) vs. JSF Rule 176 (use typedef when declaring function pointers, 2005): **P10 wins** — newer and more restrictive. Function pointers are an accepted deviation in our project, not "compliant via JSF."
+- P10 Rule 2 (loops must have fixed upper bound, 2006) — Holzmann's own paper carves out the **inverted-rule exemption** for non-terminating scheduler loops (prove the loop *cannot* terminate). That explicit exemption is part of P10 itself, not an external override.
+- JSF Rule 22 (no `<stdio.h>`, 2005) — newer standards don't disagree, so JSF applies.
 
 **References:**
-- [JSF AV C++ Standards (PDF)](http://www.stroustrup.com/JSF-AV-rules.pdf) - Primary reference
-- [JPL C Coding Standard (PDF)](https://yurichev.com/mirrors/C/JPL_Coding_Standard_C.pdf) - Additional reference for C-specific guidance
-- Power of 10 Rules (Holzmann, JPL) - Distilled safety-critical rules
+- [JSF AV C++ Standards (PDF, 2005)](http://www.stroustrup.com/JSF-AV-rules.pdf) — foundational C++ catalog
+- [JPL C Coding Standard (PDF, 2009)](https://yurichev.com/mirrors/C/JPL_Coding_Standard_C.pdf) — C-language refinement, newer
+- Power of 10 Rules (Holzmann/JPL, 2006) — distilled top-10 safety-critical rules, newest
+- [NASA Software Engineering Handbook](https://swehb.nasa.gov/) — NASA-wide guidance (handbook, not a hard standard); §8.11 covers auto-generated code, §8.5 covers software FMEA
 
 ### JPL Additions (Pro Tier Goals)
 

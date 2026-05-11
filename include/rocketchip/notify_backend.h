@@ -3,11 +3,11 @@
 //============================================================================
 // Notification Backend Interface (Stage 14, IVP-115)
 //
-// Direct function calls — no function pointer vtable. Engineering choice
-// for compile-time dispatch (zero runtime indirection, smaller binary,
-// easier static analysis). Not a standards-compliance constraint; function
-// pointers are not prohibited by JSF (Rule 176 requires typedef-declared
-// function pointers, which would also be acceptable).
+// Direct function calls — no function pointer vtable. Satisfies P10 Rule 9
+// ("do not use function pointers" — see standards/CODING_STANDARDS.md for
+// the project precedence rule by which P10 (2006) governs over JSF Rule 176
+// (2005) for this case). Also wins on engineering merits: compile-time
+// dispatch, zero runtime indirection, smaller binary, easier static analysis.
 // Each backend is a free function that receives the resolved NotifyState
 // and updates its hardware output.
 //
