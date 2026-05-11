@@ -31,56 +31,25 @@
 
 ---
 
+## Deviation Acceptance Policy
+
+**Default disposition for a finding is REMEDIATE, not accept.** We prefer to keep coding standards even in non-flight code for consistency and additional safety. A deviation lands in the Active section below only when remediation is either a major stumbling block or would take an unreasonable amount of time. Auto-generated code (with NASA Software Engineering Handbook §8.11 assurance practices) is the canonical accepted case. Findings that don't meet that bar go to the remediation queue.
+
+Items expected here are rare. If the Active section grows beyond a handful of rows, it's a signal that the remediation queue is being neglected, not that the project is accumulating "acceptable" deviations.
+
+**Note on Power-of-10 Rule 2 (loops with fixed upper bound):** Holzmann's original P10 paper explicitly exempts non-terminating iterations (e.g., RTOS scheduler, fault halt). For those, the inverted rule applies: it must be statically provable that the loop *cannot* terminate. We satisfy the inverted rule for our scheduler-class loops (QF_run, Core 1 sensor loop, fault halt). Those are not deviations — they are compliant under Holzmann's exemption — and therefore do not appear in this file. See `standards/CODING_STANDARDS.md` for the platform-conventions write-up.
+
+---
+
 ## Active Deviations
-
-### ArduPilot Algorithm Deviations (IVP-17: 6-Position Accel Calibration)
-
-These are implementation deviations from ArduPilot's `AccelCalibrator` class. The core math (Jacobian formulas, residual computation, parameter update) is identical.
-
-| ID | Location | ArduPilot Approach | Our Approach | Severity | Difficulty | Rationale |
-|----|----------|-------------------|--------------|----------|-----------|-----------|
-| AP-1 | `calibration_manager.cpp` | Heap-allocated `std::vector` for samples | Static array `g_6pos_samples[300][3]` (3.6KB) | Accepted | N/A | LL Entry 1: no heap after init; RP2350 has 264KB RAM |
-| AP-2 | `calibration_manager.cpp` | `mat_inverseN()` with LU decomposition | Gaussian elimination with partial pivoting | Accepted | N/A | Simpler, no separate L/U/P arrays; adequate for 9x9 |
-| AP-3 | `rc_os.cpp` | Progress callback + async state machine | Blocking function with sensor read callback | Accepted | N/A | Bare-metal CLI doesn't need async; matches existing `cmd_reset_cal()` pattern |
-| AP-4 | `rc_os.cpp` | Trusts user orientation (implicit) | Explicit orientation confirmation per position | Accepted | N/A | Catches positioning errors immediately vs failing at fit time |
-
-### Bare-Metal Loop Deviations (P10-2 / LOC-2.2)
-
-P10 Rule 2 requires all loops to have a fixed upper bound. Bare-metal main loops are inherently unbounded — this is universal across embedded systems including JPL's own flight software.
-
-| ID | Location | Rule | Severity | Rationale |
-|----|----------|------|----------|-----------|
-| BM-1 | `main.cpp` main() | P10-2 | Accepted | Core 0 application loop. Watchdog timer (IVP-30, 5s timeout) provides the safety net. Loop runs indefinitely by design — bare-metal has no OS to return to |
-| BM-2 | `main.cpp` core1_entry() wait loop | P10-2 | Accepted | Core 1 waits for sensor phase signal from Core 0. Bounded by boot sequence timing |
-| BM-3 | `main.cpp` core1_sensor_loop() | P10-2 | Accepted | Core 1 sensor polling loop. Watchdog-protected. Runs for device lifetime |
-| BM-4 | `main.cpp` memmanage_fault_handler() | P10-2 | Accepted | Unrecoverable fault handler — intentional halt-forever with LED blink pattern. Interrupts disabled, no recovery possible |
-| BM-5 | `main.cpp` mpu_setup_stack_guard() | P10-2 | Accepted | MPU config failure — intentional halt. Same rationale as BM-4 |
-**Mitigation:** Hardware watchdog (5s timeout) ensures no main loop can hang silently. Fault handlers (BM-4, BM-5) are unrecoverable by design — the LED blink pattern signals the failure mode. All bare-metal embedded systems (FreeRTOS idle task, ChibiOS main thread, Zephyr main loop) use the same pattern.
-
-### Function Pointer Usage (JSF AV Rule 170)
-
-JSF AV Rule 170 prohibits function pointers. Used here for LM solver deduplication in Ground-classified calibration code.
-
-| ID | Location | Severity | Difficulty | Rationale |
-|----|----------|----------|-----------|-----------|
-| FP-1 | `calibration_manager.cpp` `lm_solve()` | Accepted | N/A | `ResidualFn` / `JacobianFn` function pointers eliminate ~120 lines of duplicated LM iteration between sphere fit (4-param) and ellipsoid fit (9-param). Ground classification — runs once per calibration, never in flight loop. Per plan: `.claude/plans/quirky-squishing-clarke.md` Batch 4 |
 
 ### Auto-Generated Codegen Function Size (JSF AV Rule 1)
 
-JSF AV Rule 1 limits functions to 200 L-SLOC. The auto-generated `codegen_fpft()` exceeds this limit.
+JSF AV Rule 1 limits functions to 200 L-SLOC. The auto-generated `codegen_fpft()` exceeds this limit by ~5×, but per NASA Software Engineering Handbook §8.11, the standard is *adjusted* for auto-generated code rather than enforced directly on the output.
 
 | ID | Location | Rule | Severity | Difficulty | Rationale |
 |----|----------|------|----------|-----------|-----------|
-| CG-1 | `eskf_codegen.cpp` `codegen_fpft()` | JSF AV Rule 1 (200 L-SLOC) | Accepted | N/A | Auto-generated by `scripts/generate_fpft.py` (SymPy CSE). ~1100 L-SLOC (24-state, was ~550 at 15-state): 300 P snapshots, ~250 CSE intermediates, 300 upper-triangle assignments, 276 mirror copies. Single arithmetic expression — zero control flow, zero branching. Verified by Test 8 (CodegenVsDenseFPFT, 100-step comparison vs dense reference at 1e-4) and Test 15 (CodegenSingleStep, 1e-6). NASA-STD-8739.8B SWE-146 explicitly accommodates auto-generated code. PX4 and ArduPilot both use identical SymPy/SymForce codegen pattern. |
-
-### stdio.h Usage Deviation (JSF 22/24)
-
-JSF AV Rule 22 prohibits `<stdio.h>`. Our usage is mitigated by code classification and runtime lockout.
-
-| ID | Location | Category | Severity | Rationale |
-|----|----------|----------|----------|-----------|
-| IO-1 | main.cpp, rc_os.cpp, i2c_bus.cpp | 212 printf + 6 getchar_timeout_us | Accepted | All Ground classification. Runtime lockout when state != IDLE (same binary principle). Zero stdio in flight-critical sensor drivers |
-| IO-2 | gps_pa1010d.cpp, gps_uart.cpp | 6 snprintf (3 per file) | Accepted | Flight-Critical — bounded by `sizeof()`, constant format strings, MISRA-C 2012 accepted safe subset. Migration path: custom formatters or u-blox UBX binary protocol. See AUDIT_REMEDIATION.md Fix C17 |
+| CG-1 | `src/fusion/eskf_codegen.cpp` `codegen_fpft()` | JSF AV Rule 1 (≤200 L-SLOC) | Accepted | N/A | Auto-generated by `scripts/generate_fpft.py` (SymPy CSE). ~1130 L-SLOC (24-state): 300 P snapshots, ~250 CSE intermediates, 300 upper-triangle assignments, 276 mirror copies. Single arithmetic expression — zero control flow, zero branching. Per **NASA Software Engineering Handbook §8.11 (Auto-Generated Code)**: coding-standards are adjusted for auto-generated code; assurance focuses on (a) standards applied to input model (the SymPy expressions and `generate_fpft.py` script we own), and (b) static analysis on output (clang-tidy in pre-commit). Verified by Test 8 (CodegenVsDenseFPFT, 100-step comparison vs dense reference at 1e-4) and Test 15 (CodegenSingleStep, 1e-6). PX4 and ArduPilot use identical SymPy/SymForce codegen pattern. Reference: https://swehb.nasa.gov/display/SWEHBVC/8.11+-+Auto-Generated+Code |
 
 ---
 
@@ -101,6 +70,14 @@ JSF AV Rule 22 prohibits `<stdio.h>`. Our usage is mitigated by code classificat
 ### GT-1: goto-for-Cleanup in cmd_accel_6pos_cal() (JSF 188/189)
 
 **Fixed 2026-02-07.** Extracted calibration body into `cmd_accel_6pos_cal_inner()` helper function. All 6 `goto cal_cleanup` replaced with `return`. Wrapper function guarantees pre/post hook execution (I2C master disable/re-enable). Zero goto, zero labels remaining in codebase.
+
+### AP-1: Static Sample Array for 6-pos Accel Calibration (was JSF AV Rule 206 / heap-after-init concern)
+
+**Resolved 2026-05-07.** Static `g_6pos_samples[300][3]` array eliminated by refactor to accumulator pattern (running sum + count, no per-sample storage in `g_sampleAcc`). The deviation no longer exists — there is no per-sample heap-or-stack tradeoff to make.
+
+### AP-3: Blocking 6-pos Calibration (was implementation difference from ArduPilot's async state machine)
+
+**Resolved per RC_OS consolidation (Stage 13–14).** 6-position calibration is now non-blocking. Implemented as async state machine in AO_RCOS (`src/active_objects/ao_rcos.cpp`, 20Hz tick-driven). No longer differs from ArduPilot's pattern.
 
 *Previous deviations archived with `AP_FreeRTOS` branch.*
 
