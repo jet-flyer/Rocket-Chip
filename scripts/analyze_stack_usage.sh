@@ -26,22 +26,27 @@ SRAM_THRESHOLD_PCT=70
 
 if [[ "${2:-}" == "--verify" || "${1:-}" == "--verify" ]]; then
     echo "=== Stack Usage Analyzer Self-Test ==="
-    # Create a fake .su file
+    # Create a fake .su file using gcc's actual format (tab-separated, with
+    # multi-word names that previously broke the parser)
     TMP_SU=$(mktemp)
-    cat > "$TMP_SU" <<EOF
-src/test.c:42 test_function 2048 static
-src/test.c:55 small_func 128 static
-EOF
-    WARNINGS=$(awk -v thresh="$THRESHOLD_BYTES" '
-        $3 ~ /^[0-9]+$/ && $3 > thresh { print }
+    printf 'src/test.cpp:42:5:test_function\t2048\tstatic\n'                >  "$TMP_SU"
+    printf 'src/test.cpp:55:5:small_func\t128\tstatic\n'                    >> "$TMP_SU"
+    printf 'src/test.cpp:99:1:int main(int, char**)\t256\tstatic\n'         >> "$TMP_SU"
+    WARNINGS=$(awk -F'\t' -v thresh="$THRESHOLD_BYTES" '
+        NF >= 2 && $(NF-1) ~ /^[0-9]+$/ && $(NF-1) > thresh { print }
     ' "$TMP_SU" | wc -l)
+    TOTAL=$(awk -F'\t' '
+        NF >= 2 && $(NF-1) ~ /^[0-9]+$/ { total += $(NF-1) }
+        END { print (total + 0) }
+    ' "$TMP_SU")
     rm -f "$TMP_SU"
 
-    if [[ $WARNINGS -eq 1 ]]; then
-        echo "VERDICT: PASS — Self-test detected expected warning"
+    # Expected: 1 warning (the 2048-byte function), total = 2048 + 128 + 256 = 2432
+    if [[ $WARNINGS -eq 1 && $TOTAL -eq 2432 ]]; then
+        echo "VERDICT: PASS — Self-test detected expected warning + correct total"
         exit 0
     else
-        echo "VERDICT: FAIL — Self-test did not detect expected warning"
+        echo "VERDICT: FAIL — Self-test detected $WARNINGS warning(s) (expected 1) and total=$TOTAL (expected 2432)"
         exit 1
     fi
 fi
@@ -65,20 +70,46 @@ echo "Build: $BUILD_DIR"
 echo "Threshold: ${THRESHOLD_BYTES} bytes locals"
 echo ""
 
+# gcc -fstack-usage emits TAB-separated columns:
+#   file:line:col:funcname<TAB>size<TAB>qualifier
+# The funcname column may contain spaces and parentheses (e.g.,
+# "int main(int, char**)"), so whitespace-splitting (`set -- $line`) is wrong.
+# Awk's NF-1 column reliably gives the size regardless of what's in the
+# funcname column. Without this fix, lines with multi-word names produced
+# size="static" and crashed bash arithmetic with
+# "line 80: static: syntax error: invalid arithmetic operator".
+
 WARNING_COUNT=0
 TOTAL_STACK=0
+WARNINGS_OUTPUT=""
 
 while IFS= read -r su_file; do
-    while read -r line; do
-        # Format: file:line function size unit
-        set -- $line
-        size=${3:-0}
-        if [[ "$size" =~ ^[0-9]+$ ]] && [[ $size -gt $THRESHOLD_BYTES ]]; then
-            echo "WARNING: $line"
-            WARNING_COUNT=$((WARNING_COUNT + 1))
-        fi
-        TOTAL_STACK=$((TOTAL_STACK + size))
-    done < "$su_file"
+    [[ -z "$su_file" ]] && continue
+    # Sum sizes and collect over-threshold lines via awk (handles TAB correctly)
+    awk_output=$(awk -F'\t' -v thresh="$THRESHOLD_BYTES" '
+        NF >= 2 && $(NF-1) ~ /^[0-9]+$/ {
+            sz = $(NF-1) + 0
+            total += sz
+            if (sz > thresh) {
+                # Emit a WARNING line with the original record so reporting is unchanged
+                print "WARN\t" $0
+            }
+        }
+        END { print "TOTAL\t" (total + 0) }
+    ' "$su_file")
+
+    # Process awk's emitted records
+    while IFS=$'\t' read -r tag rest; do
+        case "$tag" in
+            WARN)
+                echo "WARNING: $rest"
+                WARNING_COUNT=$((WARNING_COUNT + 1))
+                ;;
+            TOTAL)
+                TOTAL_STACK=$((TOTAL_STACK + rest))
+                ;;
+        esac
+    done <<< "$awk_output"
 done <<< "$SU_FILES"
 
 # SRAM usage estimate (very rough)
