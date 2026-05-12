@@ -79,7 +79,22 @@ Inline notes after each table entry are fine when the row needs more context tha
 
 | ID | Title | Origin | State | Disposition | Files / mechanism | Depends on | Owner / next action | Safety-impact (if DEFER) |
 |----|-------|--------|-------|-------------|-------------------|------------|---------------------|--------------------------|
-| _no active PRs yet — the 2026-05-07 audit cycle's PRs will be backfilled into this table as Phase 8 progresses_ | | | | | | | | |
+| R-3 | Capture-state-then-reset hardfault handler | Audit 2026-05-07 (BM-4) | analyzed | REMEDIATE | `src/safety/fault_protection.cpp`, preserved-SRAM record format | none (Category 2 root) | Phase 8 Cat 2 next | — |
+| R-4 | MPU-config failure handling | Audit 2026-05-07 (BM-5) | analyzed | REMEDIATE | `src/safety/fault_protection.cpp` `mpu_setup_stack_guard()` | R-3 | Phase 8 Cat 3 after R-3 | — |
+| R-1 | Bound Core 1 boot-wait loop on vehicle | Audit 2026-05-07 (BM-2) | analyzed | REMEDIATE | `src/core1/sensor_core1.cpp:490` | R-3 | Phase 8 Cat 3 after R-3 | — |
+| R-9c | Log-on-change emit in health_monitor.cpp | Audit 2026-05-07 Phase 4.3 | analyzed | REMEDIATE | `src/safety/health_monitor.cpp` (~40-60 lines) | none | Phase 8 Cat 3 | — |
+| R-5a | Inventory + classify stdio.h callsites | Audit 2026-05-07 (IO-1) | analyzed | REMEDIATE | scratch table in dated report | none | Phase 8 Cat 3 (precedes R-5b/c/d) | — |
+| R-5b | Move dev/diagnostic printfs to src/dev/ | Audit 2026-05-07 (IO-1) | analyzed | REMEDIATE | many files (per-file commits) | R-5a inventory | Phase 8 Cat 3 | — |
+| R-5c | Custom bounded writer `rc_write()` | Audit 2026-05-07 (IO-1) | analyzed | REMEDIATE | new `src/util/rc_write.{h,cpp}` | R-5b | Phase 8 Cat 3 | — |
+| R-5d | Final cleanup: zero `<stdio.h>` in flight binary | Audit 2026-05-07 (IO-1) | analyzed | REMEDIATE | grep verification | R-5c | Phase 8 Cat 3 | — |
+| R-2 | GPS PMTK `snprintf` → const arrays | Audit 2026-05-07 (IO-2) | analyzed | REMEDIATE | `src/drivers/gps_pa1010d.cpp`, `gps_uart.cpp` | none | Phase 8 Cat 3 | — |
+| R-6c | FP-1 template-dispatch | Audit 2026-05-07 | analyzed | REMEDIATE | `src/calibration/calibration_manager.cpp` `lm_solve()` | none | Phase 8 Cat 3 | — |
+| R-11 | SPIN model: flash_safe_execute protocol | Audit 2026-05-07 Phase 6 council | analyzed | REMEDIATE | new `tools/spin/rocketchip_flash_protocol.pml` | none | Phase 8 Cat 3 | — |
+| R-12 | SPIN model: cross-core boot handshake | Audit 2026-05-07 Phase 6 council | analyzed | REMEDIATE | new `tools/spin/rocketchip_boot.pml` | R-1 (code change) | Phase 8 Cat 3 | — |
+| P8-FMEA-Pyro | Pyro intent/arm/disarm FMEA sub-check | Audit 2026-05-07 Phase 6 council | analyzed | REMEDIATE | review + log | none | Phase 8 Cat 3 | — |
+| R-7 | Holzmann inverted-rule exemption doc | Audit 2026-05-07 | analyzed | REMEDIATE | `standards/CODING_STANDARDS.md` | none | Phase 8 Cat 4 | — |
+| R-13 | SESSION_CHECKLIST trigger-map row for SPIN ride-along | Audit 2026-05-07 Phase 6 council | analyzed | REMEDIATE | `.claude/SESSION_CHECKLIST.md` | none | Phase 8 Cat 4 | — |
+| R-10b | Stack-usage SDK coverage gap | Audit 2026-05-07 Phase 5 | analyzed | DEFER | CMake `-fstack-usage` global vs runtime watermark | none | Re-eval at next milestone | Tooling completeness gap, not safety gap. Project-side max stack 200 bytes vs 1024 threshold — empirically verified well within margin. Re-evaluate if stack usage grows above 50% of threshold. |
 
 ---
 
@@ -87,7 +102,17 @@ Inline notes after each table entry are fine when the row needs more context tha
 
 Closed PRs are archived to keep the Active table readable. Archive entry retains: ID, title, origin, file:line of fix, verification gate observed, closure commit SHA, and date.
 
-_(empty — first PRs to close will land here during the 2026-05-07 audit cycle's Phase 8 wrap)_
+**Phase 8 Category 1 — Gate Integrity (closed 2026-05-12):**
+
+| ID | Title | Fix location | Verification | Commit | Date |
+|----|-------|--------------|--------------|--------|------|
+| P8-SPIN-B | Delete `rocketchip_fd_pp.pml` zero-byte stub | `tools/spin/rocketchip_fd_pp.pml` (was untracked) | `ls tools/spin/*.pml` shows only the 4 active models | (no commit — file was untracked; documented in P8-SPIN-A commit) | 2026-05-12 |
+| P8-SPIN-A | Extend SPIN gate to all 4 active models | `tools/spin/run_stage_o_ao_spin.sh` | `SPIN_OK_26` across 4 models (26 LTL properties total); log: `logs/audit-2026-05-07/08_spin_all_4_models.log` | `86b07ca` | 2026-05-12 |
+| R-10a | Fix `analyze_stack_usage.sh` parser bug | `scripts/analyze_stack_usage.sh` | Self-test PASS; real `build_stack/` reports `5 KiB` (was `0 KiB`); log: `logs/audit-2026-05-07/09_stack_usage_post_R10a.log` | `3551231` | 2026-05-12 |
+| R-9a | Add `fault_force_launch_abort()` | `src/dev/fault_inject.cpp`, `CMakeLists.txt` | `enhanced_fault_injection.py --scenario launch-abort`: `SCENARIO_LAUNCH-ABORT_COMPLETE`, observed `[FD] ABORT*` | `678f82f` | 2026-05-12 |
+| R-9b | Add `fault_force_radio_dropout()` + test-only RfManager setter | `src/dev/fault_inject.cpp`, `src/active_objects/ao_rf_manager.{h,cpp}`, `CMakeLists.txt` | `enhanced_fault_injection.py --scenario radio-dropout`: `SCENARIO_RADIO-DROPOUT_COMPLETE`, observed `link lost` | `1fab314` | 2026-05-12 |
+
+**Category 1 → 2 transition gate signed 2026-05-12:** SPIN `SPIN_OK_26`, stack analyzer reports honest `5 KiB`, host ctest 788/788 PASS (gated by pre-commit hook on `1fab314`), launch-abort + radio-dropout HW scenarios observe firmware-side positive-control signals. Category 2 (R-3) ready to begin.
 
 ---
 

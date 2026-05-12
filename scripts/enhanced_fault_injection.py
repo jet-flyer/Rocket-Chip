@@ -115,32 +115,21 @@ def find_vehicle_port():
 # ============================================================================
 
 def scenario_launch_abort(port: str):
-    """Post SIG_ARM then SIG_ABORT to FD; expect '[FD] ABORT*' log line.
+    """Call fault_force_launch_abort() (R-9a); expect '[FD] ABORT*' log line.
 
-    NOTE: this scenario takes 2 GDB calls (arm then abort). Capture across
-    both via the continuous-serial pattern.
+    Uses the dedicated firmware hook which dispatches SIG_ARM then SIG_ABORT
+    via AO_FlightDirector_dispatch_signal() — the same path CLI and
+    telemetry use. Replaces the prior GDB-scratch QEvt approach that
+    couldn't reliably produce posted events from inside a GDB call.
     """
-    print('[FAULT] launch-abort: posting SIG_ARM then SIG_ABORT to AO_FlightDirector...')
-    # First gdb call: ARM (SIG_ARM = 5). Brief capture window for [FD] log.
-    log_arm = gdb_call_with_capture(
+    print('[FAULT] launch-abort: calling fault_force_launch_abort() via GDB...')
+    log = gdb_call_with_capture(
         port,
         'monitor halt',
-        'set $arm_evt = (QEvt){.sig = 5, .poolNum_ = 0, .refCtr_ = 0, .filler_ = 0}',
-        'call QActive_post_(AO_FlightDirector, &$arm_evt, 0, 0)',
+        'call fault_force_launch_abort()',
         'monitor resume',
-        post_capture_s=1.0,
+        post_capture_s=3.5,
     )
-    # Second: ABORT (SIG_ABORT = 12). Longer capture to give the FD time
-    # to process and emit its log line.
-    log_abort = gdb_call_with_capture(
-        port,
-        'monitor halt',
-        'set $abort_evt = (QEvt){.sig = 12, .poolNum_ = 0, .refCtr_ = 0, .filler_ = 0}',
-        'call QActive_post_(AO_FlightDirector, &$abort_evt, 0, 0)',
-        'monitor resume',
-        post_capture_s=2.5,
-    )
-    log = log_arm + log_abort
     m = re.search(r'\[FD\] ABORT\b[^\n]*', log)
     if not m:
         m = re.search(r'\[FD\] CRITICAL FAULT.*ABORT[^\n]*', log)
@@ -162,27 +151,27 @@ def scenario_pyro_misfire(port: str):
 
 
 def scenario_radio_dropout(port: str):
-    """Age out radio last_rx_ms; expect link-lost transition log.
+    """Call fault_force_radio_dropout() (R-9b); expect link-lost log line.
 
-    NOTE: The radio link-state is a file-scope-static struct member, not
-    directly visible to GDB by simple name. This scenario uses
-    fault_force_health_fail() with subsystem index for radio if available,
-    otherwise reports the missing-symbol diagnostic.
+    Uses the dedicated firmware hook which calls
+    AO_RfManager_force_last_rx_ms_for_test(0) and emits a [FAULT] line.
+    Replaces the prior `set variable s.last_rx_ms = 0` approach which
+    silently no-op'd because `s` is a file-scope-static struct member,
+    not a visible global symbol.
     """
-    print('[FAULT] radio-dropout: attempting symbol-based set of radio last_rx_ms...')
+    print('[FAULT] radio-dropout: calling fault_force_radio_dropout() via GDB...')
     log = gdb_call_with_capture(
         port,
         'monitor halt',
-        # Best-effort symbol probe; will silently no-op if symbol not visible
-        'set variable s.last_rx_ms = 0',
+        'call fault_force_radio_dropout()',
         'monitor resume',
-        post_capture_s=4.0,
+        post_capture_s=3.0,
     )
     m = re.search(r'(link.{0,8}lost|\[AO_RF\][^\n]*lost|\[CMD\][^\n]*reject|kHealthRadio[^\n]*FAULT)',
                   log, re.IGNORECASE)
     if m:
         return (True, m.group(0))
-    return (False, '<no link-lost log observed; radio state symbol may not be visible to GDB — needs dedicated fault_force_radio_dropout() hook>')
+    return (False, '<no link-lost log observed>')
 
 
 def scenario_core1_stall(port: str):
