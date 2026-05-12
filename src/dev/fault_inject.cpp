@@ -13,7 +13,9 @@
 #include "rocketchip/config.h"
 #include "rocketchip/ao_signals.h"
 #include "safety/pio_backup_timer.h"
+#include "active_objects/ao_flight_director.h"
 #include "hardware/pio.h"
+#include "pico/time.h"
 #include <stdio.h>
 
 extern "C" {
@@ -57,6 +59,28 @@ void fault_force_watchdog_stall(uint32_t skip_ticks) {
 extern "C" __attribute__((used))
 void fault_force_health_fail(uint8_t /*subsystem_index*/) {
     printf("[FAULT] Use GDB 'set' for health byte — see FAULT_INJECTION.md\n");
+}
+
+// R-9a: ARM-then-ABORT sequence so enhanced_fault_injection.py can observe
+// the [FD] ABORT* positive-control signal end-to-end. Goes through the
+// AO_FlightDirector_dispatch_signal() public path (same path the CLI and
+// telemetry layers use), avoiding GDB-scratch QEvt fragility.
+extern "C" __attribute__((used))
+void fault_force_launch_abort() {
+    if (!AO_FlightDirector_is_initialized()) {
+        printf("[FAULT] launch-abort: FD not initialized\n");
+        return;
+    }
+    if (!AO_FlightDirector_is_ground_state()) {
+        printf("[FAULT] launch-abort: FD not in ground state — aborting hook\n");
+        return;
+    }
+    printf("[FAULT] launch-abort: dispatching SIG_ARM\n");
+    AO_FlightDirector_dispatch_signal(static_cast<int>(rc::SIG_ARM));
+    sleep_ms(50);  // let ARM phase change emit + propagate
+    printf("[FAULT] launch-abort: dispatching SIG_ABORT\n");
+    AO_FlightDirector_dispatch_signal(static_cast<int>(rc::SIG_ABORT));
+    printf("[FAULT] launch-abort: sequence dispatched (expect [FD] ABORT*)\n");
 }
 
 extern "C" __attribute__((used))

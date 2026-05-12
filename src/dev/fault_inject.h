@@ -18,6 +18,7 @@ static inline void fault_force_core0_stall()                        {}
 static inline void fault_force_core0_stall_clear()                  {}
 static inline void fault_force_watchdog_stall(uint32_t)             {}
 static inline void fault_force_health_fail(uint8_t)                 {}
+static inline void fault_force_launch_abort()                       {}
 static inline void fault_force_ao_queue_flood(uint8_t, uint16_t)    {}
 static inline void fault_force_pio_sm_halt()                        {}
 
@@ -29,6 +30,7 @@ void fault_force_core0_stall();
 void fault_force_core0_stall_clear();
 void fault_force_watchdog_stall(uint32_t skip_ticks);
 void fault_force_health_fail(uint8_t subsystem_index);
+void fault_force_launch_abort();
 void fault_force_ao_queue_flood(uint8_t ao_priority, uint16_t count);
 void fault_force_pio_sm_halt();
 }
