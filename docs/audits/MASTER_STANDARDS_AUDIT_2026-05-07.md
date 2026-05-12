@@ -40,6 +40,7 @@ The R-6 → R-6b near-miss (initial misreading correction nearly erased a real d
 | 1 — Build parity | Phase 1.5 | ✅ PASS | All 4 build tiers compile clean |
 | 1 — Host ctest | Phase 1.6 | ✅ PASS | 788/788 in 7.69s |
 | 1 — SPIN AO | Phase 1.7 | ✅ PASS (soft) | `SPIN_OK_ALL_11` (1.08s); model self-consistency only — see Phase 6 model/source diff |
+| 1 — SPIN station | Phase 1.7b | ✅ PASS (soft) | 2/2 (p_termination, p_no_double_clear); errors:0 each. Added mid-audit per user direction (SPIN doesn't need HW) |
 | 1 — clang-tidy + lizard | Phase 1.8 | ⚠️ FAIL | 3,288 warnings + multiple CCN > 20 violations + Tier 3 unguarded printf in flight-critical drivers + Tier 4 missing Prior Art comment |
 | 1 — cppcheck | Phase 1.9 | ⚠️ FAIL | 46 issues (1 cppcheck-config error, 5 real warnings incl. icm20948 nullptr deref, 33 style, 7 portability) |
 | 1 — coverage | Phase 1.10 | ⚠️ PARTIAL | ESKF main file 65.27% (under pre-declared 80% threshold); AOs/drivers/calibration not in host scope |
@@ -121,6 +122,17 @@ Verdict: `VERDICT: PASS — All available build variants compiled successfully`
 - `p_armed_fault_safe_mode` — armed→fault→safe-mode liveness
 
 **Soft gate per HW_GATE_DISCIPLINE.md Rule 4 + amendment 4.** This proves model self-consistency — that the 11 LTL properties hold over the SPIN model — but it does NOT prove the C++ in `src/active_objects/ao_flight_director.cpp` matches the model. The model/source correspondence is verified by Phase 6 step 24b (manual diff staged for user review).
+
+### 1.7b — SPIN station 2/2 ✅ PASS (soft gate)
+
+`logs/audit-2026-05-07/03b_spin_station.log`
+
+Station-side SPIN model `rocketchip_station.pml` verified against 2 LTL properties:
+
+- `p_termination` — station eventually terminates (liveness): `errors: 0`, depth 44, state-vector 52 byte.
+- `p_no_double_clear` — clear command at most once (safety): `errors: 0`, depth 63, state-vector 52 byte.
+
+Added after user clarified that SPIN doesn't need HW — pure model verification. Per IVP-147 scaffolding (`AGENT_WHITEBOARD.md` notes). Same soft-gate classification as Phase 1.7 — proves model self-consistency, not C++/model correspondence (deferred to Phase 6 along with the vehicle-side AO model/source diff).
 
 ### 1.8 — clang-tidy + lizard ⚠️ FAIL
 
@@ -209,9 +221,30 @@ Built with `clang -fprofile-instr-generate -fcoverage-mapping` (Debug, -O0). 470
 
 Positive-control signals observed: `[FD] PYRO FIRED: DROGUE (primary)` (happy path), `[FD] ABORT from BOOST — drogue pyro intent` (abort path).
 
-### 1.11b — bench_sim station N/A
+### 1.11b — bench_sim station N/A (deliberate scope)
 
-Station hardware not present on bench during this audit cycle. Single-vehicle bench setup. Documented as gap; future audits with full vehicle+station bench should run station_bench_sim.
+Station hardware (Fruit Jam) not on the bench during this audit cycle by user direction: "anything that needs dedicated FJ testing we can do after all this has been gone through and remediated. There shouldn't be any major differences aside from small GPIO bugs from our experience so far." Single-vehicle Feather bench setup for this audit.
+
+**Coverage of station code through other Phase 1 checks (what IS covered):**
+
+- ✅ `verify_build_parity.sh` (Phase 1.5) — compiled `build_station/` and `build_station_flight/` clean; station code passes build gate.
+- ✅ clang-tidy + lizard full-tree sweep (Phase 1.8) — covered station source files alongside vehicle.
+- ✅ cppcheck (Phase 1.9) — covered station source files alongside vehicle.
+- ✅ Host ctest (Phase 1.6) — station-side logic that has host tests gets exercised.
+- ✅ **SPIN station model `rocketchip_station.pml` 2/2 PASS** (Phase 1.7b) — added mid-audit after user clarified SPIN doesn't need HW.
+
+**On test-coverage for station-side code:**
+
+The Phase 1.10 coverage report is host-test scope, which links `rc_flight_director` + `qep` libraries only. Same scope applies to vehicle-side AOs/drivers/CLI as to station-side: none are in the host test scope today, regardless of role. The 65.27% line coverage on `eskf.cpp` is the one threshold finding, and it's role-neutral. There is no specific "station has less coverage than vehicle" finding here — both have the same shape of gap, which is *anything in `src/active_objects/`, `src/drivers/`, `src/cli/`, `src/calibration/` is target-only and not in host scope.*
+
+Extending host-test scope to cover station-side AOs (or vehicle-side AOs) is a substantial host-test-infrastructure project, not in this audit's scope. Target-side coverage instrumentation (running instrumented firmware on the FJ or Feather and collecting .profraw via SWD) is a larger lift, deferred.
+
+**What remains deferred to post-remediation FJ pass:**
+
+- ❌ Station-side runtime (no live FJ on bench): station_bench_sim, FJ banner capture, FJ 3-boot reseat, FJ HW status command output.
+- ❌ FJ-specific code paths in Phase 4-7 that need observed firmware behavior (FMEA station-side runtime, station SPIN model/source diff, station traceability rows).
+
+**Rationale for deferral:** Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION=1` and `kRadioModeRx`. Build-time and source-level checks (build_parity, clang-tidy, cppcheck, ctest, SPIN) already exercised both roles. Runtime divergence in this project's history has been small GPIO/wiring bugs, not architectural deltas. A focused FJ-only pass after remediation is the right granularity.
 
 ### 1.12 — replay_gate_test ⚠️ PARTIAL
 
