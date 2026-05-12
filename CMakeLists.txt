@@ -663,6 +663,7 @@ else()
             -Wl,--undefined=fault_force_watchdog_stall
             -Wl,--undefined=fault_force_health_fail
             -Wl,--undefined=fault_force_launch_abort
+            -Wl,--undefined=fault_force_radio_dropout
             -Wl,--undefined=fault_force_ao_queue_flood
             -Wl,--undefined=fault_force_pio_sm_halt
             -Wl,--undefined=replay_inject_start

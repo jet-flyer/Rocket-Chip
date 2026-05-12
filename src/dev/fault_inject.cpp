@@ -14,6 +14,7 @@
 #include "rocketchip/ao_signals.h"
 #include "safety/pio_backup_timer.h"
 #include "active_objects/ao_flight_director.h"
+#include "active_objects/ao_rf_manager.h"
 #include "hardware/pio.h"
 #include "pico/time.h"
 #include <stdio.h>
@@ -96,6 +97,18 @@ extern "C" __attribute__((used))
 void fault_force_pio_sm_halt() {
     pio2->ctrl &= ~0xFU;
     printf("[FAULT] PIO2 all SMs disabled (backup timers halted)\n");
+}
+
+// R-9b: age out AO_RfManager's last_rx_ms so the next 10 Hz tick fires the
+// deadman / forced-ACQ branches. enhanced_fault_injection.py radio-dropout
+// scenario regex matches the [FAULT] line we emit here directly (mirrors
+// the fault_force_pio_sm_halt() pattern); the underlying link-state demotion
+// to kAcq + AO_Notify_post_vehicle_lost() runs on the next tick but is not
+// required for the regex hit.
+extern "C" __attribute__((used))
+void fault_force_radio_dropout() {
+    rc::AO_RfManager_force_last_rx_ms_for_test(0U);
+    printf("[FAULT] link lost — RfManager last_rx_ms forced to 0\n");
 }
 
 #endif // ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS

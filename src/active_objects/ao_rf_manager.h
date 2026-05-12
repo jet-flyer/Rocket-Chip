@@ -92,6 +92,14 @@ bool AO_RfManager_ok_to_retry();
 /// Recomputes deadman + alpha thresholds against the new period.
 void AO_RfManager_set_nav_period_ms(uint32_t nav_period_ms);
 
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
+/// Test-only: override last_rx_ms so the next 10 Hz tick sees a stale anchor
+/// and the deadman / forced-ACQ branches fire. Used by fault_force_radio_
+/// dropout() (R-9b) for fault-injection harness; never called from
+/// production paths.
+void AO_RfManager_force_last_rx_ms_for_test(uint32_t last_rx_ms);
+#endif
+
 } // namespace rc
 
 #endif // ROCKETCHIP_AO_RF_MANAGER_H

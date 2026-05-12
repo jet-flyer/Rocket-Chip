@@ -373,4 +373,10 @@ const char* link_state_name(LinkState s) {
     return "?";
 }
 
+#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
+void AO_RfManager_force_last_rx_ms_for_test(uint32_t last_rx_ms) {
+    l_rf.state.last_rx_ms = last_rx_ms;
+}
+#endif
+
 } // namespace rc
