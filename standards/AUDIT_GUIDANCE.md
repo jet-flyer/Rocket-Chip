@@ -374,6 +374,26 @@ Two clustering exceptions where one commit per PR is wrong:
 
 The clustering decision is a judgment call; the default is split.
 
+### C.4a Surfaced-bug scope rule
+
+**When verifying PR-X reveals bug-Y that PR-X's verification path depends on, expand PR-X's scope to also fix bug-Y. Both fixes ship in the same commit (or back-to-back commits with the same PR ID).** Splitting bug-Y off as a separate PR produces a verification gap: PR-X claims `closed` but its own verification couldn't actually run, and the gap looks identical to "we verified locally only" from a reader's perspective.
+
+The test is: **did fixing PR-X's primary issue *reveal* bug-Y, or was bug-Y just coincidentally nearby?** Revealed bugs are in-scope; coincident bugs split into separate PRs as normal.
+
+Indicators that a bug was revealed (not coincident):
+- PR-X's primary defect was masking bug-Y (e.g., a halt-forever handler hid the fact that the MPU guard region wasn't actually catching writes, because the handler was never exercised). Fixing X exposes Y.
+- PR-X's verification recipe (named in the audit's preliminary remediation queue) cannot produce its positive-control signal until bug-Y is also fixed.
+- Bug-Y is in code PR-X is touching, and a future reader following PR-X's verification trail will hit the same issue.
+
+Indicators that a bug is coincident (split into a new PR):
+- Bug-Y is in a different subsystem, unrelated mechanism, and PR-X's verification doesn't touch it.
+- Bug-Y existed independently and PR-X just happened to be in the same file.
+- Fixing bug-Y doesn't change PR-X's verification outcome.
+
+**Documenting the expanded scope:** the PR-X commit message names the surfaced bug, states why it was in-scope (one of the indicators above), and cites the verification that proves both fixes work together. The dated audit report's `## Remediation` section captures the same in the PR-X row.
+
+Source: project policy 2026-05-12 — surfaced bugs are in-scope because they were hidden by the same defect PR-X exists to fix; treating them as separate PRs pretends an independence that wasn't there. Lived-experience case: R-3 (audit 2026-05-07) surfaced the MPU `AP=0b00` encoding bug + the missing MEMFAULTENA — both hidden by the pre-R-3 halt-forever handler that never exercised the guard. Both rode in the R-3 commit.
+
 ### C.5 Verification cadence — per commit local, per category regression
 
 The static-analysis-tool community names this distinction clearly: **what blocks a merge ≠ what gets the full audit-suite regression**.

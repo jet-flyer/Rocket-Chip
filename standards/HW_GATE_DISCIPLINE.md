@@ -140,6 +140,34 @@ A commit message may legitimately cite *only* level 1 — that's the normal per-
 
 ---
 
+## Rule 7. Bugs surfaced by verification are in-scope for the PR that surfaced them
+
+**When verifying PR-X reveals bug-Y that PR-X's verification path depends on, the fix for bug-Y rides in the same commit (or back-to-back commits with the same PR ID) as PR-X.** Bug-Y is *not* a separate PR.
+
+The reason: bug-Y was hidden by the same defect PR-X exists to fix. Splitting it off as a new PR pretends an independence that wasn't there and creates a verification gap — PR-X gets marked `closed` while its own verification path could not actually run.
+
+**Test:** did fixing PR-X's primary defect *reveal* bug-Y, or was bug-Y merely coincident nearby code?
+
+Surfaced (in-scope):
+- PR-X's primary defect was masking bug-Y. Fixing X is what exposes Y.
+- PR-X's verification recipe cannot produce its positive-control signal until bug-Y is also fixed.
+- Bug-Y is in code PR-X is touching and a future reader following the PR-X trail will hit it.
+
+Coincident (split into a new PR as normal):
+- Bug-Y is in a different subsystem with no causal link to the masking defect.
+- Bug-Y existed independently and PR-X just happens to be in the same file.
+- Fixing bug-Y doesn't change PR-X's verification outcome.
+
+**Commit-message form.** A PR-X commit that fixes a surfaced bug-Y names the surfaced bug, states why it was in-scope (one of the surfaced-indicators above), and cites the verification that proves both fixes work together. The verification citation per Rule 6 still applies — Level 1 local + Level 2 audit-suite-style, both on the combined scope.
+
+**Example.** R-3 (audit 2026-05-07) replaced a halt-forever fault handler with capture-and-reset. Verification surfaced two pre-existing MPU bugs that the halt-forever handler had hidden because the handler was never actually exercised: an `AP=0b00` encoding mistake in `mpu_setup_stack_guard()` (which allowed privileged writes through the guard region — defeating the guard's purpose) and a missing `MEMFAULTENA` enable (which made MPU violations escalate to HardFault instead of invoking the dedicated MemManage handler). Both rode in the R-3 commit because R-3's verification path required them to be fixed — without the AP correction, `fault_force_hardfault()` would never produce a fault; without MEMFAULTENA, the fault wouldn't route to the new handler. R-3 closed with both fixes verified together; no separate "R-15 / MPU AP encoding" or "R-16 / MEMFAULTENA" was opened.
+
+**Counter-example to avoid.** Treating each surfaced bug as a new PR means PR-X ships under-verified (its own verification recipe couldn't run on the current commit), the new PRs ship in isolation later with their own verification (proving the surfaced bug fix works but not proving PR-X works), and the audit's `## Remediation` section has a row that says `closed` for a PR whose verification never ran. That looks identical to a clean closure in diff history, which is precisely the kind of structural-soft-gate failure LL Entry 36 documents.
+
+Source: project policy 2026-05-12, lived-experience case is R-3 above. Companion rule to AUDIT_GUIDANCE.md Appendix C.4a.
+
+---
+
 ## How this interacts with existing standards
 
 - **Extends `standards/CODING_STANDARDS.md` Pre-Commit Checklist** — Items 1-4 become "and the commit message cites the observed control signal."
