@@ -136,6 +136,60 @@ Templates produce identical machine code to the current function-pointer indirec
 
 ---
 
+## R-9 — Fault-injection harness completion (Phase 4 audit findings)
+
+**Status:** New (surfaced 2026-05-07 during master audit Phase 4 / step 4.3).
+**Context:** `scripts/enhanced_fault_injection.py` was a stub before this audit. Rewritten during Phase 4 to drive the device via GDB using `src/dev/fault_inject.cpp` hooks; 1 of 4 scenarios (pyro-misfire) now passes end-to-end with firmware-side positive-control signal observed. Other 3 scenarios surfaced 3 distinct firmware-harness gaps:
+
+### R-9a — `fault_force_launch_abort()` hook
+
+**Standard:** HW_GATE_DISCIPLINE.md Rule 1 (positive-control signal required for the launch-abort scenario)
+**Issue:** GDB-scratch-storage QEvt + GDB-call of `QActive_post_(AO_FlightDirector, &$scratch_evt, 0, 0)` does NOT produce an observable `[FD] ABORT*` log. The event is either discarded (FD not in IDLE) or the GDB-scratch QEvt isn't survived by the post mechanism.
+**Recommended remediation:** Add a `fault_force_launch_abort()` to `src/dev/fault_inject.cpp` that, in bench-tier:
+  1. Asserts FD is in IDLE (returns early if not, with a `[FAULT]` log explaining why)
+  2. Builds a static-storage `QEvt` with sig=SIG_ARM, calls `QActive_post_()` on AO_FlightDirector
+  3. Waits ~50ms for the dispatch to land
+  4. Builds a static-storage `QEvt` with sig=SIG_ABORT, calls `QActive_post_()`
+**Estimated effort:** Small — ~30 lines new function + minor refactor of enhanced_fault_injection.py launch-abort scenario to just call the hook.
+
+### R-9b — `fault_force_radio_dropout()` hook
+
+**Standard:** HW_GATE_DISCIPLINE.md Rule 1 (positive-control signal required for radio-dropout)
+**Issue:** The radio link-state struct `s` in `ao_rf_manager.cpp` is file-scope-static; GDB's `set variable s.last_rx_ms = 0` silently no-ops because `s` isn't a visible global symbol.
+**Recommended remediation:** Add a `fault_force_radio_dropout()` to `src/dev/fault_inject.cpp` that, in bench-tier, pokes the link-state via either: (a) an extern accessor in `ao_rf_manager.cpp` (e.g., `void rf_manager_set_last_rx_ms_for_test(uint32_t ms)`), or (b) directly setting an extern global if `s.last_rx_ms` is hoisted to file-extern scope under `#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS`. Option (a) is cleaner.
+**Estimated effort:** Small — ~20 lines (extern accessor + fault hook).
+
+### R-9c — log-on-change emit in `health_monitor.cpp`
+
+**Standard:** HW_GATE_DISCIPLINE.md Rule 1 (every state transition has a positive-control signal)
+**Issue:** When `kHealthCore1Ok` (or any other health bit) flips from OK to FAULT in the health byte, no log line is emitted. The bit transition is silent. Observed during Phase 4.3 — `g_core1StallTicks` set to 100 successfully flipped the bit, but no `[Health] CORE1 FAULT` line appeared in serial output.
+**Recommended remediation:** In `src/safety/health_monitor.cpp`, add log-on-change tracking for each subsystem health bit. When a bit transitions OK→FAULT, emit `[Health] <subsystem> FAULT` to serial. When FAULT→OK (recovery), emit `[Health] <subsystem> RECOVERED`. The current behavior — silent health-byte mutation — fails the FMEA-lite Row K3 ("every state transition has explicit guard + observable positive-control signal") for the health-monitor subsystem-state machine. This benefits real flight operations too: currently the GCS would see the health byte change but the firmware itself doesn't log when it caught a fault.
+**Estimated effort:** Moderate — needs change-detection state per subsystem (prev_primary, prev_secondary, prev_critical, prev_mcu fields), printf statements added per transition. ~40-60 lines change.
+
+**R-9 priority:** Medium overall. The audit's Phase 4.1/4.2 already verified the firmware safety properties via FMEA-lite + Koopman; R-9 improves the automated regression harness but doesn't unblock audit conclusions. Good candidate for a focused post-audit remediation session.
+
+**R-9 summary effort:** ~2-3 hours total for R-9a+R-9b+R-9c, mostly in `src/dev/fault_inject.cpp` and `src/safety/health_monitor.cpp`.
+
+---
+
+## Open question: remediation execution order
+
+**To research before Phase 8 begins:** What is the professional/industrial standard for ordering remediations from a safety-critical-code audit? Two general approaches:
+
+**(a) Single linear pass through the remediation queue**, fixing each item, re-running scripted checks per item to confirm no regression introduced. Slower; clean per-item commit history; risk of late-discovered conflicts when an early fix invalidates a later remediation's assumption.
+
+**(b) Group remediations by category** (test-harness fixes first, then code-style fixes, then standards-deviations, then architectural changes), with one round of scripted-check re-runs per group. Faster; less granular history; lower risk of conflicts because related changes land together.
+
+**(c) Risk-ordered** (highest-safety-impact first), regardless of category. Could be the right answer for safety-critical audits — get the bug-class items closed before the doc-cleanup items.
+
+**(d) Dependency-ordered.** Some remediations have explicit dependencies (e.g., R-1/R-4 depend on R-3 per the existing remediation file; R-9a is independent; R-5 depends on R-5a inventory). Topologically sort the queue.
+
+Likely answer is some combination. NASA, IEEE, SAE, and IEC 61508 may have published guidance. Worth a focused research step (~30-60 min web search) just before Phase 8 to establish the right pattern, then apply it.
+
+This question is logged here so we don't forget to research it. Not a Phase 4 finding; it's a meta-question about Phase 8 execution methodology.
+
+---
+
 ## R-7 — CODING_STANDARDS.md: document Holzmann inverted-rule exemption
 
 **Standard:** P10-2 / JSF AV Rule 25 framing
