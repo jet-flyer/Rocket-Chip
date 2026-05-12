@@ -48,6 +48,13 @@ These run on **every** `git commit`. Inherited by PUSH, SESSION_END, and MILESTO
 4. **Commit message.** Format: `[agent] brief description of what and why`. If a HW gate ran for this commit (bench_sim, ctest, soak, post-flash banner read), the message must cite the **observed positive-control signal**, not just the gate name. See `standards/HW_GATE_DISCIPLINE.md` Rule 3. Pure-software changes are exempt — say so explicitly in the commit message ("Verified: pure-software change, host ctest 788/788, no HW reseat required").
 5. **Trigger-driven doc edits ride with the trigger** (see "Trigger-Driven Documentation Edits" section below). If this commit changed a fact a state-of-system protected doc states, the doc edit goes in the same commit, not a separate one.
 
+5a. **Change Impact Analysis for non-trivial changes.** Before staging a commit that touches a flight-critical path, a state-of-system protected doc, or any mechanism that other code depends on, name the dependency footprint:
+   - What files or modules does the change touch?
+   - What other code (or open Problem Reports in `docs/PROBLEM_REPORTS.md`) depends on what the change is modifying?
+   - Which audit gates, pre-commit checks, or scripted tests does the change interact with?
+
+   For trivial changes (typo fixes, comment-only edits, isolated single-file additions with no callers yet), this is implicit and doesn't need to be written down. For non-trivial changes, capture the answers in either (a) the commit message body, (b) a `docs/PROBLEM_REPORTS.md` row if the change closes a tracked PR, or (c) a scratch note in the dated audit report if the change is part of an audit-driven remediation cycle. Source: DO-178C change-impact-analysis principle. Catches the failure mode where a fix to one file silently invalidates an assumption another file relied on. Inserted as 5a (not 6) to preserve existing cross-references to items 6-17 in other docs.
+
 ---
 
 ## Per Push

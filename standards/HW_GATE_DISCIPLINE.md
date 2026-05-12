@@ -116,6 +116,30 @@ The combination of these three defenses means an agent cannot pass a hard HW gat
 
 ---
 
+## Rule 6. Local-commit verification ≠ audit-suite regression credit
+
+This rule distinguishes two levels of verification credit that commit messages and finding-closure claims must not conflate. Rules 1-3 already say *what* a gate must observe (positive-control signal) and *how* to cite it; Rule 6 says *at what level of credit* a given verification counts.
+
+**Local-commit verification (level 1).** A single focused commit observes its own gate — the pre-commit hook's bench_sim, the change's claimed positive-control signal, host ctest covering the touched path. This is what Rule 3 commit-message citation captures. It proves the change does what it claims at the moment of the commit, in isolation, on the author's bench.
+
+**Audit-suite regression credit (level 2).** The original audit's scripted check suite re-runs end-to-end *after* a remediation cycle (or a category of remediations, per `standards/AUDIT_GUIDANCE.md` Appendix C.5) and observes the full positive-control set the audit defined. This is what closes a Problem Report in `docs/PROBLEM_REPORTS.md` from `verified` to `closed`, and what signs a dated audit report's `## Remediation` row.
+
+**Why this matters.** Local-commit verification is necessary but not sufficient. The LL Entry 36 framing applies: a gate that passes locally can still be silently broken at the integration level (other findings touched the same file; a shared mechanism was changed; the audit's own check rotted). Audit-suite regression is the level that catches inter-finding interactions; local verification by definition cannot see them.
+
+**Required form.** When citing verification:
+
+- Use "Verified locally:" for level 1 — the change's own commit gates, captured per Rule 3.
+- Use "Verified at audit regression:" for level 2 — the audit-suite re-run that confirms the change still holds in the as-shipped state.
+- Use "Verified independently:" for the strongest form — a separate session, a re-audit, or a different agent ran the regression and reached the same verdict. Per DO-178C's independence principle, the fix author's local re-test has less credibility than an independent verifier's.
+
+A commit message may legitimately cite *only* level 1 — that's the normal per-commit state. A dated audit report's `## Remediation` section row marked `closed` must cite at least level 2. A `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` entry derived from an audit finding must cite at least level 2 plus the user-acceptance signature.
+
+**Anti-pattern.** A commit message that says "Verified: audit-suite PASS" when only the local commit gate ran. That is the failure mode this rule prevents — it overclaims level 2 credit for level 1 work. If level 2 hasn't actually run, the commit message says level 1 (and the audit-suite re-run happens later at the proper gate per AUDIT_GUIDANCE Appendix C.5).
+
+**Why this didn't need a separate rule until now.** Before the 2026-05-07 audit cycle, the project had ad-hoc framing for verification levels; commits cited "Verified: ctest passes" and that was fine because the work was incremental. With audit-driven remediation cycles producing batches of related fixes, the local-vs-audit distinction becomes load-bearing — without it, the audit's `## Remediation` section can fill with claimed-PASS rows that only saw level 1 verification, and the audit-suite regression is never actually performed. Source: DO-178C verification-independence principle + LL Entry 36 pattern + static-analysis-tool community's distinction between merge-blocker and backlog credit.
+
+---
+
 ## How this interacts with existing standards
 
 - **Extends `standards/CODING_STANDARDS.md` Pre-Commit Checklist** — Items 1-4 become "and the commit message cites the observed control signal."
