@@ -63,7 +63,7 @@ Run the full procedure only at milestone / stage close. For all other triggers, 
 
 ### A.1 FMEA-lite & Koopman Embedded Review
 
-> **Reference material is inlined in Appendix B.** Before walking this section, read **B.2 (Koopman 5-rule embedded review)** and **B.3 (FMEA worksheet columns, per NASA SWE Handbook §8.5)** for the rule wording, grep patterns, and PASS-vs-FAIL examples. **B.4 (walking procedure for A.1)** gives the step-by-step.
+> **Reference material is inlined in Appendix B.** Before working this section, read **B.2 (Koopman 5-rule embedded review)** and **B.3 (FMEA worksheet columns, per NASA SWE Handbook §8.5)** for the rule wording, grep patterns, and PASS-vs-FAIL examples. **B.4 describes the agent-driven audit workflow** including how FMEA-lite results surface conversationally for user disposition.
 
 **Scope:** Pyro arming/firing, launch-abort, disarm timeout, hung-fire, radio command validation, ESKF divergence brake. Map every item to `docs/SAD.md` states.
 
@@ -96,7 +96,7 @@ Run the full procedure only at milestone / stage close. For all other triggers, 
 
 ### A.2 Stack / Memory / RP2350 Errata Deep Review
 
-> **Reference material is inlined in Appendix B.** Before walking this section, read **B.1 (Power of 10 rule list with project-specific application notes)** for the rules that govern stack/memory hygiene, and **B.4 (walking procedure for A.2)** for the step-by-step.
+> **Reference material is inlined in Appendix B.** Before working this section, read **B.1 (Power of 10 rule list with project-specific application notes)** for the rules that govern stack/memory hygiene. **B.4 describes the agent-driven audit workflow** including how errata-checklist results surface conversationally for user disposition.
 
 **Stack & Memory Usage**
 - Build with `-fstack-usage` and run `analyze_stack_usage.sh` (or equivalent).
@@ -264,57 +264,35 @@ This is a deliberate simplification — we don't compute risk priority numbers b
 
 **Note on RPN:** If anyone ever extends this to a full quantitative FMEA, **do not compute risk priority numbers by multiplying ordinal scales** (the AIAG/VDA 2019 update replaced RPN with Action Priority for exactly this reason — multiplying ordinal rankings produces mathematically suspect numbers). Use the Action Priority approach instead.
 
-### B.4 Manual-Audit Walking Procedures
+### B.4 Audit Workflow (agent-driven with conversational user dispositions)
 
-For each of the four user-owned manual phases of the master audit, here is how to walk it.
+The audit's user-review interactions are **conversational**, not table-driven. The agent does the scripted/automated work, surfaces findings with evidence (file:line citations, raw quotes, suggested disposition with rationale), and the user dispositions each finding in conversation as it emerges. The audit report records the agreed dispositions afterward.
 
-#### Walking Phase 2 — Step 2 STANDARDS_AUDIT.md walk (~45 min)
+This is the pattern used during Phase A.2 (re-evaluating the 13 accepted deviations row-by-row in conversation) and during Phase 1 reporting (10 candidate findings surfaced with disposition recommendations, user gave REMEDIATE/DEFER/NEEDS REVIEW per row in conversation).
 
-**Read first:** the agent-staged section in the dated audit report (rule-category table from `standards/STANDARDS_AUDIT.md` with Status columns blank, plus the diff of clang-tidy/cppcheck findings against current `ACCEPTED_STANDARDS_DEVIATIONS.md` Active rows).
+Three disposition labels:
 
-**Walk order:**
-1. Top-to-bottom through the rule-category dashboard (Power of 10, JSF AV, JPL C, Platform Rules, Multicore, Debug Output).
-2. For each row, decide PASS / FAIL / PARTIAL / NOT CHECKED / N/A per the existing template legend.
-3. For any FAIL or PARTIAL row, note: (a) the file(s) affected, (b) whether it's a known accepted deviation (cross-reference `ACCEPTED_STANDARDS_DEVIATIONS.md`), (c) whether it's a candidate new deviation requiring user sign-off, (d) whether it's a candidate remediation.
+- **REMEDIATE** — fix as part of Phase 8 in this audit cycle. The agent does the fix as a focused commit during Phase 8.
+- **ACCEPT** — user signs off as a permanent deviation; row added to `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`.
+- **DEFER** — queue for a future post-audit remediation session. Logged in the dated report's `## Remediation` section.
 
-**Grep patterns to apply per row:** the rule's `grep -rn <pattern> src/` should match expected occurrences (if zero hits where there should be many, the rule isn't being applied; if many hits where there should be zero, deviation present).
+**Per-phase notes:**
 
-**Time budget:** ~45 minutes for a thorough walk. If running shorter, focus on Power of 10 (10 rules) + Platform Rules + Multicore. JSF AV's 221 rules can be sampled — pick the high-impact ones (assertion density, fixed-width types, exception handling, RTTI).
+- **Phase 2** — no separate user walk. Records the dispositions for Phase 1 findings that the user gave conversationally during Phase 1 reporting. Includes agent-produced reference snapshots (P10 per-rule applicability from Appendix B.1, doc-sync issues, currently-accepted deviations entering the audit).
+- **Phase 4** — agent walks the FMEA-lite table from Appendix A.1 itself, applies the Koopman 5-rule one-pager (B.2) to 3–5 flight-critical functions of agent's choice, runs `enhanced_fault_injection.py` scenarios. Records PASS/FAIL/PARTIAL per row with evidence. Any FAIL/PARTIAL surface conversationally for user disposition.
+- **Phase 5** — agent walks the A.2 errata checklist itself (E2/E9/E11/E12 greps + ISR allocs / flash ops in BOOST / Core 1 polling budget / PSRAM wrap / new compile flags). Records PASS/FAIL with evidence. Any FAIL/PARTIAL surface conversationally.
+- **Phase 7** — agent walks the requirements traceability spot-check itself. Per the master-audit plan's amendment 8, records raw quote + verification per row (CONFIRMED / STALE / MISSING). STALE/MISSING surface conversationally.
 
-**Done looks like:** every row has a status code; FAIL/PARTIAL rows have at least a one-line note explaining what to do.
+**Phase 9 — Post-audit guided code review (separate from the scripted audit cycle):**
 
-#### Walking Phase 4 — A.1 FMEA-lite (~30 min)
+After Phase 8 commits land and after some/all of the queued remediations have been applied, the user's eventual line-by-line read of the safety-critical code is supported by two agent-staged deliverables:
 
-**Read first:** Appendix A.1 FMEA-lite table as staged by the agent (file references hot-linked to current source line ranges; positive-control signals pre-loaded from Phase 1 bench_sim runs). Also read B.2 (Koopman 5-rule) and B.3 (FMEA column structure) above.
+1. **Reading-discipline tips** — practical advice tailored to this codebase: what to grep first, how to prioritize, how to spot comment-vs-implementation drift, what's auto-detectable (already caught by the scripted audit) vs. what only a human catches, realistic time estimates for the read.
+2. **Guided source tour** — agent pre-reads flight-critical paths and stages an annotated walking order (15–25 waypoints) with audit-finding annotations alongside surrounding-context narration. User walks the agent's tour rather than the code raw.
 
-**Walk order:**
-1. For each row (Pyro-fires-without-ARMED, Launch-abort-not-triggered, Disarm-timeout-fails, Radio-command-without-valid-link, ESKF-divergence-not-braked, Watchdog/PIO-WDT-not-armed): open the cited source file, find the guard or detection logic, verify it matches the stated "Positive-Control Signal" column.
-2. Mark Status: PASS if guard exists, signal observable; FAIL if guard missing or signal not observable; PARTIAL if guard exists but signal is anti-evidence (per HW_GATE_DISCIPLINE.md Rule 1).
-3. After the FMEA table, apply the Koopman 5-rule one-pager (B.2) to 3–5 flight-critical functions of your choice (`ao_flight_director.cpp`, `eskf.cpp`, `rfm95w.cpp` are good candidates).
+Both deliverables live in `docs/audits/<AUDIT>_MANUAL_REVIEW_GUIDE.md` (or as appendices to the dated audit report, at user preference). The agent's role during the user's read is responding to questions, not driving the read.
 
-**Time budget:** ~30 minutes. FMEA table is 6 rows × 5 min each. Koopman walk is 3–5 functions × 3 min each.
-
-**Done looks like:** FMEA table has Status filled per row, with positive-control signals confirmed observed (not just expected). Koopman walk has a 5×N table where N is the number of functions reviewed, with PASS/FAIL per cell.
-
-#### Walking Phase 5 — A.2 Manual Errata Checklist (~20 min)
-
-**Read first:** agent-staged A.2 section with errata-grep results pre-loaded (E2 spinlock callsites, E9 GPIO calls, E11 XIP cache references, E12 clk_sys/clk_usb config). Also read `standards/RP2350_ERRATA.md` to refresh on each erratum's workaround status.
-
-**Walk order:** Verify per erratum row that the agent's grep results match the expected state (e.g., E2 should show `PICO_SW_SPIN_LOCKS_NO_EXTEXCLALL=1` still in CMakeLists; E9 should show no new floating-input GPIO calls). Then walk the manual checklist: ISR large allocations, flash ops during BOOST/COAST/DESCENT, Core 1 polling budget under max sensor load, PSRAM ring buffer wrap behavior, new compile flags introduced since the prior audit.
-
-**Time budget:** ~20 minutes if the agent's grep pre-load is clean. Longer if grep surfaces unexpected callsites that need investigation.
-
-**Done looks like:** every errata row has a PASS or note explaining the new callsite/state. Manual checklist items have PASS or remediation note.
-
-#### Walking Phase 7 — Requirements Traceability Spot-Check (~20 min)
-
-**Read first:** agent-staged 10–15 row candidate table of flight-critical items (state machine transitions, ESKF outputs, pyro commands, telemetry fields, safety flags). Per the council's amendment 8 to the master audit plan, the agent stages the *raw quote* found in the source (e.g., `claimed: ao_flight_director.cpp:142 says "// per SAD §4.3"`), not a clean citation.
-
-**Walk order:** For each row, verify the cited section in the referenced doc (e.g., open SAD.md §4.3, confirm the section actually describes the transition being claimed). The failure mode being prevented is rubber-stamping comments that point at refactored-away sections.
-
-**Time budget:** ~20 minutes for 10–15 rows. Most rows resolve in <1 minute (citation still accurate); 1–2 rows per audit cycle typically surface a stale citation that wants a follow-up.
-
-**Done looks like:** each row marked CONFIRMED / STALE / MISSING. STALE rows go to the dated audit report's Remediation section as cleanup items.
+The scripted audit informs the manual review by showing where to focus; the manual review catches what scripted checks can't (semantic correctness, design-intent drift, integration issues across files).
 
 ### B.5 External References (Demoted)
 
