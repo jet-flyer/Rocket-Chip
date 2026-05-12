@@ -99,6 +99,29 @@ void fault_force_pio_sm_halt() {
     printf("[FAULT] PIO2 all SMs disabled (backup timers halted)\n");
 }
 
+// R-3 verification hook (audit 2026-05-07): force a MemManage fault by
+// writing into the MPU stack guard region. The handler in
+// fault_protection.cpp captures crash state and triggers NVIC_SystemReset,
+// then on next boot health_monitor_init() consumes the record and latches
+// kHealthCriticalPriorHardfault. Use this from GDB to verify the full
+// capture-and-reset path end-to-end.
+//
+// Writes a sentinel value into the first word of the MPU guard region.
+// Per the linker, __StackBottom marks the start of the guard (64 bytes
+// long, configured by mpu_setup_stack_guard()).
+extern "C" __attribute__((used))
+void fault_force_hardfault() {
+    printf("[FAULT] force_hardfault: writing into MPU stack guard...\n");
+    // Read __StackBottom via inline asm so the compiler doesn't constant-fold
+    // into something the optimizer can hoist or remove. The fault fires on
+    // the store.
+    extern uint32_t __StackBottom;
+    volatile uint32_t* guard = &__StackBottom;
+    *guard = 0xC0DE0001U;
+    // Should not reach — but if MPU is disabled or guard not active, log it.
+    printf("[FAULT] force_hardfault: write returned (MPU not active?)\n");
+}
+
 // R-9b: age out AO_RfManager's last_rx_ms so the next 10 Hz tick fires the
 // deadman / forced-ACQ branches. enhanced_fault_injection.py radio-dropout
 // scenario regex matches the [FAULT] line we emit here directly (mirrors

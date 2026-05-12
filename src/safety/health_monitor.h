@@ -83,9 +83,14 @@ enum HealthCritical : uint8_t {
     // MCU die temperature ≥ kMcuTempSafeModeC (105 °C). RP2350 silicon
     // is at 20 °C margin below absolute-max junction temp (125 °C);
     // continued operation risks permanent damage.
-    kHealthCriticalMcu         = (1 << 0),
+    kHealthCriticalMcu              = (1 << 0),
+    // Previous boot hit a hardfault (e.g., MPU stack guard, R-3 audit
+    // 2026-05-07). The crash_record consumed at boot triggers this bit,
+    // letting the existing safe-mode / FAULT-health pivot machinery own
+    // the recovery path. Latched until health_monitor_clear_latches().
+    kHealthCriticalPriorHardfault   = (1 << 1),
     // Reserved for future critical conditions (pyro-continuity short,
-    // battery undervolt/overvolt, flash-write failure, stack overrun).
+    // battery undervolt/overvolt, flash-write failure).
     // See docs/decisions/HEALTH_CONTRACT.md pending council note.
 };
 

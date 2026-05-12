@@ -11,6 +11,7 @@
 //============================================================================
 
 #include "safety/health_monitor.h"
+#include "safety/crash_record.h"
 #include "drivers/mcu_temp.h"
 #include "safety/pio_watchdog.h"
 #include "flight_director/go_nogo_checks.h"
@@ -53,6 +54,11 @@ static uint8_t g_windowIndex = 0;
 // Latched fault state (per subsystem, during ARMED→DESCENT)
 static uint8_t g_latchedPrimary = 0;  // bits set = fault latched for that subsystem
 static bool g_mcuFaultLatched = false;  // MCU has its own latch bit (out-of-band)
+// R-3 (audit 2026-05-07): set true by health_monitor_init() when the
+// preserved-SRAM crash record from a prior boot is detected. Latched until
+// health_monitor_clear_latches(). Surfaces as kHealthCriticalPriorHardfault
+// in the critical byte.
+static bool g_priorHardfaultLatched = false;
 
 // MCU temp hysteresis state — current HealthLevel we're holding onto
 // for the MCU slot. Re-evaluated each tick with 2 °C hysteresis windows
@@ -273,6 +279,7 @@ void health_monitor_init() {
     g_windowIndex = 0;
     g_latchedPrimary = 0;
     g_mcuFaultLatched = false;
+    g_priorHardfaultLatched = false;
     g_mcuTempLevel = kHealthAbsent;
     g_imuFaultTicks = 0;
     g_baroFaultTicks = 0;
@@ -282,6 +289,27 @@ void health_monitor_init() {
     for (uint8_t i = 0; i < kHealthWindowSize; ++i) {
         g_imuWindow[i] = 1;
         g_baroWindow[i] = 1;
+    }
+
+    // R-3 (audit 2026-05-07): consume any prior-boot crash record. If present,
+    // latch kHealthCriticalPriorHardfault so the existing safe-mode / FAULT-
+    // health pivot owns the recovery path. Clear-on-IDLE per the existing
+    // latch convention.
+    CrashRecord prior{};
+    if (crash_record_consume_prior(&prior)) {
+        g_priorHardfaultLatched = true;
+        const char* reason_str = "unknown";
+        switch (static_cast<CrashReason>(prior.reason)) {
+            case kCrashReasonMemManage:     reason_str = "MemManage";     break;
+            case kCrashReasonMpuConfigFail: reason_str = "MpuConfigFail"; break;
+            case kCrashReasonNone:          reason_str = "none";          break;
+        }
+        DBG_PRINT("HEALTH: prior-boot hardfault (%s) cfsr=0x%08lx hfsr=0x%08lx pc=0x%08lx lr=0x%08lx",
+                  reason_str,
+                  static_cast<unsigned long>(prior.cfsr),
+                  static_cast<unsigned long>(prior.hfsr),
+                  static_cast<unsigned long>(prior.stacked_pc),
+                  static_cast<unsigned long>(prior.stacked_lr));
     }
 
     // Do one initial evaluation
@@ -416,6 +444,12 @@ static uint8_t evaluate_critical(const shared_sensor_data_t& snap) {
         critical |= kHealthCriticalMcu;
     }
 
+    // R-3: latched prior-boot hardfault (set in health_monitor_init() if a
+    // crash_record from the previous boot was consumed).
+    if (g_priorHardfaultLatched) {
+        critical |= kHealthCriticalPriorHardfault;
+    }
+
     return critical;
 }
 
@@ -429,6 +463,12 @@ static void log_critical_transitions(uint8_t prev, uint8_t curr) {
     }
     if (falling & kHealthCriticalMcu) {
         DBG_PRINT("HEALTH: MCU critical cleared");
+    }
+    if (rising & kHealthCriticalPriorHardfault) {
+        DBG_PRINT("HEALTH: PRIOR-BOOT HARDFAULT detected (see crash record)");
+    }
+    if (falling & kHealthCriticalPriorHardfault) {
+        DBG_PRINT("HEALTH: prior-boot hardfault latch cleared");
     }
 }
 
@@ -582,11 +622,12 @@ void health_monitor_clear_latches() {
                   flight_phase_name(phase));
         return;
     }
-    if (g_latchedPrimary != 0 || g_mcuFaultLatched) {
+    if (g_latchedPrimary != 0 || g_mcuFaultLatched || g_priorHardfaultLatched) {
         DBG_PRINT("HEALTH: latches cleared by manual reset");
     }
     g_latchedPrimary = 0;
     g_mcuFaultLatched = false;
+    g_priorHardfaultLatched = false;
     g_imuFaultTicks  = 0;
     g_baroFaultTicks = 0;
     g_eskfFaultTicks = 0;

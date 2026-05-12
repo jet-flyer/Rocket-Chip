@@ -28,9 +28,12 @@ extern "C" uint32_t __StackOneBottom;  // Core 1 stack bottom (SCRATCH_X, linker
 
 static constexpr uint32_t kMpuGuardSizeBytes = 64;              // Guard region at bottom of stack
 
-static constexpr int32_t kFaultBlinkFastLoops = 200000;         // ~100ms at 150MHz
-static constexpr int32_t kFaultBlinkSlowLoops = 800000;         // ~400ms at 150MHz
-static constexpr uint8_t kFaultFastBlinks = 3;                  // Fast blinks before slow
+// R-3 (audit 2026-05-07): the kFaultBlink* / kFaultFastBlinks LED-blink
+// constants that lived here were used by the pre-R-3 halt-forever handler.
+// The new handler captures crash state and triggers NVIC_SystemReset() via
+// crash_record_capture(), so the blink loop is gone and these constants
+// are no longer used. See standards/HW_GATE_DISCIPLINE.md Rule 6 for the
+// safe-mode integration model.
 
 // ============================================================================
 // Public API

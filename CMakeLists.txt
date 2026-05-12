@@ -382,6 +382,7 @@ else()
         src/safety/pio_backup_timer.cpp
         src/safety/pyro_edge_logger.cpp
         src/safety/fault_protection.cpp  # OPT-IVP-01: shared MPU + fault handlers
+        src/safety/crash_record.cpp      # R-3 audit 2026-05-07: capture-state-then-reset
 
         # Phase 6: Health Monitor (called from AO_FlightDirector at 10Hz)
         src/safety/health_monitor.cpp
@@ -530,6 +531,7 @@ else()
         src/safety/pio_backup_timer.cpp
         src/safety/pyro_edge_logger.cpp
         src/safety/fault_protection.cpp  # OPT-IVP-01: shared MPU + fault handlers
+        src/safety/crash_record.cpp      # R-3 audit 2026-05-07: capture-state-then-reset
         src/safety/health_monitor.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp
@@ -666,6 +668,7 @@ else()
             -Wl,--undefined=fault_force_radio_dropout
             -Wl,--undefined=fault_force_ao_queue_flood
             -Wl,--undefined=fault_force_pio_sm_halt
+            -Wl,--undefined=fault_force_hardfault
             -Wl,--undefined=replay_inject_start
             -Wl,--undefined=replay_inject_stop
             -Wl,--undefined=replay_inject_sample
