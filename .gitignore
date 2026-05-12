@@ -5,6 +5,7 @@ build_station/
 build_station_flight/
 build_gs/
 build_host/
+build_host_cov/
 build_test/
 cmake-build-*/
 CMakeCache.txt
@@ -12,6 +13,10 @@ CMakeFiles/
 cmake_install.cmake
 Makefile
 compile_commands.json
+
+# Coverage instrumentation output (clang -fprofile-instr-generate)
+*.profraw
+*.profdata
 
 # VSCode temps
 .vscode/c_cpp_properties.json
