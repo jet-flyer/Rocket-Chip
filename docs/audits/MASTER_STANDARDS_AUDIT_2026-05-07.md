@@ -341,7 +341,17 @@ Issues affecting documentation, not code. Agent-produced from Phase 1 + audit se
 
 ## Phase 6 — Formal Verification + Simulation Coverage
 
-⏸ Pending. SPIN coverage-evaluation pre-step (per user-added 23b — boot handshake R-1/BM-2 candidate). Then re-run SPIN. Then agent stages model/source diff between current `ao_flight_director.cpp` HSM and the SPIN `.pml` model for user review of correspondence (the hard claim Phase 6 makes about firmware correctness — the SPIN re-run alone is a soft gate per amendment 4).
+⏸ Pending. SPIN coverage-evaluation pre-step (per user-added 23b) considers candidate model extensions for BOTH vehicle and station roles:
+
+**Vehicle-side candidate:** Cross-core boot handshake (R-1 / BM-2 in remediation queue) — Core 0 sets `g_startSensorPhase` while Core 1 waits. Textbook SPIN-shaped (two-process model + shared atomic). Not currently modeled in `rocketchip_ao.pml`.
+
+**Station-side candidates** (per `AGENT_WHITEBOARD.md` "Station SPIN model extensions" item — extend when corresponding firmware behavior lands):
+- multi-pending-in-flight (multiple radio commands in flight at once)
+- RadioScheduler TX-window arbitration (needed for the sync-gap fix)
+- MAVLink parser state
+- `station_idle_tick` GPS poll interleave
+
+Re-run existing models (vehicle AO 11/11 baseline + station 2/2 baseline). Then agent stages model/source diff between current `ao_flight_director.cpp` HSM ↔ `rocketchip_ao.pml` AND current station logic ↔ `rocketchip_station.pml` for user review of correspondence (the hard claim Phase 6 makes about firmware correctness — the SPIN re-runs alone are soft gates per amendment 4).
 
 ---
 
