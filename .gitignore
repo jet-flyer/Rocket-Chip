@@ -6,6 +6,7 @@ build_station_flight/
 build_gs/
 build_host/
 build_host_cov/
+build_stack/
 build_test/
 cmake-build-*/
 CMakeCache.txt

@@ -172,6 +172,28 @@ Templates produce identical machine code to the current function-pointer indirec
 
 ---
 
+## R-10 — Stack-usage tooling (Phase 5 audit findings)
+
+### R-10a — `scripts/analyze_stack_usage.sh` parser bug
+
+**Issue:** Script fails with `line 80: static: syntax error: invalid arithmetic operator` when parsing `.su` lines that contain the literal word "static" (gcc emits this as a usage-classifier column). The script's `$size -gt $THRESHOLD_BYTES` arithmetic eval mis-handles the "static" token, bailing early and reporting `Total estimated stack usage: 0 KiB` (which is wrong — should be the sum across all parsed functions).
+
+**Recommended remediation:** Fix the awk/grep extraction in `analyze_stack_usage.sh` to pull only the numeric column (typically `$(NF-1)`) regardless of trailing classifier. Or use awk-based total computation rather than bash arithmetic. ~10-line fix.
+
+**Estimated effort:** Trivial.
+
+### R-10b — Stack-usage build coverage gap (SDK + QP/C not instrumented)
+
+**Issue:** `-fstack-usage` is applied to project sources via `target_compile_options`, but NOT to vendored Pico SDK or QP/C objects. After a clean rebuild only 22 .su files exist (project-side only); SDK functions in the call stack are invisible to stack-usage analysis. If a SDK function has a deep frame in our call path, we won't catch it.
+
+**Recommended remediation:** Either (a) add a CMake-level flag `-fstack-usage` globally in the stack-usage build configure (risk: SDK build conflicts), or (b) write a runtime stack-watermark check that records max-observed-stack-depth per core via SDK `__StackLimit` / `__StackTop` symbols, exposed via a CLI command. Option (b) is more useful but more work. Option (a) may be straightforward if SDK accepts the flag without complaint.
+
+**Estimated effort:** Small for (a) (~1 hour to test), Moderate for (b) (~3-4 hours).
+
+**Note:** Current project-side max stack is 200 bytes (well below 1024 threshold), so SRAM safety isn't in question — this is about completeness of the analyzer, not a flight-safety gap.
+
+---
+
 ## Open question: remediation execution order
 
 **To research before Phase 8 begins:** What is the professional/industrial standard for ordering remediations from a safety-critical-code audit? Two general approaches:
