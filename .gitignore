@@ -80,9 +80,8 @@ tools/spin/pan.m
 tools/spin/pan.p
 tools/spin/pan.t
 tools/spin/pan.b
-tools/spin/pan.exe
-tools/spin/pan_station.exe
-tools/spin/pan_rfm.exe
+tools/spin/pan*.exe
+tools/spin/_spin_nvr.tmp
 tools/spin/*_pp.pml
 tools/spin/*.trail
 

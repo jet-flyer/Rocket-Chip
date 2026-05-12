@@ -172,6 +172,81 @@ Templates produce identical machine code to the current function-pointer indirec
 
 ---
 
+## R-11 — Promela model: flash_safe_execute / Core 1 lockout / I2C reset protocol
+
+**Status:** New (queued 2026-05-07 from Phase 6 council review). Highest-ROI SPIN extension per Cubesat Startup Engineer persona.
+
+**Standard:** Internal — concurrent protocol with documented bug history (LL Entries 28, 31).
+
+**Issue:** When `flash_safe_execute()` runs, three actors interact concurrently: the calling core, Core 1 (must be `multicore_lockout`'d), and the I2C peripheral (must be reset after the flash op per LL Entry 31). The ordering and invariants of this protocol are documented informally in LL Entries 28+31, but are not formally modeled. Bugs in this protocol have produced sensor init failures (LL 28) and GPS satellite-lock prevention (LL 31). The class is not yet exhaustively verified.
+
+**Recommended remediation:** Author `tools/spin/rocketchip_flash_protocol.pml` modeling:
+- 3 processes (flash-caller, Core 1, I2C peripheral state machine)
+- Shared `flash_busy` flag
+- I2C `peripheral_state` enum (active / corrupt / reset)
+- 3-5 LTL properties:
+  - `p_no_i2c_during_flash`: `[](flash_busy -> !i2c_transaction)`
+  - `p_i2c_reset_after_flash`: `[](flash_busy_falling_edge -> <>i2c_was_reset)`
+  - `p_core1_lockout_during_flash`: `[](flash_busy -> core1_locked_out)`
+  - Possibly: `p_init_order` (flash before I2C init at boot per LL 31)
+
+**Estimated effort:** ~1 day (model authoring + LTL verification + README update + add to milestone gate).
+
+**Verification:** SPIN exhaustive check with errors: 0 on all properties. Bonus: a multi-actor model would have caught both LL 28 and LL 31 before they produced bench bugs — strong evidence the model is worth its cost.
+
+**Priority:** HIGH within the post-audit SPIN-extension stage. Council unanimously identified this as highest-ROI.
+
+---
+
+## R-12 — Promela model: cross-core boot handshake (closes R-1 / BM-2)
+
+**Status:** New (queued 2026-05-07 from Phase 6 council review). Closes existing R-1/BM-2 from initial remediation queue.
+
+**Standard:** P10-2 / JSF AV Rule 25 (loops with fixed upper bound) for the Core 1 wait loop; NASA ARINC-653 SPIN practice (boot sequence IN SCOPE).
+
+**Issue:** Core 0 sets `g_startSensorPhase` after init; Core 1 waits for it in `core1_entry()` at `src/core1/sensor_core1.cpp:490`. The wait loop is informally bounded by "Core 0 will eventually set the flag" but no formal proof exists. R-1/BM-2 in the existing remediation queue is the code fix (add a max-iteration timeout); R-12 is the corresponding SPIN model.
+
+**Recommended remediation:** Author `tools/spin/rocketchip_boot.pml`:
+- 2 processes (Core 0, Core 1)
+- Shared atomic `g_startSensorPhase` flag
+- 2 LTL properties:
+  - `p_core1_eventually_proceeds`: `[](g_startSensorPhase -> <>core1_in_sensor_loop)`
+  - `p_no_premature_sensor_read`: `[](core1_reading_sensor -> g_startSensorPhase_was_set)`
+- Cover both vehicle (Core 0 sets flag) and station/relay (Core 0 never sets flag, Core 1 idles forever per Holzmann scheduler exemption) cases.
+
+**Estimated effort:** ~1 afternoon (small model, 2 processes, 2 properties).
+
+**Priority:** MEDIUM. Closes R-1/BM-2 with formal verification rather than just static bound. Per NASA ARINC-653 paper, boot sequence is explicitly in SPIN scope.
+
+---
+
+## R-13 — Station-model ride-along rule in SESSION_CHECKLIST.md trigger map
+
+**Status:** New (queued 2026-05-07 from Phase 6 council review — Cubesat Startup Engineer persona).
+
+**Issue:** AGENT_WHITEBOARD lists 4 station SPIN model extensions (multi-pending-in-flight, RadioScheduler TX-window arbitration, MAVLink parser state, station_idle_tick GPS poll interleave) that are correctly deferred until corresponding firmware behavior lands. The trap (per council): when firmware DOES land, the SPIN extension has to ride with it in the same commit window, or it never gets written. Same trigger-driven principle as SESSION_CHECKLIST documents for state-of-system protected docs.
+
+**Recommended remediation:** Edit `.claude/SESSION_CHECKLIST.md` Trigger-Driven Doc Edits → Per-doc trigger map → add a row:
+
+> | `tools/spin/rocketchip_station.pml` and `tools/spin/rocketchip_ao.pml` | When firmware behavior matching a candidate SPIN extension lands (per `AGENT_WHITEBOARD.md` "SPIN model extensions" items — e.g., multi-pending-in-flight, RadioScheduler TX-window arbitration, MAVLink parser state, GPS poll interleave). The SPIN model edit rides in the same commit as the firmware change. |
+
+**Estimated effort:** Trivial — 1 row added to SESSION_CHECKLIST trigger map.
+
+**Priority:** MEDIUM — codifies a discipline that would otherwise rely on memory. DO in Phase 8 of this audit.
+
+---
+
+## Phase 8 in-audit-cycle actions from council review (not deferred):
+
+These bundle into Phase 8 alongside the per-finding remediations from Phases 1-5:
+
+- **P8-SPIN-A: Extend `run_stage_o_ao_spin.sh` to gate on all 4 active models.** Currently runs only `rocketchip_ao.pml`. Per council unanimous, gate FD + RF + station too. Half-day shell work.
+- **P8-SPIN-B: Delete `rocketchip_fd_pp.pml` (zero-byte stub).** Empty file implies coverage that doesn't exist. Trivial.
+- **R-13: SESSION_CHECKLIST trigger-map row.** See above.
+- **Pyro FMEA sub-check:** Review pyro intent/arm/disarm transitions for multi-transition failure modes. If any identified, queue as R-14 (unified pyro protocol SPIN model). If none, log as audited-and-no-finding.
+
+---
+
 ## R-10 — Stack-usage tooling (Phase 5 audit findings)
 
 ### R-10a — `scripts/analyze_stack_usage.sh` parser bug
