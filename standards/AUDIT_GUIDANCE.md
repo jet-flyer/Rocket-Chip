@@ -55,7 +55,8 @@ Run the full procedure only at milestone / stage close. For all other triggers, 
    Verify state machine, ESKF outputs, pyro commands, telemetry fields, safety flags have traceable requirements. Lightweight markdown table or script output.
 
 8. **Remediation & Historical Logging**  
-   Record user-accepted deviations in `ACCEPTED_STANDARDS_DEVIATIONS.md`. Append fixes to the dated audit report's `## Remediation` section (per-audit, self-contained — see file-location policy below). Update this document only for strategy changes (state-of-system trigger).
+   Record user-accepted deviations in `ACCEPTED_STANDARDS_DEVIATIONS.md`. Append fixes to the dated audit report's `## Remediation` section (per-audit, self-contained — see file-location policy below). Update this document only for strategy changes (state-of-system trigger). **Execution order within Step 8 follows the canonical sequence in Appendix C.**
+   - **DEFER disposition requires a safety-impact one-liner.** A finding can be deferred to a future cycle only if the dated report names — explicitly — why the deferral is acceptable from a safety perspective (typically: the finding's mission-phase exposure is bounded, e.g., Ground-classified code locked out in flight; or the finding is doc-only with no behavior change; or the finding's risk is dominated by an unrelated dependency that needs to land first). Plain "DEFER — not blocking" is not sufficient. Source: DO-178C "open problem reports at certification must be evaluated for their safety impact" — every open PR at a milestone close has the same evaluation requirement. Equivalent rule in `docs/PROBLEM_REPORTS.md` for non-audit deferrals.
 
 ---
 
@@ -274,7 +275,7 @@ Three disposition labels:
 
 - **REMEDIATE** — fix as part of Phase 8 in this audit cycle. The agent does the fix as a focused commit during Phase 8.
 - **ACCEPT** — user signs off as a permanent deviation; row added to `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`.
-- **DEFER** — queue for a future post-audit remediation session. Logged in the dated report's `## Remediation` section.
+- **DEFER** — queue for a future post-audit remediation session. Logged in the dated report's `## Remediation` section. **Per Step 8: every DEFER row requires a one-line safety-impact rationale** explaining why the deferral is acceptable; plain "not blocking" doesn't satisfy the rule.
 
 **Per-phase notes:**
 
@@ -316,6 +317,101 @@ Use only when the inline material above is insufficient. Per LL Entry 37 step 1,
 - Phil Koopman's writing on safety-critical embedded software — https://users.ece.cmu.edu/~koopman/ (faculty page at CMU; better-extractable than the embedded.com versions of his articles).
 
 All external references are public, widely cited sources in safety-critical embedded systems. No proprietary or paywalled material is required for routine audit work.
+
+---
+
+## Appendix C: Remediation Execution Ordering
+
+**Purpose:** Define the canonical order in which audit findings are remediated, and the verification cadence between groups. Applies to Step 8 of every master audit cycle and to any focused post-audit remediation session that draws from a dated audit's `## Remediation` queue.
+
+**Why this appendix exists.** When an audit produces a remediation queue of more than ~3 findings, the order in which they are executed is itself a quality decision. Fixing in arbitrary order has three failure modes specific to this project: (a) early fixes get invalidated by later refactors that touch the same code, (b) "fixed" findings regress because a finding they depend on wasn't fixed first, (c) verification fatigue where every focused commit re-runs the 6-hour audit suite, so the audit suite ends up skipped. The DO-178C "problem report" lifecycle (record → impact-analyze → fix → verify → close) and the static-analysis-tool community's distinction between "what blocks a merge" and "what becomes backlog" both speak to the same problem and converge on the framework below.
+
+### C.1 Treat each finding as a Problem Report
+
+Adopt the DO-178C framing: every audit finding is a Problem Report (PR) with a lifecycle. The audit's dated `## Remediation` section is the PR log. Each PR's state is one of:
+
+- **Open** — finding recorded, no analysis yet.
+- **Analyzed** — impact analysis complete (see C.2). Dependency edges identified. Disposition (REMEDIATE / ACCEPT / DEFER) recorded.
+- **In progress** — code change in flight. Local verification (per-commit ctest + the change's own positive-control signal) underway.
+- **Verified** — local commit verification passed; awaiting the audit-suite regression at C.5's gate.
+- **Closed** — audit-suite regression passed end-to-end and the dated report's `## Remediation` row signed.
+
+The lifecycle is **mandatory in concept, lightweight in practice** — for our project a PR's state is a column in the `## Remediation` table, not a separate ticketing system. The point is that "fixed locally" and "closed" are different states, which keeps a tail-end audit-suite regression from being skipped.
+
+### C.2 Impact analysis before sequencing
+
+Before deciding the order, run impact analysis on each open PR. Three questions per PR:
+
+1. **What files and modules does the fix touch?** (Build a quick dependency footprint.)
+2. **What other PRs share those files or rely on a mechanism this PR creates?** (Identifies edges in the dependency graph.)
+3. **What audit gates does the fix interact with?** (Pre-commit hook, ctest, SPIN, lizard, coverage. Identifies "gate-integrity" PRs — see C.3 category 1.)
+
+The output is a small dependency graph over the PR set. For audits with ≤10 PRs, the graph fits on a napkin; for larger queues it's still bounded enough to draw by hand or as a markdown table column. The graph is captured in the dated report's `## Remediation` section so subsequent sessions can follow the same plan.
+
+### C.3 Order by category, then by dependency, then by risk
+
+Process the PR set in four categories, in this order. Within each category, dependencies (from C.2) come before dependents; within a dependency level, higher safety risk comes before lower.
+
+**Category 1 — Gate Integrity.** Any PR that fixes a tool, harness, gate, or pre-commit check that the audit itself depended on. Includes script bugs, broken regex, missing test coverage, stub files that imply coverage that doesn't exist (LL Entry 36 pattern). These come first because the rest of the verification cycle relies on them being honest. If a gate is reporting green for the wrong reason, every subsequent "verified" claim inherits the same defect.
+
+**Category 2 — Shared Foundations.** PRs that introduce or refactor a mechanism that multiple later PRs reuse. Identified from C.2's graph as a node with high out-degree (many PRs depend on it). Examples in this project's history: a preserved-SRAM crash-record format used by multiple fault-handler PRs, a custom bounded writer used by multiple printf-elimination PRs. Land these next because the dependent PRs ride on them.
+
+**Category 3 — Behavior Changes.** Code that closes an open finding by changing observable program behavior. Within this category, order by **mission-phase exposure × intrinsic severity**, not by intrinsic severity alone:
+
+- Flight-critical paths (state machine, ESKF, pyro, watchdog, fault handler) before flight-support paths (LED engine, telemetry, logging) before ground-only paths (calibration, CLI, dev/diagnostic). A "critical" defect in code that can't execute during flight is less urgent than a "marginal" defect in flight-critical code, because runtime lockout removes the in-flight failure mode for the ground-only case.
+- Within a tier, prefer PRs that touch the same file (one focused commit per file) over PRs scattered across many files — re-touching a file across many commits has a small but real chance of conflict if active development overlaps with the audit cycle.
+
+**Category 4 — Cleanup & Documentation.** PRs that are doc-only (CHANGELOG, SAD updates triggered by category-2/3 work, decision-doc supersession notes), comment-only, or stylistic. Defer to the end of the cycle. The audit's `## Remediation` section is itself state-of-system documentation, so per-doc trigger-driven edits per `.claude/SESSION_CHECKLIST.md` still apply at the appropriate trigger point — category 4 is for cleanup that wasn't already covered by per-commit trigger discipline.
+
+### C.4 Commit cadence — atomic per PR, with named clustering exceptions
+
+The default is **one focused commit per PR**, citing the PR ID and the observed verification signal per `HW_GATE_DISCIPLINE.md` Rule 3. This is the "atomic commits" pattern the static-analysis-tool community names as test-supported remediation, and it makes each PR independently bisectable and revertable.
+
+Two clustering exceptions where one commit per PR is wrong:
+
+- **Pattern-shared findings.** Multiple PRs that are the same defect class in different files (e.g., 30 `snprintf` callsites that all migrate to const arrays). One commit per file, not per finding.
+- **Single-mechanism refactor.** Multiple PRs that all wire into one new shared mechanism, where landing them piecewise would force commits that are syntactically incomplete. Land the mechanism in one commit (category 2), then each dependent PR in its own focused commit.
+
+The clustering decision is a judgment call; the default is split.
+
+### C.5 Verification cadence — per commit local, per category regression
+
+The static-analysis-tool community names this distinction clearly: **what blocks a merge ≠ what gets the full audit-suite regression**.
+
+- **Per commit (merge-blocker level):** the change does what it claims, host ctest passes, the change's own positive-control signal is observed (per `HW_GATE_DISCIPLINE.md` Rule 3). This is what the pre-commit hook enforces and what each commit message cites.
+- **Per category transition:** when category 1 closes and category 2 begins, when category 2 closes and category 3 begins, etc., run the **original audit's scripted check suite** end-to-end. This is the same Phase 1 + Phase 6 work that produced the audit's baseline — clang-tidy, cppcheck, ctest, SPIN, lizard, coverage, and any HW gates the original audit required. Compare against the baseline. Per DO-178C, this is the change-impact regression — verification that the fixes haven't broken what the audit confirmed was working.
+- **At cycle close:** before signing the dated report's `## Remediation` section as complete, re-run the audit-suite regression one final time *after* the category-4 cleanup commits, so the verification covers the as-shipped state including doc-sync edits.
+
+The regression suite is selective in the sense that it's the original audit's already-defined check suite, not an open-ended exploration. If category-2 or category-3 PRs changed code in a way the original audit's checks don't cover (e.g., a new SPIN model is needed for a refactor), the new check is staged before the category transition that introduced the gap.
+
+### C.6 Re-audit credibility — independent vs author verification
+
+The DO-178C principle of independence applies: the author of the fix is not the most credible verifier of the fix. In a single-developer project this is impractical to enforce per PR, but it shows up at audit boundaries. The fix author runs the per-commit verification; the next audit cycle (or a focused re-audit per the AUDIT_GUIDANCE decision table row 6) is what provides independent verification credit. The dated report's `## Remediation` section is the audit trail that lets a later session validate the prior session's claims without re-doing the fix author's work.
+
+### C.7 Stop conditions
+
+Halt the remediation cycle (do not advance categories, do not close the audit) on any of:
+
+- **Category 1 fails.** The audit's own gates can't be made honest. Everything downstream is unverified by construction. Reopen the audit's verification surface before continuing.
+- **Category 2 produces unexpected scripted-check regressions.** The audit's impact-analysis was wrong about what depends on what. Re-do C.2 before continuing category 3.
+- **User escalates ≥3 findings to ACCEPT (permanent deviation) within a single cycle.** The audit's findings frame doesn't match the project's actual constraints. Reopen audit scope or rework the findings before continuing.
+- **Hardware 3-boot reseat per `HW_GATE_DISCIPLINE.md` Rule 2 produces different positive-control signals across boots.** This is a flight-safety stop independent of remediation state.
+
+Halts are recorded as `HALT` rows in the dated report's `## Remediation` section, with the category that halted and why. Subsequent sessions resume from the halt rather than restarting.
+
+### C.8 Generally applicable to future audits
+
+This appendix is project-wide guidance, not specific to any single audit cycle. Every future master audit's Step 8 follows the same PR-lifecycle framing with the same four categories and the same verification cadence. Each dated report's `## Remediation` section opens with a one-paragraph preamble naming any deviations from the canonical order (rare — e.g., an emergency safety hotfix that bypasses category 1 because the safety issue is more urgent than gate-hygiene).
+
+If the project's verification surface area changes meaningfully (new hardware tier, new audit phase, new gating mechanism), update this appendix as a state-of-system trigger — same discipline as `.claude/SESSION_CHECKLIST.md` Trigger-Driven Doc Edits.
+
+### C.9 Source notes (load-bearing only)
+
+- **DO-178C problem-report lifecycle** is the source of C.1's PR-states framing. DO-178C requires that all problems be recorded in problem reports, analyzed for impact, and tracked to closure; open PRs at certification require safety-impact evaluation. We adopt the lifecycle concept; we don't adopt the formal Change Control Board apparatus, which is sized for multi-team certified-aircraft projects.
+- **Static-analysis-tool community** (SonarQube and similar) is the source of C.5's "merge-blocker vs backlog" distinction. The named failure mode — "teams fail because nobody makes clear decisions about what blocks a merge and what becomes backlog work" — is the trap C.5 is designed to avoid.
+- **Refactoring research on dependency cycles and hotspots** is the source of C.3 category 2's "shared foundations" framing. Components in dependency cycles are defect-prone and unblock the most downstream work; fix them early.
+- **NASA SWE §8.5 severity scale** is the project's framing for C.3 category 3's within-tier ordering. NASA's catastrophic/critical/marginal/negligible scale combines with mission-phase exposure (flight-critical vs ground-only) to produce the actual risk rank.
+- **Project-internal precedent.** LL Entry 36 (bench_sim rot — gate had been silently broken) is the lived-experience driver for C.3 category 1 (gate integrity first). Without category 1, audit cycles would inherit the same defect that LL Entry 36 documents.
 
 ---
 

@@ -269,21 +269,17 @@ These bundle into Phase 8 alongside the per-finding remediations from Phases 1-5
 
 ---
 
-## Open question: remediation execution order
+## Open question: remediation execution order — RESOLVED 2026-05-12
 
-**To research before Phase 8 begins:** What is the professional/industrial standard for ordering remediations from a safety-critical-code audit? Two general approaches:
+**Answered by** the new `standards/AUDIT_GUIDANCE.md` Appendix C ("Remediation Execution Ordering"). Research-led answer:
 
-**(a) Single linear pass through the remediation queue**, fixing each item, re-running scripted checks per item to confirm no regression introduced. Slower; clean per-item commit history; risk of late-discovered conflicts when an early fix invalidates a later remediation's assumption.
+- Treat each finding as a DO-178C-style Problem Report (open → analyzed → in-progress → verified → closed).
+- Run impact analysis on the queue before sequencing (capture dependency edges + audit-gate interactions).
+- Process in four categories: **(1) Gate Integrity, (2) Shared Foundations, (3) Behavior Changes, (4) Cleanup/Doc.** Within each category, dependencies before dependents; within a dependency level, higher safety risk (mission-phase exposure × intrinsic severity) before lower.
+- Atomic per-PR commits by default; clustering exceptions named in C.4.
+- Verification cadence: local-per-commit (merge-blocker) + scripted-suite-regression at each category transition + final regression at cycle close.
 
-**(b) Group remediations by category** (test-harness fixes first, then code-style fixes, then standards-deviations, then architectural changes), with one round of scripted-check re-runs per group. Faster; less granular history; lower risk of conflicts because related changes land together.
-
-**(c) Risk-ordered** (highest-safety-impact first), regardless of category. Could be the right answer for safety-critical audits — get the bug-class items closed before the doc-cleanup items.
-
-**(d) Dependency-ordered.** Some remediations have explicit dependencies (e.g., R-1/R-4 depend on R-3 per the existing remediation file; R-9a is independent; R-5 depends on R-5a inventory). Topologically sort the queue.
-
-Likely answer is some combination. NASA, IEEE, SAE, and IEC 61508 may have published guidance. Worth a focused research step (~30-60 min web search) just before Phase 8 to establish the right pattern, then apply it.
-
-This question is logged here so we don't forget to research it. Not a Phase 4 finding; it's a meta-question about Phase 8 execution methodology.
+The Phase 8 sequencing for THIS audit cycle is therefore informed by Appendix C, not invented ad hoc. See the dated audit report's `## Remediation` section preamble for how the current queue maps onto the four categories.
 
 ---
 
