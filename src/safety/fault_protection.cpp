@@ -19,52 +19,54 @@
 // NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" uint32_t __StackBottom;  // For Core 0 documentation (defined in linker)
 
-// ============================================================================
-// MemManage / HardFault Handler
-// ============================================================================
-// Fires when MPU stack guard is hit (stack overflow).
-//
-// R-3 (audit 2026-05-07): replaces the prior halt-forever LED-blink loop with
-// the industry-standard capture-state-then-reset pattern (ArduPilot / PX4 /
-// NASA cFS). On entry: read the stacked PC/LR from the exception frame at
-// MSP, pass them with CFSR/HFSR into crash_record_capture(), which writes
-// the preserved-SRAM record and triggers NVIC_SystemReset(). On the next
-// boot, health_monitor_init() consumes the record and sets
-// kHealthCriticalPriorHardfault so the existing safe-mode / FAULT-health
-// pivot owns the recovery path.
-//
-// Must NOT use the failing stack: we read MSP via inline assembly, dereference
-// the exception frame to get PC + LR, then call into crash_record_capture()
-// which itself executes from .text and uses minimal stack (single function
-// frame on the now-recovered space above the guard).
+// MemManage / HardFault handler — capture-then-reset.
+// Design rationale + the no-stack-push constraint: see
+// docs/decisions/FAULT_HANDLER_DESIGN.md. Function-size deviation logged
+// in standards/ACCEPTED_STANDARDS_DEVIATIONS.md (FH-1).
 
+__attribute__((used))
 void memmanage_fault_handler(void) {
-    __asm volatile ("cpsid i");  // Disable interrupts
-
-    // Read the main stack pointer at exception entry. The exception frame
-    // (ARMv8-M ARM Table B3-9) is:
-    //   MSP+0  : R0
-    //   MSP+4  : R1
-    //   MSP+8  : R2
-    //   MSP+12 : R3
-    //   MSP+16 : R12
-    //   MSP+20 : LR (return address)
-    //   MSP+24 : PC (faulting instruction)
-    //   MSP+28 : xPSR
-    uint32_t msp = 0;
+    __asm volatile ("cpsid i" ::: "memory");
+    rc::CrashRecord * const rec = &rc::g_crash_record;
+    uint32_t cfsr;
+    uint32_t hfsr;
+    __asm volatile (
+        "ldr %0, =0xE000ED28\n"
+        "ldr %0, [%0]\n"
+        "ldr %1, =0xE000ED2C\n"
+        "ldr %1, [%1]\n"
+        : "=&r"(cfsr), "=&r"(hfsr)
+    );
+    uint32_t msp;
     __asm volatile ("mrs %0, msp" : "=r"(msp));
-
-    uint32_t stacked_lr = 0;
     uint32_t stacked_pc = 0;
-    if (msp != 0) {
-        // Read via volatile to defeat any speculative optimization that
-        // assumes the source is "uninitialized."
-        stacked_lr = *reinterpret_cast<volatile uint32_t*>(msp + 20);
-        stacked_pc = *reinterpret_cast<volatile uint32_t*>(msp + 24);
+    uint32_t stacked_lr = 0;
+    if (msp != 0U) {
+        // Exception frame layout (ARMv8-M ARM Table B3-9): MSP+20=LR, MSP+24=PC.
+        stacked_lr = *reinterpret_cast<volatile uint32_t*>(msp + 20U);
+        stacked_pc = *reinterpret_cast<volatile uint32_t*>(msp + 24U);
     }
-
-    rc::crash_record_capture(rc::kCrashReasonMemManage, stacked_pc, stacked_lr);
-    // crash_record_capture is [[noreturn]] — fires NVIC_SystemReset().
+    rec->cfsr        = cfsr;
+    rec->hfsr        = hfsr;
+    rec->stacked_pc  = stacked_pc;
+    rec->stacked_lr  = stacked_lr;
+    rec->reason      = static_cast<uint32_t>(rc::kCrashReasonMemManage);
+    rec->reserved[0] = 0U;
+    rec->reserved[1] = 0U;
+    __asm volatile ("dsb" ::: "memory");
+    rec->magic = rc::kCrashRecordMagic;  // magic last so torn writes reject on consume
+    __asm volatile ("dsb" ::: "memory");
+    // SCB->AIRCR.SYSRESETREQ: VECTKEY 0x05FA in bits[31:16] | bit 2.
+    __asm volatile (
+        "ldr r0, =0xE000ED0C\n"
+        "ldr r1, =0x05FA0004\n"
+        "str r1, [r0]\n"
+        "dsb\n"
+        ::: "r0", "r1", "memory"
+    );
+    while (true) {
+        __asm volatile ("wfe");  // unreachable in practice; AIRCR resets first
+    }
 }
 
 // ============================================================================

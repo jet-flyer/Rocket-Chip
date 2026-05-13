@@ -36,6 +36,7 @@ enum CrashReason : uint32_t {
     kCrashReasonNone           = 0,
     kCrashReasonMemManage      = 1,  // MPU stack guard hit (memmanage_fault_handler)
     kCrashReasonMpuConfigFail  = 2,  // R-4: mpu_setup_stack_guard() couldn't configure
+    kCrashReasonCore1BootWait  = 3,  // R-1: Core 1 boot-wait loop exceeded vehicle-path bound
     // Reserved for future fault categories (hardfault, busfault, usagefault).
 };
 
@@ -54,19 +55,24 @@ struct CrashRecord {
     uint32_t reserved[2];  // pad to 32 bytes for future expansion
 };
 
-// Capture fault state and trigger reset. Called from memmanage_fault_handler()
-// (and R-4: from mpu_setup_stack_guard() failure path).
+// Capture fault state and trigger reset. Used in NON-handler contexts where
+// a function call is safe (e.g., R-1 Core 1 boot-wait timeout, R-4 MPU
+// config failure). For the actual fault handler, see memmanage_fault_handler
+// in fault_protection.cpp — it inlines capture+reset to avoid the
+// fault-on-fault → lockup risk a C-level call would create when the failing
+// stack is barely above the MPU guard.
 //
-// Must not use stack — the caller is already in a no-stack-safe context.
 // Reads CFSR/HFSR from fixed SCB addresses; stacked_pc/stacked_lr come from
-// caller (which has the exception stack frame visible). Triggers
-// NVIC_SystemReset() and does not return.
-//
-// IMPORTANT: this function never returns. Marked Q_NORETURN-equivalent via
-// [[noreturn]] on the C++ declaration.
+// caller. Triggers NVIC_SystemReset() and does not return.
 [[noreturn]] void crash_record_capture(CrashReason reason,
                                        uint32_t stacked_pc,
                                        uint32_t stacked_lr);
+
+// Direct extern access to the .uninitialized_data record storage. Used by
+// memmanage_fault_handler() to bypass the function-call path entirely (see
+// crash_record_capture comment above for why a function call is unsafe in
+// the fault handler). The storage definition is in crash_record.cpp.
+extern CrashRecord g_crash_record;
 
 // Consume any prior-boot crash record. Called once from health_monitor_init().
 // Returns true and fills *out if a valid record was present (clears the

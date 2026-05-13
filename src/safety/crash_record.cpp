@@ -13,8 +13,13 @@ namespace rc {
 // Pico SDK linker script. SRAM contents survive NVIC_SystemReset() but not
 // power-off. On clean boot the magic field is whatever garbage the SRAM
 // happened to hold, so the consume side checks against kCrashRecordMagic.
+//
+// Note: extern (not static) because memmanage_fault_handler() in
+// fault_protection.cpp accesses this storage directly to avoid any
+// function-call stack-push during fault handling (which would risk
+// fault-on-fault → lockup if the stack is near the MPU guard region).
 __attribute__((section(".uninitialized_data"), used))
-static CrashRecord g_crash_record;
+CrashRecord g_crash_record;
 
 [[noreturn]] void crash_record_capture(CrashReason reason,
                                        uint32_t stacked_pc,
