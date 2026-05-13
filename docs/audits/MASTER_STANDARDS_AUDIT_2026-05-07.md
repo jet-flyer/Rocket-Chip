@@ -608,6 +608,59 @@ This is **not a finding requiring remediation** — the project's citation disci
 
 ⏸ Pending. Per-remediation focused commits (user-stated preference): icm20948 nullptr fix → commit; ao_telemetry/dev_cli format-string fixes → commit; mcu_temp.cpp Prior Art comment block → commit; etc. Final Phase 8 wrap commit records the disposition table in the `## Remediation` section below + the CHANGELOG entry.
 
+### 8.P8-FMEA-Pyro — Pyro intent/arm/disarm FMEA sub-check (verdict 2026-05-13)
+
+Council-scoped during Phase 6: review pyro state-machine transitions for multi-transition failure modes. Two outcomes possible per the Phase 6 council scoping table: (a) new findings → queue R-14 (unified pyro protocol SPIN model); (b) no findings → log as audited-and-no-finding here.
+
+**Verdict: ✅ NO FINDINGS — audited-and-no-finding.**
+
+**Scope of review:**
+
+Pyro-firing intent in the firmware is dispatched via `run_transition_actions(me, kTransitionFireDrogue|kTransitionFireMain, ...)` from four reachable transition sites:
+
+| # | Source phase | Trigger signal | Target phase | Pyro intent |
+|---|---|---|---|---|
+| 1 | `state_coast` | `SIG_APOGEE` | `state_descent` (init → drogue_descent) | drogue |
+| 2 | `state_coast` | `SIG_TICK` w/ `coast_timeout_ms` exceeded | `state_descent` (init → drogue_descent) | drogue |
+| 3 | `state_drogue_descent` | `SIG_MAIN_DEPLOY` | `state_main_descent` | main |
+| 4 | `state_abort` `Q_ENTRY_SIG` | (any path INTO state_abort from `kBoost` w/ `abort_fires_drogue_from_boost`, OR from `kCoast` w/ `abort_fires_drogue_from_coast`) | `state_abort` (self) | drogue |
+
+ARMED + IDLE never fire pyros. DISARM is only accepted from `state_armed` (via `command_handler.cpp:58`); pyros never fire from ARMED. RESET is only accepted from LANDED or ABORT (`command_handler.cpp:76`).
+
+**Failure modes considered (F1–F8):**
+
+| ID | Failure mode | Mitigation | Verdict |
+|---|---|---|---|
+| F1 | Drogue fires twice via SIG_APOGEE then SIG_TICK coast-timeout fallback | After SIG_APOGEE the HSM transitions to `state_descent` / `state_drogue_descent`; Coast's SIG_TICK handler no longer receives the event (run-to-completion HSM dispatch). drogue_descent's SIG_TICK at L480 is a no-op (returns Q_HANDLED). | ✅ Safe by HSM ownership |
+| F2 | Main fires before drogue (SIG_MAIN_DEPLOY arrives in Coast) | Coast doesn't handle SIG_MAIN_DEPLOY → Q_SUPER → QHsm_top → ignored. | ✅ Safe by handler structure |
+| F3 | Pyro fires from IDLE | IDLE state has no pyro-firing transition; pyro intent only fires from Coast / DrogueDescent / Abort transitions. | ✅ Safe by HSM structure |
+| F4 | DISARM after pyro fired (race) | DISARM only valid from ARMED (`command_handler.cpp:58`); pyro never fires from ARMED. | ✅ Safe by handler check |
+| F5 | ABORT after drogue fired in Coast (would fire drogue again) | After SIG_APOGEE in Coast, HSM in DrogueDescent. SIG_ABORT in DrogueDescent: state_descent's superstate handler at L444 prints "ABORT in DESCENT — ignored" and returns Q_HANDLED (no transition, no pyro fire). | ✅ Safe by superstate handler |
+| F5b | Reverse order: SIG_ABORT first then SIG_APOGEE | Coast's SIG_ABORT → Q_TRAN(state_abort). state_abort doesn't handle SIG_APOGEE → Q_SUPER → QHsm_top → ignored. | ✅ Safe by state-abort scope |
+| F6 | RESET during DrogueDescent / MainDescent (skip pyro logic) | RESET only valid from LANDED or ABORT (`command_handler.cpp:76`); rejected otherwise. | ✅ Safe by handler check |
+| F7 | Critical fault auto-DISARM races with imminent pyro fire | Auto-disarm at `ao_flight_director.cpp:137` only fires when phase==ARMED; pyro doesn't fire from ARMED. | ✅ Safe by phase guard |
+| F8 | Pyro hardware path (GPIO drive) | Out of scope for HSM-level FMEA; covered by hardware bring-up tests + pio_backup_timer.cpp. | (boundary) |
+
+**Additional bounded-iteration check (F9):** double-APOGEE in flight (sensor noise causes SIG_APOGEE to fire twice rapidly). First APOGEE: Coast → DrogueDescent (drogue fire #1). Second APOGEE arrives in DrogueDescent. DrogueDescent doesn't handle SIG_APOGEE → Q_SUPER (state_descent) doesn't handle SIG_APOGEE → Q_SUPER (QHsm_top) → ignored. No second drogue fire. ✅ Safe.
+
+**Why this is a robust property of the HSM, not just an emergent one:**
+
+QP/C's HSM dispatch is **run-to-completion**: a signal is dispatched to the current state; that state may either handle it (Q_HANDLED), transition (Q_TRAN), or delegate to its superstate (Q_SUPER). After a Q_TRAN, the new state's Q_ENTRY runs and the dispatch completes — the old state cannot then re-handle a subsequent signal. The pyro-firing transitions are inside `Q_TRAN`'s action-list (via `run_transition_actions()` immediately before `Q_TRAN(&state_descent)`), which means each pyro fire is **once per state-transition edge**, not "once per signal." The HSM structure makes double-firing structurally impossible without an explicit second state-transition arrival from a state that fires pyros — and those transitions only originate from Coast or Abort, which the HSM doesn't allow re-entry to from Descent/Landed/Abort terminal-ish states.
+
+**Coverage relationship to SPIN models:**
+
+- `tools/spin/rocketchip_fd.pml` already verifies 8 LTL properties on the Flight Director HSM, including transitions involving pyro states. These properties confirm the state-machine-level no-double-firing constraints structurally.
+- A dedicated pyro-protocol SPIN model (R-14 in the Phase 6 scoping) is **not justified** because:
+  - The HSM-level coverage in `rocketchip_fd.pml` already exercises the same transitions.
+  - F1–F9 are all mitigated by HSM dispatch semantics, not by separate cross-actor protocols (unlike R-11's flash/I2C/lockout which IS a cross-actor protocol).
+  - The pyro hardware path is single-actor; no concurrent peripheral races to model.
+
+**Per-amendment council framing:**
+
+The Phase 6 council scoping was correct: "two outcomes — new findings → R-14, no findings → audited-and-no-finding." This review reaches outcome (b). R-14 is **not queued**; P8-FMEA-Pyro closes with no remediation required.
+
+**Sub-check status:** PASS. No new PR. Logged in PROBLEM_REPORTS as `verified` (no fix needed).
+
 ## Remediation
 
 This section is populated during Phase 8. Pre-staged remediation queue from Phase A.2 lives in `MASTER_STANDARDS_AUDIT_2026-05-07_REMEDIATION_PRELIMINARY.md` (R-1 through R-7c — R-6 and R-6b already DONE during audit setup).
