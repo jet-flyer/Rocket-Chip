@@ -1036,6 +1036,16 @@ static void cmd_flush_log() {
     rc::FlushResult result = rc::flush_ring_to_flash(
         ring, ft, &meta, &summ, rate, flush_kick_watchdog);
 
+    // R-15 (2026-05-07 audit): flush_ring_to_flash() invokes flash_safe_execute()
+    // many times; per LL Entry 31, runtime flash_safe_execute() leaves the I2C
+    // peripheral in a corrupted state on RP2350 until a peripheral reset clears
+    // it. Apply the same reset pattern that ao_rcos.cpp cal_save_to_flash()
+    // uses (line 338). Run regardless of FlushResult — even a partial flush
+    // means flash_safe_execute() ran.
+    if (!i2c_bus_reset()) {
+        printf("[WARN] I2C bus reset failed after flush\n");
+    }
+
     switch (result) {
     case rc::FlushResult::kOk:
         printf("Flush OK. Flight #%lu saved (%lu frames, %lu sectors).\n",
@@ -1070,18 +1080,28 @@ static void cmd_flush_log() {
 void cli_do_erase_flights() {
     rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
     printf("Erasing flight log sectors...\n");
+    bool ok = true;
     if (!rc::flight_log_erase_all(ft, flush_kick_watchdog)) {
         printf("Flash erase error.\n");
-        return;
-    }
-    if (!rc::flight_table_erase_flash()) {
+        ok = false;
+    } else if (!rc::flight_table_erase_flash()) {
         printf("Table erase error.\n");
-        return;
+        ok = false;
+    } else {
+        rc::flight_table_erase_all(ft);
+        ft->loaded = true;
+        rc::flight_table_save(ft);
+        printf("All flights erased.\n");
     }
-    rc::flight_table_erase_all(ft);
-    ft->loaded = true;
-    rc::flight_table_save(ft);
-    printf("All flights erased.\n");
+
+    // R-15 (2026-05-07 audit): per LL Entry 31, every runtime flash_safe_execute()
+    // must be followed by i2c_bus_reset() — matches ao_rcos.cpp:338 protocol on
+    // cal_save_to_flash. Even on partial failure above, flash_safe_execute() ran
+    // for some sectors before bailing, so the reset is required regardless of ok.
+    (void)ok;
+    if (!i2c_bus_reset()) {
+        printf("[WARN] I2C bus reset failed after erase\n");
+    }
 }
 
 // ============================================================================
