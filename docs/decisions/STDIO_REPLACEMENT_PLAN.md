@@ -148,7 +148,21 @@ When the dedicated session(s) open, the order is:
 
 1. **Build `rc_log` infrastructure** — ~200 lines: `src/util/rc_log.{h,cpp}`, ETL formatter adapter, dispatch function, USB CDC sink. Verify with a small smoke test before any callsite work.
 2. **Migrate the smallest files first** — `cal_hooks.cpp` (1 call), `telemetry_service.cpp` (1 call), `replay_inject.cpp` (2 calls), `pyro_edge_logger.cpp` (3 calls), `fault_protection.cpp` (2 calls). Quick wins that build confidence in the replacement pattern.
-3. **Mechanical-replace mid-size files** — `i2c_bus.cpp` (15), `fault_inject.cpp` (15), GPS drivers (7+6 — R-2 covers most of these), `ao_telemetry.cpp` (6), `ao_flight_director.cpp` (26). One commit per file.
+3. **Mechanical-replace mid-size files** — `i2c_bus.cpp` (15), `fault_inject.cpp` (15), GPS drivers (7+6 — R-2 absorbed into this session — see below), `ao_telemetry.cpp` (6), `ao_flight_director.cpp` (26). One commit per file.
+
+   **R-2 absorption note (2026-05-13):** the audit's R-2 (GPS PMTK `snprintf` → const arrays) was initially planned as a stand-alone Phase 8 Cat 3 PR, but Phase 8 scope-investigation surfaced that taking the GPS drivers fully off the allowlist requires migrating one residual `snprintf` (`gps_pa1010d_get_debug_status()`, writes to a caller-supplied buffer — the MISRA-C 2012 accepted safe subset) that needs `etl::format` to migrate cleanly. Rather than (a) vendor ETL just for that callsite as out-of-R-2-scope infrastructure, or (b) hand-roll a one-off int-formatter that R-5's ETL already covers, R-2 is bumped onto the R-5 dedicated session.
+
+   Council Approach-B + 3 amendments (2026-05-13, JPL + ArduPilot + Professor consensus) carry forward to that session:
+   - **Approach B (surgical cleanup):** Delete dead `gps_pa1010d_set_rate()` (zero callers), dead-by-actual-use `gps_uart_set_rate()` (always called with `kGpsRateHz10`), and `negotiate_baud(uint32_t)` (always called with `kGpsBaud57600`). Remove `gps_pa1010d_send_command()` / `gps_uart_send_command()` from public headers (no out-of-driver callers). Replace 8 of the 9 `snprintf` callsites with `constexpr` wire-byte arrays for the 4 unique PMTK sentences. The 9th (debug status) migrates to `etl::format` using the R-5 infrastructure.
+   - **Amendment 1: Compile-time checksum verification.** `nmea_checksum()` becomes `constexpr` and a `static_assert` verifies each `kPmtk*Wire[]` array's embedded checksum matches the computed value over the bracketed bytes. Eliminates LL-37-style synchronization-by-comment risk.
+   - **Amendment 2: Verification per HW_GATE_DISCIPLINE Rule 1.** Capture wire bytes pre- and post-refactor (logic analyzer or hex-dump); byte-for-byte identity is the positive-control signal. Single cold-start GPS lock cycle confirms semantic outcome. Cite captured bytes in commit message per Rule 3.
+   - **Amendment 3: Header-API removal documented in CHANGELOG.** Removing `gps_pa1010d_send_command`, `gps_uart_send_command`, `gps_pa1010d_set_rate`, `gps_uart_set_rate` from public headers is a contract change; confirm via `grep` that no caller exists outside the two `.cpp` files before the cut.
+
+   The 4 unique PMTK sentences (with checksums computed 2026-05-13):
+   - `$PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n` — output sentence config
+   - `$PMTK220,1000*1F\r\n` — 1 Hz update rate (pa1010d init)
+   - `$PMTK220,100*2F\r\n` — 10 Hz update rate (gps_uart)
+   - `$PMTK251,57600*2C\r\n` — baud-rate set
 4. **Tackle the big files** — `rc_os.cpp` (48), `rc_os_dashboard.cpp` (12), `dev_cli.cpp` (38), `diag_stats.cpp` (38), `ao_rcos.cpp` (175), `rc_os_commands.cpp` (213). Probably 1-2 commits per big file due to volume.
 5. **After each migration**, remove the file from `scripts/hooks/stdio_allowlist.txt`. The allowlist shrinks toward empty.
 6. **When allowlist is empty**, update the pre-commit hook to remove the allowlist mechanism and reject `<stdio.h>` in any `src/*.cpp` unconditionally.
