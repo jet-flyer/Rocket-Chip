@@ -32,17 +32,50 @@
 
 ## High priority
 
-- **Master Standards Audit 2026-05-07 — L2 audit-suite regression
-  deferred to a future dedicated session.** Phase 8 wrap landed
-  2026-05-13 (L1 regression only: 4 tiers + ctest 794/794 + SPIN_OK_31
-  + bench_sim 2/2). 22 PRs dispositioned + 1 audit-only finding (see
-  `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md` `## Remediation`
-  for the table). 14 PRs are `verified` and awaiting L2 audit-suite
-  regression (re-run Phases 1, 3, 4, 5, 7 against the post-all-
-  remediations state) before they advance to `closed`. Per user
-  direction this happens as a separate cycle after this work is
-  pushed to global. R-5 (full stdio.h removal) + R-2 (absorbed into
-  R-5) are deferred for the dedicated ETL session.
+- **Master Standards Audit 2026-05-07 — audit-coverage gap
+  re-evaluation needed (next focused cycle).** L2 audit-suite
+  regression ran 2026-05-13 (commit `c9c8585`); R-19 + R-26 fixes
+  landed and verified. **But L2 surfaced a coverage gap** that the
+  user explicitly flagged at session close: the master audit (both
+  yesterday's original and today's L2) did NOT execute AUDIT_GUIDANCE
+  Step 2 in full. Step 2 calls for a `STANDARDS_AUDIT.md` template
+  walk producing a dated `STANDARDS_AUDIT_YYYY-MM-DD.md` companion;
+  yesterday's Phase 2.3 walked the 10 P10 rules (CONFIRMED) but the
+  **221 JSF AV rules + JPL C LOC-1..4 + project-specific +
+  agent-behavioral** were NOT walked. Sibling re-audit gaps also not
+  re-run: DEV_CODE (L2-P6), VERSION_STRING (L2-P7), AO_COMMANDMENTS
+  (L2-P8), TOOLCHAIN (L2-P9). User direction at session close: *"lets
+  do a session hand over checklist and add a WB note to re-evaluate
+  the noted gaps in the audit master suite and after all gaps are
+  confirmed eliminated to re-run the audit suite just to be sure
+  nothing fell through the gaps"*
+
+  **Two-step plan for next cycle:**
+  1. **Fill the gaps** — walk JSF AV (221 rules) + JPL C LOC-1..4 +
+     project-specific + agent-behavioral per file with PASS/PARTIAL/FAIL
+     evidence (produces dated `STANDARDS_AUDIT_2026-05-NN.md` companion);
+     re-run DEV_CODE / VERSION_STRING / AO_COMMANDMENTS / TOOLCHAIN
+     targeted re-audits. Estimated 4-6 hours focused. Most rows expected
+     to PASS because intervening remediation kept the project current,
+     but cannot claim that without actually walking.
+  2. **Re-run the master audit suite** (Phases 1/3/5/6/7 + station
+     bench at minimum; Phase 4 still blocked by R-23 unless R-25
+     deprecation evaluation runs first) to confirm no rot was introduced
+     by the gap-fill work itself.
+
+  Other deferred audit-cycle items (lower urgency, separate sessions):
+  - 14 PRs from yesterday's wrap remain `verified` pending audit-suite
+    regression (their L2 verification rolled into today's commit).
+  - R-5 (full stdio.h removal) + R-2 (absorbed into R-5) deferred for
+    dedicated ETL session.
+  - R-23 (vehicle bench tier HardFault) blocks Phase 4 vehicle scenarios
+    + replay_gate_test until R-25 deprecation evaluation chooses path
+    (R-23 may not need fixing if Option B chosen).
+  - Architecture session: R-20 (Core 1 boot-wait AIRCR), R-21 (PIO WDT
+    no auto-reset), L2-W1 — all feed "in-flight fault recovery
+    architecture" thinking already on this whiteboard.
+  - Audit-infrastructure session: R-22 (warm-reboot audit script), R-24
+    (boot-parity gate), L2-P2/P3/P4 (Phase 7 sampling policy).
 
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
