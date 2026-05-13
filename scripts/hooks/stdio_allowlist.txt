@@ -1,0 +1,37 @@
+# Pre-commit allowlist: files permitted to still include <stdio.h>.
+#
+# This list is the explicit "known deviation set we're tracking down" per
+# docs/decisions/STDIO_REPLACEMENT_PLAN.md. The pre-commit hook
+# (scripts/hooks/pre-commit) reads this file and rejects any commit that
+# adds <stdio.h> to a src/ .cpp file NOT listed here.
+#
+# Rules:
+#   - One file path per line, relative to repo root, using forward slashes.
+#   - Lines starting with '#' are comments. Blank lines ignored.
+#   - Files come OFF this list as the R-5 dedicated sessions migrate them.
+#   - Files are NEVER added without explicit user-cosigned commit-message
+#     justification + corresponding PROBLEM_REPORTS.md entry.
+#   - When this list is empty, the pre-commit hook becomes "no <stdio.h>
+#     in src/*.cpp anywhere" and this file can be deleted.
+#
+# Current entries (18 files, established 2026-05-13 during the 2026-05-07
+# master audit's Phase 8 Category 3):
+
+src/active_objects/ao_flight_director.cpp
+src/active_objects/ao_rcos.cpp
+src/active_objects/ao_telemetry.cpp
+src/calibration/cal_hooks.cpp
+src/cli/rc_os.cpp
+src/cli/rc_os_commands.cpp
+src/cli/rc_os_dashboard.cpp
+src/dev/dev_cli.cpp
+src/dev/diag_stats.cpp
+src/dev/fault_inject.cpp
+src/dev/replay_inject.cpp
+src/drivers/gps_pa1010d.cpp
+src/drivers/gps_uart.cpp
+src/drivers/i2c_bus.cpp
+src/main.cpp
+src/safety/fault_protection.cpp
+src/safety/pyro_edge_logger.cpp
+src/telemetry/telemetry_service.cpp
