@@ -50,14 +50,36 @@
   confirmed eliminated to re-run the audit suite just to be sure
   nothing fell through the gaps"*
 
-  **Two-step plan for next cycle:**
-  1. **Fill the gaps** — walk JSF AV (221 rules) + JPL C LOC-1..4 +
-     project-specific + agent-behavioral per file with PASS/PARTIAL/FAIL
-     evidence (produces dated `STANDARDS_AUDIT_2026-05-NN.md` companion);
-     re-run DEV_CODE / VERSION_STRING / AO_COMMANDMENTS / TOOLCHAIN
-     targeted re-audits. Estimated 4-6 hours focused. Most rows expected
-     to PASS because intervening remediation kept the project current,
-     but cannot claim that without actually walking.
+  **Three-step plan for next cycle:**
+  0. **Inventory completeness check (NEW — user flagged "possibility of
+     more" at session close).** Before declaring the gap-fill phase
+     complete, prove the inventory of gaps is itself exhaustive. Spot
+     checks worth running:
+     - Enumerate `docs/audits/` recursively (post-session check found
+       `docs/audits/cla_rbm/` sub-folder containing **CLA_RBM_PLAN.md +
+       COMPUTATIONAL_LOAD_ANALYSIS.md + RUNTIME_BEHAVIOR_MAP.md +
+       dated CLA reports** — another whole audit type **not** in L2-P5..P9).
+       Logged as **L2-P10**.
+     - Walk every step of `AUDIT_GUIDANCE.md` (Steps 1-8 + Appendix A.1
+       FMEA-lite + A.2 Stack/Errata + A.3 PRE_FLIGHT_CHECKLIST sub-items)
+       and tag each as fully/partially/not-run this cycle.
+     - Cross-check `CODING_STANDARDS.md` listed standards: MISRA C is
+       explicitly "underpins both JSF AV and JPL C but is not directly
+       audited" — open question whether that's still the right policy
+       or whether MISRA C should join the audited set.
+     - Audits-referenced-from-other-docs (stage plans, decision docs,
+       IVP entries that ran their own checks) — none indexed.
+     - Pre-commit-hook coverage matrix: confirm every flight-critical
+       path is in the matrix; flag any uncovered path.
+  1. **Fill the gaps** (post-inventory) — walk JSF AV (221 rules) + JPL C
+     LOC-1..4 + project-specific + agent-behavioral per file with
+     PASS/PARTIAL/FAIL evidence (produces dated
+     `STANDARDS_AUDIT_2026-05-NN.md` companion); re-run DEV_CODE /
+     VERSION_STRING / AO_COMMANDMENTS / TOOLCHAIN / CLA-RBM targeted
+     re-audits + any additional surfaced by step 0. Estimated 4-6 hours
+     focused (could be more depending on step 0 outcome). Most rows
+     expected to PASS because intervening remediation kept the project
+     current, but cannot claim that without actually walking.
   2. **Re-run the master audit suite** (Phases 1/3/5/6/7 + station
      bench at minimum; Phase 4 still blocked by R-23 unless R-25
      deprecation evaluation runs first) to confirm no rot was introduced
