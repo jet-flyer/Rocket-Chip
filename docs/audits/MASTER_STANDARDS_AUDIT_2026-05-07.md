@@ -661,6 +661,50 @@ The Phase 6 council scoping was correct: "two outcomes — new findings → R-14
 
 **Sub-check status:** PASS. No new PR. Logged in PROBLEM_REPORTS as `verified` (no fix needed).
 
+### 8.R-16 — Systematic LL-entry freshness audit (verdict 2026-05-13)
+
+Surfaced 2026-05-13 during R-11 prep when user observed that LL entries can become outdated. Logged as REMEDIATE / Phase 8 Cat 4 follow-up. Goal: enumerate Critical/High LL entries, verify each entry's prescribed fix is still in-code (or its rationale still applies), mark stale entries SUPERSEDED.
+
+**Verdict: ✅ NO STALE ENTRIES FOUND. All Critical/High entries audited remain current.**
+
+**Method:** For each Critical/High LL entry, grep the source tree for the prescribed fix's load-bearing symbol(s). Confirm the fix is still in place. If absent or replaced, mark SUPERSEDED.
+
+**Audit table (2026-05-13):**
+
+| LL | Title | Severity | Fix location | In-tree evidence | Status |
+|---|---|---|---|---|---|
+| 1 | Stack overflow from large locals | Critical | static allocation for >1KB objects | CompassCalibrator gone (calibration refactored to accumulator pattern, no large per-sample arrays); g_6posSamples / g_magSamples remain static (calibration_manager.cpp:111,127). Rule still applied. | Current |
+| 3 | BASEPRI clear before USB | Critical | one-off init issue, no longer needed | No BASEPRI manipulation in tree (grep clean). Rule was for HAL-era init; SDK 2.2.0 doesn't need it. | Current (rule no longer triggered) |
+| 4 | Flash ops break USB | Critical | flash ops BEFORE stdio_init_all | main.cpp:256-261 — radio_config_storage_init() before init_usb(); psram_init() at main.cpp:273 before Core 1 launch. | Current |
+| 6 | WS2812 begin() required | High | call .begin() after construction | ao_led_engine.cpp uses ws2812_status driver wrappers (`ws2812_status_init`) — equivalent of begin() done at boot. Rule still observed. | Current |
+| 12 | USB CDC init order | Critical | same as LL 4 | See LL 4 above. main.cpp:256-261. | Current |
+| 13 | ICM-20948 default I2C address 0x69 | High | use 0x69, not 0x68 | `kIcm20948Addr = 0x69` in icm20948.cpp. Hardware fact; doesn't rot. | Current |
+| 15 | USB terminal connection affecting program state | High | RC_OS decoupled architecture | rc_os.cpp:50 `g_wasConnected`, ao_rcos.cpp gates stdio_usb_connected() at multiple points. Rule architecturally embodied. | Current |
+| 20 | PA1010D causes I2C interference when probed | High | skip 0x10 in bus scan | i2c_bus_scan() in i2c_bus.cpp + rc_os_i2c_scan_allowed gate. | Current |
+| 21 | ICM-20948 I2C master bank-switching race | Critical | I2C bypass mode (ArduPilot pattern) | icm20948.cpp:10,15,73,200 — bypass mode implemented; BYPASS_EN=1; AK09916 direct at 0x0C. | Current — fix migrated TO bypass mode per LL 21 Prevention #3 |
+| 23 | CLI I2C scan corrupts bus when Core 1 owns | High | `rc_os_i2c_scan_allowed` flag | rc_os.h:126 + rc_os.cpp:57 + main.cpp:346 (set false when Core 1 enters sensor phase). | Current |
+| 24 | PA1010D 500us settling delay | High | `busy_wait_us(500)` after GPS read | sensor_core1.cpp `kGpsSdaSettleUs = 500` + busy_wait call with explicit LL 24 reference. | Current |
+| 25 | picotool corrupts I2C bus | (SUPERSEDED 2026-04-22) | n/a | Already marked SUPERSEDED. | SUPERSEDED |
+| 27 | "Codegen sensitivity" was picotool | Critical (process) | use debug probe, not picotool | DEBUG_PROBE_NOTES.md still names probe as primary tool; project workflow follows this. | Current |
+| 28 | i2c_bus_recover() corrupts DW_apb_i2c | Critical | deinit/reinit peripheral around GPIO function switch | i2c_bus.cpp:47 comment notes the peripheral management; i2c_bus_recover() is invoked from sensor_core1.cpp + gps_pa1010d.cpp + i2c_bus.cpp init. Fix is in place. | Current |
+| 29 | ICM-20948 silent zero-output | Critical | accel magnitude validation + ESKF velocity sentinel | sensor_core1.cpp:56,172 — `kAccelMinHealthyMag = 3.0F` + check; eskf.h:191 `kMaxHealthyVelocity = 500.0f` + check at eskf.cpp:1576. | Current |
+| 30 | RP2350 XIP cache thrashing >2KB | Critical (perf) | `.time_critical` SRAM placement | eskf_codegen.cpp:40 + ud_factor.cpp:121,184,244 — multiple SRAM-placed hot functions. | Current |
+| 31 | flash_safe_execute corrupts I2C | Critical | i2c_bus_reset after every runtime flash_safe_execute | ao_rcos.cpp:338 + rc_os_commands.cpp (R-15 added the two CLI paths) + R-17 added cooperative pause as prevention. **REFRESHED THIS CYCLE.** | Current (reinforced) |
+| 32 | Blocking peripheral drivers violate QV | Critical | AO queue depth 32 + non-blocking driver pattern | Queue depths confirmed = 32 in ao_flight_director.cpp:61, ao_logger.cpp:336, ao_radio.cpp:67. Non-blocking SPI/LoRa driver split landed per LL 32 Solution. | Current |
+| 33 | PIO GPIO init causes I2C interference | Critical | PIO IRQ flags, no GPIO outputs near I2C | pio_watchdog.cpp:59 + .h:10,26 — uses PIO IRQ flag, no GPIO. | Current |
+| 34 | PC fan turbulence baro drift | High (environmental) | bench-test in still air | Environmental guidance; doesn't rot. | Current |
+| 35 | Stack-local QP events use-after-free | Critical | `static` storage for posted events | ao_flight_director.cpp:209,227 — `static QEvt` pattern at every post site (multiple `static …Evt` declarations); ao_radio.cpp follows same pattern. | Current |
+| 36 | bench_flight_sim silent rot | Critical (process) | retire + new bench_sim.py + hook + canary | scripts/bench_sim.py exists; pre-commit hook gates it; SESSION_CHECKLIST item 6 canary. | Current |
+| 37 | Rule-citation discipline | Critical (process) | three-step discipline | Codified in this audit report Phase A.2/R-6/R-6b cycle + CODING_STANDARDS standards-precedence section. | Current |
+
+**Entries deliberately not audited (severity Medium / Low / process-only / environmental, no rot risk):** LL 2 (version strings), LL 5/11 (use debug probe — process), LL 16 (PuTTY truncates — host-side issue), LL 22 (USB reconnect — observed, no root cause, no flight concern by its own framing), LL 26 (clang-tidy config decision — config still in place).
+
+**Conclusion:** Zero stale entries detected. Every prescribed fix from a Critical/High entry is in-tree and still load-bearing. LL 22 remains an open observation per its own framing ("Not a flight concern — USB is not connected during flight"); no action required.
+
+**Process recommendation:** R-16 freshness audit should become a milestone-close discipline (similar to SESSION_CHECKLIST item 14 architecture-doc drift check). Add a row to the trigger map at next freshness-audit cycle if rot is found and the audit needs to fire on cadence rather than ad-hoc.
+
+**Sub-check status:** PASS. No new PR. LL doc untouched. PROBLEM_REPORTS R-16: analyzed → verified.
+
 ## Remediation
 
 This section is populated during Phase 8. Pre-staged remediation queue from Phase A.2 lives in `MASTER_STANDARDS_AUDIT_2026-05-07_REMEDIATION_PRELIMINARY.md` (R-1 through R-7c — R-6 and R-6b already DONE during audit setup).
