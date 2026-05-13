@@ -302,6 +302,7 @@ void health_monitor_init() {
         switch (static_cast<CrashReason>(prior.reason)) {
             case kCrashReasonMemManage:     reason_str = "MemManage";     break;
             case kCrashReasonMpuConfigFail: reason_str = "MpuConfigFail"; break;
+            case kCrashReasonCore1BootWait: reason_str = "Core1BootWait"; break;
             case kCrashReasonNone:          reason_str = "none";          break;
         }
         DBG_PRINT("HEALTH: prior-boot hardfault (%s) cfsr=0x%08lx hfsr=0x%08lx pc=0x%08lx lr=0x%08lx",

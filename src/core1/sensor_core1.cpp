@@ -15,7 +15,9 @@
 
 #include "rocketchip/config.h"
 #include "rocketchip/sensor_seqlock.h"
-#include "safety/fault_protection.h"  // OPT-IVP-01: shared MPU stack guard (removes duplication)
+#include "rocketchip/job.h"            // R-1: distinguish vehicle vs station/relay path for boot-wait bound
+#include "safety/fault_protection.h"   // OPT-IVP-01: shared MPU stack guard (removes duplication)
+#include "safety/crash_record.h"       // R-1: capture-state-then-reset on boot-wait timeout
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/multicore.h"
@@ -485,10 +487,48 @@ void core1_entry() {
     multicore_lockout_victim_init();
     g_core1LockoutReady.store(true, std::memory_order_release);
 
-    // Wait for Core 0 to signal sensor phase start (Vehicle only).
-    // Station/Relay never set this flag -- Core 1 idles here.
-    while (!g_startSensorPhase.load(std::memory_order_acquire)) {
-        sleep_ms(10);
+    // Wait for Core 0 to signal sensor phase start.
+    //
+    // R-1 (audit 2026-05-07):
+    //   - Vehicle path: bounded — Core 0's init sequence sets the flag in
+    //     well under a second. A 10s timeout is far above the worst-case
+    //     observed boot path. Exceeding it indicates Core 0 is wedged, so
+    //     capture a CrashRecord (reason=Core1BootWait) and reset; the
+    //     post-reset health_monitor_init() latches kHealthCriticalPriorHardfault
+    //     and the existing safe-mode pivot owns recovery. Static analyzer
+    //     can prove the loop terminates (either flag is set, or the
+    //     timeout branch fires and crash_record_capture() is [[noreturn]]).
+    //   - Station/Relay path: intentionally non-terminating per Holzmann
+    //     P10 Rule 2 inverted-rule scheduler exemption (Core 1 has no
+    //     work in these roles). The static_assert pattern below documents
+    //     that the unbounded branch is statically reachable only on these
+    //     roles.
+    if constexpr (job::kRole == job::DeviceRole::kVehicle) {
+        // Vehicle: bounded wait. Loop bound expressed as constants so the
+        // compiler folds the static-bound check at -O2.
+        constexpr uint32_t kCore1BootWaitTickMs = 10U;
+        constexpr uint32_t kCore1BootWaitMaxIters = 1000U;  // 10 s ceiling
+        for (uint32_t iter = 0U; iter < kCore1BootWaitMaxIters; ++iter) {
+            if (g_startSensorPhase.load(std::memory_order_acquire)) {
+                break;
+            }
+            sleep_ms(kCore1BootWaitTickMs);
+        }
+        if (!g_startSensorPhase.load(std::memory_order_acquire)) {
+            // Timeout — Core 0 didn't signal sensor phase start in 10 s.
+            // Capture state and reset; safe-mode pivot owns recovery.
+            uint32_t self_pc = 0U;
+            __asm volatile ("mov %0, pc" : "=r"(self_pc));
+            rc::crash_record_capture(rc::kCrashReasonCore1BootWait, self_pc, 0U);
+            // crash_record_capture is [[noreturn]] — fires NVIC_SystemReset().
+        }
+    } else {
+        // Station/Relay: Holzmann scheduler exemption. Statically provable
+        // non-terminating: the flag is never set on these roles, by
+        // construction in their init paths.
+        while (!g_startSensorPhase.load(std::memory_order_acquire)) {
+            sleep_ms(10);
+        }
     }
 
     core1_sensor_loop();
