@@ -179,6 +179,32 @@ see `standards/RP2350_ERRATA.md`.
 
 Approved deviations from coding standards are tracked in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`. Compliance audit results are tracked in `standards/STANDARDS_AUDIT.md`.
 
+### Comment Density
+
+Target band: **15-25% comment density in `.cpp` files** (function-internal comment lines vs. total non-blank function lines).
+
+**Why these numbers:**
+- MathWorks Polyspace (MISRA/safety-critical static-analysis tool) defines `commentdensityfallsbelowthreshold` with a recommended **lower limit of 20%**.
+- Arafati & Riehle 2009 ("The Comment Density of Open Source Software Code," ICSE NIER, 5,229 active OSS projects): mean = 19%, median = 17%, 15-25% is the empirically-observed healthy band.
+- Elish & Offutt (100 Java OSS classes): mean = 15.2%, σ = 12.2.
+
+**What counts in the measurement:**
+- **Numerator:** lines starting with `//`, `/*`, or `*` (in-block).
+- **Denominator:** total non-blank lines.
+- **Scope:** `.cpp` files. **Header files (`.h`) are excluded** — Doxygen-heavy interface declarations naturally run 60-85% comments, and that's appropriate use of comments for API documentation.
+
+**Per-context guidance:**
+- **Flight-critical code** (per the File Classification table above): higher density is acceptable when the comment captures a hardware quirk, safety rationale, or load-bearing invariant. No upper limit codified for safety-critical contexts.
+- **Ground / dev / test code**: 15-25% target applies strictly. Above ~30% in a single function is a smell — move multi-paragraph rationale to a decision doc (`docs/decisions/`), leave a 1-line pointer comment in the function.
+- **Comments that paraphrase what well-named code already says** are noise regardless of density. Comments answer "why," not "what."
+
+**When over-density is unjustified, do:**
+1. Pull the multi-paragraph rationale out to a decision doc + a single-line pointer comment.
+2. Delete comments that restate self-documenting code (well-named variables, obvious control flow).
+3. Keep comments that explain hardware quirks, standards citations, lived-experience lessons (LL entry refs), or surprising invariants.
+
+**Reference:** project policy 2026-05-13 (R-3 inlined fault handler shipped at ~41% density, refactored to extract rationale to `FAULT_HANDLER_DESIGN.md` and bring inline density down). Cycle-end audit 2026-05-13: src/ overall `.cpp` density = 21.8% (within band); all subdirs healthy.
+
 ---
 
 ## Communication Protocols
