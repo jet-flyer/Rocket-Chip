@@ -85,6 +85,39 @@ No code changes planned — kept as context for future decisions.
 
 - **ELRS on RP2350 — research item.** Running ExpressLRS natively on RP2350 with PIO-assisted frequency hopping. Current RFM95W (bare SX1276 on SPI) may be compatible if packet format + hopping schedule can be implemented in firmware. Telstar Booster Pack already describes CRSF/UART to a dedicated ELRS module as the alternative path. Future radio protocol investigation.
 - **PIO hardware failure gap — Gemini tier only.** IVP-130 Scenario 5 confirmed: external PIO SM halt is undetectable by firmware (PIO watchdog IRQ only fires from PIO program itself; ARM-side monitoring defeats the independence point). Correct mitigation = physical redundancy (second independent timer on separate MCU). Gemini-tier feature (dual-core carrier board). Accepted gap for Core/Titan.
+
+- **In-flight fault recovery architecture — dedicated future session.** Surfaced 2026-05-12 during R-3 (capture-then-reset hardfault handler) verification on the bench. R-3 ships partially validated (single-cycle bench evidence; 3-boot reliability blocked on the Core 1 SIO_FIFO_IRQ post-AIRCR-reset wedge — see below). The deeper architectural questions to evaluate together in a focused session:
+
+  **1. Is "reset" even the right recovery primitive for in-flight faults?**
+
+  User insight 2026-05-12: an in-flight reboot loses the ESKF datum (gyro bias, baro reference, pressure→altitude integration history, attitude-quaternion state). Without datum the rest of the flight is useless — the ESKF would have to re-converge against a sensor stream that's already mid-flight, with no ground reference, no still period for gyro bias estimation, etc. **A degraded safe-mode (keep running with FAULT health bit, GO/NO-GO blocks ARM, but ESKF/baro/IMU keep going) is likely better than reset for in-flight faults.**
+
+  This means R-3's "capture → reset → safe-mode-on-next-boot" pattern is **right for ground/bench debugging** (where reset is fine and the FAULT latch is useful information for the operator) but possibly **wrong for in-flight faults** (where reset destroys the data we need to land safely). The fault handler should ideally distinguish the two and pick the right primitive — capture-and-safe-mode-in-place for in-flight, capture-and-reset for ground.
+
+  **2. Persistence of recovery-critical state across reboots.**
+
+  If reset IS the right primitive sometimes, the state needed to keep the flight useful (gyro bias, baro datum, ESKF state, current flight phase) needs to survive the reset. Options:
+  - **`.uninitialized_data` SRAM** — survives AIRCR reset (already used for crash record), wiped at power-off. Could hold the ESKF state + sensor calibration. Risk: requires checksum/version-tagging so a corrupted reset doesn't load garbage.
+  - **Flash** — survives power-off, but flash writes during flight risk LL Entry 4/12/31 patterns (USB/I2C breakage). Only safe in narrow non-flight windows.
+  - **PSRAM with battery backup** — out of scope for current hardware.
+
+  **3. PIO watchdog as the independent check + safe-mode trigger.**
+
+  User insight 2026-05-12: the existing PIO watchdog (`src/safety/pio_watchdog.cpp`) might be adequate as the independent check for faults the ARM can't detect itself. The PIO sets IRQ flag 0 if not fed; ARM observes this and **transitions to safe-mode IN PLACE — no reset required.** This sidesteps the AIRCR/SIO mess entirely AND preserves in-flight datum. Worth evaluating whether PIO+safe-mode covers the threats we care about (vs needing a true reset path for some specific scenarios).
+
+  **4. Per IEC 61508 HFT=0 framing**, single-channel single-MCU systems "by definition have no ability to tolerate faults" — what we have is fault detection + safe-mode pivot, not true fault tolerance. This is the right safety class for hobbyist/educational rocketry (matches Featherweight, Altus Metrum, MissileWorks practice). Internal MCU watchdog has limited fault-coverage value (*"the watchdog is part of the possible defected microcontroller"*); the PIO watchdog is closer to the IEC 61508 ideal because it's a separate silicon block with different failure modes.
+
+  **5. Proper aerospace-grade fault handling is multi-MCU board work.** User insight 2026-05-13:
+
+  - **Gemini** (dual-MCU carrier board, project's existing concept for the Rocket Chip line) is the canonical multi-MCU answer for rocketry.
+  - **Titan** could also adopt multi-MCU if wired in.
+  - **Pegasus FC** (separate side-project — see `docs/PROJECT_STATUS.md` "Side Projects & Future Product Lines") — best answer here is to **add solder pads on Pegasus FC for a Core Rocket Chip module to plug into**, dedicated as a co-processor for GPIO + watchdog + safety supervision. This reuses an existing module (Core), gives Pegasus its independent observer per IEC 61508 (separate silicon, separate clock domain, independent of the main flight ARM), and keeps the design modular. Worth scoping into Pegasus FC's feature spec when that board moves into design — and the Core-as-co-processor pattern is reusable across Rocket Chip line + Pegasus.
+
+  When such a board exists, that's where multi-MCU cross-checking + voting + redundant-reset architecture gets implemented + validated against the IEC 61508 HFT≥1 framing. Until then, Core/Titan single-MCU stays at HFT=0 and uses PIO+safe-mode as the best-available single-MCU pattern. Don't try to graft multi-MCU semantics onto single-MCU Core — wait for the hardware actually designed for it.
+
+  **Surfaced limitation — Core 1 SIO_FIFO_IRQ post-AIRCR-reset wedge.** When `crash_record_capture()` triggers AIRCR.SYSRESETREQ on Core 0, Core 1's NVIC SIO FIFO IRQ pending state survives the reset (AIRCR is processor-only on RP2350 per datasheet §7.3.1; not chip-level). Post-reset Core 0 reboots and calls `multicore_launch_core1()` which DOES NOT reset Core 1's NVIC (it only manages Core 0's). When Core 1 starts, the pending SIO FIFO IRQ fires before any handler is installed (window between bootrom handoff and our `core1_entry()` first lines), vectoring to `isr_invalid` → wedge. Tried fixes that didn't work: drain SIO from handler (only drains Core 0's inbound), drain SIO + clear NVIC pending in `core1_entry` (too late — IRQ already fired), no-op handler installation (conflicts with `multicore_lockout_victim_init`'s exclusive-handler assertion). The clean fix likely requires either: (a) modify the SDK Core 1 boot path to clear NVIC pending earlier, (b) use a chip-level reset mechanism instead of AIRCR (PSM-based — but Core 0 can't trigger that for itself + Core 1 atomically), or (c) approach via the PIO watchdog → safe-mode-in-place path that doesn't require reset at all.
+
+  **Action when this session opens:** evaluate (1)-(5) above as a coherent design question. The right output is probably "Core/Titan uses PIO watchdog + safe-mode-in-place as the primary fault recovery; the capture-then-reset path stays as a ground/bench debugging tool with explicit operator awareness; persistent state in `.uninitialized_data` is opt-in for specific subsystems that benefit." Multi-MCU evaluation is Gemini-tier scope.
 - **RP2350B/Fruit Jam persistent bus-corruption hypothesis.** User hunch 2026-04-17: one boot during the Fruit Jam GPS debug had a transition not fully explained by the cable theory alone. Investigate whether RP2350B exhibits bus-corruption state that survives power cycles. Low priority — may be a dead end, keep passive.
 
 ## Deferred (near-term, post-Stage 15)

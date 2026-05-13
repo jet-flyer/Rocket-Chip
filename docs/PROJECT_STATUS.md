@@ -171,6 +171,16 @@ None currently.
 - **Dynamic Peripheral Detection + OTA Drivers** — Runtime hot-plug, driver registry, OTA firmware downloads. Crowdfunding stretch goal. Boot-time probe-first already implemented.
 - **FSK Continuous Bitstream (IVP-63)** — SX1276 FSK mode for IRIG-heritage PCM telemetry. Titan tier only. Requires separate driver from LoRa.
 
+## Side Projects & Future Product Lines
+
+Re-added 2026-05-13 from the `AP_ChibiOS` / `AP_FreeRTOS` branches' historical Side Projects section (dropped during a prior PROJECT_STATUS restructure). Items here are project-adjacent or future-facing — not part of any current Stage's scope.
+
+- **Pegasus FC** — Full flight controller for drones and glide-back boosters. Separate project line from the rocketry-focused Rocket Chip board family. Open candidate: add solder pads on Pegasus FC for a Core Rocket Chip module to plug into as a dedicated GPIO + watchdog + safety co-processor (independent silicon per IEC 61508 HFT≥1 framing — see `AGENT_WHITEBOARD.md` "In-flight fault recovery architecture" entry for the deeper rationale).
+- **Fruit Jam as ground station platform** — Already partially realized via the Stage 16C station decoupling work (see `docs/plans/STAGE16C_STATION_DECOUPLING_STATUS.md`). Fruit Jam runs the station-tier firmware as the GCS host.
+- **OpenMCT integration exploration** — Web-based mission control dashboard (NASA-developed). Earlier scope work in Stage 12B; see `AGENT_WHITEBOARD.md` station SPIN model extensions + station→vehicle radio health channel for the prerequisites.
+- **Gemini tier (dual-MCU carrier board)** — Two independent flight computers cross-checking each other. The architecturally-clean answer to IEC 61508 HFT≥1 fault tolerance for the Rocket Chip line. Tracked on `AGENT_WHITEBOARD.md` for the Rocket Chip board family.
+- **Titan tier multi-MCU evaluation** — Could adopt the dual-MCU pattern if wired in; not Gemini-exclusive. See `docs/decisions/TITAN_BOARD_ANALYSIS.md` for the broader Titan research.
+
 ## Reference
 
 - `docs/IVP.md` — Full integration plan with verification gates (includes Phase M mag cal)

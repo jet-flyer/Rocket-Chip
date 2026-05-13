@@ -91,6 +91,26 @@ P10 Rule 9 prohibits function pointers in safety-critical code: *"Limit pointer 
 
 ---
 
+## Third-Party / Vendored Code Deviations
+
+Deviations in code we **don't own** (Pico SDK, QP/C, lwGPS, MAVLink, etc.) where the project's coding standards don't apply because we can't modify the source. Logged here for awareness so future agents know the gate is correctly suppressing these (vs missing a real finding) and so that a future SDK update can be re-evaluated against the same list.
+
+**Pre-commit hook scope:** the project's clang-tidy gate (`scripts/hooks/pre-commit`) checks staged files matching `src/*.cpp` only — it does not flag SDK or vendor headers. The deviations below are surfaced when running clang-tidy with `--header-filter=.*` and `--system-headers` (e.g., during a milestone audit).
+
+### TP-1: Pico SDK `spi_set_format` cognitive complexity 31 (threshold 25)
+
+**Source:** `~/.pico-sdk/sdk/2.2.0/src/rp2_common/hardware_spi/include/hardware/spi.h:244` — `static inline void spi_set_format(spi_inst_t *spi, uint data_bits, spi_cpol_t cpol, spi_cpha_t cpha, __unused spi_order_t order)`
+
+**Standard:** `readability-function-cognitive-complexity` (project threshold 25, function measures 31).
+
+**Why accepted:** Vendored Pico SDK code; we don't fork the SDK. The function is `static inline` so it appears in any TU that includes `<hardware/spi.h>`. The pre-commit hook's scope (staged `src/*.cpp` only) correctly filters it; the deviation only appears when running clang-tidy explicitly against system headers.
+
+**Action on SDK upgrade:** re-check against the same audit pattern; if a future SDK version refactors `spi_set_format`, this entry can move to Resolved.
+
+**Discovered:** 2026-05-13 during R-3 amend verification (clang-tidy `--system-headers` + `--header-filter=.*` against `src/safety/fault_protection.cpp` surfaced exactly one suppressed warning, traced to this SDK function).
+
+---
+
 ## Review Schedule
 
 - **Before Flight Code**: Review all Low severity items in production paths
