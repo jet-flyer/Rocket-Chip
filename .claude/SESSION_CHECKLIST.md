@@ -165,6 +165,7 @@ Protected docs come in two kinds with different edit rules.
 | `README.md` | "Read First" / "Each Session" lists change. Key rules change. |
 | `docs/PROJECT_STATUS.md` | Phase changes, new blocker discovered, blocker resolved, next-action changes. **Not** triggered by routine work commits within a stage. |
 | `AGENT_WHITEBOARD.md` | Active state changes — new flag/issue surfaced, row resolved (erase per the IRL-whiteboard rule), or row's status materially changes. **Not** triggered by routine work. |
+| `tools/spin/*.pml` (existing models) | Firmware behavior matching a candidate SPIN extension lands — see `AGENT_WHITEBOARD.md` "Station SPIN model extensions" (multi-pending-in-flight, RadioScheduler TX-window arbitration, MAVLink parser state, `station_idle_tick` GPS poll interleave) for the in-flight list. When such firmware lands, the `.pml` edit rides in the same commit; the master gate (`run_stage_o_ao_spin.sh`) auto-discovers LTL properties so new claims pick up automatically. Codifies a discipline that would otherwise rely on memory. R-13 (2026-05-07 audit). |
 
 #### Historical-record docs (forward-going edit does NOT apply)
 

@@ -26,7 +26,7 @@ Standards apply in chronological order — **newer standards take precedence ove
 
 **Practical examples:**
 - P10 Rule 9 (no function pointers, 2006) vs. JSF Rule 176 (use typedef when declaring function pointers, 2005): **P10 wins** — newer and more restrictive. Function pointers are an accepted deviation in our project, not "compliant via JSF."
-- P10 Rule 2 (loops must have fixed upper bound, 2006) — Holzmann's own paper carves out the **inverted-rule exemption** for non-terminating scheduler loops (prove the loop *cannot* terminate). That explicit exemption is part of P10 itself, not an external override.
+- P10 Rule 2 (loops must have fixed upper bound, 2006) — Holzmann's own paper carves out the **inverted-rule exemption** for non-terminating scheduler loops (prove the loop *cannot* terminate). That explicit exemption is part of P10 itself, not an external override. The project's compliant non-terminating loops (QF_run scheduler, Core 1 sensor loop, fault halt) are enumerated in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` "Note on Power-of-10 Rule 2"; those satisfy the inverted rule and therefore aren't deviations.
 - JSF Rule 22 (no `<stdio.h>`, 2005) — newer standards don't disagree, so JSF applies.
 
 **References:**
