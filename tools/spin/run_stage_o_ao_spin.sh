@@ -49,6 +49,7 @@ MODELS=(
   rocketchip_fd.pml
   rocketchip_rf_manager.pml
   rocketchip_station.pml
+  rocketchip_boot.pml          # R-12 (2026-05-07 audit): cross-core boot handshake
 )
 
 total_props=0
