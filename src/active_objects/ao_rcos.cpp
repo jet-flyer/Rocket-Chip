@@ -26,6 +26,7 @@
 #include "calibration/calibration_manager.h"
 #include "calibration/cal_hooks.h"
 #include "drivers/i2c_bus.h"
+#include "safety/core1_i2c_pause.h"
 #include "ao_logger.h"
 #include "logging/flight_table.h"
 #include "logging/flash_flush.h"
@@ -332,6 +333,13 @@ static void cal_neo(uint8_t mode) {
 static void cal_save_to_flash() {
     printf("Saving to flash...");
     (void)fflush(stdout);
+    // R-17 (2026-05-07 audit): pause Core 1's I2C reads BEFORE flash op.
+    // Without this, multicore_lockout halts Core 1's CPU but in-flight
+    // DW_apb_i2c transactions outlive the lockout entry, get abandoned at
+    // the APB bridge 65535-cycle timeout (datasheet §2.1.4), and corrupt
+    // the peripheral. LL Entry 31's i2c_bus_reset is the recovery; the
+    // pause is the prevention. See R-11 SPIN model + R-17 PR notes.
+    rc::core1_i2c_pause();
     cal_result_t saveResult = calibration_save();
     if (saveResult == CAL_RESULT_OK) {
         printf(" OK!\n");
@@ -341,6 +349,7 @@ static void cal_save_to_flash() {
     } else {
         printf(" FAILED (%d)\n", saveResult);
     }
+    rc::core1_i2c_resume();
     // Signal Core 1 to reload calibration
     cal_post_hook();
 }

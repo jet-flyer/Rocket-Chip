@@ -15,6 +15,7 @@
 #include "rocketchip/config.h"
 #include "rocketchip/shared_state.h"
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
+#include "safety/core1_i2c_pause.h"       // R-17 audit 2026-05-07: cooperative pause around flash ops
 #include "flight_director/go_nogo_checks.h"  // IVP-T14: RF Link pre-arm station
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/pcm_frame.h"
@@ -1033,6 +1034,13 @@ static void cmd_flush_log() {
     rc::FlightSummary summ = {};
     summ.frame_count = stored;
 
+    // R-17 (2026-05-07 audit): pause Core 1 I2C BEFORE the flush op chain
+    // to prevent the LL-31 race. flush_ring_to_flash() invokes
+    // flash_safe_execute() many times; each invocation is a separate
+    // multicore_lockout window. Pausing Core 1 once around the whole flush
+    // is far cheaper than pausing per-invocation.
+    rc::core1_i2c_pause();
+
     rc::FlushResult result = rc::flush_ring_to_flash(
         ring, ft, &meta, &summ, rate, flush_kick_watchdog);
 
@@ -1041,10 +1049,13 @@ static void cmd_flush_log() {
     // peripheral in a corrupted state on RP2350 until a peripheral reset clears
     // it. Apply the same reset pattern that ao_rcos.cpp cal_save_to_flash()
     // uses (line 338). Run regardless of FlushResult — even a partial flush
-    // means flash_safe_execute() ran.
+    // means flash_safe_execute() ran. R-17 added the pause BEFORE this point;
+    // the reset is still required as belt-and-suspenders against any in-flight
+    // transaction that didn't drain in time.
     if (!i2c_bus_reset()) {
         printf("[WARN] I2C bus reset failed after flush\n");
     }
+    rc::core1_i2c_resume();
 
     switch (result) {
     case rc::FlushResult::kOk:
@@ -1080,6 +1091,11 @@ static void cmd_flush_log() {
 void cli_do_erase_flights() {
     rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
     printf("Erasing flight log sectors...\n");
+    // R-17 (2026-05-07 audit): pause Core 1 I2C BEFORE the flash op chain
+    // to prevent the LL-31 race (in-flight I2C transactions corrupted by
+    // multicore_lockout). See R-11 SPIN model + ao_rcos.cpp cal_save_to_flash
+    // for the same pattern.
+    rc::core1_i2c_pause();
     bool ok = true;
     if (!rc::flight_log_erase_all(ft, flush_kick_watchdog)) {
         printf("Flash erase error.\n");
@@ -1102,6 +1118,8 @@ void cli_do_erase_flights() {
     if (!i2c_bus_reset()) {
         printf("[WARN] I2C bus reset failed after erase\n");
     }
+    // R-17: resume Core 1 sensor reads.
+    rc::core1_i2c_resume();
 }
 
 // ============================================================================

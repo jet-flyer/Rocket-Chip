@@ -49,7 +49,8 @@ MODELS=(
   rocketchip_fd.pml
   rocketchip_rf_manager.pml
   rocketchip_station.pml
-  rocketchip_boot.pml          # R-12 (2026-05-07 audit): cross-core boot handshake
+  rocketchip_boot.pml             # R-12 (2026-05-07 audit): cross-core boot handshake
+  rocketchip_flash_protocol.pml   # R-11 (2026-05-07 audit): flash / lockout / I2C-reset protocol (R-17 cooperative pause verified)
 )
 
 total_props=0
