@@ -18,7 +18,7 @@
 
 static constexpr uint32_t kCalReadDelayMs = 10;           // ~100Hz accel sampling
 static constexpr uint32_t kMagDiagPrintModulus = 200;      // Print every N mag failures
-static constexpr uint32_t kCore1PauseAckMaxMs = 100;       // Max wait for Core 1 pause
+// kCore1PauseAckMaxMs moved to src/safety/core1_i2c_pause.cpp during R-17/R-18.
 
 // ============================================================================
 // Mag read staleness tracking
@@ -95,26 +95,17 @@ bool cal_read_mag(float* mx, float* my, float* mz) {
 }
 
 // ============================================================================
-// Core 1 I2C Pause/Resume Hooks
+// Post-Calibration Hook
 // ============================================================================
-// Bypass mode eliminates the I2C master race condition (LL Entry 21).
-// Hooks only need to pause/unpause Core 1 for bus ownership.
-
-void cal_pre_hook() {
-    if (g_sensorPhaseActive && !g_core1I2CPaused.load(std::memory_order_acquire)) {
-        g_core1PauseI2C.store(true, std::memory_order_release);
-        for (uint32_t i = 0; i < kCore1PauseAckMaxMs; i++) {
-            if (g_core1I2CPaused.load(std::memory_order_acquire)) {
-                break;
-            }
-            sleep_ms(1);
-        }
-    }
-}
+// Signal Core 1 to reload calibration data after a successful save. The
+// I2C-pause primitive that used to live here (cal_pre_hook) was extracted
+// to src/safety/core1_i2c_pause.{h,cpp} during R-17 of the 2026-05-07
+// audit and is now invoked directly by every flash_safe_execute callsite.
+// cal_pre_hook is gone (R-18 cleanup); only the cal-specific reload-pending
+// signal remains here, called from ao_rcos.cpp cal_save_to_flash().
 
 void cal_post_hook() {
     if (g_sensorPhaseActive) {
         g_calReloadPending.store(true, std::memory_order_release);
-        g_core1PauseI2C.store(false, std::memory_order_release);
     }
 }

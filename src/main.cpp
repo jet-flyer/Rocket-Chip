@@ -312,8 +312,11 @@ static void init_rc_os_hooks() {
     rc_os_read_accel = cal_read_accel;
     rc_os_read_mag = cal_read_mag;
     rc_os_reset_mag_staleness = cal_reset_mag_staleness;
-    rc_os_cal_pre_hook = cal_pre_hook;
-    rc_os_cal_post_hook = cal_post_hook;
+    // R-17/R-18 (2026-05-07 audit): rc_os_cal_pre_hook /
+    // rc_os_cal_post_hook function-pointer table removed (dead — was
+    // assigned here but never invoked anywhere). The I2C-pause primitive
+    // moved to src/safety/core1_i2c_pause.{h,cpp}; cal_post_hook() is now
+    // called directly from ao_rcos.cpp cal_save_to_flash().
 }
 
 // Initialize PIO safety systems on PIO2

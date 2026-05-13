@@ -27,22 +27,23 @@
 // `xltl_no_i2c_during_flash` property is upgraded from documented-
 // fail to hard-PASS once R-17 lands.
 //
-// Why not cal_pre_hook / cal_post_hook (cal_hooks.cpp)?
+// Why a new module instead of using cal_hooks.cpp's mechanism?
 //
-//   cal_post_hook() also sets g_calReloadPending which signals Core 1
-//   to reload calibration data. That's calibration-specific; using it
-//   in non-cal flash paths (log flush, flight-table erase) would
-//   falsely re-trigger a calibration reload. core1_i2c_pause() /
-//   core1_i2c_resume() are the same I2C-pause mechanism without the
-//   cal-reload tag-along. cal_hooks.cpp's hooks remain — they are
-//   the calibration-specific wrapper that also handles cal-reload.
+//   cal_hooks.cpp's `cal_post_hook()` also sets `g_calReloadPending`
+//   which signals Core 1 to reload calibration data. That's
+//   calibration-specific; using it in non-cal flash paths (log flush,
+//   flight-table erase) would falsely re-trigger a calibration reload.
+//   `core1_i2c_pause()` / `core1_i2c_resume()` are the same I2C-pause
+//   mechanism without the cal-reload tag-along.
 //
-//   Surfaced finding during R-17 prep (2026-05-13): cal_pre_hook is
-//   currently DEAD CODE — defined but never called from anywhere
-//   (the function-pointer table rc_os_cal_pre_hook is assigned at
-//   main.cpp:315 but never invoked). The calibration save path was
-//   running with the race open. R-17 also fixes this by wiring the
-//   pause primitive at cal_save_to_flash().
+//   Surfaced finding during R-17 prep (2026-05-13): the original
+//   `cal_pre_hook()` in cal_hooks.cpp was DEAD CODE — defined but
+//   never called from anywhere (the function-pointer table
+//   `rc_os_cal_pre_hook` was assigned at main.cpp:315 but never
+//   invoked). The calibration save path was running with the LL-31
+//   race open. R-17 fixes this by wiring the new pause primitive at
+//   `cal_save_to_flash()` directly; R-18 removes the now-fully-dead
+//   `cal_pre_hook()` + function-pointer table.
 
 namespace rc {
 

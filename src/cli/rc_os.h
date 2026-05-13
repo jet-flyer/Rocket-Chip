@@ -158,19 +158,10 @@ extern rc_os_read_mag_fn rc_os_read_mag;
 typedef void (*rc_os_reset_mag_staleness_fn)(void);
 extern rc_os_reset_mag_staleness_fn rc_os_reset_mag_staleness;
 
-// ============================================================================
-// Pre/Post Calibration Hooks (set by main)
-// ============================================================================
-
-/**
- * @brief Optional hooks called before/after calibration sequences.
- *
- * Pre-hook pauses Core 1 sensor reads so Core 0 can take I2C ownership.
- * Post-hook signals calibration reload and resumes Core 1.
- * Set to NULL if no setup/teardown is needed.
- */
-typedef void (*rc_os_cal_hook_fn)(void);
-extern rc_os_cal_hook_fn rc_os_cal_pre_hook;
-extern rc_os_cal_hook_fn rc_os_cal_post_hook;
+// R-17/R-18 (2026-05-07 audit): the rc_os_cal_pre_hook /
+// rc_os_cal_post_hook function-pointer table was removed (dead code —
+// pointers assigned at main.cpp but never invoked anywhere). The
+// I2C-pause primitive moved to src/safety/core1_i2c_pause.{h,cpp};
+// cal_post_hook() is now called directly from ao_rcos.cpp.
 
 #endif // ROCKETCHIP_RC_OS_H
