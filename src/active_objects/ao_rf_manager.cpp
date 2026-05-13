@@ -373,10 +373,10 @@ const char* link_state_name(LinkState s) {
     return "?";
 }
 
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
+// R-25-exec step 3 (2026-05-13): no longer dev-tier gated. Accessed only
+// via fault_force_radio_dropout() which checks test_mode_active() at entry.
 void AO_RfManager_force_last_rx_ms_for_test(uint32_t last_rx_ms) {
     l_rf.state.last_rx_ms = last_rx_ms;
 }
-#endif
 
 } // namespace rc

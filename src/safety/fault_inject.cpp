@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// Fault injection hooks for bench testing (IVP-129).
+// Fault injection hooks (IVP-129).
+//
+// R-25-exec step 3 of 13 (per docs/decisions/BENCH_TIER_DEPRECATION_
+// 2026-05-13.md, council-APPROVED Approach A): migrated from
+// src/dev/fault_inject.cpp. No longer #ifdef-gated. Every
+// fault_force_* entry checks rc::test_mode_active() and returns
+// early if not armed (SWE-133 partitioning principle).
+//
 // Callable via GDB `call fault_force_*()` from debug probe.
-// Compiled in only when ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS is defined,
-// which the build sets when NOT_CERTIFIED_FOR_FLIGHT=ON.
 // See docs/FAULT_INJECTION.md for usage.
 
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
-
-#include "dev/fault_inject.h"
+#include "safety/fault_inject.h"
+#include "safety/test_mode.h"
 #include "rocketchip/config.h"
 #include "rocketchip/ao_signals.h"
 #include "safety/pio_backup_timer.h"
@@ -30,35 +34,58 @@ volatile uint32_t g_fault_watchdog_skip = 0;
 // ESKF instance (owned by eskf_runner.cpp)
 extern bool g_eskfInitialized;
 
+// R-25-exec gate helper. Every fault_force_* function early-returns if
+// test mode is not armed. Single point of refusal so the audit
+// invariant "every fault_force_* checks test_mode_active() at entry"
+// is mechanically verifiable (grep for fi_test_mode_gate).
+//
+// Returns true iff the caller should proceed. Logs a uniform message
+// on rejection so a probe operator who arms the function via GDB but
+// forgot to arm test mode gets clear feedback.
+static bool fi_test_mode_gate(const char* name) {
+    if (rc::test_mode_active()) { return true; }
+    printf("[FAULT] %s gated — arm test mode via probe "
+           "(write kTestModeMagic to rc::g_test_mode_arm_magic + reset; "
+           "see safety/test_mode.h)\n", name);
+    return false;
+}
+
 // extern "C" + __attribute__((used)) prevent C++ mangling and compiler removal.
 // --undefined in CMakeLists.txt prevents linker --gc-sections removal.
 // These are only called via GDB `call`, not from firmware code.
-extern "C" extern "C" __attribute__((used))
+extern "C" __attribute__((used))
 void fault_force_eskf_unhealthy() {
+    if (!fi_test_mode_gate("fault_force_eskf_unhealthy")) { return; }
     g_eskfInitialized = false;
     printf("[FAULT] ESKF forced unhealthy\n");
 }
 
 extern "C" __attribute__((used))
 void fault_force_core0_stall() {
+    if (!fi_test_mode_gate("fault_force_core0_stall")) { return; }
     g_fault_core0_stall = true;
     printf("[FAULT] Core 0 stall requested — idle bridge will spin\n");
 }
 
 extern "C" __attribute__((used))
 void fault_force_core0_stall_clear() {
+    // Intentionally not gated — clearing the stall is a recovery
+    // action, not a fault injection. Should be reachable even after
+    // test_mode_active() clears (which happens on any IDLE-exit).
     g_fault_core0_stall = false;
     printf("[FAULT] Core 0 stall cleared\n");
 }
 
 extern "C" __attribute__((used))
 void fault_force_watchdog_stall(uint32_t skip_ticks) {
+    if (!fi_test_mode_gate("fault_force_watchdog_stall")) { return; }
     g_fault_watchdog_skip = skip_ticks;
     printf("[FAULT] Watchdog skip for %lu ticks\n", (unsigned long)skip_ticks);
 }
 
 extern "C" __attribute__((used))
 void fault_force_health_fail(uint8_t /*subsystem_index*/) {
+    if (!fi_test_mode_gate("fault_force_health_fail")) { return; }
     printf("[FAULT] Use GDB 'set' for health byte — see FAULT_INJECTION.md\n");
 }
 
@@ -68,6 +95,7 @@ void fault_force_health_fail(uint8_t /*subsystem_index*/) {
 // telemetry layers use), avoiding GDB-scratch QEvt fragility.
 extern "C" __attribute__((used))
 void fault_force_launch_abort() {
+    if (!fi_test_mode_gate("fault_force_launch_abort")) { return; }
     if (!AO_FlightDirector_is_initialized()) {
         printf("[FAULT] launch-abort: FD not initialized\n");
         return;
@@ -86,6 +114,7 @@ void fault_force_launch_abort() {
 
 extern "C" __attribute__((used))
 void fault_force_ao_queue_flood(uint8_t /*ao_priority*/, uint16_t count) {
+    if (!fi_test_mode_gate("fault_force_ao_queue_flood")) { return; }
     printf("[FAULT] Publishing %u dummy events (floods all AO queues)\n", count);
     static QEvt const s_dummyEvt = QEVT_INITIALIZER(rc::SIG_SENSOR_DATA);
     for (uint16_t i = 0; i < count; ++i) {
@@ -95,6 +124,7 @@ void fault_force_ao_queue_flood(uint8_t /*ao_priority*/, uint16_t count) {
 
 extern "C" __attribute__((used))
 void fault_force_pio_sm_halt() {
+    if (!fi_test_mode_gate("fault_force_pio_sm_halt")) { return; }
     pio2->ctrl &= ~0xFU;
     printf("[FAULT] PIO2 all SMs disabled (backup timers halted)\n");
 }
@@ -111,6 +141,7 @@ void fault_force_pio_sm_halt() {
 // long, configured by mpu_setup_stack_guard()).
 extern "C" __attribute__((used))
 void fault_force_hardfault() {
+    if (!fi_test_mode_gate("fault_force_hardfault")) { return; }
     printf("[FAULT] force_hardfault: writing into MPU stack guard...\n");
     // Read __StackBottom via inline asm so the compiler doesn't constant-fold
     // into something the optimizer can hoist or remove. The fault fires on
@@ -130,8 +161,7 @@ void fault_force_hardfault() {
 // required for the regex hit.
 extern "C" __attribute__((used))
 void fault_force_radio_dropout() {
+    if (!fi_test_mode_gate("fault_force_radio_dropout")) { return; }
     rc::AO_RfManager_force_last_rx_ms_for_test(0U);
     printf("[FAULT] link lost — RfManager last_rx_ms forced to 0\n");
 }
-
-#endif // ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS

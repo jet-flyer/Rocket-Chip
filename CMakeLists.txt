@@ -343,7 +343,7 @@ else()
         # Dev diagnostics (included only when NOT_CERTIFIED_FOR_FLIGHT=ON,
         # i.e. dev/bench builds; the positive mirror flag is
         # ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS — see option block below).
-        $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/fault_inject.cpp>
+        # R-25-exec step 3: fault_inject.cpp migrated to src/safety/ (test-mode-gated, see below)
         $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/replay_inject.cpp>
         # diag_stats.cpp has both bench and flight tier content:
         # - Always: diag_stats_t0_preconditions() for soak Frankenstein checks
@@ -387,6 +387,7 @@ else()
         src/safety/crash_record.cpp      # R-3 audit 2026-05-07: capture-state-then-reset
         src/safety/core1_i2c_pause.cpp   # R-17 audit 2026-05-07: cooperative pause around flash ops
         src/safety/test_mode.cpp         # R-25-exec: runtime gate for test/fault-injection affordances (Approach A 2026-05-13)
+        src/safety/fault_inject.cpp      # R-25-exec step 3: migrated from src/dev/, gated by test_mode
 
         # Phase 6: Health Monitor (called from AO_FlightDirector at 10Hz)
         src/safety/health_monitor.cpp
@@ -543,6 +544,7 @@ else()
         src/safety/crash_record.cpp      # R-3 audit 2026-05-07: capture-state-then-reset
         src/safety/core1_i2c_pause.cpp   # R-17 audit 2026-05-07: cooperative pause around flash ops
         src/safety/test_mode.cpp         # R-25-exec: runtime gate for test/fault-injection affordances (Approach A 2026-05-13)
+        src/safety/fault_inject.cpp      # R-25-exec step 3: migrated from src/dev/, gated by test_mode
         src/safety/health_monitor.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp
