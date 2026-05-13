@@ -180,7 +180,7 @@ inline uint8_t critical_fault_ticks_next(uint8_t prev, HealthLevel lvl) {
 // ============================================================================
 // MCU die-temp thresholds (Stage 16C IVP-142b-1)
 // Sources:
-//   - RP2350 datasheet §1.4.3 Absolute Maximum Ratings: Tj max 125 °C
+//   - RP2350 datasheet §14.9.1 Absolute maximum ratings: Tj max 125 °C
 //   - Industrial-grade silicon operating range spec: -40 to +85 °C
 //   - 105 °C safe-mode threshold = 20 °C margin below abs-max
 // Flight-data validation of the WARN threshold may refine it downward

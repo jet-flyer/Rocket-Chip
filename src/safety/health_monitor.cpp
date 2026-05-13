@@ -460,7 +460,7 @@ static void log_secondary_transitions(uint8_t prev, uint8_t curr) {
 static uint8_t evaluate_critical(const shared_sensor_data_t& snap) {
     uint8_t critical = 0;
 
-    // MCU die temp at/above safe-mode threshold (RP2350 datasheet §1.4.3
+    // MCU die temp at/above safe-mode threshold (RP2350 datasheet §14.9.1
     // abs-max junction temp 125 °C; 105 °C chosen as 20 °C margin).
     // Requires an actual sampled reading — sentinel / not-yet-captured
     // doesn't count.

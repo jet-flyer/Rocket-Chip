@@ -275,7 +275,9 @@ static void init_hardware() {
         g_psramSelfTestPassed = rc::psram_self_test(g_psramSize);
     }
 
-    // Launch Core 1 early so NeoPixel blinks immediately (no USB dependency)
+    // R-19: PSM reset Core 1 before launch (post-AIRCR wedge fix).
+    // See docs/decisions/CORE1_PSM_RESET_BEFORE_LAUNCH.md.
+    multicore_reset_core1();
     multicore_launch_core1(core1_entry);
 
     // Launch abort visual — solid red NeoPixel if flag is latched

@@ -22,6 +22,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-13-002 | Claude | audit, architecture, documentation
+
+**Master Standards Audit 2026-05-07 — Phase 8L2 (updated audit) wrapped with findings.** Per-finding record in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md` § Phase 8L2; PR tracker `docs/PROBLEM_REPORTS.md` updated.
+
+Two source-code fixes implemented + verified (R-19 + R-26). Multiple findings DEFER to future cycles (R-20/R-21/R-22/R-23/R-24/R-25 + audit-policy L2-P2/P3/P4 + post-L2 remediation queue L2-1..L2-20 from cppcheck/lizard/coverage). R-19 (`multicore_reset_core1()` before `multicore_launch_core1()`) closes the AGENT_WHITEBOARD-tracked SIO_FIFO_IRQ wedge from R-3 verification — verified via probe-driven AIRCR test, 3-power-cycle baseline, 5× rapid picotool warm-reboot. R-26 fixes a stale RP2350 datasheet citation (§1.4.3 → §14.9.1) surfaced by Phase 7 exhaustive citation walk.
+
+**Coverage gap acknowledged at L2 close:** L2 (and yesterday's original) ran tool-driven sweeps + a P10 per-rule applicability snapshot (10 rules, all CONFIRMED-status at Phase 2.3) but did NOT walk the **221 JSF AV rules + JPL C LOC-1..4 + project-specific + agent-behavioral** that the original 2026-02-07 audit covered. AUDIT_GUIDANCE.md Step 2 calls for a full `STANDARDS_AUDIT.md` template walk producing a dated `STANDARDS_AUDIT_YYYY-MM-DD.md` companion; yesterday substituted a partial P10 sub-walk for that. Logged as L2-P5 + sibling re-audit gaps (L2-P6 DEV_CODE, L2-P7 VERSION_STRING, L2-P8 AO_COMMANDMENTS, L2-P9 TOOLCHAIN) for a focused audit-coverage-catchup cycle.
+
+**L2 wrap regression:** 4 target tiers compile clean, host ctest 794/794, master SPIN gate SPIN_OK_31, vehicle bench_sim 2/2 PASS, station_bench_sim 3/3 PASS.
+
+---
+
 ### 2026-05-13-001 | Claude | audit, architecture, documentation
 
 **Master Standards Audit 2026-05-07 — Phase 8 wrapped (L1 only; L2 deferred).** Continuation of `2026-05-12-001` audit work. Per-step record in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md`; project-wide PR tracker in `docs/PROBLEM_REPORTS.md`. Disposition table populated in audit report `## Remediation` section.
