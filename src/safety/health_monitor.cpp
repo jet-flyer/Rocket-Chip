@@ -422,6 +422,31 @@ static void log_health_transitions(uint8_t prev, uint8_t curr) {
     }
 }
 
+// R-9c (audit 2026-05-07 Phase 4.3): log single-bit secondary subsystem
+// transitions. Pre-R-9c, when kHealthCore1Ok (or any other secondary bit)
+// flipped from OK to FAULT, the bit silently mutated without a serial log
+// line. The bit transition was observable in telemetry / GCS but not in
+// firmware-side serial output, which fails the FMEA-lite K3 row ("every
+// state transition has explicit guard + observable positive-control signal")
+// for the health-monitor subsystem state machine. This emits [Health]
+// <subsystem> FAULT on OK->FAULT and [Health] <subsystem> RECOVERED on
+// FAULT->OK so the firmware's own log carries the same signal as telemetry.
+static void log_secondary_transitions(uint8_t prev, uint8_t curr) {
+    static constexpr uint8_t bits[] = {
+        kHealthRadioOk, kHealthFlashOk, kHealthWatchdogOk, kHealthPioOk, kHealthCore1Ok
+    };
+    static constexpr const char* names[] = {"Radio", "Flash", "Watchdog", "PIO", "Core1"};
+    for (uint8_t i = 0; i < 5; ++i) {
+        const bool p = (prev & bits[i]) != 0;
+        const bool c = (curr & bits[i]) != 0;
+        if (p && !c) {
+            DBG_PRINT("HEALTH: %s -> FAULT", names[i]);
+        } else if (!p && c) {
+            DBG_PRINT("HEALTH: %s RECOVERED", names[i]);
+        }
+    }
+}
+
 // ============================================================================
 // Internal: evaluate HealthCritical byte (IVP-142b-2)
 //
@@ -519,6 +544,9 @@ static uint8_t evaluate_primary_byte(const shared_sensor_data_t& snap,
 static bool finalize_tick_logging() {
     if (g_health.primary != g_health.prev_primary) {
         log_health_transitions(g_health.prev_primary, g_health.primary);
+    }
+    if (g_health.secondary != g_health.prev_secondary) {
+        log_secondary_transitions(g_health.prev_secondary, g_health.secondary);
     }
     log_mcu_transition(g_health.prev_mcu, g_health.mcu);
     log_critical_transitions(g_health.prev_critical, g_health.critical);
