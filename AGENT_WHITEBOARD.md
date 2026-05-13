@@ -32,6 +32,35 @@
 
 ## High priority
 
+- **Master Standards Audit 2026-05-07 — Phase 8 Category 3 in progress
+  (paused 2026-05-12 evening / 2026-05-13 wall-clock for session
+  handoff).** Resume at **R-6c (FP-1 template-dispatch)**. The
+  audit's Phase 8 ordered remediation queue is in `docs/audits/
+  MASTER_STANDARDS_AUDIT_2026-05-07_PHASE8_ORDERING.md`; the project-
+  wide PR tracker in `docs/PROBLEM_REPORTS.md` reflects current
+  state. **Cat 1 closed**, **Cat 2 closed (R-3 verified)**, **Cat 3
+  partial**: R-9c verified (commit `9a47ba6`), R-1 verified
+  (commit `273a2f9`), R-5 deferred to dedicated session (proliferation
+  gate active via commit `9f7d924`), R-2 absorbed into R-5 (commit
+  `12eadc5`). Remaining Cat 3: **R-6c (template dispatch for
+  `lm_solve()` to eliminate FP-1 from `ACCEPTED_STANDARDS_DEVIATIONS.md`)**,
+  R-11 (SPIN flash-protocol model), R-12 (SPIN cross-core boot
+  handshake model), P8-FMEA-Pyro. **Cat 4 pending**: R-7 (Holzmann
+  inverted-rule exemption doc), R-13 (SESSION_CHECKLIST SPIN-ride-
+  along trigger row). **Phase 8 wrap pending**: dated report `##
+  Remediation` section, final Level-2 regression, end-of-cycle
+  comment-density audit + CODING_STANDARDS update + cleanup pass.
+  R-6c starting context: `src/calibration/calibration_manager.cpp`
+  lines 932-1017 define `ResidualFn` / `JacobianFn` `using` aliases
+  and the `lm_solve()` / `lm_accumulate_jtj()` / `lm_mean_sq_residuals()`
+  helpers; callsites are `mag_sphere_fit()` (line 1068) and
+  `mag_ellipsoid_fit()` (~line 1162). Template-dispatch via function
+  objects or `auto&&` parameters compiles to identical machine code
+  while satisfying P10 Rule 9 directly (no pointer-to-function in
+  scope). Verification: existing host tests cover calibration math;
+  bench mag-cal soak to confirm bytes-on-wire identity for the LM
+  output.
+
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
   LQCALC pattern (retry aggressiveness scales U-shape with LQ: fewer
