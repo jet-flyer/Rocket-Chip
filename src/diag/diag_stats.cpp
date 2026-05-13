@@ -3,13 +3,18 @@
 //
 // Diagnostic statistics dump for soak testing (IVP-132).
 //
-// Two-tier structure:
-//   - diag_stats_t0_preconditions()  — ALWAYS compiled (both bench and
-//     flight binaries). Prints build/role/board identity, radio
-//     RegVersion readback, IRQ pin state, SPI error counter. Used at
-//     T=0 of every soak to catch Frankenstein builds.
-//   - diag_stats_dump() + msp_tick()  — bench-only (depends on AO dev
-//     scaffolding). Full per-AO queue + MSP watermark + sensor snapshot.
+// R-25-exec step 4 (2026-05-13, per council-APPROVED Approach A in
+// docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md): migrated
+// from src/dev/diag_stats.cpp. Lives in the single flight binary;
+// the full diag_stats_dump() is now unconditional because it is a
+// pure read-only snapshot (no state mutation, no fault injection).
+//
+//   - diag_stats_t0_preconditions(): build/role/board identity,
+//     radio RegVersion readback, IRQ pin state, SPI error counter.
+//     Used at T=0 of every soak to catch Frankenstein builds.
+//   - diag_stats_dump() + msp_tick(): full per-AO queue + MSP
+//     watermark + sensor snapshot. Always available; no test_mode
+//     gate required (reads only).
 
 // -------------------------------------------------------------------
 // ALWAYS-ON block: T=0 preconditions for soak procedures
@@ -60,12 +65,11 @@ void diag_stats_t0_preconditions() {
 }
 
 // -------------------------------------------------------------------
-// Bench-only block: full diag_stats_dump() for soak snapshots
+// Full diag_stats_dump() for soak snapshots. No longer ifdef-gated
+// per R-25-exec step 4: pure read-only snapshot.
 // -------------------------------------------------------------------
 
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
-
-#include "dev/diag_stats.h"
+#include "diag/diag_stats.h"
 #include "drivers/mcu_temp.h"
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_flight_director.h"
@@ -244,4 +248,3 @@ void diag_stats_dump() {
     printf("========================\n\n");
 }
 
-#endif // ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS

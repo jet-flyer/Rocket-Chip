@@ -39,7 +39,7 @@
 #include "safety/pyro_edge_logger.h"
 #include "safety/fault_protection.h"  // OPT-IVP-01
 #include "safety/test_mode.h"          // R-25-exec runtime gate
-#include "dev/diag_stats.h"
+#include "diag/diag_stats.h"
 #include "fusion/mahony_ahrs.h"
 #include "fusion/wmm_tables.h"
 #include "drivers/spi_bus.h"

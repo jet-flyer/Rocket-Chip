@@ -20,7 +20,7 @@
 #include "safety/test_mode.h"
 #include "drivers/i2c_bus.h"
 #include "safety/pyro_edge_logger.h"
-#include "dev/diag_stats.h"
+#include "diag/diag_stats.h"
 #include "active_objects/ao_led_engine.h"
 #include "active_objects/ao_radio.h"           // T6: local config set
 #include "rocketchip/led_patterns.h"

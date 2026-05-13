@@ -345,10 +345,10 @@ else()
         # ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS — see option block below).
         # R-25-exec step 3: fault_inject.cpp migrated to src/safety/ (test-mode-gated, see below)
         $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/replay_inject.cpp>
-        # diag_stats.cpp has both bench and flight tier content:
-        # - Always: diag_stats_t0_preconditions() for soak Frankenstein checks
-        # - Bench only (internal guard): diag_stats_dump() + msp_tick()
-        src/dev/diag_stats.cpp
+        # R-25-exec step 4: diag_stats.cpp migrated to src/diag/. Always-on
+        # read-only snapshot (AO queues, MSP, sensors, health). No state
+        # mutation, no test_mode gate needed.
+        src/diag/diag_stats.cpp
         $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/station_fault_inject.cpp>
         $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/station_replay.cpp>
 
@@ -522,7 +522,7 @@ else()
         src/active_objects/ao_radio.cpp
         src/active_objects/ao_rf_manager.cpp
         src/active_objects/ao_telemetry.cpp
-        src/dev/diag_stats.cpp
+        src/diag/diag_stats.cpp                     # R-25-exec step 4
         src/math/vec3.cpp
         src/math/quat.cpp
         src/fusion/eskf.cpp
@@ -662,30 +662,31 @@ else()
         endif()
     endforeach()
 
-    # Always-on soak preconditions symbol — present in both bench and
-    # flight binaries so soaks can validate identity/board/radio at T=0.
+    # R-25-exec (2026-05-13, Approach A): always-on symbols in the single
+    # flight binary. T=0 preconditions + diag_stats_dump (read-only,
+    # always available) + fault_force_* (test-mode-gated at entry).
     target_link_options(rocketchip PRIVATE
         -Wl,--undefined=diag_stats_t0_preconditions
+        -Wl,--undefined=diag_stats_dump
         -Wl,--undefined=rfm95w_read_version
+        -Wl,--undefined=fault_force_eskf_unhealthy
+        -Wl,--undefined=fault_force_core0_stall
+        -Wl,--undefined=fault_force_core0_stall_clear
+        -Wl,--undefined=fault_force_watchdog_stall
+        -Wl,--undefined=fault_force_health_fail
+        -Wl,--undefined=fault_force_launch_abort
+        -Wl,--undefined=fault_force_radio_dropout
+        -Wl,--undefined=fault_force_ao_queue_flood
+        -Wl,--undefined=fault_force_pio_sm_halt
+        -Wl,--undefined=fault_force_hardfault
     )
 
-    # Keep fault injection symbols for GDB `call` (--gc-sections strips uncalled functions)
+    # Remaining bench-only symbols pending migration in steps 5 + 6.
     if(NOT_CERTIFIED_FOR_FLIGHT)
         target_link_options(rocketchip PRIVATE
-            -Wl,--undefined=fault_force_eskf_unhealthy
-            -Wl,--undefined=fault_force_core0_stall
-            -Wl,--undefined=fault_force_core0_stall_clear
-            -Wl,--undefined=fault_force_watchdog_stall
-            -Wl,--undefined=fault_force_health_fail
-            -Wl,--undefined=fault_force_launch_abort
-            -Wl,--undefined=fault_force_radio_dropout
-            -Wl,--undefined=fault_force_ao_queue_flood
-            -Wl,--undefined=fault_force_pio_sm_halt
-            -Wl,--undefined=fault_force_hardfault
             -Wl,--undefined=replay_inject_start
             -Wl,--undefined=replay_inject_stop
             -Wl,--undefined=replay_inject_sample
-            -Wl,--undefined=diag_stats_dump
             -Wl,--undefined=fault_force_station_rx_drop
             -Wl,--undefined=fault_force_station_ack_suppress
             -Wl,--undefined=fault_force_station_gps_loss
