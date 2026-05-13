@@ -244,6 +244,17 @@ target_include_directories(test_prearm_fail_ticks PRIVATE
     ${CMAKE_SOURCE_DIR}/include)
 gtest_discover_tests(test_prearm_fail_ticks)
 
+# R-6c (2026-05-07 audit): Levenberg-Marquardt solver host coverage.
+# Pure-function module extracted from calibration_manager.cpp; tests pin
+# bytes-on-wire identity of the LM math under template dispatch.
+add_executable(test_calibration_lm
+    test_calibration_lm.cpp
+    ${CMAKE_SOURCE_DIR}/src/calibration/lm_solver.cpp)
+target_link_libraries(test_calibration_lm PRIVATE GTest::gtest_main)
+target_include_directories(test_calibration_lm PRIVATE
+    ${CMAKE_SOURCE_DIR})
+gtest_discover_tests(test_calibration_lm)
+
 # -----------------------------------------------------------------------------
 # Host Python: Tier 4 `_rc_test_common` harness + scripts/*.py syntax check.
 #

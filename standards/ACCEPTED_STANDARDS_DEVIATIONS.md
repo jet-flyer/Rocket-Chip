@@ -53,15 +53,15 @@ JSF AV Rule 1 limits functions to 200 L-SLOC. The auto-generated `codegen_fpft()
 
 ### Function Pointer Usage (Power of 10 Rule 9)
 
-P10 Rule 9 prohibits function pointers in safety-critical code: *"Limit pointer use to a single dereference, and do not use function pointers."* Per the standards-precedence rule in `standards/CODING_STANDARDS.md`, P10 (2006) takes precedence over JSF Rule 176 (2005, which only requires typedef-declared function pointers).
-
-| ID | Location | Rule | Severity | Difficulty | Rationale |
-|----|----------|------|----------|-----------|-----------|
-| FP-1 | `src/calibration/calibration_manager.cpp` `lm_solve()` and helpers | P10 Rule 9 (no function pointers) | Accepted | Moderate | `ResidualFn` / `JacobianFn` function-pointer typedefs eliminate ~120 lines of duplicated Levenberg-Marquardt iteration between sphere fit (4-param) and ellipsoid fit (9-param). **Ground classification — runs once per calibration pre-flight, never in the flight loop.** Flight state machine locks out calibration paths once state != IDLE. JSF Rule 176 (typedef discipline) is satisfied via `using` aliases. Remediation path documented in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07_REMEDIATION_PRELIMINARY.md` — template-based dispatch (compile-time resolved, same machine code, eliminates the deviation) is the long-term plan but requires moving code into headers and careful unit testing of unchanged math behavior. |
+(All entries resolved as of 2026-05-13. See Resolved section below for FP-1.)
 
 ---
 
 ## Resolved
+
+### FP-1: Function-pointer dispatch in `lm_solve()` (P10 Rule 9)
+
+**Resolved 2026-05-13** during R-6c of the 2026-05-07 master standards audit. The LM math was extracted from `calibration_manager.cpp` into a dedicated module `src/calibration/lm_solver.{h,cpp}` whose templates dispatch the residual + jacobian via deduced callable types (no `T (*)(...)` typedef anywhere in scope). Same machine code as the prior function-pointer dispatch; same numerical output (verified bytes-on-wire identity to within `1e-3` tolerance on synthetic-sphere ground-truth recovery, council-prescribed tolerance). New `test/test_calibration_lm.cpp` adds 6 host regressions (sphere-fit recovery, ellipsoid-fit recovery, iteration-cap guard, degenerate-input guard, `mat_inverse` round-trip, singular-rejection) — host ctest count 788 → 794. Bench positive-control: vehicle flight + dev tier each `bench_sim 2/2 PASS` post-refactor. The accepted-deviation rationale (Ground classification, runtime-locked-out post-arm) was correct at the time it was logged; R-6c retires the deviation rather than continuing to accept it.
 
 ### RC-1: Intentional Recursion in IVP-29 Test (P10-1)
 

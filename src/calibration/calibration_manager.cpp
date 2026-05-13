@@ -7,6 +7,7 @@
 
 #include "calibration_manager.h"
 #include "calibration_storage.h"
+#include "lm_solver.h"
 #include "pico/rand.h"
 #include <math.h>
 #include <string.h>
@@ -64,11 +65,7 @@ constexpr uint8_t  kMagSphereIterations   = 10;
 constexpr uint8_t  kMagEllipsoidParams    = 9;
 constexpr uint8_t  kMagEllipsoidIterations = 20;
 
-// LM damping — ArduPilot + council consensus: start at 1.0
-constexpr float    kMagLmLambdaInit       = 1.0F;
-constexpr float    kMagLmLambdaUp         = 10.0F;    // Multiply on worse fit
-constexpr float    kMagLmLambdaDown       = 0.1F;     // Multiply on better fit
-constexpr uint8_t  kLmMaxParams           = 9;        // Largest param vector (ellipsoid)
+// LM damping constants + kLmMaxParams live in lm_solver.h (shared with host tests).
 
 // Post-fit validation bounds (from IVP.md)
 constexpr float    kMagMaxOffset          = 85.0F;    // µT per axis
@@ -79,7 +76,7 @@ constexpr float    kMagMaxFitness         = 5.0F;     // RMS residual threshold 
 
 // Gauss-Newton solver tolerances
 constexpr float    kMinVectorLength        = 1e-6F;   // Below this, treat as zero-length
-constexpr float    kSingularityThreshold   = 1e-10F;  // Matrix pivot below this = singular
+// kSingularityThreshold moved into lm_solver.cpp (where mat_inverse() lives).
 constexpr float    kMinMaxInitializer      = 1e9F;    // Initial min/max accumulator bound
 
 // Atmospheric constants (barometric formula)
@@ -459,98 +456,8 @@ static float calc_mean_sq_residuals(const float params[kAccel6posNumParams]) {
     return sum / static_cast<float>(g_6posSampleCount);
 }
 
-// Forward elimination with partial pivoting on flat augmented matrix [A|I].
-// aug: row-major flat array of n rows × augWidth columns
-// Returns false if matrix is singular.
-static bool forward_eliminate(float* aug, uint8_t n, uint8_t augWidth) {
-    for (uint8_t col = 0; col < n; col++) {
-        // Find pivot
-        uint8_t maxRow = col;
-        float maxVal = fabsf(aug[col * augWidth + col]);
-        for (uint8_t r = col + 1; r < n; r++) {
-            float val = fabsf(aug[r * augWidth + col]);
-            if (val > maxVal) {
-                maxVal = val;
-                maxRow = r;
-            }
-        }
-
-        if (maxVal < kSingularityThreshold) {
-            return false;  // Singular
-        }
-
-        // Swap rows
-        if (maxRow != col) {
-            for (uint8_t c = 0; c < augWidth; c++) {
-                float tmp = aug[col * augWidth + c];
-                aug[col * augWidth + c] = aug[maxRow * augWidth + c];
-                aug[maxRow * augWidth + c] = tmp;
-            }
-        }
-
-        // Eliminate below
-        float pivot = aug[col * augWidth + col];
-        for (uint8_t r = col + 1; r < n; r++) {
-            float factor = aug[r * augWidth + col] / pivot;
-            for (uint8_t c = col; c < augWidth; c++) {
-                aug[r * augWidth + c] -= factor * aug[col * augWidth + c];
-            }
-        }
-    }
-    return true;
-}
-
-// Back substitution on upper-triangular flat augmented matrix
-static void back_substitute(float* aug, uint8_t n, uint8_t augWidth) {
-    for (int8_t col = static_cast<int8_t>(n - 1); col >= 0; col--) {
-        float pivot = aug[col * augWidth + col];
-        for (uint8_t c = 0; c < augWidth; c++) {
-            aug[col * augWidth + c] /= pivot;
-        }
-        for (int8_t r = static_cast<int8_t>(col - 1); r >= 0; r--) {
-            float factor = aug[r * augWidth + col];
-            for (uint8_t c = 0; c < augWidth; c++) {
-                aug[r * augWidth + c] -= factor * aug[col * augWidth + c];
-            }
-        }
-    }
-}
-
-// NxN matrix inverse via Gaussian elimination with partial pivoting
-// Uses a static working buffer sized for the largest supported dimension (9x9)
-// Returns false if singular
-constexpr uint8_t kMaxMatDim    = 9;
-constexpr uint8_t kMaxAugWidth  = kMaxMatDim * 2;
-
-static bool mat_inverse(const float* src, float* dst, uint8_t n) {
-    if (n > kMaxMatDim) {
-        return false;
-    }
-    uint8_t augWidth = n * 2;
-
-    // Static augmented matrix [src | I] — sized for largest case (9x18)
-    static float g_aug[kMaxMatDim * kMaxAugWidth];
-
-    for (uint8_t r = 0; r < n; r++) {
-        for (uint8_t c = 0; c < n; c++) {
-            g_aug[r * augWidth + c] = src[r * n + c];
-            g_aug[r * augWidth + c + n] = (r == c) ? 1.0F : 0.0F;
-        }
-    }
-
-    if (!forward_eliminate(g_aug, n, augWidth)) {
-        return false;
-    }
-    back_substitute(g_aug, n, augWidth);
-
-    // Extract inverse from right half
-    for (uint8_t r = 0; r < n; r++) {
-        for (uint8_t c = 0; c < n; c++) {
-            dst[r * n + c] = g_aug[r * augWidth + c + n];
-        }
-    }
-    return true;
-}
+// mat_inverse() + forward_eliminate() + back_substitute() moved to lm_solver.cpp
+// (callable from both production code here and the host test in test/test_calibration_lm.cpp).
 
 void calibration_reset_6pos() {
     memset(g_6posSamples, 0, sizeof(g_6posSamples));
@@ -925,96 +832,11 @@ mag_feed_result_t calibration_feed_mag_sample(float mx, float my, float mz) {
     return mag_feed_result_t::ACCEPTED;
 }
 
-// ============================================================================
-// Levenberg-Marquardt Solver (shared between sphere and ellipsoid fits)
-// ============================================================================
-
-// Function pointer types for residual and Jacobian evaluation
-using ResidualFn = float (*)(const float sample[3], const float* params);
-using JacobianFn = void (*)(const float sample[3], const float* params, float* jacob);
-
-// Compute mean squared residuals over g_magSamples[0..numSamples-1]
-static float lm_mean_sq_residuals(const float* params, uint16_t numSamples,
-                                   ResidualFn residualFn) {
-    float sum = 0.0F;
-    for (uint16_t i = 0; i < numSamples; i++) {
-        float r = residualFn(g_magSamples[i], params);
-        sum += r * r;
-    }
-    return sum / static_cast<float>(numSamples);
-}
-
-// Run LM iterations on params[0..numParams-1] using g_magSamples[0..numSamples-1].
-// Uses g_jtj / g_jtjInv as working buffers (sized for 9x9, sufficient for 4x4).
-// On return, bestParams holds the best fit and bestFitness holds RMS^2.
-// Function-pointer-based dispatch (ResidualFn/JacobianFn typedefs) eliminates
-// ~120 lines of duplicated LM iteration between sphere fit (4-param) and
-// ellipsoid fit (9-param). Accepted deviation FP-1 in ACCEPTED_STANDARDS_DEVIATIONS.md
-// (P10 Rule 9 — no function pointers). Ground classification: runs once per
-// calibration pre-flight, never in the flight loop. JSF Rule 176 typedef
-// discipline satisfied via `using` aliases.
-// Accumulate J^T*J and J^T*residual for one LM iteration
-static void lm_accumulate_jtj(const float* params, uint8_t numParams,
-                               uint16_t numSamples, float* jtfi,
-                               ResidualFn residualFn, JacobianFn jacobianFn) {
-    float jacob[kLmMaxParams];
-    memset(g_jtj, 0, numParams * numParams * sizeof(float));
-    memset(jtfi, 0, numParams * sizeof(float));
-    for (uint16_t i = 0; i < numSamples; i++) {
-        float r = residualFn(g_magSamples[i], params);
-        jacobianFn(g_magSamples[i], params, jacob);
-        for (uint8_t row = 0; row < numParams; row++) {
-            jtfi[row] += jacob[row] * r;
-            for (uint8_t col = 0; col < numParams; col++) {
-                g_jtj[row * numParams + col] += jacob[row] * jacob[col];
-            }
-        }
-    }
-}
-
-// Compute LM parameter step, returns false if any parameter is non-finite
-static bool lm_compute_step(const float* params, float* newParams,
-                             const float* jtfi, uint8_t numParams) {
-    for (uint8_t i = 0; i < numParams; i++) {
-        float delta = 0.0F;
-        for (uint8_t j = 0; j < numParams; j++) {
-            delta += g_jtjInv[i * numParams + j] * jtfi[j];
-        }
-        newParams[i] = params[i] - delta;
-        if (isnan(newParams[i]) || isinf(newParams[i])) { return false; }
-    }
-    return true;
-}
-
-// See FP-1 rationale on lm_accumulate_jtj() above. Accepted deviation from P10 Rule 9.
-static void lm_solve(float* params, float* bestParams, float* bestFitness,
-                     uint8_t numParams, uint16_t numSamples, uint8_t maxIter,
-                     ResidualFn residualFn, JacobianFn jacobianFn) {
-    float lambda = kMagLmLambdaInit;
-    float jtfi[kLmMaxParams];
-    for (uint8_t iter = 0; iter < maxIter; iter++) {
-        lm_accumulate_jtj(params, numParams, numSamples, jtfi,
-                           residualFn, jacobianFn);
-
-        for (uint8_t d = 0; d < numParams; d++) {
-            g_jtj[d * numParams + d] += lambda;
-        }
-        if (!mat_inverse(g_jtj, g_jtjInv, numParams)) { break; }
-
-        float newParams[kLmMaxParams];
-        if (!lm_compute_step(params, newParams, jtfi, numParams)) { break; }
-
-        float fitness = lm_mean_sq_residuals(newParams, numSamples, residualFn);
-        if (fitness < *bestFitness) {
-            *bestFitness = fitness;
-            memcpy(bestParams, newParams, numParams * sizeof(float));
-            memcpy(params, newParams, numParams * sizeof(float));
-            lambda *= kMagLmLambdaDown;
-        } else {
-            lambda *= kMagLmLambdaUp;
-        }
-    }
-}
+// LM solver lives in lm_solver.h (templates) + lm_solver.cpp (linear-algebra
+// primitives). FP-1 deviation (function-pointer dispatch vs P10 Rule 9) was
+// resolved by extracting the math into a pure-function module that takes its
+// samples + JtJ buffers as parameters and dispatches residual/jacobian via
+// template instantiation rather than function pointers.
 
 // --- Sphere fit (Step 1): 4 params [radius, offset_x, offset_y, offset_z] ---
 
@@ -1063,10 +885,12 @@ static bool mag_sphere_fit(uint16_t numSamples, float* outRadius, float outOffse
 
     float bestParams[kMagSphereParams];
     memcpy(bestParams, params, sizeof(params));
-    float bestFitness = lm_mean_sq_residuals(params, numSamples, calc_sphere_residual);
+    float bestFitness = lm_mean_sq_residuals(g_magSamples, numSamples, params,
+                                              calc_sphere_residual);
 
-    lm_solve(params, bestParams, &bestFitness,
-             kMagSphereParams, numSamples, kMagSphereIterations,
+    lm_solve(g_magSamples, numSamples, params, bestParams, &bestFitness,
+             kMagSphereParams, kMagSphereIterations,
+             g_jtj, g_jtjInv,
              calc_sphere_residual, calc_sphere_jacobian);
 
     // Validate sphere fit
@@ -1157,10 +981,12 @@ static bool mag_ellipsoid_fit(uint16_t numSamples, const float sphereOffset[3],
 
     float bestParams[kMagEllipsoidParams];
     memcpy(bestParams, params, sizeof(params));
-    float bestFitness = lm_mean_sq_residuals(params, numSamples, calc_residual_mag);
+    float bestFitness = lm_mean_sq_residuals(g_magSamples, numSamples, params,
+                                              calc_residual_mag);
 
-    lm_solve(params, bestParams, &bestFitness,
-             kMagEllipsoidParams, numSamples, kMagEllipsoidIterations,
+    lm_solve(g_magSamples, numSamples, params, bestParams, &bestFitness,
+             kMagEllipsoidParams, kMagEllipsoidIterations,
+             g_jtj, g_jtjInv,
              calc_residual_mag, calc_jacobian_mag);
 
     memcpy(outParams, bestParams, sizeof(bestParams));

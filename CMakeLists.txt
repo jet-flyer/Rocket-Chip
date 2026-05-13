@@ -328,6 +328,7 @@ else()
         src/calibration/calibration_manager.cpp
         src/calibration/calibration_storage.cpp
         src/calibration/cal_hooks.cpp
+        src/calibration/lm_solver.cpp     # R-6c (2026-05-07 audit): extracted from calibration_manager.cpp
 
         # Stage T IVP-T5.5: radio config persistence
         src/logging/radio_config_storage.cpp
@@ -495,6 +496,7 @@ else()
         src/calibration/calibration_manager.cpp
         src/calibration/calibration_storage.cpp
         src/calibration/cal_hooks.cpp
+        src/calibration/lm_solver.cpp     # R-6c (2026-05-07 audit): extracted from calibration_manager.cpp
         src/logging/radio_config_storage.cpp
         src/logging/data_convert.cpp
         src/logging/pcm_frame.cpp
