@@ -22,6 +22,40 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-13-001 | Claude | audit, architecture, documentation
+
+**Master Standards Audit 2026-05-07 — Phase 8 wrapped (L1 only; L2 deferred).** Continuation of `2026-05-12-001` audit work. Per-step record in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md`; project-wide PR tracker in `docs/PROBLEM_REPORTS.md`. Disposition table populated in audit report `## Remediation` section.
+
+This session ran the remaining Cat 3 / Cat 4 work + audit-cycle-surfaced cascade + sub-checks + wrap:
+
+- **R-6c — FP-1 template-dispatch (verified).** Extracted LM solver to `src/calibration/lm_solver.{h,cpp}` as pure-function module; replaced function-pointer dispatch with C++ templates; added `test/test_calibration_lm.cpp` host coverage (host ctest 788 → 794). FP-1 moved Active → Resolved in ACCEPTED_STANDARDS_DEVIATIONS.md.
+
+- **R-11 + R-17 — SPIN flash-protocol model + cooperative pause (verified).** R-11 SPIN model (`tools/spin/rocketchip_flash_protocol.pml`, 3 LTL properties) initially failed `p_no_i2c_during_flash` against pre-R-17 firmware — counterexample matched the LL Entry 31 race in micro-detail. R-17 extracts general `core1_i2c_pause()` / `core1_i2c_resume()` primitives in new `src/safety/core1_i2c_pause.{h,cpp}` and wraps every reachable runtime `flash_safe_execute()` callsite. Model + firmware now both pass (master gate SPIN_OK_31, was 28). The `core1_i2c_resume()` clears BOTH atomics so back-to-back flash ops can't observe a stale paused-ack — surfaced by SPIN counterexample, fixed within the R-11+R-17 commit.
+
+- **R-12 — SPIN boot-handshake model (verified).** New `tools/spin/rocketchip_boot.pml` covers vehicle (bounded wait + timeout) and station/relay (Holzmann scheduler exemption) cases non-deterministically. 2 LTL properties verify clean (97 + 164 states, errors: 0). Master gate SPIN_OK_28.
+
+- **R-15 — i2c_bus_reset after CLI flush + erase (verified).** Surfaced during R-11 prep. CLI handlers `cmd_flush_log()` + `cli_do_erase_flights()` were missing the LL Entry 31 prescribed `i2c_bus_reset()` after their flash_safe_execute chains. Added to match the ao_rcos.cpp:338 pattern.
+
+- **R-18 — dead cal_pre_hook cleanup (verified).** Surfaced during R-17 implementation. The `cal_pre_hook()` function in cal_hooks.cpp was DEFINED but never called from anywhere (function-pointer table `rc_os_cal_pre_hook` was assigned at main.cpp:315 but never invoked). R-17 made it fully redundant. R-18 removes the dead function + function-pointer table + simplifies cal_post_hook.
+
+- **R-7 — Holzmann inverted-rule exemption (verified).** Already documented in CODING_STANDARDS.md Foundation section; added single-sentence cross-reference to ACCEPTED_STANDARDS_DEVIATIONS.md "Note on Power-of-10 Rule 2" where the project's compliant non-terminating loops are enumerated.
+
+- **R-13 — SESSION_CHECKLIST trigger row for SPIN model ride-along (verified).** Added one row to the Per-doc trigger map for `tools/spin/*.pml` — when firmware behavior matching a candidate SPIN extension lands, the corresponding `.pml` edit rides in the same commit.
+
+- **R-16 — Systematic LL-entry freshness audit (verified, no fix needed).** Audited 23 Critical/High LL entries. Zero stale entries detected. LL 31 specifically reinforced by R-15/R-17/R-18. LL 25 already SUPERSEDED 2026-04-22. LL 22 (USB reconnect Core 1 IMU rate) remains open observation per its own framing (no flight concern). Recommendation: cadence-driven milestone-close discipline.
+
+- **P8-FMEA-Pyro — pyro state-machine FMEA (verified, no fix needed).** Reviewed 9 multi-transition failure modes (double-drogue, main-before-drogue, pyro-from-IDLE, DISARM-after-fire, ABORT-double-fire ordering, RESET-mid-descent, auto-DISARM-race, hardware-path boundary, double-APOGEE). All mitigated by HSM dispatch semantics. R-14 unified pyro protocol SPIN model NOT queued — not justified given existing rocketchip_fd.pml coverage + single-actor pyro hardware.
+
+- **Comment-density audit (verified, no fix needed).** End-of-cycle audit + NASA/Polyspace research. src/ overall .cpp = 21.8% (within 15-25% target band). CODING_STANDARDS updated with formal target band, research basis (Polyspace 20% lower limit; Arafati & Riehle 2009 mean 19%/median 17%; Elish & Offutt mean 15.2%), headers-excluded measurement method, per-context guidance.
+
+**Cascade chain surfaced this session (Rule 7 in-scope):** R-11 → R-15 → R-17 → R-18 + firmware fix in R-17 commit. Each surfacing was the previous PR's verification path failing to produce its claimed positive-control signal until the underlying issue was fixed.
+
+**Phase 8 wrap L1 regression at commit:** 4 target tiers compile clean, host ctest 794/794, master SPIN gate SPIN_OK_31 (6 models, 31 LTL properties), vehicle bench_sim 2/2 PASS. L2 audit-suite regression (re-run Phases 1/3/4/5/7) deferred to a future dedicated session per user direction ("finish this up first; we need a solid foundation and need to clear known issues so the new audit isn't as cluttered").
+
+Disposition totals: 5 Cat 1 closed + 14 verified-pending-L2 + 3 deferred + 1 audit-only finding = 23. No new permanent deviations added. ACCEPTED_STANDARDS_DEVIATIONS edits: FP-1 moved Active → Resolved by R-6c.
+
+Verified: pure-software / pure-doc commits this cycle. Each commit cites per-commit positive-control per HW_GATE Rule 3. Host ctest 794/794 PASS at session end. Target-build parity (4 tiers) verified at every source-touching commit. Vehicle bench_sim 2/2 PASS on flight + dev binaries at multiple gate points.
+
 ### 2026-05-12-001 | Claude | audit, architecture, documentation, tooling
 
 **Master Standards Audit 2026-05-07 — Phases A through 8 partial.** Per-step record in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md`; project-wide PR tracker (established this cycle) in `docs/PROBLEM_REPORTS.md`. Resume point next session: R-6c.

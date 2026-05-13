@@ -53,7 +53,7 @@ The R-6 → R-6b near-miss (initial misreading correction nearly erased a real d
 | 5 — Stack/errata | Phase 5 | ✅ PASS | E2/E9/E11/E12 errata 4/4 PASS; stack-usage max 200 bytes (under 1024-byte threshold); A.2 manual checklist 5/5 PASS. 2 script-tooling findings (R-10a parser bug, R-10b SDK-side .su gap) queued for remediation. |
 | 6 — SPIN formal verification | Phase 6 | ✅ PASS | All 26 active LTL claims verify clean across 4 models (AO 11/11, FD 8/8, RF 5/5, Station 2/2). Council review confirmed multi-model decomposition matches NASA/Holzmann practice. 2 Phase 8 actions (extend gate, delete stub) + 2 dedicated-stage items (R-11, R-12) + 1 policy edit (R-13). |
 | 7 — Traceability spot-check | Phase 7 | ✅ PASS | 12/12 traceability rows CONFIRMED with raw-quote evidence per amendment 8. No STALE/MISSING. Prior R-6/R-6b already cleared the Rule 170 misreading proliferation that would otherwise have surfaced here. |
-| 8 — Remediation + CHANGELOG | Phase 8 | ⏸ pending | Per-finding focused commits + final disposition wrap commit + CHANGELOG |
+| 8 — Remediation + CHANGELOG | Phase 8 | ✅ WRAPPED (L1 only — L2 deferred) | 22 PRs dispositioned (5 Cat 1 closed; 14 verified pending L2; 3 deferred) + 1 audit-only finding (comment density). Cascade-surfaced PRs R-15/R-17/R-18 + firmware fix to core1_i2c_resume landed. L1 regression at wrap: 4-tier clean, ctest 794/794, SPIN_OK_31, bench_sim 2/2. L2 audit-suite regression deferred to future dedicated session. |
 | 9 — Post-audit guided code review | Phase 9 | ⏸ pending (separate session) | Reading-discipline tips + guided source tour |
 
 ---
@@ -606,7 +606,9 @@ This is **not a finding requiring remediation** — the project's citation disci
 
 ## Phase 8 — Findings Disposition + Remediation Section
 
-⏸ Pending. Per-remediation focused commits (user-stated preference): icm20948 nullptr fix → commit; ao_telemetry/dev_cli format-string fixes → commit; mcu_temp.cpp Prior Art comment block → commit; etc. Final Phase 8 wrap commit records the disposition table in the `## Remediation` section below + the CHANGELOG entry.
+✅ Wrapped 2026-05-13. Per-remediation focused commits landed across Cat 1/2/3/4 + audit-cycle-surfaced PRs (R-15, R-17, R-18 chain) + sub-checks (P8-FMEA-Pyro, comment-density audit). Disposition table in `## Remediation` section below. L1 regression observed at wrap; L2 audit-suite regression deferred to a future dedicated session per user direction.
+
+The Executive Summary row at the top of this file should be updated to reflect the Phase 8 ✅ when the next pass through this file lands. Current pass focuses on the disposition table content.
 
 ### 8.P8-FMEA-Pyro — Pyro intent/arm/disarm FMEA sub-check (verdict 2026-05-13)
 
@@ -750,7 +752,89 @@ No NASA/JPL or DO-178C source codifies a comment-density UPPER limit — the fai
 
 ## Remediation
 
-This section is populated during Phase 8. Pre-staged remediation queue from Phase A.2 lives in `MASTER_STANDARDS_AUDIT_2026-05-07_REMEDIATION_PRELIMINARY.md` (R-1 through R-7c — R-6 and R-6b already DONE during audit setup).
+Phase 8 wrap signed 2026-05-13. The disposition table below records every PR opened during this audit cycle (Categories 1-4 + sub-checks) and its final state at session close. All `verified`-status rows have passed local L1 verification (per-commit gates: 4-tier build clean, host ctest 794/794, master SPIN gate `SPIN_OK_31`, vehicle bench_sim 2/2 PASS post-cycle) and **await L2 audit-suite regression in a future dedicated session** per HW_GATE_DISCIPLINE Rule 6.
+
+### Disposition table
+
+**Category 1 — Gate Integrity** (closed 2026-05-12, see Archived table in `docs/PROBLEM_REPORTS.md`):
+
+| PR | Disposition | Commit |
+|---|---|---|
+| P8-SPIN-A | REMEDIATE → closed | `86b07ca` |
+| P8-SPIN-B | REMEDIATE → closed | (within `86b07ca`) |
+| R-10a | REMEDIATE → closed | `3551231` |
+| R-9a | REMEDIATE → closed | `678f82f` |
+| R-9b | REMEDIATE → closed | `1fab314` |
+
+**Category 2 — Shared Foundations** (verified 2026-05-12):
+
+| PR | Disposition | Commit |
+|---|---|---|
+| R-3 | REMEDIATE → verified (awaits L2) | `e4d222a` + amend `0b0e2f5` |
+| R-4 | REMEDIATE → verified (folded into R-3 commit per surfaced-bug rule) | (within `e4d222a`) |
+
+**Category 3 — Behavior Changes** (verified 2026-05-12 — 2026-05-13):
+
+| PR | Disposition | Commit |
+|---|---|---|
+| R-1 | REMEDIATE → verified (awaits L2) | `273a2f9` |
+| R-9c | REMEDIATE → verified (awaits L2) | `9a47ba6` |
+| R-5 | DEFER → deferred (proliferation gate active; full migration in dedicated session) | `9f7d924` (gate + plan + guide) |
+| R-2 | DEFER → deferred (absorbed into R-5 dedicated session) | `12eadc5` (rationale + council preserved) |
+| R-6c | REMEDIATE → verified (FP-1 moved Active → Resolved) | `07d56d8` |
+| R-15 | REMEDIATE → verified (surfaced during R-11 prep — i2c_bus_reset after CLI flush + erase per LL 31) | `3bf760a` |
+| R-12 | REMEDIATE → verified (SPIN_OK_28) | `138f2fc` |
+| R-11 + R-17 | REMEDIATE → verified (SPIN_OK_31; surfaced LL-31 race; cooperative pause closes it) | `bbb43f1` |
+| R-18 | REMEDIATE → verified (surfaced during R-17 — dead cal_pre_hook + function-pointer table removed) | `6306019` |
+| P8-FMEA-Pyro | (no fix needed) → verified | `7025ca6` |
+| R-10b | DEFER → analyzed (deferred-with-rationale; tooling completeness, not safety gap) | (in PROBLEM_REPORTS only) |
+
+**Category 4 — Cleanup & Documentation** (verified 2026-05-13):
+
+| PR | Disposition | Commit |
+|---|---|---|
+| R-7 | REMEDIATE → verified (cross-reference added to CODING_STANDARDS) | `722082e` |
+| R-13 | REMEDIATE → verified (SESSION_CHECKLIST trigger row added) | `722082e` |
+| R-16 | REMEDIATE (no fix needed) → verified (LL freshness audit: 0 stale entries) | `d5bc83a` |
+| Comment-density audit | (no fix needed) → verified (src/ .cpp = 21.8%, in band; CODING_STANDARDS updated) | `158b0df` |
+
+### Totals
+
+- **22 audit-cycle items dispositioned + 1 audit-only finding = 23.**
+- **Cat 1 closed (5):** P8-SPIN-A, P8-SPIN-B, R-10a, R-9a, R-9b.
+- **Verified, awaits L2 regression (14):** R-3, R-4, R-1, R-9c, R-6c, R-15, R-12, R-11, R-17, R-18, R-7, R-13, R-16, P8-FMEA-Pyro.
+- **Deferred (3):** R-5 (full stdio.h removal — dedicated session), R-2 (absorbed into R-5), R-10b (stack-usage SDK coverage gap — tooling completeness, not safety).
+- **Audit-only finding (1):** end-of-cycle comment-density audit (no PR; verdict + CODING_STANDARDS update only).
+- **No new permanent deviations added.** ACCEPTED_STANDARDS_DEVIATIONS.md edit: FP-1 moved Active → Resolved by R-6c. TP-1 (Pico SDK SPI cognitive complexity) was added earlier in the cycle as a vendored-code deviation we can't fork.
+
+### Surfaced bugs (Rule 7 in-scope)
+
+This audit cycle exercised the HW_GATE_DISCIPLINE Rule 7 surfaced-bug rule heavily. Surfacings of note:
+
+- **R-3 surfaced + folded MPU bugs** (MPU AP encoding wrong; MEMFAULTENA unset) — folded into R-3 commit.
+- **R-3 surfaced + folded fault-on-fault lockup** (C-level function call in handler crossed the MPU guard) — amended in `0b0e2f5`.
+- **R-11 prep surfaced R-15** (CLI flush/erase paths missing i2c_bus_reset per LL 31) — opened as new PR.
+- **R-11 modeling surfaced R-17** (LL-31 race not actually prevented anywhere, only recovered from) — opened as new PR.
+- **R-17 implementation surfaced R-18** (cal_pre_hook + function-pointer table fully dead code) — opened as cleanup PR.
+- **R-17 + SPIN model iteration surfaced firmware fix** (core1_i2c_resume must clear both atomics to prevent stale-ack race on back-to-back flash ops) — landed within R-17 commit.
+
+Cascade chain: R-11 → R-15 → R-17 → R-18, all in this audit cycle. Each surfacing was the previous PR's verification path failing to produce its claimed positive-control signal until the underlying issue was fixed.
+
+### Process notes (input to future audit cycles)
+
+- **The bench characterization sub-cycle is expensive.** Earlier in this audit, COM7 subprocess management cost ~30+ minutes trying to time-correlate IMU error counter with flash ops. After consultation, the bench step was deferred ("verify the fix after R-17 lands, not before"). For future similar surfacings, code-state + datasheet + SPIN counterexample provide sufficient evidence to proceed without pre-fix bench characterization, then verify post-fix.
+- **R-16 (LL freshness audit) should become a milestone-close discipline.** Codified as a recommendation, not yet as a SESSION_CHECKLIST trigger row. Worth adding when the cadence catches its first stale entry.
+- **Comment-density measurement requires the headers-excluded framing.** First-pass src/ overall = 30.3% looked alarming until the .cpp-only re-measurement showed 21.8% (in band). Codified in CODING_STANDARDS so future audits don't re-discover this.
+
+### Phase 8 wrap L1 regression (this cycle)
+
+Verification gate observed at wrap commit `[Phase-8-wrap]`:
+- 4 target tiers compile clean (ninja: no work to do — current binaries match HEAD).
+- Host ctest 794/794 PASS.
+- SPIN master gate `SPIN_OK_31` (4 existing models + R-12 + R-11 = 31 LTL properties verified clean).
+- Vehicle flight binary: bench_sim 2/2 PASS on freshly-flashed firmware.
+
+**L2 audit-suite regression** (re-run Phases 1, 3, 4, 5, 7) is scheduled for a future dedicated session post-push per user direction ("finish this up first; we need a solid foundation and need to clear known issues so the new audit isn't as cluttered. The new re-audit can be after all this is pushed to global").
 
 ---
 
