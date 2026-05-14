@@ -50,7 +50,7 @@ The deferral is **re-evaluated each cycle** at Tier 2.5a (deferred-with-rational
 - [JSF AV C++ Standards (PDF, 2005)](http://www.stroustrup.com/JSF-AV-rules.pdf) — foundational C++ catalog
 - [JPL C Coding Standard (PDF, 2009)](https://yurichev.com/mirrors/C/JPL_Coding_Standard_C.pdf) — C-language refinement, newer
 - Power of 10 Rules (Holzmann/JPL, 2006) — distilled top-10 safety-critical rules, newest
-- [NASA Software Engineering Handbook](https://swehb.nasa.gov/) — NASA-wide guidance (handbook, not a hard standard); §8.11 covers auto-generated code, §8.5 covers software FMEA
+- [NASA Software Engineering Handbook (SWEHB)](https://swehb.nasa.gov/) — NASA-wide guidance (handbook, not a hard standard). Good general background for safety-critical software practice across the full project lifecycle (coding, safety, V&V, configuration management, etc.). The whole handbook is the reference; specific section citations live at the point where they're actually applied (e.g., a particular accepted-deviation row, an audit-procedure step, or a design-decision doc) rather than in this overview list.
 
 ### JPL Additions (Pro Tier Goals)
 
