@@ -5,7 +5,7 @@
 **Authored:** 2026-05-13 (post-2026-05-13 audit cycle close + audit-infrastructure follow-up).
 **Procedure framing:** `standards/AUDIT_GUIDANCE.md` Appendix C 4-category ordering — **focused remediation cycle** per AUDIT_GUIDANCE scope-decision-table row 6, NOT a new master audit.
 **Hardware available:** debug probe + vehicle Feather + station Fruit Jam.
-**Expected total wall-clock budget:** 4–6 hours of focused work across 3 sessions. User picks single-push vs. multi-week spread. (Original 6–8 hr estimate reduced by ~2 hr when R-24 was pulled out and merged into R-25-exec on 2026-05-13.)
+**Expected total wall-clock budget:** 4–5 hours focused work across 2 active sessions (Session 1 + Session 3). (Original 8–10 hr estimate reduced over 2026-05-13: R-24 pulled out and merged into R-25-exec; CLA-RBM pulled out as its own dedicated session; **R-22 pulled out and merged into R-25-exec after 4 iterations + council redesign hit a flight-tier-firmware design wall — see Session 2 post-mortem below**.)
 
 **Sessions explicitly out of this cycle (each its own dedicated session):**
 - R-5 ETL vendoring + stdio removal (per `STDIO_REPLACEMENT_PLAN.md`).
@@ -193,19 +193,24 @@ Per Appendix C category-order with council amendments. **This cleanup cycle cove
 
 Single push at end. CHANGELOG entry for the session.
 
-### Session 2 — R-22 audit-infrastructure HW gate [~1-2 hr]
+### Session 2 — DEFERRED ENTIRELY to R-25-exec (post-mortem)
 
-**Re-labeled per council Q2 amendment:** R-22 is Cat-1-equivalent audit-infrastructure, not Cat-4 cleanup. It's a tooling/gate-integrity addition even though it lands in this Cat-4 cleanup cycle's structure.
+**Original Session 2 scope (executed but did not close):** R-22 (warm-reboot audit script) + R-24 (boot-parity extension, deferred mid-session).
 
-**Note 2026-05-13:** CLA-RBM was originally in this session as parallel async work. Per user direction post-council, CLA-RBM has been **pulled out as its own dedicated session** (it's the cycle-budget audit and deserves focused attention, not background-soak treatment). See "Sessions explicitly out of this cycle" in the header.
+**What happened:** Session 2 ran 4 iterations of `scripts/warm_reboot_audit.py` against the vehicle Feather:
 
-**Scope amendment 2026-05-13 (mid-Session 2):** R-24 (boot-parity extension) **pulled out and merged into R-25-exec** per user direction. R-25 (Session 3) is the bench-tier deprecation evaluation; the dev tiers may go away under approach B. Shipping a 4-tier boot-parity gate this session and then re-scoping it to 2 tiers next session is churn — better to ship R-24 once after R-25-eval decides the tier count.
+1. **Iteration 1** — initial draft, blind-sleep approach. 1/4 PASS; G-W3 picotool burst caused USB CDC re-enumeration loops requiring physical replug.
+2. **Iteration 2** — added `--chip-serial` plumbing + `_wait_for_device_serial()` polling. Python wedged in `serial.Serial()` C-library code on Windows; required `taskkill`.
+3. **Iteration 3** — same wedge; same fix didn't help.
+4. **Council redesign (NASA/JPL + Prof + ArduPilot + Cubesat)** — unanimous APPROVE WITH AMENDMENTS. Plan at `C:\Users\pow-w\.claude\plans\snoopy-wibbling-noodle.md`. Switch to `peek_banner()` from `_rc_test_common.py`, add Core-1 IMU/baro counter-increment positive control for G-W1/G-W4 per HW_GATE_DISCIPLINE Rule 1. R-24 pulled out and merged into R-25-exec (tier count depends on bench-tier deprecation outcome).
+5. **Iteration 4** (post-redesign) — `peek_banner` integration worked; baseline banner captured cleanly. **Hit a fundamental design wall:** the council-required Core-1 counter check (via `q→s` Sensors / `q→b` Hardware Status in the Debug submenu) is **bench-tier-only**. The flight-tier firmware currently on the vehicle has no main-menu equivalent for IMU/baro read counters — `s` is unbound on main menu, and main-menu `b` is Beacon (Stage L 2026-04-18 reassignment, surfaced via R-27 doc drift). Flashing bench-tier firmware to verify R-22 is operationally heavy and conflicts with R-25-eval's pending bench-tier deprecation direction.
 
-1. **R-22** — Build `scripts/warm_reboot_audit.py` (G-W1 AIRCR via probe + G-W2 3-power-cycle baseline + G-W3 picotool burst + G-W4 compound). *Commit*: `[DC-2026-05-13] R-22 REMEDIATED: warm-reboot audit script`.
-2. **Wire R-22** into AUDIT_GUIDANCE Tier 2.7 (new) + SESSION_CHECKLIST. *Commit*: `[DC-2026-05-13] AUDIT_GUIDANCE Tier 2.7 + SESSION_CHECKLIST wire-in for R-22`.
-3. **HW gate per Rule 2:** probe attached + vehicle Feather + 3-boot reseat for R-22 development.
+**Decision (user 2026-05-13):** defer R-22 entirely to R-25-exec session. Build R-22 once against the final tier model — banner-only gates if approach B (no bench tier), or full counter-increment gates if approach C (bench tier retained). The 4-iteration redesign work (plan + council verdict + research memos) is preserved at `snoopy-wibbling-noodle.md` and inherited by R-25-exec.
 
-R-24 stays in PROBLEM_REPORTS as `analyzed / DEFER` with the owner column updated to point at R-25-exec.
+**Useful Session 2 deliverables (committed despite R-22 deferral):**
+- **R-27** (commit `48b3f59`) — `docs/ROCKETCHIP_OS.md` main-menu key table drift fix. Surfaced during R-22 iteration 4 when 'b' main-menu key activated Beacon instead of Hardware Status. Doc edit verified against `print_help_menu()` source of truth. Same drift class as R-26.
+
+**R-22 + R-24 status:** both `analyzed / DEFER` in PROBLEM_REPORTS with owner = R-25-exec.
 
 ### Session 3 — R-25-eval bench-tier deprecation evaluation [~2 hr]
 
