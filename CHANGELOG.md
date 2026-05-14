@@ -22,6 +22,24 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-13-007 | Claude | audit, cleanup, decision
+
+**Deferred-Cleanup Cycle DC-2026-05-13 Sessions 2 + 3 — R-22 deferred, R-27 fixed, R-25-eval council-APPROVED.** Session 2 (R-22 warm-reboot audit script) hit a flight-tier-firmware design wall after 4 iterations + council redesign; deferred to R-25-exec. Session 3 (R-25-eval bench-tier deprecation evaluation) closed with unanimous council approval of Approach A (single-binary runtime test-mode, probe-only gated — PX4 `SYS_FAILURE_EN` pattern). R-25-exec inherits the council-amended plan as a separate execution session.
+
+**R-27 REMEDIATED:** `docs/ROCKETCHIP_OS.md` main-menu key table stale (claimed `s`/`e`/`b` as Status keys + `i` as Radio key; Stage L 2026-04-18 reassigned `b` to Beacon and moved status keys to q-Debug submenu). Same drift class as R-26. Surfaced during R-22 iteration 4 when the script's main-menu `b` keystroke activated Beacon instead of Hardware Status.
+
+**R-25-eval decision (council unanimous, NASA/JPL + Prof + ArduPilot + Cubesat):** Approach A with 6 amendments + 4 R-25-exec checklist items. Decision grounded in 3 evidence-of-real-bugs from the dual-binary failure mode this cycle (R-23 bench-tier INVPC HardFault, F-2026-05-13-004 pedantic-gate drift, R-22 design wall). User-preferred original direction (Approach B patch-based) rejected after IRL aerospace dev-code-sequestration research showed patch-rot is a known failure mode. Approach C (minimal bench tier) rejected because it retains the same structural problem at smaller scope.
+
+**`CODING_STANDARDS.md` amended (state-of-system trigger-driven edit):** NASA Software Engineering Handbook reference broadened from "§8.11 + §8.5" to handbook-as-whole; specific section citations live at the point where applied.
+
+**R-25-exec inherits:** 13-item plan in `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md` § "R-25-exec follow-on session." Closes R-22, R-23, R-24 as side-effects. Council-required `peek_banner`-based redesign for R-22 preserved at `C:\Users\pow-w\.claude\plans\snoopy-wibbling-noodle.md`.
+
+Verified: pure-software / doc-only this session. End-of-session sanity check passed (host ctest 794/794, bench_sim 2/2 PASS, SPIN_OK_31). No HW reseat required.
+
+Files: `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md` (new), `docs/ROCKETCHIP_OS.md`, `docs/PROBLEM_REPORTS.md` (R-22/R-25/R-25-exec/R-27 rows), `docs/plans/DEFERRED_CLEANUP_PLAN_2026-05-13.md` (Session 2 post-mortem + Session 3 close), `standards/CODING_STANDARDS.md`, `CHANGELOG.md`.
+
+---
+
 ### 2026-05-13-006 | Claude | audit, cleanup
 
 **Deferred-Cleanup Cycle DC-2026-05-13 Session 1 COMPLETE.** Cat-4 closeout of accumulated DEFER queue from the 2026-05-07 + 2026-05-13 master audit cycles. 5 commits, no source changes, no HW reseat required.
