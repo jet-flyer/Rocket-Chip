@@ -285,7 +285,8 @@ static void print_eskf_status() {
                    (double)(meuler.z * kRadToDeg),
                    (double)mdivDeg);
         }
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
+        // R-25-exec step 8 (2026-05-13): ifdef stripped. ESKF profiling
+        // counters always run; CLI print is unconditional.
         {
             uint32_t benchAvg = 0, benchMin = 0, benchMax = 0, benchCount = 0;
             eskf_runner_get_bench(&benchAvg, &benchMin, &benchMax, &benchCount);
@@ -302,7 +303,6 @@ static void print_eskf_status() {
                        (unsigned long)fMax, (unsigned long)fCount);
             }
         }
-#endif
         printf("      buf: %lu/%lu samples\n",
                (unsigned long)eskf_runner_get_buffer_count(), (unsigned long)kEskfBufferSamples);
     } else if (g_eskfInitialized) {

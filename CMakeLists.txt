@@ -340,20 +340,16 @@ else()
         src/cli/rc_os_commands.cpp
         src/cli/rc_os_debug.cpp                 # R-25-exec step 2: migrated from src/dev/dev_cli.cpp; test-mode-gated
 
-        # Dev diagnostics (included only when NOT_CERTIFIED_FOR_FLIGHT=ON,
-        # i.e. dev/bench builds; the positive mirror flag is
-        # ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS — see option block below).
-        # R-25-exec step 3: fault_inject.cpp migrated to src/safety/ (test-mode-gated, see below)
-        # R-25-exec step 5: src/dev/replay_inject.cpp DELETED per council amendment #4
-        # (CSV replay moves host-side; on-MCU seqlock-stuffing retired).
-        # R-25-exec step 4: diag_stats.cpp migrated to src/diag/. Always-on
-        # read-only snapshot (AO queues, MSP, sensors, health). No state
-        # mutation, no test_mode gate needed.
+        # R-25-exec step 8 (2026-05-13, council Approach A): the parallel
+        # dev/bench tier was retired. Migrated modules now live in the
+        # single flight binary:
+        #   src/safety/fault_inject.cpp        (step 3, test-mode-gated)
+        #   src/diag/diag_stats.cpp            (step 4, always-on reads)
+        #   src/safety/station_fault_inject.cpp (step 6, test-mode-gated)
+        # DELETED in steps 5 + 6 (council amendment #4, replay went host-side):
+        #   src/dev/replay_inject.{cpp,h}
+        #   src/dev/station_replay.{cpp,h}
         src/diag/diag_stats.cpp
-        # R-25-exec step 6: station_fault_inject.cpp migrated to src/safety/
-        # (test-mode-gated at entry, see safety/ block below).
-        # R-25-exec step 6: src/dev/station_replay.cpp DELETED per council
-        # amendment #4 (station replay coverage moves host-side).
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -719,39 +715,22 @@ else()
     endif()
 
     # ============================================================================
-    # Build tier — flight-readiness flag
+    # Build tier — single flight binary (R-25-exec step 8, 2026-05-13)
     # ============================================================================
     #
-    # Operator-facing flag (this is the safety property the user reasons about):
-    #   NOT_CERTIFIED_FOR_FLIGHT (default OFF) — when OFF, the binary is
-    #   flight-ready: dev/bench code (debug menu, fault injection, replay
-    #   harness, CLI live ESKF, predict timing) is excluded at compile time.
-    #   When ON, the dev/bench surface is compiled in. The default-OFF
-    #   semantic means an unflagged `cmake -B build` produces a flight-ready
-    #   binary; opting into uncertified extras is an explicit user action.
+    # Per council-APPROVED Approach A
+    # (docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md), the project
+    # produces ONE firmware tier per role (vehicle / station). Test
+    # affordances (fault_force_*, debug submenu state-mutating commands)
+    # live in the same binary, gated at entry by rc::test_mode_active()
+    # — runtime-partitioning per SWE-133. There is no parallel dev/bench
+    # build configuration; NOT_CERTIFIED_FOR_FLIGHT was retired here.
     #
-    # Source-side flag (this is what `#ifdef`/`#ifndef` sites in src/ use):
-    #   ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS=1 — defined when (and only when)
-    #   NOT_CERTIFIED_FOR_FLIGHT is ON. Source code reads positively:
-    #     `#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS` → real implementation
-    #     `#ifndef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS` → no-op stub
-    #   The two-name pattern (negative-polarity flag for the operator,
-    #   positive-polarity macro for the source) keeps both audiences reading
-    #   in their natural sense. Do not collapse — see council review
-    #   2026-04-30 for rationale.
-    #
-    # Usage:
-    #   cmake -B build                                   # flight-ready (default)
-    #   cmake -B build -DNOT_CERTIFIED_FOR_FLIGHT=ON     # dev/bench
+    # Build directories:
+    #   build_flight/          — vehicle flight (no ROCKETCHIP_JOB_STATION)
+    #   build_station_flight/  — station flight (-DROCKETCHIP_JOB_STATION=1)
     # ============================================================================
-    option(NOT_CERTIFIED_FOR_FLIGHT "Include dev/bench diagnostics in binary (NOT flight-ready)" OFF)
-    if(NOT_CERTIFIED_FOR_FLIGHT)
-        target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS=1)
-        set_target_properties(rocketchip PROPERTIES OUTPUT_NAME "rocketchip-dev")
-        message(WARNING "Build tier: NOT_CERTIFIED_FOR_FLIGHT=ON — dev/bench binary, NOT flight-ready. Output: rocketchip-dev.uf2")
-    else()
-        message(STATUS "Build tier: flight-ready (default — NOT_CERTIFIED_FOR_FLIGHT=OFF)")
-    endif()
+    message(STATUS "Build tier: single flight binary (R-25-exec Approach A, 2026-05-13)")
 
     # Dev tools — hierarchical gate. Off in production builds (all four
     # standard presets). See docs/BUILD_SYSTEM_AUDIT.md for the full model.
@@ -781,7 +760,10 @@ else()
             # Use when replaying Stage T RadioScheduler investigation.
             # Usage: cmake -DROCKETCHIP_BUILD_DEV_TOOLS=ON -DROCKETCHIP_STAGE_ARCHIVE=ON -DROCKETCHIP_STAGE_T_LOGGING=ON ..
             option(ROCKETCHIP_STAGE_T_LOGGING "Enable Stage T RadioScheduler diagnostics" OFF)
-            if(ROCKETCHIP_STAGE_T_LOGGING AND NOT_CERTIFIED_FOR_FLIGHT)
+            if(ROCKETCHIP_STAGE_T_LOGGING)
+                # R-25-exec step 8 (2026-05-13): NOT_CERTIFIED_FOR_FLIGHT retired.
+                # Stage archive flags now stand alone behind the parent + archive
+                # gates (ROCKETCHIP_BUILD_DEV_TOOLS + ROCKETCHIP_STAGE_ARCHIVE).
                 target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T_LOGGING=1)
                 message(STATUS "Stage T diagnostics: ENABLED")
             endif()
@@ -792,7 +774,8 @@ else()
             # possible replay during post-CCSDS command-layer work.
             # Usage: add -DROCKETCHIP_STAGE_T2_CHEAT=ON -DROCKETCHIP_JOB_STATION=1 (alongside parent+archive).
             option(ROCKETCHIP_STAGE_T2_CHEAT "Enable Stage T2 station cheat-mode sync" OFF)
-            if(ROCKETCHIP_STAGE_T2_CHEAT AND NOT_CERTIFIED_FOR_FLIGHT)
+            if(ROCKETCHIP_STAGE_T2_CHEAT)
+                # R-25-exec step 8 (2026-05-13): NOT_CERTIFIED_FOR_FLIGHT retired.
                 target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T2_CHEAT=1)
                 message(STATUS "Stage T2 cheat-mode: ENABLED")
             endif()

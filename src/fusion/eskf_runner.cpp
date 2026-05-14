@@ -94,7 +94,10 @@ static eskf_state_snap_t g_eskfBuffer[kEskfBufferSamples];
 static uint32_t g_eskfBufferIndex = 0;
 static uint32_t g_eskfBufferCount = 0;
 
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
+// R-25-exec step 8 (2026-05-13): ifdef stripped per Approach A.
+// Benchmark counters always accumulate; ~30 cycles per predict is
+// negligible at 200 Hz. Pattern matches ArduPilot/PX4 — flight ops
+// debugging needs these timings in production.
 static uint32_t g_eskfBenchMin = UINT32_MAX;
 static uint32_t g_eskfBenchMax = 0;
 static uint32_t g_eskfBenchSum = 0;
@@ -103,7 +106,6 @@ static uint32_t g_eskfBenchFullMin = UINT32_MAX;
 static uint32_t g_eskfBenchFullMax = 0;
 static uint32_t g_eskfBenchFullSum = 0;
 static uint32_t g_eskfBenchFullCount = 0;
-#endif
 
 // Event logging callback (injected by main.cpp)
 static EskfEventLogFn g_logEventFn = nullptr;
@@ -189,9 +191,8 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
     rc::Vec3 accel = sensor_to_ned_accel(snap);
     rc::Vec3 gyro = sensor_to_ned_gyro(snap);
 
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
+    // R-25-exec step 8 (2026-05-13): ifdef stripped. Always profile.
     uint32_t t0 = time_us_32();
-#endif
     g_eskf.predict(accel, gyro, dt);
 
     // CR-1: stop propagation if filter diverges
@@ -201,13 +202,11 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
         return;
     }
 
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
     uint32_t elapsed = time_us_32() - t0;
     if (elapsed < g_eskfBenchMin) { g_eskfBenchMin = elapsed; }
     if (elapsed > g_eskfBenchMax) { g_eskfBenchMax = elapsed; }
     g_eskfBenchSum += elapsed;
     g_eskfBenchCount++;
-#endif
 
     // Write compact state to circular buffer
     eskf_state_snap_t& s = g_eskfBuffer[g_eskfBufferIndex];
@@ -515,10 +514,10 @@ static void eskf_tick_phase_and_confidence() {
 // One fused cycle (predict → updates → phase/conf → bench → publish).
 // Split out so `eskf_runner_tick` stays within pre-commit size limits.
 static void eskf_runner_fusion_cycle(const shared_sensor_data_t& snap) {
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
+    // R-25-exec step 8 (2026-05-13): ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
+    // stripped per Approach A. Full-tick profiling counters always run.
 #ifndef ROCKETCHIP_HOST_TEST
     const uint32_t t_fusion = time_us_32();
-#endif
 #endif
 
     eskf_run_predict(snap);
@@ -538,7 +537,6 @@ static void eskf_runner_fusion_cycle(const shared_sensor_data_t& snap) {
 
     eskf_tick_phase_and_confidence();
 
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 #ifndef ROCKETCHIP_HOST_TEST
     {
         const uint32_t el = time_us_32() - t_fusion;
@@ -547,7 +545,6 @@ static void eskf_runner_fusion_cycle(const shared_sensor_data_t& snap) {
         g_eskfBenchFullSum += el;
         g_eskfBenchFullCount++;
     }
-#endif
 #endif
 
     g_eskfEpoch++;
@@ -657,7 +654,9 @@ uint8_t eskf_runner_get_wmm_source() {
     return static_cast<uint8_t>(g_wmmSource);
 }
 
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
+// R-25-exec step 8 (2026-05-13): ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
+// stripped per Approach A. Read accessors are always callable;
+// production builds use them via diag_stats_dump() / debug submenu.
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
                            uint32_t* max_us, uint32_t* count) {
     if (g_eskfBenchCount > 0 && avg != nullptr) {
@@ -681,7 +680,6 @@ void eskf_runner_get_bench_full_tick(uint32_t* avg, uint32_t* min_us,
     if (max_us != nullptr) { *max_us = g_eskfBenchFullMax; }
     if (count != nullptr) { *count = g_eskfBenchFullCount; }
 }
-#endif
 
 // Runaway-restart brake implementation lives in eskf_brake.cpp so host
 // tests can link it without pulling eskf_runner's SDK dependencies.

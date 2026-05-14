@@ -1,14 +1,18 @@
 #!/bin/bash
 # RocketChip Build Parity Verifier
 #
-# Ensures all four build variants compile cleanly.
-# Required before pushing flight-critical changes.
+# R-25-exec step 8 (2026-05-13, per council-APPROVED Approach A in
+# docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md): collapsed
+# from 4-tier (vehicle bench + flight + station bench + flight) to
+# 2-tier (vehicle flight + station flight). Test affordances live
+# in the single flight binary, gated by rc::test_mode_active().
+#
+# Ensures both build variants compile cleanly.
+# Required before pushing changes that touch build configuration.
 #
 # Variants:
-#   build/                 - Vehicle bench
-#   build_flight/          - Vehicle flight
-#   build_station/         - Station bench
-#   build_station_flight/  - Station flight
+#   build_flight/          - Vehicle flight (single tier; no ROCKETCHIP_JOB_STATION)
+#   build_station_flight/  - Station flight (single tier; -DROCKETCHIP_JOB_STATION=1)
 #
 # Usage:
 #   bash scripts/verify_build_parity.sh
@@ -23,21 +27,17 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 BUILD_VARIANTS=(
-    "build"
     "build_flight"
-    "build_station"
     "build_station_flight"
 )
 
 if [[ "${1:-}" == "--verify" ]]; then
     echo "=== Build Parity Self-Test ==="
-    # We can't easily do a real build in verify mode without a full CMake setup.
-    # Instead, we just confirm the script logic and directory detection works.
     echo "VERDICT: PASS — Self-test: script structure and variant list validated"
     exit 0
 fi
 
-echo "=== RocketChip Build Parity Check ==="
+echo "=== RocketChip Build Parity Check (2-tier, post-R-25-exec) ==="
 echo "Checking ${#BUILD_VARIANTS[@]} variants..."
 echo ""
 
