@@ -32,7 +32,17 @@
 
 ## High priority
 
-- **Next up (deferred items from DC-2026-05-13 cycle, each its own session):**
+- **FIRST UP next session (R-25-exec HW gate verification — needs probe + vehicle Feather + station Fruit Jam):** the R-25-exec cycle (commits d103f09 .. 208bdab, pushed 2026-05-14) closed R-22/R-23/R-24/R-25-exec at the Level-1 "Verified locally" credit per HW_GATE_DISCIPLINE Rule 6 — bench_sim 2/2 PASS on the post-collapse `build_flight/rocketchip.elf`, host ctest 800/800, both flight tiers compile clean. **Level-2 audit-suite regression has NOT run yet.** Specifically still owed:
+  1. `python scripts/warm_reboot_audit.py --role vehicle` — confirms G-W1 AIRCR + Core-1 IMU/baro counter-increment + Hardware Status 14/14 OK, G-W2 probe reset×3 banner-stable, G-W3 picotool burst N=5 banner-stable, G-W4 compound clean. Document any failures in PROBLEM_REPORTS R-22 row.
+  2. `python scripts/warm_reboot_audit.py --role station` (G-W1/G-W4 auto-skip on station — no Core-1 counter signal there; G-W2/G-W3 only).
+  3. `bash scripts/verify_boot_parity.sh vehicle` then `bash scripts/verify_boot_parity.sh station` — confirms build+flash+banner-classify per role per R-24.
+  4. `python scripts/station_bench_sim.py` against the Fruit Jam — confirms the `TARGET_STATION_ANY` retargeting (step 7) still classifies + runs the 3 tests.
+  5. `python scripts/enhanced_fault_injection.py --scenario all` — confirms the `arm_test_mode_via_probe()` integration (step 7) actually opens the fault_force_* entries (and that an unarmed run produces the `[FAULT] X gated — arm test mode via probe ...` printf and no-ops the side effect).
+  6. **Negative-control check**: with test mode NOT armed, GDB-call one fault_force_* (e.g., `monitor halt; call fault_force_eskf_unhealthy(); monitor resume`) and confirm the `[FAULT] ... gated` printf appears + `g_eskfInitialized` stays true. This is the audit invariant from CODING_STANDARDS R-25-exec section, currently grep-verified only.
+
+  When all 6 pass, transition the PROBLEM_REPORTS R-22/R-23/R-24/R-25-exec rows from `verified` to `closed` (per HW_GATE_DISCIPLINE Rule 6: closure requires Level-2 audit-suite regression, not just Level-1 local commit gates).
+
+- **Next up (other deferred items from DC-2026-05-13 cycle, each its own session):**
   - **Host-side replay harness implementation** (`scripts/replay_harness_host.py` is a stub). Per R-25-exec amendment #4, IVP-131 verification model shifts from on-MCU CSV-streamer to host-side ESKF replay against `tests/replay_profiles/*.csv` ground-truth. Needs host-buildable ESKF driver + comparison harness against the oracle. Out of cycle scope; tracked here until implemented.
   - **Host ctest sweep over `fault_force_*` symbols** to mechanically verify every entry calls `rc::test_mode_active()` (audit invariant from CODING_STANDARDS R-25-exec section). Today it's a grep + manual walk; making it a ctest closes the audit gate. Companion to step 10's pre-commit-matrix path additions.
   - **L2-P2/P3/P4** from the 2026-05-07 cycle (sampling policy / citation inventory / scope language) — audit-policy doc edits, batch with whichever later cycle picks them up.
