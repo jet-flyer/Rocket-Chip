@@ -19,8 +19,16 @@
 
 #ifndef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
 
+// No-op stubs for flight tier (R-25-exec step 2 migration: rc_os_debug.cpp
+// now lives in the flight binary and references these symbols at compile
+// time; runtime-gated by test_mode_active() before reaching them).
+// Step 6 deletes this module entirely and replaces with host-side harness
+// per council amendment #4.
 static inline void station_replay_inject_bytes(const uint8_t*, uint8_t) {}
 static inline uint32_t station_replay_get_inject_count() { return 0; }
+static inline void station_replay_start() {}
+static inline void station_replay_stop()  {}
+static inline bool station_replay_active() { return false; }
 
 #else
 

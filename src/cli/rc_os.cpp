@@ -24,7 +24,7 @@
 #include "ao_flight_director.h"
 #include "ao_notify.h"              // Stage L — AO_Notify_post_prearm_fail
 #include "ao_rcos.h"
-#include "dev/dev_cli.h"
+#include "cli/rc_os_debug.h"   // R-25-exec step 2: was dev/dev_cli.h
 #include <stdio.h>
 #include <string.h>
 

@@ -1,17 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //
-// Dev-only CLI: debug sub-menu + ESKF live streaming.
-// Compiled in only when ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS is defined,
-// which the build sets when NOT_CERTIFIED_FOR_FLIGHT=ON.
+// rc_os_debug — operator Debug sub-menu (`q` from main).
+//
+// R-25-exec step 2 of 13 (per docs/decisions/BENCH_TIER_DEPRECATION_
+// 2026-05-13.md, council-APPROVED Approach A): migrated from
+// src/dev/dev_cli.cpp. No longer #ifdef-gated by ROCKETCHIP_INCLUDES_
+// DEV_DIAGNOSTICS — lives in the single flight binary always. State-
+// mutating commands (digit-key radio-config set, LED test pattern
+// force) are runtime-gated by test_mode_active(); diagnostic reads
+// (sensors, HW status, I2C scan, ESKF live, diag dump, pyro log)
+// work always (observational, no safety risk).
 
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
-
-#include "dev/dev_cli.h"
+#include "cli/rc_os_debug.h"
 #include "dev/replay_inject.h"
 #include "dev/station_replay.h"
 #include "cli/rc_os.h"
 #include "cli/rc_os_commands.h"
+#include "safety/test_mode.h"
 #include "drivers/i2c_bus.h"
 #include "safety/pyro_edge_logger.h"
 #include "dev/diag_stats.h"
@@ -119,6 +125,17 @@ bool dev_debug_menu_dispatch(int c) {
             rc::pyro_edge_logger_dump_cli();
             break;
         case 'r': case 'R':
+            // R-25-exec: replay-inject is state-mutating (CSV streamed
+            // into sensor-snapshot buffers, simulates Core 1 input).
+            // Test-mode-gated per council Approach A. Replay itself
+            // is slated for deletion in R-25-exec step 5 (replay
+            // migrates host-side per council amendment #4) — for
+            // now we just gate the trigger.
+            if (!rc::test_mode_active()) {
+                printf("[debug] replay-inject gated; arm test mode via "
+                       "probe (see safety/test_mode.h)\n");
+                break;
+            }
             if constexpr (kRadioModeRx) {
                 printf("\n--- Station replay (RX-path hex injection) --- send 'R,<hex>\\n' lines ---\n");
                 station_replay_start();
@@ -130,9 +147,25 @@ bool dev_debug_menu_dispatch(int c) {
             diag_stats_dump();
             break;
         case 'l': case 'L':
+            // R-25-exec: LED test is state-mutating (writes the LED
+            // engine override path). Test-mode-gated per council
+            // Approach A.
+            if (!rc::test_mode_active()) {
+                printf("[debug] LED test gated; arm test mode via probe "
+                       "(see safety/test_mode.h)\n");
+                break;
+            }
             dev_led_test_menu();
             break;
         case '0': case '1': case '2': case '3': case '4': case '5': {
+            // R-25-exec: radio config set is state-mutating (drives
+            // AO_Radio to reconfigure the radio). Test-mode-gated per
+            // council Approach A.
+            if (!rc::test_mode_active()) {
+                printf("[debug] radio config set gated; arm test mode "
+                       "via probe (see safety/test_mode.h)\n");
+                break;
+            }
             // Stage T IVP-T6 — local radio config set (no RF).
             // Digit = whitelist index (0=BW125/5 default, 1=BW125/10,
             // 2=BW250/10, 3=BW500/10, 4=BW125/2, 5=BW250/5).
@@ -300,5 +333,3 @@ bool dev_station_replay_poll() {
     }
     return true;
 }
-
-#endif // ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS

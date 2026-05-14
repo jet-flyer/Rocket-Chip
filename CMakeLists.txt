@@ -338,11 +338,11 @@ else()
         src/cli/rc_os.cpp
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
+        src/cli/rc_os_debug.cpp                 # R-25-exec step 2: migrated from src/dev/dev_cli.cpp; test-mode-gated
 
         # Dev diagnostics (included only when NOT_CERTIFIED_FOR_FLIGHT=ON,
         # i.e. dev/bench builds; the positive mirror flag is
         # ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS — see option block below).
-        $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/dev_cli.cpp>
         $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/fault_inject.cpp>
         $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/replay_inject.cpp>
         # diag_stats.cpp has both bench and flight tier content:
@@ -511,6 +511,7 @@ else()
         src/cli/rc_os.cpp
         src/cli/rc_os_dashboard.cpp
         src/cli/rc_os_commands.cpp
+        src/cli/rc_os_debug.cpp                 # R-25-exec step 2: migrated from src/dev/dev_cli.cpp; test-mode-gated
         src/active_objects/ao_rcos.cpp
         src/active_objects/ao_flight_director.cpp
         src/active_objects/ao_health_monitor.cpp
