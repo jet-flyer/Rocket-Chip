@@ -45,10 +45,10 @@ Before measuring anything, confirm the measurement instruments are honest. Sourc
 
 1.1 Tool self-checks: `run_clang_tidy.sh`, `run_cppcheck.sh`, lizard, coverage harness produce expected output on known-good fixture inputs.
 1.2 SPIN models compile + load on current `spin.exe` (Cygwin per `tools/spin/README.md`).
-1.3 Pre-commit hook integrity: `scripts/hooks/pre-commit` runs on a synthetic staged diff and produces the expected gate matrix output.
+1.3 Pre-commit hook integrity: `scripts/hooks/pre-commit` runs on a synthetic staged diff and produces the expected gate matrix output. Mechanism: `scripts/audit/pre_commit_fixture_test.py` (exercises `scripts/ci/pre_commit_matrix.py` against a synthetic-staged-diff fixture table covering known-good / known-bad / no-fire / edge cases — exit 0 = all rows pass).
 1.4 `bench_sim.py` **bidirectional regex audit** (council amendment #1):
     - (a) Rotted-regex check: every regex constant matches at least one live firmware log line from a freshly-flashed banner read.
-    - (b) Deleted-regex check: every PASS-token / positive-control signal the firmware emits has at least one regex in the script looking for it.
+    - (b) Deleted-regex check: every PASS-token / positive-control signal the firmware emits has at least one regex in the script looking for it. Mechanism: `scripts/audit/list_bench_sim_pass_tokens.py` (greps src/ for emitted positive-control tokens, groups by class, surfaces the inventory at `logs/bench_sim_pass_tokens.txt` for diff-against-prior-cycle comparison; empty token classes appear as NOTE-level signals for review).
 1.5 Host ctest fixture-suite passes.
 1.6 Build-parity script (`verify_build_parity.sh`) produces clean output for all 4 tiers.
 
@@ -60,7 +60,7 @@ With instruments verified honest in Tier 1, capture the baseline data the rest o
 
 2.1 Baseline scripted sweeps: `run_clang_tidy.sh`, `run_cppcheck.sh`, `analyze_stack_usage.sh`, `generate_coverage_report.sh`, lizard cyclomatic complexity sweep. Record verdicts + raw output paths.
 2.2 SPIN model verification: re-run all `tools/spin/*.pml` against current firmware. Master gate `run_stage_o_ao_spin.sh` produces SPIN_OK_N.
-2.3 Toolchain version audit: walk `docs/BUILD_SYSTEM_AUDIT.md` P6 (current versions vs latest upstream, drift assessment). Absorbs `TOOLCHAIN_VERSION_AUDIT_*.md` sibling audit.
+2.3 Toolchain version audit: walk `docs/BUILD_SYSTEM_AUDIT.md` P6 (current versions vs latest upstream, drift assessment). Absorbs `TOOLCHAIN_VERSION_AUDIT_*.md` sibling audit. Mechanism: `scripts/audit/check_toolchain_drift.py` (mechanically pulls upstream-latest versions for Pico SDK, picotool, OpenOCD Pi-fork branch HEAD, Pico Probe firmware, CMake; reads project-pinned versions from `CMakeLists.txt`; reads local installed versions from `~/.pico-sdk/<component>/`; produces drift table at `logs/toolchain_drift.txt`. Graceful degradation on network failure — does not block the cycle).
 2.4 Build-system audit: walk `docs/BUILD_SYSTEM_AUDIT.md` P1-A through P5 (dev-tool gating, self-flagged dead code, ROCKETCHIP_SOURCES coverage, host/target split, vendor SYSTEM classification, IVP-era scaffolding comments).
 2.5 Active-deviations row walk: walk `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` Active section row-by-row, confirm each row's justification still holds.
 2.5a **Deferred-with-rationale row walk** (council amendment #4): walk every deferred-with-rationale row across the audit machinery (LOC-5/LOC-6 MISRA-C deferral; any DEFER row in active dated audit reports' `## Remediation` sections; deferred-with-safety-impact rows in `docs/PROBLEM_REPORTS.md`). Three cycles without re-evaluation = stale-rationale threshold; flag for explicit user re-disposition if exceeded.
