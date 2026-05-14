@@ -32,28 +32,16 @@
 
 ## High priority
 
-- **Audit-coverage gap fill cycle 2026-05-13 — Tier 5/6/7 remaining (fresh-session, strict-split for independence).**
+- **Audit-infrastructure follow-up session (post-2026-05-13 cycle).** The 2026-05-13 audit cycle closed (CHANGELOG entries `2026-05-13-003` + `2026-05-13-004` — Grok independent verification CLOSED Tier 5/6/7). Open items that need a dedicated audit-infrastructure session:
+  - F-2026-05-13-001 (synthetic staged-diff fixture for pre-commit hook), F-2026-05-13-002 (PASS-token inventory for bench_sim deleted-regex check), F-2026-05-13-003 (`scripts/check_toolchain_drift.sh` for mechanical upstream version pulls). All Minor DEFER, audit-time tooling only — runtime enforcement unaffected.
+  - L2-P2/P3/P4 from the 2026-05-07 cycle (sampling policy / citation inventory / scope language).
+  - R-22 (warm-reboot audit script), R-24 (boot-parity gate flash + verify-banner extension).
+  - CLA-RBM re-collection: triggers at the 90-day mark (~2026-06-06) per the Tier 4.5 threshold introduced in the 2026-05-13 procedure refactor. Until then, watched-but-not-stale.
 
-  **Status at 2026-05-13 end-of-session:**
-  - **Step 0** (inventory completeness): closed. `docs/audits/AUDIT_COVERAGE_INVENTORY_2026-05-13.md`. 15 gap items, all dispositioned.
-  - **Step 1a** (fix the audit procedure): closed. `AUDIT_GUIDANCE.md` refactored 8-step → 7-tier dependency-ordered structure; council-approved with 8 amendments; MISRA-C chain-of-custody made explicit; I-1 stale citation removed.
-  - **Step 1b** (verify procedure is gap-free): closed. All 15 step-0 gap items have homes in the new structure. 3 tooling-class gaps batch with audit-infrastructure backlog.
-  - **Step 2 — Tiers 1-4**: closed. F-2026-05-13-001/002/003 (Minor DEFER, audit-infrastructure tooling); F-2026-05-13-004 (Major REMEDIATED — pedantic-gate drift on 3 production files closed in same commit). All 4 build tiers rebuilt clean post-remediation.
-
-  **Tier 5/6/7 handoff target: Grok via Cursor (different LLM, structurally independent of Claude Opus 4.7 that wrote Tiers 1-4).**
-  - **Tier 5** — Verify Against Requirements + Observable Behavior. Sub-items 5.1 pre-flight, 5.2 errata, 5.3 bench, 5.4 replay (blocked on R-23), 5.5 traceability (exhaustive per L2-P2), 5.6 prior-cycle regression check.
-  - **Tier 6** — Document Drift + Sync. F-2 audit-cycle citations in non-standards docs, Sections G/H of template, protected-doc drift check, CHANGELOG rollup.
-  - **Tier 7** — Findings Disposition + Remediation. Final pass per Appendix C; close any verified-pending rows from L1/L2 + this cycle's Tier 1-4 findings.
-  - **Why Grok and not fresh-session Claude:** fresh-session-Claude reads the same `MEMORY.md` + `.claude/` auto-load + dated artifacts and carries the same biases-as-codified-rules forward. Confirmation bias survives the context wipe. Grok is structurally a different agent — different LLM, different memory, no shared conversation history with the Tier 1-4 walk. That's the substantive form of DO-178C verification-independence (Rule 6 level-3 credit), not just structural fresh-session approximation.
-  - **Inputs for Grok:** `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` ("Handoff to next agent" preamble names the read order). Grok appends Tier 5/6/7 sections to the same report.
-
-  Other deferred audit-cycle items (lower urgency, separate sessions):
-  - 14 PRs from yesterday's wrap remain `verified` pending audit-suite regression close (close in Tier 7 at end of fresh-session walk).
+- **Other deferred audit-cycle items (separate sessions):**
   - R-5 (full stdio.h removal) + R-2 (absorbed into R-5) deferred for dedicated ETL session.
-  - R-23 (vehicle bench tier HardFault) blocks Tier 5.4 + 4.3 vehicle scenarios until R-25 deprecation evaluation chooses path.
+  - R-23 (vehicle bench tier HardFault) blocks future Tier 5.4 + 4.3 vehicle scenarios until R-25 deprecation evaluation chooses path.
   - Architecture session: R-20 (Core 1 boot-wait AIRCR), R-21 (PIO WDT no auto-reset), L2-W1 — all feed "in-flight fault recovery architecture" thinking already on this whiteboard.
-  - Audit-infrastructure session: R-22 (warm-reboot audit script), R-24 (boot-parity gate), F-2026-05-13-001/002/003 + L2-P2/P3/P4 (audit-tooling gaps).
-  - CLA-RBM re-collection: triggers at the 90-day mark (~2026-06-06) per the new Tier 4.5 threshold. Until then, watched-but-not-stale.
 
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
