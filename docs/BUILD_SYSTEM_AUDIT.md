@@ -63,10 +63,12 @@ grep -n '^\s*option(' CMakeLists.txt
 ```
 
 **Clean result:** every hit is either (a) a production configuration
-flag (`BUILD_TESTS`, `NOT_CERTIFIED_FOR_FLIGHT`, `ROCKETCHIP_JOB_STATION`,
-`ROCKETCHIP_JOB_RELAY`, `ROCKETCHIP_BUILD_DEV_TOOLS`) or (b) nested
-inside an `if(ROCKETCHIP_BUILD_DEV_TOOLS)` / `if(ROCKETCHIP_STAGE_ARCHIVE)`
-block.
+flag (`BUILD_TESTS`, `ROCKETCHIP_JOB_STATION`, `ROCKETCHIP_JOB_RELAY`,
+`ROCKETCHIP_BUILD_DEV_TOOLS`) or (b) nested inside an
+`if(ROCKETCHIP_BUILD_DEV_TOOLS)` / `if(ROCKETCHIP_STAGE_ARCHIVE)` block.
+(`NOT_CERTIFIED_FOR_FLIGHT` retired 2026-05-13 per R-25-exec — single
+flight binary with runtime test-mode gating; see
+`docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`.)
 
 **Dirty result** — any bare `option(ROCKETCHIP_*)` at production scope
 for something diagnostic-flavored. Move it under the gate hierarchy.
@@ -220,9 +222,12 @@ them, leave them alone and add a comment-explanation if missing.
    CMakeLists.txt:230-280 — RP2350-E2 erratum workaround. See
    `standards/RP2350_ERRATA.md`.
 
-2. **`diag_stats.cpp` unconditional inclusion** (not gated by
-   `NOT_CERTIFIED_FOR_FLIGHT`) — always-on T0 soak preconditions.
-   Compiling it out of flight binaries would kill the at-boot sanity check.
+2. **`src/diag/diag_stats.cpp` unconditional inclusion** — always-on
+   read-only diagnostic snapshot (AO queues, MSP high-water, sensor
+   reads, health latches, T=0 soak preconditions). Migrated from
+   `src/dev/` to `src/diag/` per R-25-exec step 4 (2026-05-13);
+   compiles into both flight binaries unconditionally. No
+   `test_mode_active()` gate needed — reads only, no state mutation.
 
 3. **`target_link_options(rocketchip --undefined=...)`** block —
    `--gc-sections` would otherwise strip symbols needed by

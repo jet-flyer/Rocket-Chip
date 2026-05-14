@@ -8,9 +8,9 @@
 
 ## Overview
 
-Fault injection validates that safety paths (PIO backup timers, watchdog, health monitor, ESKF divergence recovery) actually fire under failure conditions. All injection is done via the debug probe — no fault-injection code in the flight binary.
+Fault injection validates that safety paths (PIO backup timers, watchdog, health monitor, ESKF divergence recovery) actually fire under failure conditions. All injection is done via the debug probe — no CLI/radio attack surface.
 
-Dev/bench binary (`cmake -DNOT_CERTIFIED_FOR_FLIGHT=ON ..`) includes dev hooks in `src/dev/` and outputs `rocketchip-dev.uf2`. Flight-ready binary (`cmake ..`, the default) excludes them and outputs `rocketchip.uf2`. The GDB scripts in this guide work with the **dev/bench binary only**.
+**R-25-exec (2026-05-13, Approach A):** the dual-binary `NOT_CERTIFIED_FOR_FLIGHT` build configuration was retired. The single flight binary (`cmake -B build_flight ..` or `cmake -B build_station_flight -DROCKETCHIP_JOB_STATION=1 ..`) contains the `fault_force_*` hooks in `src/safety/fault_inject.cpp` + `src/safety/station_fault_inject.cpp`. Every hook checks `rc::test_mode_active()` at entry and no-ops on production boots. To use this guide's GDB scripts, **first arm test mode via probe** (write `rc::kTestModeMagic` to `rc::g_test_mode_arm_magic`, reset; `scripts/_rc_test_common.py::arm_test_mode_via_probe()` is the canonical helper). The three-condition AND gate (SRAM-magic AND state==IDLE AND boot-time-window) prevents accidental in-flight activation. See `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md` for the design + council provenance.
 
 ---
 
@@ -103,21 +103,21 @@ These functions exist in the firmware and can be called via GDB `call`:
 | `pio_backup_timer_disarm()` | `pio_backup_timer.h:46` | Stop both PIO SMs |
 | `watchdog_recovery_clear(r)` | `watchdog_recovery.h:104` | Zero reboot counter |
 
-### Bench-Only Hooks (src/dev/)
+### Test-Mode-Gated Hooks (src/safety/fault_inject.{cpp,h})
 
-These are compiled into the bench binary only. See `docs/audits/DEV_CODE_AUDIT.md`.
+Compiled into the single flight binary post-R-25-exec (2026-05-13). Every entry checks `rc::test_mode_active()` and no-ops on production boots; arm test mode via probe before invoking. See `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`.
 
 | Function | File | What It Does |
 |----------|------|-------------|
-| `fault_force_eskf_unhealthy()` | `fault_inject.h` | Set `g_eskfInitialized = false` → triggers CR-1 recovery |
-| `fault_force_core0_stall()` | `fault_inject.h` | Set stall flag → idle bridge spins, skips all work |
-| `fault_force_core0_stall_clear()` | `fault_inject.h` | Clear stall flag → idle bridge resumes |
-| `fault_force_watchdog_stall(n)` | `fault_inject.h` | Skip watchdog kick for N idle iterations |
-| `fault_force_health_fail(which)` | `fault_inject.h` | Placeholder — use GDB `set` on `g_health.primary` byte directly (see note below) |
+| `fault_force_eskf_unhealthy()` | `safety/fault_inject.h` | Set `g_eskfInitialized = false` → triggers CR-1 recovery |
+| `fault_force_core0_stall()` | `safety/fault_inject.h` | Set stall flag → idle bridge spins, skips all work |
+| `fault_force_core0_stall_clear()` | `safety/fault_inject.h` | Clear stall flag → idle bridge resumes (NOT gated — recovery action) |
+| `fault_force_watchdog_stall(n)` | `safety/fault_inject.h` | Skip watchdog kick for N idle iterations |
+| `fault_force_health_fail(which)` | `safety/fault_inject.h` | Placeholder — use GDB `set` on `g_health.primary` byte directly (see note below) |
 
 **Health byte injection note:** `g_health` is `static` in `health_monitor.cpp`. GDB can still resolve file-static symbols via DWARF debug info if the binary is built with `-g`. Verify during IVP-130: `(gdb) print g_health.primary`. If GDB resolves the symbol, use `set g_health.primary = 0x55` (all subsystems FAULT). If not, either de-static the variable or add a `health_monitor_get_primary_ptr()` accessor. Try the symbol first — it should work with debug builds.
-| `fault_force_ao_queue_flood(ao, n)` | `fault_inject.h` | Publish N dummy SIG_SENSOR_DATA events (floods all subscribers) |
-| `fault_force_pio_sm_halt()` | `fault_inject.h` | Clear PIO2 CTRL SM enable bits → backup timers stop |
+| `fault_force_ao_queue_flood(ao, n)` | `safety/fault_inject.h` | Publish N dummy SIG_SENSOR_DATA events (floods all subscribers) |
+| `fault_force_pio_sm_halt()` | `safety/fault_inject.h` | Clear PIO2 CTRL SM enable bits → backup timers stop |
 
 ### GDB Scripts (scripts/fault_injection/)
 
@@ -201,7 +201,8 @@ Each fault injection test follows this pattern:
 ## References
 
 - `.claude/DEBUG_PROBE_NOTES.md` — OpenOCD startup, GDB commands, known issues
-- `docs/audits/DEV_CODE_AUDIT.md` — What's in `src/dev/` and why
+- `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md` — current bench-tier model (single binary, test-mode gate, R-25-exec)
+- `safety/test_mode.h` — three-condition AND gate, probe-arming flow
 - RP2350 datasheet Section 3.7 — PIO register map
 - LESSONS_LEARNED.md Entry 25 — Use probe for flashing (picotool corrupts I2C)
 - LESSONS_LEARNED.md Entry 33 — PIO GPIO init causes I2C interference

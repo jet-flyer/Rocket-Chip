@@ -112,8 +112,8 @@ Prove the running system does what its requirements say. Source: existing Steps 
 
 5.1 **Pre-flight gate execution**: walk `docs/PRE_FLIGHT_CHECKLIST.md` in full. Every GO verdict + positive-control signal observed.
 5.2 **Stack / Memory / RP2350 Errata Deep Review** (Appendix A.2). E2 / E9 / E11 / E12 re-verification.
-5.3 **Bench end-to-end**: `bench_sim.py` 2/2 PASS for vehicle (flight + dev tiers); `station_bench_sim.py` for station.
-5.4 **Replay gate test**: `replay_gate_test.py` end-to-end. (Currently blocked on R-23; documented but cannot clear until R-25 disposition.)
+5.3 **End-to-end gates**: `bench_sim.py` 2/2 PASS for vehicle (single flight binary post-R-25-exec 2026-05-13); `station_bench_sim.py` for station; `warm_reboot_audit.py` (R-22, R-25-exec step 11) for warm-reboot coverage; `verify_boot_parity.sh` (R-24, R-25-exec step 12) for cross-tier banner verification.
+5.4 **Host-side replay**: `scripts/replay_harness_host.py` end-to-end. (Currently a placeholder skeleton — R-25-exec council amendment #4 deleted the on-MCU CSV-streamer in steps 5+6; host-side ESKF replay implementation is follow-on work, IVP-131 verification model shifted. Documented gap; clears when the host-side ESKF replay implementation lands.)
 5.5 **Requirements traceability spot-check**: state machine, ESKF outputs, pyro commands, telemetry fields, safety flags. **Exhaustive coverage** against distinct-cited-source population (sampling missed R-26 in the 2026-05-07 L2 audit).
 5.6 **Regression check on prior-cycle closed findings** (council amendment #6): every finding closed in prior cycles (from Tier 2.6 delta read) gets a one-line regression check. If R-19 closed in cycle N by removing X, Tier 5.6 in cycle N+1 confirms X still gone.
 
@@ -253,7 +253,7 @@ Project: Mostly complies. Sensor-driver return checks documented in `LESSONS_LEA
 
 **Rule 8.** *"The use of the preprocessor must be limited to the inclusion of header files and simple macro definitions."*
 
-Project: Complies. `#define` macros reduced to feature flags (`ROCKETCHIP_TIER_*`, `NOT_CERTIFIED_FOR_FLIGHT`), SDK macros (`I2C_BUS_INSTANCE`), and the lwGPS config. Constants are `constexpr` per PP-1 resolution.
+Project: Complies. `#define` macros reduced to feature flags (`ROCKETCHIP_TIER_*`, `ROCKETCHIP_JOB_STATION`, `ROCKETCHIP_STAGE_T_LOGGING`/`T2_CHEAT`/`T3_MAVLINK`), SDK macros (`I2C_BUS_INSTANCE`), and the lwGPS config. Constants are `constexpr` per PP-1 resolution. (`NOT_CERTIFIED_FOR_FLIGHT` + `ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS` were retired by R-25-exec 2026-05-13; runtime gate `rc::test_mode_active()` replaced them.)
 
 **Rule 9.** *"Limit pointer use to a single dereference, and do not use function pointers."*
 
@@ -528,16 +528,17 @@ Full details of scripted vs manual work items are in `AUDIT_CLEANUP_2026-05-06.m
 - `soak_test.py` — General passive soak (watchdog, queues, error counts, MSP depth)
 - `i2c_soak_test.py` — Focused I2C/sensor error monitoring (IMU, baro, GPS)
 - `bench_sim.py` + `station_bench_sim.py` — End-to-end flight director + CLI path test
-- `replay_gate_test.py` — Replay-based gate validation
+- `enhanced_fault_injection.py` — Fault-injection scenarios via probe (arms test mode at session start)
+- `warm_reboot_audit.py` — R-22 warm-reboot 4-gate audit (R-25-exec step 11, 2026-05-13)
+- `verify_boot_parity.sh` — R-24 build + flash + banner-classify per role (R-25-exec step 12, 2026-05-13)
 - `cli_test.py` — Non-destructive CLI command tests
 
 **Specialized / Feature-specific** (run when the relevant subsystem changes):
-- `eskf_gps_soak.py` — ESKF + GPS fusion validation (indoor/outdoor/walk modes)
 - `accel_cal_6pos.py` — 6-position accelerometer calibration
+- `replay_harness_host.py` — Host-side ESKF replay (placeholder skeleton; implementation pending per amendment #4)
 
-**One-off / Retired** (Stage T specific, experiment-specific, or no longer maintained):
-- All `stage_t_*` scripts
-- `ack_stress_test.py`, `codegen_soak_test.py`, most `generate_*` scripts
+**Retired** (deleted by R-25-exec step 9 per council amendment #6, 2026-05-13):
+- All `stage_t_*` scripts, `ack_stress_test.py`, `codegen_soak_test.py`, `eskf_gps_soak.py`, `replay_gate_test.py`, `replay_harness.py`, `station_replay_harness.py`. Coverage moved host-side or absorbed by retained gates.
 
 New scripted audit tools will only enforce rules already present in `CODING_STANDARDS.md`, `HW_GATE_DISCIPLINE.md`, and platform constraints. No new rules will be invented without explicit council approval.
 

@@ -32,11 +32,11 @@
 
 ## High priority
 
-- **Deferred audit-cycle items (separate sessions, each with its own scope):**
+- **Next up (deferred items from DC-2026-05-13 cycle, each its own session):**
+  - **Host-side replay harness implementation** (`scripts/replay_harness_host.py` is a stub). Per R-25-exec amendment #4, IVP-131 verification model shifts from on-MCU CSV-streamer to host-side ESKF replay against `tests/replay_profiles/*.csv` ground-truth. Needs host-buildable ESKF driver + comparison harness against the oracle. Out of cycle scope; tracked here until implemented.
+  - **Host ctest sweep over `fault_force_*` symbols** to mechanically verify every entry calls `rc::test_mode_active()` (audit invariant from CODING_STANDARDS R-25-exec section). Today it's a grep + manual walk; making it a ctest closes the audit gate. Companion to step 10's pre-commit-matrix path additions.
   - **L2-P2/P3/P4** from the 2026-05-07 cycle (sampling policy / citation inventory / scope language) — audit-policy doc edits, batch with whichever later cycle picks them up.
-  - **R-22** (warm-reboot audit script) + **R-24** (boot-parity gate flash + verify-banner extension) — both require probe + HW; separate session.
-  - **R-5** (full stdio.h removal) + **R-2** (absorbed into R-5) deferred for dedicated ETL session.
-  - **R-23** (vehicle bench tier HardFault) blocks future Tier 5.4 + 4.3 vehicle scenarios until **R-25** (bench-tier deprecation evaluation) chooses path.
+  - **R-5** (full stdio.h removal) + **R-2** (absorbed into R-5) — dedicated ETL session.
   - **Architecture session**: R-20 (Core 1 boot-wait AIRCR), R-21 (PIO WDT no auto-reset), L2-W1 — all feed "in-flight fault recovery architecture" thinking already on this whiteboard.
   - **CLA-RBM re-collection** triggers at the 90-day mark (~2026-06-06) per the Tier 4.5 threshold from the 2026-05-13 procedure refactor. Until then, watched-but-not-stale.
 

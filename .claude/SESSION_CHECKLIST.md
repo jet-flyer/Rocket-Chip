@@ -63,12 +63,10 @@ Inherits all Per Commit rules. Adds the rules below — these run **once** befor
 
 6. **Station/vehicle build parity check.** If any commit being pushed modified `CMakeLists.txt`, `src/active_objects/`, `src/cli/`, `src/telemetry/`, or `src/drivers/rfm95w.cpp`, rebuild BOTH tiers for BOTH roles to confirm no build is broken:
    ```
-   cmake --build build/              # vehicle bench   (NOT_CERTIFIED_FOR_FLIGHT=ON)
-   cmake --build build_flight/       # vehicle flight  (default — NOT_CERTIFIED_FOR_FLIGHT=OFF)
-   cmake --build build_station/      # station bench   (ROCKETCHIP_JOB_STATION=1, NOT_CERTIFIED_FOR_FLIGHT=ON)
-   cmake --build build_station_flight/  # station flight (ROCKETCHIP_JOB_STATION=1, NOT_CERTIFIED_FOR_FLIGHT defaults OFF)
+   cmake --build build_flight/         # vehicle flight (single tier post-R-25-exec 2026-05-13)
+   cmake --build build_station_flight/ # station flight (ROCKETCHIP_JOB_STATION=1)
    ```
-   Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION` / `kRadioModeRx` — a change that compiles on one role can silently break the other. If any build directory doesn't exist yet, create it with the appropriate `cmake -DROCKETCHIP_JOB_STATION=1 ..` (or add `-DNOT_CERTIFIED_FOR_FLIGHT=ON` for the dev/bench tier) flags (see `docs/BENCH_TEST_PROCEDURE.md`). When hardware-verifying, both the vehicle Feather and the Fruit Jam station should exercise the changed path before the push.
+   Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION` / `kRadioModeRx` — a change that compiles on one role can silently break the other. If any build directory doesn't exist yet, create it with `cmake -B build_flight ..` (or `cmake -B build_station_flight -DROCKETCHIP_JOB_STATION=1 ..`). When hardware-verifying, both the vehicle Feather and the Fruit Jam station should exercise the changed path before the push. (`NOT_CERTIFIED_FOR_FLIGHT` and `ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS` retired 2026-05-13 per R-25-exec — single flight binary per role with runtime test-mode gating via `rc::test_mode_active()`; see `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`.)
 
 7. **Triggered-doc edits are committed, not WIP.** Every CHANGELOG entry, WB row change, PROJECT_STATUS edit, or other trigger-driven doc edit that this push window produced must be in a committed state — not left as unstaged or staged-but-uncommitted edits. (The principle is "the diff and the doc are atomically consistent in git history" — uncommitted edits break that.)
 
@@ -106,9 +104,9 @@ Inherits all Session End rules. Adds the rules below — these run **only** when
 
 16. **Consider `LESSONS_LEARNED.md`.** If significant debugging occurred during the stage, document it. This is trigger-driven (significant content) not cadence-driven, so most stage closes won't add an entry; some will.
 
-17. **Full-tree clang-tidy sweep.** The pre-commit hook only gates staged files, so latent JSF AV Rule 1 violations (function size > 60 lines) can accumulate in files that aren't touched stage-by-stage. At milestone/stage close, run the same checks the hook runs against EVERY `src/**/*.cpp` not on the exemption list (exemptions: `src/cli/**`, `src/dev/**`, `eskf_codegen.cpp`). Zero warnings required for milestone closure — any new violations must be decomposed or logged as an accepted deviation in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` before the stage can close. Pattern (Git Bash, adjust toolchain path if needed):
+17. **Full-tree clang-tidy sweep.** The pre-commit hook only gates staged files, so latent JSF AV Rule 1 violations (function size > 60 lines) can accumulate in files that aren't touched stage-by-stage. At milestone/stage close, run the same checks the hook runs against EVERY `src/**/*.cpp` not on the exemption list (exemptions: `src/cli/**`, `eskf_codegen.cpp`). (`src/dev/**` no longer exists post-R-25-exec 2026-05-13.) Zero warnings required for milestone closure — any new violations must be decomposed or logged as an accepted deviation in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` before the stage can close. Pattern (Git Bash, adjust toolchain path if needed):
 
-        for f in $(git ls-files 'src/*.cpp' | grep -v 'src/cli/' | grep -v 'src/dev/' | grep -v eskf_codegen.cpp); do
+        for f in $(git ls-files 'src/*.cpp' | grep -v 'src/cli/' | grep -v eskf_codegen.cpp); do
           "C:/Program Files/LLVM/bin/clang-tidy.exe" "$f" -p build/ \
             --checks="-*,readability-function-size,readability-function-cognitive-complexity" \
             --extra-arg="--sysroot=C:/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/arm-none-eabi" \

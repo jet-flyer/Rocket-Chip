@@ -22,6 +22,16 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-14-001 | Claude | refactor, architecture, cleanup
+
+**R-25-exec COMPLETE — bench tier collapsed 4→2.** All `src/dev/*` modules either migrated test-mode-gated into the single flight binary (fault_inject, station_fault_inject → `src/safety/`; diag_stats → `src/diag/`; dev_cli → `src/cli/rc_os_debug.cpp`) or deleted (replay_inject, station_replay per amendment #4 — host-side replay TBD). 12 commits, 12 numbered steps + doc sweep, plus 10 stage-archived host scripts and 3 replay scripts deleted. Closes R-22, R-23, R-24, R-25-exec as side-effects.
+
+See: `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md` for the council-approved plan + 7 amendments; `docs/PROBLEM_REPORTS.md` for R-22/R-23/R-24/R-25-exec closure rows (each cites its commit SHA); `standards/CODING_STANDARDS.md` Code Classification table for the new test-mode-gated entries + the audit invariant grep targets.
+
+Verified: 2 firmware tiers compile clean (-Wpedantic + -Werror=cmse), host ctest 800/800 PASS at every step. HW gate (bench_sim + warm_reboot_audit + verify_boot_parity) runs at cycle-close commit. Flash-budget impact: ~1.7 KB on the flight binary (0.04% of RP2350 4 MB).
+
+---
+
 ### 2026-05-13-007 | Claude | audit, cleanup, decision
 
 **Deferred-Cleanup Cycle DC-2026-05-13 Sessions 2 + 3 — R-22 deferred, R-27 fixed, R-25-eval council-APPROVED.** Session 2 (R-22 warm-reboot audit script) hit a flight-tier-firmware design wall after 4 iterations + council redesign; deferred to R-25-exec. Session 3 (R-25-eval bench-tier deprecation evaluation) closed with unanimous council approval of Approach A (single-binary runtime test-mode, probe-only gated — PX4 `SYS_FAILURE_EN` pattern). R-25-exec inherits the council-amended plan as a separate execution session.

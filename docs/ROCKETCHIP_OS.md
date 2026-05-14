@@ -50,23 +50,23 @@ Displayed on terminal connect and on `h` keypress. Commands grouped by function.
 
 **Drift fix 2026-05-13:** previously documented `s`/`e`/`b` as main-menu Status keys and `i` as a main-menu Radio key. Stage L (2026-04-18) reassigned `b` from "boot summary" to "Beacon (manual find-me)" in main menu, and bench-tier sensor/ESKF/HW status / I2C-scan keys moved to the `q`-Debug submenu via the bench-tier classification. The previous documentation rotted silently. See R-27 (this cycle) for the fix.
 
-### Debug Sub-Menu (`[debug]`) — press `q` from main (bench tier only)
+### Debug Sub-Menu (`[debug]`) — press `q` from main
 
-| Key | Command | Description |
-|-----|---------|-------------|
-| `s` | Sensors | Print sensor status + IMU/baro read counters (`Reads: I=NNN M=NNN B=NNN G=NNN`) |
-| `i` | I2C scan | Rescan I2C bus (disabled if Core 1 owns bus) |
-| `b` | Boot/HW | Reprint boot banner + Hardware Status (`Hardware: N/N OK` + per-device PASS/FAIL) |
-| `e` | ESKF live | 1Hz ESKF state dump until any key |
-| `y` | Pyro log | Dump pyro edge logger CLI |
-| `r` | Replay inject | Start replay-inject session (vehicle bench) / station replay (station bench) |
-| `d` | Diag stats | Diagnostic counters dump (rate counters, MSP, etc.) |
-| `l` | LED test | LED test pattern |
-| `0..5` | Radio cfg | Local radio configuration index (0:BW125/5 1:BW125/10 2:BW250/10 3:BW500/10 4:BW125/2 5:BW250/5) |
-| `h` `H` `?` | Help | Reprint debug submenu |
-| `z` `Z` ESC | Back | Return to main menu |
+| Key | Command | Test-mode gated? | Description |
+|-----|---------|------------------|-------------|
+| `s` | Sensors | No (read) | Print sensor status + IMU/baro read counters (`Reads: I=NNN M=NNN B=NNN G=NNN`) |
+| `i` | I2C scan | No (read) | Rescan I2C bus (disabled if Core 1 owns bus) |
+| `b` | Boot/HW | No (read) | Reprint boot banner + Hardware Status (`Hardware: N/N OK` + per-device PASS/FAIL) |
+| `e` | ESKF live | No (read) | 1Hz ESKF state dump until any key |
+| `y` | Pyro log | No (read) | Dump pyro edge logger CLI |
+| `r` | Replay inject | retired | R-25-exec steps 5+6 deleted both vehicle and station on-MCU replay; see `scripts/replay_harness_host.py` (host-side, placeholder) |
+| `d` | Diag stats | No (read) | Diagnostic counters dump (rate counters, MSP, etc.) |
+| `l` | LED test | Yes | LED test pattern — requires `rc::test_mode_active()` |
+| `0..5` | Radio cfg | Yes | Local radio configuration index — requires `rc::test_mode_active()` |
+| `h` `H` `?` | Help | No | Reprint debug submenu |
+| `z` `Z` ESC | Back | No | Return to main menu |
 
-Debug submenu is gated on the bench tier (`NOT_CERTIFIED_FOR_FLIGHT=ON` / `ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS=1`). On flight-tier builds, `q` is a no-op (handled by `dev_debug_menu_enter()` returning false).
+**R-25-exec (2026-05-13):** Debug submenu is always available in the flight binary. Read commands (s/i/b/e/y/d) always work; state-mutating commands (l, 0..5, retired r) check `rc::test_mode_active()` at entry and refuse if test mode is not armed. Test mode arms via debug probe (write `rc::kTestModeMagic` to `rc::g_test_mode_arm_magic` + reset; see `safety/test_mode.h`). Three-condition AND gate (magic AND state==IDLE AND boot-time-window) prevents accidental in-flight activation. See `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`.
 
 ### Calibration Menu (`[cal]`) — press `c` from main
 

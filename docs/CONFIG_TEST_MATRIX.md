@@ -110,26 +110,21 @@ column means **banner-based classification** before destructive keys are sent.
 |---------------------------------|--------------------------|---------------------|--------------------------------------------------|:---------:|:------------:|
 | `bench_sim.py`                  | vehicle                  | bench or flight     | ✓ correct, uses flight menu only                 |    ✓      |     ✓        |
 | `station_bench_sim.py`          | station                  | bench (dev menu)    | ✓ correct (post 2026-04-27 hardening)            |    ✓      |     ✓        |
-| `accel_cal_6pos.py`             | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
-| `ack_stress_test.py`            | station                  | bench or flight     | find_target_port + open_classified_port ✓        |    ✓      |     ✓        |
-| `cla_collect.py`                | vehicle                  | bench (uses 'e')    | `--port` optional; VID:PID classify (bench target)       | ✓              | ✗        |
-| `cli_test.py`                   | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
-| `codegen_soak_test.py`          | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
-| `decode_flight_log.py`          | vehicle                  | bench or flight     | find_target_port + open_classified_port ✓       |    ✓      |     ✗        |
-| `eskf_gps_soak.py`              | vehicle                  | bench (uses 'e')    | `--port` optional; VID:PID classify (bench target)       | ✓          | ✗ |
-| `i2c_soak_test.py`              | vehicle                  | bench or flight     | `--port` optional; VID:PID classify                       |    ✓      |     ✗        |
-| `mavlink_validate.py`           | station (passive)        | bench or flight     | `--port` optional; classify; no auto kMenu (MAVLink tap)  |    ✓      |     ✗        |
-| `replay_gate_test.py`           | vehicle                  | bench (dev menu)    | `--port` optional; bench classify; replay UART stream           | ✓ | ✗ |
-| `replay_harness.py`             | vehicle                  | bench (dev menu)    | find_target_port + open_classified_port ✓        |    ✓      |     ✓        |
-| `soak_test.py`                  | vehicle                  | bench (dev menu)    | find_target_port + open_classified_port ✓        |    ✓      |     ✓        |
-| `stage_t2_cheat.py`             | both (dual port)         | bench (Stage T log) | find_vehicle_and_station_ports; dual overrides ✓ |    ✓      |     ✓        |
-| `stage_t4_ambient.py`           | station                  | bench or flight     | find_target_port + open_classified_port ✓       |    ✓      |     ✓        |
-| `stage_t6_sweep.py`             | both (dual port)         | bench (dev menu)    | dual port w/ find_vehicle_and_station_ports ✓    |    ✓      |     ✓        |
-| `stage_t_run.py`                | both (dual port)         | bench (Stage T log) | dual port w/ find_vehicle_and_station_ports ✓    |    ✓      |     ✓        |
-| `stage_t_wilson_ci.py`          | station                  | bench (dev menu)    | find_target_port + open_classified_port ✓; STATION_BENCH target |    ✓      |     ✗        |
-| `station_replay_harness.py`     | station                  | bench (dev menu)    | `--port` optional; STATION_BENCH classify; manual replay prep | ✓ | ✗ |
+| `accel_cal_6pos.py`             | vehicle                  | flight              | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
+| `cla_collect.py`                | vehicle                  | flight              | `--port` optional; VID:PID classify       | ✓              | ✗        |
+| `cli_test.py`                   | vehicle                  | flight              | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
+| `decode_flight_log.py`          | vehicle                  | flight              | find_target_port + open_classified_port ✓       |    ✓      |     ✗        |
+| `enhanced_fault_injection.py`   | vehicle                  | flight              | TARGET_VEHICLE_ANY + arm_test_mode_via_probe; ELF=build_flight | ✓ | ✗ |
+| `i2c_soak_test.py`              | vehicle                  | flight              | `--port` optional; VID:PID classify                       |    ✓      |     ✗        |
+| `mavlink_validate.py`           | station (passive)        | flight              | `--port` optional; classify; no auto kMenu (MAVLink tap)  |    ✓      |     ✗        |
+| `replay_harness_host.py`        | n/a (host-side)          | n/a                 | Placeholder skeleton; host-side ESKF replay implementation pending | n/a | n/a |
+| `soak_test.py`                  | vehicle                  | flight              | find_target_port + open_classified_port ✓        |    ✓      |     ✓        |
+| `verify_boot_parity.sh`         | both                     | flight              | Build + flash + banner-classify per role (R-24, R-25-exec step 12) | ✓ | n/a |
+| `warm_reboot_audit.py`          | both                     | flight              | TARGET_EITHER_ANY + arm_test_mode_via_probe; 4 gates (R-22, R-25-exec step 11) | ✓ | n/a |
 
 ### Coverage gaps revealed by the matrix
+
+**Post-R-25-exec (2026-05-13):** the four-tier matrix was retired. The project now ships a single flight binary per role with test affordances runtime-gated by `rc::test_mode_active()`. Per `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`: all scripts target the flight binary directly; scripts that need state-mutating affordances arm test mode via probe at session start (`arm_test_mode_via_probe()`); Debug submenu `q→...` is always available for reads (`q→s`, `q→b`, `q→d`, `q→e`); CSV-streamer replay retired (host-side `scripts/replay_harness_host.py` is the placeholder); Stage-T archived harnesses deleted in step 9. The legacy bullets below are HISTORICAL and may reference retired tier names; preserved for traceability.
 
 - **No test covers `vehicle-flight` exclusively.** Flight-certified vehicle
   binaries get `bench_sim.py` coverage (good), but not the soak/ESKF/replay
@@ -208,7 +203,7 @@ dashboard to kMenu so `'q'`, `'h'`, etc. are honored.
 
 - **Tier 5 — station `'p'` preflight parity:** **`src/cli/rc_os.cpp`** main-menu `'p'` now calls **`cli_print_preflight()`** on RX (station) as well as vehicle — **`[Health]` / VERDICT** visible without debug menu (`2026-04-30`).
 - **Tier 6b — matrix-driven hooks:** Patterns live in **`scripts/ci/pre_commit_matrix.py`** (evaluated by **`scripts/hooks/pre-commit`**). One-time repo setup: `git config core.hooksPath scripts/hooks` — see **`scripts/hooks/README.md`**.
-- **Tier 7 — watchdog ceilings:** **`@rc_test(..., watchdog_s=…)`** on **`ack_stress_test`** (7200s), **`soak_test`** / **`replay_harness`** (86400s) — escapes hung USB open on Windows beyond intended wall times.
+- **Tier 7 — watchdog ceilings:** **`@rc_test(..., watchdog_s=…)`** on **`soak_test`** (86400s), **`warm_reboot_audit`** (300s) — escapes hung USB open on Windows beyond intended wall times. (Post-R-25-exec 2026-05-13: ack_stress_test + replay_harness deleted in step 9.)
 
 Older Tier 1–4 / 6a notes remain in **`docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`**.
 
