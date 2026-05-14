@@ -141,6 +141,7 @@ if(BUILD_TESTS)
         src/flight_director/guard_evaluator.cpp
         src/flight_director/guard_combinator.cpp
         src/flight_director/action_executor.cpp
+        src/safety/test_mode.cpp           # R-25-exec: runtime gate (host-test build uses ROCKETCHIP_HOST_TEST shim)
     )
     target_include_directories(rc_flight_director PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/include
@@ -385,6 +386,7 @@ else()
         src/safety/fault_protection.cpp  # OPT-IVP-01: shared MPU + fault handlers
         src/safety/crash_record.cpp      # R-3 audit 2026-05-07: capture-state-then-reset
         src/safety/core1_i2c_pause.cpp   # R-17 audit 2026-05-07: cooperative pause around flash ops
+        src/safety/test_mode.cpp         # R-25-exec: runtime gate for test/fault-injection affordances (Approach A 2026-05-13)
 
         # Phase 6: Health Monitor (called from AO_FlightDirector at 10Hz)
         src/safety/health_monitor.cpp
@@ -539,6 +541,7 @@ else()
         src/safety/fault_protection.cpp  # OPT-IVP-01: shared MPU + fault handlers
         src/safety/crash_record.cpp      # R-3 audit 2026-05-07: capture-state-then-reset
         src/safety/core1_i2c_pause.cpp   # R-17 audit 2026-05-07: cooperative pause around flash ops
+        src/safety/test_mode.cpp         # R-25-exec: runtime gate for test/fault-injection affordances (Approach A 2026-05-13)
         src/safety/health_monitor.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp

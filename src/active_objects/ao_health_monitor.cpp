@@ -10,6 +10,7 @@
 
 #include "ao_health_monitor.h"
 #include "safety/health_monitor.h"
+#include "safety/test_mode.h"          // R-25-exec runtime gate
 #include "rocketchip/ao_signals.h"
 
 // ============================================================================
@@ -87,6 +88,13 @@ static QState HM_initial(HealthMonitor * const me, QEvt const * const e) {
 static QState HM_running(HealthMonitor * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_HEALTH_TIMEOUT: {
+        // R-25-exec: re-evaluate the three-condition test-mode gate
+        // (probe-arm-magic + phase==kIdle + boot-time-window). Cheap
+        // (handful of memory reads + one phase accessor call); folded
+        // into the existing 10 Hz health tick so test-mode liveness
+        // tracks health monitor's existing surface.
+        rc::test_mode_evaluate();
+
         bool changed = rc::health_monitor_tick();
 
         me->republish_count++;

@@ -38,6 +38,7 @@
 #include "safety/pio_backup_timer.h"
 #include "safety/pyro_edge_logger.h"
 #include "safety/fault_protection.h"  // OPT-IVP-01
+#include "safety/test_mode.h"          // R-25-exec runtime gate
 #include "dev/diag_stats.h"
 #include "fusion/mahony_ahrs.h"
 #include "fusion/wmm_tables.h"
@@ -198,6 +199,14 @@ static void init_early_hw() {
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, memmanage_fault_handler);
     exception_set_exclusive_handler(MEMMANAGE_EXCEPTION, memmanage_fault_handler);
     mpu_setup_stack_guard(reinterpret_cast<uint32_t>(&__StackBottom));
+
+    // R-25-exec: single-use read of the test-mode arm magic from
+    // .uninitialized_data SRAM. If the probe wrote kTestModeMagic before
+    // this boot, we capture s_magic_observed_at_boot=true and clear the
+    // SRAM so it can't accidentally re-arm on the next reboot. The flag
+    // itself stays false until test_mode_evaluate() confirms phase==kIdle
+    // and boot-time-window < kTestModeArmWindowMs.
+    rc::test_mode_init();
 
     // Red LED GPIO init
     gpio_init(board::kLedPin);

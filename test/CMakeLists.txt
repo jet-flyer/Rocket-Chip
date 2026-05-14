@@ -167,6 +167,13 @@ add_executable(test_command_handler test_command_handler.cpp)
 target_link_libraries(test_command_handler PRIVATE rc_flight_director GTest::gtest_main)
 gtest_discover_tests(test_command_handler)
 
+# R-25-exec gate scaffold (2026-05-13): test_mode three-condition gate +
+# clearing semantics. Verifies the council-required runtime gate that
+# replaces the parallel bench tier (Approach A).
+add_executable(test_test_mode test_test_mode.cpp)
+target_link_libraries(test_test_mode PRIVATE rc_flight_director GTest::gtest_main)
+gtest_discover_tests(test_test_mode)
+
 # IVP-123: haversine distance + bearing math
 add_executable(test_haversine test_haversine.cpp)
 target_link_libraries(test_haversine PRIVATE GTest::gtest_main)

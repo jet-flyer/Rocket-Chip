@@ -16,6 +16,7 @@
 #include "flight_director/flight_director.h"
 #include "flight_director/command_handler.h"
 #include "flight_director/go_nogo_checks.h"
+#include "safety/test_mode.h"          // R-25-exec: phase-accessor registration + IDLE-exit clearing
 #include "flight_director/mission_profile_data.h"
 #include "safety/pio_backup_timer.h"
 #include "safety/health_monitor.h"
@@ -195,16 +196,30 @@ static void fd_on_pyro_fired(rc::PyroChannel ch) {
                      &l_fdAo.super, l_fdAo.super.prio);
 }
 
-void AO_FlightDirector_start(uint8_t prio) {
-    FdAo* me = &l_fdAo;
+// R-25-exec: register phase accessor for test_mode_evaluate's three-
+// condition AND gate (condition (b): current phase == kIdle). Lambda
+// calls flight_director_phase() against the module-local director
+// instance. Extracted from AO_FlightDirector_start to keep that
+// function under JSF AV Rule 1 line-count limit.
+static void fd_register_test_mode_accessor() {
+    rc::test_mode_register_phase_accessor([]() {
+        return rc::flight_director_phase(&l_fdAo.director);
+    });
+}
 
-    // --- Initialize FlightDirector QHsm ---
-    rc::flight_director_ctor(&me->director, &rc::kDefaultRocketProfile);
-    // IVP-116: LED pattern routing moved to AO_Notify via SIG_PHASE_CHANGE.
-    // set_led_cb retained ONLY for the beacon one-shot (kSetBeacon action
-    // + ABORT timeout), which is not a phase transition. Other kSetLed
-    // action values are ignored (redundant with phase_change_cb).
-    me->director.set_led_cb = [](uint8_t val) {
+// Wire up FlightDirector C-style callbacks (HSM is C; AO is C++).
+// Extracted from AO_FlightDirector_start to keep that function under
+// JSF AV Rule 1 line-count limit.
+//
+// Callback responsibilities:
+//   set_led_cb       — beacon one-shot (IVP-116 — phase LED routing
+//                      lives in AO_Notify; this hook is beacon only).
+//   phase_change_cb  — publish SIG_PHASE_CHANGE + R-25-exec council
+//                      amendment #2 (clear test_mode on IDLE-exit).
+//   log_pyro_cb      — pyro fired logger.
+//   beacon_cb        — IVP-121 distress beacon on MAIN_DESCENT timeout.
+static void fd_wire_callbacks(rc::FlightDirector* director) {
+    director->set_led_cb = [](uint8_t val) {
         if (val == rc::kLedPhaseBeacon) {
             static QEvt beaconEvt;
             beaconEvt.sig = rc::SIG_BEACON_ACTIVE;
@@ -212,7 +227,10 @@ void AO_FlightDirector_start(uint8_t prio) {
                              &l_fdAo.super, l_fdAo.super.prio);
         }
     };
-    me->director.phase_change_cb = [](rc::FlightPhase phase, uint32_t ts_ms) {
+    director->phase_change_cb = [](rc::FlightPhase phase, uint32_t ts_ms) {
+        if (phase != rc::FlightPhase::kIdle) {
+            rc::test_mode_clear_on_idle_exit();
+        }
         static rc::PhaseChangeEvt evt;
         evt.super.sig = rc::SIG_PHASE_CHANGE;
         evt.phase = static_cast<uint8_t>(phase);
@@ -220,21 +238,31 @@ void AO_FlightDirector_start(uint8_t prio) {
         QActive_publish_(&evt.super,
                          &l_fdAo.super, l_fdAo.super.prio);
     };
-    me->director.log_pyro_cb = fd_on_pyro_fired;
-    me->director.beacon_cb = []() {
-        // IVP-121: distress beacon on MAIN_DESCENT backstop timeout.
-        // Static event — LL Entry 35.
+    director->log_pyro_cb = fd_on_pyro_fired;
+    director->beacon_cb = []() {
         static QEvt s_beacon_evt;
         s_beacon_evt.sig = rc::SIG_BEACON_ACTIVE;
         QActive_publish_(&s_beacon_evt,
                          &l_fdAo.super, l_fdAo.super.prio);
         printf("[FD] Distress beacon published (SIG_BEACON_ACTIVE)\n");
     };
+}
+
+void AO_FlightDirector_start(uint8_t prio) {
+    FdAo* me = &l_fdAo;
+
+    // --- Initialize FlightDirector QHsm + wire callbacks ---
+    rc::flight_director_ctor(&me->director, &rc::kDefaultRocketProfile);
+    fd_wire_callbacks(&me->director);
     rc::flight_director_init(&me->director);
     me->initialized = true;
     me->last_tick_ms = 0;
     me->pio_drogue_reported = false;
     me->pio_main_reported = false;
+
+    // R-25-exec: register phase accessor for test_mode_evaluate's
+    // three-condition AND gate. See fd_register_test_mode_accessor.
+    fd_register_test_mode_accessor();
 
     // --- Start QP Active Object ---
     QActive_ctor(&me->super, Q_STATE_CAST(&FdAo_initial));

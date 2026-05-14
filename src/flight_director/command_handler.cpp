@@ -6,6 +6,7 @@
  */
 
 #include "command_handler.h"
+#include "safety/test_mode.h"          // R-25-exec: refuse ARM if test mode armed
 #include <cstdio>
 #include <cstring>
 
@@ -40,6 +41,14 @@ CommandResult command_handler_validate(
             // ARM only valid from IDLE
             if (current_phase != FlightPhase::kIdle) {
                 return rejected("Not in IDLE");
+            }
+            // R-25-exec council amendment #2 (second clearing gate):
+            // refuse ARM if test mode is currently armed. Defense-in-
+            // depth against the case where an operator armed test mode
+            // and then attempted to ARM the flight director without
+            // a separate IDLE-exit clearing the flag first.
+            if (rc::test_mode_active()) {
+                return rejected("Test mode active");
             }
             // Run Go/No-Go poll
             if (go_nogo_input == nullptr) {
