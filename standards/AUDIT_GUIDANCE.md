@@ -81,11 +81,15 @@ Mechanical catalog work. The big static pass against published rule sets the pro
 3.5 **Section E — Agent Behavioral Guidelines.** Walk `.claude/AK_GUIDELINES.md` per-rule. Deliverable: do recent commits demonstrate compliance?
 3.6 **DEV_CODE audit** (per `docs/audits/DEV_CODE_AUDIT.md` methodology): dev-tier code in flight binary.
 3.7 **VERSION_STRING audit** (per `docs/audits/VERSION_STRING_AUDIT.md` methodology): stale version-like values in serial output / banner.
-3.8 **Section F-1 — Citations within standards documents** (council amendment #2): walk file:line references and standards-citations inside the standards documents themselves (`CODING_STANDARDS.md`, `HW_GATE_DISCIPLINE.md`, `AUDIT_GUIDANCE.md`, `RP2350_ERRATA.md`, `ACCEPTED_STANDARDS_DEVIATIONS.md`). F-2 (audit-cycle citations in non-standards docs) is Tier 6.1.
+3.8 **Section F-1 — Citations within standards documents** (council amendment #2): walk file:line references and standards-citations inside the standards documents themselves (`CODING_STANDARDS.md`, `HW_GATE_DISCIPLINE.md`, `AUDIT_GUIDANCE.md`, `RP2350_ERRATA.md`, `ACCEPTED_STANDARDS_DEVIATIONS.md`). F-2 (audit-cycle citations in non-standards docs) is Tier 6.1. **Exhaustive coverage** against the distinct-cited-source population (sampling-based walks missed R-26 in the 2026-05-07 L2 audit — see L2-P2 below). **Tooling gap:** no maintained citation inventory script exists yet (L2-P3 — could become a future audit-infrastructure F-2026-MM-DD-NNN follow-up alongside the F-001/002/003 family); the audit's own grep is the current method.
 
 **Stop condition:** Tier 3 finding that invalidates Tier 2 baseline AND severity Catastrophic/Critical → return to Tier 2.
 
 **Positive-control expectation:** dated `STANDARDS_AUDIT_YYYY-MM-DD.md` produced with Sections A through E + F-1 populated.
+
+**Sampling-policy rule (L2-P2 disposition, 2026-05-13):** wherever this procedure asks for a walk against a defined population (cited sources, AO inventory, ifdef-gated dev code, version-string print sites), the default is **exhaustive coverage** against the distinct-item population, not a sample. The 2026-05-07 L2 audit demonstrated that exhaustive coverage is feasible (~23 distinct cited sources reducible from 78 cite sites) and load-bearing (R-26 was missed by the original 12-item sample). If sampling is used (e.g., because the population is too large), the report's scope-language must follow the L2-P4 disposition below.
+
+**Report scope-language rule (L2-P4 disposition, 2026-05-13):** PASS results in dated audit reports must name the population walked. Acceptable wording: "23/23 distinct cited sources CONFIRMED" (exhaustive); "12/23 sampled cited sources CONFIRMED — 11 not sampled this cycle" (acknowledged-incomplete). Unacceptable wording: "Citations PASS" (no scope), "All citations checked" (over-claim). The 2026-05-13 master cycle's Tier 3 brevity exception specifically calls out scope language in its coverage statement.
 
 ### Tier 4 — Walk the Runtime Behavior
 

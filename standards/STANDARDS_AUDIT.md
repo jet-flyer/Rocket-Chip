@@ -52,6 +52,10 @@
 - `ACCEPTED_STANDARDS_DEVIATIONS.md` — Accepted deviations are logged there, referenced here.
 - `LESSONS_LEARNED.md` — Debugging knowledge that informed our platform rules.
 
+**Scope-language rule (per `AUDIT_GUIDANCE.md` Tier 3.8, L2-P4 disposition):** when reporting PASS results in a Section, name the population walked. Acceptable: "23/23 distinct cited sources CONFIRMED" (exhaustive); "12/23 sampled — 11 not sampled this cycle" (acknowledged-incomplete). Unacceptable: "Citations PASS" (no scope), "All checked" (over-claim).
+
+**Sampling-policy rule (per `AUDIT_GUIDANCE.md` Tier 3.8, L2-P2 disposition):** default is exhaustive coverage against the distinct-item population, not a sample. Sampling is acceptable only when the population is too large to walk fully; record both the sample size and the population size in that case.
+
 ---
 
 ## Standards Hierarchy
