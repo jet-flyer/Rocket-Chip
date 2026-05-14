@@ -5,7 +5,12 @@
 **Authored:** 2026-05-13 (post-2026-05-13 audit cycle close + audit-infrastructure follow-up).
 **Procedure framing:** `standards/AUDIT_GUIDANCE.md` Appendix C 4-category ordering — **focused remediation cycle** per AUDIT_GUIDANCE scope-decision-table row 6, NOT a new master audit.
 **Hardware available:** debug probe + vehicle Feather + station Fruit Jam.
-**Expected total wall-clock budget:** 8–10 hours of focused work across 3 sessions + ~2–4 hours of async CLA-RBM HW soak (parallel to Session 2). User picks single-push vs. multi-week spread.
+**Expected total wall-clock budget:** 6–8 hours of focused work across 3 sessions. User picks single-push vs. multi-week spread.
+
+**Sessions explicitly out of this cycle (each its own dedicated session):**
+- R-5 ETL vendoring + stdio removal (per `STDIO_REPLACEMENT_PLAN.md`).
+- In-flight fault recovery architecture (per AGENT_WHITEBOARD).
+- **L2-P10 / CLA-RBM re-collection** — pulled out 2026-05-13 (post-council) per user direction: the cycle-budget audit deserves a focused session, not parallel work during Session 2. Triggers organically at 90-day staleness (~2026-06-06) or sooner if scheduled.
 
 ---
 
@@ -19,7 +24,7 @@ The cycle was scoped via council review on 2026-05-13. Council verdict + the 5 q
 
 ## State inventory
 
-### Bucket A — verified rows awaiting Phase 8 wrap regression (12 rows)
+### Bucket A — verified rows awaiting Phase 8 wrap regression (16 rows)
 
 These are REMEDIATE rows where the fix has landed in a commit and per-commit verification passed. They've been waiting on the audit-suite regression to advance from `verified` → `closed`.
 
@@ -44,7 +49,7 @@ These are REMEDIATE rows where the fix has landed in a commit and per-commit ver
 | R-26 | Fix RP2350 datasheet citation §1.4.3 → §14.9.1 | comment-only edit |
 | P8-FMEA-Pyro | Pyro intent/arm/disarm FMEA sub-check | F1-F9 review doc'd |
 
-That's actually **16 rows** (I miscounted earlier — included some smaller items). All move to `closed` + archive.
+All 16 rows move to `closed` + archive in C4-1 of Session 1.
 
 ### Bucket B — DEFER rows with named blockers
 
@@ -71,7 +76,7 @@ These cannot close in isolation; each depends on a separate session.
 | L2-P7 | VERSION_STRING re-audit | ~15 min | No |
 | L2-P8 | AO_COMMANDMENTS re-audit | ~30 min | No |
 | L2-P9 | TOOLCHAIN_VERSION re-audit | ~15 min (script exists now — F-003) | No |
-| L2-P10 | CLA-RBM re-collection | ~2-4 hr | Yes (HW soak) |
+| L2-P10 | CLA-RBM re-collection | — | **PULLED OUT** to own dedicated session 2026-05-13 |
 | L2-P11 | Inventory-completeness check (meta-audit) | ~1 hr | No |
 
 **Note:** L2-P5 through L2-P11 are AUDIT-CYCLE catchup items, not project-finding items. The 2026-05-13 audit cycle's procedure refactor (Tier 3.6, 3.7, 4.4, 4.5, 4.6) already specifies where these run in a future cycle. **Many are auto-absorbed** when the next master audit cycle runs.
@@ -188,16 +193,16 @@ Per Appendix C category-order with council amendments. **This cleanup cycle cove
 
 Single push at end. CHANGELOG entry for the session.
 
-### Session 2 — R-22 + R-24 audit-infrastructure HW gates [~3-4 hr] + CLA-RBM async soak
+### Session 2 — R-22 + R-24 audit-infrastructure HW gates [~3-4 hr]
 
 **Re-labeled per council Q2 amendment:** R-22 and R-24 are Cat-1-equivalent audit-infrastructure, not Cat-4 cleanup. They're tooling/gate-integrity additions even though they land in this Cat-4 cleanup cycle's structure.
 
-1. **Kick off CLA-RBM async soak** at session start. Lives in background (probe-attached vehicle, ~2-4 hr). Operator does R-22/R-24 work in parallel. **Note:** CLA-RBM IS the project's cycle-budget audit (Computational Load Analysis = per-tick wall time + jitter + per-core CPU utilization + stack high-water-mark; Runtime Behavior Map = execution paths + state-machine transitions + cross-core interactions). Last data: 2026-03-08. Stages L / T / 16C added 3+ new AOs since; the 90-day staleness threshold is ~2026-06-06.
-2. **R-22** — Build `scripts/warm_reboot_audit.py` (G-W1 AIRCR via probe + G-W2/G-W3/G-W4 picotool variants). *Commit*: `[DC-2026-05-13] R-22 REMEDIATED: warm-reboot audit script`.
-3. **R-24** — Extend `verify_build_parity.sh` to add flash + verify-banner per tier. *Commit*: `[DC-2026-05-13] R-24 REMEDIATED: boot-parity extension`.
-4. **Wire both** into AUDIT_GUIDANCE Tier 2.7 (new) + SESSION_CHECKLIST. *Commit*: `[DC-2026-05-13] AUDIT_GUIDANCE Tier 2.7 + SESSION_CHECKLIST wire-in for R-22/R-24`.
-5. **HW gate per Rule 2:** probe attached + 4 boards + 3-boot reseat for each script during R-22 and R-24 development.
-6. **CLA-RBM async analysis:** when soak completes, analyze findings. If anomalous → new PRs in PROBLEM_REPORTS.md (do NOT gate Session 3 on this analysis). If clean → produce `docs/audits/cla_rbm/cla_2026-05-13.md`. *Commit*: `[DC-2026-05-13] L2-P10 REMEDIATED: CLA-RBM 2026-05-13`.
+**Note 2026-05-13:** CLA-RBM was originally in this session as parallel async work. Per user direction post-council, CLA-RBM has been **pulled out as its own dedicated session** (it's the cycle-budget audit and deserves focused attention, not background-soak treatment). See "Sessions explicitly out of this cycle" in the header.
+
+1. **R-22** — Build `scripts/warm_reboot_audit.py` (G-W1 AIRCR via probe + G-W2/G-W3/G-W4 picotool variants). *Commit*: `[DC-2026-05-13] R-22 REMEDIATED: warm-reboot audit script`.
+2. **R-24** — Extend `verify_build_parity.sh` to add flash + verify-banner per tier. *Commit*: `[DC-2026-05-13] R-24 REMEDIATED: boot-parity extension`.
+3. **Wire both** into AUDIT_GUIDANCE Tier 2.7 (new) + SESSION_CHECKLIST. *Commit*: `[DC-2026-05-13] AUDIT_GUIDANCE Tier 2.7 + SESSION_CHECKLIST wire-in for R-22/R-24`.
+4. **HW gate per Rule 2:** probe attached + 4 boards + 3-boot reseat for each script during R-22 and R-24 development.
 
 ### Session 3 — R-25-eval bench-tier deprecation evaluation [~2 hr]
 
@@ -218,10 +223,11 @@ Single push at end. CHANGELOG entry for the session.
 4. PROBLEM_REPORTS.md Archive section gains the cycle row at closure.
 5. Push.
 
-### Sessions 4 + 5 — NOT in this cycle
+### Other sessions — NOT in this cycle
 
 - **R-5 ETL vendoring + stdio removal** — dedicated session per `STDIO_REPLACEMENT_PLAN.md`. Consumes this cycle's outputs (C4-1 archive, C4-2 toolchain-drift baseline, R-22/R-24 audit scripts).
 - **In-flight fault recovery architecture** — dedicated session per AGENT_WHITEBOARD. Consumes same inputs plus R-19 closed status (load-bearing for SDK watchdog re-evaluation).
+- **L2-P10 / CLA-RBM re-collection** — dedicated cycle-budget audit session. Per-tick wall time + jitter + CPU utilization + stack high-water-mark + execution paths + state transitions. Last data 2026-03-08. Stages L / T / 16C added 3+ new AOs since.
 - **R-25-exec** — execution of the deprecation approach chosen in Session 3. Owns R-23 closure (approach B: removes bench tier; approach C: fixes INVPC). Owns L2-P6 closure (if approach B). Tracked as next-session PR per council A5.
 
 ---
@@ -238,7 +244,7 @@ Single push at end. CHANGELOG entry for the session.
 
 **Q3 (R-25 timing):** **SPLIT.** R-25 becomes R-25-eval (this cycle, Session 3, ~2 hr) and R-25-exec (separate session, tracked as next-session PR). **Amendment (applied):** R-25-eval closure requires naming the follow-on session and entering R-25-exec into PROBLEM_REPORTS.md.
 
-**Q4 (CLA-RBM):** **PRE-TRIGGER, in parallel during Session 2.** Kick off soak in background while operator does R-22/R-24 work. Analyze async. Anomalous findings become new PRs in PROBLEM_REPORTS.md and do NOT gate Session 3. **Amendment (applied):** Session 2 deliverables list now includes async CLA-RBM collection.
+**Q4 (CLA-RBM):** Council recommended PRE-TRIGGER in parallel during Session 2. **Superseded 2026-05-13 by user direction:** CLA-RBM is the cycle-budget audit and deserves its own dedicated session rather than parallel background work. Removed from this cleanup cycle's scope; tracked as a separate-session item in the header's "Sessions explicitly out of this cycle" list. The 90-day staleness threshold (~2026-06-06) is the organic trigger if not scheduled sooner.
 
 **Q5 (cycle framing):** **FOCUSED REMEDIATION CYCLE** per AUDIT_GUIDANCE scope-decision-table row 6. **Amendment (applied):** named `DC-2026-05-13`. Commits prefixed `[DC-2026-05-13]`. Closure produces dated artifact at `docs/audits/DEFERRED_CLEANUP_CYCLE_2026-05-13.md` and CHANGELOG rollup. PROBLEM_REPORTS.md Archive section gains cycle row at closure.
 
@@ -247,7 +253,7 @@ Single push at end. CHANGELOG entry for the session.
 - **A1** (Prof) — Session 1 opens with self-check of F-001/002/003 against current `origin/main`. ~10 min. Defense-in-depth per LL Entry 36. If any instrument fails, halt cycle.
 - **A2** (Prof) — Session 1 commit cadence is one commit per item (4 commits total) plus final session-end push + CHANGELOG. Cycle tag in every commit message.
 - **A3** (AP) — Plan must state expected total wall-clock budget (8–10 hours focused work + async CLA-RBM soak). Recorded in header.
-- **A4** (NASA + Prof, raised in Q4) — Session 2 deliverables grow to include CLA-RBM async collection + analysis (already captured under Q4 above).
+- **A4** (NASA + Prof, raised in Q4) — Originally added CLA-RBM async collection to Session 2. **Superseded 2026-05-13 by user direction:** CLA-RBM pulled out as its own dedicated session (see Q4 above). A4 amendment no longer applies to this cycle.
 - **A5** (Student) — Session 3 (R-25-eval) deliverable list notes downstream effect on L2-P6: if approach B chosen, L2-P6 auto-resolves (dev tier goes away). Recorded in Session 3 step 5.
 
 ### No-change items (council unanimous)
