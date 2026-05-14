@@ -47,6 +47,19 @@ Treat them as CLAIMS by the prior agent, not as facts. If you walk the same sub-
 
 Append your Tier 5/6/7 walks as new sections in this same report (`MASTER_STANDARDS_AUDIT_2026-05-13.md`). Note your agent identity at the top of your Tier 5 section so future readers can trace the independence claim. Update the findings table with any new entries. Update the user-facing CHANGELOG with a brief session-end entry that points to this report.
 
+### Scope off-ramp — STOP after Tier 7
+
+**Your scope is exactly Tiers 5, 6, and 7 of this audit cycle. Do not pick up adjacent work.** Specifically:
+
+- Do NOT start a new audit cycle. This cycle closes with your Tier 7 disposition.
+- Do NOT begin any of the deferred-from-this-cycle items unless they fall under your three tiers (e.g., the audit-infrastructure tooling findings F-2026-05-13-001/002/003 are DEFERRED — you disposition them in Tier 7, you don't *fix* them).
+- Do NOT pick up items from `AGENT_WHITEBOARD.md` that aren't part of Tiers 5/6/7 (e.g., the "in-flight fault recovery architecture" session, R-5 ETL session, CLA-RBM re-collection — all separate sessions).
+- Do NOT extend scope by surfacing-bug rule (HW_GATE Rule 7) unless a Tier 5/6/7 verification literally cannot complete without the fix. If you surface a bug you'd normally roll into the same PR, instead surface it as a new finding for Tier 7 disposition and let the human decide.
+
+**Stop after writing your Tier 7 disposition section, updating the findings table, and writing the brief session-end CHANGELOG entry.** Don't propose follow-up work in the same session. The next session (whoever it is) starts from a clean state.
+
+If you find something during Tiers 5/6/7 that suggests Tiers 1-4 got something wrong: log it as a finding (per the adversarial-framing guidance above), don't reopen the prior walk. The human chooses whether to redo Tiers 1-4 in a future cycle.
+
 ---
 **Procedure:** `standards/AUDIT_GUIDANCE.md` 7-tier dependency-ordered structure (refactored 2026-05-13 in this session — see `docs/audits/AUDIT_GUIDANCE_REWRITE_PROPOSAL_2026-05-13.md` for the proposal + council verdict).
 **Prior cycle:** `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md` (L1 + L2 wraps). This cycle is the first run of the post-refactor procedure.
