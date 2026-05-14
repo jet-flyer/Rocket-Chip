@@ -512,7 +512,9 @@ else()
         src/active_objects/ao_rcos.cpp
         src/active_objects/ao_flight_director.cpp
         src/active_objects/ao_health_monitor.cpp
+        src/active_objects/ao_led_engine.cpp        # F-2026-05-13-004: pedantic-gate restoration (Tier 2.4 P2)
         src/active_objects/ao_logger.cpp
+        src/active_objects/ao_notify.cpp            # F-2026-05-13-004: pedantic-gate restoration (Tier 2.4 P2)
         src/active_objects/ao_radio.cpp
         src/active_objects/ao_rf_manager.cpp
         src/active_objects/ao_telemetry.cpp
@@ -528,6 +530,7 @@ else()
         src/fusion/ud_factor.cpp
         src/fusion/confidence_gate.cpp
         src/fusion/innovation_monitor.cpp
+        src/fusion/baro_kf.cpp                      # F-2026-05-13-004: pedantic-gate restoration (Tier 2.4 P2)
         src/notify/notify_backend_led.cpp
         src/notify/notify_backend_audio.cpp
         src/safety/pio_watchdog.cpp

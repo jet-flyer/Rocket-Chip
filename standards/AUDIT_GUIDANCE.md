@@ -1,14 +1,16 @@
 # RocketChip Audit Guidance — Master Procedure
 
-**Status:** Normative master audit procedure.  
+**Status:** Normative master audit procedure.
 **Purpose:** Single authoritative document that sequences every audit type into one lifecycle. The core checklist is concise (≤1 page). Manual audit guidance lives in concise appendices.
+
+**Procedure history:** Refactored 2026-05-13 from 8-step flat checklist to 7-tier dependency-ordered structure. Reasons: (a) gates-honest discipline was implicit, leaving the LL Entry 36 pattern (gate rot accepted as PASS) without a procedural defense; (b) standards-catalog and runtime-behavior tiers sat at equal depth without dependency ordering; (c) sibling audits (BUILD_SYSTEM_AUDIT, DEV_CODE, VERSION_STRING, AO_COMMANDMENTS, TOOLCHAIN, CLA-RBM) had no enumerated home. Council-reviewed 2026-05-13 (NASA/JPL Avionics Lead, ArduPilot Core Contributor, Embedded Systems Professor, Cubesat Startup Engineer); CONSENSUS APPROVE WITH AMENDMENTS — 8 amendments incorporated. Step-to-Tier mapping in CHANGELOG entry dated 2026-05-13. Source attribution per Appendix C.9 (DO-178C problem-report lifecycle + static-analysis-tool community / SonarQube merge-blocker-vs-backlog + refactoring research on dependency cycles + NASA SWE §8.5 severity scale + project-internal LL Entry 36 gate-integrity-first lived experience).
 
 ---
 
 ## Master vs Targeted Audits
 
 - **Master Procedure (`AUDIT_GUIDANCE.md`)**: The unified lifecycle checklist. Defines *when* to run what scope. Not a daily checklist itself.
-- **Targeted / Operational Audits**: The actual focused work (coding standards, pre-flight gate, FMEA, stack review, etc.). These are invoked by steps in the master procedure.
+- **Targeted / Operational Audits**: The actual focused work (coding standards, pre-flight gate, FMEA, stack review, etc.). These are invoked by tiers in the master procedure.
 
 Use the decision table below to choose the right scope. Use the targeted documents to perform the work.
 
@@ -16,47 +18,122 @@ Use the decision table below to choose the right scope. Use the targeted documen
 
 ## When to Do What – Audit Scope Decision Table
 
-| Trigger                                | Scope                          | Specific Steps / Targeted Audits to Run                                      | Positive-Control Expectation                     | Notes |
-|----------------------------------------|--------------------------------|------------------------------------------------------------------------------|--------------------------------------------------|-------|
-| Every commit (small change)            | Incremental / targeted         | Step 2 (coding standards) on **changed files only**                          | clang-tidy clean on staged files                 | Pre-commit hook enforces |
-| Before push                            | Build parity + relevant targeted | Station/vehicle parity + re-run Step 2 on modified modules                 | Both build tiers compile + standards pass        | See `SESSION_CHECKLIST.md` item 6 |
-| Before field test / launch             | Pre-flight gate + safety review | Step 3 (full `PRE_FLIGHT_CHECKLIST.md`) + Step 4 (FMEA-lite)               | All GO verdicts + positive-control signals       | Highest safety bar |
-| Milestone / stage close                | **Full master procedure**      | All 8 steps                                                                  | Complete set of positive-control outputs         | Super audit |
-| Safety-critical or architecture change | Targeted deep review           | Steps 2, 4, 5, 6, 7 **scoped to affected modules**                           | Positive-control signals on changed paths        | Do not re-audit untouched areas |
-| After failed audit or remediation      | Affected portions + regression | Re-execute failed step(s) + any dependent steps                              | Previously failed items now PASS                 | Log in `AUDIT_REMEDIATION.md` |
+| Trigger                                | Scope                          | Specific Tiers / Targeted Audits to Run                                       | Positive-Control Expectation                     | Notes |
+|----------------------------------------|--------------------------------|-------------------------------------------------------------------------------|--------------------------------------------------|-------|
+| Every commit (small change)            | Incremental / targeted         | Tier 3 (coding standards) sub-walks on **changed files only**                 | clang-tidy clean on staged files                 | Pre-commit hook is Tier 1.3 mechanism |
+| Before push                            | Build parity + relevant targeted | Tier 2.6 (build-parity) + Tier 3 sub-walks on modified modules              | All 4 build tiers compile + standards pass       | See `SESSION_CHECKLIST.md` item 6 |
+| Before field test / launch             | Pre-flight gate + safety review | Tier 5.1 (`PRE_FLIGHT_CHECKLIST.md`) + Tier 4 if scope warrants              | All GO verdicts + positive-control signals       | Highest safety bar |
+| Milestone / stage close                | **Full master procedure**      | All 7 tiers                                                                   | Complete set of positive-control outputs         | Super audit |
+| Safety-critical or architecture change | Targeted deep review           | Tiers 3 + 4 + 5 **scoped to affected modules**; Tier 1 mandatory regardless    | Positive-control signals on changed paths        | Do not re-audit untouched areas; Tier 1 always runs |
+| After failed audit or remediation      | Affected portions + regression | Re-enter at the tier the failure originated; later tiers re-run if affected   | Previously failed items now PASS                 | Severity gate per stop conditions |
 
 **Principle:** Use the smallest sufficient scope. The full master procedure is reserved for milestone/stage-close events.
 
+**Severity gate (council amendment #3, applies to all stop conditions below):** stop-conditions fire on NASA SWE §8.5 **Catastrophic or Critical** findings only. Major / Minor / Trivial findings flow forward to Tier 7 disposition without re-walking earlier tiers. Without this gate, the procedure becomes a tar pit — every minor finding triggers re-walks and the audit never closes.
+
 ---
 
-## Master Audit Procedure (Concise Checklist)
+## Master Audit Procedure — 7 Tiers
 
 Run the full procedure only at milestone / stage close. For all other triggers, use the decision table above.
 
-1. **Baseline Scripted Sweeps (Category 1)**  
-   Run `run_clang_tidy.sh`, `bench_sim.py`, `replay_gate_test.py`, `ctest`, SPIN models, hardware soak scripts. Record verdicts + positive-control lines.
+Each tier closes before the next begins. Within a tier, items can run in parallel. Stop conditions are topological back-edges, severity-gated per the rule above.
 
-2. **Coding Standards Deep Compliance**  
-   Execute full `STANDARDS_AUDIT.md` template (JSF AV / JPL / Power of 10 / platform rules). Log in dated `STANDARDS_AUDIT_YYYY-MM-DD.md`.
+### Tier 1 — Verify the Audit's Own Gates
 
-3. **Pre-Flight Gate Execution**  
-   Follow `PRE_FLIGHT_CHECKLIST.md` in full (firmware verification, 5-min soak, calibration, mission profile, station link, `p` command, arm sequence). Confirm every GO + positive-control signal.
+Before measuring anything, confirm the measurement instruments are honest. Source: LL Entry 36 (bench_sim rot — gate had been silently broken for 5 days while 4+ commits claimed it as PASS) + Appendix C category 1 + DO-330 tool-qualification.
 
-4. **Safety-Critical Path Review**  
-   See **Appendix A.1** (FMEA-lite & Koopman Embedded Review). Map to `docs/SAD.md` state machine. Use positive-control signal column.
+1.1 Tool self-checks: `run_clang_tidy.sh`, `run_cppcheck.sh`, lizard, coverage harness produce expected output on known-good fixture inputs.
+1.2 SPIN models compile + load on current `spin.exe` (Cygwin per `tools/spin/README.md`).
+1.3 Pre-commit hook integrity: `scripts/hooks/pre-commit` runs on a synthetic staged diff and produces the expected gate matrix output.
+1.4 `bench_sim.py` **bidirectional regex audit** (council amendment #1):
+    - (a) Rotted-regex check: every regex constant matches at least one live firmware log line from a freshly-flashed banner read.
+    - (b) Deleted-regex check: every PASS-token / positive-control signal the firmware emits has at least one regex in the script looking for it.
+1.5 Host ctest fixture-suite passes.
+1.6 Build-parity script (`verify_build_parity.sh`) produces clean output for all 4 tiers.
 
-5. **Stack / Memory / RP2350 Errata Deep Review**  
-   See **Appendix A.2**. Run `analyze_stack_usage.sh` + manual checklist. Flag >1 KB locals or >70 % SRAM. Cross-reference `RP2350_ERRATA.md`.
+**Stop condition:** any Tier 1 failure halts the cycle until the tool/gate is repaired (no severity gate — broken instruments mean every downstream finding is unreliable by construction).
 
-6. **Formal Verification + Simulation Coverage**  
-   Re-run SPIN models on current `ao_flight_director.cpp`. Execute `bench_flight_sim.py` 9-scenario suite.
+### Tier 2 — Establish the Foundation
 
-7. **Requirements Traceability Spot-Check (flight-critical paths only)**  
-   Verify state machine, ESKF outputs, pyro commands, telemetry fields, safety flags have traceable requirements. Lightweight markdown table or script output.
+With instruments verified honest in Tier 1, capture the baseline data the rest of the audit reasons from. Source: Appendix C category 2 + traditional "baseline scripted sweeps" framing.
 
-8. **Remediation & Historical Logging**  
-   Record user-accepted deviations in `ACCEPTED_STANDARDS_DEVIATIONS.md`. Append fixes to the dated audit report's `## Remediation` section (per-audit, self-contained — see file-location policy below). Update this document only for strategy changes (state-of-system trigger). **Execution order within Step 8 follows the canonical sequence in Appendix C.**
-   - **DEFER disposition requires a safety-impact one-liner.** A finding can be deferred to a future cycle only if the dated report names — explicitly — why the deferral is acceptable from a safety perspective (typically: the finding's mission-phase exposure is bounded, e.g., Ground-classified code locked out in flight; or the finding is doc-only with no behavior change; or the finding's risk is dominated by an unrelated dependency that needs to land first). Plain "DEFER — not blocking" is not sufficient. Source: DO-178C "open problem reports at certification must be evaluated for their safety impact" — every open PR at a milestone close has the same evaluation requirement. Equivalent rule in `docs/PROBLEM_REPORTS.md` for non-audit deferrals.
+2.1 Baseline scripted sweeps: `run_clang_tidy.sh`, `run_cppcheck.sh`, `analyze_stack_usage.sh`, `generate_coverage_report.sh`, lizard cyclomatic complexity sweep. Record verdicts + raw output paths.
+2.2 SPIN model verification: re-run all `tools/spin/*.pml` against current firmware. Master gate `run_stage_o_ao_spin.sh` produces SPIN_OK_N.
+2.3 Toolchain version audit: walk `docs/BUILD_SYSTEM_AUDIT.md` P6 (current versions vs latest upstream, drift assessment). Absorbs `TOOLCHAIN_VERSION_AUDIT_*.md` sibling audit.
+2.4 Build-system audit: walk `docs/BUILD_SYSTEM_AUDIT.md` P1-A through P5 (dev-tool gating, self-flagged dead code, ROCKETCHIP_SOURCES coverage, host/target split, vendor SYSTEM classification, IVP-era scaffolding comments).
+2.5 Active-deviations row walk: walk `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` Active section row-by-row, confirm each row's justification still holds.
+2.5a **Deferred-with-rationale row walk** (council amendment #4): walk every deferred-with-rationale row across the audit machinery (LOC-5/LOC-6 MISRA-C deferral; any DEFER row in active dated audit reports' `## Remediation` sections; deferred-with-safety-impact rows in `docs/PROBLEM_REPORTS.md`). Three cycles without re-evaluation = stale-rationale threshold; flag for explicit user re-disposition if exceeded.
+2.6 **Prior-cycle delta read** (council amendment #5, sourced from JPL F' Mars sustaining-engineering pattern): open most-recent prior dated audit report. List which findings closed, remained, were re-opened, are new. Feeds Tier 5.6 and Tier 7.
+
+**Stop condition:** Tier 2 finding that invalidates Tier 1's verified-gates assumption AND severity Catastrophic/Critical → return to Tier 1.
+
+### Tier 3 — Walk the Standards Catalog
+
+Mechanical catalog work. The big static pass against published rule sets the project has adopted. Source: traditional `STANDARDS_AUDIT.md` template walk (Sections A through E + F-1).
+
+3.1 **Section A — JSF AV C++ Standards (221 rules).** Per-rule applicability + PASS/PARTIAL/FAIL + file citations. A.1 acknowledges absent .c files. A.2 documents SDK-boundary bypasses. A.3 is the bulk of the work.
+3.2 **Section B — Power of 10 (Holzmann/JPL 2006).** Per-rule applicability. 10 rules.
+3.3 **Section C — JPL Institutional Coding Standard.**
+    - LOC-1 through LOC-4 (102 rules — JPL-original tiers): per-rule walk.
+    - **LOC-5 and LOC-6: DEFERRED-WITH-RATIONALE.** These are the MISRA-C absorption tiers (LOC-5 = MISRA "shall" rules not in LOC-1..4; LOC-6 = MISRA "should" rules). Rule text is MIRA Ltd. copyrighted, not in public JPL PDF. Project policy 2026-05-13: defer until a formally-certified-code variant is in scope. See `standards/CODING_STANDARDS.md` Foundation section for the chain-of-custody (MISRA-C → JPL C LOC-5/6 → JSF → P10 distill). Re-evaluated at Tier 2.5a each cycle.
+3.4 **Section D — Project-Specific Rules.** RP2350 platform constraints, multicore rules, debug output, prior-art-research, safety-and-regulatory, git-workflow, session-management, **comment-density measurement (target band 15-25% per `CODING_STANDARDS.md`)**.
+3.5 **Section E — Agent Behavioral Guidelines.** Walk `.claude/AK_GUIDELINES.md` per-rule. Deliverable: do recent commits demonstrate compliance?
+3.6 **DEV_CODE audit** (per `docs/audits/DEV_CODE_AUDIT.md` methodology): dev-tier code in flight binary.
+3.7 **VERSION_STRING audit** (per `docs/audits/VERSION_STRING_AUDIT.md` methodology): stale version-like values in serial output / banner.
+3.8 **Section F-1 — Citations within standards documents** (council amendment #2): walk file:line references and standards-citations inside the standards documents themselves (`CODING_STANDARDS.md`, `HW_GATE_DISCIPLINE.md`, `AUDIT_GUIDANCE.md`, `RP2350_ERRATA.md`, `ACCEPTED_STANDARDS_DEVIATIONS.md`). F-2 (audit-cycle citations in non-standards docs) is Tier 6.1.
+
+**Stop condition:** Tier 3 finding that invalidates Tier 2 baseline AND severity Catastrophic/Critical → return to Tier 2.
+
+**Positive-control expectation:** dated `STANDARDS_AUDIT_YYYY-MM-DD.md` produced with Sections A through E + F-1 populated.
+
+### Tier 4 — Walk the Runtime Behavior
+
+Examine what the code *does* at runtime, not just its static structure. Source: pre-2026-05-13 Step 4 (FMEA-lite + Koopman, now Tier 4.1-4.2) + AO Commandments audit (now Tier 4.4) + CLA-RBM (now Tier 4.5) + LL-entry freshness (now Tier 4.6).
+
+4.1 **Safety-critical path FMEA-lite** (Appendix A.1). Maps to `docs/SAD.md` state machine. Positive-control column required per `HW_GATE_DISCIPLINE.md` Rule 1.
+4.2 **Koopman 5-rule embedded review** on 3-5 flight-critical functions of agent's choice (auditor selects; surfaces conversationally per Appendix B.4 workflow).
+4.3 **Fault injection scenarios**: run `enhanced_fault_injection.py` end-to-end.
+4.4 **AO Commandments full sweep** (per `docs/audits/AO_COMMANDMENTS_AUDIT_*.md` methodology): walk 9 active AOs × 12 commandments in `docs/decisions/AO_COMMANDMENTS.md`.
+4.5 **CLA + RBM** (per `docs/audits/cla_rbm/CLA_RBM_PLAN.md` deliverables): Computational Load Analysis + Runtime Behavior Map. If most-recent CLA data >3 months old, flag re-collection as remediation item (HW soak; can be queued to a separate session).
+4.6 **LL-entry freshness sweep**: walk `.claude/LESSONS_LEARNED.md` Critical/High entries. Each entry's claim ("X is fixed in tree", "Y workaround in place") verified against current code. Stale entries get supersession headers (LL Entry 25 SUPERSEDED 2026-04-22 is the pattern).
+
+**Stop condition:** Tier 4 finding that contradicts Tier 3 PASS for the same code path AND severity Catastrophic/Critical → re-open Tier 3 for that path.
+
+### Tier 5 — Verify Against Requirements + Observable Behavior
+
+Prove the running system does what its requirements say. Source: existing Steps 3 + 6 + 7.
+
+**Independence amendment (council #7):** Tier 5 should run in a **fresh session** distinct from Tiers 1-4 where feasible. Per `HW_GATE_DISCIPLINE.md` Rule 6, same-agent verification is level-2 credit at best; a separate session is level-3 ("Verified independently"). Especially relevant before any Stage 17 (field flight) milestone.
+
+5.1 **Pre-flight gate execution**: walk `docs/PRE_FLIGHT_CHECKLIST.md` in full. Every GO verdict + positive-control signal observed.
+5.2 **Stack / Memory / RP2350 Errata Deep Review** (Appendix A.2). E2 / E9 / E11 / E12 re-verification.
+5.3 **Bench end-to-end**: `bench_sim.py` 2/2 PASS for vehicle (flight + dev tiers); `station_bench_sim.py` for station.
+5.4 **Replay gate test**: `replay_gate_test.py` end-to-end. (Currently blocked on R-23; documented but cannot clear until R-25 disposition.)
+5.5 **Requirements traceability spot-check**: state machine, ESKF outputs, pyro commands, telemetry fields, safety flags. **Exhaustive coverage** against distinct-cited-source population (sampling missed R-26 in the 2026-05-07 L2 audit).
+5.6 **Regression check on prior-cycle closed findings** (council amendment #6): every finding closed in prior cycles (from Tier 2.6 delta read) gets a one-line regression check. If R-19 closed in cycle N by removing X, Tier 5.6 in cycle N+1 confirms X still gone.
+
+**Stop condition:** Tier 5 verification FAIL that contradicts Tier 3/4 PASS AND severity Catastrophic/Critical → return to whichever tier first claimed PASS.
+
+### Tier 6 — Document Drift + Sync
+
+Catch documentation that earlier tiers' work has invalidated. Last because earlier tiers may surface drift findings.
+
+6.1 **Section F-2 — Audit-cycle citations in non-standards docs** (council amendment #2): walk file:line references + audit-cycle citations in protected state-of-system docs OUTSIDE the standards documents — `PROJECT_STATUS.md`, `docs/SAD.md`, `CHANGELOG.md` (current-cycle entry), `docs/SCAFFOLDING.md`, `docs/AO_ARCHITECTURE.md`.
+6.2 **Section G — Audit History** (`STANDARDS_AUDIT.md` template). Roll up cycle's findings into audit-history table.
+6.3 **Section H — Ongoing Compliance Verification** (template). Walk pre-commit hook coverage, SESSION_CHECKLIST trigger coverage, milestone-close discipline coverage.
+6.4 **Protected-doc drift check** (SESSION_CHECKLIST.md item 14): grep state-of-system docs for symbols / module paths that this audit's findings have deleted, renamed, or re-homed.
+6.5 **CHANGELOG audit-history rollup**: cycle's CHANGELOG entry references dated audit report + names every disposition (REMEDIATE / ACCEPT / DEFER) without ambiguity.
+
+**Stop condition:** Tier 6 drift that invalidates a Tier 5 PASS AND severity Catastrophic/Critical → return to Tier 5.
+
+### Tier 7 — Findings Disposition + Remediation
+
+Existing structure preserved verbatim. Source: Appendix C (4-category remediation triage, unchanged).
+
+Findings disposition (REMEDIATE / ACCEPT / DEFER) per finding. Per **Appendix C**, remediation execution order is: Cat 1 (Gate Integrity) → Cat 2 (Shared Foundations) → Cat 3 (Behavior Changes) → Cat 4 (Cleanup). **DEFER disposition requires a safety-impact one-liner.** A finding can be deferred only if the dated report names — explicitly — why the deferral is acceptable from a safety perspective (typically: mission-phase exposure is bounded; doc-only with no behavior change; risk dominated by an unrelated dependency that must land first). Plain "DEFER — not blocking" is not sufficient. Source: DO-178C "open problem reports at certification must be evaluated for their safety impact." Equivalent rule in `docs/PROBLEM_REPORTS.md` for non-audit deferrals.
+
+ACCEPTED deviations require user sign-off and land in `ACCEPTED_STANDARDS_DEVIATIONS.md`. Verification cadence per Appendix C.5 (local per-commit vs. category-transition regression vs. cycle-close regression).
 
 ---
 
@@ -134,7 +211,7 @@ Run the full procedure only at milestone / stage close. For all other triggers, 
 
 ## Appendix B: Inline Reference Material
 
-**Purpose:** Make the manual-audit sections self-contained. Previous audit attempts hit external-URL fetch failures (embedded.com PDF extractor returning binary garbage; PDF text-layer extraction returning unreadable streams). Inlining substantive content here means the manual reviewer can complete A.1, A.2, Step 2, and Step 7 walks without leaving this document. Source URLs remain in B.5 for going beyond the inline material.
+**Purpose:** Make the manual-audit sections self-contained. Previous audit attempts hit external-URL fetch failures (embedded.com PDF extractor returning binary garbage; PDF text-layer extraction returning unreadable streams). Inlining substantive content here means the manual reviewer can complete A.1, A.2, Tier 3 (standards catalog), and Tier 5.5 (requirements traceability) walks without leaving this document. Source URLs remain in B.5 for going beyond the inline material.
 
 **Discipline:** All rule wording is quoted verbatim from the cited primary or authoritative secondary source. Per LL Entry 37, do not paraphrase rule text; the cleanup cost of an embedded misreading vastly exceeds the cost of accurate quoting. Project-application notes are clearly separated from the verbatim rule text.
 
@@ -275,7 +352,7 @@ Three disposition labels:
 
 - **REMEDIATE** — fix as part of Phase 8 in this audit cycle. The agent does the fix as a focused commit during Phase 8.
 - **ACCEPT** — user signs off as a permanent deviation; row added to `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`.
-- **DEFER** — queue for a future post-audit remediation session. Logged in the dated report's `## Remediation` section. **Per Step 8: every DEFER row requires a one-line safety-impact rationale** explaining why the deferral is acceptable; plain "not blocking" doesn't satisfy the rule.
+- **DEFER** — queue for a future post-audit remediation session. Logged in the dated report's `## Remediation` section. **Per Tier 7: every DEFER row requires a one-line safety-impact rationale** explaining why the deferral is acceptable; plain "not blocking" doesn't satisfy the rule.
 
 **Per-phase notes:**
 
@@ -322,7 +399,7 @@ All external references are public, widely cited sources in safety-critical embe
 
 ## Appendix C: Remediation Execution Ordering
 
-**Purpose:** Define the canonical order in which audit findings are remediated, and the verification cadence between groups. Applies to Step 8 of every master audit cycle and to any focused post-audit remediation session that draws from a dated audit's `## Remediation` queue.
+**Purpose:** Define the canonical order in which audit findings are remediated, and the verification cadence between groups. Applies to Tier 7 of every master audit cycle (was Step 8 pre-2026-05-13) and to any focused post-audit remediation session that draws from a dated audit's `## Remediation` queue.
 
 **Why this appendix exists.** When an audit produces a remediation queue of more than ~3 findings, the order in which they are executed is itself a quality decision. Fixing in arbitrary order has three failure modes specific to this project: (a) early fixes get invalidated by later refactors that touch the same code, (b) "fixed" findings regress because a finding they depend on wasn't fixed first, (c) verification fatigue where every focused commit re-runs the 6-hour audit suite, so the audit suite ends up skipped. The DO-178C "problem report" lifecycle (record → impact-analyze → fix → verify → close) and the static-analysis-tool community's distinction between "what blocks a merge" and "what becomes backlog" both speak to the same problem and converge on the framework below.
 
@@ -421,7 +498,7 @@ Halts are recorded as `HALT` rows in the dated report's `## Remediation` section
 
 ### C.8 Generally applicable to future audits
 
-This appendix is project-wide guidance, not specific to any single audit cycle. Every future master audit's Step 8 follows the same PR-lifecycle framing with the same four categories and the same verification cadence. Each dated report's `## Remediation` section opens with a one-paragraph preamble naming any deviations from the canonical order (rare — e.g., an emergency safety hotfix that bypasses category 1 because the safety issue is more urgent than gate-hygiene).
+This appendix is project-wide guidance, not specific to any single audit cycle. Every future master audit's Tier 7 follows the same PR-lifecycle framing with the same four categories and the same verification cadence. Each dated report's `## Remediation` section opens with a one-paragraph preamble naming any deviations from the canonical order (rare — e.g., an emergency safety hotfix that bypasses category 1 because the safety issue is more urgent than gate-hygiene).
 
 If the project's verification surface area changes meaningfully (new hardware tier, new audit phase, new gating mechanism), update this appendix as a state-of-system trigger — same discipline as `.claude/SESSION_CHECKLIST.md` Trigger-Driven Doc Edits.
 
@@ -475,7 +552,7 @@ New scripted audit tools will only enforce rules already present in `CODING_STAN
 
 - `CODING_STANDARDS.md` — Rule definitions
 - `HW_GATE_DISCIPLINE.md` — Positive-control requirement
-- `PRE_FLIGHT_CHECKLIST.md` — Step 3 detail
+- `PRE_FLIGHT_CHECKLIST.md` — Tier 5.1 detail
 - `VERIFICATION_OVERVIEW.md` — Complementary verification layers
 - `AUDIT_REMEDIATION.md` — Historical fixes
 - `AUDIT_CLEANUP_2026-05-06.md` — Three-category plan

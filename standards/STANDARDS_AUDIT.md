@@ -56,14 +56,22 @@
 
 ## Standards Hierarchy
 
+Chronological ordering by publication date; newer overrides older per `CODING_STANDARDS.md` Foundation section standards-precedence rule:
+
 ```
-MISRA C (1998/2004)          ← Foundation: automotive safety C rules
-  └── JSF AV C++ (2005)      ← Extension: C++ for flight-critical systems (Lockheed Martin)
-        └── JPL C (2009)      ← Refinement: JPL institutional standard, adds LOC levels
-              └── Power of 10 ← Distillation: 10 most critical safety rules (Holzmann/JPL)
+JSF AV C++ (December 2005)    ← Foundational catalog: 221 C++ rules (Lockheed Martin)
+  └── Power of 10 (2006)      ← Distillation: 10 most critical safety rules (Holzmann/JPL)
+        └── JPL C (March 2009) ← C-language refinement, LOC-1..6 tiers
+              ├── LOC-1..4    ← JPL-original tiers (102 rules); audited at Tier 3.3.
+              └── LOC-5..6    ← MISRA-C absorption tiers; DEFERRED-WITH-RATIONALE.
+                                 MISRA C (1998/2004) underpins via absorption here.
+                                 Rule text MIRA Ltd. copyrighted; not in public JPL PDF.
+                                 Re-evaluate when formally-certified-code variant is in scope.
 ```
 
-Where JSF AV and JPL C conflict, JPL C takes precedence.
+**Precedence rule:** newer overrides older unless the older standard's text explicitly governs the specific case. Silent conflict → default to the more recent OR more restrictive (IRL aviation-engineering practice). Per `CODING_STANDARDS.md` Foundation section + LL Entry 37 (rule-citation discipline).
+
+**MISRA-C chain-of-custody:** MISRA-C is not directly audited as a separate standard. It is **absorbed by JPL C at LOC-5 and LOC-6** (LOC-5 = MISRA "shall" rules not covered by LOC-1..4; LOC-6 = MISRA "should" rules). LOC-5/6 are DEFERRED-WITH-RATIONALE per project policy 2026-05-13. MISRA-C remains a candidate for full inclusion in any future formally-certified-code variant (e.g., a hypothetical Pro-tier / Gemini-class certification path). See `docs/PROJECT_STATUS.md` "Side Projects & Future Product Lines" for the forward-looking pointer.
 
 ---
 
@@ -112,13 +120,15 @@ Where JSF AV and JPL C conflict, JPL C takes precedence.
 
 ## Section C: JPL C Standard
 
-*LOC-1 through LOC-4 mandatory. LOC-5/6 deferred.*
+*LOC-1 through LOC-4 mandatory (JPL-original tiers, ~102 rules total: LOC-1 has 10, LOC-2 has 7, LOC-3 has 12, LOC-4 has 73). Per-rule walk required at every milestone audit.*
+
+*LOC-5 and LOC-6 are **DEFERRED-WITH-RATIONALE**.* These are the MISRA-C absorption tiers (LOC-5 covers MISRA "shall" rules not in LOC-1..4 = 73 rules; LOC-6 covers MISRA "should" rules = 16 rules). Rule text is MIRA Ltd. copyrighted and not in the public JPL PDF. **Project policy 2026-05-13:** defer until a formally-certified-code variant is in scope (e.g., Pro-tier / Gemini-class certification). The deferral is re-evaluated at every cycle's Tier 2.5a (deferred-with-rationale row walk) — 3-cycle stale-rationale threshold for explicit re-disposition. See `standards/CODING_STANDARDS.md` Foundation section for the MISRA-C chain-of-custody.
 
 ---
 
 ## Section D: Project-Specific Rules
 
-*D.1: Platform Constraints, D.2: Multicore Rules, D.3: Debug Output, D.4: Prior Art, D.5: Safety, D.6: Git Workflow, D.7: Session Management.*
+*D.1: Platform Constraints (RP2350, see `CODING_STANDARDS.md` "RP2350 Bare-Metal Platform Constraints"), D.2: Multicore Rules (see `docs/MULTICORE_RULES.md`), D.3: Debug Output (see `standards/DEBUG_OUTPUT.md`), D.4: Prior Art Research (see `CODING_STANDARDS.md` "Prior Art Research"), D.5: Safety & Regulatory (see `CODING_STANDARDS.md` "Safety and Regulatory"), D.6: Git Workflow (see `standards/GIT_WORKFLOW.md`), D.7: Session Management (see `.claude/SESSION_CHECKLIST.md`), D.8: Comment Density (target band 15-25% per `CODING_STANDARDS.md` "Comment Density"; measurement script: `scripts/audit/comment_density.sh` or equivalent; target band sourced from Polyspace 20% lower limit + Arafati & Riehle 2009 mean 19% / median 17% + Elish & Offutt mean 15.2%).*
 
 ---
 

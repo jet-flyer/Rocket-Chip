@@ -6,8 +6,9 @@
 
 **✅ Stage O workstream (vehicle + shared OPT‑IVP‑01/02/05) closed 2026-04-29.** All in-scope gates met; evidence in [runbook](baselines/stage_o_hw_verification_2026-04-28.md) §Closure + logs below.
 
-**Runbook (commands + checklist):** [docs/baselines/stage_o_hw_verification_2026-04-28.md](baselines/stage_o_hw_verification_2026-04-28.md)  
-**Standards audit (Stage O subset):** [standards/STANDARDS_AUDIT_2026-04-28.md](../standards/STANDARDS_AUDIT_2026-04-28.md)
+**Runbook (commands + checklist):** [docs/baselines/stage_o_hw_verification_2026-04-28.md](baselines/stage_o_hw_verification_2026-04-28.md)
+
+(Standards-audit Stage-O-subset citation removed 2026-05-13. The previously cited file `standards/STANDARDS_AUDIT_2026-04-28.md` was deleted 2026-04-27 by commit `3e89e10` (revert of unauthorized Cursor edits; owner-reviewed; the deleted file was a 27-line summary that duplicated content already in the runbook linked above). Stage O standards substance is preserved in the runbook. Future Stage-O re-verification would land as a dated audit in `docs/audits/` per the file-location policy in `standards/AUDIT_GUIDANCE.md`.)
 
 Automated checks: **788/788** `ctest --test-dir build_host` PASS; firmware `cmake --build build` rocketchip PASS; vehicle **`bench_sim` 2/2 PASS** on COM7 (re-run 2026-04-29; ~6.5 s).
 
@@ -180,6 +181,7 @@ Re-added 2026-05-13 from the `AP_ChibiOS` / `AP_FreeRTOS` branches' historical S
 - **OpenMCT integration exploration** — Web-based mission control dashboard (NASA-developed). Earlier scope work in Stage 12B; see `AGENT_WHITEBOARD.md` station SPIN model extensions + station→vehicle radio health channel for the prerequisites.
 - **Gemini tier (dual-MCU carrier board)** — Two independent flight computers cross-checking each other. The architecturally-clean answer to IEC 61508 HFT≥1 fault tolerance for the Rocket Chip line. Tracked on `AGENT_WHITEBOARD.md` for the Rocket Chip board family.
 - **Titan tier multi-MCU evaluation** — Could adopt the dual-MCU pattern if wired in; not Gemini-exclusive. See `docs/decisions/TITAN_BOARD_ANALYSIS.md` for the broader Titan research.
+- **Formally-certified-code variant — MISRA-C full inclusion candidate.** Added 2026-05-13 per audit-coverage gap-fill cycle. If/when a Rocket Chip tier moves toward formal airworthiness / DO-178C-equivalent certification (most likely the Gemini multi-MCU tier above as the natural HFT≥1 platform), the project's current MISRA-C deferral (JPL C LOC-5 / LOC-6, deferred-with-rationale per `standards/CODING_STANDARDS.md` Foundation section "MISRA-C chain-of-custody") would be re-opened and included as part of formal verification work. Today's deferral rationale (paywalled rule source, ~90% overlap with JSF AV C++, hobbyist-tier project scope) does not apply at certification scope. Re-evaluation cadence: each milestone audit's Tier 2.5a row walk, 3-cycle stale-rationale threshold.
 
 ## Reference
 

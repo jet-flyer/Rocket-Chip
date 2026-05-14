@@ -32,72 +32,28 @@
 
 ## High priority
 
-- **Master Standards Audit 2026-05-07 — audit-coverage gap
-  re-evaluation needed (next focused cycle).** L2 audit-suite
-  regression ran 2026-05-13 (commit `c9c8585`); R-19 + R-26 fixes
-  landed and verified. **But L2 surfaced a coverage gap** that the
-  user explicitly flagged at session close: the master audit (both
-  yesterday's original and today's L2) did NOT execute AUDIT_GUIDANCE
-  Step 2 in full. Step 2 calls for a `STANDARDS_AUDIT.md` template
-  walk producing a dated `STANDARDS_AUDIT_YYYY-MM-DD.md` companion;
-  yesterday's Phase 2.3 walked the 10 P10 rules (CONFIRMED) but the
-  **221 JSF AV rules + JPL C LOC-1..4 + project-specific +
-  agent-behavioral** were NOT walked. Sibling re-audit gaps also not
-  re-run: DEV_CODE (L2-P6), VERSION_STRING (L2-P7), AO_COMMANDMENTS
-  (L2-P8), TOOLCHAIN (L2-P9). User direction at session close: *"lets
-  do a session hand over checklist and add a WB note to re-evaluate
-  the noted gaps in the audit master suite and after all gaps are
-  confirmed eliminated to re-run the audit suite just to be sure
-  nothing fell through the gaps"*
+- **Audit-coverage gap fill cycle 2026-05-13 — Tier 5/6/7 remaining (fresh-session, strict-split for independence).**
 
-  **Three-step plan for next cycle:**
-  0. **Inventory completeness check (NEW — user flagged "possibility of
-     more" at session close).** Before declaring the gap-fill phase
-     complete, prove the inventory of gaps is itself exhaustive. Spot
-     checks worth running:
-     - Enumerate `docs/audits/` recursively (post-session check found
-       `docs/audits/cla_rbm/` sub-folder containing **CLA_RBM_PLAN.md +
-       COMPUTATIONAL_LOAD_ANALYSIS.md + RUNTIME_BEHAVIOR_MAP.md +
-       dated CLA reports** — another whole audit type **not** in L2-P5..P9).
-       Logged as **L2-P10**.
-     - Walk every step of `AUDIT_GUIDANCE.md` (Steps 1-8 + Appendix A.1
-       FMEA-lite + A.2 Stack/Errata + A.3 PRE_FLIGHT_CHECKLIST sub-items)
-       and tag each as fully/partially/not-run this cycle.
-     - Cross-check `CODING_STANDARDS.md` listed standards: MISRA C is
-       explicitly "underpins both JSF AV and JPL C but is not directly
-       audited" — open question whether that's still the right policy
-       or whether MISRA C should join the audited set.
-     - Audits-referenced-from-other-docs (stage plans, decision docs,
-       IVP entries that ran their own checks) — none indexed.
-     - Pre-commit-hook coverage matrix: confirm every flight-critical
-       path is in the matrix; flag any uncovered path.
-  1. **Fill the gaps** (post-inventory) — walk JSF AV (221 rules) + JPL C
-     LOC-1..4 + project-specific + agent-behavioral per file with
-     PASS/PARTIAL/FAIL evidence (produces dated
-     `STANDARDS_AUDIT_2026-05-NN.md` companion); re-run DEV_CODE /
-     VERSION_STRING / AO_COMMANDMENTS / TOOLCHAIN / CLA-RBM targeted
-     re-audits + any additional surfaced by step 0. Estimated 4-6 hours
-     focused (could be more depending on step 0 outcome). Most rows
-     expected to PASS because intervening remediation kept the project
-     current, but cannot claim that without actually walking.
-  2. **Re-run the master audit suite** (Phases 1/3/5/6/7 + station
-     bench at minimum; Phase 4 still blocked by R-23 unless R-25
-     deprecation evaluation runs first) to confirm no rot was introduced
-     by the gap-fill work itself.
+  **Status at 2026-05-13 end-of-session:**
+  - **Step 0** (inventory completeness): closed. `docs/audits/AUDIT_COVERAGE_INVENTORY_2026-05-13.md`. 15 gap items, all dispositioned.
+  - **Step 1a** (fix the audit procedure): closed. `AUDIT_GUIDANCE.md` refactored 8-step → 7-tier dependency-ordered structure; council-approved with 8 amendments; MISRA-C chain-of-custody made explicit; I-1 stale citation removed.
+  - **Step 1b** (verify procedure is gap-free): closed. All 15 step-0 gap items have homes in the new structure. 3 tooling-class gaps batch with audit-infrastructure backlog.
+  - **Step 2 — Tiers 1-4**: closed. F-2026-05-13-001/002/003 (Minor DEFER, audit-infrastructure tooling); F-2026-05-13-004 (Major REMEDIATED — pedantic-gate drift on 3 production files closed in same commit). All 4 build tiers rebuilt clean post-remediation.
+
+  **Tier 5/6/7 handoff target: Grok via Cursor (different LLM, structurally independent of Claude Opus 4.7 that wrote Tiers 1-4).**
+  - **Tier 5** — Verify Against Requirements + Observable Behavior. Sub-items 5.1 pre-flight, 5.2 errata, 5.3 bench, 5.4 replay (blocked on R-23), 5.5 traceability (exhaustive per L2-P2), 5.6 prior-cycle regression check.
+  - **Tier 6** — Document Drift + Sync. F-2 audit-cycle citations in non-standards docs, Sections G/H of template, protected-doc drift check, CHANGELOG rollup.
+  - **Tier 7** — Findings Disposition + Remediation. Final pass per Appendix C; close any verified-pending rows from L1/L2 + this cycle's Tier 1-4 findings.
+  - **Why Grok and not fresh-session Claude:** fresh-session-Claude reads the same `MEMORY.md` + `.claude/` auto-load + dated artifacts and carries the same biases-as-codified-rules forward. Confirmation bias survives the context wipe. Grok is structurally a different agent — different LLM, different memory, no shared conversation history with the Tier 1-4 walk. That's the substantive form of DO-178C verification-independence (Rule 6 level-3 credit), not just structural fresh-session approximation.
+  - **Inputs for Grok:** `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` ("Handoff to next agent" preamble names the read order). Grok appends Tier 5/6/7 sections to the same report.
 
   Other deferred audit-cycle items (lower urgency, separate sessions):
-  - 14 PRs from yesterday's wrap remain `verified` pending audit-suite
-    regression (their L2 verification rolled into today's commit).
-  - R-5 (full stdio.h removal) + R-2 (absorbed into R-5) deferred for
-    dedicated ETL session.
-  - R-23 (vehicle bench tier HardFault) blocks Phase 4 vehicle scenarios
-    + replay_gate_test until R-25 deprecation evaluation chooses path
-    (R-23 may not need fixing if Option B chosen).
-  - Architecture session: R-20 (Core 1 boot-wait AIRCR), R-21 (PIO WDT
-    no auto-reset), L2-W1 — all feed "in-flight fault recovery
-    architecture" thinking already on this whiteboard.
-  - Audit-infrastructure session: R-22 (warm-reboot audit script), R-24
-    (boot-parity gate), L2-P2/P3/P4 (Phase 7 sampling policy).
+  - 14 PRs from yesterday's wrap remain `verified` pending audit-suite regression close (close in Tier 7 at end of fresh-session walk).
+  - R-5 (full stdio.h removal) + R-2 (absorbed into R-5) deferred for dedicated ETL session.
+  - R-23 (vehicle bench tier HardFault) blocks Tier 5.4 + 4.3 vehicle scenarios until R-25 deprecation evaluation chooses path.
+  - Architecture session: R-20 (Core 1 boot-wait AIRCR), R-21 (PIO WDT no auto-reset), L2-W1 — all feed "in-flight fault recovery architecture" thinking already on this whiteboard.
+  - Audit-infrastructure session: R-22 (warm-reboot audit script), R-24 (boot-parity gate), F-2026-05-13-001/002/003 + L2-P2/P3/P4 (audit-tooling gaps).
+  - CLA-RBM re-collection: triggers at the 90-day mark (~2026-06-06) per the new Tier 4.5 threshold. Until then, watched-but-not-stale.
 
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS

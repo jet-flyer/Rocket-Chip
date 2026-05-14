@@ -15,7 +15,24 @@ Standards apply in chronological order — **newer standards take precedence ove
 1. **Power of 10 Rules** (Holzmann/JPL, 2006 → JPL institutional 2008) — newest distilled safety-critical rules. Default authority when it speaks.
 2. **JPL Institutional Coding Standard for C** (2009) — builds on P10, adds C-language-specific guidance. Default authority for C-language matters.
 3. **JSF AV C++ Coding Standards** (Lockheed Martin, December 2005) — foundational catalog of 221 C++ rules. Applies where the newer standards are silent. Some JSF rules have been absorbed into modern C++ practice (C++ Core Guidelines, HIC++ V4, AUTOSAR) and no longer require separate enforcement.
-4. **MISRA C** (1998 / 2004) — C-language foundation, mostly subsumed by JPL C for our use. Cited where it remains the explicit authority (e.g., MISRA-C 2012 accepted safe subset for bounded `snprintf`).
+4. **MISRA C** (1998 / 2004) — C-language foundation, **absorbed by JPL C at LOC-5 and LOC-6** (see "MISRA-C chain-of-custody" below). Cited where it remains the explicit authority (e.g., MISRA-C 2012 accepted safe subset for bounded `snprintf`).
+
+**MISRA-C chain-of-custody** (added 2026-05-13 per audit-coverage gap-fill cycle; council-approved with amendments):
+
+MISRA-C is not directly audited as a separate standard. It is **absorbed by JPL C at LOC-5 and LOC-6** — the two MISRA-absorption tiers of JPL's six-level compliance framework:
+
+- **LOC-5 (MISRA "shall" rules not already covered by LOC-1..4)** — 73 mandatory MISRA rules.
+- **LOC-6 (MISRA "should" rules not already covered by LOC-1..4)** — 16 advisory MISRA rules.
+
+Per JPL's institutional documentation, LOC-5 and LOC-6 rule text is MIRA Ltd. copyrighted and not included in the publicly distributed JPL Institutional Coding Standard PDF. Project policy 2026-05-13: **LOC-5 and LOC-6 are DEFERRED-WITH-RATIONALE.** Rationale:
+
+1. **Paywalled rule source contradicts the open-source audit principle** stated in `standards/AUDIT_GUIDANCE.md` Appendix B.5 ("no proprietary or paywalled material required for routine audit work").
+2. **~90% overlap with JSF AV C++ rules already fully audited** at Tier 3.1 — marginal new coverage relative to the paywall cost.
+3. **Project tier is hobbyist / educational rocketry** (NAR / TRA scope, not airworthiness-certified). IEC 61508 HFT=0 framing applies; fault detection + safe-mode pivot, not formal fault tolerance.
+
+**MISRA-C remains a candidate for full inclusion in any future formally-certified-code variant.** Specifically: a hypothetical Pro-tier / Gemini-class certification path (multi-MCU dual-core observer per `AGENT_WHITEBOARD.md` "In-flight fault recovery architecture") would naturally adopt LOC-5 and LOC-6 as part of formal verification work. See `docs/PROJECT_STATUS.md` "Side Projects & Future Product Lines" for the forward-looking pointer.
+
+The deferral is **re-evaluated each cycle** at Tier 2.5a (deferred-with-rationale row walk) — 3-cycle stale-rationale threshold triggers explicit user re-disposition.
 
 **Conflict resolution:**
 - **Newer standard explicit + older standard silent** → newer applies.

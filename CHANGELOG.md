@@ -22,6 +22,18 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-13-003 | Claude | audit, architecture, documentation, council
+
+**Audit-coverage gap-fill cycle (steps 0, 1a, 1b, Tiers 1-4).** Procedure refactored 8-step flat → 7-tier dependency-ordered (council-approved with 8 amendments). Tiers 5-7 deferred to a different agent for DO-178C verification-independence. See `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` for the cycle's findings + handoff to next agent; `AUDIT_GUIDANCE_REWRITE_PROPOSAL_2026-05-13.md` for the council verdict; `AUDIT_COVERAGE_INVENTORY_2026-05-13.md` for the gap-list inventory; `STANDARDS_AUDIT_2026-05-13.md` for the Tier 3 dated companion.
+
+F-2026-05-13-004 (Major) remediated in this commit: 3 production .cpp files restored to the `-Wpedantic` gate. All 4 build tiers rebuilt clean.
+
+Verified: pure-software (CMakeLists.txt + doc edits), host ctest 794/794 PASS, no HW reseat required.
+
+Files: `CMakeLists.txt`, `standards/AUDIT_GUIDANCE.md`, `standards/STANDARDS_AUDIT.md`, `standards/CODING_STANDARDS.md`, `docs/PROJECT_STATUS.md`, `AGENT_WHITEBOARD.md`, `docs/audits/AUDIT_COVERAGE_INVENTORY_2026-05-13.md` (new), `docs/audits/AUDIT_GUIDANCE_REWRITE_PROPOSAL_2026-05-13.md` (new), `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` (new), `docs/audits/STANDARDS_AUDIT_2026-05-13.md` (new), `CHANGELOG.md`.
+
+---
+
 ### 2026-05-13-002 | Claude | audit, architecture, documentation
 
 **Master Standards Audit 2026-05-07 — Phase 8L2 (updated audit) wrapped with findings.** Per-finding record in `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-07.md` § Phase 8L2; PR tracker `docs/PROBLEM_REPORTS.md` updated.
