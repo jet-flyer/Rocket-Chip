@@ -22,6 +22,22 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-13-005 | Claude | audit, tooling
+
+**Audit-infrastructure follow-up: F-001/002/003 REMEDIATED.** Three audit-tooling scripts shipped to close the DEFERRED findings from the 2026-05-13 master cycle:
+
+- `scripts/audit/pre_commit_fixture_test.py` (F-001) — 30-row fixture exercises `scripts/ci/pre_commit_matrix.py`.
+- `scripts/audit/list_bench_sim_pass_tokens.py` (F-002) — bidirectional regex-vs-emission inventory for `bench_sim.py` and `station_bench_sim.py`.
+- `scripts/audit/check_toolchain_drift.py` (F-003) — mechanical upstream-version pulls vs CMakeLists.txt pins + local installs.
+
+`standards/AUDIT_GUIDANCE.md` Tier 1.3 / 1.4(b) / 2.3 now name the three scripts as the audit-time mechanisms. `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` findings table retroactively amended (DEFER → REMEDIATED) per `.claude/SESSION_CHECKLIST.md` retroactive-amendment rule (cycle explicitly deferred with expectation of follow-up).
+
+Verified locally: F-001 30/30 fixture rows PASS; F-002 10/11 token classes match firmware emissions ([ESKF] empty + documented as doc-vs-firmware drift); F-003 confirms no NEW toolchain drift vs `TOOLCHAIN_VERSION_AUDIT_2026-04-27.md` baseline. Host ctest 794/794 (no source changes).
+
+Files: `scripts/audit/pre_commit_fixture_test.py` (new), `scripts/audit/list_bench_sim_pass_tokens.py` (new), `scripts/audit/check_toolchain_drift.py` (new), `standards/AUDIT_GUIDANCE.md`, `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md`, `AGENT_WHITEBOARD.md`, `CHANGELOG.md`.
+
+---
+
 ### 2026-05-13-004 | Grok | audit, verification, independence
 
 **Tiers 5/6/7 Master Standards Audit complete (independent verification).** Fresh session by Grok (structurally different LLM). Walked all Tier 5 sub-items (pre-flight gate, RP2350 errata, bench/replay, requirements traceability, regression), Tier 6 (F-2 drift, G/H, protected-doc, CHANGELOG), Tier 7 (independent disposition review of 4 open findings).

@@ -32,32 +32,13 @@
 
 ## High priority
 
-- **Audit-infrastructure follow-up session (post-2026-05-13 cycle) — NEXT SESSION.** The 2026-05-13 audit cycle closed (CHANGELOG entries `2026-05-13-003` + `2026-05-13-004` — Grok independent verification CLOSED Tier 5/6/7). Next session fills the audit-tooling script gaps. Bounded scope per user direction 2026-05-13 end-of-session.
-
-  **Scope for next session (script-tooling only):**
-  - **F-2026-05-13-001** — Build `scripts/audit/pre_commit_fixture_test.sh` (or equivalent). Synthetic staged-diff fixture exercises `scripts/hooks/pre-commit` against both known-good and known-bad scenarios; asserts the gate matrix produces the expected verdict for each. Wire into Tier 1.3.
-  - **F-2026-05-13-002** — Build `scripts/audit/list_bench_sim_pass_tokens.sh` (or equivalent). Greps firmware source for emitted `[FD]` / positive-control tokens; cross-checks against bench_sim's regex constants. Output is an inventory file (`logs/bench_sim_pass_tokens.txt` or similar). Wire into Tier 1.4(b).
-  - **F-2026-05-13-003** — Build `scripts/audit/check_toolchain_drift.sh`. Mechanically pulls upstream versions for Pico SDK, picotool, GCC ARM, OpenOCD (Pi fork), Pico Probe firmware, CMake. Compares against locally installed + project-pinned versions. Wire into Tier 2.3.
-  - All three are Minor DEFER findings; runtime enforcement unaffected. Out of scope for a fresh session: any production-source firmware changes, audit re-walks, or surfaced-bug expansion (HW_GATE Rule 7 does not apply here — these are script-tooling gaps the audit cycle already disposition'd).
-
-  **Other items (separate, not for next session):**
-  - L2-P2/P3/P4 from the 2026-05-07 cycle (sampling policy / citation inventory / scope language) — audit-policy doc edits, batch with whichever later cycle picks them up.
-  - R-22 (warm-reboot audit script), R-24 (boot-parity gate flash + verify-banner extension) — both require probe + HW; separate session.
-  - CLA-RBM re-collection: triggers at the 90-day mark (~2026-06-06) per the Tier 4.5 threshold introduced in the 2026-05-13 procedure refactor. Until then, watched-but-not-stale.
-
-  **Exact state for handoff (2026-05-13 session close):**
-  - `origin/main` HEAD = `1a32103` ([Claude] Merge Grok Tier 5/6/7 independent verification: cycle CLOSED).
-  - All 4 build tiers compile clean (`-Wpedantic` on full `ROCKETCHIP_SOURCES` post-F-2026-05-13-004 fix).
-  - Host ctest 794/794 PASS.
-  - SPIN_OK_31 (6 models, 31 LTL properties).
-  - Master audit `docs/audits/MASTER_STANDARDS_AUDIT_2026-05-13.md` CLOSED — Tier 7 disposition complete via Grok independent verification; no audit re-open required.
-  - 3 script-tooling findings (F-2026-05-13-001/002/003) DEFERRED to the next session named above.
-  - No HW work was attempted this session (pure-doc + 1 CMakeLists.txt edit + Grok merge).
-
-- **Other deferred audit-cycle items (separate sessions):**
-  - R-5 (full stdio.h removal) + R-2 (absorbed into R-5) deferred for dedicated ETL session.
-  - R-23 (vehicle bench tier HardFault) blocks future Tier 5.4 + 4.3 vehicle scenarios until R-25 deprecation evaluation chooses path.
-  - Architecture session: R-20 (Core 1 boot-wait AIRCR), R-21 (PIO WDT no auto-reset), L2-W1 — all feed "in-flight fault recovery architecture" thinking already on this whiteboard.
+- **Deferred audit-cycle items (separate sessions, each with its own scope):**
+  - **L2-P2/P3/P4** from the 2026-05-07 cycle (sampling policy / citation inventory / scope language) — audit-policy doc edits, batch with whichever later cycle picks them up.
+  - **R-22** (warm-reboot audit script) + **R-24** (boot-parity gate flash + verify-banner extension) — both require probe + HW; separate session.
+  - **R-5** (full stdio.h removal) + **R-2** (absorbed into R-5) deferred for dedicated ETL session.
+  - **R-23** (vehicle bench tier HardFault) blocks future Tier 5.4 + 4.3 vehicle scenarios until **R-25** (bench-tier deprecation evaluation) chooses path.
+  - **Architecture session**: R-20 (Core 1 boot-wait AIRCR), R-21 (PIO WDT no auto-reset), L2-W1 — all feed "in-flight fault recovery architecture" thinking already on this whiteboard.
+  - **CLA-RBM re-collection** triggers at the 90-day mark (~2026-06-06) per the Tier 4.5 threshold from the 2026-05-13 procedure refactor. Until then, watched-but-not-stale.
 
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
