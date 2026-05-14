@@ -22,6 +22,29 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-13-006 | Claude | audit, cleanup
+
+**Deferred-Cleanup Cycle DC-2026-05-13 Session 1 COMPLETE.** Cat-4 closeout of accumulated DEFER queue from the 2026-05-07 + 2026-05-13 master audit cycles. 5 commits, no source changes, no HW reseat required.
+
+Session ran per council-approved plan in `docs/plans/DEFERRED_CLEANUP_PLAN_2026-05-13.md`:
+
+- **A1 self-check** (open): F-001/002/003 against `origin/main` — 30/30 fixture rows PASS, inventory generated, drift report clean.
+- **C4-2 (L2-P9)**: Toolchain version audit 2026-05-13 produced from F-003 mechanical pull. `docs/audits/TOOLCHAIN_VERSION_AUDIT_2026-05-13.md` (new). No new drift vs 2026-04-27 baseline.
+- **C4-5 (L2-P2/P3/P4)**: Audit-policy doc edits in `AUDIT_GUIDANCE.md` Tier 3.8 (exhaustive-coverage rule, citation-inventory tooling-gap, scope-language reporting rule) + `STANDARDS_AUDIT.md` template "How to Use" section.
+- **C4-3 (R-10b)**: Stack-usage SDK gap re-eval decision recorded in PROBLEM_REPORTS — no new evidence, defer to next milestone close.
+- **C4-1**: Archive 16 verified rows (R-1, R-3, R-4, R-6c, R-7, R-9c, R-11, R-12, R-13, R-15, R-16, R-17, R-18, R-19, R-26, P8-FMEA-Pyro) from Active → Archive section in PROBLEM_REPORTS.md. Each cites Grok Tier 5/6/7 merge `1a32103` as the audit-suite-regression that closed it.
+- **End-of-session sanity check**: host ctest 794/794, bench_sim 2/2 PASS (vehicle flight v0.16.0 (kmenu) COM7, 6.5s), SPIN_OK_31 across 6 models.
+
+Active PROBLEM_REPORTS table now contains only DEFER rows (R-2, R-5, R-10b, R-20, R-21, R-22, R-23, R-24, R-25 + L2-P5..L2-P11) — 9 R-* + 7 L2-P*.
+
+Next: Session 2 (R-22 warm-reboot audit script + R-24 boot-parity extension, ~3-4 hr HW work) and Session 3 (R-25-eval bench-tier deprecation evaluation, ~2 hr decision-doc).
+
+Files: `scripts/audit/*` (unchanged this commit), `docs/audits/TOOLCHAIN_VERSION_AUDIT_2026-05-13.md` (new), `standards/AUDIT_GUIDANCE.md`, `standards/STANDARDS_AUDIT.md`, `docs/PROBLEM_REPORTS.md`, `CHANGELOG.md`.
+
+Verified: pure-software / doc-only session. Host ctest 794/794, bench_sim 2/2 PASS, SPIN_OK_31. No HW reseat required (Session 1 was no-HW; bench_sim end-of-session check observed all positive-control signals).
+
+---
+
 ### 2026-05-13-005 | Claude | audit, tooling
 
 **Audit-infrastructure follow-up: F-001/002/003 REMEDIATED.** Three audit-tooling scripts shipped to close the DEFERRED findings from the 2026-05-13 master cycle:
