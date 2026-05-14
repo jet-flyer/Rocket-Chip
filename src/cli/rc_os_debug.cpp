@@ -14,8 +14,8 @@
 
 #include "cli/rc_os_debug.h"
 // R-25-exec step 5 (2026-05-13): src/dev/replay_inject.h removed.
+// R-25-exec step 6 (2026-05-13): src/dev/station_replay.h removed.
 // Replay coverage moved host-side per council amendment #4.
-#include "dev/station_replay.h"
 #include "cli/rc_os.h"
 #include "cli/rc_os_commands.h"
 #include "safety/test_mode.h"
@@ -126,22 +126,13 @@ bool dev_debug_menu_dispatch(int c) {
             rc::pyro_edge_logger_dump_cli();
             break;
         case 'r': case 'R':
-            // R-25-exec step 5 (2026-05-13): vehicle replay-inject
-            // DELETED per council amendment #4 (replay coverage moves
-            // host-side; on-MCU CSV-streamer-into-seqlock-buffer
-            // retired). Station replay still resident until step 6.
-            if (!rc::test_mode_active()) {
-                printf("[debug] replay-inject gated; arm test mode via "
-                       "probe (see safety/test_mode.h)\n");
-                break;
-            }
-            if constexpr (kRadioModeRx) {
-                printf("\n--- Station replay (RX-path hex injection) --- send 'R,<hex>\\n' lines ---\n");
-                station_replay_start();
-            } else {
-                printf("[debug] vehicle replay-inject retired; "
-                       "see scripts/replay_harness_host.py (host-side ESKF replay)\n");
-            }
+            // R-25-exec steps 5+6 (2026-05-13): both vehicle replay-inject
+            // and station replay-inject DELETED per council amendment #4.
+            // Replay coverage moved host-side (see
+            // scripts/replay_harness_host.py for vehicle; station replay
+            // covered by a host-side hex-injection harness rewrite in
+            // step 7).
+            printf("[debug] replay retired; see scripts/replay_harness_host.py\n");
             break;
         case 'd': case 'D':
             diag_stats_dump();
@@ -233,61 +224,7 @@ bool dev_eskf_live_poll() {
 // scripts/replay_harness_host.py (same ESKF code, host workstation,
 // no on-target attack surface, no flash cost).
 
-// Station replay mode: reads hex-encoded packet lines from serial,
-// injects into AO_Telemetry RX path (IVP-132a.3).
-// Protocol: Python sends "R,<hex bytes>\n" — hex is a complete packet.
-// End: Python sends "REPLAY_END\n".
-static char s_stReplayBuf[512];
-static uint16_t s_stReplayBufPos = 0;
-
-static uint8_t hex_nibble(char c) {
-    if (c >= '0' && c <= '9') { return static_cast<uint8_t>(c - '0'); }
-    if (c >= 'a' && c <= 'f') { return static_cast<uint8_t>(c - 'a' + 10); }
-    if (c >= 'A' && c <= 'F') { return static_cast<uint8_t>(c - 'A' + 10); }
-    return 0xFF;
-}
-
-static void station_parse_and_inject(const char* line) {
-    if (strncmp(line, "REPLAY_END", 10) == 0) {
-        station_replay_stop();
-        printf("[station_replay] end (count=%lu)\n",
-               (unsigned long)station_replay_get_inject_count());
-        return;
-    }
-    if (line[0] != 'R' || line[1] != ',') { return; }
-
-    const char* hex = line + 2;
-    uint8_t buf[128];
-    uint8_t len = 0;
-    while (hex[0] && hex[1] && len < sizeof(buf)) {
-        uint8_t hi = hex_nibble(hex[0]);
-        uint8_t lo = hex_nibble(hex[1]);
-        if (hi == 0xFF || lo == 0xFF) { break; }
-        buf[len++] = static_cast<uint8_t>((hi << 4) | lo);
-        hex += 2;
-    }
-    if (len > 0) {
-        station_replay_inject_bytes(buf, len);
-    }
-}
-
-bool dev_station_replay_poll() {
-    if constexpr (!kRadioModeRx) { return false; }
-    if (!station_replay_active()) { return false; }
-
-    for (int drain = 0; drain < 256; ++drain) {
-        int c = getchar_timeout_us(0);
-        if (c == PICO_ERROR_TIMEOUT) { break; }
-
-        if (c == '\n' || c == '\r') {
-            if (s_stReplayBufPos > 0) {
-                s_stReplayBuf[s_stReplayBufPos] = '\0';
-                station_parse_and_inject(s_stReplayBuf);
-                s_stReplayBufPos = 0;
-            }
-        } else if (s_stReplayBufPos < sizeof(s_stReplayBuf) - 1) {
-            s_stReplayBuf[s_stReplayBufPos++] = static_cast<char>(c);
-        }
-    }
-    return true;
-}
+// R-25-exec step 6 (2026-05-13): dev_station_replay_poll() +
+// station_parse_and_inject() + hex_nibble() + s_stReplayBuf DELETED
+// per council amendment #4. Station hex-injection replay retired;
+// coverage moves host-side (rewrite tracked in step 7).

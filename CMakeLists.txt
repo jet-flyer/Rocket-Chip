@@ -350,8 +350,10 @@ else()
         # read-only snapshot (AO queues, MSP, sensors, health). No state
         # mutation, no test_mode gate needed.
         src/diag/diag_stats.cpp
-        $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/station_fault_inject.cpp>
-        $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/station_replay.cpp>
+        # R-25-exec step 6: station_fault_inject.cpp migrated to src/safety/
+        # (test-mode-gated at entry, see safety/ block below).
+        # R-25-exec step 6: src/dev/station_replay.cpp DELETED per council
+        # amendment #4 (station replay coverage moves host-side).
 
         # -------------------------------------------------------------------------
         # Stage 5: Sensor Fusion Math (IVP-39+)
@@ -389,6 +391,7 @@ else()
         src/safety/core1_i2c_pause.cpp   # R-17 audit 2026-05-07: cooperative pause around flash ops
         src/safety/test_mode.cpp         # R-25-exec: runtime gate for test/fault-injection affordances (Approach A 2026-05-13)
         src/safety/fault_inject.cpp      # R-25-exec step 3: migrated from src/dev/, gated by test_mode
+        src/safety/station_fault_inject.cpp  # R-25-exec step 6: migrated from src/dev/, gated by test_mode (no-op on vehicle role)
 
         # Phase 6: Health Monitor (called from AO_FlightDirector at 10Hz)
         src/safety/health_monitor.cpp
@@ -546,6 +549,7 @@ else()
         src/safety/core1_i2c_pause.cpp   # R-17 audit 2026-05-07: cooperative pause around flash ops
         src/safety/test_mode.cpp         # R-25-exec: runtime gate for test/fault-injection affordances (Approach A 2026-05-13)
         src/safety/fault_inject.cpp      # R-25-exec step 3: migrated from src/dev/, gated by test_mode
+        src/safety/station_fault_inject.cpp  # R-25-exec step 6: migrated from src/dev/, gated by test_mode
         src/safety/health_monitor.cpp
         src/telemetry/telemetry_encoder.cpp
         src/telemetry/telemetry_service.cpp
@@ -680,23 +684,18 @@ else()
         -Wl,--undefined=fault_force_ao_queue_flood
         -Wl,--undefined=fault_force_pio_sm_halt
         -Wl,--undefined=fault_force_hardfault
+        # R-25-exec step 6 (2026-05-13): station fault-injection symbols
+        # joined the always-on block; test-mode-gated at entry (Approach A).
+        -Wl,--undefined=fault_force_station_rx_drop
+        -Wl,--undefined=fault_force_station_ack_suppress
+        -Wl,--undefined=fault_force_station_gps_loss
+        -Wl,--undefined=fault_force_station_gps_restore
     )
 
-    # Remaining bench-only symbols pending migration in step 6.
-    # R-25-exec step 5: replay_inject_* symbols DELETED (council amendment #4).
-    if(NOT_CERTIFIED_FOR_FLIGHT)
-        target_link_options(rocketchip PRIVATE
-            -Wl,--undefined=fault_force_station_rx_drop
-            -Wl,--undefined=fault_force_station_ack_suppress
-            -Wl,--undefined=fault_force_station_gps_loss
-            -Wl,--undefined=fault_force_station_gps_restore
-            -Wl,--undefined=station_replay_inject_bytes
-            -Wl,--undefined=station_replay_get_inject_count
-            -Wl,--undefined=station_replay_start
-            -Wl,--undefined=station_replay_stop
-            -Wl,--undefined=station_replay_active
-        )
-    endif()
+    # R-25-exec steps 5+6: replay_inject_* + station_replay_* symbols
+    # DELETED per council amendment #4 (replay coverage moves host-side).
+    # The NOT_CERTIFIED_FOR_FLIGHT-only --undefined block is now empty
+    # and ready for collapse in step 8.
 
     # Enable USB CDC for stdio (not UART)
     pico_enable_stdio_usb(rocketchip 1)

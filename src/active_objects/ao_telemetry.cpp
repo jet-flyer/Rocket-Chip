@@ -29,8 +29,12 @@
 #include "rocketchip/job.h"
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include <math.h>                                   // lroundf (T5.5: float->int)
-#if defined(ROCKETCHIP_JOB_STATION) && defined(ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS)
-#include "dev/station_fault_inject.h"
+#ifdef ROCKETCHIP_JOB_STATION
+// R-25-exec step 6 (2026-05-13): station_fault_inject.h migrated to
+// src/safety/. Runtime test_mode_active() gate at each
+// fault_force_station_* entry replaces compile-time gate; the global
+// flags themselves are read-only here and harmless on inactive boots.
+#include "safety/station_fault_inject.h"
 #endif
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -508,8 +512,11 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
     if (!rc::ccsds_decode_cmd_ack(rxEvt->buf, rxEvt->len, ack)) {
         return false;
     }
-#if defined(ROCKETCHIP_JOB_STATION) && defined(ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS)
-    // IVP-132a: fault-inject ACK suppression — forces station retry path
+#ifdef ROCKETCHIP_JOB_STATION
+    // IVP-132a: fault-inject ACK suppression — forces station retry path.
+    // R-25-exec step 6: flag is set only via fault_force_station_ack_suppress()
+    // which checks test_mode_active() at entry; on production boots the flag
+    // is always 0 and this branch is dead. (Runtime gate per Approach A.)
     if (g_fault_station_ack_suppress_remaining > 0) {
         g_fault_station_ack_suppress_remaining =
             g_fault_station_ack_suppress_remaining - 1;
@@ -602,8 +609,11 @@ static void dispatch_nav_output(TelemAo* me,
 #endif
 
 static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
-#if defined(ROCKETCHIP_JOB_STATION) && defined(ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS)
-    // IVP-132a: fault-inject RX drop (bench binary only, station only)
+#ifdef ROCKETCHIP_JOB_STATION
+    // IVP-132a: fault-inject RX drop. R-25-exec step 6: flag is set
+    // only via fault_force_station_rx_drop() which checks
+    // test_mode_active() at entry; production boots leave the flag
+    // at 0 and this branch is dead.
     if (g_fault_station_rx_drop_remaining > 0) {
         g_fault_station_rx_drop_remaining = g_fault_station_rx_drop_remaining - 1;
         return;

@@ -33,8 +33,8 @@ bool dev_debug_menu_dispatch(int c);
 // stream is active and consumed the key; false otherwise.
 bool dev_eskf_live_poll();
 
-// Station replay-inject poll. Slated for deletion in R-25-exec step 6.
-bool dev_station_replay_poll();
+// R-25-exec step 6 (2026-05-13): dev_station_replay_poll DELETED;
+// station replay coverage moves host-side per council amendment #4.
 
 // LED-test submenu routes the next keystroke from the main CLI
 // dispatcher here instead of blocking in a handler (LL Entry 32).
