@@ -33,13 +33,7 @@ bool dev_debug_menu_dispatch(int c);
 // stream is active and consumed the key; false otherwise.
 bool dev_eskf_live_poll();
 
-// Vehicle replay-inject poll. Called from the main dispatcher when
-// replay is active. Returns true if replay is active. NOTE: replay
-// itself is slated for deletion in R-25-exec step 5 (migrates host-
-// side per council amendment #4).
-bool dev_replay_poll();
-
-// Station replay-inject poll. Same retirement as dev_replay_poll().
+// Station replay-inject poll. Slated for deletion in R-25-exec step 6.
 bool dev_station_replay_poll();
 
 // LED-test submenu routes the next keystroke from the main CLI

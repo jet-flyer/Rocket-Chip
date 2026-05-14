@@ -13,7 +13,8 @@
 // work always (observational, no safety risk).
 
 #include "cli/rc_os_debug.h"
-#include "dev/replay_inject.h"
+// R-25-exec step 5 (2026-05-13): src/dev/replay_inject.h removed.
+// Replay coverage moved host-side per council amendment #4.
 #include "dev/station_replay.h"
 #include "cli/rc_os.h"
 #include "cli/rc_os_commands.h"
@@ -125,12 +126,10 @@ bool dev_debug_menu_dispatch(int c) {
             rc::pyro_edge_logger_dump_cli();
             break;
         case 'r': case 'R':
-            // R-25-exec: replay-inject is state-mutating (CSV streamed
-            // into sensor-snapshot buffers, simulates Core 1 input).
-            // Test-mode-gated per council Approach A. Replay itself
-            // is slated for deletion in R-25-exec step 5 (replay
-            // migrates host-side per council amendment #4) — for
-            // now we just gate the trigger.
+            // R-25-exec step 5 (2026-05-13): vehicle replay-inject
+            // DELETED per council amendment #4 (replay coverage moves
+            // host-side; on-MCU CSV-streamer-into-seqlock-buffer
+            // retired). Station replay still resident until step 6.
             if (!rc::test_mode_active()) {
                 printf("[debug] replay-inject gated; arm test mode via "
                        "probe (see safety/test_mode.h)\n");
@@ -140,7 +139,8 @@ bool dev_debug_menu_dispatch(int c) {
                 printf("\n--- Station replay (RX-path hex injection) --- send 'R,<hex>\\n' lines ---\n");
                 station_replay_start();
             } else {
-                replay_inject_start();
+                printf("[debug] vehicle replay-inject retired; "
+                       "see scripts/replay_harness_host.py (host-side ESKF replay)\n");
             }
             break;
         case 'd': case 'D':
@@ -227,53 +227,11 @@ bool dev_eskf_live_poll() {
     return true;
 }
 
-// Replay mode: reads CSV lines from serial, injects into seqlock.
-// Protocol: Python sends "S,ax,ay,az,gx,gy,gz,press,lat,lon,alt\n"
-// End: Python sends "REPLAY_END\n"
-static char s_replayBuf[128];
-static uint8_t s_replayBufPos = 0;
-
-static void parse_and_inject(const char* line) {
-    if (strncmp(line, "REPLAY_END", 10) == 0) {
-        replay_inject_stop();
-        return;
-    }
-    if (line[0] != 'S' || line[1] != ',') { return; }
-
-    static uint32_t s_replayTimestampUs = 0;
-    float ax = 0, ay = 0, az = 0, gx = 0, gy = 0, gz = 0, press = 0;
-    int32_t lat = 0, lon = 0, alt = 0;
-    bool gps_valid = false;
-
-    // S,ax,ay,az,gx,gy,gz,press,lat,lon,alt
-    int n = sscanf(line + 2, "%f,%f,%f,%f,%f,%f,%f,%ld,%ld,%ld",
-                   &ax, &ay, &az, &gx, &gy, &gz, &press, &lat, &lon, &alt);
-    gps_valid = (n >= 10 && lat != 0);
-    s_replayTimestampUs += 10000;  // 10ms per sample (100Hz)
-
-    replay_inject_sample(s_replayTimestampUs, ax, ay, az, gx, gy, gz,
-                         press, lat, lon, alt, gps_valid);
-}
-
-bool dev_replay_poll() {
-    if (!replay_inject_active()) { return false; }
-
-    for (int drain = 0; drain < 256; ++drain) {
-        int c = getchar_timeout_us(0);
-        if (c == PICO_ERROR_TIMEOUT) { break; }
-
-        if (c == '\n' || c == '\r') {
-            if (s_replayBufPos > 0) {
-                s_replayBuf[s_replayBufPos] = '\0';
-                parse_and_inject(s_replayBuf);
-                s_replayBufPos = 0;
-            }
-        } else if (s_replayBufPos < sizeof(s_replayBuf) - 1) {
-            s_replayBuf[s_replayBufPos++] = static_cast<char>(c);
-        }
-    }
-    return true;
-}
+// R-25-exec step 5 (2026-05-13): dev_replay_poll() + parse_and_inject()
+// + s_replayBuf DELETED per council amendment #4. Vehicle CSV-streamer
+// replay retired; algorithmic coverage moves to host-side
+// scripts/replay_harness_host.py (same ESKF code, host workstation,
+// no on-target attack surface, no flash cost).
 
 // Station replay mode: reads hex-encoded packet lines from serial,
 // injects into AO_Telemetry RX path (IVP-132a.3).

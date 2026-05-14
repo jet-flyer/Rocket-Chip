@@ -344,7 +344,8 @@ else()
         # i.e. dev/bench builds; the positive mirror flag is
         # ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS — see option block below).
         # R-25-exec step 3: fault_inject.cpp migrated to src/safety/ (test-mode-gated, see below)
-        $<$<BOOL:${NOT_CERTIFIED_FOR_FLIGHT}>:src/dev/replay_inject.cpp>
+        # R-25-exec step 5: src/dev/replay_inject.cpp DELETED per council amendment #4
+        # (CSV replay moves host-side; on-MCU seqlock-stuffing retired).
         # R-25-exec step 4: diag_stats.cpp migrated to src/diag/. Always-on
         # read-only snapshot (AO queues, MSP, sensors, health). No state
         # mutation, no test_mode gate needed.
@@ -681,12 +682,10 @@ else()
         -Wl,--undefined=fault_force_hardfault
     )
 
-    # Remaining bench-only symbols pending migration in steps 5 + 6.
+    # Remaining bench-only symbols pending migration in step 6.
+    # R-25-exec step 5: replay_inject_* symbols DELETED (council amendment #4).
     if(NOT_CERTIFIED_FOR_FLIGHT)
         target_link_options(rocketchip PRIVATE
-            -Wl,--undefined=replay_inject_start
-            -Wl,--undefined=replay_inject_stop
-            -Wl,--undefined=replay_inject_sample
             -Wl,--undefined=fault_force_station_rx_drop
             -Wl,--undefined=fault_force_station_ack_suppress
             -Wl,--undefined=fault_force_station_gps_loss
