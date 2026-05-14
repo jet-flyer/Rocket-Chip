@@ -32,37 +32,29 @@
 
 ## High priority
 
-- **FIRST UP next session (R-25-exec HW gate verification — needs probe + vehicle Feather + station Fruit Jam):** the R-25-exec cycle (commits d103f09 .. 208bdab, pushed 2026-05-14) closed R-22/R-23/R-24/R-25-exec at the Level-1 "Verified locally" credit per HW_GATE_DISCIPLINE Rule 6 — bench_sim 2/2 PASS on the post-collapse `build_flight/rocketchip.elf`, host ctest 800/800, both flight tiers compile clean. **Level-2 audit-suite regression has NOT run yet.**
+- **R-25-exec audit-suite regression status (2026-05-14 bench session):** T0+T1+T2a passed at Level-2; T2b deferred along with T3a to the in-flight fault recovery architecture session because T2b's expected behavior depends on the reset-vs-safe-mode response choice still being made.
 
-  Bench notes from 2026-05-14 attempt (commit d89db71, reverted; no code in tree):
-    - Vehicle Core 1 was in HardFault on attach from overnight bench-idle. Single probe reflash cleared it. Not a real regression — same firmware `flight-a101185` reads `hardware: 14/14 ok` post-reflash.
-    - `warm_reboot_audit.py` has at least two script bugs: (a) `_probe_aircr_reset()` issues `monitor resume` after AIRCR which fails with "context restore failed" — fix is to drop the resume; (b) Windows USB CDC port-handle release race after chip reset — `_read_sensor_counts`'s `open_classified_port` hits PermissionError(13) for the full retry window. Neither was committed.
-    - Bench is verified physical-to-role correct per FLASHING.md (vehicle Feather chip `02FBDDB8E1CA1281` on COM7; station Fruit Jam chip `BEC71B8EDC6AEBD1` on COM9). Not Frankensteined.
+  **What ran tonight:**
+  - **T0a — boot-parity:** vehicle (probe + GDB load) PASS, banner `vehicle flight v0.16.0 (kmenu)`, board `adafruit feather rp2350 hstx`, `hardware: 14/14 ok`. Station (picotool `--ser BEC71B8EDC6AEBD1` + manual `_boot_parity_check.py` invocation; `verify_boot_parity.sh station` only knows the probe-flash path which can't reach the station with probe permanently on the Feather) PASS, banner `station flight v0.16.0 (dashboard)`, board `adafruit fruit jam`.
+  - **T1a — station_bench_sim:** 3/3 PASS in 16.9s. `TARGET_STATION_ANY` retargeting from R-25-exec step 7 working.
+  - **T1b — vehicle warm-reboot (labeled-soft via runbook, Rule 4):** G-W2 3× operator-pressed reset button: banner identity stable across all 3 (same `flight-a101185`, `hardware: 14/14 ok`, fresh uptime each). G-W3 5× picotool `reboot -f --ser`: banner stable across all 5. Script path failed twice with Windows USB CDC race (script bugs `_probe_aircr_reset()` `monitor resume` after AIRCR; peek_banner default 2.0s peek-timeout too short for the firmware's post-reset banner cadence on this bench). Pivoted to runbook per the row's pre-declared pivot trigger.
+  - **T1c — station warm-reboot (labeled-soft via runbook, Rule 4):** G-W2 3× reset button (note: first cycle was actually cold boot because operator power-cycled the Fruit Jam's USB switch by mistake; that cycle reported `10/11 ok [fail] gps`. Warm-reboot cycles 2 + 3 both reported `11/11 ok`, banner identity stable). G-W3 5× picotool: all 5 reported `11/11 ok`.
+  - **T2a — negative-control gated-fault check:** PASS. With `rc::g_test_mode_enabled == false`, GDB `call fault_force_eskf_unhealthy()` produced `[FAULT] fault_force_eskf_unhealthy gated — arm test mode via probe ...` on serial AND `g_eskfInitialized` remained `true`. CODING_STANDARDS R-25-exec audit invariant verified empirically for this entry point. Grep coverage at `src/safety/fault_inject.cpp:57-60+` confirms every `fault_force_*` entry calls `fi_test_mode_gate()` as line 1 of its body (same pattern for `src/safety/station_fault_inject.cpp`).
 
-  Re-ordered remaining work by dependency tier:
+  **What's deferred to the in-flight fault recovery architecture session:**
+  - **T2b — armed `fault_force_*` sweep across all 9 vehicle + 4 station entries.** Several scenarios (especially `fault_force_eskf_unhealthy` and `fault_force_launch_abort`) drive into the R-3 capture-then-reset fault handler / watchdog_recovery_eskf_failed path. If the architecture session pivots to PIO watchdog + safe-mode-in-place, T2b's expected behavior changes. Running tonight against the current architecture produces baselines that go stale immediately. Probe-mediated armed exercise also requires reliable `arm_test_mode_via_probe()` integration with longer USB CDC re-enum settle than the script currently allows (~2s; my manual experiments showed ~10s + still hit phase!=kIdle condition for the runtime arm-evaluate). Station-side fault entries (4× `fault_force_station_*`) have grep coverage only since the probe is permanently on the Feather and Fruit Jam has no SWD attached.
+  - **T3a — `warm_reboot_audit` G-W1 + G-W4** (AIRCR-only-Core-0 reset). Specifically targets the R-19 SIO_FIFO_IRQ wedge under the R-3 capture-then-reset fault handler. Same deferral rationale as T2b.
 
-  **Tier 0 — Foundation (no presuppositions; closes R-24 directly):**
-  - T0a. `bash scripts/verify_boot_parity.sh vehicle` then `... station` — builds + flashes + banner-classifies each role. Pure script, no probe orchestration. Run first; if it fails, downstream tiers can't run.
+  **Closure state of PROBLEM_REPORTS rows:**
+  - **R-24** — Level-2 CLOSED with T0a. Both roles built, flashed, banner-classified.
+  - **R-23** — Level-2 CLOSED with T0 + T1. LM-solver refactor exercised end-to-end via bench_sim + warm-reboot stability.
+  - **R-22** — partial Level-2 closure with T1b + T1c chip-wide warm-reboot verified. AIRCR-specific G-W1/G-W4 stays open with deferral note pointing at the architecture session.
+  - **R-25-exec** — partial Level-2 closure with T0 + T1 + T2a (audit invariant verified for the negative-control case; grep coverage for the rest). Armed-sweep T2b deferral note pointing at the architecture session.
 
-  **Tier 1 — Per-role scripted tests (require T0; closes R-23 + R-25-exec):**
-  - T1a. `python scripts/station_bench_sim.py` against Fruit Jam — confirms `TARGET_STATION_ANY` retargeting (step 7) classifies + runs the 3 tests. bench_sim has prior-art reliability; lowest risk of script flake.
-  - T1b. `warm_reboot_audit --role vehicle --skip-aircr` (G-W2 + G-W3 only) — chip-wide warm reboot via `monitor reset run` x3 + picotool burst x5. Doesn't depend on AIRCR/fault-handler code paths. **If hit by the same USB CDC race that broke G-W1 attempt, pivot to a labeled-soft runbook procedure (user-pressed reset, agent monitors serial) per HW_GATE_DISCIPLINE Rule 4.**
-  - T1c. `warm_reboot_audit --role station` (G-W1/G-W4 auto-skip on station regardless; just G-W2/G-W3).
-
-  **Tier 2 — Test-mode + fault injection (require T0; closes R-25-exec fault-inject migration):**
-  - T2a. Negative-control: with test mode NOT armed, GDB-call `fault_force_eskf_unhealthy()`. Expected: `[FAULT] ... gated — arm test mode via probe ...` printf, `g_eskfInitialized` stays true. Tests CODING_STANDARDS R-25-exec audit invariant.
-  - T2b. `python scripts/enhanced_fault_injection.py --scenario all` — full armed sweep across the 9 `fault_force_*` entries + 4 station ones. Confirms `arm_test_mode_via_probe()` integration end-to-end.
-
-  **Tier 3 — Deferred to the "in-flight fault recovery architecture" session below:**
-  - T3a. `warm_reboot_audit` G-W1 + G-W4 (AIRCR-only-Core-0 reset). **Specifically tests the R-19 SIO_FIFO_IRQ wedge scenario** under the R-3 capture-then-reset fault handler. That fault-handler architecture itself is "ships partially validated" per the architecture-session entry below — the right session to exercise G-W1 is the one that decides whether AIRCR-reset stays the primary fault-response primitive, or whether the PIO-watchdog + safe-mode-in-place pattern replaces it. Testing G-W1 against firmware that may be redesigned in the same session is wasted work.
-
-  **Closure mapping after the tiers run:**
-  - **R-24** closes on Level-2 with T0a alone (boot/parity is exactly what T0a tests).
-  - **R-23** closes on Level-2 with T0 + T1 (no AIRCR dependency in the LM-solver refactor).
-  - **R-25-exec** closes on Level-2 with T0 + T1 + T2 (tier collapse + fault-inject migration are all exercised end-to-end).
-  - **R-22** gets **partial Level-2 closure** with T1b + T1c (chip-wide warm reboot verified). R-22 stays open in PROBLEM_REPORTS with explicit deferral note: "AIRCR-specific verification (G-W1 + G-W4) deferred to in-flight fault recovery architecture session — see whiteboard."
-
-  Update PROBLEM_REPORTS rows accordingly after each tier; do not batch.
+  **Findings to track separately (not blocking closures):**
+  - **Script flake (warm_reboot_audit + enhanced_fault_injection):** both scripts trip on Windows USB CDC re-enum timing after probe-mediated chip reset. Specific bugs found: (a) `_probe_aircr_reset()` `monitor resume` after AIRCR write fails with "context restore failed" because AIRCR external-resets the chip out from under OpenOCD's halt-state (fix: drop the resume); (b) `peek_banner` default `peek_timeout=2.0s` too short for the post-reset banner-emit cadence (firmware's `handle_usb_connect` settle is 5 ticks @ 20Hz = 250ms + USB enum settling). Not patched in the script during this session per user direction to revert and pivot to runbook. Either fix in a dedicated script-hardening session, or accept the runbook for these gates going forward.
+  - **Station GPS cold-boot slow-start:** on power-on, Fruit Jam reports `hardware: 10/11 ok [fail] gps` with PMTK writes returning -1 and `window_hit:0 init:0`. Warm-reboots immediately after show `11/11 ok`. Consistent with the I2C-GPS init-window timing pattern from LL Entry 31. Not blocking but worth tracking — does the station benefit from a longer GPS init window, or is one-shot retry on PMTK-fail the right fix?
+  - **Station fault-inject probe-coverage gap:** no SWD on station. `fault_force_station_*` entries can only be verified by grep + reasoning about the gate mechanism. If we want armed exercise of those, options are: (1) move probe between sessions; (2) build station firmware on the Feather (`PICO_BOARD=adafruit_feather_rp2350 ROCKETCHIP_JOB_STATION=1`) as a probe-accessible Frankenstein-by-design for fault-inject testing only.
 
 - **Next up (other deferred items from DC-2026-05-13 cycle, each its own session):**
   - **Host-side replay harness implementation** (`scripts/replay_harness_host.py` is a stub). Per R-25-exec amendment #4, IVP-131 verification model shifts from on-MCU CSV-streamer to host-side ESKF replay against `tests/replay_profiles/*.csv` ground-truth. Needs host-buildable ESKF driver + comparison harness against the oracle. Out of cycle scope; tracked here until implemented.
