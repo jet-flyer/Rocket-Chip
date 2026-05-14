@@ -92,6 +92,22 @@ are locked out at runtime, not compiled out.
 | `src/calibration/calibration_storage.cpp` | Ground | Flash storage — pre-flight only |
 | `src/cli/rc_os.cpp` | Ground | CLI / local GCS — locked out in flight |
 | `src/main.cpp` | Ground (mixed) | Contains flight loop (Core 1 sensor sampling, watchdog) + ground-only CLI dispatch |
+| `src/safety/test_mode.cpp` | Flight-Critical | R-25-exec runtime gate (`g_test_mode_enabled`) — three-condition AND (SRAM-magic AND state==IDLE AND boot-time-window). Probe-only arming; no CLI fallback. All `fault_force_*` and state-mutating Debug-menu commands check `rc::test_mode_active()` at entry. See [`docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`](../docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md) for council-approved design. |
+| `src/safety/fault_inject.cpp` | Flight-Critical | 9 `fault_force_*` entries, every one gated by `rc::test_mode_active()` (single point of refusal). Recovery action `fault_force_core0_stall_clear()` intentionally not gated (must remain reachable after IDLE-exit clears test mode). Migrated from `src/dev/fault_inject.cpp` (R-25-exec step 3, 2026-05-13). |
+| `src/safety/station_fault_inject.cpp` | Flight-Critical | 4 `fault_force_station_*` entries, all gated. Recovery action `fault_force_station_gps_restore()` not gated (symmetric with vehicle pattern). Migrated from `src/dev/station_fault_inject.cpp` (R-25-exec step 6, 2026-05-13). |
+| `src/diag/diag_stats.cpp` | Ground | Read-only diagnostic snapshot (AO queue depths, MSP high-water, radio counters, health latches, sensor temps). No state mutation — no test-mode gate required. Migrated from `src/dev/diag_stats.cpp` (R-25-exec step 4, 2026-05-13). Always callable via debug submenu 'd' + GDB. |
+| `src/cli/rc_os_debug.cpp` | Ground | Debug submenu (`q→...`). Diagnostic reads (s/i/b/e/y/d/h/z) always available; state-mutating commands (l = LED test, 0..5 = radio config set) check `rc::test_mode_active()` at entry. Migrated from `src/dev/dev_cli.cpp` (R-25-exec step 2, 2026-05-13). |
+
+### R-25-exec test-mode audit invariant (2026-05-13)
+
+Per council Approach A, the project enforces a mechanical audit invariant: **every state-mutating test affordance must check `rc::test_mode_active()` at entry**. Grep targets:
+
+```
+grep -rn "fault_force_" src/safety/      # every entry calls fi_test_mode_gate() (or fis_)
+grep -rn "test_mode_active()" src/cli/   # every state-mutating Debug-menu branch
+```
+
+The audit-coverage refresh adds a host ctest sweep (planned, follow-on work) that walks every `extern "C" __attribute__((used))` `fault_force_*` symbol and verifies the entry sequence. Until the ctest sweep lands, the audit cycle's manual walk-through of `safety/fault_inject.cpp` + `safety/station_fault_inject.cpp` + `cli/rc_os_debug.cpp` is the gate.
 
 ### RP2350 Bare-Metal Platform Constraints
 

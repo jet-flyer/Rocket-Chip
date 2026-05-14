@@ -21,6 +21,13 @@ FLIGHT_CRITICAL = re.compile(
     r'|src/active_objects/ao_flight_director'
     r'|src/active_objects/ao_logger'
     r'|src/cli/rc_os'
+    # R-25-exec step 10 (2026-05-13): the migrated test-mode +
+    # fault-injection modules touch the runtime gate (state mutation
+    # protected by `rc::test_mode_active()`) -- a regression here can
+    # silently disable the gate. Add to flight-critical trigger set.
+    r'|src/safety/test_mode'
+    r'|src/safety/fault_inject'
+    r'|src/safety/station_fault_inject'
     r')'
 )
 
