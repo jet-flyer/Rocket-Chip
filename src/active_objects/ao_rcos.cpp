@@ -27,6 +27,7 @@
 #include "calibration/cal_hooks.h"
 #include "drivers/i2c_bus.h"
 #include "safety/core1_i2c_pause.h"
+#include "safety/test_mode.h"  // R-25-exec step 11: magic-observed -> kMenu
 #include "ao_logger.h"
 #include "logging/flight_table.h"
 #include "logging/flash_flush.h"
@@ -1086,6 +1087,17 @@ void AO_RCOS_start(uint8_t prio) {
                   Q_DIM(l_rcosAoQueue),
                   (void *)0, 0U,
                   (void *)0);
+
+    // R-25-exec step 11 (2026-05-13): if test mode was armed at boot
+    // (probe wrote kTestModeMagic), force kMenu output regardless of
+    // role. One-shot at start — won't fight operator input later.
+    // Both vehicle and station converge to kMenu when test mode is
+    // armed, giving host-side scripts (warm_reboot_audit, etc.) a
+    // deterministic output channel. Operator who wants dashboard back
+    // power-cycles without arming.
+    if (rc::test_mode_magic_observed_at_boot()) {
+        s_output_mode = StationOutputMode::kMenu;
+    }
 }
 
 void AO_RCOS_resume_tick() {

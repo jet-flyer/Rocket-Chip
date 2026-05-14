@@ -110,6 +110,17 @@ inline bool test_mode_active() {
     return g_test_mode_enabled;
 }
 
+// Was the arm magic observed at boot? Set once during test_mode_init()
+// (single-use read of g_test_mode_arm_magic). Stays true for the whole
+// boot session even after test_mode_clear_on_idle_exit() flips
+// g_test_mode_enabled false — useful for callers that want to know
+// "did the operator arm this boot?" even after the gate clears.
+//
+// Used by AO_RCOS_start() to choose kMenu output mode on boots where
+// test mode was armed (deterministic output for warm_reboot_audit +
+// other host-side scripts, both vehicle and station). R-25-exec step 11.
+bool test_mode_magic_observed_at_boot();
+
 // Status for boot banner / preflight VERDICT (test-mode-active
 // surfaces as forced NO-GO). Returns one of:
 //   "off"        — not armed

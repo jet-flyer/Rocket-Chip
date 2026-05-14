@@ -54,6 +54,10 @@ void test_mode_register_phase_accessor(FlightPhaseAccessor fn) {
     s_phase_accessor = fn;
 }
 
+bool test_mode_magic_observed_at_boot() {
+    return s_magic_observed_at_boot;
+}
+
 void test_mode_init() {
     // Single-use read of the arm magic. If present, clear it
     // immediately — operator must re-arm next session. This prevents
