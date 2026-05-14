@@ -24,7 +24,8 @@ These tools must be available in your PATH (Git Bash / MSYS2 recommended):
 - `soak_test.py` — General system stability soak
 - `i2c_soak_test.py` — I2C/sensor error monitoring
 - `bench_sim.py`, `station_bench_sim.py` — Flight Director + CLI end-to-end test
-- `replay_gate_test.py` — Replay-based gate validation
+- `replay_harness_host.py` — Host-side ESKF replay (placeholder; R-25-exec
+  amendment #4 retired the on-MCU CSV-streamer replay path 2026-05-13)
 - `cli_test.py` — Non-destructive CLI tests
 
 ### Audit Scripts (Category 1 & 2)

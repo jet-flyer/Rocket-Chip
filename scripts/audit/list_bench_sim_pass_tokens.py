@@ -145,8 +145,9 @@ TOKEN_CLASSES = [
     (
         '[ESKF] divergence sentinels',
         re.compile(r'"(\[ESKF\][^"]*)"'),
-        'Not bench_sim-gated; covered by replay_gate_test.py and host '
-        'fusion tests. Currently NO firmware emission with this prefix — '
+        'Not bench_sim-gated; covered by host-side replay harness '
+        '(scripts/replay_harness_host.py, post-R-25-exec amendment #4) '
+        'and host fusion tests. Currently NO firmware emission with this prefix — '
         'the doc-level FMEA-lite row in AUDIT_GUIDANCE Appendix A.1 names '
         '`[ESKF] DIVERGENCE` as an expected positive-control signal; '
         'absence indicates either (a) the divergence detection emits a '

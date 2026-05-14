@@ -2,13 +2,20 @@
 """
 RocketChip Enhanced Fault Injection Harness
 
-Drives fault scenarios via GDB on the bench-tier firmware (build/rocketchip-dev.elf)
+Drives fault scenarios via GDB on the flight firmware (build_flight/rocketchip.elf)
 and captures the firmware-side positive-control signal per HW_GATE_DISCIPLINE.md
 Rule 1 + master-audit amendment 7.
 
+R-25-exec step 7 (2026-05-13): retargeted to the single flight binary
+per council-APPROVED Approach A (BENCH_TIER_DEPRECATION_2026-05-13.md).
+Now arms test mode via probe at session start (writes
+rc::kTestModeMagic to rc::g_test_mode_arm_magic, resets) before
+calling any fault_force_*() hook — every hook checks
+rc::test_mode_active() at entry and no-ops on production boots.
+
 Each scenario:
   1. Drives the device into the fault condition via GDB (call a fault_force_*()
-     hook from src/dev/fault_inject.cpp OR set a state variable directly).
+     hook from src/safety/fault_inject.cpp OR set a state variable directly).
   2. Captures serial output for a bounded window.
   3. Greps for the expected firmware-side positive-control log line.
   4. Reports SCENARIO_<name>_COMPLETE only if BOTH the script step succeeded AND
@@ -31,7 +38,7 @@ Usage:
 
 Prerequisites:
     - OpenOCD on 127.0.0.1:3333 with CMSIS-DAP probe attached
-    - Bench-tier firmware flashed (build/rocketchip-dev.elf, NOT_CERTIFIED_FOR_FLIGHT=ON)
+    - Flight firmware flashed (build_flight/rocketchip.elf)
     - Vehicle USB CDC enumerated on a known COM port
 """
 
@@ -46,8 +53,10 @@ _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
+from _rc_test_common import arm_test_mode_via_probe  # noqa: E402
+
 GDB = r'C:\Users\pow-w\.pico-sdk\toolchain\14_2_Rel1\bin\arm-none-eabi-gdb.exe'
-ELF = 'build/rocketchip-dev.elf'
+ELF = 'build_flight/rocketchip.elf'
 BAUD = 115200
 
 
@@ -244,6 +253,17 @@ def main():
         sys.exit(2)
     print(f'[FAULT] Using port: {port}')
     print(f'[FAULT] Using ELF: {ELF}')
+
+    # R-25-exec step 7 (2026-05-13): arm test mode at session start.
+    # Probe writes rc::kTestModeMagic + resets; fault_force_*() entries
+    # check test_mode_active() at entry and no-op without it.
+    print('[FAULT] Arming test mode via probe (rc::g_test_mode_arm_magic = 0x7E57BABE)...')
+    if not arm_test_mode_via_probe(ELF):
+        print('ERROR: failed to arm test mode via probe (OpenOCD attached?)')
+        sys.exit(2)
+    # Give the firmware boot-time-window the chance to capture the magic
+    # before scenarios start firing fault_force_*() entries.
+    time.sleep(2.0)
 
     if args.scenario == 'all':
         results = {}

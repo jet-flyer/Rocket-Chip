@@ -795,6 +795,54 @@ def rc_test(*,
     return decorator
 
 
+# ============================================================================
+# Test-mode arming via debug probe
+# ============================================================================
+# R-25-exec (2026-05-13, Approach A): the bench tier no longer exists.
+# Test affordances (fault_force_*, debug submenu state-mutating commands)
+# live in the single flight binary, gated by rc::test_mode_active(). To
+# arm test mode, a host-side script:
+#   1. Halts the chip via probe (OpenOCD :3333).
+#   2. Writes rc::kTestModeMagic (0x7E57BABE) to rc::g_test_mode_arm_magic.
+#   3. Resets to run; test_mode_init() reads + clears the magic on boot.
+#   4. Within ~30 s of boot AND while flight phase == kIdle, the gate
+#      evaluates to enabled.
+# See safety/test_mode.h for the three-condition AND gate.
+
+_TEST_MODE_MAGIC = 0x7E57BABE  # matches rc::kTestModeMagic in safety/test_mode.h
+_GDB_PATH = r'C:\Users\pow-w\.pico-sdk\toolchain\14_2_Rel1\bin\arm-none-eabi-gdb.exe'
+
+
+def arm_test_mode_via_probe(elf_path: str,
+                            gdb_port: int = 3333,
+                            timeout_s: float = 20.0) -> bool:
+    """Arm test mode by probe-writing the SRAM magic and resetting.
+
+    Caller must have OpenOCD listening on `gdb_port` (default 3333) and
+    a flashed firmware that matches the supplied ELF. Returns True if
+    the GDB session completed without error, False otherwise.
+
+    The runtime confirms arming via the banner / preflight VERDICT
+    when the flight binary boots into kIdle within the kTestModeArmWindowMs
+    window; this function only writes the magic + triggers a reset.
+    """
+    import subprocess
+    cmds = [
+        _GDB_PATH, elf_path, '-batch',
+        '-ex', f'target extended-remote localhost:{gdb_port}',
+        '-ex', 'monitor reset halt',
+        '-ex', f'set var rc::g_test_mode_arm_magic = {_TEST_MODE_MAGIC:#x}',
+        '-ex', 'monitor resume',
+        '-ex', 'detach',
+    ]
+    try:
+        r = subprocess.run(cmds, capture_output=True, text=True,
+                           timeout=timeout_s)
+        return r.returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+
+
 __all__ = [
     # Watchdog
     'start_watchdog',
@@ -808,6 +856,8 @@ __all__ = [
     'peek_banner', 'find_target_port', 'find_vehicle_and_station_ports',
     'open_classified_port', 'enter_cli_menu',
     'ROCKETCHIP_USB_VID', 'ROCKETCHIP_USB_PID',
+    # Test-mode arming (R-25-exec, Approach A)
+    'arm_test_mode_via_probe',
     # Decorator
     'rc_test',
 ]

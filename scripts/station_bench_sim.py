@@ -35,7 +35,7 @@ Wall-clock watchdog: --max-runtime (default 60s) is enforced by a daemon
 thread that calls os._exit(2) when fired. This is the only reliable
 escape from a hung serial.Serial() open on Windows USB CDC.
 
-Port detection: ``find_target_port(TARGET_STATION_BENCH)`` (RocketChip
+Port detection: ``find_target_port(TARGET_STATION_ANY)`` (RocketChip
 VID:PID USB CDC only). ``--port`` overrides but is still banner-classified;
 connection uses ``open_classified_port`` with ``auto_enter_cli_menu=False``
 because ``goto_main_from_anywhere`` performs dashboard→menu navigation.
@@ -68,7 +68,7 @@ from _rc_test_common import (  # noqa: E402
     rc_test,
     ROCKETCHIP_USB_PID,
     ROCKETCHIP_USB_VID,
-    TARGET_STATION_BENCH,
+    TARGET_STATION_ANY,  # R-25-exec step 7: bench/flight collapsed, accept either
 )
 
 # =============================================================================
@@ -348,7 +348,7 @@ def _station_bench_run_inner(ser: serial.Serial,
     return 0 if failed == 0 else 1
 
 
-@rc_test(target=TARGET_STATION_BENCH)
+@rc_test(target=TARGET_STATION_ANY)  # R-25-exec step 7: bench/flight collapsed
 def main():
     parser = argparse.ArgumentParser(
         description='RocketChip Station Bench Sim (IVP-146, 3 tests)')
@@ -372,7 +372,8 @@ def main():
         meta = peek_banner(port_name)
     else:
         port_name, reason = find_target_port(
-            TARGET_STATION_BENCH, override=args.port, verbose=args.verbose)
+            TARGET_STATION_ANY,
+            override=args.port, verbose=args.verbose)
         if port_name is None:
             print(f'INFO: No station detected — {reason}.')
             print('  Skipping station_bench_sim (this is exit code 2 = '
@@ -392,7 +393,7 @@ def main():
     try:
         with open_classified_port(
             port_name,
-            target=TARGET_STATION_BENCH,
+            target=TARGET_STATION_ANY,  # R-25-exec step 7: bench/flight collapsed, accept either
             post_open_re_classify=not args.allow_non_station,
             auto_enter_cli_menu=False,
         ) as ser:
