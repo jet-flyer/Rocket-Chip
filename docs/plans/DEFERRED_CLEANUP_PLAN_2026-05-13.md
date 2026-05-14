@@ -5,7 +5,7 @@
 **Authored:** 2026-05-13 (post-2026-05-13 audit cycle close + audit-infrastructure follow-up).
 **Procedure framing:** `standards/AUDIT_GUIDANCE.md` Appendix C 4-category ordering — **focused remediation cycle** per AUDIT_GUIDANCE scope-decision-table row 6, NOT a new master audit.
 **Hardware available:** debug probe + vehicle Feather + station Fruit Jam.
-**Expected total wall-clock budget:** 6–8 hours of focused work across 3 sessions. User picks single-push vs. multi-week spread.
+**Expected total wall-clock budget:** 4–6 hours of focused work across 3 sessions. User picks single-push vs. multi-week spread. (Original 6–8 hr estimate reduced by ~2 hr when R-24 was pulled out and merged into R-25-exec on 2026-05-13.)
 
 **Sessions explicitly out of this cycle (each its own dedicated session):**
 - R-5 ETL vendoring + stdio removal (per `STDIO_REPLACEMENT_PLAN.md`).
@@ -193,16 +193,19 @@ Per Appendix C category-order with council amendments. **This cleanup cycle cove
 
 Single push at end. CHANGELOG entry for the session.
 
-### Session 2 — R-22 + R-24 audit-infrastructure HW gates [~3-4 hr]
+### Session 2 — R-22 audit-infrastructure HW gate [~1-2 hr]
 
-**Re-labeled per council Q2 amendment:** R-22 and R-24 are Cat-1-equivalent audit-infrastructure, not Cat-4 cleanup. They're tooling/gate-integrity additions even though they land in this Cat-4 cleanup cycle's structure.
+**Re-labeled per council Q2 amendment:** R-22 is Cat-1-equivalent audit-infrastructure, not Cat-4 cleanup. It's a tooling/gate-integrity addition even though it lands in this Cat-4 cleanup cycle's structure.
 
 **Note 2026-05-13:** CLA-RBM was originally in this session as parallel async work. Per user direction post-council, CLA-RBM has been **pulled out as its own dedicated session** (it's the cycle-budget audit and deserves focused attention, not background-soak treatment). See "Sessions explicitly out of this cycle" in the header.
 
-1. **R-22** — Build `scripts/warm_reboot_audit.py` (G-W1 AIRCR via probe + G-W2/G-W3/G-W4 picotool variants). *Commit*: `[DC-2026-05-13] R-22 REMEDIATED: warm-reboot audit script`.
-2. **R-24** — Extend `verify_build_parity.sh` to add flash + verify-banner per tier. *Commit*: `[DC-2026-05-13] R-24 REMEDIATED: boot-parity extension`.
-3. **Wire both** into AUDIT_GUIDANCE Tier 2.7 (new) + SESSION_CHECKLIST. *Commit*: `[DC-2026-05-13] AUDIT_GUIDANCE Tier 2.7 + SESSION_CHECKLIST wire-in for R-22/R-24`.
-4. **HW gate per Rule 2:** probe attached + 4 boards + 3-boot reseat for each script during R-22 and R-24 development.
+**Scope amendment 2026-05-13 (mid-Session 2):** R-24 (boot-parity extension) **pulled out and merged into R-25-exec** per user direction. R-25 (Session 3) is the bench-tier deprecation evaluation; the dev tiers may go away under approach B. Shipping a 4-tier boot-parity gate this session and then re-scoping it to 2 tiers next session is churn — better to ship R-24 once after R-25-eval decides the tier count.
+
+1. **R-22** — Build `scripts/warm_reboot_audit.py` (G-W1 AIRCR via probe + G-W2 3-power-cycle baseline + G-W3 picotool burst + G-W4 compound). *Commit*: `[DC-2026-05-13] R-22 REMEDIATED: warm-reboot audit script`.
+2. **Wire R-22** into AUDIT_GUIDANCE Tier 2.7 (new) + SESSION_CHECKLIST. *Commit*: `[DC-2026-05-13] AUDIT_GUIDANCE Tier 2.7 + SESSION_CHECKLIST wire-in for R-22`.
+3. **HW gate per Rule 2:** probe attached + vehicle Feather + 3-boot reseat for R-22 development.
+
+R-24 stays in PROBLEM_REPORTS as `analyzed / DEFER` with the owner column updated to point at R-25-exec.
 
 ### Session 3 — R-25-eval bench-tier deprecation evaluation [~2 hr]
 

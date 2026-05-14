@@ -39,14 +39,34 @@ RC_OS follows patterns proven in the old APM CLI (ArduPilot ~2012-2014) adapted 
 
 ### Main Menu (`[main]`)
 
-Displayed on terminal connect and on `h` keypress. Commands grouped by function:
+Displayed on terminal connect and on `h` keypress. Commands grouped by function. **Source of truth: `src/cli/rc_os.cpp:94-98` (`print_help_menu()`) + `src/cli/rc_os.cpp:143-191` (`handle_main_menu()`).**
 
 | Group | Keys | Description |
 |-------|------|-------------|
-| **Status** | `h` `s` `e` `b` | Help, sensor status, ESKF live (1Hz), boot summary |
-| **Menus** | `c` `f` | Calibration sub-menu, Flight Director sub-menu |
+| **Status** | `h` `p` | Help (reprint menu), Preflight Go/No-Go |
+| **Menus** | `c` `f` `q` | Calibration sub-menu, Flight Director sub-menu, **Debug sub-menu (sensor status, HW status, ESKF live, etc. — bench-tier only)** |
 | **Data** | `g` `d` `l` `x` | List flights, download, flush to flash, erase all |
-| **Radio** | `t` `r` `m` `i` | Telemetry status, cycle TX rate, MAVLink toggle, I2C scan |
+| **Radio** | `t` `r` `m` `b` | Telemetry status, cycle TX rate, MAVLink toggle, **Beacon (manual find-me, Stage L)** |
+
+**Drift fix 2026-05-13:** previously documented `s`/`e`/`b` as main-menu Status keys and `i` as a main-menu Radio key. Stage L (2026-04-18) reassigned `b` from "boot summary" to "Beacon (manual find-me)" in main menu, and bench-tier sensor/ESKF/HW status / I2C-scan keys moved to the `q`-Debug submenu via the bench-tier classification. The previous documentation rotted silently. See R-27 (this cycle) for the fix.
+
+### Debug Sub-Menu (`[debug]`) — press `q` from main (bench tier only)
+
+| Key | Command | Description |
+|-----|---------|-------------|
+| `s` | Sensors | Print sensor status + IMU/baro read counters (`Reads: I=NNN M=NNN B=NNN G=NNN`) |
+| `i` | I2C scan | Rescan I2C bus (disabled if Core 1 owns bus) |
+| `b` | Boot/HW | Reprint boot banner + Hardware Status (`Hardware: N/N OK` + per-device PASS/FAIL) |
+| `e` | ESKF live | 1Hz ESKF state dump until any key |
+| `y` | Pyro log | Dump pyro edge logger CLI |
+| `r` | Replay inject | Start replay-inject session (vehicle bench) / station replay (station bench) |
+| `d` | Diag stats | Diagnostic counters dump (rate counters, MSP, etc.) |
+| `l` | LED test | LED test pattern |
+| `0..5` | Radio cfg | Local radio configuration index (0:BW125/5 1:BW125/10 2:BW250/10 3:BW500/10 4:BW125/2 5:BW250/5) |
+| `h` `H` `?` | Help | Reprint debug submenu |
+| `z` `Z` ESC | Back | Return to main menu |
+
+Debug submenu is gated on the bench tier (`NOT_CERTIFIED_FOR_FLIGHT=ON` / `ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS=1`). On flight-tier builds, `q` is a no-op (handled by `dev_debug_menu_enter()` returning false).
 
 ### Calibration Menu (`[cal]`) — press `c` from main
 
