@@ -131,10 +131,13 @@ void fault_force_pio_sm_halt() {
 
 // R-3 verification hook (audit 2026-05-07): force a MemManage fault by
 // writing into the MPU stack guard region. The handler in
-// fault_protection.cpp captures crash state and triggers NVIC_SystemReset,
-// then on next boot health_monitor_init() consumes the record and latches
-// kHealthCriticalPriorHardfault. Use this from GDB to verify the full
-// capture-and-reset path end-to-end.
+// fault_protection.cpp captures crash state and dispatches phase-aware:
+// in kIdle it triggers NVIC_SystemReset and on next boot
+// health_monitor_init() consumes the record and latches
+// kHealthCriticalPriorHardfault; in any flight phase it transitions to
+// kFault and busy-loops without resetting (fault-recovery 2026-05-14,
+// plan B.1/B.2). Use this from GDB to verify either dispatch path
+// end-to-end depending on the current flight phase.
 //
 // Writes a sentinel value into the first word of the MPU guard region.
 // Per the linker, __StackBottom marks the start of the guard (64 bytes

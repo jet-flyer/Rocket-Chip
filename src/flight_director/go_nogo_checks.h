@@ -22,7 +22,10 @@
 namespace rc {
 
 // Maximum number of individual check results
-static constexpr uint8_t kGoNoGoMaxChecks = 12;
+// Bumped 12 -> 16 on 2026-05-14 (commit b/3 of fault-recovery rework) to
+// accommodate the two new Tier-1 prior-fault-latch stations (PriorHF +
+// PriorBOR) without truncating Tier-2 stations.
+static constexpr uint8_t kGoNoGoMaxChecks = 16;
 
 // Maximum reason string length (stack-allocated, no heap)
 static constexpr uint8_t kGoNoGoReasonLen = 32;
@@ -37,6 +40,14 @@ struct GoNoGoInput {
     bool flash_available;       // Flight table loaded + space remaining
     bool launch_abort;          // WatchdogRecovery::launch_abort latched
     bool watchdog_ok;           // No safe-mode, no ESKF disabled
+    bool prior_hardfault_clear; // kHealthCriticalPriorHardfault not latched
+                                //   (fault-recovery 2026-05-14: makes the
+                                //   existing latch actually gate arm; before
+                                //   commit (b) it was visibility-only)
+    bool prior_brownout_clear;  // kHealthCriticalPriorBrownout not latched
+                                //   (fault-recovery 2026-05-14: requires
+                                //   physical inspection + operator-cleared
+                                //   latch before re-arm permitted)
 
     // Tier 2: Profile-specific
     bool gps_has_lock;          // fix_type >= 2 && satellites >= 4

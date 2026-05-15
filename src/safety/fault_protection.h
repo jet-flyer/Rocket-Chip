@@ -30,25 +30,45 @@ static constexpr uint32_t kMpuGuardSizeBytes = 64;              // Guard region 
 
 // R-3 (audit 2026-05-07): the kFaultBlink* / kFaultFastBlinks LED-blink
 // constants that lived here were used by the pre-R-3 halt-forever handler.
-// The new handler captures crash state and triggers NVIC_SystemReset() via
-// crash_record_capture(), so the blink loop is gone and these constants
-// are no longer used. See standards/HW_GATE_DISCIPLINE.md Rule 6 for the
-// safe-mode integration model.
+// Fault-recovery 2026-05-14 (commit b/3): handler is now phase-aware —
+// captures crash state, then either (a) triggers SYSRESETREQ via AIRCR
+// after a brief visible-signal delay (only when phase==kIdle), or (b)
+// transitions to kFault and busy-loops while PIO backup timers continue
+// running (any flight phase). The blink loop is gone; the visible signal
+// is the serial banner plus a future raw-GPIO LED toggle (placeholder
+// pending safe-from-fault-context pin write sequence verification).
+// See plan parsed-soaring-popcorn.md sections B.1/B.2/B.3/B.7 +
+// standards/HW_GATE_DISCIPLINE.md Rule 6 for the safe-mode integration model.
 
 // ============================================================================
 // Public API
 // ============================================================================
 
 /**
- * MemManage / HardFault handler. Must not use stack. Blinks red LED forever.
- * Registered for both cores via exception_set_exclusive_handler().
+ * MemManage / HardFault handler — phase-aware capture-then-dispatch.
+ * Must not use stack for the capture portion. Registered for both cores via
+ * exception_set_exclusive_handler().
+ *
+ * In kIdle: captures crash record, emits visible signal (serial banner via
+ * prior printf path; future raw-GPIO LED), brief delay, then AIRCR reset
+ * (operator sees the post-reset prior-hardfault latch and clears via CLI).
+ *
+ * Any flight phase (or corrupted phase byte): transitions observable phase
+ * to kFault and busy-loops. PIO backup timers continue autonomously.
+ *
+ * Reentrance guard prevents recursive faults from looping the handler.
  */
 void memmanage_fault_handler(void);
 
 /**
- * QP/C assertion handler. Logs and spins (watchdog or manual reset follows).
+ * QP/C assertion handler — same phase-aware dispatch as memmanage_fault_handler.
  * Declaration is plain to avoid macro expansion issues with Q_NORETURN.
  * The noreturn attribute is on the definition in fault_protection.cpp.
+ *
+ * Pre-2026-05-14 this halted forever expecting an SDK hardware watchdog
+ * reset that does not exist in tree. Now routes through phase-aware
+ * dispatch so the chip never gets stuck waiting for a watchdog that
+ * will never fire.
  */
 extern "C" void Q_onError(
     char const * const module,

@@ -30,6 +30,10 @@ rc::GoNoGoInput make_healthy_input() {
     input.flash_available = true;
     input.launch_abort = false;
     input.watchdog_ok = true;
+    // Fault-recovery 2026-05-14 (commit b/3): prior-fault latches must be
+    // clear for ARM. Both default to true (clear) in the healthy baseline.
+    input.prior_hardfault_clear = true;
+    input.prior_brownout_clear = true;
     input.gps_has_lock = true;
     input.mag_calibrated = true;
     input.radio_linked = true;

@@ -23,6 +23,11 @@ static GoNoGoInput all_go_input() {
     gng.flash_available = true;
     gng.launch_abort = false;
     gng.watchdog_ok = true;
+    // Fault-recovery 2026-05-14 (commit b/3): prior-fault latches must be
+    // clear for ARM. Both default to true (clear) here for the all-go
+    // baseline; tests that exercise the latches set them to false explicitly.
+    gng.prior_hardfault_clear = true;
+    gng.prior_brownout_clear = true;
     gng.gps_has_lock = true;
     gng.mag_calibrated = true;
     gng.radio_linked = true;
@@ -47,9 +52,11 @@ TEST_F(GoNoGoTest, AllGoReturnsAllGo) {
     EXPECT_TRUE(r.all_go);
     EXPECT_EQ(r.tier1_go, r.tier1_total);
     EXPECT_EQ(r.tier2_go, r.tier2_total);
-    EXPECT_EQ(r.tier1_total, 6);
+    // Fault-recovery 2026-05-14 (commit b/3): added 2 Tier-1 stations
+    // (PriorHF + PriorBOR) for the prior-fault latches.
+    EXPECT_EQ(r.tier1_total, 8);
     EXPECT_EQ(r.tier2_total, 5);  // RF Link, GPS, Mag, Radio, Battery
-    EXPECT_EQ(r.num_checks, 11);
+    EXPECT_EQ(r.num_checks, 13);
 }
 
 TEST_F(GoNoGoTest, ImuNoGoBlocksArm) {
@@ -58,7 +65,9 @@ TEST_F(GoNoGoTest, ImuNoGoBlocksArm) {
     GoNoGoResult r = go_nogo_evaluate(gng);
 
     EXPECT_FALSE(r.all_go);
-    EXPECT_EQ(r.tier1_go, 5);
+    // Tier 1 = 8 (after fault-recovery 2026-05-14 added PriorHF + PriorBOR),
+    // one fail -> 7 pass.
+    EXPECT_EQ(r.tier1_go, 7);
     EXPECT_FALSE(r.checks[0].go);  // IMU is first check
     EXPECT_STREQ(r.checks[0].name, "IMU");
 }
@@ -69,7 +78,7 @@ TEST_F(GoNoGoTest, BaroNoGoBlocksArm) {
     GoNoGoResult r = go_nogo_evaluate(gng);
 
     EXPECT_FALSE(r.all_go);
-    EXPECT_EQ(r.tier1_go, 5);
+    EXPECT_EQ(r.tier1_go, 7);
 }
 
 TEST_F(GoNoGoTest, EskfNoGoBlocksArm) {
@@ -161,10 +170,14 @@ TEST_F(GoNoGoTest, MultipleTier1FailuresCountCorrectly) {
     GoNoGoResult r = go_nogo_evaluate(gng);
 
     EXPECT_FALSE(r.all_go);
-    // launch_abort=false means Safety is GO, watchdog_ok=true means Watchdog is GO
-    // So 2/6 Tier 1 GO (Safety + Watchdog)
+    // launch_abort=false means Safety is GO, watchdog_ok=true means Watchdog
+    // is GO. prior_hardfault_clear=false (default-zero from {}) means PriorHF
+    // is NO-GO; prior_brownout_clear=false means PriorBOR is NO-GO. So out of
+    // 8 Tier-1 stations only 2 pass (Safety + Watchdog), same as before commit
+    // (b) added PriorHF/PriorBOR — both default to latched-state (no-clear)
+    // when GoNoGoInput is zero-initialized, so they correctly fail.
     EXPECT_EQ(r.tier1_go, 2);
-    EXPECT_EQ(r.tier1_total, 6);
+    EXPECT_EQ(r.tier1_total, 8);
 }
 
 TEST_F(GoNoGoTest, PrintDoesNotCrash) {

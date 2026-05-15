@@ -63,6 +63,35 @@ enum class FlightPhase : uint8_t {
 const char* flight_phase_name(FlightPhase phase);
 
 // ============================================================================
+// Fault-handler-observable phase accessor (fault-recovery 2026-05-14, B.3)
+//
+// The fault handler (memmanage_fault_handler, Q_onError) must read the
+// current flight phase to choose between B.1 (in-flight degrade → kFault)
+// and B.2 (pad acked-reset). Constraints on the accessor:
+//   - Must NOT allocate, post events, or take locks.
+//   - Must be safe to read from any context, including a barely-functional
+//     ARM about to fault again.
+//   - Must detect silent corruption of the underlying byte (council round 2
+//     Professor: store as phase + ~phase pair; mismatch → fall back to kFault
+//     as the most conservative interpretation).
+//
+// Layout: uint32 packed as { 0x00, 0x00, ~phase_byte, phase_byte }. Plain
+// uint32 read on Cortex-M33 is atomic; pair validation rejects corruption
+// without locks.
+// ============================================================================
+
+// Write the checksummed pair. Called from flight_director.cpp's enter_phase()
+// on every phase transition. Must be reachable from anywhere the phase
+// changes — NOT just the canonical FD HSM (e.g., the fault handler can
+// directly set kFault via this accessor).
+void flight_phase_observable_set(FlightPhase phase);
+
+// Read with checksum validation. Returns the phase if the pair is
+// consistent; returns FlightPhase::kFault on mismatch (safe-by-default
+// interpretation: "if we can't trust the phase byte, we're in fault").
+FlightPhase flight_phase_observable_get();
+
+// ============================================================================
 // Flight Event Markers
 //
 // Timestamps (ms since boot) for key flight events. Zero = not yet occurred.

@@ -752,6 +752,12 @@ void health_monitor_fill_go_nogo(GoNoGoInput* gng) {
     gng->flash_available = (g_health.secondary & kHealthFlashOk) != 0;
     gng->launch_abort    = flight_director_launch_abort();
     gng->watchdog_ok     = (g_health.secondary & kHealthWatchdogOk) != 0;
+    // Fault-recovery 2026-05-14: prior-boot fault latches must be cleared
+    // before re-arm. Both latches default to *clear* (true) at boot in the
+    // happy-path case; set to *latched* (false) by health_monitor_init when
+    // crash record / brownout register indicate a prior fault.
+    gng->prior_hardfault_clear = !g_priorHardfaultLatched;
+    gng->prior_brownout_clear  = !g_priorBrownoutLatched;
 
     // Tier 2: Profile -- GPS needs fresh snapshot
     gng->gps_has_lock = g_gpsInitialized &&

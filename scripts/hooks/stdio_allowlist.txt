@@ -14,8 +14,21 @@
 #   - When this list is empty, the pre-commit hook becomes "no <stdio.h>
 #     in src/*.cpp anywhere" and this file can be deleted.
 #
-# Current entries (18 files, established 2026-05-13 during the 2026-05-07
-# master audit's Phase 8 Category 3):
+# Current entries (established 2026-05-13 during the 2026-05-07
+# master audit's Phase 8 Category 3, paths updated 2026-05-14 to match
+# the R-25-exec migration in `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`).
+#
+# Path updates 2026-05-14 (fault-recovery commit b/3) — pure-rename, no
+# new files added to the allowlist; correcting the desync the R-25-exec
+# migration left in the allowlist when src/dev/ contents were relocated:
+#   src/dev/fault_inject.cpp    -> src/safety/fault_inject.cpp (R-25-exec step 3, commit f83cc98)
+#   src/dev/dev_cli.cpp         -> src/cli/rc_os_debug.cpp     (R-25-exec step 2)
+#   src/dev/diag_stats.cpp      -> src/diag/diag_stats.cpp     (R-25-exec step 4)
+#   src/dev/replay_inject.cpp   -> DELETED                     (R-25-exec step 5)
+#   src/safety/station_fault_inject.cpp added — was src/dev/station_fault_inject.cpp,
+#       also migrated in R-25-exec step 6; the original src/dev/ path missed
+#       the allowlist back-then because the file post-dated the 2026-05-13
+#       cutoff for the allowlist's initial entries.
 
 src/active_objects/ao_flight_director.cpp
 src/active_objects/ao_rcos.cpp
@@ -24,14 +37,14 @@ src/calibration/cal_hooks.cpp
 src/cli/rc_os.cpp
 src/cli/rc_os_commands.cpp
 src/cli/rc_os_dashboard.cpp
-src/dev/dev_cli.cpp
-src/dev/diag_stats.cpp
-src/dev/fault_inject.cpp
-src/dev/replay_inject.cpp
+src/cli/rc_os_debug.cpp
+src/diag/diag_stats.cpp
 src/drivers/gps_pa1010d.cpp
 src/drivers/gps_uart.cpp
 src/drivers/i2c_bus.cpp
 src/main.cpp
+src/safety/fault_inject.cpp
 src/safety/fault_protection.cpp
 src/safety/pyro_edge_logger.cpp
+src/safety/station_fault_inject.cpp
 src/telemetry/telemetry_service.cpp

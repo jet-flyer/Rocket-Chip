@@ -73,6 +73,11 @@ static void enter_phase(FlightDirector* me, FlightPhase phase) {
         flight_in_progress_clear();
     }
 
+    // B.3 (council round 2): mirror the phase into the fault-handler-observable
+    // checksummed pair so memmanage_fault_handler() / Q_onError() can dispatch
+    // reset-vs-degrade without holding any FD state.
+    flight_phase_observable_set(phase);
+
     if (me->phase_change_cb) {
         me->phase_change_cb(phase, me->tick_ms);
     }
@@ -144,6 +149,36 @@ const char* flight_phase_name(FlightPhase phase) {
 }
 
 // ============================================================================
+// Fault-handler-observable phase accessor (B.3) — checksummed pair
+// ============================================================================
+//
+// Packing: low byte = phase, high byte (of low 16 bits) = ~phase.
+// Initial value 0xFFFFFFFF would decode to phase=0xFF, complement=0xFF,
+// validation fails → fault handler reads kFault, which is correct for the
+// "uninitialized" case (we don't know what phase we're in yet).
+static volatile uint32_t g_phase_observable_pair = 0xFFFFFFFFU;
+
+void flight_phase_observable_set(FlightPhase phase) {
+    const uint8_t p = static_cast<uint8_t>(phase);
+    const uint8_t cp = static_cast<uint8_t>(~p);
+    g_phase_observable_pair = (static_cast<uint32_t>(cp) << 8) | p;
+}
+
+FlightPhase flight_phase_observable_get() {
+    const uint32_t raw = g_phase_observable_pair;
+    const uint8_t p = static_cast<uint8_t>(raw & 0xFFU);
+    const uint8_t cp = static_cast<uint8_t>((raw >> 8) & 0xFFU);
+    if (static_cast<uint8_t>(~p) != cp) {
+        // Corruption detected (or never-initialized). Safe-by-default.
+        return FlightPhase::kFault;
+    }
+    if (p >= static_cast<uint8_t>(FlightPhase::kCount)) {
+        return FlightPhase::kFault;
+    }
+    return static_cast<FlightPhase>(p);
+}
+
+// ============================================================================
 // Signal name lookup
 // ============================================================================
 static const char* const kSignalNames[] = {
@@ -184,6 +219,10 @@ void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
     guard_evaluator_init(&me->guard_eval, *profile, 10);
     // Init combinator set from profile
     combinator_set_init(&me->combinator_set, *profile);
+    // B.3: seed the fault-observable phase pair with kIdle so a fault that
+    // fires before the first real enter_phase() call doesn't read uninitialized
+    // bytes and trigger spurious kFault dispatch.
+    flight_phase_observable_set(FlightPhase::kIdle);
 }
 
 void flight_director_init(FlightDirector* me) {

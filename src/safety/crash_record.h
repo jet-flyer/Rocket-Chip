@@ -1,15 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 //============================================================================
-// crash_record — preserved-SRAM record for fault-handler capture-and-reset.
+// crash_record — preserved-SRAM record for fault-handler capture-and-dispatch.
 //
 // R-3 (audit 2026-05-07): replaces the prior memmanage_fault_handler() halt-
 // forever pattern with industry-standard capture-state-then-reset. The
 // handler writes a record into the .uninitialized_data section (NOLOAD,
-// survives reset), then triggers NVIC_SystemReset(). On the next boot,
-// health_monitor_init() consumes the record and sets a HealthCritical
-// bit so the existing safe-mode / FAULT-health-state pivot owns the
-// recovery path.
+// survives reset). On the next boot, health_monitor_init() consumes the
+// record and sets a HealthCritical bit so the existing safe-mode /
+// FAULT-health-state pivot owns the recovery path.
+//
+// Fault-recovery 2026-05-14 (commit b/3): the handler that writes this
+// record is now phase-aware. In kIdle the handler still triggers AIRCR
+// reset (capture-then-reset); in any flight phase it transitions to
+// kFault and busy-loops without resetting. The crash_record_consume_prior
+// path is unchanged — if it finds a record on next boot, it surfaces the
+// kHealthCriticalPriorHardfault latch regardless of which dispatch path
+// wrote the record. See safety/fault_protection.cpp +
+// plan parsed-soaring-popcorn.md sections B.1/B.2/B.3/B.7.
 //
 // References:
 //   - ArduPilot watchdog crash dump: https://ardupilot.org/copter/docs/common-watchdog.html
@@ -58,12 +66,25 @@ struct CrashRecord {
 // Capture fault state and trigger reset. Used in NON-handler contexts where
 // a function call is safe (e.g., R-1 Core 1 boot-wait timeout, R-4 MPU
 // config failure). For the actual fault handler, see memmanage_fault_handler
-// in fault_protection.cpp — it inlines capture+reset to avoid the
+// in fault_protection.cpp — it inlines capture+dispatch to avoid the
 // fault-on-fault → lockup risk a C-level call would create when the failing
 // stack is barely above the MPU guard.
 //
 // Reads CFSR/HFSR from fixed SCB addresses; stacked_pc/stacked_lr come from
 // caller. Triggers NVIC_SystemReset() and does not return.
+//
+// Fault-recovery 2026-05-14: this function is still capture-and-AIRCR
+// (does not inherit the phase-aware dispatch of memmanage_fault_handler).
+// It is called from Core 1's boot-wait timeout path, where the AIRCR
+// behavior is *already* known broken (R-20: per-processor AIRCR only resets
+// Core 1, leaving Core 0 unaffected). Commit (b)'s phase-aware dispatch
+// covers the Core 0 entry points; the Core 1 boot-wait path is one of
+// the R-20 dispositions and the in-flight branch of memmanage_fault_handler
+// covers the harmful case (Core 1 timeout during flight → would call this
+// and only reset Core 1 → wedge). For the in-flight case the new fault
+// handler's degrade-in-place path already covers Core 0; Core 1's
+// boot-wait timeout in flight is a separate question for a future
+// architecture session.
 [[noreturn]] void crash_record_capture(CrashReason reason,
                                        uint32_t stacked_pc,
                                        uint32_t stacked_lr);

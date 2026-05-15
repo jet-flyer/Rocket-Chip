@@ -79,6 +79,13 @@ GoNoGoResult go_nogo_evaluate(const GoNoGoInput& input) {
                 !input.launch_abort ? "GO" : "NO-GO LAUNCH ABORT");
     add_station(r, 1, "Watchdog", input.watchdog_ok,
                 input.watchdog_ok ? "GO" : "NO-GO SAFE MODE");
+    // Fault-recovery 2026-05-14: prior-boot fault latches gate ARM.
+    // Each requires operator-cleared latch (via CLI reset command in IDLE
+    // after physical inspection of the recovery cause) before re-arm.
+    add_station(r, 1, "PriorHF", input.prior_hardfault_clear,
+                input.prior_hardfault_clear ? "GO" : "NO-GO PRIOR HARDFAULT");
+    add_station(r, 1, "PriorBOR", input.prior_brownout_clear,
+                input.prior_brownout_clear ? "GO" : "NO-GO PRIOR BROWNOUT");
 
     // Tier 2: Profile-specific (warn only, don't block ARM)
     add_station(r, 2, "GPS", input.gps_has_lock,
