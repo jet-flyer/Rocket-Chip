@@ -1337,3 +1337,47 @@ The R-6 → R-6b near-miss demonstrates that step 1 alone is insufficient. The d
 - Phase A.2 commit: `bf9d393` (deviations re-evaluation + preliminary remediation queue)
 - R-6 commit `d186fc9` — false-proliferation correction against JSF (correct as far as it went)
 - R-6b commit (this commit) — P10 Rule 9 reattribution + standards-precedence rule codified in `CODING_STANDARDS.md`
+
+---
+
+## Entry 38: Code Shows Current-State, Primary Sources Show Possibility-Space
+
+**Date:** 2026-05-15
+**Context:** In-flight fault recovery rework research rounds 1-4.
+
+### Problem
+
+Round-1 research concluded "PIO-driven SX1276 beacon not feasible — 50+ PIO instructions needed for SPI, exceeds 32-instruction PIO program limit." That conclusion was about to be baked into the rework as a hard constraint.
+
+User direction: "remember to check the datasheet and Raspberry Pi's own guidance on the PIO since it's kind of a novel thing. Same about the LoRa radio don't just rely on code."
+
+Round-4 primary-source verification found: **Pico SDK ships PIO-SPI in `pico-examples/pio/spi/spi.pio` at 2-3 instructions per program** (CPHA0=2, CPHA1=3, with CS variants 8). Round-1's estimate was off by an order of magnitude. The "PIO beacon impossible" conclusion would have been structurally wrong.
+
+### Root Cause
+
+**Code reveals what we currently do; primary sources reveal what's possible.** Code-only research has a structural blind spot: it sees implemented patterns, then implicitly reads "not present" as "not feasible." For a capability we haven't built yet (PIO-driven SPI), the SDK example exists and the chip supports it — but neither is visible by grepping our codebase. Category error: inferring possibility-space from current-state.
+
+### Rule
+
+For architectural conclusions that close off a future option ("we can't do X"), cross-check against primary sources before accepting:
+
+1. **Code grep** answers "what do we do today" — never use for "what can we do."
+2. **Datasheets / SDK examples / vendor app notes** answer feasibility. For chip behavior: datasheet. For library patterns: official examples repo, not just the headers we already include. For protocol limits: protocol spec.
+3. **When primary-source verification contradicts code-only research, document the contradiction in the plan** — so future research passes apply the same cross-check rule.
+
+### Where this rule fits
+
+Project-side research discipline lives here (`.claude/LESSONS_LEARNED.md`), not in `AK_GUIDELINES.md` (sourced from a dedicated external location per user direction 2026-05-14). Sibling rules: LL Entry 37 (verify rule wording + right standard in precedence chain), LL Entry 36 (gates that look automated but require human attention rot silently).
+
+### Primary sources catalogued for this project
+
+- RP2350 datasheet: https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+- Pico SDK + examples: https://github.com/raspberrypi/pico-sdk + https://github.com/raspberrypi/pico-examples
+- SX1276 datasheet (Semtech, Adafruit-hosted): https://cdn-shop.adafruit.com/product-files/3179/sx1276_77_78_79.pdf
+- Adafruit RFM95W FeatherWing #3231 learn guide: https://learn.adafruit.com/radio-featherwing
+- FCC Part 15 §15.247: https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/subject-group-ECFR2f2e5828339709e/section-15.247
+
+### Related
+
+- Plan: `C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn.md` (fault-recovery rework, commits `ed7c569` + `8baa18a`)
+- Round-4 primary-source research transcripts: `parsed-soaring-popcorn-agent-ad917b339309c98a4.md` (RP2350 + SDK PIO-SPI) + `parsed-soaring-popcorn-agent-ad60e70478f064f8d.md` (SX1276 + Adafruit FeatherWing)
