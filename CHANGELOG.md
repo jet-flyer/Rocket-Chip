@@ -24,31 +24,23 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ### 2026-05-15-002 | Claude | architecture, safety, council
 
-**In-flight fault recovery architecture rework (B.1-B.8).** Fault handlers (`memmanage_fault_handler`, `Q_onError`) are now phase-aware: in `kIdle` they capture + visible-signal + AIRCR-reset; in any flight phase they transition to `kFault` and busy-loop while PIO backup timers continue autonomously. Zero in-flight reset; no silent reset on pad. Anomalous-boot confidence gate reads POWMAN_CHIP_RESET + flight-in-progress sentinel at boot and suppresses auto-zero-baro on PROBABLY_MID_FLIGHT verdict — prevents council-flagged "silent reset re-zeros baro at altitude" failure mode. New `FlightPhase::kFault` enum + `kHealthCriticalPriorBrownout` health-monitor latch (sibling to kHealthCriticalPriorHardfault). GoNoGo Tier-1 stations for both prior-fault latches now gate ARM (previously visibility-only). Checksummed phase pair (`phase + ~phase`) in fault accessor; reentrance guard; legacy stale-comment cleanup across 6 sites (references to nonexistent SDK watchdog removed).
+**In-flight fault recovery architecture rework (B.1-B.8).** Fault handlers now phase-aware: `kIdle` captures + visible-signal + AIRCR-reset; any flight phase transitions to `kFault` and busy-loops while PIO backup timers continue autonomously. Anomalous-boot gate suppresses auto-zero-baro when POWMAN_CHIP_RESET + flight-in-progress sentinel indicate mid-flight reboot — prevents council-flagged silent-reset-re-zeros-baro failure mode.
 
-Three commits: `ed7c569` (a/3: anomalous-boot gate + sentinel + kFault + brownout latch), `8baa18a` (b/3: phase-aware fault dispatch + checksum pair + reentrance guard + Q_onError refactor + GoNoGo prior-fault stations + stdio-allowlist path desync fix), `5566050` (c/3 doc-only close-out: WB + LL Entry 38 code-vs-primary-sources rule).
+Three commits: `ed7c569` (anomalous-boot gate + kFault enum + brownout latch), `8baa18a` (phase-aware dispatch + checksummed pair + reentrance guard + GoNoGo prior-fault stations), `5566050` (doc close-out: WB + LL Entry 38). Commit-(c) SPI last-gasp beacon deferred per council round 3 — merged with future PIO-beacon session.
 
-Commit (c) — original-scope SPI-based last-gasp beacon behind `#ifdef ROCKETCHIP_LAST_GASP_BEACON` — deferred per council round 3 (NASA/JPL + Cubesat unanimous Option C) + user direction "merge with the future PIO beacon." Combined PIO-beacon + SPI-last-gasp evaluation becomes one future session rather than pre-committing an interface that would constrain the PIO design.
+See: plan `C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn.md` (3 council rounds, 4 research rounds, all unanimous); `AGENT_WHITEBOARD.md` PIO-beacon-and-SPI-last-gasp combined future-session row.
 
-See: plan `C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn.md` (3 council rounds + 4 research rounds, all unanimous); LL Entry 38 (code-vs-primary-sources research-discipline rule — round 1 false-negative on PIO-SPI feasibility was overturned by round-4 primary-source check showing Pico SDK ships PIO-SPI in 2-3 instructions); `AGENT_WHITEBOARD.md` (architecture row retired; PIO-beacon-and-SPI-last-gasp future-session row added).
-
-Verified locally (per HW_GATE_DISCIPLINE Rule 6 Level-1): host ctest 800/800 PASS, vehicle + station flight tiers compile clean (-Wpedantic + -Werror=volatile + -Werror=cmse), HW probe-flash to vehicle + banner read identical to pre-commit, probe-verified `rc::flight_phase_observable_get() == kIdle` baseline. Build size delta: +384 bytes for commit (b) phase-aware dispatch machinery. **Level-2 audit-suite regression (T2b armed fault sweep + T3a warm-reboot AIRCR gates) is the closure path for R-22/R-23/R-24/R-25-exec PROBLEM_REPORTS rows; expected outcomes locked in by the rework but not yet bench-run.**
+Verified locally: host ctest 800/800, both flight tiers compile clean, HW probe-flash + banner read identical to pre-commit, probe-verified `kIdle` baseline. Level-2 audit regression (T2b + T3a) is the closure path for R-22/R-23/R-24/R-25-exec; expected outcomes locked in by the rework but not yet bench-run.
 
 ---
 
 ### 2026-05-14-002 | Claude | audit, verification
 
-**R-25-exec audit-suite regression — Tier 0 + Tier 1 + T2a complete at Level-2 (2026-05-14 bench session).** First end-to-end attempt at the Level-2 audit-suite regression the R-25-exec cycle owed per HW_GATE_DISCIPLINE Rule 6. Re-ordered the originally-flat 6-step audit checklist into 4 dependency tiers (T0 foundation → T1 per-role scripted → T2 fault-inject → T3 deferred) so each tier builds on the previous. Results:
+**R-25-exec audit-suite regression — Tier 0 + Tier 1 + T2a complete at Level-2.** Re-ordered the flat 6-step audit checklist into 4 dependency tiers. T0a (verify_boot_parity), T1a (station_bench_sim 3/3), T1b/T1c (warm-reboot G-W2 + G-W3 via labeled-soft runbook after script flaked on Windows USB CDC re-enum), and T2a (negative-control gated-fault check) all PASS.
 
-- **T0a boot-parity** (verify_boot_parity.sh): PASS both roles. Vehicle Feather via probe-flash; station Fruit Jam via picotool + manual `_boot_parity_check.py` (script doesn't know the probe-on-Feather + picotool-on-station split).
-- **T1a station_bench_sim**: 3/3 PASS in 16.9s. `TARGET_STATION_ANY` retargeting from R-25-exec step 7 working.
-- **T1b/T1c warm_reboot_audit G-W2 + G-W3** (vehicle and station): script flaked on Windows USB CDC re-enum race after probe-mediated reset; pivoted to operator-attended labeled-soft runbook per HW_GATE_DISCIPLINE Rule 4. PASS via runbook for both roles. Note: station first reset cycle was actually a cold boot (operator power-cycled USB switch by mistake) and showed `10/11 ok [fail] gps`; warm-reboot cycles 2+3 showed `11/11 ok` confirming the cold-boot-only GPS slow-start pattern from LL Entry 31.
-- **T2a negative-control gated-fault check**: PASS. `fault_force_eskf_unhealthy()` with test mode NOT armed produced `[FAULT] ... gated — arm test mode via probe ...` printf + `g_eskfInitialized` remained true. CODING_STANDARDS R-25-exec audit invariant verified empirically.
-- **T2b/T3a deferred** to the fault-recovery architecture session (now closed in entry 2026-05-15-002 above).
+Closes R-24 + R-23 at Level-2. R-22 + R-25-exec at partial Level-2 pending T2b/T3a (now unblocked by the 2026-05-15-002 rework).
 
-Closes PROBLEM_REPORTS rows R-24 (boot/parity, Level-2 closed) and R-23 (LM-solver refactor regression, Level-2 closed). R-22 + R-25-exec at partial Level-2 closure pending T2b/T3a.
-
-See: `AGENT_WHITEBOARD.md` "R-25-exec audit-suite regression status" row for full per-tier results + side-findings (warm_reboot_audit + enhanced_fault_injection script flakiness on Windows USB CDC; station GPS cold-boot slow-start; station fault-inject grep-only coverage due to no SWD on Fruit Jam).
+See: `AGENT_WHITEBOARD.md` "R-25-exec audit-suite regression status" row for full per-tier results + side-findings (script flakiness, station GPS cold-boot slow-start, station fault-inject grep-only coverage).
 
 ---
 
