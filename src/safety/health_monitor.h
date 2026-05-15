@@ -89,6 +89,16 @@ enum HealthCritical : uint8_t {
     // letting the existing safe-mode / FAULT-health pivot machinery own
     // the recovery path. Latched until health_monitor_clear_latches().
     kHealthCriticalPriorHardfault   = (1 << 1),
+    // Previous boot was triggered by a brownout (POWMAN_CHIP_RESET.HAD_BOR
+    // sticky bit). Per the in-flight fault recovery architecture plan
+    // (council round 2 unanimous 2026-05-14), brownout indicates an
+    // abnormal power event that requires physical inspection — pad-side
+    // (bad battery, cable swap, ESD) or in-flight (deeper power loss
+    // than .uninitialized_data SRAM retention threshold). Latched until
+    // health_monitor_clear_latches(); gates pre-arm regardless of phase.
+    // Independent of kHealthCriticalPriorHardfault — a brownout can also
+    // co-occur with a hardfault, in which case both bits are set.
+    kHealthCriticalPriorBrownout    = (1 << 2),
     // Reserved for future critical conditions (pyro-continuity short,
     // battery undervolt/overvolt, flash-write failure).
     // See docs/decisions/HEALTH_CONTRACT.md pending council note.

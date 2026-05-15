@@ -130,6 +130,21 @@ inline constexpr ActionEntry kAbortEntry[] = {
 // (Same as kTransitionFireDrogue — reuse the array)
 
 // ============================================================================
+// FAULT — Entry: magenta blink. Exit: none.
+//
+// Fault-recovery 2026-05-14 (council round 2 unanimous): explicit degraded-
+// in-place state distinct from kAbort. Entered ONLY by the phase-aware
+// hardfault dispatch or by the anomalous-boot confidence gate — never by
+// normal flight-state transitions. Per council Amendment #2, no pyro action
+// in entry actions; PIO backup timers handle pyro autonomously without
+// requiring the FD state machine to fire them.
+// ============================================================================
+inline constexpr ActionEntry kFaultEntry[] = {
+    {ActionType::kSetLed, kLedPhaseFault},
+};
+// No exit actions for FAULT
+
+// ============================================================================
 // All entry action arrays — indexed by FlightPhase for programmatic access
 // ============================================================================
 struct PhaseActions {
@@ -151,6 +166,7 @@ inline constexpr PhaseActions kPhaseEntryActions[] = {
     {kMainDescentEntry,   action_count(kMainDescentEntry)},    // kMainDescent
     {kLandedEntry,        action_count(kLandedEntry)},         // kLanded
     {kAbortEntry,         action_count(kAbortEntry)},          // kAbort
+    {kFaultEntry,         action_count(kFaultEntry)},          // kFault
 };
 
 // Exit actions — currently none for any phase. All counts are 0.
@@ -163,6 +179,7 @@ inline constexpr PhaseActions kPhaseExitActions[] = {
     {nullptr, 0},  // kMainDescent
     {nullptr, 0},  // kLanded
     {nullptr, 0},  // kAbort
+    {nullptr, 0},  // kFault
 };
 
 } // namespace rc

@@ -142,6 +142,7 @@ if(BUILD_TESTS)
         src/flight_director/guard_combinator.cpp
         src/flight_director/action_executor.cpp
         src/safety/test_mode.cpp           # R-25-exec: runtime gate (host-test build uses ROCKETCHIP_HOST_TEST shim)
+        src/safety/flight_in_progress.cpp  # Fault-recovery 2026-05-14: sentinel set on ARM, cleared on LANDED
     )
     target_include_directories(rc_flight_director PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/include
@@ -384,6 +385,8 @@ else()
         src/safety/pyro_edge_logger.cpp
         src/safety/fault_protection.cpp  # OPT-IVP-01: shared MPU + fault handlers
         src/safety/crash_record.cpp      # R-3 audit 2026-05-07: capture-state-then-reset
+        src/safety/flight_in_progress.cpp  # Fault-recovery 2026-05-14: boot sentinel for anomalous-boot gate
+        src/safety/anomalous_boot.cpp    # Fault-recovery 2026-05-14: confidence gate at boot
         src/safety/core1_i2c_pause.cpp   # R-17 audit 2026-05-07: cooperative pause around flash ops
         src/safety/test_mode.cpp         # R-25-exec: runtime gate for test/fault-injection affordances (Approach A 2026-05-13)
         src/safety/fault_inject.cpp      # R-25-exec step 3: migrated from src/dev/, gated by test_mode
@@ -542,6 +545,8 @@ else()
         src/safety/pyro_edge_logger.cpp
         src/safety/fault_protection.cpp  # OPT-IVP-01: shared MPU + fault handlers
         src/safety/crash_record.cpp      # R-3 audit 2026-05-07: capture-state-then-reset
+        src/safety/flight_in_progress.cpp  # Fault-recovery 2026-05-14: boot sentinel for anomalous-boot gate
+        src/safety/anomalous_boot.cpp    # Fault-recovery 2026-05-14: confidence gate at boot
         src/safety/core1_i2c_pause.cpp   # R-17 audit 2026-05-07: cooperative pause around flash ops
         src/safety/test_mode.cpp         # R-25-exec: runtime gate for test/fault-injection affordances (Approach A 2026-05-13)
         src/safety/fault_inject.cpp      # R-25-exec step 3: migrated from src/dev/, gated by test_mode

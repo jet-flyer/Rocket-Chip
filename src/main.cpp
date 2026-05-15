@@ -39,6 +39,7 @@
 #include "safety/pyro_edge_logger.h"
 #include "safety/fault_protection.h"  // OPT-IVP-01
 #include "safety/test_mode.h"          // R-25-exec runtime gate
+#include "safety/anomalous_boot.h"     // Fault-recovery 2026-05-14: confidence gate at boot
 #include "diag/diag_stats.h"
 #include "fusion/mahony_ahrs.h"
 #include "fusion/wmm_tables.h"
@@ -194,6 +195,17 @@ static void init_usb() {
 }
 
 static void init_early_hw() {
+    // Fault-recovery architecture (2026-05-14): confidence gate at boot must
+    // run BEFORE anything that could side-effect the .uninitialized_data
+    // sentinel or POWMAN_CHIP_RESET register state. test_mode_init() also
+    // reads .uninitialized_data but a different word — order between them
+    // doesn't matter, but both must precede any C++ static constructor that
+    // might touch SRAM in those regions. Per anomalous_boot.h, the gate
+    // sets snapshot state that downstream consumers (health monitor's
+    // brownout latch, baro auto-zero gate below in init_application())
+    // read via anomalous_boot_verdict() / anomalous_boot_brownout_detected().
+    rc::anomalous_boot_init();
+
     // Register fault handlers early (before any MPU config)
     // Now using shared implementation from safety/fault_protection.h (OPT-IVP-01)
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, memmanage_fault_handler);
@@ -382,13 +394,35 @@ static void init_application() {
     // Blocks until complete (~1s at 32Hz DPS310 rate) so cal state returns
     // to IDLE before AO_RCOS starts. Without this wait, g_calState stays at
     // CAL_STATE_COMPLETE and subsequent cal triggers fail with BUSY.
-    if (g_baroContinuous) {
+    //
+    // Fault-recovery architecture (2026-05-14): suppressed when the
+    // anomalous-boot gate returned PROBABLY_MID_FLIGHT. Auto-zeroing baro
+    // at altitude during an in-flight reboot would set the wrong ground
+    // reference and cause main parachute deploy at the wrong altitude on
+    // the remaining descent. Operator must clear the latch (forcing the
+    // verdict gate to re-evaluate on next boot, ideally after physical
+    // inspection) before baro re-zero is allowed. The stored ground
+    // reference from the previous good boot remains in flash unchanged.
+    const rc::BootVerdict boot_verdict = rc::anomalous_boot_verdict();
+    if (g_baroContinuous && boot_verdict == rc::BootVerdict::kProbablyOnPad) {
         calibration_start_baro();
         // Wait for Core 1 to feed enough baro samples (~32 at 32Hz = ~1s)
         while (calibration_is_active()) {
             sleep_ms(50);
         }
         calibration_reset_state();
+    } else if (g_baroContinuous) {
+        // PROBABLY_MID_FLIGHT — log explicitly so the operator sees that
+        // baro auto-zero was skipped intentionally and the prior ground
+        // reference is still in use.
+        const rc::BootSignals& sig = rc::anomalous_boot_signals();
+        DBG_PRINT("BOOT: auto-zero-baro SUPPRESSED (verdict=%s sentinel=%d "
+                  "non_por=%d bor=%d prior_uptime_ms=%lu)",
+                  rc::anomalous_boot_verdict_name(),
+                  static_cast<int>(sig.sentinel_was_set),
+                  static_cast<int>(sig.had_any_non_por),
+                  static_cast<int>(sig.had_bor),
+                  static_cast<unsigned long>(sig.prior_uptime_ms));
     }
 
     // Initialize ESKF runner with mission profile and event log callback.

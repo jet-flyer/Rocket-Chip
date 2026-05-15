@@ -79,6 +79,30 @@ extern CrashRecord g_crash_record;
 // magic so the next clean boot doesn't re-report). Returns false otherwise.
 bool crash_record_consume_prior(CrashRecord* out);
 
+// ============================================================================
+// Flight-in-progress sentinel
+//
+// Independent of the crash record above — a single magic word in
+// .uninitialized_data that is set when the system transitions kIdle -> kArmed
+// and cleared when the system reaches kLanded with no abort latched. If the
+// sentinel is present at boot, the firmware was armed/airborne when something
+// reset it (whether internally-issued or external like brownout / RUN-pin /
+// snagged button). This is the primary "PROBABLY_MID_FLIGHT" signal for the
+// anomalous-boot confidence gate in B.4 of the fault-recovery architecture
+// plan (2026-05-14).
+//
+// SRAM retention across reset is guaranteed above the ~1.62V brownout
+// threshold (RP2350 datasheet §6 Power Manager). A BOR reset (deeper power
+// loss) clears .uninitialized_data — in that case the sentinel disappears
+// but the brownout latch in health monitor catches it independently
+// (POWMAN_CHIP_RESET.HAD_BOR is sticky across BOR specifically).
+// ============================================================================
+static constexpr uint32_t kFlightInProgressMagic = 0xF11617A0U;  // "FlIght AO" mnemonic
+
+void flight_in_progress_set();    // Called on kIdle -> kArmed transition.
+void flight_in_progress_clear();  // Called on safe LANDED entry.
+bool flight_in_progress_was_set();  // Called once at boot. Clears on read.
+
 } // namespace rc
 
 #endif // ROCKETCHIP_SAFETY_CRASH_RECORD_H

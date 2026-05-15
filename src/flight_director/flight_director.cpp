@@ -19,6 +19,7 @@
 #include "flight_director.h"
 #include "flight_actions.h"
 #include "safety/health_monitor.h"   // IVP-107: health_eskf() for lockout
+#include "safety/crash_record.h"     // flight_in_progress_set/clear (fault-recovery 2026-05-14)
 #include <cmath>
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -56,6 +57,22 @@ static void enter_phase(FlightDirector* me, FlightPhase phase) {
     me->state.current_phase = phase;
     me->state.phase_entry_ms = me->tick_ms;
     ++me->state.transition_count;
+
+    // Fault-recovery architecture (2026-05-14): maintain the flight-in-progress
+    // sentinel in .uninitialized_data so that an unexpected reset mid-flight
+    // (brownout, snagged reset button, etc.) is detectable on next boot via
+    // the anomalous-boot confidence gate (see safety/anomalous_boot.h).
+    //
+    // Set on entry to kArmed (start of armed/airborne state).
+    // Cleared on safe LANDED entry. NOT cleared on kAbort — an aborted
+    // flight is still a flight that requires operator inspection before
+    // the next arming sequence.
+    if (phase == FlightPhase::kArmed) {
+        flight_in_progress_set();
+    } else if (phase == FlightPhase::kLanded) {
+        flight_in_progress_clear();
+    }
+
     if (me->phase_change_cb) {
         me->phase_change_cb(phase, me->tick_ms);
     }
@@ -114,7 +131,8 @@ static const char* const kPhaseNames[] = {
     "DROGUE_DESCENT",
     "MAIN_DESCENT",
     "LANDED",
-    "ABORT"
+    "ABORT",
+    "FAULT"
 };
 
 const char* flight_phase_name(FlightPhase phase) {

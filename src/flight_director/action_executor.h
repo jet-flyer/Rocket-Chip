@@ -54,6 +54,10 @@ enum LedPhaseValue : uint8_t {
     kLedPhaseLanded         = 25,   // Green slow blink
     kLedPhaseAbort          = 26,   // Red fast blink
     kLedPhaseBeacon         = 27,   // White blink (post-landing locator)
+    kLedPhaseFault          = 28,   // Magenta blink — fault-recovery 2026-05-14:
+                                    //   distinct from Abort (red) so operator can
+                                    //   tell "ARM/safety state lost integrity"
+                                    //   apart from "operator-commanded abort"
 };
 
 // ============================================================================

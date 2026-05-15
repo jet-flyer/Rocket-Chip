@@ -36,7 +36,14 @@ namespace rc {
 //     │     ├── DrogueDescent
 //     │     └── MainDescent
 //     ├── Landed
-//     └── Abort
+//     ├── Abort   (operator-commanded abort)
+//     └── Fault   (degraded in-place after detected fault; ARM never coexists with Fault)
+//
+// kAbort vs kFault: kAbort is operator-driven ("I am ending this flight"). kFault
+// is fault-handler-driven ("ARM has lost integrity; PIO timers still deploy
+// chutes; the firmware is no longer trustworthy for arming decisions"). The FD
+// never voluntarily enters kFault from normal flow — only from the phase-aware
+// hardfault dispatch or from the anomalous-boot confidence gate.
 // ============================================================================
 enum class FlightPhase : uint8_t {
     kIdle           = 0,
@@ -47,8 +54,9 @@ enum class FlightPhase : uint8_t {
     kMainDescent    = 5,
     kLanded         = 6,
     kAbort          = 7,
+    kFault          = 8,
 
-    kCount          = 8   // Sentinel — number of phases (not a valid phase)
+    kCount          = 9   // Sentinel — number of phases (not a valid phase)
 };
 
 // Phase name strings for logging and CLI output

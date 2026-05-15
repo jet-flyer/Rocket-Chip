@@ -12,6 +12,7 @@
 
 #include "safety/health_monitor.h"
 #include "safety/crash_record.h"
+#include "safety/anomalous_boot.h"
 #include "drivers/mcu_temp.h"
 #include "safety/pio_watchdog.h"
 #include "flight_director/go_nogo_checks.h"
@@ -59,6 +60,14 @@ static bool g_mcuFaultLatched = false;  // MCU has its own latch bit (out-of-ban
 // health_monitor_clear_latches(). Surfaces as kHealthCriticalPriorHardfault
 // in the critical byte.
 static bool g_priorHardfaultLatched = false;
+
+// Fault-recovery architecture (2026-05-14): set true by health_monitor_init()
+// when POWMAN_CHIP_RESET.HAD_BOR (brownout reset cause bit) is asserted at
+// boot. Latched until health_monitor_clear_latches(). Surfaces as
+// kHealthCriticalPriorBrownout. Sibling to PriorHardfault but independent —
+// both bits can co-occur (e.g., brownout that also triggered a hardfault
+// before the BOR completed).
+static bool g_priorBrownoutLatched = false;
 
 // MCU temp hysteresis state — current HealthLevel we're holding onto
 // for the MCU slot. Re-evaluated each tick with 2 °C hysteresis windows
@@ -280,6 +289,7 @@ void health_monitor_init() {
     g_latchedPrimary = 0;
     g_mcuFaultLatched = false;
     g_priorHardfaultLatched = false;
+    g_priorBrownoutLatched = false;
     g_mcuTempLevel = kHealthAbsent;
     g_imuFaultTicks = 0;
     g_baroFaultTicks = 0;
@@ -311,6 +321,16 @@ void health_monitor_init() {
                   static_cast<unsigned long>(prior.hfsr),
                   static_cast<unsigned long>(prior.stacked_pc),
                   static_cast<unsigned long>(prior.stacked_lr));
+    }
+
+    // Fault-recovery architecture (2026-05-14): if the chip rebooted due to
+    // brownout, latch kHealthCriticalPriorBrownout. Detected by anomalous_boot
+    // (reads POWMAN_CHIP_RESET.HAD_BOR). Independent of the hardfault latch —
+    // both can co-occur.
+    if (anomalous_boot_brownout_detected()) {
+        g_priorBrownoutLatched = true;
+        DBG_PRINT("HEALTH: prior-boot brownout detected (POWMAN_CHIP_RESET.HAD_BOR set) "
+                  "— physical inspection required before arm");
     }
 
     // Do one initial evaluation
@@ -476,6 +496,12 @@ static uint8_t evaluate_critical(const shared_sensor_data_t& snap) {
         critical |= kHealthCriticalPriorHardfault;
     }
 
+    // Fault-recovery architecture (2026-05-14): latched prior-boot brownout
+    // (set in health_monitor_init() if POWMAN_CHIP_RESET.HAD_BOR was set).
+    if (g_priorBrownoutLatched) {
+        critical |= kHealthCriticalPriorBrownout;
+    }
+
     return critical;
 }
 
@@ -495,6 +521,12 @@ static void log_critical_transitions(uint8_t prev, uint8_t curr) {
     }
     if (falling & kHealthCriticalPriorHardfault) {
         DBG_PRINT("HEALTH: prior-boot hardfault latch cleared");
+    }
+    if (rising & kHealthCriticalPriorBrownout) {
+        DBG_PRINT("HEALTH: PRIOR-BOOT BROWNOUT detected — physical inspection required");
+    }
+    if (falling & kHealthCriticalPriorBrownout) {
+        DBG_PRINT("HEALTH: prior-boot brownout latch cleared");
     }
 }
 
@@ -651,12 +683,14 @@ void health_monitor_clear_latches() {
                   flight_phase_name(phase));
         return;
     }
-    if (g_latchedPrimary != 0 || g_mcuFaultLatched || g_priorHardfaultLatched) {
+    if (g_latchedPrimary != 0 || g_mcuFaultLatched ||
+        g_priorHardfaultLatched || g_priorBrownoutLatched) {
         DBG_PRINT("HEALTH: latches cleared by manual reset");
     }
     g_latchedPrimary = 0;
     g_mcuFaultLatched = false;
     g_priorHardfaultLatched = false;
+    g_priorBrownoutLatched = false;
     g_imuFaultTicks  = 0;
     g_baroFaultTicks = 0;
     g_eskfFaultTicks = 0;

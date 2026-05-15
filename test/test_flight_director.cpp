@@ -85,7 +85,9 @@ TEST_F(FlightDirectorTest, InitialTransitionCountIsOne) {
 // ============================================================================
 
 TEST_F(FlightDirectorTest, PhaseEnumContiguous) {
-    // Verify contiguous from 0 to kCount-1
+    // Verify contiguous from 0 to kCount-1.
+    // kFault added 2026-05-14 (fault-recovery architecture rework, commit (a)):
+    // explicit degraded-in-place state distinct from operator-driven kAbort.
     EXPECT_EQ(static_cast<uint8_t>(rc::FlightPhase::kIdle), 0u);
     EXPECT_EQ(static_cast<uint8_t>(rc::FlightPhase::kArmed), 1u);
     EXPECT_EQ(static_cast<uint8_t>(rc::FlightPhase::kBoost), 2u);
@@ -94,7 +96,8 @@ TEST_F(FlightDirectorTest, PhaseEnumContiguous) {
     EXPECT_EQ(static_cast<uint8_t>(rc::FlightPhase::kMainDescent), 5u);
     EXPECT_EQ(static_cast<uint8_t>(rc::FlightPhase::kLanded), 6u);
     EXPECT_EQ(static_cast<uint8_t>(rc::FlightPhase::kAbort), 7u);
-    EXPECT_EQ(static_cast<uint8_t>(rc::FlightPhase::kCount), 8u);
+    EXPECT_EQ(static_cast<uint8_t>(rc::FlightPhase::kFault), 8u);
+    EXPECT_EQ(static_cast<uint8_t>(rc::FlightPhase::kCount), 9u);
 }
 
 TEST_F(FlightDirectorTest, PhaseNamesValid) {
