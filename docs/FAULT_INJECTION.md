@@ -198,11 +198,59 @@ Each fault injection test follows this pattern:
 
 ---
 
+## Probe-Only Combined-Session Runbook (T2b pattern)
+
+**When to use:** Manual audit-suite regression for `fault_force_*` entries when the Python helper scripts (`scripts/enhanced_fault_injection.py`, `scripts/warm_reboot_audit.py`) trip on the recurring Windows USB CDC re-enum race documented below. Probe-only avoids the race entirely.
+
+**Why this exists:** Python helpers open the vehicle/station serial port (`COM7` / `COM9`) within ~2–7s of a probe-mediated chip reset. On Windows the USB CDC enumeration is asynchronous from `monitor reset run`'s completion, and the port handle is intermittently held by `usbser.sys` for longer than the script's retry budget. Symptoms: `PermissionError(13)`. Switching ports, restarting the script, or waiting more than ~10s usually clears it; sometimes a full OpenOCD restart is required. The race is environmental, not a firmware defect — labeled-soft pivot to this runbook per `standards/HW_GATE_DISCIPLINE.md` Rule 4 is the documented response.
+
+**Procedure** (one GDB session, no Python serial port needed for triggering — separate `python scripts/_rc_test_common.py` or `serial_reader` for post-hoc log capture):
+
+```
+/c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe build_flight/rocketchip.elf -batch \
+  -ex "target extended-remote localhost:3333" \
+  -ex "set confirm off" \
+  -ex "monitor halt" \
+  -ex "set var rc::g_test_mode_arm_magic = 0x7E57BABE" \
+  -ex "monitor reset run" \
+  -ex "shell sleep 6" \
+  -ex "monitor halt" \
+  -ex "print rc::g_test_mode_enabled" \
+  -ex "print (int)rc::flight_phase_observable_get()" \
+  -ex "call (void)fault_force_eskf_unhealthy()" \
+  -ex "print g_eskfInitialized" \
+  -ex "monitor resume" \
+  -ex "detach"
+```
+
+Expected output:
+- `rc::g_test_mode_enabled = true` (3-condition AND gate satisfied: magic-at-boot + phase==kIdle + within 30s boot window)
+- `flight_phase_observable_get() = 0` (kIdle)
+- `g_eskfInitialized = true` before call, **`false`** after (state mutation = positive-control signal)
+
+**One-scenario-per-session discipline:** Stringing multiple `fault_force_*` calls into one session is unsafe — the first fault may cascade into MemManage / HardFault before the second call runs. Reset the chip between scenarios:
+```
+monitor reset halt
+monitor resume
+detach
+```
+
+**Timing budget:** test_mode arms for 30s post-boot (`kTestModeArmWindowMs`). The `shell sleep 6` + halt + `call` sequence completes well inside the window. Adding multiple inter-call sleeps risks timing out; one scenario per arm cycle.
+
+**T2b coverage decomposition** (R-25-exec audit invariant):
+- **Negative path** (test mode OFF → gate refuses, `[FAULT] ... gated` emitted): T2a verified directly on `fault_force_eskf_unhealthy` (2026-05-14).
+- **Positive path** (test mode ON → gate accepts, state mutation observed): T2b verified on `fault_force_eskf_unhealthy` via the procedure above (2026-05-15).
+- **Remaining entries**: 8/8 vehicle gated entries + 3/3 station gated entries all call `fi_test_mode_gate()` / `fis_test_mode_gate()` at line 1 of body. Grep-coverage at `src/safety/fault_inject.cpp` + `src/safety/station_fault_inject.cpp` is the mechanical audit invariant; one positive-path test exercises the shared gate helper that all entries route through.
+- **Exempt entries**: `fault_force_core0_stall_clear()` + `fault_force_station_gps_restore()` are recovery actions, intentionally not gated per documented design at the call sites.
+
+---
+
 ## References
 
 - `.claude/DEBUG_PROBE_NOTES.md` — OpenOCD startup, GDB commands, known issues
 - `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md` — current bench-tier model (single binary, test-mode gate, R-25-exec)
 - `safety/test_mode.h` — three-condition AND gate, probe-arming flow
+- `standards/HW_GATE_DISCIPLINE.md` Rule 4 — labeled-soft gate pivot when script automation fails
 - RP2350 datasheet Section 3.7 — PIO register map
 - LESSONS_LEARNED.md Entry 25 — Use probe for flashing (picotool corrupts I2C)
 - LESSONS_LEARNED.md Entry 33 — PIO GPIO init causes I2C interference
