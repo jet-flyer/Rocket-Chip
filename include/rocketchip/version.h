@@ -16,17 +16,12 @@ constexpr const char* kFirmwareVersion = "0.16.0";
 
 constexpr const char* kRcOsVersion = "0.5.0";
 
-// Build identity: "flight" (default) means flight-ready; "dev" means
-// the binary was built with NOT_CERTIFIED_FOR_FLIGHT=ON (dev/bench).
-// kBuildForFlight retains its name (callers depend on it) but its truth
-// value mirrors the new flag: true when flight-ready, false when dev.
-#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
-constexpr const char* kBuildConfig = "dev";
-constexpr bool kBuildForFlight = false;
-#else
+// Build identity. Always "flight" since R-25-exec (commit 8859605, 2026-05-13)
+// retired the bench tier. Constants retained for caller compatibility; the
+// `kBuildForFlight=false` branch was dead since R-25-exec and removed by R-26
+// (Cycle 1 of parsed-soaring-popcorn.md, 2026-05-15).
 constexpr const char* kBuildConfig = "flight";
 constexpr bool kBuildForFlight = true;
-#endif
 
 // Job role identity — for T=0 soak preconditions (IVP-132a.4 re-eval).
 // Must match ROCKETCHIP_JOB_STATION / kRole. Readable by GDB.

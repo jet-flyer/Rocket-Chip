@@ -38,13 +38,16 @@
   - **Station GPS cold-boot slow-start:** Fruit Jam on power-on reports `hardware: 10/11 ok [fail] gps`, warm-reboot immediately after = `11/11 ok`. Consistent with LL Entry 31 I2C-GPS init-window pattern. Question for future session: longer GPS init window vs. one-shot retry on PMTK-fail.
   - **Station fault-inject probe-coverage gap:** no SWD on Fruit Jam. `fault_force_station_*` entries grep-only. Options when full positive-path is needed: move probe between sessions, or build station firmware on Feather (`PICO_BOARD=adafruit_feather_rp2350 ROCKETCHIP_JOB_STATION=1`) as a probe-accessible test bed.
 
-- **Next up (deferred from DC-2026-05-13 cycle, each its own session):**
+- **Four-cycle work plan (council-approved 2026-05-15, plan at `C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn.md`):**
+  - **Cycle 1 CLOSED 2026-05-15** — quick decoupled audit closures. Five rows L2-P6, L2-P7, L2-P8, L2-P9, L2-P11 advanced `analyzed→closed` via `docs/audits/AUDIT_COVERAGE_QUICK_CLOSURES_2026-05-15.md`. R-26 (stale `#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS` in version.h) found + closed inline. R-27 opened as observation-only (RfManager XII via accessor + events). L2-P5 + L2-P10 deferred to Cycle 4 (coupled to upcoming refactors).
+  - **Cycle 2 (next)** — R-5 stdio removal across `src/`. Multi-session, R-5a..R-5e split (ETL vendoring + rc_log + GPS PMTK + safety/* + CLI/RCOS + cleanup). 18-28h across 5-7 calendar sessions. Decision doc: `docs/decisions/STDIO_REPLACEMENT_PLAN.md`. R-2 absorbed.
+  - **Cycle 3** — station GPS cold-boot slow-start investigation. Single diagnostic experiment first (PMTK write success at t+0/+500/+1000/+2000/+3000ms), then hypothesis attribution (H1 chipset latency / H2 Fruit Jam I2C / H3 POWMAN / H4 GPS LDO / H5 stale I2C bus). 2-8h.
+  - **Cycle 4 (deferred to after Cycles 2 + 3 close at Level-2)** — L2-P5 JSF AV deep walk (post-R-5, since stdio allowlist drain eliminates JSF Rule 22 deviations) + L2-P10 CLA-RBM re-collection (post-refactor runtime measurement). Aligns with the 90-day CLA re-collection trigger (~2026-06-06).
+
+- **Next up (deferred from DC-2026-05-13 cycle, not part of four-cycle plan):**
   - **Host-side replay harness implementation** (`scripts/replay_harness_host.py` is a stub). Per R-25-exec amendment #4, IVP-131 verification model shifts from on-MCU CSV-streamer to host-side ESKF replay against `tests/replay_profiles/*.csv` ground-truth. Needs host-buildable ESKF driver + comparison harness against the oracle. Out of cycle scope; tracked here until implemented.
   - **Host ctest sweep over `fault_force_*` symbols** to mechanically verify every entry calls `rc::test_mode_active()` (audit invariant from CODING_STANDARDS R-25-exec section). Today it's a grep + manual walk; making it a ctest closes the audit gate. Companion to step 10's pre-commit-matrix path additions.
   - **L2-P2/P3/P4** from the 2026-05-07 cycle (sampling policy / citation inventory / scope language) — audit-policy doc edits, batch with whichever later cycle picks them up.
-  - **R-5** (full stdio.h removal) + **R-2** (absorbed into R-5) — dedicated ETL session.
-  - **R-20 / R-21 / L2-W1** dispositioned by the fault-recovery architecture rework (commits `ed7c569` + `8baa18a`, 2026-05-14/15). R-20 (Core 1 boot-wait AIRCR half-broken) — plan option C in modified form: in-flight Core 1 boot-wait timeout now transitions to kFault per B.1/B.8 instead of issuing AIRCR. R-21 (no auto chip-reset on PIO WDT) — endorsed unchanged: PIO watchdog signals IRQ flag, never auto-resets; plan B.1 confirms no auto-reset is the correct in-flight behavior. L2-W1 = R-20 (same finding, different IDs in audit doc vs PROBLEM_REPORTS). All three close when the rework's PROBLEM_REPORTS rows transition `verified → closed` after Level-2 audit-suite regression.
-  - **CLA-RBM re-collection** triggers at the 90-day mark (~2026-06-06) per the Tier 4.5 threshold from the 2026-05-13 procedure refactor. Until then, watched-but-not-stale.
 
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
