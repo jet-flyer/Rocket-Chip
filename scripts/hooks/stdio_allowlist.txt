@@ -38,7 +38,4 @@ src/cli/rc_os.cpp
 src/cli/rc_os_commands.cpp
 src/cli/rc_os_dashboard.cpp
 src/cli/rc_os_debug.cpp
-src/diag/diag_stats.cpp
 src/main.cpp
-src/safety/fault_inject.cpp
-src/safety/station_fault_inject.cpp

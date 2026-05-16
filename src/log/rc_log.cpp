@@ -530,10 +530,39 @@ void emit(const char* buf, size_t len) {
 // R-5 migration; resolves at Unit J when stdio_usb is retired.
 
 namespace target_sink {
-    constexpr size_t kRingBytes = 1024U;
+    // 8192 bytes: sized for the burst-dump pattern.
+    // Council 2026-05-16 (NASA/JPL + Prof + ArduPilot + Cubesat,
+    // unanimous): diag_stats_dump() emits ~1.3 KB in tight succession
+    // faster than the idle-bridge drain can keep up; the prior 1024-byte
+    // ring hit drop-oldest mid-dump on the station, losing the T=0
+    // Preconditions block (Identity/Radio RegVersion/NVIC_ISPR/SPI
+    // error count) — that's a positive-control signal disappearing
+    // silently, which is the LL Entry 36 pattern. 8 KB gives forward
+    // margin for upcoming R-5 migrations (rc_os_dashboard ANSI render
+    // + rc_os_commands.cpp 215-callsite file). 1.3% of 520 KB SRAM.
+    //
+    // Drop-oldest semantics unchanged — still the safety net for
+    // boot-time bursts before host attaches. The two new counters
+    // below (s_dropped_bytes + s_high_water) surface ring health so
+    // future overflows are observable, not silent.
+    //
+    // Fault-window note: at 50ms visible-signal delay (per
+    // memmanage_fault_handler's fault_reset_with_visible_signal),
+    // 8 KB drain at ~150 KB/s USB CDC throughput requires ~55ms.
+    // Acceptable because the fault-reset path only fires from kIdle
+    // (pad faults) and the ring is typically near-empty at fault
+    // time — rc_log is not on hot path.
+    constexpr size_t kRingBytes = 8192U;
     static volatile char s_ring[kRingBytes];
     static volatile size_t s_head = 0U;  // producer (rc_log writes here)
     static volatile size_t s_tail = 0U;  // consumer (drain reads here)
+
+    // Council 2026-05-16: mandatory observability counters. Without
+    // these, drop-oldest events convert the diag-stats dump from a
+    // hard gate into a soft gate (LL Entry 36 pattern). Exposed via
+    // diag_stats so soak scripts can detect ring health.
+    static volatile uint32_t s_dropped_bytes = 0U;  // cumulative evictions
+    static volatile uint32_t s_high_water = 0U;     // max ring_used() seen
 
     inline size_t ring_used() {
         size_t h = s_head, t = s_tail;
@@ -549,18 +578,21 @@ void emit(const char* buf, size_t len) {
     // here, which is safe because rc_log is single-producer + the
     // drain consumer is also Core 0 cooperative (never preempts the
     // producer). Cap the eviction at message size so a giant message
-    // can't loop forever on a 1KB ring.
+    // can't loop forever on a small ring.
     if (len >= kRingBytes) {
         // Message larger than the entire ring (shouldn't happen — buf
         // capacity is kRcLogBufferBytes=128). Keep only the tail of
         // the message that fits, evict everything else.
-        buf += (len - (kRingBytes - 1U));
+        size_t evicted_pre = len - (kRingBytes - 1U);
+        s_dropped_bytes = s_dropped_bytes + static_cast<uint32_t>(evicted_pre);
+        buf += evicted_pre;
         len = kRingBytes - 1U;
     }
     size_t avail = ring_free();
     if (avail < len) {
         // Evict (len - avail) oldest bytes by advancing s_tail.
         size_t evict = len - avail;
+        s_dropped_bytes = s_dropped_bytes + static_cast<uint32_t>(evict);
         s_tail = (s_tail + evict) % kRingBytes;
     }
     for (size_t i = 0; i < len; ++i) {
@@ -568,6 +600,25 @@ void emit(const char* buf, size_t len) {
         s_ring[h] = buf[i];
         s_head = (h + 1U) % kRingBytes;
     }
+    // Track high-water mark post-write (after head advanced).
+    size_t used_now = ring_used();
+    if (used_now > s_high_water) {
+        s_high_water = static_cast<uint32_t>(used_now);
+    }
+}
+
+// Ring-health observability getters (council 2026-05-16, mandatory).
+// Defined inside the anonymous namespace block so they can read the
+// static volatile counters in target_sink. Declared extern "C" with
+// `__attribute__((used))` so the symbols are emitted with their
+// rc_log.h signatures despite living in an anonymous namespace.
+extern "C" __attribute__((used))
+uint32_t rc_log_dropped_bytes(void) {
+    return target_sink::s_dropped_bytes;
+}
+extern "C" __attribute__((used))
+uint32_t rc_log_high_water(void) {
+    return target_sink::s_high_water;
 }
 #endif
 
@@ -691,4 +742,7 @@ extern "C" size_t host_capture_size() { return ::host_test::s_capture_len; }
 extern "C" void host_capture_reset() { ::host_test::s_capture_len = 0; }
 }
 }
+// Host stubs for ring-health getters (no real ring on host).
+extern "C" uint32_t rc_log_dropped_bytes(void) { return 0U; }
+extern "C" uint32_t rc_log_high_water(void) { return 0U; }
 #endif

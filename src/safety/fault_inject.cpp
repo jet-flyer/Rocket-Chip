@@ -21,7 +21,7 @@
 #include "active_objects/ao_rf_manager.h"
 #include "hardware/pio.h"
 #include "pico/time.h"
-#include <stdio.h>
+#include "rocketchip/rc_log.h"
 
 extern "C" {
 #include "qp_port.h"
@@ -44,7 +44,7 @@ extern bool g_eskfInitialized;
 // forgot to arm test mode gets clear feedback.
 static bool fi_test_mode_gate(const char* name) {
     if (rc::test_mode_active()) { return true; }
-    printf("[FAULT] %s gated — arm test mode via probe "
+    rc::rc_log("[FAULT] %s gated — arm test mode via probe "
            "(write kTestModeMagic to rc::g_test_mode_arm_magic + reset; "
            "see safety/test_mode.h)\n", name);
     return false;
@@ -57,14 +57,14 @@ extern "C" __attribute__((used))
 void fault_force_eskf_unhealthy() {
     if (!fi_test_mode_gate("fault_force_eskf_unhealthy")) { return; }
     g_eskfInitialized = false;
-    printf("[FAULT] ESKF forced unhealthy\n");
+    rc::rc_log("[FAULT] ESKF forced unhealthy\n");
 }
 
 extern "C" __attribute__((used))
 void fault_force_core0_stall() {
     if (!fi_test_mode_gate("fault_force_core0_stall")) { return; }
     g_fault_core0_stall = true;
-    printf("[FAULT] Core 0 stall requested — idle bridge will spin\n");
+    rc::rc_log("[FAULT] Core 0 stall requested — idle bridge will spin\n");
 }
 
 extern "C" __attribute__((used))
@@ -73,20 +73,20 @@ void fault_force_core0_stall_clear() {
     // action, not a fault injection. Should be reachable even after
     // test_mode_active() clears (which happens on any IDLE-exit).
     g_fault_core0_stall = false;
-    printf("[FAULT] Core 0 stall cleared\n");
+    rc::rc_log("[FAULT] Core 0 stall cleared\n");
 }
 
 extern "C" __attribute__((used))
 void fault_force_watchdog_stall(uint32_t skip_ticks) {
     if (!fi_test_mode_gate("fault_force_watchdog_stall")) { return; }
     g_fault_watchdog_skip = skip_ticks;
-    printf("[FAULT] Watchdog skip for %lu ticks\n", (unsigned long)skip_ticks);
+    rc::rc_log("[FAULT] Watchdog skip for %lu ticks\n", (unsigned long)skip_ticks);
 }
 
 extern "C" __attribute__((used))
 void fault_force_health_fail(uint8_t /*subsystem_index*/) {
     if (!fi_test_mode_gate("fault_force_health_fail")) { return; }
-    printf("[FAULT] Use GDB 'set' for health byte — see FAULT_INJECTION.md\n");
+    rc::rc_log("[FAULT] Use GDB 'set' for health byte — see FAULT_INJECTION.md\n");
 }
 
 // R-9a: ARM-then-ABORT sequence so enhanced_fault_injection.py can observe
@@ -97,25 +97,25 @@ extern "C" __attribute__((used))
 void fault_force_launch_abort() {
     if (!fi_test_mode_gate("fault_force_launch_abort")) { return; }
     if (!AO_FlightDirector_is_initialized()) {
-        printf("[FAULT] launch-abort: FD not initialized\n");
+        rc::rc_log("[FAULT] launch-abort: FD not initialized\n");
         return;
     }
     if (!AO_FlightDirector_is_ground_state()) {
-        printf("[FAULT] launch-abort: FD not in ground state — aborting hook\n");
+        rc::rc_log("[FAULT] launch-abort: FD not in ground state — aborting hook\n");
         return;
     }
-    printf("[FAULT] launch-abort: dispatching SIG_ARM\n");
+    rc::rc_log("[FAULT] launch-abort: dispatching SIG_ARM\n");
     AO_FlightDirector_dispatch_signal(static_cast<int>(rc::SIG_ARM));
     sleep_ms(50);  // let ARM phase change emit + propagate
-    printf("[FAULT] launch-abort: dispatching SIG_ABORT\n");
+    rc::rc_log("[FAULT] launch-abort: dispatching SIG_ABORT\n");
     AO_FlightDirector_dispatch_signal(static_cast<int>(rc::SIG_ABORT));
-    printf("[FAULT] launch-abort: sequence dispatched (expect [FD] ABORT*)\n");
+    rc::rc_log("[FAULT] launch-abort: sequence dispatched (expect [FD] ABORT*)\n");
 }
 
 extern "C" __attribute__((used))
 void fault_force_ao_queue_flood(uint8_t /*ao_priority*/, uint16_t count) {
     if (!fi_test_mode_gate("fault_force_ao_queue_flood")) { return; }
-    printf("[FAULT] Publishing %u dummy events (floods all AO queues)\n", count);
+    rc::rc_log("[FAULT] Publishing %u dummy events (floods all AO queues)\n", count);
     static QEvt const s_dummyEvt = QEVT_INITIALIZER(rc::SIG_SENSOR_DATA);
     for (uint16_t i = 0; i < count; ++i) {
         QActive_publish_(&s_dummyEvt, (void*)0, 0U);
@@ -126,7 +126,7 @@ extern "C" __attribute__((used))
 void fault_force_pio_sm_halt() {
     if (!fi_test_mode_gate("fault_force_pio_sm_halt")) { return; }
     pio2->ctrl &= ~0xFU;
-    printf("[FAULT] PIO2 all SMs disabled (backup timers halted)\n");
+    rc::rc_log("[FAULT] PIO2 all SMs disabled (backup timers halted)\n");
 }
 
 // R-3 verification hook (audit 2026-05-07): force a MemManage fault by
@@ -145,7 +145,7 @@ void fault_force_pio_sm_halt() {
 extern "C" __attribute__((used))
 void fault_force_hardfault() {
     if (!fi_test_mode_gate("fault_force_hardfault")) { return; }
-    printf("[FAULT] force_hardfault: writing into MPU stack guard...\n");
+    rc::rc_log("[FAULT] force_hardfault: writing into MPU stack guard...\n");
     // Read __StackBottom via inline asm so the compiler doesn't constant-fold
     // into something the optimizer can hoist or remove. The fault fires on
     // the store.
@@ -153,7 +153,7 @@ void fault_force_hardfault() {
     volatile uint32_t* guard = &__StackBottom;
     *guard = 0xC0DE0001U;
     // Should not reach — but if MPU is disabled or guard not active, log it.
-    printf("[FAULT] force_hardfault: write returned (MPU not active?)\n");
+    rc::rc_log("[FAULT] force_hardfault: write returned (MPU not active?)\n");
 }
 
 // R-9b: age out AO_RfManager's last_rx_ms so the next 10 Hz tick fires the
@@ -166,5 +166,5 @@ extern "C" __attribute__((used))
 void fault_force_radio_dropout() {
     if (!fi_test_mode_gate("fault_force_radio_dropout")) { return; }
     rc::AO_RfManager_force_last_rx_ms_for_test(0U);
-    printf("[FAULT] link lost — RfManager last_rx_ms forced to 0\n");
+    rc::rc_log("[FAULT] link lost — RfManager last_rx_ms forced to 0\n");
 }

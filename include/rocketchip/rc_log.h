@@ -72,4 +72,15 @@ void rc_log(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 // output queues into the ring and is never emitted to the wire.
 extern "C" void rc_log_drain_to_cdc(void);
 
+// Ring-health observability (council 2026-05-16, mandatory per HW_GATE
+// Rule 1 — without these, drop-oldest events convert hard gates to
+// soft per LL Entry 36 pattern).
+//   - dropped_bytes: cumulative byte count evicted by drop-oldest
+//     since boot. Non-zero means rc_log output has been lost.
+//   - high_water: peak ring fill seen since boot, in bytes. If it
+//     approaches kRcLogRingBytes, the ring is sized too small for
+//     this build's burst pattern.
+extern "C" uint32_t rc_log_dropped_bytes(void);
+extern "C" uint32_t rc_log_high_water(void);
+
 #endif  // ROCKETCHIP_RC_LOG_H

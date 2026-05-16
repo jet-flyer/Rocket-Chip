@@ -17,7 +17,7 @@
 
 #include "safety/station_fault_inject.h"
 #include "safety/test_mode.h"
-#include <stdio.h>
+#include "rocketchip/rc_log.h"
 
 #ifdef ROCKETCHIP_JOB_STATION
 #include "core1/sensor_core1.h"
@@ -33,7 +33,7 @@ volatile uint8_t g_fault_station_ack_suppress_remaining = 0;
 // src/safety/fault_inject.cpp.
 static bool fis_test_mode_gate(const char* name) {
     if (rc::test_mode_active()) { return true; }
-    printf("[FAULT] %s gated — arm test mode via probe "
+    rc::rc_log("[FAULT] %s gated — arm test mode via probe "
            "(write kTestModeMagic to rc::g_test_mode_arm_magic + reset; "
            "see safety/test_mode.h)\n", name);
     return false;
