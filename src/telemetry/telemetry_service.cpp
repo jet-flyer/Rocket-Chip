@@ -8,7 +8,8 @@
 #include "rocketchip/telemetry_service.h"
 #include "drivers/rfm95w.h"
 #include "pico/time.h"
-#include <stdio.h>
+#include "rocketchip/rc_log.h"     // R-5 Unit D: replaces printf in CSV row emit
+#include "tusb.h"                   // R-5 Unit D: tud_cdc_write for raw MAVLink frame emit
 
 namespace rc {
 
@@ -160,23 +161,28 @@ static void print_rx_csv(const TelemetryState& telem, uint16_t seq,
     float q_y = static_cast<float>(telem.q_y) / kQ15Scale;
     float q_z = static_cast<float>(telem.q_z) / kQ15Scale;
 
-    printf("RX,%u,%d,%.1f,%.7f,%.7f,%.3f,%.2f,%.2f,%.2f,%.3f,%.4f,%.4f,%.4f,%.4f,%u,%lu\n",
-           static_cast<unsigned>(seq),
-           static_cast<int>(rssi),
-           static_cast<double>(snr),
-           static_cast<double>(lat),
-           static_cast<double>(lon),
-           static_cast<double>(alt_m),
-           static_cast<double>(vel_n),
-           static_cast<double>(vel_e),
-           static_cast<double>(vel_d),
-           static_cast<double>(baro_alt),
-           static_cast<double>(q_w),
-           static_cast<double>(q_x),
-           static_cast<double>(q_y),
-           static_cast<double>(q_z),
-           static_cast<unsigned>(telem.flight_state),
-           (unsigned long)met_ms);
+    // R-5 Unit D: split into two rc_log calls because the full CSV row
+    // (~134 bytes typical) exceeds rc_log's 128-byte per-call budget.
+    // Splitting at the navigation/state boundary keeps each call within
+    // budget; USB CDC consumer sees one contiguous newline-terminated row.
+    rc::rc_log("RX,%u,%d,%.1f,%.7f,%.7f,%.3f,%.2f,%.2f,%.2f,%.3f,",
+               static_cast<unsigned>(seq),
+               static_cast<int>(rssi),
+               static_cast<double>(snr),
+               static_cast<double>(lat),
+               static_cast<double>(lon),
+               static_cast<double>(alt_m),
+               static_cast<double>(vel_n),
+               static_cast<double>(vel_e),
+               static_cast<double>(vel_d),
+               static_cast<double>(baro_alt));
+    rc::rc_log("%.4f,%.4f,%.4f,%.4f,%u,%lu\n",
+               static_cast<double>(q_w),
+               static_cast<double>(q_x),
+               static_cast<double>(q_y),
+               static_cast<double>(q_z),
+               static_cast<unsigned>(telem.flight_state),
+               (unsigned long)met_ms);
 }
 
 // ============================================================================
@@ -189,8 +195,13 @@ static constexpr uint32_t kHeartbeatIntervalMs = 1000;  // 1 Hz heartbeat
 static constexpr uint8_t kMavFrameBufSize = 64;
 
 static void emit_raw(const uint8_t* data, uint16_t len) {
-    fwrite(data, 1, len, stdout);
-    fflush(stdout);
+    // R-5 Unit D: was fwrite(data, 1, len, stdout) + fflush(stdout).
+    // Direct tud_cdc_write matches the ao_telemetry pattern
+    // (ao_telemetry.cpp:144-147) — no flush call; tud_task drains in
+    // its own time. Drop if USB CDC can't fit the frame (matches the
+    // ao_telemetry "drop if won't fit" behavior).
+    if (tud_cdc_write_available() < len) { return; }
+    tud_cdc_write(data, len);
 }
 
 static void mavlink_emit_heartbeat(TelemetryServiceState* state,
