@@ -13,7 +13,7 @@
 #include "i2c_bus.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
-#include <stdio.h>
+#include "rocketchip/rc_log.h"  // R-5 Unit D part 2c: replaces printf in i2c_bus_scan
 
 // I2C bus scan range (7-bit addressing: 0x08–0x77)
 constexpr uint8_t kI2cScanStart        = 0x08;
@@ -76,18 +76,6 @@ bool i2c_bus_init() {
     return true;
 }
 
-void i2c_bus_deinit() {
-    if (!g_initialized) {
-        return;
-    }
-
-    i2c_deinit(I2C_BUS_INSTANCE);
-    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_NULL);
-    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_NULL);
-
-    g_initialized = false;
-}
-
 bool i2c_bus_probe(uint8_t addr) {
     if (!g_initialized) {
         return false;
@@ -101,17 +89,17 @@ bool i2c_bus_probe(uint8_t addr) {
 
 void i2c_bus_scan() {
     if (!g_initialized) {
-        printf("I2C bus not initialized\n");
+        rc::rc_log("I2C bus not initialized\n");
         return;
     }
 
     // Debug: check GPIO pin states (both should be HIGH with pull-ups)
-    printf("I2C bus scan:\n");
-    printf("  Instance: I2C%d\n", I2C_BUS_INSTANCE == i2c0 ? 0 : 1);
-    printf("  SDA=GPIO%d (state=%d), SCL=GPIO%d (state=%d)\n",
+    rc::rc_log("I2C bus scan:\n");
+    rc::rc_log("  Instance: I2C%d\n", I2C_BUS_INSTANCE == i2c0 ? 0 : 1);
+    rc::rc_log("  SDA=GPIO%d (state=%d), SCL=GPIO%d (state=%d)\n",
            kI2cBusSdaPin, static_cast<int>(gpio_get(kI2cBusSdaPin)),
            kI2cBusSclPin, static_cast<int>(gpio_get(kI2cBusSclPin)));
-    printf("  Configured freq: %lu Hz\n", (unsigned long)kI2cBusFreqHz);
+    rc::rc_log("  Configured freq: %lu Hz\n", (unsigned long)kI2cBusFreqHz);
 
     int found = 0;
 
@@ -119,40 +107,40 @@ void i2c_bus_scan() {
         // Skip PA1010D GPS — probing triggers NMEA streaming on I2C,
         // causing bus contention with IMU/baro (LL Entry 20).
         if ((addr != kI2cAddrPa1010d) && i2c_bus_probe(addr)) {
-            printf("  0x%02X", addr);
+            rc::rc_log("  0x%02X", addr);
 
             // Identify known devices
             switch (addr) {
                 case kI2cAddrDps310:
-                    printf(" (DPS310 Barometer)");
+                    rc::rc_log(" (DPS310 Barometer)");
                     break;
                 case kI2cAddrIcm20948:
-                    printf(" (ICM-20948 IMU)");
+                    rc::rc_log(" (ICM-20948 IMU)");
                     break;
                 case kI2cAddrAk09916:
-                    printf(" (AK09916 Magnetometer)");
+                    rc::rc_log(" (AK09916 Magnetometer)");
                     break;
                 case kI2cAddrPa1010d:
-                    printf(" (PA1010D GPS)");
+                    rc::rc_log(" (PA1010D GPS)");
                     break;
                 case kI2cAddrIcm20948Alt:
-                    printf(" (ICM-20948 IMU, AD0=LOW)");
+                    rc::rc_log(" (ICM-20948 IMU, AD0=LOW)");
                     break;
                 case kI2cAddrDps310Alt:
-                    printf(" (DPS310 Barometer, alt addr)");
+                    rc::rc_log(" (DPS310 Barometer, alt addr)");
                     break;
                 default:
                     break;
             }
-            printf("\n");
+            rc::rc_log("\n");
             found++;
         }
     }
 
     if (found == 0) {
-        printf("  No devices found\n");
+        rc::rc_log("  No devices found\n");
     } else {
-        printf("  %d device(s) found\n", found);
+        rc::rc_log("  %d device(s) found\n", found);
     }
 }
 

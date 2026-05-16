@@ -51,11 +51,6 @@ constexpr uint8_t kI2cAddrPa1010d   = 0x10;     // GPS
 bool i2c_bus_init(void);
 
 /**
- * @brief Deinitialize the I2C bus
- */
-void i2c_bus_deinit(void);
-
-/**
  * @brief Check if a device is present on the bus
  * @param addr 7-bit I2C address
  * @return true if device ACKs
