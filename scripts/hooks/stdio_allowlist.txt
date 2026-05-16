@@ -44,7 +44,5 @@ src/drivers/gps_uart.cpp
 src/drivers/i2c_bus.cpp
 src/main.cpp
 src/safety/fault_inject.cpp
-src/safety/fault_protection.cpp
-src/safety/pyro_edge_logger.cpp
 src/safety/station_fault_inject.cpp
 src/telemetry/telemetry_service.cpp

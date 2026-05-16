@@ -6,7 +6,7 @@
 
 #include "hardware/gpio.h"
 #include "pico/time.h"
-#include <stdio.h>
+#include "rocketchip/rc_log.h"
 
 namespace rc {
 
@@ -54,18 +54,18 @@ const PyroEdgeEvent* pyro_edge_logger_get(uint32_t index) {
 void pyro_edge_logger_dump_cli() {
     uint32_t n = s_count;
     if (n == 0) {
-        printf("Pyro log: empty\n");
+        rc::rc_log("Pyro log: empty\n");
         return;
     }
-    printf("Pyro log: %lu events\n", (unsigned long)n);
+    rc::rc_log("Pyro log: %lu events\n", (unsigned long)n);
     for (uint32_t i = 0; i < n; ++i) {
         const auto& e = s_buffer[i];
         const char* pin_name = (e.gpio_pin == s_droguPin) ? "DROGUE" :
                                (e.gpio_pin == s_mainPin)  ? "MAIN"   : "?";
-        printf("  [%llu us] GPIO%u (%s) %s\n",
-               (unsigned long long)e.timestamp_us,
-               e.gpio_pin, pin_name,
-               e.rising ? "RISE" : "FALL");
+        rc::rc_log("  [%llu us] GPIO%u (%s) %s\n",
+                   (unsigned long long)e.timestamp_us,
+                   e.gpio_pin, pin_name,
+                   e.rising ? "RISE" : "FALL");
     }
 }
 

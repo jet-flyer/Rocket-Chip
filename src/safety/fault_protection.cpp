@@ -14,9 +14,8 @@
 
 #include "hardware/structs/mpu.h"
 #include "hardware/structs/scb.h"  // for SHCSR.MEMFAULTENA write in stack-guard setup
-#include "pico/stdio.h"  // for printf in Q_onError
 #include "pico/time.h"   // for busy_wait_us in fault handler delay
-#include <stdio.h>
+#include "rocketchip/rc_log.h"  // R-5 Unit C: replaces printf in Q_onError
 
 // NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" uint32_t __StackBottom;  // For Core 0 documentation (defined in linker)
@@ -210,8 +209,10 @@ extern "C" Q_NORETURN Q_onError(
     // interrupts-disabled, depending on whether the assertion came from
     // a context that already had USB infrastructure healthy. If it doesn't
     // make it out the wire, the captured crash record will surface on
-    // next boot.
-    printf("[QP ASSERT] module=%s, id=%d\n", module, id);
+    // next boot. rc_log writes to the ring buffer non-blocking; drain
+    // happens later from Core 0's tud_task path or via the
+    // visible-signal delay before AIRCR.
+    rc::rc_log("[QP ASSERT] module=%s, id=%d\n", module, id);
 
     // Phase-aware dispatch — same as memmanage_fault_handler.
     const rc::FlightPhase phase = rc::flight_phase_observable_get();
