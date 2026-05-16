@@ -116,8 +116,8 @@ static_assert(sizeof(kPmtk314Sentence) - 1 == 51,
               "PMTK314 sentence byte length mismatch");
 
 // PMTK220,200 — set NMEA output interval to 200ms = 5 Hz.
-// See docs/PROJECT_STATUS.md "Future Features" for the 10Hz
-// experimental-mode item.
+// See AGENT_WHITEBOARD.md "UART GPS 10Hz + sticky-baud fix" for the
+// active 10Hz investigation.
 constexpr char kPmtk220_5HzBody[] = "PMTK220,200";
 constexpr char kPmtk220_5HzSentence[] = "$PMTK220,200*2C\r\n";
 static_assert(nmea_checksum_constexpr(kPmtk220_5HzBody) == 0x2C,
