@@ -39,7 +39,6 @@ src/cli/rc_os_commands.cpp
 src/cli/rc_os_dashboard.cpp
 src/cli/rc_os_debug.cpp
 src/diag/diag_stats.cpp
-src/drivers/gps_uart.cpp
 src/drivers/i2c_bus.cpp
 src/main.cpp
 src/safety/fault_inject.cpp

@@ -10,7 +10,7 @@
  * Architecture mirrors gps_pa1010d.cpp:
  *   - Same lwGPS parser (NMEA parsing is transport-agnostic)
  *   - Same gps_data_t output (transport-neutral, defined in gps.h)
- *   - Same PMTK command interface
+ *   - PMTK commands sent as precomputed const-array sentences (R-2 / R-5 Unit D)
  *
  * Key differences from I2C backend:
  *   - No padding filter (UART gives clean bytes, no 0x0A padding)
@@ -38,7 +38,6 @@
 #include "hardware/irq.h"
 #include "pico/time.h"
 #include <string.h>
-#include <stdio.h>
 
 // ============================================================================
 // Constants
@@ -48,20 +47,11 @@
 // uart0 is a macro (reinterpret_cast), not constexpr — use #define.
 #define GPS_UART_INST uart0
 
-// NMEA protocol constants (shared with I2C backend by value, not by reference)
+// NMEA protocol constants
 constexpr char     kNmeaStart       = '$';
 constexpr uint16_t kGpsYearBase     = 2000;
 constexpr uint8_t  kGsaFixMode3d    = 3;
 constexpr uint8_t  kGsaFixMode2d    = 2;
-
-// PMTK220 rate intervals (ms)
-constexpr uint16_t kGpsRate1Hz      = 1000;
-constexpr uint16_t kGpsRate5Hz      = 200;
-constexpr uint16_t kGpsRate10Hz     = 100;
-
-// Supported GPS update rates (Hz)
-constexpr uint8_t  kGpsRateHz5      = 5;
-constexpr uint8_t  kGpsRateHz10     = 10;
 
 // PMTK251 baud rate negotiation
 // MT3339 switches baud immediately on receiving PMTK251 — ACK arrives at the
@@ -71,16 +61,69 @@ constexpr uint8_t  kGpsRateHz10     = 10;
 // At 115200 the MT3339 PA1616D is documented to work but some units are unreliable
 // above 57600 (Adafruit forum reports). 57600 is the safe high-speed choice.
 // Source: Adafruit Ultimate GPS product page, user forum thread #71672.
-constexpr uint32_t kGpsBaud57600          = 57600;
 constexpr uint32_t kGpsBaudNegotiateDelayMs = 250;  // ms — module stabilize time
-
-// NMEA command buffer
-constexpr size_t   kNmeaCmdBufSize  = 128;
-constexpr size_t   kNmeaChecksumLen = 5;       // "*XX\r\n"
 
 // Init: presence detection timeout
 // MT3339 outputs NMEA at 1Hz default — 2 seconds guarantees at least one sentence.
 constexpr uint32_t kInitTimeoutUs   = 2000000; // 2 seconds
+
+// ============================================================================
+// R-2 absorbed (R-5 Unit D part 2b, 2026-05-16, council-approved): the PMTK
+// command sentences are precomputed const arrays with compile-time checksum
+// + length verification via static_assert. No snprintf in the file. Same
+// pattern as gps_pa1010d.cpp Unit D part 2a (commit c71090e).
+//
+// Latent bug fix (HW_GATE_DISCIPLINE Rule 7 — bugs surfaced by verification
+// are in-scope for the PR that surfaced them): the prior `negotiate_baud()`
+// called `gps_uart_send_command()` BEFORE `g_initialized = true`, which
+// `gps_uart_send_command` early-returned on `if (!g_initialized) return
+// false`. The PMTK251 baud-change command was therefore never sent over the
+// wire — the GPS module stayed at 9600 baud while the host UART switched to
+// 57600. Result: rxOvf accumulated and lwGPS parser saw mostly garbage
+// (pre-migration baseline: RMC=V GGA=0 GSA=0 rxOvf=776+). With const-array
+// `uart_write_blocking` calls there is no `g_initialized` early-return path
+// to trip over; the bug evaporates.
+// ============================================================================
+
+// Compile-time NMEA checksum: XOR of all bytes between '$' and '*' (exclusive).
+constexpr uint8_t nmea_checksum_constexpr(const char* body) {
+    uint8_t c = 0;
+    while (*body != '\0') {
+        c ^= static_cast<uint8_t>(*body);
+        ++body;
+    }
+    return c;
+}
+
+// PMTK251,57600 — switch MT3339 to 57600 baud.
+constexpr char kPmtk251_57600Body[] = "PMTK251,57600";
+constexpr char kPmtk251_57600Sentence[] = "$PMTK251,57600*2C\r\n";
+static_assert(nmea_checksum_constexpr(kPmtk251_57600Body) == 0x2C,
+              "PMTK251,57600 checksum mismatch — verify literal matches sentence body");
+static_assert(sizeof(kPmtk251_57600Sentence) - 1 == 19,
+              "PMTK251,57600 sentence byte length mismatch");
+
+// PMTK314 — enable RMC + GGA + GSA + GSV sentences (rest disabled).
+// Same literal as gps_pa1010d's kPmtk314Sentence; kept separate per the
+// council Tier 2 surgical-scope principle (don't share constants between
+// driver TUs to avoid hidden coupling).
+constexpr char kPmtk314Body[] = "PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0";
+constexpr char kPmtk314Sentence[] =
+    "$PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n";
+static_assert(nmea_checksum_constexpr(kPmtk314Body) == 0x29,
+              "PMTK314 checksum mismatch — verify literal matches sentence body");
+static_assert(sizeof(kPmtk314Sentence) - 1 == 51,
+              "PMTK314 sentence byte length mismatch");
+
+// PMTK220,200 — set NMEA output interval to 200ms = 5 Hz.
+// See docs/PROJECT_STATUS.md "Future Features" for the 10Hz
+// experimental-mode item.
+constexpr char kPmtk220_5HzBody[] = "PMTK220,200";
+constexpr char kPmtk220_5HzSentence[] = "$PMTK220,200*2C\r\n";
+static_assert(nmea_checksum_constexpr(kPmtk220_5HzBody) == 0x2C,
+              "PMTK220,200 checksum mismatch — verify literal matches sentence body");
+static_assert(sizeof(kPmtk220_5HzSentence) - 1 == 17,
+              "PMTK220,200 sentence byte length mismatch");
 
 // ============================================================================
 // Interrupt-Driven Ring Buffer
@@ -167,20 +210,6 @@ static void gps_uart_rx_isr() {
 // ============================================================================
 
 /**
- * @brief Calculate NMEA checksum (XOR of bytes between '$' and '*')
- */
-static uint8_t nmea_checksum(const char* sentence) {
-    uint8_t checksum = 0;
-    if (*sentence == '$') {
-        sentence++;
-    }
-    while (*sentence != '\0' && *sentence != '*') {
-        checksum ^= static_cast<uint8_t>(*sentence++);
-    }
-    return checksum;
-}
-
-/**
  * @brief Update internal data structure from lwGPS parser state
  *
  * Duplicated from gps_pa1010d.cpp — both backends produce identical
@@ -247,20 +276,37 @@ static void update_data_from_lwgps() {
 // MT3339 behavior: switches baud immediately on receiving PMTK251. ACK arrives
 // at the new rate — ignore it. Use delay as synchronization.
 // Source: GlobalTop PMTK_A11; Adafruit_GPS library pattern.
-static void negotiate_baud(uint32_t newBaud) {
-    // Send PMTK251 at current baud rate
-    char cmd[32];
-    (void)snprintf(cmd, sizeof(cmd), "PMTK251,%lu", (unsigned long)newBaud);
-    gps_uart_send_command(cmd);
+//
+// R-5 Unit D part 2b: writes the precomputed kPmtk251_57600Sentence directly
+// via uart_write_blocking. The prior `gps_uart_send_command(cmd)` call here
+// was dead — see file-top comment about the latent g_initialized bug.
+static void negotiate_baud_to_57600() {
+    // Send precomputed PMTK251,57600 at current baud rate. No checksum
+    // computation, no snprintf — the bytes are byte-identical-to-intent
+    // (static_assert at file scope verifies).
+    uart_write_blocking(
+        GPS_UART_INST,
+        reinterpret_cast<const uint8_t*>(kPmtk251_57600Sentence),
+        sizeof(kPmtk251_57600Sentence) - 1);
 
     // Wait for module to switch — ACK arrives at new rate, don't try to read it
     busy_wait_ms(kGpsBaudNegotiateDelayMs);
 
     // Reinit host UART at new baud
     uart_deinit(GPS_UART_INST);
-    uart_init(GPS_UART_INST, newBaud);
+    uart_init(GPS_UART_INST, 57600);
     gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
     gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
+}
+
+// Write a precomputed PMTK sentence directly. Used after baud negotiation
+// for the static-config writes (PMTK314 sentence list + PMTK220 rate).
+// No g_initialized guard — caller is responsible for ordering.
+static void uart_write_pmtk(const char* sentence, size_t len) {
+    uart_write_blocking(
+        GPS_UART_INST,
+        reinterpret_cast<const uint8_t*>(sentence),
+        len);
 }
 
 // Drain UART for up to 2 seconds looking for '$' (NMEA start).
@@ -300,7 +346,7 @@ bool gps_uart_init() {
     g_rxTail = 0;
     g_rxOverflow = 0;
 
-    // Configure UART0
+    // Configure UART0 at factory baud (9600 — MT3339 cold-start default)
     uart_init(GPS_UART_INST, kGpsUartBaud);
     gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
     gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
@@ -313,20 +359,18 @@ bool gps_uart_init() {
     }
 
     // Negotiate 57600 baud before enabling IRQ.
-    // MT3339 cold-starts at 9600 — we detected presence at 9600, now upgrade.
-    // At 57600 baud: 5760 B/s / ~200 B per 10Hz burst = 28 Hz capacity (2.8x headroom).
-    // negotiate_baud() deinits/reinits the host UART — must run before IRQ registration.
-    negotiate_baud(kGpsBaud57600);
+    // negotiate_baud_to_57600() deinits/reinits the host UART —
+    // must run before IRQ registration.
+    negotiate_baud_to_57600();
+
+    // Configure NMEA output: RMC + GGA + GSA (same as I2C backend).
+    // Must be called AFTER baud negotiation — both writes go at 57600.
+    uart_write_pmtk(kPmtk314Sentence, sizeof(kPmtk314Sentence) - 1);
+
+    // Set 5Hz update rate (PMTK220,200ms interval).
+    uart_write_pmtk(kPmtk220_5HzSentence, sizeof(kPmtk220_5HzSentence) - 1);
 
     g_initialized = true;
-
-    // Configure NMEA output: RMC + GGA + GSA (same as I2C backend)
-    gps_uart_send_command("PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
-
-    // Set 10Hz update rate (PMTK220,100ms interval).
-    // Must be called AFTER baud negotiation — module must be at 57600 to
-    // sustain 10Hz output (9600 baud can only fit ~4.8 NMEA bursts/sec).
-    gps_uart_set_rate(kGpsRateHz10);
 
     // Enable interrupt-driven receive.
     // ISR registered on Core 0 (the core running this init).
@@ -404,29 +448,6 @@ uint32_t gps_uart_get_overflow_count() {
     return g_rxOverflow;
 }
 
-bool gps_uart_send_command(const char* cmd) {
-    if (!g_initialized || cmd == nullptr) {
-        return false;
-    }
-
-    // Build full NMEA sentence with checksum
-    char sentence[kNmeaCmdBufSize];
-    int len = snprintf(sentence, sizeof(sentence) - kNmeaChecksumLen, "$%s*", cmd);
-    if (len < 0 || len >= static_cast<int>(sizeof(sentence) - kNmeaChecksumLen)) {
-        return false;
-    }
-
-    // Calculate and append checksum
-    uint8_t cs = nmea_checksum(sentence);
-    (void)snprintf(sentence + len, kNmeaChecksumLen, "%02X\r\n", cs);
-    len += 4;  // "XX\r\n"
-
-    // Send via UART
-    uart_write_blocking(GPS_UART_INST, reinterpret_cast<const uint8_t*>(sentence), static_cast<size_t>(len));
-
-    return true;
-}
-
 bool gps_uart_reinit() {
     // [M3] UART GPS unavailable on boards where GPIO 0/1 are not UART pins
     if constexpr (!board::kUartGpsAvailable) {
@@ -449,8 +470,9 @@ bool gps_uart_reinit() {
     lwgps_init(&g_gps);
     memset(&g_data, 0, sizeof(g_data));
 
-    // Mark uninitialized — gps_uart_send_command() guard will be bypassed
-    // by negotiate_baud() using uart_write_blocking() via the existing path.
+    // Mark uninitialized — protects gps_uart_drain / gps_uart_update from
+    // touching parser state mid-reinit. PMTK writes below bypass that
+    // guard by using uart_write_blocking directly.
     g_initialized = false;
 
     // Reinit UART at factory baud for presence detection
@@ -465,32 +487,17 @@ bool gps_uart_reinit() {
     }
 
     // Negotiate 57600 baud
-    negotiate_baud(kGpsBaud57600);
+    negotiate_baud_to_57600();
+
+    // Reconfigure output sentences and rate (all writes at 57600 now)
+    uart_write_pmtk(kPmtk314Sentence, sizeof(kPmtk314Sentence) - 1);
+    uart_write_pmtk(kPmtk220_5HzSentence, sizeof(kPmtk220_5HzSentence) - 1);
 
     g_initialized = true;
-
-    // Reconfigure output sentences and rate
-    gps_uart_send_command("PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
-    gps_uart_set_rate(kGpsRateHz10);
 
     // Re-enable interrupt
     irq_set_enabled(UART_IRQ_NUM(GPS_UART_INST), true);
     uart_set_irqs_enabled(GPS_UART_INST, true, false);
 
     return true;
-}
-
-bool gps_uart_set_rate(uint8_t rateHz) {
-    char cmd[32];
-    uint16_t intervalMs = 0;
-
-    switch (rateHz) {
-        case 1:             intervalMs = kGpsRate1Hz;  break;
-        case kGpsRateHz5:   intervalMs = kGpsRate5Hz;  break;
-        case kGpsRateHz10:  intervalMs = kGpsRate10Hz; break;
-        default: return false;
-    }
-
-    (void)snprintf(cmd, sizeof(cmd), "PMTK220,%u", intervalMs);
-    return gps_uart_send_command(cmd);
 }

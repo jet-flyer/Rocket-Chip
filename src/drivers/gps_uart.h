@@ -97,20 +97,6 @@ bool gps_uart_has_fix(void);
 uint32_t gps_uart_get_overflow_count(void);
 
 /**
- * @brief Send PMTK command to GPS
- * @param cmd PMTK command string (without $, *, or checksum)
- * @return true on success
- */
-bool gps_uart_send_command(const char* cmd);
-
-/**
- * @brief Set GPS update rate
- * @param rateHz Update rate (1, 5, or 10 Hz)
- * @return true on success
- */
-bool gps_uart_set_rate(uint8_t rateHz);
-
-/**
  * @brief Reinitialize UART GPS (staleness recovery)
  *
  * Deinits UART, resets ring buffer, renegotiates baud, re-enables IRQ.

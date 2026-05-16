@@ -171,6 +171,7 @@ None currently.
 - **u-blox GPS (Matek M8Q-5883)** — UART + QMC5883L compass. UBX binary protocol. Production/flight hardware upgrade.
 - **Dynamic Peripheral Detection + OTA Drivers** — Runtime hot-plug, driver registry, OTA firmware downloads. Crowdfunding stretch goal. Boot-time probe-first already implemented.
 - **FSK Continuous Bitstream (IVP-63)** — SX1276 FSK mode for IRIG-heritage PCM telemetry. Titan tier only. Requires separate driver from LoRa.
+- **GPS 10Hz NMEA mode (experimental)** — Theoretical max for the Feather UART GPS (PA1616D / MT3339) at 57600 baud is RMC+GGA+GSA at 10Hz, ~2.45× bandwidth headroom by math. Stepwise diagnostic 2026-05-16 during R-5 Unit D part 2b found 10Hz silence post-PMTK-config on this specific module despite passing the bandwidth budget. 5Hz is the shipped production rate (matches ArduPilot default, all three sentences preserved, 4.9× headroom). 10Hz return-investigation needs: logic-analyzer trace on UART TX/RX, comparison against Adafruit_GPS Arduino library byte sequence, possible per-sentence-rate (PMTK314 fields as period multipliers of PMTK220 base) tuning. Out of R-5 scope; depends on logic-analyzer hardware.
 
 ## Side Projects & Future Product Lines
 
