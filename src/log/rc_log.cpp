@@ -38,7 +38,6 @@
 
 #ifndef ROCKETCHIP_HOST_TEST
 #include "tusb.h"
-#include "pico/stdio_usb.h"
 #endif
 
 namespace {
@@ -501,16 +500,37 @@ void emit(const char* buf, size_t len) {
     s_capture_len += writable;
 }
 #else
-// Target sink: non-blocking, ring-buffered, drained by tud_task.
+// Target sink: non-blocking, ring-buffered, drained from qv_idle_bridge.
 // Council round 2 amendment #1 (Cubesat): never blocks the caller.
 //
-// Implementation: 256-byte ring buffer. emit() copies as much as fits
-// without blocking. tud_task on Core 0's main loop drains the ring into
-// tud_cdc_write whenever USB CDC has capacity. Drop-on-overflow if the
-// ring is full (matches AP_HAL UART putchar pattern).
+// Implementation: 1024-byte ring buffer. emit() copies the message in
+// full; if the ring is full, the OLDEST bytes are evicted to make room
+// (drop-oldest semantics). rc_log_drain_to_cdc() drains the ring to
+// USB CDC via tud_cdc_write/tud_cdc_write_flush from Core 0's main
+// loop. While USB CDC is disconnected (host hasn't opened the port +
+// asserted DTR yet), bytes accumulate in the ring; when the host
+// finally attaches, drain emits whatever the ring currently holds.
+//
+// Rationale for drop-oldest (not drop-newest):
+//   - Boot output is the diagnostic high-value content. Before the host
+//     attaches, the ring fills naturally with banner + init logs. When
+//     the host attaches, the most recent ~1KB is more useful than the
+//     first 1KB followed by silence.
+//   - Pattern source: ArduPilot AP_HAL UART putchar (newest wins).
+//
+// Concurrency: rc_log is called from Core 0 cooperative context only
+// (per rc_log.h contract — never from ISR, never from Core 1). Drain
+// is also Core 0 cooperative (from qv_idle_bridge). Producer and
+// consumer never run concurrently; the volatile head/tail are
+// belt-and-braces against compiler reordering, not against
+// preemption. Coexistence with SDK's stdio_usb (un-migrated printf
+// callers) is byte-stream-level: TinyUSB serializes its own TX FIFO,
+// so our tud_cdc_write and the SDK's tud_cdc_write don't corrupt each
+// other, they just interleave at byte boundaries — acceptable during
+// R-5 migration; resolves at Unit J when stdio_usb is retired.
 
 namespace target_sink {
-    constexpr size_t kRingBytes = 256U;
+    constexpr size_t kRingBytes = 1024U;
     static volatile char s_ring[kRingBytes];
     static volatile size_t s_head = 0U;  // producer (rc_log writes here)
     static volatile size_t s_tail = 0U;  // consumer (drain reads here)
@@ -524,19 +544,30 @@ namespace target_sink {
 
 void emit(const char* buf, size_t len) {
     using namespace target_sink;
-    // Producer side: append as much as fits without blocking.
-    // Single-producer (rc_log callers are AO/Core-0 cooperative) so no
-    // CAS needed; the volatile s_head write is atomic on the M33.
+    // Drop-oldest: if the message doesn't fit, advance tail (evict
+    // oldest bytes) until it does. Producer owns both head and tail
+    // here, which is safe because rc_log is single-producer + the
+    // drain consumer is also Core 0 cooperative (never preempts the
+    // producer). Cap the eviction at message size so a giant message
+    // can't loop forever on a 1KB ring.
+    if (len >= kRingBytes) {
+        // Message larger than the entire ring (shouldn't happen — buf
+        // capacity is kRcLogBufferBytes=128). Keep only the tail of
+        // the message that fits, evict everything else.
+        buf += (len - (kRingBytes - 1U));
+        len = kRingBytes - 1U;
+    }
     size_t avail = ring_free();
-    size_t writable = (len < avail) ? len : avail;
-    for (size_t i = 0; i < writable; ++i) {
+    if (avail < len) {
+        // Evict (len - avail) oldest bytes by advancing s_tail.
+        size_t evict = len - avail;
+        s_tail = (s_tail + evict) % kRingBytes;
+    }
+    for (size_t i = 0; i < len; ++i) {
         size_t h = s_head;
         s_ring[h] = buf[i];
         s_head = (h + 1U) % kRingBytes;
     }
-    // Anything beyond `writable` is dropped on the floor — matches AP_HAL
-    // UART putchar pattern; backpressure protects the cooperative scheduler
-    // from blocking on USB CDC.
 }
 #endif
 
@@ -591,6 +622,11 @@ void rc_log(const char* fmt, ...) {
     va_end(args);
 
     // Emit to sink (USB CDC ring on target, capture buffer on host).
+    // Note: no inline drain here — drain runs from qv_idle_bridge in
+    // Core 0's main loop. While USB CDC is disconnected (host hasn't
+    // attached yet), bytes accumulate in the ring with drop-oldest
+    // semantics, so the most-recent boot output is preserved for the
+    // host to see when it finally attaches and asserts DTR.
     emit(buf.data(), buf.size());
 }
 
@@ -603,11 +639,16 @@ void rc_log(const char* fmt, ...) {
 #ifndef ROCKETCHIP_HOST_TEST
 extern "C" void rc_log_drain_to_cdc(void) {
     using namespace target_sink;
+    // Hold-on-disconnect: if host hasn't opened the port + asserted
+    // DTR yet, leave bytes in the ring. emit() applies drop-oldest
+    // when the ring fills, so the most-recent boot output is what
+    // the host sees on first attach. Returning early here (instead
+    // of discarding s_tail = s_head) is the change that fixes boot
+    // output loss.
     if (!tud_cdc_connected()) {
-        // Drop ring contents when not connected.
-        s_tail = s_head;
         return;
     }
+    bool wrote_any = false;
     size_t cdc_avail = tud_cdc_write_available();
     while (cdc_avail > 0U && ring_used() > 0U) {
         size_t t = s_tail;
@@ -619,9 +660,22 @@ extern "C" void rc_log_drain_to_cdc(void) {
         // only consumer and the bytes have been written by emit() already.
         uint32_t written = tud_cdc_write(const_cast<const char*>(reinterpret_cast<const volatile char*>(&s_ring[t])),
                                          static_cast<uint32_t>(span));
-        s_tail = (t + written) % kRingBytes;
-        cdc_avail -= written;
-        if (written < span) { break; }  // CDC stalled
+        if (written > 0U) {
+            s_tail = (t + written) % kRingBytes;
+            cdc_avail -= written;
+            wrote_any = true;
+        }
+        if (written < span) { break; }  // CDC stalled — yield to next drain tick
+    }
+    // Push the TinyUSB TX FIFO toward the wire. Per pico SDK's
+    // stdio_usb_out_chars pattern (sdk/2.2.0/.../stdio_usb.c:113).
+    // tud_task() itself is driven by the SDK's IRQ-driven background
+    // task (PICO_STDIO_USB_ENABLE_IRQ_BACKGROUND_TASK=1 by default),
+    // so we don't call tud_task() here — that would race the SDK's
+    // own mutex-protected invocation. tud_cdc_write_flush() is
+    // thread-safe and just schedules the FIFO for transmission.
+    if (wrote_any) {
+        tud_cdc_write_flush();
     }
 }
 #endif
