@@ -21,7 +21,7 @@ If you're migrating **existing code**: wait for the dedicated R-5 tier sessions 
 |---|---|---|---|
 | `printf("fmt", args)` | `rc::rc_log("fmt", args)` | **available** | Same format-string surface; routes through bounded log channel. 13 supported specs per Unit A inventory. |
 | `printf(...)` in flight loop or hot path | (don't — log via telemetry instead) | guidance | Hot-path logging isn't `rc_log`'s job either; consider whether you really need this. |
-| `printf(...)` (debug-only) | `DBG_PRINT(...)` (existing macro) | **available** | DBG_PRINT backend will route through `rc_log` after Unit B's macro repoint (planned next commit). Surface stays identical for callers. |
+| `printf(...)` (debug-only) | `DBG_PRINT(...)` (existing macro) | **available** | DBG_PRINT backend routes through `rc::rc_log` as of R-5 Unit B step 4 (commit 7eda5e3, 2026-05-16). Surface unchanged for callers. |
 | `snprintf(buf, sizeof buf, "fmt", args)` | (case-by-case — see below) | available now | If output is for logging, use `rc::rc_log` instead. If you genuinely need a string in a buffer, use `etl::to_string(value, str)` for single-value or `etl::string_stream` + `<<` operators for multi-arg. The proposed `etl::format(buf, "x={}", x, y)` API does NOT exist as written — ETL's actual API is `etl::format_to(out_iter, "x={}", x, y)` (post-2025-12-13 release; we vendored 20.47.1 which has it). For most callsites, `rc_log` removes the need to touch ETL directly. |
 | `snprintf(...)` for fixed PMTK / protocol commands | precomputed `static constexpr char[]` arrays | available now | R-2 absorbed into R-5b (Tier 2 drivers). PMTK strings with `constexpr` checksum verification via `static_assert`. |
 | `getchar() / getchar_timeout_us(...)` | `rc::rc_cli_getchar()` (existing — uses `pico/stdio.h` indirectly but not `<stdio.h>`) | available now | The CLI path already abstracts this. |
@@ -96,7 +96,9 @@ etl::format_to(out_iter, "x={} y={}", x, y);   // {} placeholders
 // use buf.c_str() / buf.data()...
 ```
 
-**API correction note (2026-05-16):** ETL's actual multi-arg API is `etl::format_to(out_iterator, "fmt", args...)`, not `etl::format(buf, "fmt", args...)`. The prior version of this guide showed the wrong signature; corrected by R-5 Unit B step 7 commit after the ETL CLEAN verification + vendoring at `EXTERNAL/etl-20.47.1/` confirmed the actual API surface. The `etl::format_to` function landed via PR #1204 (merged 2025-12-13); our pinned 20.47.1 release (2026-04-05) includes it.
+**API correction note (2026-05-16):** ETL's actual multi-arg API is `etl::format_to(out_iterator, "fmt", args...)`, not `etl::format(buf, "fmt", args...)`. The prior version of this guide showed the wrong signature; corrected by R-5 Unit B step 3 commit a97c6bf after the ETL CLEAN verification + vendoring at `EXTERNAL/etl-20.47.1/` confirmed the actual API surface. The `etl::format_to` function landed via PR #1204 (merged 2025-12-13); our pinned 20.47.1 release (2026-04-05) includes it.
+
+**Note on `rc_log`'s relationship to ETL multi-arg (2026-05-16, post-council-round-3):** `rc::rc_log()` does **NOT** use `etl::format_to` internally — it uses its own hand-rolled printf-spec parser that dispatches each conversion to `etl::to_string` (single-value, per-format-spec). This was the council round 3 council-approved approach (Pathfinder-class divergence avoided): one parser to debug, smaller unowned surface, hand-rolled libc-matching float rounding for ground-side-parser compatibility. So if you call `rc_log("x=%d y=%d", x, y)`, the implementation parses the printf format string itself and calls `etl::to_string` for each `%`-conversion. You do not need to touch `etl::format_to` for printf-shape logging — that's `rc_log`'s job. Reach for `etl::format_to` only when you genuinely need `{}`-style multi-arg buffer building (which `rc_log` does not provide).
 
 **ETL format-string differences from printf:**
 - ETL uses Python-style `{}` placeholders, not `%d` / `%s`.
@@ -146,7 +148,7 @@ DBG_PRINT("Boot: phase %d\n", phase);
 DBG_ERROR("ESKF divergence detected: |v|=%.2f\n", v_norm);
 ```
 
-These compile to `((void)0)` under `NDEBUG` per `standards/DEBUG_OUTPUT.md`. **Keep using `DBG_PRINT` / `DBG_ERROR` as-is for new code.** When the R-5 refactor lands, the macro's backend swaps from `printf` to `rc_log_dbg` invisibly; your code doesn't change.
+These compile to `((void)0)` under `NDEBUG` per `standards/DEBUG_OUTPUT.md`. **Keep using `DBG_PRINT` / `DBG_ERROR` as-is for new code.** Since R-5 Unit B step 4 (commit 7eda5e3, 2026-05-16), the macro's backend routes through `rc::rc_log` invisibly; caller surface unchanged.
 
 ---
 
@@ -230,4 +232,4 @@ These don't block migration — they're enhancements that come after the allowli
 - `docs/decisions/STDIO_REPLACEMENT_PLAN.md` — the design + scope + work breakdown.
 - `scripts/hooks/pre-commit` + `scripts/hooks/stdio_allowlist.txt` — the no-new-`<stdio.h>` gate.
 - `standards/CODING_STANDARDS.md` — JSF / MISRA / JPL references.
-- `standards/DEBUG_OUTPUT.md` — the `DBG_PRINT` macro (backend swap pending).
+- `standards/DEBUG_OUTPUT.md` — the `DBG_PRINT` macro (backend now routes through `rc::rc_log`).
