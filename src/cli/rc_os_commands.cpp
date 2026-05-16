@@ -33,6 +33,7 @@
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h"
 #include "rocketchip/radio_config_table.h"  // T5.5 sub 2c: SET cycle
+#include <stdio.h>  // 215 printf callsites; migrated to rc_log in Tier 5
 
 // MAVLink command IDs for station command menu (IVP-62c)
 // Values from common/common.h — avoids pulling full mavlink.h with packed struct warnings
@@ -142,7 +143,6 @@ static void cmd_radio_config_cycle() {
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 #include "pico/time.h"
-#include <stdio.h>
 #include <math.h>
 
 // ============================================================================

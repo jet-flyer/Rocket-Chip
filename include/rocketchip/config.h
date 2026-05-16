@@ -33,11 +33,11 @@
 // Do not put statements with side effects inside RC_ASSERT().
 
 #ifdef DEBUG
-    #include <stdio.h>
+    #include "rocketchip/rc_log.h"
     #define RC_ASSERT(expr) \
         do { \
             if (!(expr)) { \
-                printf("[ASSERT] %s:%d: %s\n", __FILE__, __LINE__, #expr); \
+                rc::rc_log("[ASSERT] %s:%d: %s\n", __FILE__, __LINE__, #expr); \
                 while (true) { __asm volatile("nop"); } \
             } \
         } while (0)
@@ -151,29 +151,45 @@ inline constexpr bool kDebugEnabled = false;
 #endif
 
 #include "pico/time.h"
-#include <cstdio>
+#include "rocketchip/rc_log.h"
+
+// R-5 Unit B step 4 (2026-05-16): backend repointed from <stdio.h>
+// printf to rc::rc_log. DBG_PRINT/DBG_ERROR/DBG_STATE call surfaces
+// stay identical for callers — this is the macro-repoint commit zero
+// move (ArduPilot round 1 amendment: "cheap, high-leverage, runs the
+// replacement under realistic load before the manual callsite
+// migration starts"). config.h no longer includes <stdio.h> or
+// <cstdio>, eliminating the transitive-leak path that the Unit A
+// inventory surfaced (5 hidden-leak files via config.h's old DBG_PRINT
+// macros pulling printf into translation units that didn't directly
+// include <stdio.h>).
+//
+// Per the rc::rc_log contract (include/rocketchip/rc_log.h), each call
+// emits at most 128 bytes to a non-blocking USB CDC ring; output that
+// overflows is truncated with "...\n" marker. The "[%lu] " timestamp
+// prefix + newline are baked into the format strings below.
 
 template<typename... Args>
 inline void dbg_print(const char* fmt, Args... args) {
     if constexpr (kDebugEnabled) {
-        printf("[%lu] ", (unsigned long)time_us_32());
-        printf(fmt, args...);
-        printf("\n");
+        rc::rc_log("[%lu] ", (unsigned long)time_us_32());
+        rc::rc_log(fmt, args...);
+        rc::rc_log("\n");
     }
 }
 
 template<typename... Args>
 inline void dbg_error(const char* fmt, Args... args) {
     if constexpr (kDebugEnabled) {
-        printf("[%lu] ERROR: ", (unsigned long)time_us_32());
-        printf(fmt, args...);
-        printf("\n");
+        rc::rc_log("[%lu] ERROR: ", (unsigned long)time_us_32());
+        rc::rc_log(fmt, args...);
+        rc::rc_log("\n");
     }
 }
 
 inline void dbg_state(const char* from, const char* to) {
     if constexpr (kDebugEnabled) {
-        printf("[%lu] State: %s -> %s\n", (unsigned long)time_us_32(), from, to);
+        rc::rc_log("[%lu] State: %s -> %s\n", (unsigned long)time_us_32(), from, to);
     }
 }
 
