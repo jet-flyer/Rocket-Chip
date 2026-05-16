@@ -262,6 +262,15 @@ target_include_directories(test_calibration_lm PRIVATE
     ${CMAKE_SOURCE_DIR})
 gtest_discover_tests(test_calibration_lm)
 
+# R-5 Unit B (2026-05-16): rc_log host tests — printf-subset formatter byte-on-wire
+# parity against libc snprintf for the 13 format-spec patterns from
+# docs/audits/STDIO_FORMAT_SPEC_INVENTORY_2026-05-15.md plus truncation
+# and bench_sim-monitored log-line tests. Council 3-persona acceptance
+# criterion #1 (float-rounding parity).
+add_executable(test_rc_log test_rc_log.cpp)
+target_link_libraries(test_rc_log PRIVATE rc_log GTest::gtest_main)
+gtest_discover_tests(test_rc_log)
+
 # -----------------------------------------------------------------------------
 # Host Python: Tier 4 `_rc_test_common` harness + scripts/*.py syntax check.
 #

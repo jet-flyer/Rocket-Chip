@@ -80,6 +80,31 @@ if(BUILD_TESTS)
     )
 
     # ------------------------------------------------------------------
+    # rc_log library — bounded log channel replacing <stdio.h>
+    # R-5 Unit B (2026-05-16). See:
+    #   docs/decisions/STDIO_REPLACEMENT_PLAN.md (why)
+    #   C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn.md (how)
+    #   docs/audits/STDIO_FORMAT_SPEC_INVENTORY_2026-05-15.md (spec list)
+    # Council-approved 3-persona Approach A (2026-05-15): hand-rolled
+    # printf-subset formatter dispatching to etl::to_string. ETL 20.47.1
+    # vendored at EXTERNAL/etl-20.47.1/ — acceptance-criterion verified
+    # (no vsnprintf/snprintf/<stdio.h> in format+to_string subtree).
+    # ------------------------------------------------------------------
+    add_library(rc_log STATIC
+        src/log/rc_log.cpp
+    )
+    target_include_directories(rc_log PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/include
+        ${CMAKE_CURRENT_LIST_DIR}/EXTERNAL/etl-20.47.1
+    )
+    target_compile_definitions(rc_log PUBLIC ROCKETCHIP_HOST_TEST)
+    # Treat the vendored ETL as SYSTEM headers so its warnings (mostly
+    # in third-party-style code paths) don't fail our pedantic gates.
+    target_include_directories(rc_log SYSTEM PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/EXTERNAL/etl-20.47.1
+    )
+
+    # ------------------------------------------------------------------
     # Telemetry library (no SDK dependencies)
     # IVP-58: CCSDS + MAVLink encoders
     # ------------------------------------------------------------------
@@ -471,6 +496,12 @@ else()
         # Stage 16C: Station Runtime Decoupling (IVP-140+)
         # -------------------------------------------------------------------------
         src/station/station_idle_tick.cpp
+
+        # -------------------------------------------------------------------------
+        # R-5 Unit B (2026-05-16): bounded log channel replacing <stdio.h>
+        # See docs/decisions/STDIO_REPLACEMENT_PLAN.md + parsed-soaring-popcorn.md
+        # -------------------------------------------------------------------------
+        src/log/rc_log.cpp
     )
 
     # -Wpedantic applied per-source-file to our code only. Pico SDK .c
@@ -563,6 +594,7 @@ else()
         src/flight_director/guard_combinator.cpp
         src/flight_director/action_executor.cpp
         src/station/station_idle_tick.cpp
+        src/log/rc_log.cpp                      # R-5 Unit B (2026-05-16): bounded log channel replacing stdio
     )
     set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
 
@@ -593,6 +625,7 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/lib/qep              # IVP-67 — vendored QP/C 8.1.3
         ${RUUVI_DPS310_DIR}                            # IVP-11 — Ruuvi DPS310 driver
         ${LWGPS_DIR}/include                           # IVP-31 — lwgps NMEA parser
+        ${CMAKE_CURRENT_LIST_DIR}/EXTERNAL/etl-20.47.1 # R-5 Unit B: ETL for rc_log formatter
     )
 
     # Generate WS2812 PIO header from SDK's pio file

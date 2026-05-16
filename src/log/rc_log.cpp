@@ -1,0 +1,642 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Rocket Chip Project
+//
+// rc_log implementation — hand-rolled printf-subset formatter dispatching
+// to etl::to_string for the actual digit-by-digit conversion.
+//
+// Council decision (2026-05-15, 3-persona focused review — NASA/JPL,
+// Professor, ArduPilot, unanimous Approach A): transcript at
+// C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn-agent-b7c34e2af19a8b3d2.md
+//
+// Reasoning summary:
+//   - One parser to debug, not two (rejects B's printf→{} translator).
+//   - GCC __attribute__((format(printf,1,2))) on rc_log.h header works
+//     naturally with this implementation.
+//   - Smaller unowned surface — depends on etl::to_string (~150 LOC stable)
+//     not etl::format_to (~2200 LOC, larger drift surface on ETL upgrades).
+//
+// Supported format specs (per Unit A's STDIO_FORMAT_SPEC_INVENTORY_2026-05-15.md):
+//   %s, %d, %u, %lu, %llu, %zu, %c, %%
+//   %02x, %02X, %04X, %08lx, %08lX, %02lX (hex variants)
+//   %.Nf, %N.Mf (float with precision/width)
+//   width specifiers: %6lu, %3u, %-8s, %-10s, %-20s, %6s, etc.
+//   flags: '-' (left-align), '0' (zero-pad), '+' (force sign), ' ' (space-pad-sign)
+//
+// Not supported (zero usage in inventory):
+//   %e, %g, %a, %p, %n, %i (alias for %d)
+//   Octal %o is single-callsite; investigate per inventory finding before migration.
+
+#include "rocketchip/rc_log.h"
+
+#include <math.h>
+#include <stdarg.h>
+#include <string.h>
+
+#include "etl/string.h"
+#include "etl/to_string.h"
+#include "etl/format_spec.h"
+
+#ifndef ROCKETCHIP_HOST_TEST
+#include "tusb.h"
+#include "pico/stdio_usb.h"
+#endif
+
+namespace {
+
+// Truncation marker appended when output exceeds buffer.
+constexpr char kTruncMarker[] = "...\n";
+constexpr size_t kTruncMarkerLen = sizeof(kTruncMarker) - 1U;  // 4 bytes
+
+// Parsed printf-spec state (per-conversion).
+struct ParsedSpec {
+    bool left_align = false;
+    bool zero_pad = false;
+    bool force_sign = false;
+    bool space_sign = false;
+    uint32_t width = 0;
+    uint32_t precision = 0;
+    bool has_precision = false;
+    enum class LengthMod : uint8_t { kNone, kH, kHH, kL, kLL, kZ, kT, kJ } length = LengthMod::kNone;
+    char conversion = '\0';
+};
+
+// Parse a printf %-spec starting at *p_inout (which points one PAST the %).
+// Advances *p_inout to one past the conversion character. Returns the parsed spec.
+// On error (unknown conversion, malformed), returns spec with conversion='\0'.
+ParsedSpec parse_spec(const char** p_inout) {
+    ParsedSpec out;
+    const char* p = *p_inout;
+
+    // Flags
+    while (true) {
+        if (*p == '-') { out.left_align = true; ++p; }
+        else if (*p == '0') { out.zero_pad = true; ++p; }
+        else if (*p == '+') { out.force_sign = true; ++p; }
+        else if (*p == ' ') { out.space_sign = true; ++p; }
+        else if (*p == '#') { ++p; }  // alt-form flag accepted, ignored
+        else break;
+    }
+
+    // Width (numeric only — varargs '*' not supported per inventory)
+    while (*p >= '0' && *p <= '9') {
+        out.width = out.width * 10U + static_cast<uint32_t>(*p - '0');
+        ++p;
+    }
+
+    // Precision
+    if (*p == '.') {
+        ++p;
+        out.has_precision = true;
+        while (*p >= '0' && *p <= '9') {
+            out.precision = out.precision * 10U + static_cast<uint32_t>(*p - '0');
+            ++p;
+        }
+    }
+
+    // Length modifier
+    if (*p == 'h' && *(p+1) == 'h') { out.length = ParsedSpec::LengthMod::kHH; p += 2; }
+    else if (*p == 'h') { out.length = ParsedSpec::LengthMod::kH; ++p; }
+    else if (*p == 'l' && *(p+1) == 'l') { out.length = ParsedSpec::LengthMod::kLL; p += 2; }
+    else if (*p == 'l') { out.length = ParsedSpec::LengthMod::kL; ++p; }
+    else if (*p == 'z') { out.length = ParsedSpec::LengthMod::kZ; ++p; }
+    else if (*p == 't') { out.length = ParsedSpec::LengthMod::kT; ++p; }
+    else if (*p == 'j') { out.length = ParsedSpec::LengthMod::kJ; ++p; }
+
+    // Conversion char
+    if (*p != '\0') {
+        out.conversion = *p;
+        ++p;
+    }
+
+    *p_inout = p;
+    return out;
+}
+
+// Build an etl::format_spec from a parsed printf spec for integer/hex conversion.
+etl::format_spec build_etl_spec(const ParsedSpec& spec, bool is_hex_upper, bool is_hex_lower) {
+    etl::format_spec fmt;
+    fmt.width(spec.width);
+    if (spec.zero_pad && !spec.left_align) {
+        fmt.fill('0');
+    } else {
+        fmt.fill(' ');
+    }
+    if (spec.left_align) {
+        fmt.left();
+    } else {
+        fmt.right();
+    }
+    if (is_hex_upper || is_hex_lower) {
+        fmt.hex();
+        fmt.upper_case(is_hex_upper);
+    } else {
+        fmt.decimal();
+    }
+    if (spec.has_precision) {
+        fmt.precision(spec.precision);
+    }
+    return fmt;
+}
+
+// Format a signed integer with optional + or space flag prefix.
+// ETL's format_spec doesn't natively express '+'/' ' flags, so we
+// prepend the sign-char manually for non-negative values.
+template <typename T>
+void format_signed_int(etl::istring& out, T value, const ParsedSpec& spec) {
+    etl::format_spec fmt = build_etl_spec(spec, false, false);
+    if (value >= T{0}) {
+        // Handle leading sign char for + and ' ' flags by reducing the
+        // effective width by 1 and pre-appending the char.
+        if (spec.force_sign) {
+            out.push_back('+');
+            if (fmt.get_width() > 0U) { fmt.width(fmt.get_width() - 1U); }
+        } else if (spec.space_sign) {
+            out.push_back(' ');
+            if (fmt.get_width() > 0U) { fmt.width(fmt.get_width() - 1U); }
+        }
+    }
+    etl::to_string(value, out, fmt, true);
+}
+
+// Format a string with width/alignment.
+void format_string(etl::istring& out, const char* s, const ParsedSpec& spec) {
+    if (s == nullptr) { s = "(null)"; }
+    size_t slen = strlen(s);
+    if (spec.has_precision && spec.precision < slen) {
+        slen = spec.precision;
+    }
+    size_t pad = (spec.width > slen) ? (spec.width - slen) : 0U;
+    if (spec.left_align) {
+        out.append(s, slen);
+        for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+    } else {
+        for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+        out.append(s, slen);
+    }
+}
+
+// Format a float with %.Nf style precision + optional width.
+//
+// Hand-rolled to match libc printf %.Nf byte-for-byte. ETL's
+// add_floating_point uses round-half-away-from-zero (C `::round`) which
+// differs from libc/IEEE 754's round-half-to-even on halfway values
+// (1.25 → libc gives "1.2", round-away gives "1.3"). ETL also strips
+// the sign of negative zero via etl::absolute. Both are real divergences
+// from libc that downstream parsers depend on; council acceptance
+// criterion #1 (2026-05-15) is fixed here.
+//
+// Algorithm:
+//   1. Handle sign via signbit() (correctly detects negative zero).
+//   2. Build absolute value's integer + fractional parts.
+//   3. Scale fractional by 10^precision, round-half-to-even via
+//      nearbyint() (uses FE_TONEAREST default = round-half-to-even).
+//   4. Handle carry from fractional → integer.
+//   5. Format "[-]integer.0Npaddedfractional" then apply width/alignment.
+//
+// NaN / Inf are emitted as "nan" / "inf" / "-inf" (libc convention).
+void format_float(etl::istring& out, double value, const ParsedSpec& spec) {
+    uint32_t prec = spec.has_precision ? spec.precision : 6U;  // libc default
+
+    // NaN / Inf handling matches libc printf
+    if (isnan(value)) {
+        // Apply width to "nan" string
+        const char* s = "nan";
+        size_t pad = (spec.width > 3U) ? (spec.width - 3U) : 0U;
+        if (spec.left_align) {
+            out.append(s, 3);
+            for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+        } else {
+            for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+            out.append(s, 3);
+        }
+        return;
+    }
+    if (isinf(value)) {
+        bool neg = (value < 0.0);
+        const char* s = neg ? "-inf" : (spec.force_sign ? "+inf" : (spec.space_sign ? " inf" : "inf"));
+        size_t slen = strlen(s);
+        size_t pad = (spec.width > slen) ? (spec.width - slen) : 0U;
+        if (spec.left_align) {
+            out.append(s, slen);
+            for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+        } else {
+            for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+            out.append(s, slen);
+        }
+        return;
+    }
+
+    // Sign detection. signbit() correctly returns true for -0.0 (unlike
+    // value < 0.0, which is false for negative zero).
+    bool neg = signbit(value);
+    double abs_v = neg ? -value : value;
+
+    // Build the rendered string into a small scratch buffer; apply width
+    // padding when we copy to out.
+    char tmp[64];
+    size_t tmp_len = 0U;
+
+    // Sign char
+    if (neg) {
+        tmp[tmp_len++] = '-';
+    } else if (spec.force_sign) {
+        tmp[tmp_len++] = '+';
+    } else if (spec.space_sign) {
+        tmp[tmp_len++] = ' ';
+    }
+
+    // Scale fractional part to integer form: floor(abs_v * 10^prec)
+    // Then add 0.5-equivalent via nearbyint for round-half-to-even.
+    double scale = 1.0;
+    for (uint32_t i = 0; i < prec; ++i) { scale *= 10.0; }
+    double scaled = abs_v * scale;
+    // nearbyint() uses the current rounding mode, default FE_TONEAREST
+    // which IS round-half-to-even per IEEE 754 / C99 §7.12.9.3. This
+    // matches libc printf's behavior exactly.
+    double rounded = nearbyint(scaled);
+
+    // Split into integer + fractional digits.
+    // Use unsigned 64-bit to hold the value safely up to ~10^18.
+    unsigned long long int_part;
+    unsigned long long frac_part;
+    if (prec == 0U) {
+        int_part = static_cast<unsigned long long>(rounded);
+        frac_part = 0U;
+    } else {
+        // integer.fractional split: divide by 10^prec
+        unsigned long long combined = static_cast<unsigned long long>(rounded);
+        unsigned long long denom = 1U;
+        for (uint32_t i = 0; i < prec; ++i) { denom *= 10U; }
+        int_part = combined / denom;
+        frac_part = combined % denom;
+    }
+
+    // Render integer part. Manually convert digits (no allocations).
+    char int_digits[24];
+    size_t int_len = 0U;
+    if (int_part == 0U) {
+        int_digits[int_len++] = '0';
+    } else {
+        unsigned long long v = int_part;
+        while (v > 0U) {
+            int_digits[int_len++] = static_cast<char>('0' + (v % 10U));
+            v /= 10U;
+        }
+        // Reverse
+        for (size_t i = 0; i < int_len / 2; ++i) {
+            char t = int_digits[i];
+            int_digits[i] = int_digits[int_len - 1 - i];
+            int_digits[int_len - 1 - i] = t;
+        }
+    }
+    if (tmp_len + int_len < sizeof(tmp)) {
+        memcpy(&tmp[tmp_len], int_digits, int_len);
+        tmp_len += int_len;
+    }
+
+    // Decimal point + fractional digits (only if precision > 0)
+    if (prec > 0U && tmp_len + 1U + prec < sizeof(tmp)) {
+        tmp[tmp_len++] = '.';
+        // Render fractional with leading zeros to `prec` width
+        char frac_digits[24];
+        size_t frac_len = 0U;
+        if (frac_part == 0U) {
+            frac_digits[frac_len++] = '0';
+        } else {
+            unsigned long long v = frac_part;
+            while (v > 0U) {
+                frac_digits[frac_len++] = static_cast<char>('0' + (v % 10U));
+                v /= 10U;
+            }
+            for (size_t i = 0; i < frac_len / 2; ++i) {
+                char t = frac_digits[i];
+                frac_digits[i] = frac_digits[frac_len - 1 - i];
+                frac_digits[frac_len - 1 - i] = t;
+            }
+        }
+        // Leading zeros if frac_len < prec
+        for (uint32_t i = 0; i < prec - frac_len; ++i) {
+            tmp[tmp_len++] = '0';
+        }
+        memcpy(&tmp[tmp_len], frac_digits, frac_len);
+        tmp_len += frac_len;
+    }
+
+    // Apply width with alignment
+    size_t pad = (spec.width > tmp_len) ? (spec.width - tmp_len) : 0U;
+    char pad_char = (spec.zero_pad && !spec.left_align) ? '0' : ' ';
+    if (spec.left_align) {
+        out.append(tmp, tmp_len);
+        for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+    } else if (pad_char == '0' && tmp_len > 0 && (tmp[0] == '-' || tmp[0] == '+' || tmp[0] == ' ')) {
+        // Zero-pad goes AFTER the sign char to match libc behavior
+        out.push_back(tmp[0]);
+        for (size_t i = 0; i < pad; ++i) { out.push_back('0'); }
+        out.append(tmp + 1, tmp_len - 1);
+    } else {
+        for (size_t i = 0; i < pad; ++i) { out.push_back(pad_char); }
+        out.append(tmp, tmp_len);
+    }
+}
+
+// Format one printf-style conversion using a va_list-derived argument.
+// Returns false if the conversion char is unsupported (caller writes raw spec).
+bool format_conversion(etl::istring& out, const ParsedSpec& spec, va_list& args) {
+    switch (spec.conversion) {
+        case 's': {
+            const char* s = va_arg(args, const char*);
+            format_string(out, s, spec);
+            return true;
+        }
+        case 'c': {
+            int c = va_arg(args, int);
+            char ch = static_cast<char>(c);
+            // Width/alignment for %c
+            size_t pad = (spec.width > 1U) ? (spec.width - 1U) : 0U;
+            if (spec.left_align) {
+                out.push_back(ch);
+                for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+            } else {
+                for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+                out.push_back(ch);
+            }
+            return true;
+        }
+        case 'd':
+        case 'i': {
+            // Sign-extended pull based on length modifier
+            switch (spec.length) {
+                case ParsedSpec::LengthMod::kLL: {
+                    long long v = va_arg(args, long long);
+                    format_signed_int(out, v, spec);
+                    break;
+                }
+                case ParsedSpec::LengthMod::kL: {
+                    long v = va_arg(args, long);
+                    format_signed_int(out, v, spec);
+                    break;
+                }
+                case ParsedSpec::LengthMod::kZ:
+                case ParsedSpec::LengthMod::kT:
+                case ParsedSpec::LengthMod::kJ: {
+                    // ssize_t / ptrdiff_t / intmax_t — fold to long long
+                    long long v = va_arg(args, long long);
+                    format_signed_int(out, v, spec);
+                    break;
+                }
+                default: {
+                    int v = va_arg(args, int);
+                    format_signed_int(out, v, spec);
+                    break;
+                }
+            }
+            return true;
+        }
+        case 'u': {
+            etl::format_spec fmt = build_etl_spec(spec, false, false);
+            switch (spec.length) {
+                case ParsedSpec::LengthMod::kLL: {
+                    unsigned long long v = va_arg(args, unsigned long long);
+                    etl::to_string(v, out, fmt, true);
+                    break;
+                }
+                case ParsedSpec::LengthMod::kL: {
+                    unsigned long v = va_arg(args, unsigned long);
+                    etl::to_string(v, out, fmt, true);
+                    break;
+                }
+                case ParsedSpec::LengthMod::kZ: {
+                    size_t v = va_arg(args, size_t);
+                    etl::to_string(static_cast<unsigned long>(v), out, fmt, true);
+                    break;
+                }
+                default: {
+                    unsigned int v = va_arg(args, unsigned int);
+                    etl::to_string(v, out, fmt, true);
+                    break;
+                }
+            }
+            return true;
+        }
+        case 'x':
+        case 'X': {
+            bool upper = (spec.conversion == 'X');
+            etl::format_spec fmt = build_etl_spec(spec, upper, !upper);
+            switch (spec.length) {
+                case ParsedSpec::LengthMod::kLL: {
+                    unsigned long long v = va_arg(args, unsigned long long);
+                    etl::to_string(v, out, fmt, true);
+                    break;
+                }
+                case ParsedSpec::LengthMod::kL: {
+                    unsigned long v = va_arg(args, unsigned long);
+                    etl::to_string(v, out, fmt, true);
+                    break;
+                }
+                case ParsedSpec::LengthMod::kZ: {
+                    size_t v = va_arg(args, size_t);
+                    etl::to_string(static_cast<unsigned long>(v), out, fmt, true);
+                    break;
+                }
+                default: {
+                    unsigned int v = va_arg(args, unsigned int);
+                    etl::to_string(v, out, fmt, true);
+                    break;
+                }
+            }
+            return true;
+        }
+        case 'f': {
+            double v = va_arg(args, double);
+            format_float(out, v, spec);
+            return true;
+        }
+        case '%': {
+            out.push_back('%');
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
+// Push raw bytes to the output buffer until it fills, then handle truncation.
+// Returns true if the buffer is now full (and the truncation marker has been
+// appended); subsequent writes should be no-ops.
+bool buffer_append(etl::istring& out, const char* src, size_t len) {
+    size_t available = out.capacity() - out.size();
+    if (available > kTruncMarkerLen) {
+        size_t writable = (len < (available - kTruncMarkerLen)) ? len : (available - kTruncMarkerLen);
+        out.append(src, writable);
+        if (writable < len) {
+            // Truncation happened
+            out.append(kTruncMarker, kTruncMarkerLen);
+            return true;
+        }
+    } else {
+        // Buffer is too full to safely append more — only room for truncation marker if any
+        if (available >= kTruncMarkerLen) {
+            out.append(kTruncMarker, kTruncMarkerLen);
+        }
+        return true;
+    }
+    return false;
+}
+
+// Sink wiring. On target, drain to USB CDC via a small ring buffer
+// drained by tud_task on Core 0. On host (ROCKETCHIP_HOST_TEST), capture
+// into a stub buffer the ctest can inspect.
+#ifdef ROCKETCHIP_HOST_TEST
+// Host-side capture buffer for ctest assertions.
+namespace host_test {
+    constexpr size_t kHostCaptureBytes = 4096U;
+    static char s_capture[kHostCaptureBytes];
+    static size_t s_capture_len = 0U;
+}
+
+void emit(const char* buf, size_t len) {
+    using namespace host_test;
+    size_t writable = (s_capture_len + len <= kHostCaptureBytes) ? len : (kHostCaptureBytes - s_capture_len);
+    memcpy(&s_capture[s_capture_len], buf, writable);
+    s_capture_len += writable;
+}
+#else
+// Target sink: non-blocking, ring-buffered, drained by tud_task.
+// Council round 2 amendment #1 (Cubesat): never blocks the caller.
+//
+// Implementation: 256-byte ring buffer. emit() copies as much as fits
+// without blocking. tud_task on Core 0's main loop drains the ring into
+// tud_cdc_write whenever USB CDC has capacity. Drop-on-overflow if the
+// ring is full (matches AP_HAL UART putchar pattern).
+
+namespace target_sink {
+    constexpr size_t kRingBytes = 256U;
+    static volatile char s_ring[kRingBytes];
+    static volatile size_t s_head = 0U;  // producer (rc_log writes here)
+    static volatile size_t s_tail = 0U;  // consumer (drain reads here)
+
+    inline size_t ring_used() {
+        size_t h = s_head, t = s_tail;
+        return (h >= t) ? (h - t) : (kRingBytes - (t - h));
+    }
+    inline size_t ring_free() { return kRingBytes - 1U - ring_used(); }
+}
+
+void emit(const char* buf, size_t len) {
+    using namespace target_sink;
+    // Producer side: append as much as fits without blocking.
+    // Single-producer (rc_log callers are AO/Core-0 cooperative) so no
+    // CAS needed; the volatile s_head write is atomic on the M33.
+    size_t avail = ring_free();
+    size_t writable = (len < avail) ? len : avail;
+    for (size_t i = 0; i < writable; ++i) {
+        size_t h = s_head;
+        s_ring[h] = buf[i];
+        s_head = (h + 1U) % kRingBytes;
+    }
+    // Anything beyond `writable` is dropped on the floor — matches AP_HAL
+    // UART putchar pattern; backpressure protects the cooperative scheduler
+    // from blocking on USB CDC.
+}
+
+}  // namespace target_sink
+#endif
+
+}  // namespace
+
+namespace rc {
+
+void rc_log(const char* fmt, ...) {
+    // Per-call stack buffer for formatted output.
+    etl::string<kRcLogBufferBytes> buf;
+    bool truncated = false;
+
+    va_list args;
+    va_start(args, fmt);
+
+    const char* p = fmt;
+    while (*p != '\0' && !truncated) {
+        if (*p == '%' && *(p + 1) != '\0') {
+            ++p;  // Skip '%'
+            ParsedSpec spec = parse_spec(&p);
+            if (spec.conversion == '\0') {
+                // Malformed spec — write '%' literal and continue
+                if (buffer_append(buf, "%", 1U)) { truncated = true; break; }
+                continue;
+            }
+            // Track buffer space remaining before conversion to detect over-run.
+            size_t before = buf.size();
+            (void)before;
+            bool ok = format_conversion(buf, spec, args);
+            if (!ok) {
+                // Unsupported conversion — write the raw % + conv for visibility.
+                char tmp[3] = { '%', spec.conversion, '\0' };
+                if (buffer_append(buf, tmp, 2U)) { truncated = true; break; }
+            }
+            // Truncation guard: if conversion overflowed the buffer beyond
+            // the marker reserve, the buffer is full.
+            if (buf.size() + kTruncMarkerLen >= buf.capacity()) {
+                // Append marker if not already present (append no-ops if full).
+                size_t avail = buf.capacity() - buf.size();
+                if (avail >= kTruncMarkerLen) {
+                    buf.append(kTruncMarker, kTruncMarkerLen);
+                }
+                truncated = true;
+                break;
+            }
+        } else {
+            // Literal char (or trailing % with no spec, which is allowed: just emit %)
+            if (buffer_append(buf, p, 1U)) { truncated = true; break; }
+            ++p;
+        }
+    }
+    va_end(args);
+
+    // Emit to sink (USB CDC ring on target, capture buffer on host).
+    emit(buf.data(), buf.size());
+}
+
+}  // namespace rc
+
+// ===========================================================================
+// Sink drain — called by Core 0's main loop after tud_task to flush the ring
+// into USB CDC. Non-blocking; only writes what the CDC has room for.
+// ===========================================================================
+#ifndef ROCKETCHIP_HOST_TEST
+extern "C" void rc_log_drain_to_cdc(void) {
+    using namespace target_sink;
+    if (!tud_cdc_connected()) {
+        // Drop ring contents when not connected.
+        s_tail = s_head;
+        return;
+    }
+    size_t cdc_avail = tud_cdc_write_available();
+    while (cdc_avail > 0U && ring_used() > 0U) {
+        size_t t = s_tail;
+        // Compute contiguous span from tail to either head or end-of-ring
+        size_t end = (s_head < t) ? kRingBytes : s_head;
+        size_t span = end - t;
+        if (span > cdc_avail) { span = cdc_avail; }
+        // Cast away volatile for the const-data read; safe because we're the
+        // only consumer and the bytes have been written by emit() already.
+        uint32_t written = tud_cdc_write(const_cast<const char*>(reinterpret_cast<const volatile char*>(&s_ring[t])),
+                                         static_cast<uint32_t>(span));
+        s_tail = (t + written) % kRingBytes;
+        cdc_avail -= written;
+        if (written < span) { break; }  // CDC stalled
+    }
+}
+#endif
+
+// ===========================================================================
+// Host-test capture API — only compiled in ROCKETCHIP_HOST_TEST builds.
+// ===========================================================================
+#ifdef ROCKETCHIP_HOST_TEST
+namespace rc {
+namespace rc_log_test {
+extern "C" const char* host_capture_data() { return ::host_test::s_capture; }
+extern "C" size_t host_capture_size() { return ::host_test::s_capture_len; }
+extern "C" void host_capture_reset() { ::host_test::s_capture_len = 0; }
+}
+}
+#endif
