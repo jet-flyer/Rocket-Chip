@@ -538,11 +538,9 @@ void emit(const char* buf, size_t len) {
     // UART putchar pattern; backpressure protects the cooperative scheduler
     // from blocking on USB CDC.
 }
-
-}  // namespace target_sink
 #endif
 
-}  // namespace
+}  // namespace (anonymous)
 
 namespace rc {
 
