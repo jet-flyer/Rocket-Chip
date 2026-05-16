@@ -11,6 +11,7 @@
  */
 
 #include "rocketchip/config.h"
+#include "rocketchip/rc_log.h"           // R-5 Unit B POC instrumentation
 #include "rocketchip/sensor_seqlock.h"
 #include "rocketchip/shared_state.h"   // OPT-IVP-02: all globals centralized here
 #include "core1/sensor_core1.h"
@@ -492,6 +493,14 @@ extern "C" void qv_idle_bridge(void) {
     }
 
     diag_stats_msp_tick();
+
+    // R-5 Unit B drain wiring (fix lands as Unit B-fixup, verified POC
+    // 2026-05-16 with 1Hz "RC_LOG_ALIVE" instrumentation now removed):
+    // pump the rc_log ring buffer to USB CDC. Non-blocking; only writes
+    // bytes the CDC has room for. Without this call, every rc::rc_log()
+    // output queues in the ring and is never emitted to the wire.
+    rc_log_drain_to_cdc();
+
     // WFI: sleep until next interrupt (100Hz QF tick, USB CDC, etc.).
     // Correct QV idle pattern per Samek. Tick functions above run once per
     // idle call, then WFI suspends until next event source fires.

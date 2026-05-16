@@ -66,4 +66,10 @@ void rc_log(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 
 }  // namespace rc
 
+// Drain the rc_log ring buffer to USB CDC. Non-blocking; only writes bytes
+// the CDC has room for. Must be called periodically from Core 0's main
+// loop (e.g., from qv_idle_bridge in main.cpp) — without it, rc_log
+// output queues into the ring and is never emitted to the wire.
+extern "C" void rc_log_drain_to_cdc(void);
+
 #endif  // ROCKETCHIP_RC_LOG_H
