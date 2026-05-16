@@ -22,6 +22,20 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-16-001 | Claude | refactor, architecture, council
+
+**R-5 stdio removal Units A + B closed.** Unit A produced the format-spec inventory (`docs/audits/STDIO_FORMAT_SPEC_INVENTORY_2026-05-15.md`) and pre-R5 baseline (`docs/baselines/PRE_R5_BASELINE_2026-05-15.md`). Inventory surfaced a scope correction: actual migration target is 23 files / ~624 callsites (not 18/600 as originally framed) because `include/rocketchip/config.h`'s old DBG_PRINT macros pulled `<stdio.h>` transitively into 5 files (most importantly `flight_director.cpp`'s 10 `[FD]` log lines that bench_sim regex parses).
+
+Unit B landed `rc_log` infrastructure: vendored ETL 20.47.1 at `EXTERNAL/etl-20.47.1/` (acceptance criterion verified — no `<stdio.h>`/`vsnprintf` in format+to_string subtree), built `include/rocketchip/rc_log.h` + `src/log/rc_log.cpp` (~500 LOC hand-rolled printf-subset formatter dispatching to `etl::to_string`), 27 host ctests covering the 13 format-spec patterns + boundary cases (`-0.0`, halfway-rounding, truncation marker, bench_sim-monitored log lines). Repointed `DBG_PRINT`/`RC_ASSERT` macros in `config.h` from `printf` to `rc::rc_log` and retired the `<stdio.h>`/`<cstdio>` transitive-leak includes from `config.h`. HW smoke verified: vehicle banner reads `flight-<hash>` Hardware 14/14 OK byte-identical to pre-Unit-B baseline across 3 probe-driven boots. Binary-size cost +6072 bytes / +2.7% (re-measured at Unit J close per council amendment #3).
+
+**Pivot from plan, council 3-persona Approach A focused review (2026-05-15):** float formatter is hand-rolled, NOT ETL's. Council acceptance criterion #1 surfaced two real ETL divergences from libc — strips sign of `-0.0`, uses round-half-away-from-zero instead of IEEE 754 round-half-to-even. Pathfinder-class systematic divergence risk for ground-side parsers; ETL has no build flag to fix. Pivoted to hand-rolled formatter using C99 `nearbyint()` (FE_TONEAREST = round-half-to-even = matches libc). Float-to-string research (`C:\Users\pow-w\.claude\plans\float-to-string-research-agent-a7c2e9d318f6b40a1.md`) confirmed the scale-and-round approach matches ArduPilot/PX4/F'/Cubesat flight-software practice and is sub-noise-floor for IMU/ESKF data; one documented within-1-ULP edge case (synthetic decimal-halfway literals like `3.785`).
+
+10 commits this session: `8872c14` (T2b Level-2 closure), `6006785` (T3a deprecation), `8c0732e` (Cycle 1 audit catchup), `c6195d1` (Cycle 3+4 stash), `0b02e4b` (Unit A inventory + baseline), `0fe851c` (ETL vendor), `5f2a805` (rc_log infra), `16bc36b` (rc_log brace-fix), `a97c6bf` (migration guide API correction), `7eda5e3` (DBG_PRINT macro repoint).
+
+**Active plan:** [`docs/plans/R5_STDIO_REMOVAL.md`](docs/plans/R5_STDIO_REMOVAL.md). Units C-J (per-tier callsite migration: proving ground → drivers → safety/diag → telemetry/AO → CLI/dashboard → cleanup) remain. Unit K = Level-3 independent regression at allowlist-empty.
+
+---
+
 ### 2026-05-15-002 | Claude | architecture, safety, council
 
 **In-flight fault recovery architecture rework (B.1-B.8).** Fault handlers now phase-aware: `kIdle` captures + visible-signal + AIRCR-reset; any flight phase transitions to `kFault` and busy-loops while PIO backup timers continue autonomously. Anomalous-boot gate suppresses auto-zero-baro when POWMAN_CHIP_RESET + flight-in-progress sentinel indicate mid-flight reboot — prevents council-flagged silent-reset-re-zeros-baro failure mode.
