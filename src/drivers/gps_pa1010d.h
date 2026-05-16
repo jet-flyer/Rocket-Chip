@@ -60,20 +60,6 @@ bool gps_pa1010d_get_data(gps_data_t* data);
 bool gps_pa1010d_has_fix(void);
 
 /**
- * @brief Send PMTK command to GPS
- * @param cmd PMTK command string (e.g., "PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0")
- * @return true on success
- */
-bool gps_pa1010d_send_command(const char* cmd);
-
-/**
- * @brief Set GPS update rate
- * @param rate_hz Update rate (1, 5, or 10 Hz)
- * @return true on success
- */
-bool gps_pa1010d_set_rate(uint8_t rateHz);
-
-/**
  * @brief Get pointer to last raw NMEA read buffer
  * @param buf Output pointer to internal buffer (valid until next update)
  * @param len Output length of last read data

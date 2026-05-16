@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Rocket Chip Project
 /**
- * @file gps_pa1010d.c
+ * @file gps_pa1010d.cpp
  * @brief PA1010D GPS module driver using lwGPS library
  *
  * Reads NMEA sentences from PA1010D via I2C and parses with lwGPS.
@@ -15,8 +15,9 @@
 #include "gps_pa1010d.h"
 #include "i2c_bus.h"
 #include "lwgps/lwgps.h"
+#include "etl/string.h"
+#include "etl/to_string.h"
 #include <string.h>
-#include <stdio.h>
 
 // NMEA/I2C protocol constants
 constexpr uint8_t  kNmeaLf           = 0x0A;   // Line feed — padding byte when GPS buffer empty
@@ -31,18 +32,45 @@ constexpr uint16_t kGpsYearBase      = 2000;
 constexpr uint8_t  kGsaFixMode3d     = 3;      // GSA fixMode >= 3 = 3D fix
 constexpr uint8_t  kGsaFixMode2d     = 2;      // GSA fixMode == 2 = 2D fix
 
-// PMTK220 rate intervals (ms)
-constexpr uint16_t kGpsRate1Hz       = 1000;
-constexpr uint16_t kGpsRate5Hz       = 200;
-constexpr uint16_t kGpsRate10Hz      = 100;
+// ============================================================================
+// R-2 absorbed (R-5 Unit D part 2a, 2026-05-16, council-approved): the 3
+// blind PMTK writes at init are now precomputed const arrays with
+// compile-time checksum + length verification via static_assert. No more
+// snprintf in the init path. Pattern source: R-2's prior council
+// (referenced in `docs/plans/R5_STDIO_REMOVAL.md` line 76 + PROBLEM_REPORTS
+// row R-2). NASA/JPL framing: correct-by-construction at compile time
+// instead of correct-by-runtime-formatting. Trades ~120 bytes of .rodata
+// (negligible on 4 MB flash) for zero snprintf attack surface.
+// ============================================================================
 
-// Supported GPS update rates (Hz)
-constexpr uint8_t  kGpsRateHz5       = 5;
-constexpr uint8_t  kGpsRateHz10      = 10;
+// Compile-time NMEA checksum: XOR of all bytes between '$' and '*' (exclusive).
+// Same algorithm as the now-deleted runtime nmea_checksum() helper.
+constexpr uint8_t nmea_checksum_constexpr(const char* body) {
+    uint8_t c = 0;
+    while (*body != '\0') {
+        c ^= static_cast<uint8_t>(*body);
+        ++body;
+    }
+    return c;
+}
 
-// NMEA command buffer
-constexpr size_t   kNmeaCmdBufSize   = 128;
-constexpr size_t   kNmeaChecksumLen  = 5;       // "*XX\r\n" checksum + CRLF room
+// PMTK314 — enable RMC + GGA + GSA + GSV sentences (rest disabled).
+// Sent twice during init per the cold-boot window discovery (see init()).
+constexpr char kPmtk314Body[] = "PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0";
+constexpr char kPmtk314Sentence[] =
+    "$PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n";
+static_assert(nmea_checksum_constexpr(kPmtk314Body) == 0x29,
+              "PMTK314 checksum mismatch — verify literal matches sentence body");
+static_assert(sizeof(kPmtk314Sentence) - 1 == 51,
+              "PMTK314 sentence byte length mismatch");
+
+// PMTK220,1000 — set NMEA output interval to 1000ms = 1 Hz.
+constexpr char kPmtk220_1HzBody[] = "PMTK220,1000";
+constexpr char kPmtk220_1HzSentence[] = "$PMTK220,1000*1F\r\n";
+static_assert(nmea_checksum_constexpr(kPmtk220_1HzBody) == 0x1F,
+              "PMTK220,1000 checksum mismatch — verify literal matches sentence body");
+static_assert(sizeof(kPmtk220_1HzSentence) - 1 == 18,
+              "PMTK220,1000 sentence byte length mismatch");
 
 // ============================================================================
 // Private State
@@ -72,22 +100,6 @@ static size_t g_lastReadLen = 0;           // Last successful read length
 // ============================================================================
 // Private Functions
 // ============================================================================
-
-/**
- * @brief Calculate NMEA checksum
- */
-static uint8_t nmea_checksum(const char* sentence) {
-    uint8_t checksum = 0;
-    // Skip leading '$' if present
-    if (*sentence == '$') {
-        sentence++;
-    }
-    // XOR all characters until '*' or end
-    while (*sentence != '\0' && *sentence != '*') {
-        checksum ^= *sentence++;
-    }
-    return checksum;
-}
 
 /**
  * @brief Read NMEA data from PA1010D via I2C, filtering padding bytes
@@ -189,20 +201,6 @@ static void update_data_from_lwgps() {
 // Public API
 // ============================================================================
 
-// Helper: build PMTK sentence with checksum and write blind (bypassing the
-// g_initialized guard that gps_pa1010d_send_command has). Returns i2c_bus_write
-// return code so caller can log it.
-static int gps_pa1010d_blind_write(const char* cmd) {
-    if (cmd == nullptr) return -1;
-    char sentence[kNmeaCmdBufSize];
-    int len = snprintf(sentence, sizeof(sentence) - kNmeaChecksumLen, "$%s*", cmd);
-    if (len < 0 || len >= (int)(sizeof(sentence) - kNmeaChecksumLen)) return -1;
-    uint8_t cs = nmea_checksum(sentence);
-    (void)snprintf(sentence + len, kNmeaChecksumLen, "%02X\r\n", cs);
-    len += 4;
-    return i2c_bus_write(kGpsPa1010dAddr, reinterpret_cast<const uint8_t*>(sentence), len);
-}
-
 bool gps_pa1010d_init() {
     // Initialize lwGPS parser
     lwgps_init(&g_gps);
@@ -218,13 +216,24 @@ bool gps_pa1010d_init() {
     // This is the fix for the "GPS never detected" regression: the PA1010D
     // exposes a transient ACK window at cold boot, then drops to low-power
     // if no command arrives. Probing first misses that window.
-    // Bypass g_initialized guard via gps_pa1010d_blind_write() so the
-    // writes actually hit the bus before we've set the flag.
-    g_pmtkWriteResults[0] = gps_pa1010d_blind_write("PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+    //
+    // R-5 Unit D part 2a (2026-05-16): const-array sentences with
+    // compile-time checksum verification. No snprintf in this path; the
+    // three byte-on-wire sequences are correct-by-construction.
+    g_pmtkWriteResults[0] = i2c_bus_write(
+        kGpsPa1010dAddr,
+        reinterpret_cast<const uint8_t*>(kPmtk314Sentence),
+        sizeof(kPmtk314Sentence) - 1);
     sleep_ms(50);
-    g_pmtkWriteResults[1] = gps_pa1010d_blind_write("PMTK220,1000");   // 1 Hz update rate
+    g_pmtkWriteResults[1] = i2c_bus_write(
+        kGpsPa1010dAddr,
+        reinterpret_cast<const uint8_t*>(kPmtk220_1HzSentence),
+        sizeof(kPmtk220_1HzSentence) - 1);
     sleep_ms(50);
-    g_pmtkWriteResults[2] = gps_pa1010d_blind_write("PMTK314,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
+    g_pmtkWriteResults[2] = i2c_bus_write(
+        kGpsPa1010dAddr,
+        reinterpret_cast<const uint8_t*>(kPmtk314Sentence),
+        sizeof(kPmtk314Sentence) - 1);
     sleep_ms(50);
 
     // Aggressive probe retry — now that the module should be locked into
@@ -255,12 +264,33 @@ bool gps_pa1010d_init() {
 
 void gps_pa1010d_get_debug_status(char* buf, size_t len) {
     if (buf == nullptr || len == 0) return;
-    snprintf(buf, len,
-             "PMTK writes: [%d,%d,%d]  window_hit:%d  init:%d",
-             g_pmtkWriteResults[0], g_pmtkWriteResults[1],
-             g_pmtkWriteResults[2],
-             g_pmtkWindowHit ? 1 : 0,
-             g_initialized ? 1 : 0);
+
+    // R-5 Unit D part 2a (2026-05-16, council Option X): hand-rolled
+    // etl::string + etl::to_string into caller buffer. Preserves the
+    // (buf, len) API surface so the single caller
+    // (`src/cli/rc_os_commands.cpp:643`) is untouched — keeps Tier 5
+    // (rc_os_commands.cpp) scope out of this Tier 2 commit.
+    //
+    // Byte-on-wire identity vs prior snprintf format is required
+    // (see commit message for the captured baseline). Double-space
+    // between `]` and `window_hit:`, and between `:N` and `init:`,
+    // is load-bearing — preserved verbatim below.
+    etl::string<96> tmp;
+    tmp.append("PMTK writes: [");
+    etl::to_string(g_pmtkWriteResults[0], tmp, true);
+    tmp.append(",");
+    etl::to_string(g_pmtkWriteResults[1], tmp, true);
+    tmp.append(",");
+    etl::to_string(g_pmtkWriteResults[2], tmp, true);
+    tmp.append("]  window_hit:");
+    etl::to_string(g_pmtkWindowHit ? 1 : 0, tmp, true);
+    tmp.append("  init:");
+    etl::to_string(g_initialized ? 1 : 0, tmp, true);
+
+    // Copy to caller buffer; truncate at len-1 to leave room for NUL.
+    const size_t writable = (tmp.size() < (len - 1U)) ? tmp.size() : (len - 1U);
+    memcpy(buf, tmp.data(), writable);
+    buf[writable] = '\0';
 }
 
 bool gps_pa1010d_ready() {
@@ -305,45 +335,6 @@ bool gps_pa1010d_get_data(gps_data_t* data) {
 
 bool gps_pa1010d_has_fix() {
     return g_data.valid && (g_data.fix >= GPS_FIX_2D);
-}
-
-bool gps_pa1010d_send_command(const char* cmd) {
-    if (!g_initialized || cmd == nullptr) {
-        return false;
-    }
-
-    // Build full NMEA sentence with checksum
-    char sentence[kNmeaCmdBufSize];
-    int len = snprintf(sentence, sizeof(sentence) - kNmeaChecksumLen, "$%s*", cmd);
-    if (len < 0 || len >= (int)(sizeof(sentence) - kNmeaChecksumLen)) {
-        return false;
-    }
-
-    // Calculate and append checksum
-    uint8_t cs = nmea_checksum(sentence);
-    (void)snprintf(sentence + len, kNmeaChecksumLen, "%02X\r\n", cs);
-    len += 4;  // NOLINT(readability-magic-numbers) — literal 4 = "XX\r\n" appended bytes
-
-    // Send via I2C
-    int ret = i2c_bus_write(kGpsPa1010dAddr, reinterpret_cast<const uint8_t*>(sentence), len);
-    return (ret == len);
-}
-
-bool gps_pa1010d_set_rate(uint8_t rateHz) {
-    // PMTK220 - Set NMEA update rate
-    // Parameter is update interval in milliseconds
-    char cmd[32];
-    uint16_t intervalMs = 0;
-
-    switch (rateHz) {
-        case 1:             intervalMs = kGpsRate1Hz;  break;
-        case kGpsRateHz5:   intervalMs = kGpsRate5Hz;  break;
-        case kGpsRateHz10:  intervalMs = kGpsRate10Hz; break;
-        default: return false;
-    }
-
-    (void)snprintf(cmd, sizeof(cmd), "PMTK220,%u", intervalMs);
-    return gps_pa1010d_send_command(cmd);
 }
 
 bool gps_pa1010d_get_last_raw(const uint8_t** buf, size_t* len) {
