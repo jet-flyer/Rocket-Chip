@@ -53,7 +53,6 @@
 #include "logging/crc32.h"
 #include "rocketchip/pcm_frame.h"
 #include "rocketchip/fused_state.h"
-#include "rocketchip/telemetry_service.h"
 #include "cli/rc_os.h"
 #include "cli/rc_os_dashboard.h"
 #include "cli/rc_os_commands.h"

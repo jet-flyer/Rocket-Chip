@@ -14,7 +14,6 @@
 #include "rocketchip/station_output_mode.h"
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/telemetry_encoder.h"
-#include "rocketchip/telemetry_service.h"
 #include "rocketchip/mavlink_rx.h"
 // c_library_v2 (third-party, auto-generated) has a packed struct warning
 // in mavlink_msg_obstacle_distance.h — we don't use that message.

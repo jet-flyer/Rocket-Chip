@@ -102,7 +102,6 @@ rocketchip/
 │       ├── radio_config.h         # RadioConfig struct (from Mission Profile .cfg)
 │       ├── telemetry_state.h      # 45-byte packed wire format
 │       ├── telemetry_encoder.h    # CCSDS + MAVLink encoder API
-│       ├── telemetry_service.h    # TX/RX service state + API
 │       ├── fused_state.h          # ESKF output snapshot
 │       ├── sensor_seqlock.h       # Cross-core sensor data types + seqlock protocol
 │       └── led_patterns.h         # LED pattern constants (single source of truth)
@@ -168,8 +167,7 @@ rocketchip/
 │   │   └── psram_init.cpp/.h      # APS6404L PSRAM detection + QPI configuration
 │   │
 │   ├── telemetry/                 # Telemetry (Stage 7 + 12A)
-│   │   ├── telemetry_encoder.cpp/.h  # CCSDS + MAVLink v2 encoders
-│   │   └── telemetry_service.cpp/.h  # TX scheduling, station RX decode
+│   │   └── telemetry_encoder.cpp/.h  # CCSDS + MAVLink v2 encoders
 │   │
 │   ├── active_objects/            # QP/C Active Objects (Stage 9 + 12A + 13 + 14)
 │   │   ├── ao_flight_director.cpp/.h # Flight Director AO (100Hz, prio 7)

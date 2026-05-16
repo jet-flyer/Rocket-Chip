@@ -437,7 +437,6 @@ else()
         src/drivers/spi_bus.cpp
         src/drivers/rfm95w.cpp
         src/telemetry/telemetry_encoder.cpp
-        src/telemetry/telemetry_service.cpp
         src/telemetry/mavlink_rx.cpp
 
         # -------------------------------------------------------------------------
@@ -584,7 +583,6 @@ else()
         src/safety/station_fault_inject.cpp  # R-25-exec step 6: migrated from src/dev/, gated by test_mode
         src/safety/health_monitor.cpp
         src/telemetry/telemetry_encoder.cpp
-        src/telemetry/telemetry_service.cpp
         src/telemetry/mavlink_rx.cpp
         src/flight_director/flight_director.cpp
         src/flight_director/go_nogo_checks.cpp
