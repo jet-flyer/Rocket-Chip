@@ -4,14 +4,14 @@
 
 **Why this exists:** The project is migrating off `<stdio.h>` per `docs/decisions/STDIO_REPLACEMENT_PLAN.md`. This doc is the cheat-sheet: for each common stdio pattern, here's what to use instead, with side-by-side examples.
 
-**Status of the replacement infrastructure as of 2026-05-13:**
-- `rc_log` family — **planned, not yet implemented** (lands in the dedicated R-5 session).
-- `etl::to_string` / `etl::format` — **available via the existing ETL dependency** (header-only); usable today.
-- Pre-commit gate (`scripts/hooks/pre-commit` + `stdio_allowlist.txt`) — **active** as of 2026-05-13. New `<stdio.h>` includes outside the allowlist are blocked.
+**Status of the replacement infrastructure as of 2026-05-16:**
+- `rc::rc_log(fmt, ...)` — **available** as of R-5 Unit B (commit 5f2a805). printf-shape, 128-byte fixed buffer, drop-on-overflow, non-blocking USB CDC sink via ring buffer. Use this for any new `printf`-shape call. See `include/rocketchip/rc_log.h` for the contract.
+- ETL 20.47.1 vendored at `EXTERNAL/etl-20.47.1/etl/`. **Most callers should use rc_log, not ETL directly.** ETL is the formatting backend rc_log dispatches to; project-side code calling ETL directly is reserved for callers that need typed buffer building (e.g., the GPS PMTK const-array migration in R-2/Tier 2 — see below).
+- Pre-commit gate (`scripts/hooks/pre-commit` + `stdio_allowlist.txt`) — **active**. New `<stdio.h>` includes outside the allowlist are blocked. The allowlist deprecates at Unit J when it drains to empty.
 
-If you're writing **new code** today: use the patterns marked "available now" below. The `rc_log` patterns will be filled in as the infrastructure lands; for new code that would have used `printf`, prefer `etl::to_string` + direct USB CDC write, or hold the line on the function until `rc_log` is available.
+If you're writing **new code** today: use `rc::rc_log(fmt, ...)` for printf-shape logging. Format-spec surface supported documented in `docs/audits/STDIO_FORMAT_SPEC_INVENTORY_2026-05-15.md` — covers the 13 patterns the project actually uses (the 99.9%-coverage set).
 
-If you're migrating **existing code**: wait for the dedicated R-5 sessions unless the user explicitly directs otherwise. The migration order is in `STDIO_REPLACEMENT_PLAN.md`.
+If you're migrating **existing code**: wait for the dedicated R-5 tier sessions (Units C-J of `parsed-soaring-popcorn.md`) unless the user explicitly directs otherwise. The migration order is risk-tier ordered (proving ground → drivers → safety/diag → telemetry/AO → CLI/dashboard → cleanup).
 
 ---
 
@@ -19,18 +19,18 @@ If you're migrating **existing code**: wait for the dedicated R-5 sessions unles
 
 | stdio function | Replacement | Status | Notes |
 |---|---|---|---|
-| `printf("fmt", args)` | `rc::rc_log("fmt", args)` | planned | Same format-string surface; routes through bounded log channel. |
+| `printf("fmt", args)` | `rc::rc_log("fmt", args)` | **available** | Same format-string surface; routes through bounded log channel. 13 supported specs per Unit A inventory. |
 | `printf(...)` in flight loop or hot path | (don't — log via telemetry instead) | guidance | Hot-path logging isn't `rc_log`'s job either; consider whether you really need this. |
-| `printf(...)` (debug-only) | `DBG_PRINT(...)` (existing macro, backend swap pending) | available now | Existing macro stays, just rebuilt on `rc_log_dbg` under the hood. |
-| `snprintf(buf, sizeof buf, "fmt", args)` | `etl::to_string(value, buf)` for single value; `etl::format` for multi-arg | available now | ETL is header-only, allocation-free, deterministic. |
-| `snprintf(...)` for fixed PMTK / protocol commands | precomputed `static const char[]` arrays | available now | See R-2 — `gps_pa1010d.cpp` / `gps_uart.cpp` already do this. |
+| `printf(...)` (debug-only) | `DBG_PRINT(...)` (existing macro) | **available** | DBG_PRINT backend will route through `rc_log` after Unit B's macro repoint (planned next commit). Surface stays identical for callers. |
+| `snprintf(buf, sizeof buf, "fmt", args)` | (case-by-case — see below) | available now | If output is for logging, use `rc::rc_log` instead. If you genuinely need a string in a buffer, use `etl::to_string(value, str)` for single-value or `etl::string_stream` + `<<` operators for multi-arg. The proposed `etl::format(buf, "x={}", x, y)` API does NOT exist as written — ETL's actual API is `etl::format_to(out_iter, "x={}", x, y)` (post-2025-12-13 release; we vendored 20.47.1 which has it). For most callsites, `rc_log` removes the need to touch ETL directly. |
+| `snprintf(...)` for fixed PMTK / protocol commands | precomputed `static constexpr char[]` arrays | available now | R-2 absorbed into R-5b (Tier 2 drivers). PMTK strings with `constexpr` checksum verification via `static_assert`. |
 | `getchar() / getchar_timeout_us(...)` | `rc::rc_cli_getchar()` (existing — uses `pico/stdio.h` indirectly but not `<stdio.h>`) | available now | The CLI path already abstracts this. |
-| `puts("string")` | `rc::rc_log("string\n")` | planned | The `\n` is explicit (puts adds it; rc_log doesn't). |
-| `putchar('c')` | direct `tud_cdc_write_char()` or `rc::rc_log("%c", 'c')` | mixed | For single-character output (LED feedback, prompts) the direct path is fine. |
-| `fprintf(stderr, ...)` | `rc::rc_log_err(...)` | planned | We don't have separate stderr; `rc_log_err` tags as error severity. |
+| `puts("string")` | `rc::rc_log("string\n")` | **available** | The `\n` is explicit (puts adds it; rc_log doesn't). |
+| `putchar('c')` | `rc::rc_log("%c", 'c')` or direct `tud_cdc_write_char()` | mixed | For single-character output (LED feedback, prompts) the direct path is fine. |
+| `fprintf(stderr, ...)` | `rc::rc_log(...)` (project doesn't distinguish severities yet) | available | No separate stderr in firmware. Severity-tagged variants (`rc_log_err`, `rc_log_dbg`) are post-Unit-J enhancement work. |
 | `fopen / fread / fwrite / fclose` | `flash_log_*` API or `pico/flash` | already in place | We don't use stdio file I/O; flash is `flash_safe_execute` + custom format. |
 | `scanf` / `sscanf` family | `etl::string_view` + `etl::to_value` / hand-written parser | available now | Parsing untrusted input is a separate safety concern; prefer explicit per-field parsing. |
-| `perror(...)` | `rc::rc_log_err("%s: %s\n", ctx, error_name)` | planned | We don't use `errno` anyway (banned by AV Rule 17), so `perror` doesn't translate directly. |
+| `perror(...)` | `rc::rc_log("%s: %s\n", ctx, error_name)` | available | We don't use `errno` anyway (banned by AV Rule 17), so `perror` doesn't translate directly. |
 | `FILE*` | n/a | — | We have no `FILE*` users. Don't introduce. |
 
 ---
@@ -71,27 +71,40 @@ int len = snprintf(buf, sizeof buf, "x=%d y=%d", x, y);
 // use buf...
 ```
 
-**After (multi-arg format):**
+**After (most cases — if output is for logging):**
 ```cpp
-#include "etl/format_spec.h"
-#include "etl/string.h"
-etl::string<32> buf;
-etl::format(buf, "x={} y={}", x, y);   // ETL format spec is `{}`-style, not `%d`
-// use buf.c_str() / buf.data()...
+#include "rocketchip/rc_log.h"
+rc::rc_log("x=%d y=%d", x, y);
+// no buffer needed — output goes directly to USB CDC ring
 ```
 
-**After (single value, simpler):**
+**After (when you genuinely need a string in a buffer, single value):**
 ```cpp
 #include "etl/to_string.h"
 etl::string<32> buf;
-etl::to_string(x, buf);   // for a single integer/float/etc.
+etl::to_string(x, buf);   // single integer/float/etc.
+// use buf.c_str() / buf.data()...
 ```
+
+**After (when you genuinely need a string in a buffer, multi-arg):**
+```cpp
+#include "etl/string.h"
+#include "etl/format.h"
+etl::string<32> buf;
+auto out_iter = etl::back_inserter(buf);
+etl::format_to(out_iter, "x={} y={}", x, y);   // {} placeholders
+// use buf.c_str() / buf.data()...
+```
+
+**API correction note (2026-05-16):** ETL's actual multi-arg API is `etl::format_to(out_iterator, "fmt", args...)`, not `etl::format(buf, "fmt", args...)`. The prior version of this guide showed the wrong signature; corrected by R-5 Unit B step 7 commit after the ETL CLEAN verification + vendoring at `EXTERNAL/etl-20.47.1/` confirmed the actual API surface. The `etl::format_to` function landed via PR #1204 (merged 2025-12-13); our pinned 20.47.1 release (2026-04-05) includes it.
 
 **ETL format-string differences from printf:**
 - ETL uses Python-style `{}` placeholders, not `%d` / `%s`.
-- Field width / precision spec is `{:5d}` / `{:.2f}` style.
+- Field width / precision spec is `{:5}` / `{:.2f}` style.
 - Hex is `{:x}`, padded hex is `{:08x}`.
 - ETL has no `%n` (which is banned by MISRA anyway, so no loss).
+
+**Float-formatting note:** rc_log uses a hand-rolled float formatter (NOT ETL's) that matches libc printf byte-for-byte for IEEE 754 round-half-to-even semantics. ETL's float formatter uses round-half-away-from-zero — that diverges from libc and from ground-side parsers' expectations. If you call `etl::to_string` directly on a float, you get ETL's rounding; if you call `rc_log("%f", v)`, you get libc-matching rounding. Prefer `rc_log` for any float output that downstream parsers will read.
 
 ---
 
@@ -195,15 +208,20 @@ When migrating from printf-style to ETL `{}`-style format strings:
 
 ---
 
-## Open design questions (resolved in the dedicated R-5 sessions)
+## Open design questions
 
-These are the questions the dedicated sessions will close — listed here so a curious reader knows they're tracked, not forgotten:
+Most pre-Unit-B questions closed by 2026-05-16:
 
-- **Exact ETL version + header subset** — which ETL headers we adopt and how they're vendored.
-- **`rc_log` severity model** — three levels (info/warn/err)? Or more?
-- **Compile-time format-string validation** — does ETL's pattern give us this, or do we need a separate check?
-- **Telemetry routing** — does `rc_log` also publish to MAVLink when station is connected, or stay USB CDC only?
-- **Throughput characterization** — measure `rc_log` cost on bench; document the cycle budget so callers can budget appropriately.
+- ~~**Exact ETL version + header subset**~~ — RESOLVED. Vendored ETL 20.47.1 full upstream tree at `EXTERNAL/etl-20.47.1/etl/`. Acceptance criterion (no `<stdio.h>` / `vsnprintf` in format+to_string subtree) verified clean.
+- ~~**Compile-time format-string validation**~~ — RESOLVED. Uses GCC `__attribute__((format(printf, 1, 2)))` on `rc_log` declaration. Mismatched format-spec vs argument types is a `-Wformat -Werror=format` build error.
+
+Deferred to post-Unit-J (after migration completes):
+
+- **`rc_log` severity model** — three levels (info/warn/err)? Or more? Currently single severity. DBG_PRINT macro distinction is compile-out vs always-on, not runtime severity.
+- **Telemetry routing** — does `rc_log` also publish to MAVLink when station is connected, or stay USB CDC only? Currently USB CDC only.
+- **Throughput characterization** — measure `rc_log` cost on bench; document the cycle budget so callers can budget appropriately. Binary-size measurement captured at Unit B + Unit J close.
+
+These don't block migration — they're enhancements that come after the allowlist drains.
 
 ---
 
