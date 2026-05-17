@@ -37,10 +37,11 @@
 void cli_do_erase_flights();
 void cli_do_download_flight(int flight_num);
 
+#include "rocketchip/rc_log.h"
+
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
 #include "pico/stdio_usb.h"
-#include <stdio.h>
 #include <string.h>
 #include <math.h>
 #endif
@@ -189,18 +190,18 @@ static void cal_ui_tick(RcosAo* me);
 // Enter CLI menu from dashboard
 static void enter_cli_menu() {
     AO_RCOS_set_output_mode(StationOutputMode::kMenu);
-    printf("\033[2J\033[H");
-    printf("========================================\n");
-    printf("  RocketChip v%s  RCOS v%s — Station RX\n", kFirmwareVersion, kRcOsVersion);
-    printf("  Board: %s\n", board::kBoardName);
-    printf("========================================\n\n");
-    printf("Status:  h-Help  s-Sensor  b-Boot  p-Preflight\n");
-    printf("Radio:   t-Status  r-Rate  m-Mode(ANSI/CSV/MAVLink)\n");
-    printf("Station: g-GPS  d-Distance  p-GPS-Push\n");
-    printf("Command: a-ARM(confirm)  X-DISARM\n");
-    printf("Flight:  l-FlushLog  x-Erase\n");
-    printf("========================================\n");
-    printf("[main] ");
+    rc::rc_log("\033[2J\033[H");
+    rc::rc_log("========================================\n");
+    rc::rc_log("  RocketChip v%s  RCOS v%s — Station RX\n", kFirmwareVersion, kRcOsVersion);
+    rc::rc_log("  Board: %s\n", board::kBoardName);
+    rc::rc_log("========================================\n\n");
+    rc::rc_log("Status:  h-Help  s-Sensor  b-Boot  p-Preflight\n");
+    rc::rc_log("Radio:   t-Status  r-Rate  m-Mode(ANSI/CSV/MAVLink)\n");
+    rc::rc_log("Station: g-GPS  d-Distance  p-GPS-Push\n");
+    rc::rc_log("Command: a-ARM(confirm)  X-DISARM\n");
+    rc::rc_log("Flight:  l-FlushLog  x-Erase\n");
+    rc::rc_log("========================================\n");
+    rc::rc_log("[main] ");
 }
 
 // IVP-T14d wrap-up 2026-04-22: handle_mode_cycle removed from dashboard
@@ -216,14 +217,14 @@ static void handle_mode_cycle() {
         const char* name = (new_mode == StationOutputMode::kAnsi) ? "ANSI" :
                            (new_mode == StationOutputMode::kCsv)  ? "CSV" : "MAVLink";
         if (new_mode == StationOutputMode::kAnsi) {
-            printf("\033[2J\033[H");
+            rc::rc_log("\033[2J\033[H");
         } else {
-            printf("\n[RX] Output: %s\n", name);
+            rc::rc_log("\n[RX] Output: %s\n", name);
         }
     } else {
         // Vehicle: toggle CSV ↔ MAVLink
         AO_Telemetry_toggle_mavlink();
-        printf("\n[USB] Output: CLI\n");
+        rc::rc_log("\n[USB] Output: CLI\n");
     }
 }
 #endif
@@ -332,8 +333,7 @@ static void cal_neo(uint8_t mode) {
 // ============================================================================
 
 static void cal_save_to_flash() {
-    printf("Saving to flash...");
-    (void)fflush(stdout);
+    rc::rc_log("Saving to flash...");
     // R-17 (2026-05-07 audit): pause Core 1's I2C reads BEFORE flash op.
     // Without this, multicore_lockout halts Core 1's CPU but in-flight
     // DW_apb_i2c transactions outlive the lockout entry, get abandoned at
@@ -343,12 +343,12 @@ static void cal_save_to_flash() {
     rc::core1_i2c_pause();
     cal_result_t saveResult = calibration_save();
     if (saveResult == CAL_RESULT_OK) {
-        printf(" OK!\n");
+        rc::rc_log(" OK!\n");
         if (!i2c_bus_reset()) {
-            printf("[WARN] I2C bus reset failed after save\n");
+            rc::rc_log("[WARN] I2C bus reset failed after save\n");
         }
     } else {
-        printf(" FAILED (%d)\n", saveResult);
+        rc::rc_log(" FAILED (%d)\n", saveResult);
     }
     rc::core1_i2c_resume();
     // Signal Core 1 to reload calibration
@@ -392,12 +392,11 @@ static void cal_ui_start_async_cal(RcosAo* me) {
         break;
     }
     if (r != CAL_RESULT_OK) {
-        printf("ERROR: Failed to start cal (%d)\n", static_cast<int>(r));
+        rc::rc_log("ERROR: Failed to start cal (%d)\n", static_cast<int>(r));
         cal_ui_next_or_idle(me);
         return;
     }
-    printf("Sampling");
-    (void)fflush(stdout);
+    rc::rc_log("Sampling");
     cal_neo(neo);
     me->cal_last_progress = 0;
     me->cal_ui_state = CalUiState::kAsyncWaiting;
@@ -406,7 +405,7 @@ static void cal_ui_start_async_cal(RcosAo* me) {
 static void cal_ui_handle_async_prompt(RcosAo* me) {
     int ch = cal_ui_read_key();
     if (ch == 27 || ch == 'x' || ch == 'X') {
-        printf("Skipped.\n");
+        rc::rc_log("Skipped.\n");
         cal_ui_next_or_idle(me);
         return;
     }
@@ -422,7 +421,7 @@ static void cal_ui_handle_async_waiting(RcosAo* me) {
     int ch = cal_ui_read_key();
     if (ch == 27 || ch == 'x' || ch == 'X') {
         calibration_cancel();
-        printf("\nCancelled.\n");
+        rc::rc_log("\nCancelled.\n");
         cal_neo(kCalNeoOff);
         me->cal_ui_state = CalUiState::kIdle;
         if (me->cal_wizard_active) {
@@ -441,16 +440,15 @@ static void cal_ui_handle_async_waiting(RcosAo* me) {
     // Progress dots
     uint8_t progress = calibration_get_progress();
     if (progress / kCalProgressStep > me->cal_last_progress / kCalProgressStep) {
-        printf(".");
-        (void)fflush(stdout);
-    }
+        rc::rc_log(".");
+        }
     me->cal_last_progress = progress;
 
     // Check completion
     if (!calibration_is_active()) {
         cal_state_t state = calibration_manager_get_state();
         if (state == CAL_STATE_COMPLETE) {
-            printf(" OK!\n");
+            rc::rc_log(" OK!\n");
             calibration_reset_state();
             cal_save_to_flash();
             cal_neo(kCalNeoSuccess);
@@ -458,9 +456,9 @@ static void cal_ui_handle_async_waiting(RcosAo* me) {
         } else {
             cal_result_t result = calibration_get_result();
             if (result == CAL_RESULT_MOTION_DETECTED) {
-                printf(" FAILED - motion detected!\n");
+                rc::rc_log(" FAILED - motion detected!\n");
             } else {
-                printf(" FAILED (%d)\n", result);
+                rc::rc_log(" FAILED (%d)\n", result);
             }
             calibration_reset_state();
             cal_neo(kCalNeoFail);
@@ -474,7 +472,7 @@ static void cal_ui_handle_async_waiting(RcosAo* me) {
 static void cal_ui_handle_6pos_prompt(RcosAo* me) {
     int ch = cal_ui_read_key();
     if (ch == 27 || ch == 'x' || ch == 'X') {
-        printf("\nCalibration cancelled.\n");
+        rc::rc_log("\nCalibration cancelled.\n");
         calibration_reset_6pos();
         cal_neo(kCalNeoOff);
         if (me->cal_wizard_active) { me->wizard_skipped++; }
@@ -490,7 +488,7 @@ static void cal_ui_handle_6pos_prompt(RcosAo* me) {
     if (ch == '\r' || ch == '\n') {
         cal_result_t r = calibration_start_6pos_position(me->cal_6pos_position);
         if (r != CAL_RESULT_OK) {
-            printf("ERROR: Failed to start position %d (%d)\n",
+            rc::rc_log("ERROR: Failed to start position %d (%d)\n",
                    me->cal_6pos_position + 1, r);
             calibration_reset_6pos();
             cal_neo(kCalNeoFail);
@@ -498,9 +496,8 @@ static void cal_ui_handle_6pos_prompt(RcosAo* me) {
             me->cal_ui_state = cal_ui_next_or_idle(me);
             return;
         }
-        printf("  Sampling... hold still");
-        (void)fflush(stdout);
-        cal_neo(kCalNeoAccelSample);
+        rc::rc_log("  Sampling... hold still");
+            cal_neo(kCalNeoAccelSample);
         me->cal_ui_state = CalUiState::k6posSampling;
     }
 }
@@ -509,7 +506,7 @@ static void cal_ui_handle_6pos_prompt(RcosAo* me) {
 static void cal_ui_handle_6pos_sampling(RcosAo* me) {
     int ch = cal_ui_read_key();
     if (ch == 27 || ch == 'x' || ch == 'X') {
-        printf("\nCalibration cancelled.\n");
+        rc::rc_log("\nCalibration cancelled.\n");
         calibration_reset_6pos();
         cal_neo(kCalNeoOff);
         if (me->cal_wizard_active) { me->wizard_skipped++; }
@@ -519,9 +516,8 @@ static void cal_ui_handle_6pos_sampling(RcosAo* me) {
 
     uint16_t count = calibration_6pos_position_sample_count();
     if (count > 0 && count % 13 == 0) {
-        printf(".");
-        (void)fflush(stdout);
-    }
+        rc::rc_log(".");
+        }
 
     if (calibration_6pos_position_done()) {
         me->cal_ui_state = CalUiState::k6posValidating;
@@ -530,12 +526,11 @@ static void cal_ui_handle_6pos_sampling(RcosAo* me) {
 
 // Print the prompt for the next 6-pos position
 static void cal_ui_print_6pos_position(RcosAo* me) {
-    printf("\n--- Position %d/%d: %s ---\n",
+    rc::rc_log("\n--- Position %d/%d: %s ---\n",
            me->cal_6pos_position + 1, kAccel6posPositions,
            calibration_get_6pos_name(me->cal_6pos_position));
-    printf("  %s\n", kPositionInstructions[me->cal_6pos_position]);
-    printf("  Press ENTER when ready, ESC to cancel.\n");
-    (void)fflush(stdout);
+    rc::rc_log("  %s\n", kPositionInstructions[me->cal_6pos_position]);
+    rc::rc_log("  Press ENTER when ready, ESC to cancel.\n");
     cal_neo(kCalNeoAccelWait);
     me->cal_ui_state = CalUiState::k6posPrompt;
 }
@@ -545,22 +540,21 @@ static void cal_ui_handle_6pos_validating(RcosAo* me) {
     cal_result_t r = calibration_finalize_6pos_position();
     if (r == CAL_RESULT_OK) {
         const float* avg = calibration_get_6pos_avg(me->cal_6pos_position);
-        printf(" OK!\n");
-        printf("  Avg: X=%.2f Y=%.2f Z=%.2f\n",
+        rc::rc_log(" OK!\n");
+        rc::rc_log("  Avg: X=%.2f Y=%.2f Z=%.2f\n",
                (double)avg[0], (double)avg[1], (double)avg[2]);
 
         me->cal_6pos_position++;
         if (me->cal_6pos_position >= kAccel6posPositions) {
-            printf("\nAll 6 positions collected!\n");
-            printf("Computing ellipsoid fit...");
-            (void)fflush(stdout);
-            me->cal_is_6pos = true;
+            rc::rc_log("\nAll 6 positions collected!\n");
+            rc::rc_log("Computing ellipsoid fit...");
+                    me->cal_is_6pos = true;
             me->cal_ui_state = CalUiState::kComputing;
         } else {
             cal_ui_print_6pos_position(me);
         }
     } else {
-        printf(" FAILED (%d)\n", r);
+        rc::rc_log(" FAILED (%d)\n", r);
         calibration_reset_6pos();
         cal_neo(kCalNeoFail);
         if (me->cal_wizard_active) { me->wizard_failed++; }
@@ -583,29 +577,27 @@ static void cal_ui_mag_process_sample(RcosAo* me,
 
     if (result == mag_feed_result_t::ACCEPTED && count == 1) {
         float mag = sqrtf(mx*mx + my*my + mz*mz);
-        printf("  First sample: |M|=%.1f uT (read %lu)\n",
+        rc::rc_log("  First sample: |M|=%.1f uT (read %lu)\n",
                (double)mag, (unsigned long)me->mag_total_reads);
-        (void)fflush(stdout);
-    }
+        }
     if (result == mag_feed_result_t::ACCEPTED &&
         count >= me->mag_last_printed_count + kMagProgressInterval) {
         me->mag_last_printed_count = count;
         uint8_t coverage = calibration_get_mag_coverage_pct();
-        printf("  Samples: %u  Coverage: %u%%  (read %lu, close:%lu range:%lu)\n",
+        rc::rc_log("  Samples: %u  Coverage: %u%%  (read %lu, close:%lu range:%lu)\n",
                count, coverage, (unsigned long)me->mag_total_reads,
                (unsigned long)me->mag_reject_close,
                (unsigned long)me->mag_reject_range);
-        (void)fflush(stdout);
-    }
+        }
 
     if (result == mag_feed_result_t::BUFFER_FULL) {
         uint16_t finalCount = calibration_get_mag_sample_count();
         uint8_t finalCoverage = calibration_get_mag_coverage_pct();
-        printf("\nCollection complete: %u samples, %u%% coverage\n",
+        rc::rc_log("\nCollection complete: %u samples, %u%% coverage\n",
                finalCount, finalCoverage);
 
         if (finalCount < kMagMinSamples) {
-            printf("ERROR: Not enough samples (%u < %u)\n",
+            rc::rc_log("ERROR: Not enough samples (%u < %u)\n",
                    finalCount, kMagMinSamples);
             calibration_reset_mag_cal();
             rc_os_mag_cal_active.store(false, std::memory_order_release);
@@ -613,9 +605,8 @@ static void cal_ui_mag_process_sample(RcosAo* me,
             if (me->cal_wizard_active) { me->wizard_failed++; }
             me->cal_ui_state = cal_ui_next_or_idle(me);
         } else {
-            printf("Computing ellipsoid fit...");
-            (void)fflush(stdout);
-            me->cal_is_6pos = false;
+            rc::rc_log("Computing ellipsoid fit...");
+                    me->cal_is_6pos = false;
             me->cal_ui_state = CalUiState::kComputing;
         }
     }
@@ -623,8 +614,7 @@ static void cal_ui_mag_process_sample(RcosAo* me,
 
 // ---- Mag prompt: wait for ENTER before starting collection ----
 static void cal_ui_begin_mag_collection(RcosAo* me) {
-    printf("Collecting...\n");
-    (void)fflush(stdout);
+    rc::rc_log("Collecting...\n");
     calibration_reset_mag_cal();
     if (rc_os_reset_mag_staleness != nullptr) {
         rc_os_reset_mag_staleness();
@@ -641,7 +631,7 @@ static void cal_ui_begin_mag_collection(RcosAo* me) {
 static void cal_ui_handle_mag_prompt(RcosAo* me) {
     int ch = cal_ui_read_key();
     if (ch == 27 || ch == 'x' || ch == 'X') {
-        printf("Skipped.\n");
+        rc::rc_log("Skipped.\n");
         cal_ui_next_or_idle(me);
         return;
     }
@@ -655,7 +645,7 @@ static void cal_ui_handle_mag_prompt(RcosAo* me) {
 static void cal_ui_handle_mag_collecting(RcosAo* me) {
     int ch = cal_ui_read_key();
     if (ch == 27 || ch == 'x' || ch == 'X') {
-        printf("\nCompass calibration cancelled.\n");
+        rc::rc_log("\nCompass calibration cancelled.\n");
         calibration_reset_mag_cal();
         rc_os_mag_cal_active.store(false, std::memory_order_release);
         cal_neo(kCalNeoOff);
@@ -689,12 +679,12 @@ static void cal_ui_handle_computing(RcosAo* me) {
     }
 
     if (fitResult != CAL_RESULT_OK) {
-        printf(" FAILED (%d)\n", fitResult);
+        rc::rc_log(" FAILED (%d)\n", fitResult);
         if (me->cal_is_6pos) {
-            printf("Fit failed - params out of range.\n");
+            rc::rc_log("Fit failed - params out of range.\n");
             calibration_reset_6pos();
         } else {
-            printf("Ellipsoid fit did not converge or params out of range.\n");
+            rc::rc_log("Ellipsoid fit did not converge or params out of range.\n");
             calibration_reset_mag_cal();
             rc_os_mag_cal_active.store(false, std::memory_order_release);
         }
@@ -702,7 +692,7 @@ static void cal_ui_handle_computing(RcosAo* me) {
         if (me->cal_wizard_active) { me->wizard_failed++; }
         me->cal_ui_state = cal_ui_next_or_idle(me);
     } else {
-        printf(" OK!\n\n");
+        rc::rc_log(" OK!\n\n");
         me->cal_ui_state = CalUiState::kResult;
     }
 }
@@ -711,46 +701,46 @@ static void cal_ui_handle_computing(RcosAo* me) {
 static void cal_ui_handle_result(RcosAo* me) {
     const calibration_store_t* cal = calibration_manager_get();
     if (me->cal_is_6pos) {
-        printf("Results:\n");
-        printf("  Offset: X=%.4f Y=%.4f Z=%.4f\n",
+        rc::rc_log("Results:\n");
+        rc::rc_log("  Offset: X=%.4f Y=%.4f Z=%.4f\n",
                (double)cal->accel.offset.x,
                (double)cal->accel.offset.y,
                (double)cal->accel.offset.z);
-        printf("  Scale:  X=%.4f Y=%.4f Z=%.4f\n",
+        rc::rc_log("  Scale:  X=%.4f Y=%.4f Z=%.4f\n",
                (double)cal->accel.scale.x,
                (double)cal->accel.scale.y,
                (double)cal->accel.scale.z);
-        printf("\n");
+        rc::rc_log("\n");
     } else {
-        printf("Results:\n");
-        printf("  Offset: X=%.2f Y=%.2f Z=%.2f uT\n",
+        rc::rc_log("Results:\n");
+        rc::rc_log("  Offset: X=%.2f Y=%.2f Z=%.2f uT\n",
                (double)cal->mag.offset.x,
                (double)cal->mag.offset.y,
                (double)cal->mag.offset.z);
-        printf("  Scale:  X=%.4f Y=%.4f Z=%.4f\n",
+        rc::rc_log("  Scale:  X=%.4f Y=%.4f Z=%.4f\n",
                (double)cal->mag.scale.x,
                (double)cal->mag.scale.y,
                (double)cal->mag.scale.z);
-        printf("  Offdiag: XY=%.4f XZ=%.4f YZ=%.4f\n",
+        rc::rc_log("  Offdiag: XY=%.4f XZ=%.4f YZ=%.4f\n",
                (double)cal->mag.offdiag.x,
                (double)cal->mag.offdiag.y,
                (double)cal->mag.offdiag.z);
-        printf("  Expected radius: %.2f uT\n",
+        rc::rc_log("  Expected radius: %.2f uT\n",
                (double)cal->mag.expected_radius);
-        printf("  Fitness (RMS): %.3f uT\n",
+        rc::rc_log("  Fitness (RMS): %.3f uT\n",
                (double)calibration_get_mag_fitness());
-        printf("\n");
+        rc::rc_log("\n");
     }
 
     cal_save_to_flash();
 
     if (me->cal_is_6pos) {
         calibration_reset_6pos();
-        printf("\n6-position accel calibration complete.\n");
+        rc::rc_log("\n6-position accel calibration complete.\n");
     } else {
         calibration_reset_mag_cal();
         rc_os_mag_cal_active.store(false, std::memory_order_release);
-        printf("\nCompass calibration complete.\n");
+        rc::rc_log("\nCompass calibration complete.\n");
     }
     cal_neo(kCalNeoSuccess);
 
@@ -761,25 +751,25 @@ static void cal_ui_handle_result(RcosAo* me) {
 // Print the wizard completion summary
 static void cal_ui_wizard_print_summary(RcosAo* me) {
     const calibration_store_t* calFinal = calibration_manager_get();
-    printf("\n========================================\n");
-    printf("  Wizard Complete\n");
-    printf("========================================\n");
-    printf("  Passed:  %d\n", me->wizard_passed);
-    printf("  Failed:  %d\n", me->wizard_failed);
-    printf("  Skipped: %d\n", me->wizard_skipped);
-    printf("\nCalibration flags: 0x%02lX\n",
+    rc::rc_log("\n========================================\n");
+    rc::rc_log("  Wizard Complete\n");
+    rc::rc_log("========================================\n");
+    rc::rc_log("  Passed:  %d\n", me->wizard_passed);
+    rc::rc_log("  Failed:  %d\n", me->wizard_failed);
+    rc::rc_log("  Skipped: %d\n", me->wizard_skipped);
+    rc::rc_log("\nCalibration flags: 0x%02lX\n",
            (unsigned long)calFinal->cal_flags);
-    printf("  Gyro:  %s\n",
+    rc::rc_log("  Gyro:  %s\n",
            (calFinal->cal_flags & CAL_STATUS_GYRO) != 0 ? "OK" : "--");
-    printf("  Level: %s\n",
+    rc::rc_log("  Level: %s\n",
            (calFinal->cal_flags & CAL_STATUS_LEVEL) != 0 ? "OK" : "--");
-    printf("  Baro:  %s\n",
+    rc::rc_log("  Baro:  %s\n",
            (calFinal->cal_flags & CAL_STATUS_BARO) != 0 ? "OK" : "--");
-    printf("  Accel: %s\n",
+    rc::rc_log("  Accel: %s\n",
            (calFinal->cal_flags & CAL_STATUS_ACCEL_6POS) != 0 ? "6POS" : "--");
-    printf("  Mag:   %s\n",
+    rc::rc_log("  Mag:   %s\n",
            (calFinal->cal_flags & CAL_STATUS_MAG) != 0 ? "OK" : "--");
-    printf("========================================\n\n");
+    rc::rc_log("========================================\n\n");
     cal_neo(kCalNeoOff);
     me->cal_wizard_active = false;
     me->cal_ui_state = CalUiState::kIdle;
@@ -787,63 +777,62 @@ static void cal_ui_wizard_print_summary(RcosAo* me) {
 
 // Start wizard step: gyro
 static void cal_ui_wizard_start_gyro(RcosAo* me) {
-    printf("\n--- Step 1/4: Gyro Calibration ---\n");
+    rc::rc_log("\n--- Step 1/4: Gyro Calibration ---\n");
     if (!rc_os_imu_available) {
-        printf("  SKIPPED (IMU not available)\n");
+        rc::rc_log("  SKIPPED (IMU not available)\n");
         me->wizard_skipped++;
         return;  // stays in kWizardNext
     }
-    printf("Keep device STILL for ~2s.\n");
-    printf("ENTER to start, 'x' to skip.\n");
+    rc::rc_log("Keep device STILL for ~2s.\n");
+    rc::rc_log("ENTER to start, 'x' to skip.\n");
     me->cal_async_type = kAsyncGyro;
     me->cal_ui_state = CalUiState::kAsyncPrompt;
 }
 
 // Start wizard step: level
 static void cal_ui_wizard_start_level(RcosAo* me) {
-    printf("\n--- Step 2/4: Level Calibration ---\n");
+    rc::rc_log("\n--- Step 2/4: Level Calibration ---\n");
     if (!rc_os_imu_available) {
-        printf("  SKIPPED (IMU not available)\n");
+        rc::rc_log("  SKIPPED (IMU not available)\n");
         me->wizard_skipped++;
         return;
     }
-    printf("Keep device FLAT and STILL for ~1s.\n");
-    printf("ENTER to start, 'x' to skip.\n");
+    rc::rc_log("Keep device FLAT and STILL for ~1s.\n");
+    rc::rc_log("ENTER to start, 'x' to skip.\n");
     me->cal_async_type = kAsyncLevel;
     me->cal_ui_state = CalUiState::kAsyncPrompt;
 }
 
 // Start wizard step: 6-position accel
 static void cal_ui_wizard_start_6pos(RcosAo* me) {
-    printf("\n--- Step 3/4: 6-Position Accel Calibration ---\n");
+    rc::rc_log("\n--- Step 3/4: 6-Position Accel Calibration ---\n");
     if (!rc_os_imu_available) {
-        printf("  SKIPPED (IMU not available)\n");
+        rc::rc_log("  SKIPPED (IMU not available)\n");
         me->wizard_skipped++;
         return;
     }
-    printf("Calibrates offset, scale, and cross-axis coupling.\n");
+    rc::rc_log("Calibrates offset, scale, and cross-axis coupling.\n");
     calibration_reset_6pos();
     me->cal_6pos_position = 0;
-    printf("--- Position 1/%d: %s ---\n",
+    rc::rc_log("--- Position 1/%d: %s ---\n",
            kAccel6posPositions,
            calibration_get_6pos_name(0));
-    printf("  %s\n", kPositionInstructions[0]);
-    printf("  Press ENTER when ready, ESC to cancel.\n");
-    (void)fflush(stdout);
+    rc::rc_log("  %s\n", kPositionInstructions[0]);
+    rc::rc_log("  Press ENTER when ready, ESC to cancel.\n");
     cal_neo(kCalNeoAccelWait);
     me->cal_ui_state = CalUiState::k6posPrompt;
 }
 
 // Start wizard step: compass
 static void cal_ui_wizard_start_mag(RcosAo* me) {
-    printf("\n--- Step 4/4: Compass Calibration ---\n");
+    rc::rc_log("\n--- Step 4/4: Compass Calibration ---\n");
     if (rc_os_read_mag == nullptr) {
-        printf("  SKIPPED (mag read callback not set)\n");
+        rc::rc_log("  SKIPPED (mag read callback not set)\n");
         me->wizard_skipped++;
         return;
     }
-    printf("Rotate device through all orientations.\n");
-    printf("ENTER to start, 'x' to skip.\n");
+    rc::rc_log("Rotate device through all orientations.\n");
+    rc::rc_log("ENTER to start, 'x' to skip.\n");
     me->cal_ui_state = CalUiState::kMagPrompt;
 }
 
@@ -876,7 +865,7 @@ static constexpr uint8_t kResetTimeoutTicks = 200;  // 10s at 20Hz
 static void cal_ui_handle_reset_confirm(RcosAo* me) {
     me->confirm_timeout_ticks++;
     if (me->confirm_timeout_ticks >= kResetTimeoutTicks) {
-        printf("\nTimeout - cancelled.\n");
+        rc::rc_log("\nTimeout - cancelled.\n");
         me->cal_ui_state = CalUiState::kIdle;
         return;
     }
@@ -886,53 +875,51 @@ static void cal_ui_handle_reset_confirm(RcosAo* me) {
         return;  // No input this tick — keep waiting
     }
     if (ch == 27) {  // ESC
-        printf("\nCancelled.\n");
+        rc::rc_log("\nCancelled.\n");
         me->cal_ui_state = CalUiState::kIdle;
         return;
     }
     if (ch == '\r' || ch == '\n') {
         me->confirm_buf[me->confirm_idx] = '\0';
-        printf("\n");
+        rc::rc_log("\n");
         if (strcmp(me->confirm_buf, "YES") == 0) {
-            printf("Resetting all calibration data...");
-            (void)fflush(stdout);
-            cal_result_t result = calibration_reset();
+            rc::rc_log("Resetting all calibration data...");
+                    cal_result_t result = calibration_reset();
             if (result == CAL_RESULT_OK) {
-                printf(" OK!\n");
+                rc::rc_log(" OK!\n");
             } else {
-                printf(" FAILED (%d)\n", static_cast<int>(result));
+                rc::rc_log(" FAILED (%d)\n", static_cast<int>(result));
             }
         } else {
-            printf("Cancelled (need to type 'YES' then ENTER).\n");
+            rc::rc_log("Cancelled (need to type 'YES' then ENTER).\n");
         }
         me->cal_ui_state = CalUiState::kIdle;
         return;
     }
     if (me->confirm_idx < 7) {
         me->confirm_buf[me->confirm_idx++] = static_cast<char>(ch);
-        putchar(ch);
-        (void)fflush(stdout);
-    }
+        rc::rc_log("%c", ch);
+        }
 }
 
 // ---- Erase-all-flights confirmation (non-blocking) ----
 static void cal_ui_handle_erase_confirm(RcosAo* me) {
     me->confirm_timeout_ticks++;
     if (me->confirm_timeout_ticks >= kResetTimeoutTicks) {
-        printf("\nTimeout - erase cancelled.\n");
+        rc::rc_log("\nTimeout - erase cancelled.\n");
         me->cal_ui_state = CalUiState::kIdle;
         return;
     }
     int ch = getchar_timeout_us(0);
     if (ch == PICO_ERROR_TIMEOUT) { return; }
     if (ch == 27) {
-        printf("\nErase cancelled.\n");
+        rc::rc_log("\nErase cancelled.\n");
         me->cal_ui_state = CalUiState::kIdle;
         return;
     }
     if (ch == '\r' || ch == '\n') {
         me->confirm_buf[me->confirm_idx] = '\0';
-        printf("\n");
+        rc::rc_log("\n");
         if (me->confirm_idx == 3 &&
             me->confirm_buf[0] == 'y' &&
             me->confirm_buf[1] == 'e' &&
@@ -940,36 +927,35 @@ static void cal_ui_handle_erase_confirm(RcosAo* me) {
             // Perform the erase — this calls flash_safe_execute internally
             cli_do_erase_flights();
         } else {
-            printf("Erase cancelled.\n");
+            rc::rc_log("Erase cancelled.\n");
         }
         me->cal_ui_state = CalUiState::kIdle;
         return;
     }
     if (me->confirm_idx < 7) {
         me->confirm_buf[me->confirm_idx++] = static_cast<char>(ch);
-        putchar(ch);
-        (void)fflush(stdout);
-    }
+        rc::rc_log("%c", ch);
+        }
 }
 
 // ---- Flight number input for download (non-blocking) ----
 static void cal_ui_handle_flight_num(RcosAo* me) {
     me->confirm_timeout_ticks++;
     if (me->confirm_timeout_ticks >= 60) {  // 3s at 20Hz
-        printf("\nTimeout.\n");
+        rc::rc_log("\nTimeout.\n");
         me->cal_ui_state = CalUiState::kIdle;
         return;
     }
     int ch = getchar_timeout_us(0);
     if (ch == PICO_ERROR_TIMEOUT) { return; }
     if (ch == 27) {
-        printf("\nCancelled.\n");
+        rc::rc_log("\nCancelled.\n");
         me->cal_ui_state = CalUiState::kIdle;
         return;
     }
     if (ch == '\r' || ch == '\n') {
         me->confirm_buf[me->confirm_idx] = '\0';
-        printf("\n");
+        rc::rc_log("\n");
         int num = 0;
         for (uint8_t i = 0; i < me->confirm_idx; i++) {
             if (me->confirm_buf[i] >= '0' && me->confirm_buf[i] <= '9') {
@@ -979,16 +965,15 @@ static void cal_ui_handle_flight_num(RcosAo* me) {
         if (num > 0) {
             cli_do_download_flight(num);
         } else {
-            printf("Invalid flight number.\n");
+            rc::rc_log("Invalid flight number.\n");
         }
         me->cal_ui_state = CalUiState::kIdle;
         return;
     }
     if (ch >= '0' && ch <= '9' && me->confirm_idx < 3) {
         me->confirm_buf[me->confirm_idx++] = static_cast<char>(ch);
-        putchar(ch);
-        (void)fflush(stdout);
-    }
+        rc::rc_log("%c", ch);
+        }
 }
 
 // ---- Cal UI dispatcher (20Hz) ----
@@ -1112,15 +1097,15 @@ void AO_RCOS_resume_tick() {
 
 void AO_RCOS_start_cal_gyro() {
     if (!rc_os_imu_available) {
-        printf("\nERROR: IMU not available\n");
+        rc::rc_log("\nERROR: IMU not available\n");
         return;
     }
     if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
-        printf("\nCalibration already in progress.\n");
+        rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
-    printf("\nGyro Calibration — keep device STILL for ~2s.\n");
-    printf("ENTER to start, 'x' to skip.\n");
+    rc::rc_log("\nGyro Calibration — keep device STILL for ~2s.\n");
+    rc::rc_log("ENTER to start, 'x' to skip.\n");
     l_rcosAo.cal_async_type = kAsyncGyro;
     l_rcosAo.cal_wizard_active = false;
     l_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
@@ -1128,15 +1113,15 @@ void AO_RCOS_start_cal_gyro() {
 
 void AO_RCOS_start_cal_level() {
     if (!rc_os_imu_available) {
-        printf("\nERROR: IMU not available\n");
+        rc::rc_log("\nERROR: IMU not available\n");
         return;
     }
     if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
-        printf("\nCalibration already in progress.\n");
+        rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
-    printf("\nLevel Calibration — keep device FLAT and STILL for ~1s.\n");
-    printf("ENTER to start, 'x' to skip.\n");
+    rc::rc_log("\nLevel Calibration — keep device FLAT and STILL for ~1s.\n");
+    rc::rc_log("ENTER to start, 'x' to skip.\n");
     l_rcosAo.cal_async_type = kAsyncLevel;
     l_rcosAo.cal_wizard_active = false;
     l_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
@@ -1144,15 +1129,15 @@ void AO_RCOS_start_cal_level() {
 
 void AO_RCOS_start_cal_baro() {
     if (!rc_os_baro_available) {
-        printf("\nERROR: Barometer not available\n");
+        rc::rc_log("\nERROR: Barometer not available\n");
         return;
     }
     if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
-        printf("\nCalibration already in progress.\n");
+        rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
-    printf("\nBaro Calibration — setting ground reference (~1s).\n");
-    printf("ENTER to start, 'x' to skip.\n");
+    rc::rc_log("\nBaro Calibration — setting ground reference (~1s).\n");
+    rc::rc_log("ENTER to start, 'x' to skip.\n");
     l_rcosAo.cal_async_type = kAsyncBaro;
     l_rcosAo.cal_wizard_active = false;
     l_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
@@ -1160,51 +1145,50 @@ void AO_RCOS_start_cal_baro() {
 
 void AO_RCOS_start_cal_6pos() {
     if (!rc_os_imu_available) {
-        printf("\nERROR: IMU not available\n");
+        rc::rc_log("\nERROR: IMU not available\n");
         return;
     }
     if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
-        printf("\nCalibration already in progress.\n");
+        rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
-    printf("\n========================================\n");
-    printf("  6-Position Accelerometer Calibration\n");
-    printf("========================================\n");
-    printf("Calibrates accel offset, scale, and\n");
-    printf("cross-axis coupling by measuring gravity\n");
-    printf("in 6 orientations.\n\n");
+    rc::rc_log("\n========================================\n");
+    rc::rc_log("  6-Position Accelerometer Calibration\n");
+    rc::rc_log("========================================\n");
+    rc::rc_log("Calibrates accel offset, scale, and\n");
+    rc::rc_log("cross-axis coupling by measuring gravity\n");
+    rc::rc_log("in 6 orientations.\n\n");
 
     calibration_reset_6pos();
     l_rcosAo.cal_6pos_position = 0;
     l_rcosAo.cal_wizard_active = false;
     l_rcosAo.cal_is_6pos = true;
 
-    printf("--- Position 1/%d: %s ---\n",
+    rc::rc_log("--- Position 1/%d: %s ---\n",
            kAccel6posPositions,
            calibration_get_6pos_name(0));
-    printf("  %s\n", kPositionInstructions[0]);
-    printf("  Press ENTER when ready, ESC to cancel.\n");
-    (void)fflush(stdout);
+    rc::rc_log("  %s\n", kPositionInstructions[0]);
+    rc::rc_log("  Press ENTER when ready, ESC to cancel.\n");
     cal_neo(kCalNeoAccelWait);
     l_rcosAo.cal_ui_state = CalUiState::k6posPrompt;
 }
 
 void AO_RCOS_start_cal_mag() {
     if (rc_os_read_mag == nullptr) {
-        printf("\nERROR: Mag read callback not set\n");
+        rc::rc_log("\nERROR: Mag read callback not set\n");
         return;
     }
     if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
-        printf("\nCalibration already in progress.\n");
+        rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
-    printf("\n========================================\n");
-    printf("  Compass Calibration\n");
-    printf("========================================\n");
-    printf("Rotate the device slowly through all\n");
-    printf("orientations to cover the full sphere.\n");
-    printf("ENTER to start, ESC/'x' to cancel.\n");
-    printf("========================================\n");
+    rc::rc_log("\n========================================\n");
+    rc::rc_log("  Compass Calibration\n");
+    rc::rc_log("========================================\n");
+    rc::rc_log("Rotate the device slowly through all\n");
+    rc::rc_log("orientations to cover the full sphere.\n");
+    rc::rc_log("ENTER to start, ESC/'x' to cancel.\n");
+    rc::rc_log("========================================\n");
 
     l_rcosAo.cal_wizard_active = false;
     l_rcosAo.cal_is_6pos = false;
@@ -1213,19 +1197,19 @@ void AO_RCOS_start_cal_mag() {
 
 void AO_RCOS_start_cal_wizard() {
     if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
-        printf("\nCalibration already in progress.\n");
+        rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
-    printf("\n========================================\n");
-    printf("  Full Calibration Wizard\n");
-    printf("========================================\n");
-    printf("This wizard runs all calibrations:\n");
-    printf("  1. Gyro (keep still, ~2s)\n");
-    printf("  2. Level (keep flat, ~1s)\n");
-    printf("  3. 6-position accel\n");
-    printf("  4. Compass calibration\n");
-    printf("(Baro ground ref runs automatically at boot)\n");
-    printf("========================================\n\n");
+    rc::rc_log("\n========================================\n");
+    rc::rc_log("  Full Calibration Wizard\n");
+    rc::rc_log("========================================\n");
+    rc::rc_log("This wizard runs all calibrations:\n");
+    rc::rc_log("  1. Gyro (keep still, ~2s)\n");
+    rc::rc_log("  2. Level (keep flat, ~1s)\n");
+    rc::rc_log("  3. 6-position accel\n");
+    rc::rc_log("  4. Compass calibration\n");
+    rc::rc_log("(Baro ground ref runs automatically at boot)\n");
+    rc::rc_log("========================================\n\n");
 
     l_rcosAo.cal_wizard_active = true;
     l_rcosAo.cal_wizard_step = 0;  // Will be incremented to kWizardGyro in kWizardNext
@@ -1256,17 +1240,16 @@ void AO_RCOS_start_erase_flights() {
     if (AO_RCOS_cal_active()) { return; }
     rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
     if (!ft->loaded) {
-        printf("Flight table not loaded.\n");
+        rc::rc_log("Flight table not loaded.\n");
         return;
     }
     uint32_t count = rc::flight_table_count(ft);
     if (count == 0) {
-        printf("No flights to erase.\n");
+        rc::rc_log("No flights to erase.\n");
         return;
     }
-    printf("Erase ALL %lu flights? Type 'yes' + Enter to confirm: ",
+    rc::rc_log("Erase ALL %lu flights? Type 'yes' + Enter to confirm: ",
            (unsigned long)count);
-    (void)fflush(stdout);
     memset(l_rcosAo.confirm_buf, 0, sizeof(l_rcosAo.confirm_buf));
     l_rcosAo.confirm_idx = 0;
     l_rcosAo.confirm_timeout_ticks = 0;
@@ -1277,16 +1260,15 @@ void AO_RCOS_start_download_flight() {
     if (AO_RCOS_cal_active()) { return; }
     const rc::FlightTableState* ft = AO_Logger_get_flight_table();
     if (!ft->loaded) {
-        printf("Flight table not loaded.\n");
+        rc::rc_log("Flight table not loaded.\n");
         return;
     }
     uint32_t count = rc::flight_table_count(ft);
     if (count == 0) {
-        printf("No flights stored.\n");
+        rc::rc_log("No flights stored.\n");
         return;
     }
-    printf("Flight # (1-%lu): ", (unsigned long)count);
-    (void)fflush(stdout);
+    rc::rc_log("Flight # (1-%lu): ", (unsigned long)count);
     memset(l_rcosAo.confirm_buf, 0, sizeof(l_rcosAo.confirm_buf));
     l_rcosAo.confirm_idx = 0;
     l_rcosAo.confirm_timeout_ticks = 0;
@@ -1295,10 +1277,9 @@ void AO_RCOS_start_download_flight() {
 
 void AO_RCOS_start_cal_reset() {
     if (AO_RCOS_cal_active()) { return; }
-    printf("\n*** RESET ALL CALIBRATION ***\n");
-    printf("This will erase all calibration data!\n");
-    printf("Type 'YES' + ENTER to confirm: ");
-    (void)fflush(stdout);
+    rc::rc_log("\n*** RESET ALL CALIBRATION ***\n");
+    rc::rc_log("This will erase all calibration data!\n");
+    rc::rc_log("Type 'YES' + ENTER to confirm: ");
     memset(l_rcosAo.confirm_buf, 0, sizeof(l_rcosAo.confirm_buf));
     l_rcosAo.confirm_idx = 0;
     l_rcosAo.confirm_timeout_ticks = 0;
@@ -1307,16 +1288,15 @@ void AO_RCOS_start_cal_reset() {
 
 void AO_RCOS_start_cal_save() {
     if (AO_RCOS_cal_active()) { return; }
-    printf("\nSaving calibration to flash...");
-    (void)fflush(stdout);
+    rc::rc_log("\nSaving calibration to flash...");
     cal_result_t result = calibration_save();
     if (result == CAL_RESULT_OK) {
-        printf(" OK!\n");
+        rc::rc_log(" OK!\n");
         if (!i2c_bus_reset()) {
-            printf("[WARN] I2C bus reset failed after save\n");
+            rc::rc_log("[WARN] I2C bus reset failed after save\n");
         }
     } else {
-        printf(" FAILED (%d)\n", static_cast<int>(result));
+        rc::rc_log(" FAILED (%d)\n", static_cast<int>(result));
     }
     // Note: calibration_save() calls flash_safe_execute() which blocks
     // ~100-500ms. At 100Hz tick rate with queue depth 32, the 320ms
