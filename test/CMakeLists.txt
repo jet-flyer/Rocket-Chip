@@ -271,6 +271,11 @@ add_executable(test_rc_log test_rc_log.cpp)
 target_link_libraries(test_rc_log PRIVATE rc_log GTest::gtest_main)
 gtest_discover_tests(test_rc_log)
 
+# rc_snprintf — buffer-bound sibling of rc_log (R-5 Unit G.1).
+add_executable(test_rc_snprintf test_rc_snprintf.cpp)
+target_link_libraries(test_rc_snprintf PRIVATE rc_log GTest::gtest_main)
+gtest_discover_tests(test_rc_snprintf)
+
 # -----------------------------------------------------------------------------
 # Host Python: Tier 4 `_rc_test_common` harness + scripts/*.py syntax check.
 #

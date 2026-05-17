@@ -64,6 +64,12 @@ constexpr size_t kRcLogBufferBytes = 128U;
 // Returns nothing — caller cannot detect truncation or sink unavailability.
 void rc_log(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 
+// Buffer-bound sibling of rc_log. Same format-spec set, writes into
+// caller's (buf, n), NUL-terminates, returns bytes written. Internal
+// cap at 256 bytes; over-budget truncates with "...\n" marker.
+size_t rc_snprintf(char* buf, size_t n, const char* fmt, ...)
+    __attribute__((format(printf, 3, 4)));
+
 }  // namespace rc
 
 // Drain the rc_log ring buffer to USB CDC. Non-blocking; only writes bytes

@@ -622,18 +622,9 @@ uint32_t rc_log_high_water(void) {
 }
 #endif
 
-}  // namespace (anonymous)
-
-namespace rc {
-
-void rc_log(const char* fmt, ...) {
-    // Per-call stack buffer for formatted output.
-    etl::string<kRcLogBufferBytes> buf;
+// Shared parse+format loop for rc_log (CDC sink) and rc_snprintf (buf sink).
+void format_into(etl::istring& out, const char* fmt, va_list args) {
     bool truncated = false;
-
-    va_list args;
-    va_start(args, fmt);
-
     const char* p = fmt;
     while (*p != '\0' && !truncated) {
         if (*p == '%' && *(p + 1) != '\0') {
@@ -641,35 +632,44 @@ void rc_log(const char* fmt, ...) {
             ParsedSpec spec = parse_spec(&p);
             if (spec.conversion == '\0') {
                 // Malformed spec — write '%' literal and continue
-                if (buffer_append(buf, "%", 1U)) { truncated = true; break; }
+                if (buffer_append(out, "%", 1U)) { truncated = true; break; }
                 continue;
             }
-            // Track buffer space remaining before conversion to detect over-run.
-            size_t before = buf.size();
-            (void)before;
-            bool ok = format_conversion(buf, spec, args);
+            bool ok = format_conversion(out, spec, args);
             if (!ok) {
                 // Unsupported conversion — write the raw % + conv for visibility.
                 char tmp[3] = { '%', spec.conversion, '\0' };
-                if (buffer_append(buf, tmp, 2U)) { truncated = true; break; }
+                if (buffer_append(out, tmp, 2U)) { truncated = true; break; }
             }
             // Truncation guard: if conversion overflowed the buffer beyond
             // the marker reserve, the buffer is full.
-            if (buf.size() + kTruncMarkerLen >= buf.capacity()) {
-                // Append marker if not already present (append no-ops if full).
-                size_t avail = buf.capacity() - buf.size();
+            if (out.size() + kTruncMarkerLen >= out.capacity()) {
+                size_t avail = out.capacity() - out.size();
                 if (avail >= kTruncMarkerLen) {
-                    buf.append(kTruncMarker, kTruncMarkerLen);
+                    out.append(kTruncMarker, kTruncMarkerLen);
                 }
                 truncated = true;
                 break;
             }
         } else {
             // Literal char (or trailing % with no spec, which is allowed: just emit %)
-            if (buffer_append(buf, p, 1U)) { truncated = true; break; }
+            if (buffer_append(out, p, 1U)) { truncated = true; break; }
             ++p;
         }
     }
+}
+
+}  // namespace (anonymous)
+
+namespace rc {
+
+void rc_log(const char* fmt, ...) {
+    // Per-call stack buffer for formatted output.
+    etl::string<kRcLogBufferBytes> buf;
+
+    va_list args;
+    va_start(args, fmt);
+    format_into(buf, fmt, args);
     va_end(args);
 
     // Emit to sink (USB CDC ring on target, capture buffer on host).
@@ -679,6 +679,27 @@ void rc_log(const char* fmt, ...) {
     // semantics, so the most-recent boot output is preserved for the
     // host to see when it finally attaches and asserts DTR.
     emit(buf.data(), buf.size());
+}
+
+constexpr size_t kRcSnprintfMaxBytes = 256U;
+
+size_t rc_snprintf(char* buf, size_t n, const char* fmt, ...) {
+    if (buf == nullptr || n == 0U) {
+        return 0U;
+    }
+    etl::string<kRcSnprintfMaxBytes> work;
+    va_list args;
+    va_start(args, fmt);
+    format_into(work, fmt, args);
+    va_end(args);
+
+    // Copy into caller buffer, truncating at n-1 to leave room for NUL.
+    size_t writable = (work.size() < (n - 1U)) ? work.size() : (n - 1U);
+    if (writable > 0U) {
+        memcpy(buf, work.data(), writable);
+    }
+    buf[writable] = '\0';
+    return writable;
 }
 
 }  // namespace rc
