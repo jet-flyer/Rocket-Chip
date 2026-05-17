@@ -79,41 +79,17 @@
   the anchor-station-TX-to-vehicle-RxDone architectural fix is still
   needed or was over-engineered for our actual link conditions.
 
-- **UART GPS 10Hz + sticky-baud fix (post-R-5 follow-up).** Surfaced
-  2026-05-16 during R-5 Unit D part 2b verification (commits 89c1571
-  + 01b6244). The migration is shipped at 5Hz/57600/RMC+GGA+GSA
-  (verified 3D fix on bench: Fix=3 Sats=4 real Austin TX coords).
-  The 10Hz attempt was blocked by a separate issue the migration
-  surfaced but doesn't fix: **MT3339 retains its baud setting across
-  firmware power cycles**, so subsequent boots fail
-  `detect_gps_presence()` at 9600 (the module is still at 57600
-  from the prior PMTK251). Symptom: `GPS: not detected`. The 10Hz
-  rate-change path therefore never executed during the test —
-  unknown whether 10Hz itself works (bandwidth math says yes, 2.45×
-  headroom).
-
-  Candidate fixes for the sticky-baud issue (probably unblocks
-  10Hz testing too):
-  - **(a) PMTK104 cold-start at boot** — send the factory-reset
-    command before negotiate_baud_to_57600. Brings the module
-    back to 9600 default each boot. Cost: ~few-second longer
-    cold acquire time after each firmware flash.
-  - **(b) Dual-baud presence detection** — try 57600 first
-    (the most recent intended state), fall back to 9600 if
-    silent. Most robust; no GPS-side state mutation.
-  - **(c) Hardware reset pin** — wire MT3339 reset to a Feather
-    GPIO, toggle at boot. Requires solder work; cleanest electrical
-    isolation but most physical setup.
-
-  Lean: (b) for a software-only fix that doesn't lose GPS lock
-  across reboots. Once (b) is in, re-test 10Hz/57600/RMC+GGA+GSA
-  with a fair shot at it. If 10Hz also produces stable lock,
-  update production rate in const-array; close the
-  PROJECT_STATUS Future Features item.
-
-  Out of R-5 scope; R-5 ships at 5Hz. Hardware: bench Feather +
-  UART GPS already wired, PPS LED confirms module is alive. No
-  logic-analyzer required for (a) or (b); (c) is electrical work.
+- **UART GPS 10Hz retest (post-sticky-baud).** Sticky-baud fix landed
+  in R-5 Unit F (acquire_at_target_baud — try 57600 first, fall back
+  to 9600 + negotiate). The 10Hz attempt was blocked by sticky-baud
+  during the earlier session; that's now resolved. Open question
+  remaining: does 10Hz/57600/RMC+GGA+GSA produce stable lock?
+  Bandwidth math says yes (2.45× headroom). Plan: bump rate to 10Hz
+  via PMTK220, soak 1+ minute, confirm `Fix=3 Sats>=4` with no NMEA
+  truncation in the ring buffer. If clean, update production rate
+  in const-array; close the PROJECT_STATUS Future Features item.
+  Hardware ready (UART GPS wired, CR1220 in place — module retains
+  the new rate across host power-cycle, same property as baud).
 
 - **Code Classification / CONFIG_TEST_MATRIX doc realignment (post pre-commit-matrix widening).**
   Council 2026-05-16 unanimously approved widening

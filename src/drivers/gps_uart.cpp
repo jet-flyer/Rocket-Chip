@@ -327,6 +327,61 @@ static bool detect_gps_presence() {
     return false;
 }
 
+// Bring up UART at `baud`, then check for `$` within kInitTimeoutUs.
+// Used by acquire_at_target_baud to try 57600 first, fall back to 9600.
+// On detect-failure, leaves UART in the deinitialized state (caller may
+// retry at a different baud, or give up).
+static bool try_baud(uint32_t baud) {
+    uart_init(GPS_UART_INST, baud);
+    gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
+    gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
+    if (detect_gps_presence()) {
+        return true;
+    }
+    uart_deinit(GPS_UART_INST);
+    return false;
+}
+
+// Bring the GPS up at the target operating baud (kGpsUartBaudTarget,
+// currently 57600). Handles two cases:
+//
+//   (a) Module already at 57600 (sticky from prior session — the CR1220
+//       backup battery on the Adafruit Ultimate GPS FeatherWing keeps
+//       the MT3339's baud setting across host power cycles). Detect
+//       `$` immediately, no PMTK251 needed, return true. Cost ~few ms.
+//
+//   (b) Module at factory 9600 (first power-on with battery, or after
+//       a deliberate PMTK104 cold-start). The 57600 probe sees garbled
+//       bytes (no `$`), we reinit at 9600, detect `$`, send PMTK251 to
+//       switch the module to 57600, reinit host UART at 57600, return
+//       true. Cost ~2s for the 57600 probe + ~250ms for negotiation.
+//
+//   (c) Genuinely absent module. Both probes fail (~4s total), return
+//       false.
+//
+// Returns true if the UART is up at kGpsUartBaudTarget and the module
+// is producing NMEA. UART is left initialized and configured.
+//
+// HW_GATE_DISCIPLINE Rule 7: this lands in R-5 Unit F because F4's
+// wire verification surfaced that preflight GPS-ABSENT was hiding the
+// sticky-baud condition documented on AGENT_WHITEBOARD.md; tier-end L2
+// would have silently un-tested the GPS path otherwise (LL Entry 36).
+static bool acquire_at_target_baud() {
+    // (a) Try 57600 first — the most likely state on this bench.
+    if (try_baud(kGpsUartBaudTarget)) {
+        return true;
+    }
+
+    // (b) Try 9600 (factory). If silent, no module → give up.
+    if (!try_baud(kGpsUartBaudFactory)) {
+        return false;
+    }
+
+    // Module is at 9600. Send PMTK251 to set 57600, then reinit host UART.
+    negotiate_baud_to_57600();
+    return true;
+}
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -346,25 +401,16 @@ bool gps_uart_init() {
     g_rxTail = 0;
     g_rxOverflow = 0;
 
-    // Configure UART0 at factory baud (9600 — MT3339 cold-start default)
-    uart_init(GPS_UART_INST, kGpsUartBaud);
-    gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
-    gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
-
-    // Presence detection
-    if (!detect_gps_presence()) {
-        // No GPS detected — deinit UART so pins are free
-        uart_deinit(GPS_UART_INST);
-        return false;
+    // Bring the host UART up at kGpsUartBaudTarget (57600), handling
+    // both the sticky-baud (CR1220-backed module already at 57600) and
+    // factory-fresh-9600 cases. See acquire_at_target_baud() header.
+    if (!acquire_at_target_baud()) {
+        return false;  // UART already deinitialized by try_baud failure paths
     }
 
-    // Negotiate 57600 baud before enabling IRQ.
-    // negotiate_baud_to_57600() deinits/reinits the host UART —
-    // must run before IRQ registration.
-    negotiate_baud_to_57600();
-
-    // Configure NMEA output: RMC + GGA + GSA (same as I2C backend).
-    // Must be called AFTER baud negotiation — both writes go at 57600.
+    // Configure NMEA output: RMC + GGA + GSA. Writes go at 57600.
+    // Safe to send even if the module is already configured this way
+    // from a prior session — PMTK314 is idempotent.
     uart_write_pmtk(kPmtk314Sentence, sizeof(kPmtk314Sentence) - 1);
 
     // Set 5Hz update rate (PMTK220,200ms interval).
@@ -475,21 +521,14 @@ bool gps_uart_reinit() {
     // guard by using uart_write_blocking directly.
     g_initialized = false;
 
-    // Reinit UART at factory baud for presence detection
-    uart_init(GPS_UART_INST, kGpsUartBaud);
-    gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
-    gpio_set_function(kGpsUartRxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartRxPin));
-
-    // Presence detection (blocks up to 2s)
-    if (!detect_gps_presence()) {
-        uart_deinit(GPS_UART_INST);
+    // Bring host UART back up at the operating baud (handles sticky-57600
+    // and factory-9600 cases via acquire_at_target_baud).
+    if (!acquire_at_target_baud()) {
         return false;
     }
 
-    // Negotiate 57600 baud
-    negotiate_baud_to_57600();
-
-    // Reconfigure output sentences and rate (all writes at 57600 now)
+    // Reconfigure output sentences and rate at 57600. Idempotent if the
+    // module was already configured this way.
     uart_write_pmtk(kPmtk314Sentence, sizeof(kPmtk314Sentence) - 1);
     uart_write_pmtk(kPmtk220_5HzSentence, sizeof(kPmtk220_5HzSentence) - 1);
 
