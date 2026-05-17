@@ -22,6 +22,26 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-16-002 | Claude | refactor, bugfix, architecture, council
+
+**R-5 stdio removal Units D + E shipped; meta-policy gate widening; rc_log idle-drain IMU regression fixed.** 8 commits this session.
+
+R-5 Tier 2 (Unit D, 3 sub-commits: `c71090e` gps_pa1010d, `89c1571` gps_uart, `caa9b42` i2c_bus) and Tier 3 (Unit E, 1 commit: `857b573` safety/diag) closed. ~125 callsites migrated, 5 dead-export public functions deleted (FreeRTOS-era), 3 files dropped from `scripts/hooks/stdio_allowlist.txt`. Unit B-fixup #2 (`2749a99`) corrected drain semantics: hold-on-disconnect ring + drop-oldest + `tud_cdc_write_flush()` per Pico SDK `stdio_usb_out_chars` pattern + ring 1KB→8KB per council. Verified via byte-on-wire diff on station for `q→d` diag_stats dump + 3D GPS lock confirmed on vehicle UART path (gps_uart Unit D part 2b also fixed a latent baud-bug — `gps_uart_send_command` early-return-on-`!g_initialized` was silently dropping PMTK251 baud-change, ride-along per HW_GATE Rule 7).
+
+`8cd6368` **rc_log drain ring-empty fast-path** — bisect-confirmed `8adab2d` (R-5 Unit B-fixup wiring `rc_log_drain_to_cdc()` into `qv_idle_bridge`) was disrupting Core 1's ICM-20948 I2C reads via continuous TinyUSB calls contending with the SDK's stdio_usb mutex/IRQ machinery. Fix: 3-line early-return when ring is empty (most idle ticks). Restored `IMU reads=41694 errs=0` + bench_sim 2/2 PASS. LL Entry 39 added.
+
+`a40e7f5` **pre-commit gate widening: "categories not enumerations" (LL Entry 40)** — council unanimous (NASA/JPL + Prof + ArduPilot + Cubesat, 5 questions). FLIGHT_CRITICAL regex in `scripts/ci/pre_commit_matrix.py` widened from ~7 narrow path patterns to any change that can affect rocketchip.elf (`src/`, `include/`, `CMakeLists.txt`, `cmake/`, `EXTERNAL/etl-`, `lib/`) plus the gate self-rot vector (`scripts/hooks/`, `scripts/ci/`, `scripts/bench_sim.py`, `scripts/station_bench_sim.py`). Pure-doc/test/script exempt by virtue of not matching, NOT explicit carve-out. Direct meta-application of R-25-exec's "all code uploaded = flight code" principle to gate scope. `7bcecdb` realigned the host test that encoded the prior narrow policy and added codified anti-regression assertions for the 8adab2d-class path (`main.cpp + rc_log.h`), the three gate-self-rot vectors, and pure-doc exemption.
+
+**WB followups tracked** (`AGENT_WHITEBOARD.md`): doc realignment of `standards/CODING_STANDARDS.md` Code Classification table + `docs/CONFIG_TEST_MATRIX.md` Tier 6b section (descriptive docs lag shipped gate policy per AK Rule 3 surgical scope). Tier-5-drain rate-limiting (LL 39 known-limitation) for when sustained rc_log output enters the picture during CLI tier migration.
+
+**Open issue at session end**: vehicle ICM-20948 (chip serial `02FBDDB8E1CA1281`) entered a stuck-slave state mid-session that survives USB power cycle + survives the shipped `8cd6368` fix. Earlier in the same session the same hardware worked cleanly post-`8cd6368` flash (`IMU reads=41694`); after ~5-10 subsequent flash cycles for the gate-widening work, chip stopped ACKing reads AND writes at 0x69 (DPS310 baro at 0x77 on the same wire continues to ACK, confirming bus electrical health). Diagnostic report prepared for offline analysis; defensive pre-probe write to PWR_MGMT_1 (ArduPilot _hardware_init pattern) prepared but rolled back unverified pending offline analysis. Unit F migration paused at the bench_sim baseline gate; resumes once IMU recovers.
+
+**Verified locally**: vehicle + station + host builds clean at HEAD `7bcecdb`. Host ctest 827/827. Defensive write rolled back; HEAD matches the working state from earlier in the session. The `8cd6368` fix is shipped and was verified working empirically before the bench drifted; current bench state is independent of fix correctness.
+
+**Active plan**: `docs/plans/R5_STDIO_REMOVAL.md`. Tier 4 (Unit F) is the next migration unit; pre-Unit-F council session 2026-05-16 ratified the verification plan (bench_sim 2/2 + SPIN 31 + live `[FD]` byte-on-wire diff + 5-min soak with transition exercised + `rc_log_dropped_bytes==0` + `high_water<4096` assertions). Plan ready for resume once bench is back.
+
+---
+
 ### 2026-05-16-001 | Claude | refactor, architecture, council
 
 **R-5 stdio removal Units A + B closed.** Unit A produced the format-spec inventory (`docs/audits/STDIO_FORMAT_SPEC_INVENTORY_2026-05-15.md`) and pre-R5 baseline (`docs/baselines/PRE_R5_BASELINE_2026-05-15.md`). Inventory surfaced a scope correction: actual migration target is 23 files / ~624 callsites (not 18/600 as originally framed) because `include/rocketchip/config.h`'s old DBG_PRINT macros pulled `<stdio.h>` transitively into 5 files (most importantly `flight_director.cpp`'s 10 `[FD]` log lines that bench_sim regex parses).
