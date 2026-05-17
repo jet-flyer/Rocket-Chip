@@ -25,7 +25,7 @@
 #include "ao_notify.h"              // Stage L — AO_Notify_post_prearm_fail
 #include "ao_rcos.h"
 #include "cli/rc_os_debug.h"   // R-25-exec step 2: was dev/dev_cli.h
-#include <stdio.h>
+#include "rocketchip/rc_log.h"
 #include <string.h>
 
 // ============================================================================
@@ -83,53 +83,53 @@ rc_os_reset_mag_staleness_fn rc_os_reset_mag_staleness = nullptr;
 // Menu prompt — shows current context after each command
 static void print_prompt() {
     switch (g_menu) {
-        case RC_OS_MENU_MAIN:        printf("[main] "); break;
-        case RC_OS_MENU_CALIBRATION: printf("[cal] "); break;
-        case RC_OS_MENU_FLIGHT:      printf("[flight] "); break;
-        case RC_OS_MENU_DEBUG:       printf("[debug] "); break;
-        default:                     printf("> "); break;
+        case RC_OS_MENU_MAIN:        rc::rc_log("[main] "); break;
+        case RC_OS_MENU_CALIBRATION: rc::rc_log("[cal] "); break;
+        case RC_OS_MENU_FLIGHT:      rc::rc_log("[flight] "); break;
+        case RC_OS_MENU_DEBUG:       rc::rc_log("[debug] "); break;
+        default:                     rc::rc_log("> "); break;
     }
 }
 
 static void print_help_menu() {
-    printf("h-Help  p-Preflight  c-Calibration  f-Flight\n");
-    printf("g-Flights  d-Download  l-Flush  x-Erase\n");
-    printf("t-Radio  r-Rate  m-MAVLink  b-Beacon  q-Debug\n");
+    rc::rc_log("h-Help  p-Preflight  c-Calibration  f-Flight\n");
+    rc::rc_log("g-Flights  d-Download  l-Flush  x-Erase\n");
+    rc::rc_log("t-Radio  r-Rate  m-MAVLink  b-Beacon  q-Debug\n");
 }
 
 static void print_calibration_menu() {
     const calibration_store_t* cal = calibration_manager_get();
-    printf("\n========================================\n");
-    printf("  Calibration Menu\n");
-    printf("----------------------------------------\n");
-    printf("  Gyro:  %s\n", (cal->cal_flags & CAL_STATUS_GYRO) != 0 ? "OK" : "--");
+    rc::rc_log("\n========================================\n");
+    rc::rc_log("  Calibration Menu\n");
+    rc::rc_log("----------------------------------------\n");
+    rc::rc_log("  Gyro:  %s\n", (cal->cal_flags & CAL_STATUS_GYRO) != 0 ? "OK" : "--");
     if ((cal->cal_flags & CAL_STATUS_ACCEL_6POS) != 0) {
-        printf("  Accel: 6POS\n");
+        rc::rc_log("  Accel: 6POS\n");
     } else if ((cal->cal_flags & CAL_STATUS_LEVEL) != 0) {
-        printf("  Accel: LEVEL\n");
+        rc::rc_log("  Accel: LEVEL\n");
     } else {
-        printf("  Accel: --\n");
+        rc::rc_log("  Accel: --\n");
     }
-    printf("  Baro:  %s\n", (cal->cal_flags & CAL_STATUS_BARO) != 0 ? "OK" : "--");
-    printf("  Mag:   %s\n", (cal->cal_flags & CAL_STATUS_MAG) != 0 ? "OK" : "--");
-    printf("----------------------------------------\n");
-    printf("  g-Gyro (keep still)   l-Level (keep flat)\n");
-    printf("  b-Baro (ground ref)   a-Accel 6-position\n");
-    printf("  m-Compass             w-Full wizard\n");
-    printf("  r-Reset all           v-Save to flash\n");
-    printf("  h-Help                x/ESC-Back\n");
-    printf("========================================\n");
+    rc::rc_log("  Baro:  %s\n", (cal->cal_flags & CAL_STATUS_BARO) != 0 ? "OK" : "--");
+    rc::rc_log("  Mag:   %s\n", (cal->cal_flags & CAL_STATUS_MAG) != 0 ? "OK" : "--");
+    rc::rc_log("----------------------------------------\n");
+    rc::rc_log("  g-Gyro (keep still)   l-Level (keep flat)\n");
+    rc::rc_log("  b-Baro (ground ref)   a-Accel 6-position\n");
+    rc::rc_log("  m-Compass             w-Full wizard\n");
+    rc::rc_log("  r-Reset all           v-Save to flash\n");
+    rc::rc_log("  h-Help                x/ESC-Back\n");
+    rc::rc_log("========================================\n");
 }
 
 static void print_flight_menu() {
-    printf("\n========================================\n");
-    printf("  Flight Director Menu\n");
-    printf("========================================\n");
-    printf("  Commands:  a-ARM  d-DISARM  x-ABORT  r-RESET\n");
-    printf("  Events:    l-LAUNCH  b-BURNOUT  p-APOGEE\n");
-    printf("             m-MAIN    n-LANDING\n");
-    printf("  Info:      s-Status  h-Help  z/ESC-Back\n");
-    printf("========================================\n");
+    rc::rc_log("\n========================================\n");
+    rc::rc_log("  Flight Director Menu\n");
+    rc::rc_log("========================================\n");
+    rc::rc_log("  Commands:  a-ARM  d-DISARM  x-ABORT  r-RESET\n");
+    rc::rc_log("  Events:    l-LAUNCH  b-BURNOUT  p-APOGEE\n");
+    rc::rc_log("             m-MAIN    n-LANDING\n");
+    rc::rc_log("  Info:      s-Status  h-Help  z/ESC-Back\n");
+    rc::rc_log("========================================\n");
 }
 
 // Calibration UI driven by AO_RCOS cal_ui_tick() state machine (ao_rcos.cpp).
@@ -145,7 +145,7 @@ static bool handle_main_menu(int c) {
         case 'h':
         case 'H':
         case '?':
-            printf("\n--- Help ---\n");
+            rc::rc_log("\n--- Help ---\n");
             print_help_menu();
             break;
 
@@ -256,9 +256,9 @@ static bool handle_calibration_menu(int c) {
             }
             if (calibration_is_active()) {
                 calibration_cancel();
-                printf("\nCalibration cancelled.\n");
+                rc::rc_log("\nCalibration cancelled.\n");
             }
-            printf("Returning to main menu.\n");
+            rc::rc_log("Returning to main menu.\n");
             g_menu = RC_OS_MENU_MAIN;
             break;
 
@@ -320,7 +320,7 @@ static bool handle_flight_menu(int c) {
 
         // Return to main menu
         case 'z': case 'Z': case kEscChar:
-            printf("Returning to main menu.\n");
+            rc::rc_log("Returning to main menu.\n");
             g_menu = RC_OS_MENU_MAIN;
             break;
 
@@ -363,7 +363,7 @@ void rc_os_start_arm_confirm() {
     s_arm_buf_pos = 0;
     s_arm_start_ms = to_ms_since_boot(get_absolute_time());
     rc_os_dashboard_pause();
-    printf("Type ARM in caps then Enter to confirm (5s): ");
+    rc::rc_log("Type ARM in caps then Enter to confirm (5s): ");
 #endif
 }
 
@@ -376,7 +376,7 @@ static bool handle_mavlink_lockout(int c) {
         if (c == 27) {
             s_mavlinkDetected = false;
             AO_RCOS_set_output_mode(StationOutputMode::kMenu);
-            printf("\n[GCS mode exited]\n");
+            rc::rc_log("\n[GCS mode exited]\n");
             print_prompt();
         }
         return true;
@@ -390,7 +390,7 @@ static bool handle_mavlink_input(int c) {
     if (g_menu != RC_OS_MENU_MAIN) { return false; }
     if (c == 'm' || c == 'M') {
         AO_RCOS_set_output_mode(StationOutputMode::kMenu);
-        printf("\nMAVLink mode off. CLI active.\n");
+        rc::rc_log("\nMAVLink mode off. CLI active.\n");
         print_prompt();
         return true;
     }
@@ -416,7 +416,7 @@ static bool handle_usb_connect() {
         while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
         cli_print_boot_summary();
         if (!g_bannerPrinted) {
-            printf("\n");
+            rc::rc_log("\n");
             print_help_menu();
             g_bannerPrinted = true;
         }
@@ -435,7 +435,7 @@ static int handle_arm_confirm() {
 
     uint32_t now = to_ms_since_boot(get_absolute_time());
     if (now - s_arm_start_ms > 5000) {
-        printf("ARM aborted (timeout)\n");
+        rc::rc_log("ARM aborted (timeout)\n");
         s_arm_confirm_active = false;
         rc_os_dashboard_resume();
         print_prompt();
@@ -448,9 +448,9 @@ static int handle_arm_confirm() {
         if (s_arm_buf_pos == 3 &&
             s_arm_buf[0] == 'A' && s_arm_buf[1] == 'R' && s_arm_buf[2] == 'M') {
             AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 1.0f);
-            printf("[CMD] ARM sent, waiting for ACK...\n");
+            rc::rc_log("[CMD] ARM sent, waiting for ACK...\n");
         } else {
-            printf("ARM aborted (bad input: '%s')\n", s_arm_buf);
+            rc::rc_log("ARM aborted (bad input: '%s')\n", s_arm_buf);
         }
         s_arm_confirm_active = false;
         rc_os_dashboard_resume();
@@ -458,10 +458,10 @@ static int handle_arm_confirm() {
         return 1;
     }
     if (s_arm_buf_pos < 3) {
-        putchar(ac);
+        rc::rc_log("%c", ac);
         s_arm_buf[s_arm_buf_pos++] = static_cast<char>(ac);
     } else {
-        printf("ARM aborted (overflow)\n");
+        rc::rc_log("ARM aborted (overflow)\n");
         s_arm_confirm_active = false;
         rc_os_dashboard_resume();
         print_prompt();
