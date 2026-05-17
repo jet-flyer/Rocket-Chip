@@ -8,9 +8,9 @@
 
 #include "cal_hooks.h"
 #include "rocketchip/shared_state.h"
+#include "rocketchip/rc_log.h"
 #include "drivers/icm20948.h"
 #include "pico/stdlib.h"
-#include <stdio.h>
 
 // ============================================================================
 // Constants
@@ -74,10 +74,9 @@ bool cal_read_mag(float* mx, float* my, float* mz) {
     if (!snap.mag_valid) {
         g_magDiagNotValid++;
         if (g_magDiagNotValid == 1 || g_magDiagNotValid % kMagDiagPrintModulus == 0) {
-            (void)printf("  [mag_valid=false, mag_read_count=%lu, lastAccepted=%lu]\n",
-                        (unsigned long)snap.mag_read_count,
-                        (unsigned long)g_lastMagReadCount);
-            (void)fflush(stdout);
+            rc::rc_log("  [mag_valid=false, mag_read_count=%lu, lastAccepted=%lu]\n",
+                       (unsigned long)snap.mag_read_count,
+                       (unsigned long)g_lastMagReadCount);
         }
         return false;
     }
