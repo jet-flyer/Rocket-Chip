@@ -31,5 +31,4 @@
 #       cutoff for the allowlist's initial entries.
 
 src/active_objects/ao_rcos.cpp
-src/cli/rc_os_commands.cpp
 src/main.cpp

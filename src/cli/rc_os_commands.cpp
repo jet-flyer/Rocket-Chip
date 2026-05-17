@@ -33,7 +33,6 @@
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h"
 #include "rocketchip/radio_config_table.h"  // T5.5 sub 2c: SET cycle
-#include <stdio.h>  // 215 printf callsites; migrated to rc_log in Tier 5
 
 // MAVLink command IDs for station command menu (IVP-62c)
 // Values from common/common.h — avoids pulling full mavlink.h with packed struct warnings
@@ -496,16 +495,16 @@ static void print_cal_params() {
 // ============================================================================
 
 void cli_print_sensor_status() {
-    printf("\n========================================\n");
-    printf("  Sensor Readings (calibrated)\n");
-    printf("========================================\n");
+    rc::rc_log("\n========================================\n");
+    rc::rc_log("  Sensor Readings (calibrated)\n");
+    rc::rc_log("========================================\n");
 
     if (g_sensorPhaseActive) {
         shared_sensor_data_t snap = {};
         if (seqlock_read(&g_sensorSeqlock, &snap)) {
             print_seqlock_sensors(snap);
         } else {
-            printf("Seqlock read failed (retries exhausted)\n");
+            rc::rc_log("Seqlock read failed (retries exhausted)\n");
         }
     } else {
         print_direct_sensors();
@@ -521,7 +520,7 @@ void cli_print_sensor_status() {
         static constexpr const char* kWmmSrc[] = {"?", "default", "stored", "GPS"};
         uint8_t src = eskf_runner_get_wmm_source();
         rc::WmmField field = rc::wmm_get_field(wmmLat, wmmLon);
-        printf("WMM(%s): %.1f%c %.1f%c  D=%.1f%c I=%.1f%c F=%.1fuT\n",
+        rc::rc_log("WMM(%s): %.1f%c %.1f%c  D=%.1f%c I=%.1f%c F=%.1fuT\n",
                kWmmSrc[src < 4 ? src : 0],
                fabsf(wmmLat), wmmLat >= 0 ? 'N' : 'S',
                fabsf(wmmLon), wmmLon >= 0 ? 'E' : 'W',
@@ -530,10 +529,10 @@ void cli_print_sensor_status() {
                fabsf(field.inclination_rad * 180.0f / 3.14159265f),
                field.inclination_rad >= 0 ? 'D' : 'U',
                field.intensity_ut);
-        printf("Mag3D: %s", eskf_runner_mag_3d_active() ? "ON" : "OFF");
+        rc::rc_log("Mag3D: %s", eskf_runner_mag_3d_active() ? "ON" : "OFF");
         if (eskf_runner_mag_3d_active()) {
             const rc::ESKF* eskf = eskf_runner_get_eskf();
-            printf("  eM=[%.1f %.1f %.1f] bB=[%.1f %.1f %.1f]",
+            rc::rc_log("  eM=[%.1f %.1f %.1f] bB=[%.1f %.1f %.1f]",
                    static_cast<double>(eskf->earth_mag.x),
                    static_cast<double>(eskf->earth_mag.y),
                    static_cast<double>(eskf->earth_mag.z),
@@ -541,12 +540,12 @@ void cli_print_sensor_status() {
                    static_cast<double>(eskf->body_mag_bias.y),
                    static_cast<double>(eskf->body_mag_bias.z));
         }
-        printf("\n");
+        rc::rc_log("\n");
     } else {
-        printf("WMM: no position (waiting for GPS or default)\n");
+        rc::rc_log("WMM: no position (waiting for GPS or default)\n");
     }
 
-    printf("========================================\n\n");
+    rc::rc_log("========================================\n\n");
 }
 
 // ============================================================================
@@ -880,7 +879,7 @@ void cli_print_boot_summary() {
 // Full boot status — called by cli_print_boot_status() and 'b' key
 void cli_print_boot_status() {
     cli_print_boot_summary();
-    printf("\n");
+    rc::rc_log("\n");
     cli_print_hw_status();
 }
 
@@ -1418,17 +1417,17 @@ static void preflight_print_primary(const rc::HealthState* hs) {
     rc::HealthLevel eskf = rc::health_eskf(hs->primary);
     rc::HealthLevel gps  = rc::health_gps(hs->primary);
 
-    printf("IMU:      %s\n", is_go(imu)  ? "GO" : health_level_str(imu));
-    printf("Baro:     %s\n", is_go(baro) ? "GO" : health_level_str(baro));
-    printf("ESKF:     %s\n", is_go(eskf) ? "GO" : health_level_str(eskf));
+    rc::rc_log("IMU:      %s\n", is_go(imu)  ? "GO" : health_level_str(imu));
+    rc::rc_log("Baro:     %s\n", is_go(baro) ? "GO" : health_level_str(baro));
+    rc::rc_log("ESKF:     %s\n", is_go(eskf) ? "GO" : health_level_str(eskf));
 
     // GPS: show fix detail on non-GO
     if (is_go(gps)) {
-        printf("GPS:      GO\n");
+        rc::rc_log("GPS:      GO\n");
     } else {
         shared_sensor_data_t snap{};
         seqlock_read(&g_sensorSeqlock, &snap);
-        printf("GPS:      %s  fix=%u sats=%u\n",
+        rc::rc_log("GPS:      %s  fix=%u sats=%u\n",
                health_level_str(gps),
                static_cast<unsigned>(snap.gps_fix_type),
                static_cast<unsigned>(snap.gps_satellites));
@@ -1436,10 +1435,10 @@ static void preflight_print_primary(const rc::HealthState* hs) {
 }
 
 static void preflight_print_secondary(const rc::HealthState* hs) {
-    printf("Radio HW: %s\n", (hs->secondary & rc::kHealthRadioOk)    ? "GO" : "ABSENT");
-    printf("Flash:    %s\n", (hs->secondary & rc::kHealthFlashOk)    ? "GO" : "FAULT");
-    printf("Watchdog: %s\n", (hs->secondary & rc::kHealthWatchdogOk) ? "GO" : "FAULT");
-    printf("PIO WDT:  %s\n", (hs->secondary & rc::kHealthPioOk)      ? "GO" : "FAULT");
+    rc::rc_log("Radio HW: %s\n", (hs->secondary & rc::kHealthRadioOk)    ? "GO" : "ABSENT");
+    rc::rc_log("Flash:    %s\n", (hs->secondary & rc::kHealthFlashOk)    ? "GO" : "FAULT");
+    rc::rc_log("Watchdog: %s\n", (hs->secondary & rc::kHealthWatchdogOk) ? "GO" : "FAULT");
+    rc::rc_log("PIO WDT:  %s\n", (hs->secondary & rc::kHealthPioOk)      ? "GO" : "FAULT");
 }
 
 static void preflight_print_mcu_and_critical(const rc::HealthState* hs) {
@@ -1447,9 +1446,9 @@ static void preflight_print_mcu_and_critical(const rc::HealthState* hs) {
     shared_sensor_data_t snap{};
     seqlock_read(&g_sensorSeqlock, &snap);
     if (hs->mcu == rc::kHealthAbsent || snap.mcu_die_temp_c < -100.0F) {
-        printf("MCU temp: --- (sensor not ready)\n");
+        rc::rc_log("MCU temp: --- (sensor not ready)\n");
     } else {
-        printf("MCU temp: %s  %.1fC\n",
+        rc::rc_log("MCU temp: %s  %.1fC\n",
                health_level_str(hs->mcu),
                static_cast<double>(snap.mcu_die_temp_c));
     }
@@ -1458,18 +1457,18 @@ static void preflight_print_mcu_and_critical(const rc::HealthState* hs) {
     // warrant loud operator attention. Does NOT auto-abort; operator
     // must manually command abort if they decide to act on the flag.
     if (hs->critical != 0) {
-        printf("CRITICAL: ");
+        rc::rc_log("CRITICAL: ");
         if (hs->critical & rc::kHealthCriticalMcu) {
-            printf("MCU>=%.0fC ", static_cast<double>(rc::kMcuTempSafeModeC));
+            rc::rc_log("MCU>=%.0fC ", static_cast<double>(rc::kMcuTempSafeModeC));
         }
-        printf(" (manual abort recommended)\n");
+        rc::rc_log(" (manual abort recommended)\n");
     }
 }
 
 void cli_print_preflight() {
     const rc::HealthState* hs = rc::health_monitor_get_state();
 
-    printf("\n=== PREFLIGHT ===\n");
+    rc::rc_log("\n=== PREFLIGHT ===\n");
     preflight_print_primary(hs);
     preflight_print_secondary(hs);
     preflight_print_mcu_and_critical(hs);
@@ -1486,12 +1485,12 @@ void cli_print_preflight() {
         // Only surface the RF-specific stations — the others duplicate the
         // primary/secondary block above.
         if (strcmp(c.name, "RF Link") == 0) {
-            printf("RF Link:  %s\n", c.reason);
+            rc::rc_log("RF Link:  %s\n", c.reason);
         }
     }
 
-    printf("----------------\n");
-    printf("VERDICT:  %s\n", hs->go_nogo_ready ? "GO" : "NO-GO");
+    rc::rc_log("----------------\n");
+    rc::rc_log("VERDICT:  %s\n", hs->go_nogo_ready ? "GO" : "NO-GO");
 }
 
 void cli_handle_unhandled_key(int key) {
@@ -1517,7 +1516,7 @@ void cli_handle_unhandled_key(int key) {
             cmd_radio_config_cycle();
         } else if (AO_Radio_get_state()->initialized) {
             uint8_t newRate = AO_Telemetry_cycle_rate();
-            printf("[TX] Rate changed to %dHz\n", static_cast<int>(newRate));
+            rc::rc_log("[TX] Rate changed to %dHz\n", static_cast<int>(newRate));
         }
         break;
     case 'q': case 'Q':
@@ -1526,7 +1525,7 @@ void cli_handle_unhandled_key(int key) {
             // Sync probe — vehicle replies with current config in ACK's
             // extended payload. Station's ACK-handler prints "vehicle
             // config: BW=.. nav=.. SF=.. CR=..".
-            printf("[CMD] QUERY_RADIO_CONFIG sent, waiting for ACK...\n");
+            rc::rc_log("[CMD] QUERY_RADIO_CONFIG sent, waiting for ACK...\n");
             AO_Telemetry_send_tracked_command(kMavCmdQueryRadioConfig);
         }
         break;
@@ -1537,9 +1536,9 @@ void cli_handle_unhandled_key(int key) {
             const char* name = (mode == StationOutputMode::kAnsi) ? "ANSI" :
                                (mode == StationOutputMode::kCsv)  ? "CSV" : "MAVLink";
             if (mode == StationOutputMode::kAnsi) {
-                printf("\033[2J\033[H");
+                rc::rc_log("\033[2J\033[H");
             } else {
-                printf("\n[RX] Output: %s\n", name);
+                rc::rc_log("\n[RX] Output: %s\n", name);
             }
         }
         break;
@@ -1555,10 +1554,10 @@ void cli_handle_unhandled_key(int key) {
             // Capital X only (lowercase x is erase-flights in TX mode).
 #ifdef ROCKETCHIP_STAGE_T2_CHEAT
             stage_t2_queue_command(kMavCmdArmDisarm, 0.0f);
-            printf("[CMD] DISARM sent, waiting for ACK...\n");
+            rc::rc_log("[CMD] DISARM sent, waiting for ACK...\n");
 #else
             AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0f);
-            printf("[CMD] DISARM sent, waiting for ACK...\n");
+            rc::rc_log("[CMD] DISARM sent, waiting for ACK...\n");
 #endif
         }
         break;
@@ -1591,12 +1590,12 @@ void cmd_findme_beacon() {
         // Station — send beacon command to vehicle via tracked command (IVP-122
         // ACK protocol). cmd.param1 unused by MAV_CMD_USER_1 receiver.
         AO_Telemetry_send_tracked_command(kMavCmdBeacon, 0.0f);
-        printf("[CMD] find-me beacon command sent, waiting for ACK...\n");
+        rc::rc_log("[CMD] find-me beacon command sent, waiting for ACK...\n");
     } else {
         // Vehicle — publish directly to local AO_Notify.
         static QEvt s_findme_evt;
         s_findme_evt.sig = rc::SIG_BEACON_MANUAL;
         QActive_publish_(&s_findme_evt, AO_RCOS, AO_RCOS->prio);
-        printf("[CMD] find-me beacon ON (manual) — white 2Hz until state change\n");
+        rc::rc_log("[CMD] find-me beacon ON (manual) — white 2Hz until state change\n");
     }
 }
