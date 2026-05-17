@@ -60,7 +60,7 @@ void stage_t2_queue_command(uint16_t cmd, float p1) {
     g_t2_cmd = cmd;
     g_t2_p1 = p1;
     g_t2_pending = true;
-    printf("[STAGE_T2] queued cmd=%u pending fire on next vehicle RX\n", cmd);
+    rc::rc_log("[STAGE_T2] queued cmd=%u pending fire on next vehicle RX\n", cmd);
 }
 
 // Called from handle_rx_packet when a CCSDS nav packet decodes successfully.
@@ -72,7 +72,7 @@ void stage_t2_fire_pending_if_any() {
         uint16_t cmd = g_t2_cmd;
         float p1 = g_t2_p1;
         AO_Telemetry_send_tracked_command(cmd, p1);
-        printf("[STAGE_T2] fired cmd=%u on vehicle RX\n", cmd);
+        rc::rc_log("[STAGE_T2] fired cmd=%u on vehicle RX\n", cmd);
     }
 }
 #endif  // ROCKETCHIP_STAGE_T2_CHEAT
@@ -97,14 +97,14 @@ static void cmd_radio_config_cycle() {
     s_cycle_idx = (s_cycle_idx + 1) % rc::kRadioConfigTableSize;
     const auto& target = rc::kRadioConfigTable[s_cycle_idx];
 
-    printf("[CMD] SET_RADIO_CONFIG BW=%u nav=%u SF=%u CR=%u pwr=%u (idx %u/%u)\n",
-           static_cast<unsigned>(target.bw_khz),
-           static_cast<unsigned>(target.nav_rate_hz),
-           static_cast<unsigned>(target.sf),
-           static_cast<unsigned>(target.cr),
-           static_cast<unsigned>(target.power_dbm),
-           static_cast<unsigned>(s_cycle_idx),
-           static_cast<unsigned>(rc::kRadioConfigTableSize - 1));
+    rc::rc_log("[CMD] SET_RADIO_CONFIG BW=%u nav=%u SF=%u CR=%u pwr=%u (idx %u/%u)\n",
+               static_cast<unsigned>(target.bw_khz),
+               static_cast<unsigned>(target.nav_rate_hz),
+               static_cast<unsigned>(target.sf),
+               static_cast<unsigned>(target.cr),
+               static_cast<unsigned>(target.power_dbm),
+               static_cast<unsigned>(s_cycle_idx),
+               static_cast<unsigned>(rc::kRadioConfigTableSize - 1));
     // Params packed as floats: lroundf() on vehicle side for robust cast.
     AO_Telemetry_send_tracked_command(
         kMavCmdSetRadioConfig,
@@ -113,7 +113,7 @@ static void cmd_radio_config_cycle() {
         static_cast<float>(target.sf),
         static_cast<float>(target.cr),
         static_cast<float>(target.power_dbm));
-    printf("[CMD] SET_RADIO_CONFIG sent, waiting for ACK...\n");
+    rc::rc_log("[CMD] SET_RADIO_CONFIG sent, waiting for ACK...\n");
     // Station's own radio switch happens in ao_telemetry.cpp's ACK-match
     // path when ACK-accepted arrives for this command. No LOS watchdog yet
     // (sub 2d adds symmetric revert on vehicle side; a station-side LOS
@@ -143,6 +143,7 @@ static void cmd_radio_config_cycle() {
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 #include "pico/time.h"
+#include "rocketchip/rc_log.h"
 #include <math.h>
 
 // ============================================================================
