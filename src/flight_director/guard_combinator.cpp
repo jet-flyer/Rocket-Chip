@@ -7,7 +7,7 @@
 
 #include "guard_combinator.h"
 #include "flight_director.h"
-#include <cstdio>
+#include "rocketchip/rc_log.h"
 #include <cmath>
 
 namespace rc {
@@ -150,10 +150,8 @@ uint16_t combinator_set_evaluate(CombinatorSet* cs,
 
             if (lockout_clear_for_timer) {
                 c.fired = true;
-#ifndef ROCKETCHIP_HOST_TEST
-                printf("[FD] WARN: backup timer fired for signal %u\n",
-                       static_cast<unsigned>(c.signal));
-#endif
+                rc::rc_log("[FD] WARN: backup timer fired for signal %u\n",
+                           static_cast<unsigned>(c.signal));
                 return c.signal;
             }
         }

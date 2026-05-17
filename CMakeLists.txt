@@ -175,7 +175,7 @@ if(BUILD_TESTS)
         ${CMAKE_CURRENT_LIST_DIR}/src/flight_director
         ${CMAKE_CURRENT_LIST_DIR}/lib/qep
     )
-    target_link_libraries(rc_flight_director PUBLIC qep)
+    target_link_libraries(rc_flight_director PUBLIC qep rc_log)
     target_compile_definitions(rc_flight_director PUBLIC ROCKETCHIP_HOST_TEST=1)
 
     # ------------------------------------------------------------------
