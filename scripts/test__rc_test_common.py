@@ -480,18 +480,60 @@ def test_pre_commit_matrix_triggers() -> None:
         sys.path.insert(0, ci_dir)
     from pre_commit_matrix import match  # noqa: E402
 
+    # Policy 2026-05-16 (commit a40e7f5, council unanimous, LL Entry 40):
+    # ANY firmware-affecting path triggers FLIGHT_BENCH. STATION_SCOPE
+    # stays narrow (no SWD on Fruit Jam per DEBUG_PROBE_NOTES.md).
+
+    # Pure-doc / non-firmware: neither gate.
     ft, st = match(['README.md'])
     check('no trigger on unrelated', not ft and not st)
+
+    # Firmware path → flight bench (regardless of label).
     ft_f, st_f = match(['src/flight_director/flight_director.cpp'])
     check('flight_critical', ft_f and not st_f)
+
+    # Station-only path: NOW triggers flight (it's still firmware,
+    # all firmware is flight code per the policy) AND triggers station.
     ft_s, st_s = match(['src/station/main.cpp'])
-    check('station_only', not ft_s and st_s)
+    check('station_only_triggers_both', ft_s and st_s)
+
+    # Dashboard: both scopes.
     ft_d, st_d = match(['src/cli/rc_os_dashboard.cpp'])
     check('dashboard both scopes', ft_d and st_d)
-    ft_os, st_os = match(['src/cli/rc_os_commands.cpp'])
+
+    # rc_os_commands.cpp: flight (anything in src/ is firmware).
+    ft_os, _ = match(['src/cli/rc_os_commands.cpp'])
     check('rc_os_cpp flight_critical', ft_os)
+
+    # Root CMakeLists.txt: NOW triggers flight (build system can
+    # change the ELF — link order, compile flags, source list).
+    # Empirical motivator: Cubesat lived case where a
+    # target_link_libraries reorder changed init order.
     ft_c, st_c = match(['CMakeLists.txt'])
-    check('root cmake no gate', not ft_c and not st_c)
+    check('root cmake triggers flight', ft_c and not st_c)
+
+    # 8adab2d regression class — main.cpp + rc_log.h. Prior narrow
+    # regex would have returned False here; new regex catches it.
+    ft_8a, _ = match(['src/main.cpp', 'include/rocketchip/rc_log.h'])
+    check('main_cpp_rc_log_h_triggers (LL 39 regression class)', ft_8a)
+
+    # Gate-self-rot vector: scripts/hooks, scripts/ci, bench_sim.
+    # If these break, the gate's own behavior changes silently.
+    ft_h, _ = match(['scripts/hooks/pre-commit'])
+    check('hook_self_rot', ft_h)
+    ft_m, _ = match(['scripts/ci/pre_commit_matrix.py'])
+    check('matrix_self_rot', ft_m)
+    ft_b, _ = match(['scripts/bench_sim.py'])
+    check('bench_sim_self_rot', ft_b)
+
+    # Tests are exempt (host-ctest gate covers them).
+    ft_t, st_t = match(['test/test_command_handler.cpp'])
+    check('test_dir_exempt', not ft_t and not st_t)
+
+    # Pure-doc commit (typical R-5 doc-only ride-along).
+    ft_pd, st_pd = match(['docs/PROJECT_STATUS.md', 'CHANGELOG.md',
+                          'AGENT_WHITEBOARD.md'])
+    check('pure_doc_exempt', not ft_pd and not st_pd)
 
 
 # ---------------------------------------------------------------------------
