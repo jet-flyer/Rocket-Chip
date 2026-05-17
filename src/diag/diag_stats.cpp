@@ -128,19 +128,14 @@ static void dump_ao_queue(const char* name, QActive* ao) {
            name, depth, use_now, high_water);
 }
 
-extern "C" __attribute__((used))
-void diag_stats_dump() {
-    // T=0 precondition block always runs first — callers using this for
-    // ongoing snapshots just ignore redundant identity lines.
-    diag_stats_t0_preconditions();
-
-    rc::rc_log("\n=== Diagnostic Stats ===\n");
-
+static void dump_msp() {
     rc::rc_log("[MSP] initial=0x%08lx min=0x%08lx depth=%lu bytes\n",
            (unsigned long)s_mspInitial,
            (unsigned long)s_mspMin,
            (unsigned long)(s_mspInitial - s_mspMin));
+}
 
+static void dump_ao_queues() {
     rc::rc_log("[AO Queues]\n");
     dump_ao_queue("AO_Radio", AO_Radio);
     dump_ao_queue("AO_FlightDirector", AO_FlightDirector);
@@ -150,25 +145,27 @@ void diag_stats_dump() {
     dump_ao_queue("AO_Telemetry", AO_Telemetry);
     dump_ao_queue("AO_LedEngine", AO_LedEngine);
     dump_ao_queue("AO_RCOS", AO_RCOS);
+}
 
+static void dump_radio() {
     rc::rc_log("[Radio]\n");
     const RadioAoState* radio = AO_Radio_get_state();
-    if (radio != nullptr) {
-        rc::rc_log("  tx=%lu rx=%lu rx_crc_err=%lu tx_consec_fail=%u relay=%lu\n",
-               (unsigned long)radio->tx_count,
-               (unsigned long)radio->rx_count,
-               (unsigned long)radio->rx_crc_errors,
-               (unsigned)radio->tx_consec_fail,
-               (unsigned long)radio->relay_count);
-        if constexpr (job::kRole == job::DeviceRole::kStation) {
-            rc::rc_log("  last_rssi=%d dBm last_snr=%d dB\n",
-                   (int)radio->last_rx_rssi,
-                   (int)radio->last_rx_snr);
-        }
+    if (radio == nullptr) { return; }
+    rc::rc_log("  tx=%lu rx=%lu rx_crc_err=%lu tx_consec_fail=%u relay=%lu\n",
+           (unsigned long)radio->tx_count,
+           (unsigned long)radio->rx_count,
+           (unsigned long)radio->rx_crc_errors,
+           (unsigned)radio->tx_consec_fail,
+           (unsigned long)radio->relay_count);
+    if constexpr (job::kRole == job::DeviceRole::kStation) {
+        rc::rc_log("  last_rssi=%d dBm last_snr=%d dB\n",
+               (int)radio->last_rx_rssi,
+               (int)radio->last_rx_snr);
     }
+}
 
 #ifdef ROCKETCHIP_JOB_STATION
-    // IVP-132a: station-specific diagnostics
+static void dump_station_section() {
     rc::rc_log("[Station]\n");
     const RxTelemSnapshot* rx = AO_Telemetry_get_rx_state();
     if (rx != nullptr) {
@@ -183,16 +180,16 @@ void diag_stats_dump() {
            g_bestGpsValid.load() ? "YES" : "NO",
            (unsigned)g_bestGpsFix.satellites,
            (unsigned)g_bestGpsFix.fix_type);
+}
 
-    // T14b retry-stats per command class. Cumulative since boot.
-    // Columns: sent / first-try / retry-rescued / failed / total-retries
+static void dump_cmd_retry_stats() {
     rc::rc_log("[CmdRetryStats]\n");
     rc::rc_log("  %-8s %6s %6s %6s %6s %6s\n",
            "class", "sent", "1st", "retry", "fail", "retries");
     CmdRetryStatsLine stats[16];
     uint8_t n = AO_Telemetry_get_retry_stats(stats, 16);
     for (uint8_t i = 0; i < n; ++i) {
-        if (stats[i].sent == 0) { continue; }  // skip empty buckets
+        if (stats[i].sent == 0) { continue; }
         rc::rc_log("  %-8s %6lu %6lu %6lu %6lu %6lu\n",
                stats[i].name,
                (unsigned long)stats[i].sent,
@@ -201,20 +198,23 @@ void diag_stats_dump() {
                (unsigned long)stats[i].failed,
                (unsigned long)stats[i].total_retries_used);
     }
+}
 #endif
 
+static void dump_health() {
     rc::rc_log("[Health]\n");
     const rc::HealthState* h = rc::health_monitor_get_state();
-    if (h != nullptr) {
-        static constexpr const char* kLevelStr[] = {"abs", "FLT", "deg", "OK"};
-        rc::rc_log("  primary=0x%02x secondary=0x%02x critical=0x%02x mcu=%s go_nogo=%s\n",
-               (unsigned)h->primary,
-               (unsigned)h->secondary,
-               (unsigned)h->critical,
-               kLevelStr[static_cast<int>(h->mcu) & 0x03],
-               h->go_nogo_ready ? "READY" : "NOT_READY");
-    }
+    if (h == nullptr) { return; }
+    static constexpr const char* kLevelStr[] = {"abs", "FLT", "deg", "OK"};
+    rc::rc_log("  primary=0x%02x secondary=0x%02x critical=0x%02x mcu=%s go_nogo=%s\n",
+           (unsigned)h->primary,
+           (unsigned)h->secondary,
+           (unsigned)h->critical,
+           kLevelStr[static_cast<int>(h->mcu) & 0x03],
+           h->go_nogo_ready ? "READY" : "NOT_READY");
+}
 
+static void dump_sensors() {
     rc::rc_log("[Sensors]\n");
     shared_sensor_data_t snap;
     seqlock_read(&g_sensorSeqlock, &snap);
@@ -229,8 +229,7 @@ void diag_stats_dump() {
            (unsigned long)snap.gps_read_count,
            (unsigned long)snap.gps_error_count);
     rc::rc_log("  core1 loops=%lu\n", (unsigned long)snap.core1_loop_count);
-    // MCU die temp (Stage 16C IVP-142a) — sentinel -999 means sensor not
-    // yet captured on this boot; print '---' instead of a bogus number.
+    // MCU die temp sentinel -999 means not-yet-captured.
     if (snap.mcu_die_temp_c > -100.0F) {
         const uint32_t stuckN = rc::mcu_temp_stuck_count();
         const bool     stuck  = rc::mcu_temp_is_stuck();
@@ -242,15 +241,24 @@ void diag_stats_dump() {
     } else {
         rc::rc_log("  MCU temp=---\n");
     }
+}
 
-    // Ring-health observability (R-5 Unit E council 2026-05-16):
-    // surfaces rc_log ring overflow / high-water so soak scripts can
-    // detect when the ring is sized too small for the current burst
-    // pattern. Non-zero `dropped` means rc_log output has been lost.
+extern "C" __attribute__((used))
+void diag_stats_dump() {
+    diag_stats_t0_preconditions();
+    rc::rc_log("\n=== Diagnostic Stats ===\n");
+    dump_msp();
+    dump_ao_queues();
+    dump_radio();
+#ifdef ROCKETCHIP_JOB_STATION
+    dump_station_section();
+    dump_cmd_retry_stats();
+#endif
+    dump_health();
+    dump_sensors();
     rc::rc_log("[RcLog] dropped=%lu bytes  high_water=%lu bytes\n",
            (unsigned long)rc_log_dropped_bytes(),
            (unsigned long)rc_log_high_water());
-
     rc::rc_log("[Uptime] %lu ms\n",
            (unsigned long)to_ms_since_boot(get_absolute_time()));
     rc::rc_log("========================\n\n");

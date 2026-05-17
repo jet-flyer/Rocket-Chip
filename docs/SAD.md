@@ -549,8 +549,8 @@ The RP2350's dual Cortex-M33 cores enable clean separation via AMP (Asymmetric M
 **Core 0 (QV Scheduler + USB):**
 - QP/C QV cooperative scheduler dispatches 8 Active Objects by priority (the QV scheduler itself runs inside a bare-metal `QF_run` main loop)
 - Non-AO work (ESKF propagation, health tick, CLI poll) runs in the QV idle callback between AO dispatches
-- USB CDC serial (SDK-managed IRQ handlers registered on Core 0 by `stdio_init_all()`)
-- All `printf`/USB I/O guarded by `stdio_usb_connected()`
+- USB CDC serial (SDK-managed TinyUSB tud_task IRQ handlers registered on Core 0 by `stdio_init_all()`; the SDK's stdio_usb plumbing remains for input + TinyUSB integration even though all output now goes via direct `tud_cdc_write` from `rc::rc_log` / dashboard / telemetry — R-5 closure 2026-05-17)
+- All input polling guarded by `stdio_usb_connected()`
 
 **Core 1 (Sensor Sampling):**
 - Tight polling loop using `time_us_64()` for deterministic timing (not timer ISR — avoids ISR jitter)

@@ -196,70 +196,49 @@ static void init_usb() {
     stdio_set_translate_crlf(&stdio_usb, false);
 }
 
-static void init_early_hw() {
-    // Fault-recovery architecture (2026-05-14): confidence gate at boot must
-    // run BEFORE anything that could side-effect the .uninitialized_data
-    // sentinel or POWMAN_CHIP_RESET register state. test_mode_init() also
-    // reads .uninitialized_data but a different word — order between them
-    // doesn't matter, but both must precede any C++ static constructor that
-    // might touch SRAM in those regions. Per anomalous_boot.h, the gate
-    // sets snapshot state that downstream consumers (health monitor's
-    // brownout latch, baro auto-zero gate below in init_application())
-    // read via anomalous_boot_verdict() / anomalous_boot_brownout_detected().
+// Boot ordering helper: fault handlers + MPU + test-mode init. Must run
+// before any C++ static constructor that touches .uninitialized_data.
+static void init_fault_recovery() {
+    // Confidence gate FIRST — anomalous_boot_init reads .uninitialized_data
+    // sentinel + POWMAN_CHIP_RESET. Downstream baro auto-zero gate
+    // (init_application) consumes anomalous_boot_verdict().
     rc::anomalous_boot_init();
 
-    // Register fault handlers early (before any MPU config)
-    // Now using shared implementation from safety/fault_protection.h (OPT-IVP-01)
+    // Shared fault handlers (OPT-IVP-01) + MPU stack guard.
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, memmanage_fault_handler);
     exception_set_exclusive_handler(MEMMANAGE_EXCEPTION, memmanage_fault_handler);
     mpu_setup_stack_guard(reinterpret_cast<uint32_t>(&__StackBottom));
 
-    // R-25-exec: single-use read of the test-mode arm magic from
-    // .uninitialized_data SRAM. If the probe wrote kTestModeMagic before
-    // this boot, we capture s_magic_observed_at_boot=true and clear the
-    // SRAM so it can't accidentally re-arm on the next reboot. The flag
-    // itself stays false until test_mode_evaluate() confirms phase==kIdle
-    // and boot-time-window < kTestModeArmWindowMs.
+    // R-25-exec: latches probe-armed test mode + clears the SRAM magic.
     rc::test_mode_init();
+}
 
-    // Red LED GPIO init
+// Aggressive early GPS bring-up. MT3333 has a brief I2C slave window after
+// cold boot; init_sensors() later misses it by hundreds of ms. Grok triage.
+static void init_gps_early() {
+    g_i2cInitialized = i2c_bus_init();
+    if (!g_i2cInitialized) { return; }
+    g_gpsInitAttempted = true;
+    if (gps_pa1010d_init()) {
+        g_gpsInitialized = true;
+        bind_gps_i2c_backend();
+    }
+}
+
+static void init_early_hw() {
+    init_fault_recovery();
+
     gpio_init(board::kLedPin);
-    gpio_set_dir(board::kLedPin, true);  // GPIO_OUT
+    gpio_set_dir(board::kLedPin, true);
 
-    // Release shared peripheral RESET (Fruit Jam: GPIO 22 gates both
-    // ESP32-C6 and TLV320DAC3100 audio DAC). No-op on Feather.
-    // Must run before any I2C scan — without it, DAC NACKs and the
-    // bus looks empty even when wiring is correct.
+    // Fruit Jam: GPIO 22 gates ESP32-C6 + DAC. Must precede any I2C scan.
     board::board_release_peripheral_reset();
 
-    // Bring up I2C and send blind PMTK config to PA1010D GPS NOW, before
-    // the normal init_sensors() path. The MT3333 chipset on the PA1010D
-    // exposes a brief I2C slave window after cold boot; if no PMTK
-    // commands arrive in that window, it drops silent until full power
-    // cycle. The later init_sensors() probe-then-init flow misses that
-    // window by hundreds of milliseconds. Grok triage — the window is
-    // real and closes fast. gps_pa1010d_init() below does the blind
-    // PMTK dance and aggressive retry.
-    //
-    // If the early init succeeds, set g_gpsInitialized + function pointers
-    // here so init_sensors() later is a no-op for GPS.
-    g_i2cInitialized = i2c_bus_init();
-    if (g_i2cInitialized) {
-        g_gpsInitAttempted = true;
-        if (gps_pa1010d_init()) {
-            g_gpsInitialized = true;
-            bind_gps_i2c_backend();
-        }
-    }
+    init_gps_early();
 
-    // NeoPixel init
     g_neopixelInitialized = ws2812_status_init(pio0, kNeoPixelPin,
                                                 board::kNeoPixelCount);
-
-    // MCU die-temperature sensor — on-die ADC ch 4, available on every
-    // RP2350 variant. Captured ~1 Hz by the sensor paths on both roles.
-    // Stage 16C IVP-142a.
-    (void)rc::mcu_temp_init();
+    (void)rc::mcu_temp_init();  // Stage 16C IVP-142a
 }
 
 static void init_peripherals() {
@@ -360,84 +339,68 @@ static void init_pio_safety() {
     rc::pyro_edge_logger_init(kPioDroguePin, kPioMainPin);
 }
 
-static void init_application() {
-    init_rc_os_hooks();
-
-    // Signal Core 1 to start sensor phase — Vehicle only.
-    // Station/Relay have no sensors on Core 1. Keep I2C available for GPS.
+// Vehicle: signal Core 1 to start sensor phase + wait for lockout.
+// Station/Relay: Core 1 stays idle, init station_idle_tick if RX role.
+static void init_core1_role() {
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         g_sensorPhaseActive = true;
         g_startSensorPhase.store(true, std::memory_order_release);
-        rc_os_i2c_scan_allowed = false;  // LL Entry 23: prevent CLI I2C scan
-
-        // Wait for Core 1 to call multicore_lockout_victim_init() — required
-        // before any flash_safe_execute() call.
+        rc_os_i2c_scan_allowed = false;  // LL Entry 23
+        // Wait for Core 1's multicore_lockout_victim_init() (required for
+        // any flash_safe_execute() to follow).
         while (!g_core1LockoutReady.load(std::memory_order_acquire)) {
             sleep_ms(1);
         }
     } else {
-        // Station/Relay: Core 1 idle, I2C scan allowed, no sensor phase
         rc_os_i2c_scan_allowed = true;
-        // Stage 16C IVP-140: station-role Core 0 periodic work lives in the
-        // idle bridge. Init state here; tick fires from qv_idle_bridge().
         if constexpr (kRadioModeRx) {
-            rc::station_idle_tick_init();
+            rc::station_idle_tick_init();  // Stage 16C IVP-140
         }
     }
+}
 
-    // PSRAM flash-safe test (deferred from init_hardware).
-    // Core 1 has called multicore_lockout_victim_init(),
-    // so flash_safe_execute() is safe to use.
-    if (g_psramSize > 0 && g_psramSelfTestPassed) {
-        g_psramFlashSafePassed = rc::psram_flash_safe_test();
-    }
-
-    // Auto-calibrate baro ground reference at boot.
-    // Blocks until complete (~1s at 32Hz DPS310 rate) so cal state returns
-    // to IDLE before AO_RCOS starts. Without this wait, g_calState stays at
-    // CAL_STATE_COMPLETE and subsequent cal triggers fail with BUSY.
-    //
-    // Fault-recovery architecture (2026-05-14): suppressed when the
-    // anomalous-boot gate returned PROBABLY_MID_FLIGHT. Auto-zeroing baro
-    // at altitude during an in-flight reboot would set the wrong ground
-    // reference and cause main parachute deploy at the wrong altitude on
-    // the remaining descent. Operator must clear the latch (forcing the
-    // verdict gate to re-evaluate on next boot, ideally after physical
-    // inspection) before baro re-zero is allowed. The stored ground
-    // reference from the previous good boot remains in flash unchanged.
+// Auto-zero baro ground reference, suppressed if anomalous-boot gate
+// returned PROBABLY_MID_FLIGHT (re-zero at altitude during an in-flight
+// reboot would cause main deploy at the wrong altitude).
+static void init_baro_auto_zero() {
+    if (!g_baroContinuous) { return; }
     const rc::BootVerdict boot_verdict = rc::anomalous_boot_verdict();
-    if (g_baroContinuous && boot_verdict == rc::BootVerdict::kProbablyOnPad) {
+    if (boot_verdict == rc::BootVerdict::kProbablyOnPad) {
         calibration_start_baro();
-        // Wait for Core 1 to feed enough baro samples (~32 at 32Hz = ~1s)
         while (calibration_is_active()) {
             sleep_ms(50);
         }
         calibration_reset_state();
-    } else if (g_baroContinuous) {
-        // PROBABLY_MID_FLIGHT — log explicitly so the operator sees that
-        // baro auto-zero was skipped intentionally and the prior ground
-        // reference is still in use.
-        const rc::BootSignals& sig = rc::anomalous_boot_signals();
-        DBG_PRINT("BOOT: auto-zero-baro SUPPRESSED (verdict=%s sentinel=%d "
-                  "non_por=%d bor=%d prior_uptime_ms=%lu)",
-                  rc::anomalous_boot_verdict_name(),
-                  static_cast<int>(sig.sentinel_was_set),
-                  static_cast<int>(sig.had_any_non_por),
-                  static_cast<int>(sig.had_bor),
-                  static_cast<unsigned long>(sig.prior_uptime_ms));
+        return;
+    }
+    // PROBABLY_MID_FLIGHT — log so the operator sees baro auto-zero was
+    // skipped and the prior ground reference remains in use.
+    const rc::BootSignals& sig = rc::anomalous_boot_signals();
+    DBG_PRINT("BOOT: auto-zero-baro SUPPRESSED (verdict=%s sentinel=%d "
+              "non_por=%d bor=%d prior_uptime_ms=%lu)",
+              rc::anomalous_boot_verdict_name(),
+              static_cast<int>(sig.sentinel_was_set),
+              static_cast<int>(sig.had_any_non_por),
+              static_cast<int>(sig.had_bor),
+              static_cast<unsigned long>(sig.prior_uptime_ms));
+}
+
+static void init_application() {
+    init_rc_os_hooks();
+    init_core1_role();
+
+    // PSRAM flash-safe test (deferred until Core 1 lockout is ready).
+    if (g_psramSize > 0 && g_psramSelfTestPassed) {
+        g_psramFlashSafePassed = rc::psram_flash_safe_test();
     }
 
-    // Initialize ESKF runner with mission profile and event log callback.
+    init_baro_auto_zero();
+
     eskf_runner_init(&rc::kDefaultRocketProfile,
                      [](uint8_t id, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3) {
                          AO_Logger_log_event(static_cast<rc::LogEventId>(id), d0, d1, d2, d3);
                      });
 
-    // SDK hardware watchdog removed from production (IVP-90, 2026-03-29).
-    // Watchdog recovery machinery removed 2026-04-22. PIO heartbeat
-    // watchdog (init_pio_safety) is the sole health monitor — sets IRQ
-    // flag on timeout, never resets the chip. No automatic MCU reset,
-    // ever, without user command.
     init_pio_safety();
 }
 

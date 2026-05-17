@@ -193,142 +193,59 @@ void format_string(etl::istring& out, const char* s, const ParsedSpec& spec) {
 //   5. Format "[-]integer.0Npaddedfractional" then apply width/alignment.
 //
 // NaN / Inf are emitted as "nan" / "inf" / "-inf" (libc convention).
-void format_float(etl::istring& out, double value, const ParsedSpec& spec) {
-    uint32_t prec = spec.has_precision ? spec.precision : 6U;  // libc default
-
-    // NaN / Inf handling matches libc printf
+// Append a NaN/Inf string with width padding. Returns true if the value
+// was special (and was rendered); false otherwise.
+bool emit_float_special(etl::istring& out, double value, const ParsedSpec& spec) {
+    const char* s = nullptr;
     if (isnan(value)) {
-        // Apply width to "nan" string
-        const char* s = "nan";
-        size_t pad = (spec.width > 3U) ? (spec.width - 3U) : 0U;
-        if (spec.left_align) {
-            out.append(s, 3);
-            for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
-        } else {
-            for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
-            out.append(s, 3);
-        }
-        return;
-    }
-    if (isinf(value)) {
+        s = "nan";
+    } else if (isinf(value)) {
         bool neg = (value < 0.0);
-        const char* s = neg ? "-inf" : (spec.force_sign ? "+inf" : (spec.space_sign ? " inf" : "inf"));
-        size_t slen = strlen(s);
-        size_t pad = (spec.width > slen) ? (spec.width - slen) : 0U;
-        if (spec.left_align) {
-            out.append(s, slen);
-            for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
-        } else {
-            for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
-            out.append(s, slen);
-        }
-        return;
-    }
-
-    // Sign detection. signbit() correctly returns true for -0.0 (unlike
-    // value < 0.0, which is false for negative zero).
-    bool neg = signbit(value);
-    double abs_v = neg ? -value : value;
-
-    // Build the rendered string into a small scratch buffer; apply width
-    // padding when we copy to out.
-    char tmp[64];
-    size_t tmp_len = 0U;
-
-    // Sign char
-    if (neg) {
-        tmp[tmp_len++] = '-';
-    } else if (spec.force_sign) {
-        tmp[tmp_len++] = '+';
-    } else if (spec.space_sign) {
-        tmp[tmp_len++] = ' ';
-    }
-
-    // Scale fractional part to integer form: floor(abs_v * 10^prec)
-    // Then add 0.5-equivalent via nearbyint for round-half-to-even.
-    double scale = 1.0;
-    for (uint32_t i = 0; i < prec; ++i) { scale *= 10.0; }
-    double scaled = abs_v * scale;
-    // nearbyint() uses the current rounding mode, default FE_TONEAREST
-    // which IS round-half-to-even per IEEE 754 / C99 §7.12.9.3. This
-    // matches libc printf's behavior exactly.
-    double rounded = nearbyint(scaled);
-
-    // Split into integer + fractional digits.
-    // Use unsigned 64-bit to hold the value safely up to ~10^18.
-    unsigned long long int_part;
-    unsigned long long frac_part;
-    if (prec == 0U) {
-        int_part = static_cast<unsigned long long>(rounded);
-        frac_part = 0U;
+        s = neg ? "-inf" : (spec.force_sign ? "+inf" : (spec.space_sign ? " inf" : "inf"));
     } else {
-        // integer.fractional split: divide by 10^prec
-        unsigned long long combined = static_cast<unsigned long long>(rounded);
-        unsigned long long denom = 1U;
-        for (uint32_t i = 0; i < prec; ++i) { denom *= 10U; }
-        int_part = combined / denom;
-        frac_part = combined % denom;
+        return false;
     }
-
-    // Render integer part. Manually convert digits (no allocations).
-    char int_digits[24];
-    size_t int_len = 0U;
-    if (int_part == 0U) {
-        int_digits[int_len++] = '0';
+    size_t slen = strlen(s);
+    size_t pad = (spec.width > slen) ? (spec.width - slen) : 0U;
+    if (spec.left_align) {
+        out.append(s, slen);
+        for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
     } else {
-        unsigned long long v = int_part;
-        while (v > 0U) {
-            int_digits[int_len++] = static_cast<char>('0' + (v % 10U));
-            v /= 10U;
-        }
-        // Reverse
-        for (size_t i = 0; i < int_len / 2; ++i) {
-            char t = int_digits[i];
-            int_digits[i] = int_digits[int_len - 1 - i];
-            int_digits[int_len - 1 - i] = t;
-        }
+        for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+        out.append(s, slen);
     }
-    if (tmp_len + int_len < sizeof(tmp)) {
-        memcpy(&tmp[tmp_len], int_digits, int_len);
-        tmp_len += int_len;
-    }
+    return true;
+}
 
-    // Decimal point + fractional digits (only if precision > 0)
-    if (prec > 0U && tmp_len + 1U + prec < sizeof(tmp)) {
-        tmp[tmp_len++] = '.';
-        // Render fractional with leading zeros to `prec` width
-        char frac_digits[24];
-        size_t frac_len = 0U;
-        if (frac_part == 0U) {
-            frac_digits[frac_len++] = '0';
-        } else {
-            unsigned long long v = frac_part;
-            while (v > 0U) {
-                frac_digits[frac_len++] = static_cast<char>('0' + (v % 10U));
-                v /= 10U;
-            }
-            for (size_t i = 0; i < frac_len / 2; ++i) {
-                char t = frac_digits[i];
-                frac_digits[i] = frac_digits[frac_len - 1 - i];
-                frac_digits[frac_len - 1 - i] = t;
-            }
-        }
-        // Leading zeros if frac_len < prec
-        for (uint32_t i = 0; i < prec - frac_len; ++i) {
-            tmp[tmp_len++] = '0';
-        }
-        memcpy(&tmp[tmp_len], frac_digits, frac_len);
-        tmp_len += frac_len;
+// Convert an unsigned integer to ASCII digits in-buffer (little-endian),
+// reverse to MSD-first. Returns digit count. buf must be ≥ 24 bytes.
+size_t render_uint_digits(unsigned long long v, char* buf) {
+    size_t n = 0U;
+    if (v == 0U) {
+        buf[n++] = '0';
+        return n;
     }
+    while (v > 0U) {
+        buf[n++] = static_cast<char>('0' + (v % 10U));
+        v /= 10U;
+    }
+    for (size_t i = 0; i < n / 2; ++i) {
+        char t = buf[i];
+        buf[i] = buf[n - 1 - i];
+        buf[n - 1 - i] = t;
+    }
+    return n;
+}
 
-    // Apply width with alignment
+// Apply width padding + alignment when copying tmp[..tmp_len] into out.
+// pad_char='0' triggers libc-style sign-aware zero padding.
+void emit_padded(etl::istring& out, const char* tmp, size_t tmp_len, const ParsedSpec& spec) {
     size_t pad = (spec.width > tmp_len) ? (spec.width - tmp_len) : 0U;
     char pad_char = (spec.zero_pad && !spec.left_align) ? '0' : ' ';
     if (spec.left_align) {
         out.append(tmp, tmp_len);
         for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
     } else if (pad_char == '0' && tmp_len > 0 && (tmp[0] == '-' || tmp[0] == '+' || tmp[0] == ' ')) {
-        // Zero-pad goes AFTER the sign char to match libc behavior
         out.push_back(tmp[0]);
         for (size_t i = 0; i < pad; ++i) { out.push_back('0'); }
         out.append(tmp + 1, tmp_len - 1);
@@ -338,122 +255,130 @@ void format_float(etl::istring& out, double value, const ParsedSpec& spec) {
     }
 }
 
-// Format one printf-style conversion using a va_list-derived argument.
-// Returns false if the conversion char is unsupported (caller writes raw spec).
+void format_float(etl::istring& out, double value, const ParsedSpec& spec) {
+    uint32_t prec = spec.has_precision ? spec.precision : 6U;  // libc default
+    if (emit_float_special(out, value, spec)) { return; }
+
+    // signbit() returns true for -0.0 (value < 0.0 wouldn't). nearbyint
+    // uses FE_TONEAREST = round-half-to-even per C99 §7.12.9.3.
+    bool neg = signbit(value);
+    double abs_v = neg ? -value : value;
+    double scale = 1.0;
+    for (uint32_t i = 0; i < prec; ++i) { scale *= 10.0; }
+    double rounded = nearbyint(abs_v * scale);
+    unsigned long long combined = static_cast<unsigned long long>(rounded);
+    unsigned long long denom = 1U;
+    for (uint32_t i = 0; i < prec; ++i) { denom *= 10U; }
+    unsigned long long int_part = (prec == 0U) ? combined : (combined / denom);
+    unsigned long long frac_part = (prec == 0U) ? 0U : (combined % denom);
+
+    char tmp[64];
+    size_t tmp_len = 0U;
+    if (neg)                 { tmp[tmp_len++] = '-'; }
+    else if (spec.force_sign) { tmp[tmp_len++] = '+'; }
+    else if (spec.space_sign) { tmp[tmp_len++] = ' '; }
+
+    char int_digits[24];
+    size_t int_len = render_uint_digits(int_part, int_digits);
+    if (tmp_len + int_len < sizeof(tmp)) {
+        memcpy(&tmp[tmp_len], int_digits, int_len);
+        tmp_len += int_len;
+    }
+
+    if (prec > 0U && tmp_len + 1U + prec < sizeof(tmp)) {
+        tmp[tmp_len++] = '.';
+        char frac_digits[24];
+        size_t frac_len = render_uint_digits(frac_part, frac_digits);
+        for (uint32_t i = 0; i < prec - frac_len; ++i) { tmp[tmp_len++] = '0'; }
+        memcpy(&tmp[tmp_len], frac_digits, frac_len);
+        tmp_len += frac_len;
+    }
+
+    emit_padded(out, tmp, tmp_len, spec);
+}
+
+// Render one %c with width/alignment.
+void format_char_spec(etl::istring& out, va_list& args, const ParsedSpec& spec) {
+    char ch = static_cast<char>(va_arg(args, int));
+    size_t pad = (spec.width > 1U) ? (spec.width - 1U) : 0U;
+    if (spec.left_align) {
+        out.push_back(ch);
+        for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+    } else {
+        for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
+        out.push_back(ch);
+    }
+}
+
+// Pull a signed integer of the appropriate width per spec.length, then
+// format. Handles %d / %i (sign-extended).
+void format_signed_spec(etl::istring& out, va_list& args, const ParsedSpec& spec) {
+    switch (spec.length) {
+        case ParsedSpec::LengthMod::kLL:
+        case ParsedSpec::LengthMod::kZ:
+        case ParsedSpec::LengthMod::kT:
+        case ParsedSpec::LengthMod::kJ:
+            format_signed_int(out, va_arg(args, long long), spec);
+            break;
+        case ParsedSpec::LengthMod::kL:
+            format_signed_int(out, va_arg(args, long), spec);
+            break;
+        default:
+            format_signed_int(out, va_arg(args, int), spec);
+            break;
+    }
+}
+
+// Pull an unsigned integer per spec.length, format via etl::to_string with
+// `fmt`. Handles %u / %x / %X (the latter via caller-supplied hex flags).
+void format_unsigned_spec(etl::istring& out, va_list& args,
+                          const ParsedSpec& spec, const etl::format_spec& fmt) {
+    switch (spec.length) {
+        case ParsedSpec::LengthMod::kLL:
+            etl::to_string(va_arg(args, unsigned long long), out, fmt, true);
+            break;
+        case ParsedSpec::LengthMod::kL:
+            etl::to_string(va_arg(args, unsigned long), out, fmt, true);
+            break;
+        case ParsedSpec::LengthMod::kZ:
+            etl::to_string(static_cast<unsigned long>(va_arg(args, size_t)),
+                           out, fmt, true);
+            break;
+        default:
+            etl::to_string(va_arg(args, unsigned int), out, fmt, true);
+            break;
+    }
+}
+
+// Format one printf-style conversion. Returns false if the conversion char
+// is unsupported (caller writes the raw spec for visibility).
 bool format_conversion(etl::istring& out, const ParsedSpec& spec, va_list& args) {
     switch (spec.conversion) {
-        case 's': {
-            const char* s = va_arg(args, const char*);
-            format_string(out, s, spec);
+        case 's':
+            format_string(out, va_arg(args, const char*), spec);
             return true;
-        }
-        case 'c': {
-            int c = va_arg(args, int);
-            char ch = static_cast<char>(c);
-            // Width/alignment for %c
-            size_t pad = (spec.width > 1U) ? (spec.width - 1U) : 0U;
-            if (spec.left_align) {
-                out.push_back(ch);
-                for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
-            } else {
-                for (size_t i = 0; i < pad; ++i) { out.push_back(' '); }
-                out.push_back(ch);
-            }
+        case 'c':
+            format_char_spec(out, args, spec);
             return true;
-        }
         case 'd':
-        case 'i': {
-            // Sign-extended pull based on length modifier
-            switch (spec.length) {
-                case ParsedSpec::LengthMod::kLL: {
-                    long long v = va_arg(args, long long);
-                    format_signed_int(out, v, spec);
-                    break;
-                }
-                case ParsedSpec::LengthMod::kL: {
-                    long v = va_arg(args, long);
-                    format_signed_int(out, v, spec);
-                    break;
-                }
-                case ParsedSpec::LengthMod::kZ:
-                case ParsedSpec::LengthMod::kT:
-                case ParsedSpec::LengthMod::kJ: {
-                    // ssize_t / ptrdiff_t / intmax_t — fold to long long
-                    long long v = va_arg(args, long long);
-                    format_signed_int(out, v, spec);
-                    break;
-                }
-                default: {
-                    int v = va_arg(args, int);
-                    format_signed_int(out, v, spec);
-                    break;
-                }
-            }
+        case 'i':
+            format_signed_spec(out, args, spec);
             return true;
-        }
-        case 'u': {
-            etl::format_spec fmt = build_etl_spec(spec, false, false);
-            switch (spec.length) {
-                case ParsedSpec::LengthMod::kLL: {
-                    unsigned long long v = va_arg(args, unsigned long long);
-                    etl::to_string(v, out, fmt, true);
-                    break;
-                }
-                case ParsedSpec::LengthMod::kL: {
-                    unsigned long v = va_arg(args, unsigned long);
-                    etl::to_string(v, out, fmt, true);
-                    break;
-                }
-                case ParsedSpec::LengthMod::kZ: {
-                    size_t v = va_arg(args, size_t);
-                    etl::to_string(static_cast<unsigned long>(v), out, fmt, true);
-                    break;
-                }
-                default: {
-                    unsigned int v = va_arg(args, unsigned int);
-                    etl::to_string(v, out, fmt, true);
-                    break;
-                }
-            }
+        case 'u':
+            format_unsigned_spec(out, args, spec, build_etl_spec(spec, false, false));
             return true;
-        }
         case 'x':
         case 'X': {
             bool upper = (spec.conversion == 'X');
-            etl::format_spec fmt = build_etl_spec(spec, upper, !upper);
-            switch (spec.length) {
-                case ParsedSpec::LengthMod::kLL: {
-                    unsigned long long v = va_arg(args, unsigned long long);
-                    etl::to_string(v, out, fmt, true);
-                    break;
-                }
-                case ParsedSpec::LengthMod::kL: {
-                    unsigned long v = va_arg(args, unsigned long);
-                    etl::to_string(v, out, fmt, true);
-                    break;
-                }
-                case ParsedSpec::LengthMod::kZ: {
-                    size_t v = va_arg(args, size_t);
-                    etl::to_string(static_cast<unsigned long>(v), out, fmt, true);
-                    break;
-                }
-                default: {
-                    unsigned int v = va_arg(args, unsigned int);
-                    etl::to_string(v, out, fmt, true);
-                    break;
-                }
-            }
+            format_unsigned_spec(out, args, spec, build_etl_spec(spec, upper, !upper));
             return true;
         }
-        case 'f': {
-            double v = va_arg(args, double);
-            format_float(out, v, spec);
+        case 'f':
+            format_float(out, va_arg(args, double), spec);
             return true;
-        }
-        case '%': {
+        case '%':
             out.push_back('%');
             return true;
-        }
         default:
             return false;
     }
@@ -614,38 +539,38 @@ uint32_t rc_log_high_water(void) {
 }
 #endif
 
+// Handle one % spec at *p (caller skipped the '%'). Advances *p past the
+// conversion char. Returns true if the buffer overflowed and the caller's
+// loop should stop. args MUST be passed by reference so format_conversion's
+// va_arg calls advance the caller's iterator (mirrors format_conversion).
+bool handle_percent_token(etl::istring& out, const char** p, va_list& args) {
+    ParsedSpec spec = parse_spec(p);
+    if (spec.conversion == '\0') {
+        return buffer_append(out, "%", 1U);
+    }
+    if (!format_conversion(out, spec, args)) {
+        char tmp[3] = { '%', spec.conversion, '\0' };
+        if (buffer_append(out, tmp, 2U)) { return true; }
+    }
+    if (out.size() + kTruncMarkerLen >= out.capacity()) {
+        size_t avail = out.capacity() - out.size();
+        if (avail >= kTruncMarkerLen) {
+            out.append(kTruncMarker, kTruncMarkerLen);
+        }
+        return true;
+    }
+    return false;
+}
+
 // Shared parse+format loop for rc_log (CDC sink) and rc_snprintf (buf sink).
 void format_into(etl::istring& out, const char* fmt, va_list args) {
-    bool truncated = false;
     const char* p = fmt;
-    while (*p != '\0' && !truncated) {
+    while (*p != '\0') {
         if (*p == '%' && *(p + 1) != '\0') {
-            ++p;  // Skip '%'
-            ParsedSpec spec = parse_spec(&p);
-            if (spec.conversion == '\0') {
-                // Malformed spec — write '%' literal and continue
-                if (buffer_append(out, "%", 1U)) { truncated = true; break; }
-                continue;
-            }
-            bool ok = format_conversion(out, spec, args);
-            if (!ok) {
-                // Unsupported conversion — write the raw % + conv for visibility.
-                char tmp[3] = { '%', spec.conversion, '\0' };
-                if (buffer_append(out, tmp, 2U)) { truncated = true; break; }
-            }
-            // Truncation guard: if conversion overflowed the buffer beyond
-            // the marker reserve, the buffer is full.
-            if (out.size() + kTruncMarkerLen >= out.capacity()) {
-                size_t avail = out.capacity() - out.size();
-                if (avail >= kTruncMarkerLen) {
-                    out.append(kTruncMarker, kTruncMarkerLen);
-                }
-                truncated = true;
-                break;
-            }
+            ++p;
+            if (handle_percent_token(out, &p, args)) { break; }
         } else {
-            // Literal char (or trailing % with no spec, which is allowed: just emit %)
-            if (buffer_append(out, p, 1U)) { truncated = true; break; }
+            if (buffer_append(out, p, 1U)) { break; }
             ++p;
         }
     }

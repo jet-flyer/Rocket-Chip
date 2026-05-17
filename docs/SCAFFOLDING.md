@@ -97,6 +97,7 @@ rocketchip/
 │       ├── job_station.h          # Station role constants
 │       ├── job_relay.h            # Relay role constants
 │       ├── job_capabilities.h     # Role-scoped capability predicates (IVP-142c)
+│       ├── rc_log.h               # Log channel (rc_log) + buffer formatter (rc_snprintf) + strbuf (R-5, 2026-05-17)
 │       ├── ao_signals.h           # System-wide AO signal catalog + event structs
 │       ├── radio_scheduler.h      # Half-duplex TX-priority state machine
 │       ├── radio_config.h         # RadioConfig struct (from Mission Profile .cfg)
@@ -165,6 +166,9 @@ rocketchip/
 │   │   ├── flight_table.cpp/.h    # Flash flight table (dual-sector, CRC-32)
 │   │   ├── flash_flush.cpp/.h     # Flash flush engine (PSRAM→flash)
 │   │   └── psram_init.cpp/.h      # APS6404L PSRAM detection + QPI configuration
+│   │
+│   ├── log/                       # Project log channel (R-5, 2026-05-17)
+│   │   └── rc_log.cpp             # rc::rc_log + rc_snprintf + strbuf parser (rc_log.h)
 │   │
 │   ├── telemetry/                 # Telemetry (Stage 7 + 12A)
 │   │   └── telemetry_encoder.cpp/.h  # CCSDS + MAVLink v2 encoders
