@@ -63,19 +63,26 @@ These additional rules from JPL's standard are stretch goals for Pro tier:
 ### Code Classification
 
 All source files are classified by their role in the flight stack. Standards rigor
-scales with criticality — flight-critical code gets full JSF AV + JPL C enforcement,
-while ground-only code has relaxed rules for stdio and diagnostics.
+scales with criticality — flight-critical code gets full JSF AV + JPL C enforcement.
 
 **Same binary principle:** There is no compile-time flight flag. Flight and ground code
 coexist in the same binary. The flight state machine controls runtime access — when the
 system transitions from IDLE to ARMED, ground-only code paths (CLI, diagnostics, USB I/O)
 are locked out at runtime, not compiled out.
 
-| Classification | Standards Rigor | stdio | Runtime Lockout |
-|---------------|----------------|-------|----------------|
-| **Flight-Critical** | Full JSF AV + JPL C. No stdio except bounded `snprintf` with `sizeof()` | `snprintf` only (MISRA-C safe subset) | Always active |
-| **Flight-Support** | Full JSF AV. No stdio in hot path | None | Always active |
-| **Ground** | JSF AV with stdio relaxation. `printf`/`getchar` permitted behind `stdio_usb_connected()` guard | Permitted with guards | Locked out when state != IDLE |
+**stdio retired in src/*.cpp (2026-05-17, R-5 closure).** `<stdio.h>` is now banned project-
+wide by the pre-commit hook. All diagnostic output uses `rc::rc_log` / `rc::rc_snprintf` /
+`rc::strbuf` from `include/rocketchip/rc_log.h`. The "Ground stdio relaxation" tier that
+previously allowed `printf`/`getchar` in CLI code is retired. `getchar_timeout_us` and
+`stdio_usb_connected` come from `pico/stdio.h` (SDK header, not libc `<stdio.h>`) and
+remain available for input/connection-state polling — they do not invoke `<stdio.h>`'s
+implementation-defined behaviors.
+
+| Classification | Standards Rigor | Runtime Lockout |
+|---------------|----------------|----------------|
+| **Flight-Critical** | Full JSF AV + JPL C | Always active |
+| **Flight-Support** | Full JSF AV | Always active |
+| **Ground** | JSF AV | Locked out when state != IDLE |
 
 #### Current File Classification
 

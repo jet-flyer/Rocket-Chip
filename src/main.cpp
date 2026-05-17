@@ -75,7 +75,6 @@
 #include "hardware/exception.h"
 #include "hardware/watchdog.h"
 #include <atomic>
-#include <stdio.h>
 #include <string.h>
 #include <math.h>
 

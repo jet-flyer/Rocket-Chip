@@ -14,60 +14,33 @@ BUILD_DIR="${REPO_ROOT}/build"
 TOOLCHAIN="C:/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1"
 
 # ============================================================================
-# Gate 1: <stdio.h> no-new-include
+# Gate 1: <stdio.h> banned in src/*.cpp
 # ============================================================================
-# Per docs/decisions/STDIO_REPLACEMENT_PLAN.md, no new src/ .cpp file may
-# include <stdio.h>. Existing files that currently include it are listed in
-# scripts/hooks/stdio_allowlist.txt; as the R-5 dedicated sessions migrate
-# them, they come off the list. When the list is empty, the gate becomes
-# "no <stdio.h> anywhere in src/*.cpp."
-#
-# Independent of any tool availability — this gate runs even when the
-# toolchain checks below are skipped.
+# Allowlist mechanism retired 2026-05-17 per R-5 Unit J closure. No
+# src/*.cpp may include <stdio.h>. Use rc::rc_log / rc::rc_snprintf /
+# rc::strbuf instead (include/rocketchip/rc_log.h).
 
-STDIO_ALLOWLIST="${REPO_ROOT}/scripts/hooks/stdio_allowlist.txt"
 STAGED_CPP=$(git diff --cached --name-only --diff-filter=ACM \
     | grep -E '^src/.*\.cpp$')
 
-if [[ -n "${STAGED_CPP}" && -f "${STDIO_ALLOWLIST}" ]]; then
+if [[ -n "${STAGED_CPP}" ]]; then
     STDIO_VIOLATIONS=""
     for src in ${STAGED_CPP}; do
-        # Does the staged content include <stdio.h>?
         if git diff --cached -- "${src}" 2>/dev/null \
                 | grep -q '^\+.*#include.*<stdio\.h>'; then
-            HAS_STDIO=1
+            STDIO_VIOLATIONS="${STDIO_VIOLATIONS}${src}\n"
         elif git show ":${src}" 2>/dev/null | grep -q '^[[:space:]]*#include[[:space:]]*<stdio\.h>'; then
-            HAS_STDIO=1
-        else
-            HAS_STDIO=0
-        fi
-
-        if [[ ${HAS_STDIO} -eq 1 ]]; then
-            # Is the file on the allowlist?
-            if ! grep -qxF "${src}" "${STDIO_ALLOWLIST}"; then
-                STDIO_VIOLATIONS="${STDIO_VIOLATIONS}${src}\n"
-            fi
+            STDIO_VIOLATIONS="${STDIO_VIOLATIONS}${src}\n"
         fi
     done
 
     if [[ -n "${STDIO_VIOLATIONS}" ]]; then
         echo ""
-        echo "=== Pre-commit: <stdio.h> no-new-include gate ==="
-        echo ""
-        echo "The following staged file(s) include <stdio.h> but are NOT on the"
-        echo "allowlist (scripts/hooks/stdio_allowlist.txt):"
+        echo "=== Pre-commit: <stdio.h> banned in src/*.cpp ==="
         echo ""
         printf "  %b" "${STDIO_VIOLATIONS}"
         echo ""
-        echo "Per docs/decisions/STDIO_REPLACEMENT_PLAN.md, no new src/ .cpp may"
-        echo "include <stdio.h>. Use rc::rc_log, ETL (etl::to_string /"
-        echo "etl::format), or const char[] arrays instead. See"
-        echo "docs/STDIO_TO_RC_LOG_MIGRATION_GUIDE.md for the cheat-sheet."
-        echo ""
-        echo "If this <stdio.h> use is genuinely unavoidable, the allowlist may"
-        echo "be expanded with explicit user-cosigned commit-message"
-        echo "justification + corresponding PROBLEM_REPORTS.md entry."
-        echo ""
+        echo "Use rc::rc_log / rc::rc_snprintf / rc::strbuf (rocketchip/rc_log.h)."
         echo "Bypass only with repo-owner approval: git commit --no-verify"
         exit 1
     fi

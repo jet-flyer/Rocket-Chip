@@ -16,17 +16,18 @@ Serial debug output is essential during development for diagnosing timing issues
 
 ### Debug Macros
 
-Debug output uses direct `printf()` calls wrapped in macros that compile out for release builds.
+Debug output goes through `rc::rc_log` (project-owned bounded log channel,
+no `<stdio.h>`). Macros compile out in release builds.
 
 ```cpp
 // In include/rocketchip/config.h
 
 #ifdef DEBUG
     #include "pico/time.h"
-    #include <stdio.h>
-    #define DBG_PRINT(fmt, ...) printf("[%lu] " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
+    #include "rocketchip/rc_log.h"
+    #define DBG_PRINT(fmt, ...) rc::rc_log("[%lu] " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
     #define DBG_STATE(from, to) DBG_PRINT("State: %s -> %s", from, to)
-    #define DBG_ERROR(fmt, ...) printf("[%lu] ERROR: " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
+    #define DBG_ERROR(fmt, ...) rc::rc_log("[%lu] ERROR: " fmt "\n", (unsigned long)time_us_32(), ##__VA_ARGS__)
 #else
     #define DBG_PRINT(fmt, ...) ((void)0)
     #define DBG_STATE(from, to) ((void)0)
@@ -34,7 +35,8 @@ Debug output uses direct `printf()` calls wrapped in macros that compile out for
 #endif
 ```
 
-**Key file:** `include/rocketchip/config.h` - Macro definitions
+**Key files:** `include/rocketchip/config.h` (macro definitions), `include/rocketchip/rc_log.h` (rc_log API).
+`<stdio.h>` retired project-wide 2026-05-17 per R-5 Unit J closure.
 
 ### Build Configuration for DEBUG
 
@@ -234,7 +236,7 @@ During extended debugging sessions with multiple build-flash-test cycles, add a 
 ```cpp
 // In firmware — increment on EVERY rebuild during debug iteration
 static const char *kBuildTag = "IVP30-fix-3";
-printf("Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
+rc::rc_log("Build: %s (%s %s)\n", kBuildTag, __DATE__, __TIME__);
 ```
 
 **Always verify the build tag in serial output before starting a test cycle.** A 5-minute soak on the wrong binary is 5 minutes wasted. *(LL Entry 2)*
