@@ -20,13 +20,12 @@
 #include "flight_actions.h"
 #include "safety/health_monitor.h"   // IVP-107: health_eskf() for lockout
 #include "safety/crash_record.h"     // flight_in_progress_set/clear (fault-recovery 2026-05-14)
+#include "rocketchip/rc_log.h"
 #include <cmath>
 
 #ifndef ROCKETCHIP_HOST_TEST
     #include "pico/time.h"
-    #include <cstdio>
 #else
-    #include <cstdio>
     static uint32_t s_fake_time_ms = 0;
     static inline uint32_t to_ms_since_boot_stub() { return s_fake_time_ms; }
 #endif
@@ -85,9 +84,9 @@ static void enter_phase(FlightDirector* me, FlightPhase phase) {
 
 static void log_transition(const FlightDirector* me,
                             FlightPhase from, FlightPhase to) {
-    printf("[FD] %s -> %s\n",
-           flight_phase_name(from),
-           flight_phase_name(to));
+    rc::rc_log("[FD] %s -> %s\n",
+               flight_phase_name(from),
+               flight_phase_name(to));
 }
 
 // ============================================================================
@@ -285,7 +284,7 @@ static bool handle_main_descent_landing(FlightDirector* me,
     // ensures we don't auto-LAND mid-descent just because the ESKF crashed.
     if (rc::health_eskf(fused.health_primary) == rc::kHealthFault &&
         guard_evaluator_is_sustained(&me->guard_eval, GuardId::kBaroStationary)) {
-        printf("[FD] MAIN_DESCENT: ESKF fault + baro stationary -> LANDED\n");
+        rc::rc_log("[FD] MAIN_DESCENT: ESKF fault + baro stationary -> LANDED\n");
         flight_director_dispatch_signal(me, SIG_LANDING);
         return true;
     }
@@ -295,7 +294,7 @@ static bool handle_main_descent_landing(FlightDirector* me,
     // not a landing detector. Distress beacon for recovery.
     if (me->profile->descent_max_duration_ms > 0 &&
         elapsed >= me->profile->descent_max_duration_ms) {
-        printf("[FD] MAIN_DESCENT: max duration elapsed -> LANDED (distress)\n");
+        rc::rc_log("[FD] MAIN_DESCENT: max duration elapsed -> LANDED (distress)\n");
         if (me->beacon_cb) {
             me->beacon_cb();
         }
@@ -403,7 +402,7 @@ static QState state_armed(FlightDirector * const me, QEvt const * const e) {
             // Armed timeout — auto-disarm (Amendment #5)
             uint32_t elapsed = me->tick_ms - me->state.phase_entry_ms;
             if (elapsed >= me->profile->armed_timeout_ms) {
-                printf("[FD] ARMED timeout — auto-disarm\n");
+                rc::rc_log("[FD] ARMED timeout — auto-disarm\n");
                 return Q_TRAN(&state_idle);
             }
             return Q_HANDLED();
@@ -471,7 +470,7 @@ static QState state_coast(FlightDirector * const me, QEvt const * const e) {
             // Coast timeout — missed apogee fallback (Amendment #7)
             uint32_t elapsed = me->tick_ms - me->state.phase_entry_ms;
             if (elapsed >= me->profile->coast_timeout_ms) {
-                printf("[FD] Coast timeout — forced apogee\n");
+                rc::rc_log("[FD] Coast timeout — forced apogee\n");
                 // Fire drogue pyro on timeout-forced apogee (same as SIG_APOGEE)
                 if (me->profile->has_pyro) {
                     run_transition_actions(me, kTransitionFireDrogue,
@@ -501,7 +500,7 @@ static QState state_descent(FlightDirector * const me, QEvt const * const e) {
         case SIG_ABORT:
             // ABORT from DESCENT: no-op — chutes already deployed (Amendment #1)
             // Stay in current descent sub-state, don't transition to ABORT
-            printf("[FD] ABORT in DESCENT — ignored (chutes deployed)\n");
+            rc::rc_log("[FD] ABORT in DESCENT — ignored (chutes deployed)\n");
             return Q_HANDLED();
         default:
             break;
@@ -616,13 +615,13 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e) {
                 run_transition_actions(me, kTransitionFireDrogue,
                     action_count(kTransitionFireDrogue),
                     prev, FlightPhase::kAbort);
-                printf("[FD] ABORT from BOOST — drogue pyro intent\n");
+                rc::rc_log("[FD] ABORT from BOOST — drogue pyro intent\n");
             } else if (prev == FlightPhase::kCoast &&
                        me->profile->abort_fires_drogue_from_coast) {
                 run_transition_actions(me, kTransitionFireDrogue,
                     action_count(kTransitionFireDrogue),
                     prev, FlightPhase::kAbort);
-                printf("[FD] ABORT from COAST — drogue pyro intent\n");
+                rc::rc_log("[FD] ABORT from COAST — drogue pyro intent\n");
             }
             // ABORT from ARMED: no pyro action (still on pad)
             return Q_HANDLED();
@@ -634,7 +633,7 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e) {
             if (elapsed >= me->profile->abort_timeout_ms) {
                 if (me->state.markers.launch_ms == 0) {
                     // Pad abort: never launched — auto-return to IDLE
-                    printf("[FD] ABORT timeout (pad) — auto-IDLE\n");
+                    rc::rc_log("[FD] ABORT timeout (pad) — auto-IDLE\n");
                     return Q_TRAN(&state_idle);
                 }
                 // In-flight abort: activate beacon for recovery, stay in ABORT.
@@ -645,7 +644,7 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e) {
                     if (me->set_led_cb) {
                         me->set_led_cb(kLedPhaseBeacon);
                     }
-                    printf("[FD] ABORT timeout (in-flight) — beacon active\n");
+                    rc::rc_log("[FD] ABORT timeout (in-flight) — beacon active\n");
                 }
             }
             return Q_HANDLED();
