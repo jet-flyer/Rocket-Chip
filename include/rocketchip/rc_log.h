@@ -70,6 +70,22 @@ void rc_log(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 size_t rc_snprintf(char* buf, size_t n, const char* fmt, ...)
     __attribute__((format(printf, 3, 4)));
 
+// Append-format helper for composing multi-piece output into one buffer
+// (e.g. ANSI dashboard frame). Models Linux seq_file: sticky overflow,
+// no underflow risk, callers never compute (cap - pos) themselves.
+struct strbuf {
+    char*  buf;
+    size_t cap;
+    size_t pos;
+    bool   overflow;
+};
+
+void strbuf_init(strbuf* sb, char* buf, size_t cap);
+void strbuf_printf(strbuf* sb, const char* fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+inline size_t strbuf_len(const strbuf* sb) { return sb->pos; }
+inline bool   strbuf_overflowed(const strbuf* sb) { return sb->overflow; }
+
 }  // namespace rc
 
 // Drain the rc_log ring buffer to USB CDC. Non-blocking; only writes bytes

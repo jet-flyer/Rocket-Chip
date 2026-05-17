@@ -220,3 +220,102 @@ TEST(RcSnprintf, LiteralOnly) {
     size_t n = rc::rc_snprintf(buf, sizeof(buf), "literal text");
     EXPECT_EQ(std::string(buf, n), "literal text");
 }
+
+// ============================================================================
+// strbuf — append-format helper for multi-piece composition
+// ============================================================================
+
+TEST(StrBuf, SingleAppend) {
+    char buf[64];
+    rc::strbuf sb;
+    rc::strbuf_init(&sb, buf, sizeof(buf));
+    rc::strbuf_printf(&sb, "hello %s", "world");
+    EXPECT_EQ(std::string(sb.buf, sb.pos), "hello world");
+    EXPECT_FALSE(sb.overflow);
+}
+
+TEST(StrBuf, MultipleAppendsAccumulate) {
+    char buf[128];
+    rc::strbuf sb;
+    rc::strbuf_init(&sb, buf, sizeof(buf));
+    rc::strbuf_printf(&sb, "Alt: %.1f m\n", 12.5);
+    rc::strbuf_printf(&sb, "Sats: %u\n", 9U);
+    rc::strbuf_printf(&sb, "RSSI: %d dBm\n", -42);
+    EXPECT_EQ(std::string(sb.buf, sb.pos),
+              "Alt: 12.5 m\nSats: 9\nRSSI: -42 dBm\n");
+    EXPECT_FALSE(sb.overflow);
+}
+
+TEST(StrBuf, OverflowSetsStickyFlag) {
+    char buf[16];
+    rc::strbuf sb;
+    rc::strbuf_init(&sb, buf, sizeof(buf));
+    rc::strbuf_printf(&sb, "this is too long to fit in sixteen bytes");
+    EXPECT_TRUE(sb.overflow);
+    // Subsequent calls are no-ops
+    size_t pos_before = sb.pos;
+    rc::strbuf_printf(&sb, " more");
+    EXPECT_EQ(sb.pos, pos_before);
+    EXPECT_TRUE(sb.overflow);  // still set
+}
+
+TEST(StrBuf, OverflowOnAppendDoesNotCorruptPrior) {
+    char buf[16];
+    rc::strbuf sb;
+    rc::strbuf_init(&sb, buf, sizeof(buf));
+    rc::strbuf_printf(&sb, "ok ");
+    EXPECT_FALSE(sb.overflow);
+    EXPECT_EQ(std::string(sb.buf, sb.pos), "ok ");
+    // This append goes over capacity
+    rc::strbuf_printf(&sb, "this is way too long");
+    EXPECT_TRUE(sb.overflow);
+    // Prior content remains; NUL still there
+    EXPECT_EQ(sb.buf[sb.pos], '\0');
+}
+
+TEST(StrBuf, ZeroCapIsSafe) {
+    char buf[1] = {'X'};
+    rc::strbuf sb;
+    rc::strbuf_init(&sb, buf, 0U);
+    rc::strbuf_printf(&sb, "anything");
+    EXPECT_TRUE(sb.overflow);
+    EXPECT_EQ(buf[0], 'X');  // untouched
+}
+
+TEST(StrBuf, NullBufIsSafe) {
+    rc::strbuf sb;
+    rc::strbuf_init(&sb, nullptr, 64U);
+    rc::strbuf_printf(&sb, "anything");
+    // No segfault; overflow set
+    EXPECT_TRUE(sb.overflow);
+}
+
+TEST(StrBuf, InitNulsBuf) {
+    char buf[16] = {'A','B','C'};
+    rc::strbuf sb;
+    rc::strbuf_init(&sb, buf, sizeof(buf));
+    EXPECT_EQ(buf[0], '\0');
+    EXPECT_EQ(sb.pos, 0U);
+}
+
+TEST(StrBuf, MultiPieceDashboardComposition) {
+    // Mirrors the rc_os_dashboard build_frame pattern: 4 chunks of formatted
+    // output composed into one frame buffer. Each chunk produces output via
+    // strbuf_printf into the shared buf, pos accumulates.
+    char buf[512];
+    rc::strbuf sb;
+    rc::strbuf_init(&sb, buf, sizeof(buf));
+    rc::strbuf_printf(&sb, "=== Header %u ===\n", 1U);
+    rc::strbuf_printf(&sb, "State: %s   MET: %lu:%02lu.%lu\n",
+                      "IDLE", 3UL, 49UL, 0UL);
+    rc::strbuf_printf(&sb, "Alt: %7.1f m\n", -2.2);
+    rc::strbuf_printf(&sb, "RSSI: %d dBm\n", -31);
+    EXPECT_FALSE(sb.overflow);
+    EXPECT_EQ(std::string(sb.buf, sb.pos),
+              "=== Header 1 ===\n"
+              "State: IDLE   MET: 3:49.0\n"
+              "Alt:    -2.2 m\n"
+              "RSSI: -31 dBm\n");
+    // strbuf_len matches sb.pos
+    EXPECT_EQ(rc::strbuf_len(&sb), sb.pos);
+}

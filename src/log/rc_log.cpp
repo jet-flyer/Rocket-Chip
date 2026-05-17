@@ -702,6 +702,49 @@ size_t rc_snprintf(char* buf, size_t n, const char* fmt, ...) {
     return writable;
 }
 
+void strbuf_init(strbuf* sb, char* buf, size_t cap) {
+    sb->buf = buf;
+    sb->cap = cap;
+    sb->pos = 0U;
+    sb->overflow = (buf == nullptr || cap == 0U);
+    if (!sb->overflow) {
+        buf[0] = '\0';
+    }
+}
+
+void strbuf_printf(strbuf* sb, const char* fmt, ...) {
+    if (sb == nullptr) {
+        return;
+    }
+    if (sb->buf == nullptr || sb->cap == 0U) {
+        sb->overflow = true;
+        return;
+    }
+    if (sb->overflow) {
+        return;
+    }
+    if (sb->pos + 1U >= sb->cap) {
+        sb->overflow = true;
+        return;
+    }
+    etl::string<kRcSnprintfMaxBytes> work;
+    va_list args;
+    va_start(args, fmt);
+    format_into(work, fmt, args);
+    va_end(args);
+
+    size_t remaining = sb->cap - sb->pos - 1U;
+    size_t writable = (work.size() < remaining) ? work.size() : remaining;
+    if (writable > 0U) {
+        memcpy(sb->buf + sb->pos, work.data(), writable);
+        sb->pos += writable;
+    }
+    sb->buf[sb->pos] = '\0';
+    if (writable < work.size()) {
+        sb->overflow = true;
+    }
+}
+
 }  // namespace rc
 
 // ===========================================================================
