@@ -174,41 +174,41 @@ static void print_imu_status(const shared_sensor_data_t& snap) {
     if (snap.accel_valid) {
         float aMag = sqrtf(snap.accel_x*snap.accel_x + snap.accel_y*snap.accel_y
                            + snap.accel_z*snap.accel_z);
-        printf("Accel (m/s^2): X=%7.3f Y=%7.3f Z=%7.3f |A|=%.3f\n",
+        rc::rc_log("Accel (m/s^2): X=%7.3f Y=%7.3f Z=%7.3f |A|=%.3f\n",
                (double)snap.accel_x, (double)snap.accel_y, (double)snap.accel_z,
                (double)aMag);
     } else {
-        printf("Accel: invalid\n");
+        rc::rc_log("Accel: invalid\n");
     }
     if (snap.gyro_valid) {
-        printf("Gyro  (rad/s): X=%7.4f Y=%7.4f Z=%7.4f\n",
+        rc::rc_log("Gyro  (rad/s): X=%7.4f Y=%7.4f Z=%7.4f\n",
                (double)snap.gyro_x, (double)snap.gyro_y, (double)snap.gyro_z);
     } else {
-        printf("Gyro: invalid\n");
+        rc::rc_log("Gyro: invalid\n");
     }
     if (snap.mag_valid) {
         float magMag = sqrtf(snap.mag_x*snap.mag_x + snap.mag_y*snap.mag_y + snap.mag_z*snap.mag_z);
-        printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f  |M|=%.1f\n",
+        rc::rc_log("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f  |M|=%.1f\n",
                (double)snap.mag_x, (double)snap.mag_y, (double)snap.mag_z, (double)magMag);
         float heading = atan2f(-snap.mag_y, snap.mag_x) * kRadToDeg;
         if (heading < 0.0F) { heading += kFullCircleDeg; }
-        printf("Heading: %.1f deg (level only)\n", (double)heading);
+        rc::rc_log("Heading: %.1f deg (level only)\n", (double)heading);
     } else {
-        printf("Mag: not ready\n");
+        rc::rc_log("Mag: not ready\n");
     }
     if (snap.baro_valid) {
         float alt = calibration_get_altitude_agl(snap.pressure_pa);
-        printf("Baro: %.1f Pa, %.2f C, AGL=%.2f m\n",
+        rc::rc_log("Baro: %.1f Pa, %.2f C, AGL=%.2f m\n",
                (double)snap.pressure_pa, (double)snap.baro_temperature_c,
                (double)alt);
     } else {
-        printf("Baro: no data yet\n");
+        rc::rc_log("Baro: no data yet\n");
     }
 }
 
 // NOLINTBEGIN(readability-magic-numbers) — ESKF P indices are state layout
 static void print_eskf_gates_and_diags() {
-    printf("      gate: bA=%lu/%lu mA=%lu/%lu mR=%lu gA=%lu/%lu zA=%lu/%lu\n",
+    rc::rc_log("      gate: bA=%lu/%lu mA=%lu/%lu mR=%lu gA=%lu/%lu zA=%lu/%lu\n",
            (unsigned long)g_eskf.baro_total_accepts_,
            (unsigned long)(g_eskf.baro_total_accepts_ + g_eskf.baro_total_rejects_),
            (unsigned long)g_eskf.mag_total_accepts_,
@@ -218,31 +218,31 @@ static void print_eskf_gates_and_diags() {
            (unsigned long)(g_eskf.gps_pos_total_accepts_ + g_eskf.gps_pos_total_rejects_),
            (unsigned long)g_eskf.zupt_total_accepts_,
            (unsigned long)(g_eskf.zupt_total_accepts_ + g_eskf.zupt_total_rejects_));
-    printf("      Pvel=%.4f,%.4f,%.4f  Pab=%.6f  Pgb=%.6f\n",
+    rc::rc_log("      Pvel=%.4f,%.4f,%.4f  Pab=%.6f  Pgb=%.6f\n",
            (double)g_eskf.P(6, 6), (double)g_eskf.P(7, 7), (double)g_eskf.P(8, 8),
            (double)g_eskf.P(9, 9), (double)g_eskf.P(12, 12));
     // 24-state inhibit flags + conditional extended state display
-    printf("      inhib: mag=%c wind=%c bbias=%c\n",
+    rc::rc_log("      inhib: mag=%c wind=%c bbias=%c\n",
            g_eskf.inhibit_mag_states_ ? 'Y' : 'N',
            g_eskf.inhibit_wind_states_ ? 'Y' : 'N',
            g_eskf.inhibit_baro_bias_ ? 'Y' : 'N');
     if (!g_eskf.inhibit_mag_states_) {
-        printf("      eMag=%.1f,%.1f,%.1f bMag=%.1f,%.1f,%.1f\n",
+        rc::rc_log("      eMag=%.1f,%.1f,%.1f bMag=%.1f,%.1f,%.1f\n",
                (double)g_eskf.earth_mag.x, (double)g_eskf.earth_mag.y,
                (double)g_eskf.earth_mag.z,
                (double)g_eskf.body_mag_bias.x, (double)g_eskf.body_mag_bias.y,
                (double)g_eskf.body_mag_bias.z);
     }
     if (!g_eskf.inhibit_wind_states_) {
-        printf("      wind=%.2f,%.2f m/s\n",
+        rc::rc_log("      wind=%.2f,%.2f m/s\n",
                (double)g_eskf.wind_n_, (double)g_eskf.wind_e_);
     }
     if (!g_eskf.inhibit_baro_bias_) {
-        printf("      bBias=%.3f m\n", (double)g_eskf.baro_bias_);
+        rc::rc_log("      bBias=%.3f m\n", (double)g_eskf.baro_bias_);
     }
     // Phase Q/R + confidence gate status
     if (g_eskf.phase_qr_) {
-        printf("      phQ: att=%.1f vel=%.1f  innov: b=%.2f m=%.2f gp=%.2f gv=%.2f\n",
+        rc::rc_log("      phQ: att=%.1f vel=%.1f  innov: b=%.2f m=%.2f gp=%.2f gv=%.2f\n",
                (double)g_eskf.q_active_.attitude,
                (double)g_eskf.q_active_.velocity,
                (double)g_eskf.innov_baro_.alpha,
@@ -251,7 +251,7 @@ static void print_eskf_gates_and_diags() {
                (double)g_eskf.innov_gps_vel_.alpha);
     }
     const rc::ConfidenceState* conf = eskf_runner_get_confidence();
-    printf("      conf=%c div=%.1f%c unc=%lums\n",
+    rc::rc_log("      conf=%c div=%.1f%c unc=%lums\n",
            conf->confident ? 'Y' : 'N',
            (double)conf->ahrs_divergence_deg,
            '\xb0',  // degree symbol — avoid raw char in printf format
@@ -268,10 +268,10 @@ static void print_eskf_status() {
         float patt = g_eskf.P(0, 0);
         if (g_eskf.P(1, 1) > patt) { patt = g_eskf.P(1, 1); }
         if (g_eskf.P(2, 2) > patt) { patt = g_eskf.P(2, 2); }
-        printf("ESKF: R=%6.2f P=%6.2f Y=%6.2f deg  Patt=%.4f  qnorm=%.6f\n",
+        rc::rc_log("ESKF: R=%6.2f P=%6.2f Y=%6.2f deg  Patt=%.4f  qnorm=%.6f\n",
                (double)rollDeg, (double)pitchDeg, (double)yawDeg,
                (double)patt, (double)g_eskf.q.norm());
-        printf("      vel=%.3f,%.3f,%.3f m/s  bNIS=%.2f mNIS=%.2f\n",
+        rc::rc_log("      vel=%.3f,%.3f,%.3f m/s  bNIS=%.2f mNIS=%.2f\n",
                (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z,
                (double)g_eskf.last_baro_nis_,
                (double)g_eskf.last_mag_nis_);
@@ -280,7 +280,7 @@ static void print_eskf_status() {
         if (eskf_runner_is_mahony_initialized() && mahony->healthy()) {
             rc::Vec3 meuler = mahony->q.to_euler();
             float mdivDeg = rc::MahonyAHRS::divergence_rad(g_eskf.q, mahony->q) * kRadToDeg;
-            printf("Mahony: R=%6.2f P=%6.2f Y=%6.2f deg  Mdiv=%.1f deg\n",
+            rc::rc_log("Mahony: R=%6.2f P=%6.2f Y=%6.2f deg  Mdiv=%.1f deg\n",
                    (double)(meuler.x * kRadToDeg),
                    (double)(meuler.y * kRadToDeg),
                    (double)(meuler.z * kRadToDeg),
@@ -292,24 +292,24 @@ static void print_eskf_status() {
             uint32_t benchAvg = 0, benchMin = 0, benchMax = 0, benchCount = 0;
             eskf_runner_get_bench(&benchAvg, &benchMin, &benchMax, &benchCount);
             if (benchCount > 0) {
-                printf("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
+                rc::rc_log("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
                        (unsigned long)benchAvg, (unsigned long)benchMin,
                        (unsigned long)benchMax, (unsigned long)benchCount);
             }
             uint32_t fAvg = 0, fMin = 0, fMax = 0, fCount = 0;
             eskf_runner_get_bench_full_tick(&fAvg, &fMin, &fMax, &fCount);
             if (fCount > 0) {
-                printf("      full-tick: %luus avg, %luus min, %luus max (%lu calls)\n",
+                rc::rc_log("      full-tick: %luus avg, %luus min, %luus max (%lu calls)\n",
                        (unsigned long)fAvg, (unsigned long)fMin,
                        (unsigned long)fMax, (unsigned long)fCount);
             }
         }
-        printf("      buf: %lu/%lu samples\n",
+        rc::rc_log("      buf: %lu/%lu samples\n",
                (unsigned long)eskf_runner_get_buffer_count(), (unsigned long)kEskfBufferSamples);
     } else if (g_eskfInitialized) {
-        printf("ESKF: UNHEALTHY (stopped, awaiting re-init)\n");
+        rc::rc_log("ESKF: UNHEALTHY (stopped, awaiting re-init)\n");
     } else {
-        printf("ESKF: waiting for stationary init...\n");
+        rc::rc_log("ESKF: waiting for stationary init...\n");
     }
 }
 
@@ -323,48 +323,48 @@ static void print_gps_status(const shared_sensor_data_t& snap) {
     }
     if (snap.gps_read_count > 0) {
         if (snap.gps_valid) {
-            printf("GPS (%s): %.7f, %.7f, %.1f m MSL\n",
+            rc::rc_log("GPS (%s): %.7f, %.7f, %.1f m MSL\n",
                    gpsLabel,
                    snap.gps_lat_1e7 / kGpsCoordScale,
                    snap.gps_lon_1e7 / kGpsCoordScale,
                    (double)snap.gps_alt_msl_m);
-            printf("     Fix=%u Sats=%u Speed=%.1f m/s HDOP=%.2f VDOP=%.2f\n",
+            rc::rc_log("     Fix=%u Sats=%u Speed=%.1f m/s HDOP=%.2f VDOP=%.2f\n",
                    snap.gps_fix_type, snap.gps_satellites,
                    (double)snap.gps_ground_speed_mps,
                    (double)snap.gps_hdop, (double)snap.gps_vdop);
         } else {
-            printf("GPS (%s): no fix (%u sats)\n",
+            rc::rc_log("GPS (%s): no fix (%u sats)\n",
                    gpsLabel, snap.gps_satellites);
-            printf("     RMC=%c GGA=%u GSA=%u",
+            rc::rc_log("     RMC=%c GGA=%u GSA=%u",
                    snap.gps_rmc_valid ? 'A' : 'V',
                    snap.gps_gga_fix,
                    snap.gps_gsa_fix_mode);
             if (g_gpsTransport == GPS_TRANSPORT_UART) {
-                printf("  rxOvf=%lu",
+                rc::rc_log("  rxOvf=%lu",
                        (unsigned long)gps_uart_get_overflow_count());
             }
-            printf("\n");
+            rc::rc_log("\n");
             if (g_bestGpsValid.load(std::memory_order_relaxed)) {
-                printf("     Best: %.7f, %.7f  Sats=%u HDOP=%.2f\n",
+                rc::rc_log("     Best: %.7f, %.7f  Sats=%u HDOP=%.2f\n",
                        g_bestGpsFix.lat_1e7 / kGpsCoordScale,
                        g_bestGpsFix.lon_1e7 / kGpsCoordScale,
                        g_bestGpsFix.satellites,
                        (double)g_bestGpsFix.hdop);
             } else if (snap.gps_lat_1e7 != 0 || snap.gps_lon_1e7 != 0) {
-                printf("     Last fix: %.7f, %.7f\n",
+                rc::rc_log("     Last fix: %.7f, %.7f\n",
                        snap.gps_lat_1e7 / kGpsCoordScale,
                        snap.gps_lon_1e7 / kGpsCoordScale);
             }
         }
     } else if (g_gpsInitialized) {
-        printf("GPS (%s): initialized, no reads yet\n", gpsLabel);
+        rc::rc_log("GPS (%s): initialized, no reads yet\n", gpsLabel);
     } else {
-        printf("GPS: not detected\n");
+        rc::rc_log("GPS: not detected\n");
     }
 }
 
 static void print_sensor_counts(const shared_sensor_data_t& snap) {
-    printf("Reads: I=%lu M=%lu B=%lu G=%lu  "
+    rc::rc_log("Reads: I=%lu M=%lu B=%lu G=%lu  "
            "Errors: I=%lu B=%lu G=%lu\n",
            (unsigned long)snap.imu_read_count,
            (unsigned long)snap.mag_read_count,
@@ -375,14 +375,14 @@ static void print_sensor_counts(const shared_sensor_data_t& snap) {
            (unsigned long)snap.gps_error_count);
     if (AO_Logger_is_initialized()) {
         const rc::RingBuffer* ring = AO_Logger_get_ring();
-        printf("  Log: %lu frames stored, %lu capacity\n",
+        rc::rc_log("  Log: %lu frames stored, %lu capacity\n",
                (unsigned long)rc::ring_stored_count(ring),
                (unsigned long)rc::ring_capacity_frames(ring));
     }
     {
         const rc::FlightTableState* ft = AO_Logger_get_flight_table();
         if (ft->loaded) {
-            printf("  Flash: %lu flights, %.1f%% used\n",
+            rc::rc_log("  Flash: %lu flights, %.1f%% used\n",
                    (unsigned long)rc::flight_table_count(ft),
                    static_cast<double>(rc::flight_table_used_pct(ft)));
         }
@@ -410,9 +410,9 @@ static void print_direct_sensors() {
                                    &gx, &gy, &gz);
             calibration_apply_accel(data.accel.x, data.accel.y, data.accel.z,
                                     &ax, &ay, &az);
-            printf("Accel (m/s^2): X=%7.3f Y=%7.3f Z=%7.3f\n",
+            rc::rc_log("Accel (m/s^2): X=%7.3f Y=%7.3f Z=%7.3f\n",
                    (double)ax, (double)ay, (double)az);
-            printf("Gyro  (rad/s): X=%7.4f Y=%7.4f Z=%7.4f\n",
+            rc::rc_log("Gyro  (rad/s): X=%7.4f Y=%7.4f Z=%7.4f\n",
                    (double)gx, (double)gy, (double)gz);
             if (data.mag_valid) {
                 float mxCal = 0.0F;
@@ -421,69 +421,69 @@ static void print_direct_sensors() {
                 calibration_apply_mag(data.mag.x, data.mag.y, data.mag.z,
                                       &mxCal, &myCal, &mzCal);
                 float magMag = sqrtf(mxCal*mxCal + myCal*myCal + mzCal*mzCal);
-                printf("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f  |M|=%.1f\n",
+                rc::rc_log("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f  |M|=%.1f\n",
                        (double)mxCal, (double)myCal, (double)mzCal, (double)magMag);
                 float heading = atan2f(-myCal, mxCal) * kRadToDeg;
                 if (heading < 0.0F) { heading += kFullCircleDeg; }
-                printf("Heading: %.1f deg (level only)\n", (double)heading);
+                rc::rc_log("Heading: %.1f deg (level only)\n", (double)heading);
             } else {
-                printf("Mag: not ready\n");
+                rc::rc_log("Mag: not ready\n");
             }
-            printf("Temp: %.1f C\n", (double)data.temperature_c);
+            rc::rc_log("Temp: %.1f C\n", (double)data.temperature_c);
         } else {
-            printf("IMU: read failed\n");
+            rc::rc_log("IMU: read failed\n");
         }
     } else {
-        printf("IMU: not initialized\n");
+        rc::rc_log("IMU: not initialized\n");
     }
 
     if (g_baroContinuous) {
         baro_dps310_data_t bdata;
         if (baro_dps310_read(&bdata) && bdata.valid) {
             float alt = calibration_get_altitude_agl(bdata.pressure_pa);
-            printf("Baro: %.1f Pa, %.2f C, AGL=%.2f m\n",
+            rc::rc_log("Baro: %.1f Pa, %.2f C, AGL=%.2f m\n",
                    (double)bdata.pressure_pa, (double)bdata.temperature_c,
                    (double)alt);
         } else {
-            printf("Baro: read failed\n");
+            rc::rc_log("Baro: read failed\n");
         }
     } else {
-        printf("Baro: not initialized\n");
+        rc::rc_log("Baro: not initialized\n");
     }
 }
 
 static void print_cal_params() {
     const calibration_store_t* cal = calibration_manager_get();
     uint16_t flags = cal->cal_flags;
-    printf("  Cal Flags: 0x%04X [%s%s%s%s%s]\n", flags,
+    rc::rc_log("  Cal Flags: 0x%04X [%s%s%s%s%s]\n", flags,
            ((flags & CAL_STATUS_LEVEL) != 0) ? "Lv " : "",
            ((flags & CAL_STATUS_ACCEL_6POS) != 0) ? "6P " : "",
            ((flags & CAL_STATUS_GYRO) != 0) ? "Gy " : "",
            ((flags & CAL_STATUS_MAG) != 0) ? "Mg " : "",
            ((flags & CAL_STATUS_BARO) != 0) ? "Ba " : "");
-    printf("  Accel: off=[%.4f, %.4f, %.4f]\n",
+    rc::rc_log("  Accel: off=[%.4f, %.4f, %.4f]\n",
            (double)cal->accel.offset.x, (double)cal->accel.offset.y,
            (double)cal->accel.offset.z);
-    printf("         scl=[%.4f, %.4f, %.4f]\n",
+    rc::rc_log("         scl=[%.4f, %.4f, %.4f]\n",
            (double)cal->accel.scale.x, (double)cal->accel.scale.y,
            (double)cal->accel.scale.z);
-    printf("         odg=[%.4f, %.4f, %.4f]\n",
+    rc::rc_log("         odg=[%.4f, %.4f, %.4f]\n",
            (double)cal->accel.offdiag.x, (double)cal->accel.offdiag.y,
            (double)cal->accel.offdiag.z);
-    printf("  Gyro:  bias=[%.6f, %.6f, %.6f]\n",
+    rc::rc_log("  Gyro:  bias=[%.6f, %.6f, %.6f]\n",
            (double)cal->gyro.bias.x, (double)cal->gyro.bias.y,
            (double)cal->gyro.bias.z);
     if ((flags & CAL_STATUS_MAG) != 0) {
-        printf("  Mag:   off=[%.1f, %.1f, %.1f]\n",
+        rc::rc_log("  Mag:   off=[%.1f, %.1f, %.1f]\n",
                (double)cal->mag.offset.x, (double)cal->mag.offset.y,
                (double)cal->mag.offset.z);
-        printf("         scl=[%.4f, %.4f, %.4f]\n",
+        rc::rc_log("         scl=[%.4f, %.4f, %.4f]\n",
                (double)cal->mag.scale.x, (double)cal->mag.scale.y,
                (double)cal->mag.scale.z);
     }
     const float* rotMat = cal->board_rotation.m;
     // NOLINTBEGIN(readability-magic-numbers) — row-major DCM indices [0..8]
-    printf("  Rot:   [%.3f %.3f %.3f; %.3f %.3f %.3f; %.3f %.3f %.3f]\n",
+    rc::rc_log("  Rot:   [%.3f %.3f %.3f; %.3f %.3f %.3f; %.3f %.3f %.3f]\n",
            (double)rotMat[0], (double)rotMat[1], (double)rotMat[2],
            (double)rotMat[3], (double)rotMat[4], (double)rotMat[5],
            (double)rotMat[6], (double)rotMat[7], (double)rotMat[8]);
