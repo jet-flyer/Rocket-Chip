@@ -134,14 +134,16 @@ Mode cycle (`m`) is kMenu-only as of 2026-04-22.
 
 Full single-key CLI (see `enter_cli_menu()` in `ao_rcos.cpp`). Subset reachable only from kMenu:
 
+Behaviors marked **(vehicle)** vs **(station)** below differ by build flavor (`kRadioModeRx`): vehicle and station share the same CLI source but dispatch some keys differently.
+
 | Group | Keys | Description |
 |-------|------|-------------|
 | **Status** | `h` `s` `b` `p` | Help, sensor status, boot summary, preflight |
-| **Radio** | `t` `r` `m` | Telemetry status, cycle TX rate, cycle output mode |
+| **Radio** | `t` `r` `m` | Telemetry status; `r` = cycle TX rate **(vehicle)** / cycle CCSDS SET_RADIO_CONFIG to next entry in `kRadioConfigTable` **(station)**; cycle output mode (`m`) |
 | **Station** | `g` `d` `p` | GPS status, distance-to-vehicle, GPS push |
 | **Commands** | `a` `X` | ARM (with confirm), DISARM |
 | **Flight logs** | `l` `x` | Flush to flash, erase |
-| **Debug submenu** | `q` → `<digit>z` / other | Enter debug submenu, local radio config change, exit back to `[main]` |
+| **Debug submenu** | `q` → `<digit>z` / other | Enter debug submenu, local radio config change, exit back to `[main]`. The `q` key is **always** consumed by the debug-menu enter handler in `rc_os.cpp:handle_main_menu()`. The fallthrough `q` → CCSDS QUERY_RADIO_CONFIG mapping in `cli_handle_unhandled_key` is unreachable on the current dispatch — use `r` (station) to drive a CCSDS exchange instead. |
 
 ### Reaching the debug submenu from dashboard
 

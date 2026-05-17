@@ -629,7 +629,7 @@ static void print_baro_status() {
 static void print_gps_status() {
     if (g_gpsInitialized) {
         printf(g_gpsTransport == GPS_TRANSPORT_UART
-                   ? "[PASS] GPS init (UART on GPIO0/1, 9600 baud)\n"
+                   ? "[PASS] GPS init (UART on GPIO0/1, 57600 baud)\n"
                    : "[PASS] GPS init (I2C at 0x10, 500us settling delay)\n");
     } else {
         printf(g_gpsInitAttempted ? "[FAIL] GPS init failed\n"
