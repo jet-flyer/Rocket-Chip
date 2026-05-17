@@ -493,11 +493,12 @@ extern "C" void qv_idle_bridge(void) {
 
     diag_stats_msp_tick();
 
-    // R-5 Unit B drain wiring (fix lands as Unit B-fixup, verified POC
-    // 2026-05-16 with 1Hz "RC_LOG_ALIVE" instrumentation now removed):
-    // pump the rc_log ring buffer to USB CDC. Non-blocking; only writes
-    // bytes the CDC has room for. Without this call, every rc::rc_log()
-    // output queues in the ring and is never emitted to the wire.
+    // R-5 Unit B drain wiring: pump the rc_log ring buffer to USB CDC
+    // from the idle path. Non-blocking; the drain has a ring-empty
+    // fast-path so most idle passes return immediately without
+    // touching TinyUSB (added 2026-05-16 after the empty-ring drain
+    // was empirically shown to interfere with Core 1's I2C — see LL
+    // Entry 39 / commit message of this fix).
     rc_log_drain_to_cdc();
 
     // WFI: sleep until next interrupt (100Hz QF tick, USB CDC, etc.).

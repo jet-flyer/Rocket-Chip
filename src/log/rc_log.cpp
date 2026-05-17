@@ -690,6 +690,17 @@ void rc_log(const char* fmt, ...) {
 #ifndef ROCKETCHIP_HOST_TEST
 extern "C" void rc_log_drain_to_cdc(void) {
     using namespace target_sink;
+    // Ring-empty fast path: when called from qv_idle_bridge every
+    // idle tick, the ring is empty most of the time. Skip all
+    // TinyUSB calls in that case to avoid mutex/IRQ contention with
+    // the SDK's stdio_usb background task. Empirically required
+    // 2026-05-16: every-idle-tick TinyUSB calls were correlated with
+    // Core 1's I2C transactions failing (ICM-20948 stopped ACKing
+    // mid-session). Reading two volatile size_t and comparing is
+    // ~3 cycles, vs ~hundreds of cycles for a tud_cdc_* call.
+    if (s_head == s_tail) {
+        return;
+    }
     // Hold-on-disconnect: if host hasn't opened the port + asserted
     // DTR yet, leave bytes in the ring. emit() applies drop-oldest
     // when the ring fills, so the most-recent boot output is what

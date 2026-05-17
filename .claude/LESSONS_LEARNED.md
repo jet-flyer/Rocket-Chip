@@ -1381,3 +1381,68 @@ Project-side research discipline lives here (`.claude/LESSONS_LEARNED.md`), not 
 
 - Plan: `C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn.md` (fault-recovery rework, commits `ed7c569` + `8baa18a`)
 - Round-4 primary-source research transcripts: `parsed-soaring-popcorn-agent-ad917b339309c98a4.md` (RP2350 + SDK PIO-SPI) + `parsed-soaring-popcorn-agent-ad60e70478f064f8d.md` (SX1276 + Adafruit FeatherWing)
+
+---
+
+## Entry 39: rc_log idle-path drain at every QV tick interferes with Core 1 I2C
+
+**Date:** 2026-05-16
+**Time spent:** ~3 hours of misdiagnosis (chip-side stuck-slave theories, defensive write attempts) before the smoking-gun bisect
+**Severity:** Critical — vehicle IMU stops ACKing I2C reads mid-session; bench_sim verification gate unavailable; full IMU/ESKF/GPS subsystem reported ABSENT despite physically present and healthy hardware
+
+### Problem
+
+Vehicle Feather post-R-5-Unit-E (commit `857b573`): `IMU reads=0 errs=0` in diag_stats after multi-minute uptime. Preflight reports `IMU: ABSENT` and `[N/A] ICM-20948 not installed`. Probe-call `i2c_bus_probe(0x69)` returns 0 (no ACK), while `i2c_bus_probe(0x77)` for baro returns 1 (same bus chain, healthy). Same hardware was confirmed working in `docs/baselines/PRE_R5_BASELINE_2026-05-15.md` against commit `c6195d1`.
+
+### Root cause
+
+Commit `8adab2d` (R-5 Unit B-fixup, 2026-05-16 10:49 CDT) added `rc_log_drain_to_cdc()` inside `qv_idle_bridge()`. The QV scheduler calls `qv_idle_bridge` every idle tick — many hundreds of times per second on this chip. Before 8adab2d, USB CDC writes from Core 0 were sparse (only when something explicitly printed). After 8adab2d, **Core 0 was making `tud_cdc_connected()` + `tud_cdc_write_available()` calls (and conditionally `tud_cdc_write` + `tud_cdc_write_flush`) on every idle pass, even when the rc_log ring was empty.**
+
+Those TinyUSB calls interact with the SDK's stdio_usb subsystem: stdio_usb uses a `stdio_usb_mutex` (file-static in `pico-sdk/.../stdio_usb.c`, not externally accessible) to serialize TinyUSB CDC access, and a background IRQ-driven `tud_task()` that holds the mutex. Our drain bypassed the mutex (it had no way to take it — file-static), so high-frequency drain calls from Core 0's idle loop raced the SDK's IRQ-driven invocation. The contention manifested downstream as Core 1's I2C transactions to the ICM-20948 being disrupted — likely via shared interrupt-priority dynamics or DMA-bus contention on the chip's NVIC.
+
+Empirical bisect confirmed: commenting out the single line `rc_log_drain_to_cdc();` in `qv_idle_bridge` restored IMU to GO with the SAME firmware otherwise. Re-enabling with a ring-empty fast-path also restored IMU to GO while preserving rc_log functionality.
+
+### Fix
+
+Add an early-return inside `rc_log_drain_to_cdc()` when the ring is empty (head == tail). Cost: read two volatile `size_t` and compare — ~3 cycles vs ~hundreds of cycles for a `tud_cdc_*` call. Eliminates TinyUSB contact on every idle tick when nothing is queued.
+
+```cpp
+extern "C" void rc_log_drain_to_cdc(void) {
+    using namespace target_sink;
+    if (s_head == s_tail) {
+        return;  // ring empty — skip ALL TinyUSB calls
+    }
+    // ... existing drain logic ...
+}
+```
+
+Verified post-fix on vehicle bench (chip serial 02FBDDB8E1CA1281, commit hash captured in commit message):
+- `IMU reads=41694 errs=0` over ~46s uptime (Core 1 reading at full ~900Hz, zero errors).
+- Preflight: `IMU: GO, Baro: GO, ESKF: GO, VERDICT: GO`.
+- diag_stats dump (`q→d`) captured cleanly via rc_log — drain still works when there IS data to send.
+- `[RcLog] dropped=0 bytes  high_water=1080 bytes` — observability counters still functional.
+
+### Detection
+
+Compare:
+- IMU reads counter via `q→d` diag dump.
+- Probe-call `i2c_bus_probe(0x69)` via GDB.
+- Test for the symptom: comment out the single drain call line, re-flash, see if IMU comes back.
+
+### Prevention
+
+Two-part:
+1. **Code-level**: ring-empty fast-path is shipped. Drain is cheap on every idle pass when nothing is queued.
+2. **Verification-level**: the bug went undetected because Unit B-fixup's verification was scoped to "did the rc_log output reach the wire" (yes, on the wire), not "did sensor reads keep working" (no — IMU stopped ACKing). A migration that changes Core 0 idle behavior needs to verify Core 1 is still healthy. Going forward, every commit that adds new work to `qv_idle_bridge` or any Core 0 hot path must include "IMU + baro read counters non-zero N seconds post-boot" as a verification line. The existing diag_stats `[Sensors]` block is sufficient — the discipline is to actually read it.
+
+### Limitation (known)
+
+The ring-empty fast-path eliminates the bug for the steady-state case where rc_log output is sparse. When rc_log output is sustained (heavy DBG_PRINT, frequent diag dumps, or future Tier 5 CLI work that streams lots of output), the ring is non-empty for sustained periods and the drain runs on every idle tick again — same as pre-fix. **A second-line defense will be needed when Tier 5 ships** (Unit J or sooner). Candidate approaches: (a) rate-limit the drain to e.g. 1ms minimum interval between TinyUSB calls; (b) move the drain to a dedicated repeating-timer at a bounded rate (e.g. 1kHz); (c) audit whether `stdio_usb` can be retired earlier so we own the TinyUSB mutex discipline; (d) move drain to Core 1 (where Core 1 already does I2C work coordinated with multicore_lockout). Tracked as a follow-up — the empty-ring fast-path is sufficient for the current burst-and-quiesce rc_log usage pattern.
+
+### Related
+
+- LL Entry 22 (USB Reconnect Degrades Core 1 IMU Rate) — same chip-architecture failure mode (Core 0 USB IRQ disruption ↔ Core 1 I2C). Different trigger, same downstream effect.
+- LL Entry 28 (i2c_bus_recover corrupts DW_apb_i2c when called on active bus) — adjacent: I2C peripheral state corruption from Core-0 events.
+- LL Entry 31 (flash_safe_execute corrupts I2C peripheral) — same family of "Core 0 activity disrupts Core 1 I2C."
+- LL Entry 36 (test artifact vs infrastructure — bench_sim silent rot) — the methodology lesson: a verification that confirms "the changed thing works" must also confirm "the un-changed things still work." Unit B-fixup verified rc_log output but didn't check Core-1 sensor health post-flash.
+- Commit `8adab2d` (the introducing commit) and the bisect/fix commit (this).
