@@ -48,22 +48,26 @@ A gate that names *only* anti-examples is a **soft gate dressed as a hard gate**
 
 ---
 
-## Rule 2. Gates that depend on external hardware require a 3-boot reseat protocol
+## Rule 2. Gates that depend on external hardware require a 3-boot repeatability protocol
 
-Cable, connector, and EMI variance are higher-frequency than firmware variance. A single boot satisfies neither (a) a reasonable mean-time-between-spurious-pass nor (b) a fair sample of the population of plug-states the operator will encounter.
+Single-boot evidence is insufficient: a transient init quirk, an SDK timing window, or a one-off USB enumeration race can produce a passing gate that doesn't reproduce. Observing the same positive-control signal across multiple cold boots is the actual question.
 
 **Protocol:**
-1. **Boot 1:** Power on, observe gate signals.
-2. **Power off, fully reseat the cables** (unplug, count to 3, plug back in — counts as a single reseat).
-3. **Boot 2:** Power on, observe gate signals.
-4. **Power off, swap to a second cable from the bench inventory** (or, if only one cable available, reseat again). For STEMMA QT specifically: pull and re-insert until the click is unambiguous.
-5. **Boot 3:** Power on, observe gate signals.
+1. **Boot 1:** Cold-restart the board, observe gate signals.
+2. **Cold-restart again.**
+3. **Boot 2:** Observe gate signals.
+4. **Cold-restart again.**
+5. **Boot 3:** Observe gate signals.
+
+A "cold restart" means a full chip reset that exercises the boot path from scratch — typically a probe-driven `monitor reset halt` + `monitor resume`. USB replug is sometimes needed if the specific test scenario also exercises CDC re-enumeration, but the 3-boot protocol itself does not require it.
 
 Gate **passes** only if all 3 boots produce the same positive-control signals.
 
-**Why 3 and not 2:** Two boots tell you "twice in a row" (a single coin-flip can do that). Three identical results across two reseat events tells you "consistent behavior across mechanical disturbance" — that's the actual question.
+**Why 3 and not 2:** Two boots tell you "twice in a row" (a single coin-flip can do that). Three identical results across two restart events tells you "consistent behavior across cold-init" — that's the actual question.
 
-**Exemption:** Pure-software changes (host tests, doc-only, comment-only, build-system reformatting that doesn't change a compiled artifact) skip the reseat protocol. The `pre_commit_matrix.py` triggers (Tier 6b) classify which changes need HW verification at all; this rule applies only to changes that already need HW verification.
+**Cabling is not in scope.** Earlier versions of this rule prescribed physical cable reseating as part of the protocol; that requirement is removed (user direction 2026-05-16). If a cable is bad on this bench it stays bad — operator inspection is the right answer, not a per-gate workflow. Reseating Qwiic / STEMMA QT cables to "stir" intermittent connections is anti-discipline: it hides a hardware fault we should be fixing, and it adds a manual step that has nothing to do with what the gate is observing.
+
+**Exemption:** Pure-software changes (host tests, doc-only, comment-only, build-system reformatting that doesn't change a compiled artifact) skip the 3-boot protocol. The `pre_commit_matrix.py` triggers (Tier 6b) classify which changes need HW verification at all; this rule applies only to changes that already need HW verification.
 
 ---
 
@@ -72,13 +76,13 @@ Gate **passes** only if all 3 boots produce the same positive-control signals.
 A commit message that says **"build clean, MSP stable, gate PASS"** records that the agent ran the gate but does not let a future agent (or the user) verify that the gate was satisfied for the right reason.
 
 **Required form:**
-> Verified: bench_sim 2/2 PASS, vehicle Hardware Status reports DAC=OK, RegVersion=0x12, GPS window_hit:1 across 3 reseat boots.
+> Verified: bench_sim 2/2 PASS, vehicle Hardware Status reports DAC=OK, RegVersion=0x12, GPS window_hit:1 across 3 cold-restart boots.
 
 Or, if a probe-attached ctest run was the verification:
-> Verified: 788/788 ctest, vehicle bench_sim 2/2 PASS (banner: vehicle v0.16.0 (kmenu)), 3-boot reseat clean.
+> Verified: 788/788 ctest, vehicle bench_sim 2/2 PASS (banner: vehicle v0.16.0 (kmenu)), 3-boot repeatable.
 
-Or, if reseat was waived:
-> Verified: pure-software change, host ctest 788/788 PASS, no HW reseat required.
+Or, if the 3-boot protocol was waived:
+> Verified: pure-software change, host ctest 788/788 PASS, no HW restart cycle required.
 
 This requirement extends `standards/CODING_STANDARDS.md` Pre-Commit Checklist Item 4 (Documentation). The CHANGELOG entry inherits the same signal, and the WB row that depends on the gate inherits it transitively.
 
@@ -193,4 +197,4 @@ The following are deliberately not in this rule because they're tooling work, no
 
 1. **Pre-commit hook enforcement of "commit message cites control signal"** — possible regex check on the staged commit message body. Out of scope for this rule; logged as a candidate for `scripts/hooks/pre-commit` Tier 6c.
 2. **Per-gate positive-control catalog** — the table in Rule 1 should grow as new gates are added. Catalog can live in `docs/CONFIG_TEST_MATRIX.md` (Tier 7?) or as a structured appendix to this doc.
-3. **Automated 3-boot reseat verification** — the probe can in principle reset the chip 3× while the operator reseats cables, with the script comparing positive-control signals across boots. Possible future enhancement.
+3. **Automated 3-boot verification** — the probe can in principle reset the chip 3× with a script comparing positive-control signals across boots. Possible future enhancement.
