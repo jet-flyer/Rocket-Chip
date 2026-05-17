@@ -6,7 +6,9 @@
  */
 
 #include "go_nogo_checks.h"
-#include <cstdio>
+#include "rocketchip/rc_log.h"
+#include "etl/string.h"
+#include "etl/to_string.h"
 #include <cstring>
 
 namespace rc {
@@ -42,25 +44,37 @@ static void add_rf_link_station(GoNoGoResult& r, const GoNoGoInput& input) {
     const bool link_go = input.rf_anchor_valid &&
                          (input.rf_link_state == 2) &&
                          (input.rf_lq_pct >= 65U);
-    static char reason[kGoNoGoReasonLen];
+    // Branches with no LQ percentage are literal-only — pass directly.
+    // Branches with %u%% build via etl::string + etl::to_string into a
+    // local kGoNoGoReasonLen-sized buffer; add_station strncpy's it
+    // into the result struct, so the local lifetime is sufficient.
     if (!input.rf_anchor_valid) {
-        std::snprintf(reason, sizeof(reason), "NO-GO NO RX YET");
-    } else if (input.rf_link_state == 0) {
-        std::snprintf(reason, sizeof(reason), "NO-GO LINK ACQ");
-    } else if (input.rf_link_state == 1) {
-        std::snprintf(reason, sizeof(reason), "NO-GO TENTATIVE %u%%",
-                      static_cast<unsigned>(input.rf_lq_pct));
-    } else if (input.rf_link_state == 3) {
-        std::snprintf(reason, sizeof(reason), "NO-GO DEGRADED %u%%",
-                      static_cast<unsigned>(input.rf_lq_pct));
-    } else if (input.rf_lq_pct < 65U) {
-        std::snprintf(reason, sizeof(reason), "NO-GO LQ %u%%",
-                      static_cast<unsigned>(input.rf_lq_pct));
-    } else {
-        std::snprintf(reason, sizeof(reason), "GO LQ %u%%",
-                      static_cast<unsigned>(input.rf_lq_pct));
+        add_station(r, 2, "RF Link", link_go, "NO-GO NO RX YET");
+        return;
     }
-    add_station(r, 2, "RF Link", link_go, reason);
+    if (input.rf_link_state == 0) {
+        add_station(r, 2, "RF Link", link_go, "NO-GO LINK ACQ");
+        return;
+    }
+    etl::string<kGoNoGoReasonLen> reason;
+    if (input.rf_link_state == 1) {
+        reason.assign("NO-GO TENTATIVE ");
+        etl::to_string(static_cast<unsigned>(input.rf_lq_pct), reason, true);
+        reason.append("%");
+    } else if (input.rf_link_state == 3) {
+        reason.assign("NO-GO DEGRADED ");
+        etl::to_string(static_cast<unsigned>(input.rf_lq_pct), reason, true);
+        reason.append("%");
+    } else if (input.rf_lq_pct < 65U) {
+        reason.assign("NO-GO LQ ");
+        etl::to_string(static_cast<unsigned>(input.rf_lq_pct), reason, true);
+        reason.append("%");
+    } else {
+        reason.assign("GO LQ ");
+        etl::to_string(static_cast<unsigned>(input.rf_lq_pct), reason, true);
+        reason.append("%");
+    }
+    add_station(r, 2, "RF Link", link_go, reason.c_str());
 }
 
 GoNoGoResult go_nogo_evaluate(const GoNoGoInput& input) {
@@ -104,19 +118,19 @@ GoNoGoResult go_nogo_evaluate(const GoNoGoInput& input) {
 }
 
 void go_nogo_print(const GoNoGoResult& result) {
-    printf("[GO/NO-GO] Platform: %u/%u %s | Profile: %u/%u %s\n",
-           static_cast<unsigned>(result.tier1_go),
-           static_cast<unsigned>(result.tier1_total),
-           result.all_go ? "GO" : "NO-GO",
-           static_cast<unsigned>(result.tier2_go),
-           static_cast<unsigned>(result.tier2_total),
-           (result.tier2_go == result.tier2_total) ? "GO" : "WARN");
+    rc::rc_log("[GO/NO-GO] Platform: %u/%u %s | Profile: %u/%u %s\n",
+               static_cast<unsigned>(result.tier1_go),
+               static_cast<unsigned>(result.tier1_total),
+               result.all_go ? "GO" : "NO-GO",
+               static_cast<unsigned>(result.tier2_go),
+               static_cast<unsigned>(result.tier2_total),
+               (result.tier2_go == result.tier2_total) ? "GO" : "WARN");
 
     // Detail any NO-GO stations
     for (uint8_t i = 0; i < result.num_checks; ++i) {
         const GoNoGoCheck& c = result.checks[i];
         if (!c.go) {
-            printf("  %s: %s\n", c.name, c.reason);
+            rc::rc_log("  %s: %s\n", c.name, c.reason);
         }
     }
 }
