@@ -1244,7 +1244,7 @@ void cli_do_download_flight(int num) {
 static void cmd_radio_status() {
     const auto* rs = AO_Radio_get_state();
     if (!rs->initialized) {
-        printf("Radio not initialized.\n");
+        rc::rc_log("Radio not initialized.\n");
         return;
     }
 
@@ -1252,21 +1252,21 @@ static void cmd_radio_status() {
 
     if constexpr (kRadioModeRx) {
         uint32_t gap = (rs->rx_count > 0) ? (now - rs->last_rx_ms) : 0;
-        printf("RX: %lu pkts  seq=%u  %ddBm  %ddB SNR  %lu CRC err\n",
+        rc::rc_log("RX: %lu pkts  seq=%u  %ddBm  %ddB SNR  %lu CRC err\n",
                (unsigned long)rs->rx_count,
                static_cast<unsigned>(rs->last_rx_seq),
                static_cast<int>(rs->last_rx_rssi),
                static_cast<int>(rs->last_rx_snr),
                (unsigned long)rs->rx_crc_errors);
-        printf("    last=%lu.%lus ago  phase=%d\n",
+        rc::rc_log("    last=%lu.%lus ago  phase=%d\n",
                (unsigned long)(gap / 1000),
                (unsigned long)((gap % 1000) / 100),
                static_cast<int>(rs->scheduler.phase));
         if constexpr (job::kRole == job::DeviceRole::kRelay) {
-            printf("    relayed=%lu\n", (unsigned long)rs->relay_count);
+            rc::rc_log("    relayed=%lu\n", (unsigned long)rs->relay_count);
         }
     } else {
-        printf("TX: %lu sent  %u fail  phase=%d\n",
+        rc::rc_log("TX: %lu sent  %u fail  phase=%d\n",
                (unsigned long)rs->tx_count,
                static_cast<unsigned>(rs->tx_consec_fail),
                static_cast<int>(rs->scheduler.phase));
@@ -1281,7 +1281,7 @@ static void cmd_radio_status() {
         bool crc_ok  = (a.modem_config2 & kAuditModemCfg2CrcBitMask) != 0;
         bool lna_ok  = (a.lna == kAuditLnaExpected);
         bool cfg3_ok = (a.modem_config3 == kAuditModemCfg3Expected);
-        printf("Audit: IQ=0x%02x(%s) CFG2=0x%02x CRC=%s LNA=0x%02x(%s) CFG3=0x%02x(%s)\n",
+        rc::rc_log("Audit: IQ=0x%02x(%s) CFG2=0x%02x CRC=%s LNA=0x%02x(%s) CFG3=0x%02x(%s)\n",
                a.invert_iq,     iq_ok   ? "OK" : "MISMATCH",
                a.modem_config2, crc_ok  ? "on" : "OFF",
                a.lna,           lna_ok  ? "OK" : "MISMATCH",
@@ -1314,13 +1314,13 @@ static float haversine_m(int32_t lat1_e7, int32_t lon1_e7,
 static void cmd_station_gps() {
     if constexpr (!kRadioModeRx) { return; }
     if (!g_gpsInitialized) {
-        printf("Station GPS: not connected\n");
+        rc::rc_log("Station GPS: not connected\n");
         return;
     }
-    printf("Station GPS: fix=%u sats=%u hdop=%.1f\n",
+    rc::rc_log("Station GPS: fix=%u sats=%u hdop=%.1f\n",
            g_bestGpsFix.fix_type, g_bestGpsFix.satellites,
            static_cast<double>(g_bestGpsFix.hdop));
-    printf("  Lat=%.7f Lon=%.7f Alt=%.1fm\n",
+    rc::rc_log("  Lat=%.7f Lon=%.7f Alt=%.1fm\n",
            static_cast<double>(g_bestGpsFix.lat_1e7) / 1e7,
            static_cast<double>(g_bestGpsFix.lon_1e7) / 1e7,
            static_cast<double>(g_bestGpsFix.alt_msl_m));
@@ -1347,23 +1347,23 @@ static float bearing_deg(int32_t lat1_e7, int32_t lon1_e7,
 static void cmd_station_distance() {
     if constexpr (!kRadioModeRx) { return; }
     if (!g_gpsInitialized || g_bestGpsFix.fix_type < 2) {
-        printf("Distance: station GPS has no fix\n");
+        rc::rc_log("Distance: station GPS has no fix\n");
         return;
     }
     const RxTelemSnapshot* rx = AO_Telemetry_get_rx_state();
     if (!rx || !rx->valid) {
-        printf("Distance: no vehicle telemetry received\n");
+        rc::rc_log("Distance: no vehicle telemetry received\n");
         return;
     }
 #ifndef ROCKETCHIP_HOST_TEST
     uint32_t age_ms = to_ms_since_boot(get_absolute_time()) - rx->met_ms;
     if (age_ms > 5000) {
-        printf("Distance: telemetry stale (%lu ms)\n", static_cast<unsigned long>(age_ms));
+        rc::rc_log("Distance: telemetry stale (%lu ms)\n", static_cast<unsigned long>(age_ms));
         return;
     }
 #endif
     if (rx->telem.lat_1e7 == 0 && rx->telem.lon_1e7 == 0) {
-        printf("Distance: no vehicle GPS\n");
+        rc::rc_log("Distance: no vehicle GPS\n");
         return;
     }
 
@@ -1371,7 +1371,7 @@ static void cmd_station_distance() {
                              rx->telem.lat_1e7, rx->telem.lon_1e7);
     float brg = bearing_deg(g_bestGpsFix.lat_1e7, g_bestGpsFix.lon_1e7,
                             rx->telem.lat_1e7, rx->telem.lon_1e7);
-    printf("Distance: %.0f m  Bearing: %.0f deg\n",
+    rc::rc_log("Distance: %.0f m  Bearing: %.0f deg\n",
            static_cast<double>(dist), static_cast<double>(brg));
 }
 
@@ -1387,10 +1387,10 @@ static void cmd_station_gps_push() {
         float lat = static_cast<float>(snap.gps_lat_1e7) * 1e-7f;
         float lon = static_cast<float>(snap.gps_lon_1e7) * 1e-7f;
         AO_Telemetry_send_command(kMavCmdSetHome, 0, 0, 0, 0, lat, lon, 0);
-        printf("GPS push: %.5f, %.5f\n",
+        rc::rc_log("GPS push: %.5f, %.5f\n",
                static_cast<double>(lat), static_cast<double>(lon));
     } else {
-        printf("No GPS 3D fix on station\n");
+        rc::rc_log("No GPS 3D fix on station\n");
     }
 }
 
