@@ -574,24 +574,24 @@ static void hw_validate_i2c_devices() {
         int foundCount = 0;
         for (const auto& addr : kExpected) {
             bool found = i2c_bus_probe(addr);
-            printf("[----] I2C 0x%02X (%s): %s\n",
+            rc::rc_log("[----] I2C 0x%02X (%s): %s\n",
                    addr, get_device_name(addr),
                    found ? "FOUND" : "NOT FOUND");
             if (found) {
                 foundCount++;
             }
         }
-        printf("[INFO] Sensors found: %d/%zu expected\n",
+        rc::rc_log("[INFO] Sensors found: %d/%zu expected\n",
                foundCount, sizeof(kExpected) / sizeof(kExpected[0]));
     } else {
-        printf("[INFO] I2C probe skipped (Core 1 owns bus)\n");
+        rc::rc_log("[INFO] I2C probe skipped (Core 1 owns bus)\n");
     }
 }
 
 static void print_imu_status() {
     if (g_imuInitialized) {
-        printf("[PASS] ICM-20948 init (WHO_AM_I=0xEA)\n");
-        printf("[%s] AK09916 magnetometer %s\n",
+        rc::rc_log("[PASS] ICM-20948 init (WHO_AM_I=0xEA)\n");
+        rc::rc_log("[%s] AK09916 magnetometer %s\n",
                g_imu.mag_initialized ? "PASS" : "WARN",
                g_imu.mag_initialized ? "ready" : "not ready");
 
@@ -603,37 +603,37 @@ static void print_imu_status() {
             bool accelDlpfEn  = (accelCfg & 0x01U) != 0;
             uint8_t gyroDlpf  = (gyroCfg1 >> 3) & kDlpfCfgMask;
             bool gyroDlpfEn   = (gyroCfg1 & 0x01U) != 0;
-            printf("  IMU config: accelDLPF=%u(%s) gyroDLPF=%u(%s) gyroDiv=%u\n",
+            rc::rc_log("  IMU config: accelDLPF=%u(%s) gyroDLPF=%u(%s) gyroDiv=%u\n",
                    accelDlpf, accelDlpfEn ? "on" : "off",
                    gyroDlpf, gyroDlpfEn ? "on" : "off",
                    gyroDiv);
         }
         return;
     }
-    printf(g_imuInitAttempted ? "[FAIL] ICM-20948 init failed\n"
+    rc::rc_log(g_imuInitAttempted ? "[FAIL] ICM-20948 init failed\n"
                               : "[N/A ] ICM-20948 not installed\n");
 }
 
 static void print_baro_status() {
     if (g_baroInitialized && g_baroContinuous) {
-        printf("[PASS] DPS310 init OK, continuous mode active\n");
+        rc::rc_log("[PASS] DPS310 init OK, continuous mode active\n");
         return;
     }
     if (g_baroInitialized) {
-        printf("[WARN] DPS310 init OK, continuous mode failed\n");
+        rc::rc_log("[WARN] DPS310 init OK, continuous mode failed\n");
         return;
     }
-    printf(g_baroInitAttempted ? "[FAIL] DPS310 init failed\n"
+    rc::rc_log(g_baroInitAttempted ? "[FAIL] DPS310 init failed\n"
                                : "[N/A ] DPS310 not installed\n");
 }
 
 static void print_gps_status() {
     if (g_gpsInitialized) {
-        printf(g_gpsTransport == GPS_TRANSPORT_UART
+        rc::rc_log(g_gpsTransport == GPS_TRANSPORT_UART
                    ? "[PASS] GPS init (UART on GPIO0/1, 57600 baud)\n"
                    : "[PASS] GPS init (I2C at 0x10, 500us settling delay)\n");
     } else {
-        printf(g_gpsInitAttempted ? "[FAIL] GPS init failed\n"
+        rc::rc_log(g_gpsInitAttempted ? "[FAIL] GPS init failed\n"
                                   : "[N/A ] GPS not installed\n");
     }
 
@@ -642,7 +642,7 @@ static void print_gps_status() {
     // (printf from there is dropped because USB CDC is not up yet).
     char gpsDbg[96] = { 0 };
     gps_pa1010d_get_debug_status(gpsDbg, sizeof(gpsDbg));
-    printf("[DBG ] GPS early-init: %s\n", gpsDbg);
+    rc::rc_log("[DBG ] GPS early-init: %s\n", gpsDbg);
 }
 
 static void hw_validate_sensors() {
@@ -653,23 +653,23 @@ static void hw_validate_sensors() {
 
 static void print_psram_status() {
     if (g_psramSize > 0) {
-        printf("[%s] PSRAM: %luMB at 0x%08lX",
+        rc::rc_log("[%s] PSRAM: %luMB at 0x%08lX",
                g_psramSelfTestPassed ? "PASS" : "FAIL",
                (unsigned long)(g_psramSize / (1024 * 1024)),
                (unsigned long)rc::kPsramCachedBase);
         if (g_psramSelfTestPassed) {
-            printf(" self-test OK");
+            rc::rc_log(" self-test OK");
         } else {
-            printf(" self-test FAIL");
+            rc::rc_log(" self-test FAIL");
         }
         if (g_psramFlashSafePassed) {
-            printf(", flash-safe OK\n");
+            rc::rc_log(", flash-safe OK\n");
         } else {
-            printf(", flash-safe %s\n",
+            rc::rc_log(", flash-safe %s\n",
                    g_psramSelfTestPassed ? "FAIL" : "skipped");
         }
     } else {
-        printf("[----] PSRAM: not detected (GPIO %d)\n",
+        rc::rc_log("[----] PSRAM: not detected (GPIO %d)\n",
                rocketchip::pins::kPsramCs);
     }
 }
@@ -679,13 +679,13 @@ static void print_logging_status() {
         bool isPsram = (g_psramSize > 0 && g_psramSelfTestPassed);
         uint32_t rate = isPsram ? 50U : 25U;
         const rc::RingBuffer* ring = AO_Logger_get_ring();
-        printf("[PASS] Logging: %s ring, %luHz, %lu frames capacity, %lu stored\n",
+        rc::rc_log("[PASS] Logging: %s ring, %luHz, %lu frames capacity, %lu stored\n",
                isPsram ? "PSRAM" : "SRAM",
                (unsigned long)rate,
                (unsigned long)rc::ring_capacity_frames(ring),
                (unsigned long)rc::ring_stored_count(ring));
     } else {
-        printf("[----] Logging: not initialized\n");
+        rc::rc_log("[----] Logging: not initialized\n");
     }
 }
 
@@ -697,35 +697,35 @@ static void print_flash_status() {
         uint32_t freeSectors = rc::flight_table_capacity_sectors() -
                                rc::flight_table_used_sectors(ft);
         uint32_t freeMB = (freeSectors * rc::kFlashSectorSize) / (1024U * 1024U);
-        printf("[PASS] Flash: %.1f%% used (%lu flights, %luMB free)\n",
+        rc::rc_log("[PASS] Flash: %.1f%% used (%lu flights, %luMB free)\n",
                static_cast<double>(usedPct),
                (unsigned long)nFlights,
                (unsigned long)freeMB);
     } else {
-        printf("[INFO] Flash: flight table empty (fresh)\n");
+        rc::rc_log("[INFO] Flash: flight table empty (fresh)\n");
     }
 }
 
 static void print_gps_status_boot() {
     if (g_bestGpsValid.load(std::memory_order_acquire)) {
-        printf("  Best GPS: Fix=%u Sats=%u HDOP=%.2f\n",
+        rc::rc_log("  Best GPS: Fix=%u Sats=%u HDOP=%.2f\n",
                g_bestGpsFix.fix_type, g_bestGpsFix.satellites,
                (double)g_bestGpsFix.hdop);
-        printf("            %.7f, %.7f, %.1f m MSL\n",
+        rc::rc_log("            %.7f, %.7f, %.1f m MSL\n",
                g_bestGpsFix.lat_1e7 / kGpsCoordScale,
                g_bestGpsFix.lon_1e7 / kGpsCoordScale,
                (double)g_bestGpsFix.alt_msl_m);
     } else if (g_gpsInitialized) {
-        printf("  Best GPS: no fix acquired yet\n");
+        rc::rc_log("  Best GPS: no fix acquired yet\n");
     }
 
     const gps_session_stats_t* gpsSess = eskf_runner_get_gps_session();
     if (gpsSess->gps_updates > 0) {
-        printf("  GPS session: %lu updates, max_dist=%.1fm, last_dist=%.1fm\n",
+        rc::rc_log("  GPS session: %lu updates, max_dist=%.1fm, last_dist=%.1fm\n",
                (unsigned long)gpsSess->gps_updates,
                (double)gpsSess->max_dist_from_origin_m,
                (double)gpsSess->last_dist_from_origin_m);
-        printf("              last_pos N=%.1f E=%.1f m  gNIS=[%.2f, %.2f]\n",
+        rc::rc_log("              last_pos N=%.1f E=%.1f m  gNIS=[%.2f, %.2f]\n",
                (double)gpsSess->last_pos_n_m,
                (double)gpsSess->last_pos_e_m,
                (double)gpsSess->min_gps_nis,
@@ -737,47 +737,47 @@ static void print_gps_status_boot() {
 // Build tag from version.h (single source of truth)
 
 void cli_print_hw_status() {
-    printf("\n=== Hardware Status ===\n");
-    printf("  Build: %s-%s-%s (%s %s)\n",
+    rc::rc_log("\n=== Hardware Status ===\n");
+    rc::rc_log("  Build: %s-%s-%s (%s %s)\n",
            kFirmwareVersion, kBuildConfig, kGitHash, __DATE__, __TIME__);
 
-    printf("[PASS] Build + boot (you're reading this)\n");
-    printf("[PASS] Red LED GPIO initialized (pin %d, %s)\n",
+    rc::rc_log("[PASS] Build + boot (you're reading this)\n");
+    rc::rc_log("[PASS] Red LED GPIO initialized (pin %d, %s)\n",
            board::kLedPin, board::kLedActiveHigh ? "active-high" : "active-low");
-    printf("[%s] NeoPixel PIO initialized (pin %d)\n",
+    rc::rc_log("[%s] NeoPixel PIO initialized (pin %d)\n",
            g_neopixelInitialized ? "PASS" : "FAIL", board::kNeoPixelPin);
-    printf("[PASS] USB CDC connected\n");
+    rc::rc_log("[PASS] USB CDC connected\n");
 
     uint32_t ts = time_us_32();
-    printf("[%s] Debug macros functional (timestamp=%lu us)\n",
+    rc::rc_log("[%s] Debug macros functional (timestamp=%lu us)\n",
            ts > 0 ? "PASS" : "FAIL", (unsigned long)ts);
 
     if (g_i2cInitialized) {
-        printf("[PASS] I2C bus initialized at %lukHz (SDA=%d, SCL=%d)\n",
+        rc::rc_log("[PASS] I2C bus initialized at %lukHz (SDA=%d, SCL=%d)\n",
                (unsigned long)(kI2cBusFreqHz / 1000), kI2cBusSdaPin, kI2cBusSclPin);
     } else {
-        printf("[FAIL] I2C bus failed to initialize\n");
+        rc::rc_log("[FAIL] I2C bus failed to initialize\n");
     }
 
     hw_validate_i2c_devices();
     hw_validate_sensors();
 
     if (AO_Radio_get_state()->initialized) {
-        printf("[PASS] Radio: RFM95W LoRa 915 MHz SF7 20dBm (CS=%d RST=%d IRQ=%d)\n",
+        rc::rc_log("[PASS] Radio: RFM95W LoRa 915 MHz SF7 20dBm (CS=%d RST=%d IRQ=%d)\n",
                rocketchip::pins::kRadioCs, rocketchip::pins::kRadioRst,
                rocketchip::pins::kRadioIrq);
         if constexpr (kRadioModeRx) {
             auto mode = AO_RCOS_get_output_mode();
             const char* mode_name = (mode == StationOutputMode::kAnsi) ? "ANSI dashboard" :
                                     (mode == StationOutputMode::kCsv)  ? "CSV" : "MAVLink";
-            printf("[MODE] RX — %s output ('m' to cycle)\n", mode_name);
+            rc::rc_log("[MODE] RX — %s output ('m' to cycle)\n", mode_name);
         } else {
-            printf("[MODE] TX CCSDS %dB%s\n",
+            rc::rc_log("[MODE] TX CCSDS %dB%s\n",
                    static_cast<int>(rc::ccsds::kNavPacketLen),
                    AO_Telemetry_get_mavlink_output() ? " + USB MAVLink" : "");
         }
     } else if (g_spiInitialized) {
-        printf("[----] Radio: not detected (module unpopulated?)\n");
+        rc::rc_log("[----] Radio: not detected (module unpopulated?)\n");
     }
 
     print_psram_status();
@@ -785,7 +785,7 @@ void cli_print_hw_status() {
     print_flash_status();
     print_gps_status_boot();
 
-    printf("=== Status Complete ===\n\n");
+    rc::rc_log("=== Status Complete ===\n\n");
 }
 
 // ============================================================================
@@ -827,13 +827,13 @@ static void count_hw_checks(uint8_t& pass, uint8_t& fail) {
 // AND init returned false (IVP-142c A2) — uninstalled sensors on this
 // role are silent.
 static void print_hw_failures() {
-    if (!g_neopixelInitialized) { printf("  [FAIL] NeoPixel\n"); }
-    if (!g_i2cInitialized)      { printf("  [FAIL] I2C bus\n"); }
-    if (g_imuInitAttempted  && !g_imuInitialized)  { printf("  [FAIL] ICM-20948 IMU\n"); }
-    if (g_baroInitAttempted && !g_baroInitialized) { printf("  [FAIL] DPS310 barometer\n"); }
-    if (g_gpsInitAttempted  && !g_gpsInitialized)  { printf("  [FAIL] GPS\n"); }
+    if (!g_neopixelInitialized) { rc::rc_log("  [FAIL] NeoPixel\n"); }
+    if (!g_i2cInitialized)      { rc::rc_log("  [FAIL] I2C bus\n"); }
+    if (g_imuInitAttempted  && !g_imuInitialized)  { rc::rc_log("  [FAIL] ICM-20948 IMU\n"); }
+    if (g_baroInitAttempted && !g_baroInitialized) { rc::rc_log("  [FAIL] DPS310 barometer\n"); }
+    if (g_gpsInitAttempted  && !g_gpsInitialized)  { rc::rc_log("  [FAIL] GPS\n"); }
     if (!AO_Radio_get_state()->initialized && g_spiInitialized) {
-        printf("  [FAIL] Radio\n");
+        rc::rc_log("  [FAIL] Radio\n");
     }
 }
 
@@ -844,24 +844,24 @@ void cli_print_boot_summary() {
     count_hw_checks(pass, fail);
     uint8_t total = pass + fail;
 
-    printf("\n");
-    printf("==============================================\n");
-    printf("  RocketChip v%s  RCOS v%s  %s-%s\n",
+    rc::rc_log("\n");
+    rc::rc_log("==============================================\n");
+    rc::rc_log("  RocketChip v%s  RCOS v%s  %s-%s\n",
            kFirmwareVersion, kRcOsVersion, kBuildConfig, kGitHash);
-    printf("  Board: %s\n", board::kBoardName);
-    printf("  Profile: %s  Uptime: %lus\n",
+    rc::rc_log("  Board: %s\n", board::kBoardName);
+    rc::rc_log("  Profile: %s  Uptime: %lus\n",
            rc::kDefaultRocketProfile.name,
            (unsigned long)(to_ms_since_boot(get_absolute_time()) / 1000));
-    printf("==============================================\n");
+    rc::rc_log("==============================================\n");
 
     if (rc::flight_director_launch_abort()) {
-        printf("[WARN] LAUNCH ABORT — power cycle required to clear\n");
+        rc::rc_log("[WARN] LAUNCH ABORT — power cycle required to clear\n");
     }
 
     if (fail == 0) {
-        printf("Hardware: %u/%u OK\n", pass, total);
+        rc::rc_log("Hardware: %u/%u OK\n", pass, total);
     } else {
-        printf("Hardware: %u/%u OK (%u FAIL)\n", pass, total, fail);
+        rc::rc_log("Hardware: %u/%u OK (%u FAIL)\n", pass, total, fail);
         print_hw_failures();
     }
 
@@ -871,7 +871,7 @@ void cli_print_boot_summary() {
         uint32_t count = rc::flight_table_count(ft);
         uint32_t used_sectors = ft->table.next_free_sector - rc::kFlightLogStart / rc::kFlashSectorSize;
         uint32_t pct = (used_sectors * 100) / rc::kFlightLogSectors;
-        printf("Flash: %lu flights, %lu%% used\n",
+        rc::rc_log("Flash: %lu flights, %lu%% used\n",
                (unsigned long)count, (unsigned long)pct);
     }
 }
