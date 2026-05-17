@@ -22,6 +22,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-16-004 | Claude | bugfix
+
+**`i2c_bus_imu_recovery()` blind-write correctness.** Cross-checking the prior IMU-recovery fix surfaced that its four post-clock "blind writes" were each 1-byte transactions, which on an I2C slave only set the internal address pointer and commit no value. Collapsed to two `[reg, value]` 2-byte writes — `[0x7F, 0x00]` (BANK_SEL → Bank 0) and `[0x06, 0x80]` (PWR_MGMT_1 → DEVICE_RESET) — so the writes actually do what the comment claims. The 27-pulse SCL clocking that does the heavy lifting is untouched. Cold-boot path was already succeeding without exercising recovery; verified the function still compiles + reaches its re-probe, IMU GO at boot, bench_sim 2/2 PASS, host ctest 827/827. (src/drivers/i2c_bus.cpp)
+
+### 2026-05-16-003 | Grok 4.3 (via OpenCode) | bugfix, hardware
+
+**ICM-20948 stuck-slave recovery.** Added `i2c_bus_imu_recovery()` (extended 27-pulse SCL clocking + blind Bank-0 + device-reset writes) invoked on first probe failure at boot. Allows partial recovery from post-flash no-ACK latch without full Vdd power cycle. Verified: clean build + live GDB-reset + COM7 serial capture (Hardware 13/14 OK, IMU now passes). Complements the documented long power-cycle procedure. (src/drivers/i2c_bus.{h,cpp}, src/main.cpp)
+
 ### 2026-05-16-002 | Claude | refactor, bugfix, architecture, council
 
 **R-5 stdio removal Units D + E shipped; meta-policy gate widening; rc_log idle-drain IMU regression fixed.** 8 commits this session.

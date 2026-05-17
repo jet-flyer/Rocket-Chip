@@ -303,9 +303,12 @@ bool i2c_bus_reset() {
 }
 
 // ICM-20948 device reset register (Bank 0, PWR_MGMT_1)
-constexpr uint8_t kIcmBankSel      = 0x7F;
-constexpr uint8_t kIcmBank0        = 0x00;
-constexpr uint8_t kIcmPwrMgmt1     = 0x06;
+// Each blind write is a 2-byte transaction [reg_addr, value] per the I2C
+// write-register convention; a 1-byte transaction only sets the slave's
+// internal address pointer and commits no value.
+constexpr uint8_t kIcmBankSelReg   = 0x7F;
+constexpr uint8_t kIcmBank0Val     = 0x00;
+constexpr uint8_t kIcmPwrMgmt1Reg  = 0x06;
 constexpr uint8_t kIcmDeviceReset  = 0x80;
 
 bool i2c_bus_imu_recovery(uint8_t addr) {
@@ -330,12 +333,13 @@ bool i2c_bus_imu_recovery(uint8_t addr) {
     gpio_set_function(kI2cBusSclPin, GPIO_FUNC_I2C);
     i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
 
-    // Blind attempt to force Bank 0 + device reset (may NACK)
-    uint8_t dummy;
-    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, &kIcmBankSel, 1, false, 1000);
-    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, &kIcmBank0, 1, false, 1000);
-    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, &kIcmPwrMgmt1, 1, false, 1000);
-    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, &kIcmDeviceReset, 1, false, 1000);
+    // Blind attempt to force Bank 0 + device reset (may NACK if slave still latched).
+    // Both writes are [reg, value] 2-byte transactions — single-byte writes here
+    // would only address the register without committing a value.
+    const uint8_t bankSel[2] = {kIcmBankSelReg, kIcmBank0Val};
+    const uint8_t pwrReset[2] = {kIcmPwrMgmt1Reg, kIcmDeviceReset};
+    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, bankSel, 2, false, 1000);
+    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, pwrReset, 2, false, 1000);
     sleep_ms(100);
 
     // Re-probe
