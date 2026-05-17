@@ -1446,3 +1446,93 @@ The ring-empty fast-path eliminates the bug for the steady-state case where rc_l
 - LL Entry 31 (flash_safe_execute corrupts I2C peripheral) — same family of "Core 0 activity disrupts Core 1 I2C."
 - LL Entry 36 (test artifact vs infrastructure — bench_sim silent rot) — the methodology lesson: a verification that confirms "the changed thing works" must also confirm "the un-changed things still work." Unit B-fixup verified rc_log output but didn't check Core-1 sensor health post-flash.
 - Commit `8adab2d` (the introducing commit) and the bisect/fix commit (this).
+
+---
+
+## Entry 40: Pre-commit Gate Scope — "Categories Not Enumerations"
+
+**Date:** 2026-05-16
+**Time spent:** session-end debugging that surfaced this (~30 min on the meta-question after the LL 39 fix shipped)
+**Severity:** High-process — the gate that should have caught LL 39's bug never fired, by design, because its trigger was structurally too narrow
+
+### Problem
+
+After fixing the rc_log idle-drain IMU regression (LL Entry 39, commit `8cd6368`), the meta-question: why didn't the pre-commit hook catch this before it landed? Bisect proved commit `8adab2d` was the trigger; that commit modified `src/main.cpp` + `include/rocketchip/rc_log.h`. Both files would have been caught if `bench_sim.py` had run as a pre-commit gate — bench_sim's "wait for sensor health → VERDICT: GO" check would have blocked the commit because the IMU was unhealthy post-flash.
+
+The pre-commit hook (`scripts/hooks/pre-commit`) DOES gate on bench_sim when `TRIGGER_FLIGHT_BENCH=1` from `scripts/ci/pre_commit_matrix.py`. But the matrix's FLIGHT_CRITICAL regex enumerated ~7 specific path patterns (flight-director, ao_flight_director, ao_logger, rc_os, test_mode, fault_inject, station_fault_inject). Neither `src/main.cpp` nor `include/rocketchip/rc_log.h` matched. **The gate didn't run. The commit landed. The bug shipped.**
+
+This is the same meta-pattern as LL Entry 36 (bench_sim regex rot). In both cases a hard gate was *structurally soft* because the trigger pattern didn't include the surface where the failure landed:
+  - **LL 36:** regex enumerated firmware *log-line tokens*. Firmware renamed a log line; regex didn't catch up; gate kept passing on stale shape for 5 days.
+  - **LL 39 / 40:** regex enumerated firmware *file paths*. Code changed behavior at a path not in the enumeration; gate skipped entirely.
+
+Both: enumeration drifted behind code.
+
+### Root cause
+
+The mental model of the previous matrix was "this code is flight-critical, that code is not; the gate runs on the flight-critical paths." This mental model has two failure modes:
+
+  1. **Path drift.** Code that affects flight behavior moves between files over time. The matrix doesn't move with it. R-5 itself is an instance — code from un-migrated files moved to rc_log infrastructure (`src/log/rc_log.cpp`), which was never in the FLIGHT_CRITICAL enumeration.
+
+  2. **Cross-coupling.** Code "labeled" non-flight can affect flight behavior at runtime through shared resources (mutexes, peripherals, IRQ priorities, CPU cycles). 8adab2d is the lived case: `qv_idle_bridge` in `src/main.cpp` (labeled "Ground (mixed)" in `standards/CODING_STANDARDS.md`) called rc_log infrastructure that contended with the SDK's stdio_usb mutex, which disrupted Core 1's I2C transactions, which broke the ICM-20948.
+
+Same mental model that R-25-exec council (2026-05-13) deprecated for the **compile-time** dev/flight binary split. R-25-exec collapsed the binaries with the principle "all code uploaded to the board is flight code; deviations are per-incident, not policy." The same principle now applies to **gate scope.**
+
+### Fix
+
+Replace the FLIGHT_CRITICAL enumeration with a category: any change that can produce a different `rocketchip.elf` triggers bench_sim. Plus the gate scripts themselves (LL 36 self-rot vector).
+
+New regex (council unanimous 2026-05-16):
+
+```python
+FLIGHT_CRITICAL = re.compile(
+    r'^('
+    r'src/|include/|CMakeLists\.txt|cmake/|EXTERNAL/etl-|lib/'
+    r'|scripts/hooks/|scripts/ci/'
+    r'|scripts/bench_sim\.py|scripts/station_bench_sim\.py'
+    r')'
+)
+```
+
+Pure-doc / pure-test / pure-tooling commits are exempt by virtue of not matching, NOT by explicit carve-out. This is the structural test: if a commit can change firmware bytes, it gates.
+
+STATION_SCOPE intentionally stays narrow — Fruit Jam has no SWD per `DEBUG_PROBE_NOTES.md`, so widening it would gate every firmware commit on the station being plugged in. The asymmetry is acknowledged and tracked on the WB; vehicle is the load-bearing gate. (Council Q3, unanimous.)
+
+HW_READY fail-closed behavior preserved. `--no-verify` remains the documented escape per `.claude/DEBUG_PROBE_NOTES.md` (repo-owner approval).
+
+### Detection / verification
+
+Tested the new matrix against three representative cases:
+  - `src/main.cpp + include/rocketchip/rc_log.h` (the 8adab2d case): FLIGHT=True. Would have fired.
+  - Pure-doc `docs/PROJECT_STATUS.md + CHANGELOG.md + AGENT_WHITEBOARD.md`: FLIGHT=False, STATION=False. Correctly exempt.
+  - `scripts/hooks/pre-commit` (gate self-rot): FLIGHT=True. Catches the self-rot vector.
+
+The gate machinery now matches its own purpose. Going forward, **any firmware-affecting commit on this bench routes through bench_sim**.
+
+### Prevention (meta — what this lesson is)
+
+The lesson is not about regexes. It is about **categories vs enumerations.** Three principles:
+
+  1. **A gate's scope must include the surface where the failure class can land** — not just where today's known failures lived. Enumerate cases for tactical filters; categorize for safety gates. R-25-exec applied this principle to binary-tier policy; LL 39+40 applies it to gate-scope policy.
+
+  2. **The exemption discipline is per-incident.** When a commit genuinely cannot affect firmware (rare, but real — e.g., a doc-only typo fix), the bypass is `--no-verify` with explicit approval, not category-narrowing. Narrow categories that get widened "just for this one path" is how LL 36's rot accumulated.
+
+  3. **Gate scripts must be in their own gate.** The pre-commit hook + matrix + bench_sim are themselves load-bearing. A change to `scripts/hooks/pre-commit` that silently disables a check is a regression the gate's purpose is to catch. Including the gate scripts in the trigger regex is the self-rot defense.
+
+### Documents still misaligned (followup)
+
+The shipped gate widening has two protected docs lagging (tracked on AGENT_WHITEBOARD.md):
+
+  - `standards/CODING_STANDARDS.md` "Code Classification" table — still describes Flight-Critical / Flight-Support / Ground three-tier classification with stdio-relaxation policy tied to "Ground". The shipped gate now ignores this classification. The doc edit is a real design discussion (do we collapse to one tier per the principle, or keep classifications as **descriptive** only?). Coordinate with R-5 Unit J close.
+
+  - `docs/CONFIG_TEST_MATRIX.md` Tier 6b section — describes the former narrow matrix. Mechanical edit; can ride with the standards rewrite or be separate.
+
+These are NOT shipped in this commit (per AK Rule 3 surgical scope + council Q1 = option (c)). The gate change unblocks Unit F immediately; the doc realignment is its own session.
+
+### Related
+
+  - LL Entry 36 (bench_sim regex rot) — same meta-pattern, log-token side.
+  - LL Entry 39 (rc_log idle-drain IMU regression) — the lived-experience case that surfaced the gate gap.
+  - R-25-exec council 2026-05-13 (`docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`) — precedent for "categories not enumerations" applied to binary tiers.
+  - HW_GATE_DISCIPLINE Rule 1 (positive-control signal) and Rule 5 (hooks are the line of defense).
+  - AK_GUIDELINES Rule 3 (surgical changes) — this LL + gate change scoped to mechanical enforcement only; doc realignment deferred.
+  - Council transcript 2026-05-16 (this session) — unanimous on 5 questions, no dissent.

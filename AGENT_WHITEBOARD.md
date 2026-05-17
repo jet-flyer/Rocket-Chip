@@ -111,6 +111,40 @@
   UART GPS already wired, PPS LED confirms module is alive. No
   logic-analyzer required for (a) or (b); (c) is electrical work.
 
+- **Code Classification / CONFIG_TEST_MATRIX doc realignment (post pre-commit-matrix widening).**
+  Council 2026-05-16 unanimously approved widening
+  `scripts/ci/pre_commit_matrix.py`'s FLIGHT_CRITICAL regex from a
+  narrow path enumeration to "any firmware-affecting change" — the
+  hook change is shipped. Two protected docs are now misaligned with
+  the shipped gate policy and need a dedicated session to update:
+
+  (1) **`standards/CODING_STANDARDS.md` "Code Classification" table**
+      (lines 63-99) — still distinguishes Flight-Critical /
+      Flight-Support / Ground per-file with stdio-relaxation policy
+      tied to "Ground" classification. The shipped gate now treats
+      all firmware as bench-gated regardless of label. The session
+      needs to decide: (a) collapse the three tiers into one "all
+      firmware = flight code" framing per R-25-exec precedent, OR
+      (b) keep the classifications as **descriptive** ("active in
+      which phases") rather than **prescriptive** ("which standards
+      apply"). My lean is (a) for consistency, but it's a real
+      design discussion since the table also drives the
+      stdio-relaxation policy that R-5 is in the middle of
+      eliminating anyway. Coordinate with R-5 Unit J close.
+
+  (2) **`docs/CONFIG_TEST_MATRIX.md` Tier 6b section** — describes the
+      former narrow matrix. Needs to reflect the widened regex +
+      the "categories not enumerations" rationale per the council
+      decision. Smaller edit than (1); could ride with (1) or its
+      own short commit.
+
+  Both flagged here per SESSION_CHECKLIST trigger-driven-edit
+  discipline. The gate is shipped (commit hash captured in CHANGELOG
+  +1 from this WB row's commit) but the descriptive documents lag.
+  Per LL Entry 39: this is the meta-pattern that LL36/LL39 keep
+  surfacing — categories drift behind the code they police. Doc
+  realignment is the documentation-side of the same lesson.
+
 ## Medium (session-scale, 4–12 hours)
 
 Scope is clear but touches multiple files, needs verification, or has small design questions.
