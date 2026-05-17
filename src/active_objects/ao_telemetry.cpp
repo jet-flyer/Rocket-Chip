@@ -40,9 +40,9 @@
 #include "pico/time.h"
 #include "pico/stdio_usb.h"
 #include "tusb.h"
-#include <stdio.h>
 #endif
 
+#include "rocketchip/rc_log.h"
 #include <string.h>
 
 using namespace job;
@@ -464,20 +464,20 @@ static void station_on_set_radio_ack(float p1, float p2, float p3,
     new_cfg.coding_rate      = static_cast<uint8_t> (lroundf(p4));
     new_cfg.power_dbm        = static_cast<uint8_t> (lroundf(p5));
     AO_Radio_set_pending_config(new_cfg);
-    printf("[CMD] station switching radio to BW=%u nav=%u SF=%u\n",
-           static_cast<unsigned>(new_cfg.bandwidth_khz),
-           static_cast<unsigned>(new_cfg.nav_rate_hz),
-           static_cast<unsigned>(new_cfg.spreading_factor));
+    rc::rc_log("[CMD] station switching radio to BW=%u nav=%u SF=%u\n",
+               static_cast<unsigned>(new_cfg.bandwidth_khz),
+               static_cast<unsigned>(new_cfg.nav_rate_hz),
+               static_cast<unsigned>(new_cfg.spreading_factor));
 }
 
 // Sub 2e: ACK for QUERY_RADIO_CONFIG — print echoed vehicle config.
 static void station_on_query_ack(const rc::ccsds::CommandAckPayload& ack) {
     if (ack.cfg_bw_khz == 0) { return; }  // vehicle didn't populate
-    printf("[CMD] vehicle config: BW=%u nav=%u SF=%u CR=%u\n",
-           static_cast<unsigned>(ack.cfg_bw_khz),
-           static_cast<unsigned>(ack.cfg_nav_hz),
-           static_cast<unsigned>(ack.cfg_sf),
-           static_cast<unsigned>(ack.cfg_cr));
+    rc::rc_log("[CMD] vehicle config: BW=%u nav=%u SF=%u CR=%u\n",
+               static_cast<unsigned>(ack.cfg_bw_khz),
+               static_cast<unsigned>(ack.cfg_nav_hz),
+               static_cast<unsigned>(ack.cfg_sf),
+               static_cast<unsigned>(ack.cfg_cr));
 }
 #endif
 
@@ -541,7 +541,7 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
 
     const bool accepted = (ack.result ==
         static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted));
-    printf("[CMD] %s (seq=%u)\n", accepted ? "ACK'd" : "DENIED", ack.cmd_seq);
+    rc::rc_log("[CMD] %s (seq=%u)\n", accepted ? "ACK'd" : "DENIED", ack.cmd_seq);
 
     record_ack_outcome(matched_cmd, matched_p1, retries_left_at_ack,
                        rtt_ms, accepted);
@@ -594,10 +594,10 @@ static void dispatch_nav_output(TelemAo* me,
         break;
     }
     case StationOutputMode::kCsv:
-        printf("RX,%u,%d,%d\n",
-               static_cast<unsigned>(seq),
-               static_cast<int>(rxEvt->rssi),
-               static_cast<int>(rxEvt->snr));
+        rc::rc_log("RX,%u,%d,%d\n",
+                   static_cast<unsigned>(seq),
+                   static_cast<int>(rxEvt->rssi),
+                   static_cast<int>(rxEvt->snr));
         break;
     case StationOutputMode::kAnsi:
     case StationOutputMode::kMenu:
@@ -1045,9 +1045,9 @@ void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
     if (elapsed >= s_ack_retry_timeout_ms) {
         if (s_pending_cmd.retries_left > 0) {
             s_pending_cmd.retries_left--;
-            printf("[CMD] Retry %u/%u (seq=%u)\n",
-                   kAckMaxRetries - s_pending_cmd.retries_left,
-                   kAckMaxRetries, s_pending_cmd.seq);
+            rc::rc_log("[CMD] Retry %u/%u (seq=%u)\n",
+                       kAckMaxRetries - s_pending_cmd.retries_left,
+                       kAckMaxRetries, s_pending_cmd.seq);
             resend_pending_cmd();
         } else {
             // T14b: record fail + retries used (all kAckMaxRetries).
@@ -1064,8 +1064,8 @@ void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
             s_last_cmd_result.at_ms  = now_ms;
 
             s_pending_cmd.pending = false;
-            printf("[CMD] No ACK after %u retries\n",
-                   static_cast<unsigned>(kAckMaxRetries));
+            rc::rc_log("[CMD] No ACK after %u retries\n",
+                       static_cast<unsigned>(kAckMaxRetries));
         }
     }
 #else
