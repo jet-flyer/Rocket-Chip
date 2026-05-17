@@ -30,7 +30,6 @@
 #       the allowlist back-then because the file post-dated the 2026-05-13
 #       cutoff for the allowlist's initial entries.
 
-src/active_objects/ao_flight_director.cpp
 src/active_objects/ao_rcos.cpp
 src/cli/rc_os.cpp
 src/cli/rc_os_commands.cpp

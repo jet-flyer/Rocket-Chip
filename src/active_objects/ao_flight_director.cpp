@@ -23,7 +23,7 @@
 #include "fusion/eskf_runner.h"
 
 #include "pico/time.h"
-#include <stdio.h>
+#include "rocketchip/rc_log.h"
 #include <math.h>
 
 // ============================================================================
@@ -86,7 +86,7 @@ static void fd_check_pio_backup(FdAo* me) {
         pioDrogueEvt.channel = 0;  // Drogue
         pioDrogueEvt.source = 1;   // PIO backup
         QActive_publish_(&pioDrogueEvt.super, &me->super, me->super.prio);
-        printf("[PIO] Backup drogue fired — SIG_PYRO_FIRED published\n");
+        rc::rc_log("[PIO] Backup drogue fired — SIG_PYRO_FIRED published\n");
     }
     if (!me->pio_main_reported &&
         rc::pio_backup_timer_fired(rc::BackupTimerId::kMain)) {
@@ -97,7 +97,7 @@ static void fd_check_pio_backup(FdAo* me) {
         pioMainEvt.channel = 1;  // Main
         pioMainEvt.source = 1;   // PIO backup
         QActive_publish_(&pioMainEvt.super, &me->super, me->super.prio);
-        printf("[PIO] Backup main fired — SIG_PYRO_FIRED published\n");
+        rc::rc_log("[PIO] Backup main fired — SIG_PYRO_FIRED published\n");
     }
 }
 
@@ -137,7 +137,7 @@ static void fd_tick(FdAo* me) {
     // clear. See docs/USER_GUIDE.md "Safety State Model".
     if (rc::flight_director_phase(&me->director) == rc::FlightPhase::kArmed &&
         rc::health_monitor_critical_fault()) {
-        printf("[FD] CRITICAL FAULT while ARMED — auto-DISARM + LAUNCH ABORT\n");
+        rc::rc_log("[FD] CRITICAL FAULT while ARMED — auto-DISARM + LAUNCH ABORT\n");
         rc::flight_director_dispatch_signal(&me->director, rc::SIG_DISARM);
         rc::flight_director_set_launch_abort();
     }
@@ -176,8 +176,8 @@ QActive * const AO_FlightDirector = &l_fdAo.super;
 // Pyro fired callback — extracted to keep AO_FlightDirector_start under
 // the function-size limit.
 static void fd_on_pyro_fired(rc::PyroChannel ch) {
-    printf("[FD] PYRO FIRED: %s (primary)\n",
-           ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
+    rc::rc_log("[FD] PYRO FIRED: %s (primary)\n",
+               ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
     if (ch == rc::PyroChannel::kDrogue) {
         l_fdAo.director.state.drogue_fired = true;
         AO_Logger_log_event(rc::LogEventId::kPyroFiredDrogue, 0, 0, 0, 0);
@@ -244,7 +244,7 @@ static void fd_wire_callbacks(rc::FlightDirector* director) {
         s_beacon_evt.sig = rc::SIG_BEACON_ACTIVE;
         QActive_publish_(&s_beacon_evt,
                          &l_fdAo.super, l_fdAo.super.prio);
-        printf("[FD] Distress beacon published (SIG_BEACON_ACTIVE)\n");
+        rc::rc_log("[FD] Distress beacon published (SIG_BEACON_ACTIVE)\n");
     };
 }
 
@@ -278,7 +278,7 @@ void AO_FlightDirector_start(uint8_t prio) {
 
 void AO_FlightDirector_dispatch_signal(int signal) {
     if (!l_fdAo.initialized) {
-        printf("[FD] Flight Director not initialized.\n");
+        rc::rc_log("[FD] Flight Director not initialized.\n");
         return;
     }
     rc::flight_director_dispatch_signal(&l_fdAo.director,
@@ -287,7 +287,7 @@ void AO_FlightDirector_dispatch_signal(int signal) {
 
 bool AO_FlightDirector_process_command(int cmd) {
     if (!l_fdAo.initialized) {
-        printf("[FD] Flight Director not initialized.\n");
+        rc::rc_log("[FD] Flight Director not initialized.\n");
         return false;
     }
 
@@ -308,9 +308,9 @@ bool AO_FlightDirector_process_command(int cmd) {
         if (result.signal == rc::SIG_ARM) {
             const auto* p = l_fdAo.director.profile;
             rc::pio_backup_timer_arm(p->drogue_timer_s, p->main_timer_s);
-            printf("[PIO] Backup timers armed: drogue=%.0fs main=%.0fs\n",
-                   static_cast<double>(p->drogue_timer_s),
-                   static_cast<double>(p->main_timer_s));
+            rc::rc_log("[PIO] Backup timers armed: drogue=%.0fs main=%.0fs\n",
+                       static_cast<double>(p->drogue_timer_s),
+                       static_cast<double>(p->main_timer_s));
             eskf_runner_end_mahony_startup();
         } else if (result.signal == rc::SIG_ABORT) {
             AO_Logger_log_event(rc::LogEventId::kAbortTriggered,
@@ -318,57 +318,57 @@ bool AO_FlightDirector_process_command(int cmd) {
         } else if (result.signal == rc::SIG_DISARM ||
                    result.signal == rc::SIG_RESET) {
             rc::pio_backup_timer_disarm();
-            printf("[PIO] Backup timers disarmed\n");
+            rc::rc_log("[PIO] Backup timers disarmed\n");
         }
     } else {
-        printf("[FD] Command rejected: %s\n", result.reason);
+        rc::rc_log("[FD] Command rejected: %s\n", result.reason);
     }
     return result.accepted;
 }
 
 void AO_FlightDirector_print_status() {
     if (!l_fdAo.initialized) {
-        printf("[FD] Flight Director not initialized.\n");
+        rc::rc_log("[FD] Flight Director not initialized.\n");
         return;
     }
     const rc::FlightState& st = l_fdAo.director.state;
     uint32_t nowMs = to_ms_since_boot(get_absolute_time());
     uint32_t phaseMs = nowMs - st.phase_entry_ms;
 
-    printf("\n--- Flight Director Status ---\n");
-    printf("  Profile:     %s\n", l_fdAo.director.profile->name);
-    printf("  Phase:       %s\n", rc::flight_phase_name(st.current_phase));
-    printf("  Previous:    %s\n", rc::flight_phase_name(st.previous_phase));
-    printf("  In-phase:    %lu ms\n", (unsigned long)phaseMs);
-    printf("  Transitions: %lu\n", (unsigned long)st.transition_count);
+    rc::rc_log("\n--- Flight Director Status ---\n");
+    rc::rc_log("  Profile:     %s\n", l_fdAo.director.profile->name);
+    rc::rc_log("  Phase:       %s\n", rc::flight_phase_name(st.current_phase));
+    rc::rc_log("  Previous:    %s\n", rc::flight_phase_name(st.previous_phase));
+    rc::rc_log("  In-phase:    %lu ms\n", (unsigned long)phaseMs);
+    rc::rc_log("  Transitions: %lu\n", (unsigned long)st.transition_count);
 
     // Markers
     const rc::FlightMarkers& mk = st.markers;
     if (mk.armed_ms > 0) {
-        printf("  Armed:       T+%lu ms\n", (unsigned long)mk.armed_ms);
+        rc::rc_log("  Armed:       T+%lu ms\n", (unsigned long)mk.armed_ms);
     }
     if (mk.launch_ms > 0) {
-        printf("  Launch:      T+%lu ms\n", (unsigned long)mk.launch_ms);
+        rc::rc_log("  Launch:      T+%lu ms\n", (unsigned long)mk.launch_ms);
     }
     if (mk.burnout_ms > 0) {
-        printf("  Burnout:     T+%lu ms\n", (unsigned long)mk.burnout_ms);
+        rc::rc_log("  Burnout:     T+%lu ms\n", (unsigned long)mk.burnout_ms);
     }
     if (mk.apogee_ms > 0) {
-        printf("  Apogee:      T+%lu ms\n", (unsigned long)mk.apogee_ms);
+        rc::rc_log("  Apogee:      T+%lu ms\n", (unsigned long)mk.apogee_ms);
     }
     if (mk.drogue_deploy_ms > 0) {
-        printf("  Drogue:      T+%lu ms\n", (unsigned long)mk.drogue_deploy_ms);
+        rc::rc_log("  Drogue:      T+%lu ms\n", (unsigned long)mk.drogue_deploy_ms);
     }
     if (mk.main_deploy_ms > 0) {
-        printf("  Main:        T+%lu ms\n", (unsigned long)mk.main_deploy_ms);
+        rc::rc_log("  Main:        T+%lu ms\n", (unsigned long)mk.main_deploy_ms);
     }
     if (mk.landing_ms > 0) {
-        printf("  Landing:     T+%lu ms\n", (unsigned long)mk.landing_ms);
+        rc::rc_log("  Landing:     T+%lu ms\n", (unsigned long)mk.landing_ms);
     }
     if (mk.abort_ms > 0) {
-        printf("  Abort:       T+%lu ms\n", (unsigned long)mk.abort_ms);
+        rc::rc_log("  Abort:       T+%lu ms\n", (unsigned long)mk.abort_ms);
     }
-    printf("-----------------------------\n");
+    rc::rc_log("-----------------------------\n");
 }
 
 const rc::FlightDirector* AO_FlightDirector_get_director() {
