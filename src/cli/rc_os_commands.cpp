@@ -143,6 +143,7 @@ static void cmd_radio_config_cycle() {
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 #include "pico/time.h"
+#include "tusb.h"
 #include "rocketchip/rc_log.h"
 #include <math.h>
 
@@ -889,11 +890,11 @@ void cli_print_boot_status() {
 
 void cli_print_eskf_live() {
     if (!g_eskfInitialized) {
-        printf("ESKF: waiting for init...\n");
+        rc::rc_log("ESKF: waiting for init...\n");
         return;
     }
     if (!g_eskf.healthy()) {
-        printf("ESKF: UNHEALTHY\n");
+        rc::rc_log("ESKF: UNHEALTHY\n");
         return;
     }
     shared_sensor_data_t snap = {};
@@ -915,7 +916,7 @@ void cli_print_eskf_live() {
     float mdivDeg = (eskf_runner_is_mahony_initialized() && mahony_live->healthy())
                     ? rc::MahonyAHRS::divergence_rad(g_eskf.q, mahony_live->q) * kRadToDeg
                     : -1.0F;
-    printf("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f mA=%lu/%lu Z=%c zNIS=%.2f G=%c gNIS=%.2f Mdiv=%.1f B=%lu\n",
+    rc::rc_log("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f mA=%lu/%lu Z=%c zNIS=%.2f G=%c gNIS=%.2f Mdiv=%.1f B=%lu\n",
            (double)alt, (double)vz, (double)vh, (double)yawDeg,
            (double)patt, (double)ppos,
            (double)g_eskf.last_baro_nis_,
@@ -958,26 +959,26 @@ static void print_station_rx_fields(const rc::TelemetryState& t,
     const char* phase = rc::flight_phase_name(
         static_cast<rc::FlightPhase>(t.flight_state));
 
-    printf("State: %-8s  Pkts: %lu (%lu lost)\n", phase,
+    rc::rc_log("State: %-8s  Pkts: %lu (%lu lost)\n", phase,
            (unsigned long)rs->rx_count, (unsigned long)lost);
-    printf("Alt:   %.1f m (%.0f ft)  Vvel: %.1f m/s\n",
+    rc::rc_log("Alt:   %.1f m (%.0f ft)  Vvel: %.1f m/s\n",
            static_cast<double>(alt_m), static_cast<double>(alt_ft),
            static_cast<double>(vvel));
-    printf("RSSI:  %d dBm  SNR: %d dB\n",
+    rc::rc_log("RSSI:  %d dBm  SNR: %d dB\n",
            static_cast<int>(rs->last_rx_rssi),
            static_cast<int>(rs->last_rx_snr));
-    printf("GPS:   fix=%u sats=%u  Batt: %.2f V\n",
+    rc::rc_log("GPS:   fix=%u sats=%u  Batt: %.2f V\n",
            static_cast<unsigned>(fix), static_cast<unsigned>(sats),
            static_cast<double>(t.battery_mv) * 0.001);
-    printf("ESKF:  %s  Temp: %d C\n",
+    rc::rc_log("ESKF:  %s  Temp: %d C\n",
            eskf_ok ? "HEALTHY" : "UNHEALTHY",
            static_cast<int>(t.temperature_c));
-    printf("Last:  %lu.%lus ago  MET: %lu.%lus  seq=%u\n",
+    rc::rc_log("Last:  %lu.%lus ago  MET: %lu.%lus  seq=%u\n",
            (unsigned long)(age_ms / 1000), (unsigned long)((age_ms % 1000) / 100),
            (unsigned long)(met_ms / 1000), (unsigned long)((met_ms % 1000) / 100),
            static_cast<unsigned>(seq));
     if (rs->rx_crc_errors > 0) {
-        printf("CRC errors: %lu\n", (unsigned long)rs->rx_crc_errors);
+        rc::rc_log("CRC errors: %lu\n", (unsigned long)rs->rx_crc_errors);
     }
 }
 
@@ -985,14 +986,14 @@ void cli_print_station_status() {
     const auto* rs = AO_Radio_get_state();
     const auto* rx = AO_Telemetry_get_rx_state();
 
-    printf("\n=== RocketChip Station ===\n");
+    rc::rc_log("\n=== RocketChip Station ===\n");
     if (!rs->initialized) {
-        printf("Radio: not initialized\n");
+        rc::rc_log("Radio: not initialized\n");
         return;
     }
     if (!rx->valid) {
-        printf("Waiting for vehicle packets...\n");
-        printf("RX: %lu pkts  %lu CRC err\n",
+        rc::rc_log("Waiting for vehicle packets...\n");
+        rc::rc_log("RX: %lu pkts  %lu CRC err\n",
                (unsigned long)rs->rx_count, (unsigned long)rs->rx_crc_errors);
         return;
     }
@@ -1010,26 +1011,26 @@ static void flush_kick_watchdog() {
 
 static void cmd_flush_log() {
     if (!AO_Logger_is_initialized()) {
-        printf("Logging not initialized.\n");
+        rc::rc_log("Logging not initialized.\n");
         return;
     }
     rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
     if (!ft->loaded) {
-        printf("Flight table not loaded.\n");
+        rc::rc_log("Flight table not loaded.\n");
         return;
     }
 
     rc::RingBuffer* ring = AO_Logger_get_ring_mut();
     uint32_t stored = rc::ring_stored_count(ring);
     if (stored == 0) {
-        printf("No frames in ring buffer.\n");
+        rc::rc_log("No frames in ring buffer.\n");
         return;
     }
 
     bool isPsram = (g_psramSize > 0 && g_psramSelfTestPassed);
     uint8_t rate = isPsram ? 50U : 25U;
 
-    printf("Flushing %lu frames to flash...\n", (unsigned long)stored);
+    rc::rc_log("Flushing %lu frames to flash...\n", (unsigned long)stored);
 
     rc::FlightMetadata meta = {};
     rc::FlightSummary summ = {};
@@ -1054,35 +1055,35 @@ static void cmd_flush_log() {
     // the reset is still required as belt-and-suspenders against any in-flight
     // transaction that didn't drain in time.
     if (!i2c_bus_reset()) {
-        printf("[WARN] I2C bus reset failed after flush\n");
+        rc::rc_log("[WARN] I2C bus reset failed after flush\n");
     }
     rc::core1_i2c_resume();
 
     switch (result) {
     case rc::FlushResult::kOk:
-        printf("Flush OK. Flight #%lu saved (%lu frames, %lu sectors).\n",
+        rc::rc_log("Flush OK. Flight #%lu saved (%lu frames, %lu sectors).\n",
                (unsigned long)rc::flight_table_count(ft),
                (unsigned long)stored,
                (unsigned long)(stored * rc::kPcmFrameStandardSize + rc::kFlashSectorSize - 1)
                    / rc::kFlashSectorSize);
         break;
     case rc::FlushResult::kFlashFull:
-        printf("Flash full. Erase flights with 'x' command.\n");
+        rc::rc_log("Flash full. Erase flights with 'x' command.\n");
         break;
     case rc::FlushResult::kTableFull:
-        printf("Flight table full (32 flights). Erase with 'x'.\n");
+        rc::rc_log("Flight table full (32 flights). Erase with 'x'.\n");
         break;
     case rc::FlushResult::kEraseError:
-        printf("Flash erase error.\n");
+        rc::rc_log("Flash erase error.\n");
         break;
     case rc::FlushResult::kWriteError:
-        printf("Flash write error.\n");
+        rc::rc_log("Flash write error.\n");
         break;
     case rc::FlushResult::kTableSaveError:
-        printf("Flight table save error.\n");
+        rc::rc_log("Flight table save error.\n");
         break;
     default:
-        printf("Flush error: %d\n", static_cast<int>(result));
+        rc::rc_log("Flush error: %d\n", static_cast<int>(result));
         break;
     }
 }
@@ -1091,7 +1092,7 @@ static void cmd_flush_log() {
 // This function is the completion callback — does the actual erase.
 void cli_do_erase_flights() {
     rc::FlightTableState* ft = AO_Logger_get_flight_table_mut();
-    printf("Erasing flight log sectors...\n");
+    rc::rc_log("Erasing flight log sectors...\n");
     // R-17 (2026-05-07 audit): pause Core 1 I2C BEFORE the flash op chain
     // to prevent the LL-31 race (in-flight I2C transactions corrupted by
     // multicore_lockout). See R-11 SPIN model + ao_rcos.cpp cal_save_to_flash
@@ -1099,16 +1100,16 @@ void cli_do_erase_flights() {
     rc::core1_i2c_pause();
     bool ok = true;
     if (!rc::flight_log_erase_all(ft, flush_kick_watchdog)) {
-        printf("Flash erase error.\n");
+        rc::rc_log("Flash erase error.\n");
         ok = false;
     } else if (!rc::flight_table_erase_flash()) {
-        printf("Table erase error.\n");
+        rc::rc_log("Table erase error.\n");
         ok = false;
     } else {
         rc::flight_table_erase_all(ft);
         ft->loaded = true;
         rc::flight_table_save(ft);
-        printf("All flights erased.\n");
+        rc::rc_log("All flights erased.\n");
     }
 
     // R-15 (2026-05-07 audit): per LL Entry 31, every runtime flash_safe_execute()
@@ -1117,7 +1118,7 @@ void cli_do_erase_flights() {
     // for some sectors before bailing, so the reset is required regardless of ok.
     (void)ok;
     if (!i2c_bus_reset()) {
-        printf("[WARN] I2C bus reset failed after erase\n");
+        rc::rc_log("[WARN] I2C bus reset failed after erase\n");
     }
     // R-17: resume Core 1 sensor reads.
     rc::core1_i2c_resume();
@@ -1130,21 +1131,21 @@ void cli_do_erase_flights() {
 static void cmd_list_flights() {
     const rc::FlightTableState* ft = AO_Logger_get_flight_table();
     if (!ft->loaded) {
-        printf("Flight table not loaded.\n");
+        rc::rc_log("Flight table not loaded.\n");
         return;
     }
     uint32_t count = rc::flight_table_count(ft);
     if (count == 0) {
-        printf("No flights stored.\n");
+        rc::rc_log("No flights stored.\n");
         return;
     }
-    printf("\n  #  Frames  Rate  Sectors  Size(KB)\n");
-    printf("  -- ------  ----  -------  --------\n");
+    rc::rc_log("\n  #  Frames  Rate  Sectors  Size(KB)\n");
+    rc::rc_log("  -- ------  ----  -------  --------\n");
     for (uint32_t i = 0; i < count; ++i) {
         rc::FlightLogEntry entry = {};
         if (rc::flight_table_get_entry(ft, i, &entry)) {
             uint32_t sizeKb = (entry.sector_count * rc::kFlashSectorSize) / 1024;
-            printf("  %2lu %6lu  %3uHz  %5lu  %6lu\n",
+            rc::rc_log("  %2lu %6lu  %3uHz  %5lu  %6lu\n",
                    (unsigned long)(i + 1),
                    (unsigned long)entry.frame_count,
                    (unsigned)entry.log_rate_hz,
@@ -1152,7 +1153,7 @@ static void cmd_list_flights() {
                    (unsigned long)sizeKb);
         }
     }
-    printf("\n  Flash: %.1f%% used (%lu flights)\n\n",
+    rc::rc_log("\n  Flash: %.1f%% used (%lu flights)\n\n",
            static_cast<double>(rc::flight_table_used_pct(ft)),
            (unsigned long)count);
 }
@@ -1160,14 +1161,29 @@ static void cmd_list_flights() {
 // read_flight_number() removed — blocking input now in AO_RCOS (non-blocking).
 // Flight number input via AO_RCOS_start_download_flight() → cal_ui_handle_flight_num().
 
+// Block-with-watchdog-feed write — binary download path waits for CDC
+// backpressure rather than dropping. Operator wants complete data.
+static void cdc_write_blocking(const uint8_t* buf, uint32_t len) {
+    if (!tud_cdc_connected()) { return; }
+    uint32_t written = 0;
+    while (written < len) {
+        uint32_t avail = tud_cdc_write_available();
+        if (avail == 0) {
+            rc::pio_watchdog_feed();
+            continue;
+        }
+        uint32_t chunk = (avail < (len - written)) ? avail : (len - written);
+        tud_cdc_write(buf + written, chunk);
+        written += chunk;
+    }
+}
+
 static uint32_t stream_flight_binary(const rc::FlightLogEntry& entry) {
     uint32_t frame_size = entry.frame_size;
     uint32_t frames_per_sector = rc::kFlashSectorSize / frame_size;
     uint32_t flash_base = entry.start_sector * rc::kFlashSectorSize;
     const uint8_t* xip_base = reinterpret_cast<const uint8_t*>(
         XIP_BASE + flash_base);
-
-    stdio_set_translate_crlf(&stdio_usb, false);
 
     uint32_t running_crc = kCrc32InitXor;
     uint32_t frames_sent = 0;
@@ -1184,16 +1200,13 @@ static uint32_t stream_flight_binary(const rc::FlightLogEntry& entry) {
                              ? remaining_in_sector : remaining_total;
         uint32_t batch_bytes = batch * frame_size;
 
-        fwrite(xip_base + offset, 1, batch_bytes, stdout);
-        fflush(stdout);
+        cdc_write_blocking(xip_base + offset, batch_bytes);
 
         running_crc = rc::crc32_update(running_crc,
                                        xip_base + offset, batch_bytes);
         frames_sent += batch;
         rc::pio_watchdog_feed();
     }
-
-    stdio_set_translate_crlf(&stdio_usb, true);
     return running_crc ^ kCrc32InitXor;
 }
 
@@ -1203,25 +1216,25 @@ void cli_do_download_flight(int num) {
     const rc::FlightTableState* ft = AO_Logger_get_flight_table();
     uint32_t count = rc::flight_table_count(ft);
     if (num < 1 || static_cast<uint32_t>(num) > count) {
-        printf("Invalid flight number.\n");
+        rc::rc_log("Invalid flight number.\n");
         return;
     }
 
     rc::FlightLogEntry entry = {};
     if (!rc::flight_table_get_entry(ft, static_cast<uint32_t>(num - 1),
                                      &entry)) {
-        printf("Failed to read flight entry.\n");
+        rc::rc_log("Failed to read flight entry.\n");
         return;
     }
 
-    printf("RCBIN:%d:%lu:%u:%lu\n",
+    rc::rc_log("RCBIN:%d:%lu:%u:%lu\n",
            num,
            (unsigned long)entry.frame_count,
            (unsigned)entry.log_rate_hz,
            (unsigned long)entry.frame_size);
 
     uint32_t crc = stream_flight_binary(entry);
-    printf("RCEND:%08lX\n", (unsigned long)crc);
+    rc::rc_log("RCEND:%08lX\n", (unsigned long)crc);
 }
 
 // ============================================================================
