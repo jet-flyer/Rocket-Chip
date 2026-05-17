@@ -22,9 +22,9 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
-### 2026-05-16-004 | Claude | bugfix
+### 2026-05-17-001 | Claude | refactor, architecture, council
 
-**`i2c_bus_imu_recovery()` blind-write correctness.** Cross-checking the prior IMU-recovery fix surfaced that its four post-clock "blind writes" were each 1-byte transactions, which on an I2C slave only set the internal address pointer and commit no value. Collapsed to two `[reg, value]` 2-byte writes — `[0x7F, 0x00]` (BANK_SEL → Bank 0) and `[0x06, 0x80]` (PWR_MGMT_1 → DEVICE_RESET) — so the writes actually do what the comment claims. The 27-pulse SCL clocking that does the heavy lifting is untouched. Cold-boot path was already succeeding without exercising recovery; verified the function still compiles + reaches its re-probe, IMU GO at boot, bench_sim 2/2 PASS, host ctest 827/827. (src/drivers/i2c_bus.cpp)
+**R-5 stdio removal CLOSED at Level-3 — Units F through K shipped.** R-5 plan ([`docs/plans/R5_STDIO_REMOVAL.md`](docs/plans/R5_STDIO_REMOVAL.md)) closed at firmware level (Units F-J) + audit-suite Level-3 regression (Unit K). All `src/*.cpp` are now stdio-free; pre-commit gate upgraded to unconditional rejection of `<stdio.h>`; allowlist file deleted. Council 2026-05-17 (unanimous, parser-extract framing): new `rc::rc_snprintf` + `rc::strbuf` siblings to `rc::rc_log` share one parser, three sinks. Side fixups along the way: cross-checked Grok 4.3's ICM-20948 stuck-slave recovery (`dfabcd4`) with a minor correctness tweak to the post-clock blind writes (4× 1-byte → 2× `[reg,value]` 2-byte — the 27-pulse SCL clocking that actually does the recovery work was unchanged); GPS UART sticky-baud handler (CR1220 backup battery makes the MT3339 baud survive host reset); dashboard hint string + RCOS doc drift; HW_GATE_DISCIPLINE Rule 2 cable-reseat language retired; comment-density audit (aggregate 22.8%, in 15-25% band). Level-3 regression: 6/6 cold-restart bench_sim, 863/863 host ctest, SPIN_OK_31, station dashboard live + RF Link TRACK 100%, vehicle preflight 9/9 GO. PROBLEM_REPORTS R-5 + R-2 both closed; L2-P5 + L2-P10 R-5 dependency cleared. PROJECT_STATUS Future Features gains GPS 10Hz experimental-mode + eyalroz/printf exit-ramp candidate entries.
 
 ### 2026-05-16-003 | Grok 4.3 (via OpenCode) | bugfix, hardware
 

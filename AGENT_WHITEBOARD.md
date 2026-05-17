@@ -32,7 +32,7 @@
 
 ## High priority
 
-- **Tier 5 drain rate-limiting — known-limitation followup** (LL Entry 39). Before Tier 5 (rc_os.cpp + rc_os_commands.cpp ~215 callsites + ao_rcos.cpp ~167 callsites) ships, add second-line defense to `rc_log_drain_to_cdc`: either rate-limit drain to every-Nth-idle-tick, OR drain via dedicated timer-tick instead of qv_idle_bridge. Tier 1-4 traffic volume is well below where the ring-empty fast-path is insufficient, but Tier 5's heavy CLI output could push past it. Council deferral: address when callsite count actually warrants it, not preemptively.
+- **rc_log drain rate-limiting — known-limitation followup** (LL Entry 39). Tier 5 (~430 callsites across rc_os/rc_os_debug/rc_os_commands/ao_rcos/dashboard) shipped 2026-05-17 with the existing ring-empty fast-path, no drain-rate regressions observed in normal CLI use. The known limitation remains: under sustained heavy CLI output (e.g. an operator dumping the full sensor-status block in a tight loop) the ring isn't empty for sustained periods and the drain runs on every idle tick. Council deferral stands — address when actual sustained-output regression surfaces. Candidate fixes still apply: rate-limit drain to every-Nth-idle-tick, OR drain via dedicated timer-tick instead of qv_idle_bridge.
 
 - **Pre-existing 30%+ comment-density functions to evaluate.** Surfaced 2026-05-17 during R-5 session-end comment-density audit (per `feedback_comment_density.md` — Polyspace 20% floor, healthy 15-25% band). Session-touched files are fine in aggregate (TOTAL 23.1%). These per-function hot spots exceed 30% in a single function with comments that pre-date this session:
   - `src/drivers/gps_uart.cpp` `gps_uart_init` 44.1%, `gps_uart_reinit` 37.1%, `negotiate_baud_to_57600` 33.3%
@@ -53,8 +53,9 @@
 
 - **Four-cycle plan status (council-approved 2026-05-15):**
   - **Cycle 1 CLOSED 2026-05-15** — quick decoupled audit closures. Five rows L2-P6, L2-P7, L2-P8, L2-P9, L2-P11 advanced `analyzed→closed` via `docs/audits/AUDIT_COVERAGE_QUICK_CLOSURES_2026-05-15.md`. R-26 (stale `#ifdef ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS` in version.h) found + closed inline. R-27 opened as observation-only (RfManager XII via accessor + events). L2-P5 + L2-P10 deferred to Cycle 4 (coupled to upcoming refactors).
-  - **Cycle 2 (R-5 stdio removal) IN PROGRESS** — Units A + B + C + D + E closed 2026-05-16 (15 commits total this cycle). Active plan: [`docs/plans/R5_STDIO_REMOVAL.md`](docs/plans/R5_STDIO_REMOVAL.md). Format-spec inventory + ETL 20.47.1 vendored + rc_log infrastructure (hand-rolled formatter dispatching to `etl::to_string`, libc-matching round-half-to-even for floats) + DBG_PRINT macro repoint + config.h `<stdio.h>` retirement + Tier 1 proving ground (pyro_edge_logger, fault_protection) + Tier 2 drivers (gps_pa1010d, gps_uart, i2c_bus, telemetry_service deleted as dead) + Tier 3 safety/diag (fault_inject, station_fault_inject, diag_stats). Host ctest 800 → 827 PASS (27 rc_log tests). **Next: Unit F (Tier 4 telemetry/AO)** — ao_flight_director, ao_telemetry, ao_radio, flight_director.cpp, go_nogo_checks, guard_combinator, cal_hooks. **BLOCKED at bench_sim baseline gate by vehicle IMU stuck-slave state** (see handoff row below). Then Units G/H/I (Tier 5 CLI) + J (Tier 6 cleanup). Council round 3 amendment for float formatter (Pathfinder-class divergence avoided): hand-rolled NOT ETL.
-  - **Cycles 3 + 4 — STASHED** to [`docs/plans/CYCLE_RESIDUALS_AFTER_R5.md`](docs/plans/CYCLE_RESIDUALS_AFTER_R5.md). Cycle 3 (station GPS cold-boot) runs after R-5 closes at Level-2. Cycle 4 (L2-P5 JSF AV walk + L2-P10 CLA-RBM re-collection) runs after BOTH R-5 and Cycle 3 close.
+  - **Cycle 2 (R-5 stdio removal) CLOSED at Level-3 2026-05-17.** Units A-K all shipped; allowlist deleted; pre-commit Gate 1 upgraded to unconditional stdio rejection. See PROBLEM_REPORTS R-5 row for evidence + commit chain. Side-effects: R-2 closed by absorption.
+  - **Cycle 3 — STASHED** to [`docs/plans/CYCLE_RESIDUALS_AFTER_R5.md`](docs/plans/CYCLE_RESIDUALS_AFTER_R5.md). Station GPS cold-boot fix. R-5 prereq cleared; ready when next session picks it up.
+  - **Cycle 4 — STASHED** (L2-P5 JSF AV walk + L2-P10 CLA-RBM re-collection). Runs after Cycle 3 closes at Level-2.
 
 - **Next up (deferred from DC-2026-05-13 cycle, not part of four-cycle plan):**
   - **Host-side replay harness implementation** (`scripts/replay_harness_host.py` is a stub). Per R-25-exec amendment #4, IVP-131 verification model shifts from on-MCU CSV-streamer to host-side ESKF replay against `tests/replay_profiles/*.csv` ground-truth. Needs host-buildable ESKF driver + comparison harness against the oracle. Out of cycle scope; tracked here until implemented.
@@ -88,36 +89,17 @@
   the anchor-station-TX-to-vehicle-RxDone architectural fix is still
   needed or was over-engineered for our actual link conditions.
 
-- **Code Classification / CONFIG_TEST_MATRIX doc realignment (post pre-commit-matrix widening).**
-  Council 2026-05-16 unanimously approved widening
-  `scripts/ci/pre_commit_matrix.py`'s FLIGHT_CRITICAL regex from a
-  narrow path enumeration to "any firmware-affecting change" — the
-  hook change is shipped. Two protected docs are now misaligned with
-  the shipped gate policy and need a dedicated session to update:
-
-  (1) **`standards/CODING_STANDARDS.md` "Code Classification" table**
-      (lines 63-99) — still distinguishes Flight-Critical /
-      Flight-Support / Ground per-file with stdio-relaxation policy
-      tied to "Ground" classification. The shipped gate now treats
-      all firmware as bench-gated regardless of label. The session
-      needs to decide: (a) collapse the three tiers into one "all
-      firmware = flight code" framing per R-25-exec precedent, OR
-      (b) keep the classifications as **descriptive** ("active in
-      which phases") rather than **prescriptive** ("which standards
-      apply"). My lean is (a) for consistency, but it's a real
-      design discussion since the table also drives the
-      stdio-relaxation policy that R-5 is in the middle of
-      eliminating anyway. Coordinate with R-5 Unit J close.
-
-  (2) **`docs/CONFIG_TEST_MATRIX.md` Tier 6b section** — describes the
-      former narrow matrix. Needs to reflect the widened regex +
-      the "categories not enumerations" rationale per the council
-      decision. Smaller edit than (1); could ride with (1) or its
-      own short commit.
-
-  Both flagged here per SESSION_CHECKLIST trigger-driven-edit
-  discipline. The gate is shipped (commit hash captured in CHANGELOG
-  +1 from this WB row's commit) but the descriptive documents lag.
+- **CONFIG_TEST_MATRIX doc lag (post pre-commit-matrix widening).**
+  Council 2026-05-16 widened `scripts/ci/pre_commit_matrix.py`'s
+  FLIGHT_CRITICAL regex from a narrow path enumeration to "any
+  firmware-affecting change." The hook change shipped. CODING_STANDARDS.md
+  Code Classification table partially addressed by R-5 Unit J 2026-05-17
+  (stdio column retired, but the prescriptive vs descriptive framing
+  question for the three-tier structure remains an open design
+  discussion — defer to next session that touches the table).
+  `docs/CONFIG_TEST_MATRIX.md` Tier 6b section still describes the
+  former narrow matrix; needs to reflect the widened regex + the
+  "categories not enumerations" rationale. Doc-only edit.
   Per LL Entry 39: this is the meta-pattern that LL36/LL39 keep
   surfacing — categories drift behind the code they police. Doc
   realignment is the documentation-side of the same lesson.
