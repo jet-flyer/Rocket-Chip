@@ -20,6 +20,7 @@
 #include "rocketchip/ao_signals.h"
 #include "rocketchip/config.h"  // rocketchip::pins::kRadioCs/Rst/Irq
 #include "rocketchip/radio_config.h"
+#include "rocketchip/rc_log.h"  // R-5 Unit F.5: STAGE_T diagnostics use rc::rc_log
 #include "logging/radio_config_storage.h"  // T5.5 sub persist: boot read + debounced write
 #include "flight_director/mission_profile_data.h"  // kDefaultRocketRadioConfig
 #include "rocketchip/job.h"
@@ -140,30 +141,30 @@ static const char* phase_name(rc::RadioPhase p) {
 }
 static void stage_t_log_state(rc::RadioPhase old_phase, rc::RadioPhase new_phase) {
     if (old_phase == new_phase) { return; }
-    printf("[STAGE_T] state %s->%s t=%lu\n",
-           phase_name(old_phase), phase_name(new_phase),
-           static_cast<unsigned long>(stage_t_now_us()));
+    rc::rc_log("[STAGE_T] state %s->%s t=%lu\n",
+               phase_name(old_phase), phase_name(new_phase),
+               static_cast<unsigned long>(stage_t_now_us()));
 }
 static void stage_t_log_rx(rc::RadioPhase state_at_rx, int rssi, int snr,
                            bool crc_ok, uint8_t len, uint16_t seq) {
-    printf("[STAGE_T] rx state=%s rssi=%d snr=%d crc=%s len=%u seq=%u t=%lu\n",
-           phase_name(state_at_rx), rssi, snr, crc_ok ? "ok" : "err",
-           static_cast<unsigned>(len), static_cast<unsigned>(seq),
-           static_cast<unsigned long>(stage_t_now_us()));
+    rc::rc_log("[STAGE_T] rx state=%s rssi=%d snr=%d crc=%s len=%u seq=%u t=%lu\n",
+               phase_name(state_at_rx), rssi, snr, crc_ok ? "ok" : "err",
+               static_cast<unsigned>(len), static_cast<unsigned>(seq),
+               static_cast<unsigned long>(stage_t_now_us()));
 }
 // T14 pre-Batch-B: TX-start + TxDone instrumentation for ACK-path timing.
 // Plan consensus #2: measure RxDone-to-TX-start jitter + ACK drain.
 static void stage_t_log_tx_start(uint8_t len) {
-    printf("[STAGE_T] tx_start len=%u t=%lu\n",
-           static_cast<unsigned>(len),
-           static_cast<unsigned long>(stage_t_now_us()));
+    rc::rc_log("[STAGE_T] tx_start len=%u t=%lu\n",
+               static_cast<unsigned>(len),
+               static_cast<unsigned long>(stage_t_now_us()));
 }
 static void stage_t_log_tx_done(TxPollResult result) {
     const char* r = (result == TxPollResult::kDone) ? "done"
                   : (result == TxPollResult::kTimeout) ? "timeout"
                   : "busy";
-    printf("[STAGE_T] tx_poll result=%s t=%lu\n",
-           r, static_cast<unsigned long>(stage_t_now_us()));
+    rc::rc_log("[STAGE_T] tx_poll result=%s t=%lu\n",
+               r, static_cast<unsigned long>(stage_t_now_us()));
 }
 #else
 static inline void stage_t_log_state(rc::RadioPhase, rc::RadioPhase) {}
