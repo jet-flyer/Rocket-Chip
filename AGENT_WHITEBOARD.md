@@ -34,6 +34,13 @@
 
 - **Tier 5 drain rate-limiting — known-limitation followup** (LL Entry 39). Before Tier 5 (rc_os.cpp + rc_os_commands.cpp ~215 callsites + ao_rcos.cpp ~167 callsites) ships, add second-line defense to `rc_log_drain_to_cdc`: either rate-limit drain to every-Nth-idle-tick, OR drain via dedicated timer-tick instead of qv_idle_bridge. Tier 1-4 traffic volume is well below where the ring-empty fast-path is insufficient, but Tier 5's heavy CLI output could push past it. Council deferral: address when callsite count actually warrants it, not preemptively.
 
+- **Pre-existing 30%+ comment-density functions to evaluate.** Surfaced 2026-05-17 during R-5 session-end comment-density audit (per `feedback_comment_density.md` — Polyspace 20% floor, healthy 15-25% band). Session-touched files are fine in aggregate (TOTAL 23.1%). These per-function hot spots exceed 30% in a single function with comments that pre-date this session:
+  - `src/drivers/gps_uart.cpp` `gps_uart_init` 44.1%, `gps_uart_reinit` 37.1%, `negotiate_baud_to_57600` 33.3%
+  - `src/drivers/i2c_bus.cpp` `i2c_bus_init` 38.7%, `i2c_bus_recover` 34.6%
+  - `src/flight_director/flight_director.cpp` `enter_phase` 46.2%
+  - `src/active_objects/ao_telemetry.cpp` `encode_and_send` 30.4%
+  Decision per future session: for each, check if the multi-paragraph rationale is captured in a decision doc / LL entry; if yes, trim the inline to a 1-line pointer; if no, write the rationale to a doc first, then trim. Don't blindly trim — information preservation per user direction 2026-05-17.
+
 - **Dead-code CCSDS `q`→QUERY_RADIO_CONFIG mapping in `cli_handle_unhandled_key`.** Surfaced 2026-05-16 during Unit F tier-end L2 wire-verification. `src/cli/rc_os_commands.cpp:1509` maps `q` to QUERY_RADIO_CONFIG, gated by `kRadioModeRx`. But `src/cli/rc_os.cpp:172-177` in `handle_main_menu` unconditionally consumes `q` → debug menu BEFORE the unhandled-key dispatcher is reached. So the QUERY path is unreachable on the current dispatch. ROCKETCHIP_OS.md updated to note the dead-code path; the code itself either needs to (a) move QUERY to a different key, (b) gate the debug-menu enter behind `!kRadioModeRx`, or (c) just delete the dead QUERY path. Low priority — SET_RADIO via `r` already covers the station's CCSDS exchange needs.
 
 - **CONFIG_TEST_MATRIX + Code Classification doc lag.** `scripts/ci/pre_commit_matrix.py` gate widened 2026-05-16 to "categories not enumerations" but `docs/CONFIG_TEST_MATRIX.md` Tier 6b section + `standards/CODING_STANDARDS.md` Code Classification table still describe the old narrower scope. State-of-system trigger applies — these docs are now contradicted by the matrix script. Doc-only follow-up; no code change needed.

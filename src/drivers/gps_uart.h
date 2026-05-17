@@ -28,15 +28,11 @@
 // Configuration
 // ============================================================================
 
-// MT3339 baud rates. Adafruit Ultimate GPS FeatherWing has a CR1220
-// backup-battery holder for the MT3339's VBackup pin; when populated
-// (the bench's normal state) the module RETAINS its baud setting
-// across host power-cycles. So the "sticky" 57600 from a prior
-// session survives every reset, USB replug, or firmware reflash.
-// gps_uart_init() handles both factory-fresh-9600 and sticky-57600
-// cases — see acquire_at_target_baud() in gps_uart.cpp.
-constexpr uint32_t kGpsUartBaudTarget  = 57600;  // Operating baud (set via PMTK251)
-constexpr uint32_t kGpsUartBaudFactory = 9600;   // MT3339 cold-start default
+// MT3339 baud — Adafruit Ultimate GPS FeatherWing's CR1220 makes the
+// module's baud sticky across host power-cycles. Init handles both
+// factory 9600 and sticky 57600. See acquire_at_target_baud().
+constexpr uint32_t kGpsUartBaudTarget  = 57600;
+constexpr uint32_t kGpsUartBaudFactory = 9600;
 constexpr uint32_t kGpsUartTxPin   = 0;       // GPIO0 — Feather UART0 TX
 constexpr uint32_t kGpsUartRxPin   = 1;       // GPIO1 — Feather UART0 RX
 

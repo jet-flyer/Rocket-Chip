@@ -571,18 +571,12 @@ namespace target_sink {
     inline size_t ring_free() { return kRingBytes - 1U - ring_used(); }
 }
 
+// Drop-oldest ring write (see Unit B-fixup #2 commit + LL Entry 39).
 void emit(const char* buf, size_t len) {
     using namespace target_sink;
-    // Drop-oldest: if the message doesn't fit, advance tail (evict
-    // oldest bytes) until it does. Producer owns both head and tail
-    // here, which is safe because rc_log is single-producer + the
-    // drain consumer is also Core 0 cooperative (never preempts the
-    // producer). Cap the eviction at message size so a giant message
-    // can't loop forever on a small ring.
     if (len >= kRingBytes) {
-        // Message larger than the entire ring (shouldn't happen — buf
-        // capacity is kRcLogBufferBytes=128). Keep only the tail of
-        // the message that fits, evict everything else.
+        // Message bigger than ring (kRcLogBufferBytes=128 < kRingBytes,
+        // so unreachable in practice — kept for defense).
         size_t evicted_pre = len - (kRingBytes - 1U);
         s_dropped_bytes = s_dropped_bytes + static_cast<uint32_t>(evicted_pre);
         buf += evicted_pre;
@@ -590,7 +584,6 @@ void emit(const char* buf, size_t len) {
     }
     size_t avail = ring_free();
     if (avail < len) {
-        // Evict (len - avail) oldest bytes by advancing s_tail.
         size_t evict = len - avail;
         s_dropped_bytes = s_dropped_bytes + static_cast<uint32_t>(evict);
         s_tail = (s_tail + evict) % kRingBytes;
@@ -600,7 +593,6 @@ void emit(const char* buf, size_t len) {
         s_ring[h] = buf[i];
         s_head = (h + 1U) % kRingBytes;
     }
-    // Track high-water mark post-write (after head advanced).
     size_t used_now = ring_used();
     if (used_now > s_high_water) {
         s_high_water = static_cast<uint32_t>(used_now);
@@ -664,20 +656,12 @@ void format_into(etl::istring& out, const char* fmt, va_list args) {
 namespace rc {
 
 void rc_log(const char* fmt, ...) {
-    // Per-call stack buffer for formatted output.
     etl::string<kRcLogBufferBytes> buf;
-
     va_list args;
     va_start(args, fmt);
     format_into(buf, fmt, args);
     va_end(args);
-
-    // Emit to sink (USB CDC ring on target, capture buffer on host).
-    // Note: no inline drain here — drain runs from qv_idle_bridge in
-    // Core 0's main loop. While USB CDC is disconnected (host hasn't
-    // attached yet), bytes accumulate in the ring with drop-oldest
-    // semantics, so the most-recent boot output is preserved for the
-    // host to see when it finally attaches and asserts DTR.
+    // Drain runs from qv_idle_bridge; see rc_log.h + LL Entry 39.
     emit(buf.data(), buf.size());
 }
 
