@@ -160,6 +160,9 @@ static void init_sensors() {
     // AK09916 init transactions. Defer GPS probe until after IMU bypass
     // mode is fully established.
     bool imuDetected  = i2c_bus_probe(kIcm20948AddrDefault);
+    if (!imuDetected) {
+        imuDetected = i2c_bus_imu_recovery(kIcm20948AddrDefault);
+    }
     bool baroDetected = i2c_bus_probe(kBaroDps310AddrDefault);
     // Sensor power-up settling time
     // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin

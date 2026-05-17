@@ -301,3 +301,43 @@ bool i2c_bus_reset() {
     g_initialized = true;
     return recovered;
 }
+
+// ICM-20948 device reset register (Bank 0, PWR_MGMT_1)
+constexpr uint8_t kIcmBankSel      = 0x7F;
+constexpr uint8_t kIcmBank0        = 0x00;
+constexpr uint8_t kIcmPwrMgmt1     = 0x06;
+constexpr uint8_t kIcmDeviceReset  = 0x80;
+
+bool i2c_bus_imu_recovery(uint8_t addr) {
+    // Extended clocking (3× standard recovery) to try to jolt internal state
+    i2c_deinit(I2C_BUS_INSTANCE);
+    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_SIO);
+    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
+    gpio_set_dir(kI2cBusSclPin, true);
+    gpio_put(kI2cBusSclPin, true);
+    gpio_set_dir(kI2cBusSdaPin, false);
+    gpio_pull_up(kI2cBusSdaPin);
+
+    for (int i = 0; i < 27; ++i) {
+        gpio_put(kI2cBusSclPin, false);
+        sleep_us(kBusRecoveryPulseUs);
+        gpio_put(kI2cBusSclPin, true);
+        sleep_us(kBusRecoveryPulseUs);
+    }
+    generate_stop_condition();
+
+    gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_I2C);
+    gpio_set_function(kI2cBusSclPin, GPIO_FUNC_I2C);
+    i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
+
+    // Blind attempt to force Bank 0 + device reset (may NACK)
+    uint8_t dummy;
+    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, &kIcmBankSel, 1, false, 1000);
+    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, &kIcmBank0, 1, false, 1000);
+    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, &kIcmPwrMgmt1, 1, false, 1000);
+    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, &kIcmDeviceReset, 1, false, 1000);
+    sleep_ms(100);
+
+    // Re-probe
+    return i2c_bus_probe(addr);
+}

@@ -146,4 +146,16 @@ bool i2c_bus_recover(void);
  */
 bool i2c_bus_reset(void);
 
+/**
+ * @brief Attempt recovery for a non-responding ICM-20948 (no ACK on address)
+ *
+ * Performs extended SCL clocking (27 pulses) + blind writes to the device
+ * reset register. Intended for the known "slave silently ignores address"
+ * latch condition after rapid flash cycles. Does not require prior ACK.
+ *
+ * @param addr 7-bit I2C address of the IMU (usually 0x69 or 0x68)
+ * @return true if subsequent probe succeeds, false if still unresponsive
+ */
+bool i2c_bus_imu_recovery(uint8_t addr);
+
 #endif // ROCKETCHIP_I2C_BUS_H
