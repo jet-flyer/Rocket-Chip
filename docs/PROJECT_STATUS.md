@@ -171,6 +171,7 @@ None currently.
 - **u-blox GPS (Matek M8Q-5883)** — UART + QMC5883L compass. UBX binary protocol. Production/flight hardware upgrade.
 - **Dynamic Peripheral Detection + OTA Drivers** — Runtime hot-plug, driver registry, OTA firmware downloads. Crowdfunding stretch goal. Boot-time probe-first already implemented.
 - **FSK Continuous Bitstream (IVP-63)** — SX1276 FSK mode for IRIG-heritage PCM telemetry. Titan tier only. Requires separate driver from LoRa.
+- **GPS 10Hz experimental mode (MT3339/Adafruit Ultimate GPS UART)** — Production default is 5Hz/RMC+GGA+GSA/57600, matching what other open-source FC software (ArduPilot, PX4, INAV) settles on for the MT3339 family. Bandwidth math says 10Hz with all 3 sentences at 57600 has 2.45× headroom and should work. Worth a soak test as an experimental-mode toggle (CLI command or build flag, not the default). Out of scope until field testing surfaces a 10Hz need. If 10Hz proves stable, gate behind an experimental flag and keep 5Hz as production default. Driver: `src/drivers/gps_uart.cpp` (MT3339-specific; other UART GPS modules would need their own driver).
 
 ## Side Projects & Future Product Lines
 

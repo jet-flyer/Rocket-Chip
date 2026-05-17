@@ -79,18 +79,6 @@
   the anchor-station-TX-to-vehicle-RxDone architectural fix is still
   needed or was over-engineered for our actual link conditions.
 
-- **UART GPS 10Hz retest (post-sticky-baud).** Sticky-baud fix landed
-  in R-5 Unit F (acquire_at_target_baud — try 57600 first, fall back
-  to 9600 + negotiate). The 10Hz attempt was blocked by sticky-baud
-  during the earlier session; that's now resolved. Open question
-  remaining: does 10Hz/57600/RMC+GGA+GSA produce stable lock?
-  Bandwidth math says yes (2.45× headroom). Plan: bump rate to 10Hz
-  via PMTK220, soak 1+ minute, confirm `Fix=3 Sats>=4` with no NMEA
-  truncation in the ring buffer. If clean, update production rate
-  in const-array; close the PROJECT_STATUS Future Features item.
-  Hardware ready (UART GPS wired, CR1220 in place — module retains
-  the new rate across host power-cycle, same property as baud).
-
 - **Code Classification / CONFIG_TEST_MATRIX doc realignment (post pre-commit-matrix widening).**
   Council 2026-05-16 unanimously approved widening
   `scripts/ci/pre_commit_matrix.py`'s FLIGHT_CRITICAL regex from a
