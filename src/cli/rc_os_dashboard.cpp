@@ -7,7 +7,7 @@
  * Renders a fixed-layout dashboard using ANSI escape codes.
  * Technique: \033[H (cursor home) + \033[K (clear to EOL) per line.
  * No \033[2J (clear screen) — that causes visible flicker.
- * Entire frame built in a static buffer, written in one fwrite() call.
+ * Entire frame built in a static buffer, written via tud_cdc_write.
  *
  * Target: 80 columns, ~18 rows. 115200 baud USB CDC.
  * Colors: green/yellow/red/cyan/default. No bold, no background.
@@ -15,17 +15,18 @@
 
 #include "rc_os_dashboard.h"
 #include "rocketchip/config.h"
+#include "rocketchip/rc_log.h"
 #include "safety/health_monitor.h"       // IVP-107: 2-bit health decode
 #include "active_objects/ao_radio.h"
 #include "active_objects/ao_telemetry.h" // T5.5 sub 2f: RxTelemSnapshot config echo fields
 #include "active_objects/ao_rf_manager.h" // IVP-T14: RfManager row + glance
 #include "flight_director/flight_state.h"
-#include <stdio.h>
 #include <string.h>
 #include <math.h>
 
 #ifndef ROCKETCHIP_HOST_TEST
 #include "pico/time.h"
+#include "tusb.h"
 #endif
 
 // ============================================================================
@@ -110,9 +111,19 @@ static int rssi_bar(char* buf, int max, int16_t rssi) {
 // Main render
 // ============================================================================
 
-// Static frame buffer — avoids stack allocation (LL Entry 1)
-// and enables single fwrite() to prevent CDC tearing.
+// Static frame buffer — avoids stack allocation (LL Entry 1).
 static char s_frame[2048];
+
+// Direct CDC write, bypasses stdio (LL Entry 39 pattern); drops on full.
+static void send_frame(const char* buf, size_t len) {
+#ifndef ROCKETCHIP_HOST_TEST
+    if (!tud_cdc_connected()) { return; }
+    if (tud_cdc_write_available() < len) { return; }
+    tud_cdc_write(buf, static_cast<uint32_t>(len));
+#else
+    (void)buf; (void)len;
+#endif
+}
 
 // Decoded display values — populated by decode_telem_fields()
 struct DisplayFields {
@@ -207,14 +218,14 @@ static void decode_telem_fields(const rc::TelemetryState& t,
 // Returns number of chars written, not including the trailing kClrEol.
 static int format_radio_row(char* out, size_t n, const DisplayFields& d) {
     if (!d.veh_cfg_known) {
-        return snprintf(out, n,
+        return rc::rc_snprintf(out, n,
             "Radio: BW%u %uHz SF%u CR%u  |  Vehicle: ?",
             static_cast<unsigned>(d.stn_bw),
             static_cast<unsigned>(d.stn_nav),
             static_cast<unsigned>(d.stn_sf),
             static_cast<unsigned>(d.stn_cr));
     }
-    return snprintf(out, n,
+    return rc::rc_snprintf(out, n,
         "Radio: BW%u %uHz SF%u CR%u  |  Vehicle: BW%u %uHz SF%u CR%u%s",
         static_cast<unsigned>(d.stn_bw),
         static_cast<unsigned>(d.stn_nav),
@@ -235,7 +246,7 @@ static void format_rf_link_row(char* out, size_t n, const char*& colour) {
     const rc::RfManagerState* rf = rc::AO_RfManager_get_state();
     if (rf == nullptr || !rf->anchor_valid) {
         colour = kRed;
-        snprintf(out, n, "RF Link: NO RX YET                 [  ]");
+        rc::rc_snprintf(out, n, "RF Link: NO RX YET                 [  ]");
         return;
     }
     const uint8_t lq  = rf->lq_pct;
@@ -244,16 +255,16 @@ static void format_rf_link_row(char* out, size_t n, const char*& colour) {
     // kTrack=2, kTrackDegraded=3
     if (st == 2 && lq >= 65U) {
         colour = kGreen;
-        snprintf(out, n, "RF Link: %-8s LQ %3u%%          [OK]",
-                 st_name, static_cast<unsigned>(lq));
+        rc::rc_snprintf(out, n, "RF Link: %-8s LQ %3u%%          [OK]",
+                        st_name, static_cast<unsigned>(lq));
     } else if (st == 2 || st == 3) {
         colour = kYellow;
-        snprintf(out, n, "RF Link: %-8s LQ %3u%%          [--]",
-                 st_name, static_cast<unsigned>(lq));
+        rc::rc_snprintf(out, n, "RF Link: %-8s LQ %3u%%          [--]",
+                        st_name, static_cast<unsigned>(lq));
     } else {
         colour = kRed;
-        snprintf(out, n, "RF Link: %-8s LQ %3u%%          [!!]",
-                 st_name, static_cast<unsigned>(lq));
+        rc::rc_snprintf(out, n, "RF Link: %-8s LQ %3u%%          [!!]",
+                        st_name, static_cast<unsigned>(lq));
     }
 }
 
@@ -289,10 +300,10 @@ static void format_cmd_status_row(char* out, size_t n, const char*& colour) {
 
     if (st.pending) {
         colour = (st.retries_used == 0) ? kReset : kYellow;
-        snprintf(out, n, "CMD: %-10s Try %u/%u",
-                 cmd_id_short_name(st.cmd_id),
-                 static_cast<unsigned>(st.retries_used + 1),
-                 static_cast<unsigned>(st.max_retries + 1));
+        rc::rc_snprintf(out, n, "CMD: %-10s Try %u/%u",
+                        cmd_id_short_name(st.cmd_id),
+                        static_cast<unsigned>(st.retries_used + 1),
+                        static_cast<unsigned>(st.max_retries + 1));
         return;
     }
 
@@ -300,21 +311,21 @@ static void format_cmd_status_row(char* out, size_t n, const char*& colour) {
         const uint32_t age = now - st.last_result_ms;
         if (st.last_result_ok && age < kAckHoldMs) {
             colour = kGreen;
-            snprintf(out, n, "CMD: %-10s ACK %ums",
-                     cmd_id_short_name(st.last_cmd_id),
-                     static_cast<unsigned>(st.last_rtt_ms));
+            rc::rc_snprintf(out, n, "CMD: %-10s ACK %ums",
+                            cmd_id_short_name(st.last_cmd_id),
+                            static_cast<unsigned>(st.last_rtt_ms));
             return;
         }
         if (!st.last_result_ok && age < kFailHoldMs) {
             colour = kRed;
-            snprintf(out, n, "CMD: %-10s FAILED",
-                     cmd_id_short_name(st.last_cmd_id));
+            rc::rc_snprintf(out, n, "CMD: %-10s FAILED",
+                            cmd_id_short_name(st.last_cmd_id));
             return;
         }
     }
 
     colour = kReset;
-    snprintf(out, n, "CMD: ---");
+    rc::rc_snprintf(out, n, "CMD: ---");
 }
 
 // Build ANSI frame string into s_frame, return length
@@ -337,46 +348,56 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
     const char* cmd_clr = kReset;
     format_cmd_status_row(cmd_row, sizeof(cmd_row), cmd_clr);
 
-    return snprintf(s_frame, sizeof(s_frame),
+    rc::strbuf sb;
+    rc::strbuf_init(&sb, s_frame, sizeof(s_frame));
+
+    rc::strbuf_printf(&sb,
         "%s"
         "=== RocketChip Ground Station ===%s\n"
         "State: %s%-8s%s     MET: %lu:%02lu.%lu%s\n"
-        "-------------------------------------------%s\n"
-        "Alt:  %7.1f m            Max: %.1f m%s\n"
-        "Vvel: %+6.1f m/s          Spd: %.1f m/s%s\n"
-        "Baro: %7.1f m            GPS: %s (%usat)%s\n"
-        "-------------------------------------------%s\n"
-        "RSSI: %s%d dBm%s  SNR: %d dB  %s%s%s  %d%%%s\n"
-        "Pkts: %-6lu Lost: %-4lu  %sLast: %lu.%lus%s%s\n"
-        "%s%s%s%s\n"
-        "%s%s%s%s\n"
-        "%s%s%s%s\n"
-        "-------------------------------------------%s\n"
-        "Batt: %.2fV  Temp: %dC  ESKF: %s%s%s  Seq: %u%s\n"
-        "Lat: %.7f  Lon: %.7f%s\n"
-        "%s\n"
-        "'a' ARM  'D' DISARM  'x' menu%s\n",
+        "-------------------------------------------%s\n",
         kHome,
         kClrEol,
         d.phase_clr, d.phase, kReset,
         (unsigned long)(d.met_s / 60), (unsigned long)(d.met_s % 60),
         (unsigned long)d.met_ds, kClrEol,
-        kClrEol,
+        kClrEol);
+
+    rc::strbuf_printf(&sb,
+        "Alt:  %7.1f m            Max: %.1f m%s\n"
+        "Vvel: %+6.1f m/s          Spd: %.1f m/s%s\n"
+        "Baro: %7.1f m            GPS: %s (%usat)%s\n"
+        "-------------------------------------------%s\n",
         static_cast<double>(d.alt_m),
         static_cast<double>(s_max_alt_m), kClrEol,
         static_cast<double>(d.vvel), static_cast<double>(d.speed), kClrEol,
         static_cast<double>(d.alt_m), d.fix_str,
         static_cast<unsigned>(d.sats), kClrEol,
-        kClrEol,
+        kClrEol);
+
+    rc::strbuf_printf(&sb,
+        "RSSI: %s%d dBm%s  SNR: %d dB  %s%s%s  %d%%%s\n"
+        "Pkts: %-6lu Lost: %-4lu  %sLast: %lu.%lus%s%s\n",
         d.rssi_clr, static_cast<int>(rs->last_rx_rssi), kReset,
         static_cast<int>(rs->last_rx_snr),
         d.rssi_clr, d.bar, kReset, d.rssi_pct, kClrEol,
         (unsigned long)rs->rx_count, (unsigned long)d.lost,
         d.sig_clr, (unsigned long)d.age_s, (unsigned long)d.age_ds,
-        kReset, kClrEol,
-        radio_clr, radio_row, kReset, kClrEol,
-        rflink_clr, rflink_row, kReset, kClrEol,
-        cmd_clr, cmd_row, kReset, kClrEol,
+        kReset, kClrEol);
+
+    rc::strbuf_printf(&sb, "%s%s%s%s\n",
+        radio_clr, radio_row, kReset, kClrEol);
+    rc::strbuf_printf(&sb, "%s%s%s%s\n",
+        rflink_clr, rflink_row, kReset, kClrEol);
+    rc::strbuf_printf(&sb, "%s%s%s%s\n",
+        cmd_clr, cmd_row, kReset, kClrEol);
+
+    rc::strbuf_printf(&sb,
+        "-------------------------------------------%s\n"
+        "Batt: %.2fV  Temp: %dC  ESKF: %s%s%s  Seq: %u%s\n"
+        "Lat: %.7f  Lon: %.7f%s\n"
+        "%s\n"
+        "'a' ARM  'D' DISARM  'x' menu%s\n",
         kClrEol,
         static_cast<double>(d.batt_v), static_cast<int>(0),
         d.eskf_ok ? kGreen : kRed, d.eskf_ok ? "OK" : "FAIL", kReset,
@@ -384,6 +405,8 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         d.lat, d.lon, kClrEol,
         kClrEol,
         kClrEol);
+
+    return static_cast<int>(rc::strbuf_len(&sb));
 }
 
 // IVP-122: Dashboard pause for ARM confirm flow
@@ -424,13 +447,10 @@ void ansi_dashboard_render(const rc::TelemetryState& t,
     }
 
     int pos = build_frame(d, rs, seq);
-
-    fwrite(s_frame, 1, static_cast<size_t>(pos), stdout);
-    fflush(stdout);
+    send_frame(s_frame, static_cast<size_t>(pos));
 }
 
 void ansi_dashboard_render_waiting(const RadioAoState* rs) {
-    int pos = 0;
     const char* sig_msg = "\033[33mWaiting for vehicle packets...\033[0m";
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -439,7 +459,9 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
     uint32_t uptime_s = 0;
 #endif
 
-    pos += snprintf(s_frame + pos, sizeof(s_frame) - static_cast<size_t>(pos),
+    rc::strbuf sb;
+    rc::strbuf_init(&sb, s_frame, sizeof(s_frame));
+    rc::strbuf_printf(&sb,
         "%s"
         "=== RocketChip Ground Station ===%s\n"
         "%s%s\n"
@@ -456,7 +478,5 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
         (unsigned long)uptime_s, kClrEol,
         kClrEol,
         kClrEol);
-
-    fwrite(s_frame, 1, static_cast<size_t>(pos), stdout);
-    fflush(stdout);
+    send_frame(s_frame, rc::strbuf_len(&sb));
 }
