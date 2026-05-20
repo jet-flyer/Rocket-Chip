@@ -42,33 +42,21 @@ bool i2c_bus_init() {
         return true;
     }
 
-    // Configure GPIO pins FIRST — on RP2350B, pads start isolated (ISO=1)
-    // with pull-downs (PDE=1) and input disabled (IE=0). gpio_set_function()
-    // clears the ISO bit and enables the pad. Without this, i2c_bus_recover()
-    // bit-bangs on isolated pads and subsequent I2C transactions fail silently.
-    // Discovered on Fruit Jam (RP2350B) — Feather (RP2350A) was unaffected
-    // because its GPIO 2/3 don't start isolated.
+    // Pad de-isolation BEFORE recovery is mandatory on RP2350B (LL Entry 41).
     gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_SIO);
     gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
     gpio_pull_up(kI2cBusSdaPin);
     gpio_pull_up(kI2cBusSclPin);
 
-    // Bus recovery AFTER pad de-isolation: if a previous session was
-    // interrupted (e.g., picotool --force reboot), a sensor may be holding
-    // SDA low mid-transaction. Clock out the stuck byte per I2C spec.
     i2c_bus_recover();
 
-    // Initialize I2C peripheral
     uint actualFreq = i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
     if (actualFreq == 0) {
         return false;
     }
 
-    // Set GPIO to I2C function (clears ISO again, configures for I2C peripheral)
     gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_I2C);
     gpio_set_function(kI2cBusSclPin, GPIO_FUNC_I2C);
-
-    // Enable internal pull-ups (external pull-ups on STEMMA QT are also present)
     gpio_pull_up(kI2cBusSdaPin);
     gpio_pull_up(kI2cBusSclPin);
 
@@ -256,22 +244,16 @@ static void generate_stop_condition() {
 }
 
 bool i2c_bus_recover() {
-    // Disable I2C peripheral BEFORE switching GPIO functions.
-    // Switching GPIO from I2C to SIO while the DW_apb_i2c is enabled
-    // corrupts the peripheral's internal state machine — all subsequent
-    // transactions silently fail. (Discovered 2026-02-10, see LL Entry 28.)
+    // Deinit BEFORE GPIO function switch — see LL Entry 28.
     i2c_deinit(I2C_BUS_INSTANCE);
 
-    // Switch pins to GPIO mode for bit-banging
     gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_SIO);
     gpio_set_function(kI2cBusSclPin, GPIO_FUNC_SIO);
 
-    // Configure SDA as input (to read its state)
-    gpio_set_dir(kI2cBusSdaPin, false);  // GPIO_IN
+    gpio_set_dir(kI2cBusSdaPin, false);
     gpio_pull_up(kI2cBusSdaPin);
 
-    // Configure SCL as output, drive high
-    gpio_set_dir(kI2cBusSclPin, true);  // GPIO_OUT
+    gpio_set_dir(kI2cBusSclPin, true);
     gpio_put(kI2cBusSclPin, true);
     sleep_us(kBusRecoveryPulseUs);
 
@@ -279,13 +261,11 @@ bool i2c_bus_recover() {
 
     generate_stop_condition();
 
-    // Restore GPIO to I2C function
     gpio_set_function(kI2cBusSdaPin, GPIO_FUNC_I2C);
     gpio_set_function(kI2cBusSclPin, GPIO_FUNC_I2C);
     gpio_pull_up(kI2cBusSdaPin);
     gpio_pull_up(kI2cBusSclPin);
 
-    // Reinitialize I2C peripheral (configures clock, enables controller)
     i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
 
     return sdaReleased;

@@ -1536,3 +1536,39 @@ These are NOT shipped in this commit (per AK Rule 3 surgical scope + council Q1 
   - HW_GATE_DISCIPLINE Rule 1 (positive-control signal) and Rule 5 (hooks are the line of defense).
   - AK_GUIDELINES Rule 3 (surgical changes) — this LL + gate change scoped to mechanical enforcement only; doc realignment deferred.
   - Council transcript 2026-05-16 (this session) — unanimous on 5 questions, no dissent.
+
+---
+
+## Entry 41: RP2350B GPIO Pads Start Isolated — Must De-Isolate Before Bit-Bang Recovery
+
+**Date:** 2026-05-20 (entry written; discovery dates to Fruit Jam GPS debug 2026-03-06 era — see LL Entry 31)
+**Severity:** High — I2C bus init silently fails on RP2350B if pads aren't explicitly de-isolated first
+
+### Problem
+
+On RP2350B (Fruit Jam ground station, GPIO 20/21 for I2C0), `i2c_bus_init()` would call `i2c_bus_recover()` BEFORE configuring GPIO pin functions. The recovery's bit-bang clock pulses would execute, but on RP2350B the pads start isolated (`ISO=1`, `PDE=1`, `IE=0`), so the pulses never actually drove the bus. Subsequent I2C transactions then failed silently — no device ACKed, sensors reported absent.
+
+On RP2350A (vehicle Feather, GPIO 2/3) the same code worked because GPIO 2/3 don't start isolated on the A variant.
+
+### Root cause
+
+The RP2350B variant defaults its GPIO pads to a power-saving isolated state. Per the RP2350 datasheet, `PADS_BANK0_GPIOx` registers start with `ISO=1` (pad isolation enabled), `PDE=1` (pull-down enabled), and `IE=0` (input disabled). `gpio_set_function()` clears the ISO bit as a side effect of selecting any function — including `GPIO_FUNC_SIO`. Without that call, the pad is electrically disconnected and bit-bang has no effect on the bus.
+
+The fix is to call `gpio_set_function(pin, GPIO_FUNC_SIO)` and `gpio_pull_up(pin)` on both SDA and SCL **before** invoking `i2c_bus_recover()`. The subsequent `gpio_set_function(pin, GPIO_FUNC_I2C)` after `i2c_init()` re-clears ISO when switching to the I2C peripheral.
+
+### Detection
+
+Symptom: I2C bus scan finds no devices on a freshly-flashed RP2350B board, even though the same scan finds devices on an RP2350A board with identical firmware. GPIO state via GDB shows ISO=1 if `gpio_set_function` hasn't been called.
+
+### Fix in tree
+
+`src/drivers/i2c_bus.cpp` `i2c_bus_init()` — pin de-isolation runs FIRST, then `i2c_bus_recover()`, then `i2c_init()`, then GPIO function switch to I2C. Inline comment in that function points to this entry.
+
+### Prevention
+
+For any new RP2350B peripheral driver that bit-bangs before peripheral init, the pad de-isolation step is mandatory. On RP2350A it's a no-op (pads already de-isolated). On RP2350B it's the difference between "works" and "silently fails."
+
+### Related
+
+- LL Entry 28 (i2c_bus_recover corrupts DW_apb_i2c when called on active bus) — same function, different bug, both fixed in tree.
+- LL Entry 31 (flash_safe_execute corrupts I2C peripheral on RP2350B) — same chip family, same I2C peripheral, broader history of RP2350B I2C surprises.
