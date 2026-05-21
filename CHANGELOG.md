@@ -22,6 +22,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-21-001 | Claude | refactor, audit, tooling, council
+
+**Audit-residual cleanup session — 19 commits across five workstreams.** (a) 4-tier compile-time scaffolding retirement per "no backwards compat" direction — see [`docs/plans/4TIER_RETIREMENT_INVENTORY_2026-05-21.md`](docs/plans/4TIER_RETIREMENT_INVENTORY_2026-05-21.md). (b) Cycle 3 station GPS cold-boot diagnostic — 5/5 NO-REPRO, closed pending re-encounter — see [`docs/audits/CYCLE3_STATION_GPS_NO_REPRO_2026-05-21.md`](docs/audits/CYCLE3_STATION_GPS_NO_REPRO_2026-05-21.md). (c) Code Classification table retired (council unanimous) — single-binary statement + case-by-case deviations in `ACCEPTED_STANDARDS_DEVIATIONS.md`. (d) R-25-exec audit-invariant mechanized as ctest `scripts_fault_force_gate_audit`. (e) L2-P3 citation infrastructure complete (`scripts/audit/{list_citations,pdf_section_lookup,verify_citations}.py`); walk caught one R-26-class finding (NASA SWE §8.5 → §8.05 padding per handbook canonical). Commits `f62073a` → `4431e22`. (CMakePresets.json, scripts/audit/*, multiple src/ + standards/ + docs/ — see commit messages)
+
+---
+
 ### 2026-05-20-001 | Grok Build 0.1 | bugfix, tooling, hardware
 
 **bench_sim post-run board state hygiene (pre-commit gate).** Added synchronous, time-bounded final reset (using existing `reset_target(to_main=True)`) + post-condition banner check after tests. Goal: reliably leave the attached vehicle in MAIN + IDLE and banner-peekable for the next invocation. (scripts/bench_sim.py)
