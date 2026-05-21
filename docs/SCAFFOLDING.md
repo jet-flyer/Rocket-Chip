@@ -110,7 +110,7 @@ rocketchip/
 ├── src/
 │   ├── main.cpp                   # Entry point: boot init, QF_run (QV scheduler), Core 1 sensor loop
 │   │
-│   ├── drivers/                   # Hardware drivers (Flight-Critical)
+│   ├── drivers/                   # Hardware drivers
 │   │   ├── i2c_bus.cpp/.h         # I2C bus init, read/write, probe, recovery
 │   │   ├── spi_bus.cpp/.h         # SPI0 bus init, read/write, burst (GPIO-controlled CS)
 │   │   ├── icm20948.cpp/.h        # ICM-20948 9-DoF IMU (I2C bypass mode)
@@ -146,13 +146,13 @@ rocketchip/
 │   │   ├── vec3.cpp/.h            # 3D vector operations
 │   │   └── quat.cpp/.h            # Quaternion math
 │   │
-│   ├── calibration/               # Calibration (Ground classification)
+│   ├── calibration/               # Calibration (pre-flight only)
 │   │   ├── calibration_data.cpp/.h      # Calibration data structures
 │   │   ├── calibration_manager.cpp/.h   # 6-pos accel cal, mag cal algorithms
 │   │   ├── calibration_storage.cpp/.h   # Flash persistence (dual-sector)
 │   │   └── cal_hooks.cpp/.h             # Cross-core I2C pause/resume + sensor read callbacks
 │   │
-│   ├── cli/                       # CLI / Local GCS (Ground classification)
+│   ├── cli/                       # CLI / Local GCS (locked out at runtime when state != IDLE)
 │   │   ├── rc_os.cpp/.h           # Serial menu, command dispatch, calibration wizards
 │   │   ├── ao_rcos.cpp/.h         # CLI Active Object (20Hz tick, output mode, ANSI render)
 │   │   ├── cli_commands.cpp/.h    # Display formatters + command handlers (→ rc_os_commands.cpp)

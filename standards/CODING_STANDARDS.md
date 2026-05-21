@@ -60,50 +60,17 @@ These additional rules from JPL's standard are stretch goals for Pro tier:
 - Stricter `const`/`constexpr` usage
 - Triple-voting on safety-critical variables
 
-### Code Classification
+### Single-binary flight code
 
-All source files are classified by their role in the flight stack. Standards rigor
-scales with criticality — flight-critical code gets full JSF AV + JPL C enforcement.
+All code in `src/` on a production build is flight code. There is no compile-time flight/non-flight split and no per-file rigor tier. The same standards (this document + `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`) apply uniformly. Pre-commit gates (host ctest, clang-tidy, bench_sim) run on any firmware-affecting change per the "categories not enumerations" policy in `scripts/ci/pre_commit_matrix.py` — they do not branch on per-file classification.
 
-**Same binary principle:** There is no compile-time flight flag. Flight and ground code
-coexist in the same binary. The flight state machine controls runtime access — when the
-system transitions from IDLE to ARMED, ground-only code paths (CLI, diagnostics, USB I/O)
-are locked out at runtime, not compiled out.
+**Per-file deviations are case-by-case.** When a particular file genuinely needs a documented exception to the project standards, the deviation is logged in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` with severity assessed at the time, not pre-allocated by a classification tier. The `src/fusion/eskf_codegen.cpp` CG-1 entry there (auto-generated codegen exceeding JSF AV Rule 1's L-SLOC limit) is the canonical example: the deviation is justified by the *specific* facts of that file (NASA SWEHB §8.11 auto-generated code), not by tagging it with a tier.
 
-**stdio retired in src/*.cpp (2026-05-17, R-5 closure).** `<stdio.h>` is now banned project-
-wide by the pre-commit hook. All diagnostic output uses `rc::rc_log` / `rc::rc_snprintf` /
-`rc::strbuf` from `include/rocketchip/rc_log.h`. The "Ground stdio relaxation" tier that
-previously allowed `printf`/`getchar` in CLI code is retired. `getchar_timeout_us` and
-`stdio_usb_connected` come from `pico/stdio.h` (SDK header, not libc `<stdio.h>`) and
-remain available for input/connection-state polling — they do not invoke `<stdio.h>`'s
-implementation-defined behaviors.
+**Runtime access control** is the flight state machine's job, not a per-file label. When the system transitions from IDLE to ARMED, state-mutating CLI / diagnostic / test-mode paths are gated at runtime by `rc::test_mode_active()` and the state machine's phase checks (see the "R-25-exec test-mode audit invariant" section below). Read-only diagnostic paths remain available regardless of phase.
 
-| Classification | Standards Rigor | Runtime Lockout |
-|---------------|----------------|----------------|
-| **Flight-Critical** | Full JSF AV + JPL C | Always active |
-| **Flight-Support** | Full JSF AV | Always active |
-| **Ground** | JSF AV | Locked out when state != IDLE |
+**stdio retired in src/*.cpp (2026-05-17, R-5 closure).** `<stdio.h>` is banned project-wide by the pre-commit hook. All diagnostic output uses `rc::rc_log` / `rc::rc_snprintf` / `rc::strbuf` from `include/rocketchip/rc_log.h`. `getchar_timeout_us` and `stdio_usb_connected` come from `pico/stdio.h` (SDK header, not libc `<stdio.h>`) and remain available for input/connection-state polling — they do not invoke `<stdio.h>`'s implementation-defined behaviors.
 
-#### Current File Classification
-
-| File | Classification | Notes |
-|------|---------------|-------|
-| `src/drivers/icm20948.cpp` | Flight-Critical | IMU driver — zero printf in read path |
-| `src/drivers/baro_dps310.cpp` | Flight-Critical | Barometer driver |
-| `src/drivers/i2c_bus.cpp` | Flight-Critical (core) | Bus read/write/probe are flight-critical; `i2c_bus_scan()` is ground-only |
-| `src/drivers/gps_pa1010d.cpp` | Flight-Critical | I2C GPS backend. 3 bounded `snprintf` for PMTK commands (documented MISRA deviation) |
-| `src/drivers/gps_uart.cpp` | Flight-Critical | UART GPS backend (preferred). 3 bounded `snprintf` for PMTK commands (same IO-2 deviation) |
-| `src/drivers/ws2812_status.cpp` | Flight-Support | Status LED — non-critical but active in flight |
-| `src/calibration/calibration_data.cpp` | Ground | Pre-flight calibration storage |
-| `src/calibration/calibration_manager.cpp` | Ground | Calibration algorithms — run pre-flight only |
-| `src/calibration/calibration_storage.cpp` | Ground | Flash storage — pre-flight only |
-| `src/cli/rc_os.cpp` | Ground | CLI / local GCS — locked out in flight |
-| `src/main.cpp` | Ground (mixed) | Contains flight loop (Core 1 sensor sampling, watchdog) + ground-only CLI dispatch |
-| `src/safety/test_mode.cpp` | Flight-Critical | R-25-exec runtime gate (`g_test_mode_enabled`) — three-condition AND (SRAM-magic AND state==IDLE AND boot-time-window). Probe-only arming; no CLI fallback. All `fault_force_*` and state-mutating Debug-menu commands check `rc::test_mode_active()` at entry. See [`docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`](../docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md) for council-approved design. |
-| `src/safety/fault_inject.cpp` | Flight-Critical | 9 `fault_force_*` entries, every one gated by `rc::test_mode_active()` (single point of refusal). Recovery action `fault_force_core0_stall_clear()` intentionally not gated (must remain reachable after IDLE-exit clears test mode). Migrated from `src/dev/fault_inject.cpp` (R-25-exec step 3, 2026-05-13). |
-| `src/safety/station_fault_inject.cpp` | Flight-Critical | 4 `fault_force_station_*` entries, all gated. Recovery action `fault_force_station_gps_restore()` not gated (symmetric with vehicle pattern). Migrated from `src/dev/station_fault_inject.cpp` (R-25-exec step 6, 2026-05-13). |
-| `src/diag/diag_stats.cpp` | Ground | Read-only diagnostic snapshot (AO queue depths, MSP high-water, radio counters, health latches, sensor temps). No state mutation — no test-mode gate required. Migrated from `src/dev/diag_stats.cpp` (R-25-exec step 4, 2026-05-13). Always callable via debug submenu 'd' + GDB. |
-| `src/cli/rc_os_debug.cpp` | Ground | Debug submenu (`q→...`). Diagnostic reads (s/i/b/e/y/d/h/z) always available; state-mutating commands (l = LED test, 0..5 = radio config set) check `rc::test_mode_active()` at entry. Migrated from `src/dev/dev_cli.cpp` (R-25-exec step 2, 2026-05-13). |
+**History note (2026-05-21):** A three-tier table (Flight-Critical / Flight-Support / Ground) with per-tier rigor levels and a 12-row file roster was previously published in this section. Retired this commit. Original prescriptive levers (Ground stdio relaxation) were eliminated by R-5 (stdio removal, 2026-05-17). The remaining lever (per-tier descriptive labeling) was doing more documentation work than the table's accuracy / maintenance overhead justified — file role is better documented in per-file header doxygen and `docs/SCAFFOLDING.md` directory layout. The single-binary principle absorbs what the table was actually doing; case-by-case deviation logging handles the exception cases.
 
 ### R-25-exec test-mode audit invariant (2026-05-13)
 

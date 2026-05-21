@@ -97,8 +97,8 @@ constexpr uint8_t kBw500  = 0x09;    // 500 kHz
 
 // Snapshot of registers that MUST match between vehicle and station for the
 // link to come up, but are easy to misconfigure silently. Read once post-init
-// and logged by the caller (driver stays stdio-free per Flight-Critical
-// classification).
+// and logged by the caller (driver stays stdio-free per project-wide R-5
+// stdio removal, 2026-05-17).
 struct rfm95w_audit_t {
     uint8_t invert_iq;        // RegInvertIQ (0x33) — expect 0x27 (non-inverted)
     uint8_t modem_config2;    // RegModemConfig2 — bit 2 (RxPayloadCrcOn) must be 1

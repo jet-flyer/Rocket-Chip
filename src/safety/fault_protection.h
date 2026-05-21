@@ -6,7 +6,6 @@
  *
  * Extracted per OPT-IVP-01 to eliminate duplication between main.cpp and
  * sensor_core1.cpp. Provides no-stack fault handler and PMSAv8 MPU setup.
- * See standards/CODING_STANDARDS.md for Flight-Support classification.
  */
 
 #pragma once

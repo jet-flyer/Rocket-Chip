@@ -87,7 +87,7 @@ struct GoNoGoResult {
 // Returns aggregate result. Does not print — caller decides output.
 GoNoGoResult go_nogo_evaluate(const GoNoGoInput& input);
 
-// Print Go/No-Go result to serial (Ground classification).
+// Print Go/No-Go result to serial via rc::rc_log.
 // Format: [GO/NO-GO] Platform: 6/6 GO | Profile: 3/4 (GPS: NO-GO NO LOCK)
 void go_nogo_print(const GoNoGoResult& result);
 
