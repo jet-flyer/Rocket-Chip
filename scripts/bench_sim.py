@@ -156,117 +156,36 @@ def enter_flight_menu(port, verbose=False):
         print(f'  flight menu: {out[:80]}...')
 
 
-def _drain(port, max_seconds=0.5):
-    """Drain pending bytes from the port for up to max_seconds.
+def reset_target(port, verbose=False):
+    """Reset FD to IDLE. Ensures flight menu context before querying phase."""
+    # Ensure we're in the flight menu (s/status only works there)
+    send_key(port, 'z', 1.0)  # back to main if nested
+    time.sleep(0.2)
+    port.read(4096)  # drain
+    send_key(port, 'f', 1.0)  # enter flight menu
+    time.sleep(0.2)
+    port.read(4096)  # drain
 
-    Time-bounded rather than chunk-count-bounded. The chip can firehose
-    RADIO TX-busy logs and similar background output continuously, which
-    means an unbounded drain loop never exits. Cap by wall clock instead.
-    Returns drained content.
-    """
-    drained = b''
-    deadline = time.time() + max_seconds
-    while time.time() < deadline:
-        chunk = port.read(8192)
-        if chunk:
-            drained += chunk
-        else:
-            time.sleep(0.02)
-    return drained
-
-
-def _write_key(port, key_bytes):
-    """Write a key byte(s) with bounded timeout. Swallow SerialTimeoutException
-    so caller logic continues — the next drain/query will reveal whether the
-    chip received it."""
-    try:
-        port.write(key_bytes)
-    except serial.SerialTimeoutException:
-        pass
-
-
-def _menu_navigate_to_flight(port):
-    """Force navigate to flight menu from arbitrary state. Drain after."""
-    # 'z' is a safe no-op in main menu; backs out from flight/calibration/debug.
-    _write_key(port, b'z')
-    time.sleep(0.3)
-    _drain(port)
-    _write_key(port, b'f')
-    time.sleep(0.3)
-    _drain(port)
-
-
-def _query_phase(port, verbose=False):
-    """Return current FD phase from flight menu, or None if unparseable."""
-    _write_key(port, b's')
-    buf = ''
-    deadline = time.time() + 2.0
-    while time.time() < deadline:
-        chunk = port.read(4096)
-        if chunk:
-            buf += chunk.decode('utf-8', errors='replace')
-            if RE_PHASE.search(buf):
-                break
-        else:
-            time.sleep(0.05)
-    m = RE_PHASE.search(buf)
-    if verbose and m is None:
-        print(f'    _query_phase no match in: {repr(buf[:300])}')
-    return m.group(1) if m else None
-
-
-def reset_target(port, verbose=False, to_main=False):
-    t0 = time.time()
-    for attempt in range(5):
-        if time.time() - t0 > 6.0:
-            break
-        if verbose:
-            print(f'  reset_target attempt {attempt + 1}: navigating...')
-        _menu_navigate_to_flight(port)
-        if verbose:
-            print(f'  reset_target attempt {attempt + 1}: querying phase...')
-        phase = _query_phase(port, verbose)
-        if verbose:
-            print(f'  reset_target attempt {attempt + 1}: phase={phase}')
-
-        if phase == 'IDLE':
-            if to_main:
-                _write_key(port, b'z')
-                time.sleep(0.2)
-                _drain(port, 0.3)
+    for _ in range(3):
+        out = send_key(port, 'r', 2.0)  # RESET
+        time.sleep(0.3)
+        out += send_key(port, 's', 2.0)  # status
+        m = RE_PHASE.search(out)
+        if m and m.group(1) == 'IDLE':
             return True
-
-        if phase in ('DROGUE_DESCENT', 'MAIN_DESCENT'):
-            if verbose:
-                print(f'  reset_target: sending n (LANDING)')
-            _write_key(port, b'n')
+        # If in LANDED or ABORT, RESET should work. If in flight phase,
+        # inject landing first.
+        if m and m.group(1) in ('DROGUE_DESCENT', 'MAIN_DESCENT'):
+            send_key(port, 'n', 1.0)  # SIG_LANDING
             time.sleep(0.3)
-        elif phase == 'ARMED':
-            if verbose:
-                print(f'  reset_target: sending d (DISARM)')
-            _write_key(port, b'd')
+            send_key(port, 'r', 1.0)  # RESET
+        elif m and m.group(1) == 'ARMED':
+            send_key(port, 'd', 1.0)  # DISARM
+        elif m and m.group(1) in ('BOOST', 'COAST'):
+            send_key(port, 'x', 1.0)  # ABORT
             time.sleep(0.3)
-            _drain(port, 0.3)
-            continue
-        elif phase in ('BOOST', 'COAST'):
-            if verbose:
-                print(f'  reset_target: sending x (ABORT)')
-            _write_key(port, b'x')
-            time.sleep(0.3)
-        if verbose:
-            print(f'  reset_target: draining + sending r (RESET)')
-        _drain(port, 0.3)
-        _write_key(port, b'r')
-        time.sleep(0.4)
-        _drain(port, 0.5)
-        phase = _query_phase(port, verbose)
-        if phase == 'IDLE':
-            if to_main:
-                _write_key(port, b'z')
-                time.sleep(0.2)
-                _drain(port, 0.3)
-            return True
-
+            send_key(port, 'r', 1.0)  # RESET
+        time.sleep(0.3)
     return False
 
 
@@ -373,14 +292,6 @@ def main():
 def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
     """Test body inside open_classified_port context."""
 
-    # Bound write blocking — the chip's USB CDC RX path can stall after a
-    # state transition (RESET -> IDLE), leaving port.write blocked forever
-    # if the host OS buffer fills. Set a hard write timeout so the script
-    # can detect and retry. (open_classified_port itself doesn't set this
-    # because most scripts don't trigger the FD-state-machine transitions
-    # that exercise the failure mode.)
-    ser.write_timeout = 1.0
-
     # --- Wait for sensor health before testing ---
     # After boot, sensors need a few seconds to report healthy. The Go/No-Go
     # check blocks ARM if Tier 1 sensors aren't ready. Poll preflight status
@@ -446,31 +357,6 @@ def _bench_sim_run_inner(ser, port_name: str, meta: Banner, args):
     total = passed + failed
     print(f'\n  RESULT: {passed}/{total} PASS  ({elapsed:.1f}s)')
     print(f'={"=" * 30}')
-
-    try:
-        old_to, old_wto = ser.timeout, ser.write_timeout
-        ser.timeout = 0.05
-        ser.write_timeout = 0.25
-        ser.write(b'z')
-        time.sleep(0.1)
-        ser.read(4096)
-        ser.write(b'f')
-        time.sleep(0.1)
-        ser.read(4096)
-        ser.write(b'r')
-        time.sleep(0.3)
-        ser.read(4096)
-        ser.write(b'z')
-        time.sleep(0.1)
-        ser.read(4096)
-    except (serial.SerialException, serial.SerialTimeoutException, OSError):
-        pass
-    finally:
-        try:
-            ser.timeout = old_to
-            ser.write_timeout = old_wto
-        except Exception:
-            pass
 
     return 0 if failed == 0 else 1
 
