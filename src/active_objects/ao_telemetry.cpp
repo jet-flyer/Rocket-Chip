@@ -190,22 +190,18 @@ static void send_pending_ack_if_any() {
     QACTIVE_POST(AO_Radio, &s_ackTxEvt.super, AO_Telemetry);
 }
 
-// Encode and post SIG_RADIO_TX to AO_Radio (Vehicle TX path)
 static void encode_and_send(TelemAo* me) {
     if (!me->telem_valid) { return; }
 
-    // Send pending ACK first (IVP-122) — before rate limiting check
-    // so ACK goes out ASAP even if nav frame isn't due yet
+    // ACK before rate-limit so it goes out ASAP, not on the next nav-frame tick.
     send_pending_ack_if_any();
 
     uint32_t t = now_ms();
     if (t - me->last_tx_ms < me->interval_ms) { return; }
     me->last_tx_ms = t;
 
-    // Encode packet based on RadioConfig protocol selection (IVP-65)
     rc::EncodeResult result = {};
     if (rc::kDefaultRocketRadioConfig.protocol == rc::EncoderType::kMavlink) {
-        // MAVLink native TX — encode heartbeat + attitude + position into single packet
         uint8_t frame[128];
         uint16_t pos = 0;
         uint16_t len;
@@ -217,10 +213,6 @@ static void encode_and_send(TelemAo* me) {
         result.len = pos;
         memcpy(result.buf, frame, pos);
     } else {
-        // CCSDS (default). Stage T IVP-T5.5 sub 2f: emit nav-with-config (APID
-        // 0x004) so the station gets the vehicle's current RadioConfig in every
-        // packet. Old stations that only know 0x001 drop these packets cleanly;
-        // both ends always ship together so no backward-compat burden in-tree.
         const rc::RadioConfig* cfg = AO_Radio_get_runtime_config();
         const bool just_changed = AO_Radio_consume_just_changed();
         me->ccsds_encoder.encode_nav_with_config(
@@ -229,14 +221,10 @@ static void encode_and_send(TelemAo* me) {
     }
     if (!result.ok || result.len == 0) { return; }
 
-    // Post SIG_RADIO_TX to AO_Radio — file-scope static event.
-    // QV cooperative scheduling: handler runs to completion before any other
-    // AO processes it, so one static instance is safe (no concurrent access).
+    // QV cooperative scheduling — static event safe (no concurrent access).
     static rc::RadioTxEvt txEvt;
     txEvt.super.sig = rc::SIG_RADIO_TX;
-    txEvt.super.refCtr_ = 0;  // Reset ref counter (QP/C static event pattern)
-    // Stage T IVP-T5: guard against encode_nav output exceeding buf size.
-    // MAVLink encode_nav produces ~140 bytes (4 messages); CCSDS is 54 bytes.
+    txEvt.super.refCtr_ = 0;
     if (result.len > sizeof(txEvt.buf)) { return; }
     memcpy(txEvt.buf, result.buf, result.len);
     txEvt.len = static_cast<uint8_t>(result.len);

@@ -57,24 +57,13 @@ static void enter_phase(FlightDirector* me, FlightPhase phase) {
     me->state.phase_entry_ms = me->tick_ms;
     ++me->state.transition_count;
 
-    // Fault-recovery architecture (2026-05-14): maintain the flight-in-progress
-    // sentinel in .uninitialized_data so that an unexpected reset mid-flight
-    // (brownout, snagged reset button, etc.) is detectable on next boot via
-    // the anomalous-boot confidence gate (see safety/anomalous_boot.h).
-    //
-    // Set on entry to kArmed (start of armed/airborne state).
-    // Cleared on safe LANDED entry. NOT cleared on kAbort — an aborted
-    // flight is still a flight that requires operator inspection before
-    // the next arming sequence.
+    // Flight-in-progress sentinel + fault-handler-observable phase pair.
+    // See docs/decisions/FAULT_RECOVERY_2026-05-14.md (kAbort invariant + B.3).
     if (phase == FlightPhase::kArmed) {
         flight_in_progress_set();
     } else if (phase == FlightPhase::kLanded) {
         flight_in_progress_clear();
     }
-
-    // B.3 (council round 2): mirror the phase into the fault-handler-observable
-    // checksummed pair so memmanage_fault_handler() / Q_onError() can dispatch
-    // reset-vs-degrade without holding any FD state.
     flight_phase_observable_set(phase);
 
     if (me->phase_change_cb) {

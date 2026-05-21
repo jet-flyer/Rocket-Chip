@@ -281,18 +281,14 @@ static void update_data_from_lwgps() {
 // via uart_write_blocking. The prior `gps_uart_send_command(cmd)` call here
 // was dead — see file-top comment about the latent g_initialized bug.
 static void negotiate_baud_to_57600() {
-    // Send precomputed PMTK251,57600 at current baud rate. No checksum
-    // computation, no snprintf — the bytes are byte-identical-to-intent
-    // (static_assert at file scope verifies).
     uart_write_blocking(
         GPS_UART_INST,
         reinterpret_cast<const uint8_t*>(kPmtk251_57600Sentence),
         sizeof(kPmtk251_57600Sentence) - 1);
 
-    // Wait for module to switch — ACK arrives at new rate, don't try to read it
+    // ACK arrives at the new baud — use delay, don't try to read it.
     busy_wait_ms(kGpsBaudNegotiateDelayMs);
 
-    // Reinit host UART at new baud
     uart_deinit(GPS_UART_INST);
     uart_init(GPS_UART_INST, 57600);
     gpio_set_function(kGpsUartTxPin, UART_FUNCSEL_NUM(GPS_UART_INST, kGpsUartTxPin));
@@ -357,42 +353,28 @@ static bool acquire_at_target_baud() {
 // ============================================================================
 
 bool gps_uart_init() {
-    // [M3] UART GPS unavailable on boards where GPIO 0/1 are not UART pins
     if constexpr (!board::kUartGpsAvailable) {
         return false;
     }
 
-    // Initialize lwGPS parser
     lwgps_init(&g_gps);
     memset(&g_data, 0, sizeof(g_data));
 
-    // Reset ring buffer state
     g_rxHead = 0;
     g_rxTail = 0;
     g_rxOverflow = 0;
 
-    // Bring the host UART up at kGpsUartBaudTarget (57600), handling
-    // both the sticky-baud (CR1220-backed module already at 57600) and
-    // factory-fresh-9600 cases. See acquire_at_target_baud() header.
     if (!acquire_at_target_baud()) {
-        return false;  // UART already deinitialized by try_baud failure paths
+        return false;
     }
 
-    // Configure NMEA output: RMC + GGA + GSA. Writes go at 57600.
-    // Safe to send even if the module is already configured this way
-    // from a prior session — PMTK314 is idempotent.
+    // PMTK314 + PMTK220 are idempotent — safe to re-send on every boot.
     uart_write_pmtk(kPmtk314Sentence, sizeof(kPmtk314Sentence) - 1);
-
-    // Set 5Hz update rate (PMTK220,200ms interval).
     uart_write_pmtk(kPmtk220_5HzSentence, sizeof(kPmtk220_5HzSentence) - 1);
 
     g_initialized = true;
 
-    // Enable interrupt-driven receive.
-    // ISR registered on Core 0 (the core running this init).
-    // uart_set_irqs_enabled(rx=true, tx=false) enables both:
-    //   UARTRXINTR — fires when RX FIFO reaches threshold (>= 4 bytes)
-    //   UARTRTINTR — fires when >= 1 byte and no new bytes for 32 bit periods
+    // IRQ registers on Core 0 (the core running this init). Drained by Core 1.
     irq_set_exclusive_handler(UART_IRQ_NUM(GPS_UART_INST), gps_uart_rx_isr);
     irq_set_enabled(UART_IRQ_NUM(GPS_UART_INST), true);
     uart_set_irqs_enabled(GPS_UART_INST, true, false);
@@ -465,46 +447,34 @@ uint32_t gps_uart_get_overflow_count() {
 }
 
 bool gps_uart_reinit() {
-    // [M3] UART GPS unavailable on boards where GPIO 0/1 are not UART pins
     if constexpr (!board::kUartGpsAvailable) {
         return false;
     }
 
-    // Disable interrupt — prevents ISR from touching ring buffer during reset
     irq_set_enabled(UART_IRQ_NUM(GPS_UART_INST), false);
     uart_set_irqs_enabled(GPS_UART_INST, false, false);
 
-    // Deinit UART
     uart_deinit(GPS_UART_INST);
 
-    // Reset ring buffer
     g_rxHead = 0;
     g_rxTail = 0;
     g_rxOverflow = 0;
 
-    // Reset parser
     lwgps_init(&g_gps);
     memset(&g_data, 0, sizeof(g_data));
 
-    // Mark uninitialized — protects gps_uart_drain / gps_uart_update from
-    // touching parser state mid-reinit. PMTK writes below bypass that
-    // guard by using uart_write_blocking directly.
+    // g_initialized=false guards drain/update; PMTK writes below bypass via uart_write_blocking.
     g_initialized = false;
 
-    // Bring host UART back up at the operating baud (handles sticky-57600
-    // and factory-9600 cases via acquire_at_target_baud).
     if (!acquire_at_target_baud()) {
         return false;
     }
 
-    // Reconfigure output sentences and rate at 57600. Idempotent if the
-    // module was already configured this way.
     uart_write_pmtk(kPmtk314Sentence, sizeof(kPmtk314Sentence) - 1);
     uart_write_pmtk(kPmtk220_5HzSentence, sizeof(kPmtk220_5HzSentence) - 1);
 
     g_initialized = true;
 
-    // Re-enable interrupt
     irq_set_enabled(UART_IRQ_NUM(GPS_UART_INST), true);
     uart_set_irqs_enabled(GPS_UART_INST, true, false);
 
