@@ -38,8 +38,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from _rc_test_common import (  # noqa: E402
     Banner, Build, Mode, Role, Target,
-    TARGET_VEHICLE_ANY, TARGET_VEHICLE_BENCH, TARGET_VEHICLE_FLIGHT,
-    TARGET_STATION_ANY, TARGET_STATION_BENCH, TARGET_STATION_FLIGHT,
+    TARGET_VEHICLE_ANY, TARGET_VEHICLE_FLIGHT,
+    TARGET_STATION_ANY, TARGET_STATION_FLIGHT,
     TARGET_EITHER_ANY,
     classify_banner, rc_test,
 )
@@ -47,21 +47,6 @@ from _rc_test_common import (  # noqa: E402
 
 # Canned banner samples captured 2026-04-27 from real firmware on the
 # bench. These are the source of truth for the regex / token tests.
-
-VEHICLE_BENCH_BANNER = """\
-==============================================
-  RocketChip v0.16.0  RCOS v0.5.0  dev-b411e3a
-  Board: Adafruit Feather RP2350 HSTX
-  Profile: Rocket  Uptime: 33s
-==============================================
-Hardware: 14/14 OK
-Flash: 4 flights, 27% used
-
-h-Help  p-Preflight  c-Calibration  f-Flight
-g-Flights  d-Download  l-Flush  x-Erase
-t-Radio  r-Rate  m-MAVLink  b-Beacon  q-Debug
-[main]
-"""
 
 VEHICLE_FLIGHT_BANNER = """\
 ==============================================
@@ -132,24 +117,17 @@ def check(label: str, predicate: bool, detail: str = '') -> None:
 # Tests
 # ---------------------------------------------------------------------------
 
-def test_classify_vehicle_bench() -> None:
-    print('test_classify_vehicle_bench')
-    b = classify_banner(VEHICLE_BENCH_BANNER)
+def test_classify_vehicle_flight() -> None:
+    print('test_classify_vehicle_flight')
+    b = classify_banner(VEHICLE_FLIGHT_BANNER)
     check('role is VEHICLE',  b.role is Role.VEHICLE,      f'got {b.role}')
-    check('build is DEV',     b.build is Build.DEV,        f'got {b.build}')
+    check('build is FLIGHT',  b.build is Build.FLIGHT,     f'got {b.build}')
     check('version captured', b.version == '0.16.0',       f'got {b.version!r}')
     check('board captured',   b.board is not None
           and 'feather rp2350 hstx' in (b.board or ''),    f'got {b.board!r}')
     check('is_vehicle()',     b.is_vehicle())
     check('is_station() False', not b.is_station())
     check('is_known()',       b.is_known())
-
-
-def test_classify_vehicle_flight() -> None:
-    print('test_classify_vehicle_flight')
-    b = classify_banner(VEHICLE_FLIGHT_BANNER)
-    check('role is VEHICLE',  b.role is Role.VEHICLE,      f'got {b.role}')
-    check('build is FLIGHT',  b.build is Build.FLIGHT,     f'got {b.build}')
 
 
 def test_classify_station_kmenu() -> None:
@@ -183,8 +161,6 @@ def test_classify_station_dashboard_waiting() -> None:
 
 def test_classify_vehicle_modes() -> None:
     print('test_classify_vehicle_modes')
-    b = classify_banner(VEHICLE_BENCH_BANNER)
-    check('vehicle bench is KMENU', b.mode is Mode.KMENU,  f'got {b.mode}')
     b = classify_banner(VEHICLE_FLIGHT_BANNER)
     check('vehicle flight is KMENU', b.mode is Mode.KMENU, f'got {b.mode}')
 
@@ -207,51 +183,41 @@ def test_classify_empty() -> None:
 
 def test_target_matches() -> None:
     print('test_target_matches')
-    vb = classify_banner(VEHICLE_BENCH_BANNER)
     vf = classify_banner(VEHICLE_FLIGHT_BANNER)
     sk = classify_banner(STATION_KMENU_BANNER)
     sd = classify_banner(STATION_DASHBOARD_BANNER)  # build=UNKNOWN
     uk = classify_banner(UNKNOWN_BANNER)
 
-    # vehicle-any should match both vehicle banners.
-    check('VEHICLE_ANY matches vehicle-bench',  TARGET_VEHICLE_ANY.matches(vb))
+    # vehicle-any matches vehicle banners.
     check('VEHICLE_ANY matches vehicle-flight', TARGET_VEHICLE_ANY.matches(vf))
     check('VEHICLE_ANY rejects station',        not TARGET_VEHICLE_ANY.matches(sk))
     check('VEHICLE_ANY rejects unknown',        not TARGET_VEHICLE_ANY.matches(uk))
 
-    # vehicle-bench should match only vehicle-bench.
-    check('VEHICLE_BENCH matches vehicle-bench',     TARGET_VEHICLE_BENCH.matches(vb))
-    check('VEHICLE_BENCH rejects vehicle-flight',
-          not TARGET_VEHICLE_BENCH.matches(vf))
-    check('VEHICLE_BENCH rejects station-kmenu',
-          not TARGET_VEHICLE_BENCH.matches(sk))
-
-    # vehicle-flight should reject vehicle-bench.
-    check('VEHICLE_FLIGHT rejects vehicle-bench',
-          not TARGET_VEHICLE_FLIGHT.matches(vb))
+    # vehicle-flight matches vehicle-flight banner.
     check('VEHICLE_FLIGHT matches vehicle-flight',
           TARGET_VEHICLE_FLIGHT.matches(vf))
+    check('VEHICLE_FLIGHT rejects station-kmenu',
+          not TARGET_VEHICLE_FLIGHT.matches(sk))
 
     # station-any matches station banners.
     check('STATION_ANY matches station-kmenu',  TARGET_STATION_ANY.matches(sk))
     check('STATION_ANY matches station-dashboard',
           TARGET_STATION_ANY.matches(sd))  # build UNKNOWN -> permissive
-    check('STATION_ANY rejects vehicle',        not TARGET_STATION_ANY.matches(vb))
+    check('STATION_ANY rejects vehicle',        not TARGET_STATION_ANY.matches(vf))
 
-    # station-bench: dashboard has UNKNOWN build, should still match
-    # (permissive on UNKNOWN per design comment in matches()).
-    check('STATION_BENCH permissive on UNKNOWN build',
-          TARGET_STATION_BENCH.matches(sd))
+    # station-flight permissive on UNKNOWN build (dashboard banner has no tag).
+    check('STATION_FLIGHT permissive on UNKNOWN build',
+          TARGET_STATION_FLIGHT.matches(sd))
 
     # EITHER matches both vehicle and station.
-    check('EITHER matches vehicle',  TARGET_EITHER_ANY.matches(vb))
+    check('EITHER matches vehicle',  TARGET_EITHER_ANY.matches(vf))
     check('EITHER matches station',  TARGET_EITHER_ANY.matches(sk))
     check('EITHER rejects unknown',  not TARGET_EITHER_ANY.matches(uk))
 
 
 def test_banner_frozen() -> None:
     print('test_banner_frozen')
-    b = classify_banner(VEHICLE_BENCH_BANNER)
+    b = classify_banner(VEHICLE_FLIGHT_BANNER)
     try:
         # dataclasses.replace is allowed; direct mutation is not.
         b.role = Role.STATION  # type: ignore[misc]
@@ -264,7 +230,7 @@ def test_banner_frozen() -> None:
 
 def test_target_frozen() -> None:
     print('test_target_frozen')
-    t = TARGET_VEHICLE_BENCH
+    t = TARGET_VEHICLE_FLIGHT
     try:
         t.role = Role.STATION  # type: ignore[misc]
     except dataclasses.FrozenInstanceError:
@@ -276,7 +242,7 @@ def test_target_frozen() -> None:
 def test_target_str() -> None:
     print('test_target_str')
     check('VEHICLE_ANY str',     str(TARGET_VEHICLE_ANY)     == 'vehicle-any')
-    check('VEHICLE_DEV str',     str(TARGET_VEHICLE_BENCH)   == 'vehicle-dev')
+    check('VEHICLE_FLIGHT str',  str(TARGET_VEHICLE_FLIGHT)  == 'vehicle-flight')
     check('STATION_FLIGHT str',  str(TARGET_STATION_FLIGHT)  == 'station-flight')
 
 
@@ -431,7 +397,7 @@ def test_find_vehicle_and_station_rejects_same_port() -> None:
     )
 
     b_st = classify_banner(STATION_KMENU_BANNER)
-    b_v = classify_banner(VEHICLE_BENCH_BANNER)
+    b_v = classify_banner(VEHICLE_FLIGHT_BANNER)
 
     def fake_ftp(target, override=None, verbose=False):  # noqa: ARG001
         if target is TARGET_STATION_ANY:
@@ -458,7 +424,7 @@ def test_find_vehicle_and_station_discovers_pair() -> None:
     from _rc_test_common import find_vehicle_and_station_ports
 
     b_st = classify_banner(STATION_KMENU_BANNER)
-    b_v = classify_banner(VEHICLE_BENCH_BANNER)
+    b_v = classify_banner(VEHICLE_FLIGHT_BANNER)
 
     with patch('_rc_test_common._candidate_ports',
                return_value=['COM9', 'COM10']), \
@@ -542,7 +508,6 @@ def test_pre_commit_matrix_triggers() -> None:
 
 def main() -> int:
     tests = [
-        test_classify_vehicle_bench,
         test_classify_vehicle_flight,
         test_classify_station_kmenu,
         test_classify_station_dashboard,
