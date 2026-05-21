@@ -48,7 +48,6 @@
 
 - **Next up (deferred from DC-2026-05-13 cycle, not part of four-cycle plan):**
   - **Host-side replay harness implementation** (`scripts/replay_harness_host.py` is a stub). Per R-25-exec amendment #4, IVP-131 verification model shifts from on-MCU CSV-streamer to host-side ESKF replay against `tests/replay_profiles/*.csv` ground-truth. Needs host-buildable ESKF driver + comparison harness against the oracle. Out of cycle scope; tracked here until implemented.
-  - **Host ctest sweep over `fault_force_*` symbols** to mechanically verify every entry calls `rc::test_mode_active()` (audit invariant from CODING_STANDARDS R-25-exec section). Today it's a grep + manual walk; making it a ctest closes the audit gate. Companion to step 10's pre-commit-matrix path additions.
   - **L2-P2/P3/P4** from the 2026-05-07 cycle (sampling policy / citation inventory / scope language) — audit-policy doc edits, batch with whichever later cycle picks them up.
 
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
@@ -63,6 +62,15 @@
   machinery the CCSDS layer provides, not onto naive retry counts.
   `AO_RfManager_ok_to_retry()` API already exists in-tree, ready for
   use when T13 returns.
+
+- **Station→vehicle radio health channel — deferred to CCSDS rework batch.**
+  Council A3 asked for condensing station readiness to a single bit the
+  vehicle's GO/NO-GO consumes via radio. Current channel is command-only,
+  no periodic telemetry-back. Moved into the CCSDS rework batch (with
+  IVP-T13 + Stage T re-baseline) on 2026-05-21 — the telemetry-back
+  direction wiring depends on what TC-Layer / TM-Layer split the CCSDS
+  rework lands, so designing it now would commit to an interface that
+  the CCSDS work will likely change.
 
 - **Re-evaluate Stage T "95% first-try" gate with correct baseline.**
   User observation 2026-04-22: the Stage T diagnostics measured
@@ -90,7 +98,6 @@ Scope is clear but touches multiple files, needs verification, or has small desi
 
 Needs council review or planning doc before starting.
 
-- **Station→vehicle radio health channel.** Council A3 asked for condensing station readiness to a single bit the vehicle's GO/NO-GO consumes via radio. Current channel is command-only, no periodic telemetry-back. Dedicated IVP when telemetry-back direction is wired.
 - **Real-World Accuracy Tests plan.** Bench-side ground-truth validation — IMU known-angle tilts, baro altitude vs reference, GPS stationary/moving baseline characterization, ESKF replay vs synthetic truth, Allan variance for gyro/accel. Doesn't need launch window or airframe. Complements Stage 18 field tuning. Needs dedicated plan doc with prior-art research (ArduPilot EKF tuning, PX4 calibration) and equipment assessment.
 - **Launch procedure audit items.** Six future safety items from NASA/SpaceX/NAR procedure comparison, all requiring Mission Profile or hardware support:
   1. Angle-rate abort guard (BOOST bank threshold → ABORT; needs IMU attitude in BOOST)

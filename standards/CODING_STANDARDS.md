@@ -81,7 +81,7 @@ grep -rn "fault_force_" src/safety/      # every entry calls fi_test_mode_gate()
 grep -rn "test_mode_active()" src/cli/   # every state-mutating Debug-menu branch
 ```
 
-The audit-coverage refresh adds a host ctest sweep (planned, follow-on work) that walks every `extern "C" __attribute__((used))` `fault_force_*` symbol and verifies the entry sequence. Until the ctest sweep lands, the audit cycle's manual walk-through of `safety/fault_inject.cpp` + `safety/station_fault_inject.cpp` + `cli/rc_os_debug.cpp` is the gate.
+The host ctest `scripts_fault_force_gate_audit` (`scripts/audit/check_fault_force_gates.py`, landed 2026-05-21) mechanizes this: it walks every `fault_force_*` definition in `safety/fault_inject.cpp` + `safety/station_fault_inject.cpp` and verifies the first body line matches the `if (!fi_test_mode_gate("...")) { return; }` (or station-prefix `fis_`) pattern, with a documented allowlist for recovery actions (`fault_force_core0_stall_clear`, `fault_force_station_gps_restore`). It also verifies `rc_os_debug.cpp` state-mutating branches (`case 'l'/'L'`, `case '0'..'5'`) call `rc::test_mode_active()` before executing. Pre-commit hook runs ctest; the audit invariant cannot rot silently.
 
 ### RP2350 Bare-Metal Platform Constraints
 

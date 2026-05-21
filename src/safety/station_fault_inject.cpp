@@ -66,6 +66,13 @@ void fault_force_station_gps_restore() {
     // Recovery action — NOT gated. Symmetric with vehicle
     // fault_force_core0_stall_clear(): clearing the injected fault
     // must remain reachable even after test_mode_active() clears.
+    //
+    // store(false) here is intentional and matches the pre-migration
+    // (src/dev/station_fault_inject.cpp) behavior: the call drops the
+    // currently-injected sticky state; Core 1 sensor loop repopulates
+    // g_bestGpsValid.store(true) on the next real GPS fix. Effectively
+    // a no-op helper that exists so GDB users can explicitly end the
+    // fault-injected state without waiting for the next fix poll.
 #ifdef ROCKETCHIP_JOB_STATION
     g_bestGpsValid.store(false);
 #endif

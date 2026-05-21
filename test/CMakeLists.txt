@@ -298,9 +298,19 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE} -m compileall -q scripts
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
+    # R-25-exec audit invariant — every fault_force_* entry checks
+    # rc::test_mode_active() at line 1 of body. Mechanizes the previously-
+    # manual grep + walk-through per
+    # standards/CODING_STANDARDS.md "R-25-exec test-mode audit invariant".
+    add_test(
+        NAME scripts_fault_force_gate_audit
+        COMMAND ${Python3_EXECUTABLE} scripts/audit/check_fault_force_gates.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
     set_tests_properties(
         scripts_rc_test_common
         scripts_python_compileall
+        scripts_fault_force_gate_audit
         PROPERTIES LABELS "python"
     )
 else()
