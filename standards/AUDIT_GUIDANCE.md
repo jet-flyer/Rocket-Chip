@@ -253,7 +253,7 @@ Project: Mostly complies. Sensor-driver return checks documented in `LESSONS_LEA
 
 **Rule 8.** *"The use of the preprocessor must be limited to the inclusion of header files and simple macro definitions."*
 
-Project: Complies. `#define` macros reduced to feature flags (`ROCKETCHIP_TIER_*`, `ROCKETCHIP_JOB_STATION`, `ROCKETCHIP_STAGE_T_LOGGING`/`T2_CHEAT`/`T3_MAVLINK`), SDK macros (`I2C_BUS_INSTANCE`), and the lwGPS config. Constants are `constexpr` per PP-1 resolution. (`NOT_CERTIFIED_FOR_FLIGHT` + `ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS` were retired by R-25-exec 2026-05-13; runtime gate `rc::test_mode_active()` replaced them.)
+Project: Complies. `#define` macros reduced to feature flags (`ROCKETCHIP_TIER_*`, `ROCKETCHIP_JOB_STATION`, `ROCKETCHIP_STAGE_T_LOGGING`/`T2_CHEAT`/`T3_MAVLINK`), SDK macros (`I2C_BUS_INSTANCE`), and the lwGPS config. Constants are `constexpr` per PP-1 resolution.
 
 **Rule 9.** *"Limit pointer use to a single dereference, and do not use function pointers."*
 

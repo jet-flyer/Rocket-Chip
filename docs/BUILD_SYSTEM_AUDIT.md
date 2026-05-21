@@ -66,8 +66,8 @@ grep -n '^\s*option(' CMakeLists.txt
 flag (`BUILD_TESTS`, `ROCKETCHIP_JOB_STATION`, `ROCKETCHIP_JOB_RELAY`,
 `ROCKETCHIP_BUILD_DEV_TOOLS`) or (b) nested inside an
 `if(ROCKETCHIP_BUILD_DEV_TOOLS)` / `if(ROCKETCHIP_STAGE_ARCHIVE)` block.
-(`NOT_CERTIFIED_FOR_FLIGHT` retired 2026-05-13 per R-25-exec — single
-flight binary with runtime test-mode gating; see
+(Single flight binary per role with runtime test-mode gating via
+`rc::test_mode_active()`; see
 `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`.)
 
 **Dirty result** — any bare `option(ROCKETCHIP_*)` at production scope

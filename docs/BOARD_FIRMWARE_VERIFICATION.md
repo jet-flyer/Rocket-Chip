@@ -105,8 +105,7 @@ practices prevent the mistake at build time:
    not assume defaults are right.
 2. After `cmake -B build_xxx`, run
    `grep -E "PICO_BOARD|ROCKETCHIP_JOB" build_xxx/CMakeCache.txt`
-   and confirm the values match the target role. (`NOT_CERTIFIED_FOR_FLIGHT`
-   was retired by R-25-exec 2026-05-13; single flight binary per role.)
+   and confirm the values match the target role.
 3. After flashing, read the boot banner (or GDB-print the build tag
    and board name symbols) before starting any soak.
 4. The root `CMakeLists.txt` auto-picks the correct `PICO_BOARD`
