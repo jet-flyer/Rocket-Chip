@@ -307,10 +307,23 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE} scripts/audit/check_fault_force_gates.py
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
+    # L2-P3 citation inventory — informational. Produces a deduplicated
+    # population of citations across standards/*.md for audit cycles per
+    # standards/AUDIT_GUIDANCE.md Tier 3.8 (L2-P2 exhaustive + L2-P4 scope).
+    # Wired as a ctest so the script's own self-consistency is gated
+    # (parses every standards/*.md without exception); the inventory output
+    # itself is not checked against a baseline (it WILL change as standards
+    # evolve — by design).
+    add_test(
+        NAME scripts_list_citations
+        COMMAND ${Python3_EXECUTABLE} scripts/audit/list_citations.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
     set_tests_properties(
         scripts_rc_test_common
         scripts_python_compileall
         scripts_fault_force_gate_audit
+        scripts_list_citations
         PROPERTIES LABELS "python"
     )
 else()
