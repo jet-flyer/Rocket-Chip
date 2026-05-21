@@ -24,9 +24,23 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ### 2026-05-20-001 | Grok Build 0.1 | bugfix, tooling, hardware
 
-**bench_sim back-to-back cleanup hang fixed (pre-commit gate).** Reworked fragile drain/query/reset recovery + direct bounded-timeout cleanup keys (z f r z) so the script always exits promptly and leaves main-menu state for reliable next-run banner peek. (scripts/bench_sim.py)
+**bench_sim post-run board state hygiene (pre-commit gate).** Added synchronous, time-bounded final reset (using existing `reset_target(to_main=True)`) + post-condition banner check after tests. Goal: reliably leave the attached vehicle in MAIN + IDLE and banner-peekable for the next invocation. (scripts/bench_sim.py)
 
-Verified (HW gate + multiple boots, HW_GATE_DISCIPLINE Rule 3): bench_sim 2/2 PASS (COM7), back-to-back banner/find SUCCESS with zero probe reset between runs, cleanup + clean exit <2s (no watchdog). Positive controls: explicit [PASS] lines + "RESULT: 2/2 PASS" + successful banner on second invocation. (scripts/bench_sim.py)
+Earlier version of this entry overstated back-to-back success. Re-verification (same hardware) showed Run 1 cleanup still capable of hitting watchdog after ABORT sequence and subsequent runs failing banner peek. Per 4-person council (JPL Avionics Lead, Embedded Systems Professor, ArduPilot Core Contributor, Cubesat Startup Engineer 2026-05-20): replaced best-effort + daemon cleanup with explicit synchronous post-condition. Further tuning on ABORT path still required.
+
+Verified so far: single runs 2/2 PASS + clean exit on this hardware. Multi-run state hygiene not yet fully closed. (scripts/bench_sim.py)
+
+---
+
+### 2026-05-20-002 | Claude | bugfix, tooling, council
+
+**Bug A: ESKF/Mahony stays UNHEALTHY across FD RESET-to-IDLE — fixed.** The post-RESULT cleanup work in [2026-05-20-001] above was chasing the wrong target. Council 2026-05-20 (NASA/JPL + Professor + ArduPilot + Cubesat, unanimous) traced the failing back-to-back repro to a defect in FD RESET semantics: `state_idle` Q_ENTRY did no subsystem-reset action, so ESKF stayed in its post-flight state (diverged or brake-tripped) and the operator could not re-ARM without power-cycle. Worse silent path: pad-abort auto-IDLE timeout lands in the same state with no operator input that caused it. Fix is a new `reset_subsystems_cb` callback on `FlightDirector`, wired in `ao_flight_director.cpp` to `eskf_runner_request_reinit()` (clears `g_eskfInitialized` + `g_mahonyInitialized` + `eskf_reenable()`). Covers four IDLE-entry paths: RESET-from-LANDED, RESET-from-ABORT, DISARM-from-ARMED, pad-abort auto-IDLE timeout. The bench_sim cleanup machinery from [2026-05-20-001] reverted in commit c3fc03d — bench_sim returns directly after RESULT without trying to navigate the chip state, because tests themselves work fine in single-invocation and the back-to-back failure was always Bug A + Bug B in firmware. Council split Bug B (CDC wedge during sustained NO-GO output) as separate WB-tracked work; see AGENT_WHITEBOARD.md "Bug B" row. (src/flight_director/flight_director.{h,cpp}, src/active_objects/ao_flight_director.cpp, src/fusion/eskf_runner.{h,cpp}, test/test_flight_director.cpp, scripts/bench_sim.py, scripts/hooks/pre-commit, docs/decisions/FAULT_RECOVERY_2026-05-14.md)
+
+Also in this window: pre-commit hook had a Gate 2 early-exit bug eating Gates 3 + 4 (host ctest + bench_sim HW gate) — fix wraps Gate 2 in `if` instead of `exit 0` so the verification gates run unconditionally. This is the LL Entry 36 / 40 "fail-open when prerequisites missing" pattern; it had been masking the chain that led to Bug A's surfacing. (scripts/hooks/pre-commit)
+
+Comment-density follow-up from R-5 audit (WB row 2026-05-17) shipped: five hot-spot functions trimmed from 30-48% per-function density into the Polyspace healthy band (≤20% per user direction). Multi-paragraph rationale for the kAbort invariant + B.3 checksummed-pair design extracted to `docs/decisions/FAULT_RECOVERY_2026-05-14.md` (retroactive capture). Sister commit earlier this window: LL Entry 41 captured the RP2350B GPIO pad-isolation gotcha + `i2c_bus.cpp` trim (commit 9e74713). (src/active_objects/ao_telemetry.cpp, src/drivers/gps_uart.cpp, src/flight_director/flight_director.cpp, src/drivers/i2c_bus.cpp, .claude/LESSONS_LEARNED.md)
+
+Verified locally: host ctest 869/869 PASS (was 863, +6 new Bug A contract tests covering RESET-from-LANDED, RESET-from-ABORT, DISARM-from-ARMED, ARMED-timeout, pad-abort-auto-IDLE, and startup-doesn't-fire-cb negative case); vehicle + station target builds clean; bench (post-flash) cycle-1 ABORT-RESET → wait 6s → cycle-2 ARM accepted with `Platform: 8/8 GO` (was `7/8 NO-GO ESKF UNHEALTHY`). Banner: vehicle flight v0.16.0 (kmenu). All commits in window passed the (now-fixed) pre-commit hook with bench_sim 2/2 PASS.
 
 ---
 
