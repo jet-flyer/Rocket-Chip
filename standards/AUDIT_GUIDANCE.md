@@ -3,7 +3,7 @@
 **Status:** Normative master audit procedure.
 **Purpose:** Single authoritative document that sequences every audit type into one lifecycle. The core checklist is concise (≤1 page). Manual audit guidance lives in concise appendices.
 
-**Procedure history:** Refactored 2026-05-13 from 8-step flat checklist to 7-tier dependency-ordered structure. Reasons: (a) gates-honest discipline was implicit, leaving the LL Entry 36 pattern (gate rot accepted as PASS) without a procedural defense; (b) standards-catalog and runtime-behavior tiers sat at equal depth without dependency ordering; (c) sibling audits (BUILD_SYSTEM_AUDIT, DEV_CODE, VERSION_STRING, AO_COMMANDMENTS, TOOLCHAIN, CLA-RBM) had no enumerated home. Council-reviewed 2026-05-13 (NASA/JPL Avionics Lead, ArduPilot Core Contributor, Embedded Systems Professor, Cubesat Startup Engineer); CONSENSUS APPROVE WITH AMENDMENTS — 8 amendments incorporated. Step-to-Tier mapping in CHANGELOG entry dated 2026-05-13. Source attribution per Appendix C.9 (DO-178C problem-report lifecycle + static-analysis-tool community / SonarQube merge-blocker-vs-backlog + refactoring research on dependency cycles + NASA SWE §8.5 severity scale + project-internal LL Entry 36 gate-integrity-first lived experience).
+**Procedure history:** Refactored 2026-05-13 from 8-step flat checklist to 7-tier dependency-ordered structure. Reasons: (a) gates-honest discipline was implicit, leaving the LL Entry 36 pattern (gate rot accepted as PASS) without a procedural defense; (b) standards-catalog and runtime-behavior tiers sat at equal depth without dependency ordering; (c) sibling audits (BUILD_SYSTEM_AUDIT, DEV_CODE, VERSION_STRING, AO_COMMANDMENTS, TOOLCHAIN, CLA-RBM) had no enumerated home. Council-reviewed 2026-05-13 (NASA/JPL Avionics Lead, ArduPilot Core Contributor, Embedded Systems Professor, Cubesat Startup Engineer); CONSENSUS APPROVE WITH AMENDMENTS — 8 amendments incorporated. Step-to-Tier mapping in CHANGELOG entry dated 2026-05-13. Source attribution per Appendix C.9 (DO-178C problem-report lifecycle + static-analysis-tool community / SonarQube merge-blocker-vs-backlog + refactoring research on dependency cycles + NASA SWE §8.5 (Software FMEA) severity scale + project-internal LL Entry 36 gate-integrity-first lived experience).
 
 ---
 
@@ -29,7 +29,7 @@ Use the decision table below to choose the right scope. Use the targeted documen
 
 **Principle:** Use the smallest sufficient scope. The full master procedure is reserved for milestone/stage-close events.
 
-**Severity gate (council amendment #3, applies to all stop conditions below):** stop-conditions fire on NASA SWE §8.5 **Catastrophic or Critical** findings only. Major / Minor / Trivial findings flow forward to Tier 7 disposition without re-walking earlier tiers. Without this gate, the procedure becomes a tar pit — every minor finding triggers re-walks and the audit never closes.
+**Severity gate (council amendment #3, applies to all stop conditions below):** stop-conditions fire on NASA SWE §8.5 (Software FMEA) **Catastrophic or Critical** findings only. Major / Minor / Trivial findings flow forward to Tier 7 disposition without re-walking earlier tiers. Without this gate, the procedure becomes a tar pit — every minor finding triggers re-walks and the audit never closes.
 
 ---
 
@@ -145,7 +145,7 @@ ACCEPTED deviations require user sign-off and land in `ACCEPTED_STANDARDS_DEVIAT
 
 ### A.1 FMEA-lite & Koopman Embedded Review
 
-> **Reference material is inlined in Appendix B.** Before working this section, read **B.2 (Koopman 5-rule embedded review)** and **B.3 (FMEA worksheet columns, per NASA SWE Handbook §8.5)** for the rule wording, grep patterns, and PASS-vs-FAIL examples. **B.4 describes the agent-driven audit workflow** including how FMEA-lite results surface conversationally for user disposition.
+> **Reference material is inlined in Appendix B.** Before working this section, read **B.2 (Koopman 5-rule embedded review)** and **B.3 (FMEA worksheet columns, per NASA SWE §8.5 (Software FMEA))** for the rule wording, grep patterns, and PASS-vs-FAIL examples. **B.4 describes the agent-driven audit workflow** including how FMEA-lite results surface conversationally for user disposition.
 
 **Scope:** Pyro arming/firing, launch-abort, disarm timeout, hung-fire, radio command validation, ESKF divergence brake. Map every item to `docs/SAD.md` states.
 
@@ -237,7 +237,7 @@ Project: Complies. No heap allocations in production code after `init_applicatio
 
 **Rule 4.** *"No function should be longer than what can be printed on a single sheet of paper in a standard format with one line per statement and one line per declaration."*
 
-Project: Enforced at ≤60 lines via JSF AV Rule 1 and the milestone full-tree clang-tidy sweep (SESSION_CHECKLIST item 17). Sole accepted deviation is CG-1 (auto-generated `codegen_fpft()`, ~1130 lines, per NASA SWE Handbook §8.11 auto-generated-code assurance pattern).
+Project: Enforced at ≤60 lines via JSF AV Rule 1 and the milestone full-tree clang-tidy sweep (SESSION_CHECKLIST item 17). Sole accepted deviation is CG-1 (auto-generated `codegen_fpft()`, ~1130 lines, per NASA SWE §8.11 (Auto-Generated Code) assurance pattern).
 
 **Rule 5.** *"The code's assertion density should average to minimally two assertions per function."*
 
@@ -309,11 +309,11 @@ PASS: `watchdog_update()` called every iteration of Core 1's sensor loop at ~1kH
 
 FAIL: a long-running task that doesn't kick the watchdog; potential silent hang.
 
-### B.3 FMEA Worksheet Columns (per NASA SWE Handbook §8.5)
+### B.3 FMEA Worksheet Columns (per NASA SWE §8.5 (Software FMEA))
 
 NASA's Software FMEA guidance recognizes three worksheet forms — an **SFMEA Worksheet** (master), a **Data Table** (for corrupted-information failures), and an **Events Table** (for action-failures). Software FMEA differs from hardware FMEA in fault-mode taxonomy, but the column structure for failure-effect tracking is consistent.
 
-**SFMEA master worksheet columns** (NASA SWE Handbook §8.5):
+**SFMEA master worksheet columns** (NASA SWE §8.5 (Software FMEA)):
 - **ID number** — "drawing number, work break down structure number, CSCI identification, or other identification value."
 - **Item / failure mode** — the failure mode being analyzed.
 - **Failure cause(s) / mechanism(s)** — what could trigger this failure mode.
@@ -321,9 +321,9 @@ NASA's Software FMEA guidance recognizes three worksheet forms — an **SFMEA Wo
 - **Local effect** — at the component (the failing module).
 - **Next-higher-level effect** — at the subsystem containing the component.
 - **End effect** — system-level (mission outcome).
-- **Severity classification** — one of: catastrophic, critical, marginal, negligible (NASA SWE §8.5 four-grade scale).
+- **Severity classification** — one of: catastrophic, critical, marginal, negligible (NASA SWE §8.5 (Software FMEA) four-grade scale).
 - **Likelihood** — one of: probable, occasional, remote, improbable.
-- **Risk level** — 1 (prohibitive — must redesign) through 5 (acceptable). NASA SWE §8.5 5-level scale.
+- **Risk level** — 1 (prohibitive — must redesign) through 5 (acceptable). NASA SWE §8.5 (Software FMEA) 5-level scale.
 - **Failure detection method** — software signals/mechanisms that observe the fault (positive-control signal in our terminology; per HW_GATE_DISCIPLINE.md Rule 1).
 - **Compensating provisions** — what mitigates if the failure occurs (redundant component, degraded mode, reset, abort).
 - **Proposed action** — remediation if the risk is unacceptable.
@@ -334,7 +334,7 @@ NASA's Software FMEA guidance recognizes three worksheet forms — an **SFMEA Wo
 
 **How RocketChip's A.1 FMEA-lite maps to this:**
 
-The A.1 table columns ("Failure Mode," "Files / Sections," "What to Verify," "Positive-Control Signal," "Status") collapse the full NASA SWE §8.5 worksheet into a tight 5-column form suitable for a single-page review:
+The A.1 table columns ("Failure Mode," "Files / Sections," "What to Verify," "Positive-Control Signal," "Status") collapse the full NASA SWE §8.5 (Software FMEA) worksheet into a tight 5-column form suitable for a single-page review:
 
 - **Failure Mode** = SFMEA's "Item / failure mode."
 - **Files / Sections** = SFMEA's "ID number" expressed as source-file location.
@@ -342,7 +342,7 @@ The A.1 table columns ("Failure Mode," "Files / Sections," "What to Verify," "Po
 - **Positive-Control Signal** = SFMEA's "Failure detection method" — explicitly the project's discipline per HW_GATE_DISCIPLINE.md.
 - **Status** = PASS / FAIL / PARTIAL replaces the severity/likelihood/risk-level triplet.
 
-This is a deliberate simplification — we don't compute risk priority numbers because the binary "signal exists / signal doesn't" is what actually drives an audit-row decision. NASA SWE §8.5 acknowledges this is acceptable: "The handbook's emphasis on hardware-software interface analysis and fault propagation across component boundaries remains broadly applicable" regardless of column-count tailoring.
+This is a deliberate simplification — we don't compute risk priority numbers because the binary "signal exists / signal doesn't" is what actually drives an audit-row decision. NASA SWE §8.5 (Software FMEA) acknowledges this is acceptable: "The handbook's emphasis on hardware-software interface analysis and fault propagation across component boundaries remains broadly applicable" regardless of column-count tailoring.
 
 **Note on RPN:** If anyone ever extends this to a full quantitative FMEA, **do not compute risk priority numbers by multiplying ordinal scales** (the AIAG/VDA 2019 update replaced RPN with Action Priority for exactly this reason — multiplying ordinal rankings produces mathematically suspect numbers). Use the Action Priority approach instead.
 
@@ -390,9 +390,9 @@ Use only when the inline material above is insufficient. Per LL Entry 37 step 1,
   - §8.5 — Software Failure Modes and Effects Analysis (source for B.3 above)
   - §8.11 — Auto-Generated Code (source for CG-1 deviation rationale)
 
-**Safety-critical FMEA primary sources** (MIL-STD-1629A and SAE ARP4761 — both predate NASA SWE §8.5 which now serves as the project-applicable digest):
-- MIL-STD-1629A (U.S. DoD, 1980) — "Procedures for Performing a Failure Mode, Effects and Criticality Analysis." Hosted via NASA at https://extapps.ksc.nasa.gov/Reliability/Documents/milstd1629_FMEA.pdf (PDF text-layer extraction has been unreliable; consult NASA SWE §8.5 first).
-- SAE ARP4761 — Aerospace Recommended Practice for safety assessment process on civil airborne systems. SAE-paywalled; for our project's needs, NASA SWE §8.5 (which references both upstream) is the project-applicable digest.
+**Safety-critical FMEA primary sources** (MIL-STD-1629A and SAE ARP4761 — both predate NASA SWE §8.5 (Software FMEA) which now serves as the project-applicable digest):
+- MIL-STD-1629A (U.S. DoD, 1980) — "Procedures for Performing a Failure Mode, Effects and Criticality Analysis." Hosted via NASA at https://extapps.ksc.nasa.gov/Reliability/Documents/milstd1629_FMEA.pdf (PDF text-layer extraction has been unreliable; consult NASA SWE §8.5 (Software FMEA) first).
+- SAE ARP4761 — Aerospace Recommended Practice for safety assessment process on civil airborne systems. SAE-paywalled; for our project's needs, NASA SWE §8.5 (Software FMEA) (which references both upstream) is the project-applicable digest.
 
 **Koopman safety-critical resources:**
 - Phil Koopman's writing on safety-critical embedded software — https://users.ece.cmu.edu/~koopman/ (faculty page at CMU; better-extractable than the embedded.com versions of his articles).
@@ -511,7 +511,7 @@ If the project's verification surface area changes meaningfully (new hardware ti
 - **DO-178C problem-report lifecycle** is the source of C.1's PR-states framing. DO-178C requires that all problems be recorded in problem reports, analyzed for impact, and tracked to closure; open PRs at certification require safety-impact evaluation. We adopt the lifecycle concept; we don't adopt the formal Change Control Board apparatus, which is sized for multi-team certified-aircraft projects.
 - **Static-analysis-tool community** (SonarQube and similar) is the source of C.5's "merge-blocker vs backlog" distinction. The named failure mode — "teams fail because nobody makes clear decisions about what blocks a merge and what becomes backlog work" — is the trap C.5 is designed to avoid.
 - **Refactoring research on dependency cycles and hotspots** is the source of C.3 category 2's "shared foundations" framing. Components in dependency cycles are defect-prone and unblock the most downstream work; fix them early.
-- **NASA SWE §8.5 severity scale** is the project's framing for C.3 category 3's within-tier ordering. NASA's catastrophic/critical/marginal/negligible scale combines with mission-phase exposure (flight-critical vs ground-only) to produce the actual risk rank.
+- **NASA SWE §8.5 (Software FMEA) severity scale** is the project's framing for C.3 category 3's within-tier ordering. NASA's catastrophic/critical/marginal/negligible scale combines with mission-phase exposure (flight-critical vs ground-only) to produce the actual risk rank.
 - **Project-internal precedent.** LL Entry 36 (bench_sim rot — gate had been silently broken) is the lived-experience driver for C.3 category 1 (gate integrity first). Without category 1, audit cycles would inherit the same defect that LL Entry 36 documents.
 
 ---

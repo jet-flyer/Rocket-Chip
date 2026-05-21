@@ -43,11 +43,11 @@ The deferral is **re-evaluated each cycle** at Tier 2.5a (deferred-with-rational
 
 **Practical examples:**
 - P10 Rule 9 (no function pointers, 2006) vs. JSF Rule 176 (use typedef when declaring function pointers, 2005): **P10 wins** — newer and more restrictive. Function pointers are an accepted deviation in our project, not "compliant via JSF."
-- P10 Rule 2 (loops must have fixed upper bound, 2006) — Holzmann's own paper carves out the **inverted-rule exemption** for non-terminating scheduler loops (prove the loop *cannot* terminate). That explicit exemption is part of P10 itself, not an external override. The project's compliant non-terminating loops (QF_run scheduler, Core 1 sensor loop, fault halt) are enumerated in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` "Note on Power-of-10 Rule 2"; those satisfy the inverted rule and therefore aren't deviations.
+- P10 Rule 2 (loops must have fixed upper bound, 2006) — Holzmann's own paper carves out the **inverted-rule exemption** for non-terminating scheduler loops (prove the loop *cannot* terminate). That explicit exemption is part of P10 itself, not an external override. The project's compliant non-terminating loops (QF_run scheduler, Core 1 sensor loop, fault halt) are enumerated in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` "Note on P10 Rule 2"; those satisfy the inverted rule and therefore aren't deviations.
 - JSF Rule 22 (no `<stdio.h>`, 2005) — newer standards don't disagree, so JSF applies.
 
 **References:**
-- [JSF AV C++ Standards (PDF, 2005)](http://www.stroustrup.com/JSF-AV-rules.pdf) — foundational C++ catalog
+- [JSF AV C++ Standards (PDF, 2005)](https://www.stroustrup.com/JSF-AV-rules.pdf) — foundational C++ catalog
 - [JPL C Coding Standard (PDF, 2009)](https://yurichev.com/mirrors/C/JPL_Coding_Standard_C.pdf) — C-language refinement, newer
 - Power of 10 Rules (Holzmann/JPL, 2006) — distilled top-10 safety-critical rules, newest
 - [NASA Software Engineering Handbook (SWEHB)](https://swehb.nasa.gov/) — NASA-wide guidance (handbook, not a hard standard). Good general background for safety-critical software practice across the full project lifecycle (coding, safety, V&V, configuration management, etc.). The whole handbook is the reference; specific section citations live at the point where they're actually applied (e.g., a particular accepted-deviation row, an audit-procedure step, or a design-decision doc) rather than in this overview list.
