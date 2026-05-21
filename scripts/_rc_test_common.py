@@ -124,12 +124,10 @@ _DASHBOARD_TOKENS = (
 )
 
 # Build tag suffix on the boot banner:
-#   "RocketChip vX.Y.Z RCOS vA.B.C dev-<sha>"     (NOT_CERTIFIED_FOR_FLIGHT=ON)
-#   "RocketChip vX.Y.Z RCOS vA.B.C flight-<sha>"  (NOT_CERTIFIED_FOR_FLIGHT=OFF, default)
-# Capture group 1 = build_type ('dev' or 'flight'), group 2 = sha.
-# 'bench' is accepted for backward compatibility with old saved transcripts;
-# new firmware emits 'dev' since the 2026-04-27 polarity rename.
-_RE_BUILD_TAG = re.compile(r'\b(dev|bench|flight)-([0-9a-f]{6,12})\b')
+#   "RocketChip vX.Y.Z RCOS vA.B.C flight-<sha>"
+# Post-R-26 (2026-05-15) `kBuildConfig` is hardcoded "flight" — the historical
+# dev-/bench- suffixes can no longer be emitted by any firmware build.
+_RE_BUILD_TAG = re.compile(r'\bflight-([0-9a-f]{6,12})\b')
 _RE_VERSION = re.compile(r'rocketchip\s+v(\d+\.\d+\.\d+)')
 _RE_BOARD = re.compile(r'board:\s*([^\n\r]+)')
 
@@ -174,11 +172,10 @@ class Role(enum.Enum):
 
 
 class Build(enum.Enum):
-    # Renamed from BENCH on 2026-04-27 alongside the BUILD_FOR_FLIGHT ->
-    # NOT_CERTIFIED_FOR_FLIGHT polarity rename. The firmware now emits
-    # 'dev' in the build tag instead of 'bench'. Old transcripts using
-    # 'bench' still classify as DEV via the regex's backward-compat group.
-    DEV     = 'dev'
+    # Post-R-26 (2026-05-15) firmware only emits `flight-<sha>` on the boot
+    # banner. FLIGHT is the only meaningful value; ANY skips the build check
+    # entirely; UNKNOWN means the regex didn't match (e.g. station dashboard
+    # banner has no build tag, garbled banner, etc.).
     FLIGHT  = 'flight'
     ANY     = 'any'
     UNKNOWN = 'unknown'
@@ -217,30 +214,20 @@ class Target:
         if self.build is Build.ANY:
             return True
         if banner.build is Build.UNKNOWN:
-            # We couldn't determine the build type from the banner. This
-            # is permissive on purpose: a script that requires bench can
-            # still attempt to run if the banner didn't expose the build
-            # tag, rather than refusing every time the firmware doesn't
-            # print a recognisable suffix. Scripts that absolutely need
-            # bench-only features will still fail at runtime when the
-            # debug menu doesn't exist.
+            # Banner didn't expose a build tag (typical for station
+            # dashboard, garbled boot output, etc.). Permissive on UNKNOWN
+            # — let the script try, it'll fail at runtime if the firmware
+            # actually doesn't match.
             return True
         return banner.build is self.build
 
 
 # Convenience constants --- the targets we actually use.
 TARGET_VEHICLE_ANY    = Target(Role.VEHICLE, Build.ANY)
-TARGET_VEHICLE_DEV    = Target(Role.VEHICLE, Build.DEV)
 TARGET_VEHICLE_FLIGHT = Target(Role.VEHICLE, Build.FLIGHT)
 TARGET_STATION_ANY    = Target(Role.STATION, Build.ANY)
-TARGET_STATION_DEV    = Target(Role.STATION, Build.DEV)
 TARGET_STATION_FLIGHT = Target(Role.STATION, Build.FLIGHT)
 TARGET_EITHER_ANY     = Target(Role.EITHER,  Build.ANY)
-
-# Backward-compat aliases (2026-04-27): old code may import TARGET_*_BENCH
-# from before the polarity rename. New code should use TARGET_*_DEV.
-TARGET_VEHICLE_BENCH  = TARGET_VEHICLE_DEV
-TARGET_STATION_BENCH  = TARGET_STATION_DEV
 
 
 class Mode(enum.Enum):
@@ -312,10 +299,7 @@ def classify_banner(text: str) -> Banner:
     build = Build.UNKNOWN
     m_build = _RE_BUILD_TAG.search(t)
     if m_build is not None:
-        # Backward-compat: pre-rename firmware emitted 'bench-<sha>'.
-        # Post-rename (2026-04-27) firmware emits 'dev-<sha>'. Both map to
-        # Build.DEV. 'flight' stays 'flight'.
-        build = Build.FLIGHT if m_build.group(1) == 'flight' else Build.DEV
+        build = Build.FLIGHT
 
     version: Optional[str] = None
     m_ver = _RE_VERSION.search(t)
@@ -848,8 +832,8 @@ __all__ = [
     'start_watchdog',
     # Classification
     'Role', 'Build', 'Mode', 'Target', 'Banner',
-    'TARGET_VEHICLE_ANY', 'TARGET_VEHICLE_BENCH', 'TARGET_VEHICLE_FLIGHT',
-    'TARGET_STATION_ANY', 'TARGET_STATION_BENCH', 'TARGET_STATION_FLIGHT',
+    'TARGET_VEHICLE_ANY', 'TARGET_VEHICLE_FLIGHT',
+    'TARGET_STATION_ANY', 'TARGET_STATION_FLIGHT',
     'TARGET_EITHER_ANY',
     'classify_banner',
     # Port probing + navigation
