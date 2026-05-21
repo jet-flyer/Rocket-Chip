@@ -143,7 +143,7 @@ Behaviors marked **(vehicle)** vs **(station)** below differ by build flavor (`k
 | **Station** | `g` `d` `p` | GPS status, distance-to-vehicle, GPS push |
 | **Commands** | `a` `X` | ARM (with confirm), DISARM |
 | **Flight logs** | `l` `x` | Flush to flash, erase |
-| **Debug submenu** | `q` → `<digit>z` / other | Enter debug submenu, local radio config change, exit back to `[main]`. The `q` key is **always** consumed by the debug-menu enter handler in `rc_os.cpp:handle_main_menu()`. The fallthrough `q` → CCSDS QUERY_RADIO_CONFIG mapping in `cli_handle_unhandled_key` is unreachable on the current dispatch — use `r` (station) to drive a CCSDS exchange instead. |
+| **Debug submenu** | `q` → `<digit>z` / other | Enter debug submenu, local radio config change, exit back to `[main]`. |
 
 ### Reaching the debug submenu from dashboard
 

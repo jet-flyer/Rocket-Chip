@@ -41,7 +41,6 @@ static constexpr uint16_t kMavCmdFlightTermination = 185; // MAV_CMD_DO_FLIGHTTE
 static constexpr uint16_t kMavCmdSetHome = 179;           // MAV_CMD_DO_SET_HOME
 static constexpr uint16_t kMavCmdBeacon = 31010;          // MAV_CMD_USER_1 — Stage L manual beacon
 static constexpr uint16_t kMavCmdSetRadioConfig = 31011;  // MAV_CMD_USER_2 — T5.5 SET
-static constexpr uint16_t kMavCmdQueryRadioConfig = 31012;// MAV_CMD_USER_3 — T5.5 QUERY
 
 // ============================================================================
 // Stage T2 cheat-mode — throwaway code, revertible in one commit.
@@ -1517,16 +1516,6 @@ void cli_handle_unhandled_key(int key) {
         } else if (AO_Radio_get_state()->initialized) {
             uint8_t newRate = AO_Telemetry_cycle_rate();
             rc::rc_log("[TX] Rate changed to %dHz\n", static_cast<int>(newRate));
-        }
-        break;
-    case 'q': case 'Q':
-        if constexpr (kRadioModeRx) {
-            // Stage T IVP-T5.5 sub 2e: QUERY_RADIO_CONFIG.
-            // Sync probe — vehicle replies with current config in ACK's
-            // extended payload. Station's ACK-handler prints "vehicle
-            // config: BW=.. nav=.. SF=.. CR=..".
-            rc::rc_log("[CMD] QUERY_RADIO_CONFIG sent, waiting for ACK...\n");
-            AO_Telemetry_send_tracked_command(kMavCmdQueryRadioConfig);
         }
         break;
     case 'm': case 'M':
