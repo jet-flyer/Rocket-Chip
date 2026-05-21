@@ -514,8 +514,6 @@ static void eskf_tick_phase_and_confidence() {
 // One fused cycle (predict → updates → phase/conf → bench → publish).
 // Split out so `eskf_runner_tick` stays within pre-commit size limits.
 static void eskf_runner_fusion_cycle(const shared_sensor_data_t& snap) {
-    // R-25-exec step 8 (2026-05-13): ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
-    // stripped per Approach A. Full-tick profiling counters always run.
 #ifndef ROCKETCHIP_HOST_TEST
     const uint32_t t_fusion = time_us_32();
 #endif
@@ -660,9 +658,8 @@ uint8_t eskf_runner_get_wmm_source() {
     return static_cast<uint8_t>(g_wmmSource);
 }
 
-// R-25-exec step 8 (2026-05-13): ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
-// stripped per Approach A. Read accessors are always callable;
-// production builds use them via diag_stats_dump() / debug submenu.
+// Read accessors are always callable; production builds use them via
+// diag_stats_dump() / debug submenu.
 void eskf_runner_get_bench(uint32_t* avg, uint32_t* min_us,
                            uint32_t* max_us, uint32_t* count) {
     if (g_eskfBenchCount > 0 && avg != nullptr) {

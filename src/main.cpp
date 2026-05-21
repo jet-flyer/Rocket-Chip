@@ -430,13 +430,11 @@ static QSubscrList g_subscrList[rc::SIG_AO_MAX];
 //
 // Council A2: watchdog_kick_tick() stays here permanently — never an AO.
 extern "C" void qv_idle_bridge(void) {
-    // R-25-exec step 8 (2026-05-13): ROCKETCHIP_INCLUDES_DEV_DIAGNOSTICS
-    // gate stripped per Approach A. The fault_force_* writers in
-    // src/safety/fault_inject.cpp check rc::test_mode_active() at entry
-    // and no-op on production boots, so g_fault_core0_stall and
-    // g_fault_watchdog_skip are always 0 unless test mode is armed.
-    // The branches below are dead in production (volatile-load cost is
-    // ~2 cycles per idle tick, immaterial).
+    // The fault_force_* writers in src/safety/fault_inject.cpp check
+    // rc::test_mode_active() at entry and no-op on production boots, so
+    // g_fault_core0_stall and g_fault_watchdog_skip are always 0 unless
+    // test mode is armed. The branches below are dead in production
+    // (volatile-load cost is ~2 cycles per idle tick, immaterial).
     extern volatile bool g_fault_core0_stall;
     if (g_fault_core0_stall) { return; }
     extern volatile uint32_t g_fault_watchdog_skip;

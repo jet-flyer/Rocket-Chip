@@ -16,12 +16,9 @@ constexpr const char* kFirmwareVersion = "0.16.0";
 
 constexpr const char* kRcOsVersion = "0.5.0";
 
-// Build identity. Always "flight" since R-25-exec (commit 8859605, 2026-05-13)
-// retired the bench tier. Constants retained for caller compatibility; the
-// `kBuildForFlight=false` branch was dead since R-25-exec and removed by R-26
-// (Cycle 1 of parsed-soaring-popcorn.md, 2026-05-15).
+// Build identity. Always "flight" — single flight binary per role per
+// R-25-exec (2026-05-13).
 constexpr const char* kBuildConfig = "flight";
-constexpr bool kBuildForFlight = true;
 
 // Job role identity — for T=0 soak preconditions (IVP-132a.4 re-eval).
 // Must match ROCKETCHIP_JOB_STATION / kRole. Readable by GDB.

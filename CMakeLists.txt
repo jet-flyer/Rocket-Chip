@@ -724,11 +724,6 @@ else()
         -Wl,--undefined=fault_force_station_gps_restore
     )
 
-    # R-25-exec steps 5+6: replay_inject_* + station_replay_* symbols
-    # DELETED per council amendment #4 (replay coverage moves host-side).
-    # The NOT_CERTIFIED_FOR_FLIGHT-only --undefined block is now empty
-    # and ready for collapse in step 8.
-
     # Enable USB CDC for stdio (not UART)
     pico_enable_stdio_usb(rocketchip 1)
     pico_enable_stdio_uart(rocketchip 0)
@@ -750,26 +745,18 @@ else()
         message(STATUS "Job: VEHICLE (default)")
     endif()
 
-    # ============================================================================
-    # Build tier — single flight binary (R-25-exec step 8, 2026-05-13)
-    # ============================================================================
-    #
-    # Per council-APPROVED Approach A
-    # (docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md), the project
-    # produces ONE firmware tier per role (vehicle / station). Test
-    # affordances (fault_force_*, debug submenu state-mutating commands)
-    # live in the same binary, gated at entry by rc::test_mode_active()
-    # — runtime-partitioning per SWE-133. There is no parallel dev/bench
-    # build configuration; NOT_CERTIFIED_FOR_FLIGHT was retired here.
+    # Single flight binary per role. Test affordances (fault_force_*, debug
+    # submenu state-mutating commands) live in the same binary, gated at entry
+    # by rc::test_mode_active() — runtime-partitioning per SWE-133. See
+    # docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md.
     #
     # Build directories:
-    #   build_flight/          — vehicle flight (no ROCKETCHIP_JOB_STATION)
-    #   build_station_flight/  — station flight (-DROCKETCHIP_JOB_STATION=1)
-    # ============================================================================
-    message(STATUS "Build tier: single flight binary (R-25-exec Approach A, 2026-05-13)")
+    #   build_flight/          — vehicle (no ROCKETCHIP_JOB_STATION)
+    #   build_station_flight/  — station (-DROCKETCHIP_JOB_STATION=1)
+    message(STATUS "Build: single flight binary (vehicle or station per role)")
 
-    # Dev tools — hierarchical gate. Off in production builds (all four
-    # standard presets). See docs/BUILD_SYSTEM_AUDIT.md for the full model.
+    # Dev tools — hierarchical gate. Off in production builds. See
+    # docs/BUILD_SYSTEM_AUDIT.md for the full model.
     #
     #   ROCKETCHIP_BUILD_DEV_TOOLS (parent)  — gate for dev-tool targets
     #     └─ ROCKETCHIP_STAGE_ARCHIVE (child) — momentary stage-bounded diagnostics
@@ -797,9 +784,6 @@ else()
             # Usage: cmake -DROCKETCHIP_BUILD_DEV_TOOLS=ON -DROCKETCHIP_STAGE_ARCHIVE=ON -DROCKETCHIP_STAGE_T_LOGGING=ON ..
             option(ROCKETCHIP_STAGE_T_LOGGING "Enable Stage T RadioScheduler diagnostics" OFF)
             if(ROCKETCHIP_STAGE_T_LOGGING)
-                # R-25-exec step 8 (2026-05-13): NOT_CERTIFIED_FOR_FLIGHT retired.
-                # Stage archive flags now stand alone behind the parent + archive
-                # gates (ROCKETCHIP_BUILD_DEV_TOOLS + ROCKETCHIP_STAGE_ARCHIVE).
                 target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T_LOGGING=1)
                 message(STATUS "Stage T diagnostics: ENABLED")
             endif()
@@ -811,7 +795,6 @@ else()
             # Usage: add -DROCKETCHIP_STAGE_T2_CHEAT=ON -DROCKETCHIP_JOB_STATION=1 (alongside parent+archive).
             option(ROCKETCHIP_STAGE_T2_CHEAT "Enable Stage T2 station cheat-mode sync" OFF)
             if(ROCKETCHIP_STAGE_T2_CHEAT)
-                # R-25-exec step 8 (2026-05-13): NOT_CERTIFIED_FOR_FLIGHT retired.
                 target_compile_definitions(rocketchip PRIVATE ROCKETCHIP_STAGE_T2_CHEAT=1)
                 message(STATUS "Stage T2 cheat-mode: ENABLED")
             endif()
