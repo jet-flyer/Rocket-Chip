@@ -22,6 +22,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-20-001 | Grok Build 0.1 | bugfix, tooling, hardware
+
+**bench_sim back-to-back cleanup hang fixed (pre-commit gate).** Reworked fragile drain/query/reset recovery + direct bounded-timeout cleanup keys (z f r z) so the script always exits promptly and leaves main-menu state for reliable next-run banner peek. (scripts/bench_sim.py)
+
+Verified (HW gate + multiple boots, HW_GATE_DISCIPLINE Rule 3): bench_sim 2/2 PASS (COM7), back-to-back banner/find SUCCESS with zero probe reset between runs, cleanup + clean exit <2s (no watchdog). Positive controls: explicit [PASS] lines + "RESULT: 2/2 PASS" + successful banner on second invocation. (scripts/bench_sim.py)
+
+---
+
 ### 2026-05-17-001 | Claude | refactor, architecture, council
 
 **R-5 stdio removal CLOSED at Level-3 — Units F through K shipped.** R-5 plan ([`docs/plans/R5_STDIO_REMOVAL.md`](docs/plans/R5_STDIO_REMOVAL.md)) closed at firmware level (Units F-J) + audit-suite Level-3 regression (Unit K). All `src/*.cpp` are now stdio-free; pre-commit gate upgraded to unconditional rejection of `<stdio.h>`; allowlist file deleted. Council 2026-05-17 (unanimous, parser-extract framing): new `rc::rc_snprintf` + `rc::strbuf` siblings to `rc::rc_log` share one parser, three sinks. Side fixups along the way: cross-checked Grok 4.3's ICM-20948 stuck-slave recovery (`dfabcd4`) with a minor correctness tweak to the post-clock blind writes (4× 1-byte → 2× `[reg,value]` 2-byte — the 27-pulse SCL clocking that actually does the recovery work was unchanged); GPS UART sticky-baud handler (CR1220 backup battery makes the MT3339 baud survive host reset); dashboard hint string + RCOS doc drift; HW_GATE_DISCIPLINE Rule 2 cable-reseat language retired; comment-density audit (aggregate 22.8%, in 15-25% band). Level-3 regression: 6/6 cold-restart bench_sim, 863/863 host ctest, SPIN_OK_31, station dashboard live + RF Link TRACK 100%, vehicle preflight 9/9 GO. PROBLEM_REPORTS R-5 + R-2 both closed; L2-P5 + L2-P10 R-5 dependency cleared. PROJECT_STATUS Future Features gains GPS 10Hz experimental-mode + eyalroz/printf exit-ramp candidate entries.
