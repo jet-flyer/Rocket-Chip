@@ -1572,3 +1572,97 @@ For any new RP2350B peripheral driver that bit-bangs before peripheral init, the
 
 - LL Entry 28 (i2c_bus_recover corrupts DW_apb_i2c when called on active bus) — same function, different bug, both fixed in tree.
 - LL Entry 31 (flash_safe_execute corrupts I2C peripheral on RP2350B) — same chip family, same I2C peripheral, broader history of RP2350B I2C surprises.
+
+---
+
+## Entry 42: PIO Program Lifecycle Asymmetry — Backup Pyro Silent-Fail on Second ARM Cycle
+
+**Date:** 2026-05-20
+**Severity:** Critical — Tier-1 pyro safety regression. Latent since IVP-89 (commit `e1f0438`, 2026-?). Backup pyro deployment silently dead on any second-or-later ARM cycle. Followed by Core 0 wedge (SDK `__breakpoint` from PIO assertion) on the second DISARM.
+**Surfaced by:** Bench_sim back-to-back verification under HW_GATE_DISCIPLINE Rule 7 after the pre-commit hook Gate 2 fix unmasked it.
+
+### Problem
+
+`pio_backup_timer_disarm()` called `pio_remove_program(g_pio, &backup_timer_program, g_offset)` at line 130 as "defense in depth — council recommendation." The first ARM→RESET cycle worked. The second cycle was silently broken: the SM was enabled but the pin function had been returned to SIO at the prior disarm (lines 119-127) and arm() didn't restore PIO function. Then the second disarm's `pio_remove_program` tripped the SDK's metadata-bitmap assertion at `pico-sdk/.../hardware_pio/pio.c:203` (`program_mask == (_used_instruction_space[pio_get_index(pio)] & program_mask)`), which routes through `__assert_func` → `_exit(1)` → `__breakpoint`. Core 0 wedged in the breakpoint trap. USB CDC TX FIFO frozen.
+
+### Symptoms
+
+- Cycle 1: `[FD] ABORT -> IDLE\n[PIO] Backup timers disarmed\n[flight] ` — works.
+- Cycle 2 ARM/LAUNCH/ABORT: all FD transitions log normally.
+- Cycle 2 RESET: zero CDC output. Chip silently wedged.
+- Host sees `ClearCommError: PermissionError(13, 'The device does not recognize the command.')` on subsequent CLI input. Only probe-reset recovers.
+
+Initially mis-diagnosed (including by a 4-person council review) as the LL Entry 39 sustained-output CDC-drain limitation. The "USB CDC wedge" shape matched LL 22/28/31/39 closely enough that we built a hypothesis on rate-limit / timer-tick / Core-1-drain solutions for an entire investigation cycle before checking GDB. The GDB backtrace was decisive in seconds. **Sub-lesson: when a symptom matches a known-issue family, check GDB before believing the family.**
+
+### Root cause (two coupled defects)
+
+1. **PIO program lifecycle asymmetry.** `pio_add_program` was called once in `pio_backup_timer_init` at line 52. `pio_remove_program` was called on every disarm at line 130. The SDK's `pio_remove_program` is metadata-only — it clears the bits in `_used_instruction_space` for the program's slot mask, asserts the bits were set when entered. Second disarm → bits already clear → assertion fires.
+
+2. **Pin function lifecycle asymmetry.** `pio_gpio_init` (which sets pin pad mux to PIO function) was called in `backup_timer_program_init` at init. `disarm()` returns the pin to SIO via `gpio_set_function(pin, GPIO_FUNC_SIO)`. `arm()` did NOT restore PIO function on re-arm. The SM ran fine but `set pins, 1` was a silent no-op — pin stayed under SIO control at LOW. Backup pyro deployment was DEAD on cycle 2 even before the eventual disarm assertion fired.
+
+The "defense in depth" comment was misframing: clearing PIO instruction memory for a disabled SM adds no defense (the SM isn't executing). The real defense in depth is `pio_sm_set_enabled(false)` (line 116-117), which actually halts the SM, plus the pin-to-SIO-LOW gesture which is correct in isolation but needs the symmetric arm-side pin restore.
+
+### Solution
+
+**Pair `pio_add_program` with init/teardown only.** Remove the `pio_remove_program` call from `disarm()`. Program stays loaded for chip lifetime. Add a comment pointing here for the next reader.
+
+**Re-call `backup_timer_program_init(pio, sm, offset, pin)` in `arm()`** for each pin being armed. The auto-generated init helper does `pio_gpio_init` (restores PIO function on the pin) + `pio_sm_set_consecutive_pindirs` + `pio_sm_set_pins(0)` + `pio_sm_init` (resets SM to entry point with config). All four sub-operations are idempotent per the SDK.
+
+This is the [pico-examples `pio/hello_pio`](https://github.com/raspberrypi/pico-examples/tree/master/pio/hello_pio) idiomatic pattern: `claim+add → run → remove+unclaim`. ARM/DISARM cycle is purely `pio_sm_set_enabled` + (project-specific) `pio_sm_put_blocking(countdown)`.
+
+### Detection
+
+GDB halt + `info threads` + `bt`:
+```
+Thread 1 (rp2350.cm0):
+  __breakpoint
+  _exit (status=1)
+  __assert_func (file="hardware_pio/pio.c", line=203, func="pio_remove_program")
+  pio_remove_program (...)
+  rc::pio_backup_timer_disarm () at src/safety/pio_backup_timer.cpp:130
+  AO_FlightDirector_process_command (cmd=3 /* kReset */)
+  dispatch_flight_command (cmd=3)
+  handle_flight_menu (c=114 /* 'r' */)
+```
+
+If a future symptom shows "USB CDC silent after specific CLI keypress + chip otherwise alive (no fault LED)," check GDB for `_exit` / `__breakpoint` / `__assert_func` on Core 0 *before* hypothesizing CDC drain or TinyUSB mutex issues. The SDK's assertion infrastructure trap-wedges Core 0 in a way that mimics CDC failure.
+
+### Prevention
+
+1. **PIO program lifecycle rule** (added to `docs/MULTICORE_RULES.md` "PIO State Machines"): `pio_add_program` pairs with `pio_remove_program` at driver init/teardown, never at arm/disarm. Within driver lifetime, use `pio_sm_set_enabled(true/false)`.
+2. **Pin function lifecycle rule** (same doc): if disarm reverts pin to SIO, arm must restore PIO via `pio_gpio_init`. Easiest: call the auto-generated `_program_init` helper on both init and arm.
+3. **Idiomatic pattern reference:** `pico-examples/pio/hello_pio` pairs `pio_claim_free_sm_and_add_program_*` with `pio_remove_program_and_unclaim_sm`. Mirror that lifecycle boundary in any new PIO-using driver.
+4. **Multi-cycle bench gate:** any new PIO-using safety driver gets a bench runbook of at least 3 ARM-RESET cycles before release. Single-cycle verification is insufficient.
+
+### Verification
+
+Bench (probe-attached, vehicle flight v0.16.0):
+
+```
+Cycle 1: a → ARMED + [PIO] Backup timers armed: drogue=15s main=45s
+         l → BOOST
+         x → ABORT
+         r → ABORT -> IDLE + [PIO] Backup timers disarmed
+Cycle 2: a → ARMED + [PIO] Backup timers armed  ✓ (was silent-broken before)
+         l → BOOST
+         x → ABORT
+         r → ABORT -> IDLE + [PIO] Backup timers disarmed  ✓ (was assertion before)
+Cycle 3: identical to cycle 2.
+Status: Phase: IDLE, Transitions: 13
+```
+
+No assertion across 3 cycles. USB CDC stays live throughout. Host closes port cleanly.
+
+### Primary sources
+
+- [RP2350 datasheet §11.7 (PIO)](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf) — instruction memory layout (32 slots per block), state machine architecture.
+- [pico-sdk hardware_pio/pio.c (`pio_remove_program`)](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/hardware_pio/pio.c) — the assertion we tripped (~line 203). Confirms metadata-only nature.
+- [pico-sdk hardware_pio/pio.h (`pio_gpio_init`, `pio_sm_init`, `pio_sm_restart`)](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/hardware_pio/include/hardware/pio.h) — idempotency contracts.
+- [pico-examples `pio/hello_pio/hello.c`](https://github.com/raspberrypi/pico-examples/blob/master/pio/hello_pio/hello.c) — idiomatic `claim+add → run → remove+unclaim` pattern.
+
+### Related
+
+- LL Entry 33 (PIO GPIO init causes I2C bus interference on adjacent pins) — earlier PIO + pin-function-management surprise on the same project. Different mechanism (electrical coupling), same class of "PIO pin-function discipline matters more than it looks."
+- LL Entry 36 / 40 — "fail-open when prerequisites missing" / "categories not enumerations" structural gate failure family. This entry adds: "well-intentioned safety cleanup that introduces a worse safety failure" as a sub-pattern.
+- LL Entry 38 — "code shows current-state, primary sources show possibility-space." The 4-person council that pre-diagnosed this as a CDC-drain issue was reasoning from prior LL entries (22, 28, 31, 39) without checking GDB. Confirms the rule: primary sources first, then code, then prior project lessons.
+- LL Entry 39 — the CDC-drain limitation we initially confused this for. Still real, still tracked, but is NOT what bit us here.

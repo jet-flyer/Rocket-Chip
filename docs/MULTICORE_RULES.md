@@ -205,9 +205,42 @@ Size the stack based on the workload -- matrix math and calibration fits need at
 
 ## PIO State Machines
 
-The RP2350 has 3 PIO blocks (PIO0, PIO1, PIO2) with 4 state machines each. PIO programs are NOT core-specific -- any core can interact with any PIO state machine. Currently used:
+The RP2350 has 3 PIO blocks (PIO0, PIO1, PIO2) with 4 state machines each. PIO programs are NOT core-specific — any core can interact with any PIO state machine. Currently used:
 
-- WS2812/NeoPixel driver uses 1 PIO state machine
+- WS2812/NeoPixel driver — 1 SM on PIO2 SM0 (or wherever `pio_claim_free_sm_and_add_program_for_gpio_range` lands it)
+- Heartbeat watchdog SM — 1 SM on PIO2
+- Backup deployment timers (drogue + main) — 2 SMs on PIO2
+
+### PIO program lifecycle rule
+
+**`pio_add_program` / `pio_remove_program` pair with driver init/teardown, NOT with arm/disarm.**
+
+The program lives in shared PIO instruction memory (32 slots per block). Add at init, remove at teardown (if ever). Within that lifetime, the state machines start/stop via `pio_sm_set_enabled(sm, true/false)` — the program memory is not touched.
+
+Why this matters: `pio_remove_program` mutates the SDK's `_used_instruction_space` metadata bitmap. Calling it twice with the same offset trips an assertion (`__assert_func` → `_exit(1)` → `__breakpoint`, Core 0 wedged). The idiomatic `pico-examples/pio/hello_pio` pattern pairs `pio_claim_free_sm_and_add_program_*` at init with `pio_remove_program_and_unclaim_sm` at teardown — never mid-cycle.
+
+See LL Entry 42 for the lived-experience case: `pio_backup_timer_disarm()` called `pio_remove_program` as "defense in depth" — the first ARM→RESET cycle worked; the second cycle's disarm tripped the SDK assertion, wedging Core 0 and frozen-pipe'ing USB CDC. Latent in tree since IVP-89 (2026-04). Fixed 2026-05-20.
+
+### Pin function lifecycle rule (paired with the program rule)
+
+If `pio_gpio_init(pin)` is called at init and `gpio_set_function(pin, GPIO_FUNC_SIO)` is called at disarm (e.g., as a "pin LOW for visible safety" gesture), then **arm must restore the PIO function on the pin before enabling the SM.** Otherwise the SM runs against a pin that's still under SIO control — `set pins, 1` in the PIO program is a silent no-op.
+
+Easiest path: call the auto-generated `<program>_program_init(pio, sm, offset, pin)` in arm() as well as init(). It's idempotent — `pio_gpio_init` reduces to `gpio_set_function(pin, PIO_FUNCSEL)`, and `pio_sm_init` is documented to handle already-running SMs by disabling first.
+
+### Resuming a halted SM cleanly
+
+`pio_sm_set_enabled(false)` does NOT reset the SM's internal state. When re-enabled, the SM resumes exactly where it was halted (mid-instruction, with whatever shift register / FIFO state it had). For arm/disarm-style cycles where you want a known starting state on re-arm:
+
+- `pio_sm_init(pio, sm, offset, &config)` — full reset to entry point with config re-applied (heavyweight but unambiguous).
+- `pio_sm_restart(pio, sm)` — lighter: clears ISR, shift counters, clock divider counter, pin-write flags, delay counter, latched EXEC, IRQ wait. Keeps program/config.
+- `pio_sm_clear_fifos(pio, sm)` — drain TX/RX FIFOs (e.g., stale countdown values from prior arm).
+
+### Primary sources
+
+- [RP2350 datasheet §11.7 (PIO)](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf) — instruction memory, state machine architecture, claim semantics.
+- [pico-sdk `hardware/pio.h`](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/hardware_pio/include/hardware/pio.h) — `pio_add_program`, `pio_remove_program`, `pio_sm_init`, `pio_sm_restart`, `pio_sm_set_enabled`, `pio_sm_clear_fifos`, `pio_gpio_init`.
+- [pico-sdk `hardware/pio.c`](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/hardware_pio/pio.c) — the assertion at `pio_remove_program` (line ~203) is the one we tripped; the body confirms `pio_remove_program` is metadata-only (clears the `_used_instruction_space` bitmap), it does NOT zero PIO instruction memory.
+- [pico-examples `pio/hello_pio`](https://github.com/raspberrypi/pico-examples/tree/master/pio/hello_pio) — idiomatic `claim+add → run → remove+unclaim` lifecycle. Pair this with the project's arm/disarm-via-`pio_sm_set_enabled` cycling.
 
 Future users: SPI DMA for high-rate sensor mode (if/when migrating from I2C).
 

@@ -68,6 +68,18 @@ void pio_backup_timer_arm(float drogue_timeout_s, float main_timeout_s) {
         return;
     }
 
+    // Restore SM + pin to known-good state before enabling. On re-arm after a
+    // prior disarm/cancel, the pin was returned to SIO LOW and the SM may have
+    // been left halted mid-instruction. backup_timer_program_init() is
+    // idempotent (pio_gpio_init → gpio_set_function PIO; pio_sm_init resets
+    // ISR/shift counters/PC to entry point per SDK docs). See LL Entry 42.
+    if (drogue_timeout_s > 0.0f && g_drogue_pin != 0xFF) {
+        backup_timer_program_init(g_pio, g_drogue_sm, g_offset, g_drogue_pin);
+    }
+    if (main_timeout_s > 0.0f && g_main_pin != 0xFF) {
+        backup_timer_program_init(g_pio, g_main_sm, g_offset, g_main_pin);
+    }
+
     // Drogue timer
     if (drogue_timeout_s > 0.0f && g_drogue_pin != 0xFF) {
         uint32_t countdown = static_cast<uint32_t>(drogue_timeout_s * kSmClockHz);
@@ -116,7 +128,9 @@ void pio_backup_timer_disarm() {
     pio_sm_set_enabled(g_pio, g_drogue_sm, false);
     pio_sm_set_enabled(g_pio, g_main_sm, false);
 
-    // Return pins to SIO control, drive LOW
+    // Return pins to SIO control, drive LOW. Visible safety signal: pin
+    // can't be driven HIGH by a stale SM after disarm. arm() restores PIO
+    // function on the pin via backup_timer_program_init() on the next ARM.
     if (g_drogue_pin != 0xFF) {
         gpio_set_function(g_drogue_pin, GPIO_FUNC_SIO);
         gpio_put(g_drogue_pin, 0);
@@ -126,9 +140,12 @@ void pio_backup_timer_disarm() {
         gpio_put(g_main_pin, 0);
     }
 
-    // Clear PIO instruction memory (defense in depth — council recommendation)
-    pio_remove_program(g_pio, &backup_timer_program, g_offset);
-
+    // PIO program stays loaded for chip lifetime (pairs with init, not disarm).
+    // Earlier code called pio_remove_program here with "defense in depth"
+    // framing, but the SDK's metadata bitmap then asserts on the *second*
+    // disarm (program slots already marked unused). Per pico-examples
+    // hello_pio idiomatic pattern: add at claim/init, remove at unclaim/
+    // teardown — never at arm/disarm. See LL Entry 42.
     g_drogue_armed = false;
     g_main_armed = false;
 }
