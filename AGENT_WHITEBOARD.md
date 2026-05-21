@@ -34,9 +34,7 @@
 
 - **rc_log drain rate-limiting — known-limitation followup** (LL Entry 39). Tier 5 (~430 callsites across rc_os/rc_os_debug/rc_os_commands/ao_rcos/dashboard) shipped 2026-05-17 with the existing ring-empty fast-path, no drain-rate regressions observed in normal CLI use. The known limitation remains: under sustained heavy CLI output (e.g. an operator dumping the full sensor-status block in a tight loop) the ring isn't empty for sustained periods and the drain runs on every idle tick. Council deferral stands — address when actual sustained-output regression surfaces. Candidate fixes still apply: rate-limit drain to every-Nth-idle-tick, OR drain via dedicated timer-tick instead of qv_idle_bridge.
 
-- **Dead-code CCSDS `q`→QUERY_RADIO_CONFIG mapping in `cli_handle_unhandled_key`.** Surfaced 2026-05-16 during Unit F tier-end L2 wire-verification. `src/cli/rc_os_commands.cpp:1509` maps `q` to QUERY_RADIO_CONFIG, gated by `kRadioModeRx`. But `src/cli/rc_os.cpp:172-177` in `handle_main_menu` unconditionally consumes `q` → debug menu BEFORE the unhandled-key dispatcher is reached. So the QUERY path is unreachable on the current dispatch. ROCKETCHIP_OS.md updated to note the dead-code path; the code itself either needs to (a) move QUERY to a different key, (b) gate the debug-menu enter behind `!kRadioModeRx`, or (c) just delete the dead QUERY path. Low priority — SET_RADIO via `r` already covers the station's CCSDS exchange needs.
-
-- **CONFIG_TEST_MATRIX + Code Classification doc lag.** `scripts/ci/pre_commit_matrix.py` gate widened 2026-05-16 to "categories not enumerations" but `docs/CONFIG_TEST_MATRIX.md` Tier 6b section + `standards/CODING_STANDARDS.md` Code Classification table still describe the old narrower scope. State-of-system trigger applies — these docs are now contradicted by the matrix script. Doc-only follow-up; no code change needed.
+- **`standards/CODING_STANDARDS.md` Code Classification table — prescriptive-vs-descriptive design question.** Independent of 4-tier retirement (cleaned up 2026-05-21). The three-runtime-classification table (Flight-Critical / Flight-Support / Ground) was historically *prescriptive* — gates enforced per-classification rigor (e.g., stdio-relaxation tied to "Ground"). Post-R-5 (2026-05-17) stdio-relaxation retired. Post-2026-05-16 "categories not enumerations" pre-commit hook widening, gates ignore the classification and run on "any firmware-affecting change." Open design question: does the three-runtime-tier framing stay prescriptive (some standard tied to each row) or shift to descriptive (informational only, gates run uniformly)? Council-review-sized decision. Defer to dedicated session. NOTE: this is *different* from the 4-tier compile-time build scaffolding which was retired in commits f62073a..0ba4e2a (2026-05-21) — 4 build presets is a different topic from 3 runtime classifications.
 
 - **R-25-exec audit-suite regression: all gates CLOSED at Level-2 (2026-05-14 + 2026-05-15 sessions).** T0a + T1a + T1b/T1c (labeled-soft runbook per HW_GATE_DISCIPLINE Rule 4) + T2a (negative-control gate) verified 2026-05-14. T2b positive-path verified 2026-05-15 via probe-only combined-session runbook (now documented in `docs/FAULT_INJECTION.md`): test mode armed via probe magic + reset, `g_test_mode_enabled=true` confirmed at kIdle, `fault_force_eskf_unhealthy()` called → `g_eskfInitialized: true→false` observed (state-mutation positive-control signal). Grep coverage at `src/safety/fault_inject.cpp` + `station_fault_inject.cpp` confirms 8/8 + 3/3 gated entries call `fi_test_mode_gate()` / `fis_test_mode_gate()` at line 1 of body (recovery actions `fault_force_core0_stall_clear()` + `fault_force_station_gps_restore()` intentionally exempt per documented design). T3a deprecated 2026-05-15 — the R-19 SIO_FIFO_IRQ wedge it was designed to catch was eliminated by the fault-recovery rework (firmware no longer issues AIRCR in flight); one-off sanity data captured (pre/post AIRCR sensor counters reset cleanly, hardware 14/14 ok, GDB-observed Core 1 active in `i2c_read_blocking_internal` post-reset, no wedge). PROBLEM_REPORTS closures: R-22, R-23, R-24, R-25-exec all Level-2 CLOSED. R-20/R-21/L2-W1 dispositioned by rework per plan B.1/B.8.
 
@@ -81,21 +79,6 @@
   (b) actual ACK-latency distribution (p50 / p95 / p99); (c) whether
   the anchor-station-TX-to-vehicle-RxDone architectural fix is still
   needed or was over-engineered for our actual link conditions.
-
-- **CONFIG_TEST_MATRIX doc lag (post pre-commit-matrix widening).**
-  Council 2026-05-16 widened `scripts/ci/pre_commit_matrix.py`'s
-  FLIGHT_CRITICAL regex from a narrow path enumeration to "any
-  firmware-affecting change." The hook change shipped. CODING_STANDARDS.md
-  Code Classification table partially addressed by R-5 Unit J 2026-05-17
-  (stdio column retired, but the prescriptive vs descriptive framing
-  question for the three-tier structure remains an open design
-  discussion — defer to next session that touches the table).
-  `docs/CONFIG_TEST_MATRIX.md` Tier 6b section still describes the
-  former narrow matrix; needs to reflect the widened regex + the
-  "categories not enumerations" rationale. Doc-only edit.
-  Per LL Entry 39: this is the meta-pattern that LL36/LL39 keep
-  surfacing — categories drift behind the code they police. Doc
-  realignment is the documentation-side of the same lesson.
 
 ## Medium (session-scale, 4–12 hours)
 
