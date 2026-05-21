@@ -1,0 +1,16 @@
+# Python dependencies for scripts/audit/ scripts.
+#
+# Most audit scripts use stdlib only (per scripts/_rc_test_common.py
+# convention). The exception is pdf_section_lookup.py which uses pypdf
+# to extract text from massive vendor datasheet PDFs (RP2350,
+# SX1276, etc.) for section-number verification.
+#
+# Install with:
+#   pip install -r scripts/audit/requirements.txt
+#
+# The audit ctest tags handle missing deps gracefully: pdf_section_lookup.py
+# exits with code 2 ("skip") if pypdf isn't installed, so the audit
+# cycle continues with PDF cross-checks reported as SKIP rather than
+# failing the overall verification.
+
+pypdf>=6.0
