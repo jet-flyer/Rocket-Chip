@@ -23,74 +23,68 @@ fallback-to-first-port behavior). The lesson generalised: tests written
 against a single board/configuration silently rot as the project grows
 multi-tier.
 
-## The four firmware build configurations
+## Firmware build configurations
 
-Defined in `CMakePresets.json`. Two axes: **role** (vehicle vs station)
-and **build tier** (`NOT_CERTIFIED_FOR_FLIGHT=ON` aka dev/bench, vs `=OFF` aka
-flight-ready — `OFF` is the default).
+Defined in `CMakePresets.json`. **Post-R-25-exec (2026-05-13):** one flight binary per role. Test affordances are runtime-gated by `rc::test_mode_active()` (probe-only three-condition AND gate: SRAM magic + state==IDLE + boot-time-window) — see [`docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`](decisions/BENCH_TIER_DEPRECATION_2026-05-13.md).
 
-| Preset           | Role    | Board                          | `NOT_CERTIFIED_FOR_FLIGHT` | Binary dir              | Output             |
-|------------------|---------|--------------------------------|----------------------------|-------------------------|--------------------|
-| `vehicle-bench`  | vehicle | Adafruit Feather RP2350 HSTX   | `ON`                       | `build/`                | `rocketchip-dev`   |
-| `vehicle-flight` | vehicle | Adafruit Feather RP2350 HSTX   | `OFF`                      | `build_flight/`         | `rocketchip`       |
-| `station-bench`  | station | Adafruit Fruit Jam             | `ON`                       | `build_station/`        | `rocketchip-dev`   |
-| `station-flight` | station | Adafruit Fruit Jam             | `OFF`                      | `build_station_flight/` | `rocketchip`       |
+| Preset           | Role    | Board                          | Binary dir              | Output         |
+|------------------|---------|--------------------------------|-------------------------|----------------|
+| `vehicle-flight` | vehicle | Adafruit Feather RP2350 HSTX   | `build_flight/`         | `rocketchip`   |
+| `station-flight` | station | Adafruit Fruit Jam             | `build_station_flight/` | `rocketchip`   |
+
+The legacy `vehicle-bench` and `station-bench` presets still exist in `CMakePresets.json` as backward-compat scaffolding (their `NOT_CERTIFIED_FOR_FLIGHT=ON` cache variable is parsed but no longer affects the build — every R-25-exec gate site in `src/` was either migrated test-mode-gated into the flight binary or deleted). All four presets produce feature-identical binaries per role; `kBuildConfig` is hardcoded to `"flight"` post-R-26 (2026-05-15).
 
 USB CDC identification (used by host scripts):
 - VID `0x2E8A`, PID `0x0009` for both roles.
 - Role distinguished by **boot banner content**, not VID/PID.
 - Vehicle banner contains `"Profile: Rocket"` and `"Adafruit Feather RP2350 HSTX"`.
 - Station banner contains `"Ground Station"`, `"Fruit Jam"`, or `"Station RX"`.
-- Bench vs flight is encoded in the build tag suffix
-  (`bench-<sha>` vs `flight-<sha>`) on the boot banner line.
+- Build-tag suffix on the banner is always `flight-<sha>` post-R-26.
 
 ## Firmware feature matrix
 
-Which CLI features / keystrokes exist in each configuration. Used by host
-scripts to decide what they can rely on.
+Which CLI features / keystrokes exist on each role. Test-mode-gated affordances are marked **(test-mode)** — these require `arm_test_mode_via_probe()` at session start; the affordance is silently refused otherwise.
 
-| Feature                                          | vehicle-bench | vehicle-flight | station-bench | station-flight |
-|--------------------------------------------------|:-------------:|:--------------:|:-------------:|:--------------:|
-| Boots into kMenu CLI                             |       ✓       |       ✓        |       —       |       —        |
-| Boots into kAnsi dashboard                       |       —       |       —        |       ✓       |       ✓        |
-| `'p'` print preflight (`[Health]` …)             |       ✓       |       ✓        |       ✓       |       ✓        |
-| `'q'` enter debug menu                           |       ✓       |   ✗ (no-op)    |       ✓       | ✗ (sends QUERY)²|
-| `'q'→'b'` cli_print_hw_status                    |       ✓       |       ✗        |       ✓       |       ✗        |
-| `'q'→'d'` `diag_stats_dump()` `[Health]` line    |       ✓       |       ✗        |       ✓       |       ✗        |
-| `'q'→'r'` replay inject                          |       ✓       |       ✗        | ✓ (RX-path)   |       ✗        |
-| `'q'→'e'` ESKF live (1 Hz output)                |       ✓       |       ✗        |       —       |       —        |
-| `'f'` flight menu (a/l/x=ABORT/etc.)             |       ✓       |       ✓        |       —       |       —        |
-| `'x'` from main menu = Erase Flights confirm     |       ✓       |       ✓        |  ✓ (after 'x' from dashboard) |  ✓ (after 'x') |
-| `'X'` (caps) = tracked-DISARM via radio          |       —       |       —        |       ✓       |       ✓        |
-| `'a'` ARM (multi-char confirm flow)              |  flight menu  |  flight menu   |   ✓ via kAnsi |  ✓ via kAnsi   |
-| `'m'` mode cycle (ANSI/CSV/MAVLink)              |       —       |       —        |       ✓       |       ✓        |
-| Sensors (IMU, baro, GPS) installed               |       ✓       |       ✓        |       ✗       |       ✗        |
-| Telemetry TX                                     |       ✓       |       ✓        |       ✗       |       ✗        |
-| Telemetry RX                                     |       ✗       |       ✗        |       ✓       |       ✓        |
-| Flight Director state machine                    |       ✓       |       ✓        |       ✗       |       ✗        |
-| Stage T logging (`-DROCKETCHIP_STAGE_T_LOGGING=ON`)|     opt     |      opt       |      opt      |      opt       |
+| Feature                                          | vehicle              | station              |
+|--------------------------------------------------|:--------------------:|:--------------------:|
+| Boots into kMenu CLI                             |          ✓           |          —           |
+| Boots into kAnsi dashboard                       |          —           |          ✓           |
+| `'p'` print preflight (`[Health]` ...)           |          ✓           |          ✓ ¹         |
+| `'q'` enter debug submenu                        |          ✓           |          ✓           |
+| `'q'→'b'` `cli_print_hw_status` (Hardware Status)|          ✓           |          ✓           |
+| `'q'→'d'` `diag_stats_dump()` `[Health]` line    |          ✓           |          ✓           |
+| `'q'→'s'` sensor status                          |          ✓           |          ✓           |
+| `'q'→'e'` ESKF live (1 Hz output)                |          ✓           |          —           |
+| `'q'→<digit>z` local radio config set            |   ✓ (test-mode)      |   ✓ (test-mode)      |
+| `'q'→'l'` LED test                               |   ✓ (test-mode)      |   ✓ (test-mode)      |
+| `'f'` flight menu (a/l/x=ABORT/etc.)             |          ✓           |          —           |
+| `'x'` from main menu = Erase Flights confirm     |          ✓           |   ✓ (after 'x' from dashboard) |
+| `'X'` (caps) = tracked-DISARM via radio          |          —           |          ✓           |
+| `'a'` ARM (multi-char confirm flow)              |     flight menu      |     ✓ via kAnsi      |
+| `'m'` mode cycle (ANSI/CSV/MAVLink)              |          —           |          ✓           |
+| `fault_force_*` test-injection symbols           |   ✓ (test-mode)      |   ✓ (test-mode)      |
+| Sensors (IMU, baro, GPS) installed               |          ✓           |          ✗           |
+| Telemetry TX                                     |          ✓           |          ✗           |
+| Telemetry RX                                     |          ✗           |          ✓           |
+| Flight Director state machine                    |          ✓           |          ✗           |
+| Stage T logging (`-DROCKETCHIP_STAGE_T_LOGGING=ON`)|       opt          |        opt           |
 
 ¹ Sensor lines on station preflight often **ABSENT** (no onboard IMU/baro/GPS RX path);
   HW radio / RF Link / MCU / **VERDICT** remain valid. Tier 5 parity: **`rc_os.cpp`**
   main-menu **`'p'`** calls **`cli_print_preflight()`** on RX as well as vehicle.
-² On flight builds `dev_debug_menu_enter()` returns `false`, so 'q' falls
-  through to `cli_handle_unhandled_key('q')`, which on station sends
-  `MAV_CMD_USER_2 / QUERY_RADIO_CONFIG`. On vehicle-flight 'q' is silently
-  unhandled (no debug menu, no station QUERY path).
 
 ### Implications for tests
 
-- Any test that uses the **debug menu** (most diag/soak tests) requires
-  `NOT_CERTIFIED_FOR_FLIGHT=ON` (dev/bench). Flight-ready builds will silently mis-execute or hang.
+- **State-mutating debug-menu affordances** (LED test, local radio config set, `fault_force_*` entries) check `rc::test_mode_active()` at entry. Scripts that need them must arm test mode via probe at session start (`arm_test_mode_via_probe()` in `scripts/_rc_test_common.py`). Diagnostic *reads* (`q→s`, `q→b`, `q→d`, `q→e`) are always available with no gating.
 - `'x'` is the only character bound to a **destructive confirmation prompt**
   on main menu. Scripts that send `'x'` MUST classify the firmware first.
 - Station boots into the dashboard, not the CLI menu. Tests must send
   `'x'` (or another dashboard-recognised key) to enter `kMenu` before
   sending CLI keys.
 - The **`[Health]` summary block (`cli_print_preflight`)** prints from main-menu **`'p'`**
-  on **both roles**, all four presets (**Tier 5**). Scripts parsing **comma-separated
-  `[Health]` log fields** (`primary=…`) remain a **diag / debug-menu** contract — not
-  the same textual format as **`cli_print_preflight()`**.
+  on **both roles** (**Tier 5**). Scripts parsing **comma-separated
+  `[Health]` log fields** (`primary=...`) from `diag_stats_dump()` remain a **debug-menu** contract —
+  not the same textual format as **`cli_print_preflight()`**.
 
 ## Test compatibility matrix (host scripts)
 
@@ -106,34 +100,25 @@ exit contract. **Tiers 3–4** (shared `find_target_port` / `open_classified_por
 see `docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`. The **Has guard**
 column means **banner-based classification** before destructive keys are sent.
 
-| Script                          | Required role            | Required build      | Current state                                    | Has guard | Has watchdog |
-|---------------------------------|--------------------------|---------------------|--------------------------------------------------|:---------:|:------------:|
-| `bench_sim.py`                  | vehicle                  | bench or flight     | ✓ correct, uses flight menu only                 |    ✓      |     ✓        |
-| `station_bench_sim.py`          | station                  | bench (dev menu)    | ✓ correct (post 2026-04-27 hardening)            |    ✓      |     ✓        |
-| `accel_cal_6pos.py`             | vehicle                  | flight              | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
-| `cla_collect.py`                | vehicle                  | flight              | `--port` optional; VID:PID classify       | ✓              | ✗        |
-| `cli_test.py`                   | vehicle                  | flight              | `--port` optional; VID:PID classify                    |    ✓      |     ✗        |
-| `decode_flight_log.py`          | vehicle                  | flight              | find_target_port + open_classified_port ✓       |    ✓      |     ✗        |
-| `enhanced_fault_injection.py`   | vehicle                  | flight              | TARGET_VEHICLE_ANY + arm_test_mode_via_probe; ELF=build_flight | ✓ | ✗ |
-| `i2c_soak_test.py`              | vehicle                  | flight              | `--port` optional; VID:PID classify                       |    ✓      |     ✗        |
-| `mavlink_validate.py`           | station (passive)        | flight              | `--port` optional; classify; no auto kMenu (MAVLink tap)  |    ✓      |     ✗        |
-| `replay_harness_host.py`        | n/a (host-side)          | n/a                 | Placeholder skeleton; host-side ESKF replay implementation pending | n/a | n/a |
-| `soak_test.py`                  | vehicle                  | flight              | find_target_port + open_classified_port ✓        |    ✓      |     ✓        |
-| `verify_boot_parity.sh`         | both                     | flight              | Build + flash + banner-classify per role (R-24, R-25-exec step 12) | ✓ | n/a |
-| `warm_reboot_audit.py`          | both                     | flight              | TARGET_EITHER_ANY + arm_test_mode_via_probe; 4 gates (R-22, R-25-exec step 11) | ✓ | n/a |
+| Script                          | Required role            | Current state                                                                | Has guard | Has watchdog |
+|---------------------------------|--------------------------|------------------------------------------------------------------------------|:---------:|:------------:|
+| `bench_sim.py`                  | vehicle                  | ✓ correct, uses flight menu only                                             |    ✓      |     ✓        |
+| `station_bench_sim.py`          | station                  | ✓ correct (post 2026-04-27 hardening); uses always-available debug-menu reads |    ✓      |     ✓        |
+| `accel_cal_6pos.py`             | vehicle                  | `--port` optional; VID:PID classify                                          |    ✓      |     ✗        |
+| `cla_collect.py`                | vehicle                  | `--port` optional; VID:PID classify                                          |    ✓      |     ✗        |
+| `cli_test.py`                   | vehicle                  | `--port` optional; VID:PID classify                                          |    ✓      |     ✗        |
+| `decode_flight_log.py`          | vehicle                  | find_target_port + open_classified_port ✓                                    |    ✓      |     ✗        |
+| `enhanced_fault_injection.py`   | vehicle                  | TARGET_VEHICLE_ANY + arm_test_mode_via_probe; ELF=build_flight               |    ✓      |     ✗        |
+| `i2c_soak_test.py`              | vehicle                  | `--port` optional; VID:PID classify                                          |    ✓      |     ✗        |
+| `mavlink_validate.py`           | station (passive)        | `--port` optional; classify; no auto kMenu (MAVLink tap)                     |    ✓      |     ✗        |
+| `replay_harness_host.py`        | n/a (host-side)          | Placeholder skeleton; host-side ESKF replay implementation pending           |    n/a    |     n/a      |
+| `soak_test.py`                  | vehicle                  | find_target_port + open_classified_port ✓                                    |    ✓      |     ✓        |
+| `verify_boot_parity.sh`         | both                     | Build + flash + banner-classify per role (R-24, R-25-exec step 12)           |    ✓      |     n/a      |
+| `warm_reboot_audit.py`          | both                     | TARGET_EITHER_ANY + arm_test_mode_via_probe; 4 gates (R-22, R-25-exec step 11) | ✓      |     n/a      |
 
 ### Coverage gaps revealed by the matrix
 
-**Post-R-25-exec (2026-05-13):** the four-tier matrix was retired. The project now ships a single flight binary per role with test affordances runtime-gated by `rc::test_mode_active()`. Per `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`: all scripts target the flight binary directly; scripts that need state-mutating affordances arm test mode via probe at session start (`arm_test_mode_via_probe()`); Debug submenu `q→...` is always available for reads (`q→s`, `q→b`, `q→d`, `q→e`); CSV-streamer replay retired (host-side `scripts/replay_harness_host.py` is the placeholder); Stage-T archived harnesses deleted in step 9. The legacy bullets below are HISTORICAL and may reference retired tier names; preserved for traceability.
-
-- **No test covers `vehicle-flight` exclusively.** Flight-certified vehicle
-  binaries get `bench_sim.py` coverage (good), but not the soak/ESKF/replay
-  paths.
-- **`station-flight` + `'q'` debug flows** remain unavailable (`NOT_CERTIFIED_FOR_FLIGHT=OFF` strips **`dev_cli`**).
-  Main-menu **`'p'` preflight (`cli_print_preflight`)** works on **`station-flight`** (**Tier 5**) for
-  high-level parity; scripts that inject **`diag_stats`** via **`q`→`d`** still require **station-bench**.
-- **Three scripts use `'e'` ESKF live mode** (cla_collect, eskf_gps_soak,
-  occasionally others). All require dev menu and therefore bench builds.
+- **`replay_harness_host.py` is a placeholder.** Host-side ESKF replay against `tests/replay_profiles/*.csv` ground-truth has no implementation yet. Tracked on the WB ("Host-side replay harness implementation"). Blocks the IVP-131 verification model promised by R-25-exec amendment #4.
 - **Legacy COM defaults (COM6/COM7/COM9) in docstrings** may still appear as
   examples; runtime selection uses **banner classification** with optional
   `--port` overrides. Prefer the council review doc for migration status.
@@ -160,7 +145,7 @@ When creating a new script under `scripts/`:
      fired, KeyboardInterrupt). Pre-commit treats `2` as SKIP, not block.
 4. **Update this file** when the script lands.
 
-Minimum-template for a new vehicle-bench script:
+Minimum-template for a new vehicle script:
 
 ```python
 #!/usr/bin/env python3
@@ -171,22 +156,22 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _rc_test_common import (
     rc_test, find_target_port, open_classified_port,
-    TARGET_VEHICLE_BENCH,
+    TARGET_VEHICLE_FLIGHT,
 )
 
-@rc_test(target=TARGET_VEHICLE_BENCH, watchdog_s=120)
+@rc_test(target=TARGET_VEHICLE_FLIGHT, watchdog_s=120)
 def main():
     parser = argparse.ArgumentParser(description='...')
     parser.add_argument('--port', default=None)
     args = parser.parse_args()
 
-    port, banner = find_target_port(TARGET_VEHICLE_BENCH,
+    port, banner = find_target_port(TARGET_VEHICLE_FLIGHT,
                                     override=args.port, verbose=True)
     if port is None:
         print(f'INFO: skipping --- {banner}')
         return 2  # skip: no target present
 
-    with open_classified_port(port, target=TARGET_VEHICLE_BENCH) as ser:
+    with open_classified_port(port, target=TARGET_VEHICLE_FLIGHT) as ser:
         # ...test body...
         return 0  # pass
 
@@ -194,8 +179,9 @@ if __name__ == '__main__':
     main()
 ```
 
-For station scripts, replace `TARGET_VEHICLE_BENCH` with `TARGET_STATION_BENCH`
-(or `TARGET_STATION_ANY` if the test works on flight builds too). The
+For station scripts, replace `TARGET_VEHICLE_FLIGHT` with `TARGET_STATION_FLIGHT`
+(or `TARGET_STATION_ANY` if the test doesn't need to distinguish dev-vs-flight banner
+suffixes — irrelevant post-R-26 since the suffix is always `flight-<sha>`). The
 `open_classified_port` helper auto-transitions station from kAnsi
 dashboard to kMenu so `'q'`, `'h'`, etc. are honored.
 
@@ -213,6 +199,6 @@ This file is the source of truth for cross-config compatibility. Update
 it when:
 - A new build configuration is added to `CMakePresets.json`.
 - A CLI key binding changes in `src/cli/rc_os.cpp`,
-  `src/cli/rc_os_commands.cpp`, or `src/dev/dev_cli.cpp`.
+  `src/cli/rc_os_commands.cpp`, or `src/cli/rc_os_debug.cpp`.
 - A new `scripts/*.py` file is added (or existing one promoted to CI).
 - A test starts or stops working on a configuration.

@@ -149,8 +149,9 @@ def scan_asserts(text):
 # Station boots in kAnsi (dashboard). The dashboard ignores all keys except
 # 'x' (enter CLI menu), 'a' (ARM-confirm flow), 'D' (DISARM), 'm' (mode
 # cycle). Once in the kMenu CLI we share the vehicle handlers (handle_main_menu
-# in src/cli/rc_os.cpp), so 'q' enters the debug menu (dev-only — requires
-# NOT_CERTIFIED_FOR_FLIGHT=ON). The debug submenu's "back to main" key is
+# in src/cli/rc_os.cpp), so 'q' enters the debug menu (post-R-25-exec: always
+# available for diagnostic reads; state-mutating commands gated by
+# rc::test_mode_active()). The debug submenu's "back to main" key is
 # 'z' / 'Z' / Esc — NOT 'x' (which is bound to Erase-Flights from main menu
 # even on station, see cli_handle_unhandled_key).
 #
@@ -299,7 +300,7 @@ def _station_bench_run_inner(ser: serial.Serial,
     if classify_banner(sanity).role == Role.VEHICLE and not allow_vehicle:
         print('ERROR: post-open sanity check classifies firmware as VEHICLE.')
         print('  Refusing to run station-only key sequences on vehicle firmware.')
-        print('  (Did you hot-swap boards? Or is build_station out of date?)')
+        print('  (Did you hot-swap boards? Or is build_station_flight out of date?)')
         sys.exit(2)
 
     print(f'\n=== RocketChip Station Bench Sim ===')
@@ -378,7 +379,7 @@ def main():
             print(f'INFO: No station detected — {reason}.')
             print('  Skipping station_bench_sim (this is exit code 2 = '
                   '"no station to test", not a test failure).')
-            print('  To run: flash build_station/*.uf2 and plug in USB '
+            print('  To run: flash build_station_flight/*.uf2 and plug in USB '
                   f'(VID 0x{ROCKETCHIP_USB_VID:04X} PID 0x{ROCKETCHIP_USB_PID:04X}).')
             sys.exit(2)
         if not isinstance(reason, Banner):
