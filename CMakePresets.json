@@ -3,50 +3,24 @@
   "cmakeMinimumRequired": {"major": 3, "minor": 21, "patch": 0},
   "configurePresets": [
     {
-      "name": "vehicle-bench",
-      "displayName": "Vehicle — dev/bench (Feather)",
-      "description": "Flight computer on Adafruit Feather RP2350 HSTX, dev/bench build (NOT_CERTIFIED_FOR_FLIGHT=ON). Output: rocketchip-dev.uf2.",
-      "binaryDir": "${sourceDir}/build",
-      "cacheVariables": {
-        "NOT_CERTIFIED_FOR_FLIGHT": "ON"
-      }
-    },
-    {
       "name": "vehicle-flight",
-      "displayName": "Vehicle — flight-ready (Feather)",
-      "description": "Flight-ready binary on Adafruit Feather RP2350 HSTX. Diagnostic paths compiled out (NOT_CERTIFIED_FOR_FLIGHT=OFF, the default). Output: rocketchip.uf2.",
-      "binaryDir": "${sourceDir}/build_flight",
-      "cacheVariables": {
-        "NOT_CERTIFIED_FOR_FLIGHT": "OFF"
-      }
-    },
-    {
-      "name": "station-bench",
-      "displayName": "Station — dev/bench (Fruit Jam)",
-      "description": "Ground receiver on Adafruit Fruit Jam, dev/bench build (NOT_CERTIFIED_FOR_FLIGHT=ON). Output: rocketchip-dev.uf2.",
-      "binaryDir": "${sourceDir}/build_station",
-      "cacheVariables": {
-        "PICO_BOARD": "adafruit_fruit_jam",
-        "ROCKETCHIP_JOB_STATION": "1",
-        "NOT_CERTIFIED_FOR_FLIGHT": "ON"
-      }
+      "displayName": "Vehicle (Feather)",
+      "description": "Flight computer on Adafruit Feather RP2350 HSTX. Output: rocketchip.uf2.",
+      "binaryDir": "${sourceDir}/build_flight"
     },
     {
       "name": "station-flight",
-      "displayName": "Station — flight-ready (Fruit Jam)",
-      "description": "Flight-ready binary of ground receiver on Adafruit Fruit Jam (NOT_CERTIFIED_FOR_FLIGHT=OFF, the default). Output: rocketchip.uf2.",
+      "displayName": "Station (Fruit Jam)",
+      "description": "Ground receiver on Adafruit Fruit Jam. Output: rocketchip.uf2.",
       "binaryDir": "${sourceDir}/build_station_flight",
       "cacheVariables": {
         "PICO_BOARD": "adafruit_fruit_jam",
-        "ROCKETCHIP_JOB_STATION": "1",
-        "NOT_CERTIFIED_FOR_FLIGHT": "OFF"
+        "ROCKETCHIP_JOB_STATION": "1"
       }
     }
   ],
   "buildPresets": [
-    {"name": "vehicle-bench",   "configurePreset": "vehicle-bench"},
     {"name": "vehicle-flight",  "configurePreset": "vehicle-flight"},
-    {"name": "station-bench",   "configurePreset": "station-bench"},
     {"name": "station-flight",  "configurePreset": "station-flight"}
   ]
 }
