@@ -386,12 +386,12 @@ def test_decorator_sys_exit_passthrough() -> None:
 def test_decorator_target_introspection() -> None:
     print('test_decorator_target_introspection')
 
-    @rc_test(target=TARGET_STATION_BENCH, watchdog_s=42.0)
+    @rc_test(target=TARGET_STATION_FLIGHT, watchdog_s=42.0)
     def fake_main() -> int:
         return 0
 
     check('wrapper.__rc_target__ is set',
-          getattr(fake_main, '__rc_target__', None) == TARGET_STATION_BENCH)
+          getattr(fake_main, '__rc_target__', None) == TARGET_STATION_FLIGHT)
     check('wrapper.__rc_watchdog_s__ is set',
           getattr(fake_main, '__rc_watchdog_s__', None) == 42.0)
 

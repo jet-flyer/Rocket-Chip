@@ -26,7 +26,7 @@ from _rc_test_common import (  # noqa: E402
     find_target_port,
     open_classified_port,
     rc_test,
-    TARGET_VEHICLE_BENCH,
+    TARGET_VEHICLE_FLIGHT,
 )
 
 def read_diag_stats(port, timeout=5.0):
@@ -85,7 +85,7 @@ def parse_stats(text):
             stats['uptime_ms'] = int(line.split()[1])
     return stats
 
-@rc_test(target=TARGET_VEHICLE_BENCH, watchdog_s=86400.0)
+@rc_test(target=TARGET_VEHICLE_FLIGHT, watchdog_s=86400.0)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', default=None,
@@ -98,7 +98,7 @@ def main():
     print(f'=== IVP-132 Soak Test ({args.duration}s, snapshot every {args.interval}s) ===', flush=True)
 
     port_name, meta = find_target_port(
-        TARGET_VEHICLE_BENCH, override=args.port, verbose=True)
+        TARGET_VEHICLE_FLIGHT, override=args.port, verbose=True)
     if port_name is None:
         print(f'INFO: skip — {meta}', flush=True)
         return 2
@@ -107,7 +107,7 @@ def main():
     print(f'target banner: {meta.short_summary()}', flush=True)
 
     try:
-        with open_classified_port(port_name, target=TARGET_VEHICLE_BENCH) as port:
+        with open_classified_port(port_name, target=TARGET_VEHICLE_FLIGHT) as port:
             port.reset_input_buffer()
 
             snapshots = []

@@ -38,7 +38,7 @@ from _rc_test_common import (  # noqa: E402
     find_target_port,
     open_classified_port,
     rc_test,
-    TARGET_VEHICLE_BENCH,
+    TARGET_VEHICLE_FLIGHT,
 )
 
 try:
@@ -448,7 +448,7 @@ def format_markdown(samples, gdb_data=None, rates=None):
 
 # --- Main ---
 
-@rc_test(target=TARGET_VEHICLE_BENCH)
+@rc_test(target=TARGET_VEHICLE_FLIGHT)
 def main():
     parser = argparse.ArgumentParser(description='RocketChip CLA Data Collection')
     parser.add_argument('--port', default=None,
@@ -466,7 +466,7 @@ def main():
     args = parser.parse_args()
 
     port_name, meta = find_target_port(
-        TARGET_VEHICLE_BENCH, override=args.port, verbose=False)
+        TARGET_VEHICLE_FLIGHT, override=args.port, verbose=False)
     if port_name is None:
         print(f'INFO: no vehicle bench port — {meta}')
         print('  Use bench vehicle FW or pass --port.')
@@ -480,7 +480,7 @@ def main():
     gdb_data = None
 
     try:
-        with open_classified_port(port_name, target=TARGET_VEHICLE_BENCH,
+        with open_classified_port(port_name, target=TARGET_VEHICLE_FLIGHT,
                                    baud=BAUD, timeout=2.0) as port:
 
             # Run soak

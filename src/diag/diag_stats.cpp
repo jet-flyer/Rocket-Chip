@@ -35,8 +35,7 @@ void diag_stats_t0_preconditions() {
     // Build / role / board identity (catches Frankenstein builds)
     rc::rc_log("[Identity]\n");
     rc::rc_log("  fw_version=%s\n", kFirmwareVersion);
-    rc::rc_log("  build_config=%s flight=%d\n",
-           kBuildConfig, kBuildForFlight ? 1 : 0);
+    rc::rc_log("  build_config=%s\n", kBuildConfig);
     rc::rc_log("  job_role=%s\n", kJobRole);
     rc::rc_log("  board=%s\n", kBoardName);
     rc::rc_log("  git=%s build_tag=%s\n", kGitHash, kBuildIterationTag);
