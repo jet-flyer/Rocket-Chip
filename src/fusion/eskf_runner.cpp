@@ -627,6 +627,12 @@ bool eskf_runner_is_mahony_initialized() {
     return g_mahonyInitialized;
 }
 
+void eskf_runner_request_reinit() {
+    g_eskfInitialized = false;
+    g_mahonyInitialized = false;
+    eskf_reenable();
+}
+
 uint32_t eskf_runner_get_buffer_count() {
     return g_eskfBufferCount;
 }

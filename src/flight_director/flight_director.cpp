@@ -214,6 +214,7 @@ void flight_director_ctor(FlightDirector* me, const MissionProfile* profile) {
     me->log_pyro_cb = nullptr;
     me->phase_change_cb = nullptr;
     me->beacon_cb = nullptr;
+    me->reset_subsystems_cb = nullptr;
     // Init guard evaluator: 10ms tick period (100Hz)
     guard_evaluator_init(&me->guard_eval, *profile, 10);
     // Init combinator set from profile
@@ -362,6 +363,13 @@ static QState state_idle(FlightDirector * const me, QEvt const * const e) {
             run_entry_actions(me, FlightPhase::kIdle, prev);
             if (me->state.transition_count > 1) {
                 log_transition(me, prev, FlightPhase::kIdle);
+                // Council 2026-05-20: any non-startup entry to IDLE must
+                // force ESKF/Mahony re-init so re-ARM can succeed. Without
+                // this, the ESKF stays UNHEALTHY across RESET (and pad-
+                // abort auto-IDLE timeout), silently blocking re-ARM.
+                if (me->reset_subsystems_cb) {
+                    me->reset_subsystems_cb();
+                }
             }
             return Q_HANDLED();
         }

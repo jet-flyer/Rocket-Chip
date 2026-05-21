@@ -86,6 +86,9 @@ struct FlightDirector {
     void (*log_pyro_cb)(PyroChannel channel);   // Pyro intent logging
     void (*phase_change_cb)(FlightPhase phase, uint32_t timestamp_ms);  // Phase transition notify
     void (*beacon_cb)();                        // Distress beacon activation (IVP-121 backstop)
+    void (*reset_subsystems_cb)();              // Force ESKF/Mahony re-init on RESET-to-IDLE
+                                                // (council-approved 2026-05-20, see
+                                                // docs/decisions/FAULT_RECOVERY_2026-05-14.md companion)
 };
 
 // Lifecycle

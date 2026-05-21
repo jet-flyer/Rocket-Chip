@@ -246,6 +246,9 @@ static void fd_wire_callbacks(rc::FlightDirector* director) {
                          &l_fdAo.super, l_fdAo.super.prio);
         rc::rc_log("[FD] Distress beacon published (SIG_BEACON_ACTIVE)\n");
     };
+    director->reset_subsystems_cb = []() {
+        eskf_runner_request_reinit();
+    };
 }
 
 void AO_FlightDirector_start(uint8_t prio) {

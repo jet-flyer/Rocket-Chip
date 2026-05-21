@@ -142,4 +142,11 @@ void eskf_reenable();
 /// Called internally from eskf_runner.cpp on CR-1 reset paths.
 void eskf_note_divergence();
 
+/// Force ESKF + Mahony back into the uninitialized state so the next tick
+/// attempts a fresh stationary init. Also clears the divergence brake.
+/// Called from FD state_idle Q_ENTRY when re-entering IDLE from a flight
+/// phase (operator RESET from ABORT/LANDED, or pad-abort auto-IDLE timeout).
+/// Council-approved 2026-05-20.
+void eskf_runner_request_reinit();
+
 #endif // ROCKETCHIP_FUSION_ESKF_RUNNER_H
