@@ -319,6 +319,26 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE} scripts/audit/list_citations.py
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
+    # L2-P3 citation verification — walks the inventory and checks each
+    # citation against its source. Phase 1 URL liveness via curl,
+    # Phase 2 file-path liveness, Phase 3 LL/IVP/R-finding cross-refs,
+    # Phase 4 emits a manual PDF checklist.
+    #
+    # NOT wired into the pre-commit gate: Phase 1 does ~18 HTTPS
+    # requests (~30-60s wall time, transient 5xx common). That belongs
+    # in audit-cycle runs, not per-commit. Invoke manually:
+    #   python scripts/audit/verify_citations.py
+    # OR via the audit-cycle label:
+    #   ctest -L audit-cycle
+    add_test(
+        NAME scripts_verify_citations
+        COMMAND ${Python3_EXECUTABLE} scripts/audit/verify_citations.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(scripts_verify_citations PROPERTIES
+        TIMEOUT 300
+        LABELS "audit-cycle"
+    )
     set_tests_properties(
         scripts_rc_test_common
         scripts_python_compileall
