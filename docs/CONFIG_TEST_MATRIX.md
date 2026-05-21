@@ -202,7 +202,7 @@ dashboard to kMenu so `'q'`, `'h'`, etc. are honored.
 ## Roadmap history (completed)
 
 - **Tier 5 — station `'p'` preflight parity:** **`src/cli/rc_os.cpp`** main-menu `'p'` now calls **`cli_print_preflight()`** on RX (station) as well as vehicle — **`[Health]` / VERDICT** visible without debug menu (`2026-04-30`).
-- **Tier 6b — matrix-driven hooks:** Patterns live in **`scripts/ci/pre_commit_matrix.py`** (evaluated by **`scripts/hooks/pre-commit`**). One-time repo setup: `git config core.hooksPath scripts/hooks` — see **`scripts/hooks/README.md`**.
+- **Tier 6b — matrix-driven hooks:** Patterns live in **`scripts/ci/pre_commit_matrix.py`** (evaluated by **`scripts/hooks/pre-commit`**). One-time repo setup: `git config core.hooksPath scripts/hooks` — see **`scripts/hooks/README.md`**. **Categories not enumerations (2026-05-16, council unanimous, see LL Entry 40):** `FLIGHT_CRITICAL` matches any path that can change `rocketchip.elf` (`src/`, `include/`, `CMakeLists.txt`, `cmake/`, vendored libs we link, plus the gate scripts themselves for self-rot prevention). Pure-doc / pure-test / pure-tooling exempt by virtue of not matching the regex — never by explicit carve-out. The prior narrow enumeration (~7 hand-listed FD/AO paths) was the LL Entry 36 / 39 failure mode in waiting.
 - **Tier 7 — watchdog ceilings:** **`@rc_test(..., watchdog_s=…)`** on **`soak_test`** (86400s), **`warm_reboot_audit`** (300s) — escapes hung USB open on Windows beyond intended wall times. (Post-R-25-exec 2026-05-13: ack_stress_test + replay_harness deleted in step 9.)
 
 Older Tier 1–4 / 6a notes remain in **`docs/council/HOST_SCRIPT_HARDENING_REVIEW_AND_ROADMAP.md`**.
