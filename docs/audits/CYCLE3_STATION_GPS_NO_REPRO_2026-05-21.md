@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-21
 **Origin:** Cycle 3 of the four-cycle plan (`C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn.md`), stashed in `docs/plans/CYCLE_RESIDUALS_AFTER_R5.md`. Triggered by user-reported failure: "Fruit Jam on power-on reports `hardware: 10/11 ok [fail] gps`; warm reboot immediately after = 11/11 ok."
-**Disposition:** NO-REPRO across 5 cold-boot cycles. Stash remains open pending user re-encounter; this doc captures the 2026-05-21 negative result so the next session has a baseline to compare against.
+**Disposition:** **CLOSED — NO REPRO across 5 cold-boot cycles on 2026-05-21.** Bug last seen against pre-R-5 firmware; this session ships post-R-5 + LL Entry 41 + 4-tier retirement, any of which could have incidentally changed the timing characteristics enough to fix it. Reopen only if the user re-encounters; this doc is then the baseline to compare against.
 
 ## Procedure
 
@@ -72,15 +72,13 @@ The stash plan defined 5 hypotheses (H1-H5) with attribution rules:
 
 Item 2 is the most-likely candidate to vary in a future re-attempt. If the user encounters the bug again, a useful first datapoint is "how long was the device powered off before the failing cold boot."
 
-## Recommendation
+## Disposition
 
-- **No code change this session.** Per `LESSONS_LEARNED.md` Entry 38, do not ship a speculative fix to close off a future option based on hypothesis without data. The proposed H1 fix (extend window to 2.5s, gated on `HAD_POR`) would commit code for a failure mode we could not reproduce on this bench in 5 attempts.
-- **Stash row remains open** in `docs/plans/CYCLE_RESIDUALS_AFTER_R5.md` (Cycle 3) — but the trigger to re-open is the user encountering the bug again, not us re-attempting on the same bench.
-- **WB row updated** to reflect 5/5 no-repro + request bench-condition context on next re-encounter.
+- **Cycle 3 closed.** The bug was reported against pre-R-5 firmware; substantial firmware work has shipped since (R-5 full stdio removal, LL Entry 41 RP2350B pad de-isolation, 4-tier compile-time scaffolding retirement). Any of those could have incidentally changed the timing characteristics enough to fix the failure, and the 5/5 no-repro on the post-shipped firmware is consistent with that. The bug may also still be present at low rate or under bench conditions we didn't reproduce — but treating it as "still open" with no reproducible failure is anti-discipline (LL Entry 38).
+- **No code change this session.** Per LL Entry 38, do not ship a speculative fix to close off a future option based on hypothesis without data. The proposed H1 fix (extend window to 2.5s, gated on `HAD_POR`) would commit code for a failure mode we could not reproduce.
+- **Reopen criteria:** the user encounters the failure again on a future session. This audit doc is then the baseline to compare against.
 
-## Future-session protocol for re-encounter
-
-When the user re-encounters `hardware: 10/11 ok [fail] gps` on Fruit Jam:
+## Reopen protocol — if the user re-encounters `hardware: 10/11 ok [fail] gps` on Fruit Jam
 
 1. **Do not power-cycle**. The warm reboot would mask the cold-boot state.
 2. **Immediately enter kMenu** (`x`), send `q b` to capture Hardware Status WITH the failing state in `gps_pa1010d_get_debug_status()`. That captures `g_pmtkWriteResults[]` + `g_pmtkWindowHit` + `g_initialized` from the failing init.
