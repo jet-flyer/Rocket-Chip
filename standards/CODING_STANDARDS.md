@@ -212,6 +212,32 @@ Target band: **15-25% comment density in `.cpp` files** (function-internal comme
 
 **Reference:** project policy 2026-05-13 (R-3 inlined fault handler shipped at ~41% density, refactored to extract rationale to `FAULT_HANDLER_DESIGN.md` and bring inline density down). Cycle-end audit 2026-05-13: src/ overall `.cpp` density = 21.8% (within band); all subdirs healthy.
 
+### Scratch Tools and Dead-Code Discipline
+
+Project policy 2026-05-22 (four-persona council: NASA/JPL Avionics Lead + Embedded Systems Professor + ArduPilot Core Contributor + Cubesat Engineer, unanimous on both rounds). Origin: WB grooming surfaced (a) one debug-tool scratch directory (`tools/i2c_bare_test/`) that had accumulated since 2026-04-18 without an explicit scratch designation, and (b) recurring evidence that dead code accumulates silently (R-5 Unit D caught `src/telemetry/telemetry_service.cpp` orphaned for ~6 weeks; LL Entry 36's bench_sim regex went stale for 5 days).
+
+#### Scratch tools
+
+One-off debug tools that surface during a debug episode and aren't part of the active build live in `tools/scratch/<name>/`. The path declares the status — readers (and future agents) treat anything under `tools/scratch/` as not maintained, not gated by CI, may not build under a newer SDK/toolchain.
+
+Per-directory hygiene:
+
+- **`_PURPOSE` file** (3-5 word description + date + LL reference if applicable). Lower overhead than a README; the path already carries the status declaration. Example: `Fruit Jam I2C probe, 2026-04-17, LL 41`.
+- **Source-only.** No `build/`, no generated artifacts. The existing `.gitignore` rule `build/` (line 2) catches nested `tools/<name>/build/` correctly — verified 2026-05-22 via `git check-ignore`.
+- **Graduation rule.** When a scratch tool sees 3+ uses by 2+ people, it graduates to `tools/<name>/` (drops the `scratch/` prefix). Adds a README at graduation time.
+
+Stale-review fires mechanically at milestone close — see `.claude/SESSION_CHECKLIST.md` item 17a.
+
+#### Dead-code discipline
+
+Dead code is a **one-time-inventory + per-commit-discipline** problem, not a periodic-sweep problem. Scheduled sweeps don't run; commit discipline does.
+
+**One-time inventory.** Run a thorough sweep when accumulated evidence (orphaned TUs surfaced at milestone audits, stale doc references caught during retroactive walks) indicates real accumulation. The inventory pillar: (a) **code dead-code** via `nm`/linker-output diff against `ROCKETCHIP_SOURCES`, layered with compiler `-Wunused-function`/`-Wunused-variable` for `static` symbols; (b) **doc references to removed code** via grep against state-of-system protected docs for symbols the (a) pass surfaces. Output is a markdown report under `docs/audits/`, **not a list to auto-delete**. Human walks the report; allowlist accretes for confirmed-not-dead findings.
+
+Inventory tooling (`scripts/audit/find_dead_code.py` or similar) is in-scope for whole-TU orphans (high value, low false-positive rate) and compiler-warning aggregation. **Out of scope** for AST-walking dead-branch detection (false-positive rate too high; rely on `-flto` + `-Wunreachable-code` if needed), dead CLI command detection (no script can know what's "needed" — hand-walk dispatch switches against user-facing CLI docs), and dead global variable detection (semantic analysis required). Per ArduPilot's false-positive-asymmetry argument: a wrong "dead" classification produces an outage; a missed dead artifact produces a 1KB-flash waste. Bias toward false negatives.
+
+**Per-commit discipline.** When a commit removes a function, file, or symbol, the same commit walks (a) callers (compiler catches), (b) callees that were only called by the removed symbol (one-line grep; no automation), and (c) protected-doc references (existing trigger-driven-edit rule per `SESSION_CHECKLIST.md`). The commit message cites the walk: "Removed X; verified Y, Z no longer referenced; SAD/SCAFFOLDING/AO_ARCHITECTURE clean."
+
 ---
 
 ## Communication Protocols

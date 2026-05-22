@@ -55,6 +55,8 @@ These run on **every** `git commit`. Inherited by PUSH, SESSION_END, and MILESTO
 
    For trivial changes (typo fixes, comment-only edits, isolated single-file additions with no callers yet), this is implicit and doesn't need to be written down. For non-trivial changes, capture the answers in either (a) the commit message body, (b) a `docs/PROBLEM_REPORTS.md` row if the change closes a tracked PR, or (c) a scratch note in the dated audit report if the change is part of an audit-driven remediation cycle. Source: DO-178C change-impact-analysis principle. Catches the failure mode where a fix to one file silently invalidates an assumption another file relied on. Inserted as 5a (not 6) to preserve existing cross-references to items 6-17 in other docs.
 
+   **Symbol-removal sub-rule.** When the commit removes a function, file, or symbol (not adds — adds are caught by callers compiling against the new symbol), the impact analysis MUST also include: (a) **callees** — grep for functions that were called only by the removed symbol and are now potentially dead (one-line grep per callee; if the callee is `static`, the compiler's `-Wunused-function` will catch it on next build); (b) **protected-doc references** — the existing trigger-driven edit rule already covers state-of-system docs that mention the removed symbol by name. The commit message body cites both walks. Per `standards/CODING_STANDARDS.md` "Scratch Tools and Dead-Code Discipline" (project policy 2026-05-22, four-persona council). Origin: R-5 Unit D's 2026-05-16 discovery of `src/telemetry/telemetry_service.cpp` orphaned for ~6 weeks because no prior commit walked for orphaned callees when its caller was migrated.
+
 ---
 
 ## Per Push
@@ -121,6 +123,19 @@ Inherits all Session End rules. Adds the rules below — these run **only** when
         done
 
    Added 2026-04-18 after Stage L surfaced 5 latent violations (ao_logger, ao_telemetry, core1_sensor_loop, guard_evaluator_tick, flight_director_evaluate_guards) that had accumulated silently across earlier stages. See LL Entry 36 discipline — "gates that only check incremental change cannot catch pre-existing rot."
+
+17a. **Scratch-tool stale review.** Walk `tools/scratch/` for any directory whose most recent commit is older than 4 months. For each: confirm `_PURPOSE` file present and current, decide keep-or-delete in one line. The flag means "review," not "auto-delete" — a scratch tool that's still occasionally useful stays with a noted bump in date. Per `standards/CODING_STANDARDS.md` "Scratch Tools and Dead-Code Discipline" (project policy 2026-05-22, four-persona council). Pattern (Git Bash):
+
+        for d in tools/scratch/*/; do
+          last=$(git log -1 --format="%ai" -- "$d" 2>/dev/null | cut -d' ' -f1)
+          [ -z "$last" ] && continue
+          if [ "$(date -d "$last + 4 months" +%s)" -lt "$(date +%s)" ]; then
+            echo "STALE: $d (last touched $last)"
+            cat "$d/_PURPOSE" 2>/dev/null || echo "  (no _PURPOSE file)"
+          fi
+        done
+
+   ArduPilot panelist's point — calendar items don't run, so this must be a checklist item that actively surfaces stale dirs each milestone close. Cheap (~30 sec to run); decisions are 1-line "keep" or "delete" per row.
 
 ---
 

@@ -38,9 +38,6 @@
 
 - **Four-cycle plan — Cycle 4 stashed.** L2-P5 JSF AV walk + L2-P10 CLA-RBM re-collection. Cycles 1-3 closed; gate now open. See CHANGELOG for cycle-by-cycle history.
 
-- **Next up (deferred from DC-2026-05-13 cycle, not part of four-cycle plan):**
-  - **Host-side replay harness (IVP-131 coverage gap)** — promoted from WB to PROBLEM_REPORTS row R-28 on 2026-05-21 with concrete trigger language. Stub at `scripts/replay_harness_host.py` exits code 2; re-evaluate / promote to `in-progress` when: (a) field-test plan exercises Big Daddy profile edge cases; (b) audit Tier 4.3 walk requires IVP-131 coverage; (c) ESKF state-machine change lands; (d) Stage 17 reaches IVP-135+. Full disposition in `docs/PROBLEM_REPORTS.md` R-28.
-
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
   LQCALC pattern (retry aggressiveness scales U-shape with LQ: fewer

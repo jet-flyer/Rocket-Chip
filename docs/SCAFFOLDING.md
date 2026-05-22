@@ -271,11 +271,13 @@ rocketchip/
 │
 ├── tools/
 │   ├── state_to_dot.py            # State machine DOT graph generator
-│   └── spin/                      # SPIN formal verification models
-│       ├── rocketchip_fd.pml         # Flight Director HSM only (7 safety + 1 liveness)
-│       ├── rocketchip_ao.pml         # Full AO topology (5 safety + 3 mission)
-│       ├── rocketchip_station.pml    # Station RX/ACK/retry (IVP-147: 2/2)
-│       └── README.md                 # SPIN usage, model mapping, run recipes
+│   ├── spin/                      # SPIN formal verification models
+│   │   ├── rocketchip_fd.pml         # Flight Director HSM only (7 safety + 1 liveness)
+│   │   ├── rocketchip_ao.pml         # Full AO topology (5 safety + 3 mission)
+│   │   ├── rocketchip_station.pml    # Station RX/ACK/retry (IVP-147: 2/2)
+│   │   └── README.md                 # SPIN usage, model mapping, run recipes
+│   └── scratch/                   # One-off debug tools (not maintained — see CODING_STANDARDS.md "Scratch Tools and Dead-Code Discipline")
+│       └── i2c_bare_test/         # Fruit Jam I2C probe, 2026-04-17, LL Entry 41
 │
 ├── pico-sdk/                      # Pico SDK (git submodule)
 │
