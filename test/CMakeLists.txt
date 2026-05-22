@@ -157,6 +157,13 @@ add_executable(test_flight_director test_flight_director.cpp)
 target_link_libraries(test_flight_director PRIVATE rc_flight_director GTest::gtest_main)
 gtest_discover_tests(test_flight_director)
 
+# IVP-131: Flight Director Replay — phase-window test against OpenRocket
+# trajectory (council 2026-05-21, pivot from per-row state tolerance).
+add_executable(test_flight_director_replay test_flight_director_replay.cpp)
+target_link_libraries(test_flight_director_replay PRIVATE rc_flight_director GTest::gtest_main)
+gtest_discover_tests(test_flight_director_replay
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 # IVP-69: Go/No-Go checks + command handler tests
 add_executable(test_go_nogo test_go_nogo.cpp)
 target_link_libraries(test_go_nogo PRIVATE rc_flight_director GTest::gtest_main)
