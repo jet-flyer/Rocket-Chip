@@ -32,8 +32,6 @@
 
 ## High priority
 
-- **rc_log drain rate-limiting — known-limitation followup** (LL Entry 39). Tier 5 (~430 callsites across rc_os/rc_os_debug/rc_os_commands/ao_rcos/dashboard) shipped 2026-05-17 with the existing ring-empty fast-path, no drain-rate regressions observed in normal CLI use. The known limitation remains: under sustained heavy CLI output (e.g. an operator dumping the full sensor-status block in a tight loop) the ring isn't empty for sustained periods and the drain runs on every idle tick. Council deferral stands — address when actual sustained-output regression surfaces. Candidate fixes still apply: rate-limit drain to every-Nth-idle-tick, OR drain via dedicated timer-tick instead of qv_idle_bridge.
-
 - **Station fault-inject probe-coverage gap.** No SWD on Fruit Jam. `fault_force_station_*` entries grep-verified only (no live probe-driven positive-control). Options when full positive-path is needed: move probe between sessions, or build station firmware on Feather (`PICO_BOARD=adafruit_feather_rp2350 ROCKETCHIP_JOB_STATION=1`) as a probe-accessible test bed.
 
 - **Four-cycle plan — Cycle 4 stashed.** L2-P5 JSF AV walk + L2-P10 CLA-RBM re-collection. Cycles 1-3 closed; gate now open. See CHANGELOG for cycle-by-cycle history.
@@ -122,6 +120,8 @@ No code changes planned — kept as context for future decisions.
 
   Scope of the combined session: (1) evaluate whether SPI-from-fault-handler is ever the right stop-gap given the failure-mode inventory; (2) design the PIO-driven beacon program (target: PIO0 or PIO1 — PIO2 already shared between watchdog SM0 + backup-timer SM1-3); (3) decide whether the design requires soldering the DIO5 jumper on the FeatherWing; (4) bench-verify on a known-faulted chip state if any stop-gap is in scope. Likely outputs a dedicated decision doc under `docs/decisions/`. User direction will determine sequencing relative to other open work.
 - **RP2350B/Fruit Jam persistent bus-corruption hypothesis.** User hunch 2026-04-17: one boot during the Fruit Jam GPS debug had a transition not fully explained by the cable theory alone. Investigate whether RP2350B exhibits bus-corruption state that survives power cycles. Low priority — may be a dead end, keep passive.
+
+- **PIO I²C master reference implementation available (Flipper One MCU firmware).** If station I²C ever needs to leave DW_apb_i2c hardware (candidate direction for the Fruit Jam GPS cold-boot intermittency tracked in `docs/plans/CYCLE_RESIDUALS_AFTER_R5.md`), Flipper Devices published their RP2350 co-processor firmware on 2026-05-21 with a working PIO I²C master driver at `lib/drivers/i2c_master_pio/pio_i2c.c` in https://github.com/flipperdevices/flipperone-mcu-firmware. Pairs `pio_claim_free_sm_and_add_program_for_gpio_range` at init with `pio_remove_program_and_unclaim_sm` at deinit (LL Entry 42 discipline as a working pattern). Mid-cycle error recovery uses `pio_sm_drain_tx_fifo` + `pio_sm_exec` (jump-to-wrap) + `pio_interrupt_clear` — never touches program memory. They also use the acquire/release pad-mux discipline (LL Entry 28) as a first-class per-handle pattern (`Activate`/`Deactivate` callbacks in `targets/f100/furi_hal/furi_hal_i2c_config.c`: `i2c_init` + pad config on activate, `i2c_deinit` + pads-to-input on deactivate). Useful as **reading material** before any PIO-I²C migration evaluation; not actionable today. Same SDK (2.2.0) and toolchain (14_2_Rel1) as us. License check needed before any code import.
 
 ## Deferred (near-term, post-Stage 15)
 

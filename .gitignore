@@ -3,6 +3,7 @@ build/
 build_flight/
 build_station/
 build_station_flight/
+build_vehicle/
 build_gs/
 build_host/
 build_host_cov/
@@ -89,3 +90,6 @@ tools/spin/*.trail
 scripts/.bench_sim_last_port
 __pycache__/
 cmake_test_discovery_*.json
+
+# Bench reproducer ctest scratch output
+Testing/Temporary/
