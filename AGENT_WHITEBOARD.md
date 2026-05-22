@@ -32,6 +32,8 @@
 
 ## High priority
 
+- **AO Commandments source-citation audit.** Investigating R-27 (RfManager Commandment XII observation) surfaced that Commandment XII's `Source:` line cites LL Entry 36, but LL 36 is about test-tool rot (bench_flight_sim.py going stale), not AO state-transition logging or runtime observability. A research agent walked the doc's stated sources (Samek PSiCC2 Ch. 11, state-machine.com Active Object/RTEF/QP/C SRS pages, NASA F´ Code Style + State Machines doc) and confirmed **no clean substitute citation exists in any of those** — the rule is project-internal invention generalized from folklore, not inherited from external authority. This is an [LL Entry 37](.claude/LESSONS_LEARNED.md)-class citation-rot finding. Per Entry 37 discipline ("if one citation was wrong, check the rest"), audit all 12 Commandment `Source:` lines in `docs/decisions/AO_COMMANDMENTS.md` against their cited sources; fix XII's citation (either reframe as project-internal "Rationale:" or cite PSiCC2 Ch. 11 honestly as topical-but-tool-framing); reassess R-27's disposition once the rule's authority is correctly understood. Est. ~1-2 hrs. Block on this is open per user direction 2026-05-22 — address before closing R-27.
+
 - **Station fault-inject probe-coverage gap.** No SWD on Fruit Jam. `fault_force_station_*` entries grep-verified only (no live probe-driven positive-control). Options when full positive-path is needed: move probe between sessions, or build station firmware on Feather (`PICO_BOARD=adafruit_feather_rp2350 ROCKETCHIP_JOB_STATION=1`) as a probe-accessible test bed.
 
 - **Four-cycle plan — Cycle 4 stashed.** L2-P5 JSF AV walk + L2-P10 CLA-RBM re-collection. Cycles 1-3 closed; gate now open. See CHANGELOG for cycle-by-cycle history.

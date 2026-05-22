@@ -22,6 +22,10 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-22-002 | Claude | council, audit, bookkeeping
+
+**R-29 opened + closed NO REPRO; R-28 bookkeeping advance; Commandment XII source-rot WB row.** Bench-measured the LL Entry 39 rc_log drain known-limitation (council-approved protocol, [`Testing/rc_log_drain_measure.py`](Testing/rc_log_drain_measure.py)): under ~900 rc_log emissions/sec sustained for 60s, IMU rate held at ~1025/s with zero new errors. Empty-ring fast-path is sufficient; R-29 closed as ACCEPT per LL Entry 38. R-28 state-advanced `verified → closed` (the 7/7 IVP-131 tests + 879/879 ctest at original landing IS R-28's audit-suite regression; advance was missed 2026-05-21). Investigating R-27 surfaced that Commandment XII in [`docs/decisions/AO_COMMANDMENTS.md`](docs/decisions/AO_COMMANDMENTS.md) cites LL Entry 36 (test-tool rot) which doesn't support the rule; agent confirmed no substitute citation exists in the doc's stated sources. Added high-priority WB row for a full 12-Commandment source-audit per [LL Entry 37](.claude/LESSONS_LEARNED.md) discipline; R-27 disposition deferred. Commits `49cd93d` + this.
+
 ### 2026-05-22-001 | Claude | refactor, tooling, council, audit
 
 **IVP-131 host-side verification: pivot from per-row ESKF state-tolerance to phase-window FD test.** Original approach implemented partway and surfaced its own failure: ESKF innovation gates trip on synthesized OR trajectories, filter goes open-loop, state diverges ~50km. Cross-reference research (ArduPilot Tools/Replay, PX4 ECL #14651, JPL MONTE) confirmed per-row state-tolerance is reserved for real-flight log replay; synthesized inputs use phase-window event assertions. Two councils ran this session (initial then pivot); pivot approved with 8 amendments, all folded in. Plan + full council transcripts at [`C:\Users\pow-w\.claude\plans\lexical-zooming-hejlsberg.md`](C:\Users\pow-w\.claude\plans\lexical-zooming-hejlsberg.md). Commit `3bdd71f`.
