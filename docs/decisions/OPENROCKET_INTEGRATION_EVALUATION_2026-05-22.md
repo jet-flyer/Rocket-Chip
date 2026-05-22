@@ -53,15 +53,22 @@ Phase 1 records facts. Phase 2 (council) decides what to do with them.
 
 - **Surface:** The existing 5 profiles in `tests/replay_profiles/` are all near-vertical with zero wind. `test_flight_director_replay.cpp` and the lateral-velocity terms in `FusedState` are exercised only by the nominal-trajectory + fault variants. `trajectory_to_sensors.py` extension pattern (`apply_baro_dropout` / `apply_gps_dropout_descent` / `apply_imu_zero_fault`) supports new fault variants; OR's wind model supports steady-state wind speed + optional turbulence intensity.
 - **What OR could provide:** trajectories with non-zero wind, asymmetric thrust, weather-cocking. Starter candidate: `big_daddy_wind_8mps.csv` exercising lateral-velocity terms.
-- **Blockers:** Minimal. New `.rkt` sim with wind enabled needs to be created in OR GUI. Need to verify the existing converter correctly handles non-trivial lateral acceleration — its docstring says `f_body = R(q)^T * (a_NED - g_NED)` covers it, but existing profiles haven't exercised that path. **Verification step required:** hand-compute one wind-sample's expected body-frame accel via the R(q) transform, compare to converter output.
-- **Notes:** Not flight-tied. Lowest-cost candidate that adds real test coverage. The verification step is the actual risk — if the converter doesn't handle lateral terms correctly, that's a finding to surface (and a converter fix becomes the prerequisite).
+- **Blockers:** **(Amended by Phase 2 council, see Council amendment 1.)** Converter currently does NOT implement R(q) for lateral motion (see `scripts/trajectory_to_sensors.py:240-243` docstring — explicitly flagged as R-28 reopen trigger). C3 requires implementing R(q) construction from {zenith, azimuth, AoA} as a prerequisite sub-task. Profile creation comes AFTER, not before, the converter extension. Estimated cost: 4-6 hr for R(q) extension + unit tests, then ~2-3 hr for the profile + CONTENT_VALIDATION row. Not interleavable with C6.a in a single session.
+- **Notes:** Not flight-tied. Lowest-cost candidate that adds real test coverage **once the R(q) prerequisite lands.** Linearization quantification (Phase 2 council, Professor): error in `f_body_z` scales as `1 - cos(90° - zenith)`; cross-coupling scales as `sin(90° - zenith)`. At zenith=85° (5° tilt, plausible under moderate wind cocking), `sin(5°) ≈ 0.087` → a 10 m/s² lateral accel gets misallocated by ~0.87 m/s² between axes (same order as BOOST/COAST detection threshold difference). 8 m/s wind on Big Daddy-class airframe typically produces 10-15° weathercocking (Rocketeer panelist) — well outside the linearization region.
 
-### C4 — Per-Motor Pyro Backup Timer Tuning
+### C4 — Per-Motor Pyro Backup Timer Tuning (**SPLIT by Phase 2 council, see Council amendment 2**)
 
+**C4.a — Per-motor backup-timer reference table** *(non-flight-tied, subsumed into C6.a in this session)*
+- **Surface:** Reference data that informs both C4.b firmware wiring AND C6.a threshold cross-check.
+- **What OR could provide:** per-motor predicted burnout duration + descent duration + apogee time + max altitude + max accel + max velocity, captured as a markdown table.
+- **Blockers:** None. Pure OR GUI work, no code, no firmware change.
+- **Notes:** The table lives in this decision doc's Execution Record section once generated. Folded into C6.a sequencing as step 1 since C6.a needs the same per-motor predictions for the threshold cross-check.
+
+**C4.b — Firmware backup-timer wiring** *(flight-tied, deferred with C1)*
 - **Surface:** `burnout_backup_ms = 10000` and `main_backup_ms = 120000` constants in `src/flight_director/mission_profile_data.h`. Currently single conservative values; not parameterized by motor.
-- **What OR could provide:** per-motor predicted burnout duration + descent duration. Backup timers can be sized as "predicted + safety margin" per motor.
-- **Blockers:** Generating the per-motor table is not flight-tied (it's just simulation runs); only the choice of which motor we actually fly is. Need to enumerate the candidate motor inventory. Wiring the table into firmware is a different question.
-- **Notes:** Partial flight-tie. The table itself is reference data and can land as a markdown table in this decision doc. Wiring into `mission_profile_data.h` is a Stage 17 decision (because motor inventory may change). Backups are by definition conservative — OR-derived values become guard rails, not primary triggers.
+- **What OR could provide:** per-motor predicted values (the C4.a table) become "predicted + safety margin" inputs to the firmware constants per motor.
+- **Blockers:** Flight-tied (changing flight-critical mission-profile constants needs the same review discipline as C1). Wiring depends on which motor is finalized for the flight.
+- **Notes:** Deferred to Stage 17 execution. The C4.a table from this session is the reference at that point.
 
 ### C5 — ESKF Synthetic-Test Replacement
 
@@ -80,7 +87,7 @@ Phase 1 records facts. Phase 2 (council) decides what to do with them.
   - `deploy_lockout_mps = 80.0` m/s
   - `apogee_lockout_ms = 3000` ms
 
-  Currently hand-tuned conservative defaults. No tooling cross-checks them against predicted-flight envelopes.
+  Currently hand-tuned conservative defaults. No tooling cross-checks them against predicted-flight envelopes. **(Phase 2 council amendment 3:)** The cross-check script must be advisory-only — surfacer pattern, not auto-fixer. The script outputs findings; humans disposition. It must NOT auto-edit `mission_profile_data.h`. This is the strict boundary with C6.b (rejected for now).
 - **What OR could provide:** per-motor predicted accel/velocity/altitude curves. Compare against current thresholds; flag any threshold-vs-prediction conflicts. Example: `launch_accel_threshold=20.0` but OR predicts max accel of 18 m/s² for motor X → would miss launch detection for that motor.
 - **Blockers:** None material. This is a sanity-check script, not a flight-critical change. Pure cross-check verification, no auto-derivation.
 - **Notes:** Asymmetric reward (cheap, catches threshold/motor mismatches early). Pattern available: `scripts/audit/find_dead_code.py` parses CMakeLists; `trajectory_to_sensors.py` parses OR CSV column-tolerantly. A new `scripts/audit/check_mission_profile_vs_or.py` can reuse both patterns.
@@ -97,7 +104,7 @@ Phase 1 records facts. Phase 2 (council) decides what to do with them.
 - **Surface:** `orhelper` + `orlab` are pip-installed (per AGENT_WHITEBOARD historical note) but unused. No batch-sweep infrastructure exists in the repo today.
 - **What OR could provide:** wind sweep, mass sweep, motor-variation Monte Carlo → distributions of apogee, drift, pyro timing → statistical phase windows or threshold bounds.
 - **Blockers:** Requires batch runner + per-run sensor synthesis + statistical reduction. Some duplication with C3 / C4 if done piecemeal — Monte Carlo is the more general infrastructure. ROI questionable when the project has one airframe + a small motor inventory + a small flight envelope.
-- **Notes:** The pre-plan WB row explicitly listed Monte Carlo abort-condition coverage as a candidate ("(v) Monte Carlo abort-condition coverage"). Scoping question: is the batch infrastructure worth building, or is hand-picked scenario coverage (C3) sufficient given current scale?
+- **Notes:** The pre-plan WB row explicitly listed Monte Carlo abort-condition coverage as a candidate ("(v) Monte Carlo abort-condition coverage"). **(Phase 2 council amendment 4:)** Reopen trigger expanded to "more than one airframe enters project OR motor inventory grows beyond 3-4 candidates OR C3-family scenario coverage proves insufficient."
 
 ### C8 — Per-Row ESKF State-Tolerance Against OR Ground Truth
 
@@ -113,7 +120,85 @@ Phase 1 records facts. Phase 2 (council) decides what to do with them.
 
 ## Council Wrap-up — Phase 2
 
-*(To be appended in a follow-on commit. Council will assign verdicts, sequencing, amendments. Until that section lands, this catalog has no actionable execution decisions.)*
+**Date:** 2026-05-22
+**Panel:** Retired NASA/JPL Avionics Lead + Embedded Systems Professor + ArduPilot Core Contributor + Advanced Hobbyist Rocketeer (auxiliary, per user direction 2026-05-22 swapping out the Senior Aerospace Student for Phase 2 scope).
+**Verdict:** Unanimous on all 8 candidates. One critical correction to the Phase 1 catalog (C3).
+
+### Critical correction surfaced by Phase 2
+
+**C3's Phase 1 framing was wrong.** The Phase 1 catalog said C3's verification step would "hand-compute one wind-sample's expected body-frame accel via R(q), compare to converter output." Council pointed out that the converter does NOT implement R(q) for lateral motion. Verified by re-reading `scripts/trajectory_to_sensors.py:240-243`:
+
+> "Off-nominal trajectories with significant lateral motion or AoA would need a proper rotation matrix from {zenith, azimuth, AoA}, but the nominal Big Daddy profile doesn't exercise those. Flagged as R-28 reopen trigger for future windy / lateral-velocity profiles."
+
+So C3's first sub-task is **implementing R(q) construction from {zenith, azimuth, AoA}** as a prerequisite, not verifying an existing implementation. This restructures C3 from "verify-and-extend in one session" to "implement-then-extend in two sub-tasks." Phase 1's verification-step paragraph is amended below (Amendment 1).
+
+Linearization quantification (Professor): error in `f_body_z` scales as `1 - cos(90° - zenith)`; cross-coupling scales as `sin(90° - zenith)`. At zenith=85° (5° tilt from vertical, plausible under moderate wind cocking), `sin(5°) ≈ 0.087`. A 10 m/s² lateral accel gets misallocated by ~0.87 m/s² between axes — same order as the BOOST/COAST detection threshold difference. So even a 5° tilt invalidates C3 as Phase-1-written.
+
+Operational confirmation (Rocketeer): 8 m/s wind on a Big Daddy-class airframe typically produces 10-15° weathercocking by mid-boost. The Phase 1 starter scenario (`big_daddy_wind_8mps.csv`) is well outside the linearization region.
+
+### Per-candidate verdicts
+
+| ID | Verdict | Trigger / Notes |
+|---|---|---|
+| **C1** | **DEFER** | Reopens when Stage 17 starts execution (motor inventory + avionics weighed). |
+| **C2** | **DEFER** | Reopens with C1 (depends on motor finalization). |
+| **C3** | **APPROVE-in-principle, schedule for separate session** | Reopen trigger: R(q) converter extension lands as a discrete sub-task first. See Amendment 1 for restructured framing. |
+| **C4** | **SPLIT** | C4.a (per-motor backup-timer reference table): **APPROVE-now, FOLDED into C6.a** — the per-motor predictions are shared input. C4.b (firmware backup-timer wiring): **DEFERRED with C1.** |
+| **C5** | **APPROVE-in-principle, schedule for Stage 18 ESKF refinement session** | Catalog understates cost — each replaced input means re-asserting outputs (2× the per-test work). Not interleavable with smaller tasks. |
+| **C6.a** | **APPROVE for execution now** | Advisory cross-check only; surfacer pattern, not auto-fixer. Uses zero-wind near-vertical OR profiles where the converter is already verified. |
+| **C6.b** | **REJECT-for-now, preserved** | Mirrors C8 pattern. Reopens after real-flight data exists. Even when reopened, the right model per ArduPilot's Tools/autotest experience is advisory-output-to-human-review, never auto-tuner. |
+| **C7** | **DEFER** | Reopen trigger: >1 airframe enters project OR motor inventory grows beyond 3-4 candidates OR C3-family hand-picked coverage proves insufficient. |
+| **C8** | **REJECT (preserved from 2026-05-21)** | Triggers documented in C8 catalog entry. |
+
+### Sequencing for approved-now candidates
+
+**Only C6.a (with C4.a folded in) is approved-now.** Sequence:
+
+1. **Build per-motor flight-predictions table (C4.a)** — pure OR GUI work, no code. Enumerate the candidate motor inventory with the user (Phase 1 plan suggested F15-6 baseline + F44 + F67 + E12 + E16, but Phase 2 defers motor-list confirmation to the executing session). For each motor: load `RC_estes_big_daddy.rkt`, set motor, simulate, capture from OR's Flight Configuration / Plot panel: burnout time, apogee time, max altitude AGL, max accel, max velocity, descent rate.
+2. **Implement `scripts/audit/check_mission_profile_vs_or.py`** — reuse `trajectory_to_sensors.py`'s tolerant CSV parser pattern and the `find_dead_code.py` regex-parse-CMakeLists-headers pattern. For each threshold in `mission_profile_data.h` listed in C6.a, check the conflict condition.
+3. **Run cross-check.** Output: console + markdown report. Exit 0 if no conflicts; exit 1 if any.
+4. **Land the per-motor table as a markdown table in this decision doc** (appended to the Execution Record section).
+5. **Disposition findings** — each finding is either: (a) threshold OK / (b) threshold conflicts with motor X / (c) threshold needs Stage 17 attention. Findings go to user; no auto-edits.
+
+**Cheapest-first task:** step 1 (OR GUI sims). Pure operator work.
+
+### Red flags
+
+1. **C6.a must be advisory-only.** The script outputs findings; humans disposition. **It must NOT auto-edit `mission_profile_data.h`.** This is the strict boundary with C6.b (rejected for now).
+2. **C3's "verification step" wording in the Phase 1 catalog is misleading** — amended below.
+3. **C4 was not split in the Phase 1 catalog** — amended below.
+
+### Cross-candidate considerations
+
+- **C6.a and C3 are independent.** C6.a uses verified-converter regime (zenith=90°, zero wind). The C3 R(q) gap doesn't affect C6.a.
+- **C6.a generates input data for the eventual C4.b firmware wiring.** When C4.b reopens at Stage 17, the per-motor table from C6.a is the reference.
+- **C5 is independent of all others.** Its Stage 18 trigger is unconnected.
+- **C7 would supersede C3** if it ever lands — the wind-sweep is a Monte Carlo special case. If C7 reopens, re-evaluate whether C3 is still a separate item or absorbed.
+
+### Council amendments to the Phase 1 catalog
+
+1. **C3 Blockers section (critical correction):** rewrite the "Verification step required" paragraph. Phase 1 wording implies the converter already implements R(q) and we need to verify it. Replace with: "Converter currently does NOT implement R(q) for lateral motion (see `scripts/trajectory_to_sensors.py:240-243` docstring). C3 requires implementing R(q) construction from {zenith, azimuth, AoA} as a prerequisite sub-task. Profile creation comes AFTER, not before, the converter extension. Estimated cost: 4-6 hr for R(q) extension + unit tests, then ~2-3 hr for the profile + CONTENT_VALIDATION row. Not feasible to interleave with C6.a in this session."
+
+2. **C4 split:** restructure into **C4.a** (per-motor backup-timer reference table — non-flight-tied, **subsumed into C6.a** for this session) and **C4.b** (firmware backup-timer wiring — flight-tied, **deferred with C1**).
+
+3. **C6.a Surface:** add note that the cross-check script must be advisory-only (surfacer pattern, not auto-fixer). Reference C6.b as the boundary.
+
+4. **C7 reopen trigger:** expand to "more than one airframe enters project OR motor inventory grows beyond 3-4 candidates OR C3-family scenario coverage proves insufficient."
+
+5. **Documentation companion (Hobbyist amendment):** `docs/tools/OPENROCKET_USAGE.md` (Phase 4 in the plan) is correctly out of this Phase 2 scope, but it's worth noting that it should capture the actual C6.a workflow used in Phase 3 — write Phase 4 AFTER Phase 3 lands so the doc reflects real workflow, not anticipated workflow.
+
+### Phase 3 work scoped by this wrap-up
+
+Per the verdicts above, Phase 3 lands **one focused session worth of work** consisting of:
+
+- **C4.a + C6.a as a single deliverable** (per-motor table + cross-check script + report).
+- Either one commit (everything together) or two commits (table + script). Operator preference. Recommend two commits for cleaner git history and surgical-scope discipline.
+
+Estimated total: ~3-5 hours (table generation depends on OR GUI throughput).
+
+Phase 4 (user-facing doc) follows Phase 3.
+
+---
 
 ---
 
