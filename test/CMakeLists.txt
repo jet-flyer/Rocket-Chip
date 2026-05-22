@@ -337,6 +337,20 @@ if(Python3_Interpreter_FOUND)
         TIMEOUT 300
         LABELS "audit-cycle"
     )
+    # C6.a Mission Profile threshold cross-check vs OpenRocket predictions
+    # (council-approved 2026-05-22, see docs/decisions/
+    # OPENROCKET_INTEGRATION_EVALUATION_2026-05-22.md). Advisory only —
+    # surfaces threshold-vs-prediction conflicts; humans disposition.
+    # Audit-cycle label (not per-commit) because changing motor or .rkt
+    # could produce CONFLICT exit-1 without flight-critical implication.
+    add_test(
+        NAME scripts_check_mission_profile_vs_or
+        COMMAND ${Python3_EXECUTABLE} scripts/audit/check_mission_profile_vs_or.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(scripts_check_mission_profile_vs_or PROPERTIES
+        LABELS "audit-cycle"
+    )
     set_tests_properties(
         scripts_rc_test_common
         scripts_python_compileall
