@@ -20,9 +20,6 @@ target_link_libraries(test_mat PRIVATE rc_math GTest::gtest_main)
 gtest_discover_tests(test_mat)
 
 # IVP-41: 1D barometric altitude Kalman filter
-add_executable(test_baro_kf test_baro_kf.cpp)
-target_link_libraries(test_baro_kf PRIVATE rc_fusion GTest::gtest_main)
-gtest_discover_tests(test_baro_kf)
 
 # IVP-42a: ESKF core propagation + IVP-42b: CSV trajectory tests
 add_executable(test_eskf_propagation test_eskf_propagation.cpp)
@@ -81,7 +78,6 @@ gtest_discover_tests(test_mahony)
 # Bierman measurement update tests (ESKF_USE_BIERMAN=1)
 # Separate fusion library with Bierman flag — existing rc_fusion stays unchanged.
 add_library(rc_fusion_bierman STATIC
-    ${CMAKE_SOURCE_DIR}/src/fusion/baro_kf.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/eskf.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/eskf_codegen.cpp
     ${CMAKE_SOURCE_DIR}/src/fusion/ud_factor.cpp
@@ -146,11 +142,6 @@ gtest_discover_tests(test_flight_director_launch_abort)
 add_executable(test_eskf_disable_brake test_eskf_disable_brake.cpp)
 target_link_libraries(test_eskf_disable_brake PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_eskf_disable_brake)
-
-# IVP-67: QEP smoke test (vendored QP/C 8.1.3 dispatch engine)
-add_executable(test_qep_smoke test_qep_smoke.cpp)
-target_link_libraries(test_qep_smoke PRIVATE qep GTest::gtest_main)
-gtest_discover_tests(test_qep_smoke)
 
 # IVP-68: Flight Director HSM tests
 add_executable(test_flight_director test_flight_director.cpp)

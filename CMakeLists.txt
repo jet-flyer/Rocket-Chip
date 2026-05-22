@@ -48,7 +48,6 @@ if(BUILD_TESTS)
     # Fusion library (no SDK dependencies)
     # ------------------------------------------------------------------
     add_library(rc_fusion STATIC
-        src/fusion/baro_kf.cpp
         src/fusion/eskf.cpp
         src/fusion/eskf_codegen.cpp
         src/fusion/ud_factor.cpp
@@ -567,7 +566,6 @@ else()
         src/fusion/ud_factor.cpp
         src/fusion/confidence_gate.cpp
         src/fusion/innovation_monitor.cpp
-        src/fusion/baro_kf.cpp                      # F-2026-05-13-004: pedantic-gate restoration (Tier 2.4 P2)
         src/notify/notify_backend_led.cpp
         src/notify/notify_backend_audio.cpp
         src/safety/pio_watchdog.cpp

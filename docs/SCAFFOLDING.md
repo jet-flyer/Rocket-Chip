@@ -137,8 +137,7 @@ rocketchip/
 │   │   ├── eskf_state.h           # ESKF state vector definitions
 │   │   ├── mahony_ahrs.cpp/.h     # Independent Mahony AHRS cross-check
 │   │   ├── confidence_gate.cpp/.h # Innovation + AHRS divergence confidence gate
-│   │   ├── baro_kf.cpp/.h         # 1D baro Kalman filter (host tests only, not in firmware)
-│   │   ├── ud_factor.cpp/.h       # UD factorization (benchmark only, not in firmware)
+│   │   ├── ud_factor.cpp/.h       # UD factorization (Bierman measurement update path used by ESKF)
 │   │   └── wmm_declination.cpp/.h # World Magnetic Model declination lookup
 │   │
 │   ├── math/                      # Math utilities (header-heavy)
@@ -211,7 +210,6 @@ rocketchip/
 │   ├── test_vec3.cpp
 │   ├── test_quat.cpp
 │   ├── test_mat.cpp
-│   ├── test_baro_kf.cpp
 │   ├── test_eskf_propagation.cpp
 │   ├── test_eskf_update.cpp
 │   ├── test_eskf_gps_update.cpp

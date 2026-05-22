@@ -238,6 +238,8 @@ Inventory tooling (`scripts/audit/find_dead_code.py` or similar) is in-scope for
 
 **Per-commit discipline.** When a commit removes a function, file, or symbol, the same commit walks (a) callers (compiler catches), (b) callees that were only called by the removed symbol (one-line grep; no automation), and (c) protected-doc references (existing trigger-driven-edit rule per `SESSION_CHECKLIST.md`). The commit message cites the walk: "Removed X; verified Y, Z no longer referenced; SAD/SCAFFOLDING/AO_ARCHITECTURE clean."
 
+**History trace before deletion.** Before deleting code surfaced as orphaned, trace its git/CHANGELOG history (`git log --all --oneline -- <file>` + `grep -ni <symbol> CHANGELOG.md`). The trace can reveal: (a) code intentionally kept in a partial state for a reason that still applies (don't delete; restore the intended metadata that drifted), (b) code that was already removed once and re-introduced (check whether the re-introduction was deliberate), or (c) no prior decision (straightforward deletion candidate). Added 2026-05-22 after a host-test cleanup pass where the "kept for tests" justification turned out to be ambivalence rather than a load-bearing decision.
+
 ---
 
 ## Communication Protocols

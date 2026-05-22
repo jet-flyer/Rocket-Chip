@@ -137,6 +137,8 @@ Inherits all Session End rules. Adds the rules below — these run **only** when
 
    ArduPilot panelist's point — calendar items don't run, so this must be a checklist item that actively surfaces stale dirs each milestone close. Cheap (~30 sec to run); decisions are 1-line "keep" or "delete" per row.
 
+17b. **Dead-code inventory.** Run `python scripts/audit/find_dead_code.py --output docs/audits/DEAD_CODE_INVENTORY_<date>.md` and walk the findings. Catches: unbuilt orphans, DCE candidates, stale build-cache .obj files, and source-list drift between `add_executable(rocketchip)` and `ROCKETCHIP_SOURCES`. Companion script: `python scripts/audit/survey_test_subjects.py` for host-test orphan-subjects (the bench-tier deletion class — tests for code that doesn't ship). High false-positive rate by design (per ArduPilot panelist's false-positive-asymmetry framing); hand-walk each finding. Added 2026-05-22 per the dead-code policy in `standards/CODING_STANDARDS.md`.
+
 ---
 
 ## Trigger-Driven Documentation Edits

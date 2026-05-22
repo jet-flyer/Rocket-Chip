@@ -47,11 +47,13 @@ bool guard_burnout_accel(float accel_mag, float threshold);
 // @param threshold MissionProfile::apogee_velocity_threshold (positive value)
 bool guard_apogee_velocity(float vel_d, float threshold);
 
-// Backup apogee: barometric altitude rate is non-positive.
+// Backup apogee: vertical velocity is non-positive.
 // If vert_vel <= 0 for sustained period, rocket is descending.
-// Uses baro vertical velocity from BaroKF, not ESKF.
+// Caller currently passes ESKF-propagated vert_vel_eskf — NOT independent of
+// ESKF. ESKF-independent descent detection (`guard_baro_stationary`) is
+// planned but not yet implemented (see docs/plans/STAGE_P7_15_SHELVED_2026-04-11.md).
 //
-// @param vert_vel Baro-derived vertical velocity (m/s), positive = ascending
+// @param vert_vel Vertical velocity (m/s), positive = ascending
 bool guard_baro_peak(float vert_vel);
 
 // Main deploy: altitude AGL below threshold.
