@@ -67,6 +67,8 @@ rocketchip/
 │   ├── icd/
 │   │   ├── EXPANSION_CONNECTOR_ICD.md
 │   │   └── GEMINI_PROTOCOL_ICD.md
+│   ├── tools/                       # Tool-usage guides for external tools the project depends on
+│   │   └── OPENROCKET_USAGE.md      # OpenRocket testing/validation workflow (Phase 4, 2026-05-22)
 │   └── mission_profiles/
 │       └── MISSION_PROFILES.md
 │
