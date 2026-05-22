@@ -71,7 +71,9 @@ TEST(ESKFBierman, FactorizeRoundTrip) {
 
     UD24 ud;
     ASSERT_TRUE(rc::ud_factorize(ud, P_test));
-    EXPECT_TRUE(rc::ud_all_positive(ud));
+    for (int32_t i = 0; i < N; ++i) {
+        EXPECT_GT(ud.D[i], 0.0f) << "D[" << i << "] not positive";
+    }
 
     // Reconstruct
     float P_recon[N][N];

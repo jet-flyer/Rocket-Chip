@@ -8,12 +8,10 @@
 //
 // Maintains positive-definiteness by construction (all D[i] > 0).
 //
-// Algorithms:
-//   Thornton WMGS temporal update — Ramos et al. (arXiv:2203.06105)
-//   Bierman scalar measurement update — Bierman (1977)
-//
-// Titan-tier investigation — current Core architecture (codegen FPFT + Joseph)
-// is adequate for hobby rockets. UD is for certification paths (DO-178C).
+// Production path: codegen FPFT (predict) + Bierman scalar measurement
+// update (Bierman 1977). Phase-1 benchmark concluded codegen+Bierman is
+// numerically stable and faster than Thornton WMGS alternatives — see
+// CHANGELOG 2026 entry "UD factorization + DCP float64 benchmark."
 
 #include <cstdint>
 
@@ -28,37 +26,15 @@ struct UD24 {
     float D[24];      // Diagonal
 };
 
-// Initialize UD from a diagonal matrix (U = I, D = diag).
-// Used for ESKF init where P starts diagonal.
-void ud_from_diagonal(UD24& ud, const float diag[24]);
-
 // Reconstruct dense P = U * D * U^T.
 // Output: P[24][24] (symmetric).
 void ud_to_dense(const UD24& ud, float P[24][24]);
-
-// Check all D[i] > 0 (positive-definiteness).
-bool ud_all_positive(const UD24& ud);
 
 // Factorize dense symmetric P into UD form (modified Cholesky).
 // Used for hybrid codegen+Bierman path: codegen updates dense P,
 // then factorize into UD for Bierman measurement update.
 // Returns false if P is not positive-definite (any D[i] <= 0).
 bool ud_factorize(UD24& ud, const float P[24][24]);
-
-// =========================================================================
-// Thornton WMGS temporal update: propagate U,D through F and Q_d.
-// P_new = F * P * F^T + G * Q_d * G^T  (G = I simplification)
-//
-// Three precision variants — differ only in inner-loop accumulator type.
-// All modify ud in-place.
-//
-// F: 24×24 state transition matrix (from ESKF::build_F).
-// Qd: 24-element diagonal of discrete process noise (Q_c * dt).
-// =========================================================================
-
-void thornton_f32(UD24& ud, const float F[24][24], const float Qd[24]);
-void thornton_mixed(UD24& ud, const float F[24][24], const float Qd[24]);
-void thornton_f64(UD24& ud, const float F[24][24], const float Qd[24]);
 
 // =========================================================================
 // Bierman scalar measurement update.

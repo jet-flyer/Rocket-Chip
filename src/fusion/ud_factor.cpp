@@ -24,19 +24,10 @@ static constexpr int32_t N = 24;
 // Minimum D-element guard for numerical stability.
 // Below this threshold, the U column is zeroed to avoid division by near-zero.
 static constexpr float  kMinDFloat  = 1e-30f;
-static constexpr double kMinDDouble = 1e-30;
 
 // =========================================================================
 // Utility functions
 // =========================================================================
-
-void ud_from_diagonal(UD24& ud, const float diag[24]) {  // NOLINT(readability-magic-numbers) — matches UD24 struct dimension
-    std::memset(ud.U, 0, sizeof(ud.U));
-    for (int32_t i = 0; i < N; ++i) {
-        ud.U[i][i] = 1.0f;  // Unit diagonal
-        ud.D[i] = diag[i];
-    }
-}
 
 void ud_to_dense(const UD24& ud, float P[24][24]) {  // NOLINT(readability-magic-numbers)
     // P = U * D * U^T
@@ -54,17 +45,6 @@ void ud_to_dense(const UD24& ud, float P[24][24]) {  // NOLINT(readability-magic
             P[j][i] = sum;
         }
     }
-}
-
-bool ud_all_positive(const UD24& ud) {
-    for (int32_t i = 0; i < N; ++i) {
-        // Use !(D > 0) instead of (D <= 0) to catch NaN (NaN comparisons
-        // return false, so NaN <= 0 is false — would slip through).
-        if (!(ud.D[i] > 0.0f)) {
-            return false;
-        }
-    }
-    return true;
 }
 
 bool ud_factorize(UD24& ud, const float P[24][24]) {  // NOLINT(readability-magic-numbers)
@@ -102,197 +82,6 @@ bool ud_factorize(UD24& ud, const float P[24][24]) {  // NOLINT(readability-magi
         }
     }
     return true;
-}
-
-// =========================================================================
-// Thornton WMGS temporal update — float32 accumulators
-//
-// Algorithm: Ramos et al. (arXiv:2203.06105), G = I simplification.
-// W = F * U, then modified weighted Gram-Schmidt from j=N-1 down to 0.
-//
-// SRAM placement for fair comparison with codegen FPFT.
-// =========================================================================
-
-// Static workspace — 2,304 bytes (LL Entry 1)
-static float g_W[N][N];
-// D_old snapshot — Thornton WMGS requires unmodified D values during sweep.
-static float g_D_old[N];
-
-__attribute__((section(".time_critical.thornton_f32")))
-void thornton_f32(UD24& ud, const float F[24][24], const float Qd[24]) {  // NOLINT(readability-magic-numbers)
-    // Step 1: W = F * U  (U is upper triangular: U[r][c] nonzero for r <= c)
-    for (int32_t i = 0; i < N; ++i) {
-        for (int32_t j = 0; j < N; ++j) {
-            float sum = 0.0f;
-            for (int32_t k = 0; k <= j; ++k) {
-                sum += F[i][k] * ud.U[k][j];
-            }
-            g_W[i][j] = sum;
-        }
-    }
-
-    // Snapshot D before in-place WMGS sweep.
-    // The dj and c accumulators need the *old* D values for all k.
-    // Without this, D[k] for k > j has already been overwritten.
-    std::memcpy(g_D_old, ud.D, sizeof(g_D_old));
-
-    // Step 2: Modified weighted Gram-Schmidt (Thornton)
-    for (int32_t j = N - 1; j >= 0; --j) {
-        float dj = Qd[j];
-        for (int32_t k = 0; k < N; ++k) {
-            dj += g_W[j][k] * g_W[j][k] * g_D_old[k];
-        }
-        ud.D[j] = dj;
-
-        if (dj < kMinDFloat) {
-            for (int32_t i = 0; i < j; ++i) {
-                ud.U[i][j] = 0.0f;
-            }
-            continue;
-        }
-
-        const float inv_dj = 1.0f / dj;
-
-        for (int32_t i = 0; i < j; ++i) {
-            float c = 0.0f;
-            for (int32_t k = 0; k < N; ++k) {
-                c += g_W[i][k] * g_D_old[k] * g_W[j][k];
-            }
-
-            ud.U[i][j] = c * inv_dj;
-
-            const float uij = ud.U[i][j];
-            for (int32_t k = 0; k < N; ++k) {
-                g_W[i][k] -= uij * g_W[j][k];
-            }
-        }
-    }
-
-    for (int32_t i = 0; i < N; ++i) {
-        ud.U[i][i] = 1.0f;
-    }
-}
-
-// =========================================================================
-// Thornton WMGS — mixed precision (double accumulators, float storage)
-// =========================================================================
-
-// Separate workspace to avoid aliasing concerns during parallel testing
-static float g_W_mixed[N][N];
-static float g_D_old_mixed[N];
-
-__attribute__((section(".time_critical.thornton_mixed")))
-void thornton_mixed(UD24& ud, const float F[24][24], const float Qd[24]) {  // NOLINT(readability-magic-numbers)
-    for (int32_t i = 0; i < N; ++i) {
-        for (int32_t j = 0; j < N; ++j) {
-            float sum = 0.0f;
-            for (int32_t k = 0; k <= j; ++k) {
-                sum += F[i][k] * ud.U[k][j];
-            }
-            g_W_mixed[i][j] = sum;
-        }
-    }
-
-    std::memcpy(g_D_old_mixed, ud.D, sizeof(g_D_old_mixed));
-
-    for (int32_t j = N - 1; j >= 0; --j) {
-        double dj = static_cast<double>(Qd[j]);
-        for (int32_t k = 0; k < N; ++k) {
-            dj += static_cast<double>(g_W_mixed[j][k])
-                * static_cast<double>(g_W_mixed[j][k])
-                * static_cast<double>(g_D_old_mixed[k]);
-        }
-        ud.D[j] = static_cast<float>(dj);
-
-        if (dj < kMinDDouble) {
-            for (int32_t i = 0; i < j; ++i) {
-                ud.U[i][j] = 0.0f;
-            }
-            continue;
-        }
-
-        const double inv_dj = 1.0 / dj;
-
-        for (int32_t i = 0; i < j; ++i) {
-            double c = 0.0;
-            for (int32_t k = 0; k < N; ++k) {
-                c += static_cast<double>(g_W_mixed[i][k])
-                   * static_cast<double>(g_D_old_mixed[k])
-                   * static_cast<double>(g_W_mixed[j][k]);
-            }
-            ud.U[i][j] = static_cast<float>(c * inv_dj);
-
-            const float uij = ud.U[i][j];
-            for (int32_t k = 0; k < N; ++k) {
-                g_W_mixed[i][k] -= uij * g_W_mixed[j][k];
-            }
-        }
-    }
-
-    for (int32_t i = 0; i < N; ++i) {
-        ud.U[i][i] = 1.0f;
-    }
-}
-
-// =========================================================================
-// Thornton WMGS — float64 accumulators throughout inner loops
-// =========================================================================
-
-static float g_W_f64[N][N];
-static float g_D_old_f64[N];
-
-__attribute__((section(".time_critical.thornton_f64")))
-void thornton_f64(UD24& ud, const float F[24][24], const float Qd[24]) {  // NOLINT(readability-magic-numbers)
-    for (int32_t i = 0; i < N; ++i) {
-        for (int32_t j = 0; j < N; ++j) {
-            double sum = 0.0;
-            for (int32_t k = 0; k <= j; ++k) {
-                sum += static_cast<double>(F[i][k])
-                     * static_cast<double>(ud.U[k][j]);
-            }
-            g_W_f64[i][j] = static_cast<float>(sum);
-        }
-    }
-
-    std::memcpy(g_D_old_f64, ud.D, sizeof(g_D_old_f64));
-
-    for (int32_t j = N - 1; j >= 0; --j) {
-        double dj = static_cast<double>(Qd[j]);
-        for (int32_t k = 0; k < N; ++k) {
-            dj += static_cast<double>(g_W_f64[j][k])
-                * static_cast<double>(g_W_f64[j][k])
-                * static_cast<double>(g_D_old_f64[k]);
-        }
-        ud.D[j] = static_cast<float>(dj);
-
-        if (dj < kMinDDouble) {
-            for (int32_t i = 0; i < j; ++i) {
-                ud.U[i][j] = 0.0f;
-            }
-            continue;
-        }
-
-        const double inv_dj = 1.0 / dj;
-
-        for (int32_t i = 0; i < j; ++i) {
-            double c = 0.0;
-            for (int32_t k = 0; k < N; ++k) {
-                c += static_cast<double>(g_W_f64[i][k])
-                   * static_cast<double>(g_D_old_f64[k])
-                   * static_cast<double>(g_W_f64[j][k]);
-            }
-            ud.U[i][j] = static_cast<float>(c * inv_dj);
-
-            const float uij = ud.U[i][j];
-            for (int32_t k = 0; k < N; ++k) {
-                g_W_f64[i][k] -= uij * g_W_f64[j][k];
-            }
-        }
-    }
-
-    for (int32_t i = 0; i < N; ++i) {
-        ud.U[i][i] = 1.0f;
-    }
 }
 
 // =========================================================================
