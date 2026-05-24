@@ -173,9 +173,9 @@ Protected docs come in two kinds with different edit rules.
 | `standards/HW_GATE_DISCIPLINE.md` | A rule changes. New gate type covered. |
 | `COUNCIL_PROCESS.md` | Council protocol changes (new persona, retired persona, process change). |
 | `.claude/CLAUDE.md` | Auto-load index changes (doc added/removed from intake). |
-| `.claude/AK_GUIDELINES.md` | Behavioral guideline changes. |
-| `.claude/PROTECTED_FILES.md` | Protection list changes (file added or removed from protection). |
-| `.claude/SESSION_CHECKLIST.md` | A checklist item changes, the structure changes, or the trigger map gains/loses a doc. |
+| `standards/AK_GUIDELINES.md` | Behavioral guideline changes. |
+| `docs/agents/PROTECTED_FILES.md` | Protection list changes (file added or removed from protection). |
+| `docs/agents/SESSION_CHECKLIST.md` | A checklist item changes, the structure changes, or the trigger map gains/loses a doc. |
 | `standards/AUDIT_GUIDANCE.md` | Master audit strategy, scope table, or file-location policy changes. |
 | `README.md` | "Read First" / "Each Session" lists change. Key rules change. |
 | `docs/PROJECT_STATUS.md` | Phase changes, new blocker discovered, blocker resolved, next-action changes. **Not** triggered by routine work commits within a stage. |
@@ -191,7 +191,7 @@ Protected docs come in two kinds with different edit rules.
 | `docs/audits/*.md` | Each audit is dated and frozen. New audits are new files. |
 | `docs/baselines/*` | Each baseline is a frozen snapshot. New baselines are new directories/files. |
 | `CHANGELOG.md` | Append-only historical event log. The current entry being drafted in this commit is state-of-system until it ships; after commit, frozen. |
-| `.claude/LESSONS_LEARNED.md` | Append-only. Each entry is historical. Existing entries get edits only for typo-correction or for explicit supersession headers (e.g., the LL Entry 25 "SUPERSEDED 2026-04-22" header is legitimate because it adds context to the historical record without rewriting it). |
+| `docs/agents/LESSONS_LEARNED.md` | Append-only. Each entry is historical. Existing entries get edits only for typo-correction or for explicit supersession headers (e.g., the LL Entry 25 "SUPERSEDED 2026-04-22" header is legitimate because it adds context to the historical record without rewriting it). |
 | `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` (Resolved section only) | Historical record once a deviation is marked Resolved. The Active section above is state-of-system. |
 
 #### Mixed-mode docs

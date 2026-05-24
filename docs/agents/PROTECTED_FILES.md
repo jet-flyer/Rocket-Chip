@@ -17,10 +17,10 @@ General requests like "update the docs" or "fix the instructions" do NOT grant p
 ## Protected File List
 
 ### Agent Instructions & Behavioral Guidelines
-- `.claude/CLAUDE.md` - Agent context includes
-- `.claude/AK_GUIDELINES.md` - Behavioral guidelines (Andrej Karpathy rules)
-- `.claude/PROTECTED_FILES.md` - This file
-- `README.md` - Primary agent instructions
+- `.claude/CLAUDE.md` - Agent context includes (thin shim to AGENTS.md)
+- `standards/AK_GUIDELINES.md` - Behavioral guidelines (Andrej Karpathy rules)
+- `docs/agents/PROTECTED_FILES.md` - This file
+- `README.md` - Primary human-facing project documentation
 
 ### Standards Documents
 - `standards/CODING_STANDARDS.md` - Project coding standards
@@ -40,7 +40,7 @@ General requests like "update the docs" or "fix the instructions" do NOT grant p
 - `docs/decisions/*` - Council review outputs and architectural decisions
 
 ### Session Management
-- `.claude/SESSION_CHECKLIST.md` - Session handoff/end procedures
+- `docs/agents/SESSION_CHECKLIST.md` - Session handoff/end procedures
 
 ---
 

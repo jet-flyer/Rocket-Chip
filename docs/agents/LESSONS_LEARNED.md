@@ -1244,7 +1244,7 @@ following framing:
    critical paths and the debug probe is attached. Skips silently for non-
    flight-critical commits. Loud prompt when HW verification is needed but
    the probe isn't available.
-4. **Session-start canary** — item 6 in `.claude/SESSION_CHECKLIST.md`. Run
+4. **Session-start canary** — item 6 in `docs/agents/SESSION_CHECKLIST.md`. Run
    `bench_sim.py` before making any changes when the session will touch
    flight-critical paths. Catches rot introduced by previous sessions that
    committed via `--no-verify` when the probe was not available.
@@ -1367,7 +1367,7 @@ For architectural conclusions that close off a future option ("we can't do X"), 
 
 ### Where this rule fits
 
-Project-side research discipline lives here (`.claude/LESSONS_LEARNED.md`), not in `AK_GUIDELINES.md` (sourced from a dedicated external location per user direction 2026-05-14). Sibling rules: LL Entry 37 (verify rule wording + right standard in precedence chain), LL Entry 36 (gates that look automated but require human attention rot silently).
+Project-side research discipline lives here (`docs/agents/LESSONS_LEARNED.md`), not in `standards/AK_GUIDELINES.md` (sourced from a dedicated external location per user direction 2026-05-14). Sibling rules: LL Entry 37 (verify rule wording + right standard in precedence chain), LL Entry 36 (gates that look automated but require human attention rot silently).
 
 ### Primary sources catalogued for this project
 
@@ -1497,7 +1497,7 @@ Pure-doc / pure-test / pure-tooling commits are exempt by virtue of not matching
 
 STATION_SCOPE intentionally stays narrow — Fruit Jam has no SWD per `DEBUG_PROBE_NOTES.md`, so widening it would gate every firmware commit on the station being plugged in. The asymmetry is acknowledged and tracked on the WB; vehicle is the load-bearing gate. (Council Q3, unanimous.)
 
-HW_READY fail-closed behavior preserved. `--no-verify` remains the documented escape per `.claude/DEBUG_PROBE_NOTES.md` (repo-owner approval).
+HW_READY fail-closed behavior preserved. `--no-verify` remains the documented escape per `docs/agents/DEBUG_PROBE_NOTES.md` (repo-owner approval).
 
 ### Detection / verification
 
