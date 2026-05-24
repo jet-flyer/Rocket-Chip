@@ -2,13 +2,15 @@
 
 **Purpose:** Prevent incomplete handoffs, lost work, and undocumented changes between agent sessions.
 
+**How to use this checklist:** This is a single linear document. Even when you reach a later phase (Session End or Milestone), always begin at the top and work your way downward. You may skip re-executing steps you have already confirmed, provided no relevant changes have occurred since they were last verified.
+
 This checklist is structured as four nested scopes:
 
 ```
 COMMIT  ⊂  PUSH  ⊂  SESSION_END  ⊂  MILESTONE
 ```
 
-Inheritance flows outward — every PUSH must satisfy every COMMIT rule, every SESSION_END must satisfy every PUSH rule, every MILESTONE must satisfy every SESSION_END rule. Each outer scope adds its own rules on top of the inherited inner-scope rules.
+Each outer scope adds rules on top of the inner ones. When entering a later phase, still review from the top of the document downward (per the usage instruction above).
 
 A separate **Trigger-Driven Documentation Edits** section captures rules that don't follow the inheritance pattern — they fire when a session's content directly contradicts a doc, regardless of which scope-event is happening at the time.
 
@@ -80,25 +82,25 @@ Inherits all Per Commit rules. Adds the rules below — these run **once** befor
 
 ## Session End
 
-Inherits all Per Push rules. Adds the rules below — these run **once** when the session is closing.
+Review from the top of this document before following the rules below. These rules run **once** when the session is closing (in addition to all earlier rules).
 
 9. **No broken code on main.** If any work in this session is incomplete, either stash it, abandon it, or commit it to a feature branch — never leave broken code on main.
-10. **Push to remote** — `git push` so work is not stranded locally.
-11. **Handoff notes (if applicable).** If the session ends with WIP, blockers discovered, or open questions for the next session, expand `AGENT_WHITEBOARD.md` with:
+
+10. **Note the exact state.** "Build compiles, sensor reads work, CLI untested" is better than "made progress" in any handoff note.
+
+11. **Handoff notes (if applicable).** If the user has explicitly signaled that the session is being handed off (for example by saying “session handoff”, “continue tomorrow”, or similar), expand `AGENT_WHITEBOARD.md` with:
     - What was in progress
     - What's blocked and why
     - Any concerns or open questions
     - Specific files that were being worked on
 
-    "Handoff" is the default mode for any session-end with leftover state. A clean session-end with no leftover state doesn't need handoff notes.
-
-12. **Note the exact state.** "Build compiles, sensor reads work, CLI untested" is better than "made progress" in any handoff note.
+12. **Push to remote** — `git push` so work is not stranded locally.
 
 ---
 
 ## Session End: Milestone
 
-Inherits all Session End rules. Adds the rules below — these run **only** when a stage closes.
+Review from the top of this document before following the rules below. These rules run **only** when a stage closes (in addition to all earlier rules).
 
 13. **Update `docs/PROJECT_STATUS.md`** with milestone completion and next phase (per the trigger map — phase change is a state-of-system trigger).
 
