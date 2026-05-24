@@ -69,6 +69,8 @@ Some paths (see `.git/hooks/pre-commit`) require **both**:
 
 Restarting OpenOCD usually fixes `:3333` not listening without re-plugging firmware work. **`git commit --no-verify`** is only for emergencies and **requires explicit repo-owner approval** — autonomous agents **must not** bypass the hook unless the human author instructed it.
 
+Before any commit that touches firmware paths, ensure OpenOCD is running and listening on `127.0.0.1:3333` if the pre-commit hook requests hardware verification.
+
 ---
 
 ## Issue: USB CDC breaks after flash operations (RESOLVED)

@@ -8,7 +8,7 @@ warning gate drifted out of coverage for 14 of our source files over
 ~6 months. This document is the mechanism to catch that class of rot
 before it compounds.
 
-**Complements** the protected-file drift check in `.claude/SESSION_CHECKLIST.md`
+**Complements** the protected-file drift check in `docs/agents/SESSION_CHECKLIST.md`
 item 15 (which covers architecture docs) and the station/vehicle build
 parity check in item 8 (which covers cross-role compilation). This one
 is content-level for the build system itself.
@@ -17,7 +17,7 @@ is content-level for the build system itself.
 
 ## When to run this audit
 
-- **Every stage close / milestone.** Pair with `.claude/SESSION_CHECKLIST.md`
+- **Every stage close / milestone.** Pair with `docs/agents/SESSION_CHECKLIST.md`
   item 15.
 - **Any CMake edit >10 lines.** Small edits rarely introduce rot; large
   edits frequently add scaffolding that should be cleaned up later.
@@ -302,14 +302,14 @@ Commits: `5bc463b` (Phase 0+1), `69a07f3` (Phase 2), `af45bbc`
 
 ## See also
 
-- `.claude/SESSION_CHECKLIST.md` item 8 — station/vehicle build parity
+- `docs/agents/SESSION_CHECKLIST.md` item 8 — station/vehicle build parity
   check (structural build level).
-- `.claude/SESSION_CHECKLIST.md` item 15 — protected-doc drift check
+- `docs/agents/SESSION_CHECKLIST.md` item 15 — protected-doc drift check
   (architecture docs level).
 - `standards/RP2350_ERRATA.md` — silicon errata matrix; some compile
   flags are erratum workarounds and must not be removed without
   cross-checking there first.
-- `.claude/LESSONS_LEARNED.md` Entry 36 — "infrastructure vs artifact"
+- `docs/agents/LESSONS_LEARNED.md` Entry 36 — "infrastructure vs artifact"
   discipline. This audit is explicitly structured as infrastructure:
   it runs automatically (pre-commit gates where applicable) rather
   than relying on human memory to trigger it.

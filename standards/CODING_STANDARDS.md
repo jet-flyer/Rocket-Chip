@@ -87,7 +87,7 @@ The host ctest `scripts_fault_force_gate_audit` (`scripts/audit/check_fault_forc
 
 These constraints are non-negotiable. They exist because violations produce silent
 crashes or USB failures that take hours to diagnose.
-See `.claude/LESSONS_LEARNED.md` for the full debugging narratives behind each rule.
+See `docs/agents/LESSONS_LEARNED.md` for the full debugging narratives behind each rule.
 For silicon-errata compliance status (which errata affect us and how each is handled),
 see `standards/RP2350_ERRATA.md`.
 
@@ -226,7 +226,7 @@ Per-directory hygiene:
 - **Source-only.** No `build/`, no generated artifacts. The existing `.gitignore` rule `build/` (line 2) catches nested `tools/<name>/build/` correctly — verified 2026-05-22 via `git check-ignore`.
 - **Graduation rule.** When a scratch tool sees 3+ uses by 2+ people, it graduates to `tools/<name>/` (drops the `scratch/` prefix). Adds a README at graduation time.
 
-Stale-review fires mechanically at milestone close — see `.claude/SESSION_CHECKLIST.md` item 17a.
+Stale-review fires mechanically at milestone close — see `docs/agents/SESSION_CHECKLIST.md` item 17a.
 
 #### Dead-code discipline
 

@@ -135,9 +135,9 @@ These rows formally close in this cleanup-cycle commit (DC-2026-05-13 C4-1), per
 | R-9c | Log-on-change emit in health_monitor.cpp | `src/safety/health_monitor.cpp` `log_secondary_transitions()` | L1 verified + Grok Tier 5.4 PASS (1a32103) | `9a47ba6` | 2026-05-13 |
 | R-11 | SPIN model: flash_safe_execute protocol | new `tools/spin/rocketchip_flash_protocol.pml` | 3 LTL properties PASS (61-66 states each, 0 errors). Master gate `SPIN_OK_31`. Grok Tier 5/6/7 PASS (1a32103) | (commit in 2026-05-13 cycle) | 2026-05-13 |
 | R-12 | SPIN model: cross-core boot handshake | new `tools/spin/rocketchip_boot.pml` | 2 LTL properties PASS (safety + liveness with weak fairness, errors: 0). Master gate `SPIN_OK_28` → `SPIN_OK_31`. Grok Tier 5/6/7 PASS (1a32103) | (commit in 2026-05-13 cycle) | 2026-05-13 |
-| R-13 | SESSION_CHECKLIST trigger-map row for SPIN ride-along | `.claude/SESSION_CHECKLIST.md` | Doc-only edit verified. Master gate auto-discovers LTL properties for new claims. Grok Tier 6 PASS (1a32103) | (commit in 2026-05-13 cycle) | 2026-05-13 |
+| R-13 | SESSION_CHECKLIST trigger-map row for SPIN ride-along | `docs/agents/SESSION_CHECKLIST.md` | Doc-only edit verified. Master gate auto-discovers LTL properties for new claims. Grok Tier 6 PASS (1a32103) | (commit in 2026-05-13 cycle) | 2026-05-13 |
 | R-15 | `i2c_bus_reset()` after CLI log-flush + erase (LL Entry 31 application) | `src/cli/rc_os_commands.cpp` `cmd_flush_log()` + `cli_do_erase_flights()` | Code edit verified; matches the ao_rcos.cpp:338 proven pattern. R-11 SPIN model verifies the corrected protocol. Grok Tier 5/6/7 PASS (1a32103) | (commit in 2026-05-13 cycle) | 2026-05-13 |
-| R-16 | Systematic LL-entry freshness audit (Critical/High entries) | `.claude/LESSONS_LEARNED.md` Critical/High entries | 23 entries audited 2026-05-13; zero stale entries detected. Recommendation captured: milestone-close discipline. Grok Tier 4.6 PASS (1a32103) | (commit in 2026-05-13 cycle) | 2026-05-13 |
+| R-16 | Systematic LL-entry freshness audit (Critical/High entries) | `docs/agents/LESSONS_LEARNED.md` Critical/High entries | 23 entries audited 2026-05-13; zero stale entries detected. Recommendation captured: milestone-close discipline. Grok Tier 4.6 PASS (1a32103) | (commit in 2026-05-13 cycle) | 2026-05-13 |
 | R-17 | Cooperative pause around runtime `flash_safe_execute()` (closes LL-31 race) | new `src/safety/core1_i2c_pause.{h,cpp}`; wraps at `ao_rcos.cpp` `cal_save_to_flash()`, `rc_os_commands.cpp` `cmd_flush_log()` + `cli_do_erase_flights()` | All 4 target tiers compile clean; host ctest 794/794; SPIN_OK_31; bench_sim 2/2 PASS vehicle flight + dev tiers. R-11 SPIN model surfaced the race-class; R-17 prevents it. Grok Tier 5/6/7 PASS (1a32103) | (commit in 2026-05-13 cycle) | 2026-05-13 |
 | R-18 | Clean up dead `cal_pre_hook` + function-pointer table | `src/calibration/cal_hooks.{h,cpp}`, `src/cli/rc_os.{h,cpp}`, `src/main.cpp` | All 4 target tiers compile clean; host ctest 794/794. Net delta: −31 lines. Grok Tier 5/6/7 PASS (1a32103) | (commit in 2026-05-13 cycle) | 2026-05-13 |
 | R-19 | Unconditional `multicore_reset_core1()` before `multicore_launch_core1()` (post-AIRCR SIO_FIFO_IRQ wedge fix) | `src/main.cpp` `init_hardware()` (4-line addition); `docs/decisions/CORE1_PSM_RESET_BEFORE_LAUNCH.md` (new) | L1 verified: 4-tier build clean, AIRCR-driven probe test PASS, 3-power-cycle baseline + 5x rapid picotool warm-reboot all PASS. Diagnosis: AIRCR per-processor on RP2350; PSM toggles the NVIC pending. Grok Tier 5/6/7 PASS (1a32103) | (commit in 2026-05-13 cycle) | 2026-05-13 |
@@ -153,10 +153,10 @@ These rows formally close in this cleanup-cycle commit (DC-2026-05-13 C4-1), per
 
 - `standards/AUDIT_GUIDANCE.md` Appendix C — defines the order in which PRs are processed during an audit-driven remediation cycle.
 - `standards/HW_GATE_DISCIPLINE.md` — defines what a PR's "verified" state requires (positive-control signal, regression-suite credit).
-- `.claude/SESSION_CHECKLIST.md` Per-Commit — change impact analysis runs against this file's `Files / mechanism` and `Depends on` columns when a change is in flight.
+- `docs/agents/SESSION_CHECKLIST.md` Per-Commit — change impact analysis runs against this file's `Files / mechanism` and `Depends on` columns when a change is in flight.
 - `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` — receives PRs that the user explicitly accepts as permanent deviations.
 - `AGENT_WHITEBOARD.md` — receives short-lived irregular flags; if a flag becomes a tracked defect, migrate it to this file.
 
 ---
 
-*Update only when a PR's state changes or a new PR is recorded. State-of-system protected per `.claude/SESSION_CHECKLIST.md` trigger map.*
+*Update only when a PR's state changes or a new PR is recorded. State-of-system protected per `docs/agents/SESSION_CHECKLIST.md` trigger map.*

@@ -3,7 +3,7 @@
 **Status:** Normative. Applies to every IVP gate or session-end gate that involves external hardware (sensors, radios, GPS, USB, debug probe, soak runs).
 **Authored:** 2026-04-27 (this session).
 **Origin:** User ask 2026-04-17 after the IVP-140 false-positive + Fruit Jam GPS cable episode (`docs/plans/STAGE16C_STATION_DECOUPLING_STATUS.md`). Same meta-pattern as `LESSONS_LEARNED.md` Entry 36 (bench_sim silent rot).
-**Related rules:** `standards/CODING_STANDARDS.md` (Code Verification Process), `.claude/SESSION_CHECKLIST.md` (build-parity check), `docs/CONFIG_TEST_MATRIX.md` (Tier 6b CI matrix).
+**Related rules:** `standards/CODING_STANDARDS.md` (Code Verification Process), `docs/agents/SESSION_CHECKLIST.md` (build-parity check), `docs/CONFIG_TEST_MATRIX.md` (Tier 6b CI matrix).
 
 ---
 
@@ -106,8 +106,8 @@ This rule addresses a separate failure mode from Rules 1-4: **gates that are cla
 The mechanical defenses against this, in order of strength:
 
 1. **Pre-commit hook runs the gate itself.** `scripts/hooks/pre-commit` + `scripts/ci/pre_commit_matrix.py` already do this for the bench_sim path (vehicle and station). The agent does not get to choose whether the gate runs — the hook runs it, observes the exit code, and blocks the commit on failure. This is the strongest mechanical defense available for any gate that can be expressed as a script.
-2. **Session-start canary** — `.claude/SESSION_CHECKLIST.md` item 6 runs `bench_sim.py` before any flight-critical work begins, catching rot introduced by previous sessions that committed via `--no-verify` when the probe was not available.
-3. **Bypass discipline** — `git commit --no-verify` is permitted only with explicit repo-owner approval per `.claude/DEBUG_PROBE_NOTES.md`. Autonomous agents must not bypass the hook unless the human author instructed it. A commit that bypassed the hook must say so in its commit message and explain why.
+2. **Session-start canary** — `docs/agents/SESSION_CHECKLIST.md` item 6 runs `bench_sim.py` before any flight-critical work begins, catching rot introduced by previous sessions that committed via `--no-verify` when the probe was not available.
+3. **Bypass discipline** — `git commit --no-verify` is permitted only with explicit repo-owner approval per `docs/agents/DEBUG_PROBE_NOTES.md`. Autonomous agents must not bypass the hook unless the human author instructed it. A commit that bypassed the hook must say so in its commit message and explain why.
 
 What this means in practice:
 
@@ -175,8 +175,8 @@ Source: project policy 2026-05-12, lived-experience case is R-3 above. Companion
 ## How this interacts with existing standards
 
 - **Extends `standards/CODING_STANDARDS.md` Pre-Commit Checklist** — Items 1-4 become "and the commit message cites the observed control signal."
-- **Extends `.claude/SESSION_CHECKLIST.md`** — Item 9 (commit) requires citing the observed control signal per Rule 3. Item 6 (session-start canary) is the Rule 5 defense against pre-existing rot.
-- **Consolidates the bypass discipline already in `.claude/DEBUG_PROBE_NOTES.md`** — the `--no-verify`-only-with-approval rule lives there; Rule 5 references it as one of the three Rule-5 defenses.
+- **Extends `docs/agents/SESSION_CHECKLIST.md`** — Item 9 (commit) requires citing the observed control signal per Rule 3. Item 6 (session-start canary) is the Rule 5 defense against pre-existing rot.
+- **Consolidates the bypass discipline already in `docs/agents/DEBUG_PROBE_NOTES.md`** — the `--no-verify`-only-with-approval rule lives there; Rule 5 references it as one of the three Rule-5 defenses.
 - **Consolidates the gate-classification framing from `docs/plans/STAGE_P7_15_SHELVED_2026-04-11.md`** — the "verification gates claimed but not performed" history is now codified as a normative rule.
 - **Does NOT modify `docs/CONFIG_TEST_MATRIX.md`** — the matrix specifies *which* changes trigger HW gates; this doc specifies *what* a HW gate must observe to pass and *what* discipline keeps the gate from being silently skipped.
 - **Does NOT modify the pre-commit hook itself** — the hook's mechanical triggers stay the same. This doc names the hook as the primary Rule-5 defense.
@@ -187,7 +187,7 @@ Source: project policy 2026-05-12, lived-experience case is R-3 above. Companion
 
 - **Pure-software changes** (host tests, doc-only, comment-only, build-system reformatting that doesn't produce a different compiled artifact). The pre-commit hook's `pre_commit_matrix.py` already classifies these and skips HW gates entirely.
 - **Off-line analysis** (replay-harness runs against logged data, post-flight log decoders, math-only refactors verified by host ctest). No live hardware, no HW gate.
-- **Emergency hotfixes with explicit `git commit --no-verify` and repo-owner approval** — the bypass discipline in `.claude/DEBUG_PROBE_NOTES.md` already covers this. Such commits should still cite *what* was verified, even if not by the standard gate.
+- **Emergency hotfixes with explicit `git commit --no-verify` and repo-owner approval** — the bypass discipline in `docs/agents/DEBUG_PROBE_NOTES.md` already covers this. Such commits should still cite *what* was verified, even if not by the standard gate.
 
 ---
 

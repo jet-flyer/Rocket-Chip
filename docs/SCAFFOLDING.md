@@ -281,13 +281,17 @@ rocketchip/
 │
 ├── pico-sdk/                      # Pico SDK (git submodule)
 │
-├── .claude/                       # Agent context
-│   ├── CLAUDE.md                  # Main includes
-│   ├── AK_GUIDELINES.md           # Behavioral guidelines
-│   ├── PROTECTED_FILES.md         # Files requiring explicit edit permission
-│   ├── SESSION_CHECKLIST.md       # Session handoff procedures
-│   ├── LESSONS_LEARNED.md         # Debugging journal (29 entries)
-│   └── DEBUG_PROBE_NOTES.md       # OpenOCD/GDB setup
+├── .claude/                       # Agent context (Claude Code compatibility)
+│   └── CLAUDE.md                  # Thin shim → AGENTS.md
+│
+├── standards/
+│   └── AK_GUIDELINES.md           # Behavioral guidelines
+│
+└── docs/agents/                   # Agent operational discipline (universal)
+    ├── SESSION_CHECKLIST.md       # Session handoff/end procedures
+    ├── PROTECTED_FILES.md         # Files requiring explicit edit permission
+    ├── LESSONS_LEARNED.md         # Debugging journal
+    └── DEBUG_PROBE_NOTES.md       # OpenOCD/GDB setup notes
 │
 ├── build/                         # CMake build output (gitignored)
 ├── build_gs/                      # Ground station build output (gitignored)

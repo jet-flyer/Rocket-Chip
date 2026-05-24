@@ -23,4 +23,4 @@ All additions require explicit user approval.
 
 ---
 
-*These documents are protected. See `.claude/PROTECTED_FILES.md`.*
+*These documents are protected. See `docs/agents/PROTECTED_FILES.md`.*

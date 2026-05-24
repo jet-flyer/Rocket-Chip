@@ -226,7 +226,7 @@ Templates produce identical machine code to the current function-pointer indirec
 
 **Issue:** AGENT_WHITEBOARD lists 4 station SPIN model extensions (multi-pending-in-flight, RadioScheduler TX-window arbitration, MAVLink parser state, station_idle_tick GPS poll interleave) that are correctly deferred until corresponding firmware behavior lands. The trap (per council): when firmware DOES land, the SPIN extension has to ride with it in the same commit window, or it never gets written. Same trigger-driven principle as SESSION_CHECKLIST documents for state-of-system protected docs.
 
-**Recommended remediation:** Edit `.claude/SESSION_CHECKLIST.md` Trigger-Driven Doc Edits → Per-doc trigger map → add a row:
+**Recommended remediation:** Edit `docs/agents/SESSION_CHECKLIST.md` Trigger-Driven Doc Edits → Per-doc trigger map → add a row:
 
 > | `tools/spin/rocketchip_station.pml` and `tools/spin/rocketchip_ao.pml` | When firmware behavior matching a candidate SPIN extension lands (per `AGENT_WHITEBOARD.md` "SPIN model extensions" items — e.g., multi-pending-in-flight, RadioScheduler TX-window arbitration, MAVLink parser state, GPS poll interleave). The SPIN model edit rides in the same commit as the firmware change. |
 

@@ -426,4 +426,4 @@ The audit cycle (2026-05-13) closed with F-2026-05-13-001/002/003 DEFERRED to th
 
 `AUDIT_GUIDANCE.md` Tier 1.3 / 1.4(b) / 2.3 were updated in commits adjacent to the script commits to name the new audit-time mechanisms.
 
-This is a permitted retroactive amendment under `.claude/SESSION_CHECKLIST.md` "Retroactive amendment" rule — the dated audit report is a historical-record doc, but the original audit explicitly DEFERRED these three findings to the audit-infrastructure queue with the expectation of a follow-up session, so the row update from `DEFER` to `REMEDIATED` is in-scope.
+This is a permitted retroactive amendment under `docs/agents/SESSION_CHECKLIST.md` "Retroactive amendment" rule — the dated audit report is a historical-record doc, but the original audit explicitly DEFERRED these three findings to the audit-infrastructure queue with the expectation of a follow-up session, so the row update from `DEFER` to `REMEDIATED` is in-scope.

@@ -39,7 +39,7 @@ cycles between attempts.
 **Caveats:**
 - Use `monitor resume` (not `monitor reset run`) for dual-core targets
   in batch mode. `reset run` can leave Core 1 stuck at bootrom `0x000000da`
-  while Core 0 waits for a cross-core flag. See `.claude/DEBUG_PROBE_NOTES.md`.
+  while Core 0 waits for a cross-core flag. See `docs/agents/DEBUG_PROBE_NOTES.md`.
 - Probe physical wiring is limited to whichever board has SWD pins
   connected. See the project's hardware notes (e.g., repo-documented
   probe-to-board mapping) to know which board the probe currently reaches.
@@ -232,7 +232,7 @@ These practices prevent the mistake at build time:
    rebuild). `__DATE__ __TIME__` alone blurs together during rapid
    rebuilds and the same binary flashed twice looks identical. Always
    verify the tag in serial output before starting a test cycle. See
-   `.claude/LESSONS_LEARNED.md` Entry 2.
+   `docs/agents/LESSONS_LEARNED.md` Entry 2.
 
 ---
 
@@ -244,11 +244,11 @@ These practices prevent the mistake at build time:
 - **GDB "Remote communication error":** Use the Pico SDK's GDB
   (`/c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe`),
   not Chocolatey's. Version-mismatch issue. Details:
-  `.claude/DEBUG_PROBE_NOTES.md`.
+  `docs/agents/DEBUG_PROBE_NOTES.md`.
 - **"Unable to find CMSIS-DAP device":** Stale OpenOCD processes
   holding the probe's USB device. `taskkill //F //IM openocd.exe`,
   wait 2s, restart with full path. Details:
-  `.claude/DEBUG_PROBE_NOTES.md`.
+  `docs/agents/DEBUG_PROBE_NOTES.md`.
 - **USB enumerates to a new COM port after flash:** Normal on Windows
   after re-enumeration. Don't use COM numbers as identity — identify
   boards by chip serial or firmware banner content per the checklist
@@ -298,11 +298,11 @@ These practices prevent the mistake at build time:
 
 ## See also
 
-- `.claude/DEBUG_PROBE_NOTES.md` — OpenOCD startup, GDB commands, debug
+- `docs/agents/DEBUG_PROBE_NOTES.md` — OpenOCD startup, GDB commands, debug
   probe troubleshooting beyond flashing
 - `docs/BENCH_TEST_PROCEDURE.md` — soak-test procedure; uses this
   flashing doc + verification checklist as preconditions
-- `.claude/LESSONS_LEARNED.md` Entries 25, 27, 28, 31, 36 — historical
+- `docs/agents/LESSONS_LEARNED.md` Entries 25, 27, 28, 31, 36 — historical
   flash-related failure modes and their fixes
 - `standards/DEBUG_OUTPUT.md` — build iteration tags, serial-terminal
   compatibility notes

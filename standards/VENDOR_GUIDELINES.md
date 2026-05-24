@@ -266,4 +266,4 @@ When integrating a new sensor, radio, or peripheral:
 
 ---
 
-*See also: `CODING_STANDARDS.md` (Prior Art Research section), `.claude/LESSONS_LEARNED.md` (debugging journal), `docs/hardware/HARDWARE.md` (physical inventory)*
+*See also: `CODING_STANDARDS.md` (Prior Art Research section), `docs/agents/LESSONS_LEARNED.md` (debugging journal), `docs/hardware/HARDWARE.md` (physical inventory)*

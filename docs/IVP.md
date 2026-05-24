@@ -31,7 +31,7 @@ This document defines the step-by-step integration order for RocketChip firmware
 **Key references (not duplicated here):**
 - `docs/SAD.md` — System architecture, data structures, module responsibilities
 - `include/rocketchip/config.h` — Pin assignments, I2C addresses, timing constants
-- `.claude/LESSONS_LEARNED.md` — Debugging journal (referenced as "LL Entry N")
+- `docs/agents/LESSONS_LEARNED.md` — Debugging journal (referenced as "LL Entry N")
 - `docs/decisions/ESKF/FUSION_ARCHITECTURE.md` — Sensor fusion design
 - `docs/decisions/SEQLOCK_DESIGN.md` — Council decision on bare-metal dual-core and seqlock pattern
 
@@ -55,7 +55,7 @@ This document defines the step-by-step integration order for RocketChip firmware
 | Tool | Purpose | Notes |
 |------|---------|-------|
 | picotool | Routine flashing | `picotool load build/rocketchip.uf2 --force` |
-| Raspberry Pi Debug Probe | GDB, flash when USB broken | Use Pico SDK OpenOCD — see `.claude/DEBUG_PROBE_NOTES.md` |
+| Raspberry Pi Debug Probe | GDB, flash when USB broken | Use Pico SDK OpenOCD — see `docs/agents/DEBUG_PROBE_NOTES.md` |
 | Python pyserial | Scripted serial testing | More reliable than PuTTY for USB CDC |
 | VSCode Serial Monitor | Interactive serial | Recommended over PuTTY (LL Entry 16) |
 | Multimeter | Voltage checks | 3.3V rail, battery voltage |
@@ -3688,4 +3688,4 @@ Tests to re-run after changes to specific areas.
 
 *Document maintained in: `docs/IVP.md`*
 *Architecture reference: `docs/SAD.md`*
-*Debugging journal: `.claude/LESSONS_LEARNED.md`*
+*Debugging journal: `docs/agents/LESSONS_LEARNED.md`*

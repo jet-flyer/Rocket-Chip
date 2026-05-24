@@ -24,7 +24,7 @@ If a future council elevates this doc to normative (standards/), it becomes `sta
   - [QP/C SRS Active Objects](https://www.state-machine.com/qpc/srs-qp_ao.html) — framework-level requirements (not duplicated here).
   - [Active Objects for Embedded — App Note PDF](https://www.state-machine.com/doc/AN_Active_Objects_for_Embedded.pdf).
 - **NASA F´** — [F´ Code Style](https://nasa.github.io/fprime/UsersGuide/dev/code-style.html); adopts JPL Power-of-10, which we already enforce via `standards/CODING_STANDARDS.md`.
-- **RocketChip Lessons Learned** — `.claude/LESSONS_LEARNED.md` Entries 32 and 35 (project-specific).
+- **RocketChip Lessons Learned** — `docs/agents/LESSONS_LEARNED.md` Entries 32 and 35 (project-specific).
 
 ---
 

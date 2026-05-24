@@ -132,7 +132,7 @@ JSF AV C++ (December 2005)    ← Foundational catalog: 221 C++ rules (Lockheed 
 
 ## Section D: Project-Specific Rules
 
-*D.1: Platform Constraints (RP2350, see `CODING_STANDARDS.md` "RP2350 Bare-Metal Platform Constraints"), D.2: Multicore Rules (see `docs/MULTICORE_RULES.md`), D.3: Debug Output (see `standards/DEBUG_OUTPUT.md`), D.4: Prior Art Research (see `CODING_STANDARDS.md` "Prior Art Research"), D.5: Safety & Regulatory (see `CODING_STANDARDS.md` "Safety and Regulatory"), D.6: Git Workflow (see `standards/GIT_WORKFLOW.md`), D.7: Session Management (see `.claude/SESSION_CHECKLIST.md`), D.8: Comment Density (target band 15-25% per `CODING_STANDARDS.md` "Comment Density"; measurement script: `scripts/audit/comment_density.sh` or equivalent; target band sourced from Polyspace 20% lower limit + Arafati & Riehle 2009 mean 19% / median 17% + Elish & Offutt mean 15.2%).*
+*D.1: Platform Constraints (RP2350, see `CODING_STANDARDS.md` "RP2350 Bare-Metal Platform Constraints"), D.2: Multicore Rules (see `docs/MULTICORE_RULES.md`), D.3: Debug Output (see `standards/DEBUG_OUTPUT.md`), D.4: Prior Art Research (see `CODING_STANDARDS.md` "Prior Art Research"), D.5: Safety & Regulatory (see `CODING_STANDARDS.md` "Safety and Regulatory"), D.6: Git Workflow (see `standards/GIT_WORKFLOW.md`), D.7: Session Management (see `docs/agents/SESSION_CHECKLIST.md`), D.8: Comment Density (target band 15-25% per `CODING_STANDARDS.md` "Comment Density"; measurement script: `scripts/audit/comment_density.sh` or equivalent; target band sourced from Polyspace 20% lower limit + Arafati & Riehle 2009 mean 19% / median 17% + Elish & Offutt mean 15.2%).*
 
 ---
 

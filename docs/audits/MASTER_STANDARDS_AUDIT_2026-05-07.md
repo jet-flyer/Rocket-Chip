@@ -864,7 +864,7 @@ Compared to original Phase 1 (3,288 warnings on the unfiltered pass), this refle
 
 `logs/audit-2026-05-13-L2/07_clang_tidy_milestone_close.log` (empty = 0 findings).
 
-Per `.claude/SESSION_CHECKLIST.md` item 17 — the milestone-close sweep runs only `readability-function-size` + `readability-function-cognitive-complexity` across every `src/**/*.cpp` not on the exemption list (exemptions: `src/cli/**`, `src/dev/**`, `src/fusion/eskf_codegen.cpp`). This is the "rot detection" check that catches functions that accumulated past JSF AV Rule 1's 60-line / CCN-25 thresholds since the last milestone.
+Per `docs/agents/SESSION_CHECKLIST.md` item 17 — the milestone-close sweep runs only `readability-function-size` + `readability-function-cognitive-complexity` across every `src/**/*.cpp` not on the exemption list (exemptions: `src/cli/**`, `src/dev/**`, `src/fusion/eskf_codegen.cpp`). This is the "rot detection" check that catches functions that accumulated past JSF AV Rule 1's 60-line / CCN-25 thresholds since the last milestone.
 
 **Verdict: 0 milestone-close findings across the audited tree.**
 

@@ -76,7 +76,7 @@ All D.1 through D.8 rules walked.
 
 ## Section E: Agent Behavioral Guidelines — PASS
 
-Walk against `.claude/AK_GUIDELINES.md` against this session's actual conduct (which is the audit material for E):
+Walk against `standards/AK_GUIDELINES.md` against this session's actual conduct (which is the audit material for E):
 
 - §1 Think Before Coding: surfaced assumptions before implementing (severity gate, MISRA chain-of-custody, IRL-aviation attribution correction). Asked clarifying questions before drafting protected-file edits.
 - §2 Simplicity First: F-2026-05-13-004 fix was minimal (3-line additions). No speculative abstractions.

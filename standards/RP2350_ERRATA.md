@@ -429,7 +429,7 @@ security posture), the row must be re-promoted to the active matrix above.
 - `AGENT_WHITEBOARD.md` 2026-04-22 errata-sweep entry — tracking item
 - `CMakeLists.txt:274` — E2 primary-path workaround applied in-tree
 - `src/logging/flash_flush.cpp:341` — E11 workaround via SDK API call
-- `.claude/LESSONS_LEARNED.md` Entry 36 — "infrastructure vs artifact"
+- `docs/agents/LESSONS_LEARNED.md` Entry 36 — "infrastructure vs artifact"
   discipline; this document is structured as infrastructure
 - `standards/CODING_STANDARDS.md` RP2350 Platform Constraints section —
   one-line pointer back to this document

@@ -152,7 +152,7 @@ if [[ "${TRIGGER_FLIGHT_BENCH}" == "1" ]]; then
         echo ""
         echo "HW VERIFICATION NEEDED BUT OPENOCD NOT ON localhost:3333"
         echo "(bench_sim gate — see docs/CONFIG_TEST_MATRIX.md, LL Entry 36 + 39)"
-        echo "Start OpenOCD per .claude/DEBUG_PROBE_NOTES.md, or use"
+        echo "Start OpenOCD per docs/agents/DEBUG_PROBE_NOTES.md, or use"
         echo "--no-verify only after receiving explicit permission from the repo owner in this session."
         exit 1
     fi

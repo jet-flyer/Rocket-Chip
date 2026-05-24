@@ -18,7 +18,7 @@ distinct source per its category:
     least NNN lines.
 
   Phase 3 - Internal cross-doc references
-    LL Entry N - check `.claude/LESSONS_LEARNED.md` has `## Entry N`.
+    LL Entry N - check `docs/agents/LESSONS_LEARNED.md` has `## Entry N`.
     IVP-N - check `docs/IVP.md` references this IVP.
     R-N findings - check `docs/PROBLEM_REPORTS.md` has the row.
 
@@ -251,7 +251,7 @@ def check_file_line(cite: str, repo: str) -> Tuple[str, str]:
 
 
 def _load_ll_entries(repo: str) -> set:
-    full = os.path.join(repo, '.claude', 'LESSONS_LEARNED.md')
+    full = os.path.join(repo, 'docs', 'agents', 'LESSONS_LEARNED.md')
     if not os.path.exists(full):
         return set()
     nums = set()
@@ -383,7 +383,7 @@ def main() -> int:
           f'{len(ll_universe)} entries in LESSONS_LEARNED.md) ===')
     for n in ll_cites:
         if n not in ll_universe:
-            print(f'  [NOT-FOUND   ] ✗ LL Entry {n} not in .claude/LESSONS_LEARNED.md')
+            print(f'  [NOT-FOUND   ] ✗ LL Entry {n} not in docs/agents/LESSONS_LEARNED.md')
             fail += 1
     if not any(n not in ll_universe for n in ll_cites):
         print(f'  ({len(ll_cites)} all resolve)')

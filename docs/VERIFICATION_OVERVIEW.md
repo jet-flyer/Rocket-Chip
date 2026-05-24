@@ -186,5 +186,5 @@ Each layer catches a class of bugs that the others miss. Skipping any layer leav
 - [Dynamic Validation Methods](DYNAMIC_VALIDATION.md) — Physical test methods for ESKF accuracy
 - [IVP.md](IVP.md) — Integration gates (pass/fail criteria per feature)
 - [DEBUG_OUTPUT.md](../standards/DEBUG_OUTPUT.md) — Serial testing via Python, CLI test scripts
-- [Lessons Learned](../.claude/LESSONS_LEARNED.md) — Debugging journal with known failure modes
+- [Lessons Learned](../docs/agents/LESSONS_LEARNED.md) — Debugging journal with known failure modes
 - [Audit Guidance](../standards/AUDIT_GUIDANCE.md) — Master audit lifecycle and scope decision table

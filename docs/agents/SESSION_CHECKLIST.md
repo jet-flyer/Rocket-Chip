@@ -46,6 +46,8 @@ These run on **every** `git commit`. Inherited by PUSH, SESSION_END, and MILESTO
 2. **No orphaned work.** Every file change being committed should be intentional. No half-finished edits left in the working tree from prior tool calls.
 3. **No unintended deletions.** Run `git diff --stat` (or `git status --short`) and verify the diff matches what the commit is claiming to do. If files are being deleted, confirm that was intentional.
 4. **Commit message.** Format: `[agent] brief description of what and why`. If a HW gate ran for this commit (bench_sim, ctest, soak, post-flash banner read), the message must cite the **observed positive-control signal**, not just the gate name. See `standards/HW_GATE_DISCIPLINE.md` Rule 3. Pure-software changes are exempt — say so explicitly in the commit message ("Verified: pure-software change, host ctest 788/788, no HW reseat required").
+
+4a. **Hardware gate readiness.** When the pre-commit hook indicates that hardware verification is required (e.g. “HW VERIFICATION NEEDED” or “OpenOCD not on localhost:3333”), start OpenOCD using the commands in `docs/agents/DEBUG_PROBE_NOTES.md` (or `scripts/start_openocd_pico_sdk.ps1`) before proceeding with the commit. `--no-verify` may only be used with explicit repo-owner approval in the current session.
 5. **Trigger-driven doc edits ride with the trigger** (see "Trigger-Driven Documentation Edits" section below). If this commit changed a fact a state-of-system protected doc states, the doc edit goes in the same commit, not a separate one.
 
 5a. **Change Impact Analysis for non-trivial changes.** Before staging a commit that touches a flight-critical path, a state-of-system protected doc, or any mechanism that other code depends on, name the dependency footprint:

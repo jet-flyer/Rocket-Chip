@@ -25,7 +25,7 @@ taskkill //F //IM openocd.exe 2>/dev/null; sleep 2
   -c "adapter speed 5000" &
 ```
 
-See `.claude/DEBUG_PROBE_NOTES.md` for full setup, known issues, and GDB version requirements (use Pico SDK GDB, not Chocolatey).
+See `docs/agents/DEBUG_PROBE_NOTES.md` for full setup, known issues, and GDB version requirements (use Pico SDK GDB, not Chocolatey).
 
 ---
 
@@ -247,7 +247,7 @@ detach
 
 ## References
 
-- `.claude/DEBUG_PROBE_NOTES.md` — OpenOCD startup, GDB commands, known issues
+- `docs/agents/DEBUG_PROBE_NOTES.md` — OpenOCD startup, GDB commands, known issues
 - `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md` — current bench-tier model (single binary, test-mode gate, R-25-exec)
 - `safety/test_mode.h` — three-condition AND gate, probe-arming flow
 - `standards/HW_GATE_DISCIPLINE.md` Rule 4 — labeled-soft gate pivot when script automation fails

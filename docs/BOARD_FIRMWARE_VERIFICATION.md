@@ -117,7 +117,7 @@ practices prevent the mistake at build time:
 
 - `docs/BENCH_TEST_PROCEDURE.md` — soak-test procedure (uses this
   checklist as a precondition before soak results are trusted)
-- `.claude/LESSONS_LEARNED.md` Entry 36 — honor-system gates and the
+- `docs/agents/LESSONS_LEARNED.md` Entry 36 — honor-system gates and the
   "infrastructure vs artifact" framing
-- `.claude/DEBUG_PROBE_NOTES.md` — debug probe flash transport (one of
+- `docs/agents/DEBUG_PROBE_NOTES.md` — debug probe flash transport (one of
   several valid transports; orthogonal to this checklist)

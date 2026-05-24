@@ -16,7 +16,7 @@
 > override), P10 (2006) takes precedence over JSF Rule 176 (2005) for this
 > case. The design decision (direct function calls, no vtable) is correctly
 > aligned with the actual governing standard. Document body left unedited
-> as historical record per `.claude/SESSION_CHECKLIST.md` Trigger-Driven
+> as historical record per `docs/agents/SESSION_CHECKLIST.md` Trigger-Driven
 > Doc Edits convention; mentally substitute "P10 Rule 9" wherever the body
 > says "JSF AV Rule 170."
 

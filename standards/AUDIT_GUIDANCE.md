@@ -78,7 +78,7 @@ Mechanical catalog work. The big static pass against published rule sets the pro
     - LOC-1 through LOC-4 (102 rules — JPL-original tiers): per-rule walk.
     - **LOC-5 and LOC-6: DEFERRED-WITH-RATIONALE.** These are the MISRA-C absorption tiers (LOC-5 = MISRA "shall" rules not in LOC-1..4; LOC-6 = MISRA "should" rules). Rule text is MIRA Ltd. copyrighted, not in public JPL PDF. Project policy 2026-05-13: defer until a formally-certified-code variant is in scope. See `standards/CODING_STANDARDS.md` Foundation section for the chain-of-custody (MISRA-C → JPL C LOC-5/6 → JSF → P10 distill). Re-evaluated at Tier 2.5a each cycle.
 3.4 **Section D — Project-Specific Rules.** RP2350 platform constraints, multicore rules, debug output, prior-art-research, safety-and-regulatory, git-workflow, session-management, **comment-density measurement (target band 15-25% per `CODING_STANDARDS.md`)**.
-3.5 **Section E — Agent Behavioral Guidelines.** Walk `.claude/AK_GUIDELINES.md` per-rule. Deliverable: do recent commits demonstrate compliance?
+3.5 **Section E — Agent Behavioral Guidelines.** Walk `standards/AK_GUIDELINES.md` per-rule. Deliverable: do recent commits demonstrate compliance?
 3.6 **DEV_CODE audit** (per `docs/audits/DEV_CODE_AUDIT.md` methodology): dev-tier code in flight binary.
 3.7 **VERSION_STRING audit** (per `docs/audits/VERSION_STRING_AUDIT.md` methodology): stale version-like values in serial output / banner.
 3.8 **Section F-1 — Citations within standards documents** (council amendment #2): walk file:line references and standards-citations inside the standards documents themselves (`CODING_STANDARDS.md`, `HW_GATE_DISCIPLINE.md`, `AUDIT_GUIDANCE.md`, `RP2350_ERRATA.md`, `ACCEPTED_STANDARDS_DEVIATIONS.md`). F-2 (audit-cycle citations in non-standards docs) is Tier 6.1. **Exhaustive coverage** against the distinct-cited-source population (sampling-based walks missed R-26 in the 2026-05-07 L2 audit — see L2-P2 below). **Tooling gap:** no maintained citation inventory script exists yet (L2-P3 — could become a future audit-infrastructure F-2026-MM-DD-NNN follow-up alongside the F-001/002/003 family); the audit's own grep is the current method.
@@ -100,7 +100,7 @@ Examine what the code *does* at runtime, not just its static structure. Source: 
 4.3 **Fault injection scenarios**: run `enhanced_fault_injection.py` end-to-end.
 4.4 **AO Commandments full sweep** (per `docs/audits/AO_COMMANDMENTS_AUDIT_*.md` methodology): walk 9 active AOs × 12 commandments in `docs/decisions/AO_COMMANDMENTS.md`.
 4.5 **CLA + RBM** (per `docs/audits/cla_rbm/CLA_RBM_PLAN.md` deliverables): Computational Load Analysis + Runtime Behavior Map. If most-recent CLA data >3 months old, flag re-collection as remediation item (HW soak; can be queued to a separate session).
-4.6 **LL-entry freshness sweep**: walk `.claude/LESSONS_LEARNED.md` Critical/High entries. Each entry's claim ("X is fixed in tree", "Y workaround in place") verified against current code. Stale entries get supersession headers (LL Entry 25 SUPERSEDED 2026-04-22 is the pattern).
+4.6 **LL-entry freshness sweep**: walk `docs/agents/LESSONS_LEARNED.md` Critical/High entries. Each entry's claim ("X is fixed in tree", "Y workaround in place") verified against current code. Stale entries get supersession headers (LL Entry 25 SUPERSEDED 2026-04-22 is the pattern).
 
 **Stop condition:** Tier 4 finding that contradicts Tier 3 PASS for the same code path AND severity Catastrophic/Critical → re-open Tier 3 for that path.
 
@@ -442,7 +442,7 @@ Process the PR set in four categories, in this order. Within each category, depe
 - Flight-critical paths (state machine, ESKF, pyro, watchdog, fault handler) before flight-support paths (LED engine, telemetry, logging) before ground-only paths (calibration, CLI, dev/diagnostic). A "critical" defect in code that can't execute during flight is less urgent than a "marginal" defect in flight-critical code, because runtime lockout removes the in-flight failure mode for the ground-only case.
 - Within a tier, prefer PRs that touch the same file (one focused commit per file) over PRs scattered across many files — re-touching a file across many commits has a small but real chance of conflict if active development overlaps with the audit cycle.
 
-**Category 4 — Cleanup & Documentation.** PRs that are doc-only (CHANGELOG, SAD updates triggered by category-2/3 work, decision-doc supersession notes), comment-only, or stylistic. Defer to the end of the cycle. The audit's `## Remediation` section is itself state-of-system documentation, so per-doc trigger-driven edits per `.claude/SESSION_CHECKLIST.md` still apply at the appropriate trigger point — category 4 is for cleanup that wasn't already covered by per-commit trigger discipline.
+**Category 4 — Cleanup & Documentation.** PRs that are doc-only (CHANGELOG, SAD updates triggered by category-2/3 work, decision-doc supersession notes), comment-only, or stylistic. Defer to the end of the cycle. The audit's `## Remediation` section is itself state-of-system documentation, so per-doc trigger-driven edits per `docs/agents/SESSION_CHECKLIST.md` still apply at the appropriate trigger point — category 4 is for cleanup that wasn't already covered by per-commit trigger discipline.
 
 ### C.4 Commit cadence — atomic per PR, with named clustering exceptions
 
@@ -504,7 +504,7 @@ Halts are recorded as `HALT` rows in the dated report's `## Remediation` section
 
 This appendix is project-wide guidance, not specific to any single audit cycle. Every future master audit's Tier 7 follows the same PR-lifecycle framing with the same four categories and the same verification cadence. Each dated report's `## Remediation` section opens with a one-paragraph preamble naming any deviations from the canonical order (rare — e.g., an emergency safety hotfix that bypasses category 1 because the safety issue is more urgent than gate-hygiene).
 
-If the project's verification surface area changes meaningfully (new hardware tier, new audit phase, new gating mechanism), update this appendix as a state-of-system trigger — same discipline as `.claude/SESSION_CHECKLIST.md` Trigger-Driven Doc Edits.
+If the project's verification surface area changes meaningfully (new hardware tier, new audit phase, new gating mechanism), update this appendix as a state-of-system trigger — same discipline as `docs/agents/SESSION_CHECKLIST.md` Trigger-Driven Doc Edits.
 
 ### C.9 Source notes (load-bearing only)
 
