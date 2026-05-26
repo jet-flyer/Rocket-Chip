@@ -20,6 +20,14 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 **History vs drafting:** Prefer not to revise **older unrelated** dated entries (`### YYYY-MM-DD-NNN`) to fix mistakes—that belongs in **a newer entry** unless the change is a trivial typo. **Drafting:** it’s fine to **edit/refine the entry you’re composing in this commit** until it reads right before you ship it—that isn’t rewriting project history.
 
+**Agent attribution:** When an AI agent authors an entry, credit both the model version and the specific harness/interface (e.g. `Grok 4.3 (Build CLI)`, `Grok 4.3`, `Grok Build 0.1`, `Claude 3.5 (Code)`, `Claude (Browser)`, etc.). This should be reflected in the `Author` field of the header.
+
+---
+
+### 2026-05-26-001 | Grok 4.3 (Build CLI) | documentation, architecture
+
+**CCSDS command-layer preparation baseline.** Produced current-state data flow analysis of the existing tracked-command + retry + ACK mechanism (the primary STOP-GAP). Created detailed textual map with file:line citations + Graphviz diagram (`docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.{md,dot,svg}`). Installed Graphviz for ongoing use. Added session handoff notes to `AGENT_WHITEBOARD.md`. Foundational artifacts for future TC-layer / COP-1 rework scoping (including potential standalone library). Pure analysis/documentation — no src/ changes this session.
+
 ---
 
 ### 2026-05-22-003 | Claude | tooling, audit, council, documentation, refactor

@@ -21,6 +21,50 @@
 
 **Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **856** host `ctest` entries (852 C++ discovered + **4** Python `scripts/` gates), SPIN 11/11. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17 (Field Testing & Avionics Airworthiness) restructured 2026-04-22** from 5-IVP direct-to-flight into 13-IVP tapered buildup (three council rounds, approved with amendments). First motor flight = step 13 of 14. Plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. Execution awaits future session; starts with IVP-135a (pure-software log schema extension). **CCSDS TC-Layer + COP-1 rework deferred to post-Stage-17** (unanimous council) — field data will inform scoping.
 
+---
+
+## Session Handoff Notes (2026-05-26, Grok)
+
+**User requested explicit session handoff + pause.**
+
+**Work completed this session:**
+- Deep dive into current CCSDS status (TM side implemented as pruned Space Packet; TC + COP-1 is the missing STOP-GAP).
+- Created thorough current-state analysis of the command/retry/ACK reliability layer (the main area the CCSDS command rework would replace).
+- Produced two primary artifacts for CCSDS prep:
+  - `docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.md` (detailed textual map with file:line citations)
+  - `docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.dot` + rendered `.svg` (Graphviz diagram matching project conventions from `docs/audits/cla_rbm/dot/`)
+- Installed Graphviz via winget so the visualizer can be used going forward.
+- Graphviz is now present on the machine (`C:\Program Files\Graphviz\bin\dot.exe`).
+
+**Files touched (all new, untracked):**
+- docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.md
+- docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.dot
+- docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.svg
+
+**Current state of CCSDS prep work:**
+- We now have a high-quality, citable "as-built" map of the existing command delivery + retry mechanism.
+- This directly supports scoping, interface design, and migration planning for any future CCSDS TC-layer work (including the standalone library idea the user mentioned).
+- Multiple items remain explicitly parked pending this rework (see "High priority" section below: IVP-T13, station radio health channel, first-try metric re-baseline).
+
+**What was discussed but not yet executed:**
+- Next actions with the data flow artifacts (scoping doc, library contract definition, target-state diagram, design doc for council, etc.).
+- User indicated they want to pause for the night.
+
+**Handoff instructions from user:**
+- **Check with user before any commit or push.** Do not commit these files or push without explicit approval in the next session.
+- Working tree currently has only the three new decision files above as untracked changes.
+
+**Open questions / suggested next steps for next session:**
+- Which direction to take the data flow work (scoping options, library behavioral contract, target-state diagram, full design doc)?
+- Any specific refinements needed to the .dot / MD before using them in a council or design review?
+- Whether to create a dedicated CCSDS command layer planning document.
+
+**Build / verification state:** N/A — pure documentation work. No src/ changes. No builds or tests affected.
+
+---
+
+**End of handoff note.** (Erase or update this section when work resumes.)
+
 ## Use Cases
 1. **Cross-agent review** — Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
 2. **Cross-context handoff** — Notes for future Claude sessions when context is lost

@@ -1,0 +1,162 @@
+// RocketChip - Current Tracked Command / Retry / ACK Data Flow
+// Pre-CCSDS TC-Layer Analysis Baseline
+// Focus: Station-initiated tracked commands (ARM/DISARM/ABORT/SET_CFG/QUERY) + reliability mechanism
+//
+// Render: dot -Tsvg CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.dot -o CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.svg
+//
+// Style conventions match docs/audits/cla_rbm/dot/ (clusters, layer colors, rounded boxes, explicit edge labels)
+// This diagram deliberately highlights the areas a proper CCSDS TC + COP-1 layer would replace or heavily influence.
+
+digraph current_command_retry_ack_flow {
+    rankdir=LR;
+    node [fontname="Helvetica", fontsize=9, shape=box, style="rounded"];
+    edge [fontname="Helvetica", fontsize=8];
+    newrank=true;
+    splines=polyline;
+    nodesep=0.5;
+    ranksep=0.8;
+
+    // ============================================
+    // STATION SIDE (Left)
+    // ============================================
+
+    subgraph cluster_station {
+        label="STATION (Core 0)";
+        style=filled;
+        fillcolor="#E3F2FD";
+        color="#1565C0";
+        fontcolor="#0D47A1";
+        fontsize=11;
+
+        // Sources
+        cli_dash [label="CLI Dashboard\n(rc_os_dashboard.cpp)\nor GCS MAVLink", shape=ellipse, style=filled, fillcolor="#BBDEFB"];
+        station_tick [label="Station 10Hz Tick\n(cmd_retry_tick)", shape=box, style=rounded, fillcolor="#90CAF9"];
+
+        // Core AO
+        ao_telem_station [label="AO_Telemetry\n(Station)\nTracked Cmd State\nRetry Logic\ns_pending_cmd", shape=box, style="rounded,filled", fillcolor="#FFECB3", penwidth=2];
+
+        // Supporting AOs
+        ao_radio_station [label="AO_Radio\n+ RadioScheduler\nTX windows", shape=box, style=rounded, fillcolor="#C8E6C9"];
+        ao_rf_mgr [label="AO_RfManager\nok_to_retry()\nanchor timing\nLinkState", shape=box, style=rounded, fillcolor="#C8E6C9"];
+
+        // State machines inside Telem
+        retry_sm [label="Retry State Machine\nkAckMaxRetries=8\nairtime-scaled timeout\nresend_pending_cmd()", shape=box, style="rounded,dashed", fillcolor="#FFF9C1"];
+
+        // ACK handling
+        ack_rx_station [label="ACK RX Path\n(CCSDS APID 0x003)\nMatch seq + latch result", shape=box, style=rounded, fillcolor="#DCEDC8"];
+    }
+
+    // ============================================
+    // RADIO LINK (Center)
+    // ============================================
+
+    subgraph cluster_link {
+        label="Half-Duplex LoRa Link (RFM95W / SX1276)";
+        style=filled;
+        fillcolor="#FFF3E0";
+        color="#E65100";
+        fontcolor="#BF360C";
+        fontsize=10;
+
+        mavlink_cmd [label="MAVLink COMMAND_LONG\n(confirmation = seq)", shape=box, style=rounded, fillcolor="#FFE0B2"];
+        ccsds_ack [label="CCSDS ACK Packet\nAPID 0x003 | 22 bytes\n(CommandAckPayload + CRC)", shape=box, style=rounded, fillcolor="#FFE0B2", penwidth=2];
+    }
+
+    // ============================================
+    // VEHICLE SIDE (Right)
+    // ============================================
+
+    subgraph cluster_vehicle {
+        label="VEHICLE (Core 0)";
+        style=filled;
+        fillcolor="#FFEBEE";
+        color="#C62828";
+        fontcolor="#B71C1C";
+        fontsize=11;
+
+        ao_radio_vehicle [label="AO_Radio\nRX + CRC/seq\nvalidation", shape=box, style=rounded, fillcolor="#EF9A9A"];
+
+        ao_telem_vehicle [label="AO_Telemetry\n(Vehicle)\ndecode + dispatch\nstage_cmd_ack()", shape=box, style="rounded,filled", fillcolor="#FFCDD2", penwidth=2];
+
+        // Dispatch
+        dispatch [label="dispatch_command()\n(MAV_CMD switch)\n→ FD signals or handlers", shape=box, style=rounded, fillcolor="#EF9A9A"];
+
+        ao_fd [label="AO_FlightDirector\nExecutes ARM/DISARM/ABORT\nReturns ack_result", shape=box, style=rounded, fillcolor="#EF9A9A"];
+
+        // ACK generation
+        ack_gen [label="stage_cmd_ack()\ns_pending_ack\n+ config echo for QUERY\nsend_pending_ack_if_any()", shape=box, style="rounded,dashed", fillcolor="#FFCDD2"];
+
+        ccsds_encode [label="ccsds_encode_cmd_ack()\n(APID 0x003)", shape=box, style=rounded, fillcolor="#EF9A9A"];
+    }
+
+    // ============================================
+    // EDGES - Station Command Issuance
+    // ============================================
+
+    cli_dash -> ao_telem_station [label="send_tracked_command(cmd, p1..p5)\nfile: ao_telemetry.cpp:94", color="#1565C0", penwidth=1.5];
+
+    ao_telem_station -> retry_sm [label="init s_pending_cmd\nset retries_left", color="#F57C00"];
+    station_tick -> ao_telem_station [label="cmd_retry_tick(now_ms)\nfile: ao_telemetry.cpp:1028", color="#1565C0"];
+
+    retry_sm -> ao_telem_station [label="on timeout:\nif retries_left > 0\n→ resend", color="#E65100", style=dashed];
+
+    ao_telem_station -> ao_radio_station [label="SIG_RADIO_TX\n(MAVLink frame)\nfile: ao_telemetry.cpp:1017 (resend)", color="#2E7D32"];
+
+    ao_radio_station -> ao_rf_mgr [label="next_tx_window_us()\nok_to_retry()", color="#2E7D32", style=dashed];
+
+    // ============================================
+    // Link
+    // ============================================
+
+    ao_radio_station -> mavlink_cmd [label="LoRa TX\n(half-duplex, collides with veh nav)", color="#E65100", penwidth=2];
+    mavlink_cmd -> ao_radio_vehicle [label="LoRa RX", color="#E65100", penwidth=2];
+
+    ccsds_ack -> ao_radio_station [label="LoRa RX (ACK)", color="#1565C0", penwidth=2];
+
+    // ============================================
+    // Vehicle Receive + Dispatch
+    // ============================================
+
+    ao_radio_vehicle -> ao_telem_vehicle [label="SIG_RADIO_RX\nfile: ao_telemetry.cpp ~336", color="#C62828"];
+
+    ao_telem_vehicle -> dispatch [label="handle_rx_mavlink_msg\nCOMMAND_LONG", color="#C62828"];
+
+    dispatch -> ao_fd [label="SIG_ARM / SIG_DISARM / SIG_ABORT\nor direct config apply", color="#C62828", penwidth=1.5];
+
+    ao_fd -> dispatch [label="ack_result (kAccepted / kDenied)", color="#C62828"];
+
+    dispatch -> ack_gen [label="stage_cmd_ack(cmd, result)\nfile: ao_telemetry.cpp:311", color="#C62828"];
+
+    ack_gen -> ccsds_encode [label="populate CommandAckPayload\n+ config echo (QUERY)", color="#C62828"];
+
+    ccsds_encode -> ao_radio_vehicle [label="SIG_RADIO_TX\n(CCSDS APID 0x003 ACK)", color="#C62828"];
+
+    // ============================================
+    // ACK Return & Matching (Station)
+    // ============================================
+
+    ao_radio_station -> ack_rx_station [label="SIG_RADIO_RX\n(CCSDS decode)", color="#1565C0"];
+
+    ack_rx_station -> ao_telem_station [label="match seq against s_pending_cmd\nlatch s_last_cmd_result\nclear pending", color="#1565C0", penwidth=1.5];
+
+    ao_telem_station -> cli_dash [label="dashboard update\n(retry stats + last result)", color="#1565C0", style=dashed];
+
+    // ============================================
+    // Failure Path
+    // ============================================
+
+    retry_sm -> ao_telem_station [label="retries exhausted\nrecord fail + stats\nlatch failure result", color="#B71C1C", style=dashed, penwidth=1.5];
+
+    // ============================================
+    // Legend / Notes
+    // ============================================
+
+    legend [label="Legend:\nSolid = primary flow\nDashed = retry / state / decision\nYellow = core STOP-GAP logic\nRed = Vehicle dispatch\nBlue = Station retry/ACK\nGreen = Radio scheduling", shape=note, style=filled, fillcolor="#FAFAFA", fontsize=8];
+
+    // Rank hints for cleaner layout
+    { rank=same; cli_dash; station_tick; }
+    { rank=same; ao_telem_station; retry_sm; }
+    { rank=same; ao_radio_station; ao_rf_mgr; }
+    { rank=same; dispatch; ao_fd; }
+    { rank=same; ack_gen; ccsds_encode; }
+}
