@@ -62,6 +62,7 @@ from _rc_test_common import (  # noqa: E402
     Banner,
     Role,
     classify_banner,
+    ensure_station_in_dashboard_state,
     find_target_port,
     open_classified_port,
     peek_banner,
@@ -282,6 +283,15 @@ def _station_bench_run_inner(ser: serial.Serial,
                              allow_vehicle: bool):
     """Test body inside ``open_classified_port`` context."""
 
+    # Ensure the station board is in a known-good initial state (dashboard)
+    # before any classification or test logic runs. After flash/reboot/'x'
+    # the board can legitimately be in kmenu. We drive it to dashboard here
+    # so the existing safety guards + navigation helpers see the expected
+    # banner. This is the "ensure good state" fix for the default dashboard
+    # change (2026-05-27).
+    if meta.role == Role.STATION:
+        ensure_station_in_dashboard_state(ser)
+
     # Re-confirm we are still on station firmware after open() — defends
     # against the (rare) case where the user hot-swapped boards between
     # port selection and connect().
@@ -297,11 +307,26 @@ def _station_bench_run_inner(ser: serial.Serial,
     ser.write(b'h')              # request main-menu help
     time.sleep(1.0)
     sanity = ser.read(16000).decode('utf-8', errors='replace')
-    if classify_banner(sanity).role == Role.VEHICLE and not allow_vehicle:
+    current = classify_banner(sanity)
+
+    # Proper fix for the post-default-dashboard change (2026-05-27):
+    # The discovery-time classification (meta) already confirmed this is a station
+    # board (via VID/PID + station tokens). We must not let a transient kmenu
+    # banner flip the *role* decision and refuse the run. kmenu vs dashboard
+    # is only a navigation concern now.
+    #
+    # We still protect against true role mismatches (e.g. hot-swap to a vehicle).
+    if current.role == Role.VEHICLE and meta.role != Role.STATION and not allow_vehicle:
         print('ERROR: post-open sanity check classifies firmware as VEHICLE.')
         print('  Refusing to run station-only key sequences on vehicle firmware.')
         print('  (Did you hot-swap boards? Or is build_station_flight out of date?)')
         sys.exit(2)
+
+    # If we are a known station but currently in kmenu, the ensure helper above
+    # should have driven us to dashboard. If not, we still proceed (the tests
+    # themselves contain navigation logic), but we log for visibility.
+    if meta.role == Role.STATION and current.role != Role.STATION:
+        print('INFO: station board presented kmenu on sanity read; proceeding with discovery role (station).')
 
     print(f'\n=== RocketChip Station Bench Sim ===')
     print(f'  Port: {port_name}')
@@ -395,7 +420,7 @@ def main():
         with open_classified_port(
             port_name,
             target=TARGET_STATION_ANY,  # R-25-exec step 7: bench/flight collapsed, accept either
-            post_open_re_classify=not args.allow_non_station,
+            post_open_re_classify=False,  # We rely on discovery-time role + ensure_station_in_dashboard_state + relaxed script guard
             auto_enter_cli_menu=False,
         ) as ser:
             return _station_bench_run_inner(

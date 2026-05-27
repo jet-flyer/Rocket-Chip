@@ -24,6 +24,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-27-001 | Grok 4.3 (Build CLI) | tooling, documentation
+
+**Phase 0 WSL baseline + station harness fix.** Station 3/3 full PASS (positive control on COM9). See `PHASE0_BASELINE_2026-05-27.md` and `docs/plans/WSL_SOFT_PIVOT_2026-05-27.md`. Verified: ctest 857/857, vehicle bench 2/2, station bench 3/3. (scripts/_rc_test_common.py, scripts/station_bench_sim.py)
+
+---
+
 ### 2026-05-26-001 | Grok 4.3 (Build CLI) | documentation, architecture
 
 **CCSDS command-layer preparation baseline.** Produced current-state data flow analysis of the existing tracked-command + retry + ACK mechanism (the primary STOP-GAP). Created detailed textual map with file:line citations + Graphviz diagram (`docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.{md,dot,svg}`). Installed Graphviz for ongoing use. Added session handoff notes to `AGENT_WHITEBOARD.md`. Foundational artifacts for future TC-layer / COP-1 rework scoping (including potential standalone library). Pure analysis/documentation — no src/ changes this session.
