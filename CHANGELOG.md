@@ -30,6 +30,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-28-001 | Grok 4.3 (Build CLI) | tooling, documentation, council
+
+**WSL Soft Pivot complete (Phases 0-6).** Primary dev path now WSL + usbipd (probe 2e8a:000c + serial-differentiated boards), Linux-FS worktree, stable /dev/serial/by-id via USBDEV/STATION_USBDEV defaults in bench scripts. Delivered: WSL_SETUP.md + WSL_QUICKSTART.md + WSL_ROLLBACK_CHECKLIST.md at docs/ root, council-reviewed "try until it breaks" steady-state policy (docs/decisions/WSL_STEADY_STATE_POLICY_2026-05-28.md), SESSION_CHECKLIST item 17c (mandatory dual-toolchain exercise at milestone close). End-to-end verified from worktree: vehicle + station firmware builds clean, bench_sim 2/2 + station_bench_sim 3/3 with positive controls. WSL distro terminated post-session. Pure-tooling, no flight-critical paths or firmware touched. (3 prior commits + this hygiene entry; host ctest clean on pivot commits.)
+
+---
+
 ### 2026-05-26-001 | Grok 4.3 (Build CLI) | documentation, architecture
 
 **CCSDS command-layer preparation baseline.** Produced current-state data flow analysis of the existing tracked-command + retry + ACK mechanism (the primary STOP-GAP). Created detailed textual map with file:line citations + Graphviz diagram (`docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.{md,dot,svg}`). Installed Graphviz for ongoing use. Added session handoff notes to `AGENT_WHITEBOARD.md`. Foundational artifacts for future TC-layer / COP-1 rework scoping (including potential standalone library). Pure analysis/documentation — no src/ changes this session.
