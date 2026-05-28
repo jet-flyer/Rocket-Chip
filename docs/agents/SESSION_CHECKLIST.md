@@ -86,6 +86,8 @@ Review from the top of this document before following the rules below. These rul
 
 9. **No broken code on main.** If any work in this session is incomplete, either stash it, abandon it, or commit it to a feature branch — never leave broken code on main.
 
+**Session cleanup note:** At the end of sessions with heavy WSL or debug probe use, terminate lingering processes (e.g. `wsl --terminate Ubuntu-24.04` + kill OpenOCD). Not a formal gate.
+
 10. **Note the exact state.** "Build compiles, sensor reads work, CLI untested" is better than "made progress" in any handoff note.
 
 11. **Handoff notes (if applicable).** If the user has explicitly signaled that the session is being handed off (for example by saying “session handoff”, “continue tomorrow”, or similar), expand `AGENT_WHITEBOARD.md` with:
@@ -142,6 +144,8 @@ Review from the top of this document before following the rules below. These rul
    ArduPilot panelist's point — calendar items don't run, so this must be a checklist item that actively surfaces stale dirs each milestone close. Cheap (~30 sec to run); decisions are 1-line "keep" or "delete" per row.
 
 17b. **Dead-code inventory.** Run `python scripts/audit/find_dead_code.py --output docs/audits/DEAD_CODE_INVENTORY_<date>.md` and walk the findings. Catches: unbuilt orphans, DCE candidates, stale build-cache .obj files, and source-list drift between `add_executable(rocketchip)` and `ROCKETCHIP_SOURCES`. Companion script: `python scripts/audit/survey_test_subjects.py` for host-test orphan-subjects (the bench-tier deletion class — tests for code that doesn't ship). High false-positive rate by design (per ArduPilot panelist's false-positive-asymmetry framing); hand-walk each finding. Added 2026-05-22 per the dead-code policy in `standards/CODING_STANDARDS.md`.
+
+17c. **Dual-toolchain exercise (WSL pivot).** At milestone close, confirm that both the WSL Linux-FS path and the native Windows path have seen at least one full host ctest run + one hardware gate (`bench_sim.py` or `station_bench_sim.py`) since the previous milestone. If the Windows path has not been exercised, explicitly note it and decide whether to force a Windows-native run before closing the stage. This prevents silent rot of the fallback under the "try until it breaks" policy (see the WSL steady-state decision doc). Added 2026-05-28 per council review of Phase 6.
 
 ---
 
