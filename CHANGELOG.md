@@ -36,6 +36,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-28-002 | Grok 4.3 (Build CLI) | documentation
+
+**WSL rollback checklist: added escalation path for full native migration.** New Section 8 describes treating the Linux-FS worktree (`~/Rocket-Chip`) as sole primary if Windows friction persists long-term. Includes access pattern guidance for the reverse direction. (docs/WSL_ROLLBACK_CHECKLIST.md)
+
+---
+
 ### 2026-05-26-001 | Grok 4.3 (Build CLI) | documentation, architecture
 
 **CCSDS command-layer preparation baseline.** Produced current-state data flow analysis of the existing tracked-command + retry + ACK mechanism (the primary STOP-GAP). Created detailed textual map with file:line citations + Graphviz diagram (`docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.{md,dot,svg}`). Installed Graphviz for ongoing use. Added session handoff notes to `AGENT_WHITEBOARD.md`. Foundational artifacts for future TC-layer / COP-1 rework scoping (including potential standalone library). Pure analysis/documentation — no src/ changes this session.

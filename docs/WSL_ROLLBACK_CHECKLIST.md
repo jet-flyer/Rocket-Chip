@@ -114,4 +114,18 @@ The worktree remains valid even if you spend time on Windows.
 
 ---
 
+## 8. Escalation Alternative: Full Migration to WSL-Native
+
+If Windows-side friction (performance on large trees, USB CDC, tool compatibility, etc.) becomes persistent despite the fallback path, the project can escalate to treating the WSL Linux-FS worktree (`~/Rocket-Chip`) as the sole primary environment.
+
+In this scenario:
+- Heavy agent/Grok sessions, builds, and day-to-day development occur inside the native Linux filesystem.
+- VS Code Remote-WSL + WSL-started terminals are the normal workflow.
+- Direct access from Windows tools to `\\wsl$\...` paths should be kept to light/occasional inspection only; heavy operations run from inside WSL.
+- The Windows checkout remains available as a recovery path and for Windows-only tooling.
+
+This is a larger step than a standard rollback and would require updates to the steady-state policy and SESSION_CHECKLIST item 17c.
+
+---
+
 **This checklist is intentionally minimal.** It exists because the steady-state policy is "try until it breaks." When you decide the Windows path needs to be primary again, this is the lightweight path back.
