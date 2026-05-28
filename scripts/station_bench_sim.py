@@ -378,8 +378,8 @@ def _station_bench_run_inner(ser: serial.Serial,
 def main():
     parser = argparse.ArgumentParser(
         description='RocketChip Station Bench Sim (IVP-146, 3 tests)')
-    parser.add_argument('--port', default=None,
-                        help='Serial port (auto-detected via VID:PID + banner)')
+    parser.add_argument('--port', default=os.environ.get("USBDEV") or os.environ.get("STATION_USBDEV"),
+                        help='Serial port (auto-detected via VID:PID + banner; honors $USBDEV or $STATION_USBDEV for stable /dev/serial/by-id/ in WSL)')
     parser.add_argument('--verbose', action='store_true',
                         help='Print verbose test output')
     parser.add_argument('--max-runtime', type=float, default=60.0,

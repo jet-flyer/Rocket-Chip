@@ -253,8 +253,8 @@ def run_test(port, tc, verbose=False):
 def main():
     parser = argparse.ArgumentParser(
         description='RocketChip Bench Flight Simulation (minimal, 2 tests)')
-    parser.add_argument('--port', default=None,
-                        help='Serial port (auto-detected if not specified)')
+    parser.add_argument('--port', default=os.environ.get("USBDEV"),
+                        help='Serial port (auto-detected if not specified; honors $USBDEV for stable /dev/serial/by-id/ paths in WSL)')
     parser.add_argument('--verbose', action='store_true',
                         help='Print all serial traffic')
     parser.add_argument('--max-runtime', type=float, default=120.0,
