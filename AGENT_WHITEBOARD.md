@@ -65,6 +65,22 @@
 
 **End of handoff note.** (Erase or update this section when work resumes.)
 
+## Session Summary (2026-05-28, Grok) – WSL Soft Pivot
+
+**Work delivered:**
+- Full WSL_SOFT_PIVOT plan executed (Phases 0–6).
+- Linux FS worktree (`~/Rocket-Chip`) created; clean vehicle + station firmware builds + both `bench_sim.py` (2/2) and `station_bench_sim.py` (3/3) proven from it with positive controls.
+- Documentation delivered at docs root: `WSL_SETUP.md`, `WSL_QUICKSTART.md`, `WSL_ROLLBACK_CHECKLIST.md`.
+- Steady-state policy ("try until it breaks") reviewed via council; recorded in `docs/decisions/WSL_STEADY_STATE_POLICY_2026-05-28.md`.
+- Dual-toolchain exercise requirement added to milestone checklist (item 17c).
+
+**State at close:**
+- WSL (Linux FS) is now a fully functional primary environment.
+- Windows remains supported fallback with explicit, lightweight rollback checklist.
+- Repo clean. All plan deliverables delivered.
+
+---
+
 ## Use Cases
 1. **Cross-agent review** — Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
 2. **Cross-context handoff** — Notes for future Claude sessions when context is lost
