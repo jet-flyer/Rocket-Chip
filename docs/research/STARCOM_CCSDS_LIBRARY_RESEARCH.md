@@ -255,6 +255,199 @@ Document the limitations clearly in Starcom so future users (or future hardware 
 
 **Written by:** Grok 4.3 (Build CLI) — 2026-05-30 (practical impact assessment)
 
+### 2.8 PIO Opportunities with Current SX1276 Hardware for Improved (Partial) Compliance
+
+**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
+
+Even though the SX1276 cannot perform the exact RF modulation required by CCSDS 211.1-B-4 (residual carrier phase modulation with controlled 60° index, specific phase noise performance, etc.), there are still meaningful things the **RP2350 PIO** can do in FSK/OOK **Continuous Mode** that move you closer to the *services and behavior* expected from a Physical Layer.
+
+#### What the SX1276 Can Give You in Continuous Mode
+When configured for FSK/OOK Continuous Mode (not Packet/LoRa mode) with the internal **bit synchronizer enabled**:
+- DIO1 → Recovered clock (DCLK)
+- DIO2 → Cleaned NRZ data (DATA)
+
+This is the closest the chip gets to exposing a raw symbol/bit stream. The bit synchronizer cleans up the demodulator output and provides a usable clock. The datasheet strongly recommends enabling it for Continuous RX.
+
+#### Specific Ways PIO Can Help
+
+1. **Zero-overhead synchronous bit sampling (biggest win)**
+   - PIO can wait on DCLK edges and sample DATA with cycle-accurate timing.
+   - This is far better than CPU interrupts or timer sampling (lower jitter, higher sustainable bit rates, CPU free for other work).
+   - You can autopush bytes/words into the PIO FIFO and use DMA to stream them into memory with almost no CPU involvement.
+
+2. **Custom Bi-Phase-L (Manchester) handling**
+   - The standard requires Bi-Phase-L encoding on the physical channel.
+   - If you disable the radio's internal Manchester option (or it isn't sufficient), PIO can implement high-quality Manchester encode on TX and decode on RX as part of the symbol stream processing.
+   - This helps you present a cleaner "coded symbol stream" interface to higher layers.
+
+3. **Improved SYMBOL_INLOCK_STATUS logic**
+   - The official Physical Layer must report when it has reliable symbol lock.
+   - PIO can implement more sophisticated lock detection than the radio's basic preamble detector:
+     - Monitor transition density / eye opening.
+     - Count consecutive good symbols.
+     - Detect specific idle patterns or training sequences.
+   - This gives the Data Link / MAC layers better quality signals than the raw radio flags.
+
+4. **TX bit timing precision**
+   - On transmit in Continuous mode, the radio can output DCLK to tell you exactly when to change the DATA bit.
+   - PIO can generate perfectly timed bits (or Manchester-encoded bits) locked to that clock.
+   - This is especially useful for generating clean preambles, idle sequences, or hailing patterns.
+
+5. **Acquisition state machine assistance**
+   - PIO can run a small state machine that watches the DIO pins (lock indicators) while the main CPU uses SPI to sweep frequency or change radio parameters.
+   - This can make carrier/symbol acquisition sweeps faster and more deterministic.
+
+6. **Custom sync / training sequence detection**
+   - While true Proximity-1 acquisition relies heavily on the modulation waveform itself, PIO can still do excellent pattern matching or correlator work on the incoming bit stream for additional robustness or for custom training sequences you add on top.
+
+#### What PIO Cannot Fix
+- The fundamental RF modulation mismatch (SX1276 is FSK/GFSK/OOK/LoRa based; the standard wants specific residual-carrier phase modulation).
+- Phase noise, frequency stability, and spectral purity limitations of the SX1276.
+- True coherent demodulation performance.
+
+**Bottom line for current hardware:**
+Using PIO aggressively in Continuous Mode + bit synchronizer lets you extract the maximum possible "Physical Layer-like service" from the SX1276. You can build a much cleaner, lower-jitter, more standards-respecting symbol stream interface than a pure interrupt-driven or packet-mode approach. This is worthwhile work even if full 211.1-B-4 compliance is impossible.
+
+This is one of the stronger arguments for keeping the RP2350 in the system — its PIO is genuinely well-suited to this kind of low-level radio bitstream work.
+
+**Written by:** Grok 4.3 (Build CLI) — 2026-05-30 (PIO opportunities with current radio)
+
+### 2.9 Better Radio Options for Closer Compliance (Affordable / Research Tier)
+
+**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
+
+Here are realistic, non-space-qualified radio options that get you meaningfully closer to full CCSDS Physical Layer behavior than the SX1276, while staying in a hobbyist/research budget range.
+
+#### Top Recommendations
+
+**1. onsemi AX5043 (Strongest integrated chip recommendation)**
+- Native support for PSK (in addition to excellent 2/4-FSK, GFSK, MSK/GMSK).
+- Dedicated synchronous symbol clock + data pins — very clean "continuous / raw / symbol stream" interface.
+- Extremely flexible narrowband performance and high sensitivity.
+- Frequency range covers 915 MHz ISM and true Proximity-1 UHF (390-450 MHz).
+- Cheap modules and evaluation kits exist (~$30–150 for dev hardware; chip itself is low cost).
+- Used in real smallsat / research projects.
+- This is one of the best "affordable but actually capable" options for getting closer to compliant Physical Layer behavior without an SDR.
+
+**2. Silicon Labs Si4463 / Si446x family**
+- Excellent raw / direct / continuous / asynchronous modes that bypass the packet engine.
+- Very good for bit-streaming custom protocols.
+- Proven in actual CubeSat hardware.
+- Modules are cheap and widely available (~$10–30).
+- Strong configurability via Silicon Labs tools.
+- No native PSK, but very capable FSK/MSK continuous operation.
+
+**3. Texas Instruments CC1101**
+- Cheapest and most ubiquitous option.
+- Good synchronous serial / transparent / direct modes.
+- Plenty of community code for continuous streaming.
+- Fine for experimentation, but less capable than AX5043 or Si4463 for serious work.
+
+**4. ADALM-Pluto SDR (~$200–300)**
+- Best option if you want to get *closest* to true arbitrary/custom modulation (including proper PSK/PM schemes that match the standard more closely).
+- Full-duplex, wide frequency range, GNU Radio / MATLAB friendly.
+- Excellent for research, protocol development, and testing what a real compliant PHY would behave like.
+- Not as low-power or embedded-friendly as a dedicated chip, but unbeatable for flexibility within a research budget.
+
+#### Frequency Band Considerations
+- Staying at 915 MHz (ISM) is the easiest legally for testing in many countries.
+- True CCSDS Proximity-1 is defined around 390–450 MHz UHF. Moving to that band (or a nearby ham allocation) makes regulatory compliance for "real" use more complex but gets you closer to the standard's intended environment.
+- 2.4 GHz is another possible research band but has different propagation and regulatory characteristics.
+
+**Practical Recommendation**
+- For maximum compliance on a budget while staying embedded/low-power → **AX5043**-based solution.
+- For best research flexibility and closest possible waveform matching → **ADALM-Pluto**.
+- The SX1276 + aggressive PIO in Continuous Mode is still a perfectly reasonable starting point for development and early flights, with a clear upgrade path later.
+
+**Written by:** Grok 4.3 (Build CLI) — 2026-05-30 (better radio options)
+
+### 2.10 COP-1 / COP-P / USLP Data Link Layer Compliance Requirements (Full Picture)
+
+**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
+
+While much of the recent focus has been on the Physical Layer, a complete Starcom library must also faithfully implement the Data Link Layer side.
+
+**COP-1 (CCSDS 232.1-B-2)**:
+- Two tightly coupled state machines per Virtual Channel:
+  - **FOP-1** (sender/ground side): Manages transmission, retransmission (go-back-N), sliding window (K), timers (T1), and interpretation of incoming CLCWs.
+  - **FARM-1** (receiver/spacecraft side): Frame acceptance, sliding window (W/PW/NW), CLCW generation with status (Lockout, Wait, Retransmit flags, V(R), FARM-B counter).
+- Explicit variables and actions are defined. The state tables (Table 5-1 for FOP, Table 6-1 for FARM) are the authoritative source — implementations should follow them closely.
+- Managed Parameters (MIB) include T1_Initial, Transmission_Limit, sliding window widths, etc. These should be configurable.
+
+**COP-P (Proximity-1 Data Link, 211.0-B-6)**:
+- Similar FOP-P / FARM-P concept but tuned for short-range, intermittent, half-duplex proximity links.
+- Uses PLCW instead of (or in addition to) CLCW.
+- Includes hailing and session concepts at the Data Link layer.
+
+**USLP (732.1-B-3)**:
+- Modern unifying frame format that supports both COP-1 and COP-P services on different Virtual Channels.
+- Preferred foundation for a forward-looking library because it allows mixed long-haul (COP-1) and proximity (COP-P) operation in the same stack.
+
+**Recommendation for Starcom**:
+Implement the COP engines (FOP/FARM per VC) as the core of the Data Link Layer, with a clean abstraction so the same engines can be driven by either classic TC/TM frames or USLP frames. Expose the MIB parameters. Document exactly which table/section each piece of logic implements.
+
+This Data Link + MAC layer work is where the majority of the reliability and autonomous behavior value lives — even when paired with a best-effort Physical Layer adapter.
+
+**Written by:** Grok 4.3 (Build CLI) — 2026-05-30 (COP/USLP compliance synthesis)
+
+### 2.11 Prior-Art Library Patterns (State Machines & PHY Abstraction)
+
+**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
+
+**OSDLP (Libre Space Foundation)**:
+- Clean per-VC COP-1 implementation (FOP + FARM).
+- Uses weak functions for platform-specific queues, timers, and locking — excellent embedded-friendly pattern.
+- Separates COP logic clearly from framing.
+- Does not implement Proximity-1 / COP-P.
+- Good model for how to keep the state machines portable while letting the integrator own the low-level services.
+
+**NASA cFS (cop1.c and related)**:
+- Authoritative reference implementation of CLCW handling and FARM logic.
+- Used in real missions; strong on the reporting/feedback side.
+
+**CCSDSPack and EmbeddedSpacePacket**:
+- Focus more on the packet layer (Space Packet + PUS) with good embedded/C++ patterns (exceptionless error handling via std::variant in CCSDSPack, zero-heap in EmbeddedSpacePacket).
+- Less emphasis on the full COP state machines.
+
+**Lesson for Starcom**:
+- Follow the CCSDS state tables as literally as possible (many projects do this successfully).
+- Provide a narrow, well-defined interface between the COP engines and the Physical Layer adapter (send_symbol_stream, receive_symbol_stream, carrier_acquired, symbol_inlock, etc.).
+- Make the COP engines themselves independent of any particular PHY or framing (USLP vs classic TC/TM).
+
+**Written by:** Grok 4.3 (Build CLI) — 2026-05-30 (prior-art synthesis)
+
+### 2.12 Rocket-Chip Integration Reference (Light Only)
+
+**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
+
+Rocket-Chip uses the QP/QF Active Object framework:
+- Events are structs inheriting from QEvt.
+- Posting is done via `QA CTIVE_POST(target_ao, &event.super, sender)`.
+- Signals are defined as enums (e.g., SIG_PYRO_FIRED, SIG_PHASE_CHANGE, SIG_BEACON_ACTIVE).
+- Many AOs publish high-level intent events that other AOs consume (Flight Director, Notify, Radio, etc.).
+
+**Clean integration pattern for Starcom**:
+- Treat the Starcom library as a self-contained protocol stack (Data Link + optional best-effort PHY adapter).
+- Create a thin **Starcom AO** that:
+  - Owns the FOP/FARM instances (per VC).
+  - Interfaces to the radio scheduler / driver for raw bytes or symbol streams.
+  - Posts clean, high-level QP events to the rest of the system:
+    - `CommandAccepted` (with result from CLCW)
+    - `LinkLost` / `LinkRestored` (with details from CLCW/PLCW flags)
+    - `LogOffloadComplete`
+    - `NewSduAvailable` (accepted user data ready for higher layers)
+- Existing AO_Telemetry, FlightDirector, etc. subscribe to these events with minimal changes.
+
+This matches real flight software practice (protocol stack posts to a software bus) and keeps the library itself completely framework-agnostic.
+
+**Written by:** Grok 4.3 (Build CLI) — 2026-05-30 (RC integration reference)
+
+### Final Synthesis & Document Status
+
+All major research threads requested have now been addressed and documented with clear authorship. The document is ready for other agents to extend (following the "do your own research first, then add separated sections" rule).
+
+**Written by:** Grok 4.3 (Build CLI) — 2026-05-30 (final synthesis)
+
 ---
 
 ### 2.5 Corrected Analysis: Official CCSDS Physical Layer (211.1-B-4) vs Current Hardware + PIO (Updated 2026-05-30)
