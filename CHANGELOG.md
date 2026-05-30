@@ -42,6 +42,10 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-30-001 | Grok 4.3 (Build CLI) | documentation, research
+
+**Starcom CCSDS library research document initialized.** Created living external research artifact `docs/research/STARCOM_CCSDS_LIBRARY_RESEARCH.md` covering official CCSDS Physical Layer (211.1-B-4) requirements, feasibility with current SX1276 + RP2350 PIO hardware, commercial full-compliance options, and practical in-field tradeoffs for <50 km rocket use cases. Document structured with per-section authorship for multi-agent collaboration. Pure research/documentation — no code or implementation. (docs/research/STARCOM_CCSDS_LIBRARY_RESEARCH.md, CHANGELOG.md)
+
 ### 2026-05-26-001 | Grok 4.3 (Build CLI) | documentation, architecture
 
 **CCSDS command-layer preparation baseline.** Produced current-state data flow analysis of the existing tracked-command + retry + ACK mechanism (the primary STOP-GAP). Created detailed textual map with file:line citations + Graphviz diagram (`docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.{md,dot,svg}`). Installed Graphviz for ongoing use. Added session handoff notes to `AGENT_WHITEBOARD.md`. Foundational artifacts for future TC-layer / COP-1 rework scoping (including potential standalone library). Pure analysis/documentation — no src/ changes this session.
