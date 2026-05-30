@@ -42,6 +42,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-05-30-002 | Claude Opus 4.8 (Code) | documentation, research
+
+**Starcom CCSDS research — independent second-agent document.** Added `docs/research/CLAUDE_STARCOM_CCSDS_LIBRARY_RESEARCH.md`, a standalone external-research artifact produced without reading the existing `STARCOM_CCSDS_LIBRARY_RESEARCH.md` (to avoid biasing the cross-check). Covers CCSDS 211.1-B-4 Physical Layer requirements vs. the 211.2-B Coding & Synchronization Sublayer boundary, RP2350 + SX1276/RFM95W @ 915 MHz feasibility, priced COTS-radio / SDR / IP-core surveys, USLP/COP-1/COP-P/OCF standards detail, JPL User Terminal (Blue Ghost 2) attribution, and FCC 915 MHz legality. Findings adversarially fact-checked against primary sources in two passes (0 claims refuted; nuance corrections folded in inline). Verdict: the named COTS hardware cannot emit a 211.1-B-4-compliant residual-carrier Bi-Phase-L/PM waveform — Starcom's value lands at 211.2-B / data-link over COTS links. Existing Grok research document left untouched. Pure research/documentation — no code, no firmware, no builds. (docs/research/CLAUDE_STARCOM_CCSDS_LIBRARY_RESEARCH.md, CHANGELOG.md)
+
+---
+
 ### 2026-05-30-001 | Grok 4.3 (Build CLI) | documentation, research
 
 **Starcom CCSDS library research document initialized.** Created living external research artifact `docs/research/STARCOM_CCSDS_LIBRARY_RESEARCH.md` covering official CCSDS Physical Layer (211.1-B-4) requirements, feasibility with current SX1276 + RP2350 PIO hardware, commercial full-compliance options, and practical in-field tradeoffs for <50 km rocket use cases. Document structured with per-section authorship for multi-agent collaboration. Pure research/documentation — no code or implementation. (docs/research/STARCOM_CCSDS_LIBRARY_RESEARCH.md, CHANGELOG.md)
