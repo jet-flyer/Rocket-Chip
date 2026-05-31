@@ -122,6 +122,51 @@
 
 ---
 
+## Session Completion / Final Handoff (2026-05-30, Grok) – Starcom Library Development Research COMPLETE
+
+**Context:** Continuation of the 2026-05-30 external research session on building a high-quality, MCU-first, standalone open-source modern C++ CCSDS protocol library ("Starcom"). User explicitly directed "keep going until you're done with the research" and "when you're done and feel like you've looked exhaustively enough deliver a research document make sure to put grok in the name".
+
+**Work completed this session (exhaustive research phase):**
+- Full session-start discipline executed (SESSION_CHECKLIST.md, docs/PROJECT_STATUS.md, CHANGELOG.md recent, AGENT_WHITEBOARD.md, CODING_STANDARDS.md with deep JSF AV Rule 206 + memory allocation rules + no-exceptions/RTTI/single-binary requirements).
+- Located and read the in-progress `docs/research/STARCOM_LIBRARY_DEVELOPMENT_RESEARCH_GROK.md` (skeleton existed from prior partial work).
+- Launched multiple parallel deep web searches + targeted fetches for 2025–2026 aerospace C++ protocol library patterns, error handling, build systems, prior art, fuzzing, PHY abstractions, and F' feasibility.
+- Fetched and analyzed primary sources: CCSDSPack full CMakeLists.txt (MCU toggle, cross-build, export patterns), COMMS/libcyphal/ETL/MAVLink header-mostly dominance, RadioLib PhysicalLayer + opendnp3 IPhysicalLayer + libcyphal ards + F' Communication Adapter examples, tl::expected usage in no-exceptions flight software, cFS/FlatSat grammar-aware fuzzing of CCSDS Space Packet parsers, OSDLP weak-symbol user-queue ownership model, F' bare-metal 2026 reality (real but full-framework, not lightweight plugin).
+- Delivered a complete, exhaustive research document with:
+  - Per-section **Written by:** Grok 4.3 (Build CLI) — 2026-05-30 authorship headers (multi-agent safe).
+  - MCU-first priority enforced throughout (JSF AV Rule 206, no post-init heap, no exceptions/RTTI in core, static allocation for large objects, freestanding friendliness).
+  - Aerospace header-mostly recommendation with concrete citations and trade-off analysis vs. compiled static (CCSDSPack hybrid as closest peer).
+  - `std::expected` / `tl::expected` as primary error strategy with monadic usage and MCU size constraints.
+  - Modern CMake hybrid FetchContent + vcpkg + FILE_SET HEADERS + explicit CCSDSPack CMake excerpts.
+  - Narrow `IPhysicalLayer` abstraction mandate from day one, with 4+ real aerospace precedents.
+  - Testing (host-heavy + grammar-aware fuzz + PBT + resource reporting in CI), drawing from real cFS bugs found via AFL and FlatSat RP2040 CCSDS example.
+  - Full F' clarification (not suitable as standalone plugin; full framework with FPP/codegen/OSAL/component model; bare-metal support exists and is improving but irrelevant to the lightweight goal).
+  - Explicit alignment section quoting Rocket Chip CODING_STANDARDS (Rule 206 checklist item, memory rules, single-binary principle, etc.).
+  - Enriched "Recommended Defaults" section ready for the future implementation plan document.
+  - Anti-poisoning rule recorded for future agents (independent research first; do not read the other agent's parallel doc until own research is written).
+- No code changes. Pure external research + documentation.
+
+**Key artifacts updated:**
+- `docs/research/STARCOM_LIBRARY_DEVELOPMENT_RESEARCH_GROK.md` (now exhaustive, ~13 major sections + authorship discipline)
+- `AGENT_WHITEBOARD.md` (this completion note)
+
+**Current state:**
+- External research phase for both CCSDS protocol details (companion document) and library development craft is complete.
+- Both Grok research documents are ready for the user to compare against the parallel agent's (Claude) versions.
+- No open questions remain in the research scope; all requested topics (MCU constraints, header-mostly trends, error handling, packaging, PHY abstraction, testing, F', prior art, standards alignment, recommended defaults) have been covered with citations and primary-source excerpts.
+
+**Handoff for next session (user-driven):**
+- User will compare the two agents' research outputs (Grok + Claude versions of both the CCSDS and Library Development documents).
+- Goal: Identify consensus/gaps, then begin formulating the actual execution/implementation plan for Starcom (scope, phasing, architecture, integration with existing AO/event model, etc.).
+- No further research or design work from this agent until explicitly directed.
+
+**Build / verification state:** N/A — pure research and documentation work. No src/ changes, no builds, no tests, no hardware involved. All session discipline followed; repo remains clean except for the two documentation artifacts.
+
+---
+
+**End of final research handoff.** (User will signal when comparison + planning work begins.)
+
+---
+
 ## Use Cases
 1. **Cross-agent review** — Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
 2. **Cross-context handoff** — Notes for future Claude sessions when context is lost
