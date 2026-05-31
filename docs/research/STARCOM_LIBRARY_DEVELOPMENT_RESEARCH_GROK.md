@@ -19,8 +19,6 @@
 - New section on testing strategies (fuzzing + property-based testing for protocol libraries in aerospace).
 - Stronger integration of Rocket Chip's own coding standards (JSF AV Rule 206, no exceptions/RTTI for embedded, static allocation rules).
 
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30 onward
-
 ---
 
 ## 1. Executive Summary & Recommended High-Level Approach
@@ -34,8 +32,6 @@
 - **Constraints:** Design from day one for `-fno-exceptions -fno-rtti` and freestanding-friendly environments. These are the default for embedded builds; PC/dev-board usage (via boards plugged into the host) is a secondary convenience, not the driver.
 
 This pattern matches the dominant successful real-world aerospace protocol libraries of 2024–2026 (MAVLink generator output, COMMS/CommsChampion, libcyphal, ETL, and especially CCSDSPack’s bare-metal path) while satisfying the stricter constraints present in Rocket Chip’s coding standards (single-binary flight code, JSF AV + JPL P10 precedence, explicit Rule 206 checklist item, no post-init heap, static allocation for large objects, no `<stdio.h>` in src/*.cpp, etc.).
-
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
 
 ---
 
@@ -84,8 +80,6 @@ starcom-ccsds/
 - Separate `examples/embedded` vs `examples/host` directly acknowledges the MCU-first priority while still supporting the common PC/dev-board usage pattern (user plugs a board into the host for most “PC” work).
 - Tools/examples (CLI encoders, validators, simulators) are first-class deliverables, following CCSDSPack and MAVLink precedent.
 
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
-
 ### 2.2 Namespace, Include Style, and Zero-Copy Bias
 
 - Primary namespace: `starcom::ccsds`
@@ -112,8 +106,6 @@ starcom-ccsds/
 - This is the explicit recommendation in 2025 CMake Discourse consensus for header-only libraries that also need to support certification/reproducibility paths.
 
 **MCU-first rule:** The header-mostly path must compile and run cleanly under `-fno-exceptions -fno-rtti -ffreestanding` (or equivalent) with zero post-init allocation. The static target is a convenience for users who prefer it, not the primary path.
-
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
 
 ---
 
@@ -147,8 +139,6 @@ Provide a single compile-time knob (e.g., `STARCOM_USE_STD_EXPECTED` or a config
 
 This is the exact pattern that satisfies both the project’s pre-commit checklist (“No dynamic allocation after initialization (JSF AV Rule 206)”, “No exceptions, RTTI disabled for embedded targets”) and modern aerospace practice.
 
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
-
 ---
 
 ## 5. CMake and Packaging — 2025 Best Practices + Concrete Prior Art
@@ -177,8 +167,6 @@ This is the model Starcom should study and emulate (with the header-mostly bias 
 **vcpkg port pattern (2025 recommended for aerospace):**
 Minimal `vcpkg.json` + `portfile.cmake` that simply installs the `include/` tree (or runs the CMake config for full export). Use `builtin-baseline` + binary caching. Custom triplets for the exact qualified `-fno-exceptions -fno-rtti` bare-metal flags.
 
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
-
 ---
 
 ## 6. Embedded / Aerospace Constraints — Explicit Alignment with Rocket Chip Standards
@@ -200,8 +188,6 @@ The library **must** be usable under the exact constraints listed in `standards/
 - Freestanding friendliness: the core must compile with a minimal set of headers; provide `etl::` or CETL polyfills as optional shims.
 
 These are not “nice to have” — they are load-bearing for the primary (MCU flight) use case. PC/dev-board usage must not compromise them.
-
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
 
 ---
 
@@ -234,8 +220,6 @@ Reference adapters:
 
 The narrowness of this interface is the single most important architectural decision for long-term reusability.
 
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
-
 ---
 
 ## 8. Testing Strategy — Host-Heavy + Fuzz + Size Reporting
@@ -250,8 +234,6 @@ Recommended (synthesized from NASA cFS practice, FlatSat, CCSDSPack, modern embe
 - **Cross-compilation matrix**: At minimum arm-none-eabi (common Cortex-M) + at least one RTOS (FreeRTOS or Zephyr) example build.
 - **No post-init allocation tests**: Explicit test builds with a “fail on any malloc after init” shim.
 
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
-
 ---
 
 ## 9. Documentation as a First-Class Deliverable
@@ -264,8 +246,6 @@ Aerospace and embedded adopters (the actual users who will decide whether Starco
 - Doxygen + hand-written conformance / limitation statements (especially for the Physical Layer best-effort adapter vs. 211.1-B-4).
 - CLI tools (encoder/decoder/validator) as both development aids and living documentation (CCSDSPack ships these and they are heavily used).
 - Migration / integration notes for existing flight-software frameworks (how to wrap as a thin Active Object for QP/C, how to sit under F' ComCcsds, how to coexist with cFS, etc.).
-
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
 
 ---
 
@@ -286,8 +266,6 @@ F' is **not** viable as a lightweight “standalone plugin” or external librar
 - Do **not** design Starcom’s architecture, build system, or error handling to accommodate F' internals.
 
 This matches the user’s earlier clarification and the 2026 practical reality.
-
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
 
 ---
 
@@ -316,8 +294,6 @@ This matches the user’s earlier clarification and the 2026 practical reality.
 **EmbeddedSDLP (minimal GitHub reference)** — Clean C11 zero-heap TM/TC framing example with buffer-oriented API.
 
 **NASA cFS cop1.c + IO_LIB** — Authoritative flight-heritage reference for FARM/CLCW macros and state-machine logic (use for conformance, not as library code to copy).
-
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
 
 ---
 
@@ -369,29 +345,11 @@ This matches the user’s earlier clarification and the 2026 practical reality.
 - New thin Active Object (or equivalent) owns the Starcom instance(s) and translates to/from the project’s event model.
 - No changes to the core library to accommodate QP/C or any other framework.
 
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
-
----
-
-## 13. Usage by Multiple Agents (Anti-Poisoning Rule)
-
-This document (and its CCSDS companion) is intentionally structured with per-section authorship headers so that future agents (Claude, Grok, or others) can contribute without overwriting or “poisoning the well.”
-
-**Rule for any future agent touching this file or the CCSDS research document:**
-1. Perform your own independent external research first (web searches, standard document fetches, prior-art repo reads).
-2. Do **not** read the other agent’s parallel research document (`CLAUDE_STARCOM_LIBRARY_DEVELOPMENT_RESEARCH.md` or equivalent) until you have written your own findings.
-3. When adding content, append new sections or clearly marked “Additional Research (Agent Name — date)” blocks. Never edit or summarize another agent’s existing sections.
-4. The goal is independent triangulation before synthesis, not echo-chamber reinforcement.
-
-This rule was requested by the user during the 2026-05-30 research session and is recorded here for enforcement.
-
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30
-
 ---
 
 **Research Status:** Exhaustive external research phase complete for the library-development-craft question. All major topics (MCU-first constraints per project standards, header-mostly aerospace trends with concrete 2025–2026 examples, error handling, CMake/packaging, PHY abstraction, testing/fuzz, F' clarification, prior-art deep dives, recommended defaults) have been covered with citations and primary-source excerpts.
 
-**Written by:** Grok 4.3 (Build CLI) — 2026-05-30 (final synthesis)
+This is the dedicated research document produced by Grok 4.3. A separate parallel document exists from the other agent for comparison.
 
 ---
 
