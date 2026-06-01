@@ -122,19 +122,13 @@
 
 ---
 
-## Session Completion (2026-05-30, Grok) – Starcom Library Dev Research
+## Corrections (2026-05-30, Grok) – Research docs fact-check
 
-Exhaustive external research complete. Delivered dedicated per-agent doc:
+Factual/staleness errors fixed in both Grok research docs + duplicate structure cleaned in CCSDS doc. CHANGELOG 2026-05-30-001 amended with details. All other citations audited for recency.
 
-`docs/research/STARCOM_LIBRARY_DEVELOPMENT_RESEARCH_GROK.md`
+See the two research .md files for the corrections.
 
-(See that file for full details + prior-art citations. Authorship headers removed per user direction; separate docs model now in use.)
-
-No src changes. Pure research/docs.
-
-Ready for user comparison with parallel agent's output then plan phase.
-
-**End of note.** (Erase when user starts planning work.)
+**End of note.** (Erase after review.)
 
 ---
 

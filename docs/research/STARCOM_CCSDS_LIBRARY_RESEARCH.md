@@ -52,7 +52,9 @@ All future sections and updates must reflect these distinctions clearly.
   - COP-P (Proximity-1 equivalent), PLCW, timing services, hailing, session management.
 
 - **Proximity-1 Physical Layer**: CCSDS 211.1-B-4 (2013) — https://ccsds.org/Pubs/211x1b4e1.pdf
-  - PLTU (Proximity Link Transmission Unit), Acquisition Sequence Marker (ASM), modulation, frequencies, hailing channel, bit synchronization, etc.
+  - Modulation (residual-carrier Bi-Phase-L/PM at 60° ±5% index), carrier/symbol lock signaling (CARRIER_ACQUIRED + SYMBOL_INLOCK_STATUS), hailing channel waveform, frequencies, etc.
+- **Proximity-1 Coding & Synchronization Sublayer**: CCSDS 211.2-B-3 (October 2019) — https://ccsds.org/Pubs/211x2b3.pdf
+  - PLTU construction, Attached Sync Marker (ASM), CRC-32 over the Transfer Frame (not including ASM), channel coding options.
 
 - **USLP**: CCSDS 732.1-B-3 (June 2024) — https://ccsds.org/Pubs/732x1b3e1.pdf
   - Modern unifying frame format that can carry both COP-1 and COP-P services on different Virtual Channels.
@@ -61,12 +63,9 @@ All future sections and updates must reflect these distinctions clearly.
 
 ### 1.2 What "Full Official Compliance" Requires (Data Link Layer)
 
-**CLCW (Command Link Control Word)**: Exact 32-bit structure carried in TM OCF (Type-1 report):
-- Control Word Type, Version Number, COP in Effect, VCID, Status fields (Retransmit Flag, Lockout Flag, Wait Flag, No RF Available, etc.), FARM-B Counter, Report Value (N(R) — next expected TC frame sequence number).
+**CLCW (Command Link Control Word)**: Exact 32-bit structure carried in TM OCF (Type-1 report) — defined in CCSDS 232.0-B-4 (TC Space Data Link Protocol). The bit layout and semantics (Control Word Type, Version Number, COP in Effect, VCID, status flags, FARM-B Counter, N(R)) are specified there.
 
-**FARM-1 (Receiver / Spacecraft side)**: Must implement the complete state table (Table 6-1 in 232.1-B-2), sliding window logic (W, PW, NW widths), and CLCW generation rules.
-
-**FOP-1 (Sender / Ground side)**: Must implement the complete state table (Table 5-1), retransmission logic (go-back-N ARQ), timer management, and interpretation of incoming CLCWs.
+**FARM-1 / FOP-1 state machines and procedures** (including how the CLCW is used for ARQ, sliding windows, etc.): Defined in CCSDS 232.1-B-2 (COP-1). Implementations must follow the authoritative state tables (Table 5-1 for FOP-1, Table 6-1 for FARM-1) in that document.
 
 **COP-P / Proximity-1 Data Link**: Equivalent state machines using PLCW, with additional concepts for proximity links (hailing, session establishment, intermittent connectivity).
 
@@ -114,7 +113,7 @@ Full native compliance with a specific Prox-1 Physical Layer profile requires:
 
 ### 2.2 Current Hardware Reality (SX1276 / RFM95W)
 
-From the official Semtech SX1276 datasheet (Rev. 4, March 2015):
+From the official Semtech SX1276 datasheet (Rev. 7, May 2020):
 - Supports LoRa + high-performance (G)FSK, MSK, GMSK, OOK.
 - In FSK/OOK modes: Built-in bit synchronizer for clock recovery, preamble detector, SyncAddress recognition, and explicit Manchester encoding/decoding support in the packet engine (see datasheet Figure 36 and related registers).
 - Continuous Mode vs Packet Mode: Continuous Mode exposes DCLK and DATA on DIO pins — this is the closest the chip gets to raw bitstream access without the full packet engine.
@@ -131,16 +130,13 @@ Real-world evidence from the Raspberry Pi ecosystem and community (all portable 
   - ADS-B (1090 MHz) receiver using **two PIO state machines**: one dedicated to preamble/sync pattern correlation on the pulse train from an RF frontend, second for Manchester decoding of the message. This is an extremely close analog to what we need for ASM detection + PLTU framing.
 - High-speed bit-banged protocols (e.g., 100BASE-TX Ethernet on PIO) demonstrate that RP2350 PIO can handle complex encoding, preamble/SFD detection, and multi-level signaling at impressive rates with DMA offload.
 
-**Conclusion for Starcom (with current 915 MHz hardware):**
+**Conclusion for Starcom (with current 915 MHz hardware) — see corrected analysis in §2.5 below:**
 
-A high-value "software Physical Layer" is realistically achievable:
-- Use FSK Continuous Mode (or a carefully configured LoRa mode) on the SX1276.
-- PIO state machines for: ASM / sync word detection (including the classic 0xFAF320 or mission-specific markers), Manchester / Bi-Phase-L encoding/decoding, precise bit timing and edge capture, PLTU assembly/disassembly.
-- CPU / DMA handles higher-level framing, CRC, and handoff to the pure Data Link Layer (COP-1 / COP-P / USLP).
-- This delivers excellent, standards-respecting COP-1 and COP-P performance over the existing legal 915 MHz link without requiring a new radio module immediately.
-- Full native Prox-1 Physical Layer (specific lunar S-band waveforms, certain high-performance modulation indices, hardware-accelerated ranging) will still require a more capable SDR or dedicated transceiver in the future.
+Early assessment suggested that a useful "software-defined" approximation of Physical Layer *services* (symbol stream + basic lock indications via FSK Continuous Mode + PIO for timing/encoding) could support high-value COP-1/COP-P operation. 
 
-**Honest documentation recommendation:** Clearly label the library as "Data Link Layer + Software-Defined Physical Layer over COTS packet/continuous radios" with a well-defined IRadio / IPhysicalLayer abstraction boundary. This allows future drop-in replacement of the PHY module for true native Prox-1 when hardware is available.
+**Important correction (see full analysis in the later §2.5 Corrected Analysis section):** This remains a best-effort adaptation only. It cannot produce a conformant CCSDS 211.1-B-4 waveform (residual-carrier Bi-Phase-L/PM at 60° ±5%, required spectral purity, phase noise, residual AM, stability). The early optimistic language in this subsection is superseded by the detailed corrected assessment later in the document. 
+
+**Honest documentation recommendation (unchanged):** Clearly label any implementation as a non-conformant "best-effort COTS approximation" behind a narrow IPhysicalLayer boundary so future hardware upgrades can provide a true native PHY without changing the Data Link layer.
 
 ### 2.4 Recommended Next Concrete Steps for This Section
 
@@ -327,7 +323,7 @@ Here are realistic, non-space-qualified radio options that get you meaningfully 
 - Frequency range covers 915 MHz ISM and true Proximity-1 UHF (390-450 MHz).
 - Cheap modules and evaluation kits exist (~$30–150 for dev hardware; chip itself is low cost).
 - Used in real smallsat / research projects.
-- This is one of the best "affordable but actually capable" options for getting closer to compliant Physical Layer behavior without an SDR.
+- Strong choice for synchronous symbol-stream / continuous modes on an MCU. Note that it implements suppressed-carrier BPSK/PSK (common in many CubeSat links), not the residual-carrier phase modulation at a precise 60° index required by the official CCSDS 211.1-B-4 Physical Layer. It is therefore a good Data Link / MAC enabler but still a best-effort (non-conformant) approximation at the true PHY level.
 
 **2. Silicon Labs Si4463 / Si446x family**
 - Excellent raw / direct / continuous / asynchronous modes that bypass the packet engine.
@@ -355,7 +351,7 @@ Here are realistic, non-space-qualified radio options that get you meaningfully 
 - 2.4 GHz is another possible research band but has different propagation and regulatory characteristics.
 
 **Practical Recommendation**
-- For maximum compliance on a budget while staying embedded/low-power → **AX5043**-based solution.
+- For good synchronous raw/symbol-stream capability on a budget while staying embedded/low-power → **AX5043**-based solution (with the explicit caveat that it remains a suppressed-carrier approximation, not residual-carrier 211.1-B-4 compliant).
 - For best research flexibility and closest possible waveform matching → **ADALM-Pluto**.
 - The SX1276 + aggressive PIO in Continuous Mode is still a perfectly reasonable starting point for development and early flights, with a clear upgrade path later.
 
@@ -511,32 +507,7 @@ This approach respects the standard while still delivering high value today.
 
 **End of corrected analysis.**
 
-### 2.1 Hardware Constraints (Current Rocket-Chip Setup)
-
-- Primary radio: RFM95W (SX1276 LoRa transceiver) on 915 MHz ISM band (legal in US for unlicensed use at appropriate power).
-- Capabilities (from SX1276 datasheet):
-  - LoRa mode (chirp spread spectrum) — excellent range, but packet-oriented with built-in preamble + CRC + whitening.
-  - FSK/OOK continuous and packet modes.
-  - Limited raw bit-level control; the chip handles a lot of framing internally.
-  - DIO pins for interrupts (RxDone, TxDone, etc.), but not arbitrary bit-stream access in all modes.
-  - No native support for CCSDS-specific Physical Layer formats (PLTU, specific ASMs, Proximity-1 hailing waveforms).
-
-- RP2350: Dual Cortex-M33 + PIO (Programmable I/O) blocks. PIO is extremely powerful for bit-banging, state machines, and precise timing (up to ~125-150 MHz effective).
-
-### 2.2 What PIO + Software Can Realistically Do (Early Assessment)
-
-**Feasible (with effort):**
-- Custom ASM (sync word) detection on top of FSK or even LoRa in certain configurations (PIO can watch DIO or bit-banged SPI-like streams).
-- Manchester / Bi-Phase encoding/decoding (common in legacy CCSDS and Prox-1).
-- Precise bit-level timing and time-tagging of edges (PIO excels here).
-- PLTU framing / de-framing once raw bits are recovered.
-- Software state machines for hailing sequence detection (at Data Link + limited Physical).
-- Custom preambles or low-level acquisition aids in FSK continuous mode.
-
-**Very Difficult or Impossible without Hardware Changes:**
-- True Proximity-1 Physical Layer waveforms (specific modulation schemes, subcarriers, or spread-spectrum patterns defined in 211.1-B).
-- High-rate S-band or UHF native Prox-1 (requires appropriate RF frontend + up/down conversion).
-- Full "fast hailing" channel with the exact timing and modulation specified for native Prox-1.
+*(Duplicate/early-draft hardware constraints assessment that appeared here has been removed for document hygiene. All authoritative analysis for the Physical Layer feasibility question now lives in the corrected §2.5 section above.)*
 - Bit-synchronous operation at the precision needed for some legacy or high-performance modes without external clock recovery hardware.
 
 **Promising Hybrid Path:**

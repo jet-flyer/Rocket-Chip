@@ -101,7 +101,7 @@ starcom-ccsds/
 - **CCSDSPack (ExoSpaceLabs)**: The closest direct prior art for CCSDS. Header-mostly with a deliberate MCU toggle (`-DCCSDSPACK_BUILD_MCU=ON`) that produces a static library (`ccsdspack::mcu`), applies `-Os -ffunction-sections -fdata-sections -Wl,--gc-sections`, defines `CCSDS_MCU`, and excludes host-only code. Excellent `CROSSBUILD.md`, pre-packaged ARM bare-metal artifacts, and proper CMake export. Not pure header-only, but the hybrid model is battle-tested for exactly our constraints.
 
 **Why the hybrid wins for Starcom:**
-- Header-mostly / `INTERFACE` gives maximum portability to “weird” embedded toolchains (no per-target `.a` build, full LTO + inlining, easy single-binary integration).
+- Header-mostly / `INTERFACE` gives maximum portability to “weird” embedded toolchains (no per-target `.a` build, full inlining opportunities via the build, easy single-binary integration). Note that Link-Time Optimization (LTO / IPO via `-flto`) is controlled by compiler/linker flags and works with both header-mostly and properly-built static libraries; it is not a unique property of header-only packaging.
 - Optional `STATIC` target (built from explicit instantiations in `src/`) solves the two real downsides of pure header-only: compile-time bloat on large projects and unwanted exposure of implementation details.
 - This is the explicit recommendation in 2025 CMake Discourse consensus for header-only libraries that also need to support certification/reproducibility paths.
 
@@ -146,7 +146,7 @@ This is the exact pattern that satisfies both the project’s pre-commit checkli
 **Non-negotiable for Starcom (aerospace/embedded reality):**
 - Hybrid `FetchContent_Declare( ... FIND_PACKAGE_ARGS )` + `find_package` consumption (2025 CMake Discourse consensus).
 - First-class `FetchContent` for the common aerospace “git submodule or fetch at configure” workflow.
-- Proper `vcpkg.json` + port (manifest mode + locked baseline) for reproducibility, binary caching, and air-gapped/certification builds.
+- Proper `vcpkg.json` + port (manifest mode + locked baseline) for reproducibility and binary caching (valuable even in hobbyist/educational projects). Air-gapped or formally certified builds would typically use vendoring, submodules, or a locked private registry rather than treating vcpkg as non-negotiable.
 - `CMakePresets.json` with host + multiple cross presets (arm-none-eabi, etc.).
 - `INTERFACE` target using `FILE_SET HEADERS` (modern CMake 3.23+).
 - Clean `find_package(StarcomCcsds CONFIG)` after install.
