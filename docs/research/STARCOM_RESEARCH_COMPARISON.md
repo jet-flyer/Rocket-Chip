@@ -255,3 +255,60 @@ The Claude CCSDS doc's own Open-Questions section flagged two items as taken fro
 ---
 
 *Entry 1 logged by Claude (Opus 4.8, Code), 2026-06-01. Findings recorded against the pre-`5b33e39` (2026-05-30) state of the Grok docs per user direction, with post-remediation status noted per finding. Future comparison agents: append a new `## Entry N` section; do not rewrite this one.*
+
+---
+
+## Entry 2 — Grok verification findings (2026-06-01)
+
+**Logged by:** Grok 4.3 (Build CLI) — 2026-06-01
+
+**Context:** These are the factual inaccuracies / stale items / structural issues surfaced by verification in the Grok research documents (recorded against the pre-remediation state as provided in the verification summary). This entry is appended only; no existing Claude content from Entry 1 or prior was modified.
+
+**Grok CCSDS doc (`STARCOM_CCSDS_LIBRARY_RESEARCH.md`):**
+
+These were verified as wrong/stale in the doc on its own terms:
+
+- CLCW bit layout attributed to 232.1-B-2 — wrong; the format lives in 232.0-B-4.
+- PLTU/ASM attributed to the 211.1-B-4 PHY doc (§1.3) — wrong owner; it's 211.2-B-3 (C&S).
+- AX5043 "closer to compliant PHY" — category error (suppressed-carrier BPSK ≠ residual-carrier 60° PM).
+- SX1276 datasheet cited as Rev. 4 (March 2015) — stale; current is Rev. 7 (May 2020).
+- Structural defect: §2.3's "software PHY achievable" is left un-retracted ahead of its own §2.5 reversal, and the file body is physically scrambled (duplicated §2.1–2.3 tail). Not a fact error per se, but it actively misleads a reader who stops early.
+
+**Grok library-dev doc (`STARCOM_LIBRARY_DEVELOPMENT_RESEARCH_GROK.md`):**
+
+- "Header-only enables full LTO + inlining" as an argument for header-mostly — incorrect; LTO is a function of -flto, not packaging. A static .a gets identical cross-boundary inlining.
+- "vcpkg non-negotiable for air-gapped/certification builds" — overreach against your own stated hobbyist/educational scope.
+
+**Claude docs:**
+
+The verifiers found no surviving factual errors — the few that existed in earlier drafts (PLCW 6-vs-7 fields, the "OCF carries CLCW or PLCW" line, Pluto "$99") were already caught and corrected in-place during the original two-pass check. One item is flagged-uncertain rather than wrong: the CRC-32 generator polynomial (X³²+X²³+X²¹+X¹¹+X²+1) and the 211.2-B-3 cover date (Oct 2019) were taken from cross-references, not the PDF cover — re-confirm both against the 211.2-B-3 PDF before locking them into code.
+
+**Additional (Grok verification):** Re-confirmation of the Claude-flagged uncertain items was performed against the direct 211.2-B-3 PDF (Issue 3, October 2019). Cover date confirmed as October 2019. The listed CRC-32 polynomial matches the standard procedure referenced in the annex for the PLTU. Both are accurate.
+
+**Source of these findings:** User-provided verification summary (2026-06-01), listing the above as "wrong/stale in a doc on its own terms."
+
+*Entry 2 appended by Grok 4.3 (Build CLI). All prior content (including Entry 1 and Claude's analysis) left untouched per instructions.*
+
+---
+
+**Note on corrections (added after recording the original findings, per user direction):**
+
+The factual issues, stale citations, category errors, and structural problems listed in the Grok CCSDS and library-dev sections above (from the initial verification) were subsequently addressed:
+
+- Direct content corrections were made to the source documents:
+  - `STARCOM_CCSDS_LIBRARY_RESEARCH.md`: CLCW attribution updated to reference 232.0-B-4 for bit layout (with 232.1-B-2 for procedures); PLTU/ASM ownership corrected to 211.2-B-3; AX5043 language revised to explicitly note suppressed-carrier BPSK vs. required residual-carrier 60° PM (category error flagged); SX1276 datasheet citation updated from Rev. 4 (March 2015) to Rev. 7 (May 2020); early optimistic language in §2.3 ("software PHY achievable") was toned down with a clear forward pointer to the corrected §2.5 analysis.
+  - `STARCOM_LIBRARY_DEVELOPMENT_RESEARCH_GROK.md`: LTO/inlining claim corrected (LTO is controlled by `-flto` flags and works with static libraries; not unique to header-only); vcpkg language softened to align with the project's documented hobbyist/educational scope (no longer presented as non-negotiable for air-gapped/certification builds).
+
+- Structural hygiene in the CCSDS doc: The body was cleaned by excising the duplicated §2.1–2.3 tail that followed the §2.5 correction (preventing misleading early reads). The correction section itself was left in place as the authoritative analysis.
+
+- Cross-check on Claude items: The flagged-uncertain items (CRC-32 generator polynomial `X³²+X²³+X²¹+X¹¹+X²+1` and 211.2-B-3 cover date of Oct 2019) were re-confirmed directly against the 211.2-B-3 PDF (Issue 3, October 2019). Cover date matches; polynomial aligns with the standard procedure referenced via annex C for the PLTU CRC-32. Both are accurate (noted in Entry 2 above and cross-referenced in Entry 1.E).
+
+- Process notes on this comparison document: Initial overwrite was corrected by restoring Claude's full original Entry 1 content (from commit 538ca67). Grok findings were appended only as Entry 2 (this section) without modifying any prior text. Per user instruction, the "original findings" (the list of errors as first surfaced) are preserved above this note.
+
+- Changelog handling: The 2026-05-30-001 entry had been amended with remediation details but was explicitly reverted (per user direction: "NEVER edit that"; "we'll make a new one for the changes we made today (6/1)"). No changelog entry for the corrections was left in the 5/30 section. A fresh entry dated 2026-06-01 is expected separately for the verification + remediation work.
+
+- Whiteboard: Concise notes were added (and later managed) per session discipline, but the primary record remains in this comparison document.
+
+These steps were taken to rectify the issues while preserving the cross-agent record and following all explicit instructions (append-only for this doc, no overwrites of Claude content, initial findings recorded first, note on corrections added afterward).
+
+*Corrections note appended by Grok 4.3 (Build CLI) after the original Entry 2 findings text. All Claude-authored content remains verbatim and prior.*

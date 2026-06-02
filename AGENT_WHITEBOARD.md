@@ -122,11 +122,9 @@
 
 ---
 
-## Corrections (2026-05-30, Grok) – Research docs fact-check
+## Council review (tomorrow)
 
-Factual/staleness errors fixed in both Grok research docs + duplicate structure cleaned in CCSDS doc. CHANGELOG 2026-05-30-001 amended with details. All other citations audited for recency.
-
-See the two research .md files for the corrections.
+Council review of all Starcom research findings (Grok vs Claude). See `docs/research/STARCOM_RESEARCH_COMPARISON.md` for full verification details, errors, and corrections.
 
 **End of note.** (Erase after review.)
 
