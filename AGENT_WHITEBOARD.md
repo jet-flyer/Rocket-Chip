@@ -81,50 +81,13 @@
 
 ---
 
-## Session Handoff Notes (2026-05-30, Grok) – Starcom CCSDS Library External Research
 
-**Context:** User requested deep external research on building a standalone CCSDS library ("Starcom"), with emphasis on the official Physical Layer (CCSDS 211.1-B-4) vs current Rocket-Chip hardware (RP2350 + SX1276), PIO possibilities, commercial radio options, practical tradeoffs for <50 km use, and existing prior art. Session was explicitly handed off for comparison with another agent's research tomorrow, followed by initial planning.
-
-**Work completed this session:**
-- Comprehensive external research on CCSDS Physical Layer requirements (211.1-B-4) and what can realistically be achieved with the current SX1276/RFM95W + RP2350 PIO.
-- Analysis of PIO opportunities even with the existing radio (Continuous Mode + bit synchronizer + synchronous sampling, custom Manchester handling, improved lock detection, etc.).
-- Survey of commercially available radios/IP cores for closer or full compliance (ComBlock 211.1 IP core at ~$2.5k, AX5043, Si4463, ADALM-Pluto SDR, etc.), with price and practicality notes.
-- Practical in-field impact assessment for the user's actual use cases (<50 km rocketry, post-landing recovery, log offload).
-- Data Link Layer side (COP-1 / COP-P / USLP requirements from 232.1-B-2, 211.0-B-6, 732.1-B-3).
-- Prior-art review of existing libraries (OSDLP, NASA cFS, CCSDSPack, etc.).
-- Light reference to Rocket-Chip AO integration patterns for future wrapper design.
-- Maintained `docs/research/STARCOM_CCSDS_LIBRARY_RESEARCH.md` as the living artifact with clear per-section authorship attribution for multi-agent use.
-
-**Key artifacts updated:**
-- `docs/research/STARCOM_CCSDS_LIBRARY_RESEARCH.md` (multiple new sections added with proper attribution)
-- `AGENT_WHITEBOARD.md` (this handoff note)
-
-**Current state of the research:**
-- All items from the original research todo list are complete.
-- The document provides a solid foundation covering official requirements, hardware limitations, practical tradeoffs, prior art, and integration considerations.
-- No code changes were made. This was pure external research + documentation.
-
-**Handoff for next session:**
-- User plans to review **both agents' research outputs** tomorrow (this document + the other agent's independent research).
-- Goal: Compare findings, then begin formulating an initial plan/scope for actually starting the Starcom library.
-
-**Open questions / suggested next steps:**
-- After comparing both research documents, what gaps or differing conclusions exist?
-- What should the initial library scope/phasing look like (e.g., Data Link Layer first, best-effort PHY adapter, full PHY later)?
-- Any specific areas that need deeper research before planning begins?
-- Should we create a dedicated planning/decision document for the library architecture?
-
-**Build / verification state:** N/A — pure research and documentation work. No src/ changes, no builds, no tests, no hardware involved.
-
----
-
-**End of handoff note.** (Erase or update this section when the next session resumes the work.)
-
----
 
 ## Council review (tomorrow)
 
 Council review of all Starcom research findings (Grok vs Claude). See `docs/research/STARCOM_RESEARCH_COMPARISON.md` for full verification details, errors, and corrections.
+
+**Session state at close (pure research/docs):** All changes committed/pushed (78a19b4). Repo clean. No src/ changes. ctest green on commit. Old 2026-05-30 research handoff erased (findings now in comparison doc + council scheduled).
 
 **End of note.** (Erase after review.)
 
