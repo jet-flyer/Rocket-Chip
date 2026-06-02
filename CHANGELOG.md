@@ -24,6 +24,12 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-06-02-001 | Claude Opus 4.8 (Code) | documentation, research
+
+**Starcom research cross-document comparison.** Added `docs/research/STARCOM_RESEARCH_COMPARISON.md`, a shared multi-agent log comparing both pairs of Starcom research docs (CCSDS-domain Claude vs Grok; library-dev Claude vs Grok). Produced via a 16-agent workflow: structured pairwise diff per pair → adversarial verification of each substantive conflict against the verified CCSDS Blue-Book fact set → synthesis. Findings: on every load-bearing CCSDS fact the docs agree or have converged, with the Claude docs the stronger spine; the genuine open forks are architectural (sans-I/O pure core vs in-core `IPhysicalLayer`; static-vs-header-only default; USLP-v4 vs native-v3 framing). Five concrete decisions teed up for the implementation plan (D-1 PHY-honesty, D-2 sans-I/O core, D-3 form+error-backport, D-4 framing, D-5 CI/packaging). Document is append-only with mandatory per-finding attribution for future comparison agents. The comparison agents read the Grok docs in their pre-`5b33e39` (2026-05-30) state; per user direction the findings are recorded as-originally-found with per-finding `Status (post-5b33e39)` notes, since Grok's `5b33e39` remediation had already corrected most of the factual items (CLCW owner, PLTU/ASM, AX5043 category, SX1276 rev, LTO claim, vcpkg scope). Pure research/documentation — no code, no firmware, no builds. (docs/research/STARCOM_RESEARCH_COMPARISON.md, CHANGELOG.md)
+
+---
+
 ### 2026-05-27-001 | Grok 4.3 (Build CLI) | tooling, documentation
 
 **Phase 0 WSL baseline + station harness fix.** Station 3/3 full PASS (positive control on COM9). See `PHASE0_BASELINE_2026-05-27.md` and `docs/plans/WSL_SOFT_PIVOT_2026-05-27.md`. Verified: ctest 857/857, vehicle bench 2/2, station bench 3/3. (scripts/_rc_test_common.py, scripts/station_bench_sim.py)
