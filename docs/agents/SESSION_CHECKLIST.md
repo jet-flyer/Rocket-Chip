@@ -2,31 +2,15 @@
 
 **Purpose:** Prevent incomplete handoffs, lost work, and undocumented changes between agent sessions.
 
-**How to use this checklist (aviation phase model):**
+**How to use this checklist:** This is a single linear document. Even when you reach a later phase (Session End or Milestone), always begin at the top and work your way downward. You may skip re-executing steps you have already confirmed, provided no relevant changes have occurred since they were last verified.
 
-This document contains dedicated checklists for different phases of a session, modeled on aviation procedures (e.g. Before Start, Taxi, Takeoff, Approach, Landing, Short-Field Landing).
-
-- Always start at the **top of the relevant phase section** for the actual phase you are in.
-- Do not run checklists for phases you are not currently executing.
-- Outer phases inherit the procedures and requirements from inner phases (every landing includes an approach; every short-field landing includes a normal landing).
-
-The scopes are nested as:
+This checklist is structured as four nested scopes:
 
 ```
-Per Commit  ⊂  Per Push  ⊂  Session End  ⊂  Milestone Close
+COMMIT  ⊂  PUSH  ⊂  SESSION_END  ⊂  MILESTONE
 ```
 
-- **Per Commit** and **Per Push** are baseline procedures. They are inherited by any later phase that involves commits or pushes.
-- **Normal session close**: Begin at the `## Session End` header. Satisfy the inherited Per Commit + Per Push rules for the work being closed, then complete the Session End items (9–12).
-- **Milestone / stage close**: Begin at the `## Session End` header for the normal close items, then continue with the additional milestone-only items under `## Session End: Milestone` (13+). Not every session end is a milestone.
-
-### Phase Entry Points (where to begin)
-
-- **Starting or resuming a session** → Begin at `## Session Start`
-- **Making a commit** → Begin at `## Per Commit` (for that commit)
-- **Pushing** → Begin at `## Per Push` (includes all Per Commit rules)
-- **Normal session close / handoff** → Begin at `## Session End`
-- **Stage / milestone close** → Begin at `## Session End`, then continue at `## Session End: Milestone`
+Each outer scope adds rules on top of the inner ones. When entering a later phase, still review from the top of the document downward (per the usage instruction above).
 
 A separate **Trigger-Driven Documentation Edits** section captures rules that don't follow the inheritance pattern — they fire when a session's content directly contradicts a doc, regardless of which scope-event is happening at the time.
 
@@ -98,11 +82,7 @@ Inherits all Per Commit rules. Adds the rules below — these run **once** befor
 
 ## Session End
 
-**Dedicated checklist entry point for normal session closure.** Begin here when ending a session.
-
-This phase always requires satisfying the inherited Per Commit and Per Push rules for any commits/pushes that are part of this close, then performing the items below.
-
-These rules run **once** when the session is closing (in addition to the inherited baseline procedures).
+Review from the top of this document before following the rules below. These rules run **once** when the session is closing (in addition to all earlier rules).
 
 9. **No broken code on main.** If any work in this session is incomplete, either stash it, abandon it, or commit it to a feature branch — never leave broken code on main.
 
@@ -122,11 +102,7 @@ These rules run **once** when the session is closing (in addition to the inherit
 
 ## Session End: Milestone
 
-**Additional items for stage / milestone closes only.** This is the "short-field" version of a session end.
-
-Begin the milestone-specific items here (after completing the normal `## Session End` items above).
-
-Every milestone close includes a full normal Session End + these extra requirements. These rules run **only** when a stage closes (in addition to all earlier rules including a normal Session End).
+Review from the top of this document before following the rules below. These rules run **only** when a stage closes (in addition to all earlier rules).
 
 13. **Update `docs/PROJECT_STATUS.md`** with milestone completion and next phase (per the trigger map — phase change is a state-of-system trigger).
 
