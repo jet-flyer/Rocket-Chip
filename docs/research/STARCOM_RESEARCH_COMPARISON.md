@@ -315,40 +315,28 @@ These steps were taken to rectify the issues while preserving the cross-agent re
 
 ---
 
-## Council Review — Starcom Research Findings (Grok, resuming after break)
+## Council Review — Universal CCSDS Scope (Grok, 2026-06)
 
-**Date:** Resuming session (post previous "tomorrow" note in WB).
+**Context (from WB handover note):** Council review of all Starcom research findings (Grok vs Claude). See this document for full verification details, errors, and corrections. The review was framed around making the library suitable for universal CCSDS use (cubesats and other projects), not RC-specific.
 
-**Panel:** Main council (ArduPilot Core Contributor, Retired NASA/JPL Avionics Lead, Embedded Systems Professor, Senior Aerospace Student). Reviewed the full `STARCOM_RESEARCH_COMPARISON.md` (Claude Entry 1 with detailed analysis and D-1 to D-5; Grok Entry 2 verification list + corrections note).
+**Panel:** JPL Avionics Lead, ArduPilot Core Contributor, Embedded Systems Professor, Cubesat Startup Engineer.
 
-**Summary of panel discussion:**
+**Key Suggestions from Council (re-framed for universal use):**
 
-- **Overall assessment of the research:** Strong work from both agents. Factual errors in early Grok docs were real (as listed in Entry 2) but have been corrected (per the note). The comparison is a good, attributed record. Claude's Entry 1 provides excellent standards spine and architecture guidance; Grok adds valuable concrete enablement for RP2350/PIO and field use. No major contradictions left on facts.
+- The library's value is in the transport-agnostic data-link + C&S machinery (COP-1/COP-P, USLP, PLTU/ASM). RC-specific details (exact <50 km impacts, particular AO integration) should be in examples or appendices only.
+- D-1 (PHY honesty): Strongly reinforced. Never imply full 211.1-B-4 compliance on best-effort paths. Use neutral naming for the abstraction.
+- D-2 (sans-I/O core): Mandatory for universal reusability. The core must not assume any particular transport or PHY.
+- D-4 (framing): Support USLP as primary for modern multi-VC use cases (cubesats benefit), with clean Version-3/PLTU compatibility. Make the choice not leak into core logic.
+- D-3 and D-5 remain solid for MCU-first universal targets (static default, no-heap shim as hard gate, delta-based reporting).
+- The three PHY tiers (none at all, best-effort COTS/PIO, eventual full compliant) must be first-class considerations. The abstraction must support users choosing "none" (pure core) without penalty.
 
-- **D-1 PHY honesty:** Unanimous agreement. Do not claim 211.1-B-4 compliance on current hardware. Use neutral `IRadio`/`IBearer` abstraction. Good that the corrections note and docs now reflect this. (JPL: "Failure mode if someone assumes compliance later is bad.") (ArduPilot: "Exactly — label it honestly or it will bite you in the field.")
+**Naming Suggestions (Grok):**
 
-- **D-2 sans-I/O pure core:** Strong support for sans-I/O (Claude's call). Good for framework-agnostic (Rocket-Chip AO integration). The `IPhysicalLayer` in core was a real tension with P10 Rule 9 and no-RTTI. Grok's contributions (user-owned state, high-level events) are compatible and should be folded in. (Prof: "Classic sans-I/O pattern from networking — correct here.") (Student: "Makes testing the core 100% on host much cleaner.")
+- **Core naming:** "Starcom Core" (or `starcom-core`). This convention signals it is the foundational/base layer and does not necessarily deliver full end-to-end functionality on its own. It nicely implies "this is the essential part; everything else is layered on top."
+- **`Ixxx` convention:** `Ixxx` (e.g. ITransport, ILink) is a common C++ idiom for naming interfaces or abstract base classes that define a contract. It comes from COM (Component Object Model), MFC, and many embedded/game codebases. It is not a formal "industry standard" like an ISO spec, but it is a widely recognized de-facto pattern for abstractions. Modern C++ sometimes drops the `I` in favor of concepts or just plain names, but the prefix remains useful for clarity in larger systems.
+- **Preference:** `ILink` is a good choice for the abstraction. It is more neutral than "PhysicalLayer" (which implies hardware) and works well across "none", best-effort, and full implementations. "Link" conveys a communication path that may or may not involve a traditional physical layer.
+- **PHY tier handling:** Best-effort implementations (PIO + COTS radios, etc.) and future full-compliant PHYs should be treated as **optional, clearly labeled adapters/ports outside the Starcom Core**. They are valuable but not bedrock. Document them explicitly as "reference" or "optional" so users understand the core can be used without any PHY at all. A full compliant implementation can be more tightly integrated later (e.g., as a conformant adapter module) without changing the core contract.
 
-- **D-3 Library form:** Agree on static default for MCU (Claude stronger here; Grok's LTO argument was the error that was fixed). Run the spike as planned. `tl::expected` default with knob is fine. (Embedded Prof: "Static + LTO flags is the right MCU path.") 
+These points should be carried forward into any Starcom implementation plan or design document.
 
-- **D-4 Framing (USLP vs native-v3) — the main open one:** Consensus to follow the recommendation: **support USLP as primary with Version-3/PLTU compatibility path**. For Rocket-Chip, start with what is needed for current TC use but architect for USLP (multi-VC, future-proof). Reconcile CRC ownership as noted. Since this project is educational/HPR but aims for good standards following, USLP makes sense long-term. (ArduPilot: "USLP is the future — don't paint yourself into a corner with only old TC frames.") (JPL: "If you're building the library anyway, do the modern one right.")
-
-- **D-5 CI/packaging:** Full agreement on the hardening (no-heap shim as hard gate, size reports on delta, the matrix). Important for MCU-first. The vcpkg checked-in for now (not published yet) is reasonable. (All: "Positive control on the no-heap contract is exactly what the project standards demand.")
-
-- **Other notes from research:** The PIO opportunities and <50km impact analysis from Grok are useful for scoping the best-effort adapter. The prior-art (CCSDSPack, OSDLP, cFS) should be referenced in the plan. F' is correctly ruled out as plugin.
-
-**Consensus / Recommendations:**
-
-The comparison provides a solid basis for the Starcom implementation plan. Proceed with the 5 D's as stated (with D-4 using the USLP-primary recommendation). The library should be:
-
-- Framework-agnostic sans-I/O core.
-
-- MCU-first (static, expected, no post-init alloc, freestanding-friendly).
-
-- Best-effort COTS PHY adapter documented as non-conformant.
-
-- Good docs and tests as first-class.
-
-**Next:** User to review; potentially create plan doc or start implementation based on this. The council endorses using this comparison as input for any Starcom design/plan.
-
-*Council review recorded by Grok 4.3 (Build CLI). See WB for the scheduling note. Ready to erase the active WB council note once user confirms.*
+*Section added by Grok 4.3 (Build CLI). All prior Claude content left untouched.*

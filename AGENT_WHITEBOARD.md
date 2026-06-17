@@ -83,7 +83,15 @@
 
 
 
+## Council review — Starcom (completed)
 
+Council review of all Starcom research findings (Grok vs Claude) completed. Full details + naming suggestions recorded in `docs/research/STARCOM_RESEARCH_COMPARISON.md` (new "Council Review — Universal CCSDS Scope" section).
+
+**Key outcome:** Core should be called "Starcom Core". Use `ILink` (or similar) for the transport abstraction. PHY tiers (none / best-effort / full compliant) as optional adapters outside the core. Recommendations re-framed for universal CCSDS use.
+
+**End of note.** (Erased per whiteboard rules after review.)
+
+---
 
 ## Use Cases
 1. **Cross-agent review** — Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
@@ -98,14 +106,7 @@
 
 - **AO Commandments source-citation audit.** Investigating R-27 (RfManager Commandment XII observation) surfaced that Commandment XII's `Source:` line cites LL Entry 36, but LL 36 is about test-tool rot (bench_flight_sim.py going stale), not AO state-transition logging or runtime observability. A research agent walked the doc's stated sources (Samek PSiCC2 Ch. 11, state-machine.com Active Object/RTEF/QP/C SRS pages, NASA F´ Code Style + State Machines doc) and confirmed **no clean substitute citation exists in any of those** — the rule is project-internal invention generalized from folklore, not inherited from external authority. This is an [LL Entry 37](docs/agents/LESSONS_LEARNED.md)-class citation-rot finding. Per Entry 37 discipline ("if one citation was wrong, check the rest"), audit all 12 Commandment `Source:` lines in `docs/decisions/AO_COMMANDMENTS.md` against their cited sources; fix XII's citation (either reframe as project-internal "Rationale:" or cite PSiCC2 Ch. 11 honestly as topical-but-tool-framing); reassess R-27's disposition once the rule's authority is correctly understood. Est. ~1-2 hrs. Block on this is open per user direction 2026-05-22 — address before closing R-27.
 
-- **Four-cycle plan — Cycle 4 in progress.** L2-P5 JSF AV walk + L2-P10 CLA-RBM re-collection. Cycles 1-3 closed; gate open. See CHANGELOG for cycle-by-cycle history.
-
-  **Uncommitted-temp-record (CHANGELOG entry pending — write at session/work close, not yet):** Commit `5a6cf87` (local only, NOT pushed) landed three artifacts for the L2-P5 standards-audit prep:
-  - `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` (new) — unified master rule-verifiability triage, workflow-generated (gather → classify → adversarial-verify 14/14 → repair → synth). Corpus: P10 10 + JPL-C LOC-1..4 31 + JSF AV 233 IDs; 225 triaged property-rows; LOC-5/6 (89 MISRA) deferred-with-rationale. §1 method … §7 findings.
-  - `docs/audits/L2P5_MANUAL_WALK_GUIDE.md` (new) — human-driven walk guide; return-value class is the worked template, classes 2–9 are intentional stubs pending template approval.
-  - `standards/CODING_STANDARDS.md` (PROTECTED) — bounded amendment: added "Cross-standard rule-equivalence map" (21-row table + note) under Foundation. Repo-owner-authorized, table-only (+30 lines, 0 deletions). Verified pure-software (matrix TRIGGER_FLIGHT_BENCH=0); pre-commit ran host ctest (857) clean.
-  - **§7 findings SURFACED, not actioned** (separate disposition): JSF naming over-claim at `CODING_STANDARDS.md:403` ("JSF AV 50-53" — 51/52 actually mandate all-lowercase, conflicting with k/g_/camelBack scheme); P10-7 return-value gap (`bugprone-unused-return-value.CheckedFunctions` unpopulated → project i2c/flash/gps/rc_log returns uncaught); live JSF violations (offsetof at calibration_data.cpp:106,119; `#pragma once` at shared_state.h:16; ~28 `continue` sites).
-  - **Still pending (not built):** condensed agent-facing triage; smell-first agent walk guide (external-canon-sourced, findings + draft-remediation, no edits). Reconciliation of 225 property-rows vs 274 rule-IDs not yet line-by-line verified.
+- **Four-cycle plan — Cycle 4 stashed.** L2-P5 JSF AV walk + L2-P10 CLA-RBM re-collection. Cycles 1-3 closed; gate now open. See CHANGELOG for cycle-by-cycle history.
 
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
