@@ -83,15 +83,7 @@
 
 
 
-## Council review (tomorrow)
 
-Council review of all Starcom research findings (Grok vs Claude). See `docs/research/STARCOM_RESEARCH_COMPARISON.md` for full verification details, errors, and corrections.
-
-**Session state at close (pure research/docs):** All changes committed/pushed (78a19b4). Repo clean. No src/ changes. ctest green on commit. Old 2026-05-30 research handoff erased (findings now in comparison doc + council scheduled).
-
-**End of note.** (Erase after review.)
-
----
 
 ## Use Cases
 1. **Cross-agent review** — Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
