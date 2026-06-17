@@ -2,7 +2,7 @@
 
 **Purpose:** Prevent incomplete handoffs, lost work, and undocumented changes between agent sessions.
 
-**How to use this checklist:** This is a single linear document. Even when you reach a later phase (Session End or Milestone), always begin at the top and work your way downward. You may skip re-executing steps you have already confirmed, provided no relevant changes have occurred since they were last verified.
+**How to use this checklist:** This is a single linear document. Always begin at the top and work your way downward. When working in a later or outer scope (such as a session end), this means addressing the rules of the current scope together with its inherited inner scopes as part of the same checklist instance. Re-verify each relevant step in the current run, even if similar actions were performed earlier in the session — do not skip based on prior confirmations from outside this immediate checklist run. As each item is checked during this run, explicitly state that the item is being verified and report the outcome before moving to the next.
 
 This checklist is structured as four nested scopes:
 
@@ -10,7 +10,7 @@ This checklist is structured as four nested scopes:
 COMMIT  ⊂  PUSH  ⊂  SESSION_END  ⊂  MILESTONE
 ```
 
-Each outer scope adds rules on top of the inner ones. When entering a later phase, still review from the top of the document downward (per the usage instruction above).
+Each outer scope adds rules on top of the inner ones. Note that the scopes do not automatically chain: not every commit is followed by a push (a push always involves at least one commit, but commits can occur without an immediate push). Apply the rules only for the scopes corresponding to the actions being taken now.
 
 A separate **Trigger-Driven Documentation Edits** section captures rules that don't follow the inheritance pattern — they fire when a session's content directly contradicts a doc, regardless of which scope-event is happening at the time.
 
