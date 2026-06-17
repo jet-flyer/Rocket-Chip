@@ -52,6 +52,36 @@ The deferral is **re-evaluated each cycle** at Tier 2.5a (deferred-with-rational
 - Power of 10 Rules (Holzmann/JPL, 2006) — distilled top-10 safety-critical rules, newest
 - [NASA Software Engineering Handbook (SWEHB)](https://swehb.nasa.gov/) — NASA-wide guidance (handbook, not a hard standard). Good general background for safety-critical software practice across the full project lifecycle (coding, safety, V&V, configuration management, etc.). The whole handbook is the reference; specific section citations live at the point where they're actually applied (e.g., a particular accepted-deviation row, an audit-procedure step, or a design-decision doc) rather than in this overview list.
 
+#### Cross-standard rule-equivalence map
+
+*Amendment 2026-06-17.* This table maps rules across P10 / JPL-C / JSF AV that cover the **same property**, so a citation can be resolved to the standard that actually governs (per the precedence rule above) instead of whichever standard was checked first. It lists overlap clusters only — JSF-only and JPL-original rules with no cross-standard counterpart are omitted. Relation key: `==` equivalent wording/intent · `(` narrower (covers a subset) · `)` broader (covers a superset) · `~` related but distinct. Source: `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` §5 (multi-agent triage of the full audited corpus; LOC-5/6 deferred-with-rationale per the MISRA chain-of-custody note above).
+
+| Property | P10 | JPL-C | JSF AV | Governs | Relation |
+|---|---|---|---|---|---|
+| Function-pointer ban | 9 | — | 176 `(` | **P10-9** (broadest ban; JSF only requires typedef) | P10 `)` JSF |
+| Pointer indirection ≤1 level | 9 | — | 170 | **P10-9** (single deref) vs JSF 170 (≤2 levels) | P10 `(` JSF |
+| Check function return values | 7 | 14 | 115 `(` | **JPL-14 == P10-7**; JSF 115 narrower | == / `(` |
+| Bounded loops (fixed upper bound) | 2 | 11 | — | **P10-2 == JPL-11** | == |
+| No recursion | 1 | 4 | — | **P10-1 == JPL-4** | == |
+| No dynamic allocation after init | 3 | 5 | 206 | **P10-3** == JPL-5; JSF 206 same intent | == |
+| Limit preprocessor use | 8 | 20 | 26–32 `~` | **P10-8** == JPL-20; JSF 26–32 itemize specifics | == / `~` |
+| Assertions / defensive checks | 5 | 16 | — | **P10-5 == JPL-16** | == |
+| Declarations at smallest scope | 6 | 22 | 135 | **P10-6** == JPL-22 == JSF 135 | == |
+| Fixed-width integer types | — | — | 209 | **JSF-209** (no P10/JPL counterpart) | JSF only |
+| Compiler warnings = errors, clean | 10 | — | — | **P10-10** (no counterpart) | P10 only |
+| One statement / declaration per line | — | — | 41–42 | **JSF-41/42** | JSF only* |
+| Braces on all control blocks | — | — | 59 | **JSF-59** | JSF only* |
+| `goto` prohibited | — | — | 189 | **JSF-189** (P10 silent; JPL via structured-flow) | JSF / `~` |
+| No `<stdio.h>` | — | — | 22 | **JSF-22** (project-banned; see stdio retirement note) | JSF only |
+| `const`-correctness | — | — | 134–138 | **JSF-134..138** | JSF only |
+| No magic numbers / named constants | — | — | 151 | **JSF-151** | JSF only |
+| Single point of exit (advisory) | — | — | 113 | **JSF-113** (project does not enforce SPoE) | JSF only* |
+| Initialize before use | — | — | 142–143 | **JSF-142/143** (P10 implies via §init) | JSF / `~` |
+| `enum` for related constants | — | — | 145–148 | **JSF-145..148** | JSF only |
+| Header include-guard / one-definition | — | — | 27, 35 | **JSF-27/35** (`#pragma once` is a live deviation) | JSF only |
+
+\* JSF-only rows marked with `*` are areas where the newer standards (P10/JPL) are silent; per the precedence rule the older JSF text governs by default coverage. The full per-rule verifiability classification (Deterministic / Grey / Manual / Split / Compliant-by-construction), the LOC-5/6 deferral, and the open findings (over-claims, live violations, citation-count corrections) live in `docs/audits/RULE_VERIFIABILITY_TRIAGE.md`.
+
 ### JPL Additions (Pro Tier Goals)
 
 These additional rules from JPL's standard are stretch goals for Pro tier:
