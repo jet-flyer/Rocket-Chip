@@ -24,6 +24,10 @@ Routine work—even if complex—does not warrant rationale. Bugfixes, documenta
 
 ---
 
+### 2026-06-17-002 | Grok 4.3 (Build CLI) | documentation, process
+
+**SESSION_CHECKLIST.md "How to use" update.** Revised only the introductory "How to use this checklist" section (per discussion) to require always starting at the top of the relevant scope in the current checklist instance, remove the permissive skip sentence, note that commits do not automatically lead to pushes, and mandate explicit per-item feedback ("checking item X... outcome") during execution. The aviation phase checklist analogy (dedicated sections, nested scopes like approach/landing/short-field, co-pilot readback) was used to formulate the intent but was not added to the document. Pure documentation. Verified: pure-software change, host ctest unaffected, no HW reseat required. (docs/agents/SESSION_CHECKLIST.md, CHANGELOG.md)
+
 ### 2026-06-17-001 | Grok 4.3 (Build CLI) | documentation, research, council
 
 **Starcom council review + naming decisions.** Appended "Council Review — Universal CCSDS Scope (Grok, 2026-06)" section to `docs/research/STARCOM_RESEARCH_COMPARISON.md` after Entry 2. Re-framed findings and suggestions for universal CCSDS library use (cubesats and any other project needing standards-based telemetry), not RocketChip-only. Covered: PHY spectrum considerations (none at all / best-effort via PIO+COTS / eventual full-compliant); core naming "Starcom Core"; `ILink` (and Ixxx de-facto C++ interface convention from COM/MFC) as the neutral seam; best-effort and full PHY tiers as optional, clearly-labeled adapters/ports outside the bedrock core. Updated `AGENT_WHITEBOARD.md` to mark the council review complete with key outcomes (per whiteboard rules). Core content change landed in commit 552fc6f; this entry supplies the required CHANGELOG coverage. Pure documentation. Verified: pure-software change, host ctest unaffected, no HW reseat required. (docs/research/STARCOM_RESEARCH_COMPARISON.md, AGENT_WHITEBOARD.md, CHANGELOG.md)
