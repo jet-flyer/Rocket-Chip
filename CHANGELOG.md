@@ -1,6 +1,6 @@
 # Changelog
 
-### 2026-06-18-001 | Composer 2.5 (Cursor) | docs, starcom
+### 2026-06-18-001 | Composer 2.5 (Build harness) | docs, starcom
 
 **Starcom incubation folder.** Added top-level `starcom/` as a self-contained library tree (scaffold placeholders + `docs/WORKING_HERE.md`). Relocated six Starcom library documents from `docs/research/` into `starcom/docs/` without editing their contents (renamed on move; path mapping in `starcom/docs/README.md`). Updated `docs/SCAFFOLDING.md` and `AGENT_WHITEBOARD.md` pointers. No firmware code changes; root CMake not wired to `starcom/` yet. Library detail in `starcom/CHANGELOG.md`. Verified: pure-software change, host ctest unaffected, no HW reseat required. (starcom/, docs/SCAFFOLDING.md, AGENT_WHITEBOARD.md, CHANGELOG.md)
 
