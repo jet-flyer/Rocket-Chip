@@ -85,7 +85,7 @@
 
 ## Council review — Starcom (completed)
 
-Council review of all Starcom research findings (Grok vs Claude) completed. Full details + naming suggestions recorded in `docs/research/STARCOM_RESEARCH_COMPARISON.md` (new "Council Review — Universal CCSDS Scope" section).
+Council review of all Starcom research findings (Grok vs Claude) completed. Full details + naming suggestions recorded in `starcom/docs/comparison.md` (new "Council Review — Universal CCSDS Scope" section). Starcom library docs live under `starcom/` — see `starcom/docs/WORKING_HERE.md`.
 
 **Key outcome:** Core should be called "Starcom Core". Use `ILink` (or similar) for the transport abstraction. PHY tiers (none / best-effort / full compliant) as optional adapters outside the core. Recommendations re-framed for universal CCSDS use.
 

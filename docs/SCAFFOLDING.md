@@ -1,7 +1,7 @@
 # RocketChip Directory Structure
 
 **Created:** 2026-01-09
-**Updated:** 2026-04-18
+**Updated:** 2026-06-18
 
 **Status:** Reflects actual filesystem through Stage 16C (station runtime decoupling + MCU die-temp + station HealthMonitor parity + Tiny 2350+ / Pico 2 board scaffolding + station bench sim + station SPIN model). Previous ArduPilot integration archived in `AP_FreeRTOS` and `AP_ChibiOS` branches.
 
@@ -22,6 +22,20 @@ rocketchip/
 ├── COUNCIL_PROCESS.md             # Panel review protocol
 ├── CROSS_AGENT_REVIEW.md          # Inter-agent review protocol
 ├── LICENSE
+│
+├── starcom/                       # Standalone CCSDS library (incubating; future own repo)
+│   ├── README.md                  # Library identity + pointer to docs/WORKING_HERE.md
+│   ├── CMakeLists.txt             # Scaffold only — not wired into root build yet
+│   ├── docs/                      # Library design, research, comparison (not repo-root docs/)
+│   │   ├── WORKING_HERE.md        # Dos/don'ts for agents working in starcom/
+│   │   ├── design_record_claude.md
+│   │   ├── comparison.md
+│   │   └── research/              # ccsds_domain_*.md, library_craft_*.md
+│   ├── include/starcom/           # Public API (placeholder)
+│   ├── src/ccsds/                 # Sans-I/O core impl (placeholder)
+│   ├── adapters/                  # host/, rp2350/ — optional, outside core
+│   ├── tests/                     # Host-side ctest (placeholder)
+│   └── examples/                  # Loopback demos (placeholder)
 │
 ├── docs/
 │   ├── SAD.md                     # Software Architecture Document
