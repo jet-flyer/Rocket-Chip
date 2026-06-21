@@ -116,13 +116,13 @@ Council review of all Starcom research findings (Grok vs Claude) completed. Full
 
   **── SESSION HANDOFF / temp-record (2026-06-21, Claude Opus 4.8) — resume here. CHANGELOG deferred per current practice; this block holds the state until then. ──**
 
-  ⚠️ **Provenance caution:** commit `5a6cf87` (below) never got a CHANGELOG entry, and its original WB temp-record (commit `d3efe29`) was overwritten by a later cross-agent WB commit. So this block re-carries that lost state *plus* this session's work. Nothing here is pushed.
+  ⚠️ **Provenance caution:** commit `5a6cf87` (below) never got a CHANGELOG entry, and its original WB temp-record (commit `d3efe29`) was overwritten by a later cross-agent WB commit. So this block re-carries that lost state *plus* this session's work. **Push state:** `5a6cf87` + `d3efe29` ARE on `origin/main` (carried up by a later agent's push); only this handoff commit `ab44feb` is unpushed.
 
-  **What's DONE and committed (`5a6cf87`, 2026-06-17, local only — NOT pushed, NOT CHANGELOGged):**
+  **What's DONE and committed (`5a6cf87`, 2026-06-17 — pushed to origin, but NOT CHANGELOGged):**
   - `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` (NEW) — unified master rule-verifiability triage, workflow-generated, primary-source-verified. Corpus P10 (10) + JPL-C LOC-1..4 (31) + JSF AV (233 distinct IDs); 225 property-rows; LOC-5/6 (89 MISRA) deferred. §1 method · §2 P10 · §3 JPL · §4a-d JSF · §5 cross-ref · §6 deferred · §7 findings. This is the **driver** for everything below.
   - `standards/CODING_STANDARDS.md` (PROTECTED) — bounded, repo-owner-authorized amendment: "Cross-standard rule-equivalence map" table under Foundation (before "JPL Additions"). Table + note only.
 
-  **What's DONE this session (`L2P5_MANUAL_WALK_GUIDE.md` rebuild — committed at this handoff, NOT pushed):**
+  **What's DONE this session (`L2P5_MANUAL_WALK_GUIDE.md` rebuild — committed at this handoff as `ab44feb`, NOT pushed):**
   - **Re-scoped per user direction (2026-06-20):** the walk is NOT the post-`fcd3496` file delta. It's **everything the scripts can't fully+correctly evaluate**, across all of `src/`, driven by the triage's enforcement diagnostic. Three tiers: **Tier-3 semantic walk** (Grey/Manual/Split/over-claim) · **Tier-2 one-shot mechanical** (decidable but ungated — grep/flip-a-check once) · **Tier-1 script-covered** (cite gate, don't walk — only after confirming it actually runs + fully covers).
   - **Built:** Class 1 (return values, template) · Class 2 (naming + JSF supersession over-claim) · Class 3 (comments/doc-quality smell-cluster) · §LV (live unlogged violations) · §CM (one-shot mechanical checks/conversion moves) · §SC (script-covered, revalidated).
   - **Indexed, build-pending:** Classes 4-14 (assertions, scope/lifetime, pointers/casts, class design, templates, control-flow, concurrency, preprocessor, headers, magic numbers, expressions) — rules + triage refs assigned; build to the Class-1 template next.
