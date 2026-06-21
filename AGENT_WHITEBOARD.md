@@ -112,7 +112,26 @@ Council review of all Starcom research findings (Grok vs Claude) completed. Full
 
 - **AO Commandments source-citation audit.** Investigating R-27 (RfManager Commandment XII observation) surfaced that Commandment XII's `Source:` line cites LL Entry 36, but LL 36 is about test-tool rot (bench_flight_sim.py going stale), not AO state-transition logging or runtime observability. A research agent walked the doc's stated sources (Samek PSiCC2 Ch. 11, state-machine.com Active Object/RTEF/QP/C SRS pages, NASA F´ Code Style + State Machines doc) and confirmed **no clean substitute citation exists in any of those** — the rule is project-internal invention generalized from folklore, not inherited from external authority. This is an [LL Entry 37](docs/agents/LESSONS_LEARNED.md)-class citation-rot finding. Per Entry 37 discipline ("if one citation was wrong, check the rest"), audit all 12 Commandment `Source:` lines in `docs/decisions/AO_COMMANDMENTS.md` against their cited sources; fix XII's citation (either reframe as project-internal "Rationale:" or cite PSiCC2 Ch. 11 honestly as topical-but-tool-framing); reassess R-27's disposition once the rule's authority is correctly understood. Est. ~1-2 hrs. Block on this is open per user direction 2026-05-22 — address before closing R-27.
 
-- **Four-cycle plan — Cycle 4 stashed.** L2-P5 JSF AV walk + L2-P10 CLA-RBM re-collection. Cycles 1-3 closed; gate now open. See CHANGELOG for cycle-by-cycle history.
+- **Four-cycle plan — Cycle 4 IN PROGRESS (L2-P5 manual standards-walk).** L2-P5 JSF AV walk + L2-P10 CLA-RBM re-collection. Cycles 1-3 closed; gate open (R-5 + Cycle-3 closed). See CHANGELOG for cycle-by-cycle history.
+
+  **── SESSION HANDOFF / temp-record (2026-06-21, Claude Opus 4.8) — resume here. CHANGELOG deferred per current practice; this block holds the state until then. ──**
+
+  ⚠️ **Provenance caution:** commit `5a6cf87` (below) never got a CHANGELOG entry, and its original WB temp-record (commit `d3efe29`) was overwritten by a later cross-agent WB commit. So this block re-carries that lost state *plus* this session's work. Nothing here is pushed.
+
+  **What's DONE and committed (`5a6cf87`, 2026-06-17, local only — NOT pushed, NOT CHANGELOGged):**
+  - `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` (NEW) — unified master rule-verifiability triage, workflow-generated, primary-source-verified. Corpus P10 (10) + JPL-C LOC-1..4 (31) + JSF AV (233 distinct IDs); 225 property-rows; LOC-5/6 (89 MISRA) deferred. §1 method · §2 P10 · §3 JPL · §4a-d JSF · §5 cross-ref · §6 deferred · §7 findings. This is the **driver** for everything below.
+  - `standards/CODING_STANDARDS.md` (PROTECTED) — bounded, repo-owner-authorized amendment: "Cross-standard rule-equivalence map" table under Foundation (before "JPL Additions"). Table + note only.
+
+  **What's DONE this session (`L2P5_MANUAL_WALK_GUIDE.md` rebuild — committed at this handoff, NOT pushed):**
+  - **Re-scoped per user direction (2026-06-20):** the walk is NOT the post-`fcd3496` file delta. It's **everything the scripts can't fully+correctly evaluate**, across all of `src/`, driven by the triage's enforcement diagnostic. Three tiers: **Tier-3 semantic walk** (Grey/Manual/Split/over-claim) · **Tier-2 one-shot mechanical** (decidable but ungated — grep/flip-a-check once) · **Tier-1 script-covered** (cite gate, don't walk — only after confirming it actually runs + fully covers).
+  - **Built:** Class 1 (return values, template) · Class 2 (naming + JSF supersession over-claim) · Class 3 (comments/doc-quality smell-cluster) · §LV (live unlogged violations) · §CM (one-shot mechanical checks/conversion moves) · §SC (script-covered, revalidated).
+  - **Indexed, build-pending:** Classes 4-14 (assertions, scope/lifetime, pointers/casts, class design, templates, control-flow, concurrency, preprocessor, headers, magic numbers, expressions) — rules + triage refs assigned; build to the Class-1 template next.
+
+  **§7 / live findings SURFACED, not actioned (disposition is Nathan's):** naming over-claim at `standards/CODING_STANDARDS.md:433` ("JSF AV 50-53" — 51/52 mandate all-lowercase, project uses k/g_/camelBack → record the supersession); P10-7 CANARY (`bugprone-unused-return-value.CheckedFunctions` unpopulated → bus/flash/gps/rc_log returns uncovered); live violations JSF-18 `offsetof` (`calibration_data.cpp:106,119`), JSF-27 `#pragma once` (`shared_state.h:16`), JSF-190 28× `continue`, JSF-202 `!=0.0f` (`eskf_runner.cpp:292-295`).
+
+  **NEXT STEPS (recommended order):** (1) run **§CM** first — populating `CheckedFunctions` + enabling `-Wshadow` converts two hand-walks to script-covered and shrinks the walk; (2) walk Classes 1-3 + disposition the 4 **§LV** items (concrete, known sites); (3) build Classes 4-14 (start with **Class 6 / pointers** — carries critical over-claims JSF-175 nullptr + JSF-182 pointer-cast). Then the two still-pending derivative deliverables: condensed agent-facing triage, and the smell-first agent walk guide (external-canon-sourced, findings+draft-remediation, no edits).
+
+  **Not blocked.** Low-priority loose end never done: reconcile the 225 property-rows vs 274 rule-IDs count line-by-line. Untracked `agent-tools/` + `mcps/` dirs in the tree are from the CCSDS detour, unrelated to L2-P5.
 
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
