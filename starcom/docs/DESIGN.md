@@ -102,6 +102,31 @@ USLP Primary Header fields (example rows):
 
 (Full USLP header table and feature ownership map preserved via attribution to Claude ccsds_domain source.)
 
+**Verbatim transcription of CCSDS-mandated state machines (direct from design_record_claude.md section 2.7, the authoritative source transcription of Blue Book tables):**
+
+**The CCSDS-mandated state machines (verified):**
+
+| State machine | States | Shape | Doc / table | Notes |
+|---|---|---|---|---|
+| **FOP-1** (COP-1 sender) | **6**, flat | S1 Active, S2 Retransmit-w/o-Wait, S3 Retransmit-w/Wait, S4 Init-w/o-BC, S5 Init-w/BC, S6 Initial | 232.1-B-2 **Table 5-1** | 6 states × **46 events**; complexity is in the *actions* (Sent/Wait queues, T1 timer, window K, V(S)/NN(R)), not state nesting. Standard itself calls the table "large and complex." |
+| **FARM-1** (COP-1 receiver) | **3**, flat | Open, Wait, Lockout | 232.1-B-2 **Table 6-1** | 3 × 11 events; V(R), PW/NW window, 3 flags, FARM-B counter, CLCW emit. |
+| **FOP-P** (COP-P sender) | **2**, flat | Active, Resync | 211.0-B-6 §7.2 | go-back-N (`Transmission_Window` ≤127); simpler than COP-1. |
+| **FARM-P** (COP-P receiver) | **stateless / data-driven** | (no named states) | 211.0-B-6 §7.3 | "simply reacts to what it receives." |
+| **Proximity-1 session / MAC / hailing** | **~30**, partial hierarchy | per-DUPLEX (Full/Half/Simplex) tables | 211.0-B-6 §6 | The one genuinely large machine; ~8 timers, token-pass turnaround. Still normatively flat per-DUPLEX tables. |
+| PHY transmitter / receiver | **not FSMs** — lookup tables | — | 211.1-B-4 Tables 3-2/3-3 | Out of the data-link core. |
+
+**Prior-art survey — every reference implementation is framework-free:** OSDLP (C, `enum`+`switch`, handlers `fop_e1()`…`fop_e46()` named to the standard's events, queues/timers via weak functions), NASA `cop1.c` (C, switch, FARM-1 only), dariol83/ccsds (Java, GoF State pattern), yamcs (Java, plain `int state`). **Zero use QP/C, Boost.SML, or any statechart engine.**
+
+**Decision (recommended; pending final user sign-off at framework-planning):**
+- **Build COP-1/COP-P as plain, passive, table-driven C++ state machines** — transcribe the Blue-Book state×event tables into a `switch` or a `std::array` of transitions. This is **less** work than a framework (you're copying tables, not building an HSM engine), it's what 100% of the field does, and an HSM framework's value (deep hierarchy) does not apply to 2–6 flat states.
+- **The core takes NO framework/QP dependency.** It is a **passive sans-I/O library** (`Starcom::FopEngine` etc.) driven by the consumer via `submit()` / `on_clcw()` / `tick(now)`. (Time handled the sans-I/O way: the engine checks its own deadlines against the `now` the caller passes to `tick()`; it owns no clock and no thread.)
+- **The AO is a consumer-side OPTIONAL adapter, never in the core.** RC wraps the passive engine in RC's own QP AO; non-QP consumers drive it from their own loop. The earlier "does QP get forced on parent code?" worry is **void** — the AO was never in the library.
+- **Maximal testability** (serves the standards-fidelity + robust-determinism goal): a passive table-driven SM is golden-vector-tested by dispatching events and asserting transitions directly against Table 5-1 / 6-1 — no framework, no hardware, no threads.
+
+**Open scope question (for framework-planning, not resolved here):** whether the Starcom data-link "core" includes the **Proximity-1 §6 session/MAC/hailing machine (~30 states)** — by far the largest single chunk — or whether the first target is COP-1/COP-P only with session/MAC as a later/optional module. Even if included, it needs no HSM framework (flat per-DUPLEX tables + explicit sub-state variables).
+
+**Supersedes** the over-strong "AO = optional adapter only / must NOT be an AO" language in earlier drafts of §2.5 #4: the sharper truth is **the core is a passive table-driven object with no framework; AO-ness is one optional way a consumer drives it.**
+
 ---
 
 ## 2. Standing Decisions & Open Items (consolidated from design_record section 2.4 + section 3 + comparison D-1..D-5, Grok council)
