@@ -114,7 +114,7 @@ Council review of all Starcom research findings (Grok vs Claude) completed. Full
 
 - **Four-cycle plan — Cycle 4 IN PROGRESS (L2-P5 manual standards-walk).** L2-P5 JSF AV walk + L2-P10 CLA-RBM re-collection. Cycles 1-3 closed; gate open (R-5 + Cycle-3 closed). See CHANGELOG for cycle-by-cycle history.
 
-  **── SESSION HANDOFF / temp-record (2026-06-21, Claude Opus 4.8) — resume here. CHANGELOG deferred per current practice; this block holds the state until then. ──**
+  **── SESSION HANDOFF / temp-record (2026-06-21, Claude Opus 4.8) — resume here. CHANGELOG entry now written (`2026-06-21-001`, post-written after a restart); this block is kept for the forward-looking resume state (built/pending classes, next steps). ──**
 
   ⚠️ **Provenance caution:** commit `5a6cf87` (below) never got a CHANGELOG entry, and its original WB temp-record (commit `d3efe29`) was overwritten by a later cross-agent WB commit. So this block re-carries that lost state *plus* this session's work. **Push state:** `5a6cf87` + `d3efe29` ARE on `origin/main` (carried up by a later agent's push); only this handoff commit `ab44feb` is unpushed.
 
