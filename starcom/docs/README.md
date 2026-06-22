@@ -14,7 +14,7 @@
    - [`research/ccsds_domain_grok.md`](research/ccsds_domain_grok.md)
    - [`research/library_craft_claude.md`](research/library_craft_claude.md)
    - [`research/library_craft_grok.md`](research/library_craft_grok.md)
-5. [`DESIGN.md`](DESIGN.md) — *not written yet* (future condensed canonical record)
+5. [`DESIGN.md`](DESIGN.md) — **canonical condensed record** (post-2026-06-22 condensation session; see DESIGN.md header for sources). Historical research docs remain in place (append-only).
 
 ## Tracking (repo root of `starcom/`)
 
