@@ -11,13 +11,13 @@ This is the single canonical record consolidating:
 
 **No substantive data loss rule:** Every load-bearing fact, table, enumerated list, decision (D-1..D-5), scope statement, state-machine description, coverage/gap note, prior-art item, conformance note, and council verdict from the six sources appears here either verbatim (small/precise items) or via explicit attributed inclusion with section reference. Historical research docs remain untouched as primary sources.
 
-**Governing scope:** `design_record_claude.md` §0 (lifted below) + refinements in Round 3.
+**Governing scope:** `design_record_claude.md` section 0 (lifted below) + refinements in Round 3.
 
 **Sources remain historical.** Append-only spirit preserved by leaving `comparison.md`/`design_record_claude.md` as-is; this DESIGN synthesizes without rewriting them.
 
 ---
 
-## §0 Canonical Scope & Audience (verbatim from design_record_claude.md §0, governing)
+## Section 0 Canonical Scope & Audience (verbatim from design_record_claude.md section 0, governing)
 
 **Starcom is a standalone, universal CCSDS data-link library.** It is built for *any* consumer that needs CCSDS-conformant (or CCSDS-derived) telemetry and command links — cubesats, ground stations, high-altitude balloons, research platforms, drones, and high-power rocketry. **Rocket-Chip (RC) is the first consumer and the integration driver — it is not the owner, and it is not the boundary of the design.**
 
@@ -27,64 +27,94 @@ This is the single canonical record consolidating:
 - **Library end goal = the CCSDS Blue Books.** Full standards compliance. This destination is *precisely defined* by the standards and reached *incrementally* — it is not fuzzy.
 - **MVP goalpost = empirical.** "Minimum functionality — the telemetry link genuinely works, verified." Its exact location is *unknown until crossed*, because masked cascading issues only surface once the layer beneath them is genuinely fixed. Do not declare victory before crossing; the MVP "fires" when the real link works on the bench, not when a predefined feature checklist is ticked.
 
-Consequences that bind every decision:
-1. RC is one user among many. ...
-2. The strictest plausible adopter sets the floor. ... core is exceptionless, no-RTTI, no-heap-after-init **by construction**.
+Consequences that bind every decision (see full in source):
+1. RC is one user among many.
+2. The strictest plausible adopter sets the floor. Core is exceptionless, no-RTTI, no-heap-after-init by construction.
 3. The ceiling is full CCSDS compliance.
-4. Honesty about conformance is a hard requirement... declared **per component**.
+4. Honesty about conformance is a hard requirement... declared per component.
 5. RC appears as an example integration only.
 6. Pedagogical intent is foundational.
 
-(See full §0 in source `design_record_claude.md` for complete numbered consequences and MISRA C++:2023 compatibility note: stay *compatible-with*, do not adopt now.)
+(See full section 0 in source `design_record_claude.md` for complete numbered consequences and MISRA C++:2023 compatibility note: stay *compatible-with*, do not adopt now.)
 
 ---
 
 ## 1. Agreement / Conflict / Gap Analysis Table
 
-**Source baseline:** comparison.md Entries 1.A/1.B/1.C/1.D/1.F/2.A/2.B + design_record_claude.md §2.4/§3 + research docs.
+**Source baseline:** comparison.md Entries 1.A/1.B/1.C/1.D/1.F/2.A/2.B + design_record_claude.md section 2.4/3 + research docs.
 
 This table categorizes content. **Attribution** per original (Claude comparison 2026-06-01, Grok verification, Grok council 2026-06).
 
-| Topic / Item | Agreement (both / all) | Direct Conflict (pre-adjudication) | Major Gap — Claude only (or stronger) | Major Gap — Grok only (or stronger) | Resolution / Notes (from comparison + councils) |
+| Topic / Item | Agreement (both / all) | Direct Conflict (pre-adjudication) | Major Gap - Claude only (or stronger) | Major Gap - Grok only (or stronger) | Resolution / Notes (from comparison + councils) |
 |--------------|------------------------|------------------------------------|---------------------------------------|-------------------------------------|-------------------------------------------------|
-| **Blue Book ownership splits** (211.1/211.2/211.0 + 232/732) | Identical: PHY 211.1-B-4, C&S 211.2-B-3, Data Link/COP-P 211.0-B-6; COP-1 232.1-B-2 + 232.0-B-4 for CLCW format; USLP 732.1-B-3 | None substantive | Full feature-ownership map + clause refs (e.g. PLCW in 211.0-B-6 §3.2.4.3.2.1.1) | N/A (Grok corrected to match) | Settled per comparison 1.A + 1.E. Use Claude map. |
-| **PHY waveform (211.1-B-4)**: residual-carrier Bi-Phase-L/PM 60°±5%, etc. | Both: exact requirements listed; SX1276 cannot natively emit | None (Grok §2.3 optimism superseded internally by §2.5) | Detailed COTS/SDR/FPGA survey + prices (Pluto ~$186-230, ComBlock ~$2500); JPL Electra as proof | RP2350 PIO concrete prior-art examples (pico manchester_encoding/differential_manchester, 433MHz OOK decoders, ADS-B dual-PIO preamble+Manchester as ASM analog, 100BASE-TX) + 6 PIO opportunities enum | Adjudicated: NO full 211.1 claim. Best-effort only on current HW. D-1 settled → Claude doc. |
-| **SX1276 / AX5043 feasibility** | Both converge: no native compliant PHY waveform | Grok initially called AX5043 "closer" (category error) | Full radio survey + viability table | N/A (corrected) | AX5043 is suppressed-carrier BPSK, not residual PM. Fixed in post-5b33e39. Do not roadmap as "closer". |
-| **COP state machines (FOP-1 / FARM-1 / FOP-P / FARM-P)** | Both: FOP-1 6 flat states, FARM-1 3 states; COP-P simpler; table-driven impl; prior art (OSDLP, cFS cop1.c, yamcs) use no framework | None | Full enumerated tables (FOP-1 S1–S6 with 46 events per 232.1-B-2 Table 5-1; FARM-1 Open/Wait/Lockout Table 6-1); FARM-P "stateless/data-driven" | N/A (Grok conceptual only) | Design: plain passive table-driven C++ (switch / array of transitions). No QP in core. See design_record §2.7 table. |
-| **PLCW vs CLCW / OCF** | Both recognize distinct return-link reporting | Grok imprecise on OCF/PLCW | **Exact 16-bit 7-field SPDU layout** (211.0-B-6 A3.2.4.3.2.1.1): Report Value (8b), Expedited Frame Ctr (3b), Reserved (1b), PCID (1b), Retransmit (1b), SPDU Type (1b `0`), SPDU Format (1b `1`). **Proximity-1 has NO OCF.** PLCW sent Expedited on supervisory channel, not in frame trailer. | N/A | Model Clcw32 + Plcw16 as **distinct types** + separate FARM-1 / FARM-P paths. No generic OCF hosting both. Claude §6.3/6.4 governs. |
-| **USLP vs V-3/PLTU framing** | Both: USLP forward-looking unifier carrying COP-1+COP-P per VC; PLTU = ASM(0xFAF320)+V3+CRC-32; V-3 permanent for native Prox-1 | D-4 fork: Grok early "V-3 primary"; Claude "USLP spine" | Full USLP Primary Header bit table + multiplexing hierarchy + FECF(CRC-16) vs PLTU(CRC-32) decision + supersession note (do not cite B-2) | N/A | USLP strategic unifying spine (Round 3). V-3/PLTU **permanent peer codec** + likely MVP-first (smallest vertical). "USLP-primary (arch)" + "V-3-first (MVP seq)" coexist. |
-| **sans-I/O core** | Both: bytes/timeouts in, events/bytes out; passive; high testability | Grok placed IPhysicalLayer seam *in/under* core | **sans-I/O as THE foundation** (receive_bytes/bytes_to_send/poll_event/handle_timeout/submit_sdu); cites sans-io.readthedocs + h11 etc. | State in caller-owned static structs; high-level semantic events (CommandAccepted etc) | D-2 settled → Claude: core strictly I/O-free. Adapters outside. Policy/templates ok; no virtual ABC in core (P10 + no-RTTI). |
-| **Library form (header-only vs static)** | Both ship both eventually; MCU constraint binding | Grok favored header-mostly (LTO claim later retracted) | Static default for state-machine shape + measurement spike recommended | LTO is -flto flag (not packaging); CCSDSPack static-on-MCU precedent | D-3: static primary; header INTERFACE opt-in. Run compile-both spike Phase 0. Lean header-mostly per aerospace norm unless data says otherwise. |
-| **Error handling** | `std::expected` / `tl::expected` (or backport); no exceptions in core; small typed errors | None | `tl::expected` default + `STARCOM_USE_STD_EXPECTED` knob for zero-dep Result | Error objects trivially copyable, ≤16-32 bytes, noexcept | Adopt Grok size bound + Claude knob. |
-| **CI / packaging / no-heap** | Host-heavy, ASan/UBSan, fuzz (esp FARM-1), arm cross, GoogleTest | None (Grok additive) | 7-phase plan; GoogleTest+FuzzTest; install/export + FetchContent | Malloc-after-init **hard gate** shim (positive control); flash/RAM/stack report per config (delta vs baseline); vcpkg triplet checked-in; F' non-viable | D-5 superset: hard no-heap gate + published size report (Phase 0). vcpkg portfile now but registry post-1.0. |
-| **Conformance / honesty** | Both: declare honestly; no blanket PHY claim | None | **Tested per-component subsystem**: descriptors → published matrix + capability query; over-claim fails CI. "Best-effort spectrum" explicit per-service | N/A | Elevated to first-class tested subsystem (Round 2). Defer full impl to post-MVP unblock but principle from day 1. |
-| **MIB / managed params** | Configurable (T1, windows, etc) | None | MIB surface is **versioned public API** (SemVer-bound) | N/A | Elevate from internal to interface design task. |
-| **<50 km / LunaNet / in-field impact** | N/A (Claude high-level only) | N/A | N/A | **Detailed <50 km assessment** (link margins >> Mars; limitation felt in post-landing wake-up, edge-of-coverage descent, future ranging). LunaNet v5 + SSTL concrete numbers (as profile, not normative). | Include as profile-tier annotation only (two-tier source: CCSDS normative, LunaNet profile). |
-| **Prior art & concrete enablement** | OSDLP, cFS cop1.c, CCSDSPack, yamcs, RadioLib PhysicalLayer precedent | N/A | Framework-agnostic seam guidance; Hourglass ABI appendix (deferred) | Concrete fetched CCSDSPack CMake, CMakePresets, FILE_SET; broader prior-art (OpenCyphal/CETL, EmbeddedSDLP, Glaze); RP2350 PIO examples | Merge both. Grok shipping/ops + prior-art; Claude arch + pedagogy. |
-| **AO / framework** | AO wrapper = thin optional consumer adapter only; core no QP dep | Grok had I/O seam that pulled framework concerns in | **Core = portable plain table-driven HSM object** (standalone usable); AO = optional adapter like PHY tiers. Blue Books prescribe tables, not code structure | N/A | design_record §2.7 + Round 2/3. "Architecturally complete + feature-incremental". |
-| **Standards currency / other** | All other Blue Books current | Grok had stale 131.0-B-3 / Rev.4 SX1276 / 232.1 for CLCW bits | Full FCC Part 15.247/15.249 + Part 97 amateur encryption prohibition detail | SX1276 Rev.7 (May 2020) correction; 6 PIO opportunities | Fix stale refs before code (131.0-B-5 check vs 211.2 normative ref). Use Claude FCC/Part97. |
-| **Pedagogy + governance** | Docs first-class; explain why | N/A | Pedagogical 5-part shape; 4-persona council; Keep-a-Changelog + SemVer models; CONTRIBUTING + DCO | RC `CODING_STANDARDS.md` line-item alignment checklist | Adopt both. Starcom identity standalone. |
+| Blue Book ownership splits (211.1/211.2/211.0 + 232/732) | Identical: PHY 211.1-B-4, C&S 211.2-B-3, Data Link/COP-P 211.0-B-6; COP-1 232.1-B-2 + 232.0-B-4 for CLCW format; USLP 732.1-B-3 | None substantive | Full feature-ownership map + clause refs (e.g. PLCW in 211.0-B-6 section 3.2.4.3.2.1.1) | N/A (Grok corrected to match) | Settled per comparison 1.A + 1.E. Use Claude map. |
+| PHY waveform (211.1-B-4): residual-carrier Bi-Phase-L/PM 60 deg +/- 5%, etc. | Both: exact requirements listed; SX1276 cannot natively emit | None (Grok early optimism superseded internally by later analysis) | Detailed COTS/SDR/FPGA survey + prices (Pluto ~$186-230, ComBlock ~$2500); JPL Electra as proof | RP2350 PIO concrete prior-art examples (pico manchester_encoding/differential_manchester, 433MHz OOK decoders, ADS-B dual-PIO preamble+Manchester as ASM analog, 100BASE-TX) + 6 PIO opportunities enum | Adjudicated: NO full 211.1 claim. Best-effort only on current HW. D-1 settled - Claude doc. |
+| SX1276 / AX5043 feasibility | Both converge: no native compliant PHY waveform | Grok initially called AX5043 "closer" (category error) | Full radio survey + viability table | N/A (corrected) | AX5043 is suppressed-carrier BPSK, not residual PM. Fixed in post-5b33e39. Do not roadmap as "closer". |
+| COP state machines (FOP-1 / FARM-1 / FOP-P / FARM-P) | Both: FOP-1 6 flat states, FARM-1 3 states; COP-P simpler; table-driven impl; prior art (OSDLP, cFS cop1.c, yamcs) use no framework | None | Full enumerated tables (see verbatim below from design_record) | N/A (Grok conceptual only) | Design: plain passive table-driven C++ (switch / array of transitions). No QP in core. See design_record section 2.7 table. |
+| PLCW vs CLCW / OCF | Both recognize distinct return-link reporting | Grok imprecise on OCF/PLCW | Exact 16-bit 7-field SPDU layout (211.0-B-6 section 3.2.4.3.2.1.1): Report Value (8b bits 8-15) = V(R); Expedited Frame Counter 3 bits (bits 5-7, mod-8); Reserved Spare 1 bit (bit 4, 0); PCID 1 bit (bit 3); Retransmit Flag 1 bit (bit 2); SPDU Type Identifier 1 bit (bit 1, 0); SPDU Format ID 1 bit (bit 0, 1). Proximity-1 has NO OCF. PLCW sent Expedited on supervisory channel, not in frame trailer. | N/A | Model Clcw32 + Plcw16 as distinct types + separate FARM-1 / FARM-P paths. No generic OCF hosting both. Claude section 6.3/6.4 governs. |
+| USLP vs V-3/PLTU framing | Both: USLP forward-looking unifier carrying COP-1+COP-P per VC; PLTU = ASM(0xFAF320)+V3+CRC-32; V-3 permanent for native Prox-1 | D-4 fork: Grok early "V-3 primary"; Claude "USLP spine" | Full USLP Primary Header bit table + multiplexing hierarchy + FECF(CRC-16) vs PLTU(CRC-32) decision + supersession note (do not cite B-2) | N/A | USLP strategic unifying spine (Round 3). V-3/PLTU permanent peer codec + likely MVP-first (smallest vertical). "USLP-primary (arch)" + "V-3-first (MVP seq)" coexist. |
+| sans-I/O core | Both: bytes/timeouts in, events/bytes out; passive; high testability | Grok placed IPhysicalLayer seam in/under core | sans-I/O as THE foundation (receive_bytes/bytes_to_send/poll_event/handle_timeout/submit_sdu); cites sans-io.readthedocs + h11 etc. | State in caller-owned static structs; high-level semantic events (CommandAccepted etc) | D-2 settled - Claude: core strictly I/O-free. Adapters outside. Policy/templates ok; no virtual ABC in core (P10 + no-RTTI). |
+| Library form (header-only vs static) | Both ship both eventually; MCU constraint binding | Grok favored header-mostly (LTO claim later retracted) | Static default for state-machine shape + measurement spike recommended | LTO is -flto flag (not packaging); CCSDSPack static-on-MCU precedent | D-3: static primary; header INTERFACE opt-in. Run compile-both spike Phase 0. Lean header-mostly per aerospace norm unless data says otherwise. |
+| Error handling | std::expected / tl::expected (or backport); no exceptions in core; small typed errors | None | tl::expected default + STARCOM_USE_STD_EXPECTED knob for zero-dep Result | Error objects trivially copyable, <=16-32 bytes, noexcept | Adopt Grok size bound + Claude knob. |
+| CI / packaging / no-heap | Host-heavy, ASan/UBSan, fuzz (esp FARM-1), arm cross, GoogleTest | None (Grok additive) | 7-phase plan; GoogleTest+FuzzTest; install/export + FetchContent | Malloc-after-init hard gate shim (positive control); flash/RAM/stack report per config (delta vs baseline); vcpkg triplet checked-in; F' non-viable | D-5 superset: hard no-heap gate + published size report (Phase 0). vcpkg portfile now but registry post-1.0. |
+| Conformance / honesty | Both: declare honestly; no blanket PHY claim | None | Tested per-component subsystem: descriptors -> published matrix + capability query; over-claim fails CI. "Best-effort spectrum" explicit per-service | N/A | Elevated to first-class tested subsystem (Round 2). Defer full impl to post-MVP unblock but principle from day 1. |
+| MIB / managed params | Configurable (T1, windows, etc) | None | MIB surface is versioned public API (SemVer-bound) | N/A | Elevate from internal to interface design task. |
+| <50 km / LunaNet / in-field impact | N/A (Claude high-level only) | N/A | N/A | Detailed <50 km assessment (link margins >> Mars; limitation felt in post-landing wake-up, edge-of-coverage descent, future ranging). LunaNet v5 + SSTL concrete numbers (as profile, not normative). | Include as profile-tier annotation only (two-tier source: CCSDS normative, LunaNet profile). |
+| Prior art & concrete enablement | OSDLP, cFS cop1.c, CCSDSPack, yamcs, RadioLib PhysicalLayer precedent | N/A | Framework-agnostic seam guidance; Hourglass ABI appendix (deferred) | Concrete fetched CCSDSPack CMake, CMakePresets, FILE_SET; broader prior-art (OpenCyphal/CETL, EmbeddedSDLP, Glaze); RP2350 PIO examples | Merge both. Grok shipping/ops + prior-art; Claude arch + pedagogy. |
+| AO / framework | AO wrapper = thin optional consumer adapter only; core no QP dep | Grok had I/O seam that pulled framework concerns in | Core = portable plain table-driven HSM object (standalone usable); AO = optional adapter like PHY tiers. Blue Books prescribe tables, not code structure | N/A | design_record section 2.7 + Round 2/3. "Architecturally complete + feature-incremental". |
+| Standards currency / other | All other Blue Books current | Grok had stale 131.0-B-3 / Rev.4 SX1276 / 232.1 for CLCW bits | Full FCC Part 15.247/15.249 + Part 97 amateur encryption prohibition detail | SX1276 Rev.7 (May 2020) correction; 6 PIO opportunities | Fix stale refs before code (131.0-B-5 check vs 211.2 normative ref). Use Claude FCC/Part97. |
+| Pedagogy + governance | Docs first-class; explain why | N/A | Pedagogical 5-part shape; 4-persona council; Keep-a-Changelog + SemVer models; CONTRIBUTING + DCO | RC CODING_STANDARDS.md line-item alignment checklist | Adopt both. Starcom identity standalone. |
 
 **Summary from comparison (1.A/2.A settled; 1.B/2.B adjudicated):**
 - Load-bearing CCSDS facts: converged or corrected; Claude doc = stronger spine.
 - Library arch: Claude spine for sans-I/O / core purity; Grok additive for shipping mechanics + prior art.
-- 5 decisions (D-1..D-5) logged in comparison §3; refined in design_record §2.4/§3.
+- 5 decisions (D-1..D-5) logged in comparison section 3; refined in design_record section 2.4/3.
 
-**Coverage gaps explicitly preserved (no loss):** See comparison 1.F and 2.B coverage sections + design_record §2.6 audit of docs against §0. All absorbed into this record or noted as historical.
+**Coverage gaps explicitly preserved (no loss):** See comparison 1.F and 2.B coverage sections + design_record section 2.6 audit of docs against section 0. All absorbed into this record or noted as historical.
+
+**Verbatim source tables included directly (per plan "prefer direct inclusion" + no-loss):**
+
+From design_record_claude.md section 2.7 (CCSDS-mandated state machines):
+
+| State machine | States | Shape | Doc / table | Notes |
+|---|---|---|---|---|
+| FOP-1 (COP-1 sender) | 6, flat | S1 Active, S2 Retransmit-w/o-Wait, S3 Retransmit-w/Wait, S4 Init-w/o-BC, S5 Init-w/BC, S6 Initial | 232.1-B-2 Table 5-1 | 6 states x 46 events; complexity is in the actions (Sent/Wait queues, T1 timer, window K, V(S)/NN(R)), not state nesting. Standard itself calls the table "large and complex." |
+| FARM-1 (COP-1 receiver) | 3, flat | Open, Wait, Lockout | 232.1-B-2 Table 6-1 | 3 x 11 events; V(R), PW/NW window, 3 flags, FARM-B counter, CLCW emit. |
+| FOP-P (COP-P sender) | 2, flat | Active, Resync | 211.0-B-6 section 7.2 | go-back-N (Transmission_Window <=127); simpler than COP-1. |
+| FARM-P (COP-P receiver) | stateless / data-driven | (no named states) | 211.0-B-6 section 7.3 | "simply reacts to what it receives." |
+| Proximity-1 session / MAC / hailing | ~30, partial hierarchy | per-DUPLEX (Full/Half/Simplex) tables | 211.0-B-6 section 6 | The one genuinely large machine; ~8 timers, token-pass turnaround. Still normatively flat per-DUPLEX tables. |
+| PHY transmitter / receiver | not FSMs - lookup tables | - | 211.1-B-4 Tables 3-2/3-3 | Out of the data-link core. |
+
+Prior-art survey (verbatim): every reference implementation is framework-free: OSDLP (C, enum+switch, handlers fop_e1()...fop_e46() named to the standard's events, queues/timers via weak functions), NASA cop1.c (C, switch, FARM-1 only), dariol83/ccsds (Java, GoF State pattern), yamcs (Java, plain int state). Zero use QP/C, Boost.SML, or any statechart engine.
+
+From ccsds_domain_claude.md (PLCW 16-bit 7-field SPDU, verbatim excerpt):
+
+The PLCW is a 16-bit fixed-length SPDU comprising seven contiguous fields (section 3.2.4.3.2.1.1, Fig 3-5) - structurally completely different from the 32-bit CLCW. Fields: Report Value 8 bits (bits 8-15) = V(R); Expedited Frame Counter 3 bits (bits 5-7, mod-8); Reserved Spare 1 bit (bit 4, set to 0); PCID 1 bit (bit 3, selects one of two redundant receivers); Retransmit Flag 1 bit (bit 2); SPDU Type Identifier 1 bit (bit 1, 0); SPDU Format ID 1 bit (bit 0, 1).
+
+From same (USLP header bits excerpt, direct):
+
+USLP Primary Header fields (example rows):
+- Transfer Frame Version Number | 4 | 0000 binary for USLP
+- Spacecraft ID | 16 | ...
+- VCID | 6 | ...
+- MAP ID | 4 | ...
+- ... (full multiplexing hierarchy described: Physical Channel > Master Channel > Virtual Channel > MAP Channel)
+
+(Full USLP header table and feature ownership map preserved via attribution to Claude ccsds_domain source.)
 
 ---
 
-## 2. Standing Decisions & Open Items (consolidated from design_record §2.4 + §3 + comparison D-1..D-5, Grok council)
+## 2. Standing Decisions & Open Items (consolidated from design_record section 2.4 + section 3 + comparison D-1..D-5, Grok council)
 
-**Build philosophy:** architecturally complete + feature-incremental. Universal foundation from day one; features sequenced blocker-first. MVP first cut ≈ V-3/PLTU + COP-P + minimal half-duplex turnaround (replace band-aids). Half-duplex turnaround verified independently.
+**Build philosophy:** architecturally complete + feature-incremental. Universal foundation from day one; features sequenced blocker-first. MVP first cut approx V-3/PLTU + COP-P + minimal half-duplex turnaround (replace band-aids). Half-duplex turnaround verified independently.
 
 **Core:** sans-I/O, passive (submit/on_clcw/tick(now)), exceptionless/no-RTTI/no-heap-after-init. Plain table-driven C++ state machines (FOP-1 6 states per 232.1-B-2 Table 5-1 etc.). No framework in core. AO optional adapter only.
 
-**PHY:** three first-class (none / best-effort 1–99% spectrum / compliant) behind one profile-parameterized seam. Neutral naming (IRadio/ILink per councils; Grok suggests ILink). Per-adapter conformance declarations.
+**PHY:** three first-class (none / best-effort 1-99% spectrum / compliant) behind one profile-parameterized seam. Neutral naming (IRadio/ILink per councils; Grok suggests ILink). Per-adapter conformance declarations.
 
 **Framing:** USLP strategic spine (carries COP-1+COP-P). V-3/PLTU permanent peer + MVP-first sequencing.
 
-**Four axes:** USLP framing · COP-1/COP-P ARQ (per VC) · Prox-1 §6 session/MAC (minimal turnaround pulled forward; full deferred) · PHY tier.
+**Four axes:** USLP framing . COP-1/COP-P ARQ (per VC) . Prox-1 section 6 session/MAC (minimal turnaround pulled forward; full deferred) . PHY tier.
 
 **Form/CI:** Static + header-only (default via spike). tl::expected + knob. Hard no-heap shim gate + published size report. Apache-2.0. SemVer.
 
@@ -94,7 +124,7 @@ This table categorizes content. **Attribution** per original (Claude comparison 
 - Precise MVP cut + turnaround ownership (RadioScheduler vs new minimal MAC).
 - CCSDS source-version pinning (exact issues).
 - Header-vs-static default (data from spike).
-- Whether core includes full ~30-state Prox §6 MAC (or deferred).
+- Whether core includes full ~30-state Prox section 6 MAC (or deferred).
 - Generator test telemetry as Phase-0 deliverable.
 
 **Grok council (2026-06, appended to comparison):** Reinforces universal scope, neutral ILink seam, three PHY tiers as optional labeled adapters outside "Starcom Core". Naming: "Starcom Core" + ILink preferred in Grok panel.
@@ -117,7 +147,7 @@ This table categorizes content. **Attribution** per original (Claude comparison 
 - RP2350 PIO prior-art catalog + 6 specific opportunities (manchester examples, ADS-B dual-PIO as ASM analog, etc.).
 - <50 km practical impact assessment (post-landing emphasis).
 - LunaNet v5 + SSTL profile numbers (as secondary).
-- Concrete fetched CMake patterns, CCSDSPack excerpts, CMakePresets, vcpkg triplet sketch.
+- Concrete fetched CCSDSPack CMake patterns, CMakePresets, vcpkg triplet sketch.
 - F' ruling (not viable as plugin).
 - Broader prior-art roster + RC standards alignment checklist.
 - SX1276 Rev.7 + PIO continuous-mode enablement details.
@@ -138,4 +168,4 @@ All modifications only on this branch; main untouched for starcom/.
 
 ---
 
-*Condensation complete per plan. Sources: starcom/docs/* (moved 2026-06-18 from docs/research/).*
+*Condensation complete per plan. Sources: starcom/docs/* (moved 2026-06-18 from docs/research/). Only starcom/ files were modified for this condensation work. Pre-existing unrelated files (e.g. L2P5 audit docs, agent-tools/, mcps/) visible in broad git status are outside this scope and were not created or modified by the condensation commits.*
