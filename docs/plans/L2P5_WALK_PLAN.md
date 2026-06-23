@@ -52,18 +52,21 @@ Mechanical/known violations cleared **before** the walk (walk = semantic discove
 - Reserved-id: `__StackBottom` → **accepted-via-vendoring** (TP-2 in `ACCEPTED_STANDARDS_DEVIATIONS.md`; rule-reason doesn't hold — linker-defined, referenced not authored; precedent Infineon/Xen). `_test_mode_boot_ms`/`_TEST_MODE_SRAM_ATTR` → **renamed** (dropped reserved leading-underscore) in `test_mode.cpp`.
 - **Adopted-code policy** established: `CODING_STANDARDS.md` "Adopted (Third-Party/Vendored/Toolchain) Code" subsection (NEVER auto-accept; per-flag evaluation = sequestered + rule-reason-still-holds; two registers; hard floor; scalable to formal MISRA GRP/GCS for Nova/RC-Pro/cubesat/Starcom) + register formalized in `ACCEPTED_STANDARDS_DEVIATIONS.md`.
 
-**PENDING — your fix-or-accept calls (no pre-judged verdicts):**
+**RESOLVED (2026-06-23) — dispositions signed off; fix-oriented throughout (no pre-judged accepts). Records written to the standards docs; code changes land in the remediation batch (bench_sim).**
 
-| # | Finding | Sites | Options |
+| # | Finding | Sites | Disposition |
 |---|---|---|---|
-| 1 | shadow | `cli/rc_os_commands.cpp:1332` | rename local / accept |
-| 2 | float `==` | `eskf_runner.cpp:292-295` (×4) | FMEA: stored float vs exact `0.0f` "unset" sentinel — accept as sentinel / switch to is_set flag or epsilon. **Explicit decision wanted (numerical consequence).** |
-| 3 | >6 params | ao_telemetry×3, calibration_manager×3, guard_combinator, flash_flush | refactor (struct) / accept-deviation, per fn |
-| 4 | `offsetof` | `calibration_data.cpp:106,119` | accept-deviation / remediate |
-| 5 | `#pragma once` | `fault_protection.h`, `mission_profile_data.h`, `shared_state.h` | convert to `#ifndef` / accept as convention |
-| 6 | `continue` | 28 sites/12 files (JSF-only) | blanket accepted-deviation / per-site remediate |
-| 7 | JSF 175 / 182 | nullptr / pointer-casts | write supersession + accepted-pointer-cast deviation rows |
-| 8 | JSF 113 | single-exit not enforced | record non-enforcement |
+| 1 | shadow | `cli/rc_os_commands.cpp:1332` (`kRadToDeg`) | **FIX** — rename local |
+| 2 | float `==` ×4 | `eskf_runner.cpp:292-295` | **FIX** — `CAL_STATUS_WMM_SET` bit in the *existing* `cal_flags` bitfield (no flash-layout change; `static_assert(sizeof==180)` holds), replacing the `!= 0.0f` "unset" sentinel; profile-default path gets a has-default flag. Removes the `0,0`-as-unset ambiguity (GPS firmwares default to `0,0` uninitialized — repo-owner note). NOT accepted. |
+| 3 | >6 params ×8 | ao_telemetry×3, calibration_manager×3, guard_combinator, flash_flush | **FIX (refactor)** — project code that *interacts with* MAVLink (not vendored): MAVLink trio → `MavCmdParams` struct; `calibration_apply_*` ×3 → `Vec3` in/out (3 params); `init_combinator` + `save_flight_entry` → config/layout structs |
+| 4 | `offsetof` ×2 | `calibration_data.cpp:106,119` | **FIX** — `dataEnd - dataStart` pointer arithmetic (reuses existing `reinterpret_cast`; removes `offsetof`; layout-independent). NOT accepted. |
+| 5 | `#pragma once` ×3 | `fault_protection.h`, `mission_profile_data.h`, `shared_state.h` | **FIX** — convert to `#ifndef` include guards |
+| 6 | `continue` ×28 | 28 sites / 12 files | **FIX** — guard-skip inversions (cheap; JSF-190 adopted as most-restrictive per Foundation → Worked consolidation decisions) |
+| 7 | JSF 175 (nullptr) | — | **RECORDED + FIX** — supersession written (CODING_STANDARDS Foundation → Worked consolidation decisions, Null pointer); QP/C `(void *)0` sender idiom ×23 → `nullptr` (verified codebase otherwise uniformly `nullptr`) |
+| 7b | JSF 182 (pointer casts) | `src/` `reinterpret_cast` inventory | **RECORDED + FIX** — per-category vs the rule's real exceptions: 1a literal/HW-addr→ptr **compliant** (Exc 2); CRC struct→`uint8_t*` + buffer→header overlay **remediated** (Exc 1: `const void*` param / `static_cast`); QEvt downcast **centralized** into `evt_cast<E>`; two residuals logged — **CAST-1** (MPU→`uintptr_t`, HW-interface) + **CAST-2** (`evt_cast`, std-layout). Triage over-claim corrected at source. |
+| 8 | JSF 113 (single-exit) | — | **RECORDED** — non-enforcement (Foundation → Worked consolidation decisions + cross-standard map) |
+
+*Surfaced & added this cycle (not in the original 8):* QP/C `(void *)0`→`nullptr` ×23 (under #7); JSF-182 `evt_cast` centralization + CAST-2 (under #7b); the QP/C-vs-QP/C++ framework-choice question (WB medium-priority — the C++ edition would retire CAST-2).
 
 ## Phase D — §RP research — PENDING
 
