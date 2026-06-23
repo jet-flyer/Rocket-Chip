@@ -12,15 +12,8 @@
 #include <stdint.h>
 #include <atomic>
 
-<<<<<<< Updated upstream
 #include "rocketchip/shared_state.h"  // cross-core init flags, GPS, seqlock (OPT-IVP-02)
 #include "fusion/eskf.h"              // rc::ESKF
-=======
-#include "drivers/icm20948.h"         // icm20948_t
-#include "drivers/gps.h"             // gps_data_t, gps_transport_t
-#include "fusion/eskf.h"             // rc::ESKF
-#include "rocketchip/sensor_seqlock.h"  // shared_sensor_data_t (for shared GPS helper)
->>>>>>> Stashed changes
 
 // ============================================================================
 // Core 1 Entry Point
@@ -55,23 +48,6 @@ extern std::atomic<bool> g_bestGpsValid;
 /// (Stage 16C IVP-141) so both roles maintain one authoritative
 /// implementation. Safe to call with invalid fix — no-op in that case.
 void core1_update_best_gps_fix(const shared_sensor_data_t* localData);
-<<<<<<< Updated upstream
-=======
-
-/// Poll GPS via transport-neutral function pointers + populate seqlock-shape
-/// fields in localData. Internally rate-limited by *lastGpsReadUs — caller
-/// must pass a stable reference. Same body used by vehicle Core 1 loop and
-/// station idle-bridge tick (Stage 16C IVP-141). Callers are responsible
-/// for seqlock_write after calling this; this helper only updates the local
-/// struct's GPS fields and invokes update_best_gps_fix.
-void core1_read_gps(shared_sensor_data_t* localData,
-                    uint32_t* lastGpsReadUs);
-
-// ============================================================================
-// Extern Globals (owned by main.cpp, accessed by Core 1)
-// ============================================================================
-// Sensor init flags -- written by Core 0 init_sensors(), read by Core 1.
->>>>>>> Stashed changes
 
 /// Poll GPS via transport-neutral function pointers and populate seqlock-
 /// shape GPS fields in localData. Internally rate-limited by
