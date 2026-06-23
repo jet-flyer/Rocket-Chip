@@ -44,6 +44,7 @@
 **Current state of CCSDS prep work:**
 - We now have a high-quality, citable "as-built" map of the existing command delivery + retry mechanism.
 - This directly supports scoping, interface design, and migration planning for any future CCSDS TC-layer work (including the standalone library idea the user mentioned).
+- 2026-06-22: Condensation of all CCSDS prelim docs (research/* + comparison + design_record) into starcom/docs/DESIGN.md completed on feat branch and merged to main. Includes agreement/conflict/gaps table, §0 verbatim, state machine summary + external Blue Book REF, D-1..D-5, unique data. Modern naming (no I-prefix). Detailed council verdict for D-2 sans-I/O deferred to design_record_claude.md Round 2. Historical docs untouched. Pure doc. (Grok)
 - Multiple items remain explicitly parked pending this rework (see "High priority" section below: IVP-T13, station radio health channel, first-try metric re-baseline).
 
 **What was discussed but not yet executed:**
