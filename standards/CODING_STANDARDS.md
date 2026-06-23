@@ -8,14 +8,22 @@
 
 This project draws from multiple safety-critical coding standards. None is treated as the supreme authority; each has a defined scope and the project applies a precedence rule when they conflict.
 
-**Standards-precedence rule:**
+**This is the project's single coding standard — one consolidated "house" standard authored from multiple published safety-critical sources.** That is the recognized aerospace pattern: a project defines *one* Software Code Standard, which may be **derived from** published sources (DO-178C §11.8; NASA NPR 7150.2 / SWE-061 — "select, define, and adhere to" the project's standard; and JSF AV and JPL-C are themselves exactly this — one standard built from cited sources with inline provenance). The standards below are **inputs, not separate live standards run in parallel.** The per-rule mapping to each source is the *Cross-standard rule-equivalence map* further down — that map is the rule-to-source traceability.
 
-Standards apply in chronological order — **newer standards take precedence over older ones** unless an older standard's text explicitly governs the specific case. The chain by publication date:
+**Source standards (timeline + lineage):**
 
-1. **Power of 10 Rules** (Holzmann/JPL, 2006 → JPL institutional 2008) — newest distilled safety-critical rules. Default authority when it speaks.
-2. **JPL Institutional Coding Standard for C** (2009) — builds on P10, adds C-language-specific guidance. Default authority for C-language matters.
-3. **JSF AV C++ Coding Standards** (Lockheed Martin, December 2005) — foundational catalog of 221 C++ rules. Applies where the newer standards are silent. Some JSF rules have been absorbed into modern C++ practice (C++ Core Guidelines, HIC++ V4, AUTOSAR) and no longer require separate enforcement.
-4. **MISRA C** (1998 / 2004) — C-language foundation, **absorbed by JPL C at LOC-5 and LOC-6** (see "MISRA-C chain-of-custody" below). Cited where it remains the explicit authority (e.g., MISRA-C 2012 accepted safe subset for bounded `snprintf`).
+| Year | Source | Lang | Built on / cites |
+|---|---|---|---|
+| 1998 / 2004 | **MISRA-C** | C | foundational (deferred — see chain-of-custody below) |
+| **2005** | **JSF AV C++** (Rev C) | C++03 | built on MISRA-C:1998 + Ellemtel / Meyers / Stroustrup; cites DO-178B. **Our only adopted C++ source.** Frozen at Rev C (no successor). |
+| **2006** | **Power of Ten** | C / general | standalone (Holzmann's 10-rule distillation); cites none |
+| **2009** | **JPL-C** (D-60411) | C | **explicitly derives from MISRA-C:2004 + P10** (per-rule citations); JSF *consulted only*, not a basis |
+
+**Lineage — the sources are interrelated (which is why consolidating them is coherent, not contradictory):** **JSF** built on MISRA-C:1998; **P10** is Holzmann's standalone distillation; **JPL-C** drew most heavily on MISRA-C:2004 + P10 **and explicitly lists JSF AV among the standards it consulted** in building its ruleset. They share DNA — they are refinements and re-syntheses of a common safety-critical lineage, not four independent rulebooks.
+
+**How the three layer (they stack — they do not replace one another).** C++ is built *on* C, so a C standard's rules apply to the C-subset constructs and the general safety principles of our C++ code just as they do to C — they are **not** "C-only." So **P10** (fundamental safety principles — bounded loops, no recursion, return-checking, smallest scope, …) and **JPL-C** (C-language rules) **both apply to this codebase's C++ code**. Spacecraft code stays close to the silicon, which is exactly *why* the newer adopted standards are C-centric rather than C++-restricted — not a reason they don't apply. **JSF adds the C++-*specific* layer on top** — the rules for classes, templates, inheritance, RAII, namespaces, and exceptions that the C standards don't reach. This is the recognized **containment model** (NASA SWEHB: *fundamental practices ⊃ language-specific standards ⊃ project-specific standards*, each refining — not overriding — the layer above). JSF is therefore the C++-*specific* source, **not** "the" C++ standard governing the code alone.
+
+JSF is frozen at C++03; where a later *still-compliant* practice refines a JSF rule, the house standard adopts the refinement **grounded in the adopted chain or the JSF rule's own stated intent** (never "modern is nicer") — see the worked consolidation decisions below. **C++ Core Guidelines** (free) is the modern-C++ reference for gaps JSF predates; **MISRA C++:2023** is the consolidated industry successor (it merged JSF/HIC++/AUTOSAR/CERT) but is paywalled — the eventual consolidation target, deferred per the chain-of-custody.
 
 **MISRA-C chain-of-custody** (added 2026-05-13 per audit-coverage gap-fill cycle; council-approved with amendments):
 
@@ -34,17 +42,24 @@ Per JPL's institutional documentation, LOC-5 and LOC-6 rule text is MIRA Ltd. co
 
 The deferral is **re-evaluated each cycle** at Tier 2.5a (deferred-with-rationale row walk) — 3-cycle stale-rationale threshold triggers explicit user re-disposition.
 
-**Conflict resolution:**
-- **Newer standard explicit + older standard silent** → newer applies.
-- **Older standard explicit + newer standard silent** → older applies (default coverage).
-- **Both speak, agree** → either citation works.
-- **Both speak, conflict** → newer wins.
-- **Silent conflict** (one standard's silence vs. another's explicit rule) → **default to the more recent OR more restrictive rule** (IRL aviation-engineering practice). Time is the tiebreaker only when neither document references the other; if Standard B explicitly says "this rule overrides Standard A's section X," that explicit override governs regardless of date.
+**Conflict resolution (case-by-case; conflicts are infrequent).** The sources rarely disagree — the full 2026-06 standards walk surfaced only a handful — so each conflict is resolved **once, at authoring time**, and the decision recorded here + in `docs/audits/RULE_VERIFIABILITY_TRIAGE.md`. The default and its two escape valves:
 
-**Practical examples:**
-- P10 Rule 9 (no function pointers, 2006) vs. JSF Rule 176 (use typedef when declaring function pointers, 2005): **P10 wins** — newer and more restrictive. Function pointers are an accepted deviation in our project, not "compliant via JSF."
-- P10 Rule 2 (loops must have fixed upper bound, 2006) — Holzmann's own paper carves out the **inverted-rule exemption** for non-terminating scheduler loops (prove the loop *cannot* terminate). That explicit exemption is part of P10 itself, not an external override. The project's compliant non-terminating loops (QF_run scheduler, Core 1 sensor loop, fault halt) are enumerated in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` "Note on P10 Rule 2"; those satisfy the inverted rule and therefore aren't deviations.
-- JSF Rule 22 (no `<stdio.h>`, 2005) — newer standards don't disagree, so JSF applies.
+- **Default — the MORE-RESTRICTIVE rule applies** until the conflict is properly resolved. This is the conservative aerospace default (tighten, don't loosen, on incomplete information; mirrors MISRA's stricter-only re-categorization and IRL aviation practice — apply the most restrictive of two conflicting manuals until they're reconciled).
+- **Escape (a) — not if prohibitively costly:** the more-restrictive rule is *not* imposed when compliance is prohibitively costly in code or mechanical terms; the conflict is then resolved deliberately, with the cost documented.
+- **Escape (b) — not if a simple resolution is already apparent** from project needs + standard aerospace practice; adopt that resolution, documented.
+
+> **Demoted (2026-06-23) from a hard rule to a soft factor: the former "newer standard automatically overrides older."** It is **retained as a consideration** — recency is real evidence in a conflict (a newer adopted standard *deliberately* relaxing an older rule — e.g. P10 explicitly declining single-exit — is a strong signal of a reconsidered judgment) — but it is **no longer automatic.** Research (aerospace standard-selection practice; DO-178C / NASA / JPL) found "newest always wins" is not a recognized pattern (projects **consolidate** sources rather than run a chronological precedence chain) and it produced unprovable compliance claims (you cannot be simultaneously "JSF-compliant" and "P10-compliant" where they disagree). So weigh recency as *one* input alongside restrictiveness, cost, project/aerospace practice, and source-scope (below) — don't let it auto-decide.
+
+**Source-scope is also a soft factor — but a weak one for JSF specifically.** In a conflict, the breadth of a rule's source is a consideration: a principle from a broadly-scoped standard (P10 — general safety-critical code; JPL-C — JPL's institutional spacecraft standard) generally outweighs a rule that reflects one narrow system's quirks. **However, JSF is itself broadly intended** — its own Introduction states the purpose is *"to define a C++ programming style"* that is *correct, reliable, and maintainable* and *"portable to other architectures"*; it carries a permissive "any individual or institution" license; and it was adopted mostly by *non-military* embedded developers (Stroustrup later generalized its philosophy into the C++ Core Guidelines). The F-35 origin shows up mainly in the **domain constraints** it bakes in (hard-real-time, no free-store after init, no exceptions) — and our project **shares that exact profile** (deterministic flight code, no watchdog-restart mid-air). So for *this* project those constraints **strengthen** JSF's applicability, they don't weaken it. Net: source-scope rarely discounts a JSF rule, and here it largely reinforces JSF; it's a tiebreaker reserved for a genuinely single-system-specific rule, not JSF's general C++ guidance.
+
+**Worked consolidation decisions** (source-grounded, from the 2026-06 standards walk):
+- **Function pointers** — P10-9 (explicit ban) vs JSF-176 (typedef only): most-restrictive → **P10-9 governs**; accepted deviation FP-1.
+- **Null pointer** — JSF-175 mandates literal `0`; the house standard uses `nullptr`, which **better satisfies JSF-175's own stated rationale** (a type-safe null, per Stroustrup, whom JSF-175 cites). Adopted via the rule's *intent*, not recency.
+- **Single exit** — P10 *explicitly* states it does **not** require single-exit ("an early error return is the simpler solution"); JSF-113 carries its own early-return exception. House standard: **early-return / guard-clause permitted.**
+- **Hardware-register casts** — JSF-182 bans pointer casts, but its **own Exception 2 permits literal hardware-address→pointer** conversion; compliant via `reinterpret_cast<volatile T*>(addr)` (JSF-185). **Not a deviation.**
+- **`continue` (JSF-190)** — P10/JPL are silent; JSF-190 governs by default coverage. More-restrictive applies and compliance is **cheap** (all 28 sites are mechanical guard-skip inversions, escape (a) not triggered) → **adopt the ban; remediate the sites.**
+- **P10 Rule 2** (bounded loops) — Holzmann's own inverted-rule exemption for proven-non-terminating scheduler loops is part of P10 itself; the project's QF_run / Core-1 / fault-halt loops satisfy it (see `ACCEPTED_STANDARDS_DEVIATIONS.md` "Note on P10 Rule 2").
+- **`<stdio.h>` (JSF-22)** — no source disagrees; applies (R-5 enforced project-wide).
 
 **References:**
 - [JSF AV C++ Standards (PDF, 2005)](https://www.stroustrup.com/JSF-AV-rules.pdf) — foundational C++ catalog
