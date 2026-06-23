@@ -104,7 +104,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | [`LICENSE`](../LICENSE) | Library license (research leans Apache-2.0). | Placeholder until extraction/release |
 | [`docs/comparison.md`](comparison.md) | **Open architectural forks** (D-1…D-5), cross-agent comparison log. Append-only. | Live — do not duplicate elsewhere |
 | [`docs/design_record_claude.md`](design_record_claude.md) | Scope, council rounds, standing architecture decisions. | Live — governs §0 until `DESIGN.md` exists |
-| [`docs/DESIGN.md`](DESIGN.md) | Future **single** condensed design record (condensation session). | Placeholder — do not write yet |
+| [`docs/DESIGN.md`](DESIGN.md) | Future **single** condensed design record (condensation session). | DONE 2026-06-22 [x] - canonical on branch; manifests+SCRATCH prove no loss; historical untouched. |
 | [`STATUS.md`](../STATUS.md) | Starcom phase, blockers, next step (e.g. "Phase 0 CMake", "131.0-B-5 ref update"). Lighter than RC `PROJECT_STATUS.md`. | Placeholder — flesh out when implementation starts |
 
 ### At Rocket-Chip repo root (firmware-owned — do not copy into `starcom/`)
