@@ -216,6 +216,18 @@ see `standards/RP2350_ERRATA.md`.
 
 Approved deviations from coding standards are tracked in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`. Compliance audit results are tracked in `standards/STANDARDS_AUDIT.md`.
 
+### Adopted (Third-Party / Vendored / Toolchain) Code
+
+These coding standards bind code the project **authors** ("native code"). Third-party, vendored, and toolchain-supplied code — Pico SDK, QP/C, lwGPS, MAVLink, ETL, and linker/CMSIS-provided symbols — is **"adopted code"**: it is **not re-derived to our standard**. It is assured at a *different level* — isolation behind a boundary/wrapper, interface + integration + behavioral/robustness testing, and service/field history. *(Basis: MISRA Compliance:2020 "adopted code"; DO-178C §12.1 Previously Developed Software; NASA SWE-027 / SWE-211; SEI CERT — compliance is defined only with respect to analyzer-visible source.)*
+
+**NEVER auto-accept adopted code.** Bringing in any third-party code — and **every standards flag it raises** — requires individual evaluation before it may go on the accepted-via-vendoring list (the "Third-Party / Vendored Code" register in `ACCEPTED_STANDARDS_DEVIATIONS.md`): **(1)** the code is properly **sequestered / isolated**, and **(2)** it is **independently verified** that the rule's underlying *reason* no longer applies, or is satisfied at another level. Unevaluated vendor code is a finding, not an exemption. Excluding vendored code from a gate is legitimate **only if recorded** — silent exclusion is prohibited (it is the "looks-covered-but-isn't" failure mode the audit discipline exists to catch).
+
+**Two registers, two justification logics.** A *deviation* is a justified rule-break in **our** code — we own the source line and justify the specific break. An *adopted-code acceptance* declines source-line ownership and justifies on the basis that the code is adopted + sequestered + does not compromise safety (MISRA Compliance:2020 deviation Reason 4). They are distinct lists with distinct logic; do not file vendor code as a deviation against our own code, or vice-versa.
+
+**Hard floor.** A rule whose violation is an active safety hazard is never vendor-accepted — wrap or avoid the offending construct instead.
+
+**Scalability (deliberate).** This register is the *seed* of a formal MISRA-style adopted-code Guideline Re-categorization Plan (GRP) + Guideline Compliance Summary (GCS) for higher-rigor tiers (Nova / RC-Pro / cubesat-rated, and Starcom). It is structured to **grow into** that formal process, not to be torn out — this project does not foreclose the path to formal certification.
+
 ### Comment Density
 
 Target band: **15-25% comment density in `.cpp` files** (function-internal comment lines vs. total non-blank function lines).

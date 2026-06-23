@@ -91,9 +91,11 @@ JSF AV Rule 1 limits functions to 200 L-SLOC. The auto-generated `codegen_fpft()
 
 ---
 
-## Third-Party / Vendored Code Deviations
+## Third-Party / Vendored Code (Adopted-Code Register)
 
-Deviations in code we **don't own** (Pico SDK, QP/C, lwGPS, MAVLink, etc.) where the project's coding standards don't apply because we can't modify the source. Logged here for awareness so future agents know the gate is correctly suppressing these (vs missing a real finding) and so that a future SDK update can be re-evaluated against the same list.
+Code we **don't own** (Pico SDK, QP/C, lwGPS, MAVLink, ETL, linker/CMSIS-supplied symbols) — "adopted code" per `CODING_STANDARDS.md` → "Adopted (Third-Party / Vendored / Toolchain) Code". Our coding standards are not re-derived onto this code; it is assured at the interface/integration/behavioral level. This register records *which* vendored constructs are accepted, and the evaluation behind each — so a green gate is not silently hiding an un-evaluated vendor flag (the "looks-covered-but-isn't" failure mode).
+
+**Acceptance discipline — NEVER auto-accept.** A vendored construct (or a standards flag it raises) lands here ONLY after individual evaluation: **(1)** it is properly **sequestered / isolated**, and **(2)** it is **independently verified** that the rule's underlying *reason* no longer applies (or is satisfied at another level). Each entry below records that evaluation. An un-evaluated vendor flag is a finding, not an exemption. (A flag on **project-authored** code is never resolved here — it is a real finding handled as our own code; e.g., the same 2026-06-23 reserved-identifier sweep that produced TP-2 *also* found project-authored `_test_mode_*` names, which are remediated in code, not vendor-accepted.)
 
 **Pre-commit hook scope:** the project's clang-tidy gate (`scripts/hooks/pre-commit`) checks staged files matching `src/*.cpp` only — it does not flag SDK or vendor headers. The deviations below are surfaced when running clang-tidy with `--header-filter=.*` and `--system-headers` (e.g., during a milestone audit).
 
@@ -108,6 +110,22 @@ Deviations in code we **don't own** (Pico SDK, QP/C, lwGPS, MAVLink, etc.) where
 **Action on SDK upgrade:** re-check against the same audit pattern; if a future SDK version refactors `spi_set_format`, this entry can move to Resolved.
 
 **Discovered:** 2026-05-13 during R-3 amend verification (clang-tidy `--system-headers` + `--header-filter=.*` against `src/safety/fault_protection.cpp` surfaced exactly one suppressed warning, traced to this SDK function).
+
+### TP-2: Linker-supplied reserved identifier `__StackBottom`
+
+**Source:** `__StackBottom` — a symbol **defined by the linker script** (ARM-GCC / pico-sdk), the start of the MPU stack-guard region. Referenced via `extern` in `src/main.cpp:82`, `src/safety/fault_protection.cpp:21`, `src/safety/fault_inject.cpp:152`.
+
+**Standard:** `bugprone-reserved-identifier` (CERT DCL37-C / MISRA C 21.2) — "do not declare/define a reserved identifier."
+
+**Evaluation (per the acceptance discipline):**
+- **(1) Sequestered:** confined to the MPU/stack-guard subsystem — boot setup (`main.cpp` → `mpu_setup_stack_guard(&__StackBottom)`) and the fault handler / fault-injection test (`fault_protection.cpp`, `fault_inject.cpp`). *Follow-up hygiene (non-blocking): consolidate the 3 `extern` declarations into one boundary header (e.g. `include/rocketchip/linker_symbols.h`) so the reference exists in exactly one place.*
+- **(2) Rule reason no longer applies — independently verified:** the rule prohibits *declaring/defining* a reserved name to avoid **colliding with or redefining** the implementation's symbol (UB). We do neither — `__StackBottom` is **defined by the linker**, and we only **reference** it (the intended use of a linker-published symbol); taking its address for the MPU guard. No collision, no redefinition, no UB. CERT DCL37-C's prohibition is on *creating* reserved names; referencing the toolchain's own symbol is the documented exception space. Precedent: Infineon PDL and Xen formally deviate MISRA 21.1/21.2 for exactly these `__`-prefixed toolchain symbols.
+
+**Verdict:** accepted-via-vendoring (toolchain-supplied interface). **Do NOT rename** — it is the linker's name; renaming would break the MPU stack-guard linkage.
+
+**Severity / Difficulty:** Accepted / N/A.
+
+**Discovered:** 2026-06-23, L2-P5 §CM reserved-identifier measurement (WSL build). The *same* sweep flagged project-authored `_test_mode_*` names — those are **not** vendored and are remediated in code (Phase C), demonstrating the never-auto-accept discipline.
 
 ---
 

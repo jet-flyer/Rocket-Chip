@@ -134,6 +134,23 @@ Council review of all Starcom research findings (Grok vs Claude) completed. Full
 
   **Not blocked.** Low-priority loose end never done: reconcile the 225 property-rows vs 274 rule-IDs count line-by-line. Untracked `agent-tools/` + `mcps/` dirs in the tree are from the CCSDS detour, unrelated to L2-P5.
 
+  **── SESSION HANDOFF (2026-06-23, Claude Opus 4.8) — the 2026-06-21 "NEXT STEPS" above are SUPERSEDED. Resume from the authoritative plan: `docs/plans/L2P5_WALK_PLAN.md` (read it first). ──**
+
+  Plan 1 was council-reviewed + approved and is now consolidated into that plan doc (permanent). Big shape change since 2026-06-21: the walk became a **field manual** (`L2P5_MANUAL_WALK_GUIDE.md`) + **work plan** (`docs/plans/L2P5_WALK_PLAN.md`) + **itinerary** (`L2P5_WALK_ITINERARY.md`, 185-file coverage map) — deliberately kept distinct (building the guide ≠ using it for the walk). Governing principle re-set to **completeness over brevity** (every file walked, PASS coverage recorded; balloon expected — esp. remediation).
+
+  **DONE this session:**
+  - Field manual fully built: agent-blind-spot **lens** (catch what compiles/passes but is improper) + Classes 1–14 + §LV/§CM/§RP/§IT/§SC + 185-file itinerary companion.
+  - **§CM measurement (WSL build of `/mnt/c` — Windows-native blocked by cmd-length/quoting; see memory `wsl-on-demand-builds`):** `-Wshadow`=**1** (`rc_os_commands.cpp:1332`), `-Wfloat-equal`=**4** (`eskf_runner` sentinels), confusable=**0**, reserved-id=**4**, param>6=**8**. **No `-Wshadow` balloon.**
+  - **Adopted-code policy (3rd-party code) — council-approved, NEVER auto-accept:** `CODING_STANDARDS.md` new "Adopted (Third-Party/Vendored/Toolchain) Code" subsection + `ACCEPTED_STANDARDS_DEVIATIONS.md` register formalized + **TP-2** (`__StackBottom` accepted-via-vendoring: linker-defined, referenced-not-authored). Each vendor flag individually evaluated (sequestered + rule-reason-still-holds); scalable up to formal MISRA GRP/GCS for Nova/RC-Pro/cubesat/Starcom.
+  - Reserved-id real finding fixed: `_test_mode_*` renamed (dropped reserved leading-underscore) in `test_mode.cpp`.
+  - Triage corrections folded into field manual: `#pragma once`=**3** headers (not 1), `rc_log()` is `void` (not return-checkable), `flash_safe_execute` is **`int`** (return-checkable).
+
+  **UNCOMMITTED WIP code (needs bench_sim at commit):** `CMakeLists.txt:595` (`-Wshadow`/`-Wfloat-equal` **warning-only** — measurement scaffold that becomes the real gate); `src/safety/test_mode.cpp` (reserved-id rename). Doc/plan/standards files committed this session (pure-doc).
+
+  **NEXT (resume order, per the plan doc):** (1) **Phase C dispositions — Nathan's fix-or-accept calls** (plan's Phase C table: shadow×1, **float==×4 needs explicit FMEA decision**, param>6×8, offsetof×2, `#pragma once`×3, continue×28, JSF-175/182, JSF-113); (2) **Phase B gate-wiring** (`scripts/audit/full_tree_clang_tidy.sh` central list → hook + item-17; `.clang-tidy` CheckedFunctions[`i2c_bus_*`/`gps_*`/`flash_safe_execute`, NOT `rc_log`]/ParameterThreshold/confusable; `__StackBottom` NOLINT; **prove script catches a planted violation**; finalize `-Werror`); (3) **Phase D §RP** research → fold Manual-class criteria; (4) **Phase E** wrap (triage errata + CHANGELOG + commit code/flags w/ bench_sim).
+
+  **DEFERRED (future):** full re-audit of existing TP/vendored exceptions vs the new discipline; Plan 2 (agent-facing condensed triage + smell-first agent walk guide); Plan 3 close-out (Cycle-4 remediation doc → close L2-P5 → L2-P10 CLA-RBM).
+
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
   LQCALC pattern (retry aggressiveness scales U-shape with LQ: fewer
