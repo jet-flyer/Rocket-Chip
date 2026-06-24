@@ -1666,3 +1666,35 @@ No assertion across 3 cycles. USB CDC stays live throughout. Host closes port cl
 - LL Entry 36 / 40 — "fail-open when prerequisites missing" / "categories not enumerations" structural gate failure family. This entry adds: "well-intentioned safety cleanup that introduces a worse safety failure" as a sub-pattern.
 - LL Entry 38 — "code shows current-state, primary sources show possibility-space." The 4-person council that pre-diagnosed this as a CDC-drain issue was reasoning from prior LL entries (22, 28, 31, 39) without checking GDB. Confirms the rule: primary sources first, then code, then prior project lessons.
 - LL Entry 39 — the CDC-drain limitation we initially confused this for. Still real, still tracked, but is NOT what bit us here.
+
+---
+
+## Entry 43: "Clean" From a Static Gate Is Negative Evidence — Prove the Flag Is Actually Applied
+
+**Date:** 2026-06-24
+**Context:** L2-P5 Phase B. Repo-owner asked me to *prove* the `-Werror` compiler-warning gate was live rather than trust a commit's "WSL rebuild, 0 warnings."
+**Severity:** High-process — two of the most float-heavy flight-critical files (`eskf.cpp`, `eskf_codegen.cpp`) had been silently outside the `-Wshadow`/`-Wfloat-equal` gate for as long as their per-file `-O2` override existed; "0 warnings" concealed it across multiple commits.
+
+### Problem
+A commit claimed "WSL firmware clean -Werror rebuild, 0 warnings" as evidence the `-Wshadow`/`-Wfloat-equal` remediation held. The repo-owner pushed back: *prove* the warnings are actually emitted; don't treat no-news as good-news. Inspecting the real compile command (`compile_commands.json`) for `eskf.cpp` showed `-Wshadow` and `-Wfloat-equal` **absent**. Root cause: `CMakeLists.txt:603-604` set per-file `COMPILE_OPTIONS "-O2;-Wpedantic"` on the two eskf files, and `set_source_files_properties(COMPILE_OPTIONS ...)` **replaces** the property set for `${ROCKETCHIP_SOURCES}` at `:598` (`-Wpedantic;-Wshadow;-Wfloat-equal`) — it does not append. The files compiled clean because the checks never ran on them. "0 warnings" was true only for the other 73 authored files.
+
+### Root cause — "clean" is identical whether the gate caught nothing or the gate wasn't running
+This is `HW_GATE_DISCIPLINE` Rule 1 (positive-control signal, not "X did not fail") applied to a **static** gate — a compiler flag or linter check — and the LL 36 / LL 40 "gate looks covered but isn't" family. A green build proves "no violation was reported." It does **not** prove "the check ran on this file." A per-file `COMPILE_OPTIONS` override, a file missing from `ROCKETCHIP_SOURCES`, a `HeaderFilterRegex` miss, a `--checks` typo, an over-broad exemption glob — all emit output indistinguishable from a genuinely-clean tree.
+
+The existing mechanical defense (`BUILD_SYSTEM_AUDIT.md` "pedantic-gate coverage", `SESSION_CHECKLIST` item 15) checks `ROCKETCHIP_SOURCES` **membership** — which the eskf files *passed* (they were in the list; their flags were overridden). Membership ≠ flag-application.
+
+### Fix
+1. `:603-604` re-carry the flags (`"-O2;-Wpedantic;-Wshadow;-Wfloat-equal"`). The now-live gate surfaced 8 `-Wfloat-equal` hits in `eskf.cpp`, all compile-time `static_assert` codegen-drift guards (exact named-`constexpr` identity, not a runtime hazard) — suppressed for that block via `#pragma GCC diagnostic`. No runtime float== or shadow found.
+2. **Positive-controlled the flag:** planted a shadow + a float== in `eskf.cpp`, confirmed the build failed with both `-Werror=shadow` and `-Werror=float-equal`, reverted.
+3. **Mechanical defense:** `scripts/audit/check_warning_gate_coverage.py` reads `compile_commands.json` and asserts every authored `src/` file's *actual command* carries the gate flags (membership-independent). Proven: detects the 2 holes on a pre-fix DB, passes 75/75 on the fixed one.
+
+### Prevention
+1. Treat "0 warnings / clean / no findings" from ANY static gate as **negative** evidence. Before trusting it as proof of compliance, prove the gate is live on the files it must cover — plant a violation and confirm failure, or inspect the actual invocation/command for the flag.
+2. `set_source_files_properties(... COMPILE_OPTIONS ...)` **replaces, never appends.** Any per-file override must re-carry every base flag or it silently drops the gate for that file. Audit every such override.
+3. Run `scripts/audit/check_warning_gate_coverage.py` against the firmware `compile_commands.json` at milestone close (wired into `BUILD_SYSTEM_AUDIT.md`; fold into the L2-P5 `full_tree` gate when it lands). Mechanical beats memory (LL 36/40).
+
+### Related
+- `HW_GATE_DISCIPLINE.md` Rule 1 (positive-control signal) + Rule 4 (gates without positive-control are soft) — same principle; this entry extends it from hardware gates to static/compiler gates.
+- LL 36 (bench_sim regex rot) + LL 40 (categories not enumerations) — the "gate looks covered but isn't" family.
+- `SESSION_CHECKLIST` item 15 / `BUILD_SYSTEM_AUDIT.md` — has a pedantic-gate-*coverage* check, but it tests `ROCKETCHIP_SOURCES` membership, not `COMPILE_OPTIONS` flag-dropping.
+- CHANGELOG `2026-06-24-002`; commit `60ce731`.

@@ -118,6 +118,31 @@ appropriate module block to preserve organization). Be prepared for
 pedantic warnings to surface; either fix them or, if they come from
 a vendor header, check P4.
 
+### P2-B: Per-file warning-flag coverage (COMPILE_OPTIONS override drop)
+
+**P2 checks list *membership*; this checks the *actual compile command*.** A
+per-file `set_source_files_properties(<f> PROPERTIES COMPILE_OPTIONS ...)`
+**replaces** (it does not append) the options set for `${ROCKETCHIP_SOURCES}`
+at `CMakeLists.txt:598`. So a file can be correctly listed in
+`ROCKETCHIP_SOURCES` (passing P2) yet have an override that drops
+`-Wshadow`/`-Wfloat-equal` — silently out of the gate, with "0 warnings"
+indistinguishable from a clean tree. Membership and flag-application are
+different properties. (Lived case: `eskf.cpp` + `eskf_codegen.cpp`, ungated
+since their `-O2` override was added; caught 2026-06-24 — LL Entry 43.)
+
+**Check** (needs the firmware `compile_commands.json` — configure `build/` first
+with `cmake -B build -G Ninja`):
+```bash
+python scripts/audit/check_warning_gate_coverage.py build/compile_commands.json
+```
+
+**Clean:** `OK: all N authored src/ files carry -Werror, -Wpedantic, -Wshadow, -Wfloat-equal.`
+
+**Dirty:** the script lists each file + its missing flags. Fix: the file's
+`COMPILE_OPTIONS` override must re-carry every base flag (it replaces, not
+appends). Do **not** fix by deleting the override if it is load-bearing
+(Guardrail #4) — re-carry the flags instead.
+
 ### P3: Host/target CMake split
 
 `rc_flight_director` library (host build) and `add_executable(rocketchip ...)`
@@ -236,7 +261,11 @@ them, leave them alone and add a comment-explanation if missing.
 4. **Per-file `-O2` on `src/fusion/eskf.cpp` and
    `src/fusion/eskf_codegen.cpp`** — LL Entry 30 load-bearing
    (XIP cache, codegen performance). Do not remove the per-file
-   override, do not replace with target-level `-O2`.
+   override, do not replace with target-level `-O2`. **The override
+   MUST also re-carry `-Wpedantic;-Wshadow;-Wfloat-equal`** — because
+   `COMPILE_OPTIONS` replaces, omitting them silently drops these two
+   flight-critical files out of the warning gate (LL Entry 43; P2-B
+   verifies this mechanically).
 
 5. **The flight_director source-file duplication** between
    `rc_flight_director` (host) and `add_executable(rocketchip)`
