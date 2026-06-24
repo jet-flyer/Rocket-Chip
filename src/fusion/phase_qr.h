@@ -64,29 +64,29 @@ struct PhaseQRTable {
 // Phase index:         IDLE  ARMED BOOST COAST DROG  MAIN  LAND  ABORT
 inline constexpr PhaseQRTable kDefaultPhaseQR = {.phases = {
     // IDLE (0)
-    {.q_scale = {1.0f, 1.0f, 1.0f, 1.0f},
-     .r = {0.001f, 0.008f, 12.25f, 0.25f}},
+    {.q_scale = {1.0F, 1.0F, 1.0F, 1.0F},
+     .r = {0.001F, 0.008F, 12.25F, 0.25F}},
     // ARMED (1)
-    {.q_scale = {1.0f, 1.0f, 1.0f, 1.0f},
-     .r = {0.001f, 0.008f, 12.25f, 0.25f}},
+    {.q_scale = {1.0F, 1.0F, 1.0F, 1.0F},
+     .r = {0.001F, 0.008F, 12.25F, 0.25F}},
     // BOOST (2) — high vibration, rapid acceleration
-    {.q_scale = {10.0f, 50.0f, 5.0f, 5.0f},          // VALIDATE
-     .r = {0.004f, 0.016f, 12.25f, 0.25f}},           // VALIDATE
+    {.q_scale = {10.0F, 50.0F, 5.0F, 5.0F},          // VALIDATE
+     .r = {0.004F, 0.016F, 12.25F, 0.25F}},           // VALIDATE
     // COAST (3) — drag deceleration, moderate dynamics
-    {.q_scale = {5.0f, 10.0f, 2.0f, 2.0f},            // VALIDATE
-     .r = {0.001f, 0.008f, 12.25f, 0.25f}},
+    {.q_scale = {5.0F, 10.0F, 2.0F, 2.0F},            // VALIDATE
+     .r = {0.001F, 0.008F, 12.25F, 0.25F}},
     // DROGUE_DESCENT (4)
-    {.q_scale = {2.0f, 5.0f, 1.0f, 1.0f},             // VALIDATE
-     .r = {0.001f, 0.008f, 12.25f, 0.25f}},
+    {.q_scale = {2.0F, 5.0F, 1.0F, 1.0F},             // VALIDATE
+     .r = {0.001F, 0.008F, 12.25F, 0.25F}},
     // MAIN_DESCENT (5)
-    {.q_scale = {2.0f, 5.0f, 1.0f, 1.0f},             // VALIDATE
-     .r = {0.001f, 0.008f, 12.25f, 0.25f}},
+    {.q_scale = {2.0F, 5.0F, 1.0F, 1.0F},             // VALIDATE
+     .r = {0.001F, 0.008F, 12.25F, 0.25F}},
     // LANDED (6) — stationary
-    {.q_scale = {1.0f, 1.0f, 1.0f, 1.0f},
-     .r = {0.001f, 0.008f, 12.25f, 0.25f}},
+    {.q_scale = {1.0F, 1.0F, 1.0F, 1.0F},
+     .r = {0.001F, 0.008F, 12.25F, 0.25F}},
     // ABORT (7) — same as COAST (conservative)
-    {.q_scale = {5.0f, 10.0f, 2.0f, 2.0f},            // VALIDATE
-     .r = {0.001f, 0.008f, 12.25f, 0.25f}},
+    {.q_scale = {5.0F, 10.0F, 2.0F, 2.0F},            // VALIDATE
+     .r = {0.001F, 0.008F, 12.25F, 0.25F}},
 }, .ramp_steps = 20};  // VALIDATE: 100ms at 200Hz predict rate
 
 }  // namespace rc

@@ -6,7 +6,7 @@ namespace rc {
 
 void confidence_gate_init(ConfidenceState* cs) {
     cs->confident = true;
-    cs->ahrs_divergence_deg = 0.0f;
+    cs->ahrs_divergence_deg = 0.0F;
     cs->time_since_confident_ms = 0;
     cs->phase_agreement = true;
     cs->bad_since_ms = 0;

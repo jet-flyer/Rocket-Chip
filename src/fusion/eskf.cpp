@@ -916,13 +916,13 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
 // Sequential 3-axis scalar updates for mag states.
 // Returns max NIS across all accepted axes.
 float ESKF::fuse_mag_axes(const float innov[3], float R_per_axis) {
-    float maxNis = 0.0f;
+    float maxNis = 0.0F;
     // Earth mag states [15-17]
     for (int32_t axis = 0; axis < 3; ++axis) {
         const int32_t hIdx = eskf::kIdxEarthMag + axis;
         const float s = P(hIdx, hIdx) + R_per_axis;
         if (s >= kMinInnovationVariance &&
-            fabsf(innov[axis]) <= 5.0f * sqrtf(s)) {
+            fabsf(innov[axis]) <= 5.0F * sqrtf(s)) {
             const float nis = (innov[axis] * innov[axis]) / s;
             if (nis > maxNis) { maxNis = nis; }
 #ifdef ESKF_USE_BIERMAN
@@ -937,7 +937,7 @@ float ESKF::fuse_mag_axes(const float innov[3], float R_per_axis) {
         const int32_t hIdx = eskf::kIdxBodyMagBias + axis;
         const float s = P(hIdx, hIdx) + R_per_axis;
         if (s >= kMinInnovationVariance &&
-            fabsf(innov[axis]) <= 5.0f * sqrtf(s)) {
+            fabsf(innov[axis]) <= 5.0F * sqrtf(s)) {
 #ifdef ESKF_USE_BIERMAN
             bierman_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
 #else
@@ -951,9 +951,9 @@ float ESKF::fuse_mag_axes(const float innov[3], float R_per_axis) {
 // Magnitude pre-check: reject if measured |B| deviates >25% from expected
 static bool mag_magnitude_ok(const Vec3& magBody, const Vec3& earthFieldNed) {
     const float expectedMag = earthFieldNed.norm();
-    if (expectedMag < 1.0f) { return true; }  // No expected field to compare
+    if (expectedMag < 1.0F) { return true; }  // No expected field to compare
     const float ratio = magBody.norm() / expectedMag;
-    return (ratio >= 0.75f && ratio <= 1.25f);
+    return (ratio >= 0.75F && ratio <= 1.25F);
 }
 
 bool ESKF::update_mag_3axis(const Vec3& magBody, const Vec3& earthFieldNed,
@@ -1741,7 +1741,7 @@ void ESKF::set_phase_qr(const PhaseQRTable* table) {
     if (table) {
         current_phase_ = 0;
         prev_phase_ = 0;
-        q_ramp_alpha_ = 1.0f;
+        q_ramp_alpha_ = 1.0F;
         q_ramp_remaining_ = 0;
         update_active_qr();
         innovation_channel_init(&innov_baro_);
@@ -1761,7 +1761,7 @@ void ESKF::notify_phase_change(uint8_t new_phase) {
     prev_phase_ = current_phase_;
     current_phase_ = new_phase;
     q_ramp_remaining_ = phase_qr_->ramp_steps;
-    q_ramp_alpha_ = 0.0f;
+    q_ramp_alpha_ = 0.0F;
     update_active_qr();
 }
 
@@ -1797,8 +1797,8 @@ void ESKF::apply_phase_q_delta(float dt) {
 
     // Innovation adaptation: multiply Q scale by innovation-driven factor.
     // Freeze adaptation during ramp (Council A4 — avoid reacting to transition transients).
-    float innov_scale_att = 1.0f;
-    float innov_scale_vel = 1.0f;
+    float innov_scale_att = 1.0F;
+    float innov_scale_vel = 1.0F;
     if (q_ramp_remaining_ == 0) {
         // Use max of relevant channels for each Q group
         innov_scale_att = innovation_channel_q_scale(&innov_mag_);
@@ -1814,26 +1814,26 @@ void ESKF::apply_phase_q_delta(float dt) {
     const float eff_ab  = q_active_.accel_bias;
     const float eff_gb  = q_active_.gyro_bias;
 
-    if (eff_att > 1.0f) {
-        const float delta = kSigmaGyro * kSigmaGyro * (eff_att - 1.0f) * dt;
+    if (eff_att > 1.0F) {
+        const float delta = kSigmaGyro * kSigmaGyro * (eff_att - 1.0F) * dt;
         for (int32_t i = eskf::kIdxAttitude; i < eskf::kIdxAttitude + 3; ++i) {
             P(i, i) += delta;
         }
     }
-    if (eff_vel > 1.0f) {
-        const float delta = kSigmaAccel * kSigmaAccel * (eff_vel - 1.0f) * dt;
+    if (eff_vel > 1.0F) {
+        const float delta = kSigmaAccel * kSigmaAccel * (eff_vel - 1.0F) * dt;
         for (int32_t i = eskf::kIdxVelocity; i < eskf::kIdxVelocity + 3; ++i) {
             P(i, i) += delta;
         }
     }
-    if (eff_ab > 1.0f) {
-        const float delta = kSigmaAccelBiasWalk * kSigmaAccelBiasWalk * (eff_ab - 1.0f) * dt;
+    if (eff_ab > 1.0F) {
+        const float delta = kSigmaAccelBiasWalk * kSigmaAccelBiasWalk * (eff_ab - 1.0F) * dt;
         for (int32_t i = eskf::kIdxAccelBias; i < eskf::kIdxAccelBias + 3; ++i) {
             P(i, i) += delta;
         }
     }
-    if (eff_gb > 1.0f) {
-        const float delta = kSigmaGyroBiasWalk * kSigmaGyroBiasWalk * (eff_gb - 1.0f) * dt;
+    if (eff_gb > 1.0F) {
+        const float delta = kSigmaGyroBiasWalk * kSigmaGyroBiasWalk * (eff_gb - 1.0F) * dt;
         for (int32_t i = eskf::kIdxGyroBias; i < eskf::kIdxGyroBias + 3; ++i) {
             P(i, i) += delta;
         }

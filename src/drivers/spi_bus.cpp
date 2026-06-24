@@ -20,8 +20,8 @@
 
 // SPI register address masks
 // Bit 7: 0 = read, 1 = write (SX1276 datasheet Section 4.2)
-static constexpr uint8_t kSpiReadMask  = 0x7Fu;  // Clear bit 7 for read
-static constexpr uint8_t kSpiWriteFlag = 0x80u;   // Set bit 7 for write
+static constexpr uint8_t kSpiReadMask  = 0x7FU;  // Clear bit 7 for read
+static constexpr uint8_t kSpiWriteFlag = 0x80U;   // Set bit 7 for write
 
 // IVP-132a.4 (ArduPilot council #4): hot-path error counter.
 // Incremented when SPI HW returns short byte count (timeout / error).

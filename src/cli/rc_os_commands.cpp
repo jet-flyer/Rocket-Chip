@@ -512,8 +512,8 @@ void cli_print_sensor_status() {
     print_cal_params();
 
     // WMM geomagnetic field info
-    float wmmLat = 0.0f;
-    float wmmLon = 0.0f;
+    float wmmLat = 0.0F;
+    float wmmLon = 0.0F;
     bool wmmValid = eskf_runner_get_wmm_position(&wmmLat, &wmmLon);
     if (wmmValid) {
         static constexpr const char* kWmmSrc[] = {"?", "default", "stored", "GPS"};
@@ -523,9 +523,9 @@ void cli_print_sensor_status() {
                kWmmSrc[src < 4 ? src : 0],
                fabsf(wmmLat), wmmLat >= 0 ? 'N' : 'S',
                fabsf(wmmLon), wmmLon >= 0 ? 'E' : 'W',
-               fabsf(field.declination_rad * 180.0f / 3.14159265f),
+               fabsf(field.declination_rad * 180.0F / 3.14159265F),
                field.declination_rad >= 0 ? 'E' : 'W',
-               fabsf(field.inclination_rad * 180.0f / 3.14159265f),
+               fabsf(field.inclination_rad * 180.0F / 3.14159265F),
                field.inclination_rad >= 0 ? 'D' : 'U',
                field.intensity_ut);
         rc::rc_log("Mag3D: %s", eskf_runner_mag_3d_active() ? "ON" : "OFF");
@@ -936,9 +936,9 @@ void cli_print_eskf_live() {
 static void print_station_rx_fields(const rc::TelemetryState& t,
                                      const RadioAoState* rs,
                                      uint32_t met_ms, uint16_t seq) {
-    static constexpr float kMmToM  = 0.001f;
-    static constexpr float kMmToFt = 0.00328084f;
-    static constexpr float kCmsToMs = 0.01f;
+    static constexpr float kMmToM  = 0.001F;
+    static constexpr float kMmToFt = 0.00328084F;
+    static constexpr float kCmsToMs = 0.01F;
 
     float alt_m  = static_cast<float>(t.baro_alt_mm) * kMmToM;
     float alt_ft = static_cast<float>(t.baro_alt_mm) * kMmToFt;
@@ -1294,18 +1294,18 @@ static void cmd_radio_status() {
 [[maybe_unused]]
 static float haversine_m(int32_t lat1_e7, int32_t lon1_e7,
                           int32_t lat2_e7, int32_t lon2_e7) {
-    static constexpr float kDegToRad = 3.14159265f / 180.0f;
-    static constexpr float kEarthR   = 6371000.0f;
-    static constexpr float kScale    = 1e-7f;
+    static constexpr float kDegToRad = 3.14159265F / 180.0F;
+    static constexpr float kEarthR   = 6371000.0F;
+    static constexpr float kScale    = 1e-7F;
 
     float lat1 = static_cast<float>(lat1_e7) * kScale * kDegToRad;
     float lat2 = static_cast<float>(lat2_e7) * kScale * kDegToRad;
     float dlat = lat2 - lat1;
     float dlon = (static_cast<float>(lon2_e7 - lon1_e7)) * kScale * kDegToRad;
 
-    float a = sinf(dlat * 0.5f) * sinf(dlat * 0.5f)
-            + cosf(lat1) * cosf(lat2) * sinf(dlon * 0.5f) * sinf(dlon * 0.5f);
-    float c = 2.0f * atan2f(sqrtf(a), sqrtf(1.0f - a));
+    float a = sinf(dlat * 0.5F) * sinf(dlat * 0.5F)
+            + cosf(lat1) * cosf(lat2) * sinf(dlon * 0.5F) * sinf(dlon * 0.5F);
+    float c = 2.0F * atan2f(sqrtf(a), sqrtf(1.0F - a));
     return kEarthR * c;
 }
 
@@ -1328,9 +1328,9 @@ static void cmd_station_gps() {
 [[maybe_unused]]
 static float bearing_deg(int32_t lat1_e7, int32_t lon1_e7,
                           int32_t lat2_e7, int32_t lon2_e7) {
-    static constexpr float kDegToRad = 3.14159265f / 180.0f;
+    static constexpr float kDegToRad = 3.14159265F / 180.0F;
     // kRadToDeg: use the file-scope constant (no shadowing local) — see top of file.
-    static constexpr float kScale    = 1e-7f;
+    static constexpr float kScale    = 1e-7F;
 
     float lat1 = static_cast<float>(lat1_e7) * kScale * kDegToRad;
     float lat2 = static_cast<float>(lat2_e7) * kScale * kDegToRad;
@@ -1339,7 +1339,7 @@ static float bearing_deg(int32_t lat1_e7, int32_t lon1_e7,
     float y = sinf(dlon) * cosf(lat2);
     float x = cosf(lat1) * sinf(lat2) - sinf(lat1) * cosf(lat2) * cosf(dlon);
     float bearing = atan2f(y, x) * kRadToDeg;
-    return fmodf(bearing + 360.0f, 360.0f);
+    return fmodf(bearing + 360.0F, 360.0F);
 }
 
 static void cmd_station_distance() {
@@ -1382,8 +1382,8 @@ static void cmd_station_gps_push() {
     shared_sensor_data_t snap = {};
     if (seqlock_read(&g_sensorSeqlock, &snap) &&
         snap.gps_valid && snap.gps_fix_type >= 3) {
-        float lat = static_cast<float>(snap.gps_lat_1e7) * 1e-7f;
-        float lon = static_cast<float>(snap.gps_lon_1e7) * 1e-7f;
+        float lat = static_cast<float>(snap.gps_lat_1e7) * 1e-7F;
+        float lon = static_cast<float>(snap.gps_lon_1e7) * 1e-7F;
         AO_Telemetry_send_command(kMavCmdSetHome, {.p5 = lat, .p6 = lon});
         rc::rc_log("GPS push: %.5f, %.5f\n",
                static_cast<double>(lat), static_cast<double>(lon));
@@ -1545,7 +1545,7 @@ void cli_handle_unhandled_key(int key) {
             stage_t2_queue_command(kMavCmdArmDisarm, 0.0f);
             rc::rc_log("[CMD] DISARM sent, waiting for ACK...\n");
 #else
-            AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0f);
+            AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0F);
             rc::rc_log("[CMD] DISARM sent, waiting for ACK...\n");
 #endif
         }
@@ -1578,7 +1578,7 @@ void cmd_findme_beacon() {
     if constexpr (kRadioModeRx) {
         // Station — send beacon command to vehicle via tracked command (IVP-122
         // ACK protocol). cmd.param1 unused by MAV_CMD_USER_1 receiver.
-        AO_Telemetry_send_tracked_command(kMavCmdBeacon, 0.0f);
+        AO_Telemetry_send_tracked_command(kMavCmdBeacon, 0.0F);
         rc::rc_log("[CMD] find-me beacon command sent, waiting for ACK...\n");
     } else {
         // Vehicle — publish directly to local AO_Notify.

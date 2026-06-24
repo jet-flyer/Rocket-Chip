@@ -252,8 +252,8 @@ enum class WmmSource : uint8_t {
 // WMM field state
 static WmmSource g_wmmSource = WmmSource::kNone;
 static rc::Vec3 g_wmmFieldNed;   // Earth field NED from WMM (µT)
-static float g_wmmLatDeg = 0.0f;
-static float g_wmmLonDeg = 0.0f;
+static float g_wmmLatDeg = 0.0F;
+static float g_wmmLonDeg = 0.0F;
 
 // Auto-enable 3-axis mag: requires cal + WMM field
 static bool g_mag3dEnabled = false;
@@ -473,7 +473,7 @@ static void eskf_tick_phase_and_confidence() {
     ci.eskf_healthy = g_eskf.healthy();
     ci.mahony_div_deg = (g_mahonyInitialized && g_mahony.healthy())
         ? rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg
-        : 0.0f;
+        : 0.0F;
     // Max innovation ratio across all channels
     float maxAlpha = g_eskf.innov_baro_.alpha;
     if (g_eskf.innov_mag_.alpha > maxAlpha) maxAlpha = g_eskf.innov_mag_.alpha;

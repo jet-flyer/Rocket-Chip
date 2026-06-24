@@ -61,7 +61,7 @@ struct Mat {
         Mat<Rows, P> result;
         for (int32_t r = 0; r < Rows; ++r) {
             for (int32_t p = 0; p < P; ++p) {
-                float sum = 0.0f;
+                float sum = 0.0F;
                 for (int32_t k = 0; k < Cols; ++k) {
                     sum += data[r][k] * rhs.data[k][p];
                 }
@@ -88,7 +88,7 @@ struct Mat {
         static_assert(Rows == Cols, "force_symmetric requires square matrix");
         for (int32_t r = 0; r < Rows; ++r) {
             for (int32_t c = r + 1; c < Cols; ++c) {
-                float avg = (data[r][c] + data[c][r]) * 0.5f;
+                float avg = (data[r][c] + data[c][r]) * 0.5F;
                 data[r][c] = avg;
                 data[c][r] = avg;
             }
@@ -111,7 +111,7 @@ struct Mat {
     bool diagonal_positive() const {
         static_assert(Rows == Cols, "diagonal_positive requires square matrix");
         for (int32_t i = 0; i < Rows; ++i) {
-            if (data[i][i] <= 0.0f) {
+            if (data[i][i] <= 0.0F) {
                 return false;
             }
         }
@@ -121,7 +121,7 @@ struct Mat {
     // Trace (sum of diagonal)
     float trace() const {
         static_assert(Rows == Cols, "trace requires square matrix");
-        float sum = 0.0f;
+        float sum = 0.0F;
         for (int32_t i = 0; i < Rows; ++i) {
             sum += data[i][i];
         }
@@ -134,7 +134,7 @@ struct Mat {
     void set_zero() {
         for (int32_t r = 0; r < Rows; ++r) {
             for (int32_t c = 0; c < Cols; ++c) {
-                data[r][c] = 0.0f;
+                data[r][c] = 0.0F;
             }
         }
     }
@@ -144,7 +144,7 @@ struct Mat {
         static_assert(Rows == Cols, "set_identity requires square matrix");
         set_zero();
         for (int32_t i = 0; i < Rows; ++i) {
-            data[i][i] = 1.0f;
+            data[i][i] = 1.0F;
         }
     }
 
@@ -167,7 +167,7 @@ struct Mat {
         static_assert(Rows == Cols, "identity requires square matrix");
         Mat result;
         for (int32_t i = 0; i < Rows; ++i) {
-            result.data[i][i] = 1.0f;
+            result.data[i][i] = 1.0F;
         }
         return result;
     }
@@ -279,27 +279,27 @@ ScalarUpdateResult<N> scalar_update(
     Mat<N, 1> PHt = P * H.transposed();
 
     // S = H * P * H^T + R  (scalar)
-    float S = 0.0f;
+    float S = 0.0F;
     for (int32_t i = 0; i < N; ++i) {
         S += H(0, i) * PHt(i, 0);
     }
     S += R;
 
     // Innovation: z - H*x  (scalar)
-    float Hx = 0.0f;
+    float Hx = 0.0F;
     for (int32_t i = 0; i < N; ++i) {
         Hx += H(0, i) * x(i, 0);
     }
     float innovation = z - Hx;
 
     // Kalman gain: K = PHt / S  (Nx1)
-    float inv_S = (S > 1e-30f) ? (1.0f / S) : 0.0f;
+    float inv_S = (S > 1e-30F) ? (1.0F / S) : 0.0F;
     Mat<N, 1> K;
     for (int32_t i = 0; i < N; ++i) {
         K(i, 0) = PHt(i, 0) * inv_S;
     }
 
-    float nis = (S > 1e-30f) ? (innovation * innovation / S) : 0.0f;
+    float nis = (S > 1e-30F) ? (innovation * innovation / S) : 0.0F;
 
     return {K, innovation, S, nis};
 }
@@ -327,14 +327,14 @@ bool cholesky(const Mat<N, N>& A, Mat<N, N>& L) {
 
     for (int32_t i = 0; i < N; ++i) {
         for (int32_t j = 0; j <= i; ++j) {
-            float sum = 0.0f;
+            float sum = 0.0F;
             for (int32_t k = 0; k < j; ++k) {
                 sum += L(i, k) * L(j, k);
             }
 
             if (i == j) {
                 float diag = A(i, i) - sum;
-                if (diag <= 0.0f) {
+                if (diag <= 0.0F) {
                     return false;  // Not positive definite
                 }
                 L(i, j) = sqrtf(diag);

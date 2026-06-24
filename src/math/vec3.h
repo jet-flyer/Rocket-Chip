@@ -9,9 +9,9 @@
 namespace rc {
 
 struct Vec3 {
-    float x{0.0f};
-    float y{0.0f};
-    float z{0.0f};
+    float x{0.0F};
+    float y{0.0F};
+    float z{0.0F};
 
     constexpr Vec3() = default;
     constexpr Vec3(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}

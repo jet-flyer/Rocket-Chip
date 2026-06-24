@@ -50,7 +50,7 @@ void guard_evaluator_init(GuardEvaluator* ev,
 
     init_guard(g[static_cast<uint8_t>(GuardId::kBaroPeak)],
                profile.baro_peak_sustain_ms, tick_period_ms,
-               0.0f, SIG_APOGEE,
+               0.0F, SIG_APOGEE,
                phase_bit(FlightPhase::kCoast));
 
     init_guard(g[static_cast<uint8_t>(GuardId::kMainDeploy)],

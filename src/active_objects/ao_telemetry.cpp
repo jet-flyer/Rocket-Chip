@@ -276,7 +276,7 @@ static uint8_t dispatch_command(TelemAo* me, const mavlink_command_long_t& cmd) 
     uint8_t ack_result = static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted);
     switch (cmd.command) {
     case MAV_CMD_COMPONENT_ARM_DISARM: {
-        uint16_t sig = (cmd.param1 > 0.5f)
+        uint16_t sig = (cmd.param1 > 0.5F)
             ? static_cast<uint16_t>(rc::SIG_ARM)
             : static_cast<uint16_t>(rc::SIG_DISARM);
         AO_FlightDirector_dispatch_signal(sig);
@@ -413,7 +413,7 @@ static RetryStats s_retry_stats[kCmdClassCount] = {};
 
 static CmdClass classify_tracked_cmd(uint16_t cmd_id, float p1) {
     if (cmd_id == MAV_CMD_COMPONENT_ARM_DISARM) {
-        return p1 > 0.5f ? kCmdClassArm : kCmdClassDisarm;
+        return p1 > 0.5F ? kCmdClassArm : kCmdClassDisarm;
     }
     if (cmd_id == MAV_CMD_DO_FLIGHTTERMINATION) { return kCmdClassAbort; }
     if (cmd_id == 31011U /* MAV_CMD_USER_2 */)   { return kCmdClassSetConfig; }
@@ -877,7 +877,7 @@ static bool is_tracked_command_safety_class(uint16_t cmd_id, float p1) {
     if (cmd_id == MAV_CMD_DO_FLIGHTTERMINATION) {
         return true;
     }
-    if (cmd_id == MAV_CMD_COMPONENT_ARM_DISARM && p1 > 0.5f) {
+    if (cmd_id == MAV_CMD_COMPONENT_ARM_DISARM && p1 > 0.5F) {
         return true;  // ARM only; DISARM (p1 < 0.5) is fine to dedupe.
     }
     return false;
@@ -1086,7 +1086,7 @@ void AO_Telemetry_feed_usb_byte(uint8_t byte) {
             mavlink_command_long_t cmd;
             mavlink_msg_command_long_decode(&msg, &cmd);
             if (cmd.command == MAV_CMD_COMPONENT_ARM_DISARM) {
-                uint16_t sig = (cmd.param1 > 0.5f)
+                uint16_t sig = (cmd.param1 > 0.5F)
                     ? static_cast<uint16_t>(rc::SIG_ARM)
                     : static_cast<uint16_t>(rc::SIG_DISARM);
                 AO_FlightDirector_dispatch_signal(sig);

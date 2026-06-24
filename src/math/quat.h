@@ -14,10 +14,10 @@
 namespace rc {
 
 struct Quat {
-    float w{1.0f};
-    float x{0.0f};
-    float y{0.0f};
-    float z{0.0f};
+    float w{1.0F};
+    float x{0.0F};
+    float y{0.0F};
+    float z{0.0F};
 
     constexpr Quat() = default;
     constexpr Quat(float w_, float x_, float y_, float z_)

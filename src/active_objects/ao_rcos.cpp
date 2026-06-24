@@ -266,7 +266,7 @@ static void poll_dashboard_keys() {
             if (ch == 'D') {
                 // DISARM — single key, no confirm, ACK-tracked.
                 // Reuses the same path as the kMenu 'X' binding.
-                AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0f);
+                AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 0.0F);
                 return;
             }
         }

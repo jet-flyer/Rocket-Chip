@@ -48,15 +48,15 @@ static constexpr const char* kClrEol = "\033[K";
 // Conversion constants
 // ============================================================================
 
-static constexpr float kMmToM   = 0.001f;
-static constexpr float kCmsToMs = 0.01f;
+static constexpr float kMmToM   = 0.001F;
+static constexpr float kCmsToMs = 0.01F;
 
 // ============================================================================
 // Station-side computed state (persists across renders)
 // ============================================================================
 
-static float    s_max_alt_m  = 0.0f;
-static float    s_max_vel_ms = 0.0f;
+static float    s_max_alt_m  = 0.0F;
+static float    s_max_vel_ms = 0.0F;
 static uint32_t s_first_seq  = 0;
 static bool     s_first_seq_valid = false;
 static uint8_t  s_prev_flight_state = 255;  // for transition detection
@@ -161,7 +161,7 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     d.fix     = (t.gps_fix_sats >> 4) & 0x0F;
     d.sats    = t.gps_fix_sats & 0x0F;
     d.eskf_ok = (rc::health_eskf(t.health) >= rc::kHealthDegraded);
-    d.batt_v  = static_cast<float>(t.battery_mv) * 0.001f;
+    d.batt_v  = static_cast<float>(t.battery_mv) * 0.001F;
     d.lat     = static_cast<double>(t.lat_1e7) * 1e-7;
     d.lon     = static_cast<double>(t.lon_1e7) * 1e-7;
 
@@ -170,8 +170,8 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     float abs_vel = fabsf(d.vvel);
     if (abs_vel > s_max_vel_ms) s_max_vel_ms = abs_vel;
     if (t.flight_state == 0 && s_prev_flight_state != 0 && s_prev_flight_state != 255) {
-        s_max_alt_m = 0.0f;
-        s_max_vel_ms = 0.0f;
+        s_max_alt_m = 0.0F;
+        s_max_vel_ms = 0.0F;
     }
     s_prev_flight_state = t.flight_state;
 

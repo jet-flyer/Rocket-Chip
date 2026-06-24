@@ -447,7 +447,7 @@ static int handle_arm_confirm() {
         s_arm_buf[s_arm_buf_pos] = '\0';
         if (s_arm_buf_pos == 3 &&
             s_arm_buf[0] == 'A' && s_arm_buf[1] == 'R' && s_arm_buf[2] == 'M') {
-            AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 1.0f);
+            AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 1.0F);
             rc::rc_log("[CMD] ARM sent, waiting for ACK...\n");
         } else {
             rc::rc_log("ARM aborted (bad input: '%s')\n", s_arm_buf);

@@ -153,7 +153,7 @@ static void populate_baro_fields(rc::FusedState& fused,
     // Raw baro altitude rate (ESKF-independent, IVP-120)
     // 2-point pressure delta → altitude rate via hydrostatic approximation.
     // Cache lives at file scope so it persists across calls.
-    static float s_prev_pressure_pa = 0.0f;
+    static float s_prev_pressure_pa = 0.0F;
     static uint32_t s_prev_sample_ms = 0;
 #ifndef ROCKETCHIP_HOST_TEST
     uint32_t now_ms = to_ms_since_boot(get_absolute_time());
@@ -164,16 +164,16 @@ static void populate_baro_fields(rc::FusedState& fused,
         // First sample — cache and return zero rate
         s_prev_pressure_pa = snap.pressure_pa;
         s_prev_sample_ms = now_ms;
-        fused.baro_alt_rate_mps = 0.0f;
+        fused.baro_alt_rate_mps = 0.0F;
         return;
     }
-    float dt_s = static_cast<float>(now_ms - s_prev_sample_ms) * 0.001f;
-    if (dt_s >= 0.05f) {
+    float dt_s = static_cast<float>(now_ms - s_prev_sample_ms) * 0.001F;
+    if (dt_s >= 0.05F) {
         // Hydrostatic: dalt = -dP / (rho * g)
         // kRhoAir = 1.225 kg/m³ (sea level standard atmosphere)
         // kGravity = 9.81 m/s² (standard gravity)
-        static constexpr float kRhoAir = 1.225f;
-        static constexpr float kGravity = 9.81f;
+        static constexpr float kRhoAir = 1.225F;
+        static constexpr float kGravity = 9.81F;
         float dp = snap.pressure_pa - s_prev_pressure_pa;
         fused.baro_alt_rate_mps = -dp / (dt_s * kRhoAir * kGravity);
         s_prev_pressure_pa = snap.pressure_pa;
@@ -197,7 +197,7 @@ void AO_Logger_populate_fused_state(rc::FusedState& fused,
     const rc::MahonyAHRS* mahony_fused = eskf_runner_get_mahony();
     fused.mahony_div_deg = (eskf_runner_is_mahony_initialized() && mahony_fused->healthy())
         ? rc::MahonyAHRS::divergence_rad(g_eskf.q, mahony_fused->q) * kRadToDeg
-        : -1.0f;
+        : -1.0F;
 
     // GPS from sensor snapshot
     fused.gps_lat_1e7 = snap.gps_lat_1e7;

@@ -29,7 +29,7 @@ bool guard_apogee_velocity(float vel_d, float threshold) {
 
 bool guard_baro_peak(float vert_vel) {
     // Vertical velocity <= 0 means altitude is no longer increasing
-    return vert_vel <= 0.0f;
+    return vert_vel <= 0.0F;
 }
 
 bool guard_main_deploy_altitude(float baro_alt_agl, float threshold) {

@@ -10,7 +10,7 @@
 
 namespace rc {
 
-static constexpr float kSmClockHz = 1000000.0f;  // 1MHz at div=150
+static constexpr float kSmClockHz = 1000000.0F;  // 1MHz at div=150
 
 static PIO g_pio = nullptr;
 static uint32_t g_offset = 0;
@@ -73,15 +73,15 @@ void pio_backup_timer_arm(float drogue_timeout_s, float main_timeout_s) {
     // been left halted mid-instruction. backup_timer_program_init() is
     // idempotent (pio_gpio_init → gpio_set_function PIO; pio_sm_init resets
     // ISR/shift counters/PC to entry point per SDK docs). See LL Entry 42.
-    if (drogue_timeout_s > 0.0f && g_drogue_pin != 0xFF) {
+    if (drogue_timeout_s > 0.0F && g_drogue_pin != 0xFF) {
         backup_timer_program_init(g_pio, g_drogue_sm, g_offset, g_drogue_pin);
     }
-    if (main_timeout_s > 0.0f && g_main_pin != 0xFF) {
+    if (main_timeout_s > 0.0F && g_main_pin != 0xFF) {
         backup_timer_program_init(g_pio, g_main_sm, g_offset, g_main_pin);
     }
 
     // Drogue timer
-    if (drogue_timeout_s > 0.0f && g_drogue_pin != 0xFF) {
+    if (drogue_timeout_s > 0.0F && g_drogue_pin != 0xFF) {
         uint32_t countdown = static_cast<uint32_t>(drogue_timeout_s * kSmClockHz);
         pio_sm_set_enabled(g_pio, g_drogue_sm, true);
         pio_sm_put_blocking(g_pio, g_drogue_sm, countdown);
@@ -89,7 +89,7 @@ void pio_backup_timer_arm(float drogue_timeout_s, float main_timeout_s) {
     }
 
     // Main timer
-    if (main_timeout_s > 0.0f && g_main_pin != 0xFF) {
+    if (main_timeout_s > 0.0F && g_main_pin != 0xFF) {
         uint32_t countdown = static_cast<uint32_t>(main_timeout_s * kSmClockHz);
         pio_sm_set_enabled(g_pio, g_main_sm, true);
         pio_sm_put_blocking(g_pio, g_main_sm, countdown);

@@ -23,7 +23,7 @@ namespace rc {
 
 struct InnovationChannel {
     static constexpr uint8_t kWindowSize = 20;    // VALIDATE: sliding window depth
-    static constexpr float kMaxQInflation = 10.0f; // VALIDATE: max Q multiplier
+    static constexpr float kMaxQInflation = 10.0F; // VALIDATE: max Q multiplier
 
     float window[kWindowSize];
     float alpha;        // running mean of NIS values in window

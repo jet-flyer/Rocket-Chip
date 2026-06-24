@@ -43,29 +43,29 @@ struct MahonyAHRS {
     // =================================================================
 
     // Proportional gain — ArduPilot/PX4/INAV 3-stack consensus.
-    static constexpr float kKp = 0.2f;
+    static constexpr float kKp = 0.2F;
 
     // Integral gain — ArduPilot AP_AHRS_DCM hardcoded value.
-    static constexpr float kKi = 0.0087f;
+    static constexpr float kKi = 0.0087F;
 
     // Startup: 10× Kp for first 20s, then decay to normal.
     // BetaFlight pattern — fast convergence on power-on.
     // Also terminate on ARM state transition.
-    static constexpr float kStartupKpMultiplier = 10.0f;
-    static constexpr float kStartupDurationS    = 20.0f;
+    static constexpr float kStartupKpMultiplier = 10.0F;
+    static constexpr float kStartupDurationS    = 20.0F;
 
     // Accel gate: reject correction outside 0.9g–1.1g.
     // PX4/BetaFlight consensus (gravitational field check).
-    static constexpr float kAccelGateLow  = 0.9f * 9.80665f;   // ~8.83 m/s²
-    static constexpr float kAccelGateHigh = 1.1f * 9.80665f;   // ~10.79 m/s²
+    static constexpr float kAccelGateLow  = 0.9F * 9.80665F;   // ~8.83 m/s²
+    static constexpr float kAccelGateHigh = 1.1F * 9.80665F;   // ~10.79 m/s²
 
     // Mag gate: reject if magnitude deviates >±15% from expected.
     // Council tightened from ±25%. Set expected_mag=0 to skip check.
-    static constexpr float kMagGateFraction = 0.15f;
+    static constexpr float kMagGateFraction = 0.15F;
 
     // Ki spin cutoff: freeze integral above 20°/s.
     // AP/BetaFlight/INAV consensus — prevents integral windup in spin.
-    static constexpr float kKiSpinCutoffRadS = 20.0f * (3.14159265f / 180.0f);
+    static constexpr float kKiSpinCutoffRadS = 20.0F * (3.14159265F / 180.0F);
 
     // =================================================================
     // Methods

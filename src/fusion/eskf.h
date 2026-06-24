@@ -68,7 +68,7 @@ struct ESKF {
     // =================================================================
 
     // WGS84 standard gravity
-    static constexpr float kGravity = 9.80665f;  // m/s²
+    static constexpr float kGravity = 9.80665F;  // m/s²
 
     // =================================================================
     // IMU noise parameters — ICM-20948 DS-000189 v1.3
@@ -79,22 +79,22 @@ struct ESKF {
 
     // Gyro noise spectral density: 0.015 dps/√Hz (Table 1, BW=10Hz, FS_SEL=0)
     // Conversion: 0.015 × π/180 = 2.618e-4 rad/s/√Hz
-    static constexpr float kSigmaGyro = 2.618e-4f;  // rad/s/√Hz
+    static constexpr float kSigmaGyro = 2.618e-4F;  // rad/s/√Hz
 
     // Accel noise spectral density: 230 µg/√Hz (Table 2, BW=10Hz)
     // Conversion: 230e-6 × 9.80665 = 2.256e-3 m/s²/√Hz
-    static constexpr float kSigmaAccel = 2.256e-3f;  // m/s²/√Hz
+    static constexpr float kSigmaAccel = 2.256e-3F;  // m/s²/√Hz
 
     // Gyro bias random walk — no datasheet spec (ICM-20948 does not publish
     // bias instability / Allan deviation). Empirical starting point.
     // ArduPilot EKF3 GBIAS_P_NSE = 1e-3 rad/s (100× larger, multirotor vibration).
     // Conservative for ground use. Tune via NEES if bias states don't converge.
-    static constexpr float kSigmaGyroBiasWalk = 1.0e-5f;  // rad/s²/√Hz
+    static constexpr float kSigmaGyroBiasWalk = 1.0e-5F;  // rad/s²/√Hz
 
     // Accel bias random walk — no datasheet spec. Empirical starting point.
     // ArduPilot EKF3 ABIAS_P_NSE = 2e-2 m/s² (200× larger, multirotor vibration).
     // Conservative for ground use. Tune via NEES if bias states don't converge.
-    static constexpr float kSigmaAccelBiasWalk = 1.0e-4f;  // m/s³/√Hz
+    static constexpr float kSigmaAccelBiasWalk = 1.0e-4F;  // m/s³/√Hz
 
     // =================================================================
     // Extended state noise — ArduPilot EKF3 defaults (Gauss→uT converted)
@@ -106,17 +106,17 @@ struct ESKF {
 
     // Earth magnetic field process noise (NED frame drift)
     // ArduPilot EK3_MAGE_P_NSE default = 1e-3 Gauss/s = 0.1 uT/s
-    static constexpr float kSigmaEarthMagWalk = 0.1f;  // uT/s
+    static constexpr float kSigmaEarthMagWalk = 0.1F;  // uT/s
 
     // Body magnetic field bias process noise (hard-iron drift)
     // ArduPilot EK3_MAGB_P_NSE default = 1e-4 Gauss/s = 0.01 uT/s
-    static constexpr float kSigmaBodyMagBiasWalk = 0.01f;  // uT/s
+    static constexpr float kSigmaBodyMagBiasWalk = 0.01F;  // uT/s
 
     // Wind velocity process noise (horizontal gust variance)
     // ArduPilot EK3_WIND_P_NSE: 0.1 (Plane/Rover), 0.2 (Copter).
     // Parachute descent has high drag + low inertia = sensitive to gusts,
     // more like Copter than Plane. 0.2 matches Copter default.
-    static constexpr float kSigmaWindWalk = 0.2f;  // m/s/s
+    static constexpr float kSigmaWindWalk = 0.2F;  // m/s/s
 
     // Barometric altitude bias process noise.
     // Neither ArduPilot EKF3 nor PX4 ECL model baro bias as a dynamic state
@@ -124,60 +124,60 @@ struct ESKF {
     // flights where temperature-driven baro drift matters (hours, not seconds).
     // For a 30-120s rocket flight, baro drift is negligible — keep inhibited.
     // DPS310 temperature coefficient: ±0.5 Pa/K → ~0.04 m/K.
-    static constexpr float kSigmaBaroBiasWalk = 0.01f;  // m/s
+    static constexpr float kSigmaBaroBiasWalk = 0.01F;  // m/s
 
     // 3-axis mag measurement noise per axis (µT²).
     // AK09916 datasheet: 0.6 µT RMS → R = 0.6² = 0.36 µT².
-    static constexpr float kRMag3dPerAxis = 0.36f;
+    static constexpr float kRMag3dPerAxis = 0.36F;
 
     // =================================================================
     // P initialization — Solà (2017) typical values + ICM-20948 ZRO specs
     // =================================================================
 
     // Attitude: ~18° initial uncertainty (Solà typical for gravity-only init)
-    static constexpr float kInitPAttitude = 0.1f;  // rad²
+    static constexpr float kInitPAttitude = 0.1F;  // rad²
 
     // Position: ~10m uncertainty (no GPS fix at init)
-    static constexpr float kInitPPosition = 100.0f;  // m²
+    static constexpr float kInitPPosition = 100.0F;  // m²
 
     // Velocity: ~1 m/s uncertainty (stationary start assumed)
-    static constexpr float kInitPVelocity = 1.0f;  // m²/s²
+    static constexpr float kInitPVelocity = 1.0F;  // m²/s²
 
     // Accel bias: ~0.1 m/s² = ~10mg (within ±50mg board-level ZRO, Table 2)
-    static constexpr float kInitPAccelBias = 0.01f;  // (m/s²)²
+    static constexpr float kInitPAccelBias = 0.01F;  // (m/s²)²
 
     // Gyro bias: ~0.017 rad/s = ~1°/s (within ±5°/s ZRO, Table 1)
-    static constexpr float kInitPGyroBias = 3.0e-4f;  // (rad/s)²
+    static constexpr float kInitPGyroBias = 3.0e-4F;  // (rad/s)²
 
     // Extended state P initialization (used when inhibit flag is cleared)
-    static constexpr float kInitPEarthMag = 100.0f;       // uT² (~10 uT uncertainty)
-    static constexpr float kInitPBodyMagBias = 25.0f;     // uT² (~5 uT uncertainty)
-    static constexpr float kInitPWind = 25.0f;            // m²/s² (~5 m/s uncertainty)
-    static constexpr float kInitPBaroBias = 1.0f;         // m² (~1 m uncertainty)
+    static constexpr float kInitPEarthMag = 100.0F;       // uT² (~10 uT uncertainty)
+    static constexpr float kInitPBodyMagBias = 25.0F;     // uT² (~5 uT uncertainty)
+    static constexpr float kInitPWind = 25.0F;            // m²/s² (~5 m/s uncertainty)
+    static constexpr float kInitPBaroBias = 1.0F;         // m² (~1 m uncertainty)
 
     // =================================================================
     // P diagonal clamping — council review RF-2
     // =================================================================
 
-    static constexpr float kClampPAttitude = 1.0f;      // rad² (~57° max)
-    static constexpr float kClampPPosition = 10000.0f;   // m² (~100m max)
-    static constexpr float kClampPVelocity = 100.0f;     // m²/s² (~10 m/s max)
+    static constexpr float kClampPAttitude = 1.0F;      // rad² (~57° max)
+    static constexpr float kClampPPosition = 10000.0F;   // m² (~100m max)
+    static constexpr float kClampPVelocity = 100.0F;     // m²/s² (~10 m/s max)
 
     // Extended state clamping
-    static constexpr float kClampPEarthMag = 400.0f;      // uT² (~20 uT max)
-    static constexpr float kClampPBodyMagBias = 100.0f;   // uT² (~10 uT max)
-    static constexpr float kClampPWind = 2500.0f;         // m²/s² (~50 m/s max)
-    static constexpr float kClampPBaroBias = 25.0f;       // m² (~5 m max)
+    static constexpr float kClampPEarthMag = 400.0F;      // uT² (~20 uT max)
+    static constexpr float kClampPBodyMagBias = 100.0F;   // uT² (~10 uT max)
+    static constexpr float kClampPWind = 2500.0F;         // m²/s² (~50 m/s max)
+    static constexpr float kClampPBaroBias = 25.0F;       // m² (~5 m max)
 
     // =================================================================
     // Stationarity check — council review RF-5
     // =================================================================
 
     // Accel magnitude tolerance around gravity: ±0.1g
-    static constexpr float kStationaryAccelTol = 0.981f;  // m/s² (0.1 × g)
+    static constexpr float kStationaryAccelTol = 0.981F;  // m/s² (0.1 × g)
 
     // Max gyro rate during "stationary" condition
-    static constexpr float kStationaryGyroMax = 0.02f;  // rad/s (~1.1°/s)
+    static constexpr float kStationaryGyroMax = 0.02F;  // rad/s (~1.1°/s)
 
     // =================================================================
     // Health sentinel — velocity divergence guard
@@ -188,16 +188,16 @@ struct ESKF {
     // =================================================================
 
     // Source: Mach 1.5 at sea level ≈ 510 m/s — 500 m/s gives ~1s headroom.
-    static constexpr float kMaxHealthyVelocity = 500.0f;  // m/s
+    static constexpr float kMaxHealthyVelocity = 500.0F;  // m/s
 
     // =================================================================
     // Barometric altitude measurement
     // DPS310 @ 8x oversampling: 0.4 Pa × 0.083 m/Pa = 0.033 m
     // =================================================================
 
-    static constexpr float kSigmaBaro = 0.033f;                        // m
+    static constexpr float kSigmaBaro = 0.033F;                        // m
     static constexpr float kRBaro = kSigmaBaro * kSigmaBaro;           // ~0.001089 m²
-    static constexpr float kBaroInnovationGate = 3.0f;                 // 3σ gate
+    static constexpr float kBaroInnovationGate = 3.0F;                 // 3σ gate
 
     // =================================================================
     // Magnetometer heading measurement
@@ -217,17 +217,17 @@ struct ESKF {
     // only the mag correction has this limit.
     // =================================================================
 
-    static constexpr float kSigmaMagHeading = 0.087f;                   // rad (~5°)
+    static constexpr float kSigmaMagHeading = 0.087F;                   // rad (~5°)
     static constexpr float kRMagHeading = kSigmaMagHeading * kSigmaMagHeading;  // ~0.00757 rad²
     // ArduPilot EKF3 MAG_GATE = 300σ — physically untriggerable since
     // max innovation (π rad via wrap_pi) < 300×√R ≈ 26 rad.
     // Interference detection handles bad data, R controls correction
     // strength. Previous 3σ gate caused mNIS=124.99 death spiral.
-    static constexpr float kMagInnovationGate = 300.0f;                  // ArduPilot match
-    static constexpr float kMagInterferenceThreshold = 0.25f;           // 25% deviation → inflate R
-    static constexpr float kMagInterferenceRejectThreshold = 0.50f;     // 50% deviation → hard reject (council)
-    static constexpr float kMagInterferenceRScale = 10.0f;              // R inflation factor (25-50% band)
-    static constexpr float kMagMinMagnitude = 1.0f;                     // µT — below this, reject
+    static constexpr float kMagInnovationGate = 300.0F;                  // ArduPilot match
+    static constexpr float kMagInterferenceThreshold = 0.25F;           // 25% deviation → inflate R
+    static constexpr float kMagInterferenceRejectThreshold = 0.50F;     // 50% deviation → hard reject (council)
+    static constexpr float kMagInterferenceRScale = 10.0F;              // R inflation factor (25-50% band)
+    static constexpr float kMagMinMagnitude = 1.0F;                     // µT — below this, reject
 
     // Consecutive rejection threshold for state machine use.
     // With 300σ gate, automatic reset is unnecessary (gate never fires).
@@ -238,11 +238,11 @@ struct ESKF {
     // At large tilt, the H≈[0,0,1] linearization has cross-coupling from
     // roll/pitch uncertainty into heading. Inflate R proportionally between
     // threshold and max; hard-reject above max.
-    static constexpr float kMagTiltThresholdRad = 0.524f;   // ~30° — cross-coupling >5° heading error
-    static constexpr float kMagTiltMaxRad = 1.047f;         // ~60° — heading extraction unreliable
+    static constexpr float kMagTiltThresholdRad = 0.524F;   // ~30° — cross-coupling >5° heading error
+    static constexpr float kMagTiltMaxRad = 1.047F;         // ~60° — heading extraction unreliable
     // R multiplier at max tilt. Range 50-500 acceptable; 100 chosen as
     // conservative middle. Higher values weaken correction more at tilt.
-    static constexpr float kMagTiltRInflationMax = 100.0f;
+    static constexpr float kMagTiltRInflationMax = 100.0F;
 
     // =================================================================
     // Zero-velocity pseudo-measurement (ZUPT)
@@ -264,11 +264,11 @@ struct ESKF {
     // the ZUPT can't fight accel-bias-driven velocity accumulation.
     // ArduPilot EKF3 uses ~0.5 m/s for on-ground zero-velocity.
     // PX4 ECL uses similar order. We match ArduPilot.
-    static constexpr float kSigmaZupt = 0.5f;                           // m/s
+    static constexpr float kSigmaZupt = 0.5F;                           // m/s
     static constexpr float kRZupt = kSigmaZupt * kSigmaZupt;            // 0.25 m²/s²
-    static constexpr float kSigmaZuptOnPad = 0.1f;                      // m/s (tighter when state machine confirms stationary)
+    static constexpr float kSigmaZuptOnPad = 0.1F;                      // m/s (tighter when state machine confirms stationary)
     static constexpr float kRZuptOnPad = kSigmaZuptOnPad * kSigmaZuptOnPad; // 0.01 m²/s²
-    static constexpr float kZuptInnovationGate = 5.0f;                   // 5σ gate (generous)
+    static constexpr float kZuptInnovationGate = 5.0F;                   // 5σ gate (generous)
 
     // =================================================================
     // GPS position measurement
@@ -278,30 +278,30 @@ struct ESKF {
     // =================================================================
 
     // Earth radius: ArduPilot RADIUS_OF_EARTH (AP_Math/definitions.h)
-    static constexpr float kEarthRadius = 6378100.0f;  // m
+    static constexpr float kEarthRadius = 6378100.0F;  // m
 
-    static constexpr float kSigmaGpsPosBase = 3.5f;           // m (horizontal, HDOP=1)
-    static constexpr float kSigmaGpsVertScale = 2.0f;         // vertical σ multiplier
+    static constexpr float kSigmaGpsPosBase = 3.5F;           // m (horizontal, HDOP=1)
+    static constexpr float kSigmaGpsVertScale = 2.0F;         // vertical σ multiplier
     static constexpr float kRGpsPosDefault = kSigmaGpsPosBase * kSigmaGpsPosBase;  // 12.25 m²
 
     // GPS velocity noise — ArduPilot EK3_VELNE_M_NSE default = 0.5 m/s.
     // Fixed R (no sAcc from NMEA). Scale with sAcc when UBX available.
-    static constexpr float kSigmaGpsVel = 0.5f;               // m/s
+    static constexpr float kSigmaGpsVel = 0.5F;               // m/s
     static constexpr float kRGpsVel = kSigmaGpsVel * kSigmaGpsVel;  // 0.25 m²/s²
 
     // Innovation gates — 5σ, matching ArduPilot GPS gating
-    static constexpr float kGpsPositionGate = 5.0f;
-    static constexpr float kGpsVelocityGate = 5.0f;
+    static constexpr float kGpsPositionGate = 5.0F;
+    static constexpr float kGpsVelocityGate = 5.0F;
 
     // Min ground speed for velocity update — below this, GPS course unreliable
-    static constexpr float kGpsMinSpeedForVel = 0.5f;  // m/s
+    static constexpr float kGpsMinSpeedForVel = 0.5F;  // m/s
 
     // Origin quality gate — reject first fix with poor geometry. Council C-4.
-    static constexpr float kGpsMaxHdopForOrigin = 4.0f;
+    static constexpr float kGpsMaxHdopForOrigin = 4.0F;
 
     // Moving origin threshold — re-center NED frame when |p.xy| exceeds this.
     // Keeps flat-earth error < 1m. Relevant for HABs (50-100km downrange).
-    static constexpr float kOriginResetDistance = 10000.0f;  // m
+    static constexpr float kOriginResetDistance = 10000.0F;  // m
 
     // =================================================================
     // NED frame origin — double precision for lat/lon (council C-5).
@@ -333,8 +333,8 @@ struct ESKF {
     // GPS position update: 3 sequential scalar updates (N, E, D).
     // R_horiz = (kSigmaGpsPosBase * max(hdop, 1))².
     // R_vert = R_horiz * kSigmaGpsVertScale² (or VDOP-based if vdop > 0).
-    bool update_gps_position(const Vec3& gpsNed, float hdop = 0.0f,
-                              float vdop = 0.0f);
+    bool update_gps_position(const Vec3& gpsNed, float hdop = 0.0F,
+                              float vdop = 0.0F);
 
     // GPS velocity update: 2 sequential scalar updates (N, E only).
     // Vertical velocity from GPS unreliable — baro + IMU handle vertical.
@@ -375,7 +375,7 @@ struct ESKF {
     // Returns false if non-finite, magnitude too low, interference reject,
     //   or innovation gated out. Solà (2017) §6.2, Joseph form.
     bool update_mag_heading(const Vec3& magBody, float expectedMagnitude,
-                            float declinationRad = 0.0f);
+                            float declinationRad = 0.0F);
 
     // 3-axis magnetometer fusion (Stage 3D, IVP-99).
     // Sequential scalar updates on earth_mag[15-17] and body_mag_bias[18-20].
@@ -500,9 +500,9 @@ struct ESKF {
     const PhaseQRTable* phase_qr_{nullptr};
     uint8_t current_phase_{};
     uint8_t prev_phase_{};
-    float q_ramp_alpha_{1.0f};       // 0→1 during phase transition
+    float q_ramp_alpha_{1.0F};       // 0→1 during phase transition
     uint8_t q_ramp_remaining_{};
-    PhaseQScale q_active_{1.0f, 1.0f, 1.0f, 1.0f};
+    PhaseQScale q_active_{1.0F, 1.0F, 1.0F, 1.0F};
     PhaseR r_active_{kRBaro, kRMagHeading, kRGpsPosDefault, kRGpsVel};
 
     // Innovation monitors (per-channel NIS trackers)

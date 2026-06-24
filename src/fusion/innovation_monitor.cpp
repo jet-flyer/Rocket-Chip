@@ -8,10 +8,10 @@ namespace rc {
 
 void innovation_channel_init(InnovationChannel* ch) {
     for (uint8_t i = 0; i < InnovationChannel::kWindowSize; ++i) {
-        ch->window[i] = 0.0f;
+        ch->window[i] = 0.0F;
     }
-    ch->alpha = 0.0f;
-    ch->sum = 0.0f;
+    ch->alpha = 0.0F;
+    ch->sum = 0.0F;
     ch->head = 0;
     ch->count = 0;
 }
@@ -41,13 +41,13 @@ void innovation_channel_push(InnovationChannel* ch, float nis) {
 
     // Update alpha (running mean)
     ch->alpha = (ch->count > 0) ? (ch->sum / static_cast<float>(ch->count))
-                                : 0.0f;
+                                : 0.0F;
 }
 
 float innovation_channel_q_scale(const InnovationChannel* ch) {
     // One-directional: never deflate Q below baseline (Council A7).
-    if (ch->alpha <= 1.0f) {
-        return 1.0f;
+    if (ch->alpha <= 1.0F) {
+        return 1.0F;
     }
     // Cap inflation to prevent unbounded Q growth.
     if (ch->alpha > InnovationChannel::kMaxQInflation) {

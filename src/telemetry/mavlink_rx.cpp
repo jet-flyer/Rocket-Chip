@@ -40,21 +40,21 @@ static constexpr uint8_t kRxChannel = MAVLINK_COMM_1;
 // ============================================================================
 
 static MavParam g_paramTable[] = {
-    {"RC_FW_VER",       0.2f,    false},
-    {"RC_BOARD_ID",     2350.0f, false},
-    {"RC_MAV_RATE",     10.0f,   false},
-    {"RC_TELEM_PRI",    0.0f,    false},  // 0=CCSDS primary
-    {"RC_IMU_RATE",     1000.0f, false},
-    {"RC_ESKF_RATE",    200.0f,  false},
-    {"RC_GPS_RATE",     10.0f,   false},
-    {"RC_BARO_RATE",    50.0f,   false},
-    {"RC_RADIO_PWR",    20.0f,   false},
-    {"RC_RADIO_RATE",   2.0f,    false},
-    {"RC_GPS_HDOP",     2.0f,    false},
-    {"RC_ZUPT_SIG",     0.5f,    false},
-    {"RC_MAG_INH",      1.0f,    false},
-    {"RC_WIND_INH",     1.0f,    false},
-    {"RC_ESKF_OK",      1.0f,    false},
+    {"RC_FW_VER",       0.2F,    false},
+    {"RC_BOARD_ID",     2350.0F, false},
+    {"RC_MAV_RATE",     10.0F,   false},
+    {"RC_TELEM_PRI",    0.0F,    false},  // 0=CCSDS primary
+    {"RC_IMU_RATE",     1000.0F, false},
+    {"RC_ESKF_RATE",    200.0F,  false},
+    {"RC_GPS_RATE",     10.0F,   false},
+    {"RC_BARO_RATE",    50.0F,   false},
+    {"RC_RADIO_PWR",    20.0F,   false},
+    {"RC_RADIO_RATE",   2.0F,    false},
+    {"RC_GPS_HDOP",     2.0F,    false},
+    {"RC_ZUPT_SIG",     0.5F,    false},
+    {"RC_MAG_INH",      1.0F,    false},
+    {"RC_WIND_INH",     1.0F,    false},
+    {"RC_ESKF_OK",      1.0F,    false},
 };
 
 static constexpr uint16_t kParamCount =

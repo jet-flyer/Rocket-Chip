@@ -50,10 +50,10 @@ struct ConfidenceState {
 // Platform safety thresholds — NOT user-tunable, NOT in MissionProfile.
 // All values VALIDATE — tune with flight data.
 namespace confidence {
-    constexpr float kAhrsDivMaxDeg       = 15.0f;   // VALIDATE: max AHRS divergence
-    constexpr float kInnovRatioMax       = 5.0f;    // VALIDATE: max innovation ratio
-    constexpr float kPAttMaxRad2         = 0.5f;    // VALIDATE: max P attitude diagonal
-    constexpr float kPVelMaxM2s2         = 50.0f;   // VALIDATE: max P velocity diagonal
+    constexpr float kAhrsDivMaxDeg       = 15.0F;   // VALIDATE: max AHRS divergence
+    constexpr float kInnovRatioMax       = 5.0F;    // VALIDATE: max innovation ratio
+    constexpr float kPAttMaxRad2         = 0.5F;    // VALIDATE: max P attitude diagonal
+    constexpr float kPVelMaxM2s2         = 50.0F;   // VALIDATE: max P velocity diagonal
     constexpr uint32_t kLossDebounceMs   = 500;     // VALIDATE: sustained bad before loss
     constexpr uint32_t kRecoveryDebounceMs = 2000;  // VALIDATE: sustained good before recovery
 }  // namespace confidence
