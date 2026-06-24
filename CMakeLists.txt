@@ -600,8 +600,12 @@ else()
     # IVP-42d / IVP-47: Per-file -O2 for ESKF propagation and codegen.
     # eskf.cpp: -O2 for stack optimization (LL Entry 1 / council R-4).
     # eskf_codegen.cpp: -O2 critical for codegen performance (199 CSE intermediates).
-    set_source_files_properties(src/fusion/eskf.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic")
-    set_source_files_properties(src/fusion/eskf_codegen.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic")
+    # COMPILE_OPTIONS *replaces* the property set at :598 (it does not append), so
+    # these two lines MUST re-carry -Wshadow/-Wfloat-equal or these flight-critical
+    # fusion files silently fall out of the warning gate. (Caught 2026-06-24 by the
+    # L2-P5 positive-control sweep — ungated since this -O2 override was added.)
+    set_source_files_properties(src/fusion/eskf.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic;-Wshadow;-Wfloat-equal")
+    set_source_files_properties(src/fusion/eskf_codegen.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic;-Wshadow;-Wfloat-equal")
 
     # Include directories — split into our code (-I, pedantic-checked) and
     # vendored third-party code (-isystem, pedantic-suppressed).

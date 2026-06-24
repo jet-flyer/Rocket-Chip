@@ -6,7 +6,13 @@
 #include <cassert>
 #include <cmath>
 
-// R3: Compile-time sync — fail build if codegen constants drift from eskf.h
+// R3: Compile-time sync — fail build if codegen constants drift from eskf.h.
+// These compare two named constexpr constants for exact identity (the whole
+// point of the drift guard). -Wfloat-equal targets the runtime-rounding hazard,
+// which cannot arise comparing two compile-time literals — so it's suppressed
+// for this block only (re-enabled by the pop). NOT a runtime float compare.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
 static_assert(codegen::kSigmaGyro == rc::ESKF::kSigmaGyro,
               "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
 static_assert(codegen::kSigmaAccel == rc::ESKF::kSigmaAccel,
@@ -23,6 +29,7 @@ static_assert(codegen::kSigmaWindWalk == rc::ESKF::kSigmaWindWalk,
               "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
 static_assert(codegen::kSigmaBaroBiasWalk == rc::ESKF::kSigmaBaroBiasWalk,
               "codegen sigma mismatch -- re-run scripts/generate_fpft.py");
+#pragma GCC diagnostic pop
 
 namespace rc {
 
