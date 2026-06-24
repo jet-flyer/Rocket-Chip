@@ -30,7 +30,7 @@ struct WmmField {
 // Get all three geomagnetic components (bilinear interpolated from tables)
 WmmField wmm_get_field(float lat_deg, float lon_deg);
 
-// Get declination only (radians, East-positive) — legacy compatibility
+// Get declination only (radians, East-positive) â€” legacy compatibility
 float wmm_get_declination(float lat_deg, float lon_deg);
 
 // Compute earth magnetic field NED vector (microtesla) from WMM tables

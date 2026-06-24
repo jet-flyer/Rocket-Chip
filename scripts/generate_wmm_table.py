@@ -117,9 +117,16 @@ def evaluate_wmm(lat_deg, lon_deg, alt_km, year, epoch, g, h, gdot, hdot):
     lat_rad = math.radians(lat_deg)
     lon_rad = math.radians(lon_deg)
 
-    # Geocentric colatitude (simplified geodetic-to-geocentric)
-    lat_gc = math.atan2(((1 - WGS84_F)**2) * math.sin(lat_rad), math.cos(lat_rad))
-    r = WGS84_A  # Surface approximation for table generation (alt=0)
+    # Geodetic -> geocentric (WGS84 ellipsoid), accounting for altitude.
+    # NOAA WMM transform: radius of curvature in the prime vertical, then the
+    # geocentric radius/latitude from the ECEF (p, z) coordinates. Reduces to
+    # the surface form at alt_km=0; r is what (a/r)^(n+2) needs.
+    e2 = WGS84_F * (2.0 - WGS84_F)
+    rc = WGS84_A / math.sqrt(1.0 - e2 * math.sin(lat_rad)**2)
+    p_xy = (rc + alt_km) * math.cos(lat_rad)
+    z_ax = (rc * (1.0 - e2) + alt_km) * math.sin(lat_rad)
+    r = math.sqrt(p_xy**2 + z_ax**2)
+    lat_gc = math.atan2(z_ax, p_xy)
 
     colat = math.pi / 2.0 - lat_gc
     sin_colat = math.sin(colat)
@@ -146,11 +153,17 @@ def evaluate_wmm(lat_deg, lon_deg, alt_km, year, epoch, g, h, gdot, hdot):
                 dP[(n, m)] = -sin_colat * P[(n-1, m)] * math.sqrt(2*n - 1) + \
                               cos_colat * dP[(n-1, m)] * math.sqrt(2*n - 1)
             else:
-                K = ((n - 1)**2 - m**2) / ((2*n - 1) * (2*n - 3))
-                P[(n, m)] = (cos_colat * P[(n-1, m)] - K * P[(n-2, m)]) / \
-                            (1.0 - K) if (1.0 - K) != 0 else 0.0
-                dP[(n, m)] = (-sin_colat * P[(n-1, m)] + cos_colat * dP[(n-1, m)] - K * dP[(n-2, m)]) / \
-                             (1.0 - K) if (1.0 - K) != 0 else 0.0
+                # Schmidt semi-normalized n-recursion (pyIGRF / NOAA geomag form,
+                # consistent with the sectoral/subdiagonal cases above). The prior
+                # `/(1 - K)` form was a bug — the ONLY division is by the
+                # normalization factor sqrt(n^2 - m^2). Verified against the WMM2025
+                # NOAA test values (deep-research 2026-06-24).
+                a_nm = (2*n - 1) * cos_colat
+                b_nm = math.sqrt((n - 1)**2 - m**2)
+                norm = math.sqrt(n**2 - m**2)
+                P[(n, m)] = (a_nm * P[(n-1, m)] - b_nm * P[(n-2, m)]) / norm
+                dP[(n, m)] = ((2*n - 1) * (cos_colat * dP[(n-1, m)] - sin_colat * P[(n-1, m)])
+                              - b_nm * dP[(n-2, m)]) / norm
 
     # Compute field components in spherical coordinates
     Br = 0.0   # Radial (outward)
@@ -170,7 +183,7 @@ def evaluate_wmm(lat_deg, lon_deg, alt_km, year, epoch, g, h, gdot, hdot):
             Br += (n + 1) * rn * (gnm * cos_m_lon + hnm * sin_m_lon) * P.get((n, m), 0.0)
             Bt -= rn * (gnm * cos_m_lon + hnm * sin_m_lon) * dP.get((n, m), 0.0)
             if sin_colat != 0:
-                Bp += rn * m * (-gnm * sin_m_lon + hnm * cos_m_lon) * P.get((n, m), 0.0) / sin_colat
+                Bp += rn * m * (gnm * sin_m_lon - hnm * cos_m_lon) * P.get((n, m), 0.0) / sin_colat
 
     # Convert spherical to geodetic NED
     # X = North, Y = East, Z = Down
@@ -242,7 +255,7 @@ def format_table(name, table, unit, precision=2):
     lines.append(f"static constexpr float {name}[{LAT_ROWS}][{LON_COLS}] = {{")
     for i, row in enumerate(table):
         lat = LAT_MIN + i * LAT_STEP
-        vals = ", ".join(f"{v:.{precision}f}f" for v in row)
+        vals = ", ".join(f"{v:.{precision}f}F" for v in row)
         lines.append(f"    {{ {vals} }}, // lat {lat:+d}")
     lines.append("};")
     return "\n".join(lines)
@@ -525,13 +538,13 @@ def main():
 
     cpp_content = generate_cpp(decl, incl, intensity, epoch, year)
     cpp_path = out_dir / 'wmm_tables.cpp'
-    with open(cpp_path, 'w', newline='\n') as f:
+    with open(cpp_path, 'w', newline='\n', encoding='utf-8') as f:
         f.write(cpp_content)
     print(f"  Generated {cpp_path}")
 
     h_content = generate_header(epoch)
     h_path = out_dir / 'wmm_tables.h'
-    with open(h_path, 'w', newline='\n') as f:
+    with open(h_path, 'w', newline='\n', encoding='utf-8') as f:
         f.write(h_content)
     print(f"  Generated {h_path}")
 
