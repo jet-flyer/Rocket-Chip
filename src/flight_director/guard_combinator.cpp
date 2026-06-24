@@ -108,6 +108,55 @@ static bool evaluate_sensors(const GuardCombinator& c,
     return false;
 }
 
+// One combinator's evaluation this tick; returns its signal if it fires, else
+// SIG_MAX. Split from combinator_set_evaluate for JSF-3 complexity (see CHANGELOG).
+static uint16_t evaluate_one_combinator(GuardCombinator& c, uint8_t phase_mask,
+                                        const GuardEvaluator* ev,
+                                        const SafetyLockout& lockout,
+                                        uint32_t tick_ms) {
+    // Skip if not valid for current phase or already fired
+    if ((c.valid_phases & phase_mask) == 0 || c.fired) {
+        return SIG_MAX;
+    }
+
+    // Track elapsed time in phase
+    c.elapsed_ms += tick_ms;
+
+    // Layer 1: Lockout gates
+    bool vel_locked = velocity_locked(lockout);
+    bool t_locked = time_locked(lockout);
+
+    // Confidence gate: when uncertain, block all pyro-bearing signals.
+    // No fallback — when uncertain, the safest action is no action.
+    if (!lockout.confident) {
+        return SIG_MAX;
+    }
+
+    // Layer 2: Sensor detection (requires lockouts clear)
+    if (!vel_locked && !t_locked) {
+        if (evaluate_sensors(c, ev)) {
+            c.fired = true;
+            return c.signal;
+        }
+    }
+
+    // Layer 3: Timer backup (requires lockouts clear, or ESKF-unhealthy
+    // bypasses velocity lockout per Council A2)
+    if (c.backup_timeout_ms > 0 && c.elapsed_ms >= c.backup_timeout_ms) {
+        bool lockout_clear_for_timer = !t_locked &&
+            (!vel_locked || !lockout.eskf_healthy);
+
+        if (lockout_clear_for_timer) {
+            c.fired = true;
+            rc::rc_log("[FD] WARN: backup timer fired for signal %u\n",
+                       static_cast<unsigned>(c.signal));
+            return c.signal;
+        }
+    }
+
+    return SIG_MAX;
+}
+
 uint16_t combinator_set_evaluate(CombinatorSet* cs,
                                   FlightPhase phase,
                                   const GuardEvaluator* ev,
@@ -122,42 +171,10 @@ uint16_t combinator_set_evaluate(CombinatorSet* cs,
     uint8_t phase_mask = phase_bit(phase);
 
     for (uint8_t i = 0; i < cs->num_combinators; ++i) {
-        GuardCombinator& c = cs->combinators[i];
-
-        // Skip if not valid for current phase or already fired
-        if ((c.valid_phases & phase_mask) != 0 && !c.fired) {
-            // Track elapsed time in phase
-            c.elapsed_ms += tick_ms;
-
-            // Layer 1: Lockout gates
-            bool vel_locked = velocity_locked(lockout);
-            bool t_locked = time_locked(lockout);
-
-            // Confidence gate: when uncertain, block all pyro-bearing signals.
-            // No fallback — when uncertain, the safest action is no action.
-            if (lockout.confident) {
-                // Layer 2: Sensor detection (requires lockouts clear)
-                if (!vel_locked && !t_locked) {
-                    if (evaluate_sensors(c, ev)) {
-                        c.fired = true;
-                        return c.signal;
-                    }
-                }
-
-                // Layer 3: Timer backup (requires lockouts clear, or ESKF-unhealthy
-                // bypasses velocity lockout per Council A2)
-                if (c.backup_timeout_ms > 0 && c.elapsed_ms >= c.backup_timeout_ms) {
-                    bool lockout_clear_for_timer = !t_locked &&
-                        (!vel_locked || !lockout.eskf_healthy);
-
-                    if (lockout_clear_for_timer) {
-                        c.fired = true;
-                        rc::rc_log("[FD] WARN: backup timer fired for signal %u\n",
-                                   static_cast<unsigned>(c.signal));
-                        return c.signal;
-                    }
-                }
-            }
+        uint16_t sig = evaluate_one_combinator(cs->combinators[i], phase_mask,
+                                               ev, lockout, tick_ms);
+        if (sig != SIG_MAX) {
+            return sig;
         }
     }
 

@@ -1,5 +1,9 @@
 # Changelog
 
+### 2026-06-24-002 | Claude Opus 4.8 (Code) | refactor, standards
+
+**L2-P5 Phase B — complexity regression fix.** Configuring `build/` enabled the pre-commit clang-tidy gate (Gate 2), which caught that the `continue`-inversion of `combinator_set_evaluate` (commit `02ec56d`) pushed its cognitive complexity to 30 (over the JSF-3 limit of 25). Extracted `evaluate_one_combinator` (early-return guard clauses) — both functions now ≤25, behavior identical. Verified: clang-tidy clean, host ctest 857/857 (guard suite 79/79), bench_sim 2/2 PASS (vehicle flight v0.16.0 (kmenu), COM7, sensors GO). (src/flight_director/guard_combinator.cpp)
+
 ### 2026-06-24-001 | Claude Opus 4.8 (Code) | refactor, standards, bugfix
 
 **L2-P5 standards-walk — code remediation batch (Cycle 4).** Clears every known mechanical/decidable JSF/P10 violation dispositioned in the 2026-06-23 decision-lock (`6f2cf6b`), so the manual semantic walk starts from a clean, gated baseline. All fix-oriented — no new accepted deviations beyond the two already-recorded JSF-182 residuals (CAST-1, CAST-2). 45 files.
