@@ -11,7 +11,6 @@
 CLANG_TIDY="C:/Program Files/LLVM/bin/clang-tidy.exe"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 BUILD_DIR="${REPO_ROOT}/build"
-TOOLCHAIN="C:/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1"
 
 # ============================================================================
 # Gate 1: <stdio.h> banned in src/*.cpp
@@ -47,59 +46,24 @@ if [[ -n "${STAGED_CPP}" ]]; then
 fi
 
 # ============================================================================
-# Gate 2: clang-tidy function size / complexity
+# Gate 2: clang-tidy gated checks + warning-flag coverage
 # ============================================================================
+# Single source of truth: scripts/audit/full_tree_clang_tidy.sh (function size,
+# cognitive complexity, unchecked return [flash_safe_execute], reserved-id, and
+# the compiler-flag-coverage check). The SAME script runs full-tree at milestone
+# close (SESSION_CHECKLIST item 17) — the check list lives in ONE place, no
+# longer hard-coded here AND there (LL 40 dual-hardcode defect, fixed 2026-06-24).
 #
-# Gate 2 needs clang-tidy + a compile_commands.json from a target build
-# (typically build/, populated by `cmake -B build ..` against the arm-none-
-# eabi toolchain). If either prerequisite is missing, Gate 2 is SKIPPED but
-# Gates 3 + 4 below MUST still run. Surfaced 2026-05-20 — previously this
-# block used `exit 0` to skip clang-tidy, which also silently skipped host
-# ctest + HW bench_sim gates. Exactly the LL Entry 36 / 40 fail-open pattern.
+# Needs clang-tidy + build/compile_commands.json from a target configure
+# (cmake -B build -G Ninja). If either is absent, Gate 2 is SKIPPED but Gates
+# 3 + 4 below MUST still run (2026-05-20 fail-open lesson — LL Entry 36 / 40).
 
 if [[ -x "${CLANG_TIDY}" ]] && [[ -f "${BUILD_DIR}/compile_commands.json" ]]; then
-    STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM \
-        | grep '^src/.*\.cpp$' \
-        | grep -v 'eskf_codegen\.cpp$' \
-        | grep -v '^src/cli/' \
-        | grep -v '^src/dev/')
-
+    STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '^src/.*\.cpp$')
     if [[ -n "${STAGED_FILES}" ]]; then
-        EXTRA_ARGS=(
-            --extra-arg="--sysroot=${TOOLCHAIN}/arm-none-eabi"
-            --extra-arg="--target=armv8m.main-none-eabi"
-            --extra-arg="-isystem"
-            --extra-arg="${TOOLCHAIN}/arm-none-eabi/include/c++/14.2.1"
-            --extra-arg="-isystem"
-            --extra-arg="${TOOLCHAIN}/arm-none-eabi/include/c++/14.2.1/arm-none-eabi/thumb/v8-m.main+fp/softfp"
-            --extra-arg="-Wno-format-security"
-            --extra-arg="-Wno-gnu-zero-variadic-macro-arguments"
-        )
-
-        FOUND=0
-
-        for src in ${STAGED_FILES}; do
-            FILE_PATH="${REPO_ROOT}/${src}"
-
-            OUTPUT=$("${CLANG_TIDY}" "${FILE_PATH}" -p "${BUILD_DIR}/" \
-                --checks="-*,readability-function-size,readability-function-cognitive-complexity" \
-                "${EXTRA_ARGS[@]}" 2>&1 \
-                | grep -E "warning:.*readability-function-(size|cognitive-complexity)")
-
-            if [[ -n "${OUTPUT}" ]]; then
-                if [[ ${FOUND} -eq 0 ]]; then
-                    echo ""
-                    echo "=== Pre-commit: function size / complexity gate ==="
-                    echo ""
-                fi
-                echo "${OUTPUT}"
-                FOUND=1
-            fi
-        done
-
-        if [[ ${FOUND} -eq 1 ]]; then
+        if ! bash "${REPO_ROOT}/scripts/audit/full_tree_clang_tidy.sh" ${STAGED_FILES}; then
             echo ""
-            echo "Commit blocked: decompose the flagged functions before committing."
+            echo "Commit blocked: fix the flagged functions / returns / coverage before committing."
             echo "Bypass only after receiving explicit permission from the repo owner in this session: git commit --no-verify"
             exit 1
         fi

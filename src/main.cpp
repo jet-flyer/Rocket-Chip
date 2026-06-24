@@ -78,8 +78,7 @@
 #include <string.h>
 #include <math.h>
 
-// Linker symbol for end of stack region (Cortex-M33/RISC-V) — used by MPU guard.
-extern "C" uint32_t __StackBottom;
+#include "rocketchip/linker_symbols.h"  // __StackBottom (linker-defined, MPU guard)
 
 // ============================================================================
 // Constants
@@ -141,7 +140,9 @@ static void init_gps() {
     }
     g_gpsInitAttempted = true;
     uint8_t gpsDrain[255];
-    i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
+    // Drain the auto-streamed NMEA so gps_pa1010d_init() starts clean; the
+    // bytes are deliberately discarded (LL 20). (void) is the honest marker.
+    (void)i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
     if (gps_pa1010d_init()) {
         g_gpsInitialized = true;
         bind_gps_i2c_backend();

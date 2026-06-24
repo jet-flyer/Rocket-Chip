@@ -254,6 +254,10 @@ CheckOptions:
     value: '200'
   - key: readability-function-size.NestingThreshold
     value: '6'
+  # Parameter count (JPL-C Rule 25 — the 8 over-6-param functions were
+  # refactored in the 2026-06-24 L2-P5 remediation; this gates regressions).
+  - key: readability-function-size.ParameterThreshold
+    value: '6'
 
   # ═══════════════════════════════════════════════════════════════
   # COGNITIVE COMPLEXITY (JSF AV Rule 3)
@@ -267,6 +271,19 @@ CheckOptions:
     value: '25'
   - key: readability-function-cognitive-complexity.DescribeBasicIncrements
     value: 'false'
+
+  # ═══════════════════════════════════════════════════════════════
+  # UNCHECKED RETURN VALUES (P10-7 / JPL-14 / JSF-115) — L2-P5 canary closure
+  # ═══════════════════════════════════════════════════════════════
+  # Our OWN status-returning APIs (i2c_bus data path, gps status getters) now
+  # carry [[nodiscard]] on their declarations — compiler-enforced under -Werror
+  # in EVERY TU/build, stronger than this linter list and not lost at a call
+  # site (L2-P5 council 2026-06-24; LL 43). Best-effort calls (i2c_bus_recover/
+  # reset) are deliberately NOT [[nodiscard]]. This list is now only for vendored
+  # functions we cannot annotate: flash_safe_execute (pico/flash.h:87, returns
+  # int PICO_OK/err). (Was empty → the rule ran but checked nothing — the canary.)
+  - key: bugprone-unused-return-value.CheckedFunctions
+    value: 'flash_safe_execute'
 
   # ═══════════════════════════════════════════════════════════════
   # NAMING CONVENTIONS (JSF AV Rule 50-53)

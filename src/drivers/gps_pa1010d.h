@@ -28,13 +28,13 @@ constexpr uint8_t kGpsPa1010dAddr   = 0x10;
  * @brief Initialize the GPS module
  * @return true on success
  */
-bool gps_pa1010d_init(void);
+[[nodiscard]] bool gps_pa1010d_init(void);
 
 /**
  * @brief Check if GPS is initialized
  * @return true if initialized
  */
-bool gps_pa1010d_ready(void);
+[[nodiscard]] bool gps_pa1010d_ready(void);
 
 /**
  * @brief Poll GPS for new data
@@ -44,20 +44,20 @@ bool gps_pa1010d_ready(void);
  *
  * @return true if I2C read succeeded (data received), false on I2C error
  */
-bool gps_pa1010d_update(void);
+[[nodiscard]] bool gps_pa1010d_update(void);
 
 /**
  * @brief Get latest GPS data
  * @param data Output data structure
  * @return true if data is valid
  */
-bool gps_pa1010d_get_data(gps_data_t* data);
+[[nodiscard]] bool gps_pa1010d_get_data(gps_data_t* data);
 
 /**
  * @brief Check if GPS has a valid fix
  * @return true if GPS has 2D or 3D fix
  */
-bool gps_pa1010d_has_fix(void);
+[[nodiscard]] bool gps_pa1010d_has_fix(void);
 
 /**
  * @brief Get pointer to last raw NMEA read buffer
@@ -65,7 +65,7 @@ bool gps_pa1010d_has_fix(void);
  * @param len Output length of last read data
  * @return true if data available
  */
-bool gps_pa1010d_get_last_raw(const uint8_t** buf, size_t* len);
+[[nodiscard]] bool gps_pa1010d_get_last_raw(const uint8_t** buf, size_t* len);
 
 /**
  * @brief Format Grok-triage debug status into caller buffer

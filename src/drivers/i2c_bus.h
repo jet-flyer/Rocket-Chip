@@ -48,14 +48,14 @@ constexpr uint8_t kI2cAddrPa1010d   = 0x10;     // GPS
  * @brief Initialize the I2C bus
  * @return true on success
  */
-bool i2c_bus_init(void);
+[[nodiscard]] bool i2c_bus_init(void);
 
 /**
  * @brief Check if a device is present on the bus
  * @param addr 7-bit I2C address
  * @return true if device ACKs
  */
-bool i2c_bus_probe(uint8_t addr);
+[[nodiscard]] bool i2c_bus_probe(uint8_t addr);
 
 /**
  * @brief Scan the bus and print all detected devices
@@ -73,7 +73,7 @@ void i2c_bus_scan(void);
  * @param len Number of bytes to write
  * @return Number of bytes written, or negative on error
  */
-int i2c_bus_write(uint8_t addr, const uint8_t* data, size_t len);
+[[nodiscard]] int i2c_bus_write(uint8_t addr, const uint8_t* data, size_t len);
 
 /**
  * @brief Read bytes from a device
@@ -82,7 +82,7 @@ int i2c_bus_write(uint8_t addr, const uint8_t* data, size_t len);
  * @param len Number of bytes to read
  * @return Number of bytes read, or negative on error
  */
-int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len);
+[[nodiscard]] int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len);
 
 /**
  * @brief Write to a register then read response (common pattern)
@@ -92,7 +92,7 @@ int i2c_bus_read(uint8_t addr, uint8_t* data, size_t len);
  * @param len Number of bytes to read
  * @return Number of bytes read, or negative on error
  */
-int i2c_bus_write_read(uint8_t addr, uint8_t reg, uint8_t* data, size_t len);
+[[nodiscard]] int i2c_bus_write_read(uint8_t addr, uint8_t reg, uint8_t* data, size_t len);
 
 /**
  * @brief Write a single byte to a register
@@ -101,7 +101,7 @@ int i2c_bus_write_read(uint8_t addr, uint8_t reg, uint8_t* data, size_t len);
  * @param value Value to write
  * @return 0 on success, negative on error
  */
-int i2c_bus_write_reg(uint8_t addr, uint8_t reg, uint8_t value);
+[[nodiscard]] int i2c_bus_write_reg(uint8_t addr, uint8_t reg, uint8_t value);
 
 /**
  * @brief Read a single byte from a register
@@ -110,7 +110,7 @@ int i2c_bus_write_reg(uint8_t addr, uint8_t reg, uint8_t value);
  * @param value Pointer to store read value
  * @return 0 on success, negative on error
  */
-int i2c_bus_read_reg(uint8_t addr, uint8_t reg, uint8_t* value);
+[[nodiscard]] int i2c_bus_read_reg(uint8_t addr, uint8_t reg, uint8_t* value);
 
 /**
  * @brief Read multiple bytes starting from a register
@@ -120,7 +120,7 @@ int i2c_bus_read_reg(uint8_t addr, uint8_t reg, uint8_t* value);
  * @param len Number of bytes to read
  * @return Number of bytes read, or negative on error
  */
-int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len);
+[[nodiscard]] int i2c_bus_read_regs(uint8_t addr, uint8_t reg, uint8_t* data, size_t len);
 
 // ============================================================================
 // Bus Recovery (IVP-13a)

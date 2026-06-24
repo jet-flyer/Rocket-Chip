@@ -112,23 +112,11 @@ Review from the top of this document before following the rules below. These rul
 
 16. **Consider `LESSONS_LEARNED.md`.** If significant debugging occurred during the stage, document it. This is trigger-driven (significant content) not cadence-driven, so most stage closes won't add an entry; some will.
 
-17. **Full-tree clang-tidy sweep.** The pre-commit hook only gates staged files, so latent JSF AV Rule 1 violations (function size > 60 lines) can accumulate in files that aren't touched stage-by-stage. At milestone/stage close, run the same checks the hook runs against EVERY `src/**/*.cpp` not on the exemption list (exemptions: `src/cli/**`, `eskf_codegen.cpp`). (`src/dev/**` no longer exists post-R-25-exec 2026-05-13.) Zero warnings required for milestone closure — any new violations must be decomposed or logged as an accepted deviation in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` before the stage can close. Pattern (Git Bash, adjust toolchain path if needed):
+17. **Full-tree clang-tidy sweep.** The pre-commit hook only gates staged files, so latent violations (oversized / over-complex functions, unchecked returns, reserved identifiers) can accumulate in files not touched stage-by-stage. At milestone/stage close, run the central gate script against the full tree:
 
-        for f in $(git ls-files 'src/*.cpp' | grep -v 'src/cli/' | grep -v eskf_codegen.cpp); do
-          "C:/Program Files/LLVM/bin/clang-tidy.exe" "$f" -p build/ \
-            --checks="-*,readability-function-size,readability-function-cognitive-complexity" \
-            --extra-arg="--sysroot=C:/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/arm-none-eabi" \
-            --extra-arg="--target=armv8m.main-none-eabi" \
-            --extra-arg="-isystem" \
-            --extra-arg="C:/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/arm-none-eabi/include/c++/14.2.1" \
-            --extra-arg="-isystem" \
-            --extra-arg="C:/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/arm-none-eabi/include/c++/14.2.1/arm-none-eabi/thumb/v8-m.main+fp/softfp" \
-            --extra-arg="-Wno-format-security" \
-            --extra-arg="-Wno-gnu-zero-variadic-macro-arguments" 2>&1 \
-            | grep -E "warning:.*readability-function-(size|cognitive-complexity)"
-        done
+        bash scripts/audit/full_tree_clang_tidy.sh   # no args = full tree
 
-   Added 2026-04-18 after Stage L surfaced 5 latent violations (ao_logger, ao_telemetry, core1_sensor_loop, guard_evaluator_tick, flight_director_evaluate_guards) that had accumulated silently across earlier stages. See LL Entry 36 discipline — "gates that only check incremental change cannot catch pre-existing rot."
+   This is the **same script** the pre-commit hook (Gate 2) runs per staged file, so the gated-check list (function size, cognitive complexity, unchecked return [`flash_safe_execute`], reserved-id) plus the compiler-flag-coverage check (`scripts/audit/check_warning_gate_coverage.py`, LL Entry 43) live in exactly ONE place — no longer hard-coded both here and in the hook (the dual-hardcode defect, fixed 2026-06-24; LL Entry 40). Exemptions (`src/cli/**`, `eskf_codegen.cpp`) live in the script. Needs `build/compile_commands.json` (`cmake -B build -G Ninja`). Zero warnings required for milestone closure — any new violation must be fixed/decomposed or logged as an accepted deviation in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` before the stage can close. Added 2026-04-18 after Stage L surfaced 5 latent violations (ao_logger, ao_telemetry, core1_sensor_loop, guard_evaluator_tick, flight_director_evaluate_guards) accumulated silently across earlier stages. See LL Entry 36 — "gates that only check incremental change cannot catch pre-existing rot."
 
 17a. **Scratch-tool stale review.** Walk `tools/scratch/` for any directory whose most recent commit is older than 4 months. For each: confirm `_PURPOSE` file present and current, decide keep-or-delete in one line. The flag means "review," not "auto-delete" — a scratch tool that's still occasionally useful stays with a noted bump in date. Per `standards/CODING_STANDARDS.md` "Scratch Tools and Dead-Code Discipline" (project policy 2026-05-22, four-persona council). Pattern (Git Bash):
 

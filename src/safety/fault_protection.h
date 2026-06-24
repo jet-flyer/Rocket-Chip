@@ -19,8 +19,7 @@ extern "C" {
 }
 #include "rocketchip/board.h"
 
-// NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" uint32_t __StackOneBottom;  // Core 1 stack bottom (SCRATCH_X, linker-defined)
+#include "rocketchip/linker_symbols.h"  // __StackBottom / __StackOneBottom (linker-defined)
 
 // ============================================================================
 // Constants (moved from main.cpp)

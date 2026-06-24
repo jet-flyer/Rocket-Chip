@@ -49,13 +49,13 @@ constexpr uint32_t kGpsUartRxPin   = 1;       // GPIO1 — Feather UART0 RX
  *
  * @return true on success (GPS detected on UART)
  */
-bool gps_uart_init(void);
+[[nodiscard]] bool gps_uart_init(void);
 
 /**
  * @brief Check if UART GPS is initialized
  * @return true if initialized
  */
-bool gps_uart_ready(void);
+[[nodiscard]] bool gps_uart_ready(void);
 
 /**
  * @brief Drain ring buffer into lwGPS parser (no data extraction)
@@ -74,20 +74,20 @@ void gps_uart_drain(void);
  *
  * @return true if UART read succeeded, false on error
  */
-bool gps_uart_update(void);
+[[nodiscard]] bool gps_uart_update(void);
 
 /**
  * @brief Get latest GPS data
  * @param data Output data structure
  * @return true if data is valid (has fix)
  */
-bool gps_uart_get_data(gps_data_t* data);
+[[nodiscard]] bool gps_uart_get_data(gps_data_t* data);
 
 /**
  * @brief Check if GPS has a valid fix
  * @return true if GPS has 2D or 3D fix
  */
-bool gps_uart_has_fix(void);
+[[nodiscard]] bool gps_uart_has_fix(void);
 
 /**
  * @brief Get ring buffer overflow count (diagnostic)
@@ -98,7 +98,7 @@ bool gps_uart_has_fix(void);
  *
  * @return overflow byte count since init
  */
-uint32_t gps_uart_get_overflow_count(void);
+[[nodiscard]] uint32_t gps_uart_get_overflow_count(void);
 
 /**
  * @brief Reinitialize UART GPS (staleness recovery)
@@ -109,6 +109,6 @@ uint32_t gps_uart_get_overflow_count(void);
  *
  * @return true if GPS re-detected and reinitialized
  */
-bool gps_uart_reinit(void);
+[[nodiscard]] bool gps_uart_reinit(void);
 
 #endif // ROCKETCHIP_GPS_UART_H

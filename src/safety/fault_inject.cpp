@@ -14,6 +14,7 @@
 
 #include "safety/fault_inject.h"
 #include "safety/test_mode.h"
+#include "rocketchip/linker_symbols.h"  // __StackBottom (linker-defined)
 #include "rocketchip/config.h"
 #include "rocketchip/ao_signals.h"
 #include "safety/pio_backup_timer.h"
@@ -146,10 +147,9 @@ extern "C" __attribute__((used))
 void fault_force_hardfault() {
     if (!fi_test_mode_gate("fault_force_hardfault")) { return; }
     rc::rc_log("[FAULT] force_hardfault: writing into MPU stack guard...\n");
-    // Read __StackBottom via inline asm so the compiler doesn't constant-fold
-    // into something the optimizer can hoist or remove. The fault fires on
-    // the store.
-    extern uint32_t __StackBottom;
+    // Volatile pointer so the compiler doesn't hoist/remove the store; the
+    // fault fires on the write into the guard region. (__StackBottom from
+    // rocketchip/linker_symbols.h.)
     volatile uint32_t* guard = &__StackBottom;
     *guard = 0xC0DE0001U;
     // Should not reach — but if MPU is disabled or guard not active, log it.

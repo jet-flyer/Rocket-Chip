@@ -17,9 +17,6 @@
 #include "pico/time.h"   // for busy_wait_us in fault handler delay
 #include "rocketchip/rc_log.h"  // R-5 Unit C: replaces printf in Q_onError
 
-// NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" uint32_t __StackBottom;  // For Core 0 documentation (defined in linker)
-
 // ============================================================================
 // Fault-handler dispatch internals (fault-recovery 2026-05-14, B.1-B.3, B.7)
 // ============================================================================
