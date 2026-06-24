@@ -277,7 +277,7 @@ static QState Rf_running(RfManager * const me, QEvt const * const e) {
         return Q_HANDLED();
     }
     case rc::SIG_RADIO_RX: {
-        auto const * rx = reinterpret_cast<const rc::RadioRxEvt *>(e);
+        auto const * rx = rc::evt_cast<rc::RadioRxEvt>(e);
         handle_valid_rx(me, rx);
         return Q_HANDLED();
     }
@@ -311,8 +311,8 @@ void AO_RfManager_start(uint8_t prio, uint32_t nav_period_ms_init) {
                   Q_PRIO(prio, 0U),
                   l_rfQueue,
                   Q_DIM(l_rfQueue),
-                  (void *)0, 0U,
-                  (void *)0);
+                  nullptr, 0U,
+                  nullptr);
 }
 
 const RfManagerState* AO_RfManager_get_state() {

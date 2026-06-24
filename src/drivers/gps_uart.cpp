@@ -197,11 +197,10 @@ static void gps_uart_rx_isr() {
         if (next == g_rxTail) {
             // Buffer full — drop byte, count overflow
             g_rxOverflow = g_rxOverflow + 1;
-            continue;
+        } else {
+            g_rxBuf[head] = byte;
+            g_rxHead = next;
         }
-
-        g_rxBuf[head] = byte;
-        g_rxHead = next;
     }
 }
 

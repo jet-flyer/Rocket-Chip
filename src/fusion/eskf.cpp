@@ -914,27 +914,29 @@ float ESKF::fuse_mag_axes(const float innov[3], float R_per_axis) {
     for (int32_t axis = 0; axis < 3; ++axis) {
         const int32_t hIdx = eskf::kIdxEarthMag + axis;
         const float s = P(hIdx, hIdx) + R_per_axis;
-        if (s < kMinInnovationVariance) { continue; }
-        if (fabsf(innov[axis]) > 5.0f * sqrtf(s)) { continue; }
-        const float nis = (innov[axis] * innov[axis]) / s;
-        if (nis > maxNis) { maxNis = nis; }
+        if (s >= kMinInnovationVariance &&
+            fabsf(innov[axis]) <= 5.0f * sqrtf(s)) {
+            const float nis = (innov[axis] * innov[axis]) / s;
+            if (nis > maxNis) { maxNis = nis; }
 #ifdef ESKF_USE_BIERMAN
-        bierman_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+            bierman_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
 #else
-        scalar_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+            scalar_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
 #endif
+        }
     }
     // Body mag bias states [18-20]
     for (int32_t axis = 0; axis < 3; ++axis) {
         const int32_t hIdx = eskf::kIdxBodyMagBias + axis;
         const float s = P(hIdx, hIdx) + R_per_axis;
-        if (s < kMinInnovationVariance) { continue; }
-        if (fabsf(innov[axis]) > 5.0f * sqrtf(s)) { continue; }
+        if (s >= kMinInnovationVariance &&
+            fabsf(innov[axis]) <= 5.0f * sqrtf(s)) {
 #ifdef ESKF_USE_BIERMAN
-        bierman_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+            bierman_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
 #else
-        scalar_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+            scalar_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
 #endif
+        }
     }
     return maxNis;
 }
@@ -1056,27 +1058,23 @@ bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas) {
         const int32_t kHIdx = eskf::kIdxVelocity + axis;
         const float innovation = -vComponents[axis];  // y = 0 - v[axis]
         const float s = P(kHIdx, kHIdx) + kRZupt;
-        if (s < kMinInnovationVariance) {
-            continue;
-        }
+        if (s >= kMinInnovationVariance) {
+            // NIS
+            const float nis = (innovation * innovation) / s;
+            if (nis > maxNis) {
+                maxNis = nis;
+            }
 
-        // NIS
-        const float nis = (innovation * innovation) / s;
-        if (nis > maxNis) {
-            maxNis = nis;
-        }
-
-        // Innovation gate
-        const float gateThreshold = kZuptInnovationGate * sqrtf(s);
-        if (fabsf(innovation) > gateThreshold) {
-            continue;
-        }
-
+            // Innovation gate
+            const float gateThreshold = kZuptInnovationGate * sqrtf(s);
+            if (fabsf(innovation) <= gateThreshold) {
 #ifdef ESKF_USE_BIERMAN
-        bierman_kalman_update(kHIdx, 1.0F, innovation, kRZupt);
+                bierman_kalman_update(kHIdx, 1.0F, innovation, kRZupt);
 #else
-        scalar_kalman_update(kHIdx, 1.0F, innovation, kRZupt);
+                scalar_kalman_update(kHIdx, 1.0F, innovation, kRZupt);
 #endif
+            }
+        }
     }
 
     last_zupt_nis_ = maxNis;
@@ -1114,25 +1112,21 @@ bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas,
         const int32_t kHIdx = eskf::kIdxVelocity + axis;
         const float innovation = -vComponents[axis];
         const float s = P(kHIdx, kHIdx) + kRZuptOnPad;
-        if (s < kMinInnovationVariance) {
-            continue;
-        }
+        if (s >= kMinInnovationVariance) {
+            const float nis = (innovation * innovation) / s;
+            if (nis > maxNis) {
+                maxNis = nis;
+            }
 
-        const float nis = (innovation * innovation) / s;
-        if (nis > maxNis) {
-            maxNis = nis;
-        }
-
-        const float gateThreshold = kZuptInnovationGate * sqrtf(s);
-        if (fabsf(innovation) > gateThreshold) {
-            continue;
-        }
-
+            const float gateThreshold = kZuptInnovationGate * sqrtf(s);
+            if (fabsf(innovation) <= gateThreshold) {
 #ifdef ESKF_USE_BIERMAN
-        bierman_kalman_update(kHIdx, 1.0F, innovation, kRZuptOnPad);
+                bierman_kalman_update(kHIdx, 1.0F, innovation, kRZuptOnPad);
 #else
-        scalar_kalman_update(kHIdx, 1.0F, innovation, kRZuptOnPad);
+                scalar_kalman_update(kHIdx, 1.0F, innovation, kRZuptOnPad);
 #endif
+            }
+        }
     }
 
     last_zupt_nis_ = maxNis;
@@ -1333,20 +1327,20 @@ bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
         const float rNoise = rValues[axis];
         const float innovation = gpsComponents[axis] - pComponents[axis];
         const float s = P(kHIdx, kHIdx) + rNoise;
-        if (s < kMinInnovationVariance) { continue; }
+        if (s >= kMinInnovationVariance) {
+            const float nis = (innovation * innovation) / s;
 
-        const float nis = (innovation * innovation) / s;
-
-        if (fabsf(innovation) > kGpsPositionGate * sqrtf(s)) { continue; }
-
-        // Track max NIS only from accepted readings
-        if (nis > maxNis) { maxNis = nis; }
+            if (fabsf(innovation) <= kGpsPositionGate * sqrtf(s)) {
+                // Track max NIS only from accepted readings
+                if (nis > maxNis) { maxNis = nis; }
 
 #ifdef ESKF_USE_BIERMAN
-        bierman_kalman_update(kHIdx, 1.0F, innovation, rNoise);
+                bierman_kalman_update(kHIdx, 1.0F, innovation, rNoise);
 #else
-        scalar_kalman_update(kHIdx, 1.0F, innovation, rNoise);
+                scalar_kalman_update(kHIdx, 1.0F, innovation, rNoise);
 #endif
+            }
+        }
     }
 
     last_gps_pos_nis_ = maxNis;
@@ -1393,29 +1387,25 @@ bool ESKF::update_gps_velocity(float vNorth, float vEast) {
 
         // Innovation covariance: S = P[idx][idx] + R
         const float s = P(kHIdx, kHIdx) + r;
-        if (s < kMinInnovationVariance) {
-            continue;
-        }
+        if (s >= kMinInnovationVariance) {
+            // NIS
+            const float nis = (innovation * innovation) / s;
 
-        // NIS
-        const float nis = (innovation * innovation) / s;
-
-        // Innovation gate
-        const float gateThreshold = kGpsVelocityGate * sqrtf(s);
-        if (fabsf(innovation) > gateThreshold) {
-            continue;
-        }
-
-        // Track max NIS only from accepted readings
-        if (nis > maxNis) {
-            maxNis = nis;
-        }
+            // Innovation gate
+            const float gateThreshold = kGpsVelocityGate * sqrtf(s);
+            if (fabsf(innovation) <= gateThreshold) {
+                // Track max NIS only from accepted readings
+                if (nis > maxNis) {
+                    maxNis = nis;
+                }
 
 #ifdef ESKF_USE_BIERMAN
-        bierman_kalman_update(kHIdx, 1.0F, innovation, r);
+                bierman_kalman_update(kHIdx, 1.0F, innovation, r);
 #else
-        scalar_kalman_update(kHIdx, 1.0F, innovation, r);
+                scalar_kalman_update(kHIdx, 1.0F, innovation, r);
 #endif
+            }
+        }
     }
 
     last_gps_vel_nis_ = maxNis;

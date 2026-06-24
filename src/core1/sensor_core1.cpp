@@ -109,40 +109,31 @@ static void core1_imu_error_recovery(uint32_t* imuConsecFail,
 static void core1_apply_imu_cal(const icm20948_data_t& imuData,
                                  shared_sensor_data_t* localData,
                                  calibration_store_t* localCal) {
-    float ax = 0.0F;
-    float ay = 0.0F;
-    float az = 0.0F;
-    float gx = 0.0F;
-    float gy = 0.0F;
-    float gz = 0.0F;
+    cal_vec3_t accelOut;
+    cal_vec3_t gyroOut;
     calibration_apply_accel_with(localCal,
-        imuData.accel.x, imuData.accel.y, imuData.accel.z,
-        &ax, &ay, &az);
+        {imuData.accel.x, imuData.accel.y, imuData.accel.z}, accelOut);
     calibration_apply_gyro_with(localCal,
-        imuData.gyro.x, imuData.gyro.y, imuData.gyro.z,
-        &gx, &gy, &gz);
+        {imuData.gyro.x, imuData.gyro.y, imuData.gyro.z}, gyroOut);
 
-    localData->accel_x = ax;
-    localData->accel_y = ay;
-    localData->accel_z = az;
-    localData->gyro_x = gx;
-    localData->gyro_y = gy;
-    localData->gyro_z = gz;
+    localData->accel_x = accelOut.x;
+    localData->accel_y = accelOut.y;
+    localData->accel_z = accelOut.z;
+    localData->gyro_x = gyroOut.x;
+    localData->gyro_y = gyroOut.y;
+    localData->gyro_z = gyroOut.z;
     localData->imu_timestamp_us = time_us_32();
     localData->imu_read_count++;
     localData->accel_valid = true;
     localData->gyro_valid = true;
 
     if (imuData.mag_valid) {
-        float mxCal = 0.0F;
-        float myCal = 0.0F;
-        float mzCal = 0.0F;
+        cal_vec3_t magOut;
         calibration_apply_mag_with(localCal,
-            imuData.mag.x, imuData.mag.y, imuData.mag.z,
-            &mxCal, &myCal, &mzCal);
-        localData->mag_x = mxCal;
-        localData->mag_y = myCal;
-        localData->mag_z = mzCal;
+            {imuData.mag.x, imuData.mag.y, imuData.mag.z}, magOut);
+        localData->mag_x = magOut.x;
+        localData->mag_y = magOut.y;
+        localData->mag_z = magOut.z;
         localData->mag_raw_x = imuData.mag.x;
         localData->mag_raw_y = imuData.mag.y;
         localData->mag_raw_z = imuData.mag.z;
@@ -455,22 +446,20 @@ static void core1_sensor_loop() {
         uint32_t cycleStartUs = time_us_32();
         loopCount++;
 
-        if (core1_check_pause_and_reload(&localCal)) {
-            continue;
-        }
+        if (!core1_check_pause_and_reload(&localCal)) {
+            core1_sensor_pass(&localData, &localCal, &cyc);
 
-        core1_sensor_pass(&localData, &localCal, &cyc);
+            // Seqlock publish (always write, even on IMU failure — council mod #4)
+            localData.core1_loop_count = loopCount;
+            seqlock_write(&g_sensorSeqlock, &localData);
 
-        // Seqlock publish (always write, even on IMU failure — council mod #4)
-        localData.core1_loop_count = loopCount;
-        seqlock_write(&g_sensorSeqlock, &localData);
+            // PIO heartbeat watchdog monitors both cores via FIFO feed from Core 0.
+            // LED state evaluated on Core 0 via AO_LedEngine.
 
-        // PIO heartbeat watchdog monitors both cores via FIFO feed from Core 0.
-        // LED state evaluated on Core 0 via AO_LedEngine.
-
-        uint32_t elapsed = time_us_32() - cycleStartUs;
-        if (elapsed < kCore1TargetCycleUs) {
-            busy_wait_us(kCore1TargetCycleUs - elapsed);
+            uint32_t elapsed = time_us_32() - cycleStartUs;
+            if (elapsed < kCore1TargetCycleUs) {
+                busy_wait_us(kCore1TargetCycleUs - elapsed);
+            }
         }
     }
 }
@@ -480,7 +469,7 @@ static void core1_sensor_loop() {
 // ============================================================================
 
 void core1_entry() {
-    mpu_setup_stack_guard(reinterpret_cast<uint32_t>(&__StackOneBottom));
+    mpu_setup_stack_guard(reinterpret_cast<uintptr_t>(&__StackOneBottom));
 
     // Always register as lockout victim -- flash_safe_execute() needs this
     // even in station/relay mode (calibration storage init uses flash).

@@ -118,7 +118,7 @@ void fault_force_ao_queue_flood(uint8_t /*ao_priority*/, uint16_t count) {
     rc::rc_log("[FAULT] Publishing %u dummy events (floods all AO queues)\n", count);
     static QEvt const s_dummyEvt = QEVT_INITIALIZER(rc::SIG_SENSOR_DATA);
     for (uint16_t i = 0; i < count; ++i) {
-        QActive_publish_(&s_dummyEvt, (void*)0, 0U);
+        QActive_publish_(&s_dummyEvt, nullptr, 0U);
     }
 }
 

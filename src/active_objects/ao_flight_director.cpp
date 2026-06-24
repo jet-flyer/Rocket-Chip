@@ -275,8 +275,8 @@ void AO_FlightDirector_start(uint8_t prio) {
                   Q_PRIO(prio, 0U),
                   l_fdAoQueue,
                   Q_DIM(l_fdAoQueue),
-                  (void *)0, 0U,
-                  (void *)0);
+                  nullptr, 0U,
+                  nullptr);
 }
 
 void AO_FlightDirector_dispatch_signal(int signal) {

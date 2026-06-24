@@ -255,7 +255,7 @@ extern "C" Q_NORETURN Q_onError(
 // MemManage handler instead of escalating to HardFault (per §3.7.4.7 "MPU
 // mismatches and permission violations invoke the MemManage handler").
 
-void mpu_setup_stack_guard(uint32_t stackBottom) {
+void mpu_setup_stack_guard(uintptr_t stackBottom) {
     // Disable MPU during configuration
     mpu_hw->ctrl = 0;
     __dsb();

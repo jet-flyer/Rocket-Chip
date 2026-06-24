@@ -181,7 +181,7 @@ static QState Notify_initial(NotifyAo * const me, QEvt const * const e) {
 // Stage L also clears the pre-arm-fail visual (any phase change invalidates
 // the "ARM rejected" message).
 static void handle_phase_change(NotifyAo * const me, QEvt const * const e) {
-    const auto* pce = reinterpret_cast<const rc::PhaseChangeEvt*>(e);
+    const auto* pce = rc::evt_cast<rc::PhaseChangeEvt>(e);
     me->state.phase = phase_from_flight_phase(pce->phase);
     if (me->state.phase != PhaseIntent::kLanded &&
         me->state.phase != PhaseIntent::kAbort) {
@@ -276,20 +276,20 @@ static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
         return Q_HANDLED();
 
     case rc::SIG_RADIO_STATUS: {
-        const auto* re = reinterpret_cast<const rc::RadioStatusEvt*>(e);
+        const auto* re = rc::evt_cast<rc::RadioStatusEvt>(e);
         me->state.radio = radio_intent_from_lq(re->link_quality);
         return Q_HANDLED();
     }
 
     case rc::SIG_HEALTH_STATUS: {
-        const auto* he = reinterpret_cast<const rc::HealthStatusEvt*>(e);
+        const auto* he = rc::evt_cast<rc::HealthStatusEvt>(e);
         me->state.fault = decode_health_faults(he->primary, he->secondary);
         return Q_HANDLED();
     }
 
     case SIG_NOTIFY_CAL_INTENT: {
         // Direct post from AO_RCOS via AO_Notify_post_cal_intent()
-        const auto* ce = reinterpret_cast<const CalIntentEvt*>(e);
+        const auto* ce = rc::evt_cast<CalIntentEvt>(e);
         me->state.cal = ce->intent;
         return Q_HANDLED();
     }
@@ -322,8 +322,8 @@ void AO_Notify_start(uint8_t prio) {
                   Q_PRIO(prio, 0U),
                   l_notifyQueue,
                   Q_DIM(l_notifyQueue),
-                  (void *)0, 0U,
-                  (void *)0);
+                  nullptr, 0U,
+                  nullptr);
 }
 
 static CalIntent s_lastCalIntent = CalIntent::kNone;
@@ -348,7 +348,7 @@ void AO_Notify_post_cal_intent(CalIntent intent) {
     static CalIntentEvt s_evt;
     s_evt.super = QEVT_INITIALIZER(SIG_NOTIFY_CAL_INTENT);
     s_evt.intent = intent;
-    QACTIVE_POST(&l_notifyAo.super, &s_evt.super, (void *)0);
+    QACTIVE_POST(&l_notifyAo.super, &s_evt.super, nullptr);
 }
 
 // ============================================================================
@@ -365,7 +365,7 @@ void AO_Notify_post_prearm_fail() {
     // Static event per LL Entry 35. No QEvt subclass payload needed.
     static QEvt s_evt;
     s_evt = QEVT_INITIALIZER(SIG_NOTIFY_PREARM_FAIL);
-    QACTIVE_POST(&l_notifyAo.super, &s_evt, (void *)0);
+    QACTIVE_POST(&l_notifyAo.super, &s_evt, nullptr);
 }
 
 // ============================================================================
@@ -379,12 +379,12 @@ void AO_Notify_post_vehicle_lost() {
     if (!s_notifyStarted) { return; }
     static QEvt s_evt;
     s_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_LOST);
-    QACTIVE_POST(&l_notifyAo.super, &s_evt, (void *)0);
+    QACTIVE_POST(&l_notifyAo.super, &s_evt, nullptr);
 }
 
 void AO_Notify_post_vehicle_found() {
     if (!s_notifyStarted) { return; }
     static QEvt s_evt;
     s_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_FOUND);
-    QACTIVE_POST(&l_notifyAo.super, &s_evt, (void *)0);
+    QACTIVE_POST(&l_notifyAo.super, &s_evt, nullptr);
 }

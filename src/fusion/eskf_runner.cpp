@@ -272,6 +272,7 @@ static void save_wmm_position(float latDeg, float lonDeg) {
         const_cast<calibration_store_t*>(calibration_manager_get());
     cal->wmm_lat_deg = latDeg;
     cal->wmm_lon_deg = lonDeg;
+    cal->cal_flags |= CAL_STATUS_WMM_SET;
     calibration_save();
 }
 
@@ -289,10 +290,9 @@ static void try_enable_mag_3axis(const shared_sensor_data_t& snap) {
             float lon = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
             init_wmm_field(lat, lon, WmmSource::kGps);
             save_wmm_position(lat, lon);
-        } else if (cal->wmm_lat_deg != 0.0f || cal->wmm_lon_deg != 0.0f) {
+        } else if ((cal->cal_flags & CAL_STATUS_WMM_SET) != 0) {
             init_wmm_field(cal->wmm_lat_deg, cal->wmm_lon_deg, WmmSource::kStored);
-        } else if (g_profile->default_lat_deg != 0.0f ||
-                   g_profile->default_lon_deg != 0.0f) {
+        } else if (g_profile->has_default_location) {
             init_wmm_field(g_profile->default_lat_deg, g_profile->default_lon_deg,
                            WmmSource::kDefault);
         } else {

@@ -189,11 +189,11 @@ static bool write_to_sector(uint32_t sector, const rc::RadioConfig* cfg, uint32_
     static uint8_t g_page[FLASH_PAGE_SIZE] __attribute__((aligned(4)));
     memset(g_page, 0xFF, sizeof(g_page));
 
-    auto* hdr = reinterpret_cast<SectorHeader*>(g_page);
+    auto* hdr = static_cast<SectorHeader*>(static_cast<void*>(g_page));
     hdr->state = kStateInUse;
     hdr->sequence = seq;
 
-    auto* entry = reinterpret_cast<Entry*>(g_page + sizeof(SectorHeader));
+    auto* entry = static_cast<Entry*>(static_cast<void*>(g_page + sizeof(SectorHeader)));
     entry->magic = kEntryMagic;
     entry->cfg = *cfg;
     entry->pad = 0;

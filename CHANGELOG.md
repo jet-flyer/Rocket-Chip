@@ -1,5 +1,21 @@
 # Changelog
 
+### 2026-06-24-001 | Claude Opus 4.8 (Code) | refactor, standards, bugfix
+
+**L2-P5 standards-walk — code remediation batch (Cycle 4).** Clears every known mechanical/decidable JSF/P10 violation dispositioned in the 2026-06-23 decision-lock (`6f2cf6b`), so the manual semantic walk starts from a clean, gated baseline. All fix-oriented — no new accepted deviations beyond the two already-recorded JSF-182 residuals (CAST-1, CAST-2). 45 files.
+
+Remediations:
+- **Mechanical:** `-Wshadow` ×1 (redundant local `kRadToDeg` removed); `#pragma once`→`#ifndef` guards ×3 (`fault_protection.h`, `shared_state.h`, and `mission_profile_data.h` *via its generator*); `offsetof`→pointer-span ×2 (`calibration_data.cpp`); QP/C `(void *)0`→`nullptr` ×24 sender args.
+- **JSF-202 float `==`:** the `0,0`-as-unset WMM sentinel removed — `CAL_STATUS_WMM_SET` bit in the existing `cal_flags` (stored path; no flash-layout change, `static_assert(sizeof==180)` holds) + explicit `has_default_location` bool on `MissionProfile` (profile path; generator updated).
+- **JSF-182 pointer casts:** `evt_cast<E>` centralizes ~10 QP/C `QEvt*` downcasts to one `static_assert(is_standard_layout)`-guarded site (CAST-2); CRC primitives take `const void*` (7 call-site casts dropped, internal cast = Exception 1); buffer→header overlays → `static_cast` via `void*` ×8 (Exception 1); MPU linker-symbol cast hardened `uint32_t`→`uintptr_t` (CAST-1). HW-address casts unchanged (Exception 2).
+- **JSF-190 `continue`:** all 28 guard-clause `continue`s inverted to structured control flow (council reversed the earlier "keep" lean — a violation is a defect this pass exists to fix; "passes tests" is not a disposition; P10's silence ≠ permission). 12 were in `eskf.cpp` flight math (combined or nested per the original skip-scope).
+- **JPL-25 >6 params:** `AO_Telemetry_send_command` + tracked helpers → `MavCmdParams`; `calibration_apply_*_with` ×3 → `cal_vec3_t` in/out; `init_combinator` → `CombinatorSpec`; `save_flight_entry` → `FlightEntryLayout`. All now ≤6 params.
+- **Gate finalized:** `-Wshadow`/`-Wfloat-equal` flipped from warning-only to hard errors (global `-Werror`) now that all sites are cleared (`CMakeLists.txt`).
+
+Also: `generate_profile.py` now emits `#ifndef` guards + `has_default_location` (fixed at the generator, not the output); new `CODING_STANDARDS.md` "Auto-Generated Code" rule (never hand-edit generated output) after surfacing that `mission_profile_data.h` had drifted from its generator (hand-edited in `b1f25ce`; logged as a High-priority WB codegen-audit item).
+
+*Verification:* host ctest 857/857; WSL firmware (vehicle) clean rebuild with `-Werror`, 0 `-Wshadow`/`-Wfloat-equal`; **bit-exact equivalence vs HEAD known-good on both flight-critical math paths** — `eskf.cpp`+`ud_factor.cpp` (continue inversions) and `calibration_manager.cpp` (Vec3 refactor) produce byte-identical test output. Bench_sim **2/2 PASS** on the flashed remediation firmware (vehicle flight v0.16.0 (kmenu), COM7; sensors healthy → GO; happy-path + abort-from-BOOST), re-confirmed by the pre-commit hook — consistent with the behavior-preserving nature of the change. (45 files: `src/` remediation + `CMakeLists.txt` + `scripts/generate_profile.py` + `standards/CODING_STANDARDS.md` + `AGENT_WHITEBOARD.md` + `CHANGELOG.md`.)
+
 ### 2026-06-23-001 | Claude Opus 4.8 (Code) | documentation, standards, audit
 
 **L2-P5 standards-walk — disposition decision-lock (Cycle 4).** Resolves the known JSF/P10 walk findings before the manual walk begins — all fix-oriented or ruleset-internal-compliant, no pre-judged accepts. This entry also covers two earlier same-session commits that shipped unlogged: `1eea319` (field manual + 185-file itinerary + work plan + adopted-code policy + TP-2 `__StackBottom` accepted-via-vendoring) and `a9dc8de` (precedence restructured into one unified house standard — timeline/lineage, containment model, most-restrictive conflict rule with escapes, recency demoted to a soft factor).

@@ -592,7 +592,10 @@ else()
         src/station/station_idle_tick.cpp
         src/log/rc_log.cpp                      # R-5 Unit B (2026-05-16): bounded log channel replacing stdio
     )
-    set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic")
+    # L2-P5 (2026-06-24): -Wshadow / -Wfloat-equal finalized as hard errors (via the
+    # global -Werror) after remediation cleared all sites — was warning-only (-Wno-error)
+    # during the measurement phase. See docs/plans/L2P5_WALK_PLAN.md Phase B.
+    set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic;-Wshadow;-Wfloat-equal")
 
     # IVP-42d / IVP-47: Per-file -O2 for ESKF propagation and codegen.
     # eskf.cpp: -O2 for stack optimization (LL Entry 1 / council R-4).

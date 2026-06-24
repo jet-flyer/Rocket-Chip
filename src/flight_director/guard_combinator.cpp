@@ -17,16 +17,24 @@ static constexpr uint8_t phase_bit(FlightPhase p) {
     return static_cast<uint8_t>(1U << static_cast<uint8_t>(p));
 }
 
-static void init_combinator(GuardCombinator& c, CombinatorType type,
-                             const GuardId* ids, uint8_t n,
-                             uint16_t signal, uint32_t backup_ms,
-                             uint8_t phases) {
-    c.type = type;
-    c.num_guards = n;
-    for (uint8_t i = 0; i < n && i < 4; ++i) { c.guard_ids[i] = ids[i]; }
-    c.signal = signal;
-    c.backup_timeout_ms = backup_ms;
-    c.valid_phases = phases;
+// Specification for one guard combinator (grouped to keep init within the
+// JPL-25 parameter limit).
+struct CombinatorSpec {
+    CombinatorType type;
+    const GuardId* ids;
+    uint8_t n;
+    uint16_t signal;
+    uint32_t backup_ms;
+    uint8_t phases;
+};
+
+static void init_combinator(GuardCombinator& c, const CombinatorSpec& spec) {
+    c.type = spec.type;
+    c.num_guards = spec.n;
+    for (uint8_t i = 0; i < spec.n && i < 4; ++i) { c.guard_ids[i] = spec.ids[i]; }
+    c.signal = spec.signal;
+    c.backup_timeout_ms = spec.backup_ms;
+    c.valid_phases = spec.phases;
     c.elapsed_ms = 0;
     c.fired = false;
 }
@@ -41,9 +49,9 @@ void combinator_set_init(CombinatorSet* cs, const MissionProfile& profile) {
         CombinatorType type = profile.apogee_require_both
             ? CombinatorType::kAnd : CombinatorType::kOr;
         init_combinator(cs->combinators[cs->num_combinators],
-                        type, apogee_guards, 2,
-                        SIG_APOGEE, profile.coast_timeout_ms,
-                        phase_bit(FlightPhase::kCoast));
+                        {type, apogee_guards, 2,
+                         SIG_APOGEE, profile.coast_timeout_ms,
+                         phase_bit(FlightPhase::kCoast)});
         ++cs->num_combinators;
     }
 
@@ -51,9 +59,9 @@ void combinator_set_init(CombinatorSet* cs, const MissionProfile& profile) {
     {
         GuardId main_guards[] = { GuardId::kMainDeploy };
         init_combinator(cs->combinators[cs->num_combinators],
-                        CombinatorType::kOr, main_guards, 1,
-                        SIG_MAIN_DEPLOY, profile.main_backup_ms,
-                        phase_bit(FlightPhase::kDrogueDescent));
+                        {CombinatorType::kOr, main_guards, 1,
+                         SIG_MAIN_DEPLOY, profile.main_backup_ms,
+                         phase_bit(FlightPhase::kDrogueDescent)});
         ++cs->num_combinators;
     }
 }
@@ -117,42 +125,38 @@ uint16_t combinator_set_evaluate(CombinatorSet* cs,
         GuardCombinator& c = cs->combinators[i];
 
         // Skip if not valid for current phase or already fired
-        if ((c.valid_phases & phase_mask) == 0 || c.fired) {
-            continue;
-        }
+        if ((c.valid_phases & phase_mask) != 0 && !c.fired) {
+            // Track elapsed time in phase
+            c.elapsed_ms += tick_ms;
 
-        // Track elapsed time in phase
-        c.elapsed_ms += tick_ms;
+            // Layer 1: Lockout gates
+            bool vel_locked = velocity_locked(lockout);
+            bool t_locked = time_locked(lockout);
 
-        // Layer 1: Lockout gates
-        bool vel_locked = velocity_locked(lockout);
-        bool t_locked = time_locked(lockout);
+            // Confidence gate: when uncertain, block all pyro-bearing signals.
+            // No fallback — when uncertain, the safest action is no action.
+            if (lockout.confident) {
+                // Layer 2: Sensor detection (requires lockouts clear)
+                if (!vel_locked && !t_locked) {
+                    if (evaluate_sensors(c, ev)) {
+                        c.fired = true;
+                        return c.signal;
+                    }
+                }
 
-        // Confidence gate: when uncertain, block all pyro-bearing signals.
-        // No fallback — when uncertain, the safest action is no action.
-        if (!lockout.confident) {
-            continue;
-        }
+                // Layer 3: Timer backup (requires lockouts clear, or ESKF-unhealthy
+                // bypasses velocity lockout per Council A2)
+                if (c.backup_timeout_ms > 0 && c.elapsed_ms >= c.backup_timeout_ms) {
+                    bool lockout_clear_for_timer = !t_locked &&
+                        (!vel_locked || !lockout.eskf_healthy);
 
-        // Layer 2: Sensor detection (requires lockouts clear)
-        if (!vel_locked && !t_locked) {
-            if (evaluate_sensors(c, ev)) {
-                c.fired = true;
-                return c.signal;
-            }
-        }
-
-        // Layer 3: Timer backup (requires lockouts clear, or ESKF-unhealthy
-        // bypasses velocity lockout per Council A2)
-        if (c.backup_timeout_ms > 0 && c.elapsed_ms >= c.backup_timeout_ms) {
-            bool lockout_clear_for_timer = !t_locked &&
-                (!vel_locked || !lockout.eskf_healthy);
-
-            if (lockout_clear_for_timer) {
-                c.fired = true;
-                rc::rc_log("[FD] WARN: backup timer fired for signal %u\n",
-                           static_cast<unsigned>(c.signal));
-                return c.signal;
+                    if (lockout_clear_for_timer) {
+                        c.fired = true;
+                        rc::rc_log("[FD] WARN: backup timer fired for signal %u\n",
+                                   static_cast<unsigned>(c.signal));
+                        return c.signal;
+                    }
+                }
             }
         }
     }

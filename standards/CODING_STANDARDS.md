@@ -243,6 +243,15 @@ These coding standards bind code the project **authors** ("native code"). Third-
 
 **Scalability (deliberate).** This register is the *seed* of a formal MISRA-style adopted-code Guideline Re-categorization Plan (GRP) + Guideline Compliance Summary (GCS) for higher-rigor tiers (Nova / RC-Pro / cubesat-rated, and Starcom). It is structured to **grow into** that formal process, not to be torn out — this project does not foreclose the path to formal certification.
 
+### Auto-Generated Code
+
+Code produced by a project generator — e.g. `scripts/generate_profile.py` → `src/flight_director/mission_profile_data.h` (mission-profile UX / setup wizard), and the ESKF SymPy codegen → `src/fusion/eskf_codegen.cpp` — is owned by its **generator + input**, which together are the single source of truth.
+
+1. **Never hand-edit a generated file.** To change generated output, edit the generator and/or its input (`.cfg`, model, SymPy expressions) and regenerate — never patch the output directly, not even for a "quick" fix. A hand-edit silently couples the output to a change the generator cannot reproduce, and the next regeneration destroys it without warning. (Lived case: `mission_profile_data.h` drifted from its generator after a hand-added `#ifdef` protocol switch — surfaced 2026-06-23, L2-P5 walk; see `AGENT_WHITEBOARD.md` "Codegen audit".) If a generated file must carry something the generator doesn't yet produce, **add it to the generator/input**, then regenerate.
+2. **Every generated file carries a banner** naming its generator + input source (ideally with the input's hash) and a "do not edit" notice.
+3. **No silent drift.** Prefer wiring the generator into the build so the output is regenerated each build (it cannot drift from source). Where that is impractical, a gate/test must verify the committed output matches a fresh generation. Silent divergence between a generator and its committed output is the failure mode this rule exists to prevent.
+4. **Standards bind the generator, not mechanically the output** (NASA SWE §8.11): the input model + generator script are held to this standard; the output is assured via the controlled generator + static analysis on the result. A generated file that exceeds a metric is an accepted deviation against the *output*, with the *generator* as the controlled artifact (see `ACCEPTED_STANDARDS_DEVIATIONS.md` CG-1).
+
 ### Comment Density
 
 Target band: **15-25% comment density in `.cpp` files** (function-internal comment lines vs. total non-blank function lines).

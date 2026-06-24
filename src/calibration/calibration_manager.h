@@ -306,8 +306,7 @@ void calibration_apply_accel(float axRaw, float ayRaw, float azRaw,
  * For cross-core use where Core 1 has its own calibration copy.
  */
 void calibration_apply_gyro_with(const calibration_store_t* cal,
-                                  float gxRaw, float gyRaw, float gzRaw,
-                                  float* gxCal, float* gyCal, float* gzCal);
+                                  const cal_vec3_t& raw, cal_vec3_t& out);
 
 /**
  * @brief Apply accel calibration using explicit calibration data
@@ -315,8 +314,7 @@ void calibration_apply_gyro_with(const calibration_store_t* cal,
  * For cross-core use where Core 1 has its own calibration copy.
  */
 void calibration_apply_accel_with(const calibration_store_t* cal,
-                                   float axRaw, float ayRaw, float azRaw,
-                                   float* axCal, float* ayCal, float* azCal);
+                                   const cal_vec3_t& raw, cal_vec3_t& out);
 
 /**
  * @brief Apply mag calibration to raw reading (uses global calibration)
@@ -330,8 +328,7 @@ void calibration_apply_mag(float mxRaw, float myRaw, float mzRaw,
  * For cross-core use where Core 1 has its own calibration copy.
  */
 void calibration_apply_mag_with(const calibration_store_t* cal,
-                                  float mxRaw, float myRaw, float mzRaw,
-                                  float* mxCal, float* myCal, float* mzCal);
+                                  const cal_vec3_t& raw, cal_vec3_t& out);
 
 /**
  * @brief Load calibration into a caller-supplied buffer

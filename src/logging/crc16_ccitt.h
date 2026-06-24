@@ -59,10 +59,13 @@ inline constexpr Crc16Table kCrc16Table{};
  * @param len  Length in bytes
  * @return CRC-16 value
  */
-inline uint16_t crc16_ccitt(const uint8_t* data, uint32_t len) {
+inline uint16_t crc16_ccitt(const void* data, uint32_t len) {
+    // Exception 1 (JSF AV-182): void*->T* confined to this low-level byte routine;
+    // callers pass the object pointer directly (no reinterpret_cast at call sites).
+    const uint8_t* bytes = static_cast<const uint8_t*>(data);
     uint16_t crc = 0xFFFFU;
     for (uint32_t i = 0; i < len; ++i) {
-        uint8_t idx = static_cast<uint8_t>((crc >> 8) ^ data[i]);
+        uint8_t idx = static_cast<uint8_t>((crc >> 8) ^ bytes[i]);
         crc = static_cast<uint16_t>((crc << 8) ^ detail::kCrc16Table.entries[idx]);
     }
     return crc;

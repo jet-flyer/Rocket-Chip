@@ -114,6 +114,7 @@ struct MissionProfile {
     // --- Default location for WMM lookup (Core tier, no GPS) ---
     float default_lat_deg;              // Latitude for no-GPS WMM lookup (Dallas TX default)
     float default_lon_deg;              // Longitude for no-GPS WMM lookup
+    bool  has_default_location;         // True if default_lat/lon are a real location (explicit, replaces 0,0 sentinel)
 
     // --- Phase Q/R ---
     // Per-phase noise model for ESKF adaptive estimation.

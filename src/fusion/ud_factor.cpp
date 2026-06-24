@@ -120,18 +120,17 @@ static void bierman_forward_pass(UD24& ud, float r) {
 
         if (g_balpha[j - 1] < kMinDFloat) {
             g_bK[j] = g_bg[j];
-            continue;
-        }
+        } else {
+            const float lambda = -g_bf[j] / g_balpha[j - 1];
+            ud.D[j] = ud.D[j] * g_balpha[j - 1] / g_balpha[j];
 
-        const float lambda = -g_bf[j] / g_balpha[j - 1];
-        ud.D[j] = ud.D[j] * g_balpha[j - 1] / g_balpha[j];
-
-        for (int32_t i = 0; i < j; ++i) {
-            const float u_save = ud.U[i][j];
-            ud.U[i][j] = u_save + lambda * g_bK[i];
-            g_bK[i] = g_bK[i] + g_bg[j] * u_save;
+            for (int32_t i = 0; i < j; ++i) {
+                const float u_save = ud.U[i][j];
+                ud.U[i][j] = u_save + lambda * g_bK[i];
+                g_bK[i] = g_bK[i] + g_bg[j] * u_save;
+            }
+            g_bK[j] = g_bg[j];
         }
-        g_bK[j] = g_bg[j];
     }
 
     // D[0] update (missed in loop above which starts at j=1)

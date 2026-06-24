@@ -32,6 +32,7 @@ typedef enum {
     CAL_STATUS_GYRO         = (1 << 2),  // Gyro bias calibration done
     CAL_STATUS_MAG          = (1 << 3),  // Magnetometer cal done
     CAL_STATUS_BARO         = (1 << 4),  // Barometer ground pressure set
+    CAL_STATUS_WMM_SET      = (1 << 5),  // WMM geomagnetic position stored (explicit flag, replaces 0,0 sentinel)
 } cal_status_flags_t;
 
 // ============================================================================

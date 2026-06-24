@@ -806,14 +806,13 @@ mag_feed_result_t calibration_feed_mag_sample(float mx, float my, float mz) {
             float rmag = sqrtf(g_magSamples[i][0]*g_magSamples[i][0]
                              + g_magSamples[i][1]*g_magSamples[i][1]
                              + g_magSamples[i][2]*g_magSamples[i][2]);
-            if (rmag < kMinVectorLength) {
-                continue;
-            }
-            float dot = (nx * g_magSamples[i][0]
-                       + ny * g_magSamples[i][1]
-                       + nz * g_magSamples[i][2]) / rmag;
-            if (dot > minSepCos) {
-                return mag_feed_result_t::REJECTED_CLOSE;
+            if (rmag >= kMinVectorLength) {
+                float dot = (nx * g_magSamples[i][0]
+                           + ny * g_magSamples[i][1]
+                           + nz * g_magSamples[i][2]) / rmag;
+                if (dot > minSepCos) {
+                    return mag_feed_result_t::REJECTED_CLOSE;
+                }
             }
         }
     }
@@ -1123,36 +1122,35 @@ cal_result_t calibration_get_result() {
 // ============================================================================
 
 void calibration_apply_gyro_with(const calibration_store_t* cal,
-                                  float gxRaw, float gyRaw, float gzRaw,
-                                  float* gxCal, float* gyCal, float* gzCal) {
+                                  const cal_vec3_t& raw, cal_vec3_t& out) {
     // Bias removal
-    float cx = gxRaw - cal->gyro.bias.x;
-    float cy = gyRaw - cal->gyro.bias.y;
-    float cz = gzRaw - cal->gyro.bias.z;
+    float cx = raw.x - cal->gyro.bias.x;
+    float cy = raw.y - cal->gyro.bias.y;
+    float cz = raw.z - cal->gyro.bias.z;
 
     // Board rotation: rotMat * corrected
     // NOLINTBEGIN(readability-magic-numbers) — 3x3 rotation matrix indices
     const float* rotMat = cal->board_rotation.m;
-    *gxCal = rotMat[0]*cx + rotMat[1]*cy + rotMat[2]*cz;
-    *gyCal = rotMat[3]*cx + rotMat[4]*cy + rotMat[5]*cz;
-    *gzCal = rotMat[6]*cx + rotMat[7]*cy + rotMat[8]*cz;
+    out.x = rotMat[0]*cx + rotMat[1]*cy + rotMat[2]*cz;
+    out.y = rotMat[3]*cx + rotMat[4]*cy + rotMat[5]*cz;
+    out.z = rotMat[6]*cx + rotMat[7]*cy + rotMat[8]*cz;
     // NOLINTEND(readability-magic-numbers)
 }
 
 void calibration_apply_gyro(float gxRaw, float gyRaw, float gzRaw,
                             float* gxCal, float* gyCal, float* gzCal) {
-    calibration_apply_gyro_with(&g_calibration, gxRaw, gyRaw, gzRaw,
-                                gxCal, gyCal, gzCal);
+    cal_vec3_t out;
+    calibration_apply_gyro_with(&g_calibration, {gxRaw, gyRaw, gzRaw}, out);
+    *gxCal = out.x; *gyCal = out.y; *gzCal = out.z;
 }
 
 void calibration_apply_accel_with(const calibration_store_t* cal,
-                                   float axRaw, float ayRaw, float azRaw,
-                                   float* axCal, float* ayCal, float* azCal) {
+                                   const cal_vec3_t& raw, cal_vec3_t& out) {
     // Stage 1: Ellipsoid correction — M * (raw + offset)
     // M is symmetric 3x3 with scale (diagonal) and offdiag terms
-    float ox = axRaw + cal->accel.offset.x;
-    float oy = ayRaw + cal->accel.offset.y;
-    float oz = azRaw + cal->accel.offset.z;
+    float ox = raw.x + cal->accel.offset.x;
+    float oy = raw.y + cal->accel.offset.y;
+    float oz = raw.z + cal->accel.offset.z;
 
     float cx = cal->accel.scale.x   * ox
              + cal->accel.offdiag.x * oy
@@ -1167,25 +1165,25 @@ void calibration_apply_accel_with(const calibration_store_t* cal,
     // Stage 2: Board rotation — rotMat * corrected
     // NOLINTBEGIN(readability-magic-numbers) — 3x3 rotation matrix indices
     const float* rotMat = cal->board_rotation.m;
-    *axCal = rotMat[0]*cx + rotMat[1]*cy + rotMat[2]*cz;
-    *ayCal = rotMat[3]*cx + rotMat[4]*cy + rotMat[5]*cz;
-    *azCal = rotMat[6]*cx + rotMat[7]*cy + rotMat[8]*cz;
+    out.x = rotMat[0]*cx + rotMat[1]*cy + rotMat[2]*cz;
+    out.y = rotMat[3]*cx + rotMat[4]*cy + rotMat[5]*cz;
+    out.z = rotMat[6]*cx + rotMat[7]*cy + rotMat[8]*cz;
     // NOLINTEND(readability-magic-numbers)
 }
 
 void calibration_apply_accel(float axRaw, float ayRaw, float azRaw,
                              float* axCal, float* ayCal, float* azCal) {
-    calibration_apply_accel_with(&g_calibration, axRaw, ayRaw, azRaw,
-                                  axCal, ayCal, azCal);
+    cal_vec3_t out;
+    calibration_apply_accel_with(&g_calibration, {axRaw, ayRaw, azRaw}, out);
+    *axCal = out.x; *ayCal = out.y; *azCal = out.z;
 }
 
 void calibration_apply_mag_with(const calibration_store_t* cal,
-                                  float mxRaw, float myRaw, float mzRaw,
-                                  float* mxCal, float* myCal, float* mzCal) {
+                                  const cal_vec3_t& raw, cal_vec3_t& out) {
     // Stage 1: Ellipsoid correction — M * (raw + offset)
-    float ox = mxRaw + cal->mag.offset.x;
-    float oy = myRaw + cal->mag.offset.y;
-    float oz = mzRaw + cal->mag.offset.z;
+    float ox = raw.x + cal->mag.offset.x;
+    float oy = raw.y + cal->mag.offset.y;
+    float oz = raw.z + cal->mag.offset.z;
 
     float cx = cal->mag.scale.x   * ox
              + cal->mag.offdiag.x * oy
@@ -1200,16 +1198,17 @@ void calibration_apply_mag_with(const calibration_store_t* cal,
     // Stage 2: Board rotation — rotMat * corrected
     // NOLINTBEGIN(readability-magic-numbers) — 3x3 rotation matrix indices
     const float* rotMat = cal->board_rotation.m;
-    *mxCal = rotMat[0]*cx + rotMat[1]*cy + rotMat[2]*cz;
-    *myCal = rotMat[3]*cx + rotMat[4]*cy + rotMat[5]*cz;
-    *mzCal = rotMat[6]*cx + rotMat[7]*cy + rotMat[8]*cz;
+    out.x = rotMat[0]*cx + rotMat[1]*cy + rotMat[2]*cz;
+    out.y = rotMat[3]*cx + rotMat[4]*cy + rotMat[5]*cz;
+    out.z = rotMat[6]*cx + rotMat[7]*cy + rotMat[8]*cz;
     // NOLINTEND(readability-magic-numbers)
 }
 
 void calibration_apply_mag(float mxRaw, float myRaw, float mzRaw,
                             float* mxCal, float* myCal, float* mzCal) {
-    calibration_apply_mag_with(&g_calibration, mxRaw, myRaw, mzRaw,
-                                mxCal, myCal, mzCal);
+    cal_vec3_t out;
+    calibration_apply_mag_with(&g_calibration, {mxRaw, myRaw, mzRaw}, out);
+    *mxCal = out.x; *myCal = out.y; *mzCal = out.z;
 }
 
 bool calibration_load_into(calibration_store_t* dest) {

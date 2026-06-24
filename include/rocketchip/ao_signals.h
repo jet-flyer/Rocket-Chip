@@ -23,12 +23,33 @@
 #define ROCKETCHIP_AO_SIGNALS_H
 
 #include <stdint.h>
+#include <type_traits>
 
 extern "C" {
 #include "qp_port.h"
 }
 
 namespace rc {
+
+// ============================================================================
+// evt_cast<E> — typed downcast of a dispatched QP/C event
+//
+// QP/C events use first-member composition (`struct E { QEvt super; ... }`), NOT
+// inheritance — so the concrete object's address equals its QEvt's address and
+// reinterpret_cast is the only valid downcast (static_cast would be ill-formed,
+// no base/derived relationship exists). This is the SINGLE audited site for
+// JSF AV-182 deviation CAST-2; the static_assert enforces the standard-layout
+// precondition the address-equivalence relies on. QP/C++ migration would make
+// these compliant inheritance downcasts and retire CAST-2.
+// See standards/ACCEPTED_STANDARDS_DEVIATIONS.md (CAST-2).
+// ============================================================================
+template <typename E>
+inline const E* evt_cast(QEvt const* e) {
+    static_assert(std::is_standard_layout<E>::value,
+                  "QP/C event must be standard-layout (QEvt first member) for first-member downcast");
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) — CAST-2, see above
+    return reinterpret_cast<const E*>(e);
+}
 
 // ============================================================================
 // RcSignal — system-wide event signal catalog

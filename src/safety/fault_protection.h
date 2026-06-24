@@ -8,7 +8,8 @@
  * sensor_core1.cpp. Provides no-stack fault handler and PMSAv8 MPU setup.
  */
 
-#pragma once
+#ifndef ROCKETCHIP_FAULT_PROTECTION_H
+#define ROCKETCHIP_FAULT_PROTECTION_H
 
 #include "pico.h"
 #include "hardware/exception.h"
@@ -78,4 +79,9 @@ extern "C" void Q_onError(
  * Call from each core with its own __Stack*Bottom symbol.
  * Per-core, PMSAv8. See ARMv8-M Architecture Reference Manual.
  */
-void mpu_setup_stack_guard(uint32_t stackBottom);
+// stackBottom: a linker-symbol address passed as uintptr_t (CAST-1, JSF AV-182 —
+// hardware-interface conversion for the numeric MPU RBAR; provably lossless on the
+// 32-bit target). See standards/ACCEPTED_STANDARDS_DEVIATIONS.md (CAST-1).
+void mpu_setup_stack_guard(uintptr_t stackBottom);
+
+#endif  // ROCKETCHIP_FAULT_PROTECTION_H

@@ -14,14 +14,14 @@
 // directly via rc::g_test_mode_arm_magic. The boot-time-window check
 // uses a static counter that defaults to 0 ms (tests can advance via
 // the test fixture if needed).
-static inline uint32_t _test_mode_boot_ms() { return 0U; }
-#define _TEST_MODE_SRAM_ATTR
+static inline uint32_t test_mode_boot_ms() { return 0U; }
+#define TEST_MODE_SRAM_ATTR
 #else
 #include "pico/time.h"
-static inline uint32_t _test_mode_boot_ms() {
+static inline uint32_t test_mode_boot_ms() {
     return to_ms_since_boot(get_absolute_time());
 }
-#define _TEST_MODE_SRAM_ATTR __attribute__((section(".uninitialized_data"), used))
+#define TEST_MODE_SRAM_ATTR __attribute__((section(".uninitialized_data"), used))
 #endif
 
 namespace rc {
@@ -32,7 +32,7 @@ namespace rc {
 //
 // extern + used so the linker keeps it across LTO + GDB / probe can
 // `set var rc::g_test_mode_arm_magic = 0x7E57'BABE` reach the symbol.
-_TEST_MODE_SRAM_ATTR
+TEST_MODE_SRAM_ATTR
 volatile uint32_t g_test_mode_arm_magic;
 
 // Runtime flag — true iff all three arming conditions are currently
@@ -96,7 +96,7 @@ void test_mode_evaluate() {
     }
 
     // Condition (c): boot-time window.
-    uint32_t now_ms = _test_mode_boot_ms();
+    uint32_t now_ms = test_mode_boot_ms();
     if (now_ms >= kTestModeArmWindowMs) {
         g_test_mode_enabled = false;
         return;

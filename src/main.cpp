@@ -207,7 +207,7 @@ static void init_fault_recovery() {
     // Shared fault handlers (OPT-IVP-01) + MPU stack guard.
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, memmanage_fault_handler);
     exception_set_exclusive_handler(MEMMANAGE_EXCEPTION, memmanage_fault_handler);
-    mpu_setup_stack_guard(reinterpret_cast<uint32_t>(&__StackBottom));
+    mpu_setup_stack_guard(reinterpret_cast<uintptr_t>(&__StackBottom));
 
     // R-25-exec: latches probe-armed test mode + clears the SRAM magic.
     rc::test_mode_init();

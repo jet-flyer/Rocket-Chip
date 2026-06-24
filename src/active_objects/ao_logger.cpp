@@ -357,7 +357,7 @@ static QState LoggerAo_running(LoggerAo * const me, QEvt const * const e) {
         return Q_HANDLED();
     case rc::SIG_PHASE_CHANGE: {
         const rc::PhaseChangeEvt* pe =
-            reinterpret_cast<const rc::PhaseChangeEvt*>(e);
+            rc::evt_cast<rc::PhaseChangeEvt>(e);
         // Log phase transition with exact FD timestamp
         AO_Logger_log_event(rc::LogEventId::kPhaseChange,
                             pe->phase, 0, 0, 0);
@@ -365,7 +365,7 @@ static QState LoggerAo_running(LoggerAo * const me, QEvt const * const e) {
     }
     case rc::SIG_PYRO_FIRED: {
         const rc::PyroFiredEvt* pe =
-            reinterpret_cast<const rc::PyroFiredEvt*>(e);
+            rc::evt_cast<rc::PyroFiredEvt>(e);
         // Log pyro firing with channel and source
         rc::LogEventId id = (pe->channel == 0)
             ? rc::LogEventId::kPyroFiredDrogue
@@ -406,8 +406,8 @@ void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_self_test_passe
                   Q_PRIO(prio, 0U),
                   l_loggerAoQueue,
                   Q_DIM(l_loggerAoQueue),
-                  (void *)0, 0U,
-                  (void *)0);
+                  nullptr, 0U,
+                  nullptr);
 }
 
 const rc::RingBuffer* AO_Logger_get_ring() {

@@ -19,7 +19,7 @@ static uint8_t* data_ptr(const RingBuffer* rb) {
 
 // Write crash recovery header to backing memory with seqlock protocol
 static void sync_header(RingBuffer* rb) {
-    auto* hdr = reinterpret_cast<RingHeader*>(rb->base);
+    auto* hdr = static_cast<RingHeader*>(static_cast<void*>(rb->base));
 
     // Phase 1: mark inconsistent (odd seq)
     uint32_t seq = rb->frame_count * 2 + 1;  // Guaranteed odd
@@ -138,7 +138,7 @@ uint32_t ring_capacity_frames(const RingBuffer* rb) {
 bool ring_recover(RingBuffer* rb) {
     if (rb == nullptr || !rb->initialized) { return false; }
 
-    const auto* hdr = reinterpret_cast<const RingHeader*>(rb->base);
+    const auto* hdr = static_cast<const RingHeader*>(static_cast<const void*>(rb->base));
 
     // Validate magic
     if (hdr->magic != kRingMagic) { return false; }

@@ -188,14 +188,15 @@ static void dump_cmd_retry_stats() {
     CmdRetryStatsLine stats[16];
     uint8_t n = AO_Telemetry_get_retry_stats(stats, 16);
     for (uint8_t i = 0; i < n; ++i) {
-        if (stats[i].sent == 0) { continue; }
-        rc::rc_log("  %-8s %6lu %6lu %6lu %6lu %6lu\n",
-               stats[i].name,
-               (unsigned long)stats[i].sent,
-               (unsigned long)stats[i].first_try,
-               (unsigned long)stats[i].retry_rescued,
-               (unsigned long)stats[i].failed,
-               (unsigned long)stats[i].total_retries_used);
+        if (stats[i].sent != 0) {
+            rc::rc_log("  %-8s %6lu %6lu %6lu %6lu %6lu\n",
+                   stats[i].name,
+                   (unsigned long)stats[i].sent,
+                   (unsigned long)stats[i].first_try,
+                   (unsigned long)stats[i].retry_rescued,
+                   (unsigned long)stats[i].failed,
+                   (unsigned long)stats[i].total_retries_used);
+        }
     }
 }
 #endif

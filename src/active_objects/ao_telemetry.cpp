@@ -344,15 +344,14 @@ static void try_mavlink_rx(TelemAo* me, const uint8_t* buf, uint8_t len) {
     mavlink_status_t status;
 
     for (uint8_t i = 0; i < len; ++i) {
-        if (!mavlink_parse_char(MAVLINK_COMM_2, buf[i], &msg, &status)) {
-            continue;
+        if (mavlink_parse_char(MAVLINK_COMM_2, buf[i], &msg, &status)) {
+            // Feed parser bookkeeping path — doesn't re-parse (COMM_2 consumed).
+            rc::MavlinkRxResult result = {};
+            rc::mavlink_rx_feed_byte(&me->mavlink_rx, buf[i],
+                                      me->latest_telem.flight_state,
+                                      now_ms(), &result);
+            handle_parsed_mavlink(me, msg);
         }
-        // Feed parser bookkeeping path — doesn't re-parse (COMM_2 consumed).
-        rc::MavlinkRxResult result = {};
-        rc::mavlink_rx_feed_byte(&me->mavlink_rx, buf[i],
-                                  me->latest_telem.flight_state,
-                                  now_ms(), &result);
-        handle_parsed_mavlink(me, msg);
     }
 }
 
@@ -761,7 +760,7 @@ static QState TelemAo_running(TelemAo * const me, QEvt const * const e) {
     }
 
     case rc::SIG_RADIO_RX: {
-        const auto* rxEvt = reinterpret_cast<const rc::RadioRxEvt*>(e);
+        const auto* rxEvt = rc::evt_cast<rc::RadioRxEvt>(e);
         handle_rx_packet(me, rxEvt);
         return Q_HANDLED();
     }
@@ -837,9 +836,7 @@ const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
 }
 
 // IVP-62c: encode + send MAVLink COMMAND_LONG over LoRa
-void AO_Telemetry_send_command(uint16_t command, float p1, float p2,
-                               float p3, float p4, float p5,
-                               float p6, float p7) {
+void AO_Telemetry_send_command(uint16_t command, const MavCmdParams& params) {
 #ifndef ROCKETCHIP_HOST_TEST
     mavlink_message_t msg;
     mavlink_msg_command_long_pack(
@@ -848,7 +845,8 @@ void AO_Telemetry_send_command(uint16_t command, float p1, float p2,
         1, 1,    // Target sysid=1, compid=1 (vehicle)
         command,
         0,       // Confirmation
-        p1, p2, p3, p4, p5, p6, p7);
+        params.p1, params.p2, params.p3, params.p4, params.p5,
+        params.p6, params.p7);
 
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
@@ -862,7 +860,7 @@ void AO_Telemetry_send_command(uint16_t command, float p1, float p2,
         QACTIVE_POST(AO_Radio, &txEvt.super, &l_telemAo.super);
     }
 #else
-    (void)command; (void)p1; (void)p2; (void)p3; (void)p4; (void)p5; (void)p6; (void)p7;
+    (void)command; (void)params;
 #endif
 }
 
@@ -887,13 +885,13 @@ static bool is_tracked_command_safety_class(uint16_t cmd_id, float p1) {
 
 #ifndef ROCKETCHIP_HOST_TEST
 // Encode and TX a MAVLink COMMAND_LONG with the given seq/params.
-static void tx_tracked_command_wire(uint16_t command, uint8_t seq, float p1,
-                                    float p2, float p3, float p4, float p5) {
+static void tx_tracked_command_wire(uint16_t command, uint8_t seq,
+                                    const MavCmdParams& params) {
     mavlink_message_t msg;
     mavlink_msg_command_long_pack(
         255, 0, &msg, 1, 1,
         command, seq,
-        p1, p2, p3, p4, p5, 0, 0);
+        params.p1, params.p2, params.p3, params.p4, params.p5, 0, 0);
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
     static rc::RadioTxEvt txEvt;
@@ -907,23 +905,23 @@ static void tx_tracked_command_wire(uint16_t command, uint8_t seq, float p1,
 }
 
 // Populate s_pending_cmd + params (used by both fresh-send and dedupe-replace).
-static void populate_pending(uint16_t command, uint8_t seq, float p1,
-                             float p2, float p3, float p4, float p5) {
+static void populate_pending(uint16_t command, uint8_t seq,
+                             const MavCmdParams& params) {
     s_pending_cmd.pending = true;
     s_pending_cmd.seq = seq;
     s_pending_cmd.cmd_id = command;
     s_pending_cmd.sent_ms = to_ms_since_boot(get_absolute_time());
     s_pending_cmd.retries_left = kAckMaxRetries;
-    s_pending_cmd.p1 = p1;
-    s_pending_cmd.p2 = p2;
-    s_pending_cmd.p3 = p3;
-    s_pending_cmd.p4 = p4;
-    s_pending_cmd.p5 = p5;
+    s_pending_cmd.p1 = params.p1;
+    s_pending_cmd.p2 = params.p2;
+    s_pending_cmd.p3 = params.p3;
+    s_pending_cmd.p4 = params.p4;
+    s_pending_cmd.p5 = params.p5;
 
     // T14b: count a new send. Dedupe-replace path also reuses populate_pending
     // — but the command is semantically "a new send" (new seq, fresh ACK
     // window), so counting it is correct.
-    CmdClass c = classify_tracked_cmd(command, p1);
+    CmdClass c = classify_tracked_cmd(command, params.p1);
     s_retry_stats[c].sent_count++;
 
     // IVP-T14c: clear stale last-result latch on new send so dashboard
@@ -948,15 +946,17 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
         s_pending_cmd.cmd_id == command &&
         !is_tracked_command_safety_class(command, p1)) {
         uint8_t seq = s_cmd_seq++;
-        populate_pending(command, seq, p1, p2, p3, p4, p5);
-        tx_tracked_command_wire(command, seq, p1, p2, p3, p4, p5);
+        const MavCmdParams params{p1, p2, p3, p4, p5};
+        populate_pending(command, seq, params);
+        tx_tracked_command_wire(command, seq, params);
         return;
     }
 
     // Fresh send: allocate seq, populate pending, TX on wire.
     uint8_t seq = s_cmd_seq++;
-    populate_pending(command, seq, p1, p2, p3, p4, p5);
-    tx_tracked_command_wire(command, seq, p1, p2, p3, p4, p5);
+    const MavCmdParams params{p1, p2, p3, p4, p5};
+    populate_pending(command, seq, params);
+    tx_tracked_command_wire(command, seq, params);
 #else
     (void)command; (void)p1; (void)p2; (void)p3; (void)p4; (void)p5;
 #endif
@@ -1128,6 +1128,6 @@ void AO_Telemetry_start(uint8_t prio) {
                   Q_PRIO(prio, 0U),
                   l_telemAoQueue,
                   Q_DIM(l_telemAoQueue),
-                  (void *)0, 0U,
-                  (void *)0);
+                  nullptr, 0U,
+                  nullptr);
 }

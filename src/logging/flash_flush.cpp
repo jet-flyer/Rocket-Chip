@@ -115,7 +115,7 @@ static bool write_table_sector(uint32_t sector_offset,
     static uint8_t g_tableBuf[kWriteLen] __attribute__((aligned(4)));
     memset(g_tableBuf, 0xFF, sizeof(g_tableBuf));
 
-    auto* hdr = reinterpret_cast<FlightTableSectorHeader*>(g_tableBuf);
+    auto* hdr = static_cast<FlightTableSectorHeader*>(static_cast<void*>(g_tableBuf));
     hdr->state = kFlightTableStateValid;
     hdr->sequence = sequence;
 
@@ -266,19 +266,27 @@ static FlushResult flush_sectors(const RingBuffer* rb, uint32_t stored,
     return FlushResult::kOk;
 }
 
+// Flight-log entry flash layout (grouped to keep save_flight_entry within the
+// JPL-25 parameter limit).
+struct FlightEntryLayout {
+    uint32_t start_sector;
+    uint32_t sector_count;
+    uint32_t frame_size;
+    uint32_t frame_count;
+    uint8_t log_rate_hz;
+};
+
 // Save flight entry to table after successful flush
 static FlushResult save_flight_entry(FlightTableState* table,
-                                     uint32_t start_sector, uint32_t sectors_needed,
-                                     uint32_t frame_size, uint32_t stored,
-                                     uint8_t log_rate_hz,
+                                     const FlightEntryLayout& layout,
                                      const FlightMetadata* metadata,
                                      const FlightSummary* summary) {
     FlightLogEntry entry = {};
-    entry.start_sector = start_sector;
-    entry.sector_count = sectors_needed;
-    entry.frame_size = frame_size;
-    entry.frame_count = stored;
-    entry.log_rate_hz = log_rate_hz;
+    entry.start_sector = layout.start_sector;
+    entry.sector_count = layout.sector_count;
+    entry.frame_size = layout.frame_size;
+    entry.frame_count = layout.frame_count;
+    entry.log_rate_hz = layout.log_rate_hz;
     entry.frame_type = kPcmFrameTypeStandard;
     if (metadata != nullptr) {
         entry.metadata = *metadata;
@@ -346,8 +354,9 @@ FlushResult flush_ring_to_flash(RingBuffer* rb,
         return result;
     }
 
-    result = save_flight_entry(table, start_sector, sectors_needed,
-                               frame_size, stored, log_rate_hz, metadata, summary);
+    result = save_flight_entry(table,
+                               {start_sector, sectors_needed, frame_size, stored, log_rate_hz},
+                               metadata, summary);
     if (result != FlushResult::kOk) {
         return result;
     }

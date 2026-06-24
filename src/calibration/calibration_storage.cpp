@@ -226,12 +226,12 @@ static bool write_to_sector(uint32_t sectorOffset, const calibration_store_t* ca
     memset(g_pageBuffer, 0xFF, sizeof(g_pageBuffer));
 
     // Sector header
-    auto* secHdr = reinterpret_cast<sector_header_t*>(g_pageBuffer);
+    auto* secHdr = static_cast<sector_header_t*>(static_cast<void*>(g_pageBuffer));
     secHdr->state = kSectorStateInUse;
     secHdr->sequence = sequence;
 
     // Entry header
-    auto* entryHdr = reinterpret_cast<entry_header_t*>(g_pageBuffer + sizeof(sector_header_t));
+    auto* entryHdr = static_cast<entry_header_t*>(static_cast<void*>(g_pageBuffer + sizeof(sector_header_t)));
     entryHdr->magic = kEntryMagic;
 
     // Calibration data

@@ -81,10 +81,20 @@ void AO_Telemetry_feed_usb_byte(uint8_t byte);
 // IVP-62d: check if a GCS is currently connected (suppress CLI routing)
 bool AO_Telemetry_is_gcs_connected();
 
+// MAVLink COMMAND_LONG parameters (param1..param7). Groups the 7 command
+// params so command-send signatures stay within the JPL-25 parameter limit.
+struct MavCmdParams {
+    float p1 = 0.0F;
+    float p2 = 0.0F;
+    float p3 = 0.0F;
+    float p4 = 0.0F;
+    float p5 = 0.0F;
+    float p6 = 0.0F;
+    float p7 = 0.0F;
+};
+
 // IVP-62c: send MAVLink COMMAND_LONG to vehicle over LoRa (station only)
-void AO_Telemetry_send_command(uint16_t command, float p1 = 0, float p2 = 0,
-                               float p3 = 0, float p4 = 0, float p5 = 0,
-                               float p6 = 0, float p7 = 0);
+void AO_Telemetry_send_command(uint16_t command, const MavCmdParams& params = {});
 
 // IVP-122: send a tracked command — populates pending-cmd state for ACK
 // tracking. Uses the MAVLink COMMAND_LONG `confirmation` field to carry the

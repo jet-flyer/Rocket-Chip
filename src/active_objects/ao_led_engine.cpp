@@ -269,7 +269,7 @@ static QState LedEngine_running(LedEngine * const me, QEvt const * const e) {
     case rc::SIG_LED_PATTERN: {
         // IVP-116: resolved pattern from AO_Notify's LED backend.
         const rc::LedPatternEvt* pe =
-            reinterpret_cast<const rc::LedPatternEvt*>(e);
+            rc::evt_cast<rc::LedPatternEvt>(e);
         me->layers[kLayerNotify] = pe->pattern;  // 0 clears the layer
         return Q_HANDLED();
     }
@@ -297,8 +297,8 @@ void AO_LedEngine_start(uint8_t prio) {
                   Q_PRIO(prio, 0U),
                   l_ledEngineQueue,
                   Q_DIM(l_ledEngineQueue),
-                  (void *)0, 0U,
-                  (void *)0);
+                  nullptr, 0U,
+                  nullptr);
 }
 
 static uint8_t s_lastPostedPattern = 0;
@@ -327,7 +327,7 @@ void AO_LedEngine_post_pattern(uint8_t pattern) {
     static rc::LedPatternEvt s_evt;
     s_evt.super = QEVT_INITIALIZER(rc::SIG_LED_PATTERN);
     s_evt.pattern = pattern;
-    QACTIVE_POST(&l_ledEngine.super, &s_evt.super, (void *)0);
+    QACTIVE_POST(&l_ledEngine.super, &s_evt.super, nullptr);
 }
 
 // IVP-116: AO_LedEngine_post_override() removed — RCOS now calls

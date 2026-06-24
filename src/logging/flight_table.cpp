@@ -33,13 +33,13 @@ void flight_entry_compute_crc(FlightLogEntry* entry) {
     if (entry == nullptr) { return; }
     // CRC-32 over all bytes except the crc32 field itself (last 4 bytes)
     uint32_t data_len = sizeof(FlightLogEntry) - sizeof(uint32_t);
-    entry->crc32 = crc32(reinterpret_cast<const uint8_t*>(entry), data_len);
+    entry->crc32 = crc32(entry, data_len);
 }
 
 bool flight_entry_validate_crc(const FlightLogEntry* entry) {
     if (entry == nullptr) { return false; }
     uint32_t data_len = sizeof(FlightLogEntry) - sizeof(uint32_t);
-    uint32_t computed = crc32(reinterpret_cast<const uint8_t*>(entry), data_len);
+    uint32_t computed = crc32(entry, data_len);
     return computed == entry->crc32;
 }
 
@@ -118,13 +118,13 @@ void flight_table_erase_all(FlightTableState* state) {
 void flight_table_compute_crc(FlightLogTable* table) {
     if (table == nullptr) { return; }
     uint32_t data_len = sizeof(FlightLogTable) - sizeof(uint32_t);
-    table->crc32 = crc32(reinterpret_cast<const uint8_t*>(table), data_len);
+    table->crc32 = crc32(table, data_len);
 }
 
 bool flight_table_validate_crc(const FlightLogTable* table) {
     if (table == nullptr) { return false; }
     uint32_t data_len = sizeof(FlightLogTable) - sizeof(uint32_t);
-    uint32_t computed = crc32(reinterpret_cast<const uint8_t*>(table), data_len);
+    uint32_t computed = crc32(table, data_len);
     return computed == table->crc32;
 }
 

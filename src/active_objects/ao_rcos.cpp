@@ -1070,8 +1070,8 @@ void AO_RCOS_start(uint8_t prio) {
                   Q_PRIO(prio, 0U),
                   l_rcosAoQueue,
                   Q_DIM(l_rcosAoQueue),
-                  (void *)0, 0U,
-                  (void *)0);
+                  nullptr, 0U,
+                  nullptr);
 
     // R-25-exec step 11 (2026-05-13): if test mode was armed at boot
     // (probe wrote kTestModeMagic), force kMenu output regardless of

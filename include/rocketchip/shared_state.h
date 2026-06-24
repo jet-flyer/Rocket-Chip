@@ -13,7 +13,8 @@
  * CLI reads status for display.
  */
 
-#pragma once
+#ifndef ROCKETCHIP_SHARED_STATE_H
+#define ROCKETCHIP_SHARED_STATE_H
 
 #include <atomic>
 #include <cstddef>
@@ -72,3 +73,5 @@ extern std::atomic<bool> g_core1LockoutReady;
 
 // Sensor phase flag (Core 0 write, Core 0/Core 1 read for gating)
 extern bool g_sensorPhaseActive;
+
+#endif  // ROCKETCHIP_SHARED_STATE_H

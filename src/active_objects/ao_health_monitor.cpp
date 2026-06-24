@@ -110,7 +110,7 @@ static QState HM_running(HealthMonitor * const me, QEvt const * const e) {
     }
 
     case rc::SIG_PHASE_CHANGE: {
-        auto const* pce = reinterpret_cast<rc::PhaseChangeEvt const*>(e);
+        auto const* pce = rc::evt_cast<rc::PhaseChangeEvt>(e);
         rc::health_monitor_set_phase(pce->phase);
         return Q_HANDLED();
     }
@@ -136,6 +136,6 @@ void AO_HealthMonitor_start(uint8_t prio) {
                   Q_PRIO(prio, 0U),
                   l_hmQueue,
                   Q_DIM(l_hmQueue),
-                  (void *)0, 0U,
-                  (void *)0);
+                  nullptr, 0U,
+                  nullptr);
 }

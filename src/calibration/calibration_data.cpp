@@ -103,7 +103,10 @@ bool calibration_validate(const calibration_store_t* cal) {
 
     // Check CRC (computed over everything after crc16 field)
     const auto* dataStart = reinterpret_cast<const uint8_t*>(&cal->accel);
-    size_t dataLen = sizeof(calibration_store_t) - offsetof(calibration_store_t, accel);
+    // CRC region = from &accel to end of the struct, computed as a pointer span
+    // within the same object (no offsetof — JSF AV 18 / avoids the macro entirely).
+    const auto* dataEnd = reinterpret_cast<const uint8_t*>(cal) + sizeof(*cal);
+    size_t dataLen = static_cast<size_t>(dataEnd - dataStart);
     uint16_t computedCrc = crc16_ccitt(dataStart, dataLen);
 
     return (cal->crc16 == computedCrc);
@@ -116,7 +119,10 @@ void calibration_update_crc(calibration_store_t* cal) {
 
     // CRC computed over everything after crc16 field
     const auto* dataStart = reinterpret_cast<const uint8_t*>(&cal->accel);
-    size_t dataLen = sizeof(calibration_store_t) - offsetof(calibration_store_t, accel);
+    // CRC region = from &accel to end of the struct, computed as a pointer span
+    // within the same object (no offsetof — JSF AV 18 / avoids the macro entirely).
+    const auto* dataEnd = reinterpret_cast<const uint8_t*>(cal) + sizeof(*cal);
+    size_t dataLen = static_cast<size_t>(dataEnd - dataStart);
     cal->crc16 = crc16_ccitt(dataStart, dataLen);
 }
 

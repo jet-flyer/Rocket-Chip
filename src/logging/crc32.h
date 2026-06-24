@@ -57,10 +57,12 @@ inline constexpr Crc32Table kCrc32Table{};
  * @param len  Length in bytes
  * @return CRC-32 value
  */
-inline uint32_t crc32(const uint8_t* data, uint32_t len) {
+inline uint32_t crc32(const void* data, uint32_t len) {
+    // Exception 1 (JSF AV-182): void*->T* confined to this low-level byte routine.
+    const uint8_t* bytes = static_cast<const uint8_t*>(data);
     uint32_t crc = 0xFFFFFFFFU;
     for (uint32_t i = 0; i < len; ++i) {
-        uint8_t idx = static_cast<uint8_t>((crc ^ data[i]) & 0xFFU);
+        uint8_t idx = static_cast<uint8_t>((crc ^ bytes[i]) & 0xFFU);
         crc = (crc >> 8) ^ detail::kCrc32Table.entries[idx];
     }
     return crc ^ 0xFFFFFFFFU;
@@ -73,9 +75,11 @@ inline uint32_t crc32(const uint8_t* data, uint32_t len) {
  * @param len   Length in bytes
  * @return Updated CRC value
  */
-inline uint32_t crc32_update(uint32_t crc, const uint8_t* data, uint32_t len) {
+inline uint32_t crc32_update(uint32_t crc, const void* data, uint32_t len) {
+    // Exception 1 (JSF AV-182): void*->T* confined to this low-level byte routine.
+    const uint8_t* bytes = static_cast<const uint8_t*>(data);
     for (uint32_t i = 0; i < len; ++i) {
-        uint8_t idx = static_cast<uint8_t>((crc ^ data[i]) & 0xFFU);
+        uint8_t idx = static_cast<uint8_t>((crc ^ bytes[i]) & 0xFFU);
         crc = (crc >> 8) ^ detail::kCrc32Table.entries[idx];
     }
     return crc;

@@ -138,20 +138,16 @@ uint16_t guard_evaluator_tick(GuardEvaluator* ev,
         // Skip if not valid for current phase or already fired
         if ((gs.valid_phases & phase_mask) == 0 || gs.fired) {
             gs.sustained = false;
-            continue;
-        }
-
-        if (conditions[i]) {
+        } else if (conditions[i]) {
             ++gs.sustain_count;
             if (gs.sustain_count >= gs.sustain_required) {
                 gs.sustained = true;
-                // Managed guards: don't auto-dispatch, combinator decides
-                if (kGuardManaged[i]) {
-                    continue;
+                // Managed guards: don't auto-dispatch (combinator decides).
+                // Unmanaged guards: auto-dispatch on first sustain.
+                if (!kGuardManaged[i]) {
+                    gs.fired = true;
+                    return gs.signal;
                 }
-                // Unmanaged guards: auto-dispatch on first sustain
-                gs.fired = true;
-                return gs.signal;
             }
         } else {
             gs.sustain_count = 0;

@@ -57,7 +57,7 @@ void pcm_encode_standard(const TelemetryState& telem, uint32_t met_ms,
 
     // CRC-16 over header + payload (bytes 0 through 52)
     static constexpr uint32_t kCrcLen = sizeof(PcmFrameHeader) + sizeof(TelemetryState);
-    frame.crc16 = crc16_ccitt(reinterpret_cast<const uint8_t*>(&frame), kCrcLen);
+    frame.crc16 = crc16_ccitt(&frame, kCrcLen);
 }
 
 bool pcm_decode_standard(const PcmFrameStandard& frame, TelemetryState& telem) {
@@ -75,7 +75,7 @@ bool pcm_decode_standard(const PcmFrameStandard& frame, TelemetryState& telem) {
 
     // Gate 3: CRC-16 over header + payload
     static constexpr uint32_t kCrcLen = sizeof(PcmFrameHeader) + sizeof(TelemetryState);
-    uint16_t computed = crc16_ccitt(reinterpret_cast<const uint8_t*>(&frame), kCrcLen);
+    uint16_t computed = crc16_ccitt(&frame, kCrcLen);
     if (computed != frame.crc16) {
         return false;
     }
@@ -92,28 +92,22 @@ bool pcm_find_sync(const uint8_t* data, uint32_t len, uint32_t& offset) {
     uint32_t searchEnd = len - kPcmFrameStandardSize;
     for (uint32_t i = 0; i <= searchEnd; ++i) {
         // Gate 1: sync word
-        if (data[i] != kPcmSyncHigh || data[i + 1] != kPcmSyncLow) {
-            continue;
+        if (data[i] == kPcmSyncHigh && data[i + 1] == kPcmSyncLow) {
+            // Overlay frame struct at candidate position
+            const auto* candidate = static_cast<const PcmFrameStandard*>(static_cast<const void*>(&data[i]));
+
+            // Gate 2: payload length
+            if (candidate->header.frame_type == kPcmFrameTypeStandard &&
+                candidate->header.payload_len == kPcmStandardPayloadLen) {
+                // Gate 3: CRC-16
+                static constexpr uint32_t kCrcLen = sizeof(PcmFrameHeader) + sizeof(TelemetryState);
+                uint16_t computed = crc16_ccitt(&data[i], kCrcLen);
+                if (computed == candidate->crc16) {
+                    offset = i;
+                    return true;
+                }
+            }
         }
-
-        // Overlay frame struct at candidate position
-        const auto* candidate = reinterpret_cast<const PcmFrameStandard*>(&data[i]);
-
-        // Gate 2: payload length
-        if (candidate->header.frame_type != kPcmFrameTypeStandard ||
-            candidate->header.payload_len != kPcmStandardPayloadLen) {
-            continue;
-        }
-
-        // Gate 3: CRC-16
-        static constexpr uint32_t kCrcLen = sizeof(PcmFrameHeader) + sizeof(TelemetryState);
-        uint16_t computed = crc16_ccitt(&data[i], kCrcLen);
-        if (computed != candidate->crc16) {
-            continue;
-        }
-
-        offset = i;
-        return true;
     }
 
     return false;
@@ -136,7 +130,7 @@ void pcm_encode_event(uint8_t event_id, const uint8_t data[4],
 
     // CRC over header + payload (13 bytes: 8 header + 5 payload)
     static constexpr uint32_t kCrcLen = 13;
-    frame.crc16 = crc16_ccitt(reinterpret_cast<const uint8_t*>(&frame), kCrcLen);
+    frame.crc16 = crc16_ccitt(&frame, kCrcLen);
 }
 
 // ============================================================================

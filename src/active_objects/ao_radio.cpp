@@ -746,7 +746,7 @@ static QState RadioAo_running(RadioAo * const me, QEvt const * const e) {
     }
 
     case rc::SIG_RADIO_TX: {
-        const auto* txEvt = reinterpret_cast<const rc::RadioTxEvt*>(e);
+        const auto* txEvt = rc::evt_cast<rc::RadioTxEvt>(e);
         handle_tx_event(me, txEvt);
         return Q_HANDLED();
     }
@@ -802,6 +802,6 @@ void AO_Radio_start(uint8_t prio, bool spi_ok) {
                   Q_PRIO(prio, 0U),
                   l_radioAoQueue,
                   Q_DIM(l_radioAoQueue),
-                  (void *)0, 0U,
-                  (void *)0);
+                  nullptr, 0U,
+                  nullptr);
 }

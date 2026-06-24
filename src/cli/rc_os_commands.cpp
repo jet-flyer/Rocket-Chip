@@ -1168,11 +1168,11 @@ static void cdc_write_blocking(const uint8_t* buf, uint32_t len) {
         uint32_t avail = tud_cdc_write_available();
         if (avail == 0) {
             rc::pio_watchdog_feed();
-            continue;
+        } else {
+            uint32_t chunk = (avail < (len - written)) ? avail : (len - written);
+            tud_cdc_write(buf + written, chunk);
+            written += chunk;
         }
-        uint32_t chunk = (avail < (len - written)) ? avail : (len - written);
-        tud_cdc_write(buf + written, chunk);
-        written += chunk;
     }
 }
 
@@ -1329,7 +1329,7 @@ static void cmd_station_gps() {
 static float bearing_deg(int32_t lat1_e7, int32_t lon1_e7,
                           int32_t lat2_e7, int32_t lon2_e7) {
     static constexpr float kDegToRad = 3.14159265f / 180.0f;
-    static constexpr float kRadToDeg = 180.0f / 3.14159265f;
+    // kRadToDeg: use the file-scope constant (no shadowing local) — see top of file.
     static constexpr float kScale    = 1e-7f;
 
     float lat1 = static_cast<float>(lat1_e7) * kScale * kDegToRad;
@@ -1384,7 +1384,7 @@ static void cmd_station_gps_push() {
         snap.gps_valid && snap.gps_fix_type >= 3) {
         float lat = static_cast<float>(snap.gps_lat_1e7) * 1e-7f;
         float lon = static_cast<float>(snap.gps_lon_1e7) * 1e-7f;
-        AO_Telemetry_send_command(kMavCmdSetHome, 0, 0, 0, 0, lat, lon, 0);
+        AO_Telemetry_send_command(kMavCmdSetHome, {.p5 = lat, .p6 = lon});
         rc::rc_log("GPS push: %.5f, %.5f\n",
                static_cast<double>(lat), static_cast<double>(lon));
     } else {

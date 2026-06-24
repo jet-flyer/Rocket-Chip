@@ -128,17 +128,16 @@ static int read_nmea_data(uint8_t* buffer, size_t maxLen) {
     int32_t out = 0;
     for (int32_t i = 0; i < ret; i++) {
         if (g_raw[i] == kI2cBusErrorByte) {
-            continue;  // Bus error byte — discard
-        }
-        if (g_raw[i] == kNmeaLf) {
+            // Bus error byte — discard
+        } else if (g_raw[i] == kNmeaLf) {
             // Keep LF only if it follows CR (legitimate \r\n terminator)
             if (out > 0 && buffer[out - 1] == kNmeaCr) {
                 buffer[out++] = g_raw[i];
             }
             // Otherwise discard — it's padding
-            continue;
+        } else {
+            buffer[out++] = g_raw[i];
         }
-        buffer[out++] = g_raw[i];
     }
 
     g_lastReadLen = (size_t)out;
