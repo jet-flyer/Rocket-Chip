@@ -329,11 +329,11 @@ struct LoggerAo {
     QTimeEvt tick_timer;    // 50Hz (every 2 ticks at 100Hz base)
 };
 
-static LoggerAo l_loggerAo;
+static LoggerAo g_loggerAo;
 
 // Queue depth 32: tick events at 50Hz accumulate during LoRa TX blocking in
 // idle (50-150ms). At 50Hz, 150ms = ~8 events. Depth 32 gives ample margin.
-static QEvtPtr l_loggerAoQueue[32];
+static QEvtPtr g_loggerAoQueue[32];
 
 static QState LoggerAo_initial(LoggerAo * const me, QEvt const * const e);
 static QState LoggerAo_running(LoggerAo * const me, QEvt const * const e);
@@ -383,7 +383,7 @@ static QState LoggerAo_running(LoggerAo * const me, QEvt const * const e) {
 // Public API
 // ============================================================================
 
-QActive * const AO_Logger = &l_loggerAo.super;
+QActive * const AO_Logger = &g_loggerAo.super;
 
 void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_self_test_passed) {
     // Store PSRAM parameters for init_logging_ring()
@@ -396,16 +396,16 @@ void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_self_test_passe
     // Load flight table from flash
     rc::flight_table_load(&g_flightTable);
 
-    QActive_ctor(&l_loggerAo.super,
+    QActive_ctor(&g_loggerAo.super,
                  Q_STATE_CAST(&LoggerAo_initial));
 
-    QTimeEvt_ctorX(&l_loggerAo.tick_timer, &l_loggerAo.super,
+    QTimeEvt_ctorX(&g_loggerAo.tick_timer, &g_loggerAo.super,
                    SIG_LOG_TICK, 0U);
 
-    QActive_start(&l_loggerAo.super,
+    QActive_start(&g_loggerAo.super,
                   Q_PRIO(prio, 0U),
-                  l_loggerAoQueue,
-                  Q_DIM(l_loggerAoQueue),
+                  g_loggerAoQueue,
+                  Q_DIM(g_loggerAoQueue),
                   nullptr, 0U,
                   nullptr);
 }

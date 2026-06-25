@@ -43,19 +43,19 @@ volatile bool g_test_mode_enabled = false;
 // test_mode_init() so test_mode_evaluate() can re-evaluate the
 // boot-time-window + state-machine conditions without re-reading
 // the cleared SRAM.
-static volatile bool s_magic_observed_at_boot = false;
+static volatile bool g_magicObservedAtBoot = false;
 
 // Storage for the phase accessor registered by AO_FlightDirector_start.
 // Typedef is in the public header so callers can name the pointer type.
 // Until registered, test_mode_evaluate() refuses to arm — fail-safe.
-static FlightPhaseAccessor s_phase_accessor = nullptr;
+static FlightPhaseAccessor g_phaseAccessor = nullptr;
 
 void test_mode_register_phase_accessor(FlightPhaseAccessor fn) {
-    s_phase_accessor = fn;
+    g_phaseAccessor = fn;
 }
 
 bool test_mode_magic_observed_at_boot() {
-    return s_magic_observed_at_boot;
+    return g_magicObservedAtBoot;
 }
 
 void test_mode_init() {
@@ -64,13 +64,13 @@ void test_mode_init() {
     // a never-cleared probe write from accidentally re-arming on
     // every reboot.
     if (g_test_mode_arm_magic == kTestModeMagic) {
-        s_magic_observed_at_boot = true;
+        g_magicObservedAtBoot = true;
         g_test_mode_arm_magic = 0;
 #ifndef ROCKETCHIP_HOST_TEST
         __asm volatile ("dsb" ::: "memory");
 #endif
     } else {
-        s_magic_observed_at_boot = false;
+        g_magicObservedAtBoot = false;
     }
     g_test_mode_enabled = false;
 }
@@ -78,7 +78,7 @@ void test_mode_init() {
 void test_mode_evaluate() {
     // If no magic observed at boot, the flag stays false forever
     // (no path can flip it true without a fresh boot + probe write).
-    if (!s_magic_observed_at_boot) {
+    if (!g_magicObservedAtBoot) {
         g_test_mode_enabled = false;
         return;
     }
@@ -86,11 +86,11 @@ void test_mode_evaluate() {
     // Condition (b): current phase must be kIdle. Without the
     // accessor wired in (early boot, before FD init), refuse to
     // arm — fail-safe direction.
-    if (s_phase_accessor == nullptr) {
+    if (g_phaseAccessor == nullptr) {
         g_test_mode_enabled = false;
         return;
     }
-    if (s_phase_accessor() != FlightPhase::kIdle) {
+    if (g_phaseAccessor() != FlightPhase::kIdle) {
         g_test_mode_enabled = false;
         return;
     }
@@ -113,7 +113,7 @@ void test_mode_clear_on_idle_exit() {
     // write — because s_magic_observed_at_boot was cleared on the
     // single-use init read and test_mode_evaluate() observes that
     // as a hard fail-closed.
-    s_magic_observed_at_boot = false;
+    g_magicObservedAtBoot = false;
     g_test_mode_enabled = false;
 #ifndef ROCKETCHIP_HOST_TEST
     __asm volatile ("dsb" ::: "memory");
@@ -124,7 +124,7 @@ const char* test_mode_status_string() {
     if (g_test_mode_enabled) {
         return "active";
     }
-    if (s_magic_observed_at_boot) {
+    if (g_magicObservedAtBoot) {
         return "stale-arm";
     }
     return "off";

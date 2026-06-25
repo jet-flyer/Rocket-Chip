@@ -38,11 +38,11 @@ struct HealthMonitor {
     uint8_t republish_count;  // Divider for 1Hz re-publish
 };
 
-static HealthMonitor l_hm;
+static HealthMonitor g_hm;
 
 // Queue depth 8: 10Hz timer + occasional SIG_PHASE_CHANGE.
 // Council: queue depth 8 is sufficient.
-static QEvtPtr l_hmQueue[8];
+static QEvtPtr g_hmQueue[8];
 
 // Forward declarations
 static QState HM_initial(HealthMonitor * const me, QEvt const * const e);
@@ -125,17 +125,17 @@ static QState HM_running(HealthMonitor * const me, QEvt const * const e) {
 // Public interface
 // ============================================================================
 
-QActive * const AO_HealthMonitor = &l_hm.super;
+QActive * const AO_HealthMonitor = &g_hm.super;
 
 void AO_HealthMonitor_start(uint8_t prio) {
-    QActive_ctor(&l_hm.super, Q_STATE_CAST(&HM_initial));
+    QActive_ctor(&g_hm.super, Q_STATE_CAST(&HM_initial));
 
-    QTimeEvt_ctorX(&l_hm.timer, &l_hm.super, SIG_HEALTH_TIMEOUT, 0U);
+    QTimeEvt_ctorX(&g_hm.timer, &g_hm.super, SIG_HEALTH_TIMEOUT, 0U);
 
-    QActive_start(&l_hm.super,
+    QActive_start(&g_hm.super,
                   Q_PRIO(prio, 0U),
-                  l_hmQueue,
-                  Q_DIM(l_hmQueue),
+                  g_hmQueue,
+                  Q_DIM(g_hmQueue),
                   nullptr, 0U,
                   nullptr);
 }

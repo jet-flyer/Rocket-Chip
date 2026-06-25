@@ -46,10 +46,10 @@ static constexpr uint32_t kEntryMagic = 0x52434352U;  // "RCCR" = RocketChip Cfg
 static constexpr uint32_t kFlashTimeoutMs = 1000;
 
 static bool     g_initialized = false;
-static uint32_t g_active_sector = 0;
-static uint32_t g_write_sequence = 0;
+static uint32_t g_activeSector = 0;
+static uint32_t g_writeSequence = 0;
 static rc::RadioConfig g_cached = {};
-static bool     g_cached_valid = false;
+static bool     g_cachedValid = false;
 
 // ============================================================================
 // Flash helpers (mirrored from calibration_storage for consistency)
@@ -148,36 +148,36 @@ static void find_active_sector() {
     bool valid_b = read_valid_entry(kSectorB, &entry_b, &seq_b);
 
     if (!valid_a && !valid_b) {
-        g_active_sector = kSectorA;
-        g_write_sequence = 1;
-        g_cached_valid = false;
+        g_activeSector = kSectorA;
+        g_writeSequence = 1;
+        g_cachedValid = false;
         return;
     }
     if (valid_a && !valid_b) {
-        g_active_sector = kSectorA;
-        g_write_sequence = seq_a + 1;
+        g_activeSector = kSectorA;
+        g_writeSequence = seq_a + 1;
         g_cached = entry_a.cfg;
-        g_cached_valid = true;
+        g_cachedValid = true;
         return;
     }
     if (!valid_a && valid_b) {
-        g_active_sector = kSectorB;
-        g_write_sequence = seq_b + 1;
+        g_activeSector = kSectorB;
+        g_writeSequence = seq_b + 1;
         g_cached = entry_b.cfg;
-        g_cached_valid = true;
+        g_cachedValid = true;
         return;
     }
     // Both valid — newer sequence wins.
     if (seq_a >= seq_b) {
-        g_active_sector = kSectorA;
-        g_write_sequence = seq_a + 1;
+        g_activeSector = kSectorA;
+        g_writeSequence = seq_a + 1;
         g_cached = entry_a.cfg;
     } else {
-        g_active_sector = kSectorB;
-        g_write_sequence = seq_b + 1;
+        g_activeSector = kSectorB;
+        g_writeSequence = seq_b + 1;
         g_cached = entry_b.cfg;
     }
-    g_cached_valid = true;
+    g_cachedValid = true;
 }
 
 static uint32_t alternate_of(uint32_t sector) {
@@ -217,7 +217,7 @@ bool radio_config_storage_init() {
 bool radio_config_storage_read(rc::RadioConfig* cfg) {
     if (cfg == nullptr) { return false; }
     if (!g_initialized) { radio_config_storage_init(); }
-    if (!g_cached_valid) { return false; }
+    if (!g_cachedValid) { return false; }
     *cfg = g_cached;
     return true;
 }
@@ -228,18 +228,18 @@ bool radio_config_storage_write(const rc::RadioConfig* cfg) {
 
     // If the cached copy matches, skip the write — avoids flash wear from
     // no-op writes (e.g., revert that lands on the same config as last saved).
-    if (g_cached_valid && memcmp(&g_cached, cfg, sizeof(*cfg)) == 0) {
+    if (g_cachedValid && memcmp(&g_cached, cfg, sizeof(*cfg)) == 0) {
         return true;
     }
 
-    uint32_t target = alternate_of(g_active_sector);
-    if (!write_to_sector(target, cfg, g_write_sequence)) {
+    uint32_t target = alternate_of(g_activeSector);
+    if (!write_to_sector(target, cfg, g_writeSequence)) {
         return false;
     }
-    g_active_sector = target;
-    g_write_sequence++;
+    g_activeSector = target;
+    g_writeSequence++;
     g_cached = *cfg;
-    g_cached_valid = true;
+    g_cachedValid = true;
     return true;
 }
 
@@ -247,8 +247,8 @@ bool radio_config_storage_erase() {
     if (!g_initialized) { radio_config_storage_init(); }
     if (!safe_erase(kSectorA, FLASH_SECTOR_SIZE)) { return false; }
     if (!safe_erase(kSectorB, FLASH_SECTOR_SIZE)) { return false; }
-    g_active_sector = kSectorA;
-    g_write_sequence = 1;
-    g_cached_valid = false;
+    g_activeSector = kSectorA;
+    g_writeSequence = 1;
+    g_cachedValid = false;
     return true;
 }

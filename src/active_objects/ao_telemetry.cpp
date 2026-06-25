@@ -80,7 +80,7 @@ static constexpr uint32_t kGcsTimeoutMs = 5000;  // 5s without GCS heartbeat →
 //   docs/decisions/COP1_NOT_PURSUED.md for why COP-1 / FARM / FOP were
 //   deferred, and the "Stage T latency re-baseline" whiteboard item).
 // Seeded to 250 ms until first apply runs.
-static uint32_t s_ack_retry_timeout_ms = 250U;
+static uint32_t g_ackRetryTimeoutMs = 250U;
 
 // Stage T Batch B IVP-T14d wrap-up — tracked-command retry budget.
 // Aggressive retry for ALL tracked commands: latency matters more than
@@ -121,10 +121,10 @@ struct TelemAo {
     RxTelemSnapshot     rx_snapshot;
 };
 
-static TelemAo l_telemAo;
+static TelemAo g_telemAo;
 
 // Queue depth 8: non-blocking handlers (SIG_RADIO_TX posts, SIG_RADIO_RX decodes)
-static QEvtPtr l_telemAoQueue[8];
+static QEvtPtr g_telemAoQueue[8];
 
 // Forward declarations
 static QState TelemAo_initial(TelemAo * const me, QEvt const * const e);
@@ -159,9 +159,9 @@ static uint32_t now_ms() {
 }
 
 // IVP-122: Vehicle-side pending ACK (queued for next TX opportunity)
-static rc::ccsds::CommandAckPayload s_pending_ack = {};
-static bool s_pending_ack_valid = false;
-static uint16_t s_ack_seq = 0;
+static rc::ccsds::CommandAckPayload g_pendingAck = {};
+static bool g_pendingAckValid = false;
+static uint16_t g_ackSeq = 0;
 
 // Stage T IVP-T5.5: pending radio config storage lives in AO_Radio.
 // This AO (Telemetry) owns ACK buffering and command dispatch; AO_Radio
@@ -172,12 +172,12 @@ static uint16_t s_ack_seq = 0;
 
 // IVP-122: Send pending command ACK before nav frame
 static void send_pending_ack_if_any() {
-    if (!s_pending_ack_valid) return;
-    s_pending_ack_valid = false;
+    if (!g_pendingAckValid) return;
+    g_pendingAckValid = false;
 
     uint8_t ack_buf[rc::ccsds::kCmdAckPacketLen];
-    uint8_t ack_len = rc::ccsds_encode_cmd_ack(s_pending_ack, s_ack_seq, ack_buf);
-    s_ack_seq = static_cast<uint16_t>((s_ack_seq + 1) & 0x3FFF);
+    uint8_t ack_len = rc::ccsds_encode_cmd_ack(g_pendingAck, g_ackSeq, ack_buf);
+    g_ackSeq = static_cast<uint16_t>((g_ackSeq + 1) & 0x3FFF);
 
     // Separate static event for ACK (can't reuse nav's txEvt — both in queue)
     // Stage T IVP-T5: RadioTxEvt.buf bumped to 256; uint8_t ack_len ≤ sizeof
@@ -309,23 +309,23 @@ static uint8_t dispatch_command(TelemAo* me, const mavlink_command_long_t& cmd) 
 // Build the pending CCSDS ACK for a dispatched command. Populates cfg-echo
 // fields on QUERY responses (sub 2e).
 static void stage_cmd_ack(const mavlink_command_long_t& cmd, uint8_t ack_result) {
-    s_pending_ack.cmd_seq = static_cast<uint8_t>(cmd.confirmation);
-    s_pending_ack.cmd_id  = cmd.command;
-    s_pending_ack.result  = ack_result;
-    s_pending_ack.reserved = 0;
+    g_pendingAck.cmd_seq = static_cast<uint8_t>(cmd.confirmation);
+    g_pendingAck.cmd_id  = cmd.command;
+    g_pendingAck.result  = ack_result;
+    g_pendingAck.reserved = 0;
     if (cmd.command == MAV_CMD_USER_3) {
         const rc::RadioConfig* cur = AO_Radio_get_runtime_config();
-        s_pending_ack.cfg_bw_khz = cur->bandwidth_khz;
-        s_pending_ack.cfg_nav_hz = cur->nav_rate_hz;
-        s_pending_ack.cfg_sf     = cur->spreading_factor;
-        s_pending_ack.cfg_cr     = cur->coding_rate;
+        g_pendingAck.cfg_bw_khz = cur->bandwidth_khz;
+        g_pendingAck.cfg_nav_hz = cur->nav_rate_hz;
+        g_pendingAck.cfg_sf     = cur->spreading_factor;
+        g_pendingAck.cfg_cr     = cur->coding_rate;
     } else {
-        s_pending_ack.cfg_bw_khz = 0;
-        s_pending_ack.cfg_nav_hz = 0;
-        s_pending_ack.cfg_sf     = 0;
-        s_pending_ack.cfg_cr     = 0;
+        g_pendingAck.cfg_bw_khz = 0;
+        g_pendingAck.cfg_nav_hz = 0;
+        g_pendingAck.cfg_sf     = 0;
+        g_pendingAck.cfg_cr     = 0;
     }
-    s_pending_ack_valid = true;
+    g_pendingAckValid = true;
 }
 
 static void handle_parsed_mavlink(TelemAo* me, const mavlink_message_t& msg) {
@@ -369,7 +369,7 @@ static struct {
     float p3;
     float p4;
     float p5;
-} s_pending_cmd = {};
+} g_pendingCmd = {};
 
 // Stage T Batch B IVP-T14c: last-command-result latch for dashboard display.
 // Cleared by send_tracked_command; set on ACK or on retry exhaustion.
@@ -380,7 +380,7 @@ static struct {
     uint16_t cmd_id;
     uint16_t rtt_ms;
     uint32_t at_ms;
-} s_last_cmd_result = {};
+} g_lastCmdResult = {};
 
 // ============================================================================
 // Stage T Batch B T14b: retry instrumentation (always on).
@@ -409,7 +409,7 @@ struct RetryStats {
     uint32_t fail_count;           // all retries exhausted
     uint32_t total_retries_used;   // sum of (3 - retries_left) over all acks+fails
 };
-static RetryStats s_retry_stats[kCmdClassCount] = {};
+static RetryStats g_retryStats[kCmdClassCount] = {};
 
 static CmdClass classify_tracked_cmd(uint16_t cmd_id, float p1) {
     if (cmd_id == MAV_CMD_COMPONENT_ARM_DISARM) {
@@ -475,21 +475,21 @@ static void record_ack_outcome(uint16_t matched_cmd, float matched_p1,
                                uint8_t retries_left_at_ack,
                                uint32_t rtt_ms, bool accepted) {
     // IVP-T14c dashboard latch.
-    s_last_cmd_result.valid  = true;
-    s_last_cmd_result.ok     = accepted;
-    s_last_cmd_result.cmd_id = matched_cmd;
-    s_last_cmd_result.rtt_ms = (rtt_ms > 0xFFFFU) ? 0xFFFFU
+    g_lastCmdResult.valid  = true;
+    g_lastCmdResult.ok     = accepted;
+    g_lastCmdResult.cmd_id = matched_cmd;
+    g_lastCmdResult.rtt_ms = (rtt_ms > 0xFFFFU) ? 0xFFFFU
                                                    : static_cast<uint16_t>(rtt_ms);
-    s_last_cmd_result.at_ms  = now_ms();
+    g_lastCmdResult.at_ms  = now_ms();
 
     // T14b retry stats.
     CmdClass cls = classify_tracked_cmd(matched_cmd, matched_p1);
     uint8_t retries_used = kAckMaxRetries - retries_left_at_ack;
-    s_retry_stats[cls].total_retries_used += retries_used;
+    g_retryStats[cls].total_retries_used += retries_used;
     if (retries_used == 0) {
-        s_retry_stats[cls].first_try_ack_count++;
+        g_retryStats[cls].first_try_ack_count++;
     } else {
-        s_retry_stats[cls].retry_ack_count++;
+        g_retryStats[cls].retry_ack_count++;
     }
 }
 
@@ -509,22 +509,22 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rx_evt) {
         return true;
     }
 #endif
-    if (!s_pending_cmd.pending ||
-        ack.cmd_seq != s_pending_cmd.seq ||
-        ack.cmd_id != s_pending_cmd.cmd_id) {
+    if (!g_pendingCmd.pending ||
+        ack.cmd_seq != g_pendingCmd.seq ||
+        ack.cmd_id != g_pendingCmd.cmd_id) {
         return true;
     }
     // Capture details before clearing — needed below for SET switch.
-    const uint16_t matched_cmd = s_pending_cmd.cmd_id;
-    const float matched_p1 = s_pending_cmd.p1;
-    const float matched_p2 = s_pending_cmd.p2;
-    const float matched_p3 = s_pending_cmd.p3;
-    const float matched_p4 = s_pending_cmd.p4;
-    const float matched_p5 = s_pending_cmd.p5;
-    const uint8_t retries_left_at_ack = s_pending_cmd.retries_left;
+    const uint16_t matched_cmd = g_pendingCmd.cmd_id;
+    const float matched_p1 = g_pendingCmd.p1;
+    const float matched_p2 = g_pendingCmd.p2;
+    const float matched_p3 = g_pendingCmd.p3;
+    const float matched_p4 = g_pendingCmd.p4;
+    const float matched_p5 = g_pendingCmd.p5;
+    const uint8_t retries_left_at_ack = g_pendingCmd.retries_left;
     const uint32_t rtt_ms =
-        static_cast<uint32_t>(now_ms() - s_pending_cmd.sent_ms);
-    s_pending_cmd.pending = false;
+        static_cast<uint32_t>(now_ms() - g_pendingCmd.sent_ms);
+    g_pendingCmd.pending = false;
 
     const bool accepted = (ack.result ==
         static_cast<uint8_t>(rc::ccsds::CmdAckResult::kAccepted));
@@ -775,12 +775,12 @@ static QState TelemAo_running(TelemAo * const me, QEvt const * const e) {
 // Public API
 // ============================================================================
 
-QActive * const AO_Telemetry = &l_telemAo.super;
+QActive * const AO_Telemetry = &g_telemAo.super;
 
 // CLI access — safe under QV cooperative scheduling
 void AO_Telemetry_set_telem_snapshot(const rc::TelemetryState& telem) {
-    l_telemAo.latest_telem = telem;
-    l_telemAo.telem_valid = true;
+    g_telemAo.latest_telem = telem;
+    g_telemAo.telem_valid = true;
 }
 
 // Legacy compat for vehicle mode (TX) — delegates to AO_RCOS
@@ -799,7 +799,7 @@ void AO_Telemetry_toggle_mavlink() {
 uint8_t AO_Telemetry_cycle_rate() {
     static constexpr uint8_t k_rates[] = {2, 5, 10};
     for (uint8_t i = 0; i < 3; i++) {
-        if (k_rates[i] == l_telemAo.rate_hz) {
+        if (k_rates[i] == g_telemAo.rate_hz) {
             uint8_t next = k_rates[(i + 1) % 3];
             AO_Telemetry_set_rate(next);
             return next;
@@ -818,8 +818,8 @@ uint8_t AO_Telemetry_cycle_rate() {
 void AO_Telemetry_set_rate(uint8_t rate_hz) {
     if (rate_hz == 0) { rate_hz = 5; }
     if (rate_hz > 50) { rate_hz = 50; }  // sanity: 50 Hz ~ 20ms period
-    l_telemAo.rate_hz = rate_hz;
-    l_telemAo.interval_ms = 1000U / rate_hz;
+    g_telemAo.rate_hz = rate_hz;
+    g_telemAo.interval_ms = 1000U / rate_hz;
 }
 
 // Stage T Batch B prelim fix: airtime-scaled ACK-retry timeout.
@@ -828,11 +828,11 @@ void AO_Telemetry_set_rate(uint8_t rate_hz) {
 void AO_Telemetry_set_ack_retry_timeout_ms(uint32_t timeout_ms) {
     if (timeout_ms < 100U)  { timeout_ms = 100U; }
     if (timeout_ms > 5000U) { timeout_ms = 5000U; }
-    s_ack_retry_timeout_ms = timeout_ms;
+    g_ackRetryTimeoutMs = timeout_ms;
 }
 
 const RxTelemSnapshot* AO_Telemetry_get_rx_state() {
-    return &l_telemAo.rx_snapshot;
+    return &g_telemAo.rx_snapshot;
 }
 
 // IVP-62c: encode + send MAVLink COMMAND_LONG over LoRa
@@ -865,7 +865,7 @@ void AO_Telemetry_send_command(uint16_t command, const MavCmdParams& params) {
 }
 
 // IVP-122: Send a tracked command — populates pending-cmd state for ACK tracking.
-static uint8_t s_cmd_seq = 0;
+static uint8_t g_cmdSeq = 0;
 
 // Stage T Batch B T14a: is this command class safety-critical? Per Round 2
 // council consensus #5, ARM (COMPONENT_ARM_DISARM with param1 > 0.5) and
@@ -907,26 +907,26 @@ static void tx_tracked_command_wire(uint16_t command, uint8_t seq,
 // Populate s_pending_cmd + params (used by both fresh-send and dedupe-replace).
 static void populate_pending(uint16_t command, uint8_t seq,
                              const MavCmdParams& params) {
-    s_pending_cmd.pending = true;
-    s_pending_cmd.seq = seq;
-    s_pending_cmd.cmd_id = command;
-    s_pending_cmd.sent_ms = to_ms_since_boot(get_absolute_time());
-    s_pending_cmd.retries_left = kAckMaxRetries;
-    s_pending_cmd.p1 = params.p1;
-    s_pending_cmd.p2 = params.p2;
-    s_pending_cmd.p3 = params.p3;
-    s_pending_cmd.p4 = params.p4;
-    s_pending_cmd.p5 = params.p5;
+    g_pendingCmd.pending = true;
+    g_pendingCmd.seq = seq;
+    g_pendingCmd.cmd_id = command;
+    g_pendingCmd.sent_ms = to_ms_since_boot(get_absolute_time());
+    g_pendingCmd.retries_left = kAckMaxRetries;
+    g_pendingCmd.p1 = params.p1;
+    g_pendingCmd.p2 = params.p2;
+    g_pendingCmd.p3 = params.p3;
+    g_pendingCmd.p4 = params.p4;
+    g_pendingCmd.p5 = params.p5;
 
     // T14b: count a new send. Dedupe-replace path also reuses populate_pending
     // — but the command is semantically "a new send" (new seq, fresh ACK
     // window), so counting it is correct.
     CmdClass c = classify_tracked_cmd(command, params.p1);
-    s_retry_stats[c].sent_count++;
+    g_retryStats[c].sent_count++;
 
     // IVP-T14c: clear stale last-result latch on new send so dashboard
     // transitions directly to "Try 0/N (pending)" without stale ACK text.
-    s_last_cmd_result.valid = false;
+    g_lastCmdResult.valid = false;
 }
 #endif
 
@@ -942,10 +942,10 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
     //
     // Safety-class commands (ARM, ABORT) bypass dedupe — every deliberate
     // press is preserved as its own tracked command with its own ACK window.
-    if (s_pending_cmd.pending &&
-        s_pending_cmd.cmd_id == command &&
+    if (g_pendingCmd.pending &&
+        g_pendingCmd.cmd_id == command &&
         !is_tracked_command_safety_class(command, p1)) {
-        uint8_t seq = s_cmd_seq++;
+        uint8_t seq = g_cmdSeq++;
         const MavCmdParams params{p1, p2, p3, p4, p5};
         populate_pending(command, seq, params);
         tx_tracked_command_wire(command, seq, params);
@@ -953,7 +953,7 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
     }
 
     // Fresh send: allocate seq, populate pending, TX on wire.
-    uint8_t seq = s_cmd_seq++;
+    uint8_t seq = g_cmdSeq++;
     const MavCmdParams params{p1, p2, p3, p4, p5};
     populate_pending(command, seq, params);
     tx_tracked_command_wire(command, seq, params);
@@ -963,23 +963,23 @@ void AO_Telemetry_send_tracked_command(uint16_t command, float p1,
 }
 
 bool AO_Telemetry_is_cmd_pending() {
-    return s_pending_cmd.pending;
+    return g_pendingCmd.pending;
 }
 
 // Stage T Batch B IVP-T14c: dashboard-visible snapshot of pending/recent-ack
 // state. Pure snapshot — Core 0 cooperative dispatch, no locks needed.
 void AO_Telemetry_get_pending_cmd_status(PendingCmdStatus* out) {
     if (out == nullptr) { return; }
-    out->pending      = s_pending_cmd.pending;
-    out->cmd_id       = s_pending_cmd.cmd_id;
+    out->pending      = g_pendingCmd.pending;
+    out->cmd_id       = g_pendingCmd.cmd_id;
     out->retries_used = static_cast<uint8_t>(
-        kAckMaxRetries - s_pending_cmd.retries_left);
+        kAckMaxRetries - g_pendingCmd.retries_left);
     out->max_retries  = kAckMaxRetries;
-    out->last_result_valid = s_last_cmd_result.valid;
-    out->last_result_ok    = s_last_cmd_result.ok;
-    out->last_cmd_id       = s_last_cmd_result.cmd_id;
-    out->last_rtt_ms       = s_last_cmd_result.rtt_ms;
-    out->last_result_ms    = s_last_cmd_result.at_ms;
+    out->last_result_valid = g_lastCmdResult.valid;
+    out->last_result_ok    = g_lastCmdResult.ok;
+    out->last_cmd_id       = g_lastCmdResult.cmd_id;
+    out->last_rtt_ms       = g_lastCmdResult.rtt_ms;
+    out->last_result_ms    = g_lastCmdResult.at_ms;
 }
 
 // Stage T Batch B IVP-T14b: retry-stats snapshot for CLI/diag.
@@ -987,11 +987,11 @@ uint8_t AO_Telemetry_get_retry_stats(CmdRetryStatsLine* rows, uint8_t max_rows) 
     uint8_t n = 0;
     for (uint8_t i = 0; i < static_cast<uint8_t>(kCmdClassCount) && n < max_rows; ++i) {
         rows[n].name               = cmd_class_name(static_cast<CmdClass>(i));
-        rows[n].sent               = s_retry_stats[i].sent_count;
-        rows[n].first_try          = s_retry_stats[i].first_try_ack_count;
-        rows[n].retry_rescued      = s_retry_stats[i].retry_ack_count;
-        rows[n].failed             = s_retry_stats[i].fail_count;
-        rows[n].total_retries_used = s_retry_stats[i].total_retries_used;
+        rows[n].sent               = g_retryStats[i].sent_count;
+        rows[n].first_try          = g_retryStats[i].first_try_ack_count;
+        rows[n].retry_rescued      = g_retryStats[i].retry_ack_count;
+        rows[n].failed             = g_retryStats[i].fail_count;
+        rows[n].total_retries_used = g_retryStats[i].total_retries_used;
         n++;
     }
     return n;
@@ -1005,10 +1005,10 @@ static void resend_pending_cmd() {
     // for ARM). Multi-param commands like SET_RADIO_CONFIG depend on this.
     mavlink_msg_command_long_pack(
         255, 0, &msg, 1, 1,
-        s_pending_cmd.cmd_id,
-        s_pending_cmd.seq,  // Same seq as original
-        s_pending_cmd.p1, s_pending_cmd.p2, s_pending_cmd.p3,
-        s_pending_cmd.p4, s_pending_cmd.p5, 0, 0);
+        g_pendingCmd.cmd_id,
+        g_pendingCmd.seq,  // Same seq as original
+        g_pendingCmd.p1, g_pendingCmd.p2, g_pendingCmd.p3,
+        g_pendingCmd.p4, g_pendingCmd.p5, 0, 0);
 
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
@@ -1021,37 +1021,37 @@ static void resend_pending_cmd() {
         g_txEvt.len = static_cast<uint8_t>(len);
         QACTIVE_POST(AO_Radio, &g_txEvt.super, &l_telemAo.super);
     }
-    s_pending_cmd.sent_ms = to_ms_since_boot(get_absolute_time());
+    g_pendingCmd.sent_ms = to_ms_since_boot(get_absolute_time());
 #endif
 }
 
 void AO_Telemetry_cmd_retry_tick(uint32_t now_ms) {
 #ifndef ROCKETCHIP_HOST_TEST
-    if (!s_pending_cmd.pending) return;
+    if (!g_pendingCmd.pending) return;
 
-    uint32_t elapsed = now_ms - s_pending_cmd.sent_ms;
-    if (elapsed >= s_ack_retry_timeout_ms) {
-        if (s_pending_cmd.retries_left > 0) {
-            s_pending_cmd.retries_left--;
+    uint32_t elapsed = now_ms - g_pendingCmd.sent_ms;
+    if (elapsed >= g_ackRetryTimeoutMs) {
+        if (g_pendingCmd.retries_left > 0) {
+            g_pendingCmd.retries_left--;
             rc::rc_log("[CMD] Retry %u/%u (seq=%u)\n",
-                       kAckMaxRetries - s_pending_cmd.retries_left,
-                       kAckMaxRetries, s_pending_cmd.seq);
+                       kAckMaxRetries - g_pendingCmd.retries_left,
+                       kAckMaxRetries, g_pendingCmd.seq);
             resend_pending_cmd();
         } else {
             // T14b: record fail + retries used (all kAckMaxRetries).
-            CmdClass cls = classify_tracked_cmd(s_pending_cmd.cmd_id,
-                                                 s_pending_cmd.p1);
-            s_retry_stats[cls].fail_count++;
-            s_retry_stats[cls].total_retries_used += kAckMaxRetries;
+            CmdClass cls = classify_tracked_cmd(g_pendingCmd.cmd_id,
+                                                 g_pendingCmd.p1);
+            g_retryStats[cls].fail_count++;
+            g_retryStats[cls].total_retries_used += kAckMaxRetries;
 
             // IVP-T14c: latch failure for dashboard display.
-            s_last_cmd_result.valid  = true;
-            s_last_cmd_result.ok     = false;
-            s_last_cmd_result.cmd_id = s_pending_cmd.cmd_id;
-            s_last_cmd_result.rtt_ms = 0;
-            s_last_cmd_result.at_ms  = now_ms;
+            g_lastCmdResult.valid  = true;
+            g_lastCmdResult.ok     = false;
+            g_lastCmdResult.cmd_id = g_pendingCmd.cmd_id;
+            g_lastCmdResult.rtt_ms = 0;
+            g_lastCmdResult.at_ms  = now_ms;
 
-            s_pending_cmd.pending = false;
+            g_pendingCmd.pending = false;
             rc::rc_log("[CMD] No ACK after %u retries\n",
                        static_cast<unsigned>(kAckMaxRetries));
         }
@@ -1073,13 +1073,13 @@ void AO_Telemetry_feed_usb_byte(uint8_t byte) {
         // GCS heartbeat detection
         if (msg.msgid == MAVLINK_MSG_ID_HEARTBEAT && msg.sysid != 0) {
             AO_Telemetry_notify_gcs_heartbeat();
-            l_telemAo.gcs_heartbeat_count++;
+            g_telemAo.gcs_heartbeat_count++;
             AO_RCOS_set_output_mode(StationOutputMode::kMavlink);
         }
         // Param request — defer to tick handler
         if (msg.msgid == MAVLINK_MSG_ID_PARAM_REQUEST_LIST &&
-            l_telemAo.param_send_idx < 0) {
-            l_telemAo.param_send_idx = 0;
+            g_telemAo.param_send_idx < 0) {
+            g_telemAo.param_send_idx = 0;
         }
         // Command dispatch (ARM/DISARM/ABORT from QGC)
         if (msg.msgid == MAVLINK_MSG_ID_COMMAND_LONG) {
@@ -1102,32 +1102,32 @@ void AO_Telemetry_feed_usb_byte(uint8_t byte) {
 }
 
 bool AO_Telemetry_is_gcs_connected() {
-    return l_telemAo.gcs_state == GcsState::kGcsConnected;
+    return g_telemAo.gcs_state == GcsState::kGcsConnected;
 }
 
 // IVP-62a: notify that a GCS heartbeat was received (USB or LoRa)
 void AO_Telemetry_notify_gcs_heartbeat() {
-    l_telemAo.last_gcs_heartbeat_ms = now_ms();
-    if (l_telemAo.gcs_state != GcsState::kGcsConnected) {
-        l_telemAo.gcs_state = GcsState::kGcsConnected;
+    g_telemAo.last_gcs_heartbeat_ms = now_ms();
+    if (g_telemAo.gcs_state != GcsState::kGcsConnected) {
+        g_telemAo.gcs_state = GcsState::kGcsConnected;
     }
 }
 
 void AO_Telemetry_start(uint8_t prio) {
-    QActive_ctor(&l_telemAo.super,
+    QActive_ctor(&g_telemAo.super,
                  Q_STATE_CAST(&TelemAo_initial));
 
-    QTimeEvt_ctorX(&l_telemAo.tick_timer, &l_telemAo.super,
+    QTimeEvt_ctorX(&g_telemAo.tick_timer, &g_telemAo.super,
                    SIG_TELEM_TICK, 0U);
 
-    memset(&l_telemAo.latest_telem, 0, sizeof(l_telemAo.latest_telem));
-    l_telemAo.telem_valid = false;
-    memset(&l_telemAo.rx_snapshot, 0, sizeof(l_telemAo.rx_snapshot));
+    memset(&g_telemAo.latest_telem, 0, sizeof(g_telemAo.latest_telem));
+    g_telemAo.telem_valid = false;
+    memset(&g_telemAo.rx_snapshot, 0, sizeof(g_telemAo.rx_snapshot));
 
-    QActive_start(&l_telemAo.super,
+    QActive_start(&g_telemAo.super,
                   Q_PRIO(prio, 0U),
-                  l_telemAoQueue,
-                  Q_DIM(l_telemAoQueue),
+                  g_telemAoQueue,
+                  Q_DIM(g_telemAoQueue),
                   nullptr, 0U,
                   nullptr);
 }

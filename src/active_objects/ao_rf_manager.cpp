@@ -59,12 +59,12 @@ struct RfManager {
     uint8_t  lq_window_count;     // valid bits in window (0..kLqWindowSize)
 };
 
-static RfManager l_rf;
+static RfManager g_rf;
 
 // Queue depth 16: 10 Hz tick + bursty SIG_RADIO_RX at up to nav_rate (10 Hz).
 // LL Entry 32 / Stage 9 queue-overflow analysis: 16 handles a 160 ms stall
 // (e.g., flash op) without overflow.
-static QEvtPtr l_rfQueue[16];
+static QEvtPtr g_rfQueue[16];
 
 // ============================================================================
 // Forward declarations
@@ -291,26 +291,26 @@ static QState Rf_running(RfManager * const me, QEvt const * const e) {
 // Public interface
 // ============================================================================
 
-QActive * const AO_RfManager = &l_rf.super;
+QActive * const AO_RfManager = &g_rf.super;
 
 void AO_RfManager_start(uint8_t prio, uint32_t nav_period_ms_init) {
     // Initialize AO state before Q_NEW_REF-style init so first RX has
     // sensible defaults.
-    memset(&l_rf.state, 0, sizeof(l_rf.state));
-    l_rf.state.state = LinkState::kAcq;
-    l_rf.state.anchor_valid = false;
-    l_rf.nav_period_ms = (nav_period_ms_init != 0) ? nav_period_ms_init : 200U;
-    l_rf.alpha_scaled = kRfAlphaInit;
-    l_rf.lq_window = 0;
-    l_rf.lq_window_count = 0;
+    memset(&g_rf.state, 0, sizeof(g_rf.state));
+    g_rf.state.state = LinkState::kAcq;
+    g_rf.state.anchor_valid = false;
+    g_rf.nav_period_ms = (nav_period_ms_init != 0) ? nav_period_ms_init : 200U;
+    g_rf.alpha_scaled = kRfAlphaInit;
+    g_rf.lq_window = 0;
+    g_rf.lq_window_count = 0;
 
-    QActive_ctor(&l_rf.super, Q_STATE_CAST(&Rf_initial));
-    QTimeEvt_ctorX(&l_rf.tick_timer, &l_rf.super, SIG_RFMGR_TICK, 0U);
+    QActive_ctor(&g_rf.super, Q_STATE_CAST(&Rf_initial));
+    QTimeEvt_ctorX(&g_rf.tick_timer, &g_rf.super, SIG_RFMGR_TICK, 0U);
 
-    QActive_start(&l_rf.super,
+    QActive_start(&g_rf.super,
                   Q_PRIO(prio, 0U),
-                  l_rfQueue,
-                  Q_DIM(l_rfQueue),
+                  g_rfQueue,
+                  Q_DIM(g_rfQueue),
                   nullptr, 0U,
                   nullptr);
 }
@@ -319,11 +319,11 @@ const RfManagerState* AO_RfManager_get_state() {
     // Cooperative-dispatch-only invariant documented in header. No runtime
     // guard — invariant is contract, not enforcement. Debug builds could
     // assert-on-Core1-access in future.
-    return &l_rf.state;
+    return &g_rf.state;
 }
 
 uint32_t AO_RfManager_next_tx_window_us(uint32_t now_us) {
-    const RfManagerState& s = l_rf.state;
+    const RfManagerState& s = g_rf.state;
 
     // No anchor yet → no window.
     if (!s.anchor_valid || s.state == LinkState::kAcq) {
@@ -332,7 +332,7 @@ uint32_t AO_RfManager_next_tx_window_us(uint32_t now_us) {
 
     // Deadman check: anchor stale? Delegates to shared helper.
     uint32_t elapsed_us = now_us - s.last_rx_us;
-    if (rf_deadman_fired(elapsed_us, l_rf.nav_period_ms)) {
+    if (rf_deadman_fired(elapsed_us, g_rf.nav_period_ms)) {
         return 0;  // Deadman fired — hold TX, wait for re-sync.
     }
 
@@ -351,7 +351,7 @@ uint32_t AO_RfManager_next_tx_window_us(uint32_t now_us) {
 }
 
 bool AO_RfManager_ok_to_retry() {
-    const RfManagerState& s = l_rf.state;
+    const RfManagerState& s = g_rf.state;
     // Don't retry in kAcq (no point TXing blind).
     // Permit retries in kTentative (builds up link) + kTrack + kTrackDegraded.
     return s.state != LinkState::kAcq;
@@ -360,7 +360,7 @@ bool AO_RfManager_ok_to_retry() {
 void AO_RfManager_set_nav_period_ms(uint32_t nav_period_ms) {
     if (nav_period_ms == 0) { nav_period_ms = 200U; }
     if (nav_period_ms > 5000U) { nav_period_ms = 5000U; }  // sanity cap
-    l_rf.nav_period_ms = nav_period_ms;
+    g_rf.nav_period_ms = nav_period_ms;
 }
 
 const char* link_state_name(LinkState s) {
@@ -376,7 +376,7 @@ const char* link_state_name(LinkState s) {
 // R-25-exec step 3 (2026-05-13): no longer dev-tier gated. Accessed only
 // via fault_force_radio_dropout() which checks test_mode_active() at entry.
 void AO_RfManager_force_last_rx_ms_for_test(uint32_t last_rx_ms) {
-    l_rf.state.last_rx_ms = last_rx_ms;
+    g_rf.state.last_rx_ms = last_rx_ms;
 }
 
 } // namespace rc

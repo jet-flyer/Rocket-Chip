@@ -18,24 +18,24 @@
 
 namespace {
 constexpr uint8_t kEskfMaxFailCycles = 5;  // ArduPilot EKF3 coreSetupRequired pattern
-uint8_t s_eskfFailCount = 0;
-bool    s_eskfDisabled  = false;
+uint8_t g_eskfFailCount = 0;
+bool    g_eskfDisabled  = false;
 } // namespace
 
 bool eskf_is_disabled() {
-    return s_eskfDisabled;
+    return g_eskfDisabled;
 }
 
 void eskf_reenable() {
-    s_eskfFailCount = 0;
-    s_eskfDisabled = false;
+    g_eskfFailCount = 0;
+    g_eskfDisabled = false;
 }
 
 void eskf_note_divergence() {
-    if (s_eskfFailCount < UINT8_MAX) {
-        s_eskfFailCount++;
+    if (g_eskfFailCount < UINT8_MAX) {
+        g_eskfFailCount++;
     }
-    if (s_eskfFailCount >= kEskfMaxFailCycles) {
-        s_eskfDisabled = true;
+    if (g_eskfFailCount >= kEskfMaxFailCycles) {
+        g_eskfDisabled = true;
     }
 }

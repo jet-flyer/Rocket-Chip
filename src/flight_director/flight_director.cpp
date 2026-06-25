@@ -144,16 +144,16 @@ const char* flight_phase_name(FlightPhase phase) {
 // Initial value 0xFFFFFFFF would decode to phase=0xFF, complement=0xFF,
 // validation fails → fault handler reads kFault, which is correct for the
 // "uninitialized" case (we don't know what phase we're in yet).
-static volatile uint32_t g_phase_observable_pair = 0xFFFFFFFFU;
+static volatile uint32_t g_phaseObservablePair = 0xFFFFFFFFU;
 
 void flight_phase_observable_set(FlightPhase phase) {
     const uint8_t p = static_cast<uint8_t>(phase);
     const uint8_t cp = static_cast<uint8_t>(~p);
-    g_phase_observable_pair = (static_cast<uint32_t>(cp) << 8) | p;
+    g_phaseObservablePair = (static_cast<uint32_t>(cp) << 8) | p;
 }
 
 FlightPhase flight_phase_observable_get() {
-    const uint32_t raw = g_phase_observable_pair;
+    const uint32_t raw = g_phaseObservablePair;
     const uint8_t p = static_cast<uint8_t>(raw & 0xFFU);
     const uint8_t cp = static_cast<uint8_t>((raw >> 8) & 0xFFU);
     if (static_cast<uint8_t>(~p) != cp) {
@@ -659,19 +659,19 @@ static QState state_abort(FlightDirector * const me, QEvt const * const e) {
 // classification (flight hold / safe mode / launch abort). Launch
 // abort is level 3 — power-cycle-only clear by design.
 // ============================================================================
-static bool s_launch_abort = false;
+static bool g_launchAbort = false;
 
 void flight_director_set_launch_abort() {
-    s_launch_abort = true;
+    g_launchAbort = true;
 }
 
 bool flight_director_launch_abort() {
-    return s_launch_abort;
+    return g_launchAbort;
 }
 
 #ifdef ROCKETCHIP_HOST_TEST
 void flight_director_test_reset_launch_abort() {
-    s_launch_abort = false;
+    g_launchAbort = false;
 }
 #endif
 

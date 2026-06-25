@@ -344,37 +344,37 @@ void rc_os_init() {
 // MAVLink binary lockout: once 0xFD seen on USB, suppress all CLI routing.
 // QGC sends binary frames containing arbitrary bytes (0x4C='L' triggers
 // flash erase, crashing AO scheduler). ESC exits lockout.
-static bool s_mavlinkDetected = false;
+static bool g_mavlinkDetected = false;
 
 // IVP-122: ARM confirm state machine (file-scope for rc_os_start_arm_confirm)
 static constexpr uint16_t kMavCmdArmDisarm = 400;
-static bool s_arm_confirm_active = false;
-static char s_arm_buf[4] = {};
-static uint8_t s_arm_buf_pos = 0;
-static uint32_t s_arm_start_ms = 0;
+static bool g_armConfirmActive = false;
+static char g_armBuf[4] = {};
+static uint8_t g_armBufPos = 0;
+static uint32_t g_armStartMs = 0;
 
 bool rc_os_arm_confirm_active() {
-    return s_arm_confirm_active;
+    return g_armConfirmActive;
 }
 
 void rc_os_start_arm_confirm() {
 #ifndef ROCKETCHIP_HOST_TEST
-    s_arm_confirm_active = true;
-    s_arm_buf_pos = 0;
-    s_arm_start_ms = to_ms_since_boot(get_absolute_time());
+    g_armConfirmActive = true;
+    g_armBufPos = 0;
+    g_armStartMs = to_ms_since_boot(get_absolute_time());
     rc_os_dashboard_pause();
     rc::rc_log("Type ARM in caps then Enter to confirm (5s): ");
 #endif
 }
 
 static bool handle_mavlink_lockout(int c) {
-    if (static_cast<uint8_t>(c) == 0xFD) { s_mavlinkDetected = true; }
+    if (static_cast<uint8_t>(c) == 0xFD) { g_mavlinkDetected = true; }
 
-    if (s_mavlinkDetected ||
+    if (g_mavlinkDetected ||
         AO_Telemetry_is_gcs_connected() ||
         AO_RCOS_get_output_mode() == StationOutputMode::kMavlink) {
         if (c == 27) {
-            s_mavlinkDetected = false;
+            g_mavlinkDetected = false;
             AO_RCOS_set_output_mode(StationOutputMode::kMenu);
             rc::rc_log("\n[GCS mode exited]\n");
             print_prompt();
@@ -399,20 +399,20 @@ static bool handle_mavlink_input(int c) {
 }
 
 // USB connect/disconnect + settle + banner state machine
-static uint8_t s_settleCount = 0;
+static uint8_t g_settleCount = 0;
 
 static bool handle_usb_connect() {
     if (!g_wasConnected) {
-        s_settleCount = 1;
+        g_settleCount = 1;
         g_wasConnected = true;
         return false;
     }
-    if (s_settleCount > 0 && s_settleCount < 5) {
-        s_settleCount++;
+    if (g_settleCount > 0 && g_settleCount < 5) {
+        g_settleCount++;
         return false;
     }
-    if (s_settleCount == 5) {
-        s_settleCount = 0;
+    if (g_settleCount == 5) {
+        g_settleCount = 0;
         while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
         cli_print_boot_summary();
         if (!g_bannerPrinted) {
@@ -431,12 +431,12 @@ static bool handle_usb_connect() {
 // IVP-122: ARM confirm state machine — returns -1 if not active,
 // 0 if active but no input, 1 if active and consumed input.
 static int handle_arm_confirm() {
-    if (!s_arm_confirm_active) { return -1; }
+    if (!g_armConfirmActive) { return -1; }
 
     uint32_t now = to_ms_since_boot(get_absolute_time());
-    if (now - s_arm_start_ms > 5000) {
+    if (now - g_armStartMs > 5000) {
         rc::rc_log("ARM aborted (timeout)\n");
-        s_arm_confirm_active = false;
+        g_armConfirmActive = false;
         rc_os_dashboard_resume();
         print_prompt();
         return 1;
@@ -444,25 +444,25 @@ static int handle_arm_confirm() {
     int ac = getchar_timeout_us(0);
     if (ac == PICO_ERROR_TIMEOUT) { return 0; }
     if (ac == '\r' || ac == '\n') {
-        s_arm_buf[s_arm_buf_pos] = '\0';
-        if (s_arm_buf_pos == 3 &&
-            s_arm_buf[0] == 'A' && s_arm_buf[1] == 'R' && s_arm_buf[2] == 'M') {
+        g_armBuf[g_armBufPos] = '\0';
+        if (g_armBufPos == 3 &&
+            g_armBuf[0] == 'A' && g_armBuf[1] == 'R' && g_armBuf[2] == 'M') {
             AO_Telemetry_send_tracked_command(kMavCmdArmDisarm, 1.0F);
             rc::rc_log("[CMD] ARM sent, waiting for ACK...\n");
         } else {
-            rc::rc_log("ARM aborted (bad input: '%s')\n", s_arm_buf);
+            rc::rc_log("ARM aborted (bad input: '%s')\n", g_armBuf);
         }
-        s_arm_confirm_active = false;
+        g_armConfirmActive = false;
         rc_os_dashboard_resume();
         print_prompt();
         return 1;
     }
-    if (s_arm_buf_pos < 3) {
+    if (g_armBufPos < 3) {
         rc::rc_log("%c", ac);
-        s_arm_buf[s_arm_buf_pos++] = static_cast<char>(ac);
+        g_armBuf[g_armBufPos++] = static_cast<char>(ac);
     } else {
         rc::rc_log("ARM aborted (overflow)\n");
-        s_arm_confirm_active = false;
+        g_armConfirmActive = false;
         rc_os_dashboard_resume();
         print_prompt();
     }

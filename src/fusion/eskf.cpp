@@ -75,10 +75,10 @@ constexpr float kMaxGyroBias = 0.175F;
 // UD:    P is stale; g_bierman_ud holds the valid UD factorization.
 enum class PRepr { DENSE, UD };
 
-static PRepr g_p_repr = PRepr::DENSE;
+static PRepr g_pRepr = PRepr::DENSE;
 
 // File-scope UD24 — 2,400 bytes BSS (LL Entry 1: too large for struct member).
-static UD24 g_bierman_ud;
+static UD24 g_biermanUd;
 
 #endif // ESKF_USE_BIERMAN
 
@@ -169,7 +169,7 @@ bool ESKF::init(const Vec3& accel_meas, const Vec3& gyro_meas) {
     // P[15..23] stays zero — inhibited states have no covariance
 
 #ifdef ESKF_USE_BIERMAN
-    g_p_repr = PRepr::DENSE;  // Fresh P from init — always dense
+    g_pRepr = PRepr::DENSE;  // Fresh P from init — always dense
 #endif
 
     initialized_ = true;
@@ -616,11 +616,11 @@ void ESKF::scalar_kalman_update(int32_t h_idx, float h_value,
 #ifdef ESKF_USE_BIERMAN
 
 void ESKF::ensure_dense() {
-    if (g_p_repr == PRepr::DENSE) {
+    if (g_pRepr == PRepr::DENSE) {
         return;
     }
     // Reconstruct P = U * D * U^T from UD factorization
-    ud_to_dense(g_bierman_ud, P.data);
+    ud_to_dense(g_biermanUd, P.data);
     P.force_symmetric();
     clamp_covariance();
 
@@ -632,11 +632,11 @@ void ESKF::ensure_dense() {
     }
 #endif
 
-    g_p_repr = PRepr::DENSE;
+    g_pRepr = PRepr::DENSE;
 }
 
 void ESKF::ensure_ud() {
-    if (g_p_repr == PRepr::UD) {
+    if (g_pRepr == PRepr::UD) {
         return;
     }
     // Inhibited states have P diagonal = 0, which makes P semi-positive-definite.
@@ -653,19 +653,19 @@ void ESKF::ensure_ud() {
         }
     }
 
-    const bool ok = ud_factorize(g_bierman_ud, P.data);
+    const bool ok = ud_factorize(g_biermanUd, P.data);
 
     // Restore patched diagonals to zero in both P and UD
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
         if (patched[i]) {
             P.data[i][i] = 0.0F;
-            g_bierman_ud.D[i] = 0.0F;
+            g_biermanUd.D[i] = 0.0F;
         }
     }
 
     // If factorize failed despite patching, P is corrupt — healthy() will catch it.
     (void)ok;
-    g_p_repr = PRepr::UD;
+    g_pRepr = PRepr::UD;
 }
 
 void ESKF::bierman_kalman_update(int32_t h_idx, float h_value,
@@ -673,7 +673,7 @@ void ESKF::bierman_kalman_update(int32_t h_idx, float h_value,
     ensure_ud();
 
     static float g_biermanDx[eskf::kStateSize];
-    bierman_scalar_update(g_bierman_ud, h_idx, h_value, innovation, r,
+    bierman_scalar_update(g_biermanUd, h_idx, h_value, innovation, r,
                           g_biermanDx);
 
     // Convert dx array to Mat<N,1> for inject_error_state

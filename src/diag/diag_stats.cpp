@@ -103,13 +103,13 @@ extern sensor_seqlock_t g_sensorSeqlock;
 
 // MSP tracking: track minimum-seen MSP value = deepest stack usage.
 // Initialized to UINT32_MAX on first tick so any read seeds the baseline.
-static uint32_t s_mspMin = 0xFFFFFFFFU;
-static uint32_t s_mspInitial = 0;
+static uint32_t g_mspMin = 0xFFFFFFFFU;
+static uint32_t g_mspInitial = 0;
 
 void diag_stats_msp_tick() {
     uint32_t msp = msp_read();
-    if (s_mspInitial == 0) { s_mspInitial = msp; }
-    if (msp < s_mspMin) { s_mspMin = msp; }
+    if (g_mspInitial == 0) { g_mspInitial = msp; }
+    if (msp < g_mspMin) { g_mspMin = msp; }
 }
 
 static void dump_ao_queue(const char* name, QActive* ao) {
@@ -129,9 +129,9 @@ static void dump_ao_queue(const char* name, QActive* ao) {
 
 static void dump_msp() {
     rc::rc_log("[MSP] initial=0x%08lx min=0x%08lx depth=%lu bytes\n",
-           (unsigned long)s_mspInitial,
-           (unsigned long)s_mspMin,
-           (unsigned long)(s_mspInitial - s_mspMin));
+           (unsigned long)g_mspInitial,
+           (unsigned long)g_mspMin,
+           (unsigned long)(g_mspInitial - g_mspMin));
 }
 
 static void dump_ao_queues() {

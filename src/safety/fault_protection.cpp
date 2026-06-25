@@ -31,7 +31,7 @@
 // flag's storage), or (b) busy-loop in kFault, where leaving via reset
 // is the only path forward anyway. Either way, the flag's lifetime ends
 // with the next chip reset.
-static volatile bool s_in_fault_handler = false;
+static volatile bool g_inFaultHandler = false;
 
 // Helper: distinct LED pattern emitted from the fault handler via direct
 // GPIO writes. The full LED system depends on AO_LedEngine + PIO which
@@ -107,12 +107,12 @@ void memmanage_fault_handler(void) {
     __asm volatile ("cpsid i" ::: "memory");
 
     // B.7 reentrance guard
-    if (s_in_fault_handler) {
+    if (g_inFaultHandler) {
         while (true) {
             __asm volatile ("wfe");
         }
     }
-    s_in_fault_handler = true;
+    g_inFaultHandler = true;
 
     rc::CrashRecord * const rec = &rc::g_crash_record;
     uint32_t cfsr;
@@ -178,12 +178,12 @@ extern "C" Q_NORETURN Q_onError(
     __asm volatile("cpsid i" ::: "memory");
 
     // B.7 reentrance guard (shared with memmanage_fault_handler)
-    if (s_in_fault_handler) {
+    if (g_inFaultHandler) {
         while (true) {
             __asm volatile ("wfe");
         }
     }
-    s_in_fault_handler = true;
+    g_inFaultHandler = true;
 
     // Capture into the crash record so the post-reset (or post-degrade
     // diagnostic readout) consumer sees a record. Reason code reuses

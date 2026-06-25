@@ -44,28 +44,28 @@ static constexpr uint32_t kStationGpsTickIntervalUs = 100'000U;
 // zero on station since Core 1 is idle here. Station readers
 // (cmd_station_gps_push, dashboard) consume only GPS columns from the
 // seqlock snapshot.
-static shared_sensor_data_t s_localData;
+static shared_sensor_data_t g_localData;
 
 // core1_read_gps() owns an "inter-poll floor" via lastGpsReadUs; we pass
 // a persistent pointer to it so the helper's internal throttle works.
-static uint32_t s_lastGpsReadUs = 0;
+static uint32_t g_lastGpsReadUs = 0;
 
 // Outer rate-limit gate — separate from s_lastGpsReadUs, which the
 // helper updates on every call. This gate prevents invoking the helper
 // more often than ~10 Hz.
-static uint32_t s_lastTickUs = 0;
+static uint32_t g_lastTickUs = 0;
 
 // MCU temp capture cadence — every 10th GPS tick = ~1 Hz.
 // IVP-142a: on-die RP2350 temp sensor, captured on both roles.
 static constexpr uint32_t kStationMcuTempDivider = 10;
-static uint32_t s_mcuTempCycle = 0;
+static uint32_t g_mcuTempCycle = 0;
 
 void station_idle_tick_init() {
-    s_lastGpsReadUs = 0;
-    s_lastTickUs = 0;
-    s_mcuTempCycle = 0;
+    g_lastGpsReadUs = 0;
+    g_lastTickUs = 0;
+    g_mcuTempCycle = 0;
     // Sentinel so seqlock readers don't see 0.0°C before first capture.
-    s_localData.mcu_die_temp_c = -999.0F;
+    g_localData.mcu_die_temp_c = -999.0F;
 }
 
 void station_idle_tick() {
@@ -74,29 +74,29 @@ void station_idle_tick() {
     }
 
     const uint32_t now_us = time_us_32();
-    if ((now_us - s_lastTickUs) < kStationGpsTickIntervalUs) {
+    if ((now_us - g_lastTickUs) < kStationGpsTickIntervalUs) {
         return;
     }
-    s_lastTickUs = now_us;
+    g_lastTickUs = now_us;
 
     // Shared helper: drives g_gpsFnUpdate/g_gpsFnGetData, applies the
     // I2C SDA settling delay when the bound transport is I2C, runs the
     // hold-on-valid pattern for burst-then-silent NMEA cadence, and
     // updates the best-fix diagnostic.
-    core1_read_gps(&s_localData, &s_lastGpsReadUs);
+    core1_read_gps(&g_localData, &g_lastGpsReadUs);
 
     // MCU temp at ~1 Hz (every 10th GPS tick at 10 Hz).
-    s_mcuTempCycle++;
-    if (s_mcuTempCycle >= kStationMcuTempDivider && mcu_temp_available()) {
-        s_mcuTempCycle = 0;
-        s_localData.mcu_die_temp_c = mcu_temp_read_c();
-        s_localData.mcu_temp_read_count++;
+    g_mcuTempCycle++;
+    if (g_mcuTempCycle >= kStationMcuTempDivider && mcu_temp_available()) {
+        g_mcuTempCycle = 0;
+        g_localData.mcu_die_temp_c = mcu_temp_read_c();
+        g_localData.mcu_temp_read_count++;
     }
 
     // Publish to seqlock so Core 0 readers see fresh GPS state.
     // Same-core writer/reader on station — seqlock ordering still
     // enforced via __dmb inside seqlock_write.
-    seqlock_write(&g_sensorSeqlock, &s_localData);
+    seqlock_write(&g_sensorSeqlock, &g_localData);
 }
 
 }  // namespace rc

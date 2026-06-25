@@ -19,27 +19,27 @@ namespace rc {
 // `dsb` is replaced with a compiler-barrier-only equivalent — host tests
 // don't run on a multi-issue Cortex-M33 and don't need real memory-system
 // ordering, only compiler-reordering protection.
-static volatile uint32_t g_flight_in_progress_magic = 0U;
+static volatile uint32_t g_flightInProgressMagic = 0U;
 #define FLIGHT_SENTINEL_DSB() __asm volatile ("" ::: "memory")
 #else
 __attribute__((section(".uninitialized_data"), used))
-static volatile uint32_t g_flight_in_progress_magic;
+static volatile uint32_t g_flightInProgressMagic;
 #define FLIGHT_SENTINEL_DSB() __asm volatile ("dsb" ::: "memory")
 #endif
 
 void flight_in_progress_set() {
-    g_flight_in_progress_magic = kFlightInProgressMagic;
+    g_flightInProgressMagic = kFlightInProgressMagic;
     FLIGHT_SENTINEL_DSB();
 }
 
 void flight_in_progress_clear() {
-    g_flight_in_progress_magic = 0;
+    g_flightInProgressMagic = 0;
     FLIGHT_SENTINEL_DSB();
 }
 
 bool flight_in_progress_was_set() {
-    const bool was_set = (g_flight_in_progress_magic == kFlightInProgressMagic);
-    g_flight_in_progress_magic = 0;
+    const bool was_set = (g_flightInProgressMagic == kFlightInProgressMagic);
+    g_flightInProgressMagic = 0;
     FLIGHT_SENTINEL_DSB();
     return was_set;
 }

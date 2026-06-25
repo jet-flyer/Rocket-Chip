@@ -64,25 +64,25 @@ struct RadioAo {
     RadioAoState    state;
 };
 
-static RadioAo l_radioAo;
-static QEvtPtr  l_radioAoQueue[32]; // Match other AOs — 100Hz tick needs headroom
+static RadioAo g_radioAo;
+static QEvtPtr  g_radioAoQueue[32]; // Match other AOs — 100Hz tick needs headroom
 
 // Stage T IVP-T5.5: pending radio config (set by AO_Radio_set_pending_config,
 // applied after next TX-poll kDone). File-scope static — safe under QV
 // cooperative scheduling (no preemption on Core 0).
-static rc::RadioConfig s_pending_radio_config = {};
-static bool            s_pending_radio_config_valid = false;
+static rc::RadioConfig g_pendingRadioConfig = {};
+static bool            g_pendingRadioConfigValid = false;
 // Backstop: tick count at which a pending apply must fire even if no
 // TxDone arrives. Guards against stale pending state if TX was never
 // actually in progress when set_pending_config was called.
 // ~20 ticks at 100 Hz = 200 ms. Per smell-test A.1 + correctness council.
 static constexpr uint32_t kPendingApplyBackstopTicks = 20;
-static uint32_t s_pending_apply_backstop_count = 0;
+static uint32_t g_pendingApplyBackstopCount = 0;
 
 // Stage T IVP-T5.5 sub 2f: "config just changed" latch. Set by commit and
 // revert, consumed once by the telemetry encoder — gives the station explicit
 // UX confirmation that THIS packet is from the intentional transition.
-static bool s_config_just_changed = false;
+static bool g_configJustChanged = false;
 
 // Sub-persist (Option C): debounced flash-write trigger. Set to a countdown
 // on successful apply; decrements each tick; when it hits 0 AND the apply
@@ -91,8 +91,8 @@ static bool s_config_just_changed = false;
 // apply is still in flight (any new SET resets the counter).
 // 5 s at 100 Hz = 500 ticks.
 static constexpr uint32_t kPersistDebounceTicks = 500;
-static uint32_t s_persist_debounce_count = 0;
-static bool     s_persist_requested = false;
+static uint32_t g_persistDebounceCount = 0;
+static bool     g_persistRequested = false;
 
 // Forward declarations
 static QState RadioAo_initial(RadioAo * const me, QEvt const * const e);
@@ -332,9 +332,9 @@ static void ao_radio_apply_runtime_config(RadioAoState& s) {
 // the apply window, abort the config change — leaves old config intact.
 // Sub 2d: cache prev_config and arm the symmetric-revert watchdog.
 static void ao_radio_commit_pending_config(RadioAoState& s) {
-    if (!s_pending_radio_config_valid) { return; }
-    s_pending_radio_config_valid = false;
-    s_pending_apply_backstop_count = 0;
+    if (!g_pendingRadioConfigValid) { return; }
+    g_pendingRadioConfigValid = false;
+    g_pendingApplyBackstopCount = 0;
 
     // Re-validate ground state at apply (closes the ARM-during-pending race).
     if (!AO_FlightDirector_is_ground_state()) {
@@ -348,9 +348,9 @@ static void ao_radio_commit_pending_config(RadioAoState& s) {
     s.tx_since_apply = 0;
     s.apply_in_progress = true;
 
-    s.runtime_config = s_pending_radio_config;
+    s.runtime_config = g_pendingRadioConfig;
     ao_radio_apply_runtime_config(s);
-    s_config_just_changed = true;   // sub 2f: latch for next nav packet
+    g_configJustChanged = true;   // sub 2f: latch for next nav packet
     DBG_PRINT("RADIO: config applied — BW=%u nav=%u SF=%u CR=%u pwr=%u",
               static_cast<unsigned>(s.runtime_config.bandwidth_khz),
               static_cast<unsigned>(s.runtime_config.nav_rate_hz),
@@ -360,8 +360,8 @@ static void ao_radio_commit_pending_config(RadioAoState& s) {
     // Sub-persist: arm (or rearm) the debounced-write timer. If a second
     // apply lands inside the window, the counter just resets here — only
     // the final settled config gets written to flash.
-    s_persist_requested = true;
-    s_persist_debounce_count = kPersistDebounceTicks;
+    g_persistRequested = true;
+    g_persistDebounceCount = kPersistDebounceTicks;
 }
 
 #if defined(ROCKETCHIP_RADIO_PERSIST)
@@ -632,9 +632,9 @@ static void handle_rssi_bar(RadioAo* me) {
 // Sub 2b: if a config change is queued but no TxDone fires in ~200 ms,
 // apply anyway. Guards against stale pending state.
 static void tick_apply_backstop(RadioAoState& s) {
-    if (!s_pending_radio_config_valid) { return; }
-    s_pending_apply_backstop_count++;
-    if (s_pending_apply_backstop_count >= kPendingApplyBackstopTicks) {
+    if (!g_pendingRadioConfigValid) { return; }
+    g_pendingApplyBackstopCount++;
+    if (g_pendingApplyBackstopCount >= kPendingApplyBackstopTicks) {
         DBG_PRINT("RADIO: backstop fired — applying pending config");
         ao_radio_commit_pending_config(s);
     }
@@ -687,9 +687,9 @@ static void tick_symmetric_revert(RadioAoState& s) {
 static void tick_persist_debounce(RadioAoState& s) {
 #if !defined(ROCKETCHIP_RADIO_PERSIST)
     // Swallow any pending persist request so the state machine can't linger.
-    if (s_persist_requested || s_persist_debounce_count != 0) {
-        s_persist_requested = false;
-        s_persist_debounce_count = 0;
+    if (g_persistRequested || g_persistDebounceCount != 0) {
+        g_persistRequested = false;
+        g_persistDebounceCount = 0;
     }
     (void)s;
     return;
@@ -761,10 +761,10 @@ static QState RadioAo_running(RadioAo * const me, QEvt const * const e) {
 // Public API
 // ============================================================================
 
-QActive * const AO_Radio = &l_radioAo.super;
+QActive * const AO_Radio = &g_radioAo.super;
 
 const RadioAoState* AO_Radio_get_state() {
-    return &l_radioAo.state;
+    return &g_radioAo.state;
 }
 
 // Stage T IVP-T5.5 sub 2b: queue a runtime radio config change.
@@ -772,36 +772,36 @@ const RadioAoState* AO_Radio_get_state() {
 // backstop timer (~200 ms). Caller validates the config BEFORE calling.
 // Safe under QV cooperative scheduling — file-scope statics, no preemption.
 void AO_Radio_set_pending_config(const rc::RadioConfig& cfg) {
-    s_pending_radio_config = cfg;
-    s_pending_radio_config_valid = true;
-    s_pending_apply_backstop_count = 0;
+    g_pendingRadioConfig = cfg;
+    g_pendingRadioConfigValid = true;
+    g_pendingApplyBackstopCount = 0;
 }
 
 const rc::RadioConfig* AO_Radio_get_runtime_config() {
-    return &l_radioAo.state.runtime_config;
+    return &g_radioAo.state.runtime_config;
 }
 
 bool AO_Radio_consume_just_changed() {
-    bool was = s_config_just_changed;
-    s_config_just_changed = false;
+    bool was = g_configJustChanged;
+    g_configJustChanged = false;
     return was;
 }
 
 void AO_Radio_start(uint8_t prio, bool spi_ok) {
     g_spiOk = spi_ok;
-    QActive_ctor(&l_radioAo.super,
+    QActive_ctor(&g_radioAo.super,
                  Q_STATE_CAST(&RadioAo_initial));
 
-    QTimeEvt_ctorX(&l_radioAo.tick_timer, &l_radioAo.super,
+    QTimeEvt_ctorX(&g_radioAo.tick_timer, &g_radioAo.super,
                    SIG_RADIO_TICK, 0U);
 
     // Zero-init state
-    memset(&l_radioAo.state, 0, sizeof(l_radioAo.state));
+    memset(&g_radioAo.state, 0, sizeof(g_radioAo.state));
 
-    QActive_start(&l_radioAo.super,
+    QActive_start(&g_radioAo.super,
                   Q_PRIO(prio, 0U),
-                  l_radioAoQueue,
-                  Q_DIM(l_radioAoQueue),
+                  g_radioAoQueue,
+                  Q_DIM(g_radioAoQueue),
                   nullptr, 0U,
                   nullptr);
 }

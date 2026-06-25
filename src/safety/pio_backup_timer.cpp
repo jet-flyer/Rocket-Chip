@@ -15,12 +15,12 @@ static constexpr float kSmClockHz = 1000000.0F;  // 1MHz at div=150
 static PIO g_pio = nullptr;
 static uint32_t g_offset = 0;
 static bool g_initialized = false;
-static uint32_t g_drogue_sm = 0;
-static uint32_t g_main_sm = 0;
-static uint8_t g_drogue_pin = 0xFF;
-static uint8_t g_main_pin = 0xFF;
-static bool g_drogue_armed = false;
-static bool g_main_armed = false;
+static uint32_t g_drogueSm = 0;
+static uint32_t g_mainSm = 0;
+static uint8_t g_droguePin = 0xFF;
+static uint8_t g_mainPin = 0xFF;
+static bool g_drogueArmed = false;
+static bool g_mainArmed = false;
 
 bool pio_backup_timer_init(uint8_t drogue_pin, uint8_t main_pin) {
     if (g_initialized) {
@@ -28,35 +28,35 @@ bool pio_backup_timer_init(uint8_t drogue_pin, uint8_t main_pin) {
     }
 
     g_pio = pio2;
-    g_drogue_pin = drogue_pin;
-    g_main_pin = main_pin;
+    g_droguePin = drogue_pin;
+    g_mainPin = main_pin;
 
     // Claim available SMs (heartbeat WD already took one)
     int sm1 = pio_claim_unused_sm(g_pio, false);
     if (sm1 < 0) { return false; }
-    g_drogue_sm = static_cast<uint32_t>(sm1);
+    g_drogueSm = static_cast<uint32_t>(sm1);
 
     int sm2 = pio_claim_unused_sm(g_pio, false);
     if (sm2 < 0) {
-        pio_sm_unclaim(g_pio, g_drogue_sm);
+        pio_sm_unclaim(g_pio, g_drogueSm);
         return false;
     }
-    g_main_sm = static_cast<uint32_t>(sm2);
+    g_mainSm = static_cast<uint32_t>(sm2);
 
     // Load timer program once (shared instruction memory)
     if (!pio_can_add_program(g_pio, &backup_timer_program)) {
-        pio_sm_unclaim(g_pio, g_drogue_sm);
-        pio_sm_unclaim(g_pio, g_main_sm);
+        pio_sm_unclaim(g_pio, g_drogueSm);
+        pio_sm_unclaim(g_pio, g_mainSm);
         return false;
     }
     g_offset = pio_add_program(g_pio, &backup_timer_program);
 
     // Initialize SMs but do NOT enable — enabled at ARM time
     if (drogue_pin != 0xFF) {
-        backup_timer_program_init(g_pio, g_drogue_sm, g_offset, drogue_pin);
+        backup_timer_program_init(g_pio, g_drogueSm, g_offset, drogue_pin);
     }
     if (main_pin != 0xFF) {
-        backup_timer_program_init(g_pio, g_main_sm, g_offset, main_pin);
+        backup_timer_program_init(g_pio, g_mainSm, g_offset, main_pin);
     }
 
     g_initialized = true;
@@ -73,27 +73,27 @@ void pio_backup_timer_arm(float drogue_timeout_s, float main_timeout_s) {
     // been left halted mid-instruction. backup_timer_program_init() is
     // idempotent (pio_gpio_init → gpio_set_function PIO; pio_sm_init resets
     // ISR/shift counters/PC to entry point per SDK docs). See LL Entry 42.
-    if (drogue_timeout_s > 0.0F && g_drogue_pin != 0xFF) {
-        backup_timer_program_init(g_pio, g_drogue_sm, g_offset, g_drogue_pin);
+    if (drogue_timeout_s > 0.0F && g_droguePin != 0xFF) {
+        backup_timer_program_init(g_pio, g_drogueSm, g_offset, g_droguePin);
     }
-    if (main_timeout_s > 0.0F && g_main_pin != 0xFF) {
-        backup_timer_program_init(g_pio, g_main_sm, g_offset, g_main_pin);
+    if (main_timeout_s > 0.0F && g_mainPin != 0xFF) {
+        backup_timer_program_init(g_pio, g_mainSm, g_offset, g_mainPin);
     }
 
     // Drogue timer
-    if (drogue_timeout_s > 0.0F && g_drogue_pin != 0xFF) {
+    if (drogue_timeout_s > 0.0F && g_droguePin != 0xFF) {
         uint32_t countdown = static_cast<uint32_t>(drogue_timeout_s * kSmClockHz);
-        pio_sm_set_enabled(g_pio, g_drogue_sm, true);
-        pio_sm_put_blocking(g_pio, g_drogue_sm, countdown);
-        g_drogue_armed = true;
+        pio_sm_set_enabled(g_pio, g_drogueSm, true);
+        pio_sm_put_blocking(g_pio, g_drogueSm, countdown);
+        g_drogueArmed = true;
     }
 
     // Main timer
-    if (main_timeout_s > 0.0F && g_main_pin != 0xFF) {
+    if (main_timeout_s > 0.0F && g_mainPin != 0xFF) {
         uint32_t countdown = static_cast<uint32_t>(main_timeout_s * kSmClockHz);
-        pio_sm_set_enabled(g_pio, g_main_sm, true);
-        pio_sm_put_blocking(g_pio, g_main_sm, countdown);
-        g_main_armed = true;
+        pio_sm_set_enabled(g_pio, g_mainSm, true);
+        pio_sm_put_blocking(g_pio, g_mainSm, countdown);
+        g_mainArmed = true;
     }
 }
 
@@ -102,20 +102,20 @@ void pio_backup_timer_cancel(BackupTimerId id) {
         return;
     }
 
-    uint32_t sm = (id == BackupTimerId::kDrogue) ? g_drogue_sm : g_main_sm;
+    uint32_t sm = (id == BackupTimerId::kDrogue) ? g_drogueSm : g_mainSm;
     pio_sm_set_enabled(g_pio, sm, false);
 
     // Ensure pin is LOW after cancel
-    uint8_t pin = (id == BackupTimerId::kDrogue) ? g_drogue_pin : g_main_pin;
+    uint8_t pin = (id == BackupTimerId::kDrogue) ? g_droguePin : g_mainPin;
     if (pin != 0xFF) {
         gpio_set_function(pin, GPIO_FUNC_SIO);
         gpio_put(pin, 0);
     }
 
     if (id == BackupTimerId::kDrogue) {
-        g_drogue_armed = false;
+        g_drogueArmed = false;
     } else {
-        g_main_armed = false;
+        g_mainArmed = false;
     }
 }
 
@@ -125,19 +125,19 @@ void pio_backup_timer_disarm() {
     }
 
     // Stop both SMs
-    pio_sm_set_enabled(g_pio, g_drogue_sm, false);
-    pio_sm_set_enabled(g_pio, g_main_sm, false);
+    pio_sm_set_enabled(g_pio, g_drogueSm, false);
+    pio_sm_set_enabled(g_pio, g_mainSm, false);
 
     // Return pins to SIO control, drive LOW. Visible safety signal: pin
     // can't be driven HIGH by a stale SM after disarm. arm() restores PIO
     // function on the pin via backup_timer_program_init() on the next ARM.
-    if (g_drogue_pin != 0xFF) {
-        gpio_set_function(g_drogue_pin, GPIO_FUNC_SIO);
-        gpio_put(g_drogue_pin, 0);
+    if (g_droguePin != 0xFF) {
+        gpio_set_function(g_droguePin, GPIO_FUNC_SIO);
+        gpio_put(g_droguePin, 0);
     }
-    if (g_main_pin != 0xFF) {
-        gpio_set_function(g_main_pin, GPIO_FUNC_SIO);
-        gpio_put(g_main_pin, 0);
+    if (g_mainPin != 0xFF) {
+        gpio_set_function(g_mainPin, GPIO_FUNC_SIO);
+        gpio_put(g_mainPin, 0);
     }
 
     // PIO program stays loaded for chip lifetime (pairs with init, not disarm).
@@ -146,15 +146,15 @@ void pio_backup_timer_disarm() {
     // disarm (program slots already marked unused). Per pico-examples
     // hello_pio idiomatic pattern: add at claim/init, remove at unclaim/
     // teardown — never at arm/disarm. See LL Entry 42.
-    g_drogue_armed = false;
-    g_main_armed = false;
+    g_drogueArmed = false;
+    g_mainArmed = false;
 }
 
 bool pio_backup_timer_fired(BackupTimerId id) {
     if (!g_initialized) {
         return false;
     }
-    uint8_t pin = (id == BackupTimerId::kDrogue) ? g_drogue_pin : g_main_pin;
+    uint8_t pin = (id == BackupTimerId::kDrogue) ? g_droguePin : g_mainPin;
     if (pin == 0xFF) {
         return false;
     }
@@ -163,9 +163,9 @@ bool pio_backup_timer_fired(BackupTimerId id) {
 
 bool pio_backup_timer_armed(BackupTimerId id) {
     if (id == BackupTimerId::kDrogue) {
-        return g_drogue_armed;
+        return g_drogueArmed;
     }
-    return g_main_armed;
+    return g_mainArmed;
 }
 
 }  // namespace rc

@@ -71,17 +71,17 @@ struct LedEngine {
     // IVP-116: health_fault_code removed — AO_Notify owns health faults.
 };
 
-static LedEngine l_ledEngine;
-static bool s_ledEngineStarted = false;
+static LedEngine g_ledEngine;
+static bool g_ledEngineStarted = false;
 
 // Stage L IVP-L1 dev override: non-zero value wins over all layers.
 // Set via AO_LedEngine_dev_force_fault_layer() from the LED-test debug CLI.
 // 0 = inactive (normal layer compositor applies).
-static uint8_t s_devOverridePattern = 0;
+static uint8_t g_devOverridePattern = 0;
 
 // Queue depth 8: pattern change events + tick events. Callers should
 // deduplicate before posting (see AO_LedEngine_post_pattern). (A6)
-static QEvtPtr l_ledEngineQueue[8];
+static QEvtPtr g_ledEngineQueue[8];
 
 // Forward declarations
 static QState LedEngine_initial(LedEngine * const me, QEvt const * const e);
@@ -210,8 +210,8 @@ static void led_check_core1_vitality(LedEngine * const me,
 
 static void led_apply_compositor(LedEngine * const me) {
     // Stage L IVP-L1: dev override beats all layers (for LED pattern test CLI).
-    if (s_devOverridePattern != 0) {
-        led_apply_pattern(me, s_devOverridePattern);
+    if (g_devOverridePattern != 0) {
+        led_apply_pattern(me, g_devOverridePattern);
         return;
     }
 
@@ -283,38 +283,38 @@ static QState LedEngine_running(LedEngine * const me, QEvt const * const e) {
 //----------------------------------------------------------------------------
 // Public interface
 
-QActive * const AO_LedEngine = &l_ledEngine.super;
+QActive * const AO_LedEngine = &g_ledEngine.super;
 
 void AO_LedEngine_start(uint8_t prio) {
-    s_ledEngineStarted = true;
-    QActive_ctor(&l_ledEngine.super,
+    g_ledEngineStarted = true;
+    QActive_ctor(&g_ledEngine.super,
                  Q_STATE_CAST(&LedEngine_initial));
 
-    QTimeEvt_ctorX(&l_ledEngine.tick_timer, &l_ledEngine.super,
+    QTimeEvt_ctorX(&g_ledEngine.tick_timer, &g_ledEngine.super,
                    SIG_LED_TICK, 0U);
 
-    QActive_start(&l_ledEngine.super,
+    QActive_start(&g_ledEngine.super,
                   Q_PRIO(prio, 0U),
-                  l_ledEngineQueue,
-                  Q_DIM(l_ledEngineQueue),
+                  g_ledEngineQueue,
+                  Q_DIM(g_ledEngineQueue),
                   nullptr, 0U,
                   nullptr);
 }
 
-static uint8_t s_lastPostedPattern = 0;
+static uint8_t g_lastPostedPattern = 0;
 
 void AO_LedEngine_post_pattern(uint8_t pattern) {
     // Guard: no-op if AO hasn't been started yet (init-time LED callbacks
     // fire before QF_run -- e.g., flight_director_init IDLE entry action).
-    if (!s_ledEngineStarted) {
+    if (!g_ledEngineStarted) {
         return;
     }
     // Deduplicate: don't post if pattern hasn't changed. Callers like
     // telemetry_radio_tick post every cycle -- without this, queue overflows.
-    if (pattern == s_lastPostedPattern) {
+    if (pattern == g_lastPostedPattern) {
         return;
     }
-    s_lastPostedPattern = pattern;
+    g_lastPostedPattern = pattern;
 
     // Static event — QV does NOT copy posted events; the queue stores
     // the pointer. A stack-local event becomes a use-after-free once the
@@ -327,7 +327,7 @@ void AO_LedEngine_post_pattern(uint8_t pattern) {
     static rc::LedPatternEvt g_evt;
     g_evt.super = QEVT_INITIALIZER(rc::SIG_LED_PATTERN);
     g_evt.pattern = pattern;
-    QACTIVE_POST(&l_ledEngine.super, &g_evt.super, nullptr);
+    QACTIVE_POST(&g_ledEngine.super, &g_evt.super, nullptr);
 }
 
 // IVP-116: AO_LedEngine_post_override() removed — RCOS now calls
@@ -337,5 +337,5 @@ void AO_LedEngine_post_pattern(uint8_t pattern) {
 // Writes a single static variable that the compositor checks first.
 // Safe from Core 0 handler context; not intended for flight code.
 void AO_LedEngine_dev_force_fault_layer(uint8_t pattern) {
-    s_devOverridePattern = pattern;
+    g_devOverridePattern = pattern;
 }

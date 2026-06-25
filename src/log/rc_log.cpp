@@ -478,19 +478,19 @@ namespace target_sink {
     // (pad faults) and the ring is typically near-empty at fault
     // time — rc_log is not on hot path.
     constexpr size_t kRingBytes = 8192U;
-    static volatile char s_ring[kRingBytes];
-    static volatile size_t s_head = 0U;  // producer (rc_log writes here)
-    static volatile size_t s_tail = 0U;  // consumer (drain reads here)
+    static volatile char g_ring[kRingBytes];
+    static volatile size_t g_head = 0U;  // producer (rc_log writes here)
+    static volatile size_t g_tail = 0U;  // consumer (drain reads here)
 
     // Council 2026-05-16: mandatory observability counters. Without
     // these, drop-oldest events convert the diag-stats dump from a
     // hard gate into a soft gate (LL Entry 36 pattern). Exposed via
     // diag_stats so soak scripts can detect ring health.
-    static volatile uint32_t s_dropped_bytes = 0U;  // cumulative evictions
-    static volatile uint32_t s_high_water = 0U;     // max ring_used() seen
+    static volatile uint32_t g_droppedBytes = 0U;  // cumulative evictions
+    static volatile uint32_t g_highWater = 0U;     // max ring_used() seen
 
     inline size_t ring_used() {
-        size_t h = s_head, t = s_tail;
+        size_t h = g_head, t = g_tail;
         return (h >= t) ? (h - t) : (kRingBytes - (t - h));
     }
     inline size_t ring_free() { return kRingBytes - 1U - ring_used(); }
@@ -503,24 +503,24 @@ void emit(const char* buf, size_t len) {
         // Message bigger than ring (kRcLogBufferBytes=128 < kRingBytes,
         // so unreachable in practice — kept for defense).
         size_t evicted_pre = len - (kRingBytes - 1U);
-        s_dropped_bytes = s_dropped_bytes + static_cast<uint32_t>(evicted_pre);
+        g_droppedBytes = g_droppedBytes + static_cast<uint32_t>(evicted_pre);
         buf += evicted_pre;
         len = kRingBytes - 1U;
     }
     size_t avail = ring_free();
     if (avail < len) {
         size_t evict = len - avail;
-        s_dropped_bytes = s_dropped_bytes + static_cast<uint32_t>(evict);
-        s_tail = (s_tail + evict) % kRingBytes;
+        g_droppedBytes = g_droppedBytes + static_cast<uint32_t>(evict);
+        g_tail = (g_tail + evict) % kRingBytes;
     }
     for (size_t i = 0; i < len; ++i) {
-        size_t h = s_head;
-        s_ring[h] = buf[i];
-        s_head = (h + 1U) % kRingBytes;
+        size_t h = g_head;
+        g_ring[h] = buf[i];
+        g_head = (h + 1U) % kRingBytes;
     }
     size_t used_now = ring_used();
-    if (used_now > s_high_water) {
-        s_high_water = static_cast<uint32_t>(used_now);
+    if (used_now > g_highWater) {
+        g_highWater = static_cast<uint32_t>(used_now);
     }
 }
 
@@ -531,11 +531,11 @@ void emit(const char* buf, size_t len) {
 // rc_log.h signatures despite living in an anonymous namespace.
 extern "C" __attribute__((used))
 uint32_t rc_log_dropped_bytes(void) {
-    return target_sink::s_dropped_bytes;
+    return target_sink::g_droppedBytes;
 }
 extern "C" __attribute__((used))
 uint32_t rc_log_high_water(void) {
-    return target_sink::s_high_water;
+    return target_sink::g_highWater;
 }
 #endif
 
@@ -671,7 +671,7 @@ extern "C" void rc_log_drain_to_cdc(void) {
     // Core 1's I2C transactions failing (ICM-20948 stopped ACKing
     // mid-session). Reading two volatile size_t and comparing is
     // ~3 cycles, vs ~hundreds of cycles for a tud_cdc_* call.
-    if (s_head == s_tail) {
+    if (g_head == g_tail) {
         return;
     }
     // Hold-on-disconnect: if host hasn't opened the port + asserted
@@ -686,17 +686,17 @@ extern "C" void rc_log_drain_to_cdc(void) {
     bool wrote_any = false;
     size_t cdc_avail = tud_cdc_write_available();
     while (cdc_avail > 0U && ring_used() > 0U) {
-        size_t t = s_tail;
+        size_t t = g_tail;
         // Compute contiguous span from tail to either head or end-of-ring
-        size_t end = (s_head < t) ? kRingBytes : s_head;
+        size_t end = (g_head < t) ? kRingBytes : g_head;
         size_t span = end - t;
         if (span > cdc_avail) { span = cdc_avail; }
         // Cast away volatile for the const-data read; safe because we're the
         // only consumer and the bytes have been written by emit() already.
-        uint32_t written = tud_cdc_write(const_cast<const char*>(reinterpret_cast<const volatile char*>(&s_ring[t])),
+        uint32_t written = tud_cdc_write(const_cast<const char*>(reinterpret_cast<const volatile char*>(&g_ring[t])),
                                          static_cast<uint32_t>(span));
         if (written > 0U) {
-            s_tail = (t + written) % kRingBytes;
+            g_tail = (t + written) % kRingBytes;
             cdc_avail -= written;
             wrote_any = true;
         }

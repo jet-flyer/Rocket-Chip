@@ -60,23 +60,23 @@ enum : uint16_t {
 
 // Vehicle defaults to kMenu (CLI). Station defaults to kAnsi (dashboard).
 // kAnsi causes poll_dashboard_keys() to eat all input — must not be default on vehicle.
-static StationOutputMode s_output_mode = kRadioModeRx ? StationOutputMode::kAnsi
+static StationOutputMode g_outputMode = kRadioModeRx ? StationOutputMode::kAnsi
                                                        : StationOutputMode::kMenu;
 
 StationOutputMode AO_RCOS_get_output_mode() {
-    return s_output_mode;
+    return g_outputMode;
 }
 
 void AO_RCOS_set_output_mode(StationOutputMode mode) {
-    s_output_mode = mode;
+    g_outputMode = mode;
 }
 
 void AO_RCOS_cycle_output_mode() {
-    switch (s_output_mode) {
-    case StationOutputMode::kAnsi:    s_output_mode = StationOutputMode::kCsv;     break;
-    case StationOutputMode::kCsv:     s_output_mode = StationOutputMode::kMavlink;  break;
-    case StationOutputMode::kMavlink: s_output_mode = StationOutputMode::kAnsi;     break;
-    case StationOutputMode::kMenu:    s_output_mode = StationOutputMode::kAnsi;     break;
+    switch (g_outputMode) {
+    case StationOutputMode::kAnsi:    g_outputMode = StationOutputMode::kCsv;     break;
+    case StationOutputMode::kCsv:     g_outputMode = StationOutputMode::kMavlink;  break;
+    case StationOutputMode::kMavlink: g_outputMode = StationOutputMode::kAnsi;     break;
+    case StationOutputMode::kMenu:    g_outputMode = StationOutputMode::kAnsi;     break;
     }
 }
 
@@ -175,8 +175,8 @@ struct RcosAo {
     uint8_t    wizard_skipped;
 };
 
-static RcosAo l_rcosAo;
-static QEvtPtr l_rcosAoQueue[16];
+static RcosAo g_rcosAo;
+static QEvtPtr g_rcosAoQueue[16];
 
 // Forward declarations
 static QState RcosAo_initial(RcosAo * const me, QEvt const * const e);
@@ -1057,19 +1057,19 @@ static QState RcosAo_running(RcosAo * const me, QEvt const * const e) {
 // Public API
 // ============================================================================
 
-QActive * const AO_RCOS = &l_rcosAo.super;
+QActive * const AO_RCOS = &g_rcosAo.super;
 
 void AO_RCOS_start(uint8_t prio) {
-    QActive_ctor(&l_rcosAo.super,
+    QActive_ctor(&g_rcosAo.super,
                  Q_STATE_CAST(&RcosAo_initial));
 
-    QTimeEvt_ctorX(&l_rcosAo.tick_timer, &l_rcosAo.super,
+    QTimeEvt_ctorX(&g_rcosAo.tick_timer, &g_rcosAo.super,
                    SIG_RCOS_TICK, 0U);
 
-    QActive_start(&l_rcosAo.super,
+    QActive_start(&g_rcosAo.super,
                   Q_PRIO(prio, 0U),
-                  l_rcosAoQueue,
-                  Q_DIM(l_rcosAoQueue),
+                  g_rcosAoQueue,
+                  Q_DIM(g_rcosAoQueue),
                   nullptr, 0U,
                   nullptr);
 
@@ -1081,12 +1081,12 @@ void AO_RCOS_start(uint8_t prio) {
     // deterministic output channel. Operator who wants dashboard back
     // power-cycles without arming.
     if (rc::test_mode_magic_observed_at_boot()) {
-        s_output_mode = StationOutputMode::kMenu;
+        g_outputMode = StationOutputMode::kMenu;
     }
 }
 
 void AO_RCOS_resume_tick() {
-    QTimeEvt_armX(&l_rcosAo.tick_timer, 5U, 5U);
+    QTimeEvt_armX(&g_rcosAo.tick_timer, 5U, 5U);
 }
 
 // ============================================================================
@@ -1100,15 +1100,15 @@ void AO_RCOS_start_cal_gyro() {
         rc::rc_log("\nERROR: IMU not available\n");
         return;
     }
-    if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
+    if (g_rcosAo.cal_ui_state != CalUiState::kIdle) {
         rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
     rc::rc_log("\nGyro Calibration — keep device STILL for ~2s.\n");
     rc::rc_log("ENTER to start, 'x' to skip.\n");
-    l_rcosAo.cal_async_type = kAsyncGyro;
-    l_rcosAo.cal_wizard_active = false;
-    l_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
+    g_rcosAo.cal_async_type = kAsyncGyro;
+    g_rcosAo.cal_wizard_active = false;
+    g_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
 }
 
 void AO_RCOS_start_cal_level() {
@@ -1116,15 +1116,15 @@ void AO_RCOS_start_cal_level() {
         rc::rc_log("\nERROR: IMU not available\n");
         return;
     }
-    if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
+    if (g_rcosAo.cal_ui_state != CalUiState::kIdle) {
         rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
     rc::rc_log("\nLevel Calibration — keep device FLAT and STILL for ~1s.\n");
     rc::rc_log("ENTER to start, 'x' to skip.\n");
-    l_rcosAo.cal_async_type = kAsyncLevel;
-    l_rcosAo.cal_wizard_active = false;
-    l_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
+    g_rcosAo.cal_async_type = kAsyncLevel;
+    g_rcosAo.cal_wizard_active = false;
+    g_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
 }
 
 void AO_RCOS_start_cal_baro() {
@@ -1132,15 +1132,15 @@ void AO_RCOS_start_cal_baro() {
         rc::rc_log("\nERROR: Barometer not available\n");
         return;
     }
-    if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
+    if (g_rcosAo.cal_ui_state != CalUiState::kIdle) {
         rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
     rc::rc_log("\nBaro Calibration — setting ground reference (~1s).\n");
     rc::rc_log("ENTER to start, 'x' to skip.\n");
-    l_rcosAo.cal_async_type = kAsyncBaro;
-    l_rcosAo.cal_wizard_active = false;
-    l_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
+    g_rcosAo.cal_async_type = kAsyncBaro;
+    g_rcosAo.cal_wizard_active = false;
+    g_rcosAo.cal_ui_state = CalUiState::kAsyncPrompt;
 }
 
 void AO_RCOS_start_cal_6pos() {
@@ -1148,7 +1148,7 @@ void AO_RCOS_start_cal_6pos() {
         rc::rc_log("\nERROR: IMU not available\n");
         return;
     }
-    if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
+    if (g_rcosAo.cal_ui_state != CalUiState::kIdle) {
         rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
@@ -1160,9 +1160,9 @@ void AO_RCOS_start_cal_6pos() {
     rc::rc_log("in 6 orientations.\n\n");
 
     calibration_reset_6pos();
-    l_rcosAo.cal_6pos_position = 0;
-    l_rcosAo.cal_wizard_active = false;
-    l_rcosAo.cal_is_6pos = true;
+    g_rcosAo.cal_6pos_position = 0;
+    g_rcosAo.cal_wizard_active = false;
+    g_rcosAo.cal_is_6pos = true;
 
     rc::rc_log("--- Position 1/%d: %s ---\n",
            kAccel6posPositions,
@@ -1170,7 +1170,7 @@ void AO_RCOS_start_cal_6pos() {
     rc::rc_log("  %s\n", kPositionInstructions[0]);
     rc::rc_log("  Press ENTER when ready, ESC to cancel.\n");
     cal_neo(kCalNeoAccelWait);
-    l_rcosAo.cal_ui_state = CalUiState::k6posPrompt;
+    g_rcosAo.cal_ui_state = CalUiState::k6posPrompt;
 }
 
 void AO_RCOS_start_cal_mag() {
@@ -1178,7 +1178,7 @@ void AO_RCOS_start_cal_mag() {
         rc::rc_log("\nERROR: Mag read callback not set\n");
         return;
     }
-    if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
+    if (g_rcosAo.cal_ui_state != CalUiState::kIdle) {
         rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
@@ -1190,13 +1190,13 @@ void AO_RCOS_start_cal_mag() {
     rc::rc_log("ENTER to start, ESC/'x' to cancel.\n");
     rc::rc_log("========================================\n");
 
-    l_rcosAo.cal_wizard_active = false;
-    l_rcosAo.cal_is_6pos = false;
-    l_rcosAo.cal_ui_state = CalUiState::kMagPrompt;
+    g_rcosAo.cal_wizard_active = false;
+    g_rcosAo.cal_is_6pos = false;
+    g_rcosAo.cal_ui_state = CalUiState::kMagPrompt;
 }
 
 void AO_RCOS_start_cal_wizard() {
-    if (l_rcosAo.cal_ui_state != CalUiState::kIdle) {
+    if (g_rcosAo.cal_ui_state != CalUiState::kIdle) {
         rc::rc_log("\nCalibration already in progress.\n");
         return;
     }
@@ -1211,11 +1211,11 @@ void AO_RCOS_start_cal_wizard() {
     rc::rc_log("(Baro ground ref runs automatically at boot)\n");
     rc::rc_log("========================================\n\n");
 
-    l_rcosAo.cal_wizard_active = true;
-    l_rcosAo.cal_wizard_step = 0;  // Will be incremented to kWizardGyro in kWizardNext
-    l_rcosAo.wizard_passed = 0;
-    l_rcosAo.wizard_failed = 0;
-    l_rcosAo.wizard_skipped = 0;
+    g_rcosAo.cal_wizard_active = true;
+    g_rcosAo.cal_wizard_step = 0;  // Will be incremented to kWizardGyro in kWizardNext
+    g_rcosAo.wizard_passed = 0;
+    g_rcosAo.wizard_failed = 0;
+    g_rcosAo.wizard_skipped = 0;
 
     // Start from step 0 by entering kWizardNext which increments then dispatches
     // But step 0 is gyro, and kWizardNext increments first. So set to 255 so it wraps to 0.
@@ -1228,12 +1228,12 @@ void AO_RCOS_start_cal_wizard() {
     // No wait, the current code does me->cal_wizard_step++ FIRST. So if step starts at 0,
     // after increment it becomes 1 (kWizardLevel). That skips gyro.
     // Fix: initialize to UINT8_MAX so increment wraps to 0.
-    l_rcosAo.cal_wizard_step = UINT8_MAX;  // kWizardNext increments to 0 (kWizardGyro)
-    l_rcosAo.cal_ui_state = CalUiState::kWizardNext;
+    g_rcosAo.cal_wizard_step = UINT8_MAX;  // kWizardNext increments to 0 (kWizardGyro)
+    g_rcosAo.cal_ui_state = CalUiState::kWizardNext;
 }
 
 bool AO_RCOS_cal_active() {
-    return l_rcosAo.cal_ui_state != CalUiState::kIdle;
+    return g_rcosAo.cal_ui_state != CalUiState::kIdle;
 }
 
 void AO_RCOS_start_erase_flights() {
@@ -1250,10 +1250,10 @@ void AO_RCOS_start_erase_flights() {
     }
     rc::rc_log("Erase ALL %lu flights? Type 'yes' + Enter to confirm: ",
            (unsigned long)count);
-    memset(l_rcosAo.confirm_buf, 0, sizeof(l_rcosAo.confirm_buf));
-    l_rcosAo.confirm_idx = 0;
-    l_rcosAo.confirm_timeout_ticks = 0;
-    l_rcosAo.cal_ui_state = CalUiState::kEraseConfirm;
+    memset(g_rcosAo.confirm_buf, 0, sizeof(g_rcosAo.confirm_buf));
+    g_rcosAo.confirm_idx = 0;
+    g_rcosAo.confirm_timeout_ticks = 0;
+    g_rcosAo.cal_ui_state = CalUiState::kEraseConfirm;
 }
 
 void AO_RCOS_start_download_flight() {
@@ -1269,10 +1269,10 @@ void AO_RCOS_start_download_flight() {
         return;
     }
     rc::rc_log("Flight # (1-%lu): ", (unsigned long)count);
-    memset(l_rcosAo.confirm_buf, 0, sizeof(l_rcosAo.confirm_buf));
-    l_rcosAo.confirm_idx = 0;
-    l_rcosAo.confirm_timeout_ticks = 0;
-    l_rcosAo.cal_ui_state = CalUiState::kFlightNumInput;
+    memset(g_rcosAo.confirm_buf, 0, sizeof(g_rcosAo.confirm_buf));
+    g_rcosAo.confirm_idx = 0;
+    g_rcosAo.confirm_timeout_ticks = 0;
+    g_rcosAo.cal_ui_state = CalUiState::kFlightNumInput;
 }
 
 void AO_RCOS_start_cal_reset() {
@@ -1280,10 +1280,10 @@ void AO_RCOS_start_cal_reset() {
     rc::rc_log("\n*** RESET ALL CALIBRATION ***\n");
     rc::rc_log("This will erase all calibration data!\n");
     rc::rc_log("Type 'YES' + ENTER to confirm: ");
-    memset(l_rcosAo.confirm_buf, 0, sizeof(l_rcosAo.confirm_buf));
-    l_rcosAo.confirm_idx = 0;
-    l_rcosAo.confirm_timeout_ticks = 0;
-    l_rcosAo.cal_ui_state = CalUiState::kResetConfirm;
+    memset(g_rcosAo.confirm_buf, 0, sizeof(g_rcosAo.confirm_buf));
+    g_rcosAo.confirm_idx = 0;
+    g_rcosAo.confirm_timeout_ticks = 0;
+    g_rcosAo.cal_ui_state = CalUiState::kResetConfirm;
 }
 
 void AO_RCOS_start_cal_save() {

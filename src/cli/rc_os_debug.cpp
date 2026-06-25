@@ -34,8 +34,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static bool s_eskfLiveActive = false;
-static uint32_t s_eskfLiveLastPrintUs = 0;
+static bool g_eskfLiveActive = false;
+static uint32_t g_eskfLiveLastPrintUs = 0;
 static constexpr uint32_t kEskfLivePeriodUs = 1000000;
 
 bool dev_debug_menu_enter() {
@@ -49,7 +49,7 @@ bool dev_debug_menu_enter() {
 // Blocking input is unsafe in a handler — it would overflow AO event queues
 // (LL Entry 32). Instead, set a "LED test pending" flag; the next keypress
 // received by the main dispatcher falls through to dev_led_test_poll().
-static bool s_ledTestPending = false;
+static bool g_ledTestPending = false;
 
 static void dev_led_test_force(uint8_t code) {
     rc::rc_log("[led_test] forcing pattern code %u (dev override)\n", code);
@@ -73,13 +73,13 @@ static void dev_led_test_menu() {
     rc::rc_log("  0 = clear (return to normal resolver)\n");
     rc::rc_log("  any other key = cancel\n");
     rc::rc_log("[led_test] > ");
-    s_ledTestPending = true;
+    g_ledTestPending = true;
 }
 
-bool dev_led_test_pending() { return s_ledTestPending; }
+bool dev_led_test_pending() { return g_ledTestPending; }
 
 void dev_led_test_feed(int c) {
-    s_ledTestPending = false;
+    g_ledTestPending = false;
     rc::rc_log("%c\n", (char)c);
     switch (c) {
         case '1': dev_led_test_force(rc::led::kCalGyro);        break;
@@ -117,8 +117,8 @@ bool dev_debug_menu_dispatch(int c) {
             cli_print_hw_status();
             break;
         case 'e':
-            s_eskfLiveActive = true;
-            s_eskfLiveLastPrintUs = time_us_32();
+            g_eskfLiveActive = true;
+            g_eskfLiveLastPrintUs = time_us_32();
             rc::rc_log("\n--- ESKF live (1Hz) --- any key to stop ---\n");
             cli_print_eskf_live();
             break;
@@ -202,16 +202,16 @@ bool dev_debug_menu_dispatch(int c) {
 }
 
 bool dev_eskf_live_poll() {
-    if (!s_eskfLiveActive) { return false; }
+    if (!g_eskfLiveActive) { return false; }
     int c = getchar_timeout_us(0);
     if (c != PICO_ERROR_TIMEOUT) {
-        s_eskfLiveActive = false;
+        g_eskfLiveActive = false;
         rc::rc_log("\n--- ESKF live stopped ---\n");
         rc::rc_log("[debug] ");
     } else {
         uint32_t now_us = time_us_32();
-        if (now_us - s_eskfLiveLastPrintUs >= kEskfLivePeriodUs) {
-            s_eskfLiveLastPrintUs = now_us;
+        if (now_us - g_eskfLiveLastPrintUs >= kEskfLivePeriodUs) {
+            g_eskfLiveLastPrintUs = now_us;
             cli_print_eskf_live();
         }
     }

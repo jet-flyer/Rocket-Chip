@@ -55,11 +55,11 @@ static constexpr float kCmsToMs = 0.01F;
 // Station-side computed state (persists across renders)
 // ============================================================================
 
-static float    s_max_alt_m  = 0.0F;
-static float    s_max_vel_ms = 0.0F;
-static uint32_t s_first_seq  = 0;
-static bool     s_first_seq_valid = false;
-static uint8_t  s_prev_flight_state = 255;  // for transition detection
+static float    g_maxAltM  = 0.0F;
+static float    g_maxVelMs = 0.0F;
+static uint32_t g_firstSeq  = 0;
+static bool     g_firstSeqValid = false;
+static uint8_t  g_prevFlightState = 255;  // for transition detection
 
 // ============================================================================
 // Helpers
@@ -112,7 +112,7 @@ static int rssi_bar(char* buf, int max, int16_t rssi) {
 // ============================================================================
 
 // Static frame buffer — avoids stack allocation (LL Entry 1).
-static char s_frame[2048];
+static char g_frame[2048];
 
 // Direct CDC write, bypasses stdio (LL Entry 39 pattern); drops on full.
 static void send_frame(const char* buf, size_t len) {
@@ -166,23 +166,23 @@ static void decode_telem_fields(const rc::TelemetryState& t,
     d.lon     = static_cast<double>(t.lon_1e7) * 1e-7;
 
     // Running max
-    if (d.alt_m > s_max_alt_m) s_max_alt_m = d.alt_m;
+    if (d.alt_m > g_maxAltM) g_maxAltM = d.alt_m;
     float abs_vel = fabsf(d.vvel);
-    if (abs_vel > s_max_vel_ms) s_max_vel_ms = abs_vel;
-    if (t.flight_state == 0 && s_prev_flight_state != 0 && s_prev_flight_state != 255) {
-        s_max_alt_m = 0.0F;
-        s_max_vel_ms = 0.0F;
+    if (abs_vel > g_maxVelMs) g_maxVelMs = abs_vel;
+    if (t.flight_state == 0 && g_prevFlightState != 0 && g_prevFlightState != 255) {
+        g_maxAltM = 0.0F;
+        g_maxVelMs = 0.0F;
     }
-    s_prev_flight_state = t.flight_state;
+    g_prevFlightState = t.flight_state;
 
     // Packet loss
-    if (!s_first_seq_valid && rs->rx_count > 0) {
-        s_first_seq = seq;
-        s_first_seq_valid = true;
+    if (!g_firstSeqValid && rs->rx_count > 0) {
+        g_firstSeq = seq;
+        g_firstSeqValid = true;
     }
     d.lost = 0;
-    if (s_first_seq_valid && rs->rx_count > 0) {
-        uint32_t expected = (seq - s_first_seq + 1) & 0x3FFF;
+    if (g_firstSeqValid && rs->rx_count > 0) {
+        uint32_t expected = (seq - g_firstSeq + 1) & 0x3FFF;
         if (expected > rs->rx_count) d.lost = expected - rs->rx_count;
     }
 
@@ -349,7 +349,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
     format_cmd_status_row(cmd_row, sizeof(cmd_row), cmd_clr);
 
     rc::strbuf sb;
-    rc::strbuf_init(&sb, s_frame, sizeof(s_frame));
+    rc::strbuf_init(&sb, g_frame, sizeof(g_frame));
 
     rc::strbuf_printf(&sb,
         "%s"
@@ -369,7 +369,7 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
         "Baro: %7.1f m            GPS: %s (%usat)%s\n"
         "-------------------------------------------%s\n",
         static_cast<double>(d.alt_m),
-        static_cast<double>(s_max_alt_m), kClrEol,
+        static_cast<double>(g_maxAltM), kClrEol,
         static_cast<double>(d.vvel), static_cast<double>(d.speed), kClrEol,
         static_cast<double>(d.alt_m), d.fix_str,
         static_cast<unsigned>(d.sats), kClrEol,
@@ -410,16 +410,16 @@ static int build_frame(const DisplayFields& d, const RadioAoState* rs,
 }
 
 // IVP-122: Dashboard pause for ARM confirm flow
-static bool s_dashboard_paused = false;
+static bool g_dashboardPaused = false;
 
-void rc_os_dashboard_pause()  { s_dashboard_paused = true; }
-void rc_os_dashboard_resume() { s_dashboard_paused = false; }
+void rc_os_dashboard_pause()  { g_dashboardPaused = true; }
+void rc_os_dashboard_resume() { g_dashboardPaused = false; }
 
 void ansi_dashboard_render(const rc::TelemetryState& t,
                             const RadioAoState* rs,
                             uint32_t met_ms, uint16_t seq, bool valid,
                             const RxTelemSnapshot* rx) {
-    if (s_dashboard_paused) return;  // IVP-122: suppress during ARM confirm
+    if (g_dashboardPaused) return;  // IVP-122: suppress during ARM confirm
 
     if (!valid) {
         ansi_dashboard_render_waiting(rs);
@@ -447,7 +447,7 @@ void ansi_dashboard_render(const rc::TelemetryState& t,
     }
 
     int pos = build_frame(d, rs, seq);
-    send_frame(s_frame, static_cast<size_t>(pos));
+    send_frame(g_frame, static_cast<size_t>(pos));
 }
 
 void ansi_dashboard_render_waiting(const RadioAoState* rs) {
@@ -460,7 +460,7 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
 #endif
 
     rc::strbuf sb;
-    rc::strbuf_init(&sb, s_frame, sizeof(s_frame));
+    rc::strbuf_init(&sb, g_frame, sizeof(g_frame));
     rc::strbuf_printf(&sb,
         "%s"
         "=== RocketChip Ground Station ===%s\n"
@@ -478,5 +478,5 @@ void ansi_dashboard_render_waiting(const RadioAoState* rs) {
         (unsigned long)uptime_s, kClrEol,
         kClrEol,
         kClrEol);
-    send_frame(s_frame, rc::strbuf_len(&sb));
+    send_frame(g_frame, rc::strbuf_len(&sb));
 }

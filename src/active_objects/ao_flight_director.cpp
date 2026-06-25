@@ -53,13 +53,13 @@ struct FdAo {
     bool pio_main_reported;         // PIO backup main fire already published
 };
 
-static FdAo l_fdAo;
+static FdAo g_fdAo;
 
 // Queue depth 32: tick events accumulate while telemetry_radio_tick() blocks
 // in QV_onIdle (rfm95w_send polls DIO0 for 50-150ms LoRa airtime). At 100Hz,
 // 150ms = 15 events. Depth 32 gives 2x margin. Real fix: non-blocking LoRa
 // driver (see whiteboard deferred notes). (A6, revised after HW test)
-static QEvtPtr l_fdAoQueue[32];
+static QEvtPtr g_fdAoQueue[32];
 
 // ============================================================================
 // Extern declarations — globals owned by main.cpp, read here.
@@ -171,7 +171,7 @@ static QState FdAo_running(FdAo * const me, QEvt const * const e) {
 // Public interface
 // ============================================================================
 
-QActive * const AO_FlightDirector = &l_fdAo.super;
+QActive * const AO_FlightDirector = &g_fdAo.super;
 
 // Pyro fired callback — extracted to keep AO_FlightDirector_start under
 // the function-size limit.
@@ -179,11 +179,11 @@ static void fd_on_pyro_fired(rc::PyroChannel ch) {
     rc::rc_log("[FD] PYRO FIRED: %s (primary)\n",
                ch == rc::PyroChannel::kDrogue ? "DROGUE" : "MAIN");
     if (ch == rc::PyroChannel::kDrogue) {
-        l_fdAo.director.state.drogue_fired = true;
+        g_fdAo.director.state.drogue_fired = true;
         AO_Logger_log_event(rc::LogEventId::kPyroFiredDrogue, 0, 0, 0, 0);
         rc::pio_backup_timer_cancel(rc::BackupTimerId::kDrogue);
     } else {
-        l_fdAo.director.state.main_fired = true;
+        g_fdAo.director.state.main_fired = true;
         AO_Logger_log_event(rc::LogEventId::kPyroFiredMain, 0, 0, 0, 0);
         rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
     }
@@ -193,7 +193,7 @@ static void fd_on_pyro_fired(rc::PyroChannel ch) {
     g_pyroEvt.channel = static_cast<uint8_t>(ch);
     g_pyroEvt.source = 0;  // Primary (FD-commanded)
     QActive_publish_(&g_pyroEvt.super,
-                     &l_fdAo.super, l_fdAo.super.prio);
+                     &g_fdAo.super, g_fdAo.super.prio);
 }
 
 // R-25-exec: register phase accessor for test_mode_evaluate's three-
@@ -203,7 +203,7 @@ static void fd_on_pyro_fired(rc::PyroChannel ch) {
 // function under JSF AV Rule 1 line-count limit.
 static void fd_register_test_mode_accessor() {
     rc::test_mode_register_phase_accessor([]() {
-        return rc::flight_director_phase(&l_fdAo.director);
+        return rc::flight_director_phase(&g_fdAo.director);
     });
 }
 
@@ -224,7 +224,7 @@ static void fd_wire_callbacks(rc::FlightDirector* director) {
             static QEvt g_beaconEvt;
             g_beaconEvt.sig = rc::SIG_BEACON_ACTIVE;
             QActive_publish_(&g_beaconEvt,
-                             &l_fdAo.super, l_fdAo.super.prio);
+                             &g_fdAo.super, g_fdAo.super.prio);
         }
     };
     director->phase_change_cb = [](rc::FlightPhase phase, uint32_t ts_ms) {
@@ -236,14 +236,14 @@ static void fd_wire_callbacks(rc::FlightDirector* director) {
         g_evt.phase = static_cast<uint8_t>(phase);
         g_evt.timestamp_ms = ts_ms;
         QActive_publish_(&g_evt.super,
-                         &l_fdAo.super, l_fdAo.super.prio);
+                         &g_fdAo.super, g_fdAo.super.prio);
     };
     director->log_pyro_cb = fd_on_pyro_fired;
     director->beacon_cb = []() {
         static QEvt g_beaconEvt;
         g_beaconEvt.sig = rc::SIG_BEACON_ACTIVE;
         QActive_publish_(&g_beaconEvt,
-                         &l_fdAo.super, l_fdAo.super.prio);
+                         &g_fdAo.super, g_fdAo.super.prio);
         rc::rc_log("[FD] Distress beacon published (SIG_BEACON_ACTIVE)\n");
     };
     director->reset_subsystems_cb = []() {
@@ -252,7 +252,7 @@ static void fd_wire_callbacks(rc::FlightDirector* director) {
 }
 
 void AO_FlightDirector_start(uint8_t prio) {
-    FdAo* me = &l_fdAo;
+    FdAo* me = &g_fdAo;
 
     // --- Initialize FlightDirector QHsm + wire callbacks ---
     rc::flight_director_ctor(&me->director, &rc::kDefaultRocketProfile);
@@ -273,29 +273,29 @@ void AO_FlightDirector_start(uint8_t prio) {
                    SIG_FD_TICK_TIMER, 0U);
     QActive_start(&me->super,
                   Q_PRIO(prio, 0U),
-                  l_fdAoQueue,
-                  Q_DIM(l_fdAoQueue),
+                  g_fdAoQueue,
+                  Q_DIM(g_fdAoQueue),
                   nullptr, 0U,
                   nullptr);
 }
 
 void AO_FlightDirector_dispatch_signal(int signal) {
-    if (!l_fdAo.initialized) {
+    if (!g_fdAo.initialized) {
         rc::rc_log("[FD] Flight Director not initialized.\n");
         return;
     }
-    rc::flight_director_dispatch_signal(&l_fdAo.director,
+    rc::flight_director_dispatch_signal(&g_fdAo.director,
                                          static_cast<rc::FlightSignal>(signal));
 }
 
 bool AO_FlightDirector_process_command(int cmd) {
-    if (!l_fdAo.initialized) {
+    if (!g_fdAo.initialized) {
         rc::rc_log("[FD] Flight Director not initialized.\n");
         return false;
     }
 
     auto cmd_type = static_cast<rc::CommandType>(cmd);
-    rc::FlightPhase phase = rc::flight_director_phase(&l_fdAo.director);
+    rc::FlightPhase phase = rc::flight_director_phase(&g_fdAo.director);
 
     // Build Go/No-Go input from health monitor
     rc::GoNoGoInput gng{};
@@ -305,11 +305,11 @@ bool AO_FlightDirector_process_command(int cmd) {
         cmd_type, phase, &gng);
 
     if (result.accepted) {
-        rc::flight_director_dispatch_signal(&l_fdAo.director, result.signal);
+        rc::flight_director_dispatch_signal(&g_fdAo.director, result.signal);
 
         // PIO backup timer arm/disarm hooks
         if (result.signal == rc::SIG_ARM) {
-            const auto* p = l_fdAo.director.profile;
+            const auto* p = g_fdAo.director.profile;
             rc::pio_backup_timer_arm(p->drogue_timer_s, p->main_timer_s);
             rc::rc_log("[PIO] Backup timers armed: drogue=%.0fs main=%.0fs\n",
                        static_cast<double>(p->drogue_timer_s),
@@ -330,16 +330,16 @@ bool AO_FlightDirector_process_command(int cmd) {
 }
 
 void AO_FlightDirector_print_status() {
-    if (!l_fdAo.initialized) {
+    if (!g_fdAo.initialized) {
         rc::rc_log("[FD] Flight Director not initialized.\n");
         return;
     }
-    const rc::FlightState& st = l_fdAo.director.state;
+    const rc::FlightState& st = g_fdAo.director.state;
     uint32_t now_ms = to_ms_since_boot(get_absolute_time());
     uint32_t phase_ms = now_ms - st.phase_entry_ms;
 
     rc::rc_log("\n--- Flight Director Status ---\n");
-    rc::rc_log("  Profile:     %s\n", l_fdAo.director.profile->name);
+    rc::rc_log("  Profile:     %s\n", g_fdAo.director.profile->name);
     rc::rc_log("  Phase:       %s\n", rc::flight_phase_name(st.current_phase));
     rc::rc_log("  Previous:    %s\n", rc::flight_phase_name(st.previous_phase));
     rc::rc_log("  In-phase:    %lu ms\n", (unsigned long)phase_ms);
@@ -375,18 +375,18 @@ void AO_FlightDirector_print_status() {
 }
 
 const rc::FlightDirector* AO_FlightDirector_get_director() {
-    return &l_fdAo.director;
+    return &g_fdAo.director;
 }
 
 bool AO_FlightDirector_is_initialized() {
-    return l_fdAo.initialized;
+    return g_fdAo.initialized;
 }
 
 bool AO_FlightDirector_is_ground_state() {
-    if (!l_fdAo.initialized) {
+    if (!g_fdAo.initialized) {
         // Pre-init: whatever the FD will eventually be, we're definitely
         // not in flight. Treat as ground.
         return true;
     }
-    return rc::flight_director_phase(&l_fdAo.director) == rc::FlightPhase::kIdle;
+    return rc::flight_director_phase(&g_fdAo.director) == rc::FlightPhase::kIdle;
 }

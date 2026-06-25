@@ -69,9 +69,9 @@ struct NotifyAo {
 // Minimum boot-rainbow visibility before kInit can auto-clear (ticks at 33Hz).
 static constexpr uint32_t kInitMinTicks = 99U;
 
-static NotifyAo l_notifyAo;
-static QEvtPtr  l_notifyQueue[16];
-static bool     s_notifyStarted = false;
+static NotifyAo g_notifyAo;
+static QEvtPtr  g_notifyQueue[16];
+static bool     g_notifyStarted = false;
 
 // Forward declarations
 static QState Notify_initial(NotifyAo * const me, QEvt const * const e);
@@ -308,36 +308,36 @@ static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
 // Public interface
 // ============================================================================
 
-QActive * const AO_Notify = &l_notifyAo.super;
+QActive * const AO_Notify = &g_notifyAo.super;
 
 void AO_Notify_start(uint8_t prio) {
-    s_notifyStarted = true;
-    QActive_ctor(&l_notifyAo.super,
+    g_notifyStarted = true;
+    QActive_ctor(&g_notifyAo.super,
                  Q_STATE_CAST(&Notify_initial));
 
-    QTimeEvt_ctorX(&l_notifyAo.tick_timer, &l_notifyAo.super,
+    QTimeEvt_ctorX(&g_notifyAo.tick_timer, &g_notifyAo.super,
                    SIG_NOTIFY_TICK, 0U);
 
-    QActive_start(&l_notifyAo.super,
+    QActive_start(&g_notifyAo.super,
                   Q_PRIO(prio, 0U),
-                  l_notifyQueue,
-                  Q_DIM(l_notifyQueue),
+                  g_notifyQueue,
+                  Q_DIM(g_notifyQueue),
                   nullptr, 0U,
                   nullptr);
 }
 
-static CalIntent s_lastCalIntent = CalIntent::kNone;
+static CalIntent g_lastCalIntent = CalIntent::kNone;
 
 void AO_Notify_post_cal_intent(CalIntent intent) {
     // No-op on builds where AO_Notify isn't started (Station/Relay roles).
-    if (!s_notifyStarted) {
+    if (!g_notifyStarted) {
         return;
     }
     // Deduplicate — avoid queue spam from repeated posts of the same intent
-    if (intent == s_lastCalIntent) {
+    if (intent == g_lastCalIntent) {
         return;
     }
-    s_lastCalIntent = intent;
+    g_lastCalIntent = intent;
 
     // Static event — QV does NOT copy posted events; it stores the pointer.
     // A stack-local event becomes a use-after-free once this function
@@ -348,7 +348,7 @@ void AO_Notify_post_cal_intent(CalIntent intent) {
     static CalIntentEvt g_evt;
     g_evt.super = QEVT_INITIALIZER(SIG_NOTIFY_CAL_INTENT);
     g_evt.intent = intent;
-    QACTIVE_POST(&l_notifyAo.super, &g_evt.super, nullptr);
+    QACTIVE_POST(&g_notifyAo.super, &g_evt.super, nullptr);
 }
 
 // ============================================================================
@@ -359,13 +359,13 @@ void AO_Notify_post_cal_intent(CalIntent intent) {
 // No dedup: intentional, so repeat rejections re-arm the visual.
 // ============================================================================
 void AO_Notify_post_prearm_fail() {
-    if (!s_notifyStarted) {
+    if (!g_notifyStarted) {
         return;
     }
     // Static event per LL Entry 35. No QEvt subclass payload needed.
     static QEvt g_evt;
     g_evt = QEVT_INITIALIZER(SIG_NOTIFY_PREARM_FAIL);
-    QACTIVE_POST(&l_notifyAo.super, &g_evt, nullptr);
+    QACTIVE_POST(&g_notifyAo.super, &g_evt, nullptr);
 }
 
 // ============================================================================
@@ -376,15 +376,15 @@ void AO_Notify_post_prearm_fail() {
 // audio backend plays the vehicle-lost tone once audio hardware is wired.
 // ============================================================================
 void AO_Notify_post_vehicle_lost() {
-    if (!s_notifyStarted) { return; }
+    if (!g_notifyStarted) { return; }
     static QEvt g_evt;
     g_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_LOST);
-    QACTIVE_POST(&l_notifyAo.super, &g_evt, nullptr);
+    QACTIVE_POST(&g_notifyAo.super, &g_evt, nullptr);
 }
 
 void AO_Notify_post_vehicle_found() {
-    if (!s_notifyStarted) { return; }
+    if (!g_notifyStarted) { return; }
     static QEvt g_evt;
     g_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_FOUND);
-    QACTIVE_POST(&l_notifyAo.super, &g_evt, nullptr);
+    QACTIVE_POST(&g_notifyAo.super, &g_evt, nullptr);
 }
