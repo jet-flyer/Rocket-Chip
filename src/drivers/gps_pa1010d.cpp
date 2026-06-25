@@ -116,10 +116,10 @@ static size_t g_lastReadLen = 0;           // Last successful read length
  *
  * Ref: Adafruit_GPS.cpp, SparkFun I2C GPS library, Quectel L76-L app note.
  */
-static int read_nmea_data(uint8_t* buffer, size_t maxLen) {
+static int read_nmea_data(uint8_t* buffer, size_t max_len) {
     // Read raw I2C data into a local buffer, then filter in-place
     static uint8_t g_raw[kGpsMaxRead];
-    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_raw, maxLen);
+    int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_raw, max_len);
     if (ret <= 0) {
         return -1;  // I2C failure (NACK or timeout)
     }
@@ -237,22 +237,22 @@ bool gps_pa1010d_init() {
 
     // Aggressive probe retry — now that the module should be locked into
     // full-power mode by blind PMTK, read a full buffer and look for NMEA.
-    bool foundNmea = false;
-    for (int retry = 0; retry < 8 && !foundNmea; retry++) {
+    bool found_nmea = false;
+    for (int retry = 0; retry < 8 && !found_nmea; retry++) {
         int32_t ret = i2c_bus_read(kGpsPa1010dAddr, g_buffer, kGpsMaxRead);
         if (ret > 0) {
             for (int32_t i = 0; i < ret; i++) {
                 if (g_buffer[i] == kNmeaStart) {
-                    foundNmea = true;
+                    found_nmea = true;
                     break;
                 }
             }
         }
-        if (!foundNmea) {
+        if (!found_nmea) {
             sleep_ms(150);
         }
     }
-    if (!foundNmea) {
+    if (!found_nmea) {
         return false;
     }
 

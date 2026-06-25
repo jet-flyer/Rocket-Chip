@@ -341,24 +341,24 @@ void ws2812_set_mode(ws2812_mode_t mode, ws2812_rgb_t color) {
 }
 
 void ws2812_set_mode_alternate(ws2812_rgb_t a, ws2812_rgb_t b,
-                               uint32_t halfPeriodMs) {
+                               uint32_t half_period_ms) {
     g_state.mode = WS2812_MODE_ALTERNATE;
     g_state.baseColor = a;
     g_state.altColor = b;
-    g_state.alternateHalfMs = (halfPeriodMs > 0U) ? halfPeriodMs
+    g_state.alternateHalfMs = (half_period_ms > 0U) ? half_period_ms
                                                   : kDefaultAlternateHalfMs;
     g_state.phaseStartMs = to_ms_since_boot(get_absolute_time());
     g_state.blinkState = true;   // true = showing baseColor
     send_pixel(a.r, a.g, a.b);
 }
 
-void ws2812_set_breathe_period(uint32_t periodMs) {
-    g_state.breathePeriodMs = periodMs;
+void ws2812_set_breathe_period(uint32_t period_ms) {
+    g_state.breathePeriodMs = period_ms;
 }
 
-void ws2812_set_blink_timing(uint32_t onMs, uint32_t offMs) {
-    g_state.blinkOnMs = onMs;
-    g_state.blinkOffMs = offMs;
+void ws2812_set_blink_timing(uint32_t on_ms, uint32_t off_ms) {
+    g_state.blinkOnMs = on_ms;
+    g_state.blinkOffMs = off_ms;
 }
 
 void ws2812_set_brightness(uint8_t brightness) {
@@ -377,14 +377,14 @@ static void update_breathe(uint32_t elapsed) {
     send_pixel(color.r, color.g, color.b);
 }
 
-static void update_blink(uint32_t elapsed, uint32_t onMs, uint32_t offMs) {
-    uint32_t period = onMs + offMs;
+static void update_blink(uint32_t elapsed, uint32_t on_ms, uint32_t off_ms) {
+    uint32_t period = on_ms + off_ms;
     uint32_t phase = elapsed % period;
-    bool shouldBeOn = (phase < onMs);
+    bool should_be_on = (phase < on_ms);
 
-    if (shouldBeOn != g_state.blinkState) {
-        g_state.blinkState = shouldBeOn;
-        if (shouldBeOn) {
+    if (should_be_on != g_state.blinkState) {
+        g_state.blinkState = should_be_on;
+        if (should_be_on) {
             send_pixel(g_state.baseColor.r, g_state.baseColor.g,
                       g_state.baseColor.b);
         } else {
@@ -402,13 +402,13 @@ static void update_rainbow(uint32_t elapsed) {
 // Stage L: two-color alternation. `blinkState` true = showing baseColor,
 // false = showing altColor. Edge-triggered (only sends when boundary crossed)
 // to avoid hammering the PIO FIFO every tick.
-static void update_alternate(uint32_t elapsed, uint32_t halfMs) {
-    uint32_t period = halfMs * 2U;
+static void update_alternate(uint32_t elapsed, uint32_t half_ms) {
+    uint32_t period = half_ms * 2U;
     if (period == 0U) return;
-    bool showBase = ((elapsed % period) < halfMs);
-    if (showBase != g_state.blinkState) {
-        g_state.blinkState = showBase;
-        const ws2812_rgb_t& c = showBase ? g_state.baseColor : g_state.altColor;
+    bool show_base = ((elapsed % period) < half_ms);
+    if (show_base != g_state.blinkState) {
+        g_state.blinkState = show_base;
+        const ws2812_rgb_t& c = show_base ? g_state.baseColor : g_state.altColor;
         send_pixel(c.r, c.g, c.b);
     }
 }
@@ -417,19 +417,19 @@ static void update_alternate(uint32_t elapsed, uint32_t halfMs) {
 // Edge-triggered like update_blink. Uses baseColor for the on-frames.
 static void update_double_flash(uint32_t elapsed) {
     uint32_t phase = elapsed % kDoubleFlashPeriodMs;
-    bool shouldBeOn;
+    bool should_be_on;
     if (phase < kDoubleFlashP0OnMs) {
-        shouldBeOn = true;
+        should_be_on = true;
     } else if (phase < kDoubleFlashP0OnMs + kDoubleFlashP1OffMs) {
-        shouldBeOn = false;
+        should_be_on = false;
     } else if (phase < kDoubleFlashP0OnMs + kDoubleFlashP1OffMs + kDoubleFlashP2OnMs) {
-        shouldBeOn = true;
+        should_be_on = true;
     } else {
-        shouldBeOn = false;
+        should_be_on = false;
     }
-    if (shouldBeOn != g_state.blinkState) {
-        g_state.blinkState = shouldBeOn;
-        if (shouldBeOn) {
+    if (should_be_on != g_state.blinkState) {
+        g_state.blinkState = should_be_on;
+        if (should_be_on) {
             send_pixel(g_state.baseColor.r, g_state.baseColor.g, g_state.baseColor.b);
         } else {
             send_pixel(0, 0, 0);

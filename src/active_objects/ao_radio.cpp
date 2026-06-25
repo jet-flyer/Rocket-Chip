@@ -174,16 +174,16 @@ static inline void stage_t_log_tx_start(uint8_t) {}
 static inline void stage_t_log_tx_done(TxPollResult) {}
 #endif
 
-static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* txEvt) {
+static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* tx_evt) {
     RadioAoState& s = me->state;
 
     // TX-busy: drop and log [C3-A2]
     if (s.scheduler.phase == rc::RadioPhase::kTxActive) {
-        DBG_PRINT("RADIO: TX busy, dropping packet (%u bytes)", txEvt->len);
+        DBG_PRINT("RADIO: TX busy, dropping packet (%u bytes)", tx_evt->len);
         return;
     }
 
-    if (!s.initialized || txEvt->len == 0) {
+    if (!s.initialized || tx_evt->len == 0) {
         return;
     }
 
@@ -199,14 +199,14 @@ static void handle_tx_event(RadioAo* me, const rc::RadioTxEvt* txEvt) {
         if (window == 0) {
             DBG_PRINT("RADIO: station TX held — RfManager window=0 "
                       "(link ACQ or stale anchor), dropping %u bytes",
-                      txEvt->len);
+                      tx_evt->len);
             return;
         }
     }
 
-    if (rfm95w_send_start(&s.radio, txEvt->buf, txEvt->len)) {
+    if (rfm95w_send_start(&s.radio, tx_evt->buf, tx_evt->len)) {
         s.scheduler.on_tx_start(now_ms());
-        stage_t_log_tx_start(txEvt->len);
+        stage_t_log_tx_start(tx_evt->len);
     }
 }
 
@@ -486,15 +486,15 @@ static void handle_rx_poll(RadioAo* me) {
     // direct POST → publish so both AOs receive per AO Commandment X
     // (publish-subscribe pattern). File-scope static event is safe under QV
     // cooperative scheduling (Commandment VI).
-    static rc::RadioRxEvt rxEvt;
-    rxEvt.super.sig = rc::SIG_RADIO_RX;
-    rxEvt.super.refCtr_ = 0;
-    memcpy(rxEvt.buf, buf, len);
-    rxEvt.len = len;
-    rxEvt.rssi = s.last_rx_rssi;
-    rxEvt.snr = s.last_rx_snr;
+    static rc::RadioRxEvt rx_evt;
+    rx_evt.super.sig = rc::SIG_RADIO_RX;
+    rx_evt.super.refCtr_ = 0;
+    memcpy(rx_evt.buf, buf, len);
+    rx_evt.len = len;
+    rx_evt.rssi = s.last_rx_rssi;
+    rx_evt.snr = s.last_rx_snr;
 
-    QActive_publish_(&rxEvt.super, &me->super, me->super.prio);
+    QActive_publish_(&rx_evt.super, &me->super, me->super.prio);
 }
 
 // ============================================================================
@@ -583,20 +583,20 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
 
 static void handle_link_quality(RadioAo* me) {
     RadioAoState& s = me->state;
-    static constexpr uint32_t kLinkLostMs  = 5000;  // 5s = lost
-    static constexpr uint32_t kLinkGapMs   = 2000;  // 2s = gap
+    static constexpr uint32_t k_link_lost_ms  = 5000;  // 5s = lost
+    static constexpr uint32_t k_link_gap_ms   = 2000;  // 2s = gap
     uint32_t age = now_ms() - s.last_rx_ms;
     uint8_t lq;
     if (s.rx_count == 0)         { lq = 0; }
-    else if (age >= kLinkLostMs) { lq = 1; }
-    else if (age >= kLinkGapMs)  { lq = 2; }
+    else if (age >= k_link_lost_ms) { lq = 1; }
+    else if (age >= k_link_gap_ms)  { lq = 2; }
     else                         { lq = 3; }
     if (lq != s.link_quality) {
         s.link_quality = lq;
-        static rc::RadioStatusEvt statusEvt;
-        statusEvt.super.sig = rc::SIG_RADIO_STATUS;
-        statusEvt.link_quality = lq;
-        QActive_publish_(&statusEvt.super, &me->super, me->super.prio);
+        static rc::RadioStatusEvt status_evt;
+        status_evt.super.sig = rc::SIG_RADIO_STATUS;
+        status_evt.link_quality = lq;
+        QActive_publish_(&status_evt.super, &me->super, me->super.prio);
     }
 }
 
@@ -612,8 +612,8 @@ static void handle_rssi_bar(RadioAo* me) {
             static uint8_t sweep_div = 0;
             if (++sweep_div >= 5) {  // 100Hz tick / 5 = 20Hz sweep
                 sweep_div = 0;
-                constexpr ws2812_rgb_t kSweepColor = {0x20, 0x18, 0x00};  // dim yellow
-                ws2812_set_sweep_bar(kSweepColor);
+                constexpr ws2812_rgb_t k_sweep_color = {0x20, 0x18, 0x00};  // dim yellow
+                ws2812_set_sweep_bar(k_sweep_color);
             }
             return;
         }
@@ -746,8 +746,8 @@ static QState RadioAo_running(RadioAo * const me, QEvt const * const e) {
     }
 
     case rc::SIG_RADIO_TX: {
-        const auto* txEvt = rc::evt_cast<rc::RadioTxEvt>(e);
-        handle_tx_event(me, txEvt);
+        const auto* tx_evt = rc::evt_cast<rc::RadioTxEvt>(e);
+        handle_tx_event(me, tx_evt);
         return Q_HANDLED();
     }
 

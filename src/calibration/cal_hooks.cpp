@@ -34,7 +34,7 @@ static uint32_t g_magDiagLastSeenCount = 0;
 // Accel Read Callback (for 6-pos calibration via CLI)
 // ============================================================================
 
-bool cal_read_accel(float* ax, float* ay, float* az, float* tempC) {
+bool cal_read_accel(float* ax, float* ay, float* az, float* temp_c) {
     sleep_ms(kCalReadDelayMs);
     // Use full icm20948_read() instead of icm20948_read_accel() — the accel-only
     // read (6 bytes from ACCEL_XOUT_H) does NOT read through TEMP_OUT_L, so the
@@ -47,7 +47,7 @@ bool cal_read_accel(float* ax, float* ay, float* az, float* tempC) {
     *ax = data.accel.x;
     *ay = data.accel.y;
     *az = data.accel.z;
-    *tempC = data.temperature_c;
+    *temp_c = data.temperature_c;
     return true;
 }
 

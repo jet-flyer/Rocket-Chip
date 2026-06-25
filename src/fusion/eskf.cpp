@@ -103,25 +103,25 @@ static Mat3 skew(const Vec3& v) {
 static Mat3 quat_to_dcm(const Quat& q) {
     float m9[kDcmElements];
     q.to_rotation_matrix(m9);
-    Mat3 rotMat;
-    rotMat(0, 0) = m9[0]; rotMat(0, 1) = m9[1]; rotMat(0, 2) = m9[2];
+    Mat3 rot_mat;
+    rot_mat(0, 0) = m9[0]; rot_mat(0, 1) = m9[1]; rot_mat(0, 2) = m9[2];
     // NOLINTNEXTLINE(readability-magic-numbers) — row-major 3×3 DCM indices
-    rotMat(1, 0) = m9[3]; rotMat(1, 1) = m9[4]; rotMat(1, 2) = m9[5];
+    rot_mat(1, 0) = m9[3]; rot_mat(1, 1) = m9[4]; rot_mat(1, 2) = m9[5];
     // NOLINTNEXTLINE(readability-magic-numbers) — row-major 3×3 DCM indices
-    rotMat(2, 0) = m9[6]; rotMat(2, 1) = m9[7]; rotMat(2, 2) = m9[8];
-    return rotMat;
+    rot_mat(2, 0) = m9[6]; rot_mat(2, 1) = m9[7]; rot_mat(2, 2) = m9[8];
+    return rot_mat;
 }
 
 // ============================================================================
 // init: Initialize ESKF from stationary IMU reading
 // ============================================================================
-bool ESKF::init(const Vec3& accelMeas, const Vec3& gyroMeas) {
+bool ESKF::init(const Vec3& accel_meas, const Vec3& gyro_meas) {
     // RF-5: stationarity check — reject if not approximately stationary
-    const float accelMag = accelMeas.norm();
-    if (fabsf(accelMag - kGravity) > kStationaryAccelTol) {
+    const float accel_mag = accel_meas.norm();
+    if (fabsf(accel_mag - kGravity) > kStationaryAccelTol) {
         return false;
     }
-    if (gyroMeas.norm() > kStationaryGyroMax) {
+    if (gyro_meas.norm() > kStationaryGyroMax) {
         return false;
     }
 
@@ -133,9 +133,9 @@ bool ESKF::init(const Vec3& accelMeas, const Vec3& gyroMeas) {
     // Body-frame gravity measurement: accelMeas ≈ -R^T * g_ned
     // So body-frame "down" direction = -accelMeas.normalized()
     // We need R that maps body-down to NED-down [0,0,1].
-    const Vec3 bodyDown = (accelMeas * -1.0F).normalized();
-    const Vec3 nedDown(0.0F, 0.0F, 1.0F);
-    q = Quat::from_two_vectors(bodyDown, nedDown);
+    const Vec3 body_down = (accel_meas * -1.0F).normalized();
+    const Vec3 ned_down(0.0F, 0.0F, 1.0F);
+    q = Quat::from_two_vectors(body_down, ned_down);
     q.normalize();
 
     // Initialize position, velocity, biases to zero (stationary on pad)
@@ -181,37 +181,37 @@ bool ESKF::init(const Vec3& accelMeas, const Vec3& gyroMeas) {
 // propagate_nominal: First-order Euler integration of nominal state
 // Solà (2017) §5.3, Eq. 221-225
 // ============================================================================
-void ESKF::propagate_nominal(const Vec3& accelMeas, const Vec3& gyroMeas,
+void ESKF::propagate_nominal(const Vec3& accel_meas, const Vec3& gyro_meas,
                               float dt) {
     // Bias-corrected measurements
-    const Vec3 accelBody = accelMeas - accel_bias;
-    const Vec3 gyroBody = gyroMeas - gyro_bias;
+    const Vec3 accel_body = accel_meas - accel_bias;
+    const Vec3 gyro_body = gyro_meas - gyro_bias;
 
     // Rotation matrix: body-to-NED
-    const Mat3 rotMat = quat_to_dcm(q);
+    const Mat3 rot_mat = quat_to_dcm(q);
 
     // True acceleration in NED frame.
     // Accelerometer measures specific force: f = a_true - g (in body frame).
     // True acceleration: a_true = R * f_body + g_ned
     // where g_ned = [0, 0, +g] (gravity points down in NED).
     // Solà (2017) Eq. 221.
-    Vec3 accelNed;
-    accelNed.x = rotMat(0, 0) * accelBody.x + rotMat(0, 1) * accelBody.y + rotMat(0, 2) * accelBody.z;
-    accelNed.y = rotMat(1, 0) * accelBody.x + rotMat(1, 1) * accelBody.y + rotMat(1, 2) * accelBody.z;
-    accelNed.z = rotMat(2, 0) * accelBody.x + rotMat(2, 1) * accelBody.y + rotMat(2, 2) * accelBody.z;
-    accelNed.z += kGravity;
+    Vec3 accel_ned;
+    accel_ned.x = rot_mat(0, 0) * accel_body.x + rot_mat(0, 1) * accel_body.y + rot_mat(0, 2) * accel_body.z;
+    accel_ned.y = rot_mat(1, 0) * accel_body.x + rot_mat(1, 1) * accel_body.y + rot_mat(1, 2) * accel_body.z;
+    accel_ned.z = rot_mat(2, 0) * accel_body.x + rot_mat(2, 1) * accel_body.y + rot_mat(2, 2) * accel_body.z;
+    accel_ned.z += kGravity;
 
     // Position: p += v * dt + 0.5 * a * dt^2  (simplified to first order: p += v * dt)
     // Using first-order for simplicity — the dt^2 term is negligible at 200Hz
     p += v * dt;
 
     // Velocity: v += a_ned * dt
-    v += accelNed * dt;
+    v += accel_ned * dt;
 
     // Quaternion: q ← q ⊗ Exp(gyroBody * dt)
     // First-order: q ← q ⊗ [1, gyroBody*dt/2]
-    const Vec3 deltaTheta = gyroBody * dt;
-    const Quat dq = Quat::from_small_angle(deltaTheta);
+    const Vec3 delta_theta = gyro_body * dt;
+    const Quat dq = Quat::from_small_angle(delta_theta);
     q = q * dq;
     q.normalize();
 }
@@ -236,20 +236,20 @@ void ESKF::propagate_nominal(const Vec3& accelMeas, const Vec3& gyroMeas,
 // Where: ω = gyroBody (bias-corrected), a = accelBody (bias-corrected),
 //         R = body-to-NED DCM, [·]_x = skew-symmetric matrix
 // ============================================================================
-void ESKF::build_F(Mat24& out, const Quat& q, const Vec3& accelBody,
-                    const Vec3& gyroBody, float dt) {
+void ESKF::build_F(Mat24& out, const Quat& q, const Vec3& accel_body,
+                    const Vec3& gyro_body, float dt) {
     out.set_identity();
 
-    const Mat3 rotMat = quat_to_dcm(q);
-    const Mat3 skewOmega = skew(gyroBody);
-    const Mat3 skewAccel = skew(accelBody);
+    const Mat3 rot_mat = quat_to_dcm(q);
+    const Mat3 skew_omega = skew(gyro_body);
+    const Mat3 skew_accel = skew(accel_body);
 
     // Attitude block: F[att, att] = I - dt * [ω]_x
     // (identity already set, subtract dt * skewOmega)
-    const Mat3 negDtSkewOmega = skewOmega * (-dt);
+    const Mat3 neg_dt_skew_omega = skew_omega * (-dt);
     for (int32_t r = 0; r < 3; ++r) {
         for (int32_t c = 0; c < 3; ++c) {
-            out(eskf::kIdxAttitude + r, eskf::kIdxAttitude + c) += negDtSkewOmega(r, c);
+            out(eskf::kIdxAttitude + r, eskf::kIdxAttitude + c) += neg_dt_skew_omega(r, c);
         }
     }
 
@@ -265,17 +265,17 @@ void ESKF::build_F(Mat24& out, const Quat& q, const Vec3& accelBody,
 
     // Velocity-Attitude block: F[vel, att] = -R * [a]_x * dt
     // = -dt * R * skew(accelBody)
-    const Mat3 rSkewA = rotMat * skewAccel;
+    const Mat3 r_skew_a = rot_mat * skew_accel;
     for (int32_t r = 0; r < 3; ++r) {
         for (int32_t c = 0; c < 3; ++c) {
-            out(eskf::kIdxVelocity + r, eskf::kIdxAttitude + c) = -dt * rSkewA(r, c);
+            out(eskf::kIdxVelocity + r, eskf::kIdxAttitude + c) = -dt * r_skew_a(r, c);
         }
     }
 
     // Velocity-AccelBias block: F[vel, ab] = -R * dt
     for (int32_t r = 0; r < 3; ++r) {
         for (int32_t c = 0; c < 3; ++c) {
-            out(eskf::kIdxVelocity + r, eskf::kIdxAccelBias + c) = -dt * rotMat(r, c);
+            out(eskf::kIdxVelocity + r, eskf::kIdxAccelBias + c) = -dt * rot_mat(r, c);
         }
     }
 }
@@ -289,32 +289,32 @@ void ESKF::build_F(Mat24& out, const Quat& q, const Vec3& accelBody,
 void ESKF::build_Qc(Mat24& out) {
     out.set_zero();
 
-    const float sigmaGyroSq = kSigmaGyro * kSigmaGyro;
-    const float sigmaAccelSq = kSigmaAccel * kSigmaAccel;
-    const float sigmaGyroBiasSq = kSigmaGyroBiasWalk * kSigmaGyroBiasWalk;
-    const float sigmaAccelBiasSq = kSigmaAccelBiasWalk * kSigmaAccelBiasWalk;
+    const float sigma_gyro_sq = kSigmaGyro * kSigmaGyro;
+    const float sigma_accel_sq = kSigmaAccel * kSigmaAccel;
+    const float sigma_gyro_bias_sq = kSigmaGyroBiasWalk * kSigmaGyroBiasWalk;
+    const float sigma_accel_bias_sq = kSigmaAccelBiasWalk * kSigmaAccelBiasWalk;
 
     for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
-        out(eskf::kIdxAttitude + i, eskf::kIdxAttitude + i)  = sigmaGyroSq;
-        out(eskf::kIdxVelocity + i, eskf::kIdxVelocity + i)  = sigmaAccelSq;
-        out(eskf::kIdxAccelBias + i, eskf::kIdxAccelBias + i) = sigmaAccelBiasSq;
-        out(eskf::kIdxGyroBias + i, eskf::kIdxGyroBias + i)  = sigmaGyroBiasSq;
+        out(eskf::kIdxAttitude + i, eskf::kIdxAttitude + i)  = sigma_gyro_sq;
+        out(eskf::kIdxVelocity + i, eskf::kIdxVelocity + i)  = sigma_accel_sq;
+        out(eskf::kIdxAccelBias + i, eskf::kIdxAccelBias + i) = sigma_accel_bias_sq;
+        out(eskf::kIdxGyroBias + i, eskf::kIdxGyroBias + i)  = sigma_gyro_bias_sq;
     }
     // Position block: no direct noise (position uncertainty grows via velocity)
 
     // Extended states — random walk noise
-    const float sigmaEarthMagSq = kSigmaEarthMagWalk * kSigmaEarthMagWalk;
-    const float sigmaBodyMagBiasSq = kSigmaBodyMagBiasWalk * kSigmaBodyMagBiasWalk;
-    const float sigmaWindSq = kSigmaWindWalk * kSigmaWindWalk;
-    const float sigmaBaroBiasSq = kSigmaBaroBiasWalk * kSigmaBaroBiasWalk;
+    const float sigma_earth_mag_sq = kSigmaEarthMagWalk * kSigmaEarthMagWalk;
+    const float sigma_body_mag_bias_sq = kSigmaBodyMagBiasWalk * kSigmaBodyMagBiasWalk;
+    const float sigma_wind_sq = kSigmaWindWalk * kSigmaWindWalk;
+    const float sigma_baro_bias_sq = kSigmaBaroBiasWalk * kSigmaBaroBiasWalk;
 
     for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
-        out(eskf::kIdxEarthMag + i, eskf::kIdxEarthMag + i)       = sigmaEarthMagSq;
-        out(eskf::kIdxBodyMagBias + i, eskf::kIdxBodyMagBias + i) = sigmaBodyMagBiasSq;
+        out(eskf::kIdxEarthMag + i, eskf::kIdxEarthMag + i)       = sigma_earth_mag_sq;
+        out(eskf::kIdxBodyMagBias + i, eskf::kIdxBodyMagBias + i) = sigma_body_mag_bias_sq;
     }
-    out(eskf::kIdxWindNE + 0, eskf::kIdxWindNE + 0) = sigmaWindSq;
-    out(eskf::kIdxWindNE + 1, eskf::kIdxWindNE + 1) = sigmaWindSq;
-    out(eskf::kIdxBaroBias, eskf::kIdxBaroBias)      = sigmaBaroBiasSq;
+    out(eskf::kIdxWindNE + 0, eskf::kIdxWindNE + 0) = sigma_wind_sq;
+    out(eskf::kIdxWindNE + 1, eskf::kIdxWindNE + 1) = sigma_wind_sq;
+    out(eskf::kIdxBaroBias, eskf::kIdxBaroBias)      = sigma_baro_bias_sq;
 }
 
 // ============================================================================
@@ -322,23 +322,23 @@ void ESKF::build_Qc(Mat24& out) {
 // Static locals avoid stack pressure from temporaries (LL Entry 1).
 // Used only by predict_dense() as verification reference.
 // ============================================================================
-static void dense_fpft_add(Mat24& pMat, const Mat24& fMat, const Mat24& qdMat) {
-    static Mat24 g_fpTemp;
-    static Mat24 g_ftTemp;
+static void dense_fpft_add(Mat24& p_mat, const Mat24& f_mat, const Mat24& qd_mat) {
+    static Mat24 g_fp_temp;
+    static Mat24 g_ft_temp;
     // FP = F * P
     for (int32_t r = 0; r < eskf::kStateSize; ++r) {
         for (int32_t c = 0; c < eskf::kStateSize; ++c) {
             float sum = 0.0F;
             for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += fMat.data[r][k] * pMat.data[k][c];
+                sum += f_mat.data[r][k] * p_mat.data[k][c];
             }
-            g_fpTemp.data[r][c] = sum;
+            g_fp_temp.data[r][c] = sum;
         }
     }
     // F^T
     for (int32_t r = 0; r < eskf::kStateSize; ++r) {
         for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            g_ftTemp.data[c][r] = fMat.data[r][c];
+            g_ft_temp.data[c][r] = f_mat.data[r][c];
         }
     }
     // P = FP * F^T + Qd
@@ -346,9 +346,9 @@ static void dense_fpft_add(Mat24& pMat, const Mat24& fMat, const Mat24& qdMat) {
         for (int32_t c = 0; c < eskf::kStateSize; ++c) {
             float sum = 0.0F;
             for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_fpTemp.data[r][k] * g_ftTemp.data[k][c];
+                sum += g_fp_temp.data[r][k] * g_ft_temp.data[k][c];
             }
-            pMat.data[r][c] = sum + qdMat.data[r][c];
+            p_mat.data[r][c] = sum + qd_mat.data[r][c];
         }
     }
 }
@@ -364,11 +364,11 @@ static void dense_fpft_add(Mat24& pMat, const Mat24& fMat, const Mat24& qdMat) {
 // History: Block-sparse tried first, 31% SLOWER (712us vs 542us).
 // Codegen is the correct path (PX4/ArduPilot pattern).
 // ============================================================================
-void ESKF::predict(const Vec3& accelMeas, const Vec3& gyroMeas, float dt) {
-    const Vec3 accelBody = accelMeas - accel_bias;
-    const Vec3 gyroBody = gyroMeas - gyro_bias;
+void ESKF::predict(const Vec3& accel_meas, const Vec3& gyro_meas, float dt) {
+    const Vec3 accel_body = accel_meas - accel_bias;
+    const Vec3 gyro_body = gyro_meas - gyro_bias;
 
-    propagate_nominal(accelMeas, gyroMeas, dt);
+    propagate_nominal(accel_meas, gyro_meas, dt);
 
 #ifdef ESKF_USE_BIERMAN
     // Codegen FPFT requires dense P — reconstruct from UD if needed.
@@ -377,10 +377,10 @@ void ESKF::predict(const Vec3& accelMeas, const Vec3& gyroMeas, float dt) {
 
     // Codegen FPFT: SymPy-generated flat scalar expansion with CSE
     // Replaces dense O(N^3) triple product. Q_d baked in.
-    const Mat3 rotMat = quat_to_dcm(q);
-    codegen_fpft(P.data, rotMat.data,
-                 accelBody.x, accelBody.y, accelBody.z,
-                 gyroBody.x, gyroBody.y, gyroBody.z, dt);
+    const Mat3 rot_mat = quat_to_dcm(q);
+    codegen_fpft(P.data, rot_mat.data,
+                 accel_body.x, accel_body.y, accel_body.z,
+                 gyro_body.x, gyro_body.y, gyro_body.z, dt);
     P.force_symmetric();
 
     // Phase Q delta: add (phase_scale - 1.0) * baseline_sigma^2 * dt to P diagonal.
@@ -398,21 +398,21 @@ void ESKF::predict(const Vec3& accelMeas, const Vec3& gyroMeas, float dt) {
 // predict_dense: Dense FPFT verification path
 // Same result as predict() — used in tests to validate sparse path.
 // ============================================================================
-void ESKF::predict_dense(const Vec3& accelMeas, const Vec3& gyroMeas,
+void ESKF::predict_dense(const Vec3& accel_meas, const Vec3& gyro_meas,
                           float dt) {
-    const Vec3 accelBody = accelMeas - accel_bias;
-    const Vec3 gyroBody = gyroMeas - gyro_bias;
+    const Vec3 accel_body = accel_meas - accel_bias;
+    const Vec3 gyro_body = gyro_meas - gyro_bias;
 
-    propagate_nominal(accelMeas, gyroMeas, dt);
+    propagate_nominal(accel_meas, gyro_meas, dt);
 
     // Static locals: same rationale as predict() (LL Entry 1).
-    static Mat24 g_fDense;
-    static Mat24 g_qdDense;
-    build_F(g_fDense, q, accelBody, gyroBody, dt);
-    build_Qc(g_qdDense);
-    g_qdDense.scale(dt);
+    static Mat24 g_f_dense;
+    static Mat24 g_qd_dense;
+    build_F(g_f_dense, q, accel_body, gyro_body, dt);
+    build_Qc(g_qd_dense);
+    g_qd_dense.scale(dt);
 
-    dense_fpft_add(P, g_fDense, g_qdDense);
+    dense_fpft_add(P, g_f_dense, g_qd_dense);
     P.force_symmetric();
     clamp_covariance();
 
@@ -445,10 +445,10 @@ void ESKF::predict_dense(const Vec3& accelMeas, const Vec3& gyroMeas,
 // Only rows/cols 0-2 change. Cost: ~450 MACs at N=24 vs ~27,648 dense.
 void ESKF::reset_covariance_attitude(const float ga[3][3]) {
     // Step 1: GP[0:3][:] = G_a * P[0:3][:] (rows 0-2 of G*P)
-    static float gpRows[3][24];  // NOLINT(readability-magic-numbers)
+    static float gp_rows[3][24];  // NOLINT(readability-magic-numbers)
     for (int32_t i = 0; i < 3; ++i) {
         for (int32_t j = 0; j < eskf::kStateSize; ++j) {
-            gpRows[i][j] = ga[i][0] * P.data[0][j]
+            gp_rows[i][j] = ga[i][0] * P.data[0][j]
                          + ga[i][1] * P.data[1][j]
                          + ga[i][2] * P.data[2][j];
         }
@@ -456,18 +456,18 @@ void ESKF::reset_covariance_attitude(const float ga[3][3]) {
 
     // Save original P columns 0-2 for rows >=3 (step 3 reads P[i>=3][k<3]
     // after step 2 has overwritten symmetric entries).
-    static float pCol0_2[24][3];  // NOLINT(readability-magic-numbers)
+    static float p_col0_2[24][3];  // NOLINT(readability-magic-numbers)
     for (int32_t i = 3; i < eskf::kStateSize; ++i) {
-        pCol0_2[i][0] = P.data[i][0];
-        pCol0_2[i][1] = P.data[i][1];
-        pCol0_2[i][2] = P.data[i][2];
+        p_col0_2[i][0] = P.data[i][0];
+        p_col0_2[i][1] = P.data[i][1];
+        p_col0_2[i][2] = P.data[i][2];
     }
 
     // Step 2: cols j >= 3 — P_new[i<3][j] = gpRows[i][j]
     for (int32_t i = 0; i < 3; ++i) {
         for (int32_t j = 3; j < eskf::kStateSize; ++j) {
-            P.data[i][j] = gpRows[i][j];
-            P.data[j][i] = gpRows[i][j];
+            P.data[i][j] = gp_rows[i][j];
+            P.data[j][i] = gp_rows[i][j];
         }
     }
 
@@ -476,7 +476,7 @@ void ESKF::reset_covariance_attitude(const float ga[3][3]) {
         for (int32_t j = i; j < 3; ++j) {
             float sum = 0.0F;
             for (int32_t k = 0; k < 3; ++k) {
-                sum += gpRows[i][k] * ga[j][k];
+                sum += gp_rows[i][k] * ga[j][k];
             }
             P.data[i][j] = sum;
             P.data[j][i] = sum;
@@ -488,7 +488,7 @@ void ESKF::reset_covariance_attitude(const float ga[3][3]) {
         for (int32_t j = 0; j < 3; ++j) {
             float sum = 0.0F;
             for (int32_t k = 0; k < 3; ++k) {
-                sum += pCol0_2[i][k] * ga[j][k];
+                sum += p_col0_2[i][k] * ga[j][k];
             }
             P.data[i][j] = sum;
             P.data[j][i] = sum;
@@ -496,17 +496,17 @@ void ESKF::reset_covariance_attitude(const float ga[3][3]) {
     }
 }
 
-void ESKF::reset(const Vec3& deltaTheta) {
-    const Quat dq = Quat::from_small_angle(deltaTheta);
+void ESKF::reset(const Vec3& delta_theta) {
+    const Quat dq = Quat::from_small_angle(delta_theta);
     q = q * dq;
     q.normalize();
 
     // G_a = I - [deltaTheta/2]_x (attitude block of reset Jacobian)
     float ga[3][3];
-    const Mat3 halfSkew = skew(deltaTheta * 0.5F);
+    const Mat3 half_skew = skew(delta_theta * 0.5F);
     for (int32_t r = 0; r < 3; ++r) {
         for (int32_t c = 0; c < 3; ++c) {
-            ga[r][c] = ((r == c) ? 1.0F : 0.0F) - halfSkew(r, c);
+            ga[r][c] = ((r == c) ? 1.0F : 0.0F) - half_skew(r, c);
         }
     }
 
@@ -548,10 +548,10 @@ void ESKF::inject_error_state(const Mat<eskf::kStateSize, 1>& dx) {
 
     baro_bias_ += dx.data[eskf::kIdxBaroBias][0];
 
-    const Vec3 deltaTheta(dx.data[eskf::kIdxAttitude + 0][0],
+    const Vec3 delta_theta(dx.data[eskf::kIdxAttitude + 0][0],
                            dx.data[eskf::kIdxAttitude + 1][0],
                            dx.data[eskf::kIdxAttitude + 2][0]);
-    reset(deltaTheta);
+    reset(delta_theta);
 }
 
 // ============================================================================
@@ -567,15 +567,15 @@ void ESKF::inject_error_state(const Mat<eskf::kStateSize, 1>& dx) {
 // where h=hIdx, hv=hValue, S=hv²*P[h][h]+R. Avoids O(N³) dense matrix multiply.
 // Mathematically identical to the full Joseph form.
 // ============================================================================
-void ESKF::scalar_kalman_update(int32_t hIdx, float hValue,
+void ESKF::scalar_kalman_update(int32_t h_idx, float h_value,
                                 float innovation, float r) {
-    const float s = hValue * hValue * P(hIdx, hIdx) + r;
-    const float invS = 1.0F / s;
+    const float s = h_value * h_value * P(h_idx, h_idx) + r;
+    const float inv_s = 1.0F / s;
 
     // Kalman gain: K[i] = hValue * P[i][hIdx] / S
     static Mat<eskf::kStateSize, 1> g_gain;
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        g_gain.data[i][0] = hValue * P.data[i][hIdx] * invS;
+        g_gain.data[i][0] = h_value * P.data[i][h_idx] * inv_s;
     }
 
     // Error state correction: δx = K * innovation
@@ -587,22 +587,22 @@ void ESKF::scalar_kalman_update(int32_t hIdx, float hValue,
     // O(N²) rank-1 Joseph form (upper triangle, then copy to lower).
     // P_new[i][j] = P[i][j] - K[i]*hv*P_h[j] - P_h[i]*hv*K[j] + K[i]*S*K[j]
     // where P_h = original P[hIdx][:] row, saved before in-place update.
-    static float g_phRow[eskf::kStateSize];
+    static float g_ph_row[eskf::kStateSize];
     for (int32_t j = 0; j < eskf::kStateSize; ++j) {
-        g_phRow[j] = P.data[hIdx][j];
+        g_ph_row[j] = P.data[h_idx][j];
     }
 
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
         const float ki = g_gain.data[i][0];
-        const float kiS = ki * s;
-        const float hvPhi = hValue * g_phRow[i];
+        const float ki_s = ki * s;
+        const float hv_phi = h_value * g_ph_row[i];
         for (int32_t j = i; j < eskf::kStateSize; ++j) {
             const float kj = g_gain.data[j][0];
-            const float hvPhj = hValue * g_phRow[j];
+            const float hv_phj = h_value * g_ph_row[j];
             P.data[i][j] = P.data[i][j]
-                         - ki * hvPhj
-                         - hvPhi * kj
-                         + kiS * kj;
+                         - ki * hv_phj
+                         - hv_phi * kj
+                         + ki_s * kj;
             P.data[j][i] = P.data[i][j];  // symmetric
         }
     }
@@ -644,11 +644,11 @@ void ESKF::ensure_ud() {
     // diagonals to a tiny epsilon, factorize, then zero the D entries.
     // Bierman won't touch these states — D=0 means zero contribution to
     // alpha and zero Kalman gain.
-    static constexpr float kFactorizeEps = 1e-30F;
+    static constexpr float k_factorize_eps = 1e-30F;
     bool patched[eskf::kStateSize] = {};
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
         if (P.data[i][i] <= 0.0F) {
-            P.data[i][i] = kFactorizeEps;
+            P.data[i][i] = k_factorize_eps;
             patched[i] = true;
         }
     }
@@ -668,12 +668,12 @@ void ESKF::ensure_ud() {
     g_p_repr = PRepr::UD;
 }
 
-void ESKF::bierman_kalman_update(int32_t hIdx, float hValue,
+void ESKF::bierman_kalman_update(int32_t h_idx, float h_value,
                                   float innovation, float r) {
     ensure_ud();
 
     static float g_bierman_dx[eskf::kStateSize];
-    bierman_scalar_update(g_bierman_ud, hIdx, hValue, innovation, r,
+    bierman_scalar_update(g_bierman_ud, h_idx, h_value, innovation, r,
                           g_bierman_dx);
 
     // Convert dx array to Mat<N,1> for inject_error_state
@@ -704,9 +704,9 @@ void ESKF::bierman_kalman_update(int32_t hIdx, float hValue,
 // P rotation at reset() omitted — small-angle approximation, G ≈ I to
 // float precision for baro-only corrections. See Solà (2017) Eq. 298.
 // ============================================================================
-bool ESKF::update_baro(float altitudeAglM) {
+bool ESKF::update_baro(float altitude_agl_m) {
     // Council condition 1: reject non-finite input
-    if (!std::isfinite(altitudeAglM)) {
+    if (!std::isfinite(altitude_agl_m)) {
         return false;
     }
 
@@ -716,20 +716,20 @@ bool ESKF::update_baro(float altitudeAglM) {
     //   - When inhibited (default): P[23][*] = 0, K[23] = 0 regardless
     //   - When enabled: baro_bias corrects via cross-covariance P[5][23]
     // Full dual-entry H update deferred until baro_bias proves useful.
-    constexpr int32_t kHIdx = eskf::kIdxPosition + 2;  // index 5 (NED-down)
-    constexpr float kHValue = -1.0F;
+    constexpr int32_t k_h_idx = eskf::kIdxPosition + 2;  // index 5 (NED-down)
+    constexpr float k_h_value = -1.0F;
 
     // Innovation: y = z - h(x)
     // h(x) = -p.z + baro_bias (when baro bias enabled)
     // When inhibited, P[23][*] = 0, so Kalman gain for baro_bias state is zero.
     const float predicted = -p.z + (inhibit_baro_bias_ ? 0.0F : baro_bias_);
-    const float innovation = altitudeAglM - predicted;
+    const float innovation = altitude_agl_m - predicted;
 
     // Phase-aware R: use phase R when configured, baseline otherwise
     const float r = phase_qr_ ? r_active_.r_baro : kRBaro;
 
     // Innovation covariance: S = H²*P[5][5] + R
-    const float s = P(kHIdx, kHIdx) + r;
+    const float s = P(k_h_idx, k_h_idx) + r;
 
     // Council condition 2: reject degenerate covariance
     if (s < kMinInnovationVariance) {
@@ -740,8 +740,8 @@ bool ESKF::update_baro(float altitudeAglM) {
     last_baro_nis_ = (innovation * innovation) / s;
 
     // Innovation gate
-    const float gateThreshold = kBaroInnovationGate * sqrtf(s);
-    if (fabsf(innovation) > gateThreshold) {
+    const float gate_threshold = kBaroInnovationGate * sqrtf(s);
+    if (fabsf(innovation) > gate_threshold) {
         ++baro_total_rejects_;
         return false;
     }
@@ -753,9 +753,9 @@ bool ESKF::update_baro(float altitudeAglM) {
 
     ++baro_total_accepts_;
 #ifdef ESKF_USE_BIERMAN
-    bierman_kalman_update(kHIdx, kHValue, innovation, r);
+    bierman_kalman_update(k_h_idx, k_h_value, innovation, r);
 #else
-    scalar_kalman_update(kHIdx, kHValue, innovation, r);
+    scalar_kalman_update(k_h_idx, k_h_value, innovation, r);
     clamp_covariance();
 #endif
     return true;
@@ -766,12 +766,12 @@ bool ESKF::update_baro(float altitudeAglM) {
 // Standard approach per ArduPilot wrap_PI().
 // ============================================================================
 static float wrap_pi(float angle) {
-    constexpr float kPi = 3.14159265F;
-    constexpr float kTwoPi = 2.0F * kPi;
+    constexpr float k_pi = 3.14159265F;
+    constexpr float k_two_pi = 2.0F * k_pi;
     // fmodf range is (-2π, 2π), shift to (-π, π)
-    angle = fmodf(angle, kTwoPi);
-    if (angle > kPi) { angle -= kTwoPi; }
-    if (angle < -kPi) { angle += kTwoPi; }
+    angle = fmodf(angle, k_two_pi);
+    if (angle > k_pi) { angle -= k_two_pi; }
+    if (angle < -k_pi) { angle += k_two_pi; }
     return angle;
 }
 
@@ -810,23 +810,23 @@ static float wrap_pi(float angle) {
 // ============================================================================
 // Compute effective R after two-tier interference detection.
 // Returns negative if hard-rejected (>50% deviation).
-static float mag_interference_r(float magNorm, float expectedMagnitude) {
-    float rEffective = ESKF::kRMagHeading;
-    if (expectedMagnitude > 0.0F) {
-        const float deviation = fabsf(magNorm - expectedMagnitude) / expectedMagnitude;
+static float mag_interference_r(float mag_norm, float expected_magnitude) {
+    float r_effective = ESKF::kRMagHeading;
+    if (expected_magnitude > 0.0F) {
+        const float deviation = fabsf(mag_norm - expected_magnitude) / expected_magnitude;
         if (deviation > ESKF::kMagInterferenceRejectThreshold) { return -1.0F; }
         if (deviation > ESKF::kMagInterferenceThreshold) {
-            rEffective = ESKF::kRMagHeading * ESKF::kMagInterferenceRScale;
+            r_effective = ESKF::kRMagHeading * ESKF::kMagInterferenceRScale;
         }
     }
-    return rEffective;
+    return r_effective;
 }
 
 // Compute effective mag R: interference → phase R → tilt inflation.
 // Returns negative if hard-rejected (>50% interference or >60° tilt).
-float ESKF::compute_mag_r(float magNorm, float expectedMagnitude,
+float ESKF::compute_mag_r(float mag_norm, float expected_magnitude,
                           float tilt) const {
-    float r = mag_interference_r(magNorm, expectedMagnitude);
+    float r = mag_interference_r(mag_norm, expected_magnitude);
     if (r < 0.0F) { return -1.0F; }
 
     // Phase-aware R baseline
@@ -845,34 +845,34 @@ float ESKF::compute_mag_r(float magNorm, float expectedMagnitude,
     return r;
 }
 
-bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
-                              float declinationRad) {
-    if (!std::isfinite(magBody.x) || !std::isfinite(magBody.y) ||
-        !std::isfinite(magBody.z) || !std::isfinite(declinationRad)) {
+bool ESKF::update_mag_heading(const Vec3& mag_body, float expected_magnitude,
+                              float declination_rad) {
+    if (!std::isfinite(mag_body.x) || !std::isfinite(mag_body.y) ||
+        !std::isfinite(mag_body.z) || !std::isfinite(declination_rad)) {
         return false;
     }
-    const float magNorm = magBody.norm();
-    if (magNorm < kMagMinMagnitude) { return false; }
+    const float mag_norm = mag_body.norm();
+    if (mag_norm < kMagMinMagnitude) { return false; }
 
     const Vec3 euler = q.to_euler();
     const float tilt = sqrtf(euler.x * euler.x + euler.y * euler.y);
-    const float rEffective = compute_mag_r(magNorm, expectedMagnitude, tilt);
-    if (rEffective < 0.0F) {
+    const float r_effective = compute_mag_r(mag_norm, expected_magnitude, tilt);
+    if (r_effective < 0.0F) {
         ++mag_consecutive_rejects_;
         ++mag_total_rejects_;
         return false;
     }
 
-    const Quat qZeroYaw = Quat::from_euler(euler.x, euler.y, 0.0F);
-    const Vec3 magLevel = qZeroYaw.rotate(magBody);
+    const Quat q_zero_yaw = Quat::from_euler(euler.x, euler.y, 0.0F);
+    const Vec3 mag_level = q_zero_yaw.rotate(mag_body);
 
     // Measured heading (mag North + declination), predicted heading (Euler yaw)
-    const float headingMeasured = wrap_pi(-atan2f(magLevel.y, magLevel.x)
-                                           + declinationRad);
-    const float innovation = wrap_pi(headingMeasured - euler.z);
+    const float heading_measured = wrap_pi(-atan2f(mag_level.y, mag_level.x)
+                                           + declination_rad);
+    const float innovation = wrap_pi(heading_measured - euler.z);
 
-    constexpr int32_t kHIdx = eskf::kIdxAttitude + 2;  // yaw index
-    const float s = P(kHIdx, kHIdx) + rEffective;
+    constexpr int32_t k_h_idx = eskf::kIdxAttitude + 2;  // yaw index
+    const float s = P(k_h_idx, k_h_idx) + r_effective;
     if (s < kMinInnovationVariance) { return false; }
 
     last_mag_nis_ = (innovation * innovation) / s;
@@ -894,9 +894,9 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
     mag_consecutive_rejects_ = 0;
     ++mag_total_accepts_;
 #ifdef ESKF_USE_BIERMAN
-    bierman_kalman_update(kHIdx, 1.0F, innovation, rEffective);
+    bierman_kalman_update(k_h_idx, 1.0F, innovation, r_effective);
 #else
-    scalar_kalman_update(kHIdx, 1.0F, innovation, rEffective);
+    scalar_kalman_update(k_h_idx, 1.0F, innovation, r_effective);
     clamp_covariance();
 #endif
     return true;
@@ -915,71 +915,71 @@ bool ESKF::update_mag_heading(const Vec3& magBody, float expectedMagnitude,
 // ============================================================================
 // Sequential 3-axis scalar updates for mag states.
 // Returns max NIS across all accepted axes.
-float ESKF::fuse_mag_axes(const float innov[3], float R_per_axis) {
-    float maxNis = 0.0F;
+float ESKF::fuse_mag_axes(const float innov[3], float r_per_axis) {
+    float max_nis = 0.0F;
     // Earth mag states [15-17]
     for (int32_t axis = 0; axis < 3; ++axis) {
-        const int32_t hIdx = eskf::kIdxEarthMag + axis;
-        const float s = P(hIdx, hIdx) + R_per_axis;
+        const int32_t h_idx = eskf::kIdxEarthMag + axis;
+        const float s = P(h_idx, h_idx) + r_per_axis;
         if (s >= kMinInnovationVariance &&
             fabsf(innov[axis]) <= 5.0F * sqrtf(s)) {
             const float nis = (innov[axis] * innov[axis]) / s;
-            if (nis > maxNis) { maxNis = nis; }
+            if (nis > max_nis) { max_nis = nis; }
 #ifdef ESKF_USE_BIERMAN
-            bierman_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+            bierman_kalman_update(h_idx, 1.0f, innov[axis], r_per_axis);
 #else
-            scalar_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+            scalar_kalman_update(h_idx, 1.0f, innov[axis], r_per_axis);
 #endif
         }
     }
     // Body mag bias states [18-20]
     for (int32_t axis = 0; axis < 3; ++axis) {
-        const int32_t hIdx = eskf::kIdxBodyMagBias + axis;
-        const float s = P(hIdx, hIdx) + R_per_axis;
+        const int32_t h_idx = eskf::kIdxBodyMagBias + axis;
+        const float s = P(h_idx, h_idx) + r_per_axis;
         if (s >= kMinInnovationVariance &&
             fabsf(innov[axis]) <= 5.0F * sqrtf(s)) {
 #ifdef ESKF_USE_BIERMAN
-            bierman_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+            bierman_kalman_update(h_idx, 1.0f, innov[axis], r_per_axis);
 #else
-            scalar_kalman_update(hIdx, 1.0f, innov[axis], R_per_axis);
+            scalar_kalman_update(h_idx, 1.0f, innov[axis], r_per_axis);
 #endif
         }
     }
-    return maxNis;
+    return max_nis;
 }
 
 // Magnitude pre-check: reject if measured |B| deviates >25% from expected
-static bool mag_magnitude_ok(const Vec3& magBody, const Vec3& earthFieldNed) {
-    const float expectedMag = earthFieldNed.norm();
-    if (expectedMag < 1.0F) { return true; }  // No expected field to compare
-    const float ratio = magBody.norm() / expectedMag;
+static bool mag_magnitude_ok(const Vec3& mag_body, const Vec3& earth_field_ned) {
+    const float expected_mag = earth_field_ned.norm();
+    if (expected_mag < 1.0F) { return true; }  // No expected field to compare
+    const float ratio = mag_body.norm() / expected_mag;
     return (ratio >= 0.75F && ratio <= 1.25F);
 }
 
-bool ESKF::update_mag_3axis(const Vec3& magBody, const Vec3& earthFieldNed,
-                            float R_per_axis) {
+bool ESKF::update_mag_3axis(const Vec3& mag_body, const Vec3& earth_field_ned,
+                            float r_per_axis) {
     if (inhibit_mag_states_) { return false; }
-    if (!std::isfinite(magBody.x) || !std::isfinite(magBody.y) ||
-        !std::isfinite(magBody.z)) { return false; }
+    if (!std::isfinite(mag_body.x) || !std::isfinite(mag_body.y) ||
+        !std::isfinite(mag_body.z)) { return false; }
 
-    if (!mag_magnitude_ok(magBody, earthFieldNed)) {
+    if (!mag_magnitude_ok(mag_body, earth_field_ned)) {
         ++mag_consecutive_rejects_;
         ++mag_total_rejects_;
         return false;
     }
 
     // Predicted body-frame mag: R(q) * earth_mag + body_mag_bias
-    const Vec3 magPredBody = q.rotate(earth_mag) + body_mag_bias;
+    const Vec3 mag_pred_body = q.rotate(earth_mag) + body_mag_bias;
 
     // Innovation in body frame (measured - predicted)
     const float innov[3] = {
-        magBody.x - magPredBody.x,
-        magBody.y - magPredBody.y,
-        magBody.z - magPredBody.z
+        mag_body.x - mag_pred_body.x,
+        mag_body.y - mag_pred_body.y,
+        mag_body.z - mag_pred_body.z
     };
 
     // Fuse 3 earth_mag + 3 body_mag_bias via sequential scalar updates
-    last_mag_nis_ = fuse_mag_axes(innov, R_per_axis);
+    last_mag_nis_ = fuse_mag_axes(innov, r_per_axis);
     mag_consecutive_rejects_ = 0;
     ++mag_total_accepts_;
 
@@ -996,21 +996,21 @@ bool ESKF::update_mag_3axis(const Vec3& magBody, const Vec3& earthFieldNed,
 // corrupting subsequent updates. Navigation states may briefly wobble
 // after heading reset; settles in 2-3s with GPS aiding.
 // ============================================================================
-void ESKF::reset_mag_heading(float headingMeasured) {
+void ESKF::reset_mag_heading(float heading_measured) {
 #ifdef ESKF_USE_BIERMAN
     ensure_dense();  // Modifies P directly
 #endif
-    constexpr int32_t kYawIdx = eskf::kIdxAttitude + 2;
+    constexpr int32_t k_yaw_idx = eskf::kIdxAttitude + 2;
     const Vec3 euler = q.to_euler();
 
-    q = Quat::from_euler(euler.x, euler.y, headingMeasured);
+    q = Quat::from_euler(euler.x, euler.y, heading_measured);
     q = q.normalized();
 
-    P(kYawIdx, kYawIdx) = kInitPAttitude;
+    P(k_yaw_idx, k_yaw_idx) = kInitPAttitude;
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        if (i != kYawIdx) {
-            P(kYawIdx, i) = 0.0F;
-            P(i, kYawIdx) = 0.0F;
+        if (i != k_yaw_idx) {
+            P(k_yaw_idx, i) = 0.0F;
+            P(i, k_yaw_idx) = 0.0F;
         }
     }
 
@@ -1036,20 +1036,20 @@ void ESKF::reset_mag_heading(float headingMeasured) {
 // ArduPilot EKF3: zeroPosVelUpdate() when onGround.
 // PX4 ECL: zero_velocity_update() in ekf_helper.cpp.
 // ============================================================================
-bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas) {
+bool ESKF::update_zupt(const Vec3& accel_meas, const Vec3& gyro_meas) {
     // Guard: reject non-finite input
-    if (!std::isfinite(accelMeas.x) || !std::isfinite(accelMeas.y) ||
-        !std::isfinite(accelMeas.z) || !std::isfinite(gyroMeas.x) ||
-        !std::isfinite(gyroMeas.y) || !std::isfinite(gyroMeas.z)) {
+    if (!std::isfinite(accel_meas.x) || !std::isfinite(accel_meas.y) ||
+        !std::isfinite(accel_meas.z) || !std::isfinite(gyro_meas.x) ||
+        !std::isfinite(gyro_meas.y) || !std::isfinite(gyro_meas.z)) {
         last_zupt_active_ = false;
         return false;
     }
 
     // Stationarity check (RF-5 thresholds)
-    const float accelNorm = accelMeas.norm();
-    const float gyroNorm = gyroMeas.norm();
-    if (fabsf(accelNorm - kGravity) > kStationaryAccelTol ||
-        gyroNorm > kStationaryGyroMax) {
+    const float accel_norm = accel_meas.norm();
+    const float gyro_norm = gyro_meas.norm();
+    if (fabsf(accel_norm - kGravity) > kStationaryAccelTol ||
+        gyro_norm > kStationaryGyroMax) {
         last_zupt_active_ = false;
         ++zupt_total_rejects_;
         return false;
@@ -1058,33 +1058,33 @@ bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas) {
     last_zupt_active_ = true;
 
     // Three sequential scalar updates: v_n=0, v_e=0, v_d=0
-    float maxNis = 0.0F;
-    const float vComponents[3] = { v.x, v.y, v.z };
+    float max_nis = 0.0F;
+    const float v_components[3] = { v.x, v.y, v.z };
 
     for (int32_t axis = 0; axis < 3; ++axis) {
-        const int32_t kHIdx = eskf::kIdxVelocity + axis;
-        const float innovation = -vComponents[axis];  // y = 0 - v[axis]
-        const float s = P(kHIdx, kHIdx) + kRZupt;
+        const int32_t k_h_idx = eskf::kIdxVelocity + axis;
+        const float innovation = -v_components[axis];  // y = 0 - v[axis]
+        const float s = P(k_h_idx, k_h_idx) + kRZupt;
         if (s >= kMinInnovationVariance) {
             // NIS
             const float nis = (innovation * innovation) / s;
-            if (nis > maxNis) {
-                maxNis = nis;
+            if (nis > max_nis) {
+                max_nis = nis;
             }
 
             // Innovation gate
-            const float gateThreshold = kZuptInnovationGate * sqrtf(s);
-            if (fabsf(innovation) <= gateThreshold) {
+            const float gate_threshold = kZuptInnovationGate * sqrtf(s);
+            if (fabsf(innovation) <= gate_threshold) {
 #ifdef ESKF_USE_BIERMAN
-                bierman_kalman_update(kHIdx, 1.0F, innovation, kRZupt);
+                bierman_kalman_update(k_h_idx, 1.0F, innovation, kRZupt);
 #else
-                scalar_kalman_update(kHIdx, 1.0F, innovation, kRZupt);
+                scalar_kalman_update(k_h_idx, 1.0F, innovation, kRZupt);
 #endif
             }
         }
     }
 
-    last_zupt_nis_ = maxNis;
+    last_zupt_nis_ = max_nis;
     ++zupt_total_accepts_;
 #ifndef ESKF_USE_BIERMAN
     clamp_covariance();
@@ -1098,45 +1098,45 @@ bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas) {
 // stationarity in IDLE/ARMED — no need to infer it from sensor data.
 // ArduPilot EKF3 onGround, PX4 ECL vehicle_at_rest.
 // ============================================================================
-bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas,
+bool ESKF::update_zupt(const Vec3& accel_meas, const Vec3& gyro_meas,
                         bool on_pad) {
     if (!on_pad) {
-        return update_zupt(accelMeas, gyroMeas);
+        return update_zupt(accel_meas, gyro_meas);
     }
 
     // On pad: skip stationarity check, use tight R
-    if (!std::isfinite(accelMeas.x) || !std::isfinite(gyroMeas.x)) {
+    if (!std::isfinite(accel_meas.x) || !std::isfinite(gyro_meas.x)) {
         last_zupt_active_ = false;
         return false;
     }
 
     last_zupt_active_ = true;
 
-    float maxNis = 0.0F;
-    const float vComponents[3] = { v.x, v.y, v.z };
+    float max_nis = 0.0F;
+    const float v_components[3] = { v.x, v.y, v.z };
 
     for (int32_t axis = 0; axis < 3; ++axis) {
-        const int32_t kHIdx = eskf::kIdxVelocity + axis;
-        const float innovation = -vComponents[axis];
-        const float s = P(kHIdx, kHIdx) + kRZuptOnPad;
+        const int32_t k_h_idx = eskf::kIdxVelocity + axis;
+        const float innovation = -v_components[axis];
+        const float s = P(k_h_idx, k_h_idx) + kRZuptOnPad;
         if (s >= kMinInnovationVariance) {
             const float nis = (innovation * innovation) / s;
-            if (nis > maxNis) {
-                maxNis = nis;
+            if (nis > max_nis) {
+                max_nis = nis;
             }
 
-            const float gateThreshold = kZuptInnovationGate * sqrtf(s);
-            if (fabsf(innovation) <= gateThreshold) {
+            const float gate_threshold = kZuptInnovationGate * sqrtf(s);
+            if (fabsf(innovation) <= gate_threshold) {
 #ifdef ESKF_USE_BIERMAN
-                bierman_kalman_update(kHIdx, 1.0F, innovation, kRZuptOnPad);
+                bierman_kalman_update(k_h_idx, 1.0F, innovation, kRZuptOnPad);
 #else
-                scalar_kalman_update(kHIdx, 1.0F, innovation, kRZuptOnPad);
+                scalar_kalman_update(k_h_idx, 1.0F, innovation, kRZuptOnPad);
 #endif
             }
         }
     }
 
-    last_zupt_nis_ = maxNis;
+    last_zupt_nis_ = max_nis;
     ++zupt_total_accepts_;
 #ifndef ESKF_USE_BIERMAN
     clamp_covariance();
@@ -1152,7 +1152,7 @@ bool ESKF::update_zupt(const Vec3& accelMeas, const Vec3& gyroMeas,
 // the Kalman gain for subsequent baro updates, causing bNIS explosion.
 // ArduPilot EKF3: ResetPosition() reinitializes P and zeros cross-terms.
 // ============================================================================
-bool ESKF::set_origin(double latRad, double lonRad, float altM, float hdop) {
+bool ESKF::set_origin(double lat_rad, double lon_rad, float alt_m, float hdop) {
     if (has_origin_) {
         return false;  // Origin already set
     }
@@ -1163,17 +1163,17 @@ bool ESKF::set_origin(double latRad, double lonRad, float altM, float hdop) {
     ensure_dense();  // Modifies P directly
 #endif
 
-    origin_lat_rad_ = latRad;
-    origin_lon_rad_ = lonRad;
-    origin_alt_m_ = altM;
-    cos_origin_lat_ = cosf(static_cast<float>(latRad));
+    origin_lat_rad_ = lat_rad;
+    origin_lon_rad_ = lon_rad;
+    origin_alt_m_ = alt_m;
+    cos_origin_lat_ = cosf(static_cast<float>(lat_rad));
     has_origin_ = true;
 
     // Council fix: Reset position/velocity P to GPS-derived uncertainty.
     // Without this, stale cross-covariances corrupt baro Kalman gain.
-    const float rPos = kSigmaGpsPosBase * fmaxf(hdop, 1.0F);
-    const float pPos = rPos * rPos;  // Position variance from GPS quality
-    const float pVel = kRGpsVel;       // Velocity variance (fixed)
+    const float r_pos = kSigmaGpsPosBase * fmaxf(hdop, 1.0F);
+    const float p_pos = r_pos * r_pos;  // Position variance from GPS quality
+    const float p_vel = kRGpsVel;       // Velocity variance (fixed)
 
     // Zero ALL cross-covariance terms involving position [3..5] and velocity [6..8]
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
@@ -1183,13 +1183,13 @@ bool ESKF::set_origin(double latRad, double lonRad, float altM, float hdop) {
         }
     }
     // Set position diagonal
-    P.data[eskf::kIdxPosition + 0][eskf::kIdxPosition + 0] = pPos;  // North
-    P.data[eskf::kIdxPosition + 1][eskf::kIdxPosition + 1] = pPos;  // East
-    P.data[eskf::kIdxPosition + 2][eskf::kIdxPosition + 2] = pPos * kSigmaGpsVertScale * kSigmaGpsVertScale;  // Down
+    P.data[eskf::kIdxPosition + 0][eskf::kIdxPosition + 0] = p_pos;  // North
+    P.data[eskf::kIdxPosition + 1][eskf::kIdxPosition + 1] = p_pos;  // East
+    P.data[eskf::kIdxPosition + 2][eskf::kIdxPosition + 2] = p_pos * kSigmaGpsVertScale * kSigmaGpsVertScale;  // Down
     // Set velocity diagonal
-    P.data[eskf::kIdxVelocity + 0][eskf::kIdxVelocity + 0] = pVel;
-    P.data[eskf::kIdxVelocity + 1][eskf::kIdxVelocity + 1] = pVel;
-    P.data[eskf::kIdxVelocity + 2][eskf::kIdxVelocity + 2] = pVel;
+    P.data[eskf::kIdxVelocity + 0][eskf::kIdxVelocity + 0] = p_vel;
+    P.data[eskf::kIdxVelocity + 1][eskf::kIdxVelocity + 1] = p_vel;
+    P.data[eskf::kIdxVelocity + 2][eskf::kIdxVelocity + 2] = p_vel;
 
     return true;
 }
@@ -1200,27 +1200,27 @@ bool ESKF::set_origin(double latRad, double lonRad, float altM, float hdop) {
 // reprojects p into the new frame. Net effect: p becomes near-zero.
 // Council condition C-7: absolute position must be preserved.
 // ============================================================================
-void ESKF::reset_origin(double newLatRad, double newLonRad, float newAltM) {
+void ESKF::reset_origin(double new_lat_rad, double new_lon_rad, float new_alt_m) {
     if (!has_origin_) {
         return;
     }
 
     // Save current absolute geodetic position (reverse flat-earth, in double)
-    double absLat = origin_lat_rad_
+    double abs_lat = origin_lat_rad_
         + static_cast<double>(p.x) / static_cast<double>(kEarthRadius);
-    double absLon = origin_lon_rad_
+    double abs_lon = origin_lon_rad_
         + static_cast<double>(p.y) / (static_cast<double>(kEarthRadius)
                                        * static_cast<double>(cos_origin_lat_));
-    float absAlt = origin_alt_m_ - p.z;  // NED down: alt = origin_alt - down
+    float abs_alt = origin_alt_m_ - p.z;  // NED down: alt = origin_alt - down
 
     // Store new origin
-    origin_lat_rad_ = newLatRad;
-    origin_lon_rad_ = newLonRad;
-    origin_alt_m_ = newAltM;
-    cos_origin_lat_ = cosf(static_cast<float>(newLatRad));
+    origin_lat_rad_ = new_lat_rad;
+    origin_lon_rad_ = new_lon_rad;
+    origin_alt_m_ = new_alt_m;
+    cos_origin_lat_ = cosf(static_cast<float>(new_lat_rad));
 
     // Reproject absolute position into new frame
-    p = geodetic_to_ned(absLat, absLon, absAlt);
+    p = geodetic_to_ned(abs_lat, abs_lon, abs_alt);
 }
 
 // ============================================================================
@@ -1276,18 +1276,18 @@ void ESKF::reset_position() {
 // Flat-earth approximation — valid within ~100km of origin.
 // ArduPilot: Location::get_distance_NED(), same formula.
 // ============================================================================
-Vec3 ESKF::geodetic_to_ned(double latRad, double lonRad, float altM) const {
+Vec3 ESKF::geodetic_to_ned(double lat_rad, double lon_rad, float alt_m) const {
     if (!has_origin_) {
         return Vec3(0.0F, 0.0F, 0.0F);
     }
 
     // Double-precision subtraction before float cast (council C-5)
     float north = static_cast<float>(
-        (latRad - origin_lat_rad_) * static_cast<double>(kEarthRadius));
+        (lat_rad - origin_lat_rad_) * static_cast<double>(kEarthRadius));
     float east = static_cast<float>(
-        (lonRad - origin_lon_rad_) * static_cast<double>(kEarthRadius)
+        (lon_rad - origin_lon_rad_) * static_cast<double>(kEarthRadius)
         * static_cast<double>(cos_origin_lat_));
-    float down = -(altM - origin_alt_m_);
+    float down = -(alt_m - origin_alt_m_);
 
     return Vec3(north, east, down);
 }
@@ -1302,58 +1302,58 @@ Vec3 ESKF::geodetic_to_ned(double latRad, double lonRad, float altM) const {
 // Same sequential scalar update pattern as update_zupt().
 // ArduPilot EKF3: FuseVelPosNED(), PX4: fuseHorizontalPosition()/fuseVerticalPosition().
 // ============================================================================
-bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
-    if (!std::isfinite(gpsNed.x) || !std::isfinite(gpsNed.y) ||
-        !std::isfinite(gpsNed.z)) {
+bool ESKF::update_gps_position(const Vec3& gps_ned, float hdop, float vdop) {
+    if (!std::isfinite(gps_ned.x) || !std::isfinite(gps_ned.y) ||
+        !std::isfinite(gps_ned.z)) {
         return false;
     }
     if (!has_origin_) { return false; }
 
     // Compute R per axis: horizontal from HDOP, vertical from VDOP or scaled horiz
     // Phase-aware R: phase R replaces baseline before HDOP scaling
-    const float rBase = phase_qr_ ? r_active_.r_gps_pos : kRGpsPosDefault;
-    const float hdopClamped = (hdop > 1.0F) ? hdop : 1.0F;
-    const float rHoriz = rBase * hdopClamped * hdopClamped;
-    float rVert = 0.0F;
+    const float r_base = phase_qr_ ? r_active_.r_gps_pos : kRGpsPosDefault;
+    const float hdop_clamped = (hdop > 1.0F) ? hdop : 1.0F;
+    const float r_horiz = r_base * hdop_clamped * hdop_clamped;
+    float r_vert = 0.0F;
     if (vdop > 0.0F) {
-        const float vdopClamped = (vdop > 1.0F) ? vdop : 1.0F;
-        const float sigmaV = kSigmaGpsPosBase * vdopClamped;
-        rVert = sigmaV * sigmaV;
+        const float vdop_clamped = (vdop > 1.0F) ? vdop : 1.0F;
+        const float sigma_v = kSigmaGpsPosBase * vdop_clamped;
+        r_vert = sigma_v * sigma_v;
     } else {
-        rVert = rHoriz * kSigmaGpsVertScale * kSigmaGpsVertScale;
+        r_vert = r_horiz * kSigmaGpsVertScale * kSigmaGpsVertScale;
     }
 
-    const float rValues[3] = { rHoriz, rHoriz, rVert };
+    const float r_values[3] = { r_horiz, r_horiz, r_vert };
     const int32_t indices[3] = { eskf::kIdxPosN, eskf::kIdxPosE, eskf::kIdxPosD };
-    const float pComponents[3] = { p.x, p.y, p.z };
-    const float gpsComponents[3] = { gpsNed.x, gpsNed.y, gpsNed.z };
-    float maxNis = 0.0F;
+    const float p_components[3] = { p.x, p.y, p.z };
+    const float gps_components[3] = { gps_ned.x, gps_ned.y, gps_ned.z };
+    float max_nis = 0.0F;
 
     for (int32_t axis = 0; axis < 3; ++axis) {
-        const int32_t kHIdx = indices[axis];
-        const float rNoise = rValues[axis];
-        const float innovation = gpsComponents[axis] - pComponents[axis];
-        const float s = P(kHIdx, kHIdx) + rNoise;
+        const int32_t k_h_idx = indices[axis];
+        const float r_noise = r_values[axis];
+        const float innovation = gps_components[axis] - p_components[axis];
+        const float s = P(k_h_idx, k_h_idx) + r_noise;
         if (s >= kMinInnovationVariance) {
             const float nis = (innovation * innovation) / s;
 
             if (fabsf(innovation) <= kGpsPositionGate * sqrtf(s)) {
                 // Track max NIS only from accepted readings
-                if (nis > maxNis) { maxNis = nis; }
+                if (nis > max_nis) { max_nis = nis; }
 
 #ifdef ESKF_USE_BIERMAN
-                bierman_kalman_update(kHIdx, 1.0F, innovation, rNoise);
+                bierman_kalman_update(k_h_idx, 1.0F, innovation, r_noise);
 #else
-                scalar_kalman_update(kHIdx, 1.0F, innovation, rNoise);
+                scalar_kalman_update(k_h_idx, 1.0F, innovation, r_noise);
 #endif
             }
         }
     }
 
-    last_gps_pos_nis_ = maxNis;
+    last_gps_pos_nis_ = max_nis;
 
     // Push NIS AFTER gate
-    if (phase_qr_ && maxNis > 0.0F) {
+    if (phase_qr_ && max_nis > 0.0F) {
         innovation_channel_push(&innov_gps_pos_, last_gps_pos_nis_);
     }
 
@@ -1371,54 +1371,54 @@ bool ESKF::update_gps_position(const Vec3& gpsNed, float hdop, float vdop) {
 // ArduPilot EKF3: FuseVelPosNED() with velocity axes.
 // Council C-2: only indices [6..7], not [6..8].
 // ============================================================================
-bool ESKF::update_gps_velocity(float vNorth, float vEast) {
+bool ESKF::update_gps_velocity(float v_north, float v_east) {
     // Guard: reject non-finite input
-    if (!std::isfinite(vNorth) || !std::isfinite(vEast)) {
+    if (!std::isfinite(v_north) || !std::isfinite(v_east)) {
         return false;
     }
 
     const int32_t indices[2] = { eskf::kIdxVelN, eskf::kIdxVelE };
-    const float gpsVel[2] = { vNorth, vEast };
-    const float vComponents[2] = { v.x, v.y };
+    const float gps_vel[2] = { v_north, v_east };
+    const float v_components[2] = { v.x, v.y };
 
-    float maxNis = 0.0F;
+    float max_nis = 0.0F;
 
     for (int32_t axis = 0; axis < 2; ++axis) {
-        const int32_t kHIdx = indices[axis];
+        const int32_t k_h_idx = indices[axis];
 
         // Innovation: y = z - h(x) = gpsVel[axis] - v[axis]
-        const float innovation = gpsVel[axis] - vComponents[axis];
+        const float innovation = gps_vel[axis] - v_components[axis];
 
         // Phase-aware R
         const float r = phase_qr_ ? r_active_.r_gps_vel : kRGpsVel;
 
         // Innovation covariance: S = P[idx][idx] + R
-        const float s = P(kHIdx, kHIdx) + r;
+        const float s = P(k_h_idx, k_h_idx) + r;
         if (s >= kMinInnovationVariance) {
             // NIS
             const float nis = (innovation * innovation) / s;
 
             // Innovation gate
-            const float gateThreshold = kGpsVelocityGate * sqrtf(s);
-            if (fabsf(innovation) <= gateThreshold) {
+            const float gate_threshold = kGpsVelocityGate * sqrtf(s);
+            if (fabsf(innovation) <= gate_threshold) {
                 // Track max NIS only from accepted readings
-                if (nis > maxNis) {
-                    maxNis = nis;
+                if (nis > max_nis) {
+                    max_nis = nis;
                 }
 
 #ifdef ESKF_USE_BIERMAN
-                bierman_kalman_update(kHIdx, 1.0F, innovation, r);
+                bierman_kalman_update(k_h_idx, 1.0F, innovation, r);
 #else
-                scalar_kalman_update(kHIdx, 1.0F, innovation, r);
+                scalar_kalman_update(k_h_idx, 1.0F, innovation, r);
 #endif
             }
         }
     }
 
-    last_gps_vel_nis_ = maxNis;
+    last_gps_vel_nis_ = max_nis;
 
     // Push NIS AFTER gate
-    if (phase_qr_ && maxNis > 0.0F) {
+    if (phase_qr_ && max_nis > 0.0F) {
         innovation_channel_push(&innov_gps_vel_, last_gps_vel_nis_);
     }
 
@@ -1433,8 +1433,8 @@ bool ESKF::update_gps_velocity(float vNorth, float vEast) {
 // zero_p_block: Zero P rows/columns for a contiguous block of states.
 // Used by inhibit flag control and clamp_covariance().
 // ============================================================================
-void ESKF::zero_p_block(int32_t startIdx, int32_t count) {
-    for (int32_t i = startIdx; i < startIdx + count; ++i) {
+void ESKF::zero_p_block(int32_t start_idx, int32_t count) {
+    for (int32_t i = start_idx; i < start_idx + count; ++i) {
         for (int32_t j = 0; j < eskf::kStateSize; ++j) {
             P.data[i][j] = 0.0F;
             P.data[j][i] = 0.0F;
@@ -1593,58 +1593,58 @@ void ESKF::snapshot_p_growth_baseline() {
 }
 
 // Record a P-growth reset event, flag degraded if cycling.
-void ESKF::record_p_growth_reset(uint32_t nowUs) {
+void ESKF::record_p_growth_reset(uint32_t now_us) {
     if (p_growth_reset_count_ == 0) {
-        p_growth_first_reset_us_ = nowUs;
+        p_growth_first_reset_us_ = now_us;
     }
     p_growth_reset_count_++;
     if (p_growth_reset_count_ > kPGrowthMaxResetsInWindow &&
-        nowUs - p_growth_first_reset_us_ < kPGrowthResetWindowUs) {
+        now_us - p_growth_first_reset_us_ < kPGrowthResetWindowUs) {
         p_growth_degraded_ = true;
     }
     p_growth_baseline_set_ = false;
 }
 
-bool ESKF::check_p_growth(uint32_t nowUs) {
+bool ESKF::check_p_growth(uint32_t now_us) {
     if (p_growth_degraded_) {
         return false;
     }
 
     if (!p_growth_baseline_set_) {
         snapshot_p_growth_baseline();
-        p_growth_last_check_us_ = nowUs;
+        p_growth_last_check_us_ = now_us;
         p_growth_baseline_set_ = true;
         return true;
     }
 
-    if (nowUs - p_growth_last_check_us_ < kPGrowthCheckIntervalUs) {
+    if (now_us - p_growth_last_check_us_ < kPGrowthCheckIntervalUs) {
         return true;
     }
 
     // Check growth ratio for each axis
     for (int32_t i = 0; i < eskf::kBlockSize; ++i) {
-        float posP = P.data[eskf::kIdxPosition + i][eskf::kIdxPosition + i];
-        float velP = P.data[eskf::kIdxVelocity + i][eskf::kIdxVelocity + i];
+        float pos_p = P.data[eskf::kIdxPosition + i][eskf::kIdxPosition + i];
+        float vel_p = P.data[eskf::kIdxVelocity + i][eskf::kIdxVelocity + i];
 
         if (p_growth_baseline_pos_[i] > kPGrowthBaselineEpsilon &&
-            posP > p_growth_baseline_pos_[i] * kPGrowthRatioThreshold) {
-            record_p_growth_reset(nowUs);
+            pos_p > p_growth_baseline_pos_[i] * kPGrowthRatioThreshold) {
+            record_p_growth_reset(now_us);
             return false;
         }
         if (p_growth_baseline_vel_[i] > kPGrowthBaselineEpsilon &&
-            velP > p_growth_baseline_vel_[i] * kPGrowthRatioThreshold) {
-            record_p_growth_reset(nowUs);
+            vel_p > p_growth_baseline_vel_[i] * kPGrowthRatioThreshold) {
+            record_p_growth_reset(now_us);
             return false;
         }
     }
 
     // Update baseline snapshot
     snapshot_p_growth_baseline();
-    p_growth_last_check_us_ = nowUs;
+    p_growth_last_check_us_ = now_us;
 
     // Clear reset counter if window expired
     if (p_growth_reset_count_ > 0 &&
-        nowUs - p_growth_first_reset_us_ >= kPGrowthResetWindowUs) {
+        now_us - p_growth_first_reset_us_ >= kPGrowthResetWindowUs) {
         p_growth_reset_count_ = 0;
     }
 

@@ -341,14 +341,14 @@ static void cal_save_to_flash() {
     // the peripheral. LL Entry 31's i2c_bus_reset is the recovery; the
     // pause is the prevention. See R-11 SPIN model + R-17 PR notes.
     rc::core1_i2c_pause();
-    cal_result_t saveResult = calibration_save();
-    if (saveResult == CAL_RESULT_OK) {
+    cal_result_t save_result = calibration_save();
+    if (save_result == CAL_RESULT_OK) {
         rc::rc_log(" OK!\n");
         if (!i2c_bus_reset()) {
             rc::rc_log("[WARN] I2C bus reset failed after save\n");
         }
     } else {
-        rc::rc_log(" FAILED (%d)\n", saveResult);
+        rc::rc_log(" FAILED (%d)\n", save_result);
     }
     rc::core1_i2c_resume();
     // Signal Core 1 to reload calibration
@@ -591,14 +591,14 @@ static void cal_ui_mag_process_sample(RcosAo* me,
         }
 
     if (result == mag_feed_result_t::BUFFER_FULL) {
-        uint16_t finalCount = calibration_get_mag_sample_count();
-        uint8_t finalCoverage = calibration_get_mag_coverage_pct();
+        uint16_t final_count = calibration_get_mag_sample_count();
+        uint8_t final_coverage = calibration_get_mag_coverage_pct();
         rc::rc_log("\nCollection complete: %u samples, %u%% coverage\n",
-               finalCount, finalCoverage);
+               final_count, final_coverage);
 
-        if (finalCount < kMagMinSamples) {
+        if (final_count < kMagMinSamples) {
             rc::rc_log("ERROR: Not enough samples (%u < %u)\n",
-                   finalCount, kMagMinSamples);
+                   final_count, kMagMinSamples);
             calibration_reset_mag_cal();
             rc_os_mag_cal_active.store(false, std::memory_order_release);
             cal_neo(kCalNeoFail);
@@ -671,15 +671,15 @@ static void cal_ui_handle_mag_collecting(RcosAo* me) {
 
 // ---- Computing fit (6pos or mag) ----
 static void cal_ui_handle_computing(RcosAo* me) {
-    cal_result_t fitResult;
+    cal_result_t fit_result;
     if (me->cal_is_6pos) {
-        fitResult = calibration_compute_6pos();
+        fit_result = calibration_compute_6pos();
     } else {
-        fitResult = calibration_compute_mag_cal();
+        fit_result = calibration_compute_mag_cal();
     }
 
-    if (fitResult != CAL_RESULT_OK) {
-        rc::rc_log(" FAILED (%d)\n", fitResult);
+    if (fit_result != CAL_RESULT_OK) {
+        rc::rc_log(" FAILED (%d)\n", fit_result);
         if (me->cal_is_6pos) {
             rc::rc_log("Fit failed - params out of range.\n");
             calibration_reset_6pos();
@@ -750,7 +750,7 @@ static void cal_ui_handle_result(RcosAo* me) {
 
 // Print the wizard completion summary
 static void cal_ui_wizard_print_summary(RcosAo* me) {
-    const calibration_store_t* calFinal = calibration_manager_get();
+    const calibration_store_t* cal_final = calibration_manager_get();
     rc::rc_log("\n========================================\n");
     rc::rc_log("  Wizard Complete\n");
     rc::rc_log("========================================\n");
@@ -758,17 +758,17 @@ static void cal_ui_wizard_print_summary(RcosAo* me) {
     rc::rc_log("  Failed:  %d\n", me->wizard_failed);
     rc::rc_log("  Skipped: %d\n", me->wizard_skipped);
     rc::rc_log("\nCalibration flags: 0x%02lX\n",
-           (unsigned long)calFinal->cal_flags);
+           (unsigned long)cal_final->cal_flags);
     rc::rc_log("  Gyro:  %s\n",
-           (calFinal->cal_flags & CAL_STATUS_GYRO) != 0 ? "OK" : "--");
+           (cal_final->cal_flags & CAL_STATUS_GYRO) != 0 ? "OK" : "--");
     rc::rc_log("  Level: %s\n",
-           (calFinal->cal_flags & CAL_STATUS_LEVEL) != 0 ? "OK" : "--");
+           (cal_final->cal_flags & CAL_STATUS_LEVEL) != 0 ? "OK" : "--");
     rc::rc_log("  Baro:  %s\n",
-           (calFinal->cal_flags & CAL_STATUS_BARO) != 0 ? "OK" : "--");
+           (cal_final->cal_flags & CAL_STATUS_BARO) != 0 ? "OK" : "--");
     rc::rc_log("  Accel: %s\n",
-           (calFinal->cal_flags & CAL_STATUS_ACCEL_6POS) != 0 ? "6POS" : "--");
+           (cal_final->cal_flags & CAL_STATUS_ACCEL_6POS) != 0 ? "6POS" : "--");
     rc::rc_log("  Mag:   %s\n",
-           (calFinal->cal_flags & CAL_STATUS_MAG) != 0 ? "OK" : "--");
+           (cal_final->cal_flags & CAL_STATUS_MAG) != 0 ? "OK" : "--");
     rc::rc_log("========================================\n\n");
     cal_neo(kCalNeoOff);
     me->cal_wizard_active = false;

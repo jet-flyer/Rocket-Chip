@@ -152,11 +152,11 @@ static bool eskf_try_init(const shared_sensor_data_t& snap) {
         rc::Vec3 mag = sensor_to_ned_mag(snap);
         // Tilt-compensate using roll/pitch from current quaternion (yaw=0)
         rc::Vec3 euler = g_eskf.q.to_euler();
-        rc::Quat qZeroYaw = rc::Quat::from_euler(euler.x, euler.y, 0.0F);
-        rc::Vec3 magLevel = qZeroYaw.rotate(mag);
-        float initialYaw = -atan2f(magLevel.y, magLevel.x);
+        rc::Quat q_zero_yaw = rc::Quat::from_euler(euler.x, euler.y, 0.0F);
+        rc::Vec3 mag_level = q_zero_yaw.rotate(mag);
+        float initial_yaw = -atan2f(mag_level.y, mag_level.x);
         // Rebuild quaternion with mag-derived yaw
-        g_eskf.q = rc::Quat::from_euler(euler.x, euler.y, initialYaw);
+        g_eskf.q = rc::Quat::from_euler(euler.x, euler.y, initial_yaw);
         g_eskf.q.normalize();
     }
 
@@ -178,15 +178,15 @@ static bool eskf_try_init(const shared_sensor_data_t& snap) {
 // ESKF predict step with benchmark + state buffer write.
 static void eskf_run_predict(const shared_sensor_data_t& snap) {
     // Compute dt from IMU timestamps (unsigned subtraction handles 32-bit wrap)
-    uint32_t dtUs = snap.imu_timestamp_us - g_lastEskfTimestampUs;
+    uint32_t dt_us = snap.imu_timestamp_us - g_lastEskfTimestampUs;
     g_lastEskfTimestampUs = snap.imu_timestamp_us;  // CR-3: always update timestamp
 
     // Sanity-check dt — reject if too fast or too slow
-    if (dtUs < kEskfMinDtUs || dtUs > kEskfMaxDtUs) {
+    if (dt_us < kEskfMinDtUs || dt_us > kEskfMaxDtUs) {
         return;
     }
 
-    float dt = static_cast<float>(dtUs) * kUsToSec;
+    float dt = static_cast<float>(dt_us) * kUsToSec;
 
     rc::Vec3 accel = sensor_to_ned_accel(snap);
     rc::Vec3 gyro = sensor_to_ned_gyro(snap);
@@ -232,9 +232,9 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
 // Baro altitude measurement update (~32Hz DPS310 rate, on new data)
 static void eskf_tick_baro(const shared_sensor_data_t& snap) {
     if (snap.baro_valid && g_baroContinuous) {
-        static uint32_t s_lastEskfBaroCount = 0;
-        if (snap.baro_read_count != s_lastEskfBaroCount) {
-            s_lastEskfBaroCount = snap.baro_read_count;
+        static uint32_t s_last_eskf_baro_count = 0;
+        if (snap.baro_read_count != s_last_eskf_baro_count) {
+            s_last_eskf_baro_count = snap.baro_read_count;
             float alt = calibration_get_altitude_agl(snap.pressure_pa);
             g_eskf.update_baro(alt);
         }
@@ -259,19 +259,19 @@ static float g_wmmLonDeg = 0.0F;
 static bool g_mag3dEnabled = false;
 
 // Initialize WMM field from a position (GPS, stored, or default)
-static void init_wmm_field(float latDeg, float lonDeg, WmmSource source) {
-    g_wmmFieldNed = rc::wmm_get_earth_field_ned(latDeg, lonDeg);
-    g_wmmLatDeg = latDeg;
-    g_wmmLonDeg = lonDeg;
+static void init_wmm_field(float lat_deg, float lon_deg, WmmSource source) {
+    g_wmmFieldNed = rc::wmm_get_earth_field_ned(lat_deg, lon_deg);
+    g_wmmLatDeg = lat_deg;
+    g_wmmLonDeg = lon_deg;
     g_wmmSource = source;
 }
 
 // Persist WMM position to cal storage (survives reboot)
-static void save_wmm_position(float latDeg, float lonDeg) {
+static void save_wmm_position(float lat_deg, float lon_deg) {
     calibration_store_t* cal =
         const_cast<calibration_store_t*>(calibration_manager_get());
-    cal->wmm_lat_deg = latDeg;
-    cal->wmm_lon_deg = lonDeg;
+    cal->wmm_lat_deg = lat_deg;
+    cal->wmm_lon_deg = lon_deg;
     cal->cal_flags |= CAL_STATUS_WMM_SET;
     calibration_save();
 }
@@ -310,11 +310,11 @@ static void try_enable_mag_3axis(const shared_sensor_data_t& snap) {
 static void eskf_tick_mag(const shared_sensor_data_t& snap) {
     if (!snap.mag_valid) { return; }
 
-    static uint32_t s_lastEskfMagCount = 0;
-    if (snap.mag_read_count == s_lastEskfMagCount) { return; }
-    s_lastEskfMagCount = snap.mag_read_count;
+    static uint32_t s_last_eskf_mag_count = 0;
+    if (snap.mag_read_count == s_last_eskf_mag_count) { return; }
+    s_last_eskf_mag_count = snap.mag_read_count;
 
-    rc::Vec3 magBody = sensor_to_ned_mag(snap);
+    rc::Vec3 mag_body = sensor_to_ned_mag(snap);
 
     // Upgrade WMM source to GPS on first 3D fix (even if already using stored/default)
     if (snap.gps_valid && snap.gps_fix_type >= 3 && g_wmmSource != WmmSource::kGps) {
@@ -329,20 +329,20 @@ static void eskf_tick_mag(const shared_sensor_data_t& snap) {
 
     if (g_mag3dEnabled) {
         // 3-axis fusion — uses earth_mag + body_mag_bias states
-        g_eskf.update_mag_3axis(magBody, g_wmmFieldNed);
+        g_eskf.update_mag_3axis(mag_body, g_wmmFieldNed);
     } else {
         // Heading-only fallback — uses yaw state only
         const calibration_store_t* cal = calibration_manager_get();
-        float expectedMag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
+        float expected_mag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
                             ? cal->mag.expected_radius : 0.0F;
-        float latDeg = g_profile->default_lat_deg;
-        float lonDeg = g_profile->default_lon_deg;
+        float lat_deg = g_profile->default_lat_deg;
+        float lon_deg = g_profile->default_lon_deg;
         if (snap.gps_valid && snap.gps_fix_type >= 2) {
-            latDeg = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
-            lonDeg = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
+            lat_deg = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
+            lon_deg = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
         }
-        float declinationRad = rc::wmm_get_declination(latDeg, lonDeg);
-        g_eskf.update_mag_heading(magBody, expectedMag, declinationRad);
+        float declination_rad = rc::wmm_get_declination(lat_deg, lon_deg);
+        g_eskf.update_mag_heading(mag_body, expected_mag, declination_rad);
     }
 }
 
@@ -369,39 +369,39 @@ static void eskf_tick_gps_stats() {
 // suppress noisy updates at rest.
 static void eskf_tick_gps(const shared_sensor_data_t& snap) {
     if (snap.gps_valid && snap.gps_fix_type >= 3) {
-        static uint32_t s_lastGpsCount = 0;
-        if (snap.gps_read_count != s_lastGpsCount) {
-            s_lastGpsCount = snap.gps_read_count;
+        static uint32_t s_last_gps_count = 0;
+        if (snap.gps_read_count != s_last_gps_count) {
+            s_last_gps_count = snap.gps_read_count;
 
-            double latRad = static_cast<double>(snap.gps_lat_1e7) * kGps1e7ToDegrees * kDeg2Rad;
-            double lonRad = static_cast<double>(snap.gps_lon_1e7) * kGps1e7ToDegrees * kDeg2Rad;
-            float altM = snap.gps_alt_msl_m;
+            double lat_rad = static_cast<double>(snap.gps_lat_1e7) * kGps1e7ToDegrees * kDeg2Rad;
+            double lon_rad = static_cast<double>(snap.gps_lon_1e7) * kGps1e7ToDegrees * kDeg2Rad;
+            float alt_m = snap.gps_alt_msl_m;
             float hdop = snap.gps_hdop;
 
             // First 3D fix: set origin + reset p/v
             if (!g_eskf.has_origin_) {
-                if (g_eskf.set_origin(latRad, lonRad, altM, hdop)) {
+                if (g_eskf.set_origin(lat_rad, lon_rad, alt_m, hdop)) {
                     g_eskf.p = rc::Vec3();
                     g_eskf.v = rc::Vec3();
                 }
             } else {
                 // Re-center origin if position drifts > 10km (HAB flights)
-                float distXy = sqrtf(g_eskf.p.x * g_eskf.p.x +
+                float dist_xy = sqrtf(g_eskf.p.x * g_eskf.p.x +
                                      g_eskf.p.y * g_eskf.p.y);
-                if (distXy > rc::ESKF::kOriginResetDistance) {
-                    g_eskf.reset_origin(latRad, lonRad, altM);
+                if (dist_xy > rc::ESKF::kOriginResetDistance) {
+                    g_eskf.reset_origin(lat_rad, lon_rad, alt_m);
                 }
 
                 // GPS position update (3 sequential scalar updates N/E/D)
-                rc::Vec3 gpsNed = g_eskf.geodetic_to_ned(latRad, lonRad, altM);
-                g_eskf.update_gps_position(gpsNed, hdop);
+                rc::Vec3 gps_ned = g_eskf.geodetic_to_ned(lat_rad, lon_rad, alt_m);
+                g_eskf.update_gps_position(gps_ned, hdop);
 
                 // GPS velocity update — only when moving (>= 0.5 m/s)
                 if (snap.gps_ground_speed_mps >= rc::ESKF::kGpsMinSpeedForVel) {
-                    float courseRad = snap.gps_course_deg * static_cast<float>(kDeg2Rad);
-                    float vNorth = snap.gps_ground_speed_mps * cosf(courseRad);
-                    float vEast  = snap.gps_ground_speed_mps * sinf(courseRad);
-                    g_eskf.update_gps_velocity(vNorth, vEast);
+                    float course_rad = snap.gps_course_deg * static_cast<float>(kDeg2Rad);
+                    float v_north = snap.gps_ground_speed_mps * cosf(course_rad);
+                    float v_east  = snap.gps_ground_speed_mps * sinf(course_rad);
+                    g_eskf.update_gps_velocity(v_north, v_east);
                 }
 
                 eskf_tick_gps_stats();
@@ -432,22 +432,22 @@ static void eskf_tick_mahony(const shared_sensor_data_t& snap) {
     rc::Vec3 gyro  = sensor_to_ned_gyro(snap);
 
     if (!g_mahonyInitialized) {
-        rc::Vec3 magBody = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
-        if (g_mahony.init(accel, magBody)) {
+        rc::Vec3 mag_body = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
+        if (g_mahony.init(accel, mag_body)) {
             g_mahonyInitialized = true;
             g_lastMahonyTimestampUs = snap.imu_timestamp_us;
         }
     } else {
-        uint32_t dtUs = snap.imu_timestamp_us - g_lastMahonyTimestampUs;
+        uint32_t dt_us = snap.imu_timestamp_us - g_lastMahonyTimestampUs;
         g_lastMahonyTimestampUs = snap.imu_timestamp_us;
-        if (dtUs >= kEskfMinDtUs && dtUs <= kEskfMaxDtUs) {
-            float dt = static_cast<float>(dtUs) * kUsToSec;
-            rc::Vec3 magBody = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
+        if (dt_us >= kEskfMinDtUs && dt_us <= kEskfMaxDtUs) {
+            float dt = static_cast<float>(dt_us) * kUsToSec;
+            rc::Vec3 mag_body = snap.mag_valid ? sensor_to_ned_mag(snap) : rc::Vec3();
             const calibration_store_t* cal = calibration_manager_get();
-            float expectedMag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
+            float expected_mag = ((cal->cal_flags & CAL_STATUS_MAG) != 0)
                                 ? cal->mag.expected_radius : 0.0F;
-            bool magCalValid = (cal->cal_flags & CAL_STATUS_MAG) != 0;
-            g_mahony.update(accel, gyro, magBody, expectedMag, magCalValid, dt);
+            bool mag_cal_valid = (cal->cal_flags & CAL_STATUS_MAG) != 0;
+            g_mahony.update(accel, gyro, mag_body, expected_mag, mag_cal_valid, dt);
             if (!g_mahony.healthy()) {
                 g_mahonyInitialized = false;
             }
@@ -459,12 +459,12 @@ static void eskf_tick_mahony(const shared_sensor_data_t& snap) {
 static void eskf_tick_phase_and_confidence() {
     // Notify ESKF of flight phase changes for Q/R scheduling
     if (AO_FlightDirector_is_initialized()) {
-        static uint8_t s_lastPhase = 0;
+        static uint8_t s_last_phase = 0;
         uint8_t phase = static_cast<uint8_t>(
             rc::flight_director_phase(AO_FlightDirector_get_director()));
-        if (phase != s_lastPhase) {
+        if (phase != s_last_phase) {
             g_eskf.notify_phase_change(phase);
-            s_lastPhase = phase;
+            s_last_phase = phase;
         }
     }
 
@@ -475,11 +475,11 @@ static void eskf_tick_phase_and_confidence() {
         ? rc::MahonyAHRS::divergence_rad(g_eskf.q, g_mahony.q) * kRadToDeg
         : 0.0F;
     // Max innovation ratio across all channels
-    float maxAlpha = g_eskf.innov_baro_.alpha;
-    if (g_eskf.innov_mag_.alpha > maxAlpha) maxAlpha = g_eskf.innov_mag_.alpha;
-    if (g_eskf.innov_gps_pos_.alpha > maxAlpha) maxAlpha = g_eskf.innov_gps_pos_.alpha;
-    if (g_eskf.innov_gps_vel_.alpha > maxAlpha) maxAlpha = g_eskf.innov_gps_vel_.alpha;
-    ci.max_innov_ratio = maxAlpha;
+    float max_alpha = g_eskf.innov_baro_.alpha;
+    if (g_eskf.innov_mag_.alpha > max_alpha) max_alpha = g_eskf.innov_mag_.alpha;
+    if (g_eskf.innov_gps_pos_.alpha > max_alpha) max_alpha = g_eskf.innov_gps_pos_.alpha;
+    if (g_eskf.innov_gps_vel_.alpha > max_alpha) max_alpha = g_eskf.innov_gps_vel_.alpha;
+    ci.max_innov_ratio = max_alpha;
     // Max P diagonal for attitude and velocity
     ci.p_att_max = g_eskf.P(0, 0);
     for (int32_t i = 1; i < 3; ++i) {
@@ -577,8 +577,8 @@ void eskf_runner_tick() {
     }
 
     // Run every kEskfImuDivider-th new IMU sample (200Hz at 1kHz IMU rate)
-    uint32_t newSamples = snap.imu_read_count - g_lastEskfImuCount;
-    if (newSamples < kEskfImuDivider) {
+    uint32_t new_samples = snap.imu_read_count - g_lastEskfImuCount;
+    if (new_samples < kEskfImuDivider) {
         return;
     }
     g_lastEskfImuCount = snap.imu_read_count;

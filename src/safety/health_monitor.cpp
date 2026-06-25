@@ -158,13 +158,13 @@ static HealthLevel evaluate_imu(const shared_sensor_data_t& snap) {
     // Record validity in sliding window
     g_imuWindow[g_windowIndex] = snap.accel_valid ? 1U : 0U;
 
-    uint8_t validCount = window_valid_count(g_imuWindow);
-    uint8_t invalidCount = kHealthWindowSize - validCount;
+    uint8_t valid_count = window_valid_count(g_imuWindow);
+    uint8_t invalid_count = kHealthWindowSize - valid_count;
 
-    if (!snap.accel_valid && invalidCount >= kHealthWindowSize) {
+    if (!snap.accel_valid && invalid_count >= kHealthWindowSize) {
         return kHealthFault;  // All invalid = fault
     }
-    if (invalidCount >= kImuDegradeThreshold) {
+    if (invalid_count >= kImuDegradeThreshold) {
         return kHealthDegraded;
     }
     return kHealthOk;
@@ -181,13 +181,13 @@ static HealthLevel evaluate_baro(const shared_sensor_data_t& snap) {
 
     g_baroWindow[g_windowIndex] = snap.baro_valid ? 1U : 0U;
 
-    uint8_t validCount = window_valid_count(g_baroWindow);
-    uint8_t invalidCount = kHealthWindowSize - validCount;
+    uint8_t valid_count = window_valid_count(g_baroWindow);
+    uint8_t invalid_count = kHealthWindowSize - valid_count;
 
-    if (!snap.baro_valid && invalidCount >= kHealthWindowSize) {
+    if (!snap.baro_valid && invalid_count >= kHealthWindowSize) {
         return kHealthFault;
     }
-    if (invalidCount >= kBaroDegradeThreshold) {
+    if (invalid_count >= kBaroDegradeThreshold) {
         return kHealthDegraded;
     }
     return kHealthOk;
@@ -403,11 +403,11 @@ static uint8_t evaluate_secondary() {
     }
     // Health contribution: ESKF not runaway-restart-disabled. Station
     // doesn't run ESKF, so the reader is gated by capability.
-    bool eskfHealthy = true;
+    bool eskf_healthy = true;
     if constexpr (job::kRoleSamplesCore1) {
-        eskfHealthy = !eskf_is_disabled();
+        eskf_healthy = !eskf_is_disabled();
     }
-    if (eskfHealthy) {
+    if (eskf_healthy) {
         secondary |= kHealthWatchdogOk;
     }
     if (!pio_watchdog_fault_detected()) {
@@ -607,7 +607,7 @@ bool health_monitor_tick() {
     uint8_t primary = evaluate_primary_byte(snap, lvl);
 
     // MCU die-temp lives in HealthState::mcu, not packed into primary.
-    HealthLevel mcuLevel = apply_mcu_fault_latch(evaluate_mcu_temp(snap));
+    HealthLevel mcu_level = apply_mcu_fault_latch(evaluate_mcu_temp(snap));
 
     // Per-subsystem persistence counters (IVP-142b-3). Delegates to the
     // pure helper in the header so host tests cover the rule without
@@ -623,7 +623,7 @@ bool health_monitor_tick() {
     g_health.primary = primary;
     g_health.secondary = secondary;
     g_health.critical = evaluate_critical(snap);
-    g_health.mcu = mcuLevel;
+    g_health.mcu = mcu_level;
 
     g_health.go_nogo_ready =
         (lvl.imu  >= kHealthDegraded) &&
@@ -649,7 +649,7 @@ const HealthState* health_monitor_get_state() {
 // ============================================================================
 
 void health_monitor_set_phase(uint8_t phase) {
-    uint8_t prevPhase = g_currentPhase;
+    uint8_t prev_phase = g_currentPhase;
     g_currentPhase = phase;
 
     // Clear fault latches only on LANDED (post-flight recovery, GPS beacon).
@@ -669,7 +669,7 @@ void health_monitor_set_phase(uint8_t phase) {
         g_baroFaultTicks = 0;
         g_eskfFaultTicks = 0;
     }
-    (void)prevPhase;  // Available for future logging
+    (void)prev_phase;  // Available for future logging
 }
 
 // ============================================================================

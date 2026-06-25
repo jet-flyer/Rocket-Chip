@@ -182,12 +182,12 @@ static void send_pending_ack_if_any() {
     // Separate static event for ACK (can't reuse nav's txEvt — both in queue)
     // Stage T IVP-T5: RadioTxEvt.buf bumped to 256; uint8_t ack_len ≤ sizeof
     // check is now always-true. Removed redundant guard.
-    static rc::RadioTxEvt s_ackTxEvt;
-    s_ackTxEvt.super.sig = rc::SIG_RADIO_TX;
-    s_ackTxEvt.super.refCtr_ = 0;
-    memcpy(s_ackTxEvt.buf, ack_buf, ack_len);
-    s_ackTxEvt.len = ack_len;
-    QACTIVE_POST(AO_Radio, &s_ackTxEvt.super, AO_Telemetry);
+    static rc::RadioTxEvt s_ack_tx_evt;
+    s_ack_tx_evt.super.sig = rc::SIG_RADIO_TX;
+    s_ack_tx_evt.super.refCtr_ = 0;
+    memcpy(s_ack_tx_evt.buf, ack_buf, ack_len);
+    s_ack_tx_evt.len = ack_len;
+    QACTIVE_POST(AO_Radio, &s_ack_tx_evt.super, AO_Telemetry);
 }
 
 static void encode_and_send(TelemAo* me) {
@@ -222,14 +222,14 @@ static void encode_and_send(TelemAo* me) {
     if (!result.ok || result.len == 0) { return; }
 
     // QV cooperative scheduling — static event safe (no concurrent access).
-    static rc::RadioTxEvt txEvt;
-    txEvt.super.sig = rc::SIG_RADIO_TX;
-    txEvt.super.refCtr_ = 0;
-    if (result.len > sizeof(txEvt.buf)) { return; }
-    memcpy(txEvt.buf, result.buf, result.len);
-    txEvt.len = static_cast<uint8_t>(result.len);
+    static rc::RadioTxEvt tx_evt;
+    tx_evt.super.sig = rc::SIG_RADIO_TX;
+    tx_evt.super.refCtr_ = 0;
+    if (result.len > sizeof(tx_evt.buf)) { return; }
+    memcpy(tx_evt.buf, result.buf, result.len);
+    tx_evt.len = static_cast<uint8_t>(result.len);
 
-    QACTIVE_POST(AO_Radio, &txEvt.super, me);
+    QACTIVE_POST(AO_Radio, &tx_evt.super, me);
 }
 
 // LoRa MAVLink RX — uses MAVLINK_COMM_2 (separate from USB on COMM_1)
@@ -493,9 +493,9 @@ static void record_ack_outcome(uint16_t matched_cmd, float matched_p1,
     }
 }
 
-static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
+static bool try_handle_cmd_ack(const rc::RadioRxEvt* rx_evt) {
     rc::ccsds::CommandAckPayload ack{};
-    if (!rc::ccsds_decode_cmd_ack(rxEvt->buf, rxEvt->len, ack)) {
+    if (!rc::ccsds_decode_cmd_ack(rx_evt->buf, rx_evt->len, ack)) {
         return false;
     }
 #ifdef ROCKETCHIP_JOB_STATION
@@ -555,7 +555,7 @@ static bool try_handle_cmd_ack(const rc::RadioRxEvt* rxEvt) {
 #ifndef ROCKETCHIP_HOST_TEST
 static void dispatch_nav_output(TelemAo* me,
                                  const rc::TelemetryState& telem,
-                                 const rc::RadioRxEvt* rxEvt,
+                                 const rc::RadioRxEvt* rx_evt,
                                  uint16_t seq) {
     switch (AO_RCOS_get_output_mode()) {
     case StationOutputMode::kMavlink: {
@@ -583,8 +583,8 @@ static void dispatch_nav_output(TelemAo* me,
     case StationOutputMode::kCsv:
         rc::rc_log("RX,%u,%d,%d\n",
                    static_cast<unsigned>(seq),
-                   static_cast<int>(rxEvt->rssi),
-                   static_cast<int>(rxEvt->snr));
+                   static_cast<int>(rx_evt->rssi),
+                   static_cast<int>(rx_evt->snr));
         break;
     case StationOutputMode::kAnsi:
     case StationOutputMode::kMenu:
@@ -594,7 +594,7 @@ static void dispatch_nav_output(TelemAo* me,
 }
 #endif
 
-static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
+static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rx_evt) {
 #ifdef ROCKETCHIP_JOB_STATION
     // IVP-132a: fault-inject RX drop. R-25-exec step 6: flag is set
     // only via fault_force_station_rx_drop() which checks
@@ -610,12 +610,12 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
     uint16_t seq = 0;
     uint32_t met_ms = 0;
     rc::NavConfigEcho echo = {};
-    if (!rc::ccsds_decode_nav(rxEvt->buf, rxEvt->len, telem, seq, met_ms, echo)) {
+    if (!rc::ccsds_decode_nav(rx_evt->buf, rx_evt->len, telem, seq, met_ms, echo)) {
         // Not nav — try command ACK, then MAVLink command fallback
-        if (try_handle_cmd_ack(rxEvt)) {
+        if (try_handle_cmd_ack(rx_evt)) {
             return;
         }
-        try_mavlink_rx(me, rxEvt->buf, rxEvt->len);
+        try_mavlink_rx(me, rx_evt->buf, rx_evt->len);
         return;
     }
 
@@ -644,7 +644,7 @@ static void handle_rx_packet(TelemAo* me, const rc::RadioRxEvt* rxEvt) {
 #endif
 
 #ifndef ROCKETCHIP_HOST_TEST
-    dispatch_nav_output(me, telem, rxEvt, seq);
+    dispatch_nav_output(me, telem, rx_evt, seq);
 #else
     (void)me;
 #endif
@@ -760,8 +760,8 @@ static QState TelemAo_running(TelemAo * const me, QEvt const * const e) {
     }
 
     case rc::SIG_RADIO_RX: {
-        const auto* rxEvt = rc::evt_cast<rc::RadioRxEvt>(e);
-        handle_rx_packet(me, rxEvt);
+        const auto* rx_evt = rc::evt_cast<rc::RadioRxEvt>(e);
+        handle_rx_packet(me, rx_evt);
         return Q_HANDLED();
     }
 
@@ -797,10 +797,10 @@ void AO_Telemetry_toggle_mavlink() {
 }
 
 uint8_t AO_Telemetry_cycle_rate() {
-    static constexpr uint8_t kRates[] = {2, 5, 10};
+    static constexpr uint8_t k_rates[] = {2, 5, 10};
     for (uint8_t i = 0; i < 3; i++) {
-        if (kRates[i] == l_telemAo.rate_hz) {
-            uint8_t next = kRates[(i + 1) % 3];
+        if (k_rates[i] == l_telemAo.rate_hz) {
+            uint8_t next = k_rates[(i + 1) % 3];
             AO_Telemetry_set_rate(next);
             return next;
         }
@@ -851,13 +851,13 @@ void AO_Telemetry_send_command(uint16_t command, const MavCmdParams& params) {
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
-    static rc::RadioTxEvt txEvt;
-    txEvt.super.sig = rc::SIG_RADIO_TX;
-    txEvt.super.refCtr_ = 0;
-    if (len <= sizeof(txEvt.buf)) {
-        memcpy(txEvt.buf, buf, len);
-        txEvt.len = static_cast<uint8_t>(len);
-        QACTIVE_POST(AO_Radio, &txEvt.super, &l_telemAo.super);
+    static rc::RadioTxEvt tx_evt;
+    tx_evt.super.sig = rc::SIG_RADIO_TX;
+    tx_evt.super.refCtr_ = 0;
+    if (len <= sizeof(tx_evt.buf)) {
+        memcpy(tx_evt.buf, buf, len);
+        tx_evt.len = static_cast<uint8_t>(len);
+        QACTIVE_POST(AO_Radio, &tx_evt.super, &l_telemAo.super);
     }
 #else
     (void)command; (void)params;
@@ -894,13 +894,13 @@ static void tx_tracked_command_wire(uint16_t command, uint8_t seq,
         params.p1, params.p2, params.p3, params.p4, params.p5, 0, 0);
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
-    static rc::RadioTxEvt txEvt;
-    txEvt.super.sig = rc::SIG_RADIO_TX;
-    txEvt.super.refCtr_ = 0;
-    if (len <= sizeof(txEvt.buf)) {
-        memcpy(txEvt.buf, buf, len);
-        txEvt.len = static_cast<uint8_t>(len);
-        QACTIVE_POST(AO_Radio, &txEvt.super, &l_telemAo.super);
+    static rc::RadioTxEvt tx_evt;
+    tx_evt.super.sig = rc::SIG_RADIO_TX;
+    tx_evt.super.refCtr_ = 0;
+    if (len <= sizeof(tx_evt.buf)) {
+        memcpy(tx_evt.buf, buf, len);
+        tx_evt.len = static_cast<uint8_t>(len);
+        QACTIVE_POST(AO_Radio, &tx_evt.super, &l_telemAo.super);
     }
 }
 
@@ -1013,13 +1013,13 @@ static void resend_pending_cmd() {
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
-    static rc::RadioTxEvt txEvt;
-    txEvt.super.sig = rc::SIG_RADIO_TX;
-    txEvt.super.refCtr_ = 0;
-    if (len <= sizeof(txEvt.buf)) {
-        memcpy(txEvt.buf, buf, len);
-        txEvt.len = static_cast<uint8_t>(len);
-        QACTIVE_POST(AO_Radio, &txEvt.super, &l_telemAo.super);
+    static rc::RadioTxEvt tx_evt;
+    tx_evt.super.sig = rc::SIG_RADIO_TX;
+    tx_evt.super.refCtr_ = 0;
+    if (len <= sizeof(tx_evt.buf)) {
+        memcpy(tx_evt.buf, buf, len);
+        tx_evt.len = static_cast<uint8_t>(len);
+        QACTIVE_POST(AO_Radio, &tx_evt.super, &l_telemAo.super);
     }
     s_pending_cmd.sent_ms = to_ms_since_boot(get_absolute_time());
 #endif

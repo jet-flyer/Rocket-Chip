@@ -171,11 +171,11 @@ static constexpr uint8_t kI2cAddrDps310Alt   = 0x76;
 
 static void print_imu_status(const shared_sensor_data_t& snap) {
     if (snap.accel_valid) {
-        float aMag = sqrtf(snap.accel_x*snap.accel_x + snap.accel_y*snap.accel_y
+        float a_mag = sqrtf(snap.accel_x*snap.accel_x + snap.accel_y*snap.accel_y
                            + snap.accel_z*snap.accel_z);
         rc::rc_log("Accel (m/s^2): X=%7.3f Y=%7.3f Z=%7.3f |A|=%.3f\n",
                (double)snap.accel_x, (double)snap.accel_y, (double)snap.accel_z,
-               (double)aMag);
+               (double)a_mag);
     } else {
         rc::rc_log("Accel: invalid\n");
     }
@@ -186,9 +186,9 @@ static void print_imu_status(const shared_sensor_data_t& snap) {
         rc::rc_log("Gyro: invalid\n");
     }
     if (snap.mag_valid) {
-        float magMag = sqrtf(snap.mag_x*snap.mag_x + snap.mag_y*snap.mag_y + snap.mag_z*snap.mag_z);
+        float mag_mag = sqrtf(snap.mag_x*snap.mag_x + snap.mag_y*snap.mag_y + snap.mag_z*snap.mag_z);
         rc::rc_log("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f  |M|=%.1f\n",
-               (double)snap.mag_x, (double)snap.mag_y, (double)snap.mag_z, (double)magMag);
+               (double)snap.mag_x, (double)snap.mag_y, (double)snap.mag_z, (double)mag_mag);
         float heading = atan2f(-snap.mag_y, snap.mag_x) * kRadToDeg;
         if (heading < 0.0F) { heading += kFullCircleDeg; }
         rc::rc_log("Heading: %.1f deg (level only)\n", (double)heading);
@@ -261,14 +261,14 @@ static void print_eskf_gates_and_diags() {
 static void print_eskf_status() {
     if (g_eskfInitialized && g_eskf.healthy()) {
         rc::Vec3 euler = g_eskf.q.to_euler();
-        float rollDeg  = euler.x * kRadToDeg;
-        float pitchDeg = euler.y * kRadToDeg;
-        float yawDeg   = euler.z * kRadToDeg;
+        float roll_deg  = euler.x * kRadToDeg;
+        float pitch_deg = euler.y * kRadToDeg;
+        float yaw_deg   = euler.z * kRadToDeg;
         float patt = g_eskf.P(0, 0);
         if (g_eskf.P(1, 1) > patt) { patt = g_eskf.P(1, 1); }
         if (g_eskf.P(2, 2) > patt) { patt = g_eskf.P(2, 2); }
         rc::rc_log("ESKF: R=%6.2f P=%6.2f Y=%6.2f deg  Patt=%.4f  qnorm=%.6f\n",
-               (double)rollDeg, (double)pitchDeg, (double)yawDeg,
+               (double)roll_deg, (double)pitch_deg, (double)yaw_deg,
                (double)patt, (double)g_eskf.q.norm());
         rc::rc_log("      vel=%.3f,%.3f,%.3f m/s  bNIS=%.2f mNIS=%.2f\n",
                (double)g_eskf.v.x, (double)g_eskf.v.y, (double)g_eskf.v.z,
@@ -278,29 +278,29 @@ static void print_eskf_status() {
         const rc::MahonyAHRS* mahony = eskf_runner_get_mahony();
         if (eskf_runner_is_mahony_initialized() && mahony->healthy()) {
             rc::Vec3 meuler = mahony->q.to_euler();
-            float mdivDeg = rc::MahonyAHRS::divergence_rad(g_eskf.q, mahony->q) * kRadToDeg;
+            float mdiv_deg = rc::MahonyAHRS::divergence_rad(g_eskf.q, mahony->q) * kRadToDeg;
             rc::rc_log("Mahony: R=%6.2f P=%6.2f Y=%6.2f deg  Mdiv=%.1f deg\n",
                    (double)(meuler.x * kRadToDeg),
                    (double)(meuler.y * kRadToDeg),
                    (double)(meuler.z * kRadToDeg),
-                   (double)mdivDeg);
+                   (double)mdiv_deg);
         }
         // R-25-exec step 8 (2026-05-13): ifdef stripped. ESKF profiling
         // counters always run; CLI print is unconditional.
         {
-            uint32_t benchAvg = 0, benchMin = 0, benchMax = 0, benchCount = 0;
-            eskf_runner_get_bench(&benchAvg, &benchMin, &benchMax, &benchCount);
-            if (benchCount > 0) {
+            uint32_t bench_avg = 0, bench_min = 0, bench_max = 0, bench_count = 0;
+            eskf_runner_get_bench(&bench_avg, &bench_min, &bench_max, &bench_count);
+            if (bench_count > 0) {
                 rc::rc_log("      predict: %luus avg, %luus min, %luus max (%lu calls)\n",
-                       (unsigned long)benchAvg, (unsigned long)benchMin,
-                       (unsigned long)benchMax, (unsigned long)benchCount);
+                       (unsigned long)bench_avg, (unsigned long)bench_min,
+                       (unsigned long)bench_max, (unsigned long)bench_count);
             }
-            uint32_t fAvg = 0, fMin = 0, fMax = 0, fCount = 0;
-            eskf_runner_get_bench_full_tick(&fAvg, &fMin, &fMax, &fCount);
-            if (fCount > 0) {
+            uint32_t f_avg = 0, f_min = 0, f_max = 0, f_count = 0;
+            eskf_runner_get_bench_full_tick(&f_avg, &f_min, &f_max, &f_count);
+            if (f_count > 0) {
                 rc::rc_log("      full-tick: %luus avg, %luus min, %luus max (%lu calls)\n",
-                       (unsigned long)fAvg, (unsigned long)fMin,
-                       (unsigned long)fMax, (unsigned long)fCount);
+                       (unsigned long)f_avg, (unsigned long)f_min,
+                       (unsigned long)f_max, (unsigned long)f_count);
             }
         }
         rc::rc_log("      buf: %lu/%lu samples\n",
@@ -314,16 +314,16 @@ static void print_eskf_status() {
 
 static void print_gps_status(const shared_sensor_data_t& snap) {
     // GPS — show transport label
-    const char* gpsLabel = "???";
+    const char* gps_label = "???";
     if (g_gpsTransport == GPS_TRANSPORT_UART) {
-        gpsLabel = "UART";
+        gps_label = "UART";
     } else if (g_gpsTransport == GPS_TRANSPORT_I2C) {
-        gpsLabel = "I2C";
+        gps_label = "I2C";
     }
     if (snap.gps_read_count > 0) {
         if (snap.gps_valid) {
             rc::rc_log("GPS (%s): %.7f, %.7f, %.1f m MSL\n",
-                   gpsLabel,
+                   gps_label,
                    snap.gps_lat_1e7 / kGpsCoordScale,
                    snap.gps_lon_1e7 / kGpsCoordScale,
                    (double)snap.gps_alt_msl_m);
@@ -333,7 +333,7 @@ static void print_gps_status(const shared_sensor_data_t& snap) {
                    (double)snap.gps_hdop, (double)snap.gps_vdop);
         } else {
             rc::rc_log("GPS (%s): no fix (%u sats)\n",
-                   gpsLabel, snap.gps_satellites);
+                   gps_label, snap.gps_satellites);
             rc::rc_log("     RMC=%c GGA=%u GSA=%u",
                    snap.gps_rmc_valid ? 'A' : 'V',
                    snap.gps_gga_fix,
@@ -356,7 +356,7 @@ static void print_gps_status(const shared_sensor_data_t& snap) {
             }
         }
     } else if (g_gpsInitialized) {
-        rc::rc_log("GPS (%s): initialized, no reads yet\n", gpsLabel);
+        rc::rc_log("GPS (%s): initialized, no reads yet\n", gps_label);
     } else {
         rc::rc_log("GPS: not detected\n");
     }
@@ -414,15 +414,15 @@ static void print_direct_sensors() {
             rc::rc_log("Gyro  (rad/s): X=%7.4f Y=%7.4f Z=%7.4f\n",
                    (double)gx, (double)gy, (double)gz);
             if (data.mag_valid) {
-                float mxCal = 0.0F;
-                float myCal = 0.0F;
-                float mzCal = 0.0F;
+                float mx_cal = 0.0F;
+                float my_cal = 0.0F;
+                float mz_cal = 0.0F;
                 calibration_apply_mag(data.mag.x, data.mag.y, data.mag.z,
-                                      &mxCal, &myCal, &mzCal);
-                float magMag = sqrtf(mxCal*mxCal + myCal*myCal + mzCal*mzCal);
+                                      &mx_cal, &my_cal, &mz_cal);
+                float mag_mag = sqrtf(mx_cal*mx_cal + my_cal*my_cal + mz_cal*mz_cal);
                 rc::rc_log("Mag     (uT):  X=%6.1f  Y=%6.1f  Z=%6.1f  |M|=%.1f\n",
-                       (double)mxCal, (double)myCal, (double)mzCal, (double)magMag);
-                float heading = atan2f(-myCal, mxCal) * kRadToDeg;
+                       (double)mx_cal, (double)my_cal, (double)mz_cal, (double)mag_mag);
+                float heading = atan2f(-my_cal, mx_cal) * kRadToDeg;
                 if (heading < 0.0F) { heading += kFullCircleDeg; }
                 rc::rc_log("Heading: %.1f deg (level only)\n", (double)heading);
             } else {
@@ -480,12 +480,12 @@ static void print_cal_params() {
                (double)cal->mag.scale.x, (double)cal->mag.scale.y,
                (double)cal->mag.scale.z);
     }
-    const float* rotMat = cal->board_rotation.m;
+    const float* rot_mat = cal->board_rotation.m;
     // NOLINTBEGIN(readability-magic-numbers) — row-major DCM indices [0..8]
     rc::rc_log("  Rot:   [%.3f %.3f %.3f; %.3f %.3f %.3f; %.3f %.3f %.3f]\n",
-           (double)rotMat[0], (double)rotMat[1], (double)rotMat[2],
-           (double)rotMat[3], (double)rotMat[4], (double)rotMat[5],
-           (double)rotMat[6], (double)rotMat[7], (double)rotMat[8]);
+           (double)rot_mat[0], (double)rot_mat[1], (double)rot_mat[2],
+           (double)rot_mat[3], (double)rot_mat[4], (double)rot_mat[5],
+           (double)rot_mat[6], (double)rot_mat[7], (double)rot_mat[8]);
     // NOLINTEND(readability-magic-numbers)
 }
 
@@ -512,17 +512,17 @@ void cli_print_sensor_status() {
     print_cal_params();
 
     // WMM geomagnetic field info
-    float wmmLat = 0.0F;
-    float wmmLon = 0.0F;
-    bool wmmValid = eskf_runner_get_wmm_position(&wmmLat, &wmmLon);
-    if (wmmValid) {
-        static constexpr const char* kWmmSrc[] = {"?", "default", "stored", "GPS"};
+    float wmm_lat = 0.0F;
+    float wmm_lon = 0.0F;
+    bool wmm_valid = eskf_runner_get_wmm_position(&wmm_lat, &wmm_lon);
+    if (wmm_valid) {
+        static constexpr const char* k_wmm_src[] = {"?", "default", "stored", "GPS"};
         uint8_t src = eskf_runner_get_wmm_source();
-        rc::WmmField field = rc::wmm_get_field(wmmLat, wmmLon);
+        rc::WmmField field = rc::wmm_get_field(wmm_lat, wmm_lon);
         rc::rc_log("WMM(%s): %.1f%c %.1f%c  D=%.1f%c I=%.1f%c F=%.1fuT\n",
-               kWmmSrc[src < 4 ? src : 0],
-               fabsf(wmmLat), wmmLat >= 0 ? 'N' : 'S',
-               fabsf(wmmLon), wmmLon >= 0 ? 'E' : 'W',
+               k_wmm_src[src < 4 ? src : 0],
+               fabsf(wmm_lat), wmm_lat >= 0 ? 'N' : 'S',
+               fabsf(wmm_lon), wmm_lon >= 0 ? 'E' : 'W',
                fabsf(field.declination_rad * 180.0F / 3.14159265F),
                field.declination_rad >= 0 ? 'E' : 'W',
                fabsf(field.inclination_rad * 180.0F / 3.14159265F),
@@ -565,23 +565,23 @@ static const char* get_device_name(uint8_t addr) {
 
 static void hw_validate_i2c_devices() {
     if (rc_os_i2c_scan_allowed) {
-        static constexpr uint8_t kExpected[] = {
+        static constexpr uint8_t k_expected[] = {
             kI2cAddrAk09916,
             kI2cAddrIcm20948,
             kI2cAddrDps310,
         };
-        int foundCount = 0;
-        for (const auto& addr : kExpected) {
+        int found_count = 0;
+        for (const auto& addr : k_expected) {
             bool found = i2c_bus_probe(addr);
             rc::rc_log("[----] I2C 0x%02X (%s): %s\n",
                    addr, get_device_name(addr),
                    found ? "FOUND" : "NOT FOUND");
             if (found) {
-                foundCount++;
+                found_count++;
             }
         }
         rc::rc_log("[INFO] Sensors found: %d/%zu expected\n",
-               foundCount, sizeof(kExpected) / sizeof(kExpected[0]));
+               found_count, sizeof(k_expected) / sizeof(k_expected[0]));
     } else {
         rc::rc_log("[INFO] I2C probe skipped (Core 1 owns bus)\n");
     }
@@ -594,18 +594,18 @@ static void print_imu_status() {
                g_imu.mag_initialized ? "PASS" : "WARN",
                g_imu.mag_initialized ? "ready" : "not ready");
 
-        uint8_t accelCfg = 0;
-        uint8_t gyroCfg1 = 0;
-        uint8_t gyroDiv = 0;
-        if (icm20948_read_config_registers(&g_imu, &accelCfg, &gyroCfg1, &gyroDiv)) {
-            uint8_t accelDlpf = (accelCfg >> 3) & kDlpfCfgMask;
-            bool accelDlpfEn  = (accelCfg & 0x01U) != 0;
-            uint8_t gyroDlpf  = (gyroCfg1 >> 3) & kDlpfCfgMask;
-            bool gyroDlpfEn   = (gyroCfg1 & 0x01U) != 0;
+        uint8_t accel_cfg = 0;
+        uint8_t gyro_cfg1 = 0;
+        uint8_t gyro_div = 0;
+        if (icm20948_read_config_registers(&g_imu, &accel_cfg, &gyro_cfg1, &gyro_div)) {
+            uint8_t accel_dlpf = (accel_cfg >> 3) & kDlpfCfgMask;
+            bool accel_dlpf_en  = (accel_cfg & 0x01U) != 0;
+            uint8_t gyro_dlpf  = (gyro_cfg1 >> 3) & kDlpfCfgMask;
+            bool gyro_dlpf_en   = (gyro_cfg1 & 0x01U) != 0;
             rc::rc_log("  IMU config: accelDLPF=%u(%s) gyroDLPF=%u(%s) gyroDiv=%u\n",
-                   accelDlpf, accelDlpfEn ? "on" : "off",
-                   gyroDlpf, gyroDlpfEn ? "on" : "off",
-                   gyroDiv);
+                   accel_dlpf, accel_dlpf_en ? "on" : "off",
+                   gyro_dlpf, gyro_dlpf_en ? "on" : "off",
+                   gyro_div);
         }
         return;
     }
@@ -639,9 +639,9 @@ static void print_gps_status() {
     // Grok-triage debug: show PMTK write return codes + window-hit flag
     // captured by the ultra-early gps_pa1010d_init() call in init_early_hw()
     // (printf from there is dropped because USB CDC is not up yet).
-    char gpsDbg[96] = { 0 };
-    gps_pa1010d_get_debug_status(gpsDbg, sizeof(gpsDbg));
-    rc::rc_log("[DBG ] GPS early-init: %s\n", gpsDbg);
+    char gps_dbg[96] = { 0 };
+    gps_pa1010d_get_debug_status(gps_dbg, sizeof(gps_dbg));
+    rc::rc_log("[DBG ] GPS early-init: %s\n", gps_dbg);
 }
 
 static void hw_validate_sensors() {
@@ -675,11 +675,11 @@ static void print_psram_status() {
 
 static void print_logging_status() {
     if (AO_Logger_is_initialized()) {
-        bool isPsram = (g_psramSize > 0 && g_psramSelfTestPassed);
-        uint32_t rate = isPsram ? 50U : 25U;
+        bool is_psram = (g_psramSize > 0 && g_psramSelfTestPassed);
+        uint32_t rate = is_psram ? 50U : 25U;
         const rc::RingBuffer* ring = AO_Logger_get_ring();
         rc::rc_log("[PASS] Logging: %s ring, %luHz, %lu frames capacity, %lu stored\n",
-               isPsram ? "PSRAM" : "SRAM",
+               is_psram ? "PSRAM" : "SRAM",
                (unsigned long)rate,
                (unsigned long)rc::ring_capacity_frames(ring),
                (unsigned long)rc::ring_stored_count(ring));
@@ -691,15 +691,15 @@ static void print_logging_status() {
 static void print_flash_status() {
     const rc::FlightTableState* ft = AO_Logger_get_flight_table();
     if (ft->loaded) {
-        uint32_t nFlights = rc::flight_table_count(ft);
-        float usedPct = rc::flight_table_used_pct(ft);
-        uint32_t freeSectors = rc::flight_table_capacity_sectors() -
+        uint32_t n_flights = rc::flight_table_count(ft);
+        float used_pct = rc::flight_table_used_pct(ft);
+        uint32_t free_sectors = rc::flight_table_capacity_sectors() -
                                rc::flight_table_used_sectors(ft);
-        uint32_t freeMB = (freeSectors * rc::kFlashSectorSize) / (1024U * 1024U);
+        uint32_t free_mb = (free_sectors * rc::kFlashSectorSize) / (1024U * 1024U);
         rc::rc_log("[PASS] Flash: %.1f%% used (%lu flights, %luMB free)\n",
-               static_cast<double>(usedPct),
-               (unsigned long)nFlights,
-               (unsigned long)freeMB);
+               static_cast<double>(used_pct),
+               (unsigned long)n_flights,
+               (unsigned long)free_mb);
     } else {
         rc::rc_log("[INFO] Flash: flight table empty (fresh)\n");
     }
@@ -718,17 +718,17 @@ static void print_gps_status_boot() {
         rc::rc_log("  Best GPS: no fix acquired yet\n");
     }
 
-    const gps_session_stats_t* gpsSess = eskf_runner_get_gps_session();
-    if (gpsSess->gps_updates > 0) {
+    const gps_session_stats_t* gps_sess = eskf_runner_get_gps_session();
+    if (gps_sess->gps_updates > 0) {
         rc::rc_log("  GPS session: %lu updates, max_dist=%.1fm, last_dist=%.1fm\n",
-               (unsigned long)gpsSess->gps_updates,
-               (double)gpsSess->max_dist_from_origin_m,
-               (double)gpsSess->last_dist_from_origin_m);
+               (unsigned long)gps_sess->gps_updates,
+               (double)gps_sess->max_dist_from_origin_m,
+               (double)gps_sess->last_dist_from_origin_m);
         rc::rc_log("              last_pos N=%.1f E=%.1f m  gNIS=[%.2f, %.2f]\n",
-               (double)gpsSess->last_pos_n_m,
-               (double)gpsSess->last_pos_e_m,
-               (double)gpsSess->min_gps_nis,
-               (double)gpsSess->max_gps_nis);
+               (double)gps_sess->last_pos_n_m,
+               (double)gps_sess->last_pos_e_m,
+               (double)gps_sess->min_gps_nis,
+               (double)gps_sess->max_gps_nis);
     }
 }
 
@@ -908,14 +908,14 @@ void cli_print_eskf_live() {
     float ppos = g_eskf.P(5, 5);
 
     rc::Vec3 euler = g_eskf.q.to_euler();
-    float yawDeg = euler.z * kRadToDeg;
+    float yaw_deg = euler.z * kRadToDeg;
 
     const rc::MahonyAHRS* mahony_live = eskf_runner_get_mahony();
-    float mdivDeg = (eskf_runner_is_mahony_initialized() && mahony_live->healthy())
+    float mdiv_deg = (eskf_runner_is_mahony_initialized() && mahony_live->healthy())
                     ? rc::MahonyAHRS::divergence_rad(g_eskf.q, mahony_live->q) * kRadToDeg
                     : -1.0F;
     rc::rc_log("alt=%.2f vz=%.2f vh=%.2f Y=%.1f Patt=%.4f Pp=%.4f bNIS=%.2f mNIS=%.2f mA=%lu/%lu Z=%c zNIS=%.2f G=%c gNIS=%.2f Mdiv=%.1f B=%lu\n",
-           (double)alt, (double)vz, (double)vh, (double)yawDeg,
+           (double)alt, (double)vz, (double)vh, (double)yaw_deg,
            (double)patt, (double)ppos,
            (double)g_eskf.last_baro_nis_,
            (double)g_eskf.last_mag_nis_,
@@ -925,7 +925,7 @@ void cli_print_eskf_live() {
            (double)g_eskf.last_zupt_nis_,
            g_eskf.has_origin_ ? 'Y' : 'N',
            (double)g_eskf.last_gps_pos_nis_,
-           (double)mdivDeg,
+           (double)mdiv_deg,
            (unsigned long)snap.baro_read_count);
 }
 
@@ -936,13 +936,13 @@ void cli_print_eskf_live() {
 static void print_station_rx_fields(const rc::TelemetryState& t,
                                      const RadioAoState* rs,
                                      uint32_t met_ms, uint16_t seq) {
-    static constexpr float kMmToM  = 0.001F;
-    static constexpr float kMmToFt = 0.00328084F;
-    static constexpr float kCmsToMs = 0.01F;
+    static constexpr float k_mm_to_m  = 0.001F;
+    static constexpr float k_mm_to_ft = 0.00328084F;
+    static constexpr float k_cms_to_ms = 0.01F;
 
-    float alt_m  = static_cast<float>(t.baro_alt_mm) * kMmToM;
-    float alt_ft = static_cast<float>(t.baro_alt_mm) * kMmToFt;
-    float vvel   = static_cast<float>(t.baro_vvel_cms) * kCmsToMs;
+    float alt_m  = static_cast<float>(t.baro_alt_mm) * k_mm_to_m;
+    float alt_ft = static_cast<float>(t.baro_alt_mm) * k_mm_to_ft;
+    float vvel   = static_cast<float>(t.baro_vvel_cms) * k_cms_to_ms;
     uint8_t fix  = (t.gps_fix_sats >> 4) & 0x0F;
     uint8_t sats = t.gps_fix_sats & 0x0F;
     bool eskf_ok = (rc::health_eskf(t.health) >= rc::kHealthDegraded);
@@ -1025,8 +1025,8 @@ static void cmd_flush_log() {
         return;
     }
 
-    bool isPsram = (g_psramSize > 0 && g_psramSelfTestPassed);
-    uint8_t rate = isPsram ? 50U : 25U;
+    bool is_psram = (g_psramSize > 0 && g_psramSelfTestPassed);
+    uint8_t rate = is_psram ? 50U : 25U;
 
     rc::rc_log("Flushing %lu frames to flash...\n", (unsigned long)stored);
 
@@ -1142,13 +1142,13 @@ static void cmd_list_flights() {
     for (uint32_t i = 0; i < count; ++i) {
         rc::FlightLogEntry entry = {};
         if (rc::flight_table_get_entry(ft, i, &entry)) {
-            uint32_t sizeKb = (entry.sector_count * rc::kFlashSectorSize) / 1024;
+            uint32_t size_kb = (entry.sector_count * rc::kFlashSectorSize) / 1024;
             rc::rc_log("  %2lu %6lu  %3uHz  %5lu  %6lu\n",
                    (unsigned long)(i + 1),
                    (unsigned long)entry.frame_count,
                    (unsigned)entry.log_rate_hz,
                    (unsigned long)entry.sector_count,
-                   (unsigned long)sizeKb);
+                   (unsigned long)size_kb);
         }
     }
     rc::rc_log("\n  Flash: %.1f%% used (%lu flights)\n\n",
@@ -1294,19 +1294,19 @@ static void cmd_radio_status() {
 [[maybe_unused]]
 static float haversine_m(int32_t lat1_e7, int32_t lon1_e7,
                           int32_t lat2_e7, int32_t lon2_e7) {
-    static constexpr float kDegToRad = 3.14159265F / 180.0F;
-    static constexpr float kEarthR   = 6371000.0F;
-    static constexpr float kScale    = 1e-7F;
+    static constexpr float k_deg_to_rad = 3.14159265F / 180.0F;
+    static constexpr float k_earth_r   = 6371000.0F;
+    static constexpr float k_scale    = 1e-7F;
 
-    float lat1 = static_cast<float>(lat1_e7) * kScale * kDegToRad;
-    float lat2 = static_cast<float>(lat2_e7) * kScale * kDegToRad;
+    float lat1 = static_cast<float>(lat1_e7) * k_scale * k_deg_to_rad;
+    float lat2 = static_cast<float>(lat2_e7) * k_scale * k_deg_to_rad;
     float dlat = lat2 - lat1;
-    float dlon = (static_cast<float>(lon2_e7 - lon1_e7)) * kScale * kDegToRad;
+    float dlon = (static_cast<float>(lon2_e7 - lon1_e7)) * k_scale * k_deg_to_rad;
 
     float a = sinf(dlat * 0.5F) * sinf(dlat * 0.5F)
             + cosf(lat1) * cosf(lat2) * sinf(dlon * 0.5F) * sinf(dlon * 0.5F);
     float c = 2.0F * atan2f(sqrtf(a), sqrtf(1.0F - a));
-    return kEarthR * c;
+    return k_earth_r * c;
 }
 
 static void cmd_station_gps() {
@@ -1328,13 +1328,13 @@ static void cmd_station_gps() {
 [[maybe_unused]]
 static float bearing_deg(int32_t lat1_e7, int32_t lon1_e7,
                           int32_t lat2_e7, int32_t lon2_e7) {
-    static constexpr float kDegToRad = 3.14159265F / 180.0F;
+    static constexpr float k_deg_to_rad = 3.14159265F / 180.0F;
     // kRadToDeg: use the file-scope constant (no shadowing local) — see top of file.
-    static constexpr float kScale    = 1e-7F;
+    static constexpr float k_scale    = 1e-7F;
 
-    float lat1 = static_cast<float>(lat1_e7) * kScale * kDegToRad;
-    float lat2 = static_cast<float>(lat2_e7) * kScale * kDegToRad;
-    float dlon = static_cast<float>(lon2_e7 - lon1_e7) * kScale * kDegToRad;
+    float lat1 = static_cast<float>(lat1_e7) * k_scale * k_deg_to_rad;
+    float lat2 = static_cast<float>(lat2_e7) * k_scale * k_deg_to_rad;
+    float dlon = static_cast<float>(lon2_e7 - lon1_e7) * k_scale * k_deg_to_rad;
 
     float y = sinf(dlon) * cosf(lat2);
     float x = cosf(lat1) * sinf(lat2) - sinf(lat1) * cosf(lat2) * cosf(dlon);
@@ -1478,9 +1478,9 @@ void cli_print_preflight() {
     // operator sees what ARM will see.
     rc::GoNoGoInput gng{};
     rc::health_monitor_fill_go_nogo(&gng);
-    rc::GoNoGoResult gngResult = rc::go_nogo_evaluate(gng);
-    for (uint8_t i = 0; i < gngResult.num_checks; ++i) {
-        const rc::GoNoGoCheck& c = gngResult.checks[i];
+    rc::GoNoGoResult gng_result = rc::go_nogo_evaluate(gng);
+    for (uint8_t i = 0; i < gng_result.num_checks; ++i) {
+        const rc::GoNoGoCheck& c = gng_result.checks[i];
         // Only surface the RF-specific stations — the others duplicate the
         // primary/secondary block above.
         if (strcmp(c.name, "RF Link") == 0) {
@@ -1514,8 +1514,8 @@ void cli_handle_unhandled_key(int key) {
             // SET's own ACK-handling path — station mirrors the vehicle).
             cmd_radio_config_cycle();
         } else if (AO_Radio_get_state()->initialized) {
-            uint8_t newRate = AO_Telemetry_cycle_rate();
-            rc::rc_log("[TX] Rate changed to %dHz\n", static_cast<int>(newRate));
+            uint8_t new_rate = AO_Telemetry_cycle_rate();
+            rc::rc_log("[TX] Rate changed to %dHz\n", static_cast<int>(new_rate));
         }
         break;
     case 'm': case 'M':

@@ -73,11 +73,11 @@ void station_idle_tick() {
         return;
     }
 
-    const uint32_t nowUs = time_us_32();
-    if ((nowUs - s_lastTickUs) < kStationGpsTickIntervalUs) {
+    const uint32_t now_us = time_us_32();
+    if ((now_us - s_lastTickUs) < kStationGpsTickIntervalUs) {
         return;
     }
-    s_lastTickUs = nowUs;
+    s_lastTickUs = now_us;
 
     // Shared helper: drives g_gpsFnUpdate/g_gpsFnGetData, applies the
     // I2C SDA settling delay when the bound transport is I2C, runs the

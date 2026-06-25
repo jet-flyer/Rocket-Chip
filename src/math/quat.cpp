@@ -30,8 +30,8 @@ Quat Quat::inverse() const {
     if (n2 < kNormEpsilon) {
         return {1.0F, 0.0F, 0.0F, 0.0F};
     }
-    const float invN2 = 1.0F / n2;
-    return {w * invN2, -x * invN2, -y * invN2, -z * invN2};
+    const float inv_n2 = 1.0F / n2;
+    return {w * inv_n2, -x * inv_n2, -y * inv_n2, -z * inv_n2};
 }
 
 float Quat::norm() const {
@@ -46,11 +46,11 @@ Quat& Quat::normalize() {
         y = 0.0F;
         z = 0.0F;
     } else {
-        const float invN = 1.0F / n;
-        w *= invN;
-        x *= invN;
-        y *= invN;
-        z *= invN;
+        const float inv_n = 1.0F / n;
+        w *= inv_n;
+        x *= inv_n;
+        y *= inv_n;
+        z *= inv_n;
     }
     return *this;
 }
@@ -104,9 +104,9 @@ Vec3 Quat::to_euler() const {
     // Reference: Sola (2017) Eq. 290
 
     // Roll (x-axis rotation)
-    const float sinrCosp = 2.0F * (w * x + y * z);
-    const float cosrCosp = 1.0F - 2.0F * (x * x + y * y);
-    const float roll = atan2f(sinrCosp, cosrCosp);
+    const float sinr_cosp = 2.0F * (w * x + y * z);
+    const float cosr_cosp = 1.0F - 2.0F * (x * x + y * y);
+    const float roll = atan2f(sinr_cosp, cosr_cosp);
 
     // Pitch (y-axis rotation) — clamp to avoid NaN at gimbal lock
     const float sinp = 2.0F * (w * y - z * x);
@@ -120,9 +120,9 @@ Vec3 Quat::to_euler() const {
     }
 
     // Yaw (z-axis rotation)
-    const float sinyCosp = 2.0F * (w * z + x * y);
-    const float cosyCosp = 1.0F - 2.0F * (y * y + z * z);
-    const float yaw = atan2f(sinyCosp, cosyCosp);
+    const float siny_cosp = 2.0F * (w * z + x * y);
+    const float cosy_cosp = 1.0F - 2.0F * (y * y + z * z);
+    const float yaw = atan2f(siny_cosp, cosy_cosp);
 
     return {roll, pitch, yaw};
 }
@@ -145,10 +145,10 @@ Quat Quat::from_euler(float roll, float pitch, float yaw) {
 }
 
 Quat Quat::from_axis_angle(const Vec3& axis, float angle) {
-    const float halfAngle = angle * 0.5F;
-    const float s = sinf(halfAngle);
+    const float half_angle = angle * 0.5F;
+    const float s = sinf(half_angle);
     const Vec3 n = axis.normalized();
-    return Quat(cosf(halfAngle), n.x * s, n.y * s, n.z * s).normalized();
+    return Quat(cosf(half_angle), n.x * s, n.y * s, n.z * s).normalized();
 }
 
 Quat Quat::from_two_vectors(const Vec3& from, const Vec3& to) {
@@ -178,13 +178,13 @@ Quat Quat::from_two_vectors(const Vec3& from, const Vec3& to) {
     return Quat(1.0F + d, c.x, c.y, c.z).normalized();
 }
 
-Quat Quat::from_small_angle(const Vec3& deltaTheta) {
+Quat Quat::from_small_angle(const Vec3& delta_theta) {
     // First-order approximation: q ~= [1, deltaTheta/2] normalized
     // Sola (2017) Eq. 186: for small rotation vector deltaTheta,
     // the corresponding quaternion is approximately [1, deltaTheta/2].
-    const float hx = deltaTheta.x * 0.5F;
-    const float hy = deltaTheta.y * 0.5F;
-    const float hz = deltaTheta.z * 0.5F;
+    const float hx = delta_theta.x * 0.5F;
+    const float hy = delta_theta.y * 0.5F;
+    const float hz = delta_theta.z * 0.5F;
     return Quat(1.0F, hx, hy, hz).normalized();
 }
 

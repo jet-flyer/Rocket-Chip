@@ -326,13 +326,15 @@ CheckOptions:
   - key: readability-identifier-naming.StaticVariablePrefix
     value: 'g_'
 
-  # Local variables: camelCase
+  # Local variables: lower_case (JSF AV Rule 51 — function and variable names
+  # entirely lowercase; house standard adds no override for locals)
   - key: readability-identifier-naming.LocalVariableCase
-    value: camelBack
+    value: lower_case
 
-  # Parameters: camelCase
+  # Parameters: lower_case (JSF AV Rule 51 — function and variable names
+  # entirely lowercase; house standard adds no override for parameters)
   - key: readability-identifier-naming.ParameterCase
-    value: camelBack
+    value: lower_case
 
   # ═══════════════════════════════════════════════════════════════
   # MAGIC NUMBERS (JSF AV Rule 151)

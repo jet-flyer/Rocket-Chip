@@ -50,8 +50,8 @@ bool i2c_bus_init() {
 
     i2c_bus_recover();
 
-    uint actualFreq = i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
-    if (actualFreq == 0) {
+    uint actual_freq = i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
+    if (actual_freq == 0) {
         return false;
     }
 
@@ -204,11 +204,11 @@ static bool clock_pulse_recovery() {
     // Check SCL stuck low: if another device holds SCL, clock pulses
     // can't propagate — recovery is impossible (Linux kernel pattern)
     gpio_set_dir(kI2cBusSclPin, false);  // GPIO_IN
-    bool sclHigh = gpio_get(kI2cBusSclPin);
+    bool scl_high = gpio_get(kI2cBusSclPin);
     gpio_set_dir(kI2cBusSclPin, true);  // GPIO_OUT
     gpio_put(kI2cBusSclPin, true);
 
-    if (!sclHigh) {
+    if (!scl_high) {
         // SCL stuck low — a device is clock-stretching or bus is shorted.
         // Can't recover via clocking. Caller should consider power cycle.
         return false;
@@ -257,7 +257,7 @@ bool i2c_bus_recover() {
     gpio_put(kI2cBusSclPin, true);
     sleep_us(kBusRecoveryPulseUs);
 
-    bool sdaReleased = clock_pulse_recovery();
+    bool sda_released = clock_pulse_recovery();
 
     generate_stop_condition();
 
@@ -268,7 +268,7 @@ bool i2c_bus_recover() {
 
     i2c_init(I2C_BUS_INSTANCE, kI2cBusFreqHz);
 
-    return sdaReleased;
+    return sda_released;
 }
 
 bool i2c_bus_reset() {
@@ -316,10 +316,10 @@ bool i2c_bus_imu_recovery(uint8_t addr) {
     // Blind attempt to force Bank 0 + device reset (may NACK if slave still latched).
     // Both writes are [reg, value] 2-byte transactions — single-byte writes here
     // would only address the register without committing a value.
-    const uint8_t bankSel[2] = {kIcmBankSelReg, kIcmBank0Val};
-    const uint8_t pwrReset[2] = {kIcmPwrMgmt1Reg, kIcmDeviceReset};
-    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, bankSel, 2, false, 1000);
-    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, pwrReset, 2, false, 1000);
+    const uint8_t bank_sel[2] = {kIcmBankSelReg, kIcmBank0Val};
+    const uint8_t pwr_reset[2] = {kIcmPwrMgmt1Reg, kIcmDeviceReset};
+    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, bank_sel, 2, false, 1000);
+    i2c_write_timeout_us(I2C_BUS_INSTANCE, addr, pwr_reset, 2, false, 1000);
     sleep_ms(100);
 
     // Re-probe

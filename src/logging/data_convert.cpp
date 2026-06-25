@@ -57,11 +57,11 @@ static int8_t clamp_round_i8(float val) {
 
 void fused_to_telemetry(const FusedState& f, TelemetryState& t) {
     // Quaternion: Q15 encoding (val * 32767)
-    static constexpr float kQ15Scale = 32767.0F;
-    t.q_w = clamp_round_i16(f.q_w * kQ15Scale);
-    t.q_x = clamp_round_i16(f.q_x * kQ15Scale);
-    t.q_y = clamp_round_i16(f.q_y * kQ15Scale);
-    t.q_z = clamp_round_i16(f.q_z * kQ15Scale);
+    static constexpr float k_q15_scale = 32767.0F;
+    t.q_w = clamp_round_i16(f.q_w * k_q15_scale);
+    t.q_x = clamp_round_i16(f.q_x * k_q15_scale);
+    t.q_y = clamp_round_i16(f.q_y * k_q15_scale);
+    t.q_z = clamp_round_i16(f.q_z * k_q15_scale);
 
     // GPS position (pass-through, already in 1e7 integer format)
     t.lat_1e7 = f.gps_lat_1e7;
@@ -71,24 +71,24 @@ void fused_to_telemetry(const FusedState& f, TelemetryState& t) {
     t.alt_mm = clamp_round_i32(f.gps_alt_msl_m * 1000.0F);
 
     // NED velocity in cm/s
-    static constexpr float kMsToCms = 100.0F;
-    t.vel_n_cms = clamp_round_i16(f.vel_n * kMsToCms);
-    t.vel_e_cms = clamp_round_i16(f.vel_e * kMsToCms);
-    t.vel_d_cms = clamp_round_i16(f.vel_d * kMsToCms);
+    static constexpr float k_ms_to_cms = 100.0F;
+    t.vel_n_cms = clamp_round_i16(f.vel_n * k_ms_to_cms);
+    t.vel_e_cms = clamp_round_i16(f.vel_e * k_ms_to_cms);
+    t.vel_d_cms = clamp_round_i16(f.vel_d * k_ms_to_cms);
 
     // Baro altitude AGL in mm
     t.baro_alt_mm = clamp_round_i32(f.baro_alt_agl * 1000.0F);
 
     // Baro vertical velocity in cm/s
-    t.baro_vvel_cms = clamp_round_i16(f.vert_vel_eskf * kMsToCms);
+    t.baro_vvel_cms = clamp_round_i16(f.vert_vel_eskf * k_ms_to_cms);
 
     // GPS ground speed in cm/s (unsigned)
-    t.gps_speed_cms = clamp_round_u16(f.gps_ground_speed_mps * kMsToCms);
+    t.gps_speed_cms = clamp_round_u16(f.gps_ground_speed_mps * k_ms_to_cms);
 
     // GPS fix/sats packed: [7:4]=fix_type, [3:0]=sats (capped to 4-bit max)
-    static constexpr uint8_t kNibbleMax = 15;  // 4-bit field maximum
-    uint8_t fix = (f.gps_fix_type > kNibbleMax) ? kNibbleMax : f.gps_fix_type;
-    uint8_t sats = (f.gps_satellites > kNibbleMax) ? kNibbleMax : f.gps_satellites;
+    static constexpr uint8_t k_nibble_max = 15;  // 4-bit field maximum
+    uint8_t fix = (f.gps_fix_type > k_nibble_max) ? k_nibble_max : f.gps_fix_type;
+    uint8_t sats = (f.gps_satellites > k_nibble_max) ? k_nibble_max : f.gps_satellites;
     t.gps_fix_sats = static_cast<uint8_t>((fix << 4) | sats);
 
     t.flight_state = f.flight_state;
@@ -112,29 +112,29 @@ void telemetry_to_fused_approx(const TelemetryState& t, FusedState& f) {
     f = {};
 
     // Quaternion: Q15 decode
-    static constexpr float kQ15Inv = 1.0F / 32767.0F;
-    f.q_w = static_cast<float>(t.q_w) * kQ15Inv;
-    f.q_x = static_cast<float>(t.q_x) * kQ15Inv;
-    f.q_y = static_cast<float>(t.q_y) * kQ15Inv;
-    f.q_z = static_cast<float>(t.q_z) * kQ15Inv;
+    static constexpr float k_q15_inv = 1.0F / 32767.0F;
+    f.q_w = static_cast<float>(t.q_w) * k_q15_inv;
+    f.q_x = static_cast<float>(t.q_x) * k_q15_inv;
+    f.q_y = static_cast<float>(t.q_y) * k_q15_inv;
+    f.q_z = static_cast<float>(t.q_z) * k_q15_inv;
 
-    static constexpr float kMmToM = 0.001F;  // millimeters to meters
+    static constexpr float k_mm_to_m = 0.001F;  // millimeters to meters
     f.gps_lat_1e7 = t.lat_1e7;
     f.gps_lon_1e7 = t.lon_1e7;
-    f.gps_alt_msl_m = static_cast<float>(t.alt_mm) * kMmToM;
+    f.gps_alt_msl_m = static_cast<float>(t.alt_mm) * k_mm_to_m;
 
-    static constexpr float kCmsToMs = 0.01F;
-    f.vel_n = static_cast<float>(t.vel_n_cms) * kCmsToMs;
-    f.vel_e = static_cast<float>(t.vel_e_cms) * kCmsToMs;
-    f.vel_d = static_cast<float>(t.vel_d_cms) * kCmsToMs;
+    static constexpr float k_cms_to_ms = 0.01F;
+    f.vel_n = static_cast<float>(t.vel_n_cms) * k_cms_to_ms;
+    f.vel_e = static_cast<float>(t.vel_e_cms) * k_cms_to_ms;
+    f.vel_d = static_cast<float>(t.vel_d_cms) * k_cms_to_ms;
 
-    f.baro_alt_agl = static_cast<float>(t.baro_alt_mm) * kMmToM;
-    f.vert_vel_eskf = static_cast<float>(t.baro_vvel_cms) * kCmsToMs;
-    f.gps_ground_speed_mps = static_cast<float>(t.gps_speed_cms) * kCmsToMs;
+    f.baro_alt_agl = static_cast<float>(t.baro_alt_mm) * k_mm_to_m;
+    f.vert_vel_eskf = static_cast<float>(t.baro_vvel_cms) * k_cms_to_ms;
+    f.gps_ground_speed_mps = static_cast<float>(t.gps_speed_cms) * k_cms_to_ms;
 
-    static constexpr uint8_t kNibbleMask = 0x0F;  // 4-bit field mask
-    f.gps_fix_type = (t.gps_fix_sats >> 4) & kNibbleMask;
-    f.gps_satellites = t.gps_fix_sats & kNibbleMask;
+    static constexpr uint8_t k_nibble_mask = 0x0F;  // 4-bit field mask
+    f.gps_fix_type = (t.gps_fix_sats >> 4) & k_nibble_mask;
+    f.gps_satellites = t.gps_fix_sats & k_nibble_mask;
 
     f.flight_state = t.flight_state;
     f.health_primary = t.health;  // Direct copy of 2-bit packed byte (IVP-107)

@@ -187,11 +187,11 @@ bool baro_dps310_read(baro_dps310_data_t* data) {
     return true;
 }
 
-void baro_dps310_set_sea_level(float pressurePa) {
-    g_seaLevelPa = pressurePa;
+void baro_dps310_set_sea_level(float pressure_pa) {
+    g_seaLevelPa = pressure_pa;
 }
 
-float baro_dps310_pressure_to_altitude(float pressurePa, float seaLevelPa) {
+float baro_dps310_pressure_to_altitude(float pressure_pa, float sea_level_pa) {
     // Barometric formula: h = 44330 * (1 - (P/P0)^0.1903)
-    return kHypsometricScale * (1.0F - powf(pressurePa / seaLevelPa, kHypsometricExponent));
+    return kHypsometricScale * (1.0F - powf(pressure_pa / sea_level_pa, kHypsometricExponent));
 }

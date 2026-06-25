@@ -213,22 +213,22 @@ static bool mag_direct_write_reg(uint8_t reg, uint8_t value) {
 // both drive the auxiliary bus simultaneously (undefined behavior).
 static bool enable_bypass_mode(icm20948_t* dev) {
     // Disable I2C master if it was enabled
-    uint8_t userCtrl = 0;
-    if (!read_bank_reg(dev, 0, bank0::kUserCtrl, &userCtrl)) {
+    uint8_t user_ctrl = 0;
+    if (!read_bank_reg(dev, 0, bank0::kUserCtrl, &user_ctrl)) {
         return false;
     }
-    userCtrl &= ~bit::kI2cMstEn;
-    if (!write_bank_reg(dev, 0, bank0::kUserCtrl, userCtrl)) {
+    user_ctrl &= ~bit::kI2cMstEn;
+    if (!write_bank_reg(dev, 0, bank0::kUserCtrl, user_ctrl)) {
         return false;
     }
 
     // Enable BYPASS_EN — connects AK09916 to external I2C bus
-    uint8_t intPinCfg = 0;
-    if (!read_bank_reg(dev, 0, bank0::kIntPinCfg, &intPinCfg)) {
+    uint8_t int_pin_cfg = 0;
+    if (!read_bank_reg(dev, 0, bank0::kIntPinCfg, &int_pin_cfg)) {
         return false;
     }
-    intPinCfg |= bit::kBypassEn;
-    if (!write_bank_reg(dev, 0, bank0::kIntPinCfg, intPinCfg)) {
+    int_pin_cfg |= bit::kBypassEn;
+    if (!write_bank_reg(dev, 0, bank0::kIntPinCfg, int_pin_cfg)) {
         return false;
     }
 
@@ -247,16 +247,16 @@ static bool configure_magnetometer(icm20948_t* dev) {
     sleep_ms(kResetSettleMs);
 
     // Verify WHO_AM_I with retry
-    bool magFound = false;
+    bool mag_found = false;
     for (uint8_t tries = 0; tries < kMagRetries; tries++) {
         uint8_t wia2 = 0;
         if (mag_direct_read_reg(ak09916::kWia2, &wia2) && wia2 == kAk09916WhoAmI) {
-            magFound = true;
+            mag_found = true;
             break;
         }
         sleep_ms(kInitStepDelayMs);
     }
-    if (!magFound) {
+    if (!mag_found) {
         return false;
     }
 
@@ -293,14 +293,14 @@ static bool init_magnetometer(icm20948_t* dev) {
 
 // Verify WHO_AM_I, reset device, and wake into active mode
 static bool reset_and_wake(icm20948_t* dev) {
-    uint8_t whoAmI = 0;
+    uint8_t who_am_i = 0;
     if (!select_bank(dev, 0)) {
         return false;
     }
-    if (i2c_bus_read_reg(dev->addr, bank0::kWhoAmI, &whoAmI) != 0) {
+    if (i2c_bus_read_reg(dev->addr, bank0::kWhoAmI, &who_am_i) != 0) {
         return false;
     }
-    if (whoAmI != kIcm20948WhoAmI) {
+    if (who_am_i != kIcm20948WhoAmI) {
         return false;
     }
 
@@ -343,7 +343,7 @@ bool icm20948_init(icm20948_t* dev, uint8_t addr) {
     }
 
     // Initialize magnetometer (bypass mode) with retries
-    for (uint8_t magAttempt = 0; magAttempt < kMagInitRetries; magAttempt++) {
+    for (uint8_t mag_attempt = 0; mag_attempt < kMagInitRetries; mag_attempt++) {
         if (init_magnetometer(dev)) {
             break;
         }
@@ -359,15 +359,15 @@ bool icm20948_ready(icm20948_t* dev) {
         return false;
     }
 
-    uint8_t whoAmI = 0;
+    uint8_t who_am_i = 0;
     if (!select_bank(dev, 0)) {
         return false;
     }
-    if (i2c_bus_read_reg(dev->addr, bank0::kWhoAmI, &whoAmI) != 0) {
+    if (i2c_bus_read_reg(dev->addr, bank0::kWhoAmI, &who_am_i) != 0) {
         return false;
     }
 
-    return whoAmI == kIcm20948WhoAmI;
+    return who_am_i == kIcm20948WhoAmI;
 }
 
 bool icm20948_reset(icm20948_t* dev) {
@@ -486,28 +486,28 @@ static void parse_accel_gyro_temp(const uint8_t* buf, icm20948_t* dev, icm20948_
     data->gyro.z = static_cast<float>(gz) * dev->gyro_scale;
     data->gyro_valid = true;
 
-    int16_t tempRaw = static_cast<int16_t>((buf[12] << 8) | buf[13]);
-    data->temperature_c = (static_cast<float>(tempRaw) / kTempSensitivity) + kTempOffset;
+    int16_t temp_raw = static_cast<int16_t>((buf[12] << 8) | buf[13]);
+    data->temperature_c = (static_cast<float>(temp_raw) / kTempSensitivity) + kTempOffset;
 }
 
 // Read mag from AK09916 at 0x0C (bypass mode) at reduced rate.
 // AK09916 outputs at 100Hz — reading at 1kHz wastes 90% of bus time
 // on DRDY=0 results. Divider matches mag output rate.
 static void read_mag_bypass(icm20948_t* dev, icm20948_data_t* data) {
-    static uint8_t g_magDivCount = 0;
-    g_magDivCount++;
-    if (dev->mag_initialized && g_magDivCount >= kMagReadDivider) {
-        g_magDivCount = 0;
-        uint8_t magBuf[kMagReadSize];
+    static uint8_t g_mag_div_count = 0;
+    g_mag_div_count++;
+    if (dev->mag_initialized && g_mag_div_count >= kMagReadDivider) {
+        g_mag_div_count = 0;
+        uint8_t mag_buf[kMagReadSize];
         if (i2c_bus_read_regs(ak09916::kI2cAddr, ak09916::kSt1,
-                              magBuf, sizeof(magBuf)) == sizeof(magBuf)) {
-            uint8_t st1 = magBuf[0];
-            uint8_t st2 = magBuf[8];
+                              mag_buf, sizeof(mag_buf)) == sizeof(mag_buf)) {
+            uint8_t st1 = mag_buf[0];
+            uint8_t st2 = mag_buf[8];
 
             if ((st1 & ak09916::kSt1Drdy) != 0 && (st2 & ak09916::kSt2Hofl) == 0) {
-                int16_t mx = static_cast<int16_t>((magBuf[2] << 8) | magBuf[1]);  // Little-endian
-                int16_t my = static_cast<int16_t>((magBuf[4] << 8) | magBuf[3]);
-                int16_t mz = static_cast<int16_t>((magBuf[6] << 8) | magBuf[5]);
+                int16_t mx = static_cast<int16_t>((mag_buf[2] << 8) | mag_buf[1]);  // Little-endian
+                int16_t my = static_cast<int16_t>((mag_buf[4] << 8) | mag_buf[3]);
+                int16_t mz = static_cast<int16_t>((mag_buf[6] << 8) | mag_buf[5]);
 
                 data->mag.x = static_cast<float>(mx) * dev->mag_scale;
                 data->mag.y = static_cast<float>(my) * dev->mag_scale;
@@ -519,11 +519,11 @@ static void read_mag_bypass(icm20948_t* dev, icm20948_data_t* data) {
         } else {
             data->mag_valid = false;
         }
-    } else if (!dev->mag_initialized && g_magDivCount >= kMagReadDivider) {
+    } else if (!dev->mag_initialized && g_mag_div_count >= kMagReadDivider) {
         // Mag lost after device reset — attempt lazy re-init once per divider cycle.
         // init_magnetometer() re-enables bypass + configures AK09916 (~220ms).
         // On success, subsequent calls resume normal mag reads.
-        g_magDivCount = 0;
+        g_mag_div_count = 0;
         init_magnetometer(dev);
         data->mag.x = data->mag.y = data->mag.z = 0;
         data->mag_valid = false;
@@ -652,8 +652,8 @@ bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag) {
     return true;
 }
 
-bool icm20948_read_temperature(icm20948_t* dev, float* tempC) {
-    if (dev == nullptr || tempC == nullptr || !dev->initialized) {
+bool icm20948_read_temperature(icm20948_t* dev, float* temp_c) {
+    if (dev == nullptr || temp_c == nullptr || !dev->initialized) {
         return false;
     }
 
@@ -666,13 +666,13 @@ bool icm20948_read_temperature(icm20948_t* dev, float* tempC) {
         return false;
     }
 
-    int16_t tempRaw = static_cast<int16_t>((buf[0] << 8) | buf[1]);
-    *tempC = (static_cast<float>(tempRaw) / kTempSensitivity) + kTempOffset;
+    int16_t temp_raw = static_cast<int16_t>((buf[0] << 8) | buf[1]);
+    *temp_c = (static_cast<float>(temp_raw) / kTempSensitivity) + kTempOffset;
 
     return true;
 }
 
-bool icm20948_data_ready(icm20948_t* dev, bool* accelReady, bool* gyroReady) {
+bool icm20948_data_ready(icm20948_t* dev, bool* accel_ready, bool* gyro_ready) {
     if (dev == nullptr || !dev->initialized) {
         return false;
     }
@@ -687,13 +687,13 @@ bool icm20948_data_ready(icm20948_t* dev, bool* accelReady, bool* gyroReady) {
     }
 
     // Bit 0 is RAW_DATA_0_RDY_INT (accel and gyro share this)
-    bool dataReady = (status & 0x01) != 0;
+    bool data_ready = (status & 0x01) != 0;
 
-    if (accelReady != nullptr) {
-        *accelReady = dataReady;
+    if (accel_ready != nullptr) {
+        *accel_ready = data_ready;
     }
-    if (gyroReady != nullptr) {
-        *gyroReady = dataReady;
+    if (gyro_ready != nullptr) {
+        *gyro_ready = data_ready;
     }
 
     return true;

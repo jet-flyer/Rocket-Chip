@@ -89,9 +89,9 @@ static void do_flash_erase(void* param) {
     flash_range_erase(p->offset, p->len);
 }
 
-static bool safe_flash_write(uint32_t flashOffset, const uint8_t* data, size_t len) {
+static bool safe_flash_write(uint32_t flash_offset, const uint8_t* data, size_t len) {
     // Must be page-aligned
-    if ((flashOffset % FLASH_PAGE_SIZE) != 0) {
+    if ((flash_offset % FLASH_PAGE_SIZE) != 0) {
         return false;
     }
     if ((len % FLASH_PAGE_SIZE) != 0) {
@@ -99,7 +99,7 @@ static bool safe_flash_write(uint32_t flashOffset, const uint8_t* data, size_t l
     }
 
     flash_write_params_t params = {
-        .offset = flashOffset,
+        .offset = flash_offset,
         .data = data,
         .len = len
     };
@@ -108,9 +108,9 @@ static bool safe_flash_write(uint32_t flashOffset, const uint8_t* data, size_t l
     return (result == PICO_OK);
 }
 
-static bool safe_flash_erase(uint32_t flashOffset, size_t len) {
+static bool safe_flash_erase(uint32_t flash_offset, size_t len) {
     // Must be sector-aligned
-    if ((flashOffset % FLASH_SECTOR_SIZE) != 0) {
+    if ((flash_offset % FLASH_SECTOR_SIZE) != 0) {
         return false;
     }
     if ((len % FLASH_SECTOR_SIZE) != 0) {
@@ -118,7 +118,7 @@ static bool safe_flash_erase(uint32_t flashOffset, size_t len) {
     }
 
     flash_erase_params_t params = {
-        .offset = flashOffset,
+        .offset = flash_offset,
         .len = len
     };
 
@@ -126,8 +126,8 @@ static bool safe_flash_erase(uint32_t flashOffset, size_t len) {
     return (result == PICO_OK);
 }
 
-static void flash_read(uint32_t flashOffset, void* dest, size_t len) {
-    const auto* src = reinterpret_cast<const uint8_t*>(XIP_BASE) + flashOffset;
+static void flash_read(uint32_t flash_offset, void* dest, size_t len) {
+    const auto* src = reinterpret_cast<const uint8_t*>(XIP_BASE) + flash_offset;
     memcpy(dest, src, len);
 }
 
@@ -135,9 +135,9 @@ static void flash_read(uint32_t flashOffset, void* dest, size_t len) {
 // Sector Management
 // ============================================================================
 
-static bool find_valid_entry(uint32_t sectorOffset, calibration_store_t* cal, uint32_t* sequence) {
+static bool find_valid_entry(uint32_t sector_offset, calibration_store_t* cal, uint32_t* sequence) {
     sector_header_t header;
-    flash_read(sectorOffset, &header, sizeof(header));
+    flash_read(sector_offset, &header, sizeof(header));
 
     // Sector must be IN_USE
     if (header.state != kSectorStateInUse) {
@@ -145,15 +145,15 @@ static bool find_valid_entry(uint32_t sectorOffset, calibration_store_t* cal, ui
     }
 
     // Read entry header
-    entry_header_t entryHdr;
-    flash_read(sectorOffset + sizeof(sector_header_t), &entryHdr, sizeof(entryHdr));
+    entry_header_t entry_hdr;
+    flash_read(sector_offset + sizeof(sector_header_t), &entry_hdr, sizeof(entry_hdr));
 
-    if (entryHdr.magic != kEntryMagic) {
+    if (entry_hdr.magic != kEntryMagic) {
         return false;
     }
 
     // Read calibration data
-    flash_read(sectorOffset + sizeof(sector_header_t) + sizeof(entry_header_t),
+    flash_read(sector_offset + sizeof(sector_header_t) + sizeof(entry_header_t),
                cal, sizeof(calibration_store_t));
 
     // Validate CRC
@@ -166,14 +166,14 @@ static bool find_valid_entry(uint32_t sectorOffset, calibration_store_t* cal, ui
 }
 
 static bool find_active_sector() {
-    calibration_store_t calA;
-    calibration_store_t calB;
-    uint32_t seqA = 0;
-    uint32_t seqB = 0;
-    bool validA = find_valid_entry(kSectorAOffset, &calA, &seqA);
-    bool validB = find_valid_entry(kSectorBOffset, &calB, &seqB);
+    calibration_store_t cal_a;
+    calibration_store_t cal_b;
+    uint32_t seq_a = 0;
+    uint32_t seq_b = 0;
+    bool valid_a = find_valid_entry(kSectorAOffset, &cal_a, &seq_a);
+    bool valid_b = find_valid_entry(kSectorBOffset, &cal_b, &seq_b);
 
-    if (!validA && !validB) {
+    if (!valid_a && !valid_b) {
         // No valid data - use sector A, start fresh
         g_activeSectorOffset = kSectorAOffset;
         g_writeSequence = 1;
@@ -181,65 +181,65 @@ static bool find_active_sector() {
         return false;
     }
 
-    if (validA && !validB) {
+    if (valid_a && !valid_b) {
         g_activeSectorOffset = kSectorAOffset;
-        g_writeSequence = seqA + 1;
-        g_cachedCal = calA;
+        g_writeSequence = seq_a + 1;
+        g_cachedCal = cal_a;
         return true;
     }
 
-    if (!validA && validB) {
+    if (!valid_a && valid_b) {
         g_activeSectorOffset = kSectorBOffset;
-        g_writeSequence = seqB + 1;
-        g_cachedCal = calB;
+        g_writeSequence = seq_b + 1;
+        g_cachedCal = cal_b;
         return true;
     }
 
     // Both valid - use higher sequence number
-    if (seqA >= seqB) {
+    if (seq_a >= seq_b) {
         g_activeSectorOffset = kSectorAOffset;
-        g_writeSequence = seqA + 1;
-        g_cachedCal = calA;
+        g_writeSequence = seq_a + 1;
+        g_cachedCal = cal_a;
     } else {
         g_activeSectorOffset = kSectorBOffset;
-        g_writeSequence = seqB + 1;
-        g_cachedCal = calB;
+        g_writeSequence = seq_b + 1;
+        g_cachedCal = cal_b;
     }
 
     return true;
 }
 
-static uint32_t get_alternate_sector(uint32_t currentOffset) {
-    return (currentOffset == kSectorAOffset) ? kSectorBOffset : kSectorAOffset;
+static uint32_t get_alternate_sector(uint32_t current_offset) {
+    return (current_offset == kSectorAOffset) ? kSectorBOffset : kSectorAOffset;
 }
 
-static bool write_to_sector(uint32_t sectorOffset, const calibration_store_t* cal, uint32_t sequence) {
+static bool write_to_sector(uint32_t sector_offset, const calibration_store_t* cal, uint32_t sequence) {
     // Use static buffer for flash write (must be page-aligned)
-    static uint8_t g_pageBuffer[FLASH_PAGE_SIZE] __attribute__((aligned(4)));
+    static uint8_t g_page_buffer[FLASH_PAGE_SIZE] __attribute__((aligned(4)));
 
     // Step 1: Erase the sector
-    if (!safe_flash_erase(sectorOffset, FLASH_SECTOR_SIZE)) {
+    if (!safe_flash_erase(sector_offset, FLASH_SECTOR_SIZE)) {
         return false;
     }
 
     // Step 2: Prepare page buffer
-    memset(g_pageBuffer, 0xFF, sizeof(g_pageBuffer));
+    memset(g_page_buffer, 0xFF, sizeof(g_page_buffer));
 
     // Sector header
-    auto* secHdr = static_cast<sector_header_t*>(static_cast<void*>(g_pageBuffer));
-    secHdr->state = kSectorStateInUse;
-    secHdr->sequence = sequence;
+    auto* sec_hdr = static_cast<sector_header_t*>(static_cast<void*>(g_page_buffer));
+    sec_hdr->state = kSectorStateInUse;
+    sec_hdr->sequence = sequence;
 
     // Entry header
-    auto* entryHdr = static_cast<entry_header_t*>(static_cast<void*>(g_pageBuffer + sizeof(sector_header_t)));
-    entryHdr->magic = kEntryMagic;
+    auto* entry_hdr = static_cast<entry_header_t*>(static_cast<void*>(g_page_buffer + sizeof(sector_header_t)));
+    entry_hdr->magic = kEntryMagic;
 
     // Calibration data
-    uint8_t* calData = g_pageBuffer + sizeof(sector_header_t) + sizeof(entry_header_t);
-    memcpy(calData, cal, sizeof(calibration_store_t));
+    uint8_t* cal_data = g_page_buffer + sizeof(sector_header_t) + sizeof(entry_header_t);
+    memcpy(cal_data, cal, sizeof(calibration_store_t));
 
     // Step 3: Write the page
-    return safe_flash_write(sectorOffset, g_pageBuffer, FLASH_PAGE_SIZE);
+    return safe_flash_write(sector_offset, g_page_buffer, FLASH_PAGE_SIZE);
 }
 
 // ============================================================================
@@ -280,14 +280,14 @@ bool calibration_storage_write(const calibration_store_t* cal) {
     }
 
     // Write to alternate sector
-    uint32_t targetSector = get_alternate_sector(g_activeSectorOffset);
+    uint32_t target_sector = get_alternate_sector(g_activeSectorOffset);
 
-    if (!write_to_sector(targetSector, cal, g_writeSequence)) {
+    if (!write_to_sector(target_sector, cal, g_writeSequence)) {
         return false;
     }
 
     // Success - update state
-    g_activeSectorOffset = targetSector;
+    g_activeSectorOffset = target_sector;
     g_writeSequence++;
     g_cachedCal = *cal;
 

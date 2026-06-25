@@ -252,7 +252,7 @@ extern "C" Q_NORETURN Q_onError(
 // MemManage handler instead of escalating to HardFault (per §3.7.4.7 "MPU
 // mismatches and permission violations invoke the MemManage handler").
 
-void mpu_setup_stack_guard(uintptr_t stackBottom) {
+void mpu_setup_stack_guard(uintptr_t stack_bottom) {
     // Disable MPU during configuration
     mpu_hw->ctrl = 0;
     __dsb();
@@ -264,13 +264,13 @@ void mpu_setup_stack_guard(uintptr_t stackBottom) {
     // PMSAv8 RBAR: [31:5]=BASE, [4:3]=SH(0=non-shareable),
     //              [2:1]=AP(10=RO-Privileged), [0]=XN(1)
     mpu_hw->rnr = 0;
-    mpu_hw->rbar = (stackBottom & ~0x1FU)
+    mpu_hw->rbar = (stack_bottom & ~0x1FU)
                   | (0U << 3)   // SH: Non-shareable
                   | (2U << 1)   // AP: 0b10 = RO, Privileged-Only (per CMSIS armv8 header)
                   | (1U << 0);  // XN: Execute-never
 
     // PMSAv8 RLAR: [31:5]=LIMIT, [3:1]=ATTRINDX(0), [0]=EN(1)
-    mpu_hw->rlar = ((stackBottom + kMpuGuardSizeBytes - 1) & ~0x1FU)
+    mpu_hw->rlar = ((stack_bottom + kMpuGuardSizeBytes - 1) & ~0x1FU)
                   | (0U << 1)   // ATTRINDX: 0 (uses MAIR0 attr 0)
                   | (1U << 0);  // EN: Enable region
 

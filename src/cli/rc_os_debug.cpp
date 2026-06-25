@@ -209,9 +209,9 @@ bool dev_eskf_live_poll() {
         rc::rc_log("\n--- ESKF live stopped ---\n");
         rc::rc_log("[debug] ");
     } else {
-        uint32_t nowUs = time_us_32();
-        if (nowUs - s_eskfLiveLastPrintUs >= kEskfLivePeriodUs) {
-            s_eskfLiveLastPrintUs = nowUs;
+        uint32_t now_us = time_us_32();
+        if (now_us - s_eskfLiveLastPrintUs >= kEskfLivePeriodUs) {
+            s_eskfLiveLastPrintUs = now_us;
             cli_print_eskf_live();
         }
     }

@@ -121,9 +121,9 @@ static constexpr uint32_t kSensorPhaseTimeoutMs = 300000U;
 
 static void notify_evaluate_sensor_status(NotifyAo * const me,
                                            const shared_sensor_data_t* snap) {
-    const uint32_t nowMs = to_ms_since_boot(get_absolute_time());
+    const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
 
-    if ((nowMs - me->sensor_phase_start_ms) >= kSensorPhaseTimeoutMs) {
+    if ((now_ms - me->sensor_phase_start_ms) >= kSensorPhaseTimeoutMs) {
         me->state.sensor = SensorIntent::kTimeout;
     } else if (!eskf_runner_is_initialized()) {
         me->state.sensor = SensorIntent::kEskfInit;

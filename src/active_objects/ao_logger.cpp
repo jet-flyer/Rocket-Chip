@@ -172,10 +172,10 @@ static void populate_baro_fields(rc::FusedState& fused,
         // Hydrostatic: dalt = -dP / (rho * g)
         // kRhoAir = 1.225 kg/m³ (sea level standard atmosphere)
         // kGravity = 9.81 m/s² (standard gravity)
-        static constexpr float kRhoAir = 1.225F;
-        static constexpr float kGravity = 9.81F;
+        static constexpr float k_rho_air = 1.225F;
+        static constexpr float k_gravity = 9.81F;
         float dp = snap.pressure_pa - s_prev_pressure_pa;
-        fused.baro_alt_rate_mps = -dp / (dt_s * kRhoAir * kGravity);
+        fused.baro_alt_rate_mps = -dp / (dt_s * k_rho_air * k_gravity);
         s_prev_pressure_pa = snap.pressure_pa;
         s_prev_sample_ms = now_ms;
     }
@@ -252,26 +252,26 @@ static void init_logging_ring() {
     // Initialize logging ring buffer.
     // Uses PSRAM if available (8MB at 50Hz = ~48 min), SRAM fallback otherwise
     // (200KB at 25Hz = ~145 sec). Ring buffer init writes header to memory.
-    uint8_t* ringMem = nullptr;
-    uint32_t ringSize = 0;
-    uint32_t decRatio = kDecimationSram;
+    uint8_t* ring_mem = nullptr;
+    uint32_t ring_size = 0;
+    uint32_t dec_ratio = kDecimationSram;
 
     if (g_loggerPsramSize > 0 && g_loggerPsramSelfTestPassed) {
-        ringMem = rc::psram_base_ptr();
-        ringSize = static_cast<uint32_t>(g_loggerPsramSize);
-        decRatio = kDecimationPsram;
+        ring_mem = rc::psram_base_ptr();
+        ring_size = static_cast<uint32_t>(g_loggerPsramSize);
+        dec_ratio = kDecimationPsram;
     } else {
-        ringMem = g_sramRingBuf;
-        ringSize = kSramRingSize;
-        decRatio = kDecimationSram;
+        ring_mem = g_sramRingBuf;
+        ring_size = kSramRingSize;
+        dec_ratio = kDecimationSram;
     }
 
-    if (ringMem != nullptr) {
+    if (ring_mem != nullptr) {
         g_loggingInitialized =
-            rc::ring_init(&g_ringBuffer, ringMem, ringSize,
+            rc::ring_init(&g_ringBuffer, ring_mem, ring_size,
                           rc::kPcmFrameStandardSize, kHeaderSyncDiv);
         if (g_loggingInitialized) {
-            rc::decimator_init(&g_decimator, decRatio);
+            rc::decimator_init(&g_decimator, dec_ratio);
         }
     }
 }
@@ -286,11 +286,11 @@ static void logging_tick() {
     }
 
     // Only run when ESKF has produced a new propagation
-    uint32_t currentEpoch = eskf_runner_get_epoch();
-    if (currentEpoch == g_lastLogEpoch) {
+    uint32_t current_epoch = eskf_runner_get_epoch();
+    if (current_epoch == g_lastLogEpoch) {
         return;
     }
-    g_lastLogEpoch = currentEpoch;
+    g_lastLogEpoch = current_epoch;
 
     // Read sensor snapshot for GPS/baro/temp fields
     shared_sensor_data_t snap = {};

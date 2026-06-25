@@ -142,40 +142,40 @@ static bool read_valid_entry(uint32_t sector, Entry* out_entry, uint32_t* out_se
 }
 
 static void find_active_sector() {
-    Entry entryA, entryB;
-    uint32_t seqA = 0, seqB = 0;
-    bool validA = read_valid_entry(kSectorA, &entryA, &seqA);
-    bool validB = read_valid_entry(kSectorB, &entryB, &seqB);
+    Entry entry_a, entry_b;
+    uint32_t seq_a = 0, seq_b = 0;
+    bool valid_a = read_valid_entry(kSectorA, &entry_a, &seq_a);
+    bool valid_b = read_valid_entry(kSectorB, &entry_b, &seq_b);
 
-    if (!validA && !validB) {
+    if (!valid_a && !valid_b) {
         g_active_sector = kSectorA;
         g_write_sequence = 1;
         g_cached_valid = false;
         return;
     }
-    if (validA && !validB) {
+    if (valid_a && !valid_b) {
         g_active_sector = kSectorA;
-        g_write_sequence = seqA + 1;
-        g_cached = entryA.cfg;
+        g_write_sequence = seq_a + 1;
+        g_cached = entry_a.cfg;
         g_cached_valid = true;
         return;
     }
-    if (!validA && validB) {
+    if (!valid_a && valid_b) {
         g_active_sector = kSectorB;
-        g_write_sequence = seqB + 1;
-        g_cached = entryB.cfg;
+        g_write_sequence = seq_b + 1;
+        g_cached = entry_b.cfg;
         g_cached_valid = true;
         return;
     }
     // Both valid — newer sequence wins.
-    if (seqA >= seqB) {
+    if (seq_a >= seq_b) {
         g_active_sector = kSectorA;
-        g_write_sequence = seqA + 1;
-        g_cached = entryA.cfg;
+        g_write_sequence = seq_a + 1;
+        g_cached = entry_a.cfg;
     } else {
         g_active_sector = kSectorB;
-        g_write_sequence = seqB + 1;
-        g_cached = entryB.cfg;
+        g_write_sequence = seq_b + 1;
+        g_cached = entry_b.cfg;
     }
     g_cached_valid = true;
 }

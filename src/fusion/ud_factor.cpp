@@ -29,7 +29,7 @@ static constexpr float  kMinDFloat  = 1e-30F;
 // Utility functions
 // =========================================================================
 
-void ud_to_dense(const UD24& ud, float P[24][24]) {  // NOLINT(readability-magic-numbers)
+void ud_to_dense(const UD24& ud, float p[24][24]) {  // NOLINT(readability-magic-numbers)
     // P = U * D * U^T
     // P[i][j] = sum_k( U[i][k] * D[k] * U[j][k] )
     // Only need k >= max(i,j) since U is upper triangular.
@@ -41,13 +41,13 @@ void ud_to_dense(const UD24& ud, float P[24][24]) {  // NOLINT(readability-magic
             for (int32_t k = j; k < N; ++k) {
                 sum += ud.U[i][k] * ud.D[k] * ud.U[j][k];
             }
-            P[i][j] = sum;
-            P[j][i] = sum;
+            p[i][j] = sum;
+            p[j][i] = sum;
         }
     }
 }
 
-bool ud_factorize(UD24& ud, const float P[24][24]) {  // NOLINT(readability-magic-numbers)
+bool ud_factorize(UD24& ud, const float p[24][24]) {  // NOLINT(readability-magic-numbers)
     // Modified Cholesky: P = U * D * U^T (UDU^T decomposition).
     // Process columns from right to left.
     //
@@ -61,7 +61,7 @@ bool ud_factorize(UD24& ud, const float P[24][24]) {  // NOLINT(readability-magi
 
     for (int32_t j = N - 1; j >= 0; --j) {
         // Compute D[j]
-        float dj = P[j][j];
+        float dj = p[j][j];
         for (int32_t k = j + 1; k < N; ++k) {
             dj -= ud.U[j][k] * ud.U[j][k] * ud.D[k];
         }
@@ -74,7 +74,7 @@ bool ud_factorize(UD24& ud, const float P[24][24]) {  // NOLINT(readability-magi
         // Compute U[i][j] for i < j
         const float inv_dj = 1.0F / dj;
         for (int32_t i = 0; i < j; ++i) {
-            float uij = P[i][j];
+            float uij = p[i][j];
             for (int32_t k = j + 1; k < N; ++k) {
                 uij -= ud.U[i][k] * ud.D[k] * ud.U[j][k];
             }
@@ -103,9 +103,9 @@ static float g_balpha[N];
 // entry at hIdx.  f[i] = U[hIdx][i] * hValue for i >= hIdx, else 0.
 // See Bierman (1977): U is upper triangular, H^T is column with hValue
 // at index hIdx.
-static void bierman_compute_fg(const UD24& ud, int32_t hIdx, float hValue) {
+static void bierman_compute_fg(const UD24& ud, int32_t h_idx, float h_value) {
     for (int32_t i = 0; i < N; ++i) {
-        g_bf[i] = (i >= hIdx) ? ud.U[hIdx][i] * hValue : 0.0F;
+        g_bf[i] = (i >= h_idx) ? ud.U[h_idx][i] * h_value : 0.0F;
         g_bg[i] = ud.D[i] * g_bf[i];
     }
 }
@@ -140,9 +140,9 @@ static void bierman_forward_pass(UD24& ud, float r) {
 }
 
 __attribute__((section(".time_critical.bierman")))
-void bierman_scalar_update(UD24& ud, int32_t hIdx, float hValue,
+void bierman_scalar_update(UD24& ud, int32_t h_idx, float h_value,
                            float innovation, float r, float dx[24]) {  // NOLINT(readability-magic-numbers)
-    bierman_compute_fg(ud, hIdx, hValue);
+    bierman_compute_fg(ud, h_idx, h_value);
     bierman_forward_pass(ud, r);
 
     // Normalize gain and compute error state correction

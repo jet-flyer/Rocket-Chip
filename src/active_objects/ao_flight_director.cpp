@@ -81,22 +81,22 @@ static void fd_check_pio_backup(FdAo* me) {
         rc::pio_backup_timer_fired(rc::BackupTimerId::kDrogue)) {
         me->pio_drogue_reported = true;
         me->director.state.drogue_fired = true;
-        static rc::PyroFiredEvt pioDrogueEvt;
-        pioDrogueEvt.super.sig = rc::SIG_PYRO_FIRED;
-        pioDrogueEvt.channel = 0;  // Drogue
-        pioDrogueEvt.source = 1;   // PIO backup
-        QActive_publish_(&pioDrogueEvt.super, &me->super, me->super.prio);
+        static rc::PyroFiredEvt pio_drogue_evt;
+        pio_drogue_evt.super.sig = rc::SIG_PYRO_FIRED;
+        pio_drogue_evt.channel = 0;  // Drogue
+        pio_drogue_evt.source = 1;   // PIO backup
+        QActive_publish_(&pio_drogue_evt.super, &me->super, me->super.prio);
         rc::rc_log("[PIO] Backup drogue fired — SIG_PYRO_FIRED published\n");
     }
     if (!me->pio_main_reported &&
         rc::pio_backup_timer_fired(rc::BackupTimerId::kMain)) {
         me->pio_main_reported = true;
         me->director.state.main_fired = true;
-        static rc::PyroFiredEvt pioMainEvt;
-        pioMainEvt.super.sig = rc::SIG_PYRO_FIRED;
-        pioMainEvt.channel = 1;  // Main
-        pioMainEvt.source = 1;   // PIO backup
-        QActive_publish_(&pioMainEvt.super, &me->super, me->super.prio);
+        static rc::PyroFiredEvt pio_main_evt;
+        pio_main_evt.super.sig = rc::SIG_PYRO_FIRED;
+        pio_main_evt.channel = 1;  // Main
+        pio_main_evt.source = 1;   // PIO backup
+        QActive_publish_(&pio_main_evt.super, &me->super, me->super.prio);
         rc::rc_log("[PIO] Backup main fired — SIG_PYRO_FIRED published\n");
     }
 }
@@ -109,14 +109,14 @@ static void fd_tick(FdAo* me) {
         return;
     }
 
-    uint32_t nowMs = to_ms_since_boot(get_absolute_time());
+    uint32_t now_ms = to_ms_since_boot(get_absolute_time());
     // 100Hz tick (10ms period) — matches guard evaluation rate per plan
-    if (nowMs - me->last_tick_ms < kFlightDirectorPeriodMs) {
+    if (now_ms - me->last_tick_ms < kFlightDirectorPeriodMs) {
         return;
     }
-    me->last_tick_ms = nowMs;
+    me->last_tick_ms = now_ms;
 
-    rc::flight_director_dispatch_tick(&me->director, nowMs);
+    rc::flight_director_dispatch_tick(&me->director, now_ms);
 
     // Guard evaluation — read sensor snapshot and evaluate guards
     shared_sensor_data_t snap{};
@@ -188,11 +188,11 @@ static void fd_on_pyro_fired(rc::PyroChannel ch) {
         rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
     }
     // Publish SIG_PYRO_FIRED for AO subscribers (source=0: FD primary)
-    static rc::PyroFiredEvt pyroEvt;
-    pyroEvt.super.sig = rc::SIG_PYRO_FIRED;
-    pyroEvt.channel = static_cast<uint8_t>(ch);
-    pyroEvt.source = 0;  // Primary (FD-commanded)
-    QActive_publish_(&pyroEvt.super,
+    static rc::PyroFiredEvt pyro_evt;
+    pyro_evt.super.sig = rc::SIG_PYRO_FIRED;
+    pyro_evt.channel = static_cast<uint8_t>(ch);
+    pyro_evt.source = 0;  // Primary (FD-commanded)
+    QActive_publish_(&pyro_evt.super,
                      &l_fdAo.super, l_fdAo.super.prio);
 }
 
@@ -221,9 +221,9 @@ static void fd_register_test_mode_accessor() {
 static void fd_wire_callbacks(rc::FlightDirector* director) {
     director->set_led_cb = [](uint8_t val) {
         if (val == rc::kLedPhaseBeacon) {
-            static QEvt beaconEvt;
-            beaconEvt.sig = rc::SIG_BEACON_ACTIVE;
-            QActive_publish_(&beaconEvt,
+            static QEvt beacon_evt;
+            beacon_evt.sig = rc::SIG_BEACON_ACTIVE;
+            QActive_publish_(&beacon_evt,
                              &l_fdAo.super, l_fdAo.super.prio);
         }
     };
@@ -294,7 +294,7 @@ bool AO_FlightDirector_process_command(int cmd) {
         return false;
     }
 
-    auto cmdType = static_cast<rc::CommandType>(cmd);
+    auto cmd_type = static_cast<rc::CommandType>(cmd);
     rc::FlightPhase phase = rc::flight_director_phase(&l_fdAo.director);
 
     // Build Go/No-Go input from health monitor
@@ -302,7 +302,7 @@ bool AO_FlightDirector_process_command(int cmd) {
     rc::health_monitor_fill_go_nogo(&gng);
 
     rc::CommandResult result = rc::command_handler_validate(
-        cmdType, phase, &gng);
+        cmd_type, phase, &gng);
 
     if (result.accepted) {
         rc::flight_director_dispatch_signal(&l_fdAo.director, result.signal);
@@ -335,14 +335,14 @@ void AO_FlightDirector_print_status() {
         return;
     }
     const rc::FlightState& st = l_fdAo.director.state;
-    uint32_t nowMs = to_ms_since_boot(get_absolute_time());
-    uint32_t phaseMs = nowMs - st.phase_entry_ms;
+    uint32_t now_ms = to_ms_since_boot(get_absolute_time());
+    uint32_t phase_ms = now_ms - st.phase_entry_ms;
 
     rc::rc_log("\n--- Flight Director Status ---\n");
     rc::rc_log("  Profile:     %s\n", l_fdAo.director.profile->name);
     rc::rc_log("  Phase:       %s\n", rc::flight_phase_name(st.current_phase));
     rc::rc_log("  Previous:    %s\n", rc::flight_phase_name(st.previous_phase));
-    rc::rc_log("  In-phase:    %lu ms\n", (unsigned long)phaseMs);
+    rc::rc_log("  In-phase:    %lu ms\n", (unsigned long)phase_ms);
     rc::rc_log("  Transitions: %lu\n", (unsigned long)st.transition_count);
 
     // Markers

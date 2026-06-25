@@ -142,31 +142,31 @@ static const char* const kPositionNames[kAccel6posPositions] = {
 // Private Functions
 // ============================================================================
 
-static void reset_accumulator(uint32_t targetSamples) {
+static void reset_accumulator(uint32_t target_samples) {
     memset(&g_sampleAcc, 0, sizeof(g_sampleAcc));
-    g_sampleAcc.target_count = targetSamples;
+    g_sampleAcc.target_count = target_samples;
     g_sampleAcc.min_x = g_sampleAcc.min_y = g_sampleAcc.min_z = kMinMaxInitializer;
     g_sampleAcc.max_x = g_sampleAcc.max_y = g_sampleAcc.max_z = -kMinMaxInitializer;
 }
 
 static bool check_gyro_motion() {
-    float rangeX = g_sampleAcc.max_x - g_sampleAcc.min_x;
-    float rangeY = g_sampleAcc.max_y - g_sampleAcc.min_y;
-    float rangeZ = g_sampleAcc.max_z - g_sampleAcc.min_z;
+    float range_x = g_sampleAcc.max_x - g_sampleAcc.min_x;
+    float range_y = g_sampleAcc.max_y - g_sampleAcc.min_y;
+    float range_z = g_sampleAcc.max_z - g_sampleAcc.min_z;
 
-    return (rangeX > kGyroCalMotionThresh ||
-            rangeY > kGyroCalMotionThresh ||
-            rangeZ > kGyroCalMotionThresh);
+    return (range_x > kGyroCalMotionThresh ||
+            range_y > kGyroCalMotionThresh ||
+            range_z > kGyroCalMotionThresh);
 }
 
 static bool check_accel_motion() {
-    float rangeX = g_sampleAcc.max_x - g_sampleAcc.min_x;
-    float rangeY = g_sampleAcc.max_y - g_sampleAcc.min_y;
-    float rangeZ = g_sampleAcc.max_z - g_sampleAcc.min_z;
+    float range_x = g_sampleAcc.max_x - g_sampleAcc.min_x;
+    float range_y = g_sampleAcc.max_y - g_sampleAcc.min_y;
+    float range_z = g_sampleAcc.max_z - g_sampleAcc.min_z;
 
-    return (rangeX > kAccelCalMotionThresh ||
-            rangeY > kAccelCalMotionThresh ||
-            rangeZ > kAccelCalMotionThresh);
+    return (range_x > kAccelCalMotionThresh ||
+            range_y > kAccelCalMotionThresh ||
+            range_z > kAccelCalMotionThresh);
 }
 
 // ============================================================================
@@ -208,7 +208,7 @@ cal_result_t calibration_start_gyro() {
     return CAL_RESULT_OK;
 }
 
-void calibration_feed_gyro(float gx, float gy, float gz, float temperatureC) {
+void calibration_feed_gyro(float gx, float gy, float gz, float temperature_c) {
     if (g_calState != CAL_STATE_GYRO_SAMPLING) {
         return;
     }
@@ -217,7 +217,7 @@ void calibration_feed_gyro(float gx, float gy, float gz, float temperatureC) {
     g_sampleAcc.sum_x += gx;
     g_sampleAcc.sum_y += gy;
     g_sampleAcc.sum_z += gz;
-    g_sampleAcc.sum_temp += temperatureC;
+    g_sampleAcc.sum_temp += temperature_c;
 
     // Track min/max for motion detection
     if (gx < g_sampleAcc.min_x) {
@@ -272,20 +272,20 @@ void calibration_feed_gyro(float gx, float gy, float gz, float temperatureC) {
 // Compute level offset from accumulated samples and store in g_calibration
 static void compute_level_offset() {
     float n = static_cast<float>(g_sampleAcc.count);
-    float avgX = g_sampleAcc.sum_x / n;
-    float avgY = g_sampleAcc.sum_y / n;
-    float avgZ = g_sampleAcc.sum_z / n;
+    float avg_x = g_sampleAcc.sum_x / n;
+    float avg_y = g_sampleAcc.sum_y / n;
+    float avg_z = g_sampleAcc.sum_z / n;
 
     // Level cal: device flat, Z pointing up or down
     // Offset = expected - measured
-    g_calibration.accel.offset.x = -avgX;
-    g_calibration.accel.offset.y = -avgY;
+    g_calibration.accel.offset.x = -avg_x;
+    g_calibration.accel.offset.y = -avg_y;
 
     // Preserve gravity magnitude on Z
-    if (avgZ > 0) {
-        g_calibration.accel.offset.z = kGravityNominal - avgZ;
+    if (avg_z > 0) {
+        g_calibration.accel.offset.z = kGravityNominal - avg_z;
     } else {
-        g_calibration.accel.offset.z = -kGravityNominal - avgZ;
+        g_calibration.accel.offset.z = -kGravityNominal - avg_z;
     }
 
     // Level cal uses simple offset only — reset scale to unity, clear offdiag
@@ -315,10 +315,10 @@ cal_result_t calibration_start_accel_level() {
 // Async 6-pos: accumulate sample into current position buffer
 static void feed_accel_6pos(float ax, float ay, float az) {
     if (g_6posAsyncCount < kAccel6posSamplesPerPos) {
-        uint16_t baseIdx = g_6posAsyncPos * kAccel6posSamplesPerPos;
-        g_6posSamples[baseIdx + g_6posAsyncCount][0] = ax;
-        g_6posSamples[baseIdx + g_6posAsyncCount][1] = ay;
-        g_6posSamples[baseIdx + g_6posAsyncCount][2] = az;
+        uint16_t base_idx = g_6posAsyncPos * kAccel6posSamplesPerPos;
+        g_6posSamples[base_idx + g_6posAsyncCount][0] = ax;
+        g_6posSamples[base_idx + g_6posAsyncCount][1] = ay;
+        g_6posSamples[base_idx + g_6posAsyncCount][2] = az;
         g_6posAsyncSum[0] += ax;
         g_6posAsyncSum[1] += ay;
         g_6posAsyncSum[2] += az;
@@ -328,11 +328,11 @@ static void feed_accel_6pos(float ax, float ay, float az) {
 
 // Level cal: accumulate sample and check completion
 static void feed_accel_level(float ax, float ay, float az,
-                             float temperatureC) {
+                             float temperature_c) {
     g_sampleAcc.sum_x += ax;
     g_sampleAcc.sum_y += ay;
     g_sampleAcc.sum_z += az;
-    g_sampleAcc.sum_temp += temperatureC;
+    g_sampleAcc.sum_temp += temperature_c;
 
     if (ax < g_sampleAcc.min_x) { g_sampleAcc.min_x = ax; }
     if (ax > g_sampleAcc.max_x) { g_sampleAcc.max_x = ax; }
@@ -355,11 +355,11 @@ static void feed_accel_level(float ax, float ay, float az,
     }
 }
 
-void calibration_feed_accel(float ax, float ay, float az, float temperatureC) {
+void calibration_feed_accel(float ax, float ay, float az, float temperature_c) {
     if (g_calState == CAL_STATE_ACCEL_6POS_SAMPLING) {
         feed_accel_6pos(ax, ay, az);
     } else if (g_calState == CAL_STATE_ACCEL_LEVEL_SAMPLING) {
-        feed_accel_level(ax, ay, az, temperatureC);
+        feed_accel_level(ax, ay, az, temperature_c);
     }
 }
 
@@ -379,13 +379,13 @@ cal_result_t calibration_start_baro() {
     return CAL_RESULT_OK;
 }
 
-void calibration_feed_baro(float pressurePa, float temperatureC) {
+void calibration_feed_baro(float pressure_pa, float temperature_c) {
     if (g_calState != CAL_STATE_BARO_SAMPLING) {
         return;
     }
 
-    g_sampleAcc.sum_x += pressurePa;  // Reuse sum_x for pressure
-    g_sampleAcc.sum_temp += temperatureC;
+    g_sampleAcc.sum_x += pressure_pa;  // Reuse sum_x for pressure
+    g_sampleAcc.sum_temp += temperature_c;
     g_sampleAcc.count++;
 
     if (g_sampleAcc.count >= g_sampleAcc.target_count) {
@@ -546,32 +546,32 @@ const float* calibration_get_6pos_avg(uint8_t pos) {
     return g_6posAvg[pos];
 }
 
-cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn readFn) {
+cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_fn) {
     if (pos >= kAccel6posPositions) {
         return CAL_RESULT_INVALID_DATA;
     }
-    if (readFn == nullptr) {
+    if (read_fn == nullptr) {
         return CAL_RESULT_INVALID_DATA;
     }
     if ((g_6posCollected & (1 << pos)) != 0) {
         return CAL_RESULT_INVALID_DATA;  // Already done
     }
 
-    uint16_t baseIdx = pos * kAccel6posSamplesPerPos;
+    uint16_t base_idx = pos * kAccel6posSamplesPerPos;
     float sum[3] = {0.0F, 0.0F, 0.0F};
-    float tempUnused = 0.0F;
+    float temp_unused = 0.0F;
 
     for (uint16_t i = 0; i < kAccel6posSamplesPerPos; i++) {
         float ax = 0.0F;
         float ay = 0.0F;
         float az = 0.0F;
-        if (!readFn(&ax, &ay, &az, &tempUnused)) {
+        if (!read_fn(&ax, &ay, &az, &temp_unused)) {
             return CAL_RESULT_NO_DATA;
         }
 
-        g_6posSamples[baseIdx + i][0] = ax;
-        g_6posSamples[baseIdx + i][1] = ay;
-        g_6posSamples[baseIdx + i][2] = az;
+        g_6posSamples[base_idx + i][0] = ax;
+        g_6posSamples[base_idx + i][1] = ay;
+        g_6posSamples[base_idx + i][2] = az;
 
         sum[0] += ax; sum[1] += ay; sum[2] += az;
     }
@@ -621,18 +621,18 @@ static void accumulate_normal_equations(const float* params, float* jtfi) {
 
 // Apply Gauss-Newton parameter update. Returns false if NaN/Inf encountered.
 static bool gauss_newton_update(float* params, const float* jtfi) {
-    float newParams[kAccel6posNumParams];
+    float new_params[kAccel6posNumParams];
     for (uint8_t i = 0; i < kAccel6posNumParams; i++) {
         float delta = 0.0F;
         for (uint8_t j = 0; j < kAccel6posNumParams; j++) {
             delta += g_jtjInv[i * kAccel6posNumParams + j] * jtfi[j];
         }
-        newParams[i] = params[i] - delta;
-        if (isnan(newParams[i]) || isinf(newParams[i])) {
+        new_params[i] = params[i] - delta;
+        if (isnan(new_params[i]) || isinf(new_params[i])) {
             return false;
         }
     }
-    memcpy(params, newParams, sizeof(newParams));
+    memcpy(params, new_params, sizeof(new_params));
     return true;
 }
 
@@ -685,9 +685,9 @@ cal_result_t calibration_compute_6pos() {
         1.0F, 1.0F, 1.0F
     };
 
-    float bestParams[kAccel6posNumParams];
-    memcpy(bestParams, params, sizeof(params));
-    float bestFitness = calc_mean_sq_residuals(params);
+    float best_params[kAccel6posNumParams];
+    memcpy(best_params, params, sizeof(params));
+    float best_fitness = calc_mean_sq_residuals(params);
     float jtfi[kAccel6posNumParams];
 
     for (uint16_t iter = 0; iter < kAccel6posMaxIterations; iter++) {
@@ -702,17 +702,17 @@ cal_result_t calibration_compute_6pos() {
         }
 
         float fitness = calc_mean_sq_residuals(params);
-        if (fitness < bestFitness) {
-            bestFitness = fitness;
-            memcpy(bestParams, params, sizeof(params));
+        if (fitness < best_fitness) {
+            best_fitness = fitness;
+            memcpy(best_params, params, sizeof(params));
         }
     }
 
-    if (!validate_6pos_params(bestParams)) {
+    if (!validate_6pos_params(best_params)) {
         return CAL_RESULT_FIT_FAILED;
     }
 
-    store_6pos_results(bestParams);
+    store_6pos_results(best_params);
     return CAL_RESULT_OK;
 }
 
@@ -724,21 +724,21 @@ cal_result_t calibration_compute_6pos() {
 static uint8_t mag_coverage_section(float nx, float ny, float nz) {
     // Latitude: asin(nz) maps [-1,1] to [-pi/2, pi/2], scale to [0, kMagLatBands-1]
     float lat = asinf(nz);
-    auto latBin = static_cast<uint8_t>((lat + (static_cast<float>(M_PI) / 2.0F))
+    auto lat_bin = static_cast<uint8_t>((lat + (static_cast<float>(M_PI) / 2.0F))
                   * static_cast<float>(kMagLatBands) / static_cast<float>(M_PI));
-    if (latBin >= kMagLatBands) {
-        latBin = kMagLatBands - 1;
+    if (lat_bin >= kMagLatBands) {
+        lat_bin = kMagLatBands - 1;
     }
 
     // Longitude: atan2(ny, nx) maps to [-pi, pi], scale to [0, kMagLonSectors-1]
     float lon = atan2f(ny, nx);
-    auto lonBin = static_cast<uint8_t>((lon + static_cast<float>(M_PI))
+    auto lon_bin = static_cast<uint8_t>((lon + static_cast<float>(M_PI))
                   * static_cast<float>(kMagLonSectors) / (2.0F * static_cast<float>(M_PI)));
-    if (lonBin >= kMagLonSectors) {
-        lonBin = kMagLonSectors - 1;
+    if (lon_bin >= kMagLonSectors) {
+        lon_bin = kMagLonSectors - 1;
     }
 
-    return latBin * kMagLonSectors + lonBin;
+    return lat_bin * kMagLonSectors + lon_bin;
 }
 
 static void mag_coverage_set(uint8_t section) {
@@ -797,12 +797,12 @@ mag_feed_result_t calibration_feed_mag_sample(float mx, float my, float mz) {
         float nz = mz / mag;
 
         // Check against the most recent kMagRecentWindow samples
-        uint16_t checkStart = (g_magSampleCount > kMagRecentWindow)
+        uint16_t check_start = (g_magSampleCount > kMagRecentWindow)
                               ? (g_magSampleCount - kMagRecentWindow) : 0;
 
-        float minSepCos = 1.0F - 2.0F / static_cast<float>(kMagMaxSamples);
+        float min_sep_cos = 1.0F - 2.0F / static_cast<float>(kMagMaxSamples);
 
-        for (uint16_t i = checkStart; i < g_magSampleCount; i++) {
+        for (uint16_t i = check_start; i < g_magSampleCount; i++) {
             float rmag = sqrtf(g_magSamples[i][0]*g_magSamples[i][0]
                              + g_magSamples[i][1]*g_magSamples[i][1]
                              + g_magSamples[i][2]*g_magSamples[i][2]);
@@ -810,7 +810,7 @@ mag_feed_result_t calibration_feed_mag_sample(float mx, float my, float mz) {
                 float dot = (nx * g_magSamples[i][0]
                            + ny * g_magSamples[i][1]
                            + nz * g_magSamples[i][2]) / rmag;
-                if (dot > minSepCos) {
+                if (dot > min_sep_cos) {
                     return mag_feed_result_t::REJECTED_CLOSE;
                 }
             }
@@ -824,8 +824,8 @@ mag_feed_result_t calibration_feed_mag_sample(float mx, float my, float mz) {
     g_magSampleCount++;
 
     // Update coverage grid
-    float invMag = 1.0F / mag;
-    uint8_t section = mag_coverage_section(mx * invMag, my * invMag, mz * invMag);
+    float inv_mag = 1.0F / mag;
+    uint8_t section = mag_coverage_section(mx * inv_mag, my * inv_mag, mz * inv_mag);
     mag_coverage_set(section);
 
     return mag_feed_result_t::ACCEPTED;
@@ -868,39 +868,39 @@ static void calc_sphere_jacobian(const float sample[3], const float params[kMagS
 // NOLINTEND(readability-magic-numbers)
 
 // Run sphere fit LM solver on the first numSamples entries of g_magSamples
-static bool mag_sphere_fit(uint16_t numSamples, float* outRadius, float outOffset[3]) {
+static bool mag_sphere_fit(uint16_t num_samples, float* out_radius, float out_offset[3]) {
     // Initial guess: radius = mean magnitude, offset = 0
-    float sumMag = 0.0F;
-    for (uint16_t i = 0; i < numSamples; i++) {
-        sumMag += sqrtf(g_magSamples[i][0]*g_magSamples[i][0]
+    float sum_mag = 0.0F;
+    for (uint16_t i = 0; i < num_samples; i++) {
+        sum_mag += sqrtf(g_magSamples[i][0]*g_magSamples[i][0]
                       + g_magSamples[i][1]*g_magSamples[i][1]
                       + g_magSamples[i][2]*g_magSamples[i][2]);
     }
 
     float params[kMagSphereParams] = {
-        sumMag / static_cast<float>(numSamples),  // radius
+        sum_mag / static_cast<float>(num_samples),  // radius
         0.0F, 0.0F, 0.0F                           // offset
     };
 
-    float bestParams[kMagSphereParams];
-    memcpy(bestParams, params, sizeof(params));
-    float bestFitness = lm_mean_sq_residuals(g_magSamples, numSamples, params,
+    float best_params[kMagSphereParams];
+    memcpy(best_params, params, sizeof(params));
+    float best_fitness = lm_mean_sq_residuals(g_magSamples, num_samples, params,
                                               calc_sphere_residual);
 
-    lm_solve(g_magSamples, numSamples, params, bestParams, &bestFitness,
+    lm_solve(g_magSamples, num_samples, params, best_params, &best_fitness,
              kMagSphereParams, kMagSphereIterations,
              g_jtj, g_jtjInv,
              calc_sphere_residual, calc_sphere_jacobian);
 
     // Validate sphere fit
-    if (bestParams[0] < kMagMinFieldUt || bestParams[0] > kMagMaxFieldUt) {
+    if (best_params[0] < kMagMinFieldUt || best_params[0] > kMagMaxFieldUt) {
         return false;
     }
 
-    *outRadius = bestParams[0];
-    outOffset[0] = bestParams[1];
-    outOffset[1] = bestParams[2];
-    outOffset[2] = bestParams[3];
+    *out_radius = best_params[0];
+    out_offset[0] = best_params[1];
+    out_offset[1] = best_params[2];
+    out_offset[2] = best_params[3];
     return true;
 }
 
@@ -967,29 +967,29 @@ static uint16_t mag_thin_samples(uint16_t count) {
     return (count * 2) / 3;
 }
 
-static bool mag_ellipsoid_fit(uint16_t numSamples, const float sphereOffset[3],
-                               float outParams[kMagEllipsoidParams]) {
+static bool mag_ellipsoid_fit(uint16_t num_samples, const float sphere_offset[3],
+                               float out_params[kMagEllipsoidParams]) {
     // Seed from sphere fit results
     // NOLINTBEGIN(readability-magic-numbers) — param layout: offset[0-2], diag[3-5], offdiag[6-8]
     float params[kMagEllipsoidParams] = {
-        sphereOffset[0], sphereOffset[1], sphereOffset[2],
+        sphere_offset[0], sphere_offset[1], sphere_offset[2],
         1.0F, 1.0F, 1.0F,
         0.0F, 0.0F, 0.0F
     };
     // NOLINTEND(readability-magic-numbers)
 
-    float bestParams[kMagEllipsoidParams];
-    memcpy(bestParams, params, sizeof(params));
-    float bestFitness = lm_mean_sq_residuals(g_magSamples, numSamples, params,
+    float best_params[kMagEllipsoidParams];
+    memcpy(best_params, params, sizeof(params));
+    float best_fitness = lm_mean_sq_residuals(g_magSamples, num_samples, params,
                                               calc_residual_mag);
 
-    lm_solve(g_magSamples, numSamples, params, bestParams, &bestFitness,
+    lm_solve(g_magSamples, num_samples, params, best_params, &best_fitness,
              kMagEllipsoidParams, kMagEllipsoidIterations,
              g_jtj, g_jtjInv,
              calc_residual_mag, calc_jacobian_mag);
 
-    memcpy(outParams, bestParams, sizeof(bestParams));
-    g_magFitness = sqrtf(bestFitness);  // RMS residual
+    memcpy(out_params, best_params, sizeof(best_params));
+    g_magFitness = sqrtf(best_fitness);  // RMS residual
     return true;
 }
 
@@ -1035,40 +1035,40 @@ cal_result_t calibration_compute_mag_cal() {
     }
 
     // Step 1: Sphere fit on all samples
-    float sphereRadius = 0.0F;
-    float sphereOffset[3] = {0.0F, 0.0F, 0.0F};
+    float sphere_radius = 0.0F;
+    float sphere_offset[3] = {0.0F, 0.0F, 0.0F};
 
-    if (!mag_sphere_fit(g_magSampleCount, &sphereRadius, sphereOffset)) {
+    if (!mag_sphere_fit(g_magSampleCount, &sphere_radius, sphere_offset)) {
         return CAL_RESULT_FIT_FAILED;
     }
 
-    g_magExpectedRadius = sphereRadius;
+    g_magExpectedRadius = sphere_radius;
 
     // Step 1.5: Fisher-Yates thinning to 2/3
     uint16_t thinned = mag_thin_samples(g_magSampleCount);
 
     // Step 2: Ellipsoid fit on thinned samples
-    float ellParams[kMagEllipsoidParams];
-    if (!mag_ellipsoid_fit(thinned, sphereOffset, ellParams)) {
+    float ell_params[kMagEllipsoidParams];
+    if (!mag_ellipsoid_fit(thinned, sphere_offset, ell_params)) {
         return CAL_RESULT_FIT_FAILED;
     }
 
     // Validate
-    if (!validate_mag_params(ellParams)) {
+    if (!validate_mag_params(ell_params)) {
         return CAL_RESULT_FIT_FAILED;
     }
 
     // Store results
     // NOLINTBEGIN(readability-magic-numbers) — param layout: offset[0-2], diag[3-5], offdiag[6-8]
-    g_calibration.mag.offset.x  = ellParams[0];
-    g_calibration.mag.offset.y  = ellParams[1];
-    g_calibration.mag.offset.z  = ellParams[2];
-    g_calibration.mag.scale.x   = ellParams[3];
-    g_calibration.mag.scale.y   = ellParams[4];
-    g_calibration.mag.scale.z   = ellParams[5];
-    g_calibration.mag.offdiag.x = ellParams[6];
-    g_calibration.mag.offdiag.y = ellParams[7];
-    g_calibration.mag.offdiag.z = ellParams[8];
+    g_calibration.mag.offset.x  = ell_params[0];
+    g_calibration.mag.offset.y  = ell_params[1];
+    g_calibration.mag.offset.z  = ell_params[2];
+    g_calibration.mag.scale.x   = ell_params[3];
+    g_calibration.mag.scale.y   = ell_params[4];
+    g_calibration.mag.scale.z   = ell_params[5];
+    g_calibration.mag.offdiag.x = ell_params[6];
+    g_calibration.mag.offdiag.y = ell_params[7];
+    g_calibration.mag.offdiag.z = ell_params[8];
     // NOLINTEND(readability-magic-numbers)
     g_calibration.mag.expected_radius = g_magExpectedRadius;
     g_calibration.mag.status = CAL_STATUS_MAG;
@@ -1130,18 +1130,18 @@ void calibration_apply_gyro_with(const calibration_store_t* cal,
 
     // Board rotation: rotMat * corrected
     // NOLINTBEGIN(readability-magic-numbers) — 3x3 rotation matrix indices
-    const float* rotMat = cal->board_rotation.m;
-    out.x = rotMat[0]*cx + rotMat[1]*cy + rotMat[2]*cz;
-    out.y = rotMat[3]*cx + rotMat[4]*cy + rotMat[5]*cz;
-    out.z = rotMat[6]*cx + rotMat[7]*cy + rotMat[8]*cz;
+    const float* rot_mat = cal->board_rotation.m;
+    out.x = rot_mat[0]*cx + rot_mat[1]*cy + rot_mat[2]*cz;
+    out.y = rot_mat[3]*cx + rot_mat[4]*cy + rot_mat[5]*cz;
+    out.z = rot_mat[6]*cx + rot_mat[7]*cy + rot_mat[8]*cz;
     // NOLINTEND(readability-magic-numbers)
 }
 
-void calibration_apply_gyro(float gxRaw, float gyRaw, float gzRaw,
-                            float* gxCal, float* gyCal, float* gzCal) {
+void calibration_apply_gyro(float gx_raw, float gy_raw, float gz_raw,
+                            float* gx_cal, float* gy_cal, float* gz_cal) {
     cal_vec3_t out;
-    calibration_apply_gyro_with(&g_calibration, {gxRaw, gyRaw, gzRaw}, out);
-    *gxCal = out.x; *gyCal = out.y; *gzCal = out.z;
+    calibration_apply_gyro_with(&g_calibration, {gx_raw, gy_raw, gz_raw}, out);
+    *gx_cal = out.x; *gy_cal = out.y; *gz_cal = out.z;
 }
 
 void calibration_apply_accel_with(const calibration_store_t* cal,
@@ -1164,18 +1164,18 @@ void calibration_apply_accel_with(const calibration_store_t* cal,
 
     // Stage 2: Board rotation — rotMat * corrected
     // NOLINTBEGIN(readability-magic-numbers) — 3x3 rotation matrix indices
-    const float* rotMat = cal->board_rotation.m;
-    out.x = rotMat[0]*cx + rotMat[1]*cy + rotMat[2]*cz;
-    out.y = rotMat[3]*cx + rotMat[4]*cy + rotMat[5]*cz;
-    out.z = rotMat[6]*cx + rotMat[7]*cy + rotMat[8]*cz;
+    const float* rot_mat = cal->board_rotation.m;
+    out.x = rot_mat[0]*cx + rot_mat[1]*cy + rot_mat[2]*cz;
+    out.y = rot_mat[3]*cx + rot_mat[4]*cy + rot_mat[5]*cz;
+    out.z = rot_mat[6]*cx + rot_mat[7]*cy + rot_mat[8]*cz;
     // NOLINTEND(readability-magic-numbers)
 }
 
-void calibration_apply_accel(float axRaw, float ayRaw, float azRaw,
-                             float* axCal, float* ayCal, float* azCal) {
+void calibration_apply_accel(float ax_raw, float ay_raw, float az_raw,
+                             float* ax_cal, float* ay_cal, float* az_cal) {
     cal_vec3_t out;
-    calibration_apply_accel_with(&g_calibration, {axRaw, ayRaw, azRaw}, out);
-    *axCal = out.x; *ayCal = out.y; *azCal = out.z;
+    calibration_apply_accel_with(&g_calibration, {ax_raw, ay_raw, az_raw}, out);
+    *ax_cal = out.x; *ay_cal = out.y; *az_cal = out.z;
 }
 
 void calibration_apply_mag_with(const calibration_store_t* cal,
@@ -1197,18 +1197,18 @@ void calibration_apply_mag_with(const calibration_store_t* cal,
 
     // Stage 2: Board rotation — rotMat * corrected
     // NOLINTBEGIN(readability-magic-numbers) — 3x3 rotation matrix indices
-    const float* rotMat = cal->board_rotation.m;
-    out.x = rotMat[0]*cx + rotMat[1]*cy + rotMat[2]*cz;
-    out.y = rotMat[3]*cx + rotMat[4]*cy + rotMat[5]*cz;
-    out.z = rotMat[6]*cx + rotMat[7]*cy + rotMat[8]*cz;
+    const float* rot_mat = cal->board_rotation.m;
+    out.x = rot_mat[0]*cx + rot_mat[1]*cy + rot_mat[2]*cz;
+    out.y = rot_mat[3]*cx + rot_mat[4]*cy + rot_mat[5]*cz;
+    out.z = rot_mat[6]*cx + rot_mat[7]*cy + rot_mat[8]*cz;
     // NOLINTEND(readability-magic-numbers)
 }
 
-void calibration_apply_mag(float mxRaw, float myRaw, float mzRaw,
-                            float* mxCal, float* myCal, float* mzCal) {
+void calibration_apply_mag(float mx_raw, float my_raw, float mz_raw,
+                            float* mx_cal, float* my_cal, float* mz_cal) {
     cal_vec3_t out;
-    calibration_apply_mag_with(&g_calibration, {mxRaw, myRaw, mzRaw}, out);
-    *mxCal = out.x; *myCal = out.y; *mzCal = out.z;
+    calibration_apply_mag_with(&g_calibration, {mx_raw, my_raw, mz_raw}, out);
+    *mx_cal = out.x; *my_cal = out.y; *mz_cal = out.z;
 }
 
 bool calibration_load_into(calibration_store_t* dest) {
@@ -1226,14 +1226,14 @@ bool calibration_load_into(calibration_store_t* dest) {
     return true;
 }
 
-float calibration_get_altitude_agl(float pressurePa) {
+float calibration_get_altitude_agl(float pressure_pa) {
     // Barometric formula: h = 44330 * (1 - (P/P0)^0.1903)
     float p0 = g_calibration.baro.ground_pressure_pa;
     if (p0 < kMinValidPressurePa) {
         p0 = kStdAtmPressurePa;  // Sanity check
     }
 
-    return kHypsometricScale * (1.0F - powf(pressurePa / p0, kHypsometricExponent));
+    return kHypsometricScale * (1.0F - powf(pressure_pa / p0, kHypsometricExponent));
 }
 
 // ============================================================================

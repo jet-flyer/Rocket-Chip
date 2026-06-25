@@ -14,48 +14,48 @@ constexpr uint8_t kMaxAugWidth = kMaxMatDim * 2;
 constexpr float   kSingularityThreshold = 1e-10F;
 
 // Forward elimination with partial pivoting on flat augmented matrix [A|I].
-bool forward_eliminate(float* aug, uint8_t n, uint8_t augWidth) {
+bool forward_eliminate(float* aug, uint8_t n, uint8_t aug_width) {
     for (uint8_t col = 0; col < n; col++) {
-        uint8_t maxRow = col;
-        float   maxVal = fabsf(aug[col * augWidth + col]);
+        uint8_t max_row = col;
+        float   max_val = fabsf(aug[col * aug_width + col]);
         for (uint8_t r = col + 1; r < n; r++) {
-            float val = fabsf(aug[r * augWidth + col]);
-            if (val > maxVal) {
-                maxVal = val;
-                maxRow = r;
+            float val = fabsf(aug[r * aug_width + col]);
+            if (val > max_val) {
+                max_val = val;
+                max_row = r;
             }
         }
-        if (maxVal < kSingularityThreshold) {
+        if (max_val < kSingularityThreshold) {
             return false;
         }
-        if (maxRow != col) {
-            for (uint8_t c = 0; c < augWidth; c++) {
-                float tmp = aug[col * augWidth + c];
-                aug[col * augWidth + c]    = aug[maxRow * augWidth + c];
-                aug[maxRow * augWidth + c] = tmp;
+        if (max_row != col) {
+            for (uint8_t c = 0; c < aug_width; c++) {
+                float tmp = aug[col * aug_width + c];
+                aug[col * aug_width + c]    = aug[max_row * aug_width + c];
+                aug[max_row * aug_width + c] = tmp;
             }
         }
-        float pivot = aug[col * augWidth + col];
+        float pivot = aug[col * aug_width + col];
         for (uint8_t r = col + 1; r < n; r++) {
-            float factor = aug[r * augWidth + col] / pivot;
-            for (uint8_t c = col; c < augWidth; c++) {
-                aug[r * augWidth + c] -= factor * aug[col * augWidth + c];
+            float factor = aug[r * aug_width + col] / pivot;
+            for (uint8_t c = col; c < aug_width; c++) {
+                aug[r * aug_width + c] -= factor * aug[col * aug_width + c];
             }
         }
     }
     return true;
 }
 
-void back_substitute(float* aug, uint8_t n, uint8_t augWidth) {
+void back_substitute(float* aug, uint8_t n, uint8_t aug_width) {
     for (int8_t col = static_cast<int8_t>(n - 1); col >= 0; col--) {
-        float pivot = aug[col * augWidth + col];
-        for (uint8_t c = 0; c < augWidth; c++) {
-            aug[col * augWidth + c] /= pivot;
+        float pivot = aug[col * aug_width + col];
+        for (uint8_t c = 0; c < aug_width; c++) {
+            aug[col * aug_width + c] /= pivot;
         }
         for (int8_t r = static_cast<int8_t>(col - 1); r >= 0; r--) {
-            float factor = aug[r * augWidth + col];
-            for (uint8_t c = 0; c < augWidth; c++) {
-                aug[r * augWidth + c] -= factor * aug[col * augWidth + c];
+            float factor = aug[r * aug_width + col];
+            for (uint8_t c = 0; c < aug_width; c++) {
+                aug[r * aug_width + c] -= factor * aug[col * aug_width + c];
             }
         }
     }
@@ -67,36 +67,36 @@ bool mat_inverse(const float* src, float* dst, uint8_t n) {
     if (n > kMaxMatDim) {
         return false;
     }
-    uint8_t augWidth = n * 2;
+    uint8_t aug_width = n * 2;
     static float g_aug[kMaxMatDim * kMaxAugWidth];
 
     for (uint8_t r = 0; r < n; r++) {
         for (uint8_t c = 0; c < n; c++) {
-            g_aug[r * augWidth + c]     = src[r * n + c];
-            g_aug[r * augWidth + c + n] = (r == c) ? 1.0F : 0.0F;
+            g_aug[r * aug_width + c]     = src[r * n + c];
+            g_aug[r * aug_width + c + n] = (r == c) ? 1.0F : 0.0F;
         }
     }
-    if (!forward_eliminate(g_aug, n, augWidth)) {
+    if (!forward_eliminate(g_aug, n, aug_width)) {
         return false;
     }
-    back_substitute(g_aug, n, augWidth);
+    back_substitute(g_aug, n, aug_width);
     for (uint8_t r = 0; r < n; r++) {
         for (uint8_t c = 0; c < n; c++) {
-            dst[r * n + c] = g_aug[r * augWidth + c + n];
+            dst[r * n + c] = g_aug[r * aug_width + c + n];
         }
     }
     return true;
 }
 
-bool lm_compute_step(const float* params, float* newParams,
-                     const float* jtjInv, const float* jtfi, uint8_t numParams) {
-    for (uint8_t i = 0; i < numParams; i++) {
+bool lm_compute_step(const float* params, float* new_params,
+                     const float* jtj_inv, const float* jtfi, uint8_t num_params) {
+    for (uint8_t i = 0; i < num_params; i++) {
         float delta = 0.0F;
-        for (uint8_t j = 0; j < numParams; j++) {
-            delta += jtjInv[i * numParams + j] * jtfi[j];
+        for (uint8_t j = 0; j < num_params; j++) {
+            delta += jtj_inv[i * num_params + j] * jtfi[j];
         }
-        newParams[i] = params[i] - delta;
-        if (isnan(newParams[i]) || isinf(newParams[i])) { return false; }
+        new_params[i] = params[i] - delta;
+        if (isnan(new_params[i]) || isinf(new_params[i])) { return false; }
     }
     return true;
 }

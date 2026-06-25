@@ -284,8 +284,8 @@ uint16_t MavlinkEncoder::encode_attitude(const TelemetryState& telem,
 uint16_t MavlinkEncoder::encode_global_pos(const TelemetryState& telem,
                                             uint32_t boot_ms, uint8_t* buf) {
     // GPS fix type from upper nibble of gps_fix_sats
-    static constexpr uint8_t kGpsFixNibbleMask = 0x0F;  // upper nibble after shift
-    uint8_t fix_type = (telem.gps_fix_sats >> 4) & kGpsFixNibbleMask;
+    static constexpr uint8_t k_gps_fix_nibble_mask = 0x0F;  // upper nibble after shift
+    uint8_t fix_type = (telem.gps_fix_sats >> 4) & k_gps_fix_nibble_mask;
 
     int32_t lat = telem.lat_1e7;
     int32_t lon = telem.lon_1e7;
@@ -502,9 +502,9 @@ uint8_t ccsds_encode_cmd_ack(const ccsds::CommandAckPayload& ack,
 bool ccsds_decode_cmd_ack(const uint8_t* buf, uint8_t len,
                            ccsds::CommandAckPayload& ack_out) {
     // Expected length: primary(6) + secondary(4) + payload(5) + CRC(2) = 17
-    constexpr uint8_t kExpectedLen = ccsds::kPrimaryHeaderLen +
+    constexpr uint8_t k_expected_len = ccsds::kPrimaryHeaderLen +
         ccsds::kSecondaryHeaderLen + ccsds::kCmdAckPayloadLen + ccsds::kCrcLen;
-    if (len != kExpectedLen) {
+    if (len != k_expected_len) {
         return false;
     }
 
@@ -521,17 +521,17 @@ bool ccsds_decode_cmd_ack(const uint8_t* buf, uint8_t len,
     }
 
     // CRC-16 verification
-    constexpr uint8_t kCrcIdx = kExpectedLen - ccsds::kCrcLen;
-    uint16_t computed_crc = crc16_ccitt(buf, kCrcIdx);
+    constexpr uint8_t k_crc_idx = k_expected_len - ccsds::kCrcLen;
+    uint16_t computed_crc = crc16_ccitt(buf, k_crc_idx);
     uint16_t stored_crc = static_cast<uint16_t>(
-        (buf[kCrcIdx] << 8) | buf[kCrcIdx + 1]);
+        (buf[k_crc_idx] << 8) | buf[k_crc_idx + 1]);
     if (computed_crc != stored_crc) {
         return false;
     }
 
     // Extract payload (after primary + secondary header)
-    constexpr uint8_t kPayloadStart = ccsds::kPrimaryHeaderLen + ccsds::kSecondaryHeaderLen;
-    memcpy(&ack_out, &buf[kPayloadStart], ccsds::kCmdAckPayloadLen);
+    constexpr uint8_t k_payload_start = ccsds::kPrimaryHeaderLen + ccsds::kSecondaryHeaderLen;
+    memcpy(&ack_out, &buf[k_payload_start], ccsds::kCmdAckPayloadLen);
 
     return true;
 }

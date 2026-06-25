@@ -286,8 +286,8 @@ static const char* cmd_id_short_name(uint16_t cmd_id) {
 //  - FAIL:    "CMD: ARM/DISARM  FAILED"    (red, held ~5s after exhaustion)
 //  - idle:    "CMD: ---"                   (reset color)
 static void format_cmd_status_row(char* out, size_t n, const char*& colour) {
-    constexpr uint32_t kAckHoldMs  = 3000U;
-    constexpr uint32_t kFailHoldMs = 5000U;
+    constexpr uint32_t k_ack_hold_ms  = 3000U;
+    constexpr uint32_t k_fail_hold_ms = 5000U;
 
     PendingCmdStatus st{};
     AO_Telemetry_get_pending_cmd_status(&st);
@@ -309,14 +309,14 @@ static void format_cmd_status_row(char* out, size_t n, const char*& colour) {
 
     if (st.last_result_valid) {
         const uint32_t age = now - st.last_result_ms;
-        if (st.last_result_ok && age < kAckHoldMs) {
+        if (st.last_result_ok && age < k_ack_hold_ms) {
             colour = kGreen;
             rc::rc_snprintf(out, n, "CMD: %-10s ACK %ums",
                             cmd_id_short_name(st.last_cmd_id),
                             static_cast<unsigned>(st.last_rtt_ms));
             return;
         }
-        if (!st.last_result_ok && age < kFailHoldMs) {
+        if (!st.last_result_ok && age < k_fail_hold_ms) {
             colour = kRed;
             rc::rc_snprintf(out, n, "CMD: %-10s FAILED",
                             cmd_id_short_name(st.last_cmd_id));

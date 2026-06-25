@@ -242,16 +242,16 @@ bool psram_self_test(size_t size) {
     volatile uint32_t* base =
         reinterpret_cast<volatile uint32_t*>(kPsramCachedBase);
 
-    static constexpr uint32_t kPattern1 = 0xDEADBEEFU;
-    static constexpr uint32_t kPattern2 = 0xCAFEBABEU;
-    static constexpr uint32_t kPattern3 = 0x12345678U;
+    static constexpr uint32_t k_pattern1 = 0xDEADBEEFU;
+    static constexpr uint32_t k_pattern2 = 0xCAFEBABEU;
+    static constexpr uint32_t k_pattern3 = 0x12345678U;
 
     const uint32_t offsets[] = {
         0,                                      // First word
         (static_cast<uint32_t>(size) / 2) / 4,  // Middle (word index)
         (static_cast<uint32_t>(size) - 4) / 4   // Last word
     };
-    const uint32_t patterns[] = {kPattern1, kPattern2, kPattern3};
+    const uint32_t patterns[] = {k_pattern1, k_pattern2, k_pattern3};
 
     // Write patterns
     for (uint32_t i = 0; i < 3; ++i) {

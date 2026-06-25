@@ -56,8 +56,8 @@ void pcm_encode_standard(const TelemetryState& telem, uint32_t met_ms,
     std::memcpy(&frame.payload, &telem, sizeof(TelemetryState));
 
     // CRC-16 over header + payload (bytes 0 through 52)
-    static constexpr uint32_t kCrcLen = sizeof(PcmFrameHeader) + sizeof(TelemetryState);
-    frame.crc16 = crc16_ccitt(&frame, kCrcLen);
+    static constexpr uint32_t k_crc_len = sizeof(PcmFrameHeader) + sizeof(TelemetryState);
+    frame.crc16 = crc16_ccitt(&frame, k_crc_len);
 }
 
 bool pcm_decode_standard(const PcmFrameStandard& frame, TelemetryState& telem) {
@@ -74,8 +74,8 @@ bool pcm_decode_standard(const PcmFrameStandard& frame, TelemetryState& telem) {
     }
 
     // Gate 3: CRC-16 over header + payload
-    static constexpr uint32_t kCrcLen = sizeof(PcmFrameHeader) + sizeof(TelemetryState);
-    uint16_t computed = crc16_ccitt(&frame, kCrcLen);
+    static constexpr uint32_t k_crc_len = sizeof(PcmFrameHeader) + sizeof(TelemetryState);
+    uint16_t computed = crc16_ccitt(&frame, k_crc_len);
     if (computed != frame.crc16) {
         return false;
     }
@@ -89,8 +89,8 @@ bool pcm_find_sync(const uint8_t* data, uint32_t len, uint32_t& offset) {
         return false;
     }
 
-    uint32_t searchEnd = len - kPcmFrameStandardSize;
-    for (uint32_t i = 0; i <= searchEnd; ++i) {
+    uint32_t search_end = len - kPcmFrameStandardSize;
+    for (uint32_t i = 0; i <= search_end; ++i) {
         // Gate 1: sync word
         if (data[i] == kPcmSyncHigh && data[i + 1] == kPcmSyncLow) {
             // Overlay frame struct at candidate position
@@ -100,8 +100,8 @@ bool pcm_find_sync(const uint8_t* data, uint32_t len, uint32_t& offset) {
             if (candidate->header.frame_type == kPcmFrameTypeStandard &&
                 candidate->header.payload_len == kPcmStandardPayloadLen) {
                 // Gate 3: CRC-16
-                static constexpr uint32_t kCrcLen = sizeof(PcmFrameHeader) + sizeof(TelemetryState);
-                uint16_t computed = crc16_ccitt(&data[i], kCrcLen);
+                static constexpr uint32_t k_crc_len = sizeof(PcmFrameHeader) + sizeof(TelemetryState);
+                uint16_t computed = crc16_ccitt(&data[i], k_crc_len);
                 if (computed == candidate->crc16) {
                     offset = i;
                     return true;
@@ -129,8 +129,8 @@ void pcm_encode_event(uint8_t event_id, const uint8_t data[4],
     std::memcpy(frame.data, data, 4);
 
     // CRC over header + payload (13 bytes: 8 header + 5 payload)
-    static constexpr uint32_t kCrcLen = 13;
-    frame.crc16 = crc16_ccitt(&frame, kCrcLen);
+    static constexpr uint32_t k_crc_len = 13;
+    frame.crc16 = crc16_ccitt(&frame, k_crc_len);
 }
 
 // ============================================================================

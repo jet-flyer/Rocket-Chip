@@ -139,10 +139,10 @@ static void init_gps() {
         return;
     }
     g_gpsInitAttempted = true;
-    uint8_t gpsDrain[255];
+    uint8_t gps_drain[255];
     // Drain the auto-streamed NMEA so gps_pa1010d_init() starts clean; the
     // bytes are deliberately discarded (LL 20). (void) is the honest marker.
-    (void)i2c_bus_read(kGpsPa1010dAddr, gpsDrain, sizeof(gpsDrain));
+    (void)i2c_bus_read(kGpsPa1010dAddr, gps_drain, sizeof(gps_drain));
     if (gps_pa1010d_init()) {
         g_gpsInitialized = true;
         bind_gps_i2c_backend();
@@ -159,22 +159,22 @@ static void init_sensors() {
     // Probing the GPS (0x10) triggers NMEA streaming which can corrupt
     // AK09916 init transactions. Defer GPS probe until after IMU bypass
     // mode is fully established.
-    bool imuDetected  = i2c_bus_probe(kIcm20948AddrDefault);
-    if (!imuDetected) {
-        imuDetected = i2c_bus_imu_recovery(kIcm20948AddrDefault);
+    bool imu_detected  = i2c_bus_probe(kIcm20948AddrDefault);
+    if (!imu_detected) {
+        imu_detected = i2c_bus_imu_recovery(kIcm20948AddrDefault);
     }
-    bool baroDetected = i2c_bus_probe(kBaroDps310AddrDefault);
+    bool baro_detected = i2c_bus_probe(kBaroDps310AddrDefault);
     // Sensor power-up settling time
     // ICM-20948 datasheet: 11ms, DPS310: 40ms, generous margin
     sleep_ms(kSensorSettleMs);
 
     // Init IMU first — establishes bypass mode for AK09916 at 0x0C
-    if (imuDetected) {
+    if (imu_detected) {
         g_imuInitAttempted = true;
         g_imuInitialized = icm20948_init(&g_imu, kIcm20948AddrDefault);
     }
 
-    if (baroDetected) {
+    if (baro_detected) {
         g_baroInitAttempted = true;
         g_baroInitialized = baro_dps310_init(kBaroDps310AddrDefault);
         if (g_baroInitialized) {
@@ -332,12 +332,12 @@ static void init_pio_safety() {
     }
     // Backup deployment timers (drogue=GPIO12, main=GPIO13)
     // Bench test pins — not connected to pyro hardware yet
-    static constexpr uint8_t kPioDroguePin = 12;
-    static constexpr uint8_t kPioMainPin = 13;
-    if (!rc::pio_backup_timer_init(kPioDroguePin, kPioMainPin)) {
+    static constexpr uint8_t k_pio_drogue_pin = 12;
+    static constexpr uint8_t k_pio_main_pin = 13;
+    if (!rc::pio_backup_timer_init(k_pio_drogue_pin, k_pio_main_pin)) {
         DBG_ERROR("PIO backup timer init failed");
     }
-    rc::pyro_edge_logger_init(kPioDroguePin, kPioMainPin);
+    rc::pyro_edge_logger_init(k_pio_drogue_pin, k_pio_main_pin);
 }
 
 // Vehicle: signal Core 1 to start sensor phase + wait for lockout.

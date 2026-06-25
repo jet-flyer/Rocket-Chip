@@ -90,159 +90,159 @@ std::atomic<bool> g_bestGpsValid{false};
 // call stays in the sensor loop -- NOT inside these helpers (council rule).
 
 // IMU error path: increment fail counter, invalidate accel/gyro, attempt recovery.
-static void core1_imu_error_recovery(uint32_t* imuConsecFail,
-                                      shared_sensor_data_t* localData) {
-    (*imuConsecFail)++;
-    localData->accel_valid = false;
-    localData->gyro_valid = false;
-    localData->imu_error_count++;
-    if (*imuConsecFail >= kCore1ConsecFailDevReset) {
+static void core1_imu_error_recovery(uint32_t* imu_consec_fail,
+                                      shared_sensor_data_t* local_data) {
+    (*imu_consec_fail)++;
+    local_data->accel_valid = false;
+    local_data->gyro_valid = false;
+    local_data->imu_error_count++;
+    if (*imu_consec_fail >= kCore1ConsecFailDevReset) {
         icm20948_init(&g_imu, kIcm20948AddrDefault);
-        *imuConsecFail = 0;
-    } else if (*imuConsecFail >= kCore1ConsecFailBusRecover
-               && *imuConsecFail % kCore1ConsecFailBusRecover == 0) {
+        *imu_consec_fail = 0;
+    } else if (*imu_consec_fail >= kCore1ConsecFailBusRecover
+               && *imu_consec_fail % kCore1ConsecFailBusRecover == 0) {
         i2c_bus_recover();
     }
 }
 
 // Apply calibration to raw IMU data and write calibrated values into localData.
-static void core1_apply_imu_cal(const icm20948_data_t& imuData,
-                                 shared_sensor_data_t* localData,
-                                 calibration_store_t* localCal) {
-    cal_vec3_t accelOut;
-    cal_vec3_t gyroOut;
-    calibration_apply_accel_with(localCal,
-        {imuData.accel.x, imuData.accel.y, imuData.accel.z}, accelOut);
-    calibration_apply_gyro_with(localCal,
-        {imuData.gyro.x, imuData.gyro.y, imuData.gyro.z}, gyroOut);
+static void core1_apply_imu_cal(const icm20948_data_t& imu_data,
+                                 shared_sensor_data_t* local_data,
+                                 calibration_store_t* local_cal) {
+    cal_vec3_t accel_out;
+    cal_vec3_t gyro_out;
+    calibration_apply_accel_with(local_cal,
+        {imu_data.accel.x, imu_data.accel.y, imu_data.accel.z}, accel_out);
+    calibration_apply_gyro_with(local_cal,
+        {imu_data.gyro.x, imu_data.gyro.y, imu_data.gyro.z}, gyro_out);
 
-    localData->accel_x = accelOut.x;
-    localData->accel_y = accelOut.y;
-    localData->accel_z = accelOut.z;
-    localData->gyro_x = gyroOut.x;
-    localData->gyro_y = gyroOut.y;
-    localData->gyro_z = gyroOut.z;
-    localData->imu_timestamp_us = time_us_32();
-    localData->imu_read_count++;
-    localData->accel_valid = true;
-    localData->gyro_valid = true;
+    local_data->accel_x = accel_out.x;
+    local_data->accel_y = accel_out.y;
+    local_data->accel_z = accel_out.z;
+    local_data->gyro_x = gyro_out.x;
+    local_data->gyro_y = gyro_out.y;
+    local_data->gyro_z = gyro_out.z;
+    local_data->imu_timestamp_us = time_us_32();
+    local_data->imu_read_count++;
+    local_data->accel_valid = true;
+    local_data->gyro_valid = true;
 
-    if (imuData.mag_valid) {
-        cal_vec3_t magOut;
-        calibration_apply_mag_with(localCal,
-            {imuData.mag.x, imuData.mag.y, imuData.mag.z}, magOut);
-        localData->mag_x = magOut.x;
-        localData->mag_y = magOut.y;
-        localData->mag_z = magOut.z;
-        localData->mag_raw_x = imuData.mag.x;
-        localData->mag_raw_y = imuData.mag.y;
-        localData->mag_raw_z = imuData.mag.z;
-        localData->mag_valid = true;
-        localData->mag_read_count++;
+    if (imu_data.mag_valid) {
+        cal_vec3_t mag_out;
+        calibration_apply_mag_with(local_cal,
+            {imu_data.mag.x, imu_data.mag.y, imu_data.mag.z}, mag_out);
+        local_data->mag_x = mag_out.x;
+        local_data->mag_y = mag_out.y;
+        local_data->mag_z = mag_out.z;
+        local_data->mag_raw_x = imu_data.mag.x;
+        local_data->mag_raw_y = imu_data.mag.y;
+        local_data->mag_raw_z = imu_data.mag.z;
+        local_data->mag_valid = true;
+        local_data->mag_read_count++;
     }
 }
 
-static void core1_read_imu(shared_sensor_data_t* localData,
-                            calibration_store_t* localCal,
-                            uint32_t* imuConsecFail,
-                            bool feedCal) {
-    icm20948_data_t imuData;
-    bool imuOk = icm20948_read(&g_imu, &imuData);
-    if (!imuOk) {
-        core1_imu_error_recovery(imuConsecFail, localData);
+static void core1_read_imu(shared_sensor_data_t* local_data,
+                            calibration_store_t* local_cal,
+                            uint32_t* imu_consec_fail,
+                            bool feed_cal) {
+    icm20948_data_t imu_data;
+    bool imu_ok = icm20948_read(&g_imu, &imu_data);
+    if (!imu_ok) {
+        core1_imu_error_recovery(imu_consec_fail, local_data);
         return;
     }
 
     // Sanity-check raw accel magnitude. A working sensor in ANY orientation always
     // measures at least 3 m/s^2 (gravity floor at 72 deg tilt: 9.8*cos(72 deg)=3.0).
     // All-zeros = ICM-20948 silent reset to sleep state (LL Entry 29).
-    const float rawAccelMag = sqrtf(
-        imuData.accel.x * imuData.accel.x +
-        imuData.accel.y * imuData.accel.y +
-        imuData.accel.z * imuData.accel.z);
-    if (rawAccelMag < kAccelMinHealthyMag) {
-        core1_imu_error_recovery(imuConsecFail, localData);
+    const float raw_accel_mag = sqrtf(
+        imu_data.accel.x * imu_data.accel.x +
+        imu_data.accel.y * imu_data.accel.y +
+        imu_data.accel.z * imu_data.accel.z);
+    if (raw_accel_mag < kAccelMinHealthyMag) {
+        core1_imu_error_recovery(imu_consec_fail, local_data);
         return;
     }
 
-    *imuConsecFail = 0;
+    *imu_consec_fail = 0;
 
     // Feed calibration with RAW data (before cal apply) -- Core 1 owns I2C,
     // so no bus contention. Core 0 must NOT do concurrent icm20948_read().
-    if (feedCal) {
-        cal_state_t calState = calibration_manager_get_state();
-        if (calState == CAL_STATE_GYRO_SAMPLING) {
-            calibration_feed_gyro(imuData.gyro.x, imuData.gyro.y,
-                                  imuData.gyro.z, imuData.temperature_c);
-        } else if (calState == CAL_STATE_ACCEL_LEVEL_SAMPLING ||
-                   calState == CAL_STATE_ACCEL_6POS_SAMPLING) {
-            calibration_feed_accel(imuData.accel.x, imuData.accel.y,
-                                   imuData.accel.z, imuData.temperature_c);
+    if (feed_cal) {
+        cal_state_t cal_state = calibration_manager_get_state();
+        if (cal_state == CAL_STATE_GYRO_SAMPLING) {
+            calibration_feed_gyro(imu_data.gyro.x, imu_data.gyro.y,
+                                  imu_data.gyro.z, imu_data.temperature_c);
+        } else if (cal_state == CAL_STATE_ACCEL_LEVEL_SAMPLING ||
+                   cal_state == CAL_STATE_ACCEL_6POS_SAMPLING) {
+            calibration_feed_accel(imu_data.accel.x, imu_data.accel.y,
+                                   imu_data.accel.z, imu_data.temperature_c);
         }
     }
 
-    core1_apply_imu_cal(imuData, localData, localCal);
+    core1_apply_imu_cal(imu_data, local_data, local_cal);
 }
 
-static void core1_read_baro(shared_sensor_data_t* localData) {
-    static uint32_t baroConsecFail = 0;
-    static uint32_t baroReinitAttempts = 0;
+static void core1_read_baro(shared_sensor_data_t* local_data) {
+    static uint32_t baro_consec_fail = 0;
+    static uint32_t baro_reinit_attempts = 0;
 
     // Read directly via ruuvi driver -- no MEAS_CFG pre-check.
     // The DPS310 in continuous mode alternates PRS_RDY and TMP_RDY;
     // requiring both simultaneously is too strict and produces false errors.
     // The ruuvi driver reads raw registers; I2C failure returns !valid.
-    baro_dps310_data_t baroData;
-    if (baro_dps310_read(&baroData) && baroData.valid) {
-        localData->pressure_pa = baroData.pressure_pa;
-        localData->baro_temperature_c = baroData.temperature_c;
-        localData->baro_timestamp_us = time_us_32();
-        localData->baro_read_count++;
-        localData->baro_valid = true;
-        baroConsecFail = 0;
-        baroReinitAttempts = 0;  // Successful read proves sensor is alive
+    baro_dps310_data_t baro_data;
+    if (baro_dps310_read(&baro_data) && baro_data.valid) {
+        local_data->pressure_pa = baro_data.pressure_pa;
+        local_data->baro_temperature_c = baro_data.temperature_c;
+        local_data->baro_timestamp_us = time_us_32();
+        local_data->baro_read_count++;
+        local_data->baro_valid = true;
+        baro_consec_fail = 0;
+        baro_reinit_attempts = 0;  // Successful read proves sensor is alive
 
         // Feed baro calibration with raw data from Core 1
         if (calibration_manager_get_state() == CAL_STATE_BARO_SAMPLING) {
-            calibration_feed_baro(baroData.pressure_pa,
-                                  baroData.temperature_c);
+            calibration_feed_baro(baro_data.pressure_pa,
+                                  baro_data.temperature_c);
         }
         return;
     }
 
     // I2C failure or driver error -- escalate (mirrors IMU pattern)
-    baroConsecFail++;
-    localData->baro_error_count++;
-    if (baroConsecFail >= kCore1ConsecFailDevReset) {
-        if (baroReinitAttempts < kBaroMaxReinitAttempts) {
+    baro_consec_fail++;
+    local_data->baro_error_count++;
+    if (baro_consec_fail >= kCore1ConsecFailDevReset) {
+        if (baro_reinit_attempts < kBaroMaxReinitAttempts) {
             baro_dps310_start_continuous();
-            baroReinitAttempts++;
+            baro_reinit_attempts++;
         } else {
             g_baroInitialized = false;  // Declare baro dead
         }
-        baroConsecFail = 0;
-    } else if (baroConsecFail >= kCore1ConsecFailBusRecover
-               && baroConsecFail % kCore1ConsecFailBusRecover == 0) {
+        baro_consec_fail = 0;
+    } else if (baro_consec_fail >= kCore1ConsecFailBusRecover
+               && baro_consec_fail % kCore1ConsecFailBusRecover == 0) {
         i2c_bus_recover();
     }
 }
 
 // Update best-fix diagnostic when satellite count or HDOP improves.
 // Public (sensor_core1.h) — shared with station idle-bridge tick (IVP-141).
-void core1_update_best_gps_fix(const shared_sensor_data_t* localData) {
-    if (localData->gps_valid && localData->gps_fix_type >= 2) {
+void core1_update_best_gps_fix(const shared_sensor_data_t* local_data) {
+    if (local_data->gps_valid && local_data->gps_fix_type >= 2) {
         bool better = !g_bestGpsValid.load(std::memory_order_relaxed)
-                      || (localData->gps_satellites > g_bestGpsFix.satellites)
-                      || (localData->gps_satellites == g_bestGpsFix.satellites &&
-                          localData->gps_hdop > 0.0F &&
-                          localData->gps_hdop < g_bestGpsFix.hdop);
+                      || (local_data->gps_satellites > g_bestGpsFix.satellites)
+                      || (local_data->gps_satellites == g_bestGpsFix.satellites &&
+                          local_data->gps_hdop > 0.0F &&
+                          local_data->gps_hdop < g_bestGpsFix.hdop);
         if (better) {
-            g_bestGpsFix.lat_1e7     = localData->gps_lat_1e7;
-            g_bestGpsFix.lon_1e7     = localData->gps_lon_1e7;
-            g_bestGpsFix.alt_msl_m   = localData->gps_alt_msl_m;
-            g_bestGpsFix.hdop        = localData->gps_hdop;
-            g_bestGpsFix.satellites  = localData->gps_satellites;
-            g_bestGpsFix.fix_type    = localData->gps_fix_type;
+            g_bestGpsFix.lat_1e7     = local_data->gps_lat_1e7;
+            g_bestGpsFix.lon_1e7     = local_data->gps_lon_1e7;
+            g_bestGpsFix.alt_msl_m   = local_data->gps_alt_msl_m;
+            g_bestGpsFix.hdop        = local_data->gps_hdop;
+            g_bestGpsFix.satellites  = local_data->gps_satellites;
+            g_bestGpsFix.fix_type    = local_data->gps_fix_type;
             g_bestGpsValid.store(true, std::memory_order_release);
         }
     }
@@ -250,43 +250,43 @@ void core1_update_best_gps_fix(const shared_sensor_data_t* localData) {
 
 // GPS UART staleness watchdog. Reinits UART if no valid parse for 10s,
 // gated on flight state (don't reinit mid-flight). Blocks up to 2s.
-static void core1_gps_staleness_check(bool parsed, uint32_t nowUs) {
-    static uint32_t lastValidGpsUs = 0;
+static void core1_gps_staleness_check(bool parsed, uint32_t now_us) {
+    static uint32_t last_valid_gps_us = 0;
 
     if (parsed) {
-        lastValidGpsUs = nowUs;
+        last_valid_gps_us = now_us;
         return;
     }
 
-    if (g_gpsTransport != GPS_TRANSPORT_UART || lastValidGpsUs == 0) {
+    if (g_gpsTransport != GPS_TRANSPORT_UART || last_valid_gps_us == 0) {
         return;
     }
-    if (nowUs - lastValidGpsUs <= kGpsStalenessTimeoutUs) {
+    if (now_us - last_valid_gps_us <= kGpsStalenessTimeoutUs) {
         return;
     }
 
     // Flight state gate: proxy heuristic.
-    bool probablyFlying = g_eskfInitialized &&
+    bool probably_flying = g_eskfInitialized &&
                           g_eskf.v.norm() > kGpsFlyingVelocityThreshold;
-    if (probablyFlying) {
+    if (probably_flying) {
         return;
     }
 
     if (!gps_uart_reinit()) {
         g_gpsInitialized = false;  // GPS dead -- stop polling
     }
-    lastValidGpsUs = time_us_32();  // Reset timer after attempt
+    last_valid_gps_us = time_us_32();  // Reset timer after attempt
 }
 
 // Public (sensor_core1.h) — shared with station idle-bridge tick (IVP-141).
-void core1_read_gps(shared_sensor_data_t* localData,
-                    uint32_t* lastGpsReadUs) {
-    uint32_t gpsNowUs = time_us_32();
-    if (gpsNowUs - *lastGpsReadUs < kGpsMinIntervalUs) {
+void core1_read_gps(shared_sensor_data_t* local_data,
+                    uint32_t* last_gps_read_us) {
+    uint32_t gps_now_us = time_us_32();
+    if (gps_now_us - *last_gps_read_us < kGpsMinIntervalUs) {
         return;
     }
 
-    *lastGpsReadUs = gpsNowUs;
+    *last_gps_read_us = gps_now_us;
 
     // Transport-neutral poll via function pointers (set once in init_sensors)
     bool parsed = g_gpsFnUpdate();
@@ -298,8 +298,8 @@ void core1_read_gps(shared_sensor_data_t* localData,
     g_gpsFnGetData(&d);
 
     // gps_read_count always increments -- counts driver polls, not valid fixes.
-    localData->gps_read_count++;
-    localData->gps_timestamp_us = gpsNowUs;
+    local_data->gps_read_count++;
+    local_data->gps_timestamp_us = gps_now_us;
 
     // Hold-on-valid pattern (ArduPilot GPS backend `new_data` flag):
     // Between 1Hz NMEA bursts at 10Hz polling, 9/10 cycles have d.valid==false.
@@ -313,29 +313,29 @@ void core1_read_gps(shared_sensor_data_t* localData,
         if (lon > kLonMaxDeg) { lon = kLonMaxDeg; }
         if (lon < kLonMinDeg) { lon = kLonMinDeg; }
 
-        localData->gps_lat_1e7 = static_cast<int32_t>(lat * kGpsCoordScale);
-        localData->gps_lon_1e7 = static_cast<int32_t>(lon * kGpsCoordScale);
-        localData->gps_alt_msl_m = d.altitudeM;
-        localData->gps_ground_speed_mps = d.speedMps;
-        localData->gps_course_deg = d.courseDeg;
-        localData->gps_valid = true;
-        localData->gps_hdop = d.hdop;
-        localData->gps_vdop = d.vdop;
+        local_data->gps_lat_1e7 = static_cast<int32_t>(lat * kGpsCoordScale);
+        local_data->gps_lon_1e7 = static_cast<int32_t>(lon * kGpsCoordScale);
+        local_data->gps_alt_msl_m = d.altitudeM;
+        local_data->gps_ground_speed_mps = d.speedMps;
+        local_data->gps_course_deg = d.courseDeg;
+        local_data->gps_valid = true;
+        local_data->gps_hdop = d.hdop;
+        local_data->gps_vdop = d.vdop;
     }
 
     // Always update diagnostic fields (satellites, fix type, raw sentence flags)
-    localData->gps_fix_type = static_cast<uint8_t>(d.fix);
-    localData->gps_satellites = d.satellites;
-    localData->gps_gga_fix = d.ggaFix;
-    localData->gps_gsa_fix_mode = d.gsaFixMode;
-    localData->gps_rmc_valid = d.rmcValid;
+    local_data->gps_fix_type = static_cast<uint8_t>(d.fix);
+    local_data->gps_satellites = d.satellites;
+    local_data->gps_gga_fix = d.ggaFix;
+    local_data->gps_gsa_fix_mode = d.gsaFixMode;
+    local_data->gps_rmc_valid = d.rmcValid;
 
     if (!parsed) {
-        localData->gps_error_count++;
+        local_data->gps_error_count++;
     }
 
-    core1_gps_staleness_check(parsed, gpsNowUs);
-    core1_update_best_gps_fix(localData);
+    core1_gps_staleness_check(parsed, gps_now_us);
+    core1_update_best_gps_fix(local_data);
 }
 
 // ============================================================================
@@ -347,9 +347,9 @@ void core1_read_gps(shared_sensor_data_t* localData,
 
 // Check calibration reload request and I2C pause from Core 0. Returns true
 // if the caller should skip the rest of the loop iteration (continue).
-static bool core1_check_pause_and_reload(calibration_store_t* localCal) {
+static bool core1_check_pause_and_reload(calibration_store_t* local_cal) {
     if (g_calReloadPending.load(std::memory_order_acquire)) {
-        calibration_load_into(localCal);
+        calibration_load_into(local_cal);
         g_calReloadPending.store(false, std::memory_order_release);
     }
 
@@ -369,16 +369,16 @@ static bool core1_check_pause_and_reload(calibration_store_t* localCal) {
 }
 
 // Load calibration from flash, or set identity defaults if unavailable.
-static void core1_load_cal_or_defaults(calibration_store_t* localCal) {
-    if (!calibration_load_into(localCal)) {
-        memset(localCal, 0, sizeof(*localCal));
-        localCal->accel.scale.x = 1.0F;
-        localCal->accel.scale.y = 1.0F;
-        localCal->accel.scale.z = 1.0F;
+static void core1_load_cal_or_defaults(calibration_store_t* local_cal) {
+    if (!calibration_load_into(local_cal)) {
+        memset(local_cal, 0, sizeof(*local_cal));
+        local_cal->accel.scale.x = 1.0F;
+        local_cal->accel.scale.y = 1.0F;
+        local_cal->accel.scale.z = 1.0F;
         // NOLINTBEGIN(readability-magic-numbers) -- 3x3 identity matrix diagonal indices
-        localCal->board_rotation.m[0] = 1.0F;
-        localCal->board_rotation.m[4] = 1.0F;
-        localCal->board_rotation.m[8] = 1.0F;
+        local_cal->board_rotation.m[0] = 1.0F;
+        local_cal->board_rotation.m[4] = 1.0F;
+        local_cal->board_rotation.m[8] = 1.0F;
         // NOLINTEND(readability-magic-numbers)
     }
 }
@@ -397,66 +397,66 @@ struct Core1SensorCycle {
 
 // Run one pass of each sensor (rate-divided) into localData. Mirrors the
 // dispatch that used to live inline in core1_sensor_loop().
-static void core1_sensor_pass(shared_sensor_data_t* localData,
-                               calibration_store_t* localCal,
+static void core1_sensor_pass(shared_sensor_data_t* local_data,
+                               calibration_store_t* local_cal,
                                Core1SensorCycle* cyc) {
     cyc->calFeedCycle++;
-    bool feedCal = (cyc->calFeedCycle >= kCore1CalFeedDivider);
-    if (feedCal) {
+    bool feed_cal = (cyc->calFeedCycle >= kCore1CalFeedDivider);
+    if (feed_cal) {
         cyc->calFeedCycle = 0;
     }
     if (g_imuInitialized) {
-        core1_read_imu(localData, localCal, &cyc->imuConsecFail, feedCal);
+        core1_read_imu(local_data, local_cal, &cyc->imuConsecFail, feed_cal);
     }
 
     cyc->baroCycle++;
     if (cyc->baroCycle >= kCore1BaroDivider && g_baroInitialized) {
         cyc->baroCycle = 0;
-        core1_read_baro(localData);
+        core1_read_baro(local_data);
     }
 
     cyc->gpsCycle++;
     if (cyc->gpsCycle >= kCore1GpsDivider && g_gpsInitialized
         && !rc_os_mag_cal_active.load(std::memory_order_acquire)) {
         cyc->gpsCycle = 0;
-        core1_read_gps(localData, &cyc->lastGpsReadUs);
+        core1_read_gps(local_data, &cyc->lastGpsReadUs);
     }
 
     cyc->mcuTempCycle++;
     if (cyc->mcuTempCycle >= kCore1McuTempDivider && rc::mcu_temp_available()) {
         cyc->mcuTempCycle = 0;
-        localData->mcu_die_temp_c = rc::mcu_temp_read_c();
-        localData->mcu_temp_read_count++;
+        local_data->mcu_die_temp_c = rc::mcu_temp_read_c();
+        local_data->mcu_temp_read_count++;
     }
 }
 
 static void core1_sensor_loop() {
-    calibration_store_t localCal;
-    core1_load_cal_or_defaults(&localCal);
+    calibration_store_t local_cal;
+    core1_load_cal_or_defaults(&local_cal);
 
-    shared_sensor_data_t localData = {};
+    shared_sensor_data_t local_data = {};
     // Initial MCU temp sentinel so seqlock readers don't see an
     // all-zeros 0.0°C before the first capture.
-    localData.mcu_die_temp_c = -999.0F;
+    local_data.mcu_die_temp_c = -999.0F;
 
     Core1SensorCycle cyc{};
-    uint32_t loopCount = 0;
+    uint32_t loop_count = 0;
 
     while (true) {
-        uint32_t cycleStartUs = time_us_32();
-        loopCount++;
+        uint32_t cycle_start_us = time_us_32();
+        loop_count++;
 
-        if (!core1_check_pause_and_reload(&localCal)) {
-            core1_sensor_pass(&localData, &localCal, &cyc);
+        if (!core1_check_pause_and_reload(&local_cal)) {
+            core1_sensor_pass(&local_data, &local_cal, &cyc);
 
             // Seqlock publish (always write, even on IMU failure — council mod #4)
-            localData.core1_loop_count = loopCount;
-            seqlock_write(&g_sensorSeqlock, &localData);
+            local_data.core1_loop_count = loop_count;
+            seqlock_write(&g_sensorSeqlock, &local_data);
 
             // PIO heartbeat watchdog monitors both cores via FIFO feed from Core 0.
             // LED state evaluated on Core 0 via AO_LedEngine.
 
-            uint32_t elapsed = time_us_32() - cycleStartUs;
+            uint32_t elapsed = time_us_32() - cycle_start_us;
             if (elapsed < kCore1TargetCycleUs) {
                 busy_wait_us(kCore1TargetCycleUs - elapsed);
             }
@@ -495,13 +495,13 @@ void core1_entry() {
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         // Vehicle: bounded wait. Loop bound expressed as constants so the
         // compiler folds the static-bound check at -O2.
-        constexpr uint32_t kCore1BootWaitTickMs = 10U;
-        constexpr uint32_t kCore1BootWaitMaxIters = 1000U;  // 10 s ceiling
-        for (uint32_t iter = 0U; iter < kCore1BootWaitMaxIters; ++iter) {
+        constexpr uint32_t k_core1_boot_wait_tick_ms = 10U;
+        constexpr uint32_t k_core1_boot_wait_max_iters = 1000U;  // 10 s ceiling
+        for (uint32_t iter = 0U; iter < k_core1_boot_wait_max_iters; ++iter) {
             if (g_startSensorPhase.load(std::memory_order_acquire)) {
                 break;
             }
-            sleep_ms(kCore1BootWaitTickMs);
+            sleep_ms(k_core1_boot_wait_tick_ms);
         }
         if (!g_startSensorPhase.load(std::memory_order_acquire)) {
             // Timeout — Core 0 didn't signal sensor phase start in 10 s.
