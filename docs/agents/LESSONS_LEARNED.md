@@ -1698,3 +1698,42 @@ The existing mechanical defense (`BUILD_SYSTEM_AUDIT.md` "pedantic-gate coverage
 - LL 36 (bench_sim regex rot) + LL 40 (categories not enumerations) — the "gate looks covered but isn't" family.
 - `SESSION_CHECKLIST` item 15 / `BUILD_SYSTEM_AUDIT.md` — has a pedantic-gate-*coverage* check, but it tests `ROCKETCHIP_SOURCES` membership, not `COMPILE_OPTIONS` flag-dropping.
 - CHANGELOG `2026-06-24-002`; commit `60ce731`.
+
+---
+
+## Entry 44: Mass Identifier Renaming — Use clang-refactor (AST), Not clang-tidy --fix or Text Replace
+
+**Date:** 2026-06-25
+**Context:** L2-P5 identifier-naming remediation — ~742 renames to the JSF house standard across the flight codebase.
+**Severity:** High-process — three earlier mechanisms each shipped a *different* class of subtle bug into flight code (all caught by verification before commit); the AST tool eliminates the whole hazard class.
+
+### Problem
+Rename hundreds of identifiers (locals/params/statics/globals/constants/functions) to a naming convention. Three mechanisms were tried before the right one, each with its own failure:
+1. **`clang-tidy --fix`** — drops uses of names reused across scopes (two `rotMat` locals in different functions → declaration renamed, some uses left dangling → build break).
+2. **Text / `sed` whole-word replace** — (a) collides on reused short/common names (a rename whose target already exists in scope → aliasing → **15 silent test failures**, compiles fine); (b) matches inside char/string literals (`'N'` → `'kN'`, a multichar constant, fatal only under `-Werror=multichar`).
+3. **`clang-tidy` with a PARTIAL config** (e.g. only `StaticVariableCase`) — mis-classifies (a function-local `constexpr` *constant* read as a static *variable*) → the rename tool faithfully renames the WRONG target (`kCrcLen` → `g_kCrcLen`), and a later pass compounds it into garbage (`kGKCrcLen`).
+
+### Root cause
+A rename is a *semantic, scope-aware* operation. `clang-tidy --fix` approximates it (incomplete on reused names); text replace ignores scope and lexical context entirely; a partial config feeds the tool a wrong classification. The bug is never the AST tool — it's the approximation feeding or replacing it.
+
+### Solution — clang-refactor local-rename (AST), the validated recipe
+`clang-refactor local-rename` operates on the parsed AST: it renames exactly one symbol (selected by source location) and all its in-scope references, so reused names, collisions, and char-literals are structurally impossible to corrupt.
+
+1. **Classify with the FULL naming config** (every `…Case`/`…Prefix` option set), then filter findings to the ONE target kind. Never a partial config — it mis-classifies.
+2. **Compute the target name from the standard's rule** (strip the old prefix, apply the convention), NOT from clang-tidy's suggested fix (the repo-owner's point: naming info comes from the ruleset, not a tool's output).
+3. **Drive via stdout, not `-i`:** on Windows `-i` (in-place) fails — *"The requested operation cannot be performed on a file with a user-mapped section open"* (it mmaps the source for reading and can't write it back). Omit `-i`, capture **stdout** (the modified source as bytes), write it back. *(For a genuine cross-TU `-i` rename, WSL sidesteps the mmap conflict — but this was NOT exercised: everything turned out single-TU.)*
+4. **ARM firmware files need cross-parse flags** so clang builds a *complete* AST: `--extra-arg-before=--target=arm-none-eabi`, `-isystem` the `arm-none-eabi/include/c++/<ver>` (+ `/<ver>/arm-none-eabi` + `/include`), and `-Wno-error -ferror-limit=0` — the register-constant tables otherwise flood `-Werror=unused-const-variable` and *stop the parse* → partial AST → missed uses.
+5. **`#ifdef`/`#else` branches are the one residual:** clang-refactor parses ONE configuration, so a symbol referenced in an inactive `#ifdef` branch keeps its old name → the *other* build breaks. Fix those with **scope-aware single-line edits** (NOT text replace — a sibling compliant local with the same spelling may live in another function).
+
+### Verification net (caught every secondary bug pre-commit)
+Per batch: **both builds** (firmware catches one config's danglers, host catches the other's + cross-TU), **full host ctest** (catches silent aliasing — the 15-failure class), **re-detect** (0 findings), **bench_sim**. A **dry-run collision check** (no two old-names → the same new-name) before applying caught the text-replace collisions before any damage. Only the committed work shipped; every buggy attempt was reverted (one buggy partial-config statics commit was `git reset` away).
+
+### Prevention
+- For any convention-driven mass rename, reach for **clang-refactor (AST) first**. Treat `clang-tidy --fix` and text/`sed` as **unsafe for renames** — each was tried and each shipped a distinct bug.
+- Always classify with the **full** config; compute names from the **rule**, not the tool.
+- General WSL lesson (sibling to the WSL-for-builds pivot): a Windows file-mmap/locking limitation on an LLVM in-place tool → use `--stdout`/non-in-place, or WSL.
+
+### Related
+- LL 36 / 40 ("gate looks covered but isn't") + LL 43 ("clean from a static gate is negative evidence") — the verification-net discipline that caught these.
+- LL 38 (primary sources, not code) — the convention (JSF AV Rule 51) and the QP-vs-JSF resolution came from primary sources, not "what the code does."
+- CHANGELOG `2026-06-24-001` + `2026-06-25-001`; commits `a96a8a2` / `55e3d62` / `cb069c1` / `1bfa602`.
