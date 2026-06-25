@@ -65,11 +65,11 @@ static_assert(sizeof(kPmtk314Sentence) - 1 == 51,
               "PMTK314 sentence byte length mismatch");
 
 // PMTK220,1000 — set NMEA output interval to 1000ms = 1 Hz.
-constexpr char kPmtk220_1HzBody[] = "PMTK220,1000";
-constexpr char kPmtk220_1HzSentence[] = "$PMTK220,1000*1F\r\n";
-static_assert(nmea_checksum_constexpr(kPmtk220_1HzBody) == 0x1F,
+constexpr char kPmtk2201HzBody[] = "PMTK220,1000";
+constexpr char kPmtk2201HzSentence[] = "$PMTK220,1000*1F\r\n";
+static_assert(nmea_checksum_constexpr(kPmtk2201HzBody) == 0x1F,
               "PMTK220,1000 checksum mismatch — verify literal matches sentence body");
-static_assert(sizeof(kPmtk220_1HzSentence) - 1 == 18,
+static_assert(sizeof(kPmtk2201HzSentence) - 1 == 18,
               "PMTK220,1000 sentence byte length mismatch");
 
 // ============================================================================
@@ -226,8 +226,8 @@ bool gps_pa1010d_init() {
     sleep_ms(50);
     g_pmtkWriteResults[1] = i2c_bus_write(
         kGpsPa1010dAddr,
-        reinterpret_cast<const uint8_t*>(kPmtk220_1HzSentence),
-        sizeof(kPmtk220_1HzSentence) - 1);
+        reinterpret_cast<const uint8_t*>(kPmtk2201HzSentence),
+        sizeof(kPmtk2201HzSentence) - 1);
     sleep_ms(50);
     g_pmtkWriteResults[2] = i2c_bus_write(
         kGpsPa1010dAddr,

@@ -69,8 +69,8 @@ static QEvtPtr g_rfQueue[16];
 // ============================================================================
 // Forward declarations
 // ============================================================================
-static QState Rf_initial(RfManager * const me, QEvt const * const e);
-static QState Rf_running(RfManager * const me, QEvt const * const e);
+static QState rf_initial(RfManager * const me, QEvt const * const e);
+static QState rf_running(RfManager * const me, QEvt const * const e);
 
 static void handle_valid_rx(RfManager * const me, const RadioRxEvt * const rx);
 static void handle_tick(RfManager * const me);
@@ -257,7 +257,7 @@ static void handle_tick(RfManager * const me) {
 // State handlers
 // ============================================================================
 
-static QState Rf_initial(RfManager * const me, QEvt const * const e) {
+static QState rf_initial(RfManager * const me, QEvt const * const e) {
     (void)e;
 
     // Subscribe to RadioRx events from AO_Radio.
@@ -267,10 +267,10 @@ static QState Rf_initial(RfManager * const me, QEvt const * const e) {
     // Arm 10 Hz internal tick
     QTimeEvt_armX(&me->tick_timer, kRfTickInterval, kRfTickInterval);
 
-    return Q_TRAN(&Rf_running);
+    return Q_TRAN(&rf_running);
 }
 
-static QState Rf_running(RfManager * const me, QEvt const * const e) {
+static QState rf_running(RfManager * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_RFMGR_TICK: {
         handle_tick(me);
@@ -304,7 +304,7 @@ void AO_RfManager_start(uint8_t prio, uint32_t nav_period_ms_init) {
     g_rf.lq_window = 0;
     g_rf.lq_window_count = 0;
 
-    QActive_ctor(&g_rf.super, Q_STATE_CAST(&Rf_initial));
+    QActive_ctor(&g_rf.super, Q_STATE_CAST(&rf_initial));
     QTimeEvt_ctorX(&g_rf.tick_timer, &g_rf.super, SIG_RFMGR_TICK, 0U);
 
     QActive_start(&g_rf.super,

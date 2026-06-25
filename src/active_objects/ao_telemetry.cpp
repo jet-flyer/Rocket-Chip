@@ -127,8 +127,8 @@ static TelemAo g_telemAo;
 static QEvtPtr g_telemAoQueue[8];
 
 // Forward declarations
-static QState TelemAo_initial(TelemAo * const me, QEvt const * const e);
-static QState TelemAo_running(TelemAo * const me, QEvt const * const e);
+static QState telem_ao_initial(TelemAo * const me, QEvt const * const e);
+static QState telem_ao_running(TelemAo * const me, QEvt const * const e);
 
 // ============================================================================
 // Helpers
@@ -721,7 +721,7 @@ static void mavlink_direct_tick(TelemAo* me) {
 // State Handlers
 // ============================================================================
 
-static QState TelemAo_initial(TelemAo * const me, QEvt const * const e) {
+static QState telem_ao_initial(TelemAo * const me, QEvt const * const e) {
     (void)e;
 
     me->ccsds_encoder.init();
@@ -744,10 +744,10 @@ static QState TelemAo_initial(TelemAo * const me, QEvt const * const e) {
 
     // 10Hz tick (every 10 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 10U, 10U);
-    return Q_TRAN(&TelemAo_running);
+    return Q_TRAN(&telem_ao_running);
 }
 
-static QState TelemAo_running(TelemAo * const me, QEvt const * const e) {
+static QState telem_ao_running(TelemAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_TELEM_TICK: {
         // Vehicle TX: encode and post to AO_Radio
@@ -797,10 +797,10 @@ void AO_Telemetry_toggle_mavlink() {
 }
 
 uint8_t AO_Telemetry_cycle_rate() {
-    static constexpr uint8_t k_rates[] = {2, 5, 10};
+    static constexpr uint8_t kRates[] = {2, 5, 10};
     for (uint8_t i = 0; i < 3; i++) {
-        if (k_rates[i] == g_telemAo.rate_hz) {
-            uint8_t next = k_rates[(i + 1) % 3];
+        if (kRates[i] == g_telemAo.rate_hz) {
+            uint8_t next = kRates[(i + 1) % 3];
             AO_Telemetry_set_rate(next);
             return next;
         }
@@ -1115,7 +1115,7 @@ void AO_Telemetry_notify_gcs_heartbeat() {
 
 void AO_Telemetry_start(uint8_t prio) {
     QActive_ctor(&g_telemAo.super,
-                 Q_STATE_CAST(&TelemAo_initial));
+                 Q_STATE_CAST(&telem_ao_initial));
 
     QTimeEvt_ctorX(&g_telemAo.tick_timer, &g_telemAo.super,
                    SIG_TELEM_TICK, 0U);

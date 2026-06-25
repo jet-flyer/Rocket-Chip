@@ -95,8 +95,8 @@ static uint32_t g_persistDebounceCount = 0;
 static bool     g_persistRequested = false;
 
 // Forward declarations
-static QState RadioAo_initial(RadioAo * const me, QEvt const * const e);
-static QState RadioAo_running(RadioAo * const me, QEvt const * const e);
+static QState radio_ao_initial(RadioAo * const me, QEvt const * const e);
+static QState radio_ao_running(RadioAo * const me, QEvt const * const e);
 static void ao_radio_apply_runtime_config(RadioAoState& s);       // T5.5 prereq #1
 static void ao_radio_commit_pending_config(RadioAoState& s);      // T5.5 sub 2b
 #if defined(ROCKETCHIP_RADIO_PERSIST)
@@ -522,7 +522,7 @@ static void ao_radio_boot_seed_runtime_config(RadioAoState& s) {
 #endif
 }
 
-static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
+static QState radio_ao_initial(RadioAo * const me, QEvt const * const e) {
     (void)e;
     RadioAoState& s = me->state;
     s.tx_consec_fail = 0;
@@ -578,18 +578,18 @@ static QState RadioAo_initial(RadioAo * const me, QEvt const * const e) {
     // 100Hz tick (every 1 tick at 100Hz base) [C3-R1]
     QTimeEvt_armX(&me->tick_timer, 1U, 1U);
 
-    return Q_TRAN(&RadioAo_running);
+    return Q_TRAN(&radio_ao_running);
 }
 
 static void handle_link_quality(RadioAo* me) {
     RadioAoState& s = me->state;
-    static constexpr uint32_t k_link_lost_ms  = 5000;  // 5s = lost
-    static constexpr uint32_t k_link_gap_ms   = 2000;  // 2s = gap
+    static constexpr uint32_t kLinkLostMs  = 5000;  // 5s = lost
+    static constexpr uint32_t kLinkGapMs   = 2000;  // 2s = gap
     uint32_t age = now_ms() - s.last_rx_ms;
     uint8_t lq;
     if (s.rx_count == 0)         { lq = 0; }
-    else if (age >= k_link_lost_ms) { lq = 1; }
-    else if (age >= k_link_gap_ms)  { lq = 2; }
+    else if (age >= kLinkLostMs) { lq = 1; }
+    else if (age >= kLinkGapMs)  { lq = 2; }
     else                         { lq = 3; }
     if (lq != s.link_quality) {
         s.link_quality = lq;
@@ -612,8 +612,8 @@ static void handle_rssi_bar(RadioAo* me) {
             static uint8_t g_sweepDiv = 0;
             if (++g_sweepDiv >= 5) {  // 100Hz tick / 5 = 20Hz sweep
                 g_sweepDiv = 0;
-                constexpr ws2812_rgb_t k_sweep_color = {0x20, 0x18, 0x00};  // dim yellow
-                ws2812_set_sweep_bar(k_sweep_color);
+                constexpr ws2812_rgb_t kSweepColor = {0x20, 0x18, 0x00};  // dim yellow
+                ws2812_set_sweep_bar(kSweepColor);
             }
             return;
         }
@@ -738,7 +738,7 @@ static void handle_radio_tick(RadioAo* me) {
     handle_rssi_bar(me);
 }
 
-static QState RadioAo_running(RadioAo * const me, QEvt const * const e) {
+static QState radio_ao_running(RadioAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_RADIO_TICK: {
         handle_radio_tick(me);
@@ -790,7 +790,7 @@ bool AO_Radio_consume_just_changed() {
 void AO_Radio_start(uint8_t prio, bool spi_ok) {
     g_spiOk = spi_ok;
     QActive_ctor(&g_radioAo.super,
-                 Q_STATE_CAST(&RadioAo_initial));
+                 Q_STATE_CAST(&radio_ao_initial));
 
     QTimeEvt_ctorX(&g_radioAo.tick_timer, &g_radioAo.super,
                    SIG_RADIO_TICK, 0U);

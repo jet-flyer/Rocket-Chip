@@ -36,7 +36,7 @@ static inline uint32_t time_us_32() { return 0; }
 // ============================================================================
 
 // ESKF propagation rate (Hz) — derived from IMU rate / divider
-static constexpr uint32_t kEskfRateHz_local = 200;
+static constexpr uint32_t kEskfRateHzLocal = 200;
 
 // ESKF propagation — every 5th IMU sample = 200Hz
 static constexpr uint32_t kEskfImuDivider = 5;

@@ -179,8 +179,8 @@ static RcosAo g_rcosAo;
 static QEvtPtr g_rcosAoQueue[16];
 
 // Forward declarations
-static QState RcosAo_initial(RcosAo * const me, QEvt const * const e);
-static QState RcosAo_running(RcosAo * const me, QEvt const * const e);
+static QState rcos_ao_initial(RcosAo * const me, QEvt const * const e);
+static QState rcos_ao_running(RcosAo * const me, QEvt const * const e);
 static void cal_ui_tick(RcosAo* me);
 
 // ============================================================================
@@ -1002,7 +1002,7 @@ static void cal_ui_tick(RcosAo* me) {
 // State Handlers
 // ============================================================================
 
-static QState RcosAo_initial(RcosAo * const me, QEvt const * const e) {
+static QState rcos_ao_initial(RcosAo * const me, QEvt const * const e) {
     (void)e;
 
     me->last_ansi_rx_count = 0;
@@ -1026,10 +1026,10 @@ static QState RcosAo_initial(RcosAo * const me, QEvt const * const e) {
 
     // 20Hz tick (every 5 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 5U, 5U);
-    return Q_TRAN(&RcosAo_running);
+    return Q_TRAN(&rcos_ao_running);
 }
 
-static QState RcosAo_running(RcosAo * const me, QEvt const * const e) {
+static QState rcos_ao_running(RcosAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_RCOS_TICK: {
 #ifndef ROCKETCHIP_HOST_TEST
@@ -1061,7 +1061,7 @@ QActive * const AO_RCOS = &g_rcosAo.super;
 
 void AO_RCOS_start(uint8_t prio) {
     QActive_ctor(&g_rcosAo.super,
-                 Q_STATE_CAST(&RcosAo_initial));
+                 Q_STATE_CAST(&rcos_ao_initial));
 
     QTimeEvt_ctorX(&g_rcosAo.tick_timer, &g_rcosAo.super,
                    SIG_RCOS_TICK, 0U);

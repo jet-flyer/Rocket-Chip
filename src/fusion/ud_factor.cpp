@@ -19,7 +19,7 @@
 namespace rc {
 
 // N = 24 (state size) used throughout.
-static constexpr int32_t N = 24;
+static constexpr int32_t kN = 24;
 
 // Minimum D-element guard for numerical stability.
 // Below this threshold, the U column is zeroed to avoid division by near-zero.
@@ -33,12 +33,12 @@ void ud_to_dense(const UD24& ud, float p[24][24]) {  // NOLINT(readability-magic
     // P = U * D * U^T
     // P[i][j] = sum_k( U[i][k] * D[k] * U[j][k] )
     // Only need k >= max(i,j) since U is upper triangular.
-    for (int32_t i = 0; i < N; ++i) {
-        for (int32_t j = i; j < N; ++j) {
+    for (int32_t i = 0; i < kN; ++i) {
+        for (int32_t j = i; j < kN; ++j) {
             float sum = 0.0F;
             // U[i][k] is nonzero for k >= i, U[j][k] for k >= j.
             // Since j >= i, iterate k from j to N-1.
-            for (int32_t k = j; k < N; ++k) {
+            for (int32_t k = j; k < kN; ++k) {
                 sum += ud.U[i][k] * ud.D[k] * ud.U[j][k];
             }
             p[i][j] = sum;
@@ -59,10 +59,10 @@ bool ud_factorize(UD24& ud, const float p[24][24]) {  // NOLINT(readability-magi
     // Start with U = 0
     std::memset(ud.U, 0, sizeof(ud.U));
 
-    for (int32_t j = N - 1; j >= 0; --j) {
+    for (int32_t j = kN - 1; j >= 0; --j) {
         // Compute D[j]
         float dj = p[j][j];
-        for (int32_t k = j + 1; k < N; ++k) {
+        for (int32_t k = j + 1; k < kN; ++k) {
             dj -= ud.U[j][k] * ud.U[j][k] * ud.D[k];
         }
         if (dj <= 0.0F) {
@@ -75,7 +75,7 @@ bool ud_factorize(UD24& ud, const float p[24][24]) {  // NOLINT(readability-magi
         const float inv_dj = 1.0F / dj;
         for (int32_t i = 0; i < j; ++i) {
             float uij = p[i][j];
-            for (int32_t k = j + 1; k < N; ++k) {
+            for (int32_t k = j + 1; k < kN; ++k) {
                 uij -= ud.U[i][k] * ud.D[k] * ud.U[j][k];
             }
             ud.U[i][j] = uij * inv_dj;
@@ -94,17 +94,17 @@ bool ud_factorize(UD24& ud, const float p[24][24]) {  // NOLINT(readability-magi
 // =========================================================================
 
 // Bierman workspace — static to avoid stack pressure (LL Entry 1).
-static float g_bf[N];
-static float g_bg[N];
-static float g_bK[N];
-static float g_balpha[N];
+static float g_bf[kN];
+static float g_bg[kN];
+static float g_bK[kN];
+static float g_balpha[kN];
 
 // Compute f = U^T * H^T and g = D * f for sparse H with single nonzero
 // entry at hIdx.  f[i] = U[hIdx][i] * hValue for i >= hIdx, else 0.
 // See Bierman (1977): U is upper triangular, H^T is column with hValue
 // at index hIdx.
 static void bierman_compute_fg(const UD24& ud, int32_t h_idx, float h_value) {
-    for (int32_t i = 0; i < N; ++i) {
+    for (int32_t i = 0; i < kN; ++i) {
         g_bf[i] = (i >= h_idx) ? ud.U[h_idx][i] * h_value : 0.0F;
         g_bg[i] = ud.D[i] * g_bf[i];
     }
@@ -115,7 +115,7 @@ static void bierman_forward_pass(UD24& ud, float r) {
     g_balpha[0] = r + g_bf[0] * g_bg[0];
     g_bK[0] = g_bg[0];
 
-    for (int32_t j = 1; j < N; ++j) {
+    for (int32_t j = 1; j < kN; ++j) {
         g_balpha[j] = g_balpha[j - 1] + g_bf[j] * g_bg[j];
 
         if (g_balpha[j - 1] < kMinDFloat) {
@@ -146,15 +146,15 @@ void bierman_scalar_update(UD24& ud, int32_t h_idx, float h_value,
     bierman_forward_pass(ud, r);
 
     // Normalize gain and compute error state correction
-    const float alpha_last = g_balpha[N - 1];
+    const float alpha_last = g_balpha[kN - 1];
     if (alpha_last > 1e-30F) {
         const float inv_alpha = 1.0F / alpha_last;
-        for (int32_t i = 0; i < N; ++i) {
+        for (int32_t i = 0; i < kN; ++i) {
             g_bK[i] *= inv_alpha;
             dx[i] = g_bK[i] * innovation;
         }
     } else {
-        for (int32_t i = 0; i < N; ++i) {
+        for (int32_t i = 0; i < kN; ++i) {
             dx[i] = 0.0F;
         }
     }

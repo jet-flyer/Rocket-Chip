@@ -96,11 +96,11 @@ constexpr uint8_t nmea_checksum_constexpr(const char* body) {
 }
 
 // PMTK251,57600 — switch MT3339 to 57600 baud.
-constexpr char kPmtk251_57600Body[] = "PMTK251,57600";
-constexpr char kPmtk251_57600Sentence[] = "$PMTK251,57600*2C\r\n";
-static_assert(nmea_checksum_constexpr(kPmtk251_57600Body) == 0x2C,
+constexpr char kPmtk25157600Body[] = "PMTK251,57600";
+constexpr char kPmtk25157600Sentence[] = "$PMTK251,57600*2C\r\n";
+static_assert(nmea_checksum_constexpr(kPmtk25157600Body) == 0x2C,
               "PMTK251,57600 checksum mismatch — verify literal matches sentence body");
-static_assert(sizeof(kPmtk251_57600Sentence) - 1 == 19,
+static_assert(sizeof(kPmtk25157600Sentence) - 1 == 19,
               "PMTK251,57600 sentence byte length mismatch");
 
 // PMTK314 — enable RMC + GGA + GSA + GSV sentences (rest disabled).
@@ -118,11 +118,11 @@ static_assert(sizeof(kPmtk314Sentence) - 1 == 51,
 // PMTK220,200 — set NMEA output interval to 200ms = 5 Hz.
 // See AGENT_WHITEBOARD.md "UART GPS 10Hz + sticky-baud fix" for the
 // active 10Hz investigation.
-constexpr char kPmtk220_5HzBody[] = "PMTK220,200";
-constexpr char kPmtk220_5HzSentence[] = "$PMTK220,200*2C\r\n";
-static_assert(nmea_checksum_constexpr(kPmtk220_5HzBody) == 0x2C,
+constexpr char kPmtk2205HzBody[] = "PMTK220,200";
+constexpr char kPmtk2205HzSentence[] = "$PMTK220,200*2C\r\n";
+static_assert(nmea_checksum_constexpr(kPmtk2205HzBody) == 0x2C,
               "PMTK220,200 checksum mismatch — verify literal matches sentence body");
-static_assert(sizeof(kPmtk220_5HzSentence) - 1 == 17,
+static_assert(sizeof(kPmtk2205HzSentence) - 1 == 17,
               "PMTK220,200 sentence byte length mismatch");
 
 // ============================================================================
@@ -282,8 +282,8 @@ static void update_data_from_lwgps() {
 static void negotiate_baud_to_57600() {
     uart_write_blocking(
         GPS_UART_INST,
-        reinterpret_cast<const uint8_t*>(kPmtk251_57600Sentence),
-        sizeof(kPmtk251_57600Sentence) - 1);
+        reinterpret_cast<const uint8_t*>(kPmtk25157600Sentence),
+        sizeof(kPmtk25157600Sentence) - 1);
 
     // ACK arrives at the new baud — use delay, don't try to read it.
     busy_wait_ms(kGpsBaudNegotiateDelayMs);
@@ -369,7 +369,7 @@ bool gps_uart_init() {
 
     // PMTK314 + PMTK220 are idempotent — safe to re-send on every boot.
     uart_write_pmtk(kPmtk314Sentence, sizeof(kPmtk314Sentence) - 1);
-    uart_write_pmtk(kPmtk220_5HzSentence, sizeof(kPmtk220_5HzSentence) - 1);
+    uart_write_pmtk(kPmtk2205HzSentence, sizeof(kPmtk2205HzSentence) - 1);
 
     g_initialized = true;
 
@@ -470,7 +470,7 @@ bool gps_uart_reinit() {
     }
 
     uart_write_pmtk(kPmtk314Sentence, sizeof(kPmtk314Sentence) - 1);
-    uart_write_pmtk(kPmtk220_5HzSentence, sizeof(kPmtk220_5HzSentence) - 1);
+    uart_write_pmtk(kPmtk2205HzSentence, sizeof(kPmtk2205HzSentence) - 1);
 
     g_initialized = true;
 

@@ -103,16 +103,16 @@ static bool write_table_sector(uint32_t sector_offset,
 
     // Build sector content: [header 8B][table ~2.6KB] padded to page boundaries
     // FlightTableSectorHeader + FlightLogTable must fit in 4KB
-    static constexpr uint32_t k_total_size = sizeof(FlightTableSectorHeader) +
+    static constexpr uint32_t kTotalSize = sizeof(FlightTableSectorHeader) +
                                             sizeof(FlightLogTable);
-    static_assert(k_total_size <= FLASH_SECTOR_SIZE, "Table exceeds sector");
+    static_assert(kTotalSize <= FLASH_SECTOR_SIZE, "Table exceeds sector");
 
     // Round up to page size for flash_range_program
-    static constexpr uint32_t k_write_pages =
-        (k_total_size + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE;
-    static constexpr uint32_t k_write_len = k_write_pages * FLASH_PAGE_SIZE;
+    static constexpr uint32_t kWritePages =
+        (kTotalSize + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE;
+    static constexpr uint32_t kWriteLen = kWritePages * FLASH_PAGE_SIZE;
 
-    static uint8_t g_tableBuf[k_write_len] __attribute__((aligned(4)));
+    static uint8_t g_tableBuf[kWriteLen] __attribute__((aligned(4)));
     memset(g_tableBuf, 0xFF, sizeof(g_tableBuf));
 
     auto* hdr = static_cast<FlightTableSectorHeader*>(static_cast<void*>(g_tableBuf));
@@ -121,7 +121,7 @@ static bool write_table_sector(uint32_t sector_offset,
 
     memcpy(g_tableBuf + sizeof(FlightTableSectorHeader), table, sizeof(FlightLogTable));
 
-    return safe_flash_write(sector_offset, g_tableBuf, k_write_len);
+    return safe_flash_write(sector_offset, g_tableBuf, kWriteLen);
 }
 
 bool flight_table_load(FlightTableState* state) {

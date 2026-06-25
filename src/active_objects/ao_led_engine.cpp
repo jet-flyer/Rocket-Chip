@@ -84,8 +84,8 @@ static uint8_t g_devOverridePattern = 0;
 static QEvtPtr g_ledEngineQueue[8];
 
 // Forward declarations
-static QState LedEngine_initial(LedEngine * const me, QEvt const * const e);
-static QState LedEngine_running(LedEngine * const me, QEvt const * const e);
+static QState led_engine_initial(LedEngine * const me, QEvt const * const e);
+static QState led_engine_running(LedEngine * const me, QEvt const * const e);
 
 //----------------------------------------------------------------------------
 // Helpers
@@ -231,7 +231,7 @@ static void led_apply_compositor(LedEngine * const me) {
 //----------------------------------------------------------------------------
 // State handlers
 
-static QState LedEngine_initial(LedEngine * const me, QEvt const * const e) {
+static QState led_engine_initial(LedEngine * const me, QEvt const * const e) {
     (void)e;
     for (uint8_t i = 0; i < kLayerCount; i++) {
         me->layers[i] = 0;
@@ -247,10 +247,10 @@ static QState LedEngine_initial(LedEngine * const me, QEvt const * const e) {
 
     // ~33Hz animation tick (every 3 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 3U, 3U);
-    return Q_TRAN(&LedEngine_running);
+    return Q_TRAN(&led_engine_running);
 }
 
-static QState LedEngine_running(LedEngine * const me, QEvt const * const e) {
+static QState led_engine_running(LedEngine * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_LED_TICK: {
         // IVP-117: only Core 1 vitality fallback reads the seqlock now.
@@ -288,7 +288,7 @@ QActive * const AO_LedEngine = &g_ledEngine.super;
 void AO_LedEngine_start(uint8_t prio) {
     g_ledEngineStarted = true;
     QActive_ctor(&g_ledEngine.super,
-                 Q_STATE_CAST(&LedEngine_initial));
+                 Q_STATE_CAST(&led_engine_initial));
 
     QTimeEvt_ctorX(&g_ledEngine.tick_timer, &g_ledEngine.super,
                    SIG_LED_TICK, 0U);

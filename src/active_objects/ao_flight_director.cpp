@@ -70,8 +70,8 @@ extern sensor_seqlock_t g_sensorSeqlock;
 // ============================================================================
 // Forward declarations (QP state handlers)
 // ============================================================================
-static QState FdAo_initial(FdAo * const me, QEvt const * const e);
-static QState FdAo_running(FdAo * const me, QEvt const * const e);
+static QState fd_ao_initial(FdAo * const me, QEvt const * const e);
+static QState fd_ao_running(FdAo * const me, QEvt const * const e);
 
 // ============================================================================
 // PIO backup timer fire detection — publish SIG_PYRO_FIRED (source=1: PIO)
@@ -149,14 +149,14 @@ static void fd_tick(FdAo* me) {
 // QP State Handlers
 // ============================================================================
 
-static QState FdAo_initial(FdAo * const me, QEvt const * const e) {
+static QState fd_ao_initial(FdAo * const me, QEvt const * const e) {
     (void)e;
     // 100Hz tick (every 1 tick at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 1U, 1U);
-    return Q_TRAN(&FdAo_running);
+    return Q_TRAN(&fd_ao_running);
 }
 
-static QState FdAo_running(FdAo * const me, QEvt const * const e) {
+static QState fd_ao_running(FdAo * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_FD_TICK_TIMER:
         fd_tick(me);
@@ -268,7 +268,7 @@ void AO_FlightDirector_start(uint8_t prio) {
     fd_register_test_mode_accessor();
 
     // --- Start QP Active Object ---
-    QActive_ctor(&me->super, Q_STATE_CAST(&FdAo_initial));
+    QActive_ctor(&me->super, Q_STATE_CAST(&fd_ao_initial));
     QTimeEvt_ctorX(&me->tick_timer, &me->super,
                    SIG_FD_TICK_TIMER, 0U);
     QActive_start(&me->super,

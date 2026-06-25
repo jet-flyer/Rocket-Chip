@@ -644,11 +644,11 @@ void ESKF::ensure_ud() {
     // diagonals to a tiny epsilon, factorize, then zero the D entries.
     // Bierman won't touch these states — D=0 means zero contribution to
     // alpha and zero Kalman gain.
-    static constexpr float k_factorize_eps = 1e-30F;
+    static constexpr float kFactorizeEps = 1e-30F;
     bool patched[eskf::kStateSize] = {};
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
         if (P.data[i][i] <= 0.0F) {
-            P.data[i][i] = k_factorize_eps;
+            P.data[i][i] = kFactorizeEps;
             patched[i] = true;
         }
     }
@@ -716,8 +716,8 @@ bool ESKF::update_baro(float altitude_agl_m) {
     //   - When inhibited (default): P[23][*] = 0, K[23] = 0 regardless
     //   - When enabled: baro_bias corrects via cross-covariance P[5][23]
     // Full dual-entry H update deferred until baro_bias proves useful.
-    constexpr int32_t k_h_idx = eskf::kIdxPosition + 2;  // index 5 (NED-down)
-    constexpr float k_h_value = -1.0F;
+    constexpr int32_t kHIdx = eskf::kIdxPosition + 2;  // index 5 (NED-down)
+    constexpr float kHValue = -1.0F;
 
     // Innovation: y = z - h(x)
     // h(x) = -p.z + baro_bias (when baro bias enabled)
@@ -729,7 +729,7 @@ bool ESKF::update_baro(float altitude_agl_m) {
     const float r = phase_qr_ ? r_active_.r_baro : kRBaro;
 
     // Innovation covariance: S = H²*P[5][5] + R
-    const float s = P(k_h_idx, k_h_idx) + r;
+    const float s = P(kHIdx, kHIdx) + r;
 
     // Council condition 2: reject degenerate covariance
     if (s < kMinInnovationVariance) {
@@ -753,9 +753,9 @@ bool ESKF::update_baro(float altitude_agl_m) {
 
     ++baro_total_accepts_;
 #ifdef ESKF_USE_BIERMAN
-    bierman_kalman_update(k_h_idx, k_h_value, innovation, r);
+    bierman_kalman_update(kHIdx, kHValue, innovation, r);
 #else
-    scalar_kalman_update(k_h_idx, k_h_value, innovation, r);
+    scalar_kalman_update(kHIdx, kHValue, innovation, r);
     clamp_covariance();
 #endif
     return true;
@@ -766,12 +766,12 @@ bool ESKF::update_baro(float altitude_agl_m) {
 // Standard approach per ArduPilot wrap_PI().
 // ============================================================================
 static float wrap_pi(float angle) {
-    constexpr float k_pi = 3.14159265F;
-    constexpr float k_two_pi = 2.0F * k_pi;
+    constexpr float kPi = 3.14159265F;
+    constexpr float kTwoPi = 2.0F * kPi;
     // fmodf range is (-2π, 2π), shift to (-π, π)
-    angle = fmodf(angle, k_two_pi);
-    if (angle > k_pi) { angle -= k_two_pi; }
-    if (angle < -k_pi) { angle += k_two_pi; }
+    angle = fmodf(angle, kTwoPi);
+    if (angle > kPi) { angle -= kTwoPi; }
+    if (angle < -kPi) { angle += kTwoPi; }
     return angle;
 }
 
@@ -871,8 +871,8 @@ bool ESKF::update_mag_heading(const Vec3& mag_body, float expected_magnitude,
                                            + declination_rad);
     const float innovation = wrap_pi(heading_measured - euler.z);
 
-    constexpr int32_t k_h_idx = eskf::kIdxAttitude + 2;  // yaw index
-    const float s = P(k_h_idx, k_h_idx) + r_effective;
+    constexpr int32_t kHIdx = eskf::kIdxAttitude + 2;  // yaw index
+    const float s = P(kHIdx, kHIdx) + r_effective;
     if (s < kMinInnovationVariance) { return false; }
 
     last_mag_nis_ = (innovation * innovation) / s;
@@ -894,9 +894,9 @@ bool ESKF::update_mag_heading(const Vec3& mag_body, float expected_magnitude,
     mag_consecutive_rejects_ = 0;
     ++mag_total_accepts_;
 #ifdef ESKF_USE_BIERMAN
-    bierman_kalman_update(k_h_idx, 1.0F, innovation, r_effective);
+    bierman_kalman_update(kHIdx, 1.0F, innovation, r_effective);
 #else
-    scalar_kalman_update(k_h_idx, 1.0F, innovation, r_effective);
+    scalar_kalman_update(kHIdx, 1.0F, innovation, r_effective);
     clamp_covariance();
 #endif
     return true;
@@ -1000,17 +1000,17 @@ void ESKF::reset_mag_heading(float heading_measured) {
 #ifdef ESKF_USE_BIERMAN
     ensure_dense();  // Modifies P directly
 #endif
-    constexpr int32_t k_yaw_idx = eskf::kIdxAttitude + 2;
+    constexpr int32_t kYawIdx = eskf::kIdxAttitude + 2;
     const Vec3 euler = q.to_euler();
 
     q = Quat::from_euler(euler.x, euler.y, heading_measured);
     q = q.normalized();
 
-    P(k_yaw_idx, k_yaw_idx) = kInitPAttitude;
+    P(kYawIdx, kYawIdx) = kInitPAttitude;
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        if (i != k_yaw_idx) {
-            P(k_yaw_idx, i) = 0.0F;
-            P(i, k_yaw_idx) = 0.0F;
+        if (i != kYawIdx) {
+            P(kYawIdx, i) = 0.0F;
+            P(i, kYawIdx) = 0.0F;
         }
     }
 

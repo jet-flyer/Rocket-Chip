@@ -45,8 +45,8 @@ static HealthMonitor g_hm;
 static QEvtPtr g_hmQueue[8];
 
 // Forward declarations
-static QState HM_initial(HealthMonitor * const me, QEvt const * const e);
-static QState HM_running(HealthMonitor * const me, QEvt const * const e);
+static QState hm_initial(HealthMonitor * const me, QEvt const * const e);
+static QState hm_running(HealthMonitor * const me, QEvt const * const e);
 
 // ============================================================================
 // Internal: publish health status
@@ -65,7 +65,7 @@ static void hm_publish(HealthMonitor * const me) {
 // State handlers
 // ============================================================================
 
-static QState HM_initial(HealthMonitor * const me, QEvt const * const e) {
+static QState hm_initial(HealthMonitor * const me, QEvt const * const e) {
     (void)e;
 
     // Subscribe to phase changes for fault-latch tracking
@@ -82,10 +82,10 @@ static QState HM_initial(HealthMonitor * const me, QEvt const * const e) {
 
     me->republish_count = 0;
 
-    return Q_TRAN(&HM_running);
+    return Q_TRAN(&hm_running);
 }
 
-static QState HM_running(HealthMonitor * const me, QEvt const * const e) {
+static QState hm_running(HealthMonitor * const me, QEvt const * const e) {
     switch (e->sig) {
     case SIG_HEALTH_TIMEOUT: {
         // R-25-exec: re-evaluate the three-condition test-mode gate
@@ -128,7 +128,7 @@ static QState HM_running(HealthMonitor * const me, QEvt const * const e) {
 QActive * const AO_HealthMonitor = &g_hm.super;
 
 void AO_HealthMonitor_start(uint8_t prio) {
-    QActive_ctor(&g_hm.super, Q_STATE_CAST(&HM_initial));
+    QActive_ctor(&g_hm.super, Q_STATE_CAST(&hm_initial));
 
     QTimeEvt_ctorX(&g_hm.timer, &g_hm.super, SIG_HEALTH_TIMEOUT, 0U);
 

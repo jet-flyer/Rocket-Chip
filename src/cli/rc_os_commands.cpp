@@ -516,11 +516,11 @@ void cli_print_sensor_status() {
     float wmm_lon = 0.0F;
     bool wmm_valid = eskf_runner_get_wmm_position(&wmm_lat, &wmm_lon);
     if (wmm_valid) {
-        static constexpr const char* k_wmm_src[] = {"?", "default", "stored", "GPS"};
+        static constexpr const char* kWmmSrc[] = {"?", "default", "stored", "GPS"};
         uint8_t src = eskf_runner_get_wmm_source();
         rc::WmmField field = rc::wmm_get_field(wmm_lat, wmm_lon);
         rc::rc_log("WMM(%s): %.1f%c %.1f%c  D=%.1f%c I=%.1f%c F=%.1fuT\n",
-               k_wmm_src[src < 4 ? src : 0],
+               kWmmSrc[src < 4 ? src : 0],
                fabsf(wmm_lat), wmm_lat >= 0 ? 'N' : 'S',
                fabsf(wmm_lon), wmm_lon >= 0 ? 'E' : 'W',
                fabsf(field.declination_rad * 180.0F / 3.14159265F),
@@ -565,13 +565,13 @@ static const char* get_device_name(uint8_t addr) {
 
 static void hw_validate_i2c_devices() {
     if (rc_os_i2c_scan_allowed) {
-        static constexpr uint8_t k_expected[] = {
+        static constexpr uint8_t kExpected[] = {
             kI2cAddrAk09916,
             kI2cAddrIcm20948,
             kI2cAddrDps310,
         };
         int found_count = 0;
-        for (const auto& addr : k_expected) {
+        for (const auto& addr : kExpected) {
             bool found = i2c_bus_probe(addr);
             rc::rc_log("[----] I2C 0x%02X (%s): %s\n",
                    addr, get_device_name(addr),
@@ -581,7 +581,7 @@ static void hw_validate_i2c_devices() {
             }
         }
         rc::rc_log("[INFO] Sensors found: %d/%zu expected\n",
-               found_count, sizeof(k_expected) / sizeof(k_expected[0]));
+               found_count, sizeof(kExpected) / sizeof(kExpected[0]));
     } else {
         rc::rc_log("[INFO] I2C probe skipped (Core 1 owns bus)\n");
     }
@@ -936,13 +936,13 @@ void cli_print_eskf_live() {
 static void print_station_rx_fields(const rc::TelemetryState& t,
                                      const RadioAoState* rs,
                                      uint32_t met_ms, uint16_t seq) {
-    static constexpr float k_mm_to_m  = 0.001F;
-    static constexpr float k_mm_to_ft = 0.00328084F;
-    static constexpr float k_cms_to_ms = 0.01F;
+    static constexpr float kMmToM  = 0.001F;
+    static constexpr float kMmToFt = 0.00328084F;
+    static constexpr float kCmsToMs = 0.01F;
 
-    float alt_m  = static_cast<float>(t.baro_alt_mm) * k_mm_to_m;
-    float alt_ft = static_cast<float>(t.baro_alt_mm) * k_mm_to_ft;
-    float vvel   = static_cast<float>(t.baro_vvel_cms) * k_cms_to_ms;
+    float alt_m  = static_cast<float>(t.baro_alt_mm) * kMmToM;
+    float alt_ft = static_cast<float>(t.baro_alt_mm) * kMmToFt;
+    float vvel   = static_cast<float>(t.baro_vvel_cms) * kCmsToMs;
     uint8_t fix  = (t.gps_fix_sats >> 4) & 0x0F;
     uint8_t sats = t.gps_fix_sats & 0x0F;
     bool eskf_ok = (rc::health_eskf(t.health) >= rc::kHealthDegraded);
@@ -1294,19 +1294,19 @@ static void cmd_radio_status() {
 [[maybe_unused]]
 static float haversine_m(int32_t lat1_e7, int32_t lon1_e7,
                           int32_t lat2_e7, int32_t lon2_e7) {
-    static constexpr float k_deg_to_rad = 3.14159265F / 180.0F;
-    static constexpr float k_earth_r   = 6371000.0F;
-    static constexpr float k_scale    = 1e-7F;
+    static constexpr float kDegToRad = 3.14159265F / 180.0F;
+    static constexpr float kEarthR   = 6371000.0F;
+    static constexpr float kScale    = 1e-7F;
 
-    float lat1 = static_cast<float>(lat1_e7) * k_scale * k_deg_to_rad;
-    float lat2 = static_cast<float>(lat2_e7) * k_scale * k_deg_to_rad;
+    float lat1 = static_cast<float>(lat1_e7) * kScale * kDegToRad;
+    float lat2 = static_cast<float>(lat2_e7) * kScale * kDegToRad;
     float dlat = lat2 - lat1;
-    float dlon = (static_cast<float>(lon2_e7 - lon1_e7)) * k_scale * k_deg_to_rad;
+    float dlon = (static_cast<float>(lon2_e7 - lon1_e7)) * kScale * kDegToRad;
 
     float a = sinf(dlat * 0.5F) * sinf(dlat * 0.5F)
             + cosf(lat1) * cosf(lat2) * sinf(dlon * 0.5F) * sinf(dlon * 0.5F);
     float c = 2.0F * atan2f(sqrtf(a), sqrtf(1.0F - a));
-    return k_earth_r * c;
+    return kEarthR * c;
 }
 
 static void cmd_station_gps() {
@@ -1328,13 +1328,13 @@ static void cmd_station_gps() {
 [[maybe_unused]]
 static float bearing_deg(int32_t lat1_e7, int32_t lon1_e7,
                           int32_t lat2_e7, int32_t lon2_e7) {
-    static constexpr float k_deg_to_rad = 3.14159265F / 180.0F;
+    static constexpr float kDegToRad = 3.14159265F / 180.0F;
     // kRadToDeg: use the file-scope constant (no shadowing local) — see top of file.
-    static constexpr float k_scale    = 1e-7F;
+    static constexpr float kScale    = 1e-7F;
 
-    float lat1 = static_cast<float>(lat1_e7) * k_scale * k_deg_to_rad;
-    float lat2 = static_cast<float>(lat2_e7) * k_scale * k_deg_to_rad;
-    float dlon = static_cast<float>(lon2_e7 - lon1_e7) * k_scale * k_deg_to_rad;
+    float lat1 = static_cast<float>(lat1_e7) * kScale * kDegToRad;
+    float lat2 = static_cast<float>(lat2_e7) * kScale * kDegToRad;
+    float dlon = static_cast<float>(lon2_e7 - lon1_e7) * kScale * kDegToRad;
 
     float y = sinf(dlon) * cosf(lat2);
     float x = cosf(lat1) * sinf(lat2) - sinf(lat1) * cosf(lat2) * cosf(dlon);

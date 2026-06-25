@@ -332,12 +332,12 @@ static void init_pio_safety() {
     }
     // Backup deployment timers (drogue=GPIO12, main=GPIO13)
     // Bench test pins — not connected to pyro hardware yet
-    static constexpr uint8_t k_pio_drogue_pin = 12;
-    static constexpr uint8_t k_pio_main_pin = 13;
-    if (!rc::pio_backup_timer_init(k_pio_drogue_pin, k_pio_main_pin)) {
+    static constexpr uint8_t kPioDroguePin = 12;
+    static constexpr uint8_t kPioMainPin = 13;
+    if (!rc::pio_backup_timer_init(kPioDroguePin, kPioMainPin)) {
         DBG_ERROR("PIO backup timer init failed");
     }
-    rc::pyro_edge_logger_init(k_pio_drogue_pin, k_pio_main_pin);
+    rc::pyro_edge_logger_init(kPioDroguePin, kPioMainPin);
 }
 
 // Vehicle: signal Core 1 to start sensor phase + wait for lockout.

@@ -495,13 +495,13 @@ void core1_entry() {
     if constexpr (job::kRole == job::DeviceRole::kVehicle) {
         // Vehicle: bounded wait. Loop bound expressed as constants so the
         // compiler folds the static-bound check at -O2.
-        constexpr uint32_t k_core1_boot_wait_tick_ms = 10U;
-        constexpr uint32_t k_core1_boot_wait_max_iters = 1000U;  // 10 s ceiling
-        for (uint32_t iter = 0U; iter < k_core1_boot_wait_max_iters; ++iter) {
+        constexpr uint32_t kCore1BootWaitTickMs = 10U;
+        constexpr uint32_t kCore1BootWaitMaxIters = 1000U;  // 10 s ceiling
+        for (uint32_t iter = 0U; iter < kCore1BootWaitMaxIters; ++iter) {
             if (g_startSensorPhase.load(std::memory_order_acquire)) {
                 break;
             }
-            sleep_ms(k_core1_boot_wait_tick_ms);
+            sleep_ms(kCore1BootWaitTickMs);
         }
         if (!g_startSensorPhase.load(std::memory_order_acquire)) {
             // Timeout — Core 0 didn't signal sensor phase start in 10 s.

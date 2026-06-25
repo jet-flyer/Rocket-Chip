@@ -130,8 +130,8 @@ bool decimator_push(LogDecimator* dec, const FusedState& input, FusedState& out)
     out.q_z *= inv;
     float qnorm = std::sqrt(out.q_w * out.q_w + out.q_x * out.q_x +
                              out.q_y * out.q_y + out.q_z * out.q_z);
-    static constexpr float k_quat_norm_epsilon = 1e-6F;  // Guard against zero-norm quaternion
-    if (qnorm > k_quat_norm_epsilon) {
+    static constexpr float kQuatNormEpsilon = 1e-6F;  // Guard against zero-norm quaternion
+    if (qnorm > kQuatNormEpsilon) {
         float qinv = 1.0F / qnorm;
         out.q_w *= qinv;
         out.q_x *= qinv;

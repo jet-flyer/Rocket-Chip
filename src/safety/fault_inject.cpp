@@ -117,9 +117,9 @@ extern "C" __attribute__((used))
 void fault_force_ao_queue_flood(uint8_t /*ao_priority*/, uint16_t count) {
     if (!fi_test_mode_gate("fault_force_ao_queue_flood")) { return; }
     rc::rc_log("[FAULT] Publishing %u dummy events (floods all AO queues)\n", count);
-    static QEvt const s_dummy_evt = QEVT_INITIALIZER(rc::SIG_SENSOR_DATA);
+    static QEvt const kSDummyEvt = QEVT_INITIALIZER(rc::SIG_SENSOR_DATA);
     for (uint16_t i = 0; i < count; ++i) {
-        QActive_publish_(&s_dummy_evt, nullptr, 0U);
+        QActive_publish_(&kSDummyEvt, nullptr, 0U);
     }
 }
 

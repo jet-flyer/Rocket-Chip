@@ -74,8 +74,8 @@ static QEvtPtr  g_notifyQueue[16];
 static bool     g_notifyStarted = false;
 
 // Forward declarations
-static QState Notify_initial(NotifyAo * const me, QEvt const * const e);
-static QState Notify_running(NotifyAo * const me, QEvt const * const e);
+static QState notify_initial(NotifyAo * const me, QEvt const * const e);
+static QState notify_running(NotifyAo * const me, QEvt const * const e);
 
 // ============================================================================
 // Mapping helpers
@@ -146,7 +146,7 @@ static void notify_evaluate_sensor_status(NotifyAo * const me,
 // State handlers
 // ============================================================================
 
-static QState Notify_initial(NotifyAo * const me, QEvt const * const e) {
+static QState notify_initial(NotifyAo * const me, QEvt const * const e) {
     (void)e;
 
     // Zero-init intent state, then default to kInit so boot shows the
@@ -171,7 +171,7 @@ static QState Notify_initial(NotifyAo * const me, QEvt const * const e) {
     // 33Hz animation tick (every 3 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 3U, 3U);
 
-    return Q_TRAN(&Notify_running);
+    return Q_TRAN(&notify_running);
 }
 
 // Apply a phase-change event to NotifyState. Extracted for JSF AV rule 1
@@ -266,7 +266,7 @@ static bool handle_simple_flag_sig(NotifyAo * const me, QEvt const * const e) {
     }
 }
 
-static QState Notify_running(NotifyAo * const me, QEvt const * const e) {
+static QState notify_running(NotifyAo * const me, QEvt const * const e) {
     if (handle_simple_flag_sig(me, e)) {
         return Q_HANDLED();
     }
@@ -313,7 +313,7 @@ QActive * const AO_Notify = &g_notifyAo.super;
 void AO_Notify_start(uint8_t prio) {
     g_notifyStarted = true;
     QActive_ctor(&g_notifyAo.super,
-                 Q_STATE_CAST(&Notify_initial));
+                 Q_STATE_CAST(&notify_initial));
 
     QTimeEvt_ctorX(&g_notifyAo.tick_timer, &g_notifyAo.super,
                    SIG_NOTIFY_TICK, 0U);

@@ -172,10 +172,10 @@ static void populate_baro_fields(rc::FusedState& fused,
         // Hydrostatic: dalt = -dP / (rho * g)
         // kRhoAir = 1.225 kg/m³ (sea level standard atmosphere)
         // kGravity = 9.81 m/s² (standard gravity)
-        static constexpr float k_rho_air = 1.225F;
-        static constexpr float k_gravity = 9.81F;
+        static constexpr float kRhoAir = 1.225F;
+        static constexpr float kGravity = 9.81F;
         float dp = snap.pressure_pa - g_prevPressurePa;
-        fused.baro_alt_rate_mps = -dp / (dt_s * k_rho_air * k_gravity);
+        fused.baro_alt_rate_mps = -dp / (dt_s * kRhoAir * kGravity);
         g_prevPressurePa = snap.pressure_pa;
         g_prevSampleMs = now_ms;
     }
@@ -335,10 +335,10 @@ static LoggerAo g_loggerAo;
 // idle (50-150ms). At 50Hz, 150ms = ~8 events. Depth 32 gives ample margin.
 static QEvtPtr g_loggerAoQueue[32];
 
-static QState LoggerAo_initial(LoggerAo * const me, QEvt const * const e);
-static QState LoggerAo_running(LoggerAo * const me, QEvt const * const e);
+static QState logger_ao_initial(LoggerAo * const me, QEvt const * const e);
+static QState logger_ao_running(LoggerAo * const me, QEvt const * const e);
 
-static QState LoggerAo_initial(LoggerAo * const me, QEvt const * const e) {
+static QState logger_ao_initial(LoggerAo * const me, QEvt const * const e) {
     (void)e;
     // Subscribe to flight events from Flight Director
     QActive_subscribe(&me->super, rc::SIG_PHASE_CHANGE);
@@ -346,10 +346,10 @@ static QState LoggerAo_initial(LoggerAo * const me, QEvt const * const e) {
     QActive_subscribe(&me->super, rc::SIG_HEALTH_STATUS);  // IVP-105: health in FusedState
     // 50Hz tick (every 2 ticks at 100Hz base)
     QTimeEvt_armX(&me->tick_timer, 2U, 2U);
-    return Q_TRAN(&LoggerAo_running);
+    return Q_TRAN(&logger_ao_running);
 }
 
-static QState LoggerAo_running(LoggerAo * const me, QEvt const * const e) {
+static QState logger_ao_running(LoggerAo * const me, QEvt const * const e) {
     (void)me;
     switch (e->sig) {
     case SIG_LOG_TICK:
@@ -397,7 +397,7 @@ void AO_Logger_start(uint8_t prio, size_t psram_size, bool psram_self_test_passe
     rc::flight_table_load(&g_flightTable);
 
     QActive_ctor(&g_loggerAo.super,
-                 Q_STATE_CAST(&LoggerAo_initial));
+                 Q_STATE_CAST(&logger_ao_initial));
 
     QTimeEvt_ctorX(&g_loggerAo.tick_timer, &g_loggerAo.super,
                    SIG_LOG_TICK, 0U);

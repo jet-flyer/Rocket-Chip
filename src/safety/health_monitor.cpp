@@ -426,18 +426,18 @@ static uint8_t evaluate_secondary() {
 // ============================================================================
 
 static void log_health_transitions(uint8_t prev, uint8_t curr) {
-    static constexpr uint8_t shifts[] = {
+    static constexpr uint8_t kShifts[] = {
         kHealthShiftImu, kHealthShiftBaro, kHealthShiftEskf, kHealthShiftGps
     };
-    static constexpr const char* names[] = {"IMU", "Baro", "ESKF", "GPS"};
+    static constexpr const char* kNames[] = {"IMU", "Baro", "ESKF", "GPS"};
     for (uint8_t i = 0; i < 4; ++i) {
-        auto p = health_get_subsystem(prev, shifts[i]);
-        auto c = health_get_subsystem(curr, shifts[i]);
+        auto p = health_get_subsystem(prev, kShifts[i]);
+        auto c = health_get_subsystem(curr, kShifts[i]);
         if (p == kHealthFault && c >= kHealthDegraded) {
             DBG_PRINT("HEALTH: %s fault cleared -> %s",
-                      names[i], c == kHealthOk ? "OK" : "DEGRADED");
+                      kNames[i], c == kHealthOk ? "OK" : "DEGRADED");
         } else if (p >= kHealthDegraded && c == kHealthFault) {
-            DBG_PRINT("HEALTH: %s -> FAULT", names[i]);
+            DBG_PRINT("HEALTH: %s -> FAULT", kNames[i]);
         }
     }
 }
@@ -452,17 +452,17 @@ static void log_health_transitions(uint8_t prev, uint8_t curr) {
 // <subsystem> FAULT on OK->FAULT and [Health] <subsystem> RECOVERED on
 // FAULT->OK so the firmware's own log carries the same signal as telemetry.
 static void log_secondary_transitions(uint8_t prev, uint8_t curr) {
-    static constexpr uint8_t bits[] = {
+    static constexpr uint8_t kBits[] = {
         kHealthRadioOk, kHealthFlashOk, kHealthWatchdogOk, kHealthPioOk, kHealthCore1Ok
     };
-    static constexpr const char* names[] = {"Radio", "Flash", "Watchdog", "PIO", "Core1"};
+    static constexpr const char* kNames[] = {"Radio", "Flash", "Watchdog", "PIO", "Core1"};
     for (uint8_t i = 0; i < 5; ++i) {
-        const bool p = (prev & bits[i]) != 0;
-        const bool c = (curr & bits[i]) != 0;
+        const bool p = (prev & kBits[i]) != 0;
+        const bool c = (curr & kBits[i]) != 0;
         if (p && !c) {
-            DBG_PRINT("HEALTH: %s -> FAULT", names[i]);
+            DBG_PRINT("HEALTH: %s -> FAULT", kNames[i]);
         } else if (!p && c) {
-            DBG_PRINT("HEALTH: %s RECOVERED", names[i]);
+            DBG_PRINT("HEALTH: %s RECOVERED", kNames[i]);
         }
     }
 }

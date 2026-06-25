@@ -205,12 +205,12 @@ static void dump_health() {
     rc::rc_log("[Health]\n");
     const rc::HealthState* h = rc::health_monitor_get_state();
     if (h == nullptr) { return; }
-    static constexpr const char* k_level_str[] = {"abs", "FLT", "deg", "OK"};
+    static constexpr const char* kLevelStr[] = {"abs", "FLT", "deg", "OK"};
     rc::rc_log("  primary=0x%02x secondary=0x%02x critical=0x%02x mcu=%s go_nogo=%s\n",
            (unsigned)h->primary,
            (unsigned)h->secondary,
            (unsigned)h->critical,
-           k_level_str[static_cast<int>(h->mcu) & 0x03],
+           kLevelStr[static_cast<int>(h->mcu) & 0x03],
            h->go_nogo_ready ? "READY" : "NOT_READY");
 }
 
