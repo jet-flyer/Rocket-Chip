@@ -54,11 +54,11 @@ static QState HM_running(HealthMonitor * const me, QEvt const * const e);
 
 static void hm_publish(HealthMonitor * const me) {
     const rc::HealthState* hs = rc::health_monitor_get_state();
-    static rc::HealthStatusEvt evt;
-    evt.super.sig = rc::SIG_HEALTH_STATUS;
-    evt.primary = hs->primary;
-    evt.secondary = hs->secondary;
-    QActive_publish_(&evt.super, &me->super, me->super.prio);
+    static rc::HealthStatusEvt g_evt;
+    g_evt.super.sig = rc::SIG_HEALTH_STATUS;
+    g_evt.primary = hs->primary;
+    g_evt.secondary = hs->secondary;
+    QActive_publish_(&g_evt.super, &me->super, me->super.prio);
 }
 
 // ============================================================================

@@ -215,7 +215,7 @@ static uint32_t get_alternate_sector(uint32_t current_offset) {
 
 static bool write_to_sector(uint32_t sector_offset, const calibration_store_t* cal, uint32_t sequence) {
     // Use static buffer for flash write (must be page-aligned)
-    static uint8_t g_page_buffer[FLASH_PAGE_SIZE] __attribute__((aligned(4)));
+    static uint8_t g_pageBuffer[FLASH_PAGE_SIZE] __attribute__((aligned(4)));
 
     // Step 1: Erase the sector
     if (!safe_flash_erase(sector_offset, FLASH_SECTOR_SIZE)) {
@@ -223,23 +223,23 @@ static bool write_to_sector(uint32_t sector_offset, const calibration_store_t* c
     }
 
     // Step 2: Prepare page buffer
-    memset(g_page_buffer, 0xFF, sizeof(g_page_buffer));
+    memset(g_pageBuffer, 0xFF, sizeof(g_pageBuffer));
 
     // Sector header
-    auto* sec_hdr = static_cast<sector_header_t*>(static_cast<void*>(g_page_buffer));
+    auto* sec_hdr = static_cast<sector_header_t*>(static_cast<void*>(g_pageBuffer));
     sec_hdr->state = kSectorStateInUse;
     sec_hdr->sequence = sequence;
 
     // Entry header
-    auto* entry_hdr = static_cast<entry_header_t*>(static_cast<void*>(g_page_buffer + sizeof(sector_header_t)));
+    auto* entry_hdr = static_cast<entry_header_t*>(static_cast<void*>(g_pageBuffer + sizeof(sector_header_t)));
     entry_hdr->magic = kEntryMagic;
 
     // Calibration data
-    uint8_t* cal_data = g_page_buffer + sizeof(sector_header_t) + sizeof(entry_header_t);
+    uint8_t* cal_data = g_pageBuffer + sizeof(sector_header_t) + sizeof(entry_header_t);
     memcpy(cal_data, cal, sizeof(calibration_store_t));
 
     // Step 3: Write the page
-    return safe_flash_write(sector_offset, g_page_buffer, FLASH_PAGE_SIZE);
+    return safe_flash_write(sector_offset, g_pageBuffer, FLASH_PAGE_SIZE);
 }
 
 // ============================================================================

@@ -91,9 +91,9 @@ static void cmd_radio_config_cycle() {
     // Find the current station-side target by matching against the whitelist.
     // On first press we don't know what the vehicle is on — start at index 0
     // (the default config) and advance from there.
-    static size_t s_cycle_idx = 0;
-    s_cycle_idx = (s_cycle_idx + 1) % rc::kRadioConfigTableSize;
-    const auto& target = rc::kRadioConfigTable[s_cycle_idx];
+    static size_t g_cycleIdx = 0;
+    g_cycleIdx = (g_cycleIdx + 1) % rc::kRadioConfigTableSize;
+    const auto& target = rc::kRadioConfigTable[g_cycleIdx];
 
     rc::rc_log("[CMD] SET_RADIO_CONFIG BW=%u nav=%u SF=%u CR=%u pwr=%u (idx %u/%u)\n",
                static_cast<unsigned>(target.bw_khz),
@@ -101,7 +101,7 @@ static void cmd_radio_config_cycle() {
                static_cast<unsigned>(target.sf),
                static_cast<unsigned>(target.cr),
                static_cast<unsigned>(target.power_dbm),
-               static_cast<unsigned>(s_cycle_idx),
+               static_cast<unsigned>(g_cycleIdx),
                static_cast<unsigned>(rc::kRadioConfigTableSize - 1));
     // Params packed as floats: lroundf() on vehicle side for robust cast.
     AO_Telemetry_send_tracked_command(
@@ -1582,9 +1582,9 @@ void cmd_findme_beacon() {
         rc::rc_log("[CMD] find-me beacon command sent, waiting for ACK...\n");
     } else {
         // Vehicle — publish directly to local AO_Notify.
-        static QEvt s_findme_evt;
-        s_findme_evt.sig = rc::SIG_BEACON_MANUAL;
-        QActive_publish_(&s_findme_evt, AO_RCOS, AO_RCOS->prio);
+        static QEvt g_findmeEvt;
+        g_findmeEvt.sig = rc::SIG_BEACON_MANUAL;
+        QActive_publish_(&g_findmeEvt, AO_RCOS, AO_RCOS->prio);
         rc::rc_log("[CMD] find-me beacon ON (manual) — white 2Hz until state change\n");
     }
 }

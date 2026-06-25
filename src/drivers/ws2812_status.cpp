@@ -202,8 +202,8 @@ void ws2812_set_rssi_bar(int16_t rssi, bool no_signal) {
 // persist in file-scope statics. Lights exactly 1 pixel at a time.
 void ws2812_set_sweep_bar(ws2812_rgb_t color) {
     if (!g_state.initialized) { return; }
-    static uint8_t s_pos = 0;
-    static int8_t  s_dir = 1;
+    static uint8_t g_pos = 0;
+    static int8_t  g_dir = 1;
     const uint8_t n = g_state.numLeds;
     if (n == 0) { return; }
     // Edge guard — single-LED strips just show the color solid.
@@ -213,13 +213,13 @@ void ws2812_set_sweep_bar(ws2812_rgb_t color) {
         return;
     }
     for (uint8_t i = 0; i < n; ++i) { g_state.pixels[i] = kColorOff; }
-    g_state.pixels[s_pos] = color;
+    g_state.pixels[g_pos] = color;
     ws2812_show();
     // Advance + bounce at ends.
-    if (s_pos == 0)      { s_dir = 1; }
-    if (s_pos == n - 1U) { s_dir = -1; }
-    s_pos = static_cast<uint8_t>(
-        static_cast<int>(s_pos) + static_cast<int>(s_dir));
+    if (g_pos == 0)      { g_dir = 1; }
+    if (g_pos == n - 1U) { g_dir = -1; }
+    g_pos = static_cast<uint8_t>(
+        static_cast<int>(g_pos) + static_cast<int>(g_dir));
 }
 
 /**

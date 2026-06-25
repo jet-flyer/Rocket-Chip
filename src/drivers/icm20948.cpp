@@ -494,10 +494,10 @@ static void parse_accel_gyro_temp(const uint8_t* buf, icm20948_t* dev, icm20948_
 // AK09916 outputs at 100Hz — reading at 1kHz wastes 90% of bus time
 // on DRDY=0 results. Divider matches mag output rate.
 static void read_mag_bypass(icm20948_t* dev, icm20948_data_t* data) {
-    static uint8_t g_mag_div_count = 0;
-    g_mag_div_count++;
-    if (dev->mag_initialized && g_mag_div_count >= kMagReadDivider) {
-        g_mag_div_count = 0;
+    static uint8_t g_magDivCount = 0;
+    g_magDivCount++;
+    if (dev->mag_initialized && g_magDivCount >= kMagReadDivider) {
+        g_magDivCount = 0;
         uint8_t mag_buf[kMagReadSize];
         if (i2c_bus_read_regs(ak09916::kI2cAddr, ak09916::kSt1,
                               mag_buf, sizeof(mag_buf)) == sizeof(mag_buf)) {
@@ -519,11 +519,11 @@ static void read_mag_bypass(icm20948_t* dev, icm20948_data_t* data) {
         } else {
             data->mag_valid = false;
         }
-    } else if (!dev->mag_initialized && g_mag_div_count >= kMagReadDivider) {
+    } else if (!dev->mag_initialized && g_magDivCount >= kMagReadDivider) {
         // Mag lost after device reset — attempt lazy re-init once per divider cycle.
         // init_magnetometer() re-enables bypass + configures AK09916 (~220ms).
         // On success, subsequent calls resume normal mag reads.
-        g_mag_div_count = 0;
+        g_magDivCount = 0;
         init_magnetometer(dev);
         data->mag.x = data->mag.y = data->mag.z = 0;
         data->mag_valid = false;

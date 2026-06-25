@@ -81,22 +81,22 @@ static void fd_check_pio_backup(FdAo* me) {
         rc::pio_backup_timer_fired(rc::BackupTimerId::kDrogue)) {
         me->pio_drogue_reported = true;
         me->director.state.drogue_fired = true;
-        static rc::PyroFiredEvt pio_drogue_evt;
-        pio_drogue_evt.super.sig = rc::SIG_PYRO_FIRED;
-        pio_drogue_evt.channel = 0;  // Drogue
-        pio_drogue_evt.source = 1;   // PIO backup
-        QActive_publish_(&pio_drogue_evt.super, &me->super, me->super.prio);
+        static rc::PyroFiredEvt g_pioDrogueEvt;
+        g_pioDrogueEvt.super.sig = rc::SIG_PYRO_FIRED;
+        g_pioDrogueEvt.channel = 0;  // Drogue
+        g_pioDrogueEvt.source = 1;   // PIO backup
+        QActive_publish_(&g_pioDrogueEvt.super, &me->super, me->super.prio);
         rc::rc_log("[PIO] Backup drogue fired — SIG_PYRO_FIRED published\n");
     }
     if (!me->pio_main_reported &&
         rc::pio_backup_timer_fired(rc::BackupTimerId::kMain)) {
         me->pio_main_reported = true;
         me->director.state.main_fired = true;
-        static rc::PyroFiredEvt pio_main_evt;
-        pio_main_evt.super.sig = rc::SIG_PYRO_FIRED;
-        pio_main_evt.channel = 1;  // Main
-        pio_main_evt.source = 1;   // PIO backup
-        QActive_publish_(&pio_main_evt.super, &me->super, me->super.prio);
+        static rc::PyroFiredEvt g_pioMainEvt;
+        g_pioMainEvt.super.sig = rc::SIG_PYRO_FIRED;
+        g_pioMainEvt.channel = 1;  // Main
+        g_pioMainEvt.source = 1;   // PIO backup
+        QActive_publish_(&g_pioMainEvt.super, &me->super, me->super.prio);
         rc::rc_log("[PIO] Backup main fired — SIG_PYRO_FIRED published\n");
     }
 }
@@ -188,11 +188,11 @@ static void fd_on_pyro_fired(rc::PyroChannel ch) {
         rc::pio_backup_timer_cancel(rc::BackupTimerId::kMain);
     }
     // Publish SIG_PYRO_FIRED for AO subscribers (source=0: FD primary)
-    static rc::PyroFiredEvt pyro_evt;
-    pyro_evt.super.sig = rc::SIG_PYRO_FIRED;
-    pyro_evt.channel = static_cast<uint8_t>(ch);
-    pyro_evt.source = 0;  // Primary (FD-commanded)
-    QActive_publish_(&pyro_evt.super,
+    static rc::PyroFiredEvt g_pyroEvt;
+    g_pyroEvt.super.sig = rc::SIG_PYRO_FIRED;
+    g_pyroEvt.channel = static_cast<uint8_t>(ch);
+    g_pyroEvt.source = 0;  // Primary (FD-commanded)
+    QActive_publish_(&g_pyroEvt.super,
                      &l_fdAo.super, l_fdAo.super.prio);
 }
 
@@ -221,9 +221,9 @@ static void fd_register_test_mode_accessor() {
 static void fd_wire_callbacks(rc::FlightDirector* director) {
     director->set_led_cb = [](uint8_t val) {
         if (val == rc::kLedPhaseBeacon) {
-            static QEvt beacon_evt;
-            beacon_evt.sig = rc::SIG_BEACON_ACTIVE;
-            QActive_publish_(&beacon_evt,
+            static QEvt g_beaconEvt;
+            g_beaconEvt.sig = rc::SIG_BEACON_ACTIVE;
+            QActive_publish_(&g_beaconEvt,
                              &l_fdAo.super, l_fdAo.super.prio);
         }
     };
@@ -231,18 +231,18 @@ static void fd_wire_callbacks(rc::FlightDirector* director) {
         if (phase != rc::FlightPhase::kIdle) {
             rc::test_mode_clear_on_idle_exit();
         }
-        static rc::PhaseChangeEvt evt;
-        evt.super.sig = rc::SIG_PHASE_CHANGE;
-        evt.phase = static_cast<uint8_t>(phase);
-        evt.timestamp_ms = ts_ms;
-        QActive_publish_(&evt.super,
+        static rc::PhaseChangeEvt g_evt;
+        g_evt.super.sig = rc::SIG_PHASE_CHANGE;
+        g_evt.phase = static_cast<uint8_t>(phase);
+        g_evt.timestamp_ms = ts_ms;
+        QActive_publish_(&g_evt.super,
                          &l_fdAo.super, l_fdAo.super.prio);
     };
     director->log_pyro_cb = fd_on_pyro_fired;
     director->beacon_cb = []() {
-        static QEvt s_beacon_evt;
-        s_beacon_evt.sig = rc::SIG_BEACON_ACTIVE;
-        QActive_publish_(&s_beacon_evt,
+        static QEvt g_beaconEvt;
+        g_beaconEvt.sig = rc::SIG_BEACON_ACTIVE;
+        QActive_publish_(&g_beaconEvt,
                          &l_fdAo.super, l_fdAo.super.prio);
         rc::rc_log("[FD] Distress beacon published (SIG_BEACON_ACTIVE)\n");
     };

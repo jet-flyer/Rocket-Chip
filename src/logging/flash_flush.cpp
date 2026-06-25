@@ -112,16 +112,16 @@ static bool write_table_sector(uint32_t sector_offset,
         (k_total_size + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE;
     static constexpr uint32_t k_write_len = k_write_pages * FLASH_PAGE_SIZE;
 
-    static uint8_t g_table_buf[k_write_len] __attribute__((aligned(4)));
-    memset(g_table_buf, 0xFF, sizeof(g_table_buf));
+    static uint8_t g_tableBuf[k_write_len] __attribute__((aligned(4)));
+    memset(g_tableBuf, 0xFF, sizeof(g_tableBuf));
 
-    auto* hdr = static_cast<FlightTableSectorHeader*>(static_cast<void*>(g_table_buf));
+    auto* hdr = static_cast<FlightTableSectorHeader*>(static_cast<void*>(g_tableBuf));
     hdr->state = kFlightTableStateValid;
     hdr->sequence = sequence;
 
-    memcpy(g_table_buf + sizeof(FlightTableSectorHeader), table, sizeof(FlightLogTable));
+    memcpy(g_tableBuf + sizeof(FlightTableSectorHeader), table, sizeof(FlightLogTable));
 
-    return safe_flash_write(sector_offset, g_table_buf, k_write_len);
+    return safe_flash_write(sector_offset, g_tableBuf, k_write_len);
 }
 
 bool flight_table_load(FlightTableState* state) {
@@ -130,10 +130,10 @@ bool flight_table_load(FlightTableState* state) {
     }
 
     // Static to avoid stack overflow — each FlightLogTable is ~2.4KB (LL Entry 1)
-    static FlightLogTable table_a, table_b;
+    static FlightLogTable g_tableA, g_tableB;
     uint32_t seq_a = 0, seq_b = 0;
-    bool valid_a = read_table_sector(kFlightTableSectorA, &table_a, &seq_a);
-    bool valid_b = read_table_sector(kFlightTableSectorB, &table_b, &seq_b);
+    bool valid_a = read_table_sector(kFlightTableSectorA, &g_tableA, &seq_a);
+    bool valid_b = read_table_sector(kFlightTableSectorB, &g_tableB, &seq_b);
 
     if (!valid_a && !valid_b) {
         // No valid table — start fresh
@@ -142,14 +142,14 @@ bool flight_table_load(FlightTableState* state) {
     }
 
     if (valid_a && !valid_b) {
-        state->table = table_a;
+        state->table = g_tableA;
         state->active_sequence = seq_a;
         state->loaded = true;
         return true;
     }
 
     if (!valid_a && valid_b) {
-        state->table = table_b;
+        state->table = g_tableB;
         state->active_sequence = seq_b;
         state->loaded = true;
         return true;
@@ -157,10 +157,10 @@ bool flight_table_load(FlightTableState* state) {
 
     // Both valid — higher sequence wins
     if (seq_a >= seq_b) {
-        state->table = table_a;
+        state->table = g_tableA;
         state->active_sequence = seq_a;
     } else {
-        state->table = table_b;
+        state->table = g_tableB;
         state->active_sequence = seq_b;
     }
     state->loaded = true;
@@ -230,22 +230,22 @@ static FlushResult flush_sectors(const RingBuffer* rb, uint32_t stored,
                                  uint32_t start_sector, uint32_t sectors_needed,
                                  const FlightLogHeader* header,
                                  void (*kick_watchdog)()) {
-    static uint8_t g_sector_buf[FLASH_SECTOR_SIZE] __attribute__((aligned(4)));
+    static uint8_t g_sectorBuf[FLASH_SECTOR_SIZE] __attribute__((aligned(4)));
     uint32_t frame_idx = 0;
     uint32_t frame_size = rb->frame_size;
 
     for (uint32_t s = 0; s < sectors_needed; ++s) {
-        memset(g_sector_buf, 0xFF, sizeof(g_sector_buf));
+        memset(g_sectorBuf, 0xFF, sizeof(g_sectorBuf));
         uint32_t buf_pos = 0;
 
         // Write flight log header at the start of the first sector
         if (s == 0 && header != nullptr) {
-            memcpy(g_sector_buf, header, sizeof(FlightLogHeader));
+            memcpy(g_sectorBuf, header, sizeof(FlightLogHeader));
             buf_pos = kFlightLogHeaderSize;
         }
 
         while (frame_idx < stored && buf_pos + frame_size <= kFlashSectorSize) {
-            if (!ring_read_sequential(rb, frame_idx, g_sector_buf + buf_pos)) {
+            if (!ring_read_sequential(rb, frame_idx, g_sectorBuf + buf_pos)) {
                 break;
             }
             buf_pos += frame_size;
@@ -256,7 +256,7 @@ static FlushResult flush_sectors(const RingBuffer* rb, uint32_t stored,
         if (!safe_flash_erase(flash_offset, FLASH_SECTOR_SIZE)) {
             return FlushResult::kEraseError;
         }
-        if (!safe_flash_write(flash_offset, g_sector_buf, FLASH_SECTOR_SIZE)) {
+        if (!safe_flash_write(flash_offset, g_sectorBuf, FLASH_SECTOR_SIZE)) {
             return FlushResult::kWriteError;
         }
         if (kick_watchdog != nullptr) {

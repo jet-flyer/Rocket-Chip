@@ -323,8 +323,8 @@ void ESKF::build_Qc(Mat24& out) {
 // Used only by predict_dense() as verification reference.
 // ============================================================================
 static void dense_fpft_add(Mat24& p_mat, const Mat24& f_mat, const Mat24& qd_mat) {
-    static Mat24 g_fp_temp;
-    static Mat24 g_ft_temp;
+    static Mat24 g_fpTemp;
+    static Mat24 g_ftTemp;
     // FP = F * P
     for (int32_t r = 0; r < eskf::kStateSize; ++r) {
         for (int32_t c = 0; c < eskf::kStateSize; ++c) {
@@ -332,13 +332,13 @@ static void dense_fpft_add(Mat24& p_mat, const Mat24& f_mat, const Mat24& qd_mat
             for (int32_t k = 0; k < eskf::kStateSize; ++k) {
                 sum += f_mat.data[r][k] * p_mat.data[k][c];
             }
-            g_fp_temp.data[r][c] = sum;
+            g_fpTemp.data[r][c] = sum;
         }
     }
     // F^T
     for (int32_t r = 0; r < eskf::kStateSize; ++r) {
         for (int32_t c = 0; c < eskf::kStateSize; ++c) {
-            g_ft_temp.data[c][r] = f_mat.data[r][c];
+            g_ftTemp.data[c][r] = f_mat.data[r][c];
         }
     }
     // P = FP * F^T + Qd
@@ -346,7 +346,7 @@ static void dense_fpft_add(Mat24& p_mat, const Mat24& f_mat, const Mat24& qd_mat
         for (int32_t c = 0; c < eskf::kStateSize; ++c) {
             float sum = 0.0F;
             for (int32_t k = 0; k < eskf::kStateSize; ++k) {
-                sum += g_fp_temp.data[r][k] * g_ft_temp.data[k][c];
+                sum += g_fpTemp.data[r][k] * g_ftTemp.data[k][c];
             }
             p_mat.data[r][c] = sum + qd_mat.data[r][c];
         }
@@ -406,13 +406,13 @@ void ESKF::predict_dense(const Vec3& accel_meas, const Vec3& gyro_meas,
     propagate_nominal(accel_meas, gyro_meas, dt);
 
     // Static locals: same rationale as predict() (LL Entry 1).
-    static Mat24 g_f_dense;
-    static Mat24 g_qd_dense;
-    build_F(g_f_dense, q, accel_body, gyro_body, dt);
-    build_Qc(g_qd_dense);
-    g_qd_dense.scale(dt);
+    static Mat24 g_fDense;
+    static Mat24 g_qdDense;
+    build_F(g_fDense, q, accel_body, gyro_body, dt);
+    build_Qc(g_qdDense);
+    g_qdDense.scale(dt);
 
-    dense_fpft_add(P, g_f_dense, g_qd_dense);
+    dense_fpft_add(P, g_fDense, g_qdDense);
     P.force_symmetric();
     clamp_covariance();
 
@@ -445,10 +445,10 @@ void ESKF::predict_dense(const Vec3& accel_meas, const Vec3& gyro_meas,
 // Only rows/cols 0-2 change. Cost: ~450 MACs at N=24 vs ~27,648 dense.
 void ESKF::reset_covariance_attitude(const float ga[3][3]) {
     // Step 1: GP[0:3][:] = G_a * P[0:3][:] (rows 0-2 of G*P)
-    static float gp_rows[3][24];  // NOLINT(readability-magic-numbers)
+    static float g_gpRows[3][24];  // NOLINT(readability-magic-numbers)
     for (int32_t i = 0; i < 3; ++i) {
         for (int32_t j = 0; j < eskf::kStateSize; ++j) {
-            gp_rows[i][j] = ga[i][0] * P.data[0][j]
+            g_gpRows[i][j] = ga[i][0] * P.data[0][j]
                          + ga[i][1] * P.data[1][j]
                          + ga[i][2] * P.data[2][j];
         }
@@ -456,18 +456,18 @@ void ESKF::reset_covariance_attitude(const float ga[3][3]) {
 
     // Save original P columns 0-2 for rows >=3 (step 3 reads P[i>=3][k<3]
     // after step 2 has overwritten symmetric entries).
-    static float p_col0_2[24][3];  // NOLINT(readability-magic-numbers)
+    static float g_pCol02[24][3];  // NOLINT(readability-magic-numbers)
     for (int32_t i = 3; i < eskf::kStateSize; ++i) {
-        p_col0_2[i][0] = P.data[i][0];
-        p_col0_2[i][1] = P.data[i][1];
-        p_col0_2[i][2] = P.data[i][2];
+        g_pCol02[i][0] = P.data[i][0];
+        g_pCol02[i][1] = P.data[i][1];
+        g_pCol02[i][2] = P.data[i][2];
     }
 
     // Step 2: cols j >= 3 — P_new[i<3][j] = gpRows[i][j]
     for (int32_t i = 0; i < 3; ++i) {
         for (int32_t j = 3; j < eskf::kStateSize; ++j) {
-            P.data[i][j] = gp_rows[i][j];
-            P.data[j][i] = gp_rows[i][j];
+            P.data[i][j] = g_gpRows[i][j];
+            P.data[j][i] = g_gpRows[i][j];
         }
     }
 
@@ -476,7 +476,7 @@ void ESKF::reset_covariance_attitude(const float ga[3][3]) {
         for (int32_t j = i; j < 3; ++j) {
             float sum = 0.0F;
             for (int32_t k = 0; k < 3; ++k) {
-                sum += gp_rows[i][k] * ga[j][k];
+                sum += g_gpRows[i][k] * ga[j][k];
             }
             P.data[i][j] = sum;
             P.data[j][i] = sum;
@@ -488,7 +488,7 @@ void ESKF::reset_covariance_attitude(const float ga[3][3]) {
         for (int32_t j = 0; j < 3; ++j) {
             float sum = 0.0F;
             for (int32_t k = 0; k < 3; ++k) {
-                sum += p_col0_2[i][k] * ga[j][k];
+                sum += g_pCol02[i][k] * ga[j][k];
             }
             P.data[i][j] = sum;
             P.data[j][i] = sum;
@@ -587,18 +587,18 @@ void ESKF::scalar_kalman_update(int32_t h_idx, float h_value,
     // O(N²) rank-1 Joseph form (upper triangle, then copy to lower).
     // P_new[i][j] = P[i][j] - K[i]*hv*P_h[j] - P_h[i]*hv*K[j] + K[i]*S*K[j]
     // where P_h = original P[hIdx][:] row, saved before in-place update.
-    static float g_ph_row[eskf::kStateSize];
+    static float g_phRow[eskf::kStateSize];
     for (int32_t j = 0; j < eskf::kStateSize; ++j) {
-        g_ph_row[j] = P.data[h_idx][j];
+        g_phRow[j] = P.data[h_idx][j];
     }
 
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
         const float ki = g_gain.data[i][0];
         const float ki_s = ki * s;
-        const float hv_phi = h_value * g_ph_row[i];
+        const float hv_phi = h_value * g_phRow[i];
         for (int32_t j = i; j < eskf::kStateSize; ++j) {
             const float kj = g_gain.data[j][0];
-            const float hv_phj = h_value * g_ph_row[j];
+            const float hv_phj = h_value * g_phRow[j];
             P.data[i][j] = P.data[i][j]
                          - ki * hv_phj
                          - hv_phi * kj
@@ -672,16 +672,16 @@ void ESKF::bierman_kalman_update(int32_t h_idx, float h_value,
                                   float innovation, float r) {
     ensure_ud();
 
-    static float g_bierman_dx[eskf::kStateSize];
+    static float g_biermanDx[eskf::kStateSize];
     bierman_scalar_update(g_bierman_ud, h_idx, h_value, innovation, r,
-                          g_bierman_dx);
+                          g_biermanDx);
 
     // Convert dx array to Mat<N,1> for inject_error_state
-    static Mat<eskf::kStateSize, 1> g_dx_mat;
+    static Mat<eskf::kStateSize, 1> g_dxMat;
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        g_dx_mat.data[i][0] = g_bierman_dx[i];
+        g_dxMat.data[i][0] = g_biermanDx[i];
     }
-    inject_error_state(g_dx_mat);
+    inject_error_state(g_dxMat);
 }
 
 #endif // ESKF_USE_BIERMAN

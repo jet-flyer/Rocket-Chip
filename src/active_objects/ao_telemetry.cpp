@@ -182,12 +182,12 @@ static void send_pending_ack_if_any() {
     // Separate static event for ACK (can't reuse nav's txEvt — both in queue)
     // Stage T IVP-T5: RadioTxEvt.buf bumped to 256; uint8_t ack_len ≤ sizeof
     // check is now always-true. Removed redundant guard.
-    static rc::RadioTxEvt s_ack_tx_evt;
-    s_ack_tx_evt.super.sig = rc::SIG_RADIO_TX;
-    s_ack_tx_evt.super.refCtr_ = 0;
-    memcpy(s_ack_tx_evt.buf, ack_buf, ack_len);
-    s_ack_tx_evt.len = ack_len;
-    QACTIVE_POST(AO_Radio, &s_ack_tx_evt.super, AO_Telemetry);
+    static rc::RadioTxEvt g_ackTxEvt;
+    g_ackTxEvt.super.sig = rc::SIG_RADIO_TX;
+    g_ackTxEvt.super.refCtr_ = 0;
+    memcpy(g_ackTxEvt.buf, ack_buf, ack_len);
+    g_ackTxEvt.len = ack_len;
+    QACTIVE_POST(AO_Radio, &g_ackTxEvt.super, AO_Telemetry);
 }
 
 static void encode_and_send(TelemAo* me) {
@@ -222,14 +222,14 @@ static void encode_and_send(TelemAo* me) {
     if (!result.ok || result.len == 0) { return; }
 
     // QV cooperative scheduling — static event safe (no concurrent access).
-    static rc::RadioTxEvt tx_evt;
-    tx_evt.super.sig = rc::SIG_RADIO_TX;
-    tx_evt.super.refCtr_ = 0;
-    if (result.len > sizeof(tx_evt.buf)) { return; }
-    memcpy(tx_evt.buf, result.buf, result.len);
-    tx_evt.len = static_cast<uint8_t>(result.len);
+    static rc::RadioTxEvt g_txEvt;
+    g_txEvt.super.sig = rc::SIG_RADIO_TX;
+    g_txEvt.super.refCtr_ = 0;
+    if (result.len > sizeof(g_txEvt.buf)) { return; }
+    memcpy(g_txEvt.buf, result.buf, result.len);
+    g_txEvt.len = static_cast<uint8_t>(result.len);
 
-    QACTIVE_POST(AO_Radio, &tx_evt.super, me);
+    QACTIVE_POST(AO_Radio, &g_txEvt.super, me);
 }
 
 // LoRa MAVLink RX — uses MAVLINK_COMM_2 (separate from USB on COMM_1)
@@ -287,9 +287,9 @@ static uint8_t dispatch_command(TelemAo* me, const mavlink_command_long_t& cmd) 
         break;
     case MAV_CMD_USER_1: {
         // Stage L IVP-L5: GCS-initiated manual beacon. Static event per LL Entry 35.
-        static QEvt s_beacon_cmd_evt;
-        s_beacon_cmd_evt.sig = rc::SIG_BEACON_MANUAL;
-        QActive_publish_(&s_beacon_cmd_evt, &me->super, me->super.prio);
+        static QEvt g_beaconCmdEvt;
+        g_beaconCmdEvt.sig = rc::SIG_BEACON_MANUAL;
+        QActive_publish_(&g_beaconCmdEvt, &me->super, me->super.prio);
         break;
     }
     case MAV_CMD_USER_2:
@@ -851,13 +851,13 @@ void AO_Telemetry_send_command(uint16_t command, const MavCmdParams& params) {
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
-    static rc::RadioTxEvt tx_evt;
-    tx_evt.super.sig = rc::SIG_RADIO_TX;
-    tx_evt.super.refCtr_ = 0;
-    if (len <= sizeof(tx_evt.buf)) {
-        memcpy(tx_evt.buf, buf, len);
-        tx_evt.len = static_cast<uint8_t>(len);
-        QACTIVE_POST(AO_Radio, &tx_evt.super, &l_telemAo.super);
+    static rc::RadioTxEvt g_txEvt;
+    g_txEvt.super.sig = rc::SIG_RADIO_TX;
+    g_txEvt.super.refCtr_ = 0;
+    if (len <= sizeof(g_txEvt.buf)) {
+        memcpy(g_txEvt.buf, buf, len);
+        g_txEvt.len = static_cast<uint8_t>(len);
+        QACTIVE_POST(AO_Radio, &g_txEvt.super, &l_telemAo.super);
     }
 #else
     (void)command; (void)params;
@@ -894,13 +894,13 @@ static void tx_tracked_command_wire(uint16_t command, uint8_t seq,
         params.p1, params.p2, params.p3, params.p4, params.p5, 0, 0);
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
-    static rc::RadioTxEvt tx_evt;
-    tx_evt.super.sig = rc::SIG_RADIO_TX;
-    tx_evt.super.refCtr_ = 0;
-    if (len <= sizeof(tx_evt.buf)) {
-        memcpy(tx_evt.buf, buf, len);
-        tx_evt.len = static_cast<uint8_t>(len);
-        QACTIVE_POST(AO_Radio, &tx_evt.super, &l_telemAo.super);
+    static rc::RadioTxEvt g_txEvt;
+    g_txEvt.super.sig = rc::SIG_RADIO_TX;
+    g_txEvt.super.refCtr_ = 0;
+    if (len <= sizeof(g_txEvt.buf)) {
+        memcpy(g_txEvt.buf, buf, len);
+        g_txEvt.len = static_cast<uint8_t>(len);
+        QACTIVE_POST(AO_Radio, &g_txEvt.super, &l_telemAo.super);
     }
 }
 
@@ -1013,13 +1013,13 @@ static void resend_pending_cmd() {
     uint8_t buf[MAVLINK_MAX_PACKET_LEN];
     uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
-    static rc::RadioTxEvt tx_evt;
-    tx_evt.super.sig = rc::SIG_RADIO_TX;
-    tx_evt.super.refCtr_ = 0;
-    if (len <= sizeof(tx_evt.buf)) {
-        memcpy(tx_evt.buf, buf, len);
-        tx_evt.len = static_cast<uint8_t>(len);
-        QACTIVE_POST(AO_Radio, &tx_evt.super, &l_telemAo.super);
+    static rc::RadioTxEvt g_txEvt;
+    g_txEvt.super.sig = rc::SIG_RADIO_TX;
+    g_txEvt.super.refCtr_ = 0;
+    if (len <= sizeof(g_txEvt.buf)) {
+        memcpy(g_txEvt.buf, buf, len);
+        g_txEvt.len = static_cast<uint8_t>(len);
+        QACTIVE_POST(AO_Radio, &g_txEvt.super, &l_telemAo.super);
     }
     s_pending_cmd.sent_ms = to_ms_since_boot(get_absolute_time());
 #endif

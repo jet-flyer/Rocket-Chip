@@ -345,10 +345,10 @@ void AO_Notify_post_cal_intent(CalIntent intent) {
     // caller's stack has been reclaimed). Static is safe: this is only
     // called from handler context on Core 0 under cooperative QV, and the
     // dedup above prevents overlapping posts within one tick.
-    static CalIntentEvt s_evt;
-    s_evt.super = QEVT_INITIALIZER(SIG_NOTIFY_CAL_INTENT);
-    s_evt.intent = intent;
-    QACTIVE_POST(&l_notifyAo.super, &s_evt.super, nullptr);
+    static CalIntentEvt g_evt;
+    g_evt.super = QEVT_INITIALIZER(SIG_NOTIFY_CAL_INTENT);
+    g_evt.intent = intent;
+    QACTIVE_POST(&l_notifyAo.super, &g_evt.super, nullptr);
 }
 
 // ============================================================================
@@ -363,9 +363,9 @@ void AO_Notify_post_prearm_fail() {
         return;
     }
     // Static event per LL Entry 35. No QEvt subclass payload needed.
-    static QEvt s_evt;
-    s_evt = QEVT_INITIALIZER(SIG_NOTIFY_PREARM_FAIL);
-    QACTIVE_POST(&l_notifyAo.super, &s_evt, nullptr);
+    static QEvt g_evt;
+    g_evt = QEVT_INITIALIZER(SIG_NOTIFY_PREARM_FAIL);
+    QACTIVE_POST(&l_notifyAo.super, &g_evt, nullptr);
 }
 
 // ============================================================================
@@ -377,14 +377,14 @@ void AO_Notify_post_prearm_fail() {
 // ============================================================================
 void AO_Notify_post_vehicle_lost() {
     if (!s_notifyStarted) { return; }
-    static QEvt s_evt;
-    s_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_LOST);
-    QACTIVE_POST(&l_notifyAo.super, &s_evt, nullptr);
+    static QEvt g_evt;
+    g_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_LOST);
+    QACTIVE_POST(&l_notifyAo.super, &g_evt, nullptr);
 }
 
 void AO_Notify_post_vehicle_found() {
     if (!s_notifyStarted) { return; }
-    static QEvt s_evt;
-    s_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_FOUND);
-    QACTIVE_POST(&l_notifyAo.super, &s_evt, nullptr);
+    static QEvt g_evt;
+    g_evt = QEVT_INITIALIZER(SIG_NOTIFY_VEHICLE_FOUND);
+    QACTIVE_POST(&l_notifyAo.super, &g_evt, nullptr);
 }

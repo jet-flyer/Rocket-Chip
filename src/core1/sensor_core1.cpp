@@ -185,8 +185,8 @@ static void core1_read_imu(shared_sensor_data_t* local_data,
 }
 
 static void core1_read_baro(shared_sensor_data_t* local_data) {
-    static uint32_t baro_consec_fail = 0;
-    static uint32_t baro_reinit_attempts = 0;
+    static uint32_t g_baroConsecFail = 0;
+    static uint32_t g_baroReinitAttempts = 0;
 
     // Read directly via ruuvi driver -- no MEAS_CFG pre-check.
     // The DPS310 in continuous mode alternates PRS_RDY and TMP_RDY;
@@ -199,8 +199,8 @@ static void core1_read_baro(shared_sensor_data_t* local_data) {
         local_data->baro_timestamp_us = time_us_32();
         local_data->baro_read_count++;
         local_data->baro_valid = true;
-        baro_consec_fail = 0;
-        baro_reinit_attempts = 0;  // Successful read proves sensor is alive
+        g_baroConsecFail = 0;
+        g_baroReinitAttempts = 0;  // Successful read proves sensor is alive
 
         // Feed baro calibration with raw data from Core 1
         if (calibration_manager_get_state() == CAL_STATE_BARO_SAMPLING) {
@@ -211,18 +211,18 @@ static void core1_read_baro(shared_sensor_data_t* local_data) {
     }
 
     // I2C failure or driver error -- escalate (mirrors IMU pattern)
-    baro_consec_fail++;
+    g_baroConsecFail++;
     local_data->baro_error_count++;
-    if (baro_consec_fail >= kCore1ConsecFailDevReset) {
-        if (baro_reinit_attempts < kBaroMaxReinitAttempts) {
+    if (g_baroConsecFail >= kCore1ConsecFailDevReset) {
+        if (g_baroReinitAttempts < kBaroMaxReinitAttempts) {
             baro_dps310_start_continuous();
-            baro_reinit_attempts++;
+            g_baroReinitAttempts++;
         } else {
             g_baroInitialized = false;  // Declare baro dead
         }
-        baro_consec_fail = 0;
-    } else if (baro_consec_fail >= kCore1ConsecFailBusRecover
-               && baro_consec_fail % kCore1ConsecFailBusRecover == 0) {
+        g_baroConsecFail = 0;
+    } else if (g_baroConsecFail >= kCore1ConsecFailBusRecover
+               && g_baroConsecFail % kCore1ConsecFailBusRecover == 0) {
         i2c_bus_recover();
     }
 }
@@ -251,17 +251,17 @@ void core1_update_best_gps_fix(const shared_sensor_data_t* local_data) {
 // GPS UART staleness watchdog. Reinits UART if no valid parse for 10s,
 // gated on flight state (don't reinit mid-flight). Blocks up to 2s.
 static void core1_gps_staleness_check(bool parsed, uint32_t now_us) {
-    static uint32_t last_valid_gps_us = 0;
+    static uint32_t g_lastValidGpsUs = 0;
 
     if (parsed) {
-        last_valid_gps_us = now_us;
+        g_lastValidGpsUs = now_us;
         return;
     }
 
-    if (g_gpsTransport != GPS_TRANSPORT_UART || last_valid_gps_us == 0) {
+    if (g_gpsTransport != GPS_TRANSPORT_UART || g_lastValidGpsUs == 0) {
         return;
     }
-    if (now_us - last_valid_gps_us <= kGpsStalenessTimeoutUs) {
+    if (now_us - g_lastValidGpsUs <= kGpsStalenessTimeoutUs) {
         return;
     }
 
@@ -275,7 +275,7 @@ static void core1_gps_staleness_check(bool parsed, uint32_t now_us) {
     if (!gps_uart_reinit()) {
         g_gpsInitialized = false;  // GPS dead -- stop polling
     }
-    last_valid_gps_us = time_us_32();  // Reset timer after attempt
+    g_lastValidGpsUs = time_us_32();  // Reset timer after attempt
 }
 
 // Public (sensor_core1.h) — shared with station idle-bridge tick (IVP-141).

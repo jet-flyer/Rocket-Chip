@@ -486,15 +486,15 @@ static void handle_rx_poll(RadioAo* me) {
     // direct POST → publish so both AOs receive per AO Commandment X
     // (publish-subscribe pattern). File-scope static event is safe under QV
     // cooperative scheduling (Commandment VI).
-    static rc::RadioRxEvt rx_evt;
-    rx_evt.super.sig = rc::SIG_RADIO_RX;
-    rx_evt.super.refCtr_ = 0;
-    memcpy(rx_evt.buf, buf, len);
-    rx_evt.len = len;
-    rx_evt.rssi = s.last_rx_rssi;
-    rx_evt.snr = s.last_rx_snr;
+    static rc::RadioRxEvt g_rxEvt;
+    g_rxEvt.super.sig = rc::SIG_RADIO_RX;
+    g_rxEvt.super.refCtr_ = 0;
+    memcpy(g_rxEvt.buf, buf, len);
+    g_rxEvt.len = len;
+    g_rxEvt.rssi = s.last_rx_rssi;
+    g_rxEvt.snr = s.last_rx_snr;
 
-    QActive_publish_(&rx_evt.super, &me->super, me->super.prio);
+    QActive_publish_(&g_rxEvt.super, &me->super, me->super.prio);
 }
 
 // ============================================================================
@@ -593,10 +593,10 @@ static void handle_link_quality(RadioAo* me) {
     else                         { lq = 3; }
     if (lq != s.link_quality) {
         s.link_quality = lq;
-        static rc::RadioStatusEvt status_evt;
-        status_evt.super.sig = rc::SIG_RADIO_STATUS;
-        status_evt.link_quality = lq;
-        QActive_publish_(&status_evt.super, &me->super, me->super.prio);
+        static rc::RadioStatusEvt g_statusEvt;
+        g_statusEvt.super.sig = rc::SIG_RADIO_STATUS;
+        g_statusEvt.link_quality = lq;
+        QActive_publish_(&g_statusEvt.super, &me->super, me->super.prio);
     }
 }
 
@@ -609,17 +609,17 @@ static void handle_rssi_bar(RadioAo* me) {
         // config change is in flight. Drop back to the normal RSSI bar
         // (~2Hz) once the watchdog clears.
         if (s.apply_in_progress) {
-            static uint8_t sweep_div = 0;
-            if (++sweep_div >= 5) {  // 100Hz tick / 5 = 20Hz sweep
-                sweep_div = 0;
+            static uint8_t g_sweepDiv = 0;
+            if (++g_sweepDiv >= 5) {  // 100Hz tick / 5 = 20Hz sweep
+                g_sweepDiv = 0;
                 constexpr ws2812_rgb_t k_sweep_color = {0x20, 0x18, 0x00};  // dim yellow
                 ws2812_set_sweep_bar(k_sweep_color);
             }
             return;
         }
-        static uint8_t rssi_div = 0;
-        if (++rssi_div >= 50) {  // ~2Hz update
-            rssi_div = 0;
+        static uint8_t g_rssiDiv = 0;
+        if (++g_rssiDiv >= 50) {  // ~2Hz update
+            g_rssiDiv = 0;
             uint32_t gap = now_ms() - s.last_rx_ms;
             bool no_signal = (s.rx_count == 0 || gap >= 5000);
             ws2812_set_rssi_bar(s.last_rx_rssi, no_signal);
@@ -717,8 +717,8 @@ static void handle_radio_tick(RadioAo* me) {
     if (!s.initialized) { return; }
 
     // Stage T (IVP-T1) — log phase change since last tick.
-    static rc::RadioPhase s_stage_t_prev_phase = rc::RadioPhase::kIdle;
-    stage_t_log_state(s_stage_t_prev_phase, s.scheduler.phase);
+    static rc::RadioPhase g_stageTPrevPhase = rc::RadioPhase::kIdle;
+    stage_t_log_state(g_stageTPrevPhase, s.scheduler.phase);
 
     if (s.scheduler.phase == rc::RadioPhase::kTxActive) {
         handle_tx_poll(me);
@@ -731,8 +731,8 @@ static void handle_radio_tick(RadioAo* me) {
     tick_symmetric_revert(s);
     tick_persist_debounce(s);
 
-    stage_t_log_state(s_stage_t_prev_phase, s.scheduler.phase);
-    s_stage_t_prev_phase = s.scheduler.phase;
+    stage_t_log_state(g_stageTPrevPhase, s.scheduler.phase);
+    g_stageTPrevPhase = s.scheduler.phase;
 
     handle_link_quality(me);
     handle_rssi_bar(me);

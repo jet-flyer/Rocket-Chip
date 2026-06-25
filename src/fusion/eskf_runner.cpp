@@ -232,9 +232,9 @@ static void eskf_run_predict(const shared_sensor_data_t& snap) {
 // Baro altitude measurement update (~32Hz DPS310 rate, on new data)
 static void eskf_tick_baro(const shared_sensor_data_t& snap) {
     if (snap.baro_valid && g_baroContinuous) {
-        static uint32_t s_last_eskf_baro_count = 0;
-        if (snap.baro_read_count != s_last_eskf_baro_count) {
-            s_last_eskf_baro_count = snap.baro_read_count;
+        static uint32_t g_lastEskfBaroCount = 0;
+        if (snap.baro_read_count != g_lastEskfBaroCount) {
+            g_lastEskfBaroCount = snap.baro_read_count;
             float alt = calibration_get_altitude_agl(snap.pressure_pa);
             g_eskf.update_baro(alt);
         }
@@ -310,9 +310,9 @@ static void try_enable_mag_3axis(const shared_sensor_data_t& snap) {
 static void eskf_tick_mag(const shared_sensor_data_t& snap) {
     if (!snap.mag_valid) { return; }
 
-    static uint32_t s_last_eskf_mag_count = 0;
-    if (snap.mag_read_count == s_last_eskf_mag_count) { return; }
-    s_last_eskf_mag_count = snap.mag_read_count;
+    static uint32_t g_lastEskfMagCount = 0;
+    if (snap.mag_read_count == g_lastEskfMagCount) { return; }
+    g_lastEskfMagCount = snap.mag_read_count;
 
     rc::Vec3 mag_body = sensor_to_ned_mag(snap);
 
@@ -369,9 +369,9 @@ static void eskf_tick_gps_stats() {
 // suppress noisy updates at rest.
 static void eskf_tick_gps(const shared_sensor_data_t& snap) {
     if (snap.gps_valid && snap.gps_fix_type >= 3) {
-        static uint32_t s_last_gps_count = 0;
-        if (snap.gps_read_count != s_last_gps_count) {
-            s_last_gps_count = snap.gps_read_count;
+        static uint32_t g_lastGpsCount = 0;
+        if (snap.gps_read_count != g_lastGpsCount) {
+            g_lastGpsCount = snap.gps_read_count;
 
             double lat_rad = static_cast<double>(snap.gps_lat_1e7) * kGps1e7ToDegrees * kDeg2Rad;
             double lon_rad = static_cast<double>(snap.gps_lon_1e7) * kGps1e7ToDegrees * kDeg2Rad;
@@ -459,12 +459,12 @@ static void eskf_tick_mahony(const shared_sensor_data_t& snap) {
 static void eskf_tick_phase_and_confidence() {
     // Notify ESKF of flight phase changes for Q/R scheduling
     if (AO_FlightDirector_is_initialized()) {
-        static uint8_t s_last_phase = 0;
+        static uint8_t g_lastPhase = 0;
         uint8_t phase = static_cast<uint8_t>(
             rc::flight_director_phase(AO_FlightDirector_get_director()));
-        if (phase != s_last_phase) {
+        if (phase != g_lastPhase) {
             g_eskf.notify_phase_change(phase);
-            s_last_phase = phase;
+            g_lastPhase = phase;
         }
     }
 

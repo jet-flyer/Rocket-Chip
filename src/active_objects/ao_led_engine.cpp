@@ -324,10 +324,10 @@ void AO_LedEngine_post_pattern(uint8_t pattern) {
     // on Core 0 under the cooperative QV scheduler — no ISR posts the
     // same event, and dedup prevents overlapping posts within one tick.
     // (Discovered during IVP-117 HW verify — see LESSONS_LEARNED.)
-    static rc::LedPatternEvt s_evt;
-    s_evt.super = QEVT_INITIALIZER(rc::SIG_LED_PATTERN);
-    s_evt.pattern = pattern;
-    QACTIVE_POST(&l_ledEngine.super, &s_evt.super, nullptr);
+    static rc::LedPatternEvt g_evt;
+    g_evt.super = QEVT_INITIALIZER(rc::SIG_LED_PATTERN);
+    g_evt.pattern = pattern;
+    QACTIVE_POST(&l_ledEngine.super, &g_evt.super, nullptr);
 }
 
 // IVP-116: AO_LedEngine_post_override() removed — RCOS now calls
