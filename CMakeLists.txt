@@ -595,17 +595,23 @@ else()
     # L2-P5 (2026-06-24): -Wshadow / -Wfloat-equal finalized as hard errors (via the
     # global -Werror) after remediation cleared all sites — was warning-only (-Wno-error)
     # during the measurement phase. See docs/plans/L2P5_WALK_PLAN.md Phase B.
-    set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic;-Wshadow;-Wfloat-equal")
+    # L2-P5 (2026-06-25): +-Wnon-virtual-dtor — C.35 / CERT OOP52 regression guard (a
+    # polymorphic base with a non-virtual destructor → delete-through-base UB). 0 current
+    # violations: authored code has no virtual functions (QP/C, not OO), and vendored C++
+    # headers are -isystem (suppressed). The actual delete-site UB is already caught by
+    # -Wall's -Wdelete-non-virtual-dtor; this adds the proactive definition-time guard so a
+    # future polymorphic class can't ship without a virtual dtor. Authored C++ only.
+    set_source_files_properties(${ROCKETCHIP_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wpedantic;-Wshadow;-Wfloat-equal;-Wnon-virtual-dtor")
 
     # IVP-42d / IVP-47: Per-file -O2 for ESKF propagation and codegen.
     # eskf.cpp: -O2 for stack optimization (LL Entry 1 / council R-4).
     # eskf_codegen.cpp: -O2 critical for codegen performance (199 CSE intermediates).
     # COMPILE_OPTIONS *replaces* the property set at :598 (it does not append), so
-    # these two lines MUST re-carry -Wshadow/-Wfloat-equal or these flight-critical
-    # fusion files silently fall out of the warning gate. (Caught 2026-06-24 by the
-    # L2-P5 positive-control sweep — ungated since this -O2 override was added.)
-    set_source_files_properties(src/fusion/eskf.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic;-Wshadow;-Wfloat-equal")
-    set_source_files_properties(src/fusion/eskf_codegen.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic;-Wshadow;-Wfloat-equal")
+    # these two lines MUST re-carry -Wshadow/-Wfloat-equal/-Wnon-virtual-dtor or these
+    # flight-critical fusion files silently fall out of the warning gate. (Caught 2026-06-24
+    # by the L2-P5 positive-control sweep — ungated since this -O2 override was added.)
+    set_source_files_properties(src/fusion/eskf.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic;-Wshadow;-Wfloat-equal;-Wnon-virtual-dtor")
+    set_source_files_properties(src/fusion/eskf_codegen.cpp PROPERTIES COMPILE_OPTIONS "-O2;-Wpedantic;-Wshadow;-Wfloat-equal;-Wnon-virtual-dtor")
 
     # Include directories — split into our code (-I, pedantic-checked) and
     # vendored third-party code (-isystem, pedantic-suppressed).

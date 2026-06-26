@@ -29,7 +29,7 @@ import sys
 # Per-file flags applied to ${ROCKETCHIP_SOURCES} at CMakeLists.txt:598, plus the
 # global -Werror that makes them fatal. These are the flags a per-file
 # COMPILE_OPTIONS override is at risk of silently dropping.
-REQUIRED = ["-Werror", "-Wpedantic", "-Wshadow", "-Wfloat-equal"]
+REQUIRED = ["-Werror", "-Wpedantic", "-Wshadow", "-Wfloat-equal", "-Wnon-virtual-dtor"]
 
 # Authored tree marker. Vendored code (Pico SDK, TinyUSB, lwGPS, ETL, ...) lives
 # under .pico-sdk / EXTERNAL / lib and is adopted code, intentionally NOT held to
