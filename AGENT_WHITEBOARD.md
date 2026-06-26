@@ -23,13 +23,18 @@
 
 ---
 
-## Session Handoff — L2-P5 walk-prep (2026-06-25, Claude)
+## Session Handoff — L2-P5 walk-prep DONE / WALK-READY (2026-06-25, Claude)
 
-**Done:** Plan `glistening-wishing-shannon.md` Phases **A/B/C complete** + the full mechanical-tier clearing (code remediation, WMM generator repair, suffixes, and the complete identifier-naming remediation — **0 naming findings**, full house-standard compliance incl. QP-idiom names). Details in CHANGELOG `2026-06-24-001` + `2026-06-25-001`; rename tooling recipe in LL Entry 44; QP-divergence in the tracking row below.
+**▶ STATUS (EOD 2026-06-25):** walk-prep complete (Phases A–E + §CM gate-wiring + standards corrections); **field manual is walk-ready.** The semantic walk = the **spine + judgment-heavy classes** (3/5/7/8/9/10/13); mechanical classes (incl. **Class 14, demoted**) are gate/§CM-covered. Repo-owner is **reviewing** and will likely suggest changes. **NOT committed** — working tree: 9 modified + 2 new docs (file list in CHANGELOG `2026-06-25-002`); committing the `CMakeLists.txt` `-Wnon-virtual-dtor` change needs the `bench_sim` HW gate (probe). The `agent-tools/` + `mcps/` untracked dirs are the pre-existing CCSDS-detour leftovers, not this work.
 
-**▶ PICK UP TOMORROW — Phase D (§RP research)**, the exit blocker (walk-ready = A + D + corrections). Fill the Manual-class judging criteria (classes **3/7/8/10**, currently scaffolds marked *"criteria via §RP"* in `docs/audits/L2P5_MANUAL_WALK_GUIDE.md`) from primary sources as a deep-research sitting; stash in `docs/audits/L2P5_RP_SOURCES_2026-06-25.md`; fold back. Sources + per-class scope are in the **plan's Phase D section**. Then Phase E (wrap).
+**Phase D (§RP) COMPLETE.** Manual-class judging criteria sourced + adversarially verified + folded via **5 Workflow passes** (~57 agents): spine/gestalt + rule-classes · AI-code-review general (SEI/NIST/OWASP + peer-reviewed) · agentic-era refresh 2024-2026 (durable error-TYPES as criteria; frequencies `[model,year]`-stamped + demoted) · embedded applicability (ADD bare-metal / DROP web-centric) · Spine-2 layout/altitude re-run. Stash `docs/audits/L2P5_RP_SOURCES_2026-06-25.md` (95-source corpus + verified criteria + UNVERIFIED clearance log). Folded into `L2P5_MANUAL_WALK_GUIDE.md` → **The spine** (gestalt + AI-lens + embedded ADD/DROP + **§D mechanically-checkable→§CM** triage) + §RP per-class map. Plan Phase D → DONE. CHANGELOG `2026-06-25-002`.
 
-**Pending corrections (naming resolution → fold back):** (1) field-manual **Class 2** still frames naming as an open over-claim — now resolved; (2) `RULE_VERIFIABILITY_TRIAGE.md` §459 claims the supersession was recorded in `CODING_STANDARDS.md` but it **wasn't** (drift); (3) record the "Identifier naming: QP/Samek vs JSF" supersession in `CODING_STANDARDS.md` "Worked consolidation decisions" — **PROTECTED, needs repo-owner to name it.**
+**Corrections folded:** Class-2 naming over-claim resolved; `RULE_VERIFIABILITY_TRIAGE.md` §459 drift **fixed**; QP/Samek-vs-JSF naming homed in **`docs/flight_director/QP_APPLICATION_GUIDE.md` §6.5** (a *decision*, NOT a deviation — QP naming is non-binding).
+
+**▶ STILL OPEN:**
+- ✅ **`CODING_STANDARDS.md` naming over-claim RESOLVED 2026-06-25 (repo-owner authorized).** Closed the false-completion: added an "Identifier naming (JSF 45/51/52)" bullet to Foundation → Worked consolidation decisions (peer to nullptr) + reworded Pre-Commit Checklist `:469` to reference it instead of claiming "JSF AV 50-53" compliance. (The 2026-06-23-001 #2 + triage §459 claims that this was already recorded were false — only the nullptr bullet had landed; now genuinely done.)
+- ✅ **§CM gate-wiring DONE 2026-06-25** — spine §D audited vs the real build config: **10/11 already gated** (`.clang-tidy` + `-Wall -Wextra -Werror`; `-fno-exceptions -fno-rtti` confirmed in all 76 TUs). One gap — missing-virtual-dtor (C.35/OOP52) — wired via `-Wnon-virtual-dtor` (CMakeLists `:598/:607/:608` + `check_warning_gate_coverage.py`; 0 violations, positive-controlled on the ARM compiler + 6 real TUs syntax-clean). `-Wconversion`/`-Wsign-conversion` **measured 2026-06-25: 56 findings** (33 sign / 12 conv / 11 float, 21/75 TUs, 0 compile errors) — **not noise**; fix-then-gate or fold into the Class-14 signed/unsigned walk (eskf hits need bit-exact verification). Also fixed a stale Phase-B "wiring PENDING" marker in the plan (was done 2026-06-24).
+- Then the actual file-by-file **walk** (185-file itinerary) + Phase E wrap.
 
 ---
 

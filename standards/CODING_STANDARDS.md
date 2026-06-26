@@ -60,6 +60,7 @@ The deferral is **re-evaluated each cycle** at Tier 2.5a (deferred-with-rational
 - **`continue` (JSF-190)** — P10/JPL are silent; JSF-190 governs by default coverage. More-restrictive applies and compliance is **cheap** (all 28 sites are mechanical guard-skip inversions, escape (a) not triggered) → **adopt the ban; remediate the sites.**
 - **P10 Rule 2** (bounded loops) — Holzmann's own inverted-rule exemption for proven-non-terminating scheduler loops is part of P10 itself; the project's QF_run / Core-1 / fault-halt loops satisfy it (see `ACCEPTED_STANDARDS_DEVIATIONS.md` "Note on P10 Rule 2").
 - **`<stdio.h>` (JSF-22)** — no source disagrees; applies (R-5 enforced project-wide).
+- **Identifier naming (JSF 45/51/52)** — JSF 45 mandates underscore word-separation and 51/52 all-lowercase functions/variables/constants. The house convention deliberately uses **camelBack functions/variables, `k`-prefixed constants, `g_`-prefixed file-statics/globals, CamelCase types** and **supersedes JSF 45/51/52**; the `readability-identifier-naming` gate enforces the house scheme (not JSF). Earlier text citing this as "JSF AV 50-53" *compliance* (Pre-Commit Checklist) was an over-claim — corrected to reference this decision. (Framework-specific QP/Samek naming divergence is documented separately in `docs/flight_director/QP_APPLICATION_GUIDE.md` §6.5.)
 
 **References:**
 - [JSF AV C++ Standards (PDF, 2005)](https://www.stroustrup.com/JSF-AV-rules.pdf) — foundational C++ catalog
@@ -466,7 +467,7 @@ All code changes must pass the verification checklist before merge to main.
    - [ ] All affected targets build successfully
 
 2. **Standards Compliance**
-   - [ ] Naming conventions followed (JSF AV Rule 50-53):
+   - [ ] Naming conventions followed (project house convention — supersedes JSF 45/51/52; see Foundation → Worked consolidation decisions → Identifier naming):
      - Constants use `k` prefix: `kSampleRate`, `kMaxRetries`
      - Global variables use `g_` prefix: `g_sensorData`, `g_calibrationState`
      - Pointers use `p_` suffix in name: `p_buffer`, or `g_p_` for global pointers

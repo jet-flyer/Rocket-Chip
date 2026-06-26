@@ -433,6 +433,14 @@ QP/C is written in C99. RocketChip uses C++20. The QEP files compile cleanly as 
 
 QP/C has its own `Q_ASSERT` mechanism. RocketChip has `ROCKETCHIP_ASSERT` and the panic handler from IVP-30. Define `Q_NASSERT` to disable QP's asserts and use the project's own infrastructure, or map `Q_onAssert` to the existing panic handler.
 
+### 6.5 Identifier Naming: JSF House Convention, Not Samek/QP
+
+QP/C and Samek's book use the Quantum Leaps house naming — `l_` for module-scope statics, `Xxx_initial` / `Xxx_running` CamelCase state-handler functions, `s_`-prefixed event statics. RocketChip's hand-written AO/QP code instead follows the **project JSF house standard**: `g_` file/module statics, `lower_case` free + state-handler functions (JSF AV Rule 51), `k`-prefixed constants.
+
+**This is a deliberate convention choice — NOT a standards deviation and NOT an accepted-deviation.** There is no binding QP convention to deviate *from*: QP/C is indifferent to these names (it consumes them only as function pointers and variable identifiers — only the signatures and registration matter), and Quantum Leaps publishes its own style guide (QL-C/C++:2022) as editable markdown explicitly meant to be **forked** to a project's house standard. So QP naming is guidance, not a rule, and JSF governs. (This is why it lives here in the QP guide, not in `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`.)
+
+**Watch-item (ties to §5):** the divergence is safe today *because the AO code is hand-authored*. If the STARS/QM autocoder workflow (§5) is adopted, generated code reimposes QP/Samek naming — at that point this becomes a generated-vs-house-convention conflict to re-decide (regenerate to house naming, or accept QP naming in generated files only). Source: 2026-06-24 naming remediation (primary-source research; rename tooling recipe = `LESSONS_LEARNED.md` Entry 44).
+
 ---
 
 ## 7. Evaluation Checklist for Toolchain Validation IVP

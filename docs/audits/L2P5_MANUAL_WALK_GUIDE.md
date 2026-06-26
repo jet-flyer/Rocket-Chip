@@ -49,6 +49,81 @@ what it can't see.
 
 ---
 
+## The spine — the operational human-eye review (§RP, sourced 2026-06-25)
+
+The lens above is the *why*; **this is the *what to actually do*.** The spine is the gestalt review — judge the
+whole function/file, not the line. Full verbatim criteria, sources, the `[model, year]` rate stamps, and the
+per-facet UNVERIFIED quarantine live in **[`L2P5_RP_SOURCES_2026-06-25.md`](L2P5_RP_SOURCES_2026-06-25.md)**
+(four adversarially-verified research passes, ~48 agents, anti-fabrication per LL 37). This is the operational
+summary — don't re-quote, point to the stash.
+
+### A. Gestalt / function-shape (read the whole, not the line)
+- **Does one thing** — name the function in one *and*-free verb phrase; if you can't (or the honest name needs
+  "and"), it does ≥2 logical operations *even if every line is correct and the size gate is green*. *(CCG F.1/F.2/F.3,
+  P10 Rule 4, Fowler Extract Function.)*
+- **Code-smell duplication** — the same idiom/constant/branch at ≥2 sites that drift; line-by-line passes each copy,
+  only the whole-file read sees it. *(CCG ES.3; Fowler Duplicated Code.)*
+- **Encapsulation theater** — private fields + mechanical get/set with no invariant = a data class dressed as a
+  class. *(CCG C.131, C.2.)*
+- **Layout / altitude (Spine-2)** — read the body as a *shape*: top-down intent→detail, **one level of
+  abstraction** (don't juxtapose a high-level call with raw bit-twiddling), declarations near first use, shallow
+  nesting (guard clauses up front). *(CCG P.1/P.3, F.2/F.3/F.56, ES.5/6/21/22, NL.16/17; Fowler Slide-Statements /
+  Split-Phase; full criteria → stash **Part 1 §Spine-2**.)*
+
+### B. The AI-code-review lens — DURABLE error TYPES (lead with these)
+Confirmed to **persist across model generations** (autocomplete → current agentic: GPT-4o / Claude / SWE-agents).
+The TYPE is the criterion; any percentage is `[model, year]`-stamped and illustrative only. Evidence: stash Pass 2–4.
+- **Passes-tests-yet-wrong** — green tests ≠ correct (EvalPlus: +80× tests dropped pass@k 19–29%; SWE-bench
+  "solved" 29.6% behave differently from the oracle). *The headline — it is this guide's whole thesis.*
+- **Spec-noncompliance** — ignores an explicit stated requirement while passing.
+- **Confabulation** — confident wrong code + a fabricated justifying comment/citation (NIST AI 600-1 names this).
+- **Non-self-contained / hallucinated symbols** — calls undefined helpers / invented APIs.
+- **Unchecked returns / happy-path-only** — drops error returns (P10-7).
+- **Automation-bias / under-review** — accepted because it "looks right"; 79.1% of merged agentic PRs had no
+  reviewer feedback loop (MSR'26). **Distrust your own confidence**, and the model's.
+
+### C. Embedded applicability (this is firmware, not web/app)
+- **ADD — hand-walk (bare-metal-specific):** `volatile`-as-cross-core-barrier; peripheral init-sequence/lifecycle;
+  blocking-in-a-cooperative-scheduler; functionally-correct-but-safety-blind hardware (skipped lock/continuity
+  checks). *(stash Pass 4.)*
+- **DROP / deprioritize (web-centric, don't waste walk time):** web injection (XSS/SQLi/SSRF/path-traversal) — no
+  DOM/SQL/HTTP/FS *(residual: UART/USB + CLI command parser)*; registry package-hallucination — vendored SDK, no
+  pull *(residual: **host-side Python tooling**)*; cloud-IAM/secret-store *(residual: device keys / secure-boot)*.
+
+### D. Mechanically checkable — gate status VERIFIED 2026-06-25 *(do NOT hand-walk these)*
+The §CM gate-wiring is **done**. Status confirmed against the real build config (`.clang-tidy` + `-Wall -Wextra
+-Werror` + `build/compile_commands.json`) — these are tool-caught, **cite the gate, don't re-walk**:
+- ✅ **Hardware-register / SDK-symbol hallucination** (invented/mistyped HAL/CMSIS/register names) → **compiler/linker**
+  (undefined-reference / type-mismatch; EmbedCGen: 47% of failures are link errors). Inherent — not a walk item.
+- ✅ **Heap / exceptions / RTTI defaults** → `cppcoreguidelines-no-malloc` + **`-fno-exceptions -fno-rtti` confirmed
+  in all 76 TUs** (a `throw`/`new`/`dynamic_cast` fails to compile — measured, not assumed).
+- ✅ **Uninitialized read** (ES.20 / EXP53) → `cppcoreguidelines-init-variables` + `pro-type-member-init` + `-Wall`.
+- ✅ **NEW — Missing virtual dtor** (C.35 / OOP52) → **`-Wnon-virtual-dtor` wired 2026-06-25** (CMakeLists `:598/:607/:608`,
+  authored C++ under `-Werror`; added to `check_warning_gate_coverage.py` REQUIRED). The one real gap; **0 current
+  violations** (no authored virtual functions), positive-controlled on the ARM compiler. The delete-site UB was
+  already caught by `-Wall`'s `-Wdelete-non-virtual-dtor`; this adds the proactive definition-time guard.
+- ✅ **Rule-of-five gaps** (C.21) → `cppcoreguidelines-special-member-functions`.
+- ✅ **Implicit single-arg ctor** (C.46) → `google-explicit-constructor`.
+- ✅ **Narrowing / sign** (ES.100/102, JSF-180) → `bugprone-narrowing-conversions` + `cppcoreguidelines-narrowing-conversions`
+  + `-Wsign-compare`. 📊 **`-Wconversion`/`-Wsign-conversion` MEASURED 2026-06-25: 56 findings** (33 sign-conversion
+  / 12 conversion / 11 float-conversion) across 21 of 75 TUs, 0 compile errors — **NOT noise** (a tractable set, cf.
+  the 28-`continue` / 24-`(void*)0` batches). **54 located** in [`L2P5_WCONVERSION_FINDINGS_2026-06-25.md`](L2P5_WCONVERSION_FINDINGS_2026-06-25.md)
+  → a **§CM mechanical remediation batch** (fix-then-gate; can't `-Werror` a dirty tree; `eskf*` hits bit-exact). Class 14
+  is **mechanical, not a semantic walk** — demoted.
+- ✅ **Unsequenced side-effects / eval-order UB** (ES.43/44, EXP50) → `-Wall` (`-Wsequence-point` / `-Wunsequenced`).
+- ✅ **Magic-number candidates** (ES.45) → `readability-magic-numbers` (finds candidates; *should it be named?* stays
+  grey — that half is hand-walked).
+- ✅ **Unchecked returns** (P10-7 / CWE-252) → `[[nodiscard]]` contracts + `bugprone-unused-return-value` (canary closed).
+- ✅ **Buffer / OOB** (CWE-120/787/805) → `clang-analyzer-security.ArrayBound` + `-Wall` (`-Warray-bounds`/`-Wstringop-overflow`)
+  + host sanitizers (residual: MMIO/DMA buffers the analyzer can't reason about stay manual).
+
+**Stays semantic (genuine hand-walk):** does-one-thing decomposition · duplication/divergent-change · comments
+that restate code or paraphrase a doc (NL.1/2) · encapsulation-theater (C.131) · meaningless-concept templates
+(T.20) · `volatile`-as-*cross-core*-sync judgment (CP.8) · lock-ordering (CON53) · should-this-literal-be-named
+(ES.45 grey half) · and the durable AI types in **B** (passes-tests-yet-wrong, confabulation, automation-bias).
+
+---
+
 ## How to use this doc
 
 1. Work one **walk-class** at a time (the `## Class:` sections). They're independent — any order. The Class Index below shows which are built vs. pending.
@@ -105,7 +180,7 @@ Tier-3 semantic walk-classes (each pulls its in-scope rules from the triage; ope
 | 11 | Preprocessor judgment residual | JPL 20, JSF 8/10/20/29/30/31 (§3,§4a) | ☑ **built** |
 | 12 | Header organization | JSF 34/35/36/37/38/40 (§4a) | ☑ **built** |
 | 13 | Magic numbers & literal discipline | JSF 147/151/151.1/210/210.1 (§4c,§4d) | ☑ **built** |
-| 14 | Expressions & evaluation order | JPL 18, JSF 157/162/163/164/166/187/203/204.1/213 (§3,§4c,§4d) | ☑ **built** |
+| 14 | Expressions & evaluation order — **mechanical → §CM/§SC, NOT a semantic walk** | JPL 18, JSF 157/162/163/164/166/187/203/204.1/213 | ⚙️ **tool-caught** (54 `-Wconversion` located + `-Wall`; demoted 2026-06-25) |
 
 Action sections (not per-file judgment walks):
 
@@ -113,7 +188,7 @@ Action sections (not per-file judgment walks):
 |---|---------|--------|
 | LV | Live unlogged violations to disposition (JSF 18, 27, 190, 202) | ☑ **built** (walk-content) |
 | CM | One-shot mechanical checks / conversion moves | ↗ **prep — owned by the work plan** (`docs/plans/L2P5_WALK_PLAN.md` Phase B) |
-| RP | Research pass — fill the Manual classes with externally-sourced criteria | ↗ **prep — owned by the work plan** (Phase D) |
+| RP | Research pass — Manual-class criteria, externally-sourced | ☑ **done 2026-06-25** → [`L2P5_RP_SOURCES_2026-06-25.md`](L2P5_RP_SOURCES_2026-06-25.md); folded into **The spine** + §RP map (Spine-2 layout re-run done 2026-06-25) |
 | IT | **Walk Itinerary** — ordered file-coverage map (the traversal spine) | ☑ **built** (walk-content) |
 | SC | Genuinely script-covered (revalidated; do NOT walk) | ☑ **built** (walk-content) |
 
@@ -180,11 +255,11 @@ Highest-value targets on this codebase (where a dropped error genuinely bites):
 - **QP post / publish** — `QACTIVE_POST` is `void`, so N/A; but any wrapper returning a bool counts.
 
 > **Why this is in the walk, not script-covered (triage §7.4, THE CANARY):** `bugprone-unused-return-value`
-> has **no project `CheckedFunctions`** configured (measured) and `cert-err33-c` covers only the C stdlib — so
-> the **`i2c_bus_*` / `gps_*`** returns above are **uncovered** (and `flash_safe_execute`'s `int`, pending sig
-> verify). A clang-tidy-clean run does NOT mean Rule 7/14/115 passed. This is the audit's designated canary; it's
-> being converted to Det-by-reference by populating an **honest** `CheckedFunctions` list pre-walk (work plan
-> Phase B) — honest meaning complete-for-the-family, or a partial list re-creates the very over-claim it fixes.
+> originally had **no project `CheckedFunctions`** + `cert-err33-c` (C-stdlib only) → `i2c_bus_*`/`gps_*`/`flash_safe_execute`
+> returns were **uncovered** (the canary). **✅ CLOSED 2026-06-24 (Phase B):** project APIs now carry `[[nodiscard]]`
+> under `-Werror` (compiler-enforced, not lost at a call site); `flash_safe_execute` confirmed `int` and added to
+> `.clang-tidy CheckedFunctions`. Rule 7/14/115 is now **gated** for the bus/flash/GPS family (§SC). The residual
+> hand-walk is only the `(void)`-cast-*intent* grey — dispositioned per file as you go.
 
 ### Grep recipe (finds *candidates*, does not judge them)
 
@@ -253,19 +328,20 @@ The JSF rules it is cited against say the *opposite*:
 
 The **code is internally consistent and fine** (camelBack functions/vars, `k`-prefixed constants, `g_`-prefixed
 globals, CamelCase types — the RocketChip convention). The problem is **not in the source**; it's the
-**documentation over-claim**:
+**documentation over-claim** — now **✅ RESOLVED 2026-06-25**:
 
-- `standards/CODING_STANDARDS.md` (Pre-Commit Checklist → Standards Compliance, line 433) cites the naming scheme as
-  *"JSF AV Rule 50-53"* compliance. It is **not** JSF-compliant — it's a deliberate, reasonable project
-  convention that **supersedes** JSF 45/51/52. The over-claim is the doc text asserting JSF conformance.
+- `standards/CODING_STANDARDS.md` (Pre-Commit Checklist → Standards Compliance, ~line 469) cited the naming scheme
+  as *"JSF AV Rule 50-53"* compliance — **not** JSF-compliant (a deliberate project convention that **supersedes**
+  JSF 45/51/52). **Fixed:** an "Identifier naming (JSF 45/51/52)" bullet added to Foundation → Worked consolidation
+  decisions (peer to the nullptr supersession) + the checklist line reworded to reference it (QP/Samek specifics →
+  `QP_APPLICATION_GUIDE.md` §6.5).
 
-So this "walk" is really a **disposition**, not a per-file hunt:
+So this "walk" was a **disposition**, not a per-file hunt — **done 2026-06-25**:
 
-1. Confirm the source is internally consistent with the project convention (spot-check; the gate already enforces it).
-2. Confirm the doc over-claim exists (it does — `CODING_STANDARDS.md:433`).
-3. **Disposition:** record the supersession explicitly. Per the project precedence rule a documented project
-   convention can override an older standard — but it must be *written down as a supersession*, not mis-labeled
-   as "JSF compliance." This is the honest-disposition fix the triage §7.1 calls for.
+1. ✅ Source is internally consistent with the project convention (the gate enforces it; 0 naming findings in the L2-P5 remediation).
+2. ✅ Doc over-claim confirmed + **fixed** in `CODING_STANDARDS.md` (consolidation bullet + reworded checklist).
+3. ✅ Supersession recorded explicitly (the honest-disposition fix triage §7.1 called for) — this also closed a
+   **false-completion** (CHANGELOG `2026-06-23-001` #2 + triage §459 had claimed it done when only the nullptr bullet had landed).
 
 ### Grep recipe (consistency spot-check only)
 
@@ -288,13 +364,11 @@ grep -rnE '^\s*[A-Za-z_][A-Za-z0-9_<>:]*\s+g[^_a-zA-Z]' src/                    
 
 | Item | Location | Verdict | Disposition |
 |------|----------|---------|-------------|
-| Doc over-claim "JSF AV 50-53" | `standards/CODING_STANDARDS.md:433` | _TBD_ | record supersession (project convention overrides JSF 45/51/52); reword the citation |
-| Source convention consistency | `src/` (spot-check) | _TBD_ | expect PASS |
+| Doc over-claim "JSF AV 50-53" | `standards/CODING_STANDARDS.md` (Pre-Commit Checklist ~:469) | ✅ **RESOLVED 2026-06-25** | supersession bullet added to Worked-consolidation-decisions + checklist reworded to reference it |
+| Source convention consistency | `src/` | ✅ **PASS** | 0 naming findings (L2-P5 remediation; gate-enforced) |
 | | | | |
 
-> **Note:** `CODING_STANDARDS.md` is protected. The supersession reword is a separate authorized edit — flag it
-> for Nathan, don't fold it into a code commit. (The cross-ref table amendment already landed there 2026-06-17;
-> this is a distinct change.)
+> **Note:** `CODING_STANDARDS.md` is protected; the supersession reword was made 2026-06-25 as a repo-owner-authorized edit (separate from any code commit).
 
 ---
 
@@ -379,8 +453,11 @@ grep -rnE '^\s*//\s*[a-zA-Z_].*[;{}]\s*$' src/ | grep -vE '//\s*(TODO|NOTE|see|p
 Built to the Class-1 template, **leaning on the triage for verbatim rule text + the "why"** (open the cited
 `§` rows) rather than re-quoting — that's the two-docs-don't-drift design. Each class is the *operational* layer:
 what to look for, the agent blind spot, a candidate-finding grep, judging criteria, a findings table. The
-genuinely-Manual classes (3, 7, 8, 10) get their concrete criteria filled in by **§RP** (work plan, Phase D)
-before they're walked — where one currently says "use judgment," that's a placeholder, not the final instruction.
+genuinely-Manual classes (3, 7, 8, 10) now have their concrete criteria **filled in by §RP (done 2026-06-25** —
+see the per-class map under §RP). **Class 14 is demoted to mechanical (§CM/§SC), not a semantic walk** (proven
+tool-caught). The genuinely-semantic hand-walk is **the spine + the judgment-heavy classes** (3 comments, 5
+scope/lifetime, 7 class design, 8 templates, 9/10 concurrency & `volatile`, 13 literal-meaning); the rest are
+appendix/reference where the gate already decides.
 
 ---
 
@@ -538,7 +615,7 @@ grep -rnE '\*\*+' src/                                                      # >1
 
 ---
 
-## Class 7 — Class & interface design  *(Manual — criteria via §RP)*
+## Class 7 — Class & interface design  *(Manual — criteria sourced; see §RP map → stash Support B)*
 
 ### In-scope rules (triage §4b JSF 64–97 cluster)
 
@@ -590,7 +667,7 @@ grep -rnE '^\s*(public|protected):' include/ src/   # then check for raw data me
 
 ---
 
-## Class 8 — Templates  *(Manual/Grey — criteria via §RP)*
+## Class 8 — Templates  *(Manual/Grey — criteria sourced; see §RP map → stash Support C)*
 
 ### In-scope rules (triage §4b JSF 101/102/103/105/106)
 
@@ -683,7 +760,7 @@ grep -rnE '\breturn\b' src/              # single-exit (113): count per fn only 
 
 ---
 
-## Class 10 — Concurrency & shared-data ownership  *(highest consequence — criteria via §RP)*
+## Class 10 — Concurrency & shared-data ownership  *(highest consequence — criteria sourced; see §RP map → stash Support D)*
 
 ### In-scope rules (triage §3 JPL 6/7/8/9 — the canonical Manual class)
 
@@ -880,7 +957,14 @@ grep -rnE '[^A-Za-z0-9_."]([0-9]{2,}|[0-9]+\.[0-9]+)' src/   # multi-digit / flo
 
 ---
 
-## Class 14 — Expressions & evaluation order
+## Class 14 — Expressions & evaluation order  *(MECHANICAL — §CM/§SC, NOT a semantic hand-walk)*
+
+> **Demoted 2026-06-25 (re-focus + measurement).** This class is **tool-caught, not human-judgment** — it does not
+> belong in the gestalt walk. The signed/unsigned/conversion half = **54 located `-Wconversion`/`-Wsign-conversion`
+> findings** ([companion doc](L2P5_WCONVERSION_FINDINGS_2026-06-25.md)) → a **§CM mechanical remediation batch**
+> (fix-then-gate; `eskf*` hits bit-exact). Eval-order / sequence-point / shift (157/164/204.1) = `-Wall`
+> (`-Wsequence-point`/`-Wunsequenced`) → **§SC** (gated). **No per-file semantic walk here** — the criteria below
+> are retained only as reference for dispositioning the §CM findings and as the two do-not-"fix" guards (163/213).
 
 ### In-scope rules (triage §3 JPL 18, §4c/§4d JSF 157/162/163/164/166/187/203/204.1/213)
 
@@ -928,8 +1012,17 @@ grep -rnE '<<|>>' src/                       # shift sites: RHS in [0,width-1]? 
 
 ### Findings
 
+> **Pre-located candidate set (2026-06-25):** the signed/unsigned/conversion half of this class is **already
+> located** — `-Wsign-conversion -Wconversion` was run over every authored TU: **~54 findings across 12 files**,
+> listed file:line in **[`L2P5_WCONVERSION_FINDINGS_2026-06-25.md`](L2P5_WCONVERSION_FINDINGS_2026-06-25.md)**.
+> Disposition each (§CM mechanical batch — NOT a per-file semantic walk): real narrowing/wrap bug → **fix**; intentional → **explicit cast (+ why)**;
+> mandated `uintN_t`/HW/bitmask (JSF-163 exemption) → **PASS**. Do NOT blind-`static_cast` all 54 (that masks real
+> bugs). The `eskf*` hits need bit-exact verification on any fix. Eval-order/shift findings (157/164/204.1) are
+> still grep-as-you-go per the recipe above.
+
 | File:line | Expression | Issue (sign-mix / eval-order / shift) | Verdict | Disposition |
 |---|---|---|---|---|
+| (sign/conversion: ~54 pre-located → see companion doc above) | | | | |
 | | | | | |
 
 ---
@@ -966,16 +1059,30 @@ semantic walk.
 
 ---
 
-## § RP — Research pass (fills the Manual-class criteria)  *(prep — owned by the work plan)*
+## § RP — Research pass (fills the Manual-class criteria)  *(DONE 2026-06-25)*
 
-> **This is a pre-walk PREP step, not walk-content.** The research scope, external sources, anti-fabrication
-> discipline (LL 37), and status live in the **work plan**: `docs/plans/L2P5_WALK_PLAN.md` § Phase D.
+> **Sourced + adversarially verified.** Concrete "what good / what a finding looks like" criteria for the Manual
+> classes are produced in **[`L2P5_RP_SOURCES_2026-06-25.md`](L2P5_RP_SOURCES_2026-06-25.md)** (four workflow
+> passes, ~48 agents, anti-fabrication per LL 37). The operational summary is folded into **The spine** section
+> near the top; full verbatim criteria + provenance + the per-facet UNVERIFIED quarantine live in the stash.
 
-Where a class above says "use judgment / design judgment," that is a **placeholder** — the concrete "what good
-looks like / what a finding looks like" criteria for the genuinely-Manual classes (3, 7, 8, 10, + Manual rules in
-9/13/14) are produced by the §RP research pass and **folded back into those classes here** before they're walked.
-Until that's done, those classes are scaffolds: do **§RP first** for them. A note to look is not knowing what to
-look for.
+**Per-class → stash map** (open the cited Support section for verbatim IDs + good/finding + agent-tendency):
+- **Class 3** (comments) → stash **Support A** — CCG NL.1/NL.2/NL.3, CERT MSC04-C / MSC12-C.
+- **Class 7** (class/interface) → **Support B** — CCG C.2/C.3/C.8/C.21/C.35/C.46/C.131, I.4/I.25, CERT OOP50/52/58-CPP.
+- **Class 8** (templates) → **Support C** — CCG T.10/11/20/41/47/61/69/120/143/144/150.
+- **Class 10** (concurrency) → **Support D** — CCG CP.3/8/20/21/22, CERT CON50–56-CPP.
+- **Classes 9 / 13 / 14 residuals** → **Support E** — CCG ES.43/44/45/100/101/102, CP.8, CERT EXP50/52-CPP.
+- **Spine (gestalt)** → stash **Part 1** — CCG F.1/F.2/F.3, ES.3, C.131, I.23, P10 Rule 4, Fowler smells.
+
+**Open before the spine is "complete":**
+1. ✅ **Spine-2 (function layout / altitude) re-run DONE 2026-06-25** — 20 verified criteria (P.1/P.3, F.2/F.3/F.56,
+   ES.5/6/21/22, NL.16–21, Fowler Slide-Statements / Split-Phase); folded into stash **Part 1 §Spine-2** + spine §A.
+2. ✅ **Per-facet UNVERIFIED lists cleared 2026-06-25** (primary-source verification pass) — SF.4/5/7/8, C.20,
+   NL.1-3, F.1/F.3 enforcement, CON54/56 → VERIFIED; six Fowler smells + SLAP/Compose-Method → name-only leads.
+   See stash **Appendix clearance log**.
+
+**Mechanical subset:** the tool-catchable AI-tendency / embedded items are listed under **The spine → D.
+Mechanically checkable** and routed to **§CM**, not hand-walked.
 
 ---
 
@@ -997,7 +1104,7 @@ whole and apply the **per-file lenses** below with the file in front of you.
 - **Class 9** — control-flow; **`volatile`-as-cross-core-sync** (high value); early-exit style.
 - **Class 10** — concurrency: every shared object's owner + barrier; delay-as-sync; lock/unlock pairing. *(highest consequence)*
 - **Class 13** — magic numbers / unsourced values.
-- **Class 14** — signed/unsigned mixing; eval-order; (don't "fix" the 163/213 exemptions).
+- (**Class 14 is NOT a per-file lens** — demoted to mechanical: the 54 `-Wconversion` findings are a §CM batch + `-Wall` covers eval-order/shift. Don't hand-walk it.)
 - (Classes 2/11/12 are largely cross-repo/over-claim — handled in their sections, not per file.)
 
 **The itinerary itself is the companion checklist** → **`docs/audits/L2P5_WALK_ITINERARY.md`** — all **185**
