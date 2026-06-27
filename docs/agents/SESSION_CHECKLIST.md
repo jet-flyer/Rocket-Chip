@@ -4,6 +4,16 @@
 
 **How to use this checklist:** This is a single linear document. Always begin at the top and work your way downward. When working in a later or outer scope (such as a session end), this means addressing the rules of the current scope together with its inherited inner scopes as part of the same checklist instance. Re-verify each relevant step in the current run, even if similar actions were performed earlier in the session — do not skip based on prior confirmations from outside this immediate checklist run. As each item is checked during this run, explicitly state that the item is being verified and report the outcome before moving to the next.
 
+**Detecting strong stopping points / session conclusion:** When the user indicates a strong stopping point or conclusion for the current session (examples: language like "let's wrap this session up", "wrap things up", "wrap up the session", "anything else this session?", "I think we're done here", "session end", or other clear signals that active work is wrapping up), treat this as activation of the Session End scope.
+
+- Immediately re-read this full document.
+- Execute a complete checklist instance starting from the top (re-verifying applicable Session Start items in context, then inherited Per-Commit/Per-Push rules, then the Session End items).
+- Use explicit per-item verification language ("Verifying item X: ... Outcome: ...") in your reasoning and response.
+- **Default behavior:** Automatically perform the full Session End procedure (including exact state note, no-broken-code check, etc.). Do not tunnel on ultra-specific wording.
+- If the signal is ambiguous (e.g. the user is just finishing one narrow sub-task and has not indicated overall session end), ask clearly: "Should I run the full Session End checklist now?"
+
+This approach focuses on user intent around a strong stopping point rather than an exhaustive list of magic phrases.
+
 This checklist is structured as four nested scopes:
 
 ```
@@ -81,6 +91,8 @@ Inherits all Per Commit rules. Adds the rules below — these run **once** befor
 ---
 
 ## Session End
+
+**Activation:** This section is triggered when the user indicates a strong stopping point / session conclusion (see "Detecting strong stopping points / session conclusion" in the How to use section above). 
 
 Review from the top of this document before following the rules below. These rules run **once** when the session is closing (in addition to all earlier rules).
 

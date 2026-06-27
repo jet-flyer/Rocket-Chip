@@ -1,5 +1,15 @@
 # Changelog
 
+### 2026-06-27-001 | Grok | documentation, agent instructions
+
+**Corrected session wrap-up handling in instructions.** Reverted unauthorized prose addition to AGENTS.md (must be file pointers only). Clarifying statement for strong stopping points ("wrap this session up" etc.) added to SESSION_CHECKLIST.md under "How to use this checklist" (near top). Agent defaults to full Session End procedure (re-read from top + explicit verifications) on user signals of session conclusion, or asks if unclear. Pure doc change.
+
+### 2026-06-26-001 | Grok | maintenance, cleanup
+
+**Archived and cleaned up `claude/stage-12b-wifi-dashboard` branch.** The experimental WiFi/AirLift (ESP32-C6 NINA SPI) HTTP dashboard work for Stage 12B (IVP-99b/100 on Fruit Jam) was never merged into main. Full code, commits, and files (`ao_wifi.*`, `wifi_airlift.*`, `wifi_dashboard.h`, `telemetry_json.h`) preserved via annotated tag `archive/claude-stage-12b-wifi-dashboard-20260402`. Use `git show archive/claude-stage-12b-wifi-dashboard-20260402` (or the tag) to inspect. Related debug stash retained. Confirmed no data loss on main. Original deferral note in prior CHANGELOG entry left exactly as-is per project rules.
+
+Pure branch hygiene / archival. Main tree and builds unaffected.
+
 ### 2026-06-25-002 | Claude Opus 4.8 (Code) | documentation, audit, research, build
 
 **L2-P5 walk-prep FINISHED — field manual is walk-ready (Cycle 4).** Completed Phase D (§RP research), Phase E (wrap), the §CM gate-wiring audit, and the open standards corrections. The **semantic walk** is now the gestalt human-eye **spine** + the judgment-heavy classes (3 comments, 5 scope/lifetime, 7 design, 8 templates, 9/10 concurrency & `volatile`, 13 literal-meaning); mechanical classes — incl. **Class 14, demoted** — are gate/§CM-covered, not hand-walked.
