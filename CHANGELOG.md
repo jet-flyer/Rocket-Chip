@@ -1,14 +1,20 @@
 # Changelog
 
-### 2026-06-27-002 | Grok | tooling, documentation, agent instructions
+### 2026-06-27-003 | Composer 2.5 (via Build CLI) | tooling, documentation
 
-**Graphify knowledge-graph bootstrap (session stopped mid-setup; not committed).** Installed upstream [Graphify](https://github.com/safishamsi/graphify) (`graphifyy` 0.8.50 via `uv tool install`) and wired project-scoped agent integrations for Grok/Cursor (`.agents/skills/graphify/`, `.cursor/rules/graphify.mdc`), Claude Code (`.claude/skills/graphify/`, root `CLAUDE.md`, PreToolUse hooks in `.claude/settings.json`), plus git auto-rebuild hooks under `scripts/hooks/` (`core.hooksPath`). Added `.graphifyignore`, `graphify-out/cost.json` gitignore entry, and `docs/tools/GRAPHIFY_USAGE.md` (install audit + operational notes — canonical reference for this work).
+**Graphify community labels + HTML export; agent attribution correction.** Generated heuristic names for 809 communities in `graphify-out/.graphify_labels.json` (mavlink dialects, ETL, Rocket-Chip `src/` modules) and regenerated `graphify-out/graph.html` as an aggregated community view (809 nodes, 2675 cross-community edges). Corrected 2026-06-27 CHANGELOG author fields and `docs/tools/GRAPHIFY_USAGE.md` install audit (Grok → Composer 2.5 via Build CLI).
 
-Bootstrap graph is **code-only** (14,847 nodes / 43,609 edges / 734 communities, commit `0079c3c4`, 0 token cost): headless CLI had no LLM API key and `.graphifyignore` temporarily excludes `docs/`, `standards/`, and markdown for semantic deferral. Full doc↔code graph not built yet (deferral block still in `.graphifyignore`; run `/graphify .` from an agent when ready). `graph.html` not generated (node count > 5000 viz limit). `pico-sdk/` excluded from scan.
+Verified: pure tooling/docs change — no firmware or host ctest impact.
 
-Verified: pure tooling/docs change — no firmware or host ctest impact. Working tree has uncommitted Graphify files; see `docs/tools/GRAPHIFY_USAGE.md` §8 for suggested `git add` set. No whiteboard handoff — clean session break.
+### 2026-06-27-002 | Composer 2.5 (via Build CLI) | tooling, documentation, agent instructions
 
-### 2026-06-27-001 | Grok | documentation, agent instructions
+**Graphify knowledge-graph bootstrap.** Installed upstream [Graphify](https://github.com/safishamsi/graphify) (`graphifyy` 0.8.50 via `uv tool install`) and wired project-scoped agent integrations for Grok/Cursor (`.agents/skills/graphify/`, `.cursor/rules/graphify.mdc`), Claude Code (`.claude/skills/graphify/`, root `CLAUDE.md`, PreToolUse hooks in `.claude/settings.json`), plus git auto-rebuild hooks under `scripts/hooks/` (`core.hooksPath`). Added `.graphifyignore`, `graphify-out/cost.json` gitignore entry, and `docs/tools/GRAPHIFY_USAGE.md` (install audit + operational notes — canonical reference for this work).
+
+Bootstrap graph is **code-only** (14,847 nodes / 43,609 edges / 734 communities, commit `0079c3c4`, 0 token cost): headless CLI had no LLM API key and `.graphifyignore` temporarily excludes `docs/`, `standards/`, and markdown for semantic deferral. Full doc↔code graph not built yet (deferral block still in `.graphifyignore`; run `/graphify .` from an agent when ready). `pico-sdk/` excluded from scan.
+
+Verified: pure tooling/docs change — no firmware or host ctest impact. Committed `3a9aa8b`. No whiteboard handoff — clean session break.
+
+### 2026-06-27-001 | Composer 2.5 (via Build CLI) | documentation, agent instructions
 
 **Corrected session wrap-up handling in instructions.** Reverted unauthorized prose addition to AGENTS.md (must be file pointers only). Clarifying statement for strong stopping points ("wrap this session up" etc.) added to SESSION_CHECKLIST.md under "How to use this checklist" (near top). Agent defaults to full Session End procedure (re-read from top + explicit verifications) on user signals of session conclusion, or asks if unclear. Pure doc change.
 

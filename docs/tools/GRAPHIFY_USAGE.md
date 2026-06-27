@@ -27,9 +27,9 @@ Rocket Chip is doc-heavy (`SAD.md`, `IVP.md`, `standards/`, hardware ICDs) and c
 
 ---
 
-## 2. Initial Install (Grok, 2026-06-27)
+## 2. Initial Install (Composer 2.5 via Build CLI, 2026-06-27)
 
-> **Audit trail.** If something behaves oddly later, check here first. Installed by Grok agent session; not yet committed to git at time of writing unless a follow-up commit landed.
+> **Audit trail.** If something behaves oddly later, check here first. Installed by Composer 2.5 (via Build CLI) agent session; committed in `3a9aa8b`.
 
 ### 2.1 Machine-level (user scope)
 
@@ -50,15 +50,15 @@ Reinstall/upgrade: `uv tool install graphifyy` (re-run `graphify hook install` a
 | `.graphifyignore` | Scan exclusions (see §4) |
 | `.gitignore` | Added `graphify-out/cost.json` |
 | `graphify-out/` | Bootstrap graph artifacts (see §3) |
-| `.agents/skills/graphify/` | Cross-framework agent skill (Grok reads this) |
-| `.cursor/rules/graphify.mdc` | Always-on rule for Cursor/Grok |
+| `.agents/skills/graphify/` | Cross-framework agent skill (Cursor/Composer agents read this) |
+| `.cursor/rules/graphify.mdc` | Always-on Cursor rule |
 | `.claude/skills/graphify/` | Claude Code `/graphify` skill |
 | `.claude/settings.json` | PreToolUse hooks (grep/read → query graph first) |
 | `CLAUDE.md` (repo root) | Small graphify section for Claude Code |
 | `scripts/hooks/post-commit` | Graphify auto-rebuild hook (appended) |
 | `scripts/hooks/post-checkout` | Graphify branch-switch rebuild hook (appended) |
 
-**Not modified:** `AGENTS.md` (protected). Graphify context reaches Grok via `.cursor/rules/` and `.agents/skills/` instead.
+**Not modified:** `AGENTS.md` (protected). Graphify context reaches Cursor/Composer via `.cursor/rules/` and `.agents/skills/` instead.
 
 ### 2.3 Commands run (in order)
 
@@ -76,8 +76,8 @@ graphify hook install
 ### 2.4 Known quirks from bootstrap
 
 1. **Code-only graph.** First CLI build had no LLM API key in the shell and docs were excluded via `.graphifyignore` (see §4). Bootstrap stats: **14,847 nodes**, **43,609 edges**, **734 communities**, built from commit `0079c3c4`, **0 token cost**.
-2. **No `graph.html`.** Node count exceeds default viz limit (5000). Use `graphify query` / `GRAPH_REPORT.md` instead, or raise `GRAPHIFY_VIZ_NODE_LIMIT` for a one-off HTML export.
-3. **Community labels are placeholders.** `Community N` names — no API key was set for LLM community labeling during bootstrap.
+2. **`graph.html` is aggregated.** Node count exceeds the 5000 viz limit, so HTML shows ~809 community meta-nodes (not every symbol). Regenerate with `graphify export html` after updating `.graphify_labels.json`.
+3. **Community labels are heuristic.** Agent-generated names from node/path clustering (not LLM `graphify label`); duplicates get numeric suffixes (e.g. `Mavlink Common Msgs 2`).
 4. **Hooks live under `scripts/hooks/`.** Repo `core.hooksPath` is `scripts/hooks`, not `.git/hooks/`. `graphify hook status` should report `installed` there.
 5. **`pico-sdk/` excluded.** Submodule/SDK tree is not indexed (would dominate the graph). RocketChip source only (~1,416 code files in bootstrap scan).
 6. **Full doc graph not built yet.** Remove the semantic-deferral block in `.graphifyignore` and run `/graphify .` from an agent session (§5).
@@ -95,7 +95,7 @@ graphify hook install
 | `.graphify_labels.json` | Yes | Community labels |
 | `cache/` | Optional | Speeds rebuilds; large — team choice |
 | `cost.json` | **No** | Gitignored; local token accounting |
-| `graph.html` | N/A | Not generated at bootstrap (node limit) |
+| `graph.html` | Optional | Aggregated community view; regenerate via `graphify export html` |
 
 **Staleness check:** Compare `graphify-out/GRAPH_REPORT.md` “Built from commit” to `git rev-parse HEAD`.
 
@@ -203,4 +203,4 @@ Omit `graphify-out/cache/` if you want a smaller repo (rebuilds are slower on fi
 
 ---
 
-*Last updated: 2026-06-27 (Grok bootstrap install).*
+*Last updated: 2026-06-27 (Composer 2.5 via Build CLI — bootstrap + labeled HTML).*
