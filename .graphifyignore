@@ -1,0 +1,46 @@
+# SDK submodule (not RocketChip source)
+pico-sdk/
+
+# Build / generated
+build*/
+cmake-build-*/
+cmake_test_discovery_*.json
+
+# Large binaries / firmware artifacts
+*.uf2
+*.elf
+*.bin
+*.dis
+*.map
+
+# Scratch / agent temp
+agent-tools/
+tools/scratch/
+
+# SPIN generated outputs
+tools/spin/pan.*
+
+# Semantic extraction (docs/papers/images) deferred for headless CLI — no API key in shell.
+# Run `/graphify .` from Claude Code, Cursor, or Grok to ingest these later.
+docs/
+standards/
+*.md
+**/*.md
+**/*.mdx
+**/*.html
+**/*.txt
+**/*.rst
+**/*.yaml
+**/*.yml
+**/*.pdf
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.webp
+**/*.gif
+**/*.svg
+**/*.mp4
+**/*.mov
+**/*.wav
+**/*.mp3
+CMakeLists.txt

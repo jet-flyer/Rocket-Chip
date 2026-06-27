@@ -93,3 +93,7 @@ cmake_test_discovery_*.json
 
 # Bench reproducer ctest scratch output
 Testing/Temporary/
+
+# Graphify local cost tracking (committed graph lives in graphify-out/)
+graphify-out/cost.json
+graphify-out/cache/
