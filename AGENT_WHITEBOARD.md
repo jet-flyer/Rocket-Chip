@@ -23,6 +23,12 @@
 
 ---
 
+## Agent attribution — 2026-06-27 Graphify / session-wrap (Composer, not Grok)
+
+**2026-06-27 commits `0079c3c` and `3a9aa8b` were authored by Composer 2.5 (via Build CLI), not Grok.** Commit *subjects* still say `[Grok]` / `[grok]` (history not rewritten). File attribution corrected in `452e89d`: `CHANGELOG.md` `2026-06-27-001`/`002` author fields and `docs/tools/GRAPHIFY_USAGE.md` install audit. If you see Grok credited for that day's Graphify bootstrap or SESSION_CHECKLIST wrap-up prose, use Composer — do not propagate the mislabel.
+
+---
+
 ## Session Handoff — L2-P5 walk-prep DONE / WALK-READY (2026-06-25, Claude)
 
 **▶ STATUS (EOD 2026-06-25):** walk-prep complete (Phases A–E + §CM gate-wiring + standards corrections); **field manual is walk-ready.** The semantic walk = the **spine + judgment-heavy classes** (3/5/7/8/9/10/13); mechanical classes (incl. **Class 14, demoted**) are gate/§CM-covered. Repo-owner is **reviewing** and will likely suggest changes. **NOT committed** — working tree: 9 modified + 2 new docs (file list in CHANGELOG `2026-06-25-002`); committing the `CMakeLists.txt` `-Wnon-virtual-dtor` change needs the `bench_sim` HW gate (probe). The `agent-tools/` + `mcps/` untracked dirs are the pre-existing CCSDS-detour leftovers, not this work.
