@@ -37,6 +37,11 @@ mcps/
 terminals/
 starcom/
 logs/
+# Historical / point-in-time docs — keep the graph a current-state map (prune churn):
+docs/plans/
+docs/audits/
+docs/baselines/
+CHANGELOG.md
 # Agent / editor tooling config (not firmware architecture):
 .claude/
 .agents/
