@@ -1,5 +1,19 @@
 # Changelog
 
+### 2026-06-27-006 | Grok Build | documentation, agent instructions
+
+**AGENTS.md cleanup + repo-authority wording.** Removed stale Adafruit preference, CHANGELOG mandate, duplicate "Core Standards" block, and `@standards/GIT_WORKFLOW.md` reference. Reworded repository-authority sentence to emphasize "repository is almost always the correct, double check with user". Added WB note flagging `GIT_WORKFLOW.md` for future deprecation review. Verified: pure documentation change — no firmware or host ctest impact.
+
+### 2026-06-27-005 | Grok Build | agent workflow, safety
+
+**PreToolUse hook for protected files (hard enforcement).** Added mechanical pre-tool gate that intercepts `search_replace` / edit / write operations on files listed in `docs/agents/PROTECTED_FILES.md`. The hook (`scripts/hooks/protected-file-pretool.py`) scans the current session transcript for a recent explicit user authorization (e.g. "Edit <file>", "Update README.md") before allowing the edit. No recent matching authorization → hard deny with instruction to authorize first. This is the "pre-tool use hook" equivalent to the prior prompt-only rule in AGENTS.md + PROTECTED_FILES.md.
+
+Wired in both:
+- `.claude/settings.json` (existing PreToolUse block)
+- `.grok/hooks/protected-files.json` (native)
+
+Requires project hooks trust (`/hooks-trust`) and reload (`r` in hooks view) after first addition. Fail-open on hook errors (per platform contract); explicit deny only on clear protected + no auth signal.
+
 ### 2026-06-27-004 | Composer 2.5 (via Build CLI) / Grok Build | documentation, tooling
 
 **Post-rebase SHA alignment + Graphify Pass 3 (Grok Build).** After `git rebase` reworded commit subjects (`2516e5a`, `9bdc848`), updated stale citations in `CHANGELOG.md` `2026-06-27-002`, `docs/tools/GRAPHIFY_USAGE.md`, and `graphify-out/GRAPH_REPORT.md` (`0079c3c`/`3a9aa8b` → current SHAs). 

@@ -23,6 +23,16 @@
 
 ---
 
+## Graphify — curated code+docs graph rebuilt; doc→code connectivity pass DEFERRED (2026-06-27, Claude/Opus)
+
+Rebuilt the graphify graph at `graphify-out/` as a **curated current-state code+docs map** (supersedes the bloated bootstrap). **2448 nodes / 4521 edges / 186 communities, 71% in giant component, full-detail HTML (<5k).** Protected snapshot at **`graphify-out/claude-build-2026-06-27/`** (with README; safe from future `graphify .` runs, which only rewrite the root). Grok pass-3 snapshot untouched + byte-identical backup at `graphify-grok-pass3-BACKUP-2026-06-27/`; old bloated root moved to `graphify-out/.pre-curated-backup/`. `.graphifyignore` updated — now excludes vendored (`EXTERNAL/` ETL, `lib/`), `test/`+`scripts/`, `mcps/`, `starcom/`, `logs/`, tooling configs, images, and historical churn (`docs/plans/`, `docs/audits/`, `docs/baselines/`, `CHANGELOG.md`). **Not committed** (tooling output; pending repo-owner direction).
+
+**DEFERRED — doc→code connectivity pass (run when the API rate-limit window resets):** `standards/` (113 nodes) + ~431 `docs/` nodes are still their own islands — doc concepts vs code symbols live in different naming spaces, and chunk-parallel extraction dropped ~672 cross-refs on ID-mismatch (prune + fuzzy reconcile already lifted connectivity 50%→71%). **Next:** targeted linking pass — hand a subagent the AST code-symbol list + the orphaned `standards/`/`docs/` nodes and have it draw real doc→code bridge edges, then rebuild. **Rate-limit lesson:** dispatch graphify extraction subagents in **batches of ~4**, NOT all at once (17-at-once tripped a server-side rate limit this session; batches of 4 sailed through).
+
+**WB note (2026-06-27):** Evaluate `standards/GIT_WORKFLOW.md` for outright deprecation. It is no longer referenced from AGENTS.md and its `claude/` branch prefix + immediate-delete rule are over-specific for general agent workflows.
+
+---
+
 ## Session Handoff — L2-P5 walk-prep DONE / WALK-READY (2026-06-25, Claude)
 
 **▶ STATUS (EOD 2026-06-25):** walk-prep complete (Phases A–E + §CM gate-wiring + standards corrections); **field manual is walk-ready.** The semantic walk = the **spine + judgment-heavy classes** (3/5/7/8/9/10/13); mechanical classes (incl. **Class 14, demoted**) are gate/§CM-covered. Repo-owner is **reviewing** and will likely suggest changes. **NOT committed** — working tree: 9 modified + 2 new docs (file list in CHANGELOG `2026-06-25-002`); committing the `CMakeLists.txt` `-Wnon-virtual-dtor` change needs the `bench_sim` HW gate (probe). The `agent-tools/` + `mcps/` untracked dirs are the pre-existing CCSDS-detour leftovers, not this work.

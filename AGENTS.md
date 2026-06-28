@@ -37,22 +37,12 @@
 
 ## Key Project Rules
 
-- Adafruit components preferred unless a notably better alternative exists.
-- Log all significant changes in CHANGELOG.md.
 - Never silently modify another agent's work.
 - Coding standards are mandatory — no deviations without explicit approval (see `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`).
 - **Prior art research required** before implementing hardware interfaces or novel functionality (see CODING_STANDARDS.md).
-- Repository files are authoritative. Flag any conflict between agent memory and repo content.
+- Repository files are authoritative. When a discrepancy between agent memory and repo content is flagged, the repository is almost always the correct, double check with user to update your memory.
 
 ---
-
-## Core Standards
-
-@standards/CODING_STANDARDS.md
-@standards/DEBUG_OUTPUT.md
-@standards/GIT_WORKFLOW.md
-@standards/HW_GATE_DISCIPLINE.md
-@standards/ACCEPTED_STANDARDS_DEVIATIONS.md
 
 ---
 
