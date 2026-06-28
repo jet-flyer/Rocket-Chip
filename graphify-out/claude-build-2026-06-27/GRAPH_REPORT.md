@@ -1,18 +1,12 @@
-# Graph Report - Rocket-Chip  (2026-06-27)
+# Graph Report - C:/Users/pow-w/Documents/Rocket-Chip  (2026-06-27)
 
 ## Corpus Check
-- 358 files · ~660,031 words
-- Verdict: corpus is large enough that graph structure adds value.
+- Large corpus: 356 files · ~659,270 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder.
 
 ## Summary
-- 2605 nodes · 4667 edges · 181 communities (160 shown, 21 thin omitted)
-- Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 558 edges (avg confidence: 0.8)
+- 2448 nodes · 4521 edges · 186 communities (166 shown, 20 thin omitted)
+- Extraction: 87% EXTRACTED · 13% INFERRED · 0% AMBIGUOUS · INFERRED: 569 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
-
-## Graph Freshness
-- Built from commit: `e336dafe`
-- Run `git rev-parse HEAD` and compare to check if the graph is stale.
-- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_rc_os_commands.cpp|rc_os_commands.cpp]]
@@ -172,14 +166,19 @@
 - [[_COMMUNITY_rc()|rc()]]
 - [[_COMMUNITY_rc()|rc()]]
 - [[_COMMUNITY_rc()|rc()]]
+- [[_COMMUNITY_rc()|rc()]]
+- [[_COMMUNITY_rc()|rc()]]
+- [[_COMMUNITY_rc()|rc()]]
+- [[_COMMUNITY_rc()|rc()]]
+- [[_COMMUNITY_Stage 17 Tapered Buildup (Field|Stage 17 Tapered Buildup (Field]]
 - [[_COMMUNITY_NASA cFS Table Service|NASA cFS Table Service]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Format` - 177 edges
-2. `RcosAo` - 52 edges
-3. `DisplayFields` - 37 edges
-4. `TelemAo` - 33 edges
-5. `RocketChip Integration and Verification Plan (IVP)` - 30 edges
+1. `RcosAo` - 52 edges
+2. `DisplayFields` - 37 edges
+3. `TelemAo` - 33 edges
+4. `RocketChip Integration and Verification Plan (IVP)` - 30 edges
+5. `AGENTS.md RocketChip Agent Instructions` - 22 edges
 6. `ParsedSpec` - 21 edges
 7. `LedEngine` - 20 edges
 8. `RocketChip Coding Standards` - 19 edges
@@ -189,14 +188,14 @@
 ## Surprising Connections (you probably didn't know these)
 - `RP2350 PIO DS Encode/Decode` --semantically_similar_to--> `rocketchip_rf_manager.pml (AO_RfManager link-health model)`  [INFERRED] [semantically similar]
   standards/protocols/SPACEWIRE_LITE.md → tools/spin/README.md
+- `Standards-Currency Audit` --references--> `Coding Standards`  [EXTRACTED]
+  AGENT_WHITEBOARD.md → AGENTS.md
 - `Change-Indication Regression Testing` --conceptually_related_to--> `Google Test v1.14.0`  [INFERRED]
   docs/ESKF_TESTING_GUIDE.md → THIRD_PARTY_LICENSES.md
+- `handle_flight_menu()` --calls--> `AO_FlightDirector_print_status()`  [INFERRED]
+  src/cli/rc_os.cpp → src/active_objects/ao_flight_director.cpp
 - `ao_radio_apply_runtime_config()` --calls--> `AO_Telemetry_set_ack_retry_timeout_ms()`  [INFERRED]
   src/active_objects/ao_radio.cpp → src/active_objects/ao_telemetry.cpp
-- `cal_save_to_flash()` --calls--> `cal_post_hook()`  [INFERRED]
-  src/active_objects/ao_rcos.cpp → src/calibration/cal_hooks.cpp
-- `cal_ui_handle_6pos_sampling()` --calls--> `calibration_6pos_position_done()`  [INFERRED]
-  src/active_objects/ao_rcos.cpp → src/calibration/calibration_manager.cpp
 
 ## Import Cycles
 - None detected.
@@ -231,15 +230,15 @@
 - **RocketChip SPIN Promela model suite** — spin_readme_rocketchip_fd_pml, spin_readme_rocketchip_ao_pml, spin_readme_rocketchip_station_pml, spin_readme_rocketchip_rf_manager_pml [INFERRED 0.95]
 - **SPIN liveness proof method (P7 + bounded ticks + weak fairness)** — spin_readme_p7_liveness, spin_readme_discrete_time_promela, spin_readme_weak_fairness [INFERRED 0.85]
 
-## Communities (181 total, 21 thin omitted)
+## Communities (186 total, 20 thin omitted)
 
 ### Community 0 - "rc_os_commands.cpp"
-Cohesion: 0.09
-Nodes (34): AO_Radio_get_state(), AO_Telemetry_get_rx_state(), bearing_deg(), cdc_write_blocking(), cli_do_download_flight(), cli_print_boot_status(), cli_print_boot_summary(), cli_print_preflight() (+26 more)
+Cohesion: 0.05
+Nodes (65): AO_LedEngine_dev_force_fault_layer(), AO_Logger_get_flight_table(), AO_Logger_get_flight_table_mut(), AO_Logger_get_ring(), AO_Logger_get_ring_mut(), AO_Logger_is_initialized(), AO_Logger_start(), fused_copy_eskf_state() (+57 more)
 
 ### Community 1 - "ao_telemetry.cpp"
-Cohesion: 0.11
-Nodes (38): AO_FlightDirector_is_ground_state(), AO_Radio_consume_just_changed(), AO_Radio_get_runtime_config(), AO_Radio_set_pending_config(), AO_Telemetry_cmd_retry_tick(), AO_Telemetry_cycle_rate(), AO_Telemetry_is_gcs_connected(), AO_Telemetry_notify_gcs_heartbeat() (+30 more)
+Cohesion: 0.05
+Nodes (69): AO_FlightDirector_is_ground_state(), AO_Radio_consume_just_changed(), AO_Radio_get_runtime_config(), AO_Radio_set_pending_config(), AO_Telemetry_cmd_retry_tick(), AO_Telemetry_cycle_rate(), AO_Telemetry_get_retry_stats(), AO_Telemetry_get_rx_state() (+61 more)
 
 ### Community 2 - "flash_flush.cpp"
 Cohesion: 0.06
@@ -250,8 +249,8 @@ Cohesion: 0.09
 Nodes (63): ao_radio_apply_runtime_config(), ao_radio_boot_seed_runtime_config(), ao_radio_commit_pending_config(), ao_radio_revert_to_prev_config(), extract_ccsds_seq(), handle_link_quality(), handle_radio_tick(), handle_relay_forward() (+55 more)
 
 ### Community 4 - "rc_log.cpp"
-Cohesion: 0.06
-Nodes (58): AO_Telemetry_get_retry_stats(), AO_Telemetry_is_cmd_pending(), CmdRetryStatsLine, diag_stats_dump(), diag_stats_msp_tick(), diag_stats_t0_preconditions(), dump_ao_queue(), dump_ao_queues() (+50 more)
+Cohesion: 0.07
+Nodes (56): AO_Telemetry_is_cmd_pending(), diag_stats_dump(), diag_stats_msp_tick(), diag_stats_t0_preconditions(), dump_ao_queue(), dump_ao_queues(), dump_cmd_retry_stats(), dump_health() (+48 more)
 
 ### Community 5 - "ws2812_status.cpp"
 Cohesion: 0.07
@@ -259,7 +258,7 @@ Nodes (44): AO_LedEngine_post_pattern(), led_apply_compositor(), led_apply_patte
 
 ### Community 6 - "DisplayFields"
 Cohesion: 0.05
-Nodes (52): AO_Telemetry_get_pending_cmd_status(), ansi_dashboard_render(), ansi_dashboard_render_waiting(), build_frame(), cmd_id_short_name(), decode_telem_fields(), DisplayFields, age_ds (+44 more)
+Nodes (50): AO_Telemetry_get_pending_cmd_status(), ansi_dashboard_render(), ansi_dashboard_render_waiting(), build_frame(), cmd_id_short_name(), decode_telem_fields(), DisplayFields, age_ds (+42 more)
 
 ### Community 7 - "Flight Director State Machine Formalism"
 Cohesion: 0.05
@@ -267,7 +266,7 @@ Nodes (49): Bierman Scalar Measurement Update, Confidence Gate (pyro/action gati
 
 ### Community 8 - "TelemetryState"
 Cohesion: 0.09
-Nodes (38): station_on_query_ack(), CommandAckPayload, EncodeResult, EncoderType, FusedState, LogDecimator, clamp_round_i16(), clamp_round_i32() (+30 more)
+Nodes (37): CommandAckPayload, EncodeResult, EncoderType, FusedState, LogDecimator, clamp_round_i16(), clamp_round_i32(), clamp_round_i8() (+29 more)
 
 ### Community 9 - "Gemini Carrier Board"
 Cohesion: 0.07
@@ -279,27 +278,31 @@ Nodes (41): SpaceWire-Lite Protocol Specification, SpaceWire 10-bit Character Fo
 
 ### Community 11 - "namespace"
 Cohesion: 0.05
-Nodes (20): rc(), rc(), rc(), rc(), rc(), rc(), rc(), rc() (+12 more)
+Nodes (20): rc(), rc(), rc(), rc(), codegen(), rc(), eskf(), rc() (+12 more)
 
 ### Community 12 - "radio_config_storage.cpp"
 Cohesion: 0.08
-Nodes (34): Crc16Table, kCrc16Table(), rc(), alternate_of(), compute_crc(), Entry, cfg, crc (+26 more)
+Nodes (33): Crc16Table, kCrc16Table(), rc(), alternate_of(), compute_crc(), Entry, cfg, crc (+25 more)
 
 ### Community 13 - "calibration_manager.cpp"
 Cohesion: 0.09
-Nodes (29): accumulate_normal_equations(), calc_jacobian_6pos(), calc_mean_sq_residuals(), calc_residual_6pos(), calibration_6pos_position_done(), calibration_6pos_position_sample_count(), calibration_compute_6pos(), calibration_compute_mag_cal() (+21 more)
+Nodes (32): calibration_update_crc(), accumulate_normal_equations(), calc_jacobian_6pos(), calc_mean_sq_residuals(), calc_residual_6pos(), calibration_6pos_position_done(), calibration_6pos_position_sample_count(), calibration_compute_6pos() (+24 more)
 
 ### Community 14 - "flight_director.cpp"
-Cohesion: 0.20
-Nodes (27): build_safety_lockout(), enter_phase(), flight_director_ctor(), flight_director_dispatch_signal(), flight_director_dispatch_tick(), flight_director_evaluate_guards(), flight_director_init(), flight_director_phase() (+19 more)
+Cohesion: 0.19
+Nodes (29): led_engine_initial(), logger_ao_initial(), notify_initial(), rcos_ao_initial(), rf_initial(), telem_ao_initial(), build_safety_lockout(), enter_phase() (+21 more)
 
 ### Community 15 - "fault_inject.cpp"
 Cohesion: 0.09
 Nodes (24): BackupTimerId, int_t, PIO, Q_NORETURN, fault_force_ao_queue_flood(), fault_force_core0_stall(), fault_force_eskf_unhealthy(), fault_force_hardfault() (+16 more)
 
 ### Community 16 - "health_monitor.cpp"
-Cohesion: 0.14
-Nodes (27): mcu_temp_available(), flight_director_launch_abort(), HealthLevel, flight_table_count(), apply_fault_latch(), apply_mcu_fault_latch(), check_core1_vitality(), evaluate_baro() (+19 more)
+Cohesion: 0.11
+Nodes (31): flight_director_launch_abort(), HealthLevel, flight_table_count(), job(), apply_fault_latch(), apply_mcu_fault_latch(), check_core1_vitality(), evaluate_baro() (+23 more)
+
+### Community 17 - "eskf.h"
+Cohesion: 0.06
+Nodes (3): q_active_(), Mat, PhaseQScale
 
 ### Community 18 - "Data Logging Architecture Council Review"
 Cohesion: 0.08
@@ -315,71 +318,71 @@ Nodes (31): Tier 1 Diagnostic Soak (5 min), Tier 2 Integration Soak (30 min), T=
 
 ### Community 21 - "RcosAo"
 Cohesion: 0.08
-Nodes (24): cal_ui_handle_erase_confirm(), cal_ui_handle_flight_num(), RcosAo, cal_6pos_position, cal_async_type, cal_is_6pos, cal_last_progress, cal_ui_state (+16 more)
+Nodes (30): cal_ui_handle_erase_confirm(), cal_ui_handle_flight_num(), cal_ui_handle_wizard_next(), cal_ui_wizard_print_summary(), cal_ui_wizard_start_gyro(), cal_ui_wizard_start_level(), cal_ui_wizard_start_mag(), cal_ui_wizard_start_step() (+22 more)
 
 ### Community 22 - "ao_rf_manager.cpp"
 Cohesion: 0.12
 Nodes (22): AO_Notify_post_vehicle_found(), AO_Notify_post_vehicle_lost(), AO_RfManager_get_state(), check_transitions(), handle_tick(), handle_valid_rx(), link_state_name(), lq_window_push() (+14 more)
 
 ### Community 23 - "gps_uart.cpp"
-Cohesion: 0.12
-Nodes (16): gps_pa1010d_get_data(), gps_pa1010d_update(), read_nmea_data(), update_data_from_lwgps(), acquire_at_target_baud(), detect_gps_presence(), gps_uart_drain(), gps_uart_get_data() (+8 more)
+Cohesion: 0.11
+Nodes (18): gps_pa1010d_get_data(), gps_pa1010d_get_debug_status(), gps_pa1010d_update(), read_nmea_data(), update_data_from_lwgps(), acquire_at_target_baud(), detect_gps_presence(), gps_uart_drain() (+10 more)
 
 ### Community 24 - "ao_flight_director.cpp"
-Cohesion: 0.15
-Nodes (17): AO_FlightDirector_start(), fd_check_pio_backup(), fd_on_pyro_fired(), fd_register_test_mode_accessor(), fd_tick(), fd_wire_callbacks(), FdAo, director (+9 more)
+Cohesion: 0.11
+Nodes (24): AO_FlightDirector_print_status(), AO_FlightDirector_process_command(), AO_FlightDirector_start(), fd_ao_initial(), fd_ao_running(), fd_check_pio_backup(), fd_on_pyro_fired(), fd_register_test_mode_accessor() (+16 more)
 
 ### Community 25 - "icm20948.cpp"
-Cohesion: 0.05
-Nodes (80): AO_HealthMonitor_start(), AO_LedEngine_start(), AO_Notify_start(), AO_Radio_start(), AO_RCOS_start(), AO_Telemetry_start(), ak09916_mode_t, baro_dps310_data_t (+72 more)
+Cohesion: 0.24
+Nodes (24): ak09916_mode_t, i2c_bus_read_reg(), configure_magnetometer(), enable_bypass_mode(), icm20948_data_ready(), icm20948_init(), icm20948_read_config_registers(), icm20948_read_temperature() (+16 more)
 
 ### Community 26 - "ao_rcos.cpp"
-Cohesion: 0.13
-Nodes (26): ansi_render_tick(), AO_RCOS_cal_active(), AO_RCOS_start_cal_6pos(), AO_RCOS_start_cal_baro(), AO_RCOS_start_cal_gyro(), AO_RCOS_start_cal_level(), AO_RCOS_start_cal_mag(), AO_RCOS_start_cal_reset() (+18 more)
+Cohesion: 0.16
+Nodes (22): ansi_render_tick(), AO_RCOS_cal_active(), AO_RCOS_cycle_output_mode(), AO_RCOS_get_output_mode(), AO_RCOS_start_cal_6pos(), AO_RCOS_start_cal_baro(), AO_RCOS_start_cal_gyro(), AO_RCOS_start_cal_level() (+14 more)
 
 ### Community 27 - "calibration_store_t"
-Cohesion: 0.06
-Nodes (58): cal_state_t, cal_status_flags_t, cal_vec3_t, calibration_has(), calibration_init_defaults(), calibration_update_crc(), calibration_validate(), crc16_ccitt() (+50 more)
+Cohesion: 0.18
+Nodes (20): cal_status_flags_t, calibration_has(), calibration_init_defaults(), calibration_validate(), crc16_ccitt(), calibration_load(), calibration_load_into(), calibration_manager_init() (+12 more)
 
 ### Community 28 - "eskf_runner.cpp"
-Cohesion: 0.29
-Nodes (20): calibration_manager_get(), eskf_note_divergence(), eskf_run_predict(), eskf_runner_fusion_cycle(), eskf_runner_tick(), eskf_tick_baro(), eskf_tick_gps(), eskf_tick_gps_stats() (+12 more)
+Cohesion: 0.23
+Nodes (22): calibration_manager_get(), eskf_is_disabled(), eskf_note_divergence(), eskf_reenable(), eskf_run_predict(), eskf_runner_fusion_cycle(), eskf_runner_tick(), eskf_tick_baro() (+14 more)
 
 ### Community 29 - "eskf.cpp"
-Cohesion: 0.17
-Nodes (18): check_p_growth(), clamp_extended_covariance(), compute_mag_r(), ensure_dense(), geodetic_to_ned(), mag_interference_r(), record_p_growth_reset(), reset_mag_heading() (+10 more)
+Cohesion: 0.14
+Nodes (21): check_p_growth(), clamp_core_covariance(), clamp_extended_covariance(), compute_mag_r(), ensure_dense(), geodetic_to_ned(), mag_interference_r(), record_p_growth_reset() (+13 more)
 
 ### Community 30 - "rc_os.cpp"
-Cohesion: 0.11
-Nodes (30): AO_FlightDirector_dispatch_signal(), AO_FlightDirector_print_status(), AO_FlightDirector_process_command(), AO_LedEngine_dev_force_fault_layer(), AO_Notify_post_prearm_fail(), AO_RCOS_set_output_mode(), AO_Telemetry_feed_usb_byte(), dev_debug_menu_dispatch() (+22 more)
+Cohesion: 0.18
+Nodes (21): AO_FlightDirector_dispatch_signal(), AO_RCOS_set_output_mode(), AO_Telemetry_feed_usb_byte(), AO_Telemetry_is_gcs_connected(), rc_os_dashboard_pause(), dispatch_flight_command(), dispatch_flight_signal(), handle_arm_confirm() (+13 more)
 
 ### Community 31 - "time_us_32()"
-Cohesion: 0.01
-Nodes (177): 2026-02-02-001 | Claude Code CLI | architecture, 2026-02-02-002 | Nathan (via Claude Opus council review) | architecture, 2026-02-02-003 | Claude Code CLI | documentation, 2026-02-02-004 | Claude Code CLI | bugfix, architecture, 2026-02-03-001 | Claude Code CLI | documentation, 2026-02-03-002 | Claude Code CLI | architecture, refactor, 2026-02-03-003 | Claude Code CLI | documentation, refactor, 2026-02-03-004 | Claude Code CLI | documentation, architecture (+169 more)
+Cohesion: 0.16
+Nodes (21): cal_state_t, calibration_manager_get_state(), core1_check_pause_and_reload(), core1_entry(), core1_gps_staleness_check(), core1_imu_error_recovery(), core1_load_cal_or_defaults(), core1_read_baro() (+13 more)
 
 ### Community 32 - "cal_ui_handle_async_waiting()"
-Cohesion: 0.20
-Nodes (14): accel_read_fn, cal_save_to_flash(), cal_ui_handle_reset_confirm(), cal_ui_start_async_cal(), cal_result_t, calibration_collect_6pos_position(), calibration_finalize_6pos_position(), calibration_reset() (+6 more)
+Cohesion: 0.14
+Nodes (21): accel_read_fn, cal_save_to_flash(), cal_ui_handle_async_waiting(), cal_ui_handle_reset_confirm(), cal_ui_start_async_cal(), cal_result_t, calibration_cancel(), calibration_collect_6pos_position() (+13 more)
 
 ### Community 33 - "cal_neo()"
-Cohesion: 0.35
-Nodes (16): cal_neo(), cal_ui_begin_mag_collection(), cal_ui_handle_6pos_prompt(), cal_ui_handle_6pos_sampling(), cal_ui_handle_6pos_validating(), cal_ui_handle_async_prompt(), cal_ui_handle_computing(), cal_ui_handle_mag_collecting() (+8 more)
+Cohesion: 0.24
+Nodes (21): cal_neo(), cal_ui_begin_mag_collection(), cal_ui_handle_6pos_prompt(), cal_ui_handle_6pos_sampling(), cal_ui_handle_6pos_validating(), cal_ui_handle_async_prompt(), cal_ui_handle_computing(), cal_ui_handle_mag_collecting() (+13 more)
 
 ### Community 34 - "mavlink_rx.cpp"
 Cohesion: 0.33
 Nodes (18): mavlink_message_t, MavlinkRxResult, MavlinkRxState, MavParam, append_frame(), dispatch_message(), emit_command_ack(), emit_param_value() (+10 more)
 
 ### Community 35 - "ao_notify.cpp"
-Cohesion: 0.20
-Nodes (17): handle_notify_tick(), handle_phase_change(), handle_simple_flag_sig(), notify_evaluate_sensor_status(), notify_running(), NotifyAo, init_min_ticks, prearm_fail_ticks (+9 more)
+Cohesion: 0.18
+Nodes (18): AO_Notify_post_prearm_fail(), handle_notify_tick(), handle_phase_change(), handle_simple_flag_sig(), notify_evaluate_sensor_status(), notify_running(), NotifyAo, init_min_ticks (+10 more)
 
 ### Community 36 - "AO_Logger_populate_fused_state()"
-Cohesion: 0.29
-Nodes (8): cli_print_eskf_live(), print_eskf_status(), eskf_runner_get_bench(), eskf_runner_get_bench_full_tick(), eskf_runner_get_buffer_count(), eskf_runner_get_mahony(), eskf_runner_is_mahony_initialized(), MahonyAHRS
+Cohesion: 0.14
+Nodes (18): AO_FlightDirector_get_director(), AO_FlightDirector_is_initialized(), AO_Logger_populate_fused_state(), logging_tick(), AO_Telemetry_set_telem_snapshot(), cli_print_eskf_live(), print_eskf_gates_and_diags(), print_eskf_status() (+10 more)
 
 ### Community 37 - "AGENTS.md RocketChip Agent Instructions"
-Cohesion: 0.20
-Nodes (9): AGENTS.md — RocketChip Agent Instructions, Architecture & Cross-Agent Coordination, Behavioral Guidelines, Each Session (check at the start of every session), Key Project Rules, Persistent Memory & Lessons Learned, Protected Files & Permission Rules, Read First (one-time on new context or major changes) (+1 more)
+Cohesion: 0.11
+Nodes (18): bench_sim.py HW Gate, Adafruit Component Preference, AGENTS.md RocketChip Agent Instructions, Agent Behavioral Guidelines (AK), CHANGELOG, Council Process, Cross-Agent Review Protocol, Debug Output Standards (+10 more)
 
 ### Community 38 - "ESKF Architecture Research Summary —"
 Cohesion: 0.16
@@ -390,8 +393,8 @@ Cohesion: 0.14
 Nodes (18): RocketChip Project Overview, Booster Packs (expansion modules), Gemini Carrier Board (dual-MCU redundancy), Mission Configuration Terminology (not Profile), Product Tiers (Core, Main, Titan, Nova), RocketChip Vision (Flipper Zero of motion tracking), Software Architecture Document (SAD), Compile-Time Feature Flags / Tier Differentiation (+10 more)
 
 ### Community 40 - "FlightPhase"
-Cohesion: 0.31
-Nodes (9): EskfEventLogFn, guard_evaluator_init(), guard_evaluator_reset(), guard_evaluator_tick(), init_guard(), phase_bit(), eskf_runner_init(), GuardState (+1 more)
+Cohesion: 0.18
+Nodes (17): EskfEventLogFn, flight_director_ctor(), flight_director_phase(), flight_phase_name(), flight_phase_observable_get(), flight_phase_observable_set(), guard_evaluator_init(), guard_evaluator_is_sustained() (+9 more)
 
 ### Community 41 - "flight_state.h"
 Cohesion: 0.12
@@ -406,40 +409,40 @@ Cohesion: 0.20
 Nodes (16): Entry 36: Test Artifact vs Infrastructure (bench_sim rot), Entry 32: Blocking Drivers Violate QV Scheduler Contract, Entry 2: Build Iteration Tags, Entry 40: Categories Not Enumerations (gate scope), Entry 43: Clean From a Static Gate Is Negative Evidence, Entry 38: Code Shows Current-State, Primary Sources Show Possibility-Space, Entry 31: flash_safe_execute Corrupts I2C + Blocks GPS Lock, Entry 28: i2c_bus_recover Corrupts DW_apb_i2c (+8 more)
 
 ### Community 44 - "main.cpp"
-Cohesion: 0.12
-Nodes (21): AO_Logger_get_flight_table(), AO_Logger_get_flight_table_mut(), AO_Logger_get_ring(), AO_Logger_get_ring_mut(), AO_Logger_is_initialized(), AO_RCOS_start_download_flight(), AO_RCOS_start_erase_flights(), AO_Telemetry_send_tracked_command() (+13 more)
+Cohesion: 0.23
+Nodes (15): rc_os_init(), i2c_bus_init(), spi_bus_init(), bind_gps_i2c_backend(), init_application(), init_core1_role(), init_early_hw(), init_fault_recovery() (+7 more)
 
 ### Community 45 - "Telemetry Encoder Strategy Interface"
 Cohesion: 0.16
-Nodes (15): RocketChip Integration and Verification Plan (IVP), CCSDS Space Packet Encoder, Adafruit Fruit Jam Ground Station (RP2350B), Half-Duplex Command ACK Protocol (dedicated CCSDS APID), MCU Die Temperature Health Monitoring, Compile-Time RX Mode (ROCKETCHIP_RADIO_RX), RFM95W LoRa Radio (SX1276), Stage 12A: Radio Module + Fruit Jam GCS (+7 more)
+Nodes (16): AO_Radio Active Object (RadioScheduler half-duplex), AO_RfManager (link-health state machine), AO_Telemetry Active Object, CCSDS Space Packet Encoder, Adafruit Fruit Jam Ground Station (RP2350B), Half-Duplex Command ACK Protocol (dedicated CCSDS APID), MAVLink v2 Encoder, QGroundControl / Mission Planner GCS (+8 more)
 
 ### Community 46 - "RP2350 Platform Notes (MULTICORE_RULES)"
 Cohesion: 0.14
 Nodes (16): RP2350 Platform Notes (MULTICORE_RULES), Atomics Required for Cross-Core (volatile insufficient), Core 0: Main Loop + USB, Core 1: Sensor Sampling, Cross-Core Communication Primitives, Double-Buffer Atomic-Swap Pattern, flash_safe_execute() Coordination, Large Local Variables Cause Stack Overflow (+8 more)
 
 ### Community 47 - "i2c_bus.cpp"
-Cohesion: 0.11
-Nodes (18): TelemAo, ccsds_encoder, gcs_heartbeat_count, gcs_state, interval_ms, last_gcs_heartbeat_ms, last_heartbeat_ms, last_tx_ms (+10 more)
+Cohesion: 0.24
+Nodes (15): pico_write(), gps_pa1010d_init(), clock_pulse_recovery(), generate_stop_condition(), i2c_bus_imu_recovery(), i2c_bus_probe(), i2c_bus_read(), i2c_bus_recover() (+7 more)
 
 ### Community 48 - "notify_backend_led.cpp"
 Cohesion: 0.21
 Nodes (13): FaultIntent, notify_backend_audio_update(), apply_beacon_overlay(), cal_to_pattern(), fault_to_pattern(), notify_backend_led_update(), phase_to_pattern(), radio_to_pattern() (+5 more)
 
 ### Community 49 - "Vec3"
-Cohesion: 0.17
-Nodes (14): init(), mag_magnitude_ok(), update_mag_3axis(), compute_accel_error(), compute_mag_error(), divergence_rad(), init(), update() (+6 more)
+Cohesion: 0.20
+Nodes (12): init(), mag_magnitude_ok(), update_mag_3axis(), compute_accel_error(), compute_mag_error(), divergence_rad(), init(), update() (+4 more)
 
 ### Community 50 - "RF Compliance Reference"
 Cohesion: 0.17
 Nodes (16): GPS snprintf mitigation (IO-2 deviation), Prior Art Research requirement, RF Compliance Reference, RF Compliance Checklist (per radio PR), Duty cycle self-imposed soft cap, FCC Part 15.247 (902-928 MHz ISM), Link budget / EIRP calculation, LoRa CSS modulation classification (+8 more)
 
 ### Community 51 - "Flight Director Hierarchical State Machine"
-Cohesion: 0.23
-Nodes (12): Apogee-is-an-Event (not a state) Decision, Bench Flight Simulation (SITL via CLI injection), Command Handler + Two-Tier Pre-Arm Checks, Flight Director Hierarchical State Machine (QEP/UML statechart), GDB Fault Injection Harness, PIO Backup Deployment Timers (dead man's switch), PIO Heartbeat Watchdog (autonomous, no MCU reboot), Stage 11: PIO Safety Architecture (+4 more)
+Cohesion: 0.18
+Nodes (15): Apogee-is-an-Event (not a state) Decision, Bench Flight Simulation (SITL via CLI injection), Command Handler + Two-Tier Pre-Arm Checks, Flight Director Hierarchical State Machine (QEP/UML statechart), GDB Fault Injection Harness, Mission Profile (const config data structure), MMAE/IMM Rejection Decision (phase-scheduled Q/R instead), Phase-Scheduled Q/R Framework (+7 more)
 
 ### Community 52 - "Quat"
-Cohesion: 0.28
-Nodes (9): rc(), from_axis_angle(), from_euler(), from_small_angle(), from_two_vectors(), inverse(), normalized(), operator*() (+1 more)
+Cohesion: 0.23
+Nodes (11): rc(), from_axis_angle(), from_euler(), from_small_angle(), from_two_vectors(), inverse(), normalized(), operator*() (+3 more)
 
 ### Community 53 - "psram_init.cpp"
 Cohesion: 0.14
@@ -450,8 +453,8 @@ Cohesion: 0.20
 Nodes (14): Active Object Architecture, AO_FlightDirector, AO_HealthMonitor, AO_LedEngine, AO_Notify, AO_RCOS (CLI), AO_RfManager, AO_Telemetry (+6 more)
 
 ### Community 55 - "baro_dps310.cpp"
-Cohesion: 0.12
-Nodes (15): Agent Whiteboard, Council review — Starcom (completed), Deferred (near-term, post-Stage 15), Far-future, Graphify — curated code+docs graph rebuilt; doc→code connectivity pass DEFERRED (2026-06-27, Claude/Opus), High priority, Large (multi-session, architectural), Medium (session-scale, 4–12 hours) (+7 more)
+Cohesion: 0.19
+Nodes (9): baro_dps310_data_t, dps310_mr_t, dps310_os_t, baro_dps310_init(), baro_dps310_pressure_to_altitude(), baro_dps310_read(), baro_dps310_start_continuous(), mr_from_int() (+1 more)
 
 ### Community 56 - "command_handler_validate()"
 Cohesion: 0.31
@@ -462,16 +465,16 @@ Cohesion: 0.16
 Nodes (14): Allan Variance Static Characterization, ESKF Testing & Learning Guide, Change-Indication Regression Testing, Error-State Kalman Filter (ESKF), Hardware-Free ESKF (zero Pico SDK includes), Host-Side Testing Infrastructure, Joseph Form Covariance Update, Mahony AHRS Cross-Check (+6 more)
 
 ### Community 58 - "QActive"
-Cohesion: 0.15
-Nodes (24): fd_ao_initial(), fd_ao_running(), HealthMonitor, republish_count, super, timer, hm_initial(), hm_publish() (+16 more)
+Cohesion: 0.24
+Nodes (12): HealthMonitor, republish_count, super, timer, hm_initial(), hm_publish(), hm_running(), LoggerAo (+4 more)
 
 ### Community 59 - "In-Flight Fault Recovery Architecture —"
 Cohesion: 0.21
 Nodes (13): Bench-Tier Deprecation Evaluation (R-25, 2026-05-13), Dual-Binary Failure Mode (R-23/F-004/R-22), PX4 SYS_FAILURE_EN Failure-Injection Pattern, Approach A: Single-Binary Runtime Test-Mode (Probe-Only Gated), NASA SWEHB §8.19 Dead/Dormant Code Guidance, g_test_mode_enabled Three-Condition AND Gate, In-Flight Fault Recovery Architecture — Phase-Aware Dispatch, Anomalous-Boot Confidence Gate (+5 more)
 
 ### Community 60 - "guard_combinator.cpp"
-Cohesion: 0.16
-Nodes (23): CombinatorSet, CombinatorType, combinator_set_evaluate(), combinator_set_init(), combinator_set_reset(), CombinatorSpec, backup_ms, ids (+15 more)
+Cohesion: 0.36
+Nodes (12): CombinatorSet, combinator_set_evaluate(), combinator_set_init(), combinator_set_reset(), evaluate_one_combinator(), evaluate_sensors(), init_combinator(), phase_bit() (+4 more)
 
 ### Community 61 - "Stage 9: Active Object Architecture"
 Cohesion: 0.19
@@ -502,8 +505,8 @@ Cohesion: 0.21
 Nodes (12): Radio & Telemetry Status, AO_Radio (radio-agnostic hardware), AO_Telemetry (protocol-agnostic encoder), Non-Blocking TX Split (send_start/send_poll), RadioScheduler (half-duplex state machine), Three-Job System (Vehicle/Station/Relay), Three-Layer Telemetry Model, RocketChip OS (RC_OS CLI) (+4 more)
 
 ### Community 68 - "clamp_covariance()"
-Cohesion: 0.40
-Nodes (11): bierman_kalman_update(), clamp_core_covariance(), clamp_covariance(), fuse_mag_axes(), scalar_kalman_update(), update_baro(), update_gps_position(), update_gps_velocity() (+3 more)
+Cohesion: 0.36
+Nodes (12): bierman_kalman_update(), clamp_covariance(), fuse_mag_axes(), inject_error_state(), scalar_kalman_update(), update_baro(), update_gps_position(), update_gps_velocity() (+4 more)
 
 ### Community 69 - "predict()"
 Cohesion: 0.24
@@ -514,8 +517,8 @@ Cohesion: 0.17
 Nodes (3): rc(), ccsds(), rc()
 
 ### Community 71 - "core1_apply_imu_cal()"
-Cohesion: 0.19
-Nodes (13): AO_FlightDirector_get_director(), AO_FlightDirector_is_initialized(), AO_Logger_populate_fused_state(), AO_Logger_start(), fused_copy_eskf_state(), init_logging_ring(), logging_tick(), populate_baro_fields() (+5 more)
+Cohesion: 0.25
+Nodes (11): populate_baro_fields(), cal_vec3_t, calibration_apply_accel(), calibration_apply_accel_with(), calibration_apply_gyro(), calibration_apply_gyro_with(), calibration_apply_mag(), calibration_apply_mag_with() (+3 more)
 
 ### Community 72 - "anomalous_boot.cpp"
 Cohesion: 0.24
@@ -526,8 +529,8 @@ Cohesion: 0.22
 Nodes (7): Fault Handling (PIO watchdog, launch abort, no auto-reset), PIO Hardware Watchdog (design notes), Concept 2: Dual-Core Cross-Check, Concept 1: Heartbeat Watchdog, PIO Limitations for Safety Use, Safety Layer Model, pio_watchdog_fault_detected()
 
 ### Community 74 - "icm20948_read()"
-Cohesion: 0.13
-Nodes (14): 2026-06-18-001 | Composer 2.5 (via Build CLI) | docs, starcom, 2026-06-21-001 | Claude Opus 4.8 (Code) | documentation, audit, 2026-06-23-001 | Claude Opus 4.8 (Code) | documentation, standards, audit, 2026-06-24-001 | Claude Opus 4.8 (Code) | refactor, standards, bugfix, 2026-06-25-001 | Claude Opus 4.8 (Code) | refactor, standards, 2026-06-25-002 | Claude Opus 4.8 (Code) | documentation, audit, research, build, 2026-06-26-001 | Grok | maintenance, cleanup, 2026-06-27-001 | Composer 2.5 (via Build CLI) | documentation, agent instructions (+6 more)
+Cohesion: 0.27
+Nodes (11): pico_read(), i2c_bus_read_regs(), i2c_bus_write_read(), icm20948_read(), icm20948_read_accel(), icm20948_read_gyro(), icm20948_read_mag(), parse_accel_gyro_temp() (+3 more)
 
 ### Community 75 - "board.h"
 Cohesion: 0.18
@@ -538,12 +541,12 @@ Cohesion: 0.22
 Nodes (11): Problem Report lifecycle (DO-178C framing), Remediation Execution Ordering (4 categories), Surfaced-bug scope rule (C.4a), Tier 1 Verify the Audit's Own Gates, Hardware Gate Discipline, bench_sim.py end-to-end HW gate, Rule 5 Pre-commit hook line of defense, Rule 1 Positive-control signal (+3 more)
 
 ### Community 77 - "run_transition_actions()"
-Cohesion: 0.43
-Nodes (7): ActionContext, ActionEntry, action_execute(), action_execute_list(), set_marker(), FlightMarkers, MarkerId
+Cohesion: 0.36
+Nodes (9): ActionContext, ActionEntry, action_execute(), action_execute_list(), set_marker(), make_action_ctx(), run_transition_actions(), FlightMarkers (+1 more)
 
 ### Community 78 - "CCSDS TC-Layer + COP-1 Rework"
-Cohesion: 0.22
-Nodes (11): AO_RCOS_cycle_output_mode(), AO_RCOS_get_output_mode(), handle_mode_cycle(), AO_Telemetry_get_mavlink_output(), AO_Telemetry_toggle_mavlink(), cli_print_hw_status(), print_gps_status_boot(), print_psram_status() (+3 more)
+Cohesion: 0.20
+Nodes (10): CCSDS TC-Layer + COP-1 Rework, Current Command/Retry/ACK Data Flow, ELRS on RP2350 (research), IVP-T13 LQ-Adaptive Retry, Stage T 95% First-Try Gate Re-baseline, Standards-Currency Audit, Starcom Core, Starcom CCSDS Library (+2 more)
 
 ### Community 79 - "AP_Cal Calibration System"
 Cohesion: 0.22
@@ -554,8 +557,8 @@ Cohesion: 0.29
 Nodes (10): Core 1 PSM Reset Before multicore_launch_core1 (R-19), multicore_reset_core1 (PSM_FRCE_OFF_PROC1 toggle), SIO_FIFO_IRQ Core 1 Wedge After AIRCR Reset, Fault Handler Design — Capture-Then-Reset Pattern (R-3), crash_record (.uninitialized_data Preserved-SRAM), FH-1 Function-Size Accepted Deviation, memmanage_fault_handler (Inline Capture-Reset), MPU Stack Guard (+2 more)
 
 ### Community 81 - "AO_HealthMonitor Active Object"
-Cohesion: 0.38
-Nodes (7): cal_ui_handle_async_waiting(), calibration_get_progress(), calibration_get_result(), calibration_is_active(), calibration_reset_state(), rc_os_is_calibrating(), init_baro_auto_zero()
+Cohesion: 0.24
+Nodes (10): AO_HealthMonitor Active Object, Core 1 Exclusive I2C Bus Ownership Invariant, Dual-Core AMP Architecture (Core 0 / Core 1), 2-Bit Health State Contract (absent/fault/degraded/healthy), MCU Die Temperature Health Monitoring, PA1010D GPS Module (MT3333 chipset), Preflight Go/No-Go CLI Command, Stage 13: Health Monitor (+2 more)
 
 ### Community 82 - "Third-Party Licenses Register"
 Cohesion: 0.22
@@ -574,28 +577,32 @@ Cohesion: 0.22
 Nodes (10): Large locals (>1KB) must be static/heap, RP2350 Bare-Metal Platform Constraints, RP2350 Silicon Errata Compliance Matrix, E11 XIP cache clean set/way tag bug, E2 SIO spinlock mirror writes, E9 GPIO Bank 0 pad leakage, Errata maintenance / re-check cadence, Silicon stepping (A2 hardware, A4 procurement) (+2 more)
 
 ### Community 86 - "Coding Standards"
-Cohesion: 0.33
-Nodes (6): RetryStats, fail_count, first_try_ack_count, retry_ack_count, sent_count, total_retries_used
+Cohesion: 0.31
+Nodes (9): Adopted (Third-Party/Vendored) Code Policy, evt_cast<E> downcast helper, QP/C Active Object Framework, QP/C vs QP/C++ Framework Evaluation, QP/Samek vs JSF Naming Divergence, TP-2 __StackBottom vendored deviation, Accepted Standards Deviations, Coding Standards (+1 more)
 
 ### Community 87 - "Transport-Specific Backend"
 Cohesion: 0.25
 Nodes (9): Entry 1: Stack Overflow from Large Local Variables, Protected Files List, GPS PA1010D I2C Backend, GPS UART Backend (Ultimate GPS FeatherWing), Modular Sensor Architecture, Transport-Neutral Data Type, Transport-Specific Backend, Seqlock Copy Budget (+1 more)
 
 ### Community 88 - "CombinatorSpec"
-Cohesion: 0.33
-Nodes (6): AO_Radio Active Object (RadioScheduler half-duplex), AO_Telemetry Active Object, MAVLink v2 Encoder, Mission Profile (const config data structure), QGroundControl / Mission Planner GCS, Telemetry Encoder Strategy Interface
+Cohesion: 0.22
+Nodes (9): CombinatorType, CombinatorSpec, backup_ms, ids, n, phases, signal, type (+1 more)
 
 ### Community 89 - "Stage 3: Dual-Core Integration"
-Cohesion: 0.15
-Nodes (13): SEQLOCK_DESIGN Council Decision, Core 1 Exclusive I2C Bus Ownership Invariant, RP2350 Doorbell Interrupts, Dual-Core AMP Architecture (Core 0 / Core 1), RP2350 Hardware Spinlocks, MPU Stack Guard Regions (PMSAv8), Multicore Lockout (flash_safe_execute coordination), PA1010D GPS Module (MT3333 chipset) (+5 more)
+Cohesion: 0.22
+Nodes (9): SEQLOCK_DESIGN Council Decision, RP2350 Doorbell Interrupts, RP2350 Hardware Spinlocks, MPU Stack Guard Regions (PMSAv8), Multicore Lockout (flash_safe_execute coordination), RP2350 Errata E2 (SIO Spinlock Aliasing), Sensor Replay Harness (OpenRocket .ork -> seqlock injection), Seqlock Cross-Core Sensor Data Sharing (+1 more)
 
 ### Community 90 - "RocketChip Integration and Verification Plan"
-Cohesion: 0.40
-Nodes (6): Confidence Gate (platform safety layer), MMAE/IMM Rejection Decision (phase-scheduled Q/R instead), Phase-Scheduled Q/R Framework, Stage 10: Adaptive Estimation & Safety, Stage 18: Field Tuning & Validation, VALIDATE Numerical-Value Marker
+Cohesion: 0.28
+Nodes (9): RocketChip Integration and Verification Plan (IVP), Confidence Gate (platform safety layer), Stage 10: Adaptive Estimation & Safety, Stage 12B: Linux GCS, Stage 18: Field Tuning & Validation, Stage 1: Foundation, Stage-Boundary Test-Scaffolding Cleanup Rule, VALIDATE Numerical-Value Marker (+1 more)
 
 ### Community 91 - "RocketChip Pre-Flight Checklist"
 Cohesion: 0.22
 Nodes (9): RocketChip Pre-Flight Checklist, Bench 5-Minute Diagnostic Soak, Fallback: No-GPS Flight, No In-Flight Abort (no FTS), Pre-Arm Preflight (p command) Go/No-Go, Command Authority Safety Policy, Calibration Wizard, RC_OS Menu Structure (main/cal/flight/debug) (+1 more)
+
+### Community 92 - "mcu_temp.cpp"
+Cohesion: 0.25
+Nodes (4): mcu_temp_available(), mcu_temp_is_stuck(), mcu_temp_read_c(), station_idle_tick()
 
 ### Community 93 - "evaluate_guard_conditions()"
 Cohesion: 0.42
@@ -630,8 +637,8 @@ Cohesion: 0.25
 Nodes (8): AO_Logger, AO_Radio, Hardware Budgets, SRAM/Flash Memory Budget, PA1010D GPS, Power Budget (LiPo), PSRAM Ring Buffer (8MB logger), RFM95W LoRa Radio (SX1276)
 
 ### Community 101 - "cli_print_sensor_status()"
-Cohesion: 0.17
-Nodes (11): cli_print_sensor_status(), print_cal_params(), eskf_runner_get_eskf(), eskf_runner_get_wmm_position(), eskf_runner_get_wmm_source(), eskf_runner_mag_3d_active(), PrimaryLevels, baro (+3 more)
+Cohesion: 0.25
+Nodes (7): cli_print_sensor_status(), print_cal_params(), eskf_runner_get_eskf(), eskf_runner_get_wmm_position(), eskf_runner_get_wmm_source(), eskf_runner_mag_3d_active(), eskf
 
 ### Community 102 - "Stage 2: Single-Core Sensors"
 Cohesion: 0.32
@@ -658,8 +665,8 @@ Cohesion: 0.25
 Nodes (3): job(), job(), job()
 
 ### Community 108 - "start_active_objects()"
-Cohesion: 0.40
-Nodes (5): inject_error_state(), reset(), reset_covariance_attitude(), kStateSize, Mat
+Cohesion: 0.29
+Nodes (7): AO_HealthMonitor_start(), AO_LedEngine_start(), AO_Notify_start(), AO_Radio_start(), AO_RCOS_start(), AO_Telemetry_start(), start_active_objects()
 
 ### Community 109 - "Stage 6: Data Logging"
 Cohesion: 0.38
@@ -690,8 +697,8 @@ Cohesion: 0.40
 Nodes (4): Args, dbg_error(), dbg_print(), rocketchip()
 
 ### Community 116 - "AO_Notify Active Object (notification intent"
-Cohesion: 0.29
-Nodes (10): AO_HealthMonitor Active Object, AO_LedEngine Active Object, AO_Notify Active Object (notification intent layer), 2-Bit Health State Contract (absent/fault/degraded/healthy), Notification Intent Contract (per-category typed enums), Preflight Go/No-Go CLI Command, Stage 13: Health Monitor, Stage 14: Notification Engine (+2 more)
+Cohesion: 0.47
+Nodes (6): AO_LedEngine Active Object, AO_Notify Active Object (notification intent layer), Notification Intent Contract (per-category typed enums), Stage 14: Notification Engine, Stage L: LED Engine & Notification Polish, WS2812 / NeoPixel Status LED
 
 ### Community 117 - "Dynamic Validation Methods (Physical ESKF"
 Cohesion: 0.33
@@ -715,15 +722,19 @@ Nodes (5): AO_Notify_post_cal_intent(), CalIntentEvt, intent, super, CalIntent
 
 ### Community 122 - "Codegen Drift Audit"
 Cohesion: 0.50
-Nodes (3): eskf_is_disabled(), eskf_reenable(), eskf_runner_request_reinit()
+Nodes (5): Auto-Generated Code Rule, Codegen Drift Audit, generate_profile.py generator, mission_profile_data.h (generated), generate_wmm_table.py WMM magnetic-table generator
+
+### Community 123 - "L2-P5 Manual Standards-Walk"
+Cohesion: 0.70
+Nodes (5): L2P5_MANUAL_WALK_GUIDE field manual, L2-P5 Manual Standards-Walk, L2P5_WALK_ITINERARY 185-file coverage map, L2P5_WALK_PLAN work plan, RULE_VERIFIABILITY_TRIAGE master triage
 
 ### Community 125 - "lm_solver.cpp"
 Cohesion: 0.70
 Nodes (3): back_substitute(), forward_eliminate(), mat_inverse()
 
 ### Community 126 - "confidence_gate.cpp"
-Cohesion: 0.38
-Nodes (6): print_eskf_gates_and_diags(), ConfidenceInput, ConfidenceState, confidence_gate_evaluate(), confidence_gate_init(), eskf_runner_get_confidence()
+Cohesion: 0.60
+Nodes (4): ConfidenceInput, ConfidenceState, confidence_gate_evaluate(), confidence_gate_init()
 
 ### Community 127 - "crash_record_consume_prior()"
 Cohesion: 0.40
@@ -753,13 +764,21 @@ Nodes (5): Boot-Time Transport Auto-Detection, Function-Pointer Dispatch (no vta
 Cohesion: 0.50
 Nodes (4): Mission Profile (configuration data), Research Mode, Advanced & Experimental Settings Tracking, Wizard Opt-In UX Principle
 
+### Community 136 - "Lessons Learned (debugging journal)"
+Cohesion: 0.50
+Nodes (4): AO Commandments Source-Citation Audit, PIO I2C Master Reference (Flipper One), check_warning_gate_coverage.py, Lessons Learned (debugging journal)
+
+### Community 137 - "Dual-Toolchain Exercise (item 17c)"
+Cohesion: 0.50
+Nodes (4): Dual-Toolchain Exercise (item 17c), WSL Soft Pivot, WSL Steady-State Policy (try until it breaks), Session Checklist
+
 ### Community 138 - "Current Command/Retry/ACK Data Flow (Pre-CCSDS)"
 Cohesion: 0.67
 Nodes (4): Current Command/Retry/ACK Data Flow (Pre-CCSDS), CCSDS APID 0x003 ACK Return Packet, AO_RfManager ok_to_retry() / Anchor Timing, Tracked-Command Retry State Machine (AO_Telemetry)
 
 ### Community 139 - "Stage 17: Field Testing &"
-Cohesion: 0.38
-Nodes (7): AO_RfManager (link-health state machine), CCSDS TC-Layer + COP-1 Post-Stage-17 Deferral Decision, RxDone-Anchored Station TX-Window Synchronization, Stage 17: Field Testing & Avionics Airworthiness (Tapered Buildup), Stage T: RF Link Manager + TX-Window Synchronization, Tapered-Buildup Field-Test Sequencing (first motor flight last), Three-Band Acceptance (PASS/MARGINAL/FAIL) + Retrogression
+Cohesion: 0.67
+Nodes (4): CCSDS TC-Layer + COP-1 Post-Stage-17 Deferral Decision, Stage 17: Field Testing & Avionics Airworthiness (Tapered Buildup), Tapered-Buildup Field-Test Sequencing (first motor flight last), Three-Band Acceptance (PASS/MARGINAL/FAIL) + Retrogression
 
 ### Community 140 - "F' Hardware Evaluation: Boards On"
 Cohesion: 0.67
@@ -777,29 +796,33 @@ Nodes (3): flight_in_progress_clear(), flight_in_progress_set(), flight_in_progr
 Cohesion: 0.50
 Nodes (4): Stage 10 Baseline Performance Benchmark (IVP-87), ESKF P-Growth Failure on Bench, Stage 11 PIO Safety Architecture Benchmark (IVP-91), PIO Backup Deployment Timers (Drogue + Main)
 
+### Community 144 - "Agent Whiteboard (active work channel)"
+Cohesion: 0.67
+Nodes (3): IRL-Whiteboard Erase-When-Done Rule, Agent Whiteboard (active work channel), Agent Whiteboard
+
 ### Community 146 - "Status Indicators and Messages"
 Cohesion: 0.67
 Nodes (3): Status Indicators and Messages, MAVLink Status Codes (future), NeoPixel WS2812 Status Indicator
 
 ## Knowledge Gaps
-- **613 isolated node(s):** `Behavioral Guidelines`, `Session Discipline — Required on Every Session`, `Protected Files & Permission Rules`, `Read First (one-time on new context or major changes)`, `Each Session (check at the start of every session)` (+608 more)
+- **431 isolated node(s):** `super`, `tick_timer`, `director`, `initialized`, `last_tick_ms` (+426 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **21 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **20 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Concept 1: Heartbeat Watchdog` connect `pio_watchdog.cpp` to `RP2350 Platform Notes (MULTICORE_RULES)`?**
-  _High betweenness centrality (0.061) - this node is a cross-community bridge._
+  _High betweenness centrality (0.089) - this node is a cross-community bridge._
 - **Why does `PIO Hardware Watchdog (design notes)` connect `pio_watchdog.cpp` to `Software Architecture Document (SAD)`?**
-  _High betweenness centrality (0.047) - this node is a cross-community bridge._
+  _High betweenness centrality (0.061) - this node is a cross-community bridge._
 - **Why does `Fault Handling (PIO watchdog, launch abort, no auto-reset)` connect `pio_watchdog.cpp` to `Software Architecture Document (SAD)`, `PR Lifecycle States`?**
-  _High betweenness centrality (0.039) - this node is a cross-community bridge._
-- **What connects `Behavioral Guidelines`, `Session Discipline — Required on Every Session`, `Protected Files & Permission Rules` to the rest of the system?**
-  _613 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _High betweenness centrality (0.059) - this node is a cross-community bridge._
+- **What connects `super`, `tick_timer`, `director` to the rest of the system?**
+  _431 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `rc_os_commands.cpp` be split into smaller, more focused modules?**
-  _Cohesion score 0.08636977058029689 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.050721954831543875 - nodes in this community are weakly interconnected._
 - **Should `ao_telemetry.cpp` be split into smaller, more focused modules?**
-  _Cohesion score 0.10661268556005399 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.050078247261345854 - nodes in this community are weakly interconnected._
 - **Should `flash_flush.cpp` be split into smaller, more focused modules?**
   _Cohesion score 0.061018437225636525 - nodes in this community are weakly interconnected._

@@ -1,5 +1,14 @@
 # Changelog
 
+### 2026-06-27-007 | Claude (Opus) | tooling, graphify
+
+**Graphify graph rebuilt as a curated current-state code+docs map.** Replaced the bloated bootstrap graph at `graphify-out/` (prior ~14.8k-node version pulled in vendored libs + historical churn). Agent-driven semantic extraction (Claude Code subagents, no API key) over the curated corpus, then a prune + doc↔code reconcile pass.
+
+- **Curation** (`.graphifyignore`, already trimmed in `078451f`): excludes vendored (`EXTERNAL/` ETL, `lib/`), `test/`+`scripts/`, `mcps/`, `starcom/`, `logs/`, tooling configs, images, and historical/point-in-time churn (`docs/plans/`, `docs/audits/`, `docs/baselines/`, `CHANGELOG.md`). Keeps `src/`+`include/`+evergreen `docs/`+`standards/`.
+- **Result:** 2,448 nodes / 4,521 edges / 186 communities; 71% in the giant component (up from 50% pre-prune); full-detail HTML (under graphify's 5k-node viz limit).
+- **Protected snapshot:** `graphify-out/claude-build-2026-06-27/` (with README), mirroring the `grok-build-pass3-2026-06-27/` pattern — safe from a future `graphify .` (which only rewrites the root). Grok's pass-3 snapshot untouched.
+- **DEFERRED (when API rate-limit window resets):** doc→code connectivity pass — `standards/` (113 nodes) + ~431 `docs/` nodes remain their own islands (doc concepts vs code symbols differ in naming; chunk-parallel extraction dropped ~672 cross-refs on ID mismatch). Next: targeted linking subagent given the AST symbol list + orphaned docs. See `AGENT_WHITEBOARD.md`. Lesson: dispatch graphify extraction subagents in batches of ~4 (17-at-once tripped a server rate limit). Verified: pure tooling/doc change — no firmware or host ctest impact.
+
 ### 2026-06-27-006 | Grok Build | documentation, agent instructions
 
 **AGENTS.md cleanup + repo-authority wording.** Removed stale Adafruit preference, CHANGELOG mandate, duplicate "Core Standards" block, and `@standards/GIT_WORKFLOW.md` reference. Reworded repository-authority sentence to emphasize "repository is almost always the correct, double check with user". Added WB note flagging `GIT_WORKFLOW.md` for future deprecation review. Verified: pure documentation change — no firmware or host ctest impact.
