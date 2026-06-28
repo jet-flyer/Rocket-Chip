@@ -29,7 +29,7 @@ Rocket Chip is doc-heavy (`SAD.md`, `IVP.md`, `standards/`, hardware ICDs) and c
 
 ## 2. Initial Install (Composer 2.5 via Build CLI, 2026-06-27)
 
-> **Audit trail.** If something behaves oddly later, check here first. Installed by Composer 2.5 (via Build CLI) agent session; committed in `3a9aa8b`.
+> **Audit trail.** If something behaves oddly later, check here first. Installed by Composer 2.5 (via Build CLI) agent session; committed in `9bdc848`.
 
 ### 2.1 Machine-level (user scope)
 
@@ -75,7 +75,7 @@ graphify hook install
 
 ### 2.4 Known quirks from bootstrap
 
-1. **Code-only graph.** First CLI build had no LLM API key in the shell and docs were excluded via `.graphifyignore` (see §4). Bootstrap stats: **14,847 nodes**, **43,609 edges**, **734 communities**, built from commit `0079c3c4`, **0 token cost**.
+1. **Code-only graph.** First CLI build had no LLM API key in the shell and docs were excluded via `.graphifyignore` (see §4). Bootstrap stats: **14,847 nodes**, **43,609 edges**, **734 communities**, built from tree at `2516e5a`, **0 token cost**.
 2. **`graph.html` is aggregated.** Node count exceeds the 5000 viz limit, so HTML shows ~809 community meta-nodes (not every symbol). Regenerate with `graphify export html` after updating `.graphify_labels.json`.
 3. **Community labels are heuristic.** Agent-generated names from node/path clustering (not LLM `graphify label`); duplicates get numeric suffixes (e.g. `Mavlink Common Msgs 2`).
 4. **Hooks live under `scripts/hooks/`.** Repo `core.hooksPath` is `scripts/hooks`, not `.git/hooks/`. `graphify hook status` should report `installed` there.
