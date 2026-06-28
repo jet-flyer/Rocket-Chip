@@ -1,6 +1,12 @@
 # SDK submodule (not RocketChip source)
 pico-sdk/
 
+# Vendored / third-party "adopted code" — NOT first-party architecture.
+# First-party thin wrappers live in src/ (e.g. src/telemetry/ for MAVLink).
+# EXTERNAL = ETL header lib (~432 files); lib/ = vendored drivers (icm20948, lwgps, ruuvi, ap_compat, mavlink).
+EXTERNAL/
+lib/
+
 # Build / generated
 build*/
 cmake-build-*/
@@ -20,27 +26,45 @@ tools/scratch/
 # SPIN generated outputs
 tools/spin/pan.*
 
-# Semantic extraction (docs/papers/images) deferred for headless CLI — no API key in shell.
-# Run `/graphify .` from Claude Code, Cursor, or Grok to ingest these later.
-docs/
-standards/
-*.md
-**/*.md
-**/*.mdx
-**/*.html
-**/*.txt
-**/*.rst
-**/*.yaml
-**/*.yml
-**/*.pdf
+# Curated out to match Grok pass-3 (cleaner architectural graph)
+# Tests + tooling scripts:
+test/
+tests/
+Testing/
+scripts/
+# CCSDS-detour leftovers + Starcom side-project + logs:
+mcps/
+terminals/
+starcom/
+logs/
+# Agent / editor tooling config (not firmware architecture):
+.claude/
+.agents/
+.cursor/
+.vscode/
+.github/
+
+# graphify's own output — prevent self-ingestion / pollution + protect snapshots
+graphify-out/
+graphify-out-codeonly/
+graphify-grok-pass3-BACKUP-2026-06-27/
+
+# Images / papers / audio / video — deferred (skipping photos for now, 2026-06-27).
+# Docs/standards markdown is now INGESTED (deferral block removed for the full run).
 **/*.png
 **/*.jpg
 **/*.jpeg
 **/*.webp
 **/*.gif
 **/*.svg
+**/*.pdf
 **/*.mp4
 **/*.mov
 **/*.wav
 **/*.mp3
+
+# Build script (not a doc)
 CMakeLists.txt
+
+# Build logs (not source)
+GRAPHIFY_BUILD_*.log

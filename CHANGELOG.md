@@ -1,10 +1,12 @@
 # Changelog
 
-### 2026-06-27-004 | Composer 2.5 (via Build CLI) | documentation
+### 2026-06-27-004 | Composer 2.5 (via Build CLI) / Grok Build | documentation, tooling
 
-**Post-rebase SHA alignment.** After `git rebase` reworded commit subjects (`2516e5a`, `9bdc848`), updated stale citations in `CHANGELOG.md` `2026-06-27-002`, `docs/tools/GRAPHIFY_USAGE.md`, and `graphify-out/GRAPH_REPORT.md` (`0079c3c`/`3a9aa8b` → current SHAs). Old hashes have no reason to remain on main.
+**Post-rebase SHA alignment + Graphify Pass 3 (Grok Build).** After `git rebase` reworded commit subjects (`2516e5a`, `9bdc848`), updated stale citations in `CHANGELOG.md` `2026-06-27-002`, `docs/tools/GRAPHIFY_USAGE.md`, and `graphify-out/GRAPH_REPORT.md` (`0079c3c`/`3a9aa8b` → current SHAs). 
 
-Verified: pure documentation change — no firmware or host ctest impact.
+Additionally: completed Graphify "Pass 3" (semantic/document extraction enabled + processed; custom modular layout with AOs/telemetry/core clusters; further .graphifyignore trims for Python/scripts/Starcom/non-core; protected snapshot in `graphify-out/grok-build-pass3-2026-06-27/` with metadata crediting Grok Build; docs now included for architecture/AO/IMU links). Amended this entry (no separate) per instructions. Pure-software change — no firmware or host ctest impact. Snapshot preserves the state; use `graphify update .` + re-layout for future increments.
+
+Verified: pure documentation/tooling change — no firmware or host ctest impact.
 
 ### 2026-06-27-003 | Composer 2.5 (via Build CLI) | tooling, documentation
 
