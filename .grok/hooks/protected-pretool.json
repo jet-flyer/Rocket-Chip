@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "search_replace|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -u ${GROK_WORKSPACE_ROOT}/scripts/hooks/protected-file-pretool.py",
+            "timeout": 8
+          }
+        ]
+      }
+    ]
+  }
+}

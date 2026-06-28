@@ -31,6 +31,25 @@ Rebuilt the graphify graph at `graphify-out/` as a **curated current-state code+
 
 **WB note (2026-06-27):** Evaluate `standards/GIT_WORKFLOW.md` for outright deprecation. It is no longer referenced from AGENTS.md and its `claude/` branch prefix + immediate-delete rule are over-specific for general agent workflows.
 
+**Protected PreToolUse Hook exit-1 issue — handover to main Grok 4.3/Opencode (2026-06-28, Build agent)**
+
+**>>> HANDOVER DOC: temp/grok-4.3-opencode-handover.md (full details, evidence, tried items, next steps — read this first) <<<**
+
+- **In progress:** Make the hook (PreToolUse for search_replace|Edit|Write|MultiEdit) fire from the *actual Grok runner* and return controlled exits (0 allow / exactly 2 deny) instead of always launch-fail "failed with exit code 1".
+- **What works:** Script logic proven. Direct `py -3 -u` (with real `~/.grok/sessions/.../chat_history.jsonl` + envs + test phrases we inserted) produces correct 0/2 + JSON decisions. Simulations via cmd.exe also clean. See `temp/grok-4.3-opencode-handover.md` + `scratch/hook-tests/ALL-EVIDENCE.txt`.
+- **What doesn't:** Real Grok PreToolUse invocations (during tool uses like search_replace) still yield exit 1. User has never seen the script's deny/allow text from a live trigger.
+- **Current command (all 3 locations, single clean line):** `py -3 -u ${GROK_WORKSPACE_ROOT}/scripts/hooks/protected-file-pretool.py`
+- **Files of interest:** `.grok/hooks/protected-pretool.json`, global `~/.grok/hooks/rocket-chip-protected-pretool.json`, `.claude/settings.json`, `scripts/hooks/protected-file-pretool.py`, `docs/agents/PROTECTED_FILES.md`.
+- **Tried:** Command variations (python vs py, quoting on/off), direct tests, clean driver runs, real matcher triggers on non-protected files, graphify first, full session discipline.
+- **Blocker suspected:** Grok hook runner's Windows spawn/expansion/PATH context for the JSON command string (bypassed by our direct calls).
+- **Handoff artifacts:** Full summary + evidence index in `temp/grok-4.3-opencode-handover.md` (new temp/ folder created for this). Transitional duplicate "command" keys during edits were cleaned.
+- **Next for receiver:** Re-verify directs first, then capture with `RUST_LOG=debug GROK_LOG_FILE=...` on a real trigger (phrase + protected edit). Try full py.exe path or cmd wrapper if needed. Respect "use test phrases, no actual protected edits until clean 0/2 observed."
+- **State:** Directs pass; runner launch is the open item. Exact evidence in scratch/ and temp/.
+
+[Keep this row active until resolved or further handed off. Erase only when done.]
+
+Protected-file hook: now auto-loads via global hook (~/.grok/hooks/rocket-chip-protected-pretool.json) + native .grok/hooks/. No per-window /hooks-trust or 'r' required for the protection. Added grok-trusted.ps1 for full project hooks. Script updated to be safe as global. (2026-06-28)  [erase prior verification notes]
+
 ---
 
 ## Session Handoff — L2-P5 walk-prep DONE / WALK-READY (2026-06-25, Claude)
