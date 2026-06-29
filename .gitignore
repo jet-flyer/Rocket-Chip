@@ -117,6 +117,9 @@ graphify-out/.graphify_labels.json
 graphify-out/.graphify_root
 graphify-out/.curate_flag.json
 graphify-out/.curate_state.json
+# Auto-backup folders graphify writes on rebuild (bare YYYY-MM-DD/). The named
+# protected snapshots (claude-build-*/, grok-build-*/) do NOT match this and stay tracked.
+graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 
 # MCP tool-definition cache (generated, not project source)
 mcps/
