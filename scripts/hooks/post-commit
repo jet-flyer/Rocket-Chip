@@ -123,6 +123,32 @@ try:
         if _txt:
             _root = Path(_txt)
     _rebuild_code(_root, changed_paths=changed, force=_force)
+    # Curate + verify: the rebuild re-injects graphify's structural heading
+    # fragments and orphans cached curated nodes (see docs/tools/GRAPHIFY_USAGE.md
+    # section 11). Reconcile the freshly-rebuilt graph back to the curated shape,
+    # then verify content/bridge/edge parity. Runs HERE, inside the detached
+    # child after _rebuild_code, because that is the only point the bloated
+    # graph actually exists. Best-effort for curate (never wedge the hook), but
+    # verify failures are logged loudly. Skips cleanly if the scripts are absent.
+    try:
+        import subprocess as _sp
+        _py = sys.executable
+        _curate = (_root / 'scripts' / 'graphify_curate.py')
+        _verify = (_root / 'scripts' / 'graphify_verify.py')
+        if _curate.exists():
+            _cr = _sp.run([_py, str(_curate)], cwd=str(_root),
+                          capture_output=True, text=True, timeout=120)
+            print(_cr.stdout.rstrip())
+            if _cr.returncode == 3:
+                print('[graphify hook] curate ABORTED (anomaly flag) - graph left as rebuilt; see graphify-out/.curate_flag.json')
+            if _verify.exists():
+                _vr = _sp.run([_py, str(_verify)], cwd=str(_root),
+                              capture_output=True, text=True, timeout=120)
+                print(_vr.stdout.rstrip())
+                if _vr.returncode != 0:
+                    print('[graphify hook] *** VERIFY FAILED - curated graph does NOT match baseline; investigate before trusting graph.json ***')
+    except Exception as _exc:
+        print(f'[graphify hook] curate/verify step skipped: {_exc}')
     # Refresh the work-memory lessons doc when saved Q&A outcomes exist
     # (best-effort; never fails the hook).
     try:
