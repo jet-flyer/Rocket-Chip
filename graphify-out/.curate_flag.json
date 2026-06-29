@@ -1,6 +1,5 @@
 {
   "stale_docs": [
-    "docs/agents/SESSION_CHECKLIST.md",
     "docs/tools/GRAPHIFY_USAGE.md"
   ],
   "flag": "ATTENTION"
