@@ -63,6 +63,10 @@ credentials.h
 CLAUDE.local.md
 .claude/settings.local.json
 
+# Grok Build native files (per-user/tool config & rules)
+# Project agent rules live in .cursor/rules/ + .agents/skills/ (not .grok/)
+.grok/
+
 # Large binaries (if not needed in repo)
 *.uf2
 *.elf
