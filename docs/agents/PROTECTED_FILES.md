@@ -16,17 +16,15 @@ General requests like "update the docs" or "fix the instructions" do NOT grant p
 
 ## Protected File List
 
-> **Categories (the pre-tool hook `scripts/hooks/protected-file-pretool.py`
-> keys off the `###` category headers below):**
-> - **Hard-Protected** — any edit triggers an approval prompt (`ask`).
-> - **Historical (frozen)** — any edit triggers `ask`; these are snapshot /
->   append-only-by-policy records that should not be silently amended or deleted
->   (new entries are new files / new sections, not edits to existing ones).
-> - **Checklist-cadence** — edited only as part of the session-checklist flow.
->   Interim behavior until the session-checklist skill exists is noted per file.
+> **Categories:**
+> - **Hard-Protected** — do not edit without explicit per-file permission (the Rule above).
+> - **Historical (frozen)** — snapshot / append-only-by-policy records that must not be
+>   silently amended or deleted; new entries are new files / new sections, not edits to
+>   existing ones. Editing existing content needs explicit permission.
+> - **Checklist-cadence** — edited only as part of the session-checklist flow (see
+>   `SESSION_CHECKLIST.md`), not automatically on every change.
 >
-> A file appears under only one category. Anything not listed here is
-> unprotected. `####` lines are visual grouping only; the hook reads `###`.
+> A file appears under only one category. Anything not listed here is unprotected.
 
 ### Hard-Protected
 
