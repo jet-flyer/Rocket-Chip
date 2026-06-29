@@ -16,7 +16,9 @@
 
 ### 2026-06-28-001 | Grok Build CLI | debugging, handoff
 
-**Protected PreToolUse hook debugging + handover (Grok 4.3 / Build harness; not resolved).** Direct tests with self-inserted phrases in real histories confirmed the script produces correct 0/2 exits. The hook command was updated to `py -3 -u ${GROK_WORKSPACE_ROOT}/scripts/hooks/protected-file-pretool.py` in `.grok/hooks/protected-pretool.json`, the global `~/.grok/hooks/rocket-chip-protected-pretool.json`, and `.claude/settings.json`. A detailed handoff document was created at `temp/grok-4.3-opencode-handover.md` with full status, evidence, and next steps; only the handoff files received local commits. Real Grok invocations of the hook still exit with code 1. Verified: pure debugging/handover change — no firmware or host ctest impact. Work left open for receiving agent.
+**Protected PreToolUse hook debugging + handover (Grok 4.3 / Build harness; not resolved).** Direct tests with self-inserted phrases in real histories confirmed the script produces correct 0/2 exits. The hook command was updated to `py -3 -u ${GROK_WORKSPACE_ROOT}/scripts/hooks/protected-file-pretool.py` in `.grok/hooks/protected-pretool.json`, the global `~/.grok/hooks/rocket-chip-protected-pretool.json`, and `.claude/settings.json`. A detailed handoff document was created at `temp/grok-4.3-opencode-handover.md` with full status, evidence, and next steps; only the handoff files received local commits. Real Grok invocations of the hook still exit with code 1. Verified: pure debugging/handover change — no firmware or host ctest impact. 
+
+Later in session (per user direction): duplicate native `.grok/hooks/protected-pretool.json` deleted (the `.claude/settings.json` wiring left in place for now). Claude has since added 2026-06-28-002 documenting the full hook disable and current protection approach. Work left open for receiving agent. (Net change from this Grok action: deletion of the useless duplicate Grok-native hook file only.)
 
 ### 2026-06-27-007 | Claude (Opus) | tooling, graphify
 
