@@ -1,0 +1,4 @@
+Protected-file PreToolUse hook regression test, 2026-06-28 (Claude).
+Run: py -3 -u tools/scratch/protected_hook/contract-test.py
+Covers the category model (hard/historical/cadence) + add-only diff detection.
+See CHANGELOG 2026-06-28-002 and scripts/hooks/protected-file-pretool.py

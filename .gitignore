@@ -97,3 +97,6 @@ Testing/Temporary/
 # Graphify local cost tracking (committed graph lives in graphify-out/)
 graphify-out/cost.json
 graphify-out/cache/
+
+# MCP tool-definition cache (generated, not project source)
+mcps/
