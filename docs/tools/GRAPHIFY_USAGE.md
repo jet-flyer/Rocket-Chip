@@ -86,18 +86,23 @@ graphify hook install
 
 ## 3. What’s in `graphify-out/`
 
+> **Root outputs are NOT committed (changed 2026-06-29 — CHANGELOG `2026-06-29-001`).** The post-commit hook rebuilds these every commit, so tracking them left the working tree perpetually dirty (graphify issue [#1018](https://github.com/safishamsi/graphify/issues/1018)). They are now gitignored + regenerated locally — the query tool reads the local file regardless of git, so nothing is lost. **Only the protected snapshot subdirs (`claude-build-*/`, `grok-build-*/`) are committed**, as frozen verification baselines.
+
 | File / dir | Commit? | Notes |
 |------------|---------|-------|
-| `graph.json` | Yes | Machine-queryable graph |
-| `GRAPH_REPORT.md` | Yes | Human summary; start here for broad orientation |
-| `manifest.json` | Yes | Portable file manifest |
-| `.graphify_analysis.json` | Yes | Clustering metadata |
-| `.graphify_labels.json` | Yes | Community labels |
-| `cache/` | Optional | Speeds rebuilds; large — team choice |
+| `graph.json` | **No** | Machine-queryable graph; gitignored, rebuilt locally by the hook |
+| `GRAPH_REPORT.md` | **No** | Human summary; gitignored, regenerated each rebuild |
+| `manifest.json` | **No** | Portable file manifest; gitignored |
+| `.graphify_analysis.json` | **No** | Clustering metadata; gitignored |
+| `.graphify_labels.json` | **No** | Community labels; gitignored |
+| `.curate_flag.json` / `.curate_state.json` | **No** | Curate-filter runtime state/flags; gitignored |
+| `graph.html` | **No** | Aggregated community view; gitignored, regenerate via `graphify export html` |
+| `cache/` | **No** | Gitignored; speeds local rebuilds |
 | `cost.json` | **No** | Gitignored; local token accounting |
-| `graph.html` | Optional | Aggregated community view; regenerate via `graphify export html` |
+| `<YYYY-MM-DD>/` auto-backups | **No** | Gitignored; graphify writes one per rebuild |
+| `claude-build-*/`, `grok-build-*/` snapshots | **Yes** | Protected frozen baselines — the only committed graph artifacts |
 
-**Staleness check:** Compare `graphify-out/GRAPH_REPORT.md` “Built from commit” to `git rev-parse HEAD`.
+**Staleness check:** the root graph is rebuilt locally on every commit, so it tracks HEAD automatically. For the committed snapshots, compare their `GRAPH_REPORT.md` “Built from commit” to `git rev-parse HEAD`.
 
 ---
 
@@ -177,7 +182,7 @@ When ready to share the bootstrap with the team:
 git add .agents/ .claude/ .cursor/ .graphifyignore graphify-out/ CLAUDE.md .gitignore docs/tools/GRAPHIFY_USAGE.md
 ```
 
-Omit `graphify-out/cache/` if you want a smaller repo (rebuilds are slower on first checkout).
+> **Note (2026-06-29):** `git add graphify-out/` now stages only the protected snapshot subdirs — the root outputs (`graph.json`, etc.) and `cache/` are gitignored (see §3), so they won't be added. This is the bootstrap-era command, kept for history.
 
 ---
 
