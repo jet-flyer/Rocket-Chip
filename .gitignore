@@ -98,9 +98,25 @@ cmake_test_discovery_*.json
 # Bench reproducer ctest scratch output
 Testing/Temporary/
 
-# Graphify local cost tracking (committed graph lives in graphify-out/)
+# Graphify: the auto-rebuilt ROOT outputs are gitignored (regenerated locally by
+# the post-commit hook every commit -> otherwise they leave the working tree
+# perpetually dirty; graphify issue #1018 fixed the rebuild LOOP but not the
+# dirty-tree-from-tracking, and upstream assumes most users don't track these).
+# The query tool reads the LOCAL file regardless of git, so nothing is lost.
+# Protected snapshot subdirs (claude-build-*/, grok-build-*/) stay TRACKED as
+# frozen baselines — these patterns match root files only, not the subdirs.
+# Untracked + ignored 2026-06-29 (Claude); see AGENT_WHITEBOARD.md.
 graphify-out/cost.json
 graphify-out/cache/
+graphify-out/graph.json
+graphify-out/graph.html
+graphify-out/GRAPH_REPORT.md
+graphify-out/manifest.json
+graphify-out/.graphify_analysis.json
+graphify-out/.graphify_labels.json
+graphify-out/.graphify_root
+graphify-out/.curate_flag.json
+graphify-out/.curate_state.json
 
 # MCP tool-definition cache (generated, not project source)
 mcps/
