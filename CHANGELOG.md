@@ -6,16 +6,49 @@
 > on every change or commit. **Especially do not add an entry on your own for
 > freshly-done work without user input** — confirm with the user first.
 
-### 2026-06-28-003 | Claude (Opus 4.8) | tooling, graphify
+## Format
 
-**Graphify curated-graph durability: post-build reconciliation filter + content verifier.** Closes the doc→code-linked graph loop so the canonical root graph stays at parity with the curated north-star (`graphify-out/claude-build-2026-06-28/`, 2,448 nodes / 4,882 links / 370 doc→code bridges / 97% connected) on every rebuild, with **no LLM cost**. Root problem: `graphify update .` re-runs graphify's build-time structural markdown pass, which (a) injects ~2,600 `document`+`_origin=ast` heading fragments (bloat to ~4,900 nodes) and (b) orphans ~57 cached curated `concept`/`document` children (incl. bridges) during the cache re-merge — both deterministic, reproduced across runs.
+`### YYYY-MM-DD-NNN | Brand Model (Harness) | tags`
 
-- **`scripts/graphify_curate.py`** (new) — deterministic, no-LLM, fail-safe, idempotent, atomic-write reconciliation filter. Drops structural fragments (signature match), keeps fresh AST code, **restores** orphaned curated nodes from the **semantic cache** (gated to curated source files, so future docs like a Starcom IVP are carried forward automatically once extracted — cache, not a frozen snapshot, drives restoration; only ever adds-back, never overwrites a live node), and **backstops** baseline bridges whose endpoints survive but whose edge was never persisted to cache (exactly one such straggler on this repo). Flags (advisory, never block): `stale_docs` (restored doc edited since last extraction → prompt re-`/graphify`), `promote_sources` (new docs not yet curated), and `REVIEW`+**ABORT** (keep-collapse / drop-spike → root left untouched).
-- **`scripts/graphify_verify.py`** (new) — content-level verifier guarding against the **count-parity fallacy** (node count matching ≠ graph parity). Checks node-set parity, node CONTENT (label/file_type/source_file/norm_label — catches equal-ID swaps), bridges (370/370, 0 lost), edge superset (0 baseline edges lost; extras listed not failed), and `--determinism` (two builds identical). Exits non-zero on any hard failure — proven to fail on a tampered graph (swapped label + dropped bridge), not a rubber stamp.
-- **Verified end-to-end:** `update → curate → verify` runs clean; exact node parity (0 drift), 370/370 bridges, edge superset (+5 validated real extras), byte-deterministic across cycles. The lone cache-missing bridge robustly confirmed a true isolated outlier (369/370 cache-resident; net bridge loss zero via backstop).
-- **Docs:** `docs/tools/GRAPHIFY_USAGE.md` §11 added (filter + workflow + cache-not-snapshot rationale + the count-parity fallacy and the five verification checks, framed as the durable contract with the scripts as the evolvable implementation — method changes routed through repo-owner sign-off). `docs/agents/SESSION_CHECKLIST.md` item 17d added (milestone-close **prompt** to surface `.curate_flag.json` state and let the owner decide on a token-bearing `/graphify .` re-pass — never auto-run; repo-owner authorized this protected-doc edit).
+The middle field is the **Author** — see **Agent attribution** below for its required three parts. Example: `### 2026-06-28-003 | Claude Opus 4.8 (Code) | tooling, graphify`.
 
-Snapshot `graphify-out/claude-build-2026-06-28/` committed as the protected verification baseline. Filter/hook wiring into `scripts/hooks/post-commit` intentionally **deferred** (it touches `scripts/hooks/` → trips the bench_sim HW gate; run manually for now). This entry supersedes the "separate in-progress Claude graphify session" note in 2026-06-28-002. Verified: pure tooling/doc change — no firmware or host ctest impact (`scripts/graphify_*.py` are outside the FLIGHT_CRITICAL matrix).
+Files affected in parentheses if relevant.
+
+**Frequency:** Typically one entry per session, not per individual change. Log when a task is completed or work transitions to a new focus. However, if multiple *significant* changes occur in one session (e.g., refactoring logging system AND redesigning state engine), create separate entries for each.
+
+**Conciseness is the default.** An entry is **one brief paragraph** — what changed and why it matters, no more. **Do not restate information that already lives in another document** (design docs, decision records, usage guides, lessons-learned). Instead **point to it**: name the file/section that carries the detail and let the reader follow the link. The changelog is an index of *what happened*, not a place to re-explain *how it works*.
+
+**Rationale sections are rare.** Only add an italicized rationale block when:
+- An unconventional approach was chosen (e.g., experimental driver, workaround for a known issue)
+- A decision would appear wrong without context (e.g., why we avoided the "obvious" solution)
+- Architectural trade-offs need to be preserved for future contributors
+
+Routine work—even if complex—does not warrant rationale. Bugfixes, documentation updates, configuration changes, and hardware corrections rarely need explanation. When in doubt, omit the rationale.
+
+**Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
+
+**History vs drafting:** Prefer not to revise **older unrelated** dated entries (`### YYYY-MM-DD-NNN`) to fix mistakes—that belongs in **a newer entry** unless the change is a trivial typo. **Drafting:** it’s fine to **edit/refine the entry you’re composing in this commit** until it reads right before you ship it—that isn’t rewriting project history.
+
+**Agent attribution (the `Author` field).** When an AI agent authors an entry, the `Author` field has **three parts: `Brand Model (Harness)`** —
+
+1. **Brand** — the vendor/family: `Claude`, `Grok`, `Gemini`, `GPT`, etc.
+2. **Model** — the specific version: `Opus 4.8`, `4.3`, `2.5 Pro`, etc.
+3. **Harness** — the interface/runtime it's running in, **in parentheses**: `(Code)` (Claude Code CLI), `(Build CLI)` (Grok Build), `(Browser)`, `(IDE)`, etc.
+
+Examples: `Claude Opus 4.8 (Code)` · `Grok 4.3 (Build CLI)` · `Gemini 2.5 Pro (Browser)`.
+
+A note on reliability: brand and model are almost always in your context, but the **harness is the part agents most often get wrong or omit** — you may know you're "Claude" without the runtime surfacing whether you're in Claude Code, the desktop app, or an IDE extension. If you cannot determine your harness with confidence, state your best identification rather than dropping the field, and prefer the parenthesized form so a reader can see it was attempted. All three parts go in the **header `Author` field**, not the entry body.
+
+---
+
+<!-- ADD NEW ENTRIES BELOW THIS LINE — newest first, directly under this marker. -->
+<!-- These format rules stay pinned at the top; the file is newest-first, so a -->
+<!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
+<!-- (which is how it ended up buried before). Keep rules above this marker.   -->
+
+### 2026-06-28-003 | Claude Opus 4.8 (Code) | tooling, graphify
+
+**Graphify curated-graph durability: reconciliation filter + content verifier.** Added `scripts/graphify_curate.py` (drops `graphify update`'s structural-fragment bloat and restores cache-orphaned curated nodes/bridges, no LLM) and `scripts/graphify_verify.py` (content-level parity guarding the count-parity fallacy), keeping the canonical root graph at parity with the curated north-star (`graphify-out/claude-build-2026-06-28/`) on every rebuild. Mechanism, workflow, and verification contract in `docs/tools/GRAPHIFY_USAGE.md` §11; milestone re-pass prompt in `docs/agents/SESSION_CHECKLIST.md` item 17d (repo-owner authorized). Post-commit hook wiring deferred (trips the bench_sim HW gate — run manually for now). Supersedes the in-progress-session note in 2026-06-28-002. Verified: pure tooling/doc change — no firmware or host ctest impact. (scripts/graphify_curate.py, scripts/graphify_verify.py, docs/tools/GRAPHIFY_USAGE.md, docs/agents/SESSION_CHECKLIST.md, graphify-out/)
 
 ### 2026-06-28-002 | Claude (Opus 4.8) | hooks, tooling
 
@@ -128,30 +161,6 @@ Code remediations these dispositions call for land in a following bench_sim-gate
 ### 2026-06-18-001 | Composer 2.5 (via Build CLI) | docs, starcom
 
 **Starcom incubation folder.** Added top-level `starcom/` as a self-contained library tree (scaffold placeholders + `docs/WORKING_HERE.md`). Relocated six Starcom library documents from `docs/research/` into `starcom/docs/` without editing their contents (renamed on move; path mapping in `starcom/docs/README.md`). Updated `docs/SCAFFOLDING.md` and `AGENT_WHITEBOARD.md` pointers. No firmware code changes; root CMake not wired to `starcom/` yet. Library detail in `starcom/CHANGELOG.md`. Verified: pure-software change, host ctest unaffected, no HW reseat required. (starcom/, docs/SCAFFOLDING.md, AGENT_WHITEBOARD.md, CHANGELOG.md)
-
-## Format
-`### YYYY-MM-DD-NNN | Author | tags`
-
-Files affected in parentheses if relevant.
-
-**Frequency:** Typically one entry per session, not per individual change. Log when a task is completed or work transitions to a new focus. However, if multiple *significant* changes occur in one session (e.g., refactoring logging system AND redesigning state engine), create separate entries for each.
-
-**Conciseness is the default.** Most entries should be 1-3 sentences. The entry itself should state *what* changed. If additional context is needed, a brief parenthetical or second sentence suffices.
-
-**Rationale sections are rare.** Only add an italicized rationale block when:
-- An unconventional approach was chosen (e.g., experimental driver, workaround for a known issue)
-- A decision would appear wrong without context (e.g., why we avoided the "obvious" solution)
-- Architectural trade-offs need to be preserved for future contributors
-
-Routine work—even if complex—does not warrant rationale. Bugfixes, documentation updates, configuration changes, and hardware corrections rarely need explanation. When in doubt, omit the rationale.
-
-**Tags:** bugfix, feature, architecture, tooling, hardware, council, documentation, refactor
-
-**History vs drafting:** Prefer not to revise **older unrelated** dated entries (`### YYYY-MM-DD-NNN`) to fix mistakes—that belongs in **a newer entry** unless the change is a trivial typo. **Drafting:** it’s fine to **edit/refine the entry you’re composing in this commit** until it reads right before you ship it—that isn’t rewriting project history.
-
-**Agent attribution:** When an AI agent authors an entry, credit both the model version and the specific harness/interface (e.g. `Grok 4.3 (Build CLI)`, `Grok 4.3`, `Grok Build 0.1`, `Claude 3.5 (Code)`, `Claude (Browser)`, etc.). This should be reflected in the `Author` field of the header.
-
----
 
 ### 2026-06-19-001 | Claude Opus 4.8 (Code) | documentation, research, council
 
