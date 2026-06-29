@@ -950,8 +950,8 @@
     "semantic_hash": ""
   },
   "AGENT_WHITEBOARD.md": {
-    "mtime": 1782618962.0871987,
-    "ast_hash": "a1144bc43c3f337099707efbabe19adf",
+    "mtime": 1782697546.274608,
+    "ast_hash": "5608ec16069bb827a51600ec77bbe6ac",
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
@@ -960,8 +960,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1782618295.7214615,
-    "ast_hash": "7770278297862748db2418752df4991d",
+    "mtime": 1782694524.298129,
+    "ast_hash": "8a6643a420fdad6bfb583523bc6cef16",
     "semantic_hash": ""
   },
   "COUNCIL_PROCESS.md": {
@@ -980,7 +980,7 @@
     "semantic_hash": "1a68b3c588c813b3abd9b5eb456b6e5d"
   },
   "README.md": {
-    "mtime": 1779596667.9984884,
+    "mtime": 1782696414.01281,
     "ast_hash": "5bdc7de2d432fbf86707a4cda217d289",
     "semantic_hash": "5bdc7de2d432fbf86707a4cda217d289"
   },
@@ -1100,7 +1100,7 @@
     "semantic_hash": "140f45cccd73de297ac641106b3a1b00"
   },
   "docs/SAD.md": {
-    "mtime": 1778998724.197047,
+    "mtime": 1782697972.9641,
     "ast_hash": "76bd7ce9506f4d7aa83fdecafa57e8c2",
     "semantic_hash": "76bd7ce9506f4d7aa83fdecafa57e8c2"
   },
@@ -1130,9 +1130,9 @@
     "semantic_hash": "39dafd0ece8e7fe890d8d7e93e932204"
   },
   "docs/USER_GUIDE.md": {
-    "mtime": 1776918337.0472047,
+    "mtime": 1782703865.0008395,
     "ast_hash": "7019b1dda3aabe61f150ee0ebffee22d",
-    "semantic_hash": "7019b1dda3aabe61f150ee0ebffee22d"
+    "semantic_hash": ""
   },
   "docs/VERIFICATION_OVERVIEW.md": {
     "mtime": 1779597669.1521392,
@@ -1165,9 +1165,9 @@
     "semantic_hash": "370e8aea974ee5a22acb1eea53fb9915"
   },
   "docs/agents/PROTECTED_FILES.md": {
-    "mtime": 1779596649.152897,
-    "ast_hash": "624ef1abad992fd2c449e37ece69db7a",
-    "semantic_hash": "624ef1abad992fd2c449e37ece69db7a"
+    "mtime": 1782697728.1332383,
+    "ast_hash": "3313d4519f6622ad9f7a4b8e235d2247",
+    "semantic_hash": ""
   },
   "docs/agents/README.md": {
     "mtime": 1779597543.8632627,
@@ -1175,9 +1175,9 @@
     "semantic_hash": "53b33ddcfda99fedf9f74a38fc59e716"
   },
   "docs/agents/SESSION_CHECKLIST.md": {
-    "mtime": 1782610958.2530591,
-    "ast_hash": "9c62b019fea80a44b5ad92acf91b5550",
-    "semantic_hash": "9c62b019fea80a44b5ad92acf91b5550"
+    "mtime": 1782704316.4573245,
+    "ast_hash": "e048af4051a41f1633973e8acc6b6842",
+    "semantic_hash": ""
   },
   "docs/audits/AO_COMMANDMENTS_AUDIT_2026-04-27.md": {
     "mtime": 1777390481.0216684,
@@ -1695,9 +1695,9 @@
     "semantic_hash": "5775980b40f3ede30452ee6b1d0c5091"
   },
   "docs/tools/GRAPHIFY_USAGE.md": {
-    "mtime": 1782611217.6151335,
-    "ast_hash": "e663d321d031d28df635b4e737d27de7",
-    "semantic_hash": "e663d321d031d28df635b4e737d27de7"
+    "mtime": 1782704550.563869,
+    "ast_hash": "3f42d3f0cf60eb15258f4abd70b7283f",
+    "semantic_hash": ""
   },
   "docs/tools/OPENROCKET_USAGE.md": {
     "mtime": 1779481277.6179123,
@@ -1778,11 +1778,6 @@
     "mtime": 1777331451.1556349,
     "ast_hash": "e9c49b287cd4a44782ab82225bc12699",
     "semantic_hash": "e9c49b287cd4a44782ab82225bc12699"
-  },
-  ".grok/hooks/protected-files.json": {
-    "mtime": 1782617071.3817458,
-    "ast_hash": "a2f2bbe65d2df4e06011f236d68ae340",
-    "semantic_hash": ""
   },
   ".grok/rules/graphify.md": {
     "mtime": 1782618287.8234398,

@@ -203,4 +203,150 @@ Omit `graphify-out/cache/` if you want a smaller repo (rebuilds are slower on fi
 
 ---
 
-*Last updated: 2026-06-27 (Composer 2.5 via Build CLI — bootstrap + labeled HTML).*
+## 11. Curated Graph: the Post-Build Filter and How to Verify It (2026-06-28)
+
+This repo maintains a **curated, doc→code-linked** graph as the canonical graph
+everyone queries — not graphify's raw automatic output. The curated target (the
+"north star") is the protected snapshot `graphify-out/claude-build-2026-06-28/`
+(2,448 nodes / 4,882 links / 370 doc→code bridges / 97% connected). Two helper
+scripts keep the live root graph at parity with it, with **no LLM cost**:
+
+- `scripts/graphify_curate.py` — the reconciliation filter (run after every build/update)
+- `scripts/graphify_verify.py` — the content-level verifier (run to prove parity)
+
+### 11.1 Why a filter is needed
+
+`graphify update .` (and the full `graphify .` / `/graphify .`) regenerates
+`graphify-out/graph.json` automatically. That automatic output diverges from the
+curated shape in two ways, both consequences of graphify's **build-time
+structural markdown pass**:
+
+1. **Fragment bloat.** The structural pass emits a `document` node per heading/
+   section — ~2,600 on this repo, each tagged `_origin == "ast"`. They balloon
+   the graph (4,908 nodes) and dilute it.
+2. **Curated-node eviction.** The same pass regenerates each doc's heading
+   skeleton fresh, and the cache re-merge then **orphans** curated
+   `concept`/`document` children that re-anchored to a regenerated heading
+   (~57+ nodes, including doc→code bridges). The orphaned nodes still live in
+   the semantic cache — the merge just doesn't surface them.
+
+So the raw rebuild is simultaneously over-populated (fragments) and
+under-populated (evicted curated nodes). The filter fixes both.
+
+### 11.2 What the filter does (`graphify_curate.py`)
+
+Deterministic, no-LLM, fail-safe, idempotent, atomic-write. In order:
+
+1. **Drop** structural fragments (`file_type == "document"` AND
+   `_origin == "ast"`) — a signature match, so it scales to any number of
+   fragments in any doc.
+2. **Keep** everything else from the fresh rebuild (code comes fresh from the
+   AST pass — deterministic, can't rot).
+3. **Restore** orphaned curated nodes **from the semantic cache**
+   (`graphify-out/cache/semantic/`), gated so only genuinely-curated content
+   returns: node is `concept`/`document`/`paper` AND its `source_file` is one
+   that survives curation (present in the baseline / not `.graphifyignore`'d).
+   Reading from the **cache, not the frozen snapshot**, is deliberate: new
+   curated docs (e.g. a future Starcom IVP added via `/graphify`) are carried
+   forward automatically once their extraction lands in the cache. The cache
+   only ever **adds back** a node the rebuild deleted — it never overwrites a
+   live node, never clobbers newer content with older.
+4. **Backstop edges** from the baseline: re-add any baseline link whose **both
+   endpoints survive** but the link itself is absent. This recovers bridges
+   that were written to the live graph during the linking pass but never
+   persisted to the per-file cache (exactly one such straggler exists on this
+   repo — see 11.4). Only ever adds an edge between two already-present nodes.
+
+**Flags** it writes to `graphify-out/.curate_flag.json` (advisory, never block):
+- `stale_docs` — a restored doc's content changed since its last semantic
+  extraction (cache is serving a pre-edit version). Restore still happens (so
+  connectivity holds); the flag tells you to re-run `/graphify .` to refresh.
+- `promote_sources` — new source files entirely filtered out (candidates for
+  real curation).
+- `REVIEW` + **ABORT** — if kept code-node count collapses below the floor or
+  the fragment-drop count exceeds the known band, the root is left **untouched**
+  and the run exits non-zero. This is the "the tool changed and we'd silently
+  gut the graph" backstop.
+
+### 11.3 The workflow
+
+```powershell
+# every commit / code change (cheap, no LLM):
+graphify update .                       # rebuilds (AST fresh + fragments + lossy merge)
+python scripts/graphify_curate.py       # reconciles back to curated shape
+python scripts/graphify_verify.py       # proves parity (see 11.4)
+
+# only when DOCS that matter to the graph change (token-bearing, owner-gated):
+#   /graphify .   in an agent  -> refreshes the semantic cache for changed docs
+# then the cheap path above carries the new curated nodes forward automatically.
+```
+
+The full `/graphify .` LLM pass is **prompted, never auto-run** — see
+`SESSION_CHECKLIST.md` item 17d (milestone-close prompt). A pure code-work
+milestone needs no re-pass at all.
+
+### 11.4 How to verify — and the "count == parity" fallacy (READ THIS)
+
+**Node-count parity is NOT graph parity.** A graph can read "2,448 == 2,448"
+while it has silently swapped a node's label, dropped a doc→code bridge, or lost
+edges between two surviving nodes. We nearly shipped exactly this: the counts
+matched, but **one bridge of 370** (`pio_watchdog.cpp → heartbeat_watchdog
+concept`) existed only in the baseline, not the cache. A count check would never
+have caught it. It was caught only by comparing **content and edges**, then
+recovered by the edge backstop (11.2 step 4). That bridge was robustly confirmed
+a true isolated outlier: 369 of 370 bridges are cache-resident, only that one is
+not, and its endpoints both survive so the backstop re-adds it — net bridge loss
+is **zero**.
+
+So after **any** regeneration — and **especially after a full `/graphify .` LLM
+pass**, which re-extracts doc nodes and can shift labels or drop bridges that a
+count would never reveal — re-run the verifier and re-do these checks. Do not
+trust a node count. The checks are:
+
+1. **Node-set parity** — every baseline node id present (report extras/missing).
+2. **Node content** — for shared ids, `label` / `file_type` / `source_file` /
+   `norm_label` identical. (`community` is excluded — clustering is recomputed
+   each build and legitimately churns by hundreds; it is not content.)
+3. **Bridges** — count doc→code edges; every baseline bridge reproduced, **0
+   lost**. Bridges are the connectivity-pass payload and the most fragile edges,
+   so they get their own dedicated check.
+4. **Edges** — the result must be a **superset** of the baseline (0 baseline
+   edges missing). *Extras are fine and expected* — a fuller graph from later
+   cache state legitimately adds valid edges between nodes that both already
+   exist (5 such on this repo, all verified real). List extras for eyeball
+   review; never fail on them.
+5. **Determinism** — build the graph twice (`update → curate`, twice) and assert
+   the node and edge sets are byte-identical. Catches any nondeterminism in the
+   pipeline before trusting a single run.
+
+`scripts/graphify_verify.py` is the **current** implementation: it runs checks
+1–4 against the baseline by default, and check 5 via `--determinism A.json
+B.json`, exiting non-zero if any hard check fails (it is not a rubber stamp —
+verified to fail on a tampered graph with a swapped label + dropped bridge).
+
+**The script is the convenient how; this section is the durable why — and the
+*why* is what's binding, not the script.** The five checks above are the
+contract; the script is just one way to satisfy it today. Better methods may
+well come up (richer diffing, hyperedge coverage, semantic-similarity tolerance
+for re-extracted labels, whatever the tooling of the day affords). If one does,
+**propose it to the repo owner and get their sign-off before swapping it in** —
+the verification method is load-bearing, so changing it is a decision for the
+owner, not an agent's call to make unilaterally. Any replacement must still prove
+the same thing: that **content, bridges, and edges are equal/superset, not merely
+that counts match**. The one lesson that must not be re-learned is the
+count-parity fallacy. Everything else here is a starting point open to
+improvement with owner approval, not a frozen procedure — and not a standing
+license to rewrite it without one.
+
+### 11.5 Protected snapshot
+
+`graphify update .` / `graphify .` rewrite only the `graphify-out/` root and
+auto-back-up the prior curated graph to a dated subfolder. The named snapshot
+`graphify-out/claude-build-2026-06-28/` is the protected verification baseline —
+the filter reads its node set to scope restoration and its links for the edge
+backstop, and the verifier diffs against it. It is the source of truth for "what
+curated parity means"; do not overwrite it without cutting a new baseline.
+
+---
+
+*Last updated: 2026-06-28 (curate filter + verifier + count-parity-fallacy note added; §11).*

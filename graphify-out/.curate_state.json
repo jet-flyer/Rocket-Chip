@@ -1,0 +1,327 @@
+{
+  "fully_dropped_sources": [
+    ".grok/rules/graphify.md",
+    "docs/agents/README.md"
+  ],
+  "kept_nodes": 2448,
+  "kept_code": 1595,
+  "restored": 153,
+  "doc_tracking": {
+    "docs/PIO/PIO_WATCHDOG.md": {
+      "stem": "06b4fe57183c54099d48e2b8d8938777f40f7fb8a98b1e73575d9aade3c8c9b6",
+      "live_hash": "189aac68efe961f3777c688eea161ccd44db9130c469f5ddeb414673d53a6d4e"
+    },
+    "docs/CONFIG_TEST_MATRIX.md": {
+      "stem": "09c773415fb53213a1a701dda92cfa40ffb990630bc250e9f365169e811005b2",
+      "live_hash": "dfd1bd965067aef9f919340b1af161e0f6a2c183fc640100ab344b47adf1a209"
+    },
+    "docs/ADVANCED_SETTINGS.md": {
+      "stem": "0ae5605bc58bf729dd19705d76e642cfbc2a6b3b7d211bf53d7c71f651784264",
+      "live_hash": "62b39d520bb1d34f7dc08955dc2efaa64da38e84b2e5a5e3aa912889c030d7b9"
+    },
+    "docs/decisions/ESKF/FUSION_ARCHITECTURE.md": {
+      "stem": "0b1b14e5d5d9c00a899f28b59eddaaa0ca9b021e9484749e5948ba3dce501062",
+      "live_hash": "c1fe82038d415a419d4be590f0bcf7b289811d9fe01b96ddcf7e7a9921f82c95"
+    },
+    "standards/RP2350_ERRATA.md": {
+      "stem": "0c5efdc469b0516ed253b83cb845706d70490bd0e9a26818ea0aa2b8135a821d",
+      "live_hash": "34a94bba4e6dda75dbe1cde5e30227bf6d23bdd6bfe43d12662f52a5baf6b3cd"
+    },
+    "docs/decisions/HEALTH_CONTRACT.md": {
+      "stem": "10617220995212cde17ca9291454c351f42396f8f21c5bd5039f61a816b39138",
+      "live_hash": "57aa6571ae7fe12a783b295b6925fceb88e1cb5806a92e515c1b61a3adc7fbee"
+    },
+    "standards/ACCEPTED_STANDARDS_DEVIATIONS.md": {
+      "stem": "11f1c58de43292cb3d4da6e33ff9f500e58531345aaf29190e9f0bfa790810ef",
+      "live_hash": "0c515198dfd9789cc5b3694b30120f962860e58acebef25f7a19d39fdc7fbe78"
+    },
+    "docs/UNIQUE_COMMENT_ITEMS.md": {
+      "stem": "152af9a8d69fc182a3a46e217bc3429c84e09864ccf4f4aa540fa4ecaa264a40",
+      "live_hash": "f7a0a174226114eab356bb8f2cf130fc1bf5581f1e067592f6b94f75bc50a298"
+    },
+    "standards/RF_COMPLIANCE.md": {
+      "stem": "15b9eb1652682c4ec4899c3a4d5aa21a0f8d8ed1bb9b142d6605ffeaad90c8f3",
+      "live_hash": "3c16cbb8ee1ab15987712f77bc3aa9539b26509d876b59b0360bca1601c5a1ad"
+    },
+    "docs/decisions/README.md": {
+      "stem": "1713627a5e28cccb929e7aace42f434ba89b5e81ee2a0587dc2a22a58f033233",
+      "live_hash": "f8cb09640d19b22d72f2199d73b4a6d53e06eb3c6d4548de93b3c70bc2416328"
+    },
+    "docs/decisions/Telem+logging/council_data_logging.md": {
+      "stem": "19536bea06375de7a1dc8536ee66c997c6839ee3d54ced7ad26158d55a570475",
+      "live_hash": "f6acbc6787262b8e202d4e2c2cfab234c8e576776b4d9cb2efa7bfb8c31d44fb"
+    },
+    "THIRD_PARTY_LICENSES.md": {
+      "stem": "19e62a33de9d79e6e3dd209c8ec708cf99b5a2211287be8f36b0070ce2470f79",
+      "live_hash": "7060c0e23ec2b8b6dbd4efad3b8ea347e00492f369e030938f0e3ec387100005"
+    },
+    "docs/hardware/BOARD_COMPARISON.md": {
+      "stem": "1a7c307b06cdd373a2740f5f50519acca794c7c10968709b23338db2c86f5b4c",
+      "live_hash": "caffc60bceb4ec5f79eb9c54e848e9398a144aa44d8996f418698ff1deaac4e4"
+    },
+    "docs/hardware/STATUS_INDICATORS.md": {
+      "stem": "1dd6ba6f1b071df86d0a4153d69562281a95ce2ea1ea265366cf356e9aabed67",
+      "live_hash": "e4b7983e12719dfdd06ebc200023230b497ba55ef950967a1a2f929e9adc1795"
+    },
+    "docs/decisions/STAGE_T_CONTINUATION_COUNCIL.md": {
+      "stem": "1fefec2210334278d403884cecbbd91d0fdb45f5b6bbe6466ba00e8ed6589a98",
+      "live_hash": "6022c42e170ad4a6b01e457ef76a5b2dabae1352b7088d6e6ecd374aad4c618f"
+    },
+    "docs/decisions/Telem+logging/revised_ivp_stages.md": {
+      "stem": "20884ab1c1f0b35da631975ebb1cc1c45aff42298b3aa84fa01b573d32c41abc",
+      "live_hash": "afe5f2d63465a90d77a737687b7b8a9aa59e5c62f3f7203f4b06769f542e9341"
+    },
+    "standards/HW_GATE_DISCIPLINE.md": {
+      "stem": "24f985e0052d05e042fadcb81eeaa90a054903b427136a4442426e74c64ddcd1",
+      "live_hash": "1ecbddd8d56cc27fdfb065b444503b25e942f9f59096704b9b4f6340d77484c5"
+    },
+    "docs/tools/GRAPHIFY_USAGE.md": {
+      "stem": "30ef2685ce22c3f0093f0c4c2200ca383b7c8299782ab2edc64f9f80fe02bd47",
+      "live_hash": "a97cb4e71da51259a5944b42106693ef6a64630c32570cd4788345da7eb6c4bf"
+    },
+    "docs/ROCKETCHIP_OS.md": {
+      "stem": "2b954e17e3b30d6ab419f5f880339d0861861d5bdd47edef5d584b1f3f98bfc5",
+      "live_hash": "efeebc4749bcf80bd9776e044a12d81d214f16c703a99c7841259cb63dcbac22"
+    },
+    "docs/agents/DEBUG_PROBE_NOTES.md": {
+      "stem": "2e1e6d7699d7582f4e8c45a661dd264b61f86b7d883a0a6fef637287b7ffee99",
+      "live_hash": "8f6df751869046910850ff5a466e45ba2caac92af51342d3d038ba1ee7ecb77b"
+    },
+    "docs/agents/LESSONS_LEARNED.md": {
+      "stem": "2f27ba7443be2892e2763dfc5fc486794d559efd084071e5aaee9db8b6a5d497",
+      "live_hash": "8764b178c9ad7966474a3bccbc825f1f2d92f58f8fd9f847d0bdcbc70a98d97d"
+    },
+    "standards/AUDIT_REMEDIATION.md": {
+      "stem": "3010bbd61a7659be69145b06e16a0f900e87c25730c11556372853ac0fe77661",
+      "live_hash": "09c751820513a9f5bb82a54e12a4789568063c1c46338cfa5eca7cef1c34325f"
+    },
+    "docs/MULTICORE_RULES.md": {
+      "stem": "3101bf3f95f6c5e159f0f5ae3f72403261a097a18938f9ad8625ea734dc09988",
+      "live_hash": "f22d72963967616b3a730bbde8eb067bde5d2bd60d8bab8670d19f6fba29a146"
+    },
+    "standards/VENDOR_GUIDELINES.md": {
+      "stem": "38902f207dc48f22fdb02095c84863b9a5dc7aa056f31f125424c7f35f1210bb",
+      "live_hash": "d06eed5877b472fd6271a9f4a5e4aedb39e1b808db59a764eb0af17a340ad74f"
+    },
+    "docs/RADIO_TESTING_RESULTS.md": {
+      "stem": "39244636445be52922f1e8cc755e7d7561c11a81389b2fa19c385e6a0ea2897f",
+      "live_hash": "ee1cf1f1cab85e41a169118ca5e0ef741435ee8dc8c854382035e6257ffb7c89"
+    },
+    "docs/HARDWARE_BUDGETS.md": {
+      "stem": "3a0491c5a553cfbfae7a85de86f3f06bdaff0fdb62479f4d58c621908756dd95",
+      "live_hash": "f6daa6d9ff680ccfb66ad3ac5f5753686554cbe0bc680d49128103e1c84b89ef"
+    },
+    "docs/hardware/HARDWARE.md": {
+      "stem": "3ed4afd31a21051e37660df9533f122a2831e36bf1158441691ce18b5698e9a8",
+      "live_hash": "06ab2247a8cc6c20baecc98837639c73d5a8ac045c7c4fab8b40a8e2022a470d"
+    },
+    "docs/PROBLEM_REPORTS.md": {
+      "stem": "3fb3de363c0b4e0be40ba0b4e242a6fcfdfaa242cb2f872f11f5353b47523686",
+      "live_hash": "c937f57c33c7c3d9aea0de989ccc17a0a2dc6d285f172d8008da39e53606d3d3"
+    },
+    "docs/SAD.md": {
+      "stem": "4061b6e612b62f2813c8e51c7971b29c968b6a2d819e879a41accde5ba2a0f27",
+      "live_hash": "65fe1c95d8b3c3f9fd431ae477754bfd3005286f545be552bed12dd6672f9802"
+    },
+    "docs/RADIO_TELEMETRY_STATUS.md": {
+      "stem": "43da3ef573639872f12c5d29db45dab8000c37985b815cb99b04665b9adf09db",
+      "live_hash": "e6ac5838862c5c51149a9463889ed141de45ee89bbab300676d994b13db38200"
+    },
+    "standards/GIT_WORKFLOW.md": {
+      "stem": "47196270a4522ba3c6561bbfe440fb4e802202cdf4eeacf93de9fb87d2c15e19",
+      "live_hash": "11a8f4bb86f93adfbb9fa60a4e5603a4b46074464762beffd3e4cf8333f50047"
+    },
+    "docs/agents/SESSION_CHECKLIST.md": {
+      "stem": "4f176d5b518f734cbafe3e2a416394ad7e359657cb9ebdf9fc6935076c03e238",
+      "live_hash": "fa8985362a49284b874e889ef661a6a2d37b9947001123e337ce0f2247f7dc30"
+    },
+    "docs/mission_profiles/MISSION_PROFILES.md": {
+      "stem": "51a98b8bb35add99d2515cd2ae9a0478bfff21195fb25d1f741687998d0ccfb6",
+      "live_hash": "0d4a2b385648949fcab53a94b6f761ab8d7e7d8ad7b84777f7ad93835ec36fd1"
+    },
+    "docs/SCAFFOLDING.md": {
+      "stem": "520245529e6bccc1ca101c5ef71036e91fa052df7915576efa83b6c677f389b9",
+      "live_hash": "8589f864ccf967db59f05107947c77a8a0cef5b9019bb7fce8858c04e2dcb60d"
+    },
+    "standards/CODING_STANDARDS.md": {
+      "stem": "5b92a996be72b4397a78f20e298079793dc706153a1ae8dbd89f9a2c4b3e894f",
+      "live_hash": "16f87372f5c49486cf53e535c695b4669da72bbbf90e1eb19a6251b231a752fe"
+    },
+    "docs/decisions/WATCHDOG_SAFETY_ARCHITECTURE.md": {
+      "stem": "62e4101b55389ce8469e875b3afb3dd3081ea21bff05310c1bc3dc4165fdaf9b",
+      "live_hash": "51e4699eeb64cb9b29a69e993e6c33f9a990245f19f8bac899cbc750c9190c40"
+    },
+    "standards/DEBUG_OUTPUT.md": {
+      "stem": "68240cbf2aee1af6c36f6f83c05ddb03720ff964df97ea9ba48160ff4e95d55b",
+      "live_hash": "b3bef4262628f8c8d0914ac4ed53a8709ee48255e2c9896ead6893e025c40558"
+    },
+    "docs/SEQLOCK_STRUCT_LAYOUT.md": {
+      "stem": "6da5da4a251e9b189406234f04a76206987eb2dd0e7706576c846a9860a2f16d",
+      "live_hash": "aff533812557eeee4d5064d25864190c61373dd414a3023d5483767ce7b30025"
+    },
+    "docs/hardware/ESP32_S3_PIVOT_ANALYSIS.md": {
+      "stem": "716cb2aaa2fdba69d20b1ab79234e800364fc918131a9c07ecd3e058e6d661e3",
+      "live_hash": "efbfe999ed82d3084ebc2d440527486230a8f5659c3243f024ad24140d9b8e9f"
+    },
+    "standards/protocols/SPACEWIRE_LITE.md": {
+      "stem": "74f26945c4b52ef1069ed86f4ebe394b21414390cd89a9c74358a838b4548093",
+      "live_hash": "3c081b9d66a761e238b583c271f2044ac94f426ad1d01b97fea24915c61726da"
+    },
+    "docs/USER_GUIDE.md": {
+      "stem": "7f1ac98c65cdffe660f86e93f94d10836779d19b2973266d3f4ea52faa8ef0ec",
+      "live_hash": "3aa4cf1d6e7912603ea5ecf551bbefb329d17c56039bd926c32f8bd656d90e9f"
+    },
+    "docs/flight_director/STATE_MACHINE_FORMALISM_RESEARCH.md": {
+      "stem": "816389015752736b607cb61a3263626ea1e438f07f73c4597a2ac81962539f1b",
+      "live_hash": "520ed76a71f3717b47dce4016bc60cb7a521cdf6cfed72ce616c77c593a99d7e"
+    },
+    "docs/PRE_FLIGHT_CHECKLIST.md": {
+      "stem": "8628cc0c50dd4eb96250d6a7a7606f578073f4ec4c308247e31a19b8b87ab7c9",
+      "live_hash": "9be99ebbe2e8a9fce5e818be6bfe5bd1c84195768ff9673adce2b8c2839b3f5e"
+    },
+    "docs/flight_director/TOOLCHAIN_EVALUATION.md": {
+      "stem": "87952448e912ec3f06bbd8e628845fa78856266f3d28ab66ac84b2719b3997f2",
+      "live_hash": "7a11893638d5a3a233d81e0b86c4daa9017952f9d495b96a8113865e89480743"
+    },
+    "docs/tools/OPENROCKET_USAGE.md": {
+      "stem": "8a37ea519d85efa7e75bfb22cc3c47e8249d496ff9da1ce585980795bcc70787",
+      "live_hash": "39b057e3ef6043e919333680c6315f5dd7a872fa69fb10ab90229e0a56bb9460"
+    },
+    "AGENTS.md": {
+      "stem": "ca9be5257b692bf2e1bddbed66ef2469ce2e51db13650f2df977246a524a4813",
+      "live_hash": "336c1b0fea2677b34f1df1ac4fa0bd5de373ec08854da293a5f02ea7370c24ed"
+    },
+    "docs/SENSOR_ARCHITECTURE.md": {
+      "stem": "8d1d41eb19cf2a70420ddbe94292f5f94e264890f3c682e0aafaa16d0ae8b4cc",
+      "live_hash": "1b045c03c9b42457c97f176ae180b0048b1ebde4f793fb8834e5cccbe6fed875"
+    },
+    "standards/AUDIT_GUIDANCE.md": {
+      "stem": "8f61f353dd292d76c866d7da93fd314fab1050f802e49b390fceec89f3e69e10",
+      "live_hash": "72a6cd1ff9e6cd18a7f588fe05a0da0a69463f32100c266ea376fcb70fe5ea46"
+    },
+    "COUNCIL_PROCESS.md": {
+      "stem": "967448d79fdaf15868e19ba46135c79ae82bdc27d0501f21727c80b44f21ddc1",
+      "live_hash": "ce10c0b041d46290cb54e625688b5ca41d9fb6aa50cb8cf6ca62f6e5cd130800"
+    },
+    "docs/flight_director/QP_APPLICATION_GUIDE.md": {
+      "stem": "9a05bbbeb66acdb10db659a678c008d9e1ef94720e22fef1cd3a7861b1c1a563",
+      "live_hash": "56416c3770e388b11b7c244768bfb9c82002c8f0a10ccfc0e0966b99cce0d955"
+    },
+    "docs/IVP.md": {
+      "stem": "9dff30b3f9861f0d2ae09a57aa937bc2e803f964ef9a28cb04bce31f068b1bfd",
+      "live_hash": "daa9574356576459aee29159f52c18e02773844c399570f47f68f948b31bbe36"
+    },
+    "docs/flight_director/ACTIVE_OBJECT_MIGRATION.md": {
+      "stem": "a2d65180f704e020a07ba6df3d9a49c5e1f5474b3d316b4542094084701aa7f2",
+      "live_hash": "5b406d7a2062854dcb054d053d42a7858b83165e1fe1f9a79e5587f2fd3f72a8"
+    },
+    "docs/AP_CAL.md": {
+      "stem": "a5727ccc4aa9fd396d9a95b743e9ec2636773d1a33f732d72259f26280aef720",
+      "live_hash": "5e170301cf33d2f8cce135d0cc370947e0ef5a4391905d74ccec9839eb46d0c4"
+    },
+    "docs/hardware/TELSTAR_BOOSTER_PACK.md": {
+      "stem": "aad258907e0df7d2efeecb76fa68eb14d689eb21beb59bfcaa8abb44f000cf2a",
+      "live_hash": "c9ae1748ad17b95a958be7295182c64dd65a8802138d39a5f0ff48b0f3647275"
+    },
+    "docs/decisions/FPRIME_HARDWARE_EVALUATION.md": {
+      "stem": "ae333d0e62c4d4191a99851e4c2d82e90ab81e68222a178b46dc573b95f5632c",
+      "live_hash": "1f503608ebd1e79c7b869238a69420c99b4d3c2cbc7cfbbfa0c76d14406de7a2"
+    },
+    "docs/decisions/SENSOR_FUSION_TIERS.md": {
+      "stem": "af12939987499182344420de8af769ad7041597719542ec4e6cdbc0922bb1b75",
+      "live_hash": "3b681f3dd56fcd89a4fabfe818970b0e7dc34105dcf728f7d52de74f48da4b7d"
+    },
+    "docs/decisions/ESKF/FUSION_ARCHITECTURE_DECISION.md": {
+      "stem": "b6e1dac4e5c102791d12f470f32e8ca907d08f9daff1a11c13537e020a399b87",
+      "live_hash": "675fd0ad241b9f454132b97c226315a4bb8d7d7a3c559bd3c8086f712790bb32"
+    },
+    "docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md": {
+      "stem": "ba3712369247271bf46a4b248d022f5056f6b3089f97185c76a978f59ae5814c",
+      "live_hash": "e4c5ed641c71c4b4bc8d2b9eb83962efcebf26bf68bdde748a02307318849d29"
+    },
+    "profiles/README.md": {
+      "stem": "bbdccb14d0144e603a8993ed4880d1d9276715220482ab88cbeee439312d1606",
+      "live_hash": "dfefb1426c3845c96c2bfc0daedcca3dd27b15ec4f411f9c8e5dcb5739ebaddf"
+    },
+    "standards/STANDARDS_AUDIT.md": {
+      "stem": "bf1c2ed4104553bceadede4f3d7cc2913ed2508e4b4a830a2841d0e487ff3266",
+      "live_hash": "ca01f5609288fa380c9390a71d5c97fe7dd5411969cf77c6942b141eacf0caf0"
+    },
+    "standards/AK_GUIDELINES.md": {
+      "stem": "c074df7ab86f5e635480efe76a0a2788f77221b24156135155ab84af41a67837",
+      "live_hash": "3eb299f45d173115d3758284a11b2385a3489e654a9c0e493fcceee771a9d3ed"
+    },
+    "docs/icd/EXPANSION_CONNECTOR_ICD.md": {
+      "stem": "c329835b177c59f231c00becab23c3a0d87cae13977d411caa0d09beda0d47e1",
+      "live_hash": "0a61ed34e317c5ceab8b8d48ae8d1ecfe30dac651703e09f21e99264f0ebf9bc"
+    },
+    "docs/FAULT_INJECTION.md": {
+      "stem": "c35af2b49ecc0b792f1303f5fdeaf8155d5baaf7296c106c16209730f03d747d",
+      "live_hash": "666304f63d832c6b20e94836d347b1e979d6653ca98cbdb9ff74592b72b2fa36"
+    },
+    "docs/PROJECT_STATUS.md": {
+      "stem": "cd1197d3331ee0e45eda31c68af7cd27433babac469c6b2da3f37f79ab70c4b9",
+      "live_hash": "7ef325f43eb65a8c807c00e70eb1fdcdb83879ef85bb956732f3e5c1f73338f2"
+    },
+    "docs/VERIFICATION_OVERVIEW.md": {
+      "stem": "ce0ed57985f478179e31f17d8590ca5dd7e3d49274d61cf37e4a44a0f809213e",
+      "live_hash": "7672c018cac297414170bc2be6bb02bca660c83859a1eb3ba42083df2e7a32fe"
+    },
+    "docs/benchmarks/STAGE10_BASELINE.md": {
+      "stem": "ce9abbba7963f3350f58bdbfdac5673d6b85ba47e57f0ba9a4bc38c8202ef503",
+      "live_hash": "b3970ec01290482a0eed870ebb85bab435827a62804f7495411daa715da5ac6d"
+    },
+    "docs/WSL_ROLLBACK_CHECKLIST.md": {
+      "stem": "d820954b943e7d746a2961c3a7d3c169d8e69a4f1d496e057670c5f7dc2805c1",
+      "live_hash": "33687f99e350eb9263ed01d51492661bec33d70ae353da4ce699175728039828"
+    },
+    "docs/hardware/GEMINI_CARRIER_BOARD.md": {
+      "stem": "df32b82403dd755ef723d6b95019c15ac81d1cbd8492b473289840f92f58333c",
+      "live_hash": "5df37dadc269334c46b8910179510ec16b97f8062208a8583c1abbdf84f6c0f2"
+    },
+    "docs/agents/PROTECTED_FILES.md": {
+      "stem": "e0a7370dc68895710778b3f99fe6d754c8eb9527f248d9ecc02385fef50039f0",
+      "live_hash": "3c1d9091bc9f71e1c230e2c0cdb559ea9dd5a9fceb7c5cb8a8d992e75844a2ed"
+    },
+    "docs/decisions/Telem+logging/telemetry_comparison.md": {
+      "stem": "e1d3d95a15fd694bfcb2dab56dc8d8b7b2b252fc335b2b0d56c6190a51b37e94",
+      "live_hash": "3e4db8681e6e57f2495321a5a9ac204751ff1ce09e0ba73ab4f53d1f77ee7a7e"
+    },
+    "CROSS_AGENT_REVIEW.md": {
+      "stem": "e282604ed0670326a52a6ad5e61735ea3d4ba9019a8587ad92af55cdc7f4a228",
+      "live_hash": "f3740044531f3d6349ff68aca422477eb7c827df50ef45d435e9922147d1ff20"
+    },
+    "docs/benchmarks/UD_BENCHMARK_RESULTS.md": {
+      "stem": "e97467daface2c9d6fdc9631cb919e1ee8c03d5e96d408acad354e7d0180b775",
+      "live_hash": "50e06c41b0863af4041017d542044e6b5711d4250ea97e53cd4a4c524f2ac3d6"
+    },
+    "docs/AO_ARCHITECTURE.md": {
+      "stem": "eddf886eeece910d1baa336b5ef6f51c8abd5bacfa5a9e289d0ba6fa799e1524",
+      "live_hash": "7d911bf89f148ac948eb9f8ed325783567ff4e74f9efebb9c61362bf8e4288a3"
+    },
+    "README.md": {
+      "stem": "edeaa616d1a9d308bcbee25dbc1fa1a900ac1a7cd88bb319cc59fd49257b632b",
+      "live_hash": "502494000c0395c74161de958eb50fb9684fca32295752a14c2df4f274d0080f"
+    },
+    "tools/spin/README.md": {
+      "stem": "ee5f62eb7a31b3538ad163e15511ffc4d10b2189aaa4610e10e3ee6d77703a09",
+      "live_hash": "9c7de821adf48b57938c86da7d38675714b618efdcbed620271a051619af2537"
+    },
+    "docs/flight_director/RESEARCH.md": {
+      "stem": "f086255e1db0bad43a1a2caa948805ef199514af6371d35d3f90e0a92cced0c3",
+      "live_hash": "2d13de886b17fe6447eab6cac44b96f9038241b8eadfc3db711b6ce949aeddec"
+    },
+    "docs/icd/GEMINI_PROTOCOL_ICD.md": {
+      "stem": "f4004857d6fbdbb9a1eb616749982e2d26b1926524d7c4a1138eeecf6d07b60b",
+      "live_hash": "d00f296bac9450c5709128cd7baaf6224ca3d9f489966334bc41c829232c65f0"
+    },
+    "docs/PROJECT_OVERVIEW.md": {
+      "stem": "fa08af607f82ad7c3f4e561104963229b32d1f88deaa474c1c0e37d4bd16dcd1",
+      "live_hash": "df1164894820e06dfcff977b8a2cfadce2fdb51cf4a40210807b755043ecd0bd"
+    },
+    "docs/decisions/FAULT_RECOVERY_2026-05-14.md": {
+      "stem": "fb703061753291aa45a3f980a535782ef8fb3fdab9b66e6db859449a581725bc",
+      "live_hash": "398087ce1ae14312513cc00dd1f81c701bc999c2d2a8c0bee6a1ffcfd931716f"
+    }
+  }
+}
