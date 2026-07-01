@@ -79,6 +79,23 @@ Rebuilt the graphify graph at `graphify-out/` as a **curated current-state code+
 
 ---
 
+## L2-P5 §CM to-implement backlog — mechanical checks surfaced by the walk-guide trim (2026-07-01, Claude)
+
+Trimming `L2P5_MANUAL_WALK_GUIDE.md` down to human-judgment-only lenses (on branch `claude/l2p5-walk-guide-c3757857`, recovered + committed 2026-07-01) surfaced a set of **mechanically-decidable** checks that had been riding inside the manual walk. Per the coverage≠mechanical principle, each belongs in a gate/grep, not the eyeball pass. **Repo-owner direction: wire these when patching §CM *after* the manual walk — likely as part of re-doing the audit**, not now.
+
+**To implement (currently ungated / partial):**
+1. **Commented-out code** (CERT MSC04-C / JSF 127) — greppable (a block of real C++ inside `//` or `/* */`) + the nested-`/*` delimiter hazard. Manual residual kept in Class 3: delete-vs-deliberate-`#if 0` disposition.
+2. **Per-function assertion count / >10-line trigger** (P10-5 / JPL-16 density floor) — countable/greppable; function length is already measured by `readability-function-size`, the per-fn assertion count is not.
+3. **`template<>` explicit function-specialization** (CCG T.144) — grep the banned token; presence = finding.
+4. **static_assert-guard presence** on POD types meant to model a concept (CCG T.150) — greppable; `misc-static-assert` is enabled but doesn't cover "a guard exists for type X."
+5. **Per-instantiation test coverage** (JSF 102 / T.102) — compiler emits the instantiation list; needs a coverage manifest to auto-check.
+6. **lock-in-A / unlock-in-B cross-function pairing** (JPL 9 / CON51) — grep or a custom clang-tidy matcher (triage's stated conversion). Live surface: 1 `save_and_disable_interrupts`/`restore_interrupts` pair in `psram_init.cpp`, 0 spinlock pairs. Manual residual kept in Class 10: every abnormal exit releases the lock.
+7. **JSF AV 166 — side-effects-in-`sizeof`** (canon; = the `sizeof` case of CERT EXP52) — greppable; `bugprone-sizeof-expression` is enabled but targets broader suspicious-`sizeof`, not side-effect-in-operand. **0 current violations in `src/`** (zero-risk gap). Surfaced 2026-07-01 by the I.4/EXP52 canon re-check.
+
+**Already gated (no action — recorded for the split):** the other trimmed items already hit enabled gates — `bugprone-assert-side-effect`, `-Wnon-virtual-dtor`, `cppcoreguidelines-special-member-functions`, `google-explicit-constructor`, `readability-container-size-empty`, `-Wall`→`-Wsequence-point`, `cppcoreguidelines-init-variables`+`clang-analyzer`, `readability-function-size`/`cognitive-complexity`, `bugprone-branch-clone`, `clang-analyzer-deadcode`, `[[nodiscard]]`. **Class-6 narrowing** (56 `-Wconversion`/`-Wsign-conversion` findings) is already tracked in the L2-P5 handoff above + `L2P5_WCONVERSION_FINDINGS_2026-06-25.md`.
+
+---
+
 ## Session Handoff Notes (2026-05-26, Grok)
 
 **User requested explicit session handoff + pause.**
