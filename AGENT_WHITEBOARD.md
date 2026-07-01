@@ -33,6 +33,21 @@ Recurring friction with Claude + Grok + Gemini on shared `main`: separate agents
 
 ---
 
+## Session-scoped git worktrees for concurrent agents (PROPOSED) (2026-07-01, Claude/Opus)
+
+**Lived trigger:** the L2-P5 manual walk guide (`docs/audits/L2P5_MANUAL_WALK_GUIDE.md`) was authored across a long session but left **uncommitted and untracked** on `main`; the graphify tree-churn cleanup (`git clean` — same churn behind the gitignore fixes above) wiped it from the working tree while the repo owner was away. Recovered 2026-07-01 by replaying the session transcript's base Read + 44 Edits (0 misses, signatures + encoding verified), now committed on branch `claude/l2p5-walk-guide-c3757857`.
+
+**Root-cause distinction (the actual lesson):** two separate problems, two separate fixes. **Durability** (don't lose work) is solved *only by committing* — a branch alone would NOT have saved an untracked file from `git clean`. **Isolation** (concurrent agents don't clobber each other) is solved by a dedicated branch — or better, a dedicated *working tree*.
+
+**Proposed policy (evaluate; especially load-bearing for Starcom):**
+- **Per-session branch + commit-often.** Substantive sessions work on `claude/<task>-<id>`, committing checkpoints frequently (even WIP), merged at a natural checkpoint. Branch for isolation, commit for durability — both, not either. This is already what `GIT_WORKFLOW.md` prescribes; the gap was execution, not policy. (Note: the line-~42 flag proposing GIT_WORKFLOW *deprecation* is in tension with this and should be reconsidered.)
+- **`git worktree` per concurrent agent.** Give Claude / Grok / Gemini / Composer each an isolated working directory (`git worktree add`) sharing one object store. Then one agent's `git clean` / `reset --hard` / branch-switch physically **cannot touch** another agent's tree — the exact failure that just happened, and the structural fix for the "Cross-agent commit hygiene — sweep-in" item above (agents also stop sweeping each other's in-flight files into commits).
+- **Starcom specifically:** the standalone CCSDS library is expected to see concurrent multi-agent dev — stand up the worktree model there from the start rather than retrofitting.
+
+**Cost/caveats to weigh:** worktrees add disk + a little setup per agent; graphify's per-tree `graphify-out/` would rebuild per worktree (already gitignored, low risk); any automation that runs `git clean` should be scoped to never delete untracked files it didn't create. Owner decision.
+
+---
+
 ## Graphify — curated code+docs graph rebuilt; doc→code connectivity pass DEFERRED (2026-06-27, Claude/Opus)
 
 Rebuilt the graphify graph at `graphify-out/` as a **curated current-state code+docs map** (supersedes the bloated bootstrap). **2448 nodes / 4521 edges / 186 communities, 71% in giant component, full-detail HTML (<5k).** Protected snapshot at **`graphify-out/claude-build-2026-06-27/`** (with README; safe from future `graphify .` runs, which only rewrite the root). Grok pass-3 snapshot `graphify-out/grok-build-pass3-2026-06-27/` untouched (its own protected folder). `.graphifyignore` updated — now excludes vendored (`EXTERNAL/` ETL, `lib/`), `test/`+`scripts/`, `mcps/`, `starcom/`, `logs/`, tooling configs, images, and historical churn (`docs/plans/`, `docs/audits/`, `docs/baselines/`, `CHANGELOG.md`). **Not committed** (tooling output; pending repo-owner direction).
