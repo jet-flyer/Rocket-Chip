@@ -35,7 +35,7 @@ Recurring friction with Claude + Grok + Gemini on shared `main`: separate agents
 
 ## Session-scoped git worktrees for concurrent agents (PROPOSED) (2026-07-01, Claude/Opus)
 
-**Lived trigger:** the L2-P5 manual walk guide (`docs/audits/L2P5_MANUAL_WALK_GUIDE.md`) was authored across a long session but left **uncommitted and untracked** on `main`; the graphify tree-churn cleanup (`git clean` — same churn behind the gitignore fixes above) wiped it from the working tree while the repo owner was away. Recovered 2026-07-01 by replaying the session transcript's base Read + 44 Edits (0 misses, signatures + encoding verified), now committed on branch `claude/l2p5-walk-guide-c3757857`.
+**Lived trigger:** the L2-P5 manual walk guide (`docs/audits/l2p5_manual_walk/L2P5_MANUAL_WALK_GUIDE.md`) was authored across a long session but left **uncommitted and untracked** on `main`; the graphify tree-churn cleanup (`git clean` — same churn behind the gitignore fixes above) wiped it from the working tree while the repo owner was away. Recovered 2026-07-01 by replaying the session transcript's base Read + 44 Edits (0 misses, signatures + encoding verified), now committed on branch `claude/l2p5-walk-guide-c3757857`.
 
 **Root-cause distinction (the actual lesson):** two separate problems, two separate fixes. **Durability** (don't lose work) is solved *only by committing* — a branch alone would NOT have saved an untracked file from `git clean`. **Isolation** (concurrent agents don't clobber each other) is solved by a dedicated branch — or better, a dedicated *working tree*.
 
@@ -68,7 +68,7 @@ Rebuilt the graphify graph at `graphify-out/` as a **curated current-state code+
 
 **▶ STATUS (EOD 2026-06-25):** walk-prep complete (Phases A–E + §CM gate-wiring + standards corrections); **field manual is walk-ready.** The semantic walk = the **spine + judgment-heavy classes** (3/5/7/8/9/10/13); mechanical classes (incl. **Class 14, demoted**) are gate/§CM-covered. Repo-owner is **reviewing** and will likely suggest changes. **NOT committed** — working tree: 9 modified + 2 new docs (file list in CHANGELOG `2026-06-25-002`); committing the `CMakeLists.txt` `-Wnon-virtual-dtor` change needs the `bench_sim` HW gate (probe). The `agent-tools/` + `mcps/` untracked dirs are the pre-existing CCSDS-detour leftovers, not this work.
 
-**Phase D (§RP) COMPLETE.** Manual-class judging criteria sourced + adversarially verified + folded via **5 Workflow passes** (~57 agents): spine/gestalt + rule-classes · AI-code-review general (SEI/NIST/OWASP + peer-reviewed) · agentic-era refresh 2024-2026 (durable error-TYPES as criteria; frequencies `[model,year]`-stamped + demoted) · embedded applicability (ADD bare-metal / DROP web-centric) · Spine-2 layout/altitude re-run. Stash `docs/audits/L2P5_RP_SOURCES_2026-06-25.md` (95-source corpus + verified criteria + UNVERIFIED clearance log). Folded into `L2P5_MANUAL_WALK_GUIDE.md` → **The spine** (gestalt + AI-lens + embedded ADD/DROP + **§D mechanically-checkable→§CM** triage) + §RP per-class map. Plan Phase D → DONE. CHANGELOG `2026-06-25-002`.
+**Phase D (§RP) COMPLETE.** Manual-class judging criteria sourced + adversarially verified + folded via **5 Workflow passes** (~57 agents): spine/gestalt + rule-classes · AI-code-review general (SEI/NIST/OWASP + peer-reviewed) · agentic-era refresh 2024-2026 (durable error-TYPES as criteria; frequencies `[model,year]`-stamped + demoted) · embedded applicability (ADD bare-metal / DROP web-centric) · Spine-2 layout/altitude re-run. Stash `docs/audits/l2p5_manual_walk/L2P5_RP_SOURCES_2026-06-25.md` (95-source corpus + verified criteria + UNVERIFIED clearance log). Folded into `L2P5_MANUAL_WALK_GUIDE.md` → **The spine** (gestalt + AI-lens + embedded ADD/DROP + **§D mechanically-checkable→§CM** triage) + §RP per-class map. Plan Phase D → DONE. CHANGELOG `2026-06-25-002`.
 
 **Corrections folded:** Class-2 naming over-claim resolved; `RULE_VERIFIABILITY_TRIAGE.md` §459 drift **fixed**; QP/Samek-vs-JSF naming homed in **`docs/flight_director/QP_APPLICATION_GUIDE.md` §6.5** (a *decision*, NOT a deviation — QP naming is non-binding).
 
@@ -93,6 +93,8 @@ Trimming `L2P5_MANUAL_WALK_GUIDE.md` down to human-judgment-only lenses (on bran
 7. **JSF AV 166 — side-effects-in-`sizeof`** (canon; = the `sizeof` case of CERT EXP52) — greppable; `bugprone-sizeof-expression` is enabled but targets broader suspicious-`sizeof`, not side-effect-in-operand. **0 current violations in `src/`** (zero-risk gap). Surfaced 2026-07-01 by the I.4/EXP52 canon re-check.
 
 **Already gated (no action — recorded for the split):** the other trimmed items already hit enabled gates — `bugprone-assert-side-effect`, `-Wnon-virtual-dtor`, `cppcoreguidelines-special-member-functions`, `google-explicit-constructor`, `readability-container-size-empty`, `-Wall`→`-Wsequence-point`, `cppcoreguidelines-init-variables`+`clang-analyzer`, `readability-function-size`/`cognitive-complexity`, `bugprone-branch-clone`, `clang-analyzer-deadcode`, `[[nodiscard]]`. **Class-6 narrowing** (56 `-Wconversion`/`-Wsign-conversion` findings) is already tracked in the L2-P5 handoff above + `L2P5_WCONVERSION_FINDINGS_2026-06-25.md`.
+
+**Class-14 do-not-"fix" guards (cut from the walk guide 2026-07-01; preserved here — they're gated-class cautions, not walk criteria):** while remediating or gating the mechanical surface, do **not** (a) convert mandated `uintN_t` / hardware-register / bitmask code to signed, or (b) add redundant arithmetic parentheses (JSF AV 213 is deliberately disabled — LL Entry 26). These guarded against a reviewer over-"fixing" the gated Class-14 (expressions / evaluation-order) surface; kept in case that surface is touched.
 
 ---
 
@@ -211,9 +213,9 @@ Council review of all Starcom research findings (Grok vs Claude) completed. Full
 
   **Not blocked.** Low-priority loose end never done: reconcile the 225 property-rows vs 274 rule-IDs count line-by-line. Untracked `agent-tools/` + `mcps/` dirs in the tree are from the CCSDS detour, unrelated to L2-P5.
 
-  **── SESSION HANDOFF (2026-06-23, Claude Opus 4.8) — the 2026-06-21 "NEXT STEPS" above are SUPERSEDED. Resume from the authoritative plan: `docs/plans/L2P5_WALK_PLAN.md` (read it first). ──**
+  **── SESSION HANDOFF (2026-06-23, Claude Opus 4.8) — the 2026-06-21 "NEXT STEPS" above are SUPERSEDED. Resume from the authoritative plan: `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md` (read it first). ──**
 
-  Plan 1 was council-reviewed + approved and is now consolidated into that plan doc (permanent). Big shape change since 2026-06-21: the walk became a **field manual** (`L2P5_MANUAL_WALK_GUIDE.md`) + **work plan** (`docs/plans/L2P5_WALK_PLAN.md`) + **itinerary** (`L2P5_WALK_ITINERARY.md`, 185-file coverage map) — deliberately kept distinct (building the guide ≠ using it for the walk). Governing principle re-set to **completeness over brevity** (every file walked, PASS coverage recorded; balloon expected — esp. remediation).
+  Plan 1 was council-reviewed + approved and is now consolidated into that plan doc (permanent). Big shape change since 2026-06-21: the walk became a **field manual** (`L2P5_MANUAL_WALK_GUIDE.md`) + **work plan** (`docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md`) + **itinerary** (`L2P5_WALK_ITINERARY.md`, 185-file coverage map) — deliberately kept distinct (building the guide ≠ using it for the walk). Governing principle re-set to **completeness over brevity** (every file walked, PASS coverage recorded; balloon expected — esp. remediation).
 
   **DONE this session:**
   - Field manual fully built: agent-blind-spot **lens** (catch what compiles/passes but is improper) + Classes 1–14 + §LV/§CM/§RP/§IT/§SC + 185-file itinerary companion.

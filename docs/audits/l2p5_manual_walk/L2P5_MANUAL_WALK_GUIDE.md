@@ -2,10 +2,10 @@
 
 **What this is:** the human-followable bridge for the L2-P5 standards walk — the eyes-on review the tools and gates can't do. You read it while walking the firmware file-by-file, judging the *semantic* rules a human has to eyeball, where a green build, a passing test suite, and a clean linter are exactly the conditions under which improper code slips through. It connects the depth (verified criteria) to the route (the file list). Companions:
 
-- **ROUTE — which files, in what order:** `docs/audits/L2P5_WALK_ITINERARY.md`
-- **FULL sourced depth — every criterion + its primary source + the AI-tendency it catches:** `docs/audits/L2P5_RP_SOURCES_2026-06-25.md`
+- **ROUTE — which files, in what order:** `docs/audits/l2p5_manual_walk/L2P5_WALK_ITINERARY.md`
+- **FULL sourced depth — every criterion + its primary source + the AI-tendency it catches:** `docs/audits/l2p5_manual_walk/L2P5_RP_SOURCES_2026-06-25.md`
 - **Rule text + why each rule lands where it does:** `docs/audits/RULE_VERIFIABILITY_TRIAGE.md`
-- **Work plan / gates / mechanical checks:** `docs/plans/L2P5_WALK_PLAN.md`
+- **Work plan / gates / mechanical checks:** `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md`
 
 **Owner:** Nathan (the walk + all dispositions). **Status vocabulary:** `PASS` / `FAIL` / `PARTIAL` / `NOT CHECKED` / `N/A`.
 
@@ -578,7 +578,7 @@ The review criteria in this guide rest on three primary published safety-critica
 
 **Pointers (this section does not duplicate them):**
 
-- **Full verified corpus + provenance** (every cited ID/title/quote adversarially verified against a primary source; UNVERIFIED items quarantined): `docs/audits/L2P5_RP_SOURCES_2026-06-25.md`.
+- **Full verified corpus + provenance** (every cited ID/title/quote adversarially verified against a primary source; UNVERIFIED items quarantined): `docs/audits/l2p5_manual_walk/L2P5_RP_SOURCES_2026-06-25.md`.
 - **Exact rule wording — first stop for lookups** (primary-source-verified where a primary was reachable): `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` — §2 (P10), §3 (JPL), §4a–d (JSF), §7 (findings).
-- **Route — which files each lens applies to:** `docs/audits/L2P5_WALK_ITINERARY.md`.
-- **Work plan — prep / gate-wiring / sequencing:** `docs/plans/L2P5_WALK_PLAN.md`.
+- **Route — which files each lens applies to:** `docs/audits/l2p5_manual_walk/L2P5_WALK_ITINERARY.md`.
+- **Work plan — prep / gate-wiring / sequencing:** `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md`.

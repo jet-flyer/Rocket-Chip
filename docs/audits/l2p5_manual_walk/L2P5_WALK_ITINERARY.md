@@ -1,6 +1,6 @@
 # L2-P5 Walk Itinerary — file-coverage map
 
-**Companion to** `docs/audits/L2P5_MANUAL_WALK_GUIDE.md` (§ IT). This is the **traversal spine + progress tracker**
+**Companion to** `docs/audits/l2p5_manual_walk/L2P5_MANUAL_WALK_GUIDE.md` (§ IT). This is the **traversal spine + progress tracker**
 for the file-by-file semantic pass. **185 in-scope files** (`src/**/*.{cpp,h}` + `include/**/*.h`; vendored
 `lib/`, `EXTERNAL/`, `pico-sdk/` excluded — refresh with
 `git ls-files 'src/**/*.cpp' 'src/**/*.h' 'include/**/*.h' | grep -vE '^(lib/|EXTERNAL/|pico-sdk/)'`).

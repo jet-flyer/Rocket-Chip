@@ -1,7 +1,7 @@
 # L2-P5 Manual Standards-Walk Guide
 
 **Status:** WORKING DOC — in progress. Human-driven walk guide, not a finished audit.
-**This is the FIELD MANUAL (what to look for *during* the walk).** The *work plan* — the ordered prep/walk/close-out tasks, including §CM gating and §RP research — is a separate doc: `docs/plans/L2P5_WALK_PLAN.md`. Don't conflate building the guide with using it.
+**This is the FIELD MANUAL (what to look for *during* the walk).** The *work plan* — the ordered prep/walk/close-out tasks, including §CM gating and §RP research — is a separate doc: `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md`. Don't conflate building the guide with using it.
 **Governing principle: COMPLETENESS over brevity.** Every in-scope file gets walked and its coverage recorded (PASS files too, not only FAILs); full criteria per class. Thoroughness is the goal — not a terse summary.
 **Owner:** Nathan (manual walk). Agents may build/refine rule-class sections; the walk itself + dispositions are Nathan's.
 **Established:** 2026-06-06. **Scope re-set:** 2026-06-20 (triage-driven, see Scope below).
@@ -187,7 +187,7 @@ Action sections (not per-file judgment walks):
 | § | Section | Built? |
 |---|---------|--------|
 | LV | Live unlogged violations to disposition (JSF 18, 27, 190, 202) | ☑ **built** (walk-content) |
-| CM | One-shot mechanical checks / conversion moves | ↗ **prep — owned by the work plan** (`docs/plans/L2P5_WALK_PLAN.md` Phase B) |
+| CM | One-shot mechanical checks / conversion moves | ↗ **prep — owned by the work plan** (`docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md` Phase B) |
 | RP | Research pass — Manual-class criteria, externally-sourced | ☑ **done 2026-06-25** → [`L2P5_RP_SOURCES_2026-06-25.md`](L2P5_RP_SOURCES_2026-06-25.md); folded into **The spine** + §RP map (Spine-2 layout re-run done 2026-06-25) |
 | IT | **Walk Itinerary** — ordered file-coverage map (the traversal spine) | ☑ **built** (walk-content) |
 | SC | Genuinely script-covered (revalidated; do NOT walk) | ☑ **built** (walk-content) |
@@ -1049,7 +1049,7 @@ then decide log-as-deviation vs remediate." Knock these out directly; each is a 
 
 > **This is a pre-walk PREP step, not walk-content.** The full conversion-moves catalogue, the council decision
 > (measure-first, 3-bin sort, the centralize-into-a-script gating fix, keep `CheckedFunctions` honest), and its
-> status live in the **work plan**: `docs/plans/L2P5_WALK_PLAN.md` § Phase B. Making gates/scripts is plan work,
+> status live in the **work plan**: `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md` § Phase B. Making gates/scripts is plan work,
 > not part of the eyeball walk.
 
 What the walker needs to know: several decidable-but-ungated rules are converted to gates **before** the walk so
@@ -1107,7 +1107,7 @@ whole and apply the **per-file lenses** below with the file in front of you.
 - (**Class 14 is NOT a per-file lens** — demoted to mechanical: the 54 `-Wconversion` findings are a §CM batch + `-Wall` covers eval-order/shift. Don't hand-walk it.)
 - (Classes 2/11/12 are largely cross-repo/over-claim — handled in their sections, not per file.)
 
-**The itinerary itself is the companion checklist** → **`docs/audits/L2P5_WALK_ITINERARY.md`** — all **185**
+**The itinerary itself is the companion checklist** → **`docs/audits/l2p5_manual_walk/L2P5_WALK_ITINERARY.md`** — all **185**
 in-scope files, ordered criticality + execution-path first (safety → fusion → flight_director → active_objects →
 core1 → drivers → calibration → logging → diag/notify/telemetry/station → math → top-level → cli last → headers),
 each with a checkbox + coverage note + which §LV/class hot-spots live in it. Tick files there as you walk; record
