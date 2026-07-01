@@ -362,7 +362,7 @@ _Full sourced criteria + IDs: L2P5_RP_SOURCES_2026-06-25.md Spine ES.5/6/20/21/2
 
 **When you are walking:** primary lens for `include/rocketchip/` public headers (Section 13 of the itinerary) and for every class/struct definition you meet along the way — the QP/C AOs in `active_objects/`, the driver classes in `drivers/`, the calibration and logging types, the small value types in `math/`. Most "classes" here are AOs or POD-ish structs; the headers section is where this lens earns its keep.
 
-The binding standard for this lens is the house standard's class rules — **JSF AV C++**, verbatim: **AV 67:** *"Public and protected data should only be used in structs—not classes."* **AV 68:** *"Unneeded implicitly generated member functions shall be explicitly disallowed."* **AV 72:** the class invariant is *"a part of the postcondition of every class constructor."* **AV 76:** *"A copy constructor and an assignment operator shall be declared for classes that contain pointers to data items or nontrivial destructors."* **AV 78:** *"All base classes with a virtual function shall define a virtual destructor."* **AV 79:** *"All resources acquired by a class shall be released by the class's destructor."* **AV 87/88:** hierarchies *"based on abstract classes,"* multiple inheritance only as *"n interfaces plus m private implementations."* **AV 177:** *"User-defined conversion functions should be avoided."* These are the rules a class either honors or quietly fails while compiling green. The **C++ Core Guidelines (C.2/C.21/C.35/C.46/C.131/I.25) and CERT (OOP50/52/58) cited in the criteria below are supporting elaboration — modern restatements and the gate names — not the governing standard** (CCG/CERT are references, not adopted house sources). Mappings: class-vs-struct & trivial accessors (C.2/C.8/C.131) → **AV 67 + AV 72**; rule-of-five (C.21) → **AV 68 + AV 76**; virtual dtor (C.35 / OOP52) → **AV 78**; resource release (P.8 / C.31) → **AV 79**; explicit/implicit conversion (C.46) → **AV 177**; thin interfaces (I.25) → **AV 87/88**; no-virtual-call-before-fully-constructed (OOP50) → **AV 71**. (I.4 precise-typing has no direct JSF rule — CCG-only guidance, kept as elaboration.)
+The binding standard for this lens is the house standard's class rules — **JSF AV C++**, verbatim: **AV 67:** *"Public and protected data should only be used in structs—not classes."* **AV 68:** *"Unneeded implicitly generated member functions shall be explicitly disallowed."* **AV 72:** the class invariant is *"a part of the postcondition of every class constructor."* **AV 76:** *"A copy constructor and an assignment operator shall be declared for classes that contain pointers to data items or nontrivial destructors."* **AV 78:** *"All base classes with a virtual function shall define a virtual destructor."* **AV 79:** *"All resources acquired by a class shall be released by the class's destructor."* **AV 87/88:** hierarchies *"based on abstract classes,"* multiple inheritance only as *"n interfaces plus m private implementations."* **AV 177:** *"User-defined conversion functions should be avoided."* These are the rules a class either honors or quietly fails while compiling green. The **C++ Core Guidelines (C.2/C.21/C.35/C.46/C.131/I.25) and CERT (OOP50/52/58) cited in the criteria below are supporting elaboration — modern restatements and the gate names — not the governing standard** (CCG/CERT are references, not adopted house sources). Mappings: class-vs-struct & trivial accessors (C.2/C.8/C.131) → **AV 67 + AV 72**; rule-of-five (C.21) → **AV 68 + AV 76**; virtual dtor (C.35 / OOP52) → **AV 78**; resource release (P.8 / C.31) → **AV 79**; explicit/implicit conversion (C.46) → **AV 177**; thin interfaces (I.25) → **AV 87/88**; no-virtual-call-before-fully-constructed (OOP50) → **AV 71**.
 
 > **Gate-covered here — cite, don't hand-walk (the same move as Class 5).** Three of the detections below are mechanical and already wired in the build: a polymorphic base with a public non-virtual destructor is a `-Wnon-virtual-dtor` `-Werror` compile failure (C.35 / OOP52-CPP); the rule-of-five *asymmetry* — declared one of {copy/move ctor, copy/move assign, dtor} but not all — is surfaced by `cppcoreguidelines-special-member-functions`; a non-`explicit` single-argument constructor is flagged by `google-explicit-constructor`. The gate finds those candidates; the walk judges only the *disposition* below. Don't re-hunt them by eye.
 
@@ -384,8 +384,6 @@ The dominant passing-but-improper pattern here is **encapsulation theater**: pri
 
 - **Trivial accessors (CG C.131) / data classes (Fowler "Data Class" smell).** A member with no invariant should just be public (or the type should be a struct); accessors should exist only where they add semantic value — validation, conversion, locking, invariant maintenance. *Finding:* private fields shadowed one-for-one by `getX()/setX()` that only read/write the member — encapsulation theater that mis-signals an invariant. Its sibling is the data class: a type that is only fields plus getters/setters, with all behavior scattered into free functions or callers. Either it has no invariant (make it a struct) or the invariant is unprotected and reconstructed by every caller.
 
-- **Precise, strong interfaces (CG I.4): "Make interfaces precisely and strongly typed."** Parameters and return types should name the concept they carry — typed units, enums, wrapper types, spans — not raw `int`/`bool`/`void*`. *Finding:* an interface taking several same-typed primitives (`configure(int, int, int, bool, bool)`), a raw `void*`/length pair where a span would do, or a positional `bool` flag — callers can transpose arguments or units and it still compiles. Tests pass with the test's own consistent order while real call sites silently swap.
-
 - **Thin interfaces (CG I.25): "Prefer empty abstract classes as interfaces to class hierarchies."** A polymorphic interface should be an abstract class of pure virtual functions only (plus the right destructor per C.35) — no data, no implementation. *Finding:* an "interface" base carrying data members or concrete implementation, forcing derived classes to inherit state and couple to base internals.
 
 - **Const-correct copy (CERT OOP58-CPP).** A copy constructor and copy assignment take the source by reference-to-const and leave it unchanged. *Finding:* a "copy" whose source parameter is non-const and is mutated — transferring ownership or resetting a flag on the source under the name of a copy (a move wearing a copy's signature).
@@ -397,7 +395,6 @@ The dominant passing-but-improper pattern here is **encapsulation theater**: pri
 - It writes a resource-freeing destructor and stops, never declaring copy/move; the implicit shallow copy then double-frees the owned handle. The test never copies, so it passes.
 - It writes a virtual `init()` and calls it from the base constructor assuming derived behavior runs; it compiles and binds to the base version.
 - It routinely omits `explicit` on single-arg constructors — clean-reading code that opens silent conversions undermining typed units and register wrappers.
-- It gravitates to primitive-typed signatures with multiple `int`s and boolean flags (the path of least resistance, common in training data), so wrong-order/wrong-unit calls compile.
 - It folds convenience state and default implementations into an interface base "to avoid duplication," yielding interface bases with data members — a design defect each line of which is locally reasonable.
 - It conflates copy and move, writing a "copy" that steals from or edits the source via a non-const source parameter.
 - It produces data classes by default — entity-like types of pure fields plus accessors with logic spread across callers.
@@ -477,7 +474,7 @@ _Full sourced criteria + IDs: L2P5_RP_SOURCES_2026-06-25.md Support C._
 - **JSF AV Rule 205:** *"The volatile keyword shall not be used unless directly interfacing with hardware."* (the volatile half)
 - **JSF AV Rule 204.1:** *"The value of an expression shall be the same under any order of evaluation that the standard permits."* — with **JSF AV Rule 204:** *"A single operation with side-effects shall only be used in the following contexts: 1. by itself…"* and **JPL-C Rule 18:** *"In compound expressions with multiple sub-expressions the intended order of evaluation shall be made explicit with parentheses."* (the eval-order half)
 
-The **C++ Core Guidelines (CP.8, ES.43, ES.44) and SEI CERT (EXP50/52-CPP) cited below are supporting elaboration, not the governing standard** (both are references, not adopted house sources): CP.8 expands JSF 205 — *"volatile does not provide atomicity, does not synchronize between threads, and does not prevent instruction reordering"*; ES.43 / ES.44 / EXP50 expand AV 204.1 / JPL 18; EXP52 (side effects in unevaluated operands) has no direct house rule — CCG/CERT-only guidance, kept as elaboration.
+The **C++ Core Guidelines (CP.8, ES.43, ES.44) and SEI CERT (EXP50-CPP) cited below are supporting elaboration, not the governing standard** (both are references, not adopted house sources): CP.8 expands JSF 205 — *"volatile does not provide atomicity, does not synchronize between threads, and does not prevent instruction reordering"*; ES.43 / ES.44 / EXP50 expand AV 204.1 / JPL 18. (Side-effects-in-`sizeof` — JSF AV 166, the canon behind CERT EXP52 — is a bright-line *mechanical* check, not a manual criterion; it is tracked as a §CM to-wire item, not walked here.)
 
 The semantic core of this class is two-sided: `volatile` must mean *true MMIO*, not *cross-core/ISR sync intent* (JSF 205); and a single full-expression must not depend on an order of evaluation the language leaves unspecified (JSF 204.1 / JPL 18).
 
@@ -493,14 +490,11 @@ The semantic core of this class is two-sided: `volatile` must mean *true MMIO*, 
 
 - **Unsequenced side effects are UB, not style (JSF AV 204.1; cf. CERT-EXP50-CPP).** Good: side effects on the same scalar object are separated into distinct, sequenced statements (or captured in intermediates). Per CERT: *"In C++, modifying an object, calling a library I/O function, accessing a volatile-qualified value, or calling a function that performs one of these actions are ways to modify the state of the execution environment. These actions are called side effects."* Finding: UB from unsequenced side effects on one scalar — `i = ++i + 1;`, `func(i++, i);`, or any expression that modifies and separately reads the same object with no sequencing. Call this out as **undefined behavior**, not a style nit — it is the CERT-graded sibling of ES.43/ES.44. (The elementary single-scalar cases are `-Wsequence-point`-gated per ES.43 above; EXP50's manual weight is the severity framing and the unsequenced cases that span a helper call the gate can't see.)
 
-- **Side effects in unevaluated operands (CERT-EXP52-CPP — no direct house rule; CERT elaboration).** Good: operands of `sizeof`, `typeid`, `noexcept`, `decltype`, `declval` contain no side effect the code relies on running — *"An unevaluated operand is not evaluated."* Finding (rare but high-impact in templated/constexpr-heavy modern C++): a side-effecting call/increment placed inside `sizeof(...)`, `decltype(...)`, `noexcept(...)`, or `typeid(...)` and depended upon to execute — `sizeof(f(x++))` expecting `x` to advance, or `noexcept(init())` expecting `init()` to run. It silently does nothing.
-
 **▸ How an AI agent gets this wrong**
 
 - **`volatile` ≙ "shared across threads/interrupts."** LLMs strongly associate `volatile` with concurrency (a Java/C#/older-C carryover), so dual-core and ISR-shared flags get declared `volatile`. The missing atomicity/ordering only bites under optimization or a specific interleaving — it compiles, usually "works" in testing, and is a real cross-core corruption bug.
 - **Terse "clever" mutate-and-read one-liners.** Agents emit compact expressions that fold a mutation and a use of the same variable into one expression. It compiles and gives the expected answer on the dev toolchain, so tests pass; the defect surfaces only under a different optimizer/compiler. Because the construct is UB (EXP50-CPP), a passing test suite is *actively misleading*.
 - **Two interacting side effects in sibling arguments.** When an agent compresses setup into a single call to look concise, it can place two side effects in sibling arguments with no sequencing between them — tests pass only because of the build compiler's chosen evaluation order.
-- **A meaningful expression buried in an unevaluated operand.** An agent may put a computation inside `sizeof`/`decltype` to "compute" a type and assume it also executes at runtime; the type is right so it passes, but the runtime effect never happens.
 
 **Judging criteria**
 
@@ -511,7 +505,6 @@ The semantic core of this class is two-sided: `volatile` must mean *true MMIO*, 
 | Hardware register / MMIO pointer that is NOT volatile-qualified | **FAIL** — qualify as `volatile` (JSF 205) |
 | Cross-call / cross-core full-expression whose result depends on the evaluation order of a shared object (ES.43; the single-scalar UB cases are `-Wsequence-point`-gated) | **FAIL** — undefined/unspecified behavior; sequence it explicitly |
 | Call whose arguments share a mutated object or ordering assumption (ES.44) | **FAIL** — make argument expressions independent |
-| Side effect inside an unevaluated operand relied upon to run (EXP52-CPP) | **FAIL** — the operand is not evaluated; move the side effect out |
 
 **Findings**
 
@@ -519,7 +512,7 @@ The semantic core of this class is two-sided: `volatile` must mean *true MMIO*, 
 |---|---|---|---|---|
 | | | | | |
 
-_Sourced criteria (house standard): JSF AV Rule 205, 204, 204.1; JPL-C Rule 18. Supporting elaboration: C++ Core Guidelines CP.8 / ES.43 / ES.44; SEI CERT EXP50-CPP / EXP52-CPP._
+_Sourced criteria (house standard): JSF AV Rule 205, 204, 204.1; JPL-C Rule 18. Supporting elaboration: C++ Core Guidelines CP.8 / ES.43 / ES.44; SEI CERT EXP50-CPP._
 
 ---
 
@@ -589,25 +582,6 @@ Walk **every cross-core / cross-context shared object** and answer three questio
 | | | | | | | |
 
 _Full sourced criteria + IDs: L2P5_RP_SOURCES_2026-06-25.md Support D._
-
----
-
-## § LV — Live unlogged violations to disposition
-
-**What this section is:** unlike every other lens in this guide, §LV is not a "go hunt" pass — it is a short list of **already-located, concrete violation sites** that have no recorded disposition yet. For each, the job is narrow: **open the cited file:line, confirm the violation is really there, then decide** — accept it as a documented deviation, or remediate it. These are knock-out items; do them directly and move on.
-
-Each row's cited rule is a **primary JSF AV C++ rule number** — the durable basis for the finding. Confirm against the JSF primary source if you need the exact rule wording (canonical PDF link at the bottom of this guide).
-
-| Rule | Site(s) | Finding | Disposition options |
-|------|---------|---------|---------------------|
-| **JSF 18** (no `offsetof`) | `calibration/calibration_data.cpp:106,119` | `offsetof` used for CRC offset computation, no deviation row | analyze the two sites, then (a) log accepted deviation or (b) remediate to a non-`offsetof` form |
-| **JSF 27** (include guards, no other technique) | `safety/fault_protection.h`, `flight_director/mission_profile_data.h`, `include/rocketchip/shared_state.h` | uses `#pragma once`; the rest use `#ifndef` | (a) convert to `#ifndef`/`#define`/`#endif`; or (b) accept `#pragma once` as the convention and log it — confirm at each site which way the convention should fall |
-| **JSF 190** (no `continue`) | e.g. `active_objects/ao_telemetry.cpp:348` (and other sites) | `continue` used; no deviation row | walk each site, then (a) one blanket project-wide accepted-deviation, or (b) remediate per-site |
-| **JSF 202** (no float exact `==`/`!=`) | `fusion/eskf_runner.cpp:292-295` | float equality used | walk each site — deliberate sentinel/guard vs a true comparison → log, or rewrite to an epsilon test |
-
-> **For JSF 190:** confirm each `continue` site before dispositioning. The two dispositions — one project-wide accepted-deviation vs. per-site remediation — are genuinely a judgment call; weigh them at disposition.
-
-> **Note on the cited rule, not the site:** the file:line citations above are the audit data being dispositioned (legitimate project-specific finding locations). The **rule** each rests on is the primary JSF number — that is what makes the finding hold. Do not substitute any internal decision-log reference for the JSF rule when recording the disposition.
 
 ---
 
