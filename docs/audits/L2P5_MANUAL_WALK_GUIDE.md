@@ -21,35 +21,18 @@
 
 ---
 
-## What this guide does NOT walk
-
-These rule areas are deterministic, by-reference, or tool-checkable — enforced by **gates, not eyeballs**. They are cited from the gate in any remediation writeup, never hand-walked (see the work plan / §CM mechanical checks):
-
-- **Class 1 — return values:** gated by `[[nodiscard]]` contracts under `-Werror` (the only hand-walk residual is confirming a deliberately dropped-and-`(void)`-cast return was a justified ignore).
-- **Class 2 — naming:** a closed doc-disposition, not a per-file walk.
-- **Class 6 — pointers / narrowing:** pointer casts are dispositioned by-reference against the accepted-cast list; narrowing is caught by clang-tidy `bugprone-narrowing-conversions` + `cppcoreguidelines-narrowing-conversions` (both enabled in `.clang-tidy`). *(Not `-Wconversion`/`-Wsign-conversion` — those are not in the build; they were measured 2026-06-25 at 56 open findings and deliberately left unwired, so don't cite them as the covering gate.)*
-- **Class 11 — preprocessor**, **Class 12 — headers**, **Class 13 — magic numbers**, **Class 14 — expressions / evaluation order:** all deterministic, by-reference, or tool-caught.
-
-Where the itinerary still tags a file with one of these numbers, it means **"a gate covers it,"** not "hand-walk it." 
-
-**Two Class-14 do-not-"fix" guards survive the walk** (the only walk-relevant residual of the gated classes):
-- Do **not** convert mandated `uintN_t` / hardware-register / bitmask code to signed.
-- Do **not** sprinkle redundant arithmetic parentheses.
-
----
-
 ## Class index — the lenses actually walked
 
-| # | Lens | When you are walking |
-|---|------|----------------------|
-| — | **The spine** (gestalt / function-shape: does-one-thing, duplication, altitude, AI-code blind spots, embedded applicability) | **Every function, every file** |
-| 3 | **Comments & documentation quality** | every file (comment-bearing) — heaviest on drivers, fusion, flight_director |
-| 4 | **Assertions** | functions doing real work — safety/, fusion/, flight_director/, math/ |
-| 5 | **Declaration scope & object lifetime** | every file; the canonical sites are `active_objects/ao_led_engine` (stack-local event), AOs, and large file-scope statics |
-| 7 | **Class & interface design** | type definitions — `include/rocketchip/` public headers, QP/C AOs, driver classes |
-| 8 | **Templates** | the few template sites — `calibration/lm_solver`, `math/`, header utilities |
-| 9 | **volatile / control-flow discipline** | `volatile`-bearing code — `fusion/eskf_runner`, `core1/`, `logging/ring_buffer`, AOs, `include/rocketchip/sensor_seqlock` |
-| 10 | **Concurrency & shared-data ownership** | every cross-core shared object — `active_objects/`, `core1/sensor_core1`, `safety/core1_i2c_pause`, `logging/ring_buffer`, `main.cpp`, `shared_state.cpp`, `include/rocketchip/sensor_seqlock` · `sensor_snapshot` |
+| Lens | When you are walking |
+|------|----------------------|
+| **The spine** (gestalt / function-shape: does-one-thing, duplication, altitude, AI-code blind spots, embedded applicability) | **Every function, every file** |
+| **Comments & documentation quality** | every file (comment-bearing) — heaviest on drivers, fusion, flight_director |
+| **Assertions** | functions doing real work — safety/, fusion/, flight_director/, math/ |
+| **Declaration scope & object lifetime** | every file; the canonical sites are `active_objects/ao_led_engine` (stack-local event), AOs, and large file-scope statics |
+| **Class & interface design** | type definitions — `include/rocketchip/` public headers, QP/C AOs, driver classes |
+| **Templates** | the few template sites — `calibration/lm_solver`, `math/`, header utilities |
+| **volatile / control-flow discipline** | `volatile`-bearing code — `fusion/eskf_runner`, `core1/`, `logging/ring_buffer`, AOs, `include/rocketchip/sensor_seqlock` |
+| **Concurrency & shared-data ownership** | every cross-core shared object — `active_objects/`, `core1/sensor_core1`, `safety/core1_i2c_pause`, `logging/ring_buffer`, `main.cpp`, `shared_state.cpp`, `include/rocketchip/sensor_seqlock` · `sensor_snapshot` |
 
 ---
 
@@ -168,7 +151,7 @@ Block A asks "is this well-shaped?" Block B asks "is the confidence this code pr
 - **Power of Ten, Rule 7 (Holzmann): the return value of non-void functions must be checked by each calling function; parameter validity must be checked inside each function.** *(The "explicitly cast to `(void)`" escape is JPL-C Rule 14's phrasing, not P10's.)* On this codebase the **must-be-checked half is gated** — project APIs carry `[[nodiscard]]` under `-Werror`, with the one vendored exception in `.clang-tidy`'s `CheckedFunctions` — so the manual residual is the shape the gate can't judge.
   - finding: The code calls an API and uses the result as if it always succeeds — or, worse, assumes an *optimistic return shape* (treats a status return as if it were the data), a wrong-API-contract the `[[nodiscard]]` gate does not catch. The other manual residual: confirm a deliberately dropped-and-`(void)`-cast return was a *justified* ignore, with a reason. Memory-safety and **unchecked-return** CWEs (CWE-252/253) are the dominant types documented in LLM-generated C/C++.
   - agent-tendency: LLMs write to the success path and silently drop error returns, and combined with hallucinated API contracts they assume a return shape the real API does not have. **Do this:** walk *every* exit path, not the happy path the tests exercise.
-- **Related:** code that *adds* a defensive-looking error branch whose cleanup is incomplete on the path no test covers — acquire-then-return-early without the release (ties to Class 5 leak-on-unhappy-path). (The "introduces exception-based handling" variant is moot here — exceptions are disabled project-wide with `-fno-exceptions`, so a `try`/`catch`/`throw` fails to compile; it is not a manual-review surface.)
+- **Related:** code that *adds* a defensive-looking error branch whose cleanup is incomplete on the path no test covers — acquire-then-return-early without the release (ties to the **Declaration scope & object lifetime** lens (leak-on-unhappy-path)). (The "introduces exception-based handling" variant is moot here — exceptions are disabled project-wide with `-fno-exceptions`, so a `try`/`catch`/`throw` fails to compile; it is not a manual-review surface.)
 
 **Automation bias (the reviewer-side type).** The failure isn't only in the code — it's in how the code is reviewed. AI-assisted authors wrote *less* secure code yet believed it was *more* secure `[CCS 2023]`; in the wild, the majority of AI-authored changes receive no genuine human review `[2026]`. **OWASP LLM09:2025 (Misinformation / Overreliance)** names overreliance as the harm amplifier. **Do this:** independently evaluate the change rather than steering the agent; never let an AI review tool substitute for human review; decompose large changes for incremental review; and counter your own bias — the fluency and confident comments are *designed* to earn trust you should withhold until the body has earned it.
 
@@ -180,7 +163,7 @@ The block-B evidence base is overwhelmingly Python/JavaScript and web/cloud. Two
 
 **ADD — review criteria specific to firmware:**
 
-- **Volatile-as-cross-core-barrier / weak-memory ordering.** finding: `volatile` used as if it were a cross-core synchronization barrier; missing acquire/release reasoning on a shared flag, FIFO, spinlock, or double-buffer; sequential-consistency assumed on a weakly-ordered ARM core. `volatile` prevents compiler reordering but issues no hardware memory barrier — data written on one core may not be visible on the other. LLMs reason poorly about relaxed memory models (40–72% accuracy on relaxed-model tasks; ARM litmus tests). This is the highest-stakes ADD on a dual-core split: ask "who else reads/writes this, on which core, and what orders it?" for every shared mutable. (This is the same surface as **Class 9** (volatile = MMIO only; JSF 205 / CP.8) and **Class 10** (volatile-as-sync, ownership) — walk the detailed criteria there, not twice; this spine entry is the heads-up.)
+- **Volatile-as-cross-core-barrier / weak-memory ordering.** finding: `volatile` used as if it were a cross-core synchronization barrier; missing acquire/release reasoning on a shared flag, FIFO, spinlock, or double-buffer; sequential-consistency assumed on a weakly-ordered ARM core. `volatile` prevents compiler reordering but issues no hardware memory barrier — data written on one core may not be visible on the other. LLMs reason poorly about relaxed memory models (40–72% accuracy on relaxed-model tasks; ARM litmus tests). This is the highest-stakes ADD on a dual-core split: ask "who else reads/writes this, on which core, and what orders it?" for every shared mutable. (This is the same surface as the **Control-flow discipline** (volatile = MMIO only; JSF 205 / CP.8) and **Concurrency** (volatile-as-sync, ownership) lenses — walk the detailed criteria there, not twice; this spine entry is the heads-up.)
 
 - **HW-register / MMIO + SDK-symbol hallucination.** finding: the *silent, resolving* half of confabulation — a wrong register offset, vendor-layout confusion, or a mis-typed symbol that *does* resolve to something valid. Verify register addresses/offsets against the datasheet and SDK symbols against the actual headers. (The invented-symbol / nonexistent-register half fails *closed* at compile/link for vendored SDK code — a build error, not a manual-review surface — so it is not what you read for here.)
 
@@ -204,7 +187,7 @@ _Full sourced criteria + IDs: L2P5_RP_SOURCES_2026-06-25.md Part 1 (Spine 1-4) +
 
 ---
 
-## Class 3 — Comments & documentation quality
+## Comments & documentation quality
 
 **When you are walking:** every group in the itinerary — comments live in all of them — but spend the most judgment on the dense-comment subsystems: `drivers/` (datasheet paraphrase), `fusion/` (algorithm/math narration), `safety/` and `flight_director/` (preconditions and "why" that must not be lost), and the `include/rocketchip/` public headers (function preambles and contracts). Walk each `.cpp` together with its `.h`.
 
@@ -259,7 +242,7 @@ _Full sourced criteria + IDs: L2P5_RP_SOURCES_2026-06-25.md Support A._
 
 ---
 
-## Class 4 — Assertions
+## Assertions
 
 **When you are walking:** every group on the itinerary — assertion density is a whole-codebase lens — but it bites hardest in the longer, load-bearing functions of safety/, fusion/, flight_director/, core1/, and drivers/ (the work-doing files, not the data tables or vendored headers).
 
@@ -305,7 +288,7 @@ _Full sourced criteria + IDs: L2P5_RP_SOURCES_2026-06-25.md Spine P.5 + P10 Rule
 
 ---
 
-## Class 5 — Declaration scope & object lifetime
+## Declaration scope & object lifetime
 
 **When you are walking:** primary on `active_objects/` (QP/C AOs — stack-local event posting), `core1/` and the cross-core boundary, the boot/init path in `main.cpp` and `shared_state.cpp`, and any two-phase-init driver in `drivers/`, `safety/`, and `fusion/`. Touch it anywhere a large object, a shared object, or an object-with-a-`begin()` is declared.
 
@@ -358,13 +341,13 @@ _Full sourced criteria + IDs: L2P5_RP_SOURCES_2026-06-25.md Spine ES.5/6/20/21/2
 
 ---
 
-## Class 7 — Class & interface design
+## Class & interface design
 
 **When you are walking:** primary lens for `include/rocketchip/` public headers (Section 13 of the itinerary) and for every class/struct definition you meet along the way — the QP/C AOs in `active_objects/`, the driver classes in `drivers/`, the calibration and logging types, the small value types in `math/`. Most "classes" here are AOs or POD-ish structs; the headers section is where this lens earns its keep.
 
 The binding standard for this lens is the house standard's class rules — **JSF AV C++**, verbatim: **AV 67:** *"Public and protected data should only be used in structs—not classes."* **AV 68:** *"Unneeded implicitly generated member functions shall be explicitly disallowed."* **AV 72:** the class invariant is *"a part of the postcondition of every class constructor."* **AV 76:** *"A copy constructor and an assignment operator shall be declared for classes that contain pointers to data items or nontrivial destructors."* **AV 78:** *"All base classes with a virtual function shall define a virtual destructor."* **AV 79:** *"All resources acquired by a class shall be released by the class's destructor."* **AV 87/88:** hierarchies *"based on abstract classes,"* multiple inheritance only as *"n interfaces plus m private implementations."* **AV 177:** *"User-defined conversion functions should be avoided."* These are the rules a class either honors or quietly fails while compiling green. The **C++ Core Guidelines (C.2/C.21/C.35/C.46/C.131/I.25) and CERT (OOP50/52/58) cited in the criteria below are supporting elaboration — modern restatements and the gate names — not the governing standard** (CCG/CERT are references, not adopted house sources). Mappings: class-vs-struct & trivial accessors (C.2/C.8/C.131) → **AV 67 + AV 72**; rule-of-five (C.21) → **AV 68 + AV 76**; virtual dtor (C.35 / OOP52) → **AV 78**; resource release (P.8 / C.31) → **AV 79**; explicit/implicit conversion (C.46) → **AV 177**; thin interfaces (I.25) → **AV 87/88**; no-virtual-call-before-fully-constructed (OOP50) → **AV 71**.
 
-> **Gate-covered here — cite, don't hand-walk (the same move as Class 5).** Three of the detections below are mechanical and already wired in the build: a polymorphic base with a public non-virtual destructor is a `-Wnon-virtual-dtor` `-Werror` compile failure (C.35 / OOP52-CPP); the rule-of-five *asymmetry* — declared one of {copy/move ctor, copy/move assign, dtor} but not all — is surfaced by `cppcoreguidelines-special-member-functions`; a non-`explicit` single-argument constructor is flagged by `google-explicit-constructor`. The gate finds those candidates; the walk judges only the *disposition* below. Don't re-hunt them by eye.
+> **Gate-covered here — cite, don't hand-walk (the same move as in **Declaration scope & object lifetime**).** Three of the detections below are mechanical and already wired in the build: a polymorphic base with a public non-virtual destructor is a `-Wnon-virtual-dtor` `-Werror` compile failure (C.35 / OOP52-CPP); the rule-of-five *asymmetry* — declared one of {copy/move ctor, copy/move assign, dtor} but not all — is surfaced by `cppcoreguidelines-special-member-functions`; a non-`explicit` single-argument constructor is flagged by `google-explicit-constructor`. The gate finds those candidates; the walk judges only the *disposition* below. Don't re-hunt them by eye.
 
 ### What to look for
 
@@ -419,7 +402,7 @@ _Full sourced criteria + IDs: L2P5_RP_SOURCES_2026-06-25.md Support B._
 
 ---
 
-## Class 8 — Templates
+## Templates
 
 **When you are walking:** the few files that actually define templates — most concentrated in `calibration/lm_solver.{cpp,h}` (residual/jacobian dispatch via deduced callables) and `math/mat.h`; spot-check `include/rocketchip/` headers as you pass them. Template use across the tree is low, so this lens is cheap — find every template, judge each one. Don't skip it for being small.
 
@@ -466,7 +449,7 @@ _Full sourced criteria + IDs: L2P5_RP_SOURCES_2026-06-25.md Support C._
 
 ---
 
-## Class 9 — Control-flow discipline
+## Control-flow discipline
 
 **When you are walking:** this lens is primary on the concurrency-boundary and ISR-adjacent files — `core1/sensor_core1.{cpp,h}`, `include/rocketchip/sensor_seqlock.h` + `sensor_snapshot.h`, the `logging/ring_buffer.{cpp,h}` and `log/rc_log.cpp` channels, `safety/core1_i2c_pause.{cpp,h}`, `safety/pio_*` timers, the QP/C active objects in `active_objects/`, `main.cpp`, `shared_state.cpp` — and, for the eval-order half, every `.cpp` carrying terse arithmetic or multi-argument call sites (fusion math, drivers, `math/`).
 
@@ -516,9 +499,9 @@ _Sourced criteria (house standard): JSF AV Rule 205, 204, 204.1; JPL-C Rule 18. 
 
 ---
 
-## Class 10 — Concurrency & shared-data ownership  *(highest consequence)*
+## Concurrency & shared-data ownership  *(highest consequence)*
 
-**When you are walking:** primary on `active_objects/` (QP/C AOs — Class 10 heavy), `core1/sensor_core1.{cpp,h}` (the Core 0 ↔ Core 1 boundary), `safety/core1_i2c_pause.{cpp,h}`, `logging/ring_buffer.{cpp,h}`, `include/rocketchip/sensor_seqlock.h` + `sensor_snapshot.h`, `main.cpp` (concurrency launch), and `shared_state.cpp`. Touch it anywhere a `g_`-prefixed object, an AO event, a spinlock, or a `multicore_*` call appears.
+**When you are walking:** primary on `active_objects/` (QP/C AOs — heavy for this lens), `core1/sensor_core1.{cpp,h}` (the Core 0 ↔ Core 1 boundary), `safety/core1_i2c_pause.{cpp,h}`, `logging/ring_buffer.{cpp,h}`, `include/rocketchip/sensor_seqlock.h` + `sensor_snapshot.h`, `main.cpp` (concurrency launch), and `shared_state.cpp`. Touch it anywhere a `g_`-prefixed object, an AO event, a spinlock, or a `multicore_*` call appears.
 
 **Governing rules (binding standard text — quote exactly):** JPL-C Rule 8 (shared data): *"Data objects in shared memory should have a single owning task. Only the owner of a data object should be able to modify the object. Ownership should be passed between tasks explicitly, preferably via IPC messages."* JPL-C Rule 7 (thread safety): *"Task synchronization shall not be performed through the use of task delays."* JPL-C Rule 9 (semaphores and locking): nested use should be avoided; if unavoidable, lock acquisitions *"shall always occur in a single predetermined, and documented, order. Unlock operations shall always appear"* in the same function as the lock. JPL-C Rule 6 (IPC): *"No task should directly execute code or access data that belongs to a different task. All IPC messages shall be received at a single point in a task."*
 

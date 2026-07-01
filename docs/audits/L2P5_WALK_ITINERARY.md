@@ -5,9 +5,8 @@ for the file-by-file semantic pass. **185 in-scope files** (`src/**/*.{cpp,h}` +
 `lib/`, `EXTERNAL/`, `pico-sdk/` excluded — refresh with
 `git ls-files 'src/**/*.cpp' 'src/**/*.h' 'include/**/*.h' | grep -vE '^(lib/|EXTERNAL/|pico-sdk/)'`).
 
-**How to use:** read each file whole, apply the **per-file lens checklist** (field manual § IT — Classes
-3/4/5/7/9/10/13/14), tick the box, and write a one-line coverage note (PASS / which class FAILed → findings table
-in that class). **Completeness principle: tick every file, PASS included.** Order is criticality + execution-path
+**How to use:** read each file whole, apply the **per-file lens checklist** (the named lenses in the field manual), tick the box, and write a one-line coverage note (PASS / which lens FAILed → findings table
+in that lens). **Completeness principle: tick every file, PASS included.** Order is criticality + execution-path
 first, so a partial walk still covers what matters most. Walk a `.cpp` together with its `.h`.
 
 **Standing exemptions (note, don't deep-walk):** `fusion/eskf_codegen.cpp` (auto-generated, deviation CG-1 — size/comment/design lenses N/A; still confirm it's untouched-by-hand); `fusion/wmm_tables.cpp` + `drivers/lwgps_opts.h` (generated/vendored data tables — magic-number lens N/A on the data body); `cli/**` (relaxed clang-tidy gates per project policy, but **still semantic-walk** comments/design/scope).
@@ -24,7 +23,7 @@ first, so a partial walk still covers what matters most. Walk a `.cpp` together 
 - [ ] `safety/fault_inject.{cpp,h}`
 - [ ] `safety/station_fault_inject.{cpp,h}`
 - [ ] `safety/test_mode.{cpp,h}`
-- [ ] `safety/core1_i2c_pause.{cpp,h}`  — *(concurrency — Class 10)*
+- [ ] `safety/core1_i2c_pause.{cpp,h}`  — *(concurrency)*
 - [ ] `safety/pio_backup_timer.{cpp,h}`  — *(PIO lifecycle, LL 42)*
 - [ ] `safety/pio_watchdog.{cpp,h}`
 - [ ] `safety/pyro_edge_logger.{cpp,h}`
@@ -58,7 +57,7 @@ first, so a partial walk still covers what matters most. Walk a `.cpp` together 
 - [ ] `flight_director/mission_profile.h`
 - [ ] `flight_director/mission_profile_data.h`  — *(**JSF 27 #pragma once** here → §LV)*
 
-## 4. active_objects/ — QP/C AOs *(concurrency — Class 10 heavy)*
+## 4. active_objects/ — QP/C AOs *(concurrency — heavy)*
 
 - [ ] `active_objects/ao_flight_director.{cpp,h}`
 - [ ] `active_objects/ao_health_monitor.{cpp,h}`
@@ -68,15 +67,15 @@ first, so a partial walk still covers what matters most. Walk a `.cpp` together 
 - [ ] `active_objects/ao_rf_manager.{cpp,h}`
 - [ ] `active_objects/ao_telemetry.{cpp,h}`  — *(**JSF 190 continue** sites here → §LV)*
 - [ ] `active_objects/ao_notify.{cpp,h}`
-- [ ] `active_objects/ao_led_engine.{cpp,h}`  — *(LL 35 stack-local event history — Class 5)*
+- [ ] `active_objects/ao_led_engine.{cpp,h}`  — *(LL 35 stack-local event history — scope/lifetime lens)*
 
-## 5. core1/ — sensor loop *(concurrency boundary — Class 10)*
+## 5. core1/ — sensor loop *(concurrency boundary)*
 
 - [ ] `core1/sensor_core1.{cpp,h}`
 
 ## 6. drivers/
 
-- [ ] `drivers/i2c_bus.{cpp,h}`  — *(return values — Class 1 / CheckedFunctions)*
+- [ ] `drivers/i2c_bus.{cpp,h}`  — *(return values — gated / CheckedFunctions)*
 - [ ] `drivers/gps_pa1010d.{cpp,h}`
 - [ ] `drivers/gps_uart.{cpp,h}`
 - [ ] `drivers/gps.h`
@@ -93,13 +92,13 @@ first, so a partial walk still covers what matters most. Walk a `.cpp` together 
 - [ ] `calibration/calibration_data.{cpp,h}`  — *(**JSF 18 offsetof** here → §LV)*
 - [ ] `calibration/calibration_manager.{cpp,h}`
 - [ ] `calibration/calibration_storage.{cpp,h}`
-- [ ] `calibration/lm_solver.{cpp,h}`  — *(templates — Class 8; FP-1 resolution)*
+- [ ] `calibration/lm_solver.{cpp,h}`  — *(templates; FP-1 resolution)*
 - [ ] `calibration/cal_hooks.{cpp,h}`
 
 ## 8. logging/ + log/
 
-- [ ] `log/rc_log.cpp`  — *(rc_log() is void — Class 1 correction; LL 39 drain)*
-- [ ] `logging/ring_buffer.{cpp,h}`  — *(concurrency — Class 10)*
+- [ ] `log/rc_log.cpp`  — *(rc_log() is void — return-values gated; LL 39 drain)*
+- [ ] `logging/ring_buffer.{cpp,h}`  — *(concurrency)*
 - [ ] `logging/flash_flush.{cpp,h}`
 - [ ] `logging/flight_table.{cpp,h}`
 - [ ] `logging/log_decimator.{cpp,h}`
@@ -128,7 +127,7 @@ first, so a partial walk still covers what matters most. Walk a `.cpp` together 
 
 ## 11. top-level
 
-- [ ] `main.cpp`  — *(boot path; concurrency launch — Class 10)*
+- [ ] `main.cpp`  — *(boot path; concurrency launch)*
 - [ ] `shared_state.cpp`
 
 ## 12. cli/ *(walk last — relaxed gates, but semantic-walk comments/design/scope)*
@@ -138,7 +137,7 @@ first, so a partial walk still covers what matters most. Walk a `.cpp` together 
 - [ ] `cli/rc_os_dashboard.{cpp,h}`
 - [ ] `cli/rc_os_debug.{cpp,h}`
 
-## 13. include/rocketchip/ — public headers *(Class 7 design + Class 12 organization)*
+## 13. include/rocketchip/ — public headers *(class-design + header-organization, gated)*
 
 - [ ] `include/rocketchip/shared_state.h`  — *(**JSF 27 #pragma once** here → §LV)*
 - [ ] `include/rocketchip/rc_log.h`
@@ -147,7 +146,7 @@ first, so a partial walk still covers what matters most. Walk a `.cpp` together 
 - [ ] `include/rocketchip/job*.h` (job.h, job_capabilities.h, job_relay.h, job_station.h, job_vehicle.h)
 - [ ] `include/rocketchip/notify_backend.h` · `notify_intents.h`
 - [ ] `include/rocketchip/radio_config.h` · `radio_config_table.h` · `radio_scheduler.h`
-- [ ] `include/rocketchip/sensor_seqlock.h` · `sensor_snapshot.h`  — *(concurrency — Class 10)*
+- [ ] `include/rocketchip/sensor_seqlock.h` · `sensor_snapshot.h`  — *(concurrency)*
 - [ ] `include/rocketchip/telemetry_encoder.h` · `telemetry_state.h` · `mavlink_rx.h`
 - [ ] `include/rocketchip/ao_signals.h` · `led_patterns.h` · `pcm_frame.h` · `fused_state.h` · `flash_layout.h` · `prearm_fail_ticks.h` · `station_output_mode.h` · `version.h`
 
