@@ -46,6 +46,8 @@ Recurring friction with Claude + Grok + Gemini on shared `main`: separate agents
 
 **Cost/caveats to weigh:** worktrees add disk + a little setup per agent; graphify's per-tree `graphify-out/` would rebuild per worktree (already gitignored, low risk); any automation that runs `git clean` should be scoped to never delete untracked files it didn't create. Owner decision.
 
+**Owner leans ADOPT (2026-07-04) — applies even to doc-only sessions.** Fresh datapoint: a routine docs-only session hit a push-rejection because Grok pushed to `main` mid-session (clean rebase, but avoidable). **Precision on what fixes what:** a **per-session branch** removes remote-ref contention (the push-collision / rebase dance — this is what bit the doc session); a **worktree** *additionally* prevents local file-clobber (the original guide-wipe). Adopt **both** — branch as the floor (even for docs), worktree when agents run concurrently. Low-friction: the harness supports it natively (`EnterWorktree`/`ExitWorktree` tools + `Agent(isolation:"worktree")`), so the next substantive session should default to a `claude/<task>` branch in its own worktree and merge at a checkpoint.
+
 ---
 
 ## IEEE 1028 review-level → decision-table mapping (PROPOSED / DEFERRED) (2026-07-04, Claude/Opus)
