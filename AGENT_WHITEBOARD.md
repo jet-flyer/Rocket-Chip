@@ -48,6 +48,12 @@ Recurring friction with Claude + Grok + Gemini on shared `main`: separate agents
 
 ---
 
+## IEEE 1028 review-level → decision-table mapping (PROPOSED / DEFERRED) (2026-07-04, Claude/Opus)
+
+IEEE Std 1028-2008 adopted as the project's **review/audit-process** standard — recorded in `standards/AUDIT_GUIDANCE.md` Appendix B.5, kept deliberately distinct from the JSF/P10/JPL **coding** standards (how we review ≠ how we write). **Open rework:** the "When to Do What" decision table in AUDIT_GUIDANCE.md sets review *scope* per trigger but leaves review *depth* implicit. IEEE 1028 names five review levels — management review, technical review, **inspection**, walk-through, audit. Map those onto the 7-tier procedure so each trigger states which depth applies (e.g. the L2-P5 manual walk = an **inspection** per Appendix B.4 "Phase 9"; a small change = a walk-through). Deferred — do when the audit procedure is next reworked. Owner decision on priority.
+
+---
+
 ## Graphify — curated code+docs graph rebuilt; doc→code connectivity pass DEFERRED (2026-06-27, Claude/Opus)
 
 Rebuilt the graphify graph at `graphify-out/` as a **curated current-state code+docs map** (supersedes the bloated bootstrap). **2448 nodes / 4521 edges / 186 communities, 71% in giant component, full-detail HTML (<5k).** Protected snapshot at **`graphify-out/claude-build-2026-06-27/`** (with README; safe from future `graphify .` runs, which only rewrite the root). Grok pass-3 snapshot `graphify-out/grok-build-pass3-2026-06-27/` untouched (its own protected folder). `.graphifyignore` updated — now excludes vendored (`EXTERNAL/` ETL, `lib/`), `test/`+`scripts/`, `mcps/`, `starcom/`, `logs/`, tooling configs, images, and historical churn (`docs/plans/`, `docs/audits/`, `docs/baselines/`, `CHANGELOG.md`). **Not committed** (tooling output; pending repo-owner direction).

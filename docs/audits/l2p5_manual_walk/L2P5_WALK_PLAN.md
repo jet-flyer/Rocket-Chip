@@ -14,7 +14,7 @@
 |---|---|---|---|
 | **Field manual** | `docs/audits/l2p5_manual_walk/L2P5_MANUAL_WALK_GUIDE.md` | What to look for *during* the walk (Classes 1–14 + §LV/§SC) | by Nathan, during the walk |
 | **Work plan** | `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md` (this doc) | The prep→walk→close *work*; §CM gating + §RP research live here | before/around the walk |
-| **Itinerary** | `docs/audits/l2p5_manual_walk/L2P5_WALK_ITINERARY.md` | Ordered 185-file coverage map + per-file lenses; the traversal/progress tracker | during the walk |
+| **Itinerary** | `docs/audits/l2p5_manual_walk/L2P5_WALK_ITINERARY.md` | Ordered 186-file coverage map + per-file lenses; the traversal/progress tracker | during the walk |
 
 Making gates/scripts (§CM) and doing research (§RP) is **plan work**, not part of the eyeball walk. The field manual only *references* §CM/§RP as prerequisites.
 
@@ -26,7 +26,7 @@ Making gates/scripts (§CM) and doing research (§RP) is **plan work**, not part
 
 ## Phase A — Field manual — ✅ DONE
 
-Classes 1–14 built (agent-tendency watch on each); agent-blind-spot **lens** section as primary framing; §LV/§SC walk-content; §CM/§RP prerequisite stubs; Walk Itinerary companion (185 files, criticality-ordered). Corrections folded: `#pragma once`=**3** (not 1); `rc_log()` is `void` (not return-checkable); `flash_safe_execute` is **`int`** (return-checkable — belongs in CheckedFunctions); `:403→:433` citation.
+Classes 1–14 built (agent-tendency watch on each); agent-blind-spot **lens** section as primary framing; §LV/§SC walk-content; §CM/§RP prerequisite stubs; Walk Itinerary companion (186 files, dependency-tier-ordered). Corrections folded: `#pragma once`=**3** (not 1); `rc_log()` is `void` (not return-checkable); `flash_safe_execute` is **`int`** (return-checkable — belongs in CheckedFunctions); `:403→:433` citation.
 
 ## Phase B — §CM gating (centralize-into-a-script) — measurement DONE; wiring DONE 2026-06-24
 
@@ -87,7 +87,7 @@ Externally-sourced, **primary-source-verified** (LL 37 anti-fabrication) criteri
 - ✅ **Plan + WB updated** (this doc + `AGENT_WHITEBOARD.md` handoff): Phases A–E status, §RP done, §CM gate-wiring done, `-Wconversion` measured (56, not noise), `CODING_STANDARDS.md` naming over-claim resolved.
 - ⏳ **CHANGELOG + commit** — deferred to session-end (repo-owner direction; the premature `2026-06-25-002` entry is to be reconciled then to cover the gate-wiring + standards fix + false-completion closure, and the working tree committed with bench_sim for the `-Wnon-virtual-dtor` CMake change).
 
-**Walk-ready.** With A + D + corrections complete and the gates wired, the field manual is ready for the actual file-by-file **walk** (185-file itinerary). The semantic walk is the **spine + judgment-heavy classes** (3 comments, 5 scope/lifetime, 7 design, 8 templates, 9/10 concurrency & `volatile`, 13 literal-meaning); the mechanical classes (incl. **Class 14, demoted**) are gate/§CM-covered. Remaining standalone remediation surfaced this cycle: the **56 `-Wconversion`/`-Wsign-conversion` findings** (54 located) — a **§CM mechanical batch** (fix-then-gate), not a walk item.
+**Walk-ready.** With A + D + corrections complete and the gates wired, the field manual is ready for the actual file-by-file **walk** (186-file itinerary). The semantic walk is the **spine + judgment-heavy classes** (3 comments, 5 scope/lifetime, 7 design, 8 templates, 9/10 concurrency & `volatile`, 13 literal-meaning); the mechanical classes (incl. **Class 14, demoted**) are gate/§CM-covered. Remaining standalone remediation surfaced this cycle: the **56 `-Wconversion`/`-Wsign-conversion` findings** (54 located) — a **§CM mechanical batch** (fix-then-gate), not a walk item.
 
 ---
 

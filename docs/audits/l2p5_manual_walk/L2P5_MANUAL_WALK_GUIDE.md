@@ -13,11 +13,13 @@
 
 ## How to use this guide
 
-1. **Take the next file from the itinerary** (`L2P5_WALK_ITINERARY.md`). Order is criticality + execution-path first, so a partial walk still covers what matters most. Walk a `.cpp` together with its `.h` — read each file whole.
+1. **Take the next file from the itinerary** (`L2P5_WALK_ITINERARY.md`). Order is bottom-up dependency tiers (foundations → integrators; see the itinerary header). Walk a `.cpp` together with its `.h` — read each file whole. *(Why pair them: the `.h` is the declared contract, the `.cpp` its implementation — comment-truth and class-design judge one against the other, so both are read as a single work product. Applied code-inspection method — Fagan 1976, IBM Sys. J. 15(3):182; IEEE 1028 — not a house-standard clause.)*
 2. **Run The spine on each function** — the gestalt human-eye review: judge the whole function/file, not the line. Can you name it without "and"? Can you eyeball-verify every path? Is the same idea expressed once? Is intent readable from the code's shape rather than its comments?
 3. **Apply the per-file lenses** the Class index below names for that file (the itinerary tags each file with its relevant classes).
 4. **Record a verdict in the itinerary** (tick the box, one-line note), and put any `FAIL`/`PARTIAL` in the relevant class's findings table below. **Completeness: record every file, `PASS` included** — full coverage is the deliverable, not just the defect list.
 5. **Disposition each `FAIL`:** a fix → a new `R-NN` row in `docs/PROBLEM_REPORTS.md`; an accept → migrates to `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` with sign-off. A `PASS` needs no action; a `PARTIAL` notes the cheap compliant move.
+
+**Declaration-only headers are contracts, not skips.** A header that *looks* empty — only `extern` declarations, function prototypes, or `#include`s — is a contract surface, and the declarations **are** the thing to judge: apply the class-design, comment-truth, and concurrency-ownership lenses (who owns/mutates this shared object; does each doc comment match the actual contract?). `include/rocketchip/shared_state.h` is the canonical case — pure `extern`s, zero executable code, yet the entire cross-core ownership review lives in it. "No code" is not "nothing to walk."
 
 ---
 
@@ -32,7 +34,7 @@
 | **Class & interface design** | type definitions — `include/rocketchip/` public headers, QP/C AOs, driver classes |
 | **Templates** | the few template sites — `calibration/lm_solver`, `math/`, header utilities |
 | **volatile / control-flow discipline** | `volatile`-bearing code — `fusion/eskf_runner`, `core1/`, `logging/ring_buffer`, AOs, `include/rocketchip/sensor_seqlock` |
-| **Concurrency & shared-data ownership** | every cross-core shared object — `active_objects/`, `core1/sensor_core1`, `safety/core1_i2c_pause`, `logging/ring_buffer`, `main.cpp`, `shared_state.cpp`, `include/rocketchip/sensor_seqlock` · `sensor_snapshot` |
+| **Concurrency & shared-data ownership** | every cross-core shared object — `active_objects/`, `core1/sensor_core1`, `safety/core1_i2c_pause`, `logging/ring_buffer`, `main.cpp`, `shared_state.{cpp,h}`, `include/rocketchip/sensor_seqlock` · `sensor_snapshot` |
 
 ---
 
@@ -343,7 +345,7 @@ _Full sourced criteria + IDs: L2P5_RP_SOURCES_2026-06-25.md Spine ES.5/6/20/21/2
 
 ## Class & interface design
 
-**When you are walking:** primary lens for `include/rocketchip/` public headers (Section 13 of the itinerary) and for every class/struct definition you meet along the way — the QP/C AOs in `active_objects/`, the driver classes in `drivers/`, the calibration and logging types, the small value types in `math/`. Most "classes" here are AOs or POD-ish structs; the headers section is where this lens earns its keep.
+**When you are walking:** primary lens for `include/rocketchip/` public headers (the `include/rocketchip/` group, Tier 1 of the itinerary) and for every class/struct definition you meet along the way — the QP/C AOs in `active_objects/`, the driver classes in `drivers/`, the calibration and logging types, the small value types in `math/`. Most "classes" here are AOs or POD-ish structs; the headers section is where this lens earns its keep.
 
 The binding standard for this lens is the house standard's class rules — **JSF AV C++**, verbatim: **AV 67:** *"Public and protected data should only be used in structs—not classes."* **AV 68:** *"Unneeded implicitly generated member functions shall be explicitly disallowed."* **AV 72:** the class invariant is *"a part of the postcondition of every class constructor."* **AV 76:** *"A copy constructor and an assignment operator shall be declared for classes that contain pointers to data items or nontrivial destructors."* **AV 78:** *"All base classes with a virtual function shall define a virtual destructor."* **AV 79:** *"All resources acquired by a class shall be released by the class's destructor."* **AV 87/88:** hierarchies *"based on abstract classes,"* multiple inheritance only as *"n interfaces plus m private implementations."* **AV 177:** *"User-defined conversion functions should be avoided."* These are the rules a class either honors or quietly fails while compiling green. The **C++ Core Guidelines (C.2/C.21/C.35/C.46/C.131/I.25) and CERT (OOP50/52/58) cited in the criteria below are supporting elaboration — modern restatements and the gate names — not the governing standard** (CCG/CERT are references, not adopted house sources). Mappings: class-vs-struct & trivial accessors (C.2/C.8/C.131) → **AV 67 + AV 72**; rule-of-five (C.21) → **AV 68 + AV 76**; virtual dtor (C.35 / OOP52) → **AV 78**; resource release (P.8 / C.31) → **AV 79**; explicit/implicit conversion (C.46) → **AV 177**; thin interfaces (I.25) → **AV 87/88**; no-virtual-call-before-fully-constructed (OOP50) → **AV 71**.
 
@@ -501,7 +503,7 @@ _Sourced criteria (house standard): JSF AV Rule 205, 204, 204.1; JPL-C Rule 18. 
 
 ## Concurrency & shared-data ownership  *(highest consequence)*
 
-**When you are walking:** primary on `active_objects/` (QP/C AOs — heavy for this lens), `core1/sensor_core1.{cpp,h}` (the Core 0 ↔ Core 1 boundary), `safety/core1_i2c_pause.{cpp,h}`, `logging/ring_buffer.{cpp,h}`, `include/rocketchip/sensor_seqlock.h` + `sensor_snapshot.h`, `main.cpp` (concurrency launch), and `shared_state.cpp`. Touch it anywhere a `g_`-prefixed object, an AO event, a spinlock, or a `multicore_*` call appears.
+**When you are walking:** primary on `active_objects/` (QP/C AOs — heavy for this lens), `core1/sensor_core1.{cpp,h}` (the Core 0 ↔ Core 1 boundary), `safety/core1_i2c_pause.{cpp,h}`, `logging/ring_buffer.{cpp,h}`, `include/rocketchip/sensor_seqlock.h` + `sensor_snapshot.h`, `main.cpp` (concurrency launch), and `shared_state.{cpp,h}`. Touch it anywhere a `g_`-prefixed object, an AO event, a spinlock, or a `multicore_*` call appears.
 
 **Governing rules (binding standard text — quote exactly):** JPL-C Rule 8 (shared data): *"Data objects in shared memory should have a single owning task. Only the owner of a data object should be able to modify the object. Ownership should be passed between tasks explicitly, preferably via IPC messages."* JPL-C Rule 7 (thread safety): *"Task synchronization shall not be performed through the use of task delays."* JPL-C Rule 9 (semaphores and locking): nested use should be avoided; if unavoidable, lock acquisitions *"shall always occur in a single predetermined, and documented, order. Unlock operations shall always appear"* in the same function as the lock. JPL-C Rule 6 (IPC): *"No task should directly execute code or access data that belongs to a different task. All IPC messages shall be received at a single point in a task."*
 
