@@ -48,6 +48,8 @@ Recurring friction with Claude + Grok + Gemini on shared `main`: separate agents
 
 **Owner leans ADOPT (2026-07-04) — applies even to doc-only sessions.** Fresh datapoint: a routine docs-only session hit a push-rejection because Grok pushed to `main` mid-session (clean rebase, but avoidable). **Precision on what fixes what:** a **per-session branch** removes remote-ref contention (the push-collision / rebase dance — this is what bit the doc session); a **worktree** *additionally* prevents local file-clobber (the original guide-wipe). Adopt **both** — branch as the floor (even for docs), worktree when agents run concurrently. Low-friction: the harness supports it natively (`EnterWorktree`/`ExitWorktree` tools + `Agent(isolation:"worktree")`), so the next substantive session should default to a `claude/<task>` branch in its own worktree and merge at a checkpoint.
 
+**Implementation detail (owner idea 2026-07-04) — not done now:** wire this into `docs/agents/SESSION_CHECKLIST.md` **Session-Start** as a *prompt*, not a hard gate — "when substantial work is anticipated, suggest spinning up a new worktree/branch first." Mirrors item 17d's "surface state, owner decides" pattern (a recommendation the agent raises at session start, not an automatic action). Deferred to the same checklist rework that maps the IEEE 1028 review levels.
+
 ---
 
 ## IEEE 1028 review-level → decision-table mapping (PROPOSED / DEFERRED) (2026-07-04, Claude/Opus)
