@@ -75,22 +75,9 @@ add_executable(test_mahony test_mahony.cpp)
 target_link_libraries(test_mahony PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_mahony)
 
-# Bierman measurement update tests (ESKF_USE_BIERMAN=1)
-# Separate fusion library with Bierman flag — existing rc_fusion stays unchanged.
-add_library(rc_fusion_bierman STATIC
-    ${CMAKE_SOURCE_DIR}/src/fusion/eskf.cpp
-    ${CMAKE_SOURCE_DIR}/src/fusion/eskf_codegen.cpp
-    ${CMAKE_SOURCE_DIR}/src/fusion/ud_factor.cpp
-    ${CMAKE_SOURCE_DIR}/src/fusion/wmm_tables.cpp
-    ${CMAKE_SOURCE_DIR}/src/fusion/mahony_ahrs.cpp
-    ${CMAKE_SOURCE_DIR}/src/fusion/innovation_monitor.cpp
-    ${CMAKE_SOURCE_DIR}/src/fusion/confidence_gate.cpp
-)
-target_link_libraries(rc_fusion_bierman PUBLIC rc_math)
-target_compile_definitions(rc_fusion_bierman PUBLIC ESKF_USE_BIERMAN=1)
-
+# Bierman measurement update property tests (rc_fusion is Bierman-only)
 add_executable(test_eskf_bierman test_eskf_bierman.cpp)
-target_link_libraries(test_eskf_bierman PRIVATE rc_fusion_bierman GTest::gtest_main)
+target_link_libraries(test_eskf_bierman PRIVATE rc_fusion GTest::gtest_main)
 gtest_discover_tests(test_eskf_bierman)
 
 # IVP-49/50: Data model and timestamp tests

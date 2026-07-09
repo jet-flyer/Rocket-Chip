@@ -74,6 +74,7 @@ int main(int argc, char* argv[]) {
 
     // Write header + row 0 (initial state)
     rc::test::write_output_header(out);
+    eskf.sync_dense_covariance();
     rc::test::write_output_row(out, sample.timestamp_us, eskf);
 
     // Aiding sensor counters (council CR-5)
@@ -106,6 +107,8 @@ int main(int argc, char* argv[]) {
             eskf.update_mag_heading(mag_body, 0.0f, 0.0f);
         }
 
+        // Bierman leaves dense P lazy; P diagonals only valid after sync.
+        eskf.sync_dense_covariance();
         rc::test::write_output_row(out, sample.timestamp_us, eskf);
         ++row_count;
 

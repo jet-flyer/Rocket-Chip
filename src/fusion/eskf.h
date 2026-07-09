@@ -22,12 +22,16 @@
 #include "fusion/eskf_state.h"
 #include "fusion/innovation_monitor.h"
 #include "fusion/phase_qr.h"
+#include "fusion/ud_factor.h"
 #include "math/mat.h"
 #include "math/quat.h"
 #include "math/vec3.h"
 
-#ifdef ESKF_USE_BIERMAN
-#include "fusion/ud_factor.h"
+// Bierman UD measurement path is the only supported implementation (host +
+// flight). Historical Joseph scalar path removed 2026-07 after host parity.
+// Define kept as always-on so residual call sites / docs can still mention it.
+#ifndef ESKF_USE_BIERMAN
+#define ESKF_USE_BIERMAN 1
 #endif
 
 namespace rc {
@@ -433,6 +437,16 @@ struct ESKF {
     // Inhibit-aware (R-1): skips P diagonal check for inhibited state indices.
     bool healthy() const;
 
+    // Reconstruct dense P from UD when Bierman left covariance factored.
+    // Required before reading P(i,j) after measurement updates (lazy dense).
+    // No-op when already dense or when Bierman is not compiled in.
+    // Does not run on the hot path after every update — call at inspect sites.
+    void sync_dense_covariance();
+
+    // After externally writing P while UD factors may be active, mark dense P
+    // as authoritative so the next Bierman update re-factorizes from P.
+    void invalidate_ud_factors();
+
     // P-diagonal growth rate check — catch slow ESKF divergence.
     // Returns false if position or velocity P diagonals grew >10× in 30s,
     // or if reset cycling is detected (>2 resets in 5 min → degraded).
@@ -515,13 +529,12 @@ struct ESKF {
     // F_x = I + dt * F_delta, where F_delta encodes the linearized dynamics.
     // States 15-23 have identity F propagation (no coupling to core states).
     // Output parameter to avoid stack pressure (LL Entry 1).
-    // Public: needed by ud_benchmark for Thornton comparison.
+    // Public API for diagnostics / offline analysis (build F_x).
     static void build_F(Mat24& out, const Quat& q, const Vec3& accelBody,
                          const Vec3& gyroBody, float dt);
 
     // Build continuous-time process noise Q_c (24×24 diagonal).
     // Output parameter to avoid stack pressure (LL Entry 1).
-    // Public: needed by ud_benchmark for Thornton comparison.
     static void build_Qc(Mat24& out);
 
 private:
@@ -548,20 +561,13 @@ private:
     // Called by all measurement update functions after computing Kalman gain.
     void inject_error_state(const Mat<eskf::kStateSize, 1>& dx);
 
-    // Scalar Kalman update with Joseph-form P correction.
+    // Bierman scalar measurement update on UD-factored covariance.
     // hIdx: column index of the single non-zero H entry.
     // hValue: value of H at that entry (+1.0F or -1.0F).
     // innovation: measurement residual (z - h(x)).
     // r: scalar measurement noise variance.
     // SAFETY: single-threaded, Core 0 only, never called from ISR.
     // NOTE: -fno-threadsafe-statics (Pico SDK). Static locals zero-init at load.
-    void scalar_kalman_update(int32_t hIdx, float hValue,
-                              float innovation, float r);
-
-#ifdef ESKF_USE_BIERMAN
-    // Bierman scalar measurement update on UD-factored covariance.
-    // Same interface as scalar_kalman_update(). Factorizes P→UD on first call
-    // per predict epoch, runs Bierman update, then injects error state.
     void bierman_kalman_update(int32_t hIdx, float hValue,
                                float innovation, float r);
 
@@ -570,7 +576,11 @@ private:
     // ensure_ud():    factorize P into UD if needed (for Bierman measurement update)
     void ensure_dense();
     void ensure_ud();
-#endif
+
+    // Per-instance UD cache (~2.4KB). One flight ESKF on Core 0 BSS is fine.
+    enum class PRepr : uint8_t { DENSE, UD };
+    PRepr p_repr_{PRepr::DENSE};
+    UD24 bierman_ud_{};
 
     // P-growth monitoring state
     static constexpr uint32_t kPGrowthCheckIntervalUs = 30000000;  // 30s

@@ -230,30 +230,6 @@ Mat<N, N> fpft_dense(const Mat<N, N>& F, const Mat<N, N>& P) {
     return FP * F.transposed();
 }
 
-// Joseph form covariance update:
-// P_new = (I - K*H) * P * (I - K*H)^T + K*R*K^T
-// Numerically stable — maintains positive definiteness.
-// Symmetry enforced after update.
-//
-// Template params: N = state dim, M = measurement dim
-template <int32_t N, int32_t M>
-Mat<N, N> joseph_update(
-    const Mat<N, N>& P,
-    const Mat<N, M>& K,
-    const Mat<M, N>& H,
-    const Mat<M, M>& R)
-{
-    Mat<N, N> I = Mat<N, N>::identity();
-    Mat<N, N> IKH = I - K * H;                     // (I - K*H)
-    Mat<N, N> IKHP = IKH * P;                      // (I - K*H) * P
-    Mat<N, N> term1 = IKHP * IKH.transposed();     // (I-KH)*P*(I-KH)^T
-    Mat<N, M> KR = K * R;                           // K*R  (NxM)
-    Mat<N, N> term2 = KR * K.transposed();          // K*R*K^T  (NxM)*(MxN) = NxN
-    Mat<N, N> result = term1 + term2;
-    result.force_symmetric();
-    return result;
-}
-
 // Scalar measurement update — optimized path when H is a row vector (1xN)
 // and R is a scalar. Avoids matrix inversion entirely.
 //
@@ -302,20 +278,6 @@ ScalarUpdateResult<N> scalar_update(
     float nis = (S > 1e-30F) ? (innovation * innovation / S) : 0.0F;
 
     return {K, innovation, S, nis};
-}
-
-// Joseph form for scalar update — takes precomputed K and H
-template <int32_t N>
-Mat<N, N> joseph_update_scalar(
-    const Mat<N, N>& P,
-    const Mat<N, 1>& K,
-    const Mat<1, N>& H,
-    float R)
-{
-    // Convert to matrix form and use full Joseph update
-    Mat<1, 1> R_mat;
-    R_mat(0, 0) = R;
-    return joseph_update(P, K, H, R_mat);
 }
 
 // Cholesky decomposition: A = L * L^T

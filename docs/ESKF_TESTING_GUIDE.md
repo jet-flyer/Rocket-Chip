@@ -133,9 +133,8 @@ if(BUILD_TESTS)
         src/fusion/confidence_gate.cpp
         src/fusion/eskf_brake.cpp)
     target_link_libraries(rc_fusion PUBLIC rc_math)
-    # Firmware target always defines ESKF_USE_BIERMAN=1.
-    # Default host rc_fusion currently builds the non-Bierman (Joseph) path;
-    # a separate rc_fusion_bierman + test_eskf_bierman covers Bierman.
+    # Host and firmware both use Bierman UD measurement updates (sole path
+    # after 2026-07 consolidation). test_eskf_bierman links default rc_fusion.
 
     # Tests
     add_subdirectory(test)
@@ -159,7 +158,7 @@ test/
 ├── test_mat.cpp                # Matrix operations
 ├── test_eskf_propagation.cpp   # State propagation against known trajectories
 ├── test_eskf_update.cpp        # Measurement updates against hand-computed values
-├── test_eskf_bierman.cpp       # Bierman path (separate rc_fusion_bierman lib)
+├── test_eskf_bierman.cpp       # Bierman UD property tests (links rc_fusion)
 ├── test_mahony.cpp             # Mahony AHRS
 ├── test_eskf_gps_update.cpp    # GPS pos/vel updates
 ├── test_eskf_zupt.cpp          # Zero-velocity pseudo-measurement

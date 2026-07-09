@@ -58,6 +58,9 @@ if(BUILD_TESTS)
         src/fusion/eskf_brake.cpp
     )
     target_link_libraries(rc_fusion PUBLIC rc_math)
+    # Host matches flight: Bierman UD is the only measurement path (forced
+    # in eskf.h). Define retained for any residual #ifdef call sites/docs.
+    target_compile_definitions(rc_fusion PUBLIC ESKF_USE_BIERMAN=1)
 
     # ------------------------------------------------------------------
     # Logging library (no SDK dependencies)

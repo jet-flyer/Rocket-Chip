@@ -141,10 +141,10 @@ Full hardware benchmark on RP2350 HSTX Feather @ 150MHz. Five tests, actual boar
 Bierman scalar measurement update (43µs) is **1.9× faster than Joseph** (81µs). With 10 scalar measurements per epoch, the hybrid path (codegen predict + Bierman updates) at **486µs is 43% faster than current 851µs**. This drops ESKF CPU usage from 17% to 9.7% at 200Hz. Pure improvement, no numerical downsides.
 
 ### Decisions from Benchmark:
-1. **UD Thornton predict:** Not viable on RP2350. Dense O(N³) at 24 states is 29.6× slower than codegen. Would require codegen-for-UD (possible but significant engineering for marginal benefit when P is already stable).
-2. **DCP mixed-precision:** Not viable for bulk linear algebra. 7.8× per-op overhead is catastrophic in O(N²/N³) loops.
-3. **Bierman scalar update:** Should replace Joseph in production. Standalone win independent of predict path.
-4. **P stability:** Current codegen + force_symmetric + clamp_covariance is adequate. UD factorization shelved unless state count grows significantly or float32 issues appear in flight data.
+1. **Predict path = codegen FPFT (not dense Thornton).** Dense Thornton f32 is ~29.6× slower (1,420 µs vs 48 µs) on RP2350 at N=24 — **cycle-budget / O(N³) MAC cost**, not “silicon cannot run Thornton.” P is already stable with codegen + `force_symmetric` + `clamp_covariance`, so full-UD predict was not required for correctness. **Shelved, revisitable.** Canonical decision record + advantages + revisit triggers: `docs/benchmarks/UD_BENCHMARK_RESULTS.md` § “UD Factorization (Thornton predict): Shelved on RP2350.” Sparse **codegen-for-UD** remains a possible future engineering path if a trigger fires; dense micro-opts alone will not close a ~30× gap.
+2. **DCP mixed-precision:** Not viable for bulk linear algebra on RP2350. 7.8× per-op overhead is catastrophic in O(N²/N³) loops (makes Thornton *worse*).
+3. **Bierman scalar update:** Production measurement path (Joseph dual path removed after host parity 2026-07). Standalone win independent of predict path; aligns with NASA/TP-2018-219822 UD practice for updates.
+4. **P stability:** Current codegen + force_symmetric + clamp_covariance is adequate at N=24 f32. Revisit full-UD / Thornton **only** if flight data, state growth, MCU change, or cert needs hit the triggers in the benchmark doc — not “just in case.”
 
 ## Architectural Decisions
 

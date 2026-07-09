@@ -200,112 +200,13 @@ TEST(MatTest, FPFTPreservesSymmetry) {
 }
 
 // ============================================================================
-// Joseph Form Update
-// ============================================================================
-
-TEST(MatTest, JosephFormWellConditioned) {
-    // Joseph form should match standard form for well-conditioned case
-    // Standard: P_new = P - K*H*P
-    // Joseph: P_new = (I-KH)*P*(I-KH)^T + K*R*K^T
-    Mat<2, 2> P;
-    P(0, 0) = 1.0f; P(0, 1) = 0.1f;
-    P(1, 0) = 0.1f; P(1, 1) = 1.0f;
-
-    Mat<1, 2> H;
-    H(0, 0) = 1.0f; H(0, 1) = 0.0f;
-
-    Mat<1, 1> R;
-    R(0, 0) = 0.5f;
-
-    // Compute K = P*H^T * (H*P*H^T + R)^-1
-    auto PHt = P * H.transposed();
-    float S = H(0, 0) * PHt(0, 0) + H(0, 1) * PHt(1, 0) + R(0, 0);
-    Mat<2, 1> K;
-    K(0, 0) = PHt(0, 0) / S;
-    K(1, 0) = PHt(1, 0) / S;
-
-    // Standard form: P_new = (I - K*H) * P
-    Mat<2, 2> I = Mat<2, 2>::identity();
-    Mat<2, 2> P_standard = (I - K * H) * P;
-
-    // Joseph form
-    Mat<2, 2> P_joseph = rc::joseph_update(P, K, H, R);
-
-    // Should be very close for well-conditioned case
-    for (int32_t r = 0; r < 2; ++r) {
-        for (int32_t c = 0; c < 2; ++c) {
-            EXPECT_NEAR(P_joseph(r, c), P_standard(r, c), 1e-4f);
-        }
-    }
-}
-
-TEST(MatTest, JosephFormPreservesPDUnderStress) {
-    // Joseph form should preserve positive-definiteness even when
-    // standard form loses it due to numerical issues.
-    // Run 1000 update cycles with aggressive gains.
-    Mat<2, 2> P;
-    P(0, 0) = 100.0f; P(0, 1) = 50.0f;
-    P(1, 0) = 50.0f;  P(1, 1) = 100.0f;
-
-    Mat<1, 2> H;
-    H(0, 0) = 1.0f; H(0, 1) = 0.0f;
-
-    Mat<1, 1> R;
-    R(0, 0) = 0.01f;  // Very small R -> aggressive updates
-
-    for (int32_t i = 0; i < 1000; ++i) {
-        // Compute K
-        auto PHt = P * H.transposed();
-        float S = H(0, 0) * PHt(0, 0) + H(0, 1) * PHt(1, 0) + R(0, 0);
-        Mat<2, 1> K;
-        K(0, 0) = PHt(0, 0) / S;
-        K(1, 0) = PHt(1, 0) / S;
-
-        P = rc::joseph_update(P, K, H, R);
-    }
-
-    // P should still be symmetric and have positive diagonal
-    EXPECT_TRUE(P.diagonal_positive());
-    EXPECT_TRUE(P.is_finite());
-    for (int32_t r = 0; r < 2; ++r) {
-        for (int32_t c = 0; c < 2; ++c) {
-            EXPECT_NEAR(P(r, c), P(c, r), 1e-4f);
-        }
-    }
-}
-
-TEST(MatTest, JosephFormSymmetricOutput) {
-    Mat<2, 2> P;
-    P(0, 0) = 2.0f; P(0, 1) = 0.5f;
-    P(1, 0) = 0.5f; P(1, 1) = 3.0f;
-
-    Mat<1, 2> H;
-    H(0, 0) = 1.0f; H(0, 1) = 0.5f;
-
-    Mat<1, 1> R;
-    R(0, 0) = 1.0f;
-
-    auto PHt = P * H.transposed();
-    float S = H(0, 0) * PHt(0, 0) + H(0, 1) * PHt(1, 0) + R(0, 0);
-    Mat<2, 1> K;
-    K(0, 0) = PHt(0, 0) / S;
-    K(1, 0) = PHt(1, 0) / S;
-
-    Mat<2, 2> P_new = rc::joseph_update(P, K, H, R);
-
-    for (int32_t r = 0; r < 2; ++r) {
-        for (int32_t c = 0; c < 2; ++c) {
-            EXPECT_NEAR(P_new(r, c), P_new(c, r), kTol);
-        }
-    }
-}
-
-// ============================================================================
 // Scalar Update
 // ============================================================================
 
 TEST(MatTest, ScalarUpdateReducesUncertainty) {
-    // After a measurement update, trace(P) should decrease
+    // After a measurement update, trace(P) should decrease.
+    // Uses standard form P_new = (I-KH)P(I-KH)^T + KRK^T (inline — Joseph
+    // mat helpers removed with ESKF dual-path consolidation 2026-07).
     Mat<2, 2> P;
     P(0, 0) = 10.0f; P(0, 1) = 0.0f;
     P(1, 0) = 0.0f;  P(1, 1) = 10.0f;
@@ -322,7 +223,12 @@ TEST(MatTest, ScalarUpdateReducesUncertainty) {
 
     float trace_before = P.trace();
     auto result = rc::scalar_update(P, x, H, z, R);
-    Mat<2, 2> P_new = rc::joseph_update_scalar(P, result.K, H, R);
+    Mat<2, 2> I = Mat<2, 2>::identity();
+    Mat<2, 2> IKH = I - result.K * H;
+    Mat<1, 1> Rmat;
+    Rmat(0, 0) = R;
+    Mat<2, 2> P_new = IKH * P * IKH.transposed() + result.K * Rmat * result.K.transposed();
+    P_new.force_symmetric();
     float trace_after = P_new.trace();
 
     EXPECT_LT(trace_after, trace_before);

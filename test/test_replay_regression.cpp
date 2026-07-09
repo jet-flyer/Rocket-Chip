@@ -105,6 +105,7 @@ std::vector<RefRow> run_replay(const std::string& input_path) {
         return r;
     };
 
+    eskf.sync_dense_covariance();
     result.push_back(make_row(sample.timestamp_us, eskf));
 
     uint64_t prev_ts = sample.timestamp_us;
@@ -123,6 +124,8 @@ std::vector<RefRow> run_replay(const std::string& input_path) {
             eskf.update_mag_heading(mag_body, 0.0f, 0.0f);
         }
 
+        // Bierman leaves dense P lazy; P diagonals only valid after sync.
+        eskf.sync_dense_covariance();
         result.push_back(make_row(sample.timestamp_us, eskf));
     }
 

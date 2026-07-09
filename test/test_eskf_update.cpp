@@ -3,7 +3,7 @@
 // IVP-43: ESKF Barometric Altitude Measurement Update Tests
 //
 // Verifies: baro update correctness, innovation gating, convergence,
-// Joseph form properties (symmetry, positive-definiteness), NIS statistics,
+// Covariance form properties (symmetry, positive-definiteness), NIS statistics,
 // error-state injection, input validation (NaN/Inf).
 //
 // Reference: Solà (2017) §7.2, DPS310 noise model, council review conditions.
@@ -57,6 +57,7 @@ TEST(ESKFBaroUpdate, Basic) {
     EXPECT_LT(eskf.p.z, 0.0f);
 
     // P[5][5] should have decreased (measurement reduces uncertainty)
+    eskf.sync_dense_covariance();
     EXPECT_LT(eskf.P(5, 5), P55_before);
 
     // NIS should be stored and positive
@@ -107,14 +108,15 @@ TEST(ESKFBaroUpdate, Convergence) {
     EXPECT_NEAR(-eskf.p.z, target_alt, 0.5f);
 
     // P[5][5] should have shrunk by >90%
+    eskf.sync_dense_covariance();
     EXPECT_LT(eskf.P(5, 5), P55_initial * 0.1f);
 }
 
 // ============================================================================
-// Test 4: JosephSymmetry
+// Test 4: CovarianceSymmetry
 // P remains symmetric after update
 // ============================================================================
-TEST(ESKFBaroUpdate, JosephSymmetry) {
+TEST(ESKFBaroUpdate, CovarianceSymmetry) {
     ESKF eskf = make_initialized();
 
     // Propagate a few steps to create off-diagonal terms
@@ -123,6 +125,7 @@ TEST(ESKFBaroUpdate, JosephSymmetry) {
     }
 
     eskf.update_baro(2.0f);
+    eskf.sync_dense_covariance();
 
     // Check symmetry: |P[i][j] - P[j][i]| < epsilon
     for (int i = 0; i < rc::eskf::kStateSize; ++i) {
@@ -134,10 +137,10 @@ TEST(ESKFBaroUpdate, JosephSymmetry) {
 }
 
 // ============================================================================
-// Test 5: JosephPositiveDefinite
+// Test 5: CovariancePositiveDefinite
 // 100 updates with ill-conditioned P → diagonal stays positive
 // ============================================================================
-TEST(ESKFBaroUpdate, JosephPositiveDefinite) {
+TEST(ESKFBaroUpdate, CovariancePositiveDefinite) {
     ESKF eskf = make_initialized();
 
     // Make P somewhat ill-conditioned by alternating predict/update
@@ -145,6 +148,7 @@ TEST(ESKFBaroUpdate, JosephPositiveDefinite) {
         eskf.predict(kAccelStationary, kGyroStationary, kDt);
         eskf.update_baro(1.0f);
     }
+    eskf.sync_dense_covariance();
 
     // Core diagonal elements must be positive; inhibited states [15..23] are zero
     for (int i = 0; i < rc::eskf::kIdxEarthMag; ++i) {
@@ -282,6 +286,7 @@ TEST(ESKFBaroUpdate, ZeroInnovation) {
     EXPECT_FLOAT_EQ(eskf.p.z, p_before.z);
 
     // P should still decrease (measurement reduces uncertainty regardless)
+    eskf.sync_dense_covariance();
     EXPECT_LT(eskf.P(5, 5), P55_before);
 
     // NIS should be zero (zero innovation)

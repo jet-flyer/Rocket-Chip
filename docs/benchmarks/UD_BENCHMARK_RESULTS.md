@@ -287,15 +287,71 @@ in production with 24-state full F) dominates any dense alternative. The existin
 codegen+Joseph pipeline at 851us/epoch is well within the 5,000us budget at 200Hz
 (17% CPU). The flight software is the same binary across all tiers.
 
-### UD Factorization: Not Justified
+### UD Factorization (Thornton predict): Shelved on RP2350 — Not Physically Impossible
 
-1. **Pure UD (Thornton predict) is not viable on RP2350.** Dense O(N^3) at 24 states
-   takes 1,420us even in f32 from SRAM — 29.6x slower than codegen. This cannot be
-   improved without reducing state count or moving to a faster MCU.
+**Chosen predict path:** codegen FPFT (sparse SymPy CSE) + `force_symmetric` +
+`clamp_covariance`. **Chosen measurement path:** Bierman UD (adopted separately;
+see hybrid win below).
 
-2. **P stability is already sufficient.** 100K steps with zero negative diagonals
-   and zero asymmetry means UD's positive-definiteness guarantee provides no
-   practical benefit at the current state count and precision.
+#### Why not dense Thornton predict (decision record)
+
+| Factor | Finding |
+|--------|---------|
+| **Cost on RP2350** | Dense Thornton f32 = **1,420 µs**/predict vs codegen **48 µs** (**29.6×**). Full epoch Thornton+Bierman ≈ **1,851 µs** (~37% of 200 Hz / 5 ms budget) vs hybrid codegen+Bierman ≈ **486 µs** (~10%). |
+| **Root cause** | Dense **O(N³)** WMGS at N=24 (~13.8k MACs/step). Codegen exploits sparsity (~90% zeros eliminated). This is **arithmetic volume + MCU MAC rate**, not a forbidden algorithm. |
+| **Numerical need** | At N=24 f32, 100k-step stress: **codegen + clamp already stable** (no negative diags, no asymmetry). Dense Thornton’s “PD by construction” was **not** required to fix a present failure. |
+| **Mixed f64 (DCP)** | Worse: ~7.8× per-MAC vs f32 FPU → Thornton mixed **8,576 µs**. DCP is not a rescue path for bulk predict on RP2350. |
+
+**Not a physical impossibility.** The silicon can run Thornton; it simply consumes
+too much of the fixed 5 ms / 200 Hz (and tighter internal) budgets for a 24-state
+filter when a sparse codegen predict already works. Absolute impossibility would
+mean “cannot finish one predict before the next sample forever under all
+optimizations” — we are not there; we are at “~30× slower dense form is a bad
+trade on this MCU and state count.”
+
+#### Advantages Thornton / full-UD predict still has (why it could be revisited)
+
+1. **Positive-definiteness by construction** through the predict step (UD form),
+   reducing reliance on post-hoc `force_symmetric` / `clamp_covariance` as the
+   primary stability mechanism.
+2. **Heritage alignment** with classic spacecraft UD pipelines (Thornton + Bierman
+   together), if a future certification or partner process prefers factorized
+   covariance end-to-end.
+3. **Headroom if dense f32 starts failing** (larger state count, long GPS-denied
+   coast, pathological P) where clamps mask rather than fix conditioning.
+4. **Cleaner coupling to Bierman** (stay in UD across the epoch) if factorize
+   cost after dense codegen becomes the dominant hybrid tax.
+
+Production dense Thornton variants were **removed after the benchmark closed**
+(dead code); revisiting means **re-implement from literature + re-bench**, not
+flipping a compile flag.
+
+#### When to revisit (triggers)
+
+Re-open Thornton (or **codegen-for-UD** sparse predict — noted as possible
+engineering, not free) if any of:
+
+1. **Flight or long soak data** shows f32 P loss of PD / unhealthy diagonals that
+   clamps cannot honestly fix at current N.
+2. **State dimension grows** (or effective density of F grows) so codegen FPFT
+   bloats or stability margins shrink.
+3. **MCU / platform change** with substantially more f32 (or true f64 FPU)
+   throughput — e.g. the STM32H7-class note below (~mixed Thornton ~500 µs
+   estimate) or a faster RP successor.
+4. **Cycle budget improves** (lower ESKF rate, larger spare CPU after other work
+   lands) *and* a re-bench shows dense or sparse-UD predict fits with margin.
+5. **Product requirement** for full-UD covariance for audit/cert reasons even at
+   a CPU cost.
+
+Until a trigger fires, **do not re-add dense Thornton “just in case.”** Prefer
+keeping the hybrid path and the numbers in this file as the RP2350 baseline.
+
+#### What would *not* make dense Thornton magically free
+
+- Micro-optimizing the dense O(N³) loops alone will not close a **29.6×** gap to
+  sparse codegen without either **sparsity** (codegen-for-UD / structure
+  exploitation) or **fewer states / faster silicon**.
+- DCP f64 accumulators make dense predict **worse** on RP2350, not better.
 
 ### DCP Mixed-Precision: Not Viable for Bulk Linear Algebra
 

@@ -189,6 +189,7 @@ TEST(ESKFZupt, VelocityCovarianceShrinks) {
         eskf.update_zupt(kAccelStationary, kGyroZero);
     }
 
+    eskf.sync_dense_covariance();
     float P_vn_after = eskf.P(rc::eskf::kIdxVelocity + 0,
                                rc::eskf::kIdxVelocity + 0);
     float P_ve_after = eskf.P(rc::eskf::kIdxVelocity + 1,
@@ -199,13 +200,14 @@ TEST(ESKFZupt, VelocityCovarianceShrinks) {
     EXPECT_LT(P_ve_after, P_ve_before);
 }
 
-TEST(ESKFZupt, JosephSymmetry) {
+TEST(ESKFZupt, CovarianceSymmetry) {
     auto eskf = make_eskf();
     const float dt = 0.005f;
 
     for (int32_t i = 0; i < 100; ++i) {
         eskf.predict(kAccelStationary, kGyroZero, dt);
         eskf.update_zupt(kAccelStationary, kGyroZero);
+        eskf.sync_dense_covariance();
 
         // P must remain symmetric (all 24 states, including zeroed inhibited blocks)
         for (int32_t r = 0; r < rc::eskf::kStateSize; ++r) {
@@ -218,13 +220,14 @@ TEST(ESKFZupt, JosephSymmetry) {
     }
 }
 
-TEST(ESKFZupt, JosephPositiveDefinite) {
+TEST(ESKFZupt, CovariancePositiveDefinite) {
     auto eskf = make_eskf();
     const float dt = 0.005f;
 
     for (int32_t i = 0; i < 100; ++i) {
         eskf.predict(kAccelStationary, kGyroZero, dt);
         eskf.update_zupt(kAccelStationary, kGyroZero);
+        eskf.sync_dense_covariance();
 
         // Core P diagonal must remain positive; inhibited states [15..23] are zero
         for (int32_t j = 0; j < rc::eskf::kIdxEarthMag; ++j) {

@@ -147,6 +147,8 @@ TEST(PhaseQR, LargerRWeakensBaro) {
     kf_base.update_baro(0.5f);
     kf_large_r.update_baro(0.5f);
 
+    kf_base.sync_dense_covariance();
+    kf_large_r.sync_dense_covariance();
     float reduction_base = p5_before_base - kf_base.P(5, 5);
     float reduction_large = p5_before_large - kf_large_r.P(5, 5);
 

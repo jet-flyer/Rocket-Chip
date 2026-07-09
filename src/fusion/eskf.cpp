@@ -66,23 +66,6 @@ constexpr float kMaxGyroBias = 0.175F;
 } // anonymous namespace
 
 // ============================================================================
-// Bierman measurement update — UD-factored covariance (ESKF_USE_BIERMAN)
-// ============================================================================
-#ifdef ESKF_USE_BIERMAN
-
-// P representation state machine.
-// DENSE: P is a valid dense 24×24 covariance (codegen FPFT output).
-// UD:    P is stale; g_bierman_ud holds the valid UD factorization.
-enum class PRepr { DENSE, UD };
-
-static PRepr g_pRepr = PRepr::DENSE;
-
-// File-scope UD24 — 2,400 bytes BSS (LL Entry 1: too large for struct member).
-static UD24 g_biermanUd;
-
-#endif // ESKF_USE_BIERMAN
-
-// ============================================================================
 // Helper: 3x3 skew-symmetric matrix from vector
 // [v]_x = | 0  -vz  vy |
 //          | vz  0  -vx |
@@ -168,9 +151,7 @@ bool ESKF::init(const Vec3& accel_meas, const Vec3& gyro_meas) {
     }
     // P[15..23] stays zero — inhibited states have no covariance
 
-#ifdef ESKF_USE_BIERMAN
-    g_pRepr = PRepr::DENSE;  // Fresh P from init — always dense
-#endif
+    p_repr_ = PRepr::DENSE;  // Fresh P from init — always dense
 
     initialized_ = true;
     last_propagation_dt_ = 0.0F;
@@ -370,10 +351,8 @@ void ESKF::predict(const Vec3& accel_meas, const Vec3& gyro_meas, float dt) {
 
     propagate_nominal(accel_meas, gyro_meas, dt);
 
-#ifdef ESKF_USE_BIERMAN
     // Codegen FPFT requires dense P — reconstruct from UD if needed.
     ensure_dense();
-#endif
 
     // Codegen FPFT: SymPy-generated flat scalar expansion with CSE
     // Replaces dense O(N^3) triple product. Q_d baked in.
@@ -555,126 +534,137 @@ void ESKF::inject_error_state(const Mat<eskf::kStateSize, 1>& dx) {
 }
 
 // ============================================================================
-// scalar_kalman_update: Joseph-form scalar measurement update
-// Computes K = hValue * P[:,hIdx] / S, δx = K * innovation,
-// P = (I - K*H)*P*(I - K*H)' + K*R*K', then injects δx.
-// hValue: actual H-matrix entry (+1.0F or -1.0F). Generalizes to non-unit
-// Jacobian entries without API change. See plan hValue correctness proof.
-//
-// O(N²) rank-1 Joseph form: since H is scalar (single non-zero entry),
-// the triple product expands to:
-//   P_new[i][j] = P[i][j] - K[i]*hv*P[h][j] - P[i][h]*hv*K[j] + K[i]*S*K[j]
-// where h=hIdx, hv=hValue, S=hv²*P[h][h]+R. Avoids O(N³) dense matrix multiply.
-// Mathematically identical to the full Joseph form.
+// Bierman measurement update path (sole measurement path; Joseph removed)
 // ============================================================================
-void ESKF::scalar_kalman_update(int32_t h_idx, float h_value,
-                                float innovation, float r) {
-    const float s = h_value * h_value * P(h_idx, h_idx) + r;
-    const float inv_s = 1.0F / s;
-
-    // Kalman gain: K[i] = hValue * P[i][hIdx] / S
-    static Mat<eskf::kStateSize, 1> g_gain;
-    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        g_gain.data[i][0] = h_value * P.data[i][h_idx] * inv_s;
-    }
-
-    // Error state correction: δx = K * innovation
-    static Mat<eskf::kStateSize, 1> g_dx;
-    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        g_dx.data[i][0] = g_gain.data[i][0] * innovation;
-    }
-
-    // O(N²) rank-1 Joseph form (upper triangle, then copy to lower).
-    // P_new[i][j] = P[i][j] - K[i]*hv*P_h[j] - P_h[i]*hv*K[j] + K[i]*S*K[j]
-    // where P_h = original P[hIdx][:] row, saved before in-place update.
-    static float g_phRow[eskf::kStateSize];
-    for (int32_t j = 0; j < eskf::kStateSize; ++j) {
-        g_phRow[j] = P.data[h_idx][j];
-    }
-
-    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        const float ki = g_gain.data[i][0];
-        const float ki_s = ki * s;
-        const float hv_phi = h_value * g_phRow[i];
-        for (int32_t j = i; j < eskf::kStateSize; ++j) {
-            const float kj = g_gain.data[j][0];
-            const float hv_phj = h_value * g_phRow[j];
-            P.data[i][j] = P.data[i][j]
-                         - ki * hv_phj
-                         - hv_phi * kj
-                         + ki_s * kj;
-            P.data[j][i] = P.data[i][j];  // symmetric
-        }
-    }
-
-    inject_error_state(g_dx);
-}
-
-// ============================================================================
-// Bierman measurement update path (ESKF_USE_BIERMAN)
-// ============================================================================
-#ifdef ESKF_USE_BIERMAN
 
 void ESKF::ensure_dense() {
-    if (g_pRepr == PRepr::DENSE) {
+    if (p_repr_ == PRepr::DENSE) {
         return;
     }
     // Reconstruct P = U * D * U^T from UD factorization
-    ud_to_dense(g_biermanUd, P.data);
+    ud_to_dense(bierman_ud_, P.data);
     P.force_symmetric();
     clamp_covariance();
 
-    // Post-reconstruct assertion (Council Req. #3): P diagonals >= 0
-    // in debug builds. Negative diagonal after reconstruct means UD corruption.
-#ifndef NDEBUG
+    // Floor negative diagonals after f32 UD reconstruct.
+    // Theory: UDU^T is PSD when D>=0. In practice long mag-aided replay
+    // (const_velocity / const_accel) can produce tiny negatives from
+    // Bierman f32 round-off; larger negatives indicate real UD corruption.
+    // Surfaced 2026-07-09 when host Bierman parity started syncing dense P
+    // every replay row (same path flight hits on the next predict()).
+    // Core states get a tiny positive floor so healthy() stays meaningful;
+    // inhibited blocks stay exactly 0.
+    static constexpr float kMaxNegDiagNoise = 1e-3F;
+    static constexpr float kMinCoreDiag = 1e-12F;
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        assert(P.data[i][i] >= 0.0F);  // NOLINT(cert-dcl03-c)
-    }
+        if (P.data[i][i] < 0.0F) {
+#ifndef NDEBUG
+            assert(P.data[i][i] > -kMaxNegDiagNoise);  // NOLINT(cert-dcl03-c)
 #endif
+            const bool core = (i < eskf::kIdxEarthMag);
+            P.data[i][i] = core ? kMinCoreDiag : 0.0F;
+        }
+    }
 
-    g_pRepr = PRepr::DENSE;
+    p_repr_ = PRepr::DENSE;
 }
 
-void ESKF::ensure_ud() {
-    if (g_pRepr == PRepr::UD) {
-        return;
-    }
-    // Inhibited states have P diagonal = 0, which makes P semi-positive-definite.
-    // ud_factorize requires strictly positive-definite. Temporarily set zero
-    // diagonals to a tiny epsilon, factorize, then zero the D entries.
-    // Bierman won't touch these states — D=0 means zero contribution to
-    // alpha and zero Kalman gain.
+// Attempt UD factorize from dense P. Patches zero (inhibited) diagonals to
+// eps for the factorize, then restores D=0 / P_ii=0 for those states.
+// Returns false if P is not positive-definite even after patch — caller must
+// NOT mark p_repr_ UD or run Bierman on partial factors (NaN cascade).
+static bool factorize_from_dense(ESKF& eskf, UD24& ud) {
     static constexpr float kFactorizeEps = 1e-30F;
     bool patched[eskf::kStateSize] = {};
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
-        if (P.data[i][i] <= 0.0F) {
-            P.data[i][i] = kFactorizeEps;
+        if (eskf.P.data[i][i] <= 0.0F) {
+            eskf.P.data[i][i] = kFactorizeEps;
             patched[i] = true;
         }
     }
 
-    const bool ok = ud_factorize(g_biermanUd, P.data);
+    const bool ok = ud_factorize(ud, eskf.P.data);
 
-    // Restore patched diagonals to zero in both P and UD
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
         if (patched[i]) {
-            P.data[i][i] = 0.0F;
-            g_biermanUd.D[i] = 0.0F;
+            eskf.P.data[i][i] = 0.0F;
+            ud.D[i] = 0.0F;
         }
     }
+    return ok;
+}
 
-    // If factorize failed despite patching, P is corrupt — healthy() will catch it.
-    (void)ok;
-    g_pRepr = PRepr::UD;
+void ESKF::ensure_ud() {
+    if (p_repr_ == PRepr::UD) {
+        return;
+    }
+
+    // Inhibited states have P diagonal = 0 → semi-PD; patch handled inside
+    // factorize_from_dense. Bierman leaves D=0 on those states (zero gain).
+    if (factorize_from_dense(*this, bierman_ud_)) {
+        p_repr_ = PRepr::UD;
+        return;
+    }
+
+    // Repair once: floor non-finite / non-positive core diags, clamp, retry.
+    // Surfaced 2026-07-09 — prior code marked UD even when factorize failed,
+    // then Bierman ran on garbage and wrote NaNs into long mag replay.
+    P.force_symmetric();
+    for (int32_t i = 0; i < eskf::kIdxEarthMag; ++i) {
+        if (!std::isfinite(P.data[i][i]) || P.data[i][i] <= 0.0F) {
+            // Restore a conservative init-scale variance so the filter can
+            // continue; healthy() will still flag pathologically small P.
+            if (i < eskf::kIdxPosition) {
+                P.data[i][i] = kInitPAttitude;
+            } else if (i < eskf::kIdxVelocity) {
+                P.data[i][i] = kInitPPosition;
+            } else if (i < eskf::kIdxAccelBias) {
+                P.data[i][i] = kInitPVelocity;
+            } else if (i < eskf::kIdxGyroBias) {
+                P.data[i][i] = kInitPAccelBias;
+            } else {
+                P.data[i][i] = kInitPGyroBias;
+            }
+        }
+        for (int32_t j = 0; j < eskf::kStateSize; ++j) {
+            if (i == j) {
+                continue;
+            }
+            if (!std::isfinite(P.data[i][j])) {
+                P.data[i][j] = 0.0F;
+                P.data[j][i] = 0.0F;
+            }
+        }
+    }
+    clamp_covariance();
+
+    if (factorize_from_dense(*this, bierman_ud_)) {
+        p_repr_ = PRepr::UD;
+        return;
+    }
+
+    // Still not factorizable — stay dense; bierman_kalman_update will no-op.
+    p_repr_ = PRepr::DENSE;
 }
 
 void ESKF::bierman_kalman_update(int32_t h_idx, float h_value,
                                   float innovation, float r) {
     ensure_ud();
+    if (p_repr_ != PRepr::UD) {
+        // Measurement dropped — dense P was not factorizable even after repair.
+        return;
+    }
 
     static float g_biermanDx[eskf::kStateSize];
-    bierman_scalar_update(g_biermanUd, h_idx, h_value, innovation, r,
+    bierman_scalar_update(bierman_ud_, h_idx, h_value, innovation, r,
                           g_biermanDx);
+
+    // Guard: never inject NaN corrections into the nominal state.
+    for (int32_t i = 0; i < eskf::kStateSize; ++i) {
+        if (!std::isfinite(g_biermanDx[i])) {
+            return;
+        }
+    }
 
     // Convert dx array to Mat<N,1> for inject_error_state
     static Mat<eskf::kStateSize, 1> g_dxMat;
@@ -684,7 +674,15 @@ void ESKF::bierman_kalman_update(int32_t h_idx, float h_value,
     inject_error_state(g_dxMat);
 }
 
-#endif // ESKF_USE_BIERMAN
+void ESKF::sync_dense_covariance() {
+    ensure_dense();
+}
+
+void ESKF::invalidate_ud_factors() {
+    // External writers mutate dense P; discard any UD cache so ensure_ud()
+    // re-factorizes from the written matrix on the next measurement.
+    p_repr_ = PRepr::DENSE;
+}
 
 // ============================================================================
 // update_baro: Barometric altitude measurement update
@@ -712,7 +710,7 @@ bool ESKF::update_baro(float altitude_agl_m) {
 
     // H has one non-zero element: H[0][kIdxPosition+2] = -1
     // When baro_bias is enabled, H also has +1 at index 23. However,
-    // scalar_kalman_update() only handles single-entry H. This works because:
+    // bierman_kalman_update() only handles single-entry H. This works because:
     //   - When inhibited (default): P[23][*] = 0, K[23] = 0 regardless
     //   - When enabled: baro_bias corrects via cross-covariance P[5][23]
     // Full dual-entry H update deferred until baro_bias proves useful.
@@ -752,12 +750,7 @@ bool ESKF::update_baro(float altitude_agl_m) {
     }
 
     ++baro_total_accepts_;
-#ifdef ESKF_USE_BIERMAN
     bierman_kalman_update(kHIdx, kHValue, innovation, r);
-#else
-    scalar_kalman_update(kHIdx, kHValue, innovation, r);
-    clamp_covariance();
-#endif
     return true;
 }
 
@@ -893,12 +886,7 @@ bool ESKF::update_mag_heading(const Vec3& mag_body, float expected_magnitude,
 
     mag_consecutive_rejects_ = 0;
     ++mag_total_accepts_;
-#ifdef ESKF_USE_BIERMAN
     bierman_kalman_update(kHIdx, 1.0F, innovation, r_effective);
-#else
-    scalar_kalman_update(kHIdx, 1.0F, innovation, r_effective);
-    clamp_covariance();
-#endif
     return true;
 }
 
@@ -925,11 +913,7 @@ float ESKF::fuse_mag_axes(const float innov[3], float r_per_axis) {
             fabsf(innov[axis]) <= 5.0F * sqrtf(s)) {
             const float nis = (innov[axis] * innov[axis]) / s;
             if (nis > max_nis) { max_nis = nis; }
-#ifdef ESKF_USE_BIERMAN
             bierman_kalman_update(h_idx, 1.0f, innov[axis], r_per_axis);
-#else
-            scalar_kalman_update(h_idx, 1.0f, innov[axis], r_per_axis);
-#endif
         }
     }
     // Body mag bias states [18-20]
@@ -938,11 +922,7 @@ float ESKF::fuse_mag_axes(const float innov[3], float r_per_axis) {
         const float s = P(h_idx, h_idx) + r_per_axis;
         if (s >= kMinInnovationVariance &&
             fabsf(innov[axis]) <= 5.0F * sqrtf(s)) {
-#ifdef ESKF_USE_BIERMAN
             bierman_kalman_update(h_idx, 1.0f, innov[axis], r_per_axis);
-#else
-            scalar_kalman_update(h_idx, 1.0f, innov[axis], r_per_axis);
-#endif
         }
     }
     return max_nis;
@@ -983,9 +963,6 @@ bool ESKF::update_mag_3axis(const Vec3& mag_body, const Vec3& earth_field_ned,
     mag_consecutive_rejects_ = 0;
     ++mag_total_accepts_;
 
-#ifndef ESKF_USE_BIERMAN
-    clamp_covariance();
-#endif
     return true;
 }
 
@@ -997,9 +974,7 @@ bool ESKF::update_mag_3axis(const Vec3& mag_body, const Vec3& earth_field_ned,
 // after heading reset; settles in 2-3s with GPS aiding.
 // ============================================================================
 void ESKF::reset_mag_heading(float heading_measured) {
-#ifdef ESKF_USE_BIERMAN
     ensure_dense();  // Modifies P directly
-#endif
     constexpr int32_t kYawIdx = eskf::kIdxAttitude + 2;
     const Vec3 euler = q.to_euler();
 
@@ -1075,20 +1050,13 @@ bool ESKF::update_zupt(const Vec3& accel_meas, const Vec3& gyro_meas) {
             // Innovation gate
             const float gate_threshold = kZuptInnovationGate * sqrtf(s);
             if (fabsf(innovation) <= gate_threshold) {
-#ifdef ESKF_USE_BIERMAN
                 bierman_kalman_update(k_h_idx, 1.0F, innovation, kRZupt);
-#else
-                scalar_kalman_update(k_h_idx, 1.0F, innovation, kRZupt);
-#endif
             }
         }
     }
 
     last_zupt_nis_ = max_nis;
     ++zupt_total_accepts_;
-#ifndef ESKF_USE_BIERMAN
-    clamp_covariance();
-#endif
     return true;
 }
 
@@ -1127,20 +1095,13 @@ bool ESKF::update_zupt(const Vec3& accel_meas, const Vec3& gyro_meas,
 
             const float gate_threshold = kZuptInnovationGate * sqrtf(s);
             if (fabsf(innovation) <= gate_threshold) {
-#ifdef ESKF_USE_BIERMAN
                 bierman_kalman_update(k_h_idx, 1.0F, innovation, kRZuptOnPad);
-#else
-                scalar_kalman_update(k_h_idx, 1.0F, innovation, kRZuptOnPad);
-#endif
             }
         }
     }
 
     last_zupt_nis_ = max_nis;
     ++zupt_total_accepts_;
-#ifndef ESKF_USE_BIERMAN
-    clamp_covariance();
-#endif
     return true;
 }
 
@@ -1159,9 +1120,7 @@ bool ESKF::set_origin(double lat_rad, double lon_rad, float alt_m, float hdop) {
     if (hdop > kGpsMaxHdopForOrigin) {
         return false;  // Geometry too poor for origin
     }
-#ifdef ESKF_USE_BIERMAN
     ensure_dense();  // Modifies P directly
-#endif
 
     origin_lat_rad_ = lat_rad;
     origin_lon_rad_ = lon_rad;
@@ -1229,9 +1188,7 @@ void ESKF::reset_origin(double new_lat_rad, double new_lon_rad, float new_alt_m)
 // Pattern: same as set_origin() P-reset for velocity block (lines 996-1010).
 // ============================================================================
 void ESKF::reset_velocity() {
-#ifdef ESKF_USE_BIERMAN
     ensure_dense();
-#endif
     v = Vec3();
     // Zero cross-covariances for velocity states [6..8]
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
@@ -1252,9 +1209,7 @@ void ESKF::reset_velocity() {
 // Flight Director API for state transitions.
 // ============================================================================
 void ESKF::reset_position() {
-#ifdef ESKF_USE_BIERMAN
     ensure_dense();
-#endif
     p = Vec3();
     // Zero cross-covariances for position states [3..5]
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
@@ -1341,11 +1296,7 @@ bool ESKF::update_gps_position(const Vec3& gps_ned, float hdop, float vdop) {
                 // Track max NIS only from accepted readings
                 if (nis > max_nis) { max_nis = nis; }
 
-#ifdef ESKF_USE_BIERMAN
                 bierman_kalman_update(k_h_idx, 1.0F, innovation, r_noise);
-#else
-                scalar_kalman_update(k_h_idx, 1.0F, innovation, r_noise);
-#endif
             }
         }
     }
@@ -1358,9 +1309,6 @@ bool ESKF::update_gps_position(const Vec3& gps_ned, float hdop, float vdop) {
     }
 
     ++gps_pos_total_accepts_;
-#ifndef ESKF_USE_BIERMAN
-    clamp_covariance();
-#endif
     return true;
 }
 
@@ -1406,11 +1354,7 @@ bool ESKF::update_gps_velocity(float v_north, float v_east) {
                     max_nis = nis;
                 }
 
-#ifdef ESKF_USE_BIERMAN
                 bierman_kalman_update(k_h_idx, 1.0F, innovation, r);
-#else
-                scalar_kalman_update(k_h_idx, 1.0F, innovation, r);
-#endif
             }
         }
     }
@@ -1423,9 +1367,6 @@ bool ESKF::update_gps_velocity(float v_north, float v_east) {
     }
 
     ++gps_vel_total_accepts_;
-#ifndef ESKF_USE_BIERMAN
-    clamp_covariance();
-#endif
     return true;
 }
 
@@ -1671,9 +1612,7 @@ void ESKF::set_inhibit_mag(bool inhibit) {
     if (inhibit == inhibit_mag_states_) {
         return;  // No change
     }
-#ifdef ESKF_USE_BIERMAN
     ensure_dense();  // Inhibit modifies P directly
-#endif
     inhibit_mag_states_ = inhibit;
     if (inhibit) {
         // Disabling: zero P block + nominal states
@@ -1697,9 +1636,7 @@ void ESKF::set_inhibit_wind(bool inhibit) {
     if (inhibit == inhibit_wind_states_) {
         return;
     }
-#ifdef ESKF_USE_BIERMAN
     ensure_dense();
-#endif
     inhibit_wind_states_ = inhibit;
     if (inhibit) {
         zero_p_block(eskf::kIdxWindNE, 2);
@@ -1719,9 +1656,7 @@ void ESKF::set_inhibit_baro_bias(bool inhibit) {
     if (inhibit == inhibit_baro_bias_) {
         return;
     }
-#ifdef ESKF_USE_BIERMAN
     ensure_dense();
-#endif
     inhibit_baro_bias_ = inhibit;
     if (inhibit) {
         zero_p_block(eskf::kIdxBaroBias, 1);

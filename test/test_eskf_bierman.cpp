@@ -94,10 +94,10 @@ TEST(ESKFBierman, FactorizeRoundTrip) {
 }
 
 // ============================================================================
-// Test 2: BiermanBaroMatchesJoseph
+// Test 2: BiermanBaroUpdateProperties
 // Baro update produces correct position correction and P reduction.
 // ============================================================================
-TEST(ESKFBierman, BaroMatchesJoseph) {
+TEST(ESKFBierman, BaroUpdateProperties) {
     ESKF eskf = make_initialized();
 
     // Run predict to build covariance structure

@@ -83,7 +83,7 @@ Firmware constants that advanced users or developers might want to adjust. Curre
 
 | Setting | Location | Value | Description |
 |---------|----------|-------|-------------|
-| `ESKF_USE_BIERMAN` | CMakeLists.txt (firmware) | 1 (always on target) | Flight firmware always uses Bierman UD measurement updates. Host default `rc_fusion` still builds **without** this define (Joseph `scalar_kalman_update` path) for most ESKF host tests; `rc_fusion_bierman` + `test_eskf_bierman` exercise Bierman. Consolidation to Bierman-only is open (CODE_TRIMMING 2026-07-03 §1) — do not flip host without full ctest. |
+| `ESKF_USE_BIERMAN` | `eskf.h` (forced on) + CMake | 1 (always) | **Sole** ESKF **measurement** path: Bierman UD scalar updates (host + flight). Joseph dual path removed 2026-07 after host parity. Rationale: NASA/TP-2018-219822 + UD_BENCHMARK (Bierman ~43 µs vs Joseph ~81 µs). **Predict** is separate: codegen FPFT (not dense Thornton). Thornton is **shelved on RP2350 for cycle budget** (~30× denser O(N³) cost), not physically impossible — advantages + revisit triggers in `docs/benchmarks/UD_BENCHMARK_RESULTS.md`. CODE_TRIMMING 2026-07-03 §1 closed for Joseph. |
 | `kMagInnovationGate` | eskf.h | 300σ | Mag heading innovation gate |
 | `kAccelMinHealthyMag` | sensor_core1.cpp | 3.0 m/s² | IMU zero-output fault threshold |
 | `kMaxHealthyVelocity` | eskf.h | 500 m/s | Velocity divergence sentinel |

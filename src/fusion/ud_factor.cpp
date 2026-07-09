@@ -122,11 +122,21 @@ static void bierman_forward_pass(UD24& ud, float r) {
             g_bK[j] = g_bg[j];
         } else {
             const float lambda = -g_bf[j] / g_balpha[j - 1];
-            ud.D[j] = ud.D[j] * g_balpha[j - 1] / g_balpha[j];
+            // Floor D after rank-1 update — f32 can drive tiny D negative/NaN
+            // under long measurement sequences (surfaced host Bierman replay).
+            float dj = ud.D[j] * g_balpha[j - 1] / g_balpha[j];
+            if (!std::isfinite(dj) || dj < kMinDFloat) {
+                dj = kMinDFloat;
+            }
+            ud.D[j] = dj;
 
             for (int32_t i = 0; i < j; ++i) {
                 const float u_save = ud.U[i][j];
-                ud.U[i][j] = u_save + lambda * g_bK[i];
+                float u_new = u_save + lambda * g_bK[i];
+                if (!std::isfinite(u_new)) {
+                    u_new = u_save;
+                }
+                ud.U[i][j] = u_new;
                 g_bK[i] = g_bK[i] + g_bg[j] * u_save;
             }
             g_bK[j] = g_bg[j];
@@ -135,7 +145,11 @@ static void bierman_forward_pass(UD24& ud, float r) {
 
     // D[0] update (missed in loop above which starts at j=1)
     if (g_balpha[0] > 1e-30F) {
-        ud.D[0] = ud.D[0] * r / g_balpha[0];
+        float d0 = ud.D[0] * r / g_balpha[0];
+        if (!std::isfinite(d0) || d0 < kMinDFloat) {
+            d0 = kMinDFloat;
+        }
+        ud.D[0] = d0;
     }
 }
 

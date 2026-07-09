@@ -4,7 +4,7 @@
 //
 // Verifies: mag heading update correctness, wrap_pi discontinuity handling,
 // innovation gating, two-tier interference detection (council modification),
-// heading convergence, Joseph form properties (symmetry, positive-definiteness),
+// heading convergence, Covariance form properties (symmetry, positive-definiteness),
 // NIS statistics, yaw-only correction, input validation (NaN, low magnitude).
 //
 // Reference: Solà (2017) §6.2, AK09916 noise model, council review verdict.
@@ -69,6 +69,7 @@ TEST(ESKFMagUpdate, Basic) {
     EXPECT_TRUE(accepted);
 
     // P[2][2] (yaw uncertainty) should decrease
+    eskf.sync_dense_covariance();
     EXPECT_LT(eskf.P(2, 2), P22_before);
 
     // NIS should be stored and non-negative
@@ -111,6 +112,7 @@ TEST(ESKFMagUpdate, SafetyNetGateAccepts90DegError) {
 
     // Shrink P[2][2] — with the old 3σ gate this would reject, with 100σ it accepts
     eskf.P(2, 2) = 1e-6f;
+    eskf.invalidate_ud_factors();
 
     // Set yaw = 0, create mag reading for heading = 90° (π/2)
     // Innovation = π/2 ≈ 1.57 rad. Gate = 100*sqrt(1e-6 + 0.00757) ≈ 8.7 rad.
@@ -149,6 +151,8 @@ TEST(ESKFMagUpdate, MagInterferenceInflatesR) {
 
     // The interference update should produce less P reduction (weaker correction)
     // because R is inflated. P[2][2] after interference should be larger.
+    eskf_normal.sync_dense_covariance();
+    eskf_interference.sync_dense_covariance();
     EXPECT_GT(eskf_interference.P(2, 2), eskf_normal.P(2, 2));
 }
 
@@ -192,6 +196,7 @@ TEST(ESKFMagUpdate, HeadingConvergence) {
     }
 
     // P[2][2] should have shrunk significantly (>80%)
+    eskf.sync_dense_covariance();
     EXPECT_LT(eskf.P(2, 2), P22_initial * 0.2f);
 
     // Yaw should have converged toward 0 (within ~5°)
@@ -202,10 +207,10 @@ TEST(ESKFMagUpdate, HeadingConvergence) {
 }
 
 // ============================================================================
-// Test 7: JosephSymmetry
+// Test 7: CovarianceSymmetry
 // P remains symmetric after 100 mag updates
 // ============================================================================
-TEST(ESKFMagUpdate, JosephSymmetry) {
+TEST(ESKFMagUpdate, CovarianceSymmetry) {
     ESKF eskf = make_initialized();
 
     Vec3 mag_b = mag_body_from_quat(eskf.q, kMagNed);
@@ -216,6 +221,7 @@ TEST(ESKFMagUpdate, JosephSymmetry) {
         // Recompute mag_body for updated q
         mag_b = mag_body_from_quat(eskf.q, kMagNed);
     }
+    eskf.sync_dense_covariance();
 
     // Check symmetry: |P[i][j] - P[j][i]| < epsilon
     for (int i = 0; i < rc::eskf::kStateSize; ++i) {
@@ -227,10 +233,10 @@ TEST(ESKFMagUpdate, JosephSymmetry) {
 }
 
 // ============================================================================
-// Test 8: JosephPositiveDefinite
+// Test 8: CovariancePositiveDefinite
 // P diagonal stays positive after 100 interleaved predict + mag updates
 // ============================================================================
-TEST(ESKFMagUpdate, JosephPositiveDefinite) {
+TEST(ESKFMagUpdate, CovariancePositiveDefinite) {
     ESKF eskf = make_initialized();
 
     for (int i = 0; i < 100; ++i) {
@@ -238,6 +244,7 @@ TEST(ESKFMagUpdate, JosephPositiveDefinite) {
         Vec3 mag_b = mag_body_from_quat(eskf.q, kMagNed);
         eskf.update_mag_heading(mag_b, kMagExpected);
     }
+    eskf.sync_dense_covariance();
 
     // Core diagonal elements must be positive; inhibited states [15..23] are zero
     for (int i = 0; i < rc::eskf::kIdxEarthMag; ++i) {
@@ -477,6 +484,8 @@ TEST(ESKFMagUpdate, TiltInflatesR) {
     // Inflate P[yaw] so the update has room to correct
     eskfLevel.P(2, 2) = 0.1f;
     eskfTilted.P(2, 2) = 0.1f;
+    eskfLevel.invalidate_ud_factors();
+    eskfTilted.invalidate_ud_factors();
 
     float P22_level_before = eskfLevel.P(2, 2);
     float P22_tilted_before = eskfTilted.P(2, 2);
@@ -488,6 +497,8 @@ TEST(ESKFMagUpdate, TiltInflatesR) {
     EXPECT_TRUE(acceptedTilted) << "40° tilt update should still be accepted";
 
     // At 40° tilt, R is inflated → Kalman gain is lower → P reduction is smaller
+    eskfLevel.sync_dense_covariance();
+    eskfTilted.sync_dense_covariance();
     float P22_reduction_level = P22_level_before - eskfLevel.P(2, 2);
     float P22_reduction_tilted = P22_tilted_before - eskfTilted.P(2, 2);
 
@@ -507,6 +518,7 @@ TEST(ESKFMagUpdate, HighTiltRejects) {
 
     // Inflate P[yaw] so the gate wouldn't block if tilt weren't the issue
     eskf.P(2, 2) = 1.0f;
+    eskf.invalidate_ud_factors();
 
     Vec3 magTilted = mag_body_from_quat(eskf.q, kMagNed);
     float P22_before = eskf.P(2, 2);
@@ -531,6 +543,7 @@ TEST(ESKFMagUpdate, MagResetAfterSustainedRejection) {
     constexpr float kRoll70 = 70.0f * kPi / 180.0f;
     eskf.q = Quat::from_euler(kRoll70, 0.0f, 0.0f);
     eskf.P(2, 2) = 1.0f;
+    eskf.invalidate_ud_factors();
 
     Vec3 magTilted = mag_body_from_quat(eskf.q, kMagNed);
 
@@ -557,6 +570,7 @@ TEST(ESKFMagUpdate, MagResetAfterSustainedRejection) {
 TEST(ESKFMagUpdate, CounterResetBehavior) {
     ESKF eskf = make_initialized();
     eskf.P(2, 2) = 0.1f;  // Enough room for acceptance
+    eskf.invalidate_ud_factors();
 
     Vec3 mag = mag_body_from_quat(eskf.q, kMagNed);
     EXPECT_TRUE(eskf.update_mag_heading(mag, kMagExpected, 0.0f));
@@ -577,6 +591,7 @@ TEST(ESKFMagUpdate, CounterResetBehavior) {
     // Return to level and accept — consecutive counter resets, total doesn't
     eskf.q = Quat::from_euler(0.0f, 0.0f, 0.0f);
     eskf.P(2, 2) = 0.1f;
+    eskf.invalidate_ud_factors();
     mag = mag_body_from_quat(eskf.q, kMagNed);
     EXPECT_TRUE(eskf.update_mag_heading(mag, kMagExpected, 0.0f));
     EXPECT_EQ(eskf.mag_consecutive_rejects_, 0u);

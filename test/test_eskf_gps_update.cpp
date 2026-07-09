@@ -206,6 +206,7 @@ TEST(ESKFGpsPosition, Basic) {
     EXPECT_GT(eskf.p.x, 0.0f);
 
     // P[3][3] should decrease
+    eskf.sync_dense_covariance();
     EXPECT_LT(eskf.P(3, 3), P33_before);
 
     // NIS should be stored and positive
@@ -244,6 +245,7 @@ TEST(ESKFGpsPosition, Convergence) {
     EXPECT_NEAR(eskf.p.z, target.z, 5.0f);
 
     // P[3][3] should have shrunk significantly
+    eskf.sync_dense_covariance();
     EXPECT_LT(eskf.P(3, 3), P33_initial * 0.5f);
 }
 
@@ -293,6 +295,7 @@ TEST(ESKFGpsVelocity, Basic) {
     EXPECT_GT(eskf.v.y, 0.0f);  // v_east > 0
 
     // P[6][6] should decrease
+    eskf.sync_dense_covariance();
     EXPECT_LT(eskf.P(6, 6), P66_before);
 
     // NIS should be stored
