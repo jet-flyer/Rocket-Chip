@@ -546,60 +546,6 @@ const float* calibration_get_6pos_avg(uint8_t pos) {
     return g_6posAvg[pos];
 }
 
-cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn read_fn) {
-    if (pos >= kAccel6posPositions) {
-        return CAL_RESULT_INVALID_DATA;
-    }
-    if (read_fn == nullptr) {
-        return CAL_RESULT_INVALID_DATA;
-    }
-    if ((g_6posCollected & (1 << pos)) != 0) {
-        return CAL_RESULT_INVALID_DATA;  // Already done
-    }
-
-    uint16_t base_idx = pos * kAccel6posSamplesPerPos;
-    float sum[3] = {0.0F, 0.0F, 0.0F};
-    float temp_unused = 0.0F;
-
-    for (uint16_t i = 0; i < kAccel6posSamplesPerPos; i++) {
-        float ax = 0.0F;
-        float ay = 0.0F;
-        float az = 0.0F;
-        if (!read_fn(&ax, &ay, &az, &temp_unused)) {
-            return CAL_RESULT_NO_DATA;
-        }
-
-        g_6posSamples[base_idx + i][0] = ax;
-        g_6posSamples[base_idx + i][1] = ay;
-        g_6posSamples[base_idx + i][2] = az;
-
-        sum[0] += ax; sum[1] += ay; sum[2] += az;
-    }
-
-    // No motion check — ArduPilot doesn't either. Solver handles noisy data;
-    // if samples are bad the fit won't converge (caught at gate check).
-
-    // Compute average
-    float n = static_cast<float>(kAccel6posSamplesPerPos);
-    g_6posAvg[pos][0] = sum[0] / n;
-    g_6posAvg[pos][1] = sum[1] / n;
-    g_6posAvg[pos][2] = sum[2] / n;
-
-    // No orientation pre-check — ArduPilot doesn't do this either.
-    // If the user places the board wrong, the Gauss-Newton fit won't converge
-    // and the gate checks (offset, scale, gravity magnitude) catch the error.
-
-    g_6posCollected |= (1 << pos);
-    g_6posSampleCount = 0;
-    for (uint8_t p = 0; p < kAccel6posPositions; p++) {
-        if ((g_6posCollected & (1 << p)) != 0) {
-            g_6posSampleCount += kAccel6posSamplesPerPos;
-        }
-    }
-
-    return CAL_RESULT_OK;
-}
-
 // Accumulate normal equations (J^T*J and J^T*r) over all samples for current params
 static void accumulate_normal_equations(const float* params, float* jtfi) {
     float jacob[kAccel6posNumParams];

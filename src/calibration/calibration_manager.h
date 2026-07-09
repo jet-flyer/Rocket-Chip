@@ -41,15 +41,6 @@ typedef enum {
     CAL_RESULT_FIT_FAILED,      // Ellipsoid fit did not converge or params out of range
 } cal_result_t;
 
-/**
- * @brief Callback to read one accelerometer sample
- *
- * Used by 6-pos calibration to decouple from sensor driver.
- * Implementation should block until a fresh sample is available (~10ms).
- * @return true on success
- */
-typedef bool (*accel_read_fn)(float* ax, float* ay, float* az, float* tempC);
-
 // ============================================================================
 // Initialization
 // ============================================================================
@@ -154,21 +145,6 @@ cal_result_t calibration_get_result(void);
 // ============================================================================
 // 6-Position Accelerometer Calibration (IVP-17)
 // ============================================================================
-
-/**
- * @brief Collect samples for one position of 6-pos calibration (BLOCKING)
- *
- * Blocking function: reads 50 samples via callback, checks motion
- * and orientation. Positions must be collected in order 0-5.
- * DEPRECATED: prefer async API (start/feed/finalize) below.
- *
- * @param pos Position index (0-5)
- * @param read_fn Callback that reads one accel sample (blocks ~10ms)
- * @return CAL_RESULT_OK on success,
- *         CAL_RESULT_MOTION_DETECTED if device moved,
- *         CAL_RESULT_INVALID_DATA if orientation doesn't match expected
- */
-cal_result_t calibration_collect_6pos_position(uint8_t pos, accel_read_fn readFn);
 
 /**
  * @brief Start async sample collection for one 6-pos position.

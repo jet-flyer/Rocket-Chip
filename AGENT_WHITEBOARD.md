@@ -23,9 +23,19 @@
 
 ---
 
+## RC_OS Rework (OPEN) (2026-07-09, from CODE_TRIMMING §2)
+
+**Origin:** 2026-07-03 code-trimming / staleness survey noted CLI “morphed almost into a pseudo-OS” (`docs/audits/CODE_TRIMMING_AUDIT_2026-07-03.md` §2). Not a scheduled Stage/IVP yet.
+
+**Intent:** Future workstream — structure RC_OS more like a proper UX/OS layer than accretion of single-key handlers: table-driven key→handler maps, clear UX vs domain ownership (AO_RCOS vs cal_manager vs FD), station/vehicle gating without copy-paste, host-testable dispatch. Entry docs: `docs/ROCKETCHIP_OS.md`, `docs/AO_ARCHITECTURE.md`, CODE_TRIMMING §2.
+
+**Rule:** Do **not** half-refactor live menus for LOC first; proven-dead CLI symbols may still be deleted. Needs own plan + council before code.
+
+---
+
 ## Session note — Bierman consolidation COMPLETE (2026-07-09, Grok Build)
 
-Joseph dual path removed after host/flight Bierman parity. See CHANGELOG + CODE_TRIMMING §1 closed. Residual: optional push of consolidation commit; Thornton predict remains out of scope (MCU-budget decision, not “same accuracy as codegen”).
+Joseph dual path removed after host/flight Bierman parity. See CHANGELOG + CODE_TRIMMING §1 closed. Thornton predict remains shelved (MCU-budget; revisit triggers in UD_BENCHMARK). Post-Bierman cascade (healthy under UD, residual §4 dead) in progress this session.
 
 ---
 
