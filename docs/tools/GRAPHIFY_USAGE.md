@@ -276,15 +276,22 @@ Deterministic, no-LLM, fail-safe, idempotent, atomic-write. In order:
 ### 11.3 The workflow
 
 ```powershell
-# every commit / code change (cheap, no LLM):
+# every commit (post-commit hook does this in background — cheap, no LLM):
 graphify update .                       # rebuilds (AST fresh + fragments + lossy merge)
-python scripts/graphify_curate.py       # reconciles back to curated shape
-python scripts/graphify_verify.py       # proves parity (see 11.4)
+python scripts/graphify_curate.py       # re-aligns with semantic cache (everyday sync)
+
+# milestone / deliberate audit only — NOT every commit (2026-07-09):
+python scripts/graphify_verify.py       # diffs live graph vs sequestered snapshot (11.4)
 
 # only when DOCS that matter to the graph change (token-bearing, owner-gated):
 #   /graphify .   in an agent  -> refreshes the semantic cache for changed docs
-# then the cheap path above carries the new curated nodes forward automatically.
+# then the next curate carries those nodes forward automatically.
 ```
+
+**Why verify is not on the hook:** the sequestered snapshot is a useful *comparison*
+target, but automatic every-commit parity fails after intentional edits (deleted
+symbols, new APIs, whiteboard churn). That noise is not “graph sync failed.”
+Everyday health is rebuild + curate. Use verify when cutting or checking a freeze.
 
 The full `/graphify .` LLM pass is **prompted, never auto-run** — see
 `SESSION_CHECKLIST.md` item 17d (milestone-close prompt). A pure code-work
@@ -352,6 +359,18 @@ the filter reads its node set to scope restoration and its links for the edge
 backstop, and the verifier diffs against it. It is the source of truth for "what
 curated parity means"; do not overwrite it without cutting a new baseline.
 
+### 11.6 What runs automatically vs on demand (2026-07-09)
+
+| Step | Automatic (post-commit)? | Purpose |
+|------|--------------------------|---------|
+| AST rebuild | **Yes** | Live code graph tracks the tree |
+| `graphify_curate.py` | **Yes** | Drop fragment bloat; restore semantic-cache nodes |
+| `graphify_verify.py` vs `claude-build-2026-06-28/` | **No** (manual / milestone) | Compare to sequestered freeze; not a daily health light |
+
+Native graphify provides the rebuild. Project **curate** is the everyday
+semantic re-align. Snapshot **verify** stays available for audits and new
+baselines — it is not wired to every commit.
+
 ---
 
-*Last updated: 2026-06-28 (curate filter + verifier + count-parity-fallacy note added; §11).*
+*Last updated: 2026-07-09 (§11.3/11.6: verify off post-commit hook).*
