@@ -23,6 +23,35 @@
 
 ---
 
+## Session Handoff — Bierman host parity + Joseph deprecation IN PROGRESS (2026-07-09, Grok Build)
+
+**In progress:** Fully deprecate Joseph ESKF measurement path after host matches flight Bierman path. Owner approved full sequence once baselined; session stopped overnight.
+
+**Exact state (item 10):**
+- **main commits (ahead of origin by 2 until push):** `df98581` (recency_audit tool + doc ghosts), `058aa52` (HealthFlag + TelemetryEncoderState removed; kApidDiag reserved). HW gate for `058aa52`: OpenOCD `:3333`, **bench_sim 2/2 PASS** COM7 vehicle; station sim skipped (no station on bus). Host pre-commit **857/857** on those commits.
+- **Tree clean** except intentional stash (item 9). Working tree must not carry half-applied Bierman host flip.
+- **Stash:** `stash@{0}` — `WIP 2026-07-09: host rc_fusion ESKF_USE_BIERMAN=1 (Bierman consolidation; ~15 ESKF tests fail until P-dense visibility fixed)` — only `CMakeLists.txt` (+4 lines defining `ESKF_USE_BIERMAN=1` on host `rc_fusion`). Resume: `git stash pop` (or apply), then fix test/P visibility before commit.
+- **Flight firmware still Bierman-only** (`ESKF_USE_BIERMAN=1` on target). **Host default `rc_fusion` still Joseph** until stash reapplied — verification gap still present on main until next session closes it.
+
+**Blocked / next steps:**
+1. Pop stash → host Bierman define.
+2. Fix ~15 failing ESKF/replay tests: after Bierman updates, dense `P` is often **stale** until `ensure_dense()` (lazy UD). Tests that assert `P(i,i)` shrink read stale diagonals. Options: ensure dense after measurement for readers, or public dense-P accessor; align with how flight readers behave.
+3. Full host `ctest` green; regenerate replay refs only if residual numerical deltas remain after P-visibility fix.
+4. Delete Joseph `scalar_kalman_update` + `#else` forks; collapse `rc_fusion_bierman` dual lib in `test/CMakeLists.txt`.
+5. Docs: re-iterate NASA UD / Navigation Filter Best Practices (NASA/TP-2018-219822) as why Bierman is preferred — not just performance. Update ADVANCED_SETTINGS, ESKF_TESTING_GUIDE, CODE_TRIMMING close-out. Owner asked for this in docs.
+6. Firmware-touching commit → **HW gate only, no `--no-verify`** (owner explicit). CHANGELOG not written this session (owner deferred); add session CHANGELOG when wrapping Bierman work or at next push window per item 8.
+
+**Concerns / open questions:**
+- Host/flight measurement-path mismatch since 2026-02-24 Bierman adoption is a **real verification gap** (most host ESKF tests never exercised flight measurement path). Closing it is higher priority than LOC delete.
+- Council (JPL/Prof/ArduPilot/Cubesat) rejected “delete Joseph only for perf.” Approved Bierman-only after host parity.
+- NASA reading: NASA/TP-2018-219822 (NTRS PDF); project notes in `docs/decisions/ESKF/ESKF_RESEARCH_SUMMARY.md`, `docs/benchmarks/UD_BENCHMARK_RESULTS.md`.
+
+**Files:** `CMakeLists.txt` (stash), `src/fusion/eskf.cpp` / `eskf.h` (Joseph removal next), `test/CMakeLists.txt` (`rc_fusion_bierman`), host ESKF tests + `test/data/reference/*` if refs need regen, docs above.
+
+**Also landed this session (done, not handoff work):** `tools/recency_audit.py`, `docs/tools/RECENCY_AUDIT.md` (epoch 2026-02-03 baremetal pivot `ddc2637`).
+
+---
+
 ## Cross-agent commit hygiene — sweep-in convention (OPEN) (2026-06-29, Claude/Opus)
 
 Recurring friction with Claude + Grok + Gemini on shared `main`: separate agents' work getting swept into each other's commits (Grok edited Claude's CHANGELOG entry; an AGENTS.md edit landed in an unexpected commit). **Open ask:** a lightweight convention so agents don't sweep each other's in-flight files — stage explicit paths, never `git add -A` / `git add .` across another agent's working files. Worth a short written rule in AGENTS.md or CROSS_AGENT_REVIEW.md.
