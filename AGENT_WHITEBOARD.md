@@ -33,9 +33,9 @@
 
 ---
 
-## Session note — Bierman consolidation COMPLETE (2026-07-09, Grok Build)
+## Graphify full re-pass (OPEN) — after L2-P5 manual walk
 
-Joseph dual path removed after host/flight Bierman parity. See CHANGELOG + CODE_TRIMMING §1 closed. Thornton predict remains shelved (MCU-budget; revisit triggers in UD_BENCHMARK). Post-Bierman cascade (healthy under UD, residual §4 dead) in progress this session.
+**Probable** owner-gated full `/graphify` (and baseline refresh if needed) **after** the L2-P5 manual walk is finished — not sooner. Cheap `graphify update` + curate already runs post-commit; this is the token-bearing semantic re-pass only.
 
 ---
 
