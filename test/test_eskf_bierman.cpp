@@ -2,11 +2,9 @@
 // Copyright (c) 2025-2026 Rocket Chip Project
 // Bierman measurement update integration tests.
 //
-// Compiled with ESKF_USE_BIERMAN=1. Verifies UD factorize/reconstruct
-// round-trip, Bierman vs Joseph equivalence, convergence, positive-
-// definiteness, DCP alpha precision canary, stress tests.
-//
-// 8 tests per council-approved plan (vectorized-cooking-duckling.md).
+// Bierman UD measurement path (sole host/flight path after 2026-07
+// consolidation). Factorize/reconstruct, convergence, PD, multi-instance
+// isolation, long mag-aiding finite stress.
 
 #include <gtest/gtest.h>
 #include "fusion/eskf.h"
@@ -371,4 +369,77 @@ TEST(ESKFBierman, InhibitToggleDuringUD) {
     eskf.predict(kAccelStationary, kGyroStationary, kDt);
 
     EXPECT_TRUE(eskf.healthy());
+}
+
+// ============================================================================
+// DualESKFIndependentUD — per-instance UD cache (Rule-7 fix 2026-07-09)
+// File-static UD factors made multi-ESKF host tests corrupt each other.
+// ============================================================================
+TEST(ESKFBierman, DualESKFIndependentUD) {
+    ESKF a = make_initialized();
+    ESKF b = make_initialized();
+
+    for (int32_t i = 0; i < 10; ++i) {
+        a.predict(kAccelStationary, kGyroStationary, kDt);
+        b.predict(kAccelStationary, kGyroStationary, kDt);
+    }
+
+    // Divergent measurements — independent UD caches must not cross-talk.
+    EXPECT_TRUE(a.update_baro(5.0f));
+    EXPECT_TRUE(b.update_baro(0.0f));
+
+    a.sync_dense_covariance();
+    b.sync_dense_covariance();
+
+    EXPECT_LT(a.p.z, b.p.z) << "instance A should climb; B stays near zero alt";
+    EXPECT_LT(a.P(5, 5), b.P(5, 5) + 1e-3f)
+        << "baro update on A must shrink its own P[5,5] without using B's UD";
+
+    // Further Bierman updates only on B (zero innov still runs UD path) —
+    // A must not change. Proves instance B cannot overwrite instance A's UD.
+    const float az_before = a.p.z;
+    const float ap55 = a.P(5, 5);
+    for (int32_t i = 0; i < 5; ++i) {
+        EXPECT_TRUE(b.update_baro(0.0f)) << "step " << i;
+    }
+    b.sync_dense_covariance();
+    a.sync_dense_covariance();
+
+    EXPECT_FLOAT_EQ(a.p.z, az_before);
+    EXPECT_FLOAT_EQ(a.P(5, 5), ap55);
+    EXPECT_TRUE(a.healthy());
+    EXPECT_TRUE(b.healthy());
+}
+
+// ============================================================================
+// LongMagAidingStaysFinite — long mag sequence without NaN (Rule-7 fix)
+// const_velocity / static replay paths previously NaN'd when factorize
+// failure was still marked UD.
+// ============================================================================
+TEST(ESKFBierman, LongMagAidingStaysFinite) {
+    ESKF eskf = make_initialized();
+    // Level body mag consistent with earth field NED (20, 0, 45) µT
+    const Vec3 mag_body(20.0f, 0.0f, 45.0f);
+
+    for (int32_t i = 0; i < 2500; ++i) {
+        eskf.predict(kAccelStationary, kGyroStationary, kDt);
+        // expected_magnitude=0 skips interference hard-reject (replay pattern)
+        eskf.update_mag_heading(mag_body, 0.0f, 0.0f);
+        if ((i % 100) == 99) {
+            eskf.sync_dense_covariance();
+            for (int32_t j = 0; j < 15; ++j) {
+                ASSERT_TRUE(std::isfinite(eskf.P(j, j)))
+                    << "non-finite P(" << j << "," << j << ") at step " << i;
+            }
+            ASSERT_TRUE(std::isfinite(eskf.q.w));
+            ASSERT_TRUE(std::isfinite(eskf.p.z));
+        }
+    }
+
+    eskf.sync_dense_covariance();
+    EXPECT_TRUE(eskf.healthy());
+    for (int32_t j = 0; j < 15; ++j) {
+        EXPECT_TRUE(std::isfinite(eskf.P(j, j)));
+        EXPECT_GT(eskf.P(j, j), 0.0f);
+    }
 }
