@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""PreToolUse for read/glob/grep tools: graphify-first advisory.
+"""PreToolUse for read/glob tools — Grok-compatible graphify advisory.
 
-Same root cause / Grok decision protocol as graphify_pretool_bash.py.
+See graphify_pretool_bash.py for root-cause notes (decision protocol + path).
 """
 from __future__ import annotations
 
@@ -44,7 +44,9 @@ def _workspace() -> Path:
     for key in ("GROK_WORKSPACE_ROOT", "CLAUDE_PROJECT_DIR"):
         v = os.environ.get(key)
         if v:
-            return Path(v)
+            p = Path(v)
+            if p.is_dir():
+                return p
     return Path.cwd()
 
 
@@ -82,15 +84,20 @@ def _should_nudge(ti: dict) -> bool:
     return False
 
 
+def _emit_grok_allow() -> None:
+    print(json.dumps({"decision": "allow"}), flush=True)
+
+
 def main() -> int:
     data = _payload()
     ti = _tool_input(data)
+    ws = _workspace()
 
     if _is_grok():
-        print(json.dumps({"decision": "allow"}), flush=True)
+        _emit_grok_allow()
         return 0
 
-    if _should_nudge(ti) and (_workspace() / "graphify-out" / "graph.json").is_file():
+    if _should_nudge(ti) and (ws / "graphify-out" / "graph.json").is_file():
         msg = (
             "MANDATORY: graphify-out/graph.json exists. "
             "You MUST run graphify before reading source files. Use: "
@@ -116,9 +123,9 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except Exception:
-        if _is_grok():
-            try:
-                print(json.dumps({"decision": "allow"}), flush=True)
-            except Exception:
-                pass
+        try:
+            if _is_grok():
+                _emit_grok_allow()
+        except Exception:
+            pass
         raise SystemExit(0)
