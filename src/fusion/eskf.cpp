@@ -1474,66 +1474,96 @@ void ESKF::clamp_covariance() {
 // diagonal_positive() would return false. Instead, check only enabled state
 // block diagonals for strict positivity.
 // ============================================================================
-bool ESKF::healthy() const {
-    // Bierman note: when P is in UD form, stale dense diagonals are still
-    // valid for health checks (Bierman preserves positive-definiteness).
+// Positive-and-finite checks for health diagonals (UD D or dense P_ii).
+static bool diags_positive_finite(const float* d, int32_t begin, int32_t end) {
+    for (int32_t i = begin; i < end; ++i) {
+        if (!std::isfinite(d[i]) || d[i] <= 0.0F) {
+            return false;
+        }
+    }
+    return true;
+}
 
-    // P must be finite everywhere (including inhibited blocks, which are 0)
+static bool dense_diags_positive(const Mat24& p, int32_t begin, int32_t end) {
+    for (int32_t i = begin; i < end; ++i) {
+        if (p.data[i][i] <= 0.0F) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool ESKF::covariance_diagonals_healthy() const {
+    // Authority follows p_repr_ (post-Bierman cascade 2026-07-09):
+    // UD → D factors (dense P may be lazy after multi-aid); dense → P diagonals.
+    if (p_repr_ == PRepr::UD) {
+        if (!diags_positive_finite(bierman_ud_.D, 0, eskf::kIdxEarthMag)) {
+            return false;
+        }
+        if (!inhibit_mag_states_ &&
+            !diags_positive_finite(bierman_ud_.D, eskf::kIdxEarthMag,
+                                   eskf::kIdxEarthMag + kMagBlockSpan)) {
+            return false;
+        }
+        if (!inhibit_wind_states_ &&
+            !diags_positive_finite(bierman_ud_.D, eskf::kIdxWindNE,
+                                   eskf::kIdxWindNE + 2)) {
+            return false;
+        }
+        if (!inhibit_baro_bias_ &&
+            !diags_positive_finite(bierman_ud_.D, eskf::kIdxBaroBias,
+                                   eskf::kIdxBaroBias + 1)) {
+            return false;
+        }
+        return true;
+    }
+
     if (!P.is_finite()) {
         return false;
     }
+    if (!dense_diags_positive(P, 0, eskf::kIdxEarthMag)) {
+        return false;
+    }
+    if (!inhibit_mag_states_ &&
+        !dense_diags_positive(P, eskf::kIdxEarthMag,
+                              eskf::kIdxEarthMag + kMagBlockSpan)) {
+        return false;
+    }
+    if (!inhibit_wind_states_ &&
+        !dense_diags_positive(P, eskf::kIdxWindNE, eskf::kIdxWindNE + 2)) {
+        return false;
+    }
+    if (!inhibit_baro_bias_ &&
+        !dense_diags_positive(P, eskf::kIdxBaroBias, eskf::kIdxBaroBias + 1)) {
+        return false;
+    }
+    return true;
+}
 
-    // Core states [0..14]: always require positive diagonal
-    for (int32_t i = 0; i < eskf::kIdxEarthMag; ++i) {
-        if (P.data[i][i] <= 0.0F) {
-            return false;
-        }
-    }
-
-    // Extended states: only check diagonal when NOT inhibited
-    if (!inhibit_mag_states_) {
-        for (int32_t i = eskf::kIdxEarthMag; i < eskf::kIdxEarthMag + kMagBlockSpan; ++i) {
-            if (P.data[i][i] <= 0.0F) {
-                return false;
-            }
-        }
-    }
-    if (!inhibit_wind_states_) {
-        for (int32_t i = eskf::kIdxWindNE; i < eskf::kIdxWindNE + 2; ++i) {
-            if (P.data[i][i] <= 0.0F) {
-                return false;
-            }
-        }
-    }
-    if (!inhibit_baro_bias_) {
-        if (P.data[eskf::kIdxBaroBias][eskf::kIdxBaroBias] <= 0.0F) {
-            return false;
-        }
-    }
-
-    // Quaternion norm check: |norm - 1| < kQuatNormTolerance
-    // Note: NaN comparison always returns false, so check isfinite explicitly.
+bool ESKF::nominal_state_healthy() const {
+    // Quaternion norm: |norm - 1| < kQuatNormTolerance
+    // NaN comparison always returns false — check isfinite explicitly.
     const float qnorm = q.norm();
     if (!std::isfinite(qnorm) || fabsf(qnorm - 1.0F) > kQuatNormTolerance) {
         return false;
     }
-
-    // Bias magnitude sanity check
-    // Gyro bias > 10 dps (0.175 rad/s) is unrealistic for ICM-20948
+    // Gyro bias > 10 dps (0.175 rad/s) unrealistic for ICM-20948
     if (gyro_bias.norm() > kMaxGyroBias) {
         return false;
     }
-    // Accel bias > 1 m/s² (~100mg) is unrealistic
+    // Accel bias > 1 m/s² (~100mg) unrealistic
     if (accel_bias.norm() > 1.0F) {
         return false;
     }
-
-    // Velocity sentinel: catches silent sensor fault divergence (LL Entry 29)
+    // Velocity sentinel: silent sensor fault divergence (LL Entry 29)
     if (v.norm() >= kMaxHealthyVelocity) {
         return false;
     }
-
     return true;
+}
+
+bool ESKF::healthy() const {
+    return covariance_diagonals_healthy() && nominal_state_healthy();
 }
 
 // ============================================================================

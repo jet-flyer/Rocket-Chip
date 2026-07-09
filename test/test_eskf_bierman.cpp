@@ -443,6 +443,25 @@ TEST(ESKFBierman, SequentialAidUsesUdAwareS) {
     EXPECT_TRUE(eskf.healthy());
 }
 
+// ============================================================================
+// HealthyAfterMultiAidWithoutDenseSync — post-Bierman cascade 2026-07-09
+// healthy() must use UD D when dense P is lazy (no ensure_dense required).
+// ============================================================================
+TEST(ESKFBierman, HealthyAfterMultiAidWithoutDenseSync) {
+    ESKF eskf = make_initialized();
+    for (int32_t i = 0; i < 20; ++i) {
+        eskf.predict(kAccelStationary, kGyroStationary, kDt);
+    }
+
+    EXPECT_TRUE(eskf.update_baro(1.0f));
+    EXPECT_TRUE(eskf.update_baro(1.0f));
+    EXPECT_TRUE(eskf.update_zupt(kAccelStationary, kGyroStationary));
+
+    // Still in UD form — do NOT call sync_dense_covariance first.
+    EXPECT_TRUE(eskf.healthy())
+        << "healthy() must not depend on reconstructing dense P after multi-aid";
+}
+
 TEST(ESKFBierman, LongMagAidingStaysFinite) {
     ESKF eskf = make_initialized();
     // Level body mag consistent with earth field NED (20, 0, 45) µT

@@ -435,6 +435,9 @@ struct ESKF {
 
     // Health check: NaN detection, P bounds, quaternion norm (council RF-3).
     // Inhibit-aware (R-1): skips P diagonal check for inhibited state indices.
+    // When covariance is UD-factored (post-Bierman, dense P lazy/stale), diagonal
+    // positivity uses UD D factors — same authority as scalar_innovation_s().
+    // Does not call ensure_dense() (const; avoids reconstruct on health polls).
     bool healthy() const;
 
     // Reconstruct dense P from UD when Bierman left covariance factored.
@@ -582,6 +585,10 @@ private:
     // ensure_ud():    factorize P into UD if needed (for Bierman measurement update)
     void ensure_dense();
     void ensure_ud();
+
+    // healthy() helpers (split for readability-function-size / complexity)
+    bool covariance_diagonals_healthy() const;
+    bool nominal_state_healthy() const;
 
     // Per-instance UD cache (~2.4KB). One flight ESKF on Core 0 BSS is fine.
     enum class PRepr : uint8_t { DENSE, UD };
