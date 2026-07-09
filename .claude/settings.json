@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python scripts/hooks/graphify_pretool_bash.py",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/scripts/hooks/graphify_pretool_bash.py\"",
             "timeout": 10
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python scripts/hooks/graphify_pretool_read.py",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/scripts/hooks/graphify_pretool_read.py\"",
             "timeout": 10
           }
         ]

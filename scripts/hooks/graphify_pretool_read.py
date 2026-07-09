@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""PreToolUse (Read/Glob/list/grep-like): advisory graphify nudge.
+"""PreToolUse for read/glob/grep tools: graphify-first advisory.
 
-Always exit 0 — see graphify_pretool_bash.py header.
+Same root cause / Grok decision protocol as graphify_pretool_bash.py.
 """
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -29,6 +30,22 @@ _EXTS = {
     ".txt",
     ".cmake",
 }
+
+
+def _is_grok() -> bool:
+    return bool(
+        os.environ.get("GROK_HOOK_EVENT")
+        or os.environ.get("GROK_SESSION_ID")
+        or os.environ.get("GROK_WORKSPACE_ROOT")
+    )
+
+
+def _workspace() -> Path:
+    for key in ("GROK_WORKSPACE_ROOT", "CLAUDE_PROJECT_DIR"):
+        v = os.environ.get(key)
+        if v:
+            return Path(v)
+    return Path.cwd()
 
 
 def _payload() -> dict:
@@ -68,30 +85,40 @@ def _should_nudge(ti: dict) -> bool:
 def main() -> int:
     data = _payload()
     ti = _tool_input(data)
-    if not _should_nudge(ti):
-        return 0
-    if not (Path.cwd() / "graphify-out" / "graph.json").is_file():
+
+    if _is_grok():
+        print(json.dumps({"decision": "allow"}), flush=True)
         return 0
 
-    msg = (
-        "MANDATORY: graphify-out/graph.json exists. "
-        "You MUST run graphify before reading source files. Use: "
-        '`graphify query "<question>"`, `graphify explain "<concept>"`, or '
-        '`graphify path "<A>" "<B>"`. Only read raw files after graphify has '
-        "oriented you, or to modify/debug specific lines."
-    )
-    out = {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "additionalContext": msg,
-        }
-    }
-    print(json.dumps(out), flush=True)
+    if _should_nudge(ti) and (_workspace() / "graphify-out" / "graph.json").is_file():
+        msg = (
+            "MANDATORY: graphify-out/graph.json exists. "
+            "You MUST run graphify before reading source files. Use: "
+            '`graphify query "<question>"`, `graphify explain "<concept>"`, or '
+            '`graphify path "<A>" "<B>"`. Only read raw files after graphify has '
+            "oriented you, or to modify/debug specific lines."
+        )
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "additionalContext": msg,
+                    }
+                }
+            ),
+            flush=True,
+        )
     return 0
 
 
 if __name__ == "__main__":
     try:
-        sys.exit(main())
+        raise SystemExit(main())
     except Exception:
-        sys.exit(0)
+        if _is_grok():
+            try:
+                print(json.dumps({"decision": "allow"}), flush=True)
+            except Exception:
+                pass
+        raise SystemExit(0)
