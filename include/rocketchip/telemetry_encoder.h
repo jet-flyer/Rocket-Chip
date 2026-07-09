@@ -50,7 +50,10 @@ namespace ccsds {
 
 // Application Process Identifiers
 constexpr uint16_t kApidNav  = 0x001;    // Navigation telemetry (legacy, 42 B payload)
-constexpr uint16_t kApidDiag = 0x002;    // Diagnostics (defined, not yet used)
+// Reserved APID for future diagnostics / housekeeping stream (council
+// 2026-02-27 two-tier plan: nav high-rate, diag low-rate). No encoder yet —
+// keep the number so we do not collide when diagnostics land. Not dead code.
+constexpr uint16_t kApidDiag = 0x002;
 constexpr uint16_t kApidCmdAck = 0x003;  // Command ACK (IVP-122: half-duplex ACK)
 // Stage T IVP-T5.5 sub 2f: nav-with-config-echo. 46 B payload = 42 B nav +
 // 4 B config tail. APID chosen distinct from kApidNav so old stations that
@@ -266,20 +269,9 @@ struct MavlinkEncoder {
     static constexpr uint8_t max_packet_size() { return 144; }
 };
 
-// ============================================================================
-// Strategy Wrapper
-// ============================================================================
-
-struct TelemetryEncoderState {
-    EncoderType  type;
-    CcsdsEncoder ccsds;
-    MavlinkEncoder mavlink;
-
-    void init(EncoderType encoder_type);
-    void encode_nav(const TelemetryState& telem, uint32_t met_ms,
-                    EncodeResult& result);
-    uint8_t max_packet_size() const;
-};
+// TelemetryEncoderState strategy wrapper removed 2026-07-09: zero firmware
+// callers (ao_telemetry uses CcsdsEncoder / MavlinkEncoder directly via
+// EncoderType on RadioConfig). Host tests construct encoders directly.
 
 // ============================================================================
 // CCSDS Decoder (RX mode)

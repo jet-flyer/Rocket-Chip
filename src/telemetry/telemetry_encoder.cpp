@@ -348,41 +348,6 @@ void MavlinkEncoder::encode_nav(const TelemetryState& telem, uint32_t met_ms,
 }
 
 // ============================================================================
-// Strategy Wrapper
-// ============================================================================
-
-void TelemetryEncoderState::init(EncoderType encoder_type) {
-    type = encoder_type;
-    ccsds.init();
-    mavlink.init();
-}
-
-void TelemetryEncoderState::encode_nav(const TelemetryState& telem,
-                                        uint32_t met_ms,
-                                        EncodeResult& result) {
-    switch (type) {
-        case EncoderType::kCcsds:
-            ccsds.encode_nav(telem, met_ms, result);
-            break;
-        case EncoderType::kMavlink:
-            mavlink.encode_nav(telem, met_ms, result);
-            break;
-        default:
-            result.ok = false;
-            result.len = 0;
-            break;
-    }
-}
-
-uint8_t TelemetryEncoderState::max_packet_size() const {
-    switch (type) {
-        case EncoderType::kCcsds:   return CcsdsEncoder::max_packet_size();
-        case EncoderType::kMavlink: return MavlinkEncoder::max_packet_size();
-        default:                    return 0;
-    }
-}
-
-// ============================================================================
 // CCSDS Decoder
 // ============================================================================
 

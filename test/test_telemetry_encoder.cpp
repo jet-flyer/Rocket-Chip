@@ -425,36 +425,33 @@ TEST_F(MavlinkEncoderTest, BinaryIntegrity0x0A) {
 }
 
 // ============================================================================
-// Strategy Wrapper Tests
+// Direct encoder selection (TelemetryEncoderState wrapper removed 2026-07-09)
 // ============================================================================
 
-TEST(TelemetryEncoderStateTest, CcsdsSelection) {
-    TelemetryEncoderState state;
-    state.init(EncoderType::kCcsds);
+TEST(EncoderSelectionTest, CcsdsEncodeNavLegacy) {
+    CcsdsEncoder enc;
+    enc.init();
     EncodeResult result{};
     TelemetryState telem = make_test_telem();
-    state.encode_nav(telem, 12345, result);
+    enc.encode_nav(telem, 12345, result);
     EXPECT_TRUE(result.ok);
     EXPECT_EQ(result.len, 54);
 }
 
-TEST(TelemetryEncoderStateTest, MavlinkSelection) {
-    TelemetryEncoderState state;
-    state.init(EncoderType::kMavlink);
+TEST(EncoderSelectionTest, MavlinkEncodeNav) {
+    MavlinkEncoder enc;
+    enc.init();
     EncodeResult result{};
     TelemetryState telem = make_test_telem();
-    state.encode_nav(telem, 12345, result);
+    enc.encode_nav(telem, 12345, result);
     EXPECT_TRUE(result.ok);
     EXPECT_GT(result.len, 0);
 }
 
-TEST(TelemetryEncoderStateTest, MaxPacketSize) {
-    TelemetryEncoderState state;
-    state.init(EncoderType::kCcsds);
+TEST(EncoderSelectionTest, MaxPacketSize) {
     // Stage T IVP-T5.5 sub 2f: CCSDS max now 58 B (nav-with-config packet).
-    EXPECT_EQ(state.max_packet_size(), 58);
-    state.init(EncoderType::kMavlink);
-    EXPECT_EQ(state.max_packet_size(), 144);
+    EXPECT_EQ(CcsdsEncoder::max_packet_size(), 58);
+    EXPECT_EQ(MavlinkEncoder::max_packet_size(), 144);
 }
 
 // ============================================================================

@@ -267,19 +267,9 @@ inline HealthLevel mcu_temp_classify(HealthLevel prev, float temp_c) {
     return kHealthOk;
 }
 
-// ============================================================================
-// Legacy HealthFlag — kept temporarily for Go/No-Go compatibility
-// Remove after IVP-107 completes telemetry migration.
-// ============================================================================
-enum HealthFlag : uint8_t {
-    kHealthFlagImuOk      = (1 << 0),
-    kHealthFlagBaroOk     = (1 << 1),
-    kHealthFlagGpsOk      = (1 << 2),
-    kHealthFlagRadioOk    = (1 << 3),
-    kHealthFlagEskfOk     = (1 << 4),
-    kHealthFlagFlashOk    = (1 << 5),
-    kHealthFlagWatchdogOk = (1 << 6),
-};
+// Pre-IVP-107 1-bit HealthFlag enum removed 2026-07-09: zero callers after
+// Go/No-Go + preflight migrated to HealthLevel / HealthFlags2 / HealthSecondary
+// (IVP-104/107). Do not reintroduce — use health_monitor_fill_go_nogo().
 
 } // namespace rc
 
