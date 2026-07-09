@@ -674,6 +674,24 @@ void ESKF::bierman_kalman_update(int32_t h_idx, float h_value,
     inject_error_state(g_dxMat);
 }
 
+float ESKF::scalar_innovation_s(int32_t h_idx, float h_value, float r) const {
+    // S = h² P_hh + R. When covariance is UD-factored, dense P is lazy/stale —
+    // reconstruct only the needed diagonal: P_ii = Σ_{k≥i} U_ik² D_k.
+    float p_hh = 0.0F;
+    if (p_repr_ == PRepr::UD) {
+        if (h_idx < 0 || h_idx >= eskf::kStateSize) {
+            return r;
+        }
+        for (int32_t k = h_idx; k < eskf::kStateSize; ++k) {
+            const float u_ik = bierman_ud_.U[h_idx][k];
+            p_hh += u_ik * u_ik * bierman_ud_.D[k];
+        }
+    } else {
+        p_hh = P(h_idx, h_idx);
+    }
+    return (h_value * h_value * p_hh) + r;
+}
+
 void ESKF::sync_dense_covariance() {
     ensure_dense();
 }
@@ -726,8 +744,8 @@ bool ESKF::update_baro(float altitude_agl_m) {
     // Phase-aware R: use phase R when configured, baseline otherwise
     const float r = phase_qr_ ? r_active_.r_baro : kRBaro;
 
-    // Innovation covariance: S = H²*P[5][5] + R
-    const float s = P(kHIdx, kHIdx) + r;
+    // Innovation covariance: S = H²*P_hh + R (UD-aware when factored)
+    const float s = scalar_innovation_s(kHIdx, kHValue, r);
 
     // Council condition 2: reject degenerate covariance
     if (s < kMinInnovationVariance) {
@@ -865,7 +883,7 @@ bool ESKF::update_mag_heading(const Vec3& mag_body, float expected_magnitude,
     const float innovation = wrap_pi(heading_measured - euler.z);
 
     constexpr int32_t kHIdx = eskf::kIdxAttitude + 2;  // yaw index
-    const float s = P(kHIdx, kHIdx) + r_effective;
+    const float s = scalar_innovation_s(kHIdx, 1.0F, r_effective);
     if (s < kMinInnovationVariance) { return false; }
 
     last_mag_nis_ = (innovation * innovation) / s;
@@ -908,7 +926,7 @@ float ESKF::fuse_mag_axes(const float innov[3], float r_per_axis) {
     // Earth mag states [15-17]
     for (int32_t axis = 0; axis < 3; ++axis) {
         const int32_t h_idx = eskf::kIdxEarthMag + axis;
-        const float s = P(h_idx, h_idx) + r_per_axis;
+        const float s = scalar_innovation_s(h_idx, 1.0F, r_per_axis);
         if (s >= kMinInnovationVariance &&
             fabsf(innov[axis]) <= 5.0F * sqrtf(s)) {
             const float nis = (innov[axis] * innov[axis]) / s;
@@ -919,7 +937,7 @@ float ESKF::fuse_mag_axes(const float innov[3], float r_per_axis) {
     // Body mag bias states [18-20]
     for (int32_t axis = 0; axis < 3; ++axis) {
         const int32_t h_idx = eskf::kIdxBodyMagBias + axis;
-        const float s = P(h_idx, h_idx) + r_per_axis;
+        const float s = scalar_innovation_s(h_idx, 1.0F, r_per_axis);
         if (s >= kMinInnovationVariance &&
             fabsf(innov[axis]) <= 5.0F * sqrtf(s)) {
             bierman_kalman_update(h_idx, 1.0f, innov[axis], r_per_axis);
@@ -1039,7 +1057,7 @@ bool ESKF::update_zupt(const Vec3& accel_meas, const Vec3& gyro_meas) {
     for (int32_t axis = 0; axis < 3; ++axis) {
         const int32_t k_h_idx = eskf::kIdxVelocity + axis;
         const float innovation = -v_components[axis];  // y = 0 - v[axis]
-        const float s = P(k_h_idx, k_h_idx) + kRZupt;
+        const float s = scalar_innovation_s(k_h_idx, 1.0F, kRZupt);
         if (s >= kMinInnovationVariance) {
             // NIS
             const float nis = (innovation * innovation) / s;
@@ -1086,7 +1104,7 @@ bool ESKF::update_zupt(const Vec3& accel_meas, const Vec3& gyro_meas,
     for (int32_t axis = 0; axis < 3; ++axis) {
         const int32_t k_h_idx = eskf::kIdxVelocity + axis;
         const float innovation = -v_components[axis];
-        const float s = P(k_h_idx, k_h_idx) + kRZuptOnPad;
+        const float s = scalar_innovation_s(k_h_idx, 1.0F, kRZuptOnPad);
         if (s >= kMinInnovationVariance) {
             const float nis = (innovation * innovation) / s;
             if (nis > max_nis) {
@@ -1288,7 +1306,7 @@ bool ESKF::update_gps_position(const Vec3& gps_ned, float hdop, float vdop) {
         const int32_t k_h_idx = indices[axis];
         const float r_noise = r_values[axis];
         const float innovation = gps_components[axis] - p_components[axis];
-        const float s = P(k_h_idx, k_h_idx) + r_noise;
+        const float s = scalar_innovation_s(k_h_idx, 1.0F, r_noise);
         if (s >= kMinInnovationVariance) {
             const float nis = (innovation * innovation) / s;
 
@@ -1340,8 +1358,8 @@ bool ESKF::update_gps_velocity(float v_north, float v_east) {
         // Phase-aware R
         const float r = phase_qr_ ? r_active_.r_gps_vel : kRGpsVel;
 
-        // Innovation covariance: S = P[idx][idx] + R
-        const float s = P(k_h_idx, k_h_idx) + r;
+        // Innovation covariance: S = h² P_hh + R (UD-aware)
+        const float s = scalar_innovation_s(k_h_idx, 1.0F, r);
         if (s >= kMinInnovationVariance) {
             // NIS
             const float nis = (innovation * innovation) / s;

@@ -571,6 +571,12 @@ private:
     void bierman_kalman_update(int32_t hIdx, float hValue,
                                float innovation, float r);
 
+    // Scalar innovation variance S = h²·P_hh + R using the *authoritative*
+    // covariance (UD diagonal extract when factored; dense P when dense).
+    // Avoids stale dense P(h,h) for NIS/gating after a prior Bierman update
+    // in the same epoch (before the next predict ensure_dense).
+    float scalar_innovation_s(int32_t h_idx, float h_value, float r) const;
+
     // P representation state machine — ensure correct form before access.
     // ensure_dense(): reconstruct P from UD if needed (for predict, inhibit, etc.)
     // ensure_ud():    factorize P into UD if needed (for Bierman measurement update)

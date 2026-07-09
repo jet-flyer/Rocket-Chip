@@ -416,6 +416,33 @@ TEST(ESKFBierman, DualESKFIndependentUD) {
 // const_velocity / static replay paths previously NaN'd when factorize
 // failure was still marked UD.
 // ============================================================================
+// Sequential multi-aid: after first Bierman update, S/NIS for the next
+// measurement must use UD-aware variance (not stale dense P).
+TEST(ESKFBierman, SequentialAidUsesUdAwareS) {
+    ESKF eskf = make_initialized();
+    for (int32_t i = 0; i < 20; ++i) {
+        eskf.predict(kAccelStationary, kGyroStationary, kDt);
+    }
+
+    // First baro leaves covariance in UD form (dense P lazy).
+    EXPECT_TRUE(eskf.update_baro(2.0f));
+    const float nis_after_first = eskf.last_baro_nis_;
+    EXPECT_TRUE(std::isfinite(nis_after_first));
+    EXPECT_GE(nis_after_first, 0.0f);
+
+    // Second baro without intervening predict — must still compute finite S
+    // and accept a consistent measurement (would mis-gate if S used stale dense).
+    EXPECT_TRUE(eskf.update_baro(2.0f));
+    EXPECT_TRUE(std::isfinite(eskf.last_baro_nis_));
+    EXPECT_GE(eskf.last_baro_nis_, 0.0f);
+
+    // ZUPT same epoch: still uses UD-aware S for each axis.
+    EXPECT_TRUE(eskf.update_zupt(kAccelStationary, kGyroStationary));
+    EXPECT_TRUE(std::isfinite(eskf.last_zupt_nis_));
+    eskf.sync_dense_covariance();
+    EXPECT_TRUE(eskf.healthy());
+}
+
 TEST(ESKFBierman, LongMagAidingStaysFinite) {
     ESKF eskf = make_initialized();
     // Level body mag consistent with earth field NED (20, 0, 45) µT
