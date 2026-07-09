@@ -284,6 +284,7 @@ rocketchip/
 │   # -DROCKETCHIP_JOB_STATION=1 -DPICO_BOARD=adafruit_fruit_jam (Stage 12A)
 │
 ├── tools/
+│   ├── recency_audit.py           # Git last-touch age ranking (companion to find_dead_code; docs/tools/RECENCY_AUDIT.md)
 │   ├── state_to_dot.py            # State machine DOT graph generator
 │   ├── spin/                      # SPIN formal verification models
 │   │   ├── rocketchip_fd.pml         # Flight Director HSM only (7 safety + 1 liveness)
@@ -356,8 +357,9 @@ Bare-metal dual-core AMP (Asymmetric Multiprocessing) on RP2350:
 | Target | Type | Description |
 |--------|------|-------------|
 | `rocketchip` | Prod | Main firmware (RP2350 target, role selected by CMake defines) |
-| `rocketchip_tests` | Dev | Host-side Google Test suite + Python `_rc_test_common` harness (788 tests via `ctest`) |
-| `mat_benchmark` | Dev | Matrix math performance benchmark (gated behind `-DROCKETCHIP_BUILD_DEV_TOOLS=ON`, default OFF) |
+| Host test libs / `ctest` | Dev | Host-side Google Test suite via `BUILD_TESTS=ON` (`rc_math`, `rc_fusion`, …) + Python `_rc_test_common` harness (see `test/CMakeLists.txt`) |
+
+Historical note: standalone `mat_benchmark` / `ud_benchmark` CMake targets were removed (2026-04-23 / 2026-04-30); results live under `docs/benchmarks/`.
 
 Build commands:
 ```bash

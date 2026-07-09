@@ -63,7 +63,7 @@ Radio Driver (rfm95w)
 - **TelemetryState** (45B packed): quaternion Q15, lat/lon 1e7, alt mm, velocity cm/s, baro, GPS fix/sats, flight state, health, battery, MET
 - **FlightMetadata**: UTC epoch anchor for MET-to-wall-clock reconstruction
 - **CCSDS packet**: 6B primary header + 4B secondary (MET) + 42B nav payload + 2B CRC = 54B
-- **APID definitions**: kApidNav=0x001 (active), kApidDiag=0x002 (defined, unused)
+- **APID definitions**: kApidNav=0x001 (legacy nav TX/RX), kApidNavWithConfig=0x004 (flight TX), kApidCmdAck=0x003 (ACK), kApidDiag=0x002 (**reserved** for future low-rate diagnostics — council 2026-02-27 two-tier plan; no encoder yet, number held to avoid collision)
 
 ### Radio Hardware Verified
 

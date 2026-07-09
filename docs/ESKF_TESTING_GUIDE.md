@@ -54,16 +54,19 @@ The distinction: *what computes the answer* vs. *how data moves on this specific
 ### What this looks like in practice
 
 ```
-src/math/vec3.h          ← Pure math. No SDK. Compiles on any C++ compiler.
-src/math/quat.h          ← Pure math. No SDK.
-src/math/mat.h           ← Pure math. No SDK.
+src/math/vec3.h/.cpp     ← Pure math. No SDK. Compiles on any C++ compiler.
+src/math/quat.h/.cpp     ← Pure math. No SDK.
+src/math/mat.h           ← Header-only matrix ops used by fusion.
 src/fusion/eskf.h/.cpp   ← Pure filter. Takes float inputs, produces float outputs.
-src/fusion/mahony_ahrs.h  ← Pure filter. Same deal.
-src/fusion/mmae.h/.cpp   ← Pure orchestrator. No SDK.
+src/fusion/mahony_ahrs.* ← Pure filter. Same deal.
+src/fusion/ud_factor.*   ← UD / Bierman support (measurement path).
+src/fusion/confidence_gate.* / innovation_monitor.* / phase_qr.h  ← ESKF support.
 
 src/main.cpp             ← Reads seqlock, calls ESKF, prints to USB. USES SDK.
 src/drivers/*            ← I2C, SPI, PIO. USES SDK. Not tested on host.
 ```
+
+Historical: standalone `mmae` and `baro_kf` modules were removed (phase-scheduled Q/R + ESKF `update_baro()` supersede them).
 
 **How agents should check this:** Before any ESKF PR, run:
 ```bash
@@ -119,13 +122,20 @@ if(BUILD_TESTS)
         src/math/mat.cpp)
     target_include_directories(rc_math PUBLIC include/ src/)
 
-    # Fusion library (no SDK dependencies)
+    # Fusion library (no SDK dependencies) — keep in sync with top-level CMakeLists.txt
     add_library(rc_fusion STATIC
         src/fusion/eskf.cpp
+        src/fusion/eskf_codegen.cpp
+        src/fusion/ud_factor.cpp
+        src/fusion/wmm_tables.cpp
         src/fusion/mahony_ahrs.cpp
-        src/fusion/mmae.cpp
-        src/fusion/baro_kf.cpp)
+        src/fusion/innovation_monitor.cpp
+        src/fusion/confidence_gate.cpp
+        src/fusion/eskf_brake.cpp)
     target_link_libraries(rc_fusion PUBLIC rc_math)
+    # Firmware target always defines ESKF_USE_BIERMAN=1.
+    # Default host rc_fusion currently builds the non-Bierman (Joseph) path;
+    # a separate rc_fusion_bierman + test_eskf_bierman covers Bierman.
 
     # Tests
     add_subdirectory(test)
@@ -149,19 +159,23 @@ test/
 ├── test_mat.cpp                # Matrix operations
 ├── test_eskf_propagation.cpp   # State propagation against known trajectories
 ├── test_eskf_update.cpp        # Measurement updates against hand-computed values
-├── test_baro_kf.cpp            # Standalone baro KF (IVP-41)
+├── test_eskf_bierman.cpp       # Bierman path (separate rc_fusion_bierman lib)
 ├── test_mahony.cpp             # Mahony AHRS
-├── test_mmae.cpp               # MMAE bank manager
+├── test_eskf_gps_update.cpp    # GPS pos/vel updates
+├── test_eskf_zupt.cpp          # Zero-velocity pseudo-measurement
 ├── replay/
 │   ├── replay_harness.cpp      # Lightweight replay binary
 │   ├── sensor_log.h            # CSV/binary sensor data reader
 │   └── output_log.h            # CSV output writer
 ├── data/
 │   ├── static_1min.csv         # Synthetic: stationary, 1 minute
-│   ├── const_velocity.csv      # Synthetic: constant velocity
-│   ├── circular_motion.csv     # Synthetic: known turn rate
-│   ├── rocket_ascent.csv       # Synthetic: boost + coast + descent
+│   ├── const_velocity_30s.csv  # Synthetic: constant velocity
+│   ├── …                       # Other synthetic / reference CSVs
 │   └── reference/
+
+# Removed (do not re-add without a deliberate decision):
+#   test_baro_kf.cpp  — standalone BaroKF deleted 2026-05-22 (ESKF update_baro supersedes)
+#   test_mmae.cpp     — MMAE removed; phase-scheduled Q/R replaces it
 │       ├── static_1min_ref.csv # Committed reference outputs (change-indication)
 │       └── ...
 └── scripts/
@@ -665,7 +679,7 @@ This maps to the IVP but specifies what testing infrastructure must exist at eac
 |----------|-------------------|------------------------------|
 | IVP-39 (Vec3/Quat) | Math library | `test_vec3.cpp`, `test_quat.cpp` — run on host immediately |
 | IVP-40 (Matrix) | Matrix ops | `test_mat.cpp` — include Joseph form ill-conditioning test |
-| IVP-41 (Baro KF) | 2-state filter | `test_baro_kf.cpp` — static + ramp synthetic data |
+| IVP-41 (Baro KF) | 2-state filter (historical) | **Deleted 2026-05-22** — superseded by ESKF `update_baro()` (IVP-43); do not reintroduce `baro_kf` |
 | IVP-42 (ESKF Propagation) | 15-state propagation | `test_eskf_propagation.cpp` — all 4 canonical trajectories. Set up replay harness. Generate synthetic data. Commit first reference outputs. |
 | IVP-43 (Baro Update) | First measurement update | `test_eskf_update.cpp` — hand-computed baro update. Add NIS logging to replay harness. |
 | IVP-44 (Mag Update) | Heading correction | Add mag update tests. Add heading innovation NIS. |

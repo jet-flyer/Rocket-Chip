@@ -83,7 +83,7 @@ Firmware constants that advanced users or developers might want to adjust. Curre
 
 | Setting | Location | Value | Description |
 |---------|----------|-------|-------------|
-| `ESKF_USE_BIERMAN` | CMakeLists.txt | 1 | Bierman measurement update vs Joseph form |
+| `ESKF_USE_BIERMAN` | CMakeLists.txt (firmware) | 1 (always on target) | Flight firmware always uses Bierman UD measurement updates. Host default `rc_fusion` still builds **without** this define (Joseph `scalar_kalman_update` path) for most ESKF host tests; `rc_fusion_bierman` + `test_eskf_bierman` exercise Bierman. Consolidation to Bierman-only is open (CODE_TRIMMING 2026-07-03 §1) — do not flip host without full ctest. |
 | `kMagInnovationGate` | eskf.h | 300σ | Mag heading innovation gate |
 | `kAccelMinHealthyMag` | sensor_core1.cpp | 3.0 m/s² | IMU zero-output fault threshold |
 | `kMaxHealthyVelocity` | eskf.h | 500 m/s | Velocity divergence sentinel |
