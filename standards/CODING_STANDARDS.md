@@ -194,6 +194,13 @@ see `standards/RP2350_ERRATA.md`.
 - **No arbitrary numerical values.** Sample rates, buffer sizes, thresholds,
   timeouts — all must be justified by a source (datasheet, SDK docs, reference
   implementation, confirmed forum post). If no source exists, flag and ask.
+  *Mechanical surface:* bare-literal candidates are gated by clang-tidy
+  `readability-magic-numbers` (JSF 151; ignore list in `.clang-tidy`). When
+  working that check’s output, require (1) a named constant and a *source* for
+  non-obvious timeouts/sizes/thresholds, unless leaving the literal is impossible
+  or highly impractical after review, and (2) flag ignore-list values that are
+  still contextually magic — a clean tidy run does not mean every number is
+  justified.
 
 - **Research before implementing.** Before writing code that touches hardware
   interfaces or sensor drivers, check relevant documentation, datasheets, and
@@ -471,7 +478,11 @@ All code changes must pass the verification checklist before merge to main.
      - Constants use `k` prefix: `kSampleRate`, `kMaxRetries`
      - Global variables use `g_` prefix: `g_sensorData`, `g_calibrationState`
      - Pointers use `p_` suffix in name: `p_buffer`, or `g_p_` for global pointers
-   - [ ] No magic numbers (JSF AV Rule 151) - use named constants
+   - [ ] No magic numbers (JSF AV Rule 151) - named constants required (not optional
+         style); clang-tidy `readability-magic-numbers` is the mechanical check.
+         On hits: name + source non-obvious values unless impossible/highly
+         impractical after review; flag ignore-list hideouts for judgment (see
+         `.clang-tidy` magic-numbers note + "No arbitrary numerical values" above)
    - [ ] No dynamic allocation after initialization (JSF AV Rule 206) for production code
    - [ ] Fixed-width types used (JSF AV Rule 209): `uint32_t`, `int16_t`, not `int`, `long`
    - [ ] No exceptions, RTTI disabled for embedded targets

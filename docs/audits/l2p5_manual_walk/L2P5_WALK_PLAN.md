@@ -1,7 +1,7 @@
 # L2-P5 Walk — Work Plan (prep · walk · close-out)
 
 **Status:** WORKING — living plan, updated as items close; freezes when L2-P5 closes.
-**Established:** 2026-06-22. **Last updated:** 2026-06-23 (session handoff).
+**Established:** 2026-06-22. **Last updated:** 2026-07-28 (pre-walk hygiene; Class 13 / magic numbers demoted to mechanical + residual note on gate).
 **Driver:** `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` (the frozen per-rule classification).
 **Closes / unblocks:** L2-P5 in `docs/PROBLEM_REPORTS.md` (then L2-P10); feeds the Cycle-4 remediation doc per `docs/plans/CYCLE_RESIDUALS_AFTER_R5.md`.
 **Approved-plan provenance:** this consolidates the council-reviewed Plan 1 (originally `.claude/plans/glistening-wishing-shannon.md`) into the repo so it's permanent.
@@ -12,9 +12,9 @@
 
 | | Document | What it is | Used |
 |---|---|---|---|
-| **Field manual** | `docs/audits/l2p5_manual_walk/L2P5_MANUAL_WALK_GUIDE.md` | What to look for *during* the walk (Classes 1–14 + §LV/§SC) | by Nathan, during the walk |
+| **Field manual** | `docs/audits/l2p5_manual_walk/L2P5_MANUAL_WALK_GUIDE.md` | What to look for *during* the walk (spine + judgment lenses) | by Nathan, during the walk |
 | **Work plan** | `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md` (this doc) | The prep→walk→close *work*; §CM gating + §RP research live here | before/around the walk |
-| **Itinerary** | `docs/audits/l2p5_manual_walk/L2P5_WALK_ITINERARY.md` | Ordered 186-file coverage map + per-file lenses; the traversal/progress tracker | during the walk |
+| **Itinerary** | `docs/audits/l2p5_manual_walk/L2P5_WALK_ITINERARY.md` | Ordered 184-file coverage map + sparse hot-spot notes; the traversal/progress tracker | during the walk |
 
 Making gates/scripts (§CM) and doing research (§RP) is **plan work**, not part of the eyeball walk. The field manual only *references* §CM/§RP as prerequisites.
 
@@ -26,7 +26,7 @@ Making gates/scripts (§CM) and doing research (§RP) is **plan work**, not part
 
 ## Phase A — Field manual — ✅ DONE
 
-Classes 1–14 built (agent-tendency watch on each); agent-blind-spot **lens** section as primary framing; §LV/§SC walk-content; §CM/§RP prerequisite stubs; Walk Itinerary companion (186 files, dependency-tier-ordered). Corrections folded: `#pragma once`=**3** (not 1); `rc_log()` is `void` (not return-checkable); `flash_safe_execute` is **`int`** (return-checkable — belongs in CheckedFunctions); `:403→:433` citation.
+Classes 1–14 built (agent-tendency watch on each); agent-blind-spot **lens** section as primary framing; §LV/§SC walk-content; §CM/§RP prerequisite stubs; Walk Itinerary companion (184 files as of 2026-07-28, dependency-tier-ordered). Corrections folded: `#pragma once`=**3** (not 1); `rc_log()` is `void` (not return-checkable); `flash_safe_execute` is **`int`** (return-checkable — belongs in CheckedFunctions); `:403→:433` citation.
 
 ## Phase B — §CM gating (centralize-into-a-script) — measurement DONE; wiring DONE 2026-06-24
 
@@ -44,9 +44,9 @@ Classes 1–14 built (agent-tendency watch on each); agent-blind-spot **lens** s
 
 > **Council amendments (2026-06-22, JPL+Prof+ArduPilot+Cubesat, unanimous):** measure-first; never `-Werror` a dirty tree (remediate in full first); FMEA-rank Phase C; keep CheckedFunctions honest (partial list re-creates the canary); wire gate into pre-commit + item-17 via the script (not hardcoded twice); both-tier rebuild + bench_sim for the flag change.
 
-## Phase C — Clear KNOWN violations PRE-walk (your dispositions) — IN PROGRESS
+## Phase C — Clear KNOWN violations PRE-walk (your dispositions) — DONE for walk-start (2026-07-28)
 
-Mechanical/known violations cleared **before** the walk (walk = semantic discovery only; new findings disposition during it).
+Mechanical/known violations cleared **before** the walk (walk = semantic discovery only; new findings disposition during it). **Dispositions signed off; listed fixes largely landed.** Any residual mechanical dirt (e.g. the `-Wconversion` batch, rare leftover `continue`) is **§CM / non-blocking** — do not treat it as a reason to delay the semantic walk.
 
 **DONE:**
 - Reserved-id: `__StackBottom` → **accepted-via-vendoring** (TP-2 in `ACCEPTED_STANDARDS_DEVIATIONS.md`; rule-reason doesn't hold — linker-defined, referenced not authored; precedent Infineon/Xen). `_test_mode_boot_ms`/`_TEST_MODE_SRAM_ATTR` → **renamed** (dropped reserved leading-underscore) in `test_mode.cpp`.
@@ -87,14 +87,16 @@ Externally-sourced, **primary-source-verified** (LL 37 anti-fabrication) criteri
 - ✅ **Plan + WB updated** (this doc + `AGENT_WHITEBOARD.md` handoff): Phases A–E status, §RP done, §CM gate-wiring done, `-Wconversion` measured (56, not noise), `CODING_STANDARDS.md` naming over-claim resolved.
 - ⏳ **CHANGELOG + commit** — deferred to session-end (repo-owner direction; the premature `2026-06-25-002` entry is to be reconciled then to cover the gate-wiring + standards fix + false-completion closure, and the working tree committed with bench_sim for the `-Wnon-virtual-dtor` CMake change).
 
-**Walk-ready.** With A + D + corrections complete and the gates wired, the field manual is ready for the actual file-by-file **walk** (186-file itinerary). The semantic walk is the **spine + judgment-heavy classes** (3 comments, 5 scope/lifetime, 7 design, 8 templates, 9/10 concurrency & `volatile`, 13 literal-meaning); the mechanical classes (incl. **Class 14, demoted**) are gate/§CM-covered. Remaining standalone remediation surfaced this cycle: the **56 `-Wconversion`/`-Wsign-conversion` findings** (54 located) — a **§CM mechanical batch** (fix-then-gate), not a walk item.
+**Walk-ready (reconfirmed 2026-07-28).** With A + D + corrections complete, gates wired, Phase C dispositions complete for walk purposes, and the 184-file itinerary refreshed, the **live** field manual is ready for the file-by-file **semantic walk**. Use: `L2P5_MANUAL_WALK_GUIDE.md` + itinerary + this plan. Historical/staging companions (`*_ARCHIVE*`, RP sources stash, Wconversion findings list) are **reference only** — not alternate procedures.
+
+The semantic walk is the **spine + judgment-heavy lenses** (comments, scope/lifetime, class design, templates, control-flow/`volatile`, concurrency); mechanical surfaces are gate/§CM-covered — incl. **Class 14** (expressions/conversion) and **Class 13 / magic numbers** (demoted 2026-07-28: `readability-magic-numbers`; residual when dispositioning hits: named + sourced required unless impossible/highly impractical after review — `.clang-tidy` + `CODING_STANDARDS.md`). Open standalone remediation that is **not** a walk item: the **56 `-Wconversion`/`-Wsign-conversion` findings** (54 located in `L2P5_WCONVERSION_FINDINGS_2026-06-25.md`) — fix-then-gate later.
 
 ---
 
 ## Deferred (future sessions)
 - **Full re-audit of existing 3rd-party/vendored exceptions** (TP-1 etc.) against the new evaluation discipline — dedicated session (user direction 2026-06-23; only in-scope reserved-id handled now).
 - Plan 2: agent-redundancy deliverables (condensed agent-facing triage; smell-first agent walk guide — §RP feeds it).
-- Plan 3 / close-out: Cycle-4 remediation doc → close L2-P5 → L2-P10 (CLA-RBM).
+- Plan 3 / close-out (post-walk, not pre-start): Cycle-4 remediation doc → close L2-P5 → L2-P10 (CLA-RBM).
 - Reconcile triage 225 property-rows vs 274 rule-IDs (low priority).
 
 ## Verification

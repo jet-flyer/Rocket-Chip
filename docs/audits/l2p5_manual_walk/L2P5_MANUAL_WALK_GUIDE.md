@@ -1,11 +1,14 @@
 # L2-P5 Manual Code-Review Guide
 
-**What this is:** the human-followable bridge for the L2-P5 standards walk — the eyes-on review the tools and gates can't do. You read it while walking the firmware file-by-file, judging the *semantic* rules a human has to eyeball, where a green build, a passing test suite, and a clean linter are exactly the conditions under which improper code slips through. It connects the depth (verified criteria) to the route (the file list). Companions:
+**What this is:** the human-followable bridge for the L2-P5 standards walk — the eyes-on review the tools and gates can't do. You read it while walking the firmware file-by-file, judging the *semantic* rules a human has to eyeball, where a green build, a passing test suite, and a clean linter are exactly the conditions under which improper code slips through. It connects the depth (verified criteria) to the route (the file list).
+
+**Active walk set (open these):**
 
 - **ROUTE — which files, in what order:** `docs/audits/l2p5_manual_walk/L2P5_WALK_ITINERARY.md`
-- **FULL sourced depth — every criterion + its primary source + the AI-tendency it catches:** `docs/audits/l2p5_manual_walk/L2P5_RP_SOURCES_2026-06-25.md`
-- **Rule text + why each rule lands where it does:** `docs/audits/RULE_VERIFIABILITY_TRIAGE.md`
-- **Work plan / gates / mechanical checks:** `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md`
+- **Work plan / gates / walk-ready:** `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md`
+- **This field manual** (lenses + findings tables)
+
+**Reference only (not alternate procedures):** `L2P5_MANUAL_WALK_GUIDE_ARCHIVE.md` (historical full matrix — filename marks it archive; do not walk from it), `L2P5_RP_SOURCES_2026-06-25.md` (staging research stash — open only when a criterion's source or wording is unclear), `L2P5_WCONVERSION_FINDINGS_2026-06-25.md` (§CM mechanical batch inventory, not a walk script), `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` (verbatim rule text / why).
 
 **Owner:** Nathan (the walk + all dispositions). **Status vocabulary:** `PASS` / `FAIL` / `PARTIAL` / `NOT CHECKED` / `N/A`.
 
@@ -15,7 +18,7 @@
 
 1. **Take the next file from the itinerary** (`L2P5_WALK_ITINERARY.md`). Order is bottom-up dependency tiers (foundations → integrators; see the itinerary header). Walk a `.cpp` together with its `.h` — read each file whole. *(Why pair them: the `.h` is the declared contract, the `.cpp` its implementation — comment-truth and class-design judge one against the other, so both are read as a single work product. Applied code-inspection method — Fagan 1976, IBM Sys. J. 15(3):182; IEEE 1028 — not a house-standard clause.)*
 2. **Run The spine on each function** — the gestalt human-eye review: judge the whole function/file, not the line. Can you name it without "and"? Can you eyeball-verify every path? Is the same idea expressed once? Is intent readable from the code's shape rather than its comments?
-3. **Apply the per-file lenses** the Class index below names for that file (the itinerary tags each file with its relevant classes).
+3. **Apply the lenses** the Class index below names for that subsystem (itinerary rows may add a sparse hot-spot note; most files rely on this index alone).
 4. **Record a verdict in the itinerary** (tick the box, one-line note), and put any `FAIL`/`PARTIAL` in the relevant class's findings table below. **Completeness: record every file, `PASS` included** — full coverage is the deliverable, not just the defect list.
 5. **Disposition each `FAIL`:** a fix → a new `R-NN` row in `docs/PROBLEM_REPORTS.md`; an accept → migrates to `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` with sign-off. A `PASS` needs no action; a `PARTIAL` notes the cheap compliant move.
 
@@ -35,6 +38,8 @@
 | **Templates** | the few template sites — `calibration/lm_solver`, `math/`, header utilities |
 | **volatile / control-flow discipline** | `volatile`-bearing code — `fusion/eskf_runner`, `core1/`, `logging/ring_buffer`, AOs, `include/rocketchip/sensor_seqlock` |
 | **Concurrency & shared-data ownership** | every cross-core shared object — `active_objects/`, `core1/sensor_core1`, `safety/core1_i2c_pause`, `logging/ring_buffer`, `main.cpp`, `shared_state.{cpp,h}`, `include/rocketchip/sensor_seqlock` · `sensor_snapshot` |
+
+*(Magic numbers / JSF 151 — **not a walk lens.** Demoted to mechanical: `readability-magic-numbers` in `.clang-tidy`. When dispositioning that gate’s hits, named + sourced constants are **required** unless impossible/highly impractical after review — residual note on the check in `.clang-tidy` + `CODING_STANDARDS.md`. Do not file-by-file hunt literals on this walk.)*
 
 ---
 

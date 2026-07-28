@@ -1,13 +1,13 @@
 # L2-P5 Walk Itinerary — file-coverage map
 
 **Companion to** `docs/audits/l2p5_manual_walk/L2P5_MANUAL_WALK_GUIDE.md` (§ IT). This is the **traversal spine + progress tracker**
-for the file-by-file semantic pass. **186 in-scope files** (`src/**/*.{cpp,h}` + `include/**/*.h`; vendored
+for the file-by-file semantic pass. **184 in-scope files** (refreshed 2026-07-28: `src/**/*.{cpp,h}` + `include/**/*.h`; vendored
 `lib/`, `EXTERNAL/`, `pico-sdk/` excluded — refresh with
-`git ls-files 'src/**/*.cpp' 'src/**/*.h' 'include/**/*.h' | grep -vE '^(lib/|EXTERNAL/|pico-sdk/)'`).
+`git ls-files 'src/**/*.cpp' 'src/**/*.h' 'include/**/*.h'` and drop those path prefixes).
 Membership is defined by that glob, **not** by the graph — a file the graph can't see (a leaf header, a data
 table) is still walked via its module.
 
-**How to use:** read each file whole, apply the **per-file lens checklist** (the named lenses in the field manual), tick the box, and write a one-line coverage note (PASS / which lens FAILed → findings table
+**How to use:** read each file whole, apply the **lenses from the field manual Class index** (by subsystem / “when you are walking”; only a few rows below carry extra hot-spot notes), tick the box, and write a one-line coverage note (PASS / which lens FAILed → findings table
 in that lens). **Completeness principle: tick every file, PASS included.** **Order is bottom-up dependency layers**
 (foundations → domain logic → integrators → CLI), derived from the graphify call/include graph: you read a module's
 callees before the modules that consume them, so when a file references something cross-module it is already behind
@@ -26,7 +26,7 @@ When a file references an unfamiliar cross-file function and you want its covera
 The bottom-up tier order already runs callees before callers, so most cross-module references point *up* the list
 (already walked). Use the graph only when a jump surprises you and you want to confirm which side of "now" it is on.
 
-**Standing exemptions (note, don't deep-walk):** `fusion/eskf_codegen.cpp` (auto-generated, deviation CG-1 — size/comment/design lenses N/A; still confirm it's untouched-by-hand); `fusion/wmm_tables.cpp` + `drivers/lwgps_opts.h` (generated/vendored data tables — magic-number lens N/A on the data body); `cli/**` (relaxed clang-tidy gates per project policy, but **still semantic-walk** comments/design/scope).
+**Standing exemptions (note, don't deep-walk):** `fusion/eskf_codegen.cpp` (auto-generated, deviation CG-1 — size/comment/design lenses N/A; still confirm it's untouched-by-hand); `fusion/wmm_tables.cpp` + `drivers/lwgps_opts.h` (generated/vendored data tables — light; magic literals on the body are not a walk item); `cli/**` (relaxed clang-tidy gates per project policy, but **still semantic-walk** comments/design/scope).
 
 ---
 
@@ -34,7 +34,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### include/rocketchip/ — public headers *(class-design + header-organization, gated)*
 
-- [ ] `include/rocketchip/shared_state.h`  — *(**JSF 27 #pragma once** here → §LV)*
+- [ ] `include/rocketchip/shared_state.h`  — *(concurrency ownership / pure-extern contract)*
 - [ ] `include/rocketchip/rc_log.h`
 - [ ] `include/rocketchip/config.h`
 - [ ] `include/rocketchip/board*.h` (board.h, board_feather_rp2350.h, board_fruit_jam.h, board_pico2.h, board_tiny_2350_common.h, board_tiny_2350_plus.h)
@@ -71,7 +71,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### fusion/ — ESKF & AHRS
 
-- [ ] `fusion/eskf_runner.{cpp,h}`  — *(**JSF 202 float `==`** here → §LV, FMEA-rank)*
+- [ ] `fusion/eskf_runner.{cpp,h}`  — *(fusion; WMM / cal_flags — float-sentinel remediated via `CAL_STATUS_WMM_SET`)*
 - [ ] `fusion/eskf.{cpp,h}`
 - [ ] `fusion/eskf_brake.cpp`
 - [ ] `fusion/eskf_state.h`
@@ -81,11 +81,11 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 - [ ] `fusion/mahony_ahrs.{cpp,h}`
 - [ ] `fusion/ud_factor.{cpp,h}`
 - [ ] `fusion/phase_qr.h`
-- [ ] `fusion/wmm_tables.{cpp,h}`  — *(data table — magic-number lens N/A on body)*
+- [ ] `fusion/wmm_tables.{cpp,h}`  — *(data table — light)*
 
 ### calibration/
 
-- [ ] `calibration/calibration_data.{cpp,h}`  — *(**JSF 18 offsetof** here → §LV)*
+- [ ] `calibration/calibration_data.{cpp,h}`
 - [ ] `calibration/calibration_manager.{cpp,h}`
 - [ ] `calibration/calibration_storage.{cpp,h}`
 - [ ] `calibration/lm_solver.{cpp,h}`  — *(templates; FP-1 resolution)*
@@ -103,7 +103,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 - [ ] `flight_director/flight_state.h`
 - [ ] `flight_director/flight_actions.h`
 - [ ] `flight_director/mission_profile.h`
-- [ ] `flight_director/mission_profile_data.h`  — *(**JSF 27 #pragma once** here → §LV)*
+- [ ] `flight_director/mission_profile_data.h`  — *(codegen / profile data — light; confirm generator relationship)*
 
 ### logging/ + log/
 
@@ -135,7 +135,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### safety/ — boot, fault, pyro, watchdog *(highest criticality — leads this tier)*
 
-- [ ] `safety/fault_protection.{cpp,h}`  — *(MPU/guard; **JSF 27 #pragma once** here → §LV)*
+- [ ] `safety/fault_protection.{cpp,h}`  — *(MPU/guard; safety-critical)*
 - [ ] `safety/anomalous_boot.{cpp,h}`
 - [ ] `safety/flight_in_progress.cpp`
 - [ ] `safety/health_monitor.{cpp,h}`
@@ -161,7 +161,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 - [ ] `active_objects/ao_logger.{cpp,h}`
 - [ ] `active_objects/ao_radio.{cpp,h}`
 - [ ] `active_objects/ao_rf_manager.{cpp,h}`
-- [ ] `active_objects/ao_telemetry.{cpp,h}`  — *(**JSF 190 continue** sites here → §LV)*
+- [ ] `active_objects/ao_telemetry.{cpp,h}`
 - [ ] `active_objects/ao_notify.{cpp,h}`
 - [ ] `active_objects/ao_led_engine.{cpp,h}`  — *(LL 35 stack-local event history — scope/lifetime lens)*
 
@@ -183,8 +183,8 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `__ / 186 files walked.` Update as you go. When complete, the per-class findings tables (in the
+**Progress:** `__ / 184 files walked.` Update as you go. When complete, the per-class findings tables (in the
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
-"NOT MECHANICALLY COVERED" matrix.
+"NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)
 </content>
 </invoke>

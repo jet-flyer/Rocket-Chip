@@ -337,9 +337,18 @@ CheckOptions:
     value: lower_case
 
   # ═══════════════════════════════════════════════════════════════
-  # MAGIC NUMBERS (JSF AV Rule 151)
+  # MAGIC NUMBERS (JSF AV Rule 151) — mechanical; not an L2-P5 walk lens
   # ═══════════════════════════════════════════════════════════════
-  # Commonly-used values that don't need named constants
+  # Gate finds candidate bare literals outside the ignore set below.
+  # Commonly-used values that don't need named constants:
+  # Human residual (only when dispositioning hits — not a file-by-file walk):
+  #   - Named constants are required (not optional style), plus a *source*
+  #     (datasheet / SDK / reference) for non-obvious timeouts/sizes/thresholds,
+  #     unless leaving the literal is impossible or highly impractical after
+  #     review — see CODING_STANDARDS "No arbitrary numerical values".
+  #   - Ignore-list is honest-narrow: a value in the set can still be
+  #     contextually magic (e.g. 256 as a buffer size) — flag for judgment
+  #     if a hit looks like that, or if a silent ignore-list value is load-bearing.
   - key: readability-magic-numbers.IgnoredIntegerValues
     value: '0;1;2;3;4;8;16;32;64;100;255;256;1000'
   - key: readability-magic-numbers.IgnoredFloatingPointValues
