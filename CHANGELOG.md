@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-07-28-002 | Grok 4.5 (Build CLI) | documentation, tooling
+
+**Local-LLM companion research §2 — Odysseus handoff + hybrid workflow.** Appended multi-agent section to `docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md` (did not edit Claude §1): measured Odysseus/Docker GPU overlay + Windows `COMPOSE_FILE` `;` separator + ~30 GB container RAM vs ~62 GB host; MCP as local/remote tool protocol; serve-stack glossary (Ollama/llama.cpp/vLLM/TRT-LLM/NIM); hybrid cloud+local routing as mainstream; RocketChip-specific best/poor fits (audit work-orders, AST renames, gate evidence vs flight judgment); HW validation as lab-tech procedure runner under `HW_GATE_DISCIPLINE`; Cookbook composite score meaning; next-session open questions (model/quant first). Research/handoff only — no code or adoption. (`docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md`)
+
 ### 2026-07-28-001 | Claude Opus 5 (Code) | documentation, tooling
 
 **Local-LLM companion research — new multi-agent handover doc.** Opened

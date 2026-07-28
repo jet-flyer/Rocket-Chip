@@ -335,3 +335,187 @@ Secondary (ecosystem / tooling survey — treat as pointers, not authority):
 ---
 
 <!-- NEXT AGENT: append your section below this line. Do not edit sections above. -->
+
+---
+
+## Section 2 — Odysseus install reality + hybrid workflow + RocketChip fit (session handoff)
+
+**Author:** Grok 4.5 (Build CLI) · **Date:** 2026-07-28  
+**Role of this section:** Handover from the Odysseus bring-up / architecture discussion session. Complements §1 (model landscape + verifiability principle). Does **not** re-pick a primary companion model — that is the explicit next-session topic with the owner.
+
+### 2.1 What was actually measured / fixed on the Odysseus host (primary, this machine)
+
+Install path: `C:\Apps\odysseus`. Compose project name `odysseus`.
+
+| Observation | Detail | Confidence |
+|---|---|---|
+| Host GPU | RTX 4070 Ti, driver 610.74, `nvidia-smi` OK | Primary |
+| Host RAM | ~61.6 GB physical | Primary |
+| Docker GPU | `docker run --rm --gpus all nvidia/cuda:… nvidia-smi` sees the 4070 Ti; runtime `nvidia` present | Primary |
+| Main app image | Was **missing** when helpers (chromadb/searxng/ntfy) were already up — UI dead on :7000 until `docker compose up -d --build odysseus` | Primary |
+| GPU inside app container (before fix) | No DeviceRequests; scan could not see GPU | Primary |
+| GPU after NVIDIA overlay | `DeviceRequests` nvidia + `nvidia-smi -L` inside container → RTX 4070 Ti | Primary |
+| `.env` COMPOSE_FILE (Windows) | Colon form `yml:docker/gpu…` is treated as a **single broken path** on Windows Docker CLI. Working form: `COMPOSE_FILE=docker-compose.yml;docker/gpu.nvidia.yml` | Primary |
+| RAM inside container / Cookbook scan | `/proc/meminfo` **~30 GiB**, not 61 GB — Docker Desktop/WSL2 VM budget (no `.wslconfig` on host). Scan is honest about the container, not broken | Primary |
+| Ollama | Host process listening; **zero models pulled** at check time | Primary |
+| No built-in chat brain | Odysseus is a workspace; welcome copy “pick a model or just type” does **not** imply a free default model — send without a model gets a “no session / pick model” path | Primary (code + behavior) |
+
+**Operational notes for next session:**
+
+1. Closing the Docker Desktop **window** is fine; **Quit** Docker kills the stack and the UI.
+2. After reboot: wait for Docker healthy, then `cd C:\Apps\odysseus; docker compose up -d` (overlay now in `.env`).
+3. Optional: raise WSL RAM via `%UserProfile%\.wslconfig` (e.g. `memory=48GB`) + `wsl --shutdown` + Docker restart if Cookbook should rank against more host RAM. Manual HW override in Cookbook also exists for “what if” ranking without giving the container more memory.
+4. Host **Ollama** sees full host RAM/GPU; Docker Odysseus talking to `http://host.docker.internal:11434/v1` is the usual Windows path. Cookbook **Serve** inside the container is a separate GPU-engine path (see §2.3).
+
+### 2.2 MCP is not “cloud-only”
+
+**Finding:** MCP (Model Context Protocol) is a **tool/plugin transport standard** (local stdio servers and remote servers). Local hosts (Claude Desktop, Cursor, VS Code, Odysseus, custom agents) can attach local MCP servers for filesystem, git, browser, shell, or a **local worker wrapped as a tool**. Cloud hosts can call the same local servers when the desktop/CLI bridge allows it.
+
+**Implication for companion design:** Hybrid cloud↔local does not require inventing a private RPC. First glue is often **CLI + JSON work orders + verify commands**; MCP is the cleaner long-term “USB-C” for the same tools. Odysseus already registers built-in MCP servers (RAG, memory, browser, etc.) — pattern is native to that stack.
+
+Sourcing: secondary (protocol docs / ecosystem); no RocketChip MCP server implemented this session.
+
+### 2.3 Inference engines vs “chat quality” (what the words mean)
+
+For the companion role, these are **serving layers**, not different personalities:
+
+| Tool | Role | When it matters here |
+|---|---|---|
+| **Ollama** | Easy local OpenAI-compatible server on Windows | Fastest path to *try* a model with Odysseus |
+| **llama.cpp / Cookbook Serve** | GGUF + hybrid CPU/GPU offload | Aligns with §1 MoE-offload story on 12 GB VRAM + lots of RAM |
+| **vLLM** | High-throughput multi-request server | Many concurrent agent steps; often wants model mostly in VRAM — weaker fit for large MoE expert-offload than llama.cpp (§1.1) |
+| **TensorRT-LLM** | NVIDIA-compiled engines, max tok/s for a **fixed** model | Later, after model choice is locked |
+| **NIM** | NVIDIA packaged microservices (model + optimized stack) | Lowest DIY for NVIDIA-curated deploys; heavier product surface |
+
+**Slim Odysseus image note (not a bug):** GPU **passthrough** (`nvidia-smi` in container) ≠ CUDA **serve engine** installed. Cookbook → Dependencies installs CUDA-capable llama.cpp/vLLM-class engines into persisted `./data/local`. Passthrough was fixed this session; engines still need install when using in-container Serve.
+
+### 2.4 Nemotron / “NVIDIA-specialized” models (secondary / community)
+
+Not “secret CUDA unlocks.” Distinction:
+
+- **Most open models** use Tensor Cores via a CUDA backend (Ollama/llama.cpp/vLLM kernels) regardless of brand.
+- **Nemotron** (esp. Nemotron 3 family) is NVIDIA’s open line oriented toward **agent throughput, hybrid MoE efficiency, long context** — architecture/runtime packaging, not exclusive Tensor Core access.
+- **Community pattern (LocalLLM / hands-on, secondary):** often **very fast** prompt processing / tok/s; many hobbyists still prefer **Qwen / Gemma** class for coding/daily “smarts” at similar practical VRAM. Super/Ultra-class sizes are not 12 GB desktop targets without heavy quant/offload and careful choice of Nano-class variants.
+
+Does **not** overturn §1’s primary-card ranking of Qwen3.6-35B-A3B / Gemma QAT for the executor role; Nemotron is optional A/B if agent throughput is the experiment.
+
+### 2.5 Hybrid cloud + local: mainstream architecture, not a white rabbit
+
+Cross-check against industry/research practice (secondary survey this session):
+
+- **Routing:** one model per task by complexity/sensitivity.  
+- **Cascading:** cheap first, escalate if quality low — or reverse (smart plan → cheap execute).  
+- **Hybrid cloud–local guides** (2026): route by privacy, complexity, availability.  
+- **Coding agents:** cloud as lead / local as implementer; Claude Code or Codex **harness** pointed at Ollama; multi-model local portfolios with frontier fallback.  
+- **Research:** hybrid LLM routing papers report large reductions in expensive API calls when easy work stays local.
+
+**Composable, not one product button.** “Grok plans audit; local agent applies work orders” is the same pattern with RocketChip-shaped contracts.
+
+### 2.6 RocketChip-specific: where this workflow is *best* (and not)
+
+Maps §1.4–1.5 verifiability principle onto **actual scars and process** in this repo.
+
+#### Best fit (high ROI companion / local worker)
+
+1. **Audit → approved work orders → apply + verify**  
+   Code trimming, dead-code inventories, standards remediations that are already decided. Cloud/owner: triage. Local: edit + `ctest` / scoped build. Matches CODE_TRIMMING-style “identify now, implement later with checklist.”
+
+2. **Cross-artifact consistency after a decision**  
+   Symbol-removal walks (callees + protected-doc refs — SESSION_CHECKLIST), stale log-token vs `bench_sim` regex (LL Entry 36 class), CHANGELOG/doc mention sweeps when the fact change is already approved.
+
+3. **Rename *residue* only**  
+   LL Entry 44: mass identifier renames = **`clang-refactor local-rename` (AST)**, not sed/LLM. Local model: comments, docs, log strings, configs after AST tool. Never freeform bulk rename.
+
+4. **Diagnostic bursts / mechanical enumeration**  
+   clang-tidy waves, conversion findings, “list every CheckedFunctions candidate” with config as output — §1.5 items remain correct.
+
+5. **Dual build / matrix smoke after bulk edits**  
+   Station vs vehicle compile parity when paths demand it — scripted, high volume.
+
+6. **Lab procedure runner (HW-adjacent software)**  
+   See §2.7.
+
+#### Medium fit (strict contract only)
+
+- Small bugfixes with failing test + file list + no drive-by.  
+- RC_OS table fill-ins after cloud designs the table (not freeform “clean the CLI”).  
+- Host tests for specified behavior.
+
+#### Poor fit (keep cloud + human + HW gate)
+
+- ESKF / fusion / pyro / timing / “pick a number” without research (CODING_STANDARDS prior-art rule).  
+- Architecture / council / Stage 17 / IVP design.  
+- Ambiguous mass edits (exactly what broke under partial clang-tidy / sed renames).  
+- Root-cause of intermittent electrical faults (IVP-140 cable class).
+
+### 2.7 Hardware validation, soaks, benchmarks — what is automatable
+
+Repo already encodes the right split in `standards/HW_GATE_DISCIPLINE.md` and VERIFICATION_OVERVIEW.
+
+| Layer | Agent fit | Notes |
+|---|---|---|
+| **A. Procedure runner** | Excellent | OpenOCD, flash exact artifact, 3-boot protocol, run `bench_sim` / soak / capture serial |
+| **B. Evidence compare** | Excellent | Assert **named positive-control signals** (RegVersion=0x12, DAC ACK, GPS PMTK, FD pyro line…); check binary banner/hash; record flash method (probe vs picotool — LL scar) |
+| **C. Physical / causal judgment** | Poor alone | Cables, probe exclusivity, “code vs bus,” first bring-up |
+
+**Datasheets + HARDWARE.md + IVP text** make **A+B** checklist-complete enough for solid progress (lab tech with a work order). They do **not** make unsupervised “fix the board until green” safe.
+
+**Recommended work-order shape for HW gates (next session design, not implemented):**
+
+```text
+binary path | flash method (probe) | script | required regexes/signals |
+boot_count=3 | report path for commit citation
+```
+
+**Benchmarks:** host mat/UD and on-target scrapers → local collects numbers vs `docs/benchmarks/*`; human/cloud owns “ship for flight.” Dynamic motion validation stays human-led.
+
+**Anti-pattern:** soft gates (“soak stable,” “no crash”) without positive control — project already forbids treating those as sole evidence.
+
+### 2.8 Cookbook “score” and how to measure companion improvement
+
+**Score (from Odysseus `services/hwfit/fit.py`, primary read of install):** composite  
+`quality×w + speed×w + fit×w + context×w` with use-case weights (e.g. coding vs general). Quality is **heuristic** (size bands + name/arch bonuses + quant penalty), not a live SWE-bench run on this machine. Use other sort columns / sub-scores when the single number fights the job (savant worker vs chat).
+
+**Measuring “LLM + tools” improvement for RocketChip (recommended harness, not built):**
+
+- Task suite: work orders from real audits (renames residue, doc sync, checklist fixes).  
+- Metrics: success rate, verify pass (`ctest` / `rg` / dual build), human interventions, wall time, cloud tokens, retries.  
+- **Baselines:** (1) script/codemod only for pure renames; (2) cloud-only; (3) cloud plan + local apply.  
+- Salted recall (§1.5) for generation; salted false-positives for triage rubber-stamping.
+
+Public chat Elo is a weak proxy for this repo’s companion role.
+
+### 2.9 Open questions for next session (owner + agent)
+
+Carry forward §1.7 and add:
+
+1. **Primary companion model + quant for this box** — deep-dive with owner (Qwen3.6-35B-A3B vs Gemma QAT vs others; enable_thinking off; tool parser). §1 is the starting landscape; no procurement this session.  
+2. **Backend choice on real Odysseus install:** Ollama host vs Cookbook llama.cpp Serve vs both; confirm expert-offload flags if using llama.cpp path.  
+3. **`.wslconfig` RAM raise** — owner decision (Cookbook ranking vs host Ollama-only).  
+4. **Work-order schema v0** for audit apply + optional HW gate runner (JSON fields, verify commands, escalate rules).  
+5. **Nemotron Nano-class A/B** only if throughput experiment is wanted; not required to start.
+
+### 2.10 Sources / confidence
+
+| Claim class | Sourcing |
+|---|---|
+| Docker/GPU/RAM measurements, COMPOSE_FILE Windows behavior | Primary on owner machine 2026-07-27/28 |
+| Odysseus no default model / hwfit score structure | Primary (container behavior + `fit.py` / `hardware.py` on install) |
+| MCP local/remote; hybrid routing/cascade industry | Secondary (protocol docs, 2026 hybrid/routing literature and agent ecosystem) |
+| Nemotron user sentiment | Secondary (community / reviews) — do not treat as benchmark gospel |
+| RocketChip fit / HW gate rules | Primary repo docs (`HW_GATE_DISCIPLINE`, LESSONS_LEARNED, CODE_TRIMMING, SESSION_CHECKLIST) |
+
+### 2.11 Handover checklist (for the next agent / session)
+
+Use this section + §1 as the handoff package. Do not re-discover Odysseus GPU from zero.
+
+- [ ] Read §1 (verifiability principle, model cards, must-not-use list) and this §2.  
+- [ ] Confirm Docker Desktop up; `docker compose -f C:\Apps\odysseus\… ps` shows `odysseus` + helpers; `docker compose exec odysseus nvidia-smi -L` if GPU work.  
+- [ ] Owner agenda: **model + quant selection** first; optional WSL RAM; optional work-order schema.  
+- [ ] Research-only until owner adopts tooling — no silent standards changes.  
+- [ ] Append further findings as **new dated sections**; do not edit §1 or §2 body except the original author.  
+- [ ] If implementing anything: pure-software vs HW-gate paths per SESSION_CHECKLIST; renames via clang-refactor only.
+
+---
+
+<!-- NEXT AGENT: append your section below this line. Do not edit sections above. -->
