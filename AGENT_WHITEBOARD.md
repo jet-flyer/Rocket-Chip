@@ -23,6 +23,44 @@
 
 ---
 
+## Session Handoff — Local-LLM companion research (OPEN) (2026-07-28, Claude Opus 5 (Code))
+
+**In progress:** Evaluating self-hosted models as a *companion* to frontier cloud models for
+straightforward, verifiable work (file ops, applying already-decided changes, audit-remediation
+execution). **Handover doc: `docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md`** — new, multi-agent,
+**append-only; do not edit another agent's section** (convention stated in the doc header).
+Grok/Gemini research expected to land there next.
+
+**State:** Research only — pure doc, no code, no tooling, no procurement. Nothing adopted.
+Hardware baseline measured on-machine (RTX 4070 Ti 12 GB / 61.6 GB DDR5-6000); model landscape
+verified against primary model cards, not roundup articles (one likely-fabricated model logged in
+the doc's Unverified Claims section).
+
+**Open for next session (owner's stated order):**
+1. **Quant levels as a choice dial** — what quantization actually costs capability-wise, against
+   the model-budget question. Owner explicitly wants to work this through.
+2. **"Big + surgical small" vs. one large model** — owner leans big-plus-surgical-small "if
+   practical"; practicality is a shakedown question, not a spec-sheet one.
+3. Shakedown/benchmark harness design (salted-corpus method proposed in doc §1.5; owner confirmed
+   it's in).
+4. Odysseus install not yet inspected — backend selection + offload flags unknown.
+
+**Concern worth carrying:** the doc's §1.4 finding is that *auditing* is structurally the harder
+half for a weak model (false negatives leave no artifact for a checkpoint to catch), while
+*remediation* is the easy half. Any future "local model does the audit, cloud checks at
+checkpoints" proposal needs the candidate-generator inversion described there, not a plain
+checkpoint.
+
+**Pre-existing drift surfaced, NOT actioned (owner decision — protected doc):**
+`docs/SCAFFOLDING.md:84-85` lists `docs/tools/` with only `OPENROCKET_USAGE.md`, but the directory
+already holds `GRAPHIFY_USAGE.md` and `RECENCY_AUDIT.md` (both predate this session), and now
+`LOCAL_LLM_COMPANION_RESEARCH.md`. The node reads as a representative tree rather than a manifest,
+so nothing there is *factually false* — which is why the trigger-driven-edit exception was judged
+not to apply and SCAFFOLDING.md was left untouched. Owner to decide: complete the listing, or mark
+the node explicitly non-exhaustive.
+
+---
+
 ## RC_OS Rework (OPEN) (2026-07-09, from CODE_TRIMMING §2)
 
 **Origin:** 2026-07-03 code-trimming / staleness survey noted CLI “morphed almost into a pseudo-OS” (`docs/audits/CODE_TRIMMING_AUDIT_2026-07-03.md` §2). Not a scheduled Stage/IVP yet.
@@ -327,6 +365,12 @@ Needs council review or planning doc before starting.
 ## Research / Deferred
 
 No code changes planned — kept as context for future decisions.
+
+- **Datasheet RAG + spec-table→code transcription — evaluate (2026-07-28, Claude/Opus).** Two related ideas surfaced while scoping a local-LLM companion workflow; **both are worth visiting regardless of whether the model is local or cloud** — the value is in the pattern, not the hosting.
+  1. **Datasheet RAG.** Stand up a retrieval index over the primary-source PDF set we already lean on (RP2350 datasheet, SX1276, Pico SDK docs, and for Starcom the CCSDS Blue Books) so register/bit/field lookups are a query instead of a page-hunt or a context-burning full-PDF read. Directly attacks the friction documented in [[l2p5-standards-walk-guide]]'s source-fetch method note (WebFetch's extractor fails on the compressed standards PDFs; pypdf + regex is the current workaround). Local embedding models are cheap enough (~0.6B, ~1.5 GB) that this is not a token-cost decision. **Caution:** RAG retrieval is a *pointer*, not an authority — per LL Entry 37 + 38, any rule/register value it surfaces still gets verified verbatim against the primary source before it lands in a doc or a citation. A summarizer already fabricated P10 quotes once.
+  2. **Spec-table → code, compiler-verified.** Transcribe tabular layout specs (CCSDS Blue Book bit layouts; RP2350/SX1276 register bitfields) into C++ structs + `static_assert` on `sizeof`/`offsetof`/field masks. The interest here is that the output is **machine-checkable** — the compiler proves the layout, so this is delegation with a real gate rather than trust. **Bounded claim (important):** `static_assert` proves *layout*, NOT *semantics* — a field transcribed at the correct offset under the wrong name or meaning still passes. So the gate covers the mechanical half only; field identity/meaning stays a human/primary-source check. Do not let "static_assert clean" become a Rule-7-style over-claim (see `RULE_VERIFIABILITY_TRIAGE.md` severity model: over-claiming tool-claims are critical findings).
+
+  **Not scheduled, no code planned.** Most load-bearing for Starcom (strict Blue Book bit-layout fidelity is the whole point of the library) — evaluate before Starcom's data-link framing code locks in.
 
 - **ELRS on RP2350 — research item.** Running ExpressLRS natively on RP2350 with PIO-assisted frequency hopping. Current RFM95W (bare SX1276 on SPI) may be compatible if packet format + hopping schedule can be implemented in firmware. Telstar Booster Pack already describes CRSF/UART to a dedicated ELRS module as the alternative path. Future radio protocol investigation.
 - **PIO hardware failure gap — Gemini tier only.** IVP-130 Scenario 5 confirmed: external PIO SM halt is undetectable by firmware (PIO watchdog IRQ only fires from PIO program itself; ARM-side monitoring defeats the independence point). Correct mitigation = physical redundancy (second independent timer on separate MCU). Gemini-tier feature (dual-core carrier board). Accepted gap for Core/Titan.

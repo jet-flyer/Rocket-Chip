@@ -46,6 +46,24 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-07-28-001 | Claude Opus 5 (Code) | documentation, tooling
+
+**Local-LLM companion research — new multi-agent handover doc.** Opened
+`docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md` to collect research on self-hosted models as a
+*companion* to frontier cloud models for straightforward, verifiable work (file ops, applying
+already-decided changes, audit-remediation execution). Doc is **append-only and multi-agent — no
+agent edits another's section**; convention is stated in its header and Grok/Gemini research is
+expected to land there. Covers: measured hardware baseline, model landscape verified against
+primary model cards (with an Unverified Claims log — one widely-recommended model could not be
+traced to any vendor source), what QAT is and its format-lock caveat, the verifiability-not-
+difficulty principle for delegating work, and a mapping onto `RULE_VERIFIABILITY_TRIAGE.md`'s
+existing buckets. Also added two AGENT_WHITEBOARD Research/Deferred items — datasheet RAG and
+spec-table→code transcription (both worth visiting local *or* cloud) — plus a session-handoff row
+carrying the open quantization / model-budget questions. Pure doc: no code, no tooling, no
+adoption, no build impact. Surfaced but deliberately **not** actioned: `docs/SCAFFOLDING.md:84-85`
+lists `docs/tools/` with 1 of now-4 files (pre-existing drift; protected doc, owner decision —
+see WB). (`docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md`, `AGENT_WHITEBOARD.md`)
+
 ### 2026-07-09-002 | Grok 4.5 (Build CLI) | bugfix, refactor, tooling, documentation
 
 **Post-Bierman cascade + ROI-scoped trim.** Residual dead-code: removed unused blocking 6-pos API (`calibration_collect_6pos_position` + `accel_read_fn`; async path is sole caller). Cascade: `ESKF::healthy()` uses UD **D** when dense `P` is lazy after multi-aid (same authority idea as `scalar_innovation_s`); host test `HealthyAfterMultiAidWithoutDenseSync`. §4 keep/defer table + Pass C skip (`rc_log` still fully used — no prune/rewrite) + RC_OS structural deferral to future **RC_OS Rework** (origin CODE_TRIMMING 2026-07-03 “pseudo-OS” note) in new audit `docs/audits/POST_BIERMAN_TRIM_CASCADE_2026-07-09.md` (does not rewrite historical CODE_TRIMMING). WB: RC_OS Rework open; probable full `/graphify` after L2-P5 manual walk. Net code ~−22 LOC (trim small; healthy() helpers added). Verified: host ctest 858/858; vehicle SWD load + compare-sections; bench_sim 2/2 PASS COM7. (`src/calibration/*`, `src/fusion/eskf.*`, `test/test_eskf_bierman.cpp`, audit, `AGENT_WHITEBOARD.md`)
