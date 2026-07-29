@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-07-29-001 | Grok 4.5 (Build CLI) | documentation, hardware
+
+**Aether Booster Pack research draft archived.** Added `docs/hardware/AETHER_BOOSTER_PACK.md` — Feb 2026 Claude research on air-data sensing (flush FADS for HPR + multi-hole probe for UAS; airspeed/α/β). Status: research/feasibility, post-MVP R&D. Source session: https://claude.ai/chat/e7648f05-8e09-479f-a951-d8572fc0fd92
+
 ### 2026-07-28-003 | Grok 4.5 (Build CLI) | documentation, audit
 
 **L2-P5 pre-walk hygiene + Class 13 demotion.** Dry-ran the live walk triad (no `src/` walk). Itinerary **184** files (glob refresh); scrubbed dead §LV tags; clarified walk-ready / Phase C (open `-Wconversion` stays §CM, non-blocking). **Magic numbers (JSF 151 / Class 13) demoted** off the semantic walk to mechanical `readability-magic-numbers`; residual only when dispositioning hits — **named + sourced required** unless impossible/highly impractical after review (notes on `.clang-tidy`, `CODING_STANDARDS.md`, triage). Live guide: active-vs-reference map; archive left historical. Next: file-by-file walk. Verified: pure-software docs/config comments only — no firmware or host ctest. (`docs/audits/l2p5_manual_walk/*`, `.clang-tidy`, `standards/CODING_STANDARDS.md`, `docs/audits/RULE_VERIFIABILITY_TRIAGE.md`, `AGENT_WHITEBOARD.md`)
