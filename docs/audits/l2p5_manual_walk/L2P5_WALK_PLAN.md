@@ -100,4 +100,4 @@ The semantic walk is the **spine + judgment-heavy lenses** (comments, scope/life
 - Reconcile triage 225 property-rows vs 274 rule-IDs (low priority).
 
 ## Verification
-Build clean vehicle + station with finalized flags (`-Werror` ⇒ no shadow/float-equal left); full-tree sweep via the new script clean (or dispositioned); host ctest; bench_sim positive-control for the flag/code changes (HW_GATE Rule 3); field manual 14 classes + §RP criteria + itinerary complete; all §LV/Phase-C items dispositioned.
+Build clean vehicle + station with finalized flags (`-Werror` ⇒ no shadow/float-equal left); full-tree sweep via the new script clean (or dispositioned); host ctest; bench_sim positive-control for the flag/code changes (HW_GATE Rule 3); field manual 14 classes + §RP criteria + itinerary complete; all §LV/Phase-C items dispositioned; walk whiteboard empty — `L2P5_WALK_WHITEBOARD.md` holds only out-of-place items that have not yet landed, so a non-empty file at close means a row never reached its disposition target (delete the file once empty; git keeps the history).

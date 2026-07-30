@@ -155,7 +155,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### active_objects/ — QP/C AOs *(concurrency — heavy)*
 
-- [ ] `active_objects/ao_flight_director.{cpp,h}`
+- [ ] `active_objects/ao_flight_director.{cpp,h}`  — *(5 callback lambdas → F.1 naming lens; FD cbs are raw fn-ptrs, P10-9/JSF-176 surface)*
 - [ ] `active_objects/ao_health_monitor.{cpp,h}`
 - [ ] `active_objects/ao_rcos.{cpp,h}`
 - [ ] `active_objects/ao_logger.{cpp,h}`
@@ -167,7 +167,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### top-level
 
-- [ ] `main.cpp`  — *(boot path; concurrency launch)*
+- [ ] `main.cpp`  — *(boot path; concurrency launch; 1 callback lambda → F.1 naming lens)*
 - [ ] `shared_state.cpp`
 
 ---
