@@ -93,6 +93,32 @@ The semantic walk is the **spine + judgment-heavy lenses** (comments, scope/life
 
 ---
 
+## Before remediation begins — do NOT go straight from walk to code
+
+The walk produces **findings**, not fixes. Between the last file walked and the first line of
+remediation, verify the environment and the inputs — a green commit proves "nothing was reported,"
+never "the checks ran" (LL 43).
+
+- [ ] **Gates are live in whatever tree the remediation happens in.** The pre-commit hook's Gate 2
+      (clang-tidy + warning-flag coverage) needs `build/compile_commands.json`; Gate 3 (host ctest)
+      is guarded by `[[ -d build_host && -f build_host/CTestTestfile.cmake ]]`. Both **silently
+      skip** when those directories are absent — which is the default state of any fresh
+      `git worktree` (submodules also land empty there: `git submodule update --init --recursive`
+      before building). Configure `cmake -B build_host` + `cmake -B build -G Ninja`, or do the
+      remediation in a tree that already has them.
+- [ ] **Positive-control the gates rather than assuming them** (HW_GATE Rule 1 / LL 43): confirm the
+      hook actually prints its ctest and clang-tidy lines on a real commit. Doc-only commits during
+      the walk exercise neither, so the first code commit is the first real test of the setup.
+- [ ] **Walk whiteboard drained of anything remediation depends on** — especially
+      *instrumentation* defects (a rule mis-classified in the triage, a gate that doesn't cover
+      what it claims). Those change what the findings **mean**, so they must resolve before the
+      findings drive edits.
+- [ ] **Deferred-venue findings routed, not fixed inline.** Anything whose disposition belongs to
+      another workstream (QP/QF rework, the §CM batch, the 56 `-Wconversion` findings) goes there —
+      remediating it here pre-empts a decision that workstream exists to make.
+- [ ] **Then** the standing per-commit discipline applies as usual (`SESSION_CHECKLIST` Per Commit:
+      both-tier build, ctest, bench_sim positive-control for flight-critical paths).
+
 ## Deferred (future sessions)
 - **Full re-audit of existing 3rd-party/vendored exceptions** (TP-1 etc.) against the new evaluation discipline — dedicated session (user direction 2026-06-23; only in-scope reserved-id handled now).
 - Plan 2: agent-redundancy deliverables (condensed agent-facing triage; smell-first agent walk guide — §RP feeds it).
