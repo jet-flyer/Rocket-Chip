@@ -46,6 +46,24 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-07-30-001 | Claude Opus 5 (Code) | documentation, audit
+
+**L2-P5 walk instrumentation — whiteboard opened, itinerary hot-spot cues, pre-remediation gate
+check.** Opened `L2P5_WALK_WHITEBOARD.md`, a temporary companion to the walk triad for items with no
+home yet; every row carries a disposition target and **empty-at-close** joined the plan's
+verification list (file deleted once empty). Two rows, detailed there: **W-1** — P10-9's
+function-pointer ban is triaged "policed by deviation log" and the log reads all-resolved, while
+`src/` holds 18 declaration sites across 7 files, so the procedure yields PASS without anyone looking
+(LL 43 family). **W-2** — the 31-object shared-mutable inventory that is the worklist for the
+Concurrency lens's three-question test. Itinerary: 16 rows gained a short hot-spot clause — counts
+and lens pointers only, no verdicts, so a later mirror pass stays independent. Plan: new **"Before
+remediation begins"** checklist, since Gate 2 (clang-tidy) and Gate 3 (host ctest) both *silently*
+skip in a fresh worktree, making the walk→code transition invisible. Done on `claude/l2p5-walk` in a
+`git worktree` (first exercise of the WB worktree proposal), merged fast-forward. Verified:
+pure-documentation change, no `src/`/CMake/build files; FLIGHT_CRITICAL regex does not match `docs/`
+and that worktree has no `build_host`, so neither host ctest nor clang-tidy ran on these commits.
+(`docs/audits/l2p5_manual_walk/*`)
+
 ### 2026-07-29-001 | Grok 4.5 (Build CLI) | documentation, hardware
 
 **Aether Booster Pack research draft archived.** Added `docs/hardware/AETHER_BOOSTER_PACK.md` — Feb 2026 Claude research on air-data sensing (flush FADS for HPR + multi-hole probe for UAS; airspeed/α/β). Status: research/feasibility, post-MVP R&D. Source session: https://claude.ai/chat/e7648f05-8e09-479f-a951-d8572fc0fd92

@@ -106,6 +106,14 @@ Recurring friction with Claude + Grok + Gemini on shared `main`: separate agents
 
 ---
 
+## SESSION_CHECKLIST has no MERGE scope (OPEN) (2026-07-30, Claude/Opus, owner-requested)
+
+`docs/agents/SESSION_CHECKLIST.md` scopes are `COMMIT ⊂ PUSH ⊂ SESSION_END ⊂ MILESTONE`. *Merge* and *worktree* never appear; *branch* appears once (item 9, parking incomplete work) — so the step that actually lands work on `main` is unchecked. **Add branch/merge wording:** what gated the branch (and, if it ran in a worktree, which gates did **not**), FF vs `--no-ff`, and the branch + worktree's disposition afterward.
+
+**Not cosmetic:** a fresh worktree has no `build/compile_commands.json` and no `build_host/`, so Gate 2 (clang-tidy) and Gate 3 (ctest) silently no-op — and a fast-forward merge creates no commit, so no hook runs either. Code can reach `main` never having met a gate with nothing printed to say so (LL 36/40/43 family). `SESSION_CHECKLIST.md` is Hard-Protected — needs the owner to name it. Pairs with the Session-Start worktree prompt above.
+
+---
+
 ## IEEE 1028 review-level → decision-table mapping (PROPOSED / DEFERRED) (2026-07-04, Claude/Opus)
 
 IEEE Std 1028-2008 recorded as a **review/audit-process** reference in `standards/AUDIT_GUIDANCE.md` Appendix B.5, kept deliberately distinct from the JSF/P10/JPL **coding** standards (how we review ≠ how we write). **Provisional, not a sole standard:** useful but broad, lightly vetted so far — complementary review standards may join it later; this is a starting point, not a settled adoption. **Open rework:** the "When to Do What" decision table in AUDIT_GUIDANCE.md sets review *scope* per trigger but leaves review *depth* implicit. IEEE 1028 names five review levels — management review, technical review, **inspection**, walk-through, audit. Map those onto the 7-tier procedure so each trigger states which depth applies (e.g. the L2-P5 manual walk = an **inspection** per Appendix B.4 "Phase 9"; a small change = a walk-through). Deferred — do when the audit procedure is next reworked. Owner decision on priority.
@@ -129,6 +137,8 @@ Rebuilt the graphify graph at `graphify-out/` as a **curated current-state code+
 ---
 
 ## Session Handoff — L2-P5 walk-prep DONE / WALK-READY (2026-06-25, Claude; refreshed 2026-07-28 Grok)
+
+**▶ STATUS (2026-07-30):** walk **starting**. Runs on branch `claude/l2p5-walk` in a `git worktree` at `../Rocket-Chip-l2p5-walk` — treat `docs/audits/l2p5_manual_walk/*` as in-flight; that worktree is claimed, and its commits run **no** host ctest / clang-tidy (see the MERGE-scope row above). Walk instrumentation landed first: `L2P5_WALK_WHITEBOARD.md` opened (W-1 P10-9 triage defect, W-2 shared-mutable inventory), itinerary hot-spot cues, plan pre-remediation checklist. CHANGELOG `2026-07-30-001`.
 
 **▶ STATUS (2026-07-28):** still **walk-ready** for the file-by-file semantic walk. Live triad = procedure; archive / RP stash / Wconversion list = **reference only**. Pre-walk hygiene landed: itinerary **184** files; dead §LV tags scrubbed; Phase C dispositions treated complete for walk-start; open **`-Wconversion` batch remains §CM (non-blocking)**. **Class 13 (magic numbers) demoted** like Class 14 — not an eyeball lens; residual only when dispositioning `readability-magic-numbers` hits (named + sourced **required** unless impossible/highly impractical after review). Semantic walk = **spine + comments, assertions, scope/lifetime, class design, templates, control-flow/`volatile`, concurrency**. See CHANGELOG `2026-07-28-003`.
 
