@@ -127,3 +127,52 @@ governs whether they become virtual dispatch or templates). `shared_state.cpp`'s
 
 **Blocking?** No — walk continues. But the triage correction should land before the walk reaches
 Tier 1 `safety/test_mode.h` or Tier 3 `shared_state.cpp` / `flight_director/`.
+
+---
+
+### W-2 — Shared-mutable inventory for the concurrency 3-question test (31 objects)
+
+**Surfaced:** 2026-07-30 · pre-walk enumeration, per the field manual's own find-hint at `:527`
+("every `volatile` is greppable — grep them first, then classify").
+
+**What:** the complete worklist for `:519` — *"who owns it, who mutates it, what barrier protects
+it. If you cannot name all three for an object, that ambiguity is itself the finding."*
+
+*22 `volatile` objects* (declaration-shape only; MMIO pointer casts and `__asm volatile` excluded —
+those are the JSF-205 PASS case):
+- `log/rc_log.cpp:481-490` — `g_ring`, `g_head`, `g_tail`, `g_droppedBytes`, `g_highWater`
+- `drivers/gps_uart.cpp:164-166` — `g_rxHead`, `g_rxTail`, `g_rxOverflow` (comments assert ISR-writes / consumer-reads)
+- `safety/test_mode.cpp:36-46` — `g_test_mode_arm_magic`, `g_test_mode_enabled`, `g_magicObservedAtBoot`
+- `cli/rc_os_commands.cpp:53-55` — `g_t2_pending`, `g_t2_cmd`, `g_t2_p1`
+- `safety/fault_inject.cpp:32-33` — `g_fault_core0_stall`, `g_fault_watchdog_skip`
+- `safety/station_fault_inject.cpp:29-30` — `g_fault_station_rx_drop_remaining`, `g_fault_station_ack_suppress_remaining`
+- `safety/fault_protection.cpp:34` — `g_inFaultHandler`
+- `safety/flight_in_progress.cpp:22,26` — `g_flightInProgressMagic` (two decls, `#if`-split)
+- `safety/pyro_edge_logger.cpp:14` — `g_count`
+- `flight_director/flight_director.cpp:147` — `g_phaseObservablePair`
+
+*9 `std::atomic` objects:*
+- `shared_state.cpp:39-44` — `g_startSensorPhase`, `g_sensorPhaseDone`, `g_calReloadPending`, `g_core1PauseI2C`, `g_core1I2CPaused`, `g_core1LockoutReady`
+- `core1/sensor_core1.cpp:81` — `g_bestGpsValid` · `cli/rc_os.cpp:58` — `rc_os_mag_cal_active` · `drivers/spi_bus.cpp:29` — `g_spi_error_count`
+
+*Not counted, same test applies:* the seqlock-protected sensor snapshot, the PSRAM ring buffer, and
+the AO static event objects (structures rather than scalars).
+
+**Why it's here and not only in the itinerary:** the per-file counts are now itinerary hot-spot
+notes, but the object *names* are the worklist, and two observations have no other home:
+
+1. **`:511`'s catch-all heuristic no longer discriminates.** It says "touch it anywhere a
+   `g_`-prefixed object … appears" — but the 2026-06-24/25 naming remediation renamed QP's `l_`
+   module-static prefix to `g_` tree-wide, so `g_` now means *any file-scope static*. The hint
+   selects hundreds of non-shared statics. Enumerate from `volatile` / `std::atomic` /
+   `multicore_*` / spinlock instead.
+2. **`:511`'s "primary on" list names 7 sites; shared mutables live in ~15.** Not a coverage hole —
+   the spine ADD at `:173` runs on every file and is the net — but it means the lens's own file
+   list is not the surface, and noticing is doing the work a list should do.
+
+**Disposition target:** the inventory retires into the Concurrency findings table as each object is
+adjudicated (PASS with owner/mutator/barrier named, or FAIL). Observations 1 and 2 → a `:511`
+find-hint correction in the field manual.
+
+**Blocking?** No. But do the enumeration-then-classify pass rather than reading for a smell —
+that is the field manual's own instruction at `:527`.

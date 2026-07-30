@@ -55,12 +55,12 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 - [ ] `drivers/i2c_bus.{cpp,h}`  — *(return values — gated / CheckedFunctions)*
 - [ ] `drivers/gps_pa1010d.{cpp,h}`
-- [ ] `drivers/gps_uart.{cpp,h}`
+- [ ] `drivers/gps_uart.{cpp,h}`  — *(3 volatile ISR↔consumer ring → concurrency 3-question test)*
 - [ ] `drivers/gps.h`
 - [ ] `drivers/icm20948.{cpp,h}`
 - [ ] `drivers/baro_dps310.{cpp,h}`
 - [ ] `drivers/rfm95w.{cpp,h}`
-- [ ] `drivers/spi_bus.{cpp,h}`
+- [ ] `drivers/spi_bus.{cpp,h}`  — *(1 atomic error counter → concurrency 3-question test)*
 - [ ] `drivers/mcu_temp.{cpp,h}`
 - [ ] `drivers/ws2812_status.{cpp,h}`
 - [ ] `drivers/lwgps_opts.h`  — *(vendored config — light)*
@@ -93,7 +93,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### flight_director/
 
-- [ ] `flight_director/flight_director.{cpp,h}`
+- [ ] `flight_director/flight_director.{cpp,h}`  — *(1 volatile phase-observable pair → concurrency 3-question test)*
 - [ ] `flight_director/command_handler.{cpp,h}`
 - [ ] `flight_director/action_executor.{cpp,h}`
 - [ ] `flight_director/go_nogo_checks.{cpp,h}`
@@ -107,7 +107,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### logging/ + log/
 
-- [ ] `log/rc_log.cpp`  — *(rc_log() is void — return-values gated; LL 39 drain)*
+- [ ] `log/rc_log.cpp`  — *(rc_log() is void — return-values gated; LL 39 drain; 5 volatile ring vars → concurrency 3-question test)*
 - [ ] `logging/ring_buffer.{cpp,h}`  — *(concurrency)*
 - [ ] `logging/flash_flush.{cpp,h}`
 - [ ] `logging/flight_table.{cpp,h}`
@@ -135,23 +135,23 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### safety/ — boot, fault, pyro, watchdog *(highest criticality — leads this tier)*
 
-- [ ] `safety/fault_protection.{cpp,h}`  — *(MPU/guard; safety-critical)*
+- [ ] `safety/fault_protection.{cpp,h}`  — *(MPU/guard; safety-critical; 1 volatile in-handler flag → concurrency 3-question test)*
 - [ ] `safety/anomalous_boot.{cpp,h}`
-- [ ] `safety/flight_in_progress.cpp`
+- [ ] `safety/flight_in_progress.cpp`  — *(1 volatile magic, two `#if`-split decls → concurrency 3-question test)*
 - [ ] `safety/health_monitor.{cpp,h}`
 - [ ] `safety/crash_record.{cpp,h}`
-- [ ] `safety/fault_inject.{cpp,h}`
-- [ ] `safety/station_fault_inject.{cpp,h}`
-- [ ] `safety/test_mode.{cpp,h}`
+- [ ] `safety/fault_inject.{cpp,h}`  — *(2 volatile inject flags → concurrency 3-question test)*
+- [ ] `safety/station_fault_inject.{cpp,h}`  — *(2 volatile inject counters → concurrency 3-question test)*
+- [ ] `safety/test_mode.{cpp,h}`  — *(3 volatile cross-boot/cross-context → concurrency 3-question test)*
 - [ ] `safety/core1_i2c_pause.{cpp,h}`  — *(concurrency)*
 - [ ] `safety/pio_backup_timer.{cpp,h}`  — *(PIO lifecycle, LL 42)*
 - [ ] `safety/pio_watchdog.{cpp,h}`
-- [ ] `safety/pyro_edge_logger.{cpp,h}`
+- [ ] `safety/pyro_edge_logger.{cpp,h}`  — *(1 volatile counter → concurrency 3-question test)*
 - [ ] `safety/rf_link_health.h`
 
 ### core1/ — sensor loop *(concurrency boundary)*
 
-- [ ] `core1/sensor_core1.{cpp,h}`
+- [ ] `core1/sensor_core1.{cpp,h}`  — *(1 atomic `g_bestGpsValid` + the Core0↔Core1 boundary → concurrency 3-question test)*
 
 ### active_objects/ — QP/C AOs *(concurrency — heavy)*
 
@@ -168,7 +168,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 ### top-level
 
 - [ ] `main.cpp`  — *(boot path; concurrency launch; 1 callback lambda → F.1 naming lens)*
-- [ ] `shared_state.cpp`
+- [ ] `shared_state.cpp`  — *(6 atomic cross-core flags — densest shared-state site → concurrency 3-question test)*
 
 ---
 
@@ -176,8 +176,8 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### cli/
 
-- [ ] `cli/rc_os.{cpp,h}`
-- [ ] `cli/rc_os_commands.{cpp,h}`
+- [ ] `cli/rc_os.{cpp,h}`  — *(1 atomic mag-cal-active flag → concurrency 3-question test)*
+- [ ] `cli/rc_os_commands.{cpp,h}`  — *(3 volatile T2 command handoff → concurrency 3-question test)*
 - [ ] `cli/rc_os_dashboard.{cpp,h}`
 - [ ] `cli/rc_os_debug.{cpp,h}`
 
