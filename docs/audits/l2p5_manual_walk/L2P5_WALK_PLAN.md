@@ -15,6 +15,7 @@
 | **Field manual** | `docs/audits/l2p5_manual_walk/L2P5_MANUAL_WALK_GUIDE.md` | What to look for *during* the walk (spine + judgment lenses) | by Nathan, during the walk |
 | **Work plan** | `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md` (this doc) | The prep→walk→close *work*; §CM gating + §RP research live here | before/around the walk |
 | **Itinerary** | `docs/audits/l2p5_manual_walk/L2P5_WALK_ITINERARY.md` | Ordered 184-file coverage map + sparse hot-spot notes; the traversal/progress tracker | during the walk |
+| **Contract-surface helper** | `docs/audits/l2p5_manual_walk/L2P5_CONTRACT_SURFACE_HELPER.md` | How to evaluate thin/hub files that look empty but hold ownership, API, layout, or vocabulary contracts | during the walk, when a file feels skippable |
 
 Making gates/scripts (§CM) and doing research (§RP) is **plan work**, not part of the eyeball walk. The field manual only *references* §CM/§RP as prerequisites.
 

@@ -1,7 +1,8 @@
 # L2-P5 Walk Whiteboard — temporary; must be EMPTY at walk close
 
-**Companion to** the walk triad (`L2P5_MANUAL_WALK_GUIDE.md` / `L2P5_WALK_ITINERARY.md` /
-`L2P5_WALK_PLAN.md`). Scratch surface for items that surface during the L2-P5 manual walk but
+**Companion to** the walk pack (`L2P5_MANUAL_WALK_GUIDE.md` / `L2P5_WALK_ITINERARY.md` /
+`L2P5_WALK_PLAN.md` / optional `L2P5_CONTRACT_SURFACE_HELPER.md` for thin hub files).
+Scratch surface for items that surface during the L2-P5 manual walk but
 have **no home yet** — the walk's own working memory, not a record.
 
 > **Treat this like the project whiteboard (`AGENT_WHITEBOARD.md`): erase resolved rows, don't

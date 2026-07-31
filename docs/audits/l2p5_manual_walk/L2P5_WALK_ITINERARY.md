@@ -8,7 +8,9 @@ Membership is defined by that glob, **not** by the graph — a file the graph ca
 table) is still walked via its module.
 
 **How to use:** read each file whole, apply the **lenses from the field manual Class index** (by subsystem / “when you are walking”; only a few rows below carry extra hot-spot notes), tick the box, and write a one-line coverage note (PASS / which lens FAILed → findings table
-in that lens). **Completeness principle: tick every file, PASS included.** **Order is bottom-up dependency layers**
+in that lens). If a file *looks empty* or is mostly declarations/maps/enums, open
+`L2P5_CONTRACT_SURFACE_HELPER.md` before ticking through — those are often hubs, not skips.
+**Completeness principle: tick every file, PASS included.** **Order is bottom-up dependency layers**
 (foundations → domain logic → integrators → CLI), derived from the graphify call/include graph: you read a module's
 callees before the modules that consume them, so when a file references something cross-module it is already behind
 you. Criticality is retained only as a **within-tier tiebreak** (e.g. `safety/` leads the integrator tier) and as a

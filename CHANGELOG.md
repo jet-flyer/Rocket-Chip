@@ -46,6 +46,17 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-07-30-002 | Grok 4.5 (Build CLI) | documentation, audit
+
+**L2-P5 contract-surface helper — thin/hub files that look empty.** Added
+`docs/audits/l2p5_manual_walk/L2P5_CONTRACT_SURFACE_HELPER.md`: pedagogical + practical guide
+for evaluating files that feel skippable (pure `extern`s, prototypes, enums, layouts, signal
+catalogs) but hold ownership, API, vocabulary, or layout contracts. Taxonomy A–F, five-step
+procedure, claim-vs-truth verify-now/later, worksheet, worked mini-examples (`shared_state.h`,
+`rc_log.h`, flash/version, linker symbols). Field manual keeps criteria; helper is the *how*.
+Light discovery links only in guide / itinerary / plan / walk whiteboard. Verified:
+pure-documentation change, no `src/`/CMake/build. (`docs/audits/l2p5_manual_walk/*`, `CHANGELOG.md`)
+
 ### 2026-07-30-001 | Claude Opus 5 (Code) | documentation, audit
 
 **L2-P5 walk instrumentation — whiteboard opened, itinerary hot-spot cues, pre-remediation gate

@@ -7,6 +7,7 @@
 - **ROUTE — which files, in what order:** `docs/audits/l2p5_manual_walk/L2P5_WALK_ITINERARY.md`
 - **Work plan / gates / walk-ready:** `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md`
 - **This field manual** (lenses + findings tables)
+- **Thin / hub / “looks empty” files:** `docs/audits/l2p5_manual_walk/L2P5_CONTRACT_SURFACE_HELPER.md` (how to evaluate contract surfaces — not a second criteria book)
 
 **Reference only (not alternate procedures):** `L2P5_MANUAL_WALK_GUIDE_ARCHIVE.md` (historical full matrix — filename marks it archive; do not walk from it), `L2P5_RP_SOURCES_2026-06-25.md` (staging research stash — open only when a criterion's source or wording is unclear), `L2P5_WCONVERSION_FINDINGS_2026-06-25.md` (§CM mechanical batch inventory, not a walk script), `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` (verbatim rule text / why).
 
@@ -22,7 +23,7 @@
 4. **Record a verdict in the itinerary** (tick the box, one-line note), and put any `FAIL`/`PARTIAL` in the relevant class's findings table below. **Completeness: record every file, `PASS` included** — full coverage is the deliverable, not just the defect list.
 5. **Disposition each `FAIL`:** a fix → a new `R-NN` row in `docs/PROBLEM_REPORTS.md`; an accept → migrates to `standards/ACCEPTED_STANDARDS_DEVIATIONS.md` with sign-off. A `PASS` needs no action; a `PARTIAL` notes the cheap compliant move.
 
-**Declaration-only headers are contracts, not skips.** A header that *looks* empty — only `extern` declarations, function prototypes, or `#include`s — is a contract surface, and the declarations **are** the thing to judge: apply the class-design, comment-truth, and concurrency-ownership lenses (who owns/mutates this shared object; does each doc comment match the actual contract?). `include/rocketchip/shared_state.h` is the canonical case — pure `extern`s, zero executable code, yet the entire cross-core ownership review lives in it. "No code" is not "nothing to walk."
+**Declaration-only / thin hub files are contracts, not skips.** A file that *looks* empty — only `extern`s, prototypes, enums, layouts, or `#include`s — is often a **contract surface** that ties modules together; the declarations and their claims **are** the thing to judge. `include/rocketchip/shared_state.h` is the canonical case. "No code" is not "nothing to walk." **How to run that evaluation (kinds, worksheet, worked examples):** `L2P5_CONTRACT_SURFACE_HELPER.md`.
 
 ---
 
