@@ -7,15 +7,16 @@ for the file-by-file semantic pass. **184 in-scope files** (refreshed 2026-07-28
 Membership is defined by that glob, **not** by the graph — a file the graph can't see (a leaf header, a data
 table) is still walked via its module.
 
-**How to use:** read each file whole, apply the **lenses from the field manual Class index** (by subsystem / “when you are walking”; only a few rows below carry extra hot-spot notes), tick the box, and write a one-line coverage note (PASS / which lens FAILed → findings table
-in that lens). If a file *looks empty* or is mostly declarations/maps/enums, open
-`L2P5_CONTRACT_SURFACE_HELPER.md` before ticking through — those are often hubs, not skips.
-**Completeness principle: tick every file, PASS included.** **Order is bottom-up dependency layers**
-(foundations → domain logic → integrators → CLI), derived from the graphify call/include graph: you read a module's
-callees before the modules that consume them, so when a file references something cross-module it is already behind
-you. Criticality is retained only as a **within-tier tiebreak** (e.g. `safety/` leads the integrator tier) and as a
-triage fallback if the walk is ever time-boxed — it is no longer the primary axis, because a 100%-coverage sweep does
-not benefit from front-loading risk. Walk a `.cpp` together with its `.h`.
+**How to use:** read each file whole, apply the **lenses from the field manual Class index** (by subsystem /
+“when you are walking”; only a few rows below carry extra hot-spot notes), tick the box when that path has been
+reviewed, and put durable observations in `L2P5_WALK_FINDINGS.md` (not a PASS/FAIL grade). If a file *looks empty*
+or is mostly declarations/maps/enums, open `L2P5_CONTRACT_SURFACE_HELPER.md` before ticking — those are often hubs,
+not skips. **One itinerary path = one checkbox** (no multi-file globs or middot-smushed lines). Related files may sit
+**under a plain org line** (no `- [ ]` on the parent — indent is grouping only; parents are never ticked).
+Only leaf checkboxes count. **Completeness: tick every leaf path.** **Order is bottom-up dependency layers**
+(foundations → domain logic → integrators → CLI), derived from the graphify call/include graph. Criticality
+is only a **within-tier tiebreak** / time-box triage fallback. **Exception:** `foo.{cpp,h}` means walk the
+pair as one unit (implementation + header together), then one tick.
 
 **Graph-assisted navigation (optional lookup — not a required step).** The repo's graphify knowledge graph
 (`graphify-out/`) holds every call/include edge, so it answers *"have I already walked this, or is it upcoming?"*.
@@ -39,13 +40,43 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 - [x] `include/rocketchip/shared_state.h`  — *(concurrency ownership / pure-extern contract)*
 - [x] `include/rocketchip/rc_log.h`
 - [x] `include/rocketchip/config.h`
-- [ ] `include/rocketchip/board*.h` (board.h, board_feather_rp2350.h, board_fruit_jam.h, board_pico2.h, board_tiny_2350_common.h, board_tiny_2350_plus.h)
-- [ ] `include/rocketchip/job*.h` (job.h, job_capabilities.h, job_relay.h, job_station.h, job_vehicle.h)
-- [ ] `include/rocketchip/notify_backend.h` · `notify_intents.h`
-- [ ] `include/rocketchip/radio_config.h` · `radio_config_table.h` · `radio_scheduler.h`
-- [ ] `include/rocketchip/sensor_seqlock.h` · `sensor_snapshot.h`  — *(concurrency)*
-- [ ] `include/rocketchip/telemetry_encoder.h` · `telemetry_state.h` · `mavlink_rx.h`
-- [ ] `include/rocketchip/ao_signals.h` · `led_patterns.h` · `pcm_frame.h` · `fused_state.h` · `flash_layout.h` · `prearm_fail_ticks.h` · `station_output_mode.h` · `version.h` · `linker_symbols.h`
+- board HAL (selector + per-PCB constants)
+  - [ ] `include/rocketchip/board.h`
+  - [ ] `include/rocketchip/board_feather_rp2350.h`
+  - [ ] `include/rocketchip/board_fruit_jam.h`
+  - [ ] `include/rocketchip/board_pico2.h`
+  - [ ] `include/rocketchip/board_tiny_2350_common.h`
+  - [ ] `include/rocketchip/board_tiny_2350_plus.h`
+- job / device role (CMake `ROCKETCHIP_JOB_*`)
+  - [ ] `include/rocketchip/job.h`
+  - [ ] `include/rocketchip/job_capabilities.h`
+  - [ ] `include/rocketchip/job_relay.h`
+  - [ ] `include/rocketchip/job_station.h`
+  - [ ] `include/rocketchip/job_vehicle.h`
+- notify intents / backends
+  - [ ] `include/rocketchip/notify_backend.h`
+  - [ ] `include/rocketchip/notify_intents.h`
+- radio config / schedule
+  - [ ] `include/rocketchip/radio_config.h`
+  - [ ] `include/rocketchip/radio_config_table.h`
+  - [ ] `include/rocketchip/radio_scheduler.h`
+- sensor shared data (concurrency)
+  - [ ] `include/rocketchip/sensor_seqlock.h`
+  - [ ] `include/rocketchip/sensor_snapshot.h`
+- telemetry / MAVLink
+  - [ ] `include/rocketchip/telemetry_encoder.h`
+  - [ ] `include/rocketchip/telemetry_state.h`
+  - [ ] `include/rocketchip/mavlink_rx.h`
+- other public headers
+  - [ ] `include/rocketchip/ao_signals.h`
+  - [ ] `include/rocketchip/led_patterns.h`
+  - [ ] `include/rocketchip/pcm_frame.h`
+  - [ ] `include/rocketchip/fused_state.h`
+  - [ ] `include/rocketchip/flash_layout.h`
+  - [ ] `include/rocketchip/prearm_fail_ticks.h`
+  - [ ] `include/rocketchip/station_output_mode.h`
+  - [ ] `include/rocketchip/version.h`
+  - [ ] `include/rocketchip/linker_symbols.h`
 
 ### math/
 
