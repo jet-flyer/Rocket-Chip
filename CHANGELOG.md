@@ -46,6 +46,16 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-02-001 | Grok 4.5 (Build CLI) | documentation, audit
+
+L2-P5 semantic walk progress: itinerary **3/184** (`shared_state.h`, `rc_log.h`, `config.h`
+ticked). Findings log grown through **WN-018** (Next ID WN-019) — Project-wide license
+hygiene (**WN-004**); `rc_log` comment mass (**WN-003**); `config.h` grab-bag/assert/version/
+tier/job/pins/DBG cluster (**WN-005–018**) plus brief `version.h` phantom helper (**WN-011**).
+Findings header: path-placement rule, Project-wide section. Full list:
+`docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`. Resume: next itinerary row
+`include/rocketchip/board*.h`.
+
 ### 2026-08-01-001 | Grok 4.5 (Build CLI) | documentation, audit
 
 L2-P5 walk findings log: `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`. Owner-initiated

@@ -36,9 +36,9 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### include/rocketchip/ — public headers *(class-design + header-organization, gated)*
 
-- [ ] `include/rocketchip/shared_state.h`  — *(concurrency ownership / pure-extern contract)*
-- [ ] `include/rocketchip/rc_log.h`
-- [ ] `include/rocketchip/config.h`
+- [x] `include/rocketchip/shared_state.h`  — *(concurrency ownership / pure-extern contract)*
+- [x] `include/rocketchip/rc_log.h`
+- [x] `include/rocketchip/config.h`
 - [ ] `include/rocketchip/board*.h` (board.h, board_feather_rp2350.h, board_fruit_jam.h, board_pico2.h, board_tiny_2350_common.h, board_tiny_2350_plus.h)
 - [ ] `include/rocketchip/job*.h` (job.h, job_capabilities.h, job_relay.h, job_station.h, job_vehicle.h)
 - [ ] `include/rocketchip/notify_backend.h` · `notify_intents.h`
@@ -185,7 +185,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `__ / 184 files walked.` Update as you go. When complete, the per-class findings tables (in the
+**Progress:** `3 / 184 files walked.` Update as you go. When complete, the per-class findings tables (in the
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)
 </content>
