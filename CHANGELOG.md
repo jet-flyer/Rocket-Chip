@@ -46,6 +46,13 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-01-001 | Grok 4.5 (Build CLI) | documentation, audit
+
+L2-P5 walk findings log: `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`. Owner-initiated
+observation log (not PASS/FAIL); itinerary remains coverage-only; global append-only `WN-NNN`
+IDs; first entries WN-001/002 on `shared_state.h` (`g_imu` comment / shared-handle invariant).
+Council-shaped rules compressed into the file header. Further walk findings append later.
+
 ### 2026-07-30-002 | Grok 4.5 (Build CLI) | documentation, audit
 
 **L2-P5 contract-surface helper — thin/hub files that look empty.** Added
