@@ -177,3 +177,19 @@ find-hint correction in the field manual.
 
 **Blocking?** No. But do the enumeration-then-classify pass rather than reading for a smell —
 that is the field manual's own instruction at `:527`.
+
+### W-3 — Itinerary complete ≠ exhaustive or “perfect” files
+
+**Surfaced:** 2026-08-01 · walk-findings design (owner)
+
+**What:** When finalizing walk findings / close-out prose, do **not** imply that a fully ticked
+itinerary means exhaustive standards coverage or that reviewed files are “clean” / “perfect.”
+A checked box means only that the **owner reviewed that path** in this walk sitting. Missing
+findings under a path (or `nothing of note`) are not certificates of quality. Some existing pack
+wording is stronger than that; don’t play semantic wack-a-mole mid-walk — correct implications at
+**finalization** of findings/close-out so agents and future readers don’t over-claim.
+
+**Disposition target:** close-out / findings finalization language (itinerary progress note, plan
+close-out, and/or a short findings-header line if needed) — tone only: “reviewed,” not “certified.”
+
+**Blocking?** No — walk continues. Apply when wrapping findings or writing completion claims.
