@@ -23,6 +23,33 @@
 
 ---
 
+## Session Handoff — L2-P5 manual walk IN PROGRESS (2026-08-02, Grok 4.5 (Build CLI))
+
+**In progress:** Owner-led L2-P5 file-by-file semantic walk (coverage + findings, not PASS/FAIL).
+
+| | |
+|--|--|
+| **Branch / remote** | `main` @ `111f4ea` — **pushed** (`origin/main` match); clean tree |
+| **Itinerary** | **3 / 184** — ticked: `include/rocketchip/shared_state.h`, `rc_log.h`, `config.h` |
+| **Resume next** | `include/rocketchip/board*.h` (itinerary Tier 1) |
+| **Findings** | `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md` — **WN-001…WN-018**, **Next ID WN-019** |
+| **CHANGELOG** | `2026-08-02-001` (walk progress); `2026-08-01-001` (findings log created) |
+| **Walk WB** | `L2P5_WALK_WHITEBOARD.md` — W-1 (P10-9), W-2 (shared-mutable inventory), W-3 (itinerary ≠ perfect) |
+
+**Process notes for next agent:**
+- Coverage = itinerary checkboxes only. Observations = findings `WN-NNN` (append-only; path-placement rule in findings header — claim locus = `####` path).
+- `config.h` is heavily flagged as grab-bag (**WN-015**); item WNs 005–018 are evidence. Do not start remediation mid-walk unless owner directs.
+- Brief cross-file note already under `version.h` (**WN-011**); that path not ticked yet.
+- Pure docs session — no firmware/target changes this window.
+
+**Blocked:** nothing.
+
+**Concerns / open:** License hygiene (**WN-004** Project-wide) and full `config.h` dissolve are disposition-time, not walk-time.
+
+**Erase or refresh this handoff section when the next walk sitting starts.**
+
+---
+
 ## Session Handoff — Local-LLM companion research (OPEN) (2026-07-28, Claude Opus 5 (Code))
 
 **In progress:** Evaluating self-hosted models as a *companion* to frontier cloud models for
@@ -138,7 +165,9 @@ Rebuilt the graphify graph at `graphify-out/` as a **curated current-state code+
 
 ## Session Handoff — L2-P5 walk-prep DONE / WALK-READY (2026-06-25, Claude; refreshed 2026-07-28 Grok)
 
-**▶ STATUS (2026-07-30):** walk **starting**. Runs on branch `claude/l2p5-walk` in a `git worktree` at `../Rocket-Chip-l2p5-walk` — treat `docs/audits/l2p5_manual_walk/*` as in-flight; that worktree is claimed, and its commits run **no** host ctest / clang-tidy (see the MERGE-scope row above). Walk instrumentation landed first: `L2P5_WALK_WHITEBOARD.md` opened (W-1 P10-9 triage defect, W-2 shared-mutable inventory), itinerary hot-spot cues, plan pre-remediation checklist. CHANGELOG `2026-07-30-001`.
+**▶ STATUS (2026-08-02):** walk **IN PROGRESS on `main`** — see handoff section at top of this file (Grok). Prior “worktree-only” note is **stale** for current sitting.
+
+**▶ STATUS (2026-07-30):** walk **starting** (historical). Had noted branch `claude/l2p5-walk` worktree; current progress is on `main` (see 2026-08-02 handoff).
 
 **▶ STATUS (2026-07-28):** still **walk-ready** for the file-by-file semantic walk. Live triad = procedure; archive / RP stash / Wconversion list = **reference only**. Pre-walk hygiene landed: itinerary **184** files; dead §LV tags scrubbed; Phase C dispositions treated complete for walk-start; open **`-Wconversion` batch remains §CM (non-blocking)**. **Class 13 (magic numbers) demoted** like Class 14 — not an eyeball lens; residual only when dispositioning `readability-magic-numbers` hits (named + sourced **required** unless impossible/highly impractical after review). Semantic walk = **spine + comments, assertions, scope/lifetime, class design, templates, control-flow/`volatile`, concurrency**. See CHANGELOG `2026-07-28-003`.
 
