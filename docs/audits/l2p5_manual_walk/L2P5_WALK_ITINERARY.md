@@ -48,18 +48,18 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
   - [x] `include/rocketchip/board_tiny_2350_common.h`
   - [x] `include/rocketchip/board_tiny_2350_plus.h`
 - job / device role (CMake `ROCKETCHIP_JOB_*`)
-  - [ ] `include/rocketchip/job.h`
-  - [ ] `include/rocketchip/job_capabilities.h`
-  - [ ] `include/rocketchip/job_relay.h`
-  - [ ] `include/rocketchip/job_station.h`
-  - [ ] `include/rocketchip/job_vehicle.h`
+  - [x] `include/rocketchip/job.h`
+  - [x] `include/rocketchip/job_capabilities.h`
+  - [x] `include/rocketchip/job_relay.h`
+  - [x] `include/rocketchip/job_station.h`
+  - [x] `include/rocketchip/job_vehicle.h`
 - notify intents / backends
-  - [ ] `include/rocketchip/notify_backend.h`
-  - [ ] `include/rocketchip/notify_intents.h`
+  - [x] `include/rocketchip/notify_backend.h`
+  - [x] `include/rocketchip/notify_intents.h`
 - radio config / schedule
-  - [ ] `include/rocketchip/radio_config.h`
-  - [ ] `include/rocketchip/radio_config_table.h`
-  - [ ] `include/rocketchip/radio_scheduler.h`
+  - [x] `include/rocketchip/radio_config.h`
+  - [x] `include/rocketchip/radio_config_table.h`
+  - [x] `include/rocketchip/radio_scheduler.h`
 - sensor shared data (concurrency)
   - [ ] `include/rocketchip/sensor_seqlock.h`
   - [ ] `include/rocketchip/sensor_snapshot.h`
@@ -216,7 +216,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `9 / 184 files walked.` Update as you go. When complete, the per-class findings tables (in the
+**Progress:** `19 / 184 files walked.` Update as you go. When complete, the per-class findings tables (in the
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)
 </content>

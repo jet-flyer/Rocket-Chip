@@ -203,3 +203,35 @@ across all packs → **WN-024**). Erase at walk close after owner verification.
 **What (original):** When the board HAL itinerary group is fully ticked, add a findings WN
 listing every pack with the UART GPS block → cite **WN-024**. Extended at close to include
 LoRa/radio pin defs (none onboard on current SKUs).
+
+---
+
+### W-5 — When questioning header existence: always attach include / consumer verification
+
+**Surfaced:** 2026-08-03 · walking sparse public headers (`job_capabilities.h`,
+`notify_backend.h`, job packs) — owner cannot evaluate “who needs this file?” before the
+`.cpp` tier without agent help.
+
+**What:** For any header where the walk questions **whether a separate file earns rent**
+(sparseness, parallel packs, thin façade), the agent must **double-check and report**:
+
+1. **Direct includes** — every `#include` of that path under `src/` + `include/` (+ `test/`
+   if relevant); exclude vendored noise.
+2. **Symbol consumers** — who uses the declared API (may be fewer than includes, or
+   zero for dead symbols — e.g. `kRoleHasFullGoNogo` defined but unused at check time).
+3. **Indirect fan-in** — e.g. packs only included by a selector (`job_*.h` ← `job.h` only);
+   types only reached via a façade (`notify_intents` via `ao_notify.h`).
+
+Put a short table or bullets in the **discussion and/or WN** so the owner is not blocked
+on not having walked callees yet. Do **not** couple dispositions across “same class”
+sparseness notes (capabilities vs backend may resolve differently).
+
+**Datapoint at surface:** capabilities ≈ 1 production include (`health_monitor.cpp`);
+backend ≈ 1 caller + 2 impl self-includes; job packs = 0 external includes (selector only).
+
+**Disposition target:** walk process — fold into `L2P5_MANUAL_WALK_GUIDE.md` (and/or
+findings Form row / contract-surface helper) as a standing check when existence of a
+`.h` is questioned; erase this row once the guide (or equivalent) carries the rule.
+
+**Blocking?** No — walk continues; agent applies the check from this row until the guide
+lands it.

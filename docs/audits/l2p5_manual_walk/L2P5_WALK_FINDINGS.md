@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-03 · Grok · board HAL complete; WN-028 tiny; WN-029 GPS+LoRa rollup
+**Last edited:** 2026-08-03 · Grok · radio_scheduler WN-041; radio group done
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-030
+**Next ID:** WN-042
 
 ---
 
@@ -312,3 +312,154 @@ both patterns:**
 **None of the current boards ship onboard LoRa** — radio pins are expansion/adapter defaults,
 same class as UART GPS. Disposition with **WN-024**: expansion/booster layer vs board free-pin
 docs; banner built-ins (**WN-022**) only for true onboard radio/GPS.
+
+#### `include/rocketchip/job.h`
+
+**WN-030** — [Grok] · `comment` · **Name “job” is vague; scaffold map thin**  
+Locus: `job.h` ~L4–11 banner; also `mission_profile.h` ~L11–13. Quote (MP): `Distinct from
+job.h (device role: vehicle vs station)`. “Job” alone does not advertise *device role*; the
+clearer phrase already lives in the MissionProfile comment, not in SCAFFOLDING’s one-liner
+(`Device role selector`) or a SAD three-axis map (board / role / mission profile). Placement
+in `include/rocketchip/` is fine (selector + packs, parallel to board). Later: rename
+consideration (`device_role` / keep “job” with louder banners) + scaffold/SAD “open this for
+role, not pins or MissionProfile” — note only, not mid-walk rename.
+
+**WN-031** — [Grok] · `ownership` · **Mutually exclusive DeviceRole may be wrong long-term**  
+Locus: `job.h` ~L32–47 (`enum class DeviceRole` + `#if` one-of `job_relay` / `job_station` /
+default vehicle). Compile-time exclusive roles fit today’s single-binary-per-role builds.
+Premise friction: a **relay function can live on a vehicle** (and on Titan-class multi-node /
+same-MCU sketches, roles may co-reside). Exclusive `kVehicle | kStation | kRelay` is a
+product/build axis, not necessarily a permanent architecture law. **Lower priority** —
+revisit when multi-role or co-resident link-layer designs are real; do not redesign mid-walk.
+Related: capability predicates in `job_capabilities.h` assume one `kRole`.
+
+#### `include/rocketchip/job_capabilities.h`
+
+**WN-032** — [Grok] · `ownership` · **Does this need its own header?**  
+Locus: whole file — three `kRole*` `constexpr bool`s (~7 functional LOC) after
+`#include "rocketchip/job.h"`, rest comment. Born IVP-142c (`dadcbf1`) as a new
+file (not split from `job.h`); stated intent was capability-masking home, not a
+file-size gate (60-line rule is per-function `.cpp`). Question for later: fold
+into `job.h` (or packs) vs keep a separate unit only if the capability surface
+grows.
+
+#### job packs — `job_vehicle.h` / `job_station.h` / `job_relay.h`
+
+*(Family claim; same three-line surface on every pack. Opened while walking relay; applies
+to all three itinerary leaves.)*
+
+**WN-033** — [Grok] · `comment` · **Job-pack banners: rot risk; prefer pointer over restatement**  
+Locus: file banners on **all three** packs (`job_vehicle.h`, `job_station.h`,
+`job_relay.h`) — e.g. relay ~L3–10 (RX→CRC→re-TX, “no AO_Telemetry/ESKF/FD”,
+`Council 3 [C3-R2]`); vehicle/station restate TX/RX role + MissionProfile distinction.
+Local sketches read fine today; risk is **stale restatement** of design that lives
+elsewhere (council / AO_Radio / stage plan / future Starcom) while packs and call sites
+move. **Suggestion only (no disposition mid-walk):** short identity line + pointer to one
+durable design/decision home, rather than re-iterating what that doc says the role is.
+Same policy question as other thin selector packs (board banners, etc.).
+
+**WN-034** — [Grok] · `ownership` · **Job-pack constexpr surface may not earn three files**  
+Locus: each of `job_vehicle.h` / `job_station.h` / `job_relay.h` — same three symbols:
+`kRole`, `kRadioModeRx`, `kDefaultMavlinkOutput` (plus comments).
+
+1. **`kDefaultMavlinkOutput`** — `false` on **all three** packs; re-exported in `config.h`
+   (**WN-013**); **no `src/` consumer** at walk time — may already be obsolete for every
+   job. MAVLink-on-USB is station presentation, not a vehicle TX or relay-pipe decision.
+   Relay especially is a transparent link-layer pipe (banner + IVP-98); it should not be
+   “choosing MAVLink or not.”
+
+2. **`kRadioModeRx`** — vehicle `false`, station/relay `true`. **Similar issue:** compile-time
+   exclusive RX-vs-not on the *job pack* feels like the wrong home, and the exclusivity is
+   **outright too narrow** — all three roles can need RX and/or TX (especially after CCSDS /
+   Starcom rework; half-duplex vehicle already RX-capable in places). Today this flag is a
+   real branch in `main` / CLI / station idle / telemetry paths, but it is acting as a
+   coarse “station-shaped build” stand-in more than a true radio-direction model.
+
+3. **Parallel-pack boilerplate** — same class as **WN-023** (uniform surface on packs that
+   do not own the concept: dead/dummy constexprs, or a one-bit role caricature). Stronger
+   reading: three-job land (IVP-95) made every pack look the same even where symbols are
+   meaningless or wrong long-term.
+
+4. **If those flags do not belong here — what are the individual job files doing?**  
+   Remaining non-comment content is essentially `kRole = …`. That may still justify a
+   thin pack (or collapse into `job.h` `#if` arms / a single table). **Open question for
+   later**, not a mid-walk close-out: three files vs selector-only vs capabilities-only.
+
+**Suggestion only; no hard decision now.** Prefer to **revisit only after Starcom library
+work** (CCSDS / link-layer surface will move radio direction, relay pipe, and any
+return of MAVLink defaults). Related: WN-013, WN-023, WN-031, WN-032.
+
+#### `include/rocketchip/notify_backend.h`
+
+**WN-035** — [Grok] · `ownership` · **Does this need its own public header?**  
+Locus: whole file — two free-function decls (`notify_backend_led_update` /
+`notify_backend_audio_update`); rest banner (P10-9 / no vtable, compile-time backends).
+Implementations in `src/notify/*`; sole production caller `ao_notify` tick. **Same class
+of question as WN-032** (thin public unit whose functional surface is tiny — “does a
+separate file earn rent?”). **Do not couple dispositions:** outcomes may differ entirely
+(fold vs keep vs relocate); this note only records that the *sparseness / separate-file*
+question applies here too.
+
+#### `include/rocketchip/notify_intents.h`
+
+**WN-036** — [Grok] · `comment` · **High comment density on an otherwise useful header**  
+Locus: whole file (~138 lines). Real surface is solid (per-category intent enums +
+`NotifyState` + beacon/vehicle_lost flags) — multi-hop contract for notify. Comment mass
+is heavy (banner, priority rationale, per-enum LED color notes, Stage L/T narrative on
+beacon/vehicle_lost). Headers are exempt from the `.cpp` 15–25% density band, but density
+still reads high vs the type surface; later trim/pointer pass possible without questioning
+the file’s right to exist.
+
+#### `include/rocketchip/radio_config.h`
+
+**WN-037** — [Grok] · `comment` · **“V2 (not V1)” undefined**  
+Locus: banner ~L11 `// Advanced overrides available in V2 (not V1).` Rest of top block is
+fine (sibling to MissionProfile, generator derives SF/BW/CR). **V1/V2 never named** here
+(schema? product tier? generator format?). Vague — name the versioned artifact or drop.
+
+**WN-038** — [Grok] · `ownership` · **`kDefaultRadioConfig` assumes one radio family**  
+Locus: ~L39–48 default struct (TX, CCSDS, 2 Hz, 20 dBm, SF7, 125 kHz, CR5). Safe as a
+default only if this header is **tightly bound to the current LoRa/SX1276-class radio**
+(RFM95-shaped knobs). File itself is generic `RadioConfig` + includes only
+`telemetry_encoder.h` — **no radio/SKU name or capability gate** in this unit.
+`radio_config_table.h` is more explicitly SX1276; consumers include storage, profile data,
+telemetry encoder, tests. **If multi-radio or Starcom-era PHY shows up, these numbers are
+not “neutral” defaults** — couple defaults to a named radio/profile path, or stop shipping
+a single global default here. Starcom impact: use include/consumer graph when that work
+lands (types likely shared; defaults/PHY fields may move).
+
+#### `include/rocketchip/radio_config_table.h`
+
+**WN-039** — [Grok] · `comment` · **Over-authoritative council banner**  
+Locus: top block ~L3–20. Tone claims **canonical** whitelist, “Code is authoritative;
+docs/… references THIS header (not vice versa)”, and “Design rules (correctness-council
+edit #2)” as if council edit is permanent law in-header. Process/provenance belongs in
+decision/IVP notes; banner should state what the table *is* without over-binding authority
+or council archaeology.
+
+**WN-040** — [Grok] · `ownership` · **SX1276-specific file under generic radio_config name**  
+Locus: whole file — `RadioConfigEntry` / `kRadioConfigTable` / `radio_config_in_whitelist` /
+`radio_config_sx1276_legal` (explicit SX1276 datasheet ranges, PA_BOOST, SF/CR/BW).
+Filename + “RadioConfig whitelist” read **universal**; body is **this firmware’s LoRa/SX1276
+presets + legality**. Fine **if labeled and classified as HW-specific** (name, banner, path
+story) — not as the abstract radio-config SSOT for every future PHY.
+
+**Include / consumer check (W-5):** direct includes — `ao_telemetry.cpp` (SET path +
+sx1276_legal), `radio_config_storage.cpp` (read validation), `rc_os_debug.cpp` (digit
+presets), `rc_os_commands.cpp` (cycle table). No other radio family consumers. So today it
+behaves as **HW-specific policy for the current SX1276 path**, not a multi-radio abstraction
+— but the public name doesn’t say that.
+
+**Later (if this survives Starcom):** clean up labeling and consider a **standard pattern**
+for per-radio config tables (one table/legal helper per PHY or SKU), not one global
+“the” radio config table. Related: **WN-038** (defaults on generic `radio_config.h`).
+
+#### `include/rocketchip/radio_scheduler.h`
+
+**WN-041** — [Grok] · `ownership` · **Prime Starcom supersession candidate**  
+Locus: whole file — half-duplex TX-priority `RadioScheduler` SM (`RadioPhase`,
+vehicle TX-slot / station-relay RX continuous). Nothing else sticks out on walk.
+**Include check:** only `ao_radio.{h,cpp}` owns/uses it. Prime candidate for this
+unit to be **completely superseded by Starcom** link-layer work rather than evolved
+in place — re-check consumers when that lands. Related: **WN-034** / **WN-040**
+(radio/job surface also deferred past Starcom).
