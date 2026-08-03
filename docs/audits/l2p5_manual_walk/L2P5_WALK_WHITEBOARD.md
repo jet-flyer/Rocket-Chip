@@ -193,3 +193,13 @@ wording is stronger than that; don’t play semantic wack-a-mole mid-walk — co
 close-out, and/or a short findings-header line if needed) — tone only: “reviewed,” not “certified.”
 
 **Blocking?** No — walk continues. Apply when wrapping findings or writing completion claims.
+
+### W-4 — After all board packs: UART GPS multi-file rollup WN
+
+**Surfaced:** 2026-08-03 · walking `board_pico2.h` (owner)  
+**Status: ADDRESSED 2026-08-03** — rollup written as **WN-029** (UART GPS + LoRa pin inventory
+across all packs → **WN-024**). Erase at walk close after owner verification.
+
+**What (original):** When the board HAL itinerary group is fully ticked, add a findings WN
+listing every pack with the UART GPS block → cite **WN-024**. Extended at close to include
+LoRa/radio pin defs (none onboard on current SKUs).

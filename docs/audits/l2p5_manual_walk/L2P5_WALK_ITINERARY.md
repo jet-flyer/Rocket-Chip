@@ -41,12 +41,12 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 - [x] `include/rocketchip/rc_log.h`
 - [x] `include/rocketchip/config.h`
 - board HAL (selector + per-PCB constants)
-  - [ ] `include/rocketchip/board.h`
-  - [ ] `include/rocketchip/board_feather_rp2350.h`
-  - [ ] `include/rocketchip/board_fruit_jam.h`
-  - [ ] `include/rocketchip/board_pico2.h`
-  - [ ] `include/rocketchip/board_tiny_2350_common.h`
-  - [ ] `include/rocketchip/board_tiny_2350_plus.h`
+  - [x] `include/rocketchip/board.h`
+  - [x] `include/rocketchip/board_feather_rp2350.h`
+  - [x] `include/rocketchip/board_fruit_jam.h`
+  - [x] `include/rocketchip/board_pico2.h`
+  - [x] `include/rocketchip/board_tiny_2350_common.h`
+  - [x] `include/rocketchip/board_tiny_2350_plus.h`
 - job / device role (CMake `ROCKETCHIP_JOB_*`)
   - [ ] `include/rocketchip/job.h`
   - [ ] `include/rocketchip/job_capabilities.h`
@@ -216,7 +216,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `3 / 184 files walked.` Update as you go. When complete, the per-class findings tables (in the
+**Progress:** `9 / 184 files walked.` Update as you go. When complete, the per-class findings tables (in the
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)
 </content>

@@ -46,6 +46,14 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-03-001 | Grok 4.5 (Build CLI) | documentation, audit
+
+L2-P5 board HAL section complete. Itinerary **9/184** (all `board.h` + `board_*` leaves
+ticked). **11 new findings WN-019–WN-029** (selector/WIP/format, no-op hooks, UART GPS + LoRa
+expansion rollup, Fruit Jam ticket tags/extras, Tiny oversplit, BRINGUP_OK policy). Walk WB
+W-4 marked addressed → **WN-029**. Next: job/* family. See
+`docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`.
+
 ### 2026-08-02-001 | Grok 4.5 (Build CLI) | documentation, audit
 
 L2-P5 semantic walk progress: itinerary **3/184** (`shared_state.h`, `rc_log.h`, `config.h`

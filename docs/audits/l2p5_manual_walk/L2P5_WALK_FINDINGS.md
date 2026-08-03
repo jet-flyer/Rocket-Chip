@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-02 · Grok · session end: config.h walked (WN-005–018); itinerary 3/184
+**Last edited:** 2026-08-03 · Grok · board HAL complete; WN-028 tiny; WN-029 GPS+LoRa rollup
 
 # L2-P5 Walk Findings
 
@@ -10,15 +10,15 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 |------|--------|
 | **IDs** | Global `WN-NNN`, fixed prefix, never renumber. Only noteworthy entries get IDs. `— nothing of note.` is unnumbered and does not advance the counter. **Next ID** = `max(WN-*)+1` in body (line below is convenience; body wins). Section IDs may look out of order after revisits — feature, not bug. |
 | **Who** | `[Agent]` = who wrote the text (name only). Every entry is owner-initiated; agents do not open paths or invent `nothing of note` on their own. |
-| **Form** | `**WN-NNN** — [Agent] · \`kind\` · **title**` then observation. Kind = context (`comment`, `invariant`, `ownership`, `cross-file`), not priority/fix-timing. Anchor with symbol and/or quote (lines optional/soft). |
+| **Form** | `**WN-NNN** — [Agent] · \`kind\` · **title**` then observation. Kind = context (`comment`, `invariant`, `ownership`, `cross-file`), not priority/fix-timing. Lead with **locus** (path ~lines) + short **quote** so the claim stays brief and undiluted; taxonomy/follow-ons after. |
 | **Path placement** | Each `#### \`path\`` is the itinerary path for the **claim’s locus** (where the quoted code/comment lives). Before appending a WN: open/confirm that path section — do **not** append under the last `####` in the file. Cross-file notes: section = declaring file (or Project-wide). Mis-nested WNs are process bugs; fix on notice. |
-| **Append-only** | Frozen once written; never edit prior text. Later find on same path → new global `WN`. |
+| **Append-only** | Frozen once written; never edit prior text (no “Related: WN-N+1” back-links on older entries — new WNs cite older ones only). Later find on same path → new global `WN`. Owner-directed one-time fixes only. |
 | **Split vs merge** | One `WN` per claim that could disposition differently later. Same sitting ≠ merge. One `WN` only if bullets support a single claim. |
 | **Content** | Observations only; no design close-outs. Stated claim on the declaring file; enforcement/evidence under the implementing path when walked (new `WN`, don't edit old). |
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-019
+**Next ID:** WN-030
 
 ---
 
@@ -186,3 +186,129 @@ keep forever-rename layers. Related: WN-016, WN-017.
 Quote: `All print sites must use version_string() or the constants below.` No project
 `version_string()` API exists; callers use the constants. Over-promising helper name.
 Related: WN-009, WN-010.
+
+#### `include/rocketchip/board.h`
+
+**WN-019** — [Grok] · `comment` · **File banner mixes contract with history**  
+L4–19 `@file` block: useful bits (compile-time selector, `board::` home, how to add a board,
+pointer to BOARD_COMPARISON) sit with stage/history framing (“Stage J: Fruit Jam HAL”,
+same-binary narrative) that belongs in CHANGELOG/docs, not permanent header prose. Prefer a
+short “what this does” + add-board steps; drop or rehome stage-era narrative. Related: WN-020.
+
+**WN-020** — [Grok] · `ownership` · **Silent `else` defaults to Feather HSTX**  
+L39–41: unknown / unmatched board macros fall through to `board_feather_rp2350.h`. Wrong or
+missing board identity can still build and flash with Feather pins. Prefer fail-closed:
+`#error` (or equivalent) on unsupported board, **or** an explicit empty/uninit board pack that
+cannot be mistaken for a flight map — not a quiet HSTX default. Related: WN-019, WN-021.
+
+**WN-021** — [Grok] · `comment` · **Tiny 2350 / Pico 2 still scaffolding (false completeness)**  
+L30–38 comments: “scaffolding, gated by TINY_2350_BRINGUP_OK / PICO2_BRINGUP_OK (IVP-143).”
+**Still true (2026-08):** packs exist but are **not** HW-verified flight boards —
+`board_tiny_2350_plus.h` / `board_pico2.h` (and common) still `#error` unless those defines
+are set; pin maps datasheet-sourced / TODO radio pins on Pico 2; base `board_tiny_2350.h`
+still absent. Selector lists them as peer `#elif`s next to Feather/Fruit Jam → looks
+supported. **Resolve:** keep explicit “unsupported until bring-up” (comments + fail-closed
+aligned with **WN-020**), or complete bring-up and drop scaffolding language — don’t leave
+half-boards looking first-class. Related: WN-019, WN-020, WN-022.
+
+**WN-022** — [Grok] · `comment` · **Board-pack file header format — family-wide consistency**  
+*Board HAL section-wide (not only Feather):* brief top-of-file HW summary is good (e.g.
+Feather L4–11: MCU, flash/PSRAM, bus roles, pointer to BOARD_COMPARISON). Prefer also a
+**product number** and **store/product URL** when they fit in a line or two (Feather already
+has `#6130`; others may lack a link). Banner should also list **SKU built-ins** explicitly
+even when “obvious” (onboard GPS chip + part name, onboard LoRa, PSRAM, LED/WS2812, etc.)
+and distinguish **on-board soldered** vs **SKU-bundled plug-in** (e.g. kit includes GPS
+module to attach ≠ onboard GPS). **While walking every `board_*.h` / common:** confirm
+each pack has a clearly laid-out, consistent shape (banner fields + section order:
+I2C/SPI/radio/NeoPixel/LED/reset/PSRAM/UART/capabilities/identity/helpers) so community
+ports match. Note gaps/drift per file; disposition may be a shared template or checklist,
+not one-off edits. Related: WN-019, WN-021. See **WN-024** (built-in vs expansion).
+
+**WN-023** — [Grok] · `ownership` · **Optional board hooks → no-op on every other pack**  
+Example: `board_release_peripheral_reset()` — real work only on Fruit Jam (GPIO 22); Feather
+and other packs carry empty bodies so shared init can call unconditionally (`main.cpp`).
+Uniform call site is fine; **N−1 no-ops per single-board feature does not scale**. While
+walking board packs, inventory similar “one board only / empty elsewhere” hooks (and any
+like them). **Later disposition:** pick a better pattern (e.g. capability + `if constexpr`,
+shared default + override) so FJ-specific (etc.) logic stays in that board’s file without
+no-op sprawl. Needs design thought — not a drive-by delete. Related: WN-022.
+
+**WN-024** — [Grok] · `ownership` · **UART GPS block misplaced on board packs**  
+Locus: `board_feather_rp2350.h` ~L63–67 (same pattern on other packs). Quote:
+`// --- UART GPS ---` / `// Feather has UART0 on GPIO 0/1 — available for GPS FeatherWing`
+/ `kUartGpsAvailable = true` / `kUartGpsTxPin`/`RxPin`. **Primary:** this block is expansion
+(wing / hand-solder / future booster), not carrier SKU wiring like PSRAM CS — belongs with
+GPS/expansion config, not “board has GPS.” Board may still document free UART pins only.
+**Taxonomy for banner/API (WN-022):** onboard soldered chip (name it) vs kit plug-in vs
+optional expansion — don’t blur into one `kUartGpsAvailable`. Callers: `gps_uart.cpp`,
+`main.cpp`. Related: WN-014, WN-022.
+
+#### `include/rocketchip/board_fruit_jam.h`
+
+**WN-025** — [Grok] · `comment` · **M1/N1/M2/M3 tags look like bug tickets**  
+Locus: `board_fruit_jam.h` L12–18 (`[M1]`/`[N1]` banner), also `[M2]` ~L54 LED,
+`[M3]` ~L85 UART GPS — same cohort. Quote (banner): `[M1] GPIO 5 conflict… Button3` /
+`[N1] SPI1 bus sharing… ESP32-C6 CS=GPIO 46`. **Provenance:** landed together in Stage J
+BSP commit `7aeea79` (2026-03-07); message says *“Council amendments M1-M4, S1-S4, N1-N2
+implemented.”* So tags are **council amendment IDs**, not open bug IDs — but **in-file they
+are opaque** (no legend) and still read as ticket soup. **N1** is specifically radio vs
+**onboard ESP32-C6** SPI1 CS arbitration (shared bus with WiFi chip), not a random leftover;
+user memory of dropping ESP WiFi work is consistent with N1 remaining as a **coexistence
+constraint** after WiFi effort was abandoned. Real pin facts OK as plain comments or
+BOARD_COMPARISON. **Later:** rehome council-ID noise; per-board scratch / HW-labeled PRs if
+needed — not mainline header archaeology. Related: WN-022.
+
+**WN-026** — [Grok] · `comment` · **Onboard extras dumped at EOF; need implement status**  
+Locus: `board_fruit_jam.h` L104–108. Quote: `// --- Fruit Jam extras ---` then comment-only
+ESP32-C6 / SD / buttons / Audio I2S pin lists (no `board::` symbols). **Primary:** onboard
+SKU pin facts belong in the **top HW blurb** (WN-022) or real constants — not an appended
+orphan block. Stage J originally said “not used … future”; that status was lost.  
+**Family-wide:** packs should state clearly **onboard but not wired/implemented yet** or
+**ESP (etc.) WIP / abandoned** so pin notes or capability flags don’t read as “works 100%.”
+Also: `kSdCardAvailable`/`kDvmAvailable` true without pin APIs is the same false-confidence
+class. Related: WN-022, WN-024, WN-025.
+
+#### `include/rocketchip/board_pico2.h`
+
+**WN-027** — [Grok] · `ownership` · **Board WIP gate: premise OK, wording/policy incomplete**  
+Locus: `board_pico2.h` ~L20–22 (same: `TINY_2350_BRINGUP_OK` in tiny packs). Quote:
+`#ifndef PICO2_BRINGUP_OK` / `#error "…not yet verified… Define PICO2_BRINGUP_OK after
+hardware bring-up."` **Premise solid:** fail-closed so an unverified pin map can’t silently
+build as flight-ready. **Problem:** name/message reads as **PM status** (“bring-up done?”)
+and a pinky-swear define — goes stale (force-define without verification, or never remove).
+**Prefer:** keep a **build-policy** gate if it comes from a **documented procedure** (CMake
+allowlist / flag framed as “this target is WIP,” not “I finished the IVP”); align with
+selector fail-closed (**WN-020**/**WN-021**). **Also define WIP labeling:** clear **WIP** in
+**filename and top banner** (not “experimental” — that evokes future advanced-feature work
+on the roadmap). Use this as a **prototype policy** for HW-specific / new-board files and
+later **officially supported vs unsupported boards**. Related: WN-021, WN-022, WN-026.
+
+#### `include/rocketchip/board_tiny_2350_common.h` / `board_tiny_2350_plus.h`
+
+**WN-028** — [Grok] · `ownership` · **Tiny packs: more WIP, weak WIP labeling, oversplit**  
+Locus: `board_tiny_2350_common.h` L7–17 (+ TODO pin guesses throughout); `board_tiny_2350_plus.h`
+L11–15 / L29–31. Quote (common): `share ~95% of their pin map` / `scaffolding only` /
+`datasheet-sourced best-guesses`. **More preliminary than Pico 2** (many TODO(Tiny_2350)
+verify notes) yet **no WIP in filename**; plus has `TINY_2350_BRINGUP_OK` (see **WN-027**),
+common alone has no gate. Banner cites base `board_tiny_2350.h` which **does not exist**.
+**Structure:** Plus only sets `kPsramAvailable` + `kBoardName` — effectively identical map
+aside from PSRAM; does not warrant a multi-file split — prefer **one Tiny pack** with
+in-file / compile-time PSRAM presence (like SKU variants), not common+plus. Pin pass can
+resolve guesses later. Related: WN-021, WN-027.
+
+#### board HAL — multi-file rollup (all packs walked)
+
+**WN-029** — [Grok] · `ownership` · **UART GPS + LoRa pin blocks on every pack (rollup)**  
+Cites **WN-024** (primary: expansion vs board; taxonomy). **Inventory — every pack carries
+both patterns:**
+
+| Pack | UART GPS block | Radio/LoRa CS·RST·IRQ |
+|------|----------------|------------------------|
+| `board_feather_rp2350.h` | yes (~L63–67) | yes (~L32–35) “FeatherWing” |
+| `board_fruit_jam.h` | yes (~L84–89) unavailable | yes (~L42–45) “breakout/adapter” |
+| `board_pico2.h` | yes (~L68–73) | yes (~L42–46) “breakout” |
+| `board_tiny_2350_common.h` | yes (~L71–76) | yes (~L44–48) “breakout” |
+
+**None of the current boards ship onboard LoRa** — radio pins are expansion/adapter defaults,
+same class as UART GPS. Disposition with **WN-024**: expansion/booster layer vs board free-pin
+docs; banner built-ins (**WN-022**) only for true onboard radio/GPS.
