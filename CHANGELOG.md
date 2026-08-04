@@ -46,18 +46,18 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
-### 2026-08-03-001 | Grok 4.5 (Build CLI) | documentation, audit
+### 2026-08-04-001 | Grok 4.5 (Build CLI) | documentation, audit
 
-L2-P5 manual walk (owner-led) through public headers — **itinerary 25/184** at session end
-2026-08-04. Findings **WN-019–WN-054** (Next ID **WN-055**). No firmware/`src` changes.
+L2-P5 manual walk (owner-led) through public headers — **itinerary 25/184** at session end.
+Findings **WN-019–WN-054** (Next ID **WN-055**). No firmware/`src` changes. (Continues and
+supersedes the same-day walk log previously dated 2026-08-03-001; single daily entry, date
+corrected after midnight.)
 
-**Coverage this entry (amended):** board HAL complete; job family (name, exclusive roles,
-capabilities existence, pack surface/radio-mode); notify backend/intents; radio config/table/
-scheduler (Starcom-gated); sensor seqlock/snapshot; telemetry encoder/state/mavlink_rx
-(Starcom-gated); `ao_signals` (QP/QF-gated). Project-wide: comment-density **header exemption
-re-eval** (**WN-054**). Walk WB: W-4 addressed; **W-5** include/consumer check; **W-6**
-momentary-comment archaeology; **W-7** density-policy re-eval. Clear stop: next leaf
-`led_patterns.h`. Details: `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`.
+**Coverage:** board HAL; job family; notify; radio config/table/scheduler (Starcom-gated);
+sensor seqlock/snapshot; telemetry encoder/state/mavlink_rx (Starcom-gated); `ao_signals`
+(QP/QF-gated). Project-wide: comment-density **header exemption re-eval** (**WN-054**).
+Walk WB: W-4 addressed; **W-5**–**W-7**. Clear stop: next leaf `led_patterns.h`. Details:
+`docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`.
 
 ### 2026-08-02-001 | Grok 4.5 (Build CLI) | documentation, audit
 
