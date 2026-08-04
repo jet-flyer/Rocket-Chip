@@ -260,3 +260,18 @@ same “this was a work item” smell qualifies.
 guide; erase WB when booked.
 
 **Blocking?** No
+
+---
+
+### W-7 — Re-evaluate comment-density header exemption (standards)
+
+**Surfaced:** 2026-08-04 · ao_signals / density discussion after telemetry Doxygen Q
+
+**What:** Blanket “`.h` excluded — Doxygen 60–85% OK” has let low-quality comments
+through; structured Doxygen is rare vs archaeology/restatement. Full claim + provenance:
+**WN-054** (Project-wide).
+
+**Disposition target:** post-walk (or dedicated) **CODING_STANDARDS** re-eval + optional
+measurement/enforcement change; erase when policy updated or consciously reaffirmed.
+
+**Blocking?** No

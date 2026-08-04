@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-04 · Grok · telemetry trio closed; state WN-051
+**Last edited:** 2026-08-04 · Grok · ao_signals closed WN-052–053; session end 25/184
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-052
+**Next ID:** WN-055
 
 ---
 
@@ -41,6 +41,26 @@ churn):
   `src/fusion/wmm_declination.cpp` — confirm path vs current `wmm_tables.*` / generator story.
 - **Still proper approach:** per-file SPDX + root LICENSE + third-party inventory (optional later:
   REUSE/CI missing-SPDX gate). Not a reason to drop per-file headers.
+
+**WN-054** — [Grok] · `ownership` · **Comment-density policy: header exemption needs re-eval**  
+Locus: `standards/CODING_STANDARDS.md` Comment Density (§ ~2026-05-13 / `158b0df`) —
+target 15–25% **`.cpp` only**; **headers excluded** with “Doxygen-heavy … 60–85% …
+appropriate API documentation.”
+
+**Provenance:** band floor cites Polyspace / OSS studies; **header carve-out is project
+assumption**, not a primary standard. “Doxygen” was baked in without requiring that
+comments actually *be* structured API docs — owner walk note: Doxygen was not an
+established team convention first heard mid L2-P5.
+
+**Effect:** little/no density enforcement on `.h`, while many public headers are modules
+(not thin API flyers). Walk evidence: high comment mass is often **process archaeology /
+restatement** (**W-6**, **WN-048**, **WN-053**, board/job banners), not useful Doxygen.
+Real Doxygen-style API blocks (e.g. parts of `mavlink_rx` / encoder) look like the
+**exception**, not the rule.
+
+**Later:** re-evaluate policy (narrow/drop blanket `.h` exemption; upper-bound smells;
+measure header-as-module files; require real contract comments only). No mid-walk
+CODING_STANDARDS edit. Related: **W-6**, **W-7**.
 
 ---
 
@@ -535,6 +555,22 @@ Locus: ~L66–68
 public API and can confuse health-byte vs flags-byte layouts. **If file survives
 Starcom (**WN-046**):** delete the two aliases (and the legacy line); don’t leave
 DEPRECATED live code. Related: **W-6**, **WN-044** (tombstone class).
+
+#### `include/rocketchip/ao_signals.h`
+
+**WN-052** — [Grok] · `ownership` · **Defer deep redesign until QP/QF work**  
+Locus: whole file — system-wide QP/C `RcSignal` catalog, event structs, `evt_cast`
+(CAST-2). Same class as Starcom-gated radio/telem surfaces: **signal map and event
+shapes will move with upcoming QP/QF (QP/C++?) work**. Prefer not to invest mid-walk
+in renumbering/catalog cleanup beyond observations; re-open after that workstream.
+
+**WN-053** — [Grok] · `comment` · **Comment mass + momentary/process archaeology**  
+Locus: whole file (~200 lines, heavy comment share) — council date/rename (banner),
+“Historically N held …”, LEGACY/IVP/Stage L tags on enumerators, multi-line slot
+history (~L76–90). Real catalog needs some naming; **council land-dates, removed-slot
+narratives, IVP step tags** are W-6-class noise. **If revisited post QP/QF:** thin to
+live signal meanings + true invariants; drop momentary dev/council prose. Related:
+**W-6**, **WN-048**.
 
 #### `include/rocketchip/telemetry_encoder.h`
 
