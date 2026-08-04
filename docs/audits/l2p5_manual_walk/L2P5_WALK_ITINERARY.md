@@ -80,9 +80,9 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### math/
 
-- [ ] `math/vec3.{cpp,h}`
-- [ ] `math/quat.{cpp,h}`
-- [ ] `math/mat.h`
+- [x] `math/vec3.{cpp,h}`
+- [x] `math/quat.{cpp,h}`
+- [x] `math/mat.h`
 
 ### drivers/
 

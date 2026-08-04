@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-04 · Grok · linker_symbols WN-069–070 closed
+**Last edited:** 2026-08-04 · Grok · math/mat.h WN-074–075
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-071
+**Next ID:** WN-076
 
 ---
 
@@ -862,7 +862,7 @@ public testability of this helper is still required; else fold. No mid-walk move
 
 **WN-066** — [Grok] · `ownership` · **Re-evaluate standalone header after RCOS rework**  
 Locus: whole file — thin enum + `AO_RCOS_get/set/cycle_output_mode` (Stage 12B
-extract, commit `175eb9e`, “Council A3” circular-include break when mode ownership
+extract, commit `175eb9e`, "Council A3" circular-include break when mode ownership
 moved Telem → RCOS).
 
 **Claim:** Need for a **broken-out** public header may go away or change shape once
@@ -871,4 +871,65 @@ an open item: **RC_OS table-driven key dispatch / UX architecture**
 (`AGENT_WHITEBOARD.md` — table-driven maps, UX vs domain ownership, station/vehicle
 gating; points at `docs/ROCKETCHIP_OS.md`, `docs/AO_ARCHITECTURE.md`, CODE_TRIMMING).
 **Later:** after that rework, decide keep shared leaf vs fold into RCOS/Telem
-surface; don’t invest mid-walk. Related: **WN-065** (thin public header class).
+surface; don't invest mid-walk. Related: **WN-065** (thin public header class).
+
+
+## Tier 1 — math/
+
+#### `math/vec3.{cpp,h}`
+
+**WN-071** — [Grok] · `comment` · **Host-purity banner: good intent, not over-authoritative law**  
+Locus: `vec3.h` ~L6–7 `// Pure C++ — no Pico SDK dependencies. Must compile on any host.`
+
+**Check:** Currently true — header has no includes; `vec3.cpp` only `vec3.h` + `<cmath>`. Useful **intent** for a foundation math type (host tests + no board coupling).
+
+**Claim:** Do not read as an **inherent eternal property** of vector math or as stronger than build/process enforcement. It is a **project constraint / design goal** for this unit (and similar pure math). If someone later pulls in a Pico header, the comment would lie until updated; the real gate is host-build / include discipline. Prefer wording as intent (intended pure / host-buildable) or a short pointer to build rules, not absolute law. Same class as over-strong SSOT banners (**WN-009**). Related: **W-8** (HW-agnostic guidance).
+
+**WN-072** — [Grok] · `comment` · **Zero comments in vec3.cpp — sparse vs empty**  
+Locus: whole `vec3.cpp` (~30 lines) — only SPDX/copyright; no file banner, no note on `kNormEpsilon` / near-zero `normalized()` policy.
+
+**Claim:** Straightforward out-of-line math can stay **sparse** (header already labels the type). Owner doubt: **zero** body comments may still be too low even for simple files — at least the non-obvious policy (epsilon floor → zero vector) is behavior callers rely on and is invisible from the header. Not a demand for essay density; **later** decide a minimal floor for tiny `.cpp` (one-liner on edge policy vs accept pure code + tests). Related: **WN-054** / **W-7** (density band is about excess more than a floor).
+
+#### `math/quat.{cpp,h}`
+
+**`quat.cpp`**
+
+**WN-073** — [Grok] · `invariant` · **In-source NOLINT on DCM indices (disallowed policy)**  
+Locus: `quat.cpp` — four `// NOLINT(readability-magic-numbers)` at ~L77
+(`to_rotation_matrix(float m[9])`), ~L95 `m[5]`, ~L97 `m[6]`, ~L98 `m[7]`.
+Grep: no other NOLINT/suppress in this file.
+
+**Claim:** Same policy as **WN-043** / **WN-070** — in-source NOLINT suppressions
+are **not allowed**. Fixed 3x3 DCM slots should use named constants / clearer
+structure if the linter fires, or a logged deviation — not local NOLINT. **Later:**
+remove all four; do not treat math DCM code as a NOLINT exception. Related:
+**WN-043**, **WN-070**.
+
+**`quat.h`**
+
+— nothing of note.
+
+#### `math/mat.h`
+
+**WN-074** — [Grok] · `ownership` · **Filename `mat.h` too vague; consider `matrix`**  
+Locus: path `src/math/mat.h` (type `Mat<R,C>`, aliases `Mat3` / `Mat15` / …). House
+short form from Phase 5 (`Matrix.h` → `mat.h` next to `vec3` / `quat`). Owner:
+**`mat` reads as “math”** and is too vague; **`matrix`** would be clearer.
+
+**Claim:** No technical reason the path must stay short. **File** rename
+`mat.h` → `matrix.h` is a **small** cascade (~6 `#include "math/mat.h"` sites +
+doc path citations). Renaming the **type** `Mat` → `Matrix` is a **large** API
+churn (ESKF + tests) and is **not required** for the vagueness fix.
+
+**Later:** filename-only rename (+ includes + docs); leave type `Mat` unless a
+separate API cleanup. No mid-walk rename.
+
+**WN-075** — [Grok] · `comment` · **Host-purity / float authority lines — same class as vec3**  
+Locus: ~L6–10 “Pure C++ — no Pico SDK… Must compile on any host.” + “All float, no
+double. Static storage, no heap…” (+ Sola ref). Same pattern as **WN-071** (`vec3.h`)
+and `quat.h` purity blurb.
+
+**Claim:** Useful **intent**, not inherent eternal law, and should not be the **only**
+place the pure-math / host-build / float32 rules live — re-evaluate whether this
+authority belongs in a shared math or build-doc home, with headers **pointing**, not
+re-stating absolute law. Related: **WN-071**, **W-8**.
