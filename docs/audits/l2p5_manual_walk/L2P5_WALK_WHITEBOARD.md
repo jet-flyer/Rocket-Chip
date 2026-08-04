@@ -275,3 +275,27 @@ through; structured Doxygen is rare vs archaeology/restatement. Full claim + pro
 measurement/enforcement change; erase when policy updated or consciously reaffirmed.
 
 **Blocking?** No
+
+---
+
+### W-8 — Stronger HW-agnostic code guidance (+ optional audit)
+
+**Surfaced:** 2026-08-04 · walking `version.h` / `flash_layout.h` (owner: multi-board
+intent vs RP2350-era / Pico-specific assumptions)
+
+**What:** Project direction is “domain code HW-agnostic within compatible ARM MCU
+class; HAL/board packs at the edge,” but there is **no hard, specific written rule**
+in CODING_STANDARDS (only related practice: board packs, Stage 7 board-agnostic
+features, JSF portability soft factor). Walk evidence of leakage: **WN-063** (flash
+layout SKU-era assumptions), **WN-068** (`PICO_BOARD` / board identity in `version.h`).
+Need stronger / more specific **guidance** (what must live in board/job packs vs
+domain headers, what “compatible ARM” means, what is forbidden). **Potentially** a
+later audit for code written too board-/SDK-specifically when RP2350 was the only
+target.
+
+**Disposition target:** post-walk standards or architecture note (e.g. CODING_STANDARDS
+or SAD multi-board section) stating HW-agnostic expectations; optional audit checklist
+or workstream if owner wants a sweep. Erase when guidance is written (and audit booked
+or declined).
+
+**Blocking?** No

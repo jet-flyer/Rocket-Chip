@@ -69,14 +69,14 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
   - [x] `include/rocketchip/mavlink_rx.h`
 - other public headers
   - [x] `include/rocketchip/ao_signals.h`
-  - [ ] `include/rocketchip/led_patterns.h`
-  - [ ] `include/rocketchip/pcm_frame.h`
-  - [ ] `include/rocketchip/fused_state.h`
-  - [ ] `include/rocketchip/flash_layout.h`
-  - [ ] `include/rocketchip/prearm_fail_ticks.h`
-  - [ ] `include/rocketchip/station_output_mode.h`
-  - [ ] `include/rocketchip/version.h`
-  - [ ] `include/rocketchip/linker_symbols.h`
+  - [x] `include/rocketchip/led_patterns.h`
+  - [x] `include/rocketchip/pcm_frame.h`
+  - [x] `include/rocketchip/fused_state.h`
+  - [x] `include/rocketchip/flash_layout.h`
+  - [x] `include/rocketchip/prearm_fail_ticks.h`
+  - [x] `include/rocketchip/station_output_mode.h`
+  - [x] `include/rocketchip/version.h`
+  - [x] `include/rocketchip/linker_symbols.h`
 
 ### math/
 

@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-04 · Grok · ao_signals closed WN-052–053; session end 25/184
+**Last edited:** 2026-08-04 · Grok · linker_symbols WN-069–070 closed
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-055
+**Next ID:** WN-071
 
 ---
 
@@ -206,6 +206,56 @@ keep forever-rename layers. Related: WN-016, WN-017.
 Quote: `All print sites must use version_string() or the constants below.` No project
 `version_string()` API exists; callers use the constants. Over-promising helper name.
 Related: WN-009, WN-010.
+
+**WN-067** — [Grok] · `ownership` · **Version SSOT is aspirational; tracking still weak (ties WN-010)**  
+Locus: whole `version.h` + banner “Single source of truth… All print sites must use…”
+Treated as the version home (`VERSION_STRING_AUDIT.md` IVP-127b) but still mostly
+**manual** constants (`kVersionMajor/Minor/Patch`, `kFirmwareVersion`, `kRcOsVersion`,
+`kBuildIterationTag`) plus partial CMake inject (`GIT_HASH`). Feels optional in practice
+if agents can ship without bumping it — same failure mode as **WN-010** (stale numbers;
+need robust multi-agent / hook / checklist method). **Later:** enforce propagation
+(hook or checklist), not just a header labeled SSOT. Related: **WN-009**, **WN-010**,
+**WN-011**.
+
+**WN-068** — [Grok] · `ownership` · **HW-/build-SKU identity mixed into version header**  
+Locus: ~L33–39 `PICO_BOARD` / `kBoardName`; also job-role `#ifdef ROCKETCHIP_JOB_*`
+(~L23–31) and R-25-exec / IVP soak comments. Board string is **Pico-SDK build
+identity**, not firmware semver; overlaps board-pack story (`board::kBoardName` used
+by CLI/log paths). Pulls HAL/SKU concerns into the “version SSOT” file and works
+against **hardware-agnostic** domain code (compatible ARM MCU class — not literally
+every ISA). **Later:** keep version numbers here; board/job identity via board/job
+packs or build metadata helpers, not this header. Related: **WN-063**, board family
+**WN-019**–**WN-022**.
+
+#### `include/rocketchip/linker_symbols.h`
+
+**WN-069** — [Grok] · `ownership` · **Superfluous band-aid header for reserved linker symbols**  
+Locus: whole file (~22 lines) — two `extern` refs to linker `__StackBottom` /
+`__StackOneBottom` plus clang-tidy `// NOLINT` suppressions; banner frames this as
+the intentional home for “one unavoidable suppression” (TP-2 / L2-P5 council
+2026-06-24; `ACCEPTED_STANDARDS_DEVIATIONS`).
+
+**Fan-in:** `main.cpp` (MPU setup), `fault_protection.h`, `fault_inject.cpp`.
+
+**Claim:** Public `include/rocketchip/` header whose job is mainly to **quarantine
+a toolchain/lint band-aid** (reserved `__` names for MPU stack guard). That is a
+workaround shape, not a durable domain API — file feels **superfluous** as a
+standalone public unit. **Later:** handle more properly (fold into safety/MPU
+boundary, different stack-guard approach, or narrower private header) so the
+project isn’t carrying a dedicated public SSOT for NOLINT + linker externs.
+No mid-walk redesign. Related: TP-2 deviation log.
+
+**WN-070** — [Grok] · `invariant` · **In-source NOLINT on stack symbols (disallowed policy)**  
+Locus: ~L16–19 two `// NOLINTNEXTLINE(bugprone-reserved-identifier,readability-identifier-naming)`
+on `__StackBottom` / `__StackOneBottom`. Easy to miss inside the comment block.
+
+**Claim:** Same class as **WN-043** (NOLINT on seqlock `sizeof` assert): project policy
+is **no in-source NOLINT suppressions** — fix or accept via deviation log /
+tool config, don’t plant NOLINT that can copy-paste into other files. This header
+was explicitly built to *centralize* those suppressions (band-aid from **WN-069**);
+that pattern must not propagate under the newer prohibition. **Later:** remove
+NOLINTs here when TP-2 / MPU boundary is reworked; do not treat “one documented
+NOLINT file” as a template for more. Related: **WN-069**, **WN-043**, TP-2.
 
 #### `include/rocketchip/board.h`
 
@@ -605,3 +655,220 @@ FD/interlock names). Contract should match code; process provenance can point at
 Locus: ~L18 `IVP-62: Bidirectional MAVLink Commands (Stage 7: Radio & Telemetry)`.
 Does not state a live invariant — land/step archaeology. Drop or move to docs if the
 file survives. Instance of broader **W-6** (IVP/council-in-code-comments sweep).
+
+#### `include/rocketchip/led_patterns.h`
+
+**WN-055** — [Grok] · `comment` · **Pattern value-range map lives only in header notes**  
+Locus: banner ~L12–21 “Value ranges:” (`0` off; `1–8` cal; `9–11` RX; `12–18` beacon
+overlays; `20–27` flight phase; `28–29` pre-arm/boot; `30–36` sensor; `41–46` faults).
+
+**Current?** Yes vs live `k*` blocks in this file (ranges match constants; unused
+slots 19 / 37–40 are just gaps). This is real namespace guidance for the LED code
+catalog — not stage fluff.
+
+**Problem:** Guidance of that kind should not be SoT only as code-comment prose.
+No equivalent compact range map in design docs checked: `docs/decisions/NOTIFY_CONTRACT.md`
+has intent→code rows (different concern); `docs/AO_ARCHITECTURE.md` has layers/Stage L
+pointers; `docs/USER_GUIDE.md` LED State Reference is operator color/mode only;
+`docs/hardware/STATUS_INDICATORS.md` is stale FreeRTOS-era. Implementers/operators
+should not have to open a constants header to learn the code namespace.
+
+**Later (not mid-walk):** put the range taxonomy in an accessible design home
+(e.g. NOTIFY_CONTRACT or AO_ARCHITECTURE LED section — one SSOT), link thin from
+this header if a one-liner remains; do not keep the only copy as file banner notes.
+Related class: **WN-047** (banner re-hosts layout), **W-6** (comment as doc home).
+
+**WN-056** — [Grok] · `comment` · **Beacon-overlay essay restates design contract in code**  
+Locus: section banner ~L54–64 above `kFdLandedBeacon`…`kFaultCore1StallBeacon` —
+2Hz base+white alternate; posted when `beacon_auto`; recovery-crew “preserve base
+color”; `beacon_manual` → pure white `kFdBeacon` (CLI findme / GCS); `kFaultSafeMode`
+(45) already blue+white so no sibling overlay code.
+
+**Current?** Behavior matches Stage L design: same rules are written out in
+`docs/decisions/NOTIFY_CONTRACT.md` (Stage L beacon flags, composition table,
+preserve-color rationale, SafeMode “unchanged” row) and summarized in
+`docs/AO_ARCHITECTURE.md` (Stage L beacon blurb + pointer to contract).
+
+**Problem:** Unlike **WN-055** (range map missing from docs), this *is* design
+guidance already hosted properly — the multi-line code block is a second copy.
+Constants may keep short per-line color notes (`// Green + White alt 2Hz`); the
+behavior/rationale essay should not live as the working explanation next to
+`constexpr`s.
+
+**Later (not mid-walk):** drop or collapse L54–64 to a one-line “see
+NOTIFY_CONTRACT Stage L beacon overlay”; keep named codes + thin color tags.
+Related: **WN-055**, **WN-047**, **W-6**.
+
+**WN-057** — [Grok] · `ownership` · **`k*Neo*` compat aliases: temp became permanent**  
+Locus: ~L119–168  
+`// Backward-compatibility aliases (non-namespaced)` +  
+`// Used throughout main.cpp, rc_os.cpp, ao_led_engine.cpp until those files`  
+`// are migrated to use rc::led:: namespace directly.`
+
+**Claim:** Comment frames a **pending migration** that is not tracked as open
+work elsewhere; dual API (`rc::led::k*` vs global `kCalNeo*`/`kFdNeo*`/…) has
+hardened into the live surface (Stage L even **added** more `k*Neo*` aliases).
+
+**Trace (2026-08-04 grep):**
+
+| Surface | `rc::led::k*` | global `k*Neo*` |
+|---------|---------------|-----------------|
+| `notify_backend_led.cpp` + `test_notify.cpp` | full use | none |
+| `ao_led_engine.cpp` (`led_apply_pattern` switch + layers) | none | **primary** |
+| `ao_rcos.cpp` (`cal_neo` + wizards) | none | **primary** (`kCalNeo*`) |
+| `main.cpp` | none | **none** (comment overstates consumers) |
+| `test/` (except via notify tests above) | — | no Neo aliases |
+
+Values are equal (aliases = namespaced codes), so runtime is consistent; the
+debt is **two vocabularies** + a stale “until migrated” promise.
+
+**Docs:** No PROJECT_STATUS / open-IVP “finish rc::led migration” item found.
+`docs/AO_ARCHITECTURE.md` still lists `kCalNeo*` as the module’s export face.
+Trim notes (`CODE_TRIMMING_AUDIT`, POST_BIERMAN) treat live `kCalNeo*` as **KEEP**
+/ RC_OS territory — i.e. accepted dual-use, not a scheduled close-out.
+`ao_signals.h` `LedPatternEvt` comment still says `kCalNeo*` “from
+ws2812_status.h” (path wrong; same legacy naming).
+
+**Later (not mid-walk):** (1) decide one public name set (`rc::led::` preferred);
+(2) migrate `ao_led_engine` switch + `ao_rcos` cal path; (3) delete alias block;
+(4) fix/remove “until migrated” / wrong-consumer comments; (5) align AO_ARCHITECTURE
++ `LedPatternEvt` comment. Same class as **WN-051** (DEPRECATED live with weak
+tracking). Related: **W-6**.
+
+#### `include/rocketchip/pcm_frame.h`
+
+**WN-058** — [Grok] · `comment` · **PCM layout / protocol notes must live in design docs**  
+Locus: file banner ~L3–22 (55 B layout: sync `0xEB90`, MET, type, len, `TelemetryState`
+payload, CRC-16; triple resync gate); Flight Log Header block ~L158–163 (“RCLG”,
+version, Council C-A3); decom-table blurb ~L98–103 (ground auto-decode).
+
+**Role (for walk posture):** **Onboard data-logging frame format** (ring/flash,
+`ao_logger`, event markers) — not the RF/Starcom air path. Looser Starcom/CCSDS
+adjacency exists (council three-layer story: PCM log vs CCSDS radio vs post-flight
+repackage; CCSDS logging-related features may appear later) but **not** the same
+tight coupling as `telemetry_encoder` / `mavlink_rx` (**WN-046**). Payload type is
+`TelemetryState` (shared model).
+
+**Design-home check:** Architecture intent is largely in
+`docs/decisions/Telem+logging/` (`council_data_logging.md`, `telemetry_comparison.md`,
+`revised_ivp_stages.md` IVP-51 PCM frame, three-layer PCM-onboard / CCSDS-radio).
+Header still **re-hosts** the full byte recipe + resync algorithm + flight-header
+contract as if it were the working guide.
+
+**Claim (same class as **WN-047** / **WN-055**):** layout, resync rules, and
+flight-header semantics are **design guidance** — SSOT should be a proper document
+(keep council/IVP current; thin header to identity + pointer + true compile-time
+sizes/`static_assert`s). Do not treat code comments as the only or primary place
+to learn the format. No mid-walk rewrite. Related: **W-6**.
+
+**WN-059** — [Grok] · `ownership` · **Revisit whether PCM-onboard logging is still the right shape**  
+Locus: whole unit + consumers (`src/logging/pcm_frame.cpp`, `ao_logger`,
+`flash_flush`, FD `LogEventId`) — Stage 6–era PCM fixed frames (sync + MET + type +
+payload + CRC; event frames; 64 B flight header).
+
+**Context since implement:** AO migration, Notify/LED stack, radio/telem evolution,
+Starcom planned (link + possibly broader data-path), Stage 17 logging tier plans
+still route through this file, dual telem paths (CCSDS/MAVLink air vs PCM flash).
+CCSDS can grow logging-related facilities later — **related but not a reason to
+freeze or rewrite this leaf mid-walk**.
+
+**Claim:** Confirm the **approach** is still right (PCM fixed frames to flash/PSRAM
+ring, raw stream vs FS, `TelemetryState` as payload, separate event frames, decom
+table for ground) against current product direction — not a drive-by format tweak.
+Questions for later revisit (no close-out now): still right density/rate model?
+Still right split vs air protocol after Starcom? Still right event-ID surface?
+Economy/Research types vs only Standard live? Any supersession by Starcom/CCSDS
+log containers, or keep PCM as intentional onboard layer?
+
+**Later:** dedicated logging architecture re-read (council docs + live logger),
+after or coordinated with Starcom telem decisions — **lighter gate than pure telem
+headers**, but not “ignore forever.” Related: **WN-058**, **WN-046** (payload
+coupling only).
+
+#### `include/rocketchip/fused_state.h`
+
+— nothing of note.
+
+Thin public snapshot struct (`FusedState`: float32 ESKF-internal fields + GPS/health/
+confidence/MET). Banner and field notes stay at provenance level (e.g. `vert_vel_eskf`
+not raw baro; `baro_alt_rate_mps` for IVP-120) — appropriate for a data layout header,
+not a design essay. Deeper core-math / fusion rework analysis is a **later** pass
+(not this leaf).
+
+#### `include/rocketchip/flash_layout.h`
+
+**WN-060** — [Grok] · `comment` · **Flash layout map must live in design docs, not as authoritative comments**  
+Locus: file banner ~L3–16 (top-down region map: cal / flight table / flash-safe test /
+log / firmware) plus region block comments on the `constexpr`s.
+
+**Claim:** Layout is system design — where regions sit, sizes, top-down anchoring from
+`PICO_FLASH_SIZE_BYTES`, non-overlap. That guidance must have a proper design-doc
+home that can be kept current. Header may keep derived constants + compile-time
+checks; comments must **not** be the authoritative picture (stale-risk is high —
+banner already lags live code, e.g. radio-config sector). Same rule as prior leaves:
+**reference docs, never host the working map in comments.** Related: **WN-055**,
+**WN-058**, **W-6**. No mid-walk rewrite.
+
+**WN-061** — [Grok] · `comment` · **Council citation in banner is unnecessary**  
+Locus: ~L16 `// Council C-A4: boot validation ensures regions don't overlap firmware.`
+(and related ~L78 `// Boot validation [Council C-A4]`). Process provenance, not a
+live API note. Drop; `static_assert`s already enforce non-overlap. **W-6**.
+
+**WN-062** — [Grok] · `ownership` · **Early flash-layout feature — re-evaluate later, low priority**  
+Locus: whole unit (top-down dual-sector cal/table/radio-cfg, firmware reserve, log
+span, compile-time checks). Same class as onboard logging (**WN-059**): landed early
+in the project; may still be the right shape, but worth a later architecture pass
+after multi-board / Starcom / storage evolution — **not high priority**, not mid-walk.
+
+**WN-063** — [Grok] · `ownership` · **Layout design must stay hardware-agnostic (flash only)**  
+Locus: whole file — intended design is portable regions over “some flash,” not an
+RP2350 product map. Written when RP2350 was effectively the only board; still uses
+Pico SDK anchors (`PICO_FLASH_SIZE_BYTES`, `FLASH_SECTOR_SIZE`, host defaults 8 MB /
+4 KB). Fixed `kFlashFirmwareReserve = 512 KB` and dual-sector wear patterns may be
+fine, but **all features and intended layouts/designs** in this area should remain
+**hardware-agnostic** aside from the inherent need for flash memory (no silent
+RP2350-/Feather-only assumptions in the contract). **Later:** confirm docs +
+constants express “any board with enough flash,” not one SKU’s era. Related:
+**WN-062**, board-pack family (**WN-019**–**WN-022**).
+
+#### `include/rocketchip/prearm_fail_ticks.h`
+
+**WN-064** — [Grok] · `comment` · **Banner hosts council/design prose that doesn’t belong**  
+Locus: file banner ~L3–20 — Stage L IVP-L3 tag; full semantics of the counter
+(`remaining == 0` / `state_changed` / decrement); post-flow reset on
+`AO_Notify_post_prearm_fail()`; “JPL council 2026-04-18” rationale for refresh-on-
+repost. Design/process narrative next to a 10-line pure helper. Code may keep a
+one-line identity; council land-dates and essay semantics belong in
+NOTIFY_CONTRACT / Stage L docs if needed — not here. Related: **W-6**, **WN-061**.
+
+**WN-065** — [Grok] · `ownership` · **Does this need its own public header?**  
+Locus: whole file — one `constexpr` (`kPreArmFailTicks = 99`) + one `inline`
+pure function `prearm_fail_tick_next()`.
+
+**Fan-in (grep):**
+| Consumer | Use |
+|----------|-----|
+| `src/active_objects/ao_notify.cpp` | include + call/counter (sole firmware user) |
+| `test/test_prearm_fail_ticks.cpp` | host unit tests for the pure helper |
+
+No other `src/`/`include/` includes. Extracted for host-testability (Stage L), not
+because many modules share it. Same class as thin single-purpose headers
+(**WN-032** job_capabilities-style question): could live next to notify
+(`ao_notify` private header, `notify_*` helper, or tests via a small notify test
+hook) rather than `include/rocketchip/` public surface. **Later:** keep only if
+public testability of this helper is still required; else fold. No mid-walk move.
+
+#### `include/rocketchip/station_output_mode.h`
+
+**WN-066** — [Grok] · `ownership` · **Re-evaluate standalone header after RCOS rework**  
+Locus: whole file — thin enum + `AO_RCOS_get/set/cycle_output_mode` (Stage 12B
+extract, commit `175eb9e`, “Council A3” circular-include break when mode ownership
+moved Telem → RCOS).
+
+**Claim:** Need for a **broken-out** public header may go away or change shape once
+RC_OS / AO_RCOS is reworked as a proper UX layer. Main-repo whiteboard already has
+an open item: **RC_OS table-driven key dispatch / UX architecture**
+(`AGENT_WHITEBOARD.md` — table-driven maps, UX vs domain ownership, station/vehicle
+gating; points at `docs/ROCKETCHIP_OS.md`, `docs/AO_ARCHITECTURE.md`, CODE_TRIMMING).
+**Later:** after that rework, decide keep shared leaf vs fold into RCOS/Telem
+surface; don’t invest mid-walk. Related: **WN-065** (thin public header class).
