@@ -61,12 +61,12 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
   - [x] `include/rocketchip/radio_config_table.h`
   - [x] `include/rocketchip/radio_scheduler.h`
 - sensor shared data (concurrency)
-  - [ ] `include/rocketchip/sensor_seqlock.h`
-  - [ ] `include/rocketchip/sensor_snapshot.h`
+  - [x] `include/rocketchip/sensor_seqlock.h`
+  - [x] `include/rocketchip/sensor_snapshot.h`
 - telemetry / MAVLink
-  - [ ] `include/rocketchip/telemetry_encoder.h`
-  - [ ] `include/rocketchip/telemetry_state.h`
-  - [ ] `include/rocketchip/mavlink_rx.h`
+  - [x] `include/rocketchip/telemetry_encoder.h`
+  - [x] `include/rocketchip/telemetry_state.h`
+  - [x] `include/rocketchip/mavlink_rx.h`
 - other public headers
   - [ ] `include/rocketchip/ao_signals.h`
   - [ ] `include/rocketchip/led_patterns.h`
@@ -216,7 +216,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `19 / 184 files walked.` Update as you go. When complete, the per-class findings tables (in the
+**Progress:** `24 / 184 files walked.` Update as you go. When complete, the per-class findings tables (in the)
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)
 </content>

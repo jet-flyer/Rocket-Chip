@@ -235,3 +235,28 @@ findings Form row / contract-surface helper) as a standing check when existence 
 
 **Blocking?** No — walk continues; agent applies the check from this row until the guide
 lands it.
+
+---
+
+### W-6 — Sweep: momentary / process archaeology in code comments
+
+**Surfaced:** 2026-08-04 · walking `mavlink_rx.h` + pattern across the walk
+
+**What:** In-source comments that record **momentary development work** rather than a
+live contract — e.g. IVP/step land lines, council ticket IDs, “Stage N Phase …”,
+migration TODOs that are done, “remove after IVP-…”, tombstones for deleted symbols,
+session/agent provenance. Those belong in **docs** (IVP, CHANGELOG, decisions, PRs), not
+as permanent code noise. **Keep** real invariants (“dispatcher only”, DMB before memcpy,
+bit layouts) with optional short pointer to a decision doc.
+
+IVP-*/council tags are a **solid example class**, not the whole set — anything with the
+same “this was a work item” smell qualifies.
+
+**Suggested later work (not mid-walk mass edit):** grep/heuristic pass over `include/` +
+`src/`; triage keep-invariant vs delete/move. Seeds in findings: **WN-050**, **WN-044**,
+**WN-033**, **WN-039**, deprecated-alias lines, encoder IVP tags, etc.
+
+**Disposition target:** comment-hygiene pass or standing note in CODING_STANDARDS / walk
+guide; erase WB when booked.
+
+**Blocking?** No

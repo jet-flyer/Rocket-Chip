@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-03 · Grok · radio_scheduler WN-041; radio group done
+**Last edited:** 2026-08-04 · Grok · telemetry trio closed; state WN-051
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-042
+**Next ID:** WN-052
 
 ---
 
@@ -463,3 +463,109 @@ vehicle TX-slot / station-relay RX continuous). Nothing else sticks out on walk.
 unit to be **completely superseded by Starcom** link-layer work rather than evolved
 in place — re-check consumers when that lands. Related: **WN-034** / **WN-040**
 (radio/job surface also deferred past Starcom).
+
+#### `include/rocketchip/sensor_seqlock.h`
+
+**WN-042** — [Grok] · `ownership` · **Re-evaluate whether Stage 3 seqlock design is still the right path**  
+Locus: **whole file** (struct + inline `seqlock_write`/`seqlock_read` + `g_sensorSeqlock`)
+and the design it cites — not a single comment line. Banner/struct note “per
+`SEQLOCK_DESIGN.md` (council-approved)” points at the **2026-02-06** Stage 3 council
+(unanimous; IVP-24 single-buffer, poll sequence, cal on Core 1, static SRAM, etc.).
+Header was extracted later (Stage 13 Phase 0A, 2026-04-04) from `main.cpp`; fields and
+consumers have grown since (MCU temp, station idle GPS, health, notify, …).
+
+**Holistic later pass:** confirm the **initial design is still the right path** for the
+system as built and for near-term work — rates, struct mass, DMB/`memcpy` protocol,
+single combined buffer, reader set, station vs vehicle use — against current code and
+`SEQLOCK_DESIGN.md`, not just that comments still say “council-approved.” Observation
+only; no mid-walk redesign.
+
+**WN-043** — [Grok] · `invariant` · **NOLINT on sizeof static_assert (disallowed)**  
+Locus: ~L100–101  
+`static_assert(sizeof(shared_sensor_data_t) == 156, // NOLINT(readability-magic-numbers)`.  
+**Critical / policy:** in-source `NOLINT` suppressions are **not allowed** anymore — fix the
+underlying check (e.g. named `constexpr` expected size, or other non-suppress approach), do
+not silence magic-number tidy. Size gate itself is valuable (layout contract with
+`SEQLOCK_DESIGN.md`); only the NOLINT is the defect.
+
+**WN-044** — [Grok] · `comment` · **Tombstone for removed `g_calNeoPixelOverride`**  
+Locus: ~L161–162  
+`// g_calNeoPixelOverride removed. CLI uses AO_LedEngine_post_override(),` /  
+`// FD uses AO_LedEngine_post_pattern(). No cross-core atomic needed.`  
+Not needed in the live header if the removal is already in CHANGELOG/git; don’t keep
+“what was deleted” notes here — drop or leave only a pointer if something still misleads.
+
+#### `include/rocketchip/sensor_snapshot.h`
+
+**WN-045** — [Grok] · `ownership` · **Does `SensorSnapshot` still need to exist?**  
+Locus: whole file — packed 40-byte `SensorSnapshot` (raw accel/gyro/mag/baro/GPS + MET).
+
+**Existence first:** include/consumer check — **only** `test/test_data_model.cpp` (size
+assert); **no `src/` producer or consumer.** Public ICD stub without a live path.
+
+**Why it was made:** Stage 6 / IVP-49 three-struct data model (`FusedState` /
+`TelemetryState` / `SensorSnapshot`) per logging council; **IVP-55 raw sensor logging
+deferred** — intended home for this type. Trace those ends on disposition: IVP/docs/
+tests/SCAFFOLDING that still treat the triple as shipped, host size-only tests, any
+advanced-settings “raw logging” rows — tidy so nothing implies a wired raw snapshot if
+the header goes.
+
+**If it survives scrutiny (owner: unlikely):** then address secondary issues — (1)
+**HW-specific without labeling** (comments fix ICM-20948 / AK09916 / DPS310 ADC models;
+filename/banner read universal); (2) **sparseness** of a public `include/rocketchip/`
+unit with zero firmware fan-in. Do not treat survival as the default path.
+
+#### telemetry public headers — `telemetry_encoder.h` / `telemetry_state.h` / `mavlink_rx.h`
+
+**WN-046** — [Grok] · `ownership` · **Telemetry trio likely Starcom-affected / replaceable**  
+Locus: family — `include/rocketchip/telemetry_encoder.h`, `telemetry_state.h`,
+`mavlink_rx.h` (CCSDS/MAVLink encode, wire `TelemetryState`, USB MAVLink RX GCS).
+Same class as radio scheduler / link-layer notes: **probably affected or replaced by
+Starcom work** rather than evolved in isolation. Revisit consumers and keep/replace when
+that lands; no mid-walk redesign. Related: **WN-041**, **WN-040**.
+
+#### `include/rocketchip/telemetry_state.h`
+
+**WN-051** — [Grok] · `ownership` · **DEPRECATED aliases still live with zero consumers**  
+Locus: ~L66–68  
+`// Legacy aliases — remove after all consumers migrated (IVP-107)` +  
+`kHealthEskfHealthy` / `kHealthZuptActive` marked DEPRECATED but still **real
+`constexpr`s** (not commented out). Grep: **no `src/`/`test/` users** — live flag is
+`kFlagsZuptActive` (`data_convert`, tests). Migration note is stale; symbols pollute the
+public API and can confuse health-byte vs flags-byte layouts. **If file survives
+Starcom (**WN-046**):** delete the two aliases (and the legacy line); don’t leave
+DEPRECATED live code. Related: **W-6**, **WN-044** (tombstone class).
+
+#### `include/rocketchip/telemetry_encoder.h`
+
+**WN-047** — [Grok] · `comment` · **Banner lists protocol layout (stale risk)**  
+Locus: file banner ~L3–20 — enumerates CCSDS Space Packet layout (6B+4B+42B+2B = 54B),
+MAVLink message set and ~byte totals. Same class as **WN-033** (role-pack banners): useful
+once, **re-words or drifts vs real encoder/ICD**. **Suggestion:** short identity + pointer
+to protocol SSOT (spec / decision / Starcom docs), not a second copy of wire layout here.
+Body constants/APID enums can stay code; banner should not re-host the full packet recipe.
+
+**WN-048** — [Grok] · `comment` · **Very high Doxygen/comment density**  
+Locus: whole `telemetry_encoder.h` — heavy `/** @brief / @param / @return */` on methods
+plus banner (see **WN-047**). Those tags are **comments only** (doc tools/IDE); no
+compile or runtime effect. File reads largely as documentation with a thin API skeleton
+(~comment-heavy vs declarations). Headers are exempt from the `.cpp` density band, but
+this ratio still sticks out. **Only relevant if the file survives Starcom (**WN-046**);**
+if it does, prefer thinner contract (names + rare true invariants) and/or generated docs
+from a single SSOT rather than a hand-maintained 70%-comment public header. Suggestion
+only — no mid-walk rewrite.
+
+#### `include/rocketchip/mavlink_rx.h`
+
+**WN-049** — [Grok] · `comment` · **SAFETY CONTRACT: keep idea, re-check claims**  
+Locus: banner ~L12–16 — dispatcher-only; protocol ACKs; no ARM/pyro/mode; must go
+through FD (IVP-67) + HW interlocks (IVP-73). **Relevant / important to restate** for a
+GCS command path. **If file survives Starcom (**WN-046**):** evaluate that nothing is
+**over-promised or over-authoritative** (e.g. “does NOT execute…” vs actual
+`mavlink_rx.cpp` / feed path; IVP numbers as if they are the permanent law vs current
+FD/interlock names). Contract should match code; process provenance can point at docs.
+
+**WN-050** — [Grok] · `comment` · **IVP-62 stage line in banner is superfluous**  
+Locus: ~L18 `IVP-62: Bidirectional MAVLink Commands (Stage 7: Radio & Telemetry)`.
+Does not state a live invariant — land/step archaeology. Drop or move to docs if the
+file survives. Instance of broader **W-6** (IVP/council-in-code-comments sweep).
