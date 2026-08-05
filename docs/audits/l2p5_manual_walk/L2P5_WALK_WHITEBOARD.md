@@ -1,5 +1,10 @@
 # L2-P5 Walk Whiteboard — temporary; must be EMPTY at walk close
 
+**Walk-tier checkpoints (e.g. Tier 1 done 2026-08-05):** this board is a **soft**
+check — skim for rows that need **action now** (process rules mid-walk, blocking
+confusion) vs **end-of-walk** disposition only. Do **not** require empty mid-walk;
+do **not** treat a tier tick as product CHANGELOG / PROJECT_STATUS milestone.
+
 **Companion to** the walk pack (`L2P5_MANUAL_WALK_GUIDE.md` / `L2P5_WALK_ITINERARY.md` /
 `L2P5_WALK_PLAN.md` / optional `L2P5_CONTRACT_SURFACE_HELPER.md` for thin hub files).
 Scratch surface for items that surface during the L2-P5 manual walk but
@@ -252,9 +257,14 @@ bit layouts) with optional short pointer to a decision doc.
 IVP-*/council tags are a **solid example class**, not the whole set — anything with the
 same “this was a work item” smell qualifies.
 
+**Addendum 2026-08-05 (owner):** triage / alternate-execution paths — a **brief** “why
+this special path exists” is good; further history → **commit hash and/or CHANGELOG**
+(not multi-line Grok/council/Tier essays). Full claim: **WN-085**. Seeds: **WN-083**,
+**WN-084** (`gps_pa1010d.cpp`).
+
 **Suggested later work (not mid-walk mass edit):** grep/heuristic pass over `include/` +
 `src/`; triage keep-invariant vs delete/move. Seeds in findings: **WN-050**, **WN-044**,
-**WN-033**, **WN-039**, deprecated-alias lines, encoder IVP tags, etc.
+**WN-033**, **WN-039**, deprecated-alias lines, encoder IVP tags, **WN-083**–**085**, etc.
 
 **Disposition target:** comment-hygiene pass or standing note in CODING_STANDARDS / walk
 guide; erase WB when booked.
@@ -269,10 +279,35 @@ guide; erase WB when booked.
 
 **What:** Blanket “`.h` excluded — Doxygen 60–85% OK” has let low-quality comments
 through; structured Doxygen is rare vs archaeology/restatement. Full claim + provenance:
-**WN-054** (Project-wide).
+**WN-054** (Project-wide). **Also (2026-08-05):** explicit Doxygen *style* decision —
+re-validate whether `@brief`/`@param` markup is still a project goal, then apply
+**consistently or drop** — **WN-081** (pairs with density carve-out; not a second track).
 
 **Disposition target:** post-walk (or dedicated) **CODING_STANDARDS** re-eval + optional
-measurement/enforcement change; erase when policy updated or consciously reaffirmed.
+measurement/enforcement change; fold **WN-081** into same session; erase when policy
+updated or consciously reaffirmed.
+
+**Blocking?** No
+
+---
+
+### W-10 — Inventory: files with Doxygen-style comments
+
+**Surfaced:** 2026-08-05 · owner — prefer walk-WB inventory over growing a WN-081
+file list; policy stay in **WN-081** / **WN-054** / **W-7**.
+
+**What:** Produce a **repo inventory** of production headers/sources that use
+Doxygen markup (`@file` / `@brief` / `@param` / `@return` / `/** … */` API blocks),
+so the later “keep and apply consistently **or** drop” decision has a complete set.
+Do **not** treat partial walk evidence as the full list.
+
+**Seed (walk so far — incomplete):** `gps_pa1010d.h`, `i2c_bus.h`, `icm20948.h`
+(~6:1), `baro_dps310.h` (+ large OS table — **WN-090**), `rfm95w.h` (**WN-095**).
+Expand via grep at disposition; include/exclude rules TBD (public API only vs
+all `src/`).
+
+**Disposition target:** inventory artifact (findings note, checklist, or standards
+appendix) feeding **WN-081**; erase this row when inventory exists or is declined.
 
 **Blocking?** No
 
@@ -297,5 +332,48 @@ target.
 or SAD multi-board section) stating HW-agnostic expectations; optional audit checklist
 or workstream if owner wants a sweep. Erase when guidance is written (and audit booked
 or declined).
+
+**Blocking?** No
+
+---
+
+### W-11 — Pedagogy: header vs `.cpp` — good example leaf
+
+**Surfaced:** 2026-08-05 · owner after `ws2812_status` walk (h vs cpp explanation)
+
+**What:** Use `drivers/ws2812_status.{h,cpp}` as a **clear, concrete example** when
+teaching or re-checking **what belongs in a header vs implementation**:
+- **Header** ≈ public Legos (modes, colors, APIs callers snap together).
+- **`.cpp`** ≈ assembly (default timings, state machines, PIO/HSV bodies).
+- Nuance still fine to mention: private defaults; optional public setters that
+  *change* the recipe; other files (`led_patterns.h`, notify) for *semantic*
+  codes, not a second mode enum.
+
+Not a defect. Point agents/owner here instead of inventing abstract lectures
+mid-walk. Pairs with any future guide note on h/cpp pedagogy.
+
+**Disposition target:** optional fold into walk guide / onboarding; erase when
+documented elsewhere or owner declines.
+
+**Blocking?** No
+
+---
+
+### W-9 — Findings volume: trend OK, watch bloat (snapshot 2026-08-04)
+
+**Surfaced:** 2026-08-04 · owner Q after math leaves — pacing / total WN prediction
+
+**What (snapshot at ~WN-075, Next WN-076; ~36/184 leaves):**
+- **~2.1 WNs per leaf** so far → naive full-walk linear **~380** total; more realistic
+  band **~250–400** if later tiers mix more “nothing of note” / thinner notes (early
+  public headers were denser).
+- **Length:** median **~9 lines** / mean **~11** per WN; p75 ~13; long tail ~20–38
+  (ownership / fan-in writeups). Not essay-scale on average.
+- Owner: **fine for now**, keep an eye so volume doesn’t get out of hand (avoid every
+  leaf becoming a long multi-claim essay; keep “nothing of note” when appropriate).
+
+**Disposition target:** re-check mid/late walk (or at close-out) against this snapshot;
+if density explodes, tighten form or disposition process — not a mid-walk rewrite of
+existing WNs. Erase when walk closes or owner reaffirms “still fine.”
 
 **Blocking?** No

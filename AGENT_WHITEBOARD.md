@@ -23,30 +23,29 @@
 
 ---
 
-## Session Handoff — L2-P5 manual walk IN PROGRESS (2026-08-02, Grok 4.5 (Build CLI))
+## Session Handoff — L2-P5 manual walk IN PROGRESS (2026-08-05, Grok 4.5 (Build CLI))
 
 **In progress:** Owner-led L2-P5 file-by-file semantic walk (coverage + findings, not PASS/FAIL).
 
 | | |
 |--|--|
-| **Branch / remote** | `main` @ `111f4ea` — **pushed** (`origin/main` match); clean tree |
-| **Itinerary** | **3 / 184** — ticked: `include/rocketchip/shared_state.h`, `rc_log.h`, `config.h` |
-| **Resume next** | `include/rocketchip/board*.h` (itinerary Tier 1) |
-| **Findings** | `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md` — **WN-001…WN-018**, **Next ID WN-019** |
-| **CHANGELOG** | `2026-08-02-001` (walk progress); `2026-08-01-001` (findings log created) |
-| **Walk WB** | `L2P5_WALK_WHITEBOARD.md` — W-1 (P10-9), W-2 (shared-mutable inventory), W-3 (itinerary ≠ perfect) |
+| **Walk checkpoint** | **Tier 1 Foundations complete** (47/47 leaves — public headers, math/, drivers/) |
+| **Itinerary** | ~47 / 184 ticked; remaining ~75 leaves from Tier 2 onward |
+| **Resume next** | `fusion/eskf_runner.{cpp,h}` (Tier 2) |
+| **Findings** | `L2P5_WALK_FINDINGS.md` — through **WN-115**, **Next ID WN-116** |
+| **Walk WB** | `L2P5_WALK_WHITEBOARD.md` — open process rows (W-5–11 etc.); **soft** filter: act now vs end-of-walk only |
+| **CHANGELOG / PROJECT_STATUS** | **Not** updated for Tier-1 checkpoint (same ongoing walk doc work; full-walk close is the product milestone) |
 
 **Process notes for next agent:**
-- Coverage = itinerary checkboxes only. Observations = findings `WN-NNN` (append-only; path-placement rule in findings header — claim locus = `####` path).
-- `config.h` is heavily flagged as grab-bag (**WN-015**); item WNs 005–018 are evidence. Do not start remediation mid-walk unless owner directs.
-- Brief cross-file note already under `version.h` (**WN-011**); that path not ticked yet.
-- Pure docs session — no firmware/target changes this window.
+- Coverage = itinerary checkboxes only. Observations = findings `WN-NNN` (append-only; path-placement rule in findings header).
+- On tick / “move on”: scan **prior open leaves** — do not skip without explicit flag.
+- Do **not** remediate mid-walk unless owner directs. Themes for disposition later: HW-agnostic / fake-universal drivers, Doxygen inventory (**W-10**), regulatory (**WN-100**), Starcom deferrals, Early-impl group on main WB.
+- Pure docs walk pack — no firmware/target changes required for progress commits.
+- Walk-tier checkpoints: push walk pack; no CHANGELOG/PROJECT_STATUS until whole L2-P5 closes (owner 2026-08-05).
 
 **Blocked:** nothing.
 
-**Concerns / open:** License hygiene (**WN-004** Project-wide) and full `config.h` dissolve are disposition-time, not walk-time.
-
-**Erase or refresh this handoff section when the next walk sitting starts.**
+**Erase or refresh this handoff section when the next walk sitting starts or Tier 2 checkpoint lands.**
 
 ---
 
@@ -88,7 +87,67 @@ the node explicitly non-exhaustive.
 
 ---
 
+## Early-impl / rework-eval candidates (OPEN) (grouped 2026-08-05)
+
+**What this is:** One place that lists systems which **work today** but were chosen early
+(or sit on early HW/paths) and deserve a **deliberate re-evaluation** — not fire drills,
+not mid-walk rewrites. Outcome of each eval is keep-with-written-*why*, or planned rework
+(plan ± council before code).
+
+**Rule:** Do **not** half-refactor live flight paths for “cleanup.” Detail lives in the
+named sections / WNs / Research rows below — this header is the **index + grouping**, not
+a replacement. If the set grows unwieldy, break out a dedicated doc later; **not now**.
+
+**Shared constraint — PIO budget:** several candidates prefer or require PIO. Budget is
+shared (watchdog + backup timers already on PIO2; beacon candidate wants PIO0/1). Eval
+order for PIO-touching items should weigh **advantages vs remaining SM/instruction budget**
+together, not in isolation.
+
+| Candidate | Prefer / lean | Full detail |
+|-----------|---------------|-------------|
+| **I²C bus backend** | **Prefer PIO master** if advantages hold and **PIO budget** allows; keep thin `i2c_bus_*` façade either way. Flipper `i2c_master_pio` = working RP2350 prior art (license check before import). Driver residual / Fruit Jam GPS cold-boot is a trigger, not a mandate to switch tomorrow. | Research row *I²C bus backend rework-eval* below; `src/drivers/i2c_bus.*`; LL-28/41 |
+| **Fault beacon (last-gasp)** | PIO beacon is the architecturally preferred path; eval with SPI last-gasp stop-gap in one session | Research row *PIO beacon + SPI last-gasp* below |
+| **RC_OS / CLI “pseudo-OS”** | Structure as proper UX/OS layer (table-driven dispatch, ownership) | **§ RC_OS Rework** below |
+| **Quaternion convention** | Re-check Hamilton vs alternatives — not keep only to avoid churn | **§ Quaternion convention re-eval** below |
+| **Sensor seqlock (Stage 3)** | Still right path for Core0↔Core1 snapshot? | L2-P5 **WN-042** (`sensor_seqlock.h`) |
+| **PCM onboard logging** | Still right shape vs Starcom/air vs Stage-17 log tier? | L2-P5 **WN-059** (`pcm_frame` + log path) |
+| **Flash layout map** | Early feature; re-eval after multi-board / storage evolution (low priority) | L2-P5 **WN-062** (`flash_layout.h`) |
+| **Radio / telem surfaces** | Many are **Starcom-gated** supersession candidates (not pure “early code smell”) | **WN-041**, **WN-046**, **WN-097** (RFM95W defer), Starcom / CCSDS rework rows |
+| **CCSDS TC + COP-1** | Command reliability layer rework — deferred post–Stage-17 (council) | Project status line; high-priority deferred radio items |
+
+**Not in this group:** pure process/tooling OPEN items (graphify re-pass, commit hygiene,
+worktrees, IEEE 1028 mapping), accepted Gemini-tier PIO gaps, or active L2-P5 walk handoff.
+
+**Add a member:** append a row here + keep/expand the detailed section or WN; do not scatter
+new “maybe rework someday” bullets without listing them in this table.
+
+---
+
+## Regulatory / RF compliance safeguards (OPEN) (2026-08-05)
+
+**Origin:** L2-P5 walk on `rfm95w` — casual `// ISM band (US, FCC Part 15)` + default
+915 MHz / high TX power without a project compliance SSOT or risk-line warnings
+(**WN-100**).
+
+**Intent:** Project-wide discipline for knobs that can put firmware **out of
+legal operation** if mis-set or bypassed (frequency, power, band, duty where
+applicable): accurate scoped statements or explicit non-guarantee + **doc SSOT**;
+warnings at the dangerous call sites/defaults; later audit sweep (radios first).
+
+**Starcom special caveat:** When Starcom defines RF/PHY/config surfaces, it must
+adopt the **same safeguards** (or stricter) — do not reintroduce silent “looks
+legal” defaults without policy. Coordinate with RFM95W deferral (**WN-097**).
+
+**Rule:** Not legal advice from agents; owner/legal review for any public
+compliance claims. No mid-walk mass comment campaign.
+
+**Refs:** L2-P5 **WN-100**, `src/drivers/rfm95w.*`, Starcom docs under `starcom/`.
+
+---
+
 ## RC_OS Rework (OPEN) (2026-07-09, from CODE_TRIMMING §2)
+
+**Group:** Early-impl / rework-eval candidates (see index above).
 
 **Origin:** 2026-07-03 code-trimming / staleness survey noted CLI “morphed almost into a pseudo-OS” (`docs/audits/CODE_TRIMMING_AUDIT_2026-07-03.md` §2). Not a scheduled Stage/IVP yet.
 
@@ -99,6 +158,8 @@ the node explicitly non-exhaustive.
 ---
 
 ## Quaternion convention re-eval — Hamilton vs alternatives (OPEN) (2026-08-04)
+
+**Group:** Early-impl / rework-eval candidates (see index above).
 
 **Origin:** L2-P5 walk on `math/quat.{cpp,h}` — project ships Hamilton product, scalar-first
 `[w,x,y,z]`, body-to-NED (Sola 2017 / IVP Stage 5). Owner: **do not keep the choice only
@@ -440,7 +501,7 @@ No code changes planned — kept as context for future decisions.
   - **PIO beacon + SPI last-gasp combined session** — see dedicated row below.
   - **AON-timer prior-uptime signal** — stubbed to 0 in the anomalous-boot confidence gate. Wiring it requires adding `pico_aon_timer` to target_link_libraries + explicit timer-start at boot. Marginal value (POWMAN reset register already carries the high-confidence signal for brownout; AON timer would corroborate for the watchdog-RSM / hazard-DP / glitch-detect / SWcore-PD reset classes only). Worth picking up if auto-zero-baro suppression false-positive rate during bench testing needs an extra corroborator. Otherwise deferred.
 
-- **PIO beacon + SPI last-gasp beacon (B.5) — combined dedicated future session.** Council round 3 (NASA/JPL + Cubesat, 2026-05-15) unanimously deferred the SPI-based last-gasp beacon (commit (c) of the rework was scoped for this and *not* implemented). User direction 2026-05-15: "merge with the future PIO beacon" — the two questions evaluate together rather than pre-committing to an interface (compile-time `ROCKETCHIP_LAST_GASP_BEACON` + `radio_init_confirmed` semantics) that would constrain the PIO design choice. Reasons for deferral, fully captured in plan B.5 + council-round-3 transcript at `C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn-agent-a355e8caee0717e0b.md`:
+- **PIO beacon + SPI last-gasp beacon (B.5) — combined dedicated future session.** **Group:** Early-impl / rework-eval candidates (index above; shares **PIO budget** with I²C-backend eval). Council round 3 (NASA/JPL + Cubesat, 2026-05-15) unanimously deferred the SPI-based last-gasp beacon (commit (c) of the rework was scoped for this and *not* implemented). User direction 2026-05-15: "merge with the future PIO beacon" — the two questions evaluate together rather than pre-committing to an interface (compile-time `ROCKETCHIP_LAST_GASP_BEACON` + `radio_init_confirmed` semantics) that would constrain the PIO design choice. Reasons for deferral, fully captured in plan B.5 + council-round-3 transcript at `C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn-agent-a355e8caee0717e0b.md`:
   - **SPI peripheral state corruption** if fault occurred mid-byte/mid-burst — recovery is NOT bounded-cost (FIFO drain + CS deassert via GPIO function override + SX1276 hardware reset pulse + full cold re-init; each step has its own hang potential).
   - **`#ifdef`-scaffolding-rot pattern** per LL Entry 36 — code-shaped-but-never-exercised artifact creates false-confidence for future contributors.
   - **JPL precedent: always architect beacons as independent silicon** (Cassini LGA+USO, SMAP transponder). Cubesats that share the radio rely on modem-level autonomous beacon modes (e.g., FSK Beacon Mode); SX1276 LoRa lacks this in long-range mode.
@@ -450,7 +511,7 @@ No code changes planned — kept as context for future decisions.
   Scope of the combined session: (1) evaluate whether SPI-from-fault-handler is ever the right stop-gap given the failure-mode inventory; (2) design the PIO-driven beacon program (target: PIO0 or PIO1 — PIO2 already shared between watchdog SM0 + backup-timer SM1-3); (3) decide whether the design requires soldering the DIO5 jumper on the FeatherWing; (4) bench-verify on a known-faulted chip state if any stop-gap is in scope. Likely outputs a dedicated decision doc under `docs/decisions/`. User direction will determine sequencing relative to other open work.
 - **RP2350B/Fruit Jam persistent bus-corruption hypothesis.** User hunch 2026-04-17: one boot during the Fruit Jam GPS debug had a transition not fully explained by the cable theory alone. Investigate whether RP2350B exhibits bus-corruption state that survives power cycles. Low priority — may be a dead end, keep passive.
 
-- **PIO I²C master reference implementation available (Flipper One MCU firmware).** If station I²C ever needs to leave DW_apb_i2c hardware (candidate direction for the Fruit Jam GPS cold-boot intermittency tracked in `docs/plans/CYCLE_RESIDUALS_AFTER_R5.md`), Flipper Devices published their RP2350 co-processor firmware on 2026-05-21 with a working PIO I²C master driver at `lib/drivers/i2c_master_pio/pio_i2c.c` in https://github.com/flipperdevices/flipperone-mcu-firmware. Pairs `pio_claim_free_sm_and_add_program_for_gpio_range` at init with `pio_remove_program_and_unclaim_sm` at deinit (LL Entry 42 discipline as a working pattern). Mid-cycle error recovery uses `pio_sm_drain_tx_fifo` + `pio_sm_exec` (jump-to-wrap) + `pio_interrupt_clear` — never touches program memory. They also use the acquire/release pad-mux discipline (LL Entry 28) as a first-class per-handle pattern (`Activate`/`Deactivate` callbacks in `targets/f100/furi_hal/furi_hal_i2c_config.c`: `i2c_init` + pad config on activate, `i2c_deinit` + pads-to-input on deactivate). Useful as **reading material** before any PIO-I²C migration evaluation; not actionable today. Same SDK (2.2.0) and toolchain (14_2_Rel1) as us. License check needed before any code import.
+- **I²C bus backend rework-eval (prefer PIO if advantages + budget) + Flipper prior art.** **Group:** Early-impl / rework-eval candidates (index above). **Owner lean (2026-08-05):** PIO master is **preferable** when advantages are real and **PIO budget** remains (coordinate with PIO beacon / watchdog allocation — do not eval in isolation). Current `i2c_bus` thin façade over DW_apb stays intentional either way; backend swap is the rework question, not deleting the project API. **Trigger / residual context:** Fruit Jam GPS cold-boot intermittency and related bus pain (`docs/plans/CYCLE_RESIDUALS_AFTER_R5.md`) — not a mandate to switch mid-walk. **Prior art:** Flipper One MCU firmware (public 2026-05-21) has a working RP2350 PIO I²C master at `lib/drivers/i2c_master_pio/pio_i2c.c` in https://github.com/flipperdevices/flipperone-mcu-firmware — claim/init + unclaim/deinit (LL-42 pattern), mid-cycle recover via drain + jump-to-wrap + IRQ clear (no program-memory touch), acquire/release pad-mux (LL-28) in `furi_hal_i2c_config.c`. Same SDK/toolchain family as us. **License check required before any code import.** Eval session outputs: advantages vs HW I²C, SM budget map, keep/reaffirm DW_apb vs plan PIO backend under `i2c_bus_*`.
 
 ## Deferred (near-term, post-Stage 15)
 

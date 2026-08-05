@@ -18,6 +18,11 @@ Only leaf checkboxes count. **Completeness: tick every leaf path.** **Order is b
 is only a **within-tier tiebreak** / time-box triage fallback. **Exception:** `foo.{cpp,h}` means walk the
 pair as one unit (implementation + header together), then one tick.
 
+**When ticking a leaf or when owner says a section is finished / “move on”:** tick that leaf
+**and** scan **all prior unchecked leaves** in the itinerary (especially same tier / group).
+Do not advance past an open box without either ticking it (if walked) or **flagging it
+explicitly** as still open. Skipped-without-flag is a process bug.
+
 **Graph-assisted navigation (optional lookup — not a required step).** The repo's graphify knowledge graph
 (`graphify-out/`) holds every call/include edge, so it answers *"have I already walked this, or is it upcoming?"*.
 When a file references an unfamiliar cross-file function and you want its coverage status, run:
@@ -86,17 +91,17 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### drivers/
 
-- [ ] `drivers/i2c_bus.{cpp,h}`  — *(return values — gated / CheckedFunctions)*
-- [ ] `drivers/gps_pa1010d.{cpp,h}`
-- [ ] `drivers/gps_uart.{cpp,h}`  — *(3 volatile ISR↔consumer ring → concurrency 3-question test)*
-- [ ] `drivers/gps.h`
-- [ ] `drivers/icm20948.{cpp,h}`
-- [ ] `drivers/baro_dps310.{cpp,h}`
-- [ ] `drivers/rfm95w.{cpp,h}`
-- [ ] `drivers/spi_bus.{cpp,h}`  — *(1 atomic error counter → concurrency 3-question test)*
-- [ ] `drivers/mcu_temp.{cpp,h}`
-- [ ] `drivers/ws2812_status.{cpp,h}`
-- [ ] `drivers/lwgps_opts.h`  — *(vendored config — light)*
+- [x] `drivers/i2c_bus.{cpp,h}`  — *(return values — gated / CheckedFunctions)*
+- [x] `drivers/gps_pa1010d.{cpp,h}`
+- [x] `drivers/gps_uart.{cpp,h}`  — *(3 volatile ISR↔consumer ring → concurrency 3-question test)*
+- [x] `drivers/gps.h`
+- [x] `drivers/icm20948.{cpp,h}`
+- [x] `drivers/baro_dps310.{cpp,h}`
+- [x] `drivers/rfm95w.{cpp,h}`
+- [x] `drivers/spi_bus.{cpp,h}`  — *(1 atomic error counter → concurrency 3-question test)*
+- [x] `drivers/mcu_temp.{cpp,h}`
+- [x] `drivers/ws2812_status.{cpp,h}`
+- [x] `drivers/lwgps_opts.h`  — *(vendored config — light)*
 
 ---
 

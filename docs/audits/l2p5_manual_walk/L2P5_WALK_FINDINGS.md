@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-04 · Grok · math/mat.h WN-074–075
+**Last edited:** 2026-08-05 · Grok · lwgps_opts.h WN-115
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-076
+**Next ID:** WN-116
 
 ---
 
@@ -61,6 +61,92 @@ Real Doxygen-style API blocks (e.g. parts of `mavlink_rx` / encoder) look like t
 **Later:** re-evaluate policy (narrow/drop blanket `.h` exemption; upper-bound smells;
 measure header-as-module files; require real contract comments only). No mid-walk
 CODING_STANDARDS edit. Related: **W-6**, **W-7**.
+
+**WN-081** — [Grok] · `ownership` · **Doxygen-style API comments: re-validate, then apply consistently or drop**  
+Locus: **Project-wide** — pattern of `/** @file / @brief / @param / @return */` on
+public headers (example trigger this sitting: full API blocks on
+`drivers/gps_pa1010d.h`; also `i2c_bus.h`, telemetry/encoder surfaces, many
+`include/rocketchip/*.h`). CODING_STANDARDS density carve-out assumes
+“Doxygen-heavy” headers (**WN-054** / **W-7**) without a project decision that
+Doxygen is *the* required style.
+
+**Claim:** Owner direction mid-walk: treat Doxygen markup as a **policy choice to
+re-evaluate**, not an ambient habit. Steps for later (standards / walk close-out —
+not mid-walk mass edit):
+
+1. **Still valid?** Decide whether structured Doxygen (or equivalent extractable
+   API docs) remains a project goal — tooling actually used (or planned), value
+   vs plain short comments, host/IDE cost. If not, stop writing `@brief`/`@param`
+   for ceremony and retire the density exemption’s Doxygen premise.
+2. **Iff still valid:** define **where** it is required (public driver/API headers
+   only? all `include/rocketchip`? never `.cpp`?) and a **minimum shape**
+   (identity + returns/preconditions; not process essays — **W-6**), then apply
+   **consistently** so half-Doxygen / half-none isn’t the permanent state.
+3. **If not valid:** prefer short non-Doxygen contracts; strip or leave rot to a
+   cleanup pass; update CODING_STANDARDS so agents stop defaulting to `@brief`
+   walls.
+
+**Not** a finding that every existing `@brief` is wrong, and **not** a demand to
+annotate every leaf now. Related: **WN-054**, **W-7**, **W-6**; per-file density
+notes remain evidence only.
+
+**WN-100** — [Grok] · `ownership` · **Regulatory / legal-config hazards: warn at risk lines + project audit**  
+Locus: **Project-wide** (seed: `rfm95w.cpp` ~L38–39 `// ISM band frequency (US, FCC
+Part 15)` + `kDefaultFreqHz = 915e6`; also TX power defaults, band-specific
+paths, any RF/GPS export-sensitive knobs). Owner walk 2026-08-05.
+
+**Claim:** Code that can **break law if misconfigured or deliberately bypassed**
+needs more than a casual region name: either **accurate, scoped regulatory
+statements** (where/when legal, authority, power limits) with a pointer to a
+**project legal/RF compliance doc**, or explicit “not a compliance guarantee —
+operator responsibility” + doc SSOT. Prefer **line-adjacent warnings** on
+frequency/power/band knobs that can put the device out of compliance. **Project
+audit:** sweep for such surfaces (radios primary; others as found). **Starcom
+caveat:** when Starcom lands RF/PHY/config APIs, apply the **same safeguards**
+(warnings + doc SSOT + no silent “looks legal” defaults without policy). Main WB
+row tracks Starcom half. RFM seed: `kDefaultFreqHz` / Part 15 one-liner. Not legal
+advice from the walk — process/architecture flag only.
+
+**WN-086** — [Grok] · `ownership` · **Bespoke drivers: re-evaluate quality, residuals, and third-party/PA options**  
+Locus: **Project-wide** — all first-party peripheral drivers (not only
+`gps_pa1010d`), e.g. I²C GPS, UART GPS, IMU, baro, radio, bus wrappers, NeoPixel,
+etc. Trigger sitting: PA1010D cold-boot / blind-PMTK / bus interaction history;
+same class as Early-impl / rework-eval (I²C backend, flaky recover).
+
+**Claim:** For each bespoke driver, later evaluate as a set (not mid-walk rewrites):
+
+1. **How well is ours implemented?** Correctness, robustness, dual-core/bus
+   discipline, error handling, host-testability — against current code + LL /
+   residual plans (e.g. Fruit Jam GPS cold-boot, I²C contention).
+2. **Ongoing issues?** Known flakiness, workarounds, blind config, recover
+   coupling — if residuals are structural, treat as rework candidates rather
+   than endless local patches.
+3. **Working third-party / prior art?** Known solid drivers or patterns (vendor
+   app notes, Adafruit/SparkFun/ArduPilot/Pico examples, Flipper PIO I²C, lwGPS
+   already vendored, etc.) that could **replace**, **back**, or **improve** ours —
+   with license + standards (adopted-code) gates. Do not reinvent if a proven
+   option fits; do not pull Arduino stacks blindly either.
+
+**Outcome per driver:** keep-and-document, improve-in-place from PA, swap backend
+under project API, or schedule rework (align with Early-impl group where
+overlap). **Not** a mandate to replace PA1010D this week; pairs with **WN-078**–
+**080** (bus layer), I²C rework-eval row, CODING_STANDARDS prior-art rule.
+
+**WN-085** — [Grok] · `comment` · **Triage / “why this path differs”: brief + commit/CHANGELOG, not essays**  
+Locus: **Project-wide** policy (trigger: `gps_pa1010d.cpp` ~L81–84 Grok-triage
+PMTK capture notes; same class as R-5/council blocks elsewhere in that file and
+other early drivers). Owner walk direction 2026-08-05.
+
+**Claim:** When code exists to **check for differences in execution** (early-init
+before USB, alternate error path, instrumentation for a known regression), a
+**brief** comment that that is *why* the special path exists is good. Full
+dev-session narrative (who stepped in, which Unit/Tier, council option letter,
+“keeps Tier 5 out of this commit”) does **not** belong in source. For further
+info, **point to a commit hash and/or CHANGELOG entry** (and LL if applicable) —
+same discipline as not hosting IVP/council tracking in headers (**WN-076**,
+**W-6**). Apply this when evaluating comment / Doxygen policy (**WN-054**,
+**WN-081**) and when cleaning process archaeology. Per-file evidence seed:
+**WN-083**, **WN-084**.
 
 ---
 
@@ -933,3 +1019,592 @@ and `quat.h` purity blurb.
 place the pure-math / host-build / float32 rules live — re-evaluate whether this
 authority belongs in a shared math or build-doc home, with headers **pointing**, not
 re-stating absolute law. Related: **WN-071**, **W-8**.
+
+#### `drivers/i2c_bus.{cpp,h}`
+
+**WN-076** — [Grok] · `comment` · **IVP / process tags in header are tracking noise**  
+Locus: `i2c_bus.h` ~L125–126  
+`// Bus Recovery (IVP-13a)`  
+(and any similar council/IVP provenance on this unit).
+
+**Claim:** IVP step / council land-tracking belongs in **IVP / CHANGELOG / LL**, not
+as permanent section labels or essay provenance in a public driver header. Drop the
+ticket tags; keep only live API identity if needed. Same class as **WN-061**,
+**WN-064**, **W-6**.
+
+**Later:** strip process tags on disposition pass; no mid-walk edit.
+
+**WN-077** — [Grok] · `comment` · **Banner + recovery docs over-authoritative / stale risk**  
+Locus: `i2c_bus.h` banner ~L3–8  
+`Uses I2C1 on GPIO 2 (SDA) and GPIO 3 (SCL) - the STEMMA QT connector`  
+while body is board-abstracted (`board::kI2c*`, `BOARD_I2C_INSTANCE`); also
+recover/reset/imu Doxygen (~L129–158) that re-hosts algorithm/history
+(“toggles SCL up to 9 times…”, “after rapid flash cycles…”) as if the comment
+were the SSOT.
+
+**Claim:** Comments must not **over-claim** a fixed board pinout or connector brand
+when pins come from board packs, and must not be the **only** home for critical
+bus/recover contracts (stale when packs or recovery policy change). Prefer short
+API notes + pointer to board packs / LL / design docs; do not restate absolute
+pin maps or process narrative. Related: **WN-071**, **WN-060**, **W-6**, **W-8**.
+
+**Later:** banner → board-pack identity only; shrink Doxygen to return/precondition
+notes; host full recover story in LL/design if still needed.
+
+**WN-078** — [Grok] · `ownership` · **HW-/device-specific surface must leave or go universal**  
+Locus: banner STEMMA/GPIO pin claims; product connector framing; public
+**`i2c_bus_imu_recovery`** (~L149–159) + ICM-20948 bank/PWR_MGMT constants in
+`.cpp` (~L285–326) on a **generic bus** unit; known-address table
+(`kI2cAddrDps310` / `Icm20948` / …) is product-sensor inventory on the bus façade.
+
+**Claim:** Multi-board direction (**W-8** / **WN-063** class): HW-specific
+assumptions in this driver must be **removed or made universal** — pins/instance
+only via board packs (already partly done in code; comments/API still leak
+Feather-era STEMMA); device latch recovery belongs with the **IMU driver** (or a
+named device recovery hook), not as a permanent `i2c_bus_*` product of one chip.
+Bus layer keeps init/transfer/recover-generic; product addresses may stay as thin
+constants or move next to drivers.
+
+**Later:** rework-eval with Early-impl group / optional PIO-I²C backend; no
+mid-walk refactor.
+
+**WN-079** — [Grok] · `comment` · **Prior-art block: keep only used PA, at use sites**  
+Locus: `i2c_bus.cpp` file banner ~L7–10  
+`Prior Art: NXP UM10204…; Linux kernel i2c-algo-bit.c…; Pico SDK hardware/i2c.h…`  
+Recovery body already cites used sources at the algorithm (~L200 NXP 3.1.16;
+~L205–218 “Linux kernel pattern” on SCL-stuck + per-pulse SDA).
+
+**Claim:** Prior-art comments are fine **when that art was actually used** in the
+implementation. A top-of-file “we looked at / we use SDK” list is superfluous if
+nothing distinctive was taken, or if the real inspiration is already (better)
+noted at the lines that implement it. Pico SDK `hardware/i2c.h` is the **platform
+API**, not project prior-art research — listing it as PA is noise. Prefer: no
+banner PA dump; **at the recovery helpers**, short cite of NXP/Linux only where
+the 9-clock / early-exit / SCL-stuck patterns live; drop unused or pure-SDK
+entries entirely.
+
+**Later:** relocate or trim; do not invent PA essays mid-walk. Related: **W-6**,
+standards prior-art rule (cite what informed the design, not a bibliography).
+
+**WN-080** — [Grok] · `ownership` · **Scan device-name `switch` embeds product HW inventory**  
+Locus: `i2c_bus.cpp` ~L94–122  
+`switch (addr) { case kI2cAddrDps310: … "DPS310 Barometer"; … }`  
+plus supporting inventory: header `kI2cAddr*` (~L38–41), `.cpp` alt addrs
+`kI2cAddrIcm20948Alt` / `Dps310Alt` (~L22–24), GPS skip
+`addr != kI2cAddrPa1010d` (~L95–97). Section comment `// Identify known devices`
+is vague. (Same class as hardwired product map on a generic bus unit —
+extends **WN-078**.)
+
+**Claim:** This is literally **known hardware**, not a universal bus primitive.
+An exemption for “diag may name expected sensors” is possible but weak long-term:
+codebase is **RC HW in mind, not only for it** — hardwired peripherals will differ
+by board (onboard vs STEMMA vs none). A **more robust** home is a board-owned
+inventory (or table) that `i2c_bus_scan` **reads**, rather than a switch inside
+the bus driver. Project already has that layer: **board packs**
+(`include/rocketchip/board_*.h` via `board.h`) for pins/instance/capability flags —
+not **mission profiles** (`profiles/*.cfg` / generated mission data: flight params)
+and not **job packs** (`job_vehicle` / `station` / role). **Later** options (pick in
+disposition, not mid-walk): (1) board-pack table `{addr, label, probe_ok?}`;
+(2) thin `board_i2c_devices.h` included only from scan; (3) scan prints raw addrs
+only, labels live in ground tools. Drop vague “Identify known devices”; no
+historical/process tags on these lines. Related: **WN-078**, **W-8**, board family
+**WN-019**–**022**.
+
+#### `drivers/gps_pa1010d.{cpp,h}`
+
+— nothing of note *(header / first pass; Doxygen policy → **WN-081**).*  
+*(Owner second pass on `.cpp` comments → **WN-082**–**084** below.)*
+
+**WN-082** — [Grok] · `comment` · **Prior-art banner: same check as i2c — used only, prefer use-site**  
+Locus: `gps_pa1010d.cpp` ~L9–12  
+`Prior Art: CDTop PA1010D datasheet; Adafruit … chunked reads; lwGPS …`  
+Use-site already cites Adafruit/Quectel/SparkFun on the filter (~L113–117) and
+buffer size (~L90–95 GlobalTop/Quectel + pico-examples).
+
+**Claim:** Same rule as **WN-079**: keep PA only if actually used in the design;
+no top-of-file “we looked at / we vendor” bibliography. Datasheet + Adafruit
+padding filter **were** used (body cites them) — those cites belong **at the
+helpers**, not as a third copy in the file banner. “lwGPS vendored” is include
+graph, not prior-art research. **Later:** trim banner PA; keep short use-site
+cites. Related: **WN-079**, **W-6**.
+
+**WN-083** — [Grok] · `comment` · **R-2 / R-5 / council dev-record blocks have no place in code**  
+Locus: `gps_pa1010d.cpp` ~L35–44  
+`// R-2 absorbed (R-5 Unit D part 2a, 2026-05-16, council-approved): …`  
+through NASA/JPL framing and `.rodata` trade essay; also rehashed at ~L219–221
+and ~L267–276 (`R-5 … council Option X` / Tier 5 scope / commit-message
+byte-on-wire baseline).
+
+**Claim:** These are **development records** (which ticket absorbed which, which
+council option, which tier commit avoided which file) — permanent home is
+**CHANGELOG / plans / council docs**, not multi-line banners next to
+`constexpr` PMTK strings or `get_debug_status`. Code may keep *what the constants
+are* (checksum-verified sentences); drop session archaeology. Related: **W-6**,
+**WN-076**, **WN-085**.
+
+**WN-084** — [Grok] · `comment` · **Other large comment islands: protocol essays + process noise**  
+Locus (same file), additional blocks beyond **WN-083**:
+
+| ~Lines | Smell |
+|--------|--------|
+| ~L81–84 | “Grok-triage instrumentation…” — full session narrative; **brief** “capture PMTK results for post-USB `b` status (early init before CDC)” is enough; detail → commit/CL (**WN-085**) |
+| ~L90–95 | Buffer-size essay (Arduino Wire 32, 5.8 ms @ 400 kHz, 10 of 1000 IMU cycles) — timing rationale partly useful; comparative history / pico-examples ref → docs or one line + pointer |
+| ~L104–118 | `read_nmea_data` Doxygen: three packet types + Adafruit filter story — protocol contract that can go stale if only here; prefer short behavior + app-note/datasheet pointer (same class as **WN-077** / **WN-060**) |
+| ~L214–221 | Blind-PMTK cold-boot window essay + R-5 rehash — live **why** (send before probe / cold-boot window) is worth **one short** invariant; ticket/regression narrative → CL/LL |
+
+**Claim:** Not every multi-line comment is wrong — keep **live invariants** (blind
+config before probe; keep LF only after CR; full 255-byte read). Strip or rehome
+**dev comments**, duplicated R-5 stories, and long “info that should live in docs.”
+Related: **WN-083**, **WN-085**, **W-6**, **WN-081**.
+
+#### `drivers/gps_uart.{cpp,h}`
+
+— nothing of note.  
+*(Owner-closed leaf; itinerary ticked 2026-08-05. Concurrency ring hot-spot noted
+on itinerary for disposition-time check if needed — no WN filed this walk.)*
+
+#### `drivers/gps.h`
+
+**WN-087** — [Grok] · `comment` · **Transport-neutral intent OK; mark done vs WIP clearly**  
+Locus: file banner ~L3–11  
+`Shared by all GPS transport backends (I2C, UART, SPI)` +  
+`Pattern: transport-neutral types + transport-specific backends` +  
+`See also: gps_pa1010d.h (I2C), gps_uart.h (UART)`  
+and ~L36–37 `All GPS backends (I2C, UART) produce this struct` vs enum
+`gps_transport_t` (~L81–85): `NONE` / `I2C` / `UART` only — **no SPI**.
+
+**Claim:** Intent of a **transport-neutral data contract** for all GPS backends
+is fine and matches use (PA1010D + UART both fill `gps_data_t`; consumers use
+this type). **Not** a problem that the design looks forward. Problem is **false
+completeness**: banner lists **SPI** as a peer of I2C/UART while nothing
+implements SPI GPS and the transport enum doesn’t name it. Same class as board
+scaffolding looking first-class (**WN-021**): better tracking of **what is
+actually implemented** vs **downstream / WIP**. Keep the intent block; make
+done vs planned explicit (e.g. “I2C + UART backends live; SPI not implemented”
+or drop SPI until it exists). Optional: note data shape is **NMEA-class product**
+(not every possible GNSS protocol) if that avoids over-reading “all GPS.”
+
+**Later:** one-line status in banner; no mid-walk redesign of `gps_data_t`.
+Related: **WN-021**, **WN-027** (WIP labeling).
+
+#### `drivers/icm20948.{cpp,h}`
+
+**`icm20948.h`**
+
+— nothing of note *(path-specific).*  
+*(Doxygen density: wall of `@brief`/`@param`/`@return` on nearly every type and
+API — owner estimate ~**6:1** comment:code mass on this header; evidence for
+project-wide **WN-081** / density **WN-054**, not a separate path claim.)*
+
+**`icm20948.cpp` — banner accuracy (checked, no separate WN)**  
+File banner ~L7–20 (PA: ICM-20948 DS-000189, AK09916, ArduPilot bypass; bank
+architecture; BYPASS_EN + AK at 0x0C; internal master eliminated). **Checked
+against implementation this sitting:** code uses bank select `0x7F`, bank0/2
+regs only (bank3 intentionally absent), `enable_bypass_mode` + direct
+`ak09916::kI2cAddr` `0x0C`, no SLV0/I2C-master path — matches narrative.
+ArduPilot cite is **pattern prior art** (used — bypass commit `29c1676`), not a
+line-sync claim. Datasheet **rev numbers** not re-fetched against PDFs this
+sitting (process: verify at disposition if citation rot matters). Treat banner
+as **accurate to the driver**; keep form (used PA + live architecture).
+
+**~L210–213 `enable_bypass_mode` order comment — keep (not a process dump)**  
+`Must disable I2C master FIRST… then BYPASS_EN` is a **live HW sequencing
+invariant** next to the only place that does it — not R-5/session archaeology.
+Body matches (clear `kI2cMstEn`, then set `kBypassEn`). Leave unless shortened
+for style; not **WN-083**-class.
+
+**WN-088** — [Grok] · `invariant` · **Substantial in-source NOLINT magic-number regions**  
+Locus: `icm20948.cpp` — **only** these blocks (full-file grep; no other NOLINT
+in this file):
+
+| Lines | Scope |
+|-------|--------|
+| ~L468–536 | `NOLINTBEGIN/END(readability-magic-numbers)` around `parse_accel_gyro_temp` **and** entire `read_mag_bypass` (buffer indices + mag LE pairs) |
+| ~L581–585 | accel XH/XL/… byte pairs in `icm20948_read_accel` |
+| ~L609–613 | gyro pairs in `icm20948_read_gyro` |
+| ~L634–645 | AK09916 ST1/ST2/axis offsets in `icm20948_read_mag` |
+
+**Claim:** Same **disallowed** class as **WN-043** / **WN-070** / **WN-073** —
+in-source NOLINT is not the project remedy. Volume here is high (one BEGIN spans
+~70 lines including logic that is not “just offsets”). Prefer named `constexpr`
+byte indices / layout helpers (or shared parse helpers) so tidy is clean without
+suppression. **Provenance:** clang-tidy P3 magic-number work `5ee49b9` (2026-02-09)
+explicitly allowed NOLINT for “burst read buffer byte indices” alongside
+constexpr extraction — that commit family is the place to re-audit for **other
+files** that got the same treatment (grep `NOLINT` under `src/`: e.g.
+`sensor_core1` / `calibration_data` / `rc_os_commands` DCM indices — already
+partially ticketed elsewhere). **Later:** strip all four regions in this driver;
+sweep sibling suppressions from that remediation era. No mid-walk mass delete.
+
+**WN-089** — [Grok] · `ownership` · **Lazy mag re-init on hot path needs recreate/test**  
+Locus: `read_mag_bypass` ~L522–528  
+`// Mag lost after device reset — attempt lazy re-init once per divider cycle`  
+`init_magnetometer(dev);` (~220ms comment; path does reset settle 100ms +
+bypass/config sleeps — order ~100ms+ real).
+
+**Claim:** Looks like a **one-off recovery** for “mag_initialized cleared / lost
+after reset” rather than a fully characterized design. Landed with bypass
+migration (`29c1676`, 2026-02-10). Calling `init_magnetometer` from the **1 kHz
+read path** (even throttled by `kMagReadDivider`) can block for **hundreds of ms**
+on Core 1 — high stakes if still live. Owner: **recreate the failure mode and
+test** a proper fix (or prove path is dead/unreachable) before trusting or
+deleting. Do not “clean comment only.” Related: **WN-086** (bespoke driver
+re-eval), dual-core I²C discipline.
+
+#### `drivers/baro_dps310.{cpp,h}`
+
+**WN-090** — [Grok] · `comment` · **OS/rate selection table belongs in HW/sensor doc (header may keep thin pointer)**  
+Locus: `baro_dps310.h` ~L23–51 — multi-line table (noise Pa / alt m / meas time /
+current / max rate by OS 1×–128×), ArduPilot 16× note, flight vs ground
+recommendations, duty-cycle model (`CONT_BOTH`), Stage 10 phase-scheduled OS
+future, then the four `kBaroDps310*` constexprs.
+
+**Claim:** Content is **useful** and on further look may be acceptable *near* the
+tuning constants, but it is **fairly important system/sensor guidance** that should
+have a proper home in a **HW- or sensor-specific guideline/doc** (if not already a
+straight copy of Infineon datasheet Table 16 + project choices) so it cannot go
+stale only in a header. Code may keep short rationale + pointer; full table and
+“future Stage 10” narrative should not be the sole SSOT. Same class as **WN-055** /
+**WN-060** (maps/contracts in comments). **Also this leaf:** heavy Doxygen on the
+API surface + this table → **substantial comment:code ratio** — evidence for
+**WN-081** / **WN-054**. Full Doxygen file inventory → walk WB **W-10** (not
+extended here). **Later:** confirm table vs datasheet; rehome or cite doc; no
+mid-walk delete of useful numbers.
+
+**WN-091** — [Grok] · `comment` · **Prior-art banner: check used-only / use-site (same class)**  
+Locus: `baro_dps310.cpp` ~L9–12  
+`Prior Art: Infineon DPS310…; ruuvi.dps310.c…; Adafruit DPS310…`  
+Implementation is a **ruuvi wrapper** + I2C callbacks (vendor path is real);
+datasheet informs OS table in **header** (**WN-090**); Adafruit “init sequence
+reference” not cited at any specific helper line this sitting.
+
+**Claim:** Same rule as **WN-079** / **WN-082**: keep PA only if used; prefer
+use-site cites; “vendored ruuvi” is dependency identity more than research essay.
+**Later:** verify Adafruit actually informed init; trim or relocate.
+
+**WN-092** — [Grok] · `ownership` · **Atmospheric / hypsometric constants in baro driver; wider universal-SSOT audit**  
+Locus: `baro_dps310.cpp` ~L24–27  
+`kStdAtmPressurePa`, `kHypsometricScale`, `kHypsometricExponent`  
+(+ use in altitude helper ~L196). Not DPS310 silicon constants — **ISA / formula**
+physics shared by any pressure→altitude path.
+
+**Claim:** Such values should **not** live in a HW-specific driver unless there is
+a datasheet-tied reason (there isn’t). Need a **more universal home** and a
+**reliable SSOT** (shared math/atmos header, fusion, or constants module). This
+leaf is a seed for a **wider audit**: domain constants (atmosphere, gravity,
+unit scales, Earth models, …) currently parked next to one peripheral — find
+and rehome. Related: **W-8** (agnostic placement), **WN-086** (driver scope).
+
+**WN-093** — [Grok] · `invariant` · **NOLINT identifier-naming for ruuvi callbacks; duty-cycle pointer**  
+Locus: ~L69–73 (forward decls) and ~L95–123 (`pico_read` / `pico_write` bodies)
+`NOLINTBEGIN/END(readability-identifier-naming) — params match ruuvi…`;  
+~L140 `// See baro_dps310.h for duty cycle model and tradeoff table.`
+
+**Claim (NOLINT):** In-source NOLINT still **disallowed policy** class (**WN-043**
+family) even when matching third-party typedef names — better: thin C wrappers
+with project names calling ruuvi, or logged TP deviation for the callback
+surface only. Only these two regions in this file (grep). **Claim (L140):**
+comment correctly **depends** on the header table (**WN-090**); any rehome or
+edit of that duty-cycle/OS guidance must update **at least this pointer** (and
+config values if numbers change). Not a free-floating essay — a coupling note.
+
+#### `drivers/rfm95w.{cpp,h}`
+
+**WN-096** — [Grok] · `invariant` · **Datasheet-backed constants: good pattern; schedule deeper verify**  
+Locus: both halves — header banner ~L10–11 Semtech `DS_SX1276-7-8-9_W_APP_V7` +
+RadioHead; “Table 41” reg list (~L24–57); BW codes (~L87–90); airtime §4.1.1.6
+(~L361); plus `.cpp` init/register use that must stay consistent with the same
+map.
+
+**Claim:** Direct datasheet references on HW drivers are **desirable** (do this
+for all HW drivers). Datasheets essentially don’t change → **comment rot risk
+negligible** for the cite itself. **Preliminary check this sitting (not final):**
+reg addresses and common bit encodings match the standard SX1276 LoRa map;
+`kLoRaMode` / mode nibbles match `.cpp` `set_mode`; version `0x12` and BW
+0x07/08/09 look correct. **That is not enough.** Owner: a **deeper dive** is still
+in order at disposition — line-by-line against the named PDF rev (Table 41 vs
+LoRa map section, PaDac/PA_BOOST, IRQ flag bits, audit expected values, airtime
+formula assumptions, RadioHead deltas). Record pass/fail then; do not treat the
+walk skim as closed verification.
+
+**WN-097** — [Grok] · `ownership` · **RFM95W / LoRa driver: defer non-critical work past Starcom**  
+Locus: **whole pair** `rfm95w.{cpp,h}` (and by extension project LoRa radio path
+consuming it).
+
+**Claim:** This is a prime **Starcom-adjacent** surface — either impacted by
+Starcom link/PHY work, or a template for **what Starcom may need to provide** if
+HW radio drivers stay in project scope. **Non-critical** cleanup/refactor on this
+chunk should **wait until after Starcom** work clarifies ownership and API
+shape. **Exceptions:** true critical defects (safety, silent link failure, bus
+corruption) may still be fixed sooner. Aligns with other Starcom-gated radio/telem
+candidates (**WN-041**, **WN-046** class). Walk may still file comment/policy
+notes; disposition of structural rework waits.
+
+**WN-094** — [Grok] · `comment` · **Superfluous IVP / council tags on RFM95W header**  
+Locus (examples): `// IVP-T11:` on Lna/ModemConfig3/InvertIQ (~L36,51,53);
+section `// Boot-Time Audit (IVP-T11)` (~L95); Doxygen “IVP-132a.4 re-eval”
+(~L167); “IVP-T11” on `rfm95w_read_audit` (~L183); also “Council Amendment #5”
+(~L25), “Council #3/#1/#6”, “Council C3-R3”, “Stage T Batch B prelim” in API
+blocks.
+
+**Claim:** Ticket/council land tags are **process tracking**, not live API
+contract — same class as **WN-076** / **W-6**. Drop tags; keep short technical
+notes (e.g. LnaBoostHf, AgcAutoOn, optional peripheral, RegIrqFlags vs DIO0)
+where they help. Detail stays in CHANGELOG/IVP.
+
+**WN-095** — [Grok] · `comment` · **Heavy Doxygen on rfm95w.h — inventory seed**  
+Locus: whole public API (~L147–376) dense `@brief`/`@param`/`@return` plus
+multi-line usage essays (non-blocking TX block ~L210–223, airtime/timeout
+Stage T prose ~L345–352).
+
+**Claim:** Another substantial Doxygen leaf — evidence for **WN-081** / **WN-054**;
+add to walk WB **W-10** inventory seeds (`rfm95w.h`). Prefer short contracts;
+long GDB/usage/history → docs or LL. No mid-walk mass strip.
+
+**WN-098** — [Grok] · `comment` · **PA banner OK-to-check; council amendment list is process dump**  
+Locus: `rfm95w.cpp` ~L7–18  
+`Prior Art: SX1276 datasheet; RadioHead RH_RF95; Adafruit adafruit_rfm9x` +  
+`Council amendments incorporated: #1…#6` multi-line list.
+
+**Claim:** PA entries — same check as **WN-079** class (used only; datasheet/RadioHead
+clearly inform driver; Adafruit cite verify at use-site or trim). **Council #1–#6
+block** is a land-record index (belongs in CHANGELOG/plan), not permanent file
+prologue — drop or one-line “see Stage 7 / plan” (**W-6**, **WN-094**). Citing a
+**coding rule** next to code is fine/encouraged; a numbered council shopping list
+is not that.
+
+**WN-099** — [Grok] · `comment` · **Section banner “==== … (JSF AV Rule 151)” is vague**  
+Locus: ~L27–29  
+`// ============================================================================` / `// File-scope constants (JSF AV Rule 151)` / `// ====…`
+
+**Claim:** `====` is only a **visual section break** (same style as other
+banners in this tree), not a language or standards construct — reads as a
+“major break” without saying what. **JSF AV Rule 151** (prefer named constants
+over magic numbers) as **reasoning** for *why* these are `constexpr` is good and
+encouraged — but the header doesn’t say that; it just tags the rule. Prefer e.g.
+“Named constants (JSF AV 151 — no magic numbers in body)” or drop the rule ID if
+the names already document intent. Not a defect in the constants themselves.
+
+**WN-101** — [Grok] · `ownership` · **Radio module packaging (FeatherWing vs breakout) needs clear abstraction**  
+Locus: ~L180 “FeatherWing is not stacked”; banner/product framing RFM95W
+FeatherWing #3231; driver is really **SX1276 + SPI + CS/RST/DIO pins**.
+
+**Claim:** Same silicon can sit on **FeatherWing, breakout, or hardwired board**.
+Driver API already takes pins (good), but comments/assumptions still **Wing-
+centric**. Differences (shared GPIO, DIO routing, reset polarity, presence
+detect) may need an explicit **board/pack compatibility layer** (board packs
+already supply pins — extend for radio presence, DIO reliability, packaging
+notes) rather than driver special cases. Not full “HAL rewrite” mid-walk; design
+when radio ownership settles (**WN-097** Starcom). Related: board packs
+**WN-019**–**022**, **WN-102**.
+
+**WN-102** — [Grok] · `ownership` · **Fruit Jam DIO0 / RxDone: board-specific path in generic driver**  
+Locus: `rfm95w_available` ~L337–344  
+`GPIO DIO0 polling unreliable on some boards (Fruit Jam GPIO5 shared with
+Button3…)` → uses **IRQ register** instead of DIO0.
+
+**Claim:** Looks like a **board-specific workaround** embedded in the common
+driver (and following “register is authoritative” path). Prefer board capability
+/ radio-pack policy (“trust DIO0” vs “IRQ flags only”) rather than naming Fruit
+Jam inside `rfm95w.cpp`. May couple with **WN-101**. Defer non-critical reshape
+with **WN-097** unless link bugs force sooner.
+
+**WN-103** — [Grok] · `comment` · **Council #6 poll_irq: relevant but temp / unfinished ISR story**  
+Locus: `rfm95w_poll_irq` ~L347–350  
+`// Council #6: Isolated poll function for future ISR swap. Currently polls
+GPIO; future version can check a flag set by ISR.`
+
+**Claim:** Slightly more relevant than pure ticket tags (documents **intent** of a
+thin poll hook), but still reads as **temporary / unfinished** design. Either
+**label explicitly as interim** + track finish (ISR or board-policy drop of GPIO
+poll), or complete via board/HAL path (**WN-101**/**WN-102**). Don’t leave
+“future ISR” forever without a ticket outside the source. Related: **WN-094**,
+**W-6**.
+
+*(Also ~L160 IVP-T11 one-liner — same process-tag class as **WN-094**; drop tag,
+keep “caller compares kAudit*Expected” if useful.)*
+
+#### `drivers/spi_bus.{cpp,h}`
+
+**WN-104** — [Grok] · `ownership` · **Generic SPI bus framed as SX1276 / FeatherWing one-off**  
+Locus: `spi_bus.h` banner ~L3–13 “SPI bus driver for **LoRa FeatherWing**”;
+GPIO-CS story tied to **SX1276** FIFO bursts; ~L33 `5 MHz (SX1276 supports…)`;
+`spi_bus_init` Doxygen ~L40–44 still names **SPI0** and **GPIO 20/22/23** while
+body is board-abstracted; **~L55–63** (and write twin ~L67–68)
+`SX1276 SPI protocol: CS low → send (reg & 0x7F)…` / `(reg | 0x80)`.
+
+**Claim:** Thin SPI + GPIO-CS for multi-byte bursts is a **reusable protocol
+pattern** (and PA cites RadioHead/LoRaMac/Adafruit for that). Framing the whole
+unit as FeatherWing/SX1276 — and baking **device-specific reg R/W framing** into
+`spi_bus_*_reg` — couples the bus layer to one peripheral. Tight protocol↔chip
+coupling is real, but prefer: generic SPI init/transfer/CS helpers, with
+**SX1276 framing at the radio driver** (or a named `sx1276_spi_*` thin), so
+future SPI devices don’t inherit one-off bloat. Same class as **WN-078** /
+**WN-101** (device/board leakage into shared bus). Related: **W-8**, **WN-097**.
+
+**WN-105** — [Grok] · `comment` · **Council/IVP on g_spi_error_count; brief trace OK**  
+Locus: ~L101–104  
+`// IVP-132a.4 (ArduPilot council #4): SPI hot-path error counter…`  
+(+ soak/GDB usage notes).
+
+**Claim:** Multi-line process provenance is the usual **W-6** smell. Owner
+clarification for this class of comments: a **brief** “council decided
+(date and/or commit hash for trace)” **can be OK** for traceability — not a full
+council essay, not a bare ticket with no pointer. Prefer e.g. one line on *what
+the counter is* + optional `see <hash> / CHANGELOG` over “IVP-132a.4 (ArduPilot
+council #4)” as permanent API surface. Apply when cleaning process tags
+elsewhere (**WN-094**, **WN-076**, **WN-085**).
+
+**WN-106** — [Grok] · `comment` · **PA / banner: whole file framed as SX1276 task**  
+Locus: `spi_bus.cpp` ~L7–12  
+`GPIO-controlled chip select for SX1276 burst FIFO compatibility` +  
+`Prior Art: Pico SDK hardware/spi.h; SX1276 datasheet (burst FIFO…)`.
+
+**Claim:** Same PA rules as **WN-079** batch: SDK is platform API not research
+essay; SX1276 datasheet is real for **bit-7 R/W + held-CS burst** — but the
+banner makes the **entire unit** sound like one radio job. Prefer use-site /
+split naming when dispositioning with **WN-104**/**WN-108**. Batch with other
+driver PA banners.
+
+**WN-107** — [Grok] · `comment` · **IVP-132a.4 on g_spi_error_count definition**  
+Locus: ~L26–29 (same counter as header ~L101–104).
+
+**Claim:** Process tag class — apply **WN-105** (brief council + date/commit OK;
+drop bare IVP essay). One place for the comment is enough (header or cpp).
+
+**WN-108** — [Grok] · `ownership` · **RED FLAG: named like universal SPI bus, behaves as SX1276 SPI**  
+Locus: whole `spi_bus.{cpp,h}` — name + board-abstracted init (pins/instance)
+read as **generic bus**; implementation is **register framing + Mode0 + 5 MHz
+defaults for SX1276** (`kSpiReadMask`/`kSpiWriteFlag`, Mode 0 comment “SX1276
+requirement”).
+
+**Fan-in (this sitting):** production `spi_bus_read_reg` / `write_reg` / burst
+callers are **`rfm95w.cpp` only** (plus `spi_bus_init` from `main`). No second
+SPI device uses this “bus.”
+
+**Claim:** **Huge red flag** if the intent was a universal SPI layer — this is
+effectively a **single-device (LoRa/SX1276) SPI helper** wearing a generic name.
+Either (1) rename/move under radio (`sx1276_spi` / next to `rfm95w`) and keep
+truth in the name, or (2) split true generic SPI (init, transfer, CS hold) from
+device framing so the universal path is real. Do not grow one-offs here. Extends
+**WN-104**; pairs **WN-097** / **WN-101**. No mid-walk rename.
+
+**WN-109** — [Grok] · `ownership` · **Header + cpp: same red flag — HW-specific disguised as universal**  
+Locus: **both** `spi_bus.h` and `spi_bus.cpp` (single claim spanning the pair).
+
+**Claim:** Tie **WN-104** (header: FeatherWing/SX1276 framing, reg R/W protocol
+docs, stale SPI0 pin Doxygen) and **WN-108** (cpp: SX1276 masks/Mode0, sole
+`rfm95w` fan-in) into one picture: this is **not** “universal code with a few
+HW comments” — it is **HW-/device-specific SPI for SX1276** that **looks**
+universal (name `spi_bus`, board pins, init). Direction of the bug is
+**specific → fake-general**, not the reverse.
+
+**Disposition spectrum (later, not mid-walk):**
+1. **Simple rename / rehome** under radio (`sx1276_spi` / next to `rfm95w`) if
+   scope stays one device — may be enough if no second SPI client is planned.
+2. **Further work** if a real multi-device SPI bus is needed: split generic
+   transfer/CS from device framing; invent no more one-offs in a fake bus layer.
+
+Related: **WN-104**, **WN-106**–**108**, **WN-078** (i2c device leakage),
+**WN-097**. No mid-walk rename.
+
+#### `drivers/mcu_temp.{cpp,h}`
+
+**WN-110** — [Grok] · `ownership` · **MCU-temp vs generic ADC driver; comment mass**  
+Locus: `mcu_temp.h` banner ~L3–17 (Stage 16C IVP-142a; RP2350 die sensor ADC
+input 4; formula; **ADC-consumer single-owner** caveat if battery ADC later) +
+API comments ~L27–50; `.cpp` is `adc_init` / `adc_select_input` / `adc_read` +
+temp formula only.
+
+**Claim:** Header **already states** multi-channel ADC sharing risk — good. Same
+class of question as **spi_bus** / device-specific “bus” units: should this
+exist as **`mcu_temp` only**, or as a small **ADC driver** (channel select,
+serialize consumers, Vref) with die-temp as the first client? Today only use is
+MCU temp, but an ADC-shaped module would **guide better PA search** (Pico SDK
+examples, shared ADC HALs) than “die temperature driver.” HW/code coupling
+quirks for ADC (package channel 4 vs 8 already in cpp, exclusive `adc_select`)
+belong in that deep dive — not ignored. Banner also carries IVP process tag
+(**W-6**).
+
+**Also header:** large **non-Doxygen** comment:code ratio (file banner + dense
+per-API notes) — density evidence; not structured Doxygen (**WN-081** / **W-10**
+are Doxygen-specific; this is plain comment mass / **WN-054** class).
+
+**Later:** re-eval shape (keep thin temp API vs adc_* + temp helper); PA under
+ADC; process-tag clean. No mid-walk rewrite. Related: **WN-108**/**109** (fake-
+universal vs narrow), **WN-086**.
+
+**WN-111** — [Grok] · `ownership` · **Temp ADC channel A/B: package toggle vs board/SKU**  
+Locus: `mcu_temp.cpp` ~L25–32  
+`#if PICO_RP2350A` → `kTempAdcInput = 4` else `8` (RP2350B / Fruit Jam comment).
+
+**Claim:** If this unit stays **die-temp-specific** on RP2350, package-level
+channel choice may legitimately live here (feature is RP2350A/B silicon). Still
+**SKU/board-coupled**: difference is package/board class, not “temp algorithm.”
+Only A/B today, but a **board-pack / SKU capability** (`board::kMcuTempAdcInput`
+or similar) is more robust if channels ever diverge further or another MCU
+joins — same pattern as other pin/instance board constants. Deep-dive with
+**WN-110** (ADC vs temp shape). Related: **W-8**, board packs.
+
+**WN-112** — [Grok] · `comment` · **Stuck-detector essay vs short invariant**  
+Locus: ~L35–41 multi-line rationale for `kStuckThresholdSamples = 60` (1 Hz,
+bench 0.93°C spread, 60s floor…); used at ~L71–79 (and `mcu_temp_is_stuck`).
+
+**Claim:** Useful engineering judgment, but a **long essay for one constant** /
+simple consecutive-identity loop. Prefer short invariant (“60 identical samples
+@ ~1 Hz ⇒ stuck”) + pointer to bench note/CHANGELOG if needed; full narrative
+is **W-6**/doc territory. Related: **WN-110** density.
+
+#### `drivers/ws2812_status.{cpp,h}`
+
+**WN-113** — [Grok] · `ownership` · **Name “status” collides with notify engine; role is pattern/indication driver**  
+Locus: path/name `ws2812_status.*`; header banner ~L3–12 “status LED driver” /
+“ArduPilot-style **status indication patterns**” (solid/breathe/blink/…); types
+`ws2812_mode_t`, `ws2812_set_*`.
+
+**Claim:** **Notify engine** (`ao_notify`, `notify_backend_led`, intents) is
+supposed to own *what* the vehicle is telling the user. This unit looks like a
+**HW driver of indication patterns** (PIO/WS2812 + mode rendering) that notify
+(and LedEngine) talk **to** — not a second status policy engine. The word
+**status** in the filename freezes the wrong layer and invites one-way-or-the-
+other confusion. Banner already says **patterns**; rename lean:
+`ws2812_patterns` / `ws2812_indications` (or similar) so name matches role.
+**Either** clarify stack (notify → … → this driver) in docs **or** merge
+ownership later — not both competing “status” homes.
+
+**Header body:** no other path-specific defect this sitting **if** project docs
+/ architecture maps clearly say: go here to **define/change NeoPixel HW
+behavior** (modes, PIO, transitions). Note: `led_patterns.h` is already named
+SSOT for **pattern constants** (codes); this file is the **render/driver** —
+both must stay discoverable without looking like duplicate “status” systems.
+Related: **WN-055**–**057** (led_patterns), notify/Stage L docs. No mid-walk
+rename.
+
+*(Pedagogy — no WN: header vs cpp “Legos vs assembly” is clear on this pair;
+walk WB **W-11**. Note only: ~L200–202 short IVP-T5.5 line is a **good** brief
+ticket reference class — model for **WN-105**.)*
+
+**WN-114** — [Grok] · `invariant` · **NOLINT magic-numbers on HSV convert**  
+Locus: ~L490–537 `NOLINTBEGIN/END(readability-magic-numbers)` around
+`ws2812_hsv_to_rgb` (sector thresholds 60/120/… still literal despite some
+named constants).
+
+**Claim:** Only NOLINT block in this file (grep). Same **disallowed** class as
+**WN-043** / **WN-088** — prefer named sector bounds or accept a logged TP-style
+deviation for standard HSV math; don’t leave a 50-line suppress. Comment already
+admits sector geometry is the reason.
+
+#### `drivers/lwgps_opts.h`
+
+**WN-115** — [Grok] · `comment` · **Banner should explain role, origin, and vendored hook**  
+Locus: whole file — currently only `@brief LwGPS configuration for RocketChip`
+plus bare `#define LWGPS_CFG_*` knobs; no `.cpp` (by design).
+
+**Claim:** Sparse opts header is **correct shape** (MaJerle LwGPS user-config
+pattern: project `lwgps_opts.h` included from vendored `lib/lwgps/.../lwgps_opt.h`,
+compile-time only). What’s missing is a **clear file banner**: this is **not** a
+GPS driver; it is **Rocket Chip’s config for the vendored LwGPS NMEA parser** in
+`lib/lwgps/`; library code lives there; our GPS drivers (`gps_pa1010d`,
+`gps_uart`) feed bytes into that parser; opts are found via include path
+(`src/drivers`). Point at template / docs if useful. **Later:** expand banner
+only — no logic change. Related: **WN-086** (adopted code clarity).
