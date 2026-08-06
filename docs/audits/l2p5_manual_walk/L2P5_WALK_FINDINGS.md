@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-05 · Grok · lwgps_opts.h WN-115
+**Last edited:** 2026-08-06 · Grok · wmm_tables light + W-14
 
 # L2-P5 Walk Findings
 
@@ -13,12 +13,12 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Form** | `**WN-NNN** — [Agent] · \`kind\` · **title**` then observation. Kind = context (`comment`, `invariant`, `ownership`, `cross-file`), not priority/fix-timing. Lead with **locus** (path ~lines) + short **quote** so the claim stays brief and undiluted; taxonomy/follow-ons after. |
 | **Path placement** | Each `#### \`path\`` is the itinerary path for the **claim’s locus** (where the quoted code/comment lives). Before appending a WN: open/confirm that path section — do **not** append under the last `####` in the file. Cross-file notes: section = declaring file (or Project-wide). Mis-nested WNs are process bugs; fix on notice. |
 | **Append-only** | Frozen once written; never edit prior text (no “Related: WN-N+1” back-links on older entries — new WNs cite older ones only). Later find on same path → new global `WN`. Owner-directed one-time fixes only. |
-| **Split vs merge** | One `WN` per claim that could disposition differently later. Same sitting ≠ merge. One `WN` only if bullets support a single claim. |
+| **Split vs merge** | One `WN` per claim that could disposition differently later. **Same disposition → merge** (multi-locus list; keep full context in the body). Nuance can wait for disposition later — do not split only to preserve sub-bullets. Especially on **central / dense** leaves (fusion, FD, logging, …) prefer fewer richer WNs over ~10 thin ones. See walk WB **W-13**. Same sitting ≠ forced merge when dispositions truly differ. |
 | **Content** | Observations only; no design close-outs. Stated claim on the declaring file; enforcement/evidence under the implementing path when walked (new `WN`, don't edit old). |
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-116
+**Next ID:** WN-153
 
 ---
 
@@ -1608,3 +1608,436 @@ GPS driver; it is **Rocket Chip’s config for the vendored LwGPS NMEA parser** 
 `gps_uart`) feed bytes into that parser; opts are found via include path
 (`src/drivers`). Point at template / docs if useful. **Later:** expand banner
 only — no logic change. Related: **WN-086** (adopted code clarity).
+
+---
+
+## Tier 2 — Domain logic & infrastructure
+
+### fusion/
+
+#### `fusion/eskf_runner.{cpp,h}`
+
+**WN-116** — [Grok] · `comment` · **File banner too long — will rot**  
+Locus: `eskf_runner.h` ~L3–15 module banner (owns ESKF/Mahony/confidence/GPS session/buffer/bench;
+`qv_idle_bridge` ~200Hz seqlock; `SIG_SENSOR_DATA` after predict; Council A6 read-only accessors).
+
+**Claim:** A **brief** file role description is fine — especially for confusing bits. This banner
+is **too much detail** for a header top; it will go stale on any real change to ownership, call
+path, or publish behavior. Prefer short evergreen role + pointer if needed; not a mini-SAD.
+
+**WN-117** — [Grok] · `comment` · **Council R-6 line: prefer commit/CHANGELOG over bare ticket**  
+Locus: ~L30 `// Compact ESKF state for circular buffer (no P matrix — R-6 council requirement)`.
+
+**Claim:** Brief and useful as layout intent, but like prior walk notes on process tags: a
+**commit hash and/or CHANGELOG date** traces the decision better than a bare council/ticket id
+that readers must archaeology. Related theme: **W-6**, **WN-085**.
+
+**WN-118** — [Grok] · `ownership` · **GPS session stats comment smells one-shot test, not evergreen API**  
+Locus: ~L43–46 banner on `gps_session_stats_t` — "GPS outdoor session stats — accumulated while
+GPS is active. Printed on reconnect via 's'. Lets user verify movement gates."
+
+**Claim:** Reads as **one specific testing session that already happened**, not a durable product
+contract. Either (a) this is **evergreen** operator/diag feature and the comments should say so
+without past-session voice, or (b) it is **test-only** scaffolding and does not belong in the
+fusion public header long-term. If the feature is useful beyond that session, decide **where it
+lives** (fusion vs diag/CLI) deliberately — not leave ambiguous "outdoor session" prose.
+
+**WN-119** — [Grok] · `comment` · **Brake block comment is historical narrative**  
+Locus: ~L122–131 runaway-restart brake section banner (ex-watchdog_recovery, LL 29/34,
+`kEskfMaxFailCycles=5`, CLI re-enable, power-cycle clear).
+
+**Claim:** Historical migration / motivation essay does **not** belong as permanent header
+prose — or it needs **resolution** if the story is still open (is the brake settled? still
+"ex-watchdog"?). Keep a short live contract (what disabled means, who re-enables); move LL/migration
+detail to docs/CHANGELOG. Same class as long process banners (**W-6**).
+
+**WN-120** — [Grok] · `comment` · **Many other API comments relevant but too long**  
+Locus: rest of `eskf_runner.h` doc comments on public APIs (init/tick/getters/bench/reinit, etc.)
+beyond the banner and the blocks already called out.
+
+**Claim:** Content may be **relevant**, but volume is high for a header — same rot risk as
+**WN-116**. Prefer short contracts; detail only where behavior is non-obvious.
+
+**WN-121** — [Grok] · `comment` · **LL Entry 1 cite on `g_eskf` needs re-eval**  
+Locus: `eskf_runner.cpp` ~L70–72 — `// Per LL Entry 1: ESKF struct is ~970 bytes — file-scope, not stack.`
+
+**Claim:** Points at the **literal first** Lessons Learned entry (stack overflow from large
+locals). Directionally still right (large objects off stack), but much has changed since
+Entry 1 — size/layout/context may have moved. **Re-evaluate** the cite (current `sizeof`?
+short “file-scope: too large for stack” without LL-1 archaeology?). Do not treat “LL Entry 1”
+as frozen proof without checking.
+
+**WN-122** — [Grok] · `ownership` · **GPS outdoor session state + stats (cpp) — same as header; deeper home/role dive**  
+Locus: ~L87–90 `g_gpsSess`; ~L349–363 `eskf_tick_gps_stats` (“post-session review via 's'”);
+GPS update call site.
+
+**Claim:** Same theme as **WN-118** (one-shot outdoor/test voice vs evergreen). Impl is here.
+**Deeper dive warranted:** may be RC_OS/CLI-diag bookkeeping more than core fusion — decide
+whether it belongs in this TU. One product disposition can cover **WN-118** + this.
+
+**WN-123** — [Grok] · `comment` · **Process/ticket comments (R-25, CR-N) — clean up / retarget**  
+Locus: ~L97–100 and ~L194 R-25-exec bench notes; CR-1/2/3/4 tags (~L165, 182, 198, 525,
+**569**); same ticket voice class as header (**WN-116**, **WN-117**, **WN-120**).
+
+**Claim:** Dev/process notes need the same hygiene as the header: short live contract or
+commit/CHANGELOG under current standards — not multi-line ticket essays. **CR-4** (~L569) only
+means “seqlock fail is a separate early return from data-validity”; the `CR-N` labels are not
+self-explanatory in-tree. Opaque tags same class as bare R-25/R-6.
+
+**WN-124** — [Grok] · `invariant` · **INTERIM Z-up→NED negate is HW-specific, no safeguard**  
+Locus: ~L117–130 `sensor_to_ned_{accel,gyro,mag}` — INTERIM Adafruit ICM-20948 Z-up; hard-coded
+Z negate; comment’s “proper fix: board_rotation…”.
+
+**Claim:** Admits interim + specific breakout; **code has no board/rotation gate or other
+safeguard** — always negates Z. Written for one HW item. Other mounts can get wrong axes
+silently. Needs explicit notation and/or real board_rotation path, not only INTERIM prose.
+
+**WN-125** — [Grok] · `comment` · **Mag yaw bootstrap comment: mostly good, shorten; verify current**  
+Locus: ~L147–150 (mag yaw if available; gate rejection if yaw stuck at 0; ArduPilot EKF3 cite).
+
+**Claim:** Content useful; **too long**. Shorten. Spot-check still matches current ESKF/mag
+gate behavior.
+
+**WN-126** — [Grok] · `comment` · **Baro “~32Hz DPS310” reads as SSOT rate**  
+Locus: ~L232 `// Baro altitude measurement update (~32Hz DPS310 rate, on new data)`.
+
+**Claim:** Treats a **driver/sensor setting** (and SKU) as fusion SSOT. Real path is “on new
+`baro_read_count`.” Prefer “on new baro sample”; Hz/part number optional non-normative example
+only.
+
+**WN-127** — [Grok] · `ownership` · **Mag 3D / WMM path: feature assumptions, HW-ish detail, silent degrade**  
+Locus: ~L258–259 auto-enable needs cal + WMM; ~L279–307 `try_enable_mag_3axis`; ~L309+
+`eskf_tick_mag` (AK09916 ~10Hz comment; 3-axis vs heading-only).
+
+**Claim:** Partly HW-agnostic (flags + WMM), but need confidence HW/builds **without**
+mag/WMM/GPS do not **break** or **silently fail** badly. Mag tick names **AK09916** + rate —
+HW-specific detail in domain code (**W-8**). Re-read enable + fallback as a product path.
+
+**WN-128** — [Grok] · `comment` · **ZUPT block should read clearly as ZUPT first**  
+Locus: ~L413–416 before `eskf_tick_zupt` (on-pad IDLE/ARMED, tight R, external cites).
+
+**Claim:** Needs clearer wording that this **is the ZUPT** path — title/first line first;
+pad/phase policy and external cites secondary and shorter.
+
+**WN-129** — [Grok] · `ownership` · **`ROCKETCHIP_HOST_TEST` ifdefs — re-check sequestration rules**  
+Locus: ~L492–496 `now_ms`; ~L517–519 / 538–546 full-tick bench; ~L551–556 `SIG_SENSOR_DATA`
+publish; file-top host stubs ~L22–30.
+
+**Claim:** Host/test carve-outs inside flight fusion. `#ifdef`’d, but **newer sequestration
+rules** apply — re-check allowed pattern vs stubs outside production TUs. Disposition against
+current host-test policy (not auto-delete).
+
+**WN-130** — [Grok] · `comment` · **Trailing comment: brake file split only for host tests**  
+Locus: ~L687–688 — brake in `eskf_brake.cpp` so host tests link without runner SDK deps.
+
+**Claim:** End-of-file comment is odd; structure is framed as **for host testing ease**.
+Re-check: still the real reason / still needed, or state a cleaner module boundary? Related
+**WN-129**.
+
+#### `fusion/eskf.{cpp,h}`
+
+*(Owner-directed regroup 2026-08-06: prior thin WN-131–142 collapsed into **WN-131–134**
+below. All loci/context kept; sub-nuances free to split at disposition. IDs **WN-135–142**
+were not left as empty stubs — next new global ID is **WN-135**. See **W-13**.)*
+
+**WN-131** — [Grok] · `comment` · **`eskf.h` comment density / wrong home — design-doc material & ticket tags**  
+Loci (`eskf.h`):
+- ~L6–20 file banner: 24-state ESKF summary, Solà arXiv, PX4/ArduPilot, “all noise from
+  ICM-20948 unless empirical,” every constant cited — **design-doc / reference essay**, not
+  a header top; short role line OK if kept.
+- File-wide: one short line per constant/API is good; many **3–4 line** blocks and some
+  singles with **5–8+** comment lines — general density problem on this header.
+- ~L163–164 P diagonal clamping “council review **RF-2**” (and similar bare council/C-n tags
+  elsewhere in this header, e.g. C-1 near GPS) — process tags prefer commit/CHANGELOG or a
+  one-line live “why,” same hygiene as **WN-117** / **WN-123**.
+- ~L206–234 mag heading **constants** block: long tutorial (H≈yaw-only, tilt, 10Hz spin /
+  wrap_pi, 300σ gate / mNIS death spiral) — essay length even where content is true.
+- ~L251–270 **ZUPT** section + σ/R prose (unobservable v/p ~30s, stationarity = RF-5,
+  ArduPilot/PX4 cites, P_v collapse / gain vanishes) — if depth needed → **ZUPT design doc**
+  (or link); if rehash of external refs → short comment + cites only, don’t repeat.
+- ~L368–380 `update_mag_heading` API wall (params, two-tier interference, declination,
+  H approx, Solà, Joseph) — trim to contract; detail → doc.
+
+**Claim:** One disposition family — **comment volume and home** (code vs design doc vs
+commit pointer). Per-line constants OK; multi-line tutorials and ticket archaeology not.
+Do not lose the listed loci when remediating; disposition may still peel ZUPT-doc vs
+banner-trim vs ticket-rewrite as separate tasks later.
+
+**WN-132** — [Grok] · `comment` · **`ESKF_USE_BIERMAN`: removed-when OK; “kept on” unclear**  
+Locus: ~L30–35 — Bierman only path; Joseph removed 2026-07; define always `1` “so residual
+call sites / docs can still mention it.”
+
+**Claim:** Good to record **what was removed and when**. Unclear what always-on
+`ESKF_USE_BIERMAN` still buys (dead switch? residual `#if`s? docs only?). **Address**
+delete vs intentional keep; comment should be **briefer**. Distinct from density (**WN-131**):
+this is a **leftover feature switch**, not essay length.
+
+**WN-133** — [Grok] · `ownership` · **Noise/init defaults and comments are prototype-HW-centric**  
+Loci (`eskf.h` constants / nearby):
+- ~L6–20 banner also claims ICM-20948 as default noise SSOT (overlap with **WN-131** home;
+  **substance** here is HW coupling).
+- ~L78–100 IMU noise spectral densities + bias walks — ICM-20948 DS-000189 tables; ArduPilot
+  contrasts; “verified correct.”
+- ~L138–154 P init — “Solà + ICM-20948 ZRO” / board-level ZRO tables.
+- ~L197–204 baro R — **DPS310** @ 8× OSR → 0.033 m σ.
+- ~L206–234 mag R/gates — **AK09916** noise, 10Hz update assumptions (length → **WN-131**;
+  SKU lock → here).
+- ~L277–289 GPS R — **MT3333 / PA1010D** CEP50, HDOP scale, council C-1; ArduPilot u-blox
+  contrast.
+
+**Claim:** Comments and default numbers read as **current prototype SKUs**, not necessarily
+universal ESKF. **Verify code isn’t hard-wired** beyond “defaults for the sensors we use”
+(silent wrong-R if baro/mag/GPS/IMU change). Same tension as **W-8**, runner INTERIM axes
+(**WN-124**). Disposition may still split IMU vs baro vs mag vs GPS later without losing
+loci above.
+
+**WN-134** — [Grok] · `invariant` · **Some defaults justified only for one mission/flight shape**  
+Loci:
+- ~L119–123 `kSigmaWindWalk` — ArduPilot wind; **parachute descent** high drag / low inertia
+  “more like Copter” → 0.2 (not Plane 0.1).
+- ~L186–195 `kMaxHealthyVelocity` = 500 m/s — **hobby rocket** burnout ~Mach 1.5, ICM
+  silent-zero divergence story; 500 m/s headroom narrative.
+
+**Claim:** Starting points from a **single phase/vehicle example** are fine if labeled, but
+must be **evaluated for universality** (other phases, HAB, low-speed, etc.) — wind process
+noise and velocity health guard may be wrong-sized outside that story. Phase Q/R may already
+override some of this; confirm rather than assume. Sub-nuances (wind only vs vel only) can
+split at disposition; both are “not universal as written.”
+
+**WN-135** — [Grok] · `comment` · **`eskf.cpp` large inline essays/tables — density / design-doc home**  
+Loci (non-exhaustive; owner noticed these — more may exist in ~1.8k LOC file):
+- ~L111–118 gravity→attitude init narrative — shorten if kept.
+- ~L200–219 `build_F` F_δ **block table** — OK as a design ref, too large inline with code.
+- ~L264–269 `build_Qc` — length maybe OK but **needs clearer wording** (R-8/R-9 buried).
+- ~L337–347 `predict` codegen history / sparse-vs-codegen essay.
+- ~L401–420 `reset` / G Jacobian long form + RF-1.
+- ~L549–556 negative-diag floor story (host replay 2026-07-09).
+- ~L705–722 `update_baro` measurement-model wall; ~L729–734 dual-H/bierman note.
+- ~L789–823 `update_mag_heading` **document inserted into code** (model steps, UNOBSERVABLE,
+  two-tier interference, Joseph, LL Entry 1).
+- ~L911–923, ~L987–993, ~L1081+, ~L1174+, ~L1186+, ~L1268, ~L1334, ~L1404, ~L1465–1467,
+  ~L1569, ~L1652 — further large explanatory / table blocks (same class; inventory at
+  disposition).
+- ~L1014–1032 `update_zupt` banner (stationarity, sequential scalar, ArduPilot/PX4).
+
+**Claim:** Same family as header **WN-131** — per-function design essays and ASCII matrices
+belong in **design docs** (or short cite + link), not multi-screen comments beside flight
+math. Keep contracts short; do not lose the listed loci when trimming. Comment rework should
+also help **file size** pressure (**WN-139**).
+
+**WN-136** — [Grok] · `comment` · **Opaque ticket / equation / “surfaced” refs in `eskf.cpp`**  
+Loci + what they appear to mean (verify at disposition):
+- ~L9–13 **“R3”** — compile-time **codegen↔`eskf.h` sigma drift guards**
+  (`static_assert` + `-Wfloat-equal` suppress for constexpr identity). Label “R3” is not
+  self-explanatory in-tree; comment explains *what* but not *which review* R3 was.
+- ~L37 **JSF AV Rule 151** — “file-scope constants from inline literals”; **re-verify** the
+  rule still applies / is the right cite for this block.
+- ~L73 **“Solà (2017) Eq. 9”** on `skew` — OK paper pin if Eq. 9 is still the skew definition
+  in that paper; “what’s eq 9?” should be answerable without opening arXiv (or drop to
+  “skew-symmetric [v]×, Solà”).
+- ~L102 / ZUPT ~L1020+ **“RF-5”** — stationarity check (same council tag as header
+  stationarity constants); bare ticket.
+- ~L163, ~L178 Solà §/Eq. pins on `propagate_nominal` — vague if reader can’t map without
+  the paper open; same class as Eq. 9.
+- ~L266–268 **R-9** / **R-8** on Q_d / clamp inhibited blocks.
+- ~L421 **RF-1** on reset G.
+- ~L610–611 (and ~L549–554 related) “Surfaced 2026-07-09…” UD/factorize repair — date OK;
+  **update with durable refs** (commit/CHANGELOG/PR); **double-check the fix itself** still
+  correct under current Bierman/UD path.
+
+**Claim:** Process/equation labels and “surfaced on DATE” notes need **readable live meaning**
+or **commit/CHANGELOG** pointers under current standards — same hygiene as **WN-123** /
+**WN-131** ticket tags. Distinct from pure length (**WN-135**): even a short “RF-5” is opaque.
+
+**WN-137** — [Grok] · `ownership` · **Module boundary: `eskf` vs codegen / verify / non-core aids**  
+Loci / themes:
+- ~L4 include `eskf_codegen.h`; ~L9–32 **R3 drift `static_assert`s** against codegen sigmas —
+  codegen-specific coupling **in** `eskf.cpp`. Evaluate whether this (and similar) belongs
+  next to **codegen / generator** (or a tiny bridge TU), not the core filter impl — even if
+  related.
+- ~L337–347 / `predict` uses codegen FPFT; ~L343 / dense **`predict_dense` retained as
+  verification (Test 8)** — evaluate that this isn’t **host-test-only** machinery bloating
+  the flight TU (or that sequestration rules are met). Related **WN-129** host-test pattern
+  on runner.
+- Overall feel of **`eskf.{h,cpp}` pair**: code named ESKF should **handle ESKF work**;
+  codegen artifacts, long verification paths, and maybe other “related but not core” bits
+  need a deliberate home.
+- **ZUPT** (~L1014+ and header ZUPT constants/docs **WN-131** / **WN-140** family): owner
+  note — *perhaps all ZUPT code should live together in separate files* if it keeps growing;
+  not mandatory split mid-walk, but structure question for disposition.
+
+**Claim:** **Boundary and placement** disposition — what stays in `eskf.cpp` vs
+`eskf_codegen` / tests / optional `eskf_zupt` (names TBD). Keep full locus list; sub-splits
+(codegen vs ZUPT vs dense verify) allowed later.
+
+**WN-138** — [Grok] · `ownership` · **File-scope constants block: HW-specific / magic risk**  
+Locus: ~L39–66 anonymous-namespace constants (`kMinInnovationVariance`, `kQuatNormTolerance`,
+`kMaxGyroBias` “10 dps… **ICM-20948** ±5°/s ZRO”, block spans, P-growth epsilon, …).
+
+**Claim:** High risk of **HW- or prototype-specific values** (and under-sourced thresholds)
+living as local magic with light comments. Re-check each against datasheet/profile defaults
+and **WN-133** header noise story; prefer named sourced defaults or profile hooks where the
+value is really SKU-dependent. Overlaps header HW theme; **this locus is the cpp locals**.
+
+**WN-139** — [Grok] · `ownership` · **`eskf.cpp` size (~1.8k+ LOC) — worth a structural look**  
+Locus: whole `src/fusion/eskf.cpp` (~**1826** lines at walk; header ~625). Among larger
+project TUs even if no hard LOC gate is violated.
+
+**Claim:** Size alone is not automatic FAIL, but **worth evaluating** (split by concern:
+predict/reset, measurements, ZUPT, GPS origin, UD/Bierman glue, …) especially after comment
+trim (**WN-135**) still leaves a heavy impl. Ties to module-boundary **WN-137**. Confirm
+against any project size standards at disposition; owner recollection: one of the largest
+files in the tree.
+
+#### `fusion/eskf_brake.cpp`
+
+**WN-140** — [Grok] · `ownership` · **Tiny solo TU — does the brake need its own file?**  
+Locus: whole file (~41 LOC impl) — banner ~L3–14: **Migrated 2026-04-22 from
+`watchdog_recovery`**; runtime-only consecutive-fail disable; file-local statics;
+USER_GUIDE safety-posture note. API decls still live on `eskf_runner.h`; runner end
+comment (**WN-130**) also claims split was for **host-test link** without runner SDK deps.
+
+**Claim:** File is **very small** — evaluate whether a dedicated translation unit still
+earns rent vs living next to runner/brake call sites. The **2026-04-22 migration** cite
+(and host-test link story) should drive the investigation; keep, merge, or re-home
+deliberately. Not a defect in the counter logic itself this sitting.
+
+#### `fusion/eskf_state.h`
+
+**WN-141** — [Grok] · `comment` · **Banner: vague refs + unclear state “table”; keep short**  
+Locus: ~L6–16 — Solà “S5”, 24-state layout line, ArduPilot `statesArray[24]` / NavEKF3,
+extended-state inhibit blurb.
+
+**Claim:** Mix of **vague source pins** (Solà section form, ArduPilot file cite without a
+durable pointer) and an **attempted state layout listing that doesn’t read as a clear
+table**. Same shortness theme as other fusion headers (**WN-131** family): useful index
+file does not need a long banner — tighten layout presentation (or real table elsewhere)
+and make any keep refs scannable. Rest of file (named `kIdx*` constants) not flagged this
+sitting.
+
+#### `fusion/eskf_codegen.{cpp,h}`
+
+— **exempt from walk** (itinerary standing exemption + CG-1: auto-generated by
+`scripts/generate_fpft.py`; size/comment/design lenses N/A). Spot-check only: both
+files carry `AUTO-GENERATED … DO NOT EDIT` (cpp also SymPy stamp 2026-02-21). Not a
+semantic pass; not `nothing of note.`
+
+#### `fusion/confidence_gate.{cpp,h}`
+
+**WN-142** — [Grok] · `comment` · **Safety-layer banner claims need elevated scrutiny (wording)**  
+Locus: `confidence_gate.h` ~L6–19 — binary “trust my estimates”; FD consumer;  
+`// This is a PLATFORM SAFETY layer — NOT configurable by Mission Profiles.`  
+`// All thresholds are VALIDATE defaults for field tuning.`  
+Also pyro lock when `confident=false`, hysteresis lines.
+
+**Claim:** If this is **safety-critical** (platform safety, pyro lockout, not mission-profile
+tunable), the banner and related comments need **more scrutiny than ordinary fusion prose** —
+especially **wording** (what “PLATFORM SAFETY” means vs USER_GUIDE levels, VALIDATE vs frozen
+flight limits, “field tuning” vs “NOT configurable”). Rest of header not flagged this sitting
+beyond that safety-claim surface.
+
+**WN-143** — [Grok] · `comment` · **`confidence_gate.cpp` has no module/role header at all**  
+Locus: `confidence_gate.cpp` top — SPDX/copyright then `#include` and functions (~73 LOC);
+no file-level role banner.
+
+**Claim:** After many fusion TUs with **overlong** banners, this one is the opposite: **no
+explanation header**. Ironic but real — for a safety-facing gate (**WN-142**), a **short**
+role line (what it does / who calls it / hysteresis) would match project norms without
+reintroducing essay density. Nothing else flagged on the cpp this sitting.
+
+#### `fusion/innovation_monitor.{cpp,h}`
+
+**WN-144** — [Grok] · `comment` · **Council A7 design-properties cite — update / re-verify**  
+Locus: `innovation_monitor.h` ~L13–18 `// Design properties (Council A7):` one-way Q inflate,
+cap, freeze during phase ramps.
+
+**Claim:** Bare **council decision** tag needs the usual refresh (commit/CHANGELOG or drop to
+live “why”). If it **did** come from that council item, fine **as long as the properties still
+hold** (one-directional inflate, max cap, caller freezes on phase ramps) under current ESKF
+wiring. Re-verify at disposition; don’t treat “Council A7” as self-proving.
+
+**WN-145** — [Grok] · `comment` · **`innovation_monitor.cpp` no module/role header**  
+Locus: cpp top — SPDX then include/impl (~59 LOC); no file-level role banner.
+
+**Claim:** Same pattern as **WN-143** (`confidence_gate.cpp`) — **no notable header**. Pair is
+intentionally **brief**; name/role (innovation / NIS window → Q scale) fits a specialized
+helper, so shortness of the **code** is fine — only the missing one-liner role note on the
+cpp is the comment gap. Header already carries the purpose blurb.
+
+#### `fusion/mahony_ahrs.{cpp,h}`
+
+**WN-146** — [Grok] · `comment` · **`mahony_ahrs.h` banner mostly fine; re-check refs + density**  
+Locus: ~L6–21 role + Mahony 2008 + PHASE5_MAHONY_PLAN + ArduPilot/PX4/BF/INAV list; also
+general multi-line constant notes (~L45–68) and method docs later in header.
+
+**Claim:** Banner content is **mostly fine** — still **double-check** paper/plan/stack
+references still resolve and match current code. Secondary: **general comment density**
+on this header (not banner-only) — same tidy-toward-short-contract theme as other fusion
+headers (**WN-131** family), without calling the role blurb overlong.
+
+**WN-147** — [Grok] · `ownership` · **Council cites: important, not infallible project pillars**  
+Locus: ~L41–43 `// Council-approved parameters (arXiv:… + 3-stack consensus)`; also e.g.
+~L63 “Council tightened from ±25%”; pattern across walk (A6/A7/RF-*/C-n, etc.).
+
+**Claim:** Council decisions are **important** and worth citing when real, but be careful
+that a **single offhand council suggestion** does not freeze into a **major project pillar**.
+The council process is a **useful auxiliary**, not bulletproof authority — re-validate
+that “council-approved” params/policies still earn their weight on evidence, not on the
+label alone. Applies beyond this file whenever a bare council tag is the only load-bearing
+justification (**WN-144** A7, **WN-136** RF-*, etc.).
+
+**WN-148** — [Grok] · `comment` · **`mahony_ahrs.cpp` no module/role header**  
+Locus: cpp top — SPDX then includes/impl; no file-level explanation chunk.
+
+**Claim:** Same missing-banner pattern as **WN-143** (`confidence_gate.cpp`), **WN-145**
+(`innovation_monitor.cpp`). Owner note: these may have been **written together** as a batch
+with no cpp banners. One short role line per TU (or a shared style decision) at disposition;
+nothing else flagged on this cpp this sitting.
+
+#### `fusion/ud_factor.{cpp,h}`
+
+**WN-149** — [Grok] · `comment` · **`ud_factor.h` massive comment ratio**  
+Locus: whole header (~55 lines) — banner L6–14, struct/API docs, large Bierman section
+from ~L39 onward relative to thin declarations.
+
+**Claim:** **Comment mass dominates** the header vs the actual surface (UD24 + a few
+functions). Only note on the `.h` this sitting — tidy to short contracts; detail → design
+doc (Bierman/UD path already has CHANGELOG cite). Density family **WN-131** / **WN-146**.
+
+**WN-150** — [Grok] · `comment` · **`ud_factor.cpp` Doxygen top + large algorithm blocks; plain role line?**  
+Loci: ~L3–12 `@file`/`@brief` Doxygen (Thornton/Bierman, time_critical, LL 30) — not the
+same “empty top” as **WN-143**/**WN-145**/**WN-148**, but owner still notes **no plain
+explanation chunk** and questions **whether cpp banners are even needed** (style decision).
+Large blocks: ~L51–59 modified Cholesky steps; ~L87–96 Bierman section; ~L102–105
+`bierman_compute_fg` prose.
+
+**Claim:** Algorithm essays / multi-line formula comments should shrink or move to a UD/Bierman
+note; keep short “what/why” at call sites if anything. Fold the **“are cpp file banners
+required?”** question with the missing-banner cluster (**WN-148** etc.) at disposition —
+one house rule, not per-file flip-flops.
+
+**WN-151** — [Grok] · `invariant` · **NOLINT magic-numbers on `24` array dims**  
+Locus: ~L32 `ud_to_dense(… float p[24][24])`, ~L50 `ud_factorize(… const float p[24][24])`
+— `// NOLINT(readability-magic-numbers)`.
+
+**Claim:** `24` is the ESKF state size (`kN` / `eskf::kStateSize` already exist in-tree).
+Prefer typed/`constexpr` dims or shared alias over NOLINT-suppressed literals (same class as
+**WN-114** / **WN-043** NOLINT-magic discipline).
+
+#### `fusion/phase_qr.h`
+
+**WN-152** — [Grok] · `comment` · **Council 2026-03-29 cite + general density**  
+Loci: ~L17 `// Council review 2026-03-29: unanimous approval, 7 amendments (A1-A7).`;
+file-wide comment mass (banner delta formula ~L9–15, struct field notes, phase index
+list, etc.).
+
+**Claim:** Council line needs usual treatment — durable pointer / still-valid, and
+**WN-147** caution (council not infallible pillar). Also **general comment density** on
+this header (shorten; keep live Q/R contract). Nothing else this sitting.
+
+#### `fusion/wmm_tables.{cpp,h}`
+
+— **light / generated** (itinerary: data table — light). Both files stamp
+`AUTO-GENERATED by scripts/generate_wmm_table.py` / Do not edit; WMM2025 tables.
+Not a semantic standards walk of the table body. Codegen inventory / hand-edit audit →
+walk WB **W-14**.

@@ -109,17 +109,17 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### fusion/ — ESKF & AHRS
 
-- [ ] `fusion/eskf_runner.{cpp,h}`  — *(fusion; WMM / cal_flags — float-sentinel remediated via `CAL_STATUS_WMM_SET`)*
-- [ ] `fusion/eskf.{cpp,h}`
-- [ ] `fusion/eskf_brake.cpp`
-- [ ] `fusion/eskf_state.h`
-- [ ] `fusion/eskf_codegen.{cpp,h}`  — *(EXEMPT: auto-generated, CG-1; confirm untouched)*
-- [ ] `fusion/confidence_gate.{cpp,h}`
-- [ ] `fusion/innovation_monitor.{cpp,h}`
-- [ ] `fusion/mahony_ahrs.{cpp,h}`
-- [ ] `fusion/ud_factor.{cpp,h}`
-- [ ] `fusion/phase_qr.h`
-- [ ] `fusion/wmm_tables.{cpp,h}`  — *(data table — light)*
+- [x] `fusion/eskf_runner.{cpp,h}`  — *(fusion; WMM / cal_flags — float-sentinel remediated via `CAL_STATUS_WMM_SET`)*
+- [x] `fusion/eskf.{cpp,h}`
+- [x] `fusion/eskf_brake.cpp`
+- [x] `fusion/eskf_state.h`
+- [x] `fusion/eskf_codegen.{cpp,h}`  — *(EXEMPT: auto-generated, CG-1; confirm untouched)*
+- [x] `fusion/confidence_gate.{cpp,h}`
+- [x] `fusion/innovation_monitor.{cpp,h}`
+- [x] `fusion/mahony_ahrs.{cpp,h}`
+- [x] `fusion/ud_factor.{cpp,h}`
+- [x] `fusion/phase_qr.h`
+- [x] `fusion/wmm_tables.{cpp,h}`  — *(data table — light)*
 
 ### calibration/
 
@@ -221,7 +221,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `25 / 184 files walked.` Update as you go. When complete, the per-class findings tables (in the)
+**Progress:** `58 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)
 </content>

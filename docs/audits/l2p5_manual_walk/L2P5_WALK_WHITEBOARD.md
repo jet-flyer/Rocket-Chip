@@ -377,3 +377,92 @@ if density explodes, tighten form or disposition process — not a mid-walk rewr
 existing WNs. Erase when walk closes or owner reaffirms “still fine.”
 
 **Blocking?** No
+
+---
+
+### W-12 — Brief overview (itinerary keywords → only matching sections)
+
+**Surfaced:** 2026-08-06 · owner during `fusion/eskf_runner.h` walk  
+**Clarified (same sitting):**
+1. “File notes” = **only** the itinerary checkbox parenthetical (not agent themes).
+2. Overview is **not** a full section-by-section file map.
+3. If itinerary **keywords** show up in a concrete section of the open file, **show
+   that section** (locus + short “what the itinerary note means” if needed). If a
+   keyword does not appear in this half of the pair (e.g. header-only), say so
+   briefly — don’t invent a TOC of every region.
+
+**Example itinerary line:**  
+`fusion/eskf_runner.{cpp,h}` — *(fusion; WMM / cal_flags — float-sentinel remediated
+via `CAL_STATUS_WMM_SET`)*  
+→ surface WMM / `cal_flags` / `CAL_STATUS_WMM_SET` (and the remediated-sentinel idea)
+only where those tokens live; “fusion” alone is the module label, not a reason to
+outline the whole file.
+
+**What it is not:** Unsolicited pre-walk; full line-section breakdown; inventing
+findings; agent-authored hot-spot lists.
+
+**Disposition target:** fold into `L2P5_MANUAL_WALK_GUIDE.md` (or session handoff /
+process note); erase when documented or owner declines.
+
+**Blocking?** No — apply from this row until folded into the guide.
+
+---
+
+### W-13 — Condense WNs by disposition (esp. central / dense leaves)
+
+**Surfaced:** 2026-08-06 · owner after `eskf.h` volume (~12 thin WNs) vs runner-style grouping
+
+**What:** When filing walk findings, **merge by disposition**, not by line number:
+- One `WN` per claim that would get a **different** later keep/fix/move-doc decision.
+- **Same disposition** → **one WN**, multi-locus list, **full context retained** (quotes,
+  line ranges, HW names, ticket ids). Do **not** drop detail to save lines.
+- **Nuance inside one disposition** can wait for disposition-time split — walk filing
+  should not pre-split “just in case.”
+- **Especially** on central files that mint many notes (fusion/`eskf*`, `eskf_runner`,
+  flight_director, logging rings, shared_state, …): prefer **fewer richer WNs**
+  (ballpark ~2–5 per dense leaf when notes cluster) over ~10 thin ones. Volume watch
+  **W-9** still applies.
+- Recurring project themes (comment density, HW leakage, bare council tags): **cite**
+  an earlier WN when this leaf only repeats; new ID only for a **new** twist or a
+  locus inventory worth its own row.
+
+**Example:** `eskf.h` owner-directed regroup — density/design-doc/ticket essays →
+**WN-131**; leftover Bierman switch → **WN-132**; prototype-HW noise defaults →
+**WN-133**; single-mission tuning (wind chute / rocket vel guard) → **WN-134**.
+
+**Also:** findings form **Split vs merge** row updated to match (2026-08-06).
+
+**Disposition target:** fold into findings header / `L2P5_MANUAL_WALK_GUIDE.md` process;
+erase when documented.
+
+**Blocking?** No — apply when filing WNs.
+
+---
+
+### W-14 — Codegen / generated-output inventory: audit done or planned?
+
+**Surfaced:** 2026-08-06 · owner on `fusion/wmm_tables` (AUTO-GENERATED) + prior hand-edit
+of generated code
+
+**What:** Double-check whether a **codegen / generated-file audit** has already been run or
+is **planned**, covering “outputs only come from generators; no silent hand-edits.” Lived
+pain: generated code was edited by hand before (e.g. mission-profile header drift →
+“Auto-Generated Code” rule in CODING_STANDARDS / CHANGELOG). Walk keeps hitting generated
+or generator-coupled leaves:
+
+| Leaf / artifact | Generator (claimed) |
+|-----------------|-------------------|
+| `fusion/eskf_codegen.{cpp,h}` | `scripts/generate_fpft.py` (CG-1) |
+| `fusion/wmm_tables.{cpp,h}` | `scripts/generate_wmm_table.py` |
+| `flight_director/mission_profile_data.h` | `scripts/generate_profile.py` (itinerary: confirm) |
+| (others?) | sweep `AUTO-GENERATED` / `Do not edit` under `src/` + `include/` |
+
+**Ask:** Is there an existing audit, CI gate, or booked work that (a) inventories generators
+vs outputs, (b) detects hand-edits / drift, (c) policy for SPDX/headers on generated files
+(**WN-004** noted missing SPDX on some)? If not, plan one post-walk or as a dedicated pass
+— not mid-walk mass regen.
+
+**Disposition target:** findings close-out note, PROBLEM_REPORTS / plan item, or confirm
+existing audit and erase; optional CI later.
+
+**Blocking?** No — walk continues; light/exempt leaves still only confirm DO-NOT-EDIT stamps.
