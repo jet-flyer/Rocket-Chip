@@ -131,17 +131,17 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### flight_director/
 
-- [ ] `flight_director/flight_director.{cpp,h}`  — *(1 volatile phase-observable pair → concurrency 3-question test)*
-- [ ] `flight_director/command_handler.{cpp,h}`
-- [ ] `flight_director/action_executor.{cpp,h}`
-- [ ] `flight_director/go_nogo_checks.{cpp,h}`
-- [ ] `flight_director/guard_evaluator.{cpp,h}`
-- [ ] `flight_director/guard_combinator.{cpp,h}`
-- [ ] `flight_director/guard_functions.{cpp,h}`
-- [ ] `flight_director/flight_state.h`
-- [ ] `flight_director/flight_actions.h`
-- [ ] `flight_director/mission_profile.h`
-- [ ] `flight_director/mission_profile_data.h`  — *(codegen / profile data — light; confirm generator relationship)*
+- [x] `flight_director/flight_director.{cpp,h}`  — *(1 volatile phase-observable pair → concurrency 3-question test)*
+- [x] `flight_director/command_handler.{cpp,h}`
+- [x] `flight_director/action_executor.{cpp,h}`
+- [x] `flight_director/go_nogo_checks.{cpp,h}`
+- [x] `flight_director/guard_evaluator.{cpp,h}`
+- [x] `flight_director/guard_combinator.{cpp,h}`
+- [x] `flight_director/guard_functions.{cpp,h}`
+- [x] `flight_director/flight_state.h`
+- [x] `flight_director/flight_actions.h`
+- [x] `flight_director/mission_profile.h`
+- [x] `flight_director/mission_profile_data.h`  — *(codegen / profile data — light; confirm generator relationship)*
 
 ### logging/ + log/
 
@@ -221,7 +221,8 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `63 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
+**Progress:** `74 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
+
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)
 </content>

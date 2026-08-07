@@ -462,7 +462,49 @@ vs outputs, (b) detects hand-edits / drift, (c) policy for SPDX/headers on gener
 (**WN-004** noted missing SPDX on some)? If not, plan one post-walk or as a dedicated pass
 — not mid-walk mass regen.
 
+**Addendum 2026-08-06 (owner on `mission_profile_data.h`):** Prefer an **automated**
+check that generated outputs match a **fresh regen** (current tree vs regenerate-to-temp
+delta / hash of generator inputs). Any **manual/agent edit** of generated files must
+either (1) land in the **generator or input** so it survives regen, or (2) be explicitly
+accepted and will **not** be lost. Comments inside generated bodies (**WN-196**) are a
+special case of the same failure mode.
+
 **Disposition target:** findings close-out note, PROBLEM_REPORTS / plan item, or confirm
 existing audit and erase; optional CI later.
 
 **Blocking?** No — walk continues; light/exempt leaves still only confirm DO-NOT-EDIT stamps.
+
+---
+
+### W-15 — Safety/ops criticality inventory (files + “functions” as capabilities)
+
+**Surfaced:** 2026-08-06 · owner on `go_nogo_checks` (vital pre-arm) + tangent
+
+**What:** Consider a **project-wide list** of the most critical surfaces **safety- and
+ops-wise** — not C++ language “functions,” but **things the system does** (Go/No-Go,
+launch abort, pyro intent, confidence gate, ESKF healthy, FD HSM, …) mapped to owning
+files/APIs. Purpose: easy tracking, review priority, gate scope, doc SSOT. Distinct from
+build tiers / fusion walk tiers / Go/No-Go Tier 1–2.
+
+**Seed from walk:** Go/No-Go (**WN-182**), confidence gate (**WN-142**), FD launch abort
+(**WN-172**), FIRE_PYRO transition-only (**WN-176**), ESKF brake, fault recovery, …
+
+**Disposition target:** optional SAD appendix, USER_GUIDE safety model companion, or audit
+checklist; erase when created or declined.
+
+**Blocking?** No
+
+---
+
+### W-16 — Stage / IVP / trigger comments must match current product state
+
+**Surfaced:** 2026-08-06 · owner on `flight_state.h` / `flight_actions.h` (+ FD pattern)
+
+**What:** Comments that name **Stage N**, **IVP-N**, or “not yet / only in Stage …”
+(e.g. “no physical pyro in Stage 8”) go stale when capability advances. Keep them
+**true to current product**, or demote to history with CHANGELOG/commit. Related
+**WN-189**, **W-6**.
+
+**Disposition target:** comment hygiene pass / CODING_STANDARDS note; erase when booked.
+
+**Blocking?** No

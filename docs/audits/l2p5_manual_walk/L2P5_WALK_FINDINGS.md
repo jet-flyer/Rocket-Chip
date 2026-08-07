@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-06 · Grok · cal_hooks WN-168–169
+**Last edited:** 2026-08-06 · Grok · guard_functions WN-197
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-170
+**Next ID:** WN-198
 
 ---
 
@@ -2218,3 +2218,271 @@ R-17/R-18 extraction essay again.
 invariant** (keep short + datasheet/LL cite) but is **SKU-specific** — same HW caution
 as **WN-156**. Re-evaluate whether this file should stay a thin specialized bridge or
 absorb more / less once banners are honest.
+
+### flight_director/
+
+#### `flight_director/flight_director.{cpp,h}`
+
+**WN-170** — [Grok] · `comment` · **HSM / state / signal tables belong in a design doc**  
+Loci (`flight_director.h`): ~L3–36 full HSM tree + signal list banner; ~L63–74 usage
+snippet block. (`flight_director.cpp`): ~L3–17 ABORT behavior table; many per-state
+// Accepts: tables e.g. ~L342–346, ~L376–381, ~L414–417, ~L590–599 (ABORT particularly
+large); more instances not listed exhaustively.
+
+**Claim:** ASCII **statecharts and transition tables** are valuable but **too large inline**
+— move to FD design doc; keep one-line role + pointer in code. Pattern is file-wide on
+the cpp, not one-off.
+
+**WN-171** — [Grok] · `ownership` · **Backward-compat FlightSignal alias — not needed this stage?**  
+Locus: h ~L56–61 `FlightSignal` as backward-compatible alias; values unchanged note.
+
+**Claim:** Looks like **compat shims**. At this project stage, evaluate whether
+compatibility aliases are still required or can be removed (grep callers → drop).
+Don’t keep forever “in case.”
+
+**WN-172** — [Grok] · `comment` · **IVP/dev refs + safety posture wording (header)**  
+Loci: h ~L88–91 `beacon_cb` IVP-121 + council 2026-05-20 + FAULT_RECOVERY doc path;
+~L113–116 launch abort “level 3 safety posture”, USER_GUIDE “see doc” (good), power-cycle
+clear.
+
+**Claim:** IVP/council tags — usual hygiene (**W-6**, **WN-147**). If launch abort is
+truly **safety-critical** as claimed, wording needs **elevated scrutiny** (same family as
+confidence-gate **WN-142**); “see USER_GUIDE Safety State Model” is the right shape —
+ensure code matches the doc.
+
+**WN-173** — [Grok] · `comment` · **`flight_director.cpp` process tags, dated docs, vague B.x, IVP essays**  
+Loci:
+- ~L21–22 IVP / fault-recovery **in `#include` lines** (odd place for process tags).
+- ~L60–61 FAULT_RECOVERY **dated** filename — good “see doc” idea, date-in-path **rots** /
+  pauses owner; prefer stable doc id/title.
+- ~L140–146 B.3 packing essay; ~L211 B.3 seed — **what is B.3 / B.6?** vague without the
+  decision doc open (user also noted B.6 — confirm if present elsewhere).
+- ~L262–284 IVP-121 multi-channel landing block (+ code) — large IVP-ref’d essay.
+- ~L355–358 Council 2026-05-20 IDLE re-init — large + dated council.
+- Tables already under **WN-170**.
+
+**Claim:** Same density/archaeology family as header; **opaque B.x** and **dated decision
+paths** need live meaning or stable links. IVP-121 logic may stay; comments should not
+rehost the IVP writeup.
+
+#### `flight_director/command_handler.{cpp,h}`
+
+**WN-174** — [Grok] · `comment` · **`command_handler_validate` per-command rules block long**  
+Locus: `command_handler.h` ~L39–47 — ARM Go/No-Go, DISARM ARMED-only, ABORT phases +
+Amendment #1 note, RESET LANDED/ABORT, `go_nogo_input` only for ARM.
+
+**Claim:** Useful contract but **long for a header** — belongs in design/CLI command
+policy doc (or short bullets + “see …”). Keep one-liner on the function if anything.
+
+**WN-175** — [Grok] · `comment` · **Opaque “R-25-exec” on test-mode ARM gate**  
+Loci: cpp ~L9 `#include "safety/test_mode.h" // R-25-exec: refuse ARM if test mode armed`;
+~L45–49 multi-line “R-25-exec council amendment #2 (second clearing gate)…” essay.
+
+**Claim:** **R-25-exec** is not self-explanatory here (bench-tier deprecation / test-mode
+workstream — see PROBLEM_REPORTS / `BENCH_TIER_DEPRECATION_2026-05-13.md` if kept). Prefer
+live rule (“refuse ARM while test mode active”) + durable commit/CHANGELOG; drop ticket
+essay. Same process-tag hygiene as **WN-123** / **WN-173**.
+
+#### `flight_director/action_executor.{cpp,h}`
+
+**WN-176** — [Grok] · `comment` · **Action-type / FIRE_PYRO safety tables + ActionEntry param map**  
+Loci: h ~L4–20 action-type list + Council Amendment #2 (FIRE_PYRO never entry/exit —
+transition only); ~L86–94 ActionEntry param interpretation table. Cpp ~L3–5 almost no
+role banner.
+
+**Claim:** Action catalog and safety rule are **design-doc material** (or short pointer);
+council/safety claims need **proper treatment** if still load-bearing (**WN-142** /
+**WN-172** family). Param table can be one line per type. Cpp front is the opposite
+extreme (thin) — fine if h carries role.
+
+**WN-177** — [Grok] · `ownership` · **LED phase codes split: main.cpp overlay scheme + this enum**  
+Locus: h ~L42–45 `LedPhaseValue` “extends kCalNeo* / kRxNeo* overlay scheme in main.cpp”,
+values from 20 to avoid collision.
+
+**Claim:** If LED overlay policy is one system, **why half in main and half here?**
+Evaluate single home (notify/LED module vs FD) so cal/rx/flight codes don’t drift across
+files. Ties to sparse “is this TU enough?” (**WN-178**).
+
+**WN-178** — [Grok] · `ownership` · **Pair is sparse — still the right breakout?**  
+Locus: whole pair (~134 h / ~73 cpp) — thin dispatch over `flight_actions.h` constexpr
+lists + callbacks.
+
+**Claim:** Specialized and small may be OK, but with LED numbering half in main
+(**WN-177**) and actions data in `flight_actions.h`, confirm this isn’t an awkward
+**half-extraction**. Keep as clear “execute action lists” façade or fold toward one
+actions module — deliberate either way.
+
+#### `flight_director/go_nogo_checks.{cpp,h}`
+
+**WN-179** — [Grok] · `invariant` · **Two-tier Go/No-Go model — first walk encounter; verify SSOT**  
+Locus: h ~L7–14 Tier 1 platform (blocks ARM) vs Tier 2 profile (warn only); station lists;
+`all_go` = Tier 1 only.
+
+**Claim:** Owner note: **first recalled mention** of this two-tier split in the walk.
+Confirm it is still the intended product model, documented outside this header (USER_GUIDE /
+SAD / IVP), and that **callers + profiles** (`require_gps_lock` etc.) match. Not “delete” —
+**double-check condensation and control** (**WN-182**).
+
+**WN-180** — [Grok] · `comment` · **kGoNoGoMaxChecks bump: dated commit/council archaeology**  
+Locus: h ~L24–27 “Bumped 12→16 on 2026-05-14 (commit b/3 of fault-recovery)…” PriorHF +
+PriorBOR stations.
+
+**Claim:** Live capacity constant OK; **date-tied commit/council** story → CHANGELOG; short
+“room for Tier-1 prior-fault + Tier-2 stations.”
+
+**WN-181** — [Grok] · `comment` · **cpp IVP/Stage tags + garbled etl::string reason note**  
+Loci: cpp ~L5 `@brief … (IVP-69)`; ~L39–42 Stage T Batch B IVP-T14 RF Link station essay;
+~L47–50 “Branches with %u%% build via etl::string…” — **garbled / hard to parse** (meant
+printf `%%` vs ETL string formatting?).
+
+**Claim:** Drop or relocate IVP/stage archaeology; rewrite the ETL reason-building note in
+plain English if kept.
+
+**WN-182** — [Grok] · `ownership` · **Go/No-Go vital path — condensed ownership + criticality list**  
+Locus: pair + callers (`command_handler` ARM, main snapshot fill, mission profile Tier-2
+flags). Feature is **vital** for ops safety.
+
+**Claim:** Double-check Go/No-Go is **tracked and controlled in one place** (this module as
+evaluate/print SSOT; snapshot fill and station list not scattered without map). Tangent
+(owner): project may want a **criticality inventory** of safety/ops-critical files and
+functions — not C++ “tier,” product risk tier. Walk WB **W-15**.
+
+#### `flight_director/guard_evaluator.{cpp,h}`
+
+**WN-183** — [Grok] · `comment` · **Banner: sustain/managed model — ensure not sole SSOT**  
+Locus: h ~L3–18 — sustain counters, managed vs unmanaged, phase validity, Council A4.
+
+**Claim:** Explanation is fine in spirit; **verify** the managed/unmanaged + sustain model
+is also in design/FD docs so this header isn’t the **only** place that knowledge lives
+(**WN-163**).
+
+**WN-184** — [Grok] · `invariant` · **IVP tags + critical “DO NOT” only in comments on kGuardManaged**  
+Loci: ~L38 / ~L56 IVP-120 on `kBaroStationary`; ~L42–48 Council A4 +  
+`// DO NOT modify at runtime. This array is the contract between the evaluator and the combinator.`  
+plus managed/unmanaged table.
+
+**Claim:** Important **contract** (“do not modify at runtime”) lives in **comments that can
+be ignored** — not `const`/type-level enforcement beyond `constexpr` (array is still
+mutable if someone casts). Prefer stronger structure or tests that lock the table; slim
+IVP tags. Safety-adjacent: treat as load-bearing (**W-15**).
+
+**WN-185** — [Grok] · `comment` · **Odd hybrid: table-like Doxygen on guard_evaluator_tick**  
+Locus: ~L82–92 — multi-line `//` bullets then `@param` Doxygen lines for the same API.
+
+**Claim:** Looks like **half-migrated docs** (ordinary comments + Doxygen params) —
+odd regardless of length. Pick one style; keep short.
+
+— **nothing of note.** (`guard_evaluator.cpp` — owner-directed.)
+
+#### `flight_director/guard_combinator.{cpp,h}`
+
+**WN-186** — [Grok] · `comment` · **Header comment ratio high; pair sparse — evaluate home**  
+Locus: `guard_combinator.h` (~90 lines) — long `@file` three-layer safety architecture +
+industry cites + Council 2026-03-25; dense Doxygen/field notes relative to surface.
+Cpp: no path-specific defect this sitting.
+
+**Claim:** **Large comment ratio** on the header (same family as **WN-149** / density
+WNs). Pair overall can feel **sparse** as a breakout (combinator + lockout gates vs
+evaluator/FD) — **evaluate** keep as clear safety layer vs over-split (**WN-178** shape).
+Cpp: **nothing of note** beyond that shared sparsity question.
+
+#### `flight_director/flight_state.h`
+
+**WN-187** — [Grok] · `comment` · **Banner a bit large + IVP; phase/fault tables → design doc**  
+Loci: ~L4–14 IVP-68 Stage 8 banner; ~L24–46 phase topology table + kAbort vs kFault essay;
+~L66–86 fault-observable accessor (B.1/B.2/B.3 packing) — **B.2 vague** without decision
+doc open.
+
+**Claim:** Topology and fault-pair rules are **design-doc material** if not already
+elsewhere (point, don’t rehost). Slim banner; resolve B.x labels (**WN-173**).
+
+#### `flight_director/flight_actions.h`
+
+**WN-188** — [Grok] · `comment` · **Safety FIRE_PYRO table + NeoPixel table + FAULT essay**  
+Loci: ~L4–23 Amendment #2 pyro-only-on-transition + per-phase LED table; ~L127–140 FAULT
+entry block with **fault-recovery 2026-05-14** dated council essay.
+
+**Claim:** Safety callouts need proper treatment if still law (**WN-176**); LED/phase
+tables and long FAULT narrative → design doc / stable link, not dated path essays.
+
+**WN-189** — [Grok] · `comment` · **Stage/IVP/trigger comments must match current product state**  
+Locus: these leaves and similar FD files that cite **Stage 8**, IVP-N, “no physical pyro
+in Stage 8,” Batch/Stage T, etc.
+
+**Claim:** Comments that freeze a **stage or trigger** can lie after the product moves on.
+When remediating or re-reading, **sync comments to current capability** (or rephrase as
+historical only with CHANGELOG). Walk WB **W-16**. Applies beyond these two files
+wherever Stage/IVP/“in Stage N” language appears.
+
+#### `flight_director/mission_profile.h`
+
+**WN-190** — [Grok] · `comment` · **Banner: clarify mission-use-case config (not board/job); design doc**  
+Locus: ~L4–15 MissionProfile feeds FD; distinct from `job.h` (vehicle vs station); rocket
+vs HAB vs freeform; serialization-ready.
+
+**Claim:** Directionally right but **not as clear as it could be** — this is
+**user-definable per mission / use-case** config (not per board/SKU; job is role). Prefer
+design-doc home for the full story; short in-header line: “boot-locked mission/use-case
+thresholds for FD.” Confirm wording matches product (profile ≠ vehicle board pack).
+
+**WN-191** — [Grok] · `ownership` · **SI units on profile — project-wide mandatory in functional code**  
+Locus: ~L38 `// All thresholds use SI units (m, m/s, m/s^2, ms).`
+
+**Claim:** Worth restating here, but **SI in functional code is project-wide**, not a
+local nicety — reinforce in standards if not already crystal (UX display may convert;
+HW datasheet units only at the edge when unavoidable). Functional/flight math and
+profiles stay SI.
+
+**WN-192** — [Grok] · `comment` · **⚠️ PRELIMINARY markers — emoji compatibility + stale “prelim”**  
+Loci: ~L51–54, ~L80, ~L86 guard/lockout/timer blocks marked `⚠️ PRELIMINARY` + validate
+before flight.
+
+**Claim:** (1) Confirm **⚠️ is universally OK** in source (no IDE/toolchain mojibake;
+ASCII alternative if needed). (2) Secondary: **prelim should be resolved by now** for a
+mature walk — either validate and drop ⚠️, or keep with explicit “still unvalidated”
+disposition, not eternal yellow stickers.
+
+**WN-193** — [Grok] · `comment` · **ACCEPTED_STANDARDS_DEVIATIONS callback may be stale / soft permission**  
+Locus: ~L54 `// See ACCEPTED_STANDARDS_DEVIATIONS.md if deploying unvalidated.`
+
+**Claim:** Odd pointer: may be **stale**, and can be read as **permission to deviate**
+further. Prefer “do not fly unvalidated” + real gate/checklist, not “see deviations
+file.”
+
+**WN-194** — [Grok] · `comment` · **Safety lockout comments (Council A1)**  
+Locus: ~L77–79 deploy/apogee lockouts protect chute from high-q; phase gating primary.
+
+**Claim:** Safety-related — elevate scrutiny of wording vs live lockout behavior
+(**WN-172** / **W-15**); keep short + doc pointer if deep.
+
+**WN-195** — [Grok] · `invariant` · **`emergency_deploy_anytime` override — critical scrutiny**  
+Locus: ~L93–96 HAB emergency chute skips lockouts for ABORT pyro; rocket respects gates.
+
+**Claim:** An **override that weakens safety gates** is a critical surface: must not be
+**easy to flip by bug, wrong profile, or silent default**. Scrutinize who sets it
+(generator/profile), tests, and naming/docs. High bar for any path that bypasses lockouts.
+
+#### `flight_director/mission_profile_data.h`
+
+— **light / generated** (`scripts/generate_profile.py` from `profiles/rocket.cfg`; stamp
+AUTO-GENERATED / do not edit). Not a semantic deep-walk of the data body.
+
+**WN-196** — [Grok] · `ownership` · **Comments inside generated profile data will be lost on regen**  
+Locus: body e.g. ~L54–75 `// IDLE (0)`, `// BOOST (2)`, … phase labels between struct
+initializers; file top ~L1–5 is generator-owned (OK if re-emitted).
+
+**Claim:** **Hand or “helpful” comments in the generated output** are either **wiped on
+regen** or force the generator to re-emit them every time. Prefer: labels only in
+`.cfg` / generator templates, or none in the output. Critical oddity for any “edit the
+header” habit. Wider hand-edit / drift automation → walk WB **W-14** (expanded).
+
+#### `flight_director/guard_functions.{cpp,h}`
+
+**WN-197** — [Grok] · `comment` · **Large Doxygen ratio on thin pure-guard API; pair sparse**  
+Locus: h (~85 lines) — `@file` IVP-70 + per-guard multi-line Doxygen for simple
+bool predicates; cpp (~49 lines) no path-specific defect this sitting.
+
+**Claim:** Same **high Doxygen / comment ratio** as other FD headers. Files are
+**small** pure one-sample checks (sustain lives in evaluator) — **evaluate** keep as
+clear split vs merge into evaluator (**WN-186** / **WN-178** sparsity family). Cpp:
+**nothing of note** beyond that.
