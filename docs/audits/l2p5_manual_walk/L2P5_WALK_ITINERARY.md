@@ -123,11 +123,11 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### calibration/
 
-- [ ] `calibration/calibration_data.{cpp,h}`
-- [ ] `calibration/calibration_manager.{cpp,h}`
-- [ ] `calibration/calibration_storage.{cpp,h}`
-- [ ] `calibration/lm_solver.{cpp,h}`  — *(templates; FP-1 resolution)*
-- [ ] `calibration/cal_hooks.{cpp,h}`
+- [x] `calibration/calibration_data.{cpp,h}`
+- [x] `calibration/calibration_manager.{cpp,h}`
+- [x] `calibration/calibration_storage.{cpp,h}`
+- [x] `calibration/lm_solver.{cpp,h}`  — *(templates; FP-1 resolution)*
+- [x] `calibration/cal_hooks.{cpp,h}`
 
 ### flight_director/
 
@@ -221,7 +221,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `58 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
+**Progress:** `63 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)
 </content>
