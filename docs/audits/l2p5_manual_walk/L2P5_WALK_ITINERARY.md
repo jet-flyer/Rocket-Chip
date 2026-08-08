@@ -159,13 +159,13 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### diag/ · notify/ · telemetry/ · station/
 
-- [ ] `diag/diag_stats.{cpp,h}`
-- [ ] `notify/notify_backend_audio.cpp`
-- [ ] `notify/notify_backend_led.cpp`
-- [ ] `notify/notify_resolver.h`
-- [ ] `telemetry/mavlink_rx.cpp`
-- [ ] `telemetry/telemetry_encoder.cpp`
-- [ ] `station/station_idle_tick.{cpp,h}`
+- [x] `diag/diag_stats.{cpp,h}`
+- [x] `notify/notify_backend_audio.cpp`
+- [x] `notify/notify_backend_led.cpp`
+- [x] `notify/notify_resolver.h`
+- [x] `telemetry/mavlink_rx.cpp`
+- [x] `telemetry/telemetry_encoder.cpp`
+- [x] `station/station_idle_tick.{cpp,h}`
 
 ---
 
@@ -221,7 +221,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `85 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
+**Progress:** `92 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
 
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)

@@ -46,6 +46,16 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-07-001 | Grok 4.5 (Build CLI) | documentation, audit
+
+L2-P5 owner-led manual walk — **Tier 2 complete** (domain logic & infrastructure).
+Itinerary **92 / 121 leaves** (all Tier-2 checkboxes; Tier 1 already done). Findings
+**WN-116–242** (Next ID **WN-243**). Pure docs — no firmware/`src` changes. Resume
+Tier 3 at `safety/fault_protection.{cpp,h}`. Cold-start: `docs/audits/l2p5_manual_walk/L2P5_SESSION_HANDOFF.md`.
+Walk process deltas this sitting: **W-12**–**W-16** (overview keywords, condense WNs,
+codegen regen check, ops criticality list, stage/IVP comment sync). Details:
+`docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`.
+
 ### 2026-08-04-001 | Grok 4.5 (Build CLI) | documentation, audit
 
 L2-P5 manual walk (owner-led) through public headers — **itinerary 25/184** at session end.

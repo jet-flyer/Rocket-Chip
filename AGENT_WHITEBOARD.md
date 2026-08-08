@@ -23,34 +23,32 @@
 
 ---
 
-## Session Handoff — L2-P5 manual walk IN PROGRESS (2026-08-06, Grok 4.5 (Build CLI))
+## Session Handoff — L2-P5 manual walk IN PROGRESS (2026-08-07, Grok 4.5 (Build CLI))
 
 **In progress:** Owner-led L2-P5 file-by-file semantic walk (coverage + findings, not PASS/FAIL).
 
 **▶ Full cold-start briefing:** `docs/audits/l2p5_manual_walk/L2P5_SESSION_HANDOFF.md`  
-(read that first on a fresh session — process rules, Tier-1 themes, anti-patterns, Tier-2 map).
+(read that first — Tier 2 complete → Tier 3 start; process rules, anti-patterns).
 
 | | |
 |--|--|
-| **Walk checkpoint** | **Tier 1 Foundations complete** (47/47 leaves — public headers, math/, drivers/) |
-| **Git anchor** | `48e7cf9` on `main` / `origin/main` (pure docs) |
-| **Itinerary** | ~47 / 184 ticked; remaining from Tier 2 onward (trust checkboxes; footer may lag) |
-| **Resume next** | `fusion/eskf_runner.{cpp,h}` (Tier 2) |
-| **Findings** | `L2P5_WALK_FINDINGS.md` — through **WN-115**, **Next ID WN-116** |
-| **Walk WB** | `L2P5_WALK_WHITEBOARD.md` — open process rows (W-1–11); **soft** filter: act now vs end-of-walk only |
-| **CHANGELOG / PROJECT_STATUS** | **Not** updated for Tier-1 checkpoint (full-walk close is the product milestone) |
-| **Tier-2 lens re-center** | Tier 1 WNs skewed ownership+comment — re-center **spine + concurrency** (+ asserts/lifetime) |
+| **Walk checkpoint** | **Tier 2 complete** (45/45 leaves — fusion, cal, FD, log/logging, diag, notify, telem, station) |
+| **Git anchor** | Tier-2 close commit on `main` (confirm `git log -1`; pure docs) |
+| **Itinerary** | **92 / 121 leaves** ticked (trust checkboxes; 184 = file glob, do not mix) |
+| **Resume next** | `safety/fault_protection.{cpp,h}` (Tier 3) |
+| **Findings** | `L2P5_WALK_FINDINGS.md` — through **WN-242**, **Next ID WN-243** |
+| **Walk WB** | `L2P5_WALK_WHITEBOARD.md` — W-1–16 open; soft filter act-now vs end-of-walk |
+| **CHANGELOG** | Session index for Tier-2 checkpoint (owner-directed wrap); PROJECT_STATUS still waits for full walk close |
+| **Tier-3 focus** | Concurrency (**W-2**), safety/assert, fn-ptrs (**W-1**) before AO/CLI |
 
 **Process notes (summary — details in SESSION_HANDOFF):**
-- Coverage = itinerary checkboxes only. Observations = findings `WN-NNN` (append-only; path-placement rule in findings header).
-- On tick / “move on”: scan **prior open leaves** — do not skip without explicit flag.
-- Do **not** remediate mid-walk unless owner directs. Do **not** invent findings or “nothing of note.”
-- Themes for disposition later: Early-impl rework-eval group, Doxygen inventory (**W-10**), regulatory (**WN-100**), Starcom deferrals, HW-agnostic (**W-8**).
-- Walk-tier checkpoints: push walk pack; no CHANGELOG/PROJECT_STATUS until whole L2-P5 closes (owner 2026-08-05).
+- Owner-directed only; **W-13** condense by disposition; **W-12** itinerary-keyword overviews only.
+- Do **not** commit a “section done” while a prior leaf is still open/skipped.
+- No mid-walk remediations. Themes for later: Early-impl, Doxygen **W-10**, regulatory **WN-100**, Starcom, HW-agnostic **W-8**, codegen **W-14**, criticality list **W-15**, stage/IVP sync **W-16**.
 
 **Blocked:** nothing.
 
-**Erase or refresh this handoff section (and SESSION_HANDOFF) when Tier 2 checkpoint lands or the walk sitting ends.**
+**Erase or refresh this handoff when Tier 3 checkpoint lands or the walk sitting ends.**
 
 ---
 

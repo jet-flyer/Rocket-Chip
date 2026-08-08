@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-06 · Grok · crc16/crc32 WN-221–223
+**Last edited:** 2026-08-07 · Grok · station_idle_tick WN-239–242 · Tier 2 complete
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-224
+**Next ID:** WN-243
 
 ---
 
@@ -2725,3 +2725,175 @@ Locus: ~L3–15 IVP-53a Stage 6 + IEEE poly/init; Doxygen on `crc32` / `crc32_up
 **Claim:** Spec block re-check + IVP hygiene like **WN-221**. Two Doxygen API blocks
 look fine — track with other Doxygen files (**W-10** inventory) for keep/drop
 consistency. JSF-182 wording covered by **WN-222**.
+
+### diag/
+
+**WN-224** — [Grok] · `ownership` · **`src/diag/` is only diag_stats — folder layout odd**  
+Locus: `src/diag/` holds solely `diag_stats.{cpp,h}` (same shape as lone `src/log/`).
+
+**Claim:** One-module folder is hard to justify (**WN-198** log/). Prefer home under
+`cli/` / `safety/` / `logging/` or a broader `diag/` only if more tools land. Evaluate
+with keep/delete of the feature (**WN-225**).
+
+#### `diag/diag_stats.{cpp,h}`
+
+**WN-225** — [Grok] · `ownership` · **What is this / is it still needed?**  
+Locus: pair — T=0 soak preconditions, full serial snapshot (AO queues, MSP, radio,
+health, sensors), MSP high-water tick; always-on after R-25-exec migration from
+`src/dev/`.
+
+**Claim:** Banners explain **migration**, not a crisp product role. Further scrutiny:
+still required for Stage-17 soaks / ops, or leftover bench tooling in the flight
+binary? If needed, document SSOT (USER_GUIDE / soak runbook); if not, plan retire.
+Criticality may be **ops** not flight (**W-15**).
+
+**WN-226** — [Grok] · `comment` · **Huge comment ratio / R-25-exec + IVP essays on both files**  
+Loci: h ~L4–18 IVP-132, R-25-exec, SWE-133, dump call paths; cpp ~L4–17 same migration
+block + always-on list; high narrative density for a thin API (3 functions).
+
+**Claim:** Process history → CHANGELOG/decision doc; short “soak snapshot + T=0 identity
+check, read-only.” IVP/R-25 hygiene (**W-16**, **WN-175**).
+
+**WN-227** — [Grok] · `comment` · **Orphan persona/council one-liners in dump body**  
+Loci: cpp ~L26 `// ... kRadioCs` include line oddity; ~L50 `// Radio IRQ wiring evidence
+(NASA/JPL)`; ~L59 `// SPI hot-path error counter (ArduPilot)`; ~L68 R-25-exec again.
+
+**Claim:** **Out-of-context** council/persona tags without a table of who decided what.
+Either drop or one durable design cite. L26 include comment “not sure why there” — re-eval
+if needed.
+
+### notify/
+
+#### `notify/notify_backend_audio.cpp`
+
+**WN-228** — [Grok] · `ownership` · **Audio backend is a no-op stub — evaluate keep vs delete**  
+Locus: whole file — Stage 14 IVP-115 stub; TLV320DAC3100 + AP tone parser deferred;
+RTTTL-like tone string constants `[[maybe_unused]]`; `notify_backend_audio_update` empty.
+
+**Claim:** Owner: ArduPilot-style tones would be nice; Fruit Jam has DAC/speaker but
+**I²C issues** blocked enable. Evaluate whether a **stub TU + dead tone tables** still
+earn rent until audio stage, or fold constants into a design/data file and drop the
+no-op. Near-future **more robust notification engine** (SM/AO) may absorb this —
+align with Stage 15 audio IVP plans on main WB.
+
+#### `notify/notify_backend_led.cpp`
+
+**WN-229** — [Grok] · `comment` · **Banner large + IVP refs stale by own admission**  
+Locus: ~L3–15 Stage 14 IVP-115/116; “In IVP-115 this is compiled but not called…
+IVP-116 wires it up…”
+
+**Claim:** Comment **admits unfinished wiring then claims later IVP finished it** —
+classic **stale stage freeze** (**W-16**). Rewrite to **current** call graph (who calls
+`notify_backend_led_update` now) or delete the historical story.
+
+**WN-230** — [Grok] · `comment` · **Beacon overlay block: mostly OK, shorten + update Stage L**  
+Locus: ~L103–110 Stage L beacon_manual/auto remap essay.
+
+**Claim:** Useful live behavior; **shorten**; “Stage L” label update or drop (**W-16**).
+
+#### `notify/notify_resolver.h`
+
+**WN-231** — [Grok] · `comment` · **Large banner; “not public API” + host-test motivation**  
+Locus: ~L3–15 Stage 14 IVP-115; priority order; “internal… Not part of public
+notify_backend.h”; “testable directly from host.”
+
+**Claim:** Don’t need long **what we’re not** essays; short “internal LED priority
+resolver for backend + host tests.” Host-testability is fine one-liner, not a multi-
+line “we did this for tests” justification class. Density + stage tags as usual.
+
+### telemetry/
+
+#### `telemetry/mavlink_rx.cpp`
+
+**WN-232** — [Grok] · `ownership` · **Name “rx” vs bidirectional GCS role; Starcom/MAVLink future**  
+Locus: file name `mavlink_rx` + banner ~L5–9 “GCS command receiver” but also “generates
+protocol responses”; IVP-62 titled **Bidirectional** MAVLink Commands.
+
+**Claim:** Naming as pure **RX** is misleading — most MAVLink links aren’t RX-only even
+on half-duplex (parse in, ACK/param/mission replies out). Clarify product role (USB GCS
+secondary path vs LoRa primary). **Starcom-gated** with other telem (**WN-041**,
+**WN-046**): prefer **save/rework after Starcom** (or a **MAVLink translation layer** on
+Starcom) rather than deep invest in this TU now.
+
+**WN-233** — [Grok] · `comment` · **IVP/Stage 7 banner + vendored mavlink include**  
+Loci: ~L11 IVP-62 Stage 7; ~L21–28 `common/mavlink.h` c_library_v2 with GCC pedantic
+suppress; ~L15 **double-include** of `mavlink_rx.h` “guard test.”
+
+**Claim:** IVP/stage hygiene (**W-16**). Official **header-only MAVLink C library** is
+valid PA/vendoring (not random copy-paste of app logic) — ensure `lib/mavlink` is
+properly attributed (**WN-004**). Double-include “test” does **not** belong in production
+source — remove.
+
+**WN-234** — [Grok] · `invariant` · **ARM command still no-op “IVP-67 will wire”**  
+Locus: ~L210–213 `MAV_CMD_COMPONENT_ARM_DISARM` — “Pre-Flight Director: ACK but no-op.
+IVP-67 wires to real ARM.”
+
+**Claim:** Reads as **temporary unfinished wiring**. Confirm whether still true (FD exists
+now) or resolved and comment/code stale. Safety-adjacent if GCS thinks it armed.
+
+**WN-235** — [Grok] · `ownership` · **“Legacy” SET_MODE path — red flag under no-back-compat**  
+Locus: ~L234–238 `// Legacy SET_MODE message (#11) — same logic as DO_SET_MODE`.
+
+**Claim:** “Legacy” for wire protocol can mean GCS still sends it, but under project
+**no backward-compat for abandoned shapes**, evaluate: still required by QGC/MP, or dead
+weight that should go. Don’t keep dual paths only for nostalgia (**WN-171** FlightSignal
+alias class).
+
+#### `telemetry/telemetry_encoder.cpp`
+
+**WN-236** — [Grok] · `ownership` · **Name is universal; body is CCSDS+MAVLink dual stack; Starcom replace**  
+Locus: file name `telemetry_encoder` vs contents — CCSDS primary/secondary headers (CCSDS
+133.0-B-2), nav APID encode, **and** MAVLink pack helpers (`c_library_v2`); banner ~L5
+“CCSDS and MAVLink telemetry encoders.”
+
+**Claim:** Not CCSDS-only, but name still **reads more universal** than “CCSDS nav + MAVLink
+GCS helpers.” Very likely **replaced/split under Starcom** (**WN-041**, **WN-046**,
+**WN-232**) — gate deep rework; consider naming that matches dual role until then.
+
+**WN-237** — [Grok] · `comment` · **IVP/Stage/T tags + Q15 constant without plain meaning**  
+Loci: ~L18 IVP-107 health; ~L138 Stage T IVP-T5.5 nav-with-config; ~L432 IVP-122 CCSDS
+cmd ACK; ~L36–37 `kQ15Scale = 32767` “Q15 fixed-point.”
+
+**Claim:** IVP/stage hygiene (**W-16**). **Q15** = 16-bit fixed-point with 15 fractional
+bits (value ≈ int16 / 32767 for unit range, e.g. quaternion) — one plain phrase in comment
+if kept; already used in `data_convert` (**WN-213**).
+
+**WN-238** — [Grok] · `comment` · **TelemetryState layout table in comments**  
+Locus: ~L96–102 nav payload write — bytes 0–39 / met_ms / reserved layout table.
+
+**Claim:** Useful for ICD adjacency; belongs in **wire ICD / design doc** if it grows;
+keep short live “first 40 B of TelemetryState + pad” if any.
+
+### station/
+
+**WN-239** — [Grok] · `ownership` · **`src/station/` only holds idle_tick pair**  
+Locus: `src/station/` — solely `station_idle_tick.{cpp,h}` (same one-module-folder
+pattern as `src/log/`, `src/diag/`).
+
+**Claim:** Evaluate whether a **`station/` directory** earns rent for one thin idle
+helper, or re-home under `core1/` / `cli/` / role init. Related **WN-198**, **WN-224**.
+
+#### `station/station_idle_tick.{cpp,h}`
+
+**WN-240** — [Grok] · `ownership` · **Pair is small — size / breakout eval**  
+Locus: h ~25 lines, cpp ~100 lines — station GPS poll from idle bridge reusing
+`core1_read_gps` + seqlock.
+
+**Claim:** Specialized but **tiny** — evaluate keep as clear station-role hook vs
+inline in `main`/idle bridge (**WN-178** sparsity family).
+
+**WN-241** — [Grok] · `comment` · **Header large ratio; IVP/LL in top block; IVP-140 vs 141 drift**  
+Locus: h ~L3–11 Stage 16C IVP-140 “scaffolding only… GPS in IVP-141” vs cpp body that
+implements GPS poll (IVP-141).
+
+**Claim:** High comment-to-code ratio for two decls. IVP/LL hygiene (**W-16**). Header
+still claims **no-op scaffolding** while cpp does real work — **stale** relative to
+current product.
+
+**WN-242** — [Grok] · `comment` · **Cpp banner rehashes project record; file-wide density**  
+Locus: cpp ~L3–29 Stage 16C IVP-141, boot GPS bind, core1_read_gps share, rate limit,
+LL 32 / watchdog margin essay; remaining body comments similarly heavy.
+
+**Claim:** Large portion restates what belongs in IVP/CHANGELOG/LL — keep short live
+“station idle: ~10 Hz GPS via shared core1 reader + seqlock.” General non-Doxygen
+density across file.
