@@ -173,23 +173,23 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### safety/ — boot, fault, pyro, watchdog *(highest criticality — leads this tier)*
 
-- [ ] `safety/fault_protection.{cpp,h}`  — *(MPU/guard; safety-critical; 1 volatile in-handler flag → concurrency 3-question test)*
-- [ ] `safety/anomalous_boot.{cpp,h}`
-- [ ] `safety/flight_in_progress.cpp`  — *(1 volatile magic, two `#if`-split decls → concurrency 3-question test)*
-- [ ] `safety/health_monitor.{cpp,h}`
-- [ ] `safety/crash_record.{cpp,h}`
-- [ ] `safety/fault_inject.{cpp,h}`  — *(2 volatile inject flags → concurrency 3-question test)*
-- [ ] `safety/station_fault_inject.{cpp,h}`  — *(2 volatile inject counters → concurrency 3-question test)*
-- [ ] `safety/test_mode.{cpp,h}`  — *(3 volatile cross-boot/cross-context → concurrency 3-question test)*
-- [ ] `safety/core1_i2c_pause.{cpp,h}`  — *(concurrency)*
-- [ ] `safety/pio_backup_timer.{cpp,h}`  — *(PIO lifecycle, LL 42)*
-- [ ] `safety/pio_watchdog.{cpp,h}`
-- [ ] `safety/pyro_edge_logger.{cpp,h}`  — *(1 volatile counter → concurrency 3-question test)*
-- [ ] `safety/rf_link_health.h`
+- [x] `safety/fault_protection.{cpp,h}`  — *(MPU/guard; safety-critical; 1 volatile in-handler flag → concurrency 3-question test)*
+- [x] `safety/anomalous_boot.{cpp,h}`
+- [x] `safety/flight_in_progress.cpp`  — *(1 volatile magic, two `#if`-split decls → concurrency 3-question test)*
+- [x] `safety/health_monitor.{cpp,h}`
+- [x] `safety/crash_record.{cpp,h}`
+- [x] `safety/fault_inject.{cpp,h}`  — *(2 volatile inject flags → concurrency 3-question test)*
+- [x] `safety/station_fault_inject.{cpp,h}`  — *(2 volatile inject counters → concurrency 3-question test)*
+- [x] `safety/test_mode.{cpp,h}`  — *(3 volatile cross-boot/cross-context → concurrency 3-question test)*
+- [x] `safety/core1_i2c_pause.{cpp,h}`  — *(concurrency)*
+- [x] `safety/pio_backup_timer.{cpp,h}`  — *(PIO lifecycle, LL 42)*
+- [x] `safety/pio_watchdog.{cpp,h}`
+- [x] `safety/pyro_edge_logger.{cpp,h}`  — *(1 volatile counter → concurrency 3-question test)*
+- [x] `safety/rf_link_health.h`
 
 ### core1/ — sensor loop *(concurrency boundary)*
 
-- [ ] `core1/sensor_core1.{cpp,h}`  — *(1 atomic `g_bestGpsValid` + the Core0↔Core1 boundary → concurrency 3-question test)*
+- [x] `core1/sensor_core1.{cpp,h}`  — *(1 atomic `g_bestGpsValid` + the Core0↔Core1 boundary → concurrency 3-question test)*
 
 ### active_objects/ — QP/C AOs *(concurrency — heavy)*
 
@@ -221,7 +221,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `92 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
+**Progress:** `106 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
 
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)

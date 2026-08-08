@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-07 · Grok · station_idle_tick WN-239–242 · Tier 2 complete
+**Last edited:** 2026-08-08 · Grok · rf_link_health WN-275 fix; sensor_core1 WN-276–281
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-243
+**Next ID:** WN-282
 
 ---
 
@@ -2897,3 +2897,409 @@ LL 32 / watchdog margin essay; remaining body comments similarly heavy.
 **Claim:** Large portion restates what belongs in IVP/CHANGELOG/LL — keep short live
 “station idle: ~10 Hz GPS via shared core1 reader + seqlock.” General non-Doxygen
 density across file.
+
+## Tier 3 — Integrators
+
+### safety/
+
+#### `safety/fault_protection.{cpp,h}`
+
+**WN-243** — [Grok] · `comment` · **Header large ratio; IVP/R-3/plan archaeology**  
+Locus: h ~L3–8 OPT-IVP-01 `@file`/`@brief`; ~L30–40 R-3 `kFaultBlink*` tombstone + plan
+B.1/B.2/B.3/B.7 + HW_GATE Rule 6; ~L46–84 long Doxygen on three APIs (phase policy,
+pre-2026-05-14 Q_onError watchdog story, CAST-1 paragraph). Header ~86 lines for three
+decls + one constant.
+
+**Claim:** High comment-to-code ratio. Mass is mostly process/def history (IVP extraction,
+R-3 recovery narrative, plan section refs), not short live contracts. Tombstone for removed
+blink constants belongs in CHANGELOG/decision docs. Related **W-6**, **W-16**, **WN-054**.
+
+**WN-244** — [Grok] · `comment` · **Cpp rehashes header + B.1–B.7 tags + AP table; small pair**  
+Locus: cpp ~L3–8 OPT-IVP banner; ~L20–33 B.7 reentrance essay; helpers ~L36–97 multi-paragraph
+rationale; handler ~L99–103 plan B.1–B.3/B.7 + `FAULT_HANDLER_DESIGN` / FH-1; inline B.n
+tags ~L109–157; MPU setup ~L224–253 R-3 AP encoding truth table; file ~293 lines with large
+comment fraction. Pair is small in live code overall.
+
+**Claim:** Same narratives as header plus plan labels (B.1/B.2/B.7) and a full PMSAv8 AP
+table after the encoding fix already lives in the code. Keep short live contracts + pointer
+to `FAULT_HANDLER_DESIGN.md` / `FAULT_RECOVERY_*`; move essays/tables out. On tiny LOC any
+banner wall skews the 15–25% `.cpp` density band — evaluate absolute bulk/dup, not only %
+(**WN-054**, **W-6**, **WN-240** sparsity family).
+
+**WN-245** — [Grok] · `invariant` · **NOLINTBEGIN/END on MPU magic numbers (disallowed)**  
+Locus: cpp ~L261–292  
+`// NOLINTBEGIN(readability-magic-numbers) — PMSAv8 MPU register bit fields…` through  
+`// NOLINTEND(readability-magic-numbers)` around RBAR/RLAR/ctrl/SHCSR packing.
+
+**Claim:** In-source NOLINT suppressions are **not allowed** — fix with named sourced
+constants/helper, or accept via deviation log / tool config. Same class as **WN-043**,
+**WN-070**, **WN-073**. Finding is the NOLINT mechanism (not a magic-number hunt).
+
+#### `safety/anomalous_boot.{cpp,h}`
+
+**WN-246** — [Grok] · `ownership` · **Separate module for mid-flight boot gate — placement dubious**  
+Locus: pair — free functions + static `g_signals` / `g_initialized`; called once early
+from `main.cpp` (`anomalous_boot_init`); consumers health/CLI/baro-zero gate. Header
+claims mission-critical “refuse fresh-pad boot if mid-flight” confidence gate.
+
+**Claim:** Existence as a **standalone safety free-function module** is dubious as-is.
+Something this critical should probably live in an **AO** or another more robust /
+testable home (clear ownership, exercise path, integration with health/FD), not a thin
+orphan snapshot next to boot. Placement/eval later — not mid-walk rehome. Related
+**W-15**, **WN-240** sparsity/breakout family.
+
+**WN-247** — [Grok] · `comment` · **Header massive banner L4–32; general density**  
+Locus: h ~L3–33 wall — council 2026-05-14, B.1 zero in-flight reset, false-positive bias
+essay, brownout-vs-mid-flight split, absolute path  
+`C:\Users\pow-w\.claude\plans\parsed-soaring-popcorn.md` (plan B.4), RP2350 POWMAN refs;
+body still has multi-line API notes (~L46–66).
+
+**Claim:** ~30-line design essay on a small header. Process/plan archaeology + machine-local
+path (breaks for other agents/hosts). Keep short live contract (early one-shot init,
+sentinel clear, verdict bias) + pointer to decision/plan SSOT. General comment density high
+for remaining decls. Related **W-6**, **W-16**, **WN-054**.
+
+**WN-248** — [Grok] · `comment` · **Cpp L48–61 AON-timer deferral block; HW-specific surface**  
+Locus: cpp ~L48–61 multi-paragraph “AON timer prior-uptime read — DEFERRED to commit (b)”
+(POWMAN timer survival matrix, link libs, ambiguous zero); `read_prior_uptime_ms()` is
+`return 0U`. Adjacent ~L27–46 POWMAN cause-bit mask comments.
+
+**Claim:** Large comment block for deferred/absent hardware path; live code is a stub.
+HW-specific POWMAN detail belongs in datasheet/decision note or stays thin once (b)
+lands — don’t keep a commit-(b) essay as permanent body prose. Related **W-6**.
+
+#### `safety/flight_in_progress.cpp`
+
+**WN-249** — [Grok] · `ownership` · **Flight-in-progress sentinel living alone — general caution**  
+Locus: whole file — `g_flightInProgressMagic` + set/clear/was_set; decls in
+`crash_record.h`; set/clear from FD phase transitions; read/clear once at boot via
+`anomalous_boot`. Banner notes split from `crash_record.cpp` for host-test link.
+
+**Claim:** Same class of caution as **WN-246**: a mission-critical **reset-survival
+sentinel** as a thin standalone translation unit is easy to under-own / under-test /
+miss in review. Link-isolation for host tests is a real constraint, but the *capability*
+should still sit in a clear robust home (with anomalous_boot / crash / FD recovery story),
+not only as an orphan magic word. Placement/eval later.
+
+**WN-250** — [Grok] · `comment` · **Comment density on tiny sentinel TU**  
+Locus: ~L3–9 why-this-file-exists banner; ~L15–21 host-test vs target section / `dsb`
+rationale; body is three short functions (~L30–45).
+
+**Claim:** High comment-to-code ratio for ~45-line file. Keep short live contract
+(uninitialized-data magic, clear-on-read at boot, host plain global) + pointer if
+needed; drop restatement of crash_record / test-link story. Related **W-6**, **WN-054**.
+
+#### `safety/health_monitor.{cpp,h}`
+
+*(Owner note, not a WN: banner already documents AO_HealthMonitor tick + AO consumers —
+ties into AOs as designed; no placement-orphan finding.)*
+
+**WN-251** — [Grok] · `comment` · **Header L35–43 + density; IVP; tables; HW coupling**  
+Locus: h ~L35–43 primary-byte layout + MCU-out-of-primary IVP-142b-1 essay; ~L51–105
+Secondary/Critical enums with multi-line IVP/council/R-3/brownout prose; ~L152–173
+persist-ticks council essay; ~L190–203 MCU temp thresholds with datasheet °C + Stage 18
+note; ~L270–272 tombstone; banner Stage 13 IVP-104. Bit layouts and threshold tables live
+in comments as much as in code.
+
+**Claim:** Large comment ratio for a contract header. IVP/stage/council archaeology
+(**W-6**, **W-16**). Encoding tables belong in `HEALTH_CONTRACT.md` if they grow — short
+live bit map + pointer. **Potential HW coupling:** die-temp thresholds, POWMAN brownout
+narrative, RP2350 margin wording in comments/constants — keep sourced numbers, avoid
+embedding board essays in the API surface. Related **WN-054**, **W-8** if HW-agnostic
+policy applies at disposition.
+
+**WN-252** — [Grok] · `ownership` · **`DBG_PRINT` health paths — recheck debug/testing policy**  
+Locus: cpp `#include "rocketchip/config.h"` // DBG_PRINT (~L32); many sites e.g.
+~L318–332 init prior-fault banners; ~L437–465 latch transitions; ~L513–541 MCU/critical
+transitions; ~L660–688 latch clear.
+
+**Claim:** Double-check these still follow **current** debug/testing policy
+(`standards/DEBUG_OUTPUT.md`, R-5 `rc_log` path, prod vs DEBUG gate, flight-phase noise).
+Not asserting wrong today — revalidate vs **WN-016**/`config.h` DBG placement and whether
+health transitions should be always-on `rc_log`, gated DBG, or quieter. Related **WN-016**,
+**WN-017**.
+
+**WN-253** — [Grok] · `comment` · **Cpp density; tables/IVP; audit history essays**  
+Locus: cpp banner ~L3–11 Stage 13 IVP-104 restatement; static-state blocks ~L55–82 R-3 /
+fault-recovery essays; latch/MCU/critical tick bodies carry multi-line history; mirrors
+header tables/IVP tags throughout.
+
+**Claim:** Same comment-mass class as header — process/audit narrative over short live
+invariants. Point at `HEALTH_CONTRACT.md` / CHANGELOG; keep tick logic readable. Related
+**W-6**, **WN-251**.
+
+**WN-254** — [Grok] · `comment` · **“Tier 2: Profile” label confusing**  
+Locus: cpp ~L762 `// Tier 2: Profile -- GPS needs fresh snapshot` (Go/No-Go fill; similar
+Tier 1/2 vocabulary in `go_nogo_checks.h` and `HealthState::go_nogo_ready` “tier-1”).
+
+**Claim:** “Tier 2” here is **Go/No-Go profile checks**, not L2-P5 walk tiers / product
+tiers / fusion tiers — easy to misread mid-review. Prefer “Go/No-Go profile (GPS…)” or
+pointer to go_nogo SSOT naming so it doesn’t collide with other “tier” languages in-tree.
+
+#### `safety/crash_record.{cpp,h}`
+
+**WN-255** — [Grok] · `comment` · **Header banner PA/dev history; non-repo plan ref; density; HW**  
+Locus: h ~L3–26 huge banner — R-3 audit, halt-forever → capture-then-reset, recovery
+2026-05-14 commit b/3, phase-aware dispatch restatement; ~L20  
+`plan parsed-soaring-popcorn.md sections B.1/B.2/B.3/B.7` (temp work-plan name, **not** an
+in-repo doc path); ~L66–87 long `crash_record_capture` essay (R-1/R-4/R-20, commit (b));
+~L103–119 flight-in-progress sentinel + RP2350 SRAM/BOR prose. High comment ratio overall.
+
+**Claim:** Process/PA archaeology over short live contracts (**W-6**). **L20** points at a
+transient Claude-plan title, not `docs/decisions/FAULT_*` or similar — fix to real SSOT or
+drop. Rest of file: density + more **possible HW coupling** in comments (SRAM retention
+voltage, POWMAN BOR, AIRCR/SCB addresses, RP2350 §6). Keep layout + magic/reason + 1-line
+pointers. Related **WN-247** (same plan-name class), **WN-251**.
+
+**WN-256** — [Grok] · `comment` · **Cpp L12–20 block; HW surface**  
+Locus: cpp ~L12–20 `.uninitialized_data` / NOLOAD / magic-garbage / why `g_crash_record` is
+extern for fault handler; body uses `scb_hw` CFSR/HFSR/AIRCR + ARM reset recipe ~L27–51.
+
+**Claim:** Banner restates header design. Capture path is inherently HW/SCB — keep thin
+sourced register notes; avoid re-hosting ARMv8-M tutorials. Related **W-6**, **WN-255**.
+
+**WN-257** — [Grok] · `invariant` · **Consume clears magic to avoid re-report — latch discipline**  
+Locus: cpp ~L62–65  
+`// Clear the magic so a clean boot doesn't re-report…` / `g_crash_record.magic = 0` after
+successful `crash_record_consume_prior`. (Related pattern ~L36–39 magic-last write for torn
+write reject.)
+
+**Claim:** Double-check design: re-report suppression relies on **code correctly clearing**
+magic (and nothing re-arming a phantom record). Prefer a **latch-closed** / one-shot consumed
+state that is hard to re-open by accident, rather than “hope the clear path always runs.”
+Not asserting current path is wrong — revalidate vs health critical latch and multi-boot
+story before treating clear-as-ack as sufficient. Related **WN-249** sentinel caution.
+
+#### `safety/fault_inject.{cpp,h}`
+
+**WN-258** — [Grok] · `ownership` · **Fault-inject is test code in mainline flight tree**  
+Locus: pair under `src/safety/` — GDB-callable `fault_force_*`, volatiles checked from idle /
+watchdog / production paths; migrated from `src/dev/` into single flight binary (R-25-exec
+banners; runtime `test_mode_active()` gate). Small TU cluster.
+
+**Claim:** This is **testing / probe injection**, not flight product logic. Should not live
+in mainline `src/safety/` if it needs to exist at all — re-home to a clearly non-flight
+build (dev target, test-only link, host/probe harness), or drop. Runtime gate is not a
+substitute for **not shipping the surface** in the flight source tree. Related R-25-exec /
+`FAULT_INJECTION.md` / `test_mode` story at disposition.
+
+**WN-259** — [Grok] · `comment` · **Comment density / R-25-exec dev history on inject pair**  
+Locus: h ~L3–15 IVP-129 + R-25-exec migration essay; cpp ~L3–13 same restatement +
+~L38–45 gate-helper audit narrative. Bodies are short force hooks.
+
+**Claim:** Same density/PA archaeology class as other safety leaves (**W-6**). Fine as a
+one-off test tidbit only if placement (**WN-258**) is accepted; still slim banners to
+“GDB fault inject; test_mode gate; see FAULT_INJECTION.md.”
+
+#### `safety/station_fault_inject.{cpp,h}`
+
+**WN-260** — [Grok] · `ownership` · **Station fault-inject is test code in mainline tree**  
+Locus: pair under `src/safety/` — `fault_force_station_*`, RX/ACK drop counters, GPS loss;
+migrated from `src/dev/` (R-25-exec step 6 banners); hooked from `ao_telemetry` /
+`gps_uart`. Small TU.
+
+**Claim:** Same as **WN-258**: station-side **probe test inject** should not live as
+mainline safety product code if retained — non-flight home or remove. Gate + job_station
+dead branches do not make it flight architecture.
+
+**WN-261** — [Grok] · `comment` · **Station inject: density / R-25-exec history**  
+Locus: h ~L3–16 IVP-132a + R-25 migration; cpp ~L3–16 same + ~L32–39 gate mirror comment;
+bodies short.
+
+**Claim:** Same comment class as **WN-259** / **W-6**. Slim if kept as test tidbit;
+placement first (**WN-260**).
+
+#### `safety/test_mode.{cpp,h}`
+
+**WN-262** — [Grok] · `ownership` · **test_mode is test/inject infrastructure in mainline tree**  
+Locus: pair under `src/safety/` — probe-arm magic, `test_mode_active()` gate for all
+`fault_force_*` / test affordances; single-binary Approach A. Small but load-bearing for
+bench inject.
+
+**Claim:** Same **bucket as WN-258 / WN-260**: this is **test / fault-injection
+infrastructure**, not flight product logic. Placement in mainline flight sources is
+questionable if inject rehomes or is dropped; evaluate together (gate + inject surface as
+one non-flight or clearly sequestered unit). Not asserting remove without a home for the
+gate if inject stays.
+
+**WN-263** — [Grok] · `comment` · **Header L3–37 huge design/dev-history block**  
+Locus: h ~L3–37 wall — R-23 / F-2026-05-13-004 / R-22, council personas, Approach A
+bullet essay (three-condition AND, Therac-25 dual clear, no CLI arm, PX4 SYS_FAILURE_EN
+precedent); rest of header still dense (magic, window, accessors, R-25-exec step 11).
+Cpp ~L3–6 points at header for “full design rationale + council decision provenance.”
+
+**Claim:** **Ensure this history lives elsewhere** — decision already cited
+(`docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`); header should keep short live
+contract (probe magic + Idle + boot window; clears on Idle-exit / refuse ARM; `test_mode_active()`
+SSOT) + one pointer, not re-host the full PA/dev narrative. Same density class **W-6** /
+**WN-259**.
+
+#### `safety/core1_i2c_pause.{cpp,h}`
+
+**WN-264** — [Grok] · `ownership` · **Standalone pause pair — needed alone or not at all?**  
+Locus: pair — only `core1_i2c_pause()` / `core1_i2c_resume()` wrapping
+`g_core1PauseI2C` / `g_core1I2CPaused` atomics (owned in `shared_state`); ~40 lines cpp.
+Callers: flash paths / `rc_os_commands` / cal (R-17).
+
+**Claim:** Flag whether these files **earn a dedicated module** vs fold into
+`shared_state` / `sensor_core1` / flash-safe helpers, **or** whether the capability is
+wrong-shaped entirely. Tiny API over two atomics is the breakout smell family
+(**WN-240**, **WN-246**). Not mid-walk rehome.
+
+**WN-265** — [Grok] · `comment` · **Header: ~3 API lines vs dozens of comment lines**  
+Locus: h ~L6–46 LL-31 race essay, R-15/R-17/R-11, why-not-cal_hooks, R-17 dead
+`cal_pre_hook` finding; then ~L50–63 two short function contracts.
+
+**Claim:** Extreme comment-to-code ratio — design/audit history, not a thin contract.
+Move LL-31 / R-17 narrative to LESSONS / decision / flash-safe doc; leave 1-line purpose
++ pause/resume contracts. Related **W-6**, **WN-054**.
+
+**WN-266** — [Grok] · `comment` · **Cpp general comment density**  
+Locus: cpp body — per-branch comments on sensor-phase skip, already-paused, timeout
+belt-and-suspenders (LL-31/R-15), resume dual-flag clear (~L16–44). Small file; comments
+restate logic and audit tags.
+
+**Claim:** General density issue on a short TU — slim to non-obvious timeout/resume
+ordering only. Related **W-6**, **WN-265**.
+
+#### `safety/pio_backup_timer.{cpp,h}`
+
+**WN-267** — [Grok] · `ownership` · **PIO backup timers — relatively recent deliberate feature**  
+Locus: pair — PIO2 dual countdown (drogue/main), arm/cancel/disarm, autonomous of ARM
+cores; itinerary notes PIO lifecycle / LL 42.
+
+**Claim:** Owner walk note: this is a **relatively recent** intentional feature. Do **not**
+disposition as amateur / early-impl leftover or “why does this exist” without that context.
+Still review quality normally; age is not a free pass. Related early-impl group only if
+rework-eval is chosen later — not default bucket.
+
+**WN-268** — [Grok] · `comment` · **Header action table + general density**  
+Locus: h ~L6–18 purpose + timer-action table (`0` disabled / `1` drogue / `2` main) +
+bench-testing note; remaining API one-liners.
+
+**Claim:** Comment table is useful but can drift vs profile/config SSOT — keep short or
+point at profile field docs. General header density mild but same class (**W-6**): slim
+to live contracts.
+
+**WN-269** — [Grok] · `comment` · **Cpp no file-level explanation; a few body blocks**  
+Locus: cpp opens with includes only (no `@file`/purpose banner, unlike many safety peers);
+body has sparse blocks (claim SMs, load program, arm path, etc.).
+
+**Claim:** If peers need a short “what/why” pointer, this TU has **none upfront** — either
+add a one-liner + decision/LL pointer, or accept pure code if header is SSOT. A few mid-body
+comment blocks: keep only non-obvious PIO/SM budget notes. Related **W-6**.
+
+**WN-270** — [Grok] · `ownership` · **L173 `ROCKETCHIP_HOST_TEST` branch — test stubs only?**  
+Locus: cpp ~L5 `#ifndef ROCKETCHIP_HOST_TEST` … ~L173 `#else // ROCKETCHIP_HOST_TEST`
+through host stubs (`pio_backup_timer_init` always true, arm sets bools, no PIO).
+
+**Claim:** Confirm: this is **host-test stubbing of a real flight feature**, not a
+test-only definition of the backup timers themselves. Naming/placement is standard dual-
+compile; double-check stubs don’t over-claim “fired”/“armed” semantics vs target. Not a
+finding that the feature is test-only.
+
+#### `safety/pio_watchdog.{cpp,h}`
+
+**WN-271** — [Grok] · `comment` · **Header IVP / layer-stack comments up top**  
+Locus: h ~L6–15 IVP-88, three-layer safety architecture (smart / heartbeat / backup
+IVP-89); countdown formula note ~L21–23.
+
+**Claim:** IVP/dev architecture restatement in header — keep short live “PIO2 heartbeat
+IRQ0; feed from main” + pointer to IVP/STAGE11 doc. Related **W-6**, **W-16**.
+
+**WN-272** — [Grok] · `comment` · **Cpp no top block again**  
+Locus: cpp opens with includes only (same as **WN-269** backup timer); short body.
+
+**Claim:** No file-level purpose banner — consistent pair with backup timer; same
+disposition (one-liner + doc pointer if peers require it, or accept header-as-SSOT).
+
+**WN-273** — [Grok] · `invariant` · **L22 “PIO2 dedicated to safety” claim — rule + enforcement?**  
+Locus: cpp ~L22–23  
+`// Use PIO2 — dedicated to safety (PIO0 = WS2812, PIO1 = reserved)` / `g_pio = pio2`.
+
+**Claim:** Double-check this is an actual **project rule** (budget map / CODING or HW doc)
+and is **properly enforced** if so — not only a comment here. Evidence elsewhere is
+descriptive (STAGE11 budget table, NeoPixel claim notes, LL) rather than a mechanical
+gate. Confirm SSOT + whether other code can still claim PIO2 SMs / programs and break
+the “dedicated” assertion. Related PIO budget early-impl / whiteboard notes.
+
+#### `safety/pyro_edge_logger.{cpp,h}`
+
+**WN-274** — [Grok] · `ownership` · **Edge logger: unclear product role, untested, don’t over-claim**  
+Locus: pair — h ~L3–7 “IVP-130… Flight-binary essential… forensic…”; cpp ISR → static
+buffer → `dump_cli`.  
+**Provenance:** `2469fc3` **IVP-130** PIO backup-timer shakedown (“no logic analyzer”);
+`main` init; CLI `y` dump only — no PCM/flight-log/telemetry consumer.
+
+**Claim:** Owner: **doesn’t know what product this is** and **has not been properly tested**
+yet. Do not treat as a finished flight-forensic feature from path + “essential” wording, and
+do not treat historical IVP-130 PASS language as present-day verification of this module.
+Re-establish role (bench helper vs real post-flight path) and re-verify or demote before any
+“pyro timing forensic ready” claim. Related **W-16**, **W-3**.
+
+— nothing of note. *(for header/cpp as separate halves — only the ownership claim above)*
+
+#### `safety/rf_link_health.h`
+
+**WN-275** — [Grok] · `comment` · **Large comment ratio; tables / tuning essays (Starcom-gated leaf)**  
+Locus: ~L3–12 Stage T banner; ~L34–77 tunables with multi-line LOS/frame-min tables and
+2026-04-21 user-direction essays; Schmitt/deadman/anchor blocks restate design §§.
+
+**Claim:** Comment mass (threshold tables, rate examples, rationale) should live in
+`STAGE_T_T14_DESIGN.md` / Starcom docs — short live constants + pointer. Related **W-6**,
+**WN-054**. **Starcom disposition (not a separate WN):** leaf is radio link-health —
+keep/evolve/replace with Starcom; same pattern as telemetry density notes that only matter
+if the file survives (**WN-048** / **WN-046** class). Precedence: standalone “Starcom
+candidate” WNs (**WN-041**, **WN-046**) when that is the *primary* ownership claim; when
+other walk findings exist, gate them with a Starcom qualifier rather than a second WN.
+
+#### `core1/sensor_core1.{cpp,h}`
+
+**WN-276** — [Grok] · `ownership` · **`src/core1/` holds only this pair**  
+Locus: `src/core1/` — solely `sensor_core1.{cpp,h}` (same one-module-folder pattern as
+`src/station/`, `src/log/`, `src/diag/`).
+
+**Claim:** Flag whether a **dedicated folder** earns rent for one pair, or re-home under
+`safety/` / top-level / `drivers` boundary. Related **WN-239**, **WN-264**.
+
+**WN-277** — [Grok] · `comment` · **Header large comment ratio; sparse API**  
+Locus: h ~L3–8 banner; multi-line Doxygen on few decls (`core1_entry`, best-gps, `core1_read_gps`,
+ESKF externs) — thin public surface, high prose share.
+
+**Claim:** Sparse API vs comment mass — may go with the odd solo-folder packaging
+(**WN-276**). Slim contracts; move IVP/share-with-station essays to docs. **W-6**, **WN-054**.
+
+**WN-278** — [Grok] · `comment` · **Cpp density / IVP / R- refs; L479–494 boot-wait essay**  
+Locus: file-wide IVP/OPT-IVP/Stage tags; ~L479–494 R-1 vehicle vs station boot-wait essay
+(timeout, crash_record, Holzmann P10, static_assert roles).
+
+**Claim:** General density + process archaeology. Huge boot-wait block belongs in
+decision/LL + short live “vehicle: 10s bound then crash_record; station: unbounded.” Related
+**W-6**, **W-16**.
+
+**WN-279** — [Grok] · `invariant` · **NOLINTBEGIN/END identity matrix indices (disallowed)**  
+Locus: cpp ~L378–382  
+`// NOLINTBEGIN(readability-magic-numbers) -- 3x3 identity matrix diagonal indices` …
+`// NOLINTEND` on `m[0]/m[4]/m[8]`.
+
+**Claim:** In-source NOLINT **not allowed** — named indices/`kIdentityDiag*` or deviation
+log. Same class **WN-043**, **WN-245**, **WN-073**.
+
+**WN-280** — [Grok] · `invariant` · **JSF AV Rule 1 cite on Core1SensorCycle — verify**  
+Locus: cpp ~L386–388  
+`// Extracted from core1_sensor_loop() for JSF AV rule 1 compliance; pure state container.`
+
+**Claim:** Double-check **JSF AV Rule 1** is the correct rule for this extraction (and that
+the extract actually satisfies it). Wrong rule numbers have proliferated before (e.g.
+notify “Rule 170” saga). Confirm against JSF text + function-size gates; fix cite or drop
+if ceremonial.
+
+**WN-281** — [Grok] · `invariant` · **0 °C is a realistic MCU temp — sentinel must not be 0**  
+Locus: cpp ~L438–440  
+`// Initial MCU temp sentinel so seqlock readers don't see an all-zeros 0.0°C before the
+first capture.` / `mcu_die_temp_c = -999.0F`.
+
+**Claim:** Owner: **0 °C is realistically reachable** (cold pad / outdoor leave-on). Using
+zero-as-unset would false-positive as a real reading — sentinel (-999) direction is right;
+keep any consumer of “valid temp” keyed off the sentinel (or validity flag), not “!= 0”.
+Confirm health/`mcu_temp_classify` / readers honor -999 / absent consistently.
