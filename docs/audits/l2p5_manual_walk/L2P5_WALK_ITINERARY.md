@@ -205,8 +205,8 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### top-level
 
-- [ ] `main.cpp`  — *(boot path; concurrency launch; 1 callback lambda → F.1 naming lens)*
-- [ ] `shared_state.cpp`  — *(6 atomic cross-core flags — densest shared-state site → concurrency 3-question test)*
+- [x] `main.cpp`  — *(boot path; concurrency launch; 1 callback lambda → F.1 naming lens)*
+- [x] `shared_state.cpp`  — *(6 atomic cross-core flags — densest shared-state site → concurrency 3-question test)*
 
 ---
 
@@ -221,7 +221,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `115 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
+**Progress:** `117 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
 
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)

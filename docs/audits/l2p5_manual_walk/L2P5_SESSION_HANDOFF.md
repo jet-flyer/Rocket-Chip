@@ -1,9 +1,9 @@
-# L2-P5 Session Handoff — Tier 2 complete → Tier 3 start
+# L2-P5 Session Handoff — Tier 3 complete → Tier 4 start
 
-**Written:** 2026-08-07 · outgoing session (Grok 4.5 Build CLI)  
+**Written:** 2026-08-08 · Grok 4.5 (Build CLI)  
 **Audience:** Fresh agent + owner starting a **new** session  
-**Git anchor:** (this session’s Tier-2 close commit on `main` — pure docs walk pack; confirm `git log -1`)  
-**Status:** Walk **IN PROGRESS**. Tier 2 Domain logic & infrastructure **complete**. Resume at Tier 3.
+**Git anchor:** confirm `git log -1` after Tier-3 close commit on `main` (pure docs walk pack)  
+**Status:** Walk **IN PROGRESS**. Tier 3 Integrators **complete**. Resume at Tier 4 CLI.
 
 This file is the **cold-start briefing**. Repo walk-pack files remain authoritative for
 IDs, ticks, and open process rows. Prefer this over any compacted chat transcript.
@@ -25,12 +25,13 @@ tools/gates cannot fully police. Deliverables:
 
 **Not** this walk’s job mid-stream: PASS/FAIL grading as product output, mid-walk
 remediation, inventing findings. **Walk-tier checkpoints** may update CHANGELOG as a
-**session index** when the owner directs (this Tier-2 close); product PROJECT_STATUS
-milestone still waits for **full** L2-P5 walk close unless owner says otherwise.
+**session index** when the owner directs; product PROJECT_STATUS milestone still waits for
+**full** L2-P5 walk close unless owner says otherwise.
 
 **Owner:** Nathan — all dispositions, all “open this path,” all WB edits to main board
 unless he directs otherwise. Agents draft after discussion; they do **not** invent
-`— nothing of note.` or open leaves unprompted.
+`— nothing of note.` or open leaves unprompted. When owner closes a leaf with notes, write
+WNs + tick immediately (no draft round-trip unless asked).
 
 ---
 
@@ -38,11 +39,10 @@ unless he directs otherwise. Agents draft after discussion; they do **not** inve
 
 | Field | Value |
 |-------|--------|
-| **Next leaf** | `safety/fault_protection.{cpp,h}` (Tier 3 first checkbox) |
-| **Next WN ID** | **WN-243** (confirm `max(WN-*)+1` in findings body if unsure) |
-| **Tier 2** | **45/45 leaves ticked** — fusion, calibration, flight_director, log/logging, diag, notify, telemetry, station |
-| **Overall** | **92 / 121 leaves** (footer = checkboxes; 184 = file glob — do not mix) |
-| **Working tree** | Clean at handoff write after Tier-2 close commit |
+| **Next leaf** | `cli/rc_os.{cpp,h}` (Tier 4 first checkbox) |
+| **Next WN ID** | **WN-313** (confirm `max(WN-*)+1` in findings body if unsure) |
+| **Tier 3** | **Complete** — safety, core1, all AOs, `main.cpp`, `shared_state.cpp` |
+| **Overall** | **117 / 121 leaves** (footer = checkboxes; 184 = file glob — do not mix) |
 | **Blocked** | Nothing |
 
 **First agent actions on cold start:**
@@ -51,7 +51,7 @@ unless he directs otherwise. Agents draft after discussion; they do **not** inve
 2. Read `AGENT_WHITEBOARD.md` top handoff (should point here).
 3. Skim findings **header rules** (form, path placement, append-only, **W-13** condense).
 4. Skim walk WB **open rows** (W-1–16) — soft filter: act-now vs end-of-walk.
-5. Open itinerary at Tier 3; confirm first open box is `fault_protection`.
+5. Open itinerary at Tier 4; confirm first open box is `cli/rc_os`.
 6. Wait for owner to open the leaf / direct discussion — do not walk alone.
 7. **Do not commit until the owner finishes the leaf or section** (if something was
    skipped, wait — do not leave Tier-N incomplete in a “section done” commit).
@@ -93,41 +93,37 @@ L2P5_SESSION_HANDOFF.md          # this file
 10. **Ask before** main `AGENT_WHITEBOARD.md` edits unless directed.
 11. **Walk-tier checkpoint ≠ full-walk product milestone** for PROJECT_STATUS unless
     owner directs; CHANGELOG session index OK when owner asks for wrap.
+12. **Starcom-gated leaves:** separate Starcom WN only when that is the primary claim;
+    else qualifier on other findings (**WN-275** precedence note).
 
 ---
 
-## 5. Lenses (Tier 3 especially)
+## 5. Lenses (Tier 4)
 
 | Lens | Notes |
 |------|--------|
-| **The spine** | Whole-function gestalt every leaf (owner applied all along — don’t claim missing) |
-| **Comments** | Density, archaeology, Stage/IVP sync (**W-16**) |
-| **Assertions** | Heavy on safety/, fusion, FD |
-| **Lifetime / scope** | Statics, AO events |
-| **Concurrency & ownership** | **W-2** inventory; volatiles/atomics; Core0↔Core1 — Tier 3 is hot |
-| **volatile / control-flow** | rings, AOs, shared_state, fault flags |
-| **P10-9 / fn-ptrs** | **W-1** before AO/CLI heavy leaves |
+| **The spine** | Whole-function gestalt every leaf |
+| **Comments** | Density, archaeology, Stage/IVP sync (**W-16**) — CLI often dense |
+| **RC_OS rework** | Track structural notes with main WB § RC_OS Rework (**WN-288**) |
+| **Concurrency** | **W-2** on `rc_os` atomic + `rc_os_commands` T2 volatiles |
+| **P10-9 / fn-ptrs** | **W-1** still open for CLI hooks |
+| **Relaxed tidy** | `cli/**` relaxed clang-tidy but **still semantic-walk** |
 
 **Not a walk lens:** magic numbers (mechanical).
 
 ---
 
-## 6. Tier 2 closed — what was walked
+## 6. Tier 3 closed — what was walked
 
-Rough findings range **WN-116–242** (fusion through station). Groups:
+Findings roughly **WN-243–312** (safety through main). Groups:
 
-- **fusion/** — eskf_runner, eskf, brake, state, codegen exempt, confidence, innovation,
-  mahony, ud_factor, phase_qr, wmm light
-- **calibration/** — data, manager, storage, lm_solver, cal_hooks
-- **flight_director/** — full FD group + profiles (+ generated data light)
-- **log/ + logging/** — rc_log, rings, flash, flight_table, decimator, convert, pcm,
-  psram, radio_config_storage, crc16/32
-- **diag / notify / telemetry / station** — diag_stats, notify trio, mavlink_rx,
-  telemetry_encoder, station_idle_tick
-
-Process rows added this sitting: **W-12** overview keywords, **W-13** condense WNs,
-**W-14** codegen audit (+ regen delta), **W-15** safety/ops criticality list,
-**W-16** stage/IVP comment sync.
+- **safety/** — fault_protection through rf_link_health (inject/test_mode placement,
+  pyro_edge_logger product role, Starcom rf_link, density/HW themes)
+- **core1/** — sensor_core1 (solo folder, NOLINT, JSF cite, 0 °C sentinel)
+- **active_objects/** — all AOs (FD queue depth, pub/sub SSOT, Starcom radio/telem,
+  opaque “sub 2*” labels, RC_OS rework track, density family)
+- **top-level** — `shared_state.cpp` definition-only peer of main (**WN-306**);
+  `main.cpp` boot/kitchen-sink eval (**WN-307–312**)
 
 ---
 
@@ -135,19 +131,20 @@ Process rows added this sitting: **W-12** overview keywords, **W-13** condense W
 
 | ID | Soft filter |
 |----|-------------|
-| **W-1** | Before AO/fn-ptr heavy leaves (Tier 3 / CLI) |
-| **W-2** | Use at concurrency-tagged sites |
+| **W-1** | Before remaining fn-ptr heavy CLI if still open |
+| **W-2** | Use at concurrency-tagged sites (`rc_os`, `rc_os_commands`) |
 | **W-3**–**W-11** | End-of-walk / as noted |
 | **W-12**–**W-16** | Process; act when relevant |
 
 ---
 
-## 8. Tier 3 map (resume)
+## 8. Tier 4 map (resume)
 
-Order is itinerary order. First: `safety/fault_protection` then anomalous_boot,
-flight_in_progress, health_monitor, crash_record, fault injects, test_mode,
-core1_i2c_pause, PIO timers, pyro_edge_logger, rf_link_health, core1/sensor_core1,
-AOs, main, shared_state — then Tier 4 CLI.
+```
+cli/rc_os → rc_os_commands → rc_os_dashboard → rc_os_debug
+```
+
+Then full walk close (CHANGELOG, empty walk WB, PROJECT_STATUS only if owner directs).
 
 ---
 
@@ -156,7 +153,7 @@ AOs, main, shared_state — then Tier 4 CLI.
 | Event | Docs / git |
 |-------|------------|
 | Normal walk progress | Append findings, tick itinerary |
-| Walk-tier checkpoint | Commit + push walk pack; CHANGELOG **if owner directs** (session index) |
+| Walk-tier checkpoint | Commit + push walk pack; CHANGELOG **if owner directs** |
 | Full L2-P5 walk close | CHANGELOG + PROJECT_STATUS + empty walk WB |
 | Pure docs | Host ctest via hooks; no HW reseat |
 
@@ -168,14 +165,14 @@ AOs, main, shared_state — then Tier 4 CLI.
 
 - Fabricating “nothing of note”
 - Wrong path nesting for WNs
+- Editing frozen older WNs (cites only)
 - Pre-analyzing without owner direction
 - Committing a section while a prior leaf is still open/skipped
-- Full TOC overviews when only itinerary keywords apply
 - Premature PROJECT_STATUS for incomplete whole walk
 
 ---
 
 ## 11. Lifecycle of this handoff file
 
-- **While Tier 3 is active:** keep; refresh at Tier 3 checkpoint.
+- **While Tier 4 is active:** keep; refresh at Tier 4 / full walk close.
 - **At full walk close:** delete or archive with walk WB; history remains in git.

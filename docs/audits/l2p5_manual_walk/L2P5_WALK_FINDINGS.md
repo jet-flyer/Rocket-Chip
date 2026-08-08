@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-08 · Grok · ao_led_engine WN-305
+**Last edited:** 2026-08-08 · Grok · main.cpp WN-307–312 · Tier 3 complete
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-306
+**Next ID:** WN-313
 
 ---
 
@@ -3527,3 +3527,73 @@ Council A1, Stage L essays throughout (~300 lines, denser body).
 lot** of comments but may be **fine** for file size / pure display-driver map. No separate
 header or cpp findings this leaf. Related **WN-303** family; itinerary LL-35 lifetime note
 not re-opened here (owner did not flag).
+
+### top-level
+
+#### `shared_state.cpp`
+
+**WN-306** — [Grok] · `ownership` · **What is this TU? Odd peer of main; name / banner**  
+Locus: whole file (~47 lines) — only **definitions** of globals declared in
+`include/rocketchip/shared_state.h` (init flags, GPS fn-ptrs, `g_imu`, seqlock, six
+cross-core atomics, `g_sensorPhaseActive`). Banner: “Single translation unit keeps
+cross-core state in one place” (OPT-IVP-02). Header already walked (Tier 1 contract).
+
+**Claim:** Role is **storage/link home for shared globals**, not a superloop or subsystem
+with behavior — easy to misread as “another main-adjacent module.” **Odd** that such a
+tiny pure-definition file sits as a top-level peer of `main.cpp` without a clearer product
+name or explanation block (“definitions only for `shared_state.h`; no logic”). Consider
+better name, stronger banner, or re-home under an obvious package if the peer-of-main
+layout stays confusing. Related Tier 1 header WNs; W-2 atomics when concurrency walked.
+
+#### `main.cpp`
+
+**WN-307** — [Grok] · `comment` · **IVP / council / Stage density throughout**  
+Locus: whole file (~477 lines) — OPT-IVP/R-*/Stage T/16C/IVP-T14 tags on includes,
+init, idle bridge, AO start; council A2 on watchdog kick; migration tombstones.
+
+**Claim:** Process archaeology blanket needs **eval/trim** pass (**W-6**, **W-16**). Keep
+boot-order and role-gating live notes only.
+
+**WN-308** — [Grok] · `ownership` · **L89–90 watchdog constant left after move**  
+Locus: ~L89–90  
+`// Watchdog (moved to pio_watchdog; see OPT-IVP-01…)` /  
+`static constexpr uint32_t kWatchdogTimeoutMs = 5000;`  
+Grep: **no uses** of `kWatchdogTimeoutMs` in this file.
+
+**Claim:** If watchdog **moved**, why is this still here? Dead residual constant + comment
+— delete or relocate to `pio_watchdog` if still meaningful.
+
+**WN-309** — [Grok] · `ownership` · **HW-specific callouts in main (Fruit Jam, GPIO pins, …)**  
+Locus: ~L126–127 Fruit Jam UART GPS / GPIO 0/1 [M3]; ~L235 Fruit Jam GPIO 22 peripheral
+reset; ~L333–336 hard-coded drogue/main **GPIO 12/13** “bench test pins”; board:: uses
+elsewhere. Other board-coupled comments/paths in init.
+
+**Claim:** Main still carries **board/HW-specific** logic and comments beyond thin
+`board::` indirection. Need a resolve pass: board packs / capabilities only, no Fruit Jam
+essays or magic pyro pins in the superloop TU. Related **W-8**, board HAL WNs.
+
+**WN-310** — [Grok] · `comment` · **L302–303 deferred PSRAM flash-safe test comment**  
+Locus: ~L302–303 “PSRAM flash-safe test deferred to after g_startSensorPhase…”; actual
+call ~L393–396 after Core 1 lockout ready.
+
+**Claim:** Comment reads like an **open deferral** of a test that **already runs** later
+in `init_application`. Reword as “order: after lockout” or drop residual “deferred”
+tone so it doesn’t look unfinished.
+
+**WN-311** — [Grok] · `ownership` · **AO start order L478+ — track vs AO docs; still good?**  
+Locus: ~L477–523 `start_active_objects()` priority list (Radio 8, FD 9 vehicle, Health 6,
+RfManager 7, Notify 5, Logger 4, Telem 3, LED 2, RCOS 1) + role masks.
+
+**Claim:** Ensure this order is **documented in `AO_ARCHITECTURE.md`** (and qp_config if
+cited), **tracked**, and **re-evaluated** after Stage T / RfManager insert (FD 7→9). Live
+comments + code must match SSOT; no silent priority drift.
+
+**WN-312** — [Grok] · `ownership` · **main.cpp kitchen-sink / first-file rot evaluation**  
+Locus: whole `main.cpp` — historically first TU; still owns boot, sensor init, Core1
+launch, PSRAM, PIO safety init, idle bridge (watchdog feed, fault inject poll, station
+tick, log drain, WFI), AO start.
+
+**Claim:** Dedicated **evaluation (“audit”)** later: confirm main has **only** what
+belongs (bootstrap + idle bridge + AO start) and **omits** what should live elsewhere.
+Watch kitchen-sink / legacy rot from being the original file — extra scrutiny vs normal
+leaves. Related **WN-306**, Stage migration history.
