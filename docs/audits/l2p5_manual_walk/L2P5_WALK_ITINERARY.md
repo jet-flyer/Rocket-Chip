@@ -193,15 +193,15 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### active_objects/ — QP/C AOs *(concurrency — heavy)*
 
-- [ ] `active_objects/ao_flight_director.{cpp,h}`  — *(5 callback lambdas → F.1 naming lens; FD cbs are raw fn-ptrs, P10-9/JSF-176 surface)*
-- [ ] `active_objects/ao_health_monitor.{cpp,h}`
-- [ ] `active_objects/ao_rcos.{cpp,h}`
-- [ ] `active_objects/ao_logger.{cpp,h}`
-- [ ] `active_objects/ao_radio.{cpp,h}`
-- [ ] `active_objects/ao_rf_manager.{cpp,h}`
-- [ ] `active_objects/ao_telemetry.{cpp,h}`
-- [ ] `active_objects/ao_notify.{cpp,h}`
-- [ ] `active_objects/ao_led_engine.{cpp,h}`  — *(LL 35 stack-local event history — scope/lifetime lens)*
+- [x] `active_objects/ao_flight_director.{cpp,h}`  — *(5 callback lambdas → F.1 naming lens; FD cbs are raw fn-ptrs, P10-9/JSF-176 surface)*
+- [x] `active_objects/ao_health_monitor.{cpp,h}`
+- [x] `active_objects/ao_rcos.{cpp,h}`
+- [x] `active_objects/ao_logger.{cpp,h}`
+- [x] `active_objects/ao_radio.{cpp,h}`
+- [x] `active_objects/ao_rf_manager.{cpp,h}`
+- [x] `active_objects/ao_telemetry.{cpp,h}`
+- [x] `active_objects/ao_notify.{cpp,h}`
+- [x] `active_objects/ao_led_engine.{cpp,h}`  — *(LL 35 stack-local event history — scope/lifetime lens)*
 
 ### top-level
 
@@ -221,7 +221,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `106 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
+**Progress:** `115 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
 
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)

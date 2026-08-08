@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-08 · Grok · rf_link_health WN-275 fix; sensor_core1 WN-276–281
+**Last edited:** 2026-08-08 · Grok · ao_led_engine WN-305
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-282
+**Next ID:** WN-306
 
 ---
 
@@ -3303,3 +3303,227 @@ first capture.` / `mcu_die_temp_c = -999.0F`.
 zero-as-unset would false-positive as a real reading — sentinel (-999) direction is right;
 keep any consumer of “valid temp” keyed off the sentinel (or validity flag), not “!= 0”.
 Confirm health/`mcu_temp_classify` / readers honor -999 / absent consistently.
+
+### active_objects/
+
+#### `active_objects/ao_flight_director.{cpp,h}`
+
+**WN-282** — [Grok] · `comment` · **Header IVP/phase refs; general density**  
+Locus: h ~L3–11 IVP-78 Phase 3 migration banner; ~L52–55 Stage T IVP-T5.5 ground-state
+radio-config note; remaining API one-liners (“Replaces cli_*”).
+
+**Claim:** IVP/phase/migration archaeology in header. Slim to live AO contracts (owns QHsm,
+100 Hz tick, CLI dispatch, accessors). Related **W-6**, **W-16**.
+
+**WN-283** — [Grok] · `comment` · **Cpp def/process refs + callback responsibility table**  
+Locus: cpp ~L19 `// R-25-exec: phase-accessor…`; ~L199–203 R-25-exec + JSF AV Rule 1 extract
+note on `fd_register_test_mode_accessor`; ~L210–220 “Callback responsibilities” table
+(set_led_cb / phase_change_cb / log_pyro_cb / beacon_cb with IVP tags).
+
+**Claim:** Dev/R- tags and in-source responsibility table — keep short live map or pointer
+to AO/FD docs; IVP numbers in the table are **W-16** risk. Related **W-6**, **WN-280**
+(JSF Rule 1 cite class).
+
+**WN-284** — [Grok] · `ownership` · **Queue depth 32 — what it is; not free “bad,” but a smell**  
+Locus: cpp ~L58–62  
+`// Queue depth 32: tick events accumulate while telemetry_radio_tick() blocks in QV_onIdle
+(rfm95w_send… 50-150ms)… 150ms = 15 events. Depth 32 gives 2x margin. Real fix:
+non-blocking LoRa…`
+
+**Claim:** Queue depth is **how many QEvt pointers** the FD AO can hold while not running
+(here sized so 100 Hz ticks don’t drop during long radio TX blocking). **Not inherently
+“32 is wrong”** — comment justifies margin against a **known idle-path block**. Why mention:
+documents a **coupling** (FD queue sized for radio airtime). Real defect class is
+**blocking LoRa in QV idle**, not the number alone; 32 is a **band-aid**. Revisit with
+non-blocking radio / Starcom; confirm depth still matches worst-case and that overflow isn’t
+silent. Related deferred radio notes / whiteboard.
+
+#### `active_objects/ao_health_monitor.{cpp,h}`
+
+**WN-285** — [Grok] · `comment` · **Header council / Stage / IVP density**  
+Locus: h ~L3–10 Stage 13 IVP-105, “Council-reviewed: priority between FD and Logger,
+queue depth 8.”
+
+**Claim:** Council/dev process refs in a thin header (start + QActive only). Keep short
+live role; council priority/depth → AO_ARCHITECTURE / HEALTH_CONTRACT. Related **W-6**.
+
+**WN-286** — [Grok] · `ownership` · **Pub/sub claims in comments — verify; need robust SSOT**  
+Locus: cpp ~L6–8 “publishes SIG_HEALTH_STATUS… Subscribes to SIG_PHASE_CHANGE…”;
+`QActive_subscribe(... SIG_PHASE_CHANGE)` ~L72; `hm_publish` → `SIG_HEALTH_STATUS` ~L55–61;
+also ~L103 “1Hz forced re-publish (council amendment 2…)”. Same pattern on other AOs
+(banners list pub/sub).
+
+**Claim:** (1) **Double-check** comments match live subscribe/publish and actual consumers
+(LED/Logger/Telemetry via `SIG_HEALTH_STATUS` — verify still true). (2) **Here and AOs like
+it:** listing pub/sub only in per-file comments **rots**. Prefer one **robust ref** —
+e.g. `docs/AO_ARCHITECTURE.md` inventory table (already has pub/sub columns) and/or
+`ao_signals.h` as catalog, with code comments as one-line pointers, not the SSOT. Related
+**WN-052** (signal map), **W-6**.
+
+**WN-287** — [Grok] · `comment` · **Cpp R-25 / council dev refs**  
+Locus: ~L13 R-25-exec test_mode include note; ~L43–44 “Council: queue depth 8…”; ~L91–95
+R-25-exec test_mode_evaluate essay; ~L103 council amendment 2.
+
+**Claim:** Process archaeology in body — slim. Related **W-6**, **WN-285**.
+
+#### `active_objects/ao_rcos.{cpp,h}`
+
+**WN-288** — [Grok] · `ownership` · **Track with RC_OS rework**  
+Locus: whole pair — CLI/terminal AO (20 Hz, cal UI SM, dashboard, USB). Overlaps
+`cli/rc_os*` and early-impl **RC_OS / CLI “pseudo-OS”** rework (main WB § RC_OS Rework).
+
+**Claim:** Any disposition of this AO (structure, ownership vs `rc_os` dispatcher, cal UI
+home) should be **tracked with the RC_OS rework**, not fixed as an isolated AO polish.
+Related early-impl table / main whiteboard.
+
+— nothing of note. *(header — no specific header findings this leaf)*
+
+**WN-289** — [Grok] · `comment` · **Cpp IVP/dev refs; tables in comments**  
+Locus: banner Phase D / non-blocking cal; ~L30 R-25-exec; ~L207+ IVP-T14d wrap-up;
+~L311 IVP-116 legacy kCalNeo* table/translation; CalUiState / wizard enums as comment
+tables; position-instruction table ~L130–138.
+
+**Claim:** IVP/dev archaeology + in-source tables. Slim; live tables that are product
+(UX position strings) can stay as data; process tags out. Related **W-6**, **W-16**.
+
+**WN-290** — [Grok] · `ownership` · **L999 `#endif !ROCKETCHIP_HOST_TEST` — large target-only block**  
+Locus: cpp ~L87 `#ifndef ROCKETCHIP_HOST_TEST` … ~L999 `#endif` wraps cal UI SM + helpers;
+more host gates ~L1011+, ~L1096+, ~L1306 `#else` stubs.
+
+**Claim:** Not “host test code at L999” — L999 **ends** a large **target-only** region
+(host builds compile stubs/omitted cal UI). Double-check: what host tests actually
+exercise for AO_RCOS, whether the `#ifndef` sprawl is the right split vs a dedicated
+TU, and that host isn’t silently no-op-ing important paths. Related host-test dual-compile
+class (**WN-270**).
+
+**WN-291** — [Grok] · `comment` · **L1220–1230 design-stream-of-consciousness in comments**  
+Locus: cpp ~L1220–1231 wizard step init — multi-line “But step 0… Actually… Hmm… Let me
+rethink… Better… Let me refactor… No wait…” then `cal_wizard_step = UINT8_MAX`.
+
+**Claim:** Scratch reasoning / chat-style thought has **no place** as permanent code
+comments. Keep one-line live invariant (“UINT8_MAX so kWizardNext ++ wraps to gyro”) or
+fix the control flow so the comment isn’t needed. Related **W-6**.
+
+#### `active_objects/ao_logger.{cpp,h}`
+
+**WN-292** — [Grok] · `comment` · **Header density; partial Doxygen (inconsistent)**  
+Locus: h banner ~L3–9 Council A6; `///` API blocks throughout; only `AO_Logger_start`
+has `@param` lines (~L31–35) — other decls are plain `///` without `@param`/`@return`.
+
+**Claim:** High comment ratio on a thin public AO surface. **Doxygen-style markup
+appears but is not consistently applied** (half-ceremony). Worth **tracing when** the
+`@param` block landed (Stage 13 AO encapsulation / later comment passes — e.g. history
+includes `7fdabfe` Stage 13 Phase 4, `1d2b683` comments audit) and folding into project
+Doxygen policy re-eval (**WN-081**, **WN-054**, **W-7** / **W-10** inventory) rather than
+leaving one-off `@param` islands. Related **W-6**.
+
+**WN-293** — [Grok] · `comment` · **Cpp IVP tags**  
+Locus: ~L13 `// IVP-107: health_primary in FusedState`; ~L153 IVP-120 baro rate; ~L346
+`// IVP-105: health in FusedState` on subscribe.
+
+**Claim:** IVP archaeology on live includes/paths. Prefer short “why” or drop; tags in
+docs. Related **W-6**, **W-16**.
+
+#### `active_objects/ao_radio.{cpp,h}`
+
+**WN-294** — [Grok] · `comment` · **Header Stage/IVP density (Starcom-gated leaf)**  
+Locus: h banner thin; struct field comments ~L42–55 Stage T IVP-T5.5 prereq #1 / sub 2d
+symmetric-revert essay + thresholds. Overall high comment mass on config/persist fields.
+
+**Claim:** Stage/IVP/process density on radio AO surface. Slim to live contracts. **Starcom
+disposition** (qualifier, not separate WN — **WN-275**/**WN-041** class): deep rework waits
+Starcom. Related **W-6**, **W-16**.
+
+**WN-295** — [Grok] · `comment` · **Cpp Stage / IVP / council refs**  
+Locus: file-wide — C3-R1/A2/A3/R3 banner (~L10–13); Batch B IVP-T14, T5.5, T6, IVP-64,
+IVP-T11, R-5 STAGE_T, council-ish tags throughout apply/persist/TX paths.
+
+**Claim:** Process archaeology blanket. Point at Stage T design/CHANGELOG; keep short live
+notes. Related **W-6**, **WN-294**.
+
+**WN-296** — [Grok] · `comment` · **“Sub 2*” / sub-persist labels opaque**  
+Locus: h ~L48 “Stage T IVP-T5.5 sub 2d”; cpp ~L82/101/103 “sub 2f/2b/2d”; ~L360 “Sub-persist”;
+~L368 “Sub 2d: symmetric revert…”; many more `sub 2*` / sub-persist markers.
+
+**Claim:** Owner: **no idea what “sub 2” is** without the Stage T plan breakdown. These are
+**work-package labels** (IVP-T5.5 subtasks), not a robust API vocabulary — rot as soon as
+the plan is cold. Replace with **what the code does** (symmetric revert, debounced flash
+persist, config-just-changed latch) + optional plan cite once, not `sub 2d` litter. Related
+**W-6**, **W-16**.
+
+**WN-297** — [Grok] · `comment` · **L533 “T5.5 prereq #1” vague / out of context**  
+Locus: cpp ~L533–536  
+`// T5.5 prereq #1: seed runtime_config…` (same shorthand elsewhere e.g. ~L546).
+
+**Claim:** “T5.5 prereq #1” is **opaque and out of context** for readers without the Stage T
+checklist. Prefer “seed runtime_config from default (flash may override)” without numbered
+prereq jargon. Related **WN-296**, **W-16**.
+
+#### `active_objects/ao_rf_manager.{cpp,h}`
+
+**WN-298** — [Grok] · `comment` · **Header council / Stage / IVP density (Starcom-gated)**  
+Locus: h ~L3–16 Stage T Batch B IVP-T14, design-doc path, **Council: NASA/JPL… Round 2 GO**;
+~L41–45 AO Commandment V essay; consumer list in banner.
+
+**Claim:** Council/dev/Stage banner mass on thin AO surface. Keep short live role + pointer
+to `STAGE_T_T14_DESIGN.md` / Commandments — drop persona roll-call. **Starcom qualifier**
+(with `ao_radio` / `rf_link_health`). Related **W-6**, **WN-294**.
+
+**WN-299** — [Grok] · `comment` · **Cpp density / dev refs**  
+Locus: cpp ~L3–14 event-flow banner + design doc; ~L20 IVP-T14 #10; body field/window
+essays (~L55–57 etc.).
+
+**Claim:** Comment density + process tags. Slim; live event flow one short block or AO
+table pointer (**WN-286** pub/sub SSOT). Related **W-6**, **WN-298**.
+
+#### `active_objects/ao_telemetry.{cpp,h}`
+
+**WN-300** — [Grok] · `comment` · **Header Stage/IVP/dev density (Starcom-gated)**  
+Locus: h ~L3–8 IVP-94 banner; ~L30–41 Stage T Batch B prelim fix essays; ~L44 IVP-T14b;
+~L58+ IVP-99/62a/62b/62d/62c/122/T5.5/T14c tags on API decls.
+
+**Claim:** Stage/IVP/dev archaeology across both halves of the pair. Slim to live contracts.
+**Starcom qualifier** (**WN-046** class). Related **W-6**, **W-16**.
+
+**WN-301** — [Grok] · `comment` · **Cpp Stage/IVP/dev density**  
+Locus: cpp include tags T5.5/R-25; ~L59+ IVP-62a; Stage T Batch B / IVP-T7/T14d essays
+(~L68–85); IVP-122/T5.5/T14 paths throughout RX/ACK/SET; IVP-105 subscribe, etc.
+
+**Claim:** Same process-comment blanket as header/radio. Related **W-6**, **WN-300**.
+
+**WN-302** — [Grok] · `comment` · **More opaque “sub 2*” refs (same class as radio)**  
+Locus: h ~L64 “Stage T IVP-T5.5 sub 2f”; cpp ~L236/296 “sub 2b”, ~L300 “Sub 2e”,
+~L444 “Sub 2c”, ~L460 “Sub 2e”, ~L627 “Sub 2f”, etc.
+
+**Claim:** Same as **WN-296**: plan subtask labels without readable meaning. Prefer
+behavior names (SET apply path, QUERY echo, config echo on nav). Related **WN-296**,
+**W-16**.
+
+#### `active_objects/ao_notify.{cpp,h}`
+
+**WN-303** — [Grok] · `comment` · **Header Stage/IVP/council density**  
+Locus: h ~L3–10 Stage 14 IVP-114, council 4 personas; ~L29 Stage L prearm; ~L35–38 Stage T
+IVP-T14 Round 2 #10 vehicle-lost essays.
+
+**Claim:** IVP/stage/dev comments on both halves of the pair. Pointer to
+`NOTIFY_CONTRACT.md` + short live API. Related **W-6**, **W-16**.
+
+**WN-304** — [Grok] · `comment` · **Cpp denser: Stage/IVP + tables / multi-line essays**  
+Locus: banner IVP-114 reshuffle; signal enum Stage L / T14 tags; sensor eval block
+IVP-117 + GPS fix-type mapping (~L112–142); Stage L prearm/init-rainbow essays; post_*
+banners ~L354–376 (JPL council, LL 35, T14 #10). Overall heavier comment mass than header.
+
+**Claim:** Tables (LQ→RadioIntent, GPS fix→SensorIntent) and dense process prose — keep
+short live maps if needed; Stage/IVP/council out. Related **W-6**, **WN-303**.
+
+#### `active_objects/ao_led_engine.{cpp,h}`
+
+**WN-305** — [Grok] · `comment` · **Dev history / density again — no sharper hotspots**  
+Locus: pair — h IVP-77/116/Stage L tags + layer history (~36 lines); cpp IVP-117/116,
+Council A1, Stage L essays throughout (~300 lines, denser body).
+
+**Claim:** Same recurring Stage/IVP/council archaeology class as other AOs (**W-6**).
+**Owner:** nothing specific beyond that — header **sparse** relative to peers; cpp has **a
+lot** of comments but may be **fine** for file size / pure display-driver map. No separate
+header or cpp findings this leaf. Related **WN-303** family; itinerary LL-35 lifetime note
+not re-opened here (owner did not flag).
