@@ -145,17 +145,17 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### logging/ + log/
 
-- [ ] `log/rc_log.cpp`  — *(rc_log() is void — return-values gated; LL 39 drain; 5 volatile ring vars → concurrency 3-question test)*
-- [ ] `logging/ring_buffer.{cpp,h}`  — *(concurrency)*
-- [ ] `logging/flash_flush.{cpp,h}`
-- [ ] `logging/flight_table.{cpp,h}`
-- [ ] `logging/log_decimator.{cpp,h}`
-- [ ] `logging/data_convert.{cpp,h}`
-- [ ] `logging/pcm_frame.cpp`
-- [ ] `logging/psram_init.{cpp,h}`
-- [ ] `logging/radio_config_storage.{cpp,h}`
-- [ ] `logging/crc16_ccitt.h`
-- [ ] `logging/crc32.h`
+- [x] `log/rc_log.cpp`  — *(rc_log() is void — return-values gated; LL 39 drain; 5 volatile ring vars → concurrency 3-question test)*
+- [x] `logging/ring_buffer.{cpp,h}`  — *(concurrency)*
+- [x] `logging/flash_flush.{cpp,h}`
+- [x] `logging/flight_table.{cpp,h}`
+- [x] `logging/log_decimator.{cpp,h}`
+- [x] `logging/data_convert.{cpp,h}`
+- [x] `logging/pcm_frame.cpp`
+- [x] `logging/psram_init.{cpp,h}`
+- [x] `logging/radio_config_storage.{cpp,h}`
+- [x] `logging/crc16_ccitt.h`
+- [x] `logging/crc32.h`
 
 ### diag/ · notify/ · telemetry/ · station/
 
@@ -221,7 +221,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `74 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
+**Progress:** `85 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
 
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)

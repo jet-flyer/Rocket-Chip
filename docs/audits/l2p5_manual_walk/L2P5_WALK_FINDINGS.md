@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-06 · Grok · guard_functions WN-197
+**Last edited:** 2026-08-06 · Grok · crc16/crc32 WN-221–223
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-198
+**Next ID:** WN-224
 
 ---
 
@@ -2479,10 +2479,249 @@ header” habit. Wider hand-edit / drift automation → walk WB **W-14** (expand
 #### `flight_director/guard_functions.{cpp,h}`
 
 **WN-197** — [Grok] · `comment` · **Large Doxygen ratio on thin pure-guard API; pair sparse**  
-Locus: h (~85 lines) — `@file` IVP-70 + per-guard multi-line Doxygen for simple
-bool predicates; cpp (~49 lines) no path-specific defect this sitting.
+Locus: `guard_functions.h` (~85 lines) — `@file` IVP-70 + per-guard multi-line Doxygen
+for simple bool predicates.
 
-**Claim:** Same **high Doxygen / comment ratio** as other FD headers. Files are
-**small** pure one-sample checks (sustain lives in evaluator) — **evaluate** keep as
-clear split vs merge into evaluator (**WN-186** / **WN-178** sparsity family). Cpp:
-**nothing of note** beyond that.
+**Claim:** Same **high Doxygen / comment ratio** as other FD headers. Pair is **small**
+(pure one-sample checks; sustain lives in evaluator) — **evaluate** keep as clear split
+vs merge into evaluator (**WN-186** / **WN-178** sparsity family). Header-only density
+claim; cpp separately below.
+
+— **nothing of note.** (`guard_functions.cpp` — ~49 lines; no path-specific notes this
+sitting beyond the pair-sparsity eval in **WN-197**.)
+
+### log/ + logging/
+
+**WN-198** — [Grok] · `ownership` · **Why `src/log/` vs `src/logging/` — one-file split looks accidental**  
+Locus: repo layout — `src/log/` holds only `rc_log.cpp` (public header under
+`include/rocketchip/rc_log.h`); `src/logging/` holds rings, flash, PCM, CRC, etc.
+Itinerary groups both as “logging/ + log/.”
+
+**Claim:** Separation is hard to justify with **one** TU under `log/`. Prefer **one
+directory** (owner lean: **`logging/`** if merge for consistency with other modules, or
+**`log/`** for brevity — pick one and move). Walk prep lumping was reasonable; dual folders
+likely historical error. Not mid-walk move.
+
+#### `log/rc_log.cpp`
+
+**WN-199** — [Grok] · `comment` · **Long council decision + format-spec inventory in banner**  
+Locus: ~L4–27 Approach A council 2026-05-15, absolute plan path, ETL reasoning, full
+supported/unsupported printf-spec lists (inventory cite).
+
+**Claim:** **Does not belong as a multi-screen file top** — decision → CHANGELOG/decision
+doc; format contract → short list or inventory doc pointer. Council cite needs usual
+hygiene (**WN-147**) if kept at all.
+
+**WN-200** — [Grok] · `comment` · **parse_spec “printf” wording + libc-printf phase-out confusion**  
+Locus: ~L62–64 `// Parse a printf %-spec starting at *p_inout...`
+
+**Claim:** Comment is awkward / incomplete as a contract. Project largely **phased out
+libc printf** for logging — `rc_log` **is** the printf-subset replacement, so “printf-spec”
+is intentional but **wording should say rc_log’s format language**, not imply raw printf
+is still the system. Clarify for readers who expect printf gone.
+
+**WN-201** — [Grok] · `comment` · **Large design essays (float path, ring sink, drain)**  
+Loci: ~L177–197 float hand-roll vs ETL/libc (council criterion); ~L428–443+ target
+drop-oldest ring design; ~L527–531 / ~L542–545 ring-health / handle_percent; ~L659–712
+`rc_log_drain_to_cdc` idle-path, hold-on-disconnect, TinyUSB flush essay.
+
+**Claim:** Valuable content for a **logging design note**; too large in-file. Keep short
+live invariants (drop-oldest, hold-on-disconnect, drain from idle only). Same density
+family as fusion/FD essays.
+
+#### `logging/ring_buffer.{cpp,h}`
+
+**WN-202** — [Grok] · `comment` · **Banner: design/council + PSRAM volatile durability caveat**  
+Locus: h ~L7–28 layout, crash recovery seqlock, council PSRAM uncached write,  
+`IMPORTANT: PSRAM is volatile… flash flight table is durable…`
+
+**Claim:** Design/council bulk → doc. **PSRAM volatility / only-survives-if-Vcc** is a
+**safety/ops durability** caveat — keep short + accurate, and fold into criticality
+review (**W-15** / logging durability story), not bury in a long banner.
+
+**WN-203** — [Grok] · `comment` · **`kRingMagic` “magic value” vs magic-number standard**  
+Locus: ~L37–38 `kRingMagic = 0x52434C47` “RCLG”.
+
+**Claim:** File/wire **magic constants** are usually **not** the same as banned magic
+*numbers* in formulas (JSF-151) — still **check** naming/docs so “magic” doesn’t look
+like a standards carve-out (**WN-153** calibration magic section). Named fourCC is fine
+if justified.
+
+**WN-204** — [Grok] · `comment` · **RingHeader seqlock table + file-wide Doxygen density**  
+Locus: ~L40–49 crash-recovery write protocol as comment table; general high Doxygen
+ratio across API.
+
+**Claim:** Protocol steps → design note or short bullets; density family **WN-081**.
+
+**WN-205** — [Grok] · `comment` · **cpp IVP/Stage + confusing “Phase 1/2/3” seqlock wording**  
+Loci: ~L7 IVP-52b Stage 6; ~L24–34 `// Phase 1/2/3` on seqlock write steps.
+
+**Claim:** IVP/stage tags (**W-16**). “Phase” here means **protocol steps**, not flight
+phases — same confusion class as FD “Phase D1” / Stage labels (**WN-160**). Rename to
+“step” or “seqlock stage” so it doesn’t read as flight Stage N.
+
+#### `logging/flash_flush.{cpp,h}`
+
+**WN-206** — [Grok] · `comment` · **Council req. #1 + flush Sequence table / Doxygen density**  
+Loci: h ~L11–12 `xip_cache_clean_all` council; ~L82–99 `flush_ring_to_flash` @params +
+numbered Sequence 1–6 (table-like).
+
+**Claim:** Council tag hygiene (**WN-147**); sequence steps → short list or design note.
+Doxygen density on multi-arg flush APIs.
+
+**WN-207** — [Grok] · `comment` · **JPL-25 parameter-limit cite unclear without standards context**  
+Locus: cpp ~L270–271 `FlightEntryLayout` “grouped to keep save_flight_entry within the
+JPL-25 parameter limit.”
+
+**Claim:** **JPL-25** here is the house **parameter-count** rule (≤6 params; see
+CODING_STANDARDS / clang-tidy ParameterThreshold), not a random ticket. Comment should
+say “JPL-25 / house max-params” or just “keep param count ≤6” so readers don’t need
+archaeology.
+
+**WN-208** — [Grok] · `comment` · **Council req. #1 on xip_cache_clean_all call site**  
+Locus: cpp ~L348–349 same council cache-clean requirement as header.
+
+**Claim:** Duplicate process tag; prefer one durable cite or live “must clean XIP before
+read PSRAM for flush.”
+
+#### `logging/flight_table.{cpp,h}`
+
+**WN-209** — [Grok] · `ownership` · **Name `flight_table` vague — prefer flight-log table?**  
+Locus: module path/name `flight_table` vs role (index of flights in flash log region).
+
+**Claim:** “Flight table” is ambiguous (phase table? markers?). **Flight log table** (or
+similar) would match dual-sector **log index** role. Rename if fan-out is manageable —
+evaluate at disposition (include/CMake/callers).
+
+**WN-210** — [Grok] · `comment` · **Banner: council flash map + dual-sector design; Doxygen density**  
+Locus: h ~L7–17 council req. #4 address map, dual-sector A/B, CRC-32 line; Doxygen on
+APIs generally.
+
+**Claim:** Layout table → `flash_layout` / design doc (banner can rot vs SKU);
+council tag hygiene. Density family **WN-081**.
+
+**WN-211** — [Grok] · `comment` · **CRC-32 used heavily — clarify for non-insiders**  
+Locus: h ~L15, ~L54, ~L66, ~L94, CRC APIs; cpp includes `crc32.h` and compute/validate
+helpers throughout.
+
+**Claim:** Same class as **WN-154** (CRC-16 on cal): term may be familiar, but a **short
+live line** (poly/family if non-obvious, “integrity over table/entry excluding field”)
+helps; or point at shared `crc32` helper docs. Not a algorithm rewrite mid-walk.
+
+#### `logging/log_decimator.{cpp,h}`
+
+**WN-212** — [Grok] · `comment` · **IVP/Stage tags + Markley PA cite; Doxygen density**  
+Loci: h ~L7–16 box-car / quat Markley 2007 + IVP-52c Stage 6; Doxygen on API; cpp ~L7
+same IVP-52c Stage 6.
+
+**Claim:** IVP/stage hygiene (**W-16**). **Prior art:** Markley 2007 antipodal-protect
+quat average — double-check cite still matches implementation (component-wise + sign
+flip + normalize). Doxygen density on a small specialized module.
+
+#### `logging/data_convert.{cpp,h}`
+
+**WN-213** — [Grok] · `ownership` · **Sparse convert TU: density/IVP if kept; math currency**  
+Loci: h (~40 lines) comment ratio + IVP-49 Stage 6; quantization table ~L23–28; cpp ~L96
+IVP-107 health pack. Pair is thin FusedState↔TelemetryState convert.
+
+**Claim:** If it **stays separate**, still trim IVP/Doxygen noise. **Sparse** — evaluate
+keep vs fold into encoder/PCM path (**WN-178** family). Separately: **re-verify
+quantization math/techniques** (Q15, cm/s, mm alt, packing) still match ICD/telemetry
+and current `TelemetryState` layout (**WN-163**).
+
+#### `logging/pcm_frame.cpp`
+
+**WN-214** — [Grok] · `ownership` · **PCM frame path radio-adjacent / Starcom-gated; “Gate N” wording**  
+Locus: whole cpp (encode/decode/resync of PCM frames for log/telem wire); ~L63–111
+decode/find_sync labeled **Gate 1/2/3** (sync, length, CRC).
+
+**Claim:** General flag — PCM framing sits on the **radio/telemetry/log** surface;
+treat as **Starcom-gated supersession candidate** with related early-impl / Early-impl
+PCM row (**WN-059** on `pcm_frame.h`, main WB radio/PCM). Not “delete mid-walk.”  
+Also: “Gate 1/2/3” is the same **stage/gate wording confusion** class as Go/No-Go tiers
+and seqlock “Phase” steps — rename to **check** / **step** if kept (**WN-160** / **WN-205**).
+Pairs with header findings **WN-058**–**059**.
+
+#### `logging/psram_init.{cpp,h}`
+
+**WN-215** — [Grok] · `comment` · **Banner IVP/council/map + Doxygen; council on flash-safe API**  
+Loci: h ~L3–23 APS6404L / Feather HSTX / XIP map table / council #1/#3 / IVP-52a Stage 6;
+Doxygen density; ~L79–81 council req. #2 hard gate on `psram_flash_safe_test`.
+
+**Claim:** Layout + council essays → design/board pack; short live contract. IVP/stage
+(**W-16**). Doxygen density.
+
+**WN-216** — [Grok] · `ownership` · **Bespoke APS6404L / Feather PSRAM — board-coupled; PA + datasheet**  
+Locus: pair — SparkFun/AudioMorphology/Arduino-Pico lineage (h ~L10–11, cpp ~L7–8);
+part **APS6404L-3SQR**, pin 8 CS1, QPI cmds hardcoded for this SKU.
+
+**Claim:** **Prior-art** lineage OK — double-check still current vs upstream. Code is
+**board/part-specific**: callers and board packs must not pretend HW-agnostic PSRAM;
+other boards need their own init or HAL. **Datasheet ref** in banner/PA block would help
+(**W-8**, **WN-086** bespoke drivers).
+
+**WN-217** — [Grok] · `comment` · **“Test 3” / flash-safe test permanence; Step N as good phase-wording model**  
+Loci: cpp ~L241 `// Test 3 addresses: start, middle, end` (means **three** address
+points in self-test, not “Test #3” suite id — clarify wording); ~L295–301 council req.
+#2 flash-safe integrity test — confirm **not a temporary** diagnostic left in prod
+API (`psram_flash_safe_test` is public); ~L327–356 `// Step 1`…`// Step 5` on that
+procedure.
+
+**Claim:** “Test 3” is ambiguous. Flash-safe test may stay if it’s a real boot/gate
+helper — label as permanent vs CLI-only. **Positive example:** numbered **Step N** here
+does **not** sound like flight Stage/Phase — model for fixing **Phase N** confusion
+elsewhere (**WN-205**, **WN-160**) without a “pass” ticket; note as style precedent only.
+
+#### `logging/radio_config_storage.{cpp,h}`
+
+**WN-218** — [Grok] · `comment` · **Banner: IVP-T5.5 + orphan “Option C”; sparse dual-sector API**  
+Locus: h ~L4–13 Stage T IVP-T5.5, “Option C (debounced)” without option A/B context,
+dual-sector pattern.
+
+**Claim:** IVP/stage (**W-16**). **“Option C” is out of context** without the decision
+doc — drop or link. Thin read/write façade → sparseness/eval keep vs cal-storage pattern
+(**WN-178** family); if kept, short role banner only.
+
+**WN-219** — [Grok] · `comment` · **LL Entry 4/12 and 31 cites may be stale**  
+Locus: h ~L20–21 init before stdio (LL 4/12); ~L30 `flash_safe_execute` LL Entry 31.
+
+**Claim:** Re-check LL numbers/content still match (**WN-121** re-eval pattern). Prefer
+short live boot-order/flash-safe rule + optional LL pointer if still accurate.
+
+**WN-220** — [Grok] · `ownership` · **SX1276-legal validate — HW-coupled OK if module is clear**  
+Locus: cpp ~L113–116 reject configs not `radio_config_sx1276_legal`…; user direction
+2026-04-21 on advanced values.
+
+**Claim:** HW-specific check is fine **if** the file is clearly **radio/SX1276 config
+flash storage** (not generic “settings”). Dated user-direction can slim. Starcom/RF
+path may supersede (**WN-214** family). Density on cpp not flagged beyond this.
+
+#### `logging/crc16_ccitt.h`
+
+**WN-221** — [Grok] · `comment` · **Banner IVP + poly/init OK but re-check; C++20 note fragile**  
+Loci: ~L3–16 IVP-49 Stage 6 + poly/init/final-XOR/bit-order + table size; ~L25
+`// Compile-time CRC-16-CCITT table generation (C++20 constexpr)`.
+
+**Claim:** Spec block may stay (better than cal CRC vagueness **WN-154**) — still
+**verify** matches CCSDS/PCM use. IVP/stage (**W-16**). “C++20 constexpr” is
+**out of place / rot risk** if dialect changes — prefer “compile-time table” without
+language-version pin unless enforced elsewhere.
+
+**WN-222** — [Grok] · `comment` · **“Exception 1 (JSF AV-182)” cast note unclear**  
+Locus: ~L63–64 (and same pattern on crc32) void*→uint8_t* “Exception 1 (JSF AV-182)…
+confined to this low-level byte routine.”
+
+**Claim:** Reads like a **rule exception** without pointing at an accepted-deviation
+entry. If it **is** a logged exception, fix the log/wording; if it’s only “cast
+contained here,” say that plainly (JSF-182 cast discipline) — not “Exception 1.”
+Remediate if it papers over a real ban without ACCEPTED entry.
+
+#### `logging/crc32.h`
+
+**WN-223** — [Grok] · `comment` · **Same banner/IVP pattern as crc16; Doxygen keep with inventory**  
+Locus: ~L3–15 IVP-53a Stage 6 + IEEE poly/init; Doxygen on `crc32` / `crc32_update`
+(~L55–59, ~L72–77); same JSF AV-182 lines as **WN-222**.
+
+**Claim:** Spec block re-check + IVP hygiene like **WN-221**. Two Doxygen API blocks
+look fine — track with other Doxygen files (**W-10** inventory) for keep/drop
+consistency. JSF-182 wording covered by **WN-222**.
