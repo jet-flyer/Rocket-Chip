@@ -214,14 +214,14 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ### cli/
 
-- [ ] `cli/rc_os.{cpp,h}`  — *(1 atomic mag-cal-active flag → concurrency 3-question test)*
-- [ ] `cli/rc_os_commands.{cpp,h}`  — *(3 volatile T2 command handoff → concurrency 3-question test)*
-- [ ] `cli/rc_os_dashboard.{cpp,h}`
-- [ ] `cli/rc_os_debug.{cpp,h}`
+- [x] `cli/rc_os.{cpp,h}`  — *(1 atomic mag-cal-active flag → concurrency 3-question test)*
+- [x] `cli/rc_os_commands.{cpp,h}`  — *(3 volatile T2 command handoff → concurrency 3-question test)*
+- [x] `cli/rc_os_dashboard.{cpp,h}`
+- [x] `cli/rc_os_debug.{cpp,h}`
 
 ---
 
-**Progress:** `117 / 121 leaves ticked.` Update as you go. When complete, the per-class findings tables (in the)
+**Progress:** `121 / 121 leaves ticked.` **WALK CLOSED 2026-08-08** (reviewed coverage complete; not a quality certification). When complete, the per-class findings tables (in the)
 
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)

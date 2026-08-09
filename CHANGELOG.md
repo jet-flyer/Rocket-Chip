@@ -46,6 +46,15 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-08-001 | Grok 4.5 (Build CLI) | documentation, audit
+
+L2-P5 owner-led manual standards walk **closed** — itinerary **121 / 121** leaves
+(Tiers 1–4). Findings through **WN-327** (Next ID **WN-328**). Pure docs / process —
+no firmware/`src` changes in this close. Walk whiteboard emptied; remaining process
+rows → `AGENT_WHITEBOARD.md` § L2-P5 post-walk follow-ups. **Not a certification** of
+code quality (reviewed paths only). Details: `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`.
+Next (owner): WN disposition / Cycle-4 remediation; optional L2-P10 CLA-RBM.
+
 ### 2026-08-07-001 | Grok 4.5 (Build CLI) | documentation, audit
 
 L2-P5 owner-led manual walk — **Tier 2 complete** (domain logic & infrastructure).

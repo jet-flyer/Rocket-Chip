@@ -1,6 +1,15 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-04-30 (host script hardening Tiers 1–7 + station **`'p'`** preflight parity — see CHANGELOG)
+**Last Updated:** 2026-08-08 (L2-P5 manual standards walk closed — itinerary 121/121; see CHANGELOG 2026-08-08-001)
+
+## L2-P5 manual standards walk (Cycle 4) — CLOSED 2026-08-08
+
+Owner-led file-by-file semantic walk of in-scope `src/` + `include/` firmware
+(**121 / 121** itinerary leaves). Observations **WN-001–WN-327** in
+`docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`. **Reviewed, not certified.**
+Post-walk process follow-ups on `AGENT_WHITEBOARD.md`. **Next:** disposition findings
+(remediation / accept) when owner schedules; L2-P10 CLA-RBM re-collection remains after
+that workstream.
 
 ## Stage O plan — verification vs `.cursor/plans/stage_o_*` (IVP gates)
 

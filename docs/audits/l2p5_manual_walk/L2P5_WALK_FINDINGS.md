@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-08 · Grok · main.cpp WN-307–312 · Tier 3 complete
+**Last edited:** 2026-08-08 · Grok · **WALK CLOSED** · itinerary 121/121 · WN-001–327
 
 # L2-P5 Walk Findings
 
@@ -18,7 +18,7 @@ Tangents → `L2P5_WALK_WHITEBOARD.md`. Not PASS/FAIL, remediation, or dispositi
 | **Itinerary sync** | Adding a later path while an earlier itinerary path is checked off but missing here → flag owner for `— nothing of note.` (do not invent it). |
 | **Project-wide** | Findings that are not a single itinerary path live under **Project-wide** (kept **above** per-file tiers so later file appends do not bury them). Still use global `WN-NNN`. |
 
-**Next ID:** WN-313
+**Next ID:** WN-328
 
 ---
 
@@ -3597,3 +3597,138 @@ tick, log drain, WFI), AO start.
 belongs (bootstrap + idle bridge + AO start) and **omits** what should live elsewhere.
 Watch kitchen-sink / legacy rot from being the original file — extra scrutiny vs normal
 leaves. Related **WN-306**, Stage migration history.
+
+## Tier 4 — CLI
+
+### cli/
+
+#### `cli/rc_os.{cpp,h}`
+
+**WN-313** — [Grok] · `ownership` · **RC_OS pair — gated with RC_OS rework**  
+Locus: whole pair — CLI menu SM, hooks, cal/flight/debug entry. Same surface as
+`ao_rcos` / `rc_os_*` siblings.
+
+**Claim:** All structure/placement/API notes on this leaf (and sibling CLI files) are
+**gated with the RC_OS rework** (main WB § RC_OS Rework; **WN-288**). No mid-walk redesign.
+
+**WN-314** — [Grok] · `comment` · **Header PA + IVP/dev + Doxygen density**  
+Locus: h ~L3–14 `@file`/`@brief` — “Adapted from v0.3 FreeRTOS implementation” (**PA**);
+IVP-109/122/T14d tags; heavy `/** @brief */` on most APIs; ~L161–165 R-17 tombstone.
+
+**Claim:** (1) **PA check** on L8 FreeRTOS v0.3 lineage — confirm still true / used, or
+drop. (2) IVP/dev archaeology (**W-6**, **W-16**). (3) Doxygen markup + density —
+inconsistent project style (**WN-081**, **WN-054**). Slim under rework.
+
+**WN-315** — [Grok] · `ownership` · **I2C / bus-ownership surface inside “CLI” module**  
+Locus: h ~L116–136 `rc_os_i2c_scan_allowed`, `rc_os_mag_cal_active` (GPS pause for mag
+I2C contention); cpp `#include drivers/i2c_bus.h`; cal hooks history pointing at
+`core1_i2c_pause`.
+
+**Claim:** Stated as CLI menu system but carries **I2C bus policy** (scan guard, mag-cal
+GPS suppress). Odd home for bus ownership — rework should place bus/coordination next to
+drivers/safety/core1, not menu headers. Related **WN-313**, **WN-264**.
+
+**WN-316** — [Grok] · `comment` · **Cpp PA + Stage/IVP density**  
+Locus: cpp ~L3–8 “Bare-metal adaptation of RC_OS v0.3” (same PA); Stage L / IVP-L3 /
+IVP-122 / Tier 5 / R-25 tags throughout menus and ARM confirm.
+
+**Claim:** Same process-comment blanket as header. Related **W-6**, **WN-314**.
+
+**WN-317** — [Grok] · `invariant` · **NOLINT function-size on menu dispatchers (disallowed)**  
+Locus: cpp ~L142, ~L201, ~L295  
+`// NOLINTNEXTLINE(readability-function-size) — pure key dispatcher…`  
+(also ~L343 similar on USB SM).
+
+**Claim:** In-source NOLINT **not allowed** — split tables, accept deviation, or tool
+config. Same class **WN-043** / **WN-245** / **WN-279**. “Pure dispatcher” rationale does
+not exempt the policy.
+
+#### `cli/rc_os_commands.{cpp,h}`
+
+**WN-318** — [Grok] · `comment` · **Header + cpp IVP/Stage/dev density (RC_OS-rework-gated)**  
+Locus: h ~L31 IVP-110 preflight, ~L37 Stage L beacon; cpp file-wide IVP-107/62c/T5.5/T11/
+122/L, Stage T2 cheat-mode, sub 2c, etc. **Aside:** no other header-specific findings.
+
+**Claim:** Process archaeology on both halves. Slim under **RC_OS rework** (**WN-313**).
+Related **W-6**, **W-16**.
+
+**WN-319** — [Grok] · `invariant` · **Multiple NOLINTs (disallowed)**  
+Locus: cpp ~L155–156 identifier-naming on `kGps1e7ToDegrees*`; ~L208–259
+`NOLINTBEGIN/END` magic-numbers (ESKF P indices); ~L484–489 DCM indices BEGIN/END;
+~L907 NEXTLINE `P(5,5)`.
+
+**Claim:** In-source NOLINT **not allowed** — named constants / layout helpers or
+deviation log. Same class **WN-317**, **WN-245**.
+
+**WN-320** — [Grok] · `ownership` · **Potential HW-specific code in CLI commands**  
+Locus: e.g. ~L632 UART “GPIO0/1, 57600 baud”; ~L744–747 LED/NeoPixel pin print via
+`board::`; GPS I2C 0x10 / alt addresses; other board-coupled status strings.
+
+**Claim:** Display path may still **embed board/baud/pin narratives** beyond `board::`
+indirection. Resolve under HW-agnostic policy (**W-8**) + RC_OS rework — status should
+read pack/capability, not hard-coded SKU essays.
+
+**WN-321** — [Grok] · `comment` · **L639–641 “Grok-triage” agent-specific debug ref**  
+Locus: ~L639–644  
+`// Grok-triage debug: show PMTK write return codes…` + `gps_pa1010d_get_debug_status`
+print in HW status path.
+
+**Claim:** Agent-session triage left in production CLI output path. Remove or promote to
+a proper named debug flag/doc — no “Grok-triage” permanent comments. Related **W-6**.
+
+**WN-322** — [Grok] · `comment` · **L735–736 build-tag / version SSOT comments**  
+Locus: ~L735–741  
+`// Build tag constant — must match main.cpp` / `// Build tag from version.h…` then
+prints `kFirmwareVersion`, `kBuildConfig`, `kGitHash`.
+
+**Claim:** Stale dual comments (“must match main” vs “version.h SSOT”). Clarify
+**enforcement**: single include of `version.h` / no parallel define — drop contradictory
+“match main” if unused. Related **WN-010** version tracking.
+
+**WN-323** — [Grok] · `ownership` · **Preflight Go/No-Go ~L1396+ — why re-implement here?**  
+Locus: ~L1395–1483+ `cli_print_preflight` / `preflight_print_*` — health-level→GO maps,
+`is_go` (degraded counts GO), then also `go_nogo_evaluate` for RF Link etc.
+
+**Claim:** CLI re-prints / re-derives Go/No-Go presentation that **must match**
+`go_nogo_checks` + health SSOT. Why a large parallel path in commands vs thin call into
+shared evaluate/print? Risk of **drift** (e.g. degraded-as-GO here vs platform rules
+elsewhere). Prefer one SSOT; rework/CLI should not own a second policy. Related **WN-182**,
+**WN-254** “Tier” naming.
+
+#### `cli/rc_os_dashboard.{cpp,h}`
+
+**WN-324** — [Grok] · `comment` · **Dev/Stage/IVP comments both halves (RC_OS-rework-gated)**  
+Locus: h ~L12 Stage 12B Phase 1 banner; Doxygen on render API; cpp ~L3–13 technique
+banner; IVP-107/T14/T5.5 sub 2f/T14c/122 tags throughout. **Aside:** nothing else
+header-specific.
+
+**Claim:** Same process-comment class as other CLI (**W-6**, **W-16**). Slim under
+**RC_OS rework** (**WN-313**).
+
+**WN-325** — [Grok] · `comment` · **Cpp tables / mapping logic in display code**  
+Locus: e.g. ~L68–78 flight-phase→color switch (table); RF Link glance / CMD row state
+tables (~L241+, ~L283+); radio config / health decode rows; fixed-layout frame assembly.
+
+**Claim:** Display maps (phase colors, link glance, cmd states) live as code tables —
+fine as data if documented; watch drift vs FD phase enum / RF manager / health SSOT.
+Prefer named tables or shared helpers under rework rather than silent magic cases.
+Related **WN-323**, **WN-286**.
+
+#### `cli/rc_os_debug.{cpp,h}`
+
+**WN-326** — [Grok] · `ownership` · **Debug sub-menu — gate with debug/test reworks**  
+Locus: pair — operator Debug menu (`q`); migrated from `src/dev/dev_cli` into flight
+binary (R-25-exec Approach A); mutating cmds via `test_mode_active()`.
+
+**Claim:** By nature this is **debug/test/operator-inject surface** in mainline flight
+sources — same bucket as inject/test_mode (**WN-258–262**). Flag placement/gating for
+**debug/test code reworks** (and RC_OS rework **WN-313**): re-home, strip from flight tree,
+or keep only with explicit policy. No mid-walk redesign.
+
+**WN-327** — [Grok] · `comment` · **Dev/R-25 density both halves; large header ratio**  
+Locus: h ~L3–14 R-25-exec migration essay + Approach A gating; remaining API short;
+cpp ~L3–18 same restatement + step 5/6 replay-delete tombstones. **Aside:** nothing else
+header- or cpp-specific.
+
+**Claim:** High comment-to-code ratio on a thin header; process archaeology both files.
+Slim under rework (**W-6**). Related **WN-326**, **WN-259**.
