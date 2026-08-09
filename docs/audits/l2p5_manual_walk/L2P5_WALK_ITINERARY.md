@@ -221,7 +221,7 @@ The bottom-up tier order already runs callees before callers, so most cross-modu
 
 ---
 
-**Progress:** `121 / 121 leaves ticked.` **WALK CLOSED 2026-08-08** (reviewed coverage complete; not a quality certification). When complete, the per-class findings tables (in the)
+**Progress:** `121 / 121 leaves ticked.` Coverage complete 2026-08-08 (reviewed, not certified). **Formal walk close still needs empty walk whiteboard** (disposition W-rows; do not bulk-park on main WB). When complete, the per-class findings tables (in the)
 
 field manual) + this 100%-ticked itinerary together prove full coverage for the Cycle-4 remediation doc's
 "NOT MECHANICALLY COVERED" matrix. (Close-out writeup is Plan-3 / post-walk — not a per-file step.)

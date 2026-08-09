@@ -1,4 +1,4 @@
-**Last edited:** 2026-08-08 · Grok · **WALK CLOSED** · itinerary 121/121 · WN-001–327
+**Last edited:** 2026-08-09 · Grok · itinerary 121/121 · WN-001–327 · formal close pending walk-WB drain
 
 # L2-P5 Walk Findings
 

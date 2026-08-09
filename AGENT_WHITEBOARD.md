@@ -19,34 +19,29 @@
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 manual walk CLOSED 2026-08-08** (121/121 leaves, WN-001–327; post-walk follow-ups below). Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17 (Field Testing & Avionics Airworthiness) restructured 2026-04-22** from 5-IVP direct-to-flight into 13-IVP tapered buildup. Plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC-Layer + COP-1 rework deferred to post-Stage-17** (unanimous council).
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + findings WN-001–327 done 2026-08-08; formal walk close blocked on walk-WB drain.** Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
-## L2-P5 post-walk follow-ups (OPEN) (2026-08-08, from walk WB W-1–16)
+## Session Handoff — L2-P5 formal close: drain walk WB first (2026-08-09, Grok 4.5 (Build CLI))
 
-**Coverage complete:** itinerary **121/121**; findings through **WN-327** (`docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`).  
-**Close tone (W-3):** ticked = owner **reviewed**, not certified clean / exhaustive.
+**In progress:** L2-P5 **file itinerary is complete** (121/121, findings **WN-001–327**). Formal walk close is **not** done until `docs/audits/l2p5_manual_walk/L2P5_WALK_WHITEBOARD.md` is **empty via real disposition** of each **W-1–16** row (land in target home, or owner-erase). Do **not** bulk-park those rows on this main whiteboard again.
 
-Walk whiteboard emptied at close — remaining process rows land here until dispositioned.
+| | |
+|--|--|
+| **Coverage** | Itinerary **121/121**; `L2P5_WALK_FINDINGS.md` Next ID **WN-328** |
+| **Blocker for formal close** | Walk WB still open — full text in `L2P5_WALK_WHITEBOARD.md` |
+| **How to finish** | Owner-directed per-row drain (keep / fold into guide / standards / erase). When empty, **delete** the walk WB file (git keeps history). |
+| **After WB empty** | True walk close stamp if needed; **then** disposition prep (WN → R-NN / accept / Cycle-4 remediation) — not before. |
+| **Cold-start** | `L2P5_SESSION_HANDOFF.md` (itinerary done; WB drain pending) |
+| **CHANGELOG** | 2026-08-08-001 coverage; 2026-08-09-001 WB restore correction |
 
-| ID | Action | Notes / home |
-|----|--------|----------------|
-| **W-1** | Fix P10-9 triage / deviation-log vs live fn-ptrs | `cli/rc_os.h`, GPS hooks, FD cbs, `flash_flush`; FD may defer to QP/QF eval |
-| **W-2** | Finish concurrency 3-question on inventory | Volatiles/atomics list was walk WB; many sites walked as leaves — retire residual objects into findings or close as partial |
-| **W-5** | Fold “existence → report includes/consumers” into walk guide | Process |
-| **W-6** / **W-16** | Comment hygiene: process archaeology + Stage/IVP truth | CODING_STANDARDS / sweep; seeds across WNs |
-| **W-7** / **W-10** / **WN-054** / **WN-081** | Header density exemption + Doxygen keep-or-drop + inventory | Standards session |
-| **W-8** | HW-agnostic guidance (+ optional audit) | CODING_STANDARDS / SAD; **WN-309** |
-| **W-11** | Optional h vs cpp pedagogy (`ws2812_status`) | Guide/onboarding |
-| **W-12** / **W-13** | Process applied mid-walk | Fold into guide if not already; no open product work |
-| **W-14** | Codegen regen/hand-edit audit | Plan/CI; related existing codegen WB row |
-| **W-15** | Safety/ops capability criticality inventory | Optional SAD/checklist |
-| **W-3** / **W-4** / **W-9** | Close-out tone; board rollup done; volume watch | W-4 → **WN-029**; W-3 applied at close |
+**Blocked:** formal L2-P5 walk close + WN disposition prep until walk WB empty.
 
-**Remediation path (not this commit):** Cycle-4 Plan-3 / disposition WNs → R-NN or accept; L2-P10 CLA-RBM when owner schedules. Graphify full re-pass row remains owner-gated after this walk.
+**Erase this handoff** when walk WB is empty and formal close is recorded.
 
 ---
+
 
 ## Session Handoff — Local-LLM companion research (OPEN) (2026-07-28, Claude Opus 5 (Code))
 
@@ -178,9 +173,9 @@ ESKF, Mahony, tests, logs). Needs plan before code; no mid-walk flip.
 
 ---
 
-## Graphify full re-pass (OPEN) — L2-P5 walk finished; owner-gated
+## Graphify full re-pass (OPEN) — after L2-P5 formal close; owner-gated
 
-L2-P5 file walk **closed 2026-08-08**. Full `/graphify` (and baseline refresh if needed) is now **eligible** — still **owner-gated** (billed). Cheap `graphify update` + curate already runs post-commit; this is the token-bearing semantic re-pass only.
+L2-P5 **itinerary** complete; **formal walk close** still needs empty walk WB. Full `/graphify` remains **owner-gated** (billed). Prefer after formal walk close unless owner wants earlier. Cheap `graphify update` + curate already runs post-commit.
 
 ---
 
@@ -377,7 +372,7 @@ Council review of all Starcom research findings (Grok vs Claude) completed. Full
 
 - **AO Commandments source-citation audit.** Investigating R-27 (RfManager Commandment XII observation) surfaced that Commandment XII's `Source:` line cites LL Entry 36, but LL 36 is about test-tool rot (bench_flight_sim.py going stale), not AO state-transition logging or runtime observability. A research agent walked the doc's stated sources (Samek PSiCC2 Ch. 11, state-machine.com Active Object/RTEF/QP/C SRS pages, NASA F´ Code Style + State Machines doc) and confirmed **no clean substitute citation exists in any of those** — the rule is project-internal invention generalized from folklore, not inherited from external authority. This is an [LL Entry 37](docs/agents/LESSONS_LEARNED.md)-class citation-rot finding. Per Entry 37 discipline ("if one citation was wrong, check the rest"), audit all 12 Commandment `Source:` lines in `docs/decisions/AO_COMMANDMENTS.md` against their cited sources; fix XII's citation (either reframe as project-internal "Rationale:" or cite PSiCC2 Ch. 11 honestly as topical-but-tool-framing); reassess R-27's disposition once the rule's authority is correctly understood. Est. ~1-2 hrs. Block on this is open per user direction 2026-05-22 — address before closing R-27.
 
-- **Four-cycle plan — Cycle 4: L2-P5 walk CLOSED 2026-08-08** (itinerary 121/121, WN-001–327). Next within Cycle 4: WN disposition / remediation when owner schedules; then L2-P10 CLA-RBM re-collection. Cycles 1-3 closed. See CHANGELOG 2026-08-08-001.
+- **Four-cycle plan — Cycle 4: L2-P5 itinerary complete 2026-08-08** (121/121, WN-001–327); **walk-WB drain still open** for formal close. Then WN remediation; L2-P10 CLA-RBM. Cycles 1-3 closed. See CHANGELOG 2026-08-08-001 / 2026-08-09-001.
 
   **── SESSION HANDOFF / temp-record (2026-06-21, Claude Opus 4.8) — resume here. CHANGELOG entry now written (`2026-06-21-001`, post-written after a restart); this block is kept for the forward-looking resume state (built/pending classes, next steps). ──**
 

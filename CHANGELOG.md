@@ -46,14 +46,21 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-09-001 | Grok 4.5 (Build CLI) | documentation, audit
+
+L2-P5 close correction: walk whiteboard was **incorrectly emptied** by parking W-1–16 on
+main `AGENT_WHITEBOARD` without owner disposition. **Restored** full
+`L2P5_WALK_WHITEBOARD.md`; removed that main-WB section. Formal walk close remains
+**pending** empty walk WB via real per-row disposition. Itinerary **121/121** + findings
+WN-001–327 still stand as coverage complete (reviewed, not certified). Softens over-claim
+in 2026-08-08-001.
+
 ### 2026-08-08-001 | Grok 4.5 (Build CLI) | documentation, audit
 
-L2-P5 owner-led manual standards walk **closed** — itinerary **121 / 121** leaves
-(Tiers 1–4). Findings through **WN-327** (Next ID **WN-328**). Pure docs / process —
-no firmware/`src` changes in this close. Walk whiteboard emptied; remaining process
-rows → `AGENT_WHITEBOARD.md` § L2-P5 post-walk follow-ups. **Not a certification** of
-code quality (reviewed paths only). Details: `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`.
-Next (owner): WN disposition / Cycle-4 remediation; optional L2-P10 CLA-RBM.
+L2-P5 owner-led manual standards walk — **itinerary complete** (**121 / 121** leaves,
+Tiers 1–4). Findings through **WN-327** (Next ID **WN-328**). Pure docs. **Not a
+certification** of code quality. *(Close note: walk-WB empty-at-close was premature — see
+2026-08-09-001.)* Details: `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`.
 
 ### 2026-08-07-001 | Grok 4.5 (Build CLI) | documentation, audit
 
