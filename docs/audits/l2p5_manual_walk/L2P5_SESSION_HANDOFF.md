@@ -15,6 +15,6 @@
 | **Findings** | `L2P5_WALK_FINDINGS.md` · Next ID **WN-328** |
 | **Walk WB** | `L2P5_WALK_WHITEBOARD.md` — **still open**; this is the formal-close gate |
 | **Main WB handoff** | `AGENT_WHITEBOARD.md` § Session Handoff — drain walk WB first |
-| **CHANGELOG** | 2026-08-08-001 coverage; 2026-08-09-001 WB restore |
+| **CHANGELOG** | 2026-08-08-001 (itinerary complete; formal close pending walk-WB drain) |
 
 **Blocked:** formal L2-P5 walk close and disposition prep until walk WB is empty.

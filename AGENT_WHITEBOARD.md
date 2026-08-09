@@ -34,7 +34,7 @@
 | **How to finish** | Owner-directed per-row drain (keep / fold into guide / standards / erase). When empty, **delete** the walk WB file (git keeps history). |
 | **After WB empty** | True walk close stamp if needed; **then** disposition prep (WN → R-NN / accept / Cycle-4 remediation) — not before. |
 | **Cold-start** | `L2P5_SESSION_HANDOFF.md` (itinerary done; WB drain pending) |
-| **CHANGELOG** | 2026-08-08-001 coverage; 2026-08-09-001 WB restore correction |
+| **CHANGELOG** | 2026-08-08-001 (itinerary complete; formal close pending walk-WB drain) |
 
 **Blocked:** formal L2-P5 walk close + WN disposition prep until walk WB empty.
 
@@ -372,7 +372,7 @@ Council review of all Starcom research findings (Grok vs Claude) completed. Full
 
 - **AO Commandments source-citation audit.** Investigating R-27 (RfManager Commandment XII observation) surfaced that Commandment XII's `Source:` line cites LL Entry 36, but LL 36 is about test-tool rot (bench_flight_sim.py going stale), not AO state-transition logging or runtime observability. A research agent walked the doc's stated sources (Samek PSiCC2 Ch. 11, state-machine.com Active Object/RTEF/QP/C SRS pages, NASA F´ Code Style + State Machines doc) and confirmed **no clean substitute citation exists in any of those** — the rule is project-internal invention generalized from folklore, not inherited from external authority. This is an [LL Entry 37](docs/agents/LESSONS_LEARNED.md)-class citation-rot finding. Per Entry 37 discipline ("if one citation was wrong, check the rest"), audit all 12 Commandment `Source:` lines in `docs/decisions/AO_COMMANDMENTS.md` against their cited sources; fix XII's citation (either reframe as project-internal "Rationale:" or cite PSiCC2 Ch. 11 honestly as topical-but-tool-framing); reassess R-27's disposition once the rule's authority is correctly understood. Est. ~1-2 hrs. Block on this is open per user direction 2026-05-22 — address before closing R-27.
 
-- **Four-cycle plan — Cycle 4: L2-P5 itinerary complete 2026-08-08** (121/121, WN-001–327); **walk-WB drain still open** for formal close. Then WN remediation; L2-P10 CLA-RBM. Cycles 1-3 closed. See CHANGELOG 2026-08-08-001 / 2026-08-09-001.
+- **Four-cycle plan — Cycle 4: L2-P5 itinerary complete 2026-08-08** (121/121, WN-001–327); **walk-WB drain still open** for formal close. Then WN remediation; L2-P10 CLA-RBM. Cycles 1-3 closed. See CHANGELOG 2026-08-08-001.
 
   **── SESSION HANDOFF / temp-record (2026-06-21, Claude Opus 4.8) — resume here. CHANGELOG entry now written (`2026-06-21-001`, post-written after a restart); this block is kept for the forward-looking resume state (built/pending classes, next steps). ──**
 
