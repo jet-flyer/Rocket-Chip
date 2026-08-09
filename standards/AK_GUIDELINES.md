@@ -1,4 +1,4 @@
-# Agent Behavioral Guidelines
+﻿# Agent Behavioral Guidelines
 
 **PRIORITY:** Consider these behavioral rules first. If any conflict arises with project-specific instructions, ask for clarification before proceeding.
 
@@ -49,39 +49,23 @@ The test: Every changed line should trace directly to the user's request.
 **Define success criteria. Loop until verified.**
 
 Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
+- "Add validation" ΓåÆ "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" ΓåÆ "Write a test that reproduces it, then make it pass"
+- "Refactor X" ΓåÆ "Ensure tests pass before and after"
 
 For multi-step tasks, state a brief plan:
 ```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
+1. [Step] ΓåÆ verify: [check]
+2. [Step] ΓåÆ verify: [check]
+3. [Step] ΓåÆ verify: [check]
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
-## 5. Document Rewrites — Read Before You Clobber
+---
 
-**Never replace large parts of a document (or empty a board/handoff) without reading what you are removing.**
-
-Whenever you would rewrite a file, replace a large section, empty a whiteboard, or compress process state into a short summary:
-
-1. **Read first** — the whole document, or every paragraph/row you are about to overwrite or delete.
-2. **Inventory** — list live items, open decisions, and anything with a disposition target still open.
-3. **Do not ignore** — each live item must stay, move to a **correct named home** (with owner OK if ambiguous), or be explicitly erased with a stated reason.
-4. **Ask before bulk park** — do not relocate unfinished work to another whiteboard or a summary table unless the owner directed that move.
-5. **Close gates are content-complete, not file-short** — “must be empty” means the work is finished, not that the file was truncated.
-
-Prefer **edit in place** (erase only resolved rows) over full-file rewrite. If you cannot disposition an item, **leave it and report** — do not invent an empty board.
-
-Origin: L2-P5 walk-WB premature empty (2026-08-09) — open W-rows bulk-parked without owner disposition.
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
 ---
 
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, clarifying questions come before implementation rather than after mistakes, and process docs are not silently clobbered.
-
----
-
-*Source: [forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills) (sections 1–4); section 5 is project-specific agent discipline.*
+*Source: [forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills)*
