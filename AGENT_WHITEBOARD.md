@@ -19,26 +19,68 @@
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + findings WN-001–327 done 2026-08-08; formal walk close blocked on walk-WB drain.** Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + findings WN-001–327; walk WB drained and formal walk close 2026-08-17.** Next: WN cluster index, then disposition. Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
-## Session Handoff — L2-P5 formal close: drain walk WB first (2026-08-09, Grok 4.5 (Build CLI))
+## Agent re-walk checks (OPEN) (landed from walk WB W-5 + W-2, 2026-08-17)
 
-**In progress:** L2-P5 **file itinerary is complete** (121/121, findings **WN-001–327**). Formal walk close is **not** done until `docs/audits/l2p5_manual_walk/L2P5_WALK_WHITEBOARD.md` is **empty via real disposition** of each **W-1–16** row (land in target home, or owner-erase). Do **not** bulk-park those rows on this main whiteboard again.
+**Venue:** planned agent re-walks (owner walk did not run these systematically). **Not** a new temp doc. Frozen walk guide is not the home.
 
-| | |
-|--|--|
-| **Coverage** | Itinerary **121/121**; `L2P5_WALK_FINDINGS.md` Next ID **WN-328** |
-| **Blocker for formal close** | Walk WB still open — full text in `L2P5_WALK_WHITEBOARD.md` |
-| **How to finish** | Owner-directed per-row drain (keep / fold into guide / standards / erase). When empty, **delete** the walk WB file (git keeps history). |
-| **After WB empty** | True walk close stamp if needed; **then** disposition prep (WN → R-NN / accept / Cycle-4 remediation) — not before. |
-| **Cold-start** | `L2P5_SESSION_HANDOFF.md` (itinerary done; WB drain pending) |
-| **CHANGELOG** | 2026-08-08-001 (itinerary complete; formal close pending walk-WB drain) |
+**When questioning whether a header earns its own file** (sparseness, thin façade, parallel packs): attach, in the discussion or WN,
 
-**Blocked:** formal L2-P5 walk close + WN disposition prep until walk WB empty.
+1. **Direct includes** of that path under `src/` + `include/` (+ `test/` if relevant)
+2. **Symbol consumers** (may be fewer than includes; dead symbols happen)
+3. **Indirect fan-in** (selector-only packs, façade-only types)
 
-**Erase this handoff** when walk WB is empty and formal close is recorded.
+Do **not** couple later keep/fold decisions across “same class” thin headers. Owner walk applied this only a few times early (`radio_config_table`, `sensor_snapshot`); later “earns rent?” notes did not.
+
+**Concurrency 3-question pass** — for each object below, name owner / mutator / barrier. Ambiguity is the finding. Enumerate from `volatile` / `std::atomic` / `multicore_*` / spinlock — **not** every `g_` (QP `l_`→`g_` rename made that hint useless).
+
+*22 `volatile`:* `log/rc_log.cpp` `g_ring`/`g_head`/`g_tail`/`g_droppedBytes`/`g_highWater`; `drivers/gps_uart.cpp` `g_rxHead`/`g_rxTail`/`g_rxOverflow`; `safety/test_mode.cpp` `g_test_mode_arm_magic`/`g_test_mode_enabled`/`g_magicObservedAtBoot`; `cli/rc_os_commands.cpp` `g_t2_pending`/`g_t2_cmd`/`g_t2_p1`; `safety/fault_inject.cpp` `g_fault_core0_stall`/`g_fault_watchdog_skip`; `safety/station_fault_inject.cpp` `g_fault_station_rx_drop_remaining`/`g_fault_station_ack_suppress_remaining`; `safety/fault_protection.cpp` `g_inFaultHandler`; `safety/flight_in_progress.cpp` `g_flightInProgressMagic`; `safety/pyro_edge_logger.cpp` `g_count`; `flight_director/flight_director.cpp` `g_phaseObservablePair`.
+
+*9 `std::atomic`:* `shared_state.cpp` `g_startSensorPhase`/`g_sensorPhaseDone`/`g_calReloadPending`/`g_core1PauseI2C`/`g_core1I2CPaused`/`g_core1LockoutReady`; `core1/sensor_core1.cpp` `g_bestGpsValid`; `cli/rc_os.cpp` `rc_os_mag_cal_active`; `drivers/spi_bus.cpp` `g_spi_error_count`.
+
+Same test, not in the count: seqlock snapshot, PSRAM ring, AO static events.
+
+---
+
+## P10-9 live function pointers (OPEN) (landed from walk WB W-1, 2026-08-17)
+
+**This is a disposition item.** It should have been **one project-wide WN** (same later decision: unlogged P10-9 sites). It was not filed: triage says Property C is Det-by-reference via the deviation log, and the log reads “all resolved 2026-05-13,” so the walk procedure would PASS without looking. `lm_solver` was explicitly not re-opened. Findings stay frozen — this row is the working list.
+
+**Do not treat the empty deviation log as evidence of absence.** FP-1 (templates in `lm_solver`) really was fixed. These 18 declaration sites (7 files) are still live (spot-checked 2026-08-17):
+
+- Typedef’d: `safety/test_mode.h` `FlightPhaseAccessor`; `fusion/eskf_runner.h` `EskfEventLogFn`; `cli/rc_os.h` `rc_os_read_accel_fn` / `rc_os_read_mag_fn` / `rc_os_reset_mag_staleness_fn`
+- Raw: `shared_state` GPS hooks `g_gpsFnUpdate`/`g_gpsFnGetData`/`g_gpsFnHasFix`; `flight_director.h` 5 FD action callbacks; `action_executor.h` `set_led`/`log_pyro`; `logging/flash_flush.*` `void (*kick_watchdog)()` ×3
+
+**When disposing:** accept (sign-off), fix (templates / other), or defer. FD + `action_executor` callbacks may wait on the existing **QP/C vs QP/C++** eval (they exist because the HSM is C). GPS hooks and `kick_watchdog` do **not** wait on QP. If P10-9 is accepted rather than banned, JSF-176 un-moots on the 13 raw decls — a second, separate question. Sweep was `src/`+`include/` regex only.
+
+---
+
+## Comment / Doxygen work — order (OPEN) (landed from walk WB W-10; W-6 folded into WNs)
+
+**Do not start mass comment cleanup or the density/Doxygen policy edit until the inventory exists.** Already agreed; W-10 was the inventory so WN-081 would not grow a file list.
+
+1. **Inventory** production headers/sources with Doxygen markup (`@file`/`@brief`/`@param`/`@return` / `/** … */` API blocks). Grep; include/exclude rules at the time (public API vs all `src/`). Seeds: `gps_pa1010d.h`, `i2c_bus.h`, `icm20948.h`, `baro_dps310.h`, `rfm95w.h`.
+2. **Then** policy: header density exemption (**WN-054**) + Doxygen keep-consistently-or-drop (**WN-081**).
+3. **Then** process-archaeology / “dev comment” cleanup — **WN-085** and the per-file comment WNs (W-6/W-16 were only the theme pointer; 79 WNs already cite W-6). Keep live invariants; IVP/Stage/session essays belong in docs.
+
+---
+
+## HW-agnostic rule — write it before HW-leakage WNs (OPEN) (landed from walk WB W-8)
+
+**No product fork.** Stance is already apparent: domain code HW-agnostic within the compatible ARM class; HAL/board/job packs at the edge. What is missing is a **written rule** (CODING_STANDARDS and/or SAD — both protected; edit only when that work is scheduled).
+
+**Write the rule first**, then dispose HW-reference / leakage notes (**WN-063**, **WN-068**, **WN-309**, and others in that family). Do not close those WNs against an unwritten standard. Spell out what must live in board/job packs vs domain headers, what “compatible ARM” means, and what is forbidden.
+
+---
+
+## Safety/ops criticality inventory (OPEN) (landed from walk WB W-15)
+
+Optional project-wide map of **things the system does** (Go/No-Go, launch abort, pyro intent, confidence gate, ESKF healthy, FD HSM, …) → owning files/APIs. Review priority / gate scope / doc SSOT. Not a C++ or build tier.
+
+**WN tie is weak.** **WN-182**’s real claim is Go/No-Go SSOT; the inventory is an explicit owner tangent. **WN-184** is a load-bearing comment-vs-type contract and only points at W-15 as safety-adjacent. **Do not block** disposing those WNs on creating this list. Seeds if/when built: WN-182, WN-142, WN-172, WN-176, ESKF brake, fault recovery.
 
 ---
 
@@ -175,7 +217,7 @@ ESKF, Mahony, tests, logs). Needs plan before code; no mid-walk flip.
 
 ## Graphify full re-pass (OPEN) — after L2-P5 formal close; owner-gated
 
-L2-P5 **itinerary** complete; **formal walk close** still needs empty walk WB. Full `/graphify` remains **owner-gated** (billed). Prefer after formal walk close unless owner wants earlier. Cheap `graphify update` + curate already runs post-commit.
+L2-P5 walk WB drained and formal walk close **2026-08-17**. Full `/graphify` remains **owner-gated** (billed). Cheap `graphify update` + curate already runs post-commit. A WN cluster index (findings cites, not this graph) is the first disposition-prep step.
 
 ---
 
@@ -360,7 +402,7 @@ Council review of all Starcom research findings (Grok vs Claude) completed. Full
 
 ## High priority
 
-- **Codegen audit — verify every generated/codegen area is handled properly (2026-06-23, Claude).** Surfaced during the L2-P5 walk. `src/flight_director/mission_profile_data.h` is banner-marked "AUTO-GENERATED by `scripts/generate_profile.py` / Do not edit", yet was **hand-edited** in commit `b1f25ce` and has **drifted from its generator**. A rigorous diff (HEAD generator-output vs committed) confirms the post-gen hand-edits are **exactly two, both Stage-T radio, and nothing else differs** (the whole `MissionProfile` struct matches the generator): **(1)** a `#ifdef ROCKETCHIP_STAGE_T3_MAVLINK` protocol switch (MAVLink vs CCSDS), **(2)** the `// Stage T IVP-T6 sweep …` comment. The build does **not** regenerate the file (no `generate_profile` in CMake), so the documented "edit `profiles/rocket.cfg` + regenerate" workflow would **silently delete the MAVLink switch**. `test/test_hab_profile_data.h` also appears **stale** (omits current struct fields: `default_lat_deg`, `drogue_timer_s`, `phase_qr`, …). **Do NOT retire the generator** — it backs the user-facing profile UX + setup wizard (the wizard itself is due for a cleanup, ideally after the CCSDS work lands). **Proper fix (deferred — not blocking; committed files compile correctly):** (a) re-encode the two hand-patches into `profiles/rocket.cfg` + `generate_profile.py` so regeneration is lossless; (b) refresh the stale hab profile; (c) wire the generator into the CMake build so generated headers regenerate each build and can't drift (cfg = single source of truth); (d) **sweep for any OTHER "AUTO-GENERATED" file that has been hand-touched** (the ESKF SymPy codegen `eskf_codegen.cpp` is separately covered by deviation CG-1; check the rest). A standards rule was added this session (`CODING_STANDARDS.md` → "Auto-Generated Code": never edit post-gen output; edit the generator/input). Until the proper fix lands, **do not regenerate `mission_profile_data.h` without re-applying the two `b1f25ce` hand-patches above.** (This session applied the `#pragma once`→`#ifndef` guard + `has_default_location` field *directly* to the committed file + the generator to avoid clobbering, per the surfaced-issues rule.)
+- **Codegen audit — verify every generated/codegen area is handled properly (2026-06-23, Claude).** Surfaced during the L2-P5 walk. `src/flight_director/mission_profile_data.h` is banner-marked "AUTO-GENERATED by `scripts/generate_profile.py` / Do not edit", yet was **hand-edited** in commit `b1f25ce` and has **drifted from its generator**. A rigorous diff (HEAD generator-output vs committed) confirms the post-gen hand-edits are **exactly two, both Stage-T radio, and nothing else differs** (the whole `MissionProfile` struct matches the generator): **(1)** a `#ifdef ROCKETCHIP_STAGE_T3_MAVLINK` protocol switch (MAVLink vs CCSDS), **(2)** the `// Stage T IVP-T6 sweep …` comment. The build does **not** regenerate the file (no `generate_profile` in CMake), so the documented "edit `profiles/rocket.cfg` + regenerate" workflow would **silently delete the MAVLink switch**. `test/test_hab_profile_data.h` also appears **stale** (omits current struct fields: `default_lat_deg`, `drogue_timer_s`, `phase_qr`, …). **Do NOT retire the generator** — it backs the user-facing profile UX + setup wizard (the wizard itself is due for a cleanup, ideally after the CCSDS work lands). **Proper fix (deferred — not blocking; committed files compile correctly):** (a) re-encode the two hand-patches into `profiles/rocket.cfg` + `generate_profile.py` so regeneration is lossless; (b) refresh the stale hab profile; (c) wire the generator into the CMake build so generated headers regenerate each build and can't drift (cfg = single source of truth); (d) **sweep for any OTHER "AUTO-GENERATED" file that has been hand-touched** (the ESKF SymPy codegen `eskf_codegen.cpp` is separately covered by deviation CG-1; check the rest). A standards rule was added this session (`CODING_STANDARDS.md` → "Auto-Generated Code": never edit post-gen output; edit the generator/input). Until the proper fix lands, **do not regenerate `mission_profile_data.h` without re-applying the two `b1f25ce` hand-patches above.** (This session applied the `#pragma once`→`#ifndef` guard + `has_default_location` field *directly* to the committed file + the generator to avoid clobbering, per the surfaced-issues rule.) Walk-WB W-14 landed here: when the audit actually runs, **start from scratch** — earlier method sketches (including the (a)–(d) list) are prior notes, not the audit spec. Lived facts on this row stay evidence.
 
 - **WMM magnetic-table generator repaired + table regenerated (2026-06-24, Claude; RESOLVED).** `scripts/generate_wmm_table.py` had three math bugs in its degree-12 Schmidt-Legendre evaluation (was failing its own NOAA `--verify` 97/100, max declination error 281°): **(1)** spurious `/(1-K)` in the Legendre n-recursion → corrected to the NOAA/pyIGRF form `((2n-1)cosθ·P[n-1,m] − √((n-1)²-m²)·P[n-2,m])/√(n²-m²)`; **(2)** B_φ east-component sign; **(3)** `r = WGS84_A` surface stub → proper geodetic→geocentric radius/latitude with altitude. Now passes NOAA's 100 test points at **0.005° declination / 0.005° inclination / 0 nT** (well inside the model's ~0.5° spec accuracy). **Root cause of the original drift:** the committed table and the generator both landed in `e01b355`, but the committed generator never reproduced the committed table — it was already broken at commit (classic codegen drift; the table was produced by a working tree-version that got edited before commit). Table **regenerated** from the now-correct generator (banner is finally truthful); values shifted ≤0.01° (last printed digit, all within NOAA tolerance), uppercase `F` suffix (JSF Rule 14) + UTF-8 encoding applied (the latter fixed a mojibake `�`→`—` in the header). Verified: generator `--verify` 100/100, host 857/857, flight firmware builds clean.
 
@@ -372,7 +414,7 @@ Council review of all Starcom research findings (Grok vs Claude) completed. Full
 
 - **AO Commandments source-citation audit.** Investigating R-27 (RfManager Commandment XII observation) surfaced that Commandment XII's `Source:` line cites LL Entry 36, but LL 36 is about test-tool rot (bench_flight_sim.py going stale), not AO state-transition logging or runtime observability. A research agent walked the doc's stated sources (Samek PSiCC2 Ch. 11, state-machine.com Active Object/RTEF/QP/C SRS pages, NASA F´ Code Style + State Machines doc) and confirmed **no clean substitute citation exists in any of those** — the rule is project-internal invention generalized from folklore, not inherited from external authority. This is an [LL Entry 37](docs/agents/LESSONS_LEARNED.md)-class citation-rot finding. Per Entry 37 discipline ("if one citation was wrong, check the rest"), audit all 12 Commandment `Source:` lines in `docs/decisions/AO_COMMANDMENTS.md` against their cited sources; fix XII's citation (either reframe as project-internal "Rationale:" or cite PSiCC2 Ch. 11 honestly as topical-but-tool-framing); reassess R-27's disposition once the rule's authority is correctly understood. Est. ~1-2 hrs. Block on this is open per user direction 2026-05-22 — address before closing R-27.
 
-- **Four-cycle plan — Cycle 4: L2-P5 itinerary complete 2026-08-08** (121/121, WN-001–327); **walk-WB drain still open** for formal close. Then WN remediation; L2-P10 CLA-RBM. Cycles 1-3 closed. See CHANGELOG 2026-08-08-001.
+- **Four-cycle plan — Cycle 4: L2-P5 itinerary complete 2026-08-08** (121/121, WN-001–327); **walk WB drained + formal walk close 2026-08-17**. Next: WN cluster index, then disposition / Cycle-4 remediation; L2-P10 CLA-RBM. Cycles 1-3 closed. See CHANGELOG 2026-08-08-001 and 2026-08-17-001.
 
   **── SESSION HANDOFF / temp-record (2026-06-21, Claude Opus 4.8) — resume here. CHANGELOG entry now written (`2026-06-21-001`, post-written after a restart); this block is kept for the forward-looking resume state (built/pending classes, next steps). ──**
 

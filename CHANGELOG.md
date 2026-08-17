@@ -46,6 +46,19 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-17-001 | Grok 4.6 (Build CLI) | documentation, audit
+
+L2-P5 **walk whiteboard closed.** `docs/audits/l2p5_manual_walk/L2P5_WALK_WHITEBOARD.md`
+deleted after owner-directed per-row landing (W-1–16). Not a bulk park: process rows that
+still need work landed on `AGENT_WHITEBOARD.md` (agent re-walk include/consumer +
+concurrency 3-question; P10-9 live fn-ptrs; comment/Doxygen inventory-first; HW-agnostic
+rule-before-HW-WNs; optional safety/ops map). Theme rows folded into existing WNs
+(W-6/W-16 → WN-085 family; W-7 → WN-054/081; W-4 → WN-029; W-14 → existing codegen
+audit). Mid-walk process notes (W-3/W-9/W-11–13) erased. Formal walk-close gate for the
+WB is done; itinerary remains **reviewed, not certified**. Next: WN cluster index, then
+disposition. Frozen walk-pack files (findings, itinerary, plan, session handoff) not
+rewritten. Pure docs — no `src` changes.
+
 ### 2026-08-08-001 | Grok 4.5 (Build CLI) | documentation, audit
 
 L2-P5 owner-led manual standards walk — **itinerary complete** (**121 / 121** leaves,

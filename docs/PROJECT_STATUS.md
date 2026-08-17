@@ -1,17 +1,18 @@
 # RocketChip Project Status
 
-**Last Updated:** 2026-08-09 (L2-P5 itinerary complete; walk-WB close-out still open — see CHANGELOG)
+**Last Updated:** 2026-08-17 (L2-P5 walk WB drained; formal walk close — see CHANGELOG)
 
-## L2-P5 manual standards walk (Cycle 4) — itinerary COMPLETE; formal close PENDING
+## L2-P5 manual standards walk (Cycle 4) — itinerary COMPLETE; walk WB CLOSED
 
 Owner-led file-by-file semantic walk of in-scope `src/` + `include/` firmware
 (**121 / 121** itinerary leaves). Observations **WN-001–WN-327** in
 `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md`. **Reviewed, not certified.**
 
-**Still required for formal walk close:** empty `L2P5_WALK_WHITEBOARD.md` by **real
-disposition** of each W-row to its target home (guide, standards, findings, or erase with
-owner decision) — **not** a bulk park onto `AGENT_WHITEBOARD.md`. **Next:** owner-directed
-WB drain; then WN remediation / Plan-3; L2-P10 CLA-RBM when scheduled.
+**Walk WB closed 2026-08-17:** `L2P5_WALK_WHITEBOARD.md` deleted after per-row landing
+(not a bulk park). Active leftovers are on `AGENT_WHITEBOARD.md` (agent re-walk checks,
+P10-9 sites, comment/Doxygen order, HW-agnostic rule, safety/ops inventory). **Next:**
+WN cluster index, then disposition / Plan-3; L2-P10 CLA-RBM when scheduled. L2-P5
+problem-report itself stays open until Cycle-4 remediation closes it.
 
 ## Stage O plan — verification vs `.cursor/plans/stage_o_*` (IVP gates)
 
