@@ -4,27 +4,15 @@ Independent Grok pass. Not the owner walk. Children were deny-listed from owner 
 
 - Worktree repo: C:/Users/pow-w/Documents/RC-grok-walk
 - Branch: `grok/l2p5-agent-walk`
-- Tier filter: all
 - Leaves covered: 121
-- Raw walker findings: 592
-- Kept after verify: 470 (GWF-001–470)
+- Raw walker findings: first run 592; T4 rerun 30 (coverage rows 118–121 are the rerun)
+- Kept after verify: 498 (GWF-001–498)
 - Failed walks: 0
-- Failed verifies (those findings dropped): 4 — **all Tier 4 CLI** (`verify-118`–`121`); PC sleep, ~5.6 h each, fail-closed
+- Failed verifies: 0 remaining. First-run T4 skeptics (`verify-118`–`121`) failed on PC sleep and were rerun 2026-08-18 as `l2p5-grok-walk-2` (28 kept, 2 dropped).
 
-## Resume (next sitting)
+## Status
 
-**Done:** Walks 1–4. Verifies 1–3. Findings file for GWF-001–470.
-
-**Not done:** Tier 4 **verify** only. Coverage still shows CLI raw counts (8+8+8+7) but those notes have **no GWF rows**.
-
-**Tomorrow (after power cycle), in this worktree:**
-
-1. Stay on `grok/l2p5-agent-walk` at `C:\Users\pow-w\Documents\RC-grok-walk`.
-2. Rerun workflow `l2p5-grok-walk` from `C:\Users\pow-w\.grok\workflows\l2p5-grok-walk.rhai` with `args.repo` = this worktree and `args.tier` = `"4"`. (Repo `.grok/` is gitignored; the user-level copy is the runnable script.)
-3. That run re-walks + re-verifies only the four CLI leaves. **Append** survivors as **GWF-471+**. Do **not** replace this file.
-4. CHANGELOG `2026-08-18-001` may be amended if that sitting is only this verify.
-
-Do not read `L2P5_WALK_FINDINGS.md` or other owner-walk artifacts during the rerun.
+Walks 1–4 and Verifies 1–4 are complete. GWF-471–498 are the Tier 4 CLI append from the 2026-08-18 rerun. Not compared to owner WNs. Not a certification.
 
 ## Coverage
 
@@ -150,7 +138,7 @@ Do not read `L2P5_WALK_FINDINGS.md` or other owner-walk artifacts during the rer
 | 118 | `cli/rc_os.{cpp,h}` | FINDINGS | 8 |
 | 119 | `cli/rc_os_commands.{cpp,h}` | FINDINGS | 8 |
 | 120 | `cli/rc_os_dashboard.{cpp,h}` | FINDINGS | 8 |
-| 121 | `cli/rc_os_debug.{cpp,h}` | FINDINGS | 7 |
+| 121 | `cli/rc_os_debug.{cpp,h}` | FINDINGS | 6 |
 
 ## Kept findings
 
@@ -5793,4 +5781,346 @@ Do not read `L2P5_WALK_FINDINGS.md` or other owner-walk artifacts during the rer
 - Truth: bool g_sensorPhaseActive = false;
 - Evidence: src/shared_state.cpp:46 defines bool g_sensorPhaseActive = false; :39-44 are std::atomic<bool> phase/lockout flags. include/rocketchip/shared_state.h:74-75: 'Sensor phase flag (Core 0 write, Core 0/Core 1 read for gating)'.
 - Verifier: Owner and cross-core readers are named on a gating flag that is still a plain bool beside atomic neighbors. That is an omitted barrier, not an undocumented boot-once flag.
+
+
+## Tier 4 CLI append (2026-08-18 rerun)
+
+Re-walk + re-verify of leaves 118–121 after the first-run skeptics failed on PC sleep. IDs continue from GWF-470.
+
+
+### GWF-471 — `cli/rc_os.{cpp,h}`
+
+- File: `src/cli/rc_os.h`
+- Line: 10-14
+- Lens: comment
+- Severity: medium
+- Issue: File banner is stale against the menu enum and the ARM-confirm parser in the same leaf.
+- Claim: Key patterns: single-key commands (no parsing); two-level menu Main → Calibration.
+- Truth: rc_os_menu_t and rc_os_update dispatch four menus (MAIN, CALIBRATION, FLIGHT, DEBUG). rc_os_start_arm_confirm / handle_arm_confirm parse a multi-character "ARM" + Enter line.
+- Evidence: src/cli/rc_os.h:10-14 still documents single-key commands and a two-level Main→Calibration menu, but rc_os.h:28-33 defines four menus and rc_os.cpp:496-513 dispatches MAIN/CALIBRATION/FLIGHT/DEBUG. rc_os.h:81-88 and rc_os.cpp:360-368/433-469 add a multi-character ARM+Enter parser, contradicting “no parsing”.
+- Verifier: Banner in the same header is stale versus the enum and ARM-confirm parser.
+
+### GWF-472 — `cli/rc_os.{cpp,h}`
+
+- File: `src/cli/rc_os.h`
+- Line: 53-63
+- Lens: contract
+- Severity: high
+- Issue: Public update contract (cal ownership and return meaning) does not match the implementation.
+- Claim: rc_os_update prints a banner, processes single-key commands, and runs calibration state machines; returns true if a command was processed.
+- Truth: The body starts cal via AO_RCOS_start_cal_* and returns false while AO_RCOS_cal_active(); ao_rcos.h states rc_os.cpp is a pure menu dispatcher. After USB settle it returns true on any consumed byte (lockout, ARM timeout, even when a menu handler returns false), not only on a processed command.
+- Evidence: src/cli/rc_os.h:53-62 claims rc_os_update runs calibration state machines and returns true if a command was processed. rc_os.cpp:211-247 only starts cals via AO_RCOS_start_cal_*; rc_os.cpp:486 returns false while AO_RCOS_cal_active() without driving the machine. After settle, rc_os.cpp:482-519 returns true on ARM timeout (handle_arm_confirm→1), lockout, and any consumed byte even when a menu handler returns false (rc_os.cpp:515-519).
+- Verifier: Public cal-ownership and return contract do not match the dispatcher body.
+
+### GWF-473 — `cli/rc_os.{cpp,h}`
+
+- File: `src/cli/rc_os.h`
+- Line: 71-74
+- Lens: contract
+- Severity: high
+- Issue: Exported calibrating flag and this file's own cal-active gate disagree; callers cannot tell which contract they get.
+- Claim: rc_os_is_calibrating reports whether a calibration is currently in progress.
+- Truth: rc_os_is_calibrating() returns calibration_is_active() (calibration_manager). The same leaf gates USB keys and menu dispatch on AO_RCOS_cal_active(), which ao_rcos.h documents as a calibration or input UI sequence — a different predicate.
+- Evidence: src/cli/rc_os.h:71-74 documents rc_os_is_calibrating as “calibration currently in progress”; rc_os.cpp:526-528 implements it as calibration_is_active(). The same leaf gates USB/menu on a different predicate: rc_os.cpp:204,252,486 use AO_RCOS_cal_active().
+- Verifier: Exported calibrating flag and this file’s cal-active gate are two different predicates.
+
+### GWF-474 — `cli/rc_os.{cpp,h}`
+
+- File: `src/cli/rc_os.cpp`
+- Line: 203-255
+- Lens: spine
+- Severity: medium
+- Issue: Comment and key-handler claim a cancel path the update function makes unreachable.
+- Claim: While a cal UI is running, handle_calibration_menu blocks other keys and lets x/ESC pass through so the cal UI can cancel.
+- Truth: rc_os_update returns before getchar when AO_RCOS_cal_active(), and handle_calibration_menu is static and only called from that path. The cal-active guard and ESC pass-through never run.
+- Evidence: src/cli/rc_os.cpp:203-206 and 249-255 claim that while AO_RCOS_cal_active() other keys are blocked and x/ESC pass through for cancel. handle_calibration_menu is static and only invoked at rc_os.cpp:500. rc_os.cpp:486-488 returns before getchar when AO_RCOS_cal_active(), so those branches never run.
+- Verifier: Cal-menu cancel/pass-through is unreachable behind the update early return.
+
+### GWF-475 — `cli/rc_os.{cpp,h}`
+
+- File: `src/cli/rc_os.cpp`
+- Line: 370-399
+- Lens: spine
+- Severity: medium
+- Issue: Documented 'm' MAVLink-off handler cannot execute; lockout swallows the keys it would have handled.
+- Claim: handle_mavlink_input consumes MAVLink-mode bytes; 'm'/'M' turns MAVLink mode off.
+- Truth: rc_os_update calls handle_mavlink_lockout first, and that function returns true whenever output mode is already kMavlink — the only case handle_mavlink_input would not immediately return false. Only ESC in the lockout path can exit.
+- Evidence: src/cli/rc_os.cpp:388-398 turns MAVLink off on ‘m’/‘M’ only when output mode is already kMavlink. rc_os.cpp:493-494 calls handle_mavlink_lockout first; rc_os.cpp:373-382 returns true whenever mode is kMavlink (ESC-only exit). That is the only case handle_mavlink_input would not immediately return false at rc_os.cpp:389.
+- Verifier: Lockout swallows every kMavlink byte, so the documented ‘m’ off-handler cannot execute.
+
+### GWF-476 — `cli/rc_os.{cpp,h}`
+
+- File: `src/cli/rc_os.cpp`
+- Line: 39-52
+- Lens: comment
+- Severity: medium
+- Issue: Comments and leftover constants describe a blocking reset confirm that this file no longer implements.
+- Claim: Reset confirmation is blocking; kResetConfirmTimeoutUs/BufSize/MaxIdx implement a 10s "YES" confirm here. No extra reset state needed.
+- Truth: Those constants are unused. Menu 'r' calls AO_RCOS_start_cal_reset(); ao_rcos.h documents that as non-blocking YES/ENTER confirmation on the AO tick.
+- Evidence: src/cli/rc_os.cpp:39-41 define kResetConfirmTimeoutUs/BufSize/MaxIdx for a 10s YES confirm; they have no other uses in this file. rc_os.cpp:52 still says reset confirmation is blocking. Menu ‘r’ at rc_os.cpp:244-247 calls AO_RCOS_start_cal_reset() instead of using those constants.
+- Verifier: Leftover blocking-reset comments/constants do not match the AO start path.
+
+### GWF-477 — `cli/rc_os.{cpp,h}`
+
+- File: `src/cli/rc_os.cpp`
+- Line: 43-44
+- Lens: comment
+- Severity: low
+- Issue: Settle-time comment and constant do not match the count-based connect state machine.
+- Claim: kUsbSettleMs = 200 is the USB CDC settle time after connect.
+- Truth: kUsbSettleMs is unused. handle_usb_connect settles by counting five rc_os_update polls (g_settleCount 1..5), then flushes and prints help — a poll count, not 200 ms.
+- Evidence: src/cli/rc_os.cpp:43 comments kUsbSettleMs=200 as USB CDC settle time, but the constant is unused. rc_os.cpp:404-426/478 settle by counting five rc_os_update polls (g_settleCount 1..5), then flush and print help — a poll count, not 200 ms.
+- Verifier: Settle comment/constant do not match the count-based connect SM.
+
+### GWF-478 — `cli/rc_os_commands.{cpp,h}`
+
+- File: `src/cli/rc_os_commands.h`
+- Line: 6-8
+- Lens: contract
+- Severity: high
+- Issue: The header/file-level contract 'owns no state' / 'pure display' is false: the leaf both keeps persistent locals and writes Logger/flash/radio-command surfaces.
+- Claim: Pure command/display code — reads state from AO public APIs and sensor seqlock, owns no state.
+- Truth: This TU owns static CLI state (g_cycleIdx; gated g_t2_*; static QEvt g_findmeEvt) and exports flash/command mutators (cli_do_erase_flights, cli_do_download_flight, cmd_flush_log, tracked MAV commands).
+- Evidence: src/cli/rc_os_commands.h:6-8 claims pure display / owns no state. src/cli/rc_os_commands.cpp:53-55,94,1585 keep g_t2_*, g_cycleIdx, g_findmeEvt; :1010,:1091,:1213,:1545,:1581 write logger/flash and tracked radio commands.
+- Verifier: The TU-level contract is false: this leaf keeps persistent CLI locals and mutates logger, flash, and MAV command surfaces.
+
+### GWF-479 — `cli/rc_os_commands.{cpp,h}`
+
+- File: `src/cli/rc_os_commands.h`
+- Line: 37-40
+- Lens: comment
+- Severity: high
+- Issue: Beacon comments disagree with each other and with the station body: publish vs radio command, and two incompatible auto-clear conditions.
+- Claim: cmd_findme_beacon publishes SIG_BEACON_MANUAL; auto-clears on the next non-recovery phase transition.
+- Truth: Station path sends MAV_CMD_USER_1 and does not publish. The .cpp comment says clear is 'the next SIG_PHASE_CHANGE out of {LANDED, ABORT}', which is not the same as 'next non-recovery phase transition', and this leaf does not implement either clear.
+- Evidence: src/cli/rc_os_commands.h:37-40 says publish SIG_BEACON_MANUAL and clear on next non-recovery phase transition. src/cli/rc_os_commands.cpp:1567-1582: station sends MAV_CMD_USER_1 and does not publish; cpp comment clears on SIG_PHASE_CHANGE out of {LANDED, ABORT}; neither clear is implemented here.
+- Verifier: Header, cpp comment, and station body disagree on publish vs radio command and on two incompatible auto-clear conditions; this leaf implements neither clear.
+
+### GWF-480 — `cli/rc_os_commands.{cpp,h}`
+
+- File: `src/cli/rc_os_commands.cpp`
+- Line: 91-95
+- Lens: comment
+- Severity: high
+- Issue: SET_RADIO_CONFIG cycle comment describes sending the default first; the body skips index 0 on the first press.
+- Claim: On first press start at index 0 (the default config) and advance from there.
+- Truth: g_cycleIdx is initialized to 0 then incremented before use, so the first `r` sends table[1], never the default row.
+- Evidence: src/cli/rc_os_commands.cpp:91-95 initializes static g_cycleIdx to 0 then does g_cycleIdx = (g_cycleIdx + 1) % kRadioConfigTableSize before indexing, so first `r` uses table[1].
+- Verifier: The local comment says start at default index 0; increment-before-use skips that row on the first press.
+
+### GWF-481 — `cli/rc_os_commands.{cpp,h}`
+
+- File: `src/cli/rc_os_commands.cpp`
+- Line: 1356-1360
+- Lens: spine
+- Severity: high
+- Issue: cmd_station_distance claims a telemetry-staleness gate but subtracts mission-elapsed time from station uptime, so the check does not measure packet age.
+- Claim: Distance: telemetry stale if age_ms > 5000.
+- Truth: age_ms is station to_ms_since_boot() minus rx->met_ms. RxTelemSnapshot.met_ms is MET from the CCSDS secondary header, not last-rx wall time (that is rs->last_rx_ms, used correctly in print_station_rx_fields).
+- Evidence: src/cli/rc_os_commands.cpp:1356-1360 sets age_ms = to_ms_since_boot() - rx->met_ms and rejects if > 5000. src/cli/rc_os_commands.cpp:950 correctly uses rs->last_rx_ms for packet age in print_station_rx_fields.
+- Verifier: The stale gate subtracts vehicle MET from station uptime, so it does not measure last-RX wall time.
+
+### GWF-482 — `cli/rc_os_commands.{cpp,h}`
+
+- File: `src/cli/rc_os_commands.cpp`
+- Line: 52-75
+- Lens: concurrency
+- Severity: high
+- Issue: Shared T2 command slot has ambiguous barrier: volatile only, split across three words, with CLI and RX both writing pending.
+- Claim: T2 cheat queues on CLI keypress and fires from handle_rx_packet when a nav packet decodes.
+- Truth: g_t2_cmd, g_t2_p1, and g_t2_pending are three separate volatiles. Queue writes data then pending; fire reads pending then data. No atomic/seqlock/event; two mutators (CLI and RX path) share the same objects.
+- Evidence: src/cli/rc_os_commands.cpp:52-75: g_t2_cmd/g_t2_p1/g_t2_pending are separate volatiles; queue writes data then pending; fire (comment: handle_rx_packet) reads pending then data and clears pending. src/cli/rc_os_commands.cpp:1545 is the CLI writer. No atomic/seqlock.
+- Verifier: Assigned code is a three-word volatile mailbox with CLI and RX both writing pending and no barrier stronger than volatile.
+
+### GWF-483 — `cli/rc_os_commands.{cpp,h}`
+
+- File: `src/cli/rc_os_commands.h`
+- Line: 13-41
+- Lens: contract
+- Severity: medium
+- Issue: The thin header omits the exported completion/RX entry points that actually mutate flash or cross-context T2 state, so ownership of those writers is not on the contract surface.
+- Claim: This header is the public command/display surface (print_* plus unhandled-key and find-me).
+- Truth: Non-static cli_do_erase_flights, cli_do_download_flight, stage_t2_queue_command, and stage_t2_fire_pending_if_any are defined here and (per comments) called from AO_RCOS / handle_rx_packet, but are absent from the header.
+- Evidence: src/cli/rc_os_commands.h:13-41 exports only print_*, unhandled-key, and find-me. src/cli/rc_os_commands.cpp:57,67,1091,1213 define non-static stage_t2_queue_command, stage_t2_fire_pending_if_any, cli_do_erase_flights, cli_do_download_flight.
+- Verifier: The public header omits the completion/RX entry points that mutate flash or shared T2 state.
+
+### GWF-484 — `cli/rc_os_commands.{cpp,h}`
+
+- File: `src/cli/rc_os_commands.h`
+- Line: 22-37
+- Lens: comment
+- Severity: medium
+- Issue: Key-binding comments in this leaf collide and contradict the unhandled-key body.
+- Claim: 'b' is Boot Log (cli_print_hw_status) and also Stage L find-me (cmd_findme_beacon). 'p' is preflight (cli_print_preflight).
+- Truth: This leaf's own dispatcher binds station 'p' to cmd_station_gps_push, not preflight. Two independent 'b' claims sit on the same header with no role split. cpp cli_print_boot_status is also commented as called by itself and the 'b' key.
+- Evidence: src/cli/rc_os_commands.h:22-23,31-32,37 bind 'b' to Boot Log and find-me and 'p' to preflight with no role split. src/cli/rc_os_commands.cpp:1553-1556 binds station 'p'/'P' to cmd_station_gps_push. src/cli/rc_os_commands.cpp:878 comments cli_print_boot_status as called by itself and the 'b' key.
+- Verifier: This leaf's own comments collide on 'b' and contradict the unhandled-key binding for station 'p'.
+
+### GWF-485 — `cli/rc_os_commands.{cpp,h}`
+
+- File: `src/cli/rc_os_commands.cpp`
+- Line: 819-836
+- Lens: comment
+- Severity: medium
+- Issue: Boot-summary FAIL count and FAIL list are not the same contract: ghost radio fails, PSRAM/log/flash never fail the tally, IMU is double-counted.
+- Claim: count_hw_checks / print_hw_failures tally HW init pass/fail for the boot summary.
+- Truth: Radio increments fail whenever !initialized, but print_hw_failures only prints Radio if SPI is up. PSRAM/Logging/Flash are hard-coded check(true) even when print_psram_status can show FAIL. IMU is counted twice as 'AK09916 (same init)' while failures only print ICM-20948.
+- Evidence: src/cli/rc_os_commands.cpp:819-836: radio fail increments on !initialized but print_hw_failures prints Radio only if g_spiInitialized; :820-822 hard-code PSRAM/Logging/Flash check(true); :815-816 count IMU twice; failures print only ICM-20948. src/cli/rc_os_commands.cpp:653-656 can print PSRAM FAIL.
+- Verifier: Boot-summary FAIL count and FAIL list are different contracts: ghost radio, always-pass PSRAM/log/flash, and double-counted IMU.
+
+### GWF-486 — `cli/rc_os_dashboard.{cpp,h}`
+
+- File: `src/cli/rc_os_dashboard.cpp`
+- Line: 69-79
+- Lens: comment
+- Severity: high
+- Issue: Phase-color comments and switch still document a 0–6 IDLE…ERROR map that disagrees with FlightPhase values this file already uses for the State name.
+- Claim: flight_phase_color maps 0=IDLE, 1=ARMED, 2=BOOST, 3=COAST, 4=DESCENT, 5=LANDED (green), 6=ERROR (red).
+- Truth: The same TU casts t.flight_state to rc::FlightPhase and prints flight_phase_name(): 4=kDrogueDescent, 5=kMainDescent, 6=kLanded, 7=kAbort, 8=kFault. Main descent is colored as landed (green); landed is colored as error (red); abort/fault get default reset.
+- Evidence: src/cli/rc_os_dashboard.cpp:69-79 comments/switch 0=IDLE … 5=LANDED green, 6=ERROR red; :196-197 names via flight_phase_name(static_cast<rc::FlightPhase>(t.flight_state)) while coloring with that same 0–6 map.
+- Verifier: Same TU already treats flight_state as FlightPhase. Included flight_state.h is 4=kDrogueDescent, 5=kMainDescent, 6=kLanded, 7=kAbort, 8=kFault, so main descent is green-as-landed, landed is red-as-error, abort/fault hit default reset.
+
+### GWF-487 — `cli/rc_os_dashboard.{cpp,h}`
+
+- File: `src/cli/rc_os_dashboard.cpp`
+- Line: 395-403
+- Lens: comment
+- Severity: high
+- Issue: Dashboard label claims a live temperature; the body always prints 0.
+- Claim: Batt/Temp/ESKF line shows vehicle temperature in °C.
+- Truth: Format string is "Temp: %dC" but the argument is static_cast<int>(0). TelemetryState::temperature_c is never read.
+- Evidence: src/cli/rc_os_dashboard.cpp:395-403 format is "Temp: %dC" with argument static_cast<int>(0). No temperature field on DisplayFields; t.temperature_c is never read.
+- Verifier: Label claims a live °C reading; the printed value is a hardcoded zero.
+
+### GWF-488 — `cli/rc_os_dashboard.{cpp,h}`
+
+- File: `src/cli/rc_os_dashboard.cpp`
+- Line: 155,366-376
+- Lens: spine
+- Severity: medium
+- Issue: Two labeled altitude fields are the same converted baro AGL value; the distinct MSL field is never shown.
+- Claim: Separate Alt and Baro rows are different displayed quantities.
+- Truth: Both rows print d.alt_m from t.baro_alt_mm (AGL mm). TelemetryState::alt_mm (MSL) is unused.
+- Evidence: src/cli/rc_os_dashboard.cpp:155 sets d.alt_m from t.baro_alt_mm; :366-376 prints that same d.alt_m on both the Alt and Baro rows. t.alt_mm is unused.
+- Verifier: Two labeled altitude rows are one AGL conversion; the distinct MSL field is never shown.
+
+### GWF-489 — `cli/rc_os_dashboard.{cpp,h}`
+
+- File: `src/cli/rc_os_dashboard.h`
+- Line: 23-41
+- Lens: contract
+- Severity: medium
+- Issue: Public render contract does not state the inherited Core-0 dispatch requirement or that RF-link/CMD rows are live AO reads rather than arguments.
+- Claim: ansi_dashboard_render is a USB-serial view of telem + RadioAoState + optional RxTelemSnapshot.
+- Truth: The body also calls AO_RfManager_get_state() and AO_Telemetry_get_pending_cmd_status(), both documented in their headers as Core 0 cooperative-QV only.
+- Evidence: src/cli/rc_os_dashboard.h:23-41 documents only telem/rs/met/seq/valid/rx. src/cli/rc_os_dashboard.cpp:246 calls AO_RfManager_get_state(); :293 calls AO_Telemetry_get_pending_cmd_status().
+- Verifier: Those getters are live AO reads, not arguments. Their headers restrict them to Core 0 cooperative QV; the public render contract states neither the extra sources nor that dispatch rule.
+
+### GWF-490 — `cli/rc_os_dashboard.{cpp,h}`
+
+- File: `src/cli/rc_os_dashboard.h`
+- Line: 48-53
+- Lens: contract
+- Severity: medium
+- Issue: Pause API is named as dashboard-wide; the other exported render entry point does not honor it.
+- Claim: rc_os_dashboard_pause stops dashboard rendering so ARM confirm is not overwritten.
+- Truth: Only ansi_dashboard_render checks g_dashboardPaused. Public ansi_dashboard_render_waiting() still builds and send_frame()s.
+- Evidence: src/cli/rc_os_dashboard.h:48-53 names rc_os_dashboard_pause as pausing dashboard rendering. src/cli/rc_os_dashboard.cpp:422 gates only ansi_dashboard_render; :453-481 ansi_dashboard_render_waiting still builds g_frame and send_frame()s with no pause check.
+- Verifier: The other public render entry still writes USB-serial dashboard frames, so pause does not cover all dashboard output.
+
+### GWF-491 — `cli/rc_os_dashboard.{cpp,h}`
+
+- File: `src/cli/rc_os_dashboard.cpp`
+- Line: 4-5
+- Lens: comment
+- Severity: low
+- Issue: File-level @file tag is a stale path from the old ansi_dashboard name.
+- Claim: @file ansi_dashboard.cpp — Live ANSI terminal dashboard.
+- Truth: The translation unit is rc_os_dashboard.cpp (header and include name match rc_os_dashboard).
+- Evidence: src/cli/rc_os_dashboard.cpp:4-5 @file ansi_dashboard.cpp. Header and include are rc_os_dashboard (src/cli/rc_os_dashboard.h:4, cpp:16).
+- Verifier: File-level Doxygen tag is a leftover path from the old unit name.
+
+### GWF-492 — `cli/rc_os_dashboard.{cpp,h}`
+
+- File: `src/cli/rc_os_dashboard.cpp`
+- Line: 283-287
+- Lens: comment
+- Severity: low
+- Issue: Lead-in count disagrees with the documented and implemented CMD-row state machine.
+- Claim: Dashboard CMD row has three display states.
+- Truth: The same comment block lists four states (pending, ACK, FAIL, idle) and format_cmd_status_row implements all four.
+- Evidence: src/cli/rc_os_dashboard.cpp:283 says "Three display states" then :284-287 lists pending, ACK, FAIL, idle. format_cmd_status_row :301-328 implements those four.
+- Verifier: Lead-in count is wrong; the same block and the code both have four CMD-row states.
+
+### GWF-493 — `cli/rc_os_debug.{cpp,h}`
+
+- File: `src/cli/rc_os_debug.h`
+- Line: 11-14
+- Lens: comment
+- Severity: med
+- Issue: Header still inventories a 'replay trigger' as a test-mode-gated mutator after R-25-exec retired both replay injectors.
+- Claim: State-mutating commands (digit-key radio config, LED test, replay trigger) are runtime-gated by rc::test_mode_active() at the entry points.
+- Truth: Replay is gone. dispatch case 'r' only logs retirement and is not test-mode-gated. The same header (line 36) already says dev_station_replay_poll was DELETED. The .cpp file banner correctly omits replay from the gated-mutator list.
+- Evidence: src/cli/rc_os_debug.h:11-14 lists replay trigger as a test_mode_active() gated mutator, but src/cli/rc_os_debug.h:36-37 already records dev_station_replay_poll DELETED and src/cli/rc_os_debug.cpp:128-136 case 'r' only logs retirement with no gate. src/cli/rc_os_debug.cpp:9-13 banner omits replay from the gated-mutator list.
+- Verifier: Header inventory is stale; replay is retired and not gated.
+
+### GWF-494 — `cli/rc_os_debug.{cpp,h}`
+
+- File: `src/cli/rc_os_debug.h`
+- Line: 27-29
+- Lens: contract
+- Severity: med
+- Issue: Documented bool contract is handled-or-not; implemented contract is stay-or-exit.
+- Claim: Dispatch a single key in the debug sub-menu. Returns true if the key was handled.
+- Truth: Body returns false only for z/Z/ESC (leave menu). default and every other case, including unknown keys, return true. True means remain in the submenu, not that the key was handled.
+- Evidence: src/cli/rc_os_debug.h:27-29 documents Returns true if the key was handled. src/cli/rc_os_debug.cpp:195-201 returns false only for z/Z/ESC; default and every other case fall through to return true, including unknown keys.
+- Verifier: Implemented bool is stay-in-submenu vs exit, not handled-or-not.
+
+### GWF-495 — `cli/rc_os_debug.{cpp,h}`
+
+- File: `src/cli/rc_os_debug.h`
+- Line: 31-34
+- Lens: contract
+- Severity: med
+- Issue: Return value is 'ESKF-live owns stdin this tick', not 'stream is active and a key was consumed'.
+- Claim: Returns true if the stream is active and consumed the key; false otherwise.
+- Truth: Returns false only when g_eskfLiveActive is already false. If the stream was active at entry it always getchar_timeout_us(0)s and returns true — on timeout (no key), on a stop key (stream then cleared), and without receiving a key from the caller.
+- Evidence: src/cli/rc_os_debug.h:31-34 says true if the stream is active and consumed the key. src/cli/rc_os_debug.cpp:204-218 returns false only when g_eskfLiveActive is already false; if active at entry it always getchar_timeout_us(0)s and returns true on timeout, after a stop key that clears the flag, and without taking a key argument.
+- Verifier: Return means ESKF-live owned stdin this tick, not key-consumed.
+
+### GWF-496 — `cli/rc_os_debug.{cpp,h}`
+
+- File: `src/cli/rc_os_debug.cpp`
+- Line: 48-51
+- Lens: comment
+- Severity: med
+- Issue: Load-bearing routing comment names a function that does not exist in the assigned pair.
+- Claim: Set a LED-test-pending flag; the next keypress received by the main dispatcher falls through to dev_led_test_poll().
+- Truth: This leaf exports dev_led_test_pending() and dev_led_test_feed(int). There is no dev_led_test_poll().
+- Evidence: src/cli/rc_os_debug.cpp:48-51 says the next keypress falls through to dev_led_test_poll(). Assigned pair exports only src/cli/rc_os_debug.h:42-43 / src/cli/rc_os_debug.cpp:79-81 dev_led_test_pending() and dev_led_test_feed(int); no dev_led_test_poll exists.
+- Verifier: Routing comment names a function this leaf does not provide.
+
+### GWF-497 — `cli/rc_os_debug.{cpp,h}`
+
+- File: `src/cli/rc_os_debug.cpp`
+- Line: 43-44
+- Lens: comment
+- Severity: low
+- Issue: Operator-facing menu text disagrees with the retired body (help at line 191 still says 'r-Replay inject').
+- Claim: Enter/help banners list r-Replay / r-Replay inject as a live debug command.
+- Truth: case 'r' only prints that replay was retired and points at scripts/replay_harness_host.py.
+- Evidence: src/cli/rc_os_debug.cpp:43-44 enter banner prints r-Replay; src/cli/rc_os_debug.cpp:191 help prints r-Replay inject. src/cli/rc_os_debug.cpp:128-136 case 'r' only prints replay retired and points at scripts/replay_harness_host.py.
+- Verifier: Operator-facing menus still advertise a retired command.
+
+### GWF-498 — `cli/rc_os_debug.{cpp,h}`
+
+- File: `src/cli/rc_os_debug.h`
+- Line: 39-43
+- Lens: contract
+- Severity: med
+- Issue: The public mutator promised as test-mode-gated does not enforce the gate; any caller of feed() can write the LED override.
+- Claim: LED-test submenu routes the next keystroke here. Test-mode-gated.
+- Truth: test_mode_active() is checked only in dispatch case 'l' before setting g_ledTestPending. dev_led_test_feed() always clears the flag and calls AO_LedEngine_dev_force_fault_layer with no gate.
+- Evidence: src/cli/rc_os_debug.h:39-43 marks the LED-test public API Test-mode-gated. src/cli/rc_os_debug.cpp:140-149 gates only dispatch case 'l' before setting the pending flag. src/cli/rc_os_debug.cpp:81-97 dev_led_test_feed() always clears the flag and, via src/cli/rc_os_debug.cpp:54-58, calls AO_LedEngine_dev_force_fault_layer with no test_mode_active() check.
+- Verifier: Public feed() mutator does not enforce the documented gate.
 

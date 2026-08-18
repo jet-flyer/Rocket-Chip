@@ -19,21 +19,7 @@
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + findings WN-001–327; walk WB drained and formal walk close 2026-08-17.** Independent Grok walk: GWF-001–470 on `grok/l2p5-agent-walk`; **T4 verify still open**. Next (owner pack): WN cluster index, then disposition. Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
-
----
-
-## Session Handoff — Grok L2-P5 walk T4 verify (OPEN) (2026-08-18, Grok 4.6 (Build CLI))
-
-**In progress:** independent Grok walk, not the owner WN pack. **Do not read** `L2P5_WALK_FINDINGS.md` on the rerun.
-
-**Done:** 121 leaves walked; Verifies 1–3 done; `L2P5_GROK_WALK_FINDINGS.md` has GWF-001–470. Worktree `C:\Users\pow-w\Documents\RC-grok-walk`, branch `grok/l2p5-agent-walk`.
-
-**Blocked / leftover:** Tier 4 **verify** only. PC sleep failed `verify-118`–`121` (CLI). Coverage still lists raw 8+8+8+7; those notes were fail-closed and have no GWF rows.
-
-**Tomorrow:** rerun `l2p5-grok-walk` from `C:\Users\pow-w\.grok\workflows\l2p5-grok-walk.rhai` with `args.repo` = the worktree and `args.tier` = `"4"`. Append survivors as GWF-471+. Do not replace the findings file. CHANGELOG `2026-08-18-001` may be amended if that is the only work.
-
-**Files:** `docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md` (resume header), `CHANGELOG.md` `2026-08-18-001`.
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + findings WN-001–327; walk WB drained and formal walk close 2026-08-17.** Independent Grok walk complete: GWF-001–498 on `grok/l2p5-agent-walk`. Next (owner pack): WN cluster index, then disposition. Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
