@@ -46,15 +46,6 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
-### 2026-08-18-002 | Grok 4.6 (Build CLI) | documentation, audit
-
-Independent Grok L2-P5 walk — Tier 4 CLI verify closed. `l2p5-grok-walk-2`
-reran the four CLI leaves after the first-run skeptics failed on PC sleep.
-28 kept, 2 dropped, 0 failed verifies; appended **GWF-471–498** to
-`docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md`. Walk + verify now
-complete (GWF-001–498). Not compared to owner findings and not a certification.
-Pure docs — no `src` changes.
-
 ### 2026-08-18-001 | Grok 4.6 (Build CLI) | documentation, audit
 
 Independent Grok L2-P5 walk (`l2p5-grok-walk`) on worktree/branch `grok/l2p5-agent-walk`
