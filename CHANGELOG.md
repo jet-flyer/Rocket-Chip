@@ -46,15 +46,26 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-18-002 | Grok 4.6 (Build CLI) | documentation, audit
+
+Independent Grok L2-P5 walk — Tier 4 CLI verify closed. `l2p5-grok-walk-2`
+reran the four CLI leaves after the first-run skeptics failed on PC sleep.
+28 kept, 2 dropped, 0 failed verifies; appended **GWF-471–498** to
+`docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md`. Walk + verify now
+complete (GWF-001–498). Not compared to owner findings and not a certification.
+Pure docs — no `src` changes.
+
 ### 2026-08-18-001 | Grok 4.6 (Build CLI) | documentation, audit
 
-Independent Grok L2-P5 walk on worktree/branch `grok/l2p5-agent-walk`. 121/121
-leaves walked; deny-listed from owner WNs. First run kept **GWF-001–470**
-(Verifies 1–3). PC sleep failed the four CLI skeptics; **`l2p5-grok-walk-2`**
-reran Tier 4 (~6 min, 0 failed verifies) and appended **GWF-471–498** (28 kept,
-2 dropped). File: `docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md`.
-Walk + verify complete. Not compared to owner findings and not a certification.
-Pure docs — no `src` changes.
+Independent Grok L2-P5 walk (`l2p5-grok-walk`) on worktree/branch `grok/l2p5-agent-walk`
+(`C:\Users\pow-w\Documents\RC-grok-walk`). 121/121 leaves walked; deny-listed from
+owner WNs. **GWF-001–470** kept after verify in
+`docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md`. Verifies 1–3 completed.
+**Tier 4 verify open:** PC sleep failed all four CLI skeptics (`rc_os` /
+`rc_os_commands` / `rc_os_dashboard` / `rc_os_debug`); raw walker counts remain,
+no GWF rows. Resume: rerun the same workflow with `tier=4` and append GWF-471+.
+This entry may be amended if the next sitting is only that verify. Pure docs —
+no `src` changes. Not a compare against owner findings and not a certification.
 
 ### 2026-08-17-001 | Grok 4.6 (Build CLI) | documentation, audit
 
