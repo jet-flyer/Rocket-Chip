@@ -6124,3 +6124,38 @@ Re-walk + re-verify of leaves 118–121 after the first-run skeptics failed on P
 - Evidence: src/cli/rc_os_debug.h:39-43 marks the LED-test public API Test-mode-gated. src/cli/rc_os_debug.cpp:140-149 gates only dispatch case 'l' before setting the pending flag. src/cli/rc_os_debug.cpp:81-97 dev_led_test_feed() always clears the flag and, via src/cli/rc_os_debug.cpp:54-58, calls AO_LedEngine_dev_force_fault_layer with no test_mode_active() check.
 - Verifier: Public feed() mutator does not enforce the documented gate.
 
+## Compare to owner WNs (2026-08-19)
+
+Compared after the independent walk closed. Owner pack: `docs/audits/l2p5_manual_walk/L2P5_WALK_FINDINGS.md` (WN-001–327). This pack: GWF-001–498. Different jobs — do not merge 498 into 327. Owner WNs are often ownership / policy / “does this file earn rent?” with process archaeology rolled up (W-6 / WN-085). GWF is mostly comment-truth and contract lies, split thin and capped at 8 per leaf. “Grok found more” is not “Grok found more defects.”
+
+### Agreements (same underlying issue, independently)
+
+- Unknown board → Feather pins: **WN-020** / **GWF-023**. Fail-open `#else` include.
+- Phantom `version_string()`: **WN-011** / **GWF-102**. Banner names an API that does not exist.
+- ICM-20948 lazy mag re-init on the 1 kHz read path: **WN-089** / **GWF-146**. Hundreds of ms stall on Core 1; owner already said do not “clean the comment only.”
+- `g_imu` Core 0 init / Core 1 use: **WN-001**, **WN-002** / **GWF-006**. Handoff and post-handoff exclusivity are not on the header.
+- Flash layout comments as an authoritative map: **WN-060** / **GWF-096**. Banner can be used as addresses and is already stale (radio-config region).
+- Generated `mission_profile_data.h` is a trap: **WN-196** (comments die on regen) / **GWF-278** (hand-added MAVLink `#ifdef` in a do-not-edit file). Complementary, not identical.
+- Board WIP looking first-class: **WN-021** / **GWF-034** (Pico2 / Tiny gates).
+- LED overlay codes in two homes: **WN-177** (FD enum vs `main` overlays) / **GWF-087** (code 28 / Armed collision). Same family.
+- Log overflow policy is split: owner **WN-003** keep-note still says “drop-on-full”; **WN-201** tells a later pass to keep **drop-oldest** as the live invariant. **GWF-009** / **GWF-284** made that header-vs-body contradiction the finding. Owner saw both facts; this walk filed the clash.
+- Concurrency 3-question: owner named it as a pass the owner walk did not run systematically (`AGENT_WHITEBOARD.md`). This walk ran it. Agreement on the gap, not a second WN per `volatile`.
+
+### Contradictions / judgment clashes
+
+- **`fused_state.h` — closest direct miss.** Owner: nothing of note; field notes called appropriate. **GWF-094** (high): comments, names, and units say 1-sigma; the only writer stores variance. **GWF-093**: owner/mutator line names a function that is not there. Either fusion math was deferred on purpose, or the units lie did not register. Re-read the header against the writer, not against either finding list.
+- **`gps_uart` — owner closed the leaf; this walk did not.** Owner: nothing of note; ring concurrency left as an itinerary cue. GWF-130–135: public 10 Hz vs PMTK 5 Hz, GSV listed enabled and set to 0, reinit vs Core 0 ISR with no barrier. Same class: PA1010D 10 Hz vs 1 Hz (**GWF-127**) next to owner comment-archaeology **WN-082**–**084** with no rate finding.
+- **`quat.h` — different standard of evidence.** Owner: nothing of note on the header. **GWF-107**–**110** (high) on Sola (2017) equation numbers. Owner treated Sola as a host-purity citation (**WN-075** on `mat.h`). This walk treated unverified equation IDs as confabulation. Only a contradiction if those Eq. numbers are actually wrong — not checked against Sola here.
+- **Grok PASS vs owner WNs — not factual fights.** This walk ticked PASS on `prearm_fail_ticks.h`, `crc32.h`, `notify_resolver.h`. Owner has **WN-064**/**065**, **WN-223**, **WN-231** (banners, “does this header belong,” Doxygen). These lenses do not ask that question.
+- **`shared_state.cpp`.** Owner **WN-306**: what is this TU / naming. This walk: `g_sensorPhaseActive` / baro-GPS init flags are plain `bool`s next to atomics (**GWF-002**, **003**, **469**, **470**). Owner listed the symbols and deferred the 3-question. Complementary unless those bools are already accepted as boot-once and safe.
+
+### Unique-and-looks-real (not a merge list)
+
+**Mostly owner, thin in GWF:** SPDX / license hygiene, Doxygen keep-or-drop, header density exemption, “does this file earn rent,” Starcom supersession, NOLINT-as-policy, `emergency_deploy_anytime` as a safety override, Go/No-Go SSOT (**WN-179**). This walk almost never asked those.
+
+**Mostly GWF, silent or light in WNs:** dashboard Temp always 0 and 0–6 phase colors vs live `FlightPhase`; station distance “stale” using MET vs last-RX; `ring_buffer` init clobbers recover; `core1_i2c_pause` fail-open; `pio_watchdog` not-running = healthy; station GPS “restore” clears valid; PSRAM hard-gate never programs / self-test on the cached window; ESKF mag-heading comment sign vs code; `rc_os` unreachable `'m'` / cal-cancel paths; FD `SIG_RESET` only in LANDED/ABORT and the advertised enable flag stuck false.
+
+### How to use this compare
+
+Do not merge 498 into 327. Treat agreements as already double-seen. Treat `fused_state` 1-sigma and `gps_uart` rates as the first two places owner “nothing of note” might be wrong. Treat remaining high GWF contract/concurrency hits as a second-pass list, not as new WNs yet. Owner-unique WNs (policy, structure, safety SSOT) are the ones this walk was never going to write.
+

@@ -19,7 +19,7 @@
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + findings WN-001–327; walk WB drained and formal walk close 2026-08-17.** Independent Grok walk complete: GWF-001–498 on `grok/l2p5-agent-walk`. Next (owner pack): WN cluster index, then disposition. Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + findings WN-001–327; walk WB drained and formal walk close 2026-08-17.** Independent Grok walk + WN compare closed: GWF-001–498 on `grok/l2p5-agent-walk`. Next (owner pack): WN cluster index, then disposition. Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
