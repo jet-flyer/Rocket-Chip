@@ -1737,3 +1737,37 @@ Per batch: **both builds** (firmware catches one config's danglers, host catches
 - LL 36 / 40 ("gate looks covered but isn't") + LL 43 ("clean from a static gate is negative evidence") — the verification-net discipline that caught these.
 - LL 38 (primary sources, not code) — the convention (JSF AV Rule 51) and the QP-vs-JSF resolution came from primary sources, not "what the code does."
 - CHANGELOG `2026-06-24-001` + `2026-06-25-001`; commits `a96a8a2` / `55e3d62` / `cb069c1` / `1bfa602`.
+
+---
+
+## Entry 45: Worktree CHANGELOG Is Not on Main Until the Merge Copies It
+
+**Date:** 2026-08-20
+**Context:** First exercise of session-scoped git worktrees for the independent Grok L2-P5 walk (`grok/l2p5-agent-walk`, tree `C:\Users\pow-w\Documents\RC-grok-walk`). Owner flagged after landing: the walk's CHANGELOG entries existed only on the branch.
+**Severity:** High-process — the project's canonical event log can vanish from `main` even though the work was committed, because the worktree/branch is treated as disposable after merge.
+
+### Problem
+The Grok walk shipped two CHANGELOG entries **on the branch only**:
+- `2026-08-18-001` @ `d0166d2` — walk findings (T4 CLI verify still open)
+- `2026-08-19-001` @ `392091a` — T4 close + owner-WN compare
+
+`main` already had a **different** `2026-08-19-001` (checklist cadence, `6b0b570`). Merge `5841d16` landed `L2P5_GROK_WALK_FINDINGS.md` and wrote landing entry `2026-08-20-003`. CHANGELOG conflict resolution kept main's IDs and **dropped** the branch entries. A later commit (`8fe3c8b`) only cross-referenced the branch hashes in the 20-003 body. `standards/GIT_WORKFLOW.md` then says delete the branch after merge because "all merged work is preserved in main branch history" — that sentence is false for any file the merge did not copy.
+
+If the worktree and branch had been cleaned up before anyone asked "was there already a walk CL?", those entries would not be on `main` at all. Git objects might still exist if the remote branch was pushed; they would not be in the file a future session reads.
+
+### Root cause
+Worktree policy (WB 2026-07-01 / 2026-07-04) correctly split two problems: **durability of work** (commit, don't leave untracked) and **isolation** (branch + worktree so agents don't clobber each other). It did not split a third: **durability of the project log**. `CHANGELOG.md` (and `LESSONS_LEARNED.md` when an entry is part of the sitting) is a shared, newest-first, ID-colliding file. Parallel sessions on `main` vs a worktree **will** mint the same `YYYY-MM-DD-NNN`. "Take ours" on that conflict keeps main's log and silently discards the branch's. Isolation made the walk findings mergeable; it did not make the log mergeable.
+
+This is the inverse of the original worktree trigger (untracked guide wiped by `git clean`). Committing on the worktree saved the findings file. It did **not** save the changelog, because the merge dropped it.
+
+### Prevention
+1. **Project-log files must land on `main` as part of the merge, not remain only on the worktree/branch.** Before `git worktree remove` or branch delete, diff `CHANGELOG.md` (and LL if touched) against `main`. Any entry that existed only on the branch must appear on `main`.
+2. **Expect ID collision.** A worktree session and a `main` session on the same calendar day will both want `…-001`. Do not resolve by dropping the branch block. Use a new date-NNN on main, or a one-time suffix (e.g. `2026-08-19-001W`) with a wrap comment that the IDs were branch-local. Folding into the landing entry is allowed only if the original hashes are cited and the branch text is not discarded.
+3. **"All merged work is on main" is only true for paths the merge actually took.** Findings/docs can land while CHANGELOG does not. Check the log files explicitly; do not infer from a successful merge of the feature files.
+4. **Do not write the only copy of a CHANGELOG entry on a disposable tree** and assume conflict resolution will carry it. If the sitting's event belongs in the project log, it belongs on `main` (directly, or copied at merge with a non-colliding ID).
+
+### Related
+- WB "Session-scoped git worktrees" — lived failure added 2026-08-20; original lesson was untracked-file wipe, this is the log-file cousin.
+- `standards/GIT_WORKFLOW.md` — branch-delete-after-merge; now qualified for CHANGELOG/LL.
+- CHANGELOG `2026-08-20-003` (`5841d16` merge, `8fe3c8b` hash cross-ref). Branch originals: `d0166d2`, `392091a`.
+- Sibling of LL 36 / 40 / 43: a green merge is negative evidence that the **log** landed, same as a green gate is negative evidence the **check** ran.

@@ -34,7 +34,17 @@ git branch -D <branch-name>
 - Prevents accumulation of stale branches
 - Keeps repository navigable
 - Reduces confusion about active work
-- All merged work is preserved in main branch history
+- Feature files that **survived the merge** are preserved in main branch history — this is **not** automatic for every path the branch touched
+
+### Project-log files at merge (LL Entry 45)
+
+A worktree/branch is disposable. `CHANGELOG.md` (and `LESSONS_LEARNED.md` when the sitting added an entry) is not. Parallel sessions mint colliding `YYYY-MM-DD-NNN` IDs; resolving a CHANGELOG conflict by "take main" drops the branch's log. Lived case: Grok L2-P5 walk CLs `d0166d2` / `392091a` stayed on `grok/l2p5-agent-walk` while merge `5841d16` landed only the findings file.
+
+**Before** `git worktree remove` or deleting the branch after merge:
+
+1. Diff `CHANGELOG.md` (and LL if touched) against `main`.
+2. Every entry that existed only on the branch must appear on `main` — new date-NNN, or a one-time suffix if the ID collides. Folding into the landing entry is allowed only if the original hashes are cited and the branch text is not discarded.
+3. Do not infer "the log landed" from a successful merge of the feature files.
 
 ### Checking for Stale Branches
 

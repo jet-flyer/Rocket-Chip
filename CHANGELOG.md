@@ -48,7 +48,42 @@ A note on reliability: brand and model are almost always in your context, but th
 
 ### 2026-08-20-003 | Grok 4.6 (Build CLI) | documentation, audit
 
-**Independent Grok L2-P5 walk landed on main.** Merge `grok/l2p5-agent-walk` @ `392091a`: `docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md` — 121/121 leaves, deny-listed from owner WNs; **GWF-001–498** kept after verify (T4 CLI **GWF-471–498** from a 2026-08-18 rerun after PC sleep killed the first CLI skeptics). Owner-WN compare appended (agreements, judgment clashes including `fused_state.h` 1-sigma vs owner nothing-of-note, unique-and-looks-real). Sits beside owner `WN-` and Claude `CW-`. **Not** a merge of 498 into 327 and not a certification. Walk already logged on that branch as **2026-08-18-001** (`d0166d2`, T4 still open) and **2026-08-19-001** (`392091a`, T4 + compare close) — those IDs stay on the branch; main already had a different 2026-08-19-001. This entry is the main-line landing. Verified: pure-software / docs only; no `src` changes; no HW reseat.
+**Independent Grok L2-P5 walk landed on main.** Merge `grok/l2p5-agent-walk` @ `392091a`: `docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md` — 121/121 leaves, deny-listed from owner WNs; **GWF-001–498** kept after verify (T4 CLI **GWF-471–498** from a 2026-08-18 rerun after PC sleep killed the first CLI skeptics). Owner-WN compare appended (agreements, judgment clashes including `fused_state.h` 1-sigma vs owner nothing-of-note, unique-and-looks-real). Sits beside owner `WN-` and Claude `CW-`. **Not** a merge of 498 into 327 and not a certification. The walk’s original changelog entries were written only on that branch/worktree (`d0166d2`, `392091a`); they are copied below as **2026-08-18-001W** / **2026-08-19-001W**. Verified: pure-software / docs only; no `src` changes; no HW reseat.
+
+<!-- one-time format exception — do not copy this pattern -->
+Worktree-only changelog recovery (2026-08-20). The independent Grok L2-P5 walk
+logged **2026-08-18-001** and **2026-08-19-001** on `grok/l2p5-agent-walk` only.
+The worktree/branch is meant to be cleaned up after the work lands, which would
+have dropped those entries from the project log. Main already used
+**2026-08-19-001** for an unrelated sitting, so the recovered IDs take a **W**
+suffix (worktree) and sit here out of date order, next to the landing, not
+spliced into the 2026-08-19 block. Do not use W-suffix IDs or mid-file wraps
+again.
+
+### 2026-08-19-001W | Grok 4.6 (Build CLI) | documentation, audit
+
+Independent Grok L2-P5 walk closed on `grok/l2p5-agent-walk`. Tier 4 CLI verify
+completed in a later sitting (`l2p5-grok-walk-2`; GWF-471–498). Owner-WN compare
+appended to `docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md` (agreements,
+judgment clashes, unique-and-looks-real). Not a merge of GWF into WN-001–327 and
+not a certification. Pure docs — no `src` changes.
+*(Recovered from `392091a`. Original ID on the branch was 2026-08-19-001.)*
+
+### 2026-08-18-001W | Grok 4.6 (Build CLI) | documentation, audit
+
+Independent Grok L2-P5 walk (`l2p5-grok-walk`) on worktree/branch `grok/l2p5-agent-walk`
+(`C:\Users\pow-w\Documents\RC-grok-walk`). 121/121 leaves walked; deny-listed from
+owner WNs. **GWF-001–470** kept after verify in
+`docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md`. Verifies 1–3 completed.
+**Tier 4 verify open:** PC sleep failed all four CLI skeptics (`rc_os` /
+`rc_os_commands` / `rc_os_dashboard` / `rc_os_debug`); raw walker counts remain,
+no GWF rows. Resume: rerun the same workflow with `tier=4` and append GWF-471+.
+This entry may be amended if the next sitting is only that verify. Pure docs —
+no `src` changes. Not a compare against owner findings and not a certification.
+*(Recovered from `d0166d2`. Original ID on the branch was 2026-08-18-001. Left
+as shipped — T4-open is historical; close is 2026-08-19-001W.)*
+
+<!-- end one-time format exception -->
 
 ### 2026-08-20-002 | Claude Opus 5 (Code) | documentation, audit
 
