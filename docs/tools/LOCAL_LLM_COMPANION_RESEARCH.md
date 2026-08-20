@@ -518,4 +518,365 @@ Use this section + §1 as the handoff package. Do not re-discover Odysseus GPU f
 
 ---
 
+## Section 3 — Quantization as a choice dial (pedagogical)
+
+**Author:** Grok 4.6 (Build CLI) · **Date:** 2026-08-19  
+**Picks up:** §1.7 item 1 / WB “quant levels as a choice dial.” Does **not** pick a model or buy weights. Complements §1.2–1.3 (does not rewrite them).
+
+### 3.1 What is being rounded
+
+A trained weight is a real number. The usual training format is **16-bit float** (fp16 / bf16): about two bytes per parameter. A 35B-parameter dense model in fp16 is ~70 GB of *weights alone*, before context (KV cache).
+
+**Quantization** replaces each weight with a value from a coarser grid so it takes fewer bits. Q4 ≈ 4 bits per weight ≈ ¼ the weight file of fp16. The *architecture* (layers, attention, MoE routing) is unchanged. You are not training a smaller brain; you are storing the same brain more coarsely.
+
+Analogy that is fair and that breaks in a useful place: **MP3**. MP3 throws away parts of the signal humans barely hear. Quantization throws away parts of the weight the *loss function* barely used. Both look “almost the same” on typical input. Both fail on the rare, high-precision bit — a cymbal transient, or a tool-call JSON field.
+
+RocketChip-shaped analogy: storing a sensor sample as `uint8_t` when the spec only needs 8 bits is fine; storing a **CRC polynomial** or a **CCSDS bit-field width** as a rounded float is not. Quantization error is not uniform across “kinds of thinking.” Chat prose is robust. Structured tokens (tool names, file paths, exact numbers) are brittle.
+
+### 3.2 How to read a GGUF name
+
+`Q4_K_M` is three decisions, not one number.
+
+| Piece | Meaning | Sourcing |
+|---|---|---|
+| **Q4** | Nominal ~4 bits per weight. Effective bits are usually a little *higher* because some tensors stay wider. | llama.cpp `QUANT_OPTIONS` / format comments. **Primary** for the *names*. |
+| **K** | “K-quant”: super-block + mixed precision inside the block (llama.cpp PR [#1684](https://github.com/ggerganov/llama.cpp/pull/1684)). Older `Q4_0` / `Q4_1` are cruder uniform blocks. | **Primary** (PR). |
+| **S / M / L** | How *much* mixed precision: Small / Medium / Large. M keeps more sensitive tensors at higher bits than S, so M is usually the default 4-bit pick. | **Primary** (llama.cpp option text). |
+| **IQ…** | “I-quant”: uses an **importance matrix** from calibration text (`llama-imatrix`) so bits are spent on weights that move the loss more. Smaller at the same nominal bit-width; quality depends on that calibration. | **Primary** (llama.cpp imatrix docs). **Secondary** for “always better/worse than K.” |
+| **UD- / Unsloth** | Someone else’s extra mix (e.g. UD-Q4_K_XL). Treat as a *vendor preset* of the above, not a new physics. | Secondary until the card states the recipe. |
+
+**QAT** (already §1.3): the model was *trained* knowing it would be 4-bit. That advantage is welded to the format it was trained for (Gemma’s Q4_0). Do not “upgrade” a QAT file to Q6 and expect a free lunch.
+
+Effective bits-per-weight for K-quants are **not integers**. Academic survey of llama.cpp K-quants on Llama-3.1-8B (arXiv [2601.14277](https://arxiv.org/html/2601.14277v1), 2026): Q4_K_M ≈ **4.5** bpw, Q5_K_M ≈ **5.5**, Q6_K ≈ **6.5**. **Secondary** (one paper, one model) — use as a picture of *why* “Q4” is not “exactly 4,” not as RocketChip numbers.
+
+### 3.3 What you actually lose (and what PPL does not tell you)
+
+**Perplexity (PPL)** asks: how surprised is the model by ordinary text? Lower is better. llama.cpp can measure it (`llama-perplexity`). It is the *standard proxy* for quant damage because it is cheap and repeatable.
+
+Typical *shape* of the curve (WikiText-style PPL vs fp16; **secondary** community + older GPTQ study arXiv [2402.16775](https://arxiv.org/html/2402.16775v1) — not this box, not Qwen3.6):
+
+- **Q8 / Q6:** PPL change is usually *inside measurement noise*. Blind llama.cpp votes (discussion [#5962](https://github.com/ggml-org/llama.cpp/discussions/5962)) could not tell Q5/Q6 from each other with confidence except that **IQ1** was obviously worse.
+- **Q4_K_M:** small PPL bump; this is why it is the default. You notice it on *edge* cases, not on “write a paragraph.”
+- **Q3 and especially Q2:** PPL can explode; 2-bit GPTQ models in that 2024 study **stopped following instructions** and emitted incoherent text. Floor, not a dial step.
+
+**The pedagogical point:** PPL is an *average over next-token prediction*. The companion job is **not** “sound like Wikipedia.” It is “emit a valid tool call + a correct file edit + a `ctest` that still passes.” That fails as a *discrete* error (wrong path, dropped brace, hallucinated symbol). A 1.5% PPL change can be invisible in chat and fatal in a JSON argument.
+
+So the dial for *this repo* is not “lowest PPL that fits.” It is:
+
+> At this quant, does the model still **apply an already-decided work order** with a machine-checkable artifact?
+
+That is exactly §1.4–1.5. We do **not** have that number yet. Throughput in §1.2 (~20–30 tok/s) is already labeled an estimate. Same honesty here: **no quant ranking for the executor role is claimed until the salted-corpus harness (§1.5 / next item) exists.**
+
+What we *can* say without a harness:
+
+1. **Do not go below Q4_K_M** for a model you expect to follow a contract. Q3/Q2 are a different *kind* of damage (coherence), not “a bit more lossy.”
+2. **Q8 is almost never worth 2× the bytes** for this role. The leftover RAM is better spent on **context / KV cache** (see §3.4) or on *not* evicting experts from RAM so hard that generation stutters.
+3. **Q5_K_M / Q6_K are the “I have RAM, spend it on weights” steps** — only interesting if a shakedown shows Q4 breaking tool calls or exact identifiers. On this box they still fit (Qwen3.6-35B-A3B: Q4_K_M 22.1 GB · Q5_K_M 26.5 · Q6_K 29.3 per §1.2 card sizes).
+4. **IQ4_XS is a size trick, not a free upgrade.** Smaller than Q4_K_M; more sensitive to imatrix quality. Fine as an *experiment*, not as the first dial notch.
+
+### 3.4 The second budget: KV cache (context), not just weights
+
+The GGUF file is the *weights*. While generating, the model also stores **keys and values for every token in the window**. That grows with context length and sits in **VRAM** unless you offload it too.
+
+Consequence for the dial, on a **12 GB card + 62 GB RAM** (§1.1):
+
+- Weights of a 35B-class MoE can live mostly in **RAM** (expert offload). That is why Q4 vs Q6 is “do I spend 7 GB more *system* RAM,” not “does it fit on the GPU.”
+- **Context** still wants GPU-side space. A fat quant that leaves no VRAM for KV *hurts the job* (chunking files, exactly the audit failure mode in §1.4) more than a slightly lossier weight file.
+- So “higher quant is always better if it fits in RAM” is false. The executor reads *files*. Window size is part of capability.
+
+This is the same “budget is shared” idea as PIO SMs on the WB (watchdog vs beacon vs I²C). Bits spent on weights are bits (and bandwidth) not spent on context.
+
+### 3.5 How to use the dial (not a purchase)
+
+Think of three notches, then *stop* until a shakedown:
+
+| Notch | When you turn it | What you are buying |
+|---|---|---|
+| **Q4_K_M** | Default for the first executor try | Fits easily; community default; leave VRAM for KV |
+| **Q5_K_M or Q6_K** | Only if Q4 fails *checkable* things (malformed tools, wrong identifiers) and you have already turned thinking off / fixed the tool parser (§1.2) | Weight fidelity. Measure tok/s — you may have bought quality and sold speed. |
+| **Q8 / fp16** | Almost never on this box for a 35B-class model | Diminishing returns; starves context or forces a smaller *model* |
+
+**Gemma QAT-Q4_0** is a *parallel* notch, not a higher one: same 4-bit *class*, trained for it (§1.3). Compare it to Qwen-Q4 as “different 4-bit,” not as “worse than Qwen-Q6.”
+
+**Do not** pick a notch because a blog said “95% of quality.” That is the same failure as picking a timeout without a datasheet. The datasheet here is a **work-order suite + `ctest` / compile**, which is item 3 on the original open list.
+
+### 3.6 What this does *not* settle
+
+- Which *model* (Qwen3.6-35B-A3B vs Gemma QAT vs other) — still §1.2 + a shakedown.
+- Big + surgical-small vs one large — still item 2; FIM/embeddings are other *functions* (§1.6), not extra notches on this dial.
+- Odysseus backend flags — still item 4. The dial assumes llama.cpp-class GGUF; Ollama names (`q4_K_M`) are the same family.
+
+### 3.7 Sourcing
+
+| Claim | Label |
+|---|---|
+| What Q/K/S/M/IQ *are* | **Primary** — llama.cpp PR #1684, `QUANT_OPTIONS`, imatrix docs |
+| Qwen3.6-35B-A3B GGUF sizes | **Primary** — already §1.2 (Unsloth/HF cards) |
+| QAT welded to Q4_0 | **Primary** — already §1.3 (Google) |
+| 2-bit can destroy instruction following | **Secondary** — arXiv 2402.16775 (GPTQ, 2024, not this model) |
+| Q4_K_M ≈ 4.5 bpw | **Secondary** — arXiv 2601.14277 (Llama-3.1-8B) |
+| “Q6 ≈ indistinguishable in blind chat votes” | **Secondary** — llama.cpp #5962 (Mistral 7B, large error bars) |
+| “Q4 loses 1–3% PPL / MMLU” blog tables | **Unverified for this model** — do not cite as our number |
+| Executor-role ranking of Q4 vs Q6 on *this* box | **Not measured** — harness not built |
+
+---
+
+## Section 4 — Quant dial, off-box empirical (not this machine)
+
+**Author:** Grok 4.6 (Build CLI) · **Date:** 2026-08-19  
+**Picks up:** §1.7 item 1 / WB quant dial, after §3 (teaching frame). **Does not close the item.** Complements §1–§3; does not rewrite them. No procurement. No this-box run.
+
+**Role of this section:** New numbers that §1–§3 did not have — task-level quant comparisons, KV-cache K vs V, and install-RAM vs file-size. Written so the owner can argue with them. Owner discussion is the point of the row.
+
+### 4.1 What is new vs §1–§3
+
+§1 listed GGUF *file* sizes and said the quality dial on this box is quant, not parameter count. §3 explained what the names mean and said we had no executor ranking. This section is the first set of **task / tail** numbers for those names.
+
+None of it is measured on the 4070 Ti. Label is **secondary** unless noted. The job we care about is still §1.4: apply an already-decided work order with a checkable artifact.
+
+### 4.2 Weight quant: a plateau on SWE *resolved*, not on format errors
+
+Source: Hugging Face `unsloth/Qwen3.6-35B-A3B-GGUF` discussion **#10**, user `jerobnd`, first **100** SWE-bench Verified samples, **mini-swe-agent**, 250-turn cap, **one pass**. Unsloth (`shimmyshimmer`, 2026-04-18) cautioned: n=100, no repeats, “isn't the best metric.” Still the only head-to-head *agent* table we have for these exact GGUFs.
+
+| Model | Quant | resolved / 100 | unresolved | error | incomplete |
+|---|---|---|---|---|---|
+| Qwen3.5-35B-A3B | Q4_K_M | **59** | 25 | 14 | 2 |
+| Qwen3.5-35B-A3B | UD-Q6_K_XL | **59** | 29 | 6 | 6 |
+| Qwen3.5-35B-A3B | Q8_0 | **59** | 30 | 8 | 3 |
+| Qwen3.5-122B-A10B | UD-Q5_K_XL | 69 | 28 | 0 | 3 |
+| Qwen3.5-27B | UD-Q4_K_XL | **71** | 26 | 2 | 1 |
+| Qwen3.6-35B-A3B | UD-Q8_K_XL | 53 | 26 | 18 | 3 |
+| Qwen3.6-35B-A3B | Q5_K_M (AesSedai) | 51 | 29 | 18 | 2 |
+
+**Error** = output did not start with `diff --git` (failed the system prompt). **Incomplete** = hit 250 turns.
+
+**Finding A — climbing Q4→Q8 bought zero extra SWE resolves on 3.5-35B.** Same 59. What moved was the *error* column (14 → 6 → 8): format / contract, not “smarter code.” That is the opposite of the blog story “higher bits = more capability.” For a RocketChip executor whose failures are supposed to be compile/`ctest`/diff, this is the interesting number.
+
+**Finding B — Qwen3.6 Q8 ≈ Qwen3.6 Q5 on this harness, and both lose to 3.5-Q4.** 53 and 51 resolved, both with 18 format errors. Official Qwen card (primary, §1.2 / HF model card): SWE-bench Verified **73.4** (3.6-35B) vs **70.0** (3.5-35B). The quantized mini-swe run inverts that. Possible causes, not ranked: (1) chat template / `diff --git` contract; (2) tester used thinking-mode *precise coding* `temp=0.6` while Qwen’s SWE footnote is `temp=1.0, top_p=0.95, 200K ctx`; (3) 3.6’s card gains do not survive GGUF + this agent. Unsloth did not refute the table; they asked for more samples.
+
+**Finding C — a smaller dense 27B beat the 35B MoE at Q4 on the same 100.** 71 vs 59. That punches a hole in “quality dial is quant not param count” *if* you only compare MoEs. It does **not** by itself pick 27B for this repo — n=100, one pass, different architecture — but it is now a live model question sitting *inside* the quant row. Same discussion also has `islameissa` (clinical 18-prompt suite, GPT-5.4 judge, 10 runs): Qwen3.5-27B UD-Q4_K_XL **77.0** overall vs Qwen3.6-35B **74.5** vs Qwen3.5-35B **72.0**. Different domain; same direction.
+
+HumanEval is a different axis (`LadyJun`, 164 tests, pass@1): 3.6 UD-Q6 **93.29 / 90.24** vs 3.5 UD-Q6 **98.78 / 93.9**. Same comment: 3.6 tool calling “never failed.” Gemma 4 31B dense sat at 100 / 94.51 on that suite. Executor job is closer to mini-SWE + tools than HumanEval.
+
+**What this does *not* prove:** Q4_K_M is good enough on *this* box, for *our* work orders. Treat the table as a *split* (capability plateau vs format-error movement), not a ranking of which file to keep. Owner has storage; “first download” is not the constraint.
+
+### 4.3 PPL / KLD can rank the dial backwards
+
+Unsloth, primary (their Qwen3.5 GGUF-benchmarks page + Reddit `1rgel19`, 2026-02): they still publish KLD Pareto (Qwen3.6-35B-A3B: Unsloth first in **21 of 22** sizes on mean KLD) and also say **PPL/KLD can invert real evals**. Cited case: Unsloth Dynamic IQ2_XXS beat AesSedai IQ3_S on LiveCodeBench v6 / MMLU-Pro while being ~11 GB smaller; AesSedai PPL 0.2441 vs Unsloth 0.3552 and KLD 8.28 vs 9.03 (lower = closer to BF16). UD-Q4_K_XL beat other Q4s while ~8 GB smaller on that plot.
+
+Other Unsloth facts that change *which named file* to try, not the bit number:
+
+- **MXFP4 retired** from most mixed quants (Q2/Q3/Q4_K_XL); kept for `MXFP4_MOE`. Q4_K is 4.5 bpw vs MXFP4 4.25; they prefer Q4_K on sensitive tensors.
+- **Do not cheapen `attn_*` or `ssm_out`.** `ffn_up_exps` / `ffn_gate_exps` tolerate ~3-bit; `ffn_down_exps` less so. This is why UD- / `_XL` exists — it is a *tensor recipe*, not “Q4 plus marketing.”
+- Imatrix helps low bits; **I-quants ~5–10% slower** decode (`iq3_xxs` tg128 ≈ 85 vs `q4_k` ≈ 90 in their table).
+- Mar 5 2026 Qwen3.5 update: UD-Q4_K_XL **max KLD 5.894 → 2.877 (−51%)**, file 19.2 → 20.7 GB. Recipe date matters; an old XL is not the current XL.
+
+**Implication for us:** Unsloth UD-Q4_K_XL (or current Q4_K_M) is the interesting 4-bit *file*, not a random Q4_0. KLD is a rough signal, not the executor metric. That agrees with §1.4 and §3.3; we now have Unsloth saying it about their own plots.
+
+### 4.4 The second dial is KV cache, and it is a VRAM dial
+
+Weights of a 35B MoE can live in **system RAM** on this box (§1.1). The KV cache for the window mostly wants **VRAM**. 12 GB is the scarce side. So Q4 vs Q6 is “spend 7 GB more DDR5”; KV q8 vs q4 is “how much context fits on the 4070 Ti without wrecking tool JSON.”
+
+Unsloth Qwen3.6 run page (primary): if output is gibberish, try `--cache-type-k bf16 --cache-type-v bf16` (and do not use CUDA 13.2). That is them pointing at **cache type**, not weight bits.
+
+**Asymmetric K vs V — llama.cpp discussion #23470** (sanmai, Qwen2.5-7B Q4_0 GGUF, WikiText, vs f16 KV; **secondary**, old Qwen, ctx 512):
+
+| flags | mean KLD | same top-p | note in thread |
+|---|---|---|---|
+| `-ctk q4_0 -ctv q4_0` | **5.51** | 11.6% | “out of touch with f16”; PPL 8 → **1589** |
+| `-ctk q4_0 -ctv f16` | 5.49 | 11.8% | almost the same collapse — damage is **K** |
+| `-ctk f16 -ctv q4_0` | 0.0040 | 96.9% | V at 4-bit nearly free |
+| `-ctk q8_0 -ctv q4_0` | 0.0048 | 96.7% | |
+| `-ctk q8_0 -ctv q8_0` | 0.0018 | 98.0% | |
+
+Follow-up in the same thread (`chambejp`, 2026-08-16, 500 ARC questions, grammar-constrained, answer-*churn* vs f16): q8_0 K+V changed ≤4/500; q4_0 K+V was model-dependent (Qwen3.6-27B 2/500, Qwen2.5-7B **375/500** and score 92%→24%). On the sensitive model, **q4 K alone reproduced the collapse; q4 V alone changed 1/500.**
+
+**Qwen3.6-27B long-context KV table** — Anbeeld (2026, BeeLlama/llama.cpp fork, Q5_K_S weights, 64k, vs bf16 KV). PPL almost flat through q4_0 (5.480 → 5.488). Tail is not:
+
+| K / V | size vs bf16 | 99.9% “precision” vs bf16 (their exp formula) |
+|---|---|---|
+| bf16 / bf16 | 100% | 100% |
+| q8_0 / q8_0 | 53.1% | 94.6% |
+| q8_0 / q5_1 | 45.3% | 94.2% |
+| q5_0 / q5_0 | 34.4% | 92.7% |
+| q5_0 / q4_1 | 32.8% | 92.7% |
+| q4_0 / q4_0 | 28.1% | 89.8% |
+
+Author’s own caveat: this is PPL/KLD, not tool-call success; they discarded JSON-schema tests because everything scored 100% at the scale they tried. Community reports still match the *direction*: Reddit 2026-08 (Qwen3.6-27B UD-Q5_K_XL) “Q4 KV is turning qwen 3.6 into mental”; split `-ctk q8_0 -ctv q4_0` called a long-context sweet spot. llama.cpp collaborator note: some mixed pairs **silently fall back to CPU** unless the FlashAttention quant combo is compiled in (`GGML_CUDA_FA_ALL_QUANTS`) — so a “better” asymmetric pair can *look* like a speed regression.
+
+**Qeios preprint RGD04F (2026-08, secondary):** Qwen3-4B key-precision ablation — Q4 and Q8 keys similar *likelihood*; GSM8K 200-example pilot still favored **Q8 keys by 13 points**. Same mismatch class as Unsloth’s PPL-vs-LiveCodeBench.
+
+**Implication for this box:** default KV on llama.cpp is f16/bf16. That is the quality floor. The first *compression* to try for context is **q8_0 on K** (both, or K=q8 V=q5/q4), not q4/q4. Do not spend the 12 GB on a fatter *weight* file if that is what starves KV. NVFP4 is Blackwell-only (Unsloth 2026-07-10); 4070 Ti is Ada 8.9 — ignore NVFP4 speed claims.
+
+### 4.5 File size vs “runs in N GB” vs this install
+
+Unsloth Qwen3.6 run page, **primary**, “total memory: RAM + VRAM, or unified”:
+
+| | 3-bit | 4-bit | 6-bit | 8-bit | BF16 |
+|---|---|---|---|---|---|
+| 35B-A3B weights | 17 GB | **23 GB** | **30 GB** | **38 GB** | 70 GB |
+| same + MTP (~+1 GB) | 18 | 24 | 31 | 39 | 71 |
+
+HF GGUF blobs (primary, Unsloth card): UD-Q4_K_M **22.1 GB**, UD-Q4_K_XL **22.4**, UD-Q5_K_M **26.5**, UD-Q6_K **29.3**, UD-Q6_K_XL **31.8**, Q8_0 **36.9**, UD-Q8_K_XL **38.5**. Matches §1.2.
+
+This machine (§1.1 / §2.1): **61.6 GB** host RAM + **12 GB** VRAM. Docker Odysseus `/proc/meminfo` was **~30 GiB**. So:
+
+- **Host** llama.cpp / host Ollama: Q4 (23) and Q6 (30) are easy; Q8 (38) still fits with KV + OS if you are not also stuffing the container.  
+- **In-container Cookbook Serve:** 30 GiB is roughly the Q6 ceiling before the VM, not the weights, is the limit. Q8 is the wrong experiment on that path until `.wslconfig` is raised (§2.9 item 3).
+
+MTP (Unsloth, primary): MoE speedup **~1.15–1.2×** vs dense **1.4–2×**; they recommend `--spec-draft-n-max 2`; more drafts drop accept rate 83%→50% at 4. No claimed accuracy change. Speed knob, not a quality notch. ~1 GB extra.
+
+### 4.6 Adjacent knobs that impersonate “need more bits”
+
+These are not quant, but they produce the same *visible* failure (bad JSON, looping, “dumber”) that people then try to fix by climbing Q4→Q8.
+
+1. **Thinking on, for an executor.** `islameissa` 10-run suite: Qwen3.5-27B standard **77.0** vs thinking **71.4** (code 82.7→78.2). Gemma thinking *helped* code. Qwen3.6 thinks **by default**; §1.2 already said turn it off for this role (`enable_thinking: false`). jerobnd’s 3.6 mini-SWE used thinking-mode 0.6; Qwen’s SWE footnote is 1.0. Template/sampling may explain more of the 59 vs 53 gap than Q5 vs Q8.
+2. **Tool parser / Jinja / `qwen3_coder`.** Unsloth has repeatedly shipped chat-template fixes that applied to *all* uploaders (Qwen3.5 GGUF page; older Qwen3-Coder Roo threads). A Q6 that loops in an agent is often the template, not 6-bit.
+3. **CUDA 13.2** — Unsloth: gibberish; use <13.2 or 13.3.
+
+### 4.7 Working hypotheses (for the owner to break)
+
+**Retraction (same day):** 4.7 originally framed this as “which file to download first.” Owner clarified storage is not the constraint, and the question is **what changing the bit width does**, not which quant is best. Hypotheses below are about *effects*, not a shopping list.
+
+1. **On this job, Q4→Q8 mostly changes contract-failure rate, not “how many bugs it can independently solve.”** Motivated by Finding A’s split (resolved stuck at 59; errors 14→6). Incomplete test; direction is the claim.
+2. **Q8 vs Q6 is unlikely to be observable on tedious apply-the-diff work** once thinking is off and the tool parser is correct. Cost is RAM + bandwidth, not a smarter executor.
+3. **Q3/Q2 is a different *kind* of damage** (coherence / ignore-the-schema), not “Q4 but a bit worse.”
+4. **KV-cache bit width can change the same failure mode as weight quant** (malformed tools, lost JSON keys) and hits VRAM, which is the scarce side on this box.
+5. **Qwen3.6 vs 3.5 is a template/harness question before it is a quant question.** Card says 3.6 wins SWE; mini-SWE says 3.6 Q8 loses to 3.5 Q4 with format errors.
+
+### 4.8 Still unmeasured (this is why the WB row stays)
+
+- Any quant on the **4070 Ti + 62 GB** with Odysseus as actually installed (§2). Throughput in §1.2 is still an estimate.  
+- Executor-shaped tasks from **this repo** (work orders + `ctest` / dual build / `rg`). Salted harness is still §1.7 item 3.  
+- Whether KV q8 vs f16 changes *tool-call* rate on Qwen3.6-35B-A3B (Anbeeld explicitly did not show that).  
+- Whether UD-Q4_K_XL vs Q4_K_M matters on agent tasks (KLD says XL; mini-SWE used Q4_K_M for the 59).
+
+### 4.9 Questions for the owner (this session)
+
+**Retraction:** Q1 was “first download / one 4-bit file.” Wrong question (storage is fine; owner wants what the dial *changes*).
+
+1. For the executor job, is the useful split **capability vs contract-failure** (resolved vs `diff --git` / tool JSON), or do you want a different “what changed” axis (speed, context window, exact identifiers, `ctest` miss rate)?  
+2. Is 27B-beats-35B on that 100 a *model* tangent we should park until the quant-effects discussion is done?  
+3. Serve path still matters for *what you can observe*: host 62 GB vs Docker ~30 GiB changes whether Q8 even runs, not whether it is “better.”  
+4. Next research fork on this row: keep pulling **what each notch changes for tool/edit work**, not bake-off winners.
+
+### 4.10 Sources / confidence
+
+| Claim | Label |
+|---|---|
+| Unsloth 35B-A3B RAM+VRAM table; MTP +1 GB; gibberish → bf16 KV; CUDA 13.2; NVFP4 = Blackwell; MTP 1.15–1.2× MoE | **Primary** — https://unsloth.ai/docs/models/qwen3.6 |
+| GGUF blob sizes | **Primary** — https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF |
+| KLD 21/22 Pareto; MXFP4 retire; attn/ssm sensitivity; PPL/KLD invert vs LiveCodeBench; I-quant 5–10% slower | **Primary** (Unsloth) — https://unsloth.ai/docs/models/qwen3.5/gguf-benchmarks |
+| mini-SWE first 100 table; HumanEval LadyJun; islameissa 18-prompt suite | **Secondary** — HF discussion #10; n=100 / 164 / 18 as stated; Unsloth caution on n=100 |
+| Official SWE 73.4 vs 70.0 | **Primary** — Qwen3.6-35B-A3B model card (already §1.2) |
+| KV K vs V KLD on Qwen2.5-7B; ARC churn | **Secondary** — llama.cpp #23470 |
+| Qwen3.6-27B 64k KV ladder | **Secondary** — https://anbeeld.com/articles/kv-cache-quantization-benchmarks-for-long-context (fork of llama.cpp; author says not tool-call proof) |
+| GSM8K Q8-keys +13 | **Secondary** — Qeios RGD04F |
+| Docker ~30 GiB vs host 62 GB | **Primary** — already §2.1 |
+| Odysseus Cookbook quant in the score | **Primary** — `C:\Apps\odysseus\services\hwfit\fit.py` + `models.py` (this install). See §4.11. |
+
+### 4.11 Cookbook columns: quant label vs score (this install)
+
+**Correction:** the scan row has **separate** columns. Owner took `quant` as a factual storage-format tag (same class as params), not as the derived `score`. That reading matches the UI: params tooltip is “original total model parameters”; quant suffix tooltip is “full storage format”; VRAM tooltip is “**Estimated** loaded footprint for this quant/backend/context”; score is its own cell (`hwfit-c-score`). Do not treat the quant *cell* as a quality number.
+
+What the **quant cell** is: a GGUF/HF **format name** (`Q4_K_M`, `AWQ-4bit`, `FP8`, …). For prequantized HF repos it is the catalog’s native format. For generic GGUF rows, Cookbook **defaults the evaluated format to `Q4_K_M`** unless you pick a quant filter (`fit.py`: “Default: Q4_K_M (user's stated preference)”). So the label is a real format, but on those rows it is “the recipe this row is priced at,” not a lab measurement of the weights.
+
+The **score** (already §2.8) is the derived thing. It *consumes* that format name. Composite = `quality×w + speed×w + fit×w + context×w`. Coding weights: **0.50 / 0.20 / 0.15 / 0.15**. The format name is plugged into **three** slots of the *score*, only one of which is “quality”:
+
+| Slot | What it uses quant for | Knowable without running the model? |
+|---|---|---|
+| **Fit** | `estimate_memory_gb` from params × bytes-per-param. Hierarchy tries `Q8_0 → Q6_K → Q5_K_M → Q4_K_M → Q3_K_M → Q2_K` until it fits VRAM, else RAM (offload), else halve context. | **Yes** (file size vs RAM/VRAM). This is the real reason the column exists. |
+| **Speed** | tok/s ≈ bandwidth / (active_params × bpp). Smaller quant → fewer bytes streamed → higher *estimated* tok/s. CPU fallback also has `QUANT_SPEED_MULT` (Q4 1.15, Q8 0.8). | **Mostly yes** as an order-of-magnitude. Calibrated on an RX 9060 XT in a comment; not this 4070 Ti. |
+| **Quality** | Hardcoded `QUANT_QUALITY_PENALTY` added to a **parameter-count band** + name bonuses (`qwen` +2, `qwen3.6` +9). **Not a bench.** | The *penalty table* is knowable (it is the table). Whether it matches *this job* is **not**. |
+
+Penalty table (points on the 0–100 quality subscore):
+
+| quant | penalty |
+|---|---|
+| Q8_0 / BF16 / FP8 | 0 |
+| Q6_K | −1 |
+| Q5_K_M | −2 |
+| Q4_K_M / Q4_0 | **−5** |
+| Q3_K_M | −8 |
+| Q2_K | −12 |
+| QAT-INT4 | −1 (they know QAT is not PTQ Q4) |
+
+A 35B model’s quality *base* is 89 before bonuses. Q4 vs Q8 is a **5-point fudge**, same for every model, every task. Coding use-case does not change the quant penalty; it only boosts models tagged “coding” (+6).
+
+**Implication:** Cookbook is answering “will this *size* run, and shall I dock the score a bit for 4-bit.” It is not answering “does Q4 vs Q6 change tool-call rate on RocketChip work orders.” §2.8 already said not to treat the single score as a SWE-bench. The quant column is the fit ladder plus that dock.
+
+---
+
+## Section 5 — Owner shortlist to try (download later)
+
+**Author:** Grok 4.6 (Build CLI) · **Date:** 2026-08-20  
+**Does not close** the quant row or adopt a companion. Owner asked to record a **try-later quiver** after Gemma / Mistral / NVIDIA research, with Qwen kept because it still leads on agentic coding. No weights downloaded this session.
+
+**Job this shortlist is for** (owner, this session): background worker; tedious/expensive/straightforward work; **do not stray from directions**; coding housekeeping (not full function generation); snappiness and eloquence do not matter. Cloud/frontier still does the thinking.
+
+### 5.1 What a “model” is (and what llama.cpp is)
+
+These are **not programs**. A local LLM is a large array of learned numbers (tensors / a “weight matrix”). Training produced those numbers. Inference **reads** them and predicts the next token. The software that does that read is a **runtime** — here **llama.cpp** (Odysseus Cookbook Serve) or Ollama. **GGUF** is the file format: the same tensors, stored at a named bit-width (`Q4_K_M`, `Q8_0`, Google’s `q4_0` QAT, …). Quant (§4) is how coarsely those numbers are stored, not a different architecture.
+
+### 5.2 MoE vs dense (why “35B” is not “24B but bigger”)
+
+**Dense:** every parameter is used on every token. Devstral Small 2 is **24B dense** — all ~24B fire each step. Cost scales with total size.
+
+**MoE (Mixture of Experts):** the file still holds *all* experts (e.g. Qwen3.6-**35B**-A**3B** = 35B stored, **~3B active** per token). A router picks a handful of experts (Qwen: 8 routed + 1 shared of 256). You pay RAM/disk for 35B, but **bandwidth per token** is closer to a 3B model. That is why §1.1 said 12 GB VRAM + 62 GB DDR5 favors MoE with expert offload: experts live in RAM; only active ones stream.
+
+Nemotron 3 Nano / 3.5 Lightning are also **30B total / 3B active** MoE (hybrid Mamba + attention). Super 120B-A12B and Ultra 550B-A55B are the same idea at sizes that do **not** belong on a 4070 Ti.
+
+### 5.3 NVIDIA GPU ≠ Nemotron exclusive
+
+An RTX card runs **any** CUDA-backed GGUF (Qwen, Gemma, Devstral, Nemotron). Nemotron is NVIDIA’s **open-weight family**, not a hardware unlock. Nano/Lightning **can** run here. Super/Ultra are the “dedicated LLM box / many-GPU” sizes. Nemotron is **not** the first pick for this job just because the GPU is NVIDIA.
+
+### 5.4 Paper scores vs this job (why Qwen stays in the quiver)
+
+SWE-bench Verified ≈ “independently fix GitHub issues.” That is **harder** than apply-an-already-decided work order. It is still the closest public coding-agent number.
+
+| Model | Kind | SWE-bench Verified | Source |
+|---|---|---|---|
+| Qwen3.6-35B-A3B | MoE 35B/3B | **73.4** / NVIDIA table **70.1** | Qwen card / NVIDIA Lightning card |
+| Devstral Small 2 24B | **Mistral** dense 24B | **68.0** | Mistral card |
+| Nemotron 3 Super 120B | NVIDIA MoE | 63.1 | NVIDIA Lightning card |
+| Gemma 4 26B-A4B | Google MoE | 57.4 (NVIDIA) / 17.4 (Qwen table — different harness) | those two cards |
+| Nemotron 3.5 Lightning 30B-A3B | NVIDIA MoE 30B/3B | 51.6 | NVIDIA card |
+| Nemotron 3 Nano 30B-A3B | NVIDIA MoE | 34.1 | NVIDIA card |
+
+Owner preference was Gemma / Mistral / NVIDIA first. **Correction recorded:** for *this* job, that trio did not catch Qwen. If Chinese origin is acceptable **because it is open-weight and local**, keep Qwen. If it is not, **Devstral Small 2** is the non-Chinese coding-agent stand-in (not Gemma 26B-A4B, not Nano).
+
+Ministral 3 14B is Mistral’s **edge** line, not the coding savant. Skip for this quiver.
+
+### 5.5 Download shortlist (four + one format note)
+
+Try on **host** llama.cpp/Ollama first if Q6/Q8 is in play (Docker Odysseus saw **~30 GiB** RAM). Default weight format unless noted: current Unsloth **UD-Q4_K_XL** or **Q4_K_M**; climb bits only if *checkable* contract failures remain (thinking off, correct tool parser). Gemma is the exception: **Google QAT-Q4_0**, do not upconvert (§1.3).
+
+| # | Try | Why it’s here | Hugging Face (GGUF) |
+|---|---|---|---|
+| 1 | **Qwen3.6-35B-A3B** | Still the local coding-agent leader; MoE fits this box | `unsloth/Qwen3.6-35B-A3B-GGUF` |
+| 2 | **Devstral Small 2 24B Instruct 2512** | Mistral agentic-coding model; 68% SWE; dense 24B | `unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF` |
+| 3 | **Gemma 4 31B IT QAT Q4_0** | Stronger Gemma than 26B-A4B; official QAT 4-bit | `google/gemma-4-31B-it-qat-q4_0-gguf` |
+| 4 | **Nemotron 3.5 Lightning 30B-A3B** | Current NVIDIA 30B-class; optional A/B, not because of the 4070 Ti | `unsloth/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF` |
+
+**Also discussed, not in the four:** Gemma 4 26B-A4B QAT (`google/gemma-4-26B-A4B-it-qat-q4_0-gguf`) — easier MoE fit, weaker coder; Qwen3.5/3.6 **27B dense** — one incomplete mini-SWE had 27B-Q4 beating 35B-Q4; Nemotron 3 **Nano** (older/weaker SWE) and **Super/Ultra** (wrong size).
+
+Executor knobs that are **not** the GGUF name: `enable_thinking: false` for this role (§1.2); tool parser (`qwen3_coder` on Qwen; Mistral tool parser on Devstral); KV cache at least q8 on **K** if you compress context (§4.4).
+
+### 5.6 Cookbook (live 2026-08-20)
+
+UI at `http://127.0.0.1:7000`, Cookbook columns sortable: FIT · MODEL · VRAM · PARAM · QUANT · CTX · SPEED · SCORE · MODE. Detected: 4070 Ti **12.0 GB**, RAM **28.2 / 30.1 GB** (container, not host 62 GB). QUANT cell = format name (default GGUF **Q4_K_M**); SCORE is separate. Owner can download via Cookbook **or** Hugging Face directly — the table in §5.5 is the HF source of truth.
+
+### 5.7 Sources
+
+| Claim | Label |
+|---|---|
+| MoE 35B/3B, 256 experts | **Primary** — already §1.2 Qwen card |
+| Devstral Small 2 SWE 68.0, 24B, Apache 2.0, 256k | **Primary** — https://huggingface.co/mistralai/Devstral-Small-2-24B-Instruct-2512 |
+| Lightning / Nano / Super SWE table | **Primary** — nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16 model card |
+| GGUF repo IDs and quant filenames | **Primary** — Hugging Face `/api/models/{id}` 2026-08-20 |
+| Gemma QAT welded to Q4_0 | **Primary** — already §1.3 |
+| Cookbook live columns / 30.1 GB RAM | **Primary** — Odysseus UI this session |
+
+---
+
 <!-- NEXT AGENT: append your section below this line. Do not edit sections above. -->

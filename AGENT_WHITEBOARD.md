@@ -106,41 +106,14 @@ Optional project-wide map of **things the system does** (Go/No-Go, launch abort,
 ---
 
 
-## Session Handoff — Local-LLM companion research (OPEN) (2026-07-28, Claude Opus 5 (Code))
+## Local-LLM try-later shortlist (OPEN)
 
-**In progress:** Evaluating self-hosted models as a *companion* to frontier cloud models for
-straightforward, verifiable work (file ops, applying already-decided changes, audit-remediation
-execution). **Handover doc: `docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md`** — new, multi-agent,
-**append-only; do not edit another agent's section** (convention stated in the doc header).
-Grok/Gemini research expected to land there next.
+Not adopted. Download later. Detail: `docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md` §5.
 
-**State:** Research only — pure doc, no code, no tooling, no procurement. Nothing adopted.
-Hardware baseline measured on-machine (RTX 4070 Ti 12 GB / 61.6 GB DDR5-6000); model landscape
-verified against primary model cards, not roundup articles (one likely-fabricated model logged in
-the doc's Unverified Claims section).
-
-**Open for next session (owner's stated order):**
-1. **Quant levels as a choice dial** — what quantization actually costs capability-wise, against
-   the model-budget question. Owner explicitly wants to work this through.
-2. **"Big + surgical small" vs. one large model** — owner leans big-plus-surgical-small "if
-   practical"; practicality is a shakedown question, not a spec-sheet one.
-3. Shakedown/benchmark harness design (salted-corpus method proposed in doc §1.5; owner confirmed
-   it's in).
-4. Odysseus install not yet inspected — backend selection + offload flags unknown.
-
-**Concern worth carrying:** the doc's §1.4 finding is that *auditing* is structurally the harder
-half for a weak model (false negatives leave no artifact for a checkpoint to catch), while
-*remediation* is the easy half. Any future "local model does the audit, cloud checks at
-checkpoints" proposal needs the candidate-generator inversion described there, not a plain
-checkpoint.
-
-**Pre-existing drift surfaced, NOT actioned (owner decision — protected doc):**
-`docs/SCAFFOLDING.md:84-85` lists `docs/tools/` with only `OPENROCKET_USAGE.md`, but the directory
-already holds `GRAPHIFY_USAGE.md` and `RECENCY_AUDIT.md` (both predate this session), and now
-`LOCAL_LLM_COMPANION_RESEARCH.md`. The node reads as a representative tree rather than a manifest,
-so nothing there is *factually false* — which is why the trigger-driven-edit exception was judged
-not to apply and SCAFFOLDING.md was left untouched. Owner to decide: complete the listing, or mark
-the node explicitly non-exhaustive.
+- Qwen3.6-35B-A3B
+- Devstral Small 2 24B (Mistral)
+- Gemma 4 31B QAT-Q4_0
+- Nemotron 3.5 Lightning 30B
 
 ---
 
