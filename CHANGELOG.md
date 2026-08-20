@@ -46,6 +46,32 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-20-006 | Claude Opus 5 (Code) | documentation, audit
+
+**L2-P5 Claude walk: aligned edition, all critic gaps closed.** Live pack is now
+`docs/audits/l2p5_manual_walk/L2P5_CLAUDE_WALK_FINDINGS_ALIGNED.md` (407 entries); the two earlier
+files are renamed `SUPERSEDED_*` and left frozen apart from a banner. Laid out in the owner walk's
+tier / subsystem / `#### path` skeleton — 107 of its 119 path sections identical — so the three
+packs read side by side; entry bodies stay fielded rather than prose so no finding text changed.
+Supersedes `2026-08-20-002`. **What closed since that entry:** (1) the pack's own completeness
+critic found four lenses had produced almost nothing tree-wide and that only 8 of 44 batches
+recorded whether a lens ran, so class-design / assertions / control-flow / templates were re-run
+over their assigned subsystems **with a per-file "lens ran" record** — 47 findings, all
+adversarially verified, plus 2 more from a coverage re-audit that withdrew two disputed `CLEAN`
+records (`CW-L048`, `CW-L049`); (2) batch-vs-lane incoherence reconciled — the UART-staleness
+contradiction settled against `main.cpp:128-135` + `board_feather_rp2350.h:65` (the branch is live
+on the vehicle), 22 lane rows marked duplicate-of, and the pack stated plainly as **one vote /
+336 distinct propositions**, since its refute pass and lanes are it checking itself; (3) all 16
+findings that carried a verdict while admitting an unverified premise were taken to the primary
+sources — 5 upheld, 6 narrowed, 5 initially unverifiable and then **all** settled on a second pass.
+**Method defect worth recording:** that second pass was needed because `git worktree add` does not
+populate submodules, so every agent until then ran without `pico-sdk/` or `lib/mavlink/` and
+recorded them as "empty directories"; with them checked out the SDK settled the questions directly
+(e.g. `spi.c:103/129/152` return `(int)len` unconditionally, proving the SPI error counter cannot
+increment). Findings only — no dispositions, no severity ranking, no code touched. Verified:
+pure-doc; host ctest 858/858 via pre-commit hook; all 358 original IDs and Claim lines confirmed
+byte-identical through every rewrite.
+
 ### 2026-08-20-005 | Grok 4.6 (Build CLI) | documentation
 
 **`rp400` is the Pi 400 keyboard clone.** Git remote `rp400` (`npow@192.168.1.233:~/Rocket-Chip.git`) is an early clone onto the Raspberry Pi 400, not a radio chip. Noted on `AGENT_WHITEBOARD.md` and the CYBERDECK row in `docs/hardware/HARDWARE.md`. Leftover `claude/tender-banach` on that box deferred until next use (Yamcs/OpenMCT / advanced GCS) unless the clone is fully redone. Verified: pure-software / docs only; no `src` changes; no HW reseat.
