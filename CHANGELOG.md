@@ -48,7 +48,7 @@ A note on reliability: brand and model are almost always in your context, but th
 
 ### 2026-08-20-003 | Grok 4.6 (Build CLI) | documentation, audit
 
-**Independent Grok L2-P5 walk landed on main.** Merge `grok/l2p5-agent-walk` @ `392091a`: `docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md` — 121/121 leaves, deny-listed from owner WNs; **GWF-001–498** kept after verify (T4 CLI **GWF-471–498** from a 2026-08-18 rerun after PC sleep killed the first CLI skeptics). Owner-WN compare appended (agreements, judgment clashes including `fused_state.h` 1-sigma vs owner nothing-of-note, unique-and-looks-real). Sits beside owner `WN-` and Claude `CW-`. **Not** a merge of 498 into 327 and not a certification. Branch remains for raw sitting history. Verified: pure-software / docs only; no `src` changes; no HW reseat.
+**Independent Grok L2-P5 walk landed on main.** Merge `grok/l2p5-agent-walk` @ `392091a`: `docs/audits/l2p5_manual_walk/L2P5_GROK_WALK_FINDINGS.md` — 121/121 leaves, deny-listed from owner WNs; **GWF-001–498** kept after verify (T4 CLI **GWF-471–498** from a 2026-08-18 rerun after PC sleep killed the first CLI skeptics). Owner-WN compare appended (agreements, judgment clashes including `fused_state.h` 1-sigma vs owner nothing-of-note, unique-and-looks-real). Sits beside owner `WN-` and Claude `CW-`. **Not** a merge of 498 into 327 and not a certification. Walk already logged on that branch as **2026-08-18-001** (`d0166d2`, T4 still open) and **2026-08-19-001** (`392091a`, T4 + compare close) — those IDs stay on the branch; main already had a different 2026-08-19-001. This entry is the main-line landing. Verified: pure-software / docs only; no `src` changes; no HW reseat.
 
 ### 2026-08-20-002 | Claude Opus 5 (Code) | documentation, audit
 
