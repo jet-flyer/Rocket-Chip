@@ -117,15 +117,6 @@ corroboration in a three-way join.
 - Direction: widen the regex (or pass an explicit --header-filter in the audit script) so that src/**/*.h is covered, then disposition whatever it surfaces in these three files; the change belongs in .clang-tidy, not in the math sources.
 - Verdict: CONFIRMED -- HeaderFilterRegex at .clang-tidy:242 is '.*(src|include)/rocketchip/.*', which cannot match src/math/*.h, and a grep across scripts/ and the hooks finds no --header-filter override (the only hit is a cosmetic `grep -v "^Use -header-filter"` at run_clang_tidy.sh:97).
 
-### B08 -- drivers: i2c_bus + spi_bus
-
-#### Coverage
-src/drivers/i2c_bus.cpp -- PARTIAL -- All 11 functions read whole and run through spine A/B/C; shape, guard clauses, scope and lifetime are clean (no early-exit leaves the bus half-configured), but the scan carries an unreachable identify-branch and the bit-bang recovery idiom is open-coded twice.
-src/drivers/i2c_bus.h -- FAIL -- Contract surface (helper Kind C/E) inventoried in full: the file banner asserts a fixed instance and pin pair that the board-abstracted config immediately below contradicts, and the recovery/scan preambles state none of the cross-core preconditions the call sites actually enforce.
-src/drivers/spi_bus.cpp -- PARTIAL -- All 5 functions plus the file-scope atomic read whole; CS is deasserted on every path and the atomic counter's memory order is defensible, but the error-detection helper cannot fire against the blocking SDK API it wraps and `spi_init`'s return is dropped.
-src/drivers/spi_bus.h -- FAIL -- Contract surface (Kind C) inventoried: the init preamble names an instance and three GPIO numbers that are true only for one of four supported boards, and the counter block promises a diagnostic the implementation cannot produce.
-
-#### Findings
 
 **CW-L021** — [Claude] *(lens re-run)* · `class-design` · **F1 — AO_Logger publishes unrestricted mutable pointers to the two objects it claims to own**  
 
@@ -624,26 +615,6 @@ again concurrency, not control flow.
 - Direction: either log an active P10-9 deviation row for the GPS backend dispatch with the "set once before Core 1 launch" rationale, or retire the pointers the way FP-1 was retired (a small backend struct or compile-time selection), and in either case name the publication point that makes the Core-0-to-Core-1 hand-off safe.
 - Verdict: RESHAPED -- the cited fact is exact (ACCEPTED_STANDARDS_DEVIATIONS.md:56 reads "All entries resolved as of 2026-05-13") but the cross-core hazard is unreachable and the site is not special, so the claim is narrowed to the unlogged P10-9 surface across the tree plus the stale FP-1 pointer at CODING_STANDARDS.md:56.
 
-### B02 -- public headers: board HAL pack
-
-Walked as contract surfaces (helper Kind E — layout / identity / configuration map, with a Kind C
-API-contract element for the three inline `board_*` functions). Surface spine applied per helper §9
-(name test, one altitude, duplication, distrust confident comments) plus the Class-index lenses for
-`include/rocketchip/` public headers: comments & documentation quality, declaration scope & object
-lifetime, class & interface design. Claim-vs-truth checks were run against the real consumers
-(`include/rocketchip/config.h`, `src/main.cpp`, `src/drivers/ws2812_status.*`,
-`src/drivers/gps_uart.cpp`, `src/cli/rc_os_commands.cpp`) rather than deferred.
-
-#### Coverage
-
-include/rocketchip/board.h -- PARTIAL -- Selector read whole; include-chain rationale is a real intent comment, but the `#else` arm silently maps an unrecognised board onto the Feather pin map (CW-B02-06).
-include/rocketchip/board_feather_rp2350.h -- PARTIAL -- Full map read and cross-checked against config.h/main.cpp; pin constants all reach a consumer, but the capability block, `kNeoPixelGpioBase` and `kLedActiveHigh` do not (CW-B02-01, CW-B02-04, CW-B02-07).
-include/rocketchip/board_fruit_jam.h -- PARTIAL -- Full map read; [M1]/[M2]/[M3]/[N1] hazard notes are good JSF 134 preamble work, but `board_release_peripheral_reset()` hides its own preconditions (CW-B02-05) and the pack-wide dead-constant issues apply here too.
-include/rocketchip/board_pico2.h -- FAIL -- Read whole; the map omits `kPsramCsPin`, which `config.h:90` consumes unconditionally, so this board cannot compile the moment its bring-up gate is lifted (CW-B02-02).
-include/rocketchip/board_tiny_2350_common.h -- FAIL -- Read whole; `kPsramCsPin` is assigned the same GPIO as `kI2cSclPin` on a live consumer path (CW-B02-03), and the preamble points at a file and a contract member that do not exist (CW-B02-08).
-include/rocketchip/board_tiny_2350_plus.h -- PASS -- Two-constant variant override, correctly placed and guarded; no defect of its own (note: its `kPsramAvailable = true` is what makes CW-B02-03's collision reachable).
-
-#### Findings
 
 **CW-B41-04** — [Claude] · `scope` · **Two init flags are written from both cores as plain bools while their six siblings are atomics**  
 - Site: include/rocketchip/shared_state.h:35,37 ; src/shared_state.cpp:15,17
@@ -853,91 +824,6 @@ include/rocketchip/board_tiny_2350_plus.h -- PASS -- Two-constant variant overri
 - Direction: Pick one board-identity string as authoritative and have the other derive from or reference it; rename whichever survives so the two spellings cannot be confused at a call site, and check the chosen name's length against the 16-byte log field.
 - Verdict: CONFIRMED -- version.h:39 exports global kBoardName = PICO_BOARD (a CMake slug) while each board header exports board::kBoardName as a display name, both reach the same TUs via config.h -> board.h, and the tree consumes both (diag_stats.cpp:40 unqualified vs pcm_frame.cpp:159 / ao_rcos.cpp:196 / rc_os_commands.cpp:850 qualified); pcm_frame.h:177's board_name[16] does truncate the 28-char Feather string, and version_string() exists nowhere in the tree.
 
-### X5 -- peripheral init, sequence and lifecycle pairing
-
-Lane scope: init -> use -> teardown as a sequence across module boundaries. Boot ordering
-dependencies between subsystems, acquire/release pairing, arm/disarm symmetry, and resources set up
-in one module and torn down (or not) in another. Field-manual anchor: spine block C, "Peripheral
-init SEQUENCE / lifecycle" ADD criterion, supported by CCG P.8 (don't leak any resource; release on
-every exit), JSF AV 143 / two-phase-init, JSF AV 134 (documented assumptions and ordering
-requirements), CCG NL.2 (comment/code disagreement) and JPL-C Rule 8 (single owner).
-
-Method: built a tree-wide enumeration of lifecycle-shaped symbols across src/ and include/
-(`*_init`, `*_deinit`, `*_begin`, `*_start`, `*_stop`, `*_arm`, `*_disarm`, `*_cancel`, `*_claim`,
-`*_unclaim`, `*_reset`, `*_recover`, plus the SDK primitives `irq_set_enabled`,
-`irq_set_exclusive_handler`, `gpio_set_irq_enabled*`, `exception_set_exclusive_handler`,
-`pio_add_program` / `pio_remove_program` / `pio_sm_claim` / `pio_sm_unclaim`,
-`multicore_launch_core1` / `multicore_lockout_victim_init`, `flash_safe_execute`,
-`save_and_disable_interrupts` / `restore_interrupts`, `uart_init` / `uart_deinit`,
-`i2c_init` / `i2c_deinit`, `spi_init`) -- 264 call sites. Then walked each pairing across its
-call graph rather than per file, reading the integrator files whole (main.cpp, sensor_core1.cpp)
-and the owning drivers/AOs around each pair.
-
-#### Coverage
-
-Boot-sequence integrators (read whole):
-src/main.cpp -- FAIL -- full boot chain walked: init_early_hw -> init_hardware -> init_application -> start_active_objects; three ordering/pairing defects anchored here (CW-X5-03, CW-X5-04, CW-X5-05).
-src/core1/sensor_core1.cpp -- FAIL -- core1_entry lockout/start-phase handshake, sensor loop, and the Core-1-side GPS reinit call that crosses a core boundary (CW-X5-02).
-src/shared_state.cpp -- PASS -- definitions only; init-order-relevant flags (g_i2cInitialized, g_psram*, g_gps*) all zero-init before main, no static ctor ordering hazard.
-include/rocketchip/shared_state.h -- PARTIAL -- ownership map read as a contract surface; g_baroContinuous is set once at init and never cleared when Core 1 declares the baro dead (noted, not filed -- data-validity lane).
-
-PIO / pyro arm-disarm chain:
-src/safety/pio_backup_timer.cpp -- FAIL -- init/arm/cancel/disarm sequence walked against LL-42 discipline; program lifecycle now correct, but the pin-ownership half of the contract is unimplemented (CW-X5-06).
-src/safety/pio_backup_timer.h -- PASS -- declares the arm/cancel/disarm triad clearly; no claim contradicted here.
-src/safety/pio_watchdog.cpp -- PARTIAL -- claim/add/init/feed sequence is correct and symmetric; pio_watchdog_deinit() exists, is exported in the header, and has zero callers tree-wide (dead teardown, recorded not filed).
-src/safety/pio_watchdog.h -- PARTIAL -- same: exports a teardown no one calls.
-src/safety/pyro_edge_logger.cpp -- PASS -- GPIO edge IRQ registered once on Core 0 after the PIO pins exist; no teardown needed, none advertised.
-src/active_objects/ao_flight_director.cpp -- FAIL -- the arm/disarm hooks and the backup-fire latch both walked; CW-X5-01 and CW-X5-07.
-src/flight_director/flight_director.cpp -- FAIL -- enter_phase() sentinel pairing and the in-HSM ARMED-timeout auto-disarm are two of the bypass routes (CW-X5-01, CW-X5-08).
-src/safety/flight_in_progress.cpp -- PARTIAL -- set/clear/consume primitives are correct in isolation; the asymmetry is at the call sites (CW-X5-08).
-src/safety/crash_record.h -- PARTIAL -- documents "cleared on safe LANDED entry"; that is the whole clear-side contract and it under-covers the disarm paths (CW-X5-08).
-src/safety/anomalous_boot.cpp -- PASS -- consume-once read of the sentinel is correct and singly-owned; it is the upstream setter that is unpaired.
-src/active_objects/ao_telemetry.cpp -- FAIL -- both MAVLink ARM/DISARM entry points (radio at :278, USB at :1088) bypass the hardware pairing (CW-X5-01).
-src/cli/rc_os.cpp -- PASS -- CLI routes ARM/DISARM/ABORT/RESET through the command wrapper that does maintain the pairing; dispatch_flight_signal is used only for sensor-event injection.
-src/flight_director/command_handler.cpp / .h -- PASS -- validation only, no resource lifecycle.
-src/safety/fault_inject.cpp -- PASS -- arms the FD via the raw signal path, but is test-mode gated by design and says so.
-
-Flash / Core-1 pause protocol:
-src/safety/core1_i2c_pause.h -- PARTIAL -- states the governing contract ("wires these primitives around every reachable runtime flash_safe_execute() callsite"); one reachable callsite is unwrapped (CW-X5-04).
-src/safety/core1_i2c_pause.cpp -- PASS -- pause/ack/resume primitive is correct, bounded, and idempotent.
-src/cli/rc_os_commands.cpp -- PASS (lifecycle) -- both flash chains (flush at :1042 and erase at :1098) correctly pause, flash, i2c_bus_reset, resume.
-src/active_objects/ao_rcos.cpp -- PARTIAL -- cal_save_to_flash() at :335 is correctly wrapped; AO_RCOS_start_cal_save() at :1289 calls calibration_save() with the i2c_bus_reset but no pause/resume (single-file asymmetry, left to the file walk).
-src/calibration/calibration_storage.cpp -- PASS -- init is an XIP read only; writes go through flash_safe_execute and are wrapped by their callers.
-src/logging/radio_config_storage.cpp -- PARTIAL -- init is read-only; the write path is inside ROCKETCHIP_RADIO_PERSIST, which is never defined in the build, so the unwrapped flash write at ao_radio.cpp:706 is currently unreachable (recorded, not filed).
-src/logging/flash_flush.cpp -- PASS -- flash primitives only; pairing is the caller's, and callers do it.
-src/logging/psram_init.cpp -- FAIL -- detect/self-test/flash-safe-test sequence walked against Core 1 launch; save_and_disable_interrupts/restore_interrupts pair is single-exit and correct, but the flash-safe test's placement and its unused verdict are defects (CW-X5-04, CW-X5-05).
-src/logging/psram_init.h -- FAIL -- documents psram_flash_safe_test() as a "hard gate"; nothing gates on it (CW-X5-05).
-src/active_objects/ao_logger.cpp -- FAIL -- init_logging_ring() selects PSRAM on the self-test flag only, ignoring the flash-safe verdict (CW-X5-05).
-src/logging/ring_buffer.cpp / .h, src/logging/flight_table.cpp, src/logging/log_decimator.cpp -- PASS -- pure init-into-caller-owned-memory; no acquire/release pair.
-
-Bus and sensor drivers:
-src/drivers/gps_uart.cpp -- FAIL -- init registers the RX IRQ on Core 0; reinit is reachable from Core 1 and re-enables it there (CW-X5-02).
-src/drivers/gps_uart.h -- PARTIAL -- documents the Core-0-ISR / Core-1-consumer split but not that reinit must run on Core 0.
-src/drivers/gps_pa1010d.cpp / .h -- PASS (lifecycle) -- blind-PMTK then probe sequence is internally ordered and documented; the defect is where it is called from (CW-X5-03).
-src/drivers/i2c_bus.cpp / .h -- PASS -- init de-isolates pads before recover (LL-41 order), recover deinits the peripheral before the funcsel switch (LL-28 order), reset re-flags correctly around recover.
-src/drivers/icm20948.cpp / .h -- PASS (lifecycle) -- bypass-mode enable sequence is ordered and self-documenting; device-reset-clears-BYPASS_EN is stated at the site.
-src/drivers/baro_dps310.cpp / .h -- PASS (lifecycle) -- init then start_continuous is a genuine two-phase contract and both phases are satisfied on the one construction path.
-src/drivers/spi_bus.cpp / .h -- PARTIAL -- initialises MISO/SCK/MOSI but not any CS pin; CS ownership lives in the radio driver, which is fine except for the documented pre-init read path (CW-X5-09).
-src/drivers/rfm95w.cpp / .h -- PARTIAL -- init_gpio_and_reset is the only place a CS pin becomes an output; the header advertises a pre-init diagnostic that depends on it (CW-X5-09).
-src/drivers/ws2812_status.cpp / .h -- PARTIAL -- init claims SM + program and deinit releases both symmetrically (correct LL-42 shape); ws2812_status_deinit() has zero callers tree-wide.
-src/drivers/mcu_temp.cpp / .h -- PASS -- adc_init + sensor enable once, sole ADC user in the tree, guarded availability accessor.
-src/station/station_idle_tick.cpp / .h -- PASS -- init and tick are gated by the same kRadioModeRx constant; reuses the vehicle GPS reader on the same core that owns it.
-
-Swept with no lifecycle surface found (enumeration returned no init/acquire/release pair, or only
-caller-owned struct initialisers): src/fusion/ (eskf, eskf_runner, eskf_codegen, eskf_brake,
-confidence_gate, innovation_monitor, mahony_ahrs, ud_factor, wmm_tables), src/math/,
-src/calibration/ (lm_solver, calibration_data, calibration_manager, cal_hooks),
-src/flight_director/ (guard_evaluator, guard_combinator, guard_functions, go_nogo_checks,
-action_executor, mission_profile*), src/logging/ (crc16/crc32, data_convert, pcm_frame),
-src/log/rc_log.cpp, src/telemetry/, src/diag/diag_stats.cpp (read for CW-X5-09), src/notify/,
-src/safety/ (health_monitor, fault_protection, test_mode, station_fault_inject, rf_link_health),
-src/active_objects/ (ao_led_engine, ao_notify, ao_health_monitor, ao_rf_manager -- each an
-AO_*_start + QActive_start pair with no hardware acquire), src/cli/rc_os_dashboard.cpp,
-rc_os_debug.cpp, and all of include/rocketchip/ (board*.h, job*.h, flash_layout.h,
-linker_symbols.h, version.h, ao_signals.h, sensor_seqlock.h, sensor_snapshot.h, rc_log.h,
-notify_*.h, radio_config*.h, telemetry_*.h) read as contract surfaces for ordering claims.
-
-#### Findings
 
 #### `include/rocketchip/board.h`
 
@@ -1021,56 +907,6 @@ notify_*.h, radio_config*.h, telemetry_*.h) read as contract surfaces for orderi
 - Direction: Reword to the deferred state that board.h already records ("the base variant header is not yet in tree; when added it must define ..."), and drop `flash size` or add it as a real constant to every map.
 - Verdict: CONFIRMED — `board_tiny_2350.h` does not exist in include/rocketchip/, no board header defines any flash-size constant (only prose in the file banners), and board.h:31-33 records the base variant as deferred, so the preamble at :7-9 is a false map. (One minor over-claim left unreshaped: :79-81 also promises the base variant's `kPsramAvailable = false`.)
 
-### B03 -- public headers: job/role pack
-
-Batch scope: the compile-time device-role pack. All five files are contract surfaces
-(helper Kind E "layout / identity / configuration map", with Kind D vocabulary in job.h),
-so they were walked with the surface spine of the helper section 9 plus the comments,
-scope/lifetime and class-design lenses. There are no function bodies in this batch --
-every declaration is an `inline constexpr` or an enum, so the spine block A questions
-were run on the file as a unit (name test, one altitude, duplication, confident-comment
-distrust) rather than per function. Block B applies as claim-versus-truth: every
-"Consumers:" and per-role behavioral claim in these headers was checked against the code
-it names. Block C (embedded) has no volatile, MMIO, init-sequence or blocking surface here.
-
-#### Coverage
-
-include/rocketchip/job.h -- PARTIAL -- Read whole; enum, role table and CMake-usage
-preamble are accurate and the `#if`/`#elif` selector matches the documented default
-(vehicle), but the file never states the contract a role header must satisfy (CW-B03-03).
-
-include/rocketchip/job_capabilities.h -- PARTIAL -- Read whole; the file's stated purpose
-and its "do not add per-peripheral flags here, those live in board_*.h" pointer both check
-out (board.h and board_feather_rp2350.h / board_fruit_jam.h exist and carry no capability
-bools yet, so the "IVP-143 will generalize" forward claim is not stale). Two of the three
-predicates verified true against their named consumers in src/safety/health_monitor.cpp;
-the third has no consumer at all (CW-B03-01).
-
-include/rocketchip/job_relay.h -- PARTIAL -- Read whole; kRole and kRadioModeRx are
-correct and live, the Council 3 [C3-R2] link-layer-only claim is consistent with the relay
-exclusions at src/main.cpp:500/506; kDefaultMavlinkOutput is dead (CW-B03-02) and the
-include-order contract is unstated (CW-B03-03).
-
-include/rocketchip/job_station.h -- PARTIAL -- Read whole; kRadioModeRx = true is live and
-widely consumed; the default-output comment documents a policy that the constant it sits
-on does not actually establish (CW-B03-02), and the include-order contract is unstated
-(CW-B03-03).
-
-include/rocketchip/job_vehicle.h -- PARTIAL -- Read whole; kRole and kRadioModeRx = false
-are correct and live; same two shared findings as the other role headers (CW-B03-02,
-CW-B03-03).
-
-Checked and found sound (recorded so the coverage is honest, not just the defect list):
-job_capabilities.h:28-35 claims station/relay never advance core1_loop_count because Core 1
-"idles on g_startSensorPhase forever" -- src/main.cpp:284 launches Core 1 unconditionally
-and src/main.cpp:345-361 only sets g_startSensorPhase on the vehicle role, so the claim is
-true. Its consumer claim is true at src/safety/health_monitor.cpp:361. The kRoleRunsLogger
-zero-init rationale at job_capabilities.h:37-45 is true at health_monitor.cpp:396-403. The
-three predicates being textually identical expressions is not a duplication finding -- they
-are distinct concepts that coincide today, and separating them is what stops a future role
-change from silently moving three unrelated behaviors at once.
-
-#### Findings
 
 #### `include/rocketchip/job.h`
 
@@ -1098,17 +934,6 @@ change from silently moving three unrelated behaviors at once.
   change.
 - Verdict: RESHAPED -- the include-order half is true and exactly cited, but both halves fail closed at compile time, so the claim is narrowed to a contract-surface documentation gap rather than the latent-breakage framing of the original.
 
-### B04 -- public headers: notify + radio config/scheduler
-
-#### Coverage
-
-- include/rocketchip/notify_backend.h -- FAIL -- Kind C contract surface; both backend declarations read, and the banner's dispatch contract checked against AO_Notify's tick handler and the LED backend, where it does not hold.
-- include/rocketchip/notify_intents.h -- PASS -- Kind D vocabulary; all five intent enums, the NotifyState field set and every banner claim (priority order, zero-init default, beacon clear rule, vehicle_lost latch) checked against ao_notify.cpp and notify_backend_led.cpp and found true.
-- include/rocketchip/radio_config.h -- PARTIAL -- Kind E map; the generate_profile.py sibling-generation claim verified true, but the per-field range comments are a second copy of the range map that has drifted from the executable validator.
-- include/rocketchip/radio_config_table.h -- FAIL -- Kind E/C hybrid; whitelist, both validators and every banner design rule read, with the banner's gate claim, the whitelist's call-site claim and the nav-rate cap rationale all contradicted by the tree.
-- include/rocketchip/radio_scheduler.h -- PARTIAL -- real inline code, spine run on all five member functions; behavior of each is correct in isolation, but the type's documented state machine is unenforced and its TX-deadline half is unread.
-
-#### Findings
 
 #### `include/rocketchip/job_capabilities.h`
 
@@ -1266,17 +1091,6 @@ change from silently moving three unrelated behaviors at once.
 - Direction: Pick one owner of TX cadence. Either route the vehicle TX decision through tx_slot_open so this type earns its deadline fields, or remove the deadline half and set_rate and correct the banner to describe what remains -- a TX/RX phase tracker whose rate is owned by AO_Telemetry.
 - Verdict: CONFIRMED -- grep finds no caller of `tx_slot_open` while its sibling `rx_active` is live at src/active_objects/ao_radio.cpp:726, yet `set_rate` (:289) and `on_tx_complete` keep the deadline fields current; the real cadence owner is AO_Telemetry, and the comment at ao_radio.cpp:290-296 records what that split already cost.
 
-### B05 -- public headers: sensor snapshot/seqlock + telemetry surface
-
-#### Coverage
-
-- include/rocketchip/mavlink_rx.h -- PARTIAL -- Read whole as a Kind C API/behavioral contract; the SAFETY CONTRACT's "does not execute state transitions" claim was verified true against src/telemetry/mavlink_rx.cpp, but three load-bearing contract terms (opaque parser buffer sizing, response-buffer accumulation/overflow, ACCEPTED-without-effect on ARM) are not stated; also noted, not filed: the documented parameter now_ms is unused by the implementation (mavlink_rx.cpp:303).
-- include/rocketchip/sensor_seqlock.h -- FAIL -- Read whole as Kind B shared protocol plus Kind A ownership map; the protocol body is sound and the barriers are conservatively correct, but the failure contract of seqlock_read, the writer-ownership claim, and one byte-count comment are wrong.
-- include/rocketchip/sensor_snapshot.h -- PARTIAL -- Read whole; 40-byte packed layout is internally consistent and static_assert-guarded (verified field-by-field), but the file claims a present-tense use that no firmware code performs.
-- include/rocketchip/telemetry_encoder.h -- FAIL -- Read whole as the CCSDS/MAVLink wire contract and cross-checked against src/telemetry/telemetry_encoder.cpp; the packet-length constants and static_asserts are correct and self-consistent, but two wire-format comments state values and a struct member the code does not have.
-- include/rocketchip/telemetry_state.h -- PARTIAL -- Read whole; the 45-byte TelemetryState layout is correct and asserted (verified field-by-field), but FlightMetadata's stated size is wrong and unasserted, and two deprecated constants now decode the wrong subsystem.
-
-#### Findings
 
 #### `include/rocketchip/sensor_seqlock.h`
 
@@ -1439,20 +1253,6 @@ change from silently moving three unrelated behaviors at once.
 - Direction: Pick one convention for the file -- either promote kApidStationBeacon to a live reserved constant like kApidDiag, or delete both blocks and keep the parking rationale in the decision record; the struct member declaration should go regardless, since git holds it.
 - Verdict: RESHAPED -- the substantive half is the APID reservation that is not compiler-visible; the parked member declaration at :197-198 carries its own stated rationale, reserves no number that could collide, and delete-versus-comment there is a disposition preference rather than a defect.
 
-### B06 -- public headers: remaining small contract headers
-
-#### Coverage
-include/rocketchip/ao_signals.h -- FAIL -- Kind D signal catalog + event-struct definitions read whole; catalog numbering re-derived enumerator-by-enumerator and matches every inline value comment, but the event-storage contract stated above the structs is wrong in two places.
-include/rocketchip/flash_layout.h -- FAIL -- Kind E layout map read whole and all six region constants recomputed by hand from PICO_FLASH_SIZE_BYTES; the arithmetic is self-consistent, the banner map that documents it is not.
-include/rocketchip/fused_state.h -- PARTIAL -- Kind E/B data-layout aggregate, every field's unit/frame documented and consistent; the preamble names a populating function that does not exist in the tree.
-include/rocketchip/led_patterns.h -- PARTIAL -- Kind D pattern-code vocabulary; all documented value ranges match the constants, but two pieces of usage prose describing how the codes are consumed are stale.
-include/rocketchip/linker_symbols.h -- PASS -- Kind F boundary header; reference-only claim, TP-2 rationale, and single-site suppression all hold; no project definition of either symbol exists.
-include/rocketchip/pcm_frame.h -- PARTIAL -- Kind E wire-format contract; standard-frame layout, CRC span and triple-gate prose all verified true against src/logging/pcm_frame.cpp, but the Event frame this same header defines is missing from the format contract.
-include/rocketchip/prearm_fail_ticks.h -- PASS -- Kind C pure-helper contract; the 33 Hz / 99-tick / reset-on-repost claims all check out against ao_notify.cpp:230-231 and :262, and the body matches the stated semantics on every path.
-include/rocketchip/station_output_mode.h -- FAIL -- Kind A ownership header; the stated single-writer ownership is contradicted by the reader module in the tree today.
-include/rocketchip/version.h -- PARTIAL -- Kind E identity map; values are consistent and the one downstream alias derives from it, but the single-source rule it states points at an API that does not exist.
-
-#### Findings
 
 **CW-B30-03** — [Claude] · `comment` · **Documented response path is not delivered by the only production caller**  
 - Site: include/rocketchip/mavlink_rx.h:83-99 (contract) and src/telemetry/mavlink_rx.cpp:302-317 (implementation); response builders at :67-106 and :123-255
@@ -1589,21 +1389,6 @@ include/rocketchip/version.h -- PARTIAL -- Kind E identity map; values are consi
 - Direction: Extend the format block to a two-frame contract (type 3, 15 bytes, event payload) and state on pcm_find_sync that it anchors on standard frames only, with the intended rule for how a decoder walks past or picks up event frames.
 - Verdict: CONFIRMED -- kPcmFrameTypeEvent and PcmFrameEvent are defined at :40 and :63-74 and written into the same stream (pcm_frame.cpp:120-134, called from ao_logger.cpp:240), while the format block at :7-15 documents types 0/1/2 and one 55-byte layout and pcm_find_sync rejects any non-standard frame_type at pcm_frame.cpp:100-101 without saying so at :146-155.
 
-### B07 -- math/
-
-#### Coverage
-
-src/math/mat.h -- PARTIAL -- Header-only Mat<R,C> template plus the "ESKF-specific free functions" block; spine + templates + assertions + scope run on all 17 members and 6 free functions; three findings (a documented-but-unused duplicate dense FPFT, unchecked 3x3 block offsets, and the whole file sitting outside the clang-tidy header filter).
-
-src/math/quat.cpp -- PARTIAL -- All 11 definitions read whole; Hamilton product, the rotate() expansion, the DCM and the ZYX Euler forms hand-verified against the Sola (2017) forms they cite; two findings (undeclared unit-norm precondition, near-parallel dead-band in from_two_vectors).
-
-src/math/quat.h -- PARTIAL -- Contract surface (helper Kind C): convention, frame and source citations are present and genuinely load-bearing, but the unit-norm precondition that three of the declared conversions depend on is not stated anywhere in the contract.
-
-src/math/vec3.cpp -- PARTIAL -- Three definitions, all arithmetically correct (cross product signs checked); the near-zero fallback in normalized() is implemented but its consequence is never stated.
-
-src/math/vec3.h -- PARTIAL -- Thin value-type contract surface (helper Kind C); struct-of-public-data shape is correct per CCG C.2, but the two non-total operations it declares carry no contract prose.
-
-#### Findings
 
 #### `include/rocketchip/fused_state.h`
 
@@ -2070,14 +1855,6 @@ side-effecting assertion anywhere in `src/math/`.
 - Direction: Pick one owner for the barometric model -- the calibration path is the one the flight code actually consumes -- and have the other reference it rather than restate it, so the sanity floor and the constants exist once. Then decide the driver's `altitude_m` field and `set_sea_level` / `pressure_to_altitude` entry points explicitly: either wire them to a real consumer or retire them with the doc-comments that describe them.
 - Verdict: CONFIRMED -- kStdAtmPressurePa/kHypsometricScale/kHypsometricExponent and the formula are duplicated at baro_dps310.cpp:25-27/196 and calibration_manager.cpp:84-86/1182, only the calibration copy carries the kMinValidPressurePa floor, and grep finds no reader of baro_dps310_data_t::altitude_m and no caller of baro_dps310_set_sea_level anywhere in src/ or test/.
 
-### B11 -- drivers: rfm95w radio
-
-#### Coverage
-
-- C:/Users/pow-w/Documents/RC-agent-walk/src/drivers/rfm95w.cpp -- PARTIAL -- Read whole; spine A/B/C applied to all 16 functions and to the file-scope constant block, with register writes cross-checked against the file's own datasheet-derived constants and against the driver's only caller (src/active_objects/ao_radio.cpp); five findings.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/drivers/rfm95w.h -- PARTIAL -- Read whole and evaluated as a contract surface (helper Kind C API/behavioural contract, secondary Kind E register/layout map); prose-vs-signature and prose-vs-body checks on every doc block produced three findings, two of them shared with the .cpp.
-
-#### Findings
 
 **CW-X3-10** — [Claude] · `comment` · **a transcribed datasheet table contradicts itself and the configuration it justifies**  
 - Site: src/drivers/baro_dps310.h:26-53; related restatements at src/fusion/eskf.h:198-203 and src/core1/sensor_core1.cpp:45
@@ -2090,63 +1867,7 @@ side-effecting assertion anywhere in `src/math/`.
 - Verdict: CONFIRMED -- (independent adversarial re-verification) And correctly bounded to the in-tree contradiction rather than to the unavailable datasheet: baro_dps310.h:31-32 gives 8x -> MaxRate 16Hz and 16x -> MaxRate 8Hz, :37 asserts "ArduPilot uses 16x @ 32Hz", the duty-cycle rendering at :47-49 computes 32x14.8ms + 2x3.6ms = 481ms as legal with 52% margin, and :52-53 ships 8x @ 32 Hz labelled "(proven rate)" -- two mutually inconsistent paraphrases of one silicon constraint with the shipped configuration satisfying one and violating the other, while eskf.h:198-199 and sensor_core1.cpp:45 both restate figures from the same table.
 - **Reconciled 2026-08-20:** duplicate of **CW-B10-05**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
-### X4 -- public header contract coherence
 
-Lane: whole-system cross-cutting read of include/rocketchip/ as ONE interface surface -- does each
-header earn its file, is each declared contract honored by its implementation, are related
-contracts split or duplicated across headers, and does a consumer get a coherent story. Primary
-lens: field manual **Class & interface design** plus **Comments & documentation quality**, run
-through the contract-surface helper (kinds A-F). Every header in the directory was read whole; the
-implementation half of each contract was read or grepped wherever the claim was checkable.
-
-#### Coverage
-
-Public surface -- all 33 headers in C:/Users/pow-w/Documents/RC-agent-walk/include/rocketchip/:
-
-- include/rocketchip/ao_signals.h -- FAIL -- Kind D signal catalog; vocabulary and numbering are sound, but the event-allocation contract contradicts itself and the tree (CW-X4-01), the LED payload points at the wrong header (CW-X4-04), and rc_signal_name is declared with no definition (CW-X4-07).
-- include/rocketchip/board.h -- PARTIAL -- Kind E selector; clean dispatch chain, but the board:: interface it dispatches to is nowhere enumerated, so an incomplete board header is caught only by a build break (CW-X4-11).
-- include/rocketchip/board_feather_rp2350.h -- PASS -- complete board:: member set; pins and capability flags coherent with the config.h consumers.
-- include/rocketchip/board_fruit_jam.h -- PASS -- complete member set; the [M1] and [M3] hazard notes are real constraints, not restated code.
-- include/rocketchip/board_pico2.h -- FAIL -- omits kPsramCsPin, which config.h references unconditionally (CW-X4-11).
-- include/rocketchip/board_tiny_2350_common.h -- PASS -- complete member set including kPsramCsPin; TODO markers honestly scope the unverified pins.
-- include/rocketchip/board_tiny_2350_plus.h -- PASS -- variant overrides only; the bring-up error gate matches the stated story.
-- include/rocketchip/config.h -- PARTIAL -- overloaded hub (pins, I2C map, timing, feature flags, version alias, debug macros, assertions); the RC_ASSERT facility it advertises promises a recovery path this tree does not have (CW-X4-08).
-- include/rocketchip/flash_layout.h -- PASS -- Kind E map; every derived region anchored from one symbol and pinned by static_assert; the single-source claim holds.
-- include/rocketchip/fused_state.h -- PASS -- producer-owned snapshot struct, units documented per field, consumers read-only.
-- include/rocketchip/job.h -- PASS -- Kind E role selector; enum plus include dispatch, one job per file.
-- include/rocketchip/job_capabilities.h -- PARTIAL -- two of three predicates are consumed by health_monitor exactly as documented; kRoleHasFullGoNogo has zero consumers despite a detailed consumers rationale.
-- include/rocketchip/job_relay.h -- PASS -- three role constants, matching the surface job.h implies.
-- include/rocketchip/job_station.h -- PASS -- same surface as its siblings; the MAVLink-default comment states a real why.
-- include/rocketchip/job_vehicle.h -- PASS -- same surface as its siblings.
-- include/rocketchip/led_patterns.h -- FAIL -- claims Single Source of Truth for the LED code space while a divergent duplicate lives in action_executor.h (CW-X4-04).
-- include/rocketchip/linker_symbols.h -- PASS -- Kind F boundary; reference-not-define rationale centralized exactly as the helper's Example 4 prescribes.
-- include/rocketchip/mavlink_rx.h -- PASS -- API contract states ownership (caller-owned state, borrowed encoder, caller writes the result); signatures match the prose.
-- include/rocketchip/notify_backend.h -- PASS -- two free functions, both defined and built; the audio-always-compiled claim is true (src/notify/notify_backend_audio.cpp appears in both CMake source lists).
-- include/rocketchip/notify_intents.h -- PASS -- Kind D vocabulary; the stated priority order and the ascending-value-picks-max rule match src/notify/notify_resolver.h.
-- include/rocketchip/pcm_frame.h -- PASS -- Kind B/E layout; byte-offset prose matches every static_assert; encode and decode pairs all defined.
-- include/rocketchip/prearm_fail_ticks.h -- PASS -- pure helper; the semantics block matches the body line for line.
-- include/rocketchip/radio_config.h -- FAIL -- publishes a kDefaultRadioConfig that no consumer uses and that disagrees with the real boot default (CW-X4-05).
-- include/rocketchip/radio_config_table.h -- FAIL -- banner names the table as the SET_RADIO_CONFIG gate; it is not, and the membership test it exports is dead with a fabricated consumer list (CW-X4-06).
-- include/rocketchip/radio_scheduler.h -- PASS -- header-only state machine; the two-phase init contract is satisfied at its single construction site (ao_radio.cpp:560).
-- include/rocketchip/rc_log.h -- FAIL -- the LOCKED CONTRACT block states drop-newest while the sink implements drop-oldest (CW-X4-02), and the PROHIBITED clause is violated by the project's own fault handler (CW-X4-03).
-- include/rocketchip/sensor_seqlock.h -- PARTIAL -- Kind B protocol is coherent and barrier-correct in itself, but it also re-declares the whole cross-core global set without the ownership annotations that live in shared_state.h (CW-X4-09).
-- include/rocketchip/sensor_snapshot.h -- FAIL -- a 40-byte layout contract with zero producers and zero consumers in src/ (CW-X4-10).
-- include/rocketchip/shared_state.h -- FAIL -- declares itself the centralized ownership map, but most cross-core consumers never include it (CW-X4-09).
-- include/rocketchip/station_output_mode.h -- PARTIAL -- earns its file as a circular-include break, but carries three AO_RCOS_* function declarations that otherwise belong to ao_rcos.h, splitting that AO's API across two headers.
-- include/rocketchip/telemetry_encoder.h -- PARTIAL -- the encoder/decoder surface and the CCSDS size constants are internally consistent and static_assert-pinned; the MAVLink frame count and size are stated three different ways (banner "4 messages ~144 B", line 42 "3-message set ~105 B", line 269 max_packet_size()==144), and the nav-with-config comment at line 60 names APID 0x101 where the constant at line 62 and the encoder both use 0x004.
-- include/rocketchip/telemetry_state.h -- PASS -- wire format pinned at 45 bytes; DEPRECATED aliases are labelled and referenced nowhere load-bearing.
-- include/rocketchip/version.h -- PARTIAL -- the single-source-of-identity claim is undermined by a second board-identity string (CW-X4-12), and line 5 directs all print sites to a version_string() that exists nowhere in the tree.
-
-Implementation half read or grepped to judge the claims above (not my assigned files; opened only
-as truth-checks): src/log/rc_log.cpp, src/safety/fault_protection.cpp, src/safety/pio_watchdog.h,
-src/active_objects/{ao_telemetry.cpp, ao_radio.cpp, ao_rf_manager.cpp, ao_flight_director.cpp,
-ao_rcos.h}, src/flight_director/{flight_director.cpp, action_executor.h, action_executor.cpp,
-flight_actions.h, mission_profile_data.h}, src/notify/notify_resolver.h,
-src/logging/{pcm_frame.cpp, radio_config_storage.cpp}, src/diag/diag_stats.cpp,
-src/drivers/{ws2812_status.h, gps_uart.cpp}, src/main.cpp, src/shared_state.cpp, CMakeLists.txt,
-test/test_data_model.cpp.
-
-#### Findings
 - **Primary-source check (2026-08-20): NARROWED**
   - Source: DPS310 datasheet V1.2, p. 30 — Table 16 ("Precision (Pa RMS) and pressure measurement time (ms) versus oversampling rate"), Table 17 ("Estimated current consumption (uA)") and the note printed beneath Table 17; corroborated at p. 11 (Specifications: "Pressure measurement rate f 1 128 Hz" with the note "The pressure measurement time (and thus the maximum rate) depends on the pressure measurement precision. Please refer to the Pressure Configuration (PRS_CFG) register description") and p. 12. The repo copy is V1.2, not the v1.1 the header cites.
   - Quote: Table 16 in its entirety is two data rows — "Measurement time (ms) 3.6 5.2 8.4 14.8 27.6 53.2 104.4 206.8" and "Precision (PaRMS) 2.5 1 0.5 0.4 0.35 0.3 0.2" (the 128x precision cell is blank). The governing rate constraint is the note under Table 17: "The table shows the possible combinations of Pressure Measurement Rate and oversampling when no temperature measurements are performed. When temperature measurements are performed the possible combinations are limited to Ratetemperature x Measurement Timetemperature + Ratepressure x Measurement Timepressure < 1 second."
@@ -2221,16 +1942,6 @@ test/test_data_model.cpp.
 - Direction: Extract the three writes into one named static helper (for example finish_tx(dev)) called from both branches, leaving each branch as the helper call plus its return value.
 - Verdict: REFUTED -- three adjacent register writes repeated in two arms of one short function, with no present incorrectness and drift as the only stated failure mode, is a maintainability preference rather than a defect; the project's own clone gate (bugprone-branch-clone) deliberately targets a different shape.
 
-### B12 -- drivers: mcu_temp + ws2812_status
-
-#### Coverage
-
-- src/drivers/mcu_temp.h -- FAIL -- Read whole as a Kind-C contract surface; the datasheet pointer and the ADC-consumer single-owner rule are good, but the stated ADC channel is wrong for RP2350B and the init() success contract is not implementable by the body.
-- src/drivers/mcu_temp.cpp -- PARTIAL -- Read whole; conversion, idempotent init, and the sourced/bench-measured stuck-threshold rationale are sound; module statics are mutated on Core 1 and read on Core 0 with no stated ownership rule or barrier.
-- src/drivers/ws2812_status.h -- FAIL -- Read whole as the public contract; three separate doxygen claims (init PIO parameter, RSSI-bar mapping, sweep-bar cadence) disagree with the implementation they document.
-- src/drivers/ws2812_status.cpp -- FAIL -- Read whole; PIO program/SM lifecycle is correctly paired init-to-deinit and the mode engine is edge-triggered, but init performs no validation of num_leds against either the board sentinel or the fixed pixels[8] buffer, and update_blink omits the zero-period guard its sibling carries.
-
-#### Findings
 
 **CW-X5-09** — [Claude] · `spine` · **rfm95w_read_version() is documented as usable before rfm95w_init(), but the CS pin only becomes an output inside rfm95w_init()**  
 - Site: src/drivers/rfm95w.h:165-180 against src/drivers/rfm95w.cpp:100-104, src/drivers/rfm95w.cpp:177 and src/drivers/spi_bus.cpp:52-62
@@ -2272,17 +1983,6 @@ test/test_data_model.cpp.
 - Direction: Mirror `i2c_bus_init` -- capture `spi_init`'s achieved baud, return false if it is 0 (or outside an acceptable band for a 5 MHz request), and let `g_spiInitialized` mean something. If the project would rather declare this unfailable, change the signature to `void` and say so in the preamble, so no caller keeps branching on a constant.
 - Verdict: CONFIRMED -- spi_init's return is dropped at spi_bus.cpp:33 and :43 returns a literal true against "@return true on success" at spi_bus.h:46, while the sibling i2c_bus_init checks its own i2c_init return at i2c_bus.cpp:53-56; the boolean is consumed as a health signal at main.cpp:248/491 and rc_os_commands.cpp:778/834.
 
-### B09 -- drivers: GPS (i2c + uart + shared iface)
-
-#### Coverage
-src/drivers/gps.h -- FAIL -- Transport-neutral type + enum contract surface (helper Kind D) walked in full; every field claim inventoried, and the `valid` field's documented rule is contradicted by one of the two backends that produce it.
-src/drivers/gps_pa1010d.h -- PASS -- Declaration-only contract surface (helper Kind C) walked in full; `[[nodiscard]]` is applied consistently, every function has a preamble, and the prose matches the `.cpp` bodies (call-rate assumption, buffer-lifetime caveat, and the "debug status survives pre-USB init" rationale all check out).
-src/drivers/gps_pa1010d.cpp -- FAIL -- All five public functions plus both statics walked with the spine; init sequence, PMTK const-array construction, and the padding filter verified against their comments; three findings (fix-type derivation, PMTK314 sentence-set claim, `read_nmea_data` parameter contract).
-src/drivers/gps_uart.h -- FAIL -- Contract surface walked in full; the API mirrors gps_pa1010d.h cleanly, but two preambles state boot/blocking behaviour the implementation does not have and neither names the core-affinity precondition the IRQ path requires.
-src/drivers/gps_uart.cpp -- FAIL -- All public functions, the ISR, and all five statics walked with the spine plus the block-C embedded ADDs (volatile-as-cross-core-barrier, peripheral init/lifecycle); SPSC index arithmetic verified correct, but the concurrency claim, the reinit IRQ lifecycle, the baud comments, and the duplication rationale all fail against the code.
-src/drivers/lwgps_opts.h -- PARTIAL -- Vendored-config contract surface (helper Kind E) walked in full; the substantive settings (double precision, CRC on, sentence set, GSV-detail off) are consistent with what the drivers read, but two of its claim lines are wrong. Note: `lib/lwgps/` is an uninitialised submodule in this checkout, so the `LWGPS_CFG_*` names could not be checked against lwGPS's own defaults -- verdict rests on in-file consistency and driver usage only.
-
-#### Findings
 
 #### `drivers/mcu_temp.{cpp,h}`
 
@@ -2373,19 +2073,6 @@ src/drivers/lwgps_opts.h -- PARTIAL -- Vendored-config contract surface (helper 
 - Direction: Reword to match the value ("Status callback disabled -- unused"), in the same shape as the neighbouring disable comments.
 - Verdict: CONFIRMED -- lwgps_opts.h:14-15 reads "// Enable status callback" directly above "#define LWGPS_CFG_STATUS 0", and the file's own convention (lines 23, 26) writes "Disable ..." over a 0; consequence is nil, which the finding states.
 
-### B10 -- drivers: IMU + baro
-
-#### Coverage
-
-src/drivers/baro_dps310.h -- PARTIAL -- Read whole; contract surface (constants + 7-function C API + one POD data struct) is coherent, but the oversampling/rate decision block attributes a fabricated column to the DPS310 datasheet and contradicts the values it governs (CW-B10-05).
-
-src/drivers/baro_dps310.cpp -- PARTIAL -- Read whole; all seven bodies walked plus the three ruuvi callbacks. Callback error mapping and the two-phase init/start_continuous sequence are sound; the barometric-altitude half is a second, unused, already-divergent copy of the project's altitude model (CW-B10-06). Note: the vendored `lib/ruuvi.dps310.c` source is not present in this checkout, so the third-party half of the contract (`DPS310_READY` bit semantics, `dps310_get_last_result` staleness behaviour) could not be verified against source -- claims about it are not asserted either way.
-
-src/drivers/icm20948.h -- PARTIAL -- Read whole; register/scale contract and the two typedef'd POD structs are honest aggregates (no invariant, correctly struct-shaped, no encapsulation theatre). Two of the twelve declared functions carry a preamble that omits a limitation the rest of the tree treats as load-bearing (CW-B10-04). Eight of the twelve have no call site anywhere in `src/` or `test/` -- recorded as an observation, not filed.
-
-src/drivers/icm20948.cpp -- FAIL -- Read whole; every function walked. Register map, FS_SEL bit positions, accel/gyro sensitivities, AK09916 scale and the temperature formula all verified correct against `docs/hardware/datasheets/ICM-20948-datasheet-v1.3.pdf` (pp. 10-11, 13, 33, 44, 58, 63, 78). Three defects: a null-guard that dereferences the null (CW-B10-01), an unbounded blocking device re-init inside the read path (CW-B10-02), and hidden cross-core phase state outside the device handle (CW-B10-03).
-
-#### Findings
 
 ## Tier 2 — Domain logic & infrastructure
 
@@ -2447,15 +2134,6 @@ src/drivers/icm20948.cpp -- FAIL -- Read whole; every function walked. Register 
 - Direction: Pick one contract. State "profile must be non-null and outlive the runner" in the eskf_runner_init preamble in eskf_runner.h, assert it at :600, and drop the inconsistent guard at :168 — or keep null legal and add the missing guards at both dereference sites.
 - Verdict: CONFIRMED -- eskf_try_init guards g_profile at :168 while try_enable_mag_3axis (:295) and eskf_tick_mag (:338-339) dereference it unguarded, and eskf_runner_init (:598-602) neither asserts nor documents the precondition; the finding correctly states the single caller (main.cpp:400) makes this a contract defect rather than a live crash.
 
-### B15 -- fusion: confidence_gate + innovation_monitor
-
-#### Coverage
-- src/fusion/confidence_gate.h -- PARTIAL -- Contract surface read whole; the threshold block, struct field comments and hysteresis claims all match the body, but the input contract never states what a caller passes when the AHRS cross-check is unavailable, and the fail-open initial state carries no rationale (CW-B15-01, CW-B15-04).
-- src/fusion/confidence_gate.cpp -- PARTIAL -- Both functions read whole and spine-walked; the hysteresis machine and time-tracking behaviour were verified line-by-line against the header's claims, but the 55-line safety evaluator carries zero entry checks on its two load-bearing input assumptions (CW-B15-02, CW-B15-04).
-- src/fusion/innovation_monitor.h -- PARTIAL -- Preamble claims verified against the code that implements them (the q_scale min/cap rule matches the body, and the "caller freezes adaptation during phase transition ramps" claim holds at src/fusion/eskf.cpp:1785); the push declaration omits the silent-rejection limitation (CW-B15-03).
-- src/fusion/innovation_monitor.cpp -- PARTIAL -- All three functions read whole; window/sum/alpha bookkeeping is self-consistent and the cap logic matches the header, but the anomalous-input path is silent and undocumented (CW-B15-03). The lowercase float suffix at line 21 is deliberately not reported -- it is mechanically gated (hicpp-uppercase-literal-suffix and readability-uppercase-literal-suffix are both enabled in .clang-tidy).
-
-#### Findings
 
 **CW-L010** — [Claude] *(lens re-run)* · `assertions` · **F5 — `g_profile` non-null contract is asserted nowhere and honoured inconsistently within one file**  
 
@@ -2699,17 +2377,6 @@ same code.
 - Direction: Record the rationale for the initial value in the header preamble, naming the interlock that covers the warm-up window. If the trusting initial state is not deliberate, initialise confident = false and let the existing recovery debounce earn it.
 - Verdict: CONFIRMED -- confidence_gate_init sets confident = true (:8) with no recorded rationale, against the header's own stated principle at :15-16, and the value propagates unevaluated to SafetyLockout (flight_director.cpp:258) and guard_combinator.cpp:131; IVP-84/85 specify the conditions and hysteresis but never the initial value, so nothing in the tree supplies the missing rationale.
 
-### B16 -- fusion: mahony + generated tables/codegen (light+exempt)
-
-#### Coverage
-src/fusion/eskf_codegen.cpp -- PARTIAL -- Read whole under the CG-1 exemption (size/comment/design lenses N/A): banner, preamble, signature and mirror block read line by line, body verified structurally against its generator (300 P snapshots, 202 CSE intermediates, 300 upper-triangle assignments, 276 mirror assignments, and zero raw P reads on any right-hand side outside the snapshot block, which is the generator's stated in-place-update invariant); the body is faithful to the generator, the first two lines are not.
-src/fusion/eskf_codegen.h -- PARTIAL -- Read whole as a contract surface (helper Kind C/E: the codegen_fpft call contract plus the Q_d sync constants that eskf.cpp static_asserts against); declarations and constants are consistent with the generator and with eskf.h, but the file carries a post-generation prepend and a non-UTF-8 byte.
-src/fusion/mahony_ahrs.cpp -- FAIL -- Read whole, spine run on all six functions; the shape is clean (single-purpose functions, guard clauses, const locals declared at first use) but two attitude-reference defects and one state-reset gap are recorded below.
-src/fusion/mahony_ahrs.h -- FAIL -- Read whole as the declared contract for the .cpp; parameter units and gate constants are well sourced, but the preamble carries a stale ESKF state count, the startup flag's comment does not match the code, and the two real preconditions are unstated.
-src/fusion/wmm_tables.cpp -- PARTIAL -- Read whole; per the itinerary this is a generated data table walked light, so the three literal tables were scanned for shape and wrap behaviour rather than value-checked, and interp() plus the three public functions were walked line by line.
-src/fusion/wmm_tables.h -- PARTIAL -- Read whole as a contract surface (helper Kind C/E); the three-function API, units and sign conventions are stated, the accepted input domain and the grid's polar limitation are not.
-
-#### Findings
 
 **CW-L008** — [Claude] *(lens re-run)* · `assertions` · **F3 — `confidence_gate_evaluate()` — the pyro-lockout gate — carries no entry check of any kind**  
 
@@ -2860,15 +2527,6 @@ rather than used to excuse the missing check, per the lens's PARTIAL row.
 - Direction: Add a static_assert tying the UD dimension to rc::eskf::kStateSize -- in ud_factor.h if the dependency on eskf_state.h is acceptable, otherwise at the point in eskf.cpp where the two modules meet -- so a future state-count change fails the build instead of running off the end of U and D.
 - Verdict: REFUTED -- speculative, and the stated mechanism is wrong: `float p[24][24]` keeps its inner extent in the parameter type (`float (*)[24]`), so a resized matrix would be a compile error rather than a silent overrun, and ESKF declares `Mat24 P` (eskf.h:68) not Mat<kStateSize,kStateSize>, so the cross-module coupling the static_assert would guard does not exist on the path described.
 
-### B14 -- fusion: eskf_runner + brake + phase_qr
-
-#### Coverage
-- src/fusion/eskf_brake.cpp -- PARTIAL -- Three <=5-line functions read whole; the saturating counter and BSS-scoped statics are correct, but the file banner's "Cleared by eskf_reenable() — CLI-callable subsystem reset" understates the automatic clearing path (CW-B14-03).
-- src/fusion/eskf_runner.cpp -- FAIL -- All 688 lines read; spine A/B/C run on every static and public function; five findings (CW-B14-01, -02, -04, -05, -07).
-- src/fusion/eskf_runner.h -- PARTIAL -- Read whole as the declared contract for the .cpp; the snapshot layout contract is exemplary (the 68-byte size claim is backed by a static_assert at :41), but the runaway-brake contract block at :122-131 disagrees with :145-150 (CW-B14-03) and the init precondition is unstated (CW-B14-07).
-- src/fusion/phase_qr.h -- PARTIAL -- Read whole as a Kind D/E contract surface per the helper; the Q-delta and R-absolute claims were checked against eskf.cpp and hold, and the ">= 1.0 / > 0.0 enforced by generate_profile.py" claim was checked against the generator and holds, but the phase-count claim is false and unenforced (CW-B14-06).
-
-#### Findings
 
 **CW-L007** — [Claude] *(lens re-run)* · `assertions` · **F2 — Bierman's `h_idx` indexes `U[24][24]` with no bounds check, while the sibling function bounds-checks the same value**  
 
@@ -2901,16 +2559,6 @@ rather than used to excuse the missing check, per the lens's PARTIAL row.
 - Direction: Fix in scripts/generate_wmm_table.py rather than in the generated file: interpolate declination through its sine and cosine (or unwrap the four corner values relative to v00 before blending), and emit a short header comment stating the clamp and wrap behaviour plus the polar limitation of a 10-degree grid near the magnetic poles.
 - Verdict: CONFIRMED -- interp() (:98-129) blends kDeclination as an ordinary scalar and the cited wrap-straddling cells check out (lat -90 lon 140/150 = -171.91/178.09 at :23; lat -80 = -174.21/170.70 at :24; the lat +90 row alternates 180.00/0.00 at :41), and the accepted domain is stated nowhere; note the clamp and wrap are at :101-105, not the :109-113 given in the Why.
 
-### B17 -- calibration: data + storage
-
-#### Coverage
-
-- src/calibration/calibration_data.h -- FAIL -- Contract surface (Kind E, persisted-record layout) walked whole: layout, status vocabulary, size asserts and the four declared functions; the comments lens fails on a stale sentinel claim (:161) and on a page-fit claim (:139) that does not account for the on-flash headers the storage module prepends.
-- src/calibration/calibration_data.cpp -- PARTIAL -- All four functions walked with the spine; bodies are short, guard-claused and single-purpose, but the CRC-region definition is expressed twice as an inline idiom (:105-110, :121-126); the file banner also names itself "calibration_data.c" (:4), a harmless doc slip left unfiled.
-- src/calibration/calibration_storage.h -- PARTIAL -- Kind C API/behavioral contract walked claim-by-claim (init / read / write / erase); the prose is accurate as far as it goes but omits the blocking + timeout limitation and promises a success return the implementation cannot fail.
-- src/calibration/calibration_storage.cpp -- FAIL -- Every function walked (flash wrappers, sector scan, dual-sector write, public API); the dual-sector power-safety and sequence logic hold up on every exit path I traced, but the file banner states 8MB-only absolute addresses while the code derives them per board, and the single-page write budget is unguarded. Note: kStorageSize / kStorageOffset (:26-27) have zero references tree-wide -- left to the mechanical dead-code inventory rather than filed here.
-
-#### Findings
 
 **CW-L011** — [Claude] *(lens re-run)* · `assertions` · **F6 — `interp()` assumes finite lat/lon; its clamps silently do not cover NaN**  
 
@@ -2965,15 +2613,6 @@ Recorded explicitly, since silence is the defect this pass corrects.
 - Direction: Decide which copy is authoritative. Either drop the per-sensor status fields at the next version bump (cal_flags is the read path) or, if per-sensor state is wanted for a future consumer, say so in the doc-comments and make the supersession logic maintain both.
 - Verdict: RESHAPED -- the fields are indeed written-and-never-read, but the supersession argument was wrong (the per-sensor field is assigned, not OR'd, so it tracks the latest cal by construction); narrowed to unread duplicated state inside a persisted record.
 
-### B18 -- calibration: manager + hooks
-
-#### Coverage
-src/calibration/cal_hooks.cpp -- FAIL -- All four callbacks and both file-scope state groups read whole; cal_read_accel() is registered but has no call site anywhere in the tree, and three of five mag-diagnostic statics are write-only.
-src/calibration/cal_hooks.h -- PARTIAL -- Thin Kind-C contract surface (four prototypes); every assumption a caller needs -- I2C ownership, the 10 ms block, "false means stale, not failed", raw-not-corrected -- is absent from the header.
-src/calibration/calibration_manager.cpp -- FAIL -- All ~40 functions walked; the module's whole state block is plain non-atomic file-scope statics written from both cores, and one helper carries an unchecked count precondition.
-src/calibration/calibration_manager.h -- FAIL -- Full API surface walked as the module's contract; it names the cross-core protocol in one doc-comment but never states ownership, a barrier, or the mutability of the store its accessor hands out.
-
-#### Findings
 
 **CW-X2-03** — [Claude] · `spine` · **CRC-16-CCITT implemented twice, in two modules, under the same name**  
 - Site: src/calibration/calibration_data.cpp:12-39 vs src/logging/crc16_ccitt.h:24-72
@@ -3013,13 +2652,6 @@ src/calibration/calibration_manager.h -- FAIL -- Full API surface walked as the 
 - Direction: Add the cheap guard at the top of the helper -- return count unchanged when it is below 2 -- and state the precondition in its comment so the next caller inherits it rather than inheriting the current caller's unrelated 50-sample threshold.
 - Verdict: REFUTED -- the underflow arithmetic is exact but unreachable: mag_thin_samples has exactly one caller (:994), guarded at :979 by the kMagMinSamplesForFit (50) early return, so count == 0 cannot occur on any path and the consequence is hypothetical.
 
-### B19 -- calibration: lm_solver (templates)
-
-#### Coverage
-C:/Users/pow-w/Documents/RC-agent-walk/src/calibration/lm_solver.h -- PARTIAL -- read whole (107 lines): module banner, LM constants, the two primitive declarations and all three function templates walked with the spine plus the comments, scope/lifetime and templates lenses; the algorithm is correct and readable, but the contract surface over-claims and leaves its template-argument requirements unstated.
-C:/Users/pow-w/Documents/RC-agent-walk/src/calibration/lm_solver.cpp -- PARTIAL -- read whole (102 lines): forward_eliminate, back_substitute, mat_inverse and lm_compute_step each walked; the pivoting, singularity threshold and NaN/inf rejection hold up (back_substitute's divides are provably safe because forward_eliminate rejects any pivot below 1e-10 first), and the only finding sited here is the undocumented static working buffer.
-
-#### Findings
 
 **CW-X1-03** — [Claude] · `concurrency` · **The calibration state machine is shared between both cores with no synchronization at all**  
 - Site: src/calibration/calibration_manager.cpp:92-107 and 370-403, with src/core1/sensor_core1.cpp:172-182 and 206-209, src/main.cpp:366-376, and src/active_objects/ao_rcos.cpp:382-390, 423-434, 441-463
@@ -3135,15 +2767,6 @@ C:/Users/pow-w/Documents/RC-agent-walk/src/calibration/lm_solver.cpp -- PARTIAL 
 - Direction: Bring the header's parameter and local names to lower_case so that declaration and definition agree, and settle the coverage question separately -- either widen HeaderFilterRegex to cover authored headers outside include/rocketchip/, or record the exclusion deliberately so it is a decision rather than an accident.
 - Verdict: CONFIRMED -- lm_solver.h:33-34 declares newParams/jtjInv/numParams while lm_solver.cpp:91-92 defines new_params/jtj_inv/num_params, lm_solve takes 11 parameters against ParameterThreshold=6, and neither is reported: full_tree_clang_tidy.sh's GATED list is only the four size/complexity/return-value/reserved-id checks, and HeaderFilterRegex '.*(src|include)/rocketchip/.*' excludes this header from the size check as well.
 
-### B20 -- flight_director: HSM core + state/actions types
-
-#### Coverage
-src/flight_director/flight_actions.h -- PARTIAL -- Read whole as a contract surface (Kind D/E, shared vocabulary + per-phase action map); all nine entry lists, both transition lists, the exit table and the two index tables inventoried against their consumers in flight_director.cpp.
-src/flight_director/flight_director.cpp -- PARTIAL -- Read whole (687 lines); spine blocks A, B and C run on all 31 functions and state handlers, with the abort, coast-timeout, reset and fault paths hand-walked against the shipped mission profile.
-src/flight_director/flight_director.h -- PARTIAL -- Read whole as the .cpp's declared contract; the HSM hierarchy, the signal list and the usage block all verified accurate against flight_director.cpp and include/rocketchip/ao_signals.h, but the constructor's precondition on profile is undeclared (CW-B20-06).
-src/flight_director/flight_state.h -- PARTIAL -- Read whole; phase enum, fault-observable phase contract, FlightMarkers and FlightState reviewed claim-vs-truth against flight_director.cpp, src/safety/fault_protection.cpp and the SPIN models.
-
-#### Findings
 
 **CW-L043** — [Claude] *(lens re-run)* · `templates` · **`lm_solve` / `lm_accumulate_jtj` state their callable contract only in a comment**  
 
@@ -3254,16 +2877,6 @@ src/flight_director/flight_state.h -- PARTIAL -- Read whole; phase enum, fault-o
 - Direction: Extend the flight_state.h preamble to name the writers (FD on Core 0 plus either core's fault handler), the readers, and why a single aligned word needs no barrier on this part; or declare the object std::atomic<uint32_t> with relaxed ordering so the type itself carries the claim.
 - Verdict: REFUTED -- the sharper half is contradicted by the cited file itself: flight_state.h:85-88 states the setter must be reachable from anywhere the phase changes, naming the fault handler as a direct kFault writer, and FAULT_RECOVERY_2026-05-14.md B.3/B.8 records the same second writer; the remaining cross-core half is explicitly not a demonstrated race.
 
-### B21 -- flight_director: command_handler + action_executor
-
-#### Coverage
-
-- src/flight_director/action_executor.h -- FAIL -- Read whole; contract surface (helper Kind D vocabulary + Kind C API contract) evaluated claim-by-claim against led_patterns.h, ao_led_engine.cpp and the wired callbacks in ao_flight_director.cpp; three claims do not survive that check.
-- src/flight_director/action_executor.cpp -- PARTIAL -- Read whole; the three functions are correctly shaped and single-purpose, but the two public entry points carry no parameter-validity checks and no documented preconditions.
-- src/flight_director/command_handler.h -- PARTIAL -- Read whole; per-command contract prose is accurate against the body except that the kArm section omits one of the two blocking gates the implementation applies.
-- src/flight_director/command_handler.cpp -- PASS -- Read whole; one flat validate-and-return switch, every branch reachable and eyeball-verifiable, rejection strings bounded and explicitly NUL-terminated, and the header's sensor-signal-bypass claim confirmed against ao_flight_director.cpp:287-289.
-
-#### Findings
 
 **CW-X5-08** — [Claude] · `spine` · **the flight-in-progress sentinel is set on ARM but cleared only on LANDED, so a disarm or abort leaves it set for the next boot's mid-flight verdict**  
 - Site: src/flight_director/flight_director.cpp:54-67, consumed at src/safety/anomalous_boot.cpp:107-114 and src/main.cpp:366-387
@@ -3294,15 +2907,6 @@ src/flight_director/flight_state.h -- PARTIAL -- Read whole; phase enum, fault-o
 - Direction: Add the test-mode gate to the kArm bullet in the header contract and note in the preamble that the function consults global test-mode state, so the declared contract lists every way an ARM can be refused.
 - Verdict: CONFIRMED -- command_handler.cpp:50-52 really does reject on rc::test_mode_active(), a gate read from global state that the header's kArm bullet at :41 never mentions, and go_nogo_checks.h:13 does advertise the opposite property ("no globals") for the sibling contract it composes with.
 
-### B22 -- flight_director: go_nogo + guard_evaluator
-
-#### Coverage
-src/flight_director/go_nogo_checks.h -- PASS -- Contract surface (2 structs + 2 free functions) read whole; every field carries a units/meaning comment, the kGoNoGoMaxChecks bump and the rf_link_state 0..3 encoding are both documented at the declaration, and the Tier-1-blocks / Tier-2-warns contract is stated in the preamble.
-src/flight_director/go_nogo_checks.cpp -- PARTIAL -- All four functions walked; two findings (CW-B22-01 fail-open station overflow, CW-B22-02 GO-worded reason on a NO-GO station); the rest of the file is clean and the strncpy / etl::string lifetime reasoning at :47-50 checks out against the buffer sizes.
-src/flight_director/guard_evaluator.h -- PARTIAL -- Contract surface read whole; the guard/state model and phase-validity behaviour are well documented, but guard_evaluator_is_sustained states no precondition on its GuardId argument, the "Initialize the evaluator" contract at :76-77 is not fully met by the implementation (CW-B22-03), and the uint8_t width of GuardState::valid_phases is not stated as a bound on FlightPhase (CW-B22-04).
-src/flight_director/guard_evaluator.cpp -- FAIL -- All six functions walked; the init path leaves a GuardState field with no meaningful value (CW-B22-03) and the phase bitmask cannot represent the whole FlightPhase enum (CW-B22-04).
-
-#### Findings
 
 #### `flight_director/action_executor.{cpp,h}`
 
@@ -3452,16 +3056,6 @@ both files carry unchecked entry-point preconditions of exactly the kind JPL-16 
 - Direction: Add a compile-time guard that the phase count fits the bitmask width (static_assert relating FlightPhase::kCount to the bit width of valid_phases) so a tenth phase, or a guard declared valid in kFault, fails the build instead of going quiet; and state the 8-phase bound in the header beside valid_phases. If guards are meant to be inert in kFault, say so at the phase filter rather than relying on the narrowing.
 - Verdict: CONFIRMED -- FlightPhase::kFault = 8 with kCount = 9 (flight_state.h:57-59), so the static_cast<uint8_t> at :16 makes phase_bit(kFault) == 0, indistinguishable from "valid in no phase" at the test site :139; kFault reaches this tick path because flight_director.cpp:302-307 filters only kIdle/kLanded/kAbort, and no compiler or clang-tidy check fires on an explicit narrowing cast.
 
-### B23 -- flight_director: guard_combinator + guard_functions
-
-#### Coverage
-
-- C:/Users/pow-w/Documents/RC-agent-walk/src/flight_director/guard_combinator.h -- FAIL -- Read whole as one work product with the .cpp; it is the contract surface for the three-layer deployment architecture, and both its architecture claim (dual-channel redundancy) and its layer contract (Layer 1/2/3 plus Council A2) overstate what the implementation delivers.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/flight_director/guard_combinator.cpp -- PARTIAL -- Read whole; the functions are single-purpose and the shipped-profile control flow is eyeball-verifiable, but the init path asserts none of its preconditions, the phase bitmask cannot represent one of the nine flight phases, and the Council-A2 timer bypass is superseded by the confidence gate placed ahead of it.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/flight_director/guard_functions.h -- FAIL -- Read whole; six of the seven guard contracts state units, frames and thresholds precisely, but guard_baro_peak documents a sign convention that its only caller does not supply.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/flight_director/guard_functions.cpp -- FAIL -- Read whole with the header; pure, single-expression, side-effect-free predicates that match their header text, except guard_baro_peak whose polarity is inverted relative to the NED-down value actually passed to it.
-
-#### Findings
 
 **CW-L004** — [Claude] *(lens re-run)* · `assertions` · **D. The phase bitmask is one bit too narrow for the phase enum, and nothing says so at compile time**  
 
@@ -3510,13 +3104,6 @@ both files carry unchecked entry-point preconditions of exactly the kind JPL-16 
 - Direction: Make the count and the copy share one bound -- clamp or reject spec.n against the array extent rather than a bare literal -- and add the entry sanity checks the file lacks (combinator index below kMaxCombinators, guard count within the array, non-null state pointers), preferring a compile-time check where the spec is a constant.
 - Verdict: RESHAPED -- The count/copy inconsistency at :33-34 is a genuine internal defect, but the out-of-bounds-read and missing-precondition escalation is unreachable: both call sites build the spec inline at :52 and :62 with n = 2 and n = 1, and two hard-coded combinators cannot reach kMaxCombinators = 4.
 
-### B24 -- flight_director: mission profile + generated profile data
-
-#### Coverage
-src/flight_director/mission_profile.h -- FAIL -- Read whole as a contract surface (helper Kind E/C): units, PRELIMINARY warnings and per-field intent are good, but the header's central claim about how the active profile is selected does not match the firmware, and three cfg-documented options have no field.
-src/flight_director/mission_profile_data.h -- FAIL -- Read whole; every generated field, the include guard and the GENERATED_FROM sha256 were checked against scripts/generate_profile.py and profiles/rocket.cfg and match, but the file also carries hand-edits its own banner forbids, and its compile-time validation block omits the two autonomous pyro timers.
-
-#### Findings
 
 **CW-L003** — [Claude] *(lens re-run)* · `assertions` · **C. `init_combinator`'s bound clamps the copy but not the count it stores**  
 
@@ -3605,14 +3192,6 @@ src/flight_director/mission_profile_data.h -- FAIL -- Read whole; every generate
 - Direction: Replace the bare labels with a resolvable pointer (decision or plan document plus section), or demote them to plain rationale prose stating why the lockout and the backup timer exist.
 - Verdict: RESHAPED -- No in-repo document records the flight-director council these labels belong to (a grep for 2026-03-25 across docs/ returns nothing), so the substance holds, but the finding missed guard_combinator.h:15, which does date that council and state it carried six amendments (A1-A6), and its "the only Council A1 / A6 records" enumeration is incomplete (NOTIFY_CONTRACT.md:209 and STAGE_T_T14_DESIGN.md:292 also carry A1/A6 labels, from the unrelated AO-council numbering).
 
-### B25 -- logging: rc_log sink + ring_buffer
-
-#### Coverage
-src/log/rc_log.cpp -- FAIL -- Read whole (732 lines); spine A/B/C run on all 18 functions, plus the comments, control-flow/volatile and concurrency lenses on the target_sink ring (5 volatile objects, the itinerary hot-spot cue); the paired contract include/rocketchip/rc_log.h was read for comment-truth only (it is its own itinerary row, not counted here); three findings.
-src/logging/ring_buffer.cpp -- FAIL -- Read whole (169 lines); spine on all 9 functions; control-flow/ordering lens on the seqlock header write and scope/lifetime lens on the init path; two findings.
-src/logging/ring_buffer.h -- PARTIAL -- Read whole (153 lines); evaluated as a contract surface (helper Kind B shared protocol plus Kind C API prose): the seqlock protocol claim and the documented init-then-recover sequence are both unsupported by the implementation (CW-B25-04, CW-B25-06), and the "Single-writer design -- no locking required" banner names neither the owning context nor the reader story (verified true today: ring_push from AO_Logger and ring_read/ring_stored_count from the CLI are both Core 0 QV-cooperative -- claim thin, not wrong).
-
-#### Findings
 
 #### `flight_director/mission_profile_data.h`
 
@@ -3705,15 +3284,6 @@ src/logging/ring_buffer.h -- PARTIAL -- Read whole (153 lines); evaluated as a c
 - Direction: Split the two responsibilities -- give ring_init a mode (or add a ring_attach) that populates the runtime struct without writing the header, so recover can read what a prior run left, and have ring_recover distinguish "restored prior state" from "header was fresh". Then either wire recovery into AO_Logger's PSRAM path or mark the mechanism explicitly unused in the header so the next reader does not trust a path nothing exercises.
 - Verdict: CONFIRMED -- ring_init writes a fresh header via sync_header at :56, so a caller following ring_buffer.h:137 gets magic/even-seq/offset-0 all valid and ring_recover returns true having restored nothing; the only passing recovery test hand-populates the struct instead of calling ring_init, and no firmware caller invokes ring_recover at all (ao_logger.cpp:270 calls only ring_init).
 
-### B26 -- logging: flash_flush + psram_init
-
-#### Coverage
-- C:/Users/pow-w/Documents/RC-agent-walk/src/logging/flash_flush.cpp -- FAIL -- Every function read whole and spine-walked (flash trampolines, dual-sector table I/O, sector flush engine, flush_ring_to_flash); capacity math, sector indexing and header size verified against flight_table.h / flash_layout.h / pcm_frame.h; three findings.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/logging/flash_flush.h -- PASS -- Contract surface (Kind C) walked per the helper: the load-bearing claims check out (5 s watchdog matches main.cpp:90, xip_cache_clean_all present at flash_flush.cpp:349, 64-byte header static_asserted at pcm_frame.h:180, every FlushResult member is actually returned somewhere in the body).
-- C:/Users/pow-w/Documents/RC-agent-walk/src/logging/psram_init.cpp -- FAIL -- Every function read whole and spine-walked (detect, timing calc, QMI config, self-test, accessors, flash-safe test); the register pokes were judged as an init sequence and an interrupt/XIP window, not line by line; four findings.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/logging/psram_init.h -- FAIL -- Contract surface (Kind C/E) walked per the helper: the memory-map constants and accessor promises are sound, but two documented preconditions/promises do not match the code or the only caller.
-
-#### Findings
 
 #### `logging/flash_flush.{cpp,h}`
 
@@ -3764,16 +3334,6 @@ src/logging/ring_buffer.h -- PARTIAL -- Read whole (153 lines); evaluated as a c
 - Direction: Correct the annotation to 16B, or add a static_assert on sizeof(FlightMetadata) alongside the existing one at telemetry_state.h:58 so the number is enforced rather than asserted in prose.
 - Verdict: CONFIRMED -- FlightMetadata (telemetry_state.h) is unpacked with a leading uint32_t, so its alignment is 4 and its 14 used bytes round to sizeof 16; the packed attribute on FlightLogEntry does not repack a nested type, so the '(14B)' annotation at flight_table.h:64 understates the field by two bytes (the neighbouring '(36B)' for FlightSummary is correct at 9 x 4, and no static_assert covers either).
 
-### B28 -- logging: pcm_frame + radio_config_storage + CRC headers
-
-#### Coverage
-src/logging/crc16_ccitt.h -- PASS -- Contract surface (helper Kind C/E, header-only algorithm): every documented parameter checked against the body -- poly 0x1021 (:28), init 0xFFFF (:66), no final XOR (:71), MSB-first table generation (:30-40), 256 x uint16 = 512 B constexpr table with no runtime init (:42-52); the JSF AV-182 Exception-1 note at :63-64 accurately describes the one void*->T* conversion.
-src/logging/crc32.h -- PASS -- Same check: reflected poly 0xEDB88320 (:26), init 0xFFFFFFFF (:63), final XOR (:68), 256 x uint32 = 1024 B constexpr table; crc32_update's stated contract "caller manages init and final XOR" (:73) matches the body exactly (:78-86).
-src/logging/pcm_frame.cpp -- FAIL -- Decom table offsets verified field-by-field against the packed TelemetryState layout (all 20 rows correct), but the flight-log build stamp is a frozen literal, the table's own unit rule is contradicted by several rows, and the event-frame CRC span is a bare literal where the standard-frame sites derive it.
-src/logging/radio_config_storage.cpp -- FAIL -- Dual-sector sequence/wear logic walked on every path (both-invalid, one-valid, both-valid tie, erase-then-write, failed-write) and is sound; the defects are a byte-comparison of a struct that contains padding and the missing half of the LL-31 flash/I2C protocol.
-src/logging/radio_config_storage.h -- PARTIAL -- Contract surface (helper Kind C): four declarations whose prose is usable but incomplete -- init()'s documented failure/ordering contract is not what the body does, and the write/erase preamble cites LL Entry 31 without stating the caller obligation that citation carries.
-
-#### Findings
 
 #### `logging/log_decimator.{cpp,h}`
 
@@ -3835,17 +3395,6 @@ src/logging/radio_config_storage.h -- PARTIAL -- Contract surface (helper Kind C
 - Direction: express the span the way the standard-frame sites do -- offsetof(PcmFrameEvent, crc16), or the same sizeof-sum shape -- so the constant follows the struct; one shared "bytes before the CRC" helper would collapse all four sites.
 - Verdict: CONFIRMED -- pcm_frame.cpp:132 CRCs a bare literal 13 while the three standard-frame sites (:59, :77, :103) derive the identical idea from sizeof(PcmFrameHeader) + sizeof(TelemetryState); the value is correct for PcmFrameEvent as declared at pcm_frame.h:63-72 and only the total-size static_assert at :73 constrains a future edit, so this is a verified ES.3 duplication with a conditional consequence -- which is how the finding states it.
 
-### B29 -- diag + notify backends
-
-#### Coverage
-
-- C:/Users/pow-w/Documents/RC-agent-walk/src/diag/diag_stats.cpp -- FAIL -- Walked all 6 functions whole; the AO-queue snapshot reads three QP getters outside the critical section the vendor API documents as the caller's job, and the T=0 SPI probe can increment the very error counter the same block prints.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/diag/diag_stats.h -- PARTIAL -- Contract surface (Kind C) walked as one work product with the .cpp; the three declarations are clear but the "pure read-only / no state mutation / no risk / safe to run from any phase" prose over-states what the body does.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/notify/notify_backend_audio.cpp -- FAIL -- Whole file read; the no-op stub itself is correct and honestly labelled, but the five tone constants are unreachable dead data carrying a rationale the code cannot satisfy.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/notify/notify_backend_led.cpp -- FAIL -- All 8 functions walked; the resolver logic and beacon overlay are correct and match led_patterns.h, but two comment blocks assert a wiring state that ao_notify.cpp contradicts and one asserts 0 is not a valid pattern code when it is.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/notify/notify_resolver.h -- PARTIAL -- Contract surface (Kind C primary, D secondary) evaluated per the helper; decode_health_faults verified correct against the notify_intents.h priority ordering, but the resolve_led_pattern contract prose is stale with respect to the Stage L beacon overlay.
-
-#### Findings
 
 #### `logging/psram_init.{cpp,h}`
 
@@ -3902,18 +3451,6 @@ src/logging/radio_config_storage.h -- PARTIAL -- Contract surface (helper Kind C
 - Direction: Hoist the trampoline (params struct, callback, timeout constant) into one shared internal header used by all three sites; at minimum put each local copy in an anonymous namespace so the types cannot collide across translation units.
 - Verdict: CONFIRMED -- Verified: kFlashSafeTimeoutMs / struct flash_erase_params / do_flash_erase are defined at flash_flush.cpp:26-47 and again at psram_init.cpp:306-316, both inside namespace rc and neither in an anonymous namespace, so the params struct is a same-named external-linkage type in two TUs (calibration_storage.cpp:77 uses a differently-named typedef, matching the 'third instance of the idiom' note at flash_flush.cpp:24).
 
-### B27 -- logging: flight_table + log_decimator + data_convert
-
-#### Coverage
-
-- src/logging/data_convert.h -- PARTIAL -- Read whole; the quantization block is the project's declared ICD text (docs/IVP.md:1655 "the struct IS the ICD") and states error bounds without the saturation limits the .cpp implements.
-- src/logging/data_convert.cpp -- PARTIAL -- Read whole; both conversion functions and all four clamp helpers walked field-by-field against FusedState/TelemetryState; field mapping and Q15/scale factors are correct, guard totality is not.
-- src/logging/flight_table.h -- FAIL -- Read whole as a Kind E layout/identity contract surface; the file-banner flash map contradicts the derived layout in flash_layout.h, and one nested-struct size claim is wrong.
-- src/logging/flight_table.cpp -- PARTIAL -- Read whole; all eleven functions walked, null/loaded/full guards are consistent, but the add-entry contract has an unstated and unchecked precondition.
-- src/logging/log_decimator.h -- PARTIAL -- Read whole as the decimator's declared contract; its field-treatment list is presented as exhaustive and is not.
-- src/logging/log_decimator.cpp -- PARTIAL -- Read whole; accumulate/average field lists cross-checked one-for-one against fused_state.h, quaternion antipodal handling and normalization guard are sound; three live FusedState fields are silently unhandled.
-
-#### Findings
 
 **CW-X5-05** — [Claude] · `spine` · **psram_flash_safe_test() is documented as a hard gate but its verdict gates nothing; the flight log ring is placed in PSRAM on the weaker self-test alone**  
 - Site: src/logging/psram_init.h:76-84 and src/main.cpp:394-396 against src/active_objects/ao_logger.cpp:251-277 and src/active_objects/ao_logger.cpp:389-394
@@ -4022,16 +3559,6 @@ src/logging/radio_config_storage.h -- PARTIAL -- Contract surface (helper Kind C
 - Direction: State the sentinel honestly -- 0 means "no intent in this category" here and deliberately aliases kOff, which no intent may map to -- or return a distinct sentinel outside the pattern range.
 - Verdict: REFUTED -- 0/kOff is already the project's designated "no overlay / normal" value system-wide (ao_rcos.cpp:325-326 maps kCalNeoOff straight to CalIntent::kNone), so the aliasing is deliberate rather than an unnoticed collision, resolve_led_pattern can never return 0 (line 143 falls back to kSensorNoGps), and the finding itself concedes there is no live bug on any path.
 
-### B30 -- telemetry + station
-
-#### Coverage
-
-- src/station/station_idle_tick.h -- PARTIAL -- Thin contract surface (helper Kind C: two prototypes plus prose); walked as a contract, and the banner's stated behaviour no longer matches the implementation it fronts (CW-B30-01).
-- src/station/station_idle_tick.cpp -- PARTIAL -- Two functions read whole; spine A/B and scope-lifetime clean (the file-scope statics are the mandated persistent-snapshot kind), but the tick fuses two operations behind one precondition (CW-B30-02), and the line-53 comment still names the pre-rename s_lastGpsReadUs for what is now g_lastGpsReadUs.
-- src/telemetry/mavlink_rx.cpp -- FAIL -- All 13 functions walked against include/rocketchip/mavlink_rx.h as one work product; the documented response contract is not delivered by the only production caller (CW-B30-03), placeholder ACK semantics and their comments are stale (CW-B30-04), the opaque parser buffer is unasserted (CW-B30-05), and a self-include test artifact ships in flight source (CW-B30-06).
-- src/telemetry/telemetry_encoder.cpp -- PARTIAL -- All 12 encode/decode functions walked; header/CRC construction is consistent and the packet-length claims are static_assert-backed in the header, but the 40-byte payload offset claim is comment-only (CW-B30-07) and the nav decoder validates its length parameter after dereferencing the buffer (CW-B30-08); also kCrcOffset / kCrcLoIdx at :361-362 are defined and never used anywhere in src/, include/ or test/, and their "CRC starts at byte 52" comment holds only for the 54-byte APID 0x001 packet, not the 58-byte APID 0x004 packet this same decoder now handles.
-
-#### Findings
 
 #### `notify/notify_resolver.h`
 
@@ -4268,16 +3795,6 @@ src/logging/radio_config_storage.h -- PARTIAL -- Contract surface (helper Kind C
 - Direction: State plainly in the header and at compute_verdict that until the AON-timer corroborator lands the verdict is sentinel-only, or lower the threshold to match the number of live signals; if the reduced coverage is accepted, record it where the fault-recovery design is dispositioned rather than leaving the header describing the intended design as the shipped one.
 - Verdict: CONFIRMED -- read_prior_uptime_ms() returns 0U unconditionally (:62-64), so the threshold test at :79 is never true, corroborators cannot exceed 1 and the branch at :82-84 is unreachable; the header sells "veto + 2-of-N corroborator logic" (:16-17) and the enum comment claims "2+ corroborating signals" (:43), and the in-file note at :58-59 even asserts the reset-cause signals are "load-bearing on their own" when one alone can never reach the threshold.
 
-### B32 -- safety: flight_in_progress + crash_record + health_monitor
-
-#### Coverage
-src/safety/crash_record.cpp -- FAIL -- Both functions read whole; the capture path's stated torn-write protection is not established by the code (CW-B32-01).
-src/safety/crash_record.h -- PARTIAL -- Contract surface (Kind C) walked in full: crash-record claims verified against crash_record.cpp and both writers in fault_protection.cpp; the flight-sentinel declaration block carries a predicate-named destructive read (CW-B32-05).
-src/safety/flight_in_progress.cpp -- PARTIAL -- All three functions read whole; the #if-split declaration and the volatile/barrier story are sound and single-context (FD enter_phase on Core 0, boot consumer in anomalous_boot_init), but flight_in_progress_was_set() hides a state change behind a query name (CW-B32-05).
-src/safety/health_monitor.cpp -- FAIL -- All 787 lines and every function read; four findings (CW-B32-02/03/04/06), the heaviest being an ignored seqlock return feeding every health decision and a comment set that denies an auto-action the code performs.
-src/safety/health_monitor.h -- FAIL -- Contract surface walked in full: encodings, thresholds and the two inline pure helpers verified against their .cpp uses; the HealthCritical preamble states a no-auto-trigger rule the implementation breaks (CW-B32-04) and kHealthWatchdogOk is declared with no comment and a name the body does not honour (CW-B32-03).
-
-#### Findings
 
 **CW-L019** — [Claude] *(lens re-run)* · `assertions` · **Accessors documented "valid after init" never consult the initialized flag that already exists**  
 - Site: src/safety/anomalous_boot.cpp:119
@@ -4352,19 +3869,7 @@ src/safety/health_monitor.h -- FAIL -- Contract surface walked in full: encoding
 - Direction: Hoist the rule into one named predicate (a gps_fix_usable(snap) helper, or named constants for the two thresholds) and have both evaluate_gps() and fill_go_nogo() call it, leaving the header comment as a pointer rather than a third copy.
 - Verdict: CONFIRMED -- evaluate_gps tests snap.gps_fix_type < 2 || snap.gps_satellites < 4 at :274, fill_go_nogo independently recomputes gps_fix_type >= 2 && gps_satellites >= 4 at :763-765, and go_nogo_checks.h:53 states the rule a third time in prose, while the sibling IMU/baro/ESKF rows at :745-751 are derived from the already-computed health byte rather than re-derived.
 
-### B33 -- safety: fault injection + test_mode
 
-#### Coverage
-src/safety/fault_inject.cpp -- PARTIAL -- All 10 hooks walked with the spine; gate helper, static posted event, --undefined retention and the __StackBottom/64-byte MPU-guard claim all verified true, but the force_hardfault preamble claims a verification path the test-mode gate cannot reach (CW-B33-04).
-src/safety/fault_inject.h -- PARTIAL -- Contract surface (helper Kind C) walked: declarations, the two extern volatile flags and the doc-pointer to FAULT_INJECTION.md are sound, but the banner's blanket "every fault_force_* entry checks test_mode_active()" is contradicted by its own line-24 exception marker (context for CW-B33-05).
-src/safety/station_fault_inject.cpp -- FAIL -- Four hooks walked; the ungated fault_force_station_gps_restore() writes the same value as fault_force_station_gps_loss() while a nine-line comment justifies it as a recovery action (CW-B33-01).
-src/safety/station_fault_inject.h -- PARTIAL -- Contract surface walked; declarations and the two extern volatile counters match their consumers in ao_telemetry.cpp, but the header states a gating invariant the file's own restore hook breaks with no marker (CW-B33-05).
-src/safety/test_mode.cpp -- PARTIAL -- All six functions walked; the three-condition AND gate, the fail-closed ordering and the single-use magic clear are correct as written, but three comment blocks describe state, mechanism and host-test machinery the bodies do not have (CW-B33-03, CW-B33-06).
-src/safety/test_mode.h -- PARTIAL -- Contract surface (helper Kind C) walked claim-by-claim; the arming/clearing design prose checks out against the bodies and against ao_flight_director.cpp:232 and command_handler.cpp:50, but two accessor contracts overstate what the module delivers (CW-B33-02, CW-B33-03).
-
-Lens notes for coverage completeness. Assertions (P10-5 / JPL-16): zero assertions across all six files, but every precondition in this batch is already expressed as an explicit fail-closed branch (test_mode_evaluate's null-accessor, non-kIdle and window checks; the nine fi_test_mode_gate call sites, all of which do check the returned bool), so no load-bearing precondition is left unverified -- no finding manufactured for density alone. Declaration scope and object lifetime: the posted event at fault_inject.cpp:120 uses static const storage (correct per the QP no-copy rule), the .uninitialized_data magic word's deliberately-uninitialized lifetime matches the documented crash_record pattern, and all file-scope statics here are single-owner Core 0 -- PASS. Concurrency was not walked as a lens (not assigned to this batch), but the itinerary's three-question cue was answered far enough to rule out a scope/lifetime CP.2 case: every reader of the five volatiles is on Core 0 (main.cpp:439-443, ao_telemetry.cpp:506/603, and the test_mode_active() call sites), so none of them is a cross-core mutable.
-
-#### Findings
 - **Primary-source check (2026-08-20): UPHELD**
   - Source: `docs/hardware/datasheets/PA1010D-datasheet-v03.pdf`, p.18, section "GSA -- GNSS DOP and Active Satellites", Table-7 "Mode 2". Cross-read in-tree: `src/drivers/gps_pa1010d.cpp:159-173` (fix derived from GGA fix quality plus GSA fix_mode), `src/drivers/gps.h:28-30` (`GPS_FIX_NONE = 0`, `GPS_FIX_2D = 2`, `GPS_FIX_3D = 3`), `src/core1/sensor_core1.cpp:327-328`.
   - Quote: PA1010D datasheet p.18, Table-7 (Mode 2) -- value "1  Fix not available"; value "2  2D (<4 SVs used)"; value "3  3D (>=4 SVs used)". (The PDF renders both inequalities as full-width glyphs; transcribed here in ASCII.)
@@ -4467,17 +3972,6 @@ Lens notes for coverage completeness. Assertions (P10-5 / JPL-16): zero assertio
 - Direction: Either replace the sentence with what the code does (host builds pin boot time at 0, so the window condition is always satisfied and is not host-testable), or add the settable static the comment already promises so the expiry branch gains a host test.
 - Verdict: CONFIRMED -- test_mode.cpp:17 is a bare "return 0U;" with no counter and no fixture hook, and test/test_test_mode.cpp contains no boot-window coverage (its only mention of condition (c) is the file-header comment at :11).
 
-### B34 -- safety: core1_i2c_pause + pyro_edge_logger + rf_link_health
-
-#### Coverage
-
-- C:/Users/pow-w/Documents/RC-agent-walk/src/safety/core1_i2c_pause.h -- FAIL -- Read whole; contract surface (Kind C, API/behavioural contract) walked per the helper: the preamble's central safety claim (every reachable runtime flash_safe_execute callsite is wrapped) is false against the current tree, and the blocking-call preamble omits the un-acked-return limitation.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/safety/core1_i2c_pause.cpp -- PARTIAL -- Read whole with its header as one work product; both functions pass the spine name/altitude test and the atomics carry justified acquire/release, but the pause/resume pair does not nest, the ack flag is written by the non-owning core, and the timeout path is silent.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/safety/pyro_edge_logger.h -- FAIL -- Read whole; the file-banner contract calls the storage a "static ring buffer", which the implementation is not.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/safety/pyro_edge_logger.cpp -- PARTIAL -- Read whole; concurrency 3-question test on the one volatile counter comes out clean (single-core ISR writer, Core 0 thread readers, no cross-core surface), but the drop-newest-on-full policy is undocumented at the site and unobservable to callers.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/safety/rf_link_health.h -- FAIL -- Read whole; contract surface (Kind B/C) for the RF link state machine. The logic itself is sound, self-consistent and host-tested, but three separate load-bearing comments describe a parameter, a duplicate declaration and a function that do not exist.
-
-#### Findings
 
 #### `safety/core1_i2c_pause.{cpp,h}`
 
@@ -4566,13 +4060,6 @@ Lens notes for coverage completeness. Assertions (P10-5 / JPL-16): zero assertio
 - Direction: Add an entry assertion in pio_backup_timer_init that each pin is either the 0xFF sentinel or a valid GPIO index, and consider lifting it to a compile-time check at the call site (CCG P.5) since the pins are constexpr there; the same treatment applies to the g_pio / g_offset invariant the arm and cancel paths rely on.
 - Verdict: REFUTED -- the consequence is hypothetical: pio_backup_timer_init has exactly one caller (main.cpp:337) passing two constexpr constants, the 0xFF sentinel is the only input rule the module needs today, and the tree as a whole carries a single runtime assert() in all of src/ (eskf.cpp:562), expressing preconditions as fail-closed branches instead -- so this is an assertion-density claim, not a defect on any reachable path.
 
-### B36 -- core1: sensor loop (Core0<->Core1 boundary)
-
-#### Coverage
-- C:/Users/pow-w/Documents/RC-agent-walk/src/core1/sensor_core1.cpp -- FAIL -- Read whole (524 lines); spine A/B/C run on all 11 functions and the comments, scope/lifetime, control-flow and concurrency lenses applied; four findings sited here, all on the cross-core boundary rather than on any single line's logic.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/core1/sensor_core1.h -- PARTIAL -- Read whole (66 lines); evaluated as a contract surface per the helper (Kind A shared-object catalog + Kind B shared protocol + Kind C API prose). The g_bestGpsFix ownership claims and its "benign for diagnostics" licence were checked against every consumer in the tree and hold; the core1_read_gps preamble understates the helper's side effects (CW-B36-03).
-
-#### Findings
 
 **CW-X5-06** — [Claude] · `spine` · **backup-timer disarm hands the pyro pins to SIO but nothing ever gives SIO an output direction, so the pins float instead of being driven LOW**  
 - Site: src/safety/pio_backup_timer.cpp:131-141 and src/safety/pio_backup_timer.cpp:108-113
@@ -4673,20 +4160,6 @@ Lens notes for coverage completeness. Assertions (P10-5 / JPL-16): zero assertio
 - Direction: Point the comment at the real site (the RX handler in ao_rf_manager.cpp), or extract that two-line promotion into a named helper in this header so the reference becomes true and the whole machine is testable from one place.
 - Verdict: CONFIRMED -- a tree-wide grep for rf_on_valid_rx returns exactly one hit, the comment itself at rf_link_health.h:137; the real promotion is the unnamed inline block at ao_rf_manager.cpp:199-201.
 
-### B35 -- safety: PIO backup timer + PIO watchdog
-
-#### Coverage
-
-- src/safety/pio_backup_timer.h -- PARTIAL -- Read whole as a Kind-C contract surface (API prose + declarations); every declared function judged against its implementation, and two preamble claims do not match the module.
-- src/safety/pio_backup_timer.cpp -- PARTIAL -- Read whole, both the target branch and the ROCKETCHIP_HOST_TEST stub branch; spine run on all six target functions plus the six stubs; init/arm/cancel/disarm walked as an init-use-teardown sequence.
-- src/safety/pio_watchdog.h -- PARTIAL -- Read whole as a contract surface; the kPioWatchdogCountdown arithmetic (666666 x 3 cycles = ~2.0 s at 1 MHz) was checked against the PIO program and is correct; the fault-query contract is not complete.
-- src/safety/pio_watchdog.cpp -- PARTIAL -- Read whole, both branches; init/feed/fault/deinit walked as a lifecycle (pio_add_program correctly paired with init/deinit, not feed -- the LL-42 hazard is not present here).
-
-Verification reads outside the batch, used only to check claims made inside it: pio/backup_timer.pio, pio/heartbeat_watchdog.pio, src/active_objects/ao_flight_director.cpp (the only consumer of fired/cancel/arm/disarm), src/main.cpp init_pio_safety, src/safety/health_monitor.cpp, src/safety/pyro_edge_logger.cpp, src/drivers/ws2812_status.cpp, src/flight_director/mission_profile.h.
-
-Considered and deliberately not filed: the two-channel state is carried as six parallel scalars (g_drogueSm/g_mainSm, g_droguePin/g_mainPin, g_drogueArmed/g_mainArmed) with the channel-select ternary repeated in four functions and the arm sequence written twice. For exactly two fixed channels this is a defensible shape, not a defect -- ES.3 pressure worth watching only if a third channel is ever added.
-
-#### Findings
 
 **CW-L020** — [Claude] *(lens re-run)* · `assertions` · **`rf_link_health.h` states parameter ranges in comments and enforces none of them**  
 - Site: src/safety/rf_link_health.h:91
@@ -4748,16 +4221,6 @@ Considered and deliberately not filed: the two-channel state is carried as six p
 - Direction: Route the pause indication through the owner rather than the driver -- Core 1 sets an atomic pause flag that AO_LedEngine composites as its own layer -- so the driver keeps one writer and the compositor's cache stays authoritative; then correct or delete the "debug-only" carve-out in ao_led_engine.h.
 - Verdict: CONFIRMED -- led_set_if_changed (ao_led_engine.cpp:93-103) compares only against the AO's own cache and never reads the driver, ws2812_update() is a no-op for MODE_SOLID (ws2812_status.cpp:454-457), and the "debug-only" carve-out at ao_led_engine.h:13-14 is contradicted by the production callers at rc_os_commands.cpp:1042 / 1098 and ao_rcos.cpp:343.
 
-### B37 -- AOs: flight_director + health_monitor
-
-#### Coverage
-
-- src/active_objects/ao_flight_director.cpp -- PARTIAL -- Read whole; spine A/B/C run on all 11 functions and lambdas, concurrency 3-question test answered (single Core-0 QV owner, run-to-completion barrier, g_sensorSeqlock read through a checked seqlock_read); findings CW-B37-01/02/04/06/07.
-- src/active_objects/ao_flight_director.h -- PARTIAL -- Read whole as a Kind C contract surface per the helper; six declarations inventoried, the prose is migration history rather than assumptions and limitations; finding CW-B37-03.
-- src/active_objects/ao_health_monitor.cpp -- PARTIAL -- Read whole; four functions walked, the subscribe/publish story verified against every SIG_HEALTH_STATUS and SIG_PHASE_CHANGE endpoint in the tree; finding CW-B37-05.
-- src/active_objects/ao_health_monitor.h -- PASS -- Thin Kind C/D contract surface; every claim checked and true (10Hz tick, queue depth 8, subscribes SIG_PHASE_CHANGE, priority 6 sits between FD 9 and Logger 4, AO_HealthMonitor consumed by diag_stats.cpp:141). One imprecision noted but not filed: the banner names "LED" as a consumer, but AO_LedEngine does not subscribe to SIG_HEALTH_STATUS -- the LED is driven indirectly through AO_Notify.
-
-#### Findings
 
 **CW-X1-01** — [Claude] · `concurrency` · **Core 1 tears down and re-enables a UART interrupt that Core 0 owns**  
 - Site: src/core1/sensor_core1.cpp:275 with src/drivers/gps_uart.cpp:376-379 and src/drivers/gps_uart.cpp:448-478
@@ -4868,15 +4331,6 @@ Considered and deliberately not filed: the two-channel state is carried as six p
 - Direction: Extract a named fd_publish_beacon_active() and call it from both lambdas, keeping the rc_log at the distress-beacon call site.
 - Verdict: REFUTED -- a four-line static-QEvt publish is the project's established idiom (LL Entry 35) and the finding itself concedes no runtime consequence, so extracting a helper for two four-line lambdas is a style preference, one AK_GUIDELINES 2/3 argues against.
 
-### B38 -- AOs: rcos + logger
-
-#### Coverage
-- src/active_objects/ao_logger.cpp -- FAIL -- read whole; spine run on all nine functions plus both state handlers; findings on the baro-rate builder (comment vs body, shared differentiator cache), a misplaced function banner, and a subscribed-but-unhandled signal.
-- src/active_objects/ao_logger.h -- PASS -- contract surface (helper Kind C): every prototype carries its promise, its "must be called after" precondition, and its caller set; the banner's "read-only accessors (Council A6)" framing sits oddly beside the two `_mut` accessors, but each is declared with its reason on the adjacent line, so no reader is misled.
-- src/active_objects/ao_rcos.cpp -- FAIL -- read whole; spine run on the cal-UI state machine, the dispatch helpers and the public trigger API; two live functional defects (USB input starvation in MAVLink mode, discarded state-transition returns) plus comment debris and a blocking flash op inside the handler.
-- src/active_objects/ao_rcos.h -- PARTIAL -- contract surface (helper Kind C): the trigger API is complete and each entry states "returns immediately", but the two claims that bound the AO's run-to-completion budget ("All calibration wizards are now non-blocking"; "synchronous but fast <500ms") are the ones the implementation does not keep -- see CW-B38-05.
-
-#### Findings
 
 **CW-X5-01** — [Claude] · `spine` · **PIO backup pyro timers are disarmed only on the CLI command path; three other ARMED-exit routes leave them counting**  
 - Site: src/active_objects/ao_flight_director.cpp:311-325 (the only arm/disarm pairing), bypassed at src/active_objects/ao_flight_director.cpp:141, src/flight_director/flight_director.cpp:400-404, src/active_objects/ao_telemetry.cpp:278-283 and :1088-1093
@@ -5002,16 +4456,6 @@ Considered and deliberately not filed: the two-channel state is carried as six p
 - Direction: drop the subscription and the IVP-105 comment if the direct read is the intended source, or add the case that consumes the event; either way, state in one line where the health byte enters FusedState.
 - Verdict: CONFIRMED -- the subscription at :346 has no matching case in logger_ao_running (:352-380), and the health byte reaches FusedState by the direct read at :138.
 
-### B39 -- AOs: radio + rf_manager
-
-#### Coverage
-
-- C:/Users/pow-w/Documents/RC-agent-walk/src/active_objects/ao_radio.cpp -- FAIL -- Read whole (807 lines); spine A/B/C run on every function, and the concurrency three-question test run on every file-scope mutable (g_spiOk, g_pendingRadioConfig/Valid, g_pendingApplyBackstopCount, g_configJustChanged, g_persistRequested, g_persistDebounceCount, g_lastRelaySeq, g_radioAo.state, the two posted static events, the four function-local static dividers) -- all single-owner in Core-0 handler context, no volatile, no locks, no cross-core reach, so the ownership half is clean; three findings sit here.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/active_objects/ao_radio.h -- PARTIAL -- Read whole (91 lines); evaluated as a contract surface (helper Kind C plus A) field by field -- the cooperative-dispatch access rule at line 26 is stated, the T5.5 apply/revert fields carry real intent comments, and AO_Radio_set_pending_config states its caller-validates precondition in proper JSF 134 form; the one defect is the rx_count claim at line 36.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/active_objects/ao_rf_manager.cpp -- FAIL -- Read whole (382 lines); spine A/B/C run on every function, concurrency three-question test run on g_rf and g_rfQueue (single owner, Core-0 cooperative dispatch, documented invariant, no volatile, no locks, no cross-core reach); three findings sit here.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/active_objects/ao_rf_manager.h -- PARTIAL -- Read whole (106 lines); evaluated as a contract surface (helper Kind C) member by member -- the AO Commandment V cooperative-dispatch invariant at lines 41-46 is exactly the kind of claim this lens wants stated, and the test-hook preamble at lines 95-102 documents its own gating honestly; three member/API claims are contradicted by the .cpp.
-
-#### Findings
 
 #### `active_objects/ao_radio.{cpp,h}`
 
@@ -5042,17 +4486,6 @@ Considered and deliberately not filed: the two-channel state is carried as six p
 - Direction: Branch on the reinit result -- on failure clear s.initialized, skip the setter replay, and surface the state so the dashboard and the pre-arm aggregator can see a dead radio; guard the relay send_start the way line 207 does, and consider [[nodiscard]] on the bool-returning rfm95w declarations so this class stops being a hand-walk.
 - Verdict: CONFIRMED -- rfm95w_init's bool is dropped at ao_radio.cpp:248 with no (void) cast while the boot call at :540 checks it, rfm95w.h carries no [[nodiscard]], and CheckedFunctions lists only flash_safe_execute; the same idiom split appears between :207 and :453.
 
-### B40 -- AOs: telemetry + notify + led_engine
-
-#### Coverage
-src/active_objects/ao_led_engine.cpp -- PARTIAL -- Whole file read (341 lines, every helper and both state handlers spined); the dedup cache, the Core-1 vitality fallback and the dev override each carry a finding.
-src/active_objects/ao_led_engine.h -- PARTIAL -- Contract surface (Kind C): the banner's "sole owner of the NeoPixel hardware" claim does not hold against the tree, and the dev-helper preamble misdescribes the layer it writes.
-src/active_objects/ao_notify.cpp -- PARTIAL -- Whole file read (390 lines); intent mapping, tick handler and all four post functions walked, static-event posts verified against LL Entry 35; sensor-timeout latch and a rule mis-citation found.
-src/active_objects/ao_notify.h -- PASS -- Contract surface (Kind C/D): each declared post function's prose claim (counter reset-to-full, latch-until-cleared, station-only no-op) checked against the body and matches.
-src/active_objects/ao_telemetry.cpp -- FAIL -- Whole file read (1133 lines, every function spined); an undefined identifier survives only because a macro discards it, the tracked-command dedupe and safety-class logic is inert, and an RX helper does not do what its comment claims.
-src/active_objects/ao_telemetry.h -- PARTIAL -- Contract surface (Kind C/E, 6 structs + 17 declarations); prose is otherwise sound but the retry-stat field comment states a retry budget the implementation no longer uses.
-
-#### Findings
 
 **CW-L038** — [Claude] *(lens re-run)* · `control-flow` · **`ROCKETCHIP_RADIO_PERSIST` branch references four renamed statics by their old names**  
 - Site: src/active_objects/ao_radio.cpp:381 (also :388, :389, :697, :699, :700, :703, :704, :705)
@@ -5186,14 +4619,6 @@ src/active_objects/ao_telemetry.h -- PARTIAL -- Contract surface (Kind C/E, 6 st
 - Direction: Rename to reflect what it is (an override above all layers) and say in both comments that it masks the Core-1 stall fault while set; alternatively make it write layers[kLayerFault] so the documented priority actually holds.
 - Verdict: RESHAPED -- the header's "into the Fault layer" wording is genuinely wrong, but the .cpp comment at :336-338 does say the compositor checks the variable first and the helper is dev-CLI-only, so the "neither comment tells a reader" framing was overstated.
 
-### B41 -- top-level: main + shared_state
-
-#### Coverage
-- C:/Users/pow-w/Documents/RC-agent-walk/src/main.cpp -- FAIL -- Read whole (544 lines); spine run on all 16 functions plus the idle bridge and main(); boot-order, GPS bring-up and cross-core launch claims verified against the files they cite.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/shared_state.cpp -- FAIL -- Read whole (46 lines); every definition traced to its declaration and to its real readers/writers across src/; the defect set is contract-level and shared with the header.
-- C:/Users/pow-w/Documents/RC-agent-walk/include/rocketchip/shared_state.h -- FAIL -- Read whole (77 lines) as the paired contract surface per the contract-surface helper; each declaration and each ownership annotation judged against actual access.
-
-#### Findings
 
 ### top-level
 
@@ -5284,22 +4709,6 @@ src/active_objects/ao_telemetry.h -- PARTIAL -- Contract surface (Kind C/E, 6 st
 - Direction: Extract one end_arm_confirm() helper called from all three exits, and settle there whether g_armBufPos should be cleared on exit as well as on entry.
 - Verdict: REFUTED -- a three-statement teardown repeated at three exits of one 38-line function, with no live consequence (g_armBufPos is reset on entry at :363, which the finding itself concedes), is a DRY preference rather than a defect.
 
-### B43 -- cli: rc_os_commands
-
-#### Coverage
-
-- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_commands.cpp -- FAIL -- Read whole (1590 lines, ~40 functions); spine blocks A/B/C run on every function; defects found on the station-distance, flight-download, preflight and boot-summary paths, plus a cross-TU constant duplicate whose comment cites a file that does not define it.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_commands.h -- PARTIAL -- Declaration-only contract surface (Kind C, API/behavioral contract) evaluated per the helper: all 9 declared prototypes resolve to real definitions with matching signatures, but the contract prose is false in two places and the header under-declares the module's public surface.
-
-Notes carried with the coverage verdict, not filed as findings:
-
-- Itinerary hot-spot cue ("3 volatile T2 command handoff -> concurrency 3-question test"), answered for g_t2_pending / g_t2_cmd / g_t2_p1 (rc_os_commands.cpp:53-55). Owner: stage_t2_queue_command (line 57), reached only from cli_handle_unhandled_key (line 1545) -- Core 0, QV handler context. Mutator/reader: stage_t2_fire_pending_if_any (line 67), reached only from handle_rx_packet in src/active_objects/ao_telemetry.cpp:642-643 -- also Core 0, also QV handler context, also inside the same ROCKETCHIP_STAGE_T2_CHEAT guard. Barrier: none needed -- both contexts are run-to-completion handlers on one core, so there is no cross-core surface and no ISR preemption. The volatile qualifiers therefore buy nothing, but they are not standing in for a missing barrier either. No concurrency finding; the block is build-flag-gated throwaway code and its comments (lines 45-51, 64-66) match what the code does.
-- The ESKF globals this file reads directly (g_eskf, lines 262-307 and 894-929) are updated by eskf_runner_tick(), which runs in qv_idle_bridge (src/main.cpp:433-448) -- Core 0 idle. CLI display runs in Core 0 handler context. Under QV cooperative scheduling idle cannot run while a handler runs, so these unsynchronized reads are not a CP.2 race. No finding.
-- cmd_findme_beacon uses a function-scope static QEvt (line 1585) before QActive_publish_ -- correct per the scope/lifetime lens' canonical QP case (LL Entry 35). PASS.
-- The -Wshadow hit previously measured at this file's line 1332 is remediated; the surviving comment records the decision.
-- Relevant to how much weight the manual pass carries here: src/cli/** is exempted from the clang-tidy gate (scripts/audit/full_tree_clang_tidy.sh:37 and :53), so none of this file is covered by readability-function-size, bugprone-infinite-loop, bugprone-integer-division, or any other tidy check. Where a finding below might normally be argued as gated, it is not gated for this file.
-
-#### Findings
 
 #### `cli/rc_os_commands.{cpp,h}`
 
@@ -5393,16 +4802,6 @@ Notes carried with the coverage verdict, not filed as findings:
 - Direction: Move the constants and the two function definitions below a single contiguous include block, and include rc_log.h and the string header directly rather than relying on transitive reach.
 - Verdict: RESHAPED -- the split include block is real (includes at 11-35 and 121-146 around 85 lines of constants and two function definitions), but the transitive-include half is a documented project posture (.clang-tidy explicitly skips misc-include-cleaner as too noisy) and would fail loudly at compile time, so only the layout claim survives.
 
-### B44 -- cli: dashboard + debug
-
-#### Coverage
-
-- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_dashboard.cpp -- FAIL -- Read whole (482 lines); spine run on all 10 functions; each operator-facing cell was checked against the telemetry field that actually reaches it, and four disagree.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_dashboard.h -- PARTIAL -- Thin API contract surface (helper Kind C): the render/pause/resume promises are clear, but the newest parameter carries an undocumented contract and the doxygen block binds to the wrong declaration.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_debug.cpp -- FAIL -- Read whole (230 lines); spine run on all 7 functions; dispatcher control flow and test-mode gating are sound, but the operator-facing menu text duplicates and paraphrases authority that lives elsewhere.
-- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_debug.h -- FAIL -- Thin API contract surface (helper Kind C): the migration rationale and gating story are well stated, but the documented return contract of the main dispatch entry point contradicts both its body and its only caller.
-
-#### Findings
 
 #### `cli/rc_os_dashboard.{cpp,h}`
 
@@ -5471,35 +4870,7 @@ Notes carried with the coverage verdict, not filed as findings:
 - Direction: Route the display paths through one decode function (telemetry_to_fused_approx, or a small named accessor per field) so the scale factors and the nibble packing are stated once, and anchor kStandardDecomTable to the struct with a static_assert per row comparing the entry's offset to offsetof, so a layout change fails the build rather than the ground decode.
 - Verdict: RESHAPED -- the conversion half holds (data_convert.cpp owns the scales and the nibble packing; rc_os_dashboard.cpp:51-52/155-162 and rc_os_commands.cpp:939-947 each redeclare kMmToM/kCmsToMs and re-apply the [7:4]/[3:0] split, and telemetry_to_fused_approx has no caller outside test_data_model.cpp), but the decommutation-table half is overstated: test/test_pcm_frame.cpp:311-323 does anchor the table to the struct -- DecomTableCoversAllBytes compares the summed field sizes to sizeof(TelemetryState) and DecomTableOffsetsInRange bounds every entry -- so inserting or resizing a field without updating the table fails the host tests; the residual gap is narrower, namely reordering same-sized fields or a table edit that keeps the sizes right while getting an offset wrong.
 
-### X3 -- comments versus their source of truth
 
-Lane X3 is a whole-system cross-cutting pass, not a file-by-file walk. It reads the
-comments in `src/` and `include/` that name an authority — a datasheet, a standard, a
-project document, a deviation-register ID, an SDK or framework contract, a council
-decision — and asks two questions: does the named authority exist and say what the
-comment says it says, and does the body do what the comment claims. Findings are
-weighted toward claims whose truth lives in a different file from the claim.
-
-#### Coverage
-
-The enumeration swept: all 186 `.c/.cpp/.h/.hpp` files under
-`C:/Users/pow-w/Documents/RC-agent-walk/src` and
-`C:/Users/pow-w/Documents/RC-agent-walk/include`. Vendored `lib/`, `EXTERNAL/` and
-`pico-sdk` were excluded per scope. Each line below is a swept group, not a per-file
-verdict; files named individually are the ones read whole.
-
-- include/rocketchip/ (33 files) -- PARTIAL -- Contract-surface sweep of every header's claim prose; `rc_log.h`, `flash_layout.h`, `sensor_seqlock.h`, `telemetry_encoder.h`, `linker_symbols.h`, `version.h`, `config.h` read whole; findings CW-X3-02, -03, -05, -06, -07, -09.
-- src/active_objects/ (18 files) -- PARTIAL -- All AO headers read for rate/priority/queue-depth claims and cross-checked against the `.cpp` definitions; `ao_rcos.{h,cpp}`, `ao_radio.cpp`, `ao_telemetry.{h,cpp}`, `ao_rf_manager.{h,cpp}`, `ao_flight_director.cpp`, `ao_health_monitor.cpp` read for claim-vs-body; findings CW-X3-01, -08, -09.
-- src/safety/ (18 files) -- PARTIAL -- Every deviation-ID and design-doc citation resolved; `core1_i2c_pause.{h,cpp}`, `fault_protection.cpp`, `crash_record.h` read whole; findings CW-X3-01, -04.
-- src/log/, src/logging/ (17 files) -- PARTIAL -- `rc_log.cpp` read whole against `rc_log.h`; `crc16_ccitt.h` and `crc32.h` verified line-by-line against their own stated polynomial/init/final-XOR claims (both PASS); `psram_init.cpp`, `radio_config_storage.{h,cpp}`, `flash_flush.{h,cpp}` swept for datasheet and flash-map claims; findings CW-X3-02, -03, -06.
-- src/drivers/ (20 files) -- PARTIAL -- The datasheet-paraphrase concentration; every `datasheet`/`§`/`Section` citation enumerated; `baro_dps310.h`, `icm20948.cpp`, `rfm95w.{h,cpp}`, `i2c_bus.cpp`, `mcu_temp.{h,cpp}`, `gps_pa1010d.cpp`, `spi_bus.cpp` read for paraphrase-vs-pointer form; finding CW-X3-10. Register-offset and timing claims against vendor datasheets are UNVERIFIED — this pass has no datasheet access.
-- src/fusion/ (16 files) -- PARTIAL -- Algorithm-provenance citations (Sola 2017 section/equation numbers, ArduPilot/PX4 parameter provenance, DPS310/AK09916/MT3333 noise figures) cross-checked against each other and against `docs/plans/PHASE5_ESKF_PLAN.md`; `eskf.h`, `mahony_ahrs.h`, `eskf_runner.h` read whole; finding CW-X3-05. `eskf.h:199`'s DPS310 noise/altitude derivation agrees with `baro_dps310.h`'s table -- PASS.
-- src/flight_director/ (14 files) -- PASS -- All `docs/` pointers resolve; `mission_profile_data.h`'s auto-generated banner and `guard_functions.h`'s shelved-plan pointer both resolve to existing documents.
-- src/cli/, src/diag/, src/station/, src/telemetry/, src/notify/, src/calibration/, src/core1/, src/math/, src/main.cpp, src/shared_state.cpp (30 files) -- PARTIAL -- Swept for doc pointers, LL-Entry citations and init-order claims; `main.cpp`'s init-order comments ("flash/I2C before USB per LL Entry 4/12") verified against the actual call order in `init_hardware()` / `init_peripherals()` -- PASS; findings CW-X3-01, -05.
-- Cross-tree citation audit -- PARTIAL -- All 36 distinct `docs/`, `standards/` and `*.md` paths named in `src/`+`include/` comments were resolved against the working tree; 2 do not exist (CW-X3-05). All 40+ `LL Entry N` citations were checked against `docs/agents/LESSONS_LEARNED.md` for topic match; every one is correctly numbered and topically correct — a genuine PASS worth recording, since this is the class the project's own LL Entry 37 warns about.
-- Cross-tree deviation-register audit -- PARTIAL -- Every deviation ID cited from code (`TP-2`, `CAST-1`, `CAST-2`, `FH-1`, `CG-1`) checked against `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`; 1 does not exist (CW-X3-04).
-
-#### Findings
 - **Primary-source check (2026-08-20): UPHELD**
   - Source: no external document is implicated by this finding — every claim in it is about this tree, and the tree is present. Read: src/logging/pcm_frame.cpp:21-41 (kStandardDecomTable), include/rocketchip/telemetry_state.h:31-58 (packed struct plus static_assert(sizeof == 45)), test/test_pcm_frame.cpp:311-327, src/logging/data_convert.cpp:58-100 and :110, src/cli/rc_os_dashboard.cpp:51-52 and :155-162, src/cli/rc_os_commands.cpp:939-947.
   - Quote: test/test_pcm_frame.cpp:311-318 — "TEST(PcmFrame, DecomTableCoversAllBytes) { ... totalBytes += rc::kStandardDecomTable[i].size; EXPECT_EQ(totalBytes, sizeof(rc::TelemetryState)); }" and :320-327 — "EXPECT_LT(field.offset + field.size, static_cast<uint32_t>(sizeof(rc::TelemetryState) + 1)) << "Field " << field.name << " extends beyond TelemetryState";".
@@ -5620,7 +4991,621 @@ verdict; files named individually are the ones read whole.
 - Direction: either delete the dead binding and the function with it, or wrap the body in rc::core1_i2c_pause() / core1_i2c_resume() and state the precondition in cal_hooks.h so it cannot be called from Core 0 without the pause.
 - Verdict: CONFIRMED -- `cal_read_accel()` (cal_hooks.cpp:37-52) does a direct `icm20948_read(&g_imu, ...)` with no `core1_i2c_pause()`, contradicting the invariant stated at sensor_core1.cpp:10-12, 170-171 and 344-345; `main.cpp:317` installs it as `rc_os_read_accel`, and a whole-tree grep confirms the finding's own qualifier -- `rc_os_read_accel` is never invoked anywhere (only `rc_os_read_mag` is, at ao_rcos.cpp:667), so this is a correctly-scoped latent-violation/dead-binding finding, not an overstatement.
 
-### X2 -- cross-module duplicated knowledge
+
+**CW-X5-03** — [Claude] · `spine` · **init_gps_early() inverts the documented GPS init ordering and the UART-first transport policy on every board**  
+- Site: src/main.cpp:217-227 against src/main.cpp:123-150 and src/main.cpp:152-161
+- Lens: spine block C "Peripheral init SEQUENCE / lifecycle" (mis-ordered init across subsystems) + CCG NL.2 (comment and code disagree) / JSF AV 134 (ordering assumption stated but not honoured)
+- Claim: `init_gps_early()` runs a full PA1010D I2C bring-up before the IMU exists and unconditionally on all boards, contradicting both ordering rules that `init_sensors()` and `init_gps()` state a few lines above it.
+- Why: `init_sensors()` states the constraint at main.cpp:157-161 -- "Init order matters: IMU + baro FIRST, GPS LAST ... Probing the GPS (0x10) triggers NMEA streaming which can corrupt AK09916 init transactions. Defer GPS probe until after IMU bypass mode is fully established." But `init_early_hw()` calls `init_gps_early()` at main.cpp:238, well before `init_sensors()` at :299, and `gps_pa1010d_init()` (src/drivers/gps_pa1010d.cpp) issues an `i2c_bus_recover()`, three blind PMTK writes and up to eight 250-byte reads at 0x10 -- roughly 1.5 s of GPS traffic on the bus the AK09916 at 0x0C will later share through the ICM-20948's bypass bridge. The stated ordering constraint is therefore never satisfied on any board that has a PA1010D attached. Second, `init_gps()` documents "UART first ... I2C fallback ... UART GPS has no I2C bus contention (LL Entry 24), preferred for production" (main.cpp:124-127), but `init_gps_early()` has no `board::kUartGpsAvailable` guard, and `init_sensors()` only calls `init_gps()` when `!g_gpsInitialized` (main.cpp:185). On the flight Feather, where `kUartGpsAvailable` is true (include/rocketchip/board_feather_rp2350.h:65), a PA1010D present on the Qwiic chain wins the race and the preferred UART backend is never bound. The only file that records the intent -- src/station/station_idle_tick.cpp:9-11 -- describes this path as "station Fruit Jam: ultra-early in init_early_hw()", i.e. a Fruit-Jam-specific workaround that shipped ungated.
+- Confidence: high
+- Direction: gate `init_gps_early()` on `if constexpr (!board::kUartGpsAvailable)` so only the boards that have no UART GPS take the early I2C window, and either satisfy or retract the IMU-before-GPS ordering statement in `init_sensors()` now that a legitimate earlier GPS path exists.
+- Verdict: CONFIRMED -- `init_gps_early()` (main.cpp:219-227) is called unconditionally from `init_early_hw()` at :238 with no `board::kUartGpsAvailable` guard, and `gps_pa1010d_init()` does issue `i2c_bus_recover()` (gps_pa1010d.cpp:211), three blind PMTK writes (:222-232) and up to eight 250-byte reads (:241-242) at 0x10 long before `init_sensors()` (:299) establishes IMU bypass mode, while `if (!g_gpsInitialized) init_gps();` at :185 makes a successful early I2C bind pre-empt the UART-first preference documented at :123-127 on the Feather (kUartGpsAvailable = true, board_feather_rp2350.h:65).
+
+**CW-X5-04** — [Claude] · `spine` · **the boot-time PSRAM flash-safe test runs an unprotected flash_safe_execute after Core 1's sensor loop is already driving I2C**  
+- Site: src/main.cpp:389-398 against src/safety/core1_i2c_pause.h:6-28 and src/logging/psram_init.cpp:318-347
+- Lens: spine block C "Peripheral init SEQUENCE / lifecycle" (ordering dependency between subsystems at boot) + CCG P.8 / JPL-C Rule 8 on the documented pause-flash-reset protocol
+- Claim: `init_application()` calls `psram_flash_safe_test()` immediately after `init_core1_role()` has released Core 1 into its sensor loop, without the `core1_i2c_pause()` / `i2c_bus_reset()` / `core1_i2c_resume()` sequence that core1_i2c_pause.h declares mandatory around every reachable flash_safe_execute callsite.
+- Why: `init_core1_role()` (main.cpp:345-361) sets `g_sensorPhaseActive = true` and stores `g_startSensorPhase`, which releases Core 1 from its wait loop into `core1_sensor_loop()` (sensor_core1.cpp:495-523) where it begins ~1 kHz `icm20948_read()` traffic; it then only waits on `g_core1LockoutReady`, which Core 1 had already set before that wait (sensor_core1.cpp:476-477), so the wait returns essentially immediately. Core 0 then executes `psram_flash_safe_test()` at main.cpp:395, which calls `flash_safe_execute(do_flash_erase, ...)` at psram_init.cpp:344. That is exactly the LL-31 window core1_i2c_pause.h:8-15 describes: `multicore_lockout` halts Core 1's CPU but does not drain the DW_apb_i2c transaction already in flight, which is then abandoned at the APB bridge timeout and leaves the peripheral corrupt. Neither the preventive pause nor the recovery `i2c_bus_reset()` is present. The next statement, `init_baro_auto_zero()` (main.cpp:398), spins in `while (calibration_is_active())` waiting on baro samples that only Core 1's I2C reads can produce -- so a corrupted peripheral here stalls boot at the auto-zero rather than failing visibly. The three other reachable flash chains (rc_os_commands.cpp:1042 and :1098, ao_rcos.cpp:343) all do wrap; this one is the outlier, and it is invisible from psram_init.cpp, which cannot know when Core 1 was released.
+- Confidence: high
+- Direction: either move the flash-safe test above `init_core1_role()` (it only needs Core 1 registered as a lockout victim, which happens before the sensor phase starts) or wrap it in the same pause / reset / resume triad the other callsites use.
+- Verdict: CONFIRMED -- `init_core1_role()` sets `g_startSensorPhase` (main.cpp:349) then waits only on `g_core1LockoutReady`, which Core 1 already stored at sensor_core1.cpp:476-477 before its own start-flag wait, so Core 0 falls straight through to `psram_flash_safe_test()` -> `flash_safe_execute(do_flash_erase, ...)` (psram_init.cpp:344) as Core 1 enters `core1_sensor_loop()`; the tree-wide grep shows no `core1_i2c_pause()` and -- independently of the race's timing -- no post-flash `i2c_bus_reset()` here, while every other reachable callsite (rc_os_commands.cpp:1042/:1098, ao_rcos.cpp:343) applies both, and the main.cpp:302-303 comment documents only why the test is deferred, not an exemption from the protocol.
+
+---
+
+## Original walk coverage (file-by-file pass)
+
+The per-file record from the original 44-batch walk, moved here **verbatim** from the batch wrappers so the finding sections match the owner walk's layout. Nothing is reworded or summarised. The lens-level record for the four re-run lenses follows below.
+
+### B08 — drivers: i2c_bus + spi_bus
+
+#### Coverage
+src/drivers/i2c_bus.cpp -- PARTIAL -- All 11 functions read whole and run through spine A/B/C; shape, guard clauses, scope and lifetime are clean (no early-exit leaves the bus half-configured), but the scan carries an unreachable identify-branch and the bit-bang recovery idiom is open-coded twice.
+src/drivers/i2c_bus.h -- FAIL -- Contract surface (helper Kind C/E) inventoried in full: the file banner asserts a fixed instance and pin pair that the board-abstracted config immediately below contradicts, and the recovery/scan preambles state none of the cross-core preconditions the call sites actually enforce.
+src/drivers/spi_bus.cpp -- PARTIAL -- All 5 functions plus the file-scope atomic read whole; CS is deasserted on every path and the atomic counter's memory order is defensible, but the error-detection helper cannot fire against the blocking SDK API it wraps and `spi_init`'s return is dropped.
+src/drivers/spi_bus.h -- FAIL -- Contract surface (Kind C) inventoried: the init preamble names an instance and three GPIO numbers that are true only for one of four supported boards, and the counter block promises a diagnostic the implementation cannot produce.
+
+### B02 — public headers: board HAL pack
+
+Walked as contract surfaces (helper Kind E — layout / identity / configuration map, with a Kind C
+API-contract element for the three inline `board_*` functions). Surface spine applied per helper §9
+(name test, one altitude, duplication, distrust confident comments) plus the Class-index lenses for
+`include/rocketchip/` public headers: comments & documentation quality, declaration scope & object
+lifetime, class & interface design. Claim-vs-truth checks were run against the real consumers
+(`include/rocketchip/config.h`, `src/main.cpp`, `src/drivers/ws2812_status.*`,
+`src/drivers/gps_uart.cpp`, `src/cli/rc_os_commands.cpp`) rather than deferred.
+
+#### Coverage
+
+include/rocketchip/board.h -- PARTIAL -- Selector read whole; include-chain rationale is a real intent comment, but the `#else` arm silently maps an unrecognised board onto the Feather pin map (CW-B02-06).
+include/rocketchip/board_feather_rp2350.h -- PARTIAL -- Full map read and cross-checked against config.h/main.cpp; pin constants all reach a consumer, but the capability block, `kNeoPixelGpioBase` and `kLedActiveHigh` do not (CW-B02-01, CW-B02-04, CW-B02-07).
+include/rocketchip/board_fruit_jam.h -- PARTIAL -- Full map read; [M1]/[M2]/[M3]/[N1] hazard notes are good JSF 134 preamble work, but `board_release_peripheral_reset()` hides its own preconditions (CW-B02-05) and the pack-wide dead-constant issues apply here too.
+include/rocketchip/board_pico2.h -- FAIL -- Read whole; the map omits `kPsramCsPin`, which `config.h:90` consumes unconditionally, so this board cannot compile the moment its bring-up gate is lifted (CW-B02-02).
+include/rocketchip/board_tiny_2350_common.h -- FAIL -- Read whole; `kPsramCsPin` is assigned the same GPIO as `kI2cSclPin` on a live consumer path (CW-B02-03), and the preamble points at a file and a contract member that do not exist (CW-B02-08).
+include/rocketchip/board_tiny_2350_plus.h -- PASS -- Two-constant variant override, correctly placed and guarded; no defect of its own (note: its `kPsramAvailable = true` is what makes CW-B02-03's collision reachable).
+
+### X5 — peripheral init, sequence and lifecycle pairing
+
+Lane scope: init -> use -> teardown as a sequence across module boundaries. Boot ordering
+dependencies between subsystems, acquire/release pairing, arm/disarm symmetry, and resources set up
+in one module and torn down (or not) in another. Field-manual anchor: spine block C, "Peripheral
+init SEQUENCE / lifecycle" ADD criterion, supported by CCG P.8 (don't leak any resource; release on
+every exit), JSF AV 143 / two-phase-init, JSF AV 134 (documented assumptions and ordering
+requirements), CCG NL.2 (comment/code disagreement) and JPL-C Rule 8 (single owner).
+
+Method: built a tree-wide enumeration of lifecycle-shaped symbols across src/ and include/
+(`*_init`, `*_deinit`, `*_begin`, `*_start`, `*_stop`, `*_arm`, `*_disarm`, `*_cancel`, `*_claim`,
+`*_unclaim`, `*_reset`, `*_recover`, plus the SDK primitives `irq_set_enabled`,
+`irq_set_exclusive_handler`, `gpio_set_irq_enabled*`, `exception_set_exclusive_handler`,
+`pio_add_program` / `pio_remove_program` / `pio_sm_claim` / `pio_sm_unclaim`,
+`multicore_launch_core1` / `multicore_lockout_victim_init`, `flash_safe_execute`,
+`save_and_disable_interrupts` / `restore_interrupts`, `uart_init` / `uart_deinit`,
+`i2c_init` / `i2c_deinit`, `spi_init`) -- 264 call sites. Then walked each pairing across its
+call graph rather than per file, reading the integrator files whole (main.cpp, sensor_core1.cpp)
+and the owning drivers/AOs around each pair.
+
+#### Coverage
+
+Boot-sequence integrators (read whole):
+src/main.cpp -- FAIL -- full boot chain walked: init_early_hw -> init_hardware -> init_application -> start_active_objects; three ordering/pairing defects anchored here (CW-X5-03, CW-X5-04, CW-X5-05).
+src/core1/sensor_core1.cpp -- FAIL -- core1_entry lockout/start-phase handshake, sensor loop, and the Core-1-side GPS reinit call that crosses a core boundary (CW-X5-02).
+src/shared_state.cpp -- PASS -- definitions only; init-order-relevant flags (g_i2cInitialized, g_psram*, g_gps*) all zero-init before main, no static ctor ordering hazard.
+include/rocketchip/shared_state.h -- PARTIAL -- ownership map read as a contract surface; g_baroContinuous is set once at init and never cleared when Core 1 declares the baro dead (noted, not filed -- data-validity lane).
+
+PIO / pyro arm-disarm chain:
+src/safety/pio_backup_timer.cpp -- FAIL -- init/arm/cancel/disarm sequence walked against LL-42 discipline; program lifecycle now correct, but the pin-ownership half of the contract is unimplemented (CW-X5-06).
+src/safety/pio_backup_timer.h -- PASS -- declares the arm/cancel/disarm triad clearly; no claim contradicted here.
+src/safety/pio_watchdog.cpp -- PARTIAL -- claim/add/init/feed sequence is correct and symmetric; pio_watchdog_deinit() exists, is exported in the header, and has zero callers tree-wide (dead teardown, recorded not filed).
+src/safety/pio_watchdog.h -- PARTIAL -- same: exports a teardown no one calls.
+src/safety/pyro_edge_logger.cpp -- PASS -- GPIO edge IRQ registered once on Core 0 after the PIO pins exist; no teardown needed, none advertised.
+src/active_objects/ao_flight_director.cpp -- FAIL -- the arm/disarm hooks and the backup-fire latch both walked; CW-X5-01 and CW-X5-07.
+src/flight_director/flight_director.cpp -- FAIL -- enter_phase() sentinel pairing and the in-HSM ARMED-timeout auto-disarm are two of the bypass routes (CW-X5-01, CW-X5-08).
+src/safety/flight_in_progress.cpp -- PARTIAL -- set/clear/consume primitives are correct in isolation; the asymmetry is at the call sites (CW-X5-08).
+src/safety/crash_record.h -- PARTIAL -- documents "cleared on safe LANDED entry"; that is the whole clear-side contract and it under-covers the disarm paths (CW-X5-08).
+src/safety/anomalous_boot.cpp -- PASS -- consume-once read of the sentinel is correct and singly-owned; it is the upstream setter that is unpaired.
+src/active_objects/ao_telemetry.cpp -- FAIL -- both MAVLink ARM/DISARM entry points (radio at :278, USB at :1088) bypass the hardware pairing (CW-X5-01).
+src/cli/rc_os.cpp -- PASS -- CLI routes ARM/DISARM/ABORT/RESET through the command wrapper that does maintain the pairing; dispatch_flight_signal is used only for sensor-event injection.
+src/flight_director/command_handler.cpp / .h -- PASS -- validation only, no resource lifecycle.
+src/safety/fault_inject.cpp -- PASS -- arms the FD via the raw signal path, but is test-mode gated by design and says so.
+
+Flash / Core-1 pause protocol:
+src/safety/core1_i2c_pause.h -- PARTIAL -- states the governing contract ("wires these primitives around every reachable runtime flash_safe_execute() callsite"); one reachable callsite is unwrapped (CW-X5-04).
+src/safety/core1_i2c_pause.cpp -- PASS -- pause/ack/resume primitive is correct, bounded, and idempotent.
+src/cli/rc_os_commands.cpp -- PASS (lifecycle) -- both flash chains (flush at :1042 and erase at :1098) correctly pause, flash, i2c_bus_reset, resume.
+src/active_objects/ao_rcos.cpp -- PARTIAL -- cal_save_to_flash() at :335 is correctly wrapped; AO_RCOS_start_cal_save() at :1289 calls calibration_save() with the i2c_bus_reset but no pause/resume (single-file asymmetry, left to the file walk).
+src/calibration/calibration_storage.cpp -- PASS -- init is an XIP read only; writes go through flash_safe_execute and are wrapped by their callers.
+src/logging/radio_config_storage.cpp -- PARTIAL -- init is read-only; the write path is inside ROCKETCHIP_RADIO_PERSIST, which is never defined in the build, so the unwrapped flash write at ao_radio.cpp:706 is currently unreachable (recorded, not filed).
+src/logging/flash_flush.cpp -- PASS -- flash primitives only; pairing is the caller's, and callers do it.
+src/logging/psram_init.cpp -- FAIL -- detect/self-test/flash-safe-test sequence walked against Core 1 launch; save_and_disable_interrupts/restore_interrupts pair is single-exit and correct, but the flash-safe test's placement and its unused verdict are defects (CW-X5-04, CW-X5-05).
+src/logging/psram_init.h -- FAIL -- documents psram_flash_safe_test() as a "hard gate"; nothing gates on it (CW-X5-05).
+src/active_objects/ao_logger.cpp -- FAIL -- init_logging_ring() selects PSRAM on the self-test flag only, ignoring the flash-safe verdict (CW-X5-05).
+src/logging/ring_buffer.cpp / .h, src/logging/flight_table.cpp, src/logging/log_decimator.cpp -- PASS -- pure init-into-caller-owned-memory; no acquire/release pair.
+
+Bus and sensor drivers:
+src/drivers/gps_uart.cpp -- FAIL -- init registers the RX IRQ on Core 0; reinit is reachable from Core 1 and re-enables it there (CW-X5-02).
+src/drivers/gps_uart.h -- PARTIAL -- documents the Core-0-ISR / Core-1-consumer split but not that reinit must run on Core 0.
+src/drivers/gps_pa1010d.cpp / .h -- PASS (lifecycle) -- blind-PMTK then probe sequence is internally ordered and documented; the defect is where it is called from (CW-X5-03).
+src/drivers/i2c_bus.cpp / .h -- PASS -- init de-isolates pads before recover (LL-41 order), recover deinits the peripheral before the funcsel switch (LL-28 order), reset re-flags correctly around recover.
+src/drivers/icm20948.cpp / .h -- PASS (lifecycle) -- bypass-mode enable sequence is ordered and self-documenting; device-reset-clears-BYPASS_EN is stated at the site.
+src/drivers/baro_dps310.cpp / .h -- PASS (lifecycle) -- init then start_continuous is a genuine two-phase contract and both phases are satisfied on the one construction path.
+src/drivers/spi_bus.cpp / .h -- PARTIAL -- initialises MISO/SCK/MOSI but not any CS pin; CS ownership lives in the radio driver, which is fine except for the documented pre-init read path (CW-X5-09).
+src/drivers/rfm95w.cpp / .h -- PARTIAL -- init_gpio_and_reset is the only place a CS pin becomes an output; the header advertises a pre-init diagnostic that depends on it (CW-X5-09).
+src/drivers/ws2812_status.cpp / .h -- PARTIAL -- init claims SM + program and deinit releases both symmetrically (correct LL-42 shape); ws2812_status_deinit() has zero callers tree-wide.
+src/drivers/mcu_temp.cpp / .h -- PASS -- adc_init + sensor enable once, sole ADC user in the tree, guarded availability accessor.
+src/station/station_idle_tick.cpp / .h -- PASS -- init and tick are gated by the same kRadioModeRx constant; reuses the vehicle GPS reader on the same core that owns it.
+
+Swept with no lifecycle surface found (enumeration returned no init/acquire/release pair, or only
+caller-owned struct initialisers): src/fusion/ (eskf, eskf_runner, eskf_codegen, eskf_brake,
+confidence_gate, innovation_monitor, mahony_ahrs, ud_factor, wmm_tables), src/math/,
+src/calibration/ (lm_solver, calibration_data, calibration_manager, cal_hooks),
+src/flight_director/ (guard_evaluator, guard_combinator, guard_functions, go_nogo_checks,
+action_executor, mission_profile*), src/logging/ (crc16/crc32, data_convert, pcm_frame),
+src/log/rc_log.cpp, src/telemetry/, src/diag/diag_stats.cpp (read for CW-X5-09), src/notify/,
+src/safety/ (health_monitor, fault_protection, test_mode, station_fault_inject, rf_link_health),
+src/active_objects/ (ao_led_engine, ao_notify, ao_health_monitor, ao_rf_manager -- each an
+AO_*_start + QActive_start pair with no hardware acquire), src/cli/rc_os_dashboard.cpp,
+rc_os_debug.cpp, and all of include/rocketchip/ (board*.h, job*.h, flash_layout.h,
+linker_symbols.h, version.h, ao_signals.h, sensor_seqlock.h, sensor_snapshot.h, rc_log.h,
+notify_*.h, radio_config*.h, telemetry_*.h) read as contract surfaces for ordering claims.
+
+### B03 — public headers: job/role pack
+
+Batch scope: the compile-time device-role pack. All five files are contract surfaces
+(helper Kind E "layout / identity / configuration map", with Kind D vocabulary in job.h),
+so they were walked with the surface spine of the helper section 9 plus the comments,
+scope/lifetime and class-design lenses. There are no function bodies in this batch --
+every declaration is an `inline constexpr` or an enum, so the spine block A questions
+were run on the file as a unit (name test, one altitude, duplication, confident-comment
+distrust) rather than per function. Block B applies as claim-versus-truth: every
+"Consumers:" and per-role behavioral claim in these headers was checked against the code
+it names. Block C (embedded) has no volatile, MMIO, init-sequence or blocking surface here.
+
+#### Coverage
+
+include/rocketchip/job.h -- PARTIAL -- Read whole; enum, role table and CMake-usage
+preamble are accurate and the `#if`/`#elif` selector matches the documented default
+(vehicle), but the file never states the contract a role header must satisfy (CW-B03-03).
+
+include/rocketchip/job_capabilities.h -- PARTIAL -- Read whole; the file's stated purpose
+and its "do not add per-peripheral flags here, those live in board_*.h" pointer both check
+out (board.h and board_feather_rp2350.h / board_fruit_jam.h exist and carry no capability
+bools yet, so the "IVP-143 will generalize" forward claim is not stale). Two of the three
+predicates verified true against their named consumers in src/safety/health_monitor.cpp;
+the third has no consumer at all (CW-B03-01).
+
+include/rocketchip/job_relay.h -- PARTIAL -- Read whole; kRole and kRadioModeRx are
+correct and live, the Council 3 [C3-R2] link-layer-only claim is consistent with the relay
+exclusions at src/main.cpp:500/506; kDefaultMavlinkOutput is dead (CW-B03-02) and the
+include-order contract is unstated (CW-B03-03).
+
+include/rocketchip/job_station.h -- PARTIAL -- Read whole; kRadioModeRx = true is live and
+widely consumed; the default-output comment documents a policy that the constant it sits
+on does not actually establish (CW-B03-02), and the include-order contract is unstated
+(CW-B03-03).
+
+include/rocketchip/job_vehicle.h -- PARTIAL -- Read whole; kRole and kRadioModeRx = false
+are correct and live; same two shared findings as the other role headers (CW-B03-02,
+CW-B03-03).
+
+Checked and found sound (recorded so the coverage is honest, not just the defect list):
+job_capabilities.h:28-35 claims station/relay never advance core1_loop_count because Core 1
+"idles on g_startSensorPhase forever" -- src/main.cpp:284 launches Core 1 unconditionally
+and src/main.cpp:345-361 only sets g_startSensorPhase on the vehicle role, so the claim is
+true. Its consumer claim is true at src/safety/health_monitor.cpp:361. The kRoleRunsLogger
+zero-init rationale at job_capabilities.h:37-45 is true at health_monitor.cpp:396-403. The
+three predicates being textually identical expressions is not a duplication finding -- they
+are distinct concepts that coincide today, and separating them is what stops a future role
+change from silently moving three unrelated behaviors at once.
+
+### B04 — public headers: notify + radio config/scheduler
+
+#### Coverage
+
+- include/rocketchip/notify_backend.h -- FAIL -- Kind C contract surface; both backend declarations read, and the banner's dispatch contract checked against AO_Notify's tick handler and the LED backend, where it does not hold.
+- include/rocketchip/notify_intents.h -- PASS -- Kind D vocabulary; all five intent enums, the NotifyState field set and every banner claim (priority order, zero-init default, beacon clear rule, vehicle_lost latch) checked against ao_notify.cpp and notify_backend_led.cpp and found true.
+- include/rocketchip/radio_config.h -- PARTIAL -- Kind E map; the generate_profile.py sibling-generation claim verified true, but the per-field range comments are a second copy of the range map that has drifted from the executable validator.
+- include/rocketchip/radio_config_table.h -- FAIL -- Kind E/C hybrid; whitelist, both validators and every banner design rule read, with the banner's gate claim, the whitelist's call-site claim and the nav-rate cap rationale all contradicted by the tree.
+- include/rocketchip/radio_scheduler.h -- PARTIAL -- real inline code, spine run on all five member functions; behavior of each is correct in isolation, but the type's documented state machine is unenforced and its TX-deadline half is unread.
+
+### B05 — public headers: sensor snapshot/seqlock + telemetry surface
+
+#### Coverage
+
+- include/rocketchip/mavlink_rx.h -- PARTIAL -- Read whole as a Kind C API/behavioral contract; the SAFETY CONTRACT's "does not execute state transitions" claim was verified true against src/telemetry/mavlink_rx.cpp, but three load-bearing contract terms (opaque parser buffer sizing, response-buffer accumulation/overflow, ACCEPTED-without-effect on ARM) are not stated; also noted, not filed: the documented parameter now_ms is unused by the implementation (mavlink_rx.cpp:303).
+- include/rocketchip/sensor_seqlock.h -- FAIL -- Read whole as Kind B shared protocol plus Kind A ownership map; the protocol body is sound and the barriers are conservatively correct, but the failure contract of seqlock_read, the writer-ownership claim, and one byte-count comment are wrong.
+- include/rocketchip/sensor_snapshot.h -- PARTIAL -- Read whole; 40-byte packed layout is internally consistent and static_assert-guarded (verified field-by-field), but the file claims a present-tense use that no firmware code performs.
+- include/rocketchip/telemetry_encoder.h -- FAIL -- Read whole as the CCSDS/MAVLink wire contract and cross-checked against src/telemetry/telemetry_encoder.cpp; the packet-length constants and static_asserts are correct and self-consistent, but two wire-format comments state values and a struct member the code does not have.
+- include/rocketchip/telemetry_state.h -- PARTIAL -- Read whole; the 45-byte TelemetryState layout is correct and asserted (verified field-by-field), but FlightMetadata's stated size is wrong and unasserted, and two deprecated constants now decode the wrong subsystem.
+
+### B06 — public headers: remaining small contract headers
+
+#### Coverage
+include/rocketchip/ao_signals.h -- FAIL -- Kind D signal catalog + event-struct definitions read whole; catalog numbering re-derived enumerator-by-enumerator and matches every inline value comment, but the event-storage contract stated above the structs is wrong in two places.
+include/rocketchip/flash_layout.h -- FAIL -- Kind E layout map read whole and all six region constants recomputed by hand from PICO_FLASH_SIZE_BYTES; the arithmetic is self-consistent, the banner map that documents it is not.
+include/rocketchip/fused_state.h -- PARTIAL -- Kind E/B data-layout aggregate, every field's unit/frame documented and consistent; the preamble names a populating function that does not exist in the tree.
+include/rocketchip/led_patterns.h -- PARTIAL -- Kind D pattern-code vocabulary; all documented value ranges match the constants, but two pieces of usage prose describing how the codes are consumed are stale.
+include/rocketchip/linker_symbols.h -- PASS -- Kind F boundary header; reference-only claim, TP-2 rationale, and single-site suppression all hold; no project definition of either symbol exists.
+include/rocketchip/pcm_frame.h -- PARTIAL -- Kind E wire-format contract; standard-frame layout, CRC span and triple-gate prose all verified true against src/logging/pcm_frame.cpp, but the Event frame this same header defines is missing from the format contract.
+include/rocketchip/prearm_fail_ticks.h -- PASS -- Kind C pure-helper contract; the 33 Hz / 99-tick / reset-on-repost claims all check out against ao_notify.cpp:230-231 and :262, and the body matches the stated semantics on every path.
+include/rocketchip/station_output_mode.h -- FAIL -- Kind A ownership header; the stated single-writer ownership is contradicted by the reader module in the tree today.
+include/rocketchip/version.h -- PARTIAL -- Kind E identity map; values are consistent and the one downstream alias derives from it, but the single-source rule it states points at an API that does not exist.
+
+### B07 — math/
+
+#### Coverage
+
+src/math/mat.h -- PARTIAL -- Header-only Mat<R,C> template plus the "ESKF-specific free functions" block; spine + templates + assertions + scope run on all 17 members and 6 free functions; three findings (a documented-but-unused duplicate dense FPFT, unchecked 3x3 block offsets, and the whole file sitting outside the clang-tidy header filter).
+
+src/math/quat.cpp -- PARTIAL -- All 11 definitions read whole; Hamilton product, the rotate() expansion, the DCM and the ZYX Euler forms hand-verified against the Sola (2017) forms they cite; two findings (undeclared unit-norm precondition, near-parallel dead-band in from_two_vectors).
+
+src/math/quat.h -- PARTIAL -- Contract surface (helper Kind C): convention, frame and source citations are present and genuinely load-bearing, but the unit-norm precondition that three of the declared conversions depend on is not stated anywhere in the contract.
+
+src/math/vec3.cpp -- PARTIAL -- Three definitions, all arithmetically correct (cross product signs checked); the near-zero fallback in normalized() is implemented but its consequence is never stated.
+
+src/math/vec3.h -- PARTIAL -- Thin value-type contract surface (helper Kind C); struct-of-public-data shape is correct per CCG C.2, but the two non-total operations it declares carry no contract prose.
+
+### B11 — drivers: rfm95w radio
+
+#### Coverage
+
+- C:/Users/pow-w/Documents/RC-agent-walk/src/drivers/rfm95w.cpp -- PARTIAL -- Read whole; spine A/B/C applied to all 16 functions and to the file-scope constant block, with register writes cross-checked against the file's own datasheet-derived constants and against the driver's only caller (src/active_objects/ao_radio.cpp); five findings.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/drivers/rfm95w.h -- PARTIAL -- Read whole and evaluated as a contract surface (helper Kind C API/behavioural contract, secondary Kind E register/layout map); prose-vs-signature and prose-vs-body checks on every doc block produced three findings, two of them shared with the .cpp.
+
+### X4 — public header contract coherence
+
+Lane: whole-system cross-cutting read of include/rocketchip/ as ONE interface surface -- does each
+header earn its file, is each declared contract honored by its implementation, are related
+contracts split or duplicated across headers, and does a consumer get a coherent story. Primary
+lens: field manual **Class & interface design** plus **Comments & documentation quality**, run
+through the contract-surface helper (kinds A-F). Every header in the directory was read whole; the
+implementation half of each contract was read or grepped wherever the claim was checkable.
+
+#### Coverage
+
+Public surface -- all 33 headers in C:/Users/pow-w/Documents/RC-agent-walk/include/rocketchip/:
+
+- include/rocketchip/ao_signals.h -- FAIL -- Kind D signal catalog; vocabulary and numbering are sound, but the event-allocation contract contradicts itself and the tree (CW-X4-01), the LED payload points at the wrong header (CW-X4-04), and rc_signal_name is declared with no definition (CW-X4-07).
+- include/rocketchip/board.h -- PARTIAL -- Kind E selector; clean dispatch chain, but the board:: interface it dispatches to is nowhere enumerated, so an incomplete board header is caught only by a build break (CW-X4-11).
+- include/rocketchip/board_feather_rp2350.h -- PASS -- complete board:: member set; pins and capability flags coherent with the config.h consumers.
+- include/rocketchip/board_fruit_jam.h -- PASS -- complete member set; the [M1] and [M3] hazard notes are real constraints, not restated code.
+- include/rocketchip/board_pico2.h -- FAIL -- omits kPsramCsPin, which config.h references unconditionally (CW-X4-11).
+- include/rocketchip/board_tiny_2350_common.h -- PASS -- complete member set including kPsramCsPin; TODO markers honestly scope the unverified pins.
+- include/rocketchip/board_tiny_2350_plus.h -- PASS -- variant overrides only; the bring-up error gate matches the stated story.
+- include/rocketchip/config.h -- PARTIAL -- overloaded hub (pins, I2C map, timing, feature flags, version alias, debug macros, assertions); the RC_ASSERT facility it advertises promises a recovery path this tree does not have (CW-X4-08).
+- include/rocketchip/flash_layout.h -- PASS -- Kind E map; every derived region anchored from one symbol and pinned by static_assert; the single-source claim holds.
+- include/rocketchip/fused_state.h -- PASS -- producer-owned snapshot struct, units documented per field, consumers read-only.
+- include/rocketchip/job.h -- PASS -- Kind E role selector; enum plus include dispatch, one job per file.
+- include/rocketchip/job_capabilities.h -- PARTIAL -- two of three predicates are consumed by health_monitor exactly as documented; kRoleHasFullGoNogo has zero consumers despite a detailed consumers rationale.
+- include/rocketchip/job_relay.h -- PASS -- three role constants, matching the surface job.h implies.
+- include/rocketchip/job_station.h -- PASS -- same surface as its siblings; the MAVLink-default comment states a real why.
+- include/rocketchip/job_vehicle.h -- PASS -- same surface as its siblings.
+- include/rocketchip/led_patterns.h -- FAIL -- claims Single Source of Truth for the LED code space while a divergent duplicate lives in action_executor.h (CW-X4-04).
+- include/rocketchip/linker_symbols.h -- PASS -- Kind F boundary; reference-not-define rationale centralized exactly as the helper's Example 4 prescribes.
+- include/rocketchip/mavlink_rx.h -- PASS -- API contract states ownership (caller-owned state, borrowed encoder, caller writes the result); signatures match the prose.
+- include/rocketchip/notify_backend.h -- PASS -- two free functions, both defined and built; the audio-always-compiled claim is true (src/notify/notify_backend_audio.cpp appears in both CMake source lists).
+- include/rocketchip/notify_intents.h -- PASS -- Kind D vocabulary; the stated priority order and the ascending-value-picks-max rule match src/notify/notify_resolver.h.
+- include/rocketchip/pcm_frame.h -- PASS -- Kind B/E layout; byte-offset prose matches every static_assert; encode and decode pairs all defined.
+- include/rocketchip/prearm_fail_ticks.h -- PASS -- pure helper; the semantics block matches the body line for line.
+- include/rocketchip/radio_config.h -- FAIL -- publishes a kDefaultRadioConfig that no consumer uses and that disagrees with the real boot default (CW-X4-05).
+- include/rocketchip/radio_config_table.h -- FAIL -- banner names the table as the SET_RADIO_CONFIG gate; it is not, and the membership test it exports is dead with a fabricated consumer list (CW-X4-06).
+- include/rocketchip/radio_scheduler.h -- PASS -- header-only state machine; the two-phase init contract is satisfied at its single construction site (ao_radio.cpp:560).
+- include/rocketchip/rc_log.h -- FAIL -- the LOCKED CONTRACT block states drop-newest while the sink implements drop-oldest (CW-X4-02), and the PROHIBITED clause is violated by the project's own fault handler (CW-X4-03).
+- include/rocketchip/sensor_seqlock.h -- PARTIAL -- Kind B protocol is coherent and barrier-correct in itself, but it also re-declares the whole cross-core global set without the ownership annotations that live in shared_state.h (CW-X4-09).
+- include/rocketchip/sensor_snapshot.h -- FAIL -- a 40-byte layout contract with zero producers and zero consumers in src/ (CW-X4-10).
+- include/rocketchip/shared_state.h -- FAIL -- declares itself the centralized ownership map, but most cross-core consumers never include it (CW-X4-09).
+- include/rocketchip/station_output_mode.h -- PARTIAL -- earns its file as a circular-include break, but carries three AO_RCOS_* function declarations that otherwise belong to ao_rcos.h, splitting that AO's API across two headers.
+- include/rocketchip/telemetry_encoder.h -- PARTIAL -- the encoder/decoder surface and the CCSDS size constants are internally consistent and static_assert-pinned; the MAVLink frame count and size are stated three different ways (banner "4 messages ~144 B", line 42 "3-message set ~105 B", line 269 max_packet_size()==144), and the nav-with-config comment at line 60 names APID 0x101 where the constant at line 62 and the encoder both use 0x004.
+- include/rocketchip/telemetry_state.h -- PASS -- wire format pinned at 45 bytes; DEPRECATED aliases are labelled and referenced nowhere load-bearing.
+- include/rocketchip/version.h -- PARTIAL -- the single-source-of-identity claim is undermined by a second board-identity string (CW-X4-12), and line 5 directs all print sites to a version_string() that exists nowhere in the tree.
+
+Implementation half read or grepped to judge the claims above (not my assigned files; opened only
+as truth-checks): src/log/rc_log.cpp, src/safety/fault_protection.cpp, src/safety/pio_watchdog.h,
+src/active_objects/{ao_telemetry.cpp, ao_radio.cpp, ao_rf_manager.cpp, ao_flight_director.cpp,
+ao_rcos.h}, src/flight_director/{flight_director.cpp, action_executor.h, action_executor.cpp,
+flight_actions.h, mission_profile_data.h}, src/notify/notify_resolver.h,
+src/logging/{pcm_frame.cpp, radio_config_storage.cpp}, src/diag/diag_stats.cpp,
+src/drivers/{ws2812_status.h, gps_uart.cpp}, src/main.cpp, src/shared_state.cpp, CMakeLists.txt,
+test/test_data_model.cpp.
+
+### B12 — drivers: mcu_temp + ws2812_status
+
+#### Coverage
+
+- src/drivers/mcu_temp.h -- FAIL -- Read whole as a Kind-C contract surface; the datasheet pointer and the ADC-consumer single-owner rule are good, but the stated ADC channel is wrong for RP2350B and the init() success contract is not implementable by the body.
+- src/drivers/mcu_temp.cpp -- PARTIAL -- Read whole; conversion, idempotent init, and the sourced/bench-measured stuck-threshold rationale are sound; module statics are mutated on Core 1 and read on Core 0 with no stated ownership rule or barrier.
+- src/drivers/ws2812_status.h -- FAIL -- Read whole as the public contract; three separate doxygen claims (init PIO parameter, RSSI-bar mapping, sweep-bar cadence) disagree with the implementation they document.
+- src/drivers/ws2812_status.cpp -- FAIL -- Read whole; PIO program/SM lifecycle is correctly paired init-to-deinit and the mode engine is edge-triggered, but init performs no validation of num_leds against either the board sentinel or the fixed pixels[8] buffer, and update_blink omits the zero-period guard its sibling carries.
+
+### B09 — drivers: GPS (i2c + uart + shared iface)
+
+#### Coverage
+src/drivers/gps.h -- FAIL -- Transport-neutral type + enum contract surface (helper Kind D) walked in full; every field claim inventoried, and the `valid` field's documented rule is contradicted by one of the two backends that produce it.
+src/drivers/gps_pa1010d.h -- PASS -- Declaration-only contract surface (helper Kind C) walked in full; `[[nodiscard]]` is applied consistently, every function has a preamble, and the prose matches the `.cpp` bodies (call-rate assumption, buffer-lifetime caveat, and the "debug status survives pre-USB init" rationale all check out).
+src/drivers/gps_pa1010d.cpp -- FAIL -- All five public functions plus both statics walked with the spine; init sequence, PMTK const-array construction, and the padding filter verified against their comments; three findings (fix-type derivation, PMTK314 sentence-set claim, `read_nmea_data` parameter contract).
+src/drivers/gps_uart.h -- FAIL -- Contract surface walked in full; the API mirrors gps_pa1010d.h cleanly, but two preambles state boot/blocking behaviour the implementation does not have and neither names the core-affinity precondition the IRQ path requires.
+src/drivers/gps_uart.cpp -- FAIL -- All public functions, the ISR, and all five statics walked with the spine plus the block-C embedded ADDs (volatile-as-cross-core-barrier, peripheral init/lifecycle); SPSC index arithmetic verified correct, but the concurrency claim, the reinit IRQ lifecycle, the baud comments, and the duplication rationale all fail against the code.
+src/drivers/lwgps_opts.h -- PARTIAL -- Vendored-config contract surface (helper Kind E) walked in full; the substantive settings (double precision, CRC on, sentence set, GSV-detail off) are consistent with what the drivers read, but two of its claim lines are wrong. Note: `lib/lwgps/` is an uninitialised submodule in this checkout, so the `LWGPS_CFG_*` names could not be checked against lwGPS's own defaults -- verdict rests on in-file consistency and driver usage only.
+
+### B10 — drivers: IMU + baro
+
+#### Coverage
+
+src/drivers/baro_dps310.h -- PARTIAL -- Read whole; contract surface (constants + 7-function C API + one POD data struct) is coherent, but the oversampling/rate decision block attributes a fabricated column to the DPS310 datasheet and contradicts the values it governs (CW-B10-05).
+
+src/drivers/baro_dps310.cpp -- PARTIAL -- Read whole; all seven bodies walked plus the three ruuvi callbacks. Callback error mapping and the two-phase init/start_continuous sequence are sound; the barometric-altitude half is a second, unused, already-divergent copy of the project's altitude model (CW-B10-06). Note: the vendored `lib/ruuvi.dps310.c` source is not present in this checkout, so the third-party half of the contract (`DPS310_READY` bit semantics, `dps310_get_last_result` staleness behaviour) could not be verified against source -- claims about it are not asserted either way.
+
+src/drivers/icm20948.h -- PARTIAL -- Read whole; register/scale contract and the two typedef'd POD structs are honest aggregates (no invariant, correctly struct-shaped, no encapsulation theatre). Two of the twelve declared functions carry a preamble that omits a limitation the rest of the tree treats as load-bearing (CW-B10-04). Eight of the twelve have no call site anywhere in `src/` or `test/` -- recorded as an observation, not filed.
+
+src/drivers/icm20948.cpp -- FAIL -- Read whole; every function walked. Register map, FS_SEL bit positions, accel/gyro sensitivities, AK09916 scale and the temperature formula all verified correct against `docs/hardware/datasheets/ICM-20948-datasheet-v1.3.pdf` (pp. 10-11, 13, 33, 44, 58, 63, 78). Three defects: a null-guard that dereferences the null (CW-B10-01), an unbounded blocking device re-init inside the read path (CW-B10-02), and hidden cross-core phase state outside the device handle (CW-B10-03).
+
+### B15 — fusion: confidence_gate + innovation_monitor
+
+#### Coverage
+- src/fusion/confidence_gate.h -- PARTIAL -- Contract surface read whole; the threshold block, struct field comments and hysteresis claims all match the body, but the input contract never states what a caller passes when the AHRS cross-check is unavailable, and the fail-open initial state carries no rationale (CW-B15-01, CW-B15-04).
+- src/fusion/confidence_gate.cpp -- PARTIAL -- Both functions read whole and spine-walked; the hysteresis machine and time-tracking behaviour were verified line-by-line against the header's claims, but the 55-line safety evaluator carries zero entry checks on its two load-bearing input assumptions (CW-B15-02, CW-B15-04).
+- src/fusion/innovation_monitor.h -- PARTIAL -- Preamble claims verified against the code that implements them (the q_scale min/cap rule matches the body, and the "caller freezes adaptation during phase transition ramps" claim holds at src/fusion/eskf.cpp:1785); the push declaration omits the silent-rejection limitation (CW-B15-03).
+- src/fusion/innovation_monitor.cpp -- PARTIAL -- All three functions read whole; window/sum/alpha bookkeeping is self-consistent and the cap logic matches the header, but the anomalous-input path is silent and undocumented (CW-B15-03). The lowercase float suffix at line 21 is deliberately not reported -- it is mechanically gated (hicpp-uppercase-literal-suffix and readability-uppercase-literal-suffix are both enabled in .clang-tidy).
+
+### B16 — fusion: mahony + generated tables/codegen (light+exempt)
+
+#### Coverage
+src/fusion/eskf_codegen.cpp -- PARTIAL -- Read whole under the CG-1 exemption (size/comment/design lenses N/A): banner, preamble, signature and mirror block read line by line, body verified structurally against its generator (300 P snapshots, 202 CSE intermediates, 300 upper-triangle assignments, 276 mirror assignments, and zero raw P reads on any right-hand side outside the snapshot block, which is the generator's stated in-place-update invariant); the body is faithful to the generator, the first two lines are not.
+src/fusion/eskf_codegen.h -- PARTIAL -- Read whole as a contract surface (helper Kind C/E: the codegen_fpft call contract plus the Q_d sync constants that eskf.cpp static_asserts against); declarations and constants are consistent with the generator and with eskf.h, but the file carries a post-generation prepend and a non-UTF-8 byte.
+src/fusion/mahony_ahrs.cpp -- FAIL -- Read whole, spine run on all six functions; the shape is clean (single-purpose functions, guard clauses, const locals declared at first use) but two attitude-reference defects and one state-reset gap are recorded below.
+src/fusion/mahony_ahrs.h -- FAIL -- Read whole as the declared contract for the .cpp; parameter units and gate constants are well sourced, but the preamble carries a stale ESKF state count, the startup flag's comment does not match the code, and the two real preconditions are unstated.
+src/fusion/wmm_tables.cpp -- PARTIAL -- Read whole; per the itinerary this is a generated data table walked light, so the three literal tables were scanned for shape and wrap behaviour rather than value-checked, and interp() plus the three public functions were walked line by line.
+src/fusion/wmm_tables.h -- PARTIAL -- Read whole as a contract surface (helper Kind C/E); the three-function API, units and sign conventions are stated, the accepted input domain and the grid's polar limitation are not.
+
+### B14 — fusion: eskf_runner + brake + phase_qr
+
+#### Coverage
+- src/fusion/eskf_brake.cpp -- PARTIAL -- Three <=5-line functions read whole; the saturating counter and BSS-scoped statics are correct, but the file banner's "Cleared by eskf_reenable() — CLI-callable subsystem reset" understates the automatic clearing path (CW-B14-03).
+- src/fusion/eskf_runner.cpp -- FAIL -- All 688 lines read; spine A/B/C run on every static and public function; five findings (CW-B14-01, -02, -04, -05, -07).
+- src/fusion/eskf_runner.h -- PARTIAL -- Read whole as the declared contract for the .cpp; the snapshot layout contract is exemplary (the 68-byte size claim is backed by a static_assert at :41), but the runaway-brake contract block at :122-131 disagrees with :145-150 (CW-B14-03) and the init precondition is unstated (CW-B14-07).
+- src/fusion/phase_qr.h -- PARTIAL -- Read whole as a Kind D/E contract surface per the helper; the Q-delta and R-absolute claims were checked against eskf.cpp and hold, and the ">= 1.0 / > 0.0 enforced by generate_profile.py" claim was checked against the generator and holds, but the phase-count claim is false and unenforced (CW-B14-06).
+
+### B17 — calibration: data + storage
+
+#### Coverage
+
+- src/calibration/calibration_data.h -- FAIL -- Contract surface (Kind E, persisted-record layout) walked whole: layout, status vocabulary, size asserts and the four declared functions; the comments lens fails on a stale sentinel claim (:161) and on a page-fit claim (:139) that does not account for the on-flash headers the storage module prepends.
+- src/calibration/calibration_data.cpp -- PARTIAL -- All four functions walked with the spine; bodies are short, guard-claused and single-purpose, but the CRC-region definition is expressed twice as an inline idiom (:105-110, :121-126); the file banner also names itself "calibration_data.c" (:4), a harmless doc slip left unfiled.
+- src/calibration/calibration_storage.h -- PARTIAL -- Kind C API/behavioral contract walked claim-by-claim (init / read / write / erase); the prose is accurate as far as it goes but omits the blocking + timeout limitation and promises a success return the implementation cannot fail.
+- src/calibration/calibration_storage.cpp -- FAIL -- Every function walked (flash wrappers, sector scan, dual-sector write, public API); the dual-sector power-safety and sequence logic hold up on every exit path I traced, but the file banner states 8MB-only absolute addresses while the code derives them per board, and the single-page write budget is unguarded. Note: kStorageSize / kStorageOffset (:26-27) have zero references tree-wide -- left to the mechanical dead-code inventory rather than filed here.
+
+### B18 — calibration: manager + hooks
+
+#### Coverage
+src/calibration/cal_hooks.cpp -- FAIL -- All four callbacks and both file-scope state groups read whole; cal_read_accel() is registered but has no call site anywhere in the tree, and three of five mag-diagnostic statics are write-only.
+src/calibration/cal_hooks.h -- PARTIAL -- Thin Kind-C contract surface (four prototypes); every assumption a caller needs -- I2C ownership, the 10 ms block, "false means stale, not failed", raw-not-corrected -- is absent from the header.
+src/calibration/calibration_manager.cpp -- FAIL -- All ~40 functions walked; the module's whole state block is plain non-atomic file-scope statics written from both cores, and one helper carries an unchecked count precondition.
+src/calibration/calibration_manager.h -- FAIL -- Full API surface walked as the module's contract; it names the cross-core protocol in one doc-comment but never states ownership, a barrier, or the mutability of the store its accessor hands out.
+
+### B19 — calibration: lm_solver (templates)
+
+#### Coverage
+C:/Users/pow-w/Documents/RC-agent-walk/src/calibration/lm_solver.h -- PARTIAL -- read whole (107 lines): module banner, LM constants, the two primitive declarations and all three function templates walked with the spine plus the comments, scope/lifetime and templates lenses; the algorithm is correct and readable, but the contract surface over-claims and leaves its template-argument requirements unstated.
+C:/Users/pow-w/Documents/RC-agent-walk/src/calibration/lm_solver.cpp -- PARTIAL -- read whole (102 lines): forward_eliminate, back_substitute, mat_inverse and lm_compute_step each walked; the pivoting, singularity threshold and NaN/inf rejection hold up (back_substitute's divides are provably safe because forward_eliminate rejects any pivot below 1e-10 first), and the only finding sited here is the undocumented static working buffer.
+
+### B20 — flight_director: HSM core + state/actions types
+
+#### Coverage
+src/flight_director/flight_actions.h -- PARTIAL -- Read whole as a contract surface (Kind D/E, shared vocabulary + per-phase action map); all nine entry lists, both transition lists, the exit table and the two index tables inventoried against their consumers in flight_director.cpp.
+src/flight_director/flight_director.cpp -- PARTIAL -- Read whole (687 lines); spine blocks A, B and C run on all 31 functions and state handlers, with the abort, coast-timeout, reset and fault paths hand-walked against the shipped mission profile.
+src/flight_director/flight_director.h -- PARTIAL -- Read whole as the .cpp's declared contract; the HSM hierarchy, the signal list and the usage block all verified accurate against flight_director.cpp and include/rocketchip/ao_signals.h, but the constructor's precondition on profile is undeclared (CW-B20-06).
+src/flight_director/flight_state.h -- PARTIAL -- Read whole; phase enum, fault-observable phase contract, FlightMarkers and FlightState reviewed claim-vs-truth against flight_director.cpp, src/safety/fault_protection.cpp and the SPIN models.
+
+### B21 — flight_director: command_handler + action_executor
+
+#### Coverage
+
+- src/flight_director/action_executor.h -- FAIL -- Read whole; contract surface (helper Kind D vocabulary + Kind C API contract) evaluated claim-by-claim against led_patterns.h, ao_led_engine.cpp and the wired callbacks in ao_flight_director.cpp; three claims do not survive that check.
+- src/flight_director/action_executor.cpp -- PARTIAL -- Read whole; the three functions are correctly shaped and single-purpose, but the two public entry points carry no parameter-validity checks and no documented preconditions.
+- src/flight_director/command_handler.h -- PARTIAL -- Read whole; per-command contract prose is accurate against the body except that the kArm section omits one of the two blocking gates the implementation applies.
+- src/flight_director/command_handler.cpp -- PASS -- Read whole; one flat validate-and-return switch, every branch reachable and eyeball-verifiable, rejection strings bounded and explicitly NUL-terminated, and the header's sensor-signal-bypass claim confirmed against ao_flight_director.cpp:287-289.
+
+### B22 — flight_director: go_nogo + guard_evaluator
+
+#### Coverage
+src/flight_director/go_nogo_checks.h -- PASS -- Contract surface (2 structs + 2 free functions) read whole; every field carries a units/meaning comment, the kGoNoGoMaxChecks bump and the rf_link_state 0..3 encoding are both documented at the declaration, and the Tier-1-blocks / Tier-2-warns contract is stated in the preamble.
+src/flight_director/go_nogo_checks.cpp -- PARTIAL -- All four functions walked; two findings (CW-B22-01 fail-open station overflow, CW-B22-02 GO-worded reason on a NO-GO station); the rest of the file is clean and the strncpy / etl::string lifetime reasoning at :47-50 checks out against the buffer sizes.
+src/flight_director/guard_evaluator.h -- PARTIAL -- Contract surface read whole; the guard/state model and phase-validity behaviour are well documented, but guard_evaluator_is_sustained states no precondition on its GuardId argument, the "Initialize the evaluator" contract at :76-77 is not fully met by the implementation (CW-B22-03), and the uint8_t width of GuardState::valid_phases is not stated as a bound on FlightPhase (CW-B22-04).
+src/flight_director/guard_evaluator.cpp -- FAIL -- All six functions walked; the init path leaves a GuardState field with no meaningful value (CW-B22-03) and the phase bitmask cannot represent the whole FlightPhase enum (CW-B22-04).
+
+### B23 — flight_director: guard_combinator + guard_functions
+
+#### Coverage
+
+- C:/Users/pow-w/Documents/RC-agent-walk/src/flight_director/guard_combinator.h -- FAIL -- Read whole as one work product with the .cpp; it is the contract surface for the three-layer deployment architecture, and both its architecture claim (dual-channel redundancy) and its layer contract (Layer 1/2/3 plus Council A2) overstate what the implementation delivers.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/flight_director/guard_combinator.cpp -- PARTIAL -- Read whole; the functions are single-purpose and the shipped-profile control flow is eyeball-verifiable, but the init path asserts none of its preconditions, the phase bitmask cannot represent one of the nine flight phases, and the Council-A2 timer bypass is superseded by the confidence gate placed ahead of it.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/flight_director/guard_functions.h -- FAIL -- Read whole; six of the seven guard contracts state units, frames and thresholds precisely, but guard_baro_peak documents a sign convention that its only caller does not supply.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/flight_director/guard_functions.cpp -- FAIL -- Read whole with the header; pure, single-expression, side-effect-free predicates that match their header text, except guard_baro_peak whose polarity is inverted relative to the NED-down value actually passed to it.
+
+### B24 — flight_director: mission profile + generated profile data
+
+#### Coverage
+src/flight_director/mission_profile.h -- FAIL -- Read whole as a contract surface (helper Kind E/C): units, PRELIMINARY warnings and per-field intent are good, but the header's central claim about how the active profile is selected does not match the firmware, and three cfg-documented options have no field.
+src/flight_director/mission_profile_data.h -- FAIL -- Read whole; every generated field, the include guard and the GENERATED_FROM sha256 were checked against scripts/generate_profile.py and profiles/rocket.cfg and match, but the file also carries hand-edits its own banner forbids, and its compile-time validation block omits the two autonomous pyro timers.
+
+### B25 — logging: rc_log sink + ring_buffer
+
+#### Coverage
+src/log/rc_log.cpp -- FAIL -- Read whole (732 lines); spine A/B/C run on all 18 functions, plus the comments, control-flow/volatile and concurrency lenses on the target_sink ring (5 volatile objects, the itinerary hot-spot cue); the paired contract include/rocketchip/rc_log.h was read for comment-truth only (it is its own itinerary row, not counted here); three findings.
+src/logging/ring_buffer.cpp -- FAIL -- Read whole (169 lines); spine on all 9 functions; control-flow/ordering lens on the seqlock header write and scope/lifetime lens on the init path; two findings.
+src/logging/ring_buffer.h -- PARTIAL -- Read whole (153 lines); evaluated as a contract surface (helper Kind B shared protocol plus Kind C API prose): the seqlock protocol claim and the documented init-then-recover sequence are both unsupported by the implementation (CW-B25-04, CW-B25-06), and the "Single-writer design -- no locking required" banner names neither the owning context nor the reader story (verified true today: ring_push from AO_Logger and ring_read/ring_stored_count from the CLI are both Core 0 QV-cooperative -- claim thin, not wrong).
+
+### B26 — logging: flash_flush + psram_init
+
+#### Coverage
+- C:/Users/pow-w/Documents/RC-agent-walk/src/logging/flash_flush.cpp -- FAIL -- Every function read whole and spine-walked (flash trampolines, dual-sector table I/O, sector flush engine, flush_ring_to_flash); capacity math, sector indexing and header size verified against flight_table.h / flash_layout.h / pcm_frame.h; three findings.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/logging/flash_flush.h -- PASS -- Contract surface (Kind C) walked per the helper: the load-bearing claims check out (5 s watchdog matches main.cpp:90, xip_cache_clean_all present at flash_flush.cpp:349, 64-byte header static_asserted at pcm_frame.h:180, every FlushResult member is actually returned somewhere in the body).
+- C:/Users/pow-w/Documents/RC-agent-walk/src/logging/psram_init.cpp -- FAIL -- Every function read whole and spine-walked (detect, timing calc, QMI config, self-test, accessors, flash-safe test); the register pokes were judged as an init sequence and an interrupt/XIP window, not line by line; four findings.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/logging/psram_init.h -- FAIL -- Contract surface (Kind C/E) walked per the helper: the memory-map constants and accessor promises are sound, but two documented preconditions/promises do not match the code or the only caller.
+
+### B28 — logging: pcm_frame + radio_config_storage + CRC headers
+
+#### Coverage
+src/logging/crc16_ccitt.h -- PASS -- Contract surface (helper Kind C/E, header-only algorithm): every documented parameter checked against the body -- poly 0x1021 (:28), init 0xFFFF (:66), no final XOR (:71), MSB-first table generation (:30-40), 256 x uint16 = 512 B constexpr table with no runtime init (:42-52); the JSF AV-182 Exception-1 note at :63-64 accurately describes the one void*->T* conversion.
+src/logging/crc32.h -- PASS -- Same check: reflected poly 0xEDB88320 (:26), init 0xFFFFFFFF (:63), final XOR (:68), 256 x uint32 = 1024 B constexpr table; crc32_update's stated contract "caller manages init and final XOR" (:73) matches the body exactly (:78-86).
+src/logging/pcm_frame.cpp -- FAIL -- Decom table offsets verified field-by-field against the packed TelemetryState layout (all 20 rows correct), but the flight-log build stamp is a frozen literal, the table's own unit rule is contradicted by several rows, and the event-frame CRC span is a bare literal where the standard-frame sites derive it.
+src/logging/radio_config_storage.cpp -- FAIL -- Dual-sector sequence/wear logic walked on every path (both-invalid, one-valid, both-valid tie, erase-then-write, failed-write) and is sound; the defects are a byte-comparison of a struct that contains padding and the missing half of the LL-31 flash/I2C protocol.
+src/logging/radio_config_storage.h -- PARTIAL -- Contract surface (helper Kind C): four declarations whose prose is usable but incomplete -- init()'s documented failure/ordering contract is not what the body does, and the write/erase preamble cites LL Entry 31 without stating the caller obligation that citation carries.
+
+### B29 — diag + notify backends
+
+#### Coverage
+
+- C:/Users/pow-w/Documents/RC-agent-walk/src/diag/diag_stats.cpp -- FAIL -- Walked all 6 functions whole; the AO-queue snapshot reads three QP getters outside the critical section the vendor API documents as the caller's job, and the T=0 SPI probe can increment the very error counter the same block prints.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/diag/diag_stats.h -- PARTIAL -- Contract surface (Kind C) walked as one work product with the .cpp; the three declarations are clear but the "pure read-only / no state mutation / no risk / safe to run from any phase" prose over-states what the body does.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/notify/notify_backend_audio.cpp -- FAIL -- Whole file read; the no-op stub itself is correct and honestly labelled, but the five tone constants are unreachable dead data carrying a rationale the code cannot satisfy.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/notify/notify_backend_led.cpp -- FAIL -- All 8 functions walked; the resolver logic and beacon overlay are correct and match led_patterns.h, but two comment blocks assert a wiring state that ao_notify.cpp contradicts and one asserts 0 is not a valid pattern code when it is.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/notify/notify_resolver.h -- PARTIAL -- Contract surface (Kind C primary, D secondary) evaluated per the helper; decode_health_faults verified correct against the notify_intents.h priority ordering, but the resolve_led_pattern contract prose is stale with respect to the Stage L beacon overlay.
+
+### B27 — logging: flight_table + log_decimator + data_convert
+
+#### Coverage
+
+- src/logging/data_convert.h -- PARTIAL -- Read whole; the quantization block is the project's declared ICD text (docs/IVP.md:1655 "the struct IS the ICD") and states error bounds without the saturation limits the .cpp implements.
+- src/logging/data_convert.cpp -- PARTIAL -- Read whole; both conversion functions and all four clamp helpers walked field-by-field against FusedState/TelemetryState; field mapping and Q15/scale factors are correct, guard totality is not.
+- src/logging/flight_table.h -- FAIL -- Read whole as a Kind E layout/identity contract surface; the file-banner flash map contradicts the derived layout in flash_layout.h, and one nested-struct size claim is wrong.
+- src/logging/flight_table.cpp -- PARTIAL -- Read whole; all eleven functions walked, null/loaded/full guards are consistent, but the add-entry contract has an unstated and unchecked precondition.
+- src/logging/log_decimator.h -- PARTIAL -- Read whole as the decimator's declared contract; its field-treatment list is presented as exhaustive and is not.
+- src/logging/log_decimator.cpp -- PARTIAL -- Read whole; accumulate/average field lists cross-checked one-for-one against fused_state.h, quaternion antipodal handling and normalization guard are sound; three live FusedState fields are silently unhandled.
+
+### B30 — telemetry + station
+
+#### Coverage
+
+- src/station/station_idle_tick.h -- PARTIAL -- Thin contract surface (helper Kind C: two prototypes plus prose); walked as a contract, and the banner's stated behaviour no longer matches the implementation it fronts (CW-B30-01).
+- src/station/station_idle_tick.cpp -- PARTIAL -- Two functions read whole; spine A/B and scope-lifetime clean (the file-scope statics are the mandated persistent-snapshot kind), but the tick fuses two operations behind one precondition (CW-B30-02), and the line-53 comment still names the pre-rename s_lastGpsReadUs for what is now g_lastGpsReadUs.
+- src/telemetry/mavlink_rx.cpp -- FAIL -- All 13 functions walked against include/rocketchip/mavlink_rx.h as one work product; the documented response contract is not delivered by the only production caller (CW-B30-03), placeholder ACK semantics and their comments are stale (CW-B30-04), the opaque parser buffer is unasserted (CW-B30-05), and a self-include test artifact ships in flight source (CW-B30-06).
+- src/telemetry/telemetry_encoder.cpp -- PARTIAL -- All 12 encode/decode functions walked; header/CRC construction is consistent and the packet-length claims are static_assert-backed in the header, but the 40-byte payload offset claim is comment-only (CW-B30-07) and the nav decoder validates its length parameter after dereferencing the buffer (CW-B30-08); also kCrcOffset / kCrcLoIdx at :361-362 are defined and never used anywhere in src/, include/ or test/, and their "CRC starts at byte 52" comment holds only for the 54-byte APID 0x001 packet, not the 58-byte APID 0x004 packet this same decoder now handles.
+
+### B32 — safety: flight_in_progress + crash_record + health_monitor
+
+#### Coverage
+src/safety/crash_record.cpp -- FAIL -- Both functions read whole; the capture path's stated torn-write protection is not established by the code (CW-B32-01).
+src/safety/crash_record.h -- PARTIAL -- Contract surface (Kind C) walked in full: crash-record claims verified against crash_record.cpp and both writers in fault_protection.cpp; the flight-sentinel declaration block carries a predicate-named destructive read (CW-B32-05).
+src/safety/flight_in_progress.cpp -- PARTIAL -- All three functions read whole; the #if-split declaration and the volatile/barrier story are sound and single-context (FD enter_phase on Core 0, boot consumer in anomalous_boot_init), but flight_in_progress_was_set() hides a state change behind a query name (CW-B32-05).
+src/safety/health_monitor.cpp -- FAIL -- All 787 lines and every function read; four findings (CW-B32-02/03/04/06), the heaviest being an ignored seqlock return feeding every health decision and a comment set that denies an auto-action the code performs.
+src/safety/health_monitor.h -- FAIL -- Contract surface walked in full: encodings, thresholds and the two inline pure helpers verified against their .cpp uses; the HealthCritical preamble states a no-auto-trigger rule the implementation breaks (CW-B32-04) and kHealthWatchdogOk is declared with no comment and a name the body does not honour (CW-B32-03).
+
+### B33 — safety: fault injection + test_mode
+
+#### Coverage
+src/safety/fault_inject.cpp -- PARTIAL -- All 10 hooks walked with the spine; gate helper, static posted event, --undefined retention and the __StackBottom/64-byte MPU-guard claim all verified true, but the force_hardfault preamble claims a verification path the test-mode gate cannot reach (CW-B33-04).
+src/safety/fault_inject.h -- PARTIAL -- Contract surface (helper Kind C) walked: declarations, the two extern volatile flags and the doc-pointer to FAULT_INJECTION.md are sound, but the banner's blanket "every fault_force_* entry checks test_mode_active()" is contradicted by its own line-24 exception marker (context for CW-B33-05).
+src/safety/station_fault_inject.cpp -- FAIL -- Four hooks walked; the ungated fault_force_station_gps_restore() writes the same value as fault_force_station_gps_loss() while a nine-line comment justifies it as a recovery action (CW-B33-01).
+src/safety/station_fault_inject.h -- PARTIAL -- Contract surface walked; declarations and the two extern volatile counters match their consumers in ao_telemetry.cpp, but the header states a gating invariant the file's own restore hook breaks with no marker (CW-B33-05).
+src/safety/test_mode.cpp -- PARTIAL -- All six functions walked; the three-condition AND gate, the fail-closed ordering and the single-use magic clear are correct as written, but three comment blocks describe state, mechanism and host-test machinery the bodies do not have (CW-B33-03, CW-B33-06).
+src/safety/test_mode.h -- PARTIAL -- Contract surface (helper Kind C) walked claim-by-claim; the arming/clearing design prose checks out against the bodies and against ao_flight_director.cpp:232 and command_handler.cpp:50, but two accessor contracts overstate what the module delivers (CW-B33-02, CW-B33-03).
+
+Lens notes for coverage completeness. Assertions (P10-5 / JPL-16): zero assertions across all six files, but every precondition in this batch is already expressed as an explicit fail-closed branch (test_mode_evaluate's null-accessor, non-kIdle and window checks; the nine fi_test_mode_gate call sites, all of which do check the returned bool), so no load-bearing precondition is left unverified -- no finding manufactured for density alone. Declaration scope and object lifetime: the posted event at fault_inject.cpp:120 uses static const storage (correct per the QP no-copy rule), the .uninitialized_data magic word's deliberately-uninitialized lifetime matches the documented crash_record pattern, and all file-scope statics here are single-owner Core 0 -- PASS. Concurrency was not walked as a lens (not assigned to this batch), but the itinerary's three-question cue was answered far enough to rule out a scope/lifetime CP.2 case: every reader of the five volatiles is on Core 0 (main.cpp:439-443, ao_telemetry.cpp:506/603, and the test_mode_active() call sites), so none of them is a cross-core mutable.
+
+### B34 — safety: core1_i2c_pause + pyro_edge_logger + rf_link_health
+
+#### Coverage
+
+- C:/Users/pow-w/Documents/RC-agent-walk/src/safety/core1_i2c_pause.h -- FAIL -- Read whole; contract surface (Kind C, API/behavioural contract) walked per the helper: the preamble's central safety claim (every reachable runtime flash_safe_execute callsite is wrapped) is false against the current tree, and the blocking-call preamble omits the un-acked-return limitation.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/safety/core1_i2c_pause.cpp -- PARTIAL -- Read whole with its header as one work product; both functions pass the spine name/altitude test and the atomics carry justified acquire/release, but the pause/resume pair does not nest, the ack flag is written by the non-owning core, and the timeout path is silent.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/safety/pyro_edge_logger.h -- FAIL -- Read whole; the file-banner contract calls the storage a "static ring buffer", which the implementation is not.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/safety/pyro_edge_logger.cpp -- PARTIAL -- Read whole; concurrency 3-question test on the one volatile counter comes out clean (single-core ISR writer, Core 0 thread readers, no cross-core surface), but the drop-newest-on-full policy is undocumented at the site and unobservable to callers.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/safety/rf_link_health.h -- FAIL -- Read whole; contract surface (Kind B/C) for the RF link state machine. The logic itself is sound, self-consistent and host-tested, but three separate load-bearing comments describe a parameter, a duplicate declaration and a function that do not exist.
+
+### B36 — core1: sensor loop (Core0<->Core1 boundary)
+
+#### Coverage
+- C:/Users/pow-w/Documents/RC-agent-walk/src/core1/sensor_core1.cpp -- FAIL -- Read whole (524 lines); spine A/B/C run on all 11 functions and the comments, scope/lifetime, control-flow and concurrency lenses applied; four findings sited here, all on the cross-core boundary rather than on any single line's logic.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/core1/sensor_core1.h -- PARTIAL -- Read whole (66 lines); evaluated as a contract surface per the helper (Kind A shared-object catalog + Kind B shared protocol + Kind C API prose). The g_bestGpsFix ownership claims and its "benign for diagnostics" licence were checked against every consumer in the tree and hold; the core1_read_gps preamble understates the helper's side effects (CW-B36-03).
+
+### B35 — safety: PIO backup timer + PIO watchdog
+
+#### Coverage
+
+- src/safety/pio_backup_timer.h -- PARTIAL -- Read whole as a Kind-C contract surface (API prose + declarations); every declared function judged against its implementation, and two preamble claims do not match the module.
+- src/safety/pio_backup_timer.cpp -- PARTIAL -- Read whole, both the target branch and the ROCKETCHIP_HOST_TEST stub branch; spine run on all six target functions plus the six stubs; init/arm/cancel/disarm walked as an init-use-teardown sequence.
+- src/safety/pio_watchdog.h -- PARTIAL -- Read whole as a contract surface; the kPioWatchdogCountdown arithmetic (666666 x 3 cycles = ~2.0 s at 1 MHz) was checked against the PIO program and is correct; the fault-query contract is not complete.
+- src/safety/pio_watchdog.cpp -- PARTIAL -- Read whole, both branches; init/feed/fault/deinit walked as a lifecycle (pio_add_program correctly paired with init/deinit, not feed -- the LL-42 hazard is not present here).
+
+Verification reads outside the batch, used only to check claims made inside it: pio/backup_timer.pio, pio/heartbeat_watchdog.pio, src/active_objects/ao_flight_director.cpp (the only consumer of fired/cancel/arm/disarm), src/main.cpp init_pio_safety, src/safety/health_monitor.cpp, src/safety/pyro_edge_logger.cpp, src/drivers/ws2812_status.cpp, src/flight_director/mission_profile.h.
+
+Considered and deliberately not filed: the two-channel state is carried as six parallel scalars (g_drogueSm/g_mainSm, g_droguePin/g_mainPin, g_drogueArmed/g_mainArmed) with the channel-select ternary repeated in four functions and the arm sequence written twice. For exactly two fixed channels this is a defensible shape, not a defect -- ES.3 pressure worth watching only if a third channel is ever added.
+
+### B37 — AOs: flight_director + health_monitor
+
+#### Coverage
+
+- src/active_objects/ao_flight_director.cpp -- PARTIAL -- Read whole; spine A/B/C run on all 11 functions and lambdas, concurrency 3-question test answered (single Core-0 QV owner, run-to-completion barrier, g_sensorSeqlock read through a checked seqlock_read); findings CW-B37-01/02/04/06/07.
+- src/active_objects/ao_flight_director.h -- PARTIAL -- Read whole as a Kind C contract surface per the helper; six declarations inventoried, the prose is migration history rather than assumptions and limitations; finding CW-B37-03.
+- src/active_objects/ao_health_monitor.cpp -- PARTIAL -- Read whole; four functions walked, the subscribe/publish story verified against every SIG_HEALTH_STATUS and SIG_PHASE_CHANGE endpoint in the tree; finding CW-B37-05.
+- src/active_objects/ao_health_monitor.h -- PASS -- Thin Kind C/D contract surface; every claim checked and true (10Hz tick, queue depth 8, subscribes SIG_PHASE_CHANGE, priority 6 sits between FD 9 and Logger 4, AO_HealthMonitor consumed by diag_stats.cpp:141). One imprecision noted but not filed: the banner names "LED" as a consumer, but AO_LedEngine does not subscribe to SIG_HEALTH_STATUS -- the LED is driven indirectly through AO_Notify.
+
+### B38 — AOs: rcos + logger
+
+#### Coverage
+- src/active_objects/ao_logger.cpp -- FAIL -- read whole; spine run on all nine functions plus both state handlers; findings on the baro-rate builder (comment vs body, shared differentiator cache), a misplaced function banner, and a subscribed-but-unhandled signal.
+- src/active_objects/ao_logger.h -- PASS -- contract surface (helper Kind C): every prototype carries its promise, its "must be called after" precondition, and its caller set; the banner's "read-only accessors (Council A6)" framing sits oddly beside the two `_mut` accessors, but each is declared with its reason on the adjacent line, so no reader is misled.
+- src/active_objects/ao_rcos.cpp -- FAIL -- read whole; spine run on the cal-UI state machine, the dispatch helpers and the public trigger API; two live functional defects (USB input starvation in MAVLink mode, discarded state-transition returns) plus comment debris and a blocking flash op inside the handler.
+- src/active_objects/ao_rcos.h -- PARTIAL -- contract surface (helper Kind C): the trigger API is complete and each entry states "returns immediately", but the two claims that bound the AO's run-to-completion budget ("All calibration wizards are now non-blocking"; "synchronous but fast <500ms") are the ones the implementation does not keep -- see CW-B38-05.
+
+### B39 — AOs: radio + rf_manager
+
+#### Coverage
+
+- C:/Users/pow-w/Documents/RC-agent-walk/src/active_objects/ao_radio.cpp -- FAIL -- Read whole (807 lines); spine A/B/C run on every function, and the concurrency three-question test run on every file-scope mutable (g_spiOk, g_pendingRadioConfig/Valid, g_pendingApplyBackstopCount, g_configJustChanged, g_persistRequested, g_persistDebounceCount, g_lastRelaySeq, g_radioAo.state, the two posted static events, the four function-local static dividers) -- all single-owner in Core-0 handler context, no volatile, no locks, no cross-core reach, so the ownership half is clean; three findings sit here.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/active_objects/ao_radio.h -- PARTIAL -- Read whole (91 lines); evaluated as a contract surface (helper Kind C plus A) field by field -- the cooperative-dispatch access rule at line 26 is stated, the T5.5 apply/revert fields carry real intent comments, and AO_Radio_set_pending_config states its caller-validates precondition in proper JSF 134 form; the one defect is the rx_count claim at line 36.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/active_objects/ao_rf_manager.cpp -- FAIL -- Read whole (382 lines); spine A/B/C run on every function, concurrency three-question test run on g_rf and g_rfQueue (single owner, Core-0 cooperative dispatch, documented invariant, no volatile, no locks, no cross-core reach); three findings sit here.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/active_objects/ao_rf_manager.h -- PARTIAL -- Read whole (106 lines); evaluated as a contract surface (helper Kind C) member by member -- the AO Commandment V cooperative-dispatch invariant at lines 41-46 is exactly the kind of claim this lens wants stated, and the test-hook preamble at lines 95-102 documents its own gating honestly; three member/API claims are contradicted by the .cpp.
+
+### B40 — AOs: telemetry + notify + led_engine
+
+#### Coverage
+src/active_objects/ao_led_engine.cpp -- PARTIAL -- Whole file read (341 lines, every helper and both state handlers spined); the dedup cache, the Core-1 vitality fallback and the dev override each carry a finding.
+src/active_objects/ao_led_engine.h -- PARTIAL -- Contract surface (Kind C): the banner's "sole owner of the NeoPixel hardware" claim does not hold against the tree, and the dev-helper preamble misdescribes the layer it writes.
+src/active_objects/ao_notify.cpp -- PARTIAL -- Whole file read (390 lines); intent mapping, tick handler and all four post functions walked, static-event posts verified against LL Entry 35; sensor-timeout latch and a rule mis-citation found.
+src/active_objects/ao_notify.h -- PASS -- Contract surface (Kind C/D): each declared post function's prose claim (counter reset-to-full, latch-until-cleared, station-only no-op) checked against the body and matches.
+src/active_objects/ao_telemetry.cpp -- FAIL -- Whole file read (1133 lines, every function spined); an undefined identifier survives only because a macro discards it, the tracked-command dedupe and safety-class logic is inert, and an RX helper does not do what its comment claims.
+src/active_objects/ao_telemetry.h -- PARTIAL -- Contract surface (Kind C/E, 6 structs + 17 declarations); prose is otherwise sound but the retry-stat field comment states a retry budget the implementation no longer uses.
+
+### B41 — top-level: main + shared_state
+
+#### Coverage
+- C:/Users/pow-w/Documents/RC-agent-walk/src/main.cpp -- FAIL -- Read whole (544 lines); spine run on all 16 functions plus the idle bridge and main(); boot-order, GPS bring-up and cross-core launch claims verified against the files they cite.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/shared_state.cpp -- FAIL -- Read whole (46 lines); every definition traced to its declaration and to its real readers/writers across src/; the defect set is contract-level and shared with the header.
+- C:/Users/pow-w/Documents/RC-agent-walk/include/rocketchip/shared_state.h -- FAIL -- Read whole (77 lines) as the paired contract surface per the contract-surface helper; each declaration and each ownership annotation judged against actual access.
+
+### B43 — cli: rc_os_commands
+
+#### Coverage
+
+- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_commands.cpp -- FAIL -- Read whole (1590 lines, ~40 functions); spine blocks A/B/C run on every function; defects found on the station-distance, flight-download, preflight and boot-summary paths, plus a cross-TU constant duplicate whose comment cites a file that does not define it.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_commands.h -- PARTIAL -- Declaration-only contract surface (Kind C, API/behavioral contract) evaluated per the helper: all 9 declared prototypes resolve to real definitions with matching signatures, but the contract prose is false in two places and the header under-declares the module's public surface.
+
+Notes carried with the coverage verdict, not filed as findings:
+
+- Itinerary hot-spot cue ("3 volatile T2 command handoff -> concurrency 3-question test"), answered for g_t2_pending / g_t2_cmd / g_t2_p1 (rc_os_commands.cpp:53-55). Owner: stage_t2_queue_command (line 57), reached only from cli_handle_unhandled_key (line 1545) -- Core 0, QV handler context. Mutator/reader: stage_t2_fire_pending_if_any (line 67), reached only from handle_rx_packet in src/active_objects/ao_telemetry.cpp:642-643 -- also Core 0, also QV handler context, also inside the same ROCKETCHIP_STAGE_T2_CHEAT guard. Barrier: none needed -- both contexts are run-to-completion handlers on one core, so there is no cross-core surface and no ISR preemption. The volatile qualifiers therefore buy nothing, but they are not standing in for a missing barrier either. No concurrency finding; the block is build-flag-gated throwaway code and its comments (lines 45-51, 64-66) match what the code does.
+- The ESKF globals this file reads directly (g_eskf, lines 262-307 and 894-929) are updated by eskf_runner_tick(), which runs in qv_idle_bridge (src/main.cpp:433-448) -- Core 0 idle. CLI display runs in Core 0 handler context. Under QV cooperative scheduling idle cannot run while a handler runs, so these unsynchronized reads are not a CP.2 race. No finding.
+- cmd_findme_beacon uses a function-scope static QEvt (line 1585) before QActive_publish_ -- correct per the scope/lifetime lens' canonical QP case (LL Entry 35). PASS.
+- The -Wshadow hit previously measured at this file's line 1332 is remediated; the surviving comment records the decision.
+- Relevant to how much weight the manual pass carries here: src/cli/** is exempted from the clang-tidy gate (scripts/audit/full_tree_clang_tidy.sh:37 and :53), so none of this file is covered by readability-function-size, bugprone-infinite-loop, bugprone-integer-division, or any other tidy check. Where a finding below might normally be argued as gated, it is not gated for this file.
+
+### B44 — cli: dashboard + debug
+
+#### Coverage
+
+- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_dashboard.cpp -- FAIL -- Read whole (482 lines); spine run on all 10 functions; each operator-facing cell was checked against the telemetry field that actually reaches it, and four disagree.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_dashboard.h -- PARTIAL -- Thin API contract surface (helper Kind C): the render/pause/resume promises are clear, but the newest parameter carries an undocumented contract and the doxygen block binds to the wrong declaration.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_debug.cpp -- FAIL -- Read whole (230 lines); spine run on all 7 functions; dispatcher control flow and test-mode gating are sound, but the operator-facing menu text duplicates and paraphrases authority that lives elsewhere.
+- C:/Users/pow-w/Documents/RC-agent-walk/src/cli/rc_os_debug.h -- FAIL -- Thin API contract surface (helper Kind C): the migration rationale and gating story are well stated, but the documented return contract of the main dispatch entry point contradicts both its body and its only caller.
+
+### X3 — comments versus their source of truth
+
+Lane X3 is a whole-system cross-cutting pass, not a file-by-file walk. It reads the
+comments in `src/` and `include/` that name an authority — a datasheet, a standard, a
+project document, a deviation-register ID, an SDK or framework contract, a council
+decision — and asks two questions: does the named authority exist and say what the
+comment says it says, and does the body do what the comment claims. Findings are
+weighted toward claims whose truth lives in a different file from the claim.
+
+#### Coverage
+
+The enumeration swept: all 186 `.c/.cpp/.h/.hpp` files under
+`C:/Users/pow-w/Documents/RC-agent-walk/src` and
+`C:/Users/pow-w/Documents/RC-agent-walk/include`. Vendored `lib/`, `EXTERNAL/` and
+`pico-sdk` were excluded per scope. Each line below is a swept group, not a per-file
+verdict; files named individually are the ones read whole.
+
+- include/rocketchip/ (33 files) -- PARTIAL -- Contract-surface sweep of every header's claim prose; `rc_log.h`, `flash_layout.h`, `sensor_seqlock.h`, `telemetry_encoder.h`, `linker_symbols.h`, `version.h`, `config.h` read whole; findings CW-X3-02, -03, -05, -06, -07, -09.
+- src/active_objects/ (18 files) -- PARTIAL -- All AO headers read for rate/priority/queue-depth claims and cross-checked against the `.cpp` definitions; `ao_rcos.{h,cpp}`, `ao_radio.cpp`, `ao_telemetry.{h,cpp}`, `ao_rf_manager.{h,cpp}`, `ao_flight_director.cpp`, `ao_health_monitor.cpp` read for claim-vs-body; findings CW-X3-01, -08, -09.
+- src/safety/ (18 files) -- PARTIAL -- Every deviation-ID and design-doc citation resolved; `core1_i2c_pause.{h,cpp}`, `fault_protection.cpp`, `crash_record.h` read whole; findings CW-X3-01, -04.
+- src/log/, src/logging/ (17 files) -- PARTIAL -- `rc_log.cpp` read whole against `rc_log.h`; `crc16_ccitt.h` and `crc32.h` verified line-by-line against their own stated polynomial/init/final-XOR claims (both PASS); `psram_init.cpp`, `radio_config_storage.{h,cpp}`, `flash_flush.{h,cpp}` swept for datasheet and flash-map claims; findings CW-X3-02, -03, -06.
+- src/drivers/ (20 files) -- PARTIAL -- The datasheet-paraphrase concentration; every `datasheet`/`§`/`Section` citation enumerated; `baro_dps310.h`, `icm20948.cpp`, `rfm95w.{h,cpp}`, `i2c_bus.cpp`, `mcu_temp.{h,cpp}`, `gps_pa1010d.cpp`, `spi_bus.cpp` read for paraphrase-vs-pointer form; finding CW-X3-10. Register-offset and timing claims against vendor datasheets are UNVERIFIED — this pass has no datasheet access.
+- src/fusion/ (16 files) -- PARTIAL -- Algorithm-provenance citations (Sola 2017 section/equation numbers, ArduPilot/PX4 parameter provenance, DPS310/AK09916/MT3333 noise figures) cross-checked against each other and against `docs/plans/PHASE5_ESKF_PLAN.md`; `eskf.h`, `mahony_ahrs.h`, `eskf_runner.h` read whole; finding CW-X3-05. `eskf.h:199`'s DPS310 noise/altitude derivation agrees with `baro_dps310.h`'s table -- PASS.
+- src/flight_director/ (14 files) -- PASS -- All `docs/` pointers resolve; `mission_profile_data.h`'s auto-generated banner and `guard_functions.h`'s shelved-plan pointer both resolve to existing documents.
+- src/cli/, src/diag/, src/station/, src/telemetry/, src/notify/, src/calibration/, src/core1/, src/math/, src/main.cpp, src/shared_state.cpp (30 files) -- PARTIAL -- Swept for doc pointers, LL-Entry citations and init-order claims; `main.cpp`'s init-order comments ("flash/I2C before USB per LL Entry 4/12") verified against the actual call order in `init_hardware()` / `init_peripherals()` -- PASS; findings CW-X3-01, -05.
+- Cross-tree citation audit -- PARTIAL -- All 36 distinct `docs/`, `standards/` and `*.md` paths named in `src/`+`include/` comments were resolved against the working tree; 2 do not exist (CW-X3-05). All 40+ `LL Entry N` citations were checked against `docs/agents/LESSONS_LEARNED.md` for topic match; every one is correctly numbered and topically correct — a genuine PASS worth recording, since this is the class the project's own LL Entry 37 warns about.
+- Cross-tree deviation-register audit -- PARTIAL -- Every deviation ID cited from code (`TP-2`, `CAST-1`, `CAST-2`, `FH-1`, `CG-1`) checked against `standards/ACCEPTED_STANDARDS_DEVIATIONS.md`; 1 does not exist (CW-X3-04).
+
+### X2 — cross-module duplicated knowledge
 
 Lane: whole-system cross-cutting X2. Target = the same piece of knowledge (a constant, a
 conversion, a validation pattern, a protocol/layout assumption, a state-transition rule)
@@ -5681,28 +5666,6 @@ shared-vocabulary sites; remainder grep-swept.
 src/station (2 files) -- PASS -- station_idle_tick swept.
 src/telemetry (2 files) -- PARTIAL -- telemetry_encoder.cpp read at every layout, CRC and
 enum-mapping site; mavlink_rx.cpp read at its phase comparisons.
-
-#### Findings
-
-**CW-X5-03** — [Claude] · `spine` · **init_gps_early() inverts the documented GPS init ordering and the UART-first transport policy on every board**  
-- Site: src/main.cpp:217-227 against src/main.cpp:123-150 and src/main.cpp:152-161
-- Lens: spine block C "Peripheral init SEQUENCE / lifecycle" (mis-ordered init across subsystems) + CCG NL.2 (comment and code disagree) / JSF AV 134 (ordering assumption stated but not honoured)
-- Claim: `init_gps_early()` runs a full PA1010D I2C bring-up before the IMU exists and unconditionally on all boards, contradicting both ordering rules that `init_sensors()` and `init_gps()` state a few lines above it.
-- Why: `init_sensors()` states the constraint at main.cpp:157-161 -- "Init order matters: IMU + baro FIRST, GPS LAST ... Probing the GPS (0x10) triggers NMEA streaming which can corrupt AK09916 init transactions. Defer GPS probe until after IMU bypass mode is fully established." But `init_early_hw()` calls `init_gps_early()` at main.cpp:238, well before `init_sensors()` at :299, and `gps_pa1010d_init()` (src/drivers/gps_pa1010d.cpp) issues an `i2c_bus_recover()`, three blind PMTK writes and up to eight 250-byte reads at 0x10 -- roughly 1.5 s of GPS traffic on the bus the AK09916 at 0x0C will later share through the ICM-20948's bypass bridge. The stated ordering constraint is therefore never satisfied on any board that has a PA1010D attached. Second, `init_gps()` documents "UART first ... I2C fallback ... UART GPS has no I2C bus contention (LL Entry 24), preferred for production" (main.cpp:124-127), but `init_gps_early()` has no `board::kUartGpsAvailable` guard, and `init_sensors()` only calls `init_gps()` when `!g_gpsInitialized` (main.cpp:185). On the flight Feather, where `kUartGpsAvailable` is true (include/rocketchip/board_feather_rp2350.h:65), a PA1010D present on the Qwiic chain wins the race and the preferred UART backend is never bound. The only file that records the intent -- src/station/station_idle_tick.cpp:9-11 -- describes this path as "station Fruit Jam: ultra-early in init_early_hw()", i.e. a Fruit-Jam-specific workaround that shipped ungated.
-- Confidence: high
-- Direction: gate `init_gps_early()` on `if constexpr (!board::kUartGpsAvailable)` so only the boards that have no UART GPS take the early I2C window, and either satisfy or retract the IMU-before-GPS ordering statement in `init_sensors()` now that a legitimate earlier GPS path exists.
-- Verdict: CONFIRMED -- `init_gps_early()` (main.cpp:219-227) is called unconditionally from `init_early_hw()` at :238 with no `board::kUartGpsAvailable` guard, and `gps_pa1010d_init()` does issue `i2c_bus_recover()` (gps_pa1010d.cpp:211), three blind PMTK writes (:222-232) and up to eight 250-byte reads (:241-242) at 0x10 long before `init_sensors()` (:299) establishes IMU bypass mode, while `if (!g_gpsInitialized) init_gps();` at :185 makes a successful early I2C bind pre-empt the UART-first preference documented at :123-127 on the Feather (kUartGpsAvailable = true, board_feather_rp2350.h:65).
-
-**CW-X5-04** — [Claude] · `spine` · **the boot-time PSRAM flash-safe test runs an unprotected flash_safe_execute after Core 1's sensor loop is already driving I2C**  
-- Site: src/main.cpp:389-398 against src/safety/core1_i2c_pause.h:6-28 and src/logging/psram_init.cpp:318-347
-- Lens: spine block C "Peripheral init SEQUENCE / lifecycle" (ordering dependency between subsystems at boot) + CCG P.8 / JPL-C Rule 8 on the documented pause-flash-reset protocol
-- Claim: `init_application()` calls `psram_flash_safe_test()` immediately after `init_core1_role()` has released Core 1 into its sensor loop, without the `core1_i2c_pause()` / `i2c_bus_reset()` / `core1_i2c_resume()` sequence that core1_i2c_pause.h declares mandatory around every reachable flash_safe_execute callsite.
-- Why: `init_core1_role()` (main.cpp:345-361) sets `g_sensorPhaseActive = true` and stores `g_startSensorPhase`, which releases Core 1 from its wait loop into `core1_sensor_loop()` (sensor_core1.cpp:495-523) where it begins ~1 kHz `icm20948_read()` traffic; it then only waits on `g_core1LockoutReady`, which Core 1 had already set before that wait (sensor_core1.cpp:476-477), so the wait returns essentially immediately. Core 0 then executes `psram_flash_safe_test()` at main.cpp:395, which calls `flash_safe_execute(do_flash_erase, ...)` at psram_init.cpp:344. That is exactly the LL-31 window core1_i2c_pause.h:8-15 describes: `multicore_lockout` halts Core 1's CPU but does not drain the DW_apb_i2c transaction already in flight, which is then abandoned at the APB bridge timeout and leaves the peripheral corrupt. Neither the preventive pause nor the recovery `i2c_bus_reset()` is present. The next statement, `init_baro_auto_zero()` (main.cpp:398), spins in `while (calibration_is_active())` waiting on baro samples that only Core 1's I2C reads can produce -- so a corrupted peripheral here stalls boot at the auto-zero rather than failing visibly. The three other reachable flash chains (rc_os_commands.cpp:1042 and :1098, ao_rcos.cpp:343) all do wrap; this one is the outlier, and it is invisible from psram_init.cpp, which cannot know when Core 1 was released.
-- Confidence: high
-- Direction: either move the flash-safe test above `init_core1_role()` (it only needs Core 1 registered as a lockout victim, which happens before the sensor phase starts) or wrap it in the same pause / reset / resume triad the other callsites use.
-- Verdict: CONFIRMED -- `init_core1_role()` sets `g_startSensorPhase` (main.cpp:349) then waits only on `g_core1LockoutReady`, which Core 1 already stored at sensor_core1.cpp:476-477 before its own start-flag wait, so Core 0 falls straight through to `psram_flash_safe_test()` -> `flash_safe_execute(do_flash_erase, ...)` (psram_init.cpp:344) as Core 1 enters `core1_sensor_loop()`; the tree-wide grep shows no `core1_i2c_pause()` and -- independently of the race's timing -- no post-flash `i2c_bus_reset()` here, while every other reachable callsite (rc_os_commands.cpp:1042/:1098, ao_rcos.cpp:343) applies both, and the main.cpp:302-303 comment documents only why the test is deferred, not an exemption from the protocol.
-
----
 
 ## Lens re-run coverage (2026-08-20)
 
