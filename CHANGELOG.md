@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-19-001 | Grok 4.6 (Build CLI) | documentation, process
+
+**Session checklist cadence + 131.0-B pin.** `SESSION_CHECKLIST.md` is an end-of-shift list: How to use restored (aviation re-verify; push re-checks commit; wrap usually includes a push). Reading the list is not a write grant; user-started commit / push / wrap / milestone unlock that scope’s writes. `CHANGELOG.md` only when the user initiates (wrap = always unless skip; push = usually, no silent skip). `PROJECT_STATUS.md` only on milestone item 13. `AGENTS.md` added to Hard-Protected. Flight-path `bench_sim` canary is not a boot item — hook remains the land gate; pre-edit baseline vs A/B recovery parked on the WB. Starcom: 211.2-B-3 §1.7 [2] *is* 131.0-B-3; living “bump to B-5” TODOs replaced with that pin (research cites of B-3 as “the book 211.2 uses” were not stale). Verified: pure-software / docs only; host ctest 858/858 on `a2f4e52`; no HW reseat. (`docs/agents/SESSION_CHECKLIST.md`, `docs/agents/PROTECTED_FILES.md`, `AGENT_WHITEBOARD.md`, `starcom/STATUS.md`, `starcom/docs/DESIGN.md`)
+
 ### 2026-08-17-001 | Grok 4.6 (Build CLI) | documentation, audit
 
 L2-P5 **walk whiteboard closed.** `docs/audits/l2p5_manual_walk/L2P5_WALK_WHITEBOARD.md`
