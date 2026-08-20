@@ -26,6 +26,8 @@ The completeness critic (reproduced at the end) raised three gaps. All three are
 2. **Batch/lane incoherence.** Resolved in the previous edition and carried here — see Reconciliation.
 3. **Unverified primary-source claims.** 16 findings carried a verdict while admitting they had not opened the source. All 16 were taken to the actual document: **5 upheld, 6 narrowed, 5 still unverifiable** (the source genuinely is not in the repo — notably the MTK/GlobalTop PMTK manual, and `pico-sdk/` + `lib/mavlink/`, which are declared submodules but empty directories).
 
+**Residual defects closed 2026-08-20 (second pass):** the 17 lens rows that had shipped without a verdict were adversarially verified (7 CONFIRMED / 7 RESHAPED / 3 REFUTED); all 6 findings previously marked STILL-UNVERIFIABLE were re-decided with `pico-sdk/` and `lib/mavlink/` checked out — **none remain unverifiable**, and the earlier "empty directories" reason was a git-worktree artifact (worktrees do not populate submodules), not a property of the repo; and the two `LENS RAN -- CLEAN` records a verifier disputed were re-audited and **both withdrawn**, adding CW-L048 and CW-L049.
+
 **Known remaining limitation:** coverage of the four re-run lenses is now recorded per file, but the original walk's comment/scope/concurrency lenses still carry no per-file "ran and was clean" record. Absence of a finding on those lenses is not evidence the lens ran.
 
 ---
@@ -132,8 +134,9 @@ src/drivers/spi_bus.h -- FAIL -- Contract surface (Kind C) inventoried: the init
 - **Claim:** The four accessors are bare address-of returns with no validation, conversion, locking or invariant maintenance, and the `_mut` variants make the `const` variants purely decorative — so the file banner's "Owns the logging ring buffer … and flight table" is convention, not an enforced invariant.
 - **Why:** `AO_Logger_get_ring_mut()` is taken by `src/cli/rc_os_commands.cpp:1021` and the ring head is advanced by the CLI flush path — the AO's owned ring buffer is mutated by code that is not the AO and that the AO cannot observe or serialise against its own 50 Hz `logging_tick()` push. `AO_Logger_get_flight_table_mut()` is taken at `src/cli/rc_os_commands.cpp:868`, `:1015`, `:1092` and `src/active_objects/ao_rcos.cpp:1241`, all of which write flash-backed flight-table state. The "Read-only access … (Council A6)" comment on `AO_Logger_get_ring()` mis-signals a protection that the `_mut` sibling in the next declaration removes, and any future rule about who may advance the head has no place to live. Compliant move: replace the `_mut` pair with named operations that carry the semantics (`AO_Logger_flush_ring_to_flash()`, `AO_Logger_erase_flights()`), leaving only the `const` accessors.
 - **Confidence:** high
-- **Verdict:** CONFIRMED -- all four accessors at `ao_logger.cpp:413-427` are bare address-of returns, and my own grep of the `_mut` symbols reproduces exactly the cited call sites (`rc_os_commands.cpp:868`, `:1015`, `:1021`, `:1092`; `ao_rcos.cpp:1241`), with `cmd_flush_log()` taking the mutable ring and passing it to `rc::flush_ring_to_flash()` which advances the head; the "Council A6" authority the header invokes (`docs/AO_ARCHITECTURE.md:272`) sanctions `const*` read-only accessors only, and AO Commandment II says "don't reach into another AO's internals to trigger work" -- so the documented reason, once read, supports the finding rather than excusing it.
-
+- Verdict: CONFIRMED -- all four accessors at `ao_logger.cpp:413-427` are bare address-of returns, and my own grep of the `_mut` symbols reproduces exactly the cited call sites (`rc_os_commands.cpp:868`, `:1015`, `:1021`, `:1092`; `ao_rcos.cpp:1241`), with `cmd_flush_log()` taking the mutable ring and passing it to `rc::flush_ring_to_flash()` which advances the head; the "Council A6" authority the header invokes (`docs/AO_ARCHITECTURE.md:272`) sanctions `const*` read-only accessors only, and AO Commandment II says "don't reach into another AO's internals to trigger work" -- so the documented reason, once read, supports the finding rather than excusing it.
+- Verdict: RESHAPED -- `ao_logger.h:40/44/48/52` and `ao_logger.cpp:413-427` are exactly the four bare address-of returns claimed, and Council A6 (`docs/AO_ARCHITECTURE.md:272`) sanctions `const*` only, so the interface defect stands; but two of the four cited `_mut` call sites do not write anything (`rc_os_commands.cpp:868` in `cli_print_boot_summary()` reads `ft->loaded` + `flight_table_count()`; `ao_rcos.cpp:1241` in `AO_RCOS_start_erase_flights()` reads `ft->loaded` + count and then only sets a UI state), and the flush path does not "advance the head" -- `flush_ring_to_flash()` calls `ring_reset(rb)` (`flash_flush.cpp:364` -> `ring_buffer.cpp:162-167`, `head = 0`).
+- Corrected claim: `AO_Logger` publishes mutable pointers to both objects its banner claims to own, and the `_mut` accessors are bare address-of returns that make the `const` siblings decorative. Two call sites actually mutate AO-owned state from outside the AO -- `rc_os_commands.cpp:1015/1021` (`cmd_flush_log()` -> `flush_ring_to_flash()`, which zeroes the ring head and appends a flight-table entry) and `rc_os_commands.cpp:1092` (`cli_do_erase_flights()`). The other two mutable takes (`rc_os_commands.cpp:868`, `ao_rcos.cpp:1241`) are read-only uses that did not need the `_mut` accessor at all.
 **CW-L022** — [Claude] *(lens re-run)* · `class-design` · **F2 — AO_Radio's public header publishes the AO's entire implementation, including the SX1276 driver handle**  
 
 - **Site:** `src/active_objects/ao_radio.h:27` (`struct RadioAoState`)
@@ -141,8 +144,9 @@ src/drivers/spi_bus.h -- FAIL -- Contract surface (Kind C) inventoried: the init
 - **Claim:** `RadioAoState` is not a snapshot type — it *is* `RadioAo::state`, the live AO state — and it is published whole, carrying the raw peripheral handle `rfm95w_t radio`, the nested `rc::RadioScheduler`, and pure bookkeeping (`tx_consec_fail`, `prev_config`, `tx_since_apply`, `rx_at_apply`, `apply_in_progress`, `boot_audit`, `boot_audit_valid`) that nothing outside `ao_radio.cpp` uses.
 - **Why:** six modules consume it (`ao_rcos.cpp:292`; `cli/rc_os_commands.cpp:764/819/834/984/1243/1516`; `diag/diag_stats.cpp:151`; `safety/health_monitor.cpp:386`). `src/cli/rc_os_dashboard.cpp:418` and `:453` take `const RadioAoState*` as a *parameter*, and `src/cli/rc_os_commands.cpp:1262` and `:1270` read `rs->scheduler.phase` — so AO_Radio's internal half-duplex phase encoding and the driver-handle layout are load-bearing CLI API, and every field added for internal bookkeeping becomes public surface by default. The subsystem already contains the compliant shape: `ao_rf_manager.h:47` publishes `RfManagerState` as a genuine snapshot while keeping `lq_window`, `lq_window_count`, `alpha_scaled` and `nav_period_ms` private in the `.cpp`'s `RfManager`. Compliant move: split `RadioAoState` the same way — a published snapshot of the ~10 fields consumers actually read, with the driver handle, scheduler and apply/revert bookkeeping moved into `struct RadioAo` in the `.cpp`.
 - **Confidence:** high (that the interface publishes implementation); medium (on severity — all current external access is `const`)
-- **Verdict:** CONFIRMED -- `RadioAoState` at `ao_radio.h:27-67` really is `RadioAo::state` published whole (driver handle, nested scheduler, apply/revert bookkeeping, boot audit), every consumer line cited resolves to an `AO_Radio_get_state()` use or a `const RadioAoState*` parameter (`rc_os_dashboard.cpp:419` is the parameter line, one off from the cited `:418` function-signature line), `rc_os_commands.cpp:1262`/`:1270` do read `rs->scheduler.phase`, and the in-tree counter-example checks out: `ao_rf_manager.h:47` publishes `RfManagerState` while `lq_window`, `lq_window_count`, `alpha_scaled` and `nav_period_ms` stay in `struct RfManager` at `ao_rf_manager.cpp:49-60`.
-
+- Verdict: CONFIRMED -- `RadioAoState` at `ao_radio.h:27-67` really is `RadioAo::state` published whole (driver handle, nested scheduler, apply/revert bookkeeping, boot audit), every consumer line cited resolves to an `AO_Radio_get_state()` use or a `const RadioAoState*` parameter (`rc_os_dashboard.cpp:419` is the parameter line, one off from the cited `:418` function-signature line), `rc_os_commands.cpp:1262`/`:1270` do read `rs->scheduler.phase`, and the in-tree counter-example checks out: `ao_rf_manager.h:47` publishes `RfManagerState` while `lq_window`, `lq_window_count`, `alpha_scaled` and `nav_period_ms` stay in `struct RfManager` at `ao_rf_manager.cpp:49-60`.
+- Verdict: RESHAPED -- `RadioAoState` at `ao_radio.h:27-67` is indeed `RadioAo::state` (`ao_radio.cpp:61-64`) published whole, including `rfm95w_t radio` and the nested `rc::RadioScheduler` whose `phase` the CLI reads at `rc_os_commands.cpp:1262/1270`, and the `ao_rf_manager.h:47` counter-example checks out (`lq_window`, `lq_window_count`, `alpha_scaled`, `nav_period_ms` stay in `struct RfManager`, `ao_rf_manager.cpp:49-60`); but the claim's list of "pure bookkeeping ... that nothing outside `ao_radio.cpp` uses" is wrong for three of its seven fields -- `tx_consec_fail` is read at `rc_os_commands.cpp:1269` and `diag_stats.cpp:153/157`, and `boot_audit` / `boot_audit_valid` are read at `rc_os_commands.cpp:1276-1277` for a purpose the header itself documents ("Exposed via cmd_radio_status() so the Batch A gate ... is visible via `t`", `ao_radio.h:62-64`).
+- Corrected claim: `RadioAoState` publishes AO_Radio's live state whole rather than a snapshot. The implementation-only members are the raw driver handle `rfm95w_t radio`, the nested `rc::RadioScheduler` (whose `phase` encoding is nonetheless load-bearing CLI API at `rc_os_commands.cpp:1262/1270`), and the apply/revert bookkeeping `prev_config` / `tx_since_apply` / `rx_at_apply` / `apply_in_progress` -- these four have zero readers outside `ao_radio.cpp`. `tx_consec_fail`, `boot_audit` and `boot_audit_valid` are deliberate, documented CLI/diag surface and belong in any published snapshot.
 **CW-L023** — [Claude] *(lens re-run)* · `class-design` · **F3 — AO_FlightDirector hands out the whole HSM where its own header names only two queries**  
 
 - **Site:** `src/active_objects/ao_flight_director.h:47`; def at `src/active_objects/ao_flight_director.cpp:377`
@@ -150,8 +154,8 @@ src/drivers/spi_bus.h -- FAIL -- Contract surface (Kind C) inventoried: the init
 - **Claim:** `AO_FlightDirector_get_director()` returns the complete `rc::FlightDirector` instance — HSM, `state`, `profile`, markers — although the declaration's own comment scopes the need to "ZUPT on-pad check and phase notification".
 - **Why:** three modules outside the AO now depend on the HSM's internal layout rather than on a query: `src/active_objects/ao_logger.cpp:217` reads `…get_director()->state.current_phase`, `src/fusion/eskf_runner.cpp:420-423` reads `fd->state.current_phase` twice to derive on-pad, and `src/logging/flash_flush.cpp:342` reads `fd->profile->name`. Two of those bypass `rc::flight_director_phase()`, the accessor `src/fusion/eskf_runner.cpp:464` uses for the very same fact — so one question is answered two ways, one of them through the struct's guts, and a change to how phase is stored or derived breaks the raw-field readers while the accessor-based reader keeps compiling. The compliant shape is already three declarations further down the same header: `AO_FlightDirector_is_ground_state()` answers a question instead of exporting the object. Compliant move: add `AO_FlightDirector_get_phase()` and `AO_FlightDirector_get_profile_name()`, and retire the raw-instance accessor.
 - **Confidence:** high
-- **Verdict:** CONFIRMED -- `AO_FlightDirector_get_director()` (decl `ao_flight_director.h:47`, def `:377`) returns the whole instance, and all three raw-field readers are exactly where claimed (`ao_logger.cpp:217` reads `->state.current_phase`, `eskf_runner.cpp:420-423` reads `fd->state.current_phase` twice, `flash_flush.cpp:342-344` reads `fd->profile->name`) while `eskf_runner.cpp:464` answers the same phase question through `rc::flight_director_phase()`; I confirmed no public `AO_FlightDirector_get_phase()` exists -- the only phase wrapper is the file-static test-mode lambda at `ao_flight_director.cpp:204-207`.
-
+- Verdict: CONFIRMED -- `AO_FlightDirector_get_director()` (decl `ao_flight_director.h:47`, def `:377`) returns the whole instance, and all three raw-field readers are exactly where claimed (`ao_logger.cpp:217` reads `->state.current_phase`, `eskf_runner.cpp:420-423` reads `fd->state.current_phase` twice, `flash_flush.cpp:342-344` reads `fd->profile->name`) while `eskf_runner.cpp:464` answers the same phase question through `rc::flight_director_phase()`; I confirmed no public `AO_FlightDirector_get_phase()` exists -- the only phase wrapper is the file-static test-mode lambda at `ao_flight_director.cpp:204-207`.
+- Verdict: CONFIRMED -- `AO_FlightDirector_get_director()` (decl `ao_flight_director.h:47`, def `ao_flight_director.cpp:377`) returns `&g_fdAo.director`, the whole `rc::FlightDirector` (HSM base, `state`, `profile`, guard/combinator members, five action callbacks, `flight_director.h:75-92`), while its own comment scopes the need to "ZUPT on-pad check and phase notification"; the three raw-field readers are exactly where cited (`ao_logger.cpp:217` `->state.current_phase`, `eskf_runner.cpp:421-423` `fd->state.current_phase` twice, `flash_flush.cpp:342-344` `fd->profile->name`), and `eskf_runner.cpp:464` answers the same phase question through `rc::flight_director_phase()` (`flight_director.cpp:235-237`), so one fact is read two ways with no `AO_FlightDirector_get_phase()` existing anywhere in the tree.
 **CW-L024** — [Claude] *(lens re-run)* · `class-design` · **F4 — AO_Telemetry's public interface carries two trivial pass-throughs for a mode it does not own**  
 
 - **Site:** `src/active_objects/ao_telemetry.h:26-27`; defs at `src/active_objects/ao_telemetry.cpp:787-797`
@@ -159,8 +163,9 @@ src/drivers/spi_bus.h -- FAIL -- Contract surface (Kind C) inventoried: the init
 - **Claim:** `AO_Telemetry_get_mavlink_output()` and `AO_Telemetry_toggle_mavlink()` read and write no member of `TelemAo`; they forward verbatim to `AO_RCOS_get_output_mode()` / `AO_RCOS_set_output_mode()`, whose owner is AO_RCOS (`src/active_objects/ao_rcos.cpp:63-72`). They are accessors with zero semantic value, attached to the wrong object.
 - **Why:** the header advertises that AO_Telemetry owns the USB output mode; it does not, and `ao_telemetry.cpp:730` says so in a comment ("Output mode owned by AO_RCOS"). The false ownership signal sits exactly where a caller looks: `AO_Telemetry_get_mavlink_output()`'s only live caller, `src/cli/rc_os_commands.cpp:776`, already has `station_output_mode.h` in scope and could ask the owner directly, and `AO_Telemetry_toggle_mavlink()` has **no live caller at all** — its single call site, `src/active_objects/ao_rcos.cpp:226`, sits inside the `#if 0` block at `ao_rcos.cpp:210-233`. What survives is a public entry point whose entire body is a round trip out of AO_RCOS and back into it. Compliant move: delete both from the header and point the one caller at `AO_RCOS_get_output_mode()`.
 - **Confidence:** medium
-- **Verdict:** CONFIRMED -- `ao_telemetry.cpp:787-797` shows both entry points forwarding verbatim to `AO_RCOS_get_output_mode()` / `_set_output_mode()` (owner at `ao_rcos.cpp:63-72` over the file static `g_outputMode`), the disclaiming comment is at `ao_telemetry.cpp:730`, and a whole-tree grep finds `AO_Telemetry_toggle_mavlink()` called only at `ao_rcos.cpp:226`, which is inside the `#if 0` block opened at `:211` -- so it genuinely has zero live callers; `rc_os_commands.cpp` does already include `station_output_mode.h` (`:23`) and `ao_rcos.h` (`:13`), so the one live caller at `:776` really could ask the owner directly.
-
+- Verdict: CONFIRMED -- `ao_telemetry.cpp:787-797` shows both entry points forwarding verbatim to `AO_RCOS_get_output_mode()` / `_set_output_mode()` (owner at `ao_rcos.cpp:63-72` over the file static `g_outputMode`), the disclaiming comment is at `ao_telemetry.cpp:730`, and a whole-tree grep finds `AO_Telemetry_toggle_mavlink()` called only at `ao_rcos.cpp:226`, which is inside the `#if 0` block opened at `:211` -- so it genuinely has zero live callers; `rc_os_commands.cpp` does already include `station_output_mode.h` (`:23`) and `ao_rcos.h` (`:13`), so the one live caller at `:776` really could ask the owner directly.
+- Verdict: RESHAPED -- `ao_telemetry.cpp:787-797` does delegate to `AO_RCOS_get_output_mode()` / `_set_output_mode()` (owner at `ao_rcos.cpp:63-72` over file-static `g_outputMode`), and a whole-tree grep confirms `AO_Telemetry_toggle_mavlink()` has no live caller (only `ao_rcos.cpp:226`, inside the `#if 0` at `:211-230`); but the "false ownership signal sits exactly where a caller looks" argument is refuted by the declaration site itself -- `ao_telemetry.h:25` carries the comment "Legacy compat for vehicle mode (TX) -- reads/writes AO_RCOS output mode", so the header disclaims ownership rather than advertising it, and the two functions are not literally value-free pass-throughs (one projects a three-state enum onto a bool, the other is a CSV<->MAVLink two-state toggle over that enum).
+- Corrected claim: `AO_Telemetry_toggle_mavlink()` is dead public API -- declared at `ao_telemetry.h:27`, defined at `ao_telemetry.cpp:791`, and called only from inside the `#if 0` block at `ao_rcos.cpp:211-230`. `AO_Telemetry_get_mavlink_output()` is a single-caller (`rc_os_commands.cpp:776`) thin projection of state owned by AO_RCOS, which that caller could query directly (`station_output_mode.h` and `ao_rcos.h` are already included at `rc_os_commands.cpp:23` and `:13`). The header does not misstate ownership; the defect is one dead and one redundant entry point, not a false ownership claim.
 **CW-L025** — [Claude] *(lens re-run)* · `class-design` · **F5 — AO_Radio writes RadioScheduler's state variable directly instead of through its transition API**  
 
 - **Site:** `src/active_objects/ao_radio.cpp:571`
@@ -168,8 +173,8 @@ src/drivers/spi_bus.h -- FAIL -- Contract surface (Kind C) inventoried: the init
 - **Claim:** `rc::RadioScheduler` is a half-duplex state machine whose members are coupled (`phase` must agree with `rx_continuous_`; `tx_interval_ms` / `next_tx_deadline_ms` are meaningful only once `init()` has run). It exposes named transitions (`init`, `on_tx_start`, `on_tx_complete`, `set_rate`) but leaves `phase` public, and on the radio-not-detected path AO_Radio assigns `s.scheduler.phase = rc::RadioPhase::kIdle` directly — leaving the object in a configuration no scheduler method ever established, because `init()` is never called on that path.
 - **Why:** today the damage is contained only by an unrelated guard: `handle_radio_tick()` (`ao_radio.cpp:715-717`) returns early on `!s.initialized`, so the never-initialised scheduler is never ticked. That coupling is invisible from `RadioScheduler`'s own definition and is the sole thing between this assignment and a scheduler running with `tx_interval_ms == 0` and `rx_continuous_ == false`. Any later change that ticks the scheduler in the not-detected case — e.g. to retry/re-probe the SX1276 — turns a one-line edit that compiles into a scheduler in an unreachable state. Compliant move: give `RadioScheduler` an explicit `idle()`/`shutdown()` transition and stop writing `phase` from outside. (The type itself lives at `include/rocketchip/radio_scheduler.h:31`, outside this scope; the violating write is in scope.)
 - **Confidence:** medium
-- **Verdict:** CONFIRMED -- `ao_radio.cpp:571` is the direct `s.scheduler.phase = rc::RadioPhase::kIdle` on the `else` branch where `rfm95w_init()` failed and `scheduler.init()` (`:560`) is skipped, and the containment really is the unrelated `if (!s.initialized) { return; }` at `:717` inside `handle_radio_tick()` (function opens `:715`); the members are coupled as described and `RadioScheduler` exposes no `idle()`/`shutdown()` transition. One nit: `memset(&g_radioAo.state, 0, ...)` at `:799` already zeroes the scheduler, so `kIdle` is also the zero-value -- the assignment is redundant as well as invariant-bypassing, which does not weaken the claim. (Same underlying defect as CD-1 in `lens-classdesign-headers.md`, sited from the other side.)
-
+- Verdict: CONFIRMED -- `ao_radio.cpp:571` is the direct `s.scheduler.phase = rc::RadioPhase::kIdle` on the `else` branch where `rfm95w_init()` failed and `scheduler.init()` (`:560`) is skipped, and the containment really is the unrelated `if (!s.initialized) { return; }` at `:717` inside `handle_radio_tick()` (function opens `:715`); the members are coupled as described and `RadioScheduler` exposes no `idle()`/`shutdown()` transition. One nit: `memset(&g_radioAo.state, 0, ...)` at `:799` already zeroes the scheduler, so `kIdle` is also the zero-value -- the assignment is redundant as well as invariant-bypassing, which does not weaken the claim. (Same underlying defect as CD-1 in `lens-classdesign-headers.md`, sited from the other side.)
+- Verdict: REFUTED -- `radio_scheduler.h:21` defines the value being written as `kIdle = 0, // Standby or init failure [C3-A5]`, and that council item traces to `docs/plans/STAGE12A_RADIO_MODULE.md:425` ("C3-A5. Radio init failure: probe-first, Telem continues for USB"), so `ao_radio.cpp:571` assigns the sentinel the type itself documents for exactly this path -- a documented reason the finding missed; the write is moreover a no-op, since `AO_Radio_start()` memsets `g_radioAo.state` to zero at `ao_radio.cpp:799` and `kIdle` is 0, so it cannot leave the object in any state it was not already in, and every scheduler consumer in the file (`:181/208/225/262/452/468/721-735`) is reached only under `handle_radio_tick()`'s `if (!s.initialized) { return; }` (`:717`) or from RX poll beneath it -- what remains is a preference for an `idle()` method over assigning a documented enumerator.
 ---
 
 ## Out-of-lens observations — NOT class-design findings, not counted in `found`
@@ -233,8 +238,8 @@ than a clearly-labelled note.
   and an 8- or 16-LED bar is an ordinary part for the RSSI-bar feature this member exists to
   serve.
 - **Confidence:** high
-- **Verdict:** CONFIRMED -- `ws2812_status.cpp:261` is exactly `g_state.numLeds = (num_leds > 0) ? num_leds : 1;`, `:59` is `ws2812_rgb_t pixels[8];   // Max 8 LEDs per chain`, and the three `i < g_state.numLeds` loops plus the `index >= g_state.numLeds` guard (at `:133`, one off from the cited `:132`) are all present; `ws2812_status.h:52-59` documents no upper bound and defaults the parameter to 1, and the sole caller is `main.cpp:240-241` with `board::kNeoPixelCount` = 0 / 1 / 5 / 1 across the four packs. Nothing mechanical covers it -- this is a `src/**` header, outside `HeaderFilterRegex`, and no enabled check bounds an aggregate index.
-
+- Verdict: CONFIRMED -- `ws2812_status.cpp:261` is exactly `g_state.numLeds = (num_leds > 0) ? num_leds : 1;`, `:59` is `ws2812_rgb_t pixels[8];   // Max 8 LEDs per chain`, and the three `i < g_state.numLeds` loops plus the `index >= g_state.numLeds` guard (at `:133`, one off from the cited `:132`) are all present; `ws2812_status.h:52-59` documents no upper bound and defaults the parameter to 1, and the sole caller is `main.cpp:240-241` with `board::kNeoPixelCount` = 0 / 1 / 5 / 1 across the four packs. Nothing mechanical covers it -- this is a `src/**` header, outside `HeaderFilterRegex`, and no enabled check bounds an aggregate index.
+- Verdict: CONFIRMED -- `ws2812_status.cpp:261` is `g_state.numLeds = (num_leds > 0) ? num_leds : 1;` with no upper bound, `:59` is `ws2812_rgb_t pixels[8];  // Max 8 LEDs per chain`, the guard at `:133` is `index >= g_state.numLeds` and the three write loops (`ws2812_show()` `:140`, `ws2812_set_rssi_bar()` `:158`, `ws2812_set_sweep_bar()` from `:203`) all bound on `numLeds`, so any `num_leds` in 9..255 writes past `pixels[7]` into `mode` / `baseColor` / `altColor` / `brightness` and the timing members of the same file-static; `ws2812_status.h:53-59` documents no bound and defaults the parameter to 1, no `static_assert` or clamp exists in the file, and nothing mechanical covers it (no enabled `.clang-tidy` check bounds a runtime aggregate index) -- the invariant holds today only because the sole caller `main.cpp:240-241` passes `board::kNeoPixelCount`, which is 1 / 5 / 0 / 1 across the four board packs.
 **CW-L027** — [Claude] *(lens re-run)* · `class-design` · **`rfm95w_t`'s accessor surface is incoherent — a trivial getter for one field, direct reach-in for its sibling**  
 
 - **Site:** `src/drivers/rfm95w.cpp:386-388` (`rfm95w_rssi`), declared at
@@ -256,8 +261,8 @@ than a clearly-labelled note.
   should stop. The current split is precisely the ceremony-without-semantic-value case C.131
   names.
 - **Confidence:** high
-- **Verdict:** CONFIRMED -- `rfm95w.cpp:385-387` is a bare `return dev->last_rssi;`, the two members sit adjacent at `rfm95w.h:135-136` in a fully public struct, and the mixed shape is on consecutive lines in the consumer: `ao_radio.cpp:428` calls `rfm95w_rssi(&s.radio)` while `:429` reads `s.radio.last_snr` directly, repeating at `:474`; a whole-tree grep finds no accessor for `last_snr` anywhere, and neither the header nor any doc explains the split.
-
+- Verdict: CONFIRMED -- `rfm95w.cpp:385-387` is a bare `return dev->last_rssi;`, the two members sit adjacent at `rfm95w.h:135-136` in a fully public struct, and the mixed shape is on consecutive lines in the consumer: `ao_radio.cpp:428` calls `rfm95w_rssi(&s.radio)` while `:429` reads `s.radio.last_snr` directly, repeating at `:474`; a whole-tree grep finds no accessor for `last_snr` anywhere, and neither the header nor any doc explains the split.
+- Verdict: CONFIRMED -- `src/drivers/rfm95w.cpp:386-388` is exactly `int16_t rfm95w_rssi(const rfm95w_t* dev) { return dev->last_rssi; }` with no validation, conversion, locking or invariant maintenance; `rfm95w.h:129-141` is a fully public handle in which `last_rssi` (`:135`) and `last_snr` (`:136`) sit adjacent; a whole-tree grep for `last_snr` across `src/`, `include/`, `test/` finds no accessor anywhere (only the driver's own writes at `rfm95w.cpp:175,327`, the member at `rfm95w.h:136`, and the consumer reach-ins); and both shapes appear on consecutive lines in one consumer -- `ao_radio.cpp:428` calls `rfm95w_rssi(&s.radio)` while `:429` reads `s.radio.last_snr` directly, repeating at `:474`. No header comment, code comment, or decision doc explains the split. Two nits that do not move the verdict: the block's own Verdict line cites `385-387` where the function is at `386-388`, and `diag_stats.cpp:160` is not a third reach-in -- it reads the AO's cached `last_rx_snr`, not the driver handle.
 **CW-L028** — [Claude] *(lens re-run)* · `class-design` · **`icm20948_t` is a public struct carrying a real cross-member invariant (`*_fs` must track `*_scale`)**  
 
 - **Site:** `src/drivers/icm20948.h:103-117` (the type); maintained only at
@@ -280,8 +285,9 @@ than a clearly-labelled note.
   assignable, and reaching into this handle is already an established habit among consumers
   (`src/cli/rc_os_commands.cpp:594-595` reads `g_imu.mag_initialized` directly).
 - **Confidence:** medium
-- **Verdict:** CONFIRMED -- `icm20948.h:103-117` holds all six members public, the pairing is re-established only inside `icm20948_set_accel_fs()` (`icm20948.cpp:390-409`) and `icm20948_set_gyro_fs()` (`:411-429`), `parse_accel_gyro_temp()` at `:469` multiplies raw LSBs by whatever `dev->accel_scale` holds, and my own grep for `accel_fs|gyro_fs|accel_scale|gyro_scale|mag_scale` over `src/`, `include/` and `test/` returns no writer outside `icm20948.cpp` -- so the "verified not live" bound is accurate and the supporting reach-in at `rc_os_commands.cpp:594-595` is real.
-
+- Verdict: CONFIRMED -- `icm20948.h:103-117` holds all six members public, the pairing is re-established only inside `icm20948_set_accel_fs()` (`icm20948.cpp:390-409`) and `icm20948_set_gyro_fs()` (`:411-429`), `parse_accel_gyro_temp()` at `:469` multiplies raw LSBs by whatever `dev->accel_scale` holds, and my own grep for `accel_fs|gyro_fs|accel_scale|gyro_scale|mag_scale` over `src/`, `include/` and `test/` returns no writer outside `icm20948.cpp` -- so the "verified not live" bound is accurate and the supporting reach-in at `rc_os_commands.cpp:594-595` is real.
+- Verdict: RESHAPED -- the accel and gyro halves survive intact: `icm20948.h:103-117` publishes every member, `accel_scale` is re-paired with `accel_fs` only inside `icm20948_set_accel_fs()` (`icm20948.cpp:390-409`, `dev->accel_scale = kAccelScale[fs]` at `:406`) and `gyro_scale` with `gyro_fs` only inside `icm20948_set_gyro_fs()` (`:411-429`), `parse_accel_gyro_temp()` at `:469` multiplies raw LSBs by whatever `dev->accel_scale` holds, and my own grep for `accel_fs|gyro_fs|accel_scale|gyro_scale|mag_scale|mag_mode` over `src/`, `include/` and `test/` returns nothing outside `icm20948.{h,cpp}` -- so the "verified not live" bound holds and the supporting reach-in at `rc_os_commands.cpp:594-595` is real. But the third pair the finding names is not a pair, and the reason is documented in the line the finding cites: `mag_scale` is a mode-independent constant, assigned once as `dev->mag_scale = kMagScale` at `icm20948.cpp:286`; `icm20948_set_mag_mode()` (`:432-441`) writes `mag_mode` and never touches it; and `icm20948.h:116` says so in-line -- "LSB to uT (fixed for AK09916)". "Likewise `mag_scale`/`mag_mode`" and the "all six" framing are overstated.
+- Corrected claim: `icm20948_t` (`src/drivers/icm20948.h:103-117`) is a public struct carrying **two** cross-member invariants -- `accel_scale` must track `accel_fs`, and `gyro_scale` must track `gyro_fs` -- each re-established only inside its setter (`icm20948.cpp:390-409` and `:411-429`). Any translation unit may assign `dev->accel_fs` directly; `parse_accel_gyro_temp()` (`:469`) then scales every sample by the stale factor with no error return and no failed read (a ±2g factor left against a ±16g setting is a silent 8× error into the ESKF). `mag_scale`/`mag_mode` are excluded -- `mag_scale` is fixed for the AK09916 and the header documents that. Not live: no writer exists outside `icm20948.cpp` anywhere in `src/`, `include/` or `test/`; the defect is that only convention prevents one.
 **CW-L029** — [Claude] *(lens re-run)* · `class-design` · **The WS2812 singleton's period setters admit zero, which its own update path cannot survive — while a sibling setter guards**  
 
 - **Site:** `src/drivers/ws2812_status.cpp:355-357` (`ws2812_set_breathe_period`) and `:359-362`
@@ -303,8 +309,8 @@ than a clearly-labelled note.
   enforces the same class of invariant in one setter and not in the other two; the inconsistency
   is what will mislead the first caller who uses them.
 - **Confidence:** medium
-- **Verdict:** CONFIRMED -- every cited line is exact: `ws2812_set_breathe_period` at `:355-357` and `ws2812_set_blink_timing` at `:359-362` assign unchecked, `ws2812_set_mode_alternate` at `:343-353` substitutes `kDefaultAlternateHalfMs` on zero, the float divide is at `:373` and `elapsed % period` at `:382` (reached from `:463`, which passes `g_state.blinkOnMs` / `blinkOffMs`); a whole-tree grep confirms zero callers for both setters, and `ws2812_status.h:150-161` documents no lower bound. The reported defect is the sibling inconsistency in published API, and it is stated as not live.
-
+- Verdict: CONFIRMED -- every cited line is exact: `ws2812_set_breathe_period` at `:355-357` and `ws2812_set_blink_timing` at `:359-362` assign unchecked, `ws2812_set_mode_alternate` at `:343-353` substitutes `kDefaultAlternateHalfMs` on zero, the float divide is at `:373` and `elapsed % period` at `:382` (reached from `:463`, which passes `g_state.blinkOnMs` / `blinkOffMs`); a whole-tree grep confirms zero callers for both setters, and `ws2812_status.h:150-161` documents no lower bound. The reported defect is the sibling inconsistency in published API, and it is stated as not live.
+- Verdict: CONFIRMED -- every cited line is exact: `ws2812_set_breathe_period` at `:355-357` and `ws2812_set_blink_timing` at `:359-362` assign unchecked; `ws2812_set_mode_alternate` at `:343-353` substitutes `kDefaultAlternateHalfMs` on zero at `:348-349`; the float divide by `g_state.breathePeriodMs` is at `:373`; `elapsed % period` is at `:382`, reached from `:463` which passes `g_state.blinkOnMs` / `g_state.blinkOffMs`. The sibling-inconsistency claim is in fact stronger than written -- `update_alternate()` carries a second, independent guard, `if (period == 0U) return;` at `:407` -- so the alternate path is protected at both the setter and the consumer while the breathe and blink paths are protected at neither. `ws2812_status.h:150-161` documents no lower bound (only "Full breath cycle period in milliseconds" / "On time" / "Off time"), and a whole-tree grep confirms both setters have zero callers anywhere in `src/`, `include/` or `test/` (declaration and definition only), while `ws2812_set_mode_alternate` has one at `ao_led_engine.cpp:119`. The zero-caller status makes the consequence unexercised rather than unreachable -- both are externally-linked functions published in the header -- and the finding already states it as not live and rests the defect on the published-API inconsistency.
 **CW-L030** — [Claude] *(lens re-run)* · `class-design` · **`icm20948_t` presents as a per-device handle, but its magnetometer state and read cadence are module-global**  
 
 - **Site:** `src/drivers/icm20948.cpp:497` (function-local `static uint8_t g_magDivCount` inside
@@ -331,13 +337,14 @@ than a clearly-labelled note.
   so they are not evidence that two simultaneous handles are intended, and "two handles halve the mag
   cadence and fight over the same AK09916" is not supported by anything in the tree.
 - **Confidence:** medium
-- **Verdict:** RESHAPED -- the code facts are exact (`read_mag_bypass` at `:496` with
+- Verdict: RESHAPED -- the code facts are exact (`read_mag_bypass` at `:496` with
   `static uint8_t g_magDivCount` at `:497`; `configure_magnetometer` discarding `dev` at `:241`; the
   lazy re-init at `:522-529`), but the finding's severity rested on "the header publishes two
   addresses ... implying more than one handle is legitimate", which is wrong -- those are the AD0
   alternatives for one device. Claim and Why narrowed to the C.3 mismatch (per-instance interface
   over module-scoped state, divider not reset by `init`), multi-instance consequence dropped.
-
+- Verdict: RESHAPED -- the code facts are exact (`read_mag_bypass(icm20948_t* dev, ...)` at `:496` with function-local `static uint8_t g_magDivCount` at `:497`, referenced only at `:497-500` and `:522-526`; the lazy re-init at `:522-529` with `init_magnetometer(dev)` at `:527`; `configure_magnetometer` at `:240` opening `(void)dev;` at `:241`; `icm20948.h:126` documenting the two addresses as the `addr` argument's choices), and the multi-instance withdrawal is correct -- LESSONS_LEARNED Entry 13 confirms 0x69/0x68 are the AD0 strap options for one Adafruit part. But the headline still overstates on two counts. The magnetometer *state* is not module-global: `mag_initialized`, `mag_mode` and `mag_scale` all live in the handle and are read per-`dev` at `:499`, `:512-514` and `:522`; only the read-cadence counter is module-scoped. And `configure_magnetometer`'s `(void)dev;` carries its own in-code reason on the same line -- "dev not needed -- AK09916 is on external bus at fixed address" -- so the "a reader cannot tell which fields are handle-scoped" framing does not apply to that site.
+- Corrected claim: `read_mag_bypass()` (`src/drivers/icm20948.cpp:496`) keeps the magnetometer read-rate divider in a function-local `static` (`g_magDivCount`, `:497`) instead of in the `icm20948_t` it is handed. The divider is therefore not handle state and is not reset by `icm20948_init()`; only the lazy-re-init branch (`:522-529`) zeroes it. The C.3 defect is that narrow one -- a per-instance interface over one piece of module-scoped cadence state. Consequence on the single physical part this project ships: re-initialising a handle leaves the mag read phase where it was, at most one divider cycle of offset. The AK09916 fields on the handle are genuinely handle-scoped and are not part of the claim; no multi-instance consequence is asserted.
 **CW-L031** — [Claude] *(lens re-run)* · `class-design` · **`gps_uart_init()` claims an exclusive NVIC handler slot that no declared operation releases**  
 
 - **Site:** `src/drivers/gps_uart.cpp:377` (acquire) with no matching release anywhere in the
@@ -365,13 +372,14 @@ than a clearly-labelled note.
   Entry 42), which UART0 is not. (The Site line's `gps_uart.h:123-192` is also out of range — that
   header is 114 lines; the `reinit` contract is at `:103-112`.)
 - **Confidence:** medium
-- **Verdict:** RESHAPED -- the `init`/`reinit` asymmetry is real and verified
+- Verdict: RESHAPED -- the `init`/`reinit` asymmetry is real and verified
   (`irq_set_exclusive_handler` appears only at `gps_uart.cpp:377`; `gps_uart_reinit()` at `:448-481`
   re-enables the IRQ at `:477` with no handler install and no `g_initialized` check; the header doc
   at `:103-112` states no precondition), but the AV 79 "acquired-never-released" framing has no
   subject in a class-free, teardown-free module, and the header line range cited does not exist.
   Claim and Why narrowed to the undeclared-precondition defect on `reinit`.
-
+- Verdict: RESHAPED -- the `init`/`reinit` asymmetry is real and verified: `irq_set_exclusive_handler` appears exactly once in the file, at `gps_uart.cpp:377`; `gps_uart_reinit()` (`:448-481`) gates only on `board::kUartGpsAvailable`, never checks `g_initialized`, installs no handler, and ends by re-enabling the NVIC line at `:477`; the header contract at `gps_uart.h:103-112` -- "Deinits UART, resets ring buffer, renegotiates baud, re-enables IRQ" -- states no precondition. The Site line's `gps_uart.h:123-192` does not exist; that header is 114 lines. The AV 79 headline ("claims an exclusive NVIC handler slot that no declared operation releases") has no subject: there is no class and no teardown in this subsystem, and a lifetime-of-program singleton driver legitimately never releases UART0 or its vector slot. I also tested the remedy the finding offers against the SDK actually checked out here: `pico-sdk/src/rp2_common/hardware_irq/irq.c:231-243` asserts `current == __unhandled_user_irq || current == handler`, so re-installing the same handler from `reinit` is permitted rather than a panic.
+- Corrected claim: `gps_uart_reinit()` (`src/drivers/gps_uart.cpp:448-481`) carries an undeclared precondition -- it re-enables the UART IRQ line at `:477`, but only `gps_uart_init()` installs the exclusive handler (`:377`), so `reinit` is safe only after a successful `init`, which `gps_uart.h:103-112` does not say. On a path where `reinit` runs first, the NVIC line is enabled with no handler, which on the Pico SDK routes to `__unhandled_user_irq`. Not reachable today: the sole caller, `core1_gps_staleness_check()` (`sensor_core1.cpp:275`), returns early at `:261` unless `g_gpsTransport == GPS_TRANSPORT_UART && g_lastValidGpsUs != 0`, and `g_gpsTransport` is bound to UART only after `gps_uart_init()` succeeded (`main.cpp:129-133`). Remedy: document the precondition, or re-call `irq_set_exclusive_handler()` in `reinit`. The AV 79 "acquired-never-released" half is withdrawn.
 **CW-L032** — [Claude] *(lens re-run)* · `class-design` · **CD-1 — `RadioScheduler` publishes its state machine, and the init-failure path drives a transition no member function can produce**  
 
 - **Site:** `include/rocketchip/radio_scheduler.h:27-72` (type); violating call site
@@ -396,8 +404,8 @@ than a clearly-labelled note.
   trailing underscore on `rx_continuous_` — the only member in the whole 33-file set spelled as a
   private member — is the tell that this type was designed with a private section it never got.
 - **Confidence:** high
-- **Verdict:** CONFIRMED -- re-read with the files open: `radio_scheduler.h:27-72` publishes all four members, `ao_radio.cpp:571` assigns `phase` directly on the not-detected branch with no `init()`, `tx_slot_open()` does return true for `kIdle` and has zero callers in `src/` or `test/`, and `rx_continuous_` is the only trailing-underscore member in all 33 headers; two nits that do not change the claim -- `memset(&g_radioAo.state, 0, ...)` at `ao_radio.cpp:799` also yields `kIdle`, so `:571` is the only *explicit* producer rather than the only one, and the `s.initialized` re-check is at `:717`, not `:719`.
-
+- Verdict: CONFIRMED -- re-read with the files open: `radio_scheduler.h:27-72` publishes all four members, `ao_radio.cpp:571` assigns `phase` directly on the not-detected branch with no `init()`, `tx_slot_open()` does return true for `kIdle` and has zero callers in `src/` or `test/`, and `rx_continuous_` is the only trailing-underscore member in all 33 headers; two nits that do not change the claim -- `memset(&g_radioAo.state, 0, ...)` at `ao_radio.cpp:799` also yields `kIdle`, so `:571` is the only *explicit* producer rather than the only one, and the `s.initialized` re-check is at `:717`, not `:719`.
+- Verdict: CONFIRMED -- re-read with the files open, every load-bearing fact holds at the cited line: `radio_scheduler.h:27-72` publishes all four members with no private section; `init()` (`:33-38`) can produce only `kRxContinuous` or `kRxWindow`; `ao_radio.cpp:571` assigns `s.scheduler.phase = rc::RadioPhase::kIdle` directly on the not-detected branch (`:569-573`) with no `init()` call, leaving `tx_interval_ms`, `next_tx_deadline_ms` and `rx_continuous_` at aggregate defaults; `tx_slot_open()` (`:41-45`) returns false only for `kTxActive` and `kRxContinuous`, so with `phase == kIdle` and `next_tx_deadline_ms == 0` it returns true, contradicting the `kIdle` comment at `:21` ("Standby or init failure"); `tx_slot_open` has **zero** callers in `src/`, `include/` or `test/` (grep finds only its definition); the `s.initialized` re-check that is actually suppressing TX today is at `ao_radio.cpp:717` and `:181`/`:186`; and `rx_continuous_` is the only trailing-underscore member anywhere in `include/rocketchip/`. I chased the one documented-reason candidate: the `[C3-A5]` tag on `radio_scheduler.h:21` resolves to `docs/plans/STAGE12A_RADIO_MODULE.md:425` -- "Radio init failure: probe-first, Telem continues for USB" -- which sanctions entering idle on init failure but says nothing about the scheduler's remaining fields or about `tx_slot_open`'s behaviour in that state, so no documented reason was missed. Two corrections that do not move the verdict: `memset(&g_radioAo.state, 0, sizeof(...))` at `:799` also yields `kIdle`, so `:571` is the only *explicit* producer rather than the only one -- and since the memset produces the identical unproducible-by-member-function combination, it strengthens the claim -- and the `handle_radio_tick` guard is at `:717`, not `:719`.
 **CW-L033** — [Claude] *(lens re-run)* · `class-design` · **CD-2 — `MavlinkRxState` publishes parser scratch whose size invariant lives only in a comment**  
 
 - **Site:** `include/rocketchip/mavlink_rx.h:52-60` (specifically `:55`)
@@ -423,8 +431,9 @@ than a clearly-labelled note.
   sizeof(mavlink_status_t))` in the `.cpp` — which already includes `mavlink.h` — turns the comment
   into a build-time guarantee.
 - **Confidence:** high
-- **Verdict:** CONFIRMED -- `mavlink_rx.h:55` is the `parser_buf[320]` line with the size relation in a trailing comment only, `mavlink_rx.cpp:305-311` does `reinterpret_cast` both vendor objects out of that one array and hands them to `mavlink_parse_char()`, and grepping `static_assert` over the header and the whole `.cpp` returns zero hits; `lib/mavlink` is an unchecked-out submodule, so the tree itself cannot answer the size question either way -- which is precisely the defect claimed (the compiler is never asked), and no enabled `.clang-tidy` check covers a missing size guard.
-
+- Verdict: CONFIRMED -- `mavlink_rx.h:55` is the `parser_buf[320]` line with the size relation in a trailing comment only, `mavlink_rx.cpp:305-311` does `reinterpret_cast` both vendor objects out of that one array and hands them to `mavlink_parse_char()`, and grepping `static_assert` over the header and the whole `.cpp` returns zero hits; `lib/mavlink` is an unchecked-out submodule, so the tree itself cannot answer the size question either way -- which is precisely the defect claimed (the compiler is never asked), and no enabled `.clang-tidy` check covers a missing size guard.
+- Verdict: RESHAPED -- `mavlink_rx.h:55` and the missing `static_assert` are exactly as
+- Corrected claim: `include/rocketchip/mavlink_rx.h:55` declares `uint8_t parser_buf[320]`
 **CW-L034** — [Claude] *(lens re-run)* · `class-design` · **CD-3 — `rc::strbuf` — read-only accessors over fully public data**  
 
 - **Site:** `include/rocketchip/rc_log.h:76-87`
@@ -446,13 +455,13 @@ than a clearly-labelled note.
   earn their keep and the invariant is actually held), or drop the two accessors and let callers read
   `sb.pos` on an honest aggregate. Keeping both is the C.131 shape.
 - **Confidence:** medium
-- **Verdict:** RESHAPED -- the C.131 claim holds at `rc_log.h:76-87` (both accessors are bare field
+- Verdict: RESHAPED -- the C.131 claim holds at `rc_log.h:76-87` (both accessors are bare field
   returns over a fully public struct that does carry a real sticky-overflow invariant), but the
   original Why asserted "no caller touches the fields directly", which is false --
   `test/test_rc_snprintf.cpp` reads `sb.pos` / `sb.overflow` / `sb.buf` directly at 19 sites; Why
   rewritten to the accurate, narrower version (no *writer* exists, so it is ceremony rather than a
   live bug).
-
+- Verdict: REFUTED -- `rc_log.h:74-75` documents the shape the finding objects to ("Models
 **CW-L035** — [Claude] *(lens re-run)* · `class-design` · **CD-4 — `RadioScheduler::on_tx_start` takes a timestamp and discards it**  
 
 - **Site:** `include/rocketchip/radio_scheduler.h:54-57`
@@ -471,12 +480,12 @@ than a clearly-labelled note.
   Not gate-covered: `misc-unused-parameters` is enabled but does not fire, because the
   `(void)now_ms;` cast counts as a use.
 - **Confidence:** medium
-- **Verdict:** RESHAPED -- the dead parameter is real and verified at `radio_scheduler.h:54-57`, but
+- Verdict: RESHAPED -- the dead parameter is real and verified at `radio_scheduler.h:54-57`, but
   the original Why miscited the call sites (`ao_radio.cpp:568` is inside the init block, not a call
   site; the real ones are `:208` and `:454`) and rested its weight on an inference about how a future
   reader would misread the type; narrowed to the verifiable interface-honesty claim with correct call
   sites and an explicit "no reachable failure".
-
+- Verdict: REFUTED -- the dead parameter is real (`radio_scheduler.h:54-57`, `(void)now_ms;`)
 **CW-L036** — [Claude] *(lens re-run)* · `class-design` · **CD-5 — `sensor_seqlock_t` publishes the data its protocol counter protects**  
 
 - **Site:** `include/rocketchip/sensor_seqlock.h:109-112`
@@ -498,13 +507,13 @@ than a clearly-labelled note.
   the C.2 one: make it a `class` whose only public members are the two protocol functions, so the
   protocol becomes the only way in.
 - **Confidence:** medium
-- **Verdict:** CONFIRMED -- `sensor_seqlock.h:109-112` does publish both `sequence` and the 156-byte
+- Verdict: CONFIRMED -- `sensor_seqlock.h:109-112` does publish both `sequence` and the 156-byte
   `data` it protects, the read protocol at `:130-145` is as described, and my own independent grep of
   `g_sensorSeqlock` / `sensor_seqlock_t` across `src/`, `include/` and `test/` agrees that every
   access routes through `seqlock_read` / `seqlock_write`; `docs/decisions/SEQLOCK_DESIGN.md` records
   no rationale for the members being public, so no documented reason was missed, and the finding
   already labels itself latent rather than live.
-
+- Verdict: CONFIRMED -- `sensor_seqlock.h:109-112` publishes both `std::atomic<uint32_t>
 **CW-L040** — [Claude] *(lens re-run)* · `control-flow` · **CF-1 — Crash-recovery header seqlock is written through an unqualified pointer, so the odd-marking store can be deleted**  
 
 - **Site:** `src/logging/ring_buffer.cpp:26` (the store; whole protocol `src/logging/ring_buffer.cpp:21-35`)
@@ -554,12 +563,12 @@ than a clearly-labelled note.
   alias (`ao_logger.cpp:260` → `psram_base_ptr()`, `psram_init.cpp:280` → `0x11000000`), contrary to
   Council req. #1 as stated in `ring_buffer.h:23-27`.
 - **Confidence:** high
-- **Verdict:** RESHAPED -- the unqualified/unbarriered three-phase store sequence at
+- Verdict: RESHAPED -- the unqualified/unbarriered three-phase store sequence at
   `ring_buffer.cpp:21-35` is exactly as cited and the odd-marking store at L26 is a legitimate
   dead-store candidate, but the claimed reachable consequence fails: `ring_recover()` has no
   caller outside `test/`, and `ring_read()`'s position arithmetic uses `head` alone, so the
   defect is a dormant-protocol defect rather than a live silent-corruption path.
-
+- Verdict: CONFIRMED -- every cited line is exact: `sync_header` is `ring_buffer.cpp:21-35`
 ---
 
 ## Result
@@ -1465,7 +1474,9 @@ include/rocketchip/version.h -- PARTIAL -- Kind E identity map; values are consi
 - **Primary-source check (2026-08-20): STILL-UNVERIFIABLE**
   - Source: `C:/Users/pow-w/Documents/RC-cw-gaps/lib/mavlink/` -- empty directory; `.gitmodules` declares `[submodule "lib/mavlink"]` with `url = https://github.com/mavlink/c_library_v2.git`. Repo-wide search for `mavlink_types.h`, `MAVLINK_MAX_PAYLOAD_LEN`, or a definition of `struct __mavlink_message` returns nothing; the only occurrence in the tree is the forward declaration at `include/rocketchip/mavlink_rx.h:28-31`.
   - Quote: `include/rocketchip/mavlink_rx.h:55` -- "uint8_t            parser_buf[320]; // sizeof(mavlink_message_t) + sizeof(mavlink_status_t) + padding". `src/telemetry/mavlink_rx.cpp:307-309` -- "reinterpret_cast<mavlink_message_t*>(state->parser_buf);" and "reinterpret_cast<mavlink_status_t*>(state->parser_buf + sizeof(mavlink_message_t));". No `static_assert` appears in either file.
-
+- **Primary-source re-check (2026-08-20, submodules checked out): UPHELD**
+  - This supersedes the earlier STILL-UNVERIFIABLE result, which was reached in a tree where `pico-sdk/` and `lib/mavlink/` were absent — a worktree artifact, not a fact about the repo.
+  - Source: `lib/mavlink/mavlink_types.h:17`, `:24`, `:30`, `:33`, `:107-121`, `:220-234`; against `include/rocketchip/mavlink_rx.h:52-57` and `src/telemetry/mavlink_rx.cpp:305-309`.
 **CW-X3-09** — [Claude] · `comment` · **wire-format comment names an APID the encoder never emits**  
 - Site: include/rocketchip/telemetry_encoder.h:57-62; src/telemetry/telemetry_encoder.cpp:149, :379-380
 - Lens: Comments & documentation quality -- NL.2 (comment/code disagreement); NL.3 (ICD claims must be exact, not approximate)
@@ -1915,7 +1926,9 @@ side-effecting assertion anywhere in `src/math/`.
 - **Primary-source check (2026-08-20): STILL-UNVERIFIABLE**
   - Source: `docs/hardware/datasheets/PA1010D-datasheet-v03.pdf` -- section 3.2 "MTK NMEA Command Protocols", p.23 (PDF page 23 of 27); also searched the whole document for "PMTK" (23 hits: 161, 225, 353, 103 only) and `docs/hardware/datasheets/PA1010D-NMEA-over-I2C-appnote.pdf` (GlobalTop "GPS NMEA over I2C Software Guide" v1.2), section 4 "MT3339/MT3333 Write PMTK Command via I2C bus" and section 5. All 11 datasheets in `docs/hardware/datasheets` were grepped; PMTK appears only in these two files.
   - Quote: PA1010D datasheet p.23, the entirety of section 3.2 reads: "3.2 MTK NMEA Command Protocols / Packet Type: 103 PMTK_CMD_COLD_START / Packet Meaning: Cold Start:Don't use Time, Position, Almanacs and Ephemeris data at re-start. / Example: $PMTK103*30<CR><LF>". The I2C appnote's only PMTK content is transport-level: "User can input PMTK command via I2C bus. Since the capacity for MT3339/MT3333 I2C RX buffer is 255 bytes, one I2C packet that master inputs must be less than 255 bytes, and the time interval of two input I2C packets cannot be less than 10 milliseconds because it takes slave 10 milliseconds to process input data." (section 4) and "The $PMTK command is ranging from 8 to 64bytes in length." (section 5 note).
-
+- **Primary-source re-check (2026-08-20, submodules checked out): UPHELD**
+  - This supersedes the earlier STILL-UNVERIFIABLE result, which was reached in a tree where `pico-sdk/` and `lib/mavlink/` were absent — a worktree artifact, not a fact about the repo.
+  - Source: `standards/VENDOR_GUIDELINES.md:127`, `:160-163`, `:169-176` (the project's designated vendor SSOT); cross-checked against `src/drivers/gps_pa1010d.cpp:57-59`, `src/drivers/gps_uart.cpp:106-111`, `src/drivers/lwgps_opts.h:18-21`, and `docs/IVP.md:758`. Vendor primary source searched for and **not present** — see residual below.
 **CW-B09-08** — [Claude] · `comment` · **read_nmea_data()'s `max_len` bounds a different buffer than its name implies, and is unchecked**  
 - Site: src/drivers/gps_pa1010d.cpp:119-122 (doc block at :104-118, call site at :306)
 - Lens: Comments & documentation quality -- JSF AV 134 (a function with a precondition, or a range it does not validate, must say so in its preamble); The spine, block B (P10 Rule 7 residual -- "parameter validity must be checked inside each function") and CCG P.3 (express intent)
@@ -2247,7 +2260,9 @@ test/test_data_model.cpp.
 - **Primary-source check (2026-08-20): STILL-UNVERIFIABLE**
   - Source: `C:/Users/pow-w/Documents/RC-cw-gaps/pico-sdk/` -- empty directory (submodule declared in `.gitmodules` as `https://github.com/raspberrypi/pico-sdk.git`, not checked out). Repo-wide search for `spi.h`, for any `rp2_common` directory, and for any definition of `spi_write_blocking` returns nothing outside `src/drivers/spi_bus.cpp` itself. Secondary check: RP2350 datasheet, SPI (PL022) register section, p.1064-1065.
   - Quote: RP2350 datasheet p.1065, Table 1106 "SSPRIS", bit 0 -- "RORRIS: Gives the raw interrupt state, prior to masking, of the SSPRORINTR interrupt". Companion mask register, p.1064, bit 0 -- "RORIM: Receive overrun interrupt mask: 0 Receive FIFO written to while full".
-
+- **Primary-source re-check (2026-08-20, submodules checked out): UPHELD**
+  - This supersedes the earlier STILL-UNVERIFIABLE result, which was reached in a tree where `pico-sdk/` and `lib/mavlink/` were absent — a worktree artifact, not a fact about the repo.
+  - Source: `pico-sdk/src/rp2_common/hardware_spi/spi.c:84-152` (implementations) and `pico-sdk/src/rp2_common/hardware_spi/include/hardware/spi.h:323-365` (documented contract).
 **CW-B08-06** — [Claude] · `spine` · **spi_bus_init drops spi_init's return and cannot report failure, yet its result gates radio start**  
 - Site: src/drivers/spi_bus.cpp:31-44 (contract at spi_bus.h:47-48)
 - Lens: The spine block B -- Power of Ten Rule 7 (return value of non-void functions must be checked by each calling function) plus JSF AV 134 / NL.2 on the `@return true on success` claim.
@@ -2716,6 +2731,44 @@ src/fusion/wmm_tables.h -- PARTIAL -- Read whole as a contract surface (helper K
 - Direction: Document the rejection and its consequence (alpha retains its previous value) in the header preamble, and add a per-channel drop counter so a persistent non-finite source is observable rather than silent.
 - Verdict: CONFIRMED -- innovation_channel_push rejects non-finite and negative NIS with a bare return (:21-23), the declaration comment at innovation_monitor.h:38-40 and the file preamble say nothing about dropping samples or about alpha holding its previous value, and the struct carries no drop counter, so a persistently degenerate source is indistinguishable from a healthy one at eskf_runner.cpp:478-482.
 
+**CW-L048** — [Claude] *(lens re-run — coverage re-audit)* · `assertions` · **`innovation_channel_push` is a 27-line window-mutating function with zero assertions and an unasserted circular-buffer invariant**
+- **Site:** `src/fusion/innovation_monitor.cpp:19-45` (`innovation_channel_push`; indexing at `:27`
+and `:31`, count branches at `:26` and `:38`); secondary `:47-57` (`innovation_channel_q_scale`,
+deref at `:49`). Type: `src/fusion/innovation_monitor.h:26-33`.
+- **Criterion:** P10 Rule 5 (assertion density ≥2/function average, side-effect free) + JPL-C Rule
+16 ("All functions of more than 10 lines should have at least one assertion … anomalous
+conditions that should never happen"). Lens decision row: *"Long, load-bearing fn (>10 lines,
+JPL-16) with no precondition assertions → PARTIAL."*
+- **Claim:** The file contains 3 functions and 0 assertions. `innovation_channel_push` spans 27
+lines (17 code lines) — well past the JPL-16 trigger — and both reads and writes
+`ch->window[ch->head]` without asserting the two invariants that make those accesses in-bounds
+(`ch->head < kWindowSize`, `ch->count <= kWindowSize`), i.e. without asserting that the channel
+was initialised at all.
+- **Why:** `InnovationChannel` is a bare aggregate with no constructor and no default member
+initializers, so "was `innovation_channel_init` called on this instance?" is a real, checkable
+contract and not something the type system guarantees. If `head` were ever out of range the
+result is an out-of-bounds `float` read at `:27` and an out-of-bounds `float` **write** at `:31`,
+into whatever follows a 20-float array inside the ESKF object — a silent memory corruption of
+flight-critical fusion state, with no fault-path signal. That is precisely JPL-16's "anomalous
+condition that should never happen". The struct's fields are public and are reached directly from
+outside the module (`test/test_phase_qr.cpp:204` pokes `kf.innov_baro_`), so the invariant is not
+even module-private. In-tree the four instances are value-initialised at `src/fusion/eskf.h:526-529`
+and re-initialised at `src/fusion/eskf.cpp:1730-1733`, so **no live bug is claimed** — the finding
+is the missing entry-point sanity check the rule demands, plus the zero density across the file.
+Compliant move: `RC_ASSERT(ch != nullptr); RC_ASSERT(ch->head < InnovationChannel::kWindowSize);
+RC_ASSERT(ch->count <= InnovationChannel::kWindowSize);` at the head of `push`, the non-null and
+finite-`alpha` checks in `q_scale`, and a `static_assert(InnovationChannel::kWindowSize <=
+UINT8_MAX)` for the `uint8_t head`/`count` width (CCG P.5 — prefer the compile-time form where
+the fact is static).
+- **Confidence:** high
+- Verdict: CONFIRMED — lengths and the zero assertion count are directly measured from the file
+as read (59 lines; functions at 9-17 / 19-45 / 47-57); the absence of any constructor or default
+member initializer on `InnovationChannel` is read from `innovation_monitor.h:26-33`; the "callers
+behave today" mitigation is verified at `eskf.h:526-529` + `eskf.cpp:1730-1733` and is recorded
+rather than used to excuse the missing check, per the lens's PARTIAL row.
+
+---
+
 #### `fusion/mahony_ahrs.{cpp,h}`
 
 **CW-B16-03** — [Claude] · `comment` · **Mahony converges to magnetic north while the ESKF it is checked against is corrected to true north**  
@@ -2775,7 +2828,9 @@ src/fusion/wmm_tables.h -- PARTIAL -- Read whole as a contract surface (helper K
 - **Primary-source check (2026-08-20): STILL-UNVERIFIABLE**
   - Source: repo-wide search for each named authority. `PHASE5_MAHONY_PLAN.md` -- no such file anywhere (hits are the walk documents plus the dead pointer itself at `src/fusion/mahony_ahrs.h:16` and `test/test_mahony.cpp`). `docs/decisions/COP1_NOT_PURSUED.md` -- no such file. `version_string` -- one hit in `src/` + `include/`, the mandate itself at `include/rocketchip/version.h:5`; no definition anywhere. No ArduPilot / PX4 / BetaFlight / INAV source in the tree (`EXTERNAL/` holds only `etl-20.47.1/`), and no copy of arXiv:0811.4303 (the only textual hits on that digit string are coincidental column values in `test/data/reference/*.csv`).
   - Quote: `src/fusion/mahony_ahrs.h:16` -- "Council-approved parameters -- see PHASE5_MAHONY_PLAN.md."; `:41` -- "Council-approved parameters (arXiv:0811.4303 + 3-stack consensus)"; `:47-48` -- "Proportional gain -- ArduPilot/PX4/INAV 3-stack consensus." / "static constexpr float kKp = 0.2F;"; `:50-51` -- "Integral gain -- ArduPilot AP_AHRS_DCM hardcoded value." / "static constexpr float kKi = 0.0087F;"; `include/rocketchip/version.h:5` -- "All print sites must use version_string() or the constants below."
-
+- **Primary-source re-check (2026-08-20, submodules checked out): UPHELD**
+  - This supersedes the earlier STILL-UNVERIFIABLE result, which was reached in a tree where `pico-sdk/` and `lib/mavlink/` were absent — a worktree artifact, not a fact about the repo.
+  - Source: repo-wide search of this tree for each named authority, plus `EXTERNAL/` and `lib/` inventory.
 #### `fusion/ud_factor.{cpp,h}`
 
 **CW-B13-01** — [Claude] · `comment` · **ud_factor.cpp file header documents code that is not in the file**  
@@ -3286,6 +3341,58 @@ src/flight_director/guard_evaluator.cpp -- FAIL -- All six functions walked; the
 - Confidence: medium
 - Direction: Add entry assertions for ctx (and for actions when count is non-zero) plus a bound check before the enum casts, and state those preconditions in the two declaration preambles; where the caller is a constexpr action list the MarkerId/PyroChannel bound is a candidate for a compile-time check instead.
 - Verdict: REFUTED -- Both entry points are module-internal: the only callers are flight_director.cpp:102 and :113, which pass the address of a stack-local ActionContext and constexpr ActionEntry arrays, so neither the null ctx, the null actions array, nor an out-of-range enum cast is reachable from any in-tree path, and the finding itself records that no file under src/flight_director/ carries a runtime assertion -- making this a subsystem-wide defensive-coding preference rather than a defect of this file.
+
+**CW-L049** — [Claude] *(lens re-run — coverage re-audit)* · `assertions` · **`action_execute` / `set_marker` (32 and 12 lines) carry zero assertions and cast raw `uint8_t` params to `MarkerId` and `PyroChannel` unchecked**
+- **Site:** `src/flight_director/action_executor.cpp:30-61` (`action_execute`; `MarkerId` cast at
+`:40`, `PyroChannel` cast at `:51`, `ctx` derefs at `:33, :39, :40, :50, :56`) and `:14-25`
+(`set_marker`; switch with no `default:` at `:15-24`). Type decls:
+`src/flight_director/action_executor.h` (`ActionEntry::param` is a bare `uint8_t`).
+- **Criterion:** P10 Rule 5 (density ≥2/function average) + JPL-C Rule 16 (>10-line functions get
+at least one assertion; assertions check anomalous conditions that should never happen). Lens
+decision row: *"Long, load-bearing fn (>10 lines, JPL-16) with no precondition assertions →
+PARTIAL"*; CCG P.5 for the statically-decidable part.
+- **Claim:** Two of this file's three functions are past the 10-line trigger (32 and 12 lines) and
+the file contains no assertion of any kind. Two `uint8_t`→scoped-enum conversions — the marker id
+at `:40` and the pyro channel at `:51` — are performed with no range check, and `set_marker`'s
+switch has no `default:`, so an out-of-range marker id is silently discarded rather than flagged.
+- **Why:** This file is the executor for flight-phase actions: it writes the `FlightMarkers`
+timestamps (`armed_ms`, `apogee_ms`, `drogue_deploy_ms`, `main_deploy_ms`, `abort_ms`) and calls
+the pyro-intent callback. A `param` that does not name a real `MarkerId` produces a
+silently-missing flight event timestamp — the log looks complete, and the omission is invisible
+both at run time and post-flight. A `param` that does not name a real `PyroChannel` is handed
+straight to `ctx->log_pyro` at `:51`. Both are exactly the "should never happen" conditions
+JPL-16 wants asserted rather than absorbed. The member-level guards at `:33, :39, :50, :56` make
+the function *look* defensive while `ctx` itself is never checked, which is plausibly how the
+CLEAN record got made. Compliant move: `RC_ASSERT(ctx != nullptr)` at the head of
+`action_execute` and `action_execute_list`;
+`RC_ASSERT(action.param <= static_cast<uint8_t>(MarkerId::kAbort))` before the `:40` cast and
+`RC_ASSERT(action.param <= static_cast<uint8_t>(PyroChannel::kMain))` before the `:51` cast; and
+a `default:` arm in `set_marker` that trips `RC_ASSERT(false)` rather than falling through
+silently. The tables are `constexpr`, so the stronger CCG P.5 form is a `static_assert` sweep
+over `kPhaseEntryActions` / `kTransition*` proving every `param` is in range for its `type` — the
+existing host test that checks "no `kFirePyro` in entry/exit lists" (header banner, Council
+Amendment #2) is the precedent for doing this at build time.
+- **Confidence:** high
+- Verdict: CONFIRMED — the two lengths (32 and 12 lines; 27 and 12 code lines) and the zero
+assertion count are measured directly from the 73-line file as read; the absent `default:` is
+visible at `:15-24`; the two unchecked casts are at `:40` and `:51`. The mitigating fact that
+every in-tree caller passes constexpr tables is verified at `flight_director.cpp:102, 113` and
+`:459, 473, 526, 612, 618` and is recorded, not used to excuse the missing checks — the lens row
+for this shape is PARTIAL, not PASS.
+
+---
+
+### Summary
+
+| File | Original | Re-audit | Functions past ~10-line trigger | Assertions in file |
+|---|---|---|---|---|
+| `src/fusion/innovation_monitor.cpp` | CLEAN | **WITHDRAWN** | 1 clearly (27 lines), 1 borderline (11-line span / 9 code) of 3 | 0 |
+| `src/flight_director/action_executor.cpp` | CLEAN | **WITHDRAWN** | 2 of 3 (32 and 12 lines) | 0 |
+
+Neither file contains a vacuous assertion or an assertion with a side effect — there are no
+assertions at all in either file, which is itself the P10-5 density failure. The verifier's objection
+is upheld on both counts: the "all functions are short" rationale does not survive measurement, and
+both files carry unchecked entry-point preconditions of exactly the kind JPL-16 names.
 
 #### `flight_director/go_nogo_checks.{cpp,h}`
 
@@ -3892,7 +3999,9 @@ src/logging/radio_config_storage.h -- PARTIAL -- Contract surface (helper Kind C
 - **Primary-source check (2026-08-20): STILL-UNVERIFIABLE**
   - Source: `docs/hardware/datasheets/` -- no audio-codec datasheet is present (no TLV320DAC3100; the eleven PDFs are IMU / baro / mag / GNSS / radio / RP2350 only). Repo-wide search for `rtttl`, `tonealarm`, `MFT2` gives three hits, none an external source: `src/notify/notify_backend_audio.cpp`, `docs/decisions/NOTIFY_CONTRACT.md:84`, `docs/IVP.md:3109`. No ArduPilot tree in the repo (`EXTERNAL/` holds only `etl-20.47.1/`).
   - Quote: `docs/decisions/NOTIFY_CONTRACT.md:84` -- "| Tone format | RTTTL-like strings (`"MFT200L8 O4CEG"`) | Same format (data defined, parser deferred) |". `docs/IVP.md:3109` -- "Defines AP tone string constants as data (no parser): `kToneArmed`, `kToneDisarmed`, `kToneError`, `kToneLanded`, `kToneBoot`. Format: AP-compatible RTTTL-like strings. Parser deferred to audio stage."
-
+- **Primary-source re-check (2026-08-20, submodules checked out): UPHELD**
+  - This supersedes the earlier STILL-UNVERIFIABLE result, which was reached in a tree where `pico-sdk/` and `lib/mavlink/` were absent — a worktree artifact, not a fact about the repo.
+  - Source: `src/notify/notify_backend_audio.cpp:1-35`; tree-wide symbol search over `src/`, `include/`, `test/`; `lib/mavlink/common/mavlink_msg_play_tune.h:7-12`; `docs/hardware/datasheets/` inventory.
 #### `notify/notify_backend_led.cpp`
 
 **CW-B29-01** — [Claude] · `comment` · **LED backend documents itself as not yet wired, but AO_Notify calls it every tick**  
@@ -5448,7 +5557,9 @@ verdict; files named individually are the ones read whole.
   - Source: no primary source for LED polarity exists in this repo. The RP2350 datasheet is the silicon datasheet and states nothing about any board's LED wiring, and `docs/hardware/datasheets/` holds no schematic or board datasheet for these four boards. Nearest available vendor artefacts: SDK 2.2.0 board headers `adafruit_feather_rp2350.h:43`, `adafruit_fruit_jam.h:121`, `pico2.h:38`, `pimoroni_tiny2350.h:24-26,46`, and for contrast `pimoroni_tiny2040.h:56-58`.
   - Quote: `pimoroni_tiny2350.h` — `#define TINY2350_LED_R_PIN 18` / `#define TINY2350_LED_G_PIN 19` / `#define TINY2350_LED_B_PIN 20`, then `#define PICO_DEFAULT_LED_PIN TINY2350_LED_G_PIN`. The same-family `pimoroni_tiny2040.h` carries `#define PICO_DEFAULT_LED_PIN_INVERTED 1`; the Tiny 2350 header carries no such line. `adafruit_feather_rp2350.h`: `#define PICO_DEFAULT_LED_PIN 7`. `pico2.h`: `#define PICO_DEFAULT_LED_PIN 25`. `adafruit_fruit_jam.h`: `#define PICO_DEFAULT_LED_PIN 29`.
   - Corrected claim: The finding's own content is repo-internal and I re-verified all of it directly — the polarity fact is stated twice per board with no compile-time link, and the four pairs are each internally consistent (feather `true` / `gpio_put(kLedPin, on)`, fruit jam `false` / `!on`, pico2 `true` / `on`, tiny `true` / `on`), with `kLedActiveHigh` read only by the diagnostic at rc_os_commands.cpp:745. No primary source contradicts that. What needs narrowing is the force of "all four maps currently agree": they agree **with their own constant**, which is exactly the compiler-cannot-check point — it is not evidence that any of them agrees with the board. That second question is STILL-UNVERIFIABLE from this repo: no schematic or board datasheet for any of the four is present, and the SDK board headers give an LED *pin* but never a polarity for these four (none of them defines `PICO_DEFAULT_LED_PIN_INVERTED`). Two concrete datapoints the vendor headers do supply:
-
+- **Primary-source re-check (2026-08-20, submodules checked out): NARROWED**
+  - This supersedes the earlier STILL-UNVERIFIABLE result, which was reached in a tree where `pico-sdk/` and `lib/mavlink/` were absent — a worktree artifact, not a fact about the repo.
+  - Source: `pico-sdk/src/common/pico_stdlib_headers/include/pico/stdlib.h:62-65`; `pico-sdk/src/rp2_common/pico_status_led/include/pico/status_led.h:201-206`; SDK board headers `adafruit_feather_rp2350.h:42-43`, `adafruit_fruit_jam.h:119-121`, `pico2.h:37-38`, `pimoroni_tiny2350.h:24-26,44-46`, `pimoroni_tiny2040.h:22-24,51-57`; against `include/rocketchip/board_feather_rp2350.h:43-49`, `board_fruit_jam.h:54
 #### `src/pio_backup_timer.h`
 
 **CW-B35-01** — [Claude] · `comment` · **Backup pyro fire pulse is ~5 ms, not the ~200 ms the design claims**  
@@ -5695,7 +5806,7 @@ Per-file record from the targeted re-run. A line here means that lens was actual
 | `src/drivers/spi_bus.h` | `lens-classdesign-drivers` | CLEAN | defines no types; `extern std::atomic<uint32_t> |
 | `src/drivers/ws2812_status.cpp` | `lens-classdesign-drivers` | 2 findings | the anonymous `g_state` singleton is |
 | `src/drivers/ws2812_status.h` | `lens-classdesign-drivers` | CLEAN | `ws2812_rgb_t` is a correct three-field |
-| `src/flight_director/action_executor.cpp` | `lens-assertions-fd` | CLEAN | `action_execute`, `action_execute_list` and `set_marker` are all under the JPL-16 10-line trigger; noted that `static_cast<MarkerId>(action.param)` (: |
+| `src/flight_director/action_executor.cpp` | `lens-assertions-fd` | **CLEAN WITHDRAWN** (re-audit 2026-08-20; see CW-L049) | `action_execute`, `action_execute_list` and `set_marker` are all under the JPL-16 10-line trigger; noted that `static_cast<MarkerId>(action.param)` (: |
 | `src/flight_director/action_executor.h` | `lens-assertions-fd` | CLEAN | declaration surface; checked the `ActionContext` callback contract and the commented pyro-placement safety rule; no assertion sites, and the `set_led` |
 | `src/flight_director/command_handler.cpp` | `lens-assertions-fd` | CLEAN | `command_handler_validate` is the ARM gate; its preconditions (phase, test-mode, non-null Go/No-Go input at :109) are enforced by rejection returns, w |
 | `src/flight_director/command_handler.h` | `lens-assertions-fd` | CLEAN | declaration surface; the `go_nogo_input` nullability contract is stated in the header comment and is actually enforced in the body. |
@@ -5728,7 +5839,7 @@ Per-file record from the targeted re-run. A line here means that lens was actual
 | `src/fusion/eskf_runner.h` | `lens-assertions-fusion` | CLEAN | Contract surface. `static_assert(sizeof(eskf_state_snap_t) == 68)` is the correct CCG P.5 form for a layout constraint. The "Must be called once befor |
 | `src/fusion/eskf_runner.h` | `lens-controlflow-fusion` | CLEAN | Declared contract only: the |
 | `src/fusion/eskf_state.h` | `lens-assertions-fusion` | CLEAN | Named `constexpr` state indices only, no bodies. Checked whether the index arithmetic (`kIdxBaroBias + 1 == kStateSize`, the block spans) is a statica |
-| `src/fusion/innovation_monitor.cpp` | `lens-assertions-fusion` | CLEAN | All three functions below the JPL-16 10-line trigger. `innovation_channel_push` already rejects non-finite and negative NIS at entry (`:70`) — the rig |
+| `src/fusion/innovation_monitor.cpp` | `lens-assertions-fusion` | **CLEAN WITHDRAWN** (re-audit 2026-08-20; see CW-L048) | All three functions below the JPL-16 10-line trigger. `innovation_channel_push` already rejects non-finite and negative NIS at entry (`:70`) — the rig |
 | `src/fusion/innovation_monitor.h` | `lens-assertions-fusion` | CLEAN | Struct plus 3 declarations. The `head < kWindowSize` / `count <= kWindowSize` invariant is documented in the member comments and maintained by modulo  |
 | `src/fusion/mahony_ahrs.cpp` | `lens-assertions-fusion` | CLEAN | Read whole. `update()` (37 lines) carries no assertion and no `dt` check, the same shape as F1; **not** filed separately because the sole caller (`esk |
 | `src/fusion/mahony_ahrs.h` | `lens-assertions-fusion` | CLEAN | Constants plus declarations; every gate value carries a source. The stated preconditions ("Returns false if accel fails gate", "0 = skip mag gate") ar |
