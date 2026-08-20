@@ -115,11 +115,12 @@ For an implementer picking this up later, the current settled position after Rou
 - **Form:** ship static + header-only; default decided by the Phase-0 size spike (lean header-mostly). `tl::expected` default + zero-dep-`Result` knob.
 - **CI:** malloc-after-init hard gate + published per-config size report.
 - **MIB:** versioned public API. **Identity:** standalone; RC is an example integration.
-- **Standards baseline:** keep JSF AV C++ / P10 / JPL-C as-is; **do not adopt MISRA C++:2023** (paywalled, ~90% overlap) — stay *compatible-with* it. Update CCSDS **131.0-B-3 → B-5** references (superseded twice; verify which issue 211.2-B-3 normatively points to). See `AGENT_WHITEBOARD.md` standards-currency note.
+- **Standards baseline:** keep JSF AV C++ / P10 / JPL-C as-is; **do not adopt MISRA C++:2023** (paywalled, ~90% overlap) — stay *compatible-with* it.
+- **131.0-B pin (2026-08-19):** 211.2-B-3 §1.7 [2] is 131.0-B-3. Implement Prox-1 conv / (2048,1024) LDPC against that issue. 131.0-B-5 is current TM-only (B-5 vs B-4 = §10 randomizer). Do not rewrite historical research cites of B-3 as “the book 211.2 uses.”
 
 **Open (need resolution before/within Phase 0 / framework-planning):**
 - **MVP scope precise cut** — confirm V-3/PLTU + COP-P + minimal half-duplex turnaround; decide whether turnaround rides RC's existing RadioScheduler or a fresh minimal MAC.
-- **CCSDS source-version pinning** — lock the exact authoritative issue of every referenced spec (incl. the USLP profile and the 131.0-B issue 211.2-B-3 references). The natural next step.
+- **CCSDS source-version pinning (residual):** 131.0 vs 211.2 is pinned above. Still lock the exact issue of the other referenced specs (USLP 732.1, 211.0, 232.x, …) before those types lock.
 - The header-vs-static *default* (D-3) — settle with the Phase-0 size/compile spike.
 - Grok-council cross-check on §2.1 (PHY three-way), §2.2 (conformance subsystem), §2.3 (compliance-neutrality), §2.4/§3.1 (framing). Convergence settles them; divergence comes to the user.
 
@@ -259,7 +260,7 @@ Document the limitations clearly in Starcom so future users (or future hardware 
 
 - Research + comparison + design_record files = historical (append only; do not edit).
 - This DESIGN.md is now the condensation target and prep for dev plan (per goal: "in preparation for the dev plan for the library itself (not building that yet)").
-- Next (per STATUS): Phase 0 CMake skeleton, standards ref update (131.0-B-5), precise MVP scoping.
+- Next (per STATUS): Phase 0 CMake skeleton, precise MVP scoping. 131.0-B pin is in §2 (2026-08-19).
 
 **Verification of no loss (to be run):** Grep for 10+ unique tokens from each source (e.g. "16-bit fixed-length SPDU", "ADS-B (1090 MHz)", "FOP-1.*6.*states", "architecturally complete + feature-incremental", "D-5", "tl::expected", "no-heap-after-init hard gate", "LunaNet", "Part 97", "Table 5-1").
 

@@ -16,7 +16,7 @@ Update when implementation work begins. Until then, design status lives in `docs
 
 1. ~~Condensation session → `docs/DESIGN.md`~~ **DONE 2026-06-22** (see DESIGN.md)
 2. Phase 0 CMake skeleton (see `docs/research/library_craft_claude.md` §7)
-3. Standards ref update: CCSDS 131.0-B-3 → B-5 before coding definitions lock (see root `AGENT_WHITEBOARD.md`)
+3. ~~Standards ref update: CCSDS 131.0-B-3 → B-5~~ **PINNED 2026-08-19** — 211.2-B-3 §1.7 [2] *is* 131.0-B-3; implement Prox-1 C&S against that issue. 131.0-B-5 is current TM-only.
 
 ## Blockers
 

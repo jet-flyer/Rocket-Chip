@@ -250,3 +250,9 @@ For an implementer picking this up later, the current settled position after Rou
 ---
 
 *Rounds 2–3 logged by Claude (Opus 4.8, Code), 2026-06-18/19. Parallel to a Grok-run council on the same material. Future entries: append `## Round N` (councils) or dated sections/notes (research passes, design notes, conclusions); do not rewrite prior entries. §0 (Canonical Scope) is the governing framing — amend it only with explicit user direction.*
+
+---
+
+## Note — 131.0-B pin (2026-08-19)
+
+The 2026-06-17/19 “update 131.0-B-3 → B-5” action above is **superseded**. 211.2-B-3 §1.7 [2] cites 131.0-B-3. Canonical pin: `DESIGN.md`. Historical research cites of B-3 as “the book 211.2 uses” were not stale.

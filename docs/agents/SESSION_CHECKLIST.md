@@ -4,6 +4,14 @@
 
 **How to use this checklist:** This is a single linear document. Always begin at the top and work your way downward. When working in a later or outer scope (such as a session end), this means addressing the rules of the current scope together with its inherited inner scopes as part of the same checklist instance. Re-verify each relevant step in the current run, even if similar actions were performed earlier in the session — do not skip based on prior confirmations from outside this immediate checklist run. As each item is checked during this run, explicitly state that the item is being verified and report the outcome before moving to the next.
 
+This is an aviation-style checklist, not one isolated “module.” If you step away, start again at the **top of the section** you are in. An outer scope **re-verifies** its inner scopes: a push re-checks Commit; a Session End / wrap will typically include a push (and therefore Commit). Scopes do not auto-chain the other way — not every commit is a push.
+
+**This list is a check, not a license to edit.** You may read it and verify whether you have done the items. Completing a sub-task, saying “continue,” or walking this list by yourself does **not** authorize file edits.
+
+If the user **starts a scope**, the writes that belong to that scope are allowed, with the bars in items 7–8 and Session End: commit / push / wrap (“wrap this session up,” “session end,” “I think we’re done here,” and similar) / milestone. Hard-Protected files still need the file named. Whiteboard **adds** are ok without a prompt. `PROJECT_STATUS.md` only on milestone item 13. See `PROTECTED_FILES.md` Checklist-cadence.
+
+Initiation is by intent, not one magic phrase. Naming a protected file counts for that file. Wrap / end-session language counts for Session End (including its changelog bar). “Session handoff” / “continue tomorrow” is Handoff (item 11), not Wrap. “Continue” or “that sub-task is done” is not a wrap.
+
 **Detecting strong stopping points / session conclusion:** When the user indicates a strong stopping point or conclusion for the current session (examples: language like "let's wrap this session up", "wrap things up", "wrap up the session", "anything else this session?", "I think we're done here", "session end", or other clear signals that active work is wrapping up), treat this as activation of the Session End scope.
 
 - Immediately re-read this full document.
@@ -33,11 +41,6 @@ A separate **Trigger-Driven Documentation Edits** section captures rules that do
 3. Check `CHANGELOG.md` for recent changes
 4. Check `AGENT_WHITEBOARD.md` for flags from previous sessions
 5. If resuming interrupted work: read whiteboard notes and verify repo state matches expectations
-6. **If this session will touch flight-critical paths** (`src/flight_director/`, `src/active_objects/ao_flight_director.cpp`, `src/active_objects/ao_logger.cpp`, `src/cli/rc_os.cpp`, or firmware `[FD]` log messages), run the bench sim canary before making any changes:
-
-       python scripts/bench_sim.py
-
-   If the canary fails on unchanged main, the tool has rotted — fix the tool first, not the firmware. See LESSONS_LEARNED.md Entry 36. The pre-commit hook runs the same test automatically when the probe is available and the staged diff touches these paths; the session-start canary catches rot introduced by previous sessions that committed via `--no-verify` when the probe was not available.
 
 ---
 
@@ -47,6 +50,8 @@ A separate **Trigger-Driven Documentation Edits** section captures rules that do
 - **No assumptions on unspecified decisions.** If a task or design choice isn't covered by existing docs and internet research doesn't definitively answer it, ask before implementing. "Definitively answered" means confirmed working in a credible source, not a speculative forum post.
 - **Research before implementing.** Before writing code that touches hardware interfaces or sensor drivers, check relevant documentation, datasheets, and especially recent forum posts for guidelines and known issues.
 - **Log as you go.** Don't batch all documentation to the end. If you discover something unexpected, note it immediately.
+
+**Flight-path canary (only if this work is in play — not because you opened this file).** If the user has asked for, or you are about to edit, flight-critical paths (`src/flight_director/`, `src/active_objects/ao_flight_director.cpp`, `src/active_objects/ao_logger.cpp`, `src/cli/rc_os.cpp`, or firmware `[FD]` log messages), run `python scripts/bench_sim.py` **before** any of those edits. If it fails on unchanged main, the tool has rotted — fix the tool first (LL 36). How to run it (probe, OpenOCD, positive-control): `standards/HW_GATE_DISCIPLINE.md` and `docs/agents/DEBUG_PROBE_NOTES.md`. The pre-commit hook runs the same script when those paths are staged; this canary is the *pre-edit* check for rot from a prior `--no-verify` commit. Typical 2/2 run is seconds, not minutes — false positives (running once extra) are fine.
 
 ---
 
@@ -84,17 +89,15 @@ Inherits all Per Commit rules. Adds the rules below — these run **once** befor
    ```
    Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION` / `kRadioModeRx` — a change that compiles on one role can silently break the other. If any build directory doesn't exist yet, create it with `cmake -B build_flight ..` (or `cmake -B build_station_flight -DROCKETCHIP_JOB_STATION=1 ..`). When hardware-verifying, both the vehicle Feather and the Fruit Jam station should exercise the changed path before the push. (Single flight binary per role with runtime test-mode gating via `rc::test_mode_active()`; see `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`.)
 
-7. **Triggered-doc edits are committed, not WIP.** Every CHANGELOG entry, WB row change, PROJECT_STATUS edit, or other trigger-driven doc edit that this push window produced must be in a committed state — not left as unstaged or staged-but-uncommitted edits. (The principle is "the diff and the doc are atomically consistent in git history" — uncommitted edits break that.)
+7. **Triggered-doc edits are committed, not WIP.** If this push window produced a CHANGELOG entry, `PROJECT_STATUS.md` add, whiteboard change, or other user-allowed cadence/protected edit, those edits must be committed with the work — not left unstaged. Do **not** invent extra protected-doc edits just to have something for this item. (The principle is "the diff and the doc are atomically consistent in git history.")
 
-8. **CHANGELOG entry/entries cover the push window.** Each significant unit of work being pushed has a CHANGELOG entry. Routine work commits between meaningful documented changes are fine without their own entry. The frequency rule is in CHANGELOG.md's own header — typically one entry per session, sometimes more if multiple significant units landed.
+8. **CHANGELOG — no silent skip.** **Push:** a significant unit *should usually* have an entry (frequency still per CHANGELOG.md's header). Skip is allowed; if you skip, **say so** in the reply (“no changelog this push: …”). **Session wrap / end session** (inherits this item): always write an entry unless the user says skip. **Handoff** is not a wrap — no entry unless the user asks.
 
 ---
 
-## Session End
+## Session End (Wrap)
 
-**Activation:** This section is triggered when the user indicates a strong stopping point / session conclusion (see "Detecting strong stopping points / session conclusion" in the How to use section above). 
-
-Review from the top of this document before following the rules below. These rules run **once** when the session is closing (in addition to all earlier rules).
+**Activation:** User started Wrap (see How to use). These rules run **once** for that close, plus inherited Commit / Push items. A **clean Wrap** (work for this sitting is done, no phase change) does **not** update `docs/PROJECT_STATUS.md` — that is milestone item 13 only. Whiteboard is for side / still-active rows, not a status rewrite.
 
 9. **No broken code on main.** If any work in this session is incomplete, either stash it, abandon it, or commit it to a feature branch — never leave broken code on main.
 
@@ -116,7 +119,7 @@ Review from the top of this document before following the rules below. These rul
 
 Review from the top of this document before following the rules below. These rules run **only** when a stage closes (in addition to all earlier rules).
 
-13. **Update `docs/PROJECT_STATUS.md`** with milestone completion and next phase (per the trigger map — phase change is a state-of-system trigger).
+13. **Update `docs/PROJECT_STATUS.md`** — **this is the only checklist module that writes that file.** Milestone completion and next phase (trigger map: phase change, new/resolved blocker). Not Wrap, not Push, not Handoff, not a clean sitting close.
 
 14. **Architecture-doc drift check against protected docs.** When a stage closes, grep the state-of-system protected architecture docs (`docs/SAD.md`, `docs/SCAFFOLDING.md`, `docs/AO_ARCHITECTURE.md`) for symbols and module paths that this stage deleted, renamed, or re-homed. The Per-Commit trigger-driven edit rule should have kept these current, but **rot detection** at milestone close is the safety net for cases where prior sessions didn't apply the principle. Pattern: `grep -n "<deleted-symbol>|<old-module-path>" docs/SAD.md docs/SCAFFOLDING.md docs/AO_ARCHITECTURE.md`. This is the legitimate retroactive-fix point — if drift is caught here, fixing it as part of stage close is in-scope. Added 2026-04-22 after the watchdog deprecation left `kWatchdogSentinel` + the `watchdog/` directory tree entry in both protected docs.
 
@@ -182,6 +185,7 @@ Protected docs come in two kinds with different edit rules.
 | `standards/RP2350_ERRATA.md` | New erratum encountered. Existing erratum's status (workaround applied / gap / verified) changes. |
 | `standards/HW_GATE_DISCIPLINE.md` | A rule changes. New gate type covered. |
 | `COUNCIL_PROCESS.md` | Council protocol changes (new persona, retired persona, process change). |
+| `AGENTS.md` | Agent-instruction index changes (required-read list, key rules, includes). |
 | `.claude/CLAUDE.md` | Auto-load index changes (doc added/removed from intake). |
 | `standards/AK_GUIDELINES.md` | Behavioral guideline changes. |
 | `docs/agents/PROTECTED_FILES.md` | Protection list changes (file added or removed from protection). |
@@ -217,7 +221,8 @@ Before each commit, ask:
   - If yes → update the doc as part of THIS commit.
   - If no → leave it alone.
 - Did the work create something new that warrants a **historical-record** entry (CHANGELOG entry, LESSONS_LEARNED entry, decision doc, audit doc)?
-  - If yes → write the new entry as part of THIS commit (or a focused commit dedicated to the documentation, depending on scope).
+  - If yes, and it is **`CHANGELOG.md`** → follow item 8 (wrap = yes unless skip; push = usually, no silent skip; handoff = no unless asked). Do not draft an entry just to close this question.
+  - If yes, and it is another historical-record doc → write the new entry as part of THIS commit (or a focused documentation commit), still subject to the protected-file Rule (the user names the file).
   - If no → leave the historical record untouched.
 
 ### Retroactive amendment

@@ -21,14 +21,17 @@ General requests like "update the docs" or "fix the instructions" do NOT grant p
 > - **Historical (frozen)** — snapshot / append-only-by-policy records that must not be
 >   silently amended or deleted; new entries are new files / new sections, not edits to
 >   existing ones. Editing existing content needs explicit permission.
-> - **Checklist-cadence** — edited only as part of the session-checklist flow (see
->   `SESSION_CHECKLIST.md`), not automatically on every change.
+> - **Checklist-cadence** — session-tracking files. Reading or self-checking
+>   the checklist is **not** a write grant. If the user **started** a checklist
+>   scope (commit, push, wrap/end session, milestone), the writes that belong
+>   to that scope are allowed (see `SESSION_CHECKLIST.md` items 7–8, 13).
 >
 > A file appears under only one category. Anything not listed here is unprotected.
 
 ### Hard-Protected
 
 #### Agent Instructions & Behavioral Guidelines
+- `AGENTS.md` - Primary agent instruction index (required every session)
 - `.claude/CLAUDE.md` - Agent context includes (thin shim to AGENTS.md)
 - `standards/AK_GUIDELINES.md` - Behavioral guidelines (Andrej Karpathy rules)
 - `docs/agents/PROTECTED_FILES.md` - This file
@@ -64,11 +67,24 @@ corrections; new entries are new files or new sections. Any edit → `ask`.
 
 ### Checklist-cadence
 
-Edited only as part of the session-checklist flow (barring rare out-of-cycle
-exceptions). A future session-checklist skill will grant these edits when the
-flow reaches the right phase. Interim behavior (until that skill exists):
-- `CHANGELOG.md` - Append-only event log. Interim: pure additions allowed; any deletion/amendment of existing content → `ask`.
-- `docs/PROJECT_STATUS.md` - Current phase / blockers (amended in place). Interim: any edit → `ask`.
+Session-tracking files. Walking `SESSION_CHECKLIST.md` on your own is not
+permission to edit them. If the user started Commit, Push, Session End
+(wrap), or Milestone, the cadence writes for **that** scope are in play.
+
+- `CHANGELOG.md` — Append-only event log. **Push:** should usually have an
+  entry for a significant unit; skip is allowed if you **say so** (no silent
+  skip). **Session wrap / end session:** always write an entry unless the
+  user says skip. **Handoff** (pick up later): no entry unless the user
+  asks. Deleting or amending an old entry → ask. Finishing a sub-task or
+  merely reading the checklist does not create an entry.
+- `docs/PROJECT_STATUS.md` — Only **milestone item 13** (or a user-named
+  edit). A clean Wrap / Push / Handoff does **not** update this file.
+  Phase history is going stale vs `IVP.md`; do not refresh it “because
+  the sitting ended.”
+
+`AGENT_WHITEBOARD.md` is **not** on this list. Adding a short active row is
+ok without a prompt. When a row is done, erase it (IRL rule on that file).
+Do not park session essays there.
 
 ---
 

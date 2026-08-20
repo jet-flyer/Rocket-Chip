@@ -86,7 +86,7 @@ The library's identity: **universal CCSDS data-link** (`starcom::ccsds`), usable
 ### Process mistakes
 
 - **Don't** implement large features without checking `comparison.md` open decisions (D-1…D-5) — some forks are not settled.
-- **Don't** lock coding definitions against stale CCSDS standard issues — verify Blue Book currency before code locks types (see `AGENT_WHITEBOARD.md` 131.0-B audit).
+- **Don't** lock Prox-1 C&S codes against the wrong 131.0-B issue. 211.2-B-3 [2] is 131.0-B-3; 131.0-B-5 is current TM-only. See `DESIGN.md` pin.
 
 ---
 
@@ -105,7 +105,7 @@ Starcom gets its **own** tracking files so it can extract to a standalone repo w
 | [`docs/comparison.md`](comparison.md) | **Open architectural forks** (D-1…D-5), cross-agent comparison log. Append-only. | Live — do not duplicate elsewhere |
 | [`docs/design_record_claude.md`](design_record_claude.md) | Scope, council rounds, standing architecture decisions. | Live — governs §0 until `DESIGN.md` exists |
 | [`docs/DESIGN.md`](DESIGN.md) | Future **single** condensed design record (condensation session). | DONE 2026-06-22 [x] - canonical on branch; manifests+SCRATCH prove no loss; historical untouched. |
-| [`STATUS.md`](../STATUS.md) | Starcom phase, blockers, next step (e.g. "Phase 0 CMake", "131.0-B-5 ref update"). Lighter than RC `PROJECT_STATUS.md`. | Placeholder — flesh out when implementation starts |
+| [`STATUS.md`](../STATUS.md) | Starcom phase, blockers, next step (e.g. "Phase 0 CMake"). Lighter than RC `PROJECT_STATUS.md`. | Placeholder — flesh out when implementation starts |
 
 ### At Rocket-Chip repo root (firmware-owned — do not copy into `starcom/`)
 
