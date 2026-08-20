@@ -108,11 +108,13 @@ Optional project-wide map of **things the system does** (Go/No-Go, launch abort,
 
 ## Local-LLM try-later shortlist (OPEN)
 
-Not adopted. Download later. Detail: `docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md` §5.
+Not adopted. Detail: `docs/tools/LOCAL_LLM_COMPANION_RESEARCH.md` §5. WSL `.wslconfig` is **48GB** (Cookbook ~47 GB after refresh).
 
+Cookbook scan-row Download for Devstral hits **official** `mistralai/Devstral-Small-2-24B-Instruct-2512` (no GGUF). Use Direct Download: `unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF`.
+
+- **Devstral Small 2 24B** — owner trying **Q8_0** first (`…-Q8_0.gguf`, ~23 GB). Q4 later for A/B. Do not pull the whole Unsloth repo.
 - Qwen3.6-35B-A3B
-- Devstral Small 2 24B (Mistral)
-- Gemma 4 31B QAT-Q4_0
+- Gemma 4 31B QAT-Q4_0 (`google/gemma-4-31B-it-qat-q4_0-gguf`, not Cookbook’s Q4_K_M row)
 - Nemotron 3.5 Lightning 30B
 
 ---
