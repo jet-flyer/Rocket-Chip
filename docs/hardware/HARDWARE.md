@@ -227,7 +227,7 @@ Studied for hardware/software architecture:
 |------|--------------|-------|
 | Adafruit Fruit Jam (Mini RP2350 Computer) | #6200 | **On hand** — RP2350B, 16MB flash, 8MB PSRAM, ESP32-C6 WiFi, DVI out, MicroSD, I2S audio, 2x USB-A host, 5 NeoPixels, 3 buttons. Primary GCS platform. See `BOARD_COMPARISON.md` |
 | Pimoroni HyperPixel 4.0" Display | #3578 | **On hand** — Hi-res display for Fruit Jam GCS |
-| CYBERDECK HAT for Raspberry Pi 400 & 500 | #4863 | **On hand** — Keyboard integration for portable GCS |
+| CYBERDECK HAT for Raspberry Pi 400 & 500 | #4863 | **On hand** — Keyboard integration for portable GCS. The Pi 400 itself is the LAN git remote `rp400` (`npow@192.168.1.233:~/Rocket-Chip.git`) — an early clone, not a radio part. Stale-branch cleanup deferred to next use (Yamcs/OpenMCT GCS); see `AGENT_WHITEBOARD.md`. |
 | CYBERDECK Bonnet for Raspberry Pi 400 & 500 | #4862 | **On hand** — Compact keyboard integration option |
 | LoRa Radio Bonnet with OLED (RFM95W 915MHz) | #4074 | **On hand** — GCS radio with built-in OLED status display |
 | Raspberry Pi Zero 2W with Header | #6008 | **On hand** — Lightweight GCS option or relay node |

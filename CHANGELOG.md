@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-20-005 | Grok 4.6 (Build CLI) | documentation
+
+**`rp400` is the Pi 400 keyboard clone.** Git remote `rp400` (`npow@192.168.1.233:~/Rocket-Chip.git`) is an early clone onto the Raspberry Pi 400, not a radio chip. Noted on `AGENT_WHITEBOARD.md` and the CYBERDECK row in `docs/hardware/HARDWARE.md`. Leftover `claude/tender-banach` on that box deferred until next use (Yamcs/OpenMCT / advanced GCS) unless the clone is fully redone. Verified: pure-software / docs only; no `src` changes; no HW reseat.
+
 ### 2026-08-20-004 | Grok 4.6 (Build CLI) | documentation, process
 
 **Walk worktrees cleaned.** Removed `RC-grok-walk` and `RC-agent-walk`. Deleted `grok/l2p5-agent-walk` (local + origin) after the walk CLs were on main as 2026-08-18-001W / 2026-08-19-001W (LL Entry 45). Claude `claude_walk/` parts/crosscut/kit were working copies (358 CW IDs match `L2P5_CLAUDE_WALK_FINDINGS.md` 1:1; no CHANGELOG on that branch) — branch deleted. Also deleted merged local `feat/condense-starcom-ccsds-prelim-20260622` and fully-merged `claude/l2p5-walk-guide-c3757857`. `rp400/claude/tender-banach` tracking ref dropped; host `192.168.1.233` timed out so the branch may still exist on that box. Historical `AP_FreeRTOS` / `AP_ChibiOS` kept. Verified: pure-software / docs only; no `src` changes; no HW reseat.

@@ -38,6 +38,12 @@ Owner: hook stays the land gate. A/B is the documented recovery. No boot canary.
 
 ---
 
+## `rp400` git remote = Pi 400 keyboard clone (DEFER) (2026-08-20)
+
+Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-Chip.git`) is an early clone onto the **Raspberry Pi 400** keyboard computer (CYBERDECK HAT/Bonnet on hand — `docs/hardware/HARDWARE.md` Ground Station). Host was off/unreachable 2026-08-20. Local tracking of `claude/tender-banach` was dropped; that branch may still exist on the Pi (Feb 2026 SAD/ESKF, already an ancestor of `main`). **Do not chase it now.** Next time that machine is used — likely Stage 12B Yamcs / OpenMCT / advanced GCS — if the clone has not been fully redone, delete leftover branches there (at least `claude/tender-banach`). CHANGELOG `2026-08-20-004` is the land-time note.
+
+---
+
 ## Project status (one-line snapshot)
 
 **Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Independent walks on main: Claude `CW-` (`L2P5_CLAUDE_WALK_FINDINGS.md`) and Grok **GWF-001–498** (`L2P5_GROK_WALK_FINDINGS.md`). Next: disposition plan. W-5/W-2 include/consumer + concurrency 3-question still OPEN (not the Grok/Claude semantic walks). Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
