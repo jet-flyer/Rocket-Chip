@@ -498,6 +498,8 @@ All code changes must pass the verification checklist before merge to main.
    - [ ] Code comments explain "why", not "what"
    - [ ] New modules have header file documentation
 
+**Fresh `git worktree` / empty tree:** the pre-commit hook **silently skips** Gate 2 (clang-tidy) without `build/compile_commands.json` and Gate 3 (host ctest) without `build_host/` + `CTestTestfile.cmake`. A green commit then means “nothing was reported,” not “the checks ran.” Short-lived or docs-only worktrees can ignore this. Before committing `src/` from a new tree, configure it (`cmake -B build_host` and, for tidy, `cmake -B build -G Ninja`) or commit from a tree that already has those dirs. Fast-forward onto `main` does not re-run the hook. See `scripts/hooks/pre-commit`.
+
 ### Pre-Merge Review
 
 - [ ] Self-review completed using checklist above

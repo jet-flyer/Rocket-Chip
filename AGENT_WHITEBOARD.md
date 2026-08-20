@@ -269,13 +269,7 @@ Recurring friction with Claude + Grok + Gemini on shared `main`: separate agents
 
 **Implementation detail (owner idea 2026-07-04) — not done now:** wire this into `docs/agents/SESSION_CHECKLIST.md` **Session-Start** as a *prompt*, not a hard gate — "when substantial work is anticipated, suggest spinning up a new worktree/branch first." Mirrors item 17d's "surface state, owner decides" pattern (a recommendation the agent raises at session start, not an automatic action). Deferred to the same checklist rework that maps the IEEE 1028 review levels.
 
----
-
-## SESSION_CHECKLIST has no MERGE scope (OPEN) (2026-07-30, Claude/Opus, owner-requested)
-
-`docs/agents/SESSION_CHECKLIST.md` scopes are `COMMIT ⊂ PUSH ⊂ SESSION_END ⊂ MILESTONE`. *Merge* and *worktree* never appear; *branch* appears once (item 9, parking incomplete work) — so the step that actually lands work on `main` is unchecked. **Add branch/merge wording:** what gated the branch (and, if it ran in a worktree, which gates did **not**), FF vs `--no-ff`, and the branch + worktree's disposition afterward.
-
-**Not cosmetic:** a fresh worktree has no `build/compile_commands.json` and no `build_host/`, so Gate 2 (clang-tidy) and Gate 3 (ctest) silently no-op — and a fast-forward merge creates no commit, so no hook runs either. Code can reach `main` never having met a gate with nothing printed to say so (LL 36/40/43 family). `SESSION_CHECKLIST.md` is Hard-Protected — needs the owner to name it. Pairs with the Session-Start worktree prompt above.
+**Gate skip in a fresh worktree** lives in `standards/CODING_STANDARDS.md` → Code Verification Process (not a MERGE checklist scope).
 
 ---
 
@@ -299,27 +293,6 @@ Rebuilt the graphify graph at `graphify-out/` as a **curated current-state code+
 
 ---
 
-## Session Handoff — L2-P5 walk-prep DONE / WALK-READY (2026-06-25, Claude; refreshed 2026-07-28 Grok)
-
-**▶ STATUS (2026-08-02):** walk **IN PROGRESS on `main`** — see handoff section at top of this file (Grok). Prior “worktree-only” note is **stale** for current sitting.
-
-**▶ STATUS (2026-07-30):** walk **starting** (historical). Had noted branch `claude/l2p5-walk` worktree; current progress is on `main` (see 2026-08-02 handoff).
-
-**▶ STATUS (2026-07-28):** still **walk-ready** for the file-by-file semantic walk. Live triad = procedure; archive / RP stash / Wconversion list = **reference only**. Pre-walk hygiene landed: itinerary **184** files; dead §LV tags scrubbed; Phase C dispositions treated complete for walk-start; open **`-Wconversion` batch remains §CM (non-blocking)**. **Class 13 (magic numbers) demoted** like Class 14 — not an eyeball lens; residual only when dispositioning `readability-magic-numbers` hits (named + sourced **required** unless impossible/highly impractical after review). Semantic walk = **spine + comments, assertions, scope/lifetime, class design, templates, control-flow/`volatile`, concurrency**. See CHANGELOG `2026-07-28-003`.
-
-**▶ STATUS (EOD 2026-06-25, historical):** walk-prep complete (Phases A–E + §CM gate-wiring + standards corrections); field manual walk-ready. Then: spine + judgment-heavy classes (then still listed 3/5/7/8/9/10/13); Class 14 mechanical. Prior note about uncommitted tree / `CMakeLists` `-Wnon-virtual-dtor` + bench_sim may still apply if that CMake change was never committed — check tree; not part of 2026-07-28 doc hygiene.
-
-**Phase D (§RP) COMPLETE.** Manual-class judging criteria sourced + adversarially verified + folded via **5 Workflow passes** (~57 agents): spine/gestalt + rule-classes · AI-code-review general (SEI/NIST/OWASP + peer-reviewed) · agentic-era refresh 2024-2026 (durable error-TYPES as criteria; frequencies `[model,year]`-stamped + demoted) · embedded applicability (ADD bare-metal / DROP web-centric) · Spine-2 layout/altitude re-run. Stash `docs/audits/l2p5_manual_walk/L2P5_RP_SOURCES_2026-06-25.md` (95-source corpus + verified criteria + UNVERIFIED clearance log). Folded into `L2P5_MANUAL_WALK_GUIDE.md` → **The spine** (gestalt + AI-lens + embedded ADD/DROP + **§D mechanically-checkable→§CM** triage) + §RP per-class map. Plan Phase D → DONE. CHANGELOG `2026-06-25-002`.
-
-**Corrections folded:** Class-2 naming over-claim resolved; `RULE_VERIFIABILITY_TRIAGE.md` §459 drift **fixed**; QP/Samek-vs-JSF naming homed in **`docs/flight_director/QP_APPLICATION_GUIDE.md` §6.5** (a *decision*, NOT a deviation — QP naming is non-binding).
-
-**▶ STILL OPEN:**
-- ✅ **`CODING_STANDARDS.md` naming over-claim RESOLVED 2026-06-25 (repo-owner authorized).** Closed the false-completion: added an "Identifier naming (JSF 45/51/52)" bullet to Foundation → Worked consolidation decisions (peer to nullptr) + reworded Pre-Commit Checklist `:469` to reference it instead of claiming "JSF AV 50-53" compliance. (The 2026-06-23-001 #2 + triage §459 claims that this was already recorded were false — only the nullptr bullet had landed; now genuinely done.)
-- ✅ **§CM gate-wiring DONE 2026-06-25** — spine §D audited vs the real build config: **10/11 already gated** (`.clang-tidy` + `-Wall -Wextra -Werror`; `-fno-exceptions -fno-rtti` confirmed in all 76 TUs). One gap — missing-virtual-dtor (C.35/OOP52) — wired via `-Wnon-virtual-dtor` (CMakeLists `:598/:607/:608` + `check_warning_gate_coverage.py`; 0 violations, positive-controlled on the ARM compiler + 6 real TUs syntax-clean). `-Wconversion`/`-Wsign-conversion` **measured 2026-06-25: 56 findings** (33 sign / 12 conv / 11 float, 21/75 TUs, 0 compile errors) — **not noise**; fix-then-gate or fold into the Class-14 signed/unsigned walk (eskf hits need bit-exact verification). Also fixed a stale Phase-B "wiring PENDING" marker in the plan (was done 2026-06-24).
-- Then the actual file-by-file **walk** (**184**-file itinerary as of 2026-07-28) + Phase E / Plan-3 close-out after coverage.
-
----
-
 ## L2-P5 §CM to-implement backlog — mechanical checks surfaced by the walk-guide trim (2026-07-01, Claude)
 
 Trimming `L2P5_MANUAL_WALK_GUIDE.md` down to human-judgment-only lenses (on branch `claude/l2p5-walk-guide-c3757857`, recovered + committed 2026-07-01) surfaced a set of **mechanically-decidable** checks that had been riding inside the manual walk. Per the coverage≠mechanical principle, each belongs in a gate/grep, not the eyeball pass. **Repo-owner direction: wire these when patching §CM *after* the manual walk — likely as part of re-doing the audit**, not now.
@@ -339,77 +312,6 @@ Trimming `L2P5_MANUAL_WALK_GUIDE.md` down to human-judgment-only lenses (on bran
 
 ---
 
-## Session Handoff Notes (2026-05-26, Grok)
-
-**User requested explicit session handoff + pause.**
-
-**Work completed this session:**
-- Deep dive into current CCSDS status (TM side implemented as pruned Space Packet; TC + COP-1 is the missing STOP-GAP).
-- Created thorough current-state analysis of the command/retry/ACK reliability layer (the main area the CCSDS command rework would replace).
-- Produced two primary artifacts for CCSDS prep:
-  - `docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.md` (detailed textual map with file:line citations)
-  - `docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.dot` + rendered `.svg` (Graphviz diagram matching project conventions from `docs/audits/cla_rbm/dot/`)
-- Installed Graphviz via winget so the visualizer can be used going forward.
-- Graphviz is now present on the machine (`C:\Program Files\Graphviz\bin\dot.exe`).
-
-**Files touched (all new, untracked):**
-- docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.md
-- docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.dot
-- docs/decisions/CURRENT_COMMAND_RETRY_ACK_DATA_FLOW.svg
-
-**Current state of CCSDS prep work:**
-- We now have a high-quality, citable "as-built" map of the existing command delivery + retry mechanism.
-- This directly supports scoping, interface design, and migration planning for any future CCSDS TC-layer work (including the standalone library idea the user mentioned).
-- 2026-06-22: Condensation of all CCSDS prelim docs (research/* + comparison + design_record) into starcom/docs/DESIGN.md completed on feat branch and merged to main. Includes agreement/conflict/gaps table, §0 verbatim, state machine summary + external Blue Book REF, D-1..D-5, unique data. Modern naming (no I-prefix). Detailed council verdict for D-2 sans-I/O deferred to design_record_claude.md Round 2. Historical docs untouched. Pure doc. (Grok)
-- Multiple items remain explicitly parked pending this rework (see "High priority" section below: IVP-T13, station radio health channel, first-try metric re-baseline).
-
-**What was discussed but not yet executed:**
-- Next actions with the data flow artifacts (scoping doc, library contract definition, target-state diagram, design doc for council, etc.).
-- User indicated they want to pause for the night.
-
-**Handoff instructions from user:**
-- **Check with user before any commit or push.** Do not commit these files or push without explicit approval in the next session.
-- Working tree currently has only the three new decision files above as untracked changes.
-
-**Open questions / suggested next steps for next session:**
-- Which direction to take the data flow work (scoping options, library behavioral contract, target-state diagram, full design doc)?
-- Any specific refinements needed to the .dot / MD before using them in a council or design review?
-- Whether to create a dedicated CCSDS command layer planning document.
-
-**Build / verification state:** N/A — pure documentation work. No src/ changes. No builds or tests affected.
-
----
-
-**End of handoff note.** (Erase or update this section when work resumes.)
-
-## Session Summary (2026-05-28, Grok) – WSL Soft Pivot
-
-**Work delivered:**
-- Full WSL_SOFT_PIVOT plan executed (Phases 0–6).
-- Linux FS worktree (`~/Rocket-Chip`) created; clean vehicle + station firmware builds + both `bench_sim.py` (2/2) and `station_bench_sim.py` (3/3) proven from it with positive controls.
-- Documentation delivered at docs root: `WSL_SETUP.md`, `WSL_QUICKSTART.md`, `WSL_ROLLBACK_CHECKLIST.md`.
-- Steady-state policy ("try until it breaks") reviewed via council; recorded in `docs/decisions/WSL_STEADY_STATE_POLICY_2026-05-28.md`.
-- Dual-toolchain exercise requirement added to milestone checklist (item 17c).
-
-**State at close:**
-- WSL (Linux FS) is now a fully functional primary environment.
-- Windows remains supported fallback with explicit, lightweight rollback checklist.
-- Repo clean. All plan deliverables delivered.
-
----
-
-
-
-## Council review — Starcom (completed)
-
-Council review of all Starcom research findings (Grok vs Claude) completed. Full details + naming suggestions recorded in `starcom/docs/comparison.md` (new "Council Review — Universal CCSDS Scope" section). Starcom library docs live under `starcom/` — see `starcom/docs/WORKING_HERE.md`.
-
-**Key outcome:** Core should be called "Starcom Core". Use `ILink` (or similar) for the transport abstraction. PHY tiers (none / best-effort / full compliant) as optional adapters outside the core. Recommendations re-framed for universal CCSDS use.
-
-**End of note.** (Erased per whiteboard rules after review.)
-
----
-
 ## Use Cases
 1. **Cross-agent review** — Flag concerns about other agents' work (see `CROSS_AGENT_REVIEW.md`)
 2. **Cross-context handoff** — Notes for future Claude sessions when context is lost
@@ -423,56 +325,10 @@ Council review of all Starcom research findings (Grok vs Claude) completed. Full
 
 - **Codegen audit — verify every generated/codegen area is handled properly (2026-06-23, Claude).** Surfaced during the L2-P5 walk. `src/flight_director/mission_profile_data.h` is banner-marked "AUTO-GENERATED by `scripts/generate_profile.py` / Do not edit", yet was **hand-edited** in commit `b1f25ce` and has **drifted from its generator**. A rigorous diff (HEAD generator-output vs committed) confirms the post-gen hand-edits are **exactly two, both Stage-T radio, and nothing else differs** (the whole `MissionProfile` struct matches the generator): **(1)** a `#ifdef ROCKETCHIP_STAGE_T3_MAVLINK` protocol switch (MAVLink vs CCSDS), **(2)** the `// Stage T IVP-T6 sweep …` comment. The build does **not** regenerate the file (no `generate_profile` in CMake), so the documented "edit `profiles/rocket.cfg` + regenerate" workflow would **silently delete the MAVLink switch**. `test/test_hab_profile_data.h` also appears **stale** (omits current struct fields: `default_lat_deg`, `drogue_timer_s`, `phase_qr`, …). **Do NOT retire the generator** — it backs the user-facing profile UX + setup wizard (the wizard itself is due for a cleanup, ideally after the CCSDS work lands). **Proper fix (deferred — not blocking; committed files compile correctly):** (a) re-encode the two hand-patches into `profiles/rocket.cfg` + `generate_profile.py` so regeneration is lossless; (b) refresh the stale hab profile; (c) wire the generator into the CMake build so generated headers regenerate each build and can't drift (cfg = single source of truth); (d) **sweep for any OTHER "AUTO-GENERATED" file that has been hand-touched** (the ESKF SymPy codegen `eskf_codegen.cpp` is separately covered by deviation CG-1; check the rest). A standards rule was added this session (`CODING_STANDARDS.md` → "Auto-Generated Code": never edit post-gen output; edit the generator/input). Until the proper fix lands, **do not regenerate `mission_profile_data.h` without re-applying the two `b1f25ce` hand-patches above.** (This session applied the `#pragma once`→`#ifndef` guard + `has_default_location` field *directly* to the committed file + the generator to avoid clobbering, per the surfaced-issues rule.) Walk-WB W-14 landed here: when the audit actually runs, **start from scratch** — earlier method sketches (including the (a)–(d) list) are prior notes, not the audit spec. Lived facts on this row stay evidence.
 
-- **WMM magnetic-table generator repaired + table regenerated (2026-06-24, Claude; RESOLVED).** `scripts/generate_wmm_table.py` had three math bugs in its degree-12 Schmidt-Legendre evaluation (was failing its own NOAA `--verify` 97/100, max declination error 281°): **(1)** spurious `/(1-K)` in the Legendre n-recursion → corrected to the NOAA/pyIGRF form `((2n-1)cosθ·P[n-1,m] − √((n-1)²-m²)·P[n-2,m])/√(n²-m²)`; **(2)** B_φ east-component sign; **(3)** `r = WGS84_A` surface stub → proper geodetic→geocentric radius/latitude with altitude. Now passes NOAA's 100 test points at **0.005° declination / 0.005° inclination / 0 nT** (well inside the model's ~0.5° spec accuracy). **Root cause of the original drift:** the committed table and the generator both landed in `e01b355`, but the committed generator never reproduced the committed table — it was already broken at commit (classic codegen drift; the table was produced by a working tree-version that got edited before commit). Table **regenerated** from the now-correct generator (banner is finally truthful); values shifted ≤0.01° (last printed digit, all within NOAA tolerance), uppercase `F` suffix (JSF Rule 14) + UTF-8 encoding applied (the latter fixed a mojibake `�`→`—` in the header). Verified: generator `--verify` 100/100, host 857/857, flight firmware builds clean.
-
 - **AO Commandments source-citation audit.** Investigating R-27 (RfManager Commandment XII observation) surfaced that Commandment XII's `Source:` line cites LL Entry 36, but LL 36 is about test-tool rot (bench_flight_sim.py going stale), not AO state-transition logging or runtime observability. A research agent walked the doc's stated sources (Samek PSiCC2 Ch. 11, state-machine.com Active Object/RTEF/QP/C SRS pages, NASA F´ Code Style + State Machines doc) and confirmed **no clean substitute citation exists in any of those** — the rule is project-internal invention generalized from folklore, not inherited from external authority. This is an [LL Entry 37](docs/agents/LESSONS_LEARNED.md)-class citation-rot finding. Per Entry 37 discipline ("if one citation was wrong, check the rest"), audit all 12 Commandment `Source:` lines in `docs/decisions/AO_COMMANDMENTS.md` against their cited sources; fix XII's citation (either reframe as project-internal "Rationale:" or cite PSiCC2 Ch. 11 honestly as topical-but-tool-framing); reassess R-27's disposition once the rule's authority is correctly understood. Est. ~1-2 hrs. Block on this is open per user direction 2026-05-22 — address before closing R-27.
 
 - **Four-cycle plan — Cycle 4: L2-P5 itinerary complete 2026-08-08** (121/121, WN-001–327); **walk WB drained + formal walk close 2026-08-17**. Next: WN cluster index, then disposition / Cycle-4 remediation; L2-P10 CLA-RBM. Cycles 1-3 closed. See CHANGELOG 2026-08-08-001 and 2026-08-17-001.
 
-  **── SESSION HANDOFF / temp-record (2026-06-21, Claude Opus 4.8) — resume here. CHANGELOG entry now written (`2026-06-21-001`, post-written after a restart); this block is kept for the forward-looking resume state (built/pending classes, next steps). ──**
-
-  ⚠️ **Provenance caution:** commit `5a6cf87` (below) never got a CHANGELOG entry, and its original WB temp-record (commit `d3efe29`) was overwritten by a later cross-agent WB commit. So this block re-carries that lost state *plus* this session's work. **Push state:** `5a6cf87` + `d3efe29` ARE on `origin/main` (carried up by a later agent's push); only this handoff commit `ab44feb` is unpushed.
-
-  **What's DONE and committed (`5a6cf87`, 2026-06-17 — pushed to origin, but NOT CHANGELOGged):**
-  - `docs/audits/RULE_VERIFIABILITY_TRIAGE.md` (NEW) — unified master rule-verifiability triage, workflow-generated, primary-source-verified. Corpus P10 (10) + JPL-C LOC-1..4 (31) + JSF AV (233 distinct IDs); 225 property-rows; LOC-5/6 (89 MISRA) deferred. §1 method · §2 P10 · §3 JPL · §4a-d JSF · §5 cross-ref · §6 deferred · §7 findings. This is the **driver** for everything below.
-  - `standards/CODING_STANDARDS.md` (PROTECTED) — bounded, repo-owner-authorized amendment: "Cross-standard rule-equivalence map" table under Foundation (before "JPL Additions"). Table + note only.
-
-  **What's DONE this session (`L2P5_MANUAL_WALK_GUIDE.md` rebuild — committed at this handoff as `ab44feb`, NOT pushed):**
-  - **Re-scoped per user direction (2026-06-20):** the walk is NOT the post-`fcd3496` file delta. It's **everything the scripts can't fully+correctly evaluate**, across all of `src/`, driven by the triage's enforcement diagnostic. Three tiers: **Tier-3 semantic walk** (Grey/Manual/Split/over-claim) · **Tier-2 one-shot mechanical** (decidable but ungated — grep/flip-a-check once) · **Tier-1 script-covered** (cite gate, don't walk — only after confirming it actually runs + fully covers).
-  - **Built:** Class 1 (return values, template) · Class 2 (naming + JSF supersession over-claim) · Class 3 (comments/doc-quality smell-cluster) · §LV (live unlogged violations) · §CM (one-shot mechanical checks/conversion moves) · §SC (script-covered, revalidated).
-  - **Indexed, build-pending:** Classes 4-14 (assertions, scope/lifetime, pointers/casts, class design, templates, control-flow, concurrency, preprocessor, headers, magic numbers, expressions) — rules + triage refs assigned; build to the Class-1 template next.
-
-  **§7 / live findings SURFACED, not actioned (disposition is Nathan's):** naming over-claim at `standards/CODING_STANDARDS.md:433` ("JSF AV 50-53" — 51/52 mandate all-lowercase, project uses k/g_/camelBack → record the supersession); P10-7 CANARY (`bugprone-unused-return-value.CheckedFunctions` unpopulated → bus/flash/gps/rc_log returns uncovered); live violations JSF-18 `offsetof` (`calibration_data.cpp:106,119`), JSF-27 `#pragma once` (`shared_state.h:16`), JSF-190 28× `continue`, JSF-202 `!=0.0f` (`eskf_runner.cpp:292-295`).
-
-  **NEXT STEPS (recommended order):** (1) run **§CM** first — populating `CheckedFunctions` + enabling `-Wshadow` converts two hand-walks to script-covered and shrinks the walk; (2) walk Classes 1-3 + disposition the 4 **§LV** items (concrete, known sites); (3) build Classes 4-14 (start with **Class 6 / pointers** — carries critical over-claims JSF-175 nullptr + JSF-182 pointer-cast). Then the two still-pending derivative deliverables: condensed agent-facing triage, and the smell-first agent walk guide (external-canon-sourced, findings+draft-remediation, no edits).
-
-  **Not blocked.** Low-priority loose end never done: reconcile the 225 property-rows vs 274 rule-IDs count line-by-line. Untracked `agent-tools/` + `mcps/` dirs in the tree are from the CCSDS detour, unrelated to L2-P5.
-
-  **── SESSION HANDOFF (2026-06-23, Claude Opus 4.8) — the 2026-06-21 "NEXT STEPS" above are SUPERSEDED. Resume from the authoritative plan: `docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md` (read it first). ──**
-
-  Plan 1 was council-reviewed + approved and is now consolidated into that plan doc (permanent). Big shape change since 2026-06-21: the walk became a **field manual** (`L2P5_MANUAL_WALK_GUIDE.md`) + **work plan** (`docs/audits/l2p5_manual_walk/L2P5_WALK_PLAN.md`) + **itinerary** (`L2P5_WALK_ITINERARY.md`, 185-file coverage map) — deliberately kept distinct (building the guide ≠ using it for the walk). Governing principle re-set to **completeness over brevity** (every file walked, PASS coverage recorded; balloon expected — esp. remediation).
-
-  **DONE this session:**
-  - Field manual fully built: agent-blind-spot **lens** (catch what compiles/passes but is improper) + Classes 1–14 + §LV/§CM/§RP/§IT/§SC + 185-file itinerary companion.
-  - **§CM measurement (WSL build of `/mnt/c` — Windows-native blocked by cmd-length/quoting; see memory `wsl-on-demand-builds`):** `-Wshadow`=**1** (`rc_os_commands.cpp:1332`), `-Wfloat-equal`=**4** (`eskf_runner` sentinels), confusable=**0**, reserved-id=**4**, param>6=**8**. **No `-Wshadow` balloon.**
-  - **Adopted-code policy (3rd-party code) — council-approved, NEVER auto-accept:** `CODING_STANDARDS.md` new "Adopted (Third-Party/Vendored/Toolchain) Code" subsection + `ACCEPTED_STANDARDS_DEVIATIONS.md` register formalized + **TP-2** (`__StackBottom` accepted-via-vendoring: linker-defined, referenced-not-authored). Each vendor flag individually evaluated (sequestered + rule-reason-still-holds); scalable up to formal MISRA GRP/GCS for Nova/RC-Pro/cubesat/Starcom.
-  - Reserved-id real finding fixed: `_test_mode_*` renamed (dropped reserved leading-underscore) in `test_mode.cpp`.
-  - Triage corrections folded into field manual: `#pragma once`=**3** headers (not 1), `rc_log()` is `void` (not return-checkable), `flash_safe_execute` is **`int`** (return-checkable).
-
-  **── SESSION HANDOFF (2026-06-24, Claude Opus 4.8) — Phase-C dispositions + the ENTIRE code remediation are DONE + committed. ──**
-
-  **DONE since the 2026-06-23 handoff:**
-  - **Decision-lock `6f2cf6b`** (pure-doc, host 857/857): all Phase-C dispositions resolved fix-oriented (no pre-judged accepts); JSF-175 `nullptr` supersession + naming supersession relocated into Foundation → Worked-consolidation-decisions; JSF-182 dispositioned per-category against the rule's verbatim Exc 1/2 → two native-code residuals logged (**CAST-1** MPU ptr→int, **CAST-2** `evt_cast` QEvt downcast); JSF-113 non-enforcement recorded; triage over-claim errata at source; Phase-C table refreshed.
-  - **Code remediation batch (CHANGELOG `2026-06-24-001`, bench_sim commit):** mechanical (shadow, `#pragma once`×3→`#ifndef`, offsetof×2, `(void*)0`→`nullptr`×24); float== → `CAL_STATUS_WMM_SET` bit + `has_default_location`; JSF-182 (evt_cast×11 + helper, `uintptr_t`, CRC `const void*`, static_cast overlay×8); **`continue`×28 inversions** (council REVERSED its initial "keep" lean → fix-all: a violation is a defect this pass exists to fix, "passes tests" is not a disposition, P10 silence ≠ permission; 12 were in `eskf.cpp` flight math); param refactors (MavCmdParams, calibration→`cal_vec3_t`, CombinatorSpec, FlightEntryLayout); **`-Werror` gate finalized** (shadow/float-equal now fatal). **Verified: host 857/857; WSL firmware clean `-Werror` rebuild, 0 warnings; bit-exact equivalence vs HEAD on both flight-critical math paths (eskf+ud_factor, calibration).**
-  - New findings logged: **codegen-drift audit** (High WB above — `mission_profile_data.h` was hand-edited vs its generator in `b1f25ce`) + new **"Auto-Generated Code" rule** in `CODING_STANDARDS.md`; **QP/C-vs-QP/C++ eval** (Medium WB).
-
-  **NEXT (resume order):**
-  1. **Phase B — gate-wiring DONE** (commits `d3c8965` complexity, `60ce731` eskf gate-hole, `44b360e` LL43 + coverage-check, + the canary/gate-wiring commit). Highlights: `build/` configured (clang-tidy native Windows, `-p build/`); **P10-7 return-value canary closed via `[[nodiscard]]` contracts** (council JPL/Prof/Cubesat — the return-check contract lives on the i2c_bus/gps API *declarations*, compiler-enforced under `-Werror`; `recover`/`reset` best-effort-unmarked so their 4 calls aren't findings; GPS drain `(void)`'d; `CheckedFunctions`→`flash_safe_execute` only — the rest we own are `[[nodiscard]]`); reserved-id `__Stack*` consolidated into `include/rocketchip/linker_symbols.h` (one documented suppression, not scattered — "a NOLINT lost in the static is worse than a logged deviation"); `scripts/audit/full_tree_clang_tidy.sh` is the single source of truth, called by both the pre-commit hook (Gate 2) and `SESSION_CHECKLIST` item 17 (LL-40 dual-hardcode fixed); `.clang-tidy` adds `ParameterThreshold=6`; planted-proofs + positive-controls all green. **Deferred (low value):** `misc-confusable-identifiers` not gated per-commit — measured 0 findings and O(n²) slow; run in a full milestone clang-tidy audit if ever wanted.
-  2. **Phase D — §RP research**: primary-source-verified criteria for the Manual classes (3/7/8/10), fold per-class checklists into the field manual; stash sources in `docs/audits/L2P5_RP_SOURCES_<date>.md`.
-  3. **Phase E — wrap**: field-manual `:433`→`:460` citation fix, LL-37 supersession note, plan/itinerary refresh.
-  4. **Then** Plan-3 close-out: Cycle-4 remediation doc → close L2-P5 → L2-P10 (CLA-RBM).
-
-  **DEFERRED (future):** full re-audit of existing TP/vendored exceptions vs the new discipline; Plan 2 (agent-facing condensed triage + smell-first agent walk guide); Plan 3 close-out (Cycle-4 remediation doc → close L2-P5 → L2-P10 CLA-RBM).
 
 - **IVP-T13 LQ-adaptive retry — deferred until after the CCSDS command-
   layer rework.** Original Stage T Batch C plan was to port the ELRS
