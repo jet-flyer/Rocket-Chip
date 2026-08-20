@@ -40,7 +40,7 @@ Owner: hook stays the land gate. A/B is the documented recovery. No boot canary.
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + findings WN-001–327; walk WB drained and formal walk close 2026-08-17.** Next: WN cluster index, then disposition. Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Independent walks on main: Claude `CW-` (`L2P5_CLAUDE_WALK_FINDINGS.md`) and Grok **GWF-001–498** (`L2P5_GROK_WALK_FINDINGS.md`). Next: disposition plan. W-5/W-2 include/consumer + concurrency 3-question still OPEN (not the Grok/Claude semantic walks). Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
