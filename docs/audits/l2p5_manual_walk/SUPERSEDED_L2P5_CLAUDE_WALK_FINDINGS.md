@@ -1,11 +1,9 @@
-# L2-P5 Claude Agent Walk — Findings (CW), reconciled edition
+> **SUPERSEDED 2026-08-20 — do not use for the three-way join.**
+> This is the original as-walked pack. It is kept unchanged as the historical record.
+> The live document is `L2P5_CLAUDE_WALK_FINDINGS_ALIGNED.md`, which carries these findings
+> verbatim plus the primary-source checks, the lens re-run and its coverage record.
 
-> **Read this one for the three-way join.** Same 358 findings as the frozen
-> `L2P5_CLAUDE_WALK_FINDINGS.md`, with an added Reconciliation section that collapses this
-> pack's internal duplicates and settles its one self-contradiction, so it enters the join
-> as **one vote / 336 distinct propositions**. No finding text differs between the two
-> files — this edition only *adds* the reconciliation section and per-row markers.
-> The original stays frozen as the as-walked record.
+# L2-P5 Claude Agent Walk — Findings (CW)
 
 **This is not the owner walk.** It is an independent, blind agent re-walk of the same
 186-file L2-P5 semantic pass, run to sit beside the owner findings (`WN-`) as the
@@ -108,78 +106,6 @@ in the worktree. Agents were barred from reading the main checkout, the walk whi
 
 
 ---
-
-## Reconciliation (2026-08-20) — one proposition, one Claude answer
-
-This pack was produced on two axes (44 file batches + 5 cross-cutting lanes) that never
-cross-referenced each other, so it shipped restating itself and, in one cluster, contradicting
-itself. That is a defect of this pack, not a second opinion. Resolved here **without editing any
-finding's text**: rows are marked, never deleted or renumbered.
-
-**For a three-way join, count 336 distinct Claude propositions, not 358.**
-
-### §1 — The UART / GPS-staleness cluster (the contradiction)
-
-`CW-X1` concluded that the recovery branch in `core1_gps_staleness_check()`
-(`src/core1/sensor_core1.cpp:253-278`) is dead code, and **refuted three of its own rows** on
-that basis, while `CW-B09-03`, `CW-B36-01` and `CW-X5-02` treat the same branch as live.
-
-**The branch is live on the flight vehicle.** Evidence, re-read for this reconciliation:
-
-- `src/main.cpp:128-135` — `init_gps()` calls `bind_gps_uart_backend()` when
-  `board::kUartGpsAvailable` is set and `gps_uart_init()` succeeds.
-- `src/main.cpp:101-105` — that setter assigns `g_gpsTransport = GPS_TRANSPORT_UART`, the exact
-  value the branch's guard at `sensor_core1.cpp:261` requires.
-- `include/rocketchip/board_feather_rp2350.h:65` — `kUartGpsAvailable = true` on the **vehicle**
-  board (also `board_pico2.h:71`; false only on `board_fruit_jam.h:87` and
-  `board_tiny_2350_common.h:74`).
-- The remaining guard, `g_lastValidGpsUs == 0`, only defers the branch until the first valid
-  parse; it does not disable it.
-
-So the dead-code premise holds *only* on the station/relay boards, and X1 generalised it to the
-tree. **Claude's single answer: the branch is reachable on the vehicle, and the findings that
-depend on its reachability stand.** The X1 rows built on the false premise are marked in place;
-their withdrawal is a correction to this pack, not a new finding.
-
-### §2 — Lane rows that restate a batch row (collapsed)
-
-22 lane rows assert a proposition a batch row already made. Each is marked *duplicate of* its
-batch row and should be counted **once**. The batch row is canonical because it is the
-file-scoped original; the lane row is kept in place for its cross-file framing.
-
-| Lane row | Duplicate of | Proposition |
-|---|---|---|
-| `CW-X1-01`, `CW-X5-02` | `CW-B09-03` | `gps_uart_reinit()` enables the UART IRQ on the wrong core's NVIC |
-| `CW-X1-03` | `CW-B18-01` | calibration state shared across cores with no barrier |
-| `CW-X1-04` | `CW-B09-04` | UART RX ring documented as needing no barrier |
-| `CW-X1-05` | `CW-B01-01` | cross-core liveness flags are plain `bool` |
-| `CW-X1-06` | `CW-B36-01` | Core 1 reads Core 0 ESKF state unsynchronized |
-| `CW-X2-06` | `CW-B10-06` | barometric altitude model exists in two modules |
-| `CW-X3-01` | `CW-B34-01` | "every reachable runtime `flash_safe_execute()` callsite" is false |
-| `CW-X3-02`, `CW-X4-02` | `CW-B01-03` | `rc_log.h` LOCKED contract says drop-newest; sink drops oldest |
-| `CW-X3-03`, `CW-X4-03` | `CW-B31-01` / `CW-B25-01` | `rc_log.h` forbids fault-handler logging; `Q_onError` logs |
-| `CW-X3-06` | `CW-B06-03` | flash-layout region map omits a region |
-| `CW-X3-09` | `CW-B05-03` | APID comment names a value the encoder never emits |
-| `CW-X3-10` | `CW-B10-05` | DPS310 datasheet table transcription contradicts itself |
-| `CW-X4-01` | `CW-B06-01` | signal catalog says QP events may be stack-allocated |
-| `CW-X4-04` | `CW-B21-01` | LED pattern code space duplicated and diverged |
-| `CW-X4-06` | `CW-B04-03` | radio-config whitelist header is not the `SET_RADIO_CONFIG` gate |
-| `CW-X4-08` | `CW-B01-05` | `RC_ASSERT` documents a watchdog recovery this tree cannot perform |
-| `CW-X4-11` | `CW-B02-02` | `board_pico2.h` omits a member `config.h` requires |
-| `CW-X5-01` | `CW-B37-01` | PIO backup pyro timers disarmed only on the CLI path |
-| `CW-X5-06` | `CW-B35-03` | disarm hands pyro pins to SIO without an output direction |
-
-**Not collapsed** (share a file, assert different things, both stand): `CW-X1-02`, `CW-X2-03`,
-`CW-X4-09`, `CW-X4-12`, `CW-X5-04`, `CW-X5-07`, `CW-X5-08`.
-
-### §3 — What this pack is worth as a vote
-
-One walk. The refute pass is this pack checking itself, and the lanes are a second read of the
-same tree by the same method — neither is an independent walk, and neither should be counted as
-corroboration in a three-way join.
-
----
-
 
 ## Tier 1 — Foundations (public headers, math, drivers)
 
@@ -3685,8 +3611,6 @@ two readers disagree on the memory order used (rc_os_commands.cpp:346 relaxed vs
 - Confidence: high
 - Direction: keep NVIC ownership on the core that registered the handler. Either move the reinit into a Core 0 context (a request flag Core 1 sets and an AO or the idle bridge services), or reduce gps_uart_reinit() to peripheral-level operations only (uart_set_irqs_enabled, uart_deinit / uart_init) and leave irq_set_enabled exclusively in gps_uart_init() on Core 0.
 - Verdict: REFUTED -- the Core 1 call site is unreachable: `gps_uart_update()` (the only function ever bound to `g_gpsFnUpdate` for UART transport, main.cpp:103) returns false only when `!g_initialized`, and `g_initialized` is cleared only inside `gps_uart_reinit()` itself, so `parsed` is always true and `core1_gps_staleness_check()` always returns at sensor_core1.cpp:255 before reaching line 275; `gps_uart_reinit()` has no other caller in the tree, making the cross-core NVIC hazard latent (dead code) rather than the live, ordinarily-triggered defect claimed.
-- **Reconciled 2026-08-20:** duplicate of **CW-B09-03**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
-- **Reconciled 2026-08-20:** this row's verdict rests on the premise that `core1_gps_staleness_check()`'s recovery branch is dead code. **That premise is false** — see Reconciliation §1. The premise is withdrawn; the batch row stands.
 
 ### CW-X1-02 -- Core 1's GPS recovery blocks the seqlock publisher past Core 0's stall detectors
 - Site: src/core1/sensor_core1.cpp:251-279 and src/core1/sensor_core1.cpp:445-463, against src/safety/health_monitor.cpp:346 and src/active_objects/ao_led_engine.cpp:54-55
@@ -3696,7 +3620,6 @@ two readers disagree on the memory order used (rc_os_commands.cpp:346 relaxed vs
 - Confidence: high
 - Direction: make the reacquisition non-blocking (a start/poll split like the radio driver's, per LL Entry 32), or run it off Core 1 entirely. If it must stay, it has to keep publishing core1_loop_count while it waits, and the two stall thresholds need to be stated as a budget the recovery path is checked against.
 - Verdict: REFUTED -- the blocking reacquisition never runs on Core 1 for the same reason as CW-X1-01 (`gps_uart_update()` cannot report a failed parse, so the 10 s staleness branch at sensor_core1.cpp:259-279 is dead), so no GPS dropout can freeze `core1_loop_count` past the 600 ms / 515 ms stall detectors; the threshold-vs-budget arithmetic is correct but describes a path that is never entered.
-- **Reconciled 2026-08-20:** this row's verdict rests on the premise that `core1_gps_staleness_check()`'s recovery branch is dead code. **That premise is false** — see Reconciliation §1. The premise is withdrawn; the batch row stands.
 
 ### CW-X1-03 -- The calibration state machine is shared between both cores with no synchronization at all
 - Site: src/calibration/calibration_manager.cpp:92-107 and 370-403, with src/core1/sensor_core1.cpp:172-182 and 206-209, src/main.cpp:366-376, and src/active_objects/ao_rcos.cpp:382-390, 423-434, 441-463
@@ -3706,7 +3629,6 @@ two readers disagree on the memory order used (rc_os_commands.cpp:346 relaxed vs
 - Confidence: high
 - Direction: give the module one owner. Either have Core 0 pause Core 1 (rc::core1_i2c_pause / core1_i2c_resume, already used for the flash paths) around every start, cancel and reset, or publish the state through a release/acquire atomic with the accumulator reset ordered before it; then state the ownership rule in calibration_manager.h the way shared_state.h does.
 - Verdict: CONFIRMED -- `g_calState`/`g_sampleAcc`/`g_calibration` are plain statics (calibration_manager.cpp:92-106) with no atomic, barrier or pause on either side; `init_baro_auto_zero()` (main.cpp:366-376) genuinely runs after `init_core1_role()` has released Core 1 into the sensor loop (main.cpp:389-398), Core 1 polls the plain state and can drive it to COMPLETE itself (sensor_core1.cpp:206-209 -> calibration_manager.cpp:382-402), and `calibration_manager.h` states no ownership rule -- and because `g_sampleAcc` is zero-initialized at boot, `target_count == 0` makes the truncated-reference outcome reachable on the very first calibration.
-- **Reconciled 2026-08-20:** duplicate of **CW-B18-01**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X1-04 -- The UART RX ring is a cross-core channel documented as needing no barrier
 - Site: src/drivers/gps_uart.cpp:142-149 with 163-166, 190-205 and 388-414
@@ -3716,7 +3638,6 @@ two readers disagree on the memory order used (rc_os_commands.cpp:346 relaxed vs
 - Confidence: high
 - Direction: make the indices std::atomic<uint32_t> with release on the producer's index store and acquire on the consumer's index load (or an explicit __dmb() on each side, matching the seqlock), and replace the comment block with the ordering argument rather than an assertion that none is needed.
 - Verdict: CONFIRMED -- the producer is the Core 0 UART0 ISR (gps_uart.cpp:189-205) and the consumer runs on Core 1 via `g_gpsFnUpdate` -> `gps_uart_update()` -> `gps_uart_drain()` (gps_uart.cpp:388-414), the payload array `g_rxBuf` is non-volatile (gps_uart.cpp:163) while only the indices are volatile, no `__dmb()` appears anywhere in the file, and the in-file comment at :146-149 asserting sufficiency directly contradicts docs/MULTICORE_RULES.md and the tree's own seqlock, which spends two explicit barriers on the identical publish shape; no mechanical gate in .clang-tidy covers volatile-as-synchronization.
-- **Reconciled 2026-08-20:** duplicate of **CW-B09-04**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X1-05 -- Sensor-liveness flags are plain bools mutated by Core 1 and consumed by Core 0 safety logic
 - Site: include/rocketchip/shared_state.h:32-37 and 67-75, with src/core1/sensor_core1.cpp:221 and :276, against src/safety/health_monitor.cpp:154, 178, 256, 763
@@ -3726,8 +3647,6 @@ two readers disagree on the memory order used (rc_os_commands.cpp:346 relaxed vs
 - Confidence: medium
 - Direction: promote the flags Core 1 can clear to std::atomic<bool> with release on Core 1's clear and acquire on Core 0's reads, or leave them Core 0-owned and have Core 1 report sensor death through the seqlock snapshot it already publishes; then correct the ownership sentence at the top of shared_state.h to match.
 - Verdict: RESHAPED -- narrowed to `g_baroInitialized` alone: Core 1 clears it at sensor_core1.cpp:221 (reachable: 50 consecutive baro read failures x 3 re-init attempts) while Core 0 reads it as a health input at health_monitor.cpp:178 and rc_os_commands.cpp:617/621/817/832, with no atomic and no barrier, and shared_state.h:35 annotates it "Core 1 reads/writes" while shared_state.h:9-13 declares Core 0 the owner of initialization. The `g_gpsInitialized` half is refuted: its only Core 1 write (sensor_core1.cpp:276) sits in the dead staleness branch shown unreachable under CW-X1-01, so on the vehicle that flag is written by Core 0 only and the GO/NO-GO input at health_monitor.cpp:763 cannot straddle a Core 1 flip.
-- **Reconciled 2026-08-20:** duplicate of **CW-B01-01**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
-- **Reconciled 2026-08-20:** this row's verdict rests on the premise that `core1_gps_staleness_check()`'s recovery branch is dead code. **That premise is false** — see Reconciliation §1. The premise is withdrawn; the batch row stands.
 
 ### CW-X1-06 -- Core 1's mid-flight safety gate reads Core 0's filter state unsynchronized, and fails open
 - Site: src/core1/sensor_core1.cpp:268-273 with src/core1/sensor_core1.h:61-64 and src/fusion/eskf_runner.cpp:71-74, 196-201
@@ -3737,8 +3656,6 @@ two readers disagree on the memory order used (rc_os_commands.cpp:346 relaxed vs
 - Confidence: medium
 - Direction: publish the small piece Core 1 actually needs (a flight-active boolean, or the speed) through the existing seqlock or an atomic Core 0 writes with release, and re-derive the gate so an unhealthy filter is treated as "possibly flying" rather than "not flying".
 - Verdict: REFUTED -- the `probably_flying` gate at sensor_core1.cpp:268-273 is inside the same dead branch as CW-X1-01: `parsed` is always true for UART transport, so the guard is never evaluated and Core 1 never reads `g_eskfInitialized` or `g_eskf.v`; no unsynchronized cross-core read of the filter state actually occurs, and the fail-open concern has no live path to open.
-- **Reconciled 2026-08-20:** duplicate of **CW-B36-01**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
-- **Reconciled 2026-08-20:** this row's verdict rests on the premise that `core1_gps_staleness_check()`'s recovery branch is dead code. **That premise is false** — see Reconciliation §1. The premise is withdrawn; the batch row stands.
 
 ### CW-X1-07 -- The NeoPixel driver is written from both cores on the pause-exit path
 - Site: src/core1/sensor_core1.cpp:356-367 with src/drivers/ws2812_status.cpp:51-97 and 106-126, and src/active_objects/ao_led_engine.cpp:102, 119, 265
@@ -3880,7 +3797,7 @@ enum-mapping site; mavlink_rx.cpp read at its phase comparisons.
 - Confidence: high
 - Direction: Have calibration_get_altitude_agl call baro_dps310_pressure_to_altitude with the stored ground pressure, or lift the conversion and its two coefficients into one shared header both include. Either way delete the second copy of the constants so the atmosphere model is stated once.
 - Verdict: CONFIRMED -- kHypsometricScale=44330.0F and kHypsometricExponent=0.1903F (plus kStdAtmPressurePa=101325.0F) are declared verbatim with identical comments at baro_dps310.cpp:25-27 and calibration_manager.cpp:84-86, and calibration_get_altitude_agl (calibration_manager.cpp:1175-1182) restates the body of baro_dps310_pressure_to_altitude (baro_dps310.cpp:195-197, declared baro_dps310.h:119); calibration_manager.cpp includes only calibration/lm_solver headers, so nothing links the two copies of the atmosphere model.
-- **Reconciled 2026-08-20:** duplicate of **CW-B10-06**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
+
 
 ### CW-X2-07 -- The I2C device-address map is declared in five places, and the copy that presents itself as the map is dead
 - Site: include/rocketchip/config.h:112-124 vs src/drivers/i2c_bus.h:36-41, src/drivers/i2c_bus.cpp:22-24, src/drivers/icm20948.h:25-27, src/drivers/baro_dps310.h:20-21, src/drivers/gps_pa1010d.h:21, src/cli/rc_os_commands.cpp:164-166
@@ -3940,7 +3857,7 @@ verdict; files named individually are the ones read whole.
 - Direction: Correct the header to state the callsites the pause actually covers, and remove or re-qualify the `xltl_no_i2c_during_flash` hard-PASS sentence until it is true. Separately raise the unpaused `AO_RCOS_start_cal_save()` path for the safety/concurrency lane — the comment fix alone does not close the race.
 - Verdict: CONFIRMED -- opened every cited file: the header's "every reachable runtime flash_safe_execute() callsite" is false, since `AO_RCOS_start_cal_save()` (ao_rcos.cpp:1289) reaches `calibration_storage.cpp:107 flash_safe_execute()` with no `core1_i2c_pause()` and is reachable from the live CLI 'v' key (rc_os.cpp:239-241), while only three pause/resume pairs exist (ao_rcos.cpp:343/353, rc_os_commands.cpp:1042/1058 and 1098/1122), cal_hooks.cpp:102 restates the same universal claim, and `xltl_no_i2c_during_flash` appears nowhere in the tree at all -- so the hard-PASS sentence rests on an unverifiable property plus a false completeness claim.
 - Verdict: CONFIRMED -- (independent adversarial re-verification) Opened every cited file: core1_i2c_pause.h:25-28 does assert R-17 wrapped "every reachable runtime flash_safe_execute() callsite" and on that basis upgrades `xltl_no_i2c_during_flash` to hard-PASS, yet exactly three pause/resume pairs exist (ao_rcos.cpp:343/353, rc_os_commands.cpp:1042/1058 and 1098/1122) while `AO_RCOS_start_cal_save()` (ao_rcos.cpp:1289) -- reachable from the live CLI 'v'/'V' key at rc_os.cpp:239-241 -- calls `calibration_save()` into calibration_storage.cpp:107 `flash_safe_execute()` with no pause and no compensating barrier, ownership rule or mechanical gate, and the SPIN property name appears nowhere in the tree.
-- **Reconciled 2026-08-20:** duplicate of **CW-B34-01**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
+
 
 ### CW-X3-02 -- rc_log.h's LOCKED contract states drop-newest; the implementation is drop-oldest
 - Site: include/rocketchip/rc_log.h:24-28 (contract); src/log/rc_log.cpp:436-444, 499-527 (implementation)
@@ -3951,7 +3868,7 @@ verdict; files named individually are the ones read whole.
 - Direction: Update the header's Sink bullet to state drop-oldest ("newest wins") with the two observability counters as the detection mechanism, and note the supersession date so "LOCKED at Unit B" is not read as still binding.
 - Verdict: CONFIRMED -- rc_log.h's LOCKED Sink bullet says a full ring means "the message is dropped on the floor", while `emit()` (rc_log.cpp:499-527) computes `evict = len - avail`, advances `g_tail`, and then writes the new message unconditionally; the .cpp's own header comment names this "drop-oldest" and cites a 2026-05-16 council decision post-dating the Unit-B lock, so the supersession is real and never reached the contract surface.
 - Verdict: CONFIRMED -- (independent adversarial re-verification) The LOCKED Sink bullet at rc_log.h:24-28 states that on a full ring "the message is dropped on the floor", while `emit()` (rc_log.cpp:499-527) computes `evict = len - avail`, advances `g_tail` past that many already-queued bytes and then writes the new message unconditionally; the .cpp's own target-sink preamble names this "drop-oldest (not drop-newest)" under a council decision dated 2026-05-16 that post-dates the Unit-B lock, and no supersession note reaches the header, so the contract surface is affirmatively wrong rather than merely vague.
-- **Reconciled 2026-08-20:** duplicate of **CW-B01-03**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
+
 
 ### CW-X3-03 -- rc_log.h forbids fault-handler logging; Q_onError logs
 - Site: include/rocketchip/rc_log.h:45-46 (PROHIBITED); src/safety/fault_protection.cpp:212 (violating caller); src/log/rc_log.cpp:446-452 (rationale resting on the claim)
@@ -3962,7 +3879,7 @@ verdict; files named individually are the ones read whole.
 - Direction: Decide which side is authoritative — either carve a documented exception into the rc_log contract for the one NORETURN fault-path caller and re-derive the `rc_log.cpp` concurrency rationale without the "never from ISR" premise, or move `Q_onError` off the ring to a direct emission path.
 - Verdict: CONFIRMED -- rc_log.h:45-46 lists "ISR / fault-handler context" as PROHIBITED, yet `Q_onError` (fault_protection.cpp:212, `Q_NORETURN`, after `cpsid i`) calls `rc::rc_log("[QP ASSERT] ...")`, and rc_log.cpp:446-452 still derives its plain-`volatile` (no-atomics) concurrency rationale from the premise "never from ISR, never from Core 1"; the .cpp's local "best-effort live print" comment acknowledges the call but carves no exception into either the contract or the concurrency derivation, so both load-bearing claims remain unmet.
 - Verdict: CONFIRMED -- (independent adversarial re-verification) rc_log.h:45-46 lists "ISR / fault-handler context" under PROHIBITED, `Q_onError` (fault_protection.cpp:174-212, `Q_NORETURN`, after `cpsid i`) calls `rc::rc_log("[QP ASSERT] ...")`, and rc_log.cpp's target-sink preamble still derives its plain-`volatile`/no-atomics concurrency argument from the premise "rc_log is called from Core 0 cooperative context only (per rc_log.h contract -- never from ISR, never from Core 1)"; the only mitigating text is a local "best-effort live print" comment at the callsite, which carves no exception into either the contract or the derivation.
-- **Reconciled 2026-08-20:** duplicate of **CW-B31-01**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
+
 
 ### CW-X3-04 -- deviation ID FH-1 is cited from code but has no row in the register
 - Site: src/safety/fault_protection.cpp:101-103; standards/ACCEPTED_STANDARDS_DEVIATIONS.md (no FH-1 row); docs/decisions/FAULT_HANDLER_DESIGN.md:139 (same citation)
@@ -3995,7 +3912,7 @@ verdict; files named individually are the ones read whole.
 - Direction: Regenerate the banner map from the constants (add the radio-config region, move the flash-safe test sector to -28KB, correct the log-region bound), and either implement the described runtime check against the linker's binary-end symbol or rewrite the preamble to describe the compile-time asserts it actually performs.
 - Verdict: CONFIRMED -- worked the constants: kFlashCalSectorA = SIZE-8KB, kFlashTableSectorA = SIZE-16KB, so kFlashRadioCfgSectorA/B = SIZE-24KB/SIZE-20KB and kFlashSafeTestOffset = SIZE-28KB; the banner's "[FLASH_SIZE - 20KB] Flash-safe test sector" therefore names the persisted radio-config sector B, and the radio-config region is absent from the map entirely (its consumer is radio_config_storage.cpp:23-24). The validator half also holds: `flash_layout_valid()` is nullary `constexpr` with three `static_assert`s against the fixed 512 KB `kFlashFirmwareReserve`, and `grep` finds `binary_end` only inside its own doc-comment and `flash_layout_valid` only at its own line-99 `static_assert`.
 - Verdict: CONFIRMED -- (independent adversarial re-verification) Working the constants from the header itself: kFlashCalSectorA = SIZE-8KB, kFlashTableSectorA = SIZE-16KB, so kFlashRadioCfgSectorA/B = SIZE-24KB/SIZE-20KB and kFlashSafeTestOffset = SIZE-28KB -- meaning the banner's "[FLASH_SIZE - 20KB] Flash-safe test sector (4KB)" names the persisted radio-config sector B and the radio-config region (consumed at radio_config_storage.cpp:23-24) is absent from the map entirely, while `flash_layout_valid()` is a nullary `constexpr` of three `static_assert`s against the fixed 512 KB `kFlashFirmwareReserve` and a repo search finds `binary_end` only inside its own doc-comment and `flash_layout_valid` only at its own line-99 assert.
-- **Reconciled 2026-08-20:** duplicate of **CW-B06-03**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
+
 
 ### CW-X3-07 -- the seqlock's named source of truth describes a different struct than the one that ships
 - Site: include/rocketchip/sensor_seqlock.h:10, :32, :67, :100-101; docs/decisions/SEQLOCK_DESIGN.md:36, :81, :91-94
@@ -4028,7 +3945,7 @@ verdict; files named individually are the ones read whole.
 - Direction: Correct the sentence to `0x004`, and check whether `0x101` was a real earlier allocation worth recording as history rather than silently deleting.
 - Verdict: CONFIRMED -- `0x101` occurs exactly once across `src/` and `include/`, in the comment itself; the constant it annotates is `constexpr uint16_t kApidNavWithConfig = 0x004` (telemetry_encoder.h:62), and both the emitter (`build_primary_header(..., kApidNavWithConfig, ...)`, telemetry_encoder.cpp:149) and the decoder dispatch (:380) use that symbol, so the ICD sentence names a value nothing on the wire ever carries.
 - Verdict: CONFIRMED -- (independent adversarial re-verification) `0x101` occurs exactly once across `src/` and `include/` -- in the comment itself at telemetry_encoder.h:61 -- while the constant it annotates is `constexpr uint16_t kApidNavWithConfig = 0x004` (:62), and both the emitter (`build_primary_header(p, ccsds::kApidNavWithConfig, ...)`, telemetry_encoder.cpp:149) and the decoder dispatch (:379-380, whose own comment reads "0x004 = nav-with-config") use that symbol, so the ICD sentence names a value nothing on the wire ever carries.
-- **Reconciled 2026-08-20:** duplicate of **CW-B05-03**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
+
 
 ### CW-X3-10 -- a transcribed datasheet table contradicts itself and the configuration it justifies
 - Site: src/drivers/baro_dps310.h:26-53; related restatements at src/fusion/eskf.h:198-203 and src/core1/sensor_core1.cpp:45
@@ -4039,7 +3956,6 @@ verdict; files named individually are the ones read whole.
 - Direction: Replace the transcribed table with a one-line pointer (for example `// see Infineon DPS310 datasheet IFXDS_DPS310_v1.1 Table 16`) plus only the rows the configuration actually depends on, and reconcile the MaxRate-versus-duty-cycle reading against the datasheet so the "(proven rate)" annotation on line 53 carries a source.
 - Verdict: CONFIRMED -- and correctly bounded to the in-tree contradiction rather than to the datasheet: baro_dps310.h:31-32 gives 8x -> 16 Hz and 16x -> 8 Hz MaxRate, line 37 asserts "ArduPilot uses 16x @ 32Hz", the duty-cycle rendering at :47-49 computes 32x14.8 + 2x3.6 = 481 ms as legal, and the shipped config at :52-53 is 8x @ 32 Hz labelled "(proven rate)" -- two mutually inconsistent paraphrases of one constraint, with the shipped configuration satisfying one and violating the other; eskf.h:198-199's 0.4 Pa x 0.083 m/Pa = 0.033 m derivation and sensor_core1.cpp:45's 32 SPS restatement both track the same table.
 - Verdict: CONFIRMED -- (independent adversarial re-verification) And correctly bounded to the in-tree contradiction rather than to the unavailable datasheet: baro_dps310.h:31-32 gives 8x -> MaxRate 16Hz and 16x -> MaxRate 8Hz, :37 asserts "ArduPilot uses 16x @ 32Hz", the duty-cycle rendering at :47-49 computes 32x14.8ms + 2x3.6ms = 481ms as legal with 52% margin, and :52-53 ships 8x @ 32 Hz labelled "(proven rate)" -- two mutually inconsistent paraphrases of one silicon constraint with the shipped configuration satisfying one and violating the other, while eskf.h:198-199 and sensor_core1.cpp:45 both restate figures from the same table.
-- **Reconciled 2026-08-20:** duplicate of **CW-B10-05**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### X4 -- public header contract coherence
 
@@ -4108,7 +4024,6 @@ test/test_data_model.cpp.
 - Confidence: high
 - Direction: Replace both claims with the single rule the tree enforces -- posted events use static storage (or pool storage once a pool exists), never stack-local -- and put the Entry 35 pointer next to the event struct definitions rather than in a lessons file no consumer of this header will open.
 - Verdict: CONFIRMED -- both claims verified verbatim (ao_signals.h:122 banner "can be stack-allocated", :145/:157 "dynamic event pool"); Q_NEW/QF_poolInit appear nowhere in src/ or include/, every real post site (ao_telemetry.cpp:185/225/854/897/1016, ao_radio.cpp:489) uses function-static storage, and LL Entry 35 records the stack-local variant as a shipped use-after-free.
-- **Reconciled 2026-08-20:** duplicate of **CW-B06-01**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X4-02 -- rc_log's LOCKED contract says drop-newest; the sink implements drop-oldest, and the same header says so 70 lines later
 
@@ -4119,7 +4034,6 @@ test/test_data_model.cpp.
 - Confidence: high
 - Direction: Correct the CONTRACT block to state drop-oldest and to name rc_log_drain_to_cdc() as the drain. Since the block is marked LOCKED, record this as a correction of a mis-stated contract rather than a contract change.
 - Verdict: CONFIRMED -- rc_log.h:24-27 states "dropped on the floor" / "drained by tud_task" while src/log/rc_log.cpp evicts g_tail forward on overflow (drop-oldest, message always written in full) and the drain is rc_log_drain_to_cdc() from the QV idle bridge; the same header at :98-100 already says "evicted by drop-oldest", so the file contradicts itself.
-- **Reconciled 2026-08-20:** duplicate of **CW-B01-03**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X4-03 -- rc_log.h forbids fault-handler logging; Q_onError logs, and rc_log.cpp's own safety argument rests on that forbidden case not existing
 
@@ -4130,7 +4044,6 @@ test/test_data_model.cpp.
 - Confidence: high
 - Direction: Pick one and make both files say it -- either carve a narrow, explicit exception into the PROHIBITED clause for the terminal Q_NORETURN fault path and restate rc_log.cpp's concurrency note to cover preemption, or route the fault handler through the crash record only and drop the live print.
 - Verdict: CONFIRMED -- rc_log.h:42-46 forbids fault-handler logging, Q_onError (fault_protection.cpp:174-212) masks interrupts at :178 and calls rc::rc_log at :212, and rc_log.cpp:446-449 rests its unsynchronized head/tail on "per rc_log.h contract -- never from ISR"; the ISR reachability is real, not hypothetical -- lib/qep/bsp_qv.c:40-43 runs QTIMEEVT_TICK_X from a 100 Hz hardware-timer IRQ and lib/qep/qf_actq.c:76 asserts Q_ASSERT_INCRIT(130) on queue-full from that post path (the qf_actq id=130 trip recorded in LL Entry 32), so Q_onError -> rc_log can preempt rc_log_drain_to_cdc; docs/decisions/FAULT_RECOVERY_2026-05-14.md carries no logging exception, and memmanage_fault_handler (the one true exception handler) does not log, so nothing reconciles the header with fault_protection.cpp.
-- **Reconciled 2026-08-20:** duplicate of **CW-B25-01**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X4-04 -- The LED pattern code space is defined in one header, duplicated and diverged in a second, and pointed at a third that no longer holds it
 
@@ -4141,7 +4054,6 @@ test/test_data_model.cpp.
 - Confidence: high
 - Direction: Make LedPhaseValue derive from rc::led::k* rather than restate it (or delete it and use the public codes directly), fix the ao_signals.h pointer to name led_patterns.h, and reconcile code 28 in the same change.
 - Verdict: CONFIRMED -- led_patterns.h claims SSOT and asserts 20-27 "match LedPhaseValue", but action_executor.h:47-61 is a full second copy that has diverged (28 = kLedPhaseFault magenta vs kFdPreArmFail yellow double-flash; 20 commented "Amber solid" vs the Stage L red swap); flight_actions.h:143 emits 28 and ao_led_engine.cpp:158 maps 28 to DOUBLE_FLASH yellow, and ws2812_status.h contains no kCalNeo*/kRxNeo*/kFdNeo* names, so ao_signals.h:135's pointer is wrong.
-- **Reconciled 2026-08-20:** duplicate of **CW-B21-01**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X4-05 -- Two "default RadioConfig" constants disagree, and the public one has no consumers
 
@@ -4162,7 +4074,6 @@ test/test_data_model.cpp.
 - Confidence: high
 - Direction: Rewrite the banner to state what is true (the table is a preset list and future scanner sweep order, not the accept gate), and either wire radio_config_in_whitelist() into a real caller or remove it together with its consumer list.
 - Verdict: CONFIRMED -- the banner's "SET_RADIO_CONFIG dispatcher rejects any incoming config not in this table" is contradicted by :58-62 in the same file and by the only two validation call sites (ao_telemetry.cpp:254, radio_config_storage.cpp:117), both of which call radio_config_sx1276_legal(); radio_config_in_whitelist() has zero call sites in src/, include/ or test/, so its three named consumers do not exist.
-- **Reconciled 2026-08-20:** duplicate of **CW-B04-03**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X4-07 -- ao_signals.h declares a signal-name lookup that is never defined, and the function it claims to extend covers a third of the catalog
 
@@ -4183,7 +4094,6 @@ test/test_data_model.cpp.
 - Confidence: medium
 - Direction: Either delete RC_ASSERT (nothing uses it, and Q_ASSERT / Q_onError is the live mechanism) or re-point its failure path at Q_onError and correct the preamble to describe what actually happens on this hardware.
 - Verdict: RESHAPED -- the primary claim holds (RC_ASSERT's body is while(true){nop}, the SDK watchdog was removed at IVP-90, main.cpp only feeds the poll-only PIO watchdog, so "spins until the watchdog resets the device / reboot-cause flag preserved" is unreachable and a trip wedges the core); but the mirror half is hypothetical -- CMakeLists.txt:240-245 FORCEs CMAKE_BUILD_TYPE=Debug and defines DEBUG=1, so the facility never compiles out of any binary this tree builds. Narrowed claim: config.h documents a watchdog-reset recovery the tree cannot perform, in a macro with zero call sites.
-- **Reconciled 2026-08-20:** duplicate of **CW-B01-05**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X4-09 -- The cross-core ownership map is declared twice, and the copy most consumers include carries no ownership rules
 
@@ -4215,7 +4125,6 @@ test/test_data_model.cpp.
 - Confidence: medium
 - Direction: Give board:: an explicit required-member list -- a small interface header, or a static_assert block in board.h naming each required constant -- and either add a sentinel kPsramCsPin to board_pico2.h or make config.h's kPsramCs conditional on board::kPsramAvailable.
 - Verdict: CONFIRMED -- board_pico2.h defines kPsramAvailable=false (:76) and no kPsramCsPin anywhere, while config.h:90 evaluates board::kPsramCsPin unconditionally for every board; board.h is a bare #if/#elif include chain with no interface header, concept or static_assert enumerating required board:: names, and the three other boards do define kPsramCsPin (feather :61, fruit_jam :82, tiny_2350_common :88). Both stated facts are present-tense true; only the resulting compile break is gated behind board_pico2.h:20-21 PICO2_BRINGUP_OK, which the finding itself already scopes as latent.
-- **Reconciled 2026-08-20:** duplicate of **CW-B02-02**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X4-12 -- Two different board-identity strings, both spelled kBoardName; the T=0 identity gate and the flight log report different boards
 
@@ -4321,7 +4230,6 @@ notify_*.h, radio_config*.h, telemetry_*.h) read as contract surfaces for orderi
 - Confidence: high
 - Direction: move the arm/disarm calls out of the command wrapper and into the phase transition itself -- arm on kArmed entry, disarm on any exit from kArmed/kAbort into kIdle -- so every route through the state machine carries the hardware pairing, and `AO_FlightDirector_process_command` keeps only the operator logging.
 - Verdict: CONFIRMED -- `pio_backup_timer_arm`/`_disarm` have exactly two callsites tree-wide (ao_flight_director.cpp:313 and :323, both inside `AO_FlightDirector_process_command`), while fd_tick's critical-fault auto-DISARM (:141), `state_armed`'s `SIG_DISARM` and 300 s-timeout `Q_TRAN(&state_idle)` (flight_director.cpp:394, :398-404) and both `AO_FlightDirector_dispatch_signal` MAVLink entry points (ao_telemetry.cpp:282 radio, :1091 USB) all reach the HSM without touching the driver, and neither `phase_change_cb` nor any kIdle entry action repairs it; only the present-day blast radius is narrower than written, since GPIO 12/13 are documented bench pins not wired to pyro hardware (main.cpp:332-334).
-- **Reconciled 2026-08-20:** duplicate of **CW-B37-01**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X5-02 -- gps_uart_reinit() is reachable from Core 1 but manipulates a UART IRQ that was enabled on Core 0
 - Site: src/core1/sensor_core1.cpp:251-279 (call site) against src/drivers/gps_uart.cpp:354-382 and :448-481
@@ -4331,7 +4239,6 @@ notify_*.h, radio_config*.h, telemetry_*.h) read as contract surfaces for orderi
 - Confidence: high
 - Direction: keep the UART's IRQ ownership on the core that installed it -- have Core 1 raise a request flag that Core 0 services in `qv_idle_bridge`, or move the whole reinit to the Core 0 idle path; either way disable the IRQ on the owning core before `uart_deinit()` and correct the blocking-duration comment.
 - Verdict: RESHAPED -- the durable half holds (`irq_set_enabled` acts on the calling core's NVIC and `multicore_launch_core1` gives Core 1 the same vector table, so the enable at gps_uart.cpp:477 executed from Core 1 leaves `gps_uart_rx_isr` armed on BOTH cores and permanently breaks the single-producer contract stated at gps_uart.cpp:132-136; and `acquire_at_target_baud()`'s 2 s + 2 s + 250 ms worst case (kInitTimeoutUs=2000000 twice, kGpsBaudNegotiateDelayMs=250) does contradict "Blocks for up to 2s" in gps_uart.h:107 and sensor_core1.cpp:252). Narrower surviving claim: the mid-reinit corruption half is refuted -- `uart_set_irqs_enabled(GPS_UART_INST, false, false)` at :454 masks RXIM/RTIM in the UART's own core-agnostic IMSC before `uart_deinit()`, so Core 0's ISR cannot drain the FIFO or race `g_rxBuf`/`g_rxHead` during `detect_gps_presence()` beyond at most one already-pending latched IRQ.
-- **Reconciled 2026-08-20:** duplicate of **CW-B09-03**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X5-03 -- init_gps_early() inverts the documented GPS init ordering and the UART-first transport policy on every board
 - Site: src/main.cpp:217-227 against src/main.cpp:123-150 and src/main.cpp:152-161
@@ -4368,7 +4275,6 @@ notify_*.h, radio_config*.h, telemetry_*.h) read as contract surfaces for orderi
 - Confidence: medium
 - Direction: give the two pins an explicit SIO output direction once (at `pio_backup_timer_init`, alongside the PIO setup) so the disarm/cancel path actually drives them low, and make `pio_backup_timer_fired()` state which owner it is sampling.
 - Verdict: CONFIRMED -- the pins' output enable is established only through `pio_gpio_init()` + `pio_sm_set_consecutive_pindirs(..., true)` in `backup_timer_program_init()` (pio/backup_timer.pio:66-67), `pyro_edge_logger_init()` only enables edge IRQs and never touches direction, and `gpio_set_dir` appears tree-wide only in i2c_bus.cpp, rfm95w.cpp, main.cpp:233 and board_fruit_jam.h:74 -- never for GPIO 12/13 -- so after `gpio_set_function(pin, GPIO_FUNC_SIO)` the pad's OE comes from an SIO GPIO_OE bit nothing ever sets and `gpio_put(pin, 0)` is electrically inert; the finding's own hedge is right that the pad's reset pull-down, not the code, is what holds the line low.
-- **Reconciled 2026-08-20:** duplicate of **CW-B35-03**, which states the same proposition from the file-by-file pass. Counts as **one** Claude row, not two — the lane restated it, it is not a second walk.
 
 ### CW-X5-07 -- the PIO backup-fire report latches are set once and never cleared on disarm or re-arm
 - Site: src/active_objects/ao_flight_director.cpp:79-101 and src/active_objects/ao_flight_director.cpp:262-263, against src/safety/pio_backup_timer.cpp:66-98
