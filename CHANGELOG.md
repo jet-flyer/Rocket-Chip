@@ -70,7 +70,7 @@ recorded them as "empty directories"; with them checked out the SDK settled the 
 (e.g. `spi.c:103/129/152` return `(int)len` unconditionally, proving the SPI error counter cannot
 increment). Findings only — no dispositions, no severity ranking, no code touched. Verified:
 pure-doc; host ctest 858/858 via pre-commit hook; all 358 original IDs and Claim lines confirmed
-byte-identical through every rewrite.
+byte-identical through every rewrite. **Follow-up in the same push window:** the submodule re-check had appended each finding's Resolution and Source but not its Quote, and the agent output holding those quotes lived only in a worktree since removed — all six were recovered from the run transcript and folded in, so the evidence sits in the document rather than only in a commit message (`CW-B08-01` now carries the `hardware_spi` contract text itself).
 
 ### 2026-08-20-005 | Grok 4.6 (Build CLI) | documentation
 
