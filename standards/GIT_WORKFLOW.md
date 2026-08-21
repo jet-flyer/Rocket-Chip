@@ -36,15 +36,15 @@ git branch -D <branch-name>
 - Reduces confusion about active work
 - Feature files that **survived the merge** are preserved in main branch history — this is **not** automatic for every path the branch touched
 
-### Project-log files at merge (LL Entry 45)
+Delete-after-merge applies when the **workstream** is done. A long-running worktree (L2-P5 shape) may stay after a wrap or even after a checkpoint merge of some files. Do not treat wrap as teardown.
 
-A worktree/branch is disposable. `CHANGELOG.md` (and `LESSONS_LEARNED.md` when the sitting added an entry) is not. Parallel sessions mint colliding `YYYY-MM-DD-NNN` IDs; resolving a CHANGELOG conflict by "take main" drops the branch's log. Lived case: Grok L2-P5 walk CLs `d0166d2` / `392091a` stayed on `grok/l2p5-agent-walk` while merge `5841d16` landed only the findings file.
+### Project log lives on `main` (LL Entry 45)
 
-**Before** `git worktree remove` or deleting the branch after merge:
+Standing procedure: `docs/agents/WORKTREE.md` — **during the sitting**, not only at wrap.
 
-1. Diff `CHANGELOG.md` (and LL if touched) against `main`.
-2. Every entry that existed only on the branch must appear on `main` — new date-NNN, or a one-time suffix if the ID collides. Folding into the landing entry is allowed only if the original hashes are cited and the branch text is not discarded.
-3. Do not infer "the log landed" from a successful merge of the feature files.
+`CHANGELOG.md` and `docs/agents/LESSONS_LEARNED.md` are written on `main` in the primary tree. Do not stage them on a feature branch, not even "to copy at wrap." Wrap/handoff only check that this held. They do not merge the feature. A successful merge of findings/docs is not evidence the log landed.
+
+Teardown (`git worktree remove` / branch delete) still runs the log-sync check in WORKTREE.md as a safety net — including Recovery if a sitting broke the rule.
 
 ### Checking for Stale Branches
 

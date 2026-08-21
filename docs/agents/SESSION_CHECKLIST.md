@@ -89,15 +89,21 @@ Inherits all Per Commit rules. Adds the rules below — these run **once** befor
    ```
    Station and vehicle share the same source tree gated by `ROCKETCHIP_JOB_STATION` / `kRadioModeRx` — a change that compiles on one role can silently break the other. If any build directory doesn't exist yet, create it with `cmake -B build_flight ..` (or `cmake -B build_station_flight -DROCKETCHIP_JOB_STATION=1 ..`). When hardware-verifying, both the vehicle Feather and the Fruit Jam station should exercise the changed path before the push. (Single flight binary per role with runtime test-mode gating via `rc::test_mode_active()`; see `docs/decisions/BENCH_TIER_DEPRECATION_2026-05-13.md`.)
 
-7. **Triggered-doc edits are committed, not WIP.** If this push window produced a CHANGELOG entry, `PROJECT_STATUS.md` add, whiteboard change, or other user-allowed cadence/protected edit, those edits must be committed with the work — not left unstaged. Do **not** invent extra protected-doc edits just to have something for this item. (The principle is "the diff and the doc are atomically consistent in git history.")
+7. **Triggered-doc edits are committed, not WIP.** If this push window produced a CHANGELOG entry, `PROJECT_STATUS.md` add, whiteboard change, or other user-allowed cadence/protected edit, those edits must be committed — not left unstaged. Do **not** invent extra protected-doc edits just to have something for this item. (The principle is "the diff and the doc are atomically consistent in git history.")
+
+    **If this sitting is not on `main`:** `CHANGELOG.md` and `docs/agents/LESSONS_LEARNED.md` are committed on `main` in the primary tree, not in the same commit as the feature. "With the work" does not mean those two paths share the feature SHA. Detail: `docs/agents/WORKTREE.md`. Other cadence/protected edits still ride with the feature commit.
 
 8. **CHANGELOG — no silent skip.** **Push:** a significant unit *should usually* have an entry (frequency still per CHANGELOG.md's header). Skip is allowed; if you skip, **say so** in the reply (“no changelog this push: …”). **Session wrap / end session** (inherits this item): always write an entry unless the user says skip. **Handoff** is not a wrap — no entry unless the user asks.
+
+    **Where (sitting not on `main`):** write that entry on `main` in the primary tree, never on the worktree/feature branch. Pushing the feature branch is not "the log is on main." `docs/agents/WORKTREE.md`.
 
 ---
 
 ## Session End (Wrap)
 
 **Activation:** User started Wrap (see How to use). These rules run **once** for that close, plus inherited Commit / Push items. A **clean Wrap** (work for this sitting is done, no phase change) does **not** update `docs/PROJECT_STATUS.md` — that is milestone item 13 only. Whiteboard is for side / still-active rows, not a status rewrite.
+
+**Project-log sync (sitting not on `main`):** Before wrap is done, run the log-sync check in `docs/agents/WORKTREE.md` (`git log origin/main..HEAD -- CHANGELOG.md docs/agents/LESSONS_LEARNED.md` must be empty). Write the wrap CHANGELOG on `main` (item 8). Do **not** merge the feature as part of wrap. Keep-worktree is allowed.
 
 9. **No broken code on main.** If any work in this session is incomplete, either stash it, abandon it, or commit it to a feature branch — never leave broken code on main.
 
@@ -111,7 +117,9 @@ Inherits all Per Commit rules. Adds the rules below — these run **once** befor
     - Any concerns or open questions
     - Specific files that were being worked on
 
-12. **Push to remote** — `git push` so work is not stranded locally.
+    If this sitting is not on `main`, also run the WORKTREE.md log-sync check (same as wrap). No new CHANGELOG unless the user asked (item 8).
+
+12. **Push to remote** — `git push` so work is not stranded locally. If this sitting is not on `main`: push the feature branch, **and** push `origin/main` if a hot log was written this sitting. Feature-branch push ≠ project log on `main` (`docs/agents/WORKTREE.md`).
 
 ---
 
@@ -221,7 +229,7 @@ Before each commit, ask:
   - If yes → update the doc as part of THIS commit.
   - If no → leave it alone.
 - Did the work create something new that warrants a **historical-record** entry (CHANGELOG entry, LESSONS_LEARNED entry, decision doc, audit doc)?
-  - If yes, and it is **`CHANGELOG.md`** → follow item 8 (wrap = yes unless skip; push = usually, no silent skip; handoff = no unless asked). Do not draft an entry just to close this question.
+  - If yes, and it is **`CHANGELOG.md`** → follow item 8 (wrap = yes unless skip; push = usually, no silent skip; handoff = no unless asked; sitting not on `main` → write it on `main`, WORKTREE.md). Do not draft an entry just to close this question.
   - If yes, and it is another historical-record doc → write the new entry as part of THIS commit (or a focused documentation commit), still subject to the protected-file Rule (the user names the file).
   - If no → leave the historical record untouched.
 

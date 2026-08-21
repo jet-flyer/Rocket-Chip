@@ -17,22 +17,6 @@
 > item after consideration, log the rejection rationale in CHANGELOG and
 > erase the row, don't move it to a "rejected" section.
 
-## FIRST tomorrow — worktree wrap / CHANGELOG-on-main policy (OPEN) (2026-08-21)
-
-**Do this before Phase 3 / P10-9 / any other sitting.** Same failure class as LL Entry 45 (walk CLs orphaned on `grok/l2p5-agent-walk`, recovered as `2026-08-18-001W` / `2026-08-19-001W` only after the mismatch was found).
-
-Tonight a wrap left the worktree **alive** and the sitting CLs (`2026-08-20-008`, `2026-08-21-001`) were **not** on `main` until the owner asked. `GIT_WORKFLOW.md` / LL-45 only check CHANGELOG/LL vs `main` **before `worktree remove` / branch delete**. A checkpoint merge or session wrap that **keeps** the worktree has no checklist gate, so the log can sit on the branch again.
-
-**Work (owner names protected files when editing them):**
-
-- `docs/agents/SESSION_CHECKLIST.md` — Wrap and Push: if this sitting used a worktree/branch that is not `main`, diff `CHANGELOG.md` (and LL if touched) against `origin/main` and land any branch-only entries **before** calling wrap done. Not only at teardown.
-- `standards/GIT_WORKFLOW.md` — same check at **merge-to-main checkpoint**, not only at delete. Keep-worktree is the normal L2-P5 shape.
-- Session-start prompt (already deferred on the worktree-proposal row, 2026-07-04) can ride the same sitting.
-
-Do **not** treat “we pushed the feature branch” as “the project log is on main.”
-
----
-
 ## Skills to add (OPEN)
 
 Wanted skills — not written yet. Not a license to author them until scheduled.
@@ -68,7 +52,7 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (**Phases 0–2 closed; Phase 2 = 327/327 labeled**). **FIRST next sitting:** worktree wrap / CHANGELOG-on-main policy (LL 45), then Phase 3 P10-9. Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (**Phases 0–2 closed; Phase 2 = 327/327 labeled**). **FIRST next sitting:** Phase 3 P10-9. Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
@@ -81,9 +65,9 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 **Done:** Phase 0 HW/LOC baseline; Phase 1 W-5/W-2; Phase 2 **327/327** labeled; NOLINT code closed (`75a80b5`).
 
-**Next:** **FIRST** — worktree wrap / CHANGELOG-on-main policy (WB top row; LL 45). Then owner opens Phase 3 P10-9 sitting — GPS/`kick_watchdog`/typedef sites REMEDIATE; FD + `action_executor` callbacks DEFER with WN-052 to QP eval. `lm_solver` stays closed.
+**Next:** Phase 3 P10-9 — GPS/`kick_watchdog`/typedef sites REMEDIATE; FD + `action_executor` callbacks DEFER with WN-052 to QP eval. `lm_solver` stays closed. Worktree wrap / CHANGELOG-on-main policy closed (`docs/agents/WORKTREE.md`, `2026-08-21-002`).
 
-**Blocked:** Phase 3 `src/` until that policy sitting is done **and** owner opens P10-9. WN-100 / Starcom / RC_OS structure / early-impl rewrites are DEFER (no code queue). Do not silent-regen `mission_profile_data.h` (R-4).
+**Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites are DEFER (no code queue). Do not silent-regen `mission_profile_data.h` (R-4). Do not work Phase 3 `src/` on `main`.
 
 **Concerns:** Probe residual power (E2) if the board looks dead after SWD. R-3 Core 0 `icm20948_read` vs Core 1 still open (WN-002 not fully closed).
 

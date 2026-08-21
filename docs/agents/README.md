@@ -10,3 +10,4 @@ These were previously under `.claude/` and have been relocated here so they are 
 - `PROTECTED_FILES.md` — Files requiring explicit user permission before editing.
 - `LESSONS_LEARNED.md` — Debugging journal and project knowledge base.
 - `DEBUG_PROBE_NOTES.md` — OpenOCD, GDB, and hardware probing notes.
+- `WORKTREE.md` — How to work off `main`: hot logs stay on `main` all sitting long; wrap only checks that.
