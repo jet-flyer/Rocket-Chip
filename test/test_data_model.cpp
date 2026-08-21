@@ -19,7 +19,6 @@
 #include <cstring>
 #include "rocketchip/fused_state.h"
 #include "rocketchip/telemetry_state.h"
-#include "rocketchip/sensor_snapshot.h"
 #include "logging/data_convert.h"
 #include "logging/crc16_ccitt.h"
 
@@ -28,7 +27,8 @@
 // ============================================================================
 
 static_assert(sizeof(rc::TelemetryState) == 45, "TelemetryState size");
-static_assert(sizeof(rc::SensorSnapshot) == 40, "SensorSnapshot size");
+// SensorSnapshot sizeof check lived here when the type was a public ICD.
+// Type parked 2026-08-20 (WN-045 / DF-001); assert remains in the parked header.
 
 // ============================================================================
 // Roundtrip: FusedState -> TelemetryState -> FusedState_approx

@@ -57,7 +57,13 @@ extern bool (*g_gpsFnUpdate)();
 extern bool (*g_gpsFnGetData)(gps_data_t*);
 extern bool (*g_gpsFnHasFix)();
 
-// IMU device handle (initialized on Core 0, used on Core 1)
+// IMU device handle (not seqlock-protected).
+// Boot: Core 0 icm20948_init in init_sensors() before g_startSensorPhase.
+// After that release, Core 1 does the 1 kHz icm20948_read and may
+// icm20948_init again on consecutive-fail recovery (sensor_core1).
+// Core 0 CLI/cal still call icm20948_read on this handle after handoff
+// (print_direct_sensors, cal_read_accel) — those paths share I2C with
+// Core 1; pause is not currently taken there (remediation WB R-3).
 extern icm20948_t g_imu;
 
 // Sensor seqlock (Core 1 writer, Core 0 reader)

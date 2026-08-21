@@ -44,15 +44,6 @@ inline constexpr bool kRoleSamplesCore1 = (kRole == DeviceRole::kVehicle);
 // the role actually initializes and writes to flash log.
 inline constexpr bool kRoleRunsLogger = (kRole == DeviceRole::kVehicle);
 
-// Does this role run the full vehicle Go/No-Go matrix (IMU + baro +
-// ESKF + flash + watchdog)?
-// - Vehicle: yes.
-// - Station: no — station's readiness is a single condensed bit
-//   (radio + watchdog + flash_if_present + mcu_not_critical) that
-//   plugs into the vehicle's Go/No-Go as one item over the radio.
-// - Relay:   no — link-layer only, no go/no-go participation.
-inline constexpr bool kRoleHasFullGoNogo = (kRole == DeviceRole::kVehicle);
-
 } // namespace job
 
 #endif // ROCKETCHIP_JOB_CAPABILITIES_H
