@@ -59,7 +59,9 @@ Single-boot evidence is insufficient: a transient init quirk, an SDK timing wind
 4. **Cold-restart again.**
 5. **Boot 3:** Observe gate signals.
 
-A "cold restart" means a full chip reset that exercises the boot path from scratch — typically a probe-driven `monitor reset halt` + `monitor resume`. USB replug is sometimes needed if the specific test scenario also exercises CDC re-enumeration, but the 3-boot protocol itself does not require it.
+A "cold restart" means a full chip reset that exercises the boot path from scratch — typically OpenOCD telnet `:4444` `reset halt` + `resume` (not a new GDB attach: halt-on-gdb-attach of a running vehicle is RP2350-E2 R-2; `docs/FLASHING.md`, LL Entry 46). USB replug is sometimes needed if the specific test scenario also exercises CDC re-enumeration, but the 3-boot protocol itself does not require it.
+
+**Post-flash extra restart:** a `load` + first `resume` is **not** Boot 1. Throw that boot away (telnet `reset halt` + `resume`) and then start this count. The first `bench_sim` before that extra reboot can still be a leftover image (2026-08-20 E2 row). Do not start the 3-boot count while CDC is missing or the LED is off.
 
 Gate **passes** only if all 3 boots produce the same positive-control signals.
 

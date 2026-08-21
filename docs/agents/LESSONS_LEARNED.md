@@ -1771,3 +1771,37 @@ This is the inverse of the original worktree trigger (untracked guide wiped by `
 - `standards/GIT_WORKFLOW.md` — branch-delete-after-merge; now qualified for CHANGELOG/LL.
 - CHANGELOG `2026-08-20-003` (`5841d16` merge, `8fe3c8b` hash cross-ref). Branch originals: `d0166d2`, `392091a`.
 - Sibling of LL 36 / 40 / 43: a green merge is negative evidence that the **log** landed, same as a green gate is negative evidence the **check** ran.
+
+---
+
+## Entry 46: GDB Attach Halt of a Running Vehicle Is E2 R-2
+
+**Date:** 2026-08-21
+**Context:** L2-P5 disposition P10-9 SWD flash of an uncommitted image (`grok/l2p5-disposition`). Board had been running; agent used the documented GDB batch `target extended-remote` + `monitor reset halt` + `load` + `monitor resume`.
+**Severity:** High — looks like a firmware crash (no LED, no CDC) and invites patching code that is not on the stack.
+
+### Problem
+A GDB batch that includes `monitor reset halt` still **halt-in-place first**. OpenOCD's gdb-attach event stops both cores wherever they are, then the scripted `reset halt` runs. Lived attach PCs: Core 0 in `qv_idle_bridge` (and once `init_pio_safety`) — a healthy idle loop using spinlocks / WFI. That in-place halt is errata E2 **R-2**. The following `reset halt` + `load` is a warm reboot that does not clear SIO (**R-1**). After GDB detached, OpenOCD logged `clearing lockup after double fault`, then Core0 HardFault `pc=0xeffffffe`, Core1 bootrom `0x000000da`. USB CDC was a ghost COM with no banner. A later inspect-`halt` because CDC was "late," a second `load` on the already-stuck chip, and leaving OpenOCD running (cores held in that HardFault) repeated it. The stacked PC was not in the sitting's diff.
+
+### Symptoms
+- Green LED off after a GDB `load` that reported success (`load size` / start `0x1000014c`)
+- `bench_sim`: "No vehicle RocketChip USB CDC" / candidate port, banner peek fail
+- OpenOCD: Core0 `Handler HardFault` `pc=0xeffffffe`; Core1 `pc=0x000000da`
+- SWD `reset` without a VBUS+probe cut does not recover
+
+### Root cause
+Silicon E2 SIO state survives warm reboot. The documented flash one-liner made GDB the first halt of a *running* idle loop. `reset halt` in the same batch does not undo that. Inspect-halt after a missing banner is the same R-2 path. Extra post-flash restart via a **new** GDB attach would do it again.
+
+### Prevention
+1. Telnet OpenOCD `:4444` `reset halt` **before** the first GDB attach. GDB then attach-halts bootrom, not `qv_idle_bridge`.
+2. GDB command is `load` + `monitor resume` only (chip already reset-halted).
+3. Throwaway boot after `load`: telnet `reset halt` + `resume`, not a new GDB. That is Boot 0; Rule 2 3-boot starts after it (`standards/HW_GATE_DISCIPLINE.md`).
+4. No LED / no banner → kill OpenOCD, full VBUS **and** probe unplug, wait for green LED. Do not inspect-halt. Do not load again until then.
+5. Do not patch a stacked PC that is outside the session diff (`AGENT_WHITEBOARD.md` 2026-08-20 row).
+
+Recipe: `docs/FLASHING.md` (Debug probe + E2 troubleshooting). Incident row: `standards/RP2350_ERRATA.md` E2 log 2026-08-21.
+
+### Related
+- LL-adjacent: Entry 5 / 11 (probe over LEDs) — probe *attach* is not free on this silicon.
+- 2026-08-20 E2 row (picotool `-f` + no extra post-flash reboot).
+- `docs/PIO/PIO_WATCHDOG.md` already required post-flash `reset halt` + `resume` for PIO; that restart must not be a GDB attach.
