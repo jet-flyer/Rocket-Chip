@@ -32,9 +32,9 @@ When the board is stuck and the probe stacked PC/LR is **not a line this sitting
 
 ---
 
-## GDB attach halt of a *running* vehicle is the E2 trigger (OPEN) (2026-08-21)
+## SWD flash process (OPEN) (2026-08-21)
 
-Still in this sitting until a clean flash after LED-on recovery. Durable write-up is **not** this row: LL Entry 46, `docs/FLASHING.md` (Debug probe), `standards/RP2350_ERRATA.md` E2 log 2026-08-21, `standards/HW_GATE_DISCIPLINE.md` Rule 2 extra post-flash restart.
+Still in this sitting: extra post-flash restart, then 3-boot, only after LED/CDC. Not logged as E2. LL Entry 46, `docs/FLASHING.md`, Rule 2 extra restart.
 
 ---
 

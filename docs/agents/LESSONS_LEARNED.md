@@ -1774,34 +1774,26 @@ This is the inverse of the original worktree trigger (untracked guide wiped by `
 
 ---
 
-## Entry 46: GDB Attach Halt of a Running Vehicle Is E2 R-2
+## Entry 46: Post-Flash Extra Restart and GDB Attach Are Process, Not a New E2 Trigger
 
 **Date:** 2026-08-21
-**Context:** L2-P5 disposition P10-9 SWD flash of an uncommitted image (`grok/l2p5-disposition`). Board had been running; agent used the documented GDB batch `target extended-remote` + `monitor reset halt` + `load` + `monitor resume`.
-**Severity:** High — looks like a firmware crash (no LED, no CDC) and invites patching code that is not on the stack.
+**Context:** L2-P5 disposition P10-9 SWD flash. New gate process in play: extra restart after `load` before Boot 1 of the 3-boot count. Agent skipped that, GDB-attached a live idle loop, inspect-halted when CDC was late, loaded again, and left OpenOCD running — then logged the mess as RP2350-E2.
+**Severity:** High-process — a flash-procedure miss looks like a firmware crash or an errata recurrence and invites patching the wrong layer.
 
 ### Problem
-A GDB batch that includes `monitor reset halt` still **halt-in-place first**. OpenOCD's gdb-attach event stops both cores wherever they are, then the scripted `reset halt` runs. Lived attach PCs: Core 0 in `qv_idle_bridge` (and once `init_pio_safety`) — a healthy idle loop using spinlocks / WFI. That in-place halt is errata E2 **R-2**. The following `reset halt` + `load` is a warm reboot that does not clear SIO (**R-1**). After GDB detached, OpenOCD logged `clearing lockup after double fault`, then Core0 HardFault `pc=0xeffffffe`, Core1 bootrom `0x000000da`. USB CDC was a ghost COM with no banner. A later inspect-`halt` because CDC was "late," a second `load` on the already-stuck chip, and leaving OpenOCD running (cores held in that HardFault) repeated it. The stacked PC was not in the sitting's diff.
+GDB `target extended-remote` **stops the cores** (OpenOCD halt-on-connect) before `-ex "monitor reset halt"` runs. LED off during that session is expected. Lived attach was a healthy `qv_idle_bridge`. After `load`, the agent waited ~8–12 s, ran `bench_sim` with no extra restart, then `monitor halt` to "see why" CDC was missing, then loaded a second time, and left OpenOCD up (cores held halted). OpenOCD later showed Core0 HardFault `pc=0xeffffffe` and Core1 bootrom `0x000000da`. Those numbers overlap the E2 signature **and** the already-documented `reset run` dual-core miss. The sitting did not isolate silicon: extra restart never ran, OpenOCD was still attached, and the stacked PC was not in the `src/` diff.
 
-### Symptoms
-- Green LED off after a GDB `load` that reported success (`load size` / start `0x1000014c`)
-- `bench_sim`: "No vehicle RocketChip USB CDC" / candidate port, banner peek fail
-- OpenOCD: Core0 `Handler HardFault` `pc=0xeffffffe`; Core1 `pc=0x000000da`
-- SWD `reset` without a VBUS+probe cut does not recover
+### What is actually required
+1. Extra `reset halt` + `resume` after `load` before the first trusted `bench_sim` / Boot 1 (`standards/HW_GATE_DISCIPLINE.md` Rule 2). First resume after flash is not a counted boot.
+2. After `resume`, wait for LED + CDC. Do not inspect-halt a banner that has not come up yet.
+3. Kill OpenOCD before a user power cycle. If LED stays off, OpenOCD may still be holding halt — that is not E2.
+4. Do not `load` again until the LED is on.
+5. Do not add an E2 incident row, and do not patch firmware, until the process above has been followed and the board is still dead.
 
-### Root cause
-Silicon E2 SIO state survives warm reboot. The documented flash one-liner made GDB the first halt of a *running* idle loop. `reset halt` in the same batch does not undo that. Inspect-halt after a missing banner is the same R-2 path. Extra post-flash restart via a **new** GDB attach would do it again.
-
-### Prevention
-1. Telnet OpenOCD `:4444` `reset halt` **before** the first GDB attach. GDB then attach-halts bootrom, not `qv_idle_bridge`.
-2. GDB command is `load` + `monitor resume` only (chip already reset-halted).
-3. Throwaway boot after `load`: telnet `reset halt` + `resume`, not a new GDB. That is Boot 0; Rule 2 3-boot starts after it (`standards/HW_GATE_DISCIPLINE.md`).
-4. No LED / no banner → kill OpenOCD, full VBUS **and** probe unplug, wait for green LED. Do not inspect-halt. Do not load again until then.
-5. Do not patch a stacked PC that is outside the session diff (`AGENT_WHITEBOARD.md` 2026-08-20 row).
-
-Recipe: `docs/FLASHING.md` (Debug probe + E2 troubleshooting). Incident row: `standards/RP2350_ERRATA.md` E2 log 2026-08-21.
+### What was over-claimed
+`e4e00b5` treated GDB attach-halt as a confirmed E2 R-2 trigger and froze a telnet-before-GDB recipe as the mitigation. Owner: this is a new flash/3-boot process we are still working through; same symptoms can be "how you drove OpenOCD," not silicon. That errata row and the telnet-mandatory recipe were reverted. Keep the extra restart.
 
 ### Related
-- LL-adjacent: Entry 5 / 11 (probe over LEDs) — probe *attach* is not free on this silicon.
-- 2026-08-20 E2 row (picotool `-f` + no extra post-flash reboot).
-- `docs/PIO/PIO_WATCHDOG.md` already required post-flash `reset halt` + `resume` for PIO; that restart must not be a GDB attach.
+- `docs/FLASHING.md` Debug probe + E2 troubleshooting (process vs errata).
+- `docs/PIO/PIO_WATCHDOG.md` already wanted a post-flash `reset halt` + `resume` for PIO.
+- 2026-08-20 E2 log row remains the last *counted* E2 incident (picotool `-f` + no extra reboot).

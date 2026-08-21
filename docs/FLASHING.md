@@ -14,69 +14,52 @@ situation.
 
 ### Debug probe (SWD) — preferred for iterative development
 
-**GDB attach halt-in-place of a running vehicle is RP2350-E2 R-2.**
-OpenOCD's default gdb-attach event stops the cores wherever they are
-(`qv_idle_bridge`, spinlocks, WFI) *before* your `-ex "monitor reset halt"`
-runs. That planted SIO state then survives the warm `reset halt`/`load`
-(R-1). Lived 2026-08-21: healthy idle → GDB connect → load "succeeded" →
-Core0 HardFault `pc=0xeffffffe`, Core1 bootrom `0x000000da`, no LED, no
-CDC. See `standards/RP2350_ERRATA.md` E2 incident log and
-`docs/agents/LESSONS_LEARNED.md` Entry 46.
-
-Reset-halt the chip **via OpenOCD telnet :4444** (not GDB) before the
-first GDB attach. Extra post-flash `reset halt` + `resume` is also telnet
-— a new GDB batch would attach-halt the chip you just resumed.
-
 ```bash
-# Start OpenOCD once per session (idempotent). Leave cores running until
-# the telnet reset-halt below; do not GDB-attach yet.
+# Start OpenOCD once per session (idempotent):
 taskkill //F //IM openocd.exe 2>/dev/null; sleep 2; \
   /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/openocd \
   -s /c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/scripts \
   -f interface/cmsis-dap.cfg -f target/rp2350.cfg \
   -c "adapter speed 5000" &
 
-# Put both cores at reset-halt WITHOUT a GDB attach (OpenOCD telnet).
-# PowerShell: TcpClient 127.0.0.1:4444, send "reset halt" then "exit".
-echo "reset halt" | ncat 127.0.0.1 4444
-
-# Flash only after the chip is already reset-halted. GDB attach halt is
-# then of bootrom, not of a live idle loop.
+# Flash and run (each iteration):
 /c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe \
   build/rocketchip.elf -batch \
   -ex "target extended-remote localhost:3333" \
+  -ex "monitor reset halt" \
   -ex "load" \
   -ex "monitor resume"
-
-# Throwaway boot (not Boot 1 of the 3-boot gate). Telnet, not a new GDB:
-echo -e "reset halt\nresume\nexit" | ncat 127.0.0.1 4444
-# Wait for USB CDC / banner. Do NOT GDB-halt to inspect if the banner
-# is late — that is the E2 recovery path, not a firmware dump.
 ```
 
-**Why preferred for iteration:** SWD `load` still beats `picotool -f`
-(R-1 warm-reboot path) *if* the cores are already reset-halted before
-GDB connects. It is not "halt wherever they are, then flash."
+Then **one extra** `monitor reset halt` + `monitor resume` (or the same
+over OpenOCD telnet `:4444`) before Boot 1 of the 3-boot gate. The first
+resume after `load` is not a counted boot — leftover image and USB
+re-enumeration both lie if you `bench_sim` immediately. See Rule 2 in
+`standards/HW_GATE_DISCIPLINE.md` and LL Entry 46.
+
+**Why preferred for iteration:** SWD `load` is cleaner than `picotool -f`
+when it works (no USB vendor reboot). It is not "no power cycle ever."
+GDB attach **stops the cores** (LED off for the duration). That is
+OpenOCD halt-on-connect, not proof of silicon E2. After `resume` + the
+extra restart, LED and CDC should come back. If they do not: kill
+OpenOCD first (it may still be holding halt), then a VBUS + probe unplug
+if still dead. Do not halt-to-inspect a missing banner and do not `load`
+again until the LED is on.
 
 **Caveats:**
 - Use `monitor resume` (not `monitor reset run`) for dual-core targets
   in batch mode. `reset run` can leave Core 1 stuck at bootrom `0x000000da`
   while Core 0 waits for a cross-core flag. See `docs/agents/DEBUG_PROBE_NOTES.md`.
-- After `load`, the first resume is **not** Boot 1 of
-  `standards/HW_GATE_DISCIPLINE.md` Rule 2. Throw it away (telnet
-  `reset halt` + `resume`), then start counting. First `bench_sim`
-  before that extra reboot can be a leftover image (2026-08-20 E2 row).
-- Do not flash an already-E2'd chip (no LED, Core0 `0xeffffffe`,
-  Core1 `0xda`). Full VBUS + probe unplug first; kill OpenOCD *before*
-  that unplug so it is not holding a HardFault halt.
-- Do not leave OpenOCD running across a user power cycle. Stale DAP
-  plus halt-on-reattach repeats R-2.
+  Core1 at `0xda` after a flash session is first a resume/process miss,
+  not an automatic E2 diagnosis.
 - Probe physical wiring is limited to whichever board has SWD pins
   connected. See the project's hardware notes (e.g., repo-documented
   probe-to-board mapping) to know which board the probe currently reaches.
 - There are two OpenOCD installations on this system; **always use the
   Pico SDK path** (`/c/Users/pow-w/.pico-sdk/openocd/0.12.0+dev/`). The
   Chocolatey one lacks RP2350 support.
+- Do not leave OpenOCD running across a user power cycle. Kill it
+  before the unplug so the next attach is not a stale DAP.
 
 ### picotool — preferred for single-shot and multi-board targeting
 
@@ -307,13 +290,16 @@ These practices prevent the mistake at build time:
   **Prevention:** avoid warm-reboot-inducing actions when you don't
   need them. For running devices, `picotool info` (no `-f`) reads
   what it can without rebooting. For flashing, prefer the debug probe
-  **after an OpenOCD-telnet `reset halt`** (SWD `load` is cleaner than
-  picotool `-f` only if GDB does not attach-halt a live idle loop —
-  that attach *is* `monitor halt` mid-spinlock). For debugging, do not
-  `monitor halt` / GDB-attach a running vehicle to "see why CDC is
-  late." If LED is off or banner peek fails after a load: kill
-  OpenOCD, full VBUS + probe unplug, wait for green LED. Do not
-  inspect-halt and do not load again until then.
+  (SWD `load` is cleaner than picotool `-f`). For debugging, avoid
+  `monitor halt` while the target is in a `spin_lock_blocking` wait
+  — use breakpoints past the spinlock acquisition instead, or
+  `monitor reset halt` to re-enter from a known state.
+
+  A missing LED/CDC right after GDB attach or `load` is often the
+  flash **process** (cores still halted, no extra restart, OpenOCD
+  left holding halt). Do not log that as an E2 recurrence until the
+  extra post-flash restart has run and OpenOCD is not still attached.
+  LL Entry 46.
 
   **Rescue-DP (not our recovery path — noted for completeness).**
   RP2350 provides a dedicated recovery Access Port (`RP_AP:CTRL`

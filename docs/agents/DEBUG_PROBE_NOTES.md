@@ -108,26 +108,16 @@ cd /c/Users/pow-w/Documents/Rocket-Chip && /c/Users/pow-w/.pico-sdk/toolchain/14
 ```
 
 ### Flash and Run via GDB
-
-**Do not GDB-attach a running vehicle.** OpenOCD halt-on-gdb-attach
-stops the idle loop (`qv_idle_bridge` / spinlocks) before `-ex "monitor reset halt"`
-runs. That is RP2350-E2 R-2; the following warm `load` is R-1. Full
-recipe (telnet reset-halt *before* GDB, extra post-flash telnet restart,
-no inspect-halt if CDC is late): `docs/FLASHING.md` Debug probe section
-and `docs/agents/LESSONS_LEARNED.md` Entry 46.
-
 ```bash
-# Chip must already be reset-halted via OpenOCD telnet :4444.
-cd /c/Users/pow-w/Documents/Rocket-Chip && /c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "load" -ex "monitor resume"
+cd /c/Users/pow-w/Documents/Rocket-Chip && /c/Users/pow-w/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb.exe build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor reset halt" -ex "load" -ex "monitor resume"
 ```
 
-**CRITICAL (2026-03-04):** Use `monitor resume`, NOT `monitor reset run`, for dual-core targets in GDB batch mode. `monitor reset run` does not reliably resume both cores — Core 1 can appear stuck at bootrom `0x000000da` while Core 0 waits for cross-core flags. `monitor resume` correctly resumes both cores from their halted state after `load`.
+Then one extra `monitor reset halt` + `monitor resume` before the first
+trusted `bench_sim` / Boot 1. See `docs/FLASHING.md` and LL Entry 46.
+GDB attach stops the cores (LED off until resume). That is OpenOCD
+halt-on-connect, not by itself an E2 diagnosis.
 
-**Do not** `shell sleep N` then `monitor halt` to inspect a missing CDC
-banner. That halt of a just-resumed boot is E2 R-2 (2026-08-21). If there
-is no LED / no banner: kill OpenOCD, VBUS + probe unplug, wait for green
-LED. Extra post-flash restart (telnet `reset halt` + `resume`, not a new
-GDB attach) is required before Boot 1 of the 3-boot gate.
+**CRITICAL (2026-03-04):** Use `monitor resume`, NOT `monitor reset run`, for dual-core targets in GDB batch mode. `monitor reset run` does not reliably resume both cores — Core 1 can appear stuck at bootrom `0x000000da` while Core 0 waits for cross-core flags. `monitor resume` correctly resumes both cores from their halted state after `load`. To inspect state after free-run, prefer waiting for CDC; `monitor halt` of a boot that has not enumerated yet is part of the flash process, not a firmware dump.
 
 ---
 
@@ -187,14 +177,9 @@ GDB attach) is required before Boot 1 of the 3-boot gate.
 2. Block on USB CDC mutex, causing deadlocks
 3. Affect the very issue you're trying to debug
 
-**Always use the debug probe first** — but **not** `monitor halt` of a
-running vehicle (E2 R-2). Telnet `reset halt` first, then GDB attach, or
-accept that an in-place halt requires a full VBUS+probe recovery if it
-sticks.
-
+**Always use the debug probe first:**
 ```bash
-# Halt and get backtrace — only after telnet reset halt, or on an
-# already-stuck chip you are about to power-cycle anyway
+# Halt and get backtrace
 arm-none-eabi-gdb build/rocketchip.elf -batch -ex "target extended-remote localhost:3333" -ex "monitor halt" -ex "bt"
 
 # Check specific variables
