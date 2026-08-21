@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-20-007 | Grok 4.6 (Build CLI) | documentation, audit
+
+**L2-P5 three-walk compare + prelim disposition skeleton.** Derived overlay `docs/audits/l2p5_manual_walk/L2P5_THREE_WALK_COMPARE.md` (aligned Claude pack as one vote; no 2-vs-1; one Grok/Claude is/isn’t: QMI `GWF-311` vs `CW-B26-05`). Planning skeleton `L2P5_DISPOSITION_PRELIM.md`: owner WNs → Grok → Claude; join helper `_gen_three_walk_join.py`. Whiteboard snapshot points at the aligned CW file and the prelim. Not dispositions. Verified: pure-software / docs only; no `src` changes; no HW reseat.
+
 ### 2026-08-20-006 | Claude Opus 5 (Code) | documentation, audit
 
 **L2-P5 Claude walk: aligned edition, all critic gaps closed.** Live pack is now
