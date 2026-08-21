@@ -252,42 +252,45 @@ extern "C" Q_NORETURN Q_onError(
 // MemManage handler instead of escalating to HardFault (per §3.7.4.7 "MPU
 // mismatches and permission violations invoke the MemManage handler").
 
+// PMSAv8-M RBAR/RLAR/CTRL/SHCSR field encodings (ARMv8-M ARM; RP2350 §3.7.4.7).
+constexpr uint32_t kMpuAddrAlignMask     = ~0x1FU;  // BASE/LIMIT [4:0] = 0 (32-byte)
+constexpr uint32_t kMpuRbarShShift       = 3U;
+constexpr uint32_t kMpuRbarApShift       = 1U;
+constexpr uint32_t kMpuRbarXnBit         = 1U << 0;
+constexpr uint32_t kMpuShareNonShareable = 0U;
+constexpr uint32_t kMpuApRoPrivileged    = 2U;      // AP[2:1] = 0b10
+constexpr uint32_t kMpuRlarAttrIdxShift  = 1U;
+constexpr uint32_t kMpuRlarEnBit         = 1U << 0;
+constexpr uint32_t kMpuCtrlPrivdefenaBit = 1U << 2;
+constexpr uint32_t kMpuCtrlEnableBit     = 1U << 0;
+constexpr uint32_t kScbShcsrMemFaultEna  = 1U << 16;
+
 void mpu_setup_stack_guard(uintptr_t stack_bottom) {
     // Disable MPU during configuration
     mpu_hw->ctrl = 0;
     __dsb();
     __isb();
 
-    // NOLINTBEGIN(readability-magic-numbers) — PMSAv8 MPU register bit fields per ARMv8-M Architecture Reference Manual
     // Region 0: Stack guard. RO-Privileged, Execute-Never. Stack-overflow
     // writes trip a MemManage fault.
-    // PMSAv8 RBAR: [31:5]=BASE, [4:3]=SH(0=non-shareable),
-    //              [2:1]=AP(10=RO-Privileged), [0]=XN(1)
     mpu_hw->rnr = 0;
-    mpu_hw->rbar = (stack_bottom & ~0x1FU)
-                  | (0U << 3)   // SH: Non-shareable
-                  | (2U << 1)   // AP: 0b10 = RO, Privileged-Only (per CMSIS armv8 header)
-                  | (1U << 0);  // XN: Execute-never
+    mpu_hw->rbar = (stack_bottom & kMpuAddrAlignMask)
+                  | (kMpuShareNonShareable << kMpuRbarShShift)
+                  | (kMpuApRoPrivileged << kMpuRbarApShift)
+                  | kMpuRbarXnBit;
 
-    // PMSAv8 RLAR: [31:5]=LIMIT, [3:1]=ATTRINDX(0), [0]=EN(1)
-    mpu_hw->rlar = ((stack_bottom + kMpuGuardSizeBytes - 1) & ~0x1FU)
-                  | (0U << 1)   // ATTRINDX: 0 (uses MAIR0 attr 0)
-                  | (1U << 0);  // EN: Enable region
+    mpu_hw->rlar = ((stack_bottom + kMpuGuardSizeBytes - 1) & kMpuAddrAlignMask)
+                  | (0U << kMpuRlarAttrIdxShift)
+                  | kMpuRlarEnBit;
 
-    // MAIR0 attr 0 = 0x00 = Device-nGnRnE (strictest, no caching)
+    // MAIR0 attr 0 = Device-nGnRnE (strictest, no caching)
     mpu_hw->mair[0] = 0;
 
-    // Enable MPU with PRIVDEFENA=1 (default memory map for unprogrammed regions)
-    mpu_hw->ctrl = (1U << 2)   // PRIVDEFENA
-                 | (1U << 0);  // ENABLE
+    mpu_hw->ctrl = kMpuCtrlPrivdefenaBit | kMpuCtrlEnableBit;
     __dsb();
     __isb();
 
-    // Enable MemManage exception so MPU permission violations invoke
-    // memmanage_fault_handler directly (rather than escalating to HardFault).
-    // SHCSR bit 16 = MEMFAULTENA.
-    scb_hw->shcsr |= (1U << 16);
+    scb_hw->shcsr |= kScbShcsrMemFaultEna;
     __dsb();
     __isb();
-    // NOLINTEND(readability-magic-numbers)
 }

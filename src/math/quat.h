@@ -13,6 +13,10 @@
 
 namespace rc {
 
+// Row-major 3×3 DCM. Index as row * kDcmRows + col (Sola 2017 Eq. 22).
+constexpr int kDcmRows = 3;
+constexpr int kDcmElements = kDcmRows * kDcmRows;
+
 struct Quat {
     float w{1.0F};
     float x{0.0F};
@@ -47,7 +51,7 @@ struct Quat {
 
     // Convert to 3x3 rotation matrix (row-major, 9 floats)
     // Output: m[0..8] = row-major DCM (body-to-NED)
-    void to_rotation_matrix(float m[9]) const;
+    void to_rotation_matrix(float m[kDcmElements]) const;
 
     // Convert to Euler angles (ZYX convention: yaw, pitch, roll)
     // Returns Vec3(roll, pitch, yaw) in radians

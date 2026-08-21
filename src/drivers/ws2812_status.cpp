@@ -42,6 +42,10 @@ constexpr float    kMaxChannelValue     = 255.0F;
 constexpr float    kPercentScale        = 100.0F;
 constexpr float    kHueFull             = 360.0F;
 constexpr float    kHueSector           = 60.0F;      // HSV sector width (360/6)
+constexpr float    kHueBound120         = kHueSector + kHueSector;
+constexpr float    kHueBound180         = kHueBound120 + kHueSector;
+constexpr float    kHueBound240         = kHueBound180 + kHueSector;
+constexpr float    kHueBound300         = kHueBound240 + kHueSector;
 constexpr uint32_t kGrbGreenShift       = 24;         // GRB bit position: green in upper byte
 
 // ============================================================================
@@ -487,8 +491,6 @@ void ws2812_update() {
 // Utility
 // ============================================================================
 
-// NOLINTBEGIN(readability-magic-numbers) — standard HSV-to-RGB conversion
-// Sector boundaries (0, 60, 120, 180, 240, 300, 360) are inherent to the HSV color model.
 ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v) {
     ws2812_rgb_t rgb = {0, 0, 0};
 
@@ -514,15 +516,15 @@ ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v) {
     float g1 = 0.0F;
     float b1 = 0.0F;
 
-    if (h < 60.0F) {
+    if (h < kHueSector) {
         r1 = c; g1 = x; b1 = 0;
-    } else if (h < 120.0F) {
+    } else if (h < kHueBound120) {
         r1 = x; g1 = c; b1 = 0;
-    } else if (h < 180.0F) {
+    } else if (h < kHueBound180) {
         r1 = 0; g1 = c; b1 = x;
-    } else if (h < 240.0F) {
+    } else if (h < kHueBound240) {
         r1 = 0; g1 = x; b1 = c;
-    } else if (h < 300.0F) {
+    } else if (h < kHueBound300) {
         r1 = x; g1 = 0; b1 = c;
     } else {
         r1 = c; g1 = 0; b1 = x;
@@ -534,4 +536,3 @@ ws2812_rgb_t ws2812_hsv_to_rgb(float h, float s, float v) {
 
     return rgb;
 }
-// NOLINTEND(readability-magic-numbers)

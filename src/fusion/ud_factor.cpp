@@ -18,8 +18,7 @@
 
 namespace rc {
 
-// N = 24 (state size) used throughout.
-static constexpr int32_t kN = 24;
+static constexpr int32_t kN = eskf::kStateSize;
 
 // Minimum D-element guard for numerical stability.
 // Below this threshold, the U column is zeroed to avoid division by near-zero.
@@ -29,7 +28,7 @@ static constexpr float  kMinDFloat  = 1e-30F;
 // Utility functions
 // =========================================================================
 
-void ud_to_dense(const UD24& ud, float p[24][24]) {  // NOLINT(readability-magic-numbers)
+void ud_to_dense(const UD24& ud, float p[kN][kN]) {
     // P = U * D * U^T
     // P[i][j] = sum_k( U[i][k] * D[k] * U[j][k] )
     // Only need k >= max(i,j) since U is upper triangular.
@@ -47,7 +46,7 @@ void ud_to_dense(const UD24& ud, float p[24][24]) {  // NOLINT(readability-magic
     }
 }
 
-bool ud_factorize(UD24& ud, const float p[24][24]) {  // NOLINT(readability-magic-numbers)
+bool ud_factorize(UD24& ud, const float p[kN][kN]) {
     // Modified Cholesky: P = U * D * U^T (UDU^T decomposition).
     // Process columns from right to left.
     //
@@ -144,7 +143,7 @@ static void bierman_forward_pass(UD24& ud, float r) {
     }
 
     // D[0] update (missed in loop above which starts at j=1)
-    if (g_balpha[0] > 1e-30F) {
+    if (g_balpha[0] > kMinDFloat) {
         float d0 = ud.D[0] * r / g_balpha[0];
         if (!std::isfinite(d0) || d0 < kMinDFloat) {
             d0 = kMinDFloat;
@@ -155,13 +154,13 @@ static void bierman_forward_pass(UD24& ud, float r) {
 
 __attribute__((section(".time_critical.bierman")))
 void bierman_scalar_update(UD24& ud, int32_t h_idx, float h_value,
-                           float innovation, float r, float dx[24]) {  // NOLINT(readability-magic-numbers)
+                           float innovation, float r, float dx[kN]) {
     bierman_compute_fg(ud, h_idx, h_value);
     bierman_forward_pass(ud, r);
 
     // Normalize gain and compute error state correction
     const float alpha_last = g_balpha[kN - 1];
-    if (alpha_last > 1e-30F) {
+    if (alpha_last > kMinDFloat) {
         const float inv_alpha = 1.0F / alpha_last;
         for (int32_t i = 0; i < kN; ++i) {
             g_bK[i] *= inv_alpha;

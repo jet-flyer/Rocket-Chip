@@ -8,6 +8,7 @@
 #include "calibration_manager.h"
 #include "calibration_storage.h"
 #include "lm_solver.h"
+#include "math/quat.h"
 #include "pico/rand.h"
 #include <math.h>
 #include <string.h>
@@ -42,7 +43,19 @@ constexpr uint8_t  kAccel6posMaxIterations = 50;      // Gauss-Newton iteration 
 constexpr uint8_t  kAccel6posNumParams     = 6;       // offset[3] + diag[3]
 constexpr uint8_t  kAccel6posOffsetEnd     = 3;       // params[0..2] = offset
 constexpr uint8_t  kAccel6posDiagEnd       = 6;       // params[3..5] = diagonal scale
+constexpr uint8_t  kParamOffX              = 0;
+constexpr uint8_t  kParamOffY              = 1;
+constexpr uint8_t  kParamOffZ              = 2;
+constexpr uint8_t  kParamDiagX             = 3;
+constexpr uint8_t  kParamDiagY             = 4;
 constexpr uint8_t  kParamDiagZ             = 5;       // Index of diagonal Z scale in params[]
+constexpr uint8_t  kParamOffdiagXY         = 6;
+constexpr uint8_t  kParamOffdiagXZ         = 7;
+constexpr uint8_t  kParamOffdiagYZ         = 8;
+constexpr uint8_t  kSphereParamRadius      = 0;
+constexpr uint8_t  kSphereParamOffX        = 1;
+constexpr uint8_t  kSphereParamOffY        = 2;
+constexpr uint8_t  kSphereParamOffZ        = 3;
 constexpr uint8_t  kAccel6posAllMask       = 0x3F;    // Bitmask: all 6 positions collected
 
 // Magnetometer calibration
@@ -786,19 +799,18 @@ mag_feed_result_t calibration_feed_mag_sample(float mx, float my, float mz) {
 // --- Sphere fit (Step 1): 4 params [radius, offset_x, offset_y, offset_z] ---
 
 static float calc_sphere_residual(const float sample[3], const float params[kMagSphereParams]) {
-    float sx = sample[0] + params[1];
-    float sy = sample[1] + params[2];
-    float sz = sample[2] + params[3];
+    float sx = sample[0] + params[kSphereParamOffX];
+    float sy = sample[1] + params[kSphereParamOffY];
+    float sz = sample[2] + params[kSphereParamOffZ];
     float len = sqrtf(sx*sx + sy*sy + sz*sz);
-    return params[0] - len;  // radius - |raw + offset|
+    return params[kSphereParamRadius] - len;  // radius - |raw + offset|
 }
 
-// NOLINTBEGIN(readability-magic-numbers) — param indices: [0]=radius, [1-3]=offset
 static void calc_sphere_jacobian(const float sample[3], const float params[kMagSphereParams],
                                   float jacob[kMagSphereParams]) {
-    float sx = sample[0] + params[1];
-    float sy = sample[1] + params[2];
-    float sz = sample[2] + params[3];
+    float sx = sample[0] + params[kSphereParamOffX];
+    float sy = sample[1] + params[kSphereParamOffY];
+    float sz = sample[2] + params[kSphereParamOffZ];
     float len = sqrtf(sx*sx + sy*sy + sz*sz);
 
     if (len < kMinVectorLength) {
@@ -806,12 +818,11 @@ static void calc_sphere_jacobian(const float sample[3], const float params[kMagS
         return;
     }
 
-    jacob[0] = 1.0F;           // d(r)/d(radius) = 1
-    jacob[1] = -sx / len;      // d(r)/d(offset_x)
-    jacob[2] = -sy / len;      // d(r)/d(offset_y)
-    jacob[3] = -sz / len;      // d(r)/d(offset_z)
+    jacob[kSphereParamRadius] = 1.0F;
+    jacob[kSphereParamOffX] = -sx / len;
+    jacob[kSphereParamOffY] = -sy / len;
+    jacob[kSphereParamOffZ] = -sz / len;
 }
-// NOLINTEND(readability-magic-numbers)
 
 // Run sphere fit LM solver on the first numSamples entries of g_magSamples
 static bool mag_sphere_fit(uint16_t num_samples, float* out_radius, float out_offset[3]) {
@@ -839,28 +850,28 @@ static bool mag_sphere_fit(uint16_t num_samples, float* out_radius, float out_of
              calc_sphere_residual, calc_sphere_jacobian);
 
     // Validate sphere fit
-    if (best_params[0] < kMagMinFieldUt || best_params[0] > kMagMaxFieldUt) {
+    if (best_params[kSphereParamRadius] < kMagMinFieldUt ||
+        best_params[kSphereParamRadius] > kMagMaxFieldUt) {
         return false;
     }
 
-    *out_radius = best_params[0];
-    out_offset[0] = best_params[1];
-    out_offset[1] = best_params[2];
-    out_offset[2] = best_params[3];
+    *out_radius = best_params[kSphereParamRadius];
+    out_offset[0] = best_params[kSphereParamOffX];
+    out_offset[1] = best_params[kSphereParamOffY];
+    out_offset[2] = best_params[kSphereParamOffZ];
     return true;
 }
 
 // --- Ellipsoid fit (Step 2): same 9-param model as accel 6-pos but with mag radius ---
 
-// NOLINTBEGIN(readability-magic-numbers) — matrix element indices match param vector layout
 static float calc_residual_mag(const float sample[3], const float params[kMagEllipsoidParams]) {
-    float sx = sample[0] + params[0];
-    float sy = sample[1] + params[1];
-    float sz = sample[2] + params[2];
+    float sx = sample[0] + params[kParamOffX];
+    float sy = sample[1] + params[kParamOffY];
+    float sz = sample[2] + params[kParamOffZ];
 
-    float a = params[3] * sx + params[6] * sy + params[7] * sz;
-    float b = params[6] * sx + params[4] * sy + params[8] * sz;
-    float c = params[7] * sx + params[8] * sy + params[5] * sz;
+    float a = params[kParamDiagX] * sx + params[kParamOffdiagXY] * sy + params[kParamOffdiagXZ] * sz;
+    float b = params[kParamOffdiagXY] * sx + params[kParamDiagY] * sy + params[kParamOffdiagYZ] * sz;
+    float c = params[kParamOffdiagXZ] * sx + params[kParamOffdiagYZ] * sy + params[kParamDiagZ] * sz;
 
     float len = sqrtf(a*a + b*b + c*c);
     return g_magExpectedRadius - len;
@@ -868,13 +879,13 @@ static float calc_residual_mag(const float sample[3], const float params[kMagEll
 
 static void calc_jacobian_mag(const float sample[3], const float params[kMagEllipsoidParams],
                                float jacob[kMagEllipsoidParams]) {
-    float sx = sample[0] + params[0];
-    float sy = sample[1] + params[1];
-    float sz = sample[2] + params[2];
+    float sx = sample[0] + params[kParamOffX];
+    float sy = sample[1] + params[kParamOffY];
+    float sz = sample[2] + params[kParamOffZ];
 
-    float a = params[3] * sx + params[6] * sy + params[7] * sz;
-    float b = params[6] * sx + params[4] * sy + params[8] * sz;
-    float c = params[7] * sx + params[8] * sy + params[5] * sz;
+    float a = params[kParamDiagX] * sx + params[kParamOffdiagXY] * sy + params[kParamOffdiagXZ] * sz;
+    float b = params[kParamOffdiagXY] * sx + params[kParamDiagY] * sy + params[kParamOffdiagYZ] * sz;
+    float c = params[kParamOffdiagXZ] * sx + params[kParamOffdiagYZ] * sy + params[kParamDiagZ] * sz;
 
     float len = sqrtf(a*a + b*b + c*c);
     if (len < kMinVectorLength) {
@@ -882,20 +893,16 @@ static void calc_jacobian_mag(const float sample[3], const float params[kMagElli
         return;
     }
 
-    // d(residual)/d(offset[0..2])
-    jacob[0] = -((params[3]*a + params[6]*b + params[7]*c) / len);
-    jacob[1] = -((params[6]*a + params[4]*b + params[8]*c) / len);
-    jacob[2] = -((params[7]*a + params[8]*b + params[5]*c) / len);
-    // d(residual)/d(diag[0..2])
-    jacob[3] = -(sx * a / len);
-    jacob[4] = -(sy * b / len);
+    jacob[kParamOffX] = -((params[kParamDiagX]*a + params[kParamOffdiagXY]*b + params[kParamOffdiagXZ]*c) / len);
+    jacob[kParamOffY] = -((params[kParamOffdiagXY]*a + params[kParamDiagY]*b + params[kParamOffdiagYZ]*c) / len);
+    jacob[kParamOffZ] = -((params[kParamOffdiagXZ]*a + params[kParamOffdiagYZ]*b + params[kParamDiagZ]*c) / len);
+    jacob[kParamDiagX] = -(sx * a / len);
+    jacob[kParamDiagY] = -(sy * b / len);
     jacob[kParamDiagZ] = -(sz * c / len);
-    // d(residual)/d(offdiag[0..2]) — XY, XZ, YZ
-    jacob[6] = -((sy*a + sx*b) / len);
-    jacob[7] = -((sz*a + sx*c) / len);
-    jacob[8] = -((sz*b + sy*c) / len);
+    jacob[kParamOffdiagXY] = -((sy*a + sx*b) / len);
+    jacob[kParamOffdiagXZ] = -((sz*a + sx*c) / len);
+    jacob[kParamOffdiagYZ] = -((sz*b + sy*c) / len);
 }
-// NOLINTEND(readability-magic-numbers)
 
 // Fisher-Yates shuffle using RP2350 hardware TRNG, then truncate to 2/3
 static uint16_t mag_thin_samples(uint16_t count) {
@@ -916,13 +923,13 @@ static uint16_t mag_thin_samples(uint16_t count) {
 static bool mag_ellipsoid_fit(uint16_t num_samples, const float sphere_offset[3],
                                float out_params[kMagEllipsoidParams]) {
     // Seed from sphere fit results
-    // NOLINTBEGIN(readability-magic-numbers) — param layout: offset[0-2], diag[3-5], offdiag[6-8]
-    float params[kMagEllipsoidParams] = {
-        sphere_offset[0], sphere_offset[1], sphere_offset[2],
-        1.0F, 1.0F, 1.0F,
-        0.0F, 0.0F, 0.0F
-    };
-    // NOLINTEND(readability-magic-numbers)
+    float params[kMagEllipsoidParams] = {};
+    params[kParamOffX] = sphere_offset[0];
+    params[kParamOffY] = sphere_offset[1];
+    params[kParamOffZ] = sphere_offset[2];
+    params[kParamDiagX] = 1.0F;
+    params[kParamDiagY] = 1.0F;
+    params[kParamDiagZ] = 1.0F;
 
     float best_params[kMagEllipsoidParams];
     memcpy(best_params, params, sizeof(params));
@@ -941,26 +948,21 @@ static bool mag_ellipsoid_fit(uint16_t num_samples, const float sphere_offset[3]
 
 // Validate ellipsoid fit parameters
 static bool validate_mag_params(const float params[kMagEllipsoidParams]) {
-    // NOLINTBEGIN(readability-magic-numbers) — param layout: offset[0-2], diag[3-5], offdiag[6-8]
-    // Offset bounds
-    for (uint8_t i = 0; i < 3; i++) {
+    for (uint8_t i = kParamOffX; i <= kParamOffZ; i++) {
         if (fabsf(params[i]) > kMagMaxOffset) {
             return false;
         }
     }
-    // Diagonal scale bounds
-    for (uint8_t i = 3; i < 6; i++) {
+    for (uint8_t i = kParamDiagX; i <= kParamDiagZ; i++) {
         if (params[i] < kMagMinDiag || params[i] > kMagMaxDiag) {
             return false;
         }
     }
-    // Off-diagonal bounds
-    for (uint8_t i = 6; i < 9; i++) {
+    for (uint8_t i = kParamOffdiagXY; i <= kParamOffdiagYZ; i++) {
         if (fabsf(params[i]) > kMagMaxOffdiag) {
             return false;
         }
     }
-    // NOLINTEND(readability-magic-numbers)
 
     // Radius validation
     if (g_magExpectedRadius < kMagMinFieldUt || g_magExpectedRadius > kMagMaxFieldUt) {
@@ -1005,17 +1007,15 @@ cal_result_t calibration_compute_mag_cal() {
     }
 
     // Store results
-    // NOLINTBEGIN(readability-magic-numbers) — param layout: offset[0-2], diag[3-5], offdiag[6-8]
-    g_calibration.mag.offset.x  = ell_params[0];
-    g_calibration.mag.offset.y  = ell_params[1];
-    g_calibration.mag.offset.z  = ell_params[2];
-    g_calibration.mag.scale.x   = ell_params[3];
-    g_calibration.mag.scale.y   = ell_params[4];
-    g_calibration.mag.scale.z   = ell_params[5];
-    g_calibration.mag.offdiag.x = ell_params[6];
-    g_calibration.mag.offdiag.y = ell_params[7];
-    g_calibration.mag.offdiag.z = ell_params[8];
-    // NOLINTEND(readability-magic-numbers)
+    g_calibration.mag.offset.x  = ell_params[kParamOffX];
+    g_calibration.mag.offset.y  = ell_params[kParamOffY];
+    g_calibration.mag.offset.z  = ell_params[kParamOffZ];
+    g_calibration.mag.scale.x   = ell_params[kParamDiagX];
+    g_calibration.mag.scale.y   = ell_params[kParamDiagY];
+    g_calibration.mag.scale.z   = ell_params[kParamDiagZ];
+    g_calibration.mag.offdiag.x = ell_params[kParamOffdiagXY];
+    g_calibration.mag.offdiag.y = ell_params[kParamOffdiagXZ];
+    g_calibration.mag.offdiag.z = ell_params[kParamOffdiagYZ];
     g_calibration.mag.expected_radius = g_magExpectedRadius;
     g_calibration.mag.status = CAL_STATUS_MAG;
 
@@ -1074,13 +1074,13 @@ void calibration_apply_gyro_with(const calibration_store_t* cal,
     float cy = raw.y - cal->gyro.bias.y;
     float cz = raw.z - cal->gyro.bias.z;
 
-    // Board rotation: rotMat * corrected
-    // NOLINTBEGIN(readability-magic-numbers) — 3x3 rotation matrix indices
     const float* rot_mat = cal->board_rotation.m;
-    out.x = rot_mat[0]*cx + rot_mat[1]*cy + rot_mat[2]*cz;
-    out.y = rot_mat[3]*cx + rot_mat[4]*cy + rot_mat[5]*cz;
-    out.z = rot_mat[6]*cx + rot_mat[7]*cy + rot_mat[8]*cz;
-    // NOLINTEND(readability-magic-numbers)
+    out.x = rot_mat[0 * rc::kDcmRows + 0]*cx + rot_mat[0 * rc::kDcmRows + 1]*cy +
+            rot_mat[0 * rc::kDcmRows + 2]*cz;
+    out.y = rot_mat[1 * rc::kDcmRows + 0]*cx + rot_mat[1 * rc::kDcmRows + 1]*cy +
+            rot_mat[1 * rc::kDcmRows + 2]*cz;
+    out.z = rot_mat[2 * rc::kDcmRows + 0]*cx + rot_mat[2 * rc::kDcmRows + 1]*cy +
+            rot_mat[2 * rc::kDcmRows + 2]*cz;
 }
 
 void calibration_apply_gyro(float gx_raw, float gy_raw, float gz_raw,
@@ -1108,13 +1108,13 @@ void calibration_apply_accel_with(const calibration_store_t* cal,
              + cal->accel.offdiag.z * oy
              + cal->accel.scale.z   * oz;
 
-    // Stage 2: Board rotation — rotMat * corrected
-    // NOLINTBEGIN(readability-magic-numbers) — 3x3 rotation matrix indices
     const float* rot_mat = cal->board_rotation.m;
-    out.x = rot_mat[0]*cx + rot_mat[1]*cy + rot_mat[2]*cz;
-    out.y = rot_mat[3]*cx + rot_mat[4]*cy + rot_mat[5]*cz;
-    out.z = rot_mat[6]*cx + rot_mat[7]*cy + rot_mat[8]*cz;
-    // NOLINTEND(readability-magic-numbers)
+    out.x = rot_mat[0 * rc::kDcmRows + 0]*cx + rot_mat[0 * rc::kDcmRows + 1]*cy +
+            rot_mat[0 * rc::kDcmRows + 2]*cz;
+    out.y = rot_mat[1 * rc::kDcmRows + 0]*cx + rot_mat[1 * rc::kDcmRows + 1]*cy +
+            rot_mat[1 * rc::kDcmRows + 2]*cz;
+    out.z = rot_mat[2 * rc::kDcmRows + 0]*cx + rot_mat[2 * rc::kDcmRows + 1]*cy +
+            rot_mat[2 * rc::kDcmRows + 2]*cz;
 }
 
 void calibration_apply_accel(float ax_raw, float ay_raw, float az_raw,
@@ -1141,13 +1141,13 @@ void calibration_apply_mag_with(const calibration_store_t* cal,
              + cal->mag.offdiag.z * oy
              + cal->mag.scale.z   * oz;
 
-    // Stage 2: Board rotation — rotMat * corrected
-    // NOLINTBEGIN(readability-magic-numbers) — 3x3 rotation matrix indices
     const float* rot_mat = cal->board_rotation.m;
-    out.x = rot_mat[0]*cx + rot_mat[1]*cy + rot_mat[2]*cz;
-    out.y = rot_mat[3]*cx + rot_mat[4]*cy + rot_mat[5]*cz;
-    out.z = rot_mat[6]*cx + rot_mat[7]*cy + rot_mat[8]*cz;
-    // NOLINTEND(readability-magic-numbers)
+    out.x = rot_mat[0 * rc::kDcmRows + 0]*cx + rot_mat[0 * rc::kDcmRows + 1]*cy +
+            rot_mat[0 * rc::kDcmRows + 2]*cz;
+    out.y = rot_mat[1 * rc::kDcmRows + 0]*cx + rot_mat[1 * rc::kDcmRows + 1]*cy +
+            rot_mat[1 * rc::kDcmRows + 2]*cz;
+    out.z = rot_mat[2 * rc::kDcmRows + 0]*cx + rot_mat[2 * rc::kDcmRows + 1]*cy +
+            rot_mat[2 * rc::kDcmRows + 2]*cz;
 }
 
 void calibration_apply_mag(float mx_raw, float my_raw, float mz_raw,

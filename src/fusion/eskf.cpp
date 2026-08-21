@@ -3,8 +3,8 @@
 #include "fusion/eskf.h"
 #include "fusion/eskf_codegen.h"
 
-#include <cassert>
 #include <cmath>
+#include <cstdlib>
 
 // R3: Compile-time sync — fail build if codegen constants drift from eskf.h.
 // These compare two named constexpr constants for exact identity (the whole
@@ -37,9 +37,6 @@ namespace rc {
 // File-scope constants extracted from inline literals (JSF AV Rule 151)
 // ============================================================================
 namespace {
-
-// DCM flat array size (3×3 rotation matrix)
-constexpr int32_t kDcmElements = 9;
 
 // Minimum innovation variance guard — rejects degenerate S in measurement updates.
 // Below this threshold, 1/S would amplify noise catastrophically.
@@ -87,11 +84,9 @@ static Mat3 quat_to_dcm(const Quat& q) {
     float m9[kDcmElements];
     q.to_rotation_matrix(m9);
     Mat3 rot_mat;
-    rot_mat(0, 0) = m9[0]; rot_mat(0, 1) = m9[1]; rot_mat(0, 2) = m9[2];
-    // NOLINTNEXTLINE(readability-magic-numbers) — row-major 3×3 DCM indices
-    rot_mat(1, 0) = m9[3]; rot_mat(1, 1) = m9[4]; rot_mat(1, 2) = m9[5];
-    // NOLINTNEXTLINE(readability-magic-numbers) — row-major 3×3 DCM indices
-    rot_mat(2, 0) = m9[6]; rot_mat(2, 1) = m9[7]; rot_mat(2, 2) = m9[8];
+    rot_mat(0, 0) = m9[0 * kDcmRows + 0]; rot_mat(0, 1) = m9[0 * kDcmRows + 1]; rot_mat(0, 2) = m9[0 * kDcmRows + 2];
+    rot_mat(1, 0) = m9[1 * kDcmRows + 0]; rot_mat(1, 1) = m9[1 * kDcmRows + 1]; rot_mat(1, 2) = m9[1 * kDcmRows + 2];
+    rot_mat(2, 0) = m9[2 * kDcmRows + 0]; rot_mat(2, 1) = m9[2 * kDcmRows + 1]; rot_mat(2, 2) = m9[2 * kDcmRows + 2];
     return rot_mat;
 }
 
@@ -424,7 +419,7 @@ void ESKF::predict_dense(const Vec3& accel_meas, const Vec3& gyro_meas,
 // Only rows/cols 0-2 change. Cost: ~450 MACs at N=24 vs ~27,648 dense.
 void ESKF::reset_covariance_attitude(const float ga[3][3]) {
     // Step 1: GP[0:3][:] = G_a * P[0:3][:] (rows 0-2 of G*P)
-    static float g_gpRows[3][24];  // NOLINT(readability-magic-numbers)
+    static float g_gpRows[eskf::kBlockSize][eskf::kStateSize];
     for (int32_t i = 0; i < 3; ++i) {
         for (int32_t j = 0; j < eskf::kStateSize; ++j) {
             g_gpRows[i][j] = ga[i][0] * P.data[0][j]
@@ -435,7 +430,7 @@ void ESKF::reset_covariance_attitude(const float ga[3][3]) {
 
     // Save original P columns 0-2 for rows >=3 (step 3 reads P[i>=3][k<3]
     // after step 2 has overwritten symmetric entries).
-    static float g_pCol02[24][3];  // NOLINT(readability-magic-numbers)
+    static float g_pCol02[eskf::kStateSize][eskf::kBlockSize];
     for (int32_t i = 3; i < eskf::kStateSize; ++i) {
         g_pCol02[i][0] = P.data[i][0];
         g_pCol02[i][1] = P.data[i][1];
@@ -559,7 +554,9 @@ void ESKF::ensure_dense() {
     for (int32_t i = 0; i < eskf::kStateSize; ++i) {
         if (P.data[i][i] < 0.0F) {
 #ifndef NDEBUG
-            assert(P.data[i][i] > -kMaxNegDiagNoise);  // NOLINT(cert-dcl03-c)
+            if (P.data[i][i] <= -kMaxNegDiagNoise) {
+                std::abort();
+            }
 #endif
             const bool core = (i < eskf::kIdxEarthMag);
             P.data[i][i] = core ? kMinCoreDiag : 0.0F;

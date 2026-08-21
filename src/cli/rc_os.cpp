@@ -36,11 +36,14 @@ constexpr uint32_t kRcOsPollMs     = 50;   // 20Hz polling
 
 // CLI input constants
 constexpr int      kEscChar              = 27;           // ASCII ESC
+constexpr uint8_t  kMavlinkV2Stx         = 0xFDU;        // MAVLink v2 packet start
 constexpr uint32_t kResetConfirmTimeoutUs = 10000000;    // 10 seconds for reset confirm
 constexpr size_t   kResetConfirmBufSize  = 8;            // "YES\0" + margin
 constexpr size_t   kResetConfirmMaxIdx   = 7;            // Buffer max index
 
 constexpr uint32_t kUsbSettleMs          = 200;          // USB CDC settle time after connect
+constexpr uint8_t  kUsbSettlePolls       = 5;            // handle_usb_connect poll ticks before banner
+constexpr uint32_t kArmConfirmTimeoutMs  = 5000;         // IVP-122 ARM confirm window
 
 // ============================================================================
 // State
@@ -139,7 +142,6 @@ static void print_flight_menu() {
 // Main Menu Handler
 // ============================================================================
 
-// NOLINTNEXTLINE(readability-function-size) — pure key dispatcher, splitting adds indirection
 static bool handle_main_menu(int c) {
     switch (c) {
         case 'h':
@@ -198,7 +200,6 @@ static bool handle_main_menu(int c) {
 // Calibration Menu Handler
 // ============================================================================
 
-// NOLINTNEXTLINE(readability-function-size) — pure key dispatcher, splitting adds indirection
 static bool handle_calibration_menu(int c) {
     // Block menu keys while a calibration UI sequence is running
     if (AO_RCOS_cal_active() && c != 'x' && c != 'X' && c != kEscChar) {
@@ -292,7 +293,6 @@ static void dispatch_flight_command(int cmd) {
     }
 }
 
-// NOLINTNEXTLINE(readability-function-size) — pure key dispatcher
 static bool handle_flight_menu(int c) {
     switch (c) {
         // Commands — routed through command handler (Go/No-Go for ARM)
@@ -340,7 +340,6 @@ void rc_os_init() {
     g_bannerPrinted = false;
 }
 
-// NOLINTNEXTLINE(readability-function-size) — USB state machine, splitting breaks state tracking
 // MAVLink binary lockout: once 0xFD seen on USB, suppress all CLI routing.
 // QGC sends binary frames containing arbitrary bytes (0x4C='L' triggers
 // flash erase, crashing AO scheduler). ESC exits lockout.
@@ -368,12 +367,12 @@ void rc_os_start_arm_confirm() {
 }
 
 static bool handle_mavlink_lockout(int c) {
-    if (static_cast<uint8_t>(c) == 0xFD) { g_mavlinkDetected = true; }
+    if (static_cast<uint8_t>(c) == kMavlinkV2Stx) { g_mavlinkDetected = true; }
 
     if (g_mavlinkDetected ||
         AO_Telemetry_is_gcs_connected() ||
         AO_RCOS_get_output_mode() == StationOutputMode::kMavlink) {
-        if (c == 27) {
+        if (c == kEscChar) {
             g_mavlinkDetected = false;
             AO_RCOS_set_output_mode(StationOutputMode::kMenu);
             rc::rc_log("\n[GCS mode exited]\n");
@@ -407,11 +406,11 @@ static bool handle_usb_connect() {
         g_wasConnected = true;
         return false;
     }
-    if (g_settleCount > 0 && g_settleCount < 5) {
+    if (g_settleCount > 0 && g_settleCount < kUsbSettlePolls) {
         g_settleCount++;
         return false;
     }
-    if (g_settleCount == 5) {
+    if (g_settleCount == kUsbSettlePolls) {
         g_settleCount = 0;
         while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT) {}
         cli_print_boot_summary();
@@ -434,7 +433,7 @@ static int handle_arm_confirm() {
     if (!g_armConfirmActive) { return -1; }
 
     uint32_t now = to_ms_since_boot(get_absolute_time());
-    if (now - g_armStartMs > 5000) {
+    if (now - g_armStartMs > kArmConfirmTimeoutMs) {
         rc::rc_log("ARM aborted (timeout)\n");
         g_armConfirmActive = false;
         rc_os_dashboard_resume();

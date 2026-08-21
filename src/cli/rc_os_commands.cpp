@@ -25,6 +25,7 @@
 #include "core1/sensor_core1.h"
 #include "fusion/eskf.h"
 #include "fusion/eskf_runner.h"
+#include "math/quat.h"
 #include "fusion/wmm_tables.h"
 #include "fusion/confidence_gate.h"
 #include "fusion/mahony_ahrs.h"
@@ -152,8 +153,7 @@ static void cmd_radio_config_cycle() {
 static constexpr float kRadToDeg = 180.0F / 3.14159265F;
 static constexpr float kFullCircleDeg = 360.0F;
 static constexpr double kGpsCoordScale = 1e7;
-static constexpr float kGps1e7ToDegreesF = 1e-7F;  // NOLINT(readability-identifier-naming)
-static constexpr double kGps1e7ToDegrees = 1e-7;    // NOLINT(readability-identifier-naming)
+static constexpr float kGpsCountsToDegrees = 1.0F / static_cast<float>(kGpsCoordScale);
 // Erase/download input constants removed — blocking input now in AO_RCOS.
 static constexpr uint32_t kCrc32InitXor = 0xFFFFFFFFU;
 static constexpr uint8_t kDlpfCfgMask = 0x07U;
@@ -205,7 +205,6 @@ static void print_imu_status(const shared_sensor_data_t& snap) {
     }
 }
 
-// NOLINTBEGIN(readability-magic-numbers) — ESKF P indices are state layout
 static void print_eskf_gates_and_diags() {
     rc::rc_log("      gate: bA=%lu/%lu mA=%lu/%lu mR=%lu gA=%lu/%lu zA=%lu/%lu\n",
            (unsigned long)g_eskf.baro_total_accepts_,
@@ -218,8 +217,11 @@ static void print_eskf_gates_and_diags() {
            (unsigned long)g_eskf.zupt_total_accepts_,
            (unsigned long)(g_eskf.zupt_total_accepts_ + g_eskf.zupt_total_rejects_));
     rc::rc_log("      Pvel=%.4f,%.4f,%.4f  Pab=%.6f  Pgb=%.6f\n",
-           (double)g_eskf.P(6, 6), (double)g_eskf.P(7, 7), (double)g_eskf.P(8, 8),
-           (double)g_eskf.P(9, 9), (double)g_eskf.P(12, 12));
+           (double)g_eskf.P(rc::eskf::kIdxVelN, rc::eskf::kIdxVelN),
+           (double)g_eskf.P(rc::eskf::kIdxVelE, rc::eskf::kIdxVelE),
+           (double)g_eskf.P(rc::eskf::kIdxVelD, rc::eskf::kIdxVelD),
+           (double)g_eskf.P(rc::eskf::kIdxAccelBias, rc::eskf::kIdxAccelBias),
+           (double)g_eskf.P(rc::eskf::kIdxGyroBias, rc::eskf::kIdxGyroBias));
     // 24-state inhibit flags + conditional extended state display
     rc::rc_log("      inhib: mag=%c wind=%c bbias=%c\n",
            g_eskf.inhibit_mag_states_ ? 'Y' : 'N',
@@ -256,7 +258,6 @@ static void print_eskf_gates_and_diags() {
            '\xb0',  // degree symbol — avoid raw char in printf format
            (unsigned long)conf->time_since_confident_ms);
 }
-// NOLINTEND(readability-magic-numbers)
 
 static void print_eskf_status() {
     if (g_eskfInitialized && g_eskf.healthy()) {
@@ -481,12 +482,13 @@ static void print_cal_params() {
                (double)cal->mag.scale.z);
     }
     const float* rot_mat = cal->board_rotation.m;
-    // NOLINTBEGIN(readability-magic-numbers) — row-major DCM indices [0..8]
     rc::rc_log("  Rot:   [%.3f %.3f %.3f; %.3f %.3f %.3f; %.3f %.3f %.3f]\n",
-           (double)rot_mat[0], (double)rot_mat[1], (double)rot_mat[2],
-           (double)rot_mat[3], (double)rot_mat[4], (double)rot_mat[5],
-           (double)rot_mat[6], (double)rot_mat[7], (double)rot_mat[8]);
-    // NOLINTEND(readability-magic-numbers)
+           (double)rot_mat[0 * rc::kDcmRows + 0], (double)rot_mat[0 * rc::kDcmRows + 1],
+           (double)rot_mat[0 * rc::kDcmRows + 2],
+           (double)rot_mat[1 * rc::kDcmRows + 0], (double)rot_mat[1 * rc::kDcmRows + 1],
+           (double)rot_mat[1 * rc::kDcmRows + 2],
+           (double)rot_mat[2 * rc::kDcmRows + 0], (double)rot_mat[2 * rc::kDcmRows + 1],
+           (double)rot_mat[2 * rc::kDcmRows + 2]);
 }
 
 // ============================================================================
@@ -904,8 +906,7 @@ void cli_print_eskf_live() {
     float patt = g_eskf.P(0, 0);
     if (g_eskf.P(1, 1) > patt) { patt = g_eskf.P(1, 1); }
     if (g_eskf.P(2, 2) > patt) { patt = g_eskf.P(2, 2); }
-    // NOLINTNEXTLINE(readability-magic-numbers) — ESKF P(5,5) = position-down variance
-    float ppos = g_eskf.P(5, 5);
+    float ppos = g_eskf.P(rc::eskf::kIdxPosD, rc::eskf::kIdxPosD);
 
     rc::Vec3 euler = g_eskf.q.to_euler();
     float yaw_deg = euler.z * kRadToDeg;
@@ -1382,8 +1383,8 @@ static void cmd_station_gps_push() {
     shared_sensor_data_t snap = {};
     if (seqlock_read(&g_sensorSeqlock, &snap) &&
         snap.gps_valid && snap.gps_fix_type >= 3) {
-        float lat = static_cast<float>(snap.gps_lat_1e7) * 1e-7F;
-        float lon = static_cast<float>(snap.gps_lon_1e7) * 1e-7F;
+        float lat = static_cast<float>(snap.gps_lat_1e7) * kGpsCountsToDegrees;
+        float lon = static_cast<float>(snap.gps_lon_1e7) * kGpsCountsToDegrees;
         AO_Telemetry_send_command(kMavCmdSetHome, {.p5 = lat, .p6 = lon});
         rc::rc_log("GPS push: %.5f, %.5f\n",
                static_cast<double>(lat), static_cast<double>(lon));

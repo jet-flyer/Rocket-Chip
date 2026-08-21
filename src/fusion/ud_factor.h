@@ -15,26 +15,27 @@
 
 #include <cstdint>
 
+#include "fusion/eskf_state.h"
+
 namespace rc {
 
-// 24×24 UD factored covariance.
+// 24×24 UD factored covariance (dimension = eskf::kStateSize).
 // U: unit upper triangular (diagonal = 1, lower triangle = 0, upper stored).
-// D: diagonal vector (24 floats).
+// D: diagonal vector.
 // Total storage: 2,400 bytes (vs 2,304 for dense P).
 struct UD24 {
-    float U[24][24];  // Unit upper triangular
-    float D[24];      // Diagonal
+    float U[eskf::kStateSize][eskf::kStateSize];  // Unit upper triangular
+    float D[eskf::kStateSize];                    // Diagonal
 };
 
 // Reconstruct dense P = U * D * U^T.
-// Output: P[24][24] (symmetric).
-void ud_to_dense(const UD24& ud, float P[24][24]);
+void ud_to_dense(const UD24& ud, float P[eskf::kStateSize][eskf::kStateSize]);
 
 // Factorize dense symmetric P into UD form (modified Cholesky).
 // Used for hybrid codegen+Bierman path: codegen updates dense P,
 // then factorize into UD for Bierman measurement update.
 // Returns false if P is not positive-definite (any D[i] <= 0).
-bool ud_factorize(UD24& ud, const float P[24][24]);
+bool ud_factorize(UD24& ud, const float P[eskf::kStateSize][eskf::kStateSize]);
 
 // =========================================================================
 // Bierman scalar measurement update.
@@ -48,7 +49,7 @@ bool ud_factorize(UD24& ud, const float P[24][24]);
 // =========================================================================
 
 void bierman_scalar_update(UD24& ud, int32_t hIdx, float hValue,
-                           float innovation, float r, float dx[24]);
+                           float innovation, float r, float dx[eskf::kStateSize]);
 
 } // namespace rc
 

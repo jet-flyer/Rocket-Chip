@@ -319,6 +319,11 @@ CheckOptions:
     value: camelBack
   - key: readability-identifier-naming.GlobalVariablePrefix
     value: 'g_'
+  # Linker-script symbols (TP-2). Do not rename — the names belong to the
+  # toolchain. House naming does not apply; CERT DCL37-C reserved-id check is
+  # already skipped globally for SDK names.
+  - key: readability-identifier-naming.GlobalVariableIgnoredRegexp
+    value: '^__Stack(One)?Bottom$'
 
   # File-scope static variables: g_camelCase (same as globals)
   - key: readability-identifier-naming.StaticVariableCase

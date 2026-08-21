@@ -97,8 +97,10 @@ struct shared_sensor_data_t {
     uint32_t mcu_temp_read_count;           // Monotonic for soak gates
 };
 
-static_assert(sizeof(shared_sensor_data_t) == 156, // NOLINT(readability-magic-numbers)
-              "Struct size changed - update SEQLOCK_DESIGN.md");
+// Live sizeof of the struct above (SEQLOCK_STRUCT_LAYOUT.md is stale at 140).
+static constexpr uint32_t kSharedSensorDataBytes = 156U;
+static_assert(sizeof(shared_sensor_data_t) == kSharedSensorDataBytes,
+              "shared_sensor_data_t size changed — update kSharedSensorDataBytes");
 static_assert(sizeof(shared_sensor_data_t) % 4 == 0,
               "Struct must be 4-byte aligned for memcpy");
 

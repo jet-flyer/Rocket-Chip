@@ -32,6 +32,7 @@
 #include "drivers/mcu_temp.h"
 #include "calibration/calibration_manager.h"
 #include "cli/rc_os.h"
+#include "math/quat.h"
 
 #include <math.h>
 #include <string.h>
@@ -375,11 +376,9 @@ static void core1_load_cal_or_defaults(calibration_store_t* local_cal) {
         local_cal->accel.scale.x = 1.0F;
         local_cal->accel.scale.y = 1.0F;
         local_cal->accel.scale.z = 1.0F;
-        // NOLINTBEGIN(readability-magic-numbers) -- 3x3 identity matrix diagonal indices
-        local_cal->board_rotation.m[0] = 1.0F;
-        local_cal->board_rotation.m[4] = 1.0F;
-        local_cal->board_rotation.m[8] = 1.0F;
-        // NOLINTEND(readability-magic-numbers)
+        local_cal->board_rotation.m[0 * rc::kDcmRows + 0] = 1.0F;
+        local_cal->board_rotation.m[1 * rc::kDcmRows + 1] = 1.0F;
+        local_cal->board_rotation.m[2 * rc::kDcmRows + 2] = 1.0F;
     }
 }
 

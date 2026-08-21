@@ -38,7 +38,9 @@ struct eskf_state_snap_t {
     float abx, aby, abz;           // 12B — accel bias (m/s²)
     float gbx, gby, gbz;           // 12B — gyro bias (rad/s)
 };
-static_assert(sizeof(eskf_state_snap_t) == 68, "ESKF snap size changed"); // NOLINT(readability-magic-numbers)
+static constexpr uint32_t kEskfStateSnapBytes = 68U;  // 4+16+12+12+12+12
+static_assert(sizeof(eskf_state_snap_t) == kEskfStateSnapBytes,
+              "ESKF snap size changed");
 
 // ============================================================================
 // GPS outdoor session stats — accumulated while GPS is active.

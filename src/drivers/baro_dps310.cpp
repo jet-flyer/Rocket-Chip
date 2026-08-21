@@ -66,11 +66,9 @@ static uint8_t g_i2cAddr = 0;
 static float g_seaLevelPa = kStdAtmPressurePa;
 
 // Forward declarations for callbacks
-// NOLINTBEGIN(readability-identifier-naming) — params match ruuvi dps310 callback typedef
 static void pico_sleep(uint32_t ms);
 static uint32_t pico_read(const void* comm_ctx, uint8_t reg_addr, uint8_t* data, uint8_t data_len);
 static uint32_t pico_write(const void* comm_ctx, uint8_t reg_addr, const uint8_t* data, uint8_t data_len);
-// NOLINTEND(readability-identifier-naming)
 
 // DPS310 context - suppress missing-field-initializers for third-party struct
 #pragma GCC diagnostic push
@@ -92,7 +90,6 @@ static void pico_sleep(uint32_t ms) {
     sleep_ms(ms);
 }
 
-// NOLINTBEGIN(readability-identifier-naming) — params match ruuvi dps310 callback typedef
 static uint32_t pico_read(const void* comm_ctx, uint8_t reg_addr, uint8_t* data, uint8_t data_len) {
     const auto* addr = static_cast<const uint8_t*>(comm_ctx);
     int ret = i2c_bus_read_regs(*addr, reg_addr, data, data_len);
@@ -120,7 +117,6 @@ static uint32_t pico_write(const void* comm_ctx, uint8_t reg_addr, const uint8_t
     int ret = i2c_bus_write(*addr, buf, data_len + 1);
     return (ret == (int)(data_len + 1)) ? 0 : DPS310_BUS_ERROR;
 }
-// NOLINTEND(readability-identifier-naming)
 
 // ============================================================================
 // Public API

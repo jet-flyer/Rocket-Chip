@@ -159,6 +159,23 @@ constexpr uint8_t kMagReadSize        = 9;   // ST1 + 6 data + TMPS(dummy) + ST2
 // through the bypass bridge. AK09916 datasheet: 100Hz mode = 10ms per sample.
 constexpr uint8_t kMagReadDivider     = 10;  // Read mag every 10th call (~100Hz)
 
+// Burst-buffer index = register address minus the start of that read.
+// ICM-20948 accel/gyro/temp are big-endian; AK09916 mag is little-endian
+// (DS-000189 register map; AKD09916 ST1..ST2).
+static uint8_t burst_index(uint8_t reg, uint8_t base) {
+    return static_cast<uint8_t>(reg - base);
+}
+
+static int16_t unpack_be16(const uint8_t* buf, uint8_t hi_reg, uint8_t base) {
+    const uint8_t i = burst_index(hi_reg, base);
+    return static_cast<int16_t>((buf[i] << 8) | buf[i + 1U]);
+}
+
+static int16_t unpack_le16(const uint8_t* buf, uint8_t lo_reg, uint8_t base) {
+    const uint8_t i = burst_index(lo_reg, base);
+    return static_cast<int16_t>((buf[i + 1U] << 8) | buf[i]);
+}
+
 // Timing delays (datasheet minimums)
 constexpr uint32_t kInitStepDelayMs   = 10;   // Between bank switches / config steps
 constexpr uint32_t kResetSettleMs     = 100;  // Post-device-reset stabilization
@@ -460,16 +477,12 @@ bool icm20948_set_low_power(icm20948_t* dev, bool enable) {
     return write_bank_reg(dev, 0, bank0::kPwrMgmt1, pwr);
 }
 
-// Parse accel, gyro, and temperature from 14-byte burst read buffer.
-// Byte layout per ICM-20948 datasheet register map:
-//   [0..5]   accel XH/XL/YH/YL/ZH/ZL
-//   [6..11]  gyro  XH/XL/YH/YL/ZH/ZL
-//   [12..13] temp  H/L
-// NOLINTBEGIN(readability-magic-numbers) — buffer byte offsets per datasheet register map
+// Parse accel, gyro, and temperature from 14-byte burst starting at ACCEL_XOUT_H.
 static void parse_accel_gyro_temp(const uint8_t* buf, icm20948_t* dev, icm20948_data_t* data) {
-    int16_t ax = static_cast<int16_t>((buf[0] << 8) | buf[1]);
-    int16_t ay = static_cast<int16_t>((buf[2] << 8) | buf[3]);
-    int16_t az = static_cast<int16_t>((buf[4] << 8) | buf[5]);
+    const uint8_t base = bank0::kAccelXoutH;
+    const int16_t ax = unpack_be16(buf, bank0::kAccelXoutH, base);
+    const int16_t ay = unpack_be16(buf, bank0::kAccelYoutH, base);
+    const int16_t az = unpack_be16(buf, bank0::kAccelZoutH, base);
 
     // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
     data->accel.x = static_cast<float>(ax) * dev->accel_scale;
@@ -477,16 +490,16 @@ static void parse_accel_gyro_temp(const uint8_t* buf, icm20948_t* dev, icm20948_
     data->accel.z = static_cast<float>(az) * dev->accel_scale;
     data->accel_valid = true;
 
-    int16_t gx = static_cast<int16_t>((buf[6] << 8) | buf[7]);
-    int16_t gy = static_cast<int16_t>((buf[8] << 8) | buf[9]);
-    int16_t gz = static_cast<int16_t>((buf[10] << 8) | buf[11]);
+    const int16_t gx = unpack_be16(buf, bank0::kGyroXoutH, base);
+    const int16_t gy = unpack_be16(buf, bank0::kGyroYoutH, base);
+    const int16_t gz = unpack_be16(buf, bank0::kGyroZoutH, base);
 
     data->gyro.x = static_cast<float>(gx) * dev->gyro_scale;
     data->gyro.y = static_cast<float>(gy) * dev->gyro_scale;
     data->gyro.z = static_cast<float>(gz) * dev->gyro_scale;
     data->gyro_valid = true;
 
-    int16_t temp_raw = static_cast<int16_t>((buf[12] << 8) | buf[13]);
+    const int16_t temp_raw = unpack_be16(buf, bank0::kTempOutH, base);
     data->temperature_c = (static_cast<float>(temp_raw) / kTempSensitivity) + kTempOffset;
 }
 
@@ -501,13 +514,14 @@ static void read_mag_bypass(icm20948_t* dev, icm20948_data_t* data) {
         uint8_t mag_buf[kMagReadSize];
         if (i2c_bus_read_regs(ak09916::kI2cAddr, ak09916::kSt1,
                               mag_buf, sizeof(mag_buf)) == sizeof(mag_buf)) {
-            uint8_t st1 = mag_buf[0];
-            uint8_t st2 = mag_buf[8];
+            const uint8_t mag_base = ak09916::kSt1;
+            const uint8_t st1 = mag_buf[burst_index(ak09916::kSt1, mag_base)];
+            const uint8_t st2 = mag_buf[burst_index(ak09916::kSt2, mag_base)];
 
             if ((st1 & ak09916::kSt1Drdy) != 0 && (st2 & ak09916::kSt2Hofl) == 0) {
-                int16_t mx = static_cast<int16_t>((mag_buf[2] << 8) | mag_buf[1]);  // Little-endian
-                int16_t my = static_cast<int16_t>((mag_buf[4] << 8) | mag_buf[3]);
-                int16_t mz = static_cast<int16_t>((mag_buf[6] << 8) | mag_buf[5]);
+                const int16_t mx = unpack_le16(mag_buf, ak09916::kHxl, mag_base);
+                const int16_t my = unpack_le16(mag_buf, ak09916::kHyl, mag_base);
+                const int16_t mz = unpack_le16(mag_buf, ak09916::kHzl, mag_base);
 
                 data->mag.x = static_cast<float>(mx) * dev->mag_scale;
                 data->mag.y = static_cast<float>(my) * dev->mag_scale;
@@ -533,7 +547,6 @@ static void read_mag_bypass(icm20948_t* dev, icm20948_data_t* data) {
         data->mag_valid = false;
     }
 }
-// NOLINTEND(readability-magic-numbers)
 
 bool icm20948_read(icm20948_t* dev, icm20948_data_t* data) {
     if (dev == nullptr || data == nullptr || !dev->initialized) {
@@ -578,11 +591,10 @@ bool icm20948_read_accel(icm20948_t* dev, icm20948_vec3_t* accel) {
         return false;
     }
 
-    // NOLINTBEGIN(readability-magic-numbers) — XH/XL/YH/YL/ZH/ZL byte pairs
-    int16_t ax = static_cast<int16_t>((buf[0] << 8) | buf[1]);
-    int16_t ay = static_cast<int16_t>((buf[2] << 8) | buf[3]);
-    int16_t az = static_cast<int16_t>((buf[4] << 8) | buf[5]);
-    // NOLINTEND(readability-magic-numbers)
+    const uint8_t base = bank0::kAccelXoutH;
+    const int16_t ax = unpack_be16(buf, bank0::kAccelXoutH, base);
+    const int16_t ay = unpack_be16(buf, bank0::kAccelYoutH, base);
+    const int16_t az = unpack_be16(buf, bank0::kAccelZoutH, base);
 
     // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
     accel->x = static_cast<float>(ax) * dev->accel_scale;
@@ -606,11 +618,10 @@ bool icm20948_read_gyro(icm20948_t* dev, icm20948_vec3_t* gyro) {
         return false;
     }
 
-    // NOLINTBEGIN(readability-magic-numbers) — XH/XL/YH/YL/ZH/ZL byte pairs
-    int16_t gx = static_cast<int16_t>((buf[0] << 8) | buf[1]);
-    int16_t gy = static_cast<int16_t>((buf[2] << 8) | buf[3]);
-    int16_t gz = static_cast<int16_t>((buf[4] << 8) | buf[5]);
-    // NOLINTEND(readability-magic-numbers)
+    const uint8_t base = bank0::kGyroXoutH;
+    const int16_t gx = unpack_be16(buf, bank0::kGyroXoutH, base);
+    const int16_t gy = unpack_be16(buf, bank0::kGyroYoutH, base);
+    const int16_t gz = unpack_be16(buf, bank0::kGyroZoutH, base);
 
     // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
     gyro->x = static_cast<float>(gx) * dev->gyro_scale;
@@ -631,18 +642,17 @@ bool icm20948_read_mag(icm20948_t* dev, icm20948_vec3_t* mag) {
         return false;
     }
 
-    // NOLINTBEGIN(readability-magic-numbers) — AK09916 register byte offsets
-    uint8_t st1 = buf[0];
-    uint8_t st2 = buf[8];
+    const uint8_t mag_base = ak09916::kSt1;
+    const uint8_t st1 = buf[burst_index(ak09916::kSt1, mag_base)];
+    const uint8_t st2 = buf[burst_index(ak09916::kSt2, mag_base)];
 
     if ((st1 & ak09916::kSt1Drdy) == 0 || (st2 & ak09916::kSt2Hofl) != 0) {
         return false;  // Not ready or overflow
     }
 
-    int16_t mx = static_cast<int16_t>((buf[2] << 8) | buf[1]);  // Little-endian
-    int16_t my = static_cast<int16_t>((buf[4] << 8) | buf[3]);
-    int16_t mz = static_cast<int16_t>((buf[6] << 8) | buf[5]);
-    // NOLINTEND(readability-magic-numbers)
+    const int16_t mx = unpack_le16(buf, ak09916::kHxl, mag_base);
+    const int16_t my = unpack_le16(buf, ak09916::kHyl, mag_base);
+    const int16_t mz = unpack_le16(buf, ak09916::kHzl, mag_base);
 
     // int16_t sensor values fit in float 24-bit mantissa (max ±32768)
     mag->x = static_cast<float>(mx) * dev->mag_scale;

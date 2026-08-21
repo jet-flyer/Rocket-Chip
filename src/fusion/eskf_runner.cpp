@@ -47,8 +47,8 @@ static constexpr double kDeg2Rad = 3.14159265358979323846 / 180.0;
 
 // Microsecond-to-second conversion
 static constexpr float kUsToSec = 1e-6F;
-static constexpr float kGps1e7ToDegreesF = 1e-7F;
-static constexpr double kGps1e7ToDegrees = 1e-7;
+static constexpr float kGpsCountsToDegreesF = 1e-7F;
+static constexpr double kGpsCountsToDegrees = 1e-7;
 
 // ESKF dt sanity bounds (reject if too fast or too slow)
 static constexpr uint32_t kEskfMinDtUs = 1000;     // 1ms
@@ -286,8 +286,8 @@ static void try_enable_mag_3axis(const shared_sensor_data_t& snap) {
     // WMM position priority: GPS 3D fix → stored cal → profile default
     if (g_wmmSource == WmmSource::kNone) {
         if (snap.gps_valid && snap.gps_fix_type >= 3) {
-            float lat = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
-            float lon = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
+            float lat = static_cast<float>(snap.gps_lat_1e7) * kGpsCountsToDegreesF;
+            float lon = static_cast<float>(snap.gps_lon_1e7) * kGpsCountsToDegreesF;
             init_wmm_field(lat, lon, WmmSource::kGps);
             save_wmm_position(lat, lon);
         } else if ((cal->cal_flags & CAL_STATUS_WMM_SET) != 0) {
@@ -318,8 +318,8 @@ static void eskf_tick_mag(const shared_sensor_data_t& snap) {
 
     // Upgrade WMM source to GPS on first 3D fix (even if already using stored/default)
     if (snap.gps_valid && snap.gps_fix_type >= 3 && g_wmmSource != WmmSource::kGps) {
-        float lat = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
-        float lon = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
+        float lat = static_cast<float>(snap.gps_lat_1e7) * kGpsCountsToDegreesF;
+        float lon = static_cast<float>(snap.gps_lon_1e7) * kGpsCountsToDegreesF;
         init_wmm_field(lat, lon, WmmSource::kGps);
         save_wmm_position(lat, lon);
     }
@@ -338,8 +338,8 @@ static void eskf_tick_mag(const shared_sensor_data_t& snap) {
         float lat_deg = g_profile->default_lat_deg;
         float lon_deg = g_profile->default_lon_deg;
         if (snap.gps_valid && snap.gps_fix_type >= 2) {
-            lat_deg = static_cast<float>(snap.gps_lat_1e7) * kGps1e7ToDegreesF;
-            lon_deg = static_cast<float>(snap.gps_lon_1e7) * kGps1e7ToDegreesF;
+            lat_deg = static_cast<float>(snap.gps_lat_1e7) * kGpsCountsToDegreesF;
+            lon_deg = static_cast<float>(snap.gps_lon_1e7) * kGpsCountsToDegreesF;
         }
         float declination_rad = rc::wmm_get_declination(lat_deg, lon_deg);
         g_eskf.update_mag_heading(mag_body, expected_mag, declination_rad);
@@ -373,8 +373,8 @@ static void eskf_tick_gps(const shared_sensor_data_t& snap) {
         if (snap.gps_read_count != g_lastGpsCount) {
             g_lastGpsCount = snap.gps_read_count;
 
-            double lat_rad = static_cast<double>(snap.gps_lat_1e7) * kGps1e7ToDegrees * kDeg2Rad;
-            double lon_rad = static_cast<double>(snap.gps_lon_1e7) * kGps1e7ToDegrees * kDeg2Rad;
+            double lat_rad = static_cast<double>(snap.gps_lat_1e7) * kGpsCountsToDegrees * kDeg2Rad;
+            double lon_rad = static_cast<double>(snap.gps_lon_1e7) * kGpsCountsToDegrees * kDeg2Rad;
             float alt_m = snap.gps_alt_msl_m;
             float hdop = snap.gps_hdop;
 

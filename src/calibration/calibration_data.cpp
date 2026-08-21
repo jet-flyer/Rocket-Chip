@@ -6,6 +6,7 @@
  */
 
 #include "calibration_data.h"
+#include "math/quat.h"
 #include <string.h>
 #include <stddef.h>
 
@@ -76,12 +77,16 @@ void calibration_init_defaults(calibration_store_t* cal) {
 
     cal->cal_flags = 0;
 
-    // NOLINTBEGIN(readability-magic-numbers) — 3x3 identity matrix indices are self-documenting
     // Board orientation: identity matrix (no rotation)
-    cal->board_rotation.m[0] = 1.0F; cal->board_rotation.m[1] = 0.0F; cal->board_rotation.m[2] = 0.0F;
-    cal->board_rotation.m[3] = 0.0F; cal->board_rotation.m[4] = 1.0F; cal->board_rotation.m[5] = 0.0F;
-    cal->board_rotation.m[6] = 0.0F; cal->board_rotation.m[7] = 0.0F; cal->board_rotation.m[8] = 1.0F;
-    // NOLINTEND(readability-magic-numbers)
+    cal->board_rotation.m[0 * rc::kDcmRows + 0] = 1.0F;
+    cal->board_rotation.m[0 * rc::kDcmRows + 1] = 0.0F;
+    cal->board_rotation.m[0 * rc::kDcmRows + 2] = 0.0F;
+    cal->board_rotation.m[1 * rc::kDcmRows + 0] = 0.0F;
+    cal->board_rotation.m[1 * rc::kDcmRows + 1] = 1.0F;
+    cal->board_rotation.m[1 * rc::kDcmRows + 2] = 0.0F;
+    cal->board_rotation.m[2 * rc::kDcmRows + 0] = 0.0F;
+    cal->board_rotation.m[2 * rc::kDcmRows + 1] = 0.0F;
+    cal->board_rotation.m[2 * rc::kDcmRows + 2] = 1.0F;
 
     calibration_update_crc(cal);
 }

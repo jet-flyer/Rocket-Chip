@@ -74,7 +74,7 @@ Vec3 Quat::rotate(const Vec3& v) const {
     };
 }
 
-void Quat::to_rotation_matrix(float m[9]) const { // NOLINT(readability-magic-numbers)
+void Quat::to_rotation_matrix(float m[kDcmElements]) const {
     // Row-major DCM. Reference: Sola (2017) Eq. 22
     const float xx = x * x;
     const float yy = y * y;
@@ -86,17 +86,17 @@ void Quat::to_rotation_matrix(float m[9]) const { // NOLINT(readability-magic-nu
     const float wy = w * y;
     const float wz = w * z;
 
-    m[0] = 1.0F - 2.0F * (yy + zz);
-    m[1] = 2.0F * (xy - wz);
-    m[2] = 2.0F * (xz + wy);
+    m[0 * kDcmRows + 0] = 1.0F - 2.0F * (yy + zz);
+    m[0 * kDcmRows + 1] = 2.0F * (xy - wz);
+    m[0 * kDcmRows + 2] = 2.0F * (xz + wy);
 
-    m[3] = 2.0F * (xy + wz);
-    m[4] = 1.0F - 2.0F * (xx + zz);
-    m[5] = 2.0F * (yz - wx);  // NOLINT(readability-magic-numbers)
+    m[1 * kDcmRows + 0] = 2.0F * (xy + wz);
+    m[1 * kDcmRows + 1] = 1.0F - 2.0F * (xx + zz);
+    m[1 * kDcmRows + 2] = 2.0F * (yz - wx);
 
-    m[6] = 2.0F * (xz - wy);  // NOLINT(readability-magic-numbers)
-    m[7] = 2.0F * (yz + wx);  // NOLINT(readability-magic-numbers)
-    m[8] = 1.0F - 2.0F * (xx + yy);
+    m[2 * kDcmRows + 0] = 2.0F * (xz - wy);
+    m[2 * kDcmRows + 1] = 2.0F * (yz + wx);
+    m[2 * kDcmRows + 2] = 1.0F - 2.0F * (xx + yy);
 }
 
 Vec3 Quat::to_euler() const {

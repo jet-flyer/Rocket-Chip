@@ -47,7 +47,6 @@ template <typename E>
 inline const E* evt_cast(QEvt const* e) {
     static_assert(std::is_standard_layout<E>::value,
                   "QP/C event must be standard-layout (QEvt first member) for first-member downcast");
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) — CAST-2, see above
     return reinterpret_cast<const E*>(e);
 }
 
