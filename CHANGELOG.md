@@ -46,10 +46,6 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
-### 2026-08-21-002 | Grok 4.6 (Build CLI) | documentation
-
-**Worktree project-log hygiene.** Standing procedure `docs/agents/WORKTREE.md`: hot logs (`CHANGELOG.md`, LL) are written on `main` during the sitting, never on a worktree/feature branch. Wrap/handoff only check that; they do not merge the feature. `SESSION_CHECKLIST.md` items 7–8, wrap, 11, 12 point there. `GIT_WORKFLOW.md` teardown-only LL-45 check replaced by that pointer. Verified: pure-software / docs; no `src` changes; no HW reseat.
-
 ### 2026-08-21-001 | Grok 4.6 (Build CLI) | documentation, audit
 
 **L2-P5 disposition Phases 0–2 closed on `grok/l2p5-disposition`.** Plan stays at `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress line at top). Phase 1 W-5/W-2 note closed. Phase 2: all **327** owner WNs labeled in `L2P5_DISPOSITION_LOG.md` (NOLINT 13 already remediates-closed). Next sitting is Phase 3 **P10-9**. Rem WB R-4 (codegen A/B, do not regen) and R-5 (WN-267 PIO backup flesh-out). Verified: docs-only this wrap; host ctest runs on commit; no HW reseat.

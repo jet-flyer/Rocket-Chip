@@ -65,7 +65,7 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 **Done:** Phase 0 HW/LOC baseline; Phase 1 W-5/W-2; Phase 2 **327/327** labeled; NOLINT code closed (`75a80b5`).
 
-**Next:** Phase 3 P10-9 — GPS/`kick_watchdog`/typedef sites REMEDIATE; FD + `action_executor` callbacks DEFER with WN-052 to QP eval. `lm_solver` stays closed. Worktree wrap / CHANGELOG-on-main policy closed (`docs/agents/WORKTREE.md`, `2026-08-21-002`).
+**Next:** Phase 3 P10-9 — GPS/`kick_watchdog`/typedef sites REMEDIATE; FD + `action_executor` callbacks DEFER with WN-052 to QP eval. `lm_solver` stays closed. Worktree log-on-`main` procedure is in `docs/agents/WORKTREE.md`.
 
 **Blocked:** WN-100 / Starcom / RC_OS structure / early-impl rewrites are DEFER (no code queue). Do not silent-regen `mission_profile_data.h` (R-4). Do not work Phase 3 `src/` on `main`.
 

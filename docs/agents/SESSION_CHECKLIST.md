@@ -10,7 +10,7 @@ This is an aviation-style checklist, not one isolated “module.” If you step 
 
 If the user **starts a scope**, the writes that belong to that scope are allowed, with the bars in items 7–8 and Session End: commit / push / wrap (“wrap this session up,” “session end,” “I think we’re done here,” and similar) / milestone. Hard-Protected files still need the file named. Whiteboard **adds** are ok without a prompt. `PROJECT_STATUS.md` only on milestone item 13. See `PROTECTED_FILES.md` Checklist-cadence.
 
-Initiation is by intent, not one magic phrase. Naming a protected file counts for that file. Wrap / end-session language counts for Session End (including its changelog bar). “Session handoff” / “continue tomorrow” is Handoff (item 11), not Wrap. “Continue” or “that sub-task is done” is not a wrap.
+Initiation is by intent, not one magic phrase. Naming a protected file counts for that file. Wrap / end-session language counts for Session End (including its changelog bar). “Session handoff” / “continue tomorrow” is Handoff (item 11), not Wrap. “Continue,” “that sub-task is done,” “clear up,” or “get back to other work” is not a wrap and does **not** mint a CHANGELOG entry.
 
 **Detecting strong stopping points / session conclusion:** When the user indicates a strong stopping point or conclusion for the current session (examples: language like "let's wrap this session up", "wrap things up", "wrap up the session", "anything else this session?", "I think we're done here", "session end", or other clear signals that active work is wrapping up), treat this as activation of the Session End scope.
 
@@ -93,7 +93,7 @@ Inherits all Per Commit rules. Adds the rules below — these run **once** befor
 
     **If this sitting is not on `main`:** `CHANGELOG.md` and `docs/agents/LESSONS_LEARNED.md` are committed on `main` in the primary tree, not in the same commit as the feature. "With the work" does not mean those two paths share the feature SHA. Detail: `docs/agents/WORKTREE.md`. Other cadence/protected edits still ride with the feature commit.
 
-8. **CHANGELOG — no silent skip.** **Push:** a significant unit *should usually* have an entry (frequency still per CHANGELOG.md's header). Skip is allowed; if you skip, **say so** in the reply (“no changelog this push: …”). **Session wrap / end session** (inherits this item): always write an entry unless the user says skip. **Handoff** is not a wrap — no entry unless the user asks.
+8. **CHANGELOG — no silent skip.** **When:** confirm with the user first (`CHANGELOG.md` header). Do **not** write an entry because you committed, because you chose to push, or because a sub-task finished. **Wrap / end session:** write an entry unless the user says skip. **Push** of a significant unit: should usually have an entry *after that confirm*; skip is allowed if you **say so**. **Handoff** is not a wrap — no entry unless the user asks.
 
     **Where (sitting not on `main`):** write that entry on `main` in the primary tree, never on the worktree/feature branch. Pushing the feature branch is not "the log is on main." `docs/agents/WORKTREE.md`.
 

@@ -32,7 +32,9 @@ One file, every sitting writes it, sequential or append-only. A worktree that al
 | `CHANGELOG.md` | Sequential `YYYY-MM-DD-NNN`. Two sittings on the same day both want `…-001`. |
 | `docs/agents/LESSONS_LEARNED.md` | Append-only journal. Same merge-drop class. |
 
-**Never** stage, commit, or `git add -A` these paths in the worktree. Not "with the feature so history is atomic." Not "I'll copy it to main at wrap." If the sitting needs an entry *now* (significant unit, LL while the bug is fresh, wrap later), leave the worktree, write it on `main` in the primary tree, push `origin/main`. Feature commits stay on the branch without those paths.
+**Never** stage, commit, or `git add -A` these paths in the worktree. Not "with the feature so history is atomic." Not "I'll copy it to main at wrap."
+
+**When** is not this file's invention. `CHANGELOG.md` header: confirm with the user first. Typically wrap. "Clear up," "that's done," "get back to other work," or an agent-initiated commit/push does **not** mint a `YYYY-MM-DD-NNN`. A lessons-learned note may still be written on `main` when a lesson was actually earned (checklist "log as you go") — that is not a CHANGELOG ID.
 
 The next CHANGELOG ID is **whatever `origin/main`'s `CHANGELOG.md` already shows, plus one**. Other agents do not need a reservation board, a claimed-ID whiteboard row, or changelog fragments. They read `main`, take the next NNN, commit to `main`. That is the coordination tool.
 
@@ -59,22 +61,21 @@ git diff --cached --stat
 
 If `CHANGELOG.md` or `docs/agents/LESSONS_LEARNED.md` is staged, unstage it (`git restore --staged -- <path>`). Do not use `git add -A` / `git add .` in a worktree unless you have just checked those two paths are clean.
 
-### 6. When a log entry is needed *during* work
+### 6. If a hot-log write *is* authorized
 
-Do not wait for wrap, and do not write it in the worktree. Checklist "log as you go" means write the LL/CHANGELOG entry **on `main` now**.
+Only after the user confirmed a CHANGELOG (or started wrap), or an LL entry was actually earned. Still not in the worktree — on `main` in the primary tree:
 
 ```powershell
 cd <primary>          # e.g. C:\Users\pow-w\Documents\Rocket-Chip
 git fetch origin
 git pull origin main
-# Read CHANGELOG.md; next ID = last NNN on origin/main + 1
-# Edit the hot file(s). Commit only those paths.
+# CHANGELOG: next ID = last NNN on origin/main + 1 (only if authorized)
 git add CHANGELOG.md   # and/or docs/agents/LESSONS_LEARNED.md
 git commit -m "[agent] CHANGELOG YYYY-MM-DD-NNN: <one line>"
 git push origin main
 ```
 
-Cadence (when an entry is required) is still `SESSION_CHECKLIST.md` item 8 and the CHANGELOG header. This file only fixes **where**.
+This file fixes **where**. **When** is `CHANGELOG.md`'s header + checklist item 8. Lived miss: `2026-08-21-002` was minted on `main` because a sub-task was committed and pushed without wrap or a user confirm.
 
 Then, in the worktree, merge so your checkout of those files is a read-only mirror:
 
@@ -219,7 +220,7 @@ git worktree prune
 | Event | Meaning | Does **not** mean |
 |---|---|---|
 | **Push the feature branch** | Backup. | The project log is on `main`. |
-| **Write a hot log on `main`** | Entry exists on `origin/main`. Do this when the entry is needed, including mid-sitting. | The feature was merged. The worktree must be deleted. |
+| **Write a hot log on `main`** | Entry exists on `origin/main`. Only when authorized (wrap, or user confirmed). | The feature was merged. The worktree must be deleted. A sub-task finishing. |
 | **Land the feature** | Merge because the work should ship. | Required at wrap. Required because the worktree stays alive. |
 | **Teardown** | `worktree remove` + delete branch. | The only moment the log may reach `main`. |
 
@@ -229,11 +230,11 @@ git worktree prune
 
 Landed on `SESSION_CHECKLIST.md` (items 7–8, wrap intro, 11, 12). Standing rules in this file remain the detail; the checklist is the reminder. **No Session-Start prompt.**
 
-**During Session** — If this sitting is not on `main`: follow `docs/agents/WORKTREE.md` standing rules. Do not stage `CHANGELOG.md` / `LESSONS_LEARNED.md` in the worktree. "Log as you go" writes those files on `main` in the primary tree. Merge `origin/main` into the feature when you need the mirror updated.
+**During Session** — If this sitting is not on `main`: follow `docs/agents/WORKTREE.md` standing rules. Do not stage `CHANGELOG.md` / `LESSONS_LEARNED.md` in the worktree. Merge `origin/main` into the feature when you need the mirror updated.
 
-**Item 7 (Push)** — Cadence writes to those files are committed on `main`, not in the same commit as feature work. "Atomically consistent" means the log commit is on `origin/main` before the push is called done, not that those paths share the feature SHA.
+**Item 7 (Push)** — If a CHANGELOG/LL write *was authorized*, it is committed on `main`, not in the same commit as feature work.
 
-**Item 8** — Unchanged *when* (wrap: write unless skip; push: usually; handoff: no unless asked). *Where*: on `main` only.
+**Item 8** — *When:* confirm first; wrap unless skip; agent-initiated commit/push/"clear up" does not mint an ID. *Where:* on `main` only.
 
 **Wrap / Handoff** — Log-sync check. Recovery before the scope is done. Do not merge the feature as part of wrap or handoff.
 
