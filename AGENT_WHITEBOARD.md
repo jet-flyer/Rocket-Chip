@@ -26,6 +26,12 @@ Wanted skills — not written yet. Not a license to author them until scheduled.
 
 ---
 
+## Probe dump PC not in the session diff (OPEN) (2026-08-20)
+
+When the board is stuck and the probe stacked PC/LR is **not a line this sitting edited**, do **not** patch that site first. Check E2 / probe residual power (`standards/RP2350_ERRATA.md`, `docs/FLASHING.md`: VBUS cycle; Feather-only unplug is not enough while the probe still feeds the board). Rescue-DP (`RP_AP:CTRL` `RESCUE_RESTART` / `rp2040-rescue.cfg`) is documented as **not** our primary recovery — replug is; try Rescue-DP only if physical replug stops working, and log the attempt on the E2 incident table.
+
+---
+
 ## bench_sim hook vs canary vs A/B recovery (OPEN) (2026-08-19)
 
 **Hook ≠ canary.** Same script (`scripts/bench_sim.py`); different tree, different question. Flesh out in `standards/HW_GATE_DISCIPLINE.md` Rule 5 (still cites dead checklist item 6) + drop/retarget the During Session canary paragraph.
