@@ -11,7 +11,7 @@
 // Format: RTTTL-like strings matching ArduPilot AP_Notify/ToneAlarm.
 //============================================================================
 
-#include "rocketchip/notify_backend.h"
+#include "notify_resolver.h"
 
 namespace rc {
 namespace notify {

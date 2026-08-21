@@ -8,14 +8,11 @@
 // First non-kNone category wins.
 //
 // notify_backend_led_update() calls the resolver then posts the resolved
-// pattern to AO_LedEngine via the existing AO_LedEngine_post_pattern() API.
-//
-// In IVP-115 this is compiled but not called from AO_Notify tick. IVP-116
-// wires it up atomically with removing the old direct-caller paths.
+// pattern to AO_LedEngine via AO_LedEngine_post_pattern(). Wired from
+// AO_Notify's 33 Hz tick (IVP-116).
 //============================================================================
 
 #include "notify_resolver.h"
-#include "rocketchip/notify_backend.h"
 #include "rocketchip/led_patterns.h"
 
 #ifndef ROCKETCHIP_HOST_TEST
@@ -149,11 +146,9 @@ uint8_t resolve_led_pattern(const NotifyState& s) {
 void notify_backend_led_update(const NotifyState& state) {
     uint8_t pattern = resolve_led_pattern(state);
 #ifndef ROCKETCHIP_HOST_TEST
-    // Post resolved pattern to LedEngine. IVP-115: not yet called from
-    // AO_Notify tick - wire-up in IVP-116.
     AO_LedEngine_post_pattern(pattern);
 #else
-    (void)pattern;  // Host test: resolver tested directly via resolve_led_pattern()
+    (void)pattern;
 #endif
 }
 

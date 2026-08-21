@@ -279,6 +279,24 @@ static void core1_gps_staleness_check(bool parsed, uint32_t now_us) {
     g_lastValidGpsUs = time_us_32();  // Reset timer after attempt
 }
 
+// Direct driver calls from g_gpsTransport (P10-9). false = no backend bound.
+static bool poll_bound_gps(gps_data_t* d, bool* parsed) {
+    switch (g_gpsTransport) {
+    case GPS_TRANSPORT_UART:
+        *parsed = gps_uart_update();
+        (void)gps_uart_get_data(d);
+        return true;
+    case GPS_TRANSPORT_I2C:
+        *parsed = gps_pa1010d_update();
+        busy_wait_us(kGpsSdaSettleUs);  // SDA settling delay (LL Entry 24)
+        (void)gps_pa1010d_get_data(d);
+        return true;
+    case GPS_TRANSPORT_NONE:
+    default:
+        return false;
+    }
+}
+
 // Public (sensor_core1.h) — shared with station idle-bridge tick (IVP-141).
 void core1_read_gps(shared_sensor_data_t* local_data,
                     uint32_t* last_gps_read_us) {
@@ -289,14 +307,11 @@ void core1_read_gps(shared_sensor_data_t* local_data,
 
     *last_gps_read_us = gps_now_us;
 
-    // Transport-neutral poll via function pointers (set once in init_sensors)
-    bool parsed = g_gpsFnUpdate();
-    if (g_gpsTransport == GPS_TRANSPORT_I2C) {
-        busy_wait_us(kGpsSdaSettleUs);  // SDA settling delay (LL Entry 24)
+    gps_data_t d{};
+    bool parsed = false;
+    if (!poll_bound_gps(&d, &parsed)) {
+        return;
     }
-
-    gps_data_t d;
-    g_gpsFnGetData(&d);
 
     // gps_read_count always increments -- counts driver polls, not valid fixes.
     local_data->gps_read_count++;

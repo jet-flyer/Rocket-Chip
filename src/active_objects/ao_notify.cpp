@@ -15,10 +15,9 @@
 
 #include "ao_notify.h"
 #include "rocketchip/ao_signals.h"
-#include "rocketchip/notify_backend.h"
 #include "rocketchip/prearm_fail_ticks.h"   // Stage L — pure helper
 #include "rocketchip/sensor_seqlock.h"
-#include "notify/notify_resolver.h"        // decode_health_faults()
+#include "notify/notify_resolver.h"
 #include "safety/health_monitor.h"
 #include "core1/sensor_core1.h"            // g_gpsInitialized
 #include "fusion/eskf_runner.h"            // eskf_runner_is_initialized()
@@ -106,8 +105,8 @@ static RadioIntent radio_intent_from_lq(uint8_t lq) {
     }
 }
 
-// IVP-117: notify_decode_health_faults() moved to notify_resolver.h as
-// an inline function so host tests can use it without AO dependencies.
+// decode_health_faults lives in notify_resolver.h (production helper;
+// host tests call the same function).
 
 // ============================================================================
 // Sensor status evaluation (IVP-117: migrated from AO_LedEngine)

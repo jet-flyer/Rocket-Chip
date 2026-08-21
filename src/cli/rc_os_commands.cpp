@@ -1003,11 +1003,6 @@ void cli_print_station_status() {
 // Logging / Flight Commands
 // ============================================================================
 
-// Watchdog kick callback for flash operations.
-static void flush_kick_watchdog() {
-    rc::pio_watchdog_feed();
-}
-
 static void cmd_flush_log() {
     if (!AO_Logger_is_initialized()) {
         rc::rc_log("Logging not initialized.\n");
@@ -1043,7 +1038,7 @@ static void cmd_flush_log() {
     rc::core1_i2c_pause();
 
     rc::FlushResult result = rc::flush_ring_to_flash(
-        ring, ft, &meta, &summ, rate, flush_kick_watchdog);
+        ring, ft, &meta, &summ, rate);
 
     // R-15 (2026-05-07 audit): flush_ring_to_flash() invokes flash_safe_execute()
     // many times; per LL Entry 31, runtime flash_safe_execute() leaves the I2C
@@ -1098,7 +1093,7 @@ void cli_do_erase_flights() {
     // for the same pattern.
     rc::core1_i2c_pause();
     bool ok = true;
-    if (!rc::flight_log_erase_all(ft, flush_kick_watchdog)) {
+    if (!rc::flight_log_erase_all(ft)) {
         rc::rc_log("Flash erase error.\n");
         ok = false;
     } else if (!rc::flight_table_erase_flash()) {

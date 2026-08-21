@@ -4,12 +4,12 @@
  * @file shared_state.h
  * @brief Centralized cross-core and CLI-visible global state (OPT-IVP-02).
  *
- * Consolidates all init flags, GPS function pointers, seqlock, atomics,
+ * Consolidates all init flags, GPS transport, seqlock, atomics,
  * and device handles from main.cpp. This reduces duplication and makes
  * ownership clear.
  *
  * Core 0 owns initialization.
- * Core 1 reads most sensor flags and uses the GPS function pointers.
+ * Core 1 reads most sensor flags and `g_gpsTransport`.
  * CLI reads status for display.
  */
 
@@ -51,11 +51,9 @@ extern bool g_psramFlashSafePassed;
 // Calibration storage
 extern bool g_calStorageInitialized;
 
-// GPS transport and function pointers (set once in init_sensors())
+// GPS transport (set once in init_sensors()). Callers switch on this
+// and invoke gps_uart_* or gps_pa1010d_* by name (P10-9).
 extern gps_transport_t g_gpsTransport;
-extern bool (*g_gpsFnUpdate)();
-extern bool (*g_gpsFnGetData)(gps_data_t*);
-extern bool (*g_gpsFnHasFix)();
 
 // IMU device handle (not seqlock-protected).
 // Boot: Core 0 icm20948_init in init_sensors() before g_startSensorPhase.

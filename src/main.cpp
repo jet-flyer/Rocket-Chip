@@ -100,16 +100,10 @@ namespace {
 
 void bind_gps_uart_backend() {
     g_gpsTransport = GPS_TRANSPORT_UART;
-    g_gpsFnUpdate  = gps_uart_update;
-    g_gpsFnGetData = gps_uart_get_data;
-    g_gpsFnHasFix  = gps_uart_has_fix;
 }
 
 void bind_gps_i2c_backend() {
     g_gpsTransport = GPS_TRANSPORT_I2C;
-    g_gpsFnUpdate  = gps_pa1010d_update;
-    g_gpsFnGetData = gps_pa1010d_get_data;
-    g_gpsFnHasFix  = gps_pa1010d_has_fix;
 }
 
 }  // namespace
