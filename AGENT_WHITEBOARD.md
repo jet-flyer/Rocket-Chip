@@ -46,7 +46,7 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Independent walks on main: Claude `CW-` (`L2P5_CLAUDE_WALK_FINDINGS_ALIGNED.md`) and Grok **GWF-001–498** (`L2P5_GROK_WALK_FINDINGS.md`). Prelim disposition skeleton: `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PRELIM.md` (owner WNs → Grok → Claude; one Grok/Claude contradiction: QMI IRQ window). W-5/W-2 include/consumer + concurrency 3-question still OPEN (not the Grok/Claude semantic walks). Host ctest / SPIN: see last green gate. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `L2P5_DISPOSITION_PLAN.md`; pre-change baseline `docs/baselines/l2p5_disposition_2026-08-20/` (ctest 858/858, vehicle bench_sim 2/2 ×3). Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Prelim skeleton still at `L2P5_DISPOSITION_PRELIM.md`. W-5/W-2 still OPEN. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 

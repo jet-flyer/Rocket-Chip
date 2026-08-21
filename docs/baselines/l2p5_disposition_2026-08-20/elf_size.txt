@@ -1,0 +1,2 @@
+﻿   text	   data	    bss	    dec	    hex	filename
+ 231532	      0	 324748	 556280	  87cf8	C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition\build\rocketchip.elf
