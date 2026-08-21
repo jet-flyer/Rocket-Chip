@@ -70,25 +70,6 @@ IVP-55 / “raw sensors” — those files are protected.
 (not a live prod ICD). Protected-doc tidy when owner names those files.
 **Blocking?** No
 
-### R-2 — WN-001 / WN-002 `g_imu` header contract
-
-**Surfaced:** 2026-08-20 · W-2 overlap; owner: fully address now (early-impl
-cluster, pulled forward)
-
-**What:** Rewrite `shared_state.h` `g_imu` comment to the observed model
-(Core 0 boot init → `g_startSensorPhase` → Core 1 1 kHz + recovery re-init;
-Core 0 CLI/cal still `icm20948_read`).
-
-**Follow-on (do not bury in frozen WN text):** after handoff, Core 0 still
-calls `icm20948_read(&g_imu)` from `cal_hooks.cpp` `cal_read_accel` and
-`cli/rc_os_commands.cpp` `print_direct_sensors` **without** `core1_i2c_pause`.
-Mag cal already uses the seqlock. That I2C race is the “correctness not
-established” half of WN-002 — header alone cannot close it.
-
-**Disposition target:** Erase this row when the header comment has landed.
-Follow-on becomes **R-3** (or fold into R-3 now).
-**Blocking?** No — header can land without the race patch.
-
 ### R-3 — Core 0 post-handoff `icm20948_read` vs Core 1 (WN-002 follow-on)
 
 **Surfaced:** 2026-08-20 · writing the WN-002 contract
@@ -102,3 +83,38 @@ as accepted bench-only race.
 on the log. Not an agent-chunk UART item.
 **Blocking?** No for continuing other buckets; yes for calling WN-002 *fully*
 closed.
+
+### R-4 — Codegen A/B (2026-08-21) — do not silent-regen
+
+**Surfaced:** 2026-08-21 · Phase 2 generated-files labels. Owner: labels only this
+phase; A/B already ran so park the result here for the codegen audit.
+
+**What:** `python scripts/generate_profile.py profiles/rocket.cfg --output <temp>`
+(no overwrite of prod). `rocket.cfg` sha256 prefix still `e1c22265fc444258`.
+Committed `src/flight_director/mission_profile_data.h` still has the two Stage-T
+post-gen edits (`#ifdef ROCKETCHIP_STAGE_T3_MAVLINK`, IVP-T6 comment). Regenerating
+in place would drop the MAVLink switch. **New vs the main-WB codegen-audit row:**
+HAB `generate_profile.py profiles/hab.cfg` **exits with missing required fields**
+(`BARO_LAND_RATE_MPS`, `BARO_LAND_HOLD_MS`, `DESCENT_MAX_MS`, `DROGUE_TIMER_S`,
+`MAIN_TIMER_S`); unknown cfg keys `DROGUE_TIMER_ACTION` / `MAIN_TIMER_ACTION` /
+`SAFE_MODE_ACTION` ignored. `test/test_hab_profile_data.h` not compared.
+`generate_fpft.py` not re-run (in-place write + date stamp).
+
+**Disposition target:** Main WB **Codegen audit** row. Absorb Stage-T edits into
+`generate_profile.py` (or a checked-in post-step) before any regen. Fix HAB
+cfg/generator/fixture together. Erase this row when that audit has a green A/B
+for rocket + hab (and records fpft if in scope).
+**Blocking?** No — WN-196 stays DEFER. Do not regen this pass.
+
+### R-5 — WN-267 PIO backup-timer flesh-out (not ACCEPT)
+
+**Surfaced:** 2026-08-21 · Phase 2 early-impl labels. Owner: not keep-forever;
+further flesh-out to a proper PIO backup-timer system is planned WB work.
+
+**What:** Current dual countdown is a recent deliberate IVP-130 feature (WN-267).
+Do not treat as amateur leftover. Do not ACCEPT as done. Quality / lifecycle /
+LL-42 residuals wait on that sitting.
+
+**Disposition target:** Main WB **Early-impl** table row *PIO backup pyro timers*.
+Erase when that eval/flesh-out has a keep-with-why or a named rework plan.
+**Blocking?** No

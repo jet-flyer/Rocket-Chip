@@ -46,6 +46,10 @@ A note on reliability: brand and model are almost always in your context, but th
 <!-- rules block left at the BOTTOM sinks into the middle as entries accumulate -->
 <!-- (which is how it ended up buried before). Keep rules above this marker.   -->
 
+### 2026-08-21-001 | Grok 4.6 (Build CLI) | documentation, audit
+
+**L2-P5 disposition Phases 0–2 closed on `grok/l2p5-disposition`.** Plan stays at `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress line at top). Phase 1 W-5/W-2 note closed. Phase 2: all **327** owner WNs labeled in `L2P5_DISPOSITION_LOG.md` (NOLINT 13 already remediates-closed). Next sitting is Phase 3 **P10-9**. Rem WB R-4 (codegen A/B, do not regen) and R-5 (WN-267 PIO backup flesh-out). Verified: docs-only this wrap; host ctest runs on commit; no HW reseat.
+
 ### 2026-08-20-008 | Grok 4.6 (Build CLI) | refactor, standards
 
 **L2-P5 NOLINT bucket closed.** Removed all project-authored in-source `NOLINT` (0 remaining under `src/` + `include/`). Replaced with named sourced constants, datasheet-relative burst unpack, `kDcmRows`/`kIdx*`/`kStateSize`, and `.clang-tidy` `GlobalVariableIgnoredRegexp` for TP-2 `__Stack*` (not renamed). No new accepted deviations. Host ctest 858/858. Verified: vehicle `bench_sim` 2/2 PASS, `sensors healthy — GO`, COM5 `vehicle flight v0.16.0 (kmenu)`, three boots after a full VBUS+probe power cut (E2 residual-power recovery per `standards/RP2350_ERRATA.md`); station skipped (no station on the bus). (`src/`, `include/rocketchip/`, `.clang-tidy`)

@@ -52,10 +52,26 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `L2P5_DISPOSITION_PLAN.md`; Phase 0 closed; **Phase 1 W-5/W-2 closed 2026-08-21** (`L2P5_W5_W2_2026-08-20.md`). Next is Phase 2 labels (327 WNs; NOLINT 13 already in the log). Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (**Phases 0–2 closed; Phase 2 = 327/327 labeled**). Next: Phase 3 sitting 2 **P10-9**. Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
+
+## L2-P5 disposition resume (OPEN) (2026-08-21 wrap)
+
+**Worktree:** `C:\Users\pow-w\Documents\Rocket-Chip-l2p5-disposition` · branch `grok/l2p5-disposition`. **Do not work this on `main`.**
+
+**Resume file:** `docs/audits/l2p5_manual_walk/L2P5_DISPOSITION_PLAN.md` (progress at top). Labels: `L2P5_DISPOSITION_LOG.md`. Prep: `L2P5_W5_W2_2026-08-20.md`. Rem WB: `L2P5_REMEDIATION_WHITEBOARD.md` (R-1, R-3, R-4, R-5). R-2 erased (header landed).
+
+**Done:** Phase 0 HW/LOC baseline; Phase 1 W-5/W-2; Phase 2 **327/327** labeled; NOLINT code closed (`75a80b5`).
+
+**Next (owner opens Phase 3):** P10-9 sitting — GPS/`kick_watchdog`/typedef sites REMEDIATE; FD + `action_executor` callbacks DEFER with WN-052 to QP eval. `lm_solver` stays closed.
+
+**Blocked:** Phase 3 `src/` until owner opens that sitting. WN-100 / Starcom / RC_OS structure / early-impl rewrites are DEFER (no code queue). Do not silent-regen `mission_profile_data.h` (R-4).
+
+**Concerns:** Probe residual power (E2) if the board looks dead after SWD. R-3 Core 0 `icm20948_read` vs Core 1 still open (WN-002 not fully closed).
+
+---
 
 ## P10-9 live function pointers (OPEN) (landed from walk WB W-1, 2026-08-17)
 
@@ -135,6 +151,7 @@ together, not in isolation.
 | **Sensor seqlock (Stage 3)** | Still right path for Core0↔Core1 snapshot? | L2-P5 **WN-042** (`sensor_seqlock.h`) |
 | **PCM onboard logging** | Still right shape vs Starcom/air vs Stage-17 log tier? | L2-P5 **WN-059** (`pcm_frame` + log path) |
 | **Flash layout map** | Early feature; re-eval after multi-board / storage evolution (low priority) | L2-P5 **WN-062** (`flash_layout.h`) |
+| **PIO backup pyro timers** | Flesh-out to a proper system (not “why does this exist” — recent deliberate IVP-130). Quality / lifecycle / LL-42 residuals wait on that sitting. Shared **PIO budget**. | L2-P5 **WN-267**; `src/safety/pio_backup_timer.*`; rem WB **R-5** |
 | **Radio / telem surfaces** | Many are **Starcom-gated** supersession candidates (not pure “early code smell”) | **WN-041**, **WN-046**, **WN-097** (RFM95W defer), Starcom / CCSDS rework rows |
 | **CCSDS TC + COP-1** | Command reliability layer rework — deferred post–Stage-17 (council) | Project status line; high-priority deferred radio items |
 
