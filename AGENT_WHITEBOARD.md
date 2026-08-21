@@ -52,31 +52,10 @@ Not a radio chip and not WSL. Git remote `rp400` (`npow@192.168.1.233:~/Rocket-C
 
 ## Project status (one-line snapshot)
 
-**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `L2P5_DISPOSITION_PLAN.md`; pre-change baseline `docs/baselines/l2p5_disposition_2026-08-20/` (ctest 858/858, vehicle bench_sim 2/2 ×3). Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Prelim skeleton still at `L2P5_DISPOSITION_PRELIM.md`. W-5/W-2 still OPEN. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
+**Stages 1-14 + 16A + 16B + 16C + L + T COMPLETE.** **L2-P5 itinerary 121/121 + owner WN-001–327; walk WB closed 2026-08-17.** Disposition on `grok/l2p5-disposition`: plan `L2P5_DISPOSITION_PLAN.md`; Phase 0 closed; **Phase 1 W-5/W-2 closed 2026-08-21** (`L2P5_W5_W2_2026-08-20.md`). Next is Phase 2 labels (327 WNs; NOLINT 13 already in the log). Walks: Claude `CW-` aligned pack, Grok **GWF-001–498**. Tracking: `docs/AO_ARCHITECTURE.md`. **Stage 17** plan: `docs/plans/STAGE17_TAPERED_BUILDUP.md`. **CCSDS TC + COP-1 deferred post–Stage-17.**
 
 ---
 
-## Agent re-walk checks (OPEN) (landed from walk WB W-5 + W-2, 2026-08-17)
-
-**Venue:** planned agent re-walks (owner walk did not run these systematically). **Not** a new temp doc. Frozen walk guide is not the home.
-
-**When questioning whether a header earns its own file** (sparseness, thin façade, parallel packs): attach, in the discussion or WN,
-
-1. **Direct includes** of that path under `src/` + `include/` (+ `test/` if relevant)
-2. **Symbol consumers** (may be fewer than includes; dead symbols happen)
-3. **Indirect fan-in** (selector-only packs, façade-only types)
-
-Do **not** couple later keep/fold decisions across “same class” thin headers. Owner walk applied this only a few times early (`radio_config_table`, `sensor_snapshot`); later “earns rent?” notes did not.
-
-**Concurrency 3-question pass** — for each object below, name owner / mutator / barrier. Ambiguity is the finding. Enumerate from `volatile` / `std::atomic` / `multicore_*` / spinlock — **not** every `g_` (QP `l_`→`g_` rename made that hint useless).
-
-*22 `volatile`:* `log/rc_log.cpp` `g_ring`/`g_head`/`g_tail`/`g_droppedBytes`/`g_highWater`; `drivers/gps_uart.cpp` `g_rxHead`/`g_rxTail`/`g_rxOverflow`; `safety/test_mode.cpp` `g_test_mode_arm_magic`/`g_test_mode_enabled`/`g_magicObservedAtBoot`; `cli/rc_os_commands.cpp` `g_t2_pending`/`g_t2_cmd`/`g_t2_p1`; `safety/fault_inject.cpp` `g_fault_core0_stall`/`g_fault_watchdog_skip`; `safety/station_fault_inject.cpp` `g_fault_station_rx_drop_remaining`/`g_fault_station_ack_suppress_remaining`; `safety/fault_protection.cpp` `g_inFaultHandler`; `safety/flight_in_progress.cpp` `g_flightInProgressMagic`; `safety/pyro_edge_logger.cpp` `g_count`; `flight_director/flight_director.cpp` `g_phaseObservablePair`.
-
-*9 `std::atomic`:* `shared_state.cpp` `g_startSensorPhase`/`g_sensorPhaseDone`/`g_calReloadPending`/`g_core1PauseI2C`/`g_core1I2CPaused`/`g_core1LockoutReady`; `core1/sensor_core1.cpp` `g_bestGpsValid`; `cli/rc_os.cpp` `rc_os_mag_cal_active`; `drivers/spi_bus.cpp` `g_spi_error_count`.
-
-Same test, not in the count: seqlock snapshot, PSRAM ring, AO static events.
-
----
 
 ## P10-9 live function pointers (OPEN) (landed from walk WB W-1, 2026-08-17)
 
