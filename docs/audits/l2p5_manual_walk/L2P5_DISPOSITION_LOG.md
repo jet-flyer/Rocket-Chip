@@ -39,10 +39,11 @@ Commit cited is on `grok/l2p5-disposition`.
 
 ---
 
-## Doxygen + header comment-density policy (19) — LABELED 2026-08-21
+## Doxygen + header comment-density policy (19) — SITTING 5 APPLY 2026-08-22
 
-**Sitting:** owner chunk, Phase 2 labels. **Code:** not this phase (Phase 3 sitting 5).
-**Policy to write then apply:** WN-054 (`.h` density exemption) + WN-081 (keep structured Doxygen consistently, or drop it). Not a mass delete. File-level rows are evidence for that sitting. No owner exceptions.
+**Sitting:** Phase 3 sitting 5. Inventory: `L2P5_DOXYGEN_INVENTORY_2026-08-22.md` (90 tagged files; **75 walk-missed**).
+**Policy (owner, not a CODING_STANDARDS line):** drop Doxygen markup; short `//` contracts. Existing `.cpp` 15–25% density band unchanged. No “don’t use Doxygen” sentence — absence of a requirement is the rule. Header carve-out stays mechanical.
+**Apply:** converted authored `@`/`/**`/`///` in `src/`+`include/` (not generated `eskf_codegen.h`). Sitting-5 WNs also trimmed data homes (essays → pointer/delete). Remaining process essays on non-S5 files wait sitting 13.
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
@@ -197,41 +198,42 @@ Commit cited is on `grok/l2p5-disposition`.
 
 ---
 
-## HW leakage vs domain code (28) — LABELED 2026-08-21
+## HW leakage vs domain code (28) — SITTING CLOSED 2026-08-22
 
-**Sitting:** owner chunk, Phase 2 labels. **Code:** Phase 3 sitting 4, after HW-agnostic rule (owner names `CODING_STANDARDS.md` and/or `SAD.md`).
-**Policy:** all REMEDIATE. No owner holdouts. WN-220 stays REMEDIATE (module-clarity), not ACCEPT.
+**Sitting:** Phase 3 sitting 4. **Code:** `288daf1` (rule) + `03d86ca`/`7c17290`/`3590ab2`/`0377d1d` (A–D). Merged to `main` as `2026-08-22-003`.
+**Policy applied:** `CODING_STANDARDS.md` “Hardware-agnostic domain code (no product fork).” Edge = `board_*` / `job_*` / named part drivers. Domain must not name SKU/pin. No silent-else; no fake-universal bus.
+**Not 28/28 remediates.** Six leftovers stay open as DEFER/KEEP (CHANGELOG + whiteboard 2026-08-22 wrap). Do not re-open the sitting for those; they wait their named homes.
 
 | WN | Label | State | Close |
 |----|-------|-------|-------|
-| WN-014 | REMEDIATE | labeled | pending Phase 3 — pin aliases out of `config.h` |
-| WN-020 | REMEDIATE | labeled | pending Phase 3 — silent else → Feather HSTX |
-| WN-022 | REMEDIATE | labeled | pending Phase 3 — board-pack header format family |
-| WN-023 | REMEDIATE | labeled | pending Phase 3 — optional board hooks no-op on other packs |
-| WN-024 | REMEDIATE | labeled | pending Phase 3 — UART GPS block on board packs |
-| WN-026 | REMEDIATE | labeled | pending Phase 3 — Fruit Jam onboard extras / implement status |
-| WN-027 | REMEDIATE | labeled | pending Phase 3 — Pico 2 WIP gate wording |
-| WN-028 | REMEDIATE | labeled | pending Phase 3 — Tiny 2350 WIP / oversplit |
-| WN-029 | REMEDIATE | labeled | pending Phase 3 — UART GPS + LoRa pins on every pack |
-| WN-063 | REMEDIATE | labeled | pending Phase 3 — `flash_layout.h` stay HW-agnostic |
-| WN-068 | REMEDIATE | labeled | pending Phase 3 — SKU identity in `version.h` |
-| WN-078 | REMEDIATE | labeled | pending Phase 3 — `i2c_bus` device-specific vs universal |
-| WN-080 | REMEDIATE | labeled | pending Phase 3 — I2C scan `switch` embeds HW inventory |
-| WN-102 | REMEDIATE | labeled | pending Phase 3 — Fruit Jam DIO0/RxDone in generic RFM driver |
-| WN-109 | REMEDIATE | labeled | pending Phase 3 — `spi_bus` HW-specific as universal |
-| WN-110 | REMEDIATE | labeled | pending Phase 3 — MCU-temp vs generic ADC |
-| WN-111 | REMEDIATE | labeled | pending Phase 3 — temp ADC A/B package vs board |
-| WN-124 | REMEDIATE | labeled | pending Phase 3 — INTERIM Z-up→NED negate, no safeguard |
-| WN-127 | REMEDIATE | labeled | pending Phase 3 — mag 3D/WMM silent degrade |
-| WN-138 | REMEDIATE | labeled | pending Phase 3 — `eskf.cpp` file-scope HW constants |
-| WN-156 | REMEDIATE | labeled | pending Phase 3 — cal path HW-specific vs general |
-| WN-162 | REMEDIATE | labeled | pending Phase 3 — mag thin RP2350 TRNG Fisher–Yates |
-| WN-216 | REMEDIATE | labeled | pending Phase 3 — APS6404L/Feather PSRAM board-coupled |
-| WN-220 | REMEDIATE | labeled | pending Phase 3 — SX1276-legal validate; module must be clear |
-| WN-248 | REMEDIATE | labeled | pending Phase 3 — anomalous_boot AON-timer deferral |
-| WN-309 | REMEDIATE | labeled | pending Phase 3 — `main.cpp` Fruit Jam/GPIO callouts |
-| WN-320 | REMEDIATE | labeled | pending Phase 3 — CLI HW-specific commands |
-| WN-325 | REMEDIATE | labeled | pending Phase 3 — dashboard mapping tables |
+| WN-014 | REMEDIATE | closed | `config.h` pins:: gone; callers use `board::` |
+| WN-020 | REMEDIATE | closed | unknown `PICO_BOARD` fail-closed; host still compiles Feather |
+| WN-022 | REMEDIATE | closed | pack banners: onboard vs expansion + store URL |
+| WN-023 | DEFER | labeled | no-op board hooks kept — pattern, not this sitting |
+| WN-024 | REMEDIATE | closed | UART GPS labeled expansion on these packs |
+| WN-026 | REMEDIATE | closed | Fruit Jam extras folded as not-implemented |
+| WN-027 | REMEDIATE | closed | Pico 2 WIP fail-closed wording |
+| WN-028 | DEFER | labeled | Tiny 2350 pack merge kept — wording only this sitting |
+| WN-029 | REMEDIATE | closed | LoRa pins labeled expansion (none onboard) |
+| WN-063 | REMEDIATE | closed | `flash_layout.h` is some-flash, not Feather 8 MB |
+| WN-068 | REMEDIATE | closed | board/job strings out of `version.h` |
+| WN-078 | REMEDIATE | closed | ICM stuck-slave recovery off `i2c_bus` onto `icm20948` |
+| WN-080 | REMEDIATE | closed | I2C scan names labeled as diag inventory |
+| WN-102 | REMEDIATE | closed | `kRadioTrustDio0`; no Fruit Jam name in `rfm95w` |
+| WN-109 | DEFER | labeled | `spi_bus` banner now SX1276 helper; **filename rename** still open |
+| WN-110 | ACCEPT | closed | keep thin `mcu_temp` (keep-with-why) |
+| WN-111 | REMEDIATE | closed | temp ADC channel from `board::` |
+| WN-124 | REMEDIATE | closed | `board::kImuZUpNed` |
+| WN-127 | REMEDIATE | closed | mag 3-axis opt-in comments |
+| WN-138 | REMEDIATE | closed | ESKF file-scope constants sourced/SKU-labeled |
+| WN-156 | REMEDIATE | closed | cal path SKU labels |
+| WN-162 | REMEDIATE | closed | mag shuffle: uniform RNG wrap, not portable-TRNG claim |
+| WN-216 | REMEDIATE | closed | PSRAM APS6404L/Feather banner at the edge |
+| WN-220 | REMEDIATE | closed | SX1276-legal validate; module banner names the part |
+| WN-248 | REMEDIATE | closed | AON-timer stub stays 0; POWMAN essay trimmed |
+| WN-309 | REMEDIATE | closed | pyro pins / UART GPS via `board::` in `main.cpp` |
+| WN-320 | DEFER | labeled | CLI HW-specific commands — RC_OS rework |
+| WN-325 | DEFER | labeled | dashboard mapping tables — RC_OS / display SSOT |
 
 ---
 
